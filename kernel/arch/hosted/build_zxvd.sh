@@ -97,6 +97,10 @@ set -- "$@" "$HERE/zxvd_rpc_modules.c"
 for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c stream/stream_seg.c \
          ehop/ehop_sched.c ehop/ehop_frame.c web4/web4_cid.c web4/web4_agent.c; do
     set -- "$@" "$K/src/$f"
+# the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
+set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
+for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
+    set -- "$@" "$K/src/social/$f.c"
 done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \

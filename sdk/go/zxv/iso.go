@@ -127,8 +127,8 @@ type Rail int32
 
 // The rails.
 const (
-	RailDebit  Rail = 0 // 555 NCR: asset / backing
-	RailCredit Rail = 1 // 777 NRE: claim / liability
+	RailDebit  Rail = 0 // 555 NRE: asset / backing
+	RailCredit Rail = 1 // 777 NCR: claim / liability
 	RailEquity Rail = 2 // 888 PNS: debit - credit
 )
 

@@ -74,6 +74,25 @@ pub enum RefusedKind {
     Blocked,
     /// `ZXV_E_POLICY`: refused by the function's placement policy.
     Policy,
+    /// `ZXV_E_CID`: bytes that do not match their CID, or bytes or text
+    /// that are not a canonical CID (ABI 1.5).
+    Cid,
+    /// `ZXV_E_CONSENT`: no valid consent token for the agent action.
+    Consent,
+    /// `ZXV_E_ERASURE`: fewer freight rows arrived than are needed to
+    /// rebuild the payload; wait for more rows and decode again.
+    Erasure,
+    /// `ZXV_E_PEG`: no valid signed peg for the currency pair, or a stale
+    /// or replayed one.
+    Peg,
+    /// `ZXV_E_LIMIT`: a hub limit rule refused the swap (not a fault).
+    Limit,
+    /// `ZXV_E_PARADOX_STEP`: a paradox graph reached its step limit
+    /// unresolved; it goes to the owner.
+    ParadoxStep,
+    /// `ZXV_E_PARADOX_OWNER`: the change touches money or devices and
+    /// needs the owner's approval.
+    ParadoxOwner,
     /// Another REFUSED status (added by a newer library).
     Other,
 }
@@ -95,6 +114,13 @@ impl RefusedKind {
             sys::ZXV_E_ROLLBACK => RefusedKind::Rollback,
             sys::ZXV_E_BLOCKED => RefusedKind::Blocked,
             sys::ZXV_E_POLICY => RefusedKind::Policy,
+            sys::ZXV_E_CID => RefusedKind::Cid,
+            sys::ZXV_E_CONSENT => RefusedKind::Consent,
+            sys::ZXV_E_ERASURE => RefusedKind::Erasure,
+            sys::ZXV_E_PEG => RefusedKind::Peg,
+            sys::ZXV_E_LIMIT => RefusedKind::Limit,
+            sys::ZXV_E_PARADOX_STEP => RefusedKind::ParadoxStep,
+            sys::ZXV_E_PARADOX_OWNER => RefusedKind::ParadoxOwner,
             _ => RefusedKind::Other,
         }
     }

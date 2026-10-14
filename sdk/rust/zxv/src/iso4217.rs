@@ -117,9 +117,9 @@ pub fn is_au_member(country: &str) -> Result<bool> {
 /// The three Vino rails of every account.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Rail {
-    /// 555 NCR: asset / backing.
+    /// 555 NRE: asset / backing.
     Debit,
-    /// 777 NRE: claim / liability.
+    /// 777 NCR: claim / liability.
     Credit,
     /// 888 PNS: debit - credit.
     Equity,

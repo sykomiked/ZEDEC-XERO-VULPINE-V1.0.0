@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Mobile SDKs (sdk/mobile): the Kotlin SDK (JNI shim) on the host JVM, its
-# Android AAR built with the NDK, the Dart/Flutter SDK on the Dart VM, and
-# the iOS xcframework of libzxv for Flutter apps. Every job builds libzxv
-# itself and tests against sdk/conformance/vectors.json.
+# Android AAR built with the NDK, the Dart/Flutter SDK on the Dart VM, the
+# iOS xcframework of libzxv for Flutter apps, and the web kits (Z-Web and
+# React-ZXV, on the TypeScript SDK's wasm build and addon). Every job builds
+# libzxv itself and tests against sdk/conformance/vectors.json.
 name: SDK mobile
 
 on:
@@ -18,6 +19,7 @@ on:
       - 'kernel/third_party/**'
       - '.github/workflows/sdk-mobile.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/mobile/**'
       - 'sdk/libzxv/**'
@@ -42,6 +44,7 @@ concurrency:
 
 jobs:
   kotlin-host:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: kotlin ${{ matrix.os }} JDK ${{ matrix.jdk }}
     strategy:
       fail-fast: false
@@ -78,6 +81,7 @@ jobs:
           path: sdk/mobile/kotlin/zxv/build/reports/tests/
 
   android-aar:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: android aar (arm64-v8a, x86_64)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -118,6 +122,7 @@ jobs:
           path: sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
 
   dart:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: dart ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -146,6 +151,7 @@ jobs:
         run: ZXV_LIBRARY_PATH="$PWD/../../libzxv/build" dart run example/main.dart
 
   ios-xcframework:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: ios xcframework (Flutter)
     runs-on: macos-14
     timeout-minutes: 45
@@ -164,3 +170,38 @@ jobs:
         with:
           name: Zxv.xcframework
           path: sdk/mobile/dart/build/Zxv.xcframework
+
+  web-kits:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
+    name: web kits (z-web, react-zxv)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Build libzxv and the test fixtures
+        run: make -C sdk/libzxv all fixtures
+      - name: '@zedec/zxv: addon, wasm (zig cc to wasm32-wasi), TypeScript'
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          python -m pip install ziglang==0.17.0
+          npm run build:wasm
+          npm run build:ts
+      - name: 'Z-Web: typecheck and tests (worker_threads + real wasm)'
+        working-directory: sdk/mobile/z-web
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test
+      - name: 'React-ZXV: typecheck and tests (jsdom, addon, z-web)'
+        working-directory: sdk/mobile/react-zxv
+        run: |
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm test

@@ -119,6 +119,19 @@ final class DecodeTests: XCTestCase {
         XCTAssertEqual(off.outstanding.first?.want, -1)
     }
 
+    func testChatRecordsDecode() throws {
+        let line = Data(#"{"jsonrpc":"2.0","id":5,"result":{"posts":[{"id":"aa","author":"bb","mine":false,"kind":"post","lamport":"7","wall_ms":"1700000000000","text":"hi","reply_to":null,"replies":2,"reactions":[{"emoji":"ok","count":3,"mine":true}]}]}}"#.utf8)
+        let f = try ZXVDClient.decodeReply(line, id: 5, as: ChatFeed.self, decoder: ZXVDClient.typedDecoder)
+        XCTAssertEqual(f.posts.first?.wallMs, "1700000000000")
+        XCTAssertEqual(f.posts.first?.date, Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertNil(f.posts.first?.replyTo)
+        XCTAssertEqual(f.posts.first?.reactions.first?.count, 3)
+        let none = Data(#"{"jsonrpc":"2.0","id":6,"result":{"node_id":"cc","saved":false,"records":0,"following":[]}}"#.utf8)
+        let me = try ZXVDClient.decodeReply(none, id: 6, as: ChatMe.self, decoder: ZXVDClient.typedDecoder)
+        XCTAssertEqual(me.nodeId, "cc")
+        XCTAssertFalse(me.saved)
+    }
+
     func testBooksFileDefault() {
         XCTAssertTrue(ZXVDLocation.defaultBooksPath.hasSuffix("books.zxvb"))
     }

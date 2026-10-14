@@ -22,7 +22,9 @@
 // C context is internally serialized). Budgets, PhaseClock, Attestations,
 // Swarm, Model and the ABI 1.4 hw::Matrix and hw::Region are safe to share
 // across threads. A Session is used by
-// one thread at a time (the SDK refuses concurrent use).
+// one thread at a time (the SDK refuses concurrent use). The ABI 1.5 groups
+// (treaty, cid/aipi, coin/token, fee, vhub, freight, web4, paradox) state
+// their own threading rules on each type.
 #ifndef ZXV_HPP
 #define ZXV_HPP
 
@@ -320,9 +322,11 @@ private:
 
 /// The ABI version this header was written against.
 inline constexpr std::uint32_t header_abi_major = ZXV_ABI_VERSION_MAJOR;
-/// Minimum ABI minor version this SDK needs (ABI 1.4: hardware emulation
-/// and hardware updates; 1.3 added the hexagram tag, 1.2 the *_cap forms).
-inline constexpr std::uint32_t header_abi_minor = 4;
+/// Minimum ABI minor version this SDK needs (ABI 1.5: treaties, CIDs and
+/// AIPI, Fibonacci coins and tokens, the assurance fee, the V-Bill hub,
+/// freight, Web 4 agents and the paradox engine; 1.4 added hardware
+/// emulation, 1.3 the hexagram tag, 1.2 the *_cap forms).
+inline constexpr std::uint32_t header_abi_minor = 5;
 
 /// One harmonic fundamental, in ticks (27,720 = lcm(1..11)).
 inline constexpr std::uint64_t phase_cycle = ZXV_PHASE_CYCLE;
@@ -361,6 +365,21 @@ inline constexpr std::uint32_t hex = ZXV_FEAT_HEX;             ///< hexagram tag
 inline constexpr std::uint32_t hw = ZXV_FEAT_HW;               ///< emulation matrix, ZHP-1, hardware updates (1.4)
 } // namespace feature
 
+/// Feature bits of the second mask, zxv_features2 (ZXV_FEAT2_*, ABI 1.5).
+/// The first mask is nearly full, so every ABI 1.5 group reports here. A
+/// group whose bit is clear is not built into the loaded library: every
+/// call of it throws NotImplemented (ZXV_E_NOTIMPL).
+namespace feature2 {
+inline constexpr std::uint32_t treaty = ZXV_FEAT2_TREATY;   ///< treaties: copybook records, Sutra text
+inline constexpr std::uint32_t aipi = ZXV_FEAT2_AIPI;       ///< content-addressed functions, CIDs
+inline constexpr std::uint32_t coin = ZXV_FEAT2_COIN;       ///< Fibonacci coins and token octane
+inline constexpr std::uint32_t fee = ZXV_FEAT2_FEE;         ///< assurance fee and its split
+inline constexpr std::uint32_t vhub = ZXV_FEAT2_VHUB;       ///< V-Bill hub pegs, quotes and swaps
+inline constexpr std::uint32_t freight = ZXV_FEAT2_FREIGHT; ///< erasure-coded freight packets
+inline constexpr std::uint32_t web4 = ZXV_FEAT2_WEB4;       ///< agent manifests, directory, consent
+inline constexpr std::uint32_t paradox = ZXV_FEAT2_PARADOX; ///< paradox engine
+} // namespace feature2
+
 /// Capability bits (ZXV_CAP_*). Combine with `|`.
 namespace caps {
 inline constexpr std::uint64_t ledger_read = ZXV_CAP_LEDGER_READ;   ///< read balances, journals
@@ -377,6 +396,10 @@ inline constexpr std::uint64_t all = ZXV_CAP_ALL;                   ///< every A
 inline constexpr std::uint64_t hw_matrix = ZXV_CAP_HW_MATRIX;       ///< build and call the emulation matrix (1.4)
 inline constexpr std::uint64_t hw_reconf = ZXV_CAP_HW_RECONF;       ///< load hardware images and contracts (1.4)
 inline constexpr std::uint64_t all_1_4 = ZXV_CAP_ALL_1_4;           ///< every bit as of ABI 1.4
+inline constexpr std::uint64_t aipi = ZXV_CAP_AIPI;                 ///< publish and store AIPI functions and blocks (1.5)
+inline constexpr std::uint64_t mint = ZXV_CAP_MINT;                 ///< mint tokens, change token octane (1.5)
+inline constexpr std::uint64_t paradox = ZXV_CAP_PARADOX;           ///< paradox operators, logs and policies (1.5)
+inline constexpr std::uint64_t all_1_5 = ZXV_CAP_ALL_1_5;           ///< every bit as of ABI 1.5
 } // namespace caps
 
 // ===========================================================================
@@ -534,6 +557,88 @@ public:
     using UsageError::UsageError;
 };
 
+/// Not a face of the Fibonacci ladder: a coin or token denomination that
+/// does not exist (ZXV_E_DENOM, USAGE class, ABI 1.5). To pay an arbitrary
+/// amount, split it (coin::split, token::canonical).
+class DenominationError : public UsageError {
+public:
+    using UsageError::UsageError;
+};
+
+/// A treaty failed validation (ZXV_E_TREATY, USAGE class, ABI 1.5). When the
+/// SDK raised it from a parse or a validation it carries the reason
+/// (treaty::Fault, as its integer value) and, for a parse, the byte offset
+/// of the first fault; otherwise both are 0.
+class TreatyError : public UsageError {
+public:
+    /// From a status and detail only (fault and offset 0).
+    TreatyError(std::int32_t status, std::string detail) : UsageError(status, std::move(detail)) {}
+    /// With the ZXV_TREATY_FAULT_* reason and the byte offset of the fault.
+    TreatyError(std::int32_t status, std::string detail, std::int32_t fault, std::uint32_t offset)
+        : UsageError(status, std::move(detail)), fault_(fault), offset_(offset)
+    {
+    }
+    /// The ZXV_TREATY_FAULT_* value (convert with treaty::Fault).
+    [[nodiscard]] std::int32_t fault_code() const noexcept { return fault_; }
+    /// The byte offset of the first fault in the parsed text or record.
+    [[nodiscard]] std::uint32_t offset() const noexcept { return offset_; }
+
+private:
+    std::int32_t fault_ = 0;
+    std::uint32_t offset_ = 0;
+};
+
+/// Bytes do not match their CID, or the CID itself is malformed (ZXV_E_CID,
+/// REFUSED class, ABI 1.5). Drop bytes that fail; never use them.
+class CidMismatch : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// No valid consent for this agent action (ZXV_E_CONSENT, ABI 1.5): no
+/// token, a mismatch, expired, a bad signature, or a token already used or
+/// revoked. detail() says which; never branch on it.
+class ConsentDenied : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// Too few distinct freight rows arrived to rebuild the payload
+/// (ZXV_E_ERASURE, ABI 1.5). Decode again when more rows arrive.
+class ErasureError : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// No valid signed peg for this currency pair, or a stale or replayed peg
+/// epoch (ZXV_E_PEG, ABI 1.5).
+class PegError : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// A V-Bill hub limit rule refused the swap (ZXV_E_LIMIT, ABI 1.5). Not a
+/// fault: the rule did its job; a later rule epoch may allow it.
+class LimitRefused : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// A paradox graph reached its step limit unresolved and was escalated to
+/// the owner (ZXV_E_PARADOX_STEP, ABI 1.5). The pass was logged and the
+/// graph stays readable.
+class ParadoxStepLimit : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// The action needs the owner's approval: it touches money or devices
+/// (ZXV_E_PARADOX_OWNER, ABI 1.5).
+class OwnerApprovalRequired : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
 /// SYSTEM class: out of memory, I/O, internal or unknown status.
 class SystemError : public Exception {
 public:
@@ -630,6 +735,8 @@ struct CtxCore {
     case StatusClass::usage:
         if (status == ZXV_E_FLOAT) throw FloatRejected(status, std::move(detail));
         if (status == ZXV_E_TARGET) throw TargetMismatch(status, std::move(detail));
+        if (status == ZXV_E_DENOM) throw DenominationError(status, std::move(detail));
+        if (status == ZXV_E_TREATY) throw TreatyError(status, std::move(detail));
         throw UsageError(status, std::move(detail));
     case StatusClass::refused:
         switch (status) {
@@ -644,6 +751,13 @@ struct CtxCore {
         case ZXV_E_ROLLBACK: throw RollbackRefused(status, std::move(detail));
         case ZXV_E_BLOCKED: throw ImageBlocked(status, std::move(detail));
         case ZXV_E_POLICY: throw PolicyDenied(status, std::move(detail));
+        case ZXV_E_CID: throw CidMismatch(status, std::move(detail));
+        case ZXV_E_CONSENT: throw ConsentDenied(status, std::move(detail));
+        case ZXV_E_ERASURE: throw ErasureError(status, std::move(detail));
+        case ZXV_E_PEG: throw PegError(status, std::move(detail));
+        case ZXV_E_LIMIT: throw LimitRefused(status, std::move(detail));
+        case ZXV_E_PARADOX_STEP: throw ParadoxStepLimit(status, std::move(detail));
+        case ZXV_E_PARADOX_OWNER: throw OwnerApprovalRequired(status, std::move(detail));
         default: throw RefusedError(status, std::move(detail));
         }
     case StatusClass::ok: // a non-negative status never reaches here
@@ -713,7 +827,19 @@ inline std::uint32_t features()
 /// True if every bit of `mask` (zxv::feature::*) is live in this build.
 inline bool has_feature(std::uint32_t mask) { return (features() & mask) == mask; }
 
-/// Refuse a library whose major version differs or whose minor is below 4
+/// Bitmask of the ABI 1.5 groups live in the linked libzxv
+/// (zxv::feature2::*, zxv_features2).
+inline std::uint32_t features2()
+{
+    std::uint32_t m = 0;
+    detail::check(zxv_features2(&m));
+    return m;
+}
+
+/// True if every bit of `mask` (zxv::feature2::*) is live in this build.
+inline bool has_feature2(std::uint32_t mask) { return (features2() & mask) == mask; }
+
+/// Refuse a library whose major version differs or whose minor is below 5
 /// (SDK_DESIGN.md section 1). Called once, automatically, by Context.
 inline void ensure_compatible()
 {
@@ -721,7 +847,7 @@ inline void ensure_compatible()
     if (v.major != header_abi_major || v.minor < header_abi_minor)
         throw SystemError(ZXV_E_INTERNAL, "libzxv ABI " + std::to_string(v.major) + "." +
                                               std::to_string(v.minor) + " is not compatible with " +
-                                              "this SDK (needs 1.4 or later 1.x)");
+                                              "this SDK (needs 1.5 or later 1.x)");
 }
 
 // ===========================================================================
@@ -1381,8 +1507,8 @@ inline constexpr std::int64_t amount_max = ZXV_AMOUNT_MAX;
 
 /// Rail balances of an account in exact minor units.
 struct Balance {
-    std::int64_t debit = 0;  ///< 555 NCR: sum received
-    std::int64_t credit = 0; ///< 777 NRE: sum sent
+    std::int64_t debit = 0;  ///< 555 NRE: sum received
+    std::int64_t credit = 0; ///< 777 NCR: sum sent
     std::int64_t equity = 0; ///< 888 PNS: debit - credit (spendable)
 };
 
@@ -4618,6 +4744,3741 @@ private:
 };
 
 } // namespace hw
+
+// ===========================================================================
+// ABI 1.5: shared helpers
+// ===========================================================================
+//
+// ABI 1.5 adds eight groups, each in its own namespace:
+//
+//   zxv::treaty   COBOL copybook treaties and their Sutra text (pure)
+//   zxv::cid      IPFS content identifiers, byte-identical to Kubo (pure)
+//   zxv::aipi     AIPI function, call and claim records; an offline node
+//   zxv::coin     the VFV Fibonacci coin ladder (pure)
+//   zxv::token    swarm token tiers, octane, Fibonacci codes; a wallet
+//   zxv::fee      the 0.08889% assurance fee and its four buckets (pure)
+//   zxv::vhub     a demo V-Bill hub: test currencies, signed pegs, swaps
+//   zxv::freight  erasure-coded 168-row freight packets and op streams
+//   zxv::web4     Web 4 agents, signed manifests, consent, envelopes
+//   zxv::paradox  the paradox engine: kinds, operators, logs, graphs
+//
+// Everything is integers (64-bit values stay 64-bit; no floating point).
+// Variable-length results use the C two-call buffer pattern, hidden here:
+// every function returns a std::vector or std::string. Groups that belong
+// to a context take a Capability at construction, keep it, and fail closed
+// with FatalError once the context halts. Every handle type is move-only;
+// using a moved-from handle throws UsageError (ZXV_E_ARG) instead of
+// reaching C.
+
+namespace detail {
+
+/// Deleter for a C handle with a `void destroy(T*)` function.
+template <class T, void (*Destroy)(T*)>
+struct HandleDel {
+    void operator()(T* p) const noexcept { Destroy(p); }
+};
+/// A uniquely owned C handle.
+template <class T, void (*Destroy)(T*)>
+using Owned = std::unique_ptr<T, HandleDel<T, Destroy>>;
+
+/// The handle, or UsageError when the owning object was moved from.
+template <class T>
+T* live(T* p, const char* what)
+{
+    if (!p) throw UsageError(ZXV_E_ARG, std::string("use of a moved-from ") + what);
+    return p;
+}
+
+/// "R4 for bytes": try a buffer of `guess` bytes, grow it once to the
+/// length the library reports, and return exactly the result's bytes.
+template <class F>
+std::vector<std::uint8_t> read_bytes(F&& call, CtxCore* core = nullptr, std::size_t guess = 256)
+{
+    std::vector<std::uint8_t> v(guess);
+    std::size_t need = 0;
+    std::int32_t st = call(v.empty() ? nullptr : v.data(), v.size(), &need);
+    if (st == ZXV_E_BUFFER) {
+        v.assign(need, 0);
+        st = call(v.empty() ? nullptr : v.data(), v.size(), &need);
+    }
+    check(st, core);
+    v.resize(need);
+    return v;
+}
+
+/// A NUL-terminated view of `s`, refusing embedded NULs (which C would
+/// silently treat as the end of the text).
+inline const char* cstr(const std::string& s, const char* what)
+{
+    if (s.find('\0') != std::string::npos) throw UsageError(ZXV_E_ARG, std::string(what) + " contains a NUL byte");
+    return s.c_str();
+}
+
+/// A copy of `b` as a fixed array, after checking its size.
+template <std::size_t N>
+std::array<std::uint8_t, N> fixed(std::span<const std::uint8_t> b, const char* what)
+{
+    need_size(b, N, what);
+    std::array<std::uint8_t, N> a{};
+    std::copy(b.begin(), b.end(), a.begin());
+    return a;
+}
+
+/// Little-endian readers for the record layouts the C header documents.
+inline std::uint32_t le32(const std::uint8_t* p) noexcept
+{
+    return static_cast<std::uint32_t>(p[0]) | static_cast<std::uint32_t>(p[1]) << 8 |
+           static_cast<std::uint32_t>(p[2]) << 16 | static_cast<std::uint32_t>(p[3]) << 24;
+}
+inline std::uint64_t le64(const std::uint8_t* p) noexcept
+{
+    return static_cast<std::uint64_t>(le32(p)) | static_cast<std::uint64_t>(le32(p + 4)) << 32;
+}
+inline Digest32 digest_at(const std::uint8_t* p) noexcept
+{
+    Digest32 d{};
+    std::copy(p, p + 32, d.begin());
+    return d;
+}
+
+/// The capability core a 1.5 handle is created from, kept alive by it.
+inline const std::shared_ptr<CapCore>& cap_of(const Capability& cap)
+{
+    if (!cap.core()) throw UsageError(ZXV_E_ARG, "use of a moved-from zxv::Capability");
+    return cap.core();
+}
+
+} // namespace detail
+
+// ===========================================================================
+// Treaties (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: treaties. A treaty is one batch of settlement work: who takes
+/// part, what each party deposits and may claim back, how the batch's
+/// dividend is shared (each party's weight num/den), and who owes whom. It
+/// has two exact spellings of the same treaty:
+///
+///   * the RECORD, a fixed treaty::record_bytes-byte COBOL copybook record
+///     (ZXVTRTY.cpy, all DISPLAY text, so plain ASCII everywhere), and
+///   * the SUTRA, compact text such as
+///
+///         TREATY CORRIDOR-7 USD SETL
+///         PARTY ACME 5000 4000 1/2
+///         PARTY BETA 3000 3000 1/2
+///         OWE ACME BETA 1200
+///         END
+///
+/// Both are canonical: parse then emit gives the input back byte for byte,
+/// and the record and Sutra forms of one treaty compare equal. Every parse
+/// and emit checks R1 (weights in lowest terms adding up to exactly 1), R2
+/// (claim <= deposit), R3 (amounts fit PIC S9(18)) and R4 (1..16 distinct
+/// parties, 0..64 obligations between two different known parties). A
+/// refusal is TreatyError, carrying the treaty::Fault and, for a parse, the
+/// byte offset of the first fault.
+///
+/// Everything here is pure: no context, no capability. Running a treaty
+/// works in a private scratch engine freed before the call returns; its
+/// numbers are a deterministic report, not a payment.
+///
+/// Honest limits: a treaty is a batch description, not a contract in law
+/// (signatures, consent and authority live elsewhere); one asset per
+/// treaty; the dividend shares are reported only, nothing is paid out.
+namespace treaty {
+
+inline constexpr std::size_t record_bytes = ZXV_TREATY_REC_LEN;        ///< ZXVTRTY.cpy record length
+inline constexpr std::size_t result_record_bytes = ZXV_TREATY_RESULT_LEN; ///< ZXVRSLT.cpy record length
+inline constexpr std::size_t sutra_max = ZXV_TREATY_SUTRA_MAX;         ///< longest canonical Sutra text
+inline constexpr std::uint32_t max_parties = ZXV_TREATY_MAX_PARTIES;   ///< parties per treaty
+inline constexpr std::uint32_t max_obligations = ZXV_TREATY_MAX_OWES;  ///< obligations per treaty
+inline constexpr std::size_t name_max = ZXV_TREATY_NAME_MAX;           ///< treaty name: A-Z 0-9 '-', starts with a letter
+inline constexpr std::size_t id_max = ZXV_TREATY_ID_MAX;               ///< party id length, same alphabet
+inline constexpr std::int64_t pic18_max = ZXV_TREATY_PIC18_MAX;        ///< largest PIC S9(18) magnitude
+inline constexpr std::uint32_t weight_max = ZXV_TREATY_WEIGHT_MAX;     ///< largest weight term, PIC 9(9)
+
+/// What a treaty asks the engine to do.
+enum class Op : std::int32_t {
+    none = 0,                   ///< an empty treaty
+    net = ZXV_TREATY_OP_NET,    ///< net the obligations only
+    settle = ZXV_TREATY_OP_SETL ///< net, post the legs with the fee, pay the claims
+};
+
+/// Why a treaty was refused (TreatyError::fault_code()).
+enum class Fault : std::int32_t {
+    none = ZXV_TREATY_FAULT_NONE,     ///< valid
+    magic = ZXV_TREATY_FAULT_MAGIC,   ///< record does not start with "ZXT1"
+    syntax = ZXV_TREATY_FAULT_SYNTAX, ///< Sutra text outside the grammar (also non-ASCII text)
+    name = ZXV_TREATY_FAULT_NAME,     ///< treaty name not 1..30 of A-Z 0-9 '-'
+    asset = ZXV_TREATY_FAULT_ASSET,   ///< asset not three capital letters
+    op = ZXV_TREATY_FAULT_OP,         ///< operation not NET or SETL
+    count = ZXV_TREATY_FAULT_COUNT,   ///< party or obligation count out of range
+    number = ZXV_TREATY_FAULT_NUMBER, ///< malformed number or outside PIC S9(18)
+    party = ZXV_TREATY_FAULT_PARTY,   ///< bad, duplicate or unknown party id
+    weight = ZXV_TREATY_FAULT_WEIGHT, ///< R1: weights not in lowest terms or not summing to 1
+    claim = ZXV_TREATY_FAULT_CLAIM,   ///< R2: a claim above its deposit
+    owe = ZXV_TREATY_FAULT_OWE,       ///< an obligation to self, or not above zero
+    pad = ZXV_TREATY_FAULT_PAD,       ///< an unused record slot or field not blank
+};
+
+/// A short lower-case name of a fault ("weight"); "unknown" otherwise.
+constexpr std::string_view to_string(Fault f) noexcept
+{
+    switch (f) {
+    case Fault::none: return "none";
+    case Fault::magic: return "magic";
+    case Fault::syntax: return "syntax";
+    case Fault::name: return "name";
+    case Fault::asset: return "asset";
+    case Fault::op: return "op";
+    case Fault::count: return "count";
+    case Fault::number: return "number";
+    case Fault::party: return "party";
+    case Fault::weight: return "weight";
+    case Fault::claim: return "claim";
+    case Fault::owe: return "owe";
+    case Fault::pad: return "pad";
+    }
+    return "unknown";
+}
+
+/// The fault a TreatyError carries.
+inline Fault fault_of(const TreatyError& e) noexcept { return static_cast<Fault>(e.fault_code()); }
+
+/// One party of a treaty.
+struct Party {
+    std::string id;                ///< 1..8 of A-Z 0-9 '-', starts with a letter
+    std::int64_t deposit = 0;      ///< minor units of the asset deposited (>= 0)
+    std::int64_t claim = 0;        ///< minor units it may claim back (<= deposit)
+    std::uint32_t weight_num = 0;  ///< dividend weight numerator
+    std::uint32_t weight_den = 1;  ///< dividend weight denominator (lowest terms)
+};
+
+/// One obligation: party `from` owes party `to` `amount` (0-based indices).
+struct Obligation {
+    std::uint32_t from = 0;   ///< index of the payer
+    std::uint32_t to = 0;     ///< index of the payee
+    std::int64_t amount = 0;  ///< minor units (> 0)
+};
+
+/// One party's line of a run result.
+struct PartyResult {
+    std::int64_t net = 0;      ///< what it is owed minus what it owes (gross)
+    std::int64_t balance = 0;  ///< NET: its deposit; SETL: what it holds after legs, fee and claim
+    std::int64_t dividend = 0; ///< its reported dividend share (0 for NET; reported, not paid)
+};
+
+/// One netted leg: party `from` pays party `to` `amount` (0-based indices).
+struct Leg {
+    std::uint32_t from = 0;  ///< index of the payer
+    std::uint32_t to = 0;    ///< index of the payee
+    std::int64_t amount = 0; ///< minor units
+};
+
+/// What running a treaty returned. Immutable, so any number of threads may
+/// read it; independent of the treaty it came from. Move-only.
+class Result {
+public:
+    Result(Result&&) noexcept = default;            ///< move
+    Result& operator=(Result&&) noexcept = default; ///< move-assign
+    Result(const Result&) = delete;
+    Result& operator=(const Result&) = delete;
+    ~Result() = default;
+
+    /// Number of parties (treaty order).
+    [[nodiscard]] std::uint32_t party_count() const { return summary().parties; }
+    /// Number of netted legs (at most parties - 1).
+    [[nodiscard]] std::uint32_t leg_count() const { return summary().legs; }
+    /// The total assurance fee charged (0 for NET).
+    [[nodiscard]] std::int64_t fees() const { return summary().fees; }
+    /// Party `index` (treaty order). UsageError (ZXV_E_NOT_FOUND) past the end.
+    [[nodiscard]] PartyResult party(std::uint32_t index) const
+    {
+        PartyResult p;
+        detail::check(zxv_treaty_result_party(get(), index, &p.net, &p.balance, &p.dividend));
+        return p;
+    }
+    /// Every party, in treaty order.
+    [[nodiscard]] std::vector<PartyResult> parties() const
+    {
+        std::vector<PartyResult> v;
+        for (std::uint32_t i = 0, n = party_count(); i < n; ++i) v.push_back(party(i));
+        return v;
+    }
+    /// Netted leg `index`. UsageError (ZXV_E_NOT_FOUND) past the end.
+    [[nodiscard]] Leg leg(std::uint32_t index) const
+    {
+        Leg l;
+        detail::check(zxv_treaty_result_leg(get(), index, &l.from, &l.to, &l.amount));
+        return l;
+    }
+    /// Every netted leg, in order.
+    [[nodiscard]] std::vector<Leg> legs() const
+    {
+        std::vector<Leg> v;
+        for (std::uint32_t i = 0, n = leg_count(); i < n; ++i) v.push_back(leg(i));
+        return v;
+    }
+    /// The ZXVRSLT.cpy result record (result_record_bytes bytes; party
+    /// numbers in it are 1-based, as the copybook says).
+    [[nodiscard]] std::vector<std::uint8_t> record() const
+    {
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_treaty_result_record(get(), b, c, n);
+        }, nullptr, result_record_bytes);
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] const zxv_treaty_result* native_handle() const noexcept { return r_.get(); }
+
+private:
+    friend class Treaty;
+    struct Summary {
+        std::uint32_t parties = 0, legs = 0;
+        std::int64_t fees = 0;
+    };
+    explicit Result(zxv_treaty_result* r) noexcept : r_(r) {}
+    [[nodiscard]] const zxv_treaty_result* get() const { return detail::live(r_.get(), "treaty::Result"); }
+    [[nodiscard]] Summary summary() const
+    {
+        Summary s;
+        detail::check(zxv_treaty_result_summary(get(), &s.parties, &s.legs, &s.fees));
+        return s;
+    }
+    detail::Owned<zxv_treaty_result, zxv_treaty_result_destroy> r_;
+};
+
+/// One treaty. A default-constructed Treaty is empty (no parties) and fails
+/// validation until a parse fills it. NOT thread-safe: use it from one
+/// thread at a time (concurrent const calls are fine). Move-only.
+///
+///     auto t = zxv::treaty::Treaty::from_sutra(text);   // TreatyError on a bad treaty
+///     auto rec = t.record();                             // the same treaty as a copybook record
+///     auto r = t.run();                                  // a deterministic report
+class Treaty {
+public:
+    /// An empty treaty.
+    Treaty()
+    {
+        zxv_treaty* t = nullptr;
+        detail::check(zxv_treaty_create(&t));
+        t_.reset(t);
+    }
+    Treaty(Treaty&&) noexcept = default;            ///< move
+    Treaty& operator=(Treaty&&) noexcept = default; ///< move-assign
+    Treaty(const Treaty&) = delete;
+    Treaty& operator=(const Treaty&) = delete;
+    ~Treaty() = default;
+
+    /// Parse Sutra text (at most sutra_max bytes). TreatyError with the
+    /// fault and its byte offset when it is refused.
+    static Treaty from_sutra(const std::string& text)
+    {
+        Treaty t;
+        t.parse_sutra(text);
+        return t;
+    }
+    /// Parse a copybook record of exactly record_bytes bytes (UsageError
+    /// ZXV_E_ARG for another length; TreatyError when it is refused).
+    static Treaty from_record(std::span<const std::uint8_t> record)
+    {
+        Treaty t;
+        t.parse_record(record);
+        return t;
+    }
+
+    /// Replace the contents by parsed Sutra text. On any failure the treaty
+    /// is unchanged. TreatyError (with fault and offset), UsageError
+    /// (ZXV_E_UTF8, ZXV_E_TOO_LONG).
+    void parse_sutra(const std::string& text)
+    {
+        const char* s = detail::cstr(text, "Sutra text");
+        parse([&](std::uint32_t* off, std::int32_t* f) { return zxv_treaty_parse_sutra(get(), s, off, f); });
+    }
+    /// Replace the contents by a parsed copybook record. On any failure the
+    /// treaty is unchanged.
+    void parse_record(std::span<const std::uint8_t> record)
+    {
+        parse([&](std::uint32_t* off, std::int32_t* f) {
+            return zxv_treaty_parse_record(get(), record.data(), record.size(), off, f);
+        });
+    }
+    /// Empty it again.
+    void clear() { detail::check(zxv_treaty_clear(get())); }
+
+    /// The first rule this treaty breaks, or Fault::none. Never throws for
+    /// an invalid treaty (an empty one reads Fault::name).
+    [[nodiscard]] Fault fault() const
+    {
+        std::int32_t f = 0;
+        const std::int32_t st = zxv_treaty_validate(get(), &f);
+        if (st != ZXV_E_TREATY) detail::check(st);
+        return static_cast<Fault>(f);
+    }
+    /// True if the treaty validates.
+    [[nodiscard]] bool is_valid() const { return fault() == Fault::none; }
+    /// Throw TreatyError (with its fault) unless the treaty validates.
+    void validate() const
+    {
+        call([&] { return zxv_treaty_validate(get(), nullptr); });
+    }
+
+    /// The canonical Sutra text. TreatyError if it does not validate.
+    [[nodiscard]] std::string sutra() const
+    {
+        std::string s;
+        call([&] {
+            std::size_t need = 0;
+            std::int32_t st = zxv_treaty_emit_sutra(get(), nullptr, 0, &need);
+            if (st != ZXV_E_BUFFER) return st;
+            s.assign(need, '\0');
+            st = zxv_treaty_emit_sutra(get(), s.data(), need + 1, &need);
+            if (st == ZXV_OK) s.resize(need);
+            return st;
+        });
+        return s;
+    }
+    /// The canonical copybook record (record_bytes bytes). TreatyError if it
+    /// does not validate.
+    [[nodiscard]] std::vector<std::uint8_t> record() const
+    {
+        std::vector<std::uint8_t> v(record_bytes);
+        std::size_t n = 0;
+        call([&] { return zxv_treaty_emit_record(get(), v.data(), v.size(), &n); });
+        v.resize(n);
+        return v;
+    }
+
+    /// The treaty name ("" when empty).
+    [[nodiscard]] std::string name() const
+    {
+        return detail::read_text([&](char* b, std::size_t c, std::size_t* n) { return zxv_treaty_name(get(), b, c, n); });
+    }
+    /// The asset, three capital letters ("" when empty).
+    [[nodiscard]] std::string asset() const
+    {
+        return detail::read_text([&](char* b, std::size_t c, std::size_t* n) { return zxv_treaty_asset(get(), b, c, n); });
+    }
+    /// The operation (Op::none when empty).
+    [[nodiscard]] Op op() const { return static_cast<Op>(header().op); }
+    /// Number of parties.
+    [[nodiscard]] std::uint32_t party_count() const { return header().parties; }
+    /// Number of obligations.
+    [[nodiscard]] std::uint32_t obligation_count() const { return header().owes; }
+    /// Party `index` (0-based, treaty order). UsageError (ZXV_E_NOT_FOUND)
+    /// past the last party.
+    [[nodiscard]] Party party(std::uint32_t index) const
+    {
+        Party p;
+        p.id = detail::read_text(
+            [&](char* b, std::size_t c, std::size_t* n) { return zxv_treaty_party_id(get(), index, b, c, n); });
+        detail::check(zxv_treaty_party(get(), index, &p.deposit, &p.claim, &p.weight_num, &p.weight_den));
+        return p;
+    }
+    /// Every party, in treaty order.
+    [[nodiscard]] std::vector<Party> parties() const
+    {
+        std::vector<Party> v;
+        for (std::uint32_t i = 0, n = party_count(); i < n; ++i) v.push_back(party(i));
+        return v;
+    }
+    /// Obligation `index` (0-based). UsageError (ZXV_E_NOT_FOUND) past the end.
+    [[nodiscard]] Obligation obligation(std::uint32_t index) const
+    {
+        Obligation o;
+        detail::check(zxv_treaty_owe(get(), index, &o.from, &o.to, &o.amount));
+        return o;
+    }
+    /// Every obligation, in order.
+    [[nodiscard]] std::vector<Obligation> obligations() const
+    {
+        std::vector<Obligation> v;
+        for (std::uint32_t i = 0, n = obligation_count(); i < n; ++i) v.push_back(obligation(i));
+        return v;
+    }
+
+    /// Run the treaty in a fresh private engine: fund each deposit, net the
+    /// obligations, and for SETL post the legs with the 0.08889% assurance
+    /// fee (all or nothing), pay each claim back and report each party's
+    /// dividend share. Nothing persists and no capability is needed; the
+    /// same treaty always gives the same result. Takes about 500 KB of heap
+    /// for the call. TreatyError (invalid), InsufficientFunds (a payer
+    /// cannot cover its legs plus the fee, or a claim exceeds what is left),
+    /// UsageError ZXV_E_RANGE (a position leaves PIC S9(18) or an amount
+    /// exceeds 2^59), SystemError ZXV_E_INTERNAL (a kernel bug).
+    [[nodiscard]] Result run() const
+    {
+        zxv_treaty_result* r = nullptr;
+        call([&] { return zxv_treaty_run(get(), &r); });
+        return Result(r);
+    }
+
+    /// True if both hold the same treaty (every field, every slot), whatever
+    /// spelling each was parsed from. Two empty treaties are equal.
+    friend bool operator==(const Treaty& a, const Treaty& b)
+    {
+        std::int32_t eq = 0;
+        detail::check(zxv_treaty_equal(a.get(), b.get(), &eq));
+        return eq != 0;
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_treaty* native_handle() const noexcept { return t_.get(); }
+
+private:
+    struct Header {
+        std::int32_t op = 0;
+        std::uint32_t parties = 0, owes = 0;
+    };
+    [[nodiscard]] zxv_treaty* get() const { return detail::live(t_.get(), "treaty::Treaty"); }
+    [[nodiscard]] Header header() const
+    {
+        Header h;
+        detail::check(zxv_treaty_header(get(), &h.op, &h.parties, &h.owes));
+        return h;
+    }
+    template <class F>
+    static void parse(F&& f)
+    {
+        std::uint32_t off = 0;
+        std::int32_t fault = 0;
+        const std::int32_t st = f(&off, &fault);
+        if (st == ZXV_E_TREATY) throw TreatyError(st, last_error(), fault, off);
+        detail::check(st);
+    }
+    /// Map a status; a ZXV_E_TREATY gains the treaty's fault.
+    template <class F>
+    void call(F&& f) const
+    {
+        const std::int32_t st = f();
+        if (st != ZXV_E_TREATY) {
+            detail::check(st);
+            return;
+        }
+        std::string why = last_error();
+        std::int32_t fault = 0;
+        (void) zxv_treaty_validate(get(), &fault);
+        throw TreatyError(st, std::move(why), fault, 0);
+    }
+    detail::Owned<zxv_treaty, zxv_treaty_destroy> t_;
+};
+
+/// Quotient and remainder of pic_div.
+struct Division {
+    std::int64_t quotient = 0;  ///< truncated toward zero
+    std::int64_t remainder = 0; ///< has the dividend's sign
+};
+
+/// a + b as COBOL computes PIC S9(18) with ON SIZE ERROR: exact, or
+/// UsageError (ZXV_E_RANGE) when an operand or the result leaves
+/// [-pic18_max, pic18_max].
+inline std::int64_t pic_add(std::int64_t a, std::int64_t b)
+{
+    std::int64_t r = 0;
+    detail::check(zxv_treaty_pic_add(a, b, &r));
+    return r;
+}
+/// a - b in PIC S9(18) (see pic_add).
+inline std::int64_t pic_sub(std::int64_t a, std::int64_t b)
+{
+    std::int64_t r = 0;
+    detail::check(zxv_treaty_pic_sub(a, b, &r));
+    return r;
+}
+/// a * b in PIC S9(18) (see pic_add).
+inline std::int64_t pic_mul(std::int64_t a, std::int64_t b)
+{
+    std::int64_t r = 0;
+    detail::check(zxv_treaty_pic_mul(a, b, &r));
+    return r;
+}
+/// DIVIDE a BY b GIVING q REMAINDER r: -7 / 2 = -3 rem -1, 7 / -2 = -3
+/// rem 1. UsageError (ZXV_E_RANGE) for b = 0 or an operand out of range.
+inline Division pic_div(std::int64_t a, std::int64_t b)
+{
+    Division d;
+    detail::check(zxv_treaty_pic_div(a, b, &d.quotient, &d.remainder));
+    return d;
+}
+
+} // namespace treaty
+
+// ===========================================================================
+// CIDs (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: IPFS content identifiers. A CID names bytes by what they are (a
+/// hash), not where they live. The CIDs here are byte-for-byte the ones
+/// Kubo makes (tested against Kubo 0.32.1): Cid::compute is `ipfs block
+/// put`, Cid::unixfs is `ipfs add --cid-version=1`, and to_text() with
+/// Base::kubo prints what Kubo prints. Everything here is pure.
+///
+/// Honest limits: a CID proves which bytes are meant; it does not make them
+/// available (a CID resolves only while someone holds the bytes) and it
+/// does not prove a function's claimed output is right.
+namespace cid {
+
+inline constexpr std::size_t max_bytes = ZXV_CID_MAX;       ///< longest binary CID
+inline constexpr std::size_t text_max = ZXV_CID_TEXT_MAX;   ///< longest CID text
+inline constexpr std::size_t digest_max = ZXV_CID_DIGEST_MAX; ///< longest multihash digest
+inline constexpr std::uint32_t codec_raw = ZXV_CID_CODEC_RAW;       ///< multicodec raw (0x55): plain bytes
+inline constexpr std::uint32_t codec_dag_pb = ZXV_CID_CODEC_DAG_PB; ///< multicodec dag-pb (0x70): UnixFS
+inline constexpr std::uint32_t hash_identity = ZXV_CID_HASH_IDENTITY; ///< identity multihash
+inline constexpr std::uint32_t hash_sha2_256 = ZXV_CID_HASH_SHA2_256; ///< sha2-256 multihash
+
+/// How a CID is written as text.
+enum class Base : std::uint32_t {
+    kubo = ZXV_CID_BASE_DEFAULT,     ///< Kubo's form: CIDv1 "b..." base32, CIDv0 "Qm..."
+    base58btc = ZXV_CID_BASE_58BTC,  ///< "z..." base58btc (the AIPI form); CIDv1 only
+};
+
+/// The parts of a CID.
+struct Info {
+    std::uint32_t version = 0;         ///< 0 or 1
+    std::uint32_t codec = 0;           ///< multicodec (codec_raw, codec_dag_pb, an AIPI codec)
+    std::uint32_t hash = 0;            ///< multihash code (hash_sha2_256, hash_identity)
+    std::vector<std::uint8_t> digest;  ///< the multihash digest
+};
+
+/// A CID in its binary form (version, codec, multihash): an immutable value
+/// of at most max_bytes bytes. Every Cid made by this SDK is exactly one
+/// canonical CIDv0 or CIDv1, checked by libzxv; a default-constructed Cid
+/// is empty() and every libzxv call refuses it.
+class Cid {
+public:
+    /// An empty, invalid CID (a placeholder).
+    constexpr Cid() noexcept = default;
+
+    /// Check and copy binary CID bytes. CidMismatch (ZXV_E_CID) if they are
+    /// not exactly one canonical CIDv0 or CIDv1.
+    static Cid from_bytes(std::span<const std::uint8_t> bytes)
+    {
+        if (bytes.size() > max_bytes) throw CidMismatch(ZXV_E_CID, "CID longer than ZXV_CID_MAX bytes");
+        Cid c;
+        std::copy(bytes.begin(), bytes.end(), c.b_.begin());
+        c.n_ = bytes.size();
+        detail::check(zxv_cid_info(c.b_.data(), c.n_, nullptr, nullptr, nullptr, nullptr, nullptr));
+        return c;
+    }
+    /// Parse CID text: "b..." (CIDv1 base32), "Qm..." (CIDv0) or "z..."
+    /// (CIDv1 base58btc). Only canonical text is accepted (no upper case,
+    /// padding or other bases): CidMismatch otherwise; UsageError for ""
+    /// (ZXV_E_ARG) or text over text_max (ZXV_E_TOO_LONG).
+    static Cid parse(const std::string& text)
+    {
+        const char* t = detail::cstr(text, "CID text");
+        return make([&](std::uint8_t* o, std::size_t* n) { return zxv_cid_from_text(t, o, n); });
+    }
+    /// The CIDv1 of `data` as one block: sha2-256 under multicodec `codec`
+    /// (Kubo `ipfs block put`).
+    static Cid compute(std::span<const std::uint8_t> data, std::uint32_t codec = codec_raw)
+    {
+        return make([&](std::uint8_t* o, std::size_t* n) { return zxv_cid_compute(codec, data.data(), data.size(), o, n); });
+    }
+    /// The root CID Kubo gives `data` as a file (`ipfs add --cid-version=1`:
+    /// 256 KiB chunks, raw leaves): a raw CID up to 262144 bytes, a dag-pb
+    /// root above. The blocks are not kept.
+    static Cid unixfs(std::span<const std::uint8_t> data)
+    {
+        return make([&](std::uint8_t* o, std::size_t* n) { return zxv_cid_unixfs(data.data(), data.size(), o, n); });
+    }
+
+    /// The binary form.
+    [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept { return {b_.data(), n_}; }
+    /// Length of the binary form.
+    [[nodiscard]] std::size_t size() const noexcept { return n_; }
+    /// True for a default-constructed placeholder.
+    [[nodiscard]] bool empty() const noexcept { return n_ == 0; }
+
+    /// The text form. CidMismatch for a CIDv0 in Base::base58btc (it has no
+    /// multibase form).
+    [[nodiscard]] std::string to_text(Base base = Base::kubo) const
+    {
+        return detail::read_text([&](char* b, std::size_t c, std::size_t* n) {
+            return zxv_cid_to_text(b_.data(), n_, static_cast<std::uint32_t>(base), b, c, n);
+        });
+    }
+    /// Version, codec, hash code and digest.
+    [[nodiscard]] Info info() const
+    {
+        Info i;
+        std::array<std::uint8_t, digest_max> d{};
+        std::size_t dl = 0;
+        detail::check(zxv_cid_info(b_.data(), n_, &i.version, &i.codec, &i.hash, d.data(), &dl));
+        i.digest.assign(d.begin(), d.begin() + static_cast<std::ptrdiff_t>(dl));
+        return i;
+    }
+    /// The CIDv1 of this CID (a CIDv0 becomes dag-pb CIDv1 with the same
+    /// hash, Kubo `ipfs cid base32`; a CIDv1 is returned unchanged).
+    [[nodiscard]] Cid to_v1() const
+    {
+        return make([&](std::uint8_t* o, std::size_t* n) { return zxv_cid_to_v1(b_.data(), n_, o, n); });
+    }
+    /// True if `data` is exactly the block this CID names (re-hashed; an
+    /// identity CID compares the bytes). A UnixFS root names its root BLOCK,
+    /// not the file: check a file with Cid::unixfs(file) == root instead.
+    [[nodiscard]] bool matches(std::span<const std::uint8_t> data) const
+    {
+        const std::int32_t st = zxv_cid_verify(b_.data(), n_, data.data(), data.size());
+        if (st == ZXV_E_CID && !empty()) return false;
+        detail::check(st);
+        return true;
+    }
+    /// Like matches(), but throws CidMismatch when the bytes do not match.
+    void verify(std::span<const std::uint8_t> data) const
+    {
+        detail::check(zxv_cid_verify(b_.data(), n_, data.data(), data.size()));
+    }
+
+    /// Same bytes.
+    friend bool operator==(const Cid& a, const Cid& b) noexcept
+    {
+        return std::equal(a.b_.begin(), a.b_.begin() + static_cast<std::ptrdiff_t>(a.n_), b.b_.begin(),
+                          b.b_.begin() + static_cast<std::ptrdiff_t>(b.n_));
+    }
+    /// Byte-wise order (for ordered containers).
+    friend bool operator<(const Cid& a, const Cid& b) noexcept
+    {
+        return std::lexicographical_compare(a.b_.begin(), a.b_.begin() + static_cast<std::ptrdiff_t>(a.n_),
+                                            b.b_.begin(), b.b_.begin() + static_cast<std::ptrdiff_t>(b.n_));
+    }
+
+private:
+    template <class F>
+    static Cid make(F&& f)
+    {
+        Cid c;
+        std::size_t n = 0;
+        detail::check(f(c.b_.data(), &n));
+        c.n_ = n;
+        return c;
+    }
+    std::array<std::uint8_t, ZXV_CID_MAX> b_{};
+    std::size_t n_ = 0;
+};
+
+/// Stream as Kubo text.
+inline std::ostream& operator<<(std::ostream& os, const Cid& c) { return os << c.to_text(); }
+
+} // namespace cid
+
+// ===========================================================================
+// AIPI (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: AIPI, content-addressed functions (docs/AIPI.md). AIPI names
+/// data, functions and calls by CIDs:
+///
+///   * data: raw (or dag-pb) CIDs of blobs, Z-Wasm modules and contracts;
+///   * a function: the CID of its canonical function record (codec
+///     aipi::mc_fn + intent), so one function has exactly one CID;
+///   * a call: the CID of a call record (function CID + input);
+///   * a claim: an executor's answer, the bytes the executor signs.
+///
+/// The record functions are pure. aipi::Node is an OFFLINE, in-process IPFS
+/// block store with the AIPI context over it (needs caps::aipi to store).
+///
+/// Honest limits: no network transport (no mesh, IPFS peers, gateway or
+/// libp2p: a get finds only what was put into this node); no EXECUTE
+/// (running a function needs the Z-Wasm sandbox in sdk/kits/aipi, which is
+/// not part of libzxv: plan() only reports the route); no money moves here;
+/// signing and checking claims is the caller's job. The 0x3A10xx codecs are
+/// multicodec private-use values, not registered.
+namespace aipi {
+
+inline constexpr std::uint32_t mc_fn = ZXV_AIPI_MC_FN;                       ///< zxv-fn (intent 0)
+inline constexpr std::uint32_t mc_tensor_infer = ZXV_AIPI_MC_TENSOR_INFER;   ///< zxv-tensor-infer (intent 1)
+inline constexpr std::uint32_t mc_settle_ledger = ZXV_AIPI_MC_SETTLE_LEDGER; ///< zxv-settle-ledger (intent 2)
+inline constexpr std::uint32_t mc_swarm_route = ZXV_AIPI_MC_SWARM_ROUTE;     ///< zxv-swarm-route (intent 3)
+inline constexpr std::uint32_t mc_call = ZXV_AIPI_MC_CALL;                   ///< zxv-aipi-call
+inline constexpr std::size_t name_max = ZXV_AIPI_NAME_MAX;       ///< export names: [A-Za-z0-9_]{1,63}
+inline constexpr std::size_t io_max = ZXV_AIPI_IO_MAX;           ///< call input, claim output
+inline constexpr std::size_t cert_max = ZXV_AIPI_CERT_MAX;       ///< claim certificate
+inline constexpr std::uint32_t quorum_max = ZXV_AIPI_QUORUM_MAX; ///< QUORUM n
+inline constexpr std::size_t fn_max = ZXV_AIPI_FN_MAX;           ///< longest function record
+inline constexpr std::size_t call_max = ZXV_AIPI_CALL_MAX;       ///< longest call record
+inline constexpr std::size_t claim_max = ZXV_AIPI_CLAIM_MAX;     ///< longest claim record
+inline constexpr std::size_t block_max = ZXV_AIPI_BLOCK_MAX;     ///< largest blob a node stores (2 MiB)
+inline constexpr std::size_t store_min = ZXV_AIPI_STORE_MIN;     ///< smallest node store
+inline constexpr std::size_t store_max = ZXV_AIPI_STORE_MAX;     ///< largest node store (256 MiB)
+inline constexpr std::uint32_t blocks_max = ZXV_AIPI_BLOCKS_MAX; ///< most blocks per node
+
+/// What a function computes; it picks the function CID's codec.
+enum class Intent : std::uint32_t {
+    fn = ZXV_AIPI_INTENT_FN,                       ///< a general function
+    tensor_infer = ZXV_AIPI_INTENT_TENSOR_INFER,   ///< tensor inference
+    settle_ledger = ZXV_AIPI_INTENT_SETTLE_LEDGER, ///< ledger settlement
+    swarm_route = ZXV_AIPI_INTENT_SWARM_ROUTE,     ///< swarm routing
+};
+/// How a result is accepted.
+enum class Verify : std::uint32_t {
+    checker = ZXV_AIPI_VERIFY_CHECKER, ///< a checker export judges (input, output)
+    cert = ZXV_AIPI_VERIFY_CERT,       ///< as checker, with a certificate
+    quorum = ZXV_AIPI_VERIFY_QUORUM,   ///< k of n executors agree byte for byte
+    local = ZXV_AIPI_VERIFY_LOCAL,     ///< never accept a remote result
+};
+/// Whether the function may leave the node.
+enum class Privacy : std::uint32_t {
+    public_ = ZXV_AIPI_PRIV_PUBLIC, ///< may be announced and fetched
+    local = ZXV_AIPI_PRIV_LOCAL,    ///< private or key-bearing: never leaves the node (stored sealed)
+};
+/// Whether two runs on the same input give the same bytes.
+enum class Determinism : std::uint32_t {
+    nondeterministic = ZXV_AIPI_DET_NONDETERMINISTIC, ///< outputs may differ
+    deterministic = ZXV_AIPI_DET_DETERMINISTIC,       ///< same input, same output (needed by QUORUM)
+};
+/// The route a call would take (Node::plan). This offline library reports
+/// only local or unavailable; the others are the kernel's routes for a
+/// networked host.
+enum class Route : std::int32_t {
+    cache = ZXV_AIPI_ROUTE_CACHE,             ///< a cached result (networked hosts)
+    local = ZXV_AIPI_ROUTE_LOCAL,             ///< the code is held here
+    fetch_local = ZXV_AIPI_ROUTE_FETCH_LOCAL, ///< fetch, then run here (networked hosts)
+    mesh = ZXV_AIPI_ROUTE_MESH,               ///< run on the mesh (networked hosts)
+    unavailable = ZXV_AIPI_ROUTE_UNAVAILABLE, ///< the module (or contract) is not held
+};
+
+/// Every field of a function record. encode_function checks them all and
+/// masks none: quorum_n/k are for Verify::quorum only (2 <= n <= 8,
+/// n/2 < k <= n, deterministic) and 0 otherwise; checker is for checker and
+/// cert only (and differs from entry); certifier is for cert only.
+struct FunctionSpec {
+    Intent intent = Intent::fn;                                 ///< picks the function CID's codec
+    Verify verify = Verify::local;                              ///< how a result is accepted
+    Privacy privacy = Privacy::public_;                         ///< public or node-local
+    Determinism determinism = Determinism::deterministic;       ///< determinism class
+    std::uint32_t quorum_n = 0;                                 ///< QUORUM n, else 0
+    std::uint32_t quorum_k = 0;                                 ///< QUORUM k, else 0
+    std::uint64_t fuel_max = 0;                                 ///< > 0: the most fuel one run may use
+    cid::Cid module;                                            ///< CIDv1 raw sha2-256 of the Z-Wasm module
+    std::optional<cid::Cid> contract;                           ///< CIDv1 raw sha2-256 of the z-contract text
+    std::string entry;                                          ///< the export computing the result
+    std::string checker;                                        ///< checker export, or "" for none
+    std::string certifier;                                      ///< certifier export, or "" for none
+};
+
+/// The canonical function record of `f`. UsageError (ZXV_E_ARG for a field
+/// out of range or breaking a rule, ZXV_E_TOO_LONG for a name over 63
+/// bytes, ZXV_E_UTF8), CidMismatch (a module or contract CID that is not
+/// CIDv1 raw sha2-256).
+inline std::vector<std::uint8_t> encode_function(const FunctionSpec& f)
+{
+    const char* entry = detail::cstr(f.entry, "entry");
+    const char* checker = f.checker.empty() ? nullptr : detail::cstr(f.checker, "checker");
+    const char* certifier = f.certifier.empty() ? nullptr : detail::cstr(f.certifier, "certifier");
+    return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_aipi_fn_encode(static_cast<std::uint32_t>(f.intent), static_cast<std::uint32_t>(f.verify),
+                                  static_cast<std::uint32_t>(f.privacy), static_cast<std::uint32_t>(f.determinism),
+                                  f.quorum_n, f.quorum_k, f.fuel_max, f.module.bytes().data(), f.module.size(),
+                                  f.contract ? f.contract->bytes().data() : nullptr, f.contract ? f.contract->size() : 0,
+                                  entry, checker, certifier, b, c, n);
+    }, nullptr, fn_max);
+}
+
+/// Check a function record strictly (it must be the canonical encoding) and
+/// read every field. UsageError (ZXV_E_FORMAT) otherwise.
+inline FunctionSpec decode_function(std::span<const std::uint8_t> record)
+{
+    FunctionSpec f;
+    std::uint32_t it = 0, ve = 0, pr = 0, de = 0;
+    detail::check(zxv_aipi_fn_decode(record.data(), record.size(), &it, &ve, &pr, &de, &f.quorum_n, &f.quorum_k,
+                                     &f.fuel_max));
+    f.intent = static_cast<Intent>(it);
+    f.verify = static_cast<Verify>(ve);
+    f.privacy = static_cast<Privacy>(pr);
+    f.determinism = static_cast<Determinism>(de);
+    auto get_cid = [&](std::uint32_t field) -> std::optional<cid::Cid> {
+        std::array<std::uint8_t, ZXV_CID_MAX> c{};
+        std::size_t n = 0;
+        const std::int32_t st = zxv_aipi_fn_get_cid(record.data(), record.size(), field, c.data(), &n);
+        if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+        detail::check(st);
+        return cid::Cid::from_bytes({c.data(), n});
+    };
+    auto get_name = [&](std::uint32_t field) {
+        return detail::read_text([&](char* b, std::size_t c, std::size_t* n) {
+            return zxv_aipi_fn_get_name(record.data(), record.size(), field, b, c, n);
+        });
+    };
+    f.module = *get_cid(ZXV_AIPI_FIELD_MODULE);
+    f.contract = get_cid(ZXV_AIPI_FIELD_CONTRACT);
+    f.entry = get_name(ZXV_AIPI_FIELD_ENTRY);
+    f.checker = get_name(ZXV_AIPI_FIELD_CHECKER);
+    f.certifier = get_name(ZXV_AIPI_FIELD_CERTIFIER);
+    return f;
+}
+
+/// The function CID of a record: codec mc_fn + intent, sha2-256 of the
+/// record bytes. UsageError (ZXV_E_FORMAT) for a record that is not one.
+inline cid::Cid function_cid(std::span<const std::uint8_t> record)
+{
+    std::array<std::uint8_t, ZXV_CID_MAX> c{};
+    std::size_t n = 0;
+    detail::check(zxv_aipi_fn_cid(record.data(), record.size(), c.data(), &n));
+    return cid::Cid::from_bytes({c.data(), n});
+}
+
+/// The call record naming one invocation of `function` on `input` (at most
+/// io_max bytes). CidMismatch (not a function CID), UsageError
+/// (ZXV_E_TOO_LONG).
+inline std::vector<std::uint8_t> encode_call(const cid::Cid& function, std::span<const std::uint8_t> input)
+{
+    return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_aipi_call_encode(function.bytes().data(), function.size(), input.data(), input.size(), b, c, n);
+    }, nullptr, call_max);
+}
+
+/// The parts of a call record.
+struct Call {
+    cid::Cid function;               ///< the function CID
+    std::vector<std::uint8_t> input; ///< the input bytes
+};
+
+/// Check a call record strictly and copy out its parts. UsageError
+/// (ZXV_E_FORMAT) otherwise.
+inline Call decode_call(std::span<const std::uint8_t> record)
+{
+    std::size_t fo = 0, fl = 0, io = 0, il = 0;
+    detail::check(zxv_aipi_call_decode(record.data(), record.size(), &fo, &fl, &io, &il));
+    Call c;
+    c.function = cid::Cid::from_bytes(record.subspan(fo, fl));
+    const auto in = record.subspan(io, il);
+    c.input.assign(in.begin(), in.end());
+    return c;
+}
+
+/// The call CID (codec mc_call, sha2-256 of the call record) of
+/// (`function`, `input`). Errors as encode_call.
+inline cid::Cid call_cid(const cid::Cid& function, std::span<const std::uint8_t> input)
+{
+    std::array<std::uint8_t, ZXV_CID_MAX> c{};
+    std::size_t n = 0;
+    detail::check(zxv_aipi_call_cid(function.bytes().data(), function.size(), input.data(), input.size(), c.data(), &n));
+    return cid::Cid::from_bytes({c.data(), n});
+}
+
+/// A 32-byte executor (node) id.
+using ExecutorId = std::array<std::uint8_t, 32>;
+
+/// The claim record an executor signs: its `output` (and, for cert
+/// functions, `cert`) for the call `call`. Signing it is the caller's job.
+/// CidMismatch (not a call CID), UsageError (ZXV_E_TOO_LONG: output or cert
+/// over 1024 bytes).
+inline std::vector<std::uint8_t> encode_claim(const cid::Cid& call, const ExecutorId& executor,
+                                              std::span<const std::uint8_t> output,
+                                              std::span<const std::uint8_t> cert = {})
+{
+    return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_aipi_claim_encode(call.bytes().data(), call.size(), executor.data(), output.data(), output.size(),
+                                     cert.data(), cert.size(), b, c, n);
+    }, nullptr, claim_max);
+}
+
+/// The parts of a claim record.
+struct Claim {
+    cid::Cid call;                    ///< the call CID it answers
+    ExecutorId executor{};            ///< the executor's node id
+    std::vector<std::uint8_t> output; ///< its answer
+    std::vector<std::uint8_t> cert;   ///< its certificate (cert functions), else empty
+};
+
+/// Check a claim record strictly and copy out its parts. UsageError
+/// (ZXV_E_FORMAT) otherwise. The signature over it is not checked here.
+inline Claim decode_claim(std::span<const std::uint8_t> record)
+{
+    std::size_t co = 0, cl = 0, eo = 0, oo = 0, ol = 0, xo = 0, xl = 0;
+    detail::check(zxv_aipi_claim_decode(record.data(), record.size(), &co, &cl, &eo, &oo, &ol, &xo, &xl));
+    Claim c;
+    c.call = cid::Cid::from_bytes(record.subspan(co, cl));
+    const auto ex = record.subspan(eo, 32);
+    std::copy(ex.begin(), ex.end(), c.executor.begin());
+    const auto out = record.subspan(oo, ol);
+    c.output.assign(out.begin(), out.end());
+    const auto ce = record.subspan(xo, xl);
+    c.cert.assign(ce.begin(), ce.end());
+    return c;
+}
+
+/// The Kademlia key under which providers of `cid` are announced on Vinea:
+/// SHA-256("zxv/aipi/v1/provider" || binary CID). Pure; announcing is not
+/// in this library.
+inline Digest32 provider_key(const cid::Cid& c)
+{
+    Digest32 k{};
+    detail::check(zxv_aipi_provider_key(c.bytes().data(), c.size(), k.data()));
+    return k;
+}
+
+/// Audit counters of a Node.
+struct NodeInfo {
+    std::uint32_t blocks = 0;          ///< blocks indexed
+    std::uint64_t store_used = 0;      ///< store bytes used
+    std::uint32_t gets_verified = 0;   ///< gets whose bytes re-hashed to their CID
+    std::uint32_t forbidden = 0;       ///< gets whose stored bytes failed their hash (dropped)
+};
+
+/// An offline, in-memory IPFS node (block store and pins) with the AIPI
+/// context over it. It belongs to the context of the capability that
+/// created it and fails closed with it (FatalError). Storing needs
+/// caps::aipi; reads need only the node. Internally serialized: any thread
+/// may call it. Move-only; destroying it wipes the node key.
+class Node {
+public:
+    /// A node holding at most `max_blocks` blocks (1..blocks_max) in
+    /// `store_bytes` (store_min..store_max; each block costs its length plus
+    /// about 100 bytes). `node_key` (32 bytes, copied; empty for none) seals
+    /// private blocks with ChaCha20-Poly1305; without it private puts throw
+    /// RefusedError (ZXV_E_STATE). Needs caps::aipi.
+    Node(const Capability& cap, std::size_t store_bytes, std::uint32_t max_blocks,
+         std::span<const std::uint8_t> node_key = {})
+        : cap_(detail::cap_of(cap))
+    {
+        if (!node_key.empty()) detail::need_size(node_key, 32, "AIPI node key");
+        zxv_aipi* a = nullptr;
+        cap_->call([&] {
+            return zxv_aipi_create(cap_->cap, store_bytes, max_blocks, node_key.empty() ? nullptr : node_key.data(), &a);
+        });
+        a_.reset(a);
+    }
+    Node(Node&&) noexcept = default;            ///< move
+    Node& operator=(Node&&) noexcept = default; ///< move-assign
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+    ~Node() = default;
+
+    /// Store and pin `data` (at most block_max bytes) as one raw block and
+    /// return its CID. `is_private` stores it sealed and never announceable.
+    /// The same bytes again is a no-op; the same bytes public after private
+    /// (or the reverse) is RefusedError (ZXV_E_STATE): making something
+    /// public is a deliberate act. RefusedError (ZXV_E_CAPACITY) when full.
+    cid::Cid put(std::span<const std::uint8_t> data, bool is_private = false)
+    {
+        return out_cid([&](std::uint8_t* o, std::size_t* n) {
+            return zxv_aipi_put(cap_->cap, node(), data.data(), data.size(), is_private ? 1 : 0, o, n);
+        });
+    }
+    /// The bytes `c` names, re-hashed before they are returned. UsageError
+    /// (ZXV_E_NOT_FOUND: not held here, and there is no network),
+    /// CidMismatch (an identity CID, or stored bytes that no longer match:
+    /// those are dropped), RefusedError (ZXV_E_STATE: private and no key).
+    [[nodiscard]] std::vector<std::uint8_t> get(const cid::Cid& c) const
+    {
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t cp, std::size_t* n) {
+            return zxv_aipi_get(node(), c.bytes().data(), c.size(), b, cp, n);
+        }, cap_->ctx.get());
+    }
+    /// Store a function record (checked strictly; sealed when its privacy is
+    /// local) and return its function CID. The module and contract need not
+    /// be held yet. Needs caps::aipi.
+    cid::Cid publish(std::span<const std::uint8_t> function_record)
+    {
+        return out_cid([&](std::uint8_t* o, std::size_t* n) {
+            return zxv_aipi_publish_fn(cap_->cap, node(), function_record.data(), function_record.size(), o, n);
+        });
+    }
+    /// The function record a function CID names, verified by hash, decoded
+    /// strictly and its codec checked against its intent.
+    [[nodiscard]] std::vector<std::uint8_t> load(const cid::Cid& function) const
+    {
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t cp, std::size_t* n) {
+            return zxv_aipi_load_fn(node(), function.bytes().data(), function.size(), b, cp, n);
+        }, cap_->ctx.get(), fn_max);
+    }
+    /// The route a call of `function` on `input` would take now. It runs and
+    /// changes nothing: Route::local when the module (and contract) are
+    /// held, else Route::unavailable.
+    [[nodiscard]] Route plan(const cid::Cid& function, std::span<const std::uint8_t> input = {},
+                             bool input_private = false) const
+    {
+        std::int32_t r = 0;
+        run([&] {
+            return zxv_aipi_plan(node(), function.bytes().data(), function.size(), input.data(), input.size(),
+                                 input_private ? 1 : 0, &r);
+        });
+        return static_cast<Route>(r);
+    }
+    /// The audit counters.
+    [[nodiscard]] NodeInfo info() const
+    {
+        NodeInfo i;
+        run([&] { return zxv_aipi_info(node(), &i.blocks, &i.store_used, &i.gets_verified, &i.forbidden); });
+        return i;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_aipi* native_handle() const noexcept { return a_.get(); }
+
+private:
+    [[nodiscard]] zxv_aipi* node() const { return detail::live(a_.get(), "aipi::Node"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        (void) node();
+        cap_->call(std::forward<F>(f));
+    }
+    template <class F>
+    cid::Cid out_cid(F&& f)
+    {
+        std::array<std::uint8_t, ZXV_CID_MAX> c{};
+        std::size_t n = 0;
+        run([&] { return f(c.data(), &n); });
+        return cid::Cid::from_bytes({c.data(), n});
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the node
+    detail::Owned<zxv_aipi, zxv_aipi_destroy> a_;
+};
+
+} // namespace aipi
+
+
+// ===========================================================================
+// Fibonacci coins and swarm tokens (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: the VFV coin ladder (Vino). A coin's face is a rung of the
+/// Fibonacci ladder: rung r (1..rungs) has face F(r+1), so the faces are 1,
+/// 2, 3, 5, 8, 13, ... up to top_face (rung 45). Rung 0 is the ceremonial
+/// V0 note, face 0. Any other face (4, 6, 100, ...) is not a coin
+/// (DenominationError); pay an arbitrary amount with split(). Pure and
+/// integer-only.
+///
+/// Honest limit: minting coins is not in this ABI yet (the kernel's mint
+/// needs a coin-store handle bound to a ledger and an integer mint path);
+/// caps::mint is used only by token::Wallet.
+namespace coin {
+
+inline constexpr std::uint32_t rungs = ZXV_COIN_RUNGS;      ///< rungs 1..45 carry value
+inline constexpr std::uint64_t top_face = ZXV_COIN_TOP_FACE; ///< face of rung 45, F(46) = 1,836,311,903
+
+/// The face of ladder rung `rung` (0..rungs; rung 0 is the V0 note, face
+/// 0). UsageError (ZXV_E_RANGE) above 45.
+inline std::uint64_t face(std::uint32_t rung)
+{
+    std::uint64_t f = 0;
+    detail::check(zxv_coin_face(rung, &f));
+    return f;
+}
+
+/// The rung whose face is exactly `face` (face 1 is rung 1). Throws
+/// DenominationError for 0 and any face not on the ladder, including
+/// Fibonacci numbers above top_face.
+inline std::uint32_t rung(std::uint64_t face)
+{
+    std::uint32_t r = 0;
+    detail::check(zxv_coin_rung(face, &r));
+    return r;
+}
+
+/// How many coins split(amount) returns, without allocating them.
+/// UsageError (ZXV_E_RANGE) when the split would need more than
+/// 4,294,967,294 coins (amounts of about 7.9e18 and up).
+inline std::size_t split_count(std::uint64_t amount)
+{
+    std::size_t n = 0;
+    const std::int32_t st = zxv_coin_split(amount, nullptr, 0, &n);
+    if (st != ZXV_E_BUFFER) detail::check(st);
+    return n;
+}
+
+/// The coins for a whole `amount` as rungs, largest first: its Zeckendorf
+/// split (floor(amount / top_face) top coins first, then each lower rung at
+/// most once and never two neighbours), the unique fewest-coins form. 0 is
+/// an empty split. Check split_count() first for very large amounts: each
+/// coin takes 4 bytes here.
+inline std::vector<std::uint32_t> split(std::uint64_t amount)
+{
+    std::vector<std::uint32_t> v(split_count(amount));
+    std::size_t n = 0;
+    detail::check(zxv_coin_split(amount, v.empty() ? nullptr : v.data(), v.size(), &n));
+    v.resize(n);
+    return v;
+}
+
+} // namespace coin
+
+/// ABI 1.5: swarm AI token tiers, octane and Fibonacci codes. Tier k
+/// (0..tiers-1) has face F(k+2): 1, 2, 3, 5, 8, ... F(65); tiers super_tier
+/// (face 144) and up are super tokens. A holding is Counts (tokens held per
+/// tier); its value is the sum of count * face. OCTANE is the densest tier a
+/// holding may use (octane::plain .. octane::max, named like a fuel pump's
+/// grades; any 0..63 is allowed). The canonical form of a value at octane o
+/// puts floor(value / face(o)) tokens on tier o and the rest in Zeckendorf
+/// form below it: one canonical form per value per octane.
+///
+/// NO PREMIUM: a dense token is worth exactly its face in plain tokens.
+/// Density earns no interest, costs no fee and buys no allotment or
+/// priority; changing octane never changes the value. It buys only fewer
+/// pieces (1,000,000 tokens are 17 pieces at octane::racing), which helps
+/// wherever tokens are handled one piece at a time. It does not make a model
+/// faster or an amount shorter on the wire.
+///
+/// The free functions are pure. A value that would pass 64 bits throws
+/// UsageError (ZXV_E_RANGE) and changes nothing.
+namespace token {
+
+inline constexpr std::uint32_t tiers = ZXV_TOKEN_TIERS;           ///< 64 tiers
+inline constexpr std::uint32_t super_tier = ZXV_TOKEN_SUPER_TIER; ///< first super-token tier (face 144)
+inline constexpr std::uint32_t code_max_bits = ZXV_TOKEN_CODE_MAX_BITS;   ///< longest Fibonacci code (93 bits)
+inline constexpr std::size_t code_max_bytes = ZXV_TOKEN_CODE_MAX_BYTES;   ///< largest code buffer
+
+/// The named octane grades.
+namespace octane {
+inline constexpr std::uint32_t plain = ZXV_OCTANE_PLAIN;       ///< face 1 only
+inline constexpr std::uint32_t regular = ZXV_OCTANE_REGULAR;   ///< up to face 8
+inline constexpr std::uint32_t midgrade = ZXV_OCTANE_MIDGRADE; ///< up to face 89
+inline constexpr std::uint32_t premium = ZXV_OCTANE_PREMIUM;   ///< up to face 987
+inline constexpr std::uint32_t racing = ZXV_OCTANE_RACING;     ///< up to face 75025
+inline constexpr std::uint32_t max = ZXV_OCTANE_MAX;           ///< up to face F(65)
+} // namespace octane
+
+/// A holding: tokens held per tier (index = tier).
+using Counts = std::array<std::uint64_t, ZXV_TOKEN_TIERS>;
+
+/// The face of a tier and whether it is a super token.
+struct TierFace {
+    std::uint64_t face = 0;  ///< F(tier + 2)
+    bool is_super = false;   ///< tier >= super_tier
+};
+
+/// The value of a holding and its number of pieces.
+struct Value {
+    std::uint64_t value = 0;  ///< sum of count * face
+    std::uint64_t pieces = 0; ///< sum of counts
+};
+
+/// The face of `tier`. UsageError (ZXV_E_RANGE) for tier >= 64.
+inline TierFace face(std::uint32_t tier)
+{
+    TierFace t;
+    std::int32_t s = 0;
+    detail::check(zxv_token_face(tier, &t.face, &s));
+    t.is_super = s != 0;
+    return t;
+}
+
+/// The tier whose face is exactly `face`. DenominationError if it is not
+/// one of the 64 faces.
+inline std::uint32_t tier(std::uint64_t face)
+{
+    std::uint32_t t = 0;
+    detail::check(zxv_token_tier(face, &t));
+    return t;
+}
+
+/// The value and piece count of a holding. UsageError (ZXV_E_RANGE) when
+/// the value passes 64 bits.
+inline Value value(const Counts& counts)
+{
+    Value v;
+    detail::check(zxv_token_value(counts.data(), &v.value, &v.pieces));
+    return v;
+}
+
+/// The canonical form of `value` at `octane`. UsageError (ZXV_E_RANGE) for
+/// octane >= 64.
+inline Counts canonical(std::uint64_t value, std::uint32_t octane)
+{
+    Counts c{};
+    detail::check(zxv_token_canonical(value, octane, c.data()));
+    return c;
+}
+
+/// True if `counts` is the canonical form of its value at `octane` (false
+/// also when a tier above the octane is used).
+inline bool is_canonical(const Counts& counts, std::uint32_t octane)
+{
+    std::int32_t r = 0;
+    detail::check(zxv_token_is_canonical(counts.data(), octane, &r));
+    return r != 0;
+}
+
+/// Rewrite `counts` in place into the canonical form of its value at
+/// `octane`; the value never changes. Unchanged on any failure.
+inline void compress(Counts& counts, std::uint32_t octane)
+{
+    detail::check(zxv_token_compress(counts.data(), octane));
+}
+
+/// Fuse in place: one tier-k and one tier-(k+1) token become one
+/// tier-(k+2) token (F(k+2) + F(k+3) = F(k+4)). InsufficientFunds (no tier-k
+/// or tier-(k+1) token), RefusedError ZXV_E_STATE (tier k+2 is denser than
+/// `octane` allows), UsageError ZXV_E_RANGE (tier > 61, octane >= 64, or a
+/// full count). Unchanged on any failure.
+inline void fuse(Counts& counts, std::uint32_t octane, std::uint32_t tier)
+{
+    detail::check(zxv_token_fuse(counts.data(), octane, tier));
+}
+
+/// Split in place: one tier-k token becomes one tier-(k-1) and one
+/// tier-(k-2) token (tier 1 becomes two plain tokens; tier 0 is atomic:
+/// UsageError ZXV_E_RANGE). InsufficientFunds when there is no tier-k token.
+/// Splitting needs no octane: it only makes a holding plainer.
+inline void split(Counts& counts, std::uint32_t tier)
+{
+    detail::check(zxv_token_split(counts.data(), tier));
+}
+
+/// Number of bits in the Fibonacci code of `value` (2..93). UsageError
+/// (ZXV_E_RANGE) for UINT64_MAX, which has no code.
+inline std::uint32_t code_bits(std::uint64_t value)
+{
+    std::uint32_t b = 0;
+    detail::check(zxv_token_code_bits(value, &b));
+    return b;
+}
+
+/// Append the Fibonacci code of `value` (Zeckendorf bits of value+1, lowest
+/// first, then a closing 1, so every code ends in "11" and needs no length
+/// field) at bit `bit` of `buf` (bit i is bit i%8 of byte i/8); `bit`
+/// advances past it. Only the code's bits are written. UsageError
+/// (ZXV_E_BUFFER) when it does not fit: nothing is written.
+inline void code_put(std::span<std::uint8_t> buf, std::uint32_t& bit, std::uint64_t value)
+{
+    std::uint32_t b = bit;
+    detail::check(zxv_token_code_put(buf.data(), buf.size(), &b, value));
+    bit = b;
+}
+
+/// Read one Fibonacci code from bit `bit` of `buf`; `bit` advances past it.
+/// UsageError ZXV_E_FORMAT (no closing "11", or a value past 64 bits),
+/// ZXV_E_RANGE (`bit` past the end). Nothing changes on failure.
+inline std::uint64_t code_get(std::span<const std::uint8_t> buf, std::uint32_t& bit)
+{
+    std::uint32_t b = bit;
+    std::uint64_t v = 0;
+    detail::check(zxv_token_code_get(buf.data(), buf.size(), &b, &v));
+    bit = b;
+    return v;
+}
+
+/// What Wallet::info reports.
+struct WalletInfo {
+    std::uint32_t model_id = 0; ///< the wallet's label
+    std::uint32_t octane = 0;   ///< its octane
+    std::uint64_t value = 0;    ///< what it holds
+    std::uint64_t pieces = 0;   ///< in how many tokens
+};
+
+/// A token wallet: a holding kept canonical at its own octane. Every change
+/// needs caps::mint (tokens enter a wallet only by mint(); it is not tied to
+/// a Swarm budget, whose authority would not cover creating tokens); reads
+/// need no capability. It belongs to the capability's context and fails
+/// closed with it (FatalError). Internally serialized: any thread may call
+/// it. Move-only.
+class Wallet {
+public:
+    /// An empty wallet at `octane`, labelled `model_id` (a free label, e.g.
+    /// the swarm model that holds it). Needs caps::mint.
+    Wallet(const Capability& cap, std::uint32_t model_id, std::uint32_t octane) : cap_(detail::cap_of(cap))
+    {
+        zxv_token_wallet* w = nullptr;
+        cap_->call([&] { return zxv_token_wallet_create(cap_->cap, model_id, octane, &w); });
+        w_.reset(w);
+    }
+    Wallet(Wallet&&) noexcept = default;            ///< move
+    Wallet& operator=(Wallet&&) noexcept = default; ///< move-assign
+    Wallet(const Wallet&) = delete;
+    Wallet& operator=(const Wallet&) = delete;
+    ~Wallet() = default;
+
+    /// Create `amount` new tokens in the wallet. UsageError (ZXV_E_RANGE)
+    /// when the value would pass 64 bits; nothing changes.
+    void mint(std::uint64_t amount)
+    {
+        run([&](zxv_token_wallet* w) { return zxv_token_wallet_mint(cap_->cap, w, amount); });
+    }
+    /// Spend (burn) `amount`; the change stays canonical. InsufficientFunds
+    /// when the wallet holds less (nothing changes).
+    void spend(std::uint64_t amount)
+    {
+        run([&](zxv_token_wallet* w) { return zxv_token_wallet_spend(cap_->cap, w, amount); });
+    }
+    /// Move `amount` to `to`: this wallet keeps its change at its octane,
+    /// `to` receives at ITS octane, and the total is conserved exactly. Both
+    /// wallets must belong to this wallet's context (else
+    /// CapabilityDenied). Transferring to itself only checks the funds.
+    /// Neither wallet changes on failure.
+    void transfer_to(Wallet& to, std::uint64_t amount)
+    {
+        zxv_token_wallet* dst = to.h();
+        run([&](zxv_token_wallet* w) { return zxv_token_wallet_transfer(cap_->cap, w, dst, amount); });
+    }
+    /// Change the octane (up = denser, down = plainer); the same value is
+    /// re-expressed canonically.
+    void set_octane(std::uint32_t octane)
+    {
+        run([&](zxv_token_wallet* w) { return zxv_token_wallet_set_octane(cap_->cap, w, octane); });
+    }
+    /// Label, octane, value and piece count.
+    [[nodiscard]] WalletInfo info() const
+    {
+        WalletInfo i;
+        run([&](zxv_token_wallet* w) {
+            return zxv_token_wallet_info(w, &i.model_id, &i.octane, &i.value, &i.pieces);
+        });
+        return i;
+    }
+    /// The counts per tier.
+    [[nodiscard]] Counts counts() const
+    {
+        Counts c{};
+        run([&](zxv_token_wallet* w) { return zxv_token_wallet_counts(w, c.data()); });
+        return c;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_token_wallet* native_handle() const noexcept { return w_.get(); }
+
+private:
+    [[nodiscard]] zxv_token_wallet* h() const { return detail::live(w_.get(), "token::Wallet"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_token_wallet* w = h();
+        cap_->call([&] { return f(w); });
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the wallet
+    detail::Owned<zxv_token_wallet, zxv_token_wallet_destroy> w_;
+};
+
+} // namespace token
+
+// ===========================================================================
+// The assurance fee (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: the 0.08889% assurance fee, exact and integer-only:
+///
+///     fee(g) = floor(g * 8889 / 10,000,000)
+///
+/// g is in the unit's own minor measure (money minor units, compute
+/// token-cycles, bandwidth bytes, storage byte-hours). It is formed in 128
+/// bits, so every g up to UINT64_MAX is exact; fee(1124) = 0, fee(1125) = 1.
+/// The fee is charged ONCE per transaction, on its gross: never on a fee,
+/// never compounded. A Carry keeps an account's sub-unit remainder so that
+/// many small charges pay exactly what one charge of their sum pays.
+///
+/// A fee is split 50% reserve floor (backs Vino), 25% V-Bill dividend pool,
+/// 15% infrastructure / node bounties, 10% regenerative capital; buckets
+/// 1-3 get floor(fee * pct / 100) and the reserve floor gets every
+/// remainder unit, so the four parts always sum to the fee exactly.
+///
+/// Honest limits: these are the arithmetic rules only. How a fee, a reserve
+/// or a dividend pool is treated for tax, securities or consumer law is a
+/// question for counsel; nothing here is a licence or a certification.
+namespace fee {
+
+inline constexpr std::uint64_t num = ZXV_FEE_NUM; ///< 8889
+inline constexpr std::uint64_t den = ZXV_FEE_DEN; ///< 10^7; a carry is always below it
+
+/// The four buckets a fee is split into (index into Split).
+enum class Bucket : std::int32_t {
+    reserve_floor = ZXV_FEE_RESERVE_FLOOR,   ///< 50% + every remainder unit; backs Vino
+    vbill_dividend = ZXV_FEE_VBILL_DIVIDEND, ///< 25%
+    infra_bounty = ZXV_FEE_INFRA_BOUNTY,     ///< 15%: infrastructure and node bounties
+    regen_capital = ZXV_FEE_REGEN_CAPITAL,   ///< 10%: regenerative capital
+};
+/// "reserve_floor", "vbill_dividend", "infra_bounty" or "regen_capital";
+/// "unknown" otherwise.
+constexpr std::string_view to_string(Bucket b) noexcept
+{
+    switch (b) {
+    case Bucket::reserve_floor: return "reserve_floor";
+    case Bucket::vbill_dividend: return "vbill_dividend";
+    case Bucket::infra_bounty: return "infra_bounty";
+    case Bucket::regen_capital: return "regen_capital";
+    }
+    return "unknown";
+}
+/// The kinds of unit a fee may be charged in (index into Policy::rates).
+enum class Unit : std::int32_t {
+    money = ZXV_FEE_UNIT_MONEY,         ///< minor units of a ledger asset
+    compute = ZXV_FEE_UNIT_COMPUTE,     ///< token-cycles
+    bandwidth = ZXV_FEE_UNIT_BANDWIDTH, ///< bytes
+    storage = ZXV_FEE_UNIT_STORAGE,     ///< byte-hours
+};
+
+/// The four parts of a fee, indexed by Bucket.
+using Split = std::array<std::uint64_t, ZXV_FEE_BUCKETS>;
+
+/// An exact non-negative ratio num/den.
+struct Ratio {
+    std::uint64_t num = 0; ///< numerator
+    std::uint64_t den = 1; ///< denominator
+    /// Same terms (not cross-multiplied).
+    friend constexpr bool operator==(const Ratio&, const Ratio&) = default;
+};
+
+/// A fee and the remainder to carry to the account's next charge.
+struct Charge {
+    std::uint64_t fee = 0;       ///< what this charge pays
+    std::uint64_t remainder = 0; ///< store it for the next charge (< den)
+};
+
+/// fee(gross) with no carry.
+inline std::uint64_t assure(std::uint64_t gross)
+{
+    std::uint64_t f = 0;
+    detail::check(zxv_fee_assure(gross, &f));
+    return f;
+}
+
+/// The fee on `gross` with the account's incoming remainder `remainder_in`:
+/// floor((gross * 8889 + r) / 10^7), and the new remainder. UsageError
+/// (ZXV_E_RANGE) for remainder_in >= den (a corrupt carry).
+inline Charge assure_carry(std::uint64_t remainder_in, std::uint64_t gross)
+{
+    Charge c;
+    detail::check(zxv_fee_assure_carry(remainder_in, gross, &c.fee, &c.remainder));
+    return c;
+}
+
+/// One account's fee carry: charge() applies assure_carry and keeps the
+/// remainder. Starting from 0, many small charges pay exactly what one
+/// charge of their sum pays. A plain value; not thread-safe.
+class Carry {
+public:
+    /// Start from a stored remainder (0 for a new account). UsageError
+    /// (ZXV_E_RANGE) on the first charge if it is not below den.
+    explicit Carry(std::uint64_t remainder = 0) noexcept : rem_(remainder) {}
+    /// The fee on `gross`; the remainder is kept for the next charge.
+    std::uint64_t charge(std::uint64_t gross)
+    {
+        const Charge c = assure_carry(rem_, gross);
+        rem_ = c.remainder;
+        return c.fee;
+    }
+    /// The remainder to store for this account.
+    [[nodiscard]] std::uint64_t remainder() const noexcept { return rem_; }
+
+private:
+    std::uint64_t rem_;
+};
+
+/// Split `fee` into its four buckets (summing to `fee` exactly).
+inline Split split(std::uint64_t fee)
+{
+    Split s{};
+    detail::check(zxv_fee_split(fee, s.data()));
+    return s;
+}
+
+/// The default fee policy.
+struct Policy {
+    std::array<std::uint32_t, ZXV_FEE_BUCKETS> percent{}; ///< bucket shares: 50, 25, 15, 10
+    bool allow_below = false;                             ///< false: a contribution below the fee is raised to it
+    /// The posted VFV store-credit rate per Unit for a voluntary
+    /// contribution above the fee: money 1/1, the others 0/1 (unset: the
+    /// excess earns no credit until a rate is posted).
+    std::array<Ratio, ZXV_FEE_UNITS> rates{};
+    Ratio multiplier;  ///< the operator's credit multiplier, 1/1
+    Ratio commons_cap; ///< the no-monopoly cap on one recipient's share of the non-money commons pool, 8/21
+};
+
+/// The default policy.
+inline Policy default_policy()
+{
+    Policy p;
+    std::array<std::uint64_t, ZXV_FEE_UNITS> rn{}, rd{};
+    std::int32_t below = 0;
+    detail::check(zxv_fee_policy_default(p.percent.data(), &below, rn.data(), rd.data(), &p.multiplier.num,
+                                         &p.multiplier.den, &p.commons_cap.num, &p.commons_cap.den));
+    p.allow_below = below != 0;
+    for (std::size_t i = 0; i < p.rates.size(); ++i) p.rates[i] = {rn[i], rd[i]};
+    return p;
+}
+
+} // namespace fee
+
+// ===========================================================================
+// The V-Bill hub (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: a demonstration V-Bill hub for cross-currency clearing. Each
+/// test currency has ONE exact peg against the V-Bill, set only by its
+/// issuer with an ML-DSA-87 signature, and a swap from currency A to B goes
+/// A -> V-Bill -> B as ONE balanced, all-or-nothing six-line posting on the
+/// hub's own in-process ledger:
+///
+///     v = a * denA / numA,   b = v * numB / denB
+///
+/// Both divisions must be exact or the swap is refused (UsageError
+/// ZXV_E_RANGE): nothing is rounded and there is no float rate anywhere.
+/// Hub::quote gives the largest exact amount not above a requested one.
+///
+/// RULES: every rule of the sending AND receiving currency must allow a
+/// swap, and a currency with no rule refuses every swap (fail closed,
+/// RefusedError ZXV_E_STATE): add a limit to each currency first. Only the
+/// built-in limit rule is exposed (LimitRefused when it refuses); the
+/// kernel's C rule plug-ins are not.
+///
+/// CAPABILITIES: creating a hub, adding currencies and rules, setting pegs,
+/// opening and funding accounts and swapping need caps::ledger_post;
+/// quotes, balances, currency info and the check need caps::ledger_read.
+/// The hub keeps the capability it was created with, so give it both.
+///
+/// Honest limits: test currencies only (ISO 4217 codes are refused) and no
+/// real money: the ledger is in process memory, separate from the
+/// context's, and is lost on destroy. No network: it is connected to no
+/// settlement rail, central bank or issuer. Peg signatures use ML-DSA-87
+/// (not FIPS 140-3 validated). V-Bills are likely securities in many
+/// jurisdictions; real use needs legal review and a participating issuer.
+/// A rule reports what it decided; it is not itself a legal check. An exact
+/// peg removes rounding, not exchange-rate risk.
+namespace vhub {
+
+inline constexpr std::uint32_t max_currencies = ZXV_VHUB_MAX_CCY;     ///< currency slots 0..7
+inline constexpr std::uint32_t max_rules = ZXV_VHUB_MAX_RULES;        ///< limit rules per currency
+inline constexpr std::uint32_t limit_senders = ZXV_VHUB_LIMIT_SENDERS; ///< senders one limit tracks per epoch
+inline constexpr std::size_t peg_message_bytes = ZXV_VHUB_PEG_MSG_BYTES; ///< what an issuer signs
+inline constexpr std::size_t code_max = ZXV_VHUB_CODE_MAX;            ///< test currency code length
+inline constexpr std::uint64_t amount_max = ZXV_VHUB_AMOUNT_MAX;      ///< any one amount (2^59)
+inline constexpr std::uint32_t vbill_issuer = ZXV_VHUB_VBILL_ISSUER;  ///< the V-Bill issuer's account
+
+/// The exact 40 bytes an issuer signs to set a peg.
+using PegMessage = std::array<std::uint8_t, ZXV_VHUB_PEG_MSG_BYTES>;
+
+/// The peg message: "zxv/vhub-peg/v1" || slot || num || den || epoch (each
+/// 8 bytes little-endian). Sign it with MlDsa87::sign (empty context). Pure.
+inline PegMessage peg_message(std::uint8_t slot, std::uint64_t num, std::uint64_t den, std::uint64_t epoch)
+{
+    PegMessage m{};
+    detail::check(zxv_vhub_peg_msg(slot, num, den, epoch, m.data()));
+    return m;
+}
+
+/// A currency's accounts and its current peg.
+struct CurrencyInfo {
+    std::uint32_t issuer_account = 0; ///< the currency issuer's account
+    std::uint32_t pool_account = 0;   ///< the hub's pool of the currency
+    std::uint32_t vfloat_account = 0; ///< the currency's V-Bill float
+    std::uint64_t peg_num = 0;        ///< num minor units of the currency ...
+    std::uint64_t peg_den = 0;        ///< ... per den V-Bills (0/0: no peg yet)
+    std::uint64_t peg_epoch = 0;      ///< the peg's epoch (0: no peg yet)
+    /// True once a peg was set.
+    [[nodiscard]] bool has_peg() const noexcept { return peg_den != 0; }
+};
+
+/// One account's rails: what it holds and owes. equity = debit - credit.
+struct Balance {
+    std::uint64_t debit = 0;  ///< held (A)
+    std::uint64_t credit = 0; ///< owed (L; issuers only)
+    std::int64_t equity = 0;  ///< debit - credit (E)
+};
+
+/// A quote: the largest exact amount not above the request, and what it
+/// would carry.
+struct Quote {
+    std::uint64_t amount = 0;   ///< exact amount of the sending currency (0 if none)
+    std::uint64_t vbills = 0;   ///< V-Bills it would move
+    std::uint64_t received = 0; ///< units of the receiving currency
+};
+
+/// What a swap moved.
+struct Swap {
+    std::uint64_t vbills = 0;   ///< V-Bills moved
+    std::uint64_t received = 0; ///< units the receiver got
+};
+
+/// One demo hub and its ledger. It belongs to the capability's context and
+/// fails closed with it (FatalError). Internally serialized: any thread may
+/// call it. Move-only.
+class Hub {
+public:
+    /// A hub whose ledger starts with the V-Bill asset ("VBL") and the
+    /// V-Bill issuer's account (vbill_issuer). `seed` (32 bytes; empty for a
+    /// fresh random one) derives every posting's idempotency key and UETR.
+    /// Needs caps::ledger_post.
+    explicit Hub(const Capability& cap, std::span<const std::uint8_t> seed = {}) : cap_(detail::cap_of(cap))
+    {
+        if (!seed.empty()) detail::need_size(seed, 32, "hub seed");
+        zxv_vhub* h = nullptr;
+        cap_->call([&] { return zxv_vhub_create(cap_->cap, seed.empty() ? nullptr : seed.data(), &h); });
+        h_.reset(h);
+    }
+    Hub(Hub&&) noexcept = default;            ///< move
+    Hub& operator=(Hub&&) noexcept = default; ///< move-assign
+    Hub(const Hub&) = delete;
+    Hub& operator=(const Hub&) = delete;
+    ~Hub() = default;
+
+    /// Register test currency `slot` (0..7): `code` (3..12 of A-Z 0-9; not
+    /// an ISO 4217 code, "VBL" or "VFV"), its minor units (0..4) and its
+    /// issuer's ML-DSA-87 public key (2592 bytes; it alone may set the peg).
+    /// Opens the issuer, pool and V-Bill float accounts and funds the pool
+    /// with `pool_funding` and the float with `vbill_backing` V-Bills. The
+    /// peg starts unset. UsageError ZXV_E_CURRENCY (an ISO code),
+    /// ZXV_E_DUPLICATE (slot or code taken), ZXV_E_FORMAT / ZXV_E_RANGE.
+    void add_currency(std::uint8_t slot, const std::string& code, std::uint8_t minor_units,
+                      std::span<const std::uint8_t> issuer_public_key, std::uint64_t pool_funding = 0,
+                      std::uint64_t vbill_backing = 0)
+    {
+        detail::need_size(issuer_public_key, MlDsa87::pk_bytes, "issuer public key");
+        const char* c = detail::cstr(code, "currency code");
+        run([&](zxv_vhub* h) {
+            return zxv_vhub_add_ccy(cap_->cap, h, slot, c, minor_units, issuer_public_key.data(), pool_funding,
+                                    vbill_backing);
+        });
+    }
+    /// A currency's accounts and peg (caps::ledger_read). UsageError
+    /// (ZXV_E_NOT_FOUND) for an unregistered slot.
+    [[nodiscard]] CurrencyInfo currency(std::uint8_t slot) const
+    {
+        CurrencyInfo i;
+        run([&](zxv_vhub* h) {
+            return zxv_vhub_ccy_info(cap_->cap, h, slot, &i.issuer_account, &i.pool_account, &i.vfloat_account,
+                                     &i.peg_num, &i.peg_den, &i.peg_epoch);
+        });
+        return i;
+    }
+    /// Set a currency's peg to num/den at `epoch` (above the current one)
+    /// given the issuer's ML-DSA-87 signature (4627 bytes, empty context)
+    /// over peg_message(slot, num, den, epoch). PegError (a stale or
+    /// replayed epoch), VerificationFailed (not the issuer's signature over
+    /// these numbers), UsageError ZXV_E_RANGE (num or den 0). A refused peg
+    /// changes nothing.
+    void set_peg(std::uint8_t slot, std::uint64_t num, std::uint64_t den, std::uint64_t epoch,
+                 std::span<const std::uint8_t> signature)
+    {
+        detail::need_size(signature, MlDsa87::sig_bytes, "peg signature");
+        run([&](zxv_vhub* h) { return zxv_vhub_set_peg(cap_->cap, h, slot, num, den, epoch, signature.data()); });
+    }
+    /// Open a holder account in currency `slot` for `owner` (an id of the
+    /// caller's choosing); returns the account number. RefusedError
+    /// (ZXV_E_CAPACITY) when the ledger holds 512 accounts.
+    std::uint32_t open_account(std::uint8_t slot, std::uint32_t owner)
+    {
+        std::uint32_t a = 0;
+        run([&](zxv_vhub* h) { return zxv_vhub_open_account(cap_->cap, h, slot, owner, &a); });
+        return a;
+    }
+    /// Test faucet: issue `amount` to a holder account or a pool (by the
+    /// currency's issuer), or V-Bills to a V-Bill float (by the V-Bill
+    /// issuer). UsageError ZXV_E_RANGE (0, above amount_max, or a balance
+    /// reaching 2^62).
+    void issue(std::uint32_t account, std::uint64_t amount)
+    {
+        run([&](zxv_vhub* h) { return zxv_vhub_issue(cap_->cap, h, account, amount); });
+    }
+    /// One account's rails (caps::ledger_read).
+    [[nodiscard]] Balance balance(std::uint32_t account) const
+    {
+        Balance b;
+        run([&](zxv_vhub* h) { return zxv_vhub_balance(cap_->cap, h, account, &b.debit, &b.credit, &b.equity); });
+        return b;
+    }
+    /// Add the built-in limit rule to currency `slot`: at most `limit` minor
+    /// units out per sender per rule epoch (16 distinct senders per epoch; a
+    /// 17th is refused). RefusedError (ZXV_E_CAPACITY) after 4 rules.
+    void add_limit(std::uint8_t slot, std::uint64_t limit)
+    {
+        run([&](zxv_vhub* h) { return zxv_vhub_add_limit(cap_->cap, h, slot, limit); });
+    }
+    /// Start the next rule epoch (every limit restarts every sender at
+    /// zero); returns the new epoch.
+    std::uint64_t next_epoch()
+    {
+        std::uint64_t e = 0;
+        run([&](zxv_vhub* h) { return zxv_vhub_next_epoch(cap_->cap, h, &e); });
+        return e;
+    }
+    /// The largest exact amount of `from` not above `want`, and what it
+    /// would carry (caps::ledger_read). Runs no rules and checks no
+    /// balances, so a quoted swap may still be refused. PegError (either peg
+    /// unset), UsageError (from == to).
+    [[nodiscard]] Quote quote(std::uint8_t from, std::uint8_t to, std::uint64_t want) const
+    {
+        Quote q;
+        run([&](zxv_vhub* h) { return zxv_vhub_quote(cap_->cap, h, from, to, want, &q.amount, &q.vbills, &q.received); });
+        return q;
+    }
+    /// Swap `amount` minor units of `from` from holder account `sender` to
+    /// holder account `receiver` in `to`, as one posting at `tick` (a
+    /// caller-supplied time, never the wall clock). UsageError ZXV_E_RANGE
+    /// (not exact under the pegs) / ZXV_E_CURRENCY (an account of another
+    /// currency), PegError, RefusedError ZXV_E_STATE (a currency has no
+    /// rule), LimitRefused, InsufficientFunds (sender, float or pool would
+    /// go below zero). A refused swap changes nothing.
+    Swap swap(std::uint8_t from, std::uint8_t to, std::uint32_t sender, std::uint32_t receiver,
+              std::uint64_t amount, std::uint64_t tick)
+    {
+        Swap s;
+        run([&](zxv_vhub* h) {
+            return zxv_vhub_swap(cap_->cap, h, from, to, sender, receiver, amount, tick, &s.vbills, &s.received);
+        });
+        return s;
+    }
+    /// Verify the whole hub ledger (A = L + E per account, no negative rail,
+    /// DEBIT == CREDIT per asset, the posting hash chain) and return the
+    /// number of postings so far. A failure is FatalError (ZXV_E_INVARIANT)
+    /// and poisons the context.
+    std::uint64_t check() const
+    {
+        std::uint64_t n = 0;
+        run([&](zxv_vhub* h) { return zxv_vhub_check(cap_->cap, h, &n); });
+        return n;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_vhub* native_handle() const noexcept { return h_.get(); }
+
+private:
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_vhub* h = detail::live(h_.get(), "vhub::Hub");
+        cap_->call([&] { return f(h); });
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the hub
+    detail::Owned<zxv_vhub, zxv_vhub_destroy> h_;
+};
+
+} // namespace vhub
+
+
+// ===========================================================================
+// Freight (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: freight packets. A FREIGHT carries up to max_payload bytes as
+/// 168 packets of 21 bytes (one UBH-168 frame each): byte 0 is the row index
+/// 0..167, bytes 1..20 are row data. Rows 0..k-1 hold the payload verbatim;
+/// rows k..167 are parity of a systematic Cauchy Reed-Solomon code over
+/// GF(2^8). ANY k distinct rows rebuild the payload, so up to 168 - k rows
+/// may be lost: k trades payload (k * 20 bytes) against loss tolerance.
+///
+/// The 64-byte Header travels separately (in the outer message). A payload
+/// larger than one freight is split into a SET of up to max_set freights
+/// sharing a freight id; a Join reassembles it in any order.
+///
+/// A payload may be an OP STREAM (LITERAL, COPY back references, CIDREF
+/// bytes the receiver resolves by content id, SEED generators) that the
+/// receiver expands. Expansion checks the declared total against the
+/// caller's limit before writing a byte.
+///
+/// Honest limits: erasure coding only. A lost row is recovered; a CORRUPTED
+/// row is detected (VerificationFailed: the payload SHA-256 fails) but not
+/// located or repaired: drop rows you distrust and decode again. The header
+/// is neither protected by the code nor authenticated: sign it (or the
+/// outer message) if the sender matters. A freight is larger than its
+/// payload (3528 wire bytes for at most 3360). Op streams make no size
+/// promise: random data encodes slightly LARGER, COPY helps only data that
+/// repeats, CIDREF only names bytes the receiver must already hold, SEED
+/// only reproduces the built-in generators, and no information is created.
+///
+/// Everything here is pure (no capability, no context). Join and OpsWriter
+/// hold only their own memory and are not thread-safe.
+namespace freight {
+
+inline constexpr std::size_t packet_bytes = ZXV_FREIGHT_PACKET_BYTES;  ///< 21: one row on the wire
+inline constexpr std::size_t row_payload = ZXV_FREIGHT_ROW_PAYLOAD;    ///< 20 payload bytes per row
+inline constexpr std::uint32_t rows = ZXV_FREIGHT_ROWS;                ///< 168 rows per freight
+inline constexpr std::size_t freight_bytes = ZXV_FREIGHT_BYTES;        ///< 3528: one encoded freight
+inline constexpr std::size_t max_payload = ZXV_FREIGHT_MAX_PAYLOAD;    ///< 3360, at k = 168
+inline constexpr std::size_t header_bytes = ZXV_FREIGHT_HEADER_BYTES;  ///< 64
+inline constexpr std::uint8_t version = ZXV_FREIGHT_VERSION;           ///< header version 1
+inline constexpr std::uint32_t max_set = ZXV_FREIGHT_MAX_SET;          ///< freights in one set
+inline constexpr std::uint64_t set_max_bytes = ZXV_FREIGHT_SET_MAX_BYTES; ///< largest set payload
+inline constexpr std::uint8_t f_opstream = ZXV_FREIGHT_F_OPSTREAM;     ///< header flag: payload is an op stream
+inline constexpr std::size_t cid_max = ZXV_FREIGHT_CID_MAX;            ///< longest CIDREF content id
+inline constexpr std::size_t gen_param_max = ZXV_FREIGHT_GEN_PARAM_MAX; ///< longest SEED params
+inline constexpr std::uint64_t ops_max = ZXV_FREIGHT_OPS_MAX;          ///< largest op stream or expansion (64 MiB)
+
+/// The built-in SEED generators.
+enum class Generator : std::uint8_t {
+    xorshift = ZXV_FREIGHT_GEN_XORSHIFT,     ///< 8 bytes: u64 LE seed, nonzero; xorshift64* bytes
+    repeat = ZXV_FREIGHT_GEN_REPEAT,         ///< 1..32 bytes: the pattern, repeated
+    fibword = ZXV_FREIGHT_GEN_FIBWORD,       ///< 2 distinct bytes a, b: the Fibonacci word abaab...
+    sierpinski = ZXV_FREIGHT_GEN_SIERPINSKI, ///< 3 bytes: log2 width (1..15), on, off
+};
+
+/// The fields of a freight header.
+struct HeaderFields {
+    std::uint8_t version = ZXV_FREIGHT_VERSION; ///< always 1 (ignored by Header::from_fields)
+    std::uint8_t k = 0;                         ///< data rows, 1..168
+    std::uint8_t flags = 0;                     ///< 0 or f_opstream
+    std::uint16_t payload_len = 0;              ///< this freight's payload bytes (<= k * 20)
+    std::uint16_t seq = 0;                      ///< member index in its set
+    std::uint16_t seq_count = 1;                ///< members in the set, 1..16384
+    std::uint64_t freight_id = 0;               ///< shared by a set's members
+    std::uint64_t expand_limit = 0;             ///< op streams only, else 0
+    Digest32 payload_sha256{};                  ///< SHA-256 of this freight's payload
+};
+
+/// A serialized 64-byte freight header: "ZXFH", version, k, flags, payload
+/// length, seq, seq count, freight id, expand limit, payload SHA-256. A
+/// value type; every Header made here passed libzxv's check.
+class Header {
+public:
+    /// The header of a single freight (seq 0 of 1) carrying `payload` with
+    /// `k` data rows (1..168); it hashes the payload. `expand_limit` must be
+    /// 0 unless flags has f_opstream. UsageError ZXV_E_ARG / ZXV_E_TOO_LONG
+    /// (payload over k * 20 bytes).
+    static Header for_payload(std::uint64_t freight_id, std::uint8_t k, std::span<const std::uint8_t> payload,
+                              std::uint8_t flags = 0, std::uint64_t expand_limit = 0)
+    {
+        Header h;
+        detail::check(zxv_freight_header_init(freight_id, k, flags, expand_limit, payload.data(), payload.size(),
+                                              h.b_.data()));
+        return h;
+    }
+    /// Serialize a header from its fields (a set member, or one received
+    /// field by field). UsageError (ZXV_E_ARG) for any field breaking the
+    /// header rules; the version is always 1.
+    static Header from_fields(const HeaderFields& f)
+    {
+        Header h;
+        detail::check(zxv_freight_header_serialize(f.k, f.flags, f.payload_len, f.seq, f.seq_count, f.freight_id,
+                                                   f.expand_limit, f.payload_sha256.data(), h.b_.data()));
+        return h;
+    }
+    /// Check 64 received bytes. UsageError (ZXV_E_FORMAT: bad magic,
+    /// reserved bytes or a field; ZXV_E_ARG for another length).
+    static Header parse(std::span<const std::uint8_t> bytes)
+    {
+        Header h;
+        h.b_ = detail::fixed<ZXV_FREIGHT_HEADER_BYTES>(bytes, "freight header");
+        detail::check(zxv_freight_header_check(h.b_.data()));
+        return h;
+    }
+    /// The fields.
+    [[nodiscard]] HeaderFields fields() const
+    {
+        HeaderFields f;
+        detail::check(zxv_freight_header_parse(b_.data(), &f.version, &f.k, &f.flags, &f.payload_len, &f.seq,
+                                               &f.seq_count, &f.freight_id, &f.expand_limit, f.payload_sha256.data()));
+        return f;
+    }
+    /// The 64 bytes.
+    [[nodiscard]] std::span<const std::uint8_t, ZXV_FREIGHT_HEADER_BYTES> bytes() const noexcept { return b_; }
+    /// Same bytes.
+    friend bool operator==(const Header&, const Header&) = default;
+
+private:
+    Header() = default;
+    std::array<std::uint8_t, ZXV_FREIGHT_HEADER_BYTES> b_{};
+};
+
+/// Encode the 168 packets (freight_bytes bytes, rows in order) of the
+/// freight `header` describes. `payload` must be exactly what the header
+/// was built for: another length is UsageError (ZXV_E_ARG), another hash
+/// VerificationFailed.
+inline std::vector<std::uint8_t> encode(const Header& header, std::span<const std::uint8_t> payload)
+{
+    std::vector<std::uint8_t> p(freight_bytes);
+    detail::check(zxv_freight_encode(header.bytes().data(), payload.data(), payload.size(), p.data()));
+    return p;
+}
+
+/// Rebuild the payload from whichever packets arrived: `packets` holds
+/// packets_len / 21 packets in any order; duplicates and row indices above
+/// 167 are ignored and the first k distinct rows are used. ErasureError
+/// (fewer than k distinct rows), VerificationFailed (a corrupted row or a
+/// header from another freight), UsageError ZXV_E_ARG (a length not a
+/// multiple of 21).
+inline std::vector<std::uint8_t> decode(const Header& header, std::span<const std::uint8_t> packets)
+{
+    return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_freight_decode(header.bytes().data(), packets.data(), packets.size(), b, c, n);
+    }, nullptr, max_payload);
+}
+
+/// Freights needed to carry `len` bytes at `k` (0 bytes still needs one).
+/// UsageError (ZXV_E_TOO_LONG) above max_set.
+inline std::uint32_t set_count(std::uint64_t len, std::uint8_t k)
+{
+    std::uint32_t c = 0;
+    detail::check(zxv_freight_set_count(len, k, &c));
+    return c;
+}
+
+/// One member of a freight set: its header and its 168 packets.
+struct Member {
+    Header header;                     ///< travels in the outer message
+    std::vector<std::uint8_t> packets; ///< freight_bytes bytes
+};
+
+/// Member `seq` of the set carrying `data` (it carries bytes
+/// [seq * k * 20, ...)). UsageError ZXV_E_RANGE (seq not below
+/// set_count(data.size(), k)), ZXV_E_TOO_LONG (more than max_set freights).
+inline Member split(std::uint64_t freight_id, std::uint8_t k, std::span<const std::uint8_t> data, std::uint32_t seq,
+                    std::uint8_t flags = 0, std::uint64_t expand_limit = 0)
+{
+    std::array<std::uint8_t, ZXV_FREIGHT_HEADER_BYTES> h{};
+    std::vector<std::uint8_t> p(freight_bytes);
+    detail::check(zxv_freight_split(freight_id, k, flags, expand_limit, data.data(), data.size(), seq, h.data(), p.data()));
+    return {Header::parse(h), std::move(p)};
+}
+
+/// Progress of a Join.
+struct JoinStatus {
+    std::uint32_t received = 0; ///< members accepted
+    std::uint32_t count = 0;    ///< members in the set (0 until the first is accepted)
+    bool complete = false;      ///< every member arrived
+    std::uint64_t total = 0;    ///< the joined length once complete, else 0
+};
+
+/// Reassembles one freight set, member by member, in any order, into a
+/// buffer of `capacity` bytes. The first member fixes the set. Not
+/// thread-safe; move-only.
+class Join {
+public:
+    /// A join for a set of at most `capacity` bytes (0..set_max_bytes,
+    /// else UsageError ZXV_E_RANGE).
+    explicit Join(std::uint64_t capacity)
+    {
+        zxv_freight_join* j = nullptr;
+        detail::check(zxv_freight_join_create(capacity, &j));
+        j_.reset(j);
+    }
+    Join(Join&&) noexcept = default;            ///< move
+    Join& operator=(Join&&) noexcept = default; ///< move-assign
+    Join(const Join&) = delete;
+    Join& operator=(const Join&) = delete;
+    ~Join() = default;
+
+    /// Decode one member into its place; a member already received changes
+    /// nothing. RefusedError ZXV_E_STATE (another set, or a non-last member
+    /// not full), RefusedError ZXV_E_CAPACITY (the set cannot fit), and the
+    /// errors of decode(). A failed member is not recorded: add it again
+    /// when more rows arrive.
+    void add(const Header& header, std::span<const std::uint8_t> packets)
+    {
+        detail::check(zxv_freight_join_add(h(), header.bytes().data(), packets.data(), packets.size()));
+    }
+    /// Add a Member made by split().
+    void add(const Member& m) { add(m.header, m.packets); }
+    /// Progress.
+    [[nodiscard]] JoinStatus status() const
+    {
+        JoinStatus s;
+        std::int32_t c = 0;
+        detail::check(zxv_freight_join_status(h(), &s.received, &s.count, &c, &s.total));
+        s.complete = c != 0;
+        return s;
+    }
+    /// The joined bytes. RefusedError (ZXV_E_STATE) until every member arrived.
+    [[nodiscard]] std::vector<std::uint8_t> result() const
+    {
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_freight_join_result(h(), b, c, n);
+        });
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_freight_join* native_handle() const noexcept { return j_.get(); }
+
+private:
+    [[nodiscard]] zxv_freight_join* h() const { return detail::live(j_.get(), "freight::Join"); }
+    detail::Owned<zxv_freight_join, zxv_freight_join_destroy> j_;
+};
+
+/// What an op stream declares.
+struct OpsInfo {
+    std::uint64_t total = 0; ///< bytes its expansion produces
+    bool has_sha = false;    ///< it carries the SHA-256 of its output
+};
+
+/// Read an op stream's declared total without expanding it. UsageError
+/// (ZXV_E_FORMAT) for a bad stream header.
+inline OpsInfo peek(std::span<const std::uint8_t> ops)
+{
+    OpsInfo i;
+    std::int32_t s = 0;
+    detail::check(zxv_freight_ops_peek(ops.data(), ops.size(), &i.total, &s));
+    i.has_sha = s != 0;
+    return i;
+}
+
+/// A CIDREF resolver: fill `out` (exactly out.size() bytes) with the content
+/// `cid` names and return true, or return false if it cannot. It must not
+/// expand op streams itself. An exception it throws is caught before C,
+/// ends the expansion and is rethrown by expand().
+using Resolver = std::function<bool(std::span<const std::uint8_t> cid, std::span<std::uint8_t> out)>;
+
+namespace detail {
+struct ResolverSlot {
+    const Resolver* fn = nullptr;
+    std::exception_ptr error;
+    static std::int32_t trampoline(void* user, const std::uint8_t* cid, std::size_t cid_len, std::uint8_t* out,
+                                   std::uint64_t len) noexcept
+    {
+        auto* self = static_cast<ResolverSlot*>(user);
+        try {
+            if (len > static_cast<std::uint64_t>(SIZE_MAX)) return ZXV_E_RANGE;
+            return (*self->fn)(std::span<const std::uint8_t>(cid, cid ? cid_len : 0),
+                               std::span<std::uint8_t>(out, out ? static_cast<std::size_t>(len) : 0))
+                       ? ZXV_OK
+                       : ZXV_E_NOT_FOUND;
+        } catch (...) { // never unwind through C
+            self->error = std::current_exception();
+            return ZXV_E_INTERNAL;
+        }
+    }
+};
+} // namespace detail
+
+/// Expand an op stream, accepting at most `limit` bytes (<= ops_max, else
+/// UsageError ZXV_E_RANGE); a declared total above it is UsageError
+/// ZXV_E_TOO_LONG before anything is written. `resolve` supplies CIDREF
+/// content (none: a CIDREF fails with UsageError ZXV_E_NOT_FOUND).
+/// UsageError ZXV_E_FORMAT (a malformed stream), VerificationFailed (the
+/// output fails the stream's SHA-256).
+inline std::vector<std::uint8_t> expand(std::span<const std::uint8_t> ops, std::uint64_t limit,
+                                        const Resolver& resolve = {})
+{
+    const OpsInfo info = peek(ops);
+    const bool fits = limit <= ops_max && info.total <= limit;
+    std::vector<std::uint8_t> out(fits ? static_cast<std::size_t>(info.total) : 0);
+    detail::ResolverSlot slot{&resolve, nullptr};
+    std::size_t n = 0;
+    const std::int32_t st = zxv_freight_ops_expand(ops.data(), ops.size(), limit,
+                                                   resolve ? &detail::ResolverSlot::trampoline : nullptr,
+                                                   resolve ? &slot : nullptr, out.empty() ? nullptr : out.data(),
+                                                   out.size(), &n);
+    if (slot.error) std::rethrow_exception(slot.error);
+    zxv::detail::check(st);
+    out.resize(n);
+    return out;
+}
+
+/// Run one SEED generator directly: `len` bytes. UsageError (ZXV_E_ARG) for
+/// an unknown generator or params it refuses.
+inline std::vector<std::uint8_t> generate(Generator gen, std::span<const std::uint8_t> params, std::size_t len)
+{
+    std::vector<std::uint8_t> out(len);
+    zxv::detail::check(zxv_freight_gen_run(static_cast<std::uint8_t>(gen), params.data(), params.size(),
+                                           out.empty() ? nullptr : out.data(), len));
+    return out;
+}
+
+/// Encode bytes as a LITERAL/COPY op stream (greedy LZ77, window 65536,
+/// deterministic), with the output SHA-256 when `with_sha`. The result may
+/// be LARGER than the input. UsageError (ZXV_E_TOO_LONG) above ops_max.
+inline std::vector<std::uint8_t> encode_ops(std::span<const std::uint8_t> in, bool with_sha = false)
+{
+    return zxv::detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_freight_ops_encode(in.data(), in.size(), with_sha ? 1 : 0, b, c, n);
+    });
+}
+
+/// The worst-case encode_ops size of `n` input bytes (all literals).
+inline std::uint64_t ops_bound(std::uint64_t n, bool with_sha = false)
+{
+    std::uint64_t b = 0;
+    zxv::detail::check(zxv_freight_ops_bound(n, with_sha ? 1 : 0, &b));
+    return b;
+}
+
+/// Builds an op stream op by op. `declared_total` is what the ops must
+/// produce in all; `sha256` (optional) is the SHA-256 of that output, which
+/// expansion will verify. Every put throws on its own error, and the first
+/// error is sticky: later puts and finish() throw it again. Not
+/// thread-safe; move-only. The put functions return *this for chaining.
+class OpsWriter {
+public:
+    /// A writer whose buffer holds at most `max_bytes` (14, or 46 with a
+    /// SHA-256, up to ops_max).
+    OpsWriter(std::uint64_t declared_total, std::uint64_t max_bytes, std::optional<Digest32> sha256 = std::nullopt)
+    {
+        zxv_freight_ops_writer* w = nullptr;
+        zxv::detail::check(zxv_freight_ops_writer_create(declared_total, sha256 ? sha256->data() : nullptr, max_bytes, &w));
+        w_.reset(w);
+    }
+    OpsWriter(OpsWriter&&) noexcept = default;            ///< move
+    OpsWriter& operator=(OpsWriter&&) noexcept = default; ///< move-assign
+    OpsWriter(const OpsWriter&) = delete;
+    OpsWriter& operator=(const OpsWriter&) = delete;
+    ~OpsWriter() = default;
+
+    /// LITERAL: these bytes verbatim.
+    OpsWriter& literal(std::span<const std::uint8_t> bytes)
+    {
+        zxv::detail::check(zxv_freight_ops_put_literal(h(), bytes.data(), bytes.size()));
+        return *this;
+    }
+    /// COPY: `len` bytes from `distance` back (overlap allowed).
+    OpsWriter& copy(std::uint64_t distance, std::uint64_t len)
+    {
+        zxv::detail::check(zxv_freight_ops_put_copy(h(), distance, len));
+        return *this;
+    }
+    /// CIDREF: `len` bytes the receiver resolves by content id `cid`
+    /// (1..cid_max bytes).
+    OpsWriter& cidref(std::span<const std::uint8_t> cid, std::uint64_t len)
+    {
+        zxv::detail::check(zxv_freight_ops_put_cidref(h(), cid.data(), cid.size(), len));
+        return *this;
+    }
+    /// CIDREF by a binary CID.
+    OpsWriter& cidref(const cid::Cid& c, std::uint64_t len) { return cidref(c.bytes(), len); }
+    /// SEED: `len` bytes of a built-in generator.
+    OpsWriter& seed(Generator gen, std::span<const std::uint8_t> params, std::uint64_t len)
+    {
+        zxv::detail::check(zxv_freight_ops_put_seed(h(), static_cast<std::uint8_t>(gen), params.data(), params.size(), len));
+        return *this;
+    }
+    /// The finished stream. RefusedError (ZXV_E_STATE) while the ops produce
+    /// fewer bytes than declared. The writer stays usable.
+    [[nodiscard]] std::vector<std::uint8_t> finish() const
+    {
+        return zxv::detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_freight_ops_writer_finish(h(), b, c, n);
+        });
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_freight_ops_writer* native_handle() const noexcept { return w_.get(); }
+
+private:
+    [[nodiscard]] zxv_freight_ops_writer* h() const { return zxv::detail::live(w_.get(), "freight::OpsWriter"); }
+    zxv::detail::Owned<zxv_freight_ops_writer, zxv_freight_ops_writer_destroy> w_;
+};
+
+} // namespace freight
+
+// ===========================================================================
+// Web 4 agents (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: the Web 4 agent layer. Agents hold ML-DSA-65 keys (FIPS 204)
+/// and publish signed tool manifests; peers keep a Directory of verified
+/// agent cards; a human's consent token is required before an agent moves
+/// money or shares personal data; requests and replies travel as signed
+/// envelopes. The kernel's rules, kept here:
+///
+///   * IDENTITY: agent_id = SHA3-256(agent public key). An agent is bound
+///     to the node hosting it by a record signed by the node's key
+///     (peer_id = SHA3-256(node public key)); a self-bound agent has
+///     peer_id == agent_id.
+///   * CONTEXTS: every signature carries a purpose string, so a signature
+///     for one purpose cannot be replayed as another.
+///   * CONSENT: a token signed by the HUMAN's key binds the exact tool,
+///     parties, request id and payload; tokens are single-use.
+///
+/// SECRETS: a private key never crosses the ABI. It is generated inside an
+/// Agent (also used for a human's key: human_id is its agent_id), used there
+/// for signing, and wiped when the Agent is destroyed. There is no call that
+/// returns it.
+///
+/// TIME: there is no clock here; every call that needs the time takes
+/// now_ms (Unix milliseconds) from the caller.
+///
+/// Honest limits: envelopes are signed, not encrypted. A consent token
+/// proves that a key holder signed; that the holder is the right human and
+/// understood what they signed depends on the device and UI that showed the
+/// action. Replay windows, rate limits, freight carriage and the Web 2 /
+/// Web 3 bridges are not in this ABI; interoperability is between ZXV
+/// instances only. Built without PQC, every call throws NotImplemented.
+namespace web4 {
+
+inline constexpr std::size_t pk_bytes = ZXV_W4_PK_BYTES;           ///< ML-DSA-65 public key
+inline constexpr std::size_t sig_bytes = ZXV_W4_SIG_BYTES;         ///< ML-DSA-65 signature
+inline constexpr std::size_t id_bytes = ZXV_W4_ID_BYTES;           ///< agent_id, peer_id, human_id
+inline constexpr std::size_t name_max = ZXV_W4_NAME_MAX;           ///< agent and tool names: 1..31 of [a-z0-9._-]
+inline constexpr std::uint32_t max_tools = ZXV_W4_MAX_TOOLS;       ///< tools per manifest
+inline constexpr std::size_t max_payload = ZXV_W4_MSG_MAX_PAYLOAD; ///< envelope payload
+inline constexpr std::size_t consent_bytes = ZXV_W4_CONSENT_BYTES; ///< an encoded consent token
+inline constexpr std::size_t card_max = ZXV_W4_CARD_MAX;           ///< a node-bound card
+inline constexpr std::size_t manifest_max = ZXV_W4_MANIFEST_MAX;   ///< a signed manifest
+inline constexpr std::size_t envelope_max = ZXV_W4_ENV_MAX;        ///< a signed envelope
+inline constexpr std::uint32_t directory_max = ZXV_W4_DIR_MAX;     ///< directory entries
+inline constexpr std::uint32_t consent_log_max = ZXV_W4_CONSENT_LOG_MAX; ///< consent log entries
+
+/// Tool flags (Tool::flags).
+namespace tool {
+inline constexpr std::uint32_t money = ZXV_W4_TOOL_MONEY;   ///< the tool moves money
+inline constexpr std::uint32_t pii = ZXV_W4_TOOL_PII;       ///< the tool reveals personal data
+inline constexpr std::uint32_t stream = ZXV_W4_TOOL_STREAM; ///< answers with STREAM chunks
+} // namespace tool
+/// Consent scopes (what a consent token allows).
+namespace scope {
+inline constexpr std::uint32_t money = ZXV_W4_CONSENT_MONEY; ///< move money up to max_vfv
+inline constexpr std::uint32_t pii = ZXV_W4_CONSENT_PII;     ///< share personal data
+} // namespace scope
+/// Envelope flags.
+namespace msg_flag {
+inline constexpr std::uint32_t final_ = ZXV_W4_MF_FINAL;     ///< last STREAM chunk / final response
+inline constexpr std::uint32_t consent = ZXV_W4_MF_CONSENT;  ///< a token is attached (set by sealing, never by the caller)
+} // namespace msg_flag
+
+/// The kind of an envelope.
+enum class MsgKind : std::int32_t {
+    request = ZXV_W4_MSG_REQUEST,   ///< ask an agent to run a tool
+    response = ZXV_W4_MSG_RESPONSE, ///< the answer
+    stream = ZXV_W4_MSG_STREAM,     ///< one chunk of a streamed answer
+    cancel = ZXV_W4_MSG_CANCEL,     ///< cancel a request
+    error = ZXV_W4_MSG_ERROR,       ///< the request failed
+};
+
+/// A 32-byte agent, peer or human id (a SHA3-256).
+using Id = std::array<std::uint8_t, ZXV_W4_ID_BYTES>;
+
+/// What a verified card says.
+struct CardInfo {
+    Id agent_id{};             ///< SHA3-256 of the agent's key
+    Id peer_id{};              ///< SHA3-256 of the hosting node's key (== agent_id when self-bound)
+    std::string name;          ///< the agent's name
+    std::uint64_t bound_ms = 0; ///< when the binding was signed
+};
+
+/// Verify a card (well formed, binding signature valid under the node key,
+/// or the agent's own key when self-bound) and read it. UsageError
+/// (ZXV_E_FORMAT), VerificationFailed.
+inline CardInfo verify_card(std::span<const std::uint8_t> card)
+{
+    CardInfo c;
+    std::array<char, 32> nm{};
+    detail::check(zxv_w4_card_verify(card.data(), card.size(), c.agent_id.data(), c.peer_id.data(), nm.data(), &c.bound_ms));
+    c.name = nm.data();
+    return c;
+}
+
+/// The SHA3-256 digest a consent token for one request must carry: over
+/// "web4/v1/action", tool, from, to, req_id and the payload (at most
+/// max_payload bytes, else UsageError ZXV_E_TOO_LONG). Pure.
+inline Id action_digest(const std::string& tool, const Id& from, const Id& to, std::uint64_t req_id,
+                        std::span<const std::uint8_t> payload)
+{
+    Id d{};
+    const char* t = detail::cstr(tool, "tool name");
+    detail::check(zxv_w4_action_digest(t, from.data(), to.data(), req_id, payload.data(), payload.size(), d.data()));
+    return d;
+}
+
+/// The fields of a consent token (read without checking its signature).
+struct ConsentInfo {
+    Id human_id{};                       ///< who consented
+    Id agent_id{};                       ///< which agent may act
+    Id action{};                         ///< the action digest it covers
+    std::uint32_t scope = 0;             ///< scope::* bits
+    std::uint64_t max_vfv = 0;           ///< the most VFV minor units it allows
+    std::uint64_t issued_ms = 0;         ///< valid from
+    std::uint64_t expires_ms = 0;        ///< valid before
+    std::array<std::uint8_t, 16> nonce{}; ///< makes it single-use
+};
+
+/// An encoded consent token (consent_bytes bytes, "W4CS"): a value type.
+class ConsentToken {
+public:
+    /// Check the format of received bytes (UsageError ZXV_E_FORMAT or
+    /// ZXV_E_ARG). The signature is checked by ConsentLog::check.
+    static ConsentToken from_bytes(std::span<const std::uint8_t> bytes)
+    {
+        ConsentToken t;
+        t.b_ = detail::fixed<ZXV_W4_CONSENT_BYTES>(bytes, "consent token");
+        (void) t.info();
+        return t;
+    }
+    /// The fields (no signature check).
+    [[nodiscard]] ConsentInfo info() const
+    {
+        ConsentInfo i;
+        detail::check(zxv_w4_consent_info(b_.data(), i.human_id.data(), i.agent_id.data(), i.action.data(), &i.scope,
+                                          &i.max_vfv, &i.issued_ms, &i.expires_ms, i.nonce.data()));
+        return i;
+    }
+    /// The encoded bytes.
+    [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept { return b_; }
+    /// Same bytes.
+    friend bool operator==(const ConsentToken&, const ConsentToken&) = default;
+
+private:
+    friend class Agent;
+    ConsentToken() = default;
+    std::array<std::uint8_t, ZXV_W4_CONSENT_BYTES> b_{};
+};
+
+class Manifest;
+
+/// A key handle: an agent's (or a human's) ML-DSA-65 key pair and its
+/// signed card. The private key never leaves it and is wiped when it is
+/// destroyed. It belongs to the capability's context and fails closed with
+/// it. The capability it keeps signs for it: caps::crypto_sign for the
+/// card, manifests and envelopes; caps::attest as well to issue consent.
+/// Not thread-safe (sealing advances its envelope sequence). Move-only.
+class Agent {
+public:
+    /// Create a key handle named `name` (1..31 of [a-z0-9._-]) bound at
+    /// `now_ms`. `node`: the agent hosting it (it signs the binding; same
+    /// context), or nullptr for a self-bound agent. `seed`: 32 bytes for a
+    /// reproducible key, or empty for a fresh one. Needs caps::crypto_sign.
+    Agent(const Capability& cap, const std::string& name, std::uint64_t now_ms, const Agent* node = nullptr,
+          std::span<const std::uint8_t> seed = {})
+        : cap_(detail::cap_of(cap))
+    {
+        if (!seed.empty()) detail::need_size(seed, 32, "agent seed");
+        const char* n = detail::cstr(name, "agent name");
+        const zxv_w4_agent* nd = node ? node->h() : nullptr;
+        zxv_w4_agent* a = nullptr;
+        cap_->call([&] { return zxv_w4_agent_create(cap_->cap, seed.empty() ? nullptr : seed.data(), n, nd, now_ms, &a); });
+        a_.reset(a);
+    }
+    Agent(Agent&&) noexcept = default;            ///< move
+    Agent& operator=(Agent&&) noexcept = default; ///< move-assign
+    Agent(const Agent&) = delete;
+    Agent& operator=(const Agent&) = delete;
+    ~Agent() = default;
+
+    /// SHA3-256 of the public key.
+    [[nodiscard]] Id agent_id() const
+    {
+        Id i{};
+        run([&](zxv_w4_agent* a) { return zxv_w4_agent_info(a, i.data(), nullptr, nullptr); });
+        return i;
+    }
+    /// SHA3-256 of the hosting node's public key (== agent_id when self-bound).
+    [[nodiscard]] Id peer_id() const
+    {
+        Id i{};
+        run([&](zxv_w4_agent* a) { return zxv_w4_agent_info(a, nullptr, i.data(), nullptr); });
+        return i;
+    }
+    /// The ML-DSA-65 public key (pk_bytes bytes).
+    [[nodiscard]] std::vector<std::uint8_t> public_key() const
+    {
+        std::vector<std::uint8_t> pk(pk_bytes);
+        run([&](zxv_w4_agent* a) { return zxv_w4_agent_info(a, nullptr, nullptr, pk.data()); });
+        return pk;
+    }
+    /// The agent's card: what a peer needs to verify it (verify_card).
+    [[nodiscard]] std::vector<std::uint8_t> card() const
+    {
+        zxv_w4_agent* a = h();
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            detail::ensure_alive(cap_->ctx.get());
+            return zxv_w4_agent_card(a, b, c, n);
+        }, cap_->ctx.get(), card_max);
+    }
+
+    /// Issue a consent token on the HUMAN's side (this handle is the
+    /// human's key), after showing them the action: it lets `agent` do
+    /// `action` within `scope` (scope::* bits, nonzero), money up to
+    /// `max_vfv` minor units, valid in [issued_ms, expires_ms). `nonce`: 16
+    /// bytes, or nullopt for a random one. Needs caps::attest.
+    [[nodiscard]] ConsentToken issue_consent(const Id& agent, const Id& action, std::uint32_t scope,
+                                             std::uint64_t max_vfv, std::uint64_t issued_ms, std::uint64_t expires_ms,
+                                             std::optional<std::array<std::uint8_t, 16>> nonce = std::nullopt) const
+    {
+        ConsentToken t;
+        run([&](zxv_w4_agent* a) {
+            return zxv_w4_consent_issue(cap_->cap, a, agent.data(), action.data(), scope, max_vfv, issued_ms, expires_ms,
+                                        nonce ? nonce->data() : nullptr, t.b_.data());
+        });
+        return t;
+    }
+
+    /// Build, sign and encode an envelope from this agent to `to`, using the
+    /// next sequence number. `kind`: any MsgKind; `flags`: 0 or
+    /// msg_flag::final_; `tool`: a valid tool name; `payload` at most
+    /// max_payload bytes; `consent`: a token to attach, or nullptr. Needs
+    /// caps::crypto_sign.
+    std::vector<std::uint8_t> seal(MsgKind kind, const Id& to, std::uint64_t req_id, std::uint32_t chunk,
+                                   const std::string& tool, std::uint32_t flags, std::span<const std::uint8_t> payload,
+                                   std::uint64_t now_ms, const ConsentToken* consent = nullptr)
+    {
+        const char* t = detail::cstr(tool, "tool name");
+        zxv_w4_agent* a = h();
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            detail::ensure_alive(cap_->ctx.get());
+            return zxv_w4_env_seal(cap_->cap, a, static_cast<std::int32_t>(kind), to.data(), req_id, chunk, t, flags,
+                                   payload.data(), payload.size(), consent ? consent->bytes().data() : nullptr, now_ms,
+                                   b, c, n);
+        }, cap_->ctx.get(), envelope_max);
+    }
+    /// Seal a reply to a REQUEST envelope addressed to this agent (to/from
+    /// swapped, same request id and tool). `kind`: response, stream or
+    /// error. The request's signature is not checked here (verify_envelope).
+    std::vector<std::uint8_t> reply(std::span<const std::uint8_t> request, MsgKind kind, std::uint32_t chunk,
+                                    std::uint32_t flags, std::span<const std::uint8_t> payload, std::uint64_t now_ms)
+    {
+        zxv_w4_agent* a = h();
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            detail::ensure_alive(cap_->ctx.get());
+            return zxv_w4_env_reply(cap_->cap, a, request.data(), request.size(), static_cast<std::int32_t>(kind), chunk,
+                                    flags, payload.data(), payload.size(), now_ms, b, c, n);
+        }, cap_->ctx.get(), envelope_max);
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_w4_agent* native_handle() const noexcept { return a_.get(); }
+
+private:
+    friend class Manifest;
+    [[nodiscard]] zxv_w4_agent* h() const { return detail::live(a_.get(), "web4::Agent"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_w4_agent* a = h();
+        cap_->call([&] { return f(a); });
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the key handle
+    detail::Owned<zxv_w4_agent, zxv_w4_agent_destroy> a_;
+};
+
+/// A directory of verified agent cards, keyed by agent_id. Not
+/// thread-safe; move-only.
+class Directory {
+public:
+    /// A directory of at most `capacity` cards (1..directory_max).
+    explicit Directory(std::uint32_t capacity)
+    {
+        zxv_w4_dir* d = nullptr;
+        detail::check(zxv_w4_dir_create(capacity, &d));
+        d_.reset(d);
+    }
+    Directory(Directory&&) noexcept = default;            ///< move
+    Directory& operator=(Directory&&) noexcept = default; ///< move-assign
+    Directory(const Directory&) = delete;
+    Directory& operator=(const Directory&) = delete;
+    ~Directory() = default;
+
+    /// Verify a card, then add it or replace the entry for the same agent.
+    /// VerificationFailed, UsageError (ZXV_E_FORMAT), RefusedError
+    /// ZXV_E_STATE (its binding is older than the one held: no rollback),
+    /// RefusedError ZXV_E_CAPACITY (full).
+    void add(std::span<const std::uint8_t> card) { detail::check(zxv_w4_dir_add(h(), card.data(), card.size())); }
+    /// The card held for `agent_id`, or nullopt.
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> find(const Id& agent_id) const
+    {
+        std::vector<std::uint8_t> v(card_max);
+        std::size_t n = 0;
+        const std::int32_t st = zxv_w4_dir_find(h(), agent_id.data(), v.data(), v.size(), &n);
+        if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+        detail::check(st);
+        v.resize(n);
+        return v;
+    }
+    /// Number of cards held.
+    [[nodiscard]] std::uint32_t count() const
+    {
+        std::uint32_t n = 0;
+        detail::check(zxv_w4_dir_count(h(), &n));
+        return n;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_w4_dir* native_handle() const noexcept { return d_.get(); }
+
+private:
+    [[nodiscard]] zxv_w4_dir* h() const { return detail::live(d_.get(), "web4::Directory"); }
+    detail::Owned<zxv_w4_dir, zxv_w4_dir_destroy> d_;
+};
+
+/// One tool of a manifest.
+struct Tool {
+    std::string name;             ///< 1..31 of [a-z0-9._-]
+    std::uint64_t price_vfv = 0;  ///< price in VFV minor units (2 digits)
+    std::uint32_t rate_per_min = 1; ///< calls per minute (>= 1)
+    std::uint32_t burst = 1;      ///< burst (>= 1)
+    std::uint32_t flags = 0;      ///< tool::* bits
+    std::uint32_t max_input = 0;  ///< largest input (<= max_payload)
+};
+
+/// A manifest's header fields.
+struct ManifestInfo {
+    Id agent_id{};               ///< the signer (zeros until signed)
+    Id peer_id{};                ///< the signer's node (zeros until signed)
+    std::uint32_t version = 0;   ///< the caller's manifest version
+    std::uint64_t issued_ms = 0; ///< valid from
+    std::uint64_t expires_ms = 0; ///< valid before
+    std::uint32_t tool_count = 0; ///< tools listed
+    bool is_signed = false;      ///< signed and unchanged since
+};
+
+/// A signed tool manifest: up to max_tools tools with prices, rate limits
+/// and flags. Signing fixes the agent and peer ids; adding a tool afterwards
+/// drops the signature. Not thread-safe; move-only.
+class Manifest {
+public:
+    /// An empty, unsigned manifest valid in [issued_ms, expires_ms).
+    Manifest(std::uint32_t version, std::uint64_t issued_ms, std::uint64_t expires_ms)
+    {
+        zxv_w4_manifest* m = nullptr;
+        detail::check(zxv_w4_manifest_create(version, issued_ms, expires_ms, &m));
+        m_.reset(m);
+    }
+    Manifest(Manifest&&) noexcept = default;            ///< move
+    Manifest& operator=(Manifest&&) noexcept = default; ///< move-assign
+    Manifest(const Manifest&) = delete;
+    Manifest& operator=(const Manifest&) = delete;
+    ~Manifest() = default;
+
+    /// Parse a signed manifest's wire form. The signature is kept but NOT
+    /// checked: call verify(). UsageError (ZXV_E_FORMAT).
+    static Manifest decode(std::span<const std::uint8_t> bytes)
+    {
+        zxv_w4_manifest* m = nullptr;
+        detail::check(zxv_w4_manifest_decode(bytes.data(), bytes.size(), &m));
+        return Manifest(m);
+    }
+
+    /// Add a tool. UsageError ZXV_E_DUPLICATE (name listed), ZXV_E_ARG /
+    /// ZXV_E_TOO_LONG; RefusedError ZXV_E_CAPACITY (16 tools).
+    void add_tool(const Tool& t)
+    {
+        const char* n = detail::cstr(t.name, "tool name");
+        detail::check(zxv_w4_manifest_add_tool(h(), n, t.price_vfv, t.rate_per_min, t.burst, t.flags, t.max_input));
+    }
+    /// Sign with `agent`'s key (through the capability it keeps, which
+    /// needs caps::crypto_sign).
+    void sign(const Agent& agent)
+    {
+        zxv_w4_manifest* m = h();
+        agent.run([&](zxv_w4_agent* a) { return zxv_w4_manifest_sign(agent.cap_->cap, a, m); });
+    }
+    /// Check that `public_key` signed it, that key is the manifest's agent,
+    /// and issued_ms <= now_ms < expires_ms. VerificationFailed (wrong key,
+    /// bad or no signature), RefusedError ZXV_E_STATE (valid signature, not
+    /// valid at now_ms).
+    void verify(std::span<const std::uint8_t> public_key, std::uint64_t now_ms) const
+    {
+        detail::need_size(public_key, pk_bytes, "agent public key");
+        detail::check(zxv_w4_manifest_verify(h(), public_key.data(), now_ms));
+    }
+    /// The signed wire form. RefusedError (ZXV_E_STATE) if not signed.
+    [[nodiscard]] std::vector<std::uint8_t> encode() const
+    {
+        return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_w4_manifest_encode(h(), b, c, n);
+        }, nullptr, manifest_max);
+    }
+    /// The Web 2 discovery face (e.g. /.well-known/web4-agent.json) as JSON
+    /// text; prices stay integers in minor units.
+    [[nodiscard]] std::string to_json() const
+    {
+        return detail::read_text([&](char* b, std::size_t c, std::size_t* n) { return zxv_w4_manifest_to_json(h(), b, c, n); });
+    }
+    /// The header fields.
+    [[nodiscard]] ManifestInfo info() const
+    {
+        ManifestInfo i;
+        std::int32_t s = 0;
+        detail::check(zxv_w4_manifest_info(h(), i.agent_id.data(), i.peer_id.data(), &i.version, &i.issued_ms,
+                                           &i.expires_ms, &i.tool_count, &s));
+        i.is_signed = s != 0;
+        return i;
+    }
+    /// Tool `index` (0-based). UsageError (ZXV_E_NOT_FOUND) past the last.
+    [[nodiscard]] Tool tool(std::uint32_t index) const
+    {
+        Tool t;
+        std::array<char, 32> nm{};
+        detail::check(zxv_w4_manifest_tool(h(), index, nm.data(), &t.price_vfv, &t.rate_per_min, &t.burst, &t.flags,
+                                           &t.max_input));
+        t.name = nm.data();
+        return t;
+    }
+    /// Every tool, in order.
+    [[nodiscard]] std::vector<Tool> tools() const
+    {
+        std::vector<Tool> v;
+        for (std::uint32_t i = 0, n = info().tool_count; i < n; ++i) v.push_back(tool(i));
+        return v;
+    }
+    /// The index of the tool named `name`, or nullopt.
+    [[nodiscard]] std::optional<std::uint32_t> find(const std::string& name) const
+    {
+        std::uint32_t i = 0;
+        const std::int32_t st = zxv_w4_manifest_find(h(), detail::cstr(name, "tool name"), &i);
+        if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+        detail::check(st);
+        return i;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_w4_manifest* native_handle() const noexcept { return m_.get(); }
+
+private:
+    explicit Manifest(zxv_w4_manifest* m) noexcept : m_(m) {}
+    [[nodiscard]] zxv_w4_manifest* h() const { return detail::live(m_.get(), "web4::Manifest"); }
+    detail::Owned<zxv_w4_manifest, zxv_w4_manifest_destroy> m_;
+};
+
+/// A single-use log of consumed and revoked consent tokens. Not
+/// thread-safe; move-only.
+class ConsentLog {
+public:
+    /// A log of at most `capacity` entries (1..consent_log_max).
+    explicit ConsentLog(std::uint32_t capacity)
+    {
+        zxv_w4_consent_log* l = nullptr;
+        detail::check(zxv_w4_consent_log_create(capacity, &l));
+        l_.reset(l);
+    }
+    ConsentLog(ConsentLog&&) noexcept = default;            ///< move
+    ConsentLog& operator=(ConsentLog&&) noexcept = default; ///< move-assign
+    ConsentLog(const ConsentLog&) = delete;
+    ConsentLog& operator=(const ConsentLog&) = delete;
+    ~ConsentLog() = default;
+
+    /// Check that `token` lets `agent` do `action` with scope `need`
+    /// (nonzero scope::* bits) for `amount` VFV minor units (checked against
+    /// max_vfv when need has scope::money), signed by the human whose key is
+    /// `human_public_key`, valid at now_ms; then record it as used. Returning
+    /// normally means consent was given and is now spent. ConsentDenied (no
+    /// token, a mismatch, expired or not yet valid, a bad signature, used or
+    /// revoked), RefusedError ZXV_E_CAPACITY (the log is full even after
+    /// pruning: fail closed).
+    void check(const ConsentToken* token, std::span<const std::uint8_t> human_public_key, const Id& agent,
+               const Id& action, std::uint32_t need, std::uint64_t amount, std::uint64_t now_ms)
+    {
+        detail::need_size(human_public_key, pk_bytes, "human public key");
+        detail::check(zxv_w4_consent_check(h(), token ? token->bytes().data() : nullptr, human_public_key.data(),
+                                           agent.data(), action.data(), need, amount, now_ms));
+    }
+    /// Revoke a token before use; later checks of it fail with
+    /// ConsentDenied. Needs no capability (it only takes authority away).
+    void revoke(const ConsentToken& token, std::uint64_t now_ms)
+    {
+        detail::check(zxv_w4_consent_revoke(h(), token.bytes().data(), now_ms));
+    }
+    /// Drop entries whose token expired at or before now_ms; returns how
+    /// many remain.
+    std::uint32_t prune(std::uint64_t now_ms)
+    {
+        std::uint32_t n = 0;
+        detail::check(zxv_w4_consent_log_prune(h(), now_ms, &n));
+        return n;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_w4_consent_log* native_handle() const noexcept { return l_.get(); }
+
+private:
+    [[nodiscard]] zxv_w4_consent_log* h() const { return detail::live(l_.get(), "web4::ConsentLog"); }
+    detail::Owned<zxv_w4_consent_log, zxv_w4_consent_log_destroy> l_;
+};
+
+/// The fields of an envelope (read without checking its signature).
+struct Envelope {
+    MsgKind kind = MsgKind::request; ///< what it is
+    std::uint32_t flags = 0;         ///< msg_flag::* bits
+    Id from{};                       ///< sender's agent_id
+    Id to{};                         ///< recipient's agent_id
+    std::uint64_t seq = 0;           ///< the sender's sequence number
+    std::uint64_t ts_ms = 0;         ///< when it was sealed
+    std::uint64_t req_id = 0;        ///< request id
+    std::uint32_t chunk = 0;         ///< chunk index
+    std::string tool;                ///< tool name
+    std::uint32_t payload_len = 0;   ///< payload bytes
+};
+
+/// Parse an envelope (no signature check). UsageError (ZXV_E_FORMAT).
+inline Envelope decode_envelope(std::span<const std::uint8_t> env)
+{
+    Envelope e;
+    std::int32_t k = 0;
+    std::array<char, 32> tool{};
+    detail::check(zxv_w4_env_decode(env.data(), env.size(), &k, &e.flags, e.from.data(), e.to.data(), &e.seq, &e.ts_ms,
+                                    &e.req_id, &e.chunk, tool.data(), &e.payload_len));
+    e.kind = static_cast<MsgKind>(k);
+    e.tool = tool.data();
+    return e;
+}
+
+/// An envelope's payload.
+inline std::vector<std::uint8_t> envelope_payload(std::span<const std::uint8_t> env)
+{
+    return detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+        return zxv_w4_env_payload(env.data(), env.size(), b, c, n);
+    }, nullptr, max_payload);
+}
+
+/// The consent token attached to an envelope, or nullopt.
+inline std::optional<ConsentToken> envelope_consent(std::span<const std::uint8_t> env)
+{
+    std::array<std::uint8_t, ZXV_W4_CONSENT_BYTES> t{};
+    const std::int32_t st = zxv_w4_env_consent(env.data(), env.size(), t.data());
+    if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+    detail::check(st);
+    return ConsentToken::from_bytes(t);
+}
+
+/// True if `sender_public_key` is the envelope's sender (from == its
+/// SHA3-256) and the signature verifies; false otherwise. Replay, timestamp
+/// and rate checks are the receiver's job.
+inline bool verify_envelope(std::span<const std::uint8_t> env, std::span<const std::uint8_t> sender_public_key)
+{
+    detail::need_size(sender_public_key, pk_bytes, "sender public key");
+    const std::int32_t st = zxv_w4_env_verify(env.data(), env.size(), sender_public_key.data());
+    if (st == ZXV_E_VERIFY) return false;
+    detail::check(st);
+    return true;
+}
+
+} // namespace web4
+
+
+// ===========================================================================
+// Paradox engine (ABI 1.5)
+// ===========================================================================
+
+/// ABI 1.5: the paradox engine. A paradox here is work whose four-valued
+/// state is Both (evidence points both ways) or Neither (no evidence). The
+/// engine does not decide which side is "really" true: it reads the work's
+/// Hexagram tag, gives the paradox one of four kinds, and runs a fixed,
+/// logged operator for that kind.
+///
+///   Kind           Operator            What it does
+///   constructive   Book::constructive  a bounded policy update, applied only
+///                                      inside published bounds
+///   destructive    Book::destructive   contain: quarantine, roll back from a
+///                                      checkpoint, return a RepairProof
+///   neutral        Book::neutral       hold every candidate branch (Hold)
+///   special        Book::special       a permanent frontier record plus a
+///                                      draft classification for review
+///
+/// Every operator takes the pair (kind, tag) that classify() returned. A
+/// pair that breaks the class rules is UsageError (ZXV_E_ARG). A forbidden
+/// tag (a real check found a broken invariant) is accepted with any kind;
+/// every operator refuses it and rolls back.
+///
+/// The Book holds three append-only, SHA-256 hash-chained logs (operator,
+/// frontier, quarantine) and the signature registry. Operators that ran
+/// return an Outcome (Outcome::refused and Outcome::proposal_for_owner are
+/// decisions, not errors). An exception means nothing ran and nothing was
+/// logged, with two exceptions documented on Book::destructive and
+/// Book::pass. A full log is RefusedError (ZXV_E_CAPACITY): halt the context.
+///
+/// Capabilities: creating a Book, Policy, Hold or Graph and every operator
+/// need caps::paradox (CapabilityDenied otherwise). Reading, classifying,
+/// adding branches, nodes and updates to a handle you hold, and the free
+/// functions need none. Nothing here signs: sign the bytes yourself
+/// (MlDsa87 or Ed25519 with caps::crypto_sign).
+///
+/// Threading: a Book is internally serialized. Policy, Hold and Graph are
+/// not thread-safe: use each from one thread at a time.
+///
+/// Honest limits:
+///   * Automatic changes happen only inside published bounds. An update with
+///     a value outside [lo, hi] changes nothing and becomes a proposal for
+///     the owner. The operator has no balance input: it cannot move money.
+///   * Policies, registry entries and drafts flagged flag::money or
+///     flag::device need the owner. `owner_ok` is the caller's assertion;
+///     inside one process this library cannot check who the owner is.
+///   * Detection is only by the checks the caller runs (step limit, budget,
+///     repeated state fingerprints, the caller's invariant result, registry
+///     lookups), each when the caller calls. Nothing is instant.
+///   * Destructive work is contained, never answered: there is no way to
+///     reply to or act against a sender.
+///   * This is contradiction-tolerant bookkeeping; it never makes both sides
+///     true. Peers agree by applying the same fixed order to the same signed
+///     inputs, not through any shared clock.
+///   * Integers only; no floating point anywhere.
+namespace paradox {
+
+inline constexpr std::size_t hash_bytes = ZXV_PDX_HASH_BYTES;         ///< a signature, id or hash
+inline constexpr std::size_t record_bytes = ZXV_PDX_REC_BYTES;        ///< an operator or frontier record
+inline constexpr std::size_t quarantine_record_bytes = ZXV_PDX_QREC_BYTES; ///< a quarantine record
+inline constexpr std::size_t repair_bytes = ZXV_PDX_REPAIR_BYTES;     ///< a RepairProof
+inline constexpr std::size_t draft_bytes = ZXV_PDX_DRAFT_BYTES;       ///< a draft classification
+inline constexpr std::uint32_t log_max = ZXV_PDX_LOG_MAX;             ///< records per log
+inline constexpr std::uint32_t registry_max = ZXV_PDX_REGISTRY_MAX;   ///< registry entries
+inline constexpr std::uint32_t policy_max = ZXV_PDX_POLICY_MAX;       ///< parameters per policy
+inline constexpr std::uint32_t hold_max = ZXV_PDX_HOLD_MAX;           ///< branches per hold
+inline constexpr std::uint32_t graph_max = ZXV_PDX_GRAPH_MAX;         ///< nodes per graph
+inline constexpr std::uint32_t max_deps = ZXV_PDX_MAX_DEPS;           ///< dependencies per node
+inline constexpr std::uint32_t updates_max = ZXV_PDX_UPDATES_MAX;     ///< queued updates per pass
+inline constexpr std::uint32_t trace_max = ZXV_PDX_TRACE_MAX;         ///< fingerprints per detection
+inline constexpr std::uint64_t src_seed = ZXV_PDX_SRC_SEED;           ///< registry entry not learned from the frontier
+
+/// The size of a policy proposal of `n` parameters.
+constexpr std::size_t proposal_bytes(std::uint32_t n) noexcept { return 12u + 32u * static_cast<std::size_t>(n); }
+
+/// The four kinds, plus none (True or False: not a paradox).
+enum class Kind : std::int32_t {
+    constructive = ZXV_PDX_KIND_CONSTRUCTIVE, ///< Both, margin growing (catalyst)
+    destructive = ZXV_PDX_KIND_DESTRUCTIVE,   ///< Both, margin shrinking or stale (immune)
+    neutral = ZXV_PDX_KIND_NEUTRAL,           ///< Both and steady, or Neither
+    special = ZXV_PDX_KIND_SPECIAL,           ///< unclassified: the frontier
+    none = ZXV_PDX_KIND_NONE,                 ///< True or False: not a paradox
+};
+
+/// What to do with a classified pair (action()).
+enum class Action : std::int32_t {
+    none = ZXV_PDX_DO_NONE,             ///< not a paradox: use Hexagram::action()
+    synthesize = ZXV_PDX_DO_SYNTHESIZE, ///< constructive: Book::constructive
+    contain = ZXV_PDX_DO_CONTAIN,       ///< destructive: Book::destructive
+    hold = ZXV_PDX_DO_HOLD,             ///< neutral: Book::neutral
+    record = ZXV_PDX_DO_RECORD,         ///< special: Book::special (sandbox)
+    rollback = ZXV_PDX_DO_ROLLBACK,     ///< forbidden: refuse, roll back, quarantine
+};
+
+/// An operator's decision.
+enum class Outcome : std::int32_t {
+    applied = ZXV_PDX_OUT_APPLIED,                       ///< constructive update applied
+    kept = ZXV_PDX_OUT_KEPT,                             ///< an applied update survived evaluation
+    proposal_for_owner = ZXV_PDX_OUT_PROPOSAL_FOR_OWNER, ///< out of bounds or unapproved: no change
+    rolled_back = ZXV_PDX_OUT_ROLLED_BACK,               ///< tension grew, or forbidden: restored
+    contained = ZXV_PDX_OUT_CONTAINED,                   ///< destructive: quarantined, rolled back
+    deferred = ZXV_PDX_OUT_DEFERRED,                     ///< neutral: still holding every branch
+    settled = ZXV_PDX_OUT_SETTLED,                       ///< neutral: one branch chosen
+    recorded = ZXV_PDX_OUT_RECORDED,                     ///< special: frontier record written
+    accepted = ZXV_PDX_OUT_ACCEPTED,                     ///< reviewed draft joined the registry
+    pending = ZXV_PDX_OUT_PENDING,                       ///< graph: more passes needed
+    resolved = ZXV_PDX_OUT_RESOLVED,                     ///< graph: every node is final
+    escalate_to_owner = ZXV_PDX_OUT_ESCALATE_TO_OWNER,   ///< graph: step limit reached
+    refused = ZXV_PDX_OUT_REFUSED,                       ///< wrong kind: nothing changed
+    log_full = ZXV_PDX_OUT_LOG_FULL,                     ///< never reported (ZXV_E_CAPACITY instead)
+};
+
+/// A graph node's state.
+enum class NodeState : std::int32_t {
+    open = ZXV_PDX_NS_OPEN,               ///< not resolved yet
+    clear = ZXV_PDX_NS_CLEAR,             ///< kind none: not a paradox
+    contained = ZXV_PDX_NS_CONTAINED,     ///< destructive: contained (sticky)
+    rolled_back = ZXV_PDX_NS_ROLLED_BACK, ///< forbidden: refused and rolled back (sticky)
+    tainted = ZXV_PDX_NS_TAINTED,         ///< depends on contained work (sticky)
+    sandboxed = ZXV_PDX_NS_SANDBOXED,     ///< special: recorded, awaiting review
+    waiting = ZXV_PDX_NS_WAITING,         ///< depends on a sandboxed node
+    held = ZXV_PDX_NS_HELD,               ///< neutral: branches kept
+    blocked = ZXV_PDX_NS_BLOCKED,         ///< constructive reached by held/waiting work
+    applied = ZXV_PDX_NS_APPLIED,         ///< constructive: applied
+};
+
+/// Which log of a Book.
+enum class Log : std::int32_t {
+    ops = ZXV_PDX_LOG_OPS,               ///< operator log
+    frontier = ZXV_PDX_LOG_FRONTIER,     ///< special records, never edited
+    quarantine = ZXV_PDX_LOG_QUARANTINE, ///< contained work (lpres_hex X6)
+};
+
+/// Flags on policies, registry entries and drafts.
+namespace flag {
+inline constexpr std::uint8_t money = ZXV_PDX_FLAG_MONEY;   ///< touches money: the owner decides
+inline constexpr std::uint8_t device = ZXV_PDX_FLAG_DEVICE; ///< touches devices: the owner decides
+} // namespace flag
+
+/// The checks that fired in Book::destructive (RepairProof::trips).
+namespace trip {
+inline constexpr std::uint32_t steps = ZXV_PDX_TRIP_STEPS;         ///< steps >= step limit
+inline constexpr std::uint32_t budget = ZXV_PDX_TRIP_BUDGET;       ///< spent >= budget
+inline constexpr std::uint32_t cycle = ZXV_PDX_TRIP_CYCLE;         ///< a state fingerprint repeated
+inline constexpr std::uint32_t invariant = ZXV_PDX_TRIP_INVARIANT; ///< the caller's invariant failed
+inline constexpr std::uint32_t forbidden = ZXV_PDX_TRIP_FORBIDDEN; ///< the tag was already forbidden
+} // namespace trip
+
+/// "constructive", ..., "none"; "INVALID" otherwise.
+inline std::string_view to_string(Kind k) noexcept { return zxv_paradox_kind_name(static_cast<std::int32_t>(k)); }
+/// "applied", "proposal-for-owner", ...; "INVALID" otherwise.
+inline std::string_view to_string(Outcome o) noexcept
+{
+    return zxv_paradox_outcome_name(static_cast<std::int32_t>(o));
+}
+/// "open", "sandboxed", ...; "INVALID" otherwise.
+inline std::string_view to_string(NodeState s) noexcept
+{
+    return zxv_paradox_node_state_name(static_cast<std::int32_t>(s));
+}
+
+/// The signature of an anomaly: SHA-256("zxv/pdx-sig/v1" || data), from a
+/// canonical description the caller builds.
+inline Digest32 signature(std::span<const std::uint8_t> data)
+{
+    Digest32 d{};
+    detail::check(zxv_paradox_signature(data.data(), data.size(), d.data()));
+    return d;
+}
+/// signature() of the bytes of `text`.
+inline Digest32 signature(std::string_view text) { return signature(as_bytes(text)); }
+
+/// The kind a tag reads as on its own (a forbidden tag reads as none).
+inline Kind kind_of_tag(Hexagram tag)
+{
+    std::int32_t k = 0;
+    detail::check(zxv_paradox_kind_of_tag(tag.tag(), &k));
+    return static_cast<Kind>(k);
+}
+/// What to do with a classified pair. UsageError (ZXV_E_ARG) for a pair
+/// that breaks the class rules; a forbidden tag gives Action::rollback.
+inline Action action(Kind kind, Hexagram tag)
+{
+    std::int32_t a = 0;
+    detail::check(zxv_paradox_action(static_cast<std::int32_t>(kind), tag.tag(), &a));
+    return static_cast<Action>(a);
+}
+/// The HexAction an outcome amounts to (applied -> proceed, deferred ->
+/// wait, proposal_for_owner -> escalate, contained -> rollback, ...).
+inline HexAction outcome_action(Outcome o)
+{
+    std::int32_t a = 0;
+    detail::check(zxv_paradox_outcome_action(static_cast<std::int32_t>(o), &a));
+    return static_cast<HexAction>(a);
+}
+
+/// Evidence counts before and after: the trend that classify() reads.
+struct Evidence {
+    std::uint32_t pos0 = 0; ///< evidence for, before
+    std::uint32_t neg0 = 0; ///< evidence against, before
+    std::uint32_t pos1 = 0; ///< evidence for, after
+    std::uint32_t neg1 = 0; ///< evidence against, after
+};
+
+/// What classify() decided.
+struct Classification {
+    Kind kind = Kind::none;     ///< the kind
+    Hexagram tag;               ///< the tag with the kind's polarity (forbidden stays forbidden)
+    std::int32_t reg_index = -1; ///< the registry entry that decided it, or -1
+};
+
+namespace detail {
+inline Classification classify(const zxv_paradox* book, Hexagram tag, const std::optional<Evidence>& ev, bool stale,
+                               const std::optional<Digest32>& sig, zxv::detail::CtxCore* core)
+{
+    std::array<std::uint32_t, 4> e{};
+    if (ev) e = {ev->pos0, ev->neg0, ev->pos1, ev->neg1};
+    std::int32_t k = 0, idx = -1;
+    std::uint8_t t = 0;
+    zxv::detail::check(zxv_paradox_classify(book, tag.tag(), ev ? e.data() : nullptr, stale ? 1 : 0,
+                                            sig ? sig->data() : nullptr, &k, &t, &idx),
+                       core);
+    return {static_cast<Kind>(k), Hexagram::from_tag(t), idx};
+}
+} // namespace detail
+
+/// Classify a tag without a registry (no Book). `evidence` empty means no
+/// trend (polarity neutral); `stale` says the newest evidence is past your
+/// freshness limit (ignored without evidence); a `sig` is ignored without
+/// a registry. Pure.
+inline Classification classify(Hexagram tag, const std::optional<Evidence>& evidence = {}, bool stale = false)
+{
+    return detail::classify(nullptr, tag, evidence, stale, {}, nullptr);
+}
+
+/// A RepairProof (repair_bytes, little-endian), returned by
+/// Book::destructive. Share signature() with peers: they add it to their
+/// registries as Kind::destructive to recognise the trap. Signing the proof
+/// is the caller's job.
+class RepairProof {
+public:
+    /// A proof from its bytes (size checked; content not verified).
+    static RepairProof from_bytes(std::span<const std::uint8_t> b)
+    {
+        RepairProof p;
+        p.b_ = zxv::detail::fixed<ZXV_PDX_REPAIR_BYTES>(b, "RepairProof");
+        return p;
+    }
+    /// The checks that fired (paradox::trip bits).
+    [[nodiscard]] std::uint32_t trips() const noexcept { return zxv::detail::le32(b_.data()); }
+    /// Steps taken when it was detected.
+    [[nodiscard]] std::uint32_t steps() const noexcept { return zxv::detail::le32(b_.data() + 4); }
+    /// Budget spent when it was detected.
+    [[nodiscard]] std::uint32_t spent() const noexcept { return zxv::detail::le32(b_.data() + 8); }
+    /// Number of state fingerprints checked.
+    [[nodiscard]] std::uint32_t trace_count() const noexcept { return zxv::detail::le32(b_.data() + 12); }
+    /// Who submitted the work.
+    [[nodiscard]] std::uint32_t submitter() const noexcept { return zxv::detail::le32(b_.data() + 16); }
+    /// The state length.
+    [[nodiscard]] std::uint32_t state_length() const noexcept { return zxv::detail::le32(b_.data() + 20); }
+    /// SHA-256 of the state as found.
+    [[nodiscard]] Digest32 state_found() const noexcept { return zxv::detail::digest_at(b_.data() + 24); }
+    /// SHA-256 of the state after rollback.
+    [[nodiscard]] Digest32 state_restored() const noexcept { return zxv::detail::digest_at(b_.data() + 56); }
+    /// The signature to share with peers (signature() of the pattern).
+    [[nodiscard]] Digest32 signature() const noexcept { return zxv::detail::digest_at(b_.data() + 88); }
+    /// The proof hash, SHA-256("zxv/pdx-repair/v1" || bytes[0,120)).
+    [[nodiscard]] Digest32 proof_hash() const noexcept { return zxv::detail::digest_at(b_.data() + 120); }
+    /// The quarantine record's index.
+    [[nodiscard]] std::uint64_t quarantine_index() const noexcept { return zxv::detail::le64(b_.data() + 152); }
+    /// The proof's bytes.
+    [[nodiscard]] const std::array<std::uint8_t, ZXV_PDX_REPAIR_BYTES>& bytes() const noexcept { return b_; }
+    /// True when the proof hash matches its bytes (integrity only; a
+    /// signature over the proof is the caller's to verify).
+    [[nodiscard]] bool verify() const
+    {
+        std::int32_t st = zxv_paradox_repair_verify(b_.data());
+        if (st == ZXV_E_VERIFY) return false;
+        zxv::detail::check(st);
+        return true;
+    }
+    /// Byte equality.
+    friend bool operator==(const RepairProof&, const RepairProof&) = default;
+
+private:
+    RepairProof() = default;
+    std::array<std::uint8_t, ZXV_PDX_REPAIR_BYTES> b_{};
+};
+
+/// A draft classification of a frontier record (draft_bytes), from
+/// Book::draft or sent by a peer, for Book::review.
+class Draft {
+public:
+    /// A draft from its bytes (size checked; Book::review checks content).
+    static Draft from_bytes(std::span<const std::uint8_t> b)
+    {
+        Draft d;
+        d.b_ = zxv::detail::fixed<ZXV_PDX_DRAFT_BYTES>(b, "paradox draft");
+        return d;
+    }
+    /// The frontier record index.
+    [[nodiscard]] std::uint32_t record() const noexcept { return zxv::detail::le32(b_.data()); }
+    /// The frontier record's hash.
+    [[nodiscard]] Digest32 record_hash() const noexcept { return zxv::detail::digest_at(b_.data() + 4); }
+    /// The record's signature.
+    [[nodiscard]] Digest32 signature() const noexcept { return zxv::detail::digest_at(b_.data() + 36); }
+    /// The proposed kind.
+    [[nodiscard]] Kind kind() const noexcept { return static_cast<Kind>(b_[68]); }
+    /// The caller's reason code.
+    [[nodiscard]] std::uint8_t reason() const noexcept { return b_[69]; }
+    /// paradox::flag bits.
+    [[nodiscard]] std::uint8_t flags() const noexcept { return b_[70]; }
+    /// The draft's bytes.
+    [[nodiscard]] const std::array<std::uint8_t, ZXV_PDX_DRAFT_BYTES>& bytes() const noexcept { return b_; }
+    /// Byte equality.
+    friend bool operator==(const Draft&, const Draft&) = default;
+
+private:
+    Draft() = default;
+    std::array<std::uint8_t, ZXV_PDX_DRAFT_BYTES> b_{};
+};
+
+/// One registry entry (append-only: never edited).
+struct RegistryEntry {
+    Digest32 signature{};          ///< the anomaly's signature
+    Kind kind = Kind::none;        ///< constructive, destructive or neutral
+    std::uint8_t reason = 0;       ///< the caller's reason code
+    std::uint8_t flags = 0;        ///< paradox::flag bits
+    std::uint64_t source = src_seed; ///< the frontier record it was learned from, or src_seed
+};
+
+/// An operator or frontier log record (record_bytes), parsed.
+struct OpRecord {
+    std::uint64_t seq = 0;    ///< its index
+    std::uint8_t op = 0;      ///< 1 constructive, 2 destructive, 3 neutral, 4 special, 5 draft, 6 review/registry, 7 graph pass
+    std::uint8_t kind = 0;    ///< the kind it ran for
+    std::uint8_t tag = 0;     ///< the tag it ran for
+    std::uint8_t outcome = 0; ///< the Outcome
+    std::uint32_t aux = 0;    ///< per-op detail (see the C header)
+    Digest32 a{};             ///< per-op hash a
+    Digest32 b{};             ///< per-op hash b
+    Digest32 prev{};          ///< previous record's hash
+    Digest32 hash{};          ///< SHA-256("zxv/pdx-log/v1" || bytes[0,112))
+
+    /// Parse record bytes (size checked).
+    static OpRecord parse(std::span<const std::uint8_t> r)
+    {
+        zxv::detail::need_size(r, ZXV_PDX_REC_BYTES, "paradox log record");
+        const std::uint8_t* p = r.data();
+        OpRecord o;
+        o.seq = zxv::detail::le64(p);
+        o.op = p[8];
+        o.kind = p[9];
+        o.tag = p[10];
+        o.outcome = p[11];
+        o.aux = zxv::detail::le32(p + 12);
+        o.a = zxv::detail::digest_at(p + 16);
+        o.b = zxv::detail::digest_at(p + 48);
+        o.prev = zxv::detail::digest_at(p + 80);
+        o.hash = zxv::detail::digest_at(p + 112);
+        return o;
+    }
+};
+
+/// Parse a quarantine log record (quarantine_record_bytes) into the ABI 1.3
+/// QuarantineRecord (reason holds the paradox::trip bits).
+inline QuarantineRecord parse_quarantine_record(std::span<const std::uint8_t> r)
+{
+    zxv::detail::need_size(r, ZXV_PDX_QREC_BYTES, "paradox quarantine record");
+    const std::uint8_t* p = r.data();
+    QuarantineRecord q;
+    q.seq = zxv::detail::le64(p);
+    q.tag = Hexagram::from_tag(p[8]);
+    q.reason = p[9];
+    q.submitter = zxv::detail::le32(p + 10);
+    q.subject = zxv::detail::digest_at(p + 14);
+    q.prev = zxv::detail::digest_at(p + 46);
+    q.hash = zxv::detail::digest_at(p + 78);
+    return q;
+}
+
+class Book;
+
+/// The live state of a Policy.
+struct PolicyState {
+    std::vector<std::int64_t> values;   ///< the live values
+    std::vector<std::int64_t> previous; ///< the values before the last applied update
+    bool armed = false;                 ///< an applied update awaits evaluation
+    std::uint32_t tension_at = 0;       ///< the tension it was applied at
+};
+
+/// A constructive policy: n parameters (1..policy_max) with published
+/// bounds that never change. The values are swarm parameters (budget
+/// shares, routing weights, escrow timing), never balances. A policy
+/// flagged flag::money or flag::device is never changed automatically:
+/// every update becomes a proposal for the owner. Needs caps::paradox.
+/// Not thread-safe.
+class Policy {
+public:
+    /// A policy with bounds lo[i] <= hi[i] and initial values inside them.
+    /// UsageError ZXV_E_ARG (sizes differ, n out of range, unknown flags),
+    /// ZXV_E_RANGE (lo > hi, or an initial value outside its bounds).
+    Policy(const Capability& cap, std::span<const std::int64_t> lo, std::span<const std::int64_t> hi,
+           std::span<const std::int64_t> initial, std::uint32_t flags = 0)
+        : cap_(zxv::detail::cap_of(cap))
+    {
+        if (hi.size() != lo.size() || initial.size() != lo.size())
+            throw UsageError(ZXV_E_ARG, "paradox policy: lo, hi and initial differ in size");
+        n_ = static_cast<std::uint32_t>(std::min<std::size_t>(lo.size(), 0xFFFFFFFFu));
+        zxv_paradox_policy* p = nullptr;
+        cap_->call([&] {
+            return zxv_paradox_policy_create(cap_->cap, n_, lo.data(), hi.data(), initial.data(), flags, &p);
+        });
+        p_.reset(p);
+    }
+    Policy(Policy&&) noexcept = default;            ///< move
+    Policy& operator=(Policy&&) noexcept = default; ///< move-assign
+    Policy(const Policy&) = delete;
+    Policy& operator=(const Policy&) = delete;
+    ~Policy() = default;
+
+    /// The number of parameters.
+    [[nodiscard]] std::uint32_t size() const noexcept { return n_; }
+    /// The live values, previous values, armed flag and tension at apply.
+    [[nodiscard]] PolicyState state() const
+    {
+        PolicyState s;
+        s.values.resize(n_);
+        s.previous.resize(n_);
+        std::int32_t armed = 0;
+        run([&](zxv_paradox_policy* p) {
+            return zxv_paradox_policy_values(p, s.values.data(), s.previous.data(), n_, &armed, &s.tension_at);
+        });
+        s.armed = armed != 0;
+        return s;
+    }
+    /// The live values.
+    [[nodiscard]] std::vector<std::int64_t> values() const { return state().values; }
+    /// The lower bounds.
+    [[nodiscard]] std::vector<std::int64_t> lower() const { return bounds(true); }
+    /// The upper bounds.
+    [[nodiscard]] std::vector<std::int64_t> upper() const { return bounds(false); }
+    /// The flags (paradox::flag bits).
+    [[nodiscard]] std::uint32_t flags() const
+    {
+        std::uint32_t f = 0;
+        run([&](zxv_paradox_policy* p) { return zxv_paradox_policy_bounds(p, nullptr, nullptr, n_, &f); });
+        return f;
+    }
+    /// A proposed update as bytes for the owner or for signing
+    /// (proposal_bytes(n), little-endian: n, how many values are out of
+    /// bounds, flags, then lo, hi, current, proposed per entry). Reads only.
+    [[nodiscard]] std::vector<std::uint8_t> proposal(std::span<const std::int64_t> synth) const
+    {
+        zxv_paradox_policy* p = handle();
+        return zxv::detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_paradox_policy_proposal(p, synth.data(), static_cast<std::uint32_t>(synth.size()), b, c, n);
+        }, cap_->ctx.get(), proposal_bytes(n_));
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_paradox_policy* native_handle() const noexcept { return p_.get(); }
+
+private:
+    friend class Book;
+    [[nodiscard]] zxv_paradox_policy* handle() const { return zxv::detail::live(p_.get(), "paradox::Policy"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_paradox_policy* p = handle();
+        zxv::detail::check(f(p), cap_->ctx.get());
+    }
+    std::vector<std::int64_t> bounds(bool low) const
+    {
+        std::vector<std::int64_t> v(n_);
+        run([&](zxv_paradox_policy* p) {
+            return zxv_paradox_policy_bounds(p, low ? v.data() : nullptr, low ? nullptr : v.data(), n_, nullptr);
+        });
+        return v;
+    }
+    std::shared_ptr<zxv::detail::CapCore> cap_; // declared first: outlives the policy
+    std::uint32_t n_ = 0;
+    zxv::detail::Owned<zxv_paradox_policy, zxv_paradox_policy_destroy> p_;
+};
+
+/// One branch of a Hold.
+struct Branch {
+    Digest32 id{};          ///< the candidate's 32-byte digest
+    std::uint32_t pos = 0;  ///< evidence for
+    std::uint32_t neg = 0;  ///< evidence against
+};
+
+/// A Hold's summary.
+struct HoldInfo {
+    std::uint32_t count = 0;    ///< branches
+    std::int32_t settled = -1;  ///< the settled branch, -1 while deferred
+    std::int32_t decisive = -1; ///< the branch with decisive evidence now, -1 if none
+};
+
+/// A neutral hold of up to `capacity` (1..hold_max) candidate branches. A
+/// branch settles (Book::neutral) when its net evidence leads every other
+/// by at least `decisive` (0 means 1), or alone reaches it, or the owner
+/// picks it. Creating needs caps::paradox; adding branches and evidence
+/// needs none. Not thread-safe.
+class Hold {
+public:
+    /// A new, empty hold.
+    Hold(const Capability& cap, std::uint32_t capacity, std::uint32_t decisive = 0) : cap_(zxv::detail::cap_of(cap))
+    {
+        zxv_paradox_hold* h = nullptr;
+        cap_->call([&] { return zxv_paradox_hold_create(cap_->cap, capacity, decisive, &h); });
+        h_.reset(h);
+    }
+    Hold(Hold&&) noexcept = default;            ///< move
+    Hold& operator=(Hold&&) noexcept = default; ///< move-assign
+    Hold(const Hold&) = delete;
+    Hold& operator=(const Hold&) = delete;
+    ~Hold() = default;
+
+    /// Add a candidate (the same id again is the same candidate).
+    /// RefusedError ZXV_E_STATE (settled), ZXV_E_CAPACITY (full).
+    void add(const Digest32& id)
+    {
+        run([&](zxv_paradox_hold* h) { return zxv_paradox_hold_add(h, id.data()); });
+    }
+    /// One piece of evidence for (`positive`) or against a candidate.
+    /// UsageError ZXV_E_NOT_FOUND (unknown id), RefusedError ZXV_E_STATE.
+    void evidence(const Digest32& id, bool positive)
+    {
+        run([&](zxv_paradox_hold* h) { return zxv_paradox_hold_evidence(h, id.data(), positive ? 1 : 0); });
+    }
+    /// The branch count, settled branch and decisive branch.
+    [[nodiscard]] HoldInfo info() const
+    {
+        HoldInfo i;
+        run([&](zxv_paradox_hold* h) { return zxv_paradox_hold_info(h, &i.count, &i.settled, &i.decisive); });
+        return i;
+    }
+    /// Branch `index`. UsageError ZXV_E_NOT_FOUND.
+    [[nodiscard]] Branch branch(std::uint32_t index) const
+    {
+        Branch b;
+        run([&](zxv_paradox_hold* h) { return zxv_paradox_hold_branch(h, index, b.id.data(), &b.pos, &b.neg); });
+        return b;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_paradox_hold* native_handle() const noexcept { return h_.get(); }
+
+private:
+    friend class Book;
+    [[nodiscard]] zxv_paradox_hold* handle() const { return zxv::detail::live(h_.get(), "paradox::Hold"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_paradox_hold* h = handle();
+        zxv::detail::check(f(h), cap_->ctx.get());
+    }
+    std::shared_ptr<zxv::detail::CapCore> cap_; // declared first: outlives the hold
+    zxv::detail::Owned<zxv_paradox_hold, zxv_paradox_hold_destroy> h_;
+};
+
+/// One graph node, in id order.
+struct GraphNode {
+    Digest32 id{};                       ///< the hash of its signed input
+    Kind kind = Kind::none;              ///< its current kind
+    NodeState state = NodeState::open;   ///< its state
+};
+
+/// A Graph's summary.
+struct GraphInfo {
+    std::uint32_t nodes = 0;       ///< node count
+    std::uint32_t passes = 0;      ///< passes run
+    std::uint32_t total_mag = 0;   ///< net tension of the open nodes: magnitude
+    std::int32_t total_dir = 0;    ///< net tension of the open nodes: direction -1/0/+1
+    bool escalated = false;        ///< reached the step limit: the owner decides
+    Digest32 chain{};              ///< SHA-256 chain over every pass (zeros before the first)
+};
+
+/// A complex paradox: a dependency graph of up to graph_max nodes, resolved
+/// by Book::pass in a fixed order (destructive and forbidden contained, and
+/// their dependants tainted; special sandboxed, dependants wait; neutral
+/// held; constructive applied where nothing reaches it). Nodes are taken in
+/// id order, so every peer with the same signed inputs reaches the same
+/// states and chain. It escalates to the owner after `step_limit` passes
+/// (>= 1) without resolving. Creating needs caps::paradox; adding nodes,
+/// edges and updates needs none. Not thread-safe.
+class Graph {
+public:
+    /// A new, empty graph.
+    Graph(const Capability& cap, std::uint32_t step_limit) : cap_(zxv::detail::cap_of(cap))
+    {
+        zxv_paradox_graph* g = nullptr;
+        cap_->call([&] { return zxv_paradox_graph_create(cap_->cap, step_limit, &g); });
+        g_.reset(g);
+    }
+    Graph(Graph&&) noexcept = default;            ///< move
+    Graph& operator=(Graph&&) noexcept = default; ///< move-assign
+    Graph(const Graph&) = delete;
+    Graph& operator=(const Graph&) = delete;
+    ~Graph() = default;
+
+    /// Add node `id` (a classified pair, tension magnitude and direction
+    /// -1/0/+1) before the first pass. UsageError ZXV_E_DUPLICATE,
+    /// RefusedError ZXV_E_CAPACITY / ZXV_E_STATE (after the first pass).
+    void add_node(const Digest32& id, Kind kind, Hexagram tag, std::uint32_t mag, std::int32_t dir)
+    {
+        run([&](zxv_paradox_graph* g) {
+            return zxv_paradox_graph_add_node(g, id.data(), static_cast<std::int32_t>(kind), tag.tag(), mag, dir);
+        });
+    }
+    /// Node `id` depends on node `dep` (which may be added later).
+    void add_dep(const Digest32& id, const Digest32& dep)
+    {
+        run([&](zxv_paradox_graph* g) { return zxv_paradox_graph_add_dep(g, id.data(), dep.data()); });
+    }
+    /// Queue new evidence for a node, applied at the next pass ("worst
+    /// wins" when several are queued for one node).
+    void update(const Digest32& id, Kind kind, Hexagram tag, std::uint32_t mag, std::int32_t dir)
+    {
+        run([&](zxv_paradox_graph* g) {
+            return zxv_paradox_graph_update(g, id.data(), static_cast<std::int32_t>(kind), tag.tag(), mag, dir);
+        });
+    }
+    /// A node's state (NodeState::open before the first pass).
+    [[nodiscard]] NodeState state(const Digest32& id) const
+    {
+        std::int32_t s = 0;
+        run([&](zxv_paradox_graph* g) { return zxv_paradox_graph_state(g, id.data(), &s); });
+        return static_cast<NodeState>(s);
+    }
+    /// Node `index` in id order (after the first pass, else RefusedError
+    /// ZXV_E_STATE).
+    [[nodiscard]] GraphNode node_at(std::uint32_t index) const
+    {
+        GraphNode n;
+        std::int32_t k = 0, s = 0;
+        run([&](zxv_paradox_graph* g) { return zxv_paradox_graph_node_at(g, index, n.id.data(), &k, &s); });
+        n.kind = static_cast<Kind>(k);
+        n.state = static_cast<NodeState>(s);
+        return n;
+    }
+    /// The graph's summary.
+    [[nodiscard]] GraphInfo info() const
+    {
+        GraphInfo i;
+        std::int32_t esc = 0;
+        run([&](zxv_paradox_graph* g) {
+            return zxv_paradox_graph_info(g, &i.nodes, &i.passes, &i.total_mag, &i.total_dir, &esc, i.chain.data());
+        });
+        i.escalated = esc != 0;
+        return i;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_paradox_graph* native_handle() const noexcept { return g_.get(); }
+
+private:
+    friend class Book;
+    [[nodiscard]] zxv_paradox_graph* handle() const { return zxv::detail::live(g_.get(), "paradox::Graph"); }
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_paradox_graph* g = handle();
+        zxv::detail::check(f(g), cap_->ctx.get());
+    }
+    std::shared_ptr<zxv::detail::CapCore> cap_; // declared first: outlives the graph
+    zxv::detail::Owned<zxv_paradox_graph, zxv_paradox_graph_destroy> g_;
+};
+
+/// The inputs of Book::destructive's checks.
+struct Containment {
+    std::uint32_t steps = 0;          ///< steps taken
+    std::uint32_t step_limit = 0;     ///< trips when steps >= it (0: no limit)
+    std::uint32_t spent = 0;          ///< budget spent
+    std::uint32_t budget = 0;         ///< trips when spent >= it (0: no budget)
+    std::vector<std::uint64_t> trace; ///< state fingerprints in visit order (trips on a repeat)
+    bool invariant_ok = true;         ///< the caller's invariant check result
+    std::vector<std::uint8_t> pattern; ///< canonical description of the trap (its signature is shared)
+    std::uint32_t submitter = 0;      ///< who submitted the work
+};
+
+/// Book::destructive's result.
+struct Contained {
+    Outcome outcome = Outcome::refused; ///< contained, or refused (nothing changed)
+    std::optional<RepairProof> proof;   ///< the proof when contained
+};
+
+/// Book::neutral's result.
+struct Settlement {
+    Outcome outcome = Outcome::deferred; ///< settled, deferred, rolled_back or refused
+    std::int32_t settled = -1;           ///< the settled branch, or -1
+};
+
+/// Book::special's result.
+struct FrontierEntry {
+    Outcome outcome = Outcome::refused;  ///< recorded, refused or rolled_back
+    std::optional<std::uint32_t> record; ///< the frontier index when recorded
+};
+
+/// The paradox book: the operator, frontier and quarantine logs and the
+/// signature registry, and the operators that write them. Internally
+/// serialized (thread-safe). It keeps its capability and context alive,
+/// so destruction order cannot be wrong.
+class Book {
+public:
+    /// A book with three empty logs of `log_capacity` records (1..log_max)
+    /// and a registry of `registry_capacity` entries (1..registry_max).
+    /// Needs caps::paradox.
+    Book(const Capability& cap, std::uint32_t log_capacity, std::uint32_t registry_capacity)
+        : cap_(zxv::detail::cap_of(cap))
+    {
+        zxv_paradox* b = nullptr;
+        cap_->call([&] { return zxv_paradox_create(cap_->cap, log_capacity, registry_capacity, &b); });
+        b_.reset(b);
+    }
+    Book(Book&&) noexcept = default;            ///< move
+    Book& operator=(Book&&) noexcept = default; ///< move-assign
+    Book(const Book&) = delete;
+    Book& operator=(const Book&) = delete;
+    ~Book() = default;
+
+    /// Classify a tag with this book's registry: a known `sig` overrides
+    /// the trend for Both and Neither. Reads only.
+    [[nodiscard]] Classification classify(Hexagram tag, const std::optional<Evidence>& evidence = {},
+                                          bool stale = false, const std::optional<Digest32>& sig = {}) const
+    {
+        return detail::classify(book(), tag, evidence, stale, sig, cap_->ctx.get());
+    }
+
+    /// Add a reviewed signature as kind constructive, destructive or
+    /// neutral; returns its index. An entry flagged money or device needs
+    /// `owner_ok`, else OwnerApprovalRequired. UsageError ZXV_E_DUPLICATE
+    /// (already registered), RefusedError ZXV_E_CAPACITY. Needs caps::paradox.
+    std::uint32_t registry_add(const Digest32& sig, Kind kind, std::uint8_t reason, std::uint8_t flags = 0,
+                               bool owner_ok = false)
+    {
+        std::uint32_t i = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_registry_add(cap_->cap, b, sig.data(), static_cast<std::int32_t>(kind), reason, flags,
+                                            owner_ok ? 1 : 0, &i);
+        });
+        return i;
+    }
+    /// The index of a signature, or nothing.
+    [[nodiscard]] std::optional<std::uint32_t> registry_find(const Digest32& sig) const
+    {
+        std::uint32_t i = 0;
+        std::int32_t st = zxv_paradox_registry_find(book(), sig.data(), &i);
+        if (st == ZXV_E_NOT_FOUND) return std::nullopt;
+        zxv::detail::check(st, cap_->ctx.get());
+        return i;
+    }
+    /// The number of registry entries.
+    [[nodiscard]] std::uint32_t registry_count() const
+    {
+        std::uint32_t n = 0;
+        read([&](const zxv_paradox* b) { return zxv_paradox_registry_count(b, &n); });
+        return n;
+    }
+    /// Registry entry `index`. UsageError ZXV_E_NOT_FOUND.
+    [[nodiscard]] RegistryEntry registry_at(std::uint32_t index) const
+    {
+        RegistryEntry e;
+        std::int32_t k = 0;
+        read([&](const zxv_paradox* b) {
+            return zxv_paradox_registry_at(b, index, e.signature.data(), &k, &e.reason, &e.flags, &e.source);
+        });
+        e.kind = static_cast<Kind>(k);
+        return e;
+    }
+
+    /// The record count of a log.
+    [[nodiscard]] std::uint32_t log_count(Log which) const
+    {
+        std::uint32_t n = 0;
+        read([&](const zxv_paradox* b) { return zxv_paradox_log_count(b, static_cast<std::int32_t>(which), &n); });
+        return n;
+    }
+    /// A log's chain head (32 zeros when empty).
+    [[nodiscard]] Digest32 log_head(Log which) const
+    {
+        Digest32 h{};
+        read([&](const zxv_paradox* b) { return zxv_paradox_log_head(b, static_cast<std::int32_t>(which), h.data()); });
+        return h;
+    }
+    /// Record `index` of a log as bytes (record_bytes, or
+    /// quarantine_record_bytes for Log::quarantine). UsageError
+    /// ZXV_E_NOT_FOUND past the end.
+    [[nodiscard]] std::vector<std::uint8_t> log_record(Log which, std::uint32_t index) const
+    {
+        const zxv_paradox* bk = book();
+        return zxv::detail::read_bytes([&](std::uint8_t* b, std::size_t c, std::size_t* n) {
+            return zxv_paradox_log_record(bk, static_cast<std::int32_t>(which), index, b, c, n);
+        }, cap_->ctx.get(), ZXV_PDX_REC_BYTES);
+    }
+    /// Operator or frontier record `index`, parsed.
+    [[nodiscard]] OpRecord op_record(Log which, std::uint32_t index) const
+    {
+        if (which == Log::quarantine) throw UsageError(ZXV_E_ARG, "op_record: use quarantine_record");
+        return OpRecord::parse(log_record(which, index));
+    }
+    /// Quarantine record `index`, parsed.
+    [[nodiscard]] QuarantineRecord quarantine_record(std::uint32_t index) const
+    {
+        return parse_quarantine_record(log_record(Log::quarantine, index));
+    }
+    /// Recompute every link of a log. A broken chain is FatalError
+    /// (ZXV_E_INVARIANT) and poisons the context (fail closed).
+    void log_verify(Log which)
+    {
+        zxv_paradox* b = book();
+        zxv::detail::check(zxv_paradox_log_verify(b, static_cast<std::int32_t>(which)), cap_->ctx.get());
+    }
+
+    /// One constructive evaluation and proposed update `synth` (one value
+    /// per policy parameter). Outcomes: applied (in bounds, unflagged),
+    /// proposal_for_owner (out of bounds or a money/device policy: nothing
+    /// changes), rolled_back (tension above the tension at apply, or a
+    /// forbidden tag), refused (kind not constructive). UsageError ZXV_E_ARG
+    /// (a bad pair, size mismatch). Needs caps::paradox.
+    Outcome constructive(Policy& policy, Kind kind, Hexagram tag, std::span<const std::int64_t> synth,
+                         std::uint32_t tension)
+    {
+        if (synth.size() != policy.size()) throw UsageError(ZXV_E_ARG, "paradox constructive: synth size mismatch");
+        return run_constructive(policy, kind, tag, synth.data(), tension);
+    }
+    /// An evaluation only (no new update): kept (an armed update survives
+    /// and is disarmed), rolled_back or refused.
+    Outcome constructive(Policy& policy, Kind kind, Hexagram tag, std::uint32_t tension)
+    {
+        return run_constructive(policy, kind, tag, nullptr, tension);
+    }
+
+    /// Detect and contain. When the kind is destructive or any check in `c`
+    /// fires, the work is quarantined, `state` is restored in place from
+    /// `checkpoint` (same size) and the result carries the RepairProof;
+    /// otherwise the outcome is refused and nothing changes. It contains:
+    /// there is no way to reply to or act against the submitter. Rollback
+    /// is always done, even when RefusedError ZXV_E_CAPACITY (a log full:
+    /// halt) is thrown. UsageError ZXV_E_RANGE (trace over trace_max).
+    /// Needs caps::paradox.
+    Contained destructive(Kind kind, Hexagram tag, std::span<std::uint8_t> state,
+                          std::span<const std::uint8_t> checkpoint, const Containment& c)
+    {
+        if (checkpoint.size() != state.size())
+            throw UsageError(ZXV_E_ARG, "paradox destructive: state and checkpoint differ in size");
+        auto u32 = [](std::size_t n, const char* what) {
+            if (n > 0xFFFFFFFFu) throw UsageError(ZXV_E_RANGE, std::string(what) + " too long");
+            return static_cast<std::uint32_t>(n);
+        };
+        const std::uint32_t len = u32(state.size(), "state");
+        const std::uint32_t tn = u32(c.trace.size(), "trace");
+        const std::uint32_t pn = u32(c.pattern.size(), "pattern");
+        std::array<std::uint8_t, ZXV_PDX_REPAIR_BYTES> proof{};
+        std::int32_t out = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_destructive(cap_->cap, b, static_cast<std::int32_t>(kind), tag.tag(), c.steps,
+                                           c.step_limit, c.spent, c.budget, c.trace.data(), tn,
+                                           c.invariant_ok ? 1 : 0, state.data(), checkpoint.data(), len,
+                                           c.pattern.data(), pn, c.submitter, &out, proof.data());
+        });
+        Contained r;
+        r.outcome = static_cast<Outcome>(out);
+        if (r.outcome == Outcome::contained) r.proof = RepairProof::from_bytes(proof);
+        return r;
+    }
+
+    /// Settle a hold on decisive evidence or on `owner_pick` (a branch
+    /// index); otherwise keep every branch. Outcomes: settled, deferred,
+    /// rolled_back (forbidden), refused (kind not neutral). UsageError
+    /// ZXV_E_NOT_FOUND (owner_pick past the branches). Needs caps::paradox.
+    Settlement neutral(Hold& hold, Kind kind, Hexagram tag, std::optional<std::uint32_t> owner_pick = {})
+    {
+        zxv_paradox_hold* h = hold.handle();
+        std::int32_t pick = -1;
+        if (owner_pick) {
+            if (*owner_pick > 0x7FFFFFFFu) throw UsageError(ZXV_E_ARG, "paradox neutral: owner_pick out of range");
+            pick = static_cast<std::int32_t>(*owner_pick);
+        }
+        Settlement s;
+        std::int32_t out = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_neutral(cap_->cap, b, h, static_cast<std::int32_t>(kind), tag.tag(), pick, &out,
+                                       &s.settled);
+        });
+        s.outcome = static_cast<Outcome>(out);
+        return s;
+    }
+
+    /// Record an unclassified paradox: a permanent frontier record (`sig`,
+    /// `subject` = the work's digest), never edited or erased. Outcomes:
+    /// recorded (with the frontier index), refused (kind not special),
+    /// rolled_back (forbidden). The work stays sandboxed (not run) until a
+    /// reviewed classification exists. Needs caps::paradox.
+    FrontierEntry special(Kind kind, Hexagram tag, const Digest32& sig, const Digest32& subject)
+    {
+        std::int32_t out = 0;
+        std::uint32_t rec = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_special(cap_->cap, b, static_cast<std::int32_t>(kind), tag.tag(), sig.data(),
+                                       subject.data(), &out, &rec);
+        });
+        FrontierEntry f;
+        f.outcome = static_cast<Outcome>(out);
+        if (f.outcome == Outcome::recorded) f.record = rec;
+        return f;
+    }
+    /// A draft classification of frontier record `rec` for review (kind
+    /// constructive, destructive or neutral). UsageError ZXV_E_NOT_FOUND
+    /// (no such record). Needs caps::paradox.
+    Draft draft(std::uint32_t rec, Kind kind, std::uint8_t reason, std::uint8_t flags = 0)
+    {
+        std::array<std::uint8_t, ZXV_PDX_DRAFT_BYTES> d{};
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_draft(cap_->cap, b, rec, static_cast<std::int32_t>(kind), reason, flags, d.data());
+        });
+        return Draft::from_bytes(d);
+    }
+    /// Review a draft (ours or a peer's; it must match this book's frontier
+    /// record). A money or device draft needs `owner_ok`; others `owner_ok`
+    /// or `consensus_ok` (your quorum result). Outcomes: accepted (a new
+    /// registry entry), proposal_for_owner (not approved), refused (already
+    /// registered, or registry full). VerificationFailed (the hash or
+    /// signature does not match the record). Needs caps::paradox.
+    Outcome review(const Draft& d, bool owner_ok, bool consensus_ok)
+    {
+        std::int32_t out = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_review(cap_->cap, b, d.bytes().data(), owner_ok ? 1 : 0, consensus_ok ? 1 : 0, &out);
+        });
+        return static_cast<Outcome>(out);
+    }
+
+    /// One pass over a graph (logged): Outcome::resolved or
+    /// Outcome::pending. When the pass count reaches the step limit
+    /// unresolved, the pass is logged and ParadoxStepLimit
+    /// (ZXV_E_PARADOX_STEP) is thrown: the graph stays readable and goes to
+    /// the owner. UsageError ZXV_E_NOT_FOUND (a dependency names no node;
+    /// first pass only). Needs caps::paradox.
+    Outcome pass(Graph& graph)
+    {
+        zxv_paradox_graph* g = graph.handle();
+        std::int32_t out = 0;
+        gated([&](zxv_paradox* b) { return zxv_paradox_graph_pass(cap_->cap, b, g, &out); });
+        return static_cast<Outcome>(out);
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_paradox* native_handle() const noexcept { return b_.get(); }
+
+private:
+    [[nodiscard]] zxv_paradox* book() const { return zxv::detail::live(b_.get(), "paradox::Book"); }
+    template <class F>
+    void read(F&& f) const
+    {
+        const zxv_paradox* b = book();
+        zxv::detail::check(f(b), cap_->ctx.get());
+    }
+    template <class F>
+    void gated(F&& f) const
+    {
+        zxv_paradox* b = book();
+        cap_->call([&] { return f(b); });
+    }
+    Outcome run_constructive(Policy& policy, Kind kind, Hexagram tag, const std::int64_t* synth,
+                             std::uint32_t tension)
+    {
+        zxv_paradox_policy* p = policy.handle();
+        std::int32_t out = 0;
+        gated([&](zxv_paradox* b) {
+            return zxv_paradox_constructive(cap_->cap, b, p, static_cast<std::int32_t>(kind), tag.tag(), synth,
+                                            policy.size(), tension, &out);
+        });
+        return static_cast<Outcome>(out);
+    }
+    std::shared_ptr<zxv::detail::CapCore> cap_; // declared first: outlives the book
+    zxv::detail::Owned<zxv_paradox, zxv_paradox_destroy> b_;
+};
+
+} // namespace paradox
 
 // Out-of-line definitions that need complete types.
 inline std::shared_ptr<detail::CtxCore> Message::ctx_core(const Context& c) { return c.core_; }

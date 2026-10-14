@@ -3,10 +3,13 @@ name: CI
 # Speed (docs/CI.md): superseded runs on a pull request are cancelled, each
 # job runs only when its inputs changed (build_system/ci_changes.sh), and the
 # slow tier (mutation, fuzzing, coverage, cross-CPU KATs, MSan, integer
-# sanitizer, riscv/arm32 boots) runs nightly, on manual runs, and on pull
-# requests once they are ready for review. A draft cannot be merged, so every
-# merge has passed the slow tier. Locally, scripts/verify-local.sh runs the
-# fast tier before a push.
+# sanitizer, riscv/arm32 boots, UEFI discs) runs nightly, on manual runs, and
+# on pull requests once they are ready for review (not on pushes to main: the
+# merged pull request already passed it).
+# The ci-gate job at the end is the one check a merge needs: it is reported
+# only by a ready pull request's run, and only passes when every job that the
+# change needs, slow tier included, passed (docs/CI.md, "Merge gate").
+# Locally, scripts/verify-local.sh runs the same checks before a push.
 
 on:
   push:
@@ -14,15 +17,10 @@ on:
   pull_request:
     branches: [ main, develop ]
     types: [ opened, synchronize, reopened, ready_for_review ]
-    # SDK-only pull requests are tested by the sdk*.yml workflows; this one
-    # still runs for libzxv and the .NET SDK, which its dotnet-sdk job builds.
-    paths:
-      - '**'
-      - '!sdk/**'
-      - '!.github/workflows/sdk*.yml'
-      - '!.github/scripts/sdk-changes.sh'
-      - 'sdk/libzxv/**'
-      - 'sdk/dotnet/**'
+    # No path filter: every pull request must report ci-gate, the check a
+    # merge requires, or an SDK-only pull request could never be merged.
+    # SDK-only changes run quick-checks and ci-gate here (two short jobs);
+    # the sdk*.yml workflows test the SDKs themselves.
   schedule:
     - cron: '23 3 * * *'
   workflow_dispatch:
@@ -49,27 +47,42 @@ jobs:
       mac: ${{ steps.changes.outputs.mac }}
       proofs: ${{ steps.changes.outputs.proofs }}
       heavy: ${{ steps.changes.outputs.heavy }}
-    env:
-      BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event.before }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Which commit this change is compared with
+        # A pull request run checks out GitHub's merge commit, whose first
+        # parent is the target branch as it was when the merge was made.
+        # Diffing against that parent gives exactly the pull request's files.
+        # It used to diff against the live origin/main, which moves: when
+        # main gained the pull request itself (#77 was merged 5 s after it
+        # was marked ready) the diff came out empty, every job was skipped
+        # and the run reported success without running a single test.
+        # A push compares with the commit before it.
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then B=$(git rev-parse HEAD^1); else B="$BEFORE"; fi
+          echo "base: ${B:-<none: everything>}"
+          echo "BASE=$B" >> "$GITHUB_ENV"
       - name: Which jobs this change needs
         id: changes
         env:
           EVENT: ${{ github.event_name }}
           DRAFT: ${{ github.event.pull_request.draft }}
+          REF: ${{ github.ref }}
         run: |
-          # A pull request is compared with its merge base on the target
-          # branch, so files that only changed there do not count.
           B="$BASE"
           if git cat-file -e "$B^{commit}" 2>/dev/null; then B=$(git merge-base "$B" HEAD); fi
           build_system/ci_changes.sh "$B" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Check every file is on Apache-2.0
         run: python3 build_system/relicense_apache.py --check
-      - name: Install clang-format
-        run: pip install clang-format==18.1.8
+      - name: Install clang-format and PyYAML
+        run: pip install clang-format==18.1.8 pyyaml
+      - name: Every pull request workflow keeps drafts on the fast tier
+        run: python3 build_system/check_workflow_tiers.py
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked. Nightly and manual runs
@@ -677,3 +690,57 @@ jobs:
             fuzz/build/cov/summary.json
             fuzz/build/cov/report.txt
             fuzz/build/cov/COVERAGE.table.md
+
+  # ---- merge gate (docs/CI.md, "Merge gate") ----------------------------
+  # The one check branch protection requires. On a ready pull request (and
+  # on main, nightly and manual runs) it is named ci-gate and passes only
+  # when quick-checks passed, no job failed or was cancelled, and, when the
+  # change touches code, every slow-tier job actually ran and passed. A
+  # skipped job counts as passing for a required check, so requiring the
+  # individual jobs could let a run that skipped everything through; this
+  # job checks the skips against what the change needs.
+  # On a draft it is named "ci-gate (draft: fast tier only)", a different
+  # check, so a draft's green fast tier can never satisfy the merge rule,
+  # even in the seconds between "Ready for review" and the new run starting.
+  ci-gate:
+    name: "${{ (github.event_name == 'pull_request' && github.event.pull_request.draft) && 'ci-gate (draft: fast tier only)' || 'ci-gate' }}"
+    needs: [ quick-checks, host-tests, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job the change needs ran and passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          KERNEL: ${{ needs.quick-checks.outputs.kernel }}
+          HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          kernel = os.environ.get("KERNEL") == "true"
+          heavy = os.environ.get("HEAVY") == "true"
+          slow = ["boot-extra", "uefi-disc", "kat-cross", "mutation-subset",
+                  "sanitize-integer", "sanitize-msan", "fuzz-smoke", "coverage"]
+          fast = ["host-tests", "boot", "sanitize-asan-ubsan"]
+          bad = []
+          for job, v in needs.items():
+              r = v["result"]
+              print(f"{r:10} {job}")
+              if r in ("failure", "cancelled"):
+                  bad.append(f"{job}: {r}")
+          if needs["quick-checks"]["result"] != "success":
+              bad.append("quick-checks did not pass")
+          if kernel:
+              must = fast + (slow if heavy else [])
+              for job in must:
+                  if needs[job]["result"] != "success":
+                      bad.append(f"{job}: {needs[job]['result']} but this change needs it")
+          if not heavy:
+              print("fast tier only: this run cannot satisfy the merge gate")
+          if bad:
+              print("\nci-gate FAILED:")
+              print("\n".join("  " + b for b in sorted(set(bad))))
+              sys.exit(1)
+          print("\nci-gate passed")
+          PY

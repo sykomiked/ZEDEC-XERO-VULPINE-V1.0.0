@@ -7,6 +7,7 @@ import java.lang.reflect.Modifier
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.zedec.zxv.mobile.internal.Jni
+import org.zedec.zxv.mobile.internal.Jni15
 
 /**
  * The Kotlin `external` declarations and the C shim's exported functions
@@ -25,5 +26,16 @@ class ShimDriftTest {
         assertEquals(kotlin.sorted(), c.sorted())
         // Calling each one resolves it; shimAbi() did so already at load.
         assertEquals(Jni.SHIM_ABI, Jni.shimAbi())
+    }
+
+    @Test
+    fun everyAbi15NativeMethodHasAShimFunctionAndBack() {
+        val src = File(System.getProperty("zxv.jni15Source")).readText()
+        val direct = Regex("""FN15\((\w+)\)\(""").findAll(src).map { it.groupValues[1] }.toSet()
+        val viaMacro = Regex("""PIC_BIN\((\w+),""").findAll(src).map { it.groupValues[1] }.toSet()
+        val c = direct + viaMacro - "name"
+        val kotlin = Jni15::class.java.declaredMethods.filter { Modifier.isNative(it.modifiers) }.map { it.name }.toSet()
+        assertEquals(kotlin.sorted(), c.sorted())
+        assertEquals(202, c.size)
     }
 }

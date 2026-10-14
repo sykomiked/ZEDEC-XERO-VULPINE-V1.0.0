@@ -3,7 +3,7 @@
 //
 // A runnable tour of the ZXV SDK for the JVM. Single-file source program:
 //
-//   java --enable-native-access=org.zedec.zxv -p target/zxv-1.3.0.jar --add-modules org.zedec.zxv \
+//   java --enable-native-access=org.zedec.zxv -p target/zxv-1.5.0.jar --add-modules org.zedec.zxv \
 //        examples/Quickstart.java [fixtures-dir]
 //
 // With a fixtures directory (sdk/conformance/fixtures) it also runs the engine.

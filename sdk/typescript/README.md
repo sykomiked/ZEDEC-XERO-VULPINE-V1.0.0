@@ -24,7 +24,7 @@ cd sdk/typescript
 npm install            # also builds the addon with node-gyp (a failure falls back to wasm)
 npm run build:wasm     # needs `python3 -m pip install ziglang` (zig ships wasi-libc), or ZXV_WASM_CC
 npm run build:ts
-npm test               # 120 tests, both backends
+npm test               # 157 tests, both backends
 ```
 
 `sdk/libzxv/build/libzxv.so` must exist (built by `make -C sdk/libzxv`).
@@ -32,7 +32,7 @@ The addon finds the library in the order of SDK_DESIGN.md §1: the
 `libraryPath` you pass, `ZXV_LIBRARY_PATH`, the bundled copy (the
 repository build `../libzxv/build` when run from this tree, otherwise `lib/`
 of the published package, staged by `npm pack`), then the system loader. A library whose ABI major is not 1, or whose minor
-is below 4, is refused (the SDK calls the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
+is below 5, is refused (the SDK calls the ABI 1.5 groups, the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
 
 In a published package, `import '@zedec/zxv'` resolves to the Node entry
 (`node` condition) or the browser entry (`browser` condition, wasm only, no
@@ -244,11 +244,210 @@ region.trustKey(key.publicKey);
 region.stage(image); region.trial(5); region.commit();
 ```
 
+## ABI 1.5: treaties, CIDs and AIPI, coins, fees, the V-Bill hub, freight, Web 4, paradox
+
+ABI 1.5 adds eight groups (197 functions) on both backends. They report
+through a second feature mask: `zxv.features2()` lists the live ones,
+`zxv.featureMask2` is the raw `ZXV_FEAT2_*` mask, and `zxv.has()` accepts
+names from both masks (`zxv.has('FREIGHT')`). There are three new
+capabilities, `Cap.AIPI`, `Cap.MINT` and `Cap.PARADOX`. `Cap.ALL` keeps its
+1.1 value, so use `Cap.ALL_1_5` or add the new bits yourself. A capability
+without the bit gets `CapabilityDeniedError`. Each new status has its own
+error class:
+
+| Status | Class |
+|---|---|
+| `E_DENOM` (-32) | `DenominationError` (usage) |
+| `E_TREATY` (-33) | `TreatyError` (usage; carries `fault` and `offset`) |
+| `E_CID` (-34) | `CidMismatchError` |
+| `E_CONSENT` (-35) | `ConsentDeniedError` |
+| `E_ERASURE` (-36) | `ErasureError` |
+| `E_PEG` (-37) | `PegError` |
+| `E_LIMIT` (-38) | `LimitExceededError` |
+| `E_PARADOX_STEP` (-39) | `ParadoxStepLimitError` |
+| `E_PARADOX_OWNER` (-40) | `OwnerApprovalRequiredError` |
+
+Every class without "(usage)" is refused (`ZxvRefusedError`). Every 64-bit
+value is a `bigint`. You never size a buffer: results of unknown length
+come back as a `Uint8Array` or a string, sized exactly. Handles follow R6:
+they close before their context, closing twice is fine, and a call after
+`close()` throws `ZxvUsageError`. Handles bound to a context throw
+`ZxvFatalError` once that context halts. The examples below assume
+`const cap = ctx.rootCapability({ caps: Cap.ALL_1_5 })`.
+
+### Treaties (`zxv.treaty`)
+
+COBOL copybook records (2542 bytes) and Sutra text, with exact PIC S9(18)
+arithmetic. A parse refusal throws `TreatyError` and gives the `TreatyFault`
+reason and the byte offset of the problem.
+
+```ts
+using t = zxv.treaty.parseSutra('TREATY CORRIDOR-7 USD NET\nPARTY ACME 5000 4000 1/2\nPARTY BETA 3000 3000 1/2\nOWE ACME BETA 1200\nEND\n');
+using result = t.run();
+result.legs();                 // [{ from: 0, to: 1, amount: 1200n }]
+zxv.treaty.picDiv(-7n, 2n);    // { quotient: -3n, remainder: -1n }
+```
+
+Limits: this module only parses and nets. It moves no money and does not
+check a treaty against any law.
+
+### CIDs and AIPI (`zxv.cid`, `zxv.aipi`, `AipiNode`)
+
+IPFS CIDs (v0 and v1, Kubo's text form and base58btc) and AIPI function,
+call and claim records. Records are decoded strictly, so one function has
+exactly one CID. `AipiNode.create(cap)` needs `Cap.AIPI` and creates an
+in-memory block store whose `get` checks every block against its CID.
+
+```ts
+const cid = zxv.cid.compute(new TextEncoder().encode('hello world'));
+cid.toString();   // 'bafkrei...'
+using node = AipiNode.create(cap);
+const module = node.put(new TextEncoder().encode('zxv module bytes'));
+const fn = node.publishFunction(zxv.aipi.encodeFunction({ intent: AipiIntent.FN, verify: AipiVerify.LOCAL, fuelMax: 1000n, module, entry: 'main' }));
+zxv.aipi.callCid(fn, new TextEncoder().encode('{"n":42}'));
+```
+
+Limits: there is no network (no peers, gateway or libp2p) and no
+EXECUTE, because running a function needs the Z-Wasm sandbox, which is not
+in libzxv. Signing a claim is the caller's job.
+
+### Coins and tokens (`zxv.coins`, `zxv.tokens`, `TokenWallet`)
+
+The VFV Fibonacci coin ladder (face 4 is not a coin: `DenominationError`),
+Zeckendorf splits, and swarm token tiers with octane, including canonical
+form, fuse/split and Fibonacci codes. A holding is a frozen array of 64
+bigints. `TokenWallet` needs `Cap.MINT`.
+
+```ts
+zxv.coins.split(100n);                  // [10, 5, 3] (rungs: 89 + 8 + 3)
+using w = TokenWallet.create(cap, { octane: 4 });
+w.mint(100n); w.spend(30n);
+w.info();                               // { value: 70n, pieces: 10n, octane: 4, modelId: 0 }
+```
+
+Limits: minting real coins is not in this ABI. A wallet is in-process
+bookkeeping.
+
+### The assurance fee (`zxv.fees`)
+
+The fee is floor(gross × 8889 / 10^7), which is 0.08889%, exact for every
+u64. A carry makes many small charges pay exactly what one charge of their
+sum would pay. The fee splits 50/25/15/10 into four buckets, and the
+reserve floor takes every remainder unit.
+
+```ts
+zxv.fees.assure(1_000_000n);                    // 888n
+zxv.fees.split(889n).parts;                     // [446n, 222n, 133n, 88n]
+let rem = 0n;
+for (let i = 0; i < 10; i++) rem = zxv.fees.assureWithCarry(rem, 100n).remainder;
+```
+
+Limits: these are the arithmetic rules only. How the fee is treated for tax
+or under securities law is a question for counsel.
+
+### The V-Bill hub (`VHub`)
+
+A demonstration hub with test currencies. Each currency has one exact peg,
+signed by its issuer with ML-DSA-87. A swap is a single all-or-nothing
+posting (A → V-Bill → B), and a quote returns the largest exact amount. A
+currency with no rule refuses every swap, so add a limit first.
+`LimitExceededError` and `PegError` are refusals.
+
+```ts
+const iss = MlDsa87.fromSeed(cap, new Uint8Array(32).fill(0x40));
+using hub = VHub.create(cap);
+hub.addCurrency(0, { code: 'ZTA', minorUnits: 2, issuerPublicKey: iss.publicKey, poolFunding: 500000n, vbillBacking: 10000n });
+hub.setPeg(0, 350n, 1n, 1n, MlDsa87.sign(cap, iss.secretKey, hub.pegMessage(0, 350n, 1n, 1n)));
+// ...a second currency, hub.addLimit(slot, limit), hub.openAccount, hub.issue...
+hub.quote(0, 1, 35001n);   // { amount: 35000n, vbills: 100n, received: 12000n }
+```
+
+Limits: test currencies only (ISO 4217 codes are refused) and no real
+money. The ledger lives in process memory. The hub is connected to no rail,
+central bank or issuer, and V-Bills likely need legal review before any
+real use. The kernel's C rule plug-ins are not exposed.
+
+### Freight (`zxv.freight`)
+
+A payload of up to 3360 bytes is erasure-coded as 168 rows of 21 bytes,
+and any k rows rebuild it. Larger payloads are split into sets
+(`members`, `join`). Op streams cover LITERAL, COPY, SEED and CIDREF. A
+CIDREF is resolved by a JS callback. The callback runs synchronously, and
+any exception it throws is caught at the C boundary and re-thrown after the
+call.
+
+```ts
+const header = zxv.freight.header(payload, { freightId: 42n, k: 10 });
+const packets = zxv.freight.encode(header, payload);            // 3528 bytes
+zxv.freight.decode(header, packets.subarray(21 * 100, 21 * 110)); // any 10 rows
+const abc = zxv.cid.compute(new TextEncoder().encode('abc'));
+using w = zxv.freight.opsWriter(5n);
+const ops = w.literal(lt).cidref(abc, 3n).literal(gt).finish();
+zxv.freight.expand(ops, { limit: 1024n, resolve: (cid, len) => (zxv.cid.fromBytes(cid).equals(abc) ? abcBytes : undefined) });
+```
+
+Limits: erasure coding recovers a lost row, but a corrupted row is only
+detected (`VerificationFailedError`) and must be dropped. The header is not
+authenticated. Op streams give no size guarantee.
+
+### Web 4 agents (`W4Agent`, `zxv.web4`)
+
+ML-DSA-65 agent keys are generated inside a `W4Agent` handle. The SDK
+cannot read the secret key: no call returns it, the object never holds it,
+`toString()` and `toJSON()` show only the agent id, and `close()` wipes the
+key. Creating keys and signing need `Cap.CRYPTO_SIGN`. A consent token
+needs `Cap.ATTEST`. Cards, manifests, the directory, the consent log and
+envelopes are covered too. No call reads a clock: every time is `nowMs`,
+which you pass.
+
+```ts
+using alice = W4Agent.create(cap, { name: 'alice', nowMs });
+using human = W4Agent.create(cap, { name: 'human', nowMs });
+const action = zxv.web4.actionDigest('pay', alice.agentId, bob.agentId, 7n, payload);
+const token = human.issueConsent({ agentId: alice.agentId, action, scope: W4ConsentScope.MONEY, maxVfv: 1000n, issuedMs: nowMs, expiresMs: nowMs + 600_000n });
+const env = alice.seal({ kind: W4MessageKind.REQUEST, to: bob.agentId, reqId: 7n, tool: 'pay', payload, consent: token, nowMs });
+zxv.web4.verifyEnvelope(env, alice.publicKey);
+using log = zxv.web4.consentLog(1024);
+log.check(zxv.web4.envelopeConsent(env)!, human.publicKey, alice.agentId, action, W4ConsentScope.MONEY, 500n, nowMs + 100n);
+// a second check of the same token throws ConsentDeniedError (single use)
+```
+
+Limits: envelopes are signed, not encrypted. A consent token proves only
+that a key holder signed. Whether that person was the right human and
+understood what they signed depends on the device and UI that showed the
+action. Replay windows, rate limits and the Web 2/Web 3 bridges are not in
+this ABI.
+
+### The paradox engine (`zxv.paradox`, `ParadoxBook`)
+
+The engine reads a hexagram tag as one of four kinds, then runs a fixed,
+logged operator for that kind: constructive (a bounded policy update),
+destructive (contain, quarantine, roll back and produce a `RepairProof`),
+neutral (hold every branch) or special (a frontier record plus a draft for
+review). Complex paradoxes are graphs resolved pass by pass. Every handle
+needs `Cap.PARADOX`. An outcome such as `PROPOSAL_FOR_OWNER` is a decision,
+not an error.
+
+```ts
+using book = ParadoxBook.create(cap, { logCapacity: 64, registryCapacity: 16 });
+const cls = book.classify(39, { evidence: [3, 1, 5, 1] });   // { kind: CONSTRUCTIVE, tag: 47, registryIndex: -1 }
+using policy = ParadoxPolicy.create(cap, { lo: [0n, 0n], hi: [100n, 50n], initial: [50n, 25n] });
+book.constructive(policy, cls, [60n, 20n], 5);    // ParadoxOutcome.APPLIED
+book.constructive(policy, cls, [200n, 20n], 5);   // PROPOSAL_FOR_OWNER: outside the bounds, nothing changes
+```
+
+Limits: this is bookkeeping that tolerates contradictions. It contains,
+holds and routes them, and never makes both sides true. Automatic changes
+happen only inside published bounds. Anything flagged MONEY or DEVICE goes
+to the owner, and `ownerOk` is the caller's own assertion. The engine
+detects only what the caller's checks look at. It never replies to or acts
+against a sender.
+
 ## API overview
 
 | Area | API |
 |---|---|
-| Library | `Zxv.load({ backend, libraryPath, wasm })`, `zxv.version`, `zxv.has('TENSOR')`, `zxv.features()`, `statusName`, `statusClass`, `random`, `secretKey`, `iso4217`, `kernel` (C rationals/logic), `wire` (C framing) |
+| Library | `Zxv.load({ backend, libraryPath, wasm })`, `zxv.version`, `zxv.has('TENSOR')`, `zxv.features()`, `zxv.features2()`, `featureMask2`, `statusName`, `statusClass`, `random`, `secretKey`, `iso4217`, `kernel` (C rationals/logic), `wire` (C framing) |
 | Context | `zxv.createContext({ fatalPolicy })`, `rootCapability`, `enableCurrency(cap, alpha[, minorUnits])`, `registerPrivateUnit(cap, code, minorUnits)`, `currency`, `enabledCurrencies`, `halt`, `isPoisoned`, `close` |
 | Capability | `Cap.*`, `attenuate`, `revoke`, `setAttestation`, `info`, `check`, `require` |
 | Exact numbers | `Rational.of/parse/fromNumberExact/fromIeee754Bits/fromQ16`, `add/sub/mul/div/cmp/equals/toQ16/toString` |
@@ -263,6 +462,14 @@ region.stage(image); region.trial(5); region.commit();
 | Engine | `Model.open/fromBytes`, `info`, `tokenize`, `detokenize`, `newSession`, `loadLora`; `Session.generate/stream/reset/position/bindBudget` |
 | EVM | `new StateChannel(cap, channelId)`: `encodeState`, `ledgerState` |
 | Wire | `Ubh168Frame`, `WireTruth` |
+| Treaty | `zxv.treaty.parseSutra/parseRecord/create`, `Treaty.run/toSutra/toRecord/parties/obligations/validate`, `TreatyResult`, `picAdd/picSub/picMul/picDiv` |
+| CID / AIPI | `zxv.cid.compute/unixfs/parse/fromBytes`, `Cid.toString/verify/toV1/providerKey`; `zxv.aipi.encode*/decode*/functionCid/callCid`; `AipiNode.create(cap)`: `put`, `get`, `publishFunction`, `loadFunction`, `plan` |
+| Coin / token | `zxv.coins.face/rung/split/splitCount`; `zxv.tokens.holding/value/canonical/compress/fuse/split/encodeCodes/decodeCodes`; `TokenWallet.create(cap)`: `mint`, `spend`, `transferTo`, `setOctane` |
+| Fee | `zxv.fees.assure/assureWithCarry/split/policyDefault` |
+| V-Bill hub | `VHub.create(cap)`: `addCurrency`, `setPeg`, `openAccount`, `issue`, `addLimit`, `quote`, `swap`, `balance`, `check` |
+| Freight | `zxv.freight.header/encode/decode/split/members/join/encodeOps/expand/opsWriter/generate` |
+| Web 4 | `W4Agent.create(cap)`: `card`, `seal`, `reply`, `issueConsent`, `signManifest`; `zxv.web4.verifyCard/actionDigest/manifest/decodeManifest/directory/consentLog/verifyEnvelope` |
+| Paradox | `zxv.paradox.signature/kindOfTag/action/verifyRepair`; `ParadoxBook.create(cap)`: `classify`, `registryAdd`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `graphPass`, logs; `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` |
 | Hardware | `HwProfile`, `HwMatrix.create(cap)`: `call`, `shadow`, `memo`, `addProvider`, `attest`, `providers`, `setPolicy`, `applyContract`; `HwReleaseKey.generate/build`; `HwRegion.create(cap, device, options)`: `stage`, `trial`, `commit`, `rollback`, `log` |
 
 ## Examples
@@ -310,13 +517,14 @@ that `sdk/libzxv/Makefile` lists (read with `make -s print-config`, which
 only prints) into `build/wasm/`, links `wasm/zxv.wasm` as a WASI reactor,
 and never writes into `sdk/libzxv`. The compiler is `python3 -m ziglang cc
 -target wasm32-wasi` or `$ZXV_WASM_CC` (e.g. wasi-sdk's clang). The full
-engine is included (2.2 MB module); `ZXV_WASM_NO_TENSOR=1` leaves it out.
+engine is included (a 3.8 MB module with the ABI 1.5 groups); `ZXV_WASM_NO_TENSOR=1` leaves it out.
 This SDK adds one C file, `wasm/zxv_wasm_shim.c`: single-threaded pthread
 mutex stubs, `arc4random_buf` over WASI `random_get`, a
 `zxvjs_generate` that forwards tokens to JavaScript, and
 `zxvjs_hw_provider_add` / `zxvjs_hw_region_create` / `zxvjs_hw_region_events`,
 whose C trampolines forward hardware implementations and region devices to
-the `zxv.hw_*` imports. The JS host provides a
+the `zxv.hw_*` imports, and `zxvjs_freight_ops_expand`, whose trampoline
+forwards freight CIDREF lookups to the `zxv.freight_resolve` import. The JS host provides a
 minimal WASI: `random_get` is `crypto.getRandomValues`, stdout/stderr go to
 the console, and there is no file system and no clock.
 

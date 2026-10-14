@@ -7,9 +7,10 @@
 //! `cargo build -p zxv-sys --features regenerate`.
 //!
 //! Use the safe [`zxv`](https://docs.rs/zxv) crate instead of this one. The
-//! function-like macros of the header (the `ZXV_CAP_*` capability bits and
-//! `ZXV_AMOUNT_MAX`) are not visible to bindgen and are defined by hand
-//! below.
+//! function-like macros of the header (the `ZXV_CAP_*` capability bits,
+//! `ZXV_AMOUNT_MAX` and the ABI 1.5 64-bit limits written with `INT64_C`,
+//! `UINT64_C` or `UINT64_MAX`) are not visible to bindgen and are defined by
+//! hand below.
 #![no_std]
 #![allow(non_camel_case_types, non_upper_case_globals, non_snake_case)]
 #![allow(clippy::all)]
@@ -47,3 +48,27 @@ pub const ZXV_CAP_HW_RECONF: u64 = 1 << 11;
 pub const ZXV_CAP_ALL_1_4: u64 = (1 << 12) - 1;
 /// Largest amount in one posting (2^53 - 1).
 pub const ZXV_AMOUNT_MAX: i64 = 9007199254740991;
+/// Store and publish AIPI blocks and functions (ABI 1.5).
+pub const ZXV_CAP_AIPI: u64 = 1 << 12;
+/// Mint, spend and move token-wallet tokens (ABI 1.5).
+pub const ZXV_CAP_MINT: u64 = 1 << 13;
+/// Paradox operators, logs and policies (ABI 1.5).
+pub const ZXV_CAP_PARADOX: u64 = 1 << 14;
+/// Every capability bit as of ABI 1.5.
+pub const ZXV_CAP_ALL_1_5: u64 = (1 << 15) - 1;
+/// Largest magnitude of a PIC S9(18) treaty number.
+pub const ZXV_TREATY_PIC18_MAX: i64 = 999_999_999_999_999_999;
+/// Face of coin rung 45, F(46): the largest coin.
+pub const ZXV_COIN_TOP_FACE: u64 = 1_836_311_903;
+/// Largest single amount on the V-Bill hub (2^59).
+pub const ZXV_VHUB_AMOUNT_MAX: u64 = 1 << 59;
+/// Largest freight set payload: ZXV_FREIGHT_MAX_SET * ZXV_FREIGHT_MAX_PAYLOAD.
+pub const ZXV_FREIGHT_SET_MAX_BYTES: u64 = 55_050_240;
+/// Largest op stream or expansion (64 MiB).
+pub const ZXV_FREIGHT_OPS_MAX: u64 = 67_108_864;
+/// Source of a paradox registry entry not learned from the frontier.
+pub const ZXV_PDX_SRC_SEED: u64 = u64::MAX;
+/// Size of a paradox policy proposal of `n` values.
+pub const fn ZXV_PDX_PROPOSAL_BYTES(n: u32) -> u32 {
+    12 + 32 * n
+}

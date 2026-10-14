@@ -9,7 +9,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { Arg, Backend, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
+import type { Arg, Backend, FreightResolver, GenerateCall, GenerateJob, GenerateReturn, HwHandler, Ptr } from './backend.js';
 
 interface Addon {
   load(path: string): AddonLib;
@@ -36,6 +36,7 @@ interface AddonLib {
     dispatch: (kind: number, id: number, a: number, b: number, c: number, d: number, data: Uint8Array | null, outCap: number) =>
       number | Uint8Array,
   ): void;
+  zxvjs_freight_handler(resolve: (id: number, cid: Uint8Array, len: number) => Uint8Array | number): void;
   path: string;
 }
 
@@ -109,6 +110,13 @@ class NativeBackend implements Backend {
     return typeof r === 'number' ? r : 0;
   }
 
+  callString(fn: string, ...args: Arg[]): string {
+    const g = this.#lib[fn];
+    if (typeof g !== 'function') throw new Error(`libzxv has no function ${fn}`);
+    const r = (g as (...a: Arg[]) => unknown)(...args);
+    return typeof r === 'string' ? r : '';
+  }
+
   statusName(code: number): string {
     return this.#lib.zxv_status_name(code);
   }
@@ -175,6 +183,10 @@ class NativeBackend implements Backend {
         default: return -9;
       }
     });
+  }
+
+  setFreightResolver(r: FreightResolver): void {
+    this.#lib.zxvjs_freight_handler(r);
   }
 
   generate(c: GenerateCall, onToken: (id: number, piece: Uint8Array) => boolean): GenerateJob {
