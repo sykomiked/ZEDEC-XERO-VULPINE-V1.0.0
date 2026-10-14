@@ -369,3 +369,15 @@ public sealed class ZxvParadoxGraphHandle : ZxvDependentHandle
 {
     private protected override void Destroy(IntPtr native) => NativeMethods.ParadoxGraphDestroy(native);
 }
+
+/// <summary>Owns a native <c>zxv_vino_play*</c> (a play-lane voucher sandbox, ABI 1.6). Destroyed before its context (R6).</summary>
+public sealed class ZxvVinoPlayHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.VinoPlayDestroy(native);
+}
+
+/// <summary>Owns a native <c>zxv_vino_meter*</c> (one device's daily spend counter, ABI 1.6). Destroyed before its context (R6).</summary>
+public sealed class ZxvVinoMeterHandle : ZxvDependentHandle
+{
+    private protected override void Destroy(IntPtr native) => NativeMethods.VinoMeterDestroy(native);
+}
