@@ -184,6 +184,8 @@ typedef struct {
     uint32_t active, staged; /* slot index or HWR_NO_SLOT */
     hwr_state_t state;
     uint32_t floor;
+    uint32_t vfloor; /* R3: highest version ever committed (valid if vset) */
+    bool vset;       /*     survives a drop to S0, unlike the active slot */
     uint32_t probation_left;
     uint8_t bad[HWR_MAX_BAD][32];
     uint32_t nbad;

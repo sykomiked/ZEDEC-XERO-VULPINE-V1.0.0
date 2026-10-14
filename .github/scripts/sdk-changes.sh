@@ -5,7 +5,8 @@
 # Decides which SDK jobs in .github/workflows/sdk.yml run, so a pull request
 # spends runners only on what it changed. An area runs when its folder
 # exists and either the area changed or something every SDK builds on did
-# (libzxv, the conformance vectors, the kernel sources, this workflow).
+# (libzxv, the conformance vectors, the kernel sources libzxv is built
+# from, this workflow).
 # Pushes and manual runs test every area that exists.
 #
 # Usage: sdk-changes.sh [BASE_SHA]   (writes key=true|false lines to
@@ -21,7 +22,11 @@ if [ -z "$base" ]; then
   changed=""
 else
   changed="$(git diff --name-only "$base" HEAD)"
-  if printf '%s\n' "$changed" | grep -qE '^(sdk/libzxv/|sdk/conformance/|kernel/src/|kernel/third_party/|\.github/workflows/sdk\.yml$|\.github/scripts/sdk-changes\.sh$)'; then
+  # the kernel directories libzxv is built from (build_system/sdk_kernel_deps.py),
+  # not all of kernel/src: a change to a module no SDK builds runs no SDK job
+  kernel_inputs="$(python3 build_system/sdk_kernel_deps.py | sed 's|$|/|')"
+  if printf '%s\n' "$changed" | grep -qE '^(sdk/libzxv/|sdk/conformance/|kernel/include/|kernel/third_party/|build_system/sdk_kernel_deps\.py$|\.github/workflows/sdk\.yml$|\.github/scripts/sdk-changes\.sh$)' ||
+     printf '%s\n' "$changed" | grep -qF "$kernel_inputs"; then
     all=true
   fi
 fi

@@ -53,8 +53,9 @@ uint32_t dhcp_build_discover(dhcp_client_t *c, uint8_t *out, uint32_t cap) {
     uint8_t t = DHCP_DISCOVER;
     at = put_opt(out, at, cap, DHCP_OPT_MSGTYPE, &t, 1);
     /* ask for the things we need to be usable on this network */
-    uint8_t params[4] = { DHCP_OPT_SUBNET, DHCP_OPT_ROUTER, DHCP_OPT_DNS, DHCP_OPT_LEASE };
-    at = put_opt(out, at, cap, DHCP_OPT_PARAMLIST, params, 4);
+    uint8_t params[5] = {DHCP_OPT_SUBNET, DHCP_OPT_ROUTER, DHCP_OPT_DNS, DHCP_OPT_NTP,
+                         DHCP_OPT_LEASE};
+    at = put_opt(out, at, cap, DHCP_OPT_PARAMLIST, params, 5);
     if (at < cap) out[at++] = DHCP_OPT_END;
     c->state = DHCP_STATE_SELECTING;
     return at;
@@ -75,8 +76,9 @@ uint32_t dhcp_build_request(dhcp_client_t *c, uint8_t *out, uint32_t cap) {
      * server that offered sees which one won and can release the rest. */
     at = put_opt(out, at, cap, DHCP_OPT_REQUESTED, c->offered_ip, 4);
     at = put_opt(out, at, cap, DHCP_OPT_SERVERID, c->server_id, 4);
-    uint8_t params[4] = { DHCP_OPT_SUBNET, DHCP_OPT_ROUTER, DHCP_OPT_DNS, DHCP_OPT_LEASE };
-    at = put_opt(out, at, cap, DHCP_OPT_PARAMLIST, params, 4);
+    uint8_t params[5] = {DHCP_OPT_SUBNET, DHCP_OPT_ROUTER, DHCP_OPT_DNS, DHCP_OPT_NTP,
+                         DHCP_OPT_LEASE};
+    at = put_opt(out, at, cap, DHCP_OPT_PARAMLIST, params, 5);
     if (at < cap) out[at++] = DHCP_OPT_END;
     c->state = DHCP_STATE_REQUESTING;
     return at;
@@ -126,6 +128,7 @@ uint32_t dhcp_input(dhcp_client_t *c, const uint8_t *msg, uint32_t len) {
         if (dhcp_get_option(msg, len, DHCP_OPT_SUBNET, &v) == 4) cpy(c->netmask, v, 4);
         if (dhcp_get_option(msg, len, DHCP_OPT_ROUTER, &v) >= 4)  cpy(c->gateway, v, 4);
         if (dhcp_get_option(msg, len, DHCP_OPT_DNS, &v) >= 4)     cpy(c->dns, v, 4);
+        if (dhcp_get_option(msg, len, DHCP_OPT_NTP, &v) >= 4) cpy(c->ntp, v, 4);
         if (dhcp_get_option(msg, len, DHCP_OPT_LEASE, &v) == 4)   c->lease_secs = get32(v);
         c->state = DHCP_STATE_BOUND;
         return type;

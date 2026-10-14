@@ -48,7 +48,8 @@ public final class Native {
         }
     }
 
-    private static MethodHandle fn(String name, MemoryLayout ret, MemoryLayout... args) {
+    /** A downcall handle for {@code name} (package-private so {@link Native15} shares the lookup). */
+    static MethodHandle fn(String name, MemoryLayout ret, MemoryLayout... args) {
         MemorySegment sym = LIB.find(name).orElseThrow(
                 () -> new UnsatisfiedLinkError("libzxv has no symbol " + name + " (" + NativeLoader.loadedFrom() + ")"));
         FunctionDescriptor d = ret == null ? FunctionDescriptor.ofVoid(args) : FunctionDescriptor.of(ret, args);
@@ -324,15 +325,16 @@ public final class Native {
     public static final MethodHandle evm_ledger_state = fn("zxv_evm_ledger_state", I, A, A, L, A, A, A, I, A, L, A, A);
 
     static {
-        // The version gate of SDK_DESIGN section 1: same major, minor >= 4 (the _cap forms of
-        // ABI 1.2, the hexagram tag of ABI 1.3 and the hardware emulation of ABI 1.4).
+        // The version gate of SDK_DESIGN section 1: same major, minor >= 5 (the _cap forms of
+        // ABI 1.2, the hexagram tag of ABI 1.3, the hardware emulation of ABI 1.4, and the
+        // ABI 1.5 groups and capability bits: a 1.4 library refuses Permission.all()).
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
             MemorySegment ma = arena.allocate(JAVA_INT), mi = arena.allocate(JAVA_INT), pa = arena.allocate(JAVA_INT);
             int st = (int) version.invokeExact(ma, mi, pa);
             int major = ma.get(JAVA_INT, 0), minor = mi.get(JAVA_INT, 0);
-            if (st != 0 || major != 1 || minor < 4) {
+            if (st != 0 || major != 1 || minor < 5) {
                 throw new UnsatisfiedLinkError("libzxv at " + NativeLoader.loadedFrom() + " reports ABI "
-                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 4");
+                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 5");
             }
         } catch (UnsatisfiedLinkError e) {
             throw e;

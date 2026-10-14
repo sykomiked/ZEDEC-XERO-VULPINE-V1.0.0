@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type ContextOptions, ZxvContext } from './context.js';
+import { AipiRecords } from './aipi.js';
+import { Cids } from './cid.js';
+import { Coins, Tokens } from './coin.js';
 import { Hashes, SecretKey } from './crypto.js';
+import { Fees } from './fee.js';
+import { FreightCodec } from './freight.js';
+import { Paradox } from './paradox.js';
+import { Treaties } from './treaty.js';
+import { Web4 } from './web4.js';
 import { usage } from './errors.js';
 import { type Backend, cstr } from './internal/backend.js';
 import { bytes, i32, i64, str, u16, u32, u64 } from './internal/check.js';
@@ -54,6 +62,32 @@ export const Feature = Object.freeze({
 } as const);
 /** A Feature name. */
 export type FeatureName = keyof typeof Feature;
+
+/**
+ * ABI 1.5 feature bits (`ZXV_FEAT2_*`), reported through the second mask
+ * ({@link Zxv.featureMask2}). A group not built into the library leaves its
+ * bit clear and refuses every call with ZXV_E_NOTIMPL.
+ */
+export const Feature2 = Object.freeze({
+  /** Treaties: copybook records and Sutra text. */
+  TREATY: 0x00000001,
+  /** Content-addressed functions and CIDs. */
+  AIPI: 0x00000002,
+  /** Fibonacci coins and token octane. */
+  COIN: 0x00000004,
+  /** The assurance fee and its split. */
+  FEE: 0x00000008,
+  /** V-Bill hub pegs, quotes and swaps. */
+  VHUB: 0x00000010,
+  /** Erasure-coded freight packets. */
+  FREIGHT: 0x00000020,
+  /** Agent manifests, directory and consent. */
+  WEB4: 0x00000040,
+  /** The paradox engine. */
+  PARADOX: 0x00000080,
+} as const);
+/** A Feature2 name. */
+export type Feature2Name = keyof typeof Feature2;
 
 /** The ABI version of the loaded library. */
 export interface Version {
@@ -312,7 +346,7 @@ export class Iso4217 {
 export class Zxv {
   /** @internal */
   readonly _core: Core;
-  /** ABI version of the library (major 1, minor >= 4). */
+  /** ABI version of the library (major 1, minor >= 5). */
   readonly version: Version;
   /** SHA3-256, SHAKE256, Keccak-256. */
   readonly hashes: Hashes;
@@ -324,7 +358,26 @@ export class Zxv {
   readonly iso4217: Iso4217;
   /** Swarm level capacities and emotion profiles. */
   readonly swarm: SwarmInfo;
+  /** Treaties: Sutra and copybook parsing, PIC S9(18) arithmetic (ABI 1.5). */
+  readonly treaty: Treaties;
+  /** IPFS CIDs (ABI 1.5). */
+  readonly cid: Cids;
+  /** AIPI function, call and claim records (ABI 1.5); nodes are {@link AipiNode}. */
+  readonly aipi: AipiRecords;
+  /** Fibonacci coin faces and Zeckendorf splits (ABI 1.5). */
+  readonly coins: Coins;
+  /** Swarm token denominations and octane (ABI 1.5); wallets are {@link TokenWallet}. */
+  readonly tokens: Tokens;
+  /** The 0.08889% assurance fee and its split (ABI 1.5). */
+  readonly fees: Fees;
+  /** Freight packets and op streams (ABI 1.5). */
+  readonly freight: FreightCodec;
+  /** The Web 4 agent layer's pure side (ABI 1.5); key handles are {@link W4Agent}. */
+  readonly web4: Web4;
+  /** The paradox engine's pure functions (ABI 1.5); books are {@link ParadoxBook}. */
+  readonly paradox: Paradox;
   readonly #features: number;
+  readonly #features2: number;
 
   private constructor(backend: Backend) {
     const core = new Core(backend);
@@ -334,12 +387,24 @@ export class Zxv {
     const pat = new Uint32Array(1);
     core.call(core, 'zxv_version', maj, min, pat);
     this.version = Object.freeze({ major: maj[0] ?? 0, minor: min[0] ?? 0, patch: pat[0] ?? 0 });
-    if (this.version.major !== 1 || this.version.minor < 4) {
-      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.4+): ${backend.origin}`);
+    if (this.version.major !== 1 || this.version.minor < 5) {
+      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.5+): ${backend.origin}`);
     }
     const f = new Uint32Array(1);
     core.call(core, 'zxv_features', f);
     this.#features = f[0] ?? 0;
+    core.call(core, 'zxv_features2', f);
+    this.#features2 = f[0] ?? 0;
+    const owner = { _core: core };
+    this.treaty = new Treaties(owner);
+    this.cid = new Cids(owner);
+    this.aipi = new AipiRecords(owner);
+    this.coins = new Coins(owner);
+    this.tokens = new Tokens(owner);
+    this.fees = new Fees(owner);
+    this.freight = new FreightCodec(owner);
+    this.web4 = new Web4(owner);
+    this.paradox = new Paradox(owner);
     this.hashes = new Hashes(core);
     this.wire = new KernelWire(core);
     this.kernel = new KernelExact(core);
@@ -353,7 +418,7 @@ export class Zxv {
    * falling back to WebAssembly if the addon or libzxv cannot be loaded;
    * in a browser it is WebAssembly. The native library is found in the
    * order: `libraryPath`, `ZXV_LIBRARY_PATH`, the bundled copy, the system
-   * loader. A library whose ABI major differs, or minor is below 4, is
+   * loader. A library whose ABI major differs, or minor is below 5, is
    * refused.
    */
   static async load(options: LoadOptions = {}): Promise<Zxv> {
@@ -392,14 +457,29 @@ export class Zxv {
     return this.#features;
   }
 
-  /** True if a feature group is live in this build. */
-  has(feature: FeatureName): boolean {
-    return (this.#features & Feature[feature]) !== 0;
+  /** The raw ZXV_FEAT2_* mask (ABI 1.5 groups). */
+  get featureMask2(): number {
+    return this.#features2;
   }
 
-  /** Names of every live feature group. */
+  /**
+   * True if a feature group is live in this build. Names from both masks
+   * are accepted ({@link Feature} and {@link Feature2}; none is in both).
+   */
+  has(feature: FeatureName | Feature2Name): boolean {
+    if (feature in Feature) return (this.#features & Feature[feature as FeatureName]) !== 0;
+    if (feature in Feature2) return (this.#features2 & Feature2[feature as Feature2Name]) !== 0;
+    return false;
+  }
+
+  /** Names of every live feature group in the first mask. */
   features(): FeatureName[] {
     return (Object.keys(Feature) as FeatureName[]).filter((k) => this.has(k));
+  }
+
+  /** Names of every live ABI 1.5 feature group (the second mask). */
+  features2(): Feature2Name[] {
+    return (Object.keys(Feature2) as Feature2Name[]).filter((k) => this.has(k));
   }
 
   /** A new platform context (empty ledger, no currencies). */

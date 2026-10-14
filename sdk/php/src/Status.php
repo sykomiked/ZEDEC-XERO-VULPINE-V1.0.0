@@ -50,6 +50,26 @@ final class Status
     public const E_TARGET = -30;
     /** Refused by the function's placement policy. */
     public const E_POLICY = -31;
+    // ABI 1.5.
+    /** Not a denomination (a coin face or token tier that does not exist). USAGE. */
+    public const E_DENOM = -32;
+    /** A treaty failed validation (TreatyException has the fault and offset). USAGE. */
+    public const E_TREATY = -33;
+    /** Not a valid or not the expected content id, or the bytes do not match it. */
+    public const E_CID = -34;
+    /** No valid consent token for the action (ConsentRequiredException). */
+    public const E_CONSENT = -35;
+    /** Too few freight rows survived to rebuild the payload. */
+    public const E_ERASURE = -36;
+    /** A V-Hub peg is unset, stale or replayed. */
+    public const E_PEG = -37;
+    /** A V-Hub limit rule refused the swap. */
+    public const E_LIMIT = -38;
+    /** A paradox graph reached its step limit unresolved (goes to the owner). */
+    public const E_PARADOX_STEP = -39;
+    /** The change needs the owner's approval (OwnerApprovalRequiredException). */
+    public const E_PARADOX_OWNER = -40;
+
     public const E_INTERNAL = -99;
 
     public const CLASS_OK = 0;

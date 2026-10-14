@@ -24,6 +24,8 @@ import tempfile
 import time
 
 FAILS = []
+FONTS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'assets', 'fonts',
+                                     'ascw-golden'))
 
 
 def check(cond, msg):
@@ -65,7 +67,7 @@ def main(binary, gguf=None):
     env = dict(os.environ, HOME=home, XDG_DATA_HOME=os.path.join(home, 'xdg'))
     env.pop('ZXV_TOKEN', None)
     proc = subprocess.Popen([binary, '--no-window', '--port', '0', '--models-dir', models,
-                             '--exit-with-parent'],
+                             '--fonts-dir', FONTS, '--exit-with-parent'],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL, text=True, env=env)
     try:
@@ -92,6 +94,21 @@ def main(binary, gguf=None):
         check(b'X-ZXV-Token' in html and b'#&]token=' in html, 'page carries the token plumbing')
         check(token.encode() not in html, 'page does not contain the token')
         check('X-Frame-Options: DENY' in hdr and "frame-ancestors 'none'" in hdr, 'page refuses framing')
+
+        # --- the window's font: ASCW Golden, by file name only
+        check(b"'ZXV UI'" in html and "font-src 'self'" in hdr, 'page asks for ASCW Golden')
+        st, fh, body = raw(port, 'GET', '/fonts/ASCW-Golden-Latin2.ttf', [host])
+        want = open(os.path.join(FONTS, 'ASCW-Golden-Latin2.ttf'), 'rb').read()
+        check(st == 200 and 'Content-Type: font/ttf' in fh and body == want, 'serves Latin II')
+        st, fh, body = raw(port, 'GET', '/fonts/ASCW-Golden-Javanese.otf', [host])
+        check(st == 200 and 'font/otf' in fh and body[:4] == b'OTTO', 'serves an OpenType face')
+        for path in ('/fonts/../LICENSE', '/fonts/ASCW-..%2F..%2FLICENSE.ttf', '/fonts/x.ttf',
+                     '/fonts/ASCW-Golden-Latin2.ttf.bak', '/fonts/ASCW-Nope.ttf'):
+            st, _, _ = raw(port, 'GET', path, [host])
+            check(st == 404, 'no font at %s' % path)
+        st, _, _ = raw(port, 'GET', '/fonts/ASCW-Golden-Latin2.ttf',
+                       [('Host', 'rebind.evil.example:%d' % port)])
+        check(st == 403, 'fonts keep the Host check')
 
         # --- refused: none of these may run, and none may stop the app
         bad = [

@@ -105,3 +105,42 @@ public enum ZxvFeatures : uint
     /// <summary>The hardware emulation matrix, ZHP-1 profiles and hardware updates (ABI 1.4).</summary>
     Hw = 0x1000_0000,
 }
+
+/// <summary>
+/// The second feature mask, <c>zxv_features2</c> (ABI 1.5): the 32 bits of
+/// <see cref="ZxvFeatures"/> are nearly used up, so the 1.5 groups report
+/// here (<c>ZXV_FEAT2_*</c>). A group whose bit is clear returns
+/// <see cref="ZxvStatus.NotImplemented"/> from every call.
+/// </summary>
+[Flags]
+#pragma warning disable CA1028, CA1711 // uint matches the C ABI; "Features" is the domain name.
+public enum ZxvFeatures2 : uint
+#pragma warning restore CA1028, CA1711
+{
+    /// <summary>No feature.</summary>
+    None = 0,
+
+    /// <summary>Treaties: COBOL copybook records and Sutra text.</summary>
+    Treaty = 0x0000_0001,
+
+    /// <summary>AIPI content-addressed functions and Kubo-identical CIDs.</summary>
+    Aipi = 0x0000_0002,
+
+    /// <summary>Fibonacci coins, token octane and token wallets.</summary>
+    Coin = 0x0000_0004,
+
+    /// <summary>The 0.08889% assurance fee and its 50/25/15/10 split.</summary>
+    Fee = 0x0000_0008,
+
+    /// <summary>The V-Bill demo hub: signed pegs, quotes and swaps.</summary>
+    VHub = 0x0000_0010,
+
+    /// <summary>Erasure-coded freight packets and op streams.</summary>
+    Freight = 0x0000_0020,
+
+    /// <summary>Web 4 agents: signed manifests, directory, consent and envelopes.</summary>
+    Web4 = 0x0000_0040,
+
+    /// <summary>The paradox engine.</summary>
+    Paradox = 0x0000_0080,
+}

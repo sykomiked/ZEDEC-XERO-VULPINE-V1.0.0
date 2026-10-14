@@ -1,0 +1,185 @@
+# Built-in apps and toolbox
+
+ZXV ships its own everyday apps, with names of its own: a file manager, a
+text editor, a photo and media viewer and more come built in. Each one is a
+view in the ZXV window (`kernel/arch/hosted/zxv_ui.html`), which the Mac app shows in its own window and Linux and Windows open in the
+browser, so one build gives all three the same apps. Each view does its work
+through zxvd's JSON-RPC methods ([ZXVD.md](ZXVD.md),
+[api/zxvd.openrpc.json](../api/zxvd.openrpc.json)), so ZXV Studio, the phone
+companion and the SDKs can use the same calls.
+
+The window reaches zxvd through `POST /api/rpc`: one JSON-RPC request in, its
+response out, the same as a line on the control socket, and behind the same
+guard as the rest of the window's API (`zxv_http_guard.h`: launch token, host,
+origin and fetch-metadata checks).
+
+## What is in this release
+
+| Who | App | What it does | zxvd methods |
+|---|---|---|---|
+| Everyone | **Burrow** (files) | Browse the ZXV folder, make folders and text files, import files (button or drag and drop), rename, move to the Trash, put back, empty the Trash. | `files.*` |
+| Everyone | **Quillon** (text) | Plain text and Markdown, save and save as (⌘S / Ctrl+S), a live Markdown preview, a prose or code font, word, character and line counts. Unsaved work is kept as a draft in the window and restored after a reload. | `files.read`, `files.write` |
+| Everyone | **Glint** (photos and media) | Thumbnails of the images in a folder, a full-size viewer with arrow keys, and playback for audio and video files. | `files.list`, `files.read` |
+| Everyone | **Murmuration** (the swarm) | The live swarm: agents, budget, cycles, ledger, network, updates, notifications and the companion chat (the earlier single-page window). | `swarm.*`, `net.*`, … |
+| Developers | **Spindle** (console) | Pick any zxvd method, give parameters as JSON, see the reply. | every method (`rpc.discover`) |
+
+The views above are interim. The native views come from ZXV's own toolkit
+(`kernel/src/zui`); each app's logic already lives apart from any view, as a
+model the toolkit draws.
+
+## App models
+
+Each app is a toolkit-neutral C model in `kernel/src/apps/`: a state struct
+plus action functions that call zxvd, with no drawing and no allocation. A
+view (`kernel/src/zui/views/<app>.c`, or any other front end) reads the state
+and calls the actions. The shared rules are in `zxm.h` (M1-M5):
+
+- **One link to zxvd** (`zxm_link_t`): any transport that sends one JSON-RPC
+  line and returns one, so the same model runs over the control socket, the
+  window's `/api/rpc`, or zxvd's dispatcher in the same process.
+- **AI is held.** Swarm output enters the model as pending text
+  (`zxm_held_t`); nothing changes until the owner accepts it, and rejecting
+  it drops it. An edit made while an answer is pending drops the answer.
+- **AI is costed.** Every AI action records the agent that ran it and its
+  token count. zxvd's `swarm.ask` does not report a count yet, so the count is
+  an estimate and says so (`exact = false`).
+- **Real progress.** Long actions (an import, loading a large file) report
+  how far they have got through the link (`zxm_link_progress`); views draw
+  an ordinary progress bar in ZXV's green and gold. The boot-style loading
+  screen (mirrored gold bars) is kept for the OS boot, launching an app and
+  connecting to a remote space such as a park, always at the speed the work
+  really goes; its sound plays only at OS boot.
+- **A palette table per app** (`BURROW_AI`, `QUILLON_AI`, `GLINT_AI`,
+  `SPINDLE_AI`, `MURM_AI`): name, agent and estimated tokens, for the command
+  palette.
+
+| Model | State | Actions | AI |
+|---|---|---|---|
+| `burrow_model.h` | folder, entries, selection | open, up, enter, mkdir, new text, rename, trash, put back, empty Trash, import | describe the folder; suggest folders (names only, never moves files) |
+| `quillon_model.h` | one UTF-8 document, path, unsaved flag, counts | new, open, save, save as, replace, set text | summarize, rewrite, continue, proofread |
+| `glint_model.h` | the media in a Burrow folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
+| `spindle_model.h` | method list, the last 16 calls | discover, call with JSON params | explain a reply |
+| `murmuration_model.h` | one swarm snapshot (agents, feelings, allotments, witnesses, totals), the model slot, the earnings, the selected agent | refresh, select, find, cycle share, emotion of an emoji | explain the swarm; why this agent is unhappy |
+
+Burrow and Quillon carry the space they work in (`burrow_set_space`, and the
+`space` argument of `quillon_open` and `quillon_save_as`); Glint follows its
+Burrow folder. `burrow_cross` copies an entry into another space and reports
+a held crossing's ticket for `burrow_cross_confirm`.
+
+### Murmuration
+
+Murmuration is the swarm dashboard: which agents are working, how each one
+feels, how this cycle's tokens were shared, what the witnesses said, the
+model slot and what the swarm has earned in the owner's books. Its model
+(`murmuration_model.h`) keeps one snapshot of zxvd's `swarm.state`, then
+`swarm.earnings`, and `model.info` only when the state carries no `model`.
+
+- **One cycle, three parts.** Each agent's allotment for the last closed
+  cycle is `re + mk + im` tokens: `re` from its level (the Fibonacci level
+  rule), `mk` bought on the market, `im` from its emotional charge (the
+  imaginary axis, `swarm_emotion.h`). `murm_cycle_share` gives an agent's
+  part of every agent's allotment in per-mille, as an exact integer.
+- **Feelings are emoji.** Each agent carries its emoji and intensity (0-5);
+  the swarm's mood comes as `"<emoji> <k>"`. `murm_emotion` maps an emoji's
+  code point to the palette of `swarm_emotion.h` (-1 for one outside it).
+- **Witnesses.** Every allotment is checked by another agent
+  (`swarm_ledger.h` W1-W3): true, false (the cycle does not add up) or
+  contested (it adds up but this allotment differs), and by whom.
+- **All or nothing.** A failed call or a malformed reply keeps the last
+  snapshot whole. Earnings and the model slot are optional: when zxvd answers
+  "not available" (-32601) or its books are not open, that part is shown as
+  absent and the rest still refreshes. 64-bit amounts arrive as decimal
+  strings and are read as exact integers; no floating point anywhere.
+- **Bounded.** At most `MURM_AGENTS` (64) agents are kept; `truncated` says
+  when the swarm has more, and the totals still count every one.
+- **AI.** "Explain the swarm" and "Why is this agent unhappy" (which needs a
+  selected agent) ask the companion about the snapshot. The answer is held;
+  accepting it only marks it read and changes nothing in zxvd.
+
+`kernel/src/apps/test_apps.sh` runs the models against zxvd's real dispatcher
+on a scratch ZXV folder.
+
+## The ZXV folder
+
+Every app works inside one folder, never outside it (`kernel/arch/hosted/zxv_files.h`):
+
+- **Where:** `~/Documents/ZXV` on macOS and Linux (`~/ZXV` when there is no
+  `~/Documents`), `%USERPROFILE%\Documents\ZXV` on Windows, or the
+  `ZXV_FILES_ROOT` environment variable. It is an ordinary folder, so the
+  host system's own file manager sees the same files.
+- **Names:** no `..`, no absolute paths, no hidden names, no `\` or `:` and no
+  control characters; a symbolic link anywhere inside refuses the path, so
+  nothing can lead outside the folder.
+- **Saving is whole:** a save goes to a staging file that is flushed and then
+  renamed over the old file, so a crash leaves the old file or the new one,
+  never half of each. Long files are sent in parts and appear only when the
+  last part arrives.
+- **Trash, not delete:** deleting moves an item into `.Trash` in the folder;
+  only "Delete now" in the Trash or "Empty Trash" removes it for good.
+
+## Spaces
+
+ZXV is laid out like the real world: your home, offices, team rooms, your
+cloud top (your public front, which does not have to be online) and parks
+(commons). Each space has its own folder with its own Trash, and a manifest
+naming its kind, owner and members (`kernel/arch/hosted/zxv_spaces.h`). Every
+`files.*` call takes an optional `space`, and zxvd checks the caller's rights
+on each call, so a hidden button in the interface is never the only guard.
+
+| Kind | Owner | Member | Guest | Public |
+|---|---|---|---|---|
+| Home | view, change | | | |
+| Office | view, change | view, change | view | |
+| Team | view, change | view, change | view | |
+| Cloud top | view, change | view | view | view |
+| Park | view, change | view, change | view, change | view, change |
+
+- **Crossings are held.** `files.cross` copies a file into another space.
+  When the destination is a more open kind (home, office, team, cloud top,
+  park, in that order) or would show it to anyone who cannot see it now,
+  zxvd holds it and returns a ticket; the copy happens only when the owner
+  confirms with that ticket.
+- **Joined spaces.** `spaces.join` records a space another node invited this
+  one into, with the role it was given. Until the mesh syncs spaces, the check
+  guards this node's copy, and the owner's node checks again when changes
+  reach it.
+- **Members are decided by the space's governance.** A vertical space's
+  owner decides: `spaces.set_members`, or a member's `spaces.propose` that
+  waits until the owner votes. In a horizontal space (`"governance":
+  "horizontal"` on `spaces.create`) the owner and members vote with
+  `spaces.propose` and `spaces.vote`: a list passes when the yes votes reach
+  `quorum_pct` (51 unless set) with no objection. Quorum with objections is a
+  dispute (`both`) for people to settle and is never applied; a list that can
+  no longer pass is dropped. zxvd counts the votes itself and never takes a
+  tally from a client. `spaces.get` shows each open proposal with its votes
+  and state, the same rule the native interface draws (`zui_space.c`).
+- **Published places.** A cloud top or park published on the network keeps
+  the CID it lives under (`spaces.set_cid`, or `cid` on `spaces.join`); the
+  network side is Vinea's `pspace.*`, the local side stays `spaces.*`.
+- **Not yet:** syncing spaces and other members' votes between nodes (votes
+  will arrive only after the mesh checks each member's signature).
+
+## Names
+
+Every app has a ZXV name, not another company's product name. A trademark
+search is still needed before release; the names below were chosen to avoid
+the obvious clashes. Planned names for apps not built yet: Margins (notes),
+Coffer (wallet and books), Waymark (Web4 viewer), Commons (chat), Tidewatch
+(activity monitor), Keystone (settings), Witness (audit log), Lodestone
+(inspector), Satchel (packager).
+
+## Coming next
+
+In the order they will be built (the plan in the "Built-in apps and toolbox" thread):
+
+| Who | App | Built on |
+|---|---|---|
+| Everyone | Music and video player with playlists | Glint's playback |
+| Everyone | Notes | `kernel/src/apps/notes_app.c` |
+| Everyone | Wallet and books | the `ledger.*` methods (ZXV Studio already has a Ledger view) |
+| Everyone | Web4 viewer | `kernel/src/browser`, `kernel/src/web4` |
+| Everyone | Chat | Commons chat (PR #78) |
+| Everyone | Image and voice generation | the Images and voice work (PR #93) |
+| Power users | Activity monitor, Settings, Audit log | `swarm.state`, `net.*`, `update.*`, `notes.list`, the quarantine log |
+| Developers | Inspector, Packager | `rpc.discover`, `model.info`, `net.peers`; AIPI for signed bundles |
+| Developers | Playground | owned by the language examples and templates work |

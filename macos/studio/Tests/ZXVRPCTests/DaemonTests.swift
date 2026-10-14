@@ -53,6 +53,24 @@ final class DaemonTests: XCTestCase {
         XCTAssertTrue(v.libzxv.hasPrefix("1."))
     }
 
+    func testPhonePairingDecodes() throws {
+        let off = try client.call("phone.list", as: PhoneList.self)
+        XCTAssertFalse(off.on)
+        let on = try client.call("phone.link", ["on": true, "port": 0, "bind": "127.0.0.1"], as: PhoneLink.self)
+        XCTAssertTrue(on.on)
+        XCTAssertGreaterThan(on.port, 0)
+        let p = try client.call("phone.pair", ["name": "Test phone"], as: PhonePairing.self)
+        XCTAssertEqual(p.port, on.port)
+        XCTAssertFalse(p.allowPost)
+        XCTAssertTrue(p.link.hasPrefix("zxv-phone:1?"))
+        XCTAssertTrue(p.link.contains("id=\(p.phoneId)"))
+        let l = try client.call("phone.list", as: PhoneList.self)
+        XCTAssertTrue(l.phones.contains { $0.phoneId == p.phoneId && $0.name == "Test phone" && $0.connected == 0 })
+        let r = try client.call("phone.revoke", ["phone_id": .string(p.phoneId)], as: Revoked.self)
+        XCTAssertTrue(r.revoked)
+        XCTAssertFalse(try client.call("phone.link", ["on": false], as: PhoneLink.self).on)
+    }
+
     func testSwarmStateDecodesFully() throws {
         let s = try client.call("swarm.state", as: SwarmState.self)
         XCTAssertGreaterThanOrEqual(s.levels, 1)
@@ -137,7 +155,7 @@ final class DaemonTests: XCTestCase {
         XCTAssertEqual(card.inputs["bond"]?.value, "0")
         let j = try c.call("jurisdiction.get", as: Jurisdiction.self)
         XCTAssertEqual(j.market, "closed")
-        XCTAssertFalse(j.inEffect)
+        XCTAssertTrue(j.inEffect)
         XCTAssertTrue(j.standards.contains("OHADA"))
         let s = try c.call("jurisdiction.set", ["standard": "IFRS", "country": "GH"], as: Jurisdiction.self)
         XCTAssertEqual(s.standard, "IFRS")
@@ -148,8 +166,85 @@ final class DaemonTests: XCTestCase {
         }
     }
 
+    func testTheCommonsRoundTrip() throws {
+        let c = client
+        let me = try c.call("chat.me", as: ChatMe.self)
+        XCTAssertEqual(me.nodeId.count, 64)
+        let post = try c.call("chat.post", ["text": "from Swift \u{1F680}"], as: ChatRecord.self)
+        XCTAssertTrue(post.mine)
+        XCTAssertEqual(post.kind, "post")
+        XCTAssertEqual(post.text, "from Swift \u{1F680}")
+        XCTAssertNil(post.replyTo)
+        let reply = try c.call("chat.post", ["text": "a reply", "reply_to": .string(post.id)], as: ChatRecord.self)
+        XCTAssertEqual(reply.replyTo, post.id)
+        _ = try c.call("chat.react", ["to": .string(post.id), "emoji": "\u{1F44D}"], as: ChatRecord.self)
+        let t = try c.call("chat.thread", ["id": .string(post.id)], as: ChatThread.self)
+        XCTAssertEqual(t.root.replies, 1)
+        XCTAssertEqual(t.root.reactions.map { "\($0.emoji) \($0.count) \($0.mine)" }, ["\u{1F44D} 1 true"])
+        XCTAssertEqual(t.replies.map { $0.id }, [reply.id])
+        let f = try c.call("chat.feed", as: ChatFeed.self)
+        XCTAssertTrue(f.posts.contains { $0.id == post.id })
+        XCTAssertFalse(f.posts.contains { $0.id == reply.id })
+        let fol = try c.call("chat.follow", ["node_id": .string(String(repeating: "ab", count: 32))], as: ChatFollow.self)
+        XCTAssertTrue(fol.following)
+    }
+
+    func testEscrowAsTheStorefrontDrivesIt() throws {
+        let c = client
+        XCTAssertTrue(try c.call("rpc.discover", as: Discovery.self).methods.contains("ledger.holds"))
+        // escrow holds sit behind the "escrow" switch (zxvd_pay.h P6), off at start
+        _ = try c.call("features.set", ["feature": "escrow", "enabled": true])
+        _ = try c.call("currency.enable", ["code": "GHS"], as: Enabled.self)
+        let bank = try c.call("ledger.open_account", ["name": "GHS bank", "currency": "GHS", "kind": "issuer"], as: Opened.self).account
+        let buyer = try c.call("ledger.open_account", ["name": "Buyer", "currency": "GHS"], as: Opened.self).account
+        let seller = try c.call("ledger.open_account", ["name": "Seller", "currency": "GHS"], as: Opened.self).account
+        _ = try c.call("ledger.post", ["from": .int(Int64(bank)), "to": .int(Int64(buyer)), "amount_minor": Money.param(10_000),
+                                       "currency": "GHS", "reference": "Escrow funding"], as: Posted.self)
+        let amt = try Money.parse("40.00", currency: "GHS").get()
+        let h = try c.call("ledger.hold", ["from": .int(Int64(buyer)), "to": .int(Int64(seller)), "amount_minor": Money.param(amt)],
+                           as: Hold.self)
+        XCTAssertTrue(h.isHeld)
+        XCTAssertEqual(h.amount, 4_000)
+        XCTAssertEqual(h.currency, "GHS")
+        XCTAssertNil(h.closedEntryId)
+        XCTAssertEqual(h.releasesOn, "owner")
+        var all = try c.call("ledger.holds", as: Holds.self)
+        XCTAssertEqual(all.holds.first { $0.hold == h.hold }, h)
+        let esc = try XCTUnwrap(all.escrowAccounts.first { $0.account == h.escrowAccount })
+        XCTAssertEqual(esc.heldMinor, "4000")
+        XCTAssertTrue(esc.consistent)
+        XCTAssertEqual(all.unmatched, 0)
+
+        let r = try c.call("ledger.release", ["hold": .int(Int64(h.hold))], as: Hold.self)
+        XCTAssertEqual(r.state, "released")
+        XCTAssertNotNil(r.closedEntryId)
+        XCTAssertEqual(try c.call("ledger.balance", ["account": .int(Int64(seller))], as: Balance.self).equity, 4_000)
+        XCTAssertThrowsError(try c.call("ledger.refund", ["hold": .int(Int64(h.hold))], as: Hold.self)) { e in
+            guard case ZXVDError.rpc(let err) = e else { return XCTFail("\(e)") }
+            XCTAssertEqual(err.code, -32020)
+            XCTAssertEqual(err.message, "hold \(h.hold) is already released")
+        }
+
+        let h2 = try c.call("ledger.hold", ["from": .int(Int64(buyer)), "to": .int(Int64(seller)), "amount_minor": "2500"],
+                            as: Hold.self)
+        XCTAssertGreaterThan(h2.hold, h.hold)
+        let back = try c.call("ledger.refund", ["hold": .int(Int64(h2.hold))], as: Hold.self)
+        XCTAssertEqual(back.state, "refunded")
+        XCTAssertEqual(try c.call("ledger.balance", ["account": .int(Int64(buyer))], as: Balance.self).equity, 6_000)
+        // more than the payer has: the libzxv status, and nothing moves
+        XCTAssertThrowsError(try c.call("ledger.hold", ["from": .int(Int64(buyer)), "to": .int(Int64(seller)),
+                                                        "amount_minor": Money.param(6_001)], as: Hold.self)) { e in
+            guard case ZXVDError.rpc(let err) = e else { return XCTFail("\(e)") }
+            XCTAssertEqual(err.code, -32000)
+            XCTAssertEqual(err.statusName, "ZXV_E_FUNDS")
+        }
+        all = try c.call("ledger.holds", as: Holds.self)
+        XCTAssertTrue(all.escrowAccounts.allSatisfy(\.consistent))
+        XCTAssertTrue(try c.call("ledger.check", as: Checked.self).ok)
+    }
+
     func testUnknownMethodIsTheJsonRpcError() {
-        XCTAssertThrowsError(try client.call("ledger.holds")) { e in
+        XCTAssertThrowsError(try client.call("ledger.no_such_method")) { e in
             guard case ZXVDError.rpc(let r) = e else { return XCTFail("\(e)") }
             XCTAssertEqual(r.code, -32601)
         }

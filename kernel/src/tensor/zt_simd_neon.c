@@ -610,8 +610,9 @@ static void att_wv_neon(const int32_t *w, const int32_t *v, uint64_t vstride, ui
     if (j0 < hd) zt_att_wv_c(w, v + j0, vstride, n, hd - j0, acc + j0);
 }
 
-static const zt_kern_t K_NEON = {"neon",       dot_raw_neon, dot_q8_neon, 0,           0,
-                                 dot_q4k_neon, dot_q6k_neon, mmb_neon,    att_qk_neon, att_wv_neon};
+static const zt_kern_t K_NEON = {
+    "neon",       dot_raw_neon, dot_q8_neon, 0,           0, dot_q4k_neon,
+    dot_q6k_neon, mmb_neon,     att_qk_neon, att_wv_neon, 0, 0};
 
 const zt_kern_t *zt_simd_neon(void)
 {

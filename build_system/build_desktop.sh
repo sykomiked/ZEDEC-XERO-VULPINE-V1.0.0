@@ -71,12 +71,25 @@ done
 
 step() { printf '\n== %s\n' "$*"; }
 
+# ASCW Golden, the window's font: every package carries the faces and their
+# SIL OFL 1.1 licence; the engine finds them beside itself (zxv_host.c,
+# pal_find_fonts).
+FONTS_SRC="$ROOT/assets/fonts/ascw-golden"
+put_fonts() { # DIR
+    mkdir -p "$1"
+    cp "$FONTS_SRC"/*.ttf "$FONTS_SRC"/*.otf "$FONTS_SRC/OFL.txt" "$FONTS_SRC/FONTLOG.md" "$1/"
+}
+
 # ---- 1. quality control on the engine itself
 if [ "$SKIP_TESTS" = 0 ]; then
     step "Swarm tests"
     make -C "$ROOT/kernel" test-swarm
     step "Hosted app tests (API guard, budget gate, net host, end-to-end API, peers, updates)"
     sh "$HOSTED/test_hosted.sh"
+    if [ "$(uname -s)" = Darwin ]; then
+        step "Metal GPU matrix products == the C reference (SKIP without a GPU)"
+        make -C "$ROOT/kernel" test-metal
+    fi
 fi
 
 # ---- 2. the sources: one list for every platform
@@ -123,7 +136,12 @@ if [ "$ON_MAC" = 1 ]; then
     # The app's engine is zxvd: the same swarm plus its JSON-RPC control
     # socket, linked to libzxv (docs/ZXVD.md). One slice per arch, then lipo.
     echo "  zxvd + libzxv.dylib, universal (the app's engine with its control socket)"
-    for a in arm64 x86_64; do
+    # this machine's arch last: build_zxvd.sh rebuilds the Playground's
+    # shared deps per slice, and later steps want them native
+    HOSTA="$(uname -m | sed 's/aarch64/arm64/')"
+    OTHERA=arm64
+    [ "$HOSTA" = arm64 ] && OTHERA=x86_64
+    for a in "$OTHERA" "$HOSTA"; do
         CC="xcrun clang -arch $a -mmacosx-version-min=10.15" \
             sh "$HOSTED/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
             { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }
@@ -216,6 +234,7 @@ esac
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@EXECUTABLE@/$EXEC/g" -e "s/@UIELEMENT@/$UIEL/g" \
     "$MACOS/Info.plist.in" > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+put_fonts "$APP/Contents/Resources/Fonts"
 cp "$MACOS/models.manifest" "$APP/Contents/Resources/models.manifest"
 cp "$MACOS/zxv-model-fetch.sh" "$APP/Contents/Resources/zxv-model-fetch.sh"
 chmod 755 "$APP/Contents/Resources/zxv-model-fetch.sh"
@@ -268,8 +287,9 @@ if [ "$MAC_ONLY" = 0 ]; then
     step "Windows"
     mkdir -p "$WORK/win"
     cp "$WORK/zxv-swarm.exe" "$WORK/win/"
+    put_fonts "$WORK/win/fonts"
     printf '%s\n\nWindows: SmartScreen may warn that the app is unrecognised. Choose\nMore info, then Run anyway.\n' "$README_TEXT" | sed 's/$/\r/' > "$WORK/win/README.txt"
-    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt)
+    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt fonts)
 
     step "Linux"
     for arch in x86_64 aarch64; do
@@ -278,6 +298,7 @@ if [ "$MAC_ONLY" = 0 ]; then
         cp "$WORK/zxv-linux-$arch" "$D/zxv-swarm"
         chmod 755 "$D/zxv-swarm"
         cp "$MACOS/zxv-model-fetch.sh" "$MACOS/models.manifest" "$D/"
+        put_fonts "$D/fonts"
         printf '%s\n\nModels: put a GGUF file in ~/.local/share/zxv/models, or run\n  ./zxv-model-fetch.sh models.manifest ~/.local/share/zxv/models\n' "$README_TEXT" > "$D/README.txt"
         cat > "$D/zxv-swarm.desktop" <<'EOF'
 [Desktop Entry]
@@ -295,6 +316,8 @@ set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications" "$HOME/.local/share/zxv/models"
 cp "$here/zxv-swarm" "$HOME/.local/bin/zxv-swarm"
+mkdir -p "$HOME/.local/share/zxv/fonts"
+cp "$here"/fonts/* "$HOME/.local/share/zxv/fonts/"
 sed "s|^Exec=.*|Exec=$HOME/.local/bin/zxv-swarm|" "$here/zxv-swarm.desktop" \
     > "$HOME/.local/share/applications/zxv-swarm.desktop"
 echo "Installed. Start ZXV Swarm from your applications menu or run ~/.local/bin/zxv-swarm"

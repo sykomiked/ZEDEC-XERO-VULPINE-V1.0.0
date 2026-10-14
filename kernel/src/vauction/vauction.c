@@ -520,7 +520,6 @@ vauc_status_t vauc_settle(vauc_t *a, uint64_t now)
         if (!pay_add_ok(R, rem * p, &add) || !floor_holds(a, add, vauc_outstanding(a) + rem))
             return VAUC_ERR_FLOOR;
     }
-    a->mode = 1;
     for (uint32_t i = 0; i < a->n_bids; i++) {
         vauc_bid_t *b = &a->bid[i];
         if (b->settled) continue;
@@ -537,6 +536,7 @@ vauc_status_t vauc_settle(vauc_t *a, uint64_t now)
         }
         if (st != VAUC_OK) return st;
         b->settled = true;
+        if (b->fill) a->mode = 1; /* something was issued: no cancel from here on */
     }
     finish(a, now);
     return VAUC_OK;

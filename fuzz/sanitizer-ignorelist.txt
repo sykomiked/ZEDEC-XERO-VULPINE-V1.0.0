@@ -53,3 +53,19 @@ fun:pay_floor_a_sqrt5
 # drivers. They mix bits modulo 2^32 / 2^64 on purpose.
 fun:rnd
 fun:toy_sign
+
+# Property harnesses whose input builders and reference models compute mod
+# 2^64 (or 2^128) on purpose: an edge value such as -1000 added as a tick
+# offset, debits written as 0 - a, FNV-1a signatures, u128 models of a
+# product that the code under test must refuse. Only unsigned wrap is
+# exempt, and only in the harness file itself. The ledger and economy code
+# each harness drives (kernel/src/...) is not listed and stays fully checked.
+[unsigned-integer-overflow]
+src:*econ/fuzz_econ_vbond.c
+src:*econ/fuzz_econ_vderiv.c
+src:*econ/fuzz_econ_zenny.c
+src:*econ/fuzz_econ_grants.c
+src:*econ/fuzz_econ_estate.c
+src:*econ/fuzz_econ_svault.c
+src:*econ/fuzz_econ_vswap.c
+src:*econ/fuzz_econ_vauction.c

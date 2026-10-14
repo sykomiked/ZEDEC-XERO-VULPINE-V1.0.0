@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id payment-reconciliation
+title Reconcile payments before settling
+lang kron
+audience central banks, payment system operators, treasury teams
+safety settlement
+summary Three sources report each payment. Agreement passes, conflicts are held for a person, and settlement waits until every payment is clear.
+inputs inputs.txt
+step reconcile kron reconcile.k out=settled evidence labels=payments
+step settle treaty end-of-day.treaty gate

@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id cobol-payment-record
+title Read a COBOL payment record exactly
+lang sutra
+audience banks with COBOL cores, central banks, payment system operators
+safety none
+summary A COBOL copybook and its Sutra twin are proven to declare the same bytes; a payment record is built, read back to the cent, compared with the counterparty's copy, and its posting extracted without touching any ledger.
+inputs inputs.txt
+step record sutra payment.sutra same=payment.cpy hex compare=counterparty.txt posting=pay-amount,pay-ccy,pay-from,pay-to,pay-ref
+draft payment.sutra Write a Sutra record layout for the record the user describes, with exact PICTURE clauses (s9(n)v99 for money).

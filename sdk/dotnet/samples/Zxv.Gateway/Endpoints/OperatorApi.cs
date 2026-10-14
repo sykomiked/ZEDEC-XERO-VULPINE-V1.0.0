@@ -153,7 +153,7 @@ public static class OperatorApi
 
                 return TypedResults.Created($"/v1/netting-cycles/{body.CycleId}", body);
             })
-            .WithName("openNettingCycle").WithSummary("Open a multilateral netting cycle (pending kernel/src/cbank: 501 until built)");
+            .WithName("openNettingCycle").WithSummary("Open a multilateral netting cycle (kernel/src/cbank cb_net)");
         net.MapPost("/{cycleId}/obligations", Results<Accepted, NotFound> (GatewayState state, string cycleId, ObligationInput body) =>
             {
                 if (!state.Cycles.TryGetValue(cycleId, out NettingCycle? cycle))

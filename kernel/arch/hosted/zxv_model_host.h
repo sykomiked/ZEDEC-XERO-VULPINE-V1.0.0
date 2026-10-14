@@ -19,6 +19,18 @@
  *   M4 PICK.   With no explicit --model, the first *.gguf (by name) in the
  *      models directory is used. No model at all is a normal state: the
  *      swarm runs without one.
+ *   M6 SWARM.  Several models at once, beside the single slot above:
+ *      ZXV_SLOTS base models, each mapped and loaded once, and ZXV_AGENTS
+ *      agents, each running on one slot with its own KV cache and its own
+ *      LoRA adapter (llama.cpp's adapter GGUF; kernel/src/tensor/zt_model.h
+ *      T23) or none. Agents on one slot share its weights: an agent costs
+ *      its KV cache (about 117 MB for Qwen2.5-1.5B at the 2048-token
+ *      context) plus its adapter. Adapters are read once into the agent's
+ *      own memory, so the adapter file can change or go away afterwards.
+ *      Replies are bit-identical on every machine, as for the single slot.
+ *      One request at a time across all agents (the host serialises).
+ *      Adapters, like models, must carry a licence that allows the use
+ *      they are put to; nothing here checks that.
  */
 #ifndef ZXV_MODEL_HOST_H
 #define ZXV_MODEL_HOST_H
@@ -71,10 +83,31 @@ typedef int32_t (*zxv_gen_runner_fn)(void *rctx, zxv_gen_fn gen, void *gctx);
 #define ZXV_MODEL_MAX_NEW          256u
 int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, char *out,
                         size_t cap);
-/* The prompt's length in tokens (BOS included) for the answer in progress:
+/* The prompt's length in tokens (BOS included) for the answer in progress
+ * (the single slot's, or an agent's, M6):
  * set before run is called, so the budget gate can charge it
  * (zxv_budget_gate.h B5); 0 before any prompt was tokenized. */
 uint64_t zxv_model_prompt_tokens(void);
+
+/* M6: slot and agent numbers are 0..ZXV_SLOTS-1 and 0..ZXV_AGENTS-1. */
+#define ZXV_SLOTS  4u
+#define ZXV_AGENTS 16u
+/* Map and check a model into a slot (replacing it and closing its agents).
+ * 0 or -1; zxv_slot_info(slot)->status says why. */
+int zxv_slot_open(uint32_t slot, const char *path);
+void zxv_slot_close(uint32_t slot);                   /* closes its agents first */
+const zxv_model_info_t *zxv_slot_info(uint32_t slot); /* null when out of range */
+/* Start an agent on a slot, with a LoRA adapter file (null or "": none) at
+ * scale_q16 (65536 = 1.0; 0 means 1.0). Replaces any agent of that number.
+ * 0, or -1 with the reason in err. */
+int zxv_agent_open(uint32_t agent, uint32_t slot, const char *lora_path, uint32_t scale_q16,
+                   char *err, size_t err_cap);
+void zxv_agent_close(uint32_t agent);
+int zxv_agent_slot(uint32_t agent); /* its slot, or -1 when not open */
+/* As zxv_model_answer(_ex), for one agent. */
+int zxv_agent_answer(uint32_t agent, const char *prompt, char *out, size_t cap);
+int zxv_agent_answer_ex(uint32_t agent, const char *prompt, zxv_gen_runner_fn run, void *rctx,
+                        char *out, size_t cap);
 
 /* Forward-pass glue (zxv_zt_glue.c, M3). Generate a reply to the prompt's
  * token ids into out (UTF-8, NUL-terminated). Returns the number of tokens
@@ -102,5 +135,24 @@ void zxv_zt_last_verdict(zxv_zt_verdict_t *out);
 int zxv_zt_can_run(const zt_gguf_t *g);
 /* Free the loaded weights and KV cache (the slot calls it on close). */
 void zxv_zt_release(void);
+
+/* G6 (M6): a base loaded once, agents with their own KV cache and adapter. */
+typedef struct zxv_zt_base zxv_zt_base_t;
+typedef struct zxv_zt_agent zxv_zt_agent_t;
+/* Load the weights of g (which must outlive the base). 0 or negative. */
+int32_t zxv_zt_base_load(zxv_zt_base_t **out, const zt_gguf_t *g, char *err, size_t err_cap);
+/* Free a base; -1 (and nothing freed) while agents still run on it. */
+int32_t zxv_zt_base_free(zxv_zt_base_t *b);
+/* An agent on b with the LoRA adapter in lora (null: none) at scale_q16. The
+ * adapter is copied: lora need not outlive the call. 0 or negative. */
+int32_t zxv_zt_agent_new(zxv_zt_agent_t **out, zxv_zt_base_t *b, const zt_gguf_t *lora,
+                         uint32_t scale_q16, char *err, size_t err_cap);
+void zxv_zt_agent_free(zxv_zt_agent_t *a);
+bool zxv_zt_agent_has_lora(const zxv_zt_agent_t *a);
+/* As zxv_zt_generate_n, on the agent's base, cache and adapter; each request
+ * starts from an empty cache. Sets the verdict (G5). */
+int32_t zxv_zt_agent_generate(zxv_zt_agent_t *a, const zt_tok_t *tok, const int32_t *ids,
+                              uint64_t n_ids, uint32_t max_new, char *out, size_t cap, char *err,
+                              size_t err_cap);
 
 #endif /* ZXV_MODEL_HOST_H */

@@ -31,14 +31,30 @@ public enum Permission {
     /** Build and call the hardware emulation matrix (ABI 1.4). */
     HW_MATRIX,
     /** Load hardware images into regions and apply contract packages (ABI 1.4). */
-    HW_RECONF;
+    HW_RECONF,
+    /**
+     * Store blocks and publish functions on an AIPI node
+     * ({@link org.zedec.zxv.aipi.AipiNode}; ABI 1.5, {@code ZXV_CAP_AIPI}).
+     */
+    AIPI,
+    /**
+     * Create tokens and change a token wallet's octane
+     * ({@link org.zedec.zxv.coin.TokenWallet}; ABI 1.5, {@code ZXV_CAP_MINT}). Coin minting is
+     * not in the ABI yet; this bit gates only the token wallet.
+     */
+    MINT,
+    /**
+     * Run paradox operators, write paradox logs and the signature registry, and create
+     * paradox handles ({@link org.zedec.zxv.paradox.ParadoxBook}; ABI 1.5, {@code ZXV_CAP_PARADOX}).
+     */
+    PARADOX;
 
     /** The {@code ZXV_CAP_*} bit. */
     public long bit() {
         return 1L << ordinal();
     }
 
-    /** Every permission. */
+    /** Every permission (as of ABI 1.5: {@code ZXV_CAP_ALL_1_5}). */
     public static Set<Permission> all() {
         return EnumSet.allOf(Permission.class);
     }
