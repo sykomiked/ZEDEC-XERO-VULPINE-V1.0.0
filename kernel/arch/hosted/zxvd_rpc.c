@@ -37,7 +37,7 @@
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxv_files.h" /* files.*: the ZXV folder */
 #include "zxv_spaces.h" /* spaces.*: who may see and change each place */
-#include "juris.h"     /* J5: the jurisdiction host (kernel/src/juris) */
+#include "juris.h"      /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -2790,7 +2790,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     if (ORIGIN && (ph == PH_NO || (ph == PH_POST && ORIGIN != PH_POST))) {
         put_error(out, line, t, id, ZXVD_E_PHONE,
                   ph == PH_NO ? "not allowed from a phone"
-                                     : "this phone was paired without allow_post",
+                              : "this phone was paired without allow_post",
                   0);
         return true;
     }
