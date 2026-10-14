@@ -129,6 +129,10 @@ jobs:
           sudo apt-get install -y -qq xvfb xdotool imagemagick libx11-dev libxext-dev libvulkan-dev \
             mesa-vulkan-drivers gcc-mingw-w64-x86-64 >/dev/null
           sh kernel/arch/hosted/test_zui_present.sh
+      - name: Power reader and zxpower (fixture test, then this runner live)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxpower.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
