@@ -47,10 +47,10 @@ typedef struct {
     uint32_t units_per_em;
     uint32_t num_glyphs;
     uint32_t loca_off, loca_len;
-    bool     loca_long;         /* indexToLocFormat: 1 = 32-bit offsets       */
+    bool loca_long; /* indexToLocFormat: 1 = 32-bit offsets       */
     uint32_t glyf_off, glyf_len;
-    uint32_t cmap_sub_off;      /* offset of the chosen format-4 subtable      */
-    bool     valid;
+    uint32_t cmap_sub_off; /* offset of the chosen format-4 subtable      */
+    bool valid;
     /* Horizontal metrics (hhea + hmtx). Optional: a font without them still
      * parses, and ttf_advance() then returns 0. */
     int32_t ascender, descender, line_gap; /* font units, from hhea     */
@@ -70,8 +70,8 @@ uint32_t ttf_glyph_index(const ttf_font_t *f, uint32_t codepoint);
  * byte per pixel, 0..255, top-left origin, baseline placed so the glyph sits
  * inside the box). Returns true if a glyph outline was rendered; false for an
  * empty glyph (e.g. space), a composite glyph, or malformed data. */
-bool ttf_render(const ttf_font_t *f, uint32_t glyph_id, uint32_t size,
-                uint8_t *bitmap, uint32_t w, uint32_t h);
+bool ttf_render(const ttf_font_t *f, uint32_t glyph_id, uint32_t size, uint8_t *bitmap, uint32_t w,
+                uint32_t h);
 
 /* Advance width of a glyph in font units (hmtx); 0 when the font has none. */
 uint32_t ttf_advance(const ttf_font_t *f, uint32_t glyph_id);
@@ -85,7 +85,7 @@ bool ttf_render_at(const ttf_font_t *f, uint32_t glyph_id, uint32_t size, uint8_
                    uint32_t w, uint32_t h, int32_t origin_x_q8, int32_t baseline_y);
 
 /* Convenience: codepoint straight to pixels (cmap + render). */
-bool ttf_render_cp(const ttf_font_t *f, uint32_t codepoint, uint32_t size,
-                   uint8_t *bitmap, uint32_t w, uint32_t h);
+bool ttf_render_cp(const ttf_font_t *f, uint32_t codepoint, uint32_t size, uint8_t *bitmap,
+                   uint32_t w, uint32_t h);
 
 #endif /* ZXV_TRUETYPE_H */
