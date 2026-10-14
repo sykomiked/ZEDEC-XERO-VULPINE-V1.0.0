@@ -5,7 +5,8 @@
 #   cd kernel/userapp && ./build_hello.sh
 #
 # Produces hello.elf (static AArch64 ELF64, linked at 0x10000) and
-# hello_elf.h (byte array embedded by the kernel and seeded to ZXVFS).
+# hello_elf.h (the same bytes as a C array; build_signed_app.sh signs hello.elf
+# into hello.zsp, which is what the kernel seeds to ZXVFS and runs).
 set -e
 CROSS=${CROSS_COMPILE:-aarch64-linux-gnu-}
 
@@ -19,8 +20,8 @@ ${CROSS}ld -T hello.ld -z max-page-size=0x1000 -o hello.elf hello.o
 
 {
   echo "/* hello_elf.h — GENERATED from userapp/hello.elf. Do not edit by hand."
-  echo " * Rebuild: see userapp/build_hello.sh. The kernel seeds these bytes to"
-  echo " * ZXVFS as 'hello.elf' on first boot so 'run hello.elf' loads from disk."
+  echo " * Rebuild: see userapp/build_hello.sh. The kernel does not run a bare ELF:"
+  echo " * it seeds hello.zsp, the signed package build_signed_app.sh makes from it."
   echo " */"
   echo "#ifndef HELLO_ELF_H"
   echo "#define HELLO_ELF_H"

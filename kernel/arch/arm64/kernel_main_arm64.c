@@ -3813,7 +3813,10 @@ void kernel_shell_exec(const char *line) {
             image = payload;
             image_len = plen;
         } else {
-            uart_puts("run: [WARN] unsigned ELF (dev only) — no signature check\r\n");
+            /* Only signed packages run (G7): a bare ELF has no signature to
+             * check, so it is refused, not run with a warning. */
+            uart_puts("run: NOT A SIGNED PACKAGE — refusing to execute (sign it as .zsp)\r\n");
+            return;
         }
 
         extern proc_scheduler_t *el0_get_scheduler(void);
