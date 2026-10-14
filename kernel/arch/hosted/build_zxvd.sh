@@ -46,7 +46,7 @@ OSDEFS=""
 case "$($CC -dumpmachine 2>/dev/null)" in
     *mingw*|*windows*)
         LIBF=libzxv.dll; RP=""; EXE=.exe
-        OSLIBS="-lws2_32 -lshell32 -lbcrypt -ladvapi32 -static-libgcc"
+        OSLIBS="-lws2_32 -lshell32 -lbcrypt -ladvapi32 -lpowrprof -static-libgcc"
         OSDEFS="-D__USE_MINGW_ANSI_STDIO=1 -D_WIN32_WINNT=0x0A00"
         ;;
     # Both rpaths at link time (next to the binary, and Contents/Frameworks
@@ -54,6 +54,7 @@ case "$($CC -dumpmachine 2>/dev/null)" in
     # later install_name_tool -add_rpath.
     *darwin*|*apple*)
         LIBF=libzxv.dylib
+        OSLIBS="-framework IOKit -framework CoreFoundation" # power.* (zxv_power_host.c)
         RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
     *)                LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac
@@ -74,8 +75,8 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 # 3. AIPI on Z-Wasm (zxvd_aipi.c): the sandbox libraries from the aipi kit;
-# the AIPI core and the blockstore are kernel sources compiled here with the
-# rest. Not in the Windows build yet (ZXVD_AIPI=0 leaves it out anywhere).
+# the AIPI core and the blockstore are kernel sources already in the app's
+# source list (app_sources.sh vinea, for AIPI over Vinea). Not in the Windows build yet (ZXVD_AIPI=0 leaves it out anywhere).
 AIPI_LIBS=""
 if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     A="$OUT/aipi-build"
@@ -84,11 +85,58 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
         "$A/zwasm/libzwasm.a" >"$OUT/aipi-build.log" 2>&1 ||
         { tail -30 "$OUT/aipi-build.log"; echo "[FAIL] aipi kit build"; exit 1; }
     AIPI_LIBS="$A/libaipi_zwasm.a $A/zcontract/libzcontract_wasm.a $A/zcontract/libzcontract.a $A/zwasm/libzwasm.a"
-    set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
+    set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
-set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$K/src/print/ipp.c" "$K/src/print/escl.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# 4. The Playground (sdk/playground): the templates and the runner for ZXV's
+# languages, behind /api/play/* in the window and play.* on the socket. Not
+# in the Windows build yet (ZXVD_PLAY=0 leaves it out anywhere).
+PLAY_LIBS=""
+if [ -z "$EXE" ] && [ "${ZXVD_PLAY:-1}" != 0 ]; then
+    P="$OUT/play-build"
+    # The Playground's deps (libzxv, the pillars, libzxv-econ) build into
+    # fixed folders, and make does not see a compiler change: a universal
+    # macOS build runs this once per arch. Build them again when CC changed.
+    STAMP="$R/sdk/libzxv/build/.play-deps-cc"
+    if [ "$(cat "$STAMP" 2>/dev/null)" != "$CC" ]; then
+        rm -rf "$R/sdk/libzxv/build" "$R/packages/build/libzxv-econ"
+        for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do
+            rm -rf "$R/sdk/pillars/$p/build"
+        done
+    fi
+    make -C "$R/sdk/playground" CC="$CC" OUT="$P" ${SANITIZE:+SANITIZE=1} deps "$P/libzxvplay.a" \
+        >"$OUT/play-build.log" 2>&1 ||
+        { tail -30 "$OUT/play-build.log"; echo "[FAIL] playground build"; exit 1; }
+    printf '%s\n' "$CC" >"$STAMP"
+    PL="$R/sdk/pillars"
+    PLAY_LIBS="$P/libzxvplay.a $PL/cobol-sutra/build/libzsutra.a $PL/fortran-trebago/build/libztrebago.a"
+    PLAY_LIBS="$PLAY_LIBS $PL/ada-eve/build/libzeve.a $PL/apl-kron/build/libzkron.a $PL/mumps-myra/build/libzmyra.a"
+    PLAY_LIBS="$PLAY_LIBS $R/packages/build/libzxv-econ/libzxv-econ.a"
+    set -- "$@" "-I$R/sdk/playground/include"
+    DEFS="$DEFS -DZXV_HAVE_PLAY"
+fi
+# 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
+for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
+for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
+set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# the utilities, Scent, Platen (with its IPP and eSCL codecs), Keepsake, Wake,
+# Shepherd and Waymark behind zxvd_rpc.c
+set -- "$@" "-I$K/src/print" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" \
+    "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$K/src/print/ipp.c" "$K/src/print/escl.c"
+# the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
+set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
+for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
+    set -- "$@" "$K/src/social/$f.c"
+done
+# payments (zxvd_pay.h): ident's passkey check and the post-quantum code it
+# links (app_sources.sh already has ML-DSA-65/87, ML-KEM-1024, X25519), and
+# its Argon2id for seats.* (zxvd_seats.c)
+set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" \
+    "$K/src/ident/id_argon2.c"
+for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
+for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done
+for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do set -- "$@" "$K/src/mlkem/$f.c"; done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
-$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
+$CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS $PLAY_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"
 echo "[PASS] built $OUT/zxvd$EXE against $OUT/$LIBF"

@@ -30,6 +30,7 @@
 #endif
 
 #include "zxvd_rpc.h"
+#include "zxvd_ext.h" /* method groups and feature switches */
 #include "sha256.h"    /* the books file's hash chain */
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "web4_util.h" /* hex */
@@ -44,6 +45,7 @@
 #include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
 #include "zxv_screen.h"     /* screen.*: Shepherd's screen time */
 #include "zxv_place.h"      /* place.*: Waymark's location and places */
+#include "juris.h"          /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -353,6 +355,25 @@ static bool JU_OPEN;    /* J2: false = closed clearing (the default) */
 static uint32_t JU_IDX; /* J3: index in JU_STD; 0 = not chosen */
 static char JU_CC[3];   /* J1: ISO 3166-1 alpha-2, or "" */
 
+/* J5: the jurisdiction host holds the same settings. No gateway key is
+ * configured, so no plug-in can register and its answers fail closed. */
+static lpx_qrec_t JU_QLOG[64];
+static juris_host_t JU_HOST;
+
+static void ju_host_sync(bool reset)
+{
+    juris_settings_t s;
+    juris_settings_default(&s);
+    s.market = JU_OPEN ? JURIS_MARKET_OPEN : JURIS_MARKET_CLOSED;
+    s.standard = (uint8_t) acct_std_from_name(JU_STD[JU_IDX]);
+    if (JU_CC[0]) memcpy(s.country, JU_CC, sizeof JU_CC); /* "" may leave old bytes after it */
+    s.in_effect = true;
+    if (reset)
+        juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
+    else
+        (void) juris_host_apply_settings(&JU_HOST, &s);
+}
+
 static int ju_std(const char *s)
 {
     for (uint32_t i = 0; i < JU_NSTD; i++)
@@ -379,6 +400,31 @@ static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
     JU_OPEN = open;
     JU_IDX = idx;
     memcpy(JU_CC, cc, strlen(cc) + 1);
+    ju_host_sync(false);
+    return ZXV_OK;
+}
+
+/* X7: a feature switch, saved so a restart keeps the owner's choice */
+static const zxvd_group_t *GROUPS[ZXVD_EXT_MAX_GROUPS];
+static uint32_t N_GROUPS;
+static struct {
+    const char *name;
+    bool on, regulated;
+    bool cli; /* X3: --enable named it; a saved "off" does not override it */
+} FEAT[ZXVD_EXT_MAX_FEATURES];
+static uint32_t N_FEAT;
+static int32_t feat_index(const char *f, size_t n);
+
+static int32_t bk_feat(uint32_t f, bool on)
+{
+    int32_t st;
+    if (!writable(&st)) return st;
+    if (FEAT[f].on == on) return ZXV_OK;
+    zxvd_buf_t r = {0};
+    zxvd_buf_printf(&r, "{\"op\":\"feat\",\"name\":\"%s\",\"on\":%s}", FEAT[f].name,
+                    on ? "true" : "false");
+    if ((st = saved(&r)) != ZXV_OK) return st;
+    FEAT[f].on = on;
     return ZXV_OK;
 }
 
@@ -448,6 +494,17 @@ static const char *bf_apply(const char *js, size_t n)
         JU_OPEN = !strcmp(m, "open");
         JU_IDX = (uint32_t) ix;
         memcpy(JU_CC, c2, strlen(c2) + 1);
+        ju_host_sync(false);
+        return NULL;
+    }
+    if (w4_json_str_eq(js, &t[op], "feat")) {
+        int32_t on = w4_json_get(js, t, k, 0, "on");
+        bool v;
+        if (w4_json_get_str(js, t, k, 0, "name", a, sizeof a) < 0 || on < 0 ||
+            w4_json_bool(&t[on], &v) != W4_OK)
+            return "bad feature record";
+        int32_t f = feat_index(a, strlen(a)); /* a feature this build lacks is skipped */
+        if (f >= 0 && !FEAT[f].cli) FEAT[f].on = v;
         return NULL;
     }
     return "unknown op";
@@ -466,6 +523,7 @@ static int bf_load(void)
     JU_OPEN = false;
     JU_IDX = 0;
     JU_CC[0] = 0;
+    ju_host_sync(true);
     memset(BF_HEAD, 0, sizeof BF_HEAD);
     if (!BF_PATH[0]) return 0;
     BF = BF_OPEN(BF_PATH);
@@ -777,7 +835,7 @@ int zxvd_rpc_mesh_post(bool sold, uint64_t gross, uint64_t fee, const uint8_t in
 
 /* ===================== one request ===================== */
 
-typedef struct {
+typedef struct zxvd_call {
     const char *js;
     const w4_jtok_t *t;
     int32_t n;
@@ -788,13 +846,18 @@ typedef struct {
     int32_t zst; /* libzxv status for E_LIBZXV */
 } call_t;
 
-static void fail(call_t *c, int code, const char *fmt, ...)
+static void vfail(call_t *c, int code, const char *fmt, va_list ap)
 {
     if (c->err) return;
     c->err = code;
+    vsnprintf(c->msg, sizeof c->msg, fmt, ap);
+}
+
+static void fail(call_t *c, int code, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(c->msg, sizeof c->msg, fmt, ap);
+    vfail(c, code, fmt, ap);
     va_end(ap);
 }
 
@@ -864,6 +927,127 @@ static bool p_u32(call_t *c, const char *key, uint32_t *v)
     }
     *v = (uint32_t) x;
     return true;
+}
+
+/* X1-X7: methods other modules add */
+static struct {
+    const zxvd_method_t *m;
+    uint32_t n;
+} EXT[ZXVD_RPC_MAX_TABLES];
+static uint32_t N_EXT; /* tables held, EXT[0..N_EXT) in the order added */
+
+int zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n)
+{
+    if (!m || !n) return -1;
+    for (uint32_t i = 0; i < N_EXT; i++)
+        if (EXT[i].m == m) {
+            EXT[i].n = n;
+            return 0;
+        }
+    if (N_EXT == ZXVD_RPC_MAX_TABLES) return -1;
+    EXT[N_EXT].m = m;
+    EXT[N_EXT].n = n;
+    N_EXT++;
+    return 0;
+}
+
+void zxvd_rpc_remove_methods(const zxvd_method_t *m)
+{
+    for (uint32_t i = 0; i < N_EXT; i++)
+        if (EXT[i].m == m) {
+            for (; i + 1 < N_EXT; i++) EXT[i] = EXT[i + 1];
+            N_EXT--;
+            return;
+        }
+}
+
+void zxvd_rpc_clear_methods(void)
+{
+    N_EXT = 0;
+}
+
+bool zxvd_param_str(call_t *c, const char *key, char *out, uint32_t cap, bool required)
+{
+    return p_str(c, key, out, cap, required);
+}
+
+bool zxvd_param_bool(call_t *c, const char *key, bool *v, bool required)
+{
+    int32_t i = param(c, key);
+    if (i < 0) {
+        if (required) fail(c, E_PARAMS, "missing boolean parameter \"%s\"", key);
+        return !required;
+    }
+    if (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE) {
+        fail(c, E_PARAMS, "\"%s\" must be true or false", key);
+        return false;
+    }
+    *v = c->t[i].type == W4_J_TRUE;
+    return true;
+}
+
+bool zxvd_param_u32(call_t *c, const char *key, uint32_t *v, bool required)
+{
+    if (param(c, key) < 0 && !required) return true;
+    return p_u32(c, key, v);
+}
+
+static bool p_amount(call_t *c, const char *key, int64_t *v);
+
+bool zxvd_param_amount(call_t *c, const char *key, int64_t *v, bool required)
+{
+    if (param(c, key) < 0 && !required) return true;
+    return p_amount(c, key, v);
+}
+
+bool zxvd_param_json(call_t *c, const char *key, zxvd_json_t *v)
+{
+    int32_t i = key ? param(c, key) : c->params;
+    if (i < 0) return false;
+    v->js = c->js;
+    v->tok = c->t;
+    v->n = c->n;
+    v->at = i;
+    return true;
+}
+
+zxvd_buf_t *zxvd_result(call_t *c)
+{
+    return c->res;
+}
+
+void zxvd_fail(call_t *c, int code, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vfail(c, code, fmt, ap);
+    va_end(ap);
+}
+
+bool zxvd_libzxv_ok(call_t *c, int32_t st)
+{
+    return zok(c, st);
+}
+
+const zxv_cap *zxvd_books_cap(void)
+{
+    return CAP;
+}
+
+zxv_ctx *zxvd_books_ctx(void)
+{
+    return CTX;
+}
+
+int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint32_t *id)
+{
+    return CAP ? bk_acct(name, ccy, kind, id) : ZXV_E_STATE;
+}
+
+int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                        const char *ref, uint64_t *entry)
+{
+    return CAP ? bk_post(from, to, amount, ccy, ref, entry) : ZXV_E_STATE;
 }
 
 /* M3: an amount is a JSON integer or a decimal string ("-12", no sign "+",
@@ -1564,7 +1748,7 @@ static bool p_gov(call_t *c, zxs_gov_t *gov, uint8_t *quorum)
     return true;
 }
 
-/* a zxv_spaces result: its own refusals are -32013, the folder's -32012 */
+/* a zxv_spaces result: its own refusals are -32013, the folder's -32014 */
 static bool spaces_done(call_t *c, int rc)
 {
     if (rc <= ZXS_E_ROLE && rc >= ZXS_E_GOV) {
@@ -2598,6 +2782,157 @@ static void m_place_remove(call_t *c)
     LIT(c->res, ",\"removed\":true}");
 }
 
+/* ----- phone.* (zxvd_phone.h) ----- */
+static const zxvd_phone_ops_t *PHONE;
+
+void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops)
+{
+    PHONE = ops;
+}
+
+static void m_phone_link(call_t *c)
+{
+    char bind[48];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    int32_t i = param(c, "on");
+    if (i < 0 || (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE))
+        return fail(c, E_PARAMS, "\"on\" must be true or false");
+    bool on = c->t[i].type == W4_J_TRUE;
+    int32_t port = -1;
+    if (param(c, "port") >= 0) {
+        uint32_t v;
+        if (!p_u32(c, "port", &v)) return;
+        if (v > 65535) return fail(c, E_PARAMS, "\"port\" must be 0..65535");
+        port = (int32_t) v;
+    }
+    bool has_bind = param(c, "bind") >= 0;
+    if (has_bind && !p_str(c, "bind", bind, sizeof bind, true)) return;
+    const char *why = PHONE->link(on, port, has_bind ? bind : NULL, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
+}
+
+static void m_phone_pair(call_t *c)
+{
+    char name[33];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "name", name, sizeof name, true)) return;
+    bool post = false;
+    int32_t i = param(c, "allow_post");
+    if (i >= 0) {
+        if (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE)
+            return fail(c, E_PARAMS, "\"allow_post\" must be true or false");
+        post = c->t[i].type == W4_J_TRUE;
+    }
+    const char *why = PHONE->pair(name, post, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
+}
+
+static void m_phone_list(call_t *c)
+{
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    PHONE->list(c->res);
+}
+
+static void m_phone_revoke(call_t *c)
+{
+    char id[40];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "phone_id", id, sizeof id, true)) return;
+    const char *why = PHONE->revoke(id, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
+}
+
+/* ----- play.* (zxvd_rpc.h P1-P3) ----- */
+
+static const zxvd_play_ops_t *PLAY;
+
+void zxvd_rpc_set_play_ops(const zxvd_play_ops_t *ops)
+{
+    PLAY = ops;
+}
+
+#define PLAY_MAX_FILES 16
+
+static bool play_done(call_t *c, const char *why)
+{
+    if (!why) return true;
+    c->res->len = 0;
+    fail(c, ZXVD_E_PLAY, "%s", why);
+    return false;
+}
+
+/* "files": {name: text, ...}, decoded into malloc'd copies. */
+static bool p_files(call_t *c, zxvd_play_file_t *f, uint32_t *n)
+{
+    int32_t o = param(c, "files");
+    *n = 0;
+    if (o < 0) return true;
+    if (c->t[o].type != W4_J_OBJ) {
+        fail(c, E_PARAMS, "\"files\" must be an object of name: text");
+        return false;
+    }
+    for (int32_t j = o + 1; j < c->n; j++) {
+        if (c->t[j].parent != o) continue;
+        if (*n >= PLAY_MAX_FILES || j + 1 >= c->n || c->t[j + 1].type != W4_J_STR) {
+            fail(c, E_PARAMS, "\"files\": at most %d entries, each a string", PLAY_MAX_FILES);
+            return false;
+        }
+        uint32_t kl = c->t[j].end - c->t[j].start + 1, vl = c->t[j + 1].end - c->t[j + 1].start + 1;
+        char *k = malloc(kl), *v = malloc(vl);
+        int32_t kn = k ? w4_json_str(c->js, &c->t[j], k, kl) : -1;
+        int32_t vn = v ? w4_json_str(c->js, &c->t[j + 1], v, vl) : -1;
+        if (kn <= 0 || vn < 0) {
+            free(k);
+            free(v);
+            fail(c, E_PARAMS, "\"files\": a bad name or text");
+            return false;
+        }
+        f[*n].name = k;
+        f[*n].text = v;
+        f[*n].len = (size_t) vn;
+        (*n)++;
+    }
+    return true;
+}
+
+static void free_files(zxvd_play_file_t *f, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        free((char *) f[i].name);
+        free((char *) f[i].text);
+    }
+}
+
+static void m_play_catalogue(call_t *c)
+{
+    if (!PLAY || !PLAY->catalogue) return fail(c, E_METHOD, "not available");
+    (void) play_done(c, PLAY->catalogue(c->res));
+}
+
+static void m_play_run(call_t *c)
+{
+    char tid[64];
+    zxvd_play_file_t f[PLAY_MAX_FILES];
+    uint32_t n = 0;
+    if (!PLAY || !PLAY->run) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "template", tid, sizeof tid, true) || !p_files(c, f, &n)) return;
+    (void) play_done(c, PLAY->run(tid, f, n, c->res));
+    free_files(f, n);
+}
+
+static void m_play_draft(call_t *c)
+{
+    char tid[64], req[1024];
+    zxvd_play_file_t f[PLAY_MAX_FILES];
+    uint32_t n = 0;
+    if (!PLAY || !PLAY->draft) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "template", tid, sizeof tid, true) ||
+        !p_str(c, "request", req, sizeof req, false) || !p_files(c, f, &n))
+        return;
+    (void) play_done(c, PLAY->draft(tid, f, n, req, c->res));
+    free_files(f, n);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2791,7 +3126,8 @@ static void ju_put(zxvd_buf_t *o)
                     JU_OPEN ? "open" : "closed", JU_STD[JU_IDX], JU_CC);
     for (uint32_t i = 1; i < JU_NSTD; i++)
         zxvd_buf_printf(o, "%s\"%s\"", i > 1 ? "," : "", JU_STD[i]);
-    LIT(o, "],\"in_effect\":false}");
+    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"}",
+                    (unsigned) JU_HOST.n, acct_std_name(juris_host_standard(&JU_HOST)));
 }
 
 static void m_juris_get(call_t *c)
@@ -2856,100 +3192,117 @@ static void m_check(call_t *c)
 }
 
 static void m_discover(call_t *c);
+static void m_features_get(call_t *c);
+static void m_features_set(call_t *c);
+
+/* who may call a method from a paired phone (zxvd_phone.h A1-A3) */
+#define PH_NO   0 /* the control socket only */
+#define PH_READ 1 /* any paired phone */
+#define PH_POST 2 /* a phone paired with allow_post */
 
 typedef struct {
     const char *name;
     void (*fn)(call_t *);
+    uint8_t phone;
 } method_t;
 
 static const method_t METHODS[] = {
-    {"rpc.discover", m_discover},
-    {"zxvd.version", m_version},
-    {"zxvd.shutdown", m_shutdown},
-    {"swarm.state", m_state},
-    {"swarm.ask", m_ask},
-    {"model.info", m_model},
-    {"notes.list", m_notes},
-    {"notes.mark_read", m_notes_read},
-    {"net.command", m_net},
-    {"net.peers", m_net_peers},
-    {"net.offers", m_net_offers},
-    {"player.card", m_player_card},
-    {"peer.ask", m_peer_ask},
-    {"peer.serve", m_peer_serve},
-    {"peer.status", m_peer_status},
-    {"update.check", m_update},
-    {"currency.enable", m_ccy_enable},
-    {"ledger.open_account", m_open_account},
-    {"ledger.post", m_post},
-    {"ledger.balance", m_balance},
-    {"ledger.accounts", m_accounts},
-    {"ledger.entries", m_entries},
-    {"ledger.check", m_check},
-    {"swarm.earnings", m_earnings},
-    {"mesh.books", m_mesh},
-    {"books.file", m_books},
-    {"jurisdiction.get", m_juris_get},
-    {"jurisdiction.set", m_juris_set},
-    {"aipi.put", m_aipi_put},
-    {"aipi.get", m_aipi_get},
-    {"aipi.publish", m_aipi_publish},
-    {"aipi.execute", m_aipi_execute},
-    {"aipi.status", m_aipi_status},
-    {"files.root", m_files_root},
-    {"files.list", m_files_list},
-    {"files.stat", m_files_stat},
-    {"files.read", m_files_read},
-    {"files.write", m_files_write},
-    {"files.mkdir", m_files_mkdir},
-    {"files.rename", m_files_rename},
-    {"files.trash", m_files_trash},
-    {"files.empty_trash", m_files_empty_trash},
-    {"files.cross", m_files_cross},
-    {"spaces.list", m_spaces_list},
-    {"spaces.get", m_spaces_get},
-    {"spaces.create", m_spaces_create},
-    {"spaces.join", m_spaces_join},
-    {"spaces.set_members", m_spaces_set_members},
-    {"spaces.set_cid", m_spaces_set_cid},
-    {"spaces.propose", m_spaces_propose},
-    {"spaces.vote", m_spaces_vote},
-    {"sys.info", m_sys_info},
-    {"sys.disk", m_sys_disk},
-    {"sys.net", m_sys_net},
-    {"log.tail", m_log_tail},
-    {"journal.query", m_journal_query},
-    {"journal.verify", m_journal_verify},
-    {"screen.tick", m_screen_tick},
-    {"screen.check", m_screen_check},
-    {"screen.status", m_screen_status},
-    {"screen.set_limit", m_screen_set_limit},
-    {"screen.clear_limit", m_screen_clear_limit},
-    {"screen.grant", m_screen_grant},
-    {"screen.lock", m_screen_lock},
-    {"place.here", m_place_here},
-    {"place.set_here", m_place_set_here},
-    {"place.forget_here", m_place_forget_here},
-    {"place.ask", m_place_ask},
-    {"place.permit", m_place_permit},
-    {"place.apps", m_place_apps},
-    {"place.list", m_place_list},
-    {"place.add", m_place_add},
-    {"place.remove", m_place_remove},
-    {"search.refresh", m_search_refresh},
-    {"search.query", m_search_query},
-    {"print.status", m_print_status},
-    {"print.submit", m_print_submit},
-    {"print.job", m_print_job},
-    {"print.cancel", m_print_cancel},
-    {"scan.status", m_scan_status},
-    {"scan.start", m_scan_start},
-    {"backup.run", m_backup_run},
-    {"backup.list", m_backup_list},
-    {"backup.versions", m_backup_versions},
-    {"backup.verify", m_backup_verify},
-    {"backup.restore", m_backup_restore},
-    {"backup.prune", m_backup_prune},
+    {"rpc.discover", m_discover, PH_READ},
+    {"zxvd.version", m_version, PH_READ},
+    {"zxvd.shutdown", m_shutdown, PH_NO},
+    {"swarm.state", m_state, PH_READ},
+    {"swarm.ask", m_ask, PH_READ},
+    {"model.info", m_model, PH_READ},
+    {"notes.list", m_notes, PH_READ},
+    {"notes.mark_read", m_notes_read, PH_READ},
+    {"net.command", m_net, PH_POST},
+    {"net.peers", m_net_peers, PH_READ},
+    {"net.offers", m_net_offers, PH_READ},
+    {"player.card", m_player_card, PH_READ},
+    {"peer.ask", m_peer_ask, PH_POST},
+    {"peer.serve", m_peer_serve, PH_NO},
+    {"peer.status", m_peer_status, PH_READ},
+    {"update.check", m_update, PH_READ},
+    {"currency.enable", m_ccy_enable, PH_POST},
+    {"ledger.open_account", m_open_account, PH_POST},
+    {"ledger.post", m_post, PH_POST},
+    {"ledger.balance", m_balance, PH_READ},
+    {"ledger.accounts", m_accounts, PH_READ},
+    {"ledger.entries", m_entries, PH_READ},
+    {"ledger.check", m_check, PH_READ},
+    {"swarm.earnings", m_earnings, PH_READ},
+    {"mesh.books", m_mesh, PH_READ},
+    {"books.file", m_books, PH_READ},
+    {"jurisdiction.get", m_juris_get, PH_READ},
+    {"jurisdiction.set", m_juris_set, PH_NO},
+    {"aipi.put", m_aipi_put, PH_NO},
+    {"aipi.get", m_aipi_get, PH_READ},
+    {"aipi.publish", m_aipi_publish, PH_NO},
+    {"aipi.execute", m_aipi_execute, PH_NO},
+    {"aipi.status", m_aipi_status, PH_READ},
+    {"features.get", m_features_get, PH_READ},
+    {"features.set", m_features_set, PH_NO},
+    {"files.root", m_files_root, PH_NO},
+    {"files.list", m_files_list, PH_NO},
+    {"files.stat", m_files_stat, PH_NO},
+    {"files.read", m_files_read, PH_NO},
+    {"files.write", m_files_write, PH_NO},
+    {"files.mkdir", m_files_mkdir, PH_NO},
+    {"files.rename", m_files_rename, PH_NO},
+    {"files.trash", m_files_trash, PH_NO},
+    {"files.empty_trash", m_files_empty_trash, PH_NO},
+    {"files.cross", m_files_cross, PH_NO},
+    {"spaces.list", m_spaces_list, PH_NO},
+    {"spaces.get", m_spaces_get, PH_NO},
+    {"spaces.create", m_spaces_create, PH_NO},
+    {"spaces.join", m_spaces_join, PH_NO},
+    {"spaces.set_members", m_spaces_set_members, PH_NO},
+    {"spaces.set_cid", m_spaces_set_cid, PH_NO},
+    {"spaces.propose", m_spaces_propose, PH_NO},
+    {"spaces.vote", m_spaces_vote, PH_NO},
+    {"phone.link", m_phone_link, PH_NO},
+    {"phone.pair", m_phone_pair, PH_NO},
+    {"phone.list", m_phone_list, PH_NO},
+    {"phone.revoke", m_phone_revoke, PH_NO},
+    {"play.catalogue", m_play_catalogue, PH_READ},
+    {"play.run", m_play_run, PH_NO},
+    {"play.draft", m_play_draft, PH_NO},
+    {"sys.info", m_sys_info, PH_NO},
+    {"sys.disk", m_sys_disk, PH_NO},
+    {"sys.net", m_sys_net, PH_NO},
+    {"log.tail", m_log_tail, PH_NO},
+    {"journal.query", m_journal_query, PH_NO},
+    {"journal.verify", m_journal_verify, PH_NO},
+    {"screen.tick", m_screen_tick, PH_NO},
+    {"screen.check", m_screen_check, PH_NO},
+    {"screen.status", m_screen_status, PH_NO},
+    {"screen.set_limit", m_screen_set_limit, PH_NO},
+    {"screen.clear_limit", m_screen_clear_limit, PH_NO},
+    {"screen.grant", m_screen_grant, PH_NO},
+    {"screen.lock", m_screen_lock, PH_NO},
+    {"place.here", m_place_here, PH_NO},
+    {"place.set_here", m_place_set_here, PH_NO},
+    {"place.forget_here", m_place_forget_here, PH_NO},
+    {"place.ask", m_place_ask, PH_NO},
+    {"place.permit", m_place_permit, PH_NO},
+    {"place.apps", m_place_apps, PH_NO},
+    {"place.list", m_place_list, PH_NO},
+    {"place.add", m_place_add, PH_NO},
+    {"place.remove", m_place_remove, PH_NO},
+    {"search.refresh", m_search_refresh, PH_NO},
+    {"search.query", m_search_query, PH_NO},
+    {"print.status", m_print_status, PH_NO},
+    {"print.submit", m_print_submit, PH_NO},
+    {"print.job", m_print_job, PH_NO},
+    {"print.cancel", m_print_cancel, PH_NO},
+    {"scan.status", m_scan_status, PH_NO},
+    {"scan.start", m_scan_start, PH_NO},
+    {"backup.run", m_backup_run, PH_NO},
+    {"backup.list", m_backup_list, PH_NO},
+    {"backup.versions", m_backup_versions, PH_NO},
+    {"backup.verify", m_backup_verify, PH_NO},
+    {"backup.restore", m_backup_restore, PH_NO},
+    {"backup.prune", m_backup_prune, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2961,7 +3314,283 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    for (uint32_t i = 0; i < N_EXT; i++)
+        for (uint32_t j = 0; j < EXT[i].n; j++) {
+            zxvd_buf_raw(c->res, ",", 1);
+            zxvd_buf_json_str(c->res, EXT[i].m[j].name);
+        }
+    for (uint32_t g = 0; g < N_GROUPS; g++) /* X2: on or off */
+        for (uint32_t i = 0; i < GROUPS[g]->n_methods; i++) {
+            zxvd_buf_raw(c->res, ",", 1);
+            zxvd_buf_json_str(c->res, GROUPS[g]->methods[i].name);
+        }
     zxvd_buf_raw(c->res, "]}", 2);
+}
+
+/* ----- method groups (zxvd_ext.h X1-X6) ----- */
+
+static bool feature_ok(const char *f)
+{
+    size_t n = f ? strlen(f) : 0;
+    if (n < 1 || n > 23) return false;
+    for (size_t i = 0; i < n; i++)
+        if (!((f[i] >= 'a' && f[i] <= 'z') || (f[i] >= '0' && f[i] <= '9') || f[i] == '_'))
+            return false;
+    return strcmp(f, "all") != 0;
+}
+
+static const zxvd_group_method_t *group_method(const char *name, const zxvd_group_t **grp)
+{
+    for (uint32_t g = 0; g < N_GROUPS; g++)
+        for (uint32_t i = 0; i < GROUPS[g]->n_methods; i++)
+            if (!strcmp(GROUPS[g]->methods[i].name, name)) {
+                if (grp) *grp = GROUPS[g];
+                return &GROUPS[g]->methods[i];
+            }
+    return NULL;
+}
+
+static int32_t feat_index(const char *f, size_t n)
+{
+    for (uint32_t i = 0; i < N_FEAT; i++)
+        if (strlen(FEAT[i].name) == n && !memcmp(FEAT[i].name, f, n)) return (int32_t) i;
+    return -1;
+}
+
+int zxvd_rpc_add_group(const zxvd_group_t *g)
+{
+    for (uint32_t i = 0; g && i < N_GROUPS; i++)
+        if (GROUPS[i] == g) return 0; /* X1: re-adding a group held is a no-op */
+    if (!g || N_GROUPS >= ZXVD_EXT_MAX_GROUPS || !feature_ok(g->feature) || !g->methods ||
+        !g->n_methods)
+        return -1;
+    for (uint32_t i = 0; i < g->n_methods; i++) {
+        const char *m = g->methods[i].name;
+        if (!m || !*m || !g->methods[i].fn || group_method(m, NULL)) return -1;
+        for (size_t k = 0; k < N_METHODS; k++)
+            if (!strcmp(METHODS[k].name, m)) return -1;
+        for (uint32_t k = 0; k < N_EXT; k++)
+            for (uint32_t q = 0; q < EXT[k].n; q++)
+                if (!strcmp(EXT[k].m[q].name, m)) return -1;
+        for (uint32_t k = 0; k < i; k++)
+            if (!strcmp(g->methods[k].name, m)) return -1;
+    }
+    int32_t f = feat_index(g->feature, strlen(g->feature));
+    if (f < 0) {
+        if (N_FEAT >= ZXVD_EXT_MAX_FEATURES) return -1;
+        f = (int32_t) N_FEAT++;
+        FEAT[f].name = g->feature;
+        FEAT[f].on = FEAT[f].cli = false; /* X3 */
+    }
+    FEAT[f].regulated = FEAT[f].regulated || g->regulated;
+    GROUPS[N_GROUPS++] = g;
+    return 0;
+}
+
+int zxvd_rpc_enable(const char *list)
+{
+    int rc = 0;
+    const char *p = list ? list : "";
+    while (*p) {
+        const char *e = strchr(p, ',');
+        size_t n = e ? (size_t) (e - p) : strlen(p);
+        if (n == 3 && !memcmp(p, "all", 3)) {
+            for (uint32_t i = 0; i < N_FEAT; i++) FEAT[i].on = FEAT[i].cli = true;
+        } else if (n) {
+            int32_t f = feat_index(p, n);
+            if (f < 0)
+                rc = -1;
+            else
+                FEAT[f].on = FEAT[f].cli = true;
+        }
+        p += n + (e ? 1 : 0);
+    }
+    return rc;
+}
+
+bool zxvd_rpc_enabled(const char *feature)
+{
+    int32_t f = feature ? feat_index(feature, strlen(feature)) : -1;
+    return f >= 0 && FEAT[f].on;
+}
+
+void zxvd_rpc_remove_group(const zxvd_group_t *g)
+{
+    for (uint32_t i = 0; i < N_GROUPS; i++)
+        if (GROUPS[i] == g) {
+            for (; i + 1 < N_GROUPS; i++) GROUPS[i] = GROUPS[i + 1];
+            N_GROUPS--;
+            return;
+        }
+}
+
+void zxvd_rpc_groups_reset(void)
+{
+    for (uint32_t g = N_GROUPS; g-- > 0;)
+        if (GROUPS[g]->close) GROUPS[g]->close();
+    N_GROUPS = 0;
+    N_FEAT = 0;
+}
+
+static void m_features_get(call_t *c)
+{
+    zxvd_buf_raw(c->res, "{\"features\":[", 13);
+    for (uint32_t i = 0; i < N_FEAT; i++) {
+        zxvd_buf_raw(c->res, i ? ",{\"name\":" : "{\"name\":", i ? 9 : 8);
+        zxvd_buf_json_str(c->res, FEAT[i].name);
+        zxvd_buf_printf(c->res, ",\"enabled\":%s,\"regulated\":%s,\"groups\":[",
+                        FEAT[i].on ? "true" : "false", FEAT[i].regulated ? "true" : "false");
+        bool first = true;
+        for (uint32_t g = 0; g < N_GROUPS; g++)
+            if (!strcmp(GROUPS[g]->feature, FEAT[i].name)) {
+                if (!first) zxvd_buf_raw(c->res, ",", 1);
+                first = false;
+                zxvd_buf_raw(c->res, "{\"note\":", 8);
+                zxvd_buf_json_str(c->res, GROUPS[g]->note ? GROUPS[g]->note : "");
+                zxvd_buf_printf(c->res, ",\"methods\":%u}", (unsigned) GROUPS[g]->n_methods);
+            }
+        zxvd_buf_raw(c->res, "]}", 2);
+    }
+    zxvd_buf_printf(c->res, "],\"saved\":%s}", CAP && BF_PATH[0] ? "true" : "false"); /* X7 */
+}
+
+static void m_features_set(call_t *c)
+{
+    char name[24];
+    bool on;
+    if (!p_str(c, "feature", name, sizeof name, true) || !p_bool(c, "enabled", true, &on)) return;
+    int32_t f = feat_index(name, strlen(name));
+    if (f < 0) return fail(c, E_PARAMS, "unknown feature \"%s\"", name);
+    if (CAP) { /* X7: a record in the books file (a no-op without one) */
+        if (!zok(c, bk_feat((uint32_t) f, on))) return;
+    } else {
+        FEAT[f].on = on; /* X6: the engine keeps its state */
+    }
+    zxvd_buf_raw(c->res, "{\"feature\":", 11);
+    zxvd_buf_json_str(c->res, FEAT[f].name);
+    zxvd_buf_printf(c->res, ",\"enabled\":%s,\"regulated\":%s,\"saved\":%s}", on ? "true" : "false",
+                    FEAT[f].regulated ? "true" : "false", CAP && BF_PATH[0] ? "true" : "false");
+}
+
+/* ----- the extension API (zxvd_ext.h P1-P3) ----- */
+
+zxvd_buf_t *zxvd_res(zxvd_call_t *c)
+{
+    return c->res;
+}
+
+bool zxvd_failed(const zxvd_call_t *c)
+{
+    return c->err != 0;
+}
+
+bool zxvd_p_has(zxvd_call_t *c, const char *key)
+{
+    return param(c, key) >= 0;
+}
+
+bool zxvd_p_str(zxvd_call_t *c, const char *key, char *out, uint32_t cap, bool required)
+{
+    return p_str(c, key, out, cap, required);
+}
+
+bool zxvd_p_i64(zxvd_call_t *c, const char *key, int64_t *v)
+{
+    return p_i64(c, key, v);
+}
+
+bool zxvd_p_u32(zxvd_call_t *c, const char *key, uint32_t *v)
+{
+    return p_u32(c, key, v);
+}
+
+bool zxvd_p_amount(zxvd_call_t *c, const char *key, int64_t *v)
+{
+    return p_amount(c, key, v);
+}
+
+bool zxvd_p_bool(zxvd_call_t *c, const char *key, bool def, bool *v)
+{
+    return p_bool(c, key, def, v);
+}
+
+bool zxvd_p_hex(zxvd_call_t *c, const char *key, uint8_t *out, uint32_t cap, uint32_t *n,
+                bool required)
+{
+    int32_t i = param(c, key);
+    *n = 0;
+    if (i < 0) {
+        if (required) fail(c, E_PARAMS, "missing hex parameter \"%s\"", key);
+        return !required;
+    }
+    uint32_t len = c->t[i].end - c->t[i].start;
+    const char *s = c->js + c->t[i].start;
+    if (c->t[i].type != W4_J_STR || len % 2 || len / 2 > cap) {
+        fail(c, E_PARAMS, "\"%s\" must be a hex string of at most %u bytes", key, cap);
+        return false;
+    }
+    for (uint32_t k = 0; k < len / 2; k++) {
+        char h = s[2 * k] | 0x20, l = s[2 * k + 1] | 0x20; /* either case */
+        int hi = bf_hexval(h), lo = bf_hexval(l);
+        if (hi < 0 || lo < 0) {
+            fail(c, E_PARAMS, "\"%s\" must be a hex string of at most %u bytes", key, cap);
+            return false;
+        }
+        out[k] = (uint8_t) (hi << 4 | lo);
+    }
+    *n = len / 2;
+    return true;
+}
+
+int32_t zxvd_p_len(zxvd_call_t *c, const char *key)
+{
+    int32_t i = param(c, key);
+    if (i < 0) return -1;
+    if (c->t[i].type != W4_J_ARR) {
+        fail(c, E_PARAMS, "\"%s\" must be an array", key);
+        return -2;
+    }
+    return (int32_t) c->t[i].size;
+}
+
+bool zxvd_p_enter(zxvd_call_t *c, const char *key, uint32_t idx, int32_t *saved)
+{
+    int32_t i = param(c, key);
+    int32_t e = i >= 0 && c->t[i].type == W4_J_ARR ? w4_json_at(c->t, c->n, i, idx) : -1;
+    if (e < 0 || c->t[e].type != W4_J_OBJ) {
+        fail(c, E_PARAMS, "\"%s\"[%u] must be an object", key, (unsigned) idx);
+        return false;
+    }
+    *saved = c->params;
+    c->params = e;
+    return true;
+}
+
+void zxvd_p_leave(zxvd_call_t *c, int32_t saved)
+{
+    c->params = saved;
+}
+
+bool zxvd_p_i64_at(zxvd_call_t *c, const char *key, uint32_t idx, int64_t *v)
+{
+    int32_t i = param(c, key);
+    int32_t e = i >= 0 && c->t[i].type == W4_J_ARR ? w4_json_at(c->t, c->n, i, idx) : -1;
+    if (e < 0 || c->t[e].type != W4_J_NUM || w4_json_i64(c->js, &c->t[e], v) != W4_OK) {
+        fail(c, E_PARAMS, "\"%s\"[%u] must be an integer", key, (unsigned) idx);
+        return false;
+    }
+    return true;
+}
+
+void zxvd_buf_hex(zxvd_buf_t *b, const uint8_t *p, size_t n)
+{
+    static const char HX[] = "0123456789abcdef";
+    zxvd_buf_raw(b, "\"", 1);
+    for (size_t i = 0; i < n; i++) {
+        char two[2] = {HX[p[i] >> 4], HX[p[i] & 15]};
+        zxvd_buf_raw(b, two, 2);
+    }
+    zxvd_buf_raw(b, "\"", 1);
 }
 
 /* the id, copied verbatim (a string or an integer), or null */
@@ -3025,6 +3654,18 @@ static bool quiet(const char *m)
     return false;
 }
 
+/* where the request being handled came from: 0 the control socket, else a
+ * paired phone, PH_POST when its pairing allows posting */
+static int ORIGIN;
+
+bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post)
+{
+    ORIGIN = allow_post ? PH_POST : PH_READ;
+    bool r = zxvd_rpc_handle_line(line, len, out);
+    ORIGIN = 0;
+    return r;
+}
+
 bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
 {
     uint64_t t0 = zxvd_mono_us();
@@ -3070,6 +3711,10 @@ static bool handle_line(const char *line, size_t len, zxvd_buf_t *out)
         put_error(out, line, t, -1, E_REQUEST, "id must be a string, number or null", 0);
         return true;
     }
+    if (notify && ORIGIN) {
+        put_error(out, line, t, -1, E_REQUEST, "a phone must send an id", 0);
+        return true;
+    }
     if (!notify && t[id].type == W4_J_NULL) id = -1; /* answered with "id":null */
     int32_t v = w4_json_get(line, t, n, 0, "jsonrpc");
     int32_t m = w4_json_get(line, t, n, 0, "method");
@@ -3086,14 +3731,49 @@ static bool handle_line(const char *line, size_t len, zxvd_buf_t *out)
     const method_t *fn = NULL;
     for (size_t i = 0; i < N_METHODS; i++)
         if (w4_json_str_eq(line, &t[m], METHODS[i].name)) fn = &METHODS[i];
-    if (!fn) {
+    void (*ext)(call_t *) = NULL;
+    const char *ext_name = NULL;
+    for (uint32_t i = 0; !fn && !ext && i < N_EXT; i++)
+        for (uint32_t j = 0; !ext && j < EXT[i].n; j++)
+            if (w4_json_str_eq(line, &t[m], EXT[i].m[j].name)) {
+                ext = EXT[i].m[j].fn;
+                ext_name = EXT[i].m[j].name;
+            }
+    const zxvd_group_method_t *gm = NULL;
+    const zxvd_group_t *grp = NULL;
+    for (uint32_t g = 0; !fn && !ext && !gm && g < N_GROUPS; g++)
+        for (uint32_t i = 0; i < GROUPS[g]->n_methods; i++)
+            if (w4_json_str_eq(line, &t[m], GROUPS[g]->methods[i].name)) {
+                gm = &GROUPS[g]->methods[i];
+                grp = GROUPS[g];
+                break;
+            }
+    if (!fn && !ext && !gm) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
-    LAST_METHOD = fn->name;
+    LAST_METHOD = fn ? fn->name : gm ? gm->name : ext_name;
+    /* host tables and method groups carry no phone rule: control socket only (A2) */
+    uint8_t ph = fn ? fn->phone : PH_NO;
+    if (ORIGIN && (ph == PH_NO || (ph == PH_POST && ORIGIN != PH_POST))) {
+        put_error(out, line, t, id, ZXVD_E_PHONE,
+                  ph == PH_NO ? "not allowed from a phone"
+                              : "this phone was paired without allow_post",
+                  0);
+        return true;
+    }
     zxvd_buf_t res = {0};
     call_t c = {line, t, n, p, &res, 0, "", 0};
-    fn->fn(&c);
+    if (fn)
+        fn->fn(&c);
+    else if (ext)
+        ext(&c);
+    else if (!gm->always && !zxvd_rpc_enabled(grp->feature)) /* X4 */
+        fail(&c, ZXVD_E_OFF, "%s is off: start zxvd with --enable %s, or call features.set%s",
+             grp->feature, grp->feature,
+             grp->regulated ? " (regulated: test or licensed use only)" : "");
+    else
+        gm->fn(&c);
     if (!c.err && res.oom) fail(&c, E_INTERNAL, "out of memory");
     if (!c.err && !res.len) fail(&c, E_INTERNAL, "no result");
     if (c.err) {

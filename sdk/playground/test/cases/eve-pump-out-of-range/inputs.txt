@@ -1,0 +1,8 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The proposed setpoint, and the two gauge readings it is based on.
+mode = low
+flow = 300.0
+pressure_a = 412.0
+pressure_b = 415.5

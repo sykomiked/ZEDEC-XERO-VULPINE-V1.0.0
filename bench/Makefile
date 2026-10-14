@@ -9,8 +9,16 @@
 #   make -C bench smoke             build both and run the offline smoke checks
 #   make -C bench tensor MODEL=path/to/model.gguf [N=32] [PROMPT="..."]
 #   make -C bench qwen [ARM64=1]    Qwen2.5-1.5B-Instruct Q4_K_M: speed, cross-build bit check, quality
+#   make -C bench zt_vlm            image + text driver (SmolVLM-256M; see
+#                                   bench/results/2026-10-12-smolvlm/REPORT.md)
+#   make -C bench zt_asr [ARM64=1]  speech-to-text driver (Whisper, T25; see
+#                                   bench/results/2026-10-12-whisper-base/REPORT.md); ARM64=1
+#                                   also cross-builds $(OUT)/zt_asr_arm64 (static, qemu-aarch64)
 #   make -C bench zt_dump zt_golden logit dump and golden-ratio experiment tools (see
 #                                   bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md)
+#   make -C bench zt_tts            text-to-speech driver (OuteTTS + WavTokenizer, T26;
+#                                   bench/results/2026-10-12-outetts/REPORT.md)
+#   make -C bench zt_tts_arm64      the same, cross-built for aarch64 (run under qemu-aarch64)
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -23,11 +31,18 @@ BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
-	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c
+# macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
+ifeq ($(shell uname -s),Darwin)
+TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
+GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
+GPU_LIBS := -framework Metal -framework Foundation
+endif
+NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_dump zt_golden smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -44,19 +59,42 @@ legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
 $(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
 
 zt_bench: $(OUT)/zt_bench
 
+$(OUT)/zt_vlm: tensor/zt_vlm.c $(TENSOR_SRCS) $(NN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_vlm.c $(TENSOR_SRCS) $(NN_SRCS) -lm -lpthread -o $@
+zt_vlm: $(OUT)/zt_vlm
+
 $(OUT)/zt_dump: tensor/zt_dump.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_dump.c $(TENSOR_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
 
 GOLDEN_SRCS := $(K)/src/tensor/zt_lattice.c $(K)/src/tensor/zt_coil.c $(K)/src/tensor/zt_holo.c
 $(OUT)/zt_golden: tensor/zt_golden.c $(TENSOR_SRCS) $(GOLDEN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
-		$(GOLDEN_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist -I$(K)/src/e8 tensor/zt_golden.c \
+		$(TENSOR_SRCS) $(GOLDEN_SRCS) -lm -lpthread $(GPU_LIBS) -o $@
+
+ASR_SRCS := $(TENSOR_SRCS) $(NN_SRCS) $(K)/src/tensor/zt_whisper.c
+$(OUT)/zt_asr: tensor/zt_asr.c $(ASR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_asr.c $(ASR_SRCS) -lm -lpthread -o $@
+$(OUT)/zt_asr_arm64: tensor/zt_asr.c $(ASR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_asr.c $(ASR_SRCS) -lm -lpthread -o $@
+
+zt_asr: $(OUT)/zt_asr $(if $(filter 1,$(ARM64)),$(OUT)/zt_asr_arm64)
 
 zt_dump: $(OUT)/zt_dump
+
+TTS_SRCS := $(TENSOR_SRCS) $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_tts.c
+$(OUT)/zt_tts: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor tensor/zt_tts.c $(TTS_SRCS) -lm -lpthread -o $@
+$(OUT)/zt_tts_arm64: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_tts.c $(TTS_SRCS) \
+		-lm -lpthread -o $@
+zt_tts: $(OUT)/zt_tts
+zt_tts_arm64: $(OUT)/zt_tts_arm64
 zt_golden: $(OUT)/zt_golden
 
 # Offline: the legacy golden check, and zt_bench on the tokenizer-only test GGUF
@@ -79,7 +117,7 @@ tensor: $(OUT)/zt_bench
 # Real-model test (bench/tensor/real_model_test.py). ARM64=1 also cross-builds
 # zt_bench for aarch64 and runs it under qemu-aarch64 to check the bits match.
 $(OUT)/zt_bench_arm64: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	aarch64-linux-gnu-gcc $(CFLAGS) -static -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
 
 QWEN_BENCH := --bench $(OUT)/zt_bench
 ifeq ($(ARM64),1)

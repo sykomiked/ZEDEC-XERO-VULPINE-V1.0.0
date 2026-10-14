@@ -1,0 +1,350 @@
+{
+ "rows": [
+  {
+   "text": "Hello world, it is 3 pm.",
+   "ref_words": "hello world it is three pm",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "869",
+    "zt.prefill_s": "19.135",
+    "zt.prefill_tps": "45.4",
+    "zt.n_gen": "186",
+    "zt.gen_s": "13.345",
+    "zt.gen_tps": "13.86",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "162",
+    "zt.codes_fnv": "19c8427048ddd211",
+    "zt.dec_load_s": "2.362",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "2.160",
+    "zt.dec_s": "1.026",
+    "zt.dec_rtf": "0.4750",
+    "zt.pcm_fnv": "f9817db845a627ee",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 37.43458914756775,
+    "transcript": "Hello world, it is 3pm",
+    "wer": 0.0
+   },
+   "zxv_vs_f64": {
+    "n_codes": 162,
+    "spec_logmag_max_abs": 0.005472447337374398,
+    "spec_logmag_rms": 0.0003838936199167218,
+    "spec_phase_max_abs": 0.06103697198074798,
+    "spec_phase_rms": 0.00260459308537479,
+    "spec_ref_rms": 9.911463333720313,
+    "zxv_vs_f64": {
+     "n": 45840,
+     "max_abs": 44.0,
+     "rms": 2.274598904097175,
+     "ref_rms": 2223.96033592898,
+     "snr_db": 59.80444423642485
+    },
+    "istft_only": {
+     "n": 45840,
+     "max_abs": 1.0,
+     "rms": 0.12017294111660208,
+     "ref_rms": 2224.1095527611146,
+     "snr_db": 85.34698970400675
+    }
+   },
+   "llama": {
+    "wall_s": 14.516452550888062,
+    "prefill_s": 3.26386,
+    "n_prompt": 869,
+    "gen_s": 6.79091,
+    "n_gen": 199,
+    "vocoder_s": 0.3847,
+    "spectral_s": 1.894076,
+    "n_codes": 173,
+    "transcript": "Hello World, it is 3 p.m.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 64.73918556049102,
+     "max_abs": 32.0,
+     "rms": 1.7462160990283169
+    }
+   }
+  },
+  {
+   "text": "The quick brown fox jumps over the lazy dog.",
+   "ref_words": "the quick brown fox jumps over the lazy dog",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "876",
+    "zt.prefill_s": "17.298",
+    "zt.prefill_tps": "50.6",
+    "zt.n_gen": "333",
+    "zt.gen_s": "19.331",
+    "zt.gen_tps": "17.17",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "296",
+    "zt.codes_fnv": "5e83a9da7cb1f546",
+    "zt.dec_load_s": "2.384",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "3.947",
+    "zt.dec_s": "1.879",
+    "zt.dec_rtf": "0.4762",
+    "zt.pcm_fnv": "cabd4c73a5d9290b",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 43.33809685707092,
+    "transcript": "The quick brown fox jumps over the lazy dog.",
+    "wer": 0.0
+   },
+   "zxv_vs_f64": {
+    "n_codes": 296,
+    "spec_logmag_max_abs": 0.0025607614996037142,
+    "spec_logmag_rms": 0.00026066191268701486,
+    "spec_phase_max_abs": 0.014765822028373066,
+    "spec_phase_rms": 0.0006547113334059439,
+    "spec_ref_rms": 7.836518636325727,
+    "zxv_vs_f64": {
+     "n": 88720,
+     "max_abs": 13.0,
+     "rms": 0.8714681392705939,
+     "ref_rms": 2749.0958183159487,
+     "snr_db": 69.97876726429338
+    },
+    "istft_only": {
+     "n": 88720,
+     "max_abs": 1.0,
+     "rms": 0.11798389032794325,
+     "ref_rms": 2749.2618762623565,
+     "snr_db": 87.3478679513695
+    }
+   },
+   "llama": {
+    "wall_s": 17.516424417495728,
+    "prefill_s": 2.7759899999999997,
+    "n_prompt": 876,
+    "gen_s": 10.14196,
+    "n_gen": 330,
+    "vocoder_s": 0.565821,
+    "spectral_s": 3.031828,
+    "n_codes": 291,
+    "transcript": "The quick brown fox jumps over the lazy dog.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 62.361538894673544,
+     "max_abs": 67.0,
+     "rms": 2.571705814998689
+    }
+   }
+  },
+  {
+   "text": "I bought 12 apples and 7 oranges for 5.50 dollars.",
+   "ref_words": "i bought twelve apples and seven oranges for five fifty dollars",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "888",
+    "zt.prefill_s": "17.659",
+    "zt.prefill_tps": "50.3",
+    "zt.n_gen": "423",
+    "zt.gen_s": "30.062",
+    "zt.gen_tps": "14.04",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "366",
+    "zt.codes_fnv": "0f9a2553200e89f7",
+    "zt.dec_load_s": "2.438",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "4.880",
+    "zt.dec_s": "2.538",
+    "zt.dec_rtf": "0.5201",
+    "zt.pcm_fnv": "0af01835e9b0b0fc",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 55.52131128311157,
+    "transcript": "I bought 12 apples and 7 oranges for $5.50.",
+    "wer": 0.0
+   },
+   "zxv_vs_f64": {
+    "n_codes": 366,
+    "spec_logmag_max_abs": 0.0034045741666957063,
+    "spec_logmag_rms": 0.00030151924079096056,
+    "spec_phase_max_abs": 0.023644887440951834,
+    "spec_phase_rms": 0.0008818758273116134,
+    "spec_ref_rms": 8.18714890850415,
+    "zxv_vs_f64": {
+     "n": 111120,
+     "max_abs": 16.0,
+     "rms": 1.2187047143198977,
+     "ref_rms": 3411.452133749224,
+     "snr_db": 68.94081581867825
+    },
+    "istft_only": {
+     "n": 111120,
+     "max_abs": 1.0,
+     "rms": 0.135792211993225,
+     "ref_rms": 3411.688243682918,
+     "snr_db": 88.00188952241903
+    }
+   },
+   "llama": {
+    "wall_s": 32.38838982582092,
+    "prefill_s": 2.53394,
+    "n_prompt": 888,
+    "gen_s": 22.866970000000002,
+    "n_gen": 430,
+    "vocoder_s": 0.806436,
+    "spectral_s": 3.7315650000000002,
+    "n_codes": 371,
+    "transcript": "I bought 12 apples and 7 oranges for $5.50.",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 63.11534403441471,
+     "max_abs": 37.0,
+     "rms": 2.118254751854563
+    }
+   }
+  },
+  {
+   "text": "Please call me back at 9, or send a short message!",
+   "ref_words": "please call me back at nine or send a short message",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "879",
+    "zt.prefill_s": "18.013",
+    "zt.prefill_tps": "48.8",
+    "zt.n_gen": "344",
+    "zt.gen_s": "22.153",
+    "zt.gen_tps": "15.48",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "300",
+    "zt.codes_fnv": "246556cc9d97bc1e",
+    "zt.dec_load_s": "2.508",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "4.000",
+    "zt.dec_s": "2.962",
+    "zt.dec_rtf": "0.7406",
+    "zt.pcm_fnv": "62ee6ab2d9358eb4",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 48.8855984210968,
+    "transcript": "Please call me back 9 or send a short message.",
+    "wer": 0.09090909090909091
+   },
+   "zxv_vs_f64": {
+    "n_codes": 300,
+    "spec_logmag_max_abs": 0.0029882970413375176,
+    "spec_logmag_rms": 0.00028465858633605027,
+    "spec_phase_max_abs": 0.042751309665973736,
+    "spec_phase_rms": 0.00131767829178943,
+    "spec_ref_rms": 9.153404075936082,
+    "zxv_vs_f64": {
+     "n": 90000,
+     "max_abs": 16.0,
+     "rms": 0.7625614729318548,
+     "ref_rms": 2510.5748637933725,
+     "snr_db": 70.34996633529411
+    },
+    "istft_only": {
+     "n": 90000,
+     "max_abs": 1.0,
+     "rms": 0.11575836902790225,
+     "ref_rms": 2510.6760758918213,
+     "snr_db": 86.72476570089773
+    }
+   },
+   "llama": {
+    "wall_s": 18.723026037216187,
+    "prefill_s": 2.3366100000000003,
+    "n_prompt": 879,
+    "gen_s": 10.24699,
+    "n_gen": 333,
+    "vocoder_s": 0.550702,
+    "spectral_s": 3.263379,
+    "n_codes": 287,
+    "transcript": "Please call me back at 9 a send a short message.",
+    "wer": 0.09090909090909091,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 49.50338895165281,
+     "max_abs": 388.0,
+     "rms": 8.86486449193621
+    }
+   }
+  },
+  {
+   "text": "Is the meeting on Monday at 10:30, or on Tuesday?",
+   "ref_words": "is the meeting on monday at ten thirty or on tuesday",
+   "zxv": {
+    "zt.kern": "avx512vnni",
+    "zt.threads": "2",
+    "zt.n_prompt": "881",
+    "zt.prefill_s": "19.861",
+    "zt.prefill_tps": "44.4",
+    "zt.n_gen": "323",
+    "zt.gen_s": "32.669",
+    "zt.gen_tps": "9.86",
+    "zt.stop": "eos",
+    "zt.lm_n_sat": "0",
+    "zt.n_codes": "279",
+    "zt.codes_fnv": "2ed2c214341e54b5",
+    "zt.dec_load_s": "2.539",
+    "zt.dec_arena_mb": "150.2",
+    "zt.audio_s": "3.720",
+    "zt.dec_s": "2.687",
+    "zt.dec_rtf": "0.7224",
+    "zt.pcm_fnv": "a5caf8d1c59886f8",
+    "zt.n_sat": "0",
+    "zt.n_clip": "0",
+    "wall_s": 60.96543622016907,
+    "transcript": "Is the meeting on Monday at 10.30 or on Tuesday?",
+    "wer": 0.0
+   },
+   "zxv_vs_f64": {
+    "n_codes": 279,
+    "spec_logmag_max_abs": 0.007661344261364,
+    "spec_logmag_rms": 0.00031734565280831773,
+    "spec_phase_max_abs": 0.07143695736029798,
+    "spec_phase_rms": 0.0018265884087575958,
+    "spec_ref_rms": 7.981791068261034,
+    "zxv_vs_f64": {
+     "n": 83280,
+     "max_abs": 27.0,
+     "rms": 1.245756485795686,
+     "ref_rms": 2819.342179619299,
+     "snr_db": 67.09429263727168
+    },
+    "istft_only": {
+     "n": 83280,
+     "max_abs": 1.0,
+     "rms": 0.12207185172540616,
+     "ref_rms": 2819.494892534366,
+     "snr_db": 87.27111559420217
+    }
+   },
+   "llama": {
+    "wall_s": 18.665623903274536,
+    "prefill_s": 2.45677,
+    "n_prompt": 881,
+    "gen_s": 10.3905,
+    "n_gen": 327,
+    "vocoder_s": 0.525505,
+    "spectral_s": 2.828109,
+    "n_codes": 281,
+    "transcript": "Is the meeting on Monday at 10 30 or on Tuesday?",
+    "wer": 0.0,
+    "same_codes_zxv_vs_llama": {
+     "snr_db": 63.184839072793295,
+     "max_abs": 44.0,
+     "rms": 2.1125701910710792
+    }
+   }
+  }
+ ],
+ "summary": {
+  "zxv_mean_wer": 0.01818181818181818,
+  "llama_mean_wer": 0.01818181818181818
+ },
+ "top_k": 4,
+ "seed": 42
+}

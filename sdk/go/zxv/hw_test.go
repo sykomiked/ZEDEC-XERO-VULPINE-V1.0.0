@@ -72,7 +72,7 @@ func TestHwVersionStatusesCaps(t *testing.T) {
 	}
 	ctx := must[*zxv.Context](t)(zxv.NewContext())
 	defer ctx.Close()
-	if _, err := ctx.RootCapability(1, nil, zxv.CapAll14+1); statusOf(err) != zxv.StatusArg {
+	if _, err := ctx.RootCapability(1, nil, zxv.CapAll15+1); statusOf(err) != zxv.StatusArg {
 		t.Fatalf("unknown bit accepted: %v", err)
 	}
 }

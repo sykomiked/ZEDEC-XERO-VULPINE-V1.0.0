@@ -24,7 +24,7 @@
  *             Model File, the first *.gguf in ~/Library/Application Support/
  *             ZXV/models, the first *.gguf bundled in Contents/Resources/
  *             models. With none, the app runs without one and, once, offers
- *             to fetch one from IPFS (when the bundled manifest names any)
+ *             to download one (when the bundled manifest names any)
  *             or to choose a file. Nothing is downloaded without consent.
  *   SOCKET.   When the bundle carries Contents/Frameworks/libzxv.dylib, the
  *             engine is zxvd (kernel/arch/hosted/build_zxvd.sh) and is also
@@ -156,7 +156,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     NSMenuItem *modelItem = [[NSMenuItem alloc] init];
     NSMenu *model = [[NSMenu alloc] initWithTitle:@"Model"];
     [model addItem:[self item:@"Choose Model File…" action:@selector(chooseModel:) key:@"o"]];
-    self.fetchItem = [self item:@"Fetch Model from IPFS…" action:@selector(fetchModel:) key:@""];
+    self.fetchItem = [self item:@"Download Model…" action:@selector(fetchModel:) key:@""];
     [model addItem:self.fetchItem];
     [model addItem:[self item:@"Use No Model" action:@selector(clearModel:) key:@""]];
     [model addItem:NSMenuItem.separatorItem];
@@ -679,7 +679,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     a.informativeText = @"ZXV runs without one, but it cannot write answers until a GGUF model "
                         @"is installed. You can do this later from the Model menu.";
     BOOL canFetch = [self manifestHasEntries];
-    if (canFetch) [a addButtonWithTitle:@"Fetch from IPFS"];
+    if (canFetch) [a addButtonWithTitle:@"Download Model"];
     [a addButtonWithTitle:@"Choose GGUF File…"];
     [a addButtonWithTitle:@"Later"];
     [a beginSheetModalForWindow:self.window
@@ -752,7 +752,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
       dispatch_async(dispatch_get_main_queue(), ^{
         ZXVApp *s = weakSelf;
         if (!s) return;
-        s.fetchItem.title = @"Fetch Model from IPFS…";
+        s.fetchItem.title = @"Download Model…";
         s.fetchItem.enabled = YES;
         if (s.quitting) return;
         if (task.terminationStatus == 0) {

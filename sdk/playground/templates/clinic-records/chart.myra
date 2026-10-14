@@ -1,0 +1,10 @@
+; chart.myra -- a patient chart as one M global, ^PAT, in MYRA.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; demographics: family name, given name, date of birth
+^PAT(id:i9) = family:t30! ^ given:t30! ^ born:d!
+; allergies: what, how severe, what happened
+^PAT(id:i9, "allergy", seq:i3) = allergen:t40! ^ severity:t10! ^ reaction:t60
+; active medications: the dose is an exact decimal with at most 3 decimals
+^PAT(id:i9, "med", seq:i3) = drug:t40! ^ dose:n9.3! ^ unit:t8! ^ route:t8 ^ per-day:i2! ^ started:d

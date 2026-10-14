@@ -265,6 +265,44 @@ public struct NotesSummary: Decodable, Sendable {
     public let os: String
 }
 
+// MARK: phone.* (kernel/arch/hosted/zxvd_phone.h)
+
+/// phone.link: whether paired phones may connect, and on which TCP port.
+public struct PhoneLink: Decodable, Sendable {
+    public let on: Bool
+    public let port: Int
+}
+
+/// phone.pair: the link to show once, as a QR code, on the phone's screen.
+public struct PhonePairing: Decodable, Sendable {
+    public let phoneId: String
+    public let name: String
+    public let allowPost: Bool
+    public let host: String
+    public let port: Int
+    /// zxv-phone:1?h=...&k=... holds the phone's secret key: show it, never log it.
+    public let link: String
+}
+
+public struct PairedPhone: Decodable, Sendable, Identifiable {
+    public let phoneId: String
+    public let name: String
+    public let allowPost: Bool
+    public let connected: Int
+    public var id: String { phoneId }
+}
+
+public struct PhoneList: Decodable, Sendable {
+    public let on: Bool
+    public let port: Int
+    public let phones: [PairedPhone]
+}
+
+public struct Revoked: Decodable, Sendable {
+    public let revoked: Bool
+    public let closed: Int
+}
+
 // MARK: views for the Studio panels (zxvd_rpc.h V1-V3, J1-J5)
 
 /// One verified contact from net.peers, joined with its mesh-book account.
@@ -352,4 +390,97 @@ public struct Jurisdiction: Decodable, Sendable {
     public let standards: [String]
     /// False: the settings are recorded only (zxvd_rpc.h J5).
     public let inEffect: Bool
+}
+
+// MARK: chat.* (zxvd_chat.h C5)
+
+/// chat.me: the owner's chat identity.
+public struct ChatMe: Decodable, Sendable {
+    public let nodeId: String
+    /// False: in memory for this run only (zxvd --books -).
+    public let saved: Bool
+    public let records: Int
+    public let following: [String]
+}
+
+public struct ChatReaction: Decodable, Sendable, Hashable {
+    public let emoji: String
+    public let count: Int
+    public let mine: Bool
+}
+
+/// A signed post, reply or reaction with its replies and reactions.
+public struct ChatRecord: Decodable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let author: String
+    public let mine: Bool
+    public let kind: String
+    public let lamport: String
+    /// Milliseconds since 1970 as a decimal string, "0" when absent (a hint only).
+    public let wallMs: String
+    public let text: String
+    public let replyTo: String?
+    public let replies: Int
+    public let reactions: [ChatReaction]
+
+    public var date: Date? {
+        guard let ms = Double(wallMs), ms > 0 else { return nil }
+        return Date(timeIntervalSince1970: ms / 1000)
+    }
+}
+
+public struct ChatFeed: Decodable, Sendable {
+    public let posts: [ChatRecord]
+}
+
+public struct ChatThread: Decodable, Sendable {
+    public let root: ChatRecord
+    public let replies: [ChatRecord]
+}
+
+public struct ChatFollow: Decodable, Sendable {
+    public let nodeId: String
+    public let following: Bool
+}
+
+// MARK: escrow (zxvd_pay.h P5)
+
+/// One escrow hold, read back from the escrow account's entries.
+public struct Hold: Decodable, Sendable, Identifiable, Hashable {
+    public let hold: Int
+    /// "held", "released" or "refunded".
+    public let state: String
+    /// The payer's account.
+    public let from: Int
+    /// The payee's account.
+    public let to: Int
+    public let amountMinor: String
+    public let currency: String
+    /// The holder account "escrow: <CCY>" the funds sit in.
+    public let escrowAccount: Int
+    public let entryId: String
+    /// The release or refund posting; nil while held.
+    public let closedEntryId: String?
+    /// What releases it: "owner" (only the owner's own call; no conditions yet).
+    public let releasesOn: String
+    public var id: Int { hold }
+    public var amount: Int64? { Int64(amountMinor) }
+    public var isHeld: Bool { state == "held" }
+}
+
+/// An escrow account: its balance against what its open holds add up to.
+public struct EscrowAccount: Decodable, Sendable, Identifiable, Hashable {
+    public let account: Int
+    public let currency: String
+    public let balanceMinor: String
+    public let heldMinor: String
+    public let consistent: Bool
+    public var id: Int { account }
+}
+
+/// ledger.holds: every hold, the escrow accounts, and the escrow entries that are no hold's step.
+public struct Holds: Decodable, Sendable {
+    public let holds: [Hold]
+    public let escrowAccounts: [EscrowAccount]
+    public let unmatched: Int
 }

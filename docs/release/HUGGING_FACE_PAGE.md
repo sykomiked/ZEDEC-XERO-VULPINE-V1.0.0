@@ -36,6 +36,7 @@ https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0
 | File | What it is |
 |---|---|
 | `ZXV-<version>-macos.dmg` | the Mac app, Apple Silicon and Intel, macOS 10.15 or later |
+| `ZXV-Studio-<version>-macos.zip` | ZXV Studio, the native SwiftUI app, macOS 13 or later |
 | `ZXV-<version>-linux-<arch>.deb` / `.AppImage` / `.tar.gz` | Linux, x86_64 and aarch64 |
 | `ZXV-<version>-windows-x86_64.zip` | Windows 10 1803 or later, 64-bit |
 | `ZXV-<version>-uefi-<arch>.img.gz` | bare-metal UEFI disc images (opt-in) |
@@ -55,8 +56,10 @@ them against `SHA256SUMS` before you run them.
   on the test prompts, with perplexity 9.371 against llama.cpp's 9.362.
 - It is slower than llama.cpp today. On an M3 Max (8 threads) ZXV ran prompt
   processing at 70 tokens/s and generation at 37 tokens/s, against
-  llama.cpp's CPU backend at 202 and 91. Batched prompt processing is the
-  next speed-up.
+  llama.cpp's CPU backend at 202 and 91.
+  <!-- TODO before posting: these numbers predate batched prompt processing
+  and the NEON decode path; re-measure on the release build and replace them.
+  The mirror workflow refuses to post while this TODO is here. -->
 
 ## The swarm
 
@@ -76,7 +79,7 @@ model card:
 
 | Model | Licence | Source |
 |---|---|---|
-| Qwen2.5-1.5B-Instruct, GGUF Q4_K_M | Apache-2.0 | https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct |
+| `qwen2.5-1.5b-instruct-q4_k_m.gguf` (Qwen2.5-1.5B-Instruct, GGUF Q4_K_M), licence text in `models/LICENSE-qwen2.5-1.5b-instruct-q4_k_m.gguf` | Apache-2.0 | https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF |
 
 The ZXV licence (Apache-2.0) covers ZXV's own code and builds, not these
 weights.

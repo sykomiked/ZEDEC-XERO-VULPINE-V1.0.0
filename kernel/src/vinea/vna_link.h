@@ -61,6 +61,8 @@ typedef struct {
     uint8_t resource, form;
     uint64_t units_left; /* still wanted (reserved while a receipt is outstanding) */
     uint64_t max_price;  /* the most this node pays for one receipt */
+    bool bound;          /* only `peer` may fill it (vna_link_want_from) */
+    vna_id_t peer;
 } vna_link_want_t;
 
 typedef struct {
@@ -118,6 +120,12 @@ void vna_link_on_done(vna_link_t *l, vna_link_done_fn fn, void *ctx);
 /* T2: what this node is willing to buy. Returns the want slot or -1. */
 int32_t vna_link_want(vna_link_t *l, uint8_t resource, uint8_t form, uint64_t units,
                       uint64_t max_price);
+
+/* T2, bound: as vna_link_want, but only offers from `peer` fill it (an AIPI
+ * bounty owed to one executor). An offer is matched against the wants bound
+ * to its seller first. */
+int32_t vna_link_want_from(vna_link_t *l, const vna_id_t *peer, uint8_t resource, uint8_t form,
+                           uint64_t units, uint64_t max_price);
 
 /* T1: offer `units` of `resource` to `buyer` for `price` (PAY: in tokens this
  * node issued, which the buyer holds; CREDIT: on credit). */

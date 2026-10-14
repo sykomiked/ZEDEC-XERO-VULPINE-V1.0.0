@@ -281,7 +281,7 @@ for (const kind of BACKENDS) {
       ctx.close(); // idempotent
     });
 
-    test('ISO 20022, ISO 4217 and the pending kernel modules', () => {
+    test('ISO 20022, ISO 4217, netting and the pending kernel modules', () => {
       using ctx = zxv.createContext();
       const root = ctx.rootCapability();
       using m = Iso20022Message.create(root, MxKind.PACS008);
@@ -304,7 +304,18 @@ for (const kind of BACKENDS) {
       assert.equal(zxv.railNumeric(1), 777);
       assert.equal(zxv.cardCheckDigit(2, '79927398713'), true);
       assert.throws(() => Iso20022Message.create(root, MxKind.PACS002), NotImplementedError);
-      assert.throws(() => NettingCycle.open(ctx, 'C1', 'NGN'), NotImplementedError);
+      if (zxv.has('NETTING')) {
+        using nc = NettingCycle.open(ctx, 'C1', 'NGN');
+        nc.addParticipant('BANK-A');
+        nc.addParticipant('BANK-B');
+        nc.submit('P1', 'BANK-A', 'BANK-B', 10000n);
+        nc.submit('P1', 'BANK-A', 'BANK-B', 10000n); // idempotent on the payment id
+        nc.submit('P2', 'BANK-B', 'BANK-A', 2500n);
+        assert.throws(() => nc.submit('P1', 'BANK-A', 'BANK-B', 1n), ZxvUsageError);
+        assert.deepEqual(nc.settle(), [{ participant: 'BANK-A', net: -7500n }, { participant: 'BANK-B', net: 7500n }]);
+      } else {
+        assert.throws(() => NettingCycle.open(ctx, 'C1', 'NGN'), NotImplementedError);
+      }
     });
     test('ABI 1.2: the _cap forms need the right bit', () => {
       using ctx = zxv.createContext();

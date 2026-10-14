@@ -1,0 +1,11 @@
+# A trade corridor between three partners. Amounts are in cents.
+# PARTY ID DEPOSIT CLAIM WEIGHT: the weight shares the fee dividend.
+TREATY CORRIDOR-7 USD SETL
+PARTY ACME 5000000 4000 1/3
+PARTY BETA 3000000 3000 1/7
+PARTY GAMMA 900000 0 11/21
+# OWE FROM TO AMOUNT: who owes whom before netting.
+OWE ACME BETA 1200000
+OWE BETA GAMMA 700000
+OWE GAMMA ACME 100000
+END

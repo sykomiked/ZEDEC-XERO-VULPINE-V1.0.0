@@ -5,6 +5,7 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 
 import 'bindings.dart';
+import 'bindings15.dart';
 import 'errors.dart';
 import 'native.dart' as n;
 
@@ -52,12 +53,42 @@ enum Feature {
   final int bit;
 }
 
+/// An ABI 1.5 feature group (`ZXV_FEAT2_*`, from `zxv_features2`).
+enum Feature2 {
+  /// Treaties: COBOL copybook records and Sutra text ([Treaty]).
+  treaty(0x01),
+
+  /// Content-addressed functions and IPFS CIDs ([Cid], [AipiNode]).
+  aipi(0x02),
+
+  /// Fibonacci coins, token denominations and octane ([Coins], [Tokens]).
+  coin(0x04),
+
+  /// The 0.08889% assurance fee and its split ([AssuranceFee]).
+  fee(0x08),
+
+  /// The V-Bill hub: pegs, quotes, swaps, limit rules ([VHub]).
+  vhub(0x10),
+
+  /// Erasure-coded freight packets and op streams ([Freight]).
+  freight(0x20),
+
+  /// Web 4 agents: manifests, directory, consent, envelopes ([AgentKey]).
+  web4(0x40),
+
+  /// The paradox engine ([ParadoxBook]).
+  paradox(0x80);
+
+  const Feature2(this.bit);
+  final int bit;
+}
+
 /// Library entry point: loading, version, features, status names.
 ///
 /// The library is found, on first use, in this order: the path given to
 /// [load]; `ZXV_LIBRARY_PATH` (a file or a directory); the copy bundled with
 /// the app (Android `lib/<abi>/libzxv.so`; iOS the statically linked
-/// xcframework); then the system loader. A library whose ABI is not 1.3 or
+/// xcframework); then the system loader. A library whose ABI is not 1.5 or
 /// a later 1.x is refused.
 abstract final class Zxv {
   /// Uses the library at `path` (a file or a directory). Call before anything else.
@@ -86,6 +117,23 @@ abstract final class Zxv {
   }
 
   static bool hasFeature(Feature f) => _mask() & f.bit != 0;
+
+  /// The ABI 1.5 feature groups live in this build (`zxv_features2`).
+  static Set<Feature2> features2() {
+    final m = _mask2();
+    return {
+      for (final f in Feature2.values)
+        if (m & f.bit != 0) f,
+    };
+  }
+
+  static bool hasFeature2(Feature2 f) => _mask2() & f.bit != 0;
+
+  static int _mask2() => using((a) {
+    final m = a<Uint32>();
+    n.check(zxv15.features2(m));
+    return m.value;
+  });
 
   static int _mask() => using((a) {
     final m = a<Uint32>();

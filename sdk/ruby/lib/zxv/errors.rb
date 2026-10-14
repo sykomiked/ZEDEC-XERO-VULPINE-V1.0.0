@@ -38,6 +38,16 @@ module Zxv
     E_BLOCKED = -29     # image already quarantined; never reloaded
     E_TARGET = -30      # image is for other hardware
     E_POLICY = -31      # refused by the function's placement policy
+    # ABI 1.5: the newer kernel features.
+    E_DENOM = -32         # not a Fibonacci ladder face (coins, token tiers); USAGE
+    E_TREATY = -33        # a treaty fails validation; see TreatyError#fault; USAGE
+    E_CID = -34           # content does not match its CID, or bad CID bytes; REFUSED
+    E_CONSENT = -35       # no valid consent for this agent action; REFUSED
+    E_ERASURE = -36       # too few freight rows to rebuild the packet; REFUSED
+    E_PEG = -37           # no valid signed peg for this currency pair; REFUSED
+    E_LIMIT = -38         # refused by a hub limit rule (not a fault); REFUSED
+    E_PARADOX_STEP = -39  # a paradox graph reached its step limit: goes to the owner; REFUSED
+    E_PARADOX_OWNER = -40 # needs the owner's approval (money or device policy); REFUSED
     E_INTERNAL = -99
 
     # Status classes (zxv_status_class).
@@ -136,6 +146,27 @@ module Zxv
   # Note: this is Zxv::NotImplementedError, unrelated to Ruby's
   # ::NotImplementedError (a ScriptError).
   class NotImplementedError < ZxvRefusedError; end
+
+  # ABI 1.5: the treaty failed validation (ZXV_E_TREATY, class USAGE).
+  # {#fault} names the rule that failed and {#offset} the byte offset of the
+  # first fault in the Sutra text or record (0 when not known, e.g. after
+  # {Treaty#validate}).
+  class TreatyError < ZxvUsageError
+    # @return [Symbol] a key of {Treaty::FAULTS} (:syntax, :weight, ...), or
+    #   the raw Integer for a code this SDK does not know
+    attr_accessor :fault
+    # @return [Integer] byte offset of the first fault (0 when not known)
+    attr_accessor :offset
+  end
+
+  # ABI 1.5: a Web 4 action has no valid consent (ZXV_E_CONSENT): no token,
+  # a mismatch, expired, a bad signature, or a token already used or
+  # revoked. {#detail} says which (diagnostic text only).
+  class ConsentRequiredError < ZxvRefusedError; end
+
+  # ABI 1.5: a paradox registry entry, draft or policy touches money or
+  # devices and needs the owner's approval (ZXV_E_PARADOX_OWNER).
+  class OwnerApprovalRequiredError < ZxvRefusedError; end
 
   # SYSTEM class: out of memory, I/O, internal: environmental.
   class ZxvSystemError < StandardError

@@ -1,0 +1,6 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How a fee-checked payment is filed in the M global ^ZXFEE, in MYRA. The
+; app asks whether a payment's numbers fit the record before it files it.
+^ZXFEE(batch:i9, seq:i9) = amount:n15.2! ^ fee:n9.2! ^ from:i10! ^ to:i10!

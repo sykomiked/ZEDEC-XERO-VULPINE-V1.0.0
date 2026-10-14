@@ -21,9 +21,9 @@ export const AMOUNT_MAX = 9007199254740991n;
 
 /** Vino rail balances of an account, in exact minor units. */
 export interface Balance {
-  /** DEBIT 555 (NCR): everything received. */
+  /** DEBIT 555 (NRE): everything received. */
   readonly debit: bigint;
-  /** CREDIT 777 (NRE): everything sent. */
+  /** CREDIT 777 (NCR): everything sent. */
   readonly credit: bigint;
   /** EQUITY 888 (PNS) = debit - credit: the spendable position. */
   readonly equity: bigint;

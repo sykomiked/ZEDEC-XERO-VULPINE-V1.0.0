@@ -15,17 +15,98 @@ on:
       - 'sdk/mobile/**'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-mobile.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/mobile/**'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-mobile.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   workflow_dispatch:
 
 permissions:
@@ -43,6 +124,7 @@ concurrency:
 
 jobs:
   kotlin-host:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: kotlin ${{ matrix.os }} JDK ${{ matrix.jdk }}
     strategy:
       fail-fast: false
@@ -79,6 +161,7 @@ jobs:
           path: sdk/mobile/kotlin/zxv/build/reports/tests/
 
   android-aar:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: android aar (arm64-v8a, x86_64)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -119,6 +202,7 @@ jobs:
           path: sdk/mobile/kotlin/android/build/outputs/aar/zxv-android-release.aar
 
   dart:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: dart ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -147,6 +231,7 @@ jobs:
         run: ZXV_LIBRARY_PATH="$PWD/../../libzxv/build" dart run example/main.dart
 
   ios-xcframework:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: ios xcframework (Flutter)
     runs-on: macos-14
     timeout-minutes: 45
@@ -167,6 +252,7 @@ jobs:
           path: sdk/mobile/dart/build/Zxv.xcframework
 
   web-kits:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: web kits (z-web, react-zxv)
     runs-on: ubuntu-24.04
     timeout-minutes: 30

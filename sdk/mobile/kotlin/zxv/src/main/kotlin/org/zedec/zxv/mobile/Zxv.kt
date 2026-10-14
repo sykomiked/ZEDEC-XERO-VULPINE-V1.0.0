@@ -4,6 +4,7 @@ package org.zedec.zxv.mobile
 
 import java.util.EnumSet
 import org.zedec.zxv.mobile.internal.Jni
+import org.zedec.zxv.mobile.internal.Jni15
 import org.zedec.zxv.mobile.internal.NativeLoader
 import org.zedec.zxv.mobile.internal.Status
 
@@ -15,7 +16,7 @@ import org.zedec.zxv.mobile.internal.Status
  * the paths with [load], the `zxv.library` / `zxv.jni.library` system
  * properties, or `ZXV_LIBRARY_PATH` / `ZXV_JNI_LIBRARY_PATH`.
  *
- * Loading refuses a libzxv whose ABI is not 1.3 or a later 1.x.
+ * Loading refuses a libzxv whose ABI is not 1.5 or a later 1.x.
  */
 object Zxv {
     /** An ABI version. */
@@ -73,6 +74,24 @@ object Zxv {
         return out[0]
     }
 
+    /** The ABI 1.5 feature groups live in this build (`zxv_features2`). */
+    @JvmStatic
+    fun features2(): Set<Feature2> {
+        val mask = feature2Mask()
+        return Feature2.entries.filterTo(EnumSet.noneOf(Feature2::class.java)) { mask and it.bit != 0L }
+    }
+
+    /** True if the ABI 1.5 group `feature` is live in this build. */
+    @JvmStatic
+    fun hasFeature(feature: Feature2): Boolean = feature2Mask() and feature.bit != 0L
+
+    private fun feature2Mask(): Long {
+        NativeLoader.ensureLoaded()
+        val out = LongArray(1)
+        Status.check(Jni15.features2(out), null)
+        return out[0]
+    }
+
     /** The symbolic name of a status ("ZXV_E_FUNDS"); "ZXV_E_UNKNOWN" for unknown codes. */
     @JvmStatic
     fun statusName(status: Int): String {
@@ -90,7 +109,22 @@ object Zxv {
 
 /** A capability permission bit (`ZXV_CAP_*`, ABI R10). */
 enum class Permission {
-    LEDGER_READ, LEDGER_POST, CRYPTO_SIGN, CRYPTO_KEM, AI_INFERENCE, BUDGET, PHASE, ATTEST, SWARM, EVM;
+    LEDGER_READ, LEDGER_POST, CRYPTO_SIGN, CRYPTO_KEM, AI_INFERENCE, BUDGET, PHASE, ATTEST, SWARM, EVM,
+
+    /** `ZXV_CAP_HW_MATRIX` (1 << 10). The hardware groups are not bound on mobile; the bit keeps the ordinals aligned. */
+    HW_MATRIX,
+
+    /** `ZXV_CAP_HW_RECONF` (1 << 11). Not bound on mobile, as [HW_MATRIX]. */
+    HW_RECONF,
+
+    /** Store blocks and publish functions on an [AipiNode] (`ZXV_CAP_AIPI`, ABI 1.5). */
+    AIPI,
+
+    /** Mint into a [TokenWallet] (`ZXV_CAP_MINT`, ABI 1.5). */
+    MINT,
+
+    /** Create and act on paradox handles ([ParadoxBook]; `ZXV_CAP_PARADOX`, ABI 1.5). */
+    PARADOX;
 
     /** The bit, `1 << ordinal`. */
     val bit: Long get() = 1L shl ordinal
@@ -120,4 +154,31 @@ enum class Feature(val bit: Long) {
     PHASE(0x00020000), WIRE(0x00040000), SWARM(0x00080000), HASH(0x00100000), MLKEM1024(0x00200000),
     MLDSA87(0x00400000), ED25519(0x00800000), TENSOR(0x01000000), LORA(0x02000000), EVM(0x04000000),
     HEX(0x08000000),
+}
+
+/** An ABI 1.5 feature group (`ZXV_FEAT2_*`, reported by `zxv_features2`). */
+enum class Feature2(val bit: Long) {
+    /** Treaties: COBOL copybook records and Sutra text ([Treaty]). */
+    TREATY(0x01),
+
+    /** Content-addressed functions and IPFS CIDs ([Cid], [AipiNode]). */
+    AIPI(0x02),
+
+    /** Fibonacci coins, token denominations and octane ([Coins], [Tokens]). */
+    COIN(0x04),
+
+    /** The 0.08889% assurance fee and its split ([AssuranceFee]). */
+    FEE(0x08),
+
+    /** The V-Bill hub: pegs, quotes, swaps, limit rules ([VHub]). */
+    VHUB(0x10),
+
+    /** Erasure-coded freight packets and op streams ([Freight]). */
+    FREIGHT(0x20),
+
+    /** Web 4 agents: manifests, directory, consent, envelopes ([AgentKey]). */
+    WEB4(0x40),
+
+    /** The paradox engine ([ParadoxBook]). */
+    PARADOX(0x80),
 }

@@ -17,19 +17,100 @@ on:
       - 'sdk/conformance/**'
       - 'sdk/cpp/include/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-engines.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/engines/**'
       - 'sdk/libzxv/**'
       - 'sdk/conformance/**'
       - 'sdk/cpp/include/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-engines.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   workflow_dispatch:
 
 permissions:
@@ -46,6 +127,7 @@ concurrency:
 
 jobs:
   emu-state:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: emu-state ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -73,6 +155,7 @@ jobs:
           done
 
   emu-state-sanitize:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: emu-state ASan + UBSan ${{ matrix.os }} ${{ matrix.cc }}
     strategy:
       fail-fast: false
@@ -104,6 +187,7 @@ jobs:
         run: make PYTHON=python3 fuzz-libfuzzer
 
   godot-core:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: godot-zxv core ${{ matrix.os }} ${{ matrix.cxx }}${{ matrix.sanitize == 'ON' && ' sanitize' || '' }}
     strategy:
       fail-fast: false
@@ -127,6 +211,7 @@ jobs:
       - run: ctest --test-dir build-godot-core --output-on-failure
 
   godot-extension:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: godot-zxv GDExtension in Godot 4.3 (Linux)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -168,6 +253,7 @@ jobs:
   # structural check of the wrapper. No Unreal Engine here: the UCLASS /
   # USTRUCT wrapper is not compiled (see sdk/engines/unreal-zxv/README.md).
   unreal-core:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: unreal-zxv core ${{ matrix.os }} ${{ matrix.cxx }}
     strategy:
       fail-fast: false
@@ -203,6 +289,7 @@ jobs:
           ls sdk/engines/unreal-zxv/Source/ThirdParty/Zxv/lib/*/libzxv_emu.a
 
   unity-runtime:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: unity-zxv Runtime (netstandard2.1) ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -225,6 +312,7 @@ jobs:
         run: dotnet test Zxv.Unity.sln -c Release --no-build
 
   z-vfx:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: z-vfx (Python 3.10, fake maya.cmds and hou)
     runs-on: ubuntu-24.04
     timeout-minutes: 20

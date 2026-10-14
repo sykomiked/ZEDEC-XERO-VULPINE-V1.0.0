@@ -18,7 +18,9 @@
  *            piece, so a long run of spaces cannot stall the encoder.
  *       Supported pre-tokenizers: "qwen2" (and "deepseek-r1-qwen"), and
  *       "llama-bpe" (Llama 3: digits in groups of up to three, and a piece
- *       that is already a vocabulary entry is taken whole). Other models
+ *       that is already a vocabulary entry is taken whole); T23 adds
+ *       "gpt-2" (GPT-2's own pattern, used by Whisper) and "smollm" (each
+ *       digit alone, then GPT-2's pattern: SmolLM2 and SmolVLM). Other models
  *       (SentencePiece "llama", WordPiece) report ZT_GGUF_EUNSUPPORTED
  *       rather than tokenising wrongly. Invalid UTF-8 bytes in the input are
  *       kept, one per character, so every input round-trips. The encoder
@@ -31,7 +33,7 @@
 #include <stdbool.h>
 #include "zt_gguf.h"
 
-enum { ZT_TOK_PRE_QWEN2 = 1, ZT_TOK_PRE_LLAMA3 = 2 };
+enum { ZT_TOK_PRE_QWEN2 = 1, ZT_TOK_PRE_LLAMA3 = 2, ZT_TOK_PRE_GPT2 = 3, ZT_TOK_PRE_SMOLLM = 4 };
 
 /* GGUF token types */
 enum {

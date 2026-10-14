@@ -34,6 +34,8 @@
 #include "bootfeat/boot_features.h"
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
+#include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
+#include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -51,6 +53,12 @@ static void boot_msg(const char *msg) {
     uart_put_dec((uint64_t)eid);
     uart_puts("] ");
     uart_puts(msg);
+    uart_puts("\n");
+}
+
+static void hw_log_line(const char *line)
+{
+    uart_puts(line);
     uart_puts("\n");
 }
 
@@ -281,6 +289,27 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     /* Platform + economy aggregate self-checks (same entry points as arm64). */
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
+
+    /* Standard class drivers: scan PCI, bind NVMe/AHCI/xHCI/e1000/HDA, then a
+     * short self-test of each device that bound. Absent or failing hardware
+     * is logged and skipped; it never stops the boot. */
+    {
+        boot_msg("[BOOT] Hardware: PCI scan and standard class drivers...");
+        uint64_t tsc_per_us = 0;
+        const hw_plat_t *hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
+        static hw_registry_t hreg;
+        hw_probe_all(hp, &hreg);
+        uint32_t ok = hw_selftest_all(hp, &hreg);
+        /* Every disk: find the EFI system partition, mount it as FAT32 and
+         * read the MegaROM the disc carries, so a driver is proven all the
+         * way to a file. */
+        hw_storage_selftest(hp, &hreg, "MEGAROM.TVL");
+        uart_puts("  [OK] hardware self-tests passed: ");
+        uart_put_dec(ok);
+        uart_puts(" (TSC ");
+        uart_put_dec(tsc_per_us);
+        uart_puts(" ticks/us)\n");
+    }
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a
      * mismatch prints [FAULT] and halts here, before [BOOT_OK]. */

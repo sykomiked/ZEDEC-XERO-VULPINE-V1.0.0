@@ -33,6 +33,12 @@
  * then recombined. One buffer, no headset, no second render target, and it
  * degrades to a flat image by construction.
  *
+ * Physically this is an ANAGLYPH: both eyes see both colour halves unless the
+ * viewer wears matching filter glasses, so without glasses the offset halves
+ * read as colour fringing, not depth. The glasses-free cues are the warm/cool
+ * tint (holo_shade) and head-tracked parallax; zui/zui_depth.h implements the
+ * per-eye anaglyph (scene drawn once per eye, Dubois matrices) and parallax.
+ *
  * ref: the Virtual Boy's emissive red-on-black look is the flavour we are
  * after. It is NOT the technique we use, and the two must not be conflated in
  * anything written about this file. That machine did TRUE PER-EYE stereo:

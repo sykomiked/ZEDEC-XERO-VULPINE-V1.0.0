@@ -6,7 +6,8 @@
 An industry kit is a small C11 library for one trade (customs, courier
 escrow, store inventory, chain of custody, sequence alignment, field
 triage, incident command, ground stations, home networking, field
-sensors). Each kit is built only on the
+sensors, clearing and its audit, V-Bill hub operation, shop escrow,
+merchant tills). Each kit is built only on the
 public libzxv ABI (`sdk/libzxv/include/zxv_api.h`). It uses exact
 rationals, four-valued logic, 64-state hexagram tags, capabilities, the
 ledger, the quarantine hexlog and ML-DSA-87 / SHA3-256. A kit includes
@@ -62,6 +63,11 @@ Every kit has the same layout:
 | Aero-Orbital | [`aero-orbital`](aero-orbital/) | Ground-side aid for SmallSat operators: integer WGS-84 geodetic/ECEF conversion with measured error bounds (correctly rounded to mm and nano-degree on the reference vectors), telemetry over UBH-168, redundant copies that disagree or fail their CRC held as BOTH for an analyst, never corrected silently. Not flight software | -3800s | 3,676 checks + fuzz |
 | Tri-Modem | [`tri-modem`](tri-modem/) | Neighbourhood mesh fallback planner: signed (Ed25519 / ML-DSA-87) neighbour adverts, replays and expired adverts refused, contradictory reachability held as BOTH for the owner, exact max-min fair shares charged to rmag budgets; amateur-radio relays never selected. Configures no router | -3900s | 2,904 checks + fuzz |
 | V-Band | [`v-band`](v-band/) | Low-power sensor log in the MCU subset (no heap, fixed buffers): exact readings with four-valued states, batches sized to the LoRaWAN data rate, carried over UBH-168, accepted in order by the gateway with duplicates and gaps refused; Cortex-M4 core 3.2 KB flash. Not a LoRaWAN stack | -4000s | 6,018 checks + fuzz |
+| Sutra-Clear (PAPSS-Core) | [`sutra-clear`](sutra-clear/) | Multilateral clearing: a strict bounded pacs.008.001.09 subset parser and Sutra/COBOL NET treaties (ABI 1.5 treaty group) in, exact per-currency netting through the treaty engine (overflow refused), the assurance fee from `zxv_fee_*` with its carry, all-or-nothing hub settlement through the cap, pacs.008/camt.053 out via `zxv_msg_*`, conflicts held as BOTH for a signing operator, signed hash-chained cycle records. Designed to support PAPSS and SWIFT ISO 20022 formats; not connected to either | -4100s | 2,901 checks + fuzz |
+| Tri-Witness | [`tri-witness`](tri-witness/) | Offline, read-only replay of Sutra-Clear exports and ledger journals for regulators and auditors: every record's hash, link and signature, re-run netting and fees, conservation, fee split and carry, postings and balances against the journal, operator decisions, ISO re-rendered; every discrepancy a Forbidden finding with its exact bytes in a signed report. Refuses a cap that can post | -4200s | 6,242 checks + fuzz |
+| Sovereign-Peg | [`sovereign-peg`](sovereign-peg/) | Operator-only toolkit over the libzxv V-Bill hub (not app-facing; every mutating call needs an operator cap): exact pegs parsed and applied only with the issuer's ML-DSA-87 signature, backed-only issuance (circulation never above the V-Bill float at the peg), 64-state capital controls with locked Forbidden/BOTH/FALSE entries, held flows released or denied by an officer's signature, signed operator log. Test currencies only, no fiat | -4300s | 1,329 checks + fuzz |
+| Tri-Market | [`tri-market`](tri-market/) | E-commerce escrow: the buyer's offline Ed25519 or ML-DSA-87 confirmation releases escrow to the seller less the libzxv assurance fee (`zxv_fee_assure_carry`, `zxv_fee_split`); disputes frozen as BOTH until an arbiter's signed exact split; refunds only after the deadline; money leaves escrow once; exact cross-currency quotes pinned from `zxv_vhub`. Not a payment processor | -4400s | 1,593 checks + fuzz |
+| V-Merchant | [`v-merchant`](v-merchant/) | Merchant side of offline payments: invoices, signed payment proofs checked offline (Ed25519 / ML-DSA-87, strict wire form), batch settlement with bounces reopening invoices and proofs settled by another till refused as duplicates, exact signed end-of-day reports. Wallet and voucher redemption UX are the Vino Embed kit's; no cash in or out | -4500s | 1,066 checks + fuzz |
 
 Status codes: libzxv uses small negative codes, and ranges -1000 to -2499
 are taken by other SDK layers. The industry kits use -3000 to -4999. The

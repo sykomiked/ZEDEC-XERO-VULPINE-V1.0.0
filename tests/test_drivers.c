@@ -285,7 +285,18 @@ static void test_m5_router(void)
     assert(M5_PROTO_DTMF == 10);
     assert(M5_PROTO_QUANTUM == 14);
     assert(M5_PROTO_NEUTRINO == 15);
-    printf("  [PASS] 20 protocol types defined\n");
+    /* Extended slots (merged from the deleted tests/test_net_vino.c). */
+    assert(M5_PROTO_RADAR == 20);
+    assert(M5_PROTO_LIDAR == 21);
+    assert(M5_PROTO_ULF == 22);
+    assert(M5_PROTO_TETRA == 23);
+    assert(M5_PROTO_ZIGBEE == 25);
+    assert(M5_PROTO_NBIOT == 30);
+    assert(M5_PROTO_WIMAX == 34);
+    assert(M5_PROTO_INMARSAT == 37);
+    assert(M5_PROTO_ACOUSTIC == 41);
+    assert(M5_PROTO_VISIBLE_LIGHT == 42);
+    printf("  [PASS] protocol type slots defined\n");
 
     static m5_router_t r;
     memset(&r, 0, sizeof(r));

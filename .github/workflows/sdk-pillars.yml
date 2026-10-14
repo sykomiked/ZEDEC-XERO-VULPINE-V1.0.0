@@ -31,17 +31,98 @@ on:
       - 'sdk/pillars/**'
       - 'sdk/libzxv/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-pillars.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/pillars/**'
       - 'sdk/libzxv/**'
       - 'sdk/kits/z-wasm/tools/check_nofloat.py'
-      - 'kernel/src/**'
-      - 'kernel/third_party/**'
       - '.github/workflows/sdk-pillars.yml'
+      - 'build_system/sdk_kernel_deps.py'
+      # kernel inputs of libzxv: build_system/sdk_kernel_deps.py --write
+      - 'kernel/src/abacus/**'
+      - 'kernel/src/aipi/**'
+      - 'kernel/src/cardnet/**'
+      - 'kernel/src/cbank/**'
+      - 'kernel/src/e8/**'
+      - 'kernel/src/edp_risk/**'
+      - 'kernel/src/engine/**'
+      - 'kernel/src/event_space/**'
+      - 'kernel/src/finance/**'
+      - 'kernel/src/freight/**'
+      - 'kernel/src/harmonic/**'
+      - 'kernel/src/hwemu/**'
+      - 'kernel/src/ipfs_node/**'
+      - 'kernel/src/iso20022/**'
+      - 'kernel/src/lpres/**'
+      - 'kernel/src/mlkem/**'
+      - 'kernel/src/modbind/**'
+      - 'kernel/src/onepolicy/**'
+      - 'kernel/src/paradox/**'
+      - 'kernel/src/pay/**'
+      - 'kernel/src/phase_coord/**'
+      - 'kernel/src/pqsec/**'
+      - 'kernel/src/rational/**'
+      - 'kernel/src/rmag/**'
+      - 'kernel/src/robin_debanks/**'
+      - 'kernel/src/surplus/**'
+      - 'kernel/src/swarm/**'
+      - 'kernel/src/tensor/**'
+      - 'kernel/src/tls/**'
+      - 'kernel/src/treaty/**'
+      - 'kernel/src/trispace/**'
+      - 'kernel/src/ubh/**'
+      - 'kernel/src/vhub/**'
+      - 'kernel/src/vino/**'
+      - 'kernel/src/vino_stores/**'
+      - 'kernel/src/web4/**'
+      - 'kernel/src/zcapital/**'
+      - 'kernel/include/**'
+      - 'kernel/third_party/**'
+      # end of the kernel inputs of libzxv
   workflow_dispatch:
 
 permissions:
@@ -58,6 +139,7 @@ jobs:
   # changed, or all of them when libzxv, the kernel, the shared no-float
   # check or this workflow changed. Skipped jobs use no runner.
   changes:
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     name: changed pillars
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -78,7 +160,11 @@ jobs:
           all=true; changed=""
           if [ -n "$BASE" ]; then
             changed="$(git diff --name-only "$BASE" HEAD)"
-            printf '%s\n' "$changed" | grep -qE '^(sdk/libzxv/|kernel/src/|kernel/third_party/|sdk/kits/z-wasm/tools/check_nofloat\.py$|\.github/workflows/sdk-pillars\.yml$)' || all=false
+            # every pillar when libzxv or a kernel directory it is built from
+            # changed (build_system/sdk_kernel_deps.py), not any kernel module
+            kernel_inputs="$(python3 build_system/sdk_kernel_deps.py | sed 's|$|/|')"
+            printf '%s\n' "$changed" | grep -qE '^(sdk/libzxv/|kernel/include/|kernel/third_party/|build_system/sdk_kernel_deps\.py$|sdk/kits/z-wasm/tools/check_nofloat\.py$|\.github/workflows/sdk-pillars\.yml$)' ||
+              printf '%s\n' "$changed" | grep -qF "$kernel_inputs" || all=false
           fi
           for p in ada-eve apl-kron cobol-sutra fortran-trebago mumps-myra; do
             run=false

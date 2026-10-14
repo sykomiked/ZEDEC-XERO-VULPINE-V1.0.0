@@ -409,13 +409,15 @@ static void test_par_and_rate(void)
           "selling into an empty reserve gives nothing: dust");
     CHECK(vswap_swap_out(&S, ub[2], uv[2], 100, 1, &q) == VSWAP_ERR_DUST && bal(ub[2]) == 100,
           "and posts nothing");
-    /* B == 0 with R > 0: par */
+    /* B == 0 with R > 0: refused. At par the first buyer could swap out at
+     * R/B with B == v and take the whole reserve (adversarial audit
+     * 2026-10-12, fuzz/corpus/fuzz_econ_vswap/regress-par-drain-*) */
     ledger();
     cfg();
     vswap_init(&S, &L, &C);
     fund(reserve, 50);
-    CHECK(vswap_rate(&S, &q) == VSWAP_OK && q.par && q.num == 1 && q.den == 1,
-          "a reserve with no V-Bills: par");
+    CHECK(vswap_rate(&S, &q) == VSWAP_ERR_STATE && vswap_quote_in(&S, 1, &q) == VSWAP_ERR_STATE,
+          "a reserve with no V-Bills fails closed instead of selling at par");
 }
 
 static void test_exact(void)
@@ -838,10 +840,16 @@ static void test_dividend_args(void)
     pay_ledger_set_flags(&L, pool, PAY_ACCT_FROZEN);
     CHECK(DIV(h, 2) == VSWAP_ERR_ARG, "a frozen pool is refused up front");
     pay_ledger_set_flags(&L, pool, 0);
+    /* A position paying into the pool gets weight 0; it used to make every
+     * dividend refuse, so one locked V-Bill blocked all of them (adversarial
+     * audit 2026-10-12, regress-lock-payee-pool-blocks-dividend). */
     S.pos[1].payee = pool;
-    CHECK(DIV(h, 2) == VSWAP_ERR_ARG, "a position paying into the pool is refused");
+    CHECK(DIV(h, 0) == VSWAP_OK && bal(uv[2]) == 1000100 && bal(uv[3]) == 1000000 && bal(pool) == 0,
+          "a position paying into the pool takes nothing and blocks nothing");
     S.pos[1].payee = uv[3];
-    CHECK(DIV(h, 0) == VSWAP_OK && bal(uv[2]) == 1000045 && bal(uv[3]) == 1000055,
+    fund(pool, 100);
+    CHECK(vswap_dividend(&S, pool, h, 0, false, 2, NULL, NULL) == VSWAP_OK &&
+              bal(uv[2]) == 1000145 && bal(uv[3]) == 1000055,
           "no holders listed: the positions alone (10 and 12 units of 22)");
 
     /* the pool above the line limit */
@@ -1034,8 +1042,8 @@ static void test_edges(void)
     CHECK(vswap_dividend(&S, pool, d3, 3, false, 1, NULL, NULL) == VSWAP_ERR_ARG,
           "a duplicate at index 2 of index 1 is refused");
     S.pos[0].payee = pool;
-    CHECK(vswap_dividend(&S, pool, d3, 2, false, 1, NULL, NULL) == VSWAP_ERR_ARG,
-          "position 0 paying into the pool is refused");
+    CHECK(vswap_dividend(&S, pool, d3, 2, false, 1, NULL, NULL) == VSWAP_OK,
+          "position 0 paying into the pool is skipped, not a refusal");
     S.pos[0].payee = uv[2];
 
     /* exactly VSWAP_MAX_HOLD holders */

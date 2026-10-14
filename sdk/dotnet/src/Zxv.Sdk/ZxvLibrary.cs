@@ -19,17 +19,17 @@ namespace Zxv;
 /// the <c>ZXV_LIBRARY_PATH</c> environment variable (or <c>ZXV_NATIVE_LIBRARY</c>),
 /// the copy bundled with the package, then the system loader path. The first
 /// SDK call that needs it checks <c>zxv_version</c> and refuses a library whose
-/// major version is not 1 or whose minor version is below 4.
+/// major version is not 1 or whose minor version is below 5.
 /// </remarks>
 public static class ZxvLibrary
 {
     /// <summary>The major ABI version this SDK binds.</summary>
     public const int SupportedAbiMajor = 1;
 
-    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag; 1.4 hardware emulation).</summary>
-    public const int MinimumAbiMinor = 4;
+    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag; 1.4 hardware emulation; 1.5 treaties, CIDs and AIPI, coins and tokens, the assurance fee, the V-Bill hub, freight, Web 4 and the paradox engine).</summary>
+    public const int MinimumAbiMinor = 5;
 
-    private static readonly Lazy<(Version Version, ZxvFeatures Features)> Loaded = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
+    private static readonly Lazy<(Version Version, ZxvFeatures Features, ZxvFeatures2 Features2)> Loaded = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
     private static int _fatalPolicy;
 
     /// <summary>
@@ -51,6 +51,13 @@ public static class ZxvLibrary
     public static ZxvFeatures Features => Loaded.Value.Features;
 
     /// <summary>
+    /// Gets the ABI 1.5 feature groups live in the loaded library
+    /// (<c>zxv_features2</c>). A group whose flag is clear raises
+    /// <see cref="ZxvFeatureNotAvailableException"/> from every call.
+    /// </summary>
+    public static ZxvFeatures2 Features2 => Loaded.Value.Features2;
+
+    /// <summary>
     /// Loads libzxv from an explicit path instead of the environment or the
     /// bundled copy. Call it before any other SDK call.
     /// </summary>
@@ -65,6 +72,11 @@ public static class ZxvLibrary
     /// <param name="features">The features to test.</param>
     /// <returns><see langword="true"/> when all are available.</returns>
     public static bool Supports(ZxvFeatures features) => (Features & features) == features;
+
+    /// <summary>Returns whether every ABI 1.5 group in <paramref name="features"/> is live.</summary>
+    /// <param name="features">The groups to test.</param>
+    /// <returns><see langword="true"/> when all are available.</returns>
+    public static bool Supports(ZxvFeatures2 features) => (Features2 & features) == features;
 
     /// <summary>Gets the stable symbolic name of a status, e.g. <c>ZXV_E_BUDGET</c>.</summary>
     /// <param name="status">The status.</param>
@@ -90,7 +102,7 @@ public static class ZxvLibrary
         return error;
     }
 
-    private static (Version, ZxvFeatures) Load()
+    private static (Version, ZxvFeatures, ZxvFeatures2) Load()
     {
         int rc = NativeMethods.Version(out uint major, out uint minor, out uint patch);
         if (rc != (int)ZxvStatus.Ok)
@@ -109,6 +121,12 @@ public static class ZxvLibrary
             throw new ZxvSystemException((ZxvStatus)rc, "ZxvLibrary.Features", NativeText.LastError());
         }
 
-        return (new Version((int)major, (int)minor, (int)patch), (ZxvFeatures)mask);
+        rc = NativeMethods.Features2(out uint mask2);
+        if (rc != (int)ZxvStatus.Ok)
+        {
+            throw new ZxvSystemException((ZxvStatus)rc, "ZxvLibrary.Features2", NativeText.LastError());
+        }
+
+        return (new Version((int)major, (int)minor, (int)patch), (ZxvFeatures)mask, (ZxvFeatures2)mask2);
     }
 }

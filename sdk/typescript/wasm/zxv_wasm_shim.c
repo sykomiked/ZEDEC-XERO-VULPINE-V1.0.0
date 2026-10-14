@@ -18,6 +18,8 @@
  *    (ABI 1.4): the same with C trampolines that forward hardware
  *    implementations and region devices to the JS imports zxv.hw_*; the
  *    `user` pointer is a uint32 id the JS layer maps to its callbacks.
+ *  - zxvjs_freight_ops_expand (ABI 1.5): zxv_freight_ops_expand with a C
+ *    CIDREF resolver that forwards to the JS import zxv.freight_resolve.
  */
 #define _DEFAULT_SOURCE
 #include <pthread.h>
@@ -144,4 +146,22 @@ EXPORT(zxvjs_hw_region_events)
 int32_t zxvjs_hw_region_events(const zxv_cap *cap, zxv_hw_region *rg, uint32_t user)
 {
     return zxv_hw_region_events(cap, rg, forward_hw_event, (void *) (uintptr_t) user);
+}
+
+/* ---- freight CIDREF resolver (ABI 1.5) ---- */
+__attribute__((import_module("zxv"), import_name("freight_resolve"))) int32_t
+zxvjs_freight_resolve(uint32_t user, const uint8_t *cid, size_t cid_len, uint8_t *out, uint64_t len);
+
+static int32_t forward_freight_resolve(void *user, const uint8_t *cid, size_t cid_len, uint8_t *out,
+                                       uint64_t len)
+{
+    return zxvjs_freight_resolve((uint32_t) (uintptr_t) user, cid, cid_len, out, len);
+}
+
+EXPORT(zxvjs_freight_ops_expand)
+int32_t zxvjs_freight_ops_expand(const uint8_t *ops, size_t ops_len, uint64_t limit, uint32_t user,
+                                 uint8_t *buf, size_t cap, size_t *out_len)
+{
+    return zxv_freight_ops_expand(ops, ops_len, limit, forward_freight_resolve,
+                                  (void *) (uintptr_t) user, buf, cap, out_len);
 }

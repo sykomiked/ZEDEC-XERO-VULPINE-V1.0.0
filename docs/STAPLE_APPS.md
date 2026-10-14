@@ -50,7 +50,8 @@ and calls the actions. The shared rules are in `zxm.h` (M1-M5):
   connecting to a remote space such as a park, always at the speed the work
   really goes; its sound plays only at OS boot.
 - **A palette table per app** (`BURROW_AI`, `QUILLON_AI`, `GLINT_AI`,
-  `SPINDLE_AI`): name, agent and estimated tokens, for the command palette.
+  `SPINDLE_AI`, `MURM_AI`): name, agent and estimated tokens, for the command
+  palette.
 
 | Model | State | Actions | AI |
 |---|---|---|---|
@@ -58,11 +59,42 @@ and calls the actions. The shared rules are in `zxm.h` (M1-M5):
 | `quillon_model.h` | one UTF-8 document, path, unsaved flag, counts | new, open, save, save as, replace, set text | summarize, rewrite, continue, proofread |
 | `glint_model.h` | the media in a Burrow folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
 | `spindle_model.h` | method list, the last 16 calls | discover, call with JSON params | explain a reply |
+| `murmuration_model.h` | one swarm snapshot (agents, feelings, allotments, witnesses, totals), the model slot, the earnings, the selected agent | refresh, select, find, cycle share, emotion of an emoji | explain the swarm; why this agent is unhappy |
 
 Burrow and Quillon carry the space they work in (`burrow_set_space`, and the
 `space` argument of `quillon_open` and `quillon_save_as`); Glint follows its
 Burrow folder. `burrow_cross` copies an entry into another space and reports
 a held crossing's ticket for `burrow_cross_confirm`.
+
+### Murmuration
+
+Murmuration is the swarm dashboard: which agents are working, how each one
+feels, how this cycle's tokens were shared, what the witnesses said, the
+model slot and what the swarm has earned in the owner's books. Its model
+(`murmuration_model.h`) keeps one snapshot of zxvd's `swarm.state`, then
+`swarm.earnings`, and `model.info` only when the state carries no `model`.
+
+- **One cycle, three parts.** Each agent's allotment for the last closed
+  cycle is `re + mk + im` tokens: `re` from its level (the Fibonacci level
+  rule), `mk` bought on the market, `im` from its emotional charge (the
+  imaginary axis, `swarm_emotion.h`). `murm_cycle_share` gives an agent's
+  part of every agent's allotment in per-mille, as an exact integer.
+- **Feelings are emoji.** Each agent carries its emoji and intensity (0-5);
+  the swarm's mood comes as `"<emoji> <k>"`. `murm_emotion` maps an emoji's
+  code point to the palette of `swarm_emotion.h` (-1 for one outside it).
+- **Witnesses.** Every allotment is checked by another agent
+  (`swarm_ledger.h` W1-W3): true, false (the cycle does not add up) or
+  contested (it adds up but this allotment differs), and by whom.
+- **All or nothing.** A failed call or a malformed reply keeps the last
+  snapshot whole. Earnings and the model slot are optional: when zxvd answers
+  "not available" (-32601) or its books are not open, that part is shown as
+  absent and the rest still refreshes. 64-bit amounts arrive as decimal
+  strings and are read as exact integers; no floating point anywhere.
+- **Bounded.** At most `MURM_AGENTS` (64) agents are kept; `truncated` says
+  when the swarm has more, and the totals still count every one.
+- **AI.** "Explain the swarm" and "Why is this agent unhappy" (which needs a
+  selected agent) ask the companion about the snapshot. The answer is held;
+  accepting it only marks it read and changes nothing in zxvd.
 
 `kernel/src/apps/test_apps.sh` runs the models against zxvd's real dispatcher
 on a scratch ZXV folder.

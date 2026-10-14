@@ -1,5 +1,6 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
+import 'treaty.dart' show TreatyFault;
 
 /// The class of a libzxv status (`zxv_status_class`); unknown negative codes are [system].
 enum StatusClass {
@@ -72,6 +73,79 @@ class NotImplementedException extends ZxvRefusedException {
   NotImplementedException(super.status, super.statusName, super.detail);
 }
 
+// ---- ABI 1.5 status subclasses ----
+
+/// A face that is not on the Fibonacci ladder (`ZXV_E_DENOM`, -32, USAGE): a
+/// coin or token face such as 4, 6, 7 or 100, or zero. Split arbitrary
+/// amounts with `Coins.split`.
+class NotADenominationException extends ZxvUsageException {
+  NotADenominationException(super.status, super.statusName, super.detail);
+}
+
+/// A treaty fails validation (`ZXV_E_TREATY`, -33, USAGE): fix the treaty;
+/// the same input is refused again. [fault] says which rule was broken and,
+/// for a parse, [offset] is the byte offset of the first fault (else -1).
+class TreatyException extends ZxvUsageException {
+  TreatyException(super.status, super.statusName, super.detail, {this.fault = TreatyFault.unknown, this.offset = -1});
+
+  /// The rule that was broken ([TreatyFault.unknown] if the call gave none).
+  final TreatyFault fault;
+
+  /// The byte offset of the first fault of a parse, or -1.
+  final int offset;
+}
+
+/// Content does not match its CID, or the bytes or text are not a canonical
+/// CID (`ZXV_E_CID`, -34, REFUSED). A mismatch means the bytes you hold are
+/// not the ones the CID names: drop them and fetch again.
+class CidException extends ZxvRefusedException {
+  CidException(super.status, super.statusName, super.detail);
+}
+
+/// No valid consent for this agent action (`ZXV_E_CONSENT`, -35, REFUSED): no
+/// token, one for another human, agent, action, scope or amount, one outside
+/// its window, a bad signature, or one already used or revoked. Nothing was
+/// allowed.
+class ConsentException extends ZxvRefusedException {
+  ConsentException(super.status, super.statusName, super.detail);
+}
+
+/// Too few distinct freight rows arrived to rebuild the payload
+/// (`ZXV_E_ERASURE`, -36, REFUSED). Nothing was decoded; add packets again
+/// once more rows arrive.
+class ErasureException extends ZxvRefusedException {
+  ErasureException(super.status, super.statusName, super.detail);
+}
+
+/// No valid signed peg for this currency pair (`ZXV_E_PEG`, -37, REFUSED): a
+/// peg is unset, or a new peg's epoch is not above the current one. Nothing
+/// changed.
+class PegException extends ZxvRefusedException {
+  PegException(super.status, super.statusName, super.detail);
+}
+
+/// A hub limit rule refused the swap (`ZXV_E_LIMIT`, -38, REFUSED): a policy
+/// decision, not a fault; nothing was posted. `VHub.nextEpoch` starts every
+/// sender at zero again.
+class LimitException extends ZxvRefusedException {
+  LimitException(super.status, super.statusName, super.detail);
+}
+
+/// A paradox graph reached its step limit without resolving
+/// (`ZXV_E_PARADOX_STEP`, -39, REFUSED). The pass WAS logged and the graph
+/// stays readable; it now goes to the owner.
+class StepLimitException extends ZxvRefusedException {
+  StepLimitException(super.status, super.statusName, super.detail);
+}
+
+/// The action needs the owner's approval (`ZXV_E_PARADOX_OWNER`, -40,
+/// REFUSED): a registry entry flagged MONEY or DEVICE was added without
+/// `ownerOk`. Nothing changed. "Owner ok" is the caller's assertion; in one
+/// process libzxv cannot check who the owner is.
+class OwnerApprovalRequiredException extends ZxvRefusedException {
+  OwnerApprovalRequiredException(super.status, super.statusName, super.detail);
+}
+
 /// Memory, I/O, an internal or unknown status (SYSTEM class).
 class ZxvSystemException extends ZxvException {
   ZxvSystemException(super.status, super.statusName, super.detail);
@@ -93,4 +167,138 @@ class ZxvFatalError extends Error {
 
   @override
   String toString() => 'ZxvFatalError($statusName: $detail)';
+}
+
+/// Every libzxv status code by name (`ZXV_OK` and `ZXV_E_*`), for branching
+/// on [ZxvException.status]. The numbers are stable: libzxv never renumbers a
+/// status and only adds new ones. The class (USAGE, REFUSED, FATAL, SYSTEM)
+/// decides the exception type; the codes added in ABI 1.5 (-32..-40) also
+/// have their own subclasses (for example [TreatyException] for [eTreaty]).
+/// -41..-45 are reserved by the ABI and not defined here.
+abstract final class ZxvStatus {
+  /// `ZXV_OK`: Success.
+  static const int ok = 0;
+
+  /// `ZXV_E_ARG`: NULL handle/pointer or invalid argument value.
+  static const int eArg = -1;
+
+  /// `ZXV_E_BUFFER`: Output buffer too small; *out_len = needed.
+  static const int eBuffer = -2;
+
+  /// `ZXV_E_NOTIMPL`: Feature not built into this library yet.
+  static const int eNotimpl = -3;
+
+  /// `ZXV_E_NOT_FOUND`: Unknown account, card, currency or index.
+  static const int eNotFound = -4;
+
+  /// `ZXV_E_CAPACITY`: A fixed-size table is full.
+  static const int eCapacity = -5;
+
+  /// `ZXV_E_FUNDS`: Holder account would go below zero.
+  static const int eFunds = -6;
+
+  /// `ZXV_E_CURRENCY`: Unknown, disabled, non-ISO or mismatched ccy.
+  static const int eCurrency = -7;
+
+  /// `ZXV_E_RANGE`: Amount <= 0 or beyond the exact range.
+  static const int eRange = -8;
+
+  /// `ZXV_E_STATE`: Operation not valid in the current state.
+  static const int eState = -9;
+
+  /// `ZXV_E_INVARIANT`: An internal accounting invariant failed.
+  static const int eInvariant = -10;
+
+  /// `ZXV_E_UTF8`: Input string is not valid UTF-8.
+  static const int eUtf8 = -11;
+
+  /// `ZXV_E_TOO_LONG`: Input string exceeds the field's maximum.
+  static const int eTooLong = -12;
+
+  /// `ZXV_E_DUPLICATE`: Reference/id already used.
+  static const int eDuplicate = -13;
+
+  /// `ZXV_E_NOMEM`: Allocation failed.
+  static const int eNomem = -14;
+
+  /// `ZXV_E_DECLINED`: Card authorization declined (not a fault).
+  static const int eDeclined = -15;
+
+  /// `ZXV_E_FIELD`: Field not valid for this message kind / unset.
+  static const int eField = -16;
+
+  /// `ZXV_E_CAP`: The capability lacks the permission, is revoked, or its attestation is not TRUE.
+  static const int eCap = -17;
+
+  /// `ZXV_E_POISONED`: The context halted after a broken invariant; terminal.
+  static const int ePoisoned = -18;
+
+  /// `ZXV_E_BUDGET`: An rmag or swarm budget is exhausted (denied).
+  static const int eBudget = -19;
+
+  /// `ZXV_E_RMAG_INVALID`: A malformed or overflowing rational amount; never retry the same value.
+  static const int eRmagInvalid = -20;
+
+  /// `ZXV_E_VERIFY`: Signature / tag did not verify (not a fault).
+  static const int eVerify = -21;
+
+  /// `ZXV_E_FORMAT`: Malformed input (number text, GGUF, frame).
+  static const int eFormat = -22;
+
+  /// `ZXV_E_IO`: A file could not be opened or read.
+  static const int eIo = -23;
+
+  /// `ZXV_E_FLOAT`: NaN or infinity refused at the float boundary.
+  static const int eFloat = -24;
+
+  /// `ZXV_E_INTERNAL`: Unexpected kernel status; see zxv_last_error.
+  static const int eInternal = -99;
+
+  /// `ZXV_E_NOPROVIDER`: No proven implementation may serve the call (ABI 1.4).
+  static const int eNoprovider = -25;
+
+  /// `ZXV_E_DISPUTE`: A shadow check found two implementations disagree (ABI 1.4).
+  static const int eDispute = -26;
+
+  /// `ZXV_E_QUARANTINED`: Image failed in hardware: rolled back, logged (ABI 1.4).
+  static const int eQuarantined = -27;
+
+  /// `ZXV_E_ROLLBACK`: Image or contract not newer / below the floor (ABI 1.4).
+  static const int eRollback = -28;
+
+  /// `ZXV_E_BLOCKED`: Image already quarantined; never reloaded (ABI 1.4).
+  static const int eBlocked = -29;
+
+  /// `ZXV_E_TARGET`: Image is for other hardware (ABI 1.4).
+  static const int eTarget = -30;
+
+  /// `ZXV_E_POLICY`: Refused by the function's placement policy (ABI 1.4).
+  static const int ePolicy = -31;
+
+  /// `ZXV_E_DENOM`: Not a Fibonacci ladder face (coins, denominations) (ABI 1.5).
+  static const int eDenom = -32;
+
+  /// `ZXV_E_TREATY`: Treaty fails validation; detail in zxv_last_error (ABI 1.5).
+  static const int eTreaty = -33;
+
+  /// `ZXV_E_CID`: Content does not match its CID, or bad CID (ABI 1.5).
+  static const int eCid = -34;
+
+  /// `ZXV_E_CONSENT`: No valid consent for this agent action (ABI 1.5).
+  static const int eConsent = -35;
+
+  /// `ZXV_E_ERASURE`: Too few freight rows to rebuild the packet (ABI 1.5).
+  static const int eErasure = -36;
+
+  /// `ZXV_E_PEG`: No valid signed peg for this currency pair (ABI 1.5).
+  static const int ePeg = -37;
+
+  /// `ZXV_E_LIMIT`: Refused by a hub limit rule (not a fault) (ABI 1.5).
+  static const int eLimit = -38;
+
+  /// `ZXV_E_PARADOX_STEP`: A paradox graph reached its step limit and was escalated to the owner (ABI 1.5).
+  static const int eParadoxStep = -39;
+
+  /// `ZXV_E_PARADOX_OWNER`: The action needs the owner's approval (a money or device policy) (ABI 1.5).
+  static const int eParadoxOwner = -40;
 }

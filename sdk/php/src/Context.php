@@ -45,7 +45,8 @@ final class Context
 
     /**
      * A root capability. $caps: Capability::ALL (default; the ABI 1.1 bits),
-     * Capability::ALL_1_4 (adds HW_MATRIX and HW_RECONF) or an OR of
+     * Capability::ALL_1_4 (adds HW_MATRIX and HW_RECONF), Capability::ALL_1_5
+     * (adds AIPI, MINT and PARADOX) or an OR of
      * Capability::LEDGER_READ etc. $identity: 21 bytes or null (zeros).
      */
     public function rootCapability(int $caps = Capability::ALL, ?int $processId = null, ?string $identity = null): Capability

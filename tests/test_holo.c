@@ -1,13 +1,19 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
 /* test_holo.c — Host-testable tests for ZEDEC Holographic Data System
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
-#include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 #include "../kernel/src/holographic/holo.h"
+
+static int g_checks;
+#define assert(c) do { g_checks++; if (!(c)) { \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); abort(); } } while (0)
 
 static void test_types_and_magic(void) {
     printf("=== Holographic Type System Tests ===\n");
@@ -21,9 +27,9 @@ static void test_types_and_magic(void) {
 
     assert(strcmp(holo_type_name(HOLO_TYPE_36N9), "Positive Space (36n9)") == 0);
     assert(strcmp(holo_type_name(HOLO_TYPE_9N63), "Negative Space (9n63)") == 0);
-    assert(strcmp(holo_type_name(HOLO_TYPE_36M9), "Dataset (36m9)") == 0);
-    assert(strcmp(holo_type_name(HOLO_TYPE_ZEDEI), "Holographic Renderer (zedei)") == 0);
-    assert(strcmp(holo_type_name(HOLO_TYPE_ZEDEC), "Container (zedec)") == 0);
+    assert(strcmp(holo_type_name(HOLO_TYPE_36M9), "Positive Manifest (36m9)") == 0);
+    assert(strcmp(holo_type_name(HOLO_TYPE_ZEDEI), "Positive Transform (zedei)") == 0);
+    assert(strcmp(holo_type_name(HOLO_TYPE_ZEDEC), "Positive Container (zedec)") == 0);
     printf("  [PASS] Type names\n");
 
     assert(strcmp(holo_type_extension(HOLO_TYPE_36N9), ".36n9") == 0);
@@ -447,5 +453,6 @@ int main(void) {
     test_checksum();
     test_full_pipeline();
     printf("=== All ZEDEC holographic data system tests passed ===\n");
+    printf("%d checks passed\n", g_checks);
     return 0;
 }

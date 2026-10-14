@@ -135,9 +135,9 @@ def main(binary):
             off = c['next']
         check(back == blob, 'a binary file round-trips through base64')
         st, r = call('files.read', {'path': 'pic.png'})
-        check(r.get('error', {}).get('code') == -32012, 'a text read of binary is refused')
+        check(r.get('error', {}).get('code') == -32014, 'a text read of binary is refused')
         st, r = call('files.write', {'path': 'pic.png', 'base64': 'AA==', 'exclusive': True})
-        check(r.get('error', {}).get('code') == -32012, 'an import never overwrites')
+        check(r.get('error', {}).get('code') == -32014, 'an import never overwrites')
 
         # nothing outside the folder
         for bad in ('../escape.txt', '/etc/passwd', 'a/../../x', '.ssh/id', 'C:\\x'):
@@ -145,7 +145,7 @@ def main(binary):
             check('error' in r, 'refused: %s' % bad)
         os.symlink(home, os.path.join(root, 'out'))
         st, r = call('files.list', {'path': 'out'})
-        check(r.get('error', {}).get('code') == -32012, 'a link out of the folder is refused')
+        check(r.get('error', {}).get('code') == -32014, 'a link out of the folder is refused')
         os.unlink(os.path.join(root, 'out'))
         check(not os.path.exists(os.path.join(home, 'escape.txt')), 'nothing was written outside')
 

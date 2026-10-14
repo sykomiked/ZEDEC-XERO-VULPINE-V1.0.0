@@ -14,7 +14,7 @@
 # Options:
 #   ZXV_NO_PQC=1      leave out ML-KEM / ML-DSA / Ed25519 (calls return NOTIMPL)
 #   ZXV_NO_TENSOR=1   leave out the inference engine
-#   ZXV_NO_CBANK=1    leave out the ISO 4217 table (see src/zxv_api.c)
+#   ZXV_NO_CBANK=1    leave out the ISO 4217 table and netting cycles (see src/zxv_api.c)
 #   SANITIZE=1        build with -fsanitize=address,undefined (tests)
 #
 # Optional kernel modules are detected by header presence, so this Makefile
@@ -99,7 +99,8 @@ KSRC := $(K)/src/iso20022/iso20022.c $(K)/src/finance/triple_ledger.c \
         $(K)/src/hwemu/hwm.c $(K)/src/hwemu/hwp.c $(K)/src/hwemu/hwr.c \
         $(K)/src/hwemu/hwa.c $(K)/src/hwemu/hwe.c
 SRC  := src/zxv_api.c src/zxv_core.c src/zxv_econ.c src/zxv_crypto.c src/zxv_tensor.c \
-        src/zxv_evm.c src/zxv_hex.c src/zxv_hw.c
+        src/zxv_evm.c src/zxv_hex.c src/zxv_hw.c src/zxv_abi15.c \
+        src/zxv_treaty.c src/zxv_aipi.c src/zxv_coin.c src/zxv_fee.c src/zxv_vhub.c src/zxv_freight.c src/zxv_web4.c src/zxv_paradox.c
 DEFS :=
 
 ifeq ($(ZXV_NO_PQC),)
@@ -129,6 +130,11 @@ ifneq ($(wildcard $(K)/src/cbank/cb_ccy.h),)
   ifneq ($(ZXV_NO_TENSOR),)
     KSRC += $(K)/src/tensor/zt.c
   endif
+  # netting cycles (zxv_netting_*) on the cbank engine
+  ifneq ($(wildcard $(K)/src/cbank/cb_net.h),)
+    DEFS += -DZXV_HAVE_CBANK_NET
+    KSRC += $(K)/src/cbank/cb_net.c $(K)/src/cbank/cb_config.c $(K)/src/cbank/cb_usury.c
+  endif
 endif
 endif
 
@@ -139,6 +145,33 @@ ifneq ($(wildcard $(K)/src/cardnet/cn_check.h),)
   KSRC += $(K)/src/cardnet/cn_check.c
 endif
 endif
+
+# ABI 1.5 groups: each adds its own kernel sources and include paths on
+# its own line, so the groups can be built side by side.
+KSRC_TREATY := $(K)/src/treaty/zxt.c $(K)/src/treaty/zxt_exec.c $(K)/src/engine/zxv_engine.c \
+               $(K)/src/abacus/abacus.c $(K)/src/pay/pay_ledger.c $(K)/src/pay/pay_util.c \
+               $(K)/src/pay/pay_assure.c $(K)/src/swarm/swarm_market.c $(K)/src/tensor/zt.c
+INC_TREATY  := -I$(K)/src/treaty -I$(K)/src/engine -I$(K)/src/pay -I$(K)/src/abacus \
+               -I$(K)/src/zcapital -I$(K)/src/tensor
+KSRC_AIPI := $(K)/src/aipi/aipi.c $(addprefix $(K)/src/ipfs_node/,ipfsn_multiformats.c \
+             ipfsn_unixfs.c ipfsn_store.c ipfsn_net.c ipfsn_ubh.c) $(K)/src/tls/aead.c \
+             $(K)/src/tls/hkdf.c $(K)/src/ubh/ubh.c $(K)/src/event_space/event_envelope.c
+INC_AIPI  := -I$(K)/src/aipi -I$(K)/src/ipfs_node
+KSRC_COIN := $(K)/src/vino_stores/vino_stores.c $(K)/src/onepolicy/onepolicy.c $(K)/src/edp_risk/edp_risk.c $(K)/src/swarm/swarm_denom.c
+INC_COIN  := -I$(K)/src/vino_stores -I$(K)/src/onepolicy -I$(K)/src/edp_risk -I$(K)/src/surplus -I$(K)/src/swarm
+KSRC_FEE := $(K)/src/pay/pay_assure.c $(K)/src/pay/pay_util.c $(K)/src/swarm/swarm_market.c $(K)/src/tensor/zt.c
+INC_FEE  := -I$(K)/src/pay -I$(K)/src/swarm -I$(K)/src/zcapital -I$(K)/src/tensor
+KSRC_VHUB := $(K)/src/vhub/vhub.c $(K)/src/pay/pay_ledger.c $(K)/src/pay/pay_util.c \
+             $(K)/src/pay/pay_assure.c $(K)/src/swarm/swarm_market.c $(K)/src/tensor/zt.c
+INC_VHUB  := -I$(K)/src/vhub -I$(K)/src/pay -I$(K)/src/tensor
+KSRC_FREIGHT := $(K)/src/freight/freight.c $(K)/src/freight/freight_ops.c
+INC_FREIGHT  := -I$(K)/src/freight
+KSRC_WEB4 := $(if $(ZXV_NO_PQC),,$(addprefix $(K)/src/web4/,web4_agent.c web4_util.c web4_json.c) $(K)/src/pqsec/pq_mldsa65.c $(wildcard $(K)/src/pqsec/mldsa/*.c) $(K)/src/freight/freight.c $(K)/src/freight/freight_ops.c)
+INC_WEB4  := $(if $(ZXV_NO_PQC),,-I$(K)/src/web4 -I$(K)/src/pqsec)
+KSRC_PARADOX := $(K)/src/paradox/paradox.c $(K)/src/paradox/paradox_graph.c
+INC_PARADOX  := -I$(K)/src/paradox
+KSRC += $(KSRC_TREATY) $(KSRC_AIPI) $(KSRC_COIN) $(KSRC_FEE) $(KSRC_VHUB) $(KSRC_FREIGHT) $(KSRC_WEB4) $(KSRC_PARADOX)
+INC  += $(INC_TREATY) $(INC_AIPI) $(INC_COIN) $(INC_FEE) $(INC_VHUB) $(INC_FREIGHT) $(INC_WEB4) $(INC_PARADOX)
 
 KSRC := $(sort $(KSRC))
 KOBJ := $(patsubst $(K)/%.c,$(OUT)/k/%.o,$(KSRC))
@@ -178,6 +211,8 @@ $(OUT)/test_zxv_abi13$(EXE): test/test_zxv_abi13.c include/zxv_api.h $(LIB)
 	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
 $(OUT)/test_zxv_abi14$(EXE): test/test_zxv_abi14.c include/zxv_api.h $(LIB)
 	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
+$(OUT)/test_zxv_abi15_%$(EXE): test/test_zxv_abi15_%.c include/zxv_api.h $(LIB)
+	$(TESTCC) $< -L$(OUT) -lzxv $(RPATH) $(TESTLIBS) -o $@
 # The portable (no __int128) Q16 rounding, forced with -DZXV_NO_INT128 and
 # checked against the 128-bit path and the library.
 $(OUT)/test_q16$(EXE): test/test_q16.c src/zxv_q16.h include/zxv_api.h $(LIB)
@@ -190,13 +225,22 @@ $(OUT)/mkfixture: tools/mkfixture.c
 	$(HOSTCC) -std=c11 -O1 -I$(K)/src/tensor -o $@ $<
 
 test: $(OUT)/test_zxv_api$(EXE) $(OUT)/test_zxv_abi11$(EXE) $(OUT)/test_zxv_abi12$(EXE) $(OUT)/test_zxv_abi13$(EXE) \
-      $(OUT)/test_zxv_abi14$(EXE) $(OUT)/test_q16$(EXE) fixtures
+      $(OUT)/test_zxv_abi14$(EXE) $(OUT)/test_q16$(EXE) fixtures \
+      $(OUT)/test_zxv_abi15_treaty$(EXE) $(OUT)/test_zxv_abi15_aipi$(EXE) $(OUT)/test_zxv_abi15_coin$(EXE) $(OUT)/test_zxv_abi15_fee$(EXE) $(OUT)/test_zxv_abi15_vhub$(EXE) $(OUT)/test_zxv_abi15_freight$(EXE) $(OUT)/test_zxv_abi15_web4$(EXE) $(OUT)/test_zxv_abi15_paradox$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_api$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_abi11$(EXE) ../conformance/fixtures
 	$(RUN) ./$(OUT)/test_zxv_abi12$(EXE) ../conformance/fixtures
 	$(RUN) ./$(OUT)/test_zxv_abi13$(EXE)
 	$(RUN) ./$(OUT)/test_zxv_abi14$(EXE)
 	$(RUN) ./$(OUT)/test_q16$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_treaty$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_aipi$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_coin$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_fee$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_vhub$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_freight$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_web4$(EXE)
+	$(RUN) ./$(OUT)/test_zxv_abi15_paradox$(EXE)
 
 fixtures: $(OUT)/mkfixture
 	@mkdir -p ../conformance/fixtures

@@ -30,13 +30,13 @@ To uninstall, quit ZXV, then delete the app and the folders listed in [Where dat
 1. ZXV opens a window with a Dock icon and a menu bar.
 2. It starts its engine (`ZXV.app/Contents/MacOS/zxv-engine`) in the background. The engine scans the hardware, sizes the swarm and serves the window.
 3. If no model is installed, ZXV asks once what to do:
-   - **Fetch from IPFS.** Shown only when the app's model manifest lists a model. ZXV downloads it, checks it, installs it and restarts the swarm with it. You get a notification when it finishes.
+   - **Download Model.** Shown only when the app's model manifest lists a model (this release lists Qwen2.5-1.5B-Instruct, Q4_K_M, about 1.1 GB, Apache-2.0). ZXV downloads it from IPFS when the manifest gives a CID, otherwise from the HTTPS mirror the manifest pins (the model's Hugging Face file at a fixed commit), checks its size and SHA-256, installs it and restarts the swarm with it. You get a notification when it finishes.
    - **Choose GGUF File…** Pick a `.gguf` file you already have. ZXV reads it where it is and does not copy it.
    - **Later.** The swarm runs without a model. It cannot write answers until you install one.
 
 Nothing is downloaded unless you say so, and ZXV never asks for notification permission at launch. macOS asks the first time ZXV has something to tell you.
 
-The same choices stay available from the **Model** menu: **Choose Model File…**, **Fetch Model from IPFS…**, **Use No Model**, **Show Models Folder** and **Show Logs Folder**.
+The same choices stay available from the **Model** menu: **Choose Model File…**, **Download Model…**, **Use No Model**, **Show Models Folder** and **Show Logs Folder**.
 
 ### Which model the engine uses
 
@@ -74,12 +74,12 @@ ZXV writes nothing else: no login item, no launch agent, no files outside these 
 |---|---|
 | **Offline**, model installed | Everything the app does today. The engine, window, swarm and model slot need no network. |
 | **Offline**, no model | The swarm runs. **Choose GGUF File…** works with any file on disk or a USB drive. |
-| **LAN** | **Fetch Model from IPFS** tries a local IPFS node first (`http://127.0.0.1:8080`). To use a node elsewhere on your LAN, set `ZXV_IPFS_GATEWAYS`, for example `launchctl setenv ZXV_IPFS_GATEWAYS "http://nas.local:8080"`, then reopen ZXV. |
+| **LAN** | For a model with a CID, **Download Model** tries a local IPFS node first (`http://127.0.0.1:8080`). To use a node elsewhere on your LAN, set `ZXV_IPFS_GATEWAYS`, for example `launchctl setenv ZXV_IPFS_GATEWAYS "http://nas.local:8080"`, then reopen ZXV. |
 | **Online** | The fetch falls back to the public gateways `ipfs.io` and `dweb.link`. |
 
 Wherever a model comes from, the fetcher installs it only if its exact size and SHA-256 match `models.manifest`. The manifest sits inside the signed app, so a hostile gateway or LAN peer can waste your time but cannot install a file. The CID locates the file; the pinned hash verifies it.
 
-**Peer network (Vinea).** Off by default: the engine opens no socket beyond its 127.0.0.1 window and sends nothing until you choose **LAN** or **Online** under Network in the window (or start it with `--net lan|online`). LAN accepts and contacts private addresses only (10/8, 172.16/12, 192.168/16, 169.254/16, 127/8); Online any IPv4 address. UDP port 8723 by default (`--net-port`). Peers are added by address (`--peer IP:PORT`); there is no automatic LAN discovery yet. Every datagram is checked (ML-DSA-65 signature, replay window) before it is used. The node only routes (ping, find-node); it shares nothing.
+**Peer network (Vinea).** Off by default: the engine opens no socket beyond its 127.0.0.1 window and sends nothing until you choose **LAN** or **Online** under Network in the window (or start it with `--net lan|online`). LAN accepts and contacts private addresses only (10/8, 172.16/12, 192.168/16, 169.254/16, 127/8); Online any IPv4 address. UDP port 8723 by default (`--net-port`). Peers are added by address (`--peer IP:PORT`), or found on the local network: in LAN and Online modes the engine announces a signed node record on the multicast group 239.255.90.86, UDP port 8724, which never leaves the local link (`--no-lan-discovery` turns this off). The node keeps one identity (NodeID) across launches, with its peer cache, in `~/Library/Application Support/ZXV/net` (Linux: `~/.local/share/zxv/net`, Windows: `%APPDATA%\ZXV\net`; `--state-dir DIR` to move it, `--state-dir ""` for a fresh identity each launch). The identity file is readable by you only, like an SSH key, and is not encrypted at rest. A second copy of the engine on the same folder runs with a fresh identity. Peers report the address they see you at, and two peers behind different home routers can be introduced through a peer both know (UDP hole punching); Online mode keeps those paths open. Every datagram is checked (ML-DSA signature, replay window) before it is used. Nothing is shared until you share it.
 
 **Updates.** Checked only when you press **Check for updates**, or once a day while the network is Online, against the gateway in `--update-gateway` (default `https://trustless-gateway.link`). Nothing is installed; a listing signed by no key you trust is shown as unsigned.
 

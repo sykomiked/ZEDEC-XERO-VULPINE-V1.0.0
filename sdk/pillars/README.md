@@ -34,7 +34,13 @@ language. Every pillar follows the same pattern:
 Status codes: the pillars own -2001 and below (cobol-sutra uses -2001 to
 -2099, fortran-trebago -2101 to -2199, ada-eve -2201 to -2299, apl-kron
 -2301 to -2399, mumps-myra -2401 to -2499). Codes 0 to -99 are libzxv's and
-pass through unchanged.
+pass through unchanged. The Playground (`sdk/playground`) uses -2501 to
+-2599.
+
+To try the pillars together in runnable projects (payments, treaties,
+grid alerts, clinic records, stock), see the
+[Playground](../playground/): templates, the `zxv` command and the
+app's Playground tab.
 
 CI: [`.github/workflows/sdk-pillars.yml`](../../.github/workflows/sdk-pillars.yml).
 

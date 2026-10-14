@@ -30,8 +30,12 @@
 #include <sys/file.h>
 
 #include "zxvd_rpc.h"
+#include "zxvd_ext.h"
+#include "juris.h"
 #include "zxv_api.h"
 #include "sha256.h"
+#include "web4_web2.h"
+
 #include "zxv_files.h"
 #include "zxv_spaces.h"
 #include "zxv_sysinfo.h"
@@ -160,6 +164,38 @@ static void p_status(zxvd_buf_t *o)
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
+/* phone.* stubs (zxvd_phone.h) */
+static char last_phone_name[40];
+static bool last_phone_post;
+static const char *ph_pair(const char *name, bool post, zxvd_buf_t *o)
+{
+    snprintf(last_phone_name, sizeof last_phone_name, "%s", name);
+    last_phone_post = post;
+    if (!strcmp(name, "full")) return "too many phones paired; revoke one first";
+    zxvd_buf_raw(o, "{\"paired\":true}", 15);
+    return NULL;
+}
+static void ph_list(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"phones\":[]}", 13);
+}
+static const char *ph_revoke(const char *id, zxvd_buf_t *o)
+{
+    if (strcmp(id, "00112233445566778899aabbccddeeff")) return "no such phone";
+    zxvd_buf_raw(o, "{\"revoked\":true}", 16);
+    return NULL;
+}
+static int last_link_port;
+static char last_link_bind[48];
+static const char *ph_link(bool on, int32_t port, const char *bind, zxvd_buf_t *o)
+{
+    last_link_port = port;
+    snprintf(last_link_bind, sizeof last_link_bind, "%s", bind ? bind : "(all)");
+    if (port == 1) return "cannot listen on TCP 1: Permission denied";
+    zxvd_buf_printf(o, "{\"on\":%s}", on ? "true" : "false");
+    return NULL;
+}
+static const zxvd_phone_ops_t PHONE_STUB = {ph_link, ph_pair, ph_list, ph_revoke};
 /* aipi.* stubs (zxvd_aipi_ops_t) */
 static uint8_t put_data[ZXVD_AIPI_HEX_MAX + 1];
 static uint32_t put_len;
@@ -469,11 +505,15 @@ static void test_host_methods(void)
            "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
            "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
            "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-           "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"files.root\",\"files.list\","
+           "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\","
+           "\"files.root\",\"files.list\","
            "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
            "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
-           "\"spaces.propose\",\"spaces.vote\",\"sys.info\",\"sys.disk\",\"sys.net\","
+           "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
+           "\"phone.list\",\"phone.revoke\","
+           "\"play.catalogue\",\"play.run\",\"play.draft\","
+           "\"sys.info\",\"sys.disk\",\"sys.net\","
            "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
            "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
            "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
@@ -482,7 +522,9 @@ static void test_host_methods(void)
            "\"print.status\",\"print.submit\","
            "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
            "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
-           "\"backup.prune\"]}"));
+           "\"backup.prune\"]"
+           "}"));
+
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -507,6 +549,7 @@ static void test_host_methods(void)
     EXPECT(REQ("1", "zxvd.version", ""), want);
     zxvd_rpc_set_ops(NULL);
     EXPECT(REQ("1", "swarm.state", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.catalogue", ""), ERR("1", "-32601", "not available"));
     zxvd_rpc_set_ops(&SILENT);
     EXPECT(REQ("1", "swarm.ask", ",\"params\":{\"prompt\":\"x\"}"), OK("1", "{\"answer\":\"\"}"));
     zxvd_rpc_set_ops(&EMPTY);
@@ -518,7 +561,18 @@ static void test_host_methods(void)
 
 /* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
 
-#define FERR(id, msg) ERR(id, "-32012", msg)
+/* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
+ * Waymark, Scent, Platen and Keepsake */
+#define ZXVD_MINE_TAIL                                                                             \
+    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","    \
+    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                 \
+    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","  \
+    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","        \
+    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","       \
+    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","            \
+    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","    \
+    "\"backup.prune\","
+#define FERR(id, msg) ERR(id, "-32014", msg)
 #define SERR(id, msg) ERR(id, "-32013", msg)
 #define SPS(id, kind, name, owner, role, view, write, pub, members, self)                          \
     "{\"id\":\"" id "\",\"kind\":\"" kind "\",\"name\":\"" name "\",\"owner\":\"" owner            \
@@ -1948,7 +2002,171 @@ static void test_views(void)
 
 #define JU_LIST                                                                                    \
     "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
-    "\"in_effect\":false}"
+    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\"}"
+
+/* J5: the result as kernel/src/juris reads it */
+static bool ju_parse(const char *req, juris_settings_t *s)
+{
+    const char *r = strstr(rpc(req), "\"result\":");
+    if (!r) return false;
+    r += 9;
+    size_t n = strlen(r);
+    return n > 1 && juris_settings_parse(r, n - 1, s) == JURIS_OK; /* drop the closing } */
+}
+
+/* ---------------- play.* (P1-P3) ---------------- */
+
+/* what the stub saw: the template, the files (copied: zxvd frees them) and
+ * the draft request; each call fails with `play_why` when it is set */
+static char play_tid[64], play_req[1100];
+static char play_name[20][24], play_text[20][24];
+static size_t play_len[20];
+static uint32_t play_n, play_calls;
+static const char *play_why;
+
+static void play_seen(const char *tid, const zxvd_play_file_t *f, uint32_t n)
+{
+    play_calls++;
+    snprintf(play_tid, sizeof play_tid, "%s", tid);
+    play_n = n;
+    for (uint32_t i = 0; i < n && i < 20; i++) {
+        snprintf(play_name[i], sizeof play_name[i], "%s", f[i].name);
+        memset(play_text[i], 0, sizeof play_text[i]);
+        memcpy(play_text[i], f[i].text, f[i].len < 23 ? f[i].len : 23);
+        play_len[i] = f[i].len;
+    }
+}
+
+static const char *play_cat(zxvd_buf_t *out)
+{
+    play_calls++;
+    zxvd_buf_raw(out, "[{\"id\":\"t\"}]", 12);
+    return play_why;
+}
+
+static const char *play_run(const char *tid, const zxvd_play_file_t *f, uint32_t n, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    zxvd_buf_raw(out, "{\"verdict\":\"TRUE\"}", 18);
+    return play_why;
+}
+
+static const char *play_draft(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                              const char *request, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    snprintf(play_req, sizeof play_req, "%s", request);
+    zxvd_buf_raw(out, "{\"model\":false,\"draft\":\"x\"}", 27);
+    return play_why;
+}
+
+static void test_play(void)
+{
+    static const zxvd_play_ops_t ALL = {play_cat, play_run, play_draft};
+    static const zxvd_play_ops_t CAT_ONLY = {play_cat, NULL, NULL};
+    char req[1400], big[1100];
+
+    /* P1-P3: no ops, or an op left unset, is "not available" */
+    zxvd_rpc_set_play_ops(NULL);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&CAT_ONLY);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&ALL);
+    play_why = NULL;
+    play_calls = 0;
+
+    /* P1 */
+    EXPECT(REQ("1", "play.catalogue", ""), OK("1", "[{\"id\":\"t\"}]"));
+    play_why = "no templates";
+    EXPECT(REQ("2", "play.catalogue", ""), ERR("2", "-32016", "no templates"));
+    CHECK(play_calls == 2, "the catalogue was asked twice");
+
+    /* P2: a failure discards what the call wrote and answers -32016 */
+    EXPECT(REQ("3", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("3", "-32016", "no templates"));
+    play_why = NULL;
+    play_calls = 0;
+    EXPECT(REQ("4", "play.run", ",\"params\":{\"template\":\"cobol-hello\"}"),
+           OK("4", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_calls == 1 && !strcmp(play_tid, "cobol-hello") && play_n == 0,
+          "play.run without files: template %s, %u files", play_tid, play_n);
+    EXPECT(REQ("5", "play.run",
+               ",\"params\":{\"template\":\"t\",\"files\":{\"a.cob\":\"X\\nY\",\"b\":\"\"}}"),
+           OK("5", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_n == 2 && !strcmp(play_name[0], "a.cob") && !strcmp(play_text[0], "X\nY") &&
+              play_len[0] == 3 && !strcmp(play_name[1], "b") && play_len[1] == 0,
+          "two files decoded in order with their lengths (%u)", play_n);
+    play_calls = 0;
+    CHECK(has(REQ("6", "play.run", ""), "\"code\":-32602") && play_calls == 0,
+          "play.run needs a template");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":[\"x\"]}"),
+              "must be an object of name: text") &&
+              play_calls == 0,
+          "files must be an object");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":1}}"),
+              "at most 16 entries, each a string") &&
+              play_calls == 0,
+          "a file's text must be a string");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"\":\"x\"}}"),
+              "a bad name or text") &&
+              play_calls == 0,
+          "a file needs a name");
+    /* sixteen files are fine, seventeen are refused */
+    for (int k = 16; k <= 17; k++) {
+        zxvd_buf_t rq = {0};
+        zxvd_buf_printf(&rq, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"play.run\","
+                             "\"params\":{\"template\":\"t\",\"files\":{");
+        for (int i = 0; i < k; i++) zxvd_buf_printf(&rq, "%s\"f%d\":\"%d\"", i ? "," : "", i, i);
+        zxvd_buf_printf(&rq, "}}}");
+        play_calls = 0;
+        const char *r = rq.p && !rq.oom ? rpc(rq.p) : "";
+        free(rq.p);
+        if (k == 16)
+            CHECK(strstr(r, "\"result\"") && play_n == 16 && !strcmp(play_name[15], "f15") &&
+                      !strcmp(play_text[15], "15"),
+                  "16 files reach the Playground: %s", r);
+        else
+            CHECK(strstr(r, "at most 16 entries") && play_calls == 0, "17 files are refused: %s",
+                  r);
+    }
+
+    /* P3 */
+    EXPECT(REQ("8", "play.draft",
+               ",\"params\":{\"template\":\"relief\",\"request\":\"fair shares\","
+               "\"files\":{\"x\":\"1\"}}"),
+           OK("8", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(!strcmp(play_tid, "relief") && !strcmp(play_req, "fair shares") && play_n == 1 &&
+              !strcmp(play_text[0], "1"),
+          "play.draft passes the template, the request and the files");
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"relief\"}"),
+           OK("9", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(play_req[0] == 0 && play_n == 0, "the request and the files are optional");
+    play_calls = 0;
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"request\":\"r\"}"), "\"code\":-32602") &&
+              play_calls == 0,
+          "play.draft needs a template");
+    memset(big, 'a', 1024);
+    big[1024] = 0;
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"play.draft\",\"params\":{\"template\":"
+             "\"t\",\"request\":\"%s\"}}",
+             big);
+    CHECK(strstr(rpc(req), "at most 1023 bytes") && play_calls == 0,
+          "a request over 1023 bytes is refused");
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":true}}"),
+              "at most 16 entries") &&
+              play_calls == 0,
+          "play.draft checks its files too");
+    play_why = "the model is busy";
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("9", "-32016", "the model is busy"));
+    play_why = NULL;
+    zxvd_rpc_set_play_ops(NULL);
+}
 
 static void test_jurisdiction(void)
 {
@@ -2015,6 +2233,35 @@ static void test_jurisdiction(void)
     EXPECT(
         REQ("9", "jurisdiction.set",
             ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
+        OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
+    /* J5: the jurisdiction host follows the settings, across a restart */
+    EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
+           OK("9",
+              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+    reopen();
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
+          "J5: the host has the replayed settings");
+    juris_settings_t js;
+    CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
+              js.standard == ACCT_STD_IFRS && !strcmp(js.country, "KE") && js.in_effect,
+          "J5: kernel/src/juris reads the result");
+    CHECK(
+        has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
+            "\"report_standard\":\"\"}"),
+        "J5: no country, no report standard");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
+              "\"report_standard\":\"AAOIFI\"}") &&
+              ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
+              js.standard == ACCT_STD_AAOIFI,
+          "J5: AAOIFI with a country");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IPSAS\"}"),
+              "\"report_standard\":\"\"}"),
+          "J5: a standard with no adapter gives none");
+    EXPECT(
+        REQ("9", "jurisdiction.set",
+            ",\"params\":{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* a damaged record stops the start */
     const char *bad[] = {
@@ -2544,6 +2791,389 @@ static void test_peer_methods(void)
     zxvd_rpc_set_peer_ops(NULL);
 }
 
+/* ---------------- extension methods (zxvd_rpc.h X1-X4) ---------------- */
+
+static int ext_calls;
+static void x_echo(zxvd_call_t *c)
+{
+    char s[8] = "unset";
+    bool flag = false;
+    ext_calls++;
+    if (!zxvd_param_str(c, "s", s, sizeof s, false) || !zxvd_param_bool(c, "flag", &flag, false))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "{\"s\":\"%s\",\"flag\":%s}", s, flag ? "true" : "false");
+}
+static void x_need(zxvd_call_t *c)
+{
+    bool flag = true;
+    if (!zxvd_param_bool(c, "flag", &flag, true)) return;
+    zxvd_buf_printf(zxvd_result(c), "%s", flag ? "1" : "0");
+}
+static void x_fail(zxvd_call_t *c)
+{
+    zxvd_fail(c, -32042, "first %d", 1);
+    zxvd_fail(c, -32043, "second");
+    zxvd_buf_raw(zxvd_result(c), "1", 1); /* dropped: the error stands */
+}
+static void x_quiet(zxvd_call_t *c)
+{
+    (void) c; /* X3: neither a result nor an error */
+}
+static void x_shadow(zxvd_call_t *c)
+{
+    ext_calls += 100;
+    zxvd_buf_raw(zxvd_result(c), "\"ext\"", 5);
+}
+
+static void x_num(zxvd_call_t *c)
+{
+    uint32_t u = 7;
+    int64_t a = -1;
+    bool need = false;
+    if (!zxvd_param_bool(c, "need", &need, false) || !zxvd_param_u32(c, "u", &u, need) ||
+        !zxvd_param_amount(c, "a", &a, need))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%lld]", (unsigned) u, (long long) a);
+}
+/* X2: walk an array of integers with the web4 tokenizer */
+static void x_json(zxvd_call_t *c)
+{
+    zxvd_json_t v;
+    if (!zxvd_param_json(c, "list", &v)) {
+        zxvd_buf_printf(zxvd_result(c), "%s",
+                        zxvd_param_json(c, NULL, &v) ? "\"none\"" : "\"no params\"");
+        return;
+    }
+    const w4_jtok_t *t = v.tok;
+    if (t[v.at].type != W4_J_ARR) return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must be an array");
+    int64_t sum = 0;
+    int32_t i = v.at + 1;
+    for (uint32_t k = 0; k < t[v.at].size; k++, i++) {
+        int64_t x;
+        if (t[i].type != W4_J_NUM || w4_json_i64(v.js, &t[i], &x) != W4_OK)
+            return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must hold integers");
+        sum += x;
+    }
+    zxvd_buf_printf(zxvd_result(c), "%lld", (long long) sum);
+}
+static void x_zok(zxvd_call_t *c)
+{
+    bool bad = false;
+    if (!zxvd_param_bool(c, "bad", &bad, false)) return;
+    if (zxvd_libzxv_ok(c, bad ? ZXV_E_FUNDS : ZXV_OK)) zxvd_buf_raw(zxvd_result(c), "true", 4);
+}
+/* X6-X7 */
+static void x_books(zxvd_call_t *c)
+{
+    uint32_t a, b;
+    uint64_t e;
+    if (!zxvd_books_cap() || !zxvd_books_ctx()) return zxvd_fail(c, -32050, "closed");
+    if (!zxvd_libzxv_ok(c, zxvd_books_account("x issuer", "NGN", ZXV_ACCT_ISSUER, &a)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &b)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_post(a, b, 250, "NGN", "x ref", &e)))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%u,%llu]", (unsigned) a, (unsigned) b,
+                    (unsigned long long) e);
+}
+static void x_other(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_result(c), "\"second\"", 8);
+}
+
+static void test_ext(void)
+{
+    static const zxvd_method_t TAB[] = {{"x.echo", x_echo},
+                                        {"x.need", x_need},
+                                        {"x.fail", x_fail},
+                                        {"x.quiet", x_quiet},
+                                        {"zxvd.version", x_shadow}};
+    zxvd_rpc_set_ops(&OPS);
+    EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
+    zxvd_rpc_add_methods(TAB, 5);
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"x."
+              "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
+              "\"zxvd.version\"]}"),
+          "X1: listed after the built-ins: %s", OUT.p);
+    EXPECT(REQ("2", "x.echo", ""), OK("2", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"abc\",\"flag\":true}"),
+           OK("2", "{\"s\":\"abc\",\"flag\":true}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":false}"),
+           OK("2", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"1234567\"}"),
+           OK("2", "{\"s\":\"1234567\",\"flag\":false}"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"12345678\"}"),
+           ERR("2", "-32602", "\\\"s\\\" must be a string of at most 7 bytes"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":1}"),
+           ERR("2", "-32602", "\\\"flag\\\" must be true or false"));
+    EXPECT(REQ("2", "x.echo", ",\"params\":{\"flag\":null}"),
+           ERR("2", "-32602", "\\\"flag\\\" must be true or false"));
+    EXPECT(REQ("3", "x.need", ""), ERR("3", "-32602", "missing boolean parameter \\\"flag\\\""));
+    EXPECT(REQ("3", "x.need", ",\"params\":{\"flag\":false}"), OK("3", "0"));
+    EXPECT(REQ("3", "x.need", ",\"params\":{\"flag\":true}"), OK("3", "1"));
+    EXPECT(REQ("4", "x.fail", ""), ERR("4", "-32042", "first 1"));
+    EXPECT(REQ("5", "x.quiet", ""), ERR("5", "-32603", "no result"));
+    int before = ext_calls;
+    CHECK(has(REQ("6", "zxvd.version", ""), "\"app\":\"9.8.7\"") && ext_calls == before,
+          "X1: a built-in name wins: %s", OUT.p);
+    CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
+    CHECK(has(REQ("7", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"x.echo\"]}") &&
+              has(REQ("7", "x.need", ""), "method not found"),
+          "X1: the count is the new one: %s", OUT.p);
+    CHECK(zxvd_rpc_add_methods(TAB, 0) == -1 && zxvd_rpc_add_methods(NULL, 3) == -1,
+          "X1: 0 or NULL adds nothing");
+    CHECK(has(REQ("8", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"x.echo\"]}"),
+          "X1: a refused add leaves the tables as they were: %s", OUT.p);
+
+    /* several tables: each add appends; the first added wins a shared name */
+    static const zxvd_method_t T2[] = {{"x.num", x_num},
+                                       {"x.json", x_json},
+                                       {"x.echo", x_other},
+                                       {"x.zok", x_zok},
+                                       {"x.books", x_books}};
+    static const zxvd_method_t T3[] = {{"y.one", x_other}};
+    static const zxvd_method_t T4[] = {{"y.two", x_other}};
+    static const zxvd_method_t T5[] = {{"y.three", x_other}};
+    CHECK(zxvd_rpc_add_methods(T2, 5) == 0 && zxvd_rpc_add_methods(T3, 1) == 0 &&
+              zxvd_rpc_add_methods(T4, 1) == 0,
+          "X1: four tables");
+    CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"x.echo\",\"x.num\",\"x.json\","
+              "\"x.echo\",\"x.zok\",\"x.books\","
+              "\"y.one\",\"y.two\"]}"),
+          "X1: every table's names, in the order added: %s", OUT.p);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("9", "y.two", ""), OK("9", "\"second\""));
+    EXPECT(REQ("9", "y.three", ""), ERR("9", "-32601", "method not found"));
+    zxvd_rpc_remove_methods(TAB);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"x.num\",\"x.json\",\"x.echo\","
+              "\"x.zok\",\"x.books\",\"y.one\","
+              "\"y.two\"]}"),
+          "X1: removing one keeps the others in order: %s", OUT.p);
+    zxvd_rpc_remove_methods(TAB); /* not held: ignored */
+    zxvd_rpc_remove_methods(T3);
+    CHECK(zxvd_rpc_add_methods(T5, 1) == 0 && has(REQ("9", "y.three", ""), "\"second\"") &&
+              has(REQ("9", "y.one", ""), "method not found"),
+          "X1: a freed slot takes a new table");
+
+    /* X2: integers, amounts and raw JSON */
+    EXPECT(REQ("10", "x.num", ""), OK("10", "[7,-1]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967295,\"a\":\"-9223372036854775807\"}"),
+           OK("10", "[4294967295,-9223372036854775807]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":0,\"a\":12}"), OK("10", "[0,12]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true}"),
+           ERR("10", "-32602", "missing integer parameter \\\"u\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true,\"u\":1}"),
+           ERR("10", "-32602", "missing integer parameter \\\"a\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967296}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":-1}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":\"1\"}"),
+           ERR("10", "-32602", "\\\"u\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"a\":1.5}"),
+           ERR("10", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,2,-4]}"), OK("10", "-1"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[]}"), OK("10", "0"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":{}}"),
+           ERR("10", "-32602", "\\\"list\\\" must be an array"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,\"2\"]}"),
+           ERR("10", "-32602", "\\\"list\\\" must hold integers"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{}"), OK("10", "\"none\""));
+    EXPECT(REQ("10", "x.json", ""), OK("10", "\"no params\""));
+
+    /* X5 */
+    EXPECT(REQ("11", "x.zok", ""), OK("11", "true"));
+    CHECK(has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+              "\"error\":{\"code\":-32000,\"message\":\"ZXV_E_FUNDS") &&
+              has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+                  "\"data\":{\"status\":-6,\"name\":\"ZXV_E_FUNDS\",\"class\":\"REFUSED\"}"),
+          "X5: a libzxv status as the book methods report it: %s", OUT.p);
+
+    /* X6-X7: the books through the extension, recorded like ledger.* */
+    zxvd_rpc_books_close();
+    uint32_t aa, bb;
+    uint64_t ee;
+    CHECK(!zxvd_books_cap() && !zxvd_books_ctx() &&
+              zxvd_books_account("n", "NGN", ZXV_ACCT_HOLDER, &aa) == ZXV_E_STATE &&
+              zxvd_books_post(0, 1, 1, "NGN", "r", &ee) == ZXV_E_STATE,
+          "X6-X7: nothing while the books are closed");
+    EXPECT(REQ("12", "x.books", ""), ERR("12", "-32050", "closed"));
+    CHECK(zxvd_rpc_books_file(NULL) == 0 && zxvd_rpc_books_open() == 0, "books open in memory");
+    CHECK(zxvd_books_cap() && zxvd_books_ctx(), "X6: the cap and context once open");
+    CHECK(has(REQ("12", "currency.enable", ",\"params\":{\"code\":\"NGN\"}"), "\"enabled\""),
+          "NGN on");
+    CHECK(has(REQ("12", "x.books", ""), "\"result\":[") &&
+              has(REQ("12", "x.books", ""), "\"code\":-32000"),
+          "X7: an account and a posting; the same reference again is refused: %s", OUT.p);
+    CHECK(has(REQ("12", "ledger.accounts", ""), "\"name\":\"x holder\"") &&
+              zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &bb) == ZXV_OK,
+          "X7: the accounts are the books' own");
+    zxvd_rpc_books_close();
+    zxvd_rpc_clear_methods();
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"backup.prune\"]}") &&
+              has(REQ("13", "x.num", ""), "method not found") &&
+              has(REQ("13", "y.two", ""), "method not found"),
+          "X1: clear takes every table out");
+    CHECK(zxvd_rpc_add_methods(T3, 1) == 0 && zxvd_rpc_add_methods(T4, 1) == 0 &&
+              zxvd_rpc_add_methods(T5, 1) == 0 && zxvd_rpc_add_methods(TAB, 5) == 0,
+          "X1: four slots free again after clear");
+    zxvd_rpc_clear_methods();
+}
+
+/* one request from a paired phone -> its reply */
+static const char *phone_rpc(const char *line, bool post)
+{
+    bool r = zxvd_rpc_handle_phone_line(line, strlen(line), &OUT, post);
+    checks++;
+    if (!r) {
+        fails++;
+        printf("  FAIL a phone request got no reply: %s\n", line);
+        return "<none>";
+    }
+    return OUT.p ? OUT.p : "";
+}
+
+static void phone_expect(const char *req, bool post, const char *want, int line)
+{
+    const char *got = phone_rpc(req, post);
+    checks++;
+    if (strcmp(got, want)) {
+        fails++;
+        printf("  FAIL line %d (phone)\n    req  %s\n    want %s\n    got  %s\n", line, req, want,
+               got);
+    }
+}
+#define PHONE_EXPECT(req, post, want) phone_expect(req, post, want, __LINE__)
+
+static void test_phone_methods(void)
+{
+    zxvd_rpc_set_ops(&OPS);
+    zxvd_rpc_set_phone_ops(NULL);
+    EXPECT(REQ("1", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.list", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.link", ",\"params\":{\"on\":true}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_phone_ops(&PHONE_STUB);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true}"), OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == -1 && !strcmp(last_link_bind, "(all)"),
+          "phone.link defaults: port -1, every interface (%d %s)", last_link_port, last_link_bind);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":0,\"bind\":\"10.0.0.5\"}"),
+           OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == 0 && !strcmp(last_link_bind, "10.0.0.5"),
+          "phone.link passes port and bind");
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":false}"), OK("2", "{\"on\":false}"));
+    EXPECT(REQ("2", "phone.link", ""), ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":\"yes\"}"),
+           ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":65536}"),
+           ERR("2", "-32602", "\\\"port\\\" must be 0..65535"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":-1}"),
+           ERR("2", "-32602", "\\\"port\\\" is out of range"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
+           ERR("2", "-32602", "cannot listen on TCP 1: Permission denied"));
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           OK("2", "{\"paired\":true}"));
+    CHECK(!strcmp(last_phone_name, "Pixel") && !last_phone_post, "phone.pair passes the name");
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"iPad\",\"allow_post\":true}"),
+           OK("2", "{\"paired\":true}"));
+    CHECK(last_phone_post, "phone.pair passes allow_post");
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"x\",\"allow_post\":1}"),
+           ERR("3", "-32602", "\\\"allow_post\\\" must be true or false"));
+    EXPECT(REQ("3", "phone.pair", ""), ERR("3", "-32602", "missing string parameter \\\"name\\\""));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"012345678901234567890123456789012\"}"),
+           ERR("3", "-32602", "\\\"name\\\" must be a string of at most 32 bytes"));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"full\"}"),
+           ERR("3", "-32602", "too many phones paired; revoke one first"));
+    EXPECT(REQ("4", "phone.list", ""), OK("4", "{\"phones\":[]}"));
+    EXPECT(
+        REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"00112233445566778899aabbccddeeff\"}"),
+        OK("5", "{\"revoked\":true}"));
+    EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"ff\"}"),
+           ERR("5", "-32602", "no such phone"));
+
+    /* A1-A3: what a paired phone may call */
+    const char *nopost = "this phone was paired without allow_post";
+    PHONE_EXPECT(REQ("6", "zxvd.shutdown", ""), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.pair", ",\"params\":{\"name\":\"x\"}"), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.list", ""), false, ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.revoke", ""), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32015", "not allowed from a phone"));
+    static const char *const NEVER[] = {"jurisdiction.set", "aipi.put", "aipi.publish",
+                                        "aipi.execute"};
+    for (size_t i = 0; i < sizeof NEVER / sizeof NEVER[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"%s\"}", NEVER[i]);
+        CHECK(strstr(phone_rpc(req, true), "not allowed from a phone") != NULL,
+              "%s is never served to a phone", NEVER[i]);
+    }
+    static const char *const POST[] = {"net.command", "peer.ask", "currency.enable",
+                                       "ledger.open_account", "ledger.post"};
+    for (size_t i = 0; i < sizeof POST / sizeof POST[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"%s\"}", POST[i]);
+        CHECK(strstr(phone_rpc(req, false), nopost) != NULL, "%s needs allow_post", POST[i]);
+        CHECK(strstr(phone_rpc(req, true), "-32015") == NULL, "%s is allowed with allow_post",
+              POST[i]);
+    }
+    stopped = 0;
+    PHONE_EXPECT(REQ("8", "swarm.state", ""), false, OK("8", "{\"tick\":7}"));
+    PHONE_EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"zxvd.shutdown\"}", true,
+                 ERR("null", "-32600", "a phone must send an id"));
+    CHECK(stopped == 0, "a phone's notification is never run");
+    PHONE_EXPECT(REQ("9", "no.such", ""), false, ERR("9", "-32601", "method not found"));
+    /* the control socket is unaffected after phone requests */
+    EXPECT(REQ("10", "phone.list", ""), OK("10", "{\"phones\":[]}"));
+    zxvd_rpc_set_phone_ops(NULL);
+}
+
 /* ---------------- aipi.* ---------------- */
 
 static void test_aipi_methods(void)
@@ -2729,9 +3359,371 @@ static void test_aipi_methods(void)
     zxvd_rpc_set_aipi_ops(NULL);
 }
 
+/* ---------------- method groups and switches (zxvd_ext.h X1-X6, P1-P3) ---------------- */
+
+static int g_calls, g_closed, g_closed_b;
+static void g_echo(zxvd_call_t *c)
+{
+    char s[8];
+    int64_t i = 0, a = 0;
+    uint32_t u = 0;
+    bool b = false;
+    if (!zxvd_p_str(c, "s", s, sizeof s, false) || !zxvd_p_bool(c, "b", false, &b)) return;
+    if (zxvd_p_has(c, "i") && !zxvd_p_i64(c, "i", &i)) return;
+    if (zxvd_p_has(c, "u") && !zxvd_p_u32(c, "u", &u)) return;
+    if (zxvd_p_has(c, "a") && !zxvd_p_amount(c, "a", &a)) return;
+    g_calls++;
+    zxvd_buf_printf(zxvd_res(c), "{\"s\":\"%s\",\"b\":%d,\"i\":%lld,\"u\":%u,\"a\":%lld}", s, b,
+                    (long long) i, (unsigned) u, (long long) a);
+}
+static void g_hex(zxvd_call_t *c)
+{
+    uint8_t h[4];
+    uint32_t n = 9;
+    bool req = zxvd_p_has(c, "need");
+    if (!zxvd_p_hex(c, "h", h, sizeof h, &n, req)) return;
+    zxvd_buf_t *o = zxvd_res(c);
+    zxvd_buf_raw(o, "{\"n\":", 5);
+    zxvd_buf_printf(o, "%u,\"h\":", (unsigned) n);
+    zxvd_buf_hex(o, h, n);
+    zxvd_buf_raw(o, "}", 1);
+}
+static void g_list(zxvd_call_t *c)
+{
+    int32_t n = zxvd_p_len(c, "items");
+    if (zxvd_failed(c)) return;
+    int64_t sum = 0;
+    for (int32_t k = 0; k < n; k++) {
+        int32_t saved;
+        int64_t v;
+        if (!zxvd_p_enter(c, "items", (uint32_t) k, &saved)) return;
+        bool ok = zxvd_p_i64(c, "v", &v);
+        zxvd_p_leave(c, saved);
+        if (!ok) return;
+        sum += v;
+    }
+    int32_t m = zxvd_p_len(c, "nums");
+    if (zxvd_failed(c)) return;
+    for (int32_t k = 0; k < m; k++) {
+        int64_t v;
+        if (!zxvd_p_i64_at(c, "nums", (uint32_t) k, &v)) return;
+        sum += v;
+    }
+    int64_t after = 0;
+    if (zxvd_p_has(c, "after") && !zxvd_p_i64(c, "after", &after)) return; /* scope restored */
+    zxvd_buf_printf(zxvd_res(c), "{\"n\":%d,\"m\":%d,\"sum\":%lld}", (int) n, (int) m,
+                    (long long) (sum + after));
+}
+static void g_status(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_res(c), "{\"ok\":true}", 11);
+}
+static void g_fails(zxvd_call_t *c)
+{
+    zxvd_fail(c, -32050, "nope %d", 7);
+    zxvd_fail(c, -32051, "second"); /* the first error stays */
+    CHECK(zxvd_failed(c), "zxvd_failed after zxvd_fail");
+}
+static void g_close(void)
+{
+    g_closed++;
+}
+static void g_close_b(void)
+{
+    g_closed_b = g_closed + 1; /* closed before the first group: reverse order */
+}
+static const zxvd_group_method_t G_A[] = {
+    {"ga.echo", g_echo, false},    {"ga.hex", g_hex, false},     {"ga.list", g_list, false},
+    {"ga.status", g_status, true}, {"ga.fails", g_fails, false},
+};
+static const zxvd_group_method_t G_B[] = {{"gb.status", g_status, false}};
+static const zxvd_group_method_t G_DUP_CORE[] = {{"ledger.post", g_status, false}};
+static const zxvd_group_method_t G_DUP_GRP[] = {{"ga.echo", g_status, false}};
+static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false},
+                                                 {"gc.x", g_status, false}};
+static const zxvd_group_method_t G_NULLFN[] = {{"gc.y", NULL, false}};
+static const zxvd_group_method_t G_EMPTY[] = {{"", g_status, false}};
+static const zxvd_group_method_t G_ONE[] = {{"gd.one", g_status, false}};
+
+static void test_groups(void)
+{
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "first \"group\"", G_A, 5, g_close};
+    const zxvd_group_t B = {"beta_2", false, NULL, G_B, 1, g_close_b};
+    CHECK(zxvd_rpc_add_group(&A) == 0, "add a group");
+    CHECK(zxvd_rpc_add_group(&B) == 0, "add a second group");
+    const zxvd_group_t bad[] = {
+        {"alpha", false, "", G_DUP_CORE, 1, NULL},
+        {"alpha", false, "", G_DUP_GRP, 1, NULL},
+        {"alpha", false, "", G_DUP_SELF, 2, NULL},
+        {"alpha", false, "", G_NULLFN, 1, NULL},
+        {"alpha", false, "", G_EMPTY, 1, NULL},
+        {"Alpha", false, "", G_ONE, 1, NULL},
+        {"all", false, "", G_ONE, 1, NULL},
+        {"", false, "", G_ONE, 1, NULL},
+        {NULL, false, "", G_ONE, 1, NULL},
+        {"a-b", false, "", G_ONE, 1, NULL},
+        {"abcdefghijklmnopqrstuvwx", false, "", G_ONE, 1, NULL},
+        {"alpha", false, "", NULL, 1, NULL},
+        {"alpha", false, "", G_ONE, 0, NULL},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(zxvd_rpc_add_group(&bad[i]) == -1, "bad group %zu refused", i);
+    CHECK(zxvd_rpc_add_group(NULL) == -1, "NULL group refused");
+    const zxvd_group_t ok23 = {"abcdefghijklmnopqrstuvw", false, "", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&ok23) == 0, "a 23-byte feature name is fine");
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\"," ZXVD_MINE_TAIL
+              "\"ga.echo\",\"ga.hex\",\"ga.list\","
+              "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
+          "X2: discover lists group methods after the core, on or off");
+
+    /* X3/X4: off by default; always-methods answer; the reason names the switch */
+    EXPECT(REQ("2", "ga.echo", ""),
+           ERR("2", "-32012",
+               "alpha is off: start zxvd with --enable alpha, or call features.set (regulated: "
+               "test or licensed use only)"));
+    EXPECT(
+        REQ("3", "gb.status", ""),
+        ERR("3", "-32012", "beta_2 is off: start zxvd with --enable beta_2, or call features.set"));
+    EXPECT(REQ("4", "ga.status", ""), OK("4", "{\"ok\":true}"));
+    CHECK(g_calls == 0, "an off method does nothing");
+    EXPECT(REQ("5", "features.get", ""),
+           OK("5", "{\"features\":[{\"name\":\"alpha\",\"enabled\":false,\"regulated\":true,"
+                   "\"groups\":[{\"note\":\"first \\\"group\\\"\",\"methods\":5}]},"
+                   "{\"name\":\"beta_2\",\"enabled\":false,\"regulated\":false,\"groups\":[{"
+                   "\"note\":\"\",\"methods\":1}]},{\"name\":\"abcdefghijklmnopqrstuvw\","
+                   "\"enabled\":false,\"regulated\":false,\"groups\":[{\"note\":\"\","
+                   "\"methods\":1}]}],\"saved\":false}"));
+    CHECK(!zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled(NULL) && !zxvd_rpc_enabled("nope"),
+          "enabled() is false for off and unknown features");
+
+    /* features.set */
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled("beta_2"), "set turns on one feature");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"zeta\"}"),
+           ERR("7", "-32602", "unknown feature \\\"zeta\\\""));
+    EXPECT(REQ("8", "features.set", ",\"params\":{}"),
+           ERR("8", "-32602", "missing string parameter \\\"feature\\\""));
+    EXPECT(REQ("9", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":1}"),
+           ERR("9", "-32602", "\\\"enabled\\\" must be true or false"));
+    CHECK(zxvd_rpc_enabled("alpha"), "a refused set changes nothing");
+
+    /* P1 */
+    EXPECT(
+        REQ("10", "ga.echo", ",\"params\":{\"s\":\"hi\",\"b\":true,\"i\":-5,\"u\":7,\"a\":\"12\"}"),
+        OK("10", "{\"s\":\"hi\",\"b\":1,\"i\":-5,\"u\":7,\"a\":12}"));
+    EXPECT(REQ("11", "ga.echo", ""), OK("11", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("12", "ga.echo", ",\"params\":{\"i\":1.5}"),
+           ERR("12", "-32602", "\\\"i\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("13", "ga.echo", ",\"params\":{\"u\":-1}"),
+           ERR("13", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("14", "ga.echo", ",\"params\":{\"a\":\"1.0\"}"),
+           ERR("14", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("15", "ga.echo", ",\"params\":{\"s\":\"12345678\"}"),
+           ERR("15", "-32602", "\\\"s\\\" must be a string of at most 7 bytes"));
+    EXPECT(REQ("16", "ga.fails", ""), ERR("16", "-32050", "nope 7"));
+
+    /* P2 */
+    EXPECT(REQ("20", "ga.hex", ",\"params\":{\"h\":\"00aF7e\"}"),
+           OK("20", "{\"n\":3,\"h\":\"00af7e\"}"));
+    EXPECT(REQ("21", "ga.hex", ",\"params\":{\"h\":\"\"}"), OK("21", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("22", "ga.hex", ""), OK("22", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("23", "ga.hex", ",\"params\":{\"need\":1}"),
+           ERR("23", "-32602", "missing hex parameter \\\"h\\\""));
+    const char *bad_hex[] = {"\"abc\"", "\"0011223344\"", "\"0g\"", "\"g0\"", "12", "\"zz\""};
+    for (size_t i = 0; i < sizeof bad_hex / sizeof bad_hex[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("24", "ga.hex", ",\"params\":{\"h\":%s}"), bad_hex[i]);
+        CHECK(has(req, "must be a hex string of at most 4 bytes"), "bad hex %s", bad_hex[i]);
+    }
+    EXPECT(REQ("25", "ga.hex", ",\"params\":{\"h\":\"01020304\"}"),
+           OK("25", "{\"n\":4,\"h\":\"01020304\"}"));
+
+    /* P3 */
+    EXPECT(REQ("30", "ga.list",
+               ",\"params\":{\"items\":[{\"v\":1},{\"v\":20}],\"nums\":[300,4000],\"after\":5}"),
+           OK("30", "{\"n\":2,\"m\":2,\"sum\":4326}"));
+    EXPECT(REQ("31", "ga.list", ""), OK("31", "{\"n\":-1,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("32", "ga.list", ",\"params\":{\"items\":[]}"),
+           OK("32", "{\"n\":0,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("33", "ga.list", ",\"params\":{\"items\":{}}"),
+           ERR("33", "-32602", "\\\"items\\\" must be an array"));
+    EXPECT(REQ("34", "ga.list", ",\"params\":{\"items\":[1]}"),
+           ERR("34", "-32602", "\\\"items\\\"[0] must be an object"));
+    EXPECT(REQ("35", "ga.list", ",\"params\":{\"items\":[{\"v\":1},{\"w\":2}]}"),
+           ERR("35", "-32602", "missing integer parameter \\\"v\\\""));
+    EXPECT(REQ("36", "ga.list", ",\"params\":{\"nums\":[1,\"2\"]}"),
+           ERR("36", "-32602", "\\\"nums\\\"[1] must be an integer"));
+    EXPECT(REQ("37", "ga.list", ",\"params\":{\"nums\":3}"),
+           ERR("37", "-32602", "\\\"nums\\\" must be an array"));
+    EXPECT(REQ("38", "ga.list", ",\"params\":{\"items\":[{\"v\":1}],\"after\":\"x\"}"),
+           ERR("38", "-32602", "\\\"after\\\" must be an integer (no fraction or exponent)"));
+
+    /* X3: --enable lists, X6: off again keeps nothing broken */
+    EXPECT(
+        REQ("40", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+        OK("40", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("41", "ga.echo", ""), "-32012"), "off again");
+    CHECK(zxvd_rpc_enable("beta_2,,nope,alpha") == -1, "an unknown name is reported");
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("beta_2"), "the known names still turn on");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "unlisted stays off");
+    CHECK(zxvd_rpc_enable("all") == 0 && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "all");
+    CHECK(zxvd_rpc_enable(NULL) == 0 && zxvd_rpc_enable("") == 0, "empty lists");
+    CHECK(zxvd_rpc_enable("alph") == -1 && zxvd_rpc_enable("alphaa") == -1,
+          "prefixes do not match");
+    EXPECT(REQ("42", "gd.one", ""), OK("42", "{\"ok\":true}"));
+    CHECK(has(REQ("43", "features.get", ""), "\"name\":\"beta_2\",\"enabled\":true"),
+          "get shows on");
+
+    /* two groups may share a feature; a later regulated one makes it regulated */
+    zxvd_rpc_groups_reset();
+    CHECK(g_closed == 1 && g_closed_b == 1, "reset closes every group, last first");
+    CHECK(!zxvd_rpc_enabled("alpha"), "reset forgets the switches");
+    EXPECT(REQ("44", "ga.echo", ""), ERR("44", "-32601", "method not found"));
+    const zxvd_group_t S1 = {"shared", false, "one", G_B, 1, NULL};
+    const zxvd_group_t S2 = {"shared", true, "two", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S2) == 0, "shared feature");
+    EXPECT(REQ("45", "features.get", ""),
+           OK("45",
+              "{\"features\":[{\"name\":\"shared\",\"enabled\":false,\"regulated\":true,"
+              "\"groups\":[{\"note\":\"one\",\"methods\":1},{\"note\":\"two\",\"methods\":1}]}],"
+              "\"saved\":false}"));
+    zxvd_rpc_groups_reset();
+    EXPECT(REQ("46", "features.get", ""), OK("46", "{\"features\":[],\"saved\":false}"));
+
+    /* X1: re-adding a group held does nothing; removing one forgets its
+     * methods and keeps its switch */
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S1) == 0 &&
+              zxvd_rpc_enable("shared") == 0,
+          "a group added twice");
+    EXPECT(REQ("47", "features.get", ""),
+           OK("47", "{\"features\":[{\"name\":\"shared\",\"enabled\":true,\"regulated\":true,"
+                    "\"groups\":[{\"note\":\"one\",\"methods\":1}]}],\"saved\":false}"));
+    zxvd_rpc_remove_group(&S2); /* not held: nothing changes */
+    CHECK(has(REQ("48", "gb.status", ""), "\"result\""), "S1 still served");
+    zxvd_rpc_remove_group(&S1);
+    EXPECT(REQ("49", "gb.status", ""), ERR("49", "-32601", "method not found"));
+    CHECK(zxvd_rpc_enabled("shared") && zxvd_rpc_add_group(&S1) == 0 &&
+              has(REQ("50", "gb.status", ""), "\"result\""),
+          "the switch outlives its group; re-added it serves again");
+    zxvd_rpc_groups_reset();
+
+    /* the table limit */
+    static zxvd_group_method_t many[ZXVD_EXT_MAX_GROUPS + 1][1];
+    static char names[ZXVD_EXT_MAX_GROUPS + 1][16], feats[ZXVD_EXT_MAX_GROUPS + 1][8];
+    static zxvd_group_t gs[ZXVD_EXT_MAX_GROUPS + 1];
+    for (uint32_t i = 0; i <= ZXVD_EXT_MAX_GROUPS; i++) {
+        snprintf(names[i], sizeof names[i], "m%u.x", (unsigned) i);
+        snprintf(feats[i], sizeof feats[i], "f%u", (unsigned) i);
+        many[i][0] = (zxvd_group_method_t){names[i], g_status, false};
+        gs[i] = (zxvd_group_t){feats[i], false, "", many[i], 1, NULL};
+    }
+    for (uint32_t i = 0; i < ZXVD_EXT_MAX_GROUPS; i++)
+        CHECK(zxvd_rpc_add_group(&gs[i]) == 0, "group %u fits", (unsigned) i);
+    CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "one more is refused");
+    zxvd_rpc_groups_reset();
+}
+
+/* X7: a switch is a record in the books file, replayed at start */
+static void restart_groups(const zxvd_group_t *a, const zxvd_group_t *b, const char *cli)
+{
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(a) == 0 && zxvd_rpc_add_group(b) == 0, "groups again");
+    if (cli) CHECK(zxvd_rpc_enable(cli) == 0, "--enable %s", cli);
+    CHECK(zxvd_rpc_books_open() == 0, "the books reopen with the switches");
+}
+
+static void test_feature_save(void)
+{
+    char tmpl[] = "/tmp/zxvdfeat.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "a", G_A, 5, NULL};
+    const zxvd_group_t B = {"abcdefghijklmnopqrstuvw", false, "b", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_add_group(&B) == 0, "two groups");
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books on a file");
+    CHECK(has(REQ("1", "features.get", ""), "],\"saved\":true}"), "get says switches are saved");
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"2\""), "nothing written yet");
+    EXPECT(REQ("2", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("2", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    CHECK(has(REQ("2", "books.file", ""), "\"records\":\"2\""),
+          "an unchanged switch writes nothing");
+    EXPECT(REQ("3", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("3", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":true}"));
+    EXPECT(REQ("4", "features.set", ",\"params\":{\"feature\":\"abcdefghijklmnopqrstuvw\"}"),
+           OK("4", "{\"feature\":\"abcdefghijklmnopqrstuvw\",\"enabled\":true,\"regulated\":false,"
+                   "\"saved\":true}"));
+    CHECK(has(REQ("4", "books.file", ""), "\"records\":\"4\""), "two changes, two records");
+    long n;
+    char *f = slurp(path, &n);
+    CHECK(f && strstr(f, " {\"op\":\"feat\",\"name\":\"alpha\",\"on\":true}\n") &&
+              strstr(f, " {\"op\":\"feat\",\"name\":\"abcdefghijklmnopqrstuvw\",\"on\":true}\n"),
+          "the records are in the file");
+    free(f);
+    restart_groups(&A, &B, NULL);
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "a restart keeps both on");
+    EXPECT(REQ("5", "ga.echo", ""), OK("5", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "the last record wins");
+    restart_groups(&A, &B, "alpha");
+    CHECK(zxvd_rpc_enabled("alpha"), "--enable wins over a saved off");
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha"), "and was not saved");
+    /* a build without the feature skips its record */
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_books_open() == 0,
+          "a record for a missing feature does not stop the start");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "and turns nothing on");
+    /* a damaged record stops the start */
+    const char *bad[] = {
+        "{\"op\":\"feat\",\"name\":\"alpha\"}",
+        "{\"op\":\"feat\",\"on\":true}",
+        "{\"op\":\"feat\",\"name\":\"alpha\",\"on\":1}",
+        "{\"op\":\"feat\",\"name\":7,\"on\":true}",
+        "{\"op\":\"feat\",\"name\":"
+        "\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstu\",\"on\":"
+        "true}",
+    };
+    zxvd_rpc_books_close();
+    long keep;
+    char *orig = slurp(path, &keep);
+    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+        spit(path, orig, keep);
+        append_chained(path, bad[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "bad feature record %u stops the start", i);
+        zxvd_rpc_books_close();
+    }
+    spit(path, orig, keep);
+    free(orig);
+    /* without a file: this run only */
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "no file");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("7", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("7", "features.get", ""), "],\"saved\":false}"), "get says not saved");
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+}
+
 /* ---------------- files.* (zxv_files.h; the module itself: test_zxv_files.c) ---------------- */
 
-#define FERR(id, msg) ERR(id, "-32012", msg)
+#define FERR(id, msg) ERR(id, "-32014", msg)
 
 static void test_files_methods(void)
 {
@@ -3577,13 +4569,13 @@ static void test_print(void)
              FAKE_PORT);
     CHECK(strstr(rpc(req), "\"state\":\"canceled\""), "print.cancel: %s", OUT.p);
     EXPECT(REQ("1", "print.status", ",\"params\":{\"uri\":\"ipp://8.8.8.8/p\"}"),
-           ERR("1", "-32014", "the device is not on the local network"));
+           ERR("1", "-32017", "the device is not on the local network"));
     EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":0}"),
            ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
     EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":2147483648}"),
            ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
     CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":2147483647}"),
-              "-32014"),
+              "-32017"),
           "the biggest id reaches the device check");
     EXPECT(REQ("1", "print.submit",
                ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"copies\":1000}"),
@@ -3598,12 +4590,12 @@ static void test_print(void)
     CHECK(has(REQ("1", "print.submit",
                   ",\"params\":{\"uri\":\"ftp://h/p\",\"path\":\"a.pdf\",\"copies\":999,"
                   "\"color\":\"color\",\"sides\":\"one-sided\"}"),
-              "-32014"),
+              "-32017"),
           "the edges pass: %s", OUT.p);
     CHECK(has(REQ("1", "print.submit",
                   ",\"params\":{\"uri\":\"ftp://h/"
                   "p\",\"path\":\"a.pdf\",\"sides\":\"two-sided-long-edge\"}"),
-              "-32014"),
+              "-32017"),
           "long edge");
     CHECK(has(REQ("1", "print.submit", ",\"params\":{\"uri\":\"ipp://h/p\"}"), "-32602"),
           "path required");
@@ -3650,7 +4642,7 @@ static void test_print(void)
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
              "\"http://127.0.0.1:%d/busy\"}}",
              FAKE_PORT);
-    CHECK(strstr(rpc(req), "\"code\":-32014,\"message\":\"the scanner is busy\""), "busy: %s",
+    CHECK(strstr(rpc(req), "\"code\":-32017,\"message\":\"the scanner is busy\""), "busy: %s",
           OUT.p);
     EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"source\":\"tray\"}"),
            ERR("1", "-32602", "\\\"source\\\" must be platen or feeder"));
@@ -3663,7 +4655,7 @@ static void test_print(void)
     EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"format\":\"image/tiff\"}"),
            ERR("1", "-32602", "\\\"format\\\" must be image/jpeg, application/pdf or image/png"));
     EXPECT(REQ("1", "scan.status", ",\"params\":{\"url\":\"http://8.8.8.8/eSCL\"}"),
-           ERR("1", "-32014", "the device is not on the local network"));
+           ERR("1", "-32017", "the device is not on the local network"));
     CHECK(has(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"space\":\"nope\"}"),
               "no such space"),
           "space");
@@ -3673,7 +4665,7 @@ static void test_print(void)
              "\"http://127.0.0.1:%d/half\"}}",
              FAKE_PORT);
     CHECK(strstr(rpc(req),
-                 "\"code\":-32014,\"message\":\"the device answered HTTP 500 (1 page saved)\""),
+                 "\"code\":-32017,\"message\":\"the device answered HTTP 500 (1 page saved)\""),
           "half: %s", OUT.p);
     snprintf(uri, sizeof uri, "http://127.0.0.1:%d/half", FAKE_PORT);
     CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP && pages == 1 &&
@@ -4279,7 +5271,7 @@ static void test_backup(void)
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
              "\"%s\",\"snapshot\":3}}",
              BK_DEST);
-    CHECK(strstr(rpc(req), "{\"code\":-32015,\"message\":\"no such snapshot\"}"),
+    CHECK(strstr(rpc(req), "{\"code\":-32018,\"message\":\"no such snapshot\"}"),
           "backup.verify 3: %s", OUT.p);
     snprintf(req, sizeof req,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
@@ -4288,7 +5280,7 @@ static void test_backup(void)
     CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"to\":\"Old/README\",\"files\":1}"),
           "backup.restore: %s", OUT.p);
     CHECK(strstr(rpc(req),
-                 "{\"code\":-32012,\"message\":\"something with that name already exists\"}"),
+                 "{\"code\":-32014,\"message\":\"something with that name already exists\"}"),
           "backup.restore, taken: %s", OUT.p);
     snprintf(req, sizeof req,
              "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
@@ -4333,19 +5325,19 @@ static void test_backup(void)
     EXPECT(REQ("1", "backup.run", ",\"params\":{}"),
            ERR("1", "-32602", "missing string parameter \\\"dest\\\""));
     EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"rel\"}"),
-           ERR("1", "-32015", "the destination must be a folder's absolute path"));
+           ERR("1", "-32018", "the destination must be a folder's absolute path"));
     EXPECT(REQ("1", "backup.list", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
-           ERR("1", "-32015", "no folder at the destination"));
+           ERR("1", "-32018", "no folder at the destination"));
     EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\",\"path\":\"a\"}"),
-           ERR("1", "-32015", "no folder at the destination"));
+           ERR("1", "-32018", "no folder at the destination"));
     EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
            ERR("1", "-32602", "missing string parameter \\\"path\\\""));
     EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"/x\",\"full\":1}"),
            ERR("1", "-32602", "\\\"full\\\" must be true or false"));
     EXPECT(REQ("1", "backup.restore", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
-           ERR("1", "-32015", "no folder at the destination"));
+           ERR("1", "-32018", "no folder at the destination"));
     EXPECT(REQ("1", "backup.prune", ",\"params\":{\"dest\":\"/no/such/zxv\",\"keep\":1}"),
-           ERR("1", "-32015", "no folder at the destination"));
+           ERR("1", "-32018", "no folder at the destination"));
     const char *ms[] = {"backup.run",    "backup.list",    "backup.versions",
                         "backup.verify", "backup.restore", "backup.prune"};
     for (size_t i = 0; i < sizeof ms / sizeof *ms; i++) {
@@ -4986,13 +5978,13 @@ static void test_screen(void)
     EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"open sesame\"}"),
            OK("1", "{\"locked\":true}"));
     EXPECT(REQ("1", "screen.clear_limit", ",\"params\":{\"app\":\"*\"}"),
-           ERR("1", "-32016", "the guardian's passphrase is wrong"));
+           ERR("1", "-32019", "the guardian's passphrase is wrong"));
     EXPECT(REQ("1", "screen.clear_limit",
                ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
            OK("1", "{\"app\":\"*\",\"cleared\":true}"));
     EXPECT(REQ("1", "screen.clear_limit",
                ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
-           ERR("1", "-32016", "no limit for that app"));
+           ERR("1", "-32019", "no limit for that app"));
     EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"\",\"old\":\"open sesame\"}"),
            OK("1", "{\"locked\":false}"));
     EXPECT(
@@ -5020,7 +6012,7 @@ static void test_screen(void)
     EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"a\",\"minutes\":1441}"),
            ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
     EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"nolimit\",\"minutes\":5}"),
-           ERR("1", "-32016", "no limit for that app"));
+           ERR("1", "-32019", "no limit for that app"));
     zsc_close();
     zsc_set_clock(NULL);
     CHECK(zsc_today() > 20260000, "the real clock");
@@ -5299,7 +6291,7 @@ static void test_place(void)
                "\"note\":\"the flat\"}"),
            OK("1", "{\"name\":\"Home\",\"added\":true}"));
     EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"home\",\"lat\":0,\"lon\":0}"),
-           ERR("1", "-32017", "a place has that name"));
+           ERR("1", "-32021", "a place has that name"));
     EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"\",\"lat\":0,\"lon\":0}"),
            ERR("1", "-32602", "a bad name, app or coordinate"));
     EXPECT(REQ("1", "place.list", ""),
@@ -5311,7 +6303,7 @@ static void test_place(void)
     EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
            OK("1", "{\"name\":\"HOME\",\"removed\":true}"));
     EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
-           ERR("1", "-32017", "no such place"));
+           ERR("1", "-32021", "no such place"));
     zpl_close();
     zpl_set_clock(NULL);
     CHECK(rm_tree(dir) == 0, "cleanup");
@@ -5324,6 +6316,7 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_phone_methods();
     test_aipi_methods();
     test_files_methods();
     test_spaces_methods();
@@ -5341,8 +6334,12 @@ int main(void)
     test_books_file();
     test_mesh();
     test_views();
+    test_play();
     test_jurisdiction();
+    test_groups();
+    test_feature_save();
     test_edges();
+    test_ext();
     test_socket();
     free(OUT.p);
     if (fails) {

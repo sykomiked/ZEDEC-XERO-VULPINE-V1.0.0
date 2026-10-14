@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The swarm's limits, in Eve: what one agent's slice of a cycle may be.
+# Murmuration marks an agent whose numbers fall outside them; it changes
+# nothing in the swarm. No monopoly: no agent takes more than half a cycle.
+eve murmuration
+permille = 0 .. 1000
+feeling = 0 .. 5
+
+agent_limits {
+  share: permille 0 .. 500
+  intensity: feeling
+}

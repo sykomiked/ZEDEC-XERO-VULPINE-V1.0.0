@@ -28,6 +28,12 @@ final class Zxv
         "hw" => 0x10000000,
     ];
 
+    /** ABI 1.5 feature bits of zxv_features2, by name. */
+    public const FEATURES2 = [
+        "treaty" => 0x01, "aipi" => 0x02, "coin" => 0x04, "fee" => 0x08, "vhub" => 0x10, "freight" => 0x20,
+        "web4" => 0x40, "paradox" => 0x80,
+    ];
+
     private static FatalPolicy $fatalPolicy = FatalPolicy::Throw;
 
     private function __construct()
@@ -56,9 +62,23 @@ final class Zxv
         return array_keys(array_filter(self::FEATURES, fn (int $bit) => ($m->cdata & $bit) !== 0));
     }
 
+    /** @return list<string> ABI 1.5 feature groups live in this build (empty before 1.5) */
+    public static function features2(): array
+    {
+        if (!Native::has15()) {
+            return [];
+        }
+        $m = Native::new("uint32_t");
+        if (Native::ffi()->zxv_features2(\FFI::addr($m)) !== Status::OK) {
+            return [];
+        }
+        return array_keys(array_filter(self::FEATURES2, fn (int $bit) => ($m->cdata & $bit) !== 0));
+    }
+
+    /** Whether a group of FEATURES or FEATURES2 is live (e.g. "hex", "treaty", "web4"). */
     public static function hasFeature(string $name): bool
     {
-        return in_array($name, self::features(), true);
+        return in_array($name, self::features(), true) || in_array($name, self::features2(), true);
     }
 
     /** Bytes from the OS CSPRNG. */

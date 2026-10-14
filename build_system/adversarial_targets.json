@@ -1,0 +1,23 @@
+{
+ "comment": "Security code for the adversarial self-audit's mutation stage (docs/ADVERSARIAL_AUDIT.md, stage M), same format as tests/harness/mutator/targets.json. Run: scripts/adversarial-audit.sh --mutate. Add a target with its measured score as the baseline; never lower a baseline to get green.",
+ "targets": [
+  {
+   "name": "hwr_parse",
+   "target": "kernel/src/hwemu/hwr.c",
+   "lines": "1-105",
+   "before": null,
+   "before_note": "hardware-update image parser and digest helpers; the first measurement (2026-10-12) left the magic/format/kind/length guards and the byte order untested because the signature check stood behind them; test_hwr gained direct hwr_parse checks and edge-byte digest checks",
+   "after": "cd kernel && T=${ZXV_TMP:-/tmp} && { gcc -std=c11 -O1 -w -DTEST_HOST -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec src/hwemu/test_hwr.c src/hwemu/hwr.c src/hwemu/hwa.c src/hwemu/hwr_pq.c src/hwemu/hwm.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/pqsec/pq_slh256s.c src/pqsec/slhdsa/*.c -o $T/t_hwr || exit 3; } && $T/t_hwr > /dev/null 2>&1"
+  }
+ ],
+ "ci": {
+  "targets": [
+   "hwr_parse"
+  ],
+  "own_job": [],
+  "baseline_note": "hwr_parse 150/166 measured 2026-10-12 before the edge-byte digest checks (90.4%); the 16 survivors were the digest loops' first/last byte (now tested), header bytes 4-7 and alg high-byte writes/reads that only differ for algorithm ids above 255 (none exist), len < vs <= HWR_HEADER (a header-only image fails the exact-length check anyway) and payload_len > vs >= HWR_MAX_PAYLOAD (a 64 MiB image is not built in the test)",
+  "baseline": {
+   "hwr_parse": 0.9
+  }
+ }
+}
