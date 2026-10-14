@@ -435,7 +435,9 @@ int main(void)
     memset(ghost, 0x5C, 32);
     CHECK(zxv_net_punch(c, ghost, zxv_net_wall_ms()) == 1,
           "C asks its one contact for an introduction");
-    /* waited for, not a fixed number of rounds: macOS runners are slower */
+    /* D reports C's address in its PONG, so C pings D: contacts made from
+     * LAN records alone (the usual path on macOS) never exchanged one */
+    CHECK(zxv_net_add_peer(c, "127.0.0.1", sd.port, zxv_net_wall_ms()) == 0, "C pings D");
     (void) wait_for(c, d, asked_and_voted, c, 3000);
     for (int i = 0; i < 5; i++) pump(c, d, 20); /* time for a wrong relay to show */
     zxv_net_status(c, &sc);
