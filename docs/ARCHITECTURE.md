@@ -293,6 +293,7 @@ Small, pure building blocks that every stratum may use.
 | The Registrar: Burrow's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
 | The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
 | The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
+| The registry: 407 slots in three layers (L1 Foundation = the 144 apps, L2 Concourse, L3 Apparatus) and their crossing rules | [REGISTRY.md](REGISTRY.md), design only |
 | Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
 
 ## 11. Stratum 6: settlement and economy
