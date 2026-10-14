@@ -111,6 +111,28 @@
  *       sizes that differ; SentencePiece tokenizers (zt_tok's limit). Stop
  *       strings are detected after the token that completes them has gone
  *       to the callback; the result says how many trailing bytes to trim.
+ *   T23 TENSOR PARALLEL (HPC slice 1).  When zt_model_t.dist is set, the
+ *       forward pass runs as one of `size` ranks that call zt_model_eval with
+ *       the same arguments in lockstep (SPMD). Every matrix product is split
+ *       by OUTPUT ROWS (zt_dist_part): rank r computes only its rows, with
+ *       the same kernel and the same full input as a single process would,
+ *       then dist->allgather gives every rank every row. Attention is split
+ *       the same way by query head. Nothing is ever summed across ranks
+ *       except the saturation count (an integer), so each value is computed
+ *       whole by one rank and the logits are bit for bit those of one
+ *       process, for every rank count, kernel set and thread count
+ *       (test_zt_dist). The rest of the step (norms, RoPE, the KV cache,
+ *       SiLU, residuals) is repeated on every rank, so ranks stay identical
+ *       without a broadcast. A rank reads only its rows of each weight
+ *       matrix, so with the file mapped (not read) only about 1/size of the
+ *       weights becomes resident per rank. s->dist_macs counts the
+ *       multiply-adds this rank did in matrix products: an exact integer
+ *       meter for settling shared compute between nodes. HONEST LIMITS: the
+ *       KV cache and the per-token steps are replicated (no memory saving
+ *       there); communication is two all-gathers of each activation per
+ *       sublayer, more bytes than a reduce-scatter design, chosen because a
+ *       reduction would change rounding unless it carried exact 64-bit sums;
+ *       the transport is the caller's (tensor/dist/zt_dist.h: sockets, MPI).
  * Freestanding: no libc, no malloc, no floating point, no 64-bit division.
  */
 #ifndef ZT_MODEL_H
@@ -134,7 +156,8 @@ enum {
     ZT_MODEL_ECONFIG = -33,  /* metadata out of range or inconsistent */
     ZT_MODEL_ESPACE = -34,   /* a caller buffer is too small */
     ZT_MODEL_ECTX = -35,     /* the KV cache is full */
-    ZT_MODEL_EARG = -36      /* bad argument (token id, count) */
+    ZT_MODEL_EARG = -36,     /* bad argument (token id, count) */
+    ZT_MODEL_EDIST = -37     /* the tensor-parallel transport failed (T23) */
 };
 
 #define ZT_MODEL_MAX_LAYERS 512u
@@ -180,6 +203,28 @@ typedef struct {
     zt_gain_t attn_norm, ffn_norm, q_norm, k_norm;
 } zt_layer_t;
 
+/* T23: one rank of a tensor-parallel group. allgather is called with y
+ * holding, for each of B vectors (y + b * ystride), this rank's part of n
+ * values: units [u0, u1) of zt_dist_part(n / unit, size, rank), that is
+ * values [u0 * unit, u1 * unit). On return every rank's y holds all n values
+ * of all B vectors, and *count is the sum of every rank's *count. It returns
+ * 0, or nonzero when the transport failed (then the forward pass returns
+ * ZT_MODEL_EDIST). Every rank must make the same calls in the same order. */
+typedef struct zt_dist {
+    uint32_t rank, size;
+    int (*allgather)(void *ctx, zt_fx *y, uint32_t ystride, uint32_t B, uint32_t n, uint32_t unit,
+                     uint32_t *count);
+    void *ctx;
+} zt_dist_t;
+
+/* Rank r of size takes units [n * r / size, n * (r + 1) / size). */
+static inline void zt_dist_part(uint32_t n, uint32_t size, uint32_t rank, uint32_t *u0,
+                                uint32_t *u1)
+{
+    *u0 = (uint32_t) zt_udiv64((uint64_t) n * rank, size, 0);
+    *u1 = (uint32_t) zt_udiv64((uint64_t) n * (rank + 1), size, 0);
+}
+
 typedef struct {
     zt_model_cfg_t cfg;
     uint32_t q_dim, kv_dim;
@@ -194,6 +239,9 @@ typedef struct {
      * the portable C reference. A hosted caller may point it at zt_simd.h's
      * SIMD or threaded kernels afterwards: the output bits do not change. */
     const struct zt_kern *kern;
+    /* T23: null (zt_model_load's default) runs alone; set, this process is
+     * one rank of a tensor-parallel group. Hosted builds set it. */
+    const zt_dist_t *dist;
 } zt_model_t;
 
 /* Read and check the configuration only (no tensor data is touched). */
@@ -263,6 +311,9 @@ typedef struct {
     int16_t *la16;  /* [n_batch][ZT_LORA_MAX_RANK] */
     uint8_t *lash;  /* [n_batch][ZT_LORA_MAX_RANK / 32] */
     int32_t *lasum; /* [n_batch][ZT_LORA_MAX_RANK / 32] */
+    /* T23: multiply-adds this rank computed in matrix products since
+     * zt_model_state_init (the whole product when running alone). */
+    uint64_t dist_macs;
 } zt_model_state_t;
 
 uint64_t zt_model_state_bytes(const zt_model_t *m, uint32_t n_ctx, uint32_t n_batch,

@@ -113,7 +113,7 @@ but is not wired into a shipped product (the Mac app or a kernel image).
 | 6 | Tokens-per-cycle budget, Fibonacci scaling across swarm levels (F(d+2) capacity, F(L-d+1) weight, largest remainder) | kernel/src/swarm/swarm_budget.{h,c} | DONE | — |
 | 7 | Emotional economy on the imaginary axis; emoji type + intensity steer token use | kernel/src/swarm/swarm_emotion.{h,c} | DONE | — |
 | 8 | Free, cooperative market over the nine capitals, no monopoly | swarm_market.{h,c}, pay/pay_equity.h (anti-monopoly cap), provider/prov.h | DONE (library) | — (capital order unified, integration gap 6 closed) |
-| 9 | Supercomputer / HPC version later | — | MISSING (deferred by owner) | — |
+| 9 | Supercomputer / HPC version later | kernel/src/tensor/zt_model.h T23, kernel/src/tensor/dist/ (ring/TCP/MPI), docs/HPC_DESIGN.md | PARTIAL (2026-10-12) | Tensor-parallel inference across processes and machines, bit-identical to one process (test_zt_dist); not yet: multi-machine measurements, fewer gathers, pipeline parallelism, PQ mesh transport, netting |
 | 10 | Good UI with its own track; mockups shown first | kernel/arch/hosted/zxv_ui.html (98 lines), ZXVApp.m WKWebView | PARTIAL | Only state/ask/quit endpoints; no panels for social, pay, calls, peers, models, settings |
 | 11 | The AI is the OS: runs natively on ZXV using kernel features | build_system/Makefile.*, kernel/src/swarm/swarm_boot.c, kernel/src/tensor/zt_boot.c | PARTIAL | swarm + tensor linked into arm64 and x86_64 and self-checked at boot ([AI_OK]); no model runs in the kernel; riscv/arm32 not linked; vinea, pay etc. in no kernel image |
 | 12 | Self-contained knowledge + web browsing | kernel/src/browser (tested) | PARTIAL | Browser has no transport bound to net/tls; not in the app |
