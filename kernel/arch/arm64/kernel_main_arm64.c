@@ -2103,18 +2103,26 @@ void kernel_main_arm64(void) {
     /* Phase 17c-alt: Persistent storage — virtio-blk + ZXVFS journaled FS.
      * If QEMU was started with a `-drive` on the virtio-mmio transport,
      * this gives real persistence: files written here survive reboots,
-     * and a redo journal makes every write crash-consistent. On a blank
-     * disk (no ZXVFS superblock) it formats automatically. Absent a
-     * virtio-blk device, the volatile RAM disk above remains the store. */
+     * and a redo journal makes every write crash-consistent. A disk that
+     * reads back all zero is formatted automatically; a disk with anything
+     * else on it (a GPT disc, another filesystem) is left untouched, since
+     * "no ZXVFS superblock" is not evidence that the disk is empty. Absent
+     * a usable disk, the volatile RAM disk above remains the store. */
     boot_msg("[BOOT] Persistent storage (virtio-blk + ZXVFS journaled FS)...");
     if (virtio_blk_init(&g_vblk)) {
         boot_msg("  [DRIVER ONLINE] virtio-blk device found");
         int mrc = zxvfs_mount(&g_zxvfs, &g_vblk);
         if (mrc == -2) {
-            /* No valid superblock -> blank disk -> format then mount. */
-            boot_msg("  [FORMAT] blank disk — writing fresh ZXVFS");
-            if (zxvfs_format(&g_vblk) == 0)
-                mrc = zxvfs_mount(&g_zxvfs, &g_vblk);
+            /* No valid superblock. Format only a provably blank disk. */
+            int blank = zxvfs_probe_blank(&g_vblk);
+            if (blank == 1) {
+                boot_msg("  [FORMAT] blank disk — writing fresh ZXVFS");
+                if (zxvfs_format(&g_vblk) == 0) mrc = zxvfs_mount(&g_zxvfs, &g_vblk);
+            } else if (blank == 0) {
+                boot_msg("  [LEFT ALONE] disk holds data that is not ZXVFS — not formatting");
+            } else {
+                boot_msg("  [LEFT ALONE] disk read failed — not formatting");
+            }
         }
         if (mrc == 0) {
             g_zxvfs_ready = true;
