@@ -49,6 +49,7 @@ before `[BOOT_OK]`:
 [ACPI OK] namespace: 259 objects, 75 methods, DSDT rev 1 (1 tables, 0 load errors, 1 _INI, heap 94 KB)
 [ACPI] S3 supported SLP_TYPa=0x1 SLP_TYPb=0x1
 [ACPI] \_S5_ SLP_TYPa=0x0 SLP_TYPb=0x0
+[ACPI] devices with _HID: 29 (29 present): PNP0A08, PNP0A06 x3, QEMU0002, PNP0303, PNP0F13, PNP0400, PNP0501, PNP0B00, PNP0C01, PNP0C0F x16, ...
 [ACPI] power button: fixed feature (PM1 PWRBTN), control-method devices PNP0C0C: 0, GPE methods: 2
 [ACPI] battery PNP0C0A: 0
 [ACPI] lid PNP0C0D: 0
