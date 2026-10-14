@@ -102,6 +102,10 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
 
 - `kernel/src/launch/zxl_launch.{h,c}`: themes, tick notes, sound policy, and the event sequence driven by real
   progress. Integer only, freestanding. Test: `kernel/src/launch/test_zxl_launch.c` (in `make verify-all`).
+- `kernel/src/zui/zui_launch_theme.{h,c}`: the live screen. Opens the app's window through the window manager
+  (`zui_wm`) with the five logos and the app's icon, plays BEGIN as it opens, a tick as each tile's gold comes up
+  (so the sounds move at the speed of the real load), and END when the app reports ready. The shell supplies the
+  pictures and the audio output. Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`).
 - `tools/launch/launch_sounds.py`: synthesises each app's three cues from scratch (no samples), deterministic.
 - `tools/launch/launch_mock.py`: renders the mockup videos with their sounds placed where the events happen.
 - `tools/launch/launch_catalogue.py`: `table` regenerates `zxl_apps.inc` from the app list; `render --new` renders every
@@ -116,8 +120,7 @@ python3 tools/launch/launch_catalogue.py render APP_LIST_144.csv out --new   # e
 
 ## Next
 
-1. Re-run `render --new` as the owner's icons are imported; apps without one show their initial in a seal.
-2. Wire `zxl_launch` to `zui_launch_draw` / `zui_vault_draw` drawn into the app's window and to the audio mixer;
-   apps declare their sound sequence in the manifest, and the toolkit's window-open hook starts the launch
-   (Native app toolkit).
-3. Hand-make more apps' sounds where the generated phrase is not enough.
+1. The shell (desktop) attaches `zui_launch_theme` to its window manager, draws the icons from
+   `zxv-brand/app-icons` and the logos from `zxv-brand/gold`, and plays the cues through the audio mixer,
+   synthesising each app's three sounds from its theme the way `launch_sounds.py` does.
+2. Hand-make more apps' sounds where the generated phrase is not enough.

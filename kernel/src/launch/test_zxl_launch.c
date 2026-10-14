@@ -449,6 +449,83 @@ static void test_pick(void)
     CHECK(ZXL_TILES == 5 && ZXL_TILES <= ZXL_MAX_PARTS, "five tiles, as the boot");
 }
 
+/* the drawing decides when a tile lights (zui's launch screen) */
+static void test_screen_lit(void)
+{
+    zxl_launch_t l;
+    zxl_event_t ev[16];
+    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    zxl_launch_init(&l, t, 5, 0, 0);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_BEGIN, "begin first");
+    CHECK(zxl_launch_lit(&l, 4) == 0, "an outer tile lights");
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 4 &&
+              ev[0].step == 0 && ev[0].note == zxl_tick_note(t, 0),
+          "first lit plays the first step");
+    CHECK(zxl_launch_lit(&l, 4) == -1, "a tile lights once");
+    CHECK(zxl_launch_lit(&l, 5) == -1, "no sixth tile");
+    CHECK(zxl_launch_lit(0, 0) == -1, "NULL launch");
+    CHECK(zxl_launch_lit(&l, 0) == 0 && zxl_launch_lit(&l, 1) == 0 && zxl_launch_lit(&l, 3) == 0,
+          "the rest of the outer tiles");
+    CHECK(drain(&l, ev, 16) == 3 && ev[0].step == 1 && ev[1].step == 2 && ev[2].step == 3,
+          "each lit tile the next step");
+    CHECK(zxl_launch_lit(&l, 2) == 0, "the centre lights");
+    CHECK(drain(&l, ev, 16) == 2, "the centre's tick, then the mark");
+    CHECK(ev[0].kind == ZXL_EV_TICK && ev[0].part == 2 && ev[0].step == ZXL_TOP_STEP,
+          "the centre plays the top step");
+    CHECK(ev[1].kind == ZXL_EV_LIGHT && !ev[1].audible, "the mark lights silently");
+    CHECK(zxl_launch_lit(&l, 0) == -1, "nothing lights after gathering");
+    CHECK(drain(&l, ev, 16) == 0, "no END before the app is ready");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_END && ev[0].audible, "ready: END");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0, "END once");
+
+    /* a window off screen while it gathered: finish lights the rest silently */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_lit(&l, 0);
+    drain(&l, ev, 16);
+    zxl_launch_finish(&l);
+    int n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_LIGHT && ev[1].kind == ZXL_EV_END,
+          "no burst of ticks, just the mark and the end");
+    CHECK(l.lit == 0x1Fu && l.phase == ZXL_PH_OPEN, "every tile lit, open");
+    zxl_launch_finish(0);
+
+    /* finish straight after BEGIN, and mixing progress with lit tiles */
+    zxl_launch_init(&l, t, 3, 0, 0);
+    zxl_launch_finish(&l);
+    n = drain(&l, ev, 16);
+    CHECK(n == 3 && ev[0].kind == ZXL_EV_BEGIN && ev[1].kind == ZXL_EV_LIGHT &&
+              ev[2].kind == ZXL_EV_END,
+          "finish at once: begin, mark, end");
+    zxl_launch_init(&l, t, 3, 0, 0);
+    drain(&l, ev, 16);
+    zxl_launch_lit(&l, 0);
+    zxl_launch_part(&l, 2, 256);
+    zxl_launch_part(&l, 1, 256);
+    n = drain(&l, ev, 16);
+    CHECK(n == 4 && ev[0].step == 0 && ev[1].step == 1 && ev[2].step == ZXL_TOP_STEP &&
+              ev[3].kind == ZXL_EV_LIGHT,
+          "lit tiles and real progress share the steps");
+    zxl_launch_rest(&l, 256);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_END, "and the rest ends it");
+
+    /* a warm launch is already open */
+    zxl_launch_init(&l, t, 5, 0, 1);
+    drain(&l, ev, 16);
+    CHECK(zxl_launch_lit(&l, 0) == -1, "warm: nothing to light");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0, "warm: END already played");
+
+    /* the mute setting reaches lit ticks too */
+    zxl_prefs_t p = zxl_prefs_default();
+    p.sounds = 0;
+    zxl_launch_init(&l, t, 1, &p, 0);
+    drain(&l, ev, 16);
+    zxl_launch_lit(&l, 0);
+    CHECK(drain(&l, ev, 16) == 2 && !ev[0].audible && ev[0].gain_q8 == 0, "muted tick");
+}
+
 int main(void)
 {
     test_themes();
@@ -460,6 +537,7 @@ int main(void)
     test_warm();
     test_sound_policy();
     test_pick();
+    test_screen_lit();
     printf("test_zxl_launch: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

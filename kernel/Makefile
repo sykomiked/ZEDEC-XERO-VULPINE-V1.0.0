@@ -1204,6 +1204,13 @@ verify-all: test
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_wm && \
 		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
+	echo "=== zui: every app's launch screen, live in its window (icon, five logos, its sounds) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		src/zui/test_zui_launch_theme.c src/zui/zui_launch_theme.c src/launch/zxl_launch.c \
+		src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_launch_theme && \
+		/tmp/test_zui_launch_theme && echo "[PASS] test_zui_launch_theme" || { echo "[FAIL] test_zui_launch_theme"; exit 1; }; \
 	echo "=== zui: accessibility, input, notices, privacy, clipboard, share, capture, lock, display ==="; \
 	CC=gcc sh src/zui/test_zui_toolkit.sh || { echo "[FAIL] test_zui_toolkit"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
