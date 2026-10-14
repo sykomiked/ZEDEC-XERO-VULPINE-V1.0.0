@@ -38,7 +38,7 @@ case "$CC" in
             # shellcheck disable=SC2086
             xcrun clang $FLAGS -mmacosx-version-min=10.15 $INC -c "$f" -o "$T/$(basename "$f" .c).o"
         done
-        xcrun swiftc -O -target "$(uname -m)-apple-macos10.15" "$H/hwkey_se.swift" "$T"/*.o \
+        xcrun swiftc -parse-as-library -O -target "$(uname -m)-apple-macos10.15" "$H/hwkey_se.swift" "$T"/*.o \
             -o "$OUT"
         rm -rf "$T"
     else

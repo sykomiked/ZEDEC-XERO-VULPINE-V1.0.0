@@ -114,7 +114,7 @@ static resp_t check_resp(bool sent)
         r.res = res;
     } else {
         int32_t c = w4_json_get(g_out.p, g_rt, n, err, "code");
-        int64_t code;
+        int64_t code = 0;
         if (c < 0 || w4_json_i64(g_out.p, &g_rt[c], &code) != W4_OK) abort();
         r.code = (int) code;
     }
@@ -404,11 +404,12 @@ static void mode_struct(fz_in *in)
         n += l_;                                                                                   \
     } while (0)
     uint8_t f = fz_u8(in);
+    unsigned mi = 0; /* read below, in input order; 0 if the line ran out first */
     if (f & 0x80) PUT("[");
     PUT("{");
     PUT(FR_ID[fz_u8(in) % (sizeof FR_ID / sizeof FR_ID[0])]);
     PUT((f & 1) ? "\"jsonrpc\":\"2.0\"," : "\"jsonrpc\":\"2.0\",\"jsonrpc\":\"2.0\",");
-    unsigned mi = fz_u8(in) % (sizeof FR_METHOD / sizeof FR_METHOD[0]);
+    mi = fz_u8(in) % (sizeof FR_METHOD / sizeof FR_METHOD[0]);
     PUT(FR_METHOD[mi]);
     if (!(f & 2)) {
         PUT(",\"params\":{");
