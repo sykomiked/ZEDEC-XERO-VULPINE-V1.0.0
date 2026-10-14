@@ -2084,14 +2084,14 @@ static void test_play(void)
           "a file needs a name");
     /* sixteen files are fine, seventeen are refused */
     for (int k = 16; k <= 17; k++) {
-        size_t o = (size_t) snprintf(req, sizeof req,
-                                     "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"play.run\","
-                                     "\"params\":{\"template\":\"t\",\"files\":{");
-        for (int i = 0; i < k; i++)
-            o += (size_t) snprintf(req + o, sizeof req - o, "%s\"f%d\":\"%d\"", i ? "," : "", i, i);
-        snprintf(req + o, sizeof req - o, "}}}");
+        zxvd_buf_t rq = {0};
+        zxvd_buf_printf(&rq, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"play.run\","
+                             "\"params\":{\"template\":\"t\",\"files\":{");
+        for (int i = 0; i < k; i++) zxvd_buf_printf(&rq, "%s\"f%d\":\"%d\"", i ? "," : "", i, i);
+        zxvd_buf_printf(&rq, "}}}");
         play_calls = 0;
-        const char *r = rpc(req);
+        const char *r = rq.p && !rq.oom ? rpc(rq.p) : "";
+        free(rq.p);
         if (k == 16)
             CHECK(strstr(r, "\"result\"") && play_n == 16 && !strcmp(play_name[15], "f15") &&
                       !strcmp(play_text[15], "15"),
