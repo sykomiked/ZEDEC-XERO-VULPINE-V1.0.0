@@ -268,6 +268,15 @@ CI checks it matches what zxvd serves.
 | `phone.pair` | `name`, `allow_post`? | `phone_id`, `name`, `allow_post`, `host`, `port`, `link` |
 | `phone.list` | | `on`, `port`, `phones` |
 | `phone.revoke` | `phone_id` | `revoked`, `closed` |
+| `pspace.create` | `kind`, `gov`, `quorum_pct`?, `name`, `topic`? | `cid` |
+| `pspace.find` | `topic` | `topic`, `done`, `found` |
+| `pspace.join` / `pspace.leave` | `cid` | `cid`, `phase` / `left` |
+| `pspace.post` | `cid`, `text` | `cid`, `posted` |
+| `pspace.events` | `cid`, `since`? | `events`, `next` |
+| `pspace.members` | `cid` | `members`, `count` |
+| `pspace.list` | | `online`, `spaces` |
+| `hall.load` / `hall.play` / `hall.pause` / `hall.seek` | `cid`, then `media` / `pos_ms`?, `rate_q16`? / `pos_ms`? / `pos_ms` | the `hall.status` object |
+| `hall.status` | `cid` | `set`, `state`, `media`, `pos_ms`, `at_ms`, `rate_q16`, `now_ms`, `viewers`, `may_control` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -286,6 +295,8 @@ refused (the message says why), -32050 an economy engine refused (the message is
 envelope feed" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below),
+-32030 a public space or watch hall request refused (the message says why,
+see "Public spaces and the watch hall" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
 refused or failed (the message says why), -32000 a
@@ -917,6 +928,20 @@ Limits: the stand-in agents (levels 1 and up) run no model, so only the
 companion is noted. GPU time is not measured yet (`gpu_ns` is 0). Budgets
 and the ledger are in memory and start again at each start.
 
+## Public spaces and the watch hall
+
+`pspace.*` and `hall.*` (`kernel/arch/hosted/zxvd_pspace.c`, rules W1-W6 in
+`zxvd_pspace.h`) put the node's Vinea spaces (`zxv_net_host.h` U14,
+`kernel/src/vinea/vna_space.h`) on the socket: rooms and watch halls named
+by a CID, hosted by whoever is in them, with a playhead every viewer
+computes the same. The group sits behind the feature `pspace`, which is not
+regulated; `pspace.leave`, `pspace.events`, `pspace.members`, `pspace.list`
+and `hall.status` answer with the switch off. Every method needs the
+network on (`net.command` `lan` or `online`); refusals are -32030 with the
+reason. The protocol, the methods and the limits (control only: delivering
+the video between viewers is not built yet) are in
+[SPACES.md](SPACES.md).
+
 ## The Web4 envelope feed
 
 Web4 is Chiglet companions talking to each other. The `web4` group
@@ -1014,6 +1039,10 @@ the harness's test for `zxvd_seats.c`.
 ledger, read from a Linux-style `/sys` and `/proc` fixture with a test clock
 (exact replies, the agent under zxvd's app, budgets that make it wait, the
 battery posture's token scale); it is the harness's test for `zxvd_power.c`.
+`test_zxvd_pspace.sh` runs `pspace.*` and `hall.*` behind the RPC layer
+on two real net hosts on 127.0.0.1 (the switch, every parameter rule, a
+hall made on one host and joined by CID from the other, the owner's
+control, posts both ways); it is the harness's test for `zxvd_pspace.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and

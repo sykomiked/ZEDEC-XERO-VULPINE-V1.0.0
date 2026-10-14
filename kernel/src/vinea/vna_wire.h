@@ -56,7 +56,7 @@ typedef enum {
     VNA_MSG_RCPT = 12,      /* one trade receipt (vna_econ.h), body vna_b_rec_t */
     VNA_MSG_PUNCH = 13,     /* NAT traversal: introduction request / introduction (vna_b_punch_t) */
     VNA_MSG_AIPI = 14,      /* one AIPI call, claim or payment notice (vna_b_aipi_t) */
-    VNA_MSG_SPACE = 15,     /* public spaces: join, welcome, presence, leave, event (vna_b_space_t) */
+    VNA_MSG_SPACE = 15, /* public spaces: join, welcome, presence, leave, event (vna_b_space_t) */
     VNA_MSG_TYPE_MAX = 15
 } vna_msg_type_t;
 

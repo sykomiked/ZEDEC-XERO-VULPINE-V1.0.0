@@ -118,6 +118,7 @@ typedef int sock_t;
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
@@ -2588,6 +2589,7 @@ int main(int argc, char **argv)
     /* power.* (zxvd_power.h W2): without it zxvd still runs; power.status
      * and power.top then answer that tracking is not running */
     if (zxvd_power_open(NULL) != 0) fprintf(stderr, "zxvd: power tracking is unavailable\n");
+    zxvd_pspace_bind(S.net); /* zxvd_pspace.h W2: the methods answer while it is on */
     {
         /* the pairings live beside the socket, in the folder zxvd_rpc_open checked */
         char pdir[sizeof rpc_buf];

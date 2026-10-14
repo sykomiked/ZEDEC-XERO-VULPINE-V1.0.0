@@ -623,6 +623,91 @@ def seats_checks(c):
     check(c.ok('seats.lock', {'session': u['session']}) == {'ended': True}, 'seats.lock')
 
 
+def space_checks(c):
+    """pspace.* and hall.* (zxvd_pspace.h W1-W6) on one node."""
+    def err(method, params):
+        r = c.call(method, params)
+        return r.get('error', {})
+
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    check(fs['pspace']['enabled'] is False and fs['pspace']['regulated'] is False,
+          'pspace: a feature that is not regulated, off (%s)' % fs.get('pspace'))
+    e = err('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night'})
+    check(e.get('code') == -32012, 'pspace.create: off until switched on (%s)' % e)
+    check(c.ok('pspace.list') == {'online': False, 'spaces': []}, 'pspace.list answers while off')
+    c.ok('features.set', {'feature': 'pspace'})
+
+    check(c.ok('pspace.list') == {'online': False, 'spaces': []}, 'pspace.list: none while off')
+    e = err('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night'})
+    check(e.get('code') == -32030 and 'off' in e.get('message', ''),
+          'pspace.create while off: the network is off (%s)' % e)
+    e = err('pspace.create', {'kind': 'tent', 'gov': 'owner', 'name': 'x'})
+    check(e.get('code') == -32602, 'pspace.create: an unknown kind is refused')
+    check(c.ok('net.command', {'command': 'lan'})['result'] == 'networking is on', 'network on')
+    try:
+        made = c.ok('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night',
+                                     'topic': 'film'})
+        cid = made['cid']
+        check(cid.startswith('b') and len(cid) == 59, 'pspace.create: a CIDv1 (%s)' % cid)
+        sl = c.ok('pspace.list')['spaces']
+        check(len(sl) == 1 and sl[0]['cid'] == cid and sl[0]['phase'] == 'in' and
+              sl[0]['kind'] == 'hall' and sl[0]['name'] == 'Movie night' and
+              sl[0]['hall']['may_control'] is True and sl[0]['members'] == 1,
+              'pspace.list: in the hall, its owner (%s)' % sl)
+        e = err('hall.play', {'cid': cid})
+        check(e.get('code') == -32030 and 'hall.load' in e.get('message', ''),
+              'hall.play with nothing loaded is refused')
+        h = c.ok('hall.load', {'cid': cid, 'media': 'bafkreigh2akiscaildc'})
+        check(h['state'] == 'stop' and h['media'] == 'bafkreigh2akiscaildc' and h['pos_ms'] == 0 and
+              h['viewers'] == 1,
+              'hall.load: stopped at 0 with the media')
+        h = c.ok('hall.play', {'cid': cid, 'pos_ms': 60000, 'rate_q16': 131072})
+        check(h['state'] == 'play' and h['rate_q16'] == 131072 and h['pos_ms'] >= 60000,
+              'hall.play at 1:00, double speed')
+        time.sleep(0.3)
+        h2 = c.ok('hall.status', {'cid': cid})
+        moved = h2['pos_ms'] - h['pos_ms']
+        check(h2['state'] == 'play' and moved >= 2 * (h2['now_ms'] - h['now_ms']) - 4 and moved > 0,
+              'hall.status: the playhead runs at 2x (%d ms)' % moved)
+        h = c.ok('hall.pause', {'cid': cid})
+        p = c.ok('hall.status', {'cid': cid})['pos_ms']
+        time.sleep(0.1)
+        check(h['state'] == 'pause' and c.ok('hall.status', {'cid': cid})['pos_ms'] == p,
+              'hall.pause holds the playhead')
+        h = c.ok('hall.seek', {'cid': cid, 'pos_ms': 5000})
+        check(h['state'] == 'pause' and h['pos_ms'] == 5000, 'hall.seek keeps the state')
+        e = err('hall.seek', {'cid': cid})
+        check(e.get('code') == -32602, 'hall.seek needs pos_ms')
+        e = err('hall.play', {'cid': cid, 'rate_q16': 0})
+        check(e.get('code') == -32602, 'a zero rate is refused')
+        posted = c.ok('pspace.post', {'cid': cid, 'text': 'hello "hall" \u00e9'})
+        check(posted == {'cid': cid, 'posted': True}, 'pspace.post')
+        ev = c.ok('pspace.events', {'cid': cid})
+        kinds = [x['kind'] for x in ev['events']]
+        texts = [x['text'] for x in ev['events'] if x['kind'] == 'post']
+        check(kinds.count('hall') == 4 and texts == ['hello "hall" \u00e9'] and
+              ev['next'] == ev['events'][-1]['index'],
+              'pspace.events: four playback changes and the post, in order (%s)' % kinds)
+        check(c.ok('pspace.events', {'cid': cid, 'since': ev['next']})['events'] == [],
+              'pspace.events since the last index: nothing new')
+        m = c.ok('pspace.members', {'cid': cid})
+        check(m == {'members': [], 'count': 1}, 'pspace.members: only this node (%s)' % m)
+        f = c.ok('pspace.find', {'topic': 'film'})
+        check(f['topic'] == 'film' and isinstance(f['found'], list), 'pspace.find starts a search')
+        e = err('pspace.find', {'topic': 'Film!'})
+        check(e.get('code') == -32030, 'pspace.find: a bad topic is refused')
+        e = err('pspace.join', {'cid': 'not-a-cid'})
+        check(e.get('code') == -32030 and 'CID' in e.get('message', ''), 'pspace.join: a bad CID')
+        e = err('pspace.post', {'cid': cid, 'text': ''})
+        check(e.get('code') == -32602, 'pspace.post: empty text is refused')
+        check(c.ok('pspace.leave', {'cid': cid}) == {'cid': cid, 'left': True}, 'pspace.leave')
+        e = err('hall.status', {'cid': cid})
+        check(e.get('code') == -32030 and 'not in' in e.get('message', ''), 'gone after leaving')
+    finally:
+        c.ok('net.command', {'command': 'off'})
+        c.ok('features.set', {'feature': 'pspace', 'enabled': False})
+
+
 def power_checks(c, generates):
     """power.* (zxvd_power.h W1-W8): the ledger, the companion as an agent
     under zxvd's own app, and an energy budget that makes it wait."""
@@ -741,7 +826,9 @@ def main(binary, gguf=None):
                 'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
                 'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
-                'power.top', 'power.budget'}
+                'power.top', 'power.budget', 'pspace.create', 'pspace.find', 'pspace.join',
+                'pspace.leave', 'pspace.post', 'pspace.events', 'pspace.members', 'pspace.list',
+                'hall.load', 'hall.play', 'hall.pause', 'hall.seek', 'hall.status'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -796,6 +883,7 @@ def main(binary, gguf=None):
         econ_checks(c)
         companion_checks(c)
         web4_checks(c)
+        space_checks(c)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,

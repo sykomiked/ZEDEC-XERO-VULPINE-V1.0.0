@@ -18782,6 +18782,1011 @@
         }
       },
       "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.create",
+      "summary": "Make a public space (a room, or a watch hall) and host it on this node. Its CID names its signed genesis; visitors who have the CID find a host in the DHT (W2, vna_space.h P1-P2). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "room",
+              "hall"
+            ]
+          }
+        },
+        {
+          "name": "gov",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "quorum"
+            ],
+            "description": "owner: only the creator steers playback (vertical); quorum: any member (horizontal)"
+          }
+        },
+        {
+          "name": "quorum_pct",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 51
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          }
+        },
+        {
+          "name": "topic",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,24}$",
+            "description": "directory topic; empty = unlisted"
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.find",
+      "summary": "List spaces under a directory topic. The first call starts a search; call again until done (W5). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "topic",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,24}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "search",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "done": {
+              "type": "boolean"
+            },
+            "found": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cid": {
+                    "type": "string",
+                    "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+                    "pattern": "^b[a-z2-7]+$",
+                    "maxLength": 79
+                  },
+                  "members": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "host": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 48
+                  },
+                  "topic": {
+                    "type": "string",
+                    "maxLength": 24
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "room",
+                      "hall"
+                    ]
+                  },
+                  "gov": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "quorum"
+                    ]
+                  },
+                  "quorum_pct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "creator": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.join",
+      "summary": "Join the space a CID names: look its hosts up in the DHT, then join through one. Returns at once; pspace.list shows the phase. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "joining",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "searching",
+                "joining",
+                "in",
+                "not_found"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.leave",
+      "summary": "Say goodbye to the space's members and stop hosting it. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "left",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "left": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.post",
+      "summary": "Post text to a space this node is in: a signed event every member receives once. There is no delete or ban (vna_space.h P5). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "posted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "posted": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.events",
+      "summary": "The events applied after index `since`, oldest first (the last 32 at most): posts and playback changes. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "since",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minimum": 0,
+            "pattern": "^[0-9]+$",
+            "default": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "events",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "hall"
+                    ]
+                  },
+                  "lamport": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "author": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "stop",
+                      "pause",
+                      "play"
+                    ]
+                  },
+                  "pos_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rate_q16": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "pass as since next time"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.members",
+      "summary": "The members this node knows in a space, with their addresses; count includes this node. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "members",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "addr": {
+                    "type": "string"
+                  },
+                  "last_seen_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.list",
+      "summary": "The spaces this node is in or joining, each with its genesis and (for a hall) its playback state. Always on (feature \"pspace\").",
+      "params": [],
+      "result": {
+        "name": "spaces",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "spaces": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cid": {
+                    "type": "string",
+                    "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+                    "pattern": "^b[a-z2-7]+$",
+                    "maxLength": 79
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "searching",
+                      "joining",
+                      "in",
+                      "not_found"
+                    ]
+                  },
+                  "members": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "hall": {
+                    "type": "object",
+                    "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+                    "properties": {
+                      "set": {
+                        "type": "boolean"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "stop",
+                          "pause",
+                          "play"
+                        ]
+                      },
+                      "media": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "pos_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "base_pos_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "at_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "rate_q16": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 262144,
+                        "description": "speed, 65536 = normal"
+                      },
+                      "now_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "may_control": {
+                        "type": "boolean"
+                      },
+                      "author": {
+                        "type": "string",
+                        "description": "a NodeID, 64 hex digits",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 48
+                  },
+                  "topic": {
+                    "type": "string",
+                    "maxLength": 24
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "room",
+                      "hall"
+                    ]
+                  },
+                  "gov": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "quorum"
+                    ]
+                  },
+                  "quorum_pct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "creator": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.load",
+      "summary": "Load media into a watch hall, stopped at pos_ms (default 0). Owner halls: the creator only. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "media",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "the media's CID as text, passed to every viewer unchanged"
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.play",
+      "summary": "Play from pos_ms (default: where every viewer is now) at rate_q16 (65536 = normal, up to 4x). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        },
+        {
+          "name": "rate_q16",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 262144,
+            "default": 65536
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.pause",
+      "summary": "Pause at pos_ms (default: where every viewer is now). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.seek",
+      "summary": "Move to pos_ms, keeping the state and the rate. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": true,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.status",
+      "summary": "The hall's playback state and the position every viewer computes now. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     }
   ]
 }

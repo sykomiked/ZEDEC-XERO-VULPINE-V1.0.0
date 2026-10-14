@@ -46,7 +46,7 @@ typedef socklen_t nlen_t;
 #define KC_CAP      48u
 #define RP_CAP      64u
 #define DD_CAP      64u
-#define STORE_CAP   64u
+#define STORE_CAP        64u
 #define ADDR_LEN    6u
 #define READ_BURST  64u
 #define TICK_MS     100u
@@ -59,7 +59,7 @@ typedef socklen_t nlen_t;
 #define LEASE_CAP   8u
 #define QUOTA_MS    3600000u /* per-peer quota period of the owner's agreement */
 #define LAN_PORT     8724u    /* U10 */
-#define SPACE_STORE_BASE 32u  /* U14: space records held for others (of STORE_CAP) */
+#define SPACE_STORE_BASE 32u      /* U14: space records held for others (of STORE_CAP) */
 #define LAN_PEERS    64u
 #define CACHE_MAX    64u     /* U9: peers kept in the cache file */
 #define CACHE_PING   16u     /* U9: cached peers pinged at start */
@@ -1366,8 +1366,8 @@ void zxv_net_status(const zxv_net_t *n, zxv_net_status_t *st)
     }
     uint64_t now = zxv_net_wall_ms();
     for (uint32_t i = 0; i < STORE_CAP; i++)
-        st->space_records += n->store[i].used && n->store[i].rtype == VNA_REC_SPACE &&
-                             n->store[i].expires > now;
+        st->space_records +=
+            n->store[i].used && n->store[i].rtype == VNA_REC_SPACE && n->store[i].expires > now;
 }
 
 /* ----- U13: listings ----- */

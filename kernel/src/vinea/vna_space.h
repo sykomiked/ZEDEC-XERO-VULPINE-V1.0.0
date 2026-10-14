@@ -68,21 +68,21 @@
 #include "vna_node.h"
 #include "vna_cid.h"
 
-#define VNA_SPACE_NAME_MAX    48u
-#define VNA_SPACE_TOPIC_MAX   24u
-#define VNA_SPACE_TEXT_MAX    1024u
-#define VNA_SPACE_MEDIA_MAX   64u
-#define VNA_SPACE_HOST_SLOTS  8u
-#define VNA_SPACE_DIR_SLOTS   16u
-#define VNA_SPACE_MAX         8u
-#define VNA_SPACE_MEMBERS     32u
-#define VNA_SPACE_LOG         32u
-#define VNA_SPACE_SEEN        256u
-#define VNA_SPACE_FANOUT      4u
-#define VNA_SPACE_WELCOME_MAX 16u
-#define VNA_SPACE_CATCHUP     8u /* recent posts a host sends a newcomer */
-#define VNA_SPACE_FOUND_MAX   VNA_SPACE_DIR_SLOTS
-#define VNA_SPACE_Q16         65536u
+#define VNA_SPACE_NAME_MAX     48u
+#define VNA_SPACE_TOPIC_MAX    24u
+#define VNA_SPACE_TEXT_MAX     1024u
+#define VNA_SPACE_MEDIA_MAX    64u
+#define VNA_SPACE_HOST_SLOTS   8u
+#define VNA_SPACE_DIR_SLOTS    16u
+#define VNA_SPACE_MAX          8u
+#define VNA_SPACE_MEMBERS      32u
+#define VNA_SPACE_LOG          32u
+#define VNA_SPACE_SEEN         256u
+#define VNA_SPACE_FANOUT       4u
+#define VNA_SPACE_WELCOME_MAX  16u
+#define VNA_SPACE_CATCHUP      8u /* recent posts a host sends a newcomer */
+#define VNA_SPACE_FOUND_MAX    VNA_SPACE_DIR_SLOTS
+#define VNA_SPACE_Q16          65536u
 #define VNA_SPACE_MEMBER_STORE (VNA_SPACE_MAX * (VNA_SPACE_HOST_SLOTS + 2u) * 4u)
 
 typedef enum { VNA_SPACE_ROOM = 1, VNA_SPACE_HALL = 2 } vna_space_kind_t;
@@ -225,7 +225,7 @@ typedef struct {
     vna_space_event_fn on_event;
     void *on_event_ctx;
     int32_t pubs[2u * VNA_SPACE_MAX]; /* publish lookups, released when done */
-    uint32_t store_base; /* SPACE records held for others while in no space */
+    uint32_t store_base;              /* SPACE records held for others while in no space */
     /* statistics */
     uint32_t created, joins_in, welcomes_in, presence_in, leaves_in;
     uint32_t events_in, events_out, events_refused, forwards, published, publish_failed;
@@ -269,8 +269,8 @@ int vna_space_post(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const u
  * play, pause, seek = the same state at another position). Refused
  * (VNA_ERR_DENIED) when this node may not control playback. */
 int vna_space_hall_set(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint8_t state,
-                       const uint8_t *media, uint32_t media_len, uint64_t pos_ms,
-                       uint32_t rate_q16, uint64_t now);
+                       const uint8_t *media, uint32_t media_len, uint64_t pos_ms, uint32_t rate_q16,
+                       uint64_t now);
 
 /* P6: the position every viewer computes for `now`. */
 uint64_t vna_space_hall_pos(const vna_hall_t *h, uint64_t now);

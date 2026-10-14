@@ -262,7 +262,7 @@ int main(void)
     tick(500);
     CHECK(a0->nm == 1 && vna_id_eq(&a0->m[0].id, &P[1].idn.id));
     CHECK(P[1].sp.published == 2 && P[1].node.space_store_cap > 0); /* the visitor hosts too */
-    CHECK(vna_space_join(&P[1].sp, film, g_now) == VNA_OK); /* already in: nothing new */
+    CHECK(vna_space_join(&P[1].sp, film, g_now) == VNA_OK);         /* already in: nothing new */
 
     printf("[3] P5: posts reach every member, once, signed by their author\n");
     CHECK(post(1, film, "hello from B") == VNA_OK);
@@ -290,7 +290,7 @@ int main(void)
     CHECK(vna_space_hall_pos(&b1->hall, t1 + 1000) == 12000);
     CHECK(hall(0, film, VNA_HALL_PAUSE, "bafkreidemo-movie", 30000, VNA_SPACE_Q16) == VNA_OK);
     CHECK(vna_space_hall_pos(&b1->hall, g_now + 99999) == 30000);
-    CHECK(hall(0, film, VNA_HALL_PLAY, "m", 0, 0) == VNA_ERR_ARG);              /* rate 0 */
+    CHECK(hall(0, film, VNA_HALL_PLAY, "m", 0, 0) == VNA_ERR_ARG);                 /* rate 0 */
     CHECK(hall(0, film, VNA_HALL_PLAY, "m", 0, 5 * VNA_SPACE_Q16) == VNA_ERR_ARG); /* > 4x */
     /* an owner space: only its creator controls playback */
     CHECK(!vna_space_may_control(b1, &P[1].idn.id) && vna_space_may_control(b1, &P[0].idn.id));
@@ -440,7 +440,7 @@ int main(void)
     run();
     CHECK(!vna_space_get(&P[0].sp, film) && P[1].sp.leaves_in >= 1);
     CHECK(P[0].node.space_store_cap == 0); /* in no space: keeps no space records */
-    vna_spaces_store_base(&P[0].sp, 12); /* unless its owner offers to hold some */
+    vna_spaces_store_base(&P[0].sp, 12);   /* unless its owner offers to hold some */
     CHECK(P[0].node.space_store_cap == 12);
     vna_spaces_store_base(&P[0].sp, 0);
     CHECK(P[0].node.space_store_cap == 0);
@@ -489,12 +489,12 @@ int main(void)
         vna_space_host_key(film, 0, &r.key); /* another space's key */
         r.created = g_now;
         r.expires = g_now + 60000;
-        r.payload_len =
-            (uint16_t) vna_schema_pack(&vna_space_host_schema, &h, r.payload, VNA_PAYLOAD_MAX, true);
+        r.payload_len = (uint16_t) vna_schema_pack(&vna_space_host_schema, &h, r.payload,
+                                                   VNA_PAYLOAD_MAX, true);
         int32_t n = vna_rec_seal(&r, &P[6].idn, rnd, rec, sizeof rec);
         vna_rec_t out;
-        CHECK(n > 0 && vna_rec_verify(&P[6].node.v, rec, (uint32_t) n, g_now, 30000, &out) ==
-                           VNA_ERR_PARSE);
+        CHECK(n > 0 &&
+              vna_rec_verify(&P[6].node.v, rec, (uint32_t) n, g_now, 30000, &out) == VNA_ERR_PARSE);
         vna_space_host_key(z, 3, &r.key);
         n = vna_rec_seal(&r, &P[6].idn, rnd, rec, sizeof rec);
         CHECK(n > 0 &&
@@ -531,8 +531,8 @@ int main(void)
         /* and its author cannot publish it into the DHT either */
         uint32_t au = 0;
         while (au < NP && !vna_id_eq(&P[au].idn.id, &l->author)) au++;
-        CHECK(au < NP && vna_node_publish(&P[au].node, l->rec, l->rec_len, g_now, &g_ob) ==
-                             VNA_ERR_DENIED);
+        CHECK(au < NP &&
+              vna_node_publish(&P[au].node, l->rec, l->rec_len, g_now, &g_ob) == VNA_ERR_DENIED);
         P[6].node.cfg.degree = VNA_DEG_ROUTE;
         P[6].node.cfg.rec_max_ttl_ms = ttl;
         vna_outbox_clear(&g_ob);

@@ -77,6 +77,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_power.sh
+      - name: Public spaces unit test (pspace.*, hall.* on two real net hosts)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pspace.sh
       - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
         env:
           CC: ${{ matrix.cc }}

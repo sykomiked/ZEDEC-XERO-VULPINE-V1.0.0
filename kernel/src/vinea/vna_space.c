@@ -104,8 +104,8 @@ int vna_space_genesis_decode(const uint8_t *in, uint32_t len, vna_space_genesis_
 {
     if (!in || !g || vna_schema_unpack(&vna_space_genesis_schema, in, len, g, 0) < 0)
         return VNA_ERR_PARSE;
-    if (g->version != 1 || g->kind < VNA_SPACE_ROOM || g->gov < VNA_GOV_OWNER ||
-        g->name_len == 0 || !topic_ok(g->topic, g->topic_len) || vna_id_is_zero(&g->creator))
+    if (g->version != 1 || g->kind < VNA_SPACE_ROOM || g->gov < VNA_GOV_OWNER || g->name_len == 0 ||
+        !topic_ok(g->topic, g->topic_len) || vna_id_is_zero(&g->creator))
         return VNA_ERR_PARSE;
     if (g->gov == VNA_GOV_QUORUM ? g->quorum_pct < 51 : g->quorum_pct != 0) return VNA_ERR_PARSE;
     return VNA_OK;
@@ -150,8 +150,7 @@ vna_status_t vna_space_rec_check(const vna_rec_t *r)
     if (r->rtype == VNA_REC_SPACE) {
         uint8_t cid[VNA_CID_RAW_LEN];
         vna_id_t k;
-        if (vna_schema_unpack(&vna_space_host_schema, r->payload, r->payload_len, &g_host, 0) <
-                0 ||
+        if (vna_schema_unpack(&vna_space_host_schema, r->payload, r->payload_len, &g_host, 0) < 0 ||
             vna_space_genesis_decode(g_host.gen, g_host.gen_len, &g_gen) != VNA_OK)
             return VNA_ERR_PARSE;
         vna_cid_raw(g_host.gen, g_host.gen_len, cid);
@@ -173,7 +172,7 @@ vna_status_t vna_space_rec_check(const vna_rec_t *r)
         if (g_ev.kind == VNA_SPACE_EV_POST) return g_ev.len > 0 ? VNA_OK : VNA_ERR_PARSE;
         vna_hall_t h;
         return vna_schema_unpack(&vna_hall_schema, g_ev.data, g_ev.len, &h, 0) >= 0 ? VNA_OK
-                                                                                   : VNA_ERR_PARSE;
+                                                                                    : VNA_ERR_PARSE;
     }
     return VNA_ERR_PARSE;
 }
@@ -425,8 +424,8 @@ static void publish(vna_spaces_t *sp, vna_space_t *s)
         if (pass == 1 && s->gen.topic_len == 0) break;
         r->rtype = VNA_REC_SPACE;
         if (pass == 0)
-            vna_space_host_key(s->cid, slot_of(self->b, 32, s->cid, VNA_CID_RAW_LEN,
-                                               VNA_SPACE_HOST_SLOTS),
+            vna_space_host_key(s->cid,
+                               slot_of(self->b, 32, s->cid, VNA_CID_RAW_LEN, VNA_SPACE_HOST_SLOTS),
                                &r->key);
         else
             vna_space_dir_key(s->gen.topic, s->gen.topic_len,
@@ -457,8 +456,9 @@ static void become_member(vna_spaces_t *sp, vna_space_t *s)
 {
     s->phase = VNA_SPACE_IN;
     s->next_presence = sp->now; /* say hello to whoever the welcome named */
-    vna_node_space_store(sp->node, sp->store_base > VNA_SPACE_MEMBER_STORE ? sp->store_base
-                                                                       : VNA_SPACE_MEMBER_STORE);
+    vna_node_space_store(sp->node, sp->store_base > VNA_SPACE_MEMBER_STORE
+                                       ? sp->store_base
+                                       : VNA_SPACE_MEMBER_STORE);
     publish(sp, s);
 }
 
@@ -698,7 +698,7 @@ static void search_next(vna_spaces_t *sp, vna_space_t *s)
             return;
         }
         if (slot != VNA_ERR_SPACE) continue; /* no contacts: try the next (fails fast) */
-        s->slots_tried--; /* every lookup slot busy: retry on the next tick */
+        s->slots_tried--;                    /* every lookup slot busy: retry on the next tick */
         s->slot_next = (uint8_t) ((s->slot_next + VNA_SPACE_HOST_SLOTS - 1) % VNA_SPACE_HOST_SLOTS);
         s->phase = VNA_SPACE_SEARCHING;
         return;
@@ -725,7 +725,8 @@ int vna_space_leave(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint64
     if (!s) return VNA_ERR_ARG;
     sp->now = now;
     if (s->phase == VNA_SPACE_IN)
-        for (uint32_t i = 0; i < s->nm; i++) (void) send_to(sp, s, &s->m[i], VNA_SPACE_M_LEAVE, 0, 0);
+        for (uint32_t i = 0; i < s->nm; i++)
+            (void) send_to(sp, s, &s->m[i], VNA_SPACE_M_LEAVE, 0, 0);
     space_free(sp, s);
     if (!any_in(sp)) vna_node_space_store(sp->node, sp->store_base);
     return VNA_OK;
@@ -742,8 +743,8 @@ int vna_space_post(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const u
 }
 
 int vna_space_hall_set(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint8_t state,
-                       const uint8_t *media, uint32_t media_len, uint64_t pos_ms,
-                       uint32_t rate_q16, uint64_t now)
+                       const uint8_t *media, uint32_t media_len, uint64_t pos_ms, uint32_t rate_q16,
+                       uint64_t now)
 {
     vna_space_t *s = sp && cid ? space_by_cid(sp, cid) : 0;
     vna_hall_t h;
@@ -847,8 +848,8 @@ static void search_step(vna_spaces_t *sp, vna_space_t *s)
         !vna_id_eq(&g_rec.publisher, &sp->node->idn->id)) {
         vna_id_t host = g_rec.publisher;
         sp->hosts_found++;
-        if (vna_node_send_space_at(sp->node, &host, g_host.addr, g_host.addr_len,
-                                   VNA_SPACE_M_JOIN, &s->sid, 0, 0, sp->now, sp->ob) == VNA_OK) {
+        if (vna_node_send_space_at(sp->node, &host, g_host.addr, g_host.addr_len, VNA_SPACE_M_JOIN,
+                                   &s->sid, 0, 0, sp->now, sp->ob) == VNA_OK) {
             s->via = host;
             s->phase = VNA_SPACE_JOINING;
             s->wait_until = sp->now + sp->join_wait_ms;
