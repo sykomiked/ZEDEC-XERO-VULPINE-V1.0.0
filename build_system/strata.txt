@@ -41,7 +41,7 @@ ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 
 # ---- S1 kernel and hardware abstraction
-acpi                             kernel
+acpi                             kernel     # tables, AML interpreter, sleep states, power button, battery, thermal
 alloc                            kernel
 ata                              kernel
 audio                            kernel

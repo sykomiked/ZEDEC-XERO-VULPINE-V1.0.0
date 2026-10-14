@@ -128,6 +128,12 @@ SRCS := \
     kernel/arch/x86_64/x86_extable.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
+    kernel/arch/x86_64/acpi_x86.c \
+    kernel/src/acpi/acpi.c \
+    kernel/src/acpi/acpi_pm.c \
+    kernel/src/acpi/aml_core.c \
+    kernel/src/acpi/aml_region.c \
+    kernel/src/acpi/aml_dev.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \

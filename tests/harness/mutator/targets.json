@@ -192,7 +192,10 @@
      "after": "sh tests/host/b2/run.sh panopticon"},
     {"name": "b2_panopticon_vpn", "target": "kernel/src/panopticon/panopticon_vpn.c",
      "before": null, "before_note": "B2 (plan step 2.11): see tests/MUTATION_REPORT.md for the score before these tests",
-     "after": "sh tests/host/b2/run.sh panopticon_vpn"}
+     "after": "sh tests/host/b2/run.sh panopticon_vpn"},
+    {"name": "aml_core", "target": "kernel/src/acpi/aml_core.c",
+     "before": null, "before_note": "new module: the ACPI AML interpreter core (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub", "swarm_denom", "zxvd_rpc", "zxvd_aipi"],
