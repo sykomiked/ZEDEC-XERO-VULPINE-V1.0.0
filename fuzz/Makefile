@@ -212,8 +212,8 @@ SRC_fuzz_devmesh := $(S)/devmesh/devmesh.c $(S)/devmesh/dm_sync.c $(S)/devmesh/d
 DEF_fuzz_devmesh := -DTEST_HOST
 
 # zxvd_rpc.c defines _DEFAULT_SOURCE itself, hence the -U. libzxv is built
-# with the sanitizers into this OUT (gcc objects only; a clang libFuzzer build
-# needs its own archive built with CC=clang).
+# into this OUT by $(CC_REPLAY) with $(REPLAY_SAN), so the archive matches the
+# replay link (gcc ASan, clang MSan, -fsanitize=integer or coverage).
 DIR_fuzz_zxvd_rpc := parsers
 LIBZXV_SAN := $(abspath $(OUT))/libzxv-san/libzxv.a
 INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(S)/robin_debanks -I$(S)/mlkem -I$(K)/include \
@@ -228,7 +228,8 @@ DEF_fuzz_zxvd_rpc := -U_DEFAULT_SOURCE -DTEST_HOST
 LIBZXV_FUZZ := $(abspath $(OUT))/libzxv-fuzz/libzxv.a
 SRC_FUZZ_fuzz_zxvd_rpc := $(filter-out $(LIBZXV_SAN),$(SRC_fuzz_zxvd_rpc)) $(LIBZXV_FUZZ)
 $(LIBZXV_SAN):
-	$(MAKE) -C $(K)/../sdk/libzxv OUT=$(@D) SANITIZE=1 ZXV_NO_TENSOR=1 $@
+	$(MAKE) -C $(K)/../sdk/libzxv CC=$(CC_REPLAY) OUT=$(@D) ZXV_NO_TENSOR=1 \
+		SAN="$(REPLAY_SAN) -fno-sanitize=shift-base -fno-omit-frame-pointer" $@
 $(LIBZXV_FUZZ):
 	$(MAKE) -C $(K)/../sdk/libzxv CC=$(CC_FUZZ) OUT=$(@D) SANITIZE=1 ZXV_NO_TENSOR=1 $@
 

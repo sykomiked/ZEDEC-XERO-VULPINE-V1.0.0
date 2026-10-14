@@ -23,7 +23,8 @@
  * comes after at least one delay_us.
  *
  * Verdicts: HW_T an output path is programmed and the stream resets; HW_F the
- * controller or codec stops answering (reset, CORB, RIRB, stream reset); HW_B
+ * controller or codec stops answering (reset, CORB, RIRB, a stream that
+ * stays in reset); HW_B
  * the controller contradicts itself (version not 1.x, no output stream); HW_N
  * nothing to drive (no BAR, no codec, no output pin with a usable DAC). */
 #include "hwdrv.h"
@@ -110,6 +111,7 @@
 #define T_VERB  20000u  /* one codec response */
 #define T_RING  1000u   /* CORB/RIRB control bits */
 #define T_SRST  100000u /* stream reset either way */
+#define T_LATCH 1000u   /* SRST reading back as 1, best effort */
 
 typedef struct hda_widget {
     uint32_t caps, pincaps, cfg;
@@ -431,7 +433,10 @@ static int stream_reset(hda_dev_t *h)
     hw_wr32(h->r, h->sd + SD_CTL, ctl);
     if (!wait32(h, h->sd + SD_CTL, SDCTL_RUN, 0, T_SRST)) return 0;
     hw_wr32(h->r, h->sd + SD_CTL, ctl | SDCTL_SRST);
-    if (!wait32(h, h->sd + SD_CTL, SDCTL_SRST, SDCTL_SRST, T_SRST)) return 0;
+    /* Some controllers finish the reset at once and never show SRST as 1
+     * (QEMU before 8.0 among them), so the latch is waited for but not
+     * required, as Linux does. Leaving reset is required. */
+    (void) wait32(h, h->sd + SD_CTL, SDCTL_SRST, SDCTL_SRST, T_LATCH);
     hw_wr32(h->r, h->sd + SD_CTL, ctl);
     return wait32(h, h->sd + SD_CTL, SDCTL_SRST, 0, T_SRST);
 }

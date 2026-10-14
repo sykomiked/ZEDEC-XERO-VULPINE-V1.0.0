@@ -148,6 +148,14 @@ static bool knows_both(void *c)
     return zxv_net_knows(p->x, "127.0.0.1", p->py) && zxv_net_knows(p->y, "127.0.0.1", p->px);
 }
 
+/* the introduction request has gone out and a peer has reported our address */
+static bool asked_and_voted(void *x)
+{
+    zxv_net_status_t st;
+    zxv_net_status((zxv_net_t *) x, &st);
+    return st.punch_asked == 1 && st.public_votes >= 1;
+}
+
 int main(void)
 {
     zxv_net_t *a = zxv_net_new(), *b = zxv_net_new();
@@ -427,7 +435,9 @@ int main(void)
     memset(ghost, 0x5C, 32);
     CHECK(zxv_net_punch(c, ghost, zxv_net_wall_ms()) == 1,
           "C asks its one contact for an introduction");
-    for (int i = 0; i < 20; i++) pump(c, d, 20);
+    /* waited for, not a fixed number of rounds: macOS runners are slower */
+    (void) wait_for(c, d, asked_and_voted, c, 3000);
+    for (int i = 0; i < 5; i++) pump(c, d, 20); /* time for a wrong relay to show */
     zxv_net_status(c, &sc);
     zxv_net_status(d, &sd);
     CHECK(sc.punch_asked == 1 && sd.punch_relayed == 0,

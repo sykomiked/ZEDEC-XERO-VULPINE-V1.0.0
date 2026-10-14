@@ -349,7 +349,7 @@ static void region_fresh(uint16_t alg)
     memset(&g_sim, 0, sizeof g_sim);
     g_sim.active = -1;
     hwm_init(&g_m);
-    uint32_t rcpu, rfab, psoft;
+    uint32_t rcpu = 0, rfab = 0, psoft = 0;
     if (hwm_func_add(&g_m, 0x200, "inc", &g_finc) || hwm_func_add(&g_m, 0x201, "xor5", &g_fxor) ||
         hwm_resource_add(&g_m, 1, &rcpu) || hwm_resource_add(&g_m, 2, &rfab) ||
         hwm_vector_add(&g_m, g_finc, 0, T_VIN, 256, T_INC, 256) ||

@@ -11,6 +11,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 Z="$(cd "$HERE/.." && pwd)"
 S="$(cd "$Z/.." && pwd)"
 K="$(cd "$S/.." && pwd)"
+# what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
+RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 H="$K/arch/hosted"
 A="$S/apps"
@@ -27,10 +30,9 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     "$HERE/test_views.c" "$HERE/zv.c" "$HERE/burrow.c" "$HERE/quillon.c" "$HERE/glint.c" "$HERE/spindle.c" \
     "$HERE/murmuration.c" "$HERE/autoview.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
     "$Z/zui_canvas.c" "$Z/zui_progress.c" "$Z/zui_emote.c" "$S/font/truetype.c" \
-    "$S/lpres/lpres_hex.c" "$S/lpres/lpres.c" \
     "$A/zxm.c" "$A/burrow_model.c" "$A/quillon_model.c" "$A/glint_model.c" "$A/spindle_model.c" \
     "$A/murmuration_model.c" "$A/zxapp.c" "$A/zxapp_kron.c" "$A/zxapp_eve.c" "$S/swarm/swarm_emotion.c" "$S/swarm/swarm_budget.c" \
-    "$H/zxvd_rpc.c" "$H/zxv_files.c" "$H/zxv_spaces.c" "$S/web4/web4_json.c" "$S/web4/web4_util.c" \
+    "$H/zxvd_rpc.c" $RPCINC $RPCDEPS "$S/web4/web4_json.c" "$S/web4/web4_util.c" \
     "$S/mlkem/keccak.c" "$S/robin_debanks/sha256.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lpthread -lm \
     -o "$T/test_views" || exit 3

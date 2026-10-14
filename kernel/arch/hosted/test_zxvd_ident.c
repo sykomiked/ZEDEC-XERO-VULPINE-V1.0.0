@@ -196,7 +196,7 @@ static void test_switch(void)
     const zxvd_group_t *g = zxvd_passkeys_group();
     CHECK(!g->regulated && !strcmp(g->feature, "passkeys") && g->n_methods == 7, "group shape");
     const char *d = rpc(req("rpc.discover", "{}"));
-    CHECK(strstr(d, "\"features.set\",\"passkeys.status\",\"passkeys.register_begin\","
+    CHECK(strstr(d, "\"play.draft\",\"passkeys.status\",\"passkeys.register_begin\","
                     "\"passkeys.register_finish\",\"passkeys.auth_begin\","
                     "\"passkeys.auth_finish\",\"passkeys.list\",\"passkeys.revoke\"]") != NULL,
           "discover: %.300s", d);
