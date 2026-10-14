@@ -37,6 +37,11 @@ surplus                          base
 tls/aead                         base       # ChaCha20-Poly1305
 tls/hkdf                         base       # RFC 5869
 tls/x25519                       base       # RFC 7748
+tls/sha512                       base       # SHA-384/512 (FIPS 180-4)
+tls/digest                       base       # SHA-2 dispatch for the signature code
+tls/bn                           base       # Montgomery arithmetic, verification only
+tls/ecdsa                        base       # P-256/P-384 ECDSA verification
+tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 
@@ -80,6 +85,7 @@ smap                             kernel
 syscall                          kernel
 telemetry                        kernel
 timer                            kernel
+timesvc                          kernel     # wall-clock time (RTC, SNTP) and time zones
 tripartite_fs                    kernel
 trispace                         kernel
 vbe                              kernel

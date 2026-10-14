@@ -2,33 +2,30 @@
  *
  * ============================ READ THIS FIRST ============================
  *
- * THIS CLIENT DOES NOT AUTHENTICATE THE SERVER.
+ * WHETHER THE SERVER IS AUTHENTICATED DEPENDS ON THE POLICY, AND THE POLICY
+ * HAS NO DEFAULT.
  *
- * It performs the full TLS 1.3 key exchange and derives real, correct traffic
- * keys, so the channel is encrypted against a PASSIVE eavesdropper. It does
- * NOT verify the server's certificate, because doing that needs X.509 DER
- * parsing, RSA-PSS and ECDSA-P256 signature verification, and a trust store
- * of root CAs — none of which ZXV has. (ZXV has Ed25519, which essentially no
- * public certificate uses.)
+ *   TLS_VERIFY_REQUIRED + tls_client_set_trust()
+ *       The server's certificate chain is validated against the trust store
+ *       (trust.h: signatures to a trusted root, expiry, hostname, CA flags,
+ *       key and extended key usage, path length, name constraints), and its
+ *       CertificateVerify signature is checked with the leaf key
+ *       (ecdsa_secp256r1_sha256, ecdsa_secp384r1_sha384,
+ *       rsa_pss_rsae_sha256/384/512). Only after both, and the server's
+ *       Finished, does tls_client_is_authenticated() become true.
  *
- * An unauthenticated encrypted channel stops passive interception and does
- * NOT stop an active machine-in-the-middle. Anyone who can reroute the
- * connection can present their own key share, and this client will happily
- * agree a key with them.
+ *   TLS_VERIFY_REQUIRED without a trust store or without the time
+ *       Fails at the Certificate message with TLS_ERR_NO_VERIFIER. A device
+ *       that has not learned the time cannot check expiry, so it does not
+ *       pretend to.
  *
- * That fact is made STRUCTURAL rather than documentary:
- *   - tls_client_init() will not run without an explicit policy argument.
- *   - Passing TLS_VERIFY_REQUIRED makes the handshake FAIL at
- *     CertificateVerify, because there is no verifier. That is the default a
- *     caller gets for free, and it is the safe one.
- *   - Only TLS_VERIFY_INSECURE_ACKNOWLEDGED lets the handshake complete, and
- *     it permanently sets `authenticated = false` on the connection.
- *   - tls_client_is_authenticated() exists so callers and boot messages can
- *     report the truth instead of implying a guarantee.
+ *   TLS_VERIFY_INSECURE_ACKNOWLEDGED
+ *       Completes without looking at the certificate. The channel is
+ *       encrypted against a passive eavesdropper and NOT against an active
+ *       machine-in-the-middle; tls_client_is_authenticated() stays false
+ *       forever. The long constant is deliberate.
  *
- * When certificate verification is implemented, the verifier hook is the
- * place it goes, and TLS_VERIFY_REQUIRED starts working. Until then, nothing
- * in this file claims a security property it does not have.
+ * Revocation (OCSP, CRLs) is not checked; see trust.h.
  *
  * ========================================================================
  *
@@ -60,6 +57,7 @@
 #include "aead.h"
 #include "record.h"
 #include "x25519.h"
+#include "trust.h"
 
 #define TLS_TRANSCRIPT_MAX   16384u
 #define TLS_HS_MSG_MAX       16384u
@@ -82,8 +80,9 @@
 /* Verification policy. There is no default: tls_client_init() takes it, so a
  * caller has to state which one they are choosing. */
 typedef enum {
-    /* Refuse to complete unless the server is verified. With no verifier
-     * implemented this ALWAYS fails — which is the correct, safe behaviour. */
+    /* Refuse to complete unless the server is verified: its certificate
+     * chain against the trust store given to tls_client_set_trust(), and its
+     * CertificateVerify signature. With no trust store this always fails. */
     TLS_VERIFY_REQUIRED = 1,
     /* Complete without authenticating the server. The connection is then
      * encrypted but MITM-able, and tls_client_is_authenticated() returns
@@ -107,15 +106,30 @@ typedef enum {
  * "it didn't work". */
 typedef enum {
     TLS_ERR_NONE = 0,
-    TLS_ERR_PROTOCOL,          /* malformed or unexpected message   */
-    TLS_ERR_UNSUPPORTED,       /* server chose something we lack    */
-    TLS_ERR_BAD_RECORD,        /* AEAD authentication failed        */
-    TLS_ERR_BAD_FINISHED,      /* the server's Finished did not verify */
-    TLS_ERR_NO_VERIFIER,       /* TLS_VERIFY_REQUIRED with nothing to verify with */
-    TLS_ERR_TOO_BIG,           /* exceeded a fixed buffer           */
-    TLS_ERR_ALERT,             /* the server sent a fatal alert     */
-    TLS_ERR_HELLO_RETRY        /* server wants a group we do not offer */
+    TLS_ERR_PROTOCOL,     /* malformed or unexpected message   */
+    TLS_ERR_UNSUPPORTED,  /* server chose something we lack    */
+    TLS_ERR_BAD_RECORD,   /* AEAD authentication failed        */
+    TLS_ERR_BAD_FINISHED, /* the server's Finished did not verify */
+    TLS_ERR_NO_VERIFIER,  /* TLS_VERIFY_REQUIRED with no trust store or time */
+    TLS_ERR_TOO_BIG,      /* exceeded a fixed buffer           */
+    TLS_ERR_ALERT,        /* the server sent a fatal alert     */
+    TLS_ERR_HELLO_RETRY,  /* server wants a group we do not offer */
+    TLS_ERR_BAD_CERT,     /* the chain did not validate: see cert_status */
+    TLS_ERR_BAD_SIGNATURE /* CertificateVerify did not verify */
 } tls_error_t;
+
+/* The server's leaf key, copied out of the Certificate message so it
+ * survives until CertificateVerify. */
+typedef struct {
+    x509_key_type_t type;
+    ecdsa_curve_t curve;
+    uint8_t n[512];
+    uint32_t n_len;
+    uint8_t e[4];
+    uint32_t e_len;
+    uint8_t point[97];
+    uint32_t point_len;
+} tls_peer_key_t;
 
 typedef struct {
     tls_hs_state_t state;
@@ -123,7 +137,14 @@ typedef struct {
     uint8_t        alert_desc;      /* when error == TLS_ERR_ALERT */
 
     tls_verify_policy_t policy;
-    bool           authenticated;   /* stays false: see the header comment */
+    bool authenticated; /* chain + CertificateVerify + Finished */
+
+    const tls_trust_t *trust;      /* tls_client_set_trust() */
+    int64_t now;                   /* seconds since the epoch, UTC */
+    tls_cert_status_t cert_status; /* why the chain failed, when it did */
+    bool cert_ok;                  /* the chain validated */
+    bool cv_ok;                    /* CertificateVerify verified */
+    tls_peer_key_t peer_key;
 
     uint8_t  hostname[TLS_MAX_HOSTNAME];
     uint32_t hostname_len;
@@ -166,6 +187,12 @@ void tls_client_init(tls_client_t *c,
                      const uint8_t priv32[X25519_LEN],
                      tls_verify_policy_t policy);
 
+/* Give a TLS_VERIFY_REQUIRED client its trust store and the current time
+ * (seconds since 1970-01-01T00:00:00Z, from a clock the caller believes:
+ * RTC plus SNTP, not a guess). Call before tls_client_hello(). The store is
+ * referenced, not copied, and must outlive the handshake. */
+void tls_client_set_trust(tls_client_t *c, const tls_trust_t *trust, int64_t now_unix);
+
 /* Build the ClientHello, wrapped in a record, ready to write to the socket. */
 uint32_t tls_client_hello(tls_client_t *c, uint8_t *out, uint32_t cap);
 
@@ -189,9 +216,10 @@ static inline bool tls_client_established(const tls_client_t *c) {
 static inline bool tls_client_failed(const tls_client_t *c) {
     return !c || c->state == TLS_ST_FAILED;
 }
-/* Returns whether the SERVER'S IDENTITY was verified. With no certificate
- * verification implemented this is always false, and callers that print a
- * status must say so rather than implying a secure connection. */
+/* Returns whether the SERVER'S IDENTITY was verified: true only for a
+ * TLS_VERIFY_REQUIRED connection whose chain, CertificateVerify and
+ * Finished all checked out. Callers that print a status must use this
+ * rather than imply a secure connection. */
 static inline bool tls_client_is_authenticated(const tls_client_t *c) {
     return c && c->authenticated;
 }
