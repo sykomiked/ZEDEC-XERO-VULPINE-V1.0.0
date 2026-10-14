@@ -250,6 +250,7 @@ holodeck                         above
 hypercube                        above
 i18n                             above
 icon                             above
+launch                           above
 macgyver                         above
 nlb                              above
 pirate_apps                      above
