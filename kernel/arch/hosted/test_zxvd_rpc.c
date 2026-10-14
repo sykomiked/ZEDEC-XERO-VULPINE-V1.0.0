@@ -483,24 +483,26 @@ static void test_host_methods(void)
              ma, mi, pa, ft);
     EXPECT(REQ("10", "zxvd.version", ""), want);
     CHECK(ma == 1 && mi >= 2, "libzxv ABI 1.2 or later (%u.%u)", ma, mi);
-    EXPECT(REQ("11", "rpc.discover", ""),
-           OK("11",
-              "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-              "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
-              "\"peer.ask\",\"peer.serve\",\"peer.status\","
-              "\"update.check\",\"currency.enable\","
-              "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\",\"files.root\",\"files.list\","
-              "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
-              "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
-              "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
-              "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
-              "\"phone.list\",\"phone.revoke\","
-              "\"play.catalogue\",\"play.run\",\"play.draft\"]"
-              "}"));
+    EXPECT(
+        REQ("11", "rpc.discover", ""),
+        OK("11",
+           "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
+           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+           "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
+           "\"peer.ask\",\"peer.serve\",\"peer.status\","
+           "\"update.check\",\"currency.enable\","
+           "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
+           "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
+           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+           "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\","
+           "\"files.root\",\"files.list\","
+           "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
+           "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
+           "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
+           "\"phone.list\",\"phone.revoke\","
+           "\"play.catalogue\",\"play.run\",\"play.draft\"]"
+           "}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -2701,11 +2703,17 @@ static void test_ext(void)
     zxvd_rpc_set_ops(&OPS);
     EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
     zxvd_rpc_add_methods(TAB, 5);
-    CHECK(has(REQ("1", "rpc.discover", ""), "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"x."
-                                            "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
-                                            "\"zxvd.version\"]}"),
+              "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
+              "\"zxvd.version\"]}"),
           "X1: listed after the built-ins: %s", OUT.p);
     EXPECT(REQ("2", "x.echo", ""), OK("2", "{\"s\":\"\",\"flag\":false}"));
     EXPECT(REQ("2", "x.echo", ",\"params\":{\"s\":\"abc\",\"flag\":true}"),
@@ -2731,7 +2739,12 @@ static void test_ext(void)
     CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
     CHECK(has(REQ("7", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
@@ -2739,7 +2752,12 @@ static void test_ext(void)
           "X1: 0 or NULL adds nothing");
     CHECK(has(REQ("8", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
@@ -2758,7 +2776,12 @@ static void test_ext(void)
     CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
     CHECK(has(REQ("9", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
@@ -2770,7 +2793,12 @@ static void test_ext(void)
     EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
     CHECK(has(REQ("9", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
@@ -2846,7 +2874,6 @@ static void test_ext(void)
           "X1: four slots free again after clear");
     zxvd_rpc_clear_methods();
 }
-
 
 /* one request from a paired phone -> its reply */
 static const char *phone_rpc(const char *line, bool post)
@@ -3260,7 +3287,12 @@ static void test_groups(void)
     CHECK(zxvd_rpc_add_group(&ok23) == 0, "a 23-byte feature name is fine");
     CHECK(has(REQ("1", "rpc.discover", ""),
               "\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
               "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");
