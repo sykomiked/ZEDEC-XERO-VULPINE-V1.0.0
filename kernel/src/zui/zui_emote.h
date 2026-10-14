@@ -40,14 +40,14 @@
 
 /* A face. All shape fields are Q8 (256 = full); colour is XRGB. */
 typedef struct {
-    int16_t  mouth_curve;   /* -256 frown .. +256 smile                    */
-    int16_t  mouth_open;    /*    0 closed .. 256 open                     */
-    int16_t  eye_open;      /*    0 lids shut .. 256 wide                  */
-    int16_t  squint;        /*    0 round eyes .. 256 smiling arcs  ^ ^    */
-    int16_t  brow_tilt;     /* -256 inner ends down (anger) .. +256 up (worry) */
-    int16_t  brow_raise;    /*    0 level .. 256 one brow raised (wondering) */
-    int16_t  blush;         /*    0 .. 256                                 */
-    int16_t  tear;          /*    0 .. 256                                 */
+    int16_t mouth_curve; /* -256 frown .. +256 smile                    */
+    int16_t mouth_open;  /*    0 closed .. 256 open                     */
+    int16_t eye_open;    /*    0 lids shut .. 256 wide                  */
+    int16_t squint;      /*    0 round eyes .. 256 smiling arcs  ^ ^    */
+    int16_t brow_tilt;   /* -256 inner ends down (anger) .. +256 up (worry) */
+    int16_t brow_raise;  /*    0 level .. 256 one brow raised (wondering) */
+    int16_t blush;       /*    0 .. 256                                 */
+    int16_t tear;        /*    0 .. 256                                 */
     uint32_t color;
 } zui_face_t;
 
@@ -61,7 +61,7 @@ typedef enum {
 /* A morphing face: where it was, where it is going, and when it set off. */
 typedef struct {
     zui_face_t from, to;
-    uint32_t   start_ms;
+    uint32_t start_ms;
 } zui_emote_t;
 
 /* A live morph between two feelings takes this long. Status, not decoration:
@@ -88,8 +88,8 @@ void zui_emote_init(zui_emote_t *m, swarm_feeling_t f, uint32_t now_ms);
 zui_face_t zui_emote_now(const zui_emote_t *m, uint32_t now_ms, int reduce_motion);
 
 /* Draw a face centred at (cx, cy) with radius r pixels. */
-void zui_face_draw(zui_surface_t *s, const zui_face_t *f, zui_health_t h,
-                   int32_t cx, int32_t cy, int32_t r, uint32_t tick);
+void zui_face_draw(zui_surface_t *s, const zui_face_t *f, zui_health_t h, int32_t cx, int32_t cy,
+                   int32_t r, uint32_t tick);
 
 /* The logic tag a feeling shows with: positive valence TRUE, negative FALSE,
  * neutral NEITHER; intensity sets the phase (0 potential .. 5 manifest);

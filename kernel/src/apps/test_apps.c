@@ -1,13 +1,16 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* test_apps.c — the app models (zxm.h, Burrow, Quillon, Glint, Spindle)
- * against zxvd's real dispatcher in this process: files.* runs on a scratch
- * ZXV folder and swarm.ask is a stub that returns a set answer. A second
- * transport hands zxm made-up replies to cover its error paths. */
+/* test_apps.c — the app models (zxm.h, Burrow, Quillon, Glint, Spindle,
+ * Murmuration) against zxvd's real dispatcher in this process: files.* runs
+ * on a scratch ZXV folder, swarm.ask is a stub that returns a set answer and
+ * swarm.state and model.info return set JSON. A second transport hands zxm
+ * made-up replies to cover its error paths; a third answers each method
+ * from a script. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
 #include <ftw.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,8 +21,22 @@
 #include "zxv_files.h"
 #include "burrow_model.h"
 #include "glint_model.h"
+#include "murmuration_model.h"
 #include "quillon_model.h"
 #include "spindle_model.h"
+#include "swarm_emotion.h"
+
+/* Appends to b at *o, never past cap - 1: *o stops at the end when the
+ * text does not fit. */
+static void appendf(char *b, size_t cap, uint32_t *o, const char *fmt, ...)
+{
+    if (*o + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int k = vsnprintf(b + *o, cap - *o, fmt, ap);
+    va_end(ap);
+    if (k > 0) *o = (uint32_t) ((size_t) k < cap - *o ? *o + (uint32_t) k : cap - 1u);
+}
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -57,7 +74,20 @@ static void h_ask(const char *q, zxvd_buf_t *o)
     snprintf(last_prompt, sizeof last_prompt, "%s", q);
     zxvd_buf_json_str(o, ANSWER);
 }
-static const zxvd_host_ops_t OPS = {.ask = h_ask, .app_version = "test"};
+
+/* swarm.state and model.info: these JSON objects as they are */
+static const char *STATE = "{}";
+static const char *MODEL = "{}";
+static void h_state(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, STATE, strlen(STATE));
+}
+static void h_model(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, MODEL, strlen(MODEL));
+}
+static const zxvd_host_ops_t OPS = {
+    .state = h_state, .ask = h_ask, .model = h_model, .app_version = "test"};
 
 static zxvd_buf_t OUT;
 static int sent;
@@ -831,6 +861,636 @@ static void test_spaces(void)
     fb->link = real;
 }
 
+/* ---------------- Murmuration ---------------- */
+
+#define E_NEUTRAL "\xf0\x9f\x98\x90" /* U+1F610 */
+#define E_JOY     "\xf0\x9f\x98\x84" /* U+1F604 */
+#define E_CURIOUS "\xf0\x9f\xa4\x94" /* U+1F914 */
+#define E_SAD     "\xf0\x9f\x98\xa2" /* U+1F622 */
+
+/* what zxv_host.c's state_json writes, for three agents */
+static const char STATE_FULL[] =
+    "{\"version\":\"1.0.0\",\"host\":\"hive\",\"remote\":false,\"cores\":8,\"cores_milli\":7000,"
+    "\"mem_total_mb\":16384,\"mem_mb\":2048,\"levels\":3,\"tokens_per_cycle\":1000,\"tick\":4242,"
+    "\"fundamental\":5,\"cycle\":17,\"due_mask\":0,\"settled\":16,\"held\":1,"
+    "\"money_supply\":3000,\"pot\":0,\"imag\":125,\"saved\":0,\"mood\":\"" E_JOY " 3\","
+    "\"ledger_postings\":96,\"ledger_synced\":17,\"ledger_halt\":0,\"levied\":0,\"fees\":0,"
+    "\"bounties_returned\":0,\"audit\":\"active\",\"audit_records\":12,\"audit_events\":0,"
+    "\"ledger_audited\":96,\"ledger_issues\":0,\"quest\":{\"contributed\":0,\"refused\":0,"
+    "\"skills\":[{\"skill\":\"craft\",\"level\":1,\"points\":2}]},\"agents\":["
+    "{\"id\":1,\"name\":\"Companion\",\"level\":0,\"emoji\":\"" E_NEUTRAL "\",\"intensity\":0,"
+    "\"re\":400,\"mk\":50,\"im\":0,\"money\":1000,\"social\":3,\"gen\":0,\"witness\":1,"
+    "\"witness_by\":\"Coder-2\"},"
+    "{\"id\":2,\"name\":\"Coder-2\",\"level\":1,\"emoji\":\"" E_SAD "\",\"intensity\":4,"
+    "\"re\":200,\"mk\":0,\"im\":100,\"money\":990,\"social\":2,\"gen\":1,\"witness\":2,"
+    "\"witness_by\":\"Critic-3\"},"
+    "{\"id\":3,\"name\":\"Critic-3\",\"level\":2,\"emoji\":\"" E_CURIOUS "\",\"intensity\":2,"
+    "\"re\":150,\"mk\":75,\"im\":25,\"money\":7,\"social\":9,\"gen\":4,\"witness\":0,"
+    "\"witness_by\":\"Companion\"}],"
+    "\"model\":{\"loaded\":true,\"tokenizer_ok\":true,\"can_generate\":false,\"name\":\"tiny."
+    "gguf\","
+    "\"arch\":\"llama\",\"bytes\":5,\"layers\":2,\"context\":512,\"vocab\":32000,"
+    "\"status\":\"loaded, no tokenizer\"},\"companion\":{\"cycle_open\":true,\"allotted\":450,"
+    "\"used\":0,\"remaining\":450,\"exhausted\":false,\"max_per_answer\":256,\"asks\":0,"
+    "\"exhausted_asks\":0,\"quarantined\":0,\"quarantine_ok\":true},\"net\":{\"mode\":\"off\"},"
+    "\"update\":{\"checked\":false},\"notes\":{\"unread\":0,\"os\":\"none\"}}";
+
+/* the smallest state zxvd could send: required fields only */
+#define MIN_ST(top, agents)                                                                        \
+    "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1" top ",\"agents\":[" agents "]}"
+#define AGT(id, name, emoji, inten, re, wit, extra)                                                \
+    "{\"id\":" id ",\"name\":" name ",\"level\":1,\"emoji\":" emoji ",\"intensity\":" inten        \
+    ",\"re\":" re ",\"mk\":0,\"im\":0,\"witness\":" wit extra "}"
+#define AOK AGT("5", "\"A\"", "\"x\"", "1", "10", "1", "")
+#define ST_CYCLE(c)                                                                                \
+    "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":" c ",\"agents\":[" AOK "]}"
+
+/* a third transport: each method answers from its own script, "\"result\":..."
+ * or "\"error\":..."; NULL fails the send. sc_log lists the methods asked. */
+static const char *SC_STATE, *SC_MODEL, *SC_EARN;
+static char sc_log[512];
+
+static int32_t scripted(void *ctx, const char *req, uint32_t len, char *resp, uint32_t cap)
+{
+    zxm_link_t *l = ctx;
+    (void) len;
+    const char *m = strstr(req, "\"method\":\"");
+    const char *body = NULL;
+    if (m) {
+        m += 10;
+        size_t k = strcspn(m, "\""), o = strlen(sc_log);
+        if (o + k + 2 < sizeof sc_log) {
+            memcpy(sc_log + o, m, k);
+            sc_log[o + k] = ';';
+            sc_log[o + k + 1] = 0;
+        }
+        body = !strncmp(m, "swarm.state\"", 12)      ? SC_STATE
+               : !strncmp(m, "model.info\"", 11)     ? SC_MODEL
+               : !strncmp(m, "swarm.earnings\"", 15) ? SC_EARN
+                                                     : NULL;
+    }
+    if (!body) return -1;
+    return snprintf(resp, cap, "{\"jsonrpc\":\"2.0\",\"id\":%u,%s}", l->seq, body);
+}
+
+#define EARN_R(rate, bal, posts, cycles, extra)                                                    \
+    "\"result\":{\"currency\":\"VFV\",\"rate_minor\":" rate                                        \
+    ",\"source_account\":1,\"owner_account\":2,\"balance_minor\":" bal ",\"postings\":" posts      \
+    ",\"cycles\":" cycles extra "}"
+#define NOT_AVAILABLE "\"error\":{\"code\":-32601,\"message\":\"not available\"}"
+
+static murmuration_t M, MB;
+static zxm_link_t SCR;
+
+/* a failed refresh leaves the model exactly as it was (R2) */
+static int refresh_kept(murmuration_t *m, int want)
+{
+    memcpy(&MB, m, sizeof MB);
+    int rc = murm_refresh(m);
+    return rc == want && !memcmp(&MB, m, sizeof MB);
+}
+
+static void test_murmuration_parse(void)
+{
+    /* the state's required members, each left out, then given the wrong type */
+    static const char *const TK[] = {"\"levels\":1", "\"tokens_per_cycle\":10", "\"tick\":1",
+                                     "\"cycle\":1", "\"agents\":[]"};
+    static const char *const TKBAD[] = {"\"levels\":\"1\"", "\"tokens_per_cycle\":\"10\"",
+                                        "\"tick\":-1", "\"cycle\":1.5", "\"agents\":{}"};
+    static const char *const AK[] = {"\"id\":5",        "\"name\":\"A\"",  "\"level\":1",
+                                     "\"emoji\":\"x\"", "\"intensity\":1", "\"re\":10",
+                                     "\"mk\":0",        "\"im\":0",        "\"witness\":1"};
+    static const char *const AKBAD[] = {"\"id\":\"5\"", "\"name\":7",          "\"level\":\"1\"",
+                                        "\"emoji\":7",  "\"intensity\":\"1\"", "\"re\":\"10\"",
+                                        "\"mk\":1.5",   "\"im\":-1",           "\"witness\":true"};
+    static char st[1024];
+    for (uint32_t bad = 0; bad < 2; bad++)
+        for (uint32_t k = 0; k < 5; k++) {
+            uint32_t o = 0;
+            appendf(st, sizeof st, &o, "{");
+            for (uint32_t j = 0; j < 5; j++) {
+                if (j == k && !bad) continue;
+                appendf(st, sizeof st, &o, "%s%s", o > 1 ? "," : "", j == k ? TKBAD[j] : TK[j]);
+            }
+            appendf(st, sizeof st, &o, "}");
+            STATE = st;
+            CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "state %s: %s", bad ? "bad" : "without", TK[k]);
+        }
+    for (uint32_t bad = 0; bad < 2; bad++)
+        for (uint32_t k = 0; k < 9; k++) {
+            uint32_t o = 0;
+            appendf(st, sizeof st, &o,
+                    "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,"
+                    "\"agents\":[{");
+            bool first = true;
+            for (uint32_t j = 0; j < 9; j++) {
+                if (j == k && !bad) continue;
+                appendf(st, sizeof st, &o, "%s%s", first ? "" : ",", j == k ? AKBAD[j] : AK[j]);
+                first = false;
+            }
+            appendf(st, sizeof st, &o, "}]}");
+            STATE = st;
+            CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "agent %s: %s", bad ? "bad" : "without", AK[k]);
+        }
+
+    /* ranges and optional members of the wrong type (R3) */
+    static const char *const BAD[] = {
+        "[1]",
+        "\"state\"",
+        MIN_ST(",\"levels\":4294967296", AOK), /* a duplicate key is no key */
+        "{\"levels\":4294967296,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,\"agents\":[]}",
+        "{\"levels\":1,\"tokens_per_cycle\":18446744073709551616,\"tick\":1,\"cycle\":1,"
+        "\"agents\":[]}",
+        MIN_ST(",\"cores\":1.5", AOK),
+        MIN_ST(",\"cores\":4294967296", AOK),
+        MIN_ST(",\"version\":2", AOK),
+        MIN_ST(",\"host\":null", AOK),
+        MIN_ST(",\"mood\":5", AOK),
+        MIN_ST(",\"mood\":\"" E_NEUTRAL "\"", AOK),
+        MIN_ST(",\"mood\":\"" E_NEUTRAL " 6\"", AOK),
+        MIN_ST(",\"mood\":\"" E_NEUTRAL " 33\"", AOK),
+        MIN_ST(",\"mood\":\"" E_NEUTRAL " \"", AOK),
+        MIN_ST(",\"mood\":\"" E_NEUTRAL " /\"", AOK),
+        MIN_ST(",\"mood\":\" 3\"", AOK),
+        MIN_ST(",\"mood\":\"0123456789abcdef 1\"", AOK),
+        MIN_ST(",\"audit\":1", AOK),
+        MIN_ST(",\"audit_records\":-1", AOK),
+        MIN_ST(",\"ledger_postings\":\"9\"", AOK),
+        MIN_ST(",\"ledger_halt\":2147483648", AOK),
+        MIN_ST(",\"ledger_halt\":-2147483649", AOK),
+        MIN_ST(",\"ledger_halt\":\"-4\"", AOK),
+        MIN_ST(",\"ledger_halt\":true", AOK),
+        MIN_ST(",\"model\":\"x\"", AOK),
+        MIN_ST(",\"model\":null", AOK),
+        MIN_ST(",\"model\":{\"loaded\":1,\"can_generate\":false}", AOK),
+        MIN_ST(",\"model\":{\"can_generate\":false}", AOK),
+        MIN_ST(",\"model\":{\"loaded\":true}", AOK),
+        MIN_ST(",\"model\":{\"loaded\":true,\"can_generate\":\"no\"}", AOK),
+        MIN_ST(",\"model\":{\"loaded\":true,\"can_generate\":false,\"status\":3}", AOK),
+        MIN_ST(",\"model\":{\"loaded\":true,\"can_generate\":false,\"name\":[]}", AOK),
+        MIN_ST(",\"model\":{\"loaded\":true,\"can_generate\":false,\"arch\":{}}", AOK),
+        MIN_ST("", "1"),
+        MIN_ST("", AOK ",null"),
+        MIN_ST("", AOK ",[]"),
+        MIN_ST("", AGT("-1", "\"A\"", "\"x\"", "1", "10", "1", "")),
+        MIN_ST("", AGT("4294967296", "\"A\"", "\"x\"", "1", "10", "1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "6", "10", "1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "-1", "10", "1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "18446744073709551616", "1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "1e3", "1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "3", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "-1", "")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1", ",\"level\":4294967296")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1", ",\"money\":\"5\"")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1", ",\"social\":-2")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1", ",\"gen\":4294967296")),
+        MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1", ",\"witness_by\":7")),
+        MIN_ST("", AOK "," AGT("6", "\"B\"", "\"x\"", "1", "10", "9", "")), /* the last agent */
+    };
+    for (uint32_t i = 0; i < sizeof BAD / sizeof *BAD; i++) {
+        STATE = BAD[i];
+        CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "bad state %u: %s", i, BAD[i]);
+    }
+    /* sanity: the same builders make a good state */
+    STATE = MIN_ST(",\"model\":{\"loaded\":false,\"can_generate\":false}", AOK);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == 1, "the good one: %s", LINK.err);
+}
+
+static void test_murmuration(void)
+{
+    MODEL = "{\"loaded\":false,\"can_generate\":false,\"name\":\"from info\",\"arch\":\"\","
+            "\"n_layers\":0,\"n_vocab\":0,\"status\":\"no model\"}";
+    murm_init(&M, &LINK);
+    CHECK(M.link == &LINK && M.refreshes == 0 && M.sel == -1 && M.sw.n == 0 && !M.have_model &&
+              !M.have_earnings && M.held.state == ZXM_HELD_NONE,
+          "init");
+    CHECK(!strcmp(MURM_AI[MURM_AI_EXPLAIN].name, "Explain the swarm") &&
+              !strcmp(MURM_AI[MURM_AI_EXPLAIN].agent, "Companion") &&
+              !strcmp(MURM_AI[MURM_AI_WHY_UNHAPPY].name, "Why is this agent unhappy") &&
+              !strcmp(MURM_AI[MURM_AI_WHY_UNHAPPY].agent, "Companion") &&
+              MURM_AI[0].est_tokens > 0 && MURM_AI[1].est_tokens > 0,
+          "the palette");
+    asked = 0;
+    sent = 0;
+    CHECK(murm_ai(&M, MURM_AI_EXPLAIN) == ZXM_E_STATE && !asked && !sent, "no snapshot to explain");
+    CHECK(murm_select(&M, 0) == ZXM_E_ARG && murm_select(&M, -1) == ZXM_OK && M.sel == -1,
+          "nothing to select");
+    CHECK(murm_cycle_share(&M, 0) == 0 && murm_find(&M, "") == -1, "empty");
+
+    /* the whole state; the books are not open, so no earnings */
+    STATE = STATE_FULL;
+    sent = 0;
+    CHECK(murm_refresh(&M) == ZXM_OK, "refresh: %s", LINK.err);
+    CHECK(sent == 2, "swarm.state and swarm.earnings, model from the state: %d", sent);
+    const murm_swarm_t *s = &M.sw;
+    CHECK(!strcmp(s->version, "1.0.0") && !strcmp(s->host, "hive") && s->cores == 8 &&
+              s->levels == 3 && s->tokens_per_cycle == 1000 && s->tick == 4242 && s->cycle == 17,
+          "totals");
+    CHECK(!strcmp(s->mood, E_JOY) && s->mood_codepoint == 0x1F604u && s->mood_intensity == 3,
+          "mood: %s %u", s->mood, s->mood_intensity);
+    CHECK(!strcmp(s->audit, "active") && s->audit_records == 12 && s->ledger_postings == 96 &&
+              s->ledger_halt == 0,
+          "audit and ledger");
+    CHECK(s->n == 3 && s->n_total == 3 && !s->truncated && s->allotted == 1000, "agents: %u %llu",
+          s->n, (unsigned long long) s->allotted);
+    const murm_agent_t *a = &s->agent[0];
+    CHECK(a->id == 1 && !strcmp(a->name, "Companion") && a->level == 0 &&
+              !strcmp(a->emoji, E_NEUTRAL) && a->codepoint == 0x1F610u && a->intensity == 0 &&
+              a->re == 400 && a->mk == 50 && a->im == 0 && a->money == 1000 && a->social == 3 &&
+              a->gen == 0 && a->witness == MURM_WIT_TRUE && !strcmp(a->witness_by, "Coder-2"),
+          "the companion");
+    a = &s->agent[1];
+    CHECK(a->id == 2 && !strcmp(a->name, "Coder-2") && a->level == 1 && !strcmp(a->emoji, E_SAD) &&
+              a->codepoint == 0x1F622u && a->intensity == 4 && a->re == 200 && a->mk == 0 &&
+              a->im == 100 && a->money == 990 && a->social == 2 && a->gen == 1 &&
+              a->witness == MURM_WIT_GLUT && !strcmp(a->witness_by, "Critic-3"),
+          "a contested agent");
+    a = &s->agent[2];
+    CHECK(a->id == 3 && a->level == 2 && a->codepoint == 0x1F914u && a->intensity == 2 &&
+              a->re == 150 && a->mk == 75 && a->im == 25 && a->money == 7 && a->social == 9 &&
+              a->gen == 4 && a->witness == MURM_WIT_FALSE && !strcmp(a->witness_by, "Companion"),
+          "a refused allotment");
+    CHECK(M.have_model && M.model.loaded && !M.model.can_generate &&
+              !strcmp(M.model.name, "tiny.gguf") && !strcmp(M.model.arch, "llama") &&
+              !strcmp(M.model.status, "loaded, no tokenizer") && M.model_code == 0,
+          "model");
+    CHECK(!M.have_earnings && M.earn_code == -32603 && !M.earn.currency[0] && M.refreshes == 1,
+          "books not open: earnings absent (%d)", M.earn_code);
+    CHECK(murm_cycle_share(&M, 0) == 450 && murm_cycle_share(&M, 1) == 300 &&
+              murm_cycle_share(&M, 2) == 250 && murm_cycle_share(&M, 3) == 0,
+          "shares %u %u %u", murm_cycle_share(&M, 0), murm_cycle_share(&M, 1),
+          murm_cycle_share(&M, 2));
+    CHECK(murm_emotion(s->agent[0].codepoint) == SWARM_EMO_NEUTRAL &&
+              murm_emotion(s->agent[1].codepoint) == SWARM_EMO_SADNESS &&
+              murm_emotion(s->agent[2].codepoint) == SWARM_EMO_CURIOUS &&
+              murm_emotion(s->mood_codepoint) == SWARM_EMO_JOY &&
+              murm_emotion(0x1F620u) == SWARM_EMO_FRUSTRATION && murm_emotion(0x1F600u) == -1 &&
+              murm_emotion(0) == -1,
+          "emotions");
+    CHECK(murm_find(&M, "Companion") == 0 && murm_find(&M, "Coder-2") == 1 &&
+              murm_find(&M, "Critic-3") == 2 && murm_find(&M, "coder-2") == -1 &&
+              murm_find(&M, "Coder") == -1 && murm_find(&M, "") == -1,
+          "find");
+    M.sw.n = 2; /* past the end, though the entry is there */
+    CHECK(murm_cycle_share(&M, 2) == 0 && murm_cycle_share(&M, 1) == 300, "only what is kept");
+    M.sw.n = 3;
+    CHECK(murm_select(&M, 3) == ZXM_E_ARG && murm_select(&M, -2) == ZXM_E_ARG && M.sel == -1,
+          "select bounds");
+    CHECK(murm_select(&M, 2) == ZXM_OK && M.sel == 2, "select");
+
+    /* the books open: earnings arrive (zxvd_rpc.h E1-E4) */
+    CHECK(zxvd_rpc_books_open() == 0 && zxvd_rpc_earnings_sync(1000) == 0, "books");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.have_earnings && M.earn_code == 0 &&
+              !strcmp(M.earn.currency, "VFV") && M.earn.rate_minor == 1 &&
+              M.earn.balance_minor == 1000 && M.earn.postings == 1 && M.earn.cycles == 1 &&
+              !M.earn.resumed && M.refreshes == 2,
+          "earnings: %s", LINK.err);
+    CHECK(M.sel == 2, "the selection stays");
+
+    /* AI: held, never applied (M3) */
+    ANSWER = "The swarm is busy.";
+    asked = 0;
+    CHECK(murm_ai(&M, MURM_AI_COUNT) == ZXM_E_ARG && murm_ai(&M, -1) == ZXM_E_ARG && !asked,
+          "bad action");
+    CHECK(murm_select(&M, -1) == ZXM_OK, "clear the selection");
+    sent = 0;
+    CHECK(murm_ai(&M, MURM_AI_WHY_UNHAPPY) == ZXM_E_STATE && !asked && !sent &&
+              M.held.state == ZXM_HELD_NONE,
+          "why unhappy needs an agent, and asks nothing");
+    CHECK(murm_ai(&M, MURM_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              M.held.state == ZXM_HELD_PENDING && M.held.action == MURM_AI_EXPLAIN &&
+              !strcmp(M.held.text, "The swarm is busy.") && M.held.len == 18 &&
+              !strcmp(M.held.cost.agent, "Companion") && !M.held.cost.exact &&
+              M.held.cost.tokens > 0,
+          "explain held");
+    const char *in = strstr(last_prompt, "\n\n");
+    CHECK(in && !strcmp(in + 2,
+                        "Cycle 17, 1000 tokens per cycle, 3 levels, mood " E_JOY
+                        " 3, audit active, ledger running, 3 agents\n"
+                        "Companion (level 0): feeling " E_NEUTRAL
+                        " 0, tokens re 400 mk 50 im 0 (450 per mille of the cycle), witness true "
+                        "by Coder-2\n"
+                        "Coder-2 (level 1): feeling " E_SAD
+                        " 4, tokens re 200 mk 0 im 100 (300 per mille of the cycle), witness "
+                        "contested by Critic-3\n"
+                        "Critic-3 (level 2): feeling " E_CURIOUS
+                        " 2, tokens re 150 mk 75 im 25 (250 per mille of the cycle), witness "
+                        "false by Companion\n"),
+          "explain prompt: %s", last_prompt);
+    CHECK(!strncmp(last_prompt, "Explain in plain words what this ZXV swarm", 42), "instruction");
+    sent = 0;
+    memcpy(&MB, &M, sizeof MB);
+    CHECK(murm_ai_accept(&M) == ZXM_OK && M.held.state == ZXM_HELD_ACCEPTED && !sent &&
+              !strcmp(M.held.text, "The swarm is busy.") && M.refreshes == MB.refreshes &&
+              !memcmp(&M.sw, &MB.sw, sizeof M.sw),
+          "accept only marks it read");
+    CHECK(murm_ai_accept(&M) == ZXM_E_STATE && murm_ai_reject(&M) == ZXM_E_STATE, "once");
+    CHECK(murm_select(&M, 1) == ZXM_OK && murm_ai(&M, MURM_AI_WHY_UNHAPPY) == ZXM_OK &&
+              M.held.state == ZXM_HELD_PENDING && M.held.action == MURM_AI_WHY_UNHAPPY,
+          "why unhappy");
+    in = strstr(last_prompt, "\n\n");
+    static const char WHY[] = "Agent: Coder-2 (level 1): feeling " E_SAD
+                              " 4, tokens re 200 mk 0 im 100 (300 per mille of the cycle), "
+                              "witness contested by Critic-3\n\nThe swarm: Cycle 17, 1000 tokens";
+    CHECK(in && !strncmp(in + 2, WHY, sizeof WHY - 1) &&
+              strstr(last_prompt, "Critic-3 (level 2)") &&
+              !strncmp(last_prompt, "Explain in plain words why this agent", 37),
+          "why prompt: %s", last_prompt);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.held.state == ZXM_HELD_PENDING && M.sel == 1,
+          "a refresh keeps the held answer");
+    CHECK(murm_ai_reject(&M) == ZXM_OK && M.held.state == ZXM_HELD_REJECTED && !M.held.len &&
+              !M.held.text[0] && murm_ai_reject(&M) == ZXM_E_STATE &&
+              murm_ai_accept(&M) == ZXM_E_STATE,
+          "reject drops it");
+
+    /* the selection follows the agent's id (R4) */
+    STATE = MIN_ST("", AGT("5", "\"A\"", "\"x\"", "1", "10", "1",
+                           "") "," AGT("6", "\"B\"", "\"x\"", "1", "10", "1",
+                                       "") "," AGT("7", "\"C\"", "\"x\"", "1", "10", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sel == -1 && murm_select(&M, 2) == ZXM_OK, "A B C");
+    STATE = MIN_ST("", AGT("7", "\"C\"", "\"x\"", "1", "10", "1", "") "," AOK);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sel == 0, "C moved to the front: %d", M.sel);
+    STATE = MIN_ST("", AOK);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sel == -1, "C gone");
+    STATE = MIN_ST("", AGT("0", "\"Z\"", "\"x\"", "1", "10", "1", "") "," AOK);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sel == -1, "no selection stays none");
+    CHECK(murm_select(&M, 0) == ZXM_OK, "select id 0");
+    STATE = MIN_ST("", AOK "," AGT("0", "\"Z\"", "\"x\"", "1", "10", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sel == 1, "id 0 followed: %d", M.sel);
+
+    /* the smallest state: optional members absent, the model from model.info */
+    STATE = MIN_ST(",\"ledger_halt\":-4", AOK);
+    sent = 0;
+    CHECK(murm_refresh(&M) == ZXM_OK && sent == 3, "three calls: %d", sent);
+    CHECK(M.have_model && !M.model.loaded && !strcmp(M.model.name, "from info") &&
+              !strcmp(M.model.status, "no model") && !M.model.arch[0],
+          "model.info");
+    s = &M.sw;
+    CHECK(!s->version[0] && !s->host[0] && s->cores == 0 && !s->mood[0] && s->mood_codepoint == 0 &&
+              s->mood_intensity == 0 && !s->audit[0] && s->audit_records == 0 &&
+              s->ledger_postings == 0 && s->ledger_halt == -4 && s->levels == 1 &&
+              s->tokens_per_cycle == 10 && s->tick == 1 && s->cycle == 1,
+          "optional totals absent, the ledger halted");
+    a = &s->agent[0];
+    CHECK(s->n == 1 && a->id == 5 && !strcmp(a->name, "A") && !strcmp(a->emoji, "x") &&
+              a->codepoint == 'x' && a->money == 0 && a->social == 0 && a->gen == 0 &&
+              !a->witness_by[0] && murm_emotion(a->codepoint) == -1,
+          "optional agent members absent");
+    CHECK(murm_cycle_share(&M, 0) == 1000, "one agent has it all");
+    ANSWER = "Halted.";
+    CHECK(murm_ai(&M, MURM_AI_EXPLAIN) == ZXM_OK, "explain a halt");
+    in = strstr(last_prompt, "\n\n");
+    CHECK(in && !strcmp(in + 2, "Cycle 1, 10 tokens per cycle, 1 levels, mood unknown, audit "
+                                "unknown, ledger halted (-4), 1 agents\n"
+                                "A (level 1): feeling x 1, tokens re 10 mk 0 im 0 (1000 per mille "
+                                "of the cycle), witness true by kernel\n"),
+          "halt prompt: %s", last_prompt);
+
+    /* the edges of what is accepted */
+    STATE = MIN_ST(",\"mood\":\"" E_SAD " 5\",\"ledger_halt\":-2147483648,\"cores\":4294967295",
+                   AGT("4294967295", "\"\\u00e9\"", "\"\\ud83d\\ude20\"", "5",
+                       "18446744073709551615", "2", ",\"gen\":4294967295,\"witness_by\":\"\""));
+    CHECK(murm_refresh(&M) == ZXM_OK, "the edges: %s", LINK.err);
+    a = &M.sw.agent[0];
+    CHECK(a->id == 4294967295u && !strcmp(a->name, "\xc3\xa9") &&
+              !strcmp(a->emoji, "\xf0\x9f\x98\xa0") && a->codepoint == 0x1F620u &&
+              a->intensity == 5 && a->re == UINT64_MAX && a->witness == MURM_WIT_GLUT &&
+              a->gen == 4294967295u && M.sw.ledger_halt == INT32_MIN && M.sw.cores == 4294967295u &&
+              M.sw.mood_intensity == 5 && M.sw.mood_codepoint == 0x1F622u,
+          "escaped emoji and the largest values");
+    CHECK(murm_emotion(a->codepoint) == SWARM_EMO_FRUSTRATION, "frustration");
+    STATE = MIN_ST(",\"mood\":\"\xe2\x82\xac 0\"",
+                   AGT("5", "\"A\"", "\"\xc3\xa9!\"", "1", "10", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.agent[0].codepoint == 0xE9u &&
+              M.sw.mood_codepoint == 0x20ACu && M.sw.mood_intensity == 0 &&
+              !strcmp(M.sw.mood, "\xe2\x82\xac"),
+          "two- and three-byte code points: %x %x", M.sw.agent[0].codepoint, M.sw.mood_codepoint);
+    STATE = MIN_ST("", AGT("5", "\"A\"", "\"\\u0000\"", "1", "10", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.agent[0].codepoint == 0 && !M.sw.agent[0].emoji[0],
+          "an empty emoji");
+    STATE = MIN_ST(",\"mood\":\"\\u007f 1\"",
+                   AGT("5", "\"A\"", "\"\xe0\xa0\x80\"", "1", "10", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.agent[0].codepoint == 0x800u &&
+              M.sw.mood_codepoint == 0x7Fu,
+          "U+0800 and U+007F: %x %x", M.sw.agent[0].codepoint, M.sw.mood_codepoint);
+
+    /* text longer than its field is cut on a character boundary */
+    STATE = MIN_ST(
+        ",\"version\":\"0123456789012345678901234567890123456789012345678901234567890123456789\","
+        "\"model\":{\"loaded\":true,\"can_generate\":true,\"status\":"
+        "\""
+        "0123456789012345678901234567890123456789012345678901234567890123456789"
+        "0123456789012345678901234567890123456789012345678901234567890123456789"
+        "0123456789012345678901234567890123456789012345678901234567890123456789"
+        "0123456789012345678901234567890123456789012345678901234567890123456789\"}",
+        AGT("5",
+            "\"\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3"
+            "\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\"",
+            "\"" E_SAD E_SAD E_SAD E_SAD "\"", "1", "10", "1",
+            ",\"witness_by\":\"abcdefghijabcdefghijabcdefghijabcdefghij\""));
+    CHECK(murm_refresh(&M) == ZXM_OK, "long text: %s", LINK.err);
+    a = &M.sw.agent[0];
+    CHECK(strlen(a->name) == 30 && !memcmp(a->name, "\xc3\xa9\xc3\xa9", 4), "name cut: %zu",
+          strlen(a->name));
+    CHECK(strlen(a->emoji) == 12 && a->codepoint == 0x1F622u, "emoji cut: %zu", strlen(a->emoji));
+    CHECK(strlen(a->witness_by) == MURM_NAME_MAX && strlen(M.sw.version) == MURM_TEXT_MAX &&
+              strlen(M.model.status) == MURM_STATUS_MAX && M.model.can_generate,
+          "ascii cut to the field");
+
+    /* more agents than MURM_AGENTS: the first are kept, every one counts */
+    static char big[32768];
+    uint32_t o = 0;
+    appendf(big, sizeof big, &o,
+            "{\"levels\":2,\"tokens_per_cycle\":700,\"tick\":9,\"cycle\":"
+            "8,\"agents\":[");
+    for (uint32_t i = 0; i < MURM_AGENTS + 6u; i++)
+        appendf(big, sizeof big, &o,
+                "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"" E_NEUTRAL
+                "\",\"intensity\":0,\"re\":%u,\"mk\":0,\"im\":0,\"witness\":1}",
+                i ? "," : "", i + 100u, i, i < MURM_AGENTS ? 10u : 30u);
+    appendf(big, sizeof big, &o, "]}");
+    STATE = big;
+    CHECK(murm_select(&M, 0) == ZXM_OK, "select before");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == MURM_AGENTS && M.sw.n_total == MURM_AGENTS + 6u &&
+              M.sw.truncated && M.sw.allotted == MURM_AGENTS * 10u + 6u * 30u && M.sel == -1,
+          "truncated: %u of %u, %llu", M.sw.n, M.sw.n_total, (unsigned long long) M.sw.allotted);
+    CHECK(murm_find(&M, "A63") == 63 && murm_find(&M, "A64") == -1 &&
+              M.sw.agent[MURM_AGENTS - 1].id == 163,
+          "the first kept");
+    CHECK(murm_cycle_share(&M, 0) == 10u * 1000u / (MURM_AGENTS * 10u + 180u) &&
+              murm_cycle_share(&M, MURM_AGENTS) == 0,
+          "share of the whole: %u", murm_cycle_share(&M, 0));
+    CHECK(murm_select(&M, MURM_AGENTS - 1) == ZXM_OK && murm_select(&M, MURM_AGENTS) == ZXM_E_ARG,
+          "select within what is kept");
+    ANSWER = "Many.";
+    CHECK(murm_ai(&M, MURM_AI_EXPLAIN) == ZXM_OK &&
+              strstr(last_prompt, "Cycle 8, 700 tokens per cycle, 2 levels, mood unknown") &&
+              strstr(last_prompt, "ledger running, 70 agents\nA0 (level 1)") &&
+              strstr(last_prompt, "\nA30 (level 1)") && M.held.cut &&
+              strlen(last_prompt) <= ZXM_ASK_MAX,
+          "every agent counted, as many listed as fit");
+    o = 0;
+    appendf(big, sizeof big, &o,
+            "{\"levels\":2,\"tokens_per_cycle\":640,\"tick\":9,\"cycle\":8,"
+            "\"agents\":[");
+    for (uint32_t i = 0; i < MURM_AGENTS; i++)
+        appendf(big, sizeof big, &o,
+                "%s{\"id\":%u,\"name\":\"A%u\",\"level\":1,\"emoji\":\"x\","
+                "\"intensity\":0,\"re\":10,\"mk\":0,\"im\":0,\"witness\":1}",
+                i ? "," : "", i + 100u, i);
+    appendf(big, sizeof big, &o, "]}");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == MURM_AGENTS && M.sw.n_total == MURM_AGENTS &&
+              !M.sw.truncated && M.sel == (int32_t) (MURM_AGENTS - 1),
+          "exactly MURM_AGENTS");
+    STATE = MIN_ST("", "");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.n == 0 && M.sw.n_total == 0 && M.sw.allotted == 0 &&
+              murm_cycle_share(&M, 0) == 0 && M.sel == -1,
+          "no agents");
+    ANSWER = "Empty.";
+    CHECK(murm_ai(&M, MURM_AI_EXPLAIN) == ZXM_OK && strstr(last_prompt, ", 0 agents\n"),
+          "explain an empty swarm");
+
+    /* allotments near 2^64 saturate; shares stay exact enough */
+    STATE = MIN_ST("", AGT("1", "\"Big\"", "\"x\"", "1", "18446744073709551615", "1",
+                           ",\"mk\":1") "," AGT("2", "\"Half\"", "\"x\"", "1",
+                                                "9223372036854775808", "1", ""));
+    CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "a duplicated mk is refused");
+    STATE = "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,\"agents\":["
+            "{\"id\":1,\"name\":\"Big\",\"level\":1,\"emoji\":\"x\",\"intensity\":1,"
+            "\"re\":18446744073709551615,\"mk\":1,\"im\":1,\"witness\":1},"
+            "{\"id\":2,\"name\":\"Half\",\"level\":1,\"emoji\":\"x\",\"intensity\":1,"
+            "\"re\":9223372036854775808,\"mk\":0,\"im\":0,\"witness\":1}]}";
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.allotted == UINT64_MAX &&
+              murm_cycle_share(&M, 0) == 1000 && murm_cycle_share(&M, 1) == 500,
+          "saturated: %u %u", murm_cycle_share(&M, 0), murm_cycle_share(&M, 1));
+    STATE = "{\"levels\":1,\"tokens_per_cycle\":10,\"tick\":1,\"cycle\":1,\"agents\":["
+            "{\"id\":1,\"name\":\"P\",\"level\":1,\"emoji\":\"x\",\"intensity\":1,"
+            "\"re\":6148914691236517205,\"mk\":0,\"im\":0,\"witness\":1},"
+            "{\"id\":2,\"name\":\"Q\",\"level\":1,\"emoji\":\"x\",\"intensity\":1,"
+            "\"re\":6148914691236517205,\"mk\":6148914691236517205,\"im\":0,\"witness\":1}]}";
+    CHECK(murm_refresh(&M) == ZXM_OK && M.sw.allotted == 18446744073709551615u &&
+              murm_cycle_share(&M, 0) == 333 && murm_cycle_share(&M, 1) == 666,
+          "thirds: %u %u", murm_cycle_share(&M, 0), murm_cycle_share(&M, 1));
+    STATE = MIN_ST("", AGT("1", "\"P\"", "\"x\"", "1", "1", "1", "") "," AGT("2", "\"Q\"", "\"x\"",
+                                                                             "1", "2", "1", ""));
+    CHECK(murm_refresh(&M) == ZXM_OK && murm_cycle_share(&M, 0) == 333 &&
+              murm_cycle_share(&M, 1) == 666,
+          "rounded down: %u %u", murm_cycle_share(&M, 0), murm_cycle_share(&M, 1));
+
+    test_murmuration_parse();
+
+    /* no swarm.state, no model.info: zxvd's refusal is the link's (M2) */
+    static const zxvd_host_ops_t BARE = {.ask = h_ask, .app_version = "test"};
+    zxvd_rpc_set_ops(&BARE);
+    CHECK(refresh_kept(&M, ZXM_E_REMOTE) && LINK.err_code == -32601 &&
+              !strcmp(LINK.err, "not available"),
+          "no state: %d %s", LINK.err_code, LINK.err);
+    static const zxvd_host_ops_t NO_MODEL = {.state = h_state, .ask = h_ask, .app_version = "t"};
+    zxvd_rpc_set_ops(&NO_MODEL);
+    STATE = MIN_ST("", AOK);
+    CHECK(murm_refresh(&M) == ZXM_OK && !M.have_model && M.model_code == -32601 &&
+              !M.model.name[0] && !M.model.status[0] && M.have_earnings,
+          "no model.info: absent, not a failure");
+    zxvd_rpc_set_ops(&OPS);
+    CHECK(murm_refresh(&M) == ZXM_OK && M.have_model && M.model_code == 0, "model back");
+
+    /* a scripted zxvd: earnings as zxvd_rpc.h M3 sends them */
+    zxm_link_init(&SCR, scripted, &SCR);
+    murm_init(&M, &SCR);
+    SC_STATE = "\"result\":" MIN_ST("", AOK);
+    SC_MODEL = "\"result\":{\"loaded\":true,\"can_generate\":true,\"name\":\"m\"}";
+    SC_EARN = EARN_R("\"250\"", "\"-9223372036854775808\"", "\"18446744073709551615\"", "\"0\"",
+                     ",\"resumed\":true");
+    sc_log[0] = 0;
+    CHECK(murm_refresh(&M) == ZXM_OK && M.have_earnings && M.earn.balance_minor == INT64_MIN &&
+              M.earn.postings == UINT64_MAX && M.earn.cycles == 0 && M.earn.rate_minor == 250 &&
+              M.earn.resumed && !strcmp(M.earn.currency, "VFV"),
+          "the extremes: %s", SCR.err);
+    CHECK(!strcmp(sc_log, "swarm.state;model.info;swarm.earnings;"), "order: %s", sc_log);
+    SC_EARN = EARN_R("7", "\"9223372036854775807\"", "\"0012\"", "3", "");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.earn.balance_minor == INT64_MAX &&
+              M.earn.postings == 12 && M.earn.cycles == 3 && M.earn.rate_minor == 7 &&
+              !M.earn.resumed,
+          "JSON integers too");
+    SC_EARN = EARN_R("\"-0\"", "\"-1\"", "\"-0\"", "\"1\"", "");
+    CHECK(murm_refresh(&M) == ZXM_OK && M.earn.balance_minor == -1 && M.earn.rate_minor == 0 &&
+              M.earn.postings == 0,
+          "signs");
+    static const char *const EBAD[] = {
+        EARN_R("\"1\"", "\"9223372036854775808\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"-9223372036854775809\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"18446744073709551616\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"0\"", "\"99999999999999999999\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"-1\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"0\"", "\"-5\"", ""),
+        EARN_R("\"1.5\"", "\"0\"", "\"0\"", "\"0\"", ""),
+        EARN_R("1.5", "\"0\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"1e3\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"-\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\" 1\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"1 \"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"+1\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"9:\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"/\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"--1\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"\\u0031\"", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "true", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "null", "\"0\"", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "[]", "\"0\"", ""),
+        EARN_R("\"1\"", "\"0\"", "\"0\"", "\"0\"", ",\"resumed\":\"yes\""),
+        "\"result\":{\"rate_minor\":\"1\",\"balance_minor\":\"0\",\"postings\":\"0\","
+        "\"cycles\":\"0\"}",
+        "\"result\":{\"currency\":5,\"rate_minor\":\"1\",\"balance_minor\":\"0\",\"postings\":"
+        "\"0\",\"cycles\":\"0\"}",
+        "\"result\":{\"currency\":\"VFV\",\"balance_minor\":\"0\",\"postings\":\"0\","
+        "\"cycles\":\"0\"}",
+        "\"result\":{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"postings\":\"0\","
+        "\"cycles\":\"0\"}",
+        "\"result\":{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"balance_minor\":\"0\","
+        "\"cycles\":\"0\"}",
+        "\"result\":{\"currency\":\"VFV\",\"rate_minor\":\"1\",\"balance_minor\":\"0\","
+        "\"postings\":\"0\"}",
+        "\"result\":[]",
+        "\"result\":\"VFV\"",
+    };
+    SC_STATE = "\"result\":" ST_CYCLE("99"); /* would be new: never taken */
+    for (uint32_t i = 0; i < sizeof EBAD / sizeof *EBAD; i++) {
+        SC_EARN = EBAD[i];
+        CHECK(refresh_kept(&M, ZXM_E_PROTOCOL) && M.sw.cycle == 1 && M.earn.balance_minor == -1,
+              "bad earnings %u: %s", i, EBAD[i]);
+    }
+    SC_EARN = NULL;
+    CHECK(refresh_kept(&M, ZXM_E_TRANSPORT), "earnings: no connection");
+    SC_EARN = EARN_R("\"1\"", "\"5\"", "\"1\"", "\"1\"", "");
+    SC_MODEL = NULL;
+    CHECK(refresh_kept(&M, ZXM_E_TRANSPORT), "model.info: no connection");
+    SC_MODEL = "\"result\":{\"loaded\":true}";
+    CHECK(refresh_kept(&M, ZXM_E_PROTOCOL), "model.info: malformed");
+    SC_MODEL = "\"error\":{\"code\":-32000,\"message\":\"model busy\"}";
+    SC_EARN = NOT_AVAILABLE;
+    sc_log[0] = 0;
+    CHECK(murm_refresh(&M) == ZXM_OK && !M.have_model && M.model_code == -32000 &&
+              !M.have_earnings && M.earn_code == -32601 && !M.earn.currency[0] &&
+              M.earn.balance_minor == 0 && M.sw.cycle == 99 && !M.model.name[0],
+          "both absent, the swarm still shown");
+    CHECK(!strcmp(sc_log, "swarm.state;model.info;swarm.earnings;"), "asked all: %s", sc_log);
+    SC_STATE = "\"error\":{\"code\":-32000,\"message\":\"busy\"}";
+    CHECK(refresh_kept(&M, ZXM_E_REMOTE) && SCR.err_code == -32000 && !strcmp(SCR.err, "busy"),
+          "a refused state");
+    SC_STATE = NULL;
+    sc_log[0] = 0;
+    CHECK(refresh_kept(&M, ZXM_E_TRANSPORT) && !strcmp(sc_log, "swarm.state;"),
+          "no connection: nothing more asked (%s)", sc_log);
+    SC_STATE = "\"result\":" ST_CYCLE("100");
+    SC_EARN = "\"error\":{\"code\":-32603,\"message\":\"the books are not open\"}";
+    SC_MODEL = "\"result\":{\"loaded\":false,\"can_generate\":false}";
+    CHECK(murm_refresh(&M) == ZXM_OK && M.have_model && !M.have_earnings && M.earn_code == -32603 &&
+              M.sw.cycle == 100,
+          "books closed");
+    zxvd_rpc_books_close();
+}
+
 int main(void)
 {
     char root[256];
@@ -847,6 +1507,7 @@ int main(void)
     test_quillon();
     test_spindle();
     test_spaces();
+    test_murmuration();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

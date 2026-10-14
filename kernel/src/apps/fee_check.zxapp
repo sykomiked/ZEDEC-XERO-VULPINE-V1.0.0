@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fee Check: one app, five languages. The fee is worked out in Sutra and
+# in KRON, and whether a payment is inside the limits in Sutra, KRON and
+# Eve; zxapp_call_witnessed runs them all and holds the answer (BOTH)
+# when they disagree. The batch total is Trebago, and whether a payment
+# fits its M record is MYRA. Amounts and fees are in cents.
+zxapp 1
+id     fee_check
+name   Fee Check
+
+provides fee num amount rate
+logic    sutra   fee apps/blocks/fee_check/fee.sutra
+logic    kron    fee apps/blocks/fee_check/fee.kron
+
+provides fee_ok truth amount fee
+logic    sutra   fee_ok apps/blocks/fee_check/fee_ok.sutra
+logic    kron    fee_ok apps/blocks/fee_check/fee_ok.kron
+logic    eve     fee_ok apps/blocks/fee_check/fee_ok.eve
+
+provides total num amount fee
+logic    trebago total apps/blocks/fee_check/total.tb
+
+provides record_ok truth batch seq amount fee
+logic    myra    record_ok apps/blocks/fee_check/payment.myra

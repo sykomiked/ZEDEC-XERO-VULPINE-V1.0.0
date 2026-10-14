@@ -10,10 +10,11 @@ name: zxvd
 on:
   push:
     branches: [main, develop]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
     types: [ opened, synchronize, reopened, ready_for_review ]
     paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
@@ -101,11 +102,33 @@ jobs:
             -Ikernel/arch/hosted kernel/arch/hosted/test_zxv_files.c kernel/arch/hosted/zxv_files.c \
             -o "$RUNNER_TEMP/test_zxv_files"
           "$RUNNER_TEMP/test_zxv_files"
-      - name: App models (Burrow, Quillon, Glint, Spindle) on the real dispatcher
+      - name: App models (Burrow, Quillon, Glint, Spindle, Murmuration) on the real dispatcher
         env:
           CC: ${{ matrix.cc }}
           CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
         run: sh kernel/src/apps/test_apps.sh
+      - name: App manifests and their KRON logic (zxapp)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_zxapp.sh
+      - name: The apps' native screens, driven by clicks and keys (zui views)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/views/test_views.sh
+      - name: zui system pieces (accessibility, input, notices, privacy, clipboard, share, capture, lock, display)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/test_zui_toolkit.sh
+      - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
+        if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libx11-dev libxext-dev libvulkan-dev \
+            mesa-vulkan-drivers gcc-mingw-w64-x86-64 >/dev/null
+          sh kernel/arch/hosted/test_zui_present.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}

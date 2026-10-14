@@ -7,25 +7,28 @@
 
 enum { G_EMOTION, G_TEMPER, G_CURIOUS, G_CAUTION, G_WARMTH, G_PACE, G_VERBOSE, G_SPECIALTY };
 
-static const uint32_t ACCENTS[6] = {
-    ZUI_GOLD, ZUI_OK, ZUI_INFO, ZUI_GOLD_GLOW, 0x9FE3C0u, 0xF2A65Au };
+static const uint32_t ACCENTS[6] = {ZUI_GOLD,      ZUI_OK,    ZUI_INFO,
+                                    ZUI_GOLD_GLOW, 0x9FE3C0u, 0xF2A65Au};
 
-uint32_t zui_chiglet_accent(const zui_chiglet_t *c) {
+uint32_t zui_chiglet_accent(const zui_chiglet_t *c)
+{
     return c ? ACCENTS[c->genes[G_EMOTION] % 6u] : ZUI_GOLD;
 }
 
-static void disc(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t rgb) {
+static void disc(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t rgb)
+{
     if (r < 1) r = 1;
-    zui_rect_t b = { cx - r, cy - r, 2 * r, 2 * r };
+    zui_rect_t b = {cx - r, cy - r, 2 * r, 2 * r};
     zui_fill_rrect(s, b, r, rgb, 255u);
 }
 
 /* integer sine-ish table: 16 steps around a circle, scaled by 1024 */
-static const int16_t SIN16[16] = { 0, 392, 724, 946, 1024, 946, 724, 392,
-                                   0, -392, -724, -946, -1024, -946, -724, -392 };
+static const int16_t SIN16[16] = {0, 392,  724,  946,  1024,  946,  724,  392,
+                                  0, -392, -724, -946, -1024, -946, -724, -392};
 
-void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c,
-                      int32_t cx, int32_t cy, int32_t r, uint32_t tick) {
+void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
+                      uint32_t tick)
+{
     if (!s || !c || r < 8) return;
     const uint8_t *g = c->genes;
     uint32_t accent = zui_chiglet_accent(c);
@@ -33,8 +36,8 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c,
     /* halo: one ring per evolution step, up to four */
     uint32_t rings = c->generation > 4u ? 4u : c->generation;
     for (uint32_t i = 0; i < rings; i++) {
-        int32_t rr = r + r / 4 + (int32_t)i * (r / 6 + 2);
-        zui_rect_t b = { cx - rr, cy - rr, 2 * rr, 2 * rr };
+        int32_t rr = r + r / 4 + (int32_t) i * (r / 6 + 2);
+        zui_rect_t b = {cx - rr, cy - rr, 2 * rr, 2 * rr};
         zui_stroke_rrect(s, b, rr, 1, accent, 70u + 30u * (rings - i));
     }
 
@@ -51,30 +54,31 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c,
     /* antennae: curiosity */
     uint32_t ant = g[G_CURIOUS] % 4u;
     for (uint32_t i = 0; i < ant; i++) {
-        int32_t ax = cx + ((int32_t)i - (int32_t)(ant - 1) / 2) * (r / 2) - (ant % 2 ? 0 : r / 4);
-        zui_rect_t stem = { ax - 1, cy - r - r / 3, 2, r / 3 + 2 };
+        int32_t ax = cx + ((int32_t) i - (int32_t) (ant - 1) / 2) * (r / 2) - (ant % 2 ? 0 : r / 4);
+        zui_rect_t stem = {ax - 1, cy - r - r / 3, 2, r / 3 + 2};
         zui_fill(s, stem, ZUI_TEXT_2);
         disc(s, ax, cy - r - r / 3, r / 8 + 1, accent);
     }
 
     /* body: roundness from temperament, tint from warmth (chromostereopsis) */
-    int32_t corner = r / 3 + (int32_t)((uint32_t)r * 2u / 3u * (g[G_TEMPER] % 8u) / 7u);
-    int32_t warm = (int32_t)(g[G_WARMTH] % 9u) - 4;           /* -4 .. +4 */
+    int32_t corner = r / 3 + (int32_t) ((uint32_t) r * 2u / 3u * (g[G_TEMPER] % 8u) / 7u);
+    int32_t warm = (int32_t) (g[G_WARMTH] % 9u) - 4; /* -4 .. +4 */
     uint32_t body = holo_shade(0x1D5C3Bu, 0, warm * 20, 8, 40);
-    zui_rect_t bb = { cx - r, cy - r, 2 * r, 2 * r };
+    zui_rect_t bb = {cx - r, cy - r, 2 * r, 2 * r};
     zui_fill_rrect(s, bb, corner, body, 255u);
     /* shield: caution */
-    int32_t sw = 1 + (int32_t)(g[G_CAUTION] % 3u);
+    int32_t sw = 1 + (int32_t) (g[G_CAUTION] % 3u);
     zui_stroke_rrect(s, bb, corner, sw, ZUI_TEXT_2, 200u);
-    zui_engrave(s, (zui_rect_t){ cx - r + sw + 1, cy - r + sw + 1, 2 * (r - sw - 1), 2 * (r - sw - 1) },
+    zui_engrave(s,
+                (zui_rect_t){cx - r + sw + 1, cy - r + sw + 1, 2 * (r - sw - 1), 2 * (r - sw - 1)},
                 corner > sw + 1 ? corner - sw - 1 : 0, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 60u);
 
     /* face: eyes by mood */
     int32_t ey = cy - r / 5, ex = r / 3, er = r / 7 + 1;
     disc(s, cx - ex, ey, er, ZUI_TEXT);
     if (c->mood == ZUI_CHG_UNCERTAIN) {
-        zui_rect_t lid = { cx + ex - er, ey - er / 3, 2 * er, (er * 2) / 3 + 1 };
-        zui_fill_rrect(s, lid, er / 2, ZUI_TEXT, 255u);  /* one eye narrowed */
+        zui_rect_t lid = {cx + ex - er, ey - er / 3, 2 * er, (er * 2) / 3 + 1};
+        zui_fill_rrect(s, lid, er / 2, ZUI_TEXT, 255u); /* one eye narrowed */
     } else {
         disc(s, cx + ex, ey, er, ZUI_TEXT);
     }
@@ -82,20 +86,26 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c,
     if (c->mood != ZUI_CHG_UNCERTAIN) disc(s, cx + ex, ey, er / 2, ZUI_VOID);
 
     /* mouth: verbosity sets width; speaking opens it */
-    int32_t mw = r / 4 + (int32_t)((uint32_t)r / 2u * (g[G_VERBOSE] % 5u) / 4u);
+    int32_t mw = r / 4 + (int32_t) ((uint32_t) r / 2u * (g[G_VERBOSE] % 5u) / 4u);
     int32_t mh = c->mood == ZUI_CHG_SPEAKING ? r / 5 + 1 : 2;
-    zui_rect_t mouth = { cx - mw / 2, cy + r / 4, mw, mh };
+    zui_rect_t mouth = {cx - mw / 2, cy + r / 4, mw, mh};
     zui_fill_rrect(s, mouth, mh / 2, c->mood == ZUI_CHG_SPEAKING ? ZUI_VOID : ZUI_TEXT_2, 255u);
 
     /* chest emblem: specialty, one of four marks in the accent colour */
     int32_t ey2 = cy + r / 2 + r / 8, k = r / 8 + 1;
     switch (g[G_SPECIALTY] % 4u) {
-    case 0: disc(s, cx, ey2, k, accent); break;
-    case 1: zui_fill(s, (zui_rect_t){ cx - k, ey2 - k, 2 * k, 2 * k }, accent); break;
-    case 2: zui_fill(s, (zui_rect_t){ cx - 2 * k, ey2 - k / 2, 4 * k, k }, accent); break;
+    case 0:
+        disc(s, cx, ey2, k, accent);
+        break;
+    case 1:
+        zui_fill(s, (zui_rect_t){cx - k, ey2 - k, 2 * k, 2 * k}, accent);
+        break;
+    case 2:
+        zui_fill(s, (zui_rect_t){cx - 2 * k, ey2 - k / 2, 4 * k, k}, accent);
+        break;
     default:
-        zui_fill(s, (zui_rect_t){ cx - k / 2, ey2 - 2 * k, k, 4 * k }, accent);
-        zui_fill(s, (zui_rect_t){ cx - 2 * k, ey2 - k / 2, 4 * k, k }, accent);
+        zui_fill(s, (zui_rect_t){cx - k / 2, ey2 - 2 * k, k, 4 * k}, accent);
+        zui_fill(s, (zui_rect_t){cx - 2 * k, ey2 - k / 2, 4 * k, k}, accent);
         break;
     }
 }
