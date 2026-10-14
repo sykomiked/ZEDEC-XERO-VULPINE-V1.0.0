@@ -128,11 +128,28 @@ vectors in, exact numbers or truth values (lpres's codes) out, the shape of
 a block entry in the app model (`docs/APP_MODEL.md`). Entries: `prob.join`,
 `prob.verdict`, `prob.bayes`, `strat.decide`, `strat.leader`, `strat.zopa`,
 `fin.npv`, `fin.npv_sign`. Tactics stays a C and SDK interface, since a game
-is three callbacks rather than a vector. Once the block system is on main,
-a `c` runtime binds these entries by name and the probability entries get a
-second implementation in KRON so the witnessed call checks C against KRON.
+is three callbacks rather than a vector.
+
+`kernel/src/apps/zxapp_pce.c` is the app model's `c` runtime for them, and
+three blocks ship in `kernel/src/apps/blocks/`: `pce_prob`, `pce_strat` and
+`pce_fin`. Each `logic c` line names its engine entry inline, so an app
+uses them like any other block:
+
+```
+zxapp 1
+id planner
+use pce_prob 1
+use pce_strat 1
+```
+
+and calls `pce_prob.join`, `pce_strat.decide` and so on. The block's
+contract is checked first, then the engine's own shapes. The runtime is
+freestanding (no libc, no allocation). A second implementation of the
+probability entries in KRON, so `zxapp_call_witnessed` checks C against
+KRON, is the next step.
 
 ## Tests
 
-`make -C kernel test-pce` (part of verify-all): about 9,500 checks under
-ASan and UBSan, then the freestanding build for aarch64 and i386.
+`make -C kernel test-pce` (part of verify-all): about 9,600 checks under
+ASan and UBSan (the engines, golden digests, and the blocks composed into
+an app), then the freestanding build for aarch64 and i386.
