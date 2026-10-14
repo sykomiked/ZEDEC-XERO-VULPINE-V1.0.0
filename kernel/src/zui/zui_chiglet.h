@@ -27,21 +27,17 @@
 #include <stdint.h>
 #include "zui_canvas.h"
 
-typedef enum {
-    ZUI_CHG_DECIDED = 0,
-    ZUI_CHG_UNCERTAIN,
-    ZUI_CHG_SPEAKING
-} zui_chg_mood_t;
+typedef enum { ZUI_CHG_DECIDED = 0, ZUI_CHG_UNCERTAIN, ZUI_CHG_SPEAKING } zui_chg_mood_t;
 
 typedef struct {
-    uint8_t        genes[8];
-    uint32_t       generation;
+    uint8_t genes[8];
+    uint32_t generation;
     zui_chg_mood_t mood;
 } zui_chiglet_t;
 
 /* Draw centred at (cx, cy), body radius r pixels. tick animates the motes. */
-void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c,
-                      int32_t cx, int32_t cy, int32_t r, uint32_t tick);
+void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
+                      uint32_t tick);
 
 /* The accent colour its home-emotion gene selects (for its speech bubble). */
 uint32_t zui_chiglet_accent(const zui_chiglet_t *c);

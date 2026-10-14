@@ -31,20 +31,19 @@
 
 typedef enum { ZUI_BAR_GATHER = 0, ZUI_BAR_RELEASE } zui_bar_mode_t;
 
-#define ZUI_BAR_UNKNOWN 0xFFFFFFFFu   /* progress not known: breathe, no number */
+#define ZUI_BAR_UNKNOWN 0xFFFFFFFFu /* progress not known: breathe, no number */
 
 /* Draw the bar across `track` (its height is the bar's thickness). p is 0..256
  * or ZUI_BAR_UNKNOWN; tick animates the unknown state. The head x positions are
  * written to *head_l / *head_r when not NULL (equal to the centre when full). */
-void zui_bar_draw(zui_surface_t *s, zui_rect_t track, zui_bar_mode_t mode,
-                  uint32_t p, uint32_t tick, int32_t *head_l, int32_t *head_r);
+void zui_bar_draw(zui_surface_t *s, zui_rect_t track, zui_bar_mode_t mode, uint32_t p,
+                  uint32_t tick, int32_t *head_l, int32_t *head_r);
 
 /* How lit (0..256) an item centred at item_cx is on a gathering bar whose heads
  * are at head_l / head_r, with the bar centre at mid. Items left of centre light
  * as the left head passes them, right of centre as the right head does, and the
  * centre item when the heads meet. ramp_px softens the switch-on. */
-uint32_t zui_bar_lit(int32_t item_cx, int32_t mid, int32_t head_l, int32_t head_r,
-                     int32_t ramp_px);
+uint32_t zui_bar_lit(int32_t item_cx, int32_t mid, int32_t head_l, int32_t head_r, int32_t ramp_px);
 
 /* ---- the launch screen ------------------------------------------------- */
 #define ZUI_LAUNCH_MAX_PARTS 7
@@ -53,10 +52,10 @@ uint32_t zui_bar_lit(int32_t item_cx, int32_t mid, int32_t head_l, int32_t head_
 typedef void (*zui_part_fn)(zui_surface_t *s, zui_rect_t box, uint32_t lit, void *ctx);
 
 typedef struct {
-    zui_part_fn mark;                         /* the app's mark (top)          */
-    zui_part_fn parts[ZUI_LAUNCH_MAX_PARTS];  /* the row; the middle is centre */
-    void       *ctx[ZUI_LAUNCH_MAX_PARTS + 1];/* ctx[0] mark, ctx[1+i] part i  */
-    uint32_t    n;                            /* odd is best: a true centre    */
+    zui_part_fn mark;                        /* the app's mark (top)          */
+    zui_part_fn parts[ZUI_LAUNCH_MAX_PARTS]; /* the row; the middle is centre */
+    void *ctx[ZUI_LAUNCH_MAX_PARTS + 1];     /* ctx[0] mark, ctx[1+i] part i  */
+    uint32_t n;                              /* odd is best: a true centre    */
 } zui_launch_t;
 
 /* Phases of one launch, each 0..256:
@@ -64,10 +63,12 @@ typedef struct {
  *   light    the mark lights and warms (a brief flash at the middle)
  *   release  the bar under the mark runs out with the rest of the load, or
  *            ZUI_BAR_UNKNOWN while the remaining time is unknown */
-typedef struct { uint32_t gather, light, release; } zui_launch_state_t;
+typedef struct {
+    uint32_t gather, light, release;
+} zui_launch_state_t;
 
 /* Lay out and draw the launch screen into `area` (fills it with the ground). */
-void zui_launch_draw(zui_surface_t *s, zui_rect_t area, int32_t scale_q8,
-                     const zui_launch_t *l, zui_launch_state_t st, uint32_t tick);
+void zui_launch_draw(zui_surface_t *s, zui_rect_t area, int32_t scale_q8, const zui_launch_t *l,
+                     zui_launch_state_t st, uint32_t tick);
 
 #endif /* ZXV_ZUI_PROGRESS_H */

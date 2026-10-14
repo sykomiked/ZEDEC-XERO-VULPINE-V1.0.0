@@ -56,9 +56,9 @@ typedef enum {
 } zui_depth_mode_t;
 
 typedef enum {
-    ZUI_ROLE_HELD = 0,      /* S0: at the glass                 */
-    ZUI_ROLE_FORWARD,       /* S+: toward the viewer            */
-    ZUI_ROLE_BACK           /* S-: behind the glass             */
+    ZUI_ROLE_HELD = 0, /* S0: at the glass                 */
+    ZUI_ROLE_FORWARD,  /* S+: toward the viewer            */
+    ZUI_ROLE_BACK      /* S-: behind the glass             */
 } zui_role_t;
 
 typedef struct {
@@ -67,7 +67,7 @@ typedef struct {
     int32_t ipd_px;         /* eye separation, in screen pixels           */
     int32_t head_x, head_y; /* tracked head offset from centre, pixels    */
     int32_t chroma_k;       /* chromostereopsis strength, 0 = off         */
-    bool    reverse_chroma; /* for viewers who see warm/cool backwards    */
+    bool reverse_chroma;    /* for viewers who see warm/cool backwards    */
 } zui_depth_t;
 
 /* Sensible defaults for a panel of the given pixel density: 60 cm viewing
@@ -84,8 +84,7 @@ int32_t zui_eye_shift(const zui_depth_t *d, int32_t z, int32_t eye_x);
 
 /* Per-layer offset for the current mode and eye (eye: -1 left, +1 right,
  * 0 for a single mono view). Covers parallax (head offset) and stereo. */
-void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye,
-                      int32_t *dx, int32_t *dy);
+void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye, int32_t *dx, int32_t *dy);
 
 /* Chromostereopsis tint for a pixel at depth z (identity at z == 0 or when
  * the mode does not use it). */
@@ -94,8 +93,8 @@ uint32_t zui_chroma_px(const zui_depth_t *d, uint32_t rgb, int32_t z);
 /* Combine left- and right-eye pictures into one anaglyph frame. All three
  * surfaces must be the same size; out may alias neither input. Returns false
  * if the mode is not an anaglyph mode or the sizes differ. */
-bool zui_anaglyph(const zui_depth_t *d, zui_surface_t *out,
-                  const zui_surface_t *left, const zui_surface_t *right);
+bool zui_anaglyph(const zui_depth_t *d, zui_surface_t *out, const zui_surface_t *left,
+                  const zui_surface_t *right);
 
 /* One pixel of the same transform, for tests and shaders. */
 uint32_t zui_anaglyph_px(zui_depth_mode_t mode, uint32_t l, uint32_t r);
