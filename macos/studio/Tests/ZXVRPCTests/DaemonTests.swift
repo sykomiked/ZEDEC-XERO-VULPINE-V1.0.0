@@ -53,6 +53,24 @@ final class DaemonTests: XCTestCase {
         XCTAssertTrue(v.libzxv.hasPrefix("1."))
     }
 
+    func testPhonePairingDecodes() throws {
+        let off = try client.call("phone.list", as: PhoneList.self)
+        XCTAssertFalse(off.on)
+        let on = try client.call("phone.link", ["on": true, "port": 0, "bind": "127.0.0.1"], as: PhoneLink.self)
+        XCTAssertTrue(on.on)
+        XCTAssertGreaterThan(on.port, 0)
+        let p = try client.call("phone.pair", ["name": "Test phone"], as: PhonePairing.self)
+        XCTAssertEqual(p.port, on.port)
+        XCTAssertFalse(p.allowPost)
+        XCTAssertTrue(p.link.hasPrefix("zxv-phone:1?"))
+        XCTAssertTrue(p.link.contains("id=\(p.phoneId)"))
+        let l = try client.call("phone.list", as: PhoneList.self)
+        XCTAssertTrue(l.phones.contains { $0.phoneId == p.phoneId && $0.name == "Test phone" && $0.connected == 0 })
+        let r = try client.call("phone.revoke", ["phone_id": .string(p.phoneId)], as: Revoked.self)
+        XCTAssertTrue(r.revoked)
+        XCTAssertFalse(try client.call("phone.link", ["on": false], as: PhoneLink.self).on)
+    }
+
     func testSwarmStateDecodesFully() throws {
         let s = try client.call("swarm.state", as: SwarmState.self)
         XCTAssertGreaterThanOrEqual(s.levels, 1)

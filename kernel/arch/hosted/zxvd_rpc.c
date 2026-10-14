@@ -1740,7 +1740,7 @@ static bool p_gov(call_t *c, zxs_gov_t *gov, uint8_t *quorum)
     return true;
 }
 
-/* a zxv_spaces result: its own refusals are -32013, the folder's -32012 */
+/* a zxv_spaces result: its own refusals are -32013, the folder's -32014 */
 static bool spaces_done(call_t *c, int rc)
 {
     if (rc <= ZXS_E_ROLE && rc >= ZXS_E_GOV) {
@@ -1899,6 +1899,66 @@ static void m_spaces_vote(call_t *c)
         !files_done(c, zxs_save(&s, false)))
         return;
     decision_reply(c, (uint32_t) id, d, &s);
+}
+
+/* ----- phone.* (zxvd_phone.h) ----- */
+static const zxvd_phone_ops_t *PHONE;
+
+void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops)
+{
+    PHONE = ops;
+}
+
+static void m_phone_link(call_t *c)
+{
+    char bind[48];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    int32_t i = param(c, "on");
+    if (i < 0 || (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE))
+        return fail(c, E_PARAMS, "\"on\" must be true or false");
+    bool on = c->t[i].type == W4_J_TRUE;
+    int32_t port = -1;
+    if (param(c, "port") >= 0) {
+        uint32_t v;
+        if (!p_u32(c, "port", &v)) return;
+        if (v > 65535) return fail(c, E_PARAMS, "\"port\" must be 0..65535");
+        port = (int32_t) v;
+    }
+    bool has_bind = param(c, "bind") >= 0;
+    if (has_bind && !p_str(c, "bind", bind, sizeof bind, true)) return;
+    const char *why = PHONE->link(on, port, has_bind ? bind : NULL, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
+}
+
+static void m_phone_pair(call_t *c)
+{
+    char name[33];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "name", name, sizeof name, true)) return;
+    bool post = false;
+    int32_t i = param(c, "allow_post");
+    if (i >= 0) {
+        if (c->t[i].type != W4_J_TRUE && c->t[i].type != W4_J_FALSE)
+            return fail(c, E_PARAMS, "\"allow_post\" must be true or false");
+        post = c->t[i].type == W4_J_TRUE;
+    }
+    const char *why = PHONE->pair(name, post, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
+}
+
+static void m_phone_list(call_t *c)
+{
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    PHONE->list(c->res);
+}
+
+static void m_phone_revoke(call_t *c)
+{
+    char id[40];
+    if (!PHONE) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "phone_id", id, sizeof id, true)) return;
+    const char *why = PHONE->revoke(id, c->res);
+    if (why) fail(c, E_PARAMS, "%s", why);
 }
 
 static void m_update(call_t *c)
@@ -2163,65 +2223,75 @@ static void m_discover(call_t *c);
 static void m_features_get(call_t *c);
 static void m_features_set(call_t *c);
 
+/* who may call a method from a paired phone (zxvd_phone.h A1-A3) */
+#define PH_NO   0 /* the control socket only */
+#define PH_READ 1 /* any paired phone */
+#define PH_POST 2 /* a phone paired with allow_post */
+
 typedef struct {
     const char *name;
     void (*fn)(call_t *);
+    uint8_t phone;
 } method_t;
 
 static const method_t METHODS[] = {
-    {"rpc.discover", m_discover},
-    {"zxvd.version", m_version},
-    {"zxvd.shutdown", m_shutdown},
-    {"swarm.state", m_state},
-    {"swarm.ask", m_ask},
-    {"model.info", m_model},
-    {"notes.list", m_notes},
-    {"notes.mark_read", m_notes_read},
-    {"net.command", m_net},
-    {"net.peers", m_net_peers},
-    {"net.offers", m_net_offers},
-    {"player.card", m_player_card},
-    {"peer.ask", m_peer_ask},
-    {"peer.serve", m_peer_serve},
-    {"peer.status", m_peer_status},
-    {"update.check", m_update},
-    {"currency.enable", m_ccy_enable},
-    {"ledger.open_account", m_open_account},
-    {"ledger.post", m_post},
-    {"ledger.balance", m_balance},
-    {"ledger.accounts", m_accounts},
-    {"ledger.entries", m_entries},
-    {"ledger.check", m_check},
-    {"swarm.earnings", m_earnings},
-    {"mesh.books", m_mesh},
-    {"books.file", m_books},
-    {"jurisdiction.get", m_juris_get},
-    {"jurisdiction.set", m_juris_set},
-    {"aipi.put", m_aipi_put},
-    {"aipi.get", m_aipi_get},
-    {"aipi.publish", m_aipi_publish},
-    {"aipi.execute", m_aipi_execute},
-    {"aipi.status", m_aipi_status},
-    {"features.get", m_features_get},
-    {"features.set", m_features_set},
-    {"files.root", m_files_root},
-    {"files.list", m_files_list},
-    {"files.stat", m_files_stat},
-    {"files.read", m_files_read},
-    {"files.write", m_files_write},
-    {"files.mkdir", m_files_mkdir},
-    {"files.rename", m_files_rename},
-    {"files.trash", m_files_trash},
-    {"files.empty_trash", m_files_empty_trash},
-    {"files.cross", m_files_cross},
-    {"spaces.list", m_spaces_list},
-    {"spaces.get", m_spaces_get},
-    {"spaces.create", m_spaces_create},
-    {"spaces.join", m_spaces_join},
-    {"spaces.set_members", m_spaces_set_members},
-    {"spaces.set_cid", m_spaces_set_cid},
-    {"spaces.propose", m_spaces_propose},
-    {"spaces.vote", m_spaces_vote},
+    {"rpc.discover", m_discover, PH_READ},
+    {"zxvd.version", m_version, PH_READ},
+    {"zxvd.shutdown", m_shutdown, PH_NO},
+    {"swarm.state", m_state, PH_READ},
+    {"swarm.ask", m_ask, PH_READ},
+    {"model.info", m_model, PH_READ},
+    {"notes.list", m_notes, PH_READ},
+    {"notes.mark_read", m_notes_read, PH_READ},
+    {"net.command", m_net, PH_POST},
+    {"net.peers", m_net_peers, PH_READ},
+    {"net.offers", m_net_offers, PH_READ},
+    {"player.card", m_player_card, PH_READ},
+    {"peer.ask", m_peer_ask, PH_POST},
+    {"peer.serve", m_peer_serve, PH_NO},
+    {"peer.status", m_peer_status, PH_READ},
+    {"update.check", m_update, PH_READ},
+    {"currency.enable", m_ccy_enable, PH_POST},
+    {"ledger.open_account", m_open_account, PH_POST},
+    {"ledger.post", m_post, PH_POST},
+    {"ledger.balance", m_balance, PH_READ},
+    {"ledger.accounts", m_accounts, PH_READ},
+    {"ledger.entries", m_entries, PH_READ},
+    {"ledger.check", m_check, PH_READ},
+    {"swarm.earnings", m_earnings, PH_READ},
+    {"mesh.books", m_mesh, PH_READ},
+    {"books.file", m_books, PH_READ},
+    {"jurisdiction.get", m_juris_get, PH_READ},
+    {"jurisdiction.set", m_juris_set, PH_NO},
+    {"aipi.put", m_aipi_put, PH_NO},
+    {"aipi.get", m_aipi_get, PH_READ},
+    {"aipi.publish", m_aipi_publish, PH_NO},
+    {"aipi.execute", m_aipi_execute, PH_NO},
+    {"aipi.status", m_aipi_status, PH_READ},
+    {"features.get", m_features_get, PH_READ},
+    {"features.set", m_features_set, PH_NO},
+    {"files.root", m_files_root, PH_NO},
+    {"files.list", m_files_list, PH_NO},
+    {"files.stat", m_files_stat, PH_NO},
+    {"files.read", m_files_read, PH_NO},
+    {"files.write", m_files_write, PH_NO},
+    {"files.mkdir", m_files_mkdir, PH_NO},
+    {"files.rename", m_files_rename, PH_NO},
+    {"files.trash", m_files_trash, PH_NO},
+    {"files.empty_trash", m_files_empty_trash, PH_NO},
+    {"files.cross", m_files_cross, PH_NO},
+    {"spaces.list", m_spaces_list, PH_NO},
+    {"spaces.get", m_spaces_get, PH_NO},
+    {"spaces.create", m_spaces_create, PH_NO},
+    {"spaces.join", m_spaces_join, PH_NO},
+    {"spaces.set_members", m_spaces_set_members, PH_NO},
+    {"spaces.set_cid", m_spaces_set_cid, PH_NO},
+    {"spaces.propose", m_spaces_propose, PH_NO},
+    {"spaces.vote", m_spaces_vote, PH_NO},
+    {"phone.link", m_phone_link, PH_NO},
+    {"phone.pair", m_phone_pair, PH_NO},
+    {"phone.list", m_phone_list, PH_NO},
+    {"phone.revoke", m_phone_revoke, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2543,6 +2613,18 @@ static void put_error(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32
     zxvd_buf_raw(out, "}}", 2);
 }
 
+/* where the request being handled came from: 0 the control socket, else a
+ * paired phone, PH_POST when its pairing allows posting */
+static int ORIGIN;
+
+bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post)
+{
+    ORIGIN = allow_post ? PH_POST : PH_READ;
+    bool r = zxvd_rpc_handle_line(line, len, out);
+    ORIGIN = 0;
+    return r;
+}
+
 bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
 {
     static w4_jtok_t t[MAX_TOK];
@@ -2570,6 +2652,10 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     bool notify = id < 0;
     if (!notify && t[id].type != W4_J_STR && t[id].type != W4_J_NUM && t[id].type != W4_J_NULL) {
         put_error(out, line, t, -1, E_REQUEST, "id must be a string, number or null", 0);
+        return true;
+    }
+    if (notify && ORIGIN) {
+        put_error(out, line, t, -1, E_REQUEST, "a phone must send an id", 0);
         return true;
     }
     if (!notify && t[id].type == W4_J_NULL) id = -1; /* answered with "id":null */
@@ -2604,6 +2690,15 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     if (!fn && !ext && !gm) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
+    }
+    /* host tables and method groups carry no phone rule: control socket only (A2) */
+    uint8_t ph = fn ? fn->phone : PH_NO;
+    if (ORIGIN && (ph == PH_NO || (ph == PH_POST && ORIGIN != PH_POST))) {
+        put_error(out, line, t, id, ZXVD_E_PHONE,
+                  ph == PH_NO ? "not allowed from a phone"
+                                     : "this phone was paired without allow_post",
+                  0);
+        return true;
     }
     zxvd_buf_t res = {0};
     call_t c = {line, t, n, p, &res, 0, "", 0};

@@ -14,9 +14,8 @@ on:
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
     types: [ opened, synchronize, reopened, ready_for_review ]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   workflow_dispatch:
@@ -144,6 +143,8 @@ jobs:
         run: python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: Built-in apps through the window's /api/rpc
         run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Phone link (pairing, encrypted frames, phone permissions, revoke)
+        run: python3 kernel/arch/hosted/test_zxvd_phone.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, with the tokenizer test model
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \

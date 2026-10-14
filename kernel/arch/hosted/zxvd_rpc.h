@@ -259,8 +259,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010, -32011 and -32012,
- *      the code of a method whose feature switch is off, zxvd_ext.h X4).
+ *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32015;
+ *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -322,10 +322,31 @@ int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *
 /* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
  * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
  */
-#define ZXVD_E_FILES (-32012)
+#define ZXVD_E_FILES (-32014)
 /* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
  * space, or a role that may not do what was asked. */
 #define ZXVD_E_SPACE (-32013)
+
+/* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
+ * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and
+ * revoke return NULL on success (result in out) or why they failed (error
+ * -32602). Control socket only: a phone gets ZXVD_E_PHONE. link's port is
+ * -1 for the default and bind_ip NULL for every interface. */
+#define ZXVD_E_PHONE (-32015)
+typedef struct {
+    const char *(*link)(bool on, int32_t port, const char *bind_ip,
+                        zxvd_buf_t *out);                                    /* phone.link */
+    const char *(*pair)(const char *name, bool allow_post, zxvd_buf_t *out); /* phone.pair   */
+    void (*list)(zxvd_buf_t *out);                                           /* phone.list   */
+    const char *(*revoke)(const char *phone_id, zxvd_buf_t *out);            /* phone.revoke */
+} zxvd_phone_ops_t;
+void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops);
+
+/* One request from a paired phone (zxvd_phone.h A1-A3): like
+ * zxvd_rpc_handle_line, but a method the phone may not call answers
+ * ZXVD_E_PHONE, and a notification is refused (-32600) rather than run.
+ * allow_post: the pairing may move money and change the network. */
+bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

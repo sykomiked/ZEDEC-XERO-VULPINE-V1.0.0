@@ -264,6 +264,10 @@ CI checks it matches what zxvd serves.
 | `seats.lock` | `session` | `ended` |
 | `seats.auto` | | `seat` (an id or null) |
 | `seats.set_auto` | `auto_enter`, `session` | `auto_enter` |
+| `phone.link` | `on`, `port`?, `bind`? | `on`, `port` |
+| `phone.pair` | `name`, `allow_post`? | `phone_id`, `name`, `allow_post`, `host`, `port`, `link` |
+| `phone.list` | | `on`, `port`, `phones` |
+| `phone.revoke` | `phone_id` | `revoked`, `closed` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -282,11 +286,50 @@ refused (the message says why), -32050 an economy engine refused (the message is
 envelope feed" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below),
--32000 a
+-32014 a files.* refusal, -32013 a spaces.* refusal,
+-32015 a method a phone may not call (see below), -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
+
+## The phone link
+
+ZXV Companion ([mobile/companion](../mobile/companion)) reaches zxvd from a
+phone over an encrypted TCP link (`zxvd_phone.c`). It is off by default.
+
+- `phone.link {"on": true}` (or `--phone-link`, `--phone-port N`,
+  `--phone-bind IP`) listens on TCP 47410 on all private, loopback and
+  link-local IPv4 addresses; `bind` picks one, and a public address is
+  refused. `{"on": false}` stops listening and drops every phone.
+- `phone.pair {"name", "allow_post"}` makes a pairing and returns its link,
+  `zxv-phone:1?h=HOST&p=PORT&id=<32 hex>&k=<64 hex>&n=NAME`, which ZXV Studio
+  shows as a QR code. The key is in the link only; zxvd never logs it.
+  Pairings live in `phones` next to the socket, mode 0600, at most 16.
+- `phone.revoke` deletes a pairing and closes its connections at once.
+- The `phone.*` methods are served on the control socket only.
+
+Protocol `zxv-phone/1`, a Noise NNpsk0-style handshake:
+
+1. Phone: `"ZXP1"`, the 16-byte pairing id, a fresh X25519 key `e_c`.
+2. zxvd: its fresh key `e_s`, then `HMAC-SHA256(k_conf, "server confirm" | th)`.
+   `th = SHA-256("zxv-phone/1" | id | e_c | e_s)`; the keys `k_c2s | k_s2c |
+   k_conf` are HKDF-SHA256 with salt = the pairing key, input = the X25519
+   shared secret | `th`, info `"zxv-phone/1 keys"`, 96 bytes. The phone checks
+   the confirmation before it sends anything.
+3. Then frames: a 4-byte big-endian length, then ChaCha20-Poly1305 of one
+   JSON-RPC line with the length as associated data, nonce = 4 zero bytes |
+   a 64-bit big-endian counter per direction. A frame that fails to open
+   closes the connection.
+
+Requests up to 16 KiB, replies up to 4 MiB, up to 4 phones at once, 10 s to
+finish the handshake, and an idle phone is dropped after 60 s.
+
+What a phone may call: everything read-only, plus `swarm.ask` and
+`notes.mark_read`. A phone paired with `allow_post` may also call
+`net.command`, `peer.ask`, `currency.enable`, `ledger.open_account` and
+`ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`, `aipi.put`,
+`aipi.publish`, `aipi.execute` and `phone.*` are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
 ## Swarm earnings in your books
 
@@ -977,6 +1020,8 @@ with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
 Q4_K_M (pinned SHA-256, cached, never in git). `.github/workflows/desktop.yml`
 runs it on Windows against the packaged zxvd.exe, and on Linux against the
 installed .deb.
+`kernel/arch/hosted/test_zxvd_phone.py ZXVD` drives the phone link with its
+own Python X25519 and ChaCha20-Poly1305 (checked against the RFC vectors).
 
 ## Honest limits
 

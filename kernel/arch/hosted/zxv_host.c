@@ -115,6 +115,7 @@ typedef int sock_t;
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -2064,7 +2065,9 @@ int main(int argc, char **argv)
     const char *earn_ccy = "VFV";
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
-    bool desktop = false;
+    bool desktop = false, phone_link = false;
+    int phone_port = ZXVD_PHONE_PORT;
+    const char *phone_bind = NULL;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
     open_window = false; /* a daemon: the UI and SDKs come in over --rpc */
@@ -2144,6 +2147,16 @@ int main(int argc, char **argv)
             desktop = true;
         else if (!strcmp(argv[i], "--enable") && i + 1 < argc)
             enable_list = argv[++i];
+        else if (!strcmp(argv[i], "--phone-link"))
+            phone_link = true;
+        else if (!strcmp(argv[i], "--phone-port") && i + 1 < argc) {
+            phone_port = atoi(argv[++i]);
+            if (phone_port < 0 || phone_port > 65535) {
+                fprintf(stderr, "zxvd: --phone-port takes 0..65535\n");
+                return 2;
+            }
+        } else if (!strcmp(argv[i], "--phone-bind") && i + 1 < argc)
+            phone_bind = argv[++i];
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -2164,6 +2177,11 @@ int main(int argc, char **argv)
                    "                      folder (unless --rpc), and the window opened in\n"
                    "                      the default browser; a second launch opens the\n"
                    "                      running one's window\n"
+                   "  --phone-link        let paired phones in on the local network from\n"
+                   "                      the start (else phone.link over --rpc turns it\n"
+                   "                      on; phone.pair makes a pairing link)\n"
+                   "  --phone-port N      its TCP port (default 47410; 0 = any free port)\n"
+                   "  --phone-bind IP     its private IPv4 address (default all)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -2407,6 +2425,33 @@ int main(int argc, char **argv)
     /* power.* (zxvd_power.h W2): without it zxvd still runs; power.status
      * and power.top then answer that tracking is not running */
     if (zxvd_power_open(NULL) != 0) fprintf(stderr, "zxvd: power tracking is unavailable\n");
+    {
+        /* the pairings live beside the socket, in the folder zxvd_rpc_open checked */
+        char pdir[sizeof rpc_buf];
+        snprintf(pdir, sizeof pdir, "%s", rpc_path);
+        char *sl = strrchr(pdir, '/');
+#    if defined(_WIN32)
+        char *bs = strrchr(pdir, '\\');
+        if (bs && (!sl || bs > sl)) sl = bs;
+#    endif
+        if (sl == pdir)
+            sl[1] = 0;
+        else if (sl)
+            *sl = 0;
+        else
+            snprintf(pdir, sizeof pdir, ".");
+        const char *why = NULL;
+        if (zxvd_phone_init(pdir) != 0 ||
+            (phone_link && (why = zxvd_phone_listen(phone_bind, (uint16_t) phone_port)))) {
+            if (why) fprintf(stderr, "zxvd: phone link: %s\n", why);
+            zxvd_power_close();
+            zxvd_pay_close();
+            zxvd_chat_close();
+            zxvd_rpc_close();
+            zxvd_rpc_groups_reset();
+            return 1;
+        }
+    }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
     if (ls == BAD_SOCK) {
@@ -2472,6 +2517,8 @@ int main(int argc, char **argv)
                port, port);
     printf("ZXV-URL: %s\n", url_tok);
 #if defined(ZXVD)
+    if (zxvd_phone_port())
+        printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
     printf("ZXVD-RPC: %s\n", rpc_path);
     if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
@@ -2507,6 +2554,8 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
         int rfd = zxvd_rpc_fds(&rd);
         if (rfd > maxfd) maxfd = rfd;
+        int phfd = zxvd_phone_fds(&rd);
+        if (phfd > maxfd) maxfd = phfd;
 #endif
         struct timeval tv = {0, STEP_MS * 1000};
         int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
@@ -2542,6 +2591,7 @@ int main(int argc, char **argv)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
         mesh_books_sync();
         zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
+        if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -2557,6 +2607,7 @@ int main(int argc, char **argv)
     if (link_path[0]) remove(link_path);
     zxvd_pay_close();
     zxvd_chat_close();
+    zxvd_phone_close();
     zxvd_rpc_close();
     zxvd_rpc_groups_reset();
 #    if defined(ZXV_HAVE_AIPI)
