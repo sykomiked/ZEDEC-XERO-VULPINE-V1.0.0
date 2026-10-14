@@ -288,6 +288,14 @@ Small, pure building blocks that every stratum may use.
 | Grammar-constrained decoding for the shorthands, plus attestation tags | Stops malformed commands, not wrong facts |
 | Ternary and quaternary experiments | BitNet b1.58 (MIT) packed 5 trits per byte; 2-bit packing for T/F/B/U states; low-bit weights only work on models trained for them |
 | Several models at once, LoRA per agent | 💭 |
+| The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
+| Rosetta Shell: POSIX, PowerShell and cmd.exe lines compiled to one typed CLI-IR on top of zxsh | [ROSETTA_SHELL.md](ROSETTA_SHELL.md), design only |
+| The Registrar: Burrow's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
+| The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
+| The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
+| The registry: 407 slots in three layers (L1 Foundation = the 144 apps, L2 Concourse, L3 Apparatus) and their crossing rules | [REGISTRY.md](REGISTRY.md), design only |
+| Trade routes: typed one-way channels (local rings with exact backpressure, Vinea frames between nodes) | [TRADE_ROUTES.md](TRADE_ROUTES.md), design only |
+| The lexicon: Firmament, Pit Boss, Registrar, Tally, Cage, Desks, Floor, Strongbox, Hoard, trade routes, Rosetta Shell, mapped to code | [LEXICON.md](LEXICON.md) |
 | Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
 
 ## 11. Stratum 6: settlement and economy
