@@ -414,12 +414,108 @@ ParadoxClassification c = book.Classify(tag);
 Console.WriteLine(ParadoxEngine.KindName(c.Kind));
 ```
 
+## Vino Embed (ABI 1.6)
+
+`Zxv.Vino` is what an app or game needs to take part in Vino without ever
+holding anyone's value or keys (`ZxvFeatures2.Vino`). There are two lanes,
+and they never meet:
+
+- **Play lane.** `PlaySandbox` (`platform.CreatePlaySandbox(cap)`, needs
+  `CapabilityRights.Vino`) is a sandbox inside the app with its own play
+  units, issuers, holders and Fibonacci-face vouchers. Play units are not
+  money: they come from a faucet (`PostBacking`), are worth nothing, and are
+  lost when the sandbox is disposed. No call takes a sandbox and anything
+  live, so play units can never become live value.
+- **Live lane.** Real Vino stays in the user's own ZXV wallet. The app builds
+  a `PaymentRequest` and encodes it (160 bytes, `PaymentRequestBytes`, id =
+  SHA-256 of the bytes); the wallet approves it and signs a receipt with its
+  ML-DSA-87 key (`Receipt.Sign`, the wallet's call); the app checks the
+  receipt offline (`Receipt.Verify`). The app never sees a balance, a key or
+  a custody account.
+
+Rules worth knowing:
+
+- A voucher is active on one rail at a time, `VinoRail.Bearer` (the note in
+  hand) or `VinoRail.Ghost` (its ledger twin). A transfer must name that rail
+  (else `ZxvStatus.WrongRail`), so a voucher can never be spent twice.
+- An issuer may issue only while 10 x backing >= 18 x outstanding (1.8x
+  coverage, exact integers); otherwise `ZxvStatus.InsufficientCoverage`.
+- `Redeem` returns a voucher to its issuer and retires it. It pays nothing
+  out. There is no interest, yield or return of any kind.
+- A LIVE request may not sell a paid chance outcome (loot boxes, paid
+  draws): `PaymentRequestFlags.PaidChance` is refused with
+  `ZxvStatus.PaidChance`. The raffle is a separate module.
+- `SpendMeter` (`platform.CreateSpendMeter(cap, dailyCap)`) counts what one
+  device approved per day and refuses what would pass the cap. It is a
+  counter, not a legal check.
+
+New statuses: `WrongRail` (-46), `InsufficientCoverage` (-47), `Expired`
+(-49) and `PaidChance` (-50) are REFUSED (`ZxvRefusedException`);
+`WrongLane` (-48) is USAGE (`ZxvUsageException`). New rights:
+`CapabilityRights.Vino` and `CapabilityRights.AllAbi16` (`AllAbi15` keeps its
+value). Requests, receipt messages and receipt checks are pure and need no
+capability; signing needs `CryptoSign`. Amounts, ids and times are `ulong`.
+
+A play-lane shop: the shop backs itself, sells a voucher to a player, the
+player spends it at a friend, and the friend redeems it.
+
+```csharp
+using ZxvPlatform platform = ZxvPlatform.Create();
+using Capability cap = platform.CreateRootCapability(CapabilityRights.Vino);
+using PlaySandbox play = platform.CreatePlaySandbox(cap);
+
+uint shop = play.OpenIssuer(owner: 1);
+uint player = play.OpenHolder(owner: 100);
+uint friend = play.OpenHolder(owner: 101);
+
+play.PostBacking(shop, 18);                                  // play units: not money
+ulong voucher = play.Issue(shop, player, face: 8, VinoRail.Bearer);
+play.Transfer(voucher, player, friend, VinoRail.Bearer);     // must name the active rail
+play.Redeem(voucher, friend);                                // retired; nothing is paid out
+
+Console.WriteLine(play.GetVoucher(voucher).State);           // Redeemed
+Console.WriteLine(play.GetAccount(shop).Faces);              // 0 outstanding
+play.Check();
+```
+
+A live payment request, the wallet's receipt, and the app's offline check.
+In a real deployment the two halves run in different places: the wallet
+key never reaches the app.
+
+```csharp
+using ZxvPlatform platform = ZxvPlatform.Create();
+ulong now = (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+// App: build and encode the request, send the 160 bytes to the wallet.
+byte[] merchant = SHA256.HashData("my-shop-public-key"u8);
+byte[] nonce = RandomNumberGenerator.GetBytes(16);
+var request = new PaymentRequest(VinoLane.Live, merchant, nonce, amount: 1_234_567,
+    createdAt: now, expiresAt: now + 600, memo: "Sword of Dawn");
+PaymentRequestBytes bytes = request.Encode();
+
+// Wallet: the user approves; the wallet signs with its own key.
+using Capability walletCap = platform.CreateRootCapability(CapabilityRights.CryptoSign);
+using KeyPair wallet = new MlDsa87(walletCap).GenerateKey();
+ulong approvedAt = now + 5;
+byte[] receipt = Receipt.Sign(walletCap, bytes, wallet.SecretKey, wallet.PublicKey, approvedAt);
+
+// App: check the receipt offline (no capability, no network).
+ReceiptVerdict verdict = Receipt.Verify(bytes, wallet.PublicKey, approvedAt, receipt, now + 10);
+Console.WriteLine(verdict);                                  // Valid
+```
+
+Limits: ML-DSA-87 here is the reference implementation, not FIPS 140-3
+validated. The live flow is the app's half only: approving a request and
+posting the payment happen in the user's wallet (zxvd). Whether a given
+deployment of Vino is store credit, a prepaid access product or something
+else is a legal question pending counsel; nothing in this SDK decides it.
+
 ## API overview
 
 | Area | Types | Key members |
 |---|---|---|
 | Library | `ZxvLibrary` | `AbiVersion`, `Features`, `Features2`, `Supports`, `ClassOf`, `GetStatusName`, `FatalPolicy`, `UseLibraryPath` |
-| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `CreateHwMatrix`, `CreateHwRegion`, `CreateAipiNode`, `CreateTokenWallet`, `CreateVBillHub`, `CreateWeb4Agent`, `CreateParadoxBook`/`Policy`/`Hold`/`Graph`, `Halt`, `IsHalted` |
+| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `CreateHwMatrix`, `CreateHwRegion`, `CreateAipiNode`, `CreateTokenWallet`, `CreateVBillHub`, `CreateWeb4Agent`, `CreateParadoxBook`/`Policy`/`Hold`/`Graph`, `CreatePlaySandbox`, `CreateSpendMeter`, `Halt`, `IsHalted` |
 | Finance | `LedgerService`, `CurrencyService`, `MessageService`, `PaymentService`, `StatementService`, `NettingService`, `CardService`, `ConformanceService`, `Money` | see `docs/DOTNET_SDK.md` |
 | Gated ledger | `CapabilityLedger` | `Post`, `GetBalances`, `Verify` |
 | Capabilities | `Capability`, `CapabilityRights`, `CapabilityInfo` | `Attenuate`, `Revoke`, `SetAttestation`, `Allows`, `Demand` |
@@ -443,6 +539,7 @@ Console.WriteLine(ParadoxEngine.KindName(c.Kind));
 | Freight | `Zxv.Freight.FreightHeader`, `FreightCodec`, `FreightJoin`, `FreightOps`, `FreightOpsWriter` | `Encode`, `Decode`, `Split`, `Add`, `Expand`, `Peek`, `RunGenerator` |
 | Web4 | `Zxv.Web4.Web4Agent`, `ToolManifest`, `ConsentToken`, `ConsentLog`, `Envelope`, `AgentCard`, `AgentDirectory` | `Sign`, `IssueConsent`, `Seal`, `Reply`, `Verify`, `Check`, `Decode` |
 | Paradox | `Zxv.Paradox.ParadoxEngine`, `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `RepairProof` | `Classify`, `Constructive`, `Destructive`, `Neutral`, `Special`, `Draft`, `Review`, `Pass`, `VerifyLog` |
+| Vino | `Zxv.Vino.PlaySandbox`, `PaymentRequest`, `PaymentRequestBytes`, `PaymentRequestId`, `Receipt`, `ReceiptMessage`, `ReceiptVerdict`, `SpendMeter`, `VoucherInfo`, `VinoAccount` | `OpenIssuer`, `OpenHolder`, `PostBacking`, `WithdrawBacking`, `Issue`, `Transfer`, `SetRail`, `Redeem`, `GetVouchers`, `Check`, `Encode`, `Decode`, `Sign`, `Verify`, `Admit`, `TryAdmit` |
 | DI | `ZxvServiceCollectionExtensions` | `AddZxv`, `AddZxvCapability` |
 | Native | `Zxv.Interop` | `ZxvStatus`, `ZxvStatusClass`, `ZxvFeatures`, `ZxvFeatures2`, SafeHandles (internal P/Invoke) |
 
@@ -525,6 +622,12 @@ against the vectors status_abi15, treaty, cid, aipi, coin, fee, vhub,
 freight, web4 and paradox, refusals included, plus each new status's
 exception, `Features2`, the capability bits and refusals, the buffer-growth
 path, handles outliving their platform, and a poisoned (halted) context.
+`Abi16/*` covers ABI 1.6 against status_abi16 and vino: every request's
+bytes, id and refusal, decode refusals by changed byte, the fixed-seed
+receipt (message, deterministic signature and every check), the ordered
+play scenario with its final accounts and vouchers, and the meter scenario;
+plus each new status's exception, capability bits and refusals, the voucher
+list path, use after dispose, and a halted context.
 
 ## Unity
 
