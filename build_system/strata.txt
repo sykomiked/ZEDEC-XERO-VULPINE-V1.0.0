@@ -140,6 +140,7 @@ peer_audit                       logic
 predictive                       logic
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+pce                              logic      # paraconsistent decision engines: probability, tactics, strategy, finance analytics
 
 # ---- S5 AI runtime and swarm
 ai_layer                         ai

@@ -322,6 +322,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-pce
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
@@ -1431,6 +1432,17 @@ test-lpres-hex:
 test-paradox:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_paradox.c src/paradox/paradox.c src/paradox/paradox_graph.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_paradox && $(ZXV_TMP)/test_paradox > $(ZXV_TMP)/test_paradox.log 2>&1 && echo "[PASS] test_paradox ($$(tail -1 $(ZXV_TMP)/test_paradox.log))" || { cat $(ZXV_TMP)/test_paradox.log; echo "[FAIL] test_paradox"; exit 1; }
 	@for f in src/paradox/paradox.c src/paradox/paradox_graph.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/paradox_free.o || { echo "[FAIL] paradox freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/paradox_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/paradox_free.o; echo "[FAIL] paradox freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] paradox freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
+
+# The paraconsistent decision engines (src/pce/pce.h): probability, tactics,
+# strategy and financial analysis, and their block entry table. ASan/UBSan tests,
+# then a freestanding build (aarch64 -mgeneral-regs-only and i386, no libc, no
+# memcpy, -Wdouble-promotion) whose only external symbols are the engines' own
+# and those of lpres, lpres_hex, paradox, rational and sha256.
+PCE_SRCS := src/pce/pce.c src/pce/pce_prob.c src/pce/pce_tac.c src/pce/pce_strat.c src/pce/pce_fin.c src/pce/pce_entry.c
+.PHONY: test-pce
+test-pce:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/pce/test_pce.c src/pce/test_pce_tac.c src/pce/test_pce_strat.c src/pce/test_pce_fin.c src/pce/test_pce_golden.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pce && $(ZXV_TMP)/test_pce > $(ZXV_TMP)/test_pce.log 2>&1 && echo "[PASS] test_pce ($$(tail -1 $(ZXV_TMP)/test_pce.log))" || { cat $(ZXV_TMP)/test_pce.log; echo "[FAIL] test_pce"; exit 1; }
+	@for f in $(PCE_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pce_free.o || { echo "[FAIL] pce freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pce_free.o | grep -vE ' (pce_|lpx_|lpres_|pdx_|rat_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/pce_free.o; echo "[FAIL] pce freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pce freestanding (aarch64 -mgeneral-regs-only, i386; only pce_/lpx_/lpres_/pdx_/rat_/sha256_ external)"
 
 HWEMU_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec
 
