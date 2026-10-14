@@ -98,6 +98,12 @@ CI checks it matches what zxvd serves.
 | `books.file` | | `saved`, `path`, `records`, `head`, `writable` |
 | `jurisdiction.get` | | `market`, `standard`, `country`, `standards`, `in_effect` |
 | `jurisdiction.set` | `market`?, `standard`?, `country`? | as `jurisdiction.get` |
+| `chat.me` | | `node_id`, `saved`, `records`, `following` |
+| `chat.post` | `text`, `reply_to`? | a record: `id`, `author`, `mine`, `kind`, `lamport`, `wall_ms`, `text`, `reply_to`, `replies`, `reactions` |
+| `chat.react` | `to`, `emoji` | a record |
+| `chat.follow` | `node_id`, `follow`? | `node_id`, `following` |
+| `chat.feed` | | `posts` (records, best first, at most 50) |
+| `chat.thread` | `id` | `root`, `replies` |
 | `aipi.put` | `hex` or `path`, `private`? | `cid`, `bytes`, `private` |
 | `aipi.get` | `cid` | `cid`, `bytes`, `hex`, `tag` |
 | `aipi.publish` | `module`, `contract`?, `entry`, `checker`?, `certifier`?, `verify`, `fuel_max`, `local_only`?, `deterministic`? | `function`, `local_only` |
@@ -247,6 +253,24 @@ change is one record, written before it applies, so it survives a restart.
 yet. When the adapters exist they will follow each standard; they do not
 replace an accountant or a Shariah board.
 
+## Commons: your posts in your own name
+
+The `chat.*` methods (`kernel/arch/hosted/zxvd_chat.h` C1-C8) let the owner
+post, reply, react and follow with records signed by their own ML-DSA-65
+key (`kernel/src/social/social_post.h`). The key's seed is `social.seed`
+(0600) and the records go to `social.log` in the books folder, each one
+saved before the method answers and checked again at every start; with
+`--books -` both live in memory for that run only. The feed
+(`chat.feed`) ranks posts by what each adds over the others
+(`social_feed.h`, the Interaction Surplus Framework) with a small freshness
+term; it never reads likes, reply counts or views. The Studio shows it on
+the Commons screen.
+
+These records stay on this device for now: the exchange with peers
+(`social_store.h` gossip over the mesh) and direct messages (which need
+session encryption) are the next steps. The chat key is separate from the
+mesh node's identity.
+
 ## Functions by CID (AIPI)
 
 zxvd holds one AIPI node ([AIPI.md](AIPI.md)): a blockstore of content-addressed
@@ -287,7 +311,10 @@ the mutation harness's test for `zxvd_rpc.c`; the same script then runs
 checks that none of them changes the books. `kernel/arch/hosted/test_zxvd_aipi.sh`
 runs `zxvd_aipi.c` behind the RPC layer on the real AIPI core and the Z-Wasm
 sandbox (exact replies, every refusal); it is the harness's test for
-`zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
+`zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_chat.sh` runs the chat methods
+through the same RPC layer (text rules, the log's damage and torn-tail
+handling, the read-only state after a failed write).
+`kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
 with the tokenizer test model, and once with the real Qwen2.5-1.5B-Instruct
@@ -312,6 +339,8 @@ installed .deb.
   (docs/AIPI.md next steps 1-2) are not wired yet, the blockstore is not
   saved to disk, and the Windows build has no `aipi.*` yet.
 - `swarm.ask` returns when the answer is complete; no token streaming yet.
+- Commons posts are not sent to peers yet, and there are no direct
+  messages; the feed keeps no record of what you have already seen.
 - There is no escrow in zxvd yet, so `ledger.holds` is not served and the
   Studio's Escrow panel stays a placeholder.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS

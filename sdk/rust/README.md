@@ -217,6 +217,188 @@ boundary and reported to the library as `ZXV_E_INTERNAL`; an `Err(e)`
 becomes `e`'s status. Provider closures are `'static`; a device may borrow
 (for example another matrix used as a SHA-256 oracle).
 
+## ABI 1.5: treaties, content ids, coins, fees, hub, freight, Web 4, paradox
+
+New capability bits: `Caps::AIPI` (store and publish AIPI blocks),
+`Caps::MINT` (token wallets) and `Caps::PARADOX` (paradox books, policies,
+holds, graphs); `Caps::ALL_1_5` is every bit. `zxv::features2()` reports
+which groups were built (`Features2::TREATY` ... `Features2::PARADOX`).
+New statuses and their classes: `ZXV_E_DENOM` and `ZXV_E_TREATY` are
+`Error::Usage`; `ZXV_E_CID`, `CONSENT`, `ERASURE`, `PEG`, `LIMIT`,
+`PARADOX_STEP` and `PARADOX_OWNER` are `Error::Refused` with
+`RefusedKind::{Cid, Consent, Erasure, Peg, Limit, ParadoxStep,
+ParadoxOwner}`.
+
+Fixed-size byte structures are `Copy` value types you can compare with
+`==` (`Cid`, `FreightHeader`, `ConsentToken`, `RepairProof`,
+`ParadoxDraft`, `TokenHolding`, `FeeSplit`, the 40-byte peg message).
+Indexed reads are iterators (`TreatyResult::legs`, `W4Manifest::tools`,
+`ParadoxBook::registry` / `log_records`, `ParadoxHold::branches`,
+`ParadoxGraph::nodes`, `coin::token_codes`). Handles tied to a context
+(`AipiNode`, `TokenWallet`, `VHub`, `W4Agent`, `ParadoxBook`,
+`ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`) borrow the capability they
+were made with, use it on every gated call, fail closed when the context
+halts, and cannot outlive it (a compile error). Every handle frees itself
+on `Drop`. Handles that libzxv locks itself are `Send + Sync`; the others
+(`FreightJoin`, `FreightOpsWriter`, `W4Agent`, `W4Directory`,
+`W4Manifest`, `ConsentLog`, policy, hold, graph) are `Send` only and take
+`&mut self` to change, so the borrow checker serializes them.
+
+### Treaty
+
+COBOL copybook treaties and canonical Sutra text: parse, emit, validate and
+run NET or SETL settlement with PIC S9(18) arithmetic (`treaty::pic_add`
+... `pic_div`). A refusal is a `TreatyError` carrying the `TreatyFault` and
+its byte offset; it converts into `zxv::Error` for `?`.
+
+```rust
+use zxv::treaty::{Treaty, TreatyError};
+
+let t = Treaty::parse_sutra("TREATY C USD SETL\nPARTY A 5000 3000 1/2\n\
+                             PARTY B 3000 3000 1/2\nOWE A B 1200\nEND\n")?;
+let rec = t.record()?;              // the 2542-byte copybook record
+for leg in t.run()?.legs()? { println!("{leg:?}"); }   // InsufficientFunds if a party cannot pay
+if let Err(TreatyError { fault, offset, .. }) = Treaty::parse_sutra("TREATY c USD SETL\n") {
+    println!("{fault:?} at byte {offset}");             // Name at byte 7
+}
+```
+
+### CID and AIPI
+
+IPFS CIDs (`Cid::compute`, `unixfs`, `parse`, `text`, `info`, `to_v1`,
+`verify`, `provider_key`; `Display` and `FromStr` use the Kubo text form)
+and AIPI function, call and claim records (`AipiFunction`, `encode_call`,
+`call_cid`, `AipiClaim`). An `AipiNode` (needs `Caps::AIPI`) is an offline
+in-memory block store and planner: there is no network transport.
+
+```rust
+use zxv::{aipi::{self, Cid}, AipiNode, Caps, Context};
+
+let c = Cid::compute(aipi::CODEC_RAW, b"abc")?;
+println!("{c}");                                   // bafkreif2pall7dyb...
+let ctx = Context::new()?;
+let cap = ctx.root_capability(1, None, Caps::ALL_1_5)?;
+let node = AipiNode::new(&cap, aipi::STORE_MIN, 64, None)?;
+let id = node.put(b"zxv module bytes", false)?;
+assert_eq!(node.get(&id)?, b"zxv module bytes");   // re-hashed before it is returned
+```
+
+### Coin and token octane
+
+Fibonacci coin faces and Zeckendorf splits (`coin_face`, `coin_rung`,
+`coin_split`, `coin_split_count`), swarm token tiers (`token_face`,
+`token_tier`; a dense token is worth exactly its face: density carries no
+premium, fee or extra allotment), `TokenHolding` (64 tier counts:
+`value`, `compress`, `fuse`, `split`, `canonical`), the token prefix code
+(`encode_token_codes`, `token_codes` iterator) and a `TokenWallet` (needs
+`Caps::MINT`).
+
+```rust
+use zxv::{coin::{self, Octane, TokenHolding}, TokenWallet};
+
+assert_eq!(coin::coin_split(100)?, vec![10, 5, 3]);   // 89 + 8 + 3
+let h = TokenHolding::canonical(100, Octane::MIDGRADE)?;
+let (value, pieces) = h.value()?;                     // (100, 3)
+let w = TokenWallet::new(&cap, 1, Octane::PLAIN)?;
+w.mint(100)?;
+```
+
+### Fee
+
+The 0.08889% assurance fee and its 50/25/15/10 split, exact integers,
+pure.
+
+```rust
+use zxv::fee;
+
+assert_eq!(fee::assurance_fee(1125)?, 1);
+let (f, rem) = fee::assurance_fee_carry(0, 100)?;  // (0, 888900): keep rem per account
+let parts = fee::split_fee(10)?;                   // FeeSplit([6, 2, 1, 1])
+```
+
+### V-Bill hub
+
+A demonstration hub with test currencies only (ISO codes are refused),
+signed exact pegs, quotes and all-or-nothing swaps on its own in-memory
+ledger. Every currency needs a limit rule (`add_limit`) before it can swap
+(fail closed). Moving real money needs its owner's policy; this does not.
+
+```rust
+use zxv::{vhub::{self, VHub}, MlDsa87};
+
+let dsa = MlDsa87::new(&cap);
+let (issuer_pk, issuer_sk) = dsa.keygen()?;
+let hub = VHub::new(&cap, None)?;
+hub.add_currency(0, "ZTA", 2, &issuer_pk, 500_000, 10_000)?;
+let msg = vhub::peg_message(0, 350, 1, 1)?;
+hub.set_peg(0, 350, 1, 1, &dsa.sign(&issuer_sk, &msg, &[])?)?;  // Refused(Peg) when stale
+```
+
+### Freight
+
+168 erasure-coded 21-byte rows per freight: any k rows rebuild the
+payload. `freight::split` and `FreightJoin` carry larger payloads; op
+streams (`FreightOpsWriter`, `ops_encode`) expand under a limit you set.
+A CIDREF resolver is a closure called during `ops_expand_with`; a panic in
+it is caught at the C boundary (never unwound through C) and the call
+fails with `ZXV_E_INTERNAL`. No compression ratio is promised.
+
+```rust
+use zxv::freight::{self, FreightHeader};
+
+let payload = b"hello freight".to_vec();
+let h = FreightHeader::new(42, 10, 0, 0, &payload)?;   // k = 10
+let packets = freight::encode(&h, &payload)?;          // 3528 bytes
+assert_eq!(freight::decode(&h, &packets[21 * 100..])?, payload);  // rows 100..167 suffice
+```
+
+### Web 4
+
+Agents with ML-DSA-65 keys that never leave their `W4Agent` handle (drop
+wipes them; `Debug` shows ids only), signed cards and tool manifests, a
+`W4Directory`, human `ConsentToken`s with a `ConsentLog`, and signed
+envelopes (`seal`, `reply`, `verify_envelope`). Every call that needs the
+time takes `now_ms`. Tools flagged money or PII need a consent token from
+the human who owns the action.
+
+```rust
+use zxv::web4::{self, ConsentRequest, W4Agent, W4Manifest, W4Tool};
+
+let now = 1_700_000_000_000;
+let alice = W4Agent::new(&cap, None, "alice", None, now)?;
+let human = W4Agent::new(&cap, None, "human", None, now)?;
+let mut m = W4Manifest::new(1, now, now + 86_400_000)?;
+m.add_tool(&W4Tool { name: "pay".into(), price_vfv: 150, rate_per_min: 60, burst: 10,
+                     flags: web4::TOOL_MONEY, max_input: 256 })?;
+m.sign(&alice)?;
+let id = alice.info()?.agent_id;
+let action = web4::action_digest("pay", &id, &[7; 32], 7, b"amount=100")?;
+let token = web4::issue_consent(&cap, &human, &ConsentRequest { agent_id: id, action,
+    scope: web4::CONSENT_MONEY, max_vfv: 1000, issued_ms: now, expires_ms: now + 600_000,
+    nonce: None })?;
+```
+
+### Paradox
+
+Classify a `Hexagram` into a `ParadoxClass` and run the fixed, logged
+operator for it (`constructive`, `destructive`, `neutral`, `special`,
+`draft` / `review`, `graph_pass`). `Refused` and `ProposalForOwner` are
+outcomes, not errors; `graph_pass` returns `Refused(ParadoxStep)` when a
+graph must escalate to its owner. Every decision is advisory: policy
+changes outside published bounds go to the owner as a proposal.
+
+```rust
+use zxv::paradox::{ParadoxEvidence, ParadoxOutcome};
+use zxv::{HexBase, HexPhase, HexPolarity, Hexagram, ParadoxBook, ParadoxPolicy};
+
+let book = ParadoxBook::new(&cap, 64, 16)?;
+let tag = Hexagram::new(HexBase::Both, HexPolarity::Neutral, HexPhase::Manifest);
+let ev = ParadoxEvidence { pos0: 3, neg0: 1, pos1: 5, neg1: 1, stale: false };
+let c = book.classify(tag, Some(&ev), None)?.class;    // constructive
+let mut pol = ParadoxPolicy::new(&cap, &[0], &[100], &[50], 0)?;
+assert_eq!(book.constructive(&mut pol, c, Some(&[60]), 5)?, ParadoxOutcome::Applied);
+```
+
 ## API overview
 
 | Area | Types | Key calls |
@@ -238,6 +420,14 @@ becomes `e`'s status. Provider closures are `'static`; a device may borrow
 | EVM | `StateChannel` | `encode_state`, `ledger_state` |
 | Hexagram | `Hexagram`, `QuarantineLog` | `new`, `action`, `step`, `forbid`, `append`, `verify` |
 | Hardware | `HwProfile`, `HwMatrix`, `HwRelease`, `HwRegion` | `probe_host`, `reference`, `call`, `add_provider`, `attest`, `build`, `stage`, `trial`, `commit` |
+| Treaty (1.5) | `Treaty`, `TreatyResult`, `TreatyError` | `parse_sutra`, `parse_record`, `sutra`, `record`, `validate`, `run`, `legs`, `pic_*` |
+| CID / AIPI (1.5) | `Cid`, `AipiFunction`, `AipiClaim`, `AipiNode` | `compute`, `parse`, `text`, `verify`, `encode_call`, `put`, `get`, `publish_function`, `plan` |
+| Coin (1.5) | `TokenHolding`, `Octane`, `TokenWallet` | `coin_split`, `token_face`, `canonical`, `compress`, `encode_token_codes`, `mint`, `transfer` |
+| Fee (1.5) | `FeeSplit`, `FeePolicy` | `assurance_fee`, `assurance_fee_carry`, `split_fee`, `fee_policy_default` |
+| V-Bill hub (1.5) | `VHub` | `peg_message`, `add_currency`, `set_peg`, `add_limit`, `quote`, `swap`, `check` |
+| Freight (1.5) | `FreightHeader`, `FreightJoin`, `FreightOpsWriter` | `encode`, `decode`, `split`, `ops_expand_with`, `gen_run`, `ops_encode` |
+| Web 4 (1.5) | `W4Agent`, `W4Manifest`, `W4Directory`, `ConsentToken`, `ConsentLog` | `card`, `seal`, `reply`, `sign`, `issue_consent`, `check`, `verify_envelope` |
+| Paradox (1.5) | `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` | `classify`, `constructive`, `destructive`, `neutral`, `special`, `review`, `graph_pass` |
 | Escape hatch | `zxv::sys`, `as_raw()` | raw calls for anything not wrapped |
 
 ## Examples
@@ -262,6 +452,12 @@ cargo doc --no-deps
 engines, placement (MAC never goes REMOTE), proof, failover, shadow, memo,
 contracts, and a full stage / trial / commit / quarantine cycle with events,
 the audit log and fail-closed when it fills (three SLH-DSA signings, ~5 s).
+
+`tests/abi15.rs` checks the ABI 1.5 sections of `vectors.json` exactly
+(treaty, cid, aipi, coin, fee, vhub, freight, web4, paradox), refusals
+included, plus handle lifetimes, R4 buffer growth, status-to-class
+mapping, capability refusals (AIPI, MINT, PARADOX), resolver failures and
+panics, and a poisoned (halted) context.
 
 `tests/hexagram.rs` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.
@@ -302,5 +498,10 @@ streaming, budget-bound generation and the ledger.
   `Refused(NotImplemented)` while `Features::LORA` is off.
 - **No network transport**: the ledger is in-process, and nothing here is
   certified by any payment scheme.
+- **ABI 1.5 groups** are offline: no network transport (AIPI nodes,
+  freight and Web 4 envelopes are bytes you move yourself). The V-Bill
+  hub uses test currencies only; real money and device policies need
+  their owner. Freight promises no compression ratio. Token density
+  carries no premium. Paradox outcomes are advisory and logged.
 - **Streaming** runs generation on a scoped helper thread; `generate_with`
   runs on the calling thread and blocks it.

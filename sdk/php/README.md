@@ -4,14 +4,15 @@
 # zedec/zxv: the PHP SDK for ZXV
 
 A small PHP 8.1+ wrapper of `libzxv`, the one C library every ZXV SDK shares
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.4), over PHP's FFI extension. It
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.5), over PHP's FFI extension. It
 follows `sdk/docs/SDK_DESIGN.md`, so its nouns match every other ZXV SDK.
 Every file uses `declare(strict_types=1)`.
 
 ## Install
 
-Requirements: PHP >= 8.1 with the FFI extension (`php -m | grep FFI`) and
-`libzxv`. In the CLI, PHP's default `ffi.enable=preload` already allows FFI;
+Requirements: a 64-bit PHP >= 8.1 (the SDK refuses to load on a 32-bit
+build, where `int` cannot hold the 64-bit values libzxv uses) with the FFI
+extension (`php -m | grep FFI`) and `libzxv`. In the CLI, PHP's default `ffi.enable=preload` already allows FFI;
 under php-fpm/Apache set `ffi.enable=1` (or preload the package).
 
 ```sh
@@ -24,7 +25,8 @@ The library is found, in order: `Zxv::loadLibrary($path)`,
 in-repository build `sdk/libzxv/build/`, then the system loader path. A
 library whose ABI is not 1.x (x >= 4) is refused (the SDK calls the
 `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in
-1.3 and the `_cap` functions added in 1.2).
+1.3 and the `_cap` functions added in 1.2). A 1.4 library still loads; the
+ABI 1.5 classes then throw `NotImplementedException`.
 
 Tests run with plain PHP (no PHPUnit needed), against the real library and
 `sdk/conformance/vectors.json`:
@@ -234,6 +236,227 @@ refusals (`ZxvRefusedException`), `E_TARGET` is a usage error; a full audit
 log poisons the context (`ZxvFatalError`), since a change that cannot be
 recorded is not made.
 
+## ABI 1.5: treaties, content ids, coins, fees, the V-Hub, freight, Web4 agents, paradoxes
+
+ABI 1.5 adds eight feature groups. `Zxv::features2()` lists the live ones
+(`treaty`, `aipi`, `coin`, `fee`, `vhub`, `freight`, `web4`, `paradox`);
+`Zxv::hasFeature("web4")` checks one. With a pre-1.5 library the SDK still
+loads, `features2()` is empty and 1.5 calls throw `NotImplementedException`.
+Three capability bits are new: `Capability::AIPI`, `MINT` and `PARADOX`.
+`ALL` and `ALL_1_4` do not grow, so ask for
+`rootCapability(Capability::ALL_1_5)` or add the bits. A capability without
+them gets `CapabilityDeniedException` (`ZXV_E_CAP`).
+
+New statuses: `ZXV_E_DENOM` and `ZXV_E_TREATY` are usage errors
+(`ZxvUsageException`; a treaty error is a `TreatyException` with `fault` and
+`offset`). `ZXV_E_CID`, `E_ERASURE`, `E_PEG`, `E_LIMIT` and `E_PARADOX_STEP`
+are refusals (`ZxvRefusedException`), `E_CONSENT` is a
+`ConsentRequiredException` and `E_PARADOX_OWNER` an
+`OwnerApprovalRequiredException` (both refusals).
+
+**64-bit values.** Every uint64 (amounts, ids, times in ms) is an `int`; one
+above `PHP_INT_MAX` is passed and returned as its decimal string
+(`"18446744073709551615"`). Floats are refused (`FloatRejectedException`),
+`2.0` included. The SDK refuses to load on a 32-bit PHP build.
+
+**Handles.** Every handle has `close()`. Pure handles (`Treaty`,
+`TreatyResult`, `FreightJoin`, `FreightOpsWriter`, `Web4Directory`,
+`Web4Manifest`, `Web4ConsentLog`) are also freed by their destructor;
+handles made from a capability (`AipiNode`, `TokenWallet`, `VHub`,
+`Web4Agent`, `Paradox*`) are freed with their `Context`, before it. A closed
+handle throws `ZxvUsageException` (`ZXV_E_STATE`).
+
+The examples below assume:
+
+```php
+use Zedec\Zxv\{Capability, Context};
+$ctx = new Context();
+$cap = $ctx->rootCapability(Capability::ALL_1_5);
+```
+
+### Treaties (`Treaty`, `TreatyResult`, `TreatyPic`)
+
+A treaty is a small multilateral settlement written in Sutra text (or its
+fixed-width COBOL copybook record). `run()` nets the obligations, posts the
+legs with the assurance fee for `SETL` and reports each party's balance and
+dividend; it runs in a private engine and needs no capability. `TreatyPic`
+is PIC S9(18) arithmetic with COBOL's size-error rules.
+
+```php
+use Zedec\Zxv\Treaty;
+use Zedec\Zxv\Exception\TreatyException;
+
+$t = Treaty::parse("TREATY CORRIDOR-7 USD SETL\nPARTY ACME 5000000 4000 1/3\nPARTY BETA 3000000 3000 1/7\n"
+    . "PARTY GAMMA 900000 0 11/21\nOWE ACME BETA 1200000\nOWE BETA GAMMA 700000\nOWE GAMMA ACME 100000\nEND\n");
+$r = $t->run();
+$r->legs();      // [["from" => 0, "to" => 2, "amount" => 600000], ["from" => 0, "to" => 1, "amount" => 500000]]
+$r->fees();      // 977
+$t->toRecord();  // the 2542-byte copybook record
+try {
+    Treaty::parse("TREATY n USD NET\nPARTY A 1 1 1/1\nEND\n");
+} catch (TreatyException $e) {
+    [$e->fault, $e->offset];   // ["name", 7]
+}
+```
+
+### Content ids and AIPI (`Cid`, `Aipi`, `AipiNode`, `Aipi*Record`)
+
+`Cid` is an IPFS-compatible content id (CIDv1 sha2-256; CIDv0 parses).
+`Cid::compute` hashes bytes as one block, `Cid::unixfs` gives the id
+`ipfs add` would. AIPI names a function by the CID of its record (module,
+entry, how a remote result is accepted) and a call by the CID of
+(function, input). `AipiNode` (needs `AIPI`) is a local block store that
+verifies every block it returns.
+
+```php
+use Zedec\Zxv\{Aipi, AipiFunctionRecord, AipiNode, Cid};
+
+$cid = Cid::compute("hello world");
+(string) $cid;               // "bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e"
+$cid->verify("hello world"); // true
+
+$node = new AipiNode($cap);
+$mod = $node->put("zxv module bytes");
+$fn = AipiFunctionRecord::encode("fn", "checker", "deterministic", 1000000, $mod, "main", checker: "check");
+$fnCid = $node->publish($fn);
+Aipi::callCid($fnCid, "hello")->text(Cid::BASE58BTC);
+$node->plan($fnCid, "hello");   // "local" (this library is offline)
+```
+
+### Coins and tokens (`Coin`, `Token`, `TokenWallet`)
+
+Coin faces are Fibonacci rungs; `Coin::split` gives the unique fewest-coin
+split. Token holdings are 64 counts, one per tier; `Token::canonical` puts a
+value in its one canonical form at an octane. Density earns nothing: a
+dense token is worth exactly its face. `TokenWallet` (needs `MINT`) keeps a
+holding canonical at its octane.
+
+```php
+use Zedec\Zxv\{Coin, Token, TokenWallet};
+
+Coin::split(1000000);                              // [29, 25, 23, 11, 9] (5 coins)
+Token::value(Token::canonical(1000000, "racing")); // [1000000, 17]
+$w = new TokenWallet($cap, "racing");
+$w->mint(1000000);
+$w->pieces();                                      // 17
+```
+
+`Coin::split` refuses (`ZXV_E_RANGE`) a split above `$maxCoins`
+(16,777,216 by default) instead of allocating gigabytes; count large splits
+with `Coin::splitCount`.
+
+### The assurance fee (`Fee`)
+
+`fee(g) = floor(g * 8889 / 10^7)`, exact for every 64-bit gross, charged
+once per transaction. Keep the carry per account so many small charges pay
+what one charge of their sum pays.
+
+```php
+use Zedec\Zxv\Fee;
+
+Fee::assure(1000000);                          // 888
+[$fee, $carry] = Fee::assureWithCarry(100, 0); // [0, 888900]
+Fee::split(100);  // ["reserveFloor" => 50, "vbillDividend" => 25, "infraBounty" => 15, "regenCapital" => 10]
+Fee::assure("18446744073709551615");           // 16397310807120420
+```
+
+### The V-Hub (`VHub`)
+
+A hub of test currencies swapped through V-Bills on its own in-process
+ledger. Each currency's issuer sets its peg with an ML-DSA-87 signature over
+`VHub::pegMessage`; swaps fail closed until each currency has a limit rule,
+and must be exact under both pegs. Needs `LEDGER_POST` (and `LEDGER_READ`).
+
+```php
+use Zedec\Zxv\{MlDsa87, VHub};
+
+$dsa = new MlDsa87($cap);
+$issuer = $dsa->generate();
+$hub = new VHub($cap);
+foreach (["ZTA", "ZTB"] as $slot => $code) {
+    $hub->addCurrency($slot, $code, 2, $issuer->publicKey, 500000, 10000);
+}
+foreach ([[0, 350], [1, 120]] as [$slot, $num]) {
+    $hub->setPeg($slot, $num, 1, 1, $dsa->sign($issuer->secretKey, VHub::pegMessage($slot, $num, 1, 1)));
+    $hub->addLimit($slot, "18446744073709551615");
+}
+$alice = $hub->openAccount(0, 50);
+$bob = $hub->openAccount(1, 51);
+$hub->issue($alice, 100000);
+$hub->swap(0, 1, $alice, $bob, 35000, 1);      // ["vbills" => 100, "received" => 12000]
+$hub->check();                                 // postings so far; throws if the ledger broke
+$issuer->close();
+```
+
+### Freight (`Freight`, `FreightHeader`, `FreightJoin`, `FreightOps`, `FreightOpsWriter`)
+
+A freight is 168 rows of 21 bytes; any `k` distinct rows rebuild a payload
+of up to `k * 20` bytes (Reed-Solomon erasure coding with a SHA-256 check).
+`Freight::split` / `FreightJoin` carry larger payloads as a set.
+`FreightOps` encodes an op stream (literal, copy, CID reference, seeded
+generator) that the receiver expands up to a limit it chooses; a CID
+reference is resolved by your callable, which is kept alive for the call,
+and an exception in it never crosses into C (the call fails cleanly).
+
+```php
+use Zedec\Zxv\{Freight, FreightHeader, FreightOps};
+
+$payload = "ZXV freight: any 10 of 168 rows rebuild this.";
+$hdr = FreightHeader::forPayload($payload, 42, 10);
+$rows = Freight::rows(Freight::encode($hdr, $payload));
+shuffle($rows);
+Freight::decode($hdr, array_slice($rows, 0, 10)) === $payload;   // true
+
+$ops = FreightOps::encode(str_repeat("abc", 100), true);         // 55 bytes
+strlen(FreightOps::expand($ops, 4096));                          // 300
+```
+
+### Web4 agents (`Web4`, `Web4Agent`, `Web4Envelope`, `Web4Manifest`, `Web4Directory`, `Web4ConsentLog`)
+
+An agent is an ML-DSA-65 identity with a signed card; agents exchange
+signed envelopes, publish signed tool manifests, and act on a human's
+behalf only with a consent token the human signed, checked once against a
+`Web4ConsentLog`. Agent keys stay inside the `Web4Agent` handle and are
+wiped when it is closed or its context closes; they are never returned and
+never appear in `var_dump`. Creating and signing needs `CRYPTO_SIGN`
+(consent tokens: `ATTEST`).
+
+```php
+use Zedec\Zxv\{Web4, Web4Agent, Web4Envelope};
+
+$alice = new Web4Agent($cap, "alice", 1700000000000);
+$bob = new Web4Agent($cap, "bob", 1700000000000);
+Web4::verifyCard($bob->card())["name"];                 // "bob"
+$req = $alice->seal($bob->agentId(), "request", "pay", 7, 1700000000500, "amount=100");
+(new Web4Envelope($req))->verify($alice->publicKey());  // true
+$rsp = $bob->reply($req, "response", 1700000000900, "ok", final: true);
+(new Web4Envelope($rsp))->payload;                      // "ok"
+```
+
+### Paradoxes (`Paradox`, `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`)
+
+Classifies a contradiction by its hexagram tag (and evidence trend) as
+constructive, destructive, neutral or special, and handles each the one way
+its kind allows, writing every step to hash-chained logs: a constructive
+policy update is applied, kept, rolled back or proposed to the owner; a
+destructive one is contained (state restored from a checkpoint, a repair
+proof made); a neutral one holds every branch until evidence decides; a
+special one is recorded for review. Needs `PARADOX`. A policy flagged
+`money` or `device` is never changed automatically.
+
+```php
+use Zedec\Zxv\{ParadoxBook, ParadoxPolicy};
+
+$book = new ParadoxBook($cap);
+$policy = new ParadoxPolicy($cap, [0, 0], [100, 50], [50, 25]);
+$book->constructive($policy, 5, synth: [60, 20], kind: "constructive", tag: 0x2F);   // "applied"
+$policy->values();                                                                  // [60, 20]
+$r = $book->destructive(str_repeat("X", 16), str_repeat("A", 16), kind: "destructive", tag: 0x23,
+    trace: [1, 2, 3, 2], pattern: "loop:A->B->A", submitter: 7);
+[$r["outcome"], $r["state"], $r["proof"]->isValid()];   // ["contained", "AAAAAAAAAAAAAAAA", true]
+$book->verifyLog("ops");
+```
+
 ## API overview
 
 | PHP (`Zedec\Zxv\...`) | Wraps | Main methods |
@@ -260,6 +483,14 @@ recorded is not made.
 | `HwMatrix`, `HwProviderInfo` | `zxv_hw_*` matrix | `call`, `shadow`, `providers`, `providerInfo`, `functionInfo`, `bound`, `setPolicy`, `addProvider`, `setTraits`, `attest`, `memo`, `trustKey`, `applyContract`, `log`, `logEntry` |
 | `HwRegion`, `Hw`, `HwReleaseKey`, `HwLogEntry` | `zxv_hw_region_*`, packages | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`; `Hw::keygen`, `Hw::buildImage`, `Hw::vectorList` |
 | `StateChannel`, `ChannelState` | `zxv_evm_*` | `encodeState`, `ledgerState` (for `sdk/solidity/ZxvStateChannel.sol`) |
+| `Treaty`, `TreatyResult`, `TreatyPic` | `zxv_treaty_*` (1.5) | `parse`, `fromRecord`, `toSutra`, `toRecord`, `validate`, `party`, `obligation`, `run`; `legs`, `fees`, `party`; `add sub mul divide` |
+| `Cid`, `Aipi`, `AipiNode`, `AipiFunctionRecord`, `AipiCallRecord`, `AipiClaimRecord` | `zxv_cid_*`, `zxv_aipi_*` (1.5) | `compute`, `unixfs`, `parse`, `text`, `toV1`, `verify`, `providerKey`; `callCid`; `put`, `get`, `publish`, `loadFunction`, `plan`, `info`; `encode` |
+| `Coin`, `Token`, `TokenWallet` | `zxv_coin_*`, `zxv_token_*` (1.5) | `face`, `rung`, `split`, `splitCount`; `canonical`, `value`, `compress`, `fuse`, `split`, `encodeCodes`, `decodeCodes`; `mint`, `spend`, `transfer`, `setOctane`, `counts` |
+| `Fee` | `zxv_fee_*` (1.5) | `assure`, `assureWithCarry`, `split`, `defaultPolicy` |
+| `VHub` | `zxv_vhub_*` (1.5) | `pegMessage`, `addCurrency`, `setPeg`, `openAccount`, `issue`, `addLimit`, `nextEpoch`, `quote`, `swap`, `balance(s)`, `check` |
+| `Freight`, `FreightHeader`, `FreightJoin`, `FreightOps`, `FreightOpsWriter` | `zxv_freight_*` (1.5) | `encode`, `decode`, `rows`, `split`, `setCount`; `forPayload`, `build`; `add`, `status`, `result`; `encode`, `expand`, `peek`, `generate`; `literal`, `copy`, `cidref`, `seed`, `finish` |
+| `Web4`, `Web4Agent`, `Web4Envelope`, `Web4Manifest`, `Web4Directory`, `Web4ConsentLog` | `zxv_w4_*` (1.5) | `verifyCard`, `actionDigest`, `consentInfo`; `card`, `seal`, `reply`, `issueConsent`; `verify`; `addTool`, `sign`, `encode`, `decode`, `toJson`; `add`, `find`; `check`, `revoke`, `prune` |
+| `Paradox`, `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` | `zxv_paradox_*` (1.5) | `signature`, `classify`, `action`; `registryAdd`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`, `logRecords`, `verifyLog`; `values`, `proposal`; `add`, `evidence`; `addNode`, `addDependency`, `state`, `info` |
 
 ## Examples
 
@@ -306,8 +537,9 @@ path).
   ML-DSA, `generate`) block it. `Future`/`Loop` give cooperative waiting on
   Fibers, not background work, and there is no `generateAsync`. Callbacks
   from C (`onExhausted`, token streaming) run on that same thread.
-- **Integer range.** PHP ints are signed 64-bit: uint64 values (nonces,
-  ticks, token counts) are limited to `PHP_INT_MAX`.
+- **Integer range.** PHP ints are signed 64-bit. Before ABI 1.5, uint64
+  values (nonces, ticks, token counts) are limited to `PHP_INT_MAX`; the
+  ABI 1.5 classes take and return values above it as decimal strings.
 - **Secrets.** `SecretKey` memory is wiped on `close()`/destruction, but
   bytes you pass in as PHP strings (seeds, messages, `fromBytesUnsafe`) live
   in the PHP heap and are not wiped; the temporary native copies made of
@@ -315,8 +547,24 @@ path).
   control.
 - **Handle lifetime.** Child handles are freed by `close()` or when their
   `Context` closes; each child keeps its `Context` alive.
-- **FFI declarations** live in `src/zxv.h` (PHP's FFI cannot read the real
-  header's preprocessor lines) and must be kept in sync with `zxv_api.h`.
+- **FFI declarations** live in `src/zxv.h` and `src/zxv15.h` (PHP's FFI
+  cannot read the real header's preprocessor lines) and must be kept in sync
+  with `zxv_api.h`.
+- **ABI 1.5 groups are tools, not institutions.** A treaty run, a fee split
+  and a V-Hub swap are exact arithmetic on in-process ledgers: no real money
+  moves, nothing is connected to a bank, rail or issuer, and nothing here is
+  legal, tax or securities advice. V-Hub currencies are test currencies
+  only. AIPI and freight fetch nothing from a network; freight detects a
+  corrupted row but does not repair it, and its header is not
+  authenticated. A Web4 consent token proves a key holder signed, not that
+  the right human understood; envelopes are signed, not encrypted. Paradox
+  handling contains and routes contradictions inside published bounds;
+  `$ownerOk` is your assertion, which the library cannot check.
+- **Web4 agent keys** stay inside `Web4Agent` and are wiped on close; a seed
+  you pass as a PHP string is copied to a native buffer that is zeroed after
+  use, but the PHP string itself lives in the PHP heap (pass a `SecretKey`
+  to avoid that). FFI callbacks (a freight CID resolver) keep their
+  trampoline until the request ends.
 - **Not certified.** The cryptography is not FIPS 140-3 validated; libzxv
   serializes ISO 20022 but has no network transport. LoRA and the
   pacs.002/004/009, camt.056/029 builders are not built (they throw

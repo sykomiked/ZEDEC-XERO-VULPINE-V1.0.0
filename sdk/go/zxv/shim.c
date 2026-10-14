@@ -85,3 +85,19 @@ int32_t zxv_go_hw_region_events(const zxv_cap *cap, zxv_hw_region *rg, uintptr_t
 {
     return zxv_hw_region_events(cap, rg, hw_event_trampoline, (void *) handle);
 }
+
+/* ----- ABI 1.5 ----- */
+
+static int32_t freight_resolve_trampoline(void *user, const uint8_t *cid, size_t cid_len,
+                                          uint8_t *out, uint64_t len)
+{
+    return zxvGoFreightResolve((uintptr_t) user, (uint8_t *) cid, cid_len, out, len);
+}
+
+int32_t zxv_go_freight_ops_expand(const uint8_t *ops, size_t ops_len, uint64_t limit,
+                                  uintptr_t handle, uint8_t *buf, size_t cap, size_t *out_len)
+{
+    return zxv_freight_ops_expand(ops, ops_len, limit,
+                                  handle ? freight_resolve_trampoline : NULL, (void *) handle,
+                                  buf, cap, out_len);
+}

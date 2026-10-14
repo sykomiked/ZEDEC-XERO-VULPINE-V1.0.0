@@ -23,7 +23,8 @@
 // zxvjs_hw_* entry points pass C trampolines to libzxv, and each
 // trampoline calls one JS dispatcher synchronously on the JS thread (the
 // only thread that makes zxv_hw_* calls). A call from any other thread
-// gets ZXV_E_STATE; nothing JS-side ever unwinds through C.
+// gets ZXV_E_STATE; nothing JS-side ever unwinds through C. The freight
+// CIDREF resolver (ABI 1.5) works the same way (zxvjs_freight_ops_expand).
 //
 // Generation runs on a libuv worker thread (Napi::AsyncProgressQueueWorker)
 // and streams each token back to the event loop; the event loop is never
@@ -350,6 +351,60 @@ Napi::Value HwHandler(const Napi::CallbackInfo &info)
     return info.Env().Undefined();
 }
 
+
+// ---- freight CIDREF resolver (ABI 1.5) ----
+//
+// zxv_freight_ops_expand takes a C resolver. zxvjs_freight_ops_expand
+// passes a trampoline that calls one JS dispatcher synchronously on the JS
+// thread: resolve(id, cid, len) -> Uint8Array of exactly `len` bytes, or a
+// number (not resolved). The JS layer never throws into it; if it did, the
+// exception is caught here and the CIDREF counts as unresolved.
+
+decltype(&zxv_freight_ops_expand) g_freight_ops_expand = nullptr;
+Napi::FunctionReference g_freight_resolve;
+napi_env g_freight_env = nullptr;
+std::thread::id g_freight_thread;
+
+int32_t freight_resolve_tramp(void *user, const uint8_t *cid, size_t cid_len, uint8_t *out, uint64_t len)
+{
+    if (g_freight_resolve.IsEmpty() || !g_freight_env || std::this_thread::get_id() != g_freight_thread)
+        return ZXV_E_STATE;
+    Napi::Env env(g_freight_env);
+    try {
+        Napi::HandleScope scope(env);
+        Napi::Uint8Array c = Napi::Uint8Array::New(env, cid_len);
+        if (cid_len) std::memcpy(c.Data(), cid, cid_len);
+        Napi::Value r = g_freight_resolve.Call({Napi::Number::New(env, static_cast<double>(hw_id(user))), c,
+                                                Napi::Number::New(env, static_cast<double>(len))});
+        if (!r.IsTypedArray()) return ZXV_E_NOT_FOUND;
+        Napi::TypedArray t = r.As<Napi::TypedArray>();
+        if (static_cast<uint64_t>(t.ByteLength()) != len) return ZXV_E_NOT_FOUND;
+        if (len) std::memcpy(out, static_cast<uint8_t *>(t.ArrayBuffer().Data()) + t.ByteOffset(), static_cast<size_t>(len));
+        return ZXV_OK;
+    } catch (const Napi::Error &) {
+        return ZXV_E_NOT_FOUND;
+    }
+}
+
+// The same entry point the wasm shim exports: `user` is a uint32 id.
+int32_t js_freight_ops_expand(const uint8_t *ops, size_t ops_len, uint64_t limit, uint32_t user, uint8_t *buf,
+                              size_t cap, size_t *out_len)
+{
+    return g_freight_ops_expand(ops, ops_len, limit, freight_resolve_tramp,
+                                reinterpret_cast<void *>(static_cast<uintptr_t>(user)), buf, cap, out_len);
+}
+
+// freightHandler(resolve): install the JS resolver dispatcher.
+Napi::Value FreightHandler(const Napi::CallbackInfo &info)
+{
+    if (info.Length() != 1 || !info[0].IsFunction())
+        throw Napi::TypeError::New(info.Env(), "zxvjs_freight_handler: expected a function");
+    g_freight_resolve = Napi::Persistent(info[0].As<Napi::Function>());
+    g_freight_env = info.Env();
+    g_freight_thread = std::this_thread::get_id();
+    return info.Env().Undefined();
+}
+
 template <typename F>
 void bind_local(Napi::Env env, Napi::Object &out, const char *name, F fn)
 {
@@ -570,6 +625,73 @@ Napi::Value Load(const Napi::CallbackInfo &info)
     FN(zxv_hw_region_stage); FN(zxv_hw_region_trial); FN(zxv_hw_region_commit);
     FN(zxv_hw_region_rollback); FN(zxv_hw_region_tick); FN(zxv_hw_region_info); FN(zxv_hw_region_log);
     FN(zxv_hw_region_log_entry); FN(zxv_hw_matrix_log); FN(zxv_hw_matrix_log_entry);
+    // ABI 1.5: features2 (1)
+    FN(zxv_features2);
+    // ABI 1.5: treaty (25)
+    FN(zxv_treaty_create); FN(zxv_treaty_destroy); FN(zxv_treaty_clear); FN(zxv_treaty_parse_sutra);
+    FN(zxv_treaty_parse_record); FN(zxv_treaty_emit_sutra); FN(zxv_treaty_emit_record);
+    FN(zxv_treaty_validate); FN(zxv_treaty_equal); FN(zxv_treaty_name); FN(zxv_treaty_asset);
+    FN(zxv_treaty_header); FN(zxv_treaty_party_id); FN(zxv_treaty_party); FN(zxv_treaty_owe);
+    FN(zxv_treaty_pic_add); FN(zxv_treaty_pic_sub); FN(zxv_treaty_pic_mul); FN(zxv_treaty_pic_div);
+    FN(zxv_treaty_run); FN(zxv_treaty_result_destroy); FN(zxv_treaty_result_summary);
+    FN(zxv_treaty_result_party); FN(zxv_treaty_result_leg); FN(zxv_treaty_result_record);
+    // ABI 1.5: cid and aipi (26)
+    FN(zxv_cid_compute); FN(zxv_cid_unixfs); FN(zxv_cid_verify); FN(zxv_cid_to_text); FN(zxv_cid_from_text);
+    FN(zxv_cid_info); FN(zxv_cid_to_v1); FN(zxv_aipi_provider_key); FN(zxv_aipi_fn_encode);
+    FN(zxv_aipi_fn_decode); FN(zxv_aipi_fn_get_cid); FN(zxv_aipi_fn_get_name); FN(zxv_aipi_fn_cid);
+    FN(zxv_aipi_call_encode); FN(zxv_aipi_call_decode); FN(zxv_aipi_call_cid); FN(zxv_aipi_claim_encode);
+    FN(zxv_aipi_claim_decode); FN(zxv_aipi_create); FN(zxv_aipi_destroy); FN(zxv_aipi_put); FN(zxv_aipi_get);
+    FN(zxv_aipi_publish_fn); FN(zxv_aipi_load_fn); FN(zxv_aipi_plan); FN(zxv_aipi_info);
+    // ABI 1.5: coin and token (22)
+    FN(zxv_coin_face); FN(zxv_coin_rung); FN(zxv_coin_split); FN(zxv_token_face); FN(zxv_token_tier);
+    FN(zxv_token_value); FN(zxv_token_canonical); FN(zxv_token_is_canonical); FN(zxv_token_compress);
+    FN(zxv_token_fuse); FN(zxv_token_split); FN(zxv_token_code_bits); FN(zxv_token_code_put);
+    FN(zxv_token_code_get); FN(zxv_token_wallet_create); FN(zxv_token_wallet_destroy);
+    FN(zxv_token_wallet_mint); FN(zxv_token_wallet_spend); FN(zxv_token_wallet_transfer);
+    FN(zxv_token_wallet_set_octane); FN(zxv_token_wallet_info); FN(zxv_token_wallet_counts);
+    // ABI 1.5: fee (4)
+    FN(zxv_fee_assure); FN(zxv_fee_assure_carry); FN(zxv_fee_split); FN(zxv_fee_policy_default);
+    // ABI 1.5: vhub (14)
+    FN(zxv_vhub_create); FN(zxv_vhub_destroy); FN(zxv_vhub_add_ccy); FN(zxv_vhub_ccy_info);
+    FN(zxv_vhub_peg_msg); FN(zxv_vhub_set_peg); FN(zxv_vhub_open_account); FN(zxv_vhub_issue);
+    FN(zxv_vhub_balance); FN(zxv_vhub_add_limit); FN(zxv_vhub_next_epoch); FN(zxv_vhub_quote);
+    FN(zxv_vhub_swap); FN(zxv_vhub_check);
+    // ABI 1.5: freight (25)
+    FN(zxv_freight_header_init); FN(zxv_freight_header_serialize); FN(zxv_freight_header_parse);
+    FN(zxv_freight_header_check); FN(zxv_freight_encode); FN(zxv_freight_decode); FN(zxv_freight_set_count);
+    FN(zxv_freight_split); FN(zxv_freight_join_create); FN(zxv_freight_join_destroy);
+    FN(zxv_freight_join_add); FN(zxv_freight_join_status); FN(zxv_freight_join_result);
+    FN(zxv_freight_ops_peek); FN(zxv_freight_ops_expand); FN(zxv_freight_gen_run); FN(zxv_freight_ops_encode);
+    FN(zxv_freight_ops_bound); FN(zxv_freight_ops_writer_create); FN(zxv_freight_ops_writer_destroy);
+    FN(zxv_freight_ops_put_literal); FN(zxv_freight_ops_put_copy); FN(zxv_freight_ops_put_cidref);
+    FN(zxv_freight_ops_put_seed); FN(zxv_freight_ops_writer_finish);
+    // ABI 1.5: web4 (35)
+    FN(zxv_w4_agent_create); FN(zxv_w4_agent_destroy); FN(zxv_w4_agent_info); FN(zxv_w4_agent_card);
+    FN(zxv_w4_card_verify); FN(zxv_w4_dir_create); FN(zxv_w4_dir_destroy); FN(zxv_w4_dir_add);
+    FN(zxv_w4_dir_find); FN(zxv_w4_dir_count); FN(zxv_w4_manifest_create); FN(zxv_w4_manifest_destroy);
+    FN(zxv_w4_manifest_add_tool); FN(zxv_w4_manifest_sign); FN(zxv_w4_manifest_verify);
+    FN(zxv_w4_manifest_encode); FN(zxv_w4_manifest_decode); FN(zxv_w4_manifest_to_json);
+    FN(zxv_w4_manifest_info); FN(zxv_w4_manifest_tool); FN(zxv_w4_manifest_find); FN(zxv_w4_action_digest);
+    FN(zxv_w4_consent_issue); FN(zxv_w4_consent_info); FN(zxv_w4_consent_log_create);
+    FN(zxv_w4_consent_log_destroy); FN(zxv_w4_consent_check); FN(zxv_w4_consent_revoke);
+    FN(zxv_w4_consent_log_prune); FN(zxv_w4_env_seal); FN(zxv_w4_env_reply); FN(zxv_w4_env_decode);
+    FN(zxv_w4_env_payload); FN(zxv_w4_env_consent); FN(zxv_w4_env_verify);
+    // ABI 1.5: paradox (45)
+    FN(zxv_paradox_signature); FN(zxv_paradox_kind_of_tag); FN(zxv_paradox_action);
+    FN(zxv_paradox_outcome_action); FN(zxv_paradox_repair_verify); FN(zxv_paradox_kind_name);
+    FN(zxv_paradox_outcome_name); FN(zxv_paradox_node_state_name); FN(zxv_paradox_create);
+    FN(zxv_paradox_destroy); FN(zxv_paradox_classify); FN(zxv_paradox_registry_add);
+    FN(zxv_paradox_registry_find); FN(zxv_paradox_registry_count); FN(zxv_paradox_registry_at);
+    FN(zxv_paradox_log_count); FN(zxv_paradox_log_head); FN(zxv_paradox_log_record);
+    FN(zxv_paradox_log_verify); FN(zxv_paradox_policy_create); FN(zxv_paradox_policy_destroy);
+    FN(zxv_paradox_constructive); FN(zxv_paradox_policy_values); FN(zxv_paradox_policy_bounds);
+    FN(zxv_paradox_policy_proposal); FN(zxv_paradox_destructive); FN(zxv_paradox_hold_create);
+    FN(zxv_paradox_hold_destroy); FN(zxv_paradox_hold_add); FN(zxv_paradox_hold_evidence);
+    FN(zxv_paradox_hold_info); FN(zxv_paradox_hold_branch); FN(zxv_paradox_neutral); FN(zxv_paradox_special);
+    FN(zxv_paradox_draft); FN(zxv_paradox_review); FN(zxv_paradox_graph_create);
+    FN(zxv_paradox_graph_destroy); FN(zxv_paradox_graph_add_node); FN(zxv_paradox_graph_add_dep);
+    FN(zxv_paradox_graph_update); FN(zxv_paradox_graph_pass); FN(zxv_paradox_graph_state);
+    FN(zxv_paradox_graph_node_at); FN(zxv_paradox_graph_info);
 
     g_generate = reinterpret_cast<decltype(g_generate)>(find_symbol(g_lib, "zxv_generate"));
     g_last_error = reinterpret_cast<decltype(g_last_error)>(find_symbol(g_lib, "zxv_last_error"));
@@ -578,6 +700,8 @@ Napi::Value Load(const Napi::CallbackInfo &info)
     g_hw_region_create =
         reinterpret_cast<decltype(g_hw_region_create)>(find_symbol(g_lib, "zxv_hw_region_create_cap"));
     g_hw_region_events = reinterpret_cast<decltype(g_hw_region_events)>(find_symbol(g_lib, "zxv_hw_region_events"));
+    g_freight_ops_expand =
+        reinterpret_cast<decltype(g_freight_ops_expand)>(find_symbol(g_lib, "zxv_freight_ops_expand"));
     if (!g_generate) missing.push_back("zxv_generate");
     if (!missing.empty()) {
         std::string m;
@@ -589,6 +713,8 @@ Napi::Value Load(const Napi::CallbackInfo &info)
     bind_local(env, out, "zxvjs_hw_region_create", &js_hw_region_create);
     bind_local(env, out, "zxvjs_hw_region_events", &js_hw_region_events);
     out.Set("zxvjs_hw_handler", Napi::Function::New(env, HwHandler, "zxvjs_hw_handler"));
+    bind_local(env, out, "zxvjs_freight_ops_expand", &js_freight_ops_expand);
+    out.Set("zxvjs_freight_handler", Napi::Function::New(env, FreightHandler, "zxvjs_freight_handler"));
     out.Set("alloc", Napi::Function::New(env, Alloc, "alloc"));
     out.Set("free", Napi::Function::New(env, Free, "free"));
     out.Set("read", Napi::Function::New(env, Read, "read"));

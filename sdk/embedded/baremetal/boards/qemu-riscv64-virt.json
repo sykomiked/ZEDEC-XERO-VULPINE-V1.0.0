@@ -1,0 +1,22 @@
+{
+  "format": "zxv-board-manifest",
+  "version": 1,
+  "board": {
+    "id": "qemu-riscv64-virt",
+    "vendor": "QEMU",
+    "model": "virt with OpenSBI, kernel loaded with -kernel"
+  },
+  "arch": "riscv64",
+  "firmware": {"type": "devicetree", "machine": "qemu-virt"},
+  "console": {
+    "serial": {"uart": "ns16550a", "base": "0x10000000", "baud": 115200},
+    "framebuffer": "none"
+  },
+  "memory": {"ram_mib": 256},
+  "hw_profile": {
+    "digest": "34ec0e8229a5af72d77be2fcc1d354e90f698b239a68131583fc4425333290d4",
+    "file": "../profiles/r1.zhp",
+    "name": "VULPINE-class reference machine R1"
+  },
+  "notes": "QEMU only. The kernel has no RISC-V UEFI path and no physical RISC-V board support yet."
+}

@@ -13,6 +13,7 @@ import java.util.Set;
 import org.zedec.zxv.internal.Errors;
 import org.zedec.zxv.internal.Ffi;
 import org.zedec.zxv.internal.Native;
+import org.zedec.zxv.internal.Native15;
 import org.zedec.zxv.internal.NativeLoader;
 
 /**
@@ -23,7 +24,7 @@ import org.zedec.zxv.internal.NativeLoader;
  * {@code ZXV_LIBRARY_PATH} environment variable (a file or a directory); a
  * copy bundled in the jar under {@code /native/<os>-<arch>/}; then
  * {@link System#mapLibraryName(String) libzxv.so / libzxv.dylib / zxv.dll} on
- * the system loader path. The library's ABI must be 1.x with x at least 1.
+ * the system loader path. The library's ABI must be 1.x with x at least 5.
  *
  * <p>Run with {@code --enable-native-access=org.zedec.zxv} (module path) or
  * {@code --enable-native-access=ALL-UNNAMED} (class path).
@@ -85,6 +86,30 @@ public final class Zxv {
             out[0] = m.get(JAVA_INT, 0);
         }
         return out[0];
+    }
+
+    /**
+     * The ABI 1.5 feature groups live in this build ({@code zxv_features2}).
+     * A group missing here refuses every call with {@link NotImplementedException}.
+     */
+    public static Set<Feature2> features2() {
+        int mask = feature2Mask();
+        EnumSet<Feature2> s = EnumSet.noneOf(Feature2.class);
+        for (Feature2 f : Feature2.values()) if ((mask & f.bit()) != 0) s.add(f);
+        return Collections.unmodifiableSet(s);
+    }
+
+    /** True if the ABI 1.5 group {@code feature} is live in this build. */
+    public static boolean hasFeature(Feature2 feature) {
+        return (feature2Mask() & feature.bit()) != 0;
+    }
+
+    private static int feature2Mask() {
+        try (Arena a = Arena.ofConfined()) {
+            MemorySegment m = a.allocate(JAVA_INT);
+            Ffi.check(Ffi.call(Native15.features2, m), null);
+            return m.get(JAVA_INT, 0);
+        }
     }
 
     /** The symbolic name of a status ({@code "ZXV_E_FUNDS"}); {@code "ZXV_E_UNKNOWN"} for unknown codes. */

@@ -3,7 +3,7 @@
 
 # ZXV for Python (`zxv-sdk`)
 
-The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.4,
+The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.5,
 `sdk/libzxv/include/zxv_api.h`) with [cffi](https://cffi.readthedocs.io) in
 ABI mode, so there is nothing to compile. It gives you:
 
@@ -16,7 +16,10 @@ ABI mode, so there is nothing to compile. It gives you:
 - the swarm token economy,
 - SHA3, SHAKE256, Keccak-256, ML-KEM-1024, ML-DSA-87 and Ed25519 with wiped secret keys,
 - a deterministic integer GGUF inference engine (sync, threaded and async streaming),
-- EVM state-channel encoding.
+- EVM state-channel encoding,
+- the ABI 1.5 groups: treaties, CIDs and AIPI records, Fibonacci coins and
+  token octane, the assurance fee, a V-Bill FX hub, freight erasure coding,
+  web4 agents with consent, and the paradox book.
 
 Requires Python 3.10+ and `cffi`. Fully typed (`py.typed`, `mypy --strict` clean).
 
@@ -34,13 +37,13 @@ export ZXV_LIBRARY_PATH=$PWD/../libzxv/build     # a file or a directory
 
 # 2b. Or build a wheel that bundles the library under zxv/_lib/
 python scripts/bundle_lib.py                       # copies libzxv.so/.dylib/zxv.dll
-pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.1.0-py3-none-<platform>.whl
+pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.5.0-py3-none-<platform>.whl
 ```
 
 The library is found in this order: a path passed to `zxv.load_library()`,
 then `ZXV_LIBRARY_PATH`, then the copy bundled in the wheel, then the system
-loader path. The SDK refuses a library whose ABI is not 1.x with x >= 4 (it calls the
-`zxv_hw_*` functions added in 1.4, the `zxv_hex_*` functions added in 1.3
+loader path. The SDK refuses a library whose ABI is not 1.x with x >= 5 (it calls the
+`zxv_features2` and group functions added in 1.5, the `zxv_hw_*` functions added in 1.4, the `zxv_hex_*` functions added in 1.3
 and the `_cap` functions added in 1.2).
 `import zxv` never loads the library; the first call that needs it does, so
 the pure-Python parts (`Ubh168Frame`, `Truth`) work without it.
@@ -251,6 +254,275 @@ region.trust_key(key.public_key)
 region.stage(image); region.trial(5); region.commit()
 ```
 
+## ABI 1.5 groups
+
+ABI 1.5 adds eight feature groups (nine modules). `zxv.features2()` reports which are live
+(`Feature2.TREATY`, `AIPI`, `COIN`, `FEE`, `VHUB`, `FREIGHT`, `WEB4`,
+`PARADOX`); a group that is not built raises `ZxvNotImplementedError`.
+`Cap.ALL` (1.1) and `Cap.ALL_1_4` keep their values forever; use
+`Cap.ALL_1_5`, or add `Cap.AIPI`, `Cap.MINT` and `Cap.PARADOX`, for a
+capability that reaches the new gated calls. The new statuses map to typed
+exceptions:
+
+| Status | Exception | Class |
+|---|---|---|
+| `ZXV_E_DENOM` -32 | `DenominationError` | usage |
+| `ZXV_E_TREATY` -33 | `TreatyError` (`.fault`, `.offset`) | usage |
+| `ZXV_E_CID` -34 | `CidMismatchError` | refused |
+| `ZXV_E_CONSENT` -35 | `ConsentRequiredError` | refused |
+| `ZXV_E_ERASURE` -36 | `ErasureError` | refused |
+| `ZXV_E_PEG` -37 | `PegError` | refused |
+| `ZXV_E_LIMIT` -38 | `LimitRefusedError` | refused |
+| `ZXV_E_PARADOX_STEP` -39 | `ParadoxStepLimitError` | refused |
+| `ZXV_E_PARADOX_OWNER` -40 | `OwnerApprovalRequiredError` | refused |
+
+Every handle below is a context manager. Handles whose C object is not
+thread-safe (`Treaty`, `AipiNode`, `TokenWallet`, `VHub`, `FreightJoin`,
+`OpsWriter`, the web4 and paradox handles) serialize calls with a lock. The
+`ffi` calls release the GIL. Variable-length outputs use the two-call
+`ZXV_E_BUFFER` pattern internally, so you get `bytes` back. Each example
+below runs as it stands.
+
+### Treaties (`zxv.treaty`)
+
+A treaty is a settlement batch in a fixed copybook record (`to_record`,
+2542 bytes) or in canonical Sutra text (`to_sutra`). `run()` settles it in
+integer arithmetic and returns a `TreatyResult` (its own handle). A refusal
+raises `TreatyError` with the `TreatyFault` and the byte offset. A failed
+parse leaves the treaty as it was. `pic_add/sub/mul/div` are the PIC S9(18)
+helpers.
+
+```python
+import zxv
+from zxv import Treaty
+
+sutra = "TREATY N USD SETL\nPARTY A 900000 0 1/2\nPARTY B 900000 0 1/2\nOWE A B 300000\nEND\n"
+with Treaty.from_sutra(sutra) as t, t.run() as result:
+    print(t.party_count, [(leg.payer, leg.payee, leg.amount) for leg in result.legs], result.fees)
+try:
+    Treaty.from_sutra("TREATY")
+except zxv.TreatyError as e:
+    print(e.fault, e.offset)
+```
+
+Limits: a treaty is a batch description, not a contract in law. Signatures,
+consent and authority live elsewhere. One asset per treaty. Dividend shares
+are reported only; nothing is paid out of the bucket.
+
+### CIDs and AIPI (`zxv.cid`, `zxv.aipi`)
+
+`Cid` is an immutable, validated CID. You can `compute` one, build one with
+`unixfs` (the same bytes as Kubo's `ipfs add`), or read one with `parse`.
+`verify` and `matches` check data against it. `to_text` and `str()` give
+the text forms. `AipiFunction`, `AipiCall` and `AipiClaim` encode and
+decode the records. `AipiNode(cap)` is an offline, in-process block store;
+it needs `Cap.AIPI`. A node `node_key` (a `SecretKey` or 32 bytes, wiped on
+close) enables private, sealed blocks.
+
+```python
+import zxv
+from zxv import AipiFunction, AipiNode, Cap, Cid
+from zxv.aipi import AipiIntent, AipiVerify
+
+with zxv.Context() as ctx:
+    cap = ctx.root_capability(Cap.ALL_1_5)
+    module = Cid.compute(b"module bytes")
+    fn = AipiFunction.encode(intent=AipiIntent.FN, verify=AipiVerify.LOCAL, module=module,
+                             entry="main", fuel_max=10)
+    with AipiNode(cap) as node:
+        node.put(b"module bytes")
+        print(node.publish(fn), node.plan(fn.cid, b"input"))   # route LOCAL: nothing runs here
+    print(Cid.unixfs(b"hello"), module.matches(b"module bytes"))
+```
+
+Limits: there is no network (no mesh, IPFS peers, gateway or libp2p) and
+no EXECUTE, since running a function needs the Z-Wasm sandbox outside
+libzxv. No money moves in this group. A CID proves which bytes are meant.
+It does not prove that an output is right, and it does not make the bytes
+available. Signing claims is the caller's job.
+
+### Coins and AI tokens (`zxv.coin`)
+
+These cover the Fibonacci coin ladder (`face`, `rung`, `split`,
+`split_count`) and AI token tiers (`token_face`, `token_tier`, `Octane`).
+`TokenHolding` is an immutable holding with `canonical`, `compressed`,
+`fused`, `split`, `value` and `pieces`. The Fibonacci codes are
+`code_encode`, `code_decode`, `code_put` and `code_get`. A `TokenWallet`
+keeps a holding canonical at its octane; every change to it needs
+`Cap.MINT`.
+
+```python
+import zxv
+from zxv import Cap, Octane, TokenHolding, TokenWallet, coin
+
+print(coin.split(100), TokenHolding.canonical(1_000_000, Octane.RACING).pieces)  # [10, 5, 3] 17
+with zxv.Context() as ctx:
+    cap = ctx.root_capability(Cap.ALL_1_5)
+    with TokenWallet(cap, model_id=7, octane=Octane.RACING) as a, TokenWallet(cap, model_id=8) as b:
+        a.mint(1_000_000)
+        a.transfer(b, 1000)
+        print(a.value, b.value, b.holding.pieces)
+```
+
+Limits: there is no premium. A dense token is worth exactly its face in
+plain tokens; changing octane changes the number of pieces, never the value.
+Minting VFV coins is not in this ABI.
+
+### Assurance fee (`zxv.fee`)
+
+The fee is 0.08889% of gross (`FEE_NUM / FEE_DEN`). The group provides
+`assure`, carry-exact `assure_carry` and `FeeAccount`, the four-bucket
+`split`, and `default_policy`.
+
+```python
+from zxv import fee
+
+acct = fee.FeeAccount()
+print([acct.charge(1_000_000) for _ in range(3)], acct.remainder)
+print(list(fee.split(10_000)), fee.split(10_000).total)
+```
+
+Limits: these are the arithmetic rules only. How a fee, reserve or
+dividend pool is treated in law is a question for counsel; nothing here is
+a licence or a certification.
+
+### V-Bill hub (`zxv.vhub`)
+
+`VHub(cap)` is a demo FX hub with test currencies, priced through
+V-Bills. Pegs are signed with ML-DSA-87 (`VHub.peg_message`, `set_peg`).
+`add_limit` adds per-sender limit rules, and swaps fail closed without a
+rule. The other calls are `quote`, `swap`, `balance` and `check`. Refusals
+are typed: `PegError`, `LimitRefusedError` and `InsufficientFundsError`.
+
+```python
+import zxv
+from zxv import Cap, VHub
+
+with zxv.Context() as ctx:
+    cap = ctx.root_capability(Cap.ALL_1_5)
+    dsa = zxv.MlDsa87(cap)
+    with dsa.generate() as ka, dsa.generate() as kb, VHub(cap) as hub:
+        for slot, code, key in ((0, "TSTA", ka), (1, "TSTB", kb)):
+            hub.add_currency(slot, code, 2, key.public_key, pool_funding=10_000, vbill_backing=1000)
+            hub.set_peg(slot, 2, 1, 1, dsa.sign(key.secret_key, VHub.peg_message(slot, 2, 1, 1)))
+            hub.add_limit(slot, 10**9)
+        alice, bob = hub.open_account(0, 1), hub.open_account(1, 2)
+        hub.issue(alice, 1000)
+        print(hub.quote(0, 1, 100), hub.swap(0, 1, alice, bob, 100, tick=1).received)
+```
+
+Limits: test currencies only (ISO 4217 codes are refused), so there is no
+real money. The hub's ledger is in memory and separate from the context
+ledger. It is connected to no rail, central bank or issuer. ML-DSA here is
+not FIPS 140-3 validated. V-Bills are likely securities in many
+jurisdictions. A rule reports what it decided; it is not a legal check.
+
+### Freight (`zxv.freight`)
+
+A freight is 168 rows of 21 bytes, and any `k` rows rebuild a payload of
+up to `k * 20` bytes. The pieces are:
+- `FreightHeader` (`for_payload`, `parse`, `to_bytes`), `encode`, `decode`
+  and `packets`.
+- Sets: `split`, `iter_split`, `set_count` and `FreightJoin`.
+- Op streams: `ops_encode`, `ops_expand` (with an optional CIDREF
+  resolver), `ops_peek`, `OpsWriter` and `gen_run`.
+
+The resolver is called on the calling thread. An exception it raises fails
+the expansion and is re-raised to you; it never unwinds through C.
+
+```python
+from zxv import freight
+from zxv.freight import FreightHeader
+
+payload = b"any k rows rebuild the payload"
+h = FreightHeader.for_payload(42, 10, payload)
+rows = freight.packets(freight.encode(h, payload))
+print(freight.decode(h, rows[158:]) == payload)              # the last 10 rows are enough
+ops = freight.ops_encode(b"abc" * 20)
+print(len(ops), freight.ops_expand(ops, limit=1024) == b"abc" * 20)
+```
+
+Limits: this is erasure coding only. A corrupted row is detected
+(`VerificationFailedError`) but not located or repaired. The header is not
+authenticated, so sign it if the sender matters. A freight is larger than
+its payload. Op streams give no size guarantee: random data encodes
+slightly larger.
+
+### Web4 agents (`zxv.web4`)
+
+`W4Agent(cap, name, now_ms)` holds an ML-DSA-65 key that never leaves the
+handle and is wiped on close. It has a signed `card` (`verify_card`,
+`W4Directory`). The other parts are:
+- `W4Manifest`: a signed tool list.
+- Consent: `action_digest`, `W4Agent.issue_consent` on the human's key, and
+  `W4ConsentLog.check` (single use, revocable), which raises
+  `ConsentRequiredError`.
+- Envelopes: `seal`, `reply`, `decode_envelope` and `verify_envelope`.
+
+```python
+import zxv
+from zxv import Cap, W4Agent, web4
+from zxv.web4 import ConsentScope, W4ConsentLog, W4MsgKind
+
+T0 = 1_700_000_000_000
+with zxv.Context() as ctx:
+    cap = ctx.root_capability(Cap.ALL_1_5)
+    with W4Agent(cap, "alice", T0) as alice, W4Agent(cap, "bob", T0) as bob, \
+            W4Agent(cap, "human", T0) as human, W4ConsentLog(16) as log:
+        action = web4.action_digest("pay", alice.agent_id, bob.agent_id, 7, b"amount=100")
+        token = human.issue_consent(alice.agent_id, action, ConsentScope.MONEY, max_vfv=1000,
+                                    issued_ms=T0, expires_ms=T0 + 600_000)
+        log.check(token, human_public_key=human.public_key, agent_id=alice.agent_id, action=action,
+                  need=ConsentScope.MONEY, amount=100, now_ms=T0 + 1)    # spends the token
+        env = alice.seal(bob.agent_id, W4MsgKind.REQUEST, req_id=7, tool="pay", payload=b"amount=100",
+                         now_ms=T0 + 2, consent=token)
+        web4.verify_envelope(env, alice.public_key)
+        print(web4.decode_envelope(env).tool, repr(alice))
+```
+
+Limits: envelopes are signed, not encrypted. A consent token proves that a
+key holder signed it. It cannot show that the holder is the right human or
+that they understood the action. The receiving runtime (replay window, rate
+limits), the Web 2 and Web 3 bridges and other agent protocols are not in
+this ABI.
+
+### Paradox book (`zxv.paradox`)
+
+`ParadoxBook(cap)` (needs `Cap.PARADOX`) classifies a `Hexagram` tag into
+a `Classification` (kind CONSTRUCTIVE, DESTRUCTIVE, NEUTRAL, SPECIAL or
+NONE). It routes the tag to one operator:
+- `constructive`: a bounded update of a `ParadoxPolicy`.
+- `destructive`: contain and roll back in place; returns a `RepairProof`.
+- `neutral`: hold the branches of a `ParadoxHold`.
+- `special`: a frontier record, which can then be drafted and reviewed.
+
+It can also run `graph_pass` over a `ParadoxGraph`. Every step goes to
+hash-chained logs (`log_head`, `log_records`, `verify_log`). Changes that
+touch money or devices raise `OwnerApprovalRequiredError` without
+`owner_ok`.
+
+```python
+import zxv
+from zxv import Cap, HexBase, HexPhase, HexPolarity, Hexagram, paradox
+from zxv.paradox import ParadoxBook, ParadoxLog, ParadoxPolicy
+
+with zxv.Context() as ctx:
+    cap = ctx.root_capability(Cap.ALL_1_5)
+    with ParadoxBook(cap, 64, 16) as book, ParadoxPolicy(cap, [0, 0], [100, 50], [50, 25]) as policy:
+        tag = Hexagram(HexBase.BOTH, HexPolarity.NEUTRAL, HexPhase(3))
+        c = book.classify(tag, evidence=(3, 1, 5, 1))           # improving evidence: constructive
+        print(c.kind, c.action, book.constructive(policy, c, [60, 20], tension=5), policy.values)
+        print(book.constructive(policy, c, [200, 20], tension=4))  # out of bounds: proposal for owner
+        book.verify_log(ParadoxLog.OPS)
+```
+
+Limits: automatic changes happen only inside published bounds, and the
+operators have no balance input. `owner_ok` is the caller's assertion,
+since this library cannot check who the owner is inside one process.
+Detection covers only the checks the caller runs. Destructive work is
+contained, never answered. This is contradiction-tolerant bookkeeping; it
+never makes both sides true. All of it is advisory to the owner.
+
 ## API overview
 
 | Area | Python | Notes |
@@ -273,6 +545,15 @@ region.stage(image); region.trial(5); region.commit()
 | Engine | `Model.open/from_bytes`, `Model.tokenize/detokenize/new_session/load_lora`, `Session.generate/stream/stream_async/generate_async/bind_budget/reset`, `GenerateOptions`, `StopReason` | GIL released |
 | EVM | `StateChannel(cap, channel_id).encode_state/ledger_state`, `EvmState` | Keccak digest |
 | Hardware | `HwProfile`, `HwMatrix(cap).call/shadow/memo/add_provider/attest/providers/set_policy/apply_contract`, `HwReleaseKey.generate/build`, `HwRegion(cap, device).stage/trial/commit/rollback/log` | needs `HW_MATRIX` / `HW_RECONF` |
+| Library 1.5 | `features2`, `has_feature2`, `Feature2`, `Cap.ALL_1_5` | group bits |
+| Treaty | `Treaty.from_sutra/from_record/to_sutra/to_record/validate/run`, `TreatyResult`, `pic_*` | `TreatyError.fault/offset` |
+| CID / AIPI | `Cid.compute/unixfs/parse/verify/to_text/to_v1`, `AipiFunction/AipiCall/AipiClaim.encode/decode`, `AipiNode(cap).put/get/publish/load/plan` | needs `AIPI` |
+| Coin | `coin.face/rung/split/token_face/token_tier/code_*`, `TokenHolding`, `TokenWallet(cap).mint/spend/transfer/set_octane` | wallet needs `MINT` |
+| Fee | `fee.assure/assure_carry/split/default_policy`, `FeeAccount` | pure |
+| V-Bill hub | `VHub(cap).add_currency/set_peg/open_account/issue/add_limit/quote/swap/balance/check` | test currencies only |
+| Freight | `FreightHeader`, `encode/decode/split/set_count`, `FreightJoin`, `ops_encode/ops_expand/ops_peek/gen_run`, `OpsWriter` | resolver callbacks |
+| Web4 | `W4Agent(cap)`, `verify_card`, `W4Directory`, `W4Manifest`, `action_digest`, `W4ConsentLog`, `decode_envelope/verify_envelope` | keys stay in handles |
+| Paradox | `ParadoxBook(cap)`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `Classification`, `RepairProof` | needs `PARADOX`; advisory |
 
 Every public class and method has a docstring: `help(zxv.Session)`.
 
@@ -314,6 +595,9 @@ allotments, greedy and seeded generation tokens, EVM encoding and digest),
 the hardware layer (R1, the standard engines, placement policy, Python
 implementations, a signed image staged, tested and committed on a simulated
 device with its events and audit log, a contract package),
+the ABI 1.5 vectors (`status_abi15`, treaty, cid, aipi, coin, fee, vhub,
+freight, web4, paradox) with handle lifetimes, buffer growth, every new
+status's exception, capability refusals and a poisoned context,
 plus the fatal path via `zxv_ctx_halt` (including `FatalPolicy.ABORT` in a
 subprocess), capability denial, budget exhaustion and async waiting, phase
 deferral, the GIL release, and `test_cdef_drift.py`, which fails if any
