@@ -2398,6 +2398,7 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    zxvd_mod_names(c->res); /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
     for (uint32_t i = 0; i < N_EXT; i++)
         for (uint32_t j = 0; j < EXT[i].n; j++) {
             zxvd_buf_raw(c->res, ",", 1);
@@ -2408,7 +2409,6 @@ static void m_discover(call_t *c)
             zxvd_buf_raw(c->res, ",", 1);
             zxvd_buf_json_str(c->res, GROUPS[g]->methods[i].name);
         }
-    zxvd_mod_names(c->res); /* the module methods (zxvd_rpc_modules.h), last */
     zxvd_buf_raw(c->res, "]}", 2);
 }
 

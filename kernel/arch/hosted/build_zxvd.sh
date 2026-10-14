@@ -123,10 +123,11 @@ for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
 for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # the module methods; everything else they need (sha256, keccak, aead,
-# ipfs_node, ML-DSA-65) is already in app_sources.sh
+# ipfs_node, ML-DSA-65) is already in app_sources.sh, and freight and
+# web4_agent come with the method groups above (app_sources.sh groups)
 set -- "$@" "$HERE/zxvd_rpc_modules.c"
-for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c stream/stream_seg.c \
-         ehop/ehop_sched.c ehop/ehop_frame.c web4/web4_cid.c web4/web4_agent.c; do
+for f in harmonic/zt_harmonic_wire.c stream/stream_seg.c ehop/ehop_sched.c ehop/ehop_frame.c \
+         web4/web4_cid.c; do
     set -- "$@" "$K/src/$f"
 done
 # the owner's social chat (zxvd_chat.h): signed records, store, ISF feed

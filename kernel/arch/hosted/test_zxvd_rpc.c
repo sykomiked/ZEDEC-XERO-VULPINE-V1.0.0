@@ -38,6 +38,12 @@
 #include "zxv_files.h"
 #include "zxv_spaces.h"
 
+/* the module methods (zxvd_rpc_modules.h), listed after zxvd's own */
+#define MODS                                                                                       \
+    "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\",\"stream.plan\"," \
+    "\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\",\"web4.cid\","               \
+    "\"web4.agent_card\",\"web4.card_verify\""
+
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
 {
@@ -502,10 +508,8 @@ static void test_host_methods(void)
            "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
            "\"phone.list\",\"phone.revoke\","
            "\"play.catalogue\",\"play.run\",\"play.draft\","
-           /* the module methods (zxvd_rpc_modules.h), last */
-           "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\","
-           "\"stream.plan\",\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\","
-           "\"web4.cid\",\"web4.agent_card\",\"web4.card_verify\"]"
+           /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
+           MODS "]"
            "}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
@@ -2868,7 +2872,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"x."
               "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
               "\"zxvd.version\"]}"),
@@ -2902,7 +2906,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
@@ -2915,7 +2919,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
@@ -2939,7 +2943,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
@@ -2956,7 +2960,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
@@ -3023,7 +3027,7 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"," MODS "]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");
@@ -3450,7 +3454,7 @@ static void test_groups(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\","
+              "\"play.draft\"," MODS ","
               "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");
