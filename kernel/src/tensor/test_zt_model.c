@@ -822,6 +822,34 @@ int main(int argc, char **argv)
         }
     }
 
+    /* T23: input vectors in place of tokens give the same bits; a sequence may
+     * mix both */
+    for (uint32_t vi = 0; vi < MF_N_VARIANTS; vi++) {
+        const mf_variant_t *v = &MF_VARIANTS[vi];
+        zt_model_t *m = &L[vi].m;
+        uint32_t V = v->n_vocab, n0 = v->seq_len[0], ne = m->cfg.n_embd;
+        zt_fx *la = malloc((size_t) V * n0 * 4), *lb = malloc((size_t) V * n0 * 4);
+        zt_fx *e = malloc((size_t) ne * n0 * 4);
+        bool ok = true;
+        for (uint32_t i = 0; i < n0; i++) ok &= zt_model_embed(m, v->seq[i], e + i * ne) == 0;
+        state_t A, B;
+        mkstate(&A, m, 64, 4, ZT_KV_Q16);
+        mkstate(&B, m, 64, 4, ZT_KV_Q16);
+        ok &= zt_model_eval(m, &A.s, v->seq, n0, la, ZT_EVAL_ALL_LOGITS) == 0;
+        uint32_t h = n0 / 2;
+        ok &= zt_model_eval(m, &B.s, v->seq, h, lb, ZT_EVAL_ALL_LOGITS) == 0;
+        ok &= zt_model_eval_embd(m, &B.s, e + h * ne, n0 - h, lb + (uint64_t) h * V,
+                                 ZT_EVAL_ALL_LOGITS) == 0;
+        CHECK(ok && !memcmp(la, lb, (size_t) V * n0 * 4) && B.s.pos == n0,
+              "%s: tokens then input vectors (zt_model_eval_embd) give every logit bit of the "
+              "all-token run",
+              v->name);
+        CHECK(zt_model_eval_embd(m, &B.s, 0, 1, 0, 0) == ZT_MODEL_EARG &&
+                  zt_model_embed(m, (int32_t) V, e) == ZT_MODEL_EARG,
+              "%s: eval_embd and embed refuse a null input and an out-of-range id", v->name);
+        free(la), free(lb), free(e), free(A.mem), free(B.mem);
+    }
+
     /* greedy chains, incremental decode vs batch, determinism */
     for (uint32_t vi = 0; vi < MF_N_VARIANTS; vi++) {
         const mf_variant_t *v = &MF_VARIANTS[vi];

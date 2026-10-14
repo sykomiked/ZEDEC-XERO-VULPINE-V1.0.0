@@ -190,6 +190,9 @@ typedef struct {
     const zt_q8_t *q8;
     uint32_t rows, cols;
     uint32_t qtype; /* raw's ZT_GGML_* type: Q8_0, Q4_K or Q6_K (0 when q8 is set) */
+    /* zt_nn.h (T23) only: the 8-bit blocks of what q8 leaves out of a float
+     * matrix (weight = q8 + q8lo), or null. zt_model never sets it. */
+    const zt_q8_t *q8lo;
 } zt_mat_t;
 
 typedef struct {
@@ -338,6 +341,14 @@ int32_t zt_model_set_tap(zt_model_state_t *s, const zt_model_t *m, int32_t layer
 int32_t zt_model_eval(const zt_model_t *m, zt_model_state_t *s, const int32_t *tokens, uint32_t n,
                       zt_fx *logits, uint32_t flags);
 int32_t zt_model_decode(const zt_model_t *m, zt_model_state_t *s, int32_t token, zt_fx *logits);
+/* T23: the same with n_embd Q16 values per position in place of token ids,
+ * for an image or audio encoder's output (zt_vision.h); embd holds n rows.
+ * The rest of the pass is unchanged, so mixing token and embedding runs in
+ * one sequence gives what one combined run would. */
+int32_t zt_model_eval_embd(const zt_model_t *m, zt_model_state_t *s, const zt_fx *embd, uint32_t n,
+                           zt_fx *logits, uint32_t flags);
+/* A token's input embedding (n_embd Q16 values), as eval uses it. */
+int32_t zt_model_embed(const zt_model_t *m, int32_t token, zt_fx *out);
 
 /* ---- T23 LoRA adapters: one shared base, a different adapter per sequence ----
  *
