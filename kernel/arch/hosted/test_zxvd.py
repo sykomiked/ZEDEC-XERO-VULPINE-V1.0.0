@@ -731,6 +731,182 @@ def power_checks(c, generates):
               'power.budget: cleared (the unit test shows it admits again)')
 
 
+def people_checks(c, binary, models, env, gguf):
+    """social.*, call.*, xlate.*, devmesh.*, ui.* (zxvd_people.h H1-H9),
+    including a call between two zxvd processes relayed through call.signal
+    and the window's /api/rpc bridge."""
+    def err(method, params=None):
+        return c.call(method, params).get('error', {})
+
+    names = set(c.ok('rpc.discover')['methods'])
+    people = {'social.post', 'social.feed', 'social.groups', 'social.group_create', 'social.join',
+              'social.leave', 'social.react', 'social.export', 'social.import', 'call.start',
+              'call.accept', 'call.hangup', 'call.status', 'call.signal', 'xlate.detect',
+              'xlate.translate', 'xlate.languages', 'devmesh.status', 'devmesh.invite',
+              'devmesh.join', 'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.devices', 'ui.get',
+              'ui.set'}
+    check(people <= names, 'rpc.discover lists the %d people methods' % len(people))
+    # R3.1 simple mode: off by default, shown only
+    check(c.ok('ui.get') == {'simple_mode': False}, 'ui.get: simple mode is off by default')
+    check(c.ok('ui.set', {'simple_mode': True}) == {'simple_mode': True}, 'ui.set: on')
+    check(err('ui.set', {'simple_mode': 'yes'}).get('code') == -32602, 'ui.set: a string -32602')
+    check(err('ui.set').get('code') == -32602, 'ui.set: nothing to set -32602')
+    check(c.ok('ledger.check')['ok'] is True, 'simple mode changes no check: ledger.check still runs')
+    check(c.ok('ui.set', {'simple_mode': False}) == {'simple_mode': False}, 'ui.set: off again')
+    # the feed
+    check(err('social.post', {'text': ''}).get('code') == -32602, 'social.post: empty -32602')
+    check(err('social.post', {'text': 'x' * 1025}).get('code') == -32602, 'social.post: 1025 bytes')
+    pid = c.ok('social.post', {'text': 'First light over the #harbour'})['id']
+    check(len(pid) == 64, 'social.post: a signed post (%s)' % pid[:16])
+    check('id' in c.ok('social.react', {'post': pid, 'reaction': '+1'}), 'social.react')
+    check(err('social.react', {'post': '0' * 64, 'reaction': '+1'}).get('code') == -32030,
+          'social.react: an unknown post -32030')
+    f = c.ok('social.feed', {'limit': 5})
+    it = f['items'][0] if f['items'] else {}
+    check(it.get('id') == pid and it.get('mine') is True and
+          it.get('reactions') == [{'reaction': '+1', 'count': 1, 'mine': True}] and
+          it.get('surplus', 0) > 0, 'social.feed: the post with its reaction (%s)' % it)
+    check(err('social.feed', {'limit': 0}).get('code') == -32602, 'social.feed: limit 0 -32602')
+    g = c.ok('social.group_create', {'name': 'Harbour walkers'})
+    gs = c.ok('social.groups')['groups']
+    check(len(gs) == 1 and gs[0]['id'] == g['group'] and gs[0]['my_role'] == 'owner' and
+          gs[0]['members'] == 1, 'social.groups: the new group, owned (%s)' % gs)
+    check(err('social.join', {'group': g['group']}).get('code') == -32030,
+          'social.join: already a member -32030')
+    check(err('social.leave', {'group': g['group']}).get('code') == -32030,
+          'social.leave: the owner cannot leave')
+    ex = c.ok('social.export', {'id': pid})
+    check(ex['bytes'] > 5000 and len(ex['hex']) == 2 * ex['bytes'],
+          'social.export: the record with its key (%d bytes)' % ex['bytes'])
+    check(c.ok('social.import', {'hex': ex['hex']})['added'] is False,
+          'social.import of a held record: not added twice')
+    bad = ex['hex'][:200] + ('0' if ex['hex'][200] != '0' else '1') + ex['hex'][201:]
+    check(err('social.import', {'hex': bad}).get('code') == -32030,
+          'social.import: a changed byte does not verify')
+    # calls: loopback inside this zxvd
+    st = c.ok('call.status')
+    check('signalling only' in st['media'] and len(st['lines']) == 5,
+          'call.status: signalling only, media is the host\'s job (%s)' % st['media'])
+    r = c.ok('call.start', {'peer': 'loopback'})
+    check(r['state'] == 'ringing_out', 'call.start loopback rings (%s)' % r['state'])
+    check(c.ok('call.accept', {'line': 4})['state'] == 'connected', 'call.accept on the loopback line')
+    check(c.ok('call.status')['lines'][0]['state'] == 'connected', 'the caller is connected')
+    check(c.ok('call.hangup', {'line': 0})['end_reason'] == 'local_hangup', 'call.hangup')
+    check(err('call.accept', {'line': 9}).get('code') == -32602, 'call.accept: line 9 -32602')
+    check(err('call.hangup', {'line': 1}).get('code') == -32030, 'call.hangup: no call -32030')
+    check(err('call.start', {'peer': 0}).get('code') == -32602, 'call.start: peer 0 -32602')
+    check(err('call.signal', {'in': ['zz']}).get('code') == -32602, 'call.signal: bad hex -32602')
+    # translation and language id
+    d = c.ok('xlate.detect', {'text': 'Dies ist ein kurzer deutscher Satz über das Wetter.'})
+    check(d['language'] == 'de' and d['reliable'] is True, 'xlate.detect: German (%s)' % d)
+    check(c.ok('xlate.languages')['count'] > 20, 'xlate.languages')
+    t = c.call('xlate.translate', {'text': 'Good morning, my friends.', 'to': 'fr'})
+    if gguf:
+        check('result' in t or t.get('error', {}).get('code') in (-32030, -32031),
+              'xlate.translate with a model: a translation or a clear refusal (%s)' % t)
+    else:
+        check(t.get('error', {}).get('code') == -32031 and 'no model' in t['error']['message'],
+              'xlate.translate with no model: -32031, nothing invented (%s)' % t.get('error'))
+    same = c.ok('xlate.translate', {'text': 'Hello', 'from': 'en', 'to': 'en'})
+    check(same['translated'] is False and same['text'] == 'Hello', 'same language: the original')
+    check(err('xlate.translate', {'text': 'Hi', 'to': '!'}).get('code') == -32602,
+          'xlate.translate: a bad tag -32602')
+    # the device mesh
+    ds = c.ok('devmesh.status')
+    check(ds['joined'] is False and ds['role'] == 'home' and len(ds['self']) == 32,
+          'devmesh.status: not in a mesh yet')
+    inv = c.ok('devmesh.invite', {'role': 'thin'})
+    check(inv['created_mesh'] is True and len(inv['code']) == 11 and inv['code'][5] == '-' and
+          len(inv['qr']) > 40, 'devmesh.invite: QR payload and short code %s' % inv['code'])
+    dv = c.ok('devmesh.devices')['devices']
+    check(len(dv) == 1 and dv[0]['self'] is True and dv[0]['admin'] is True,
+          'devmesh.devices: this computer, admin')
+    check(err('devmesh.join', {'code': inv['code']}).get('code') == -32030,
+          'devmesh.join: a node already in a mesh cannot join another')
+    check(err('devmesh.join', {}).get('code') == -32602, 'devmesh.join: no code -32602')
+    check(err('devmesh.confirm_sas', {'device': '00' * 16, 'match': True}).get('code') == -32030,
+          'devmesh.confirm_sas: no pairing waiting')
+    check(err('devmesh.revoke', {'device': ds['self']}).get('code') == -32030,
+          'devmesh.revoke: not this device itself')
+    check(err('devmesh.revoke', {'device': 'xyz'}).get('code') == -32602, 'devmesh.revoke: bad id')
+
+    # a second zxvd: a call between two processes, relayed through call.signal
+    home2 = tempfile.mkdtemp(prefix='zxvd-test2-')
+    sock2 = os.path.join(home2, 'run', 'zxvd.sock')
+    env2 = dict(env, HOME=home2, XDG_DATA_HOME=os.path.join(home2, 'xdg'))
+    p2 = subprocess.Popen([binary, '--rpc', sock2, '--models-dir', models], stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL, text=True, env=env2)
+    try:
+        url = wait_line(p2, 'ZXV-URL: ')
+        check(wait_line(p2, 'ZXVD-RPC: ') == sock2, 'a second zxvd starts')
+        c2 = Client(sock2)
+        b_id = c2.ok('call.status')['self_id']
+        a_line = c.ok('call.start', {'peer': b_id})['line']
+
+        def relay(src, dst):
+            moved = 0
+            for _ in range(10):
+                out = src.ok('call.signal')['out']
+                back = dst.ok('call.signal', {'in': out})['out'] if out else []
+                if back:
+                    src.ok('call.signal', {'in': back})
+                moved += len(out) + len(back)
+                if not out and not back:
+                    break
+            return moved
+
+        relay(c, c2)
+        b_line = [x for x in c2.ok('call.status')['lines'] if x['state'] == 'incoming']
+        check(len(b_line) == 1 and b_line[0]['peer'] == c.ok('call.status')['self_id'],
+              'the second zxvd rings with a call from the first')
+        if b_line:
+            c2.ok('call.accept', {'line': b_line[0]['line']})
+            relay(c2, c)
+            relay(c, c2)
+            check(c.ok('call.status')['lines'][a_line]['state'] == 'connected' and
+                  c2.ok('call.status')['lines'][b_line[0]['line']]['state'] == 'connected',
+                  'two zxvd processes connected through relayed signalling')
+            c.ok('call.hangup', {'line': a_line})
+            relay(c, c2)
+            check(c2.ok('call.status')['lines'][b_line[0]['line']]['end_reason'] == 'remote_hangup',
+                  'the hangup reaches the other zxvd')
+        # the window's bridge: the token, a people method, a refused one
+        if url and '#token=' in url:
+            import http.client
+            import urllib.parse
+            u = urllib.parse.urlsplit(url)
+            tok = u.fragment.split('token=', 1)[1]
+
+            def post(body, token=tok):
+                h = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+                hdr = {'Content-Type': 'application/json'}
+                if token:
+                    hdr['X-ZXV-Token'] = token
+                h.request('POST', '/api/rpc', body=json.dumps(body), headers=hdr)
+                r = h.getresponse()
+                out = (r.status, r.read())
+                h.close()
+                return out
+
+            st, body = post({'jsonrpc': '2.0', 'id': 3, 'method': 'ui.get'})
+            check(st == 200 and json.loads(body)['result'] == {'simple_mode': False},
+                  '/api/rpc answers ui.get with the window token')
+            st, body = post({'jsonrpc': '2.0', 'id': 4, 'method': 'zxvd.shutdown'})
+            check(st == 403, '/api/rpc refuses methods outside its allow-list (%d)' % st)
+            st, body = post({'jsonrpc': '2.0', 'id': 5, 'method': 'ui.get'}, token=None)
+            check(st == 403, '/api/rpc refuses a request without the token (%d)' % st)
+        else:
+            check(False, 'zxvd prints its window URL with the token (%s)' % url)
+        c2.ok('zxvd.shutdown')
+        c2.close()
+        p2.wait(timeout=10)
+    finally:
+        if p2.poll() is None:
+            p2.kill()
+            p2.wait()
+        shutil.rmtree(home2, ignore_errors=True)
+
+
 def main(binary, gguf=None):
     out = subprocess.run([binary, '--version'], capture_output=True, text=True, timeout=10)
     check(out.returncode == 0 and out.stdout.startswith('zxvd '), '--version names zxvd')
@@ -854,6 +1030,12 @@ def main(binary, gguf=None):
         else:
             aipi_checks(c, home)
             play_checks(c)
+        # ---- the people features (zxvd_people.h); not in the Windows build yet ----
+        if WINDOWS:
+            r = c.call('ui.get')
+            check(r.get('error', {}).get('code') == -32601, 'people methods: not on Windows yet')
+        else:
+            people_checks(c, binary, models, env, gguf)
         econ_checks(c)
         companion_checks(c)
         web4_checks(c)
@@ -1083,6 +1265,14 @@ def main(binary, gguf=None):
             if not WINDOWS:
                 check(stat.S_IMODE(os.stat(seats_file).st_mode) == 0o600,
                       'the seats file is 0600, beside the books')
+            if not WINDOWS:
+                c4.ok('ui.set', {'simple_mode': True})
+                kept_post = c4.ok('social.post', {'text': 'saved beside the books'})['id']
+                mesh = c4.ok('devmesh.invite')['mesh_id']
+                ppl = os.path.join(os.path.dirname(books), 'people.zxvp')
+                check(stat.S_IMODE(os.stat(ppl).st_mode) == 0o600 and
+                      stat.S_IMODE(os.stat(ppl + '.mesh').st_mode) == 0o600,
+                      'people.zxvp and its mesh snapshot sit beside the books, 0600')
             me4 = c4.ok('chat.me')
             kept = c4.ok('chat.post', {'text': 'kept across a restart'})
             check(me4['saved'] is True, 'chat.me: saved beside the books')
@@ -1091,6 +1281,13 @@ def main(binary, gguf=None):
                 check(stat.S_IMODE(os.stat(seed).st_mode) == 0o600, 'the chat key file is 0600')
             stop(p4, c4)
             p4, c4 = run_with_books()
+            if not WINDOWS:
+                check(c4.ok('ui.get') == {'simple_mode': True}, 'simple mode survives a restart')
+                check([x['id'] for x in c4.ok('social.feed')['items']] == [kept_post],
+                      'the post survives a restart')
+                ds = c4.ok('devmesh.status')
+                check(ds['joined'] is True and ds['mesh_id'] == mesh,
+                      'the device mesh survives a restart')
             got = c4.ok('ledger.entries', {'account': fb})['entries']
             check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
                   [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)

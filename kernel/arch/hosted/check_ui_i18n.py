@@ -77,6 +77,18 @@ CODE = {
     'audio/ogg', 'audio/flac', 'audio/aac', 'video/mp4', 'video/quicktime', 'video/webm',
     # JavaScript
     'bigint', 'string',
+    # the people apps and simple mode (zxvd_people.h): element ids, classes,
+    # the methods and the values they send or compare
+    'simple', 'simplebox', 'adv', '.ppl', 'home', 'feed', 'calls', 'xlate', 'devices', 'sq', 'sask',
+    'sans', 'pfrom', 'pto', 'pamt', 'pref', 'pay', 'pout', 'ptext', 'pgroup', 'post', 'postout',
+    'groups', 'gnew', 'gname', 'feedinfo', 'cnew', 'cpeer', 'cinfo', 'lines', 'xtext', 'xto', 'xgo',
+    'xdet', 'xout', 'xnote', 'dstat', 'dsas', 'dinv', 'dcode', 'djoin', 'djcode', 'dout', 'devs',
+    'item', 'acts', 'btns', '8px', 'win-', 'reply', 'member', 'admin', 'owner', 'idle', 'ended',
+    'incoming', 'loopback', 'active', 'und', 'ui.get', 'ui.set', 'ledger.accounts', 'ledger.post',
+    'social.feed', 'social.groups', 'social.react', 'social.join', 'social.leave', 'social.post',
+    'social.group_create', 'call.status', 'call.accept', 'call.hangup', 'call.start',
+    'xlate.languages', 'xlate.detect', 'xlate.translate', 'devmesh.status', 'devmesh.devices',
+    'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.invite', 'devmesh.join',
 }
 
 VISIBLE_ATTRS = {'title', 'placeholder', 'alt', 'label', 'aria-label', 'aria-description', 'value'}

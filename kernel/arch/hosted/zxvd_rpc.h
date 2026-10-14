@@ -286,7 +286,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32017;
+ *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010 to -32017, and
+ *      -32030 and -32031 for the people methods;
  *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
@@ -374,6 +375,19 @@ void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops);
  * ZXVD_E_PHONE, and a notification is refused (-32600) rather than run.
  * allow_post: the pairing may move money and change the network. */
 bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post);
+
+/* social.*, call.*, xlate.*, devmesh.*, ui.* (zxvd_people.c): the people
+ * features. Set separately; unset methods answer -32601. call() gets the
+ * method's full name and the params object's JSON text ("{}" when absent)
+ * and returns 0 with the result written into `out`, or a JSON-RPC error code
+ * (-32602, ZXVD_E_PEOPLE, ZXVD_E_NO_MODEL) with the reason in msg. */
+#define ZXVD_E_PEOPLE   (-32030)
+#define ZXVD_E_NO_MODEL (-32031) /* xlate.translate: no local model can generate */
+typedef struct {
+    int (*call)(const char *method, const char *params, size_t len, zxvd_buf_t *out, char *msg,
+                size_t msg_cap);
+} zxvd_people_ops_t;
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

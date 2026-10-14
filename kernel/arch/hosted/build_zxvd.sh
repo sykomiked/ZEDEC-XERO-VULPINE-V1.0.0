@@ -118,7 +118,7 @@ if [ -z "$EXE" ] && [ "${ZXVD_PLAY:-1}" != 0 ]; then
     set -- "$@" "-I$R/sdk/playground/include"
     DEFS="$DEFS -DZXV_HAVE_PLAY"
 fi
-# 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
+# 5. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
 for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
 for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
@@ -143,6 +143,20 @@ set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/
 for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
 for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done
 for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do set -- "$@" "$K/src/mlkem/$f.c"; done
+# 6. The people features (zxvd_people.c: social, calls, translation, the
+# device mesh, simple mode): kernel libraries compiled here. Not in the
+# Windows build yet (ZXVD_PEOPLE=0 leaves them out anywhere). The chat,
+# payments and method groups above already link part of what they need
+# (social, reputation, pq_matrix, ML-KEM-768, ...): a file is added once.
+if [ -z "$EXE" ] && [ "${ZXVD_PEOPLE:-1}" != 0 ]; then
+    for d in $(sh "$HERE/app_sources.sh" people_incs); do set -- "$@" "-I$K/$d"; done
+    for f in $(sh "$HERE/app_sources.sh" people); do
+        dup=0
+        for a in "$@"; do [ "$a" = "$K/$f" ] && { dup=1; break; }; done
+        [ "$dup" = 1 ] || set -- "$@" "$K/$f"
+    done
+    DEFS="$DEFS -DZXV_HAVE_PEOPLE"
+fi
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS $PLAY_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

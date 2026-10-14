@@ -283,14 +283,16 @@ refused (the message says why), -32050 an economy engine refused (the message is
 -32060 an economy engine refused (the message is `<STATUS>: why`, see
 "Bonds, derivatives, grants and estates" below), -32070 no companion yet
 (`companion.*` before the swarm has an agent),
-"Bonds, derivatives, grants and estates" below),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
-refused or failed (the message says why), -32000 a
+refused or failed (the message says why), -32030 a people method
+(`social.*`, `call.*`, `xlate.*`, `devmesh.*`, `ui.*`) refused (the message
+says why), -32031 `xlate.translate` with no local model that can generate
+(nothing is invented), -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -360,7 +362,8 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 `notes.mark_read`. A phone paired with `allow_post` may also call
 `net.command`, `peer.ask`, `currency.enable`, `ledger.open_account` and
 `ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`, `aipi.put`,
-`aipi.publish`, `aipi.execute` and `phone.*` are never served to a phone. Refusals are -32015, and a phone must send an `id`.
+`aipi.publish`, `aipi.execute`, `phone.*` and the people methods (`social.*`,
+`call.*`, `xlate.*`, `devmesh.*`, `ui.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
 ## Swarm earnings in your books
 

@@ -438,7 +438,7 @@ The columns mean:
 - **(unverified)** after an autonym: the autonym is ours, not CLDR's.
 
 <!-- BEGIN GENERATED LOCALE TABLE -->
-| Tag | Language | Autonym | Script | Dir | CLDR | Plurals | Catalog (hand ids / 332) | Review | Font gaps | AU states |
+| Tag | Language | Autonym | Script | Dir | CLDR | Plurals | Catalog (hand ids / 436) | Review | Font gaps | AU states |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `aa` | Afar | Afar (unverified) | Latn | LTR | basic | other only (no CLDR rules) | - | - | 0 of 47 | DJ ER |
 | `aa-DJ` | Afar (Djibouti) | Afar (Djibouti) (unverified) | Latn | LTR | basic | other only (no CLDR rules) | - | - | 0 of 47 | DJ |
@@ -542,7 +542,7 @@ The columns mean:
 | `ee-TG` | Ewe (Togo) | eʋegbe (Togo nutome) | Latn | LTR | basic | one,other | - | - | 10 of 92 | TG |
 | `el` | Greek | Ελληνικά | Grek | LTR | modern | one,other | 16 | machine, needs native review; CLDR time strings | 5 of 72 | - |
 | `el-polyton` | Greek | Ἑλληνικά | Grek | LTR | modern | one,other | - | - | 72 of 139 | - |
-| `en` | English | English | Latn | LTR | modern | one,other | 332 | source; CLDR time strings | 1 of 68 | BI BW CM DZ EG ER ET GH GM KE LR LS MA MG MU MW NA NG RW SC SD SL SS SZ TZ UG ZA ZM ZW |
+| `en` | English | English | Latn | LTR | modern | one,other | 436 | source; CLDR time strings | 1 of 68 | BI BW CM DZ EG ER ET GH GM KE LR LS MA MG MU MW NA NG RW SC SD SL SS SZ TZ UG ZA ZM ZW |
 | `en-BI` | English (Burundi) | English (Burundi) | Latn | LTR | modern | one,other | - | - | 1 of 68 | BI |
 | `en-BW` | English (Botswana) | English (Botswana) | Latn | LTR | modern | one,other | - | - | 1 of 68 | BW |
 | `en-CM` | English (Cameroon) | English (Cameroon) | Latn | LTR | modern | one,other | - | - | 1 of 68 | CM |

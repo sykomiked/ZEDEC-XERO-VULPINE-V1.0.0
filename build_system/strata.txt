@@ -44,6 +44,7 @@ tls/ecdsa                        base       # P-256/P-384 ECDSA verification
 tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
+qr                               base       # QR Code encoder: pure bytes to modules
 
 # ---- S1 kernel and hardware abstraction
 acpi                             kernel
@@ -113,6 +114,10 @@ plnp                             transport
 porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
 stream                           transport
 swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
+bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
+bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)
+bootattest                       trust      # measured-boot quote and golden manifest, ML-DSA signed
+ztp                              trust      # ZHP-1 provisioning profile and owner claim
 
 # ---- S3 trust and identity: post-quantum crypto, identity, capabilities, PQ sessions
 ascent                           trust
@@ -169,6 +174,7 @@ voice                            ai
 web4                             ai
 xlate                            ai
 aipi                             ai         # AI pinning index; stores model blobs through ipfs_node (S2)
+edgeclus                         ai         # edge cluster scheduler on the swarm token budget; adverts signed through vinea (S3)
 
 # ---- S6 settlement and economy
 abacus                           settlement
@@ -214,6 +220,7 @@ fxepoch                          settlement
 mint                             settlement
 qnote                            settlement # first loss through svault
 royalty                          settlement
+bearer/br_devmesh                settlement # wraps devmesh host send (devmesh is S6)
 
 # ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
 acct                             adapters   # IFRS / US GAAP / AAOIFI accounting adapters
@@ -247,6 +254,9 @@ sutra                            adapters
 hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
 fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
+capctl                           adapters   # capital-control profiles (jurisdiction plug-in, off by default)
+kycwrap                          adapters   # minimal-disclosure KYC wrapper (off by default)
+taxhook                          adapters   # VAT/GST/sales-tax hooks (off by default)
 policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
 # ---- S8 above the strata: products, apps and people features

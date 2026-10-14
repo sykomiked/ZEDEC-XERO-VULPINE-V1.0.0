@@ -391,3 +391,108 @@ UI_CONSOLE_BAD_JSON|-|source|parameters are not valid JSON
 UI_CONSOLE_STOP_Q|-|source|Stop the swarm?
 UI_CONSOLE_STOP_TEXT|-|source|zxvd.shutdown stops the engine; this window will disconnect.
 UI_CONSOLE_STOP|-|source|Stop
+# the people apps (zxvd_people.h) and simple mode
+UI_SIMPLE_MODE|-|source|Simple mode
+UI_SIMPLE_HINT|-|source|Simple mode shows fewer details. It changes no check, key or limit.
+UI_DOCK_PEOPLE|-|source|People
+UI_APP_ASK_PAY|-|source|Ask and Pay
+UI_APP_FEED|-|source|Feed
+UI_APP_CALLS|-|source|Calls
+UI_APP_TRANSLATE|-|source|Translate
+UI_APP_DEVICES|-|source|Devices
+UI_PP_ASK|-|source|Ask
+UI_PP_ASK_PLACEHOLDER|-|source|Ask the companion anything
+UI_PP_PAY|-|source|Pay
+UI_PP_FROM|-|source|From
+UI_PP_TO|-|source|To
+UI_PP_AMOUNT_PLACEHOLDER|-|source|Amount, e.g. 12.50
+UI_PP_REF_PLACEHOLDER|-|source|Reference (optional; each payment needs its own)
+UI_PP_PAY_NOTE|-|source|Pay moves money between accounts in this computer's books. You confirm every payment. Accounts are opened from the command line (ledger.open_account).
+UI_PP_NO_ACCOUNTS|-|source|No accounts yet.
+UI_PP_PICK_TWO|-|source|Pick two accounts.
+UI_PP_PICK_DIFFERENT|-|source|Pick two different accounts.
+UI_PP_SAME_CURRENCY|-|source|Both accounts must hold the same currency.
+UI_PP_AMOUNT_HINT|-|source|Enter an amount like 12.50.
+UI_PP_PAY_Q|-|source|Pay?
+UI_PP_PAY_TEXT|-|source|Pay {0} {1} from {2} to {3}?
+UI_PP_PAID|-|source|Paid.
+UI_PP_PAID_ENTRY|-|source|Paid. Entry {0}
+UI_PP_POST|-|source|Post
+UI_PP_POST_PLACEHOLDER|-|source|Write a post
+UI_PP_REPLY_PLACEHOLDER|-|source|Write a reply
+UI_PP_GROUP|-|source|Group
+UI_PP_PUBLIC|-|source|Public
+UI_PP_GROUPS|-|source|Groups
+UI_PP_GROUP_NAME|-|source|New group name
+UI_PP_CREATE|-|source|Create
+UI_PP_POSTED|-|source|Posted.
+UI_PP_FEED_INFO|-|source|Me {0} · {1} records held · {2} candidates · diversity {3}/65536
+UI_PP_SOMEONE|-|source|Someone
+UI_PP_REPLY_TAG|-|source|reply
+UI_PP_A_GROUP|-|source|a group
+UI_PP_SCORE|-|source|score {0}
+UI_PP_REPLY|-|source|Reply
+UI_PP_REPLY_N|-|source|Reply ({0})
+UI_PP_FEED_EMPTY|-|source|Nothing here yet.
+UI_PP_MEMBERS|-|source|{0} members
+UI_PP_INVITE_ONLY|-|source|invite only
+UI_PP_JOIN|-|source|Join
+UI_PP_LEAVE|-|source|Leave
+UI_PP_NO_GROUPS|-|source|No groups yet.
+UI_PP_PLACE_CALL|-|source|Place a call
+UI_PP_CALL_PLACEHOLDER|-|source|Member number, or loopback
+UI_PP_CALL|-|source|Call
+UI_PP_CALL_NOTE|-|source|Signalling only: this build carries no sound or video yet. "loopback" rings a test line inside this computer.
+UI_PP_LINES|-|source|Lines
+UI_PP_MY_NUMBER|-|source|My member number
+UI_PP_LOOPBACK_NUMBER|-|source|Loopback number
+UI_PP_MEDIA|-|source|Media
+UI_PP_OUTBOX|-|source|Waiting to send
+UI_PP_LOOPBACK_LINE|-|source|loopback line
+UI_PP_LINE|-|source|line {0}
+UI_PP_OUTGOING|-|source|outgoing
+UI_PP_INCOMING|-|source|incoming
+UI_PP_CALL_ID|-|source|call {0}
+UI_PP_MISSED|-|source|{0} missed
+UI_PP_MEMBER_STATE|-|source|Member {0} · {1}
+UI_PP_ANSWER|-|source|Answer
+UI_PP_HANG_UP|-|source|Hang up
+UI_PP_NO_CALLS|-|source|No calls.
+UI_PP_XLATE_PLACEHOLDER|-|source|Text to translate
+UI_PP_INTO|-|source|Into
+UI_PP_RESULT|-|source|Result
+UI_PP_NOTHING_YET|-|source|Nothing yet.
+UI_PP_LANG_UNKNOWN|-|source|Language not recognised.
+UI_PP_LOOKS_LIKE|-|source|Looks like {0}
+UI_PP_LOOKS_LIKE_PCT|-|source|Looks like {0} ({1}%)
+UI_PP_MACHINE_NOTE|-|source|Machine translation: it may be wrong.
+UI_PP_NOT_TRANSLATED|-|source|Already in that language: not translated.
+UI_PP_THIS_DEVICE_TITLE|-|source|This device
+UI_PP_ADD_DEVICE|-|source|Add a device
+UI_PP_INVITE|-|source|Invite a device
+UI_PP_JOIN_PLACEHOLDER|-|source|Code from your other device (XXXXX-XXXXX)
+UI_PP_PAIR_NOTE|-|source|Pairing between two machines also needs a carrier (the phone link); this build has none wired to the window.
+UI_PP_NAME|-|source|Name
+UI_PP_ROLE|-|source|Role
+UI_PP_IN_MESH|-|source|In a mesh
+UI_PP_YES|-|source|yes
+UI_PP_NO|-|source|no
+UI_PP_DEVICE_ID|-|source|Device id
+UI_PP_LEVEL|-|source|Security level
+UI_PP_ROSTER|-|source|Roster version
+UI_PP_FRAMES|-|source|Frames waiting
+UI_PP_SAVE_ERROR|-|source|Save error
+UI_PP_SAS_CHECK|-|source|Check that your other device shows the same number:
+UI_PP_MATCH|-|source|They match
+UI_PP_DIFFER|-|source|They differ
+UI_PP_DEVICE_ADDED|-|source|Device added.
+UI_PP_PAIRING_STOPPED|-|source|Pairing stopped.
+UI_PP_ADMIN|-|source|admin
+UI_PP_THIS_DEVICE|-|source|this device
+UI_PP_REMOVE|-|source|Remove
+UI_PP_REMOVE_Q|-|source|Remove {0} from your devices?
+UI_PP_REMOVE_TEXT|-|source|It loses access at once.
+UI_PP_ONLY_THIS|-|source|Only this device.
+UI_PP_INVITE_CODE|-|source|On the other device, enter this code (valid {0} minutes):
+UI_PP_QR_PAYLOAD|-|source|QR payload
+UI_PP_JOINING|-|source|Joining…

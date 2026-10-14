@@ -1969,6 +1969,8 @@ test-econ:
 RETAIL_INC = $(ECON_INC) -Isrc/edp_risk -Isrc/trispace
 RETAIL_PQ = src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
 .PHONY: test-retail test-hwkey test-outbox test-hwkey-host
+# Prerequisites only: the test-retail recipe (boot attestation, compliance,
+# edge, bearers, people) lives in mk/retail.mk, included below.
 test-retail: test-hwkey test-outbox test-hwkey-host
 test-hwkey:
 	@for t in aarch64-none-elf i386-none-elf; do for f in src/hwkey/hwkey.c src/hwkey/hwkey_soft.c src/outbox/outbox.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RETAIL_INC) -c $$f -o $(ZXV_TMP)/retail_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/retail_free.o | grep -vE ' (shake256|hwk_wipe|pqm_mldsa87_(keygen|sign|verify)|pay_[a-z0-9_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/retail_free.o; echo "[FAIL] $$f: libc or 64-bit division helper ($$t)"; exit 1; fi; done; done; echo "[PASS] hwkey and outbox freestanding (aarch64 and i386: no libc, no helpers)"
@@ -2086,3 +2088,5 @@ test-adapters:
 	$(MAKE) --no-print-directory test-intent
 	$(MAKE) --no-print-directory test-privacy
 # ==== end adapters ====
+# Retail track and people features: targets live in kernel/mk/.
+include mk/retail.mk

@@ -42,7 +42,11 @@ if [ ! -f "$A" ]; then
     i=0
     for f in "$@"; do
         i=$((i + 1))
-        cc_ -c "$f" -o "$T/o/$i.o" >&2 || exit 3
+        # keccak.c at -O2: gcc 11 reports a false maybe-uninitialized in
+        # keccak_sponge at -O1
+        o=""
+        case "$f" in */keccak.c) o=-O2 ;; esac
+        cc_ ${o:+"$o"} -c "$f" -o "$T/o/$i.o" >&2 || exit 3
     done
     ar rcs "$T/m.a" "$T"/o/*.o || exit 3
     mv "$T/m.a" "$A.$$" && mv "$A.$$" "$A" # a whole archive or none

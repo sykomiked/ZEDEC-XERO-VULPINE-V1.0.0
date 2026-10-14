@@ -119,8 +119,12 @@ typedef int sock_t;
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
+#    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
+#    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+#        include "zxvd_people.h" /* social.* call.* xlate.* devmesh.* ui.* */
 #    endif
 #    if defined(_WIN32)
 #        include <afunix.h>
@@ -948,10 +952,12 @@ static void note_task(bool ok, const char *summary)
 
 /* True when the last answer() came from a real model (not a stand-in). */
 static bool LAST_ANSWER_MODEL;
+static bool ANSWER_REAL; /* the last answer() came from the model (zxvd_people's translation) */
 
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
+    ANSWER_REAL = false;
     char reading[512];
     char model_note[400];
     S.asks++;
@@ -991,6 +997,7 @@ static void answer(const char *q, char *out, size_t cap)
     }
 #endif
     if (m == 1) { /* a real model answered, within the budget */
+        ANSWER_REAL = true;
         char sum[96];
         snprintf(sum, sizeof sum, "%u tokens of the %llu left this cycle",
                  (unsigned) S.last_gate.generated,
@@ -1637,6 +1644,23 @@ static void play_draft(sock_t c, const char *body, size_t len)
 }
 #endif
 
+#if defined(ZXVD)
+/* The window's /api/rpc may not call zxvd.shutdown (it quits through
+ * /api/quit). The same tokenizer and limits as zxvd_rpc_handle_line, so a
+ * request this cannot read is one the dispatcher refuses too. */
+static bool rpc_window_refused(const char *body, size_t len)
+{
+    static w4_jtok_t t[512];
+    char method[64];
+    if (!body || len > UINT32_MAX) return false;
+    int32_t n = w4_json_parse(body, (uint32_t) len, t, 512, 16);
+    if (n <= 0 || t[0].type != W4_J_OBJ) return false;
+    int32_t m = w4_json_get(body, t, n, 0, "method");
+    if (m < 0 || w4_json_str(body, &t[m], method, sizeof method) < 0) return false;
+    return !strcmp(method, "zxvd.shutdown");
+}
+#endif
+
 static void handle(sock_t c)
 {
     static char req[REQ_MAX];
@@ -1748,8 +1772,23 @@ static void handle(sock_t c)
 #if defined(ZXVD)
     } else if (PATH_IS("/api/rpc") && !is_get) {
         /* the window's way to zxvd's methods (the staple apps): one JSON-RPC
-         * request in, its response out, the same as a line on the socket */
+         * request in, its response out, the same as a line on the socket.
+         * The people methods and one-tap Ask and Pay go through
+         * zxvd_people_http's allow-list; zxvd.shutdown is refused here (the
+         * window quits through /api/quit). */
         zxvd_buf_t o = {0};
+        if (rpc_window_refused(body, (size_t) want)) {
+            reply(c, "403 Forbidden", "text/plain", "method not allowed here", 23);
+            return;
+        }
+#    if defined(ZXV_HAVE_PEOPLE)
+        if (zxvd_people_http(body, (size_t) want, &o)) {
+            reply(c, "200 OK", "application/json", o.p ? o.p : "", o.len);
+            free(o.p);
+            return;
+        }
+        o.len = 0;
+#    endif
         if (!zxvd_rpc_handle_line(body, (size_t) want, &o)) zxvd_buf_raw(&o, "{}", 2);
         if (o.oom || !o.p)
             reply(c, "500 Internal Server Error", "text/plain", "out of memory", 13);
@@ -1910,6 +1949,26 @@ static void rpc_shutdown(void)
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
+
+#    if defined(ZXV_HAVE_PEOPLE)
+/* zxvd_people.h H6: one prompt through the same path as swarm.ask (budget
+ * gate, answer tag, quarantine); only a real model answer counts */
+static int people_generate(void *ctx, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    const zxv_model_info_t *mi = zxv_model_info();
+    if (!mi->loaded || !mi->can_generate) {
+        snprintf(out, cap, "%s",
+                 mi->loaded ? "the installed model cannot generate in this build"
+                            : "no model is installed");
+        return ZXVD_GEN_NO_MODEL;
+    }
+    answer(prompt, out, cap);
+    return ANSWER_REAL ? 0 : -2;
+}
+
+static const zxvd_people_host_t PEOPLE_HOST = {people_generate, NULL};
+#    endif
 
 /* ----- peer.* (zxv_peer_host.h) ----- */
 
@@ -2548,6 +2607,10 @@ int main(int argc, char **argv)
 #    if defined(ZXV_HAVE_PLAY)
     zxvd_rpc_set_play_ops(&PLAY_OPS);
 #    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    /* without it zxvd still runs; the people methods then answer "not available" */
+    zxvd_rpc_set_people_ops(zxvd_people_open(books_path, &PEOPLE_HOST));
+#    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) {
         zxvd_pay_close();
         zxvd_rpc_groups_reset();
@@ -2752,6 +2815,9 @@ int main(int argc, char **argv)
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
+#    if defined(ZXV_HAVE_PEOPLE)
+        zxvd_people_poll(pal_now_ms());
+#    endif
         mesh_books_sync();
         zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
         if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
@@ -2776,6 +2842,10 @@ int main(int argc, char **argv)
 #    if defined(ZXV_HAVE_AIPI)
     zxvd_rpc_set_aipi_ops(NULL);
     zxvd_aipi_close();
+#    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    zxvd_rpc_set_people_ops(NULL);
+    zxvd_people_close();
 #    endif
 #endif
     zxv_peer_free(S.peer);

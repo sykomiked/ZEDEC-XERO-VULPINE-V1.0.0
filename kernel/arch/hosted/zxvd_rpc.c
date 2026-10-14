@@ -2053,6 +2053,37 @@ static void m_play_draft(call_t *c)
     free_files(f, n);
 }
 
+/* ----- social.* call.* xlate.* devmesh.* ui.* (zxvd_people.c) ----- */
+
+static const zxvd_people_ops_t *PEOPLE;
+
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops)
+{
+    PEOPLE = ops;
+}
+
+/* one handler for every people method: the name is read back from the request */
+static void m_people(call_t *c)
+{
+    char method[64];
+    if (!PEOPLE || !PEOPLE->call) return fail(c, E_METHOD, "not available");
+    int32_t m = w4_json_get(c->js, c->t, c->n, 0, "method");
+    if (m < 0 || w4_json_str(c->js, &c->t[m], method, sizeof method) < 0)
+        return fail(c, E_REQUEST, "invalid request");
+    const char *ps = "{}";
+    size_t pl = 2;
+    if (c->params >= 0) {
+        ps = c->js + c->t[c->params].start;
+        pl = (size_t) (c->t[c->params].end - c->t[c->params].start);
+    }
+    char msg[240] = "";
+    int code = PEOPLE->call(method, ps, pl, c->res, msg, sizeof msg);
+    if (code) {
+        c->res->len = 0;
+        fail(c, code, "%s", msg[0] ? msg : "failed");
+    }
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2387,6 +2418,32 @@ static const method_t METHODS[] = {
     {"play.catalogue", m_play_catalogue, PH_READ},
     {"play.run", m_play_run, PH_NO},
     {"play.draft", m_play_draft, PH_NO},
+    /* people (zxvd_people.c): the control socket only */
+    {"social.post", m_people, PH_NO},
+    {"social.feed", m_people, PH_NO},
+    {"social.groups", m_people, PH_NO},
+    {"social.group_create", m_people, PH_NO},
+    {"social.join", m_people, PH_NO},
+    {"social.leave", m_people, PH_NO},
+    {"social.react", m_people, PH_NO},
+    {"social.export", m_people, PH_NO},
+    {"social.import", m_people, PH_NO},
+    {"call.start", m_people, PH_NO},
+    {"call.accept", m_people, PH_NO},
+    {"call.hangup", m_people, PH_NO},
+    {"call.status", m_people, PH_NO},
+    {"call.signal", m_people, PH_NO},
+    {"xlate.detect", m_people, PH_NO},
+    {"xlate.translate", m_people, PH_NO},
+    {"xlate.languages", m_people, PH_NO},
+    {"devmesh.status", m_people, PH_NO},
+    {"devmesh.invite", m_people, PH_NO},
+    {"devmesh.join", m_people, PH_NO},
+    {"devmesh.confirm_sas", m_people, PH_NO},
+    {"devmesh.revoke", m_people, PH_NO},
+    {"devmesh.devices", m_people, PH_NO},
+    {"ui.get", m_people, PH_NO},
+    {"ui.set", m_people, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
