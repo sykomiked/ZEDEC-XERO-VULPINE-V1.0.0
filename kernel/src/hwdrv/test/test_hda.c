@@ -340,8 +340,11 @@ static void streams_tick(fhda_t *f, uint64_t now)
     for (uint32_t i = 0; i < NSD; i++) {
         uint32_t o = SDO(i), ctl = rd32(f, o) & 0x00FFFFFFu;
         if (ctl & 1) {
-            if (f->srst_never_set) {
+            if (f->srst_never_set) { /* QEMU before 8.0: reset at once, SRST reads 0 */
                 ctl &= ~1u;
+                f->running[i] = 0;
+                f->lpib[i] = 0;
+                f->frac[i] = 0;
             } else if (!f->srst[i]) {
                 f->srst[i] = 1;
                 f->running[i] = 0;
@@ -1163,7 +1166,7 @@ static void test_faults(void)
         {"version 2", k_vmaj, HW_B, "version is not 1.x"},
         {"all-ones", k_ones, HW_F, "all-ones"},
         {"CORBRP reset stuck", k_corbrp, HW_F, "CORB read pointer will not reset"},
-        {"SRST never sets", k_srst_set, HW_F, "output stream reset timed out"},
+        {"SRST resets at once, never reads 1", k_srst_set, HW_T, "via DAC 0x02"},
         {"SRST never clears", k_srst_clr, HW_F, "output stream reset timed out"},
         {"DAC without 48 kHz", k_no48k, HW_N, "no output pin"},
         {"DAC without 16 bit", k_16only, HW_N, "no output pin"},

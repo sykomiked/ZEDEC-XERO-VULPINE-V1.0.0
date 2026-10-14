@@ -847,6 +847,8 @@ static void mode_cc_rx(const uint8_t *p, size_t n)
         call_cc_rx_on_packet(&rx, seq, send, now, fz_u16(&in));
         if (rx.win_n > CALL_CC_WINDOW || rx.win_head >= CALL_CC_WINDOW) abort();
         call_cc_feedback_t fb, fb2;
+        memset(&fb, 0, sizeof fb); /* padding too: compared with memcmp below */
+        memset(&fb2, 0, sizeof fb2);
         if (call_cc_rx_report(&rx, now, &fb)) {
             if (call_cc_fb_write(&fb, g_out, sizeof g_out) != CALL_CC_FB_LEN) abort();
             if (call_cc_fb_parse(g_out, CALL_CC_FB_LEN, &fb2) != CALL_CC_FB_LEN) abort();

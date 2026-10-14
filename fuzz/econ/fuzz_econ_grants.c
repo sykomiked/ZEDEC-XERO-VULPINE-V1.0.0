@@ -412,7 +412,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                 st = grant_set_cap(&G, a, b);
                 if (st == GRANT_OK && (a == 0 || a > b)) abort();
             } else {
-                grant_thresholds_t th = {9000 + fz_u16(&in) % 1200, fz_u16(&in), fz_u32(&in)};
+                grant_thresholds_t th;
+                memset(&th, 0, sizeof th); /* padding too: same_state compares bytes */
+                th.min_uptime_bps = 9000 + fz_u16(&in) % 1200;
+                th.min_volume = fz_u16(&in);
+                th.min_stake = fz_u32(&in);
                 st = grant_set_thresholds(&G, &th);
                 if (st == GRANT_OK && th.min_uptime_bps > 10000) abort();
             }
