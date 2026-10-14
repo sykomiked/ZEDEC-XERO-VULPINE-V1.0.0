@@ -162,6 +162,10 @@ Nothing is committed before the signature verifies. Message types:
 - PING, PONG, FIND_NODE, NODES, FIND_VALUE, VALUE, STORE, STORE_ACK
 - HK: one canonical Hackronomicon line
 - SPOOL, SPOOL_ACK
+- PUNCH: a hole-punch request or introduction (section 9)
+- AIPI: an AIPI call, claim, BUSY or PAID notice (section 9)
+
+A PONG body carries the address the PING came from, as the responder saw it.
 
 ### Replay protection
 
@@ -476,6 +480,42 @@ Discovery uses an mDNS / DNS-SD-style service, `_zxv._udp`.
 Islands that meet merge through ordinary Kademlia lookups. A single cached
 record or bootstrap link is enough (tested below).
 
+### Restarts with a kept identity
+
+A host that keeps its identity across restarts must not reuse a message seq
+or a LAN record seq, or its peers refuse the new messages as replays.
+`vna_node_resume_seq(n, floor)` starts the message seq at `floor`; the host
+passes the wall clock in milliseconds times 1024, which is above any seq
+the previous run could have sent. `vna_lan_resume_seq` does the same for the
+LAN record, from the saved seq or the wall clock, whichever is larger.
+
+### NAT traversal (`vna_node_punch`, `vna_node_reflexive`)
+
+- **N1 Reflexive address.** Every PONG reports where the PING came from.
+  `vna_node_reflexive` returns the address the most distinct peers report
+  (one vote per reporter, 8 kept). It works like STUN, except the reports
+  are signed messages from known NodeIDs.
+- **N2 Introductions.** `vna_node_punch(target, via)` asks a contact R to
+  introduce this node to `target`, which R must know. R sends each side a
+  signed INTRO with the other's address, and both PING it. The outgoing
+  PINGs open both NAT mappings (UDP hole punching through a rendezvous,
+  RFC 5128). The PONG must come from the NodeID that was introduced.
+- **N3 No amplification.** Introductions relayed and acted on are limited
+  to `VNA_PUNCH_RATE` (8) per second. Each one causes a single PING, no
+  larger than the request.
+- **N4 Keepalive.** `vna_node_keepalive` pings idle contacts so NAT
+  mappings stay open (the host does this every 25 s in ONLINE mode).
+- **Not done.** Port mapping (NAT-PMP, PCP, UPnP) and relaying. Two
+  symmetric NATs still cannot reach each other.
+
+### AIPI over Vinea (`VNA_MSG_AIPI`, `src/aipi/aipi_vna.h`)
+
+AIPI calls, claims and payment notices travel as signed Vinea messages.
+A CALL reaches the handler only if the node's agreement shares compute with
+the caller, and it uses one unit of the compute quota. The adapter's rules
+(V1 to V5: whom to ask, which claims count, escrow, serving, PAID) are in
+`docs/AIPI.md` section 12.
+
 ### Offline outbox (spool)
 
 - **Sender.**
@@ -549,8 +589,9 @@ record or bootstrap link is enough (tested below).
 
 ## 12. Honest limits
 
-- **NAT traversal, hole punching and the UDP glue** live in the host layer
-  (`arch/hosted`), not here.
+- **Sockets, port mapping and relays** live in the host layer
+  (`arch/hosted`), not here. Hole punching needs a contact both sides
+  share, and fails between two symmetric NATs.
 - **There is no global consensus.** See the double-spend section for what
   that leaves open.
 - **The receipt pair chain can diverge** if one side applies a receipt and the
@@ -589,11 +630,13 @@ record or bootstrap link is enough (tested below).
   - UDP (and/or stream) sockets for node traffic.
   - A multicast socket for `_zxv._udp` discovery. Suggested groups:
     239.255.90.86 or ff02::5a56. The group is an opaque token to Vinea.
-  - NAT traversal.
+  - NAT traversal sockets and timing (the messages are built in; see
+    section 9). The hosted app does this: `arch/hosted/zxv_net_host.h`
+    U9 to U12.
 - **Time and entropy.** A monotonic millisecond clock and DRBG seeds.
 - **Persistence:**
-  - identity
-  - cached peer records (from `vna_lan_t.last_rec` and
+  - identity (done in the hosted app, with the seq resume above)
+  - cached peer records (done in the hosted app, from
     `vna_node_contacts`)
   - spool entries and `next_sseq`
   - agreement, books, ledger

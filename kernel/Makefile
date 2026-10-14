@@ -394,6 +394,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vinea
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
+	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
+	$(MAKE) --no-print-directory test-aipi-vna
 	@echo "=== evolve: capabilities, forks, lineage DAG, conformance, profiles ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -Iinclude -Isrc/evolve -Isrc/mlkem -Isrc/tensor -Isrc/update -Isrc/ipfs_node -Isrc/robin_debanks -Isrc/pqsec -Isrc/pay -Isrc/swarm -Isrc/zcapital -Isrc/surplus -Isrc/modbind -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/trispace \
 		src/evolve/test_evolve.c src/evolve/evo_cap.c src/evolve/evo_msg.c src/evolve/evo_lineage.c src/evolve/evo_trust.c src/evolve/evo_upd.c src/evolve/evo_zxu.c src/evolve/evo_conform.c src/evolve/evo_profile.c \
@@ -1661,6 +1663,13 @@ test-vinea:
 # AIPI (src/aipi/aipi.h): content-addressed functions over the IPFS node and Vinea.
 AIPI_DEPS := src/aipi/aipi.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/lpres/lpres_hex.c src/lpres/lpres.c
 AIPI_INC  := -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus
+# AIPI over Vinea (src/aipi/aipi_vna.h): calls, claims and payment notices as signed Vinea messages.
+VINEA_SRCS := $(filter-out src/vinea/test_vinea.c,$(sort $(wildcard src/vinea/*.c))) src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/zcapital/zcapital.c
+
+.PHONY: test-aipi-vna
+test-aipi-vna:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk src/aipi/test_aipi_vna.c src/aipi/aipi_vna.c $(AIPI_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aipi_vna -lm && $(ZXV_TMP)/test_aipi_vna > $(ZXV_TMP)/test_aipi_vna.log 2>&1 && echo "[PASS] test_aipi_vna ($$(tail -1 $(ZXV_TMP)/test_aipi_vna.log))" || { cat $(ZXV_TMP)/test_aipi_vna.log; echo "[FAIL] test_aipi_vna"; exit 1; }
+
 .PHONY: test-aipi
 test-aipi:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wshadow -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) src/aipi/test_aipi.c $(AIPI_DEPS) -o $(ZXV_TMP)/test_aipi && $(ZXV_TMP)/test_aipi > $(ZXV_TMP)/test_aipi.log 2>&1 && echo "[PASS] test_aipi ($$(tail -1 $(ZXV_TMP)/test_aipi.log))" || { cat $(ZXV_TMP)/test_aipi.log; echo "[FAIL] test_aipi"; exit 1; }

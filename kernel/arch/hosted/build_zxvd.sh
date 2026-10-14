@@ -75,8 +75,8 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
 fi
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 # 3. AIPI on Z-Wasm (zxvd_aipi.c): the sandbox libraries from the aipi kit;
-# the AIPI core and the blockstore are kernel sources compiled here with the
-# rest. Not in the Windows build yet (ZXVD_AIPI=0 leaves it out anywhere).
+# the AIPI core and the blockstore are kernel sources already in the app's
+# source list (app_sources.sh vinea, for AIPI over Vinea). Not in the Windows build yet (ZXVD_AIPI=0 leaves it out anywhere).
 AIPI_LIBS=""
 if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     A="$OUT/aipi-build"
@@ -85,7 +85,7 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
         "$A/zwasm/libzwasm.a" >"$OUT/aipi-build.log" 2>&1 ||
         { tail -30 "$OUT/aipi-build.log"; echo "[FAIL] aipi kit build"; exit 1; }
     AIPI_LIBS="$A/libaipi_zwasm.a $A/zcontract/libzcontract_wasm.a $A/zcontract/libzcontract.a $A/zwasm/libzwasm.a"
-    set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
+    set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
 # 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...

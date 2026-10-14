@@ -15,8 +15,10 @@
  *                       holds the other end, so the engine never outlives it)
  *   zxv-host --net lan|online   turn on the Vinea peer network (default OFF:
  *                       no socket, nothing leaves the machine; see
- *                       zxv_net_host.h). --net-port N, --net-bind IP and
- *                       --peer IP:PORT (repeatable) go with it.
+ *                       zxv_net_host.h). --net-port N, --net-bind IP,
+ *                       --peer IP:PORT (repeatable), --state-dir DIR (the
+ *                       kept NodeID and peer cache) and --no-lan-discovery
+ *                       go with it.
  *   zxv-host --peer-serve PRICE   answer other nodes' prompts over TCP in a
  *                       post-quantum session for PRICE VFV minor units each
  *                       (zxv_peer_host.h; needs --net). --peer-float MINOR
@@ -62,6 +64,7 @@ typedef SOCKET sock_t;
 #    include <sys/time.h>
 #    include <netinet/in.h>
 #    include <arpa/inet.h>
+#    include <sys/stat.h>
 #    include <unistd.h>
 #    include <signal.h>
 typedef int sock_t;
@@ -225,6 +228,40 @@ static void pal_open_window(const char *url)
     snprintf(cmd, sizeof cmd, "xdg-open '%s' >/dev/null 2>&1 &", url);
 #    endif
     if (system(cmd) != 0) fprintf(stderr, "open the window at %s\n", url);
+#endif
+}
+
+/* Where the Vinea identity and peer cache live (zxv_net_host.h U9) when no
+ * --state-dir is given: the per-user app folder, parents made 0700. */
+static void pal_state_dir(char *out, size_t cap)
+{
+    out[0] = 0;
+#if defined(_WIN32)
+    const char *app = getenv("APPDATA");
+    if (!app) return;
+    snprintf(out, cap, "%s\\ZXV", app);
+    CreateDirectoryA(out, NULL);
+    snprintf(out, cap, "%s\\ZXV\\net", app);
+#else
+    const char *home = getenv("HOME");
+#    if defined(__APPLE__)
+    if (!home || home[0] != '/') return;
+    snprintf(out, cap, "%s/Library/Application Support/ZXV/net", home);
+#    else
+    const char *xdg = getenv("XDG_DATA_HOME");
+    if (xdg && xdg[0] == '/')
+        snprintf(out, cap, "%s/zxv/net", xdg);
+    else if (home && home[0] == '/')
+        snprintf(out, cap, "%s/.local/share/zxv/net", home);
+    else
+        return;
+#    endif
+    for (char *p = out + 1; *p; p++)
+        if (*p == '/') {
+            *p = 0;
+            (void) mkdir(out, S_IRWXU);
+            *p = '/';
+        }
 #endif
 }
 
@@ -1198,6 +1235,21 @@ static void state_json(buf_t *b)
          ns.send_errors, ns.trades, ns.receipts_refused, (unsigned long long) ns.imported,
          (!ns.bound || ns.conserved) ? "true" : "false");
     json_str(b, ns.error);
+    bput(b,
+         ",\"persisted\":%s,\"state_busy\":%s,\"cached_peers\":%u,\"lan_discovery\":%s,"
+         "\"lan_peers\":%u,\"lan_announces\":%u,\"lan_accepted\":%u,\"lan_refused\":%u,"
+         "\"public_votes\":%u,\"public_addr\":",
+         ns.persisted ? "true" : "false", ns.state_busy ? "true" : "false", ns.cached_peers,
+         ns.lan_discovery ? "true" : "false", ns.lan_peers, ns.lan_announces, ns.lan_accepted,
+         ns.lan_refused, ns.public_votes);
+    json_str(b, ns.public_addr);
+    bput(b,
+         ",\"punch_asked\":%u,\"punch_relayed\":%u,\"punch_ok\":%u,\"aipi\":%s,"
+         "\"aipi_calls_out\":%u,\"aipi_served\":%u,\"aipi_claims_in\":%u,"
+         "\"aipi_claims_refused\":%u,\"aipi_escrow\":%llu,\"aipi_budget\":%llu",
+         ns.punch_asked, ns.punch_relayed, ns.punch_ok, ns.aipi ? "true" : "false",
+         ns.aipi_calls_out, ns.aipi_served, ns.aipi_claims_in, ns.aipi_claims_refused,
+         (unsigned long long) ns.aipi_escrow, (unsigned long long) ns.aipi_budget);
     zxv_update_status_t us;
     zxv_update_status(&us);
     bput(b, "},\"update\":{\"checked\":%s,\"installable\":%s,\"auto\":%s,\"status\":",
@@ -1999,7 +2051,8 @@ int main(int argc, char **argv)
 {
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
-    const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL;
+    const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
+    bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
     uint64_t peer_float = 0;
@@ -2049,6 +2102,10 @@ int main(int argc, char **argv)
             S.net_port = (uint16_t) np;
         } else if (!strcmp(argv[i], "--net-bind") && i + 1 < argc)
             S.net_bind = argv[++i];
+        else if (!strcmp(argv[i], "--state-dir") && i + 1 < argc)
+            state_dir = argv[++i];
+        else if (!strcmp(argv[i], "--no-lan-discovery"))
+            lan_discovery = false;
         else if (!strcmp(argv[i], "--peer") && i + 1 < argc) {
             if (npeers < MAX_PEERS_ARG)
                 peers[npeers++] = argv[++i];
@@ -2121,6 +2178,9 @@ int main(int argc, char **argv)
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
                    "  --net-bind IP       its address (default 0.0.0.0)\n"
                    "  --peer IP:PORT      ping this peer at start (repeatable)\n"
+                   "  --state-dir DIR     keep the node identity and peer cache here\n"
+                   "                      (default: the per-user app folder; \"\" = keep none)\n"
+                   "  --no-lan-discovery  don't announce or listen on the LAN multicast group\n"
                    "  --peer-serve PRICE  answer peers over TCP for PRICE VFV minor units\n"
                    "  --peer-float MINOR  demo VFV for the peer wallet (tests, demos)\n"
                    "  --notify MODE       auto (OS notifier if present), print or off\n"
@@ -2202,6 +2262,18 @@ int main(int argc, char **argv)
     qst_init(&S.quest, NULL, NULL, &S.bus); /* single-user desktop: no age policy */
     qst_enrol(&S.quest, QUEST_OWNER);
     zxv_net_on_trade(S.net, quest_trade, NULL);
+    {
+        char sdir[1024];
+        if (!state_dir) {
+            pal_state_dir(sdir, sizeof sdir);
+            state_dir = sdir;
+        }
+        if (zxv_net_set_state_dir(S.net, state_dir) != 0) {
+            fprintf(stderr, "zxv-host: --state-dir path too long\n");
+            return 2;
+        }
+    }
+    zxv_net_set_lan_discovery(S.net, lan_discovery, 0);
     if (!(S.peer = zxv_peer_new()) || (peer_float && zxv_peer_fund(S.peer, peer_float) != 0)) {
         fprintf(stderr, "zxv-host: out of memory\n");
         return 1;
@@ -2417,6 +2489,11 @@ int main(int argc, char **argv)
             FD_SET((sock_t) nfd, &rd);
             if ((int) nfd > maxfd) maxfd = (int) nfd;
         }
+        intptr_t lfd = zxv_net_lan_fd(S.net); /* U10: drained by on_readable too */
+        if (lfd >= 0) {
+            FD_SET((sock_t) lfd, &rd);
+            if ((int) lfd > maxfd) maxfd = (int) lfd;
+        }
         intptr_t pfd = zxv_peer_fd(S.peer);
         if (pfd >= 0) {
             FD_SET((sock_t) pfd, &rd);
@@ -2456,7 +2533,8 @@ int main(int argc, char **argv)
                 CLOSESOCK(c);
             }
         }
-        if (r > 0 && nfd >= 0 && FD_ISSET((sock_t) nfd, &rd))
+        if (r > 0 && ((nfd >= 0 && FD_ISSET((sock_t) nfd, &rd)) ||
+                      (lfd >= 0 && FD_ISSET((sock_t) lfd, &rd))))
             zxv_net_on_readable(S.net, zxv_net_wall_ms());
         if (r > 0 && pfd >= 0 && FD_ISSET((sock_t) pfd, &rd))
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
