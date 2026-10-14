@@ -136,7 +136,12 @@ if [ "$ON_MAC" = 1 ]; then
     # The app's engine is zxvd: the same swarm plus its JSON-RPC control
     # socket, linked to libzxv (docs/ZXVD.md). One slice per arch, then lipo.
     echo "  zxvd + libzxv.dylib, universal (the app's engine with its control socket)"
-    for a in arm64 x86_64; do
+    # this machine's arch last: build_zxvd.sh rebuilds the Playground's
+    # shared deps per slice, and later steps want them native
+    HOSTA="$(uname -m | sed 's/aarch64/arm64/')"
+    OTHERA=arm64
+    [ "$HOSTA" = arm64 ] && OTHERA=x86_64
+    for a in "$OTHERA" "$HOSTA"; do
         CC="xcrun clang -arch $a -mmacosx-version-min=10.15" \
             sh "$HOSTED/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
             { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }
