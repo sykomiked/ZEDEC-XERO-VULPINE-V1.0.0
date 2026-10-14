@@ -66,6 +66,12 @@ if [ -n "$DEFS" ]; then
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" "$@" -o "$T/test_glue"
     "$T/test_glue"
+    # several models at once: slots, agents, a LoRA adapter per agent (M6, G6)
+    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c"
+    for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
+        -o "$T/test_swarm_slots"
+    "$T/test_swarm_slots" "$T"
 fi
 
 # the 64-state tag on one answer (zxv_answer_tag.h)

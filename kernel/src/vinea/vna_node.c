@@ -64,10 +64,22 @@ vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_n
     n->rcpt_ctx = 0;
     n->rcpt_in = n->rcpt_refused = n->rcpt_out = 0;
     n->xform_refused = n->seeded = 0;
+    for (uint32_t i = 0; i < VNA_NODE_REFLEX; i++) n->reflex[i].used = false;
+    n->punch_sec = 0;
+    n->punch_in_sec = 0;
+    n->punch_asked = n->punch_relayed = n->punch_intros = n->punch_refused = n->punch_ok = 0;
+    n->aipi = 0;
+    n->aipi_ctx = 0;
+    n->aipi_in = n->aipi_refused = n->aipi_out = 0;
     n->spool = 0;
     n->xform = 0;
     n->joined = false;
     return VNA_OK;
+}
+
+void vna_node_resume_seq(vna_node_t *n, uint64_t floor)
+{
+    if (n && floor > n->seq) n->seq = floor;
 }
 
 void vna_node_set_agreement(vna_node_t *n, const vna_agreement_t *a, vna_usage_t *us,
@@ -623,6 +635,218 @@ static void handle_rcpt(vna_node_t *n, const vna_msg_t *m, uint64_t now)
         n->rcpt_in++;
 }
 
+/* ---- NAT traversal (N1-N4) ---- */
+static void reflex_vote(vna_node_t *n, const vna_msg_t *m, uint64_t now)
+{
+    vna_b_addr_t b;
+    if (vna_schema_unpack(&vna_b_addr_schema, m->body, m->body_len, &b, 0) < 0 || b.addr_len == 0 ||
+        b.addr_len > VNA_ADDR_MAX)
+        return;
+    vna_reflex_t *slot = 0;
+    for (uint32_t i = 0; i < VNA_NODE_REFLEX && !slot; i++) /* one report per peer */
+        if (n->reflex[i].used && vna_id_eq(&n->reflex[i].reporter, &m->src)) slot = &n->reflex[i];
+    for (uint32_t i = 0; i < VNA_NODE_REFLEX && !slot; i++)
+        if (!n->reflex[i].used) slot = &n->reflex[i];
+    if (!slot) { /* replace the oldest report */
+        slot = &n->reflex[0];
+        for (uint32_t i = 1; i < VNA_NODE_REFLEX; i++)
+            if (n->reflex[i].at < slot->at) slot = &n->reflex[i];
+    }
+    slot->used = true;
+    slot->reporter = m->src;
+    vna_copy(slot->addr, b.addr, b.addr_len);
+    slot->addr_len = (uint8_t) b.addr_len;
+    slot->at = now;
+}
+
+uint32_t vna_node_reflexive(const vna_node_t *n, uint8_t addr[VNA_ADDR_MAX], uint8_t *len)
+{
+    uint32_t best = 0;
+    const vna_reflex_t *bs = 0;
+    if (len) *len = 0;
+    if (!n) return 0;
+    for (uint32_t i = 0; i < VNA_NODE_REFLEX; i++) {
+        const vna_reflex_t *a = &n->reflex[i];
+        if (!a->used) continue;
+        uint32_t c = 0;
+        for (uint32_t j = 0; j < VNA_NODE_REFLEX; j++) {
+            const vna_reflex_t *b = &n->reflex[j];
+            c += b->used && b->addr_len == a->addr_len && vna_ct_eq(b->addr, a->addr, a->addr_len);
+        }
+        if (c > best) {
+            best = c;
+            bs = a;
+        }
+    }
+    if (bs && addr && len) {
+        vna_copy(addr, bs->addr, bs->addr_len);
+        *len = bs->addr_len;
+    }
+    return best;
+}
+
+/* N3: at most VNA_PUNCH_RATE introductions per second, relayed or acted on. */
+static bool punch_rate_ok(vna_node_t *n, uint64_t now)
+{
+    uint64_t sec = now / 1000u;
+    if (sec != n->punch_sec) {
+        n->punch_sec = sec;
+        n->punch_in_sec = 0;
+    }
+    if (n->punch_in_sec >= VNA_PUNCH_RATE) return false;
+    n->punch_in_sec++;
+    return true;
+}
+
+vna_status_t vna_node_punch(vna_node_t *n, const vna_id_t *target, const vna_id_t *via,
+                            uint64_t now, vna_outbox_t *ob)
+{
+    if (!n || !target || !via || vna_id_eq(target, via) || vna_id_eq(target, &n->idn->id))
+        return VNA_ERR_ARG;
+    vna_b_punch_t b;
+    vna_zero(&b, sizeof b);
+    b.kind = VNA_PUNCH_REQ;
+    b.peer = *target;
+    vna_status_t st =
+        send_to_contact(n, via, VNA_MSG_PUNCH, 0, new_rpc(n), &vna_b_punch_schema, &b, now, ob);
+    if (st == VNA_OK) n->punch_asked++;
+    return st;
+}
+
+static void handle_punch(vna_node_t *n, const vna_msg_t *m, const uint8_t *addr, uint32_t alen,
+                         uint64_t now, vna_outbox_t *ob)
+{
+    vna_b_punch_t b;
+    if (vna_schema_unpack(&vna_b_punch_schema, m->body, m->body_len, &b, 0) < 0 ||
+        vna_id_is_zero(&b.peer) || vna_id_eq(&b.peer, &n->idn->id) || vna_id_eq(&b.peer, &m->src) ||
+        !punch_rate_ok(n, now)) {
+        n->punch_refused++;
+        return;
+    }
+    if (b.kind == VNA_PUNCH_REQ) { /* we are the rendezvous R */
+        const vna_contact_t *c = vna_rt_find(&n->rt, &b.peer);
+        if (!c) {
+            n->punch_refused++;
+            return;
+        }
+        vna_b_punch_t to_b, to_a;
+        vna_zero(&to_b, sizeof to_b);
+        to_b.kind = VNA_PUNCH_INTRO;
+        to_b.peer = m->src; /* A, at the address its datagram came from */
+        to_b.addr_len = (uint16_t) alen;
+        vna_copy(to_b.addr, addr, alen);
+        vna_zero(&to_a, sizeof to_a);
+        to_a.kind = VNA_PUNCH_INTRO;
+        to_a.peer = b.peer;
+        to_a.addr_len = c->addr_len;
+        vna_copy(to_a.addr, c->addr, c->addr_len);
+        vna_id_t bid = b.peer;
+        if (send_to_contact(n, &bid, VNA_MSG_PUNCH, 0, new_rpc(n), &vna_b_punch_schema, &to_b, now,
+                            ob) == VNA_OK &&
+            send_msg(n, &m->src, addr, alen, VNA_MSG_PUNCH, 0, new_rpc(n), &vna_b_punch_schema,
+                     &to_a, now, ob) == VNA_OK)
+            n->punch_relayed++;
+        return;
+    }
+    if (b.kind != VNA_PUNCH_INTRO || b.addr_len == 0 || b.addr_len > VNA_ADDR_MAX) {
+        n->punch_refused++;
+        return;
+    }
+    /* An introduction: PING the given address, expecting exactly that NodeID. */
+    vna_pending_t *p = pend_alloc(n);
+    if (!p) return;
+    uint64_t rpc = new_rpc(n);
+    if (send_msg(n, &b.peer, b.addr, b.addr_len, VNA_MSG_PING, 0, rpc, 0, 0, now, ob) != VNA_OK)
+        return;
+    p->kind = VNA_P_PUNCH;
+    p->expect = VNA_MSG_PONG;
+    p->rpc = rpc;
+    p->peer = b.peer;
+    p->deadline_ms = now + n->cfg.rpc_timeout_ms;
+    n->punch_intros++;
+}
+
+uint32_t vna_node_keepalive(vna_node_t *n, uint64_t now, uint64_t idle_ms, uint32_t max,
+                            vna_outbox_t *ob)
+{
+    uint32_t sent = 0;
+    if (!n) return 0;
+    for (uint32_t i = 0; i < n->rt.cap && sent < max; i++) {
+        const vna_contact_t *c = &n->rt.pool[i];
+        if (!c->in_use || c->last_seen_ms + idle_ms > now) continue;
+        bool waiting = false; /* one probe at a time per contact */
+        for (uint32_t j = 0; j < VNA_NODE_PENDING && !waiting; j++)
+            waiting = n->pend[j].kind != VNA_P_FREE && vna_id_eq(&n->pend[j].peer, &c->id);
+        if (waiting) continue;
+        vna_id_t id = c->id;
+        if (vna_node_ping(n, &id, now, ob) == VNA_OK) sent++;
+    }
+    return sent;
+}
+
+/* ---- AIPI ---- */
+void vna_node_set_aipi_handler(vna_node_t *n, vna_aipi_fn fn, void *ctx)
+{
+    if (!n) return;
+    n->aipi = fn;
+    n->aipi_ctx = fn ? ctx : 0;
+}
+
+vna_status_t vna_node_send_aipi_at(vna_node_t *n, const vna_id_t *dst, const uint8_t *addr,
+                                   uint32_t addr_len, uint8_t kind, uint64_t amount,
+                                   const uint8_t *data, uint32_t len, uint64_t now,
+                                   vna_outbox_t *ob)
+{
+    static vna_b_aipi_t b;
+    if (!n || !dst || kind < VNA_AIPI_CALL || kind > VNA_AIPI_BUSY || len > VNA_AIPI_DATA_MAX ||
+        (len && !data) || vna_id_is_zero(dst) || vna_id_eq(dst, &n->idn->id))
+        return VNA_ERR_ARG;
+    const vna_contact_t *c = vna_rt_find(&n->rt, dst);
+    if (c) { /* a known contact: its verified address wins */
+        addr = c->addr;
+        addr_len = c->addr_len;
+    }
+    if (!addr || addr_len == 0 || addr_len > VNA_ADDR_MAX) return VNA_ERR_ARG;
+    b.kind = kind;
+    b.amount = amount;
+    b.len = (uint16_t) len;
+    if (len) vna_copy(b.data, data, len);
+    vna_status_t st = send_msg(n, dst, addr, addr_len, VNA_MSG_AIPI, 0, new_rpc(n),
+                               &vna_b_aipi_schema, &b, now, ob);
+    if (st == VNA_OK) n->aipi_out++;
+    return st;
+}
+
+vna_status_t vna_node_send_aipi(vna_node_t *n, const vna_id_t *dst, uint8_t kind, uint64_t amount,
+                                const uint8_t *data, uint32_t len, uint64_t now, vna_outbox_t *ob)
+{
+    return vna_node_send_aipi_at(n, dst, 0, 0, kind, amount, data, len, now, ob);
+}
+
+static void handle_aipi(vna_node_t *n, const vna_msg_t *m, uint64_t now, vna_outbox_t *ob)
+{
+    vna_b_aipi_t *b = &n->aipi_in_b;
+    if (!n->aipi || vna_schema_unpack(&vna_b_aipi_schema, m->body, m->body_len, b, 0) < 0 ||
+        b->kind < VNA_AIPI_CALL || b->len > VNA_AIPI_DATA_MAX) {
+        n->aipi_refused++;
+        return;
+    }
+    /* Running work for others needs an agreement that shares compute with
+     * this peer (degree COMPUTE, audience, quota: one unit per call). The
+     * node's own DHT degree is not raised by it. */
+    if (b->kind == VNA_AIPI_CALL &&
+        (!n->agr || vna_agree_check(n->agr, n->usage, &m->src, trust_of(n, &m->src),
+                                    VNA_RES_COMPUTE, 0, 1, 0, now, true) != VNA_OK)) {
+        n->aipi_refused++;
+        n->denied++;
+        return;
+    }
+    if (n->aipi(n->aipi_ctx, &m->src, b, now, ob) == VNA_OK)
+        n->aipi_in++;
+    else
+        n->aipi_refused++;
+}
+
 /* ---- receive ---- */
 static bool is_response_type(const vna_msg_t *m)
 {
@@ -644,7 +868,11 @@ static vna_status_t handle_response(vna_node_t *n, const vna_msg_t *m, const uin
     learn(n, &m->src, addr, alen, cflags, now, ob);
     vna_pending_t P = *p;
     p->kind = VNA_P_FREE;
+    if (m->type == VNA_MSG_PONG && m->body_len > 0) reflex_vote(n, m, now);
     switch (P.kind) {
+    case VNA_P_PUNCH:
+        n->punch_ok++; /* the introduced peer answered from where it was said to be */
+        return VNA_OK;
     case VNA_P_BOOT: {
         vna_id_t self = n->idn->id;
         n->joined = true;
@@ -810,8 +1038,19 @@ vna_status_t vna_node_handle(vna_node_t *n, const uint8_t *buf, uint32_t len, co
     }
     learn(n, &m->src, addr, addr_len, cflags, now, ob);
     switch (m->type) {
-    case VNA_MSG_PING:
-        (void) send_msg(n, &m->src, addr, addr_len, VNA_MSG_PONG, 0, m->rpc, 0, 0, now, ob);
+    case VNA_MSG_PING: { /* N1: tell the peer where its PING came from */
+        vna_b_addr_t ob_addr;
+        ob_addr.addr_len = (uint16_t) addr_len;
+        vna_copy(ob_addr.addr, addr, addr_len);
+        (void) send_msg(n, &m->src, addr, addr_len, VNA_MSG_PONG, 0, m->rpc, &vna_b_addr_schema,
+                        &ob_addr, now, ob);
+        return VNA_OK;
+    }
+    case VNA_MSG_PUNCH:
+        handle_punch(n, m, addr, addr_len, now, ob);
+        return VNA_OK;
+    case VNA_MSG_AIPI:
+        handle_aipi(n, m, now, ob);
         return VNA_OK;
     case VNA_MSG_FIND_NODE:
     case VNA_MSG_FIND_VALUE: {

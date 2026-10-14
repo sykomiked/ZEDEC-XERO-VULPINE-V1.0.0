@@ -26,6 +26,11 @@ int ZXV_ENGINE(const char *treaty, char *result)
         r.status = st;
         r.where = where;
     }
-    (void) zxt_emit_result(&r, (uint8_t *) result, ZXT_RES_LEN);
+    if (zxt_emit_result(&r, (uint8_t *) result, ZXT_RES_LEN) != ZXT_OK) {
+        /* never return a status without the record that goes with it */
+        for (uint32_t i = 0; i < (uint32_t) sizeof(r); i++) ((volatile uint8_t *) &r)[i] = 0;
+        r.status = ZXT_E_SIZE;
+        (void) zxt_emit_result(&r, (uint8_t *) result, ZXT_RES_LEN);
+    }
     return r.status;
 }

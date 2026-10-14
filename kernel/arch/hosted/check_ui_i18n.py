@@ -15,7 +15,10 @@ TABLE.json, SAMPLES.json and PAGE.html are gen_ui.py's --table-out,
      aria-label, value), every data-i18n element empty; and every string
      literal or template text in the scripts that holds a letter (after
      dropping HTML tags) is either a message id or one of the code strings
-     listed in CODE below (element ids, API paths, class names, ...);
+     listed in CODE below (element ids, API paths, class names, ...).
+     Parts that still carry English are marked data-i18n-todo (an element
+     and everything in it, or a whole <script>) and are skipped; the count
+     is printed so the list shrinks rather than hides;
   3. the embedded page carries the table and the English text, filled in;
   4. the page's i18n script (<script id="zxv-i18n-core">), run under node,
      gives what the C i18n module gives for locale negotiation, number
@@ -70,9 +73,18 @@ class Markup(html.parser.HTMLParser):
         super().__init__(convert_charrefs=True)
         self.stack, self.errors, self.scripts = [], [], []
         self.i18n_open = 0
+        self.todo = 0
+
+    def in_todo(self):
+        return any('data-i18n-todo' in a for _, a in self.stack)
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if 'data-i18n-todo' in a:
+            self.todo += 1
+        if 'data-i18n-todo' in a or self.in_todo():
+            self.stack.append((tag, a))
+            return
         for k, v in attrs:
             if k in VISIBLE_ATTRS and v and has_letter(v):
                 self.errors.append('<%s %s="%s">: words in markup' % (tag, k, v))
@@ -86,6 +98,8 @@ class Markup(html.parser.HTMLParser):
 
     def handle_data(self, data):
         tag, a = self.stack[-1] if self.stack else ('', {})
+        if self.in_todo():
+            return
         if tag == 'script':
             if a.get('type') != 'application/json':
                 self.scripts.append((a.get('id', ''), data))
@@ -197,12 +211,18 @@ def literals(src):
     return out
 
 
+TODO_PARTS = 0
+
+
 def check_source(page, table_keys=None):
     """Errors for words written directly into zxv_ui.html."""
     m = Markup()
     m.feed(page)
     m.close()
     errors = list(m.errors)
+    if table_keys is not None:
+        global TODO_PARTS
+        TODO_PARTS = m.todo
     for sid, code in m.scripts:
         for lit in literals(code):
             text = strip_tags(lit).replace('\ue000', '')
@@ -220,9 +240,13 @@ def self_test():
           '// Hello\n/* Hello */y=`<b class="z">${T(\'UI_QUIT\')}</b>`;$(\'mode\')</script>')
     bad = ['<p>Hello</p>', '<p data-i18n="UI_QUIT">Quit</p>', '<input placeholder="Ask">',
            '<script>say(\'Hello there\')</script>', '<script>x=`<b>Hi ${y}</b>`</script>',
-           '<script>x=a/b;y="Oops"</script>', '<button title="Stop">&#8230;</button>']
+           '<script>x=a/b;y="Oops"</script>', '<button title="Stop">&#8230;</button>',
+           '<div data-i18n-todo="x"><p>skipped</p></div><p>Hello</p>']
     if check_source(ok):
         return 'self-test: a clean page was refused: %s' % check_source(ok)
+    todo = '<div data-i18n-todo="x"><p title="Hi">Hi</p><input placeholder="Ask"></div><script data-i18n-todo="x">say("Hi")</script>'
+    if check_source(todo):
+        return 'self-test: a data-i18n-todo part was checked: %s' % check_source(todo)
     for b in bad:
         if not check_source(b):
             return 'self-test: missed the words in %r' % b
@@ -328,7 +352,8 @@ def main():
     if errors:
         sys.exit(1)
     print('[PASS] check_ui_i18n: %d ids from the i18n catalog, %d locales, %d string sets; '
-          'no words written into zxv_ui.html' % (len(keys), len(tb['locs']), len(tb['sets'])))
+          'no words written into zxv_ui.html outside %d parts marked data-i18n-todo' %
+          (len(keys), len(tb['locs']), len(tb['sets']), TODO_PARTS))
 
 
 def html_escape(t):

@@ -61,6 +61,13 @@ for the SDKs and your own scripts, and only your user can open it."
 
 step() { printf '\n== %s\n' "$*"; }
 
+# ASCW Golden, the window's font, with its SIL OFL 1.1 licence
+put_fonts() { # DIR
+    mkdir -p "$1"
+    cp "$ROOT"/assets/fonts/ascw-golden/*.ttf "$ROOT"/assets/fonts/ascw-golden/*.otf \
+        "$ROOT/assets/fonts/ascw-golden/OFL.txt" "$ROOT/assets/fonts/ascw-golden/FONTLOG.md" "$1/"
+}
+
 build_engine() {   # STAGE_ENGINE_DIR (CC from the environment)
     step "zxvd + libzxv ($("${CC%% *}" -dumpmachine 2>/dev/null || echo "$CC"))"
     rm -rf "$OUT/.engine"
@@ -86,6 +93,7 @@ linux)
     chmod 644 "$STAGE/usr/lib/zxv/libzxv.so"
     cp "$ROOT/macos/zxv-model-fetch.sh" "$ROOT/macos/models.manifest" "$STAGE/usr/lib/zxv/"
     chmod 755 "$STAGE/usr/lib/zxv/zxv-model-fetch.sh"
+    put_fonts "$STAGE/usr/lib/zxv/fonts" # zxvd finds them beside itself
 
     mkdir -p "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/pixmaps" \
         "$STAGE/usr/share/doc/zxv"
@@ -237,6 +245,7 @@ windows)
     command -v "$STRIP" >/dev/null 2>&1 && "$STRIP" "$STAGE"/*.exe "$STAGE/libzxv.dll"
     cp "$ROOT/LICENSE" "$STAGE/LICENSE.txt"
     cp "$ROOT/macos/models.manifest" "$STAGE/models.manifest"
+    put_fonts "$STAGE/fonts"
     printf '%s\n\nStart ZXV.exe (keep it with zxvd.exe and libzxv.dll in one folder).\nNeeds Windows 10 version 1803 or later, 64-bit.\n\nSmartScreen may warn that the app is unrecognised (it is not code-signed).\nChoose More info, then Run anyway.\n\nModels: put a GGUF file in %%APPDATA%%\\ZXV\\models (models.manifest lists the\ndefault model, its download address and its SHA-256).\nThe engine log is %%LOCALAPPDATA%%\\ZXV\\logs\\engine.log.\n' \
         "$README_TEXT" | sed 's/$/\r/' > "$STAGE/README.txt"
     (cd "$OUT/stage-windows-x86_64" &&

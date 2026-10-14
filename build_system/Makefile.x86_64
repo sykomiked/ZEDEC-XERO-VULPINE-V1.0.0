@@ -125,6 +125,19 @@ SRCS := \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
+    kernel/arch/x86_64/hwplat_x86.c \
+    kernel/src/hwdrv/hwdrv_core.c \
+    kernel/src/hwdrv/hwdrv_probe.c \
+    kernel/src/hwdrv/nvme.c \
+    kernel/src/hwdrv/hw_storage.c \
+    kernel/src/hwdrv/ahci.c \
+    kernel/src/hwdrv/xhci.c \
+    kernel/src/hwdrv/e1000.c \
+    kernel/src/hwdrv/hda.c \
+    kernel/src/hwdrv/igb.c \
+    kernel/src/hwdrv/r8169.c \
+    kernel/src/hwdrv/usbkbd.c \
+    kernel/src/hwdrv/usbmsc.c \
     kernel/src/abacus/abacus.c \
     kernel/src/ai_layer/ai_layer.c \
     kernel/src/alloc/alloc.c \
@@ -353,6 +366,16 @@ SRCS := \
     kernel/src/tls/aead.c \
     kernel/src/tls/record.c \
     kernel/src/tls/handshake.c \
+    kernel/src/tls/sha512.c \
+    kernel/src/tls/digest.c \
+    kernel/src/tls/bn.c \
+    kernel/src/tls/ecdsa.c \
+    kernel/src/tls/rsa.c \
+    kernel/src/tls/x509.c \
+    kernel/src/tls/trust.c \
+    kernel/src/timesvc/sntp.c \
+    kernel/src/timesvc/timesvc.c \
+    kernel/src/timesvc/tz.c \
     kernel/src/bringup/arch_globals.c \
     kernel/src/swarm/swarm_boot.c \
     kernel/src/swarm/swarm_budget.c \
@@ -469,7 +492,7 @@ EFI_X64_OBJS = kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_stub.o \
                kernel/arch/x86_64/efi_trampoline.o kernel/arch/x86_64/efi_kernel_blob.o
 EFI_STUB_CFLAGS = -O2 -ffreestanding -fpie -fvisibility=hidden \
                   -mno-red-zone -mgeneral-regs-only -fno-stack-protector -fno-asynchronous-unwind-tables
-$(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_64/efi_header.S \
+$(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/efi_models.h kernel/arch/x86_64/efi_header.S \
                 kernel/arch/x86_64/efi_trampoline.S kernel/arch/x86_64/efi_kernel_blob.S build_system/efi_stub.ld
 	$(CC) $(EFI_STUB_CFLAGS) -c -o kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_stub.c
 	$(CC) -c -o kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_header.S

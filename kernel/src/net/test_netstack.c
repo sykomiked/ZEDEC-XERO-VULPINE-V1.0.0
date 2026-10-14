@@ -320,7 +320,7 @@ int main(void)
                                "(it used to be an empty stub)");
         const uint8_t *d = g_tx[0];
         uint32_t dl = g_tx_len[0];
-        CHECK(dl == 14 + 20 + 8 + 250, "DISCOVER frame is eth+ip+udp+dhcp");
+        CHECK(dl == 14 + 20 + 8 + 251, "DISCOVER frame is eth+ip+udp+dhcp");
         CHECK(memcmp(d, "\xff\xff\xff\xff\xff\xff", 6) == 0,
               "it goes to the ethernet broadcast address");
         CHECK(memcmp(d + 6, mac, 6) == 0, "from our MAC");

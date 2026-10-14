@@ -5,7 +5,8 @@
  * its round trip where it has one, and every refusal (-32602 for a bad
  * parameter, ZXVD_E_MODULE for input the module rejects). Also checks the
  * capability rule: with the books open, no module method changes them.
- * Run by test_zxvd_rpc.sh after test_zxvd_rpc. */
+ * The codecs group is registered as zxvd_groups.c does; its switch stays
+ * off, since every method answers with it off. Run by test_zxvd_rpc_modules.sh. */
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 
 #include "zxvd_rpc.h"
 #include "zxvd_rpc_modules.h"
+#include "zxvd_ext.h"
 
 static int fails, checks;
 
@@ -114,11 +116,14 @@ static long num(const char *r, const char *key)
 static void test_dispatch(void)
 {
     const char *r = call("rpc.discover", NULL);
-    CHECK(strstr(r, "\"aipi.status\",\"freight.pack\",\"freight.unpack\",\"harmonic.encode\","
+    CHECK(strstr(r, "\"play.draft\",\"freight.pack\",\"freight.unpack\",\"harmonic.encode\","
                     "\"harmonic.decode\",\"stream.plan\",\"stream.segment\",\"ehop.bands\","
                     "\"ehop.seal\",\"ehop.open\",\"web4.cid\",\"web4.agent_card\","
                     "\"web4.card_verify\"]}") != NULL,
-          "rpc.discover lists the module methods after zxvd's own: %s", r);
+          "rpc.discover lists the codecs group after zxvd's own: %s", r);
+    r = call("features.get", NULL);
+    CHECK(strstr(r, "\"codecs\"") != NULL, "features.get lists the codecs switch: %s", r);
+    CHECK(!zxvd_rpc_enabled("codecs"), "the codecs switch starts off");
     REFUSED(call("freight.nope", NULL), -32601, "an unknown module method");
     REFUSED(call("freight.pac", NULL), -32601, "a prefix is not a method");
     /* a notification to a module method runs and gets no reply */
@@ -628,6 +633,10 @@ static void test_books_untouched(void)
 
 int main(void)
 {
+    if (zxvd_rpc_add_group(zxvd_codecs_group()) != 0) {
+        printf("[FAIL] test_zxvd_rpc_modules: the codecs group was refused\n");
+        return 1;
+    }
     test_dispatch();
     /* first without books: the module methods need none */
     test_freight();

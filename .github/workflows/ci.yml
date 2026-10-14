@@ -41,6 +41,7 @@ jobs:
   # Every other job reads its outputs; a lint failure does not hide them.
   quick-checks:
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     outputs:
       kernel: ${{ steps.changes.outputs.kernel }}
       dotnet: ${{ steps.changes.outputs.dotnet }}
@@ -83,6 +84,16 @@ jobs:
         run: pip install clang-format==18.1.8 pyyaml
       - name: Every pull request workflow keeps drafts on the fast tier
         run: python3 build_system/check_workflow_tiers.py
+      - name: The SDK workflows start on exactly what libzxv is built from
+        # build_system/sdk_kernel_deps.py: the compiler's list of libzxv's
+        # kernel inputs must match the sdk*.yml path filters, so an SDK
+        # workflow neither misses a change nor starts on unrelated modules.
+        run: python3 build_system/sdk_kernel_deps.py --check
+      - name: The mutation config parses and is consistent
+        # A merge that keeps both sides of a targets.json entry used to pass
+        # every fast job and then fail all three mutation shards on a ready
+        # pull request (#89, #110). Checking it here fails in seconds instead.
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --check-config
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked. Nightly and manual runs
@@ -110,12 +121,13 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
@@ -123,6 +135,7 @@ jobs:
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
+          ZXV_REQUIRE_SWTPM: "1"
         run: |
           cd kernel
           make verify-all
@@ -134,6 +147,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - name: Install ARM64 and x86_64 toolchains
@@ -183,6 +197,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     env:
       OPENSBI_TAG: v1.3.1
     steps:
@@ -303,6 +318,16 @@ jobs:
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      # Standard class drivers (kernel/src/hwdrv) on one of every emulated
+      # device they cover: NVMe, SATA, xHCI keyboard + storage, Intel NICs,
+      # HD Audio. Each must bind and pass its boot self-test.
+      - name: Class drivers on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # Golden disc model check with a 3 MiB test file as the model: verified
+      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      - name: Golden disc model check (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:
@@ -432,6 +457,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.dotnet == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: sdk/dotnet
@@ -465,6 +491,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.proofs == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
       TLA_VERSION: '1.7.4'
       TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
@@ -510,13 +537,15 @@ jobs:
 
   # Post-quantum KATs on other CPUs: the NIST ACVP/KAT tests cross-compiled for
   # aarch64, riscv64, armhf (32-bit), i686 (32-bit) and s390x (big-endian) and
-  # run under qemu-user. Then the valgrind secret-branch check (ctgrind) of
+  # run under qemu-user, and the grammar-mask and evidence-head digests
+  # (build_system/ai_cross.sh) compared with the host's. Then the valgrind secret-branch check (ctgrind) of
   # ML-KEM-768 decaps/encaps (gated) and ML-DSA-65 sign (reported only), and
   # the legacy-transcoder golden traces. No model is downloaded.
   kat-cross:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install cross toolchains, qemu-user and valgrind
@@ -529,6 +558,8 @@ jobs:
             libc6-dev-s390x-cross valgrind
       - name: KATs on aarch64, riscv64, armhf, i686, s390x (qemu-user)
         run: KAT_CROSS_STRICT=1 make -C kernel kat-cross
+      - name: Grammar masks and evidence-head fits, same bits on the same five CPUs
+        run: KAT_CROSS_STRICT=1 bash build_system/ai_cross.sh
       - name: Secret-dependent branch check under valgrind (ctgrind)
         run: make -C kernel ct-valgrind
       - name: Legacy transcoder golden traces
@@ -543,6 +574,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -575,6 +607,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -600,6 +633,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -626,6 +660,8 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    # 35 min on batch 2; the tensor tests (#124) run long under MSan
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -649,6 +685,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -671,6 +708,7 @@ jobs:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' && needs.quick-checks.outputs.heavy == 'true' }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
@@ -699,11 +737,14 @@ jobs:
   # skipped job counts as passing for a required check, so requiring the
   # individual jobs could let a run that skipped everything through; this
   # job checks the skips against what the change needs.
-  # On a draft it is named "ci-gate (draft: fast tier only)", a different
-  # check, so a draft's green fast tier can never satisfy the merge rule,
-  # even in the seconds between "Ready for review" and the new run starting.
+  # It always reports under the one name ci-gate, so the required check
+  # never sits at "Expected - waiting for status". On a draft it fails at
+  # once with "mark it ready for review": a draft runs the fast tier only,
+  # so its green fast tier can never satisfy the merge rule. Every job above
+  # has a time limit, so a hung job fails the gate within that limit instead
+  # of holding it for GitHub's six-hour default.
   ci-gate:
-    name: "${{ (github.event_name == 'pull_request' && github.event.pull_request.draft) && 'ci-gate (draft: fast tier only)' || 'ci-gate' }}"
+    name: ci-gate
     needs: [ quick-checks, host-tests, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
@@ -714,9 +755,14 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           KERNEL: ${{ needs.quick-checks.outputs.kernel }}
           HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
           python3 - <<'PY'
           import json, os, sys
+          if os.environ.get("DRAFT") == "true":
+              print("ci-gate: this pull request is a draft, which runs the fast tier only.")
+              print("Mark it ready for review: the full checks start then and this gate reports again.")
+              sys.exit(1)
           needs = json.loads(os.environ["NEEDS"])
           kernel = os.environ.get("KERNEL") == "true"
           heavy = os.environ.get("HEAVY") == "true"

@@ -134,6 +134,7 @@ jobs:
           T="$RUNNER_TEMP/wintest"
           mkdir -p "$T"
           cp sdk/libzxv/build-win/*.exe sdk/libzxv/build-win/libzxv.dll "$T/"
+          CC=$W sh kernel/arch/hosted/hwkey/build_test.sh "$T/test_hwkey_host.exe"
           cp -r sdk/conformance/fixtures "$T/fixtures"
           gcc -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor kernel/arch/hosted/test_write_gguf.c \
             -o "$RUNNER_TEMP/write_gguf"
@@ -184,6 +185,14 @@ jobs:
           ./test_zxv_abi13.exe
           ./test_zxv_abi14.exe
           ./test_q16.exe
+      - name: Account key in the TPM (or the software key store), offline outbox
+        if: success() || failure()  # report every Windows check, not only the first red
+        working-directory: ${{ runner.temp }}/wintest
+        run: |
+          set -eu
+          mkdir -p hwkey
+          ./test_hwkey_host.exe hwkey
+          ./test_hwkey_host.exe hwkey
       - name: zxvd.exe end to end over its socket
         if: success() || failure()  # report every Windows check, not only the first red
         run: |

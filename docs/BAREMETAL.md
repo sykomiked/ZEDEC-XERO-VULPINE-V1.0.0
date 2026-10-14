@@ -28,6 +28,43 @@ Runs inside the container (OVMF / QEMU_EFI) or on a Mac with Homebrew QEMU
 serial log reaches `[BOOT_OK]` and `[AI_OK]` with no fault marker. CI runs the
 same check in the `uefi-disc` job.
 
+## Golden disc: models and assets on the disc
+
+The golden disc is the same disc with everything on it, so nothing is
+downloaded: the AI models in `build_system/golden.models` (Qwen2.5-1.5B-Instruct
+and Qwen2.5-0.5B-Instruct, Q4_K_M, both Apache-2.0) and the asset folders in
+`build_system/golden.contents` (licences, music, and fonts, boot sounds, brand
+and app icons once those land in `assets/`).
+
+```bash
+docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c \
+  'bash build_system/baremetal_images.sh x86_64 && bash build_system/mk_golden_disc.sh x86_64'
+bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-uefi-golden.img 150 "[AI_OK]" "[MODELS_OK] 2 verified"
+```
+
+Each model is downloaded once from its pinned URL into `dist/models` (or
+`ZXV_MODEL_CACHE`) and refused unless its size and SHA-256 match the list.
+On the disc: `/ZXV/MODELS/*.gguf`, `/ZXV/MODELS.SHA` (sha256, size, name),
+`/ZXV/MANIFEST.SHA256` over every file (`sha256sum -c` from the mounted disc)
+and `/ZXV/README.TXT`. Output: `dist/discs/zxv-<arch>-uefi-golden.img` and a
+size breakdown in `.sizes`.
+
+On every boot the EFI loader re-hashes each model before it starts the kernel
+(`kernel/arch/efi_models.h`) and prints `[MODEL_OK]` per model and
+`[MODELS_OK] 2 verified`, or `[MODEL_BAD]` and `[MODELS_FAIL]`; a bad model is
+reported, it does not stop the boot. A plain disc has no `MODELS.SHA` and
+prints nothing. Under QEMU emulation the check takes about 36 s for 1.6 GB; on
+real hardware it is bounded by the disk's read speed.
+`build_system/test_golden_disc.sh <arch>` proves the check in about two
+minutes with a 3 MiB test file in place of a model: intact, it must verify;
+with one byte changed on the disc, it must be caught. CI runs it in the
+`uefi-disc` job.
+
+Measured 2026-10-12: 1,632,632,832 bytes raw (1.63 GB) on both arches,
+1,569,507,209 bytes gzipped (x86_64). The models are 1,608,720,768 bytes of
+that. The kernel does not yet run the disc's models on bare metal: it checks
+them, and runs its built-in swarm and tensor self-check (`[AI_OK]`).
+
 ## Run it on any OS (Docker only)
 
 ```bash

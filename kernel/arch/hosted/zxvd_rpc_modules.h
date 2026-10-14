@@ -3,8 +3,8 @@
 /* zxvd_rpc_modules.h — the kernel modules zxvd serves beside its own methods:
  * freight.*, harmonic.*, stream.*, ehop.* and web4.* (zxvd_rpc_modules.c).
  *
- * zxvd_rpc.c looks a method up in its own table first and falls back to this
- * one; rpc.discover lists both. Everything here is a pure codec over the
+ * They are one method group (zxvd_ext.h), feature "codecs", registered by
+ * zxvd_groups.c; every method answers with the switch off. Everything here is a pure codec over the
  * request: no method keeps state between calls, opens the books, posts to a
  * ledger or touches the swarm (zxvd_rpc.h M2 is unchanged: the root cap is
  * never reached from here).
@@ -32,19 +32,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "zxvd_rpc.h"
-#include "web4_web2.h" /* w4_jtok_t */
+#include "zxvd_ext.h"
 
-#define ZXVD_E_MODULE (-32012)
+#define ZXVD_E_MODULE (-32017)
 
-/* Index of the module method named by string token `name`, or -1. */
-int zxvd_mod_find(const char *js, const w4_jtok_t *name);
-/* Append ,"name" for every module method (rpc.discover's tail). */
-void zxvd_mod_names(zxvd_buf_t *out);
-/* Run method `i` with params object token `params` (-1: none). On success
- * the result value is in `res`; on failure *err is the JSON-RPC code and
- * msg[0..msg_cap) the message. */
-void zxvd_mod_call(int i, const char *js, const w4_jtok_t *t, int32_t n, int32_t params,
-                   zxvd_buf_t *res, int *err, char *msg, size_t msg_cap);
+/* the group (zxvd_groups.h lists it too) */
+const zxvd_group_t *zxvd_codecs_group(void);
 
 #endif

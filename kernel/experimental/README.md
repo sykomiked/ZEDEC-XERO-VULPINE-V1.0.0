@@ -28,7 +28,6 @@ one is in [docs/SYSTEM_REFERENCE.md](../../docs/SYSTEM_REFERENCE.md).
 | `compute_fabric/` | Manager for compute cells: create, start, stop, migrate between domains. | Does not compile; not built. | `kernel/src/sched`, `kernel/src/hypercube` |
 | `governance_fabric/` | Umbrella over legal_engine, concord, ministry, crown and ZAB: proposals, votes, policies, contracts. Its "ZK-ABFT consensus" claim has nothing behind it. | Does not compile (unknown `zab_state_t`, `concord_state_t`, `crown_state_t`); not built. | `kernel/src/concord`, `kernel/src/crown`, `kernel/src/onepolicy` |
 | `identity_fabric/` | Umbrella over identity, Vino/Vena, ZAB, reputation, concord, crown and ministry. | Does not compile; not built. | `kernel/src/ident`, `kernel/src/reputation` |
-| `m5_apps/` | Nine sources from `kernel/src/apps` (B3): four standalone M5 programs with their own `main()` (`wallet_app.c`, `derivatives_app.c`, `assurance_app.c`, `treaty_app.c`) over `m5_api.h`; `clock_app.c` and `dharma_monitor.c`; `notes_app.c` with its host test `test_notes.c` and the single-file `vfs_stub.c` it ran on. | In no image, app or test. The M5 programs call `m5_*` functions that no file defines (`kernel/src/sdk/SDK_README.md`); the other three use types `apps.h` does not declare (`clock_app_t`, `notes_app_t`, `dharma_monitor_app_t`, as `build_system/Makefile.arm64` records); not built. | `kernel/src/apps/apps.c` (the built-in apps, in the images), `kernel/src/sdk/app_template.c` (compile-checked by `make -C kernel verify-all`) |
 | `media_fabric/` | Umbrella over audio, video, codec, art and games. | Does not compile (`codec.h` not found); not built. | `kernel/src/codec`, `kernel/src/stream` |
 | `network_fabric/` | Umbrella over mesh, radio, Bluetooth, Wi-Fi, LoRa and event transport. Its "post-quantum security" claim is unbacked. | Does not compile (unknown adapter types); not built. | `kernel/src/mesh_net`, `kernel/src/vinea`, `kernel/src/ehop` |
 | `p2p_caracho/` | An older P2P transport. It compiles, but its own header says it is superseded by `kernel/src/bootlegger` and must not be built. | Superseded; excluded from every build. | `kernel/src/bootlegger` |
@@ -42,10 +41,11 @@ not make them compile.
 `gematria` was also listed as UNUSED/DEAD but is compiled into the kernel images, so it was not
 moved.
 
-`chiglet_triage/` and `m5_apps/` came later (2026-10, roadmap step 2.5, rows A5 and B3 of
+`chiglet_triage/` came later (2026-10, roadmap step 2.5, rows A5 and B3 of
 `docs/GAP_AUDIT.md`), checked the same way: `grep` over every Makefile, build script, `.mk` file,
 CI workflow and test for each file name and for any pattern that could match it found none. No
-include path in them needed changing. The rest of those two rows was not moved: every A5 module
+include path in it needed changing. The nine `apps/*` files B3 listed stay in `kernel/src/apps`:
+`make -C kernel test-apps` and `test-notes` now build three of them. The rest of those two rows was not moved: every A5 module
 is compiled by a `make -C kernel verify-all` test (several also by an image or by zxvd), and the
 remaining B3 files are in an image (`render_boot.c`, `arch_globals.c`, `blockdev/ramdisk.c`),
 `#include`d by built code (`pq_hqc5_gf2x.c`), run by `verify-all` (the seven `mlkem/*_validate.c`,

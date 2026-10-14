@@ -232,6 +232,15 @@ pdx_class_t pdx_classify(lpx_t tag, const pdx_evidence_t *ev, const pdx_registry
     return c;
 }
 
+/* ---- P2.1 ---- */
+pdx_class_t pdx_classify_answer(uint8_t base, uint32_t n_tokens, const pdx_evidence_t *ev,
+                                bool finished, const pdx_registry_t *reg,
+                                const uint8_t sig[PDX_HASH])
+{
+    uint8_t phase = !n_tokens ? LPX_PH_POTENTIAL : finished ? LPX_PH_MANIFEST : LPX_PH_EMERGING;
+    return pdx_classify(lpx_make((uint8_t) (base & 3u), LPX_P_NEUTRAL, phase), ev, reg, sig);
+}
+
 /* ---- P0.2 constructive ---- */
 static void params_hash(const int64_t *v, uint32_t n, uint8_t out[PDX_HASH])
 {

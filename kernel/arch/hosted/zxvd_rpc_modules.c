@@ -665,47 +665,67 @@ static void m_web4_card_verify(mc_t *c)
     zxvd_buf_raw(c->res, "}", 1);
 }
 
-/* ===================== the table ===================== */
+/* ===================== the group ===================== */
 
-typedef struct {
-    const char *name;
-    void (*fn)(mc_t *);
-} mmethod_t;
-
-static const mmethod_t MM[] = {
-    {"freight.pack", m_freight_pack},
-    {"freight.unpack", m_freight_unpack},
-    {"harmonic.encode", m_harmonic_encode},
-    {"harmonic.decode", m_harmonic_decode},
-    {"stream.plan", m_stream_plan},
-    {"stream.segment", m_stream_segment},
-    {"ehop.bands", m_ehop_bands},
-    {"ehop.seal", m_ehop_seal},
-    {"ehop.open", m_ehop_open},
-    {"web4.cid", m_web4_cid},
-    {"web4.agent_card", m_web4_agent_card},
-    {"web4.card_verify", m_web4_card_verify},
-};
-#define N_MM ((int) (sizeof MM / sizeof MM[0]))
-
-int zxvd_mod_find(const char *js, const w4_jtok_t *name)
+/* Run one module method on zxvd's call: the same params object, the result
+ * written into zxvd_result, the module's error passed on with zxvd_fail. */
+static void run(zxvd_call_t *zc, void (*fn)(mc_t *))
 {
-    for (int i = 0; i < N_MM; i++)
-        if (w4_json_str_eq(js, name, MM[i].name)) return i;
-    return -1;
+    zxvd_json_t v = {0};
+    int32_t params = zxvd_param_json(zc, NULL, &v) ? v.at : -1;
+    int err = 0;
+    char msg[256] = "";
+    mc_t c = {v.js, (const w4_jtok_t *) v.tok, v.n, params, zxvd_result(zc), &err, msg,
+              sizeof msg};
+    fn(&c);
+    if (err) zxvd_fail(zc, err, "%s", msg);
 }
 
-void zxvd_mod_names(zxvd_buf_t *out)
-{
-    for (int i = 0; i < N_MM; i++) {
-        zxvd_buf_raw(out, ",", 1);
-        zxvd_buf_json_str(out, MM[i].name);
+#define M(name, fn)                                                                                \
+    static void g_##fn(zxvd_call_t *c)                                                             \
+    {                                                                                              \
+        run(c, fn);                                                                                \
     }
-}
+M("freight.pack", m_freight_pack)
+M("freight.unpack", m_freight_unpack)
+M("harmonic.encode", m_harmonic_encode)
+M("harmonic.decode", m_harmonic_decode)
+M("stream.plan", m_stream_plan)
+M("stream.segment", m_stream_segment)
+M("ehop.bands", m_ehop_bands)
+M("ehop.seal", m_ehop_seal)
+M("ehop.open", m_ehop_open)
+M("web4.cid", m_web4_cid)
+M("web4.agent_card", m_web4_agent_card)
+M("web4.card_verify", m_web4_card_verify)
+#undef M
 
-void zxvd_mod_call(int i, const char *js, const w4_jtok_t *t, int32_t n, int32_t params,
-                   zxvd_buf_t *res, int *err, char *msg, size_t msg_cap)
+/* pure codecs that move no money: every method answers with the switch off */
+static const zxvd_group_method_t METHODS[] = {
+    {"freight.pack", g_m_freight_pack, true},
+    {"freight.unpack", g_m_freight_unpack, true},
+    {"harmonic.encode", g_m_harmonic_encode, true},
+    {"harmonic.decode", g_m_harmonic_decode, true},
+    {"stream.plan", g_m_stream_plan, true},
+    {"stream.segment", g_m_stream_segment, true},
+    {"ehop.bands", g_m_ehop_bands, true},
+    {"ehop.seal", g_m_ehop_seal, true},
+    {"ehop.open", g_m_ehop_open, true},
+    {"web4.cid", g_m_web4_cid, true},
+    {"web4.agent_card", g_m_web4_agent_card, true},
+    {"web4.card_verify", g_m_web4_card_verify, true},
+};
+
+static const zxvd_group_t GROUP = {
+    "codecs",
+    false,
+    "freight, harmonic, stream, ehop and web4 codecs (stateless, no ledger)",
+    METHODS,
+    sizeof METHODS / sizeof METHODS[0],
+    NULL,
+};
+
+const zxvd_group_t *zxvd_codecs_group(void)
 {
-    mc_t c = {js, t, n, params, res, err, msg, msg_cap};
-    if (i >= 0 && i < N_MM) MM[i].fn(&c);
+    return &GROUP;
 }

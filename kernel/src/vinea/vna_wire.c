@@ -27,6 +27,25 @@ static const vna_field_t msg_fields[] = {
 const vna_schema_t vna_msg_schema = {"message", 0x0001, 1, msg_fields,
                                      sizeof msg_fields / sizeof msg_fields[0]};
 
+static const vna_field_t addr_body_fields[] = {
+    VNA_FVAR(vna_b_addr_t, addr, addr_len, VNA_AXIS_NONE),
+};
+const vna_schema_t vna_b_addr_schema = {"body_addr", 0x000A, 1, addr_body_fields, 1};
+
+static const vna_field_t punch_fields[] = {
+    VNA_FU8(vna_b_punch_t, kind, VNA_PUNCH_INTRO, VNA_AXIS_NONE),
+    VNA_FFIX(vna_b_punch_t, peer, VNA_AXIS_PROVENANCE),
+    VNA_FVAR(vna_b_punch_t, addr, addr_len, VNA_AXIS_NONE),
+};
+const vna_schema_t vna_b_punch_schema = {"body_punch", 0x000B, 1, punch_fields, 3};
+
+static const vna_field_t aipi_fields[] = {
+    VNA_FU8(vna_b_aipi_t, kind, VNA_AIPI_BUSY, VNA_AXIS_NONE),
+    VNA_FU64(vna_b_aipi_t, amount, 0, VNA_AXIS_FINANCIAL),
+    VNA_FVAR(vna_b_aipi_t, data, len, VNA_AXIS_NONE),
+};
+const vna_schema_t vna_b_aipi_schema = {"body_aipi", 0x000C, 1, aipi_fields, 3};
+
 static const vna_field_t key_fields[] = {VNA_FFIX(vna_b_key_t, key, VNA_AXIS_NONE)};
 const vna_schema_t vna_b_key_schema = {"body_key", 0x0002, 1, key_fields, 1};
 

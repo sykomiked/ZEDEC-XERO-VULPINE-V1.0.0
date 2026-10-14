@@ -65,6 +65,7 @@
 #define DHCP_OPT_SUBNET     1u
 #define DHCP_OPT_ROUTER     3u
 #define DHCP_OPT_DNS        6u
+#define DHCP_OPT_NTP        42u /* NTP servers (RFC 2132 8.3) */
 #define DHCP_OPT_REQUESTED  50u
 #define DHCP_OPT_LEASE      51u
 #define DHCP_OPT_MSGTYPE    53u
@@ -91,6 +92,7 @@ typedef struct {
     uint8_t  netmask[4];
     uint8_t  gateway[4];
     uint8_t  dns[4];
+    uint8_t ntp[4]; /* first NTP server from option 42, or 0.0.0.0 */
     uint32_t lease_secs;
 } dhcp_client_t;
 

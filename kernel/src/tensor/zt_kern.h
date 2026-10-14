@@ -301,6 +301,28 @@ typedef void (*zt_att_qk_fn)(const int32_t *q, const int32_t *k, uint64_t kstrid
 typedef void (*zt_att_wv_fn)(const int32_t *w, const int32_t *v, uint64_t vstride, uint32_t n,
                              uint32_t hd, int64_t *acc);
 
+/* ---- whole matrix products (an accelerator, e.g. zt_metal.h) ----
+ * For every row r < rows and token t < B: y[t * ystride + r] = the dot
+ * product of row r with token t's activations (a + t * astride, ash and asum
+ * + t * (astride / 32)), exactly as zt_dot_*_c returns it (bias not added). */
+typedef struct zt_mmf {
+    const uint8_t *raw; /* GGUF rows of qtype (Q8_0, Q4_K, Q6_K), or null */
+    const zt_q8_t *q8;  /* zt_q8_t rows when raw is null */
+    uint32_t qtype, rows, cols;
+    const int16_t *a;
+    const uint8_t *ash;
+    const int32_t *asum;
+    uint32_t astride, B;
+    zt_fx *y;
+    uint32_t ystride;
+} zt_mmf_t;
+
+/* Run n independent products (all reading the same or different inputs).
+ * Returns 0 when every y is written, nonzero (having written nothing the
+ * caller relies on) when it cannot run one of them; the caller then computes
+ * all n with the kernels below. */
+typedef int (*zt_mm_full_fn)(void *fctx, const zt_mmf_t *jobs, uint32_t n);
+
 /* A set of kernels. Each function must return exactly what the C reference
  * returns for every input (test_zt_simd checks this). */
 typedef zt_fx (*zt_dot_raw_fn)(const uint8_t *row, const int16_t *a, const uint8_t *ash,
@@ -329,6 +351,8 @@ typedef struct zt_kern {
     int (*mm_batch)(const zt_mmb_t *j, uint32_t r0, uint32_t r1);
     zt_att_qk_fn att_qk; /* null: the C reference (Q16 KV cache only) */
     zt_att_wv_fn att_wv; /* null: the C reference (Q16 KV cache only) */
+    zt_mm_full_fn mm_full; /* null: none; tried first for every matrix product */
+    void *fctx;
 } zt_kern_t;
 
 #endif /* ZT_KERN_H */

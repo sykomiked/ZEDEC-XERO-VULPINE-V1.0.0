@@ -238,8 +238,10 @@ N'Ko, Adlam and Devanagari conjuncts.
 
 The font module has three limits:
 
-- It ships only a builtin 8x8 ASCII diagnostic font. There are no font files
-  in the repository.
+- Its builtin font is an 8x8 ASCII diagnostic set. The real faces, ASCW
+  Golden, are in `assets/fonts/ascw-golden/` and mapped to every locale by
+  `font/ascw_golden.h`; see [FONTS.md](FONTS.md). `ascw_face_for_codepoint()`
+  routes the code points `script.c` does not classify.
 - Its TrueType reader (`truetype.c`) handles only cmap format 4, which covers
   the BMP. It cannot reach supplementary-plane scripts such as Adlam
   (U+1E900), Imperial Aramaic (U+10840), Hanifi Rohingya, Chakma or Deseret.
@@ -279,8 +281,8 @@ module does not know. The worst case for each script:
 
 Run `test_i18n_cov -v` for the list of every locale.
 
-**Proposed fonts.** These are proposed only; nothing has been downloaded or
-added to the repository. All are from the Noto project, under the **SIL Open
+**Proposed fonts.** Superseded: ZXV ships ASCW Golden ([FONTS.md](FONTS.md)),
+built from most of the fonts below. This list was written before it. All are from the Noto project, under the **SIL Open
 Font License 1.1**, which allows commercial use, embedding and bundling. The
 license must ship with the fonts, and a modified font may not use the reserved
 name.

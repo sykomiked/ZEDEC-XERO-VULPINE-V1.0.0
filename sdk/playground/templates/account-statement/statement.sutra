@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# statement.sutra - the STATEMENT-REC copybook (statement.cpy) in Sutra.
+record statement-rec
+  st-account: 9(10)
+  st-period:
+    st-year: 9(4)
+    st-month: 99
+  st-totals:
+    st-opening: s9(11)v99 comp-3
+    st-closing: s9(11)v99 comp-3
+  st-line-count: 9(4) comp
+  st-line[5]:                       # OCCURS 5: room for five lines
+    st-line-date: 9(8)
+    st-line-amount: s9(9)v99 sign trailing separate
+    st-line-rate: sv9(6) sign leading
+    st-line-text: x(20)
+  filler: x(10)

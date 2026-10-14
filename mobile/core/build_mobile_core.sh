@@ -36,7 +36,9 @@
 #   swarm/          swarm_market (constants and splits pay_assure uses)
 #   tensor/         zt (integer helpers), GGUF reader, tokenizer: local
 #                   small-model files
-#   mobile/core/    zxv_mobile.c, the flat C API for Kotlin and Swift
+#   power/          power ledger: battery, energy per app and per agent
+#   mobile/core/    zxv_mobile.c, the flat C API for Kotlin and Swift;
+#                   zxv_mobile_power.c, the power hook
 # Optional, compiled when present and when they build for the target:
 #   tensor/zt_model*.c (on-device inference), i18n/*.c
 set -euo pipefail
@@ -76,6 +78,7 @@ CORE=(
     pay/pay_util.c pay/pay_ledger.c pay/pay_tables.c pay/pay_assure.c
     swarm/swarm_market.c swarm/swarm_budget.c swarm/swarm_emotion.c
     tensor/zt.c tensor/zt_gguf.c tensor/zt_tok.c
+    power/power_ledger.c
 )
 # vendored ML-DSA / SLH-DSA reference files (mlkem1024/ and hqc5/ are
 # #included by their wrappers and must not be compiled on their own)
@@ -97,7 +100,8 @@ done
 INC=(-I"$K/include" -I"$K/src/pqsec" -I"$K/src/mlkem" -I"$K/src/lpres" -I"$K/src/surplus"
      -I"$K/src/edp_risk" -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/trispace"
      -I"$K/src/pay" -I"$K/src/tensor" -I"$K/src/swarm" -I"$K/src/zcapital" -I"$K/src/ehop"
-     -I"$K/src/robin_debanks" -I"$K/src/carracho" -I"$K/src/devmesh" -I"$K/src/capmkt")
+     -I"$K/src/robin_debanks" -I"$K/src/carracho" -I"$K/src/devmesh" -I"$K/src/capmkt"
+     -I"$K/src/power")
 
 # ---------------------------------------------------------------- toolchain
 AR=""
@@ -162,6 +166,9 @@ done
 compile "$HERE/zxv_mobile.c" "$OUT/obj/mobile_zxv_mobile.o" 1
 echo "mobile/core/zxv_mobile.c" >> "$OUT/core_sources.txt"
 n=$((n + 1))
+compile "$HERE/zxv_mobile_power.c" "$OUT/obj/mobile_zxv_mobile_power.o" 1
+echo "mobile/core/zxv_mobile_power.c" >> "$OUT/core_sources.txt"
+n=$((n + 1))
 skipped=0
 for s in "${OPTIONAL[@]}"; do
     obj="$OUT/obj/opt_$(echo "$s" | tr '/' '_' | sed 's/\.c$/.o/')"
@@ -177,10 +184,11 @@ done
 rm -f "$OUT"/obj/*.log
 
 "$AR" rcs "$OUT/libzxvcore.a" "$OUT"/obj/*.o
-cp "$HERE/zxv_mobile.h" "$OUT/include/"
+cp "$HERE/zxv_mobile.h" "$HERE/zxv_mobile_power.h" "$OUT/include/"
 cat > "$OUT/include/module.modulemap" <<'EOF'
 module ZXVCore {
     header "zxv_mobile.h"
+    header "zxv_mobile_power.h"
     link "zxvcore"
     export *
 }

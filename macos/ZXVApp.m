@@ -556,6 +556,25 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
               }];
 }
 
+/* The staple apps' Import buttons (an <input type=file>): the files the
+ * owner picks are read by the page and written into the ZXV folder. */
+- (void)webView:(WKWebView *)webView
+    runOpenPanelWithParameters:(WKOpenPanelParameters *)parameters
+              initiatedByFrame:(WKFrameInfo *)frame
+             completionHandler:(void (^)(NSArray<NSURL *> *URLs))completionHandler
+{
+    (void) webView;
+    (void) frame;
+    NSOpenPanel *p = [NSOpenPanel openPanel];
+    p.canChooseFiles = YES;
+    p.canChooseDirectories = NO;
+    p.allowsMultipleSelection = parameters.allowsMultipleSelection;
+    [p beginSheetModalForWindow:self.window
+              completionHandler:^(NSModalResponse r) {
+                completionHandler(r == NSModalResponseOK ? p.URLs : nil);
+              }];
+}
+
 - (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView
 {
     (void) webView;

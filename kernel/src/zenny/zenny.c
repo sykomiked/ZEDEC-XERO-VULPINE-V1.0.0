@@ -284,15 +284,20 @@ zenny_status_t zenny_rebalance(zenny_t *z, uint32_t slot, const zenny_req_t *r)
     return ZENNY_OK;
 }
 
-/* Z5: out_i = qty_i * c / N exact; value_i = out_i * num / den exact */
+/* Z5: out_i = qty_i * c / N exact; value_i = out_i * num / den exact; and
+ * out_i exact at the STORED price too, so the remainder (which keeps the
+ * stored prices) still values to exactly (N - c) * kappa (zenny_check) */
 static zenny_status_t payout(const zenny_version_t *v, uint64_t c, const zenny_price_t *batch,
                              uint64_t *out, uint64_t *val, uint64_t *total)
 {
-    uint64_t rem;
+    uint64_t rem, sv;
     *total = 0;
     for (uint32_t i = 0; i < v->n_legs; i++) {
         (void) pay_muldiv(v->leg[i].qty, c, v->chips, &out[i], &rem); /* out_i <= qty_i */
         if (rem) return ZENNY_ERR_INEXACT;
+        /* <= qty_i * num / den, which fits: the stored valuation was exact */
+        if (!pay_muldiv(out[i], v->price[i].num, v->price[i].den, &sv, &rem) || rem)
+            return ZENNY_ERR_INEXACT;
         if (!batch) continue;
         if (batch[i].den == 0) return ZENNY_ERR_PRICE;
         if (!pay_muldiv(out[i], batch[i].num, batch[i].den, &val[i], &rem))
@@ -327,20 +332,22 @@ uint64_t zenny_quote(const zenny_t *z, uint32_t slot, uint64_t want, const zenny
         uint64_t s = n / gcd64(v->leg[i].qty, n);
         step = step / gcd64(step, s) * s;
     }
-    if (batch) {
-        /* c = k * step pays a_i = qty_i * step / n per k; value exact iff k
-         * is a multiple of den / gcd(den, a_i * num) */
-        uint64_t k = 1;
+    /* c = k * step pays a_i = qty_i * step / n per k; its value at a price
+     * num / den is exact iff k is a multiple of den / gcd(den, a_i * num).
+     * Both the stored prices (the remainder must stay exact) and the batch
+     * prices (the disposal value) must be exact. */
+    uint64_t k = 1;
+    for (uint32_t pass = 0; pass < (batch ? 2u : 1u); pass++)
         for (uint32_t i = 0; i < v->n_legs; i++) {
-            uint64_t a, d = batch[i].den;
+            const zenny_price_t *p = pass ? &batch[i] : &v->price[i];
+            uint64_t a, d = p->den;
             if (d == 0) return 0;
             (void) pay_muldiv(v->leg[i].qty, step, n, &a, 0);
             d /= gcd64(d, a);
-            d /= gcd64(d, batch[i].num);
+            d /= gcd64(d, p->num);
             if (__builtin_mul_overflow(k / gcd64(k, d), d, &k)) return 0;
         }
-        if (__builtin_mul_overflow(step, k, &step)) return 0;
-    }
+    if (__builtin_mul_overflow(step, k, &step)) return 0;
     uint64_t c = want / step * step, out[ZENNY_MAX_LEGS], val[ZENNY_MAX_LEGS], total;
     /* a candidate whose disposal value overflows 64 bits gives 0 */
     return (c && payout(v, c, batch, out, val, &total) == ZENNY_OK) ? c : 0;
@@ -361,6 +368,7 @@ zenny_status_t zenny_decompress(zenny_t *z, uint32_t slot, uint64_t c, const zen
     if (st) return st;
     zenny_version_t v = *cur;
     v.op = ZENNY_OP_DECOMPRESS;
+    v.recipient = 0; /* only a top-up version names a recipient */
     v.chips -= c;
     v.tick = tick;
     for (uint32_t i = 0; i < v.n_legs; i++) v.leg[i].qty -= rc.out[i];
