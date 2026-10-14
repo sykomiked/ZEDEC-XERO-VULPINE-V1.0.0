@@ -492,7 +492,7 @@ EFI_X64_OBJS = kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_stub.o \
                kernel/arch/x86_64/efi_trampoline.o kernel/arch/x86_64/efi_kernel_blob.o
 EFI_STUB_CFLAGS = -O2 -ffreestanding -fpie -fvisibility=hidden \
                   -mno-red-zone -mgeneral-regs-only -fno-stack-protector -fno-asynchronous-unwind-tables
-$(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/x86_64/efi_header.S \
+$(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/efi_models.h kernel/arch/x86_64/efi_header.S \
                 kernel/arch/x86_64/efi_trampoline.S kernel/arch/x86_64/efi_kernel_blob.S build_system/efi_stub.ld
 	$(CC) $(EFI_STUB_CFLAGS) -c -o kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_stub.c
 	$(CC) -c -o kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_header.S

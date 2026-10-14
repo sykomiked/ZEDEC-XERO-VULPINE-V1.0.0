@@ -42,8 +42,11 @@ typedef struct {
   void*CErrH; void*StdErr; void*RuntimeSvc; BOOTSVC *BootSvc;
 } SYSTAB;
 
-unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
-    (void)image;
+#define EFIAPI             /* AArch64 UEFI calls use the plain AAPCS64 ABI */
+#include "../efi_models.h" /* golden disc: verify \ZXV\MODELS\*.gguf */
+
+unsigned long efi_main(EFI_HANDLE image, SYSTAB *st)
+{
     uputs("\r\n>>> ZXV-EFI-STUB: efi_main under UEFI <<<\r\n");
     EFI_GUID gop_guid = {0x9042a9de,0x23dc,0x4a38,{0x96,0xfb,0x7a,0xde,0xd0,0x80,0x51,0x6a}};
     GOP *gop=0;
@@ -65,6 +68,11 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
         uputs("GOP fb="); uhex(fb); uputs(" res="); udec(w); uputc('x'); udec(h);
         uputs(" stride="); udec(pps); uputs(" fmt="); udec(pixfmt); uputs("\r\n");
     }
+
+    /* A golden disc carries AI models: check each one's SHA-256 while the
+     * firmware's file system is still there. Nothing happens on a plain disc. */
+    efi_check_models(image, st->BootSvc->HandleProtocol, st->BootSvc->AllocatePool,
+                     st->BootSvc->FreePool);
 
     /* ---- GetMemoryMap + ExitBootServices (spec 7.4) ---- */
     typedef EFI_STATUS (*GMM)(u64*, void*, u64*, u64*, u32*);

@@ -303,6 +303,10 @@ jobs:
       - name: Class drivers on emulated hardware
         if: ${{ matrix.arch == 'x86_64' }}
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # Golden disc model check with a 3 MiB test file as the model: verified
+      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      - name: Golden disc model check (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

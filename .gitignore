@@ -49,6 +49,7 @@ dist/
 
 # EFI application build artifacts
 BOOTAA64.EFI
+BOOTX64.EFI
 *.efi
 kernel/arch/arm64/efi_stub.elf
 
