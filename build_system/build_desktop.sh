@@ -71,6 +71,15 @@ done
 
 step() { printf '\n== %s\n' "$*"; }
 
+# ASCW Golden, the window's font: every package carries the faces and their
+# SIL OFL 1.1 licence; the engine finds them beside itself (zxv_host.c,
+# pal_find_fonts).
+FONTS_SRC="$ROOT/assets/fonts/ascw-golden"
+put_fonts() { # DIR
+    mkdir -p "$1"
+    cp "$FONTS_SRC"/*.ttf "$FONTS_SRC"/*.otf "$FONTS_SRC/OFL.txt" "$FONTS_SRC/FONTLOG.md" "$1/"
+}
+
 # ---- 1. quality control on the engine itself
 if [ "$SKIP_TESTS" = 0 ]; then
     step "Swarm tests"
@@ -216,6 +225,7 @@ esac
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@EXECUTABLE@/$EXEC/g" -e "s/@UIELEMENT@/$UIEL/g" \
     "$MACOS/Info.plist.in" > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+put_fonts "$APP/Contents/Resources/Fonts"
 cp "$MACOS/models.manifest" "$APP/Contents/Resources/models.manifest"
 cp "$MACOS/zxv-model-fetch.sh" "$APP/Contents/Resources/zxv-model-fetch.sh"
 chmod 755 "$APP/Contents/Resources/zxv-model-fetch.sh"
@@ -268,8 +278,9 @@ if [ "$MAC_ONLY" = 0 ]; then
     step "Windows"
     mkdir -p "$WORK/win"
     cp "$WORK/zxv-swarm.exe" "$WORK/win/"
+    put_fonts "$WORK/win/fonts"
     printf '%s\n\nWindows: SmartScreen may warn that the app is unrecognised. Choose\nMore info, then Run anyway.\n' "$README_TEXT" | sed 's/$/\r/' > "$WORK/win/README.txt"
-    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt)
+    (cd "$WORK/win" && python3 "$ROOT/build_system/zip_tree.py" "$OUT/$NAME-windows-x86_64.zip" zxv-swarm.exe README.txt fonts)
 
     step "Linux"
     for arch in x86_64 aarch64; do
@@ -278,6 +289,7 @@ if [ "$MAC_ONLY" = 0 ]; then
         cp "$WORK/zxv-linux-$arch" "$D/zxv-swarm"
         chmod 755 "$D/zxv-swarm"
         cp "$MACOS/zxv-model-fetch.sh" "$MACOS/models.manifest" "$D/"
+        put_fonts "$D/fonts"
         printf '%s\n\nModels: put a GGUF file in ~/.local/share/zxv/models, or run\n  ./zxv-model-fetch.sh models.manifest ~/.local/share/zxv/models\n' "$README_TEXT" > "$D/README.txt"
         cat > "$D/zxv-swarm.desktop" <<'EOF'
 [Desktop Entry]
@@ -295,6 +307,8 @@ set -e
 here="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications" "$HOME/.local/share/zxv/models"
 cp "$here/zxv-swarm" "$HOME/.local/bin/zxv-swarm"
+mkdir -p "$HOME/.local/share/zxv/fonts"
+cp "$here"/fonts/* "$HOME/.local/share/zxv/fonts/"
 sed "s|^Exec=.*|Exec=$HOME/.local/bin/zxv-swarm|" "$here/zxv-swarm.desktop" \
     > "$HOME/.local/share/applications/zxv-swarm.desktop"
 echo "Installed. Start ZXV Swarm from your applications menu or run ~/.local/bin/zxv-swarm"

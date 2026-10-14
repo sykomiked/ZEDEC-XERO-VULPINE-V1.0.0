@@ -3,9 +3,12 @@
 package org.zedec.zxv.ui
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 
 /** Colours of the desktop mockups (the .dc.html files in zxvui/project). */
@@ -23,9 +26,34 @@ object Zc {
     val Mono = FontFamily.Monospace
 }
 
+/** Every Material text style in ASCW Golden (AscwGolden.kt). */
+private fun ascwTypography(f: FontFamily): Typography {
+    val t = Typography()
+    return t.copy(
+        displayLarge = t.displayLarge.copy(fontFamily = f),
+        displayMedium = t.displayMedium.copy(fontFamily = f),
+        displaySmall = t.displaySmall.copy(fontFamily = f),
+        headlineLarge = t.headlineLarge.copy(fontFamily = f),
+        headlineMedium = t.headlineMedium.copy(fontFamily = f),
+        headlineSmall = t.headlineSmall.copy(fontFamily = f),
+        titleLarge = t.titleLarge.copy(fontFamily = f),
+        titleMedium = t.titleMedium.copy(fontFamily = f),
+        titleSmall = t.titleSmall.copy(fontFamily = f),
+        bodyLarge = t.bodyLarge.copy(fontFamily = f),
+        bodyMedium = t.bodyMedium.copy(fontFamily = f),
+        bodySmall = t.bodySmall.copy(fontFamily = f),
+        labelLarge = t.labelLarge.copy(fontFamily = f),
+        labelMedium = t.labelMedium.copy(fontFamily = f),
+        labelSmall = t.labelSmall.copy(fontFamily = f),
+    )
+}
+
 @Composable
 fun ZxvTheme(content: @Composable () -> Unit) {
+    val context = LocalContext.current
+    val typography = remember { ascwTypography(AscwGolden.family(context)) }
     MaterialTheme(
+        typography = typography,
         colorScheme = darkColorScheme(
             primary = Zc.Gold,
             onPrimary = Zc.Bg,

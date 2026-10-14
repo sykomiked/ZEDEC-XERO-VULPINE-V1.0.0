@@ -200,3 +200,4 @@ kernel/src/tls/test_trust_chains.h
 kernel/src/tls/test_trust_real.h
 kernel/src/timesvc/tz_zones.h
 kernel/src/timesvc/test_tz_vectors.h
+kernel/src/font/ascw_golden_tables.c

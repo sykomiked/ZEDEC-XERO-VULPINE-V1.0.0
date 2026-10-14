@@ -60,7 +60,7 @@ struct StorefrontView: View {
             .pickerStyle(.segmented).labelsHidden().frame(width: 260)
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading) {
-                    Text("Resource").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Resource").font(Theme.caption).foregroundStyle(Theme.muted)
                     Picker("Resource", selection: $resource) {
                         Text("Compute").tag(NetResource.compute)
                         Text("Storage").tag(NetResource.storage)
@@ -68,16 +68,16 @@ struct StorefrontView: View {
                     .labelsHidden().frame(width: 120)
                 }
                 VStack(alignment: .leading) {
-                    Text("Units").font(.caption).foregroundStyle(Theme.muted)
+                    Text("Units").font(Theme.caption).foregroundStyle(Theme.muted)
                     TextField("40", text: $units).textFieldStyle(.roundedBorder).frame(width: 90)
                 }
                 VStack(alignment: .leading) {
-                    Text(selling ? "Price, minor units" : "Most you will pay, minor units").font(.caption).foregroundStyle(Theme.muted)
+                    Text(selling ? "Price, minor units" : "Most you will pay, minor units").font(Theme.caption).foregroundStyle(Theme.muted)
                     TextField("2400", text: $price).textFieldStyle(.roundedBorder).frame(width: 150)
                 }
                 if selling {
                     VStack(alignment: .leading) {
-                        Text("Buyer NodeID (64 hex digits)").font(.caption).foregroundStyle(Theme.muted)
+                        Text("Buyer NodeID (64 hex digits)").font(Theme.caption).foregroundStyle(Theme.muted)
                         TextField("from the buyer's P2P Mesh page", text: $node).textFieldStyle(.roundedBorder)
                     }
                 }
@@ -103,10 +103,10 @@ struct StorefrontView: View {
                 .disabled((try? command.text()) == nil || store.state?.net.bound != true)
             }
             if store.state?.net.bound != true {
-                Text("Turn the network on in P2P Mesh to trade.").font(.caption).foregroundStyle(Theme.muted)
+                Text("Turn the network on in P2P Mesh to trade.").font(Theme.caption).foregroundStyle(Theme.muted)
             }
             if !posted.isEmpty {
-                Text("Posted from this window").font(.caption).foregroundStyle(Theme.muted)
+                Text("Posted from this window").font(Theme.caption).foregroundStyle(Theme.muted)
                 ForEach(posted.prefix(5), id: \.self) { Text($0).font(.system(size: 12, design: .monospaced)) }
             }
         }
@@ -119,7 +119,7 @@ struct StorefrontView: View {
         return Panel(title: "Open offers") {
             KV(key: "Sharing", value: "\(o?.share.compute ?? "0") compute · \(o?.share.storage ?? "0") storage")
             if wants.isEmpty && out.isEmpty {
-                Text("No open wants and nothing waiting on a peer.").font(.callout).foregroundStyle(Theme.muted)
+                Text("No open wants and nothing waiting on a peer.").font(Theme.callout).foregroundStyle(Theme.muted)
             }
             ForEach(wants) { w in
                 KV(key: "Want \(w.resource)", value: "\(w.unitsLeft) left, at most \(w.maxPrice) each")
@@ -128,7 +128,7 @@ struct StorefrontView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(r.role == "sell" ? "Offered \(r.units) units, waiting for the buyer"
                                           : "Bought \(r.units) units, waiting for the seller")
-                        .font(.callout)
+                        .font(Theme.callout)
                     Text("\(r.peer.prefix(16))… · sent \(r.tries) time(s)")
                         .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
                 }
@@ -160,7 +160,7 @@ struct StorefrontView: View {
                 Stat(value: grouped(s?.bountiesReturned ?? 0), label: "Bounties returned")
                 Stat(value: "\(grouped(s?.ledgerAudited ?? 0)) / \(grouped(s?.ledgerIssues ?? 0))", label: "Audited / issues")
             }
-            Text("Where the 0.08889% fee goes").font(.caption).foregroundStyle(Theme.muted)
+            Text("Where the 0.08889% fee goes").font(Theme.caption).foregroundStyle(Theme.muted)
             GeometryReader { g in
                 HStack(spacing: 0) {
                     Theme.floor.frame(width: g.size.width * 0.50)
@@ -178,7 +178,7 @@ struct StorefrontView: View {
                 Legend(color: Theme.good, text: "Node bounties 15%")
                 Legend(color: Theme.emotional, text: "Regenerative 10%")
             }
-            .font(.caption)
+            .font(Theme.caption)
         }
     }
 }

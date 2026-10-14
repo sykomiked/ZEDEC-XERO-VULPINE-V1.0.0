@@ -68,7 +68,7 @@ struct MeshView: View {
             KV(key: "Node ID", value: (net?.nodeId).flatMap { $0.isEmpty ? nil : $0 } ?? "\u{2014}")
             KV(key: "Listening on", value: net?.bound == true ? "\(net!.bind):\(net!.port)" : "\u{2014}")
             KV(key: "Handshake", value: "ML-KEM-1024 + ML-DSA-87")
-            Text("Full NodeID").font(.caption).foregroundStyle(Theme.muted)
+            Text("Full NodeID").font(Theme.caption).foregroundStyle(Theme.muted)
             Text((net?.id).flatMap { $0.isEmpty ? nil : $0 } ?? "The NodeID appears when the network is on.")
                 .font(.system(size: 12, design: .monospaced))
                 .textSelection(.enabled)
@@ -91,7 +91,7 @@ struct MeshView: View {
             Label("Imports \(net?.conserved == false ? "NOT conserved" : "conserved") · \(grouped(net?.imported ?? 0)) units imported",
                   systemImage: net?.conserved == false ? "exclamationmark.triangle" : "checkmark")
                 .foregroundStyle(net?.conserved == false ? Theme.warn : Theme.good)
-                .font(.callout)
+                .font(Theme.callout)
         }
     }
 
@@ -107,10 +107,10 @@ struct MeshView: View {
                 .disabled(mode == .off)
             }
             if mode == .off {
-                Text("Turn on LAN or Online first.").font(.caption).foregroundStyle(Theme.muted)
+                Text("Turn on LAN or Online first.").font(Theme.caption).foregroundStyle(Theme.muted)
             }
             Divider()
-            Text("SHARE WITH THE MESH").font(.system(size: 12, weight: .semibold)).kerning(1).foregroundStyle(Theme.muted)
+            Text("SHARE WITH THE MESH").font(Theme.ui(12)).kerning(1).foregroundStyle(Theme.muted)
             HStack {
                 TextField("Compute units", text: $shareCompute).textFieldStyle(.roundedBorder)
                 TextField("Storage units", text: $shareStorage).textFieldStyle(.roundedBorder)
@@ -121,7 +121,7 @@ struct MeshView: View {
                 }
             }
             Text("Now sharing \(grouped(net?.shareCompute ?? 0)) compute and \(grouped(net?.shareStorage ?? 0)) storage units. 0 and 0 stops sharing.")
-                .font(.callout).foregroundStyle(Theme.muted)
+                .font(Theme.callout).foregroundStyle(Theme.muted)
         }
     }
 
@@ -150,7 +150,7 @@ struct MeshView: View {
                         }
                         if p.ubh { Text("UBH-168") }
                     }
-                    .font(.caption).foregroundStyle(Theme.muted)
+                    .font(Theme.caption).foregroundStyle(Theme.muted)
                 }
                 .padding(8)
                 .background(Theme.inset, in: RoundedRectangle(cornerRadius: 8))

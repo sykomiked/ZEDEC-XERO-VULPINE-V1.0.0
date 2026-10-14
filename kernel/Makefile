@@ -1149,6 +1149,13 @@ verify-all: test
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
 		-o /tmp/test_font -lm && \
 		/tmp/test_font && echo "[PASS] test_font" || { echo "[FAIL] test_font"; exit 1; }; \
+	echo "=== ASCW Golden: UI/system font map vs the real fonts + every CLDR locale ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font -Isrc/i18n \
+		src/font/test_ascw_golden.c src/font/ascw_golden.c src/font/ascw_golden_tables.c \
+		src/font/font.c src/font/script.c src/font/truetype.c src/i18n/i18n_text.c \
+		src/i18n/i18n_locale.c src/i18n/i18n_format.c src/i18n/i18n_tables.c src/i18n/i18n_catalog.c \
+		-o /tmp/test_ascw_golden -lm && \
+		/tmp/test_ascw_golden && echo "[PASS] test_ascw_golden" || { echo "[FAIL] test_ascw_golden"; exit 1; }; \
 	echo "=== zxpkg: native Tri-Space package (.zxvc/.cedez/.cedec) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zxpkg -Isrc/trispace -Isrc/robin_debanks -Isrc/loader \
 		src/zxpkg/test_zxpkg.c src/zxpkg/zxpkg.c src/trispace/trispace.c src/robin_debanks/sha256.c \
