@@ -21,11 +21,12 @@ make -s -C "$R/sdk/kits/aipi" CC="$CC" OUT="$A" all "$A/zcontract/libzcontract_w
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/aipi" \
     -I"$K/include" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/src/e8" -I"$K/src/lpres" \
-    -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/surplus" \
+    -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/surplus" -I"$K/src/juris" \
     -I"$R/sdk/libzxv/include" -I"$R/sdk/kits/aipi/include" -I"$R/sdk/kits/aipi/test" \
     -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" \
     "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" \
+    "$K/src/juris/juris.c" "$K/src/acct/acct.c" \
     "$A/libaipi_zwasm.a" "$A/libaipi_core.a" "$A/zcontract/libzcontract_wasm.a" \
     "$A/zcontract/libzcontract.a" "$A/zwasm/libzwasm.a" \
     -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_aipi" 2>"$T/cc.log" ||

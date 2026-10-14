@@ -749,7 +749,7 @@ def main(binary, gguf=None):
               'bond' in pc['next']['missing'] and pc['inputs']['bond']['value'] == '0',
               'player.card: Copper, Bronze next, bond missing (%s)' % pc)
         j = c.ok('jurisdiction.get')
-        check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is False and
+        check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is True and j['plugins'] == 0 and j['report_standard'] == '' and
               'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')
 
         # ---- the owner's chat (zxvd_chat.h C1-C8), in memory without --books ----

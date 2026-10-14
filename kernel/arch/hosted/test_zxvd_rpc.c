@@ -30,6 +30,7 @@
 
 #include "zxvd_rpc.h"
 #include "zxvd_ext.h"
+#include "juris.h"
 #include "zxv_api.h"
 #include "sha256.h"
 #include "web4_web2.h"
@@ -1931,7 +1932,17 @@ static void test_views(void)
 
 #define JU_LIST                                                                                    \
     "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
-    "\"in_effect\":false}"
+    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\"}"
+
+/* J5: the result as kernel/src/juris reads it */
+static bool ju_parse(const char *req, juris_settings_t *s)
+{
+    const char *r = strstr(rpc(req), "\"result\":");
+    if (!r) return false;
+    r += 9;
+    size_t n = strlen(r);
+    return n > 1 && juris_settings_parse(r, n - 1, s) == JURIS_OK; /* drop the closing } */
+}
 
 static void test_jurisdiction(void)
 {
@@ -1998,6 +2009,35 @@ static void test_jurisdiction(void)
     EXPECT(
         REQ("9", "jurisdiction.set",
             ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
+        OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
+    /* J5: the jurisdiction host follows the settings, across a restart */
+    EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
+           OK("9",
+              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+    reopen();
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
+          "J5: the host has the replayed settings");
+    juris_settings_t js;
+    CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
+              js.standard == ACCT_STD_IFRS && !strcmp(js.country, "KE") && js.in_effect,
+          "J5: kernel/src/juris reads the result");
+    CHECK(
+        has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
+            "\"report_standard\":\"\"}"),
+        "J5: no country, no report standard");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
+              "\"report_standard\":\"AAOIFI\"}") &&
+              ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
+              js.standard == ACCT_STD_AAOIFI,
+          "J5: AAOIFI with a country");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IPSAS\"}"),
+              "\"report_standard\":\"\"}"),
+          "J5: a standard with no adapter gives none");
+    EXPECT(
+        REQ("9", "jurisdiction.set",
+            ",\"params\":{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* a damaged record stops the start */
     const char *bad[] = {

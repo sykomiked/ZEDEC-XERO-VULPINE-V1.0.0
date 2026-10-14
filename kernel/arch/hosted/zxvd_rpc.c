@@ -37,6 +37,7 @@
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxv_files.h" /* files.*: the ZXV folder */
 #include "zxv_spaces.h" /* spaces.*: who may see and change each place */
+#include "juris.h"     /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -346,6 +347,25 @@ static bool JU_OPEN;    /* J2: false = closed clearing (the default) */
 static uint32_t JU_IDX; /* J3: index in JU_STD; 0 = not chosen */
 static char JU_CC[3];   /* J1: ISO 3166-1 alpha-2, or "" */
 
+/* J5: the jurisdiction host holds the same settings. No gateway key is
+ * configured, so no plug-in can register and its answers fail closed. */
+static lpx_qrec_t JU_QLOG[64];
+static juris_host_t JU_HOST;
+
+static void ju_host_sync(bool reset)
+{
+    juris_settings_t s;
+    juris_settings_default(&s);
+    s.market = JU_OPEN ? JURIS_MARKET_OPEN : JURIS_MARKET_CLOSED;
+    s.standard = (uint8_t) acct_std_from_name(JU_STD[JU_IDX]);
+    if (JU_CC[0]) memcpy(s.country, JU_CC, sizeof JU_CC); /* "" may leave old bytes after it */
+    s.in_effect = true;
+    if (reset)
+        juris_host_init(&JU_HOST, &s, NULL, NULL, JU_QLOG, 64);
+    else
+        (void) juris_host_apply_settings(&JU_HOST, &s);
+}
+
 static int ju_std(const char *s)
 {
     for (uint32_t i = 0; i < JU_NSTD; i++)
@@ -372,6 +392,7 @@ static int32_t bk_juris(bool open, uint32_t idx, const char *cc)
     JU_OPEN = open;
     JU_IDX = idx;
     memcpy(JU_CC, cc, strlen(cc) + 1);
+    ju_host_sync(false);
     return ZXV_OK;
 }
 
@@ -465,6 +486,7 @@ static const char *bf_apply(const char *js, size_t n)
         JU_OPEN = !strcmp(m, "open");
         JU_IDX = (uint32_t) ix;
         memcpy(JU_CC, c2, strlen(c2) + 1);
+        ju_host_sync(false);
         return NULL;
     }
     if (w4_json_str_eq(js, &t[op], "feat")) {
@@ -493,6 +515,7 @@ static int bf_load(void)
     JU_OPEN = false;
     JU_IDX = 0;
     JU_CC[0] = 0;
+    ju_host_sync(true);
     memset(BF_HEAD, 0, sizeof BF_HEAD);
     if (!BF_PATH[0]) return 0;
     BF = BF_OPEN(BF_PATH);
@@ -2071,7 +2094,8 @@ static void ju_put(zxvd_buf_t *o)
                     JU_OPEN ? "open" : "closed", JU_STD[JU_IDX], JU_CC);
     for (uint32_t i = 1; i < JU_NSTD; i++)
         zxvd_buf_printf(o, "%s\"%s\"", i > 1 ? "," : "", JU_STD[i]);
-    LIT(o, "],\"in_effect\":false}");
+    zxvd_buf_printf(o, "],\"in_effect\":true,\"plugins\":%u,\"report_standard\":\"%s\"}",
+                    (unsigned) JU_HOST.n, acct_std_name(juris_host_standard(&JU_HOST)));
 }
 
 static void m_juris_get(call_t *c)
