@@ -27,7 +27,7 @@ for d in "$HERE" src/web4 src/robin_debanks src/mlkem src/pqsec src/ident includ
 done
 S=""
 for f in src/web4/web4_json.c src/web4/web4_util.c src/mlkem/keccak.c src/robin_debanks/sha256.c \
-         src/ident/id_passkey.c src/ident/id_core.c src/pqsec/pq_mldsa65.c src/pqsec/mldsa/[a-z]*.c \
+         src/ident/id_passkey.c src/ident/id_core.c src/ident/id_mem.c src/pqsec/pq_mldsa65.c src/pqsec/mldsa/[a-z]*.c \
          src/pqsec/pq_matrix.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/pq_hqc5.c \
          src/pqsec/pq_slh256s.c src/pqsec/slhdsa/[a-z]*.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
          src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/tls/x25519.c; do

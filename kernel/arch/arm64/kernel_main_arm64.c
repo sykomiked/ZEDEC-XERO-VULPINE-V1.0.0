@@ -22,6 +22,8 @@ extern void uart_init(void);
 extern void uart_puts(const char *s);
 extern void uart_put_hex(uint64_t val);
 extern void uart_put_dec(uint64_t val);
+extern void uart_putc(char c);
+extern char uart_getc(void);
 
 /* GIC driver. The version is probed from GICD_PIDR2 at runtime (see
  * gicv3.c), so the boot log below must report what was FOUND rather than
@@ -533,6 +535,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 #include "../src/crash/crash.h"      /* crash dumps kept on disk across a reboot */
 #include "../src/crash/bootctl.h"    /* boot modes: normal, safe, recovery */
+#include "../src/diskcrypt/diskcrypt.h" /* full-disk encryption (Adiantum, key slots) */
 /* Bridge between the TCP/IP stack and the virtio-net driver. The stack calls
  * knet_tx to put a fully-built frame on the wire; knet_pump drains received
  * frames into the stack. Kept here (arch layer) so src/net stays portable. */
@@ -620,6 +623,19 @@ static uint32_t g_boot_mode = BOOT_MODE_NORMAL;
 static crash_record_t g_last_crash; /* the previous boot's crash, if any */
 static bool g_last_crash_valid = false;
 
+/* Disk encryption (src/diskcrypt). An encrypted disk holds a diskcrypt
+ * volume at sector 0 whose data area carries the ZXVFS region; the crash
+ * area then sits right after the volume, in the clear, because the boot
+ * mode is chosen before anyone has typed a passphrase. */
+static diskcrypt_volume_t g_dcvol;
+static block_device_t *g_fs_dev; /* what ZXVFS sits on: g_vblk or g_dcvol.dev */
+static uint32_t g_crash_base;    /* first sector of the crash area on g_vblk */
+static bool g_disk_encrypted = false;
+static bool g_disk_locked = false; /* encrypted and not unlocked: never mount or format */
+static uint64_t g_kdf_mem[DISKCRYPT_MIN_M_KIB * 128u]; /* 8 MiB Argon2id work area */
+static const diskcrypt_work_t g_kdf_work = {g_kdf_mem, DISKCRYPT_MIN_M_KIB};
+#define DISKCRYPT_VOLUME_SECTORS (DISKCRYPT_DATA_OFFSET + ZXVFS_TOTAL_SECTORS)
+
 /* Event-cycle bookkeeping */
 static uint32_t g_event_cycle = 0;
 static bool g_auto_stats = false;   /* periodic stats spam: only in the
@@ -661,11 +677,88 @@ static void crash_print_record(const crash_record_t *r)
     uart_puts("\n");
 }
 
+/* ---- disk encryption at the console */
+
+static bool g_rng_short = false; /* the hardware source failed during a fill */
+static void hw_rng_fill(void *ctx, uint8_t *out, uint32_t len)
+{
+    (void) ctx;
+    if (!arm64_rng_fill(out, len)) {
+        g_rng_short = true;
+        for (uint32_t i = 0; i < len; i++) out[i] = 0;
+    }
+}
+static const diskcrypt_rng_t g_hw_rng = {hw_rng_fill, 0};
+
+/* Read a line from the console. Secrets are not echoed. */
+static uint32_t console_read_line(char *buf, uint32_t cap, bool echo)
+{
+    uint32_t n = 0;
+    for (;;) {
+        char c = uart_getc();
+        if (c == '\r' || c == '\n') break;
+        if ((c == 0x7F || c == 0x08) && n > 0) {
+            n--;
+            if (echo) uart_puts("\b \b");
+            continue;
+        }
+        if (c < 0x20 || n + 1 >= cap) continue;
+        buf[n++] = c;
+        if (echo) uart_putc(c);
+    }
+    buf[n] = 0;
+    uart_puts("\r\n");
+    return n;
+}
+
+static void wipe_buf(char *p, uint32_t n)
+{
+    volatile char *v = p;
+    while (n--) *v++ = 0;
+}
+
+/* At boot, before ZXVFS mounts: open an encrypted disk with a passphrase or
+ * a recovery key. An empty line leaves it locked and the boot goes on
+ * without persistence. */
+static void boot_unlock_disk(void)
+{
+    static char secret[DISKCRYPT_SECRET_MAX + 1];
+    boot_msg("  [ENCRYPTED] the disk is encrypted");
+    for (int attempt = 0; attempt < 3; attempt++) {
+        uart_puts("  passphrase or recovery key (empty line: stay locked): ");
+        uint32_t n = console_read_line(secret, sizeof secret, false);
+        if (n == 0) break;
+        uart_puts("  checking...\r\n");
+        uint8_t rk[DISKCRYPT_RECOVERY_LEN];
+        uint32_t slot = 0;
+        diskcrypt_status_t st;
+        if (diskcrypt_recovery_parse(secret, rk))
+            st = diskcrypt_unlock(&g_dcvol, &g_vblk, 0, rk, sizeof rk, &g_kdf_work, &slot);
+        else
+            st = diskcrypt_unlock(&g_dcvol, &g_vblk, 0, (const uint8_t *) secret, n, &g_kdf_work,
+                                  &slot);
+        for (uint32_t i = 0; i < sizeof rk; i++) rk[i] = 0;
+        wipe_buf(secret, sizeof secret);
+        if (st == DISKCRYPT_OK) {
+            g_fs_dev = &g_dcvol.dev;
+            g_disk_locked = false;
+            boot_msg("  [UNLOCKED] encrypted disk open");
+            return;
+        }
+        uart_puts("  [LOCKED] ");
+        uart_puts(diskcrypt_status_str(st));
+        uart_puts("\r\n");
+        if (st != DISKCRYPT_ERR_WRONG_KEY) break;
+    }
+    g_disk_locked = true;
+    boot_msg("  [LOCKED] encrypted disk stays locked; persistence unavailable this boot");
+}
+
 /* After ZXVFS mounts: report and clear any crash record the last boot left,
  * then choose this boot's mode. */
 static void boot_crash_check(void)
 {
-    if (!crash_area_attach(&g_crash_area, &g_vblk, ZXVFS_TOTAL_SECTORS)) {
+    if (!crash_area_attach(&g_crash_area, &g_vblk, g_crash_base)) {
         boot_msg("  [SKIP] crash log: disk too small for the reserved area");
         return;
     }
@@ -2252,20 +2345,36 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] Persistent storage (virtio-blk + ZXVFS journaled FS)...");
     if (virtio_blk_init(&g_vblk)) {
         boot_msg("  [DRIVER ONLINE] virtio-blk device found");
-        int mrc = zxvfs_mount(&g_zxvfs, &g_vblk);
+        g_fs_dev = &g_vblk;
+        g_crash_base = ZXVFS_TOTAL_SECTORS;
+        uint32_t crypt_sectors = 0;
+        if (diskcrypt_probe(&g_vblk, 0, &crypt_sectors)) {
+            g_disk_encrypted = true;
+            /* the crash area follows the volume, whatever its size */
+            g_crash_base = DISKCRYPT_DATA_OFFSET + crypt_sectors;
+            boot_unlock_disk();
+        }
+        /* A locked disk is never mounted: to ZXVFS it would look blank, and
+         * formatting it would destroy the encrypted volume. */
+        int mrc = g_disk_locked ? -1 : zxvfs_mount(&g_zxvfs, g_fs_dev);
         if (mrc == -2) {
             /* No valid superblock. Format only a provably blank disk. */
-            int blank = zxvfs_probe_blank(&g_vblk);
+            int blank = zxvfs_probe_blank(g_fs_dev);
             if (blank == 1) {
                 boot_msg("  [FORMAT] blank disk — writing fresh ZXVFS");
-                if (zxvfs_format(&g_vblk) == 0) mrc = zxvfs_mount(&g_zxvfs, &g_vblk);
+                if (zxvfs_format(g_fs_dev) == 0) mrc = zxvfs_mount(&g_zxvfs, g_fs_dev);
             } else if (blank == 0) {
                 boot_msg("  [LEFT ALONE] disk holds data that is not ZXVFS — not formatting");
             } else {
                 boot_msg("  [LEFT ALONE] disk read failed — not formatting");
             }
         }
-        if (mrc == 0) {
+        if (g_disk_locked) {
+            /* Reported by boot_unlock_disk. The crash area is outside the
+             * volume and in the clear, so crash reports and boot modes
+             * still work. */
+            boot_crash_check();
+        } else if (mrc == 0) {
             g_zxvfs_ready = true;
             if (g_zxvfs.journal_replays > 0)
                 boot_msg("  [RECOVERED] committed journal replayed on mount");
@@ -2303,7 +2412,7 @@ void kernel_main_arm64(void) {
      * RUNNING on ZEDEC (instructions retire on the matching CPU core), not
      * merely that the kernel survived ingesting the bytes. The Game Master
      * greps the serial for these [EMU] lines. */
-    if (g_vblk.present && !g_zxvfs_ready) {
+    if (g_vblk.present && !g_zxvfs_ready && !g_disk_encrypted) {
         boot_msg("[BOOT] Game runner: executing the attached ROM on the emulator CPU cores...");
         static game_run_t gr;
         game_runner_run(&g_vblk, &gr);
@@ -3629,6 +3738,108 @@ void kernel_shell_exec(const char *line) {
         uart_puts("\r\n");
         return;
     }
+    if (strcmp(line, "diskcrypt") == 0) {
+        if (!g_vblk.present) {
+            uart_puts("diskcrypt: no persistent disk\r\n");
+        } else if (!g_disk_encrypted) {
+            uart_puts("diskcrypt: the disk is not encrypted ('encrypt' encrypts it)\r\n");
+        } else if (g_disk_locked) {
+            uart_puts("diskcrypt: encrypted, locked this boot\r\n");
+        } else {
+            uart_puts("diskcrypt: encrypted (Adiantum, XChaCha12 + AES-256), unlocked; ");
+            uart_put_dec(diskcrypt_slots_used(&g_dcvol));
+            uart_puts(" of 8 key slots in use\r\n");
+        }
+        return;
+    }
+    if (strcmp(line, "encrypt") == 0) {
+        static char pass[DISKCRYPT_SECRET_MAX + 1], again[DISKCRYPT_SECRET_MAX + 1];
+        if (!g_vblk.present) {
+            uart_puts("encrypt: no persistent disk\r\n");
+            return;
+        }
+        if (g_disk_encrypted) {
+            uart_puts("encrypt: the disk is already encrypted\r\n");
+            return;
+        }
+        if (g_vblk.total_sectors < DISKCRYPT_VOLUME_SECTORS + CRASH_AREA_SECTORS) {
+            uart_puts("encrypt: the disk is too small\r\n");
+            return;
+        }
+        if (!arm64_rng_available()) {
+            uart_puts("encrypt: this CPU has no hardware random source (FEAT_RNG), so no key "
+                      "can be made safely; nothing changed\r\n");
+            return;
+        }
+        uart_puts("encrypt: this ERASES every file on the disk and starts an empty encrypted "
+                  "one.\r\nType ERASE to go on: ");
+        console_read_line(pass, sizeof pass, true);
+        if (strcmp(pass, "ERASE") != 0) {
+            uart_puts("encrypt: cancelled; nothing changed\r\n");
+            return;
+        }
+        uart_puts("New passphrase (8 characters or more): ");
+        uint32_t n = console_read_line(pass, sizeof pass, false);
+        uart_puts("Again: ");
+        console_read_line(again, sizeof again, false);
+        if (n < 8 || strcmp(pass, again) != 0) {
+            uart_puts(n < 8 ? "encrypt: too short; nothing changed\r\n"
+                            : "encrypt: the two did not match; nothing changed\r\n");
+            wipe_buf(pass, sizeof pass);
+            wipe_buf(again, sizeof again);
+            return;
+        }
+        wipe_buf(again, sizeof again);
+        uart_puts("encrypt: deriving the key (Argon2id, 8 MiB, 3 passes)...\r\n");
+        g_rng_short = false;
+        diskcrypt_status_t st =
+            diskcrypt_format(&g_dcvol, &g_vblk, 0, DISKCRYPT_VOLUME_SECTORS,
+                             DISKCRYPT_SLOT_PASSPHRASE, (const uint8_t *) pass, n,
+                             DISKCRYPT_MIN_M_KIB, DISKCRYPT_DEFAULT_T, &g_hw_rng, &g_kdf_work);
+        wipe_buf(pass, sizeof pass);
+        uint8_t rk[DISKCRYPT_RECOVERY_LEN];
+        char rtext[DISKCRYPT_RECOVERY_TEXT];
+        if (st == DISKCRYPT_OK) {
+            diskcrypt_recovery_key(&g_hw_rng, rk, rtext);
+            st = diskcrypt_add_slot(&g_dcvol, DISKCRYPT_SLOT_RECOVERY, rk, sizeof rk, 8, 1,
+                                    &g_hw_rng, &g_kdf_work, 0);
+            for (uint32_t i = 0; i < sizeof rk; i++) rk[i] = 0;
+        }
+        if (st == DISKCRYPT_OK && g_rng_short) st = DISKCRYPT_ERR_IO;
+        /* From here the old ZXVFS is gone: its first sectors hold the
+         * volume header. Mount nothing from the raw disk again. */
+        g_zxvfs_ready = false;
+        g_ab_ready = false;
+        if (st != DISKCRYPT_OK) {
+            diskcrypt_erase(&g_dcvol, &g_vblk, 0);
+            uart_puts("encrypt: failed (");
+            uart_puts(g_rng_short ? "the hardware random source failed" : diskcrypt_status_str(st));
+            /* The old files are gone either way; leave an empty, usable,
+             * unencrypted ZXVFS rather than a disk the next boot refuses. */
+            if (zxvfs_format(&g_vblk) == 0 && zxvfs_mount(&g_zxvfs, &g_vblk) == 0)
+                g_zxvfs_ready = true;
+            uart_puts(g_zxvfs_ready ? "); the disk is now empty and not encrypted\r\n"
+                                    : "); the disk could not be formatted\r\n");
+            return;
+        }
+        g_disk_encrypted = true;
+        g_fs_dev = &g_dcvol.dev;
+        g_crash_base = DISKCRYPT_VOLUME_SECTORS;
+        if (crash_area_attach(&g_crash_area, &g_vblk, g_crash_base)) {
+            crash_area_clear(&g_crash_area);
+            bootctl_save(&g_crash_area, &g_bootctl);
+        }
+        if (zxvfs_format(g_fs_dev) == 0 && zxvfs_mount(&g_zxvfs, g_fs_dev) == 0)
+            g_zxvfs_ready = true;
+        uart_puts("encrypt: done. The disk is encrypted and empty");
+        uart_puts(g_zxvfs_ready ? ".\r\n" : ", but ZXVFS did not format.\r\n");
+        uart_puts("Recovery key (write it down and keep it away from this machine; it opens "
+                  "the disk if the passphrase is lost):\r\n  ");
+        uart_puts(rtext);
+        uart_puts("\r\n");
+        wipe_buf(rtext, sizeof rtext);
+        return;
+    }
     if (strcmp(line, "crashtest") == 0) {
         /* Deliberately fault (an unmapped read), to check the crash path. */
         uart_puts("crashtest: reading an unmapped address\r\n");
@@ -4132,6 +4343,8 @@ void kernel_shell_exec(const char *line) {
         uart_puts("  bootmode [normal|safe|recovery]  \xe2\x80\x94  show or set the next boot's "
                   "mode\r\n");
         uart_puts("  crashtest  \xe2\x80\x94  fault on purpose to test the crash log\r\n");
+        uart_puts("  encrypt  \xe2\x80\x94  erase the disk and make it an encrypted one\r\n");
+        uart_puts("  diskcrypt  \xe2\x80\x94  show whether the disk is encrypted\r\n");
         uart_puts("  writer new|add|undo|redo|save|open  \xe2\x80\x94  native word processor\r\n");
         uart_puts("  pulse  \xe2\x80\x94  live kernel heartbeat\r\n");
         uart_puts("  forge <intent>  \xe2\x80\x94  Magitech Refinery: any language -> sigil card + AI preset\r\n");

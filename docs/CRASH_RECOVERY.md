@@ -40,7 +40,10 @@ Shell commands:
 ## Where it is kept
 
 The reserved area is 16 sectors placed right after the ZXVFS region of the
-disk (`ZXVFS_TOTAL_SECTORS`), so it never overlaps a file.
+disk (`ZXVFS_TOTAL_SECTORS`), so it never overlaps a file. On an encrypted
+disk ([DISK_ENCRYPTION.md](DISK_ENCRYPTION.md)) it sits right after the
+encrypted volume, in the clear. That way crash reports and boot modes work
+before the disk is unlocked, and on a boot where it stays locked.
 
 - Sector 0 holds the boot-control state.
 - Sectors 1-8 hold the crash record.

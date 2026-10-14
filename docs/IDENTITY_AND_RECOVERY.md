@@ -223,7 +223,7 @@ On the new device, three failed attempts lock the session and wipe the collected
 ```sh
 cd kernel && gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -Iinclude -Isrc/pqsec -Isrc/mlkem \
   -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/trispace \
-  src/ident/test_ident.c src/ident/id_core.c src/ident/id_argon2.c src/ident/id_fuzzy.c \
+  src/ident/test_ident.c src/ident/id_core.c src/ident/id_mem.c src/ident/id_argon2.c src/ident/id_fuzzy.c \
   src/ident/id_shamir.c src/ident/id_passkey.c src/ident/id_kyc.c src/ident/id_recover.c \
   $(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c \
   src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/tls/x25519.c \

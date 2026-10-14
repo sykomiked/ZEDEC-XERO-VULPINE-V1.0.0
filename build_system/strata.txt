@@ -133,6 +133,7 @@ curzi                            trust
 decent                           trust
 ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
 hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
+diskcrypt                        trust      # full-disk encryption; derives key-slot keys with ident Argon2id
 ident                            trust
 identity                         trust
 seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
