@@ -138,6 +138,20 @@ Not covered by `ci-gate`: the path-filtered workflows (`desktop`,
 GitHub cannot require them. Their checks must still be green before a merge
 (the ready rule the project already follows).
 
+### The mutation config
+
+`tests/harness/mutator/targets.json` is shared by every pull request that adds
+a mutation target. Two rules keep it from blocking merges:
+
+- quick-checks runs `mutate.py --check-config`, so an entry duplicated by a
+  merge, invalid JSON, a missing target file or a CI target without a
+  baseline fails in seconds, not in the slow tier's mutation shards.
+- A target whose file has platform-only blocks uses `"lines": "host"`
+  instead of hand-written line numbers. The harness works out which lines this
+  host compiles on every run, so changing the file never needs an edit here.
+  Hand-written ranges are for picking part of a file, and must be kept up to
+  date by the change that moves the code.
+
 ## Run the checks before you push
 
 `scripts/verify-local.sh` runs the same commands on your machine.

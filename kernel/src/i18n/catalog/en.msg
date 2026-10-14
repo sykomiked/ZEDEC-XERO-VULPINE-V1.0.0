@@ -258,3 +258,136 @@ UI_NOTES_READ|-|source|Mark all read
 UI_NOTES_NONE|-|source|None yet.
 UI_NOTE_COUNT|-|source|{0} ({1})
 UI_NOTE_BODY|-|source|{0} · {1}
+# the staple apps (Burrow, Quillon, Glint, Spindle) and the Playground
+UI_TAB_SWARM|-|source|Swarm
+UI_TAB_PLAY|-|source|Playground
+UI_DOCK_APPS|-|source|Apps
+UI_DOCK_TOOLBOX|-|source|Toolbox
+UI_APP_MURMURATION|-|source|Murmuration
+UI_APP_BURROW|-|source|Burrow
+UI_APP_QUILLON|-|source|Quillon
+UI_APP_GLINT|-|source|Glint
+UI_APP_SPINDLE|-|source|Spindle
+UI_FILES_NEW_FOLDER|-|source|New folder
+UI_FILES_NEW_TEXT|-|source|New text file
+UI_IMPORT|-|source|Import…
+UI_FILES_TRASH|-|source|Trash
+UI_FILES_EMPTY_TRASH|-|source|Empty Trash
+UI_FILES_COL_NAME|-|source|Name
+UI_FILES_COL_SIZE|-|source|Size
+UI_FILES_COL_MODIFIED|-|source|Modified
+UI_TEXT_UNTITLED|-|source|Untitled
+UI_TEXT_NEW|-|source|New
+UI_TEXT_OPEN|-|source|Open…
+UI_TEXT_SAVE|-|source|Save
+UI_TEXT_SAVE_AS|-|source|Save as…
+UI_TEXT_PREVIEW|-|source|Preview
+UI_TEXT_PROSE|-|source|Prose
+UI_TEXT_PLACEHOLDER|-|source|Start typing. Save with ⌘S or Ctrl+S.
+UI_CONSOLE_TITLE|-|source|Spindle: call zxvd
+UI_RUN|-|source|Run
+UI_CONSOLE_CLEAR|-|source|Clear
+UI_CONSOLE_PARAMS|-|source|Parameters as a JSON object, for example {"path":""}
+UI_CONSOLE_NOTE|-|source|Every call goes to this machine's zxvd, the same methods the SDKs and ZXV Studio use (api/zxvd.openrpc.json).
+UI_CLOSE|-|source|Close
+UI_CANCEL|-|source|Cancel
+UI_OK|-|source|OK
+UI_PLAY_TEMPLATES|-|source|Templates
+UI_LOADING|-|source|Loading…
+UI_PLAY_TEMPLATES_NOTE|-|source|Each one runs in ZXV's own languages, on scratch state: your books are never touched. From a terminal:
+UI_PLAY_NEW_CMD|-|source|zxv new ID
+UI_PLAY_PICK|-|source|Pick a template
+UI_PLAY_RESET_HINT|-|source|Undo your edits to this template
+UI_PLAY_RESET|-|source|Reset
+UI_PLAY_REQ_PLACEHOLDER|-|source|Describe it in plain words; the local AI drafts the file
+UI_PLAY_DRAFT_BTN|-|source|Draft with AI
+UI_PLAY_USE|-|source|Use this draft
+UI_PLAY_DISCARD|-|source|Discard
+UI_PLAY_RESULT|-|source|Result
+UI_PLAY_PRESS_RUN|-|source|Press Run to check and run the template.
+UI_PLAY_ANSWERS|-|source|Four answers, never forced into yes or no:
+UI_V_TRUE|-|source|TRUE
+UI_PLAY_TRUE_MEANS|-|source|passed
+UI_V_FALSE|-|source|FALSE
+UI_PLAY_FALSE_MEANS|-|source|refused, with the line
+UI_V_BOTH|-|source|BOTH
+UI_PLAY_BOTH_MEANS|-|source|contradictory evidence, held for a person
+UI_V_NEITHER|-|source|NEITHER
+UI_PLAY_NEITHER_MEANS|-|source|not enough to decide yet.
+UI_HOST_REMOTE|-|source|the remote instance
+UI_HOST_LOCAL|-|source|this computer
+UI_PLAY_ABSENT|-|source|The Playground is not part of this build.
+UI_PLAY_RUNNING|-|source|Running…
+UI_PLAY_RUN_FAILED|-|source|Could not run: {0}
+UI_PLAY_PASSED|-|source|Passed
+UI_PLAY_REFUSED|-|source|Refused
+UI_PLAY_HELD_REVIEW|-|source|Held for review
+UI_PLAY_UNDECIDED|-|source|Undecided
+UI_PLAY_APPROVAL|-|source|A person must review this before anything happens. The Playground never actuates or settles for real.
+UI_PLAY_LEDGER|-|source|Ledger: {0}
+UI_PLAY_CHIP_GATE|-|source|gate
+UI_PLAY_CHIP_ADVISORY|-|source|advisory
+UI_PLAY_CHIP_NOT_RUN|-|source|not run
+UI_PLAY_HELD|-|source|HELD · {0}
+UI_PLAY_PENDING|-|source|pending · {0}
+UI_PLAY_AT_LINE|-|source|at line {0}, column {1}
+UI_PLAY_DRAFTING|-|source|The local swarm is drafting…
+UI_PLAY_DRAFT_READY|-|source|AI draft for {0}. Untrusted until it passes the checks: review it, use it, then press Run.
+UI_PLAY_DRAFT_STANDIN|-|source|No language model is installed yet, so a stand-in answered. Install a model pack to draft with AI.
+UI_PLAY_DRAFT_FAILED|-|source|Could not draft: {0}
+UI_RPC_NO_CONNECTION|-|source|no connection to the swarm
+UI_RPC_NO_ZXVD|-|source|this engine has no zxvd, so the apps are not available
+UI_RPC_REFUSED|-|source|the engine refused ({0})
+UI_SIZE_B|-|source|{0} B
+UI_SIZE_KB|-|source|{0} KB
+UI_SIZE_MB|-|source|{0} MB
+UI_SIZE_GB|-|source|{0} GB
+UI_IMPORTING|-|source|Importing {0}: {1}%
+UI_NAME_ERROR|-|source|{0}: {1}
+UI_IMPORTED_ONE|-|source|Imported {0} file.
+UI_IMPORTED_N|-|source|Imported {0} files.
+UI_FILES_ROOT|-|source|ZXV
+UI_FILES_BACK|-|source|Back to files
+UI_FILES_STAT_ONE|-|source|{0} item · stored in {1} on {2}
+UI_FILES_STAT_N|-|source|{0} items · stored in {1} on {2}
+UI_FILES_TRASH_EMPTY|-|source|The Trash is empty.
+UI_FILES_EMPTY|-|source|This folder is empty. Make a text file, a folder, or import files.
+UI_FILES_PUT_BACK|-|source|Put back
+UI_FILES_DELETE_NOW|-|source|Delete now
+UI_FILES_OPEN|-|source|Open
+UI_FILES_RENAME|-|source|Rename
+UI_FILES_MOVE_TRASH|-|source|Move to Trash
+UI_FILES_PUT_BACK_HINT|-|source|Where it goes, as a path in the ZXV folder.
+UI_FILES_DELETE_Q|-|source|Delete for good?
+UI_FILES_DELETE_TEXT|-|source|“{0}” will be removed from this computer. This cannot be undone.
+UI_FILES_DELETE|-|source|Delete
+UI_FILES_EMPTY_Q|-|source|Empty the Trash?
+UI_FILES_EMPTY_TEXT|-|source|Everything in the Trash is removed from this computer. This cannot be undone.
+UI_FILES_REMOVED_ONE|-|source|Removed {0} item.
+UI_FILES_REMOVED_N|-|source|Removed {0} items.
+UI_FILES_NEW_FOLDER_NAME|-|source|New Folder
+UI_CREATE|-|source|Create
+UI_TEXT_UNTITLED_FILE|-|source|Untitled.txt
+UI_TEXT_EDITED|-|source|● edited
+UI_TEXT_WORDS_ONE|-|source|{0} word
+UI_TEXT_WORDS_N|-|source|{0} words
+UI_TEXT_CHARS_ONE|-|source|{0} character
+UI_TEXT_CHARS_N|-|source|{0} characters
+UI_TEXT_LINES_ONE|-|source|{0} line
+UI_TEXT_LINES_N|-|source|{0} lines
+UI_TEXT_ZXV_PATH|-|source|ZXV/{0}
+UI_TEXT_DISCARD_Q|-|source|Discard your changes?
+UI_TEXT_DISCARD_TEXT|-|source|“{0}” has changes that are not saved.
+UI_TEXT_OPENING|-|source|Opening…
+UI_TEXT_SAVE_AS_TITLE|-|source|Save as
+UI_TEXT_SAVE_HINT|-|source|A path in the ZXV folder, for example Notes/idea.md.
+UI_TEXT_SAVING|-|source|Saving…
+UI_TEXT_SAVED|-|source|Saved ZXV/{0}
+UI_TEXT_CODE|-|source|Code
+UI_PHOTOS_ONE|-|source|{0} photo or media file
+UI_PHOTOS_N|-|source|{0} photos and media files
+UI_PHOTOS_NONE|-|source|No photos or media here. Import some, or drop them on Burrow.
+UI_CONSOLE_BAD_JSON|-|source|parameters are not valid JSON
+UI_CONSOLE_STOP_Q|-|source|Stop the swarm?
+UI_CONSOLE_STOP_TEXT|-|source|zxvd.shutdown stops the engine; this window will disconnect.
+UI_CONSOLE_STOP|-|source|Stop

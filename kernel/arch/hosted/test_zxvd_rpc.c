@@ -7,6 +7,7 @@
  * (tests/harness/mutator/targets.json "zxvd_rpc"); test_zxvd.py covers the
  * real daemon end to end. */
 #define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -17,6 +18,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +29,25 @@
 #include <sys/file.h>
 
 #include "zxvd_rpc.h"
+#include "zxvd_ext.h"
+#include "juris.h"
 #include "zxv_api.h"
 #include "sha256.h"
+#include "web4_web2.h"
+
+#include "zxv_files.h"
+#include "zxv_spaces.h"
+
+/* remove a scratch tree without a shell (no links followed) */
+static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
+{
+    (void) st, (void) flag, (void) f;
+    return remove(p);
+}
+static int rm_tree(const char *p)
+{
+    return nftw(p, rm_one, 16, FTW_DEPTH | FTW_PHYS);
+}
 
 static int fails, checks;
 
@@ -134,6 +153,38 @@ static void p_status(zxvd_buf_t *o)
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
+/* phone.* stubs (zxvd_phone.h) */
+static char last_phone_name[40];
+static bool last_phone_post;
+static const char *ph_pair(const char *name, bool post, zxvd_buf_t *o)
+{
+    snprintf(last_phone_name, sizeof last_phone_name, "%s", name);
+    last_phone_post = post;
+    if (!strcmp(name, "full")) return "too many phones paired; revoke one first";
+    zxvd_buf_raw(o, "{\"paired\":true}", 15);
+    return NULL;
+}
+static void ph_list(zxvd_buf_t *o)
+{
+    zxvd_buf_raw(o, "{\"phones\":[]}", 13);
+}
+static const char *ph_revoke(const char *id, zxvd_buf_t *o)
+{
+    if (strcmp(id, "00112233445566778899aabbccddeeff")) return "no such phone";
+    zxvd_buf_raw(o, "{\"revoked\":true}", 16);
+    return NULL;
+}
+static int last_link_port;
+static char last_link_bind[48];
+static const char *ph_link(bool on, int32_t port, const char *bind, zxvd_buf_t *o)
+{
+    last_link_port = port;
+    snprintf(last_link_bind, sizeof last_link_bind, "%s", bind ? bind : "(all)");
+    if (port == 1) return "cannot listen on TCP 1: Permission denied";
+    zxvd_buf_printf(o, "{\"on\":%s}", on ? "true" : "false");
+    return NULL;
+}
+static const zxvd_phone_ops_t PHONE_STUB = {ph_link, ph_pair, ph_list, ph_revoke};
 /* aipi.* stubs (zxvd_aipi_ops_t) */
 static uint8_t put_data[ZXVD_AIPI_HEX_MAX + 1];
 static uint32_t put_len;
@@ -432,21 +483,30 @@ static void test_host_methods(void)
              ma, mi, pa, ft);
     EXPECT(REQ("10", "zxvd.version", ""), want);
     CHECK(ma == 1 && mi >= 2, "libzxv ABI 1.2 or later (%u.%u)", ma, mi);
-    EXPECT(REQ("11", "rpc.discover", ""),
-           OK("11",
-              "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-              "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
-              "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
-              "\"peer.ask\",\"peer.serve\",\"peer.status\","
-              "\"update.check\",\"currency.enable\","
-              "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
-              "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
-              "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
-              "\"aipi.publish\",\"aipi.execute\",\"aipi.status\","
-              /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
-              "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\","
-              "\"stream.plan\",\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\","
-              "\"web4.cid\",\"web4.agent_card\",\"web4.card_verify\"]}"));
+    EXPECT(
+        REQ("11", "rpc.discover", ""),
+        OK("11",
+           "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
+           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+           "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
+           "\"peer.ask\",\"peer.serve\",\"peer.status\","
+           "\"update.check\",\"currency.enable\","
+           "\"ledger.open_account\",\"ledger.post\",\"ledger.balance\",\"ledger.accounts\","
+           "\"ledger.entries\",\"ledger.check\",\"swarm.earnings\",\"mesh.books\","
+           "\"books.file\",\"jurisdiction.get\",\"jurisdiction.set\",\"aipi.put\",\"aipi.get\","
+           "\"aipi.publish\",\"aipi.execute\",\"aipi.status\",\"features.get\",\"features.set\","
+           "\"files.root\",\"files.list\","
+           "\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\","
+           "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
+           "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
+           "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
+           "\"phone.list\",\"phone.revoke\","
+           "\"play.catalogue\",\"play.run\",\"play.draft\","
+           /* the module methods (zxvd_rpc_modules.h), last */
+           "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\","
+           "\"stream.plan\",\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\","
+           "\"web4.cid\",\"web4.agent_card\",\"web4.card_verify\"]"
+           "}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -471,6 +531,7 @@ static void test_host_methods(void)
     EXPECT(REQ("1", "zxvd.version", ""), want);
     zxvd_rpc_set_ops(NULL);
     EXPECT(REQ("1", "swarm.state", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.catalogue", ""), ERR("1", "-32601", "not available"));
     zxvd_rpc_set_ops(&SILENT);
     EXPECT(REQ("1", "swarm.ask", ",\"params\":{\"prompt\":\"x\"}"), OK("1", "{\"answer\":\"\"}"));
     zxvd_rpc_set_ops(&EMPTY);
@@ -479,6 +540,640 @@ static void test_host_methods(void)
 }
 
 /* ---------------- the books (libzxv) ---------------- */
+
+/* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
+
+#define FERR(id, msg) ERR(id, "-32014", msg)
+#define SERR(id, msg) ERR(id, "-32013", msg)
+#define SPS(id, kind, name, owner, role, view, write, pub, members, self)                          \
+    "{\"id\":\"" id "\",\"kind\":\"" kind "\",\"name\":\"" name "\",\"owner\":\"" owner            \
+    "\",\"role\":\"" role "\",\"view\":" view ",\"write\":" write ",\"public\":" pub               \
+    ",\"members\":[" members "]" GOV_V(self) "}"
+/* a space's governance with no proposals: vertical, 51%, this node as `self` */
+#define GOV_V(self)                                                                                \
+    ",\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"" self                              \
+    "\",\"proposals\":[],\"next_proposal\":0,\"cid\":\"\""
+/* owned spaces vote as "me"; joined ones here were given no member id */
+#define SP(id, kind, name, owner, role, view, write, pub, members)                                 \
+    SPS(id, kind, name, owner, role, view, write, pub, members, "me")
+#define SPJ(id, kind, name, owner, role, view, write, pub, members)                                \
+    SPS(id, kind, name, owner, role, view, write, pub, members, "")
+#define HOME_SP      SP("home", "home", "Home", "me", "owner", "true", "true", "false", "")
+#define STUDIO_SP(m) SP("studio-a", "office", "Studio A", "me", "owner", "true", "true", "false", m)
+
+static void test_spaces_methods(void)
+{
+    char root[200];
+    snprintf(root, sizeof root, "%s/zxvd-spaces-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+
+    /* S1 table */
+    CHECK(zxs_rights(ZXS_HOME, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_HOME, ZXS_MEMBER) == 0 && zxs_rights(ZXS_HOME, ZXS_PUBLIC) == 0,
+          "home is the owner's");
+    CHECK(zxs_rights(ZXS_OFFICE, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_TEAM, ZXS_MEMBER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_OFFICE, ZXS_GUEST) == ZXS_VIEW &&
+              zxs_rights(ZXS_TEAM, ZXS_GUEST) == ZXS_VIEW &&
+              zxs_rights(ZXS_OFFICE, ZXS_PUBLIC) == 0 && zxs_rights(ZXS_TEAM, ZXS_PUBLIC) == 0,
+          "offices and teams: members write, guests view");
+    CHECK(zxs_rights(ZXS_CLOUDTOP, ZXS_OWNER) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_CLOUDTOP, ZXS_MEMBER) == ZXS_VIEW &&
+              zxs_rights(ZXS_CLOUDTOP, ZXS_PUBLIC) == ZXS_VIEW,
+          "cloud top: anyone views, the owner writes");
+    CHECK(zxs_rights(ZXS_PARK, ZXS_PUBLIC) == (ZXS_VIEW | ZXS_WRITE) &&
+              zxs_rights(ZXS_PARK, ZXS_GUEST) == (ZXS_VIEW | ZXS_WRITE),
+          "a park is public");
+    CHECK(zxs_rights(ZXS_KINDS, ZXS_OWNER) == 0 && zxs_rights(ZXS_HOME, ZXS_ROLES) == 0,
+          "out of range");
+    CHECK(zxs_kind_parse("park") == ZXS_PARK && zxs_kind_parse("Park") == -1 &&
+              zxs_role_parse("guest") == ZXS_GUEST && zxs_role_parse("") == -1,
+          "parse");
+    CHECK(zxs_who_ok("peer-1") && !zxs_who_ok("") && !zxs_who_ok("a b") && !zxs_who_ok("a\"") &&
+              !zxs_who_ok("a\\b"),
+          "member ids");
+
+    EXPECT(REQ("1", "spaces.list", ""), OK("1", "{\"spaces\":[" HOME_SP "]}"));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"home\"}"), OK("1", HOME_SP));
+    EXPECT(REQ("1", "spaces.get", ""),
+           ERR("1", "-32602", "missing string parameter \\\"space\\\""));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"nope\"}"), SERR("1", "no such space"));
+    EXPECT(REQ("1", "spaces.get", ",\"params\":{\"space\":\"..\"}"),
+           ERR("1", "-32602", "\\\"space\\\" is not a space id"));
+    EXPECT(REQ("1", "files.list", ",\"params\":{\"space\":\"Nope\"}"),
+           ERR("1", "-32602", "\\\"space\\\" is not a space id"));
+    EXPECT(REQ("1", "files.list", ",\"params\":{\"space\":\"nope\"}"), SERR("1", "no such space"));
+
+    /* create */
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"office\",\"name\":\"Studio A\"}"),
+           OK("2", STUDIO_SP("")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"office\",\"name\":\"Studio A\"}"),
+           OK("2",
+              SP("studio-a-2", "office", "Studio A", "me", "owner", "true", "true", "false", "")));
+    EXPECT(REQ("2", "spaces.create",
+               ",\"params\":{\"kind\":\"cloudtop\",\"name\":\"\\u00c9t\\u00e9 \\\"front\\\"\"}"),
+           OK("2", SP("t-front", "cloudtop", "\xc3\x89t\xc3\xa9 \\\"front\\\"", "me", "owner",
+                      "true", "true", "true", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"!!\"}"),
+           OK("2", SP("park", "park", "!!", "me", "owner", "true", "true", "true", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"Home\"}"),
+           OK("2", SP("team", "team", "Home", "me", "owner", "true", "true", "false", "")));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"home\",\"name\":\"x\"}"),
+           ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"attic\",\"name\":\"x\"}"),
+           ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"a\\nb\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+
+    /* files in a space stay in it */
+    EXPECT(REQ("3", "files.write",
+               ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\",\"text\":\"hi\"}"),
+           OK("3", "{\"path\":\"plan.txt\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("3", "files.list", ",\"params\":{\"space\":\"home\"}"),
+           OK("3", "{\"path\":\"\",\"entries\":[]}"));
+    CHECK(has(REQ("3", "files.list", ",\"params\":{\"space\":\"studio-a\"}"),
+              "{\"name\":\"plan.txt\",\"dir\":false,\"size\":2"),
+          "listed in its space: %s", OUT.p);
+    EXPECT(REQ("3", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
+           OK("3", "{\"path\":\"plan.txt\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"text\":\"hi\"}"));
+    EXPECT(REQ("3", "files.read", ",\"params\":{\"path\":\"plan.txt\"}"),
+           FERR("3", "no such file or folder"));
+    EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\".spaces/studio-a/x\",\"text\":\"\"}"),
+           FERR("3", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("3", "files.trash", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
+           OK("3", "{\"trashed\":\".Trash/plan.txt\",\"removed\":false}"));
+    EXPECT(REQ("3", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
+           OK("3", "{\"path\":\".Trash\",\"entries\":[]}"));
+    EXPECT(REQ("3", "files.rename",
+               ",\"params\":{\"space\":\"studio-a\",\"from\":\".Trash/"
+               "plan.txt\",\"to\":\"plan.txt\"}"),
+           OK("3", "{\"path\":\"plan.txt\"}"));
+
+    /* joined spaces: rights by role (S1, S2) */
+    EXPECT(
+        REQ("4", "spaces.join",
+            ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+            "\"role\":\"guest\"}"),
+        OK("4", SPJ("crew", "team", "Crew", "alice", "guest", "true", "false", "false", "")));
+    EXPECT(
+        REQ("4", "spaces.join",
+            ",\"params\":{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+            "\"role\":\"guest\"}"),
+        FERR("4", "something with that name already exists"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"me\","
+               "\"role\":\"member\"}"),
+           FERR("4", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
+               "\"role\":\"owner\"}"),
+           ERR("4", "-32602", "\\\"role\\\" must be member or guest"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"home\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
+               "\"role\":\"member\"}"),
+           FERR("4", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("4", "files.list", ",\"params\":{\"space\":\"crew\"}"),
+           OK("4", "{\"path\":\"\",\"entries\":[]}"));
+    EXPECT(REQ("4", "files.write", ",\"params\":{\"space\":\"crew\",\"path\":\"a\",\"text\":\"\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.mkdir", ",\"params\":{\"space\":\"crew\",\"path\":\"a\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.rename", ",\"params\":{\"space\":\"crew\",\"from\":\"a\",\"to\":\"b\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.trash", ",\"params\":{\"space\":\"crew\",\"path\":\"a\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "files.empty_trash", ",\"params\":{\"space\":\"crew\"}"),
+           SERR("4", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"lab\",\"kind\":\"office\",\"name\":\"Lab\",\"owner\":\"bob\","
+               "\"role\":\"member\"}"),
+           OK("4", SPJ("lab", "office", "Lab", "bob", "member", "true", "true", "false", "")));
+    EXPECT(REQ("4", "files.mkdir", ",\"params\":{\"space\":\"lab\",\"path\":\"bench\"}"),
+           OK("4", "{\"path\":\"bench\"}"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"bobs-front\",\"kind\":\"cloudtop\",\"name\":\"Bob\","
+               "\"owner\":\"bob\",\"role\":\"member\"}"),
+           OK("4",
+              SPJ("bobs-front", "cloudtop", "Bob", "bob", "member", "true", "false", "true", "")));
+    EXPECT(REQ("4", "files.stat", ",\"params\":{\"space\":\"bobs-front\",\"path\":\"x\"}"),
+           FERR("4", "no such file or folder"));
+    EXPECT(REQ("4", "files.write",
+               ",\"params\":{\"space\":\"bobs-front\",\"path\":\"x\",\"text\":\"\"}"),
+           SERR("4", "your role in this space (member) may not change it"));
+    EXPECT(REQ("4", "spaces.join",
+               ",\"params\":{\"id\":\"commons\",\"kind\":\"park\",\"name\":\"Commons\","
+               "\"owner\":\"town\",\"role\":\"guest\"}"),
+           OK("4", SPJ("commons", "park", "Commons", "town", "guest", "true", "true", "true", "")));
+    EXPECT(REQ("4", "files.write",
+               ",\"params\":{\"space\":\"commons\",\"path\":\"hello.txt\",\"text\":\"hi\"}"),
+           OK("4", "{\"path\":\"hello.txt\",\"size\":2,\"done\":true}"));
+
+    /* members (S4) */
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"member\"},{\"who\":\"carol\",\"role\":\"guest\"}]}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.get", ",\"params\":{\"space\":\"studio-a\"}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"crew\",\"members\":[]}"),
+           SERR("5", "only the owner of an office, team, cloud top or park changes its members"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"home\",\"members\":[]}"),
+           SERR("5", "only the owner of an office, team, cloud top or park changes its members"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"member\"},{\"who\":\"bob\",\"role\":\"guest\"}]}"),
+           ERR("5", "-32602", "member 1 is listed twice"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"me\",\"role\":"
+               "\"member\"}]}"),
+           ERR("5", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a\",\"members\":[{\"who\":\"x\",\"role\":"
+               "\"owner\"}]}"),
+           ERR("5", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"studio-a\",\"members\":[7]}"),
+           ERR("5", "-32602", "member 0 must be {\\\"who\\\", \\\"role\\\"}"));
+    EXPECT(REQ("5", "spaces.set_members", ",\"params\":{\"space\":\"studio-a\"}"),
+           ERR("5", "-32602", "\\\"members\\\" must be an array of at most 64 members"));
+    EXPECT(REQ("5", "spaces.get", ",\"params\":{\"space\":\"studio-a\"}"),
+           OK("5", STUDIO_SP("{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+                             "\"guest\"}")));
+    EXPECT(REQ("5", "spaces.set_members",
+               ",\"params\":{\"space\":\"studio-a-2\",\"members\":[{\"who\":\"bob\",\"role\":"
+               "\"guest\"}]}"),
+           OK("5", SP("studio-a-2", "office", "Studio A", "me", "owner", "true", "true", "false",
+                      "{\"who\":\"bob\",\"role\":\"guest\"}")));
+
+    /* governance (S4): zxvd counts the votes */
+    CHECK(zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_OWNER, 3, 1, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_MEMBER, 3, 3, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_VERTICAL, 51, ZXS_GUEST, 3, 3, 0) == ZXS_D_FALSE,
+          "vertical: the owner decides");
+    CHECK(zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 2, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 2, 1) == ZXS_D_BOTH &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 1, 1) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 3, 1, 2) == ZXS_D_FALSE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 60, ZXS_MEMBER, 0, 0, 0) == ZXS_D_FALSE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 100, ZXS_OWNER, 4, 4, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 100, ZXS_OWNER, 4, 3, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 0, ZXS_OWNER, 2, 1, 0) == ZXS_D_NEITHER &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 0, ZXS_OWNER, 100, 51, 0) == ZXS_D_TRUE &&
+              zxs_decide(ZXS_GOV_HORIZONTAL, 50, ZXS_OWNER, 2, 1, 0) == ZXS_D_TRUE,
+          "horizontal: quorum, objections, can no longer pass");
+    CHECK(!strcmp(zxs_decision_name(ZXS_D_BOTH), "both") &&
+              !strcmp(zxs_decision_name(ZXS_D_NEITHER), "neither") &&
+              !strcmp(zxs_decision_name((zxs_decision_t) 9), "?"),
+          "decision names");
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"governance\":\"diagonal\"}"),
+           ERR("10", "-32602", "\\\"governance\\\" must be vertical or horizontal"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"quorum_pct\":101}"),
+           ERR("10", "-32602", "\\\"quorum_pct\\\" must be 1 to 100"));
+    EXPECT(REQ("10", "spaces.create",
+               ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"quorum_pct\":0}"),
+           ERR("10", "-32602", "\\\"quorum_pct\\\" must be 1 to 100"));
+    CHECK(has(REQ("10", "spaces.create",
+                  ",\"params\":{\"kind\":\"office\",\"name\":\"Votes\",\"governance\":"
+                  "\"horizontal\",\"quorum_pct\":60}"),
+              "\"members\":[],\"governance\":\"horizontal\",\"quorum_pct\":60,\"self\":\"me\","
+              "\"proposals\":[],\"next_proposal\":0,\"cid\":\"\"}"),
+          "horizontal space: %s", OUT.p);
+    EXPECT(REQ("10", "spaces.set_members", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+           SERR("10", "this space decides its members by vote"));
+    /* alone, the owner's own yes is the whole quorum */
+    CHECK(has(REQ("10", "spaces.propose",
+                  ",\"params\":{\"space\":\"votes\",\"members\":[{\"who\":\"bob\",\"role\":"
+                  "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"dan\","
+                  "\"role\":\"guest\"}]}"),
+              "{\"proposal\":0,\"state\":\"true\",\"space\":{\"id\":\"votes\""),
+          "applied at once: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"members\":[{\"who\":\"bob\",\"role\":\"member\"},{\"who\":\"carol\",\"role\":"
+              "\"member\"},{\"who\":\"dan\",\"role\":\"guest\"}],\"governance\":\"horizontal\","
+              "\"quorum_pct\":60,\"self\":\"me\",\"proposals\":[],\"next_proposal\":1,"),
+          "members applied: %s", OUT.p);
+    /* now three vote: 1 of 3 is short of 60% */
+    CHECK(has(REQ("10", "spaces.propose",
+                  ",\"params\":{\"space\":\"votes\",\"members\":[{\"who\":\"bob\",\"role\":"
+                  "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"eve\","
+                  "\"role\":\"member\"}]}"),
+              "{\"proposal\":2,\"state\":\"neither\""),
+          "gathering: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"proposals\":[{\"id\":2,\"by\":\"me\",\"members\":[{\"who\":\"bob\",\"role\":"
+              "\"member\"},{\"who\":\"carol\",\"role\":\"member\"},{\"who\":\"eve\",\"role\":"
+              "\"member\"}],\"votes\":[{\"who\":\"me\",\"yes\":true}],\"yes\":1,\"no\":0,"
+              "\"voters\":3,\"state\":\"neither\"}],\"next_proposal\":2,"),
+          "open proposal shown: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0, "load votes");
+        CHECK(zxs_vote_from(&v, 2, "dan", true, &d) == ZXS_E_ROLE, "a guest does not vote");
+        CHECK(zxs_vote_from(&v, 2, "zed", true, &d) == ZXS_E_ROLE, "nor a stranger");
+        CHECK(zxs_vote_from(&v, 9, "bob", true, &d) == ZXS_E_NOPROP, "no such proposal");
+        CHECK(zxs_vote_from(&v, 2, "bob", false, &d) == 0 && d == ZXS_D_NEITHER, "1 yes 1 no");
+        CHECK(zxs_vote_from(&v, 2, "carol", true, &d) == 0 && d == ZXS_D_BOTH,
+              "quorum with an objection is a dispute");
+        CHECK(v.np == 1 && v.n == 3 && !strcmp(v.m[2].who, "dan"), "a dispute is never applied");
+        CHECK(zxs_save(&v, false) == 0, "save the dispute");
+    }
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"yes\":2,\"no\":1,\"voters\":3,\"state\":\"both\"}]"),
+          "the UI sees BOTH: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0 && zxs_vote_from(&v, 2, "bob", true, &d) == 0 &&
+                  d == ZXS_D_TRUE && v.np == 0 && v.n == 3 && !strcmp(v.m[2].who, "eve"),
+              "bob changes his vote: passed and applied");
+        CHECK(zxs_save(&v, false) == 0, "save");
+    }
+    /* one that can no longer pass is dropped */
+    CHECK(has(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+              "{\"proposal\":3,\"state\":\"neither\""),
+          "proposal 3: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("votes", &v) == 0 && zxs_vote_from(&v, 3, "bob", false, &d) == 0 &&
+                  d == ZXS_D_NEITHER && zxs_vote_from(&v, 3, "eve", false, &d) == 0 &&
+                  d == ZXS_D_FALSE && v.np == 0 && v.n == 3,
+              "two noes of four: failed and dropped");
+        CHECK(zxs_save(&v, false) == 0, "save");
+    }
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":3,"
+               "\"vote\":\"yes\"}"),
+           SERR("10", "no open proposal with that id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":3,"
+               "\"vote\":\"maybe\"}"),
+           ERR("10", "-32602", "\\\"vote\\\" must be yes or no"));
+    EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"space\":\"votes\",\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote",
+               ",\"params\":{\"space\":\"votes\",\"proposal\":4294967296,"
+               "\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "\\\"proposal\\\" must be a proposal id"));
+    EXPECT(REQ("10", "spaces.vote", ",\"params\":{\"proposal\":1,\"vote\":\"yes\"}"),
+           ERR("10", "-32602", "missing string parameter \\\"space\\\""));
+    EXPECT(REQ("10", "spaces.propose",
+               ",\"params\":{\"space\":\"votes\",\"members\":"
+               "[{\"who\":\"me\",\"role\":\"member\"}]}"),
+           ERR("10", "-32602", "member 0 needs a printable id and the role member or guest"));
+    EXPECT(REQ("10", "spaces.propose", ",\"params\":{\"members\":[]}"),
+           ERR("10", "-32602", "missing string parameter \\\"space\\\""));
+    /* at most four open; this node changes its own vote */
+    for (int i = 4; i <= 7; i++) {
+        char want[64];
+        snprintf(want, sizeof want, "{\"proposal\":%d,\"state\":\"neither\"", i);
+        CHECK(has(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+                  want),
+              "open %d: %s", i, OUT.p);
+    }
+    EXPECT(REQ("10", "spaces.propose", ",\"params\":{\"space\":\"votes\",\"members\":[]}"),
+           SERR("10", "too many open proposals or votes"));
+    CHECK(has(REQ("10", "spaces.vote",
+                  ",\"params\":{\"space\":\"votes\",\"proposal\":4,\"vote\":\"no\"}"),
+              "{\"proposal\":4,\"state\":\"neither\""),
+          "own vote changed: %s", OUT.p);
+    CHECK(has(REQ("10", "spaces.get", ",\"params\":{\"space\":\"votes\"}"),
+              "\"votes\":[{\"who\":\"me\",\"yes\":false}],\"yes\":0,\"no\":1"),
+          "replaced, not added: %s", OUT.p);
+
+    /* a member of a vertical space proposes; the owner decides */
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"bob\"}"),
+           ERR("11", "-32602", "\\\"self\\\" must be a printable id other than the owner's"));
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"me\"}"),
+           ERR("11", "-32602", "\\\"self\\\" must be a printable id other than the owner's"));
+    EXPECT(REQ("11", "spaces.join",
+               ",\"params\":{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\","
+               "\"owner\":\"bob\",\"role\":\"member\",\"self\":\"dan\"}"),
+           OK("11",
+              SPS("shop", "office", "Shop", "bob", "member", "true", "true", "false", "", "dan")));
+    CHECK(has(REQ("11", "spaces.propose",
+                  ",\"params\":{\"space\":\"shop\",\"members\":[{\"who\":\"dan\",\"role\":"
+                  "\"member\"},{\"who\":\"eve\",\"role\":\"guest\"}]}"),
+              "{\"proposal\":1,\"state\":\"neither\""),
+          "waits for the owner: %s", OUT.p);
+    CHECK(has(REQ("11", "spaces.vote",
+                  ",\"params\":{\"space\":\"shop\",\"proposal\":1,\"vote\":\"yes\"}"),
+              "{\"proposal\":1,\"state\":\"neither\""),
+          "a member's yes is not enough: %s", OUT.p);
+    {
+        static zxs_space_t v;
+        zxs_decision_t d;
+        CHECK(zxs_load("shop", &v) == 0 && zxs_vote_from(&v, 1, "bob", true, &d) == 0 &&
+                  d == ZXS_D_TRUE && v.n == 2 && !strcmp(v.m[1].who, "eve"),
+              "the owner's yes applies it");
+    }
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"lab\",\"members\":[]}"),
+           SERR("11", "this node has no member id in this space"));
+    EXPECT(REQ("11", "spaces.vote",
+               ",\"params\":{\"space\":\"lab\",\"proposal\":1,"
+               "\"vote\":\"yes\"}"),
+           SERR("11", "this node has no member id in this space"));
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"crew\",\"members\":[]}"),
+           SERR("11", "your role in this space may not do that"));
+    EXPECT(REQ("11", "spaces.propose", ",\"params\":{\"space\":\"home\",\"members\":[]}"),
+           SERR("11", "your role in this space may not do that"));
+    EXPECT(REQ("11", "spaces.propose",
+               ",\"params\":{\"space\":\"shop\",\"members\":"
+               "[{\"who\":\"bob\",\"role\":\"member\"}]}"),
+           ERR("11", "-32602", "member 0 is the owner"));
+
+    /* a damaged tally on disk is refused, not counted */
+    {
+        char mf2[600];
+        snprintf(mf2, sizeof mf2, "%s/.spaces/shop.space", root);
+        FILE *g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\",\"next_proposal\":1,"
+                        "\"proposals\":[{\"id\":1,\"by\":\"dan\",\"members\":[],\"votes\":["
+                        "{\"who\":\"bob\",\"yes\":true},{\"who\":\"bob\",\"yes\":true}]}]}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a doubled vote");
+        EXPECT(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+               FERR("11", "the file system refused"));
+        g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\",\"next_proposal\":1,"
+                        "\"proposals\":[{\"id\":2,\"by\":\"dan\",\"members\":[],\"votes\":[]}]}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a proposal id from the future");
+        EXPECT(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+               FERR("11", "the file system refused"));
+        g = fopen(mf2, "wb");
+        CHECK(g &&
+                  fputs("{\"id\":\"shop\",\"kind\":\"office\",\"name\":\"Shop\",\"owner\":\"bob\","
+                        "\"role\":\"member\",\"members\":[],\"self\":\"dan\"}",
+                        g) >= 0 &&
+                  fclose(g) == 0,
+              "a manifest from before governance");
+        CHECK(has(REQ("11", "spaces.get", ",\"params\":{\"space\":\"shop\"}"),
+                  "\"governance\":\"vertical\",\"quorum_pct\":51,\"self\":\"dan\",\"proposals\":[],"
+                  "\"next_proposal\":0,\"cid\":\"\"}"),
+              "defaults: %s", OUT.p);
+    }
+
+    /* a published cloud top or park keeps its pspace CID */
+#define CID "baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    CHECK(strlen(CID) == ZXS_CID_LEN && zxs_cid_ok(CID) && zxs_cid_ok("") && !zxs_cid_ok("Qm") &&
+              !zxs_cid_ok(CID "a") && !zxs_cid_ok("b"),
+          "CID shape");
+    CHECK(
+        has(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"" CID "\"}"),
+            "\"next_proposal\":0,\"cid\":\"" CID "\"}}"),
+        "published: %s", OUT.p);
+    CHECK(has(REQ("12", "spaces.get", ",\"params\":{\"space\":\"t-front\"}"),
+              ",\"cid\":\"" CID "\"}"),
+          "kept: %s", OUT.p);
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"studio-a\",\"cid\":\"" CID "\"}"),
+           SERR("12", "only the owner of a cloud top or park publishes it"));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"bobs-front\",\"cid\":\"\"}"),
+           SERR("12", "only the owner of a cloud top or park publishes it"));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"Qm1\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"" CID "a\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid",
+               ",\"params\":{\"space\":\"t-front\",\"cid\":"
+               "\"baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID or \\\"\\\""));
+    EXPECT(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\"}"),
+           ERR("12", "-32602", "missing string parameter \\\"cid\\\""));
+    CHECK(has(REQ("12", "spaces.join",
+                  ",\"params\":{\"id\":\"anns-front\",\"kind\":\"cloudtop\",\"name\":\"Ann\","
+                  "\"owner\":\"ann\",\"role\":\"guest\",\"cid\":\"" CID "\"}"),
+              "\"id\":\"anns-front\"") &&
+              has(REQ("12", "spaces.get", ",\"params\":{\"space\":\"anns-front\"}"),
+                  ",\"cid\":\"" CID "\"}"),
+          "joined with its CID: %s", OUT.p);
+    EXPECT(REQ("12", "spaces.join",
+               ",\"params\":{\"id\":\"x-office\",\"kind\":\"office\",\"name\":\"X\","
+               "\"owner\":\"ann\",\"role\":\"guest\",\"cid\":\"" CID "\"}"),
+           ERR("12", "-32602", "\\\"cid\\\" must be a pspace CID, for a cloud top or park"));
+    CHECK(has(REQ("12", "spaces.set_cid", ",\"params\":{\"space\":\"t-front\",\"cid\":\"\"}"),
+              "\"cid\":\"\"}"),
+          "unpublished: %s", OUT.p);
+#undef CID
+
+    /* crossings (S3) */
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"diary.txt\",\"text\":\"secret\"}"),
+           OK("6", "{\"path\":\"diary.txt\",\"size\":6,\"done\":true}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"diary.txt\",\"to_space\":"
+               "\"studio-a\",\"to\":\"diary.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":1,\"reason\":\"the destination is a more open kind "
+                   "of space\"}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"diary.txt\"}"),
+           FERR("6", "no such file or folder"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":1}"),
+           OK("6", "{\"held\":false,\"path\":\"diary.txt\",\"size\":6}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"space\":\"studio-a\",\"path\":\"diary.txt\"}"),
+           OK("6", "{\"path\":\"diary.txt\",\"size\":6,\"offset\":0,\"next\":6,\"eof\":true,"
+                   "\"text\":\"secret\"}"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":1}"),
+           ERR("6", "-32602", "no held crossing with that ticket"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"studio-a-2\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a-2\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"studio-a\",\"to\":\"plan2.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":2,\"reason\":\"the destination shows it to people "
+                   "who cannot see it now\"}")); /* carol was not in studio-a-2 */
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":2}"),
+           OK("6", "{\"held\":false,\"path\":\"plan2.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"lab\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}")); /* bob saw it */
+    CHECK(has(REQ("6", "files.cross",
+                  ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"plan.txt\",\"to_space\":"
+                  "\"team\",\"to\":\"plan.txt\"}"),
+              "{\"held\":true,\"ticket\":3,\"reason\":\"the destination is a more open kind "
+              "of space\"}"),
+          "office to team is more open, though no one new sees it: %s", OUT.p);
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"lab\",\"to\":\"plan3.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":4,\"reason\":\"the destination is a more open kind "
+                   "of space\"}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"t-front\",\"to\":\"plan.txt\"}"),
+           OK("6", "{\"held\":true,\"ticket\":5,\"reason\":\"the destination is public\"}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"commons\",\"path\":\"hello.txt\",\"to_space\":"
+               "\"t-front\",\"to\":\"hello.txt\"}"),
+           OK("6", "{\"held\":false,\"path\":\"hello.txt\",\"size\":2}"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"crew\",\"to\":\"plan.txt\"}"),
+           SERR("6", "your role in this space (guest) may not change it"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"p.txt\"}"),
+           ERR("6", "-32602", "within one space, use files.rename"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a-2\",\"path\":\"plan.txt\",\"to_space\":"
+               "\"home\",\"to\":\"plan.txt\"}"),
+           FERR("6", "something with that name already exists"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"bench\",\"to_space\":"
+               "\"home\",\"to\":\"bench\"}"),
+           FERR("6", "is a folder"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"../x\",\"to_space\":"
+               "\"home\",\"to\":\"x\"}"),
+           FERR("6", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("6", "files.cross",
+               ",\"params\":{\"from_space\":\"lab\",\"path\":\"nope\",\"to_space\":"
+               "\"home\",\"to\":\"x\"}"),
+           FERR("6", "no such file or folder"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"from_space\":\"lab\",\"to_space\":\"home\"}"),
+           ERR("6", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":-1}"),
+           ERR("6", "-32602", "\\\"confirm\\\" must not be negative"));
+    /* a held crossing whose destination left in the meantime */
+    char mf[300];
+    snprintf(mf, sizeof mf, "%s/.spaces/lab.space", root);
+    CHECK(remove(mf) == 0, "lab leaves");
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":4}"),
+           SERR("6", "the spaces changed since the crossing was held"));
+    EXPECT(REQ("6", "files.cross", ",\"params\":{\"confirm\":5}"),
+           OK("6", "{\"held\":false,\"path\":\"plan.txt\",\"size\":2}"));
+    /* only the latest 8 held crossings are kept */
+    for (int i = 0; i < 9; i++)
+        rpc(REQ("7", "files.cross",
+                ",\"params\":{\"from_space\":\"home\",\"path\":\"plan.txt\",\"to_space\":"
+                "\"park\",\"to\":\"p.txt\"}"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":6}"),
+           ERR("7", "-32602", "no held crossing with that ticket"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":7}"),
+           OK("7", "{\"held\":false,\"path\":\"p.txt\",\"size\":2}"));
+    EXPECT(REQ("7", "files.cross", ",\"params\":{\"confirm\":14}"),
+           FERR("7", "something with that name already exists"));
+
+    /* a long file crosses whole */
+    static char big[ZXF_READ_MAX * 2 + 100];
+    memset(big, 'z', sizeof big);
+    uint64_t sz;
+    CHECK(zxf_use_space("home") == 0 && zxf_write("big.txt", (const uint8_t *) big, sizeof big,
+                                                  ZXF_W_REPLACE, false, &sz) == 0,
+          "big file");
+    char want[200];
+    snprintf(want, sizeof want, OK("8", "{\"held\":false,\"path\":\"big.txt\",\"size\":%u}"),
+             (unsigned) sizeof big);
+    EXPECT(REQ("8", "files.cross",
+               ",\"params\":{\"from_space\":\"studio-a\",\"path\":\"diary.txt\",\"to_space\":"
+               "\"home\",\"to\":\"d2.txt\"}"),
+           OK("8", "{\"held\":false,\"path\":\"d2.txt\",\"size\":6}"));
+    EXPECT(REQ("8", "files.cross",
+               ",\"params\":{\"from_space\":\"home\",\"path\":\"big.txt\","
+               "\"to_space\":\"park\",\"to\":\"big.txt\"}"),
+           OK("8", "{\"held\":true,\"ticket\":15,\"reason\":\"the destination is public\"}"));
+    EXPECT(REQ("8", "files.cross", ",\"params\":{\"confirm\":15}"), want);
+
+    /* damaged manifests are refused and left out of the list */
+    snprintf(mf, sizeof mf, "%s/.spaces/park.space", root);
+    FILE *f = fopen(mf, "wb");
+    CHECK(f && fputs("{\"id\":\"park\",\"kind\":\"home\"}", f) >= 0 && fclose(f) == 0, "damage");
+    EXPECT(REQ("9", "spaces.get", ",\"params\":{\"space\":\"park\"}"),
+           FERR("9", "the file system refused"));
+    snprintf(mf, sizeof mf, "%s/.spaces/team.space", root);
+    f = fopen(mf, "wb");
+    CHECK(f &&
+              fputs("{\"id\":\"other\",\"kind\":\"team\",\"name\":\"T\",\"owner\":\"me\","
+                    "\"role\":\"owner\",\"members\":[]}",
+                    f) >= 0 &&
+              fclose(f) == 0,
+          "a manifest under another id");
+    EXPECT(REQ("9", "files.list", ",\"params\":{\"space\":\"team\"}"),
+           FERR("9", "the file system refused"));
+    snprintf(mf, sizeof mf, "%s/.spaces/crew.space", root);
+    f = fopen(mf, "wb");
+    CHECK(f &&
+              fputs("{\"id\":\"crew\",\"kind\":\"team\",\"name\":\"Crew\",\"owner\":\"alice\","
+                    "\"role\":\"owner\",\"members\":[]}",
+                    f) >= 0 &&
+              fclose(f) == 0,
+          "a joined space cannot claim to be owned");
+    EXPECT(REQ("9", "spaces.get", ",\"params\":{\"space\":\"crew\"}"),
+           FERR("9", "the file system refused"));
+    const char *l = rpc(REQ("9", "spaces.list", ""));
+    CHECK(strstr(l, "\"id\":\"studio-a\"") && strstr(l, "\"id\":\"commons\"") &&
+              !strstr(l, "\"id\":\"park\"") && !strstr(l, "\"id\":\"crew\"") &&
+              !strstr(l, "\"id\":\"lab\"") &&
+              strstr(l, "{\"spaces\":[" HOME_SP ",{\"id\":\"anns-front\""),
+          "list: %s", l);
+
+    CHECK(zxf_use_space("home") == 0, "home again");
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
 
 static void test_books_closed(void)
 {
@@ -1278,7 +1973,171 @@ static void test_views(void)
 
 #define JU_LIST                                                                                    \
     "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\",\"SAP_INSURER\"]," \
-    "\"in_effect\":false}"
+    "\"in_effect\":true,\"plugins\":0,\"report_standard\":\"\"}"
+
+/* J5: the result as kernel/src/juris reads it */
+static bool ju_parse(const char *req, juris_settings_t *s)
+{
+    const char *r = strstr(rpc(req), "\"result\":");
+    if (!r) return false;
+    r += 9;
+    size_t n = strlen(r);
+    return n > 1 && juris_settings_parse(r, n - 1, s) == JURIS_OK; /* drop the closing } */
+}
+
+/* ---------------- play.* (P1-P3) ---------------- */
+
+/* what the stub saw: the template, the files (copied: zxvd frees them) and
+ * the draft request; each call fails with `play_why` when it is set */
+static char play_tid[64], play_req[1100];
+static char play_name[20][24], play_text[20][24];
+static size_t play_len[20];
+static uint32_t play_n, play_calls;
+static const char *play_why;
+
+static void play_seen(const char *tid, const zxvd_play_file_t *f, uint32_t n)
+{
+    play_calls++;
+    snprintf(play_tid, sizeof play_tid, "%s", tid);
+    play_n = n;
+    for (uint32_t i = 0; i < n && i < 20; i++) {
+        snprintf(play_name[i], sizeof play_name[i], "%s", f[i].name);
+        memset(play_text[i], 0, sizeof play_text[i]);
+        memcpy(play_text[i], f[i].text, f[i].len < 23 ? f[i].len : 23);
+        play_len[i] = f[i].len;
+    }
+}
+
+static const char *play_cat(zxvd_buf_t *out)
+{
+    play_calls++;
+    zxvd_buf_raw(out, "[{\"id\":\"t\"}]", 12);
+    return play_why;
+}
+
+static const char *play_run(const char *tid, const zxvd_play_file_t *f, uint32_t n, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    zxvd_buf_raw(out, "{\"verdict\":\"TRUE\"}", 18);
+    return play_why;
+}
+
+static const char *play_draft(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                              const char *request, zxvd_buf_t *out)
+{
+    play_seen(tid, f, n);
+    snprintf(play_req, sizeof play_req, "%s", request);
+    zxvd_buf_raw(out, "{\"model\":false,\"draft\":\"x\"}", 27);
+    return play_why;
+}
+
+static void test_play(void)
+{
+    static const zxvd_play_ops_t ALL = {play_cat, play_run, play_draft};
+    static const zxvd_play_ops_t CAT_ONLY = {play_cat, NULL, NULL};
+    char req[1400], big[1100];
+
+    /* P1-P3: no ops, or an op left unset, is "not available" */
+    zxvd_rpc_set_play_ops(NULL);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&CAT_ONLY);
+    EXPECT(REQ("1", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_play_ops(&ALL);
+    play_why = NULL;
+    play_calls = 0;
+
+    /* P1 */
+    EXPECT(REQ("1", "play.catalogue", ""), OK("1", "[{\"id\":\"t\"}]"));
+    play_why = "no templates";
+    EXPECT(REQ("2", "play.catalogue", ""), ERR("2", "-32016", "no templates"));
+    CHECK(play_calls == 2, "the catalogue was asked twice");
+
+    /* P2: a failure discards what the call wrote and answers -32016 */
+    EXPECT(REQ("3", "play.run", ",\"params\":{\"template\":\"t\"}"),
+           ERR("3", "-32016", "no templates"));
+    play_why = NULL;
+    play_calls = 0;
+    EXPECT(REQ("4", "play.run", ",\"params\":{\"template\":\"cobol-hello\"}"),
+           OK("4", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_calls == 1 && !strcmp(play_tid, "cobol-hello") && play_n == 0,
+          "play.run without files: template %s, %u files", play_tid, play_n);
+    EXPECT(REQ("5", "play.run",
+               ",\"params\":{\"template\":\"t\",\"files\":{\"a.cob\":\"X\\nY\",\"b\":\"\"}}"),
+           OK("5", "{\"verdict\":\"TRUE\"}"));
+    CHECK(play_n == 2 && !strcmp(play_name[0], "a.cob") && !strcmp(play_text[0], "X\nY") &&
+              play_len[0] == 3 && !strcmp(play_name[1], "b") && play_len[1] == 0,
+          "two files decoded in order with their lengths (%u)", play_n);
+    play_calls = 0;
+    CHECK(has(REQ("6", "play.run", ""), "\"code\":-32602") && play_calls == 0,
+          "play.run needs a template");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":[\"x\"]}"),
+              "must be an object of name: text") &&
+              play_calls == 0,
+          "files must be an object");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":1}}"),
+              "at most 16 entries, each a string") &&
+              play_calls == 0,
+          "a file's text must be a string");
+    CHECK(has(REQ("6", "play.run", ",\"params\":{\"template\":\"t\",\"files\":{\"\":\"x\"}}"),
+              "a bad name or text") &&
+              play_calls == 0,
+          "a file needs a name");
+    /* sixteen files are fine, seventeen are refused */
+    for (int k = 16; k <= 17; k++) {
+        zxvd_buf_t rq = {0};
+        zxvd_buf_printf(&rq, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"play.run\","
+                             "\"params\":{\"template\":\"t\",\"files\":{");
+        for (int i = 0; i < k; i++) zxvd_buf_printf(&rq, "%s\"f%d\":\"%d\"", i ? "," : "", i, i);
+        zxvd_buf_printf(&rq, "}}}");
+        play_calls = 0;
+        const char *r = rq.p && !rq.oom ? rpc(rq.p) : "";
+        free(rq.p);
+        if (k == 16)
+            CHECK(strstr(r, "\"result\"") && play_n == 16 && !strcmp(play_name[15], "f15") &&
+                      !strcmp(play_text[15], "15"),
+                  "16 files reach the Playground: %s", r);
+        else
+            CHECK(strstr(r, "at most 16 entries") && play_calls == 0, "17 files are refused: %s",
+                  r);
+    }
+
+    /* P3 */
+    EXPECT(REQ("8", "play.draft",
+               ",\"params\":{\"template\":\"relief\",\"request\":\"fair shares\","
+               "\"files\":{\"x\":\"1\"}}"),
+           OK("8", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(!strcmp(play_tid, "relief") && !strcmp(play_req, "fair shares") && play_n == 1 &&
+              !strcmp(play_text[0], "1"),
+          "play.draft passes the template, the request and the files");
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"relief\"}"),
+           OK("9", "{\"model\":false,\"draft\":\"x\"}"));
+    CHECK(play_req[0] == 0 && play_n == 0, "the request and the files are optional");
+    play_calls = 0;
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"request\":\"r\"}"), "\"code\":-32602") &&
+              play_calls == 0,
+          "play.draft needs a template");
+    memset(big, 'a', 1024);
+    big[1024] = 0;
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"play.draft\",\"params\":{\"template\":"
+             "\"t\",\"request\":\"%s\"}}",
+             big);
+    CHECK(strstr(rpc(req), "at most 1023 bytes") && play_calls == 0,
+          "a request over 1023 bytes is refused");
+    CHECK(has(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\",\"files\":{\"a\":true}}"),
+              "at most 16 entries") &&
+              play_calls == 0,
+          "play.draft checks its files too");
+    play_why = "the model is busy";
+    EXPECT(REQ("9", "play.draft", ",\"params\":{\"template\":\"t\"}"),
+           ERR("9", "-32016", "the model is busy"));
+    play_why = NULL;
+    zxvd_rpc_set_play_ops(NULL);
+}
 
 static void test_jurisdiction(void)
 {
@@ -1345,6 +2204,35 @@ static void test_jurisdiction(void)
     EXPECT(
         REQ("9", "jurisdiction.set",
             ",\"params\":{\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
+        OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
+    /* J5: the jurisdiction host follows the settings, across a restart */
+    EXPECT(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IFRS\",\"country\":\"KE\"}"),
+           OK("9",
+              "{\"market\":\"closed\",\"standard\":\"IFRS\",\"country\":\"KE\","
+              "\"standards\":[\"IFRS\",\"US_GAAP\",\"IPSAS\",\"AAOIFI\",\"OHADA\",\"CAS\","
+              "\"SAP_INSURER\"],\"in_effect\":true,\"plugins\":0,\"report_standard\":\"IFRS\"}"));
+    reopen();
+    CHECK(has(REQ("9", "jurisdiction.get", ""), "\"report_standard\":\"IFRS\"}"),
+          "J5: the host has the replayed settings");
+    juris_settings_t js;
+    CHECK(ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_CLOSED &&
+              js.standard == ACCT_STD_IFRS && !strcmp(js.country, "KE") && js.in_effect,
+          "J5: kernel/src/juris reads the result");
+    CHECK(
+        has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"AAOIFI\",\"country\":\"\"}"),
+            "\"report_standard\":\"\"}"),
+        "J5: no country, no report standard");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"country\":\"MY\",\"market\":\"open\"}"),
+              "\"report_standard\":\"AAOIFI\"}") &&
+              ju_parse(REQ("9", "jurisdiction.get", ""), &js) && js.market == JURIS_MARKET_OPEN &&
+              js.standard == ACCT_STD_AAOIFI,
+          "J5: AAOIFI with a country");
+    CHECK(has(REQ("9", "jurisdiction.set", ",\"params\":{\"standard\":\"IPSAS\"}"),
+              "\"report_standard\":\"\"}"),
+          "J5: a standard with no adapter gives none");
+    EXPECT(
+        REQ("9", "jurisdiction.set",
+            ",\"params\":{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"}"),
         OK("9", "{\"market\":\"closed\",\"standard\":\"SAP_INSURER\",\"country\":\"ZA\"," JU_LIST));
     /* a damaged record stops the start */
     const char *bad[] = {
@@ -1908,6 +2796,61 @@ static void x_shadow(zxvd_call_t *c)
     zxvd_buf_raw(zxvd_result(c), "\"ext\"", 5);
 }
 
+static void x_num(zxvd_call_t *c)
+{
+    uint32_t u = 7;
+    int64_t a = -1;
+    bool need = false;
+    if (!zxvd_param_bool(c, "need", &need, false) || !zxvd_param_u32(c, "u", &u, need) ||
+        !zxvd_param_amount(c, "a", &a, need))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%lld]", (unsigned) u, (long long) a);
+}
+/* X2: walk an array of integers with the web4 tokenizer */
+static void x_json(zxvd_call_t *c)
+{
+    zxvd_json_t v;
+    if (!zxvd_param_json(c, "list", &v)) {
+        zxvd_buf_printf(zxvd_result(c), "%s",
+                        zxvd_param_json(c, NULL, &v) ? "\"none\"" : "\"no params\"");
+        return;
+    }
+    const w4_jtok_t *t = v.tok;
+    if (t[v.at].type != W4_J_ARR) return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must be an array");
+    int64_t sum = 0;
+    int32_t i = v.at + 1;
+    for (uint32_t k = 0; k < t[v.at].size; k++, i++) {
+        int64_t x;
+        if (t[i].type != W4_J_NUM || w4_json_i64(v.js, &t[i], &x) != W4_OK)
+            return zxvd_fail(c, ZXVD_E_PARAMS, "\"list\" must hold integers");
+        sum += x;
+    }
+    zxvd_buf_printf(zxvd_result(c), "%lld", (long long) sum);
+}
+static void x_zok(zxvd_call_t *c)
+{
+    bool bad = false;
+    if (!zxvd_param_bool(c, "bad", &bad, false)) return;
+    if (zxvd_libzxv_ok(c, bad ? ZXV_E_FUNDS : ZXV_OK)) zxvd_buf_raw(zxvd_result(c), "true", 4);
+}
+/* X6-X7 */
+static void x_books(zxvd_call_t *c)
+{
+    uint32_t a, b;
+    uint64_t e;
+    if (!zxvd_books_cap() || !zxvd_books_ctx()) return zxvd_fail(c, -32050, "closed");
+    if (!zxvd_libzxv_ok(c, zxvd_books_account("x issuer", "NGN", ZXV_ACCT_ISSUER, &a)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &b)) ||
+        !zxvd_libzxv_ok(c, zxvd_books_post(a, b, 250, "NGN", "x ref", &e)))
+        return;
+    zxvd_buf_printf(zxvd_result(c), "[%u,%u,%llu]", (unsigned) a, (unsigned) b,
+                    (unsigned long long) e);
+}
+static void x_other(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_result(c), "\"second\"", 8);
+}
+
 static void test_ext(void)
 {
     static const zxvd_method_t TAB[] = {{"x.echo", x_echo},
@@ -1919,7 +2862,15 @@ static void test_ext(void)
     EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
     zxvd_rpc_add_methods(TAB, 5);
     CHECK(has(REQ("1", "rpc.discover", ""),
-              "\"aipi.status\",\"x.echo\",\"x.need\",\"x.fail\",\"x.quiet\","
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"x."
+              "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
               "\"zxvd.version\"]}"),
           "X1: listed after the built-ins: %s", OUT.p);
     EXPECT(REQ("2", "x.echo", ""), OK("2", "{\"s\":\"\",\"flag\":false}"));
@@ -1943,18 +2894,255 @@ static void test_ext(void)
     int before = ext_calls;
     CHECK(has(REQ("6", "zxvd.version", ""), "\"app\":\"9.8.7\"") && ext_calls == before,
           "X1: a built-in name wins: %s", OUT.p);
-    zxvd_rpc_add_methods(TAB, 1);
-    CHECK(has(REQ("7", "rpc.discover", ""), "\"aipi.status\",\"x.echo\"]}") &&
+    CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
+    CHECK(has(REQ("7", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
-          "X1: a later table replaces it: %s", OUT.p);
-    zxvd_rpc_add_methods(TAB, 0);
-    CHECK(has(REQ("8", "rpc.discover", ""), "\"aipi.status\"]}") &&
-              has(REQ("8", "x.echo", ""), "method not found"),
-          "X1: 0 removes it");
-    zxvd_rpc_add_methods(NULL, 3);
-    CHECK(has(REQ("9", "rpc.discover", ""), "\"aipi.status\"]}") &&
-              has(REQ("9", "x.echo", ""), "method not found"),
-          "X1: NULL removes it");
+          "X1: the count is the new one: %s", OUT.p);
+    CHECK(zxvd_rpc_add_methods(TAB, 0) == -1 && zxvd_rpc_add_methods(NULL, 3) == -1,
+          "X1: 0 or NULL adds nothing");
+    CHECK(has(REQ("8", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"x.echo\"]}"),
+          "X1: a refused add leaves the tables as they were: %s", OUT.p);
+
+    /* several tables: each add appends; the first added wins a shared name */
+    static const zxvd_method_t T2[] = {{"x.num", x_num},
+                                       {"x.json", x_json},
+                                       {"x.echo", x_other},
+                                       {"x.zok", x_zok},
+                                       {"x.books", x_books}};
+    static const zxvd_method_t T3[] = {{"y.one", x_other}};
+    static const zxvd_method_t T4[] = {{"y.two", x_other}};
+    static const zxvd_method_t T5[] = {{"y.three", x_other}};
+    CHECK(zxvd_rpc_add_methods(T2, 5) == 0 && zxvd_rpc_add_methods(T3, 1) == 0 &&
+              zxvd_rpc_add_methods(T4, 1) == 0,
+          "X1: four tables");
+    CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"x.echo\",\"x.num\",\"x.json\","
+              "\"x.echo\",\"x.zok\",\"x.books\","
+              "\"y.one\",\"y.two\"]}"),
+          "X1: every table's names, in the order added: %s", OUT.p);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "{\"s\":\"\",\"flag\":false}"));
+    EXPECT(REQ("9", "y.two", ""), OK("9", "\"second\""));
+    EXPECT(REQ("9", "y.three", ""), ERR("9", "-32601", "method not found"));
+    zxvd_rpc_remove_methods(TAB);
+    EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
+    CHECK(has(REQ("9", "rpc.discover", ""),
+              "\"aipi.status\",\"features.get\",\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"x.num\",\"x.json\",\"x.echo\","
+              "\"x.zok\",\"x.books\",\"y.one\","
+              "\"y.two\"]}"),
+          "X1: removing one keeps the others in order: %s", OUT.p);
+    zxvd_rpc_remove_methods(TAB); /* not held: ignored */
+    zxvd_rpc_remove_methods(T3);
+    CHECK(zxvd_rpc_add_methods(T5, 1) == 0 && has(REQ("9", "y.three", ""), "\"second\"") &&
+              has(REQ("9", "y.one", ""), "method not found"),
+          "X1: a freed slot takes a new table");
+
+    /* X2: integers, amounts and raw JSON */
+    EXPECT(REQ("10", "x.num", ""), OK("10", "[7,-1]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967295,\"a\":\"-9223372036854775807\"}"),
+           OK("10", "[4294967295,-9223372036854775807]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":0,\"a\":12}"), OK("10", "[0,12]"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true}"),
+           ERR("10", "-32602", "missing integer parameter \\\"u\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"need\":true,\"u\":1}"),
+           ERR("10", "-32602", "missing integer parameter \\\"a\\\""));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":4294967296}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":-1}"),
+           ERR("10", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"u\":\"1\"}"),
+           ERR("10", "-32602", "\\\"u\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.num", ",\"params\":{\"a\":1.5}"),
+           ERR("10", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,2,-4]}"), OK("10", "-1"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[]}"), OK("10", "0"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":{}}"),
+           ERR("10", "-32602", "\\\"list\\\" must be an array"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{\"list\":[1,\"2\"]}"),
+           ERR("10", "-32602", "\\\"list\\\" must hold integers"));
+    EXPECT(REQ("10", "x.json", ",\"params\":{}"), OK("10", "\"none\""));
+    EXPECT(REQ("10", "x.json", ""), OK("10", "\"no params\""));
+
+    /* X5 */
+    EXPECT(REQ("11", "x.zok", ""), OK("11", "true"));
+    CHECK(has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+              "\"error\":{\"code\":-32000,\"message\":\"ZXV_E_FUNDS") &&
+              has(REQ("11", "x.zok", ",\"params\":{\"bad\":true}"),
+                  "\"data\":{\"status\":-6,\"name\":\"ZXV_E_FUNDS\",\"class\":\"REFUSED\"}"),
+          "X5: a libzxv status as the book methods report it: %s", OUT.p);
+
+    /* X6-X7: the books through the extension, recorded like ledger.* */
+    zxvd_rpc_books_close();
+    uint32_t aa, bb;
+    uint64_t ee;
+    CHECK(!zxvd_books_cap() && !zxvd_books_ctx() &&
+              zxvd_books_account("n", "NGN", ZXV_ACCT_HOLDER, &aa) == ZXV_E_STATE &&
+              zxvd_books_post(0, 1, 1, "NGN", "r", &ee) == ZXV_E_STATE,
+          "X6-X7: nothing while the books are closed");
+    EXPECT(REQ("12", "x.books", ""), ERR("12", "-32050", "closed"));
+    CHECK(zxvd_rpc_books_file(NULL) == 0 && zxvd_rpc_books_open() == 0, "books open in memory");
+    CHECK(zxvd_books_cap() && zxvd_books_ctx(), "X6: the cap and context once open");
+    CHECK(has(REQ("12", "currency.enable", ",\"params\":{\"code\":\"NGN\"}"), "\"enabled\""),
+          "NGN on");
+    CHECK(has(REQ("12", "x.books", ""), "\"result\":[") &&
+              has(REQ("12", "x.books", ""), "\"code\":-32000"),
+          "X7: an account and a posting; the same reference again is refused: %s", OUT.p);
+    CHECK(has(REQ("12", "ledger.accounts", ""), "\"name\":\"x holder\"") &&
+              zxvd_books_account("x holder", "NGN", ZXV_ACCT_HOLDER, &bb) == ZXV_OK,
+          "X7: the accounts are the books' own");
+    zxvd_rpc_books_close();
+    zxvd_rpc_clear_methods();
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"]}") &&
+              has(REQ("13", "x.num", ""), "method not found") &&
+              has(REQ("13", "y.two", ""), "method not found"),
+          "X1: clear takes every table out");
+    CHECK(zxvd_rpc_add_methods(T3, 1) == 0 && zxvd_rpc_add_methods(T4, 1) == 0 &&
+              zxvd_rpc_add_methods(T5, 1) == 0 && zxvd_rpc_add_methods(TAB, 5) == 0,
+          "X1: four slots free again after clear");
+    zxvd_rpc_clear_methods();
+}
+
+/* one request from a paired phone -> its reply */
+static const char *phone_rpc(const char *line, bool post)
+{
+    bool r = zxvd_rpc_handle_phone_line(line, strlen(line), &OUT, post);
+    checks++;
+    if (!r) {
+        fails++;
+        printf("  FAIL a phone request got no reply: %s\n", line);
+        return "<none>";
+    }
+    return OUT.p ? OUT.p : "";
+}
+
+static void phone_expect(const char *req, bool post, const char *want, int line)
+{
+    const char *got = phone_rpc(req, post);
+    checks++;
+    if (strcmp(got, want)) {
+        fails++;
+        printf("  FAIL line %d (phone)\n    req  %s\n    want %s\n    got  %s\n", line, req, want,
+               got);
+    }
+}
+#define PHONE_EXPECT(req, post, want) phone_expect(req, post, want, __LINE__)
+
+static void test_phone_methods(void)
+{
+    zxvd_rpc_set_ops(&OPS);
+    zxvd_rpc_set_phone_ops(NULL);
+    EXPECT(REQ("1", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.list", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "phone.link", ",\"params\":{\"on\":true}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_phone_ops(&PHONE_STUB);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true}"), OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == -1 && !strcmp(last_link_bind, "(all)"),
+          "phone.link defaults: port -1, every interface (%d %s)", last_link_port, last_link_bind);
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":0,\"bind\":\"10.0.0.5\"}"),
+           OK("2", "{\"on\":true}"));
+    CHECK(last_link_port == 0 && !strcmp(last_link_bind, "10.0.0.5"),
+          "phone.link passes port and bind");
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":false}"), OK("2", "{\"on\":false}"));
+    EXPECT(REQ("2", "phone.link", ""), ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":\"yes\"}"),
+           ERR("2", "-32602", "\\\"on\\\" must be true or false"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":65536}"),
+           ERR("2", "-32602", "\\\"port\\\" must be 0..65535"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":-1}"),
+           ERR("2", "-32602", "\\\"port\\\" is out of range"));
+    EXPECT(REQ("2", "phone.link", ",\"params\":{\"on\":true,\"port\":1}"),
+           ERR("2", "-32602", "cannot listen on TCP 1: Permission denied"));
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"Pixel\"}"),
+           OK("2", "{\"paired\":true}"));
+    CHECK(!strcmp(last_phone_name, "Pixel") && !last_phone_post, "phone.pair passes the name");
+    EXPECT(REQ("2", "phone.pair", ",\"params\":{\"name\":\"iPad\",\"allow_post\":true}"),
+           OK("2", "{\"paired\":true}"));
+    CHECK(last_phone_post, "phone.pair passes allow_post");
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"x\",\"allow_post\":1}"),
+           ERR("3", "-32602", "\\\"allow_post\\\" must be true or false"));
+    EXPECT(REQ("3", "phone.pair", ""), ERR("3", "-32602", "missing string parameter \\\"name\\\""));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"012345678901234567890123456789012\"}"),
+           ERR("3", "-32602", "\\\"name\\\" must be a string of at most 32 bytes"));
+    EXPECT(REQ("3", "phone.pair", ",\"params\":{\"name\":\"full\"}"),
+           ERR("3", "-32602", "too many phones paired; revoke one first"));
+    EXPECT(REQ("4", "phone.list", ""), OK("4", "{\"phones\":[]}"));
+    EXPECT(
+        REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"00112233445566778899aabbccddeeff\"}"),
+        OK("5", "{\"revoked\":true}"));
+    EXPECT(REQ("5", "phone.revoke", ",\"params\":{\"phone_id\":\"ff\"}"),
+           ERR("5", "-32602", "no such phone"));
+
+    /* A1-A3: what a paired phone may call */
+    const char *nopost = "this phone was paired without allow_post";
+    PHONE_EXPECT(REQ("6", "zxvd.shutdown", ""), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.pair", ",\"params\":{\"name\":\"x\"}"), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.list", ""), false, ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.revoke", ""), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "phone.link", ",\"params\":{\"on\":false}"), true,
+                 ERR("6", "-32015", "not allowed from a phone"));
+    PHONE_EXPECT(REQ("6", "peer.serve", ""), true, ERR("6", "-32015", "not allowed from a phone"));
+    static const char *const NEVER[] = {"jurisdiction.set", "aipi.put", "aipi.publish",
+                                        "aipi.execute"};
+    for (size_t i = 0; i < sizeof NEVER / sizeof NEVER[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"%s\"}", NEVER[i]);
+        CHECK(strstr(phone_rpc(req, true), "not allowed from a phone") != NULL,
+              "%s is never served to a phone", NEVER[i]);
+    }
+    static const char *const POST[] = {"net.command", "peer.ask", "currency.enable",
+                                       "ledger.open_account", "ledger.post"};
+    for (size_t i = 0; i < sizeof POST / sizeof POST[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"%s\"}", POST[i]);
+        CHECK(strstr(phone_rpc(req, false), nopost) != NULL, "%s needs allow_post", POST[i]);
+        CHECK(strstr(phone_rpc(req, true), "-32015") == NULL, "%s is allowed with allow_post",
+              POST[i]);
+    }
+    stopped = 0;
+    PHONE_EXPECT(REQ("8", "swarm.state", ""), false, OK("8", "{\"tick\":7}"));
+    PHONE_EXPECT("{\"jsonrpc\":\"2.0\",\"method\":\"zxvd.shutdown\"}", true,
+                 ERR("null", "-32600", "a phone must send an id"));
+    CHECK(stopped == 0, "a phone's notification is never run");
+    PHONE_EXPECT(REQ("9", "no.such", ""), false, ERR("9", "-32601", "method not found"));
+    /* the control socket is unaffected after phone requests */
+    EXPECT(REQ("10", "phone.list", ""), OK("10", "{\"phones\":[]}"));
+    zxvd_rpc_set_phone_ops(NULL);
 }
 
 /* ---------------- aipi.* ---------------- */
@@ -2142,6 +3330,539 @@ static void test_aipi_methods(void)
     zxvd_rpc_set_aipi_ops(NULL);
 }
 
+/* ---------------- method groups and switches (zxvd_ext.h X1-X6, P1-P3) ---------------- */
+
+static int g_calls, g_closed, g_closed_b;
+static void g_echo(zxvd_call_t *c)
+{
+    char s[8];
+    int64_t i = 0, a = 0;
+    uint32_t u = 0;
+    bool b = false;
+    if (!zxvd_p_str(c, "s", s, sizeof s, false) || !zxvd_p_bool(c, "b", false, &b)) return;
+    if (zxvd_p_has(c, "i") && !zxvd_p_i64(c, "i", &i)) return;
+    if (zxvd_p_has(c, "u") && !zxvd_p_u32(c, "u", &u)) return;
+    if (zxvd_p_has(c, "a") && !zxvd_p_amount(c, "a", &a)) return;
+    g_calls++;
+    zxvd_buf_printf(zxvd_res(c), "{\"s\":\"%s\",\"b\":%d,\"i\":%lld,\"u\":%u,\"a\":%lld}", s, b,
+                    (long long) i, (unsigned) u, (long long) a);
+}
+static void g_hex(zxvd_call_t *c)
+{
+    uint8_t h[4];
+    uint32_t n = 9;
+    bool req = zxvd_p_has(c, "need");
+    if (!zxvd_p_hex(c, "h", h, sizeof h, &n, req)) return;
+    zxvd_buf_t *o = zxvd_res(c);
+    zxvd_buf_raw(o, "{\"n\":", 5);
+    zxvd_buf_printf(o, "%u,\"h\":", (unsigned) n);
+    zxvd_buf_hex(o, h, n);
+    zxvd_buf_raw(o, "}", 1);
+}
+static void g_list(zxvd_call_t *c)
+{
+    int32_t n = zxvd_p_len(c, "items");
+    if (zxvd_failed(c)) return;
+    int64_t sum = 0;
+    for (int32_t k = 0; k < n; k++) {
+        int32_t saved;
+        int64_t v;
+        if (!zxvd_p_enter(c, "items", (uint32_t) k, &saved)) return;
+        bool ok = zxvd_p_i64(c, "v", &v);
+        zxvd_p_leave(c, saved);
+        if (!ok) return;
+        sum += v;
+    }
+    int32_t m = zxvd_p_len(c, "nums");
+    if (zxvd_failed(c)) return;
+    for (int32_t k = 0; k < m; k++) {
+        int64_t v;
+        if (!zxvd_p_i64_at(c, "nums", (uint32_t) k, &v)) return;
+        sum += v;
+    }
+    int64_t after = 0;
+    if (zxvd_p_has(c, "after") && !zxvd_p_i64(c, "after", &after)) return; /* scope restored */
+    zxvd_buf_printf(zxvd_res(c), "{\"n\":%d,\"m\":%d,\"sum\":%lld}", (int) n, (int) m,
+                    (long long) (sum + after));
+}
+static void g_status(zxvd_call_t *c)
+{
+    zxvd_buf_raw(zxvd_res(c), "{\"ok\":true}", 11);
+}
+static void g_fails(zxvd_call_t *c)
+{
+    zxvd_fail(c, -32050, "nope %d", 7);
+    zxvd_fail(c, -32051, "second"); /* the first error stays */
+    CHECK(zxvd_failed(c), "zxvd_failed after zxvd_fail");
+}
+static void g_close(void)
+{
+    g_closed++;
+}
+static void g_close_b(void)
+{
+    g_closed_b = g_closed + 1; /* closed before the first group: reverse order */
+}
+static const zxvd_group_method_t G_A[] = {
+    {"ga.echo", g_echo, false},    {"ga.hex", g_hex, false},     {"ga.list", g_list, false},
+    {"ga.status", g_status, true}, {"ga.fails", g_fails, false},
+};
+static const zxvd_group_method_t G_B[] = {{"gb.status", g_status, false}};
+static const zxvd_group_method_t G_DUP_CORE[] = {{"ledger.post", g_status, false}};
+static const zxvd_group_method_t G_DUP_GRP[] = {{"ga.echo", g_status, false}};
+static const zxvd_group_method_t G_DUP_SELF[] = {{"gc.x", g_status, false},
+                                                 {"gc.x", g_status, false}};
+static const zxvd_group_method_t G_NULLFN[] = {{"gc.y", NULL, false}};
+static const zxvd_group_method_t G_EMPTY[] = {{"", g_status, false}};
+static const zxvd_group_method_t G_ONE[] = {{"gd.one", g_status, false}};
+
+static void test_groups(void)
+{
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "first \"group\"", G_A, 5, g_close};
+    const zxvd_group_t B = {"beta_2", false, NULL, G_B, 1, g_close_b};
+    CHECK(zxvd_rpc_add_group(&A) == 0, "add a group");
+    CHECK(zxvd_rpc_add_group(&B) == 0, "add a second group");
+    const zxvd_group_t bad[] = {
+        {"alpha", false, "", G_DUP_CORE, 1, NULL},
+        {"alpha", false, "", G_DUP_GRP, 1, NULL},
+        {"alpha", false, "", G_DUP_SELF, 2, NULL},
+        {"alpha", false, "", G_NULLFN, 1, NULL},
+        {"alpha", false, "", G_EMPTY, 1, NULL},
+        {"Alpha", false, "", G_ONE, 1, NULL},
+        {"all", false, "", G_ONE, 1, NULL},
+        {"", false, "", G_ONE, 1, NULL},
+        {NULL, false, "", G_ONE, 1, NULL},
+        {"a-b", false, "", G_ONE, 1, NULL},
+        {"abcdefghijklmnopqrstuvwx", false, "", G_ONE, 1, NULL},
+        {"alpha", false, "", NULL, 1, NULL},
+        {"alpha", false, "", G_ONE, 0, NULL},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(zxvd_rpc_add_group(&bad[i]) == -1, "bad group %zu refused", i);
+    CHECK(zxvd_rpc_add_group(NULL) == -1, "NULL group refused");
+    const zxvd_group_t ok23 = {"abcdefghijklmnopqrstuvw", false, "", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&ok23) == 0, "a 23-byte feature name is fine");
+    CHECK(has(REQ("1", "rpc.discover", ""),
+              "\"features.set\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files."
+              "mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\","
+              "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
+              "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
+              "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
+              "\"play.draft\","
+              "\"ga.echo\",\"ga.hex\",\"ga.list\","
+              "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
+          "X2: discover lists group methods after the core, on or off");
+
+    /* X3/X4: off by default; always-methods answer; the reason names the switch */
+    EXPECT(REQ("2", "ga.echo", ""),
+           ERR("2", "-32012",
+               "alpha is off: start zxvd with --enable alpha, or call features.set (regulated: "
+               "test or licensed use only)"));
+    EXPECT(
+        REQ("3", "gb.status", ""),
+        ERR("3", "-32012", "beta_2 is off: start zxvd with --enable beta_2, or call features.set"));
+    EXPECT(REQ("4", "ga.status", ""), OK("4", "{\"ok\":true}"));
+    CHECK(g_calls == 0, "an off method does nothing");
+    EXPECT(REQ("5", "features.get", ""),
+           OK("5", "{\"features\":[{\"name\":\"alpha\",\"enabled\":false,\"regulated\":true,"
+                   "\"groups\":[{\"note\":\"first \\\"group\\\"\",\"methods\":5}]},"
+                   "{\"name\":\"beta_2\",\"enabled\":false,\"regulated\":false,\"groups\":[{"
+                   "\"note\":\"\",\"methods\":1}]},{\"name\":\"abcdefghijklmnopqrstuvw\","
+                   "\"enabled\":false,\"regulated\":false,\"groups\":[{\"note\":\"\","
+                   "\"methods\":1}]}],\"saved\":false}"));
+    CHECK(!zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled(NULL) && !zxvd_rpc_enabled("nope"),
+          "enabled() is false for off and unknown features");
+
+    /* features.set */
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(zxvd_rpc_enabled("alpha") && !zxvd_rpc_enabled("beta_2"), "set turns on one feature");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"zeta\"}"),
+           ERR("7", "-32602", "unknown feature \\\"zeta\\\""));
+    EXPECT(REQ("8", "features.set", ",\"params\":{}"),
+           ERR("8", "-32602", "missing string parameter \\\"feature\\\""));
+    EXPECT(REQ("9", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":1}"),
+           ERR("9", "-32602", "\\\"enabled\\\" must be true or false"));
+    CHECK(zxvd_rpc_enabled("alpha"), "a refused set changes nothing");
+
+    /* P1 */
+    EXPECT(
+        REQ("10", "ga.echo", ",\"params\":{\"s\":\"hi\",\"b\":true,\"i\":-5,\"u\":7,\"a\":\"12\"}"),
+        OK("10", "{\"s\":\"hi\",\"b\":1,\"i\":-5,\"u\":7,\"a\":12}"));
+    EXPECT(REQ("11", "ga.echo", ""), OK("11", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("12", "ga.echo", ",\"params\":{\"i\":1.5}"),
+           ERR("12", "-32602", "\\\"i\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("13", "ga.echo", ",\"params\":{\"u\":-1}"),
+           ERR("13", "-32602", "\\\"u\\\" is out of range"));
+    EXPECT(REQ("14", "ga.echo", ",\"params\":{\"a\":\"1.0\"}"),
+           ERR("14", "-32602",
+               "\\\"a\\\" must be an integer or a decimal string (no fraction or exponent)"));
+    EXPECT(REQ("15", "ga.echo", ",\"params\":{\"s\":\"12345678\"}"),
+           ERR("15", "-32602", "\\\"s\\\" must be a string of at most 7 bytes"));
+    EXPECT(REQ("16", "ga.fails", ""), ERR("16", "-32050", "nope 7"));
+
+    /* P2 */
+    EXPECT(REQ("20", "ga.hex", ",\"params\":{\"h\":\"00aF7e\"}"),
+           OK("20", "{\"n\":3,\"h\":\"00af7e\"}"));
+    EXPECT(REQ("21", "ga.hex", ",\"params\":{\"h\":\"\"}"), OK("21", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("22", "ga.hex", ""), OK("22", "{\"n\":0,\"h\":\"\"}"));
+    EXPECT(REQ("23", "ga.hex", ",\"params\":{\"need\":1}"),
+           ERR("23", "-32602", "missing hex parameter \\\"h\\\""));
+    const char *bad_hex[] = {"\"abc\"", "\"0011223344\"", "\"0g\"", "\"g0\"", "12", "\"zz\""};
+    for (size_t i = 0; i < sizeof bad_hex / sizeof bad_hex[0]; i++) {
+        char req[160];
+        snprintf(req, sizeof req, REQ("24", "ga.hex", ",\"params\":{\"h\":%s}"), bad_hex[i]);
+        CHECK(has(req, "must be a hex string of at most 4 bytes"), "bad hex %s", bad_hex[i]);
+    }
+    EXPECT(REQ("25", "ga.hex", ",\"params\":{\"h\":\"01020304\"}"),
+           OK("25", "{\"n\":4,\"h\":\"01020304\"}"));
+
+    /* P3 */
+    EXPECT(REQ("30", "ga.list",
+               ",\"params\":{\"items\":[{\"v\":1},{\"v\":20}],\"nums\":[300,4000],\"after\":5}"),
+           OK("30", "{\"n\":2,\"m\":2,\"sum\":4326}"));
+    EXPECT(REQ("31", "ga.list", ""), OK("31", "{\"n\":-1,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("32", "ga.list", ",\"params\":{\"items\":[]}"),
+           OK("32", "{\"n\":0,\"m\":-1,\"sum\":0}"));
+    EXPECT(REQ("33", "ga.list", ",\"params\":{\"items\":{}}"),
+           ERR("33", "-32602", "\\\"items\\\" must be an array"));
+    EXPECT(REQ("34", "ga.list", ",\"params\":{\"items\":[1]}"),
+           ERR("34", "-32602", "\\\"items\\\"[0] must be an object"));
+    EXPECT(REQ("35", "ga.list", ",\"params\":{\"items\":[{\"v\":1},{\"w\":2}]}"),
+           ERR("35", "-32602", "missing integer parameter \\\"v\\\""));
+    EXPECT(REQ("36", "ga.list", ",\"params\":{\"nums\":[1,\"2\"]}"),
+           ERR("36", "-32602", "\\\"nums\\\"[1] must be an integer"));
+    EXPECT(REQ("37", "ga.list", ",\"params\":{\"nums\":3}"),
+           ERR("37", "-32602", "\\\"nums\\\" must be an array"));
+    EXPECT(REQ("38", "ga.list", ",\"params\":{\"items\":[{\"v\":1}],\"after\":\"x\"}"),
+           ERR("38", "-32602", "\\\"after\\\" must be an integer (no fraction or exponent)"));
+
+    /* X3: --enable lists, X6: off again keeps nothing broken */
+    EXPECT(
+        REQ("40", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+        OK("40", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("41", "ga.echo", ""), "-32012"), "off again");
+    CHECK(zxvd_rpc_enable("beta_2,,nope,alpha") == -1, "an unknown name is reported");
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("beta_2"), "the known names still turn on");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "unlisted stays off");
+    CHECK(zxvd_rpc_enable("all") == 0 && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "all");
+    CHECK(zxvd_rpc_enable(NULL) == 0 && zxvd_rpc_enable("") == 0, "empty lists");
+    CHECK(zxvd_rpc_enable("alph") == -1 && zxvd_rpc_enable("alphaa") == -1,
+          "prefixes do not match");
+    EXPECT(REQ("42", "gd.one", ""), OK("42", "{\"ok\":true}"));
+    CHECK(has(REQ("43", "features.get", ""), "\"name\":\"beta_2\",\"enabled\":true"),
+          "get shows on");
+
+    /* two groups may share a feature; a later regulated one makes it regulated */
+    zxvd_rpc_groups_reset();
+    CHECK(g_closed == 1 && g_closed_b == 1, "reset closes every group, last first");
+    CHECK(!zxvd_rpc_enabled("alpha"), "reset forgets the switches");
+    EXPECT(REQ("44", "ga.echo", ""), ERR("44", "-32601", "method not found"));
+    const zxvd_group_t S1 = {"shared", false, "one", G_B, 1, NULL};
+    const zxvd_group_t S2 = {"shared", true, "two", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S2) == 0, "shared feature");
+    EXPECT(REQ("45", "features.get", ""),
+           OK("45",
+              "{\"features\":[{\"name\":\"shared\",\"enabled\":false,\"regulated\":true,"
+              "\"groups\":[{\"note\":\"one\",\"methods\":1},{\"note\":\"two\",\"methods\":1}]}],"
+              "\"saved\":false}"));
+    zxvd_rpc_groups_reset();
+    EXPECT(REQ("46", "features.get", ""), OK("46", "{\"features\":[],\"saved\":false}"));
+
+    /* X1: re-adding a group held does nothing; removing one forgets its
+     * methods and keeps its switch */
+    CHECK(zxvd_rpc_add_group(&S1) == 0 && zxvd_rpc_add_group(&S1) == 0 &&
+              zxvd_rpc_enable("shared") == 0,
+          "a group added twice");
+    EXPECT(REQ("47", "features.get", ""),
+           OK("47", "{\"features\":[{\"name\":\"shared\",\"enabled\":true,\"regulated\":true,"
+                    "\"groups\":[{\"note\":\"one\",\"methods\":1}]}],\"saved\":false}"));
+    zxvd_rpc_remove_group(&S2); /* not held: nothing changes */
+    CHECK(has(REQ("48", "gb.status", ""), "\"result\""), "S1 still served");
+    zxvd_rpc_remove_group(&S1);
+    EXPECT(REQ("49", "gb.status", ""), ERR("49", "-32601", "method not found"));
+    CHECK(zxvd_rpc_enabled("shared") && zxvd_rpc_add_group(&S1) == 0 &&
+              has(REQ("50", "gb.status", ""), "\"result\""),
+          "the switch outlives its group; re-added it serves again");
+    zxvd_rpc_groups_reset();
+
+    /* the table limit */
+    static zxvd_group_method_t many[ZXVD_EXT_MAX_GROUPS + 1][1];
+    static char names[ZXVD_EXT_MAX_GROUPS + 1][16], feats[ZXVD_EXT_MAX_GROUPS + 1][8];
+    static zxvd_group_t gs[ZXVD_EXT_MAX_GROUPS + 1];
+    for (uint32_t i = 0; i <= ZXVD_EXT_MAX_GROUPS; i++) {
+        snprintf(names[i], sizeof names[i], "m%u.x", (unsigned) i);
+        snprintf(feats[i], sizeof feats[i], "f%u", (unsigned) i);
+        many[i][0] = (zxvd_group_method_t){names[i], g_status, false};
+        gs[i] = (zxvd_group_t){feats[i], false, "", many[i], 1, NULL};
+    }
+    for (uint32_t i = 0; i < ZXVD_EXT_MAX_GROUPS; i++)
+        CHECK(zxvd_rpc_add_group(&gs[i]) == 0, "group %u fits", (unsigned) i);
+    CHECK(zxvd_rpc_add_group(&gs[ZXVD_EXT_MAX_GROUPS]) == -1, "one more is refused");
+    zxvd_rpc_groups_reset();
+}
+
+/* X7: a switch is a record in the books file, replayed at start */
+static void restart_groups(const zxvd_group_t *a, const zxvd_group_t *b, const char *cli)
+{
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(a) == 0 && zxvd_rpc_add_group(b) == 0, "groups again");
+    if (cli) CHECK(zxvd_rpc_enable(cli) == 0, "--enable %s", cli);
+    CHECK(zxvd_rpc_books_open() == 0, "the books reopen with the switches");
+}
+
+static void test_feature_save(void)
+{
+    char tmpl[] = "/tmp/zxvdfeat.XXXXXX", path[200];
+    CHECK(mkdtemp(tmpl) != NULL, "temp dir");
+    snprintf(path, sizeof path, "%s/books.zxvb", tmpl);
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    const zxvd_group_t A = {"alpha", true, "a", G_A, 5, NULL};
+    const zxvd_group_t B = {"abcdefghijklmnopqrstuvw", false, "b", G_ONE, 1, NULL};
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_add_group(&B) == 0, "two groups");
+    CHECK(zxvd_rpc_books_file(path) == 0 && zxvd_rpc_books_open() == 0, "books on a file");
+    CHECK(has(REQ("1", "features.get", ""), "],\"saved\":true}"), "get says switches are saved");
+    CHECK(has(REQ("1", "books.file", ""), "\"records\":\"2\""), "nothing written yet");
+    EXPECT(REQ("2", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("2", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    CHECK(has(REQ("2", "books.file", ""), "\"records\":\"2\""),
+          "an unchanged switch writes nothing");
+    EXPECT(REQ("3", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("3", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":true}"));
+    EXPECT(REQ("4", "features.set", ",\"params\":{\"feature\":\"abcdefghijklmnopqrstuvw\"}"),
+           OK("4", "{\"feature\":\"abcdefghijklmnopqrstuvw\",\"enabled\":true,\"regulated\":false,"
+                   "\"saved\":true}"));
+    CHECK(has(REQ("4", "books.file", ""), "\"records\":\"4\""), "two changes, two records");
+    long n;
+    char *f = slurp(path, &n);
+    CHECK(f && strstr(f, " {\"op\":\"feat\",\"name\":\"alpha\",\"on\":true}\n") &&
+              strstr(f, " {\"op\":\"feat\",\"name\":\"abcdefghijklmnopqrstuvw\",\"on\":true}\n"),
+          "the records are in the file");
+    free(f);
+    restart_groups(&A, &B, NULL);
+    CHECK(zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "a restart keeps both on");
+    EXPECT(REQ("5", "ga.echo", ""), OK("5", "{\"s\":\"\",\"b\":0,\"i\":0,\"u\":0,\"a\":0}"));
+    EXPECT(REQ("6", "features.set", ",\"params\":{\"feature\":\"alpha\",\"enabled\":false}"),
+           OK("6", "{\"feature\":\"alpha\",\"enabled\":false,\"regulated\":true,\"saved\":true}"));
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha") && zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"),
+          "the last record wins");
+    restart_groups(&A, &B, "alpha");
+    CHECK(zxvd_rpc_enabled("alpha"), "--enable wins over a saved off");
+    restart_groups(&A, &B, NULL);
+    CHECK(!zxvd_rpc_enabled("alpha"), "and was not saved");
+    /* a build without the feature skips its record */
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+    CHECK(zxvd_rpc_add_group(&A) == 0 && zxvd_rpc_books_open() == 0,
+          "a record for a missing feature does not stop the start");
+    CHECK(!zxvd_rpc_enabled("abcdefghijklmnopqrstuvw"), "and turns nothing on");
+    /* a damaged record stops the start */
+    const char *bad[] = {
+        "{\"op\":\"feat\",\"name\":\"alpha\"}",
+        "{\"op\":\"feat\",\"on\":true}",
+        "{\"op\":\"feat\",\"name\":\"alpha\",\"on\":1}",
+        "{\"op\":\"feat\",\"name\":7,\"on\":true}",
+        "{\"op\":\"feat\",\"name\":"
+        "\"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstu\",\"on\":"
+        "true}",
+    };
+    zxvd_rpc_books_close();
+    long keep;
+    char *orig = slurp(path, &keep);
+    for (unsigned i = 0; i < sizeof bad / sizeof *bad; i++) {
+        spit(path, orig, keep);
+        append_chained(path, bad[i]);
+        CHECK(zxvd_rpc_books_open() == -1, "bad feature record %u stops the start", i);
+        zxvd_rpc_books_close();
+    }
+    spit(path, orig, keep);
+    free(orig);
+    /* without a file: this run only */
+    CHECK(zxvd_rpc_books_file("") == 0 && zxvd_rpc_books_open() == 0, "no file");
+    EXPECT(REQ("7", "features.set", ",\"params\":{\"feature\":\"alpha\"}"),
+           OK("7", "{\"feature\":\"alpha\",\"enabled\":true,\"regulated\":true,\"saved\":false}"));
+    CHECK(has(REQ("7", "features.get", ""), "],\"saved\":false}"), "get says not saved");
+    zxvd_rpc_books_close();
+    zxvd_rpc_groups_reset();
+}
+
+/* ---------------- files.* (zxv_files.h; the module itself: test_zxv_files.c) ---------------- */
+
+#define FERR(id, msg) ERR(id, "-32014", msg)
+
+static void test_files_methods(void)
+{
+    char root[200], want[600];
+    snprintf(root, sizeof root, "%s/zxvd-files-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+    snprintf(
+        want, sizeof want,
+        OK("1", "{\"root\":\"%s\",\"trash\":\".Trash\",\"read_max\":49152,\"file_max\":268435456}"),
+        root);
+    EXPECT(REQ("1", "files.root", ""), want);
+    EXPECT(REQ("2", "files.list", ""), OK("2", "{\"path\":\"\",\"entries\":[]}"));
+    EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":\"..\"}"),
+           FERR("2", "not a valid name or path in the ZXV folder"));
+    EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":7}"),
+           ERR("2", "-32602", "\\\"path\\\" must be a string of at most 1024 bytes"));
+    /* write, read back, stat */
+    EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\"a.txt\",\"text\":\"h\\u00e9\\n\"}"),
+           OK("3", "{\"path\":\"a.txt\",\"size\":4,\"done\":true}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"text\":\"h\xc3\xa9\\u000a\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":1,\"max\":2}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":1,\"next\":3,\"eof\":false,"
+                   "\"text\":\"\xc3\xa9\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":1,\"max\":1}"),
+           FERR("4", "not text (not UTF-8)"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"encoding\":\"base64\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"base64\":\"aMOpCg==\"}"));
+    EXPECT(REQ("4", "files.read",
+               ",\"params\":{\"path\":\"a.txt\",\"offset\":0,\"max\":0,"
+               "\"encoding\":\"base64\"}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"base64\":\"aMOpCg==\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":9}"),
+           OK("4", "{\"path\":\"a.txt\",\"size\":4,\"offset\":9,\"next\":9,\"eof\":true,"
+                   "\"text\":\"\"}"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"encoding\":\"hex\"}"),
+           ERR("4", "-32602", "\\\"encoding\\\" must be \\\"utf8\\\" or \\\"base64\\\""));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"offset\":-1}"),
+           ERR("4", "-32602", "\\\"offset\\\" must not be negative"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"a.txt\",\"max\":1.5}"),
+           ERR("4", "-32602", "\\\"max\\\" must be an integer (no fraction or exponent)"));
+    EXPECT(REQ("4", "files.read", ",\"params\":{\"path\":\"no.txt\"}"),
+           FERR("4", "no such file or folder"));
+    EXPECT(REQ("4", "files.read", ""), ERR("4", "-32602", "missing string parameter \\\"path\\\""));
+    CHECK(has(REQ("5", "files.stat", ",\"params\":{\"path\":\"a.txt\"}"),
+              "{\"name\":\"a.txt\",\"dir\":false,\"size\":4,\"mtime\":"),
+          "stat: %s", OUT.p);
+    /* base64 and the chunked modes */
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"b.bin\",\"base64\":\"AAEC\"}"),
+           OK("6", "{\"path\":\"b.bin\",\"size\":3,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"b.bin\"}"),
+           FERR("6", "not text (not UTF-8)"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"b.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"b.bin\",\"size\":3,\"offset\":0,\"next\":3,\"eof\":true,"
+                   "\"base64\":\"AAEC\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"/w==\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":1,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":1,\"offset\":0,\"next\":1,\"eof\":true,"
+                   "\"base64\":\"/w==\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"+/8=\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"base64\":\"+/8=\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"c.bin\",\"base64\":\"ABA=\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"done\":true}"));
+    EXPECT(REQ("6", "files.read", ",\"params\":{\"path\":\"c.bin\",\"encoding\":\"base64\"}"),
+           OK("6", "{\"path\":\"c.bin\",\"size\":2,\"offset\":0,\"next\":2,\"eof\":true,"
+                   "\"base64\":\"ABA=\"}"));
+    EXPECT(REQ("6", "files.write", ",\"params\":{\"path\":\"e.bin\",\"base64\":\"\"}"),
+           OK("6", "{\"path\":\"e.bin\",\"size\":0,\"done\":true}"));
+    EXPECT(REQ("6", "files.trash", ",\"params\":{\"path\":\"e.bin\"}"),
+           OK("6", "{\"trashed\":\".Trash/e.bin\",\"removed\":false}"));
+    static const char *const BAD64[] = {
+        "AAE", "A=AA", "AA=A", "====", "AAE*", "AA==AAAA", "A===", "AAAAA\\u0000AA"};
+    for (size_t i = 0; i < sizeof BAD64 / sizeof *BAD64; i++) {
+        char req[200];
+        snprintf(req, sizeof req,
+                 REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"base64\":\"%s\"}"),
+                 BAD64[i]);
+        const char *r = rpc(req);
+        CHECK(strstr(r, "-32602") != NULL, "bad base64 %s refused: %s", BAD64[i], r);
+    }
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\"}"),
+           ERR("7", "-32602", "give exactly one of \\\"text\\\" or \\\"base64\\\""));
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"base64\":\"\"}"),
+           ERR("7", "-32602", "give exactly one of \\\"text\\\" or \\\"base64\\\""));
+    EXPECT(
+        REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"mode\":\"append\"}"),
+        ERR("7", "-32602", "\\\"mode\\\" must be replace, begin, add or end"));
+    EXPECT(REQ("7", "files.write", ",\"params\":{\"path\":\"x\",\"text\":\"\",\"exclusive\":1}"),
+           ERR("7", "-32602", "\\\"exclusive\\\" must be true or false"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"a.txt\",\"text\":\"\",\"exclusive\":true}"),
+           FERR("8", "something with that name already exists"));
+    EXPECT(
+        REQ("8", "files.write", ",\"params\":{\"path\":\"big\",\"text\":\"ab\",\"mode\":\"add\"}"),
+        FERR("8", "no \\\"begin\\\" for this file"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"text\":\"ab\",\"mode\":\"begin\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":2,\"done\":false}"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"base64\":\"Yw==\",\"mode\":\"add\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":3,\"done\":false}"));
+    EXPECT(
+        REQ("8", "files.write", ",\"params\":{\"path\":\"big\",\"text\":\"d\",\"mode\":\"end\"}"),
+        OK("8", "{\"path\":\"big\",\"size\":4,\"done\":true}"));
+    EXPECT(REQ("8", "files.read", ",\"params\":{\"path\":\"big\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":4,\"offset\":0,\"next\":4,\"eof\":true,"
+                   "\"text\":\"abcd\"}"));
+    EXPECT(REQ("8", "files.write",
+               ",\"params\":{\"path\":\"big\",\"text\":\"e\",\"mode\":\"replace\"}"),
+           OK("8", "{\"path\":\"big\",\"size\":1,\"done\":true}"));
+    /* folders, rename, list order */
+    EXPECT(REQ("9", "files.mkdir", ",\"params\":{\"path\":\"Docs\"}"),
+           OK("9", "{\"path\":\"Docs\"}"));
+    EXPECT(REQ("9", "files.mkdir", ",\"params\":{\"path\":\"Docs\"}"),
+           FERR("9", "something with that name already exists"));
+    EXPECT(REQ("9", "files.mkdir", ""),
+           ERR("9", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"big\",\"to\":\"Docs/big\"}"),
+           OK("10", "{\"path\":\"Docs/big\"}"));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"big\",\"to\":\"Docs/big\"}"),
+           FERR("10", "no such file or folder"));
+    EXPECT(REQ("10", "files.rename", ",\"params\":{\"from\":\"a.txt\"}"),
+           ERR("10", "-32602", "missing string parameter \\\"to\\\""));
+    const char *l = rpc(REQ("11", "files.list", ""));
+    const char *d = strstr(l, "\"name\":\"Docs\",\"dir\":true,\"size\":0");
+    const char *a = strstr(l, "\"name\":\"a.txt\",\"dir\":false,\"size\":4");
+    const char *b = strstr(l, "\"name\":\"b.bin\"");
+    static const char HEAD[] =
+        "{\"jsonrpc\":\"2.0\",\"id\":11,\"result\":{\"path\":\"\",\"entries\":[{";
+    CHECK(!strncmp(l, HEAD, sizeof HEAD - 1) && d && a && b && d < a && a < b && strstr(l, "}]}}"),
+          "list: %s", l);
+    CHECK(has(REQ("11", "files.list", ",\"params\":{\"path\":\"Docs\"}"),
+              "{\"path\":\"Docs\",\"entries\":[{\"name\":\"big\",\"dir\":false,\"size\":1,"
+              "\"mtime\":"),
+          "list Docs: %s", OUT.p);
+    /* trash */
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"a.txt\"}"),
+           OK("12", "{\"trashed\":\".Trash/a.txt\",\"removed\":false}"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\".Trash/a.txt\"}"),
+           OK("12", "{\"trashed\":null,\"removed\":true}"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"a.txt\"}"),
+           FERR("12", "no such file or folder"));
+    EXPECT(REQ("12", "files.trash", ",\"params\":{\"path\":\"Docs\"}"),
+           OK("12", "{\"trashed\":\".Trash/Docs\",\"removed\":false}"));
+    EXPECT(REQ("13", "files.empty_trash", ""), OK("13", "{\"removed\":2}"));
+    EXPECT(REQ("13", "files.empty_trash", ""), OK("13", "{\"removed\":0}"));
+    EXPECT(REQ("13", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
+           OK("13", "{\"path\":\".Trash\",\"entries\":[]}"));
+    /* a root that cannot be made */
+    char bad[260];
+    snprintf(bad, sizeof bad, "%s/b.bin", root);
+    CHECK(zxf_set_root(bad) == ZXF_E_ROOT, "a file is no root");
+    EXPECT(REQ("14", "files.root", ""), FERR("14", "the ZXV folder cannot be found or made"));
+    EXPECT(REQ("14", "files.empty_trash", ""),
+           FERR("14", "the ZXV folder cannot be found or made"));
+    CHECK(zxf_set_root(root) == 0, "root back");
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -2149,14 +3870,20 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_phone_methods();
     test_aipi_methods();
+    test_files_methods();
+    test_spaces_methods();
     test_books_closed();
     test_books();
     test_earnings();
     test_books_file();
     test_mesh();
     test_views();
+    test_play();
     test_jurisdiction();
+    test_groups();
+    test_feature_save();
     test_edges();
     test_ext();
     test_socket();

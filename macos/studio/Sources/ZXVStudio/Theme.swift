@@ -1,8 +1,9 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// The look approved in the mockups: dark ground, gold accent, IBM Plex-like
-// system faces (SF and SF Mono), panels with a thin border.
+// The look approved in the mockups: dark ground, gold accent, panels with a
+// thin border. Text is ASCW Golden (ASCWFont.swift); numbers and IDs stay in
+// SF Mono.
 import SwiftUI
 import ZXVRPC
 
@@ -21,6 +22,15 @@ enum Theme {
     static let emotional = Color(red: 0xE0 / 255, green: 0x5F / 255, blue: 0xA8 / 255)
 }
 
+extension Theme {
+    /// ASCW Golden at a size; the macOS text-style sizes below.
+    static func ui(_ size: CGFloat) -> Font { ASCWFont.font(size: size) }
+    static var body: Font { ui(13) }
+    static var callout: Font { ui(12) }
+    static var caption: Font { ui(10) }
+    static var caption2: Font { ui(10) }
+}
+
 @MainActor
 struct Panel<Content: View>: View {
     let title: String
@@ -32,12 +42,12 @@ struct Panel<Content: View>: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(title.uppercased())
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Theme.ui(12))
                     .kerning(1)
                     .foregroundStyle(Theme.muted)
                 Spacer()
                 if let t = trailing {
-                    Text(t).font(.caption).foregroundStyle(Theme.muted)
+                    Text(t).font(Theme.caption).foregroundStyle(Theme.muted)
                 }
             }
             content
@@ -67,7 +77,7 @@ struct KV: View {
             Text(value).font(.system(.body, design: .monospaced)).foregroundStyle(color)
                 .textSelection(.enabled)
         }
-        .font(.callout)
+        .font(Theme.callout)
     }
 }
 
@@ -80,7 +90,7 @@ struct Stat: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(value).font(.system(size: 20, design: .monospaced))
-            Text(label).font(.caption).foregroundStyle(Theme.muted)
+            Text(label).font(Theme.caption).foregroundStyle(Theme.muted)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,10 +109,10 @@ struct NotServed: View {
     var body: some View {
         Panel(title: what, dashed: true) {
             Text("Not served by zxvd yet")
-                .font(.title3.weight(.semibold))
+                .font(Theme.ui(15))
             Text(detail).foregroundStyle(Theme.text.opacity(0.85))
             Text("Appears when zxvd lists \(method) in rpc.discover.")
-                .font(.caption).foregroundStyle(Theme.muted)
+                .font(Theme.caption).foregroundStyle(Theme.muted)
         }
     }
 }
@@ -116,7 +126,7 @@ struct PageHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 26, weight: .semibold))
+                Text(title).font(Theme.ui(26))
                 Text(subtitle).foregroundStyle(Theme.muted)
             }
             Spacer()

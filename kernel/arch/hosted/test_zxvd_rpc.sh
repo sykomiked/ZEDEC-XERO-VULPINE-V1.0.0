@@ -21,12 +21,14 @@ cc_() {
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/robin_debanks" \
         -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" \
         -I"$K/src/surplus" -I"$K/src/freight" -I"$K/src/harmonic" -I"$K/src/stream" -I"$K/src/ehop" \
-        -I"$K/src/ipfs_node" -I"$K/src/pqsec" -I"$K/src/lpres" -I"$K/src/edp_risk" \
+        -I"$K/src/ipfs_node" -I"$K/src/pqsec" -I"$K/src/lpres" -I"$K/src/edp_risk" -I"$K/src/juris" \
         -I"$R/sdk/libzxv/include" "$@"
 }
 A="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3
 for t in test_zxvd_rpc test_zxvd_rpc_modules; do
-    cc_ "$HERE/$t.c" "$HERE/zxvd_rpc.c" "$A" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/$t" ||
+    cc_ "$HERE/$t.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" \
+        "$K/src/juris/juris.c" "$K/src/acct/acct.c" "$K/src/lpres/lpres_hex.c" "$K/src/lpres/lpres.c" \
+        "$A" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/$t" ||
         exit 3
 done
 "$T/test_zxvd_rpc"

@@ -85,3 +85,10 @@ different order.
 - Results are deterministic for the same inputs. Nodes agree because they apply
   the same order to the same signed inputs, not because of any shared clock or
   instant network-wide change.
+
+## Built on it
+
+The contradiction-tolerant ledger and the four-valued agents (roadmap 6.6b
+P1.1 to P1.4 and P2.2) use this engine's neutral hold for witness evidence, its
+classifier for agent decisions, and its log for every ledger event. See
+[PARACONSISTENT_LEDGER.md](PARACONSISTENT_LEDGER.md).

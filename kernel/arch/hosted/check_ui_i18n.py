@@ -46,6 +46,35 @@ CODE = {
     # the API
     '/api/state', '/api/notes', '/api/net', '/api/update', '/api/notes/read', '/api/ask',
     '/api/quit', 'POST',
+    # the staple apps and the Playground: element ids, selectors, classes
+    'tab-swarm', 'tab-play', 'swarm', 'play', 'files', 'text', 'photos', 'console', 'dock',
+    '#dock button', '.view', 'v-', '.tpl', 'tpl', 'tpls', 'tile', 'row', 'drop', 'split', 'primary',
+    'prose', 'edited', 'on ', 'small', 'err', 'go', 'a.go', 'viewer', 'modal', 'span', 'button',
+    'option', 'input', 'img', 'a', 'tr', 'ul', 'ol', 'aria-label', 'var(--bad)',
+    'fcrumbs', 'fdrop', 'fempty', 'fimport', 'flist', 'fnewdir', 'fnewtxt', 'fpick', 'fstat', 'ftrash',
+    'ed', 'mdview', 'tdirty', 'tfont', 'tname', 'tnew', 'topen', 'tprev', 'tsave', 'tsaveas', 'tstat',
+    'twrap', 'pcrumbs', 'pgrid', 'pimport', 'ppick', 'pstat', 'vclose', 'vname', 'vnext', 'vprev',
+    'vstage', 'cclear', 'cmeth', 'cout', 'cparams', 'crun', 'minput', 'mno', 'mtext', 'mtitle', 'myes',
+    'pl-askf', 'pl-discard', 'pl-draft', 'pl-draftbox', 'pl-draftnote', 'pl-drafttext', 'pl-files',
+    'pl-req', 'pl-reset', 'pl-result', 'pl-run', 'pl-sum', 'pl-text', 'pl-title', 'pl-use',
+    # events, keys and storage
+    'keydown', 'beforeunload', 'Enter', 'Escape', 'Tab', 'ArrowLeft', 'ArrowRight', 's',
+    'zxv-app', 'zxv-draft', 'null',
+    # the API: zxvd methods, files.* parameters, the Playground's request lines
+    '/api/rpc', '/api/play/catalogue', '/api/play/run', '/api/play/draft', 'Content-Type',
+    'application/json', 'application/octet-stream', 'rpc.discover', 'zxvd.shutdown', 'files.list',
+    'files.read', 'files.write', 'files.mkdir', 'files.rename', 'files.trash', 'files.empty_trash',
+    'files.root', 'utf8', 'base64', 'begin', 'add', 'end', 'replace', '.Trash', '.Trash/',
+    'README.md', 'template.zxv', 'required', 'none', 'call', 'ok', 'error',
+    'template \n', 'request \n', 'file  \n',
+    # file kinds, extensions and media types
+    'image', 'audio', 'video', 'other', 'txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'log', 'yaml',
+    'yml', 'toml', 'ini', 'xml', 'html', 'css', 'js', 'ts', 'c', 'py', 'sh', 'swift', 'rs', 'java',
+    'cob', 'cbl', 'sutra', 'zxt', 'f90', 'ada', 'adb', 'ads', 'apl', 'k', 'm', 'sql', 'rtf', 'png',
+    'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'heic', 'mp3', 'm4a', 'wav', 'ogg', 'flac',
+    'aac', 'opus', 'mp4', 'm4v', 'mov', 'webm', 'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+    'image/bmp', 'image/svg+xml', 'image/avif', 'image/heic', 'audio/mpeg', 'audio/mp4', 'audio/wav',
+    'audio/ogg', 'audio/flac', 'audio/aac', 'video/mp4', 'video/quicktime', 'video/webm',
     # JavaScript
     'bigint', 'string',
 }

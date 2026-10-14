@@ -1,0 +1,5 @@
+# Accepted findings of build_system/adversarial_audit.py (docs/ADVERSARIAL_AUDIT.md).
+# One "<check> <key>  # reason" per line. Keep reasons checkable; delete a line
+# when its finding is fixed (the audit reports lines that match nothing).
+orphan-tests kernel/src/net/test_smart_adapter.c  # includes smart_adapter_jdr.h, which does not exist (AUDIT_REPORT MED, net owner); docs/ADVERSARIAL_AUDIT_2026-10-12.md section 2
+orphan-tests tests/host/test_ipc.c  # tests its own copy of ipc_send/ipc_recv; the real code is arm64-only (inline asm), needs an aarch64 build under qemu-user; docs/ADVERSARIAL_AUDIT_2026-10-12.md section 2

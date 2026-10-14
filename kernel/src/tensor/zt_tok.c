@@ -430,10 +430,12 @@ int32_t zt_tok_load(zt_tok_t *t, const zt_gguf_t *g, void *arena, uint64_t arena
         if (t->byte_tok[b] < 0) return ZT_GGUF_ETYPE; /* not a byte-level vocabulary */
     }
 
-    t->bos = (int32_t) zt_gguf_get_int(g, "tokenizer.ggml.bos_token_id", -1);
-    t->eos = (int32_t) zt_gguf_get_int(g, "tokenizer.ggml.eos_token_id", -1);
-    if (t->bos >= (int32_t) nv) t->bos = -1;
-    if (t->eos >= (int32_t) nv) t->eos = -1;
+    /* range-check the 64-bit value before narrowing: a negative id, or one
+     * that only fits after truncation to 32 bits, is absent (-1) */
+    int64_t bos = zt_gguf_get_int(g, "tokenizer.ggml.bos_token_id", -1);
+    int64_t eos = zt_gguf_get_int(g, "tokenizer.ggml.eos_token_id", -1);
+    t->bos = bos >= 0 && bos < (int64_t) nv ? (int32_t) bos : -1;
+    t->eos = eos >= 0 && eos < (int64_t) nv ? (int32_t) eos : -1;
     t->add_bos = zt_gguf_get_int(g, "tokenizer.ggml.add_bos_token", 0) != 0;
     return ZT_GGUF_OK;
 }

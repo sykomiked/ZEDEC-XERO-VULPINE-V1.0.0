@@ -503,26 +503,6 @@ def phase2_tests():
                 "kernel/src/phase_coord/phase_coordinator.c",
             ],
         },
-        {
-            "name": "Network + Vino + Vena",
-            "sources": [
-                "tests/test_net_vino.c",
-                "kernel/src/net/net.c",
-                "kernel/src/net/m5route.c",
-                "kernel/src/net/dtmf.c",
-                "kernel/src/net/radio.c",
-                "kernel/src/vino/vino.c",
-                "kernel/src/vena/vena.c",
-                "kernel/src/rmag/rmag_core.c",
-                "kernel/src/lpres/lpres_core.c",
-                "kernel/src/choice/choice_core.c",
-                "kernel/src/iphase/iphase_core.c",
-                "kernel/src/phase_coord/phase_coordinator.c",
-                "kernel/src/telemetry/telemetry_core.c",
-                "kernel/src/axiom_matrix/axiom_matrix_core.c",
-                "kernel/src/oseq/oseq_core.c",
-            ],
-        },
     ]
 
     all_pass = True

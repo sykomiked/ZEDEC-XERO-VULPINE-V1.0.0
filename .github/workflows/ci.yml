@@ -83,6 +83,11 @@ jobs:
         run: pip install clang-format==18.1.8 pyyaml
       - name: Every pull request workflow keeps drafts on the fast tier
         run: python3 build_system/check_workflow_tiers.py
+      - name: The mutation config parses and is consistent
+        # A merge that keeps both sides of a targets.json entry used to pass
+        # every fast job and then fail all three mutation shards on a ready
+        # pull request (#89, #110). Checking it here fails in seconds instead.
+        run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --check-config
       - name: Check formatting of the C files this change touches
         # Style is in .clang-format. Older files predate it, so only the lines
         # a pull request or push changes are checked. Nightly and manual runs
@@ -115,7 +120,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
@@ -123,6 +128,7 @@ jobs:
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
+          ZXV_REQUIRE_SWTPM: "1"
         run: |
           cd kernel
           make verify-all
@@ -303,6 +309,16 @@ jobs:
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/baremetal_images.sh ${{ matrix.arch }}
       - name: Boot ${{ matrix.arch }} disc under UEFI firmware
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} "" 90 "[AI_OK]" "${{ matrix.screen }}"
+      # Standard class drivers (kernel/src/hwdrv) on one of every emulated
+      # device they cover: NVMe, SATA, xHCI keyboard + storage, Intel NICs,
+      # HD Audio. Each must bind and pass its boot self-test.
+      - name: Class drivers on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # Golden disc model check with a 3 MiB test file as the model: verified
+      # when intact, caught when one byte changes (docs/BAREMETAL.md).
+      - name: Golden disc model check (${{ matrix.arch }})
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

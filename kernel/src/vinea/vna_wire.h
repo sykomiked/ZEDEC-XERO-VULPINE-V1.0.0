@@ -54,7 +54,9 @@ typedef enum {
     VNA_MSG_SPOOL = 10,     /* one store-and-forward item (vna_spool_item_t) */
     VNA_MSG_SPOOL_ACK = 11, /* its acknowledgement (vna_b_spool_ack_t) */
     VNA_MSG_RCPT = 12,      /* one trade receipt (vna_econ.h), body vna_b_rec_t */
-    VNA_MSG_TYPE_MAX = 12
+    VNA_MSG_PUNCH = 13,     /* NAT traversal: introduction request / introduction (vna_b_punch_t) */
+    VNA_MSG_AIPI = 14,      /* one AIPI call, claim or payment notice (vna_b_aipi_t) */
+    VNA_MSG_TYPE_MAX = 14
 } vna_msg_type_t;
 
 typedef struct {
@@ -107,7 +109,52 @@ typedef struct {
     uint8_t text[VNA_HK_MAX];
 } vna_b_hk_t;
 
+/* PONG body (optional; empty from older nodes): the transport address the
+ * responder saw the PING come from. This is how a node behind a NAT learns
+ * its public (reflexive) address, as STUN does (RFC 8489 XOR-MAPPED-ADDRESS),
+ * except the answer is signed by the responder. One peer's word proves
+ * nothing, so vna_node_reflexive counts it only when distinct peers agree. */
+typedef struct {
+    uint16_t addr_len;
+    uint8_t addr[VNA_ADDR_MAX];
+} vna_b_addr_t;
+
+/* PUNCH (UDP hole punching through a rendezvous peer R, RFC 5128 sec. 3.3):
+ *   REQ   A -> R  "introduce me to `peer`" (R must already know `peer`).
+ *   INTRO R -> B  "`peer` (A) is at `addr`"; and R -> A "B is at `addr`".
+ * On an INTRO each side PINGs the address it was given, expecting exactly
+ * that NodeID, which opens both NAT mappings; the PONG proves the identity.
+ * R takes A's address from the datagram, never from the body. */
+typedef enum { VNA_PUNCH_REQ = 1, VNA_PUNCH_INTRO = 2 } vna_punch_kind_t;
+typedef struct {
+    uint8_t kind;
+    vna_id_t peer;
+    uint16_t addr_len;
+    uint8_t addr[VNA_ADDR_MAX];
+} vna_b_punch_t;
+
+/* AIPI over Vinea (src/aipi): the call record, an executor's claim, or a
+ * payment notice, carried as opaque bytes. The message signature (ML-DSA-87)
+ * authenticates the sender, so a claim's executor field is checked against
+ * the message's src by the receiver before the claim counts. */
+#define VNA_AIPI_DATA_MAX 2600u
+typedef enum {
+    VNA_AIPI_CALL = 1,  /* data: call record; amount: the bounty offered */
+    VNA_AIPI_CLAIM = 2, /* data: claim bytes (aipi_claim_encode) */
+    VNA_AIPI_PAID = 3,  /* data: call CID (binary); amount: what the caller pays */
+    VNA_AIPI_BUSY = 4   /* data: call CID; the executor declines this call */
+} vna_aipi_kind_t;
+typedef struct {
+    uint8_t kind;
+    uint64_t amount;
+    uint16_t len;
+    uint8_t data[VNA_AIPI_DATA_MAX];
+} vna_b_aipi_t;
+
 extern const vna_schema_t vna_msg_schema;
+extern const vna_schema_t vna_b_addr_schema;
+extern const vna_schema_t vna_b_punch_schema;
+extern const vna_schema_t vna_b_aipi_schema;
 extern const vna_schema_t vna_b_key_schema;
 extern const vna_schema_t vna_b_nodes_schema;
 extern const vna_schema_t vna_b_rec_schema;

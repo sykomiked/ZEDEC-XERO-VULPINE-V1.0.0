@@ -1,3 +1,5 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * test_new_modules.c — Host-side tests for new M5 kernel modules
  *
@@ -13,7 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <assert.h>
 
 #include "m5_types.h"
 #include "surplus.h"
@@ -44,6 +45,12 @@
 #include "gematria.h"
 #include "dualtrack.h"
 #include "superpos.h"
+#include "../kernel/src/robin_debanks/sha256.h"
+
+/* Counting check that is never compiled out (unlike assert under NDEBUG). */
+static int g_checks;
+#define assert(c) do { g_checks++; if (!(c)) { fflush(stdout); \
+    fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); abort(); } } while (0)
 
 /* ===== Polar-Paraconsistent Trit Logic (5VL) Tests ===== */
 static void test_polar_trit_logic(void) {
@@ -58,13 +65,14 @@ static void test_polar_trit_logic(void) {
     assert(TRIT_GLUT_NEUTRAL == 5);
     printf("  [PASS] 5VL state codes: FALSE=0, TRUE=1, GLUT=2, GLUT+=3, GLUT-=4, GLUT0=5\n");
 
-    /* Existential import mapping */
-    assert(trit_to_ell(TRIT_TRUE) == 1.0);
-    assert(trit_to_ell(TRIT_GLUT_PLUS) == 0.75);
-    assert(trit_to_ell(TRIT_GLUT) == 0.5);
-    assert(trit_to_ell(TRIT_GLUT_NEUTRAL) == 0.5);
-    assert(trit_to_ell(TRIT_GLUT_MINUS) == 0.25);
-    assert(trit_to_ell(TRIT_FALSE) == 0.0);
+    /* Existential import mapping (Q16.16, 65536 == 1.0; the double
+     * trit_to_ell() was removed from m5_types.h). */
+    assert(trit_to_ell_q16(TRIT_TRUE) == 65536u);
+    assert(trit_to_ell_q16(TRIT_GLUT_PLUS) == 49152u);
+    assert(trit_to_ell_q16(TRIT_GLUT) == 32768u);
+    assert(trit_to_ell_q16(TRIT_GLUT_NEUTRAL) == 32768u);
+    assert(trit_to_ell_q16(TRIT_GLUT_MINUS) == 16384u);
+    assert(trit_to_ell_q16(TRIT_FALSE) == 0u);
     printf("  [PASS] Existential import: TRUE=1.0, GLUT+=0.75, GLUT0=0.5, GLUT-=0.25, FALSE=0.0\n");
 
     /* Charge vector */
@@ -88,10 +96,11 @@ static void test_polar_trit_logic(void) {
     /* Coverage invariant: GLUT_PLUS has higher ell than GLUT_MINUS
      * This means a system in GLUT_PLUS state has better coverage (r*ell >= 1.8)
      * than one in GLUT_MINUS state, giving it directional momentum */
-    double r = 2.0;
-    assert(r * trit_to_ell(TRIT_GLUT_PLUS) >= 1.5);  /* 2.0 * 0.75 = 1.5 */
-    assert(r * trit_to_ell(TRIT_GLUT_NEUTRAL) >= 0.9); /* 2.0 * 0.5 = 1.0 */
-    assert(r * trit_to_ell(TRIT_GLUT_MINUS) < 1.0);   /* 2.0 * 0.25 = 0.5 */
+    rational_t r = {2, 1};
+    assert(m5_coverage_cmp(r, TRIT_GLUT_PLUS, 3, 2) >= 0);    /* 2 * 3/4 = 3/2 */
+    assert(m5_coverage_cmp(r, TRIT_GLUT_PLUS, 3, 2) == 0);
+    assert(m5_coverage_cmp(r, TRIT_GLUT_NEUTRAL, 9, 10) > 0); /* 2 * 1/2 = 1 */
+    assert(m5_coverage_cmp(r, TRIT_GLUT_MINUS, 1, 1) < 0);    /* 2 * 1/4 = 1/2 */
     printf("  [PASS] Coverage momentum: GLUT+ > GLUT0 > GLUT- (directional resolution)\n");
 
     printf("  === All polar trit logic tests passed ===\n\n");
@@ -737,9 +746,16 @@ static void test_pungent(void) {
     assert(pc->default_hops == 3);
     printf("  [PASS] PungentClove initialized (default_hops=%u)\n", pc->default_hops);
 
-    int32_t r0 = pungent_relay_add(pc, "m5://relay1.onion", PC_TIER_ONION);
-    int32_t r1 = pungent_relay_add(pc, "m5://relay2.i2p", PC_TIER_GARLIC);
-    int32_t r2 = pungent_relay_add(pc, "radio://relay3.hf", PC_TIER_RADIO);
+    /* Relays need the hash of their real public key (never derived from
+     * the address); a relay without one is refused. */
+    uint8_t rk0[PC_HASH_SIZE], rk1[PC_HASH_SIZE], rk2[PC_HASH_SIZE];
+    memset(rk0, 0x11, sizeof(rk0));
+    memset(rk1, 0x22, sizeof(rk1));
+    memset(rk2, 0x33, sizeof(rk2));
+    assert(pungent_relay_add(pc, "m5://nokey.onion", PC_TIER_ONION, NULL) < 0);
+    int32_t r0 = pungent_relay_add(pc, "m5://relay1.onion", PC_TIER_ONION, rk0);
+    int32_t r1 = pungent_relay_add(pc, "m5://relay2.i2p", PC_TIER_GARLIC, rk1);
+    int32_t r2 = pungent_relay_add(pc, "radio://relay3.hf", PC_TIER_RADIO, rk2);
     assert(r0 == 0 && r1 == 1 && r2 == 2);
     printf("  [PASS] 3 relays added (Onion, Garlic, Radio)\n");
 
@@ -762,17 +778,45 @@ static void test_pungent(void) {
     uint8_t payload1[] = "ZEDEC-payload-1";
     uint8_t payload2[] = "ZEDEC-payload-2";
 
-    assert(pungent_bulb_add_clove(&bulb, payload1, sizeof(payload1)-1, dest1, PC_TIER_GARLIC) == 0);
-    assert(pungent_bulb_add_clove(&bulb, payload2, sizeof(payload2)-1, dest2, PC_TIER_ONION) == 1);
+    uint8_t ck1[PC_SESSION_KEY_SIZE], ck2[PC_SESSION_KEY_SIZE];
+    uint8_t cn1[PC_NONCE_SIZE] = {1}, cn2[PC_NONCE_SIZE] = {2};
+    memset(ck1, 0xA1, sizeof(ck1));
+    memset(ck2, 0xB2, sizeof(ck2));
+    assert(pungent_bulb_add_clove(&bulb, payload1, sizeof(payload1)-1, dest1, PC_TIER_GARLIC, ck1, cn1) == 0);
+    assert(pungent_bulb_add_clove(&bulb, payload2, sizeof(payload2)-1, dest2, PC_TIER_ONION, ck2, cn2) == 1);
     assert(bulb.num_cloves == 2);
     printf("  [PASS] 2 cloves added to bulb (garlic bundling)\n");
 
-    assert(pungent_bulb_seal(&bulb) == 0);
+    /* Each clove opens under its own key and not under the other's. */
+    uint8_t opened[64];
+    assert(pungent_clove_open(&bulb.cloves[0], ck1, opened, sizeof(opened)) == (int)(sizeof(payload1)-1));
+    assert(memcmp(opened, payload1, sizeof(payload1)-1) == 0);
+    assert(pungent_clove_open(&bulb.cloves[0], ck2, opened, sizeof(opened)) < 0);
+    printf("  [PASS] Clove AEAD: opens under its key, rejects a wrong key\n");
+
+    uint8_t hop_keys[3][PC_SESSION_KEY_SIZE];
+    for (uint32_t h = 0; h < 3; h++) memset(hop_keys[h], (int)(0x40 + h), PC_SESSION_KEY_SIZE);
+    uint8_t bulb_nonce[PC_NONCE_SIZE] = {0x5E, 0xED};
+    assert(pungent_bulb_seal(&bulb, (const uint8_t (*)[PC_SESSION_KEY_SIZE])hop_keys, bulb_nonce) == 0);
     assert(bulb.sealed == true);
     printf("  [PASS] Bulb sealed (multi-layer encryption)\n");
 
-    assert(pungent_bulb_unseal(&bulb, 0) == 0);
-    printf("  [PASS] Bulb unseal layer 0 works\n");
+    /* Layers peel in hop order; after the last one the cloves are back. */
+    assert(pungent_bulb_unseal(&bulb, 0, hop_keys[0]) == 0);
+    assert(pungent_bulb_unseal(&bulb, 1, hop_keys[1]) == 0);
+    assert(pungent_bulb_unseal(&bulb, 2, hop_keys[2]) == 0);
+    assert(bulb.num_cloves == 2);
+    assert(pungent_clove_open(&bulb.cloves[1], ck2, opened, sizeof(opened)) == (int)(sizeof(payload2)-1));
+    assert(memcmp(opened, payload2, sizeof(payload2)-1) == 0);
+    printf("  [PASS] Bulb unsealed through all 3 layers, cloves intact\n");
+
+    /* A wrong hop key discards the bulb. */
+    pc_bulb_t bad;
+    assert(pungent_bulb_init(&bad, 2, 0) == 0);
+    assert(pungent_bulb_add_clove(&bad, payload1, sizeof(payload1)-1, dest1, PC_TIER_GARLIC, ck1, cn1) == 0);
+    assert(pungent_bulb_seal(&bad, (const uint8_t (*)[PC_SESSION_KEY_SIZE])hop_keys, bulb_nonce) == 0);
+    assert(pungent_bulb_unseal(&bad, 0, hop_keys[1]) == -1);
+    printf("  [PASS] Wrong hop key rejected\n");
 
     uint32_t bulb_sz = pungent_bulb_size(&bulb);
     assert(bulb_sz > 0);
@@ -781,6 +825,8 @@ static void test_pungent(void) {
     /* Tunnel operations */
     int32_t t0 = pungent_tunnel_create(pc, PC_TUNNEL_OUTBOUND, PC_TIER_GARLIC, 3);
     assert(t0 == 0);
+    assert(pungent_tunnel_activate(pc, 0) != 0); /* no hops yet */
+    for (uint32_t h = 0; h < 3; h++) assert(pungent_tunnel_add_hop(pc, 0, h, hop_keys[h]) == 0);
     printf("  [PASS] Tunnel created: %s, tier=%s\n",
            pungent_tunnel_dir_name(pc->tunnels[0].direction),
            pungent_tier_name(pc->tunnels[0].tier));
@@ -790,14 +836,29 @@ static void test_pungent(void) {
     printf("  [PASS] Tunnel activated\n");
 
     uint8_t data[] = "secret-message";
-    assert(pungent_tunnel_send(pc, 0, data, sizeof(data)-1) == (int)(sizeof(data)-1));
+    uint8_t tun_out[128];
+    uint8_t tun_nonce[PC_NONCE_SIZE] = {0x7A};
+    int tl = pungent_tunnel_send(pc, 0, data, sizeof(data)-1, tun_nonce, tun_out, sizeof(tun_out));
+    assert(tl == (int)(sizeof(data)-1 + 3 * PC_TAG_SIZE));
+    assert(memcmp(tun_out, data, sizeof(data)-1) != 0);
+    /* The three hops peel it back to the plaintext, in order. */
+    int32_t pl = tl;
+    for (uint32_t h = 0; h < 3; h++) {
+        pl = pungent_layer_peel(hop_keys[h], tun_nonce, h, tun_out, (uint32_t)pl);
+        assert(pl >= 0);
+    }
+    assert(pl == (int32_t)(sizeof(data)-1));
+    assert(memcmp(tun_out, data, sizeof(data)-1) == 0);
     assert(pc->tunnels[0].bytes_sent == sizeof(data)-1);
     assert(pc->tunnels[0].bulbs_passed == 1);
     printf("  [PASS] Tunnel send: %u bytes, %u bulbs\n",
            (uint32_t)pc->tunnels[0].bytes_sent, pc->tunnels[0].bulbs_passed);
 
     /* Hidden service */
-    int32_t hs = pungent_hidden_service_create(pc, "zede-hidden", 8080, 0);
+    uint8_t svc_pub[32];
+    memset(svc_pub, 0x5C, sizeof(svc_pub));
+    assert(pungent_hidden_service_create(pc, "nokey", 8080, 0, NULL, 0) < 0);
+    int32_t hs = pungent_hidden_service_create(pc, "zede-hidden", 8080, 0, svc_pub, sizeof(svc_pub));
     assert(hs == 0);
     assert(pc->services[0].active == true);
     printf("  [PASS] Hidden service created: %s on port %u\n",
@@ -820,8 +881,8 @@ static void test_pungent(void) {
     printf("  [PASS] Path selection: 3 hops selected (nonlinear)\n");
 
     /* 8-tier names */
-    assert(strcmp(pungent_tier_name(PC_TIER_SURFACE), "Tier 1: Surface Web") == 0);
-    assert(strcmp(pungent_tier_name(PC_TIER_SHADOW), "Tier 8: ZK Shadow") == 0);
+    assert(strcmp(pungent_tier_name(PC_TIER_SURFACE), "Tier 1: Surface") == 0);
+    assert(strcmp(pungent_tier_name(PC_TIER_SHADOW), "Tier 8: Shadow") == 0);
     printf("  [PASS] 8-tier naming correct\n");
 
     free(pc);
@@ -1028,27 +1089,38 @@ static void test_plnp(void) {
     assert(conn == 0);
     printf("  [PASS] Connection created: K=%s\n", plnp_key_name(PLNP_KEY_K4));
 
+    /* conn_send builds, seals and serializes one frame (nothing is sent):
+     * header + payload + CRC32 + end marker. */
+    uint8_t wire[PLNP_MAX_FRAME_SIZE];
+    const int wire_len = (int)(sizeof(plnp_header_t) + (sizeof(payload)-1) + 4 + 1);
+
     /* Send with TRUE phase */
-    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_TRUE) == (int)(sizeof(payload)-1));
+    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_TRUE, wire, sizeof(wire)) == wire_len);
     assert(s->connections[0].frames_sent == 1);
     assert(s->connections[0].bytes_sent == sizeof(payload)-1);
+    plnp_frame_t sent;
+    assert(plnp_frame_deserialize(&sent, wire, (uint32_t)wire_len) == wire_len);
+    assert(plnp_frame_verify(&sent) == 0);
+    assert(sent.header.payload_len == sizeof(payload)-1);
+    assert(sent.header.phase_state == PLNP_PHASE_TRUE);
+    assert(memcmp(sent.header.src_cid, src_cid, 32) == 0);
     printf("  [PASS] Send (TRUE): %u bytes, %u frames\n",
            s->connections[0].bytes_sent, s->connections[0].frames_sent);
 
     /* Send with GLUT+ (speculative) */
-    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_PLUS) == (int)(sizeof(payload)-1));
+    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_PLUS, wire, sizeof(wire)) == wire_len);
     assert(s->connections[0].glut_plus_count == 1);
     assert(s->total_glut_plus == 1);
     printf("  [PASS] Send (GLUT+): speculative processing\n");
 
     /* Send with GLUT0 (freeze) */
-    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_ZERO) == (int)(sizeof(payload)-1));
+    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_ZERO, wire, sizeof(wire)) == wire_len);
     assert(s->connections[0].glut_freezes == 1);
     assert(s->total_glut_freezes == 1);
     printf("  [PASS] Send (GLUT0): frame frozen for inspection\n");
 
     /* Send with GLUT- (safe drop) */
-    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_MINUS) == (int)(sizeof(payload)-1));
+    assert(plnp_conn_send(s, 0, payload, sizeof(payload)-1, PLNP_PHASE_GLUT_MINUS, wire, sizeof(wire)) == wire_len);
     assert(s->connections[0].glut_minus_count == 1);
     assert(s->total_glut_minus == 1);
     printf("  [PASS] Send (GLUT-): safe drop without stalling\n");
@@ -1139,8 +1211,13 @@ static void test_smap(void) {
 
     /* Reassembly */
     uint8_t out[10000];
-    int recon_len = smap_reassemble(st, 0, out, sizeof(out));
+    int recon_len = smap_reassemble(st, 0, data, sizeof(data), out, sizeof(out));
     assert(recon_len == 10000);
+    assert(memcmp(out, data, sizeof(data)) == 0);
+    /* A corrupted shard is refused. */
+    data[5000] ^= 0x01;
+    assert(smap_reassemble(st, 0, data, sizeof(data), out, sizeof(out)) < 0);
+    data[5000] ^= 0x01;
     printf("  [PASS] Reassembly: %d bytes reconstructed\n", recon_len);
 
     /* File lookup by CID */
@@ -1195,23 +1272,34 @@ static void test_decent(void) {
     printf("  [PASS] Decent protocol stack initialized\n");
 
     /* IPFS */
-    int32_t n0 = decent_ipfs_node_add(d, "12D3KooWTestPeer", "/ip4/10.0.0.1/tcp/4001");
+    uint8_t peer_pub[32];
+    memset(peer_pub, 0x9A, sizeof(peer_pub));
+    int32_t n0 = decent_ipfs_node_add(d, "12D3KooWTestPeer", "/ip4/10.0.0.1/tcp/4001",
+                                      peer_pub, sizeof(peer_pub));
     assert(n0 == 0);
     assert(decent_ipfs_node_connect(d, 0) == 0);
     assert(d->ipfs_nodes[0].connected == true);
     printf("  [PASS] IPFS node added + connected\n");
 
-    uint8_t cid_hash[32] = {0x42, 0x01, 0x02};
-    int32_t cid_idx = decent_ipfs_cid_register(d, cid_hash, 0x70, 1024, DECENT_CID_V1);
+    /* A CID registered from a claimed digest stays unresolved until a block
+     * that hashes to it arrives. */
+    static const uint8_t block[] = "zedec-block-0001";
+    uint8_t cid_hash[32];
+    sha256(block, sizeof(block) - 1, cid_hash);
+    int32_t cid_idx = decent_ipfs_cid_register(d, cid_hash, 0x70, sizeof(block) - 1, DECENT_CID_V1);
     assert(cid_idx == 0);
     const decent_cid_t *cid = decent_ipfs_cid_find(d, cid_hash);
     assert(cid != NULL);
     assert(cid->codec == 0x70);
-    printf("  [PASS] IPFS CID registered (dag-pb, 1024 bytes)\n");
+    assert(d->cids[0].resolved == false);
+    printf("  [PASS] IPFS CID registered (dag-pb, unresolved)\n");
 
-    assert(decent_ipfs_bitswap(d, 0, 0) == 0);
+    static const uint8_t wrong_block[] = "zedec-block-0002";
+    assert(decent_ipfs_bitswap(d, 0, 0, wrong_block, sizeof(wrong_block) - 1) == DECENT_EMISMATCH);
+    assert(d->cids[0].resolved == false);
+    assert(decent_ipfs_bitswap(d, 0, 0, block, sizeof(block) - 1) == 0);
     assert(d->cids[0].resolved == true);
-    printf("  [PASS] Bitswap: content resolved\n");
+    printf("  [PASS] Bitswap: wrong block refused, matching block resolves\n");
 
     /* BitTorrent v2 */
     int32_t bt = decent_bt_swarm_create(d, "kernel-distro", 16384);
@@ -1224,32 +1312,51 @@ static void test_decent(void) {
     printf("  [PASS] BitTorrent v2 swarm: seeding with Merkle root\n");
 
     /* Matrix */
-    int32_t room = decent_matrix_room_create(d, "!zede:matrix.org", "ZEDEC Dev", true);
+    uint8_t room_key[32];
+    memset(room_key, 0x3D, sizeof(room_key));
+    assert(decent_matrix_room_create(d, "!nokey:matrix.org", "No key", true, NULL) == -1);
+    int32_t room = decent_matrix_room_create(d, "!zede:matrix.org", "ZEDEC Dev", true, room_key);
     assert(room == 0);
     assert(d->matrix_rooms[0].encrypted == true);
     assert(decent_matrix_room_add_member(d, 0, 0) == 0);
     assert(decent_matrix_room_send_event(d, 0, DECENT_MATRIX_EVENT_MESSAGE,
                                           "alice", "Build complete") == 0);
     assert(d->matrix_rooms[0].num_events == 1);
+    char body[64];
+    assert(decent_matrix_event_open(d, 0, 0, room_key, body, sizeof(body)) == (int)strlen("Build complete"));
+    assert(strcmp(body, "Build complete") == 0);
+    uint8_t wrong_key[32];
+    memset(wrong_key, 0x3E, sizeof(wrong_key));
+    assert(decent_matrix_event_open(d, 0, 0, wrong_key, body, sizeof(body)) == -1);
     printf("  [PASS] Matrix room: E2EE, 1 member, 1 message sent\n");
 
     /* DID */
-    int32_t did = decent_did_create(d, "operator", 3);
+    /* DID string = did:zede:K<n>:<first 16 bytes of SHA3-256(pubkey), hex>. */
+    uint8_t did_pub[32], did_pub2[32];
+    memset(did_pub, 0x71, sizeof(did_pub));
+    memset(did_pub2, 0x72, sizeof(did_pub2));
+    assert(decent_did_create(d, "nokey", 3, NULL, 0) == -1);
+    int32_t did = decent_did_create(d, "operator", 3, did_pub, sizeof(did_pub));
     assert(did == 0);
-    assert(strcmp(d->dids[0].did, "did:zede:K3") == 0);
+    assert(strncmp(d->dids[0].did, "did:zede:K3:", 12) == 0);
+    assert(strlen(d->dids[0].did) == 12 + 32);
+    assert(decent_did_create(d, "operator2", 3, did_pub2, sizeof(did_pub2)) == 1);
+    assert(strcmp(d->dids[0].did, d->dids[1].did) != 0);
     assert(decent_did_add_claim(d, 0) == 0);
-    assert(decent_did_zk_verify(d, 0) == 0);
-    assert(d->dids[0].zk_verified == true);
-    printf("  [PASS] DID created: did:zede:K3, zk-SNARK verified\n");
+    /* ZK verification is unimplemented and fails closed. */
+    assert(decent_did_zk_verify(d, 0) == DECENT_ENOTIMPL);
+    assert(d->dids[0].zk_verified == false);
+    printf("  [PASS] DID created from key hash; ZK verify fails closed (ENOTIMPL)\n");
 
     /* SDR */
     int32_t ch = decent_sdr_channel_create(d, "lorahf1", 433920000, 125000, 1);
     assert(ch == 0);
     assert(decent_sdr_channel_activate(d, 0) == 0);
     uint8_t bulb_data[] = "garlic-bulb-over-radio";
-    assert(decent_sdr_send_bulb(d, 0, bulb_data, sizeof(bulb_data)-1) == (int)(sizeof(bulb_data)-1));
-    assert(d->sdr_channels[0].packets_sent == 1);
-    printf("  [PASS] SDR channel: LoRa 433.92MHz, garlic bulb sent\n");
+    /* No radio driver: sending fails closed and counts nothing. */
+    assert(decent_sdr_send_bulb(d, 0, bulb_data, sizeof(bulb_data)-1) == DECENT_ENOTIMPL);
+    assert(d->sdr_channels[0].packets_sent == 0);
+    printf("  [PASS] SDR channel: LoRa 433.92MHz, send fails closed (ENOTIMPL)\n");
 
     /* SDR fallback */
     assert(decent_sdr_enable_fallback(d) == 0);
@@ -1257,8 +1364,8 @@ static void test_decent(void) {
     printf("  [PASS] SDR fallback enabled (airborne PLNP)\n");
 
     /* Protocol names */
-    assert(strcmp(decent_proto_name(DECENT_PROTO_IPFS), "IPFS/Libp2p") == 0);
-    assert(strcmp(decent_proto_name(DECENT_PROTO_SDR), "SDR/Retevis") == 0);
+    assert(strcmp(decent_proto_name(DECENT_PROTO_IPFS), "content table (model)") == 0);
+    assert(strcmp(decent_proto_name(DECENT_PROTO_SDR), "radio channels (no driver)") == 0);
     assert(strcmp(decent_cid_codec_name(0x70), "dag-pb") == 0);
     assert(strcmp(decent_matrix_event_name(DECENT_MATRIX_EVENT_ALERT), "alert") == 0);
     assert(strcmp(decent_sdr_modulation_name(1), "LoRa") == 0);
@@ -1275,8 +1382,10 @@ static void test_recon(void) {
     recon_t *r = (recon_t *)malloc(sizeof(recon_t));
     recon_init(r);
     assert(r->initialized == true);
-    assert(r->num_archetypes == 6);
-    printf("  [PASS] Reconstruction engine initialized (6 archetypes)\n");
+    /* Six phase archetypes plus four provisional tri-space neutral ones. */
+    assert(r->num_archetypes == RECON_MAX_ARCHETYPES);
+    assert(RECON_MAX_ARCHETYPES == 10);
+    printf("  [PASS] Reconstruction engine initialized (10 archetypes)\n");
 
     /* Archetype detection from filename */
     assert(recon_detect_archetype("kernel.36n9") == RECON_ARCH_36N9);
@@ -1315,20 +1424,28 @@ static void test_recon(void) {
     assert(aula->mutable == false);
     printf("  [PASS] .ula: Zero-point anchor, immutable (GLUT0)\n");
 
-    /* Reconstruction with a mock S-Map */
-    smap_t sm;
-    memset(&sm, 0, sizeof(smap_t));
-    sm.magic = SMAP_MAGIC;
-    sm.version = SMAP_VERSION;
-    sm.total_size = 4096;
-    sm.num_chunks = 1;
-    sm.verified = true;
-    uint8_t root[32] = {0x11};
-    memcpy(sm.root_cid, root, 32);
-    uint8_t merkle[32] = {0x22};
-    memcpy(sm.merkle_root, merkle, 32);
-
+    /* Every recon operation runs smap_verify() first, so a hand-filled mock
+     * S-Map is refused and a real ingested one is accepted. */
+    smap_t mock;
+    memset(&mock, 0, sizeof(smap_t));
+    mock.magic = SMAP_MAGIC;
+    mock.version = SMAP_VERSION;
+    mock.total_size = 4096;
+    mock.num_chunks = 1;
+    mock.verified = true;
     recon_result_t result;
+    assert(recon_reconstruct(r, &mock, RECON_ARCH_36N9, &result) != 0);
+    assert(result.success == false);
+    assert(r->forward_count == 0);
+    printf("  [PASS] Unverifiable (hand-filled) S-Map refused\n");
+
+    smap_store_t *st = (smap_store_t *)malloc(sizeof(smap_store_t));
+    smap_store_init(st);
+    static uint8_t blob[4096];
+    for (uint32_t i = 0; i < sizeof(blob); i++) blob[i] = (uint8_t)(i * 31 + 7);
+    int32_t si = smap_ingest(st, blob, sizeof(blob), "recon.36n9", SMAP_KEY_K3);
+    assert(si == 0);
+    smap_t sm = st->smaps[si];
 
     /* Forward reconstruction (.36n9) */
     assert(recon_reconstruct(r, &sm, RECON_ARCH_36N9, &result) == 0);
@@ -1366,6 +1483,14 @@ static void test_recon(void) {
 
     assert(r->total_reconstructions == 6);
     printf("  [PASS] Total reconstructions: %u\n", r->total_reconstructions);
+
+    /* Tampering with the manifest makes every archetype refuse it. */
+    sm.merkle_root[0] ^= 1u;
+    assert(recon_reconstruct(r, &sm, RECON_ARCH_9N63, &result) != 0);
+    assert(result.success == false);
+    assert(r->total_reconstructions == 6);
+    printf("  [PASS] Tampered S-Map refused\n");
+    free(st);
 
     /* Names */
     assert(strcmp(recon_archetype_name(RECON_ARCH_36N9), "Direct Phase (.36n9)") == 0);
@@ -1978,5 +2103,6 @@ int main(void) {
     test_superpos();
 
     printf("=== All new modules tests passed ===\n");
+    printf("%d checks passed\n", g_checks);
     return 0;
 }

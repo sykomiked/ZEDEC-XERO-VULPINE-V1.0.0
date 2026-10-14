@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id warehouse-stock
+title Check stock levels against a cycle count
+lang myra
+audience retailers, cooperatives, food banks, aid logistics
+safety none
+summary Stock per site and item, held as an M global, is decoded exactly and totalled per site. The stock system and a physical cycle count must agree; a difference is held for a stock controller.
+step count myra stock.myra sources=stock-system.txt,cycle-count.txt reviewer=stock-controller nonneg=on-hand,qty sum=on-hand by=site
+draft stock.myra Write a MYRA schema (one line per M global node, typed subscripts, then ^-separated typed pieces) for the stock the user describes. Use iN for whole quantities, d for dates and ! for required pieces.

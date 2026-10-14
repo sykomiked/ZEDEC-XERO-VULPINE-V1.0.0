@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id reservoir-balance
+title Project a week of reservoir storage
+lang trebago
+audience water utilities, catchment managers, municipal planners
+safety advisory
+summary Daily inflow, releases and demand give the exact storage for each day of the week. A day below empty or above full is held for a person; the plan is a proposal only.
+inputs inputs.txt
+step balance trebago reservoir.tb advisory nonneg=storage,headroom labels=days

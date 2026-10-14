@@ -355,5 +355,22 @@ cn_tlv_rc_t cn_emv_decode_auth(const uint8_t *buf, uint32_t len, cn_auth_req_t *
     cn_cryptogram(sig, crypt);
     TRY(get_fixed(body, blen, CN_EMV_CRYPTOGRAM, 8, &v));
     if (!cn_eq(v, crypt, 8)) return CN_TLV_ERR_VALUE;
+
+    /* Canonical form only: the container must be byte for byte what
+     * cn_emv_encode_auth emits for the decoded request. This rejects
+     * duplicate, extra, nested or reordered tags, a 9C other than 00 (purchase),
+     * nonzero AIP/TVR, an expiry that is not the last day of a real month and
+     * an ATC of 0, all of which were previously accepted and ignored. */
+    {
+        static uint8_t canon[CN_EMV_AUTH_MAX];
+        uint32_t clen = 0;
+        TRY(get_bcd(body, blen, CN_EMV_EXPIRY, 3, &x));
+        uint32_t e32 = (uint32_t) x;
+        uint32_t ey = 2000u + e32 / 10000u, em = (e32 / 100u) % 100u;
+        if (em < 1 || em > 12) return CN_TLV_ERR_VALUE;
+        if (cn_emv_encode_auth(req, ey, em, sig, canon, sizeof(canon), &clen) != CN_TLV_OK ||
+            clen != len || !cn_eq(canon, buf, len))
+            return CN_TLV_ERR_VALUE;
+    }
     return CN_TLV_OK;
 }

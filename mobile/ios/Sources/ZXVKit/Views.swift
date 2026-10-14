@@ -12,11 +12,19 @@ enum Zc {
     static let muted = Color(red: 0x9A / 255, green: 0xA4 / 255, blue: 0xAE / 255)
     static let gold = Color(red: 0xD4 / 255, green: 0xA7 / 255, blue: 0x2C / 255)
     static let green = Color(red: 0x3F / 255, green: 0xB9 / 255, blue: 0x50 / 255)
+    /// ASCW Golden (ASCWFont.swift) at iOS's text-style sizes.
+    static func ui(_ size: CGFloat) -> Font { ASCWFont.font(size: size) }
+    static var body: Font { ui(17) }
+    static var caption: Font { ui(12) }
+    static var caption2: Font { ui(11) }
 }
 
 public struct RootView: View {
     @ObservedObject var m: AppModel
-    public init(model: AppModel) { m = model }
+    public init(model: AppModel) {
+        m = model
+        ASCWFont.registerAll() // the app bundle's Fonts folder (App/ZXVApp.swift)
+    }
 
     public var body: some View {
         TabView(selection: $m.tab) {
@@ -28,11 +36,12 @@ public struct RootView: View {
             WalletView(m: m).tabItem { Label(Tab.wallet.rawValue, systemImage: Tab.wallet.icon) }.tag(Tab.wallet)
             NetworkView(m: m).tabItem { Label(Tab.network.rawValue, systemImage: Tab.network.icon) }.tag(Tab.network)
         }
+        .font(Zc.body)
         .tint(Zc.gold)
         .preferredColorScheme(.dark)
         .sheet(item: $m.sas) { s in
             VStack(spacing: 16) {
-                Text("Do both screens show this number?").font(.headline)
+                Text("Do both screens show this number?").font(Zc.ui(17))
                 Text(s.digits).font(.system(size: 40, weight: .semibold, design: .monospaced)).foregroundColor(Zc.gold)
                 HStack {
                     Button("No") { m.answerSas(false) }.buttonStyle(.bordered)
@@ -55,13 +64,13 @@ struct AssistantView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text(m.status).font(.caption).foregroundColor(Zc.muted).frame(maxWidth: .infinity).padding(6).background(Zc.surface)
+            Text(m.status).font(Zc.caption).foregroundColor(Zc.muted).frame(maxWidth: .infinity).padding(6).background(Zc.surface)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 8) {
                     ForEach(m.messages) { msg in
                         VStack(alignment: msg.fromUser ? .trailing : .leading, spacing: 2) {
                             Text(msg.text).padding(10).background(msg.fromUser ? Zc.raised : Zc.surface).cornerRadius(10)
-                            if !msg.place.isEmpty { Text(msg.place).font(.caption2).foregroundColor(Zc.muted) }
+                            if !msg.place.isEmpty { Text(msg.place).font(Zc.caption2).foregroundColor(Zc.muted) }
                         }.frame(maxWidth: .infinity, alignment: msg.fromUser ? .trailing : .leading)
                     }
                 }.padding()
@@ -143,7 +152,7 @@ struct Placeholder: View {
     let note: String
     var body: some View {
         VStack(spacing: 8) {
-            Text(title).font(.title3).foregroundColor(Zc.text)
+            Text(title).font(Zc.ui(20)).foregroundColor(Zc.text)
             Text(note).foregroundColor(Zc.muted).multilineTextAlignment(.center)
         }.padding().frame(maxWidth: .infinity, maxHeight: .infinity).background(Zc.bg)
     }

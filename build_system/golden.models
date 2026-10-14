@@ -1,0 +1,22 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# golden.models — the AI models baked into the golden disc by
+# build_system/mk_golden_disc.sh. Same line format as macos/models.manifest:
+#
+#   NAME.gguf  SHA256(64 hex)  BYTES  CID  LICENCE  URL...
+#
+# Every model here must be licensed for redistribution AND commercial use
+# (36N9 Genetics may sell the OS). sha256 and size are copied from the
+# upstream file, never invented; the URL pins an upstream commit so the file
+# behind it cannot change. The builder refuses a download whose sha256 or size
+# differs, and writes \ZXV\MODELS.SHA so the EFI stub checks them again on
+# every boot (kernel/arch/efi_models.h).
+#
+# Not eligible: Qwen2.5-3B (Qwen Research licence, no commercial use) and
+# Qwen2.5-72B (Qwen licence, user cap). 0.5B, 1.5B, 7B, 14B and 32B are Apache-2.0.
+
+# Main model: the one ZXV's real-model tests use (bench/results/2026-10-10-qwen2.5-1.5b).
+qwen2.5-1.5b-instruct-q4_k_m.gguf 6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e 1117320736 - Apache-2.0 https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf
+# Small fast model for swarm workers; same tokenizer as the 1.5B, so it can also draft for it.
+qwen2.5-0.5b-instruct-q4_k_m.gguf 74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db 491400032 - Apache-2.0 https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf

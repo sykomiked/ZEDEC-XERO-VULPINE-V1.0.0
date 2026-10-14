@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One week, Monday to Sunday. Volumes in megalitres (ML).
+# start: storage at the start of Monday; capacity: full supply.
+# inflow: river and rain in; release: environmental flow out;
+# demand: what the town draws.
+days     = Mon Tue Wed Thu Fri Sat Sun
+start    = 420
+capacity = 600
+inflow   = 35 28 22.5 18 15 40 52
+release  = 12 12 12 12 12 12 12

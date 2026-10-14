@@ -1,0 +1,10 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What a batch moves, fees included, in Trebago: an exact sum (cents),
+! refused rather than rounded if it does not fit.
+trebago total
+  in  amount(n), fee(n)
+  out total
+  total = sum(i, amount(i) + fee(i))
+end

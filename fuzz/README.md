@@ -32,6 +32,15 @@ clang.
 | `fuzz_bootlegger` | bootlegger/bootlegger.c: signed handshake, sealed-message opener, ML-KEM session acceptor | mode + message |
 | `fuzz_ipfs_cid` | ipfs/ipfs.c `ipfs_cid_parse`; ipfs_node varints, binary/string CIDs, base32/base58, `ubh168:` form | text/bytes |
 | `fuzz_ipfs_dag` | ipfs_node: dag-pb, UnixFS data and directories (plain and HAMT), CAR v1, UBH block envelope | mode + block |
+| `fuzz_treaty` | treaty/zxt.c, zxt_exec.c, zxt_cobol.c: Sutra text and record parsers, validate/emit round trip, the treaty runner and `ZXV_ENGINE` | mode + text/record |
+| `fuzz_aipi` | aipi/aipi.c: fn/call/claim decoders and an op stream of executes, honest/forged/tampered claims, replays, ticks and releases against escrow | op stream |
+| `fuzz_tok` | tensor/zt_tok.c: hostile vocabularies (built as GGUF) and hostile text, encode/decode round trip and exact-size buffers | mode + vocab + text |
+| `fuzz_call` | call/: RTP, UBH carriage, STUN (MESSAGE-INTEGRITY), ICE candidates, signalling, mesh membership, FEC, congestion-control feedback | mode + bytes |
+| `fuzz_cardnet` | cardnet/: ISO 8583 unpack, EMV auth container, mobile-money amounts, BER-TLV, BCD; canonical encodings only | mode + bytes |
+| `fuzz_devmesh` | devmesh/: base32, caps/money/confirm records, wallet-check authorisation on a joined mesh | mode + bytes |
+| `fuzz_zxvd_rpc` | arch/hosted/zxvd_rpc.c: JSON-RPC lines against real libzxv books (amounts, duplicate keys, escaped NULs, batches, earnings sync) | mode + lines |
+| `fuzz_hwemu` | hwemu/: ZHP-1 profiles, `hwr_parse`, vector packages, the signed-update region state machine (rollback, blocklist, dual signatures) | mode + bytes |
+| `fuzz_paradox` | paradox/: operator streams with small logs, RepairProof tampering, graph order independence | mode + op stream |
 | `fuzz_econ_vino` | vino/vino.c ledger (with the RMAG quota shadow) | op stream |
 | `fuzz_econ_pay` | pay/pay_ledger.c double-entry ledger | op stream |
 | `fuzz_econ_count_house` | count_house/count_house.c stash buckets and minting | op stream |
