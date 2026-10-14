@@ -46,8 +46,11 @@ port must share.
 the file, so `sha256sum agreement/en.txt` gives the same value. `make
 test-terms` fails if `terms_text.c` no longer matches the file.
 
-The text in the repository is a placeholder. The draft agreement is under
-owner and counsel review and is not published until the owner approves it.
+`agreement/en.txt` is the ZXV End-User Agreement 1.0, approved by the owner
+on 2026-10-14. Counsel review in the release markets is still recommended
+before the first public release; a changed text gets a new version number and
+fingerprint, and everyone sees it again at their next sign-in.
+
 Translations are added as `agreement/<lang>.txt`, each pointing at the English
 reference; a language whose local law makes it govern is marked controlling
 (`id!=agreement/id.txt`).
