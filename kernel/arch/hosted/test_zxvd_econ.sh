@@ -13,6 +13,9 @@ K="$(cd "$HERE/../.." && pwd)"
 # what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
 RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
 RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive, built once and reused (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
 T="$(mktemp -d "${ZXV_TMP:-${TMPDIR:-/tmp}}/zxvd-econ.XXXXXX")"
@@ -37,5 +40,5 @@ done
     -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$R/sdk/libzxv/include" \
     "$HERE/test_zxvd_econ.c" "$HERE/zxvd_econ.c" "$HERE/zxvd_rpc.c" $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$T/keccak.o" "$K/src/robin_debanks/sha256.c" "$@" \
-    -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_econ" || exit 3
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_econ" || exit 3
 "$T/test_zxvd_econ"

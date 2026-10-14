@@ -13,6 +13,9 @@ K="$(cd "$HERE/../.." && pwd)"
 # what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
 RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
 RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive, built once and reused (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
 T="$(mktemp -d "${ZXV_TMP:-${TMPDIR:-/tmp}}/zxvd-power.XXXXXX")"
@@ -40,5 +43,5 @@ $CC -std=c11 -O1 -Wall -Wextra -Werror $INCS -c "$K/src/power/power_ledger.c" -o
 # shellcheck disable=SC2086
 $CC -std=c11 -O1 -Wall -Wextra -Werror $INCS "$HERE/test_zxvd_power.c" "$HERE/zxvd_power.c" \
     "$HERE/zxvd_rpc.c" $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/keccak.o" \
-    "$K/src/robin_debanks/sha256.c" "$T/host.o" "$T/ledger.o" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm $OSLIBS -o "$T/test_zxvd_power" || exit 3
+    "$K/src/robin_debanks/sha256.c" "$T/host.o" "$T/ledger.o" "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm $OSLIBS -o "$T/test_zxvd_power" || exit 3
 "$T/test_zxvd_power"

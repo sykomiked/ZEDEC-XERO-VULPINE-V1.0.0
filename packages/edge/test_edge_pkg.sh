@@ -121,6 +121,10 @@ for p in rpi5 jetson minipc; do
         sed "s|/opt/zxv-edge/bin/zxv-edge-run|$RUNP|" "$U" >"$T/units/v-$p.service"
         chmod +x "$RUNP" 2>/dev/null || true
         out="$(systemd-analyze verify "$T/units/v-$p.service" 2>&1)" || bad "systemd-analyze verify $p: $out"
+        # drop what it says about the host's own units (a CI runner's
+        # netplan-ovs-cleanup.service it may not read), keep the rest
+        out="$(printf '%s\n' "$out" | grep -v '^[A-Za-z0-9@_.-]*\.\(service\|socket\|mount\|target\|timer\|path\|slice\): ' |
+            grep -v '^$' || true)$(printf '%s\n' "$out" | grep "^v-$p\.service: " || true)"
         [ -z "$out" ] || bad "systemd-analyze verify $p warns: $out"
         ok "systemd-analyze verify $p: no errors, no warnings"
         sc="$(systemd-analyze security --offline=yes "$U" 2>/dev/null | sed -n 's/.*Overall exposure level for [^:]*: \([0-9.]*\).*/\1/p')"
