@@ -139,7 +139,23 @@ private:
             if (s_[i_] == '\\') {
                 ++i_;
                 char e = s_[i_];
-                out.push_back(e == 'n' ? '\n' : e == 't' ? '\t' : e);
+                if (e == 'u' && i_ + 4 < s_.size()) {
+                    // \uXXXX (BMP only), written as UTF-8.
+                    const unsigned c = static_cast<unsigned>(std::stoul(s_.substr(i_ + 1, 4), nullptr, 16));
+                    i_ += 4;
+                    if (c < 0x80) {
+                        out.push_back(static_cast<char>(c));
+                    } else if (c < 0x800) {
+                        out.push_back(static_cast<char>(0xC0 | (c >> 6)));
+                        out.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+                    } else {
+                        out.push_back(static_cast<char>(0xE0 | (c >> 12)));
+                        out.push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
+                        out.push_back(static_cast<char>(0x80 | (c & 0x3F)));
+                    }
+                } else {
+                    out.push_back(e == 'n' ? '\n' : e == 't' ? '\t' : e == 'r' ? '\r' : e == 'b' ? '\b' : e == 'f' ? '\f' : e);
+                }
             } else {
                 out.push_back(s_[i_]);
             }

@@ -52,6 +52,9 @@ public struct ZxvUsageError: ZxvFailure, Equatable {
     public var isDenomination: Bool { status == ZXV_E_DENOM }
     /// True for `ZXV_E_TREATY` (ABI 1.5): a treaty broke a rule; see `treatyFault`.
     public var isTreaty: Bool { status == ZXV_E_TREATY }
+    /// True for `ZXV_E_LANE` (ABI 1.6): a payment request whose lane is
+    /// neither `Vino.Lane.play` nor `Vino.Lane.live`.
+    public var isLane: Bool { status == ZXV_E_LANE }
     /// Build from a status and detail text.
     public init(status: Int32, detail: String) {
         self.status = status
@@ -97,6 +100,18 @@ public struct ZxvRefusedError: ZxvFailure, Equatable {
         /// `ZXV_E_PARADOX_OWNER` (ABI 1.5): money or device work needs the
         /// owner's approval.
         case ownerApprovalRequired
+        /// `ZXV_E_RAIL` (ABI 1.6): the play voucher is not on the rail the
+        /// call named (each voucher is on exactly one rail: bearer or ghost).
+        case railMismatch
+        /// `ZXV_E_COVERAGE` (ABI 1.6): the play issuer would fall below 1.8x
+        /// coverage (10 * backing >= 18 * outstanding). Nothing changed.
+        case coverageRefused
+        /// `ZXV_E_EXPIRED` (ABI 1.6): the payment request expired, or the
+        /// wallet approved it outside its time window.
+        case requestExpired
+        /// `ZXV_E_CHANCE` (ABI 1.6): a LIVE payment request marked a paid
+        /// chance outcome (a loot box, a paid draw) and was refused.
+        case paidChanceRefused
         /// Another refusal (capacity, state, declined...).
         case other
     }
@@ -117,6 +132,10 @@ public struct ZxvRefusedError: ZxvFailure, Equatable {
         case ZXV_E_LIMIT: return .limitRefused
         case ZXV_E_PARADOX_STEP: return .paradoxStepLimit
         case ZXV_E_PARADOX_OWNER: return .ownerApprovalRequired
+        case ZXV_E_RAIL: return .railMismatch
+        case ZXV_E_COVERAGE: return .coverageRefused
+        case ZXV_E_EXPIRED: return .requestExpired
+        case ZXV_E_CHANCE: return .paidChanceRefused
         default: return .other
         }
     }

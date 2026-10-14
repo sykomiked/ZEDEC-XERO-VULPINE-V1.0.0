@@ -49,7 +49,7 @@ public struct Features: OptionSet, Sendable {
     public static let hw = Features(rawValue: ZXV_FEAT_HW)
 }
 
-/// Feature groups of the second mask (`ZXV_FEAT2_*`, ABI 1.5), read with
+/// Feature groups of the second mask (`ZXV_FEAT2_*`, ABI 1.5 and 1.6), read with
 /// `ZxvLibrary.features2`.
 public struct Features2: OptionSet, Sendable {
     public let rawValue: UInt32
@@ -72,6 +72,10 @@ public struct Features2: OptionSet, Sendable {
     public static let paradox = Features2(rawValue: ZXV_FEAT2_PARADOX)
     /// Every ABI 1.5 group.
     public static let all1_5: Features2 = [.treaty, .aipi, .coin, .fee, .vhub, .freight, .web4, .paradox]
+    /// Vino Embed: play lane, payment requests, receipts (ABI 1.6).
+    public static let vino = Features2(rawValue: ZXV_FEAT2_VINO)
+    /// Every group of the second mask as of ABI 1.6.
+    public static let all1_6: Features2 = [.all1_5, .vino]
 }
 
 /// The library entry point: version, features and process-wide policy.
