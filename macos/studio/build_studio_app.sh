@@ -36,14 +36,20 @@ BIN="$(swift build -c release --package-path "$HERE" --product ZXVStudio "$@" --
 # 2. zxvd and libzxv, one slice per arch, joined with lipo
 ZX=""
 LIB=""
-for a in $ARCHS; do
-    # The Playground's pillar and econ archives sit at fixed paths
-    # (sdk/playground deps) and make does not see the compiler change: build
-    # them again for each slice, or this slice links the last one's objects.
+# this machine's arch last, so the shared build folders below end up native
+HOSTA="$(uname -m)"
+SLICES=""
+for a in $ARCHS; do [ "$a" = "$HOSTA" ] || SLICES="$SLICES $a"; done
+for a in $ARCHS; do [ "$a" = "$HOSTA" ] && SLICES="$SLICES $a"; done
+for a in $SLICES; do
+    # The Playground's deps (sdk/playground: libzxv, the pillars and
+    # libzxv-econ) sit at fixed paths and make does not see the compiler
+    # change: build them again for each slice, or this slice links the last
+    # one's objects.
     for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do
         rm -rf "$R/sdk/pillars/$p/build"
     done
-    rm -rf "$R/packages/build/libzxv-econ"
+    rm -rf "$R/packages/build/libzxv-econ" "$R/sdk/libzxv/build"
     CC="xcrun clang -arch $a -mmacosx-version-min=13.0" \
         sh "$R/kernel/arch/hosted/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
         { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }
