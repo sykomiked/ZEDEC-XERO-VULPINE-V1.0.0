@@ -12,6 +12,9 @@
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
+# what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
+RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
 TMPB="${ZXV_TMP:-${TMPDIR:-/tmp}}"
@@ -19,14 +22,14 @@ T="$(mktemp -d "$TMPB/zxvd-web4.XXXXXX")"
 trap 'rm -rf "$T"' EXIT INT TERM
 make -s -C "$R/sdk/libzxv" CC="$CC" >"$T/lib.log" 2>&1 || { tail -20 "$T/lib.log"; exit 3; }
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
-INCS="-I$HERE -I$K/src/web4 -I$K/src/freight -I$K/src/pqsec -I$K/src/lpres -I$K/src/surplus
+INCS="$RPCINC -I$HERE -I$K/src/web4 -I$K/src/freight -I$K/src/pqsec -I$K/src/lpres -I$K/src/surplus
       -I$K/src/edp_risk -I$K/src/robin_debanks -I$K/src/mlkem -I$K/include -I$K/src/modbind
       -I$K/src/e8 -I$K/src/event_space -I$R/sdk/libzxv/include"
 FLAGS="-std=c11 -O1 -Wall -Wextra"
 # -Werror for this group and its test only: the engines and the vendored
 # crypto are not changed here (gcc-11 warns in keccak.c)
 WERR="-Werror"
-set -- "$HERE/zxvd_rpc.c" "$HERE/zxv_http_guard.c" "$K/src/web4/web4_json.c" \
+set -- "$HERE/zxvd_rpc.c" $RPCDEPS "$HERE/zxv_http_guard.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" "$K/src/robin_debanks/sha256.c"
 for f in pq_mldsa65.c mldsa/ntt.c mldsa/packing.c mldsa/poly.c mldsa/polyvec.c mldsa/reduce.c \
          mldsa/rounding.c mldsa/sign.c mldsa/symmetric-shake.c mldsa/fips202.c; do

@@ -10,6 +10,9 @@
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
+# what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
+RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
 T="$(mktemp -d "${ZXV_TMP:-${TMPDIR:-/tmp}}/zxvd-inst.XXXXXX")"
@@ -25,7 +28,7 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     -I"$K/src/surplus" -I"$K/src/tensor" -I"$K/src/swarm" -I"$K/src/zcapital" -I"$K/src/pay" \
     -I"$K/src/vbond" -I"$K/src/vderiv" -I"$R/sdk/libzxv/include" \
     "$HERE/test_zxvd_instruments.c" "$HERE/zxvd_instruments.c" "$HERE/zxvd_sandbox.c" \
-    "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
+    "$HERE/zxvd_rpc.c" $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
     "$K/src/vbond/vbond.c" "$K/src/vderiv/vderiv.c" "$K/src/pay/pay_ledger.c" \
     "$K/src/pay/pay_util.c" "$K/src/pay/pay_assure.c" "$T/keccak.o" \
     "$K/src/robin_debanks/sha256.c" "$K/src/robin_debanks/ed25519_verify.c" \

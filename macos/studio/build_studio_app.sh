@@ -37,6 +37,13 @@ BIN="$(swift build -c release --package-path "$HERE" --product ZXVStudio "$@" --
 ZX=""
 LIB=""
 for a in $ARCHS; do
+    # The Playground's pillar and econ archives sit at fixed paths
+    # (sdk/playground deps) and make does not see the compiler change: build
+    # them again for each slice, or this slice links the last one's objects.
+    for p in cobol-sutra fortran-trebago ada-eve apl-kron mumps-myra; do
+        rm -rf "$R/sdk/pillars/$p/build"
+    done
+    rm -rf "$R/packages/build/libzxv-econ"
     CC="xcrun clang -arch $a -mmacosx-version-min=13.0" \
         sh "$R/kernel/arch/hosted/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
         { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }

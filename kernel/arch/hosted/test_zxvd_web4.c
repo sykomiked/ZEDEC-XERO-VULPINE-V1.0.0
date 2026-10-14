@@ -296,7 +296,7 @@ static void test_switch(void)
               !g->methods[3].always && !g->methods[4].always && !g->methods[5].always,
           "reads answer while off");
     const char *d = rpc(req("rpc.discover", "{}"));
-    CHECK(strstr(d, "\"features.set\",\"web4.feed\",\"web4.envelope\",\"web4.verify\","
+    CHECK(strstr(d, "\"play.draft\",\"web4.feed\",\"web4.envelope\",\"web4.verify\","
                     "\"web4.open\",\"web4.post\",\"web4.consent\"]") != NULL,
           "discover lists the web4 methods: %.300s", d);
     EXPECT(req("web4.open", "{}"), errc(-32012, "%s", OFFMSG));

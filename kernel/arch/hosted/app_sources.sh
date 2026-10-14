@@ -14,6 +14,8 @@
 #   update  the update checker and what it needs
 #   groups  zxvd only: the method groups (zxvd_ext.h) and the engines they
 #           serve, after zxvd_groups.c; groupincs: their include directories
+#   rpcdeps what zxvd_rpc.c links beyond web4, keccak and sha256, for the
+#           unit tests that build it on its own; rpcincs: their includes
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -134,5 +136,16 @@ case "${1:-srcs}" in
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
         for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
         ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
+    rpcdeps)
+        # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
+        # host (J5) with the accounting names and the 64-state log it uses
+        echo arch/hosted/zxv_files.c
+        echo arch/hosted/zxv_spaces.c
+        echo src/juris/juris.c
+        echo src/acct/acct.c
+        echo src/lpres/lpres_hex.c
+        echo src/lpres/lpres.c
+        ;;
+    rpcincs) echo src/juris ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs]" >&2; exit 2 ;;
 esac

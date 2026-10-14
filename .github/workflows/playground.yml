@@ -18,6 +18,7 @@ on:
       - 'packages/**'
       - '.github/workflows/playground.yml'
   pull_request:
+    types: [ opened, synchronize, reopened, ready_for_review ]
     paths:
       - 'sdk/playground/**'
       - 'sdk/pillars/**'
@@ -38,6 +39,7 @@ concurrency:
 jobs:
   playground:
     name: playground (${{ matrix.name }})
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
