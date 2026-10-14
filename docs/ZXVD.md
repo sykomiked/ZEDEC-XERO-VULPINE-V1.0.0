@@ -1015,9 +1015,11 @@ Honest limits:
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
 stub host and the real libzxv (exact replies, every error, the socket); it is
-the mutation harness's test for `zxvd_rpc.c`; the same script then runs
-`test_zxvd_rpc_modules.c`, every module method's results and refusals, and
-checks that none of them changes the books. `kernel/arch/hosted/test_zxvd_aipi.sh`
+the mutation harness's test for `zxvd_rpc.c`.
+`kernel/arch/hosted/test_zxvd_rpc_modules.sh` registers the codecs group and
+runs `test_zxvd_rpc_modules.c` through the same RPC layer: every module
+method's results and refusals, and a check that none of them changes the
+books. `kernel/arch/hosted/test_zxvd_aipi.sh`
 runs `zxvd_aipi.c` behind the RPC layer on the real AIPI core and the Z-Wasm
 sandbox (exact replies, every refusal); it is the harness's test for
 `zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_chat.sh` runs the chat methods

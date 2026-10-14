@@ -95,6 +95,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_web4.sh
+      - name: Codecs unit test (freight, harmonic, stream, ehop and web4 codecs on the real modules)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_rpc_modules.sh
       - name: The ZXV folder behind the built-in apps (zxv_files.c)
         run: |
           ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
