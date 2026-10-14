@@ -52,6 +52,10 @@
  *       expect; "amount_minor" may be sent as a JSON integer or a decimal
  *       string. A fraction or exponent is -32602, never rounded.
  *   M4  A notification (no "id") is executed and gets no response.
+ *   M5  Method groups (zxvd_ext.h): engines such as netting and cards
+ *       register their own methods behind feature switches that start off;
+ *       features.get lists the switches and features.set flips one for this
+ *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
  *
  * SWARM EARNINGS (the owner's books mirror the swarm's money)
  *   E1  At start the books get one currency for earnings, VFV by default
@@ -129,9 +133,14 @@
  *   J4  set takes any of the three; the rest keep their values. A change is
  *       one "juris" record in the books file, written before it applies, so
  *       it survives a restart; an unchanged setting writes nothing.
- *   J5  in_effect is false: the settings are recorded only. No report
- *       adapter and no open market is wired to them yet, and an adapter
- *       will not replace an accountant or a Shariah board.
+ *   J5  in_effect is true: the jurisdiction host (kernel/src/juris) gets
+ *       the settings at start and at every change. plugins counts the
+ *       plug-ins it has loaded: none until the deployment configures a
+ *       jurisdiction gateway key, so until then its answers fail closed
+ *       (wait). report_standard is the framework reports follow: the chosen
+ *       standard when an adapter is built for it (IFRS, US_GAAP, AAOIFI)
+ *       and a country is set, else "". No payment path asks the host yet,
+ *       and an adapter does not replace an accountant or a Shariah board.
  */
 #ifndef ZXVD_RPC_H
 #define ZXVD_RPC_H
@@ -208,6 +217,33 @@ typedef struct {
 } zxvd_view_ops_t;
 void zxvd_rpc_set_view_ops(const zxvd_view_ops_t *ops);
 
+/* play.* (sdk/playground, zxvplay.h): templates and examples in ZXV's
+ * languages, run in this process on scratch state; nothing touches the
+ * books. Set separately; unset methods answer -32601 (a build without the
+ * Playground). Each returns NULL on success (one JSON value written into
+ * `out`) or the reason it failed (error ZXVD_E_PLAY).
+ *   P1 play.catalogue  {}  -> [{"id","title","lang","audience","safety",
+ *                      "summary","steps","files","draft"?}]
+ *   P2 play.run        {"template", "files"?: {name: text}} -> the result
+ *                      object (verdict TRUE/FALSE/BOTH/NEITHER, steps, ...)
+ *   P3 play.draft      {"template", "files"?, "request"?} -> {"model": bool,
+ *                      "draft": text}: the local swarm's draft of the
+ *                      template's draft file. Untrusted text: it is not run. */
+#define ZXVD_E_PLAY (-32016)
+typedef struct {
+    const char *name;
+    const char *text;
+    size_t len;
+} zxvd_play_file_t;
+typedef struct {
+    const char *(*catalogue)(zxvd_buf_t *out);
+    const char *(*run)(const char *template_id, const zxvd_play_file_t *files, uint32_t n,
+                       zxvd_buf_t *out);
+    const char *(*draft)(const char *template_id, const zxvd_play_file_t *files, uint32_t n,
+                         const char *request, zxvd_buf_t *out);
+} zxvd_play_ops_t;
+void zxvd_rpc_set_play_ops(const zxvd_play_ops_t *ops);
+
 /* aipi.* (zxvd_aipi.c, AIPI on Z-Wasm, docs/AIPI.md): content-addressed
  * functions run on this node only (offline, rule A3). Set separately; unset
  * methods answer -32601 (a build without the Z-Wasm kit). Each returns NULL
@@ -235,36 +271,109 @@ typedef struct {
     void (*status)(zxvd_buf_t *out);         /* aipi.status */
 } zxvd_aipi_ops_t;
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
-/* X1-X4: methods another module adds (zxvd_chat.h is the first).
- *   X1 zxvd_rpc_add_methods registers a table that must outlive zxvd's use
- *      of it; a later call replaces it, and NULL or 0 removes it. rpc.discover
- *      lists its names after the built-in ones. A built-in name wins.
- *   X2 a method reads its params with zxvd_param_str / zxvd_param_bool and
- *      writes one JSON value into zxvd_result(c); zxvd_fail sets the error
- *      and, as for the built-ins, the first error stands.
+/* X1-X7: methods other modules add (zxvd_chat.h, zxvd_pay.h).
+ *   X1 zxvd_rpc_add_methods appends a table, which must outlive zxvd's use
+ *      of it; up to ZXVD_RPC_MAX_TABLES tables at once. 0, or -1 when m is
+ *      NULL, n is 0 or every slot is taken. Adding a table already held
+ *      only updates its count. zxvd_rpc_remove_methods takes one table out
+ *      (a table not held is ignored); zxvd_rpc_clear_methods takes them all.
+ *      rpc.discover lists the tables' names after the built-in ones, in the
+ *      order the tables were added. A built-in name wins, then the table
+ *      added first.
+ *   X2 a method reads its params with zxvd_param_str / _bool / _u32 /
+ *      _amount (M3) or walks one with zxvd_param_json, and writes one JSON
+ *      value into zxvd_result(c); zxvd_fail sets the error and, as for the
+ *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010 and -32011). */
-#define ZXVD_E_METHOD   (-32601)
-#define ZXVD_E_PARAMS   (-32602)
-#define ZXVD_E_INTERNAL (-32603)
+ *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32016;
+ *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
+ *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
+ *      the book methods report it (M2: data status, name, class).
+ *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
+ *      context (NULL while the books are closed), never put on the wire.
+ *   X7 zxvd_books_account / zxvd_books_post change the books exactly as
+ *      ledger.open_account / ledger.post do, each change one record in the
+ *      books file before it answers (F1-F5). */
+#define ZXVD_RPC_MAX_TABLES 4u
+#define ZXVD_E_LIBZXV       (-32000)
+#define ZXVD_E_METHOD       (-32601)
+#define ZXVD_E_PARAMS       (-32602)
+#define ZXVD_E_INTERNAL     (-32603)
 typedef struct zxvd_call zxvd_call_t;
 typedef struct {
     const char *name;
     void (*fn)(zxvd_call_t *c);
 } zxvd_method_t;
-void zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n);
+int zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n);
+void zxvd_rpc_remove_methods(const zxvd_method_t *m);
+void zxvd_rpc_clear_methods(void);
 /* A string parameter: true if read, or absent and not required (out = "").
  * It must be a JSON string of at most cap - 1 bytes with no NUL. */
 bool zxvd_param_str(zxvd_call_t *c, const char *key, char *out, uint32_t cap, bool required);
 /* A boolean parameter: true if read, or absent and not required (*v kept). */
 bool zxvd_param_bool(zxvd_call_t *c, const char *key, bool *v, bool required);
+/* A JSON integer 0..UINT32_MAX: true if read, or absent and not required
+ * (*v kept). */
+bool zxvd_param_u32(zxvd_call_t *c, const char *key, uint32_t *v, bool required);
+/* M3: a JSON integer or a decimal string, as "amount_minor" of ledger.post:
+ * true if read, or absent and not required (*v kept). */
+bool zxvd_param_amount(zxvd_call_t *c, const char *key, int64_t *v, bool required);
+/* Any parameter as web4_web2.h tokens (tok is a const w4_jtok_t *; at is
+ * the value's index): true if present. NULL key: the whole params object,
+ * true if params were sent. */
+typedef struct {
+    const char *js;
+    const void *tok;
+    int32_t n, at;
+} zxvd_json_t;
+bool zxvd_param_json(zxvd_call_t *c, const char *key, zxvd_json_t *v);
 zxvd_buf_t *zxvd_result(zxvd_call_t *c);
 void zxvd_fail(zxvd_call_t *c, int code, const char *fmt, ...)
 #if defined(__GNUC__)
     __attribute__((format(printf, 3, 4)))
 #endif
     ;
+/* X5: true if st is ZXV_OK, else the call fails with -32000. */
+bool zxvd_libzxv_ok(zxvd_call_t *c, int32_t st);
+/* X6 (opaque here: zxv_api.h's zxv_cap and zxv_ctx) */
+struct zxv_cap;
+struct zxv_ctx;
+const struct zxv_cap *zxvd_books_cap(void);
+struct zxv_ctx *zxvd_books_ctx(void);
+/* X7: libzxv statuses; ZXV_E_IO when the books file did not take it. */
+int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint32_t *id);
+int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                        const char *ref, uint64_t *entry);
+
+/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+ * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
+ */
+#define ZXVD_E_FILES (-32014)
+/* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
+ * space, or a role that may not do what was asked. */
+#define ZXVD_E_SPACE (-32013)
+
+/* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
+ * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and
+ * revoke return NULL on success (result in out) or why they failed (error
+ * -32602). Control socket only: a phone gets ZXVD_E_PHONE. link's port is
+ * -1 for the default and bind_ip NULL for every interface. */
+#define ZXVD_E_PHONE (-32015)
+typedef struct {
+    const char *(*link)(bool on, int32_t port, const char *bind_ip,
+                        zxvd_buf_t *out);                                    /* phone.link */
+    const char *(*pair)(const char *name, bool allow_post, zxvd_buf_t *out); /* phone.pair   */
+    void (*list)(zxvd_buf_t *out);                                           /* phone.list   */
+    const char *(*revoke)(const char *phone_id, zxvd_buf_t *out);            /* phone.revoke */
+} zxvd_phone_ops_t;
+void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops);
+
+/* One request from a paired phone (zxvd_phone.h A1-A3): like
+ * zxvd_rpc_handle_line, but a method the phone may not call answers
+ * ZXVD_E_PHONE, and a notification is refused (-32600) rather than run.
+ * allow_post: the pairing may move money and change the network. */
+bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

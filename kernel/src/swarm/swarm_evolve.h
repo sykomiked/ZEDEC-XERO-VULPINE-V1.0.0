@@ -28,6 +28,16 @@
  *       It names its parent, which is its undo path (the S- of trispace.h),
  *       so the person can keep, share, or roll back any model the swarm made.
  *   V6  DETERMINISM.  The same inputs always give the same decisions.
+ *   V7  THE COMPANION'S STEP.  On the GROWTH harmonic the companion takes
+ *       one V1 step. The candidate is its DNA combined (D3) with the DNA of
+ *       the fittest other agent (the donor), nonce = the fundamental. The
+ *       champion is scored with the companion's own fitness (D4), the
+ *       candidate with the donor's; costs are equal, so the candidate wins
+ *       only when the donor is strictly fitter. On a win the companion takes
+ *       the child's DNA: a new seed, both parents recorded and the
+ *       generation max(parents') + 1 (D5). Fitness above UINT32_MAX counts
+ *       as UINT32_MAX. The donor's score stands in for the child's, which
+ *       has not run yet: a proxy, not a measurement of the child.
  * Freestanding: no libc, no floating point.
  */
 #ifndef SWARM_EVOLVE_H
@@ -74,5 +84,10 @@ uint32_t swarm_evo_mobility(uint8_t *level, const uint64_t *fitness, uint32_t n,
 uint32_t swarm_evo_crc32(const uint8_t *p, uint32_t len);
 void swarm_evo_save(const swarm_model_state_t *s, uint8_t out[SWARM_EVO_RECORD]);
 bool swarm_evo_restore(const uint8_t in[SWARM_EVO_RECORD], swarm_model_state_t *s);
+
+/* V7: true if the companion stepped (*companion is then the child). No step
+ * when companion or donor is NULL. */
+bool swarm_evo_companion(swarm_dna_t *companion, uint64_t companion_fit, const swarm_dna_t *donor,
+                         uint64_t donor_fit, uint64_t nonce);
 
 #endif /* SWARM_EVOLVE_H */

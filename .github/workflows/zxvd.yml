@@ -10,12 +10,12 @@ name: zxvd
 on:
   push:
     branches: [main, develop]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
     types: [ opened, synchronize, reopened, ready_for_review ]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   workflow_dispatch:
@@ -53,10 +53,85 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_chat.sh
+      - name: Payments unit test (zxvd_pay.h, ISO 20022, netting, passkeys, escrow)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pay.sh
       - name: AIPI host unit test (real AIPI core, Z-Wasm sandbox)
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: Cards unit test (real cardnet issuer, ML-DSA-65 holder signatures)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_cards.sh
+      - name: Passkeys unit test (real ident passkeys, ML-DSA-65 assertions)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_ident.sh
+      - name: Seats unit test (real seats module, Argon2id, the seats file)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_seats.sh
+      - name: Power unit test (real power ledger on a Linux-style fixture)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_power.sh
+      - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_econ.sh
+      - name: Economy groups unit tests (bonds, derivatives, grants, estate; real engines)
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          sh kernel/arch/hosted/test_zxvd_instruments.sh
+          sh kernel/arch/hosted/test_zxvd_estate.sh
+      - name: Companion unit test (companion.*, real swarm DNA, emotion and evolution)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_companion.sh
+      - name: Web4 envelope feed unit test (real web4_agent envelopes, ML-DSA-65, consent)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_web4.sh
+      - name: The ZXV folder behind the built-in apps (zxv_files.c)
+        run: |
+          ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
+            -Ikernel/arch/hosted kernel/arch/hosted/test_zxv_files.c kernel/arch/hosted/zxv_files.c \
+            -o "$RUNNER_TEMP/test_zxv_files"
+          "$RUNNER_TEMP/test_zxv_files"
+      - name: App models (Burrow, Quillon, Glint, Spindle, Murmuration) on the real dispatcher
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_apps.sh
+      - name: App manifests and their KRON logic (zxapp)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/apps/test_zxapp.sh
+      - name: The apps' native screens, driven by clicks and keys (zui views)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/views/test_views.sh
+      - name: zui system pieces (accessibility, input, notices, privacy, clipboard, share, capture, lock, display)
+        env:
+          CC: ${{ matrix.cc }}
+          CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
+        run: sh kernel/src/zui/test_zui_toolkit.sh
+      - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
+        if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libx11-dev libxext-dev libvulkan-dev \
+            mesa-vulkan-drivers gcc-mingw-w64-x86-64 >/dev/null
+          sh kernel/arch/hosted/test_zui_present.sh
+      - name: Power reader and zxpower (fixture test, then this runner live)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxpower.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
@@ -66,6 +141,10 @@ jobs:
         run: python3 kernel/arch/hosted/check_zxvd_spec.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, no model
         run: python3 kernel/arch/hosted/test_zxvd.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Built-in apps through the window's /api/rpc
+        run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: Phone link (pairing, encrypted frames, phone permissions, revoke)
+        run: python3 kernel/arch/hosted/test_zxvd_phone.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, with the tokenizer test model
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \
@@ -145,15 +224,15 @@ jobs:
 
   mutation:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
-    # zxvd_rpc.c and zxvd_aipi.c against their unit tests; fails below the
+    # zxvd_rpc.c, zxvd_aipi.c and the method groups (zxvd_*.c) against their unit tests; fails below the
     # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
     # on PRs to main)
     name: zxvd mutation scores
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power --ci --jobs 4 --out mutation-results
 
   real-model:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)

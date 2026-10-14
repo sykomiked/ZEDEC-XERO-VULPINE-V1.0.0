@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id clinic-records
+title Check a patient chart against the pharmacy record
+lang myra
+audience clinics, health networks, community pharmacies
+safety advisory
+summary A clinic chart and a pharmacy record are decoded exactly through one MYRA schema. Where they disagree the node is held for a clinician; nothing is changed. Invented sample data, an advisory aid only.
+step compare myra chart.myra advisory sources=clinic-chart.txt,pharmacy-record.txt reviewer=clinician
+draft chart.myra Write a MYRA schema (one line per M global node, typed subscripts, then ^-separated typed pieces) for the chart the user describes. Use nP.S for exact doses, d for dates, ! for required pieces. Never invent patient data.

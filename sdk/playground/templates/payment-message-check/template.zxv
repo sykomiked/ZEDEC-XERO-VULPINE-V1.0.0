@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id payment-message-check
+title Check a payment message, field by field
+lang eve
+audience banks, central banks, payment operators, fintechs
+safety none
+summary Every field of a payment message is checked against exact Eve types: no rounding, no unknown currencies, and the Ada spec must declare the same layout.
+inputs inputs.txt
+step check eve payment.eve type=payment same=payment.ads
+draft payment.eve Write Eve types for the payment record the user describes; use exact decimal types and ranges.

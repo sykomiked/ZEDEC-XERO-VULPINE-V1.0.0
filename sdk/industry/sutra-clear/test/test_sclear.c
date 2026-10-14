@@ -409,11 +409,16 @@ static void test_setup(void) {
     CHECK_RC(zsc_account(h, 99, NULL, "GHS", &a), ZXV_E_ARG);
     CHECK_RC(zsc_operator_add(h, zind_signer_pk(k)), ZXV_OK);
     CHECK_RC(zsc_operator_add(h, zind_signer_pk(k)), ZXV_E_DUPLICATE);
-    CHECK_RC(zsc_use_netting(h, e.ctx), ZXV_E_NOTIMPL);
     {
+        /* netting is there only where libzxv reports ZXV_FEAT_NETTING */
+        uint32_t feat = 0;
+        CHECK_RC(zxv_features(&feat), ZXV_OK);
+        int32_t want = (feat & ZXV_FEAT_NETTING) ? ZXV_OK : ZXV_E_NOTIMPL;
+        CHECK_RC(zsc_use_netting(h, e.ctx), want);
         zxv_netting *n = NULL;
-        CHECK_RC(zxv_netting_open(e.ctx, "C", "NGN", &n), ZXV_E_NOTIMPL);
-        CHECK(n == NULL, "no netting handle");
+        CHECK_RC(zxv_netting_open(e.ctx, "C", "NGN", &n), want);
+        CHECK((n != NULL) == (want == ZXV_OK), "a netting handle only where the library nets");
+        zxv_netting_destroy(n);
     }
     /* cycle state */
     {

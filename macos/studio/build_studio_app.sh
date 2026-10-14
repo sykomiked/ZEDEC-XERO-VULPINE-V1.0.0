@@ -36,7 +36,13 @@ BIN="$(swift build -c release --package-path "$HERE" --product ZXVStudio "$@" --
 # 2. zxvd and libzxv, one slice per arch, joined with lipo
 ZX=""
 LIB=""
-for a in $ARCHS; do
+# this machine's arch last, so the shared build folders below end up native
+HOSTA="$(uname -m)"
+SLICES=""
+for a in $ARCHS; do [ "$a" = "$HOSTA" ] || SLICES="$SLICES $a"; done
+for a in $ARCHS; do [ "$a" = "$HOSTA" ] && SLICES="$SLICES $a"; done
+# (build_zxvd.sh rebuilds the Playground's shared deps for each slice)
+for a in $SLICES; do
     CC="xcrun clang -arch $a -mmacosx-version-min=13.0" \
         sh "$R/kernel/arch/hosted/build_zxvd.sh" "$WORK/zxvd-$a" >"$WORK/zxvd-$a.log" 2>&1 ||
         { tail -30 "$WORK/zxvd-$a.log"; echo "zxvd ($a) failed to build" >&2; exit 1; }

@@ -1,0 +1,5 @@
+# Feeder 12, kW, one column per hour. Two independent sources.
+hours  = 16:00 17:00 18:00 19:00 20:00
+scada  = 410 455 498 512 470
+meters = 405 450 495 515 468
+limit  = 500

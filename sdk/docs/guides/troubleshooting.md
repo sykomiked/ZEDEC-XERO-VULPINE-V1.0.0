@@ -43,7 +43,7 @@ uses the Foreign Function & Memory API. Allow it explicitly:
 | `ZXV_E_BUDGET` | REFUSED | the budget is used up | wait (`consume_async`), release, or raise the limit |
 | `ZXV_E_STATE` | REFUSED | a hexagram phase jump, or an attempt to un-forbid a tag | step one phase at a time; start a new item |
 | `ZXV_E_CAPACITY` | REFUSED | a fixed-size store is full (for example the quarantine log) | for the quarantine log: halt the context, as required |
-| `ZXV_E_NOTIMPL` | REFUSED | not in this build: LoRA, netting, card issuing | check `zxv_features` before calling |
+| `ZXV_E_NOTIMPL` | REFUSED | not in this build: LoRA, card issuing (netting when built without kernel/src/cbank) | check `zxv_features` before calling |
 | `ZXV_E_FLOAT` | USAGE | a float reached an exact API, or a NaN/infinity was converted | use text, integers or `Rational`; see [Exact numbers](exact-numbers.md) |
 | `ZXV_E_FORMAT` | USAGE | text such as `"1e-3"` or `"12,50"` | write plain decimals (`"0.001"`) or fractions (`"1/3"`) |
 | `ZXV_E_RANGE` | USAGE | amount `0`, negative or above `AMOUNT_MAX`, or 64-bit overflow | split the amount, or check your arithmetic |

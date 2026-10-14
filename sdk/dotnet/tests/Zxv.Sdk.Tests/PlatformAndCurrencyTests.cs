@@ -23,7 +23,7 @@ public sealed class PlatformAndCurrencyTests : IDisposable
     {
         Assert.Equal(1, _p.AbiVersion.Major);
         Assert.True(_p.Supports(ZxvFeatures.Ledger | ZxvFeatures.Pacs008 | ZxvFeatures.Camt053 | ZxvFeatures.Iso4217));
-        Assert.False(_p.Supports(ZxvFeatures.Netting));
+        Assert.False(_p.Supports(ZxvFeatures.Cards));
     }
 
     [Theory]

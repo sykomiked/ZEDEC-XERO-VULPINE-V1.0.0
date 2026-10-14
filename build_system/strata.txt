@@ -76,6 +76,7 @@ mouse                            kernel
 oseq                             kernel
 pci                              kernel
 phase_coord                      kernel
+power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
 quantum                          kernel
 qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
@@ -125,6 +126,7 @@ ehop                             trust      # ehop.h includes mlkem768.h: the ho
 hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
 ident                            trust
 identity                         trust
+seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
 immigration                      trust
 ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
 loader                           trust
@@ -213,6 +215,7 @@ qnote                            settlement # first loss through svault
 royalty                          settlement
 
 # ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
+acct                             adapters   # IFRS / US GAAP / AAOIFI accounting adapters
 crown                            adapters
 evolve                           adapters
 finance/assurance                adapters   # jurisdiction-bound instruments: include interspace.h
@@ -222,6 +225,9 @@ financial_fabric                 adapters   # compound module over finance and o
 gematria                         adapters
 hdcm                             adapters
 interspace                       adapters
+intent                           adapters   # AI intent layer; routes through juris
+juris                            adapters   # jurisdiction plug-in ABI over acct
+juris/juris_vhub                 adapters   # the juris bridge to vhub (S6)
 iso20022                         adapters
 legacy                           adapters
 legal_engine                     adapters
@@ -232,6 +238,7 @@ net/smart_adapter_integration    adapters   # integrates net's adapters with orb
 orbital_compat                   adapters
 orbital_elevator                 adapters
 orbital_fabric                   adapters
+privacy                          adapters   # privacy layer: consent, access and exact discrete Laplace
 rur                              adapters
 sdk_bridge                       adapters
 sovereign_node                   adapters

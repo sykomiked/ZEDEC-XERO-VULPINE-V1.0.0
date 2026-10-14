@@ -99,6 +99,10 @@ There are two layers:
 - **Interface text** comes from `kernel/src/i18n` (778 CLDR locales). Keep message ids in your state and render them at the edge with `i18n_msg()`. This is the Enochian-core rule: the core stores keys, the edge shows text.
 - **User content** (posts, messages, documents others wrote) goes through `xlate_view()` with the reader's `xlate_prefs_t`. Show `xlate_marker_label()` whenever `XLATE_F_MACHINE` is set, and offer "Show original" with `xlate_prefs_toggle_original()`.
 
+### 1.5a Coding languages: a basket, not one
+
+An app is built from several coding languages, each feature in the one that suits it (Sutra for money, Eve for limits, KRON for numbers, any libzxv SDK language or WebAssembly for the rest), bound by the app's `.zxapp` manifest and joined by the paraconsistent logic. Critical features are written twice and must agree. Apps are composed from reusable, versioned components (blocks) with checked contracts, so most new apps are a new screen over blocks that already exist. See [APP_MODEL.md](APP_MODEL.md).
+
 ### 1.6 Test on the host, then cross-compile
 
 Host test, from `kernel/` with the Makefile's `CPATH`:

@@ -351,12 +351,14 @@ verify-all: test
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-zxsh
+	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-retail
+	$(MAKE) --no-print-directory test-adapters
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
@@ -393,6 +395,10 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vinea
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
+	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
+	$(MAKE) --no-print-directory test-aipi-vna
+	@echo "=== power: energy per app and per agent, battery, budgets, RAPL, host and phone readers ===";
+	$(MAKE) --no-print-directory test-power
 	@echo "=== evolve: capabilities, forks, lineage DAG, conformance, profiles ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -Iinclude -Isrc/evolve -Isrc/mlkem -Isrc/tensor -Isrc/update -Isrc/ipfs_node -Isrc/robin_debanks -Isrc/pqsec -Isrc/pay -Isrc/swarm -Isrc/zcapital -Isrc/surplus -Isrc/modbind -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/trispace \
 		src/evolve/test_evolve.c src/evolve/evo_cap.c src/evolve/evo_msg.c src/evolve/evo_lineage.c src/evolve/evo_trust.c src/evolve/evo_upd.c src/evolve/evo_zxu.c src/evolve/evo_conform.c src/evolve/evo_profile.c \
@@ -1158,6 +1164,20 @@ verify-all: test
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
+	echo "=== zui: widgets, input, menus, Ask palette, framebuffer present ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_widget.c src/zui/zui_widget.c src/zui/zui_input.c src/zui/zui_present_fb.c \
+		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_widget && \
+		/tmp/test_zui_widget && echo "[PASS] test_zui_widget" || { echo "[FAIL] test_zui_widget"; exit 1; }; \
+	echo "=== zui: windows, the strip of open apps, the switcher ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_wm && \
+		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
+	echo "=== zui: accessibility, input, notices, privacy, clipboard, share, capture, lock, display ==="; \
+	CC=gcc sh src/zui/test_zui_toolkit.sh || { echo "[FAIL] test_zui_toolkit"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
@@ -1502,6 +1522,14 @@ test-paradox:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_paradox.c src/paradox/paradox.c src/paradox/paradox_graph.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_paradox && $(ZXV_TMP)/test_paradox > $(ZXV_TMP)/test_paradox.log 2>&1 && echo "[PASS] test_paradox ($$(tail -1 $(ZXV_TMP)/test_paradox.log))" || { cat $(ZXV_TMP)/test_paradox.log; echo "[FAIL] test_paradox"; exit 1; }
 	@for f in src/paradox/paradox.c src/paradox/paradox_graph.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/paradox_free.o || { echo "[FAIL] paradox freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/paradox_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/paradox_free.o; echo "[FAIL] paradox freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] paradox freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
 
+# The contradiction-tolerant ledger and four-valued agents (src/paradox/pdx_ledger.h,
+# pdx_agent.h, roadmap 6.6b P1.1-P1.4 and P2.2; docs/PARACONSISTENT_LEDGER.md):
+# ASan/UBSan tests, then the same freestanding build check as test-paradox.
+.PHONY: test-pdx-ledger
+test-pdx-ledger:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres src/paradox/test_pdx_ledger.c src/paradox/pdx_ledger.c src/paradox/pdx_agent.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pdx_ledger && $(ZXV_TMP)/test_pdx_ledger > $(ZXV_TMP)/test_pdx_ledger.log 2>&1 && echo "[PASS] test_pdx_ledger ($$(tail -1 $(ZXV_TMP)/test_pdx_ledger.log))" || { cat $(ZXV_TMP)/test_pdx_ledger.log; echo "[FAIL] test_pdx_ledger"; exit 1; }
+	@for f in src/paradox/pdx_ledger.c src/paradox/pdx_agent.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -c $$f -o $(ZXV_TMP)/pdx_ledger_free.o || { echo "[FAIL] pdx-ledger freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pdx_ledger_free.o | grep -vE ' (lpx_|pdx_|sha256)' | grep -q .; then nm -u $(ZXV_TMP)/pdx_ledger_free.o; echo "[FAIL] pdx-ledger freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pdx-ledger freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256 external)"
+
 HWEMU_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec
 
 # Hardware emulation matrix, ZHP-1 hardware profiles and signed
@@ -1646,10 +1674,27 @@ test-vinea:
 # AIPI (src/aipi/aipi.h): content-addressed functions over the IPFS node and Vinea.
 AIPI_DEPS := src/aipi/aipi.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/lpres/lpres_hex.c src/lpres/lpres.c
 AIPI_INC  := -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus
+# AIPI over Vinea (src/aipi/aipi_vna.h): calls, claims and payment notices as signed Vinea messages.
+VINEA_SRCS := $(filter-out src/vinea/test_vinea.c,$(sort $(wildcard src/vinea/*.c))) src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/zcapital/zcapital.c
+
+.PHONY: test-aipi-vna
+test-aipi-vna:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk src/aipi/test_aipi_vna.c src/aipi/aipi_vna.c $(AIPI_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aipi_vna -lm && $(ZXV_TMP)/test_aipi_vna > $(ZXV_TMP)/test_aipi_vna.log 2>&1 && echo "[PASS] test_aipi_vna ($$(tail -1 $(ZXV_TMP)/test_aipi_vna.log))" || { cat $(ZXV_TMP)/test_aipi_vna.log; echo "[FAIL] test_aipi_vna"; exit 1; }
+
 .PHONY: test-aipi
 test-aipi:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wshadow -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) src/aipi/test_aipi.c $(AIPI_DEPS) -o $(ZXV_TMP)/test_aipi && $(ZXV_TMP)/test_aipi > $(ZXV_TMP)/test_aipi.log 2>&1 && echo "[PASS] test_aipi ($$(tail -1 $(ZXV_TMP)/test_aipi.log))" || { cat $(ZXV_TMP)/test_aipi.log; echo "[FAIL] test_aipi"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(AIPI_INC) -c src/aipi/aipi.c -o $(ZXV_TMP)/aipi_free.o || { echo "[FAIL] aipi freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/aipi_free.o | grep -vE ' (ipfsn_[a-z0-9_]+|lpx_[a-z_]+|sha256_(init|update|final))$$' | grep -q .; then nm -u $(ZXV_TMP)/aipi_free.o; echo "[FAIL] aipi freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] aipi freestanding (aarch64 and i386: no libc, no 64-bit division helpers)"
+
+# Power tracking (src/power): energy ledger per app and per agent, battery and posture, energy
+# budgets, x86 RAPL; the hosted reader against a Linux sysfs fixture; the phone hook.
+POWER_FLAGS = -std=c11 -O1 -g -Wall -Werror -Wextra -Wshadow -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST
+.PHONY: test-power
+test-power:
+	gcc $(POWER_FLAGS) -Isrc/power -Isrc/lpres -Isrc/event_space src/power/test_power.c src/power/power_ledger.c src/power/power_rapl.c -o $(ZXV_TMP)/test_power && $(ZXV_TMP)/test_power > $(ZXV_TMP)/test_power.log 2>&1 && echo "[PASS] test_power ($$(tail -1 $(ZXV_TMP)/test_power.log))" || { cat $(ZXV_TMP)/test_power.log; echo "[FAIL] test_power"; exit 1; }
+	gcc $(POWER_FLAGS) -Isrc/power -Iarch/hosted arch/hosted/test_zxv_power_host.c arch/hosted/zxv_power_host.c src/power/power_ledger.c -o $(ZXV_TMP)/test_zxv_power_host && $(ZXV_TMP)/test_zxv_power_host > $(ZXV_TMP)/test_zxv_power_host.log 2>&1 && echo "[PASS] test_zxv_power_host ($$(tail -1 $(ZXV_TMP)/test_zxv_power_host.log))" || { cat $(ZXV_TMP)/test_zxv_power_host.log; echo "[FAIL] test_zxv_power_host"; exit 1; }
+	gcc $(POWER_FLAGS) -Isrc/power -I../mobile/core ../mobile/core/test_zxv_mobile_power.c ../mobile/core/zxv_mobile_power.c src/power/power_ledger.c -o $(ZXV_TMP)/test_zxv_mobile_power && $(ZXV_TMP)/test_zxv_mobile_power > $(ZXV_TMP)/test_zxv_mobile_power.log 2>&1 && echo "[PASS] test_zxv_mobile_power ($$(tail -1 $(ZXV_TMP)/test_zxv_mobile_power.log))" || { cat $(ZXV_TMP)/test_zxv_mobile_power.log; echo "[FAIL] test_zxv_mobile_power"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf; do for f in src/power/power_ledger.c src/power/power_rapl.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/power -c $$f -o $(ZXV_TMP)/power_free.o || { echo "[FAIL] power freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/power_free.o | grep -vE ' pw_[a-z0-9_]+$$' | grep -q .; then nm -u $(ZXV_TMP)/power_free.o; echo "[FAIL] power freestanding: libc in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] power freestanding (aarch64 and x86_64: no libc)"
 
 .PHONY: test-engine
 test-engine:
@@ -1945,3 +1990,35 @@ test-orphans:
 	$(ORPHAN_CC) $(NEWMOD_TEST_INC) ../tests/test_new_modules.c $(NEWMOD_TEST_SRCS) -o $(ZXV_TMP)/test_new_modules -lm && $(ZXV_TMP)/test_new_modules > $(ZXV_TMP)/test_new_modules.log 2>&1 && echo "[PASS] test_new_modules ($$(tail -1 $(ZXV_TMP)/test_new_modules.log))" || { tail -30 $(ZXV_TMP)/test_new_modules.log; echo "[FAIL] test_new_modules"; exit 1; }
 	$(ORPHAN_CC) -Isrc/emu src/emu/test_nes.c src/emu/nes.c src/emu/cpu6502.c -o $(ZXV_TMP)/test_nes && $(ZXV_TMP)/test_nes > $(ZXV_TMP)/test_nes.log 2>&1 && echo "[PASS] test_nes ($$(tail -1 $(ZXV_TMP)/test_nes.log))" || { cat $(ZXV_TMP)/test_nes.log; echo "[FAIL] test_nes"; exit 1; }
 	$(ORPHAN_CC) $(APPS_TEST_INC) -include ../tests/notes_app_shim.h src/apps/test_notes.c src/apps/notes_app.c src/apps/vfs_stub.c src/oseq/oseq_core.c -o $(ZXV_TMP)/test_notes && $(ZXV_TMP)/test_notes > $(ZXV_TMP)/test_notes.log 2>&1 && echo "[PASS] test_notes ($$(grep -c '^PASS' $(ZXV_TMP)/test_notes.log) checks)" || { cat $(ZXV_TMP)/test_notes.log; echo "[FAIL] test_notes"; exit 1; }
+
+# ==== adapters: accounting, jurisdiction plug-ins, AI intent, privacy ====
+ADAPT_LPRES = src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
+ADAPT_JURIS = src/juris/juris.c src/juris/juris_vhub.c src/vhub/vhub.c src/acct/acct.c src/lpres/lpres_hex.c src/lpres/lpres.c $(ECON_LEDGER)
+
+# Accounting adapters (src/acct): IFRS, US GAAP, AAOIFI; journal, balance sheet, tax and zakah schedule; published worked examples.
+.PHONY: test-acct
+test-acct:
+	gcc $(ECON_FLAGS) src/acct/test_acct.c src/acct/acct.c -o $(ZXV_TMP)/test_acct && $(ZXV_TMP)/test_acct > $(ZXV_TMP)/test_acct.log 2>&1 && echo "[PASS] test_acct ($$(tail -1 $(ZXV_TMP)/test_acct.log))" || { tail -40 $(ZXV_TMP)/test_acct.log; echo "[FAIL] test_acct"; exit 1; }
+
+# Jurisdiction plug-in ABI (src/juris): zxvd jurisdiction.get settings, signed manifests, fail-closed host, vhub limit rule as a plug-in.
+.PHONY: test-juris
+test-juris:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/juris/test_juris.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_juris -lm && $(ZXV_TMP)/test_juris > $(ZXV_TMP)/test_juris.log 2>&1 && echo "[PASS] test_juris ($$(tail -1 $(ZXV_TMP)/test_juris.log))" || { tail -40 $(ZXV_TMP)/test_juris.log; echo "[FAIL] test_juris"; exit 1; }
+
+# AI intent layer (src/intent): strict grammar, guard, owner approval bound to the draft digest; never writes balances.
+.PHONY: test-intent
+test-intent:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/intent/test_intent.c src/intent/intent.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_intent -lm && $(ZXV_TMP)/test_intent > $(ZXV_TMP)/test_intent.log 2>&1 && echo "[PASS] test_intent ($$(tail -1 $(ZXV_TMP)/test_intent.log))" || { tail -40 $(ZXV_TMP)/test_intent.log; echo "[FAIL] test_intent"; exit 1; }
+
+# Privacy layer (src/privacy): exact discrete Laplace, epsilon budget, four-valued access control, selective disclosure.
+.PHONY: test-privacy
+test-privacy:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/privacy/test_privacy.c src/privacy/privacy.c $(ADAPT_LPRES) -o $(ZXV_TMP)/test_privacy -lm && $(ZXV_TMP)/test_privacy > $(ZXV_TMP)/test_privacy.log 2>&1 && echo "[PASS] test_privacy ($$(tail -1 $(ZXV_TMP)/test_privacy.log))" || { tail -40 $(ZXV_TMP)/test_privacy.log; echo "[FAIL] test_privacy"; exit 1; }
+
+.PHONY: test-adapters
+test-adapters:
+	$(MAKE) --no-print-directory test-acct
+	$(MAKE) --no-print-directory test-juris
+	$(MAKE) --no-print-directory test-intent
+	$(MAKE) --no-print-directory test-privacy
+# ==== end adapters ====

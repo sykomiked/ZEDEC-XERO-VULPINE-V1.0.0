@@ -1,0 +1,10 @@
+; cycle-count.txt -- what the shelves held at the cycle count, as ZWRITE prints ^STK.
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+; Sample data. Dates are $H day counts (68025 is 2027-03-31).
+; Counted south first: the order of lines does not matter.
+^STK("SOUTH",1001)="rice 25kg^35^bag^40"
+^STK("SOUTH",1003)="water purification tablets^300^box^50"
+^STK("NORTH","rice")="rice 25kg^120^bag^40"
+^STK("NORTH",1002)="cooking oil 5L^64^can^20"
+^STK("NORTH",1002,"lot","OIL-2609")="64^68025"

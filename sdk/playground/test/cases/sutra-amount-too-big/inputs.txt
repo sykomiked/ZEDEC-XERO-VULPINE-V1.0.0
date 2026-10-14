@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One payment, field by field. Names are the record's field names.
+pay-ref = PAY-2026-000123
+pay-amount = 12345678901234.56
+pay-ccy = USD
+pay-from = 1001
+pay-to = 2002
+pay-value-date = 20261012
+pay-fee = 2.50
+pay-status = N

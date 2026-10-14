@@ -144,16 +144,130 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
 .small{font-size:12px;color:var(--muted);margin-top:6px}
 #notes div{padding:4px 0;border-bottom:1px solid var(--line);font-size:12px}
 #notes div.unread{border-left:3px solid var(--accent);padding-left:6px}
+/* the app shell: a sidebar of staple apps, one view at a time */
+.shell{display:grid;grid-template-columns:184px minmax(0,1fr);min-height:calc(100vh - 53px)}
+#dock{border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+#dock .grp{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:10px 8px 4px}
+#dock .grp:first-child{margin-top:2px}
+#dock button{display:flex;align-items:center;gap:8px;text-align:left;background:transparent;color:var(--text);border:0;border-radius:6px;padding:7px 8px;cursor:pointer;font:inherit}
+#dock button:hover{background:var(--panel)}
+#dock button.on{background:var(--panel);box-shadow:inset 3px 0 0 var(--accent)}
+#dock button i{font-style:normal;width:18px;text-align:center}
+.view{display:none;min-width:0}
+.view.on{display:block}
+.pad{padding:12px 16px}
+@media (max-width:720px){.shell{display:block;min-height:0}#dock{flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px;border-right:0;border-bottom:1px solid var(--line)}#dock .grp{display:none}#dock button{padding:6px 8px}table.ft th:nth-child(3),table.ft td:nth-child(3){display:none}table.ft td.acts{white-space:normal}}
+.bar2{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:10px}
+.bar2 button,.btn{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;font:inherit;font-size:13px}
+.bar2 button:hover,.btn:hover{border-color:var(--muted)}
+.bar2 button.primary,.btn.primary{background:var(--accent);color:#000;border-color:var(--accent)}
+.bar2 button:disabled{opacity:.45;cursor:default}
+.bar2 .sp{flex:1}
+.crumbs{display:flex;flex-wrap:wrap;gap:2px;align-items:center;font-size:13px}
+.crumbs a{color:var(--text);cursor:pointer;padding:2px 4px;border-radius:4px;text-decoration:none}
+.crumbs a:hover{background:var(--panel)}
+.crumbs span{color:var(--muted)}
+table.ft td,table.ft th{text-align:left}
+table.ft td.num,table.ft th.num{text-align:right}
+table.ft tr.row{cursor:default}
+table.ft tr.row:hover td{background:#11161d}
+table.ft tr.sel td{background:#1d2633}
+table.ft td.nm{white-space:normal;word-break:break-word}
+table.ft td.acts{text-align:right}
+table.ft td.acts button{background:transparent;border:0;color:var(--muted);cursor:pointer;padding:2px 6px;font:inherit;font-size:12px}
+table.ft td.acts button:hover{color:var(--text)}
+.empty{color:var(--muted);padding:24px 8px;text-align:center}
+.status{font-size:12px;color:var(--muted);margin-top:8px;min-height:1.4em}
+.status.err{color:var(--bad)}
+#ed{width:100%;min-height:60vh;resize:vertical;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:12px;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;tab-size:4}
+#ed.prose{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.edwrap{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.edwrap.split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+@media (max-width:860px){.edwrap.split{grid-template-columns:minmax(0,1fr)}}
+#mdview{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 16px;overflow:auto;max-height:70vh;word-break:break-word}
+#mdview code{background:#0b0e13;padding:1px 4px;border-radius:4px}
+#mdview pre{background:#0b0e13;padding:8px;border-radius:6px;overflow:auto}
+.docname{font-weight:600}
+.dirty{color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.tile:hover{border-color:var(--muted)}
+.tile .th{aspect-ratio:1/1;display:grid;place-items:center;background:#0b0e13;color:var(--muted);font-size:28px}
+.tile .th img{width:100%;height:100%;object-fit:cover}
+.tile .cap{font-size:12px;padding:6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:20;flex-direction:column}
+#viewer.on{display:flex}
+#viewer .vb{display:flex;align-items:center;gap:8px;padding:10px 14px;color:var(--text)}
+#viewer .vb .sp{flex:1}
+#viewer .stage{flex:1;display:grid;place-items:center;min-height:0;padding:0 14px 14px}
+#viewer img,#viewer video{max-width:100%;max-height:100%;object-fit:contain}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;place-items:center;padding:16px}
+#modal.on{display:grid}
+#modal .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;width:min(420px,100%)}
+#modal h3{margin:0 0 10px;font-size:15px}
+#modal p{margin:0 0 10px;color:var(--muted);font-size:13px}
+#modal input{width:100%;margin-bottom:12px}
+#modal .row{display:flex;justify-content:flex-end;gap:8px}
+#cout{background:#0b0e13;border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word;max-height:55vh;overflow:auto;margin-top:10px}
+#cparams{width:100%;min-height:90px;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;min-width:0;max-width:100%}
+.drop{outline:2px dashed var(--accent);outline-offset:-6px}
+nav.tabs{display:flex;gap:4px;margin-left:12px}
+nav.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}
+nav.tabs button.on{color:var(--text);border-color:var(--line);background:var(--panel)}
+#play{display:grid;grid-template-columns:minmax(0,15rem) minmax(0,3fr) minmax(0,2fr);gap:12px;padding:12px 16px}
+@media (max-width:1100px){#play{grid-template-columns:minmax(0,1fr)}}
+#play[hidden],#swarm[hidden]{display:none}
+.tpl{display:block;width:100%;text-align:left;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:6px;cursor:pointer;font:inherit}
+.tpl.on{border-color:var(--accent)}
+.tpl b{display:block;font-weight:600}
+.tpl span{display:block;font-size:12px;color:var(--muted)}
+.chip{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-right:4px;color:var(--muted)}
+.pl-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.pl-head h3{margin:0;font-size:15px}
+.ftabs{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 6px}
+.ftabs button{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px 6px 0 0;padding:3px 9px;cursor:pointer;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+.ftabs button.on{color:var(--text);border-color:var(--accent)}
+.ftabs button.edited::after{content:" •";color:var(--accent)}
+#pl-text{width:100%;min-height:46vh;resize:vertical;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:4;white-space:pre}
+button.primary{background:var(--accent);color:#000;border:0;border-radius:6px;padding:6px 16px;cursor:pointer;font-weight:600}
+.verdict{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px}
+.verdict b{font-size:18px;letter-spacing:.04em}
+.vTRUE{border-color:var(--ok)}.vTRUE b,.cTRUE{color:var(--ok)}
+.vFALSE{border-color:var(--bad)}.vFALSE b,.cFALSE{color:var(--bad)}
+.vBOTH{border-color:var(--glut)}.vBOTH b,.cBOTH{color:var(--glut)}
+.vNEITHER b,.cNEITHER{color:var(--muted)}
+.step{border-top:1px solid var(--line);padding:8px 0}
+.step h4{margin:0 0 4px;font-size:13px}
+.out{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.out span:nth-child(odd){color:var(--muted)}
+.held{color:var(--glut)}.pend{color:var(--muted)}.err{color:var(--bad)}
+.banner{padding:6px 10px;border-radius:6px;border:1px solid var(--accent);font-size:12px;margin-bottom:8px}
+a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
+#pl-drafttext{white-space:pre-wrap;background:#0b0e13;border:1px dashed var(--glut);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:30vh;overflow:auto}
 </style>
 </head>
 <body>
 <header>
   <h1>ZXV SWARM</h1>
+  <nav class="tabs"><button id="tab-swarm" class="on">Swarm</button><button id="tab-play">Playground</button></nav>
   <span class="sub" id="mode">connecting…</span>
   <button id="quit" title="Stop the ZXV swarm">Quit</button>
 </header>
+<div class="shell">
+<nav id="dock" aria-label="Apps">
+  <div class="grp">Apps</div>
+  <button data-app="swarm"><i>◉</i>Murmuration</button>
+  <button data-app="files"><i>🗂</i>Burrow</button>
+  <button data-app="text"><i>✎</i>Quillon</button>
+  <button data-app="photos"><i>▣</i>Glint</button>
+  <div class="grp">Toolbox</div>
+  <button data-app="console"><i>›_</i>Spindle</button>
+</nav>
+<div class="views">
+<div class="view" id="v-swarm">
 <div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
-<main>
+<main id="swarm">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
     <section>
       <h2>Swarm, this cycle</h2>
@@ -182,6 +296,81 @@ form button{background:var(--accent);color:#000;border:0;border-radius:6px;paddi
     <section><h2>Notifications</h2><div id="notes"></div><div class="btns"><button id="noteread">Mark all read</button></div></section>
   </div>
 </main>
+</div>
+<div class="view" id="v-files"><div class="pad">
+  <div class="bar2">
+    <div class="crumbs" id="fcrumbs"></div><span class="sp"></span>
+    <button id="fnewdir">New folder</button><button id="fnewtxt">New text file</button>
+    <button id="fimport">Import…</button><button id="ftrash">Trash</button>
+    <button id="fempty" style="display:none">Empty Trash</button>
+  </div>
+  <input type="file" id="fpick" multiple style="display:none">
+  <div class="tablewrap" id="fdrop"><table class="ft">
+    <thead><tr><th>Name</th><th class="num">Size</th><th>Modified</th><th></th></tr></thead>
+    <tbody id="flist"></tbody>
+  </table></div>
+  <div class="status" id="fstat"></div>
+</div></div>
+<div class="view" id="v-text"><div class="pad">
+  <div class="bar2">
+    <span class="docname" id="tname">Untitled</span><span class="dirty" id="tdirty"></span><span class="sp"></span>
+    <button id="tnew">New</button><button id="topen">Open…</button>
+    <button id="tsave" class="primary">Save</button><button id="tsaveas">Save as…</button>
+    <button id="tprev">Preview</button><button id="tfont">Prose</button>
+  </div>
+  <div class="edwrap" id="twrap"><textarea id="ed" spellcheck="true" placeholder="Start typing. Save with ⌘S or Ctrl+S."></textarea><div id="mdview" style="display:none"></div></div>
+  <div class="status" id="tstat"></div>
+</div></div>
+<div class="view" id="v-photos"><div class="pad">
+  <div class="bar2">
+    <div class="crumbs" id="pcrumbs"></div><span class="sp"></span>
+    <button id="pimport">Import…</button>
+  </div>
+  <input type="file" id="ppick" multiple accept="image/*,audio/*,video/*" style="display:none">
+  <div class="grid" id="pgrid"></div>
+  <div class="status" id="pstat"></div>
+</div></div>
+<div class="view" id="v-console"><div class="pad">
+  <section>
+    <h2>Spindle: call zxvd</h2>
+    <div class="bar2"><select id="cmeth"></select><span class="sp"></span><button id="crun" class="primary">Run</button><button id="cclear">Clear</button></div>
+    <textarea id="cparams" spellcheck="false" placeholder='Parameters as a JSON object, for example {"path":""}'></textarea>
+    <div class="small">Every call goes to this machine's zxvd, the same methods the SDKs and ZXV Studio use (api/zxvd.openrpc.json).</div>
+    <div id="cout"></div>
+  </section>
+</div></div>
+</div>
+</div>
+<div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose">Close</button></div><div class="stage" id="vstage"></div></div>
+<div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno">Cancel</button><button class="btn primary" id="myes">OK</button></div></div></div>
+<div id="play" hidden>
+  <section>
+    <h2>Templates</h2>
+    <div id="tpls">Loading…</div>
+    <div class="small">Each one runs in ZXV's own languages, on scratch state: your books are never touched. From a terminal: <code>zxv new ID</code>.</div>
+  </section>
+  <section>
+    <div class="pl-head">
+      <div><h3 id="pl-title">Pick a template</h3><div class="small" id="pl-sum"></div></div>
+      <div class="btns" style="margin:0"><button id="pl-reset" title="Undo your edits to this template">Reset</button><button id="pl-run" class="primary">Run</button></div>
+    </div>
+    <div class="ftabs" id="pl-files"></div>
+    <textarea id="pl-text" spellcheck="false" autocomplete="off"></textarea>
+    <div id="pl-draft" hidden style="margin-top:8px">
+      <form id="pl-askf"><input id="pl-req" autocomplete="off" placeholder="Describe it in plain words; the local AI drafts the file"><button>Draft with AI</button></form>
+      <div id="pl-draftbox" hidden style="margin-top:8px">
+        <div class="small" id="pl-draftnote"></div>
+        <div id="pl-drafttext"></div>
+        <div class="btns"><button id="pl-use">Use this draft</button><button id="pl-discard">Discard</button></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>Result</h2>
+    <div id="pl-result" class="small">Press Run to check and run the template.</div>
+    <div class="small" style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px">Four answers, never forced into yes or no: <span class="cTRUE">TRUE</span> passed · <span class="cFALSE">FALSE</span> refused, with the line · <span class="cBOTH">BOTH</span> contradictory evidence, held for a person · <span class="cNEITHER">NEITHER</span> not enough to decide yet.</div>
+  </section>
+</div>
 <script>
 const $=id=>document.getElementById(id);
 const verdict=["✗ false","✓ true","⊥̸ contested"];
@@ -192,7 +381,7 @@ function fmt(n){return Number(n).toLocaleString()}
 async function poll(){
   try{
     const s=await (await fetch('/api/state')).json();
-    $('mode').textContent=(s.remote?'remote instance':'this device')+' · '+s.host;
+    $('mode').textContent=(s.remote?'remote instance':'this device')+' · '+s.host;F.host=s.remote?'the remote instance':'this computer';
     const c=s.companion||{};
     kv($('budget'),[['Mode',s.remote?'remote (up to 99%)':'local guest (≤ 13/21 of free)'],['Cores',`${s.cores} total, ${(s.cores_milli/1000).toFixed(2)} granted`],['Memory',`${fmt(s.mem_total_mb)} MB total, ${fmt(s.mem_mb)} MB granted`],['Levels',s.levels],['Agents',s.agents.length],['Tokens / cycle',fmt(s.tokens_per_cycle)],['Companion left',c.exhausted?'budget exhausted for this cycle':`${fmt(c.remaining)} of ${fmt(c.allotted)} tokens`]]);
     const n=s.net||{};kv($('net'),[['Mode',n.mode],['Socket',n.bound?`UDP ${n.bind}:${n.port}`:'none'],['Node',n.node_id||'–'],['Peers',fmt(n.peers||0)],['Datagrams',`${fmt(n.in||0)} in, ${fmt(n.out||0)} out`]].concat(n.error?[['Error',n.error]]:[]));
@@ -214,8 +403,287 @@ function say(who,text,you){const m=document.createElement('div');m.className='ms
 $('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say('You',q,true);
   try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say('Companion',r)}catch(err){say('Companion','(no connection to the swarm)')}};
 $('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">The ZXV swarm has stopped. You can close this window.</p>'};
+
+/* ---------------- Playground ---------------- */
+const PL={cat:[],cur:null,file:null,edits:{},loaded:false,last:null};
+function tab(which){$('swarm').hidden=which!=='swarm';$('play').hidden=which!=='play';$('tab-swarm').classList.toggle('on',which==='swarm');$('tab-play').classList.toggle('on',which==='play');if(which==='play'&&!PL.loaded)plLoad()}
+$('tab-swarm').onclick=()=>tab('swarm');$('tab-play').onclick=()=>tab('play');
+async function plLoad(){
+  try{const r=await fetch('/api/play/catalogue');if(!r.ok)throw 0;PL.cat=await r.json();PL.loaded=true}
+  catch(e){$('tpls').textContent='The Playground is not part of this build.';return}
+  $('tpls').innerHTML='';
+  for(const t of PL.cat){const b=document.createElement('button');b.className='tpl';b.dataset.id=t.id;
+    b.innerHTML=`<b>${esc(t.title)}</b><span>${esc(t.audience)}</span><span><i class="chip">${esc(t.lang)}</i>${t.safety!=='none'?`<i class="chip">${esc(t.safety)}</i>`:''}</span>`;
+    b.onclick=()=>plPick(t.id);$('tpls').appendChild(b)}
+  if(PL.cat.length)plPick(PL.cat[0].id)}
+function plT(){return PL.cat.find(t=>t.id===PL.cur)}
+function plFiles(){const t=plT(),o={};for(const f of t.files)o[f.name]=f.text;return Object.assign(o,PL.edits[PL.cur]||{})}
+function plPick(id){plSave();PL.cur=id;const t=plT();PL.file=null;
+  document.querySelectorAll('.tpl').forEach(b=>b.classList.toggle('on',b.dataset.id===id));
+  $('pl-title').textContent=t.title;$('pl-sum').textContent=t.summary;
+  const main=(t.steps[0]||{}).file;plTabs(main||t.files[0].name);
+  $('pl-draft').hidden=!t.draft;$('pl-draftbox').hidden=true;$('pl-req').value='';
+  $('pl-result').className='small';$('pl-result').textContent='Press Run to check and run the template.'}
+function plOrder(t){const steps=t.steps.map(s=>s.file);const rank=n=>n==='README.md'?0:steps.includes(n)?1+steps.indexOf(n):n==='template.zxv'?99:50;return t.files.map(f=>f.name).sort((a,b)=>rank(a)-rank(b))}
+function plTabs(open){const t=plT(),ed=PL.edits[PL.cur]||{};$('pl-files').innerHTML='';
+  for(const n of plOrder(t)){const b=document.createElement('button');b.textContent=n;b.className=(n===open?'on ':'')+(n in ed?'edited':'');b.onclick=()=>{plSave();plTabs(n)};$('pl-files').appendChild(b)}
+  PL.file=open;$('pl-text').value=plFiles()[open]||'';$('pl-text').readOnly=open==='README.md'}
+function plSave(){if(!PL.cur||!PL.file)return;const t=plT(),orig=(t.files.find(f=>f.name===PL.file)||{}).text,v=$('pl-text').value;
+  const ed=PL.edits[PL.cur]=PL.edits[PL.cur]||{};if(v===orig)delete ed[PL.file];else ed[PL.file]=v}
+$('pl-text').addEventListener('input',()=>{plSave();const b=[...$('pl-files').children].find(x=>x.textContent===PL.file);if(b)b.classList.toggle('edited',PL.file in (PL.edits[PL.cur]||{}))});
+$('pl-reset').onclick=()=>{if(!PL.cur)return;delete PL.edits[PL.cur];plTabs(PL.file)};
+function plBody(request){const enc=new TextEncoder(),parts=[enc.encode(`template ${PL.cur}\n`)];
+  if(request!=null){const r=enc.encode(request);parts.push(enc.encode(`request ${r.length}\n`),r,enc.encode('\n'))}
+  for(const[n,t]of Object.entries(PL.edits[PL.cur]||{})){const b=enc.encode(t);parts.push(enc.encode(`file ${n} ${b.length}\n`),b,enc.encode('\n'))}
+  return new Blob(parts)}
+$('pl-run').onclick=async()=>{if(!PL.cur)return;plSave();$('pl-run').disabled=true;$('pl-result').textContent='Running…';
+  try{const r=await fetch('/api/play/run',{method:'POST',body:plBody(null)});if(!r.ok)throw new Error(await r.text());plShow(await r.json())}
+  catch(e){$('pl-result').textContent='Could not run: '+e.message}
+  $('pl-run').disabled=false};
+const VWORD={TRUE:'Passed',FALSE:'Refused',BOTH:'Held for review',NEITHER:'Undecided'};
+function plGo(file,line,col){plSave();plTabs(file);const ta=$('pl-text'),lines=ta.value.split('\n');let off=0;for(let i=0;i<line-1&&i<lines.length;i++)off+=lines[i].length+1;off+=Math.max(0,col-1);const end=off+Math.max(1,(lines[line-1]||'').length-col+1);ta.focus();ta.setSelectionRange(off,end);ta.scrollTop=Math.max(0,(line-4)*19)}
+function plShow(r){PL.last=r;const el=$('pl-result');el.className='';
+  let h=`<div class="verdict v${esc(r.verdict)}"><b>${esc(r.verdict)}</b><span>${esc(VWORD[r.verdict]||'')}<br><span class="small">${esc(r.headline)}</span></span></div>`;
+  if(r.approval==='required')h+=`<div class="banner">A person must review this before anything happens. The Playground never actuates or settles for real.</div>`;
+  if(r.ledger)h+=`<div class="small" style="margin-bottom:6px">Ledger: ${esc(r.ledger)}</div>`;
+  for(const e of r.input_errors||[])h+=`<div class="err">${esc(e)}</div>`;
+  (r.steps||[]).forEach((s,i)=>{h+=`<div class="step"><h4><span class="c${esc(s.verdict)}">${esc(s.verdict)}</span> · ${esc(s.name)} <span class="chip">${esc(s.lang)}</span><span class="chip">${esc(s.file)}</span>${s.gate?'<span class="chip">gate</span>':''}${s.advisory?'<span class="chip">advisory</span>':''}${s.ran===false?'<span class="chip">not run</span>':''}</h4>`;
+    if(s.outputs.length)h+=`<div class="out">${s.outputs.map(o=>`<span>${esc(o.name)}</span><span>${esc(o.value)}</span>`).join('')}</div>`;
+    for(const t of s.truths)h+=`<div class="out"><span>${esc(t.name)}</span><span>${t.values.map(v=>`<span class="c${esc(v)}">${esc(v)}</span>`).join(' ')}</span></div>`;
+    for(const x of s.held)h+=`<div class="held">HELD · ${esc(x)}</div>`;
+    for(const x of s.pending)h+=`<div class="pend">pending · ${esc(x)}</div>`;
+    if(s.error){const at=s.error.line?` at <a class="go" data-f="${esc(s.file)}" data-l="${s.error.line}" data-c="${s.error.col}">line ${s.error.line}, column ${s.error.col}</a>`:'';h+=`<div class="err">Refused${at}: ${esc(s.error.message)} <span class="chip">${esc(s.error.name)}</span></div>`}
+    for(const x of s.notes)h+=`<div class="small">${esc(x)}</div>`;h+='</div>'});
+  el.innerHTML=h;el.querySelectorAll('a.go').forEach(a=>a.onclick=()=>plGo(a.dataset.f,+a.dataset.l,+a.dataset.c))}
+$('pl-askf').onsubmit=async e=>{e.preventDefault();const t=plT();if(!t||!t.draft)return;plSave();
+  const btn=$('pl-askf').querySelector('button');btn.disabled=true;$('pl-draftbox').hidden=false;$('pl-draftnote').textContent='The local swarm is drafting…';$('pl-drafttext').textContent='';
+  try{const r=await fetch('/api/play/draft',{method:'POST',body:plBody($('pl-req').value)});if(!r.ok)throw new Error(await r.text());const d=await r.json();
+    let txt=d.draft.replace(/^\s*```[a-zA-Z]*\n/,'').replace(/\n```\s*$/,'');PL.draft=txt;
+    $('pl-draftnote').textContent=d.model?`AI draft for ${t.draft.file}. Untrusted until it passes the checks: review it, use it, then press Run.`:'No language model is installed yet, so a stand-in answered. Install a model pack to draft with AI.';
+    $('pl-drafttext').textContent=txt;$('pl-use').disabled=!d.model}
+  catch(err){$('pl-draftnote').textContent='Could not draft: '+err.message}
+  btn.disabled=false};
+$('pl-use').onclick=()=>{const t=plT();if(!t||PL.draft==null)return;(PL.edits[PL.cur]=PL.edits[PL.cur]||{})[t.draft.file]=PL.draft;plTabs(t.draft.file);$('pl-draftbox').hidden=true};
+$('pl-discard').onclick=()=>{PL.draft=null;$('pl-draftbox').hidden=true};
 say('Companion','Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.');
 poll();setInterval(poll,500);
+/* ===== the staple apps (docs/STAPLE_APPS.md): views served by zxvd's files.* ===== */
+let rpcSeq=0;
+async function rpc(method,params){
+  let r;
+  try{r=await fetch('/api/rpc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++rpcSeq,method,params:params||{}})})}
+  catch(e){throw new Error('no connection to the swarm')}
+  if(r.status===404)throw new Error('this engine has no zxvd, so the apps are not available');
+  if(!r.ok)throw new Error('the engine refused ('+r.status+')');
+  const j=await r.json();
+  if(j.error)throw new Error(j.error.message);
+  return j.result;
+}
+function status(el,msg,bad){el.textContent=msg||'';el.classList.toggle('err',!!bad)}
+function join(dir,name){return dir?dir+'/'+name:name}
+function parent(p){const i=p.lastIndexOf('/');return i<0?'':p.slice(0,i)}
+function base(p){return p.slice(p.lastIndexOf('/')+1)}
+function ext(n){const i=n.lastIndexOf('.');return i>0?n.slice(i+1).toLowerCase():''}
+const TEXT_EXT=new Set(['txt','md','markdown','json','csv','tsv','log','yaml','yml','toml','ini','xml','html','css','js','ts','c','h','py','sh','swift','rs','go','java','cob','cbl','sutra','zxt','f90','ada','adb','ads','apl','k','m','sql','rtf']);
+const IMG_EXT=new Set(['png','jpg','jpeg','gif','webp','bmp','svg','avif','heic']);
+const AUD_EXT=new Set(['mp3','m4a','wav','ogg','flac','aac','opus']);
+const VID_EXT=new Set(['mp4','m4v','mov','webm']);
+const MIME={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',avif:'image/avif',heic:'image/heic',mp3:'audio/mpeg',m4a:'audio/mp4',wav:'audio/wav',ogg:'audio/ogg',flac:'audio/flac',aac:'audio/aac',opus:'audio/ogg',mp4:'video/mp4',m4v:'video/mp4',mov:'video/quicktime',webm:'video/webm'};
+function kindOf(n){const e=ext(n);return IMG_EXT.has(e)?'image':AUD_EXT.has(e)?'audio':VID_EXT.has(e)?'video':TEXT_EXT.has(e)||!e?'text':'other'}
+function icon(e){if(e.dir)return '📁';const k=kindOf(e.name);return k==='image'?'🖼':k==='audio'?'♪':k==='video'?'▶':k==='text'?'📄':'▫'}
+function size(n){n=Number(n);return n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':n<1073741824?(n/1048576).toFixed(1)+' MB':(n/1073741824).toFixed(2)+' GB'}
+function when(t){try{return new Date(t*1000).toLocaleString()}catch(e){return ''}}
+
+/* in-page dialogs (the Mac window has no prompt or confirm) */
+function ask(title,text,def,okLabel){return new Promise(res=>{
+  $('mtitle').textContent=title;$('mtext').textContent=text||'';$('mtext').style.display=text?'':'none';
+  const inp=$('minput');inp.style.display=def===null?'none':'';inp.value=def||'';$('myes').textContent=okLabel||'OK';
+  $('modal').classList.add('on');if(def!==null){inp.focus();inp.select()}else $('myes').focus();
+  const done=v=>{$('modal').classList.remove('on');$('myes').onclick=$('mno').onclick=inp.onkeydown=null;res(v)};
+  $('myes').onclick=()=>done(def===null?true:inp.value.trim());$('mno').onclick=()=>done(null);
+  inp.onkeydown=e=>{if(e.key==='Enter')done(inp.value.trim());if(e.key==='Escape')done(null)};
+})}
+const confirmBox=(t,x,ok)=>ask(t,x,null,ok);
+
+/* chunked file I/O: one request stays under zxvd's line limit */
+const enc=new TextEncoder();
+async function readAll(path,binary){
+  let off=0,parts=[];
+  for(;;){const r=await rpc('files.read',{path,offset:off,encoding:binary?'base64':'utf8'});
+    parts.push(binary?r.base64:r.text);if(r.eof||r.next===off)break;off=r.next}
+  if(!binary)return parts.join('');
+  const out=[];for(const b of parts){const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);out.push(u)}
+  return out;
+}
+async function writeText(path,text,exclusive){
+  const pieces=[];let i=0;
+  while(i<text.length){let n=Math.min(4096,text.length-i);
+    if(n<text.length-i&&text.charCodeAt(i+n-1)>=0xd800&&text.charCodeAt(i+n-1)<0xdc00)n--;
+    let piece=text.slice(i,i+n);
+    while(enc.encode(JSON.stringify(piece)).length>12000&&n>1){n=n>>1;if(text.charCodeAt(i+n-1)>=0xd800&&text.charCodeAt(i+n-1)<0xdc00)n--;piece=text.slice(i,i+n)}
+    pieces.push(piece);i+=n}
+  if(pieces.length<=1)return rpc('files.write',{path,text:pieces[0]||'',exclusive:!!exclusive});
+  for(let k=0;k<pieces.length;k++)await rpc('files.write',{path,text:pieces[k],exclusive:!!exclusive,mode:k===0?'begin':k===pieces.length-1?'end':'add'});
+}
+function b64(u8){let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s)}
+async function writeBytes(path,u8,progress){
+  const C=9000;const n=Math.max(1,Math.ceil(u8.length/C));
+  for(let k=0;k<n;k++){const part=b64(u8.subarray(k*C,(k+1)*C));
+    await rpc('files.write',{path,base64:part,exclusive:true,mode:n===1?'replace':k===0?'begin':k===n-1?'end':'add'});
+    if(progress)progress(k+1,n)}
+}
+async function importFiles(dir,list,stEl,done){
+  let ok=0;
+  for(const f of list){
+    try{const u8=new Uint8Array(await f.arrayBuffer());
+      await writeBytes(join(dir,f.name),u8,(k,n)=>status(stEl,`Importing ${f.name}: ${Math.round(k/n*100)}%`));ok++}
+    catch(e){status(stEl,`${f.name}: ${e.message}`,true);if(done)done();return}}
+  status(stEl,`Imported ${ok} file${ok===1?'':'s'}.`);if(done)done();
+}
+
+/* ----- switching apps ----- */
+let current='swarm';
+function show(app){
+  current=app;
+  document.querySelectorAll('#dock button').forEach(b=>b.classList.toggle('on',b.dataset.app===app));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+app));
+  try{sessionStorage.setItem('zxv-app',app)}catch(e){}
+  if(app==='files')F.load();if(app==='photos')P.load();if(app==='console')C.load();if(app==='text')$('ed').focus();
+}
+document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
+
+/* ----- Burrow (files) ----- */
+const F={dir:'',entries:[],
+  crumbs(el,dir,go){el.innerHTML='';const parts=dir?dir.split('/'):[];const a=document.createElement('a');a.textContent=parts[0]==='.Trash'?'Trash':'ZXV';a.onclick=()=>go(parts[0]==='.Trash'?'.Trash':'');el.appendChild(a);
+    let acc=parts[0]==='.Trash'?'.Trash':'';for(const p of parts[0]==='.Trash'?parts.slice(1):parts){acc=join(acc,p);const s=document.createElement('span');s.textContent='›';el.appendChild(s);const x=document.createElement('a');x.textContent=p;const to=acc;x.onclick=()=>go(to);el.appendChild(x)}},
+  async load(dir){if(dir!==undefined)F.dir=dir;const inTrash=F.dir==='.Trash'||F.dir.startsWith('.Trash/');
+    F.crumbs($('fcrumbs'),F.dir,d=>F.load(d));
+    $('fempty').style.display=inTrash?'':'none';$('ftrash').textContent=inTrash?'Back to files':'Trash';
+    ['fnewdir','fnewtxt','fimport'].forEach(id=>$(id).disabled=inTrash);
+    try{const r=await rpc('files.list',{path:F.dir});F.entries=r.entries;F.render(inTrash);
+      if(!F.root){const x=await rpc('files.root');F.root=x.root}
+      status($('fstat'),`${r.entries.length} item${r.entries.length===1?'':'s'} · stored in ${F.root} on ${(F.host||'this computer')}`)}
+    catch(e){$('flist').innerHTML='';status($('fstat'),e.message,true)}},
+  render(inTrash){const tb=$('flist');tb.innerHTML='';
+    if(!F.entries.length){tb.innerHTML=`<tr><td colspan="4" class="empty">${inTrash?'The Trash is empty.':'This folder is empty. Make a text file, a folder, or import files.'}</td></tr>`;return}
+    for(const e of F.entries){const tr=document.createElement('tr');tr.className='row';const p=join(F.dir,e.name);
+      tr.innerHTML=`<td class="nm">${icon(e)} ${esc(e.name)}</td><td class="num">${e.dir?'–':size(e.size)}</td><td>${esc(when(e.mtime))}</td><td class="acts"></td>`;
+      const acts=tr.lastChild;const btn=(label,fn)=>{const b=document.createElement('button');b.textContent=label;b.onclick=ev=>{ev.stopPropagation();fn()};acts.appendChild(b)};
+      if(inTrash){btn('Put back',()=>F.restore(p,e.name));btn('Delete now',()=>F.remove(p,e.name))}
+      else{btn('Open',()=>F.open(p,e));btn('Rename',()=>F.rename(p,e.name));btn('Move to Trash',()=>F.trash(p))}
+      tr.ondblclick=()=>inTrash?null:F.open(p,e);tb.appendChild(tr)}},
+  open(p,e){if(e.dir)return F.load(p);const k=kindOf(e.name);
+    if(k==='image'||k==='audio'||k==='video'){P.dir=parent(p);P.openPath(p);return}
+    T.open(p)},
+  async rename(p,name){const n=await ask('Rename',null,name,'Rename');if(!n||n===name)return;
+    try{await rpc('files.rename',{from:p,to:join(parent(p),n)});F.load()}catch(e){status($('fstat'),e.message,true)}},
+  async trash(p){try{await rpc('files.trash',{path:p});F.load()}catch(e){status($('fstat'),e.message,true)}},
+  async restore(p,name){const to=await ask('Put back','Where it goes, as a path in the ZXV folder.',name,'Put back');if(!to)return;
+    try{await rpc('files.rename',{from:p,to});F.load()}catch(e){status($('fstat'),e.message,true)}},
+  async remove(p,name){if(!await confirmBox('Delete for good?',`“${name}” will be removed from this computer. This cannot be undone.`,'Delete'))return;
+    try{await rpc('files.trash',{path:p});F.load()}catch(e){status($('fstat'),e.message,true)}},
+};
+$('ftrash').onclick=()=>F.load(F.dir.startsWith('.Trash')?'':'.Trash');
+$('fempty').onclick=async()=>{if(!await confirmBox('Empty the Trash?','Everything in the Trash is removed from this computer. This cannot be undone.','Empty Trash'))return;
+  try{const r=await rpc('files.empty_trash');status($('fstat'),`Removed ${r.removed} item${r.removed===1?'':'s'}.`);F.load()}catch(e){status($('fstat'),e.message,true)}};
+$('fnewdir').onclick=async()=>{const n=await ask('New folder',null,'New Folder','Create');if(!n)return;
+  try{await rpc('files.mkdir',{path:join(F.dir,n)});F.load()}catch(e){status($('fstat'),e.message,true)}};
+$('fnewtxt').onclick=async()=>{const n=await ask('New text file',null,'Untitled.txt','Create');if(!n)return;
+  try{await rpc('files.write',{path:join(F.dir,n),text:'',exclusive:true});T.open(join(F.dir,n))}catch(e){status($('fstat'),e.message,true)}};
+$('fimport').onclick=()=>$('fpick').click();
+$('fpick').onchange=()=>{const l=[...$('fpick').files];$('fpick').value='';importFiles(F.dir,l,$('fstat'),()=>F.load())};
+$('fdrop').ondragover=e=>{if(F.dir.startsWith('.Trash'))return;e.preventDefault();$('fdrop').classList.add('drop')};
+$('fdrop').ondragleave=()=>$('fdrop').classList.remove('drop');
+$('fdrop').ondrop=e=>{e.preventDefault();$('fdrop').classList.remove('drop');if(F.dir.startsWith('.Trash'))return;importFiles(F.dir,[...e.dataTransfer.files],$('fstat'),()=>F.load())};
+
+/* ----- Quillon (text) ----- */
+const T={path:null,saved:'',preview:false,
+  dirty(){return $('ed').value!==T.saved},
+  mark(){$('tname').textContent=T.path?base(T.path):'Untitled';$('tname').title=T.path||'';$('tdirty').textContent=T.dirty()?' ● edited':'';
+    const v=$('ed').value;const words=(v.match(/\S+/g)||[]).length;
+    status($('tstat'),`${words} word${words===1?'':'s'} · ${v.length} character${v.length===1?'':'s'} · ${v?v.split('\n').length:0} line${v.split('\n').length===1?'':'s'}`+(T.path?` · ZXV/${T.path}`:''));
+    if(T.preview)$('mdview').innerHTML=md(v);
+    try{if(T.dirty())localStorage.setItem('zxv-draft',JSON.stringify({path:T.path,text:v,saved:T.saved}));else localStorage.removeItem('zxv-draft')}catch(e){}},
+  async guard(){if(!T.dirty())return true;return !!await confirmBox('Discard your changes?',`“${T.path?base(T.path):'Untitled'}” has changes that are not saved.`,'Discard')},
+  async open(p){if(!await T.guard())return;show('text');status($('tstat'),'Opening…');
+    try{const t=await readAll(p,false);T.path=p;T.saved=t;$('ed').value=t;T.mark()}
+    catch(e){status($('tstat'),`${base(p)}: ${e.message}`,true)}},
+  async save(as){let p=T.path;
+    if(!p||as){const n=await ask(as?'Save as':'Save','A path in the ZXV folder, for example Notes/idea.md.',p||'Untitled.txt','Save');if(!n)return false;p=n}
+    const v=$('ed').value;status($('tstat'),'Saving…');
+    try{await writeText(p,v,false);T.path=p;T.saved=v;T.mark();status($('tstat'),`Saved ZXV/${p}`);return true}
+    catch(e){status($('tstat'),e.message,true);return false}},
+};
+$('ed').oninput=()=>T.mark();
+$('ed').onkeydown=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='s'){e.preventDefault();T.save(e.shiftKey)}
+  if(e.key==='Tab'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();const el=$('ed'),a=el.selectionStart;el.setRangeText('\t',a,el.selectionEnd,'end');T.mark()}};
+$('tnew').onclick=async()=>{if(!await T.guard())return;T.path=null;T.saved='';$('ed').value='';T.mark();$('ed').focus()};
+$('topen').onclick=()=>{show('files')};
+$('tsave').onclick=()=>T.save(false);$('tsaveas').onclick=()=>T.save(true);
+$('tprev').onclick=()=>{T.preview=!T.preview;$('mdview').style.display=T.preview?'':'none';$('twrap').classList.toggle('split',T.preview);$('tprev').classList.toggle('primary',T.preview);T.mark()};
+$('tfont').onclick=()=>{$('ed').classList.toggle('prose');$('tfont').textContent=$('ed').classList.contains('prose')?'Code':'Prose'};
+/* Markdown preview: escaped first, then a small safe subset (no raw HTML, no links followed) */
+function md(src){const lines=esc(src).split('\n');let out='',inCode=false,list='';
+  const inline=t=>t.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/(^|[^*])\*([^*]+)\*/g,'$1<i>$2</i>').replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<u title="$2">$1</u>');
+  const close=()=>{if(list){out+=`</${list}>`;list=''}};
+  for(const l of lines){
+    if(/^```/.test(l)){close();out+=inCode?'</pre>':'<pre>';inCode=!inCode;continue}
+    if(inCode){out+=l+'\n';continue}
+    let m;
+    if((m=/^(#{1,6})\s+(.*)$/.exec(l))){close();out+=`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`}
+    else if((m=/^\s*[-*+]\s+(.*)$/.exec(l))){if(list!=='ul'){close();out+='<ul>';list='ul'}out+=`<li>${inline(m[1])}</li>`}
+    else if((m=/^\s*\d+[.)]\s+(.*)$/.exec(l))){if(list!=='ol'){close();out+='<ol>';list='ol'}out+=`<li>${inline(m[1])}</li>`}
+    else if(/^&#62;\s?/.test(l)){close();out+=`<blockquote>${inline(l.replace(/^&#62;\s?/,''))}</blockquote>`}
+    else if(/^\s*$/.test(l)){close()}
+    else{close();out+=`<p>${inline(l)}</p>`}}
+  close();if(inCode)out+='</pre>';return out}
+try{const d=JSON.parse(localStorage.getItem('zxv-draft')||'null');if(d&&typeof d.text==='string'){T.path=d.path||null;T.saved=typeof d.saved==='string'?d.saved:'';$('ed').value=d.text}}catch(e){}
+T.mark();
+window.addEventListener('beforeunload',e=>{if(T.dirty()){e.preventDefault();e.returnValue=''}});
+
+/* ----- Glint (photos and media) ----- */
+const P={dir:'',items:[],urls:new Map(),idx:-1,
+  async load(dir){if(dir!==undefined)P.dir=dir;F.crumbs($('pcrumbs'),P.dir,d=>P.load(d));
+    try{const r=await rpc('files.list',{path:P.dir});const g=$('pgrid');g.innerHTML='';
+      const dirs=r.entries.filter(e=>e.dir);P.items=r.entries.filter(e=>!e.dir&&['image','audio','video'].includes(kindOf(e.name)));
+      for(const e of dirs){const t=P.tile('📁',e.name);t.onclick=()=>P.load(join(P.dir,e.name));g.appendChild(t)}
+      P.items.forEach((e,i)=>{const k=kindOf(e.name);const t=P.tile(k==='image'?'🖼':k==='audio'?'♪':'▶',e.name);t.onclick=()=>P.view(i);g.appendChild(t);
+        if(k==='image'&&e.size<=8*1048576)P.thumb(join(P.dir,e.name),t.firstChild)});
+      status($('pstat'),P.items.length?`${P.items.length} photo${P.items.length===1?'':'s'} and media files`:'No photos or media here. Import some, or drop them on Burrow.')}
+    catch(e){$('pgrid').innerHTML='';status($('pstat'),e.message,true)}},
+  tile(ic,name){const t=document.createElement('div');t.className='tile';t.innerHTML=`<div class="th">${ic}</div><div class="cap"></div>`;t.lastChild.textContent=name;t.title=name;return t},
+  async blobUrl(p){if(P.urls.has(p))return P.urls.get(p);const parts=await readAll(p,true);
+    const u=URL.createObjectURL(new Blob(parts,{type:MIME[ext(p)]||'application/octet-stream'}));P.urls.set(p,u);
+    if(P.urls.size>60){const [k,v]=P.urls.entries().next().value;URL.revokeObjectURL(v);P.urls.delete(k)}return u},
+  async thumb(p,el){try{const u=await P.blobUrl(p);const im=new Image();im.alt='';im.src=u;el.textContent='';el.appendChild(im)}catch(e){}},
+  async openPath(p){show('photos');await P.load(parent(p));const i=P.items.findIndex(e=>join(P.dir,e.name)===p);if(i>=0)P.view(i)},
+  async view(i){if(i<0||i>=P.items.length)return;P.idx=i;const e=P.items[i],p=join(P.dir,e.name),k=kindOf(e.name);
+    $('vname').textContent=e.name;$('viewer').classList.add('on');const st=$('vstage');st.textContent='Loading…';
+    try{const u=await P.blobUrl(p);if(P.idx!==i)return;st.textContent='';
+      const el=document.createElement(k==='image'?'img':k==='audio'?'audio':'video');el.src=u;if(k!=='image'){el.controls=true;el.autoplay=true}st.appendChild(el)}
+    catch(err){st.textContent=err.message}},
+  close(){$('viewer').classList.remove('on');$('vstage').textContent='';P.idx=-1},
+};
+$('vclose').onclick=()=>P.close();$('vprev').onclick=()=>P.view(P.idx-1);$('vnext').onclick=()=>P.view(P.idx+1);
+document.addEventListener('keydown',e=>{if(!$('viewer').classList.contains('on'))return;if(e.key==='Escape')P.close();if(e.key==='ArrowLeft')P.view(P.idx-1);if(e.key==='ArrowRight')P.view(P.idx+1)});
+$('pimport').onclick=()=>$('ppick').click();
+$('ppick').onchange=()=>{const l=[...$('ppick').files];$('ppick').value='';importFiles(P.dir,l,$('pstat'),()=>P.load())};
+
+/* ----- Spindle (developer console) ----- */
+const C={loaded:false,
+  async load(){if(C.loaded)return;try{const r=await rpc('rpc.discover');const s=$('cmeth');s.innerHTML='';
+    for(const m of r.methods){const o=document.createElement('option');o.value=o.textContent=m;s.appendChild(o)}C.loaded=true}
+    catch(e){C.log('error',e.message)}},
+  log(kind,text){const d=document.createElement('div');d.textContent=`${kind==='call'?'→':kind==='ok'?'←':'✗'} ${text}`;if(kind==='error')d.style.color='var(--bad)';$('cout').appendChild(d);$('cout').scrollTop=1e9},
+};
+$('crun').onclick=async()=>{const m=$('cmeth').value;if(!m)return;let p={};const raw=$('cparams').value.trim();
+  if(raw){try{p=JSON.parse(raw)}catch(e){return C.log('error','parameters are not valid JSON')}}
+  if(m==='zxvd.shutdown'&&!await confirmBox('Stop the swarm?','zxvd.shutdown stops the engine; this window will disconnect.','Stop'))return;
+  C.log('call',`${m} ${raw||'{}'}`);try{C.log('ok',JSON.stringify(await rpc(m,p),null,2))}catch(e){C.log('error',e.message)}};
+$('cclear').onclick=()=>$('cout').textContent='';
+
+let startApp='swarm';try{startApp=sessionStorage.getItem('zxv-app')||'swarm'}catch(e){}
+show(document.getElementById('v-'+startApp)?startApp:'swarm');
 </script>
 </body>
 </html>
