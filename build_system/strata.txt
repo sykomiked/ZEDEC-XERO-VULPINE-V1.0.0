@@ -78,6 +78,7 @@ pci                              kernel
 phase_coord                      kernel
 pic                              kernel
 quantum                          kernel
+qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
 recon                            kernel
 sched                            kernel
 sdk                              kernel
@@ -148,6 +149,7 @@ peer_audit                       logic
 predictive                       logic
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
 
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
@@ -169,6 +171,7 @@ aipi                             ai         # AI pinning index; stores model blo
 abacus                           settlement
 battering_ram                    settlement
 capmkt                           settlement
+qnet                             settlement # netting optimiser: greedy cycles, min-cost circulation, annealer (#83 Q.6)
 cardnet                          settlement
 cbank                            settlement
 concord                          settlement # the commons' matching engine; market.h settles through it
@@ -223,6 +226,7 @@ iso20022                         adapters
 legacy                           adapters
 legal_engine                     adapters
 lightningrod                     adapters
+mfg                              adapters   # manufacturing checks: G-code, QC sampling, energy budget (#83 F)
 ministry                         adapters
 net/smart_adapter_integration    adapters   # integrates net's adapters with orbital_elevator
 orbital_compat                   adapters
@@ -250,6 +254,7 @@ chronicle                        above
 community_chest                  above
 denconnect                       above
 desktop                          above
+zui                              above      # native UI: renderer, widgets, input, present, app screens (#104, #110)
 dualtrack                        above
 emu                              above
 font                             above
