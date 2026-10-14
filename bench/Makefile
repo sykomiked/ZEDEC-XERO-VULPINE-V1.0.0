@@ -24,6 +24,12 @@ BATCH ?=
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
 	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c
+# macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
+ifeq ($(shell uname -s),Darwin)
+TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
+GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
+GPU_LIBS := -framework Metal -framework Foundation
+endif
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
@@ -44,17 +50,19 @@ legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
 $(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
 
 zt_bench: $(OUT)/zt_bench
 
 $(OUT)/zt_dump: tensor/zt_dump.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_dump.c $(TENSOR_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_dump.c $(TENSOR_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
 
 GOLDEN_SRCS := $(K)/src/tensor/zt_lattice.c $(K)/src/tensor/zt_coil.c $(K)/src/tensor/zt_holo.c
 $(OUT)/zt_golden: tensor/zt_golden.c $(TENSOR_SRCS) $(GOLDEN_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist -I$(K)/src/e8 tensor/zt_golden.c $(TENSOR_SRCS) \
-		$(GOLDEN_SRCS) -lm -lpthread -o $@
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist -I$(K)/src/e8 tensor/zt_golden.c \
+		$(TENSOR_SRCS) $(GOLDEN_SRCS) -lm -lpthread $(GPU_LIBS) -o $@
 
 zt_dump: $(OUT)/zt_dump
 zt_golden: $(OUT)/zt_golden

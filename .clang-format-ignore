@@ -202,3 +202,5 @@ kernel/src/tls/test_trust_real.h
 kernel/src/timesvc/tz_zones.h
 kernel/src/timesvc/test_tz_vectors.h
 kernel/src/font/ascw_golden_tables.c
+# shader source stringified into zt_metal.m: kept in plain function layout
+kernel/src/tensor/zt_metal_math.h

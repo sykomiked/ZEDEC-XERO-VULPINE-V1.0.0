@@ -180,6 +180,18 @@ static int write_all(int fd, const void *b, size_t n)
     return write(fd, b, n) == (ssize_t) n ? 0 : -1;
 }
 
+/* A GPU stand-in (zt_kern_t.mm_full, as zt_metal provides): it only counts
+ * and declines, so the CPU computes the product. zt_model uses mm_full only
+ * on an undistributed model (whole matrices would bypass each rank's rows and
+ * dist_macs); every distributed run below has it set and must never call it. */
+static int mm_full_trap(void *fctx, const zt_mmf_t *jobs, uint32_t n)
+{
+    (void) jobs;
+    (void) n;
+    (*(uint32_t *) fctx)++;
+    return 1; /* declined (zt_kern.h): the caller computes all n itself */
+}
+
 /* ---- 1 and 2: every rank count, kernel set and transport ---- */
 
 static void group_case(const mf_variant_t *v, uint32_t kv, uint32_t P, bool fast, bool tcp,
@@ -217,6 +229,9 @@ static void group_case(const mf_variant_t *v, uint32_t kv, uint32_t P, bool fast
             zt_pool_t *pool = fast ? zt_pool_new(2) : NULL;
             zt_kern_t k;
             zt_kern_threaded(&k, fast ? zt_simd_best() : zt_simd_find("c"), pool);
+            uint32_t gpu_calls = 0;
+            k.mm_full = mm_full_trap;
+            k.fctx = &gpu_calls;
             L.m.kern = &k;
             L.m.dist = zt_dist_ring_dist(ring);
             run_t r = run_model(&L.m, v, kv);
@@ -224,7 +239,8 @@ static void group_case(const mf_variant_t *v, uint32_t kv, uint32_t P, bool fast
             rep.rc = r.rc;
             rep.n_sat = r.n_sat;
             rep.macs = r.macs;
-            rep.same = r.n == ref->n && !memcmp(r.logits, ref->logits, ref->n * 4);
+            rep.same = r.n == ref->n && !memcmp(r.logits, ref->logits, ref->n * 4) &&
+                       gpu_calls == 0; /* mm_full is never used under dist */
             free(r.logits);
             zt_pool_free(pool);
             zt_dist_ring_free(ring);
@@ -386,6 +402,21 @@ int main(int argc, char **argv)
         for (uint32_t kv = 0; kv < 2; kv++) {
             run_t ref = run_model(&L.m, v, kv); /* one process, C reference */
             CHECK(ref.rc == 0, "%s, KV %s: single-process run", v->name, kv ? "Q8" : "Q16");
+            { /* the trap is live: without dist, zt_model offers it every product */
+                zt_kern_t k = *zt_simd_find("c");
+                uint32_t gpu_calls = 0;
+                k.mm_full = mm_full_trap;
+                k.fctx = &gpu_calls;
+                L.m.kern = &k;
+                run_t g = run_model(&L.m, v, kv);
+                L.m.kern = NULL;
+                CHECK(g.rc == 0 && gpu_calls > 0 && g.n == ref.n &&
+                          !memcmp(g.logits, ref.logits, ref.n * 4),
+                      "%s, KV %s: one process offers mm_full %u products; declined, the logits "
+                      "are the CPU's",
+                      v->name, kv ? "Q8" : "Q16", gpu_calls);
+                free(g.logits);
+            }
             for (uint32_t P = 1; P <= 5; P++)
                 for (int fast = 0; fast < 2; fast++) group_case(v, kv, P, fast, false, &ref, 0);
             group_case(v, kv, 3, true, true, &ref, port);

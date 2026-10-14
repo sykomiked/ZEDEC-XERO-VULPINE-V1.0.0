@@ -295,6 +295,8 @@ verify-all: test
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_asan && /tmp/test_zt_dist_asan > /tmp/test_zt_dist_asan.log 2>&1 && echo "[PASS] test_zt_dist ASan/UBSan ($$(tail -1 /tmp/test_zt_dist_asan.log))" || { cat /tmp/test_zt_dist_asan.log; echo "[FAIL] test_zt_dist ASan/UBSan"; exit 1; }
 	@if command -v mpicc >/dev/null && mpirun --version 2>&1 | grep -q "Open MPI"; then mpicc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_MPI -Isrc/tensor -Isrc/tensor/dist src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist_mpi.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -o /tmp/test_zt_dist_mpi && OMPI_ALLOW_RUN_AS_ROOT=1 OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 mpirun --oversubscribe -np 3 /tmp/test_zt_dist_mpi > /tmp/test_zt_dist_mpi.log 2>&1 && echo "[PASS] test_zt_dist MPI ($$(tail -1 /tmp/test_zt_dist_mpi.log))" || { cat /tmp/test_zt_dist_mpi.log; echo "[FAIL] test_zt_dist MPI"; exit 1; }; else echo "[SKIP] test_zt_dist MPI (needs Open MPI: mpicc and mpirun)"; fi
 	@if grep -l "zt_dist" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_dist*.c (hosted only)"; exit 1; fi
+	@echo "=== tensor: the Metal kernels' integer arithmetic (zt_metal_math.h) as C, and the whole-matrix hook == the C reference ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_metal_math.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_metal_math && /tmp/test_zt_metal_math > /tmp/test_zt_metal_math.log 2>&1 && echo "[PASS] test_zt_metal_math ($$(tail -1 /tmp/test_zt_metal_math.log))" || { cat /tmp/test_zt_metal_math.log; echo "[FAIL] test_zt_metal_math"; exit 1; }
 	@echo "=== tensor: holographic coding stays on the device (bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md) ==="
 	@bad=$$(grep -rlE "zt_holo_(e8_)?(encode|decode)" src/net src/mesh_net src/freight src/ubh src/web4 src/vinea src/ipfs_node src/event_transport src/tls src/stream 2>/dev/null); \
 	if [ -n "$$bad" ]; then echo "$$bad"; echo "[FAIL] network modules must carry the original weight codes, not holographic residuals (residuals measured 8.12 vs 7.31 bits a weight on Qwen2.5-1.5B)"; exit 1; fi; \
@@ -1570,6 +1572,15 @@ test-hwemu:
 	$(HWEMU_CC) src/hwemu/test_hwr.c src/hwemu/hwr.c src/hwemu/hwa.c src/hwemu/hwr_pq.c src/hwemu/hwm.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/pqsec/pq_slh256s.c $(sort $(wildcard src/pqsec/slhdsa/*.c)) -o $(ZXV_TMP)/test_hwr && $(ZXV_TMP)/test_hwr > $(ZXV_TMP)/test_hwr.log 2>&1 && echo "[PASS] test_hwr ($$(tail -1 $(ZXV_TMP)/test_hwr.log))" || { cat $(ZXV_TMP)/test_hwr.log; echo "[FAIL] test_hwr"; exit 1; }
 
 # Regenerate the standard-engine golden vectors from the open C reference.
+# The Metal GPU matrix products (zt_metal.m) against the C reference, on the
+# GPU. macOS only; with no Metal device it reports SKIP (ZT_METAL_REQUIRE=1
+# makes that a failure).
+.PHONY: test-metal
+test-metal:
+	@if [ "$$(uname -s)" != Darwin ]; then echo "[SKIP] test_zt_metal (macOS only)"; exit 0; fi; \
+	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
+	$(ZXV_TMP)/test_zt_metal > $(ZXV_TMP)/test_zt_metal.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_metal.log || true; echo "[PASS] test_zt_metal ($$(tail -1 $(ZXV_TMP)/test_zt_metal.log))"; } || { cat $(ZXV_TMP)/test_zt_metal.log; echo "[FAIL] test_zt_metal"; exit 1; }
+
 .PHONY: hwe-vectors
 hwe-vectors:
 	gcc -std=c11 -O1 -Wall -Wextra -Werror -DHWE_GEN -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/tensor src/hwemu/gen_hwe_vectors.c src/hwemu/hwe.c src/hwemu/hwm.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/lpres/lpres.c -o $(ZXV_TMP)/gen_hwe_vectors && $(ZXV_TMP)/gen_hwe_vectors > src/hwemu/hwe_vectors.h && python3 tools/check_hwe_vectors.py

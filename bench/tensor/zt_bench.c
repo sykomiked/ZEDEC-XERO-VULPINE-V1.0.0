@@ -19,7 +19,7 @@
  *
  * Usage: zt_bench MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B]
  *                 [--kv q16|q8] [--text FILE] [--kern NAME] [--threads T]
- *                 [--special] [--convert] [--mmap]
+ *                 [--special] [--convert] [--mmap] [--gpu] [--gpu-decode]
  *                 [--ranks P | --tcp RANK HOST0,HOST1,... PORT]
  * --special parses special-token text in the prompt (a chat template such as
  * "<|im_start|>user\n...<|im_end|>\n<|im_start|>assistant\n").
@@ -45,6 +45,13 @@
  *   zt.rank<r>.macs=<multiply-adds in matrix products>
  *   zt.rank<r>.maxrss_mb=<peak resident memory>  zt.rank<r>.sent_mb=<bytes sent>
  * (with --tcp each rank prints only its own).
+ * --gpu runs the prompt's matrix products on the GPU (zt_metal.h; macOS builds
+ * with ZT_HAVE_METAL only), and decoding on --kern/--threads, which is faster
+ * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
+ * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
+ * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
+ * With --ranks or --tcp the model is distributed, and --gpu's whole-matrix
+ * products are not used (each rank computes only its own rows).
  * Exit: 0 ok, 2 usage, 3 cannot read file, 4 model or tokenizer not loadable,
  *       5 run failed. */
 #define _POSIX_C_SOURCE 200809L
@@ -65,6 +72,9 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
+#ifdef ZT_HAVE_METAL
+#    include "zt_metal.h"
+#endif
 
 static double now_s(void)
 {
@@ -86,7 +96,10 @@ static uint8_t *read_file(const char *path, uint64_t *size)
         fclose(f);
         return NULL;
     }
-    uint8_t *buf = malloc((size_t) n);
+    /* page aligned and whole pages, so a GPU can read the weights in place */
+    uint8_t *buf = NULL;
+    size_t cap = ((size_t) n + 65535) / 65536 * 65536;
+    if (posix_memalign((void **) &buf, 65536, cap) != 0) buf = NULL;
     if (buf && fread(buf, 1, (size_t) n, f) != (size_t) n) {
         free(buf);
         buf = NULL;
@@ -154,6 +167,7 @@ int main(int argc, char **argv)
     uint32_t n_ranks = 1, tcp_rank = 0, tcp_port = 0;
     bool use_mmap = false;
     const char *tcp_hosts = NULL;
+    bool gpu = false, gpu_decode = false;
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
         const char *v = i + 1 < argc ? argv[i + 1] : NULL;
@@ -186,6 +200,10 @@ int main(int argc, char **argv)
             tcp_hosts = argv[++i];
             tcp_port = (uint32_t) strtoul(argv[++i], NULL, 10);
         }
+        else if (!strcmp(a, "--gpu"))
+            gpu = true;
+        else if (!strcmp(a, "--gpu-decode"))
+            gpu = gpu_decode = true;
         else if (a[0] != '-' && !path)
             path = a;
         else {
@@ -193,7 +211,7 @@ int main(int argc, char **argv)
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
                 "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
-                "[--mmap] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
+                "[--mmap] [--gpu] [--gpu-decode] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
                 argv[0]);
             return 2;
         }
@@ -290,6 +308,27 @@ int main(int argc, char **argv)
         if (!ring) return 5;
         m.dist = zt_dist_ring_dist(ring);
     }
+#ifdef ZT_HAVE_METAL
+    zt_kern_t gkern;
+    zt_metal_t *mt = NULL;
+    if (gpu) {
+        char gerr[256] = "";
+        mt = zt_metal_new(gerr, sizeof gerr);
+        if (!mt || zt_metal_map(mt, file, size)) {
+            fprintf(stderr, "zt_bench: --gpu: %s\n", mt ? "cannot map the model file" : gerr);
+            return 2;
+        }
+        if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
+        zt_kern_metal(&gkern, &kern, mt);
+        m.kern = &gkern;
+        printf("zt.gpu=%s\n", zt_metal_name(mt));
+    }
+#else
+    if (gpu) {
+        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL)\n");
+        return 2;
+    }
+#endif
     uint64_t tbytes = zt_tok_arena_bytes(&g);
     void *tarena = tbytes ? alloc64(tbytes) : NULL;
     zt_tok_t tok;
@@ -356,6 +395,15 @@ int main(int argc, char **argv)
     double t2 = now_s();
 
     printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
+#ifdef ZT_HAVE_METAL
+    if (mt) {
+        zt_metal_stats_t gs;
+        zt_metal_stats(mt, &gs);
+        printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
+               (unsigned long long) gs.products, (unsigned long long) gs.declined,
+               (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
+    }
+#endif
     printf("zt.n_prompt=%llu\n", (unsigned long long) n_ids);
     printf("zt.prefill_s=%.6f\nzt.prefill_tps=%.3f\n", t1 - t0,
            (t1 - t0) > 0 ? (double) n_ids / (t1 - t0) : 0.0);
