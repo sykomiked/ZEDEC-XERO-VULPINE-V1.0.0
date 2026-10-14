@@ -202,6 +202,12 @@ vderiv                           settlement
 vswap                            settlement
 zenny                            settlement
 zstats                           settlement # the stats feed reads the other finance modules
+cred                             settlement # Player Card tiers through sicily
+dispute                          settlement
+fxepoch                          settlement
+mint                             settlement
+qnote                            settlement # first loss through svault
+royalty                          settlement
 
 # ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
 crown                            adapters

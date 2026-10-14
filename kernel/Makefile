@@ -1794,6 +1794,36 @@ test-zstats:
 test-vderiv:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/vderiv/test_vderiv.c src/vderiv/vderiv.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_vderiv -lm && $(ZXV_TMP)/test_vderiv > $(ZXV_TMP)/test_vderiv.log 2>&1 && echo "[PASS] test_vderiv" || { tail -40 $(ZXV_TMP)/test_vderiv.log; echo "[FAIL] test_vderiv"; exit 1; }
 
+# EigenTrust credibility (src/cred): fulfilment-only, log gain / exponential loss / decay, exact fixed-point trust, bounded unlocks (off by default), Player Card JSON.
+.PHONY: test-cred
+test-cred:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/cred/test_cred.c src/cred/cred.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_cred -lm && $(ZXV_TMP)/test_cred > $(ZXV_TMP)/test_cred.log 2>&1 && echo "[PASS] test_cred" || { tail -40 $(ZXV_TMP)/test_cred.log; echo "[FAIL] test_cred"; exit 1; }
+
+# Three-level dispute funnel (src/dispute): deterministic proofs, VRF-drawn staked commit-reveal jury, 1x/4x/16x appeals, jurisdiction gateway; slashed bonds to the reserve floor.
+.PHONY: test-dispute
+test-dispute:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/dispute/test_dispute.c src/dispute/dispute.c src/cred/cred.c src/sicily/sicily.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_dispute -lm && $(ZXV_TMP)/test_dispute > $(ZXV_TMP)/test_dispute.log 2>&1 && echo "[PASS] test_dispute" || { tail -40 $(ZXV_TMP)/test_dispute.log; echo "[FAIL] test_dispute"; exit 1; }
+
+# IP royalties (src/royalty): signed work registry, realised-sale-only royalties, derivative upstream chain, largest-remainder owner split, opt-in giving/investing, quote digest shown before paying.
+.PHONY: test-royalty
+test-royalty:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/royalty/test_royalty.c src/royalty/royalty.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_royalty -lm && $(ZXV_TMP)/test_royalty > $(ZXV_TMP)/test_royalty.log 2>&1 && echo "[PASS] test_royalty" || { tail -40 $(ZXV_TMP)/test_royalty.log; echo "[FAIL] test_royalty"; exit 1; }
+
+# Mint (src/mint): Vino / V-Bills minted against signed capacity claims (e-WHR, compute, kWh), jurisdiction policy fail-closed, real ML-DSA-65 in the test.
+.PHONY: test-mint
+test-mint:
+	gcc $(ECON_FLAGS) $(ECON_INC) -Isrc/pqsec -Isrc/edp_risk -Isrc/vino_stores -Isrc/finance -Isrc/vino -Isrc/onepolicy src/mint/test_mint.c src/mint/mint.c $(ECON_LEDGER) src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/*.c)) src/vino_stores/vino_stores.c src/finance/triple_ledger.c src/onepolicy/onepolicy.c src/edp_risk/edp_risk.c -o $(ZXV_TMP)/test_mint -lm && $(ZXV_TMP)/test_mint > $(ZXV_TMP)/test_mint.log 2>&1 && echo "[PASS] test_mint" || { tail -40 $(ZXV_TMP)/test_mint.log; echo "[FAIL] test_mint"; exit 1; }
+
+# Q-Notes (src/qnote): toxic-claim lots sold by Dutch uniform-price auction (proceeds to reserve), vault first loss, pro-rata salvage recovery.
+.PHONY: test-qnote
+test-qnote:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/qnote/test_qnote.c src/qnote/qnote.c src/svault/svault.c src/mint/mint.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_qnote -lm && $(ZXV_TMP)/test_qnote > $(ZXV_TMP)/test_qnote.log 2>&1 && echo "[PASS] test_qnote" || { tail -40 $(ZXV_TMP)/test_qnote.log; echo "[FAIL] test_qnote"; exit 1; }
+
+# FX uniform-price batch epochs (src/fxepoch): fully funded orders, cooling bands instead of liquidation, DvP settlement, multilateral netting report; off per jurisdiction, no leverage.
+.PHONY: test-fxepoch
+test-fxepoch:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/fxepoch/test_fxepoch.c src/fxepoch/fxepoch.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_fxepoch -lm && $(ZXV_TMP)/test_fxepoch > $(ZXV_TMP)/test_fxepoch.log 2>&1 && echo "[PASS] test_fxepoch" || { tail -40 $(ZXV_TMP)/test_fxepoch.log; echo "[FAIL] test_fxepoch"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -1807,6 +1837,12 @@ test-econ:
 	$(MAKE) --no-print-directory test-vbond
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
+	$(MAKE) --no-print-directory test-cred
+	$(MAKE) --no-print-directory test-dispute
+	$(MAKE) --no-print-directory test-royalty
+	$(MAKE) --no-print-directory test-mint
+	$(MAKE) --no-print-directory test-qnote
+	$(MAKE) --no-print-directory test-fxepoch
 # ==== end economy modules ====
 
 # ==== retail infrastructure: keys sealed by the security chip, offline outbox ====
