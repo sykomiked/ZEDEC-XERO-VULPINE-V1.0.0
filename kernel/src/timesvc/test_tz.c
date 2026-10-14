@@ -172,24 +172,13 @@ static void test_posix_strings(void)
                                        "IST-1GMT0,M10.5.0,M3.5.0/1",
                                        "AAA3BBB,J60/2,300/-167",
                                        "XXX-14"};
-    static const char *const bad[] = {"",
-                                      "ES5",
-                                      "EST",
-                                      "EST5EDT,M13.1.0,M11.1.0",
-                                      "EST5EDT,M3.2.0",
-                                      "EST5EDT,M3.6.0,M11.1.0",
-                                      "EST5EDT,M3.2.7,M11.1.0",
-                                      "EST5x",
-                                      "<A>1",
-                                      "<AAAA1",
-                                      "EST25",
-                                      "EST5EDT,J0,J365",
-                                      "EST5EDT,366,0",
-                                      "EST5EDT,M3.2.0/168,M11.1.0",
-                                      "EST5:60",
-                                      "EST5EDT,M3.2.0,M11.1.0,",
-                                      "TOOLONGNAME5",
-                                      "EST+"};
+    static const char *const bad[] = {"", "ES5", "EST", "EST5EDT,M13.1.0,M11.1.0", "EST5EDT,M3.2.0",
+                                      "EST5EDT,M3.6.0,M11.1.0", "EST5EDT,M3.2.7,M11.1.0", "EST5x",
+                                      "<A>1", "<AAAA1", "EST25", "EST5EDT,J0,J365", "EST5EDT,366,0",
+                                      "EST5EDT,M3.2.0/168,M11.1.0", "EST5:60",
+                                      "EST5EDT,M3.2.0,M11.1.0,", "TOOLONGNAME5", "EST+",
+                                      /* DST defaults to std + 1 h: 26 hours east */
+                                      "AAA-24:59BBB", "AAA-24:59BBB,M3.2.0,M11.1.0"};
     tz_posix_t z;
     for (unsigned i = 0; i < sizeof good / sizeof *good; i++)
         CHECK(tz_posix_parse(&z, good[i], (uint32_t) strlen(good[i])), "parses: %s", good[i]);
