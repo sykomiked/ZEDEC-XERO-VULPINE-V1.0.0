@@ -6,7 +6,7 @@
 // Regenerate: cargo build -p zxv-sys --features regenerate
 
 pub const ZXV_ABI_VERSION_MAJOR: u32 = 1;
-pub const ZXV_ABI_VERSION_MINOR: u32 = 4;
+pub const ZXV_ABI_VERSION_MINOR: u32 = 5;
 pub const ZXV_ABI_VERSION_PATCH: u32 = 0;
 pub const ZXV_OK: i32 = 0;
 pub const ZXV_E_ARG: i32 = -1;
@@ -288,6 +288,219 @@ pub const ZXV_HW_EV_ROLLED_BACK: i32 = 4;
 pub const ZXV_HW_EV_REJECTED: i32 = 5;
 pub const ZXV_HW_EV_QUARANTINED: i32 = 6;
 pub const ZXV_HW_EV_CONTRACT: i32 = 7;
+pub const ZXV_FEAT2_TREATY: u32 = 1;
+pub const ZXV_FEAT2_AIPI: u32 = 2;
+pub const ZXV_FEAT2_COIN: u32 = 4;
+pub const ZXV_FEAT2_FEE: u32 = 8;
+pub const ZXV_FEAT2_VHUB: u32 = 16;
+pub const ZXV_FEAT2_FREIGHT: u32 = 32;
+pub const ZXV_FEAT2_WEB4: u32 = 64;
+pub const ZXV_FEAT2_PARADOX: u32 = 128;
+pub const ZXV_E_DENOM: i32 = -32;
+pub const ZXV_E_TREATY: i32 = -33;
+pub const ZXV_E_CID: i32 = -34;
+pub const ZXV_E_CONSENT: i32 = -35;
+pub const ZXV_E_ERASURE: i32 = -36;
+pub const ZXV_E_PEG: i32 = -37;
+pub const ZXV_E_LIMIT: i32 = -38;
+pub const ZXV_TREATY_REC_LEN: u32 = 2542;
+pub const ZXV_TREATY_RESULT_LEN: u32 = 2422;
+pub const ZXV_TREATY_SUTRA_MAX: u32 = 3843;
+pub const ZXV_TREATY_MAX_PARTIES: u32 = 16;
+pub const ZXV_TREATY_MAX_OWES: u32 = 64;
+pub const ZXV_TREATY_NAME_MAX: u32 = 30;
+pub const ZXV_TREATY_ID_MAX: u32 = 8;
+pub const ZXV_TREATY_WEIGHT_MAX: u32 = 999999999;
+pub const ZXV_TREATY_OP_NET: i32 = 1;
+pub const ZXV_TREATY_OP_SETL: i32 = 2;
+pub const ZXV_TREATY_FAULT_NONE: i32 = 0;
+pub const ZXV_TREATY_FAULT_MAGIC: i32 = 2;
+pub const ZXV_TREATY_FAULT_SYNTAX: i32 = 3;
+pub const ZXV_TREATY_FAULT_NAME: i32 = 4;
+pub const ZXV_TREATY_FAULT_ASSET: i32 = 5;
+pub const ZXV_TREATY_FAULT_OP: i32 = 6;
+pub const ZXV_TREATY_FAULT_COUNT: i32 = 7;
+pub const ZXV_TREATY_FAULT_NUMBER: i32 = 8;
+pub const ZXV_TREATY_FAULT_PARTY: i32 = 9;
+pub const ZXV_TREATY_FAULT_WEIGHT: i32 = 10;
+pub const ZXV_TREATY_FAULT_CLAIM: i32 = 11;
+pub const ZXV_TREATY_FAULT_OWE: i32 = 12;
+pub const ZXV_TREATY_FAULT_PAD: i32 = 13;
+pub const ZXV_CID_MAX: u32 = 80;
+pub const ZXV_CID_TEXT_MAX: u32 = 139;
+pub const ZXV_CID_DIGEST_MAX: u32 = 64;
+pub const ZXV_CID_CODEC_RAW: u32 = 85;
+pub const ZXV_CID_CODEC_DAG_PB: u32 = 112;
+pub const ZXV_CID_HASH_IDENTITY: u32 = 0;
+pub const ZXV_CID_HASH_SHA2_256: u32 = 18;
+pub const ZXV_CID_BASE_DEFAULT: u32 = 0;
+pub const ZXV_CID_BASE_58BTC: u32 = 1;
+pub const ZXV_AIPI_MC_FN: u32 = 3805184;
+pub const ZXV_AIPI_MC_TENSOR_INFER: u32 = 3805185;
+pub const ZXV_AIPI_MC_SETTLE_LEDGER: u32 = 3805186;
+pub const ZXV_AIPI_MC_SWARM_ROUTE: u32 = 3805187;
+pub const ZXV_AIPI_MC_CALL: u32 = 3805376;
+pub const ZXV_AIPI_INTENT_FN: u32 = 0;
+pub const ZXV_AIPI_INTENT_TENSOR_INFER: u32 = 1;
+pub const ZXV_AIPI_INTENT_SETTLE_LEDGER: u32 = 2;
+pub const ZXV_AIPI_INTENT_SWARM_ROUTE: u32 = 3;
+pub const ZXV_AIPI_VERIFY_CHECKER: u32 = 1;
+pub const ZXV_AIPI_VERIFY_CERT: u32 = 2;
+pub const ZXV_AIPI_VERIFY_QUORUM: u32 = 3;
+pub const ZXV_AIPI_VERIFY_LOCAL: u32 = 4;
+pub const ZXV_AIPI_PRIV_PUBLIC: u32 = 0;
+pub const ZXV_AIPI_PRIV_LOCAL: u32 = 1;
+pub const ZXV_AIPI_DET_NONDETERMINISTIC: u32 = 0;
+pub const ZXV_AIPI_DET_DETERMINISTIC: u32 = 1;
+pub const ZXV_AIPI_NAME_MAX: u32 = 63;
+pub const ZXV_AIPI_IO_MAX: u32 = 1024;
+pub const ZXV_AIPI_CERT_MAX: u32 = 1024;
+pub const ZXV_AIPI_QUORUM_MAX: u32 = 8;
+pub const ZXV_AIPI_FN_MAX: u32 = 373;
+pub const ZXV_AIPI_CALL_MAX: u32 = 1112;
+pub const ZXV_AIPI_CLAIM_MAX: u32 = 2170;
+pub const ZXV_AIPI_BLOCK_MAX: u32 = 2097152;
+pub const ZXV_AIPI_FIELD_MODULE: u32 = 0;
+pub const ZXV_AIPI_FIELD_CONTRACT: u32 = 1;
+pub const ZXV_AIPI_FIELD_ENTRY: u32 = 0;
+pub const ZXV_AIPI_FIELD_CHECKER: u32 = 1;
+pub const ZXV_AIPI_FIELD_CERTIFIER: u32 = 2;
+pub const ZXV_AIPI_STORE_MIN: u32 = 4096;
+pub const ZXV_AIPI_STORE_MAX: u32 = 268435456;
+pub const ZXV_AIPI_BLOCKS_MAX: u32 = 65536;
+pub const ZXV_AIPI_ROUTE_CACHE: i32 = 1;
+pub const ZXV_AIPI_ROUTE_LOCAL: i32 = 2;
+pub const ZXV_AIPI_ROUTE_FETCH_LOCAL: i32 = 3;
+pub const ZXV_AIPI_ROUTE_MESH: i32 = 4;
+pub const ZXV_AIPI_ROUTE_UNAVAILABLE: i32 = 5;
+pub const ZXV_COIN_RUNGS: u32 = 45;
+pub const ZXV_TOKEN_TIERS: u32 = 64;
+pub const ZXV_TOKEN_SUPER_TIER: u32 = 10;
+pub const ZXV_OCTANE_PLAIN: u32 = 0;
+pub const ZXV_OCTANE_REGULAR: u32 = 4;
+pub const ZXV_OCTANE_MIDGRADE: u32 = 9;
+pub const ZXV_OCTANE_PREMIUM: u32 = 14;
+pub const ZXV_OCTANE_RACING: u32 = 23;
+pub const ZXV_OCTANE_MAX: u32 = 63;
+pub const ZXV_TOKEN_CODE_MAX_BITS: u32 = 93;
+pub const ZXV_TOKEN_CODE_MAX_BYTES: u32 = 536870911;
+pub const ZXV_FEE_NUM: u32 = 8889;
+pub const ZXV_FEE_DEN: u32 = 10000000;
+pub const ZXV_FEE_RESERVE_FLOOR: i32 = 0;
+pub const ZXV_FEE_VBILL_DIVIDEND: i32 = 1;
+pub const ZXV_FEE_INFRA_BOUNTY: i32 = 2;
+pub const ZXV_FEE_REGEN_CAPITAL: i32 = 3;
+pub const ZXV_FEE_BUCKETS: i32 = 4;
+pub const ZXV_FEE_UNIT_MONEY: i32 = 0;
+pub const ZXV_FEE_UNIT_COMPUTE: i32 = 1;
+pub const ZXV_FEE_UNIT_BANDWIDTH: i32 = 2;
+pub const ZXV_FEE_UNIT_STORAGE: i32 = 3;
+pub const ZXV_FEE_UNITS: i32 = 4;
+pub const ZXV_VHUB_MAX_CCY: u32 = 8;
+pub const ZXV_VHUB_MAX_RULES: u32 = 4;
+pub const ZXV_VHUB_LIMIT_SENDERS: u32 = 16;
+pub const ZXV_VHUB_PEG_MSG_BYTES: u32 = 40;
+pub const ZXV_VHUB_CODE_MAX: u32 = 12;
+pub const ZXV_VHUB_VBILL_ISSUER: u32 = 0;
+pub const ZXV_FREIGHT_PACKET_BYTES: u32 = 21;
+pub const ZXV_FREIGHT_ROW_PAYLOAD: u32 = 20;
+pub const ZXV_FREIGHT_ROWS: u32 = 168;
+pub const ZXV_FREIGHT_BYTES: u32 = 3528;
+pub const ZXV_FREIGHT_MAX_PAYLOAD: u32 = 3360;
+pub const ZXV_FREIGHT_HEADER_BYTES: u32 = 64;
+pub const ZXV_FREIGHT_VERSION: u32 = 1;
+pub const ZXV_FREIGHT_MAX_SET: u32 = 16384;
+pub const ZXV_FREIGHT_F_OPSTREAM: u32 = 1;
+pub const ZXV_FREIGHT_CID_MAX: u32 = 128;
+pub const ZXV_FREIGHT_GEN_PARAM_MAX: u32 = 32;
+pub const ZXV_FREIGHT_GEN_XORSHIFT: i32 = 1;
+pub const ZXV_FREIGHT_GEN_REPEAT: i32 = 2;
+pub const ZXV_FREIGHT_GEN_FIBWORD: i32 = 3;
+pub const ZXV_FREIGHT_GEN_SIERPINSKI: i32 = 4;
+pub const ZXV_W4_PK_BYTES: u32 = 1952;
+pub const ZXV_W4_SIG_BYTES: u32 = 3309;
+pub const ZXV_W4_ID_BYTES: u32 = 32;
+pub const ZXV_W4_NAME_MAX: u32 = 31;
+pub const ZXV_W4_MAX_TOOLS: u32 = 16;
+pub const ZXV_W4_MSG_MAX_PAYLOAD: u32 = 2048;
+pub const ZXV_W4_CONSENT_BYTES: u32 = 3453;
+pub const ZXV_W4_CARD_MAX: u32 = 7259;
+pub const ZXV_W4_MANIFEST_MAX: u32 = 4349;
+pub const ZXV_W4_ENV_MAX: u32 = 8970;
+pub const ZXV_W4_DIR_MAX: u32 = 4096;
+pub const ZXV_W4_CONSENT_LOG_MAX: u32 = 65536;
+pub const ZXV_W4_TOOL_MONEY: u32 = 1;
+pub const ZXV_W4_TOOL_PII: u32 = 2;
+pub const ZXV_W4_TOOL_STREAM: u32 = 4;
+pub const ZXV_W4_CONSENT_MONEY: u32 = 1;
+pub const ZXV_W4_CONSENT_PII: u32 = 2;
+pub const ZXV_W4_MSG_REQUEST: i32 = 1;
+pub const ZXV_W4_MSG_RESPONSE: i32 = 2;
+pub const ZXV_W4_MSG_STREAM: i32 = 3;
+pub const ZXV_W4_MSG_CANCEL: i32 = 4;
+pub const ZXV_W4_MSG_ERROR: i32 = 5;
+pub const ZXV_W4_MF_FINAL: u32 = 1;
+pub const ZXV_W4_MF_CONSENT: u32 = 2;
+pub const ZXV_E_PARADOX_STEP: i32 = -39;
+pub const ZXV_E_PARADOX_OWNER: i32 = -40;
+pub const ZXV_PDX_KIND_CONSTRUCTIVE: i32 = 0;
+pub const ZXV_PDX_KIND_DESTRUCTIVE: i32 = 1;
+pub const ZXV_PDX_KIND_NEUTRAL: i32 = 2;
+pub const ZXV_PDX_KIND_SPECIAL: i32 = 3;
+pub const ZXV_PDX_KIND_NONE: i32 = 4;
+pub const ZXV_PDX_DO_NONE: i32 = 0;
+pub const ZXV_PDX_DO_SYNTHESIZE: i32 = 1;
+pub const ZXV_PDX_DO_CONTAIN: i32 = 2;
+pub const ZXV_PDX_DO_HOLD: i32 = 3;
+pub const ZXV_PDX_DO_RECORD: i32 = 4;
+pub const ZXV_PDX_DO_ROLLBACK: i32 = 5;
+pub const ZXV_PDX_OUT_APPLIED: i32 = 0;
+pub const ZXV_PDX_OUT_KEPT: i32 = 1;
+pub const ZXV_PDX_OUT_PROPOSAL_FOR_OWNER: i32 = 2;
+pub const ZXV_PDX_OUT_ROLLED_BACK: i32 = 3;
+pub const ZXV_PDX_OUT_CONTAINED: i32 = 4;
+pub const ZXV_PDX_OUT_DEFERRED: i32 = 5;
+pub const ZXV_PDX_OUT_SETTLED: i32 = 6;
+pub const ZXV_PDX_OUT_RECORDED: i32 = 7;
+pub const ZXV_PDX_OUT_ACCEPTED: i32 = 8;
+pub const ZXV_PDX_OUT_PENDING: i32 = 9;
+pub const ZXV_PDX_OUT_RESOLVED: i32 = 10;
+pub const ZXV_PDX_OUT_ESCALATE_TO_OWNER: i32 = 11;
+pub const ZXV_PDX_OUT_REFUSED: i32 = 12;
+pub const ZXV_PDX_OUT_LOG_FULL: i32 = 13;
+pub const ZXV_PDX_NS_OPEN: i32 = 0;
+pub const ZXV_PDX_NS_CLEAR: i32 = 1;
+pub const ZXV_PDX_NS_CONTAINED: i32 = 2;
+pub const ZXV_PDX_NS_ROLLED_BACK: i32 = 3;
+pub const ZXV_PDX_NS_TAINTED: i32 = 4;
+pub const ZXV_PDX_NS_SANDBOXED: i32 = 5;
+pub const ZXV_PDX_NS_WAITING: i32 = 6;
+pub const ZXV_PDX_NS_HELD: i32 = 7;
+pub const ZXV_PDX_NS_BLOCKED: i32 = 8;
+pub const ZXV_PDX_NS_APPLIED: i32 = 9;
+pub const ZXV_PDX_FLAG_MONEY: u32 = 1;
+pub const ZXV_PDX_FLAG_DEVICE: u32 = 2;
+pub const ZXV_PDX_TRIP_STEPS: u32 = 1;
+pub const ZXV_PDX_TRIP_BUDGET: u32 = 2;
+pub const ZXV_PDX_TRIP_CYCLE: u32 = 4;
+pub const ZXV_PDX_TRIP_INVARIANT: u32 = 8;
+pub const ZXV_PDX_TRIP_FORBIDDEN: u32 = 16;
+pub const ZXV_PDX_LOG_OPS: i32 = 0;
+pub const ZXV_PDX_LOG_FRONTIER: i32 = 1;
+pub const ZXV_PDX_LOG_QUARANTINE: i32 = 2;
+pub const ZXV_PDX_HASH_BYTES: u32 = 32;
+pub const ZXV_PDX_REC_BYTES: u32 = 144;
+pub const ZXV_PDX_QREC_BYTES: u32 = 110;
+pub const ZXV_PDX_REPAIR_BYTES: u32 = 160;
+pub const ZXV_PDX_DRAFT_BYTES: u32 = 71;
+pub const ZXV_PDX_LOG_MAX: u32 = 65536;
+pub const ZXV_PDX_REGISTRY_MAX: u32 = 65536;
+pub const ZXV_PDX_POLICY_MAX: u32 = 64;
+pub const ZXV_PDX_HOLD_MAX: u32 = 64;
+pub const ZXV_PDX_GRAPH_MAX: u32 = 64;
+pub const ZXV_PDX_MAX_DEPS: u32 = 4;
+pub const ZXV_PDX_UPDATES_MAX: u32 = 256;
+pub const ZXV_PDX_TRACE_MAX: u32 = 4096;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct zxv_ctx {
@@ -2082,5 +2295,1546 @@ unsafe extern "C" {
         out_tag: *mut u32,
         subject: *mut u8,
         hash: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_features2(out_mask: *mut u32) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_treaty {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_treaty_result {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_create(out: *mut *mut zxv_treaty) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_destroy(t: *mut zxv_treaty);
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_clear(t: *mut zxv_treaty) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_parse_sutra(
+        t: *mut zxv_treaty,
+        text: *const ::core::ffi::c_char,
+        out_fault_off: *mut u32,
+        out_fault: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_parse_record(
+        t: *mut zxv_treaty,
+        rec: *const u8,
+        len: usize,
+        out_fault_off: *mut u32,
+        out_fault: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_emit_sutra(
+        t: *const zxv_treaty,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_emit_record(
+        t: *const zxv_treaty,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_validate(t: *const zxv_treaty, out_fault: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_equal(a: *const zxv_treaty, b: *const zxv_treaty, out_equal: *mut i32)
+        -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_name(
+        t: *const zxv_treaty,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_asset(
+        t: *const zxv_treaty,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_header(
+        t: *const zxv_treaty,
+        out_op: *mut i32,
+        out_parties: *mut u32,
+        out_owes: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_party_id(
+        t: *const zxv_treaty,
+        index: u32,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_party(
+        t: *const zxv_treaty,
+        index: u32,
+        out_deposit: *mut i64,
+        out_claim: *mut i64,
+        out_w_num: *mut u32,
+        out_w_den: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_owe(
+        t: *const zxv_treaty,
+        index: u32,
+        out_from: *mut u32,
+        out_to: *mut u32,
+        out_amount: *mut i64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_pic_add(a: i64, b: i64, out: *mut i64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_pic_sub(a: i64, b: i64, out: *mut i64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_pic_mul(a: i64, b: i64, out: *mut i64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_pic_div(a: i64, b: i64, out_q: *mut i64, out_rem: *mut i64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_run(t: *const zxv_treaty, out: *mut *mut zxv_treaty_result) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_result_destroy(r: *mut zxv_treaty_result);
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_result_summary(
+        r: *const zxv_treaty_result,
+        out_parties: *mut u32,
+        out_legs: *mut u32,
+        out_fees: *mut i64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_result_party(
+        r: *const zxv_treaty_result,
+        index: u32,
+        out_net: *mut i64,
+        out_balance: *mut i64,
+        out_dividend: *mut i64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_result_leg(
+        r: *const zxv_treaty_result,
+        index: u32,
+        out_from: *mut u32,
+        out_to: *mut u32,
+        out_amount: *mut i64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_treaty_result_record(
+        r: *const zxv_treaty_result,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_compute(
+        codec: u32,
+        data: *const u8,
+        len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_unixfs(
+        data: *const u8,
+        len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_verify(cid: *const u8, cid_len: usize, data: *const u8, len: usize) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_to_text(
+        cid: *const u8,
+        cid_len: usize,
+        base: u32,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_from_text(
+        text: *const ::core::ffi::c_char,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_info(
+        cid: *const u8,
+        cid_len: usize,
+        out_version: *mut u32,
+        out_codec: *mut u32,
+        out_hash: *mut u32,
+        out_digest: *mut u8,
+        out_digest_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_cid_to_v1(
+        cid: *const u8,
+        cid_len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_provider_key(cid: *const u8, cid_len: usize, out_key: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_fn_encode(
+        intent: u32,
+        verify: u32,
+        privacy: u32,
+        determinism: u32,
+        quorum_n: u32,
+        quorum_k: u32,
+        fuel_max: u64,
+        module_cid: *const u8,
+        module_cid_len: usize,
+        contract_cid: *const u8,
+        contract_cid_len: usize,
+        entry: *const ::core::ffi::c_char,
+        checker: *const ::core::ffi::c_char,
+        certifier: *const ::core::ffi::c_char,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_fn_decode(
+        rec: *const u8,
+        len: usize,
+        out_intent: *mut u32,
+        out_verify: *mut u32,
+        out_privacy: *mut u32,
+        out_determinism: *mut u32,
+        out_quorum_n: *mut u32,
+        out_quorum_k: *mut u32,
+        out_fuel_max: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_fn_get_cid(
+        rec: *const u8,
+        len: usize,
+        field: u32,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_fn_get_name(
+        rec: *const u8,
+        len: usize,
+        field: u32,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_fn_cid(
+        rec: *const u8,
+        len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_call_encode(
+        fn_cid: *const u8,
+        fn_cid_len: usize,
+        input: *const u8,
+        in_len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_call_decode(
+        rec: *const u8,
+        len: usize,
+        out_fn_cid_off: *mut usize,
+        out_fn_cid_len: *mut usize,
+        out_input_off: *mut usize,
+        out_input_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_call_cid(
+        fn_cid: *const u8,
+        fn_cid_len: usize,
+        input: *const u8,
+        in_len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_claim_encode(
+        call_cid: *const u8,
+        call_cid_len: usize,
+        executor: *const u8,
+        output: *const u8,
+        output_len: usize,
+        cert: *const u8,
+        cert_len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_claim_decode(
+        rec: *const u8,
+        len: usize,
+        out_call_off: *mut usize,
+        out_call_len: *mut usize,
+        out_executor_off: *mut usize,
+        out_output_off: *mut usize,
+        out_output_len: *mut usize,
+        out_cert_off: *mut usize,
+        out_cert_len: *mut usize,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_aipi {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_create(
+        cap: *const zxv_cap,
+        store_bytes: usize,
+        max_blocks: u32,
+        node_key: *const u8,
+        out: *mut *mut zxv_aipi,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_destroy(a: *mut zxv_aipi);
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_put(
+        cap: *const zxv_cap,
+        a: *mut zxv_aipi,
+        data: *const u8,
+        len: usize,
+        is_private: i32,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_get(
+        a: *mut zxv_aipi,
+        cid: *const u8,
+        cid_len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_publish_fn(
+        cap: *const zxv_cap,
+        a: *mut zxv_aipi,
+        rec: *const u8,
+        len: usize,
+        out_cid: *mut u8,
+        out_cid_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_load_fn(
+        a: *mut zxv_aipi,
+        fn_cid: *const u8,
+        fn_cid_len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_plan(
+        a: *mut zxv_aipi,
+        fn_cid: *const u8,
+        fn_cid_len: usize,
+        input: *const u8,
+        in_len: usize,
+        input_private: i32,
+        out_route: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_aipi_info(
+        a: *mut zxv_aipi,
+        out_blocks: *mut u32,
+        out_store_used: *mut u64,
+        out_gets_verified: *mut u32,
+        out_forbidden: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_coin_face(rung: u32, out_face: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_coin_rung(face: u64, out_rung: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_coin_split(amount: u64, rungs: *mut u32, cap: usize, out_count: *mut usize) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_face(tier: u32, out_face: *mut u64, out_is_super: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_tier(face: u64, out_tier: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_value(counts: *const u64, out_value: *mut u64, out_pieces: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_canonical(value: u64, octane: u32, out_counts: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_is_canonical(counts: *const u64, octane: u32, out_canonical: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_compress(counts: *mut u64, octane: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_fuse(counts: *mut u64, octane: u32, tier: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_split(counts: *mut u64, tier: u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_code_bits(value: u64, out_bits: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_code_put(buf: *mut u8, buf_len: usize, inout_bit: *mut u32, value: u64)
+        -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_code_get(
+        buf: *const u8,
+        buf_len: usize,
+        inout_bit: *mut u32,
+        out_value: *mut u64,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_token_wallet {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_create(
+        cap: *const zxv_cap,
+        model_id: u32,
+        octane: u32,
+        out_wallet: *mut *mut zxv_token_wallet,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_destroy(wallet: *mut zxv_token_wallet);
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_mint(
+        cap: *const zxv_cap,
+        wallet: *mut zxv_token_wallet,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_spend(
+        cap: *const zxv_cap,
+        wallet: *mut zxv_token_wallet,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_transfer(
+        cap: *const zxv_cap,
+        from: *mut zxv_token_wallet,
+        to: *mut zxv_token_wallet,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_set_octane(
+        cap: *const zxv_cap,
+        wallet: *mut zxv_token_wallet,
+        octane: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_info(
+        wallet: *mut zxv_token_wallet,
+        out_model_id: *mut u32,
+        out_octane: *mut u32,
+        out_value: *mut u64,
+        out_pieces: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_token_wallet_counts(wallet: *mut zxv_token_wallet, out_counts: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_fee_assure(gross: u64, out_fee: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_fee_assure_carry(
+        rem_in: u64,
+        gross: u64,
+        out_fee: *mut u64,
+        out_rem: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_fee_split(fee: u64, out: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_fee_policy_default(
+        out_pct: *mut u32,
+        out_allow_below: *mut i32,
+        out_rate_num: *mut u64,
+        out_rate_den: *mut u64,
+        out_mult_num: *mut u64,
+        out_mult_den: *mut u64,
+        out_commons_num: *mut u64,
+        out_commons_den: *mut u64,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_vhub {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_create(cap: *const zxv_cap, seed: *const u8, out: *mut *mut zxv_vhub) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_destroy(hub: *mut zxv_vhub);
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_add_ccy(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        slot: u8,
+        code: *const ::core::ffi::c_char,
+        minor_units: u8,
+        issuer_pk: *const u8,
+        pool_funding: u64,
+        vbill_backing: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_ccy_info(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        slot: u8,
+        out_issuer_account: *mut u32,
+        out_pool_account: *mut u32,
+        out_vfloat_account: *mut u32,
+        out_peg_num: *mut u64,
+        out_peg_den: *mut u64,
+        out_peg_epoch: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_peg_msg(slot: u8, num: u64, den: u64, epoch: u64, out: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_set_peg(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        slot: u8,
+        num: u64,
+        den: u64,
+        epoch: u64,
+        sig: *const u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_open_account(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        slot: u8,
+        owner: u32,
+        out_account: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_issue(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        account: u32,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_balance(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        account: u32,
+        out_debit: *mut u64,
+        out_credit: *mut u64,
+        out_equity: *mut i64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_add_limit(cap: *const zxv_cap, hub: *mut zxv_vhub, slot: u8, limit: u64)
+        -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_next_epoch(cap: *const zxv_cap, hub: *mut zxv_vhub, out_epoch: *mut u64)
+        -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_quote(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        from_slot: u8,
+        to_slot: u8,
+        want: u64,
+        out_amount: *mut u64,
+        out_vbills: *mut u64,
+        out_received: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_swap(
+        cap: *const zxv_cap,
+        hub: *mut zxv_vhub,
+        from_slot: u8,
+        to_slot: u8,
+        sender: u32,
+        receiver: u32,
+        amount: u64,
+        tick: u64,
+        out_vbills: *mut u64,
+        out_received: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vhub_check(cap: *const zxv_cap, hub: *mut zxv_vhub, out_postings: *mut u64) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_header_init(
+        freight_id: u64,
+        k: u8,
+        flags: u8,
+        expand_limit: u64,
+        payload: *const u8,
+        len: usize,
+        out_header: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_header_serialize(
+        k: u8,
+        flags: u8,
+        payload_len: u16,
+        seq: u16,
+        seq_count: u16,
+        freight_id: u64,
+        expand_limit: u64,
+        payload_sha256: *const u8,
+        out_header: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_header_parse(
+        header: *const u8,
+        out_version: *mut u8,
+        out_k: *mut u8,
+        out_flags: *mut u8,
+        out_payload_len: *mut u16,
+        out_seq: *mut u16,
+        out_seq_count: *mut u16,
+        out_freight_id: *mut u64,
+        out_expand_limit: *mut u64,
+        out_payload_sha256: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_header_check(header: *const u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_encode(
+        header: *const u8,
+        payload: *const u8,
+        len: usize,
+        out_packets: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_decode(
+        header: *const u8,
+        packets: *const u8,
+        packets_len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_set_count(len: u64, k: u8, out_count: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_split(
+        freight_id: u64,
+        k: u8,
+        flags: u8,
+        expand_limit: u64,
+        data: *const u8,
+        len: usize,
+        seq: u32,
+        out_header: *mut u8,
+        out_packets: *mut u8,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_freight_join {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_freight_join_create(capacity: u64, out_join: *mut *mut zxv_freight_join) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_join_destroy(join: *mut zxv_freight_join);
+}
+unsafe extern "C" {
+    pub fn zxv_freight_join_add(
+        join: *mut zxv_freight_join,
+        header: *const u8,
+        packets: *const u8,
+        packets_len: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_join_status(
+        join: *const zxv_freight_join,
+        out_received: *mut u32,
+        out_count: *mut u32,
+        out_complete: *mut i32,
+        out_total: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_join_result(
+        join: *const zxv_freight_join,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_peek(
+        ops: *const u8,
+        ops_len: usize,
+        out_total: *mut u64,
+        out_has_sha: *mut i32,
+    ) -> i32;
+}
+pub type zxv_freight_resolve_fn = ::core::option::Option<
+    unsafe extern "C" fn(
+        user: *mut ::core::ffi::c_void,
+        cid: *const u8,
+        cid_len: usize,
+        out: *mut u8,
+        len: u64,
+    ) -> i32,
+>;
+unsafe extern "C" {
+    pub fn zxv_freight_ops_expand(
+        ops: *const u8,
+        ops_len: usize,
+        limit: u64,
+        resolve: zxv_freight_resolve_fn,
+        user: *mut ::core::ffi::c_void,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_gen_run(
+        gen: u8,
+        params: *const u8,
+        params_len: usize,
+        out: *mut u8,
+        len: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_encode(
+        in_: *const u8,
+        n: usize,
+        with_sha: i32,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_bound(n: u64, with_sha: i32, out_bound: *mut u64) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_freight_ops_writer {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_writer_create(
+        declared_total: u64,
+        sha256: *const u8,
+        max_bytes: u64,
+        out_writer: *mut *mut zxv_freight_ops_writer,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_writer_destroy(w: *mut zxv_freight_ops_writer);
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_put_literal(
+        w: *mut zxv_freight_ops_writer,
+        bytes: *const u8,
+        n: usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_put_copy(w: *mut zxv_freight_ops_writer, distance: u64, len: u64)
+        -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_put_cidref(
+        w: *mut zxv_freight_ops_writer,
+        cid: *const u8,
+        cid_len: usize,
+        len: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_put_seed(
+        w: *mut zxv_freight_ops_writer,
+        gen: u8,
+        params: *const u8,
+        params_len: usize,
+        len: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_freight_ops_writer_finish(
+        w: *const zxv_freight_ops_writer,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_w4_agent {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_w4_agent_create(
+        cap: *const zxv_cap,
+        seed: *const u8,
+        name: *const ::core::ffi::c_char,
+        node: *const zxv_w4_agent,
+        now_ms: u64,
+        out_agent: *mut *mut zxv_w4_agent,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_agent_destroy(agent: *mut zxv_w4_agent);
+}
+unsafe extern "C" {
+    pub fn zxv_w4_agent_info(
+        agent: *const zxv_w4_agent,
+        out_agent_id: *mut u8,
+        out_peer_id: *mut u8,
+        out_public_key: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_agent_card(
+        agent: *const zxv_w4_agent,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_card_verify(
+        card: *const u8,
+        len: usize,
+        out_agent_id: *mut u8,
+        out_peer_id: *mut u8,
+        out_name: *mut ::core::ffi::c_char,
+        out_bound_ms: *mut u64,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_w4_dir {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_w4_dir_create(capacity: u32, out_dir: *mut *mut zxv_w4_dir) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_dir_destroy(dir: *mut zxv_w4_dir);
+}
+unsafe extern "C" {
+    pub fn zxv_w4_dir_add(dir: *mut zxv_w4_dir, card: *const u8, len: usize) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_dir_find(
+        dir: *const zxv_w4_dir,
+        agent_id: *const u8,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_dir_count(dir: *const zxv_w4_dir, out_count: *mut u32) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_w4_manifest {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_create(
+        version: u32,
+        issued_ms: u64,
+        expires_ms: u64,
+        out_manifest: *mut *mut zxv_w4_manifest,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_destroy(m: *mut zxv_w4_manifest);
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_add_tool(
+        m: *mut zxv_w4_manifest,
+        name: *const ::core::ffi::c_char,
+        price_vfv: u64,
+        rate_per_min: u32,
+        burst: u32,
+        flags: u32,
+        max_input: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_sign(
+        cap: *const zxv_cap,
+        agent: *const zxv_w4_agent,
+        m: *mut zxv_w4_manifest,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_verify(
+        m: *const zxv_w4_manifest,
+        public_key: *const u8,
+        now_ms: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_encode(
+        m: *const zxv_w4_manifest,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_decode(
+        bytes: *const u8,
+        len: usize,
+        out_manifest: *mut *mut zxv_w4_manifest,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_to_json(
+        m: *const zxv_w4_manifest,
+        buf: *mut ::core::ffi::c_char,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_info(
+        m: *const zxv_w4_manifest,
+        out_agent_id: *mut u8,
+        out_peer_id: *mut u8,
+        out_version: *mut u32,
+        out_issued_ms: *mut u64,
+        out_expires_ms: *mut u64,
+        out_tool_count: *mut u32,
+        out_signed: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_tool(
+        m: *const zxv_w4_manifest,
+        index: u32,
+        out_name: *mut ::core::ffi::c_char,
+        out_price_vfv: *mut u64,
+        out_rate_per_min: *mut u32,
+        out_burst: *mut u32,
+        out_flags: *mut u32,
+        out_max_input: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_manifest_find(
+        m: *const zxv_w4_manifest,
+        name: *const ::core::ffi::c_char,
+        out_index: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_action_digest(
+        tool: *const ::core::ffi::c_char,
+        from: *const u8,
+        to: *const u8,
+        req_id: u64,
+        payload: *const u8,
+        len: usize,
+        out_digest: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_issue(
+        cap: *const zxv_cap,
+        human: *const zxv_w4_agent,
+        agent_id: *const u8,
+        action: *const u8,
+        scope: u32,
+        max_vfv: u64,
+        issued_ms: u64,
+        expires_ms: u64,
+        nonce: *const u8,
+        out_token: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_info(
+        token: *const u8,
+        out_human_id: *mut u8,
+        out_agent_id: *mut u8,
+        out_action: *mut u8,
+        out_scope: *mut u32,
+        out_max_vfv: *mut u64,
+        out_issued_ms: *mut u64,
+        out_expires_ms: *mut u64,
+        out_nonce: *mut u8,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_w4_consent_log {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_log_create(capacity: u32, out_log: *mut *mut zxv_w4_consent_log) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_log_destroy(log: *mut zxv_w4_consent_log);
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_check(
+        log: *mut zxv_w4_consent_log,
+        token: *const u8,
+        human_public_key: *const u8,
+        agent_id: *const u8,
+        action: *const u8,
+        need: u32,
+        amount: u64,
+        now_ms: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_revoke(
+        log: *mut zxv_w4_consent_log,
+        token: *const u8,
+        now_ms: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_consent_log_prune(
+        log: *mut zxv_w4_consent_log,
+        now_ms: u64,
+        out_remaining: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_seal(
+        cap: *const zxv_cap,
+        agent: *mut zxv_w4_agent,
+        kind: i32,
+        to: *const u8,
+        req_id: u64,
+        chunk: u32,
+        tool: *const ::core::ffi::c_char,
+        flags: u32,
+        payload: *const u8,
+        len: usize,
+        consent_token: *const u8,
+        now_ms: u64,
+        buf: *mut u8,
+        buf_cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_reply(
+        cap: *const zxv_cap,
+        agent: *mut zxv_w4_agent,
+        request: *const u8,
+        request_len: usize,
+        kind: i32,
+        chunk: u32,
+        flags: u32,
+        payload: *const u8,
+        len: usize,
+        now_ms: u64,
+        buf: *mut u8,
+        buf_cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_decode(
+        env: *const u8,
+        len: usize,
+        out_kind: *mut i32,
+        out_flags: *mut u32,
+        out_from: *mut u8,
+        out_to: *mut u8,
+        out_seq: *mut u64,
+        out_ts_ms: *mut u64,
+        out_req_id: *mut u64,
+        out_chunk: *mut u32,
+        out_tool: *mut ::core::ffi::c_char,
+        out_payload_len: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_payload(
+        env: *const u8,
+        len: usize,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_consent(env: *const u8, len: usize, out_token: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_w4_env_verify(env: *const u8, len: usize, sender_public_key: *const u8) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_paradox {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_paradox_policy {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_paradox_hold {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_paradox_graph {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_signature(data: *const u8, len: usize, out: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_kind_of_tag(tag: u8, out_kind: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_action(kind: i32, tag: u8, out_do: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_outcome_action(outcome: i32, out_action: *mut i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_repair_verify(proof: *const u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_kind_name(kind: i32) -> *const ::core::ffi::c_char;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_outcome_name(outcome: i32) -> *const ::core::ffi::c_char;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_node_state_name(state: i32) -> *const ::core::ffi::c_char;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_create(
+        cap: *const zxv_cap,
+        log_capacity: u32,
+        registry_capacity: u32,
+        out: *mut *mut zxv_paradox,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_destroy(book: *mut zxv_paradox);
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_classify(
+        book: *const zxv_paradox,
+        tag: u8,
+        evidence: *const u32,
+        stale: i32,
+        sig: *const u8,
+        out_kind: *mut i32,
+        out_tag: *mut u8,
+        out_reg_index: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_registry_add(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        sig: *const u8,
+        kind: i32,
+        reason: u8,
+        flags: u8,
+        owner_ok: i32,
+        out_index: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_registry_find(
+        book: *const zxv_paradox,
+        sig: *const u8,
+        out_index: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_registry_count(book: *const zxv_paradox, out_count: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_registry_at(
+        book: *const zxv_paradox,
+        index: u32,
+        out_sig: *mut u8,
+        out_kind: *mut i32,
+        out_reason: *mut u8,
+        out_flags: *mut u8,
+        out_src: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_log_count(book: *const zxv_paradox, which: i32, out_count: *mut u32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_log_head(book: *const zxv_paradox, which: i32, out_head: *mut u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_log_record(
+        book: *const zxv_paradox,
+        which: i32,
+        index: u32,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_log_verify(book: *mut zxv_paradox, which: i32) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_policy_create(
+        cap: *const zxv_cap,
+        n: u32,
+        lo: *const i64,
+        hi: *const i64,
+        initial: *const i64,
+        flags: u32,
+        out: *mut *mut zxv_paradox_policy,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_policy_destroy(policy: *mut zxv_paradox_policy);
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_constructive(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        policy: *mut zxv_paradox_policy,
+        kind: i32,
+        tag: u8,
+        synth: *const i64,
+        n: u32,
+        tension: u32,
+        out_outcome: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_policy_values(
+        policy: *const zxv_paradox_policy,
+        out_val: *mut i64,
+        out_prev: *mut i64,
+        n: u32,
+        out_armed: *mut i32,
+        out_tension_at: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_policy_bounds(
+        policy: *const zxv_paradox_policy,
+        out_lo: *mut i64,
+        out_hi: *mut i64,
+        n: u32,
+        out_flags: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_policy_proposal(
+        policy: *const zxv_paradox_policy,
+        synth: *const i64,
+        n: u32,
+        buf: *mut u8,
+        cap: usize,
+        out_len: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_destructive(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        kind: i32,
+        tag: u8,
+        steps: u32,
+        step_limit: u32,
+        spent: u32,
+        budget: u32,
+        trace: *const u64,
+        trace_n: u32,
+        invariant_ok: i32,
+        state: *mut u8,
+        checkpoint: *const u8,
+        len: u32,
+        pattern: *const u8,
+        pattern_len: u32,
+        submitter: u32,
+        out_outcome: *mut i32,
+        out_proof: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_create(
+        cap: *const zxv_cap,
+        capacity: u32,
+        decisive: u32,
+        out: *mut *mut zxv_paradox_hold,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_destroy(hold: *mut zxv_paradox_hold);
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_add(hold: *mut zxv_paradox_hold, id: *const u8) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_evidence(
+        hold: *mut zxv_paradox_hold,
+        id: *const u8,
+        positive: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_info(
+        hold: *const zxv_paradox_hold,
+        out_count: *mut u32,
+        out_settled: *mut i32,
+        out_decisive: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_hold_branch(
+        hold: *const zxv_paradox_hold,
+        index: u32,
+        out_id: *mut u8,
+        out_pos: *mut u32,
+        out_neg: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_neutral(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        hold: *mut zxv_paradox_hold,
+        kind: i32,
+        tag: u8,
+        owner_pick: i32,
+        out_outcome: *mut i32,
+        out_settled: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_special(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        kind: i32,
+        tag: u8,
+        sig: *const u8,
+        subject: *const u8,
+        out_outcome: *mut i32,
+        out_rec: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_draft(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        rec: u32,
+        kind: i32,
+        reason: u8,
+        flags: u8,
+        out_draft: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_review(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        draft: *const u8,
+        owner_ok: i32,
+        consensus_ok: i32,
+        out_outcome: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_create(
+        cap: *const zxv_cap,
+        step_limit: u32,
+        out: *mut *mut zxv_paradox_graph,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_destroy(g: *mut zxv_paradox_graph);
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_add_node(
+        g: *mut zxv_paradox_graph,
+        id: *const u8,
+        kind: i32,
+        tag: u8,
+        mag: u32,
+        dir: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_add_dep(
+        g: *mut zxv_paradox_graph,
+        id: *const u8,
+        dep: *const u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_update(
+        g: *mut zxv_paradox_graph,
+        id: *const u8,
+        kind: i32,
+        tag: u8,
+        mag: u32,
+        dir: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_pass(
+        cap: *const zxv_cap,
+        book: *mut zxv_paradox,
+        g: *mut zxv_paradox_graph,
+        out_outcome: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_state(
+        g: *const zxv_paradox_graph,
+        id: *const u8,
+        out_state: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_node_at(
+        g: *const zxv_paradox_graph,
+        index: u32,
+        out_id: *mut u8,
+        out_kind: *mut i32,
+        out_state: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_paradox_graph_info(
+        g: *const zxv_paradox_graph,
+        out_nodes: *mut u32,
+        out_pass: *mut u32,
+        out_total_mag: *mut u32,
+        out_total_dir: *mut i32,
+        out_escalated: *mut i32,
+        out_chain: *mut u8,
     ) -> i32;
 }

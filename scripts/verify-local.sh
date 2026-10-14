@@ -11,7 +11,10 @@
 #                                           clang-format on changed lines,
 #                                           host tests (if code changed)
 #   scripts/verify-local.sh --boot          + arm64 and x86_64 QEMU boots
-#   scripts/verify-local.sh --san           + host tests under ASan/UBSan
+#   scripts/verify-local.sh --san           + host tests under ASan/UBSan and
+#                                           the integer sanitizer (the
+#                                           minimum before marking a pull
+#                                           request ready)
 #   scripts/verify-local.sh --all           everything CI runs on Linux: the
 #                                           above plus riscv/arm32 boots,
 #                                           integer sanitizer, MSan, fuzz
@@ -158,7 +161,11 @@ lint() {
     esac
 }
 
-host_tests() { make -C kernel verify-all; }
+# CI's host-tests job runs the strata check before verify-all; a module with
+# no stratum fails it (and the boot builds' layer check).
+host_tests() {
+    build_system/verify_layers.sh && python3 tests/harness/test_verify_strata.py && make -C kernel verify-all
+}
 
 boot_one() {  # name makefile elf [marker]
     local name="$1" mk="$2"; shift 2
@@ -211,9 +218,20 @@ mutation() {
         --jobs "${JOBS:-$(nproc)}" --out "$TMP/mutation-results"
 }
 
+# ---- is the branch behind main? --------------------------------------------
+# CI tests the pull request merged into the current main, not the branch on
+# its own. A branch that is behind can pass here and fail there (or the
+# other way round), so say so before spending time on the checks.
+behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+if [ "${behind:-0}" != 0 ]; then
+    echo "WARNING: this branch is $behind commit(s) behind origin/main. CI tests the merge"
+    echo "         with main: run 'git fetch origin main && git merge origin/main' first."
+fi
+
 # ---- the checks -------------------------------------------------------------
 step "Apache-2.0 headers (quick-checks)" license
 step "clang-format on changed lines (quick-checks)" lint
+step "workflow draft tiers (quick-checks)" python3 build_system/check_workflow_tiers.py
 
 if [ "$kernel" != true ]; then
     skip "host tests and everything below" "no code changed since $BASE; --force runs them"
@@ -228,8 +246,10 @@ else
         else skip "boot x86_64" "needs nasm, grub-pc-bin, xorriso and qemu-system-x86, or --docker"; fi
     fi
     if [ "$SAN" = 1 ]; then
-        if have clang; then step "host tests under ASan+UBSan (sanitize-asan-ubsan)" asan
-        else skip "ASan+UBSan" "needs clang"; fi
+        if have clang; then
+            step "host tests under ASan+UBSan (sanitize-asan-ubsan)" asan
+            step "integer sanitizer (sanitize-integer)" integer
+        else skip "ASan+UBSan and integer sanitizer" "needs clang"; fi
     fi
     if [ "$ALL" = 1 ]; then
         if have riscv64-linux-gnu-gcc && have qemu-system-riscv64; then
@@ -240,7 +260,6 @@ else
             step "boot arm32 in QEMU (boot-extra)" boot_one arm32 build_system/Makefile.arm32
         else skip "boot arm32" "needs gcc-arm-linux-gnueabihf and qemu-system-arm, or --docker"; fi
         if have clang; then
-            step "integer sanitizer (sanitize-integer)" integer
             step "MemorySanitizer (sanitize-msan)" msan
             step "fuzz replay + 30 s per harness (fuzz-smoke)" fuzz_smoke
             step "coverage (coverage)" fuzz/tools/coverage.sh

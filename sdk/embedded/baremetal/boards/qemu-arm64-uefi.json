@@ -1,0 +1,22 @@
+{
+  "format": "zxv-board-manifest",
+  "version": 1,
+  "board": {
+    "id": "qemu-arm64-uefi",
+    "vendor": "QEMU",
+    "model": "virt (GICv3) with QEMU_EFI",
+    "revision": "CI"
+  },
+  "arch": "arm64",
+  "firmware": {"type": "uefi", "secure_boot": "off"},
+  "console": {
+    "serial": {"uart": "pl011", "base": "0x9000000", "baud": 115200},
+    "framebuffer": "none"
+  },
+  "memory": {"ram_mib": 512},
+  "hw_profile": {
+    "digest": "34ec0e8229a5af72d77be2fcc1d354e90f698b239a68131583fc4425333290d4",
+    "file": "../profiles/r1.zhp",
+    "name": "VULPINE-class reference machine R1"
+  }
+}

@@ -40,8 +40,9 @@ target_link_libraries(my_app PRIVATE zxv::zxv)
 ```
 
 At run time the SDK calls `zxv_version` once. It refuses a library whose
-major version is not 1 or whose minor version is below 4 (ABI 1.4 added
-hardware emulation and hardware updates, 1.3 the hexagram tag, 1.2 the
+major version is not 1 or whose minor version is below 5 (ABI 1.5 added
+the eight groups below, 1.4 hardware emulation and hardware updates, 1.3
+the hexagram tag, 1.2 the
 capability-gated `*_cap` forms the SDK calls).
 
 ## Quickstart
@@ -158,11 +159,222 @@ reported as its status, anything else as `ZXV_E_INTERNAL`; event handler
 exceptions are swallowed. A provider may call the matrix again for the
 functions it declared with `add_dependency`.
 
+## ABI 1.5 groups
+
+ABI 1.5 adds eight groups, each in its own namespace, matching the C groups.
+`zxv::features2()` / `has_feature2(feature2::...)` report which are built.
+`caps::all` keeps its 1.1 value and `caps::all_1_4` its 1.4 value; use
+`caps::all_1_5` for every bit, which adds `caps::aipi`, `caps::mint` and
+`caps::paradox`. New statuses map to new exception types:
+`DenominationError` and `TreatyError` (`UsageError`; a `TreatyError` carries
+`fault_code()` and `offset()`), and `CidMismatch`, `ConsentDenied`,
+`ErasureError`, `PegError`, `LimitRefused`, `ParadoxStepLimit` and
+`OwnerApprovalRequired` (all `RefusedError`).
+
+The same rules apply in every group. Variable-length results come back as
+`std::vector` or `std::string`: the two-call buffer pattern is hidden.
+Fixed byte structures are value types (`cid::Cid`, `freight::Header`,
+`web4::ConsentToken`, `paradox::RepairProof`, `paradox::Draft`,
+`vhub::PegMessage`). Handles are move-only and keep their capability and
+context alive. Using a moved-from handle throws `UsageError`
+(`ZXV_E_ARG`) and never reaches C. Gated calls fail closed with
+`FatalError` (`ZXV_E_POISONED`) once the context halts. 64-bit values stay
+64-bit, and there is no floating point anywhere.
+
+Each block below runs as written inside `int main()` after
+`#include <zxv.hpp>`.
+
+### Treaties (`zxv::treaty`, pure)
+
+A treaty has two canonical spellings of one batch of settlement work: a
+COBOL copybook record (`record()`, 2542 bytes) and Sutra text (`sutra()`).
+`run()` gives a deterministic report, not a payment.
+
+```cpp
+namespace tr = zxv::treaty;
+auto t = tr::Treaty::from_sutra("TREATY CORRIDOR-7 USD NET\nPARTY ACME 5000 4000 1/2\n"
+                                "PARTY BETA 3000 3000 1/2\nOWE ACME BETA 1200\nEND\n");
+auto same = tr::Treaty::from_record(t.record());      // same == t
+auto r = t.run();                                     // r.legs(), r.parties(), r.record()
+try { tr::Treaty::from_sutra("TREATY"); }
+catch (const zxv::TreatyError& e) { /* tr::fault_of(e) == tr::Fault::name, e.offset() == 0 */ }
+auto d = tr::pic_div(-7, 2);                          // {-3, -1}: PIC S9(18) arithmetic
+(void) same; (void) r; (void) d;
+```
+
+### Content identifiers (`zxv::cid`, pure)
+
+These CIDs are byte-identical to Kubo's. The default text form is Kubo's
+("b..." base32, "Qm..." for v0), and `Base::base58btc` gives the "z..."
+form.
+
+```cpp
+auto c = zxv::cid::Cid::compute(zxv::as_bytes("abc"));   // CIDv1 raw sha2-256
+std::string text = c.to_text();                          // "bafkrei..."
+auto back = zxv::cid::Cid::parse(text);                  // == c
+c.verify(zxv::as_bytes("abc"));                          // CidMismatch on other bytes
+auto big = zxv::cid::Cid::unixfs(std::vector<std::uint8_t>(300000)); // dag-pb above 256 KiB
+(void) back; (void) big;
+```
+
+### AIPI (`zxv::aipi`)
+
+These are function, call and claim records, which are pure. `aipi::Node`
+is an offline block store (`caps::aipi`) that re-hashes every block it
+returns. It has no network: `plan()` answers `Route::local` or
+`Route::unavailable`.
+
+```cpp
+namespace ai = zxv::aipi;
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::all_1_5);
+ai::Node node(cap, 1 << 20, 64);
+ai::FunctionSpec f;
+f.module = node.put(zxv::as_bytes("zxv module bytes"));
+f.entry = "main"; f.checker = "check"; f.verify = ai::Verify::checker; f.fuel_max = 1000000;
+auto fn = node.publish(ai::encode_function(f));            // function CID
+auto call = ai::call_cid(fn, zxv::as_bytes("hello"));
+bool runs_here = node.plan(fn) == ai::Route::local;        // true: the module is held
+(void) call; (void) runs_here;
+```
+
+### Fibonacci coins and swarm tokens (`zxv::coin`, `zxv::token`)
+
+`coin` holds the VFV coin ladder (faces F(r+1), rungs 1..45); any other face
+is `DenominationError`. `token` holds the 64 token tiers, their octane and
+Fibonacci codes, all pure. `token::Wallet` needs `caps::mint`, keeps its
+holding canonical at its octane, and has no balance outside itself. Density
+carries no premium: a denser holding is worth exactly the same.
+
+```cpp
+auto rungs = zxv::coin::split(100);                 // {10, 5, 3}: 89 + 8 + 3
+auto counts = zxv::token::canonical(1000, zxv::token::octane::midgrade);
+std::vector<std::uint8_t> buf(zxv::token::code_max_bytes);
+std::uint32_t bit = 0;
+zxv::token::code_put(buf, bit, 100);                // 11 bits
+zxv::Context ctx;
+zxv::token::Wallet w(ctx.root_capability(zxv::caps::mint), 7, zxv::token::octane::regular);
+w.mint(1000); w.spend(1);                           // w.info().value == 999
+(void) rungs; (void) counts;
+```
+
+### The assurance fee (`zxv::fee`, pure)
+
+The fee is 8889 / 10^7 of the gross, rounded down. A `fee::Carry` keeps the
+remainder so that many small charges add up exactly. `split()` gives the four
+buckets (50/25/15/10%, with every remainder unit going to the reserve floor).
+
+```cpp
+auto f = zxv::fee::assure(1000000);                 // 888
+zxv::fee::Carry acct;                               // store acct.remainder() per account
+for (int i = 0; i < 8; ++i) (void) acct.charge(100);
+auto parts = zxv::fee::split(f);                    // {445, 222, 133, 88}
+auto policy = zxv::fee::default_policy();
+(void) parts; (void) policy;
+```
+
+### The V-Bill hub (`zxv::vhub`)
+
+This is a demonstration hub with test currencies only: ISO 4217 codes are
+refused. Pegs are set only with the issuer's ML-DSA-87 signature over
+`peg_message()`. Swaps fail closed until each currency has a limit rule.
+It needs `caps::ledger_post`, plus `caps::ledger_read` for reads.
+
+```cpp
+namespace vh = zxv::vhub;
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::all_1_5);
+zxv::MlDsa87 dsa(cap);
+auto key = dsa.keygen();
+vh::Hub hub(cap);
+hub.add_currency(0, "ZTA", 2, key.public_key, 500000, 10000);
+hub.set_peg(0, 350, 1, 1, dsa.sign(key.secret_key, vh::peg_message(0, 350, 1, 1)));
+auto acct = hub.open_account(0, 50);
+hub.issue(acct, 1000000);
+std::uint64_t postings = hub.check();               // A = L + E, DEBIT == CREDIT, hash chain
+(void) postings;
+```
+
+### Freight (`zxv::freight`, pure)
+
+A freight is 168 rows of 21 bytes, and any k rows rebuild the payload
+(Reed-Solomon). A corrupted or missing row set is `ErasureError` or
+`VerificationFailed`. Op streams describe a payload by literals, copies,
+generators and CID references. There are no compression promises: an op
+stream can be larger than its output. The `expand()` resolver is a
+`std::function`, and an exception it throws is rethrown by `expand()`,
+never unwound through C.
+
+```cpp
+namespace fr = zxv::freight;
+auto payload = zxv::as_bytes("any k rows rebuild the payload");
+auto h = fr::Header::for_payload(42, 10, payload);
+auto packets = fr::encode(h, payload);              // 3528 bytes
+std::vector<std::uint8_t> last10(packets.end() - 210, packets.end());
+auto back = fr::decode(h, last10);                  // == payload
+auto ops = fr::OpsWriter(5, 4096).literal(zxv::as_bytes("<"))
+               .cidref(zxv::cid::Cid::compute(zxv::as_bytes("abc")), 3)
+               .literal(zxv::as_bytes(">")).finish();
+auto out = fr::expand(ops, 1024, [](std::span<const std::uint8_t>, std::span<std::uint8_t> o) {
+    std::copy_n("abc", 3, o.begin()); return true;  // your content store
+});                                                 // "<abc>"
+(void) back; (void) out;
+```
+
+### Web 4 agents (`zxv::web4`)
+
+Agents hold ML-DSA-65 keys inside their handle; destroying the handle wipes
+the key, and this SDK never logs it. The group covers signed cards,
+manifests, consent tokens and envelopes. There is no network transport:
+you move the bytes. Consent for money or personal data must be presented and
+is single-use.
+
+```cpp
+namespace w4 = zxv::web4;
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::all_1_5);
+w4::Agent alice(cap, "alice", 1700000000000), human(cap, "human", 1700000000000);
+w4::Manifest m(1, 1700000000000, 1700086400000);
+m.add_tool({"pay", 150, 60, 10, w4::tool::money, 256});
+m.sign(alice);
+auto action = w4::action_digest("pay", alice.agent_id(), alice.agent_id(), 7, zxv::as_bytes("amount=100"));
+auto token = human.issue_consent(alice.agent_id(), action, w4::scope::money, 1000,
+                                 1700000000000, 1700000600000);
+w4::ConsentLog log(16);
+log.check(&token, human.public_key(), alice.agent_id(), action, w4::scope::money, 500, 1700000000001);
+// A second check of the same token throws ConsentDenied (single use).
+```
+
+### The paradox engine (`zxv::paradox`)
+
+The engine classifies a Both/Neither tag into one of four kinds and runs the
+fixed, logged operator for that kind. Every operator needs
+`caps::paradox`. Automatic changes happen only inside published bounds.
+Policies flagged `flag::money` or `flag::device` always go to the owner,
+and `owner_ok` is your assertion. Destructive work is contained, never
+answered.
+
+```cpp
+namespace px = zxv::paradox;
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::all_1_5);
+px::Book book(cap, 64, 16);
+auto c = book.classify(zxv::Hexagram::from_tag(39), px::Evidence{3, 1, 5, 1});  // constructive
+std::vector<std::int64_t> lo{0, 0, 10}, hi{100, 50, 20}, init{50, 25, 15};
+px::Policy policy(cap, lo, hi, init);
+auto o = book.constructive(policy, c.kind, c.tag, std::vector<std::int64_t>{60, 20, 12}, 5);
+std::vector<std::uint8_t> state(16, 'X'), checkpoint(16, 'A');
+auto k = book.destructive(px::Kind::destructive, zxv::Hexagram::from_tag(35), state, checkpoint,
+                          {10, 8, 3, 100, {1, 2, 3, 2}, true, {'l', 'o', 'o', 'p'}, 7});
+bool ok = k.proof && k.proof->verify();             // state is "AAAA..." again
+(void) o; (void) ok;
+```
+
 ## API overview
 
 | Type | Main members | Needs |
 |---|---|---|
-| free functions | `version()`, `features()`, `has_feature()`, `status_name()`, `status_class()`, `iso4217()`, `card_check_digit()`, `random_bytes()`, `to_hex()`, `from_hex()` | - |
+| free functions | `version()`, `features()`, `has_feature()`, `features2()`, `has_feature2()`, `status_name()`, `status_class()`, `iso4217()`, `card_check_digit()`, `random_bytes()`, `to_hex()`, `from_hex()` | - |
 | `Context` | `root_capability(bits, pid, identity)`, `enable_currency(cap, ...)`, `register_private_unit(cap, ...)`, `enabled_currencies`, `halt`, `is_poisoned` | `ledger_post` for the currency calls |
 | `Capability` | `attenuate`, `revoke`, `set_attestation`, `info`, `check`, `require` | - |
 | `Rational` | `of`, `parse`, `from_q16`, `from_double_exact`, `+ - * /`, `<=>`, `checked_*`, `to_string`, `to_q16` | - |
@@ -185,6 +397,15 @@ functions it declared with `add_dependency`.
 | `hw::Matrix` | `call`, `shadow`, `add_provider`, `attest`, `providers`, `set_policy`, `memo`, `apply_contract`, `log` | `hw_matrix` (+ `hw_reconf` for contracts) |
 | `hw::Release` | `keygen`, `build` | `crypto_sign` |
 | `hw::Region` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `on_event`, `log` | `hw_reconf` |
+| `treaty::Treaty` / `Result` | `from_sutra`, `from_record`, `sutra`, `record`, `parties`, `obligations`, `validate`, `run`; `parties`, `legs`, `fees`, `record`; `pic_add/sub/mul/div` | - |
+| `cid::Cid` | `compute`, `unixfs`, `parse`, `from_bytes`, `to_text`, `info`, `to_v1`, `matches`, `verify` | - |
+| `aipi` / `aipi::Node` | `encode_function`, `decode_function`, `function_cid`, `encode_call`, `call_cid`, `encode_claim`, `decode_claim`, `provider_key`; `put`, `get`, `publish`, `load`, `plan`, `info` | `aipi` for the node |
+| `coin` / `token` / `token::Wallet` | `face`, `rung`, `split`; `face`, `tier`, `value`, `canonical`, `compress`, `fuse`, `split`, `code_put`, `code_get`; `mint`, `spend`, `transfer_to`, `set_octane`, `info`, `counts` | `mint` for the wallet |
+| `fee` | `assure`, `assure_carry`, `Carry`, `split`, `default_policy` | - |
+| `vhub::Hub` | `add_currency`, `set_peg`, `open_account`, `issue`, `balance`, `add_limit`, `next_epoch`, `quote`, `swap`, `check`; `peg_message` | `ledger_post` / `ledger_read` |
+| `freight` | `Header`, `encode`, `decode`, `split`, `Join`, `set_count`, `OpsWriter`, `encode_ops`, `expand`, `peek`, `generate` | - |
+| `web4` | `Agent` (`card`, `issue_consent`, `seal`, `reply`), `Manifest`, `Directory`, `ConsentLog`, `verify_card`, `action_digest`, `decode_envelope`, `verify_envelope` | `crypto_sign` for keys and signing, `attest` for consent |
+| `paradox::Book` | `classify`, `registry_*`, `log_*`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`; `Policy`, `Hold`, `Graph`, `RepairProof`, `Draft` | `paradox` |
 
 ## Examples
 
@@ -301,6 +522,17 @@ Every target compiles with `-Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-c
 - the fatal path through `zxv_ctx_halt`, including `FatalPolicy::abort` in a forked child
 - two-peer lockstep
 
+`tests/test_zxv_abi15.cpp` (the `test_zxv_abi15` target) checks the ABI 1.5 groups against the
+`status_abi15`, `treaty`, `cid`, `aipi`, `coin`, `fee`, `vhub`, `freight`, `web4` and `paradox` sections of
+`vectors.json` exactly, refusal status names included: every status and its exception type; treaty
+records, Sutra text, faults with offsets and runs; Kubo CIDs; AIPI records; the coin ladder, token tiers,
+codes and a wallet; fee carries and splits; the vhub scenario (signed pegs, quotes, swaps, limits, every
+balance); freight headers, packets, row-subset decodes, sets and op streams (with a resolver that throws);
+web4 cards, manifests, consent checks and envelopes (signed bodies; ML-DSA-65 signatures are hedged); and
+the paradox engine end to end, with every log record and head. It also covers moved-from handles, the
+buffer-growth path, capability refusals (a capability without `aipi`, `mint` or `paradox` gets
+`CapabilityDenied`) and fail-closed handles after `Context::halt`.
+
 ## Honest limits
 
 - **Capabilities are not a sandbox.** Inside one process they are a discipline of least privilege. Code in
@@ -319,5 +551,11 @@ Every target compiles with `-Wall -Wextra -Werror -Wshadow -Wconversion -Wsign-c
 - **MSVC is untested.** Without `__int128`, `Rational` arithmetic calls the C
   library and is not `constexpr`. The repository builds `libzxv` for Linux and macOS only, so there
   is no `zxv.dll` yet.
+- **ABI 1.5 limits.** There is no network transport: AIPI nodes, freight and web4 envelopes produce and
+  check bytes, and you move them. The vhub is a demonstration hub with test currencies; it refuses ISO 4217
+  codes and is not a payment system. Money and device policies, registry entries and drafts need the
+  owner, and `owner_ok` is the caller's assertion. Freight op streams make no compression promise. Token
+  density carries no premium, and a treaty run is a report, not a payment. The paradox engine contains,
+  holds and routes contradictions. It detects only through the checks you run, and it never acts against a sender.
 - **Unreal needs exceptions.** Unreal turns exceptions off by default, so you must set `bEnableExceptions = true` in
   the module that includes `zxv.hpp`.

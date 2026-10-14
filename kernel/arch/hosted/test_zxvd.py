@@ -113,6 +113,12 @@ def owner_only_acl(path):
     return bool(aces) and all(a.lower().startswith(me.lower() + ':') for a in aces), aces
 
 
+# A Windows console's code page (cp1252) cannot print an emoji from a chat
+# record; escape it rather than fail the run on a log line.
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(errors='backslashreplace')
+
+
 def check(cond, msg):
     print('  %s %s' % ('ok  ' if cond else 'FAIL', msg))
     if not cond:
@@ -478,7 +484,8 @@ def main(binary, gguf=None):
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
-                'jurisdiction.get', 'jurisdiction.set'}
+                'jurisdiction.get', 'jurisdiction.set', 'chat.me', 'chat.post', 'chat.react',
+                'chat.follow', 'chat.feed', 'chat.thread'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -575,6 +582,27 @@ def main(binary, gguf=None):
         j = c.ok('jurisdiction.get')
         check(j['market'] == 'closed' and j['standard'] == '' and j['in_effect'] is False and
               'AAOIFI' in j['standards'], 'jurisdiction.get: closed clearing by default')
+
+        # ---- the owner's chat (zxvd_chat.h C1-C8), in memory without --books ----
+        me = c.ok('chat.me')
+        check(me['saved'] is False and len(me['node_id']) == 64 and me['records'] == 0,
+              'chat.me: a fresh in-memory identity (%s)' % me)
+        post = c.ok('chat.post', {'text': 'hello from zxvd \u00e9'})
+        check(post['kind'] == 'post' and post['mine'] is True and
+              post['text'] == 'hello from zxvd \u00e9' and post['author'] == me['node_id'] and
+              int(post['wall_ms']) > 0, 'chat.post: a signed post (%s)' % post)
+        reply = c.ok('chat.post', {'text': 'a reply', 'reply_to': post['id']})
+        check(reply['reply_to'] == post['id'], 'chat.post: a reply')
+        c.ok('chat.react', {'to': post['id'], 'emoji': '\U0001F44D'})
+        th = c.ok('chat.thread', {'id': post['id']})
+        check(th['root']['replies'] == 1 and th['root']['reactions'] ==
+              [{'emoji': '\U0001F44D', 'count': 1, 'mine': True}] and
+              [r['id'] for r in th['replies']] == [reply['id']],
+              'chat.thread: the reply and the reaction (%s)' % th)
+        feed = c.ok('chat.feed')['posts']
+        check([p['id'] for p in feed] == [post['id']], 'chat.feed: posts only (%s)' % feed)
+        e = c.call('chat.post', {'text': '   '})
+        check(e.get('error', {}).get('code') == -32602, 'chat.post: blank text is refused')
 
         # ---- libzxv's books, through the capability ----
         check(c.ok('currency.enable', {'code': 'USD'})['enabled'] == 'USD', 'currency.enable USD')
@@ -732,6 +760,12 @@ def main(binary, gguf=None):
                 check(stat.S_IMODE(os.stat(ppl).st_mode) == 0o600 and
                       stat.S_IMODE(os.stat(ppl + '.mesh').st_mode) == 0o600,
                       'people.zxvp and its mesh snapshot sit beside the books, 0600')
+            me4 = c4.ok('chat.me')
+            kept = c4.ok('chat.post', {'text': 'kept across a restart'})
+            check(me4['saved'] is True, 'chat.me: saved beside the books')
+            if not WINDOWS:
+                seed = os.path.join(os.path.dirname(books), 'social.seed')
+                check(stat.S_IMODE(os.stat(seed).st_mode) == 0o600, 'the chat key file is 0600')
             stop(p4, c4)
             p4, c4 = run_with_books()
             if not WINDOWS:
@@ -757,6 +791,10 @@ def main(binary, gguf=None):
             j = c4.ok('jurisdiction.get')
             check((j['market'], j['standard'], j['country']) == ('open', 'IFRS', 'KE'),
                   'the jurisdiction settings come back (%s)' % j)
+            me5 = c4.ok('chat.me')
+            check(me5['node_id'] == me4['node_id'] and me5['records'] == 1 and
+                  c4.ok('chat.thread', {'id': kept['id']})['root']['text'] ==
+                  'kept across a restart', 'the chat identity and post come back (%s)' % me5)
             stop(p4, c4)
             with open(books, 'r+b') as f:  # an edit outside zxvd stops the next start
                 data = f.read()

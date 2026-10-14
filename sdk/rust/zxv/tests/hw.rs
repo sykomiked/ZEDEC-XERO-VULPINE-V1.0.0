@@ -44,7 +44,7 @@ fn version_features_statuses() {
     assert!(!Caps::ALL.contains(Caps::HW_MATRIX));
     let ctx = Context::new().unwrap();
     assert!(ctx
-        .root_capability(1, None, Caps::from_bits(sys::ZXV_CAP_ALL_1_4 + 1))
+        .root_capability(1, None, Caps::from_bits(1 << 15))
         .is_err());
 }
 

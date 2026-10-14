@@ -35,7 +35,7 @@ namespace Zxv;
 /// SWIFT, CIPS, an RTGS) carries the messages.
 /// </para>
 /// </remarks>
-public sealed class ZxvPlatform : IDisposable
+public sealed partial class ZxvPlatform : IDisposable
 {
     private readonly ZxvContextHandle _ctx;
     private readonly ContextRef _context;

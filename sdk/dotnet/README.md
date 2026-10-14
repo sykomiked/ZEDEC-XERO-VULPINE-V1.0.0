@@ -5,7 +5,7 @@
 
 The .NET 8 SDK for the ZXV platform core. It wraps `libzxv`, the one C
 library every ZXV SDK shares (`sdk/libzxv/include/zxv_api.h`), and covers
-every group of ABI 1.4:
+every group of ABI 1.5:
 
 - **finance**: exact-minor-unit ledger, ISO 4217, ISO 20022 (pacs.008,
   camt.053), payments, statements, netting, cards, conformance;
@@ -19,7 +19,9 @@ every group of ABI 1.4:
 - **engine**: deterministic integer GGUF inference, sync, async and streamed;
 - **wire and chain**: UBH-168 frames in pure managed code, EVM state channels;
 - **hardware**: ZHP-1 machine profiles, the emulation matrix with the
-  standard engines, and signed hardware updates for reconfigurable regions.
+  standard engines, and signed hardware updates for reconfigurable regions;
+- **ABI 1.5**: treaties, CIDs and AIPI nodes, coins and token wallets, the
+  assurance fee, the V-Bill hub, freight, Web4 agents and paradox handling.
 
 The finance groups (`ZxvPlatform` and its services) are described in depth in
 [`docs/DOTNET_SDK.md`](../../docs/DOTNET_SDK.md). This README is the map of
@@ -46,9 +48,9 @@ The library is found in this order: `ZxvLibrary.UseLibraryPath(path)`, the
 `ZXV_LIBRARY_PATH` environment variable (or the older `ZXV_NATIVE_LIBRARY`),
 the copy next to the application, then the system loader path
 (`LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `PATH`). A library whose ABI is not
-1.4 or a later 1.x is refused on first use (the SDK calls the `zxv_hw_*`
-functions added in 1.4, the `zxv_hex_*` functions added in 1.3 and the
-`_cap` functions added in 1.2).
+1.5 or a later 1.x is refused on first use (the SDK calls the ABI 1.5
+groups, the `zxv_hw_*` functions added in 1.4, the `zxv_hex_*` functions
+added in 1.3 and the `_cap` functions added in 1.2).
 
 ## Quick start
 
@@ -268,12 +270,156 @@ class like every other: `WrongTarget` is USAGE, the rest REFUSED.
 `CreateRootCapability()` without arguments holds no hardware right; pass
 `CapabilityRights.AllAbi14`.
 
+## ABI 1.5 groups
+
+ABI 1.5 adds eight groups, each in its own namespace, reported by
+`ZxvLibrary.Features2` (`zxv_features2`). New statuses `Denomination` (-32)
+and `TreatyInvalid` (-33) are USAGE; -34 through -40 (`CidMismatch`,
+`ConsentRequired`, `ErasureTooFewRows`, `PegInvalid`, `LimitExceeded`,
+`ParadoxStepLimit`, `ParadoxOwnerApproval`) are REFUSED; each maps to an exception by class as before.
+Variable-length results use the C two-call pattern; the SDK hides it (it
+asks for the size, allocates, and asks again if the result grew). Fixed-size
+records (`Cid`, `PegMessage`, `FreightHeader`, `ConsentToken`, `RepairProof`,
+`ParadoxDraft`) are value types. Handles keep their context alive (R6) and
+handles whose native object is not thread-safe are serialized by the SDK.
+New rights: `CapabilityRights.Aipi`, `Mint`, `Paradox`; pass
+`CapabilityRights.AllAbi15` (`All` keeps its ABI 1.1 value). Integers only.
+
+### Treaties (`Zxv.Treaties`)
+
+`Treaty` parses, validates, emits and runs a sutra or a 2400-byte record of
+parties and obligations; `Run()` returns a `TreatyResult` (parties, legs,
+fees). No capability. Limits: a batch description, not a contract in law;
+one asset per treaty; dividend shares are reported, nothing is paid.
+
+```csharp
+using Treaty t = Treaty.ParseSutra(File.ReadAllText("batch.sutra"));
+if (t.Validate() != TreatyFault.None) return;
+using TreatyResult r = t.Run();
+foreach (TreatyLeg leg in r.Legs) Console.WriteLine(leg);
+```
+
+### CIDs and AIPI (`Zxv.Aipi`)
+
+`Cid` (value type): `Compute`, `ForFile`, `Parse`/`TryParse`, `ToV1`,
+`ToString(CidBase)`, `ProviderKey`. `AipiNode`
+(`platform.CreateAipiNode(cap, storeBytes, maxBlocks, nodeKey)`, needs
+`Aipi`): content-addressed `Put`/`Get`, private blocks sealed with the node
+key (wiped on dispose), records, and `Plan` for a function call's route.
+Limits: no network, no IPFS peers, no EXECUTE (Z-Wasm is not in libzxv); a
+CID names bytes, it does not make them available or prove outputs right.
+
+```csharp
+using AipiNode node = platform.CreateAipiNode(cap, 1 << 20, 64);
+Cid id = node.Put("hello"u8);
+Console.WriteLine($"{id} -> {Encoding.UTF8.GetString(node.Get(id))}");
+```
+
+### Coins and tokens (`Zxv.Coins`)
+
+`Coin` (Fibonacci rungs, `Split`, `SplitCount`), `Token` (64 tiers,
+`Canonical`, `Measure`, `Fuse`, `Split`, octane levels in `Octane`),
+`FibonacciCode`, and `TokenWallet`
+(`platform.CreateTokenWallet(cap, modelId, octane)`, needs `Mint`): `Mint`,
+`Spend`, `TransferTo`, `SetOctane`, `GetCounts`. Limits: VFV coin minting is
+not in this ABI; wallet tokens exist only by `Mint` and live in memory.
+
+```csharp
+using TokenWallet a = platform.CreateTokenWallet(cap, modelId: 1, Octane.Racing);
+using TokenWallet b = platform.CreateTokenWallet(cap, modelId: 1);
+a.Mint(1_000_000);
+a.TransferTo(b, 1000);
+Console.WriteLine($"{a.Value} {b.Value}");                       // 999000 1000
+```
+
+### Assurance fee (`Zxv.Fees`)
+
+`AssuranceFee.Compute`, `ComputeWithCarry` (exact remainder carried between
+payments), `Split` into the four pools, and `DefaultPolicy`. Pure integer
+arithmetic; no capability. Limits: arithmetic only; tax, securities and
+consumer-law treatment is a question for counsel.
+
+```csharp
+FeeCharge c = AssuranceFee.ComputeWithCarry(0, 12_345);
+FeeSplit s = AssuranceFee.Split(c.Fee);                          // s.Total == c.Fee
+```
+
+### V-Bill hub (`Zxv.VHub`)
+
+`VBillHub` (`platform.CreateVBillHub(cap, seed)`, needs `LedgerPost`):
+test currencies with an ML-DSA-87 issuer key, signed rational pegs
+(`PegMessage`), accounts, issuance, limits, `Quote` and `Swap`, and `Check`.
+Limits: a demonstration with test codes only (ISO 4217 codes are refused),
+in-memory, no settlement rail or issuer; V-Bills are likely securities in
+many places; an exact peg removes rounding, not exchange-rate risk.
+
+```csharp
+using VBillHub hub = platform.CreateVBillHub(cap);
+hub.AddCurrency(1, "XTA", 2, issuer.PublicKey, pool, backing);
+hub.SetPeg(1, 1, 1, epoch: 1, dsa.Sign(issuer.SecretKey, PegMessage.Create(1, 1, 1, 1).ToArray()));
+VHubQuote q = hub.Quote(1, 2, want: 500);
+```
+
+### Freight (`Zxv.Freight`)
+
+`FreightHeader` (value type), `FreightCodec` (`Encode`/`Decode` an
+erasure-coded freight, `Split` large data into members, `FreightJoin` to
+reassemble) and `FreightOps` (`Encode`, `Expand`, `Peek`, `RunGenerator`,
+`FreightOpsWriter` for LITERAL/COPY/CIDREF/SEED ops). The CIDREF resolver
+is a `CidRefResolver` delegate called during `Expand` on the calling thread;
+its exception is rethrown from `Expand` and never crosses into C. No
+capability. Limits: lost rows are recovered, corrupted rows only detected;
+headers are not authenticated; ops give no size guarantee.
+
+```csharp
+byte[] ops = FreightOps.Encode(data);
+byte[] back = FreightOps.Expand(ops, FreightOps.MaxBytes, (cid, output) => store.TryCopy(cid, output));
+```
+
+### Web4 agents (`Zxv.Web4`)
+
+`Web4Agent` (`platform.CreateWeb4Agent(cap, name, nowMs, seed, node)`,
+needs `CryptoSign`; consent needs `Attest`): agent cards, `ToolManifest`
+signing, `IssueConsent`, `Seal` and `Reply` envelopes. `AgentCard.Verify`,
+`AgentDirectory`, `ConsentLog` (single use, revoke, prune) and `Envelope`
+(`Decode`, `Verify`). The agent's secret keys stay inside the native handle,
+are wiped when it is released, and never appear in `ToString` or logs. There
+is no clock: pass Unix milliseconds. Limits: signed, not encrypted; no
+replay windows, rate limits or Web 2/3 bridges; ZXV-to-ZXV only; a consent
+token proves a key signed, not that the right human understood it.
+
+```csharp
+using Web4Agent alice = platform.CreateWeb4Agent(cap, "alice", now);
+using Web4Agent bob = platform.CreateWeb4Agent(cap, "bob", now);
+byte[] req = alice.Seal(EnvelopeKind.Request, bob.AgentId, 1, 0, "pay", EnvelopeMarks.None, "{}"u8, now);
+bool ok = Envelope.Verify(req, alice.PublicKey);
+```
+
+### Paradox (`Zxv.Paradox`)
+
+`ParadoxEngine` (pure classification), `ParadoxBook`
+(`platform.CreateParadoxBook(cap, logCap, regCap)`, needs `Paradox`):
+registry, hash-chained logs, `Constructive` (policy change inside published
+bounds), `Destructive` (containment), `Neutral` (hold with branches),
+`Special` (frontier graph), `Draft`/`Review`/`Pass` and `RepairProof`;
+`ParadoxPolicy`, `ParadoxHold` and `ParadoxGraph` come from the platform.
+Limits: contradiction-tolerant bookkeeping, not a judge of truth; anything
+touching money or devices goes to the owner ("owner approved" is the
+caller's assertion); destructive work is contained, never answered; nothing
+signs. Advisory only.
+
+```csharp
+using ParadoxBook book = platform.CreateParadoxBook(cap, 64, 16);
+ParadoxClassification c = book.Classify(tag);
+Console.WriteLine(ParadoxEngine.KindName(c.Kind));
+```
+
 ## API overview
 
 | Area | Types | Key members |
 |---|---|---|
-| Library | `ZxvLibrary` | `AbiVersion`, `Features`, `Supports`, `ClassOf`, `GetStatusName`, `FatalPolicy`, `UseLibraryPath` |
-| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `CreateHwMatrix`, `CreateHwRegion`, `Halt`, `IsHalted` |
+| Library | `ZxvLibrary` | `AbiVersion`, `Features`, `Features2`, `Supports`, `ClassOf`, `GetStatusName`, `FatalPolicy`, `UseLibraryPath` |
+| Platform | `ZxvPlatform` | `Create`, `CreateRootCapability`, `CreateAttestations`, `CreateBudgets`, `CreatePhaseClock`, `CreateSwarm`, `CreateHwMatrix`, `CreateHwRegion`, `CreateAipiNode`, `CreateTokenWallet`, `CreateVBillHub`, `CreateWeb4Agent`, `CreateParadoxBook`/`Policy`/`Hold`/`Graph`, `Halt`, `IsHalted` |
 | Finance | `LedgerService`, `CurrencyService`, `MessageService`, `PaymentService`, `StatementService`, `NettingService`, `CardService`, `ConformanceService`, `Money` | see `docs/DOTNET_SDK.md` |
 | Gated ledger | `CapabilityLedger` | `Post`, `GetBalances`, `Verify` |
 | Capabilities | `Capability`, `CapabilityRights`, `CapabilityInfo` | `Attenuate`, `Revoke`, `SetAttestation`, `Allows`, `Demand` |
@@ -289,8 +435,16 @@ class like every other: `WrongTarget` is USAGE, the rest REFUSED.
 | Engine | `Zxv.Engine.Model`, `Session`, `GenerateOptions`, `GenerationResult`, `GeneratedToken` | `Open`, `OpenMemory`, `Tokenize`, `Detokenize`, `NewSession`, `Generate`, `GenerateAsync`, `StreamAsync`, `BindBudget`, `LoadLora` |
 | EVM | `Zxv.Evm.StateChannel`, `EvmState` | `EncodeState`, `LedgerState` |
 | Hardware | `Zxv.Hardware.HwProfile`, `HwMatrix`, `HwRegion`, `HwPackageSigner`, `HwReleaseKey`, `HwVector`, `HwFunctions`, `HwClasses`, `HwCapKeys` | `ProbeHost`, `Reference`, `Present`, `Match`, `Call`, `Shadow`, `Memo`, `AddProvider`, `Attest`, `GetProviders`, `SetPolicy`, `ApplyContract`, `Stage`, `Trial`, `Commit`, `Rollback`, `GetLog`, event `StepRecorded` |
+| Treaties | `Zxv.Treaties.Treaty`, `TreatyResult` | `ParseSutra`, `ParseRecord`, `Validate`, `ToSutra`, `ToRecord`, `Run` |
+| AIPI | `Zxv.Aipi.Cid`, `AipiNode` | `Compute`, `Parse`, `ToV1`, `Put`, `Get`, `Plan` |
+| Coins | `Zxv.Coins.Coin`, `Token`, `FibonacciCode`, `TokenWallet` | `Split`, `Canonical`, `Fuse`, `Mint`, `Spend`, `TransferTo` |
+| Fees | `Zxv.Fees.AssuranceFee`, `FeeSplit`, `FeePolicy` | `Compute`, `ComputeWithCarry`, `Split`, `DefaultPolicy` |
+| V-Bill hub | `Zxv.VHub.VBillHub`, `PegMessage` | `AddCurrency`, `SetPeg`, `OpenAccount`, `Issue`, `Quote`, `Swap`, `Check` |
+| Freight | `Zxv.Freight.FreightHeader`, `FreightCodec`, `FreightJoin`, `FreightOps`, `FreightOpsWriter` | `Encode`, `Decode`, `Split`, `Add`, `Expand`, `Peek`, `RunGenerator` |
+| Web4 | `Zxv.Web4.Web4Agent`, `ToolManifest`, `ConsentToken`, `ConsentLog`, `Envelope`, `AgentCard`, `AgentDirectory` | `Sign`, `IssueConsent`, `Seal`, `Reply`, `Verify`, `Check`, `Decode` |
+| Paradox | `Zxv.Paradox.ParadoxEngine`, `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `RepairProof` | `Classify`, `Constructive`, `Destructive`, `Neutral`, `Special`, `Draft`, `Review`, `Pass`, `VerifyLog` |
 | DI | `ZxvServiceCollectionExtensions` | `AddZxv`, `AddZxvCapability` |
-| Native | `Zxv.Interop` | `ZxvStatus`, `ZxvStatusClass`, `ZxvFeatures`, SafeHandles (internal P/Invoke) |
+| Native | `Zxv.Interop` | `ZxvStatus`, `ZxvStatusClass`, `ZxvFeatures`, `ZxvFeatures2`, SafeHandles (internal P/Invoke) |
 
 ## Examples
 
@@ -366,9 +520,11 @@ key-bearing MAC refusing a REMOTE implementation, power and latency
 placement, managed implementations with failover, nested calls, shadow
 disputes and the memo, and a signed update staged, tried and committed on a
 simulated two-slot device with its events, audit log and a contract package
-(three SLH-DSA signatures, about five seconds).
-async waiting, phase deferral with both drivers, platform disposal while
-children are alive, and the platform services on the `*_cap` forms.
+(three SLH-DSA signatures, about five seconds). `Abi15/*` covers ABI 1.5
+against the vectors status_abi15, treaty, cid, aipi, coin, fee, vhub,
+freight, web4 and paradox, refusals included, plus each new status's
+exception, `Features2`, the capability bits and refusals, the buffer-growth
+path, handles outliving their platform, and a poisoned (halted) context.
 
 ## Unity
 

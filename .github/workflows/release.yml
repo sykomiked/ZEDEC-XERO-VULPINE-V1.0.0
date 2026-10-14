@@ -5,7 +5,9 @@
 # them to a DRAFT GitHub release:
 #
 #   macOS    ZXV-<v>-macos.dmg and ZXV-<v>-macos.app.zip (universal, ad-hoc
-#            signed; build_system/build_desktop.sh on Apple's toolchain)
+#            signed; build_system/build_desktop.sh on Apple's toolchain), and
+#            ZXV-Studio-<v>-macos.zip, the SwiftUI app with zxvd inside
+#            (macos/studio/build_studio_app.sh)
 #   Linux    ZXV-<v>-linux-<arch>.deb / .tar.gz / .AppImage, x86_64 and aarch64
 #            (build_system/package_desktop.sh)
 #   Windows  ZXV-<v>-windows-x86_64.zip (MinGW-w64, package_desktop.sh)
@@ -15,7 +17,8 @@
 #
 # Every package is started once before it is attached: the .deb and
 # zxvd.exe answer the control-socket tests, the Mac bundle passes lipo and
-# codesign checks, and each disc boots under real UEFI firmware to [AI_OK].
+# codesign checks, ZXV Studio launches once in --smoke mode, and each disc
+# boots under real UEFI firmware to [AI_OK].
 #
 #   - Manual only (workflow_dispatch). No push, tag or schedule starts it.
 #   - It never publishes. The release stays a draft until the owner reviews it
@@ -24,7 +27,8 @@
 #   - It never uploads to a registry, Hugging Face, IPFS or any other host.
 #   - Model weights are never attached: the release job refuses any model file
 #     (.gguf, .safetensors, ...) and preflight refuses a commit that tracks one.
-#     The apps download the default model on first run (macos/models.manifest).
+#     The apps offer to download the default model on first run, from the
+#     source pinned in macos/models.manifest, checked against its SHA-256.
 #   - Only the final job can write (contents: write, to create the draft).
 name: Release (draft)
 
@@ -100,6 +104,18 @@ jobs:
           set -euo pipefail
           w="$(git ls-files | grep -iE '\.(gguf|ggml|safetensors|pt|pth|ckpt|onnx|mlmodel|npz)$' || true)"
           if [ -n "$w" ]; then echo "::error::model files are tracked in git: $w"; exit 1; fi
+      - name: CITATION.cff names the same version
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          c="$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\} *$/\1/p' CITATION.cff)"
+          if [ "$c" != "$V" ]; then
+            echo "::error::CITATION.cff says version '$c' but this release is '$V'; bump it in the same pull request as ZXV_VERSION"
+            exit 1
+          fi
+      - name: The first-run model manifest is usable
+        run: python3 macos/test_model_fetch.py
 
   macos:
     name: macOS (.dmg, .app.zip)
@@ -138,6 +154,41 @@ jobs:
           path: |
             ${{ runner.temp }}/dist/ZXV-*-macos.dmg
             ${{ runner.temp }}/dist/ZXV-*-macos.app.zip
+          if-no-files-found: error
+
+  studio:
+    name: macOS ZXV Studio (.zip)
+    needs: preflight
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pillow for the app icon
+        run: python -m pip install pillow==10.4.0
+      - name: Build ZXV Studio.app (universal, zxvd inside, ad-hoc signed)
+        run: sh macos/studio/build_studio_app.sh "$RUNNER_TEMP/dist"
+      - name: Launch it once in smoke mode (starts its own zxvd, reads every view)
+        run: |
+          set -eu
+          APP="$RUNNER_TEMP/dist/ZXV Studio.app"
+          for b in ZXVStudio zxvd; do
+            archs="$(lipo -archs "$APP/Contents/MacOS/$b")"
+            echo "$b: $archs"
+            case "$archs" in *arm64*) ;; *) exit 1 ;; esac
+            case "$archs" in *x86_64*) ;; *) exit 1 ;; esac
+          done
+          mkdir -p "$RUNNER_TEMP/zxs"
+          "$APP/Contents/MacOS/ZXVStudio" --smoke "$RUNNER_TEMP/zxs/run/zxvd.sock"
+          test ! -S "$RUNNER_TEMP/zxs/run/zxvd.sock"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-studio
+          path: ${{ runner.temp }}/dist/ZXV-Studio-*-macos.zip
           if-no-files-found: error
 
   linux:
@@ -278,7 +329,7 @@ jobs:
   # and any mirror (Hugging Face, Zenodo, IPFS, ...), are separate owner steps.
   release:
     name: draft GitHub release
-    needs: [preflight, macos, linux, windows-build, windows-test, uefi-disc]
+    needs: [preflight, macos, studio, linux, windows-build, windows-test, uefi-disc]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -320,6 +371,7 @@ jobs:
               n=$(basename "$f")
               case "$n" in
                 *-macos.dmg) d="macOS 10.15 or later, Apple Silicon and Intel (not notarised: see docs/MAC_APP.md to open it)" ;;
+                ZXV-Studio-*-macos.zip) d="ZXV Studio, the native SwiftUI app, macOS 13 or later, Apple Silicon and Intel (not notarised; right-click > Open the first time)" ;;
                 *-macos.app.zip) d="the same Mac app as a zip" ;;
                 *.deb) d="Debian and Ubuntu" ;;
                 *.AppImage) d="any recent Linux, no install" ;;
@@ -332,7 +384,7 @@ jobs:
               echo "| \`$n\` | $d |"
             done
             echo
-            echo "No model weights are attached. On first run the app offers to download the default model named in \`macos/models.manifest\`, checked against its SHA-256."
+            echo "No model weights are attached. On first run the app offers to download the default model pinned in \`macos/models.manifest\` (Qwen2.5-1.5B-Instruct Q4_K_M, Apache-2.0, about 1.1 GB), checked against its size and SHA-256 before it is installed."
             echo
             echo "Software licence: Apache-2.0. No warranty."
           } > "$RUNNER_TEMP/notes.md"

@@ -13,6 +13,13 @@ FATAL     :class:`ZxvFatal`                  context halted; never retry
 SYSTEM    :class:`ZxvSystemError`            environment (memory, I/O)
 ========  =================================  ==================================
 
+ABI 1.5 adds named subclasses for its statuses: :class:`DenominationError`
+and :class:`TreatyError` (USAGE); :class:`CidMismatchError`,
+:class:`ConsentRequiredError`, :class:`ErasureError`, :class:`PegError`,
+:class:`LimitRefusedError`, :class:`ParadoxStepLimitError` and
+:class:`OwnerApprovalRequiredError` (REFUSED). A status this SDK does not
+know still maps by its class (R8).
+
 :class:`ZxvFatal` derives from :class:`BaseException`, not :class:`Exception`,
 so an ``except Exception:`` block cannot swallow it by accident. Set
 :attr:`FatalPolicy.ABORT` to terminate the process instead of raising.
@@ -38,6 +45,16 @@ __all__ = [
     "ZxvSystemError",
     "ZxvLibraryError",
     "ZxvFatal",
+    # ABI 1.5
+    "DenominationError",
+    "TreatyError",
+    "CidMismatchError",
+    "ConsentRequiredError",
+    "ErasureError",
+    "PegError",
+    "LimitRefusedError",
+    "ParadoxStepLimitError",
+    "OwnerApprovalRequiredError",
 ]
 
 
@@ -146,6 +163,59 @@ class ZxvNotImplementedError(ZxvRefusedError, NotImplementedError):
     """The feature is declared in the ABI but not built into this library."""
 
 
+class DenominationError(ZxvUsageError):
+    """``ZXV_E_DENOM`` (ABI 1.5, class USAGE): the amount is not a face of the
+    Fibonacci ladder (a coin rung or a token tier). Split it instead."""
+
+
+class TreatyError(ZxvUsageError):
+    """``ZXV_E_TREATY`` (ABI 1.5, class USAGE): a treaty failed validation.
+
+    Attributes:
+        fault: the :class:`zxv.TreatyFault` reason, when the call reports one
+            (parsing and validating do; running does not).
+        offset: for a parse, the byte offset of the first fault in the input.
+    """
+
+    fault: Optional[int] = None
+    offset: Optional[int] = None
+
+
+class CidMismatchError(ZxvRefusedError):
+    """``ZXV_E_CID`` (ABI 1.5): bytes that do not match their CID, or bytes
+    that are not one canonical CID. Never retry with the same bytes."""
+
+
+class ConsentRequiredError(ZxvRefusedError):
+    """``ZXV_E_CONSENT`` (ABI 1.5): no valid, unused consent token covers this
+    Web 4 agent action. The reason is in :attr:`detail` (diagnostic only)."""
+
+
+class ErasureError(ZxvRefusedError):
+    """``ZXV_E_ERASURE`` (ABI 1.5): too few distinct freight rows arrived to
+    rebuild the payload. Decode again when more rows arrive."""
+
+
+class PegError(ZxvRefusedError):
+    """``ZXV_E_PEG`` (ABI 1.5): no valid signed peg for this currency pair, or
+    a peg whose epoch is not above the current one (stale or replayed)."""
+
+
+class LimitRefusedError(ZxvRefusedError):
+    """``ZXV_E_LIMIT`` (ABI 1.5): a V-Bill hub limit rule refused the swap.
+    Not a fault; it may pass in the next rule epoch."""
+
+
+class ParadoxStepLimitError(ZxvRefusedError):
+    """``ZXV_E_PARADOX_STEP`` (ABI 1.5): a paradox graph reached its step limit
+    unresolved. The pass was logged and the graph now goes to the owner."""
+
+
+class OwnerApprovalRequiredError(ZxvRefusedError):
+    """``ZXV_E_PARADOX_OWNER`` (ABI 1.5): the change touches money or devices
+    and needs the owner's approval (``owner_ok``)."""
+
+
 class ZxvSystemError(ZxvError):
     """An environmental failure: memory, I/O, or an internal kernel status."""
 
@@ -174,13 +244,26 @@ _REFUSED_BY_STATUS = {
     -17: CapabilityDeniedError,
     -19: BudgetExhaustedError,
     -21: VerificationFailedError,
+    -34: CidMismatchError,
+    -35: ConsentRequiredError,
+    -36: ErasureError,
+    -37: PegError,
+    -38: LimitRefusedError,
+    -39: ParadoxStepLimitError,
+    -40: OwnerApprovalRequiredError,
+}
+
+_USAGE_BY_STATUS = {
+    -24: FloatRejectedError,
+    -32: DenominationError,
+    -33: TreatyError,
 }
 
 
 def error_type_for(status: int, status_class: int) -> type:
     """Return the exception type for a status and its class (internal helper)."""
     if status_class == StatusClass.USAGE:
-        return FloatRejectedError if status == -24 else ZxvUsageError
+        return _USAGE_BY_STATUS.get(status, ZxvUsageError)
     if status_class == StatusClass.REFUSED:
         return _REFUSED_BY_STATUS.get(status, ZxvRefusedError)
     if status_class == StatusClass.FATAL:

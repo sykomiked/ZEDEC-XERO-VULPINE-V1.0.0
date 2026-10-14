@@ -51,7 +51,9 @@ fn regenerate(manifest: &std::path::Path) {
         .prepend_enum_name(false)
         .layout_tests(false)
         .use_core()
-        .parse_callbacks(Box::new(MacroTypes))
+        .parse_callbacks(Box::new(MacroTypes {
+            unsigned_1_5: unsigned_1_5(&header),
+        }))
         .generate_comments(true)
         .raw_line("// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC")
         .raw_line("// SPDX-License-Identifier: Apache-2.0")
@@ -68,7 +70,38 @@ fn regenerate(manifest: &std::path::Path) {
 /// parameters); masks, sizes and counts are `u32`.
 #[cfg(feature = "regenerate")]
 #[derive(Debug)]
-struct MacroTypes;
+struct MacroTypes {
+    /// ABI 1.5 macros written with a `u` suffix in the header.
+    unsigned_1_5: std::collections::HashSet<String>,
+}
+
+/// ABI 1.5 marks every unsigned macro with a `u` suffix (`3528u`,
+/// `0x01u`); the rest (statuses, kinds, outcomes) meet `int32_t`. This
+/// returns the names of the suffixed macros defined after the 1.5 banner,
+/// so the types follow the header instead of a hand-kept list.
+#[cfg(feature = "regenerate")]
+fn unsigned_1_5(header: &std::path::Path) -> std::collections::HashSet<String> {
+    let text = std::fs::read_to_string(header).expect("cannot read zxv_api.h");
+    let start = text
+        .find("ABI 1.5 (add-only)")
+        .expect("zxv_api.h has no ABI 1.5 banner");
+    text[start..]
+        .lines()
+        .filter_map(|l| l.strip_prefix("#define "))
+        .filter_map(|rest| {
+            let mut it = rest.split_whitespace();
+            let name = it.next()?;
+            let value = it.next()?;
+            let digits = value.trim_start_matches("0x");
+            let unsigned = value.ends_with('u')
+                && !digits.is_empty()
+                && digits[..digits.len() - 1]
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit());
+            unsigned.then(|| name.to_string())
+        })
+        .collect()
+}
 
 /// ABI 1.4: classes, capability keys, function ids, flags and image kinds
 /// meet `uint32_t` / `uint64_t` parameters; kinds, states, events and the
@@ -106,7 +139,8 @@ impl bindgen::callbacks::ParseCallbacks for MacroTypes {
             || name == "ZXV_MINOR_NA"
             || name == "ZXV_HEX_STATES"
             || name == "ZXV_HEXLOG_MAX_RECORDS"
-            || is_hw_unsigned(name);
+            || is_hw_unsigned(name)
+            || self.unsigned_1_5.contains(name);
         Some(if unsigned { IntKind::U32 } else { IntKind::I32 })
     }
 }

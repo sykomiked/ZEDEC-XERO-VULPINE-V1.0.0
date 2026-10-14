@@ -2,13 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package zxv is the Go SDK of the ZXV platform: a cgo binding to libzxv
-// (sdk/libzxv/include/zxv_api.h, ABI 1.4).
+// (sdk/libzxv/include/zxv_api.h, ABI 1.5).
 //
 // The essentials:
 //
 //   - Handles (Context, Capability, Budgets, PhaseClock, Swarm,
 //     Attestations, Model, Session, Message, SecretKey, QuarantineLog,
-//     HwProfile, HwMatrix, HwRegion) have Close(), with a
+//     HwProfile, HwMatrix, HwRegion, and the ABI 1.5 handles Treaty,
+//     TreatyResult, AipiNode, TokenWallet, VHub, FreightJoin,
+//     FreightOpsWriter, W4Agent, W4Directory, W4Manifest, W4ConsentLog,
+//     ParadoxBook, ParadoxPolicy, ParadoxHold, ParadoxGraph) have Close(),
+//     with a
 //     runtime.SetFinalizer backstop. A parent refuses to close while a child
 //     made from it is open, so the C rule "destroy children first" holds.
 //   - Errors are values: errors.Is(err, zxv.ErrBudgetExhausted), the class
@@ -20,6 +24,9 @@
 //     FromFloat64Exact.
 //   - Truth is four-valued and is not a bool.
 //   - Budget waits, phase waits and generation take a context.Context.
+//   - ABI 1.5 groups (treaty, cid/aipi, coin, fee, vhub, freight, web4,
+//     paradox) report through LiveFeatures2; each file of this package
+//     starts with what its group does and its honest limits.
 //
 // Quickstart:
 //
@@ -97,12 +104,12 @@ var (
 )
 
 // checkVersion refuses a library whose major ABI differs or whose minor is
-// below 4.
+// below 5 (this package calls ABI 1.5 functions).
 func checkVersion() error {
 	versionOnce.Do(func() {
 		major, minor, _ := Version()
-		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 4 {
-			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.4+)", major, minor))
+		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 5 {
+			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.5+)", major, minor))
 		}
 	})
 	return versionErr

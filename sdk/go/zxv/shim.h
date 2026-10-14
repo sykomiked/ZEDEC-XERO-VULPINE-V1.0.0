@@ -30,4 +30,9 @@ int32_t zxv_go_hw_region_create(const zxv_cap *cap, zxv_hw_matrix *mx, uint32_t 
                                 zxv_hw_region **out);
 int32_t zxv_go_hw_region_events(const zxv_cap *cap, zxv_hw_region *rg, uintptr_t handle);
 
+/* ABI 1.5: the freight CIDREF resolver reaches Go through the exported
+ * zxvGoFreightResolve; handle is a cgo.Handle, or 0 for no resolver. */
+int32_t zxv_go_freight_ops_expand(const uint8_t *ops, size_t ops_len, uint64_t limit,
+                                  uintptr_t handle, uint8_t *buf, size_t cap, size_t *out_len);
+
 #endif

@@ -44,8 +44,9 @@ To depend on the package from another package:
 ```
 
 When you create the first `ZxvContext`, it checks the library's `zxv_version`. It refuses a
-library whose major version is not 1 or whose minor version is below 4 (ABI 1.4 added the
-hardware group, 1.3 the hexagram tag, 1.2 the capability-gated `*_cap` forms the SDK calls).
+library whose major version is not 1 or whose minor version is below 5 (ABI 1.5 added the
+treaty, cid/aipi, coin, fee, vhub, freight, web4 and paradox groups, 1.4 the hardware group,
+1.3 the hexagram tag, 1.2 the capability-gated `*_cap` forms the SDK calls).
 
 ## Quickstart
 
@@ -164,6 +165,248 @@ alive and a region keeps its matrix and device alive; capture the matrix
 `.refused` (reason `.other`), `E_TARGET` is `.usage`; a full audit log
 poisons the context (`.fatal`), since a change that cannot be recorded is
 not made.
+
+## ABI 1.5 groups
+
+ABI 1.5 adds eight groups, each under its own Swift namespace matching a C
+group. `ZxvLibrary.features2` (a `Features2` option set) reports which ones
+are built. `CapabilitySet.all` keeps its 1.1 value and `.all1_4` its 1.4
+value. Use `.all1_5` for every bit; it adds `.aipi`, `.mint` and `.paradox`.
+
+The new statuses map to the existing error classes:
+
+- `ZXV_E_DENOM` and `ZXV_E_TREATY` are `.usage`. `ZxvUsageError` has
+  `isDenomination` and `isTreaty`, and a treaty error carries
+  `treatyFault` (code, offset and `Treaty.Fault`).
+- `ZXV_E_CID`, `E_CONSENT`, `E_ERASURE`, `E_PEG`, `E_LIMIT`,
+  `E_PARADOX_STEP` and `E_PARADOX_OWNER` are `.refused`. Their reasons are
+  `.cidMismatch`, `.consentDenied`, `.erasure`, `.pegRefused`,
+  `.limitRefused`, `.paradoxStepLimit` and `.ownerApprovalRequired`.
+
+The same rules hold in every group:
+
+- **Results.** Variable-length results come back as `[UInt8]` or `String`;
+  the two-call buffer pattern is hidden.
+- **Value types.** Fixed byte structures are value types: `Cid`,
+  `Freight.Header`, `Web4.ConsentToken`, `Paradox.RepairProof`,
+  `Paradox.Draft` and `VHub.PegMessage`.
+- **Handles.** Handles are final classes that keep their capability and
+  context alive and release in `deinit`. `close()` releases a handle
+  early; it is idempotent and waits for a call in progress. After that,
+  use throws `.usage` (`ZXV_E_ARG`) and never reaches C.
+- **Poisoned contexts.** Once the context halts, gated calls fail closed
+  with `.fatal` (`ZXV_E_POISONED`).
+- **Numbers.** 64-bit values stay 64-bit, and there is no floating point.
+- **Callbacks.** The `Freight.expand` resolver runs inside libzxv. An
+  error it throws is kept and rethrown by `expand`, so it never unwinds
+  through C.
+
+Each block below runs as written inside a throwing function after
+`import Zxv`. `Tests/ZxvTests/ReadmeSnippetTests.swift` runs the same code
+and checks the results its comments claim.
+
+### Treaties (`Treaty`, pure)
+
+A treaty has two canonical spellings of one batch of settlement work: a
+COBOL copybook record (`record()`, 2542 bytes) and Sutra text (`sutra()`).
+`run()` gives a deterministic report, not a payment. `Treaty.picAdd`,
+`picSub`, `picMul` and `picDiv` provide PIC S9(18) arithmetic.
+
+```swift
+let t = try Treaty(sutra: "TREATY CORRIDOR-7 USD NET\nPARTY ACME 5000 4000 1/2\n"
+                        + "PARTY BETA 3000 3000 1/2\nOWE ACME BETA 1200\nEND\n")
+let same = try Treaty(record: try t.record())          // try same.isEqual(to: t) == true
+let r = try t.run()                                     // r.legs(), r.parties(), r.record()
+do { _ = try Treaty(sutra: "TREATY") } catch {
+    if case .usage(let u) = error { print(u.treatyFault as Any) }   // .name at offset 0
+}
+let d = try Treaty.picDiv(-7, 2)                        // quotient -3, remainder -1
+_ = (same, r, d)
+```
+
+### Content identifiers (`Cid`, pure)
+
+These CIDs are byte-identical to Kubo's. `text()` gives Kubo's form
+("b..." base32, "Qm..." for v0), and `text(base: .base58btc)` gives the
+"z..." form. Other members are `info()`, `toV1()` and `matches(_:)`.
+
+```swift
+let c = try Cid.compute(Array("abc".utf8))              // CIDv1 raw sha2-256
+let text = try c.text()                                 // "bafkrei..."
+let back = try Cid(text: text)                          // == c
+try c.verify(Array("abc".utf8))                         // .refused(.cidMismatch) on other bytes
+let big = try Cid.unixfs([UInt8](repeating: 0, count: 300_000))   // dag-pb above 256 KiB
+_ = (back, big)
+```
+
+### AIPI (`Aipi`)
+
+Function, call and claim records (`encodeFunction`, `decodeFunction`,
+`functionCid`, `encodeCall`, `callCid`, `encodeClaim`, `decodeClaim`,
+`providerKey`) are pure. `Aipi.Node` is an offline block store that
+needs `.aipi` and re-hashes every block it returns. It has no network,
+so `plan` answers `.local` or `.unavailable`.
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.all1_5)
+let node = try Aipi.Node(cap, storeBytes: 1 << 20, maxBlocks: 64)
+let module = try node.put(Array("zxv module bytes".utf8))
+let spec = Aipi.FunctionSpec(verify: .checker, fuelMax: 1_000_000, module: module,
+                             entry: "main", checker: "check")
+let fn = try node.publish(try Aipi.encodeFunction(spec))    // function CID
+let call = try Aipi.callCid(fn, input: Array("hello".utf8))
+let runsHere = try node.plan(fn) == .local                  // true: the module is held
+_ = (call, runsHere)
+```
+
+### Fibonacci coins and swarm tokens (`Coin`, `SwarmToken`)
+
+`Coin` holds the VFV coin ladder: faces are F(r+1) for rungs 1 to 45. Any
+other face is `.usage` (`ZXV_E_DENOM`).
+
+`SwarmToken` holds the 64 token tiers, their octane and their Fibonacci
+codes. All of these are pure: `canonical`, `isCanonical`, `compress`,
+`fuse`, `split`, `codePut` and `codeGet`.
+
+`SwarmToken.Wallet` needs `.mint`. It keeps its holding canonical at its
+octane and has no balance outside itself. Density carries no premium: a
+denser holding is worth exactly the same.
+
+```swift
+let rungs = try Coin.split(100)                             // [10, 5, 3]: 89 + 8 + 3
+let counts = try SwarmToken.canonical(value: 1000, octane: SwarmToken.Octane.midgrade)
+var buf = [UInt8](repeating: 0, count: 16), bit: UInt32 = 0
+try SwarmToken.codePut(&buf, bit: &bit, value: 100)         // bit == 11
+let ctx = try ZxvContext()
+let w = try SwarmToken.Wallet(try ctx.rootCapability(.mint), modelId: 7,
+                              octane: SwarmToken.Octane.regular)
+try w.mint(1000); try w.spend(1)                            // try w.info().value == 999
+_ = (rungs, counts)
+```
+
+### The assurance fee (`Fee`, pure)
+
+The fee is 8889 / 10^7 of the gross, rounded down. A `Fee.Carry` keeps the
+remainder so that many small charges add up exactly. `split` gives the
+four buckets: 50/25/15/10%, with every remainder unit going to the reserve
+floor.
+
+```swift
+let f = try Fee.assure(1_000_000)                           // 888
+var acct = Fee.Carry()                                      // store acct.remainder per account
+for _ in 0..<8 { _ = try acct.charge(100) }
+let parts = try Fee.split(f)                                // [445, 222, 133, 88]
+let policy = try Fee.defaultPolicy()
+_ = (parts, policy)
+```
+
+### The V-Bill hub (`VHub`)
+
+This is a demonstration hub with test currencies only, so ISO 4217 codes
+are refused. A peg is set only with the issuer's ML-DSA-87 signature over
+`pegMessage`. Swaps (`quote`, `swap`) fail closed until each currency
+has a limit rule (`addLimit`). The hub needs `.ledgerPost`, plus
+`.ledgerRead` for reads.
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.all1_5)
+let dsa = MlDsa87(cap)
+let key = try dsa.keygen()
+let hub = try VHub.Hub(cap)
+try hub.addCurrency(slot: 0, code: "ZTA", minorUnits: 2, issuerPublicKey: key.publicKey,
+                    poolFunding: 500_000, vbillBacking: 10_000)
+let msg = try VHub.pegMessage(slot: 0, num: 350, den: 1, epoch: 1)
+try hub.setPeg(slot: 0, num: 350, den: 1, epoch: 1, signature: try dsa.sign(msg.bytes, with: key.secretKey))
+let acct = try hub.openAccount(slot: 0, owner: 50)
+try hub.issue(account: acct, amount: 1_000_000)
+let postings = try hub.check()                              // A = L + E, DEBIT == CREDIT, hash chain
+_ = postings
+```
+
+### Freight (`Freight`, pure)
+
+A freight is 168 rows of 21 bytes, and any k rows rebuild the payload
+(Reed-Solomon). A corrupted or missing row set is `.refused(.erasure)` or
+a verification failure. `Freight.Join` reassembles split members.
+
+Op streams (`OpsWriter`, `encodeOps`, `peek`, `expand`, `generate`)
+describe a payload by literals, copies, generators and CID references.
+There are no compression promises: an op stream can be larger than its
+output.
+
+```swift
+let payload = Array("any k rows rebuild the payload".utf8)
+let h = try Freight.Header.forPayload(freightId: 42, k: 10, payload: payload)
+let packets = try Freight.encode(h, payload: payload)       // 3528 bytes
+let back = try Freight.decode(h, packets: Array(packets.suffix(210)))   // == payload
+let ops = try Freight.OpsWriter(declaredTotal: 5, maxBytes: 4096)
+    .literal(Array("<".utf8)).cidref(try Cid.compute(Array("abc".utf8)), length: 3)
+    .literal(Array(">".utf8)).finish()
+let out = try Freight.expand(ops, limit: 1024) { _, _ in Array("abc".utf8) }   // "<abc>"
+_ = (back, out)
+```
+
+### Web 4 agents (`Web4`)
+
+An agent's ML-DSA-65 key is held inside its handle. `close()` or `deinit`
+wipes the key, and this SDK never logs it. The group covers signed cards,
+manifests (at most `Web4.maxTools` = 16 tools), consent tokens, a
+directory and envelopes.
+
+There is no network transport: `seal` and `reply` produce bytes, and you
+move them. Consent for money or personal data must be presented, and it
+is single-use. `ConsentLog.prune` returns the number of entries remaining.
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.all1_5)
+let now: UInt64 = 1_700_000_000_000
+let alice = try Web4.Agent(cap, name: "alice", nowMs: now)
+let human = try Web4.Agent(cap, name: "human", nowMs: now)
+let m = try Web4.Manifest(version: 1, issuedMs: now, expiresMs: now + 86_400_000)
+try m.addTool(Web4.Tool(name: "pay", priceVfv: 150, ratePerMin: 60, burst: 10, flags: .money, maxInput: 256))
+try m.sign(with: alice)
+let id = try alice.agentId()
+let action = try Web4.actionDigest(tool: "pay", from: id, to: id, requestId: 7, payload: Array("amount=100".utf8))
+let token = try human.issueConsent(agent: id, action: action, scope: .money, maxVfv: 1000,
+                                   issuedMs: now, expiresMs: now + 600_000)
+let log = try Web4.ConsentLog(capacity: 16)
+try log.check(token, humanPublicKey: try human.publicKey(), agent: id, action: action,
+              need: .money, amount: 500, nowMs: now + 1)
+// A second check of the same token throws .refused(.consentDenied): single use.
+```
+
+### The paradox engine (`Paradox`)
+
+The engine classifies a Both/Neither tag into one of four kinds and runs
+the fixed, logged operator for that kind. Every operator needs
+`.paradox`, and automatic changes happen only inside published bounds.
+The operators are on `Paradox.Book`: `constructive`, `destructive`,
+`neutral` (with `Hold`), `special`, `draft`/`review` and `pass` (with
+`Graph`).
+
+Policies flagged `.money` or `.device` always go to the owner
+(`.refused(.ownerApprovalRequired)`), and `ownerOk` is your assertion.
+Destructive work is contained, never answered.
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.all1_5)
+let book = try Paradox.Book(cap, logCapacity: 64, registryCapacity: 16)
+let c = try book.classify(Hexagram.all[39], evidence: Paradox.Evidence(pos0: 3, neg0: 1, pos1: 5, neg1: 1))
+let policy = try Paradox.Policy(cap, lower: [0, 0, 10], upper: [100, 50, 20], initial: [50, 25, 15])
+let o = try book.constructive(policy, kind: c.kind, tag: c.tag, synth: [60, 20, 12], tension: 5)
+var state = [UInt8](repeating: UInt8(ascii: "X"), count: 16)
+let k = try book.destructive(kind: .destructive, tag: Hexagram.all[35], state: &state,
+                             checkpoint: [UInt8](repeating: UInt8(ascii: "A"), count: 16),
+                             containment: Paradox.Containment(steps: 10, stepLimit: 8, spent: 3, budget: 100,
+                                                              trace: [1, 2, 3, 2], invariantOk: true,
+                                                              pattern: Array("loop".utf8), submitter: 7))
+let ok = try k.proof?.verify() ?? false                     // state is "AAAA..." again
+_ = (o, ok)
+```
 
 ## API overview
 
@@ -292,7 +535,7 @@ cd sdk/swift && swift test          # macOS CI and Linux alike
 ASAN_OPTIONS=detect_leaks=0 swift test --sanitize=address
 ```
 
-`--sanitize=address` passes all 36 tests. LeakSanitizer reports only
+`--sanitize=address` passes all 62 tests. LeakSanitizer reports only
 allocations made by the XCTest runner and the Swift runtime. None of them
 come from `Sources/Zxv` or libzxv, which is why `detect_leaks=0` is set above.
 `--sanitize=thread` is not supported here: ThreadSanitizer and the fork in the
@@ -322,6 +565,13 @@ The XCTest suite (`Tests/ZxvTests`) runs against the real library and reads
   implementations with proof, failover, shadow disputes, the memo and
   versioned contracts, and a signed region update (stage, trial, commit,
   replay refusal, audit log, contract package, fail closed on a full log)
+- the ABI 1.5 groups (`Abi15Tests`): every vector in the `status_abi15`,
+  `treaty`, `cid`, `aipi`, `coin`, `fee`, `vhub`, `freight`, `web4` and
+  `paradox` sections, including the refusal status names. The suite also
+  covers closed-handle refusals and close during a call, the buffer-growth
+  path, the error type for each new status, capability refusals per
+  group, and a poisoned context.
+- the README's ABI 1.5 examples (`ReadmeSnippetTests`)
 
 If you keep the conformance files elsewhere, set `ZXV_CONFORMANCE_DIR` to their directory.
 
@@ -343,5 +593,21 @@ If you keep the conformance files elsewhere, set `ZXV_CONFORMANCE_DIR` to their 
 - **Not built in this libzxv.** Netting, card issuing and VSS are pending in the kernel and not wrapped here. Only the PAN
   check digit is available. `Model.loadLora` throws `.refused(.notImplemented)` while
   `Features.lora` is off.
+- **ABI 1.5 limits.**
+  - **No network transport.** AIPI nodes, freight and web4 envelopes
+    produce and check bytes, and you move them.
+  - **The vhub is a demonstration.** It uses test currencies, refuses
+    ISO 4217 codes and is not a payment system.
+  - **The owner decides.** Money and device policies, registry entries
+    and drafts need the owner, and `ownerOk` is the caller's assertion.
+  - **No compression or density promises.** Freight op streams make no
+    compression promise, and token density carries no premium.
+  - **Reports, not payments.** A treaty run is a report.
+  - **The paradox engine only contains.** It contains, holds and routes
+    contradictions, and detects only through the checks you run. It never
+    acts against a sender.
+  - **Out-of-range codes.** Swift enums cannot hold out-of-range C codes,
+    so those inputs are refused at compile time instead of returning
+    `ZXV_E_ARG`.
 - **Naming.** The entry point is `ZxvLibrary`, not `Zxv`, because a type with the module's name would
   break module-qualified names such as `Zxv.Model`.
