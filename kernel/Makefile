@@ -353,6 +353,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
+	$(MAKE) --no-print-directory test-retail
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
@@ -1779,3 +1780,38 @@ test-econ:
 	$(MAKE) --no-print-directory test-zstats
 	$(MAKE) --no-print-directory test-vderiv
 # ==== end economy modules ====
+
+# ==== retail infrastructure: keys sealed by the security chip, offline outbox ====
+# hwkey (src/hwkey): ML-DSA-87 seeds sealed to a TPM / Secure Enclave P-256 key.
+# outbox (src/outbox): offline grants, signed queued payments, once-only settlement.
+# The host test runs the machine's chip end to end: software fallback always,
+# and a TPM 2.0 simulator (swtpm) when installed (ZXV_REQUIRE_SWTPM=1 makes a
+# missing swtpm fail instead of skip).
+RETAIL_INC = $(ECON_INC) -Isrc/edp_risk -Isrc/trispace
+RETAIL_PQ = src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+.PHONY: test-retail test-hwkey test-outbox test-hwkey-host
+test-retail: test-hwkey test-outbox test-hwkey-host
+test-hwkey:
+	@for t in aarch64-none-elf i386-none-elf; do for f in src/hwkey/hwkey.c src/hwkey/hwkey_soft.c src/outbox/outbox.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RETAIL_INC) -c $$f -o $(ZXV_TMP)/retail_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/retail_free.o | grep -vE ' (shake256|hwk_wipe|pqm_mldsa87_(keygen|sign|verify)|pay_[a-z0-9_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/retail_free.o; echo "[FAIL] $$f: libc or 64-bit division helper ($$t)"; exit 1; fi; done; done; echo "[PASS] hwkey and outbox freestanding (aarch64 and i386: no libc, no helpers)"
+	@gcc $(ECON_FLAGS) $(RETAIL_INC) src/hwkey/test_hwkey.c src/hwkey/hwkey.c src/hwkey/hwkey_soft.c src/mlkem/keccak.c $(RETAIL_PQ) -o $(ZXV_TMP)/test_hwkey 2>$(ZXV_TMP)/test_hwkey.build && $(ZXV_TMP)/test_hwkey > $(ZXV_TMP)/test_hwkey.log 2>&1 && echo "[PASS] test_hwkey ($$(tail -1 $(ZXV_TMP)/test_hwkey.log))" || { cat $(ZXV_TMP)/test_hwkey.build $(ZXV_TMP)/test_hwkey.log; echo "[FAIL] test_hwkey"; exit 1; }
+test-outbox:
+	@gcc $(ECON_FLAGS) $(RETAIL_INC) src/outbox/test_outbox.c src/outbox/outbox.c src/hwkey/hwkey.c src/hwkey/hwkey_soft.c $(RETAIL_PQ) $(ECON_LEDGER) -o $(ZXV_TMP)/test_outbox 2>$(ZXV_TMP)/test_outbox.build && $(ZXV_TMP)/test_outbox > $(ZXV_TMP)/test_outbox.log 2>&1 && echo "[PASS] test_outbox ($$(tail -1 $(ZXV_TMP)/test_outbox.log))" || { cat $(ZXV_TMP)/test_outbox.build $(ZXV_TMP)/test_outbox.log; echo "[FAIL] test_outbox"; exit 1; }
+test-hwkey-host:
+	@d=$$(mktemp -d $(ZXV_TMP)/hwkey_host.XXXXXX) && \
+	SANITIZE=1 CC=gcc sh arch/hosted/hwkey/build_test.sh $$d/t > $$d/build.log 2>&1 || { cat $$d/build.log; echo "[FAIL] test_hwkey_host build"; exit 1; }; \
+	mkdir $$d/soft && ZXV_TPM=/nonexistent $$d/t $$d/soft > $$d/soft.log 2>&1 && $$d/t --soft-only $$d/soft >> $$d/soft.log 2>&1 && \
+	echo "[PASS] test_hwkey_host software fallback ($$(tail -1 $$d/soft.log))" || { cat $$d/soft.log; echo "[FAIL] test_hwkey_host software fallback"; exit 1; }; \
+	if ! command -v swtpm >/dev/null 2>&1; then \
+	  if [ "$(ZXV_REQUIRE_SWTPM)" = 1 ]; then echo "[FAIL] test_hwkey_host: swtpm not installed"; exit 1; fi; \
+	  echo "[SKIP] test_hwkey_host on a TPM 2.0 simulator (swtpm not installed)"; rm -rf $$d; exit 0; fi; \
+	for n in a b; do mkdir -p $$d/tpm$$n $$d/st$$n; done; \
+	pa=$$((20000 + $$$$ % 20000)); pb=$$((pa + 2)); \
+	swtpm socket --tpm2 --tpmstate dir=$$d/tpma --server type=tcp,port=$$pa,bindaddr=127.0.0.1 --ctrl type=tcp,port=$$((pa + 1)),bindaddr=127.0.0.1 --flags not-need-init,startup-clear --daemon --pid file=$$d/tpma.pid && \
+	swtpm socket --tpm2 --tpmstate dir=$$d/tpmb --server type=tcp,port=$$pb,bindaddr=127.0.0.1 --ctrl type=tcp,port=$$((pb + 1)),bindaddr=127.0.0.1 --flags not-need-init,startup-clear --daemon --pid file=$$d/tpmb.pid || { echo "[FAIL] swtpm did not start"; exit 1; }; \
+	ok=1; ZXV_TPM=mssim:127.0.0.1:$$pa $$d/t --require-hw $$d/sta > $$d/tpm.log 2>&1 || ok=0; \
+	ZXV_TPM=mssim:127.0.0.1:$$pa $$d/t --require-hw $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
+	ZXV_TPM=mssim:127.0.0.1:$$pb $$d/t --require-hw --foreign $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
+	kill $$(cat $$d/tpma.pid) $$(cat $$d/tpmb.pid) 2>/dev/null; \
+	grep -q "reopened the key sealed by the previous run" $$d/tpm.log && grep -q "sealed on another chip was refused" $$d/tpm.log || ok=0; \
+	if [ $$ok = 1 ]; then echo "[PASS] test_hwkey_host on a TPM 2.0 simulator (seal, reopen in a new process, refused by another TPM, offline outbox)"; rm -rf $$d; else cat $$d/tpm.log; echo "[FAIL] test_hwkey_host on swtpm"; exit 1; fi
+# ==== end retail infrastructure ====

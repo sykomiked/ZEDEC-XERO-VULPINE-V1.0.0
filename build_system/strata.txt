@@ -121,6 +121,7 @@ crypto_wallet                    trust
 curzi                            trust
 decent                           trust
 ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
+hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
 ident                            trust
 identity                         trust
 immigration                      trust
@@ -180,6 +181,7 @@ ident/id_kyc.c                   settlement # KYC checks against payment rails a
 logistics                        settlement
 market                           settlement
 mesh_token                       settlement
+outbox                           settlement # offline grants and once-only settlement on pay_ledger
 pay                              settlement
 peer_audit/pa_runtime            settlement # binds the audit to pay_ledger and swarm budgets
 provider                         settlement
