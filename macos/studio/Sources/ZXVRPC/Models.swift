@@ -404,3 +404,45 @@ public struct ChatFollow: Decodable, Sendable {
     public let nodeId: String
     public let following: Bool
 }
+
+// MARK: escrow (zxvd_pay.h P5)
+
+/// One escrow hold, read back from the escrow account's entries.
+public struct Hold: Decodable, Sendable, Identifiable, Hashable {
+    public let hold: Int
+    /// "held", "released" or "refunded".
+    public let state: String
+    /// The payer's account.
+    public let from: Int
+    /// The payee's account.
+    public let to: Int
+    public let amountMinor: String
+    public let currency: String
+    /// The holder account "escrow: <CCY>" the funds sit in.
+    public let escrowAccount: Int
+    public let entryId: String
+    /// The release or refund posting; nil while held.
+    public let closedEntryId: String?
+    /// What releases it: "owner" (only the owner's own call; no conditions yet).
+    public let releasesOn: String
+    public var id: Int { hold }
+    public var amount: Int64? { Int64(amountMinor) }
+    public var isHeld: Bool { state == "held" }
+}
+
+/// An escrow account: its balance against what its open holds add up to.
+public struct EscrowAccount: Decodable, Sendable, Identifiable, Hashable {
+    public let account: Int
+    public let currency: String
+    public let balanceMinor: String
+    public let heldMinor: String
+    public let consistent: Bool
+    public var id: Int { account }
+}
+
+/// ledger.holds: every hold, the escrow accounts, and the escrow entries that are no hold's step.
+public struct Holds: Decodable, Sendable {
+    public let holds: [Hold]
+    public let escrowAccounts: [EscrowAccount]
+    public let unmatched: Int
+}

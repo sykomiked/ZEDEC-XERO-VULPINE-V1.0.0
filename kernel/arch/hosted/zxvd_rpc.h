@@ -52,6 +52,10 @@
  *       expect; "amount_minor" may be sent as a JSON integer or a decimal
  *       string. A fraction or exponent is -32602, never rounded.
  *   M4  A notification (no "id") is executed and gets no response.
+ *   M5  Method groups (zxvd_ext.h): engines such as netting and cards
+ *       register their own methods behind feature switches that start off;
+ *       features.get lists the switches and features.set flips one for this
+ *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
  *
  * SWARM EARNINGS (the owner's books mirror the swarm's money)
  *   E1  At start the books get one currency for earnings, VFV by default
@@ -235,36 +239,80 @@ typedef struct {
     void (*status)(zxvd_buf_t *out);         /* aipi.status */
 } zxvd_aipi_ops_t;
 void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
-/* X1-X4: methods another module adds (zxvd_chat.h is the first).
- *   X1 zxvd_rpc_add_methods registers a table that must outlive zxvd's use
- *      of it; a later call replaces it, and NULL or 0 removes it. rpc.discover
- *      lists its names after the built-in ones. A built-in name wins.
- *   X2 a method reads its params with zxvd_param_str / zxvd_param_bool and
- *      writes one JSON value into zxvd_result(c); zxvd_fail sets the error
- *      and, as for the built-ins, the first error stands.
+/* X1-X7: methods other modules add (zxvd_chat.h, zxvd_pay.h).
+ *   X1 zxvd_rpc_add_methods appends a table, which must outlive zxvd's use
+ *      of it; up to ZXVD_RPC_MAX_TABLES tables at once. 0, or -1 when m is
+ *      NULL, n is 0 or every slot is taken. Adding a table already held
+ *      only updates its count. zxvd_rpc_remove_methods takes one table out
+ *      (a table not held is ignored); zxvd_rpc_clear_methods takes them all.
+ *      rpc.discover lists the tables' names after the built-in ones, in the
+ *      order the tables were added. A built-in name wins, then the table
+ *      added first.
+ *   X2 a method reads its params with zxvd_param_str / _bool / _u32 /
+ *      _amount (M3) or walks one with zxvd_param_json, and writes one JSON
+ *      value into zxvd_result(c); zxvd_fail sets the error and, as for the
+ *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010 and -32011). */
-#define ZXVD_E_METHOD   (-32601)
-#define ZXVD_E_PARAMS   (-32602)
-#define ZXVD_E_INTERNAL (-32603)
+ *      in -32099..-32001 (zxvd_rpc keeps -32000, -32010, -32011 and -32012,
+ *      the code of a method whose feature switch is off, zxvd_ext.h X4).
+ *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
+ *      the book methods report it (M2: data status, name, class).
+ *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
+ *      context (NULL while the books are closed), never put on the wire.
+ *   X7 zxvd_books_account / zxvd_books_post change the books exactly as
+ *      ledger.open_account / ledger.post do, each change one record in the
+ *      books file before it answers (F1-F5). */
+#define ZXVD_RPC_MAX_TABLES 4u
+#define ZXVD_E_LIBZXV       (-32000)
+#define ZXVD_E_METHOD       (-32601)
+#define ZXVD_E_PARAMS       (-32602)
+#define ZXVD_E_INTERNAL     (-32603)
 typedef struct zxvd_call zxvd_call_t;
 typedef struct {
     const char *name;
     void (*fn)(zxvd_call_t *c);
 } zxvd_method_t;
-void zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n);
+int zxvd_rpc_add_methods(const zxvd_method_t *m, uint32_t n);
+void zxvd_rpc_remove_methods(const zxvd_method_t *m);
+void zxvd_rpc_clear_methods(void);
 /* A string parameter: true if read, or absent and not required (out = "").
  * It must be a JSON string of at most cap - 1 bytes with no NUL. */
 bool zxvd_param_str(zxvd_call_t *c, const char *key, char *out, uint32_t cap, bool required);
 /* A boolean parameter: true if read, or absent and not required (*v kept). */
 bool zxvd_param_bool(zxvd_call_t *c, const char *key, bool *v, bool required);
+/* A JSON integer 0..UINT32_MAX: true if read, or absent and not required
+ * (*v kept). */
+bool zxvd_param_u32(zxvd_call_t *c, const char *key, uint32_t *v, bool required);
+/* M3: a JSON integer or a decimal string, as "amount_minor" of ledger.post:
+ * true if read, or absent and not required (*v kept). */
+bool zxvd_param_amount(zxvd_call_t *c, const char *key, int64_t *v, bool required);
+/* Any parameter as web4_web2.h tokens (tok is a const w4_jtok_t *; at is
+ * the value's index): true if present. NULL key: the whole params object,
+ * true if params were sent. */
+typedef struct {
+    const char *js;
+    const void *tok;
+    int32_t n, at;
+} zxvd_json_t;
+bool zxvd_param_json(zxvd_call_t *c, const char *key, zxvd_json_t *v);
 zxvd_buf_t *zxvd_result(zxvd_call_t *c);
 void zxvd_fail(zxvd_call_t *c, int code, const char *fmt, ...)
 #if defined(__GNUC__)
     __attribute__((format(printf, 3, 4)))
 #endif
     ;
+/* X5: true if st is ZXV_OK, else the call fails with -32000. */
+bool zxvd_libzxv_ok(zxvd_call_t *c, int32_t st);
+/* X6 (opaque here: zxv_api.h's zxv_cap and zxv_ctx) */
+struct zxv_cap;
+struct zxv_ctx;
+const struct zxv_cap *zxvd_books_cap(void);
+struct zxv_ctx *zxvd_books_ctx(void);
+/* X7: libzxv statuses; ZXV_E_IO when the books file did not take it. */
+int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint32_t *id);
+int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                        const char *ref, uint64_t *entry);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

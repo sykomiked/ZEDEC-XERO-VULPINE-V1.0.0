@@ -53,10 +53,48 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_chat.sh
+      - name: Payments unit test (zxvd_pay.h, ISO 20022, netting, passkeys, escrow)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pay.sh
       - name: AIPI host unit test (real AIPI core, Z-Wasm sandbox)
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_aipi.sh
+      - name: Cards unit test (real cardnet issuer, ML-DSA-65 holder signatures)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_cards.sh
+      - name: Passkeys unit test (real ident passkeys, ML-DSA-65 assertions)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_ident.sh
+      - name: Seats unit test (real seats module, Argon2id, the seats file)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_seats.sh
+      - name: Power unit test (real power ledger on a Linux-style fixture)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_power.sh
+      - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_econ.sh
+      - name: Economy groups unit tests (bonds, derivatives, grants, estate; real engines)
+        env:
+          CC: ${{ matrix.cc }}
+        run: |
+          sh kernel/arch/hosted/test_zxvd_instruments.sh
+          sh kernel/arch/hosted/test_zxvd_estate.sh
+      - name: Companion unit test (companion.*, real swarm DNA, emotion and evolution)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_companion.sh
+      - name: Web4 envelope feed unit test (real web4_agent envelopes, ML-DSA-65, consent)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_web4.sh
       - name: Build zxvd against libzxv
         env:
           CC: ${{ matrix.cc }}
@@ -145,15 +183,15 @@ jobs:
 
   mutation:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)
-    # zxvd_rpc.c and zxvd_aipi.c against their unit tests; fails below the
+    # zxvd_rpc.c, zxvd_aipi.c and the method groups (zxvd_*.c) against their unit tests; fails below the
     # baselines in tests/harness/mutator/targets.json (ci.yml's gate only runs
     # on PRs to main)
     name: zxvd mutation scores
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power --ci --jobs 4 --out mutation-results
 
   real-model:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)

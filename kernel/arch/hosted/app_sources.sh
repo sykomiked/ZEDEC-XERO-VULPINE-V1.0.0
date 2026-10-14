@@ -12,6 +12,8 @@
 #   incs    include directories (relative to kernel/), one per line
 #   vinea   the Vinea node and what it needs (also used by the net test)
 #   update  the update checker and what it needs
+#   groups  zxvd only: the method groups (zxvd_ext.h) and the engines they
+#           serve, after zxvd_groups.c; groupincs: their include directories
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -82,5 +84,44 @@ case "${1:-srcs}" in
         ;;
     vinea) vinea ;;
     update) update ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update]" >&2; exit 2 ;;
+    groups)
+        echo arch/hosted/zxvd_groups.c
+        # cards.*: the charge-card issuer (its ML-DSA-65, keccak and sha256
+        # are already in srcs)
+        echo arch/hosted/zxvd_cards.c
+        for f in cardnet cn_check cn_iso8583 cn_emv; do echo "src/cardnet/$f.c"; done
+        # passkeys.*: ident's passkeys (id_core, id_passkey and the
+        # post-quantum code they link are built for zxvd_pay in build_zxvd.sh)
+        echo arch/hosted/zxvd_ident.c
+        # the economy modules (zxvd_econ.c); zstats also reads grants and
+        # vbond, which link but are not served. pay, sha256 and keccak are in srcs.
+        echo arch/hosted/zxvd_econ.c
+        for f in svault vswap vauction zenny zstats grants vbond; do echo "src/$f/$f.c"; done
+        # economy groups (zxvd_sandbox.h): bonds, derivatives, grants, estate
+        for f in zxvd_sandbox zxvd_instruments zxvd_estate; do echo "arch/hosted/$f.c"; done
+        echo src/vderiv/vderiv.c
+        for f in estate faraid recovery; do echo "src/estate/$f.c"; done
+        # companion.*: the swarm's own DNA and emotion code is already in srcs
+        echo arch/hosted/zxvd_companion.c
+        # web4.*: the Web4 envelope feed on web4_agent (its ML-DSA-65, keccak,
+        # sha256 and web4_json/web4_util are already linked) and freight
+        echo arch/hosted/zxvd_web4.c
+        echo src/web4/web4_agent.c
+        for f in freight freight_ops; do echo "src/freight/$f.c"; done
+        # seats.*: the people on this device and the login after boot; its
+        # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
+        echo arch/hosted/zxvd_seats.c
+        echo src/seats/seats.c
+        # power.*: the energy ledger and this machine's readers (docs/POWER.md)
+        echo arch/hosted/zxvd_power.c
+        echo arch/hosted/zxv_power_host.c
+        echo src/power/power_ledger.c
+        ;;
+    groupincs)
+        echo src/cardnet
+        echo src/ident
+        for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
+        ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs]" >&2; exit 2 ;;
 esac

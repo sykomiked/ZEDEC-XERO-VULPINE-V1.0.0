@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Storefront & Escrow: net.command sell / want, net.offers, swarm.state.net's
-// market counters and swarm.state's settlement spine.
+// market counters, swarm.state's settlement spine, and escrow holds on the
+// owner's books (ledger.hold, ledger.release, ledger.refund, ledger.holds).
 import SwiftUI
 import ZXVRPC
 
@@ -15,6 +16,11 @@ struct StorefrontView: View {
     @State private var price = ""
     @State private var node = ""
     @State private var posted: [String] = []
+    @State private var holdFrom: Int?
+    @State private var holdTo: Int?
+    @State private var holdAmount = ""
+    @State private var holdLine: (Bool, String)?
+    @State private var settleError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -27,10 +33,6 @@ struct StorefrontView: View {
             HStack(alignment: .top, spacing: 20) {
                 settlement
                 VStack(spacing: 16) {
-                    if !store.has("ledger.holds") {
-                        NotServed(what: "Escrow", method: "ledger.holds",
-                                  detail: "Each hold will show the amount held, the counterparty, what releases it, and whether it is held, released or in dispute. A dispute moves the hold to quarantine.")
-                    }
                     if store.has("net.offers") {
                         openOffers
                     } else {
@@ -39,6 +41,115 @@ struct StorefrontView: View {
                     }
                 }
                 .frame(width: 320)
+            }
+            if store.has("ledger.holds") {
+                escrow
+            } else {
+                NotServed(what: "Escrow", method: "ledger.holds",
+                          detail: "Each hold shows the amount held, the payer and payee, and whether it is held, released or refunded.")
+            }
+        }
+        .task { await store.refreshHolds() }
+    }
+
+    // MARK: escrow
+
+    /// Accounts a hold can pay from or to (not the escrow accounts themselves).
+    private var holdAccounts: [Account] {
+        store.accounts.filter { !$0.name.hasPrefix("escrow: ") }
+    }
+
+    private var escrow: some View {
+        let h = store.holds
+        let open = (h?.holds ?? []).filter(\.isHeld)
+        let done = (h?.holds ?? []).filter { !$0.isHeld }
+        let rows: [Hold] = open + Array(done.reversed().prefix(10))
+        let payer = holdAccounts.first { $0.account == (holdFrom ?? holdAccounts.first?.account) }
+        let payees = holdAccounts.filter { $0.currency == payer?.currency && $0.account != payer?.account }
+        let payee = payees.first { $0.account == holdTo } ?? payees.first
+        let bad = (h?.escrowAccounts ?? []).filter { !$0.consistent }
+        return Panel(title: "Escrow", trailing: "\(open.count) held") {
+            Text("A hold moves the amount from the payer into your escrow account. Only you release it to the payee or refund it to the payer: there are no release conditions or disputes yet.")
+                .font(.callout).foregroundStyle(Theme.muted)
+            HStack(alignment: .bottom, spacing: 12) {
+                VStack(alignment: .leading) {
+                    Text("Payer").font(.caption).foregroundStyle(Theme.muted)
+                    Picker("Payer", selection: Binding(get: { holdFrom ?? holdAccounts.first?.account }, set: { holdFrom = $0 })) {
+                        ForEach(holdAccounts) { Text("\($0.name) (\($0.currency))").tag(Optional($0.account)) }
+                    }
+                    .labelsHidden().frame(minWidth: 160)
+                }
+                VStack(alignment: .leading) {
+                    Text("Payee").font(.caption).foregroundStyle(Theme.muted)
+                    Picker("Payee", selection: Binding(get: { payee?.account }, set: { holdTo = $0 })) {
+                        ForEach(payees) { Text($0.name).tag(Optional($0.account)) }
+                    }
+                    .labelsHidden().frame(minWidth: 160)
+                }
+                VStack(alignment: .leading) {
+                    Text("Amount (\(payer?.currency ?? ""))").font(.caption).foregroundStyle(Theme.muted)
+                    TextField("125.00", text: $holdAmount).textFieldStyle(.roundedBorder).frame(width: 120)
+                }
+                Button("Hold") {
+                    guard let f = payer?.account, let t = payee?.account else { return }
+                    let amount = holdAmount
+                    Task {
+                        let (ok, line) = await store.hold(from: f, to: t, amount: amount)
+                        holdLine = (ok, line)
+                        if ok { holdAmount = "" }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(payer == nil || payees.isEmpty || holdAmount.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            if let r = holdLine {
+                Text(r.1).font(.caption).foregroundStyle(r.0 ? Theme.good : Theme.warn)
+            }
+            if store.escrowOff {
+                HStack {
+                    Text("Escrow is a regulated feature, so it starts off.").font(.caption)
+                        .foregroundStyle(Theme.muted)
+                    Spacer()
+                    Button("Turn on escrow") {
+                        Task {
+                            if let e = await store.enableEscrow() {
+                                holdLine = (false, "Refused: \(e)")
+                            } else {
+                                holdLine = (true, "Escrow is on. Hold the amount again.")
+                            }
+                        }
+                    }
+                }
+            }
+            if rows.isEmpty {
+                Text("No holds yet.").font(.callout).foregroundStyle(Theme.muted)
+            }
+            ForEach(rows) { hold in
+                holdRow(hold)
+            }
+            if let e = settleError {
+                Text("Refused: \(e)").font(.caption).foregroundStyle(Theme.warn)
+            }
+            if !bad.isEmpty || (h?.unmatched ?? 0) > 0 {
+                Text("The escrow account does not match its holds: \(h?.unmatched ?? 0) escrow entries are no hold's step. Check the Sicily Ledger.")
+                    .font(.caption).foregroundStyle(Theme.warn)
+            }
+        }
+    }
+
+    private func holdRow(_ h: Hold) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Hold \(h.hold) · \(h.amount.map { Money.format($0, currency: h.currency) } ?? h.amountMinor)")
+                    .font(.callout)
+                Text("\(store.name(of: h.from)) → \(store.name(of: h.to)) · \(h.state)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(h.isHeld ? Theme.gold : Theme.muted)
+            }
+            Spacer()
+            if h.isHeld {
+                Button("Release") { Task { settleError = await store.settle(h.hold, release: true) } }
+                Button("Refund") { Task { settleError = await store.settle(h.hold, release: false) } }
             }
         }
     }

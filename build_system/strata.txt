@@ -76,6 +76,7 @@ mouse                            kernel
 oseq                             kernel
 pci                              kernel
 phase_coord                      kernel
+power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
 quantum                          kernel
 recon                            kernel
@@ -124,6 +125,7 @@ ehop                             trust      # ehop.h includes mlkem768.h: the ho
 hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
 ident                            trust
 identity                         trust
+seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
 immigration                      trust
 ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
 loader                           trust

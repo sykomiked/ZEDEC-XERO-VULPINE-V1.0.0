@@ -46,7 +46,7 @@ OSDEFS=""
 case "$($CC -dumpmachine 2>/dev/null)" in
     *mingw*|*windows*)
         LIBF=libzxv.dll; RP=""; EXE=.exe
-        OSLIBS="-lws2_32 -lshell32 -lbcrypt -ladvapi32 -static-libgcc"
+        OSLIBS="-lws2_32 -lshell32 -lbcrypt -ladvapi32 -lpowrprof -static-libgcc"
         OSDEFS="-D__USE_MINGW_ANSI_STDIO=1 -D_WIN32_WINNT=0x0A00"
         ;;
     # Both rpaths at link time (next to the binary, and Contents/Frameworks
@@ -54,6 +54,7 @@ case "$($CC -dumpmachine 2>/dev/null)" in
     # later install_name_tool -add_rpath.
     *darwin*|*apple*)
         LIBF=libzxv.dylib
+        OSLIBS="-framework IOKit -framework CoreFoundation" # power.* (zxv_power_host.c)
         RP='-Wl,-rpath,@loader_path,-rpath,@executable_path/../Frameworks,-headerpad_max_install_names' ;;
     *)                LIBF=libzxv.so;    RP='-Wl,-rpath,$ORIGIN' ;;
 esac
@@ -87,12 +88,23 @@ if [ -z "$EXE" ] && [ "${ZXVD_AIPI:-1}" != 0 ]; then
     set -- "$@" "-I$K/src/aipi" "-I$R/sdk/kits/aipi/include" "$K/src/aipi/aipi.c" "$HERE/zxvd_aipi.c"
     DEFS="$DEFS -DZXV_HAVE_AIPI"
 fi
+# 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
+for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
+for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
 # the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
 set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
 for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
     set -- "$@" "$K/src/social/$f.c"
 done
+# payments (zxvd_pay.h): ident's passkey check and the post-quantum code it
+# links (app_sources.sh already has ML-DSA-65/87, ML-KEM-1024, X25519), and
+# its Argon2id for seats.* (zxvd_seats.c)
+set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/src/ident/id_core.c" \
+    "$K/src/ident/id_argon2.c"
+for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
+for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done
+for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do set -- "$@" "$K/src/mlkem/$f.c"; done
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"
