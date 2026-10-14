@@ -333,6 +333,8 @@ bool w4_json_str_eq(const char *js, const w4_jtok_t *tok, const char *s)
     char buf[512];
     int32_t n = w4_json_str(js, tok, buf, sizeof buf);
     if (n < 0) return false;
+    /* an escaped NUL ("id\u0000x") must not compare equal to "id" */
+    if ((size_t) n != w4_strnlen(buf, sizeof buf)) return false;
     return w4_streq(buf, s);
 }
 

@@ -229,6 +229,10 @@ cn8583_rc_t cn8583_unpack(cn8583_msg_t *m, const uint8_t *in, uint32_t len)
         if (len - p < 8) return CN8583_ERR_TRUNC;
         cn_copy(m->bitmap + 8, in + p, 8);
         p += 8;
+        /* canonical: the packer omits an empty secondary bitmap */
+        uint8_t any = 0;
+        for (uint32_t i = 8; i < 16; i++) any |= m->bitmap[i];
+        if (!any) return CN8583_ERR_FORMAT;
     }
     uint8_t bm[16];
     cn_copy(bm, m->bitmap, 16);

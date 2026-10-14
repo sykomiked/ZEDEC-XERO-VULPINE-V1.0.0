@@ -55,6 +55,7 @@ static uint32_t make_reply(uint8_t *out, uint32_t xid, const uint8_t mac[6], uin
         uint8_t mask[4] = {255, 255, 255, 0};
         uint8_t rtr[4] = {10, 0, 2, 2};
         uint8_t dns[4] = {10, 0, 2, 3};
+        uint8_t ntp[8] = {10, 0, 2, 4, 10, 0, 2, 5};
         out[at++] = DHCP_OPT_SUBNET;
         out[at++] = 4;
         memcpy(out + at, mask, 4);
@@ -67,6 +68,10 @@ static uint32_t make_reply(uint8_t *out, uint32_t xid, const uint8_t mac[6], uin
         out[at++] = 4;
         memcpy(out + at, dns, 4);
         at += 4;
+        out[at++] = DHCP_OPT_NTP;
+        out[at++] = 8; /* two servers; the first is used */
+        memcpy(out + at, ntp, 8);
+        at += 8;
         out[at++] = DHCP_OPT_LEASE;
         out[at++] = 4;
         out[at++] = 0;
@@ -101,8 +106,8 @@ int main(void)
     const uint8_t *v = 0;
     CHECK(dhcp_get_option(pkt, n, DHCP_OPT_MSGTYPE, &v) == 1 && v[0] == DHCP_DISCOVER,
           "option 53 says DISCOVER");
-    CHECK(dhcp_get_option(pkt, n, DHCP_OPT_PARAMLIST, &v) == 4,
-          "we ask for subnet/router/DNS/lease");
+    CHECK(dhcp_get_option(pkt, n, DHCP_OPT_PARAMLIST, &v) == 5 && v[3] == DHCP_OPT_NTP,
+          "we ask for subnet/router/DNS/NTP/lease");
     CHECK(pkt[n - 1] == DHCP_OPT_END, "options terminate with 255");
     CHECK(c.state == DHCP_STATE_SELECTING, "state -> SELECTING");
 
@@ -135,6 +140,7 @@ int main(void)
     CHECK(c.netmask[0] == 255 && c.netmask[3] == 0, "netmask from option 1");
     CHECK(c.gateway[0] == 10 && c.gateway[3] == 2, "gateway from option 3");
     CHECK(c.dns[3] == 3, "DNS server from option 6");
+    CHECK(c.ntp[0] == 10 && c.ntp[3] == 4, "NTP server from option 42");
     CHECK(c.lease_secs == 3600, "lease time from option 51 (3600s)");
 
     /* ================ hostile / malformed input ================ */

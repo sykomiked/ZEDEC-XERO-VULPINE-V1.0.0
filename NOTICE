@@ -17,6 +17,12 @@ Hardware designs under the hardware/ directory are NOT covered by the Apache
 License. They are licensed under the ZXV Hardware License 1.1; see
 hardware/LICENSE and hardware/NOTICE.
 
+The ASCW Golden fonts under assets/fonts/ascw-golden/ (ZXV's UI and system
+font) are NOT covered by the Apache License. They are modified versions of
+fonts under the SIL Open Font License 1.1 and stay under it; see
+assets/fonts/ascw-golden/OFL.txt and FONTLOG.md. Packages that carry them
+carry those two files with them.
+
 --------------------------------------------------------------------------
 ATTRIBUTION
 --------------------------------------------------------------------------

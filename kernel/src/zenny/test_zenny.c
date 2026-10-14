@@ -634,6 +634,7 @@ static void test_quote(void)
                     v->n_legs = 2;
                     v->leg[0].qty = qs[a];
                     v->leg[1].qty = qs[b];
+                    v->price[0] = v->price[1] = (zenny_price_t){1, 1}; /* stored: always exact */
                     zenny_price_t bp2[2] = {ps[p % 6], ps[(p + 2) % 6]};
                     const zenny_price_t *use = p == 6 ? NULL : bp2;
                     for (uint64_t w = 0; w <= n + 1; w++) {

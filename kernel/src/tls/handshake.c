@@ -1,5 +1,5 @@
 /* handshake.c — TLS 1.3 client handshake. See handshake.h, and read the
- * authentication warning at the top of it before using this for anything. */
+ * authentication policy at the top of it before using this for anything. */
 #include "handshake.h"
 #include "../robin_debanks/sha256.h"
 
@@ -23,6 +23,10 @@ const char *tls_error_str(tls_error_t e) {
     case TLS_ERR_TOO_BIG:      return "message exceeded a fixed buffer";
     case TLS_ERR_ALERT:        return "server sent a fatal alert";
     case TLS_ERR_HELLO_RETRY:  return "server wants a key-share group we do not offer";
+    case TLS_ERR_BAD_CERT:
+        return "server certificate chain did not validate";
+    case TLS_ERR_BAD_SIGNATURE:
+        return "server CertificateVerify signature did not verify";
     }
     return "unknown";
 }
@@ -54,7 +58,8 @@ void tls_client_init(tls_client_t *c,
     wipe((uint8_t *)c, sizeof(*c));
     c->state = TLS_ST_INIT;
     c->policy = policy;
-    c->authenticated = false;     /* never set true: no verifier exists */
+    c->authenticated = false; /* set only after chain, CertificateVerify and Finished */
+    c->cert_status = TLS_CERT_NO_CERT;
 
     if (hostname) {
         uint32_t i = 0;
@@ -72,6 +77,13 @@ void tls_client_init(tls_client_t *c,
     for (int i = 0; i < 32; i++) c->session_id[i] = (uint8_t)(c->random[i] ^ 0x5A);
     tls_keys_clear(&c->rx);
     tls_keys_clear(&c->tx);
+}
+
+void tls_client_set_trust(tls_client_t *c, const tls_trust_t *trust, int64_t now_unix)
+{
+    if (!c) return;
+    c->trust = trust;
+    c->now = now_unix;
 }
 
 /* ---------------- ClientHello ---------------- */
@@ -122,15 +134,21 @@ uint32_t tls_client_hello(tls_client_t *c, uint8_t *out, uint32_t cap) {
     { uint8_t b[4] = { 0x00, 0x02, 0x00, 0x1D };
       at = put_ext(m, at, 10, b, 4); }
 
-    /* signature_algorithms (13). Required by the spec even though we cannot
-     * verify any of them — a server will not proceed without it. Offering
-     * these is NOT a claim that we check them; see the header. */
-    { uint8_t b[10] = { 0x00, 0x08,
-                        0x04, 0x03,   /* ecdsa_secp256r1_sha256 */
-                        0x08, 0x04,   /* rsa_pss_rsae_sha256    */
-                        0x08, 0x07,   /* ed25519                */
-                        0x04, 0x01 }; /* rsa_pkcs1_sha256       */
-      at = put_ext(m, at, 13, b, 10); }
+    /* signature_algorithms (13): exactly what trust.c and the
+     * CertificateVerify check below can verify. The rsa_pkcs1 entries apply
+     * to signatures inside certificates only (RFC 8446 4.2.3); a
+     * CertificateVerify that uses them is refused. */
+    {
+        uint8_t b[18] = {0x00, 0x10, 0x04, 0x03, /* ecdsa_secp256r1_sha256 */
+                         0x05, 0x03,             /* ecdsa_secp384r1_sha384 */
+                         0x08, 0x04,             /* rsa_pss_rsae_sha256 */
+                         0x08, 0x05,             /* rsa_pss_rsae_sha384 */
+                         0x08, 0x06,             /* rsa_pss_rsae_sha512 */
+                         0x04, 0x01,             /* rsa_pkcs1_sha256 (certificates) */
+                         0x05, 0x01,             /* rsa_pkcs1_sha384 (certificates) */
+                         0x06, 0x01};            /* rsa_pkcs1_sha512 (certificates) */
+        at = put_ext(m, at, 13, b, 18);
+    }
 
     /* supported_versions (43): TLS 1.3 only */
     { uint8_t b[3] = { 0x02, 0x03, 0x04 };
@@ -254,6 +272,151 @@ static void handle_server_hello(tls_client_t *c, const uint8_t *m, uint32_t n) {
     c->state = TLS_ST_WAIT_EE;
 }
 
+/* ---------------- server authentication ---------------- */
+
+/* Certificate (RFC 8446 4.4.2): parse the list, validate the chain, keep the
+ * leaf key. `m` includes the 4-byte header. */
+static bool check_certificate(tls_client_t *c, const uint8_t *m, uint32_t n)
+{
+    if (!c->trust || c->now <= 0) {
+        fail(c, TLS_ERR_NO_VERIFIER);
+        return false;
+    }
+    const uint8_t *certs[TLS_CHAIN_MAX * 2];
+    uint32_t lens[TLS_CHAIN_MAX * 2], count = 0;
+    uint32_t at = 4;
+    if (n < at + 1 || m[at] != 0) { /* certificate_request_context: empty */
+        fail(c, TLS_ERR_PROTOCOL);
+        return false;
+    }
+    at += 1;
+    if (n < at + 3 || g24(m + at) != n - at - 3) {
+        fail(c, TLS_ERR_PROTOCOL);
+        return false;
+    }
+    at += 3;
+    while (at < n) {
+        if (n - at < 3) {
+            fail(c, TLS_ERR_PROTOCOL);
+            return false;
+        }
+        uint32_t cl = g24(m + at);
+        at += 3;
+        if (cl == 0 || cl > n - at) {
+            fail(c, TLS_ERR_PROTOCOL);
+            return false;
+        }
+        if (count == TLS_CHAIN_MAX * 2) {
+            fail(c, TLS_ERR_TOO_BIG);
+            return false;
+        }
+        certs[count] = m + at;
+        lens[count++] = cl;
+        at += cl;
+        if (n - at < 2) {
+            fail(c, TLS_ERR_PROTOCOL);
+            return false;
+        }
+        uint32_t el = g16(m + at); /* per-certificate extensions: ignored */
+        at += 2;
+        if (el > n - at) {
+            fail(c, TLS_ERR_PROTOCOL);
+            return false;
+        }
+        at += el;
+    }
+
+    x509_cert_t leaf;
+    c->cert_status = tls_verify_chain(c->trust, certs, lens, count, (const char *) c->hostname,
+                                      c->hostname_len, c->now, &leaf);
+    if (c->cert_status != TLS_CERT_OK) {
+        fail(c, TLS_ERR_BAD_CERT);
+        return false;
+    }
+
+    tls_peer_key_t *k = &c->peer_key;
+    wipe((uint8_t *) k, sizeof *k);
+    k->type = leaf.key.type;
+    if (leaf.key.type == X509_KEY_RSA && leaf.key.n_len <= sizeof k->n &&
+        leaf.key.e_len <= sizeof k->e) {
+        cpy(k->n, leaf.key.n, leaf.key.n_len);
+        k->n_len = leaf.key.n_len;
+        cpy(k->e, leaf.key.e, leaf.key.e_len);
+        k->e_len = leaf.key.e_len;
+    } else if (leaf.key.type == X509_KEY_EC && leaf.key.point_len <= sizeof k->point) {
+        k->curve = leaf.key.curve;
+        cpy(k->point, leaf.key.point, leaf.key.point_len);
+        k->point_len = leaf.key.point_len;
+    } else {
+        fail(c, TLS_ERR_BAD_CERT);
+        return false;
+    }
+    c->cert_ok = true;
+    return true;
+}
+
+/* CertificateVerify (RFC 8446 4.4.3): the leaf key's signature over
+ * 64 spaces || "TLS 1.3, server CertificateVerify" || 0 || transcript hash. */
+static bool check_certificate_verify(tls_client_t *c, const uint8_t *m, uint32_t n)
+{
+    if (n < 8 || g16(m + 6) != n - 8) {
+        fail(c, TLS_ERR_PROTOCOL);
+        return false;
+    }
+    uint16_t scheme = g16(m + 4);
+    const tls_peer_key_t *pk = &c->peer_key;
+    x509_sigalg_t alg = {X509_SIG_NONE, TLS_HASH_NONE};
+    bool key_fits = false;
+    switch (scheme) {
+    case 0x0403:
+        alg = (x509_sigalg_t){X509_SIG_ECDSA, TLS_HASH_SHA256};
+        key_fits = pk->type == X509_KEY_EC && pk->curve == ECDSA_P256;
+        break;
+    case 0x0503:
+        alg = (x509_sigalg_t){X509_SIG_ECDSA, TLS_HASH_SHA384};
+        key_fits = pk->type == X509_KEY_EC && pk->curve == ECDSA_P384;
+        break;
+    case 0x0804:
+    case 0x0805:
+    case 0x0806:
+        alg = (x509_sigalg_t){X509_SIG_RSA_PSS, scheme == 0x0804   ? TLS_HASH_SHA256
+                                                : scheme == 0x0805 ? TLS_HASH_SHA384
+                                                                   : TLS_HASH_SHA512};
+        key_fits = pk->type == X509_KEY_RSA;
+        break;
+    default:
+        break; /* rsa_pkcs1_*, ed25519, sha1 ...: not allowed here */
+    }
+    if (!key_fits) {
+        fail(c, TLS_ERR_BAD_SIGNATURE);
+        return false;
+    }
+
+    static const char ctx[] = "TLS 1.3, server CertificateVerify";
+    uint8_t content[64 + sizeof ctx + HASH_LEN];
+    uint32_t cl = 0;
+    for (int i = 0; i < 64; i++) content[cl++] = 0x20;
+    for (uint32_t i = 0; i < sizeof ctx; i++) content[cl++] = (uint8_t) ctx[i]; /* incl. NUL */
+    tr_hash(c, content + cl);
+    cl += HASH_LEN;
+
+    x509_pubkey_t key = {0};
+    key.type = pk->type;
+    key.n = pk->n;
+    key.n_len = pk->n_len;
+    key.e = pk->e;
+    key.e_len = pk->e_len;
+    key.curve = pk->curve;
+    key.point = pk->point;
+    key.point_len = pk->point_len;
+    if (!x509_verify_sig(&key, alg, content, cl, m + 8, n - 8)) {
+        fail(c, TLS_ERR_BAD_SIGNATURE);
+        return false;
+    }
+    c->cv_ok = true;
+    return true;
+}
+
 /* ---------------- encrypted handshake messages ---------------- */
 
 static void handle_hs_message(tls_client_t *c, const uint8_t *m, uint32_t n,
@@ -283,22 +446,25 @@ static void handle_hs_message(tls_client_t *c, const uint8_t *m, uint32_t n,
     case TLS_ST_WAIT_CERT:
         if (type != TLS_HS_CERTIFICATE) { fail(c, TLS_ERR_PROTOCOL); return; }
         if (!tr_add(c, m, n)) return;
-        /* The certificate chain is carried, parsed by nobody, and verified by
-         * nobody. That is the documented limitation, not an oversight. */
+        /* THE CHAIN DECISION. Only an explicit acknowledgement of an
+         * unauthenticated channel skips it. */
+        if (c->policy != TLS_VERIFY_INSECURE_ACKNOWLEDGED && !check_certificate(c, m, n)) return;
         c->state = TLS_ST_WAIT_CV;
         return;
 
     case TLS_ST_WAIT_CV:
         if (type != TLS_HS_CERTIFICATE_VERIFY) { fail(c, TLS_ERR_PROTOCOL); return; }
-        if (!tr_add(c, m, n)) return;
-        /* THE AUTHENTICATION DECISION, in one place.
-         * With TLS_VERIFY_REQUIRED we stop here, because there is nothing to
-         * verify the signature with. Only an explicit acknowledgement of an
-         * unauthenticated channel continues. */
+        /* THE KEY-POSSESSION DECISION: the signature is over the transcript
+         * through Certificate, so it is checked before CertificateVerify
+         * itself joins the transcript. */
         if (c->policy != TLS_VERIFY_INSECURE_ACKNOWLEDGED) {
-            fail(c, TLS_ERR_NO_VERIFIER);
-            return;
+            if (!c->cert_ok) {
+                fail(c, TLS_ERR_NO_VERIFIER);
+                return;
+            }
+            if (!check_certificate_verify(c, m, n)) return;
         }
+        if (!tr_add(c, m, n)) return;
         /* snapshot the transcript hash: the server's Finished is over
          * ClientHello..CertificateVerify */
         tr_hash(c, c->th_precert_fin);
@@ -351,7 +517,10 @@ static void handle_hs_message(tls_client_t *c, const uint8_t *m, uint32_t n,
         wipe(k, sizeof k); wipe(iv, sizeof iv);
 
         c->state = TLS_ST_ESTABLISHED;
-        /* authenticated stays FALSE — the channel is encrypted, not verified */
+        /* authenticated only when the chain and the CertificateVerify both
+         * checked out under TLS_VERIFY_REQUIRED; otherwise the channel is
+         * encrypted, not verified */
+        c->authenticated = c->policy == TLS_VERIFY_REQUIRED && c->cert_ok && c->cv_ok;
         return;
     }
 

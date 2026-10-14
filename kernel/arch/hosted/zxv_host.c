@@ -1293,7 +1293,7 @@ static const char TOKEN_SCRIPT[] =
 
 static const char PAGE_CSP[] =
     "Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; "
-    "style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
+    "style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; "
     "frame-ancestors 'none'; base-uri 'none'; form-action 'none'\r\n";
 
 static void send_page(sock_t c)
@@ -1311,6 +1311,106 @@ static void send_page(sock_t c)
     send_all(c, html, cut);
     send_all(c, TOKEN_SCRIPT, sizeof TOKEN_SCRIPT - 1);
     send_all(c, html + cut, total - cut);
+}
+
+/* ASCW Golden, the window's font (assets/fonts/ascw-golden; the page's
+ * @font-face block asks for /fonts/<file>). The folder is --fonts-dir, else
+ * $ZXV_FONTS_DIR, else beside the program: fonts/, ../Resources/Fonts (the
+ * Mac app), ../share/zxv/fonts (Linux). Without it the page uses the
+ * system's fonts. Only ASCW-*.ttf/.otf names are served, never a path. */
+static char FONTS_DIR[1024];
+
+static bool fonts_dir_ok(const char *dir)
+{
+    char probe[1100];
+    if (!dir || !dir[0] || strlen(dir) >= sizeof FONTS_DIR) return false;
+    snprintf(probe, sizeof probe, "%s/ASCW-Golden-Latin2.ttf", dir);
+    FILE *fp = fopen(probe, "rb");
+    if (!fp) return false;
+    fclose(fp);
+    return true;
+}
+
+static void pal_find_fonts(const char *flag, const char *argv0)
+{
+    if (flag) {
+        if (fonts_dir_ok(flag))
+            snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", flag);
+        else
+            fprintf(stderr, "zxv-host: --fonts-dir %s has no ASCW Golden fonts\n", flag);
+        return;
+    }
+    const char *env = getenv("ZXV_FONTS_DIR");
+    if (fonts_dir_ok(env)) {
+        snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", env);
+        return;
+    }
+    char base[900];
+    snprintf(base, sizeof base, "%s", argv0 ? argv0 : "");
+    char *cut = NULL;
+    for (char *q = base; *q; q++)
+        if (*q == '/' || *q == '\\') cut = q;
+    if (cut)
+        *cut = 0;
+    else
+        snprintf(base, sizeof base, ".");
+    static const char *const REL[] = {"/fonts", "/../Resources/Fonts", "/../share/zxv/fonts"};
+    for (size_t i = 0; i < sizeof REL / sizeof REL[0]; i++) {
+        char d[1024];
+        snprintf(d, sizeof d, "%s%s", base, REL[i]);
+        if (fonts_dir_ok(d)) {
+            snprintf(FONTS_DIR, sizeof FONTS_DIR, "%s", d);
+            return;
+        }
+    }
+}
+
+/* "ASCW-<letters, digits, '-'>.ttf" or ".otf", nothing else */
+static bool font_name_ok(const char *p, size_t n)
+{
+    if (n < 10 || n > 80 || memcmp(p, "ASCW-", 5) != 0) return false;
+    if (memcmp(p + n - 4, ".ttf", 4) != 0 && memcmp(p + n - 4, ".otf", 4) != 0) return false;
+    for (size_t i = 5; i < n - 4; i++) {
+        char ch = p[i];
+        if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') ||
+              ch == '-'))
+            return false;
+    }
+    return true;
+}
+
+static void send_font(sock_t c, const char *name, size_t n)
+{
+    char path[1200];
+    FILE *fp = NULL;
+    if (FONTS_DIR[0] && font_name_ok(name, n)) {
+        snprintf(path, sizeof path, "%s/%.*s", FONTS_DIR, (int) n, name);
+        fp = fopen(path, "rb");
+    }
+    if (!fp) {
+        reply(c, "404 Not Found", "text/plain", "no such font", 12);
+        return;
+    }
+    fseek(fp, 0, SEEK_END);
+    long len = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (len <= 0 || len > 64L * 1024 * 1024) {
+        fclose(fp);
+        reply(c, "404 Not Found", "text/plain", "no such font", 12);
+        return;
+    }
+    /* fonts may be cached: they are the same files at every launch */
+    char head[512];
+    int h = snprintf(head, sizeof head,
+                     "HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent-Length: %ld\r\n"
+                     "Cache-Control: private, max-age=86400\r\nX-Content-Type-Options: nosniff\r\n"
+                     "Cross-Origin-Resource-Policy: same-origin\r\nConnection: close\r\n\r\n",
+                     memcmp(name + n - 4, ".otf", 4) ? "font/ttf" : "font/otf", len);
+    send_all(c, head, (size_t) h);
+    char buf[65536];
+    size_t k;
+    while ((k = fread(buf, 1, sizeof buf, fp)) > 0) send_all(c, buf, k);
+    fclose(fp);
 }
 
 static zxv_guard_t G;
@@ -1380,6 +1480,11 @@ static void handle(sock_t c)
     if (PATH_IS("/") || PATH_IS("/index.html")) {
         if (is_get)
             send_page(c);
+        else
+            reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
+    } else if (plen > 7 && !memcmp(path, "/fonts/", 7)) {
+        if (is_get)
+            send_font(c, path + 7, plen - 7);
         else
             reply(c, "405 Method Not Allowed", "text/plain", "use GET", 7);
     } else if (PATH_IS("/api/state") && is_get) {
@@ -1777,7 +1882,7 @@ int main(int argc, char **argv)
 {
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
-    const char *model = NULL, *models_dir = NULL;
+    const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
     uint64_t peer_float = 0;
@@ -1810,6 +1915,8 @@ int main(int argc, char **argv)
             model = argv[++i];
         else if (!strcmp(argv[i], "--models-dir") && i + 1 < argc)
             models_dir = argv[++i];
+        else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
+            fonts_dir = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
             if (zxv_net_mode_parse(argv[++i], &S.net_want) != 0) {
                 fprintf(stderr, "zxv-host: --net takes off, lan or online\n");
@@ -1886,6 +1993,7 @@ int main(int argc, char **argv)
                    "  --port N            port (default 8722; 0 = any free port)\n"
                    "  --model FILE        GGUF model to use\n"
                    "  --models-dir DIR    where to look for *.gguf models\n"
+                   "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
                    "  --net-port N        its UDP port (default 8723; 0 = any free port)\n"
@@ -1980,6 +2088,8 @@ int main(int argc, char **argv)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
     zxvd_rpc_set_view_ops(&VIEW_OPS);
 #endif
+
+    pal_find_fonts(fonts_dir, argc > 0 ? argv[0] : NULL);
 
     /* the model slot: an explicit file, else the first *.gguf in the
      * models folder, else none (the swarm runs without one) */

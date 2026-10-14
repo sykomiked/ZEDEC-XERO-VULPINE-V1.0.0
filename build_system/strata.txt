@@ -37,6 +37,11 @@ surplus                          base
 tls/aead                         base       # ChaCha20-Poly1305
 tls/hkdf                         base       # RFC 5869
 tls/x25519                       base       # RFC 7748
+tls/sha512                       base       # SHA-384/512 (FIPS 180-4)
+tls/digest                       base       # SHA-2 dispatch for the signature code
+tls/bn                           base       # Montgomery arithmetic, verification only
+tls/ecdsa                        base       # P-256/P-384 ECDSA verification
+tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 
@@ -60,6 +65,7 @@ fs                               kernel
 gdt                              kernel
 hardware                         kernel
 holographic                      kernel
+hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
 idt                              kernel
 keyboard                         kernel
 license                          kernel
@@ -72,6 +78,7 @@ pci                              kernel
 phase_coord                      kernel
 pic                              kernel
 quantum                          kernel
+qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
 recon                            kernel
 sched                            kernel
 sdk                              kernel
@@ -79,6 +86,7 @@ smap                             kernel
 syscall                          kernel
 telemetry                        kernel
 timer                            kernel
+timesvc                          kernel     # wall-clock time (RTC, SNTP) and time zones
 tripartite_fs                    kernel
 trispace                         kernel
 vbe                              kernel
@@ -114,6 +122,7 @@ crypto_wallet                    trust
 curzi                            trust
 decent                           trust
 ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
+hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
 ident                            trust
 identity                         trust
 immigration                      trust
@@ -140,6 +149,7 @@ peer_audit                       logic
 predictive                       logic
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
 
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
@@ -161,6 +171,7 @@ aipi                             ai         # AI pinning index; stores model blo
 abacus                           settlement
 battering_ram                    settlement
 capmkt                           settlement
+qnet                             settlement # netting optimiser: greedy cycles, min-cost circulation, annealer (#83 Q.6)
 cardnet                          settlement
 cbank                            settlement
 concord                          settlement # the commons' matching engine; market.h settles through it
@@ -173,6 +184,7 @@ ident/id_kyc.c                   settlement # KYC checks against payment rails a
 logistics                        settlement
 market                           settlement
 mesh_token                       settlement
+outbox                           settlement # offline grants and once-only settlement on pay_ledger
 pay                              settlement
 peer_audit/pa_runtime            settlement # binds the audit to pay_ledger and swarm budgets
 provider                         settlement
@@ -193,6 +205,12 @@ vderiv                           settlement
 vswap                            settlement
 zenny                            settlement
 zstats                           settlement # the stats feed reads the other finance modules
+cred                             settlement # Player Card tiers through sicily
+dispute                          settlement
+fxepoch                          settlement
+mint                             settlement
+qnote                            settlement # first loss through svault
+royalty                          settlement
 
 # ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
 crown                            adapters
@@ -208,6 +226,7 @@ iso20022                         adapters
 legacy                           adapters
 legal_engine                     adapters
 lightningrod                     adapters
+mfg                              adapters   # manufacturing checks: G-code, QC sampling, energy budget (#83 F)
 ministry                         adapters
 net/smart_adapter_integration    adapters   # integrates net's adapters with orbital_elevator
 orbital_compat                   adapters
@@ -218,6 +237,7 @@ sdk_bridge                       adapters
 sovereign_node                   adapters
 sutra                            adapters
 hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
+fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
 policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
@@ -234,6 +254,7 @@ chronicle                        above
 community_chest                  above
 denconnect                       above
 desktop                          above
+zui                              above      # native UI: renderer, widgets, input, present, app screens (#104, #110)
 dualtrack                        above
 emu                              above
 font                             above
@@ -243,6 +264,7 @@ holodeck                         above
 hypercube                        above
 i18n                             above
 icon                             above
+launch                           above
 macgyver                         above
 nlb                              above
 pirate_apps                      above
@@ -258,6 +280,7 @@ social_spaces                    above
 subterm                          above
 superpos                         above
 synthesis                        above
+terms                            above      # first-boot agreement gate for the login screen; uses sha256
 theme                            above
 tolvovina                        above
 wyrmgate                         above

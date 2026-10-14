@@ -57,6 +57,11 @@ cp "$WORK/zxvd" "$APP/Contents/MacOS/zxvd"
 cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
 # build_zxvd.sh already links zxvd with @executable_path/../Frameworks as an rpath.
 strip -x "$APP/Contents/MacOS/zxvd"
+# ASCW Golden, the UI font (SIL OFL 1.1: its licence travels with it)
+mkdir -p "$APP/Contents/Resources/Fonts"
+cp "$R"/assets/fonts/ascw-golden/*.ttf "$R"/assets/fonts/ascw-golden/*.otf \
+    "$R/assets/fonts/ascw-golden/OFL.txt" "$R/assets/fonts/ascw-golden/FONTLOG.md" \
+    "$APP/Contents/Resources/Fonts/"
 sed -e "s/@VERSION@/$VERSION/g" "$HERE/Info.plist.in" >"$APP/Contents/Info.plist"
 if python3 -c 'import PIL' 2>/dev/null; then
     python3 "$R/macos/make_icns.py" "$R/kernel/boot/zede_logo.png" \

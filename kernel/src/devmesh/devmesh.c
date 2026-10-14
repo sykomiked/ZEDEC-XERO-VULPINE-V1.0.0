@@ -617,7 +617,7 @@ dm_status_t dm_create(dm_mesh_t *m, uint64_t now_ms)
 /* ===== text helpers ===== */
 int32_t dm_b32_encode(const uint8_t *in, uint32_t len, char *out, uint32_t cap)
 {
-    if (!in || !out) return -1;
+    if (!in || !out || len > 0x7FFFFFFFu / 8u) return -1; /* len * 8 must not wrap */
     uint32_t need = (len * 8u + 4u) / 5u;
     if (need + 1u > cap) return -1;
     uint32_t acc = 0, bits = 0, o = 0;
@@ -658,6 +658,9 @@ int32_t dm_b32_decode(const char *in, uint8_t *out, uint32_t cap)
         }
         acc &= (1u << bits) - 1u;
     }
+    /* canonical only: no length that no byte string encodes to (a leftover
+     * of 5+ bits) and zero padding bits, so each byte string has one text */
+    if (bits >= 5u || acc != 0) return -1;
     return (int32_t) o;
 }
 

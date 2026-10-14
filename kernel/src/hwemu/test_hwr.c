@@ -192,6 +192,19 @@ int main(void)
     CHECK(hwr_stage(&r, img, n) == HWR_E_TARGET);
     n = make(img, inc, 0x999, 1, 1, sk, NULL);
     CHECK(hwr_stage(&r, img, n) == HWR_E_FUNCTION);
+    /* Digest compares cover every byte: a part differing only in the first
+     * or the last byte is another part, and a digest that is zero except
+     * at one end is not the "any part" wildcard. */
+    for (int e = 0; e < 2; e++) {
+        memcpy(other, tdig, 32);
+        other[e ? 31 : 0] ^= 0x01;
+        n = make(img, inc, 0x200, 1, 1, sk, other);
+        CHECK(hwr_stage(&r, img, n) == HWR_E_TARGET);
+        memset(other, 0, 32);
+        other[e ? 31 : 0] = 0x01;
+        n = make(img, inc, 0x200, 1, 1, sk, other);
+        CHECK(hwr_stage(&r, img, n) == HWR_E_TARGET);
+    }
 
     /* The happy path: stage, trial (proved by vectors), commit. */
     n = make(img, inc, 0x200, 1, 1, sk, tdig);
@@ -407,6 +420,70 @@ int main(void)
         CHECK(hwr_stage(&rd, dimg, dn) == HWR_OK && hwr_trial(&rd, 1) == HWR_OK &&
               hwr_commit(&rd) == HWR_OK && rd.state == HWR_ST_ACTIVE);
         CHECK(ld.n == 5 && hwa_forbidden(&ld) == 2 && hwa_verify(&ld));
+    }
+
+    /* ---- hwr_parse on its own: every guard and every header field (the
+     * adversarial audit's mutation run found the format checks and the
+     * byte order untested because the signature check stood behind them) */
+    {
+        static uint8_t pb[HWR_HEADER + 8 + HWR_MLDSA87_SIG + 1];
+        hwr_image_t in, out;
+        memset(&in, 0, sizeof in);
+        in.alg = HWR_ALG_MLDSA87;
+        in.kind = HWR_KIND_FIRMWARE;
+        in.target_class = 0xA1B2C3D4u;
+        in.fn_id = 0x8F7E6D5Cu;
+        in.version = 0x01020304u;
+        in.svn = 0xFEDCBA98u;
+        in.payload_len = 8;
+        for (int i = 0; i < 32; i++) {
+            in.target_digest[i] = (uint8_t) (0x80 + i);
+            in.payload_sha256[i] = (uint8_t) (0xF0 - i);
+        }
+        hwr_build_header(&in, pb);
+        const uint32_t n = HWR_HEADER + 8 + HWR_MLDSA87_SIG;
+        CHECK(hwr_parse(pb, n, &out) == HWR_OK);
+        CHECK(out.format == 1 && out.alg == HWR_ALG_MLDSA87 && out.kind == HWR_KIND_FIRMWARE);
+        CHECK(out.target_class == 0xA1B2C3D4u && out.fn_id == 0x8F7E6D5Cu);
+        CHECK(out.version == 0x01020304u && out.svn == 0xFEDCBA98u && out.payload_len == 8);
+        CHECK(memcmp(out.target_digest, in.target_digest, 32) == 0);
+        CHECK(memcmp(out.payload_sha256, in.payload_sha256, 32) == 0);
+        CHECK(out.sig_len == HWR_MLDSA87_SIG && out.header == pb &&
+              out.payload == pb + HWR_HEADER && out.sig == pb + HWR_HEADER + 8);
+        CHECK(hwr_parse(NULL, n, &out) == HWR_E_ARG && hwr_parse(pb, n, NULL) == HWR_E_ARG);
+        CHECK(hwr_parse(pb, HWR_HEADER - 1, &out) == HWR_E_FORMAT);
+        CHECK(hwr_parse(pb, n - 1, &out) == HWR_E_FORMAT &&
+              hwr_parse(pb, n + 1, &out) == HWR_E_FORMAT);
+        for (int b = 0; b < 6; b++) { /* magic "ZXHR", format 1.0 */
+            pb[b] ^= 0x01;
+            CHECK(hwr_parse(pb, n, &out) == HWR_E_FORMAT);
+            pb[b] ^= 0x01;
+        }
+        CHECK(hwr_parse(pb, n, &out) == HWR_OK);
+        /* kind: BITSTREAM..VECTORS only, both ends inclusive */
+        static const uint32_t kinds[] = {0, HWR_KIND_BITSTREAM, HWR_KIND_VECTORS,
+                                         HWR_KIND_VECTORS + 1, 0x80000001u};
+        static const int kok[] = {0, 1, 1, 0, 0};
+        for (int k = 0; k < 5; k++) {
+            in.kind = kinds[k];
+            hwr_build_header(&in, pb);
+            CHECK((hwr_parse(pb, n, &out) == HWR_OK) == kok[k]);
+        }
+        in.kind = HWR_KIND_FIRMWARE;
+        in.alg = 0x7777; /* unknown algorithm: no signature length */
+        hwr_build_header(&in, pb);
+        CHECK(hwr_parse(pb, n, &out) == HWR_E_FORMAT);
+        in.alg = HWR_ALG_MLDSA87;
+        in.payload_len = 0;
+        hwr_build_header(&in, pb);
+        CHECK(hwr_parse(pb, HWR_HEADER + HWR_MLDSA87_SIG, &out) == HWR_E_FORMAT);
+        in.payload_len = HWR_MAX_PAYLOAD + 1;
+        hwr_build_header(&in, pb);
+        CHECK(hwr_parse(pb, n, &out) == HWR_E_FORMAT);
+        in.payload_len = 0xFFFFFFFFu; /* header + payload + signature must not wrap */
+        hwr_build_header(&in, pb);
+        CHECK(hwr_parse(pb, (uint32_t) (HWR_HEADER + 0xFFFFFFFFull + HWR_MLDSA87_SIG), &out) ==
+              HWR_E_FORMAT);
     }
 
     printf("%d/%d checks passed\n", checks - fails, checks);

@@ -18,6 +18,7 @@ enum StudioMain {
             let sock = args.count > i + 1 ? args[i + 1] : ZXVDLocation.defaultSocketPath
             exit(Smoke.run(socket: sock))
         }
+        ASCWFont.registerAll()
         ZXVStudioApp.main()
     }
 }
@@ -54,6 +55,7 @@ struct ZXVStudioApp: App {
     var body: some Scene {
         WindowGroup("ZXV Studio") {
             RootView()
+                .font(Theme.body)
                 .environmentObject(store)
                 .frame(minWidth: 980, minHeight: 680)
                 .preferredColorScheme(.dark)

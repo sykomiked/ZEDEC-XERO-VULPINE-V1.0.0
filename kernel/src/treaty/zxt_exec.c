@@ -130,8 +130,13 @@ int32_t zxt_exec(const zxt_treaty_t *t, zxv_engine_t *ws, const uint8_t seed[32]
                 return fail(r, ZXT_E_EXEC + es);
     if (!zxv_engine_check(ws)) return fail(r, ZXT_E_EXEC + ZXV_E_LEDGER);
 
-    for (uint32_t i = 0; i < t->n_party; i++)
-        r->balance[i] = (int64_t) zxv_engine_balance(ws, member[i]);
+    for (uint32_t i = 0; i < t->n_party; i++) {
+        uint64_t bal = zxv_engine_balance(ws, member[i]);
+        /* deposit + what is received can pass PIC S9(18) (each deposit and
+         * leg is only capped at 2^59): such a result cannot be reported. */
+        if (bal > (uint64_t) ZXT_PIC18_MAX) return fail(r, ZXT_E_SIZE);
+        r->balance[i] = (int64_t) bal;
+    }
     for (uint32_t k = 0; k < n_leg; k++) {
         uint32_t f = ZXT_MAX_PARTIES, to = ZXT_MAX_PARTIES;
         for (uint32_t i = 0; i < t->n_party; i++) {
