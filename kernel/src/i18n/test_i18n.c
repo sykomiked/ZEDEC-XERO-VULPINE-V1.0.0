@@ -617,7 +617,8 @@ static void test_ui_window(void)
     EQS(b, "1.234 of 21.000 tokens");
     /* Arabic: right to left, so each argument is isolated (FSI .. PDI) */
     i18n_format_msg(L("ar"), i18n_msg(L("ar"), I18N_UI_WITNESS_BY, 0), a, 1, b, sizeof b);
-    EQS(b, "by \xE2\x81\xA8" "1.234\xE2\x81\xA9");
+    EQS(b, "by \xE2\x81\xA8"
+           "1.234\xE2\x81\xA9");
 }
 
 static void test_needs(void)

@@ -41,7 +41,7 @@
 /* the module methods (zxvd_rpc_modules.h), listed after zxvd's own */
 #define MODS                                                                                       \
     "\"freight.pack\",\"freight.unpack\",\"harmonic.encode\",\"harmonic.decode\",\"stream.plan\"," \
-    "\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\",\"web4.cid\","               \
+    "\"stream.segment\",\"ehop.bands\",\"ehop.seal\",\"ehop.open\",\"web4.cid\","                  \
     "\"web4.agent_card\",\"web4.card_verify\""
 
 /* the people methods (zxvd_people.c), after the play methods */

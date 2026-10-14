@@ -317,7 +317,8 @@ static void test_stream(void)
     char units[2000];
     int n = 0;
     for (int i = 0; i < 121; i++) {
-        int wrote = snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
+        int wrote =
+            snprintf(units + n, sizeof units - (size_t) n, "%s[1,%d,true]", i ? "," : "", i);
         if (wrote < 0 || (size_t) wrote >= sizeof units - (size_t) n) {
             n = (int) sizeof units - 1;
             break;

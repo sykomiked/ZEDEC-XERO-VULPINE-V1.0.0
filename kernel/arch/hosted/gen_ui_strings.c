@@ -371,8 +371,8 @@ static void build_map(strs_t *domain)
         if (page_lookup(domain->v[i]) != want[i])
             die("page lookup differs from i18n_locale_resolve for", domain->v[i]);
     free(want);
-    fprintf(stderr, "gen_ui_strings: negotiation checked on %zu tags, map %u entries\n",
-            domain->n, map_n);
+    fprintf(stderr, "gen_ui_strings: negotiation checked on %zu tags, map %u entries\n", domain->n,
+            map_n);
 }
 
 /* ---------- strings ---------- */
@@ -391,12 +391,22 @@ static void affix(buf_t *o, const i18n_numfmt_t *nf, const char *a)
     buf_t t = {0};
     puts_(&t, "");
     for (; *a; a++) switch ((uint8_t) *a) {
-        case I18N_AFX_CURRENCY: break;
-        case I18N_AFX_MINUS: puts_(&t, POOL(nf->minus)); break;
-        case I18N_AFX_PLUS: puts_(&t, POOL(nf->plus)); break;
-        case I18N_AFX_PERCENT: puts_(&t, POOL(nf->percent)); break;
-        case I18N_AFX_PERMILLE: puts_(&t, "\xE2\x80\xB0"); break;
-        default: put(&t, a, 1);
+        case I18N_AFX_CURRENCY:
+            break;
+        case I18N_AFX_MINUS:
+            puts_(&t, POOL(nf->minus));
+            break;
+        case I18N_AFX_PLUS:
+            puts_(&t, POOL(nf->plus));
+            break;
+        case I18N_AFX_PERCENT:
+            puts_(&t, POOL(nf->percent));
+            break;
+        case I18N_AFX_PERMILLE:
+            puts_(&t, "\xE2\x80\xB0");
+            break;
+        default:
+            put(&t, a, 1);
         }
     jstr(o, t.b);
     free(t.b);
@@ -537,11 +547,40 @@ int main(int argc, char **argv)
     buf_t s = {0};
     char out[256];
     puts_(&s, "{\"negotiate\":[");
-    static const char *const fixed[] = {
-        "", "en", "EN_us", "en-US-u-ca-gregory", "en-x-private", "de", "de-AT", "de-CH-1996",
-        "zh-TW", "zh-HK", "zh-Hans-CN", "zh_CN", "sr-ME", "sr-Latn-RS", "iw", "iw-IL", "tl",
-        "tl-PH", "no", "pt-AO", "pt-BR", "es-419", "es-MX", "ar-EG", "fa-IR", "he", "ur-PK",
-        "pa-PK", "ja-JP", "sw-KE", "xx", "x-klingon", "qaa-XX", "ar-u-nu-latn"};
+    static const char *const fixed[] = {"",
+                                        "en",
+                                        "EN_us",
+                                        "en-US-u-ca-gregory",
+                                        "en-x-private",
+                                        "de",
+                                        "de-AT",
+                                        "de-CH-1996",
+                                        "zh-TW",
+                                        "zh-HK",
+                                        "zh-Hans-CN",
+                                        "zh_CN",
+                                        "sr-ME",
+                                        "sr-Latn-RS",
+                                        "iw",
+                                        "iw-IL",
+                                        "tl",
+                                        "tl-PH",
+                                        "no",
+                                        "pt-AO",
+                                        "pt-BR",
+                                        "es-419",
+                                        "es-MX",
+                                        "ar-EG",
+                                        "fa-IR",
+                                        "he",
+                                        "ur-PK",
+                                        "pa-PK",
+                                        "ja-JP",
+                                        "sw-KE",
+                                        "xx",
+                                        "x-klingon",
+                                        "qaa-XX",
+                                        "ar-u-nu-latn"};
     int n = 0;
     for (size_t i = 0; i < sizeof fixed / sizeof *fixed; i++, n++) {
         if (n) puts_(&s, ",");
@@ -559,13 +598,28 @@ int main(int argc, char **argv)
         puts_(&s, "]");
     }
     /* integers as strings: the page formats 64-bit values through BigInt */
-    static const char *const ints[] = {"0", "7", "-7", "999", "1000", "12345", "123456",
-                                       "1234567", "-1234567890", "9007199254740993",
+    static const char *const ints[] = {"0",
+                                       "7",
+                                       "-7",
+                                       "999",
+                                       "1000",
+                                       "12345",
+                                       "123456",
+                                       "1234567",
+                                       "-1234567890",
+                                       "9007199254740993",
                                        "9223372036854775807"};
-    static const long long intv[] = {0,         7,           -7,
-                                     999,       1000,        12345,
-                                     123456,    1234567,     -1234567890LL,
-                                     9007199254740993LL, 9223372036854775807LL};
+    static const long long intv[] = {0,
+                                     7,
+                                     -7,
+                                     999,
+                                     1000,
+                                     12345,
+                                     123456,
+                                     1234567,
+                                     -1234567890LL,
+                                     9007199254740993LL,
+                                     9223372036854775807LL};
     static const long long decs[][2] = {{0, 2}, {5, 2}, {123456, 2}, {-1234567, 3}, {1, 0}};
     puts_(&s, "],\n\"num\":[");
     n = 0;
@@ -631,7 +685,7 @@ int main(int argc, char **argv)
     puts_(&s, "]}\n");
     f = fopen(argv[2], "wb");
     if (!f || fwrite(s.b, 1, s.n, f) != s.n || fclose(f)) die("cannot write", argv[2]);
-    fprintf(stderr, "gen_ui_strings: %d keys, %d string sets, %d number formats, %u locales\n",
-            nk, nsets, nnums, nl);
+    fprintf(stderr, "gen_ui_strings: %d keys, %d string sets, %d number formats, %u locales\n", nk,
+            nsets, nnums, nl);
     return 0;
 }
