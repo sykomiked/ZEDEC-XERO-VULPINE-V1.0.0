@@ -468,9 +468,9 @@ Gaps: none found in the paths reviewed.
 ### apps  —  built-in shell, editor, network config and other desktop apps
 Status: PARTIAL
 What it does: apps.c holds a working text shell, an editor, a network-config panel, sysmon and a
-few small tools; these are compiled into the kernel. The unbuilt app files (derivatives, treaty,
-assurance, wallet, notes with test_notes.c and vfs_stub.c, clock, dharma_monitor) moved to
-kernel/experimental/m5_apps/ (GAP_AUDIT B3); telecom signalling and some demo files in other
+few small tools; these are compiled into the kernel. notes_app.c with test_notes.c and vfs_stub.c
+are host-tested by verify-all (test-orphans). The unbuilt app files (derivatives, treaty, assurance,
+wallet, clock, dharma_monitor) moved to kernel/experimental/m5_apps/ (GAP_AUDIT B3); telecom signalling and some demo files in other
 languages are still here and not built. sysmon shows invented CPU and memory figures.
 Main entry points: shell_init, shell_execute, shell_handle_key, shell_render, editor_init,
 editor_load_file, netcfg_refresh.
