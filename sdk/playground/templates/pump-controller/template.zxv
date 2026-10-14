@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+id pump-controller
+title Propose a pump setpoint, safely
+lang eve
+audience water utilities, industrial and plant operators
+safety advisory
+summary A setpoint inside hard Eve ranges becomes a proposal for an operator. Out-of-range is refused; two gauges that disagree are held.
+inputs inputs.txt
+step advisory eve proposal.eve advisory type=proposal sensors=pressure_a,pressure_b tolerance=10.0

@@ -170,12 +170,16 @@ class Client:
         self.s.close()
 
 
+SEEN = []  # every line wait_line read, for the ZXV-URL line
+
+
 def wait_line(proc, prefix, secs=20):
     t0 = time.time()
     while time.time() - t0 < secs:
         line = proc.stdout.readline()
         if not line:
             return None
+        SEEN.append(line.strip())
         if line.startswith(prefix):
             return line[len(prefix):].strip()
     return None
@@ -189,6 +193,88 @@ HALVES = ('0061736d01000000010c0260017e017e60027e7e017f0304030001000719030468616
           '42027e42017c200051720b090003400c000b42000b')
 FLOATY = '0061736d0100000001060160017e017e030201000708010468616c6600000a080106002000b9b00b'
 HALVES_ZC = 'fn half(n: int[0..1000000]) -> int[0..500000];\n'
+
+
+def play_checks(c):
+    """play.* (zxvd_rpc.h P1-P3): the Playground's templates over the socket."""
+    def err(method, params):
+        return c.call(method, params).get('error', {})
+
+    cat = c.ok('play.catalogue')
+    ids = [t['id'] for t in cat]
+    check(len(cat) >= 10 and 'payment-reconciliation' in ids and 'trade-corridor' in ids,
+          'play.catalogue lists the templates (%d)' % len(cat))
+    check(all(t['files'] and t['steps'] for t in cat), 'play.catalogue: every template has files and steps')
+    r = c.ok('play.run', {'template': 'payment-reconciliation'})
+    check(r['verdict'] == 'BOTH' and r['approval'] == 'required' and r['steps'][1]['ran'] is False,
+          'play.run: a conflicting report is held (BOTH) and the gated settlement does not run')
+    inputs = ('payments = P-1001 P-1002 P-1003 P-1004\nsender = 1 1 1 1\n'
+              'receiver = 1 1 1 1\nrtgs = 1 1 1 1\n')
+    r = c.ok('play.run', {'template': 'payment-reconciliation', 'files': {'inputs.txt': inputs}})
+    outs = {o['name']: o['value'] for o in r['steps'][1]['outputs']}
+    check(r['verdict'] == 'TRUE' and outs.get('fees') == '755',
+          'play.run: with the edit every payment is clear and the treaty settles (fee 755)')
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    bad = open(os.path.join(root, 'sdk', 'playground', 'templates', 'trade-corridor',
+                            'corridor.treaty')).read().replace('3000000 3000 1/7', '3000000 3000001 1/7')
+    r = c.ok('play.run', {'template': 'trade-corridor', 'files': {'corridor.treaty': bad}})
+    e = r['steps'][0].get('error', {})
+    check(r['verdict'] == 'FALSE' and e.get('name') == 'ZXT_E_CLAIM' and e.get('line') == 5,
+          'play.run: a claim above its deposit is refused at line 5')
+    check(err('play.run', {'template': 'no-such'}).get('code') == -32012, 'play.run: unknown template')
+    r = c.call('play.run', {'template': 'trade-corridor', 'files': {'../x': 'y'}})
+    check(r.get('result', {}).get('verdict') == 'FALSE' or 'error' in r,
+          'play.run: a file name with a directory is refused')
+    check(err('play.run', {'template': 'trade-corridor', 'files': ['x']}).get('code') == -32602,
+          'play.run: files must be an object')
+    d = c.ok('play.draft', {'template': 'trade-corridor', 'request': 'Acme owes Beta 12000 dollars'})
+    check(isinstance(d['draft'], str) and isinstance(d['model'], bool),
+          'play.draft returns the swarm\'s draft as untrusted text (model=%s)' % d['model'])
+    check(err('play.draft', {'template': 'relief-allocation'}).get('code') == -32012,
+          'play.draft: a template without a draft line')
+    play_http_checks()
+
+
+def play_http_checks():
+    """The window's Playground routes (zxv_host.c): the same results as JSON
+    the page can parse, with this launch's token."""
+    url = [l for l in SEEN if l.startswith('ZXV-URL: http://127.0.0.1:')]
+    check(len(url) == 1, 'zxvd prints its window URL')
+    if not url:
+        return
+    port = int(url[0].split(':')[3].split('/')[0])
+    token = url[0].split('#token=')[1]
+
+    def http(method, path, body=b''):
+        s = socket.create_connection(('127.0.0.1', port), timeout=30)
+        head = ('%s %s HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nSec-Fetch-Site: same-origin\r\n'
+                'X-ZXV-Token: %s\r\nContent-Length: %d\r\n\r\n' % (method, path, port, token, len(body)))
+        s.sendall(head.encode() + body)
+        data = b''
+        while True:
+            k = s.recv(65536)
+            if not k:
+                break
+            data += k
+        s.close()
+        hdr, _, rest = data.partition(b'\r\n\r\n')
+        return int(hdr.split(b' ', 2)[1]) if hdr.startswith(b'HTTP/1.1 ') else 0, rest
+
+    st, body = http('GET', '/api/play/catalogue')
+    check(st == 200 and len(json.loads(body)) >= 10, 'GET /api/play/catalogue (%d)' % st)
+    st, body = http('POST', '/api/play/run', b'template payment-reconciliation\n')
+    check(st == 200 and json.loads(body)['verdict'] == 'BOTH', 'POST /api/play/run (%d)' % st)
+    req = b'Acme owes "Beta" 12000\\n dollars'
+    st, body = http('POST', '/api/play/draft',
+                    b'template trade-corridor\nrequest %d\n%s\n' % (len(req), req))
+    try:
+        d = json.loads(body)
+    except ValueError:
+        d = {}
+    check(st == 200 and isinstance(d.get('draft'), str) and isinstance(d.get('model'), bool),
+          'POST /api/play/draft answers JSON the page can parse (%d)' % st)
+    st, _ = http('POST', '/api/play/draft', b'template relief-allocation\n')
+    check(st == 404, 'POST /api/play/draft: a template without a draft line (%d)' % st)
 
 
 def aipi_checks(c, home):
@@ -702,8 +788,11 @@ def main(binary, gguf=None):
         if WINDOWS:
             r = c.call('aipi.status')
             check(r.get('error', {}).get('code') == -32601, 'aipi.*: not available on Windows')
+            r = c.call('play.catalogue')
+            check(r.get('error', {}).get('code') == -32601, 'play.*: not available on Windows')
         else:
             aipi_checks(c, home)
+            play_checks(c)
         econ_checks(c)
         companion_checks(c)
         web4_checks(c)

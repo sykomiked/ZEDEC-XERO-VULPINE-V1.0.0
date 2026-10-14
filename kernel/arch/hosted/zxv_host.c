@@ -108,6 +108,9 @@ typedef int sock_t;
 #include "zxv_update_host.h"
 #include "zx_notify.h"
 #include "zx_upcheck.h"
+#if defined(ZXV_HAVE_PLAY)
+#    include "zxvplay.h" /* sdk/playground: templates and the language runner */
+#endif
 #if defined(ZXVD)
 #    include "zxvd_rpc.h"       /* zxvd: the JSON-RPC socket and the libzxv books */
 #    include "zxvd_chat.h"      /* zxvd: the owner's social chat (chat.*) */
@@ -943,6 +946,9 @@ static void note_task(bool ok, const char *summary)
                       "chat");
 }
 
+/* True when the last answer() came from a real model (not a stand-in). */
+static bool LAST_ANSWER_MODEL;
+
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
@@ -958,6 +964,7 @@ static void answer(const char *q, char *out, size_t cap)
         return;
     }
     int m = zxv_model_answer_ex(q, run_under_budget, NULL, out, cap);
+    LAST_ANSWER_MODEL = m == 1;
 #if defined(ZXV_HAVE_ZT_GLUE)
     if (m == 1 || m == 0) {
         zxv_zt_last_verdict(&S.last_verdict);
@@ -1544,12 +1551,90 @@ static void send_font(sock_t c, const char *name, size_t n)
 
 static zxv_guard_t G;
 
-/* A request: the headers and a body as long as one zxvd RPC line (the
- * window's /api/rpc, used by the staple apps), with room for the headers. */
-#if defined(ZXVD)
+/* A request: the headers and the largest body a route takes, with room for
+ * the headers: a whole Playground template (zxvplay.h zp_request), else one
+ * zxvd RPC line (the window's /api/rpc, used by the staple apps). */
+#if defined(ZXV_HAVE_PLAY)
+#    define REQ_MAX (320u * 1024u)
+#elif defined(ZXVD)
 #    define REQ_MAX (ZXVD_RPC_MAX_LINE + 8192)
 #else
 #    define REQ_MAX 8192
+#endif
+
+#if defined(ZXV_HAVE_PLAY)
+/* POST /api/play/run and /api/play/draft. The page sends the template id
+ * and the files the user edited; nothing here touches the books. */
+static void play_reply(sock_t c, int32_t st, char *json, size_t n)
+{
+    if (st == ZP_OK && json)
+        reply(c, "200 OK", "application/json", json, n);
+    else
+        reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+    free(json);
+}
+
+static void play_run(sock_t c, const char *body, size_t len)
+{
+    static zp_request r;
+    char *out = NULL;
+    size_t n = 0;
+    const zp_template *t;
+    if (zp_request_parse(body, len, &r) != ZP_OK) {
+        reply(c, "400 Bad Request", "text/plain", "bad playground request", 22);
+        return;
+    }
+    t = zp_template_find(r.template_id);
+    if (!t && !r.n_files) {
+        reply(c, "404 Not Found", "text/plain", "no such template", 16);
+        return;
+    }
+    int32_t st = zp_run(t, r.files, r.n_files, &out, &n); /* fills out, n first */
+    play_reply(c, st, out, n);
+}
+
+/* The local swarm drafts one file. Its text is returned to the page as an
+ * untrusted draft: the page shows it beside the editor and nothing runs
+ * until the person accepts it and presses Run. */
+static void play_draft(sock_t c, const char *body, size_t len)
+{
+    static zp_request r;
+    static char ans[16384];
+    char req[1024];
+    char *prompt = NULL;
+    const zp_template *t;
+    int32_t st;
+    if (zp_request_parse(body, len, &r) != ZP_OK || !(t = zp_template_find(r.template_id))) {
+        reply(c, "400 Bad Request", "text/plain", "bad playground request", 22);
+        return;
+    }
+    snprintf(req, sizeof req, "%.*s",
+             (int) (r.request_len < sizeof req ? r.request_len : sizeof req - 1),
+             r.request ? r.request : "");
+    st = zp_draft_prompt(t, r.files, r.n_files, req, &prompt, NULL);
+    if (st == ZP_E_NOTFOUND) {
+        reply(c, "404 Not Found", "text/plain", "this template has no AI draft", 29);
+        return;
+    }
+    if (st != ZP_OK) {
+        reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+        return;
+    }
+    answer(prompt, ans, sizeof ans);
+    free(prompt);
+    {
+        buf_t b = {malloc(4096), 0, 4096};
+        if (!b.p) {
+            reply(c, "500 Internal Server Error", "text/plain", "playground failed", 17);
+            return;
+        }
+        bput(&b, "{\"model\":%s,\"draft\":", LAST_ANSWER_MODEL ? "true" : "false");
+        json_str(&b, ans);
+        bput(&b, "}");
+        reply(c, "200 OK", "application/json", b.p, b.len);
+        free(b.p);
+    }
+}
 #endif
 
 static void handle(sock_t c)
@@ -1674,6 +1759,17 @@ static void handle(sock_t c)
     } else if (PATH_IS("/api/rpc")) {
         reply(c, "405 Method Not Allowed", "text/plain", "wrong method", 12);
 #endif
+#if defined(ZXV_HAVE_PLAY)
+    } else if (PATH_IS("/api/play/catalogue") && is_get) {
+        char *js = NULL;
+        size_t jn = 0;
+        int32_t st = zp_catalogue_json(&js, &jn); /* fills js, jn first */
+        play_reply(c, st, js, jn);
+    } else if (PATH_IS("/api/play/run") && !is_get) {
+        play_run(c, body, (size_t) want);
+    } else if (PATH_IS("/api/play/draft") && !is_get) {
+        play_draft(c, body, (size_t) want);
+#endif
     } else if (PATH_IS("/api/state") || PATH_IS("/api/ask") || PATH_IS("/api/quit") ||
                PATH_IS("/api/notes") || PATH_IS("/api/notes/read") || PATH_IS("/api/update") ||
                PATH_IS("/api/net")) {
@@ -1702,6 +1798,70 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
     answer(q, ans, sizeof ans);
     zxvd_buf_json_str(o, ans);
 }
+
+#    if defined(ZXV_HAVE_PLAY)
+/* play.* (zxvd_rpc.h P1-P3) over sdk/playground. */
+static void to_zp(const zxvd_play_file_t *f, uint32_t n, zp_file *z)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        z[i].name = f[i].name;
+        z[i].text = f[i].text;
+        z[i].len = f[i].len;
+    }
+}
+
+static const char *rpc_play_catalogue(zxvd_buf_t *o)
+{
+    char *js = NULL;
+    size_t n = 0;
+    if (zp_catalogue_json(&js, &n) != ZP_OK) return "the playground could not list its templates";
+    while (n && js[n - 1] == '\n') n--;
+    zxvd_buf_raw(o, js, n);
+    free(js);
+    return NULL;
+}
+
+static const char *rpc_play_run(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                                zxvd_buf_t *o)
+{
+    zp_file z[ZP_MAX_FILES];
+    char *js = NULL;
+    size_t len = 0;
+    const zp_template *t = zp_template_find(tid);
+    if (n > ZP_MAX_FILES) return "too many files";
+    if (!t) return "no such template (see play.catalogue)";
+    to_zp(f, n, z);
+    if (zp_run(t, z, n, &js, &len) != ZP_OK) return "the playground could not run the template";
+    while (len && js[len - 1] == '\n') len--;
+    zxvd_buf_raw(o, js, len);
+    free(js);
+    return NULL;
+}
+
+static const char *rpc_play_draft(const char *tid, const zxvd_play_file_t *f, uint32_t n,
+                                  const char *request, zxvd_buf_t *o)
+{
+    static char ans[16384];
+    zp_file z[ZP_MAX_FILES];
+    char *prompt = NULL;
+    const zp_template *t = zp_template_find(tid);
+    int32_t st;
+    if (n > ZP_MAX_FILES) return "too many files";
+    if (!t) return "no such template (see play.catalogue)";
+    to_zp(f, n, z);
+    st = zp_draft_prompt(t, z, n, request, &prompt, NULL);
+    if (st == ZP_E_NOTFOUND) return "this template has no AI draft";
+    if (st != ZP_OK) return "the playground could not build the prompt";
+    answer(prompt, ans, sizeof ans);
+    free(prompt);
+    zxvd_buf_printf(o, "{\"model\":%s,\"draft\":", LAST_ANSWER_MODEL ? "true" : "false");
+    zxvd_buf_json_str(o, ans);
+    zxvd_buf_raw(o, "}", 1);
+    return NULL;
+}
+
+static const zxvd_play_ops_t PLAY_OPS = {rpc_play_catalogue, rpc_play_run, rpc_play_draft};
+#    endif
 
 static void rpc_model(zxvd_buf_t *o)
 {
@@ -2384,6 +2544,9 @@ int main(int argc, char **argv)
 #    if defined(ZXV_HAVE_AIPI)
     /* without it zxvd still runs; aipi.* then answer "not available" */
     zxvd_rpc_set_aipi_ops(zxvd_aipi_open());
+#    endif
+#    if defined(ZXV_HAVE_PLAY)
+    zxvd_rpc_set_play_ops(&PLAY_OPS);
 #    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) {
         zxvd_pay_close();

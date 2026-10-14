@@ -498,7 +498,8 @@ static void test_host_methods(void)
               "\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\","
               "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
               "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
-              "\"phone.list\",\"phone.revoke\"]"
+              "\"phone.list\",\"phone.revoke\","
+              "\"play.catalogue\",\"play.run\",\"play.draft\"]"
               "}"));
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
@@ -524,6 +525,7 @@ static void test_host_methods(void)
     EXPECT(REQ("1", "zxvd.version", ""), want);
     zxvd_rpc_set_ops(NULL);
     EXPECT(REQ("1", "swarm.state", ""), ERR("1", "-32601", "not available"));
+    EXPECT(REQ("1", "play.catalogue", ""), ERR("1", "-32601", "not available"));
     zxvd_rpc_set_ops(&SILENT);
     EXPECT(REQ("1", "swarm.ask", ",\"params\":{\"prompt\":\"x\"}"), OK("1", "{\"answer\":\"\"}"));
     zxvd_rpc_set_ops(&EMPTY);
@@ -2700,7 +2702,7 @@ static void test_ext(void)
     EXPECT(REQ("1", "x.echo", ""), ERR("1", "-32601", "method not found"));
     zxvd_rpc_add_methods(TAB, 5);
     CHECK(has(REQ("1", "rpc.discover", ""), "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"x."
                                             "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
                                             "\"zxvd.version\"]}"),
@@ -2729,7 +2731,7 @@ static void test_ext(void)
     CHECK(zxvd_rpc_add_methods(TAB, 1) == 0, "X1: re-adding a table held updates its count");
     CHECK(has(REQ("7", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
@@ -2737,7 +2739,7 @@ static void test_ext(void)
           "X1: 0 or NULL adds nothing");
     CHECK(has(REQ("8", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
@@ -2756,7 +2758,7 @@ static void test_ext(void)
     CHECK(zxvd_rpc_add_methods(T5, 1) == -1, "X1: a fifth is refused");
     CHECK(has(REQ("9", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
@@ -2768,7 +2770,7 @@ static void test_ext(void)
     EXPECT(REQ("9", "x.echo", ""), OK("9", "\"second\""));
     CHECK(has(REQ("9", "rpc.discover", ""),
               "\"aipi.status\",\"features.get\",\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
@@ -2835,7 +2837,7 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""), "\"phone.revoke\"]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");
@@ -3258,7 +3260,7 @@ static void test_groups(void)
     CHECK(zxvd_rpc_add_group(&ok23) == 0, "a 23-byte feature name is fine");
     CHECK(has(REQ("1", "rpc.discover", ""),
               "\"features.set\","
-              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\","
+              "\"files.root\",\"files.list\",\"files.stat\",\"files.read\",\"files.write\",\"files.mkdir\",\"files.rename\",\"files.trash\",\"files.empty_trash\",\"files.cross\",\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\",\"play.draft\","
               "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");

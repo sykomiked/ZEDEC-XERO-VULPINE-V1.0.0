@@ -212,11 +212,45 @@ table.ft td.acts button:hover{color:var(--text)}
 #cparams{width:100%;min-height:90px;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;min-width:0;max-width:100%}
 .drop{outline:2px dashed var(--accent);outline-offset:-6px}
+nav.tabs{display:flex;gap:4px;margin-left:12px}
+nav.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}
+nav.tabs button.on{color:var(--text);border-color:var(--line);background:var(--panel)}
+#play{display:grid;grid-template-columns:minmax(0,15rem) minmax(0,3fr) minmax(0,2fr);gap:12px;padding:12px 16px}
+@media (max-width:1100px){#play{grid-template-columns:minmax(0,1fr)}}
+#play[hidden],#swarm[hidden]{display:none}
+.tpl{display:block;width:100%;text-align:left;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:6px;cursor:pointer;font:inherit}
+.tpl.on{border-color:var(--accent)}
+.tpl b{display:block;font-weight:600}
+.tpl span{display:block;font-size:12px;color:var(--muted)}
+.chip{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-right:4px;color:var(--muted)}
+.pl-head{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.pl-head h3{margin:0;font-size:15px}
+.ftabs{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 6px}
+.ftabs button{background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:6px 6px 0 0;padding:3px 9px;cursor:pointer;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
+.ftabs button.on{color:var(--text);border-color:var(--accent)}
+.ftabs button.edited::after{content:" •";color:var(--accent)}
+#pl-text{width:100%;min-height:46vh;resize:vertical;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:4;white-space:pre}
+button.primary{background:var(--accent);color:#000;border:0;border-radius:6px;padding:6px 16px;cursor:pointer;font-weight:600}
+.verdict{display:flex;gap:10px;align-items:center;padding:10px;border-radius:8px;border:1px solid var(--line);margin-bottom:8px}
+.verdict b{font-size:18px;letter-spacing:.04em}
+.vTRUE{border-color:var(--ok)}.vTRUE b,.cTRUE{color:var(--ok)}
+.vFALSE{border-color:var(--bad)}.vFALSE b,.cFALSE{color:var(--bad)}
+.vBOTH{border-color:var(--glut)}.vBOTH b,.cBOTH{color:var(--glut)}
+.vNEITHER b,.cNEITHER{color:var(--muted)}
+.step{border-top:1px solid var(--line);padding:8px 0}
+.step h4{margin:0 0 4px;font-size:13px}
+.out{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+.out span:nth-child(odd){color:var(--muted)}
+.held{color:var(--glut)}.pend{color:var(--muted)}.err{color:var(--bad)}
+.banner{padding:6px 10px;border-radius:6px;border:1px solid var(--accent);font-size:12px;margin-bottom:8px}
+a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
+#pl-drafttext{white-space:pre-wrap;background:#0b0e13;border:1px dashed var(--glut);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:30vh;overflow:auto}
 </style>
 </head>
 <body>
 <header>
   <h1>ZXV SWARM</h1>
+  <nav class="tabs"><button id="tab-swarm" class="on">Swarm</button><button id="tab-play">Playground</button></nav>
   <span class="sub" id="mode">connecting…</span>
   <button id="quit" title="Stop the ZXV swarm">Quit</button>
 </header>
@@ -233,7 +267,7 @@ select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-
 <div class="views">
 <div class="view" id="v-swarm">
 <div class="note">Preview build: the swarm engine (Fibonacci budget, market, emotions, witness, ledger, DNA, harmonic cycles) is running for real. The agents are stand-ins until the AI model packs are installed, so they don't write real answers yet.</div>
-<main>
+<main id="swarm">
   <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
     <section>
       <h2>Swarm, this cycle</h2>
@@ -309,6 +343,34 @@ select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-
 </div>
 <div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose">Close</button></div><div class="stage" id="vstage"></div></div>
 <div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno">Cancel</button><button class="btn primary" id="myes">OK</button></div></div></div>
+<div id="play" hidden>
+  <section>
+    <h2>Templates</h2>
+    <div id="tpls">Loading…</div>
+    <div class="small">Each one runs in ZXV's own languages, on scratch state: your books are never touched. From a terminal: <code>zxv new ID</code>.</div>
+  </section>
+  <section>
+    <div class="pl-head">
+      <div><h3 id="pl-title">Pick a template</h3><div class="small" id="pl-sum"></div></div>
+      <div class="btns" style="margin:0"><button id="pl-reset" title="Undo your edits to this template">Reset</button><button id="pl-run" class="primary">Run</button></div>
+    </div>
+    <div class="ftabs" id="pl-files"></div>
+    <textarea id="pl-text" spellcheck="false" autocomplete="off"></textarea>
+    <div id="pl-draft" hidden style="margin-top:8px">
+      <form id="pl-askf"><input id="pl-req" autocomplete="off" placeholder="Describe it in plain words; the local AI drafts the file"><button>Draft with AI</button></form>
+      <div id="pl-draftbox" hidden style="margin-top:8px">
+        <div class="small" id="pl-draftnote"></div>
+        <div id="pl-drafttext"></div>
+        <div class="btns"><button id="pl-use">Use this draft</button><button id="pl-discard">Discard</button></div>
+      </div>
+    </div>
+  </section>
+  <section>
+    <h2>Result</h2>
+    <div id="pl-result" class="small">Press Run to check and run the template.</div>
+    <div class="small" style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px">Four answers, never forced into yes or no: <span class="cTRUE">TRUE</span> passed · <span class="cFALSE">FALSE</span> refused, with the line · <span class="cBOTH">BOTH</span> contradictory evidence, held for a person · <span class="cNEITHER">NEITHER</span> not enough to decide yet.</div>
+  </section>
+</div>
 <script>
 const $=id=>document.getElementById(id);
 const verdict=["✗ false","✓ true","⊥̸ contested"];
@@ -341,6 +403,68 @@ function say(who,text,you){const m=document.createElement('div');m.className='ms
 $('ask').onsubmit=async e=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;$('q').value='';say('You',q,true);
   try{const r=await (await fetch('/api/ask',{method:'POST',body:q})).text();say('Companion',r)}catch(err){say('Companion','(no connection to the swarm)')}};
 $('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e){}document.body.innerHTML='<p style="padding:24px">The ZXV swarm has stopped. You can close this window.</p>'};
+
+/* ---------------- Playground ---------------- */
+const PL={cat:[],cur:null,file:null,edits:{},loaded:false,last:null};
+function tab(which){$('swarm').hidden=which!=='swarm';$('play').hidden=which!=='play';$('tab-swarm').classList.toggle('on',which==='swarm');$('tab-play').classList.toggle('on',which==='play');if(which==='play'&&!PL.loaded)plLoad()}
+$('tab-swarm').onclick=()=>tab('swarm');$('tab-play').onclick=()=>tab('play');
+async function plLoad(){
+  try{const r=await fetch('/api/play/catalogue');if(!r.ok)throw 0;PL.cat=await r.json();PL.loaded=true}
+  catch(e){$('tpls').textContent='The Playground is not part of this build.';return}
+  $('tpls').innerHTML='';
+  for(const t of PL.cat){const b=document.createElement('button');b.className='tpl';b.dataset.id=t.id;
+    b.innerHTML=`<b>${esc(t.title)}</b><span>${esc(t.audience)}</span><span><i class="chip">${esc(t.lang)}</i>${t.safety!=='none'?`<i class="chip">${esc(t.safety)}</i>`:''}</span>`;
+    b.onclick=()=>plPick(t.id);$('tpls').appendChild(b)}
+  if(PL.cat.length)plPick(PL.cat[0].id)}
+function plT(){return PL.cat.find(t=>t.id===PL.cur)}
+function plFiles(){const t=plT(),o={};for(const f of t.files)o[f.name]=f.text;return Object.assign(o,PL.edits[PL.cur]||{})}
+function plPick(id){plSave();PL.cur=id;const t=plT();PL.file=null;
+  document.querySelectorAll('.tpl').forEach(b=>b.classList.toggle('on',b.dataset.id===id));
+  $('pl-title').textContent=t.title;$('pl-sum').textContent=t.summary;
+  const main=(t.steps[0]||{}).file;plTabs(main||t.files[0].name);
+  $('pl-draft').hidden=!t.draft;$('pl-draftbox').hidden=true;$('pl-req').value='';
+  $('pl-result').className='small';$('pl-result').textContent='Press Run to check and run the template.'}
+function plOrder(t){const steps=t.steps.map(s=>s.file);const rank=n=>n==='README.md'?0:steps.includes(n)?1+steps.indexOf(n):n==='template.zxv'?99:50;return t.files.map(f=>f.name).sort((a,b)=>rank(a)-rank(b))}
+function plTabs(open){const t=plT(),ed=PL.edits[PL.cur]||{};$('pl-files').innerHTML='';
+  for(const n of plOrder(t)){const b=document.createElement('button');b.textContent=n;b.className=(n===open?'on ':'')+(n in ed?'edited':'');b.onclick=()=>{plSave();plTabs(n)};$('pl-files').appendChild(b)}
+  PL.file=open;$('pl-text').value=plFiles()[open]||'';$('pl-text').readOnly=open==='README.md'}
+function plSave(){if(!PL.cur||!PL.file)return;const t=plT(),orig=(t.files.find(f=>f.name===PL.file)||{}).text,v=$('pl-text').value;
+  const ed=PL.edits[PL.cur]=PL.edits[PL.cur]||{};if(v===orig)delete ed[PL.file];else ed[PL.file]=v}
+$('pl-text').addEventListener('input',()=>{plSave();const b=[...$('pl-files').children].find(x=>x.textContent===PL.file);if(b)b.classList.toggle('edited',PL.file in (PL.edits[PL.cur]||{}))});
+$('pl-reset').onclick=()=>{if(!PL.cur)return;delete PL.edits[PL.cur];plTabs(PL.file)};
+function plBody(request){const enc=new TextEncoder(),parts=[enc.encode(`template ${PL.cur}\n`)];
+  if(request!=null){const r=enc.encode(request);parts.push(enc.encode(`request ${r.length}\n`),r,enc.encode('\n'))}
+  for(const[n,t]of Object.entries(PL.edits[PL.cur]||{})){const b=enc.encode(t);parts.push(enc.encode(`file ${n} ${b.length}\n`),b,enc.encode('\n'))}
+  return new Blob(parts)}
+$('pl-run').onclick=async()=>{if(!PL.cur)return;plSave();$('pl-run').disabled=true;$('pl-result').textContent='Running…';
+  try{const r=await fetch('/api/play/run',{method:'POST',body:plBody(null)});if(!r.ok)throw new Error(await r.text());plShow(await r.json())}
+  catch(e){$('pl-result').textContent='Could not run: '+e.message}
+  $('pl-run').disabled=false};
+const VWORD={TRUE:'Passed',FALSE:'Refused',BOTH:'Held for review',NEITHER:'Undecided'};
+function plGo(file,line,col){plSave();plTabs(file);const ta=$('pl-text'),lines=ta.value.split('\n');let off=0;for(let i=0;i<line-1&&i<lines.length;i++)off+=lines[i].length+1;off+=Math.max(0,col-1);const end=off+Math.max(1,(lines[line-1]||'').length-col+1);ta.focus();ta.setSelectionRange(off,end);ta.scrollTop=Math.max(0,(line-4)*19)}
+function plShow(r){PL.last=r;const el=$('pl-result');el.className='';
+  let h=`<div class="verdict v${esc(r.verdict)}"><b>${esc(r.verdict)}</b><span>${esc(VWORD[r.verdict]||'')}<br><span class="small">${esc(r.headline)}</span></span></div>`;
+  if(r.approval==='required')h+=`<div class="banner">A person must review this before anything happens. The Playground never actuates or settles for real.</div>`;
+  if(r.ledger)h+=`<div class="small" style="margin-bottom:6px">Ledger: ${esc(r.ledger)}</div>`;
+  for(const e of r.input_errors||[])h+=`<div class="err">${esc(e)}</div>`;
+  (r.steps||[]).forEach((s,i)=>{h+=`<div class="step"><h4><span class="c${esc(s.verdict)}">${esc(s.verdict)}</span> · ${esc(s.name)} <span class="chip">${esc(s.lang)}</span><span class="chip">${esc(s.file)}</span>${s.gate?'<span class="chip">gate</span>':''}${s.advisory?'<span class="chip">advisory</span>':''}${s.ran===false?'<span class="chip">not run</span>':''}</h4>`;
+    if(s.outputs.length)h+=`<div class="out">${s.outputs.map(o=>`<span>${esc(o.name)}</span><span>${esc(o.value)}</span>`).join('')}</div>`;
+    for(const t of s.truths)h+=`<div class="out"><span>${esc(t.name)}</span><span>${t.values.map(v=>`<span class="c${esc(v)}">${esc(v)}</span>`).join(' ')}</span></div>`;
+    for(const x of s.held)h+=`<div class="held">HELD · ${esc(x)}</div>`;
+    for(const x of s.pending)h+=`<div class="pend">pending · ${esc(x)}</div>`;
+    if(s.error){const at=s.error.line?` at <a class="go" data-f="${esc(s.file)}" data-l="${s.error.line}" data-c="${s.error.col}">line ${s.error.line}, column ${s.error.col}</a>`:'';h+=`<div class="err">Refused${at}: ${esc(s.error.message)} <span class="chip">${esc(s.error.name)}</span></div>`}
+    for(const x of s.notes)h+=`<div class="small">${esc(x)}</div>`;h+='</div>'});
+  el.innerHTML=h;el.querySelectorAll('a.go').forEach(a=>a.onclick=()=>plGo(a.dataset.f,+a.dataset.l,+a.dataset.c))}
+$('pl-askf').onsubmit=async e=>{e.preventDefault();const t=plT();if(!t||!t.draft)return;plSave();
+  const btn=$('pl-askf').querySelector('button');btn.disabled=true;$('pl-draftbox').hidden=false;$('pl-draftnote').textContent='The local swarm is drafting…';$('pl-drafttext').textContent='';
+  try{const r=await fetch('/api/play/draft',{method:'POST',body:plBody($('pl-req').value)});if(!r.ok)throw new Error(await r.text());const d=await r.json();
+    let txt=d.draft.replace(/^\s*```[a-zA-Z]*\n/,'').replace(/\n```\s*$/,'');PL.draft=txt;
+    $('pl-draftnote').textContent=d.model?`AI draft for ${t.draft.file}. Untrusted until it passes the checks: review it, use it, then press Run.`:'No language model is installed yet, so a stand-in answered. Install a model pack to draft with AI.';
+    $('pl-drafttext').textContent=txt;$('pl-use').disabled=!d.model}
+  catch(err){$('pl-draftnote').textContent='Could not draft: '+err.message}
+  btn.disabled=false};
+$('pl-use').onclick=()=>{const t=plT();if(!t||PL.draft==null)return;(PL.edits[PL.cur]=PL.edits[PL.cur]||{})[t.draft.file]=PL.draft;plTabs(t.draft.file);$('pl-draftbox').hidden=true};
+$('pl-discard').onclick=()=>{PL.draft=null;$('pl-draftbox').hidden=true};
 say('Companion','Hello. I am the companion at the top of the swarm. The engine is live; my specialists are stand-ins until their models are installed.');
 poll();setInterval(poll,500);
 /* ===== the staple apps (docs/STAPLE_APPS.md): views served by zxvd's files.* ===== */

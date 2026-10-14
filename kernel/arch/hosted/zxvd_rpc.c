@@ -1961,6 +1961,97 @@ static void m_phone_revoke(call_t *c)
     if (why) fail(c, E_PARAMS, "%s", why);
 }
 
+/* ----- play.* (zxvd_rpc.h P1-P3) ----- */
+
+static const zxvd_play_ops_t *PLAY;
+
+void zxvd_rpc_set_play_ops(const zxvd_play_ops_t *ops)
+{
+    PLAY = ops;
+}
+
+#define PLAY_MAX_FILES 16
+
+static bool play_done(call_t *c, const char *why)
+{
+    if (!why) return true;
+    c->res->len = 0;
+    fail(c, ZXVD_E_PLAY, "%s", why);
+    return false;
+}
+
+/* "files": {name: text, ...}, decoded into malloc'd copies. */
+static bool p_files(call_t *c, zxvd_play_file_t *f, uint32_t *n)
+{
+    int32_t o = param(c, "files");
+    *n = 0;
+    if (o < 0) return true;
+    if (c->t[o].type != W4_J_OBJ) {
+        fail(c, E_PARAMS, "\"files\" must be an object of name: text");
+        return false;
+    }
+    for (int32_t j = o + 1; j < c->n; j++) {
+        if (c->t[j].parent != o) continue;
+        if (*n >= PLAY_MAX_FILES || j + 1 >= c->n || c->t[j + 1].type != W4_J_STR) {
+            fail(c, E_PARAMS, "\"files\": at most %d entries, each a string", PLAY_MAX_FILES);
+            return false;
+        }
+        uint32_t kl = c->t[j].end - c->t[j].start + 1, vl = c->t[j + 1].end - c->t[j + 1].start + 1;
+        char *k = malloc(kl), *v = malloc(vl);
+        int32_t kn = k ? w4_json_str(c->js, &c->t[j], k, kl) : -1;
+        int32_t vn = v ? w4_json_str(c->js, &c->t[j + 1], v, vl) : -1;
+        if (kn <= 0 || vn < 0) {
+            free(k);
+            free(v);
+            fail(c, E_PARAMS, "\"files\": a bad name or text");
+            return false;
+        }
+        f[*n].name = k;
+        f[*n].text = v;
+        f[*n].len = (size_t) vn;
+        (*n)++;
+    }
+    return true;
+}
+
+static void free_files(zxvd_play_file_t *f, uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++) {
+        free((char *) f[i].name);
+        free((char *) f[i].text);
+    }
+}
+
+static void m_play_catalogue(call_t *c)
+{
+    if (!PLAY || !PLAY->catalogue) return fail(c, E_METHOD, "not available");
+    (void) play_done(c, PLAY->catalogue(c->res));
+}
+
+static void m_play_run(call_t *c)
+{
+    char tid[64];
+    zxvd_play_file_t f[PLAY_MAX_FILES];
+    uint32_t n = 0;
+    if (!PLAY || !PLAY->run) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "template", tid, sizeof tid, true) || !p_files(c, f, &n)) return;
+    (void) play_done(c, PLAY->run(tid, f, n, c->res));
+    free_files(f, n);
+}
+
+static void m_play_draft(call_t *c)
+{
+    char tid[64], req[1024];
+    zxvd_play_file_t f[PLAY_MAX_FILES];
+    uint32_t n = 0;
+    if (!PLAY || !PLAY->draft) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "template", tid, sizeof tid, true) ||
+        !p_str(c, "request", req, sizeof req, false) || !p_files(c, f, &n))
+        return;
+    (void) play_done(c, PLAY->draft(tid, f, n, req, c->res));
+    free_files(f, n);
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2292,6 +2383,9 @@ static const method_t METHODS[] = {
     {"phone.pair", m_phone_pair, PH_NO},
     {"phone.list", m_phone_list, PH_NO},
     {"phone.revoke", m_phone_revoke, PH_NO},
+    {"play.catalogue", m_play_catalogue, PH_READ},
+    {"play.run", m_play_run, PH_NO},
+    {"play.draft", m_play_draft, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
