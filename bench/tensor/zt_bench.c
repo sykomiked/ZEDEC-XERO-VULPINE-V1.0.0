@@ -46,14 +46,19 @@
  *   zt.rank<r>.macs=<multiply-adds in matrix products>
  *   zt.rank<r>.maxrss_mb=<peak resident memory>  zt.rank<r>.sent_mb=<bytes sent>
  * (with --tcp each rank prints only its own).
- * --gpu runs the prompt's matrix products on the GPU (zt_metal.h; macOS builds
- * with ZT_HAVE_METAL only), and decoding on --kern/--threads, which is faster
+ * --gpu runs the prompt's matrix products on the GPU (zt_metal.h in macOS builds
+ * with ZT_HAVE_METAL; in Linux and Windows builds zt_cuda.h, NVIDIA, with
+ * ZT_HAVE_CUDA, zt_hip.h, AMD (ROCm), with ZT_HAVE_HIP, and zt_vk.h, any Vulkan
+ * GPU, with ZT_HAVE_VULKAN: CUDA first, then HIP, then Vulkan, or
+ * ZT_GPU=cuda|hip|vulkan; ZT_CUDA_DEVICE / ZT_HIP_DEVICE / ZT_VK_DEVICE pick the
+ * GPU), and decoding on --kern/--threads, which is faster
  * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
- * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
+ * zt.logits_fnv do not change. It prints zt.gpu=<name>, zt.gpu_api and the GPU's share
  * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
  * --gpu-resident runs the whole forward pass on the GPU (zt_gpu.h): every
  * layer's norms, RoPE, attention, SiLU and residual as well as the products,
- * one command buffer per pass, the state's memory (KV cache) shared in place.
+ * one command buffer (Metal) or stream (CUDA, HIP) per pass, the state's
+ * memory (KV cache) shared in place.
  * It adds zt.gpu_passes, zt.gpu_passes_declined and zt.gpu_pass_ops; the ids
  * and zt.logits_fnv still do not change.
  * --gpu-sim runs the same whole-pass op list through zt_gpu.h's C backend
@@ -85,8 +90,14 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
-#ifdef ZT_HAVE_METAL
-#    include "zt_metal.h"
+/* the GPU (zt_accel.h): Metal on macOS; CUDA (NVIDIA), HIP (AMD, ROCm) and
+ * Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and Windows. ZT_GPU=cuda,
+ * ZT_GPU=hip or ZT_GPU=vulkan picks one; by default CUDA, then HIP, then
+ * Vulkan. */
+#if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_HIP) ||                     \
+    defined(ZT_HAVE_VULKAN)
+#    define ZB_GPU 1
+#    include "zt_accel.h"
 #endif
 
 static double now_s(void)
@@ -212,8 +223,7 @@ int main(int argc, char **argv)
             tcp_rank = (uint32_t) strtoul(argv[++i], NULL, 10);
             tcp_hosts = argv[++i];
             tcp_port = (uint32_t) strtoul(argv[++i], NULL, 10);
-        }
-        else if (!strcmp(a, "--gpu"))
+        } else if (!strcmp(a, "--gpu"))
             gpu = true;
         else if (!strcmp(a, "--gpu-decode"))
             gpu = gpu_decode = true;
@@ -228,7 +238,8 @@ int main(int argc, char **argv)
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
                 "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
-                "[--mmap] [--gpu] [--gpu-decode] [--gpu-resident] [--gpu-sim] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
+                "[--mmap] [--gpu] [--gpu-decode] [--gpu-resident] [--gpu-sim] [--ranks P | --tcp "
+                "RANK HOST0,HOST1,... PORT]\n",
                 argv[0]);
             return 2;
         }
@@ -325,27 +336,28 @@ int main(int argc, char **argv)
         if (!ring) return 5;
         m.dist = zt_dist_ring_dist(ring);
     }
-#ifdef ZT_HAVE_METAL
+#ifdef ZB_GPU
     zt_kern_t gkern;
-    zt_metal_t *mt = NULL;
+    zt_accel_t *mt = NULL;
     if (gpu) {
-        char gerr[256] = "";
-        mt = zt_metal_new(gerr, sizeof gerr);
-        if (!mt || zt_metal_map(mt, file, size)) {
-            fprintf(stderr, "zt_bench: --gpu: %s\n", mt ? "cannot map the model file" : gerr);
+        char gerr[512] = "";
+        if (!(mt = zt_accel_open(gerr, sizeof gerr))) {
+            fprintf(stderr, "zt_bench: --gpu: %s\n", gerr);
             return 2;
         }
-        if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
-        if (gpu_resident)
-            zt_kern_metal_resident(&gkern, &kern, mt);
-        else
-            zt_kern_metal(&gkern, &kern, mt);
+        if (zt_accel_map(mt, file, size)) {
+            fprintf(stderr, "zt_bench: --gpu: cannot map the model file\n");
+            return 2;
+        }
+        if (!gpu_decode) zt_accel_set_min_tokens(mt, 2); /* decode stays on the CPU */
+        zt_accel_kern(mt, &gkern, &kern, gpu_resident);
         m.kern = &gkern;
-        printf("zt.gpu=%s\n", zt_metal_name(mt));
+        printf("zt.gpu=%s\nzt.gpu_api=%s\n", zt_accel_name(mt), zt_accel_api(mt));
     }
 #else
     if (gpu) {
-        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL)\n");
+        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL; "
+                        "Linux, Windows: ZT_HAVE_CUDA, ZT_HAVE_HIP, ZT_HAVE_VULKAN)\n");
         return 2;
     }
 #endif
@@ -399,8 +411,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "zt_bench: cannot set up a %u-token context\n", n_ctx);
         return 5;
     }
-#ifdef ZT_HAVE_METAL
-    if (gpu_resident && zt_metal_map(mt, smem, sbytes)) {
+#ifdef ZB_GPU
+    if (gpu_resident && zt_accel_map_state(mt, smem, sbytes)) {
         fprintf(stderr, "zt_bench: --gpu-resident: cannot share the model state with the GPU\n");
         return 2;
     }
@@ -438,10 +450,10 @@ int main(int argc, char **argv)
     double t2 = now_s();
 
     printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
-#ifdef ZT_HAVE_METAL
+#ifdef ZB_GPU
     if (mt) {
-        zt_metal_stats_t gs;
-        zt_metal_stats(mt, &gs);
+        zt_accel_stats_t gs;
+        zt_accel_stats(mt, &gs);
         printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
                (unsigned long long) gs.products, (unsigned long long) gs.declined,
                (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
@@ -470,8 +482,9 @@ int main(int argc, char **argv)
         for (uint32_t q = 0; q < (tcp_hosts ? 1u : n_ranks); q++) {
             rank_report_t o = me;
             if (q && read(rep_pipe[0], &o, sizeof o) != (ssize_t) sizeof o) break;
-            printf("zt.rank%u.macs=%llu\nzt.rank%u.maxrss_mb=%.1f\nzt.rank%u.sent_mb=%.3f\n", o.rank,
-                   (unsigned long long) o.macs, o.rank, o.rss_mb, o.rank, (double) o.sent / 1e6);
+            printf("zt.rank%u.macs=%llu\nzt.rank%u.maxrss_mb=%.1f\nzt.rank%u.sent_mb=%.3f\n",
+                   o.rank, (unsigned long long) o.macs, o.rank, o.rss_mb, o.rank,
+                   (double) o.sent / 1e6);
         }
     } else {
         printf("zt.maxrss_mb=%.1f\n", maxrss_mb());

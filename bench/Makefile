@@ -31,13 +31,27 @@ BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
-	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c \
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_sve.c $(K)/src/tensor/zt_simd_neon.c \
+	$(K)/src/tensor/zt_simd_rvv.c $(K)/src/tensor/dist/zt_dist.c \
 	$(K)/src/tensor/zt_gpu.c
 # macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
 ifeq ($(shell uname -s),Darwin)
-TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
+TENSOR_SRCS += $(K)/src/tensor/zt_metal.m $(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
 GPU_LIBS := -framework Metal -framework Foundation
+else
+# Linux: CUDA (zt_cuda.h, NVIDIA), HIP (zt_hip.h, AMD through ROCm) and Vulkan
+# (zt_vk.h, any Vulkan GPU). All open their driver at run time, so none needs a
+# GPU SDK to build. Vulkan's kernels are built to SPIR-V by glslangValidator
+# when it is installed; without it zt_vk.c builds as stubs and --gpu says so.
+GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c \
+	$(K)/src/tensor/zt_accel.c
+GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_HIP -DZT_HAVE_VULKAN
+GPU_LIBS := -ldl
+ifneq ($(shell command -v glslangValidator 2>/dev/null),)
+GPU_SPV := $(OUT)/zt_vk_spv.h
+GPU_FLAGS += -DZT_VK_SPV_H='"$(GPU_SPV)"'
+endif
 endif
 NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
@@ -59,8 +73,11 @@ legacy: $(OUT)/legacy_bench
 legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
-$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) \
+$(OUT)/zt_vk_spv.h: $(K)/src/tensor/zt_vk.comp $(K)/src/tensor/gen_zt_vk_spv.sh | $(OUT)
+	sh $(K)/src/tensor/gen_zt_vk_spv.sh $@
+
+$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) $(GPU_SPV) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) \
 		-lm -lpthread $(GPU_LIBS) -o $@
 
 zt_bench: $(OUT)/zt_bench

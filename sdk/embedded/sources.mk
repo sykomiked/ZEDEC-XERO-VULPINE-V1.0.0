@@ -70,7 +70,7 @@ endif
 ZXE_KSRC_PLAIN :=
 ifeq ($(ZXE_TENSOR),1)
   ZXE_KSRC_PLAIN += $(addprefix $(ZXE_K)/src/tensor/,zt.c zt_gguf.c zt_tok.c zt_rope.c zt_model.c \
-              zt_simd.c zt_simd_x86.c zt_simd_neon.c)
+              zt_simd.c zt_simd_x86.c zt_simd_sve.c zt_simd_neon.c zt_simd_rvv.c)
   ZXE_KINC += -I$(ZXE_K)/src/tensor
   ZXE_DEFS := $(filter-out -DZXV_NO_TENSOR,$(ZXE_DEFS))
 endif

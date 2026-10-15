@@ -129,8 +129,9 @@ build() {   # target output [libs...]
 step "Compiling the engine"
 if [ "$ON_MAC" = 1 ]; then
     echo "  macOS universal (Apple clang)"
-    xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=10.15 "${CFLAGS[@]}" \
-        "${SRCS[@]}" -o "$WORK/zxv-mac"
+    # the GPU behind the models (zxv_zt_glue.c G7): Metal, both slices
+    xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=10.15 "${CFLAGS[@]}" -DZT_HAVE_METAL \
+        "${SRCS[@]}" "$TENSOR/zt_metal.m" -framework Metal -framework Foundation -o "$WORK/zxv-mac"
     strip -x "$WORK/zxv-mac"
     MAC_ARCHS="universal (Intel + Apple Silicon)"
     # The app's engine is zxvd: the same swarm plus its JSON-RPC control

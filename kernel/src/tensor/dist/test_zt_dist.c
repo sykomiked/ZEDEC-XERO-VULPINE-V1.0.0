@@ -22,7 +22,8 @@
  *
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -Isrc/tensor -Isrc/tensor/dist \
  *       src/tensor/dist/test_zt_dist.c src/tensor/dist/zt_dist.c src/tensor/zt_simd.c \
- *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c \
+ *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c \
+ *       src/tensor/zt_simd_rvv.c src/tensor/zt_model.c \
  *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
  *       -lpthread -o /tmp/test_zt_dist && /tmp/test_zt_dist */
 #define _POSIX_C_SOURCE 200809L

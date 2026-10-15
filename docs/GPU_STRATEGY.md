@@ -34,16 +34,90 @@ The owner's words:
 The kernel images themselves stay integer-only and CPU-only (R1): the GPU
 backends are hosted code (the Mac app, bench, servers).
 
-## 2. Where it stands (2026-10-14)
+## 2. Where it stands (2026-10-15)
 
 | Part | Status | Where |
 |---|---|---|
 | Matrix products on an Apple GPU, bit-exact | ✅ merged (#85) | `kernel/src/tensor/zt_metal.m`, `zt_kern_t.mm_full` |
 | The whole forward pass on the GPU: every layer's RMS norm, activation quantiser, products and bias, RoPE, KV store, attention, residual and SiLU, then the output norm and logits, in one command buffer | 🧩 built; bit-exact on the M3 Max; prompt reading 2.3× the CPU, generation not yet faster | `zt_gpu.h`, `zt_gpu.c`, `zt_kern_metal_resident`, `zt_bench --gpu-resident` |
 | The same op list through a C backend | ✅ in CI | `test_zt_gpu` (fixtures, edge cases, saturating runs); `zt_bench --gpu-sim` on a real model |
+| The app's models on the GPU by default: the model slot and every swarm base in zxv-host and zxvd, Metal on a Mac, else CUDA, HIP or Vulkan, the CPU only when there is none (`ZT_GPU=cpu` asks for it) | 🧩 built; on lavapipe 17 agents, a LoRA agent and the single slot reply exactly as on the CPU; not yet run in the app on a real GPU | `zt_accel.h`, `zxv_zt_glue.c` G7, `test_zxv_zt_gpu` (in `test_hosted.sh`) |
 | Blocks kept in VRAM under their IPFS CIDs | 🧩 data layer only, simulated GPU | [VRAM_BLOCKS.md](VRAM_BLOCKS.md) |
 | Accelerator tier between two integer tiers | 🧩 design and integer tiers; no GPU behind tier 2 yet | [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md) |
-| Vulkan (Linux, Windows, Android) and CUDA (NVIDIA servers) | 📋 next | the same op list (G4) |
+| NVIDIA GPUs (CUDA): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI; not yet run on a GPU (first run: the A6000 test server) | `zt_cuda.c`, `zt_kern_cuda_resident`, `make -C kernel test-cuda`, `zt_bench --gpu*` on Linux |
+| AMD GPUs under ROCm (HIP): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI (gfx906, gfx90a, gfx1030, gfx1100; wave32 and wave64 emulated); not yet run on an AMD GPU | `zt_hip.c`, `zt_kern_hip_resident`, `make -C kernel test-hip`, `zt_bench --gpu*` (`ZT_GPU=hip`) |
+| Any Vulkan GPU (AMD Radeon, Arm Mali, Qualcomm Adreno, Intel, NVIDIA): the products and the whole pass | 🧩 built; bit-exact on lavapipe (Mesa's Vulkan on the CPU), including real Qwen2.5-1.5B; not yet run on a Vulkan GPU | `zt_vk.comp`, `zt_vk.c`, `zt_kern_vk_resident`, `make -C kernel test-vk`, `zt_bench --gpu*` (`ZT_GPU=vulkan`) |
+
+### NVIDIA (CUDA)
+
+The owner (2026-10-15): "It can't only be compatible with Apple chips." The
+CUDA backend runs the same `zt_metal_math.h` kernels as Metal, so every logit
+is bit for bit the CPU's.
+
+- **No toolkit to build.** It loads the driver (`libcuda`) and the run-time
+  compiler (NVRTC) with `dlopen` when it starts, and compiles the kernels for
+  the GPU it finds (a cubin for `sm_XY`, else PTX the driver finishes). One
+  binary runs on any NVIDIA GPU from Turing on, and on machines with none it
+  says so and stays on the CPU.
+- **Memory.** A discrete GPU has its own memory. The weights are copied to
+  VRAM once. The KV cache is page-locked and shared in place, because the CPU
+  path reads it too. The pass's work memory lives on the GPU and crosses the
+  bus twice a pass (inputs in; logits and hidden state out).
+- **Products.** One warp (32 threads) per row, four rows a block, tiles of 8
+  tokens when there are several, sums with `__shfl_down_sync`: integers, so
+  the order cannot change the bits.
+- **Checked without a GPU (CI, `verify-all`).** The host code builds with
+  `-Werror`; the kernel source compiles to PTX for Turing, Ampere and Hopper
+  (clang, 21 kernels each); and the warp product kernels run on the CPU, 32
+  threads a warp, bit for bit against the C reference (48 random products,
+  every quant type, partial blocks and tiles). A broken warp sum fails it.
+- **Checked on a GPU.** `make -C kernel test-cuda` runs `test_zt_metal.c`'s
+  checks on CUDA (random products, Qwen2.5-1.5B's shapes, whole fixture passes
+  and resident passes, saturating gains). Until it has run on a real GPU, the
+  NVIDIA path is unmeasured (R9): no speed is claimed.
+
+### Radeon, Mali, Adreno and the rest (Vulkan)
+
+Vulkan compute reaches AMD, Arm, Qualcomm, Intel and NVIDIA GPUs on Linux,
+Windows and Android. `zt_vk.comp` is `zt_metal_math.h` in GLSL, line for
+line, built to SPIR-V (20 kernels) by `glslangValidator` at build time, so
+end-user devices need no shader compiler.
+
+- **Written for phones as well as desktops.** Buffers are read as 32-bit
+  words, so no 8- or 16-bit storage support is needed; byte writes are word
+  atomics, so neighbouring threads never clobber each other. Products sum
+  through shared memory, so any subgroup width works (8 on lavapipe, 16 to
+  128 elsewhere). A product whose weights exceed what one binding may see
+  (`maxStorageBufferRange`, 128 MB on some phones and on lavapipe) is split
+  by rows: Qwen2.5-1.5B's 191 MB output matrix takes two dispatches.
+- **Memory.** Weights go to VRAM once (or stay in unified memory). The KV
+  cache is imported in place where the driver allows it
+  (`VK_EXT_external_memory_host`), else mirrored and copied in and out around
+  each pass (slower, the same bits).
+- **With or without 64-bit integers in shaders.** Desktop Radeon, Intel and
+  NVIDIA have `shaderInt64`; many Mali and Adreno parts do not. Every kernel
+  is built twice: with 64-bit integers, and with none (`-DZV_I32=1`, no
+  `Int64` capability in the SPIR-V), where each 64-bit value is a pair of
+  32-bit words and each 64-bit step (carries, signed compares, shifts,
+  multiplies, division) is done exactly on the pair. A GPU without
+  `shaderInt64` gets the second set; `ZT_VK_FORCE_I32=1` takes it on any GPU.
+  Checked on lavapipe with that knob: `test-vk` runs all 29 checks on both
+  sets (state imported and mirrored), `spirv-dis` finds no 64-bit integer in
+  the second set, and Qwen2.5-1.5B Q4_K_M with `--gpu-resident` gives the
+  CPU's exact token ids and `zt.logits_fnv`. Not yet run on a real Mali or
+  Adreno.
+- **Checked (2026-10-15, lavapipe).** `make -C kernel test-vk` (in
+  `verify-all`) builds both ways with `-Werror` and runs `spirv-val` on all
+  20 kernels. It then runs `test_zt_metal.c`'s checks: random products,
+  Qwen2.5-1.5B's shapes, whole fixture passes and resident passes with
+  saturating gains. All 29 pass with the state imported, and again with it
+  mirrored. With products sliced (a 400 KB limit forced), every product that
+  ran was exact; the one too large for that limit was handed back to the CPU,
+  as designed. On the real Qwen2.5-1.5B Q4_K_M, `zt_bench --gpu` and
+  `--gpu-resident` gave the CPU's exact token ids and `zt.logits_fnv` (the
+  whole pass: 957 dispatches a token, none declined). Lavapipe runs on the
+  CPU, so these runs say nothing about speed; no Vulkan speed is claimed until
+  it runs on a GPU (R9).
 
 ### What was measured
 
@@ -164,8 +238,10 @@ adapter, a hidden-state tap, a distributed model or weights converted to
    GPU (greedy and top-k are integer).
 5. Batch several agents' tokens into one pass (the freight train), and a
    start-up gauge probe that sizes tiles from the measured bandwidth.
-6. Vulkan backend for the same op list (Linux, Windows, Android), then CUDA
-   for NVIDIA servers.
+6. CUDA: run `test-cuda` and the bench on the A6000 server. Vulkan: run
+   `test-vk` and the bench on a Radeon, a Mali and an Adreno device (both
+   kernel sets). HIP: run `test-hip` and the bench on an AMD GPU. Status per
+   chip: [PLATFORM_COVERAGE.md](PLATFORM_COVERAGE.md).
 7. Wire `vblock` (blocks in VRAM) and `cotier` tier 2 to a real backend.
 8. Q5_0 and Q8_0-mixed files on the GPU (Qwen2.5-0.5B's Q4_K_M uses them, so
    its passes run on the CPU today).
