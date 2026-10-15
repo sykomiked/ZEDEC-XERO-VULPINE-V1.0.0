@@ -89,6 +89,10 @@ CODE = {
     'social.group_create', 'call.status', 'call.accept', 'call.hangup', 'call.start',
     'xlate.languages', 'xlate.detect', 'xlate.translate', 'devmesh.status', 'devmesh.devices',
     'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.invite', 'devmesh.join',
+    # screen time (zxv_screen.h SC1): the method, the note's element id, the
+    # activity events, and the app ids screen.tick counts time under
+    'screen.tick', 'shepherd', 'mousemove', 'pointerdown', 'wheel',
+    'murmuration', 'burrow', 'quillon', 'glint', 'spindle',
 }
 
 VISIBLE_ATTRS = {'title', 'placeholder', 'alt', 'label', 'aria-label', 'aria-description', 'value'}

@@ -878,7 +878,7 @@ async function screenTick(){
   try{const a=await rpc('screen.tick',{app:APP_NAME[current]||current});
     const n=$('shepherd');
     n.hidden=a.allowed&&!(a.left>=0&&a.left<=5);
-    n.textContent=a.allowed?`${a.left} minute${a.left===1?'':'s'} left today for this app.`:`Shepherd: ${a.why}.`}
+    n.textContent=a.allowed?T('UI_SCREEN_LEFT',fmt(a.left)):T('UI_SCREEN_STOP',a.why)}
   catch(e){}
 }
 setInterval(screenTick,60000);
