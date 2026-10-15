@@ -88,8 +88,15 @@ static mm_state_t MM;
 static bool map_heap(void)
 {
     void *want = (void *) (uintptr_t) KERNEL_HEAP_BASE;
+#ifdef MAP_FIXED_NOREPLACE
     void *p = mmap(want, PAGE_SIZE, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+#else
+    /* macOS has no MAP_FIXED_NOREPLACE: ask for the address as a hint, which
+     * is honoured when it is free, and give the page back when it is not */
+    void *p = mmap(want, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (p != MAP_FAILED && p != want) munmap(p, PAGE_SIZE);
+#endif
     return p == want;
 }
 
@@ -530,7 +537,15 @@ int main(void)
         axiom_mm_more();
         axiom_frames_full();
     } else {
+#ifdef __APPLE__
+        /* macOS reserves the low 4 GiB of every process (__PAGEZERO), so the
+         * kernel heap's fixed address cannot exist here; Linux runs these */
+        printf("  [SKIP] kmalloc/frames axioms: 0x%x is inside macOS's __PAGEZERO\n",
+               KERNEL_HEAP_BASE);
+        TIER_SKIP_KNOWN("F-MM-FRAME0", "its frame axiom needs the kernel heap page");
+#else
         CHECK(0, "cannot map the kernel heap page at 0x%x on this host", KERNEL_HEAP_BASE);
+#endif
     }
     axiom_audio();
     axiom_audio_more();

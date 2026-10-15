@@ -40,6 +40,9 @@ T2 = "../tests/02_integration"
 T3 = "../tests/03_metamorphic"
 
 BASE = ["-std=c11", "-Wall", "-Werror", "-Wextra", "-Iinclude", "-Isrc/modbind"]
+# macOS's SDK fortifies stdio by default and defines snprintf as a macro, which
+# freestanding.h's own snprintf redefines; off there, Linux is unchanged
+DARWIN = ["-D_FORTIFY_SOURCE=0"] if sys.platform == "darwin" else []
 MODES = {
     "plain": ["-O0", "-g", "-DTEST_HOST"],
     "san": ["-O1", "-g", "-DTEST_HOST", "-fno-omit-frame-pointer",
@@ -261,7 +264,7 @@ def compile_obj(src, flags, out_dir, cache):
 
 def build_and_run(p, mode, out_root, verbose, timeout):
     flags = (BASE if p["base"] else ["-std=c11", "-Wall", "-Werror", "-Wextra", "-Iinclude"]) + \
-        MODES[mode] + p["extra"] + ["-I" + i for i in p["inc"]]
+        MODES[mode] + DARWIN + p["extra"] + ["-I" + i for i in p["inc"]]
     out = os.path.join(out_root, p["name"] + "." + mode)
     os.makedirs(out, exist_ok=True)
     cache = os.environ.get("ZXV_OBJ_CACHE")
@@ -285,7 +288,8 @@ def build_and_run(p, mode, out_root, verbose, timeout):
         if rc != 0:
             return "fail", o
     env = dict(os.environ)
-    env.setdefault("ASAN_OPTIONS", "detect_leaks=1:abort_on_error=0")
+    # LeakSanitizer runs on Linux; Apple's ASan refuses detect_leaks=1 outright
+    env.setdefault("ASAN_OPTIONS", "detect_leaks=%d:abort_on_error=0" % (sys.platform != "darwin"))
     env.setdefault("UBSAN_OPTIONS", "halt_on_error=1:print_stacktrace=1")
     args = [a.replace("{out}", out) for a in p["args"]]
     try:
