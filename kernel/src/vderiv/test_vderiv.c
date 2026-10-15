@@ -176,7 +176,7 @@ static vderiv_perp_terms_t pterms(int l, int s, uint64_t n, uint64_t band, uint6
         S.nonce, 40u + (uint32_t) l, u[l], 40u + (uint32_t) s, u[s], n, band, ll, ls};
     return t;
 }
-static vderiv_status_t popen(const vderiv_perp_terms_t *t, uint32_t *id)
+static vderiv_status_t perp_open(const vderiv_perp_terms_t *t, uint32_t *id)
 {
     uint8_t m[VDERIV_PERP_MSG], ls[32], ss[32];
     vderiv_perp_msg(t, m);
@@ -184,7 +184,7 @@ static vderiv_status_t popen(const vderiv_perp_terms_t *t, uint32_t *id)
     sign(t->short_key, m, sizeof m, ss);
     return vderiv_perp_open(&S, t, ls, 32, ss, 32, 6, id);
 }
-static vderiv_status_t pclose(uint32_t id, uint8_t side, uint32_t signer, uint64_t *out)
+static vderiv_status_t perp_close(uint32_t id, uint8_t side, uint32_t signer, uint64_t *out)
 {
     uint8_t m[VDERIV_CLOSE_MSG], sig[32];
     vderiv_close_msg(S.perp[id].t.nonce, side, m);
@@ -266,7 +266,7 @@ static void test_switch(void)
     CHECK(copen(&ct, NULL) == VDERIV_ERR_DISABLED && L.seq == seq && S.nonce == 0,
           "OFF by default: a call does not open");
     vderiv_perp_terms_t pt = pterms(0, 1, 10, 5, 50, 50);
-    CHECK(popen(&pt, NULL) == VDERIV_ERR_DISABLED && L.seq == seq, "nor does a perp");
+    CHECK(perp_open(&pt, NULL) == VDERIV_ERR_DISABLED && L.seq == seq, "nor does a perp");
 
     uint8_t m[VDERIV_SWITCH_MSG], sig[32];
     vderiv_switch_msg(JURIS, true, 1, m);
@@ -558,29 +558,29 @@ static void test_perp(void)
               "perp message: the nonce follows the tag");
         vderiv_perp_msg(&t, m);
     }
-    CHECK(popen(&t, NULL) == VDERIV_ERR_EPOCH, "no index yet: no reference");
+    CHECK(perp_open(&t, NULL) == VDERIV_ERR_EPOCH, "no index yet: no reference");
     push(100);
     vderiv_perp_terms_t x = t;
     x.band = 0;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_ARG, "band 0");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_ARG, "band 0");
     x = t, x.size = 0;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_ARG, "size 0");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_ARG, "size 0");
     x = t, x.lock_long = 4999999;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_ARG, "long lock below n * band");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_ARG, "long lock below n * band");
     x = t, x.lock_short = 4999999;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_ARG, "short lock below n * band");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_ARG, "short lock below n * band");
     x = t, x.size = UINT64_MAX;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_OVERFLOW, "n * band overflows");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_OVERFLOW, "n * band overflows");
     x = t, x.lock_long = UINT64_MAX;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_OVERFLOW, "locks overflow");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_OVERFLOW, "locks overflow");
     x = t, x.lock_long = VDERIV_LINE_MAX - 20000000, x.size = 1;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_FUNDS, "two locks of exactly 2^59 fit the cap");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_FUNDS, "two locks of exactly 2^59 fit the cap");
     x.lock_long++;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_OVERFLOW, "one more is past it");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_OVERFLOW, "one more is past it");
     x = t, x.short_acct = u[0];
-    CHECK(popen(&x, NULL) == VDERIV_ERR_ARG, "long == short");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_ARG, "long == short");
     x = t, x.nonce = 1;
-    CHECK(popen(&x, NULL) == VDERIV_ERR_NONCE, "wrong nonce");
+    CHECK(perp_open(&x, NULL) == VDERIV_ERR_NONCE, "wrong nonce");
     uint8_t ls[32], ss[32];
     sign(40, m, sizeof m, ls);
     sign(41, m, sizeof m, ss);
@@ -602,7 +602,7 @@ static void test_perp(void)
     /* a second, opposite perp between u2 (long) and u3 (short), smaller */
     uint32_t id2;
     vderiv_perp_terms_t t2 = pterms(2, 3, 10, 50, 600, 2000);
-    CHECK(popen(&t2, &id2) == VDERIV_OK && id2 == 1 && inv(), "second perp");
+    CHECK(perp_open(&t2, &id2) == VDERIV_OK && id2 == 1 && inv(), "second perp");
 
     vderiv_push_t o;
     uint64_t R = bal(rsv);
@@ -669,13 +669,13 @@ static void test_perp(void)
 
     /* voluntary close */
     t = pterms(4, 5, 10, 5, 100, 100);
-    CHECK(popen(&t, &id) == VDERIV_OK && id == 0, "a perp to close");
+    CHECK(perp_open(&t, &id) == VDERIV_OK && id == 0, "a perp to close");
     CHECK(S.ring[(S.n_pushed - 1) % VDERIV_RING].qty == 50 && S.perp[0].ref == 50, "ref 50");
     push(53);
     CHECK(S.perp[0].bal[0] == 130 && S.perp[0].bal[1] == 70, "short lost 30");
-    CHECK(pclose(0, VDERIV_LONG, 45, got) == VDERIV_ERR_SIG && S.perp[0].state == VDERIV_OPEN,
+    CHECK(perp_close(0, VDERIV_LONG, 45, got) == VDERIV_ERR_SIG && S.perp[0].state == VDERIV_OPEN,
           "the short's key cannot close as the long");
-    CHECK(pclose(0, VDERIV_SHORT, 44, got) == VDERIV_ERR_SIG, "nor the long's key as the short");
+    CHECK(perp_close(0, VDERIV_SHORT, 44, got) == VDERIV_ERR_SIG, "nor the long's key as the short");
     CHECK(vderiv_perp_close(&S, 0, VDERIV_LONG, NULL, 32, 1, got) == VDERIV_ERR_SIG,
           "an open perp needs a signature");
     uint8_t cm[VDERIV_CLOSE_MSG], cs[32];
@@ -687,7 +687,7 @@ static void test_perp(void)
     CHECK(vderiv_perp_close(&S, 0, VDERIV_LONG, cs, 31, 1, got) == VDERIV_ERR_SIG,
           "the length is passed");
     pay_ledger_set_flags(&L, escS, PAY_ACCT_FROZEN);
-    CHECK(pclose(0, VDERIV_SHORT, 45, got) == VDERIV_ERR_LEDGER && S.perp[0].state == VDERIV_OPEN,
+    CHECK(perp_close(0, VDERIV_SHORT, 45, got) == VDERIV_ERR_LEDGER && S.perp[0].state == VDERIV_OPEN,
           "a refused payout changes nothing");
     uint64_t le = S.last_epoch;
     vderiv_push_t po;
@@ -699,34 +699,34 @@ static void test_perp(void)
     CHECK(S.last_epoch == le && S.perp[0].bal[0] == 130 && S.perp[0].ref == 53,
           "a refused push changes nothing");
     pay_ledger_set_flags(&L, escS, 0);
-    CHECK(pclose(0, VDERIV_SHORT, 45, got) == VDERIV_OK && got[0] == 130 && got[1] == 70 &&
+    CHECK(perp_close(0, VDERIV_SHORT, 45, got) == VDERIV_OK && got[0] == 130 && got[1] == 70 &&
               bal(u[4]) == FUND + 30 && bal(u[5]) == FUND - 30 && inv(),
           "the short closes: both get their balances");
     t = pterms(4, 5, 10, 5, 100, 100);
-    CHECK(popen(&t, &id) == VDERIV_OK && pclose(id, VDERIV_LONG, 44, NULL) == VDERIV_OK &&
+    CHECK(perp_open(&t, &id) == VDERIV_OK && perp_close(id, VDERIV_LONG, 44, NULL) == VDERIV_OK &&
               total() == T0 && inv(),
           "the long may close too, at once");
 
     /* the table fills; a reused slot does not take an old close signature */
     for (uint32_t i = 0; i < VDERIV_MAX_PERPS; i++) {
         t = pterms(4, 5, 1, 1, 1, 1);
-        popen(&t, NULL);
+        perp_open(&t, NULL);
     }
     t = pterms(4, 5, 1, 1, 1, 1);
-    CHECK(popen(&t, NULL) == VDERIV_ERR_FULL, "full");
+    CHECK(perp_open(&t, NULL) == VDERIV_ERR_FULL, "full");
     uint64_t old = S.perp[3].t.nonce;
     vderiv_close_msg(old, VDERIV_LONG, cm);
     sign(44, cm, sizeof cm, cs);
     CHECK(vderiv_perp_close(&S, 3, VDERIV_LONG, cs, 32, 1, NULL) == VDERIV_OK, "slot 3 closed");
     t = pterms(4, 5, 1, 1, 1, 1);
-    CHECK(popen(&t, &id) == VDERIV_OK && id == 3 &&
+    CHECK(perp_open(&t, &id) == VDERIV_OK && id == 3 &&
               vderiv_perp_close(&S, 3, VDERIV_LONG, cs, 32, 1, NULL) == VDERIV_ERR_SIG,
           "the old signature does not close the new position in the slot");
     CHECK(inv(), "ledger and positions agree");
     setup();
     push(1);
     t = pterms(0, 1, 1, 1, FUND + 1, 1);
-    CHECK(popen(&t, NULL) == VDERIV_ERR_FUNDS && S.nonce == 0, "the long cannot fund its lock");
+    CHECK(perp_open(&t, NULL) == VDERIV_ERR_FUNDS && S.nonce == 0, "the long cannot fund its lock");
 }
 
 static void test_tamper(void)
@@ -736,7 +736,7 @@ static void test_tamper(void)
     vderiv_call_terms_t c = cterms(0, 1, 100, 150, 10, 20, 1000);
     copen(&c, NULL);
     vderiv_perp_terms_t p = pterms(2, 3, 10, 5, 100, 100);
-    popen(&p, NULL);
+    perp_open(&p, NULL);
     push(103);
     CHECK(inv(), "clean");
     CHECK(vderiv_check(NULL) == VDERIV_ERR_ARG, "no instance");
@@ -860,22 +860,22 @@ static void test_edges(void)
     fund(u[0], big);
     fund(u[2], big);
     vderiv_perp_terms_t p = pterms(0, 1, 1, 1, big, 1);
-    CHECK(popen(&p, NULL) == VDERIV_OK && bal(escL) == big && bal(escS) == 1, "a 2^58 long lock");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK && bal(escL) == big && bal(escS) == 1, "a 2^58 long lock");
     p = pterms(2, 3, 1, 1, big - 1, 1);
-    CHECK(popen(&p, NULL) == VDERIV_ERR_OVERFLOW, "2^58 + 1 + 2^58 is past 2^59");
+    CHECK(perp_open(&p, NULL) == VDERIV_ERR_OVERFLOW, "2^58 + 1 + 2^58 is past 2^59");
     p = pterms(2, 3, 1, 1, big - 2, 1);
-    CHECK(popen(&p, NULL) == VDERIV_OK && inv(), "exactly 2^59 in the two escrows fits");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK && inv(), "exactly 2^59 in the two escrows fits");
 
     /* exactly n * band left after a move: the perp stays open */
     setup();
     push(100);
     p = pterms(0, 1, 10, 5, 80, 80);
-    CHECK(popen(&p, NULL) == VDERIV_OK, "perp A");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK, "perp A");
     push(103);
     CHECK(S.perp[0].bal[1] == 50 && S.perp[0].state == VDERIV_OPEN,
           "the short at exactly n * band stays open");
     p = pterms(2, 3, 10, 5, 80, 80);
-    CHECK(popen(&p, NULL) == VDERIV_OK, "perp B");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK, "perp B");
     push(100);
     CHECK(S.perp[1].bal[0] == 50 && S.perp[1].state == VDERIV_OPEN &&
               S.perp[0].state == VDERIV_OPEN && S.perp[0].bal[0] == 80 && inv(),
@@ -899,7 +899,7 @@ static void test_bounds(void)
     push(100); /* epoch 10 */
     /* perp[0]'s short lock is 12: read as call[32], it expires at 12 */
     vderiv_perp_terms_t p = pterms(0, 1, 1, 1, 1, 12);
-    CHECK(popen(&p, NULL) == VDERIV_OK && S.perp[0].t.lock_short == 12, "perp in slot 0");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK && S.perp[0].t.lock_short == 12, "perp in slot 0");
     /* one fee unit: fees_total == 1, so a perp[32] would read as OPEN */
     vderiv_call_terms_t c = cterms(2, 3, 1, 2, 1, 100, 1125);
     CHECK(copen(&c, NULL) == VDERIV_OK && S.fees_total == 1 &&
@@ -907,7 +907,7 @@ static void test_bounds(void)
           "fees_total is 1");
     for (uint32_t i = 1; i < VDERIV_MAX_PERPS; i++) {
         p = pterms(2, 3, 1, 1, 1, 1);
-        popen(&p, NULL);
+        perp_open(&p, NULL);
     }
     for (uint32_t i = 1; i < VDERIV_MAX_CALLS; i++) {
         c = cterms(2, 3, 1, 2, 1, 100, 0);
@@ -935,7 +935,7 @@ static void test_fees(void)
     for (int k = 0; k < 6; k++) {
         vderiv_perp_terms_t t =
             pterms(k % 3, 3 + k % 3, 1125 + (uint64_t) k * 1000, 9, 300000, 300000);
-        if (popen(&t, NULL) == VDERIV_OK) n++;
+        if (perp_open(&t, NULL) == VDERIV_OK) n++;
     }
     CHECK(n == 6, "six perps");
     uint64_t want = 0;
