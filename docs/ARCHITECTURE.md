@@ -261,8 +261,11 @@ CONVENTIONAL                         ZXV
    InterPlanetary BIOS design is the typed call `model_exec <coord> <event>`: the coordinate is a
    Grid Chain word in domain 0x60 (models), a key the kernel resolves to a model cell, never an
    address; the event is the ordinal of its input in this boot's log. It is a look: what the model
-   answers is data, and anything it asks the machine to do comes back as a gated call. A
-   coordinate with no loaded model is refused with the reason, never guessed. This runs after
+   answers is data, and anything it asks the machine to do comes back as a gated call. The
+   coordinate resolves through the Tiamat cell table (`chg_cells.h`; place is the organ number,
+   item the cell's ordinal), and a call it cannot run is refused with one of three reasons, never
+   guessed: no model at that coordinate, an engine path this build lacks, or a model not
+   installed on this machine. This runs after
    the UEFI firmware has handed over, not in place of it.
 8. **Every call is on the record (A8).** Each journal record is folded into a SHA-256 hash
    chain as it is committed and printed as an `[EVT]` line; on arm64 each is also an `oseq`
@@ -282,7 +285,8 @@ CONVENTIONAL                         ZXV
 | Organ routing with a witness; `swarm.organ` in zxvd | 🔒 | `kernel/src/chiglet/chg_organ.{h,c}` |
 | The chiglet on screen: a click-through layer above the windows where it swims to what it can help with, fades through other windows, waits at the glass, opens only on a tap, offers only what the companion gate passed; Accept, Not now (snooze), Pin, Away; reduced motion and transparency honoured | 🔒 | `kernel/src/zui/zui_swim.{h,c}` SW1-SW9; the shell's call site is with the native GUI work |
 | Held acts at every layer; organ and acts in app manifests | 🔒 | `intent` I7, `chg_vocab`, `zxapp` K1-K3 |
-| `model_exec` running a model on bare metal | 📋 | The arm64 kernel loads no weights, so every coordinate is refused today; the coordinate-to-cell map is agreed with the swarm model lineup |
+| `model_exec` coordinate to cell: the 80 Tiamat cells, three refusal reasons | 🔒 | `kernel/src/chiglet/chg_cells.{h,c}`, the table generated from `tools/tiamat/cell_coords.json` by `tools/tiamat/cell_table.py`, `make test-chg-cells`; the arm64 boot resolves Spinewyrm and Greetwyvern |
+| `model_exec` running a model on bare metal | 📋 | The arm64 kernel loads no weights, so a runnable cell says it is not installed on this machine |
 | A model on bare metal emitting the calls | 📋 | Today the calls come from the person or from a session relaying a model's output as `chiglet <call>` lines; models load from the disc once PCI and the disc v2 layout land (section 18) |
 | x86_64 governor | 📋 | The x86_64 image has no user processes or console session yet (section 4.3) |
 
