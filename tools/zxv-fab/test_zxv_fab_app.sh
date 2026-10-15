@@ -212,7 +212,7 @@ printf 'swarm_shares\t1.0.0\t%s\t-\t7\n' "$SSC" >> "$L"
 grep -q "Zeckendorf" "$D/err" || no "ancestor message"; ok
 sed -i 's/\t7$/\t8/' "$L"
 [ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/mL.fab" $K --blocks apps/blocks --tsv "$L" --layer 12)" = 0 ] || no "layer 12 using layer 8"; ok
-grep -q "^murmuration	-	bafk.*	12\$" "$L" || no "the row records the layer"; ok
+grep -q "^murmuration	1.0.0	bafk.*	12\$" "$L" || no "the row records the layer"; ok
 cd "$D" || exit 1
 [ "$(rc "$FAB" unpack-app mL.fab l1 --store store --tsv "$L" --layer 12)" = 4 ] && grep -q "fit TRUE" out.txt || no "layered fit on unpack: $(cat out.txt)"; ok
 [ "$(rc "$FAB" unpack-app mL.fab l2 --store store --tsv "$L" --layer 7)" = 1 ] || no "the same app at layer 7"; ok
