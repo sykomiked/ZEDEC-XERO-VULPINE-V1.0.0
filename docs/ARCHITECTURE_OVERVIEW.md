@@ -3,6 +3,8 @@ Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 SPDX-License-Identifier: Apache-2.0
 -->
 
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md). This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZXV Architecture Overview, with Gaps and Improvements
 
 Surveyed 2026-10-09 on branch `claude/project-thread-j44rs9`. Line numbers are as of that date and will drift. `kernel/Makefile` was being edited by other workers during the survey, so its line numbers are approximate.

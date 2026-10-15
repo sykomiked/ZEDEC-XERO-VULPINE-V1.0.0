@@ -1,3 +1,5 @@
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md). The order of work is now section 18 of the architecture doc. This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZXV / ZEDEC pqOS — Build Roadmap
 
 Working engineering plan. Honest maturity labels, real dependencies, one canonical sequence.

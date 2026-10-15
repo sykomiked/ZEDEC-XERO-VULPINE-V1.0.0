@@ -20,7 +20,7 @@ block, under the same CID, that a Kubo node or a ZXV peer names. A peer can ask
 for it by CID and be served straight from device memory. The store places
 copies and routes transfers so that compute is not left waiting on the PCIe
 bus. It is **not** a libp2p peer running on a GPU. The networking itself stays
-in `ipfs_node` and Carracho. vblock is where the blocks live and how their
+in `ipfs_node` and Vinea. vblock is where the blocks live and how their
 bytes move.
 
 Status: built 2026-10-09. `test_vblock.c` (113 checks) passes on the CPU
