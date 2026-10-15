@@ -253,5 +253,13 @@ hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *
 hw_verdict_t igb_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t r8169_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);
+/* arbmbox.c: the arbiter mailbox (class 08/80/5A + "ZXVARBMB" in BAR 0). The
+ * session it opens is hw_arbiter() (0 until one binds); hw_arbiter_reset()
+ * forgets it (tests, and a re-probe after the arbiter resets). */
+struct arb_host;
+hw_verdict_t arbmbox_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
+                          hw_line_t *note);
+struct arb_host *hw_arbiter(void);
+void hw_arbiter_reset(void);
 
 #endif

@@ -19,6 +19,7 @@ const hw_driver_t hw_drivers[] = {
     {"ahci", 0x01, 0x06, 0x01, 0, ahci_bind},
     {"xhci", 0x0C, 0x03, 0x30, 0, xhci_bind},
     {"hda", 0x04, 0x03, 0xFF, 0, hda_bind},
+    {"arbiter", 0x08, 0x80, 0x5A, 0, arbmbox_bind},
 };
 const uint32_t hw_n_drivers = sizeof hw_drivers / sizeof hw_drivers[0];
 

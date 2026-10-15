@@ -55,7 +55,9 @@ static const dp_component_t g_comp[DPC__COUNT] = {
     {DPC_TOUCH, "touch", "touch panel and pen", DP_ST_MISSING, "no I2C-HID or USI driver"},
     {DPC_GOP_FB, "gop-fb", "one framebuffer through UEFI GOP", DP_ST_BUILT,
      "kernel/arch/x86_64/efifb_con.c"},
-    {DPC_ARBITER_FB, "arbiter-fb", "three canopy panels via the arbiter", DP_ST_MISSING, "none"},
+    {DPC_ARBITER_FB, "arbiter-fb", "three canopy panels via the arbiter", DP_ST_PARTIAL,
+     "kernel/src/arbiter: three framebuffers in the mailbox BAR, arb_host_fb() and flips "
+     "(test_arbiter.c); the desktop compositor does not draw into them yet"},
     {DPC_AMD_DCN, "amd-dcn", "AMD display engine (wing panels)", DP_ST_MISSING,
      "only the GOP panel works on bare metal"},
     {DPC_RK_VOP2, "rk-vop2", "RK3588 display controller + DSI/eDP", DP_ST_MISSING, "none"},
@@ -94,10 +96,17 @@ static const dp_component_t g_comp[DPC__COUNT] = {
     {DPC_RAPL, "rapl", "x86 RAPL energy", DP_ST_BUILT, "kernel/src/power/power_rapl.c"},
     {DPC_THERMAL_MODES, "thermal-modes", "quiet/balanced/performance/scram", DP_ST_MISSING, "none"},
     {DPC_CLIMATE, "climate", "server shell climate and start interlock", DP_ST_MISSING, "none"},
-    {DPC_ARBITER_MBOX, "arbiter-mbox", "arbiter mailbox", DP_ST_MISSING, "none"},
-    {DPC_KILL_SWITCH, "kill-switch", "hardware kill switches reported", DP_ST_MISSING, "none"},
-    {DPC_TAMPER, "tamper", "tamper events and zeroisation", DP_ST_MISSING, "none"},
-    {DPC_SEAL, "seal", "seal display, button, secure element", DP_ST_MISSING, "none"},
+    {DPC_ARBITER_MBOX, "arbiter-mbox", "arbiter mailbox", DP_ST_BUILT,
+     "kernel/src/arbiter (protocol, both ends) + kernel/src/hwdrv/arbmbox.c (PCI bind); "
+     "make -C kernel test-arbiter test-hwdrv"},
+    {DPC_KILL_SWITCH, "kill-switch", "hardware kill switches reported", DP_ST_BUILT,
+     "ARB_M_KILL_STATE over the mailbox; arb_host_powered() (kernel/src/arbiter)"},
+    {DPC_TAMPER, "tamper", "tamper events and zeroisation", DP_ST_BUILT,
+     "arb_dev_tamper(): keys cleared before the host is told, latched; the host wipes its "
+     "copies (kernel/src/arbiter, test_arbiter.c)"},
+    {DPC_SEAL, "seal", "seal display, button, secure element", DP_ST_PARTIAL,
+     "seal request, display callback, button, expiry (kernel/src/arbiter); the SE051 "
+     "secure-element signing is not in the tree"},
     {DPC_PQ_BOOT, "pq-boot", "arbiter-side PQ check of the boot image", DP_ST_PARTIAL,
      "MATRIX dual signature exists (kernel/src/hwemu/hwr.c); no arbiter boot gate"},
     {DPC_KEY_SPLIT, "key-split", "Shamir split of the vault key", DP_ST_BUILT,

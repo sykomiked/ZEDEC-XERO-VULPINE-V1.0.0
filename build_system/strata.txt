@@ -71,6 +71,7 @@ hardware                         kernel
 holographic                      kernel
 hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
 devprof                          base       # the device line as data: profiles, OS support table, gap matrix
+arbiter                          base       # arbiter mailbox protocol: both ends, rings over a shared window, no hardware access
 idt                              kernel
 keyboard                         kernel
 license                          kernel

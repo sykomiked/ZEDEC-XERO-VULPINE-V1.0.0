@@ -409,6 +409,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
 	$(MAKE) --no-print-directory test-devprof
+	$(MAKE) --no-print-directory test-arbiter
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1603,6 +1604,13 @@ test-lpres-hex:
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
 # Device profiles (src/devprof): the briefcase, server and handheld specs as data, the OS
 # support table and the gap matrix generated from it (docs/DEVICE_COMPAT_MATRIX.md).
+.PHONY: test-arbiter
+# The arbiter mailbox (src/arbiter): both ends over one window, then the
+# protocol code alone for the three kernel targets, which must need no libc.
+test-arbiter:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/arbiter src/arbiter/test_arbiter.c $(ARBITER_SRCS) -o $(ZXV_TMP)/test_arbiter && $(ZXV_TMP)/test_arbiter > $(ZXV_TMP)/test_arbiter.log 2>&1 && echo "[PASS] test_arbiter ($$(tail -1 $(ZXV_TMP)/test_arbiter.log))" || { cat $(ZXV_TMP)/test_arbiter.log; echo "[FAIL] test_arbiter"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(ARBITER_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/arbiter -c $$f -o $(ZXV_TMP)/arb_free.o || { echo "[FAIL] arbiter freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/arb_free.o | grep -v -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/arb_free.o; echo "[FAIL] arbiter freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] arbiter freestanding (aarch64, x86_64, riscv64: no libc)"
+
 .PHONY: test-devprof device-matrix
 test-devprof:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/devprof src/devprof/test_devprof.c src/devprof/devprof.c -o $(ZXV_TMP)/test_devprof && $(ZXV_TMP)/test_devprof > $(ZXV_TMP)/test_devprof.log 2>&1 && echo "[PASS] test_devprof ($$(tail -1 $(ZXV_TMP)/test_devprof.log))" || { cat $(ZXV_TMP)/test_devprof.log; echo "[FAIL] test_devprof"; exit 1; }
@@ -1789,11 +1797,13 @@ test-boot-features:
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
 # drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
 # build_system/hw_drivers_check.sh.
+# arbmbox.c speaks the arbiter protocol, so every driver test links it.
+ARBITER_SRCS = src/arbiter/arb_proto.c src/arbiter/arb_host.c src/arbiter/arb_dev.c
 HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c,$(sort $(wildcard src/hwdrv/*.c)))
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:
