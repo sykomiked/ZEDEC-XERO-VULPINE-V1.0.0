@@ -672,6 +672,32 @@ zui_cv_result_t zui_cv_tap(zui_cv_t *cv, const zui_cv_facts_t *f, uint32_t now_m
     return zui_cv_status(cv, f, false, now_ms);
 }
 
+/* ---- CV13: a tone on tap ------------------------------------------------------ */
+
+void zui_cv_set_tone(zui_cv_t *cv, zui_cv_tone_fn fn, void *ctx)
+{
+    if (!cv) return;
+    cv->tone = fn;
+    cv->tone_ctx = ctx;
+}
+
+void zui_cv_set_tone_on(zui_cv_t *cv, bool on)
+{
+    if (cv) cv->tone_on = on;
+}
+
+zui_cv_result_t zui_cv_tap_tone(zui_cv_t *cv, uint64_t cell, uint32_t now_ms)
+{
+    (void) now_ms;
+    if (!cv) return ZUI_CV_BAD;
+    if (!cv->tone_on || !cv->tone || cv->mode != ZUI_CV_VOICE || !cv->volume || cv->busy ||
+        zui_cv_talking(cv))
+        return ZUI_CV_NOTHING;
+    if (cv->tone(cell, cv->volume, cv->tone_ctx) < 0) return ZUI_CV_NOTHING;
+    cv->tones++;
+    return ZUI_CV_TONE;
+}
+
 zui_cv_result_t zui_cv_hold(zui_cv_t *cv, const zui_cv_facts_t *f, uint32_t now_ms)
 {
     if (!cv) return ZUI_CV_BAD;

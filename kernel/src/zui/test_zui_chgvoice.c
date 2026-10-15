@@ -1378,6 +1378,77 @@ static void test_skin(void)
     CHECK(moved > 0, "alive with motion (%u frames differ)", moved);
 }
 
+/* ---- CV13: a tone on tap -------------------------------------------------------- */
+
+static int n_tones, tone_refuse;
+static uint64_t tone_cell;
+static uint32_t tone_vol;
+
+static int tone(uint64_t cell, uint32_t volume, void *ctx)
+{
+    (void) ctx;
+    if (tone_refuse) return -1;
+    n_tones++;
+    tone_cell = cell;
+    tone_vol = volume;
+    return 0;
+}
+
+static void test_tone(void)
+{
+    zui_cv_t cv;
+    zui_cv_facts_t f = facts();
+    fresh(&cv);
+    n_tones = tone_refuse = 0;
+    const uint64_t cell = 0x2000000000000123ull;
+    CHECK(zui_cv_tap_tone(0, cell, 0) == ZUI_CV_BAD, "NULL");
+    CHECK(zui_cv_tap_tone(&cv, cell, 0) == ZUI_CV_NOTHING && !n_tones, "no hook: nothing");
+    zui_cv_set_tone(&cv, tone, 0);
+    CHECK(!cv.tone_on && zui_cv_tap_tone(&cv, cell, 0) == ZUI_CV_NOTHING && !n_tones,
+          "off by default: no tone");
+    zui_cv_set_tone_on(&cv, true);
+    CHECK(zui_cv_tap_tone(&cv, cell, 10) == ZUI_CV_TONE && n_tones == 1 && tone_cell == cell &&
+              tone_vol == 70 && cv.tones == 1,
+          "on: the tap sounds the cell at the voice's volume (%d, %u)", n_tones, tone_vol);
+    CHECK(n_heard == 0 && !zui_cv_talking(&cv), "a tone says no words");
+    /* only a tap: nothing else reaches the hook */
+    zui_cv_tick(&cv, 5000);
+    zui_cv_tap(&cv, &f, 5001);
+    zui_cv_hold(&cv, &f, 5002);
+    zui_cv_read(&cv, "Read this.", 0, 5003);
+    zui_cv_hear(&cv, "status", &f, 5004);
+    zui_cv_tick(&cv, 70000);
+    CHECK(n_tones == 1, "tick, tap, hold, read and hear never sound the tone (%d)", n_tones);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70001) == ZUI_CV_NOTHING && n_tones == 1,
+          "not while the Chiglet speaks");
+    play_all(&cv, 70002);
+    zui_cv_stop(&cv, 70100);
+    CHECK(!zui_cv_talking(&cv) && zui_cv_tap_tone(&cv, cell, 70200) == ZUI_CV_TONE && n_tones == 2,
+          "quiet again: it sounds (%d)", n_tones);
+    zui_cv_set_busy(&cv, true, 70300);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70301) == ZUI_CV_NOTHING && n_tones == 2,
+          "CV7: not over another voice");
+    zui_cv_set_busy(&cv, false, 70302);
+    zui_cv_set_volume(&cv, 0);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70400) == ZUI_CV_NOTHING && n_tones == 2, "muted: silent");
+    zui_cv_set_volume(&cv, 40);
+    zui_cv_set_mode(&cv, ZUI_CV_WORDS);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70500) == ZUI_CV_NOTHING && n_tones == 2,
+          "quiet mode: silent");
+    zui_cv_set_mode(&cv, ZUI_CV_VOICE);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70600) == ZUI_CV_TONE && tone_vol == 40 && n_tones == 3,
+          "volume follows the voice's (%u)", tone_vol);
+    tone_refuse = 1;
+    CHECK(zui_cv_tap_tone(&cv, cell, 70700) == ZUI_CV_NOTHING && cv.tones == 3,
+          "no tone for the cell: nothing, not counted");
+    tone_refuse = 0;
+    zui_cv_set_tone_on(&cv, false);
+    CHECK(zui_cv_tap_tone(&cv, cell, 70800) == ZUI_CV_NOTHING && n_tones == 3,
+          "turned off: silent");
+    zui_cv_set_tone(0, tone, 0);
+    zui_cv_set_tone_on(0, true);
+}
+
 int main(void)
 {
     test_status_text();
@@ -1396,6 +1467,7 @@ int main(void)
     test_human();
     test_call();
     test_skin();
+    test_tone();
     printf("%s test_zui_chgvoice: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;
