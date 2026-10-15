@@ -17,8 +17,11 @@ gate for the app's verdict (app_gate.py --app <id> --verdict) and acts on it:
   F  a clear failure: the builder runs again on its own work, the context
      file carrying what failed.
   N  nothing usable: the builder starts again from a clean tree, the
-     context carrying more: the task's matrix line, the parts it uses (their
-     manifests), the test guide, and why the last attempt gave nothing.
+     context saying why the last attempt gave nothing.
+
+Every attempt's context file also carries the task's matrix line, the
+manifests of the parts it may use, what to read, and the daemon methods
+that exist (an invented call is the commonest failure).
   B  the witnesses contradict each other: held. The work is saved as a patch
      under build/wave_loop/held/, the tree is put back, and the app is listed
      for a person; the loop goes on to the next task.
@@ -149,7 +152,7 @@ def reasons(r):
 
 
 def more_context(root, task):
-    """For N: what the builder needs to start over with more to go on."""
+    """What the builder needs besides the task: where to read, its place, its parts."""
     text = open(task, encoding="utf-8").read()
     out = ["## What to read again", "",
            "- `tools/server-tasks/APP_WAVE_SPEC.md` (Done list, Inside out, never outward)",
@@ -167,6 +170,20 @@ def more_context(root, task):
     return out
 
 
+def methods(root):
+    """The daemon methods that exist, grouped by their first word: a model may call
+    these and no others (an invented call fails the gate)."""
+    spec = json.load(open(os.path.join(root, "api", "zxvd.openrpc.json"), encoding="utf-8"))
+    groups = {}
+    for name in sorted(x["name"] for x in spec["methods"]):
+        groups.setdefault(name.split(".")[0], []).append(name)
+    out = ["## The daemon methods that exist", "",
+           "Call only these (zxm_begin). One you need that is not here goes in your report; "
+           "never invent one.", ""]
+    out += [f"- {g}: " + ", ".join(f"`{n}`" for n in v) for g, v in sorted(groups.items())]
+    return out + [""]
+
+
 def context(root, task, app_id, attempt, last):
     path = os.path.join(OUT, f"{app_id}.context.md")
     lines = [f"# {app_id}: attempt {attempt}", "",
@@ -180,8 +197,7 @@ def context(root, task, app_id, attempt, last):
         else:
             lines += ["Nothing usable was kept; the tree is back as it was. Start again:", ""]
         lines += [f"- {x}" for x in reasons(last)] + [""]
-        if v == "N":
-            lines += more_context(root, task)
+    lines += more_context(root, task) + methods(root)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     return path
