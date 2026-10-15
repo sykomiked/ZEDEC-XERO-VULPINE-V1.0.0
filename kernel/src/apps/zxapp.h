@@ -183,6 +183,7 @@ typedef enum {
     ZXAPP_LANG_RUBY,
     ZXAPP_LANG_PHP,
     ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
+    ZXAPP_LANG_WIRE, /* W: a circuit of other entries, wired (zxwire.h) */
     ZXAPP_LANG_COUNT,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
@@ -293,7 +294,25 @@ typedef struct {
     void (*unload)(void *ctx, void *compiled);
 } zxapp_runtime_t;
 
+struct zxapp_host;
+
+/* W1: circuits ("logic wire", zxwire.h). A circuit calls other entries of
+ * its app, so it is not a runtime: zxwire_register sets this hook, and
+ * zxapp_load and the calls hand "wire" entries to it. NULL: circuits
+ * stay unloaded, like any language with no runtime. */
 typedef struct {
+    void *ctx;
+    /* Check the circuit at load: its parts exist and have contracts. */
+    int (*check)(void *ctx, zxapp_t *a, const zxapp_logic_t *L);
+    /* Run it. *lp is its parts' join: TRUE when every part was witnessed,
+     * NEITHER when any ran unwitnessed; ZXAPP_E_CONFLICT (a part held, or
+     * a wire that carries the wrong kind) when it is BOTH. */
+    int (*run)(void *ctx, zxapp_t *a, struct zxapp_host *h, const zxapp_logic_t *L,
+               const zxapp_arg_t *args, uint32_t nargs, zxapp_num_t *out, uint32_t cap,
+               uint32_t *n_out, int32_t *lp);
+} zxapp_wiring_t;
+
+typedef struct zxapp_host {
     zxapp_runtime_t rt[ZXAPP_RUNTIMES];
     uint32_t n;
     /* Reads a path into buf; returns its length or < 0. */
@@ -303,7 +322,8 @@ typedef struct {
      * 0..256 (zxm_link_progress's scale), for the launch screen. */
     void (*progress)(void *ctx, uint32_t done256);
     void *progress_ctx;
-    char file_buf[64u * 1024u]; /* one source at a time, for load() */
+    const zxapp_wiring_t *wiring; /* W1: NULL = no circuits */
+    char file_buf[64u * 1024u];   /* one source at a time, for load() */
 } zxapp_host_t;
 
 const char *zxapp_lang_name(zxapp_lang_t l); /* "kron"; "?" when unknown */

@@ -14,6 +14,8 @@
 #include "zxapp_sutra.h"
 #include "zxapp_trebago.h"
 #include "zxapp_wasm.h"
+#include "zxboard.h"
+#include "zxwire.h"
 #include "wasm_build.h" /* sdk/kits/z-wasm/test: modules without a toolchain */
 
 static int fails, checks;
@@ -1621,6 +1623,499 @@ static void test_fee_check(void)
     zxapp_unload(&FEE, &H);
 }
 
+/* ---- W: circuits ---------------------------------------------------------- */
+
+static zxwire_t WIRE;
+
+static const char PAY[] = "zxapp 1\nid pay\nname Pay\nversion 1.0.0\n"
+                          "provides fee num amount rate\n"
+                          "logic kron fee <<\n50|_amount*rate%10000\n.\n"
+                          "provides fee_ok truth amount fee\n"
+                          "logic kron fee_ok <<\n(amount>0)&fee<2501\n.\n"
+                          "provides total num amount fee\n"
+                          "logic kron total <<\n+/amount+fee\n.\n"
+                          "provides half num x\n"
+                          "logic kron half <<\nx%2\n.\n"
+                          "provides dbl num x\n"
+                          "logic kron dbl <<\nx*2\n.\n"
+                          "logic python dbl <<\n.\n"
+                          "provides odd num x\n"
+                          "logic kron odd <<\nx*3\n.\n"
+                          "logic python odd <<\n.\n"
+                          "provides pay_ok truth amount rate\n"
+                          "logic wire pay_ok <<\n"
+                          "part f  fee    amount=amount rate=rate\n"
+                          "part ok fee_ok amount=amount fee=f   # wired to the fee\n"
+                          "out ok\n"
+                          "at amount 20 40\nat f 160 80\nat ok 400 80\nat out 600 80\n.\n"
+                          "provides due num amount\n"
+                          "logic wire due <<\n"
+                          "part f fee amount=amount rate=30\n"
+                          "part t total fee=f amount=amount\n"
+                          "out t\n.\n"
+                          "provides bad_kind num amount\n"
+                          "logic wire bad_kind <<\n"
+                          "part ok fee_ok amount=amount fee=5\n"
+                          "part t total amount=amount fee=ok\n"
+                          "out t\n.\n"
+                          "provides frac num x\n"
+                          "logic wire frac <<\n"
+                          "part h half x=x\n"
+                          "part t total amount=x fee=h\n"
+                          "out t\n.\n"
+                          "provides wrong_out num amount\n"
+                          "logic wire wrong_out <<\n"
+                          "part ok fee_ok amount=amount fee=1\n"
+                          "out ok\n.\n"
+                          "provides witnessed num x\n"
+                          "logic wire witnessed <<\npart d dbl x=x\nout d\n.\n"
+                          "provides split num x\n"
+                          "logic wire split <<\n"
+                          "part o odd x=x\npart t total amount=x fee=o\nout t\n.\n"
+                          "provides nest truth amount\n"
+                          "logic wire nest <<\n"
+                          "part p pay_ok amount=amount rate=1000\nout p\n.\n"
+                          "provides zero num x\n"
+                          "logic kron zero <<\nx%0\n.\n"
+                          "provides refuse num x\n"
+                          "logic wire refuse <<\npart z zero x=x\nout z\n.\n"
+                          "provides setting num\n"
+                          "logic wire setting <<\nout 4,5,-6\n.\n";
+
+static void wire_parse_err(const char *src, const char *want, uint32_t line)
+{
+    zxwire_circuit_t c;
+    zxapp_provide_t P = {"x", ZXAPP_KIND_NUM, {"a", "b"}, 2, 1};
+    int rc = zxwire_parse(&c, &P, src, (uint32_t) strlen(src));
+    CHECK(rc == ZXAPP_E_SYNTAX && strstr(c.err, want) && c.err_line == line,
+          "circuit refused: \"%s\" -> %s (line %u)", src, c.err, c.err_line);
+}
+
+static void test_wire(void)
+{
+    /* W2/W3/W5: the text */
+    zxwire_circuit_t c;
+    zxapp_provide_t P = {"x", ZXAPP_KIND_TRUTH, {"a", "b"}, 2, 1};
+    const char *ok = "part f blk.fee amount=a rate=25\n"
+                     "\tpart g fee_ok amount=b fee=f   # comment\n"
+                     "# a comment line\n\n"
+                     "out g\r\nat f 10 20\nat a 0 0\nat out 300 40\n";
+    CHECK(zxwire_parse(&c, &P, ok, (uint32_t) strlen(ok)) == ZXAPP_OK, "a circuit parses: %s",
+          c.err);
+    CHECK(c.ninputs == 2 && c.kind == ZXAPP_KIND_TRUTH && c.nparts == 2, "inputs, kind, parts");
+    CHECK(strcmp(c.part[0].name, "f") == 0 && strcmp(c.part[0].entry, "blk.fee") == 0 &&
+              c.part[0].nports == 2 && strcmp(c.part[0].port[1], "rate") == 0,
+          "part f");
+    CHECK(c.part[0].src[0].kind == ZXWIRE_SRC_INPUT && c.part[0].src[0].index == 0, "amount=a");
+    CHECK(c.part[0].src[1].kind == ZXWIRE_SRC_CONST && c.part[0].src[1].nconst == 1 &&
+              c.part[0].src[1].konst[0] == 25,
+          "rate=25 is a setting");
+    CHECK(c.part[1].src[0].kind == ZXWIRE_SRC_INPUT && c.part[1].src[0].index == 1 &&
+              c.part[1].src[1].kind == ZXWIRE_SRC_PART && c.part[1].src[1].index == 0,
+          "part g takes b and f");
+    CHECK(c.out.kind == ZXWIRE_SRC_PART && c.out.index == 1, "out g");
+    CHECK(c.part[0].placed && c.part[0].x == 10 && c.part[0].y == 20 && !c.part[1].placed,
+          "at f 10 20");
+    CHECK(c.in_placed[0] && !c.in_placed[1] && c.out_placed && c.out_x == 300 && c.out_y == 40,
+          "inputs and out are placed too");
+    CHECK(zxwire_parse(&c, &P, "out 1,-2,3\n", 11) == ZXAPP_OK && c.out.kind == ZXWIRE_SRC_CONST &&
+              c.out.nconst == 3 && c.out.konst[1] == -2,
+          "a setting of three");
+    CHECK(zxwire_parse(&c, 0, "out a\n", 6) == ZXAPP_E_SYNTAX && strstr(c.err, "provides"),
+          "a circuit needs its contract");
+    wire_parse_err("", "needs an out", 0);
+    wire_parse_err("part f e x=a\n", "needs an out", 1);
+    wire_parse_err("out a\nout b\n", "one out", 2);
+    wire_parse_err("out\n", "out needs", 1);
+    wire_parse_err("out a b\n", "out needs", 1);
+    wire_parse_err("out z\n", "unknown source", 1);
+    wire_parse_err("wire f\n", "part, out or at", 1);
+    wire_parse_err("part f\n", "part needs", 1);
+    wire_parse_err("part 1f e\nout a\n", "short identifier", 1);
+    wire_parse_err("part out e\nout a\n", "not \"out\"", 1);
+    wire_parse_err("part a e\nout a\n", "used twice", 1);
+    wire_parse_err("part f e\npart f e\nout a\n", "used twice", 2);
+    wire_parse_err("part f e..x\nout a\n", "block.entry", 1);
+    wire_parse_err("part f e x\nout a\n", "<input>=<source>", 1);
+    wire_parse_err("part f e x=a x=b\nout a\n", "wired twice", 1);
+    wire_parse_err("part f e 2=a\nout a\n", "input's name", 1);
+    wire_parse_err("part f e x=g\npart g e y=a\nout f\n", "unknown source", 1);
+    wire_parse_err("part f e x=f\nout f\n", "earlier parts", 1);
+    wire_parse_err("part f e x=1,2,3,4,5,6,7,8,9\nout f\n", "up to 8", 1);
+    wire_parse_err("part f e x=1,,2\nout f\n", "whole numbers", 1);
+    wire_parse_err("part f e x=1x\nout f\n", "whole numbers", 1);
+    wire_parse_err("part f e x=1234567890123456789\nout f\n", "whole numbers", 1);
+    wire_parse_err("part f e a=a b=a c=a d=a e=a f=a g=a h=a i=a\nout f\n", "at most 8", 1);
+    wire_parse_err("out a\nat a 1\n", "at needs", 2);
+    wire_parse_err("out a\nat a 1 2 3\n", "at needs", 2);
+    wire_parse_err("out a\nat a -1 2\n", "at needs", 2);
+    wire_parse_err("out a\nat a 1 100001\n", "at needs", 2);
+    wire_parse_err("out a\nat z 1 2\n", "at names", 2);
+    {
+        char many[1024] = "";
+        for (int i = 0; i < 17; i++) {
+            char l[32];
+            snprintf(l, sizeof l, "part p%d e x=a\n", i);
+            strcat(many, l);
+        }
+        strcat(many, "out a\n");
+        wire_parse_err(many, "at most 16", 17);
+    }
+    char full[ZXAPP_ENTRY_MAX];
+    CHECK(zxwire_resolve("total", "swarm.share", full) && strcmp(full, "swarm.share") == 0,
+          "an app's own circuit names parts as written");
+    CHECK(zxwire_resolve("dash.total", "swarm.share", full) &&
+              strcmp(full, "dash.swarm.share") == 0,
+          "a composed circuit finds its parts under its app (W2)");
+    char deep[ZXAPP_ENTRY_MAX];
+    memset(deep, 'a', sizeof deep - 1);
+    deep[sizeof deep - 1] = 0;
+    CHECK(zxwire_resolve("b", deep, full) && !zxwire_resolve("a.b", deep, full),
+          "too long to resolve");
+
+    /* W1/W4: running */
+    zxapp_host_init(&H);
+    zxapp_kron_register(&H);
+    zxapp_runtime_t py = {ZXAPP_LANG_PYTHON, 0, f_load, f_call, 0};
+    zxapp_host_register(&H, &py);
+    CHECK(zxapp_lang_of("wire") == ZXAPP_LANG_WIRE && zxapp_lang_of("Circuit") == ZXAPP_LANG_WIRE,
+          "wire, or circuit");
+    CHECK(parse(PAY) == ZXAPP_OK, "pay parses: %s", A.err);
+    int loaded = zxapp_load(&A, &H);
+    CHECK(loaded == 9, "without the hook circuits stay unloaded (%d)", loaded);
+    int64_t amt[3] = {10000, 500000, 0}, rate[3] = {30, 30, 30};
+    zxapp_arg_t pa[2] = {{"amount", amt, 3}, {"rate", rate, 3}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    CHECK(zxapp_call(&A, &H, "pay_ok", pa, 2, out, 8, &n) == ZXAPP_E_NORUNTIME,
+          "no hook: no runtime, like a missing language");
+    zxapp_unload(&A, &H);
+    zxwire_register(&H, &WIRE);
+    loaded = zxapp_load(&A, &H);
+    CHECK(loaded == 19, "with the hook every circuit loads (%d): %s", loaded, A.err);
+    CHECK(zxapp_call_witnessed(&A, &H, "pay_ok", pa, 2, out, 8, &n, &lp) == ZXAPP_OK && n == 3 &&
+              out[0].den == 0 && out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_TRUE &&
+              out[2].num == ZXAPP_FALSE && lp == ZXAPP_NEITHER,
+          "pay_ok: fee then fee_ok; one language each, so NEITHER (rc lp %d n %u: %s)", lp, n,
+          A.err);
+    int64_t one[1] = {10000};
+    zxapp_arg_t da[1] = {{"amount", one, 1}};
+    CHECK(zxapp_call(&A, &H, "due", da, 1, out, 8, &n) == ZXAPP_OK && n == 1 &&
+              out[0].num == 10050 && out[0].den == 1,
+          "due: a setting (rate=30) and two parts, wired in any order: %s", A.err);
+    zxapp_arg_t da3[1] = {{"amount", amt, 3}};
+    CHECK(zxapp_call(&A, &H, "due", da3, 1, out, 8, &n) == ZXAPP_OK && n == 1 &&
+              out[0].num == 10000 + 500000 + 0 + 50 + 1500 + 50,
+          "W2: one setting is the same for every row: %s", A.err);
+    CHECK(zxapp_call_witnessed(&A, &H, "bad_kind", da, 1, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && strstr(A.err, "a truth from ok is wired into t.fee"),
+          "W4: a truth into a number input is held, never converted: %s", A.err);
+    int64_t three[1] = {3};
+    zxapp_arg_t xa[1] = {{"x", three, 1}};
+    CHECK(zxapp_call(&A, &H, "frac", xa, 1, out, 8, &n) == ZXAPP_E_CONFLICT &&
+              strstr(A.err, "h answered a fraction"),
+          "W4: a fraction into an input is held: %s", A.err);
+    int64_t four[1] = {4};
+    zxapp_arg_t x4[1] = {{"x", four, 1}};
+    CHECK(zxapp_call(&A, &H, "frac", x4, 1, out, 8, &n) == ZXAPP_OK && out[0].num == 6,
+          "a whole half passes: 4 + 2");
+    CHECK(zxapp_call_witnessed(&A, &H, "wrong_out", da, 1, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && strstr(A.err, "out is wired to a truth"),
+          "W4: out of the wrong kind is held: %s", A.err);
+    CHECK(zxapp_call_witnessed(&A, &H, "witnessed", xa, 1, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && out[0].num == 6,
+          "every part witnessed (KRON = python): TRUE");
+    CHECK(zxapp_call_witnessed(&A, &H, "split", xa, 1, out, 8, &n, &lp) == ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH && strstr(A.err, "held at part o"),
+          "a part whose languages disagree holds the circuit there: %s", A.err);
+    CHECK(zxapp_call(&A, &H, "split", xa, 1, out, 8, &n) == ZXAPP_E_CONFLICT,
+          "held through zxapp_call too");
+    int64_t big[1] = {500000};
+    zxapp_arg_t na[1] = {{"amount", big, 1}};
+    CHECK(zxapp_call_witnessed(&A, &H, "nest", da, 1, out, 8, &n, &lp) == ZXAPP_OK && n == 1 &&
+              out[0].num == ZXAPP_TRUE && lp == ZXAPP_NEITHER &&
+              zxapp_call_witnessed(&A, &H, "nest", na, 1, out, 8, &n, &lp) == ZXAPP_OK &&
+              out[0].num == ZXAPP_FALSE,
+          "a circuit uses a circuit: rate 1000 makes 500000's fee too high: %s", A.err);
+    CHECK(zxapp_call(&A, &H, "setting", 0, 0, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[2].num == -6 && out[2].den == 1,
+          "out can be a setting");
+    CHECK(zxapp_call(&A, &H, "setting", 0, 0, out, 2, &n) == ZXAPP_E_BUFFER && n == 3,
+          "more than fit");
+    zxapp_arg_t wrong[1] = {{"rate", one, 1}};
+    CHECK(zxapp_call(&A, &H, "due", wrong, 1, out, 8, &n) == ZXAPP_E_CONTRACT,
+          "B3: a circuit's own contract is checked before it runs");
+    CHECK(zxapp_call(&A, &H, "refuse", xa, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "refuse: part z: "),
+          "a part's refusal is named: %s", A.err);
+    CHECK(WIRE.depth == 0, "the working space is released after every run");
+    zxapp_unload(&A, &H);
+
+    /* load refusals */
+    static const struct {
+        const char *m, *want;
+    } refuse[] = {
+        {"zxapp 1\nid r\nprovides c num\nlogic wire c apps/c.wire\n", "inline"},
+        {"zxapp 1\nid r\nlogic wire c <<\nout 1\n.\n", "provides"},
+        {"zxapp 1\nid r\nprovides c num\nlogic wire c <<\npart p nope\nout p\n.\n",
+         "no entry for part p"},
+        {"zxapp 1\nid r\nprovides c num\nlogic wire c <<\npart p c\nout p\n.\n", "its own part"},
+        {"zxapp 1\nid r\nlogic kron k <<\n1\n.\nprovides c num\nlogic wire c <<\npart p k\nout "
+         "p\n.\n",
+         "no provides line"},
+        {"zxapp 1\nid r\nprovides k num x\nlogic kron k <<\nx\n.\nprovides c num\nlogic wire c "
+         "<<\npart p k y=1\nout p\n.\n",
+         "no input y"},
+        {"zxapp 1\nid r\nprovides k num x y\nlogic kron k <<\nx+y\n.\nprovides c num\nlogic wire "
+         "c <<\npart p k x=1\nout p\n.\n",
+         "not wired"},
+        {"zxapp 1\nid r\nprovides c num\nlogic wire c <<\nout q\n.\n", "unknown source"},
+    };
+    for (unsigned i = 0; i < sizeof refuse / sizeof refuse[0]; i++) {
+        CHECK(parse(refuse[i].m) == ZXAPP_OK && zxapp_load(&A, &H) < 0 &&
+                  strstr(A.err, refuse[i].want),
+              "load refuses %u: %s", i, A.err);
+        zxapp_unload(&A, &H);
+    }
+
+    /* W2 through composing: a circuit exported by an app, used by another */
+    static const char DASH[] = "zxapp 1\nid dash\nversion 1.0.0\n"
+                               "use shares 1\n"
+                               "provides shares.share num re\n"
+                               "provides top num re\n"
+                               "logic wire top <<\npart s shares.share re=re\nout s\n.\n";
+    static const char HOME[] = "zxapp 1\nid home\nuse dash 1\n"
+                               "provides mine num re\n"
+                               "logic wire mine <<\npart t dash.top re=re\nout t\n.\n";
+    static zxapp_t SH, DA, HO;
+    zxapp_registry_t reg;
+    zxapp_registry_init(&reg);
+    CHECK(parse_into(&SH, SHARES_100) == ZXAPP_OK && zxapp_registry_add(&reg, &SH) == ZXAPP_OK,
+          "shares");
+    CHECK(parse_into(&DA, DASH) == ZXAPP_OK && zxapp_compose(&DA, &reg) == ZXAPP_OK &&
+              zxapp_registry_add(&reg, &DA) == ZXAPP_OK,
+          "dash exports a circuit: %s %s", DA.err, reg.err);
+    CHECK(parse_into(&HO, HOME) == ZXAPP_OK && zxapp_compose(&HO, &reg) == ZXAPP_OK,
+          "home uses dash: %s", HO.err);
+    CHECK(zxapp_load(&HO, &H) >= 3, "home loads, its circuit and dash's: %s", HO.err);
+    int64_t re[3] = {1, 1, 2};
+    zxapp_arg_t ra[1] = {{"re", re, 3}};
+    CHECK(zxapp_call(&HO, &H, "mine", ra, 1, out, 8, &n) == ZXAPP_OK && n == 3 &&
+              out[0].num == 250 && out[2].num == 500,
+          "home.mine -> dash.top -> dash.shares.share: %s", HO.err);
+    zxapp_origin_t org[4];
+    uint32_t parts = zxapp_provenance(&HO, org, 4);
+    CHECK(parts == 3, "provenance names home, dash and shares (%u)", parts);
+    zxapp_unload(&HO, &H);
+}
+
+/* ---- CB: the Circuit board -------------------------------------------------- */
+
+static const char FEES[] = "zxblock 1\nid fees\nname Fees\nversion 1.2.0\n"
+                           "provides fee num amount rate\n"
+                           "logic kron fee <<\n50|_amount*rate%10000\n.\n"
+                           "provides fee_ok truth amount fee\n"
+                           "logic kron fee_ok <<\n(amount>0)&fee<2501\n.\n"
+                           "provides total num amount fee\n"
+                           "logic kron total <<\n+/amount+fee\n.\n";
+
+static zxboard_t BOARD, BOARD2;
+
+static void test_board(void)
+{
+    static zxapp_t FB, SB;
+    zxapp_registry_t reg;
+    zxapp_registry_init(&reg);
+    CHECK(parse_into(&FB, FEES) == ZXAPP_OK && zxapp_registry_add(&reg, &FB) == ZXAPP_OK, "fees");
+    CHECK(parse_into(&SB, SHARES_100) == ZXAPP_OK && zxapp_registry_add(&reg, &SB) == ZXAPP_OK,
+          "shares");
+    zxboard_t *b = &BOARD;
+    CHECK(zxboard_init(b, &reg, "1bad", 0) == ZXAPP_E_ARG, "an id is an identifier");
+    CHECK(zxboard_init(b, &reg, "checkout", "Checkout") == ZXAPP_OK, "a new board");
+
+    /* CB1 */
+    CHECK(zxboard_shelf_count(b) == 5, "the shelf: 3 fees + 2 shares entries");
+    zxboard_item_t it;
+    CHECK(zxboard_shelf(b, 0, &it) && strcmp(it.ref, "fees.fee") == 0 && it.from == &FB &&
+              it.prov->ninputs == 2,
+          "fees.fee");
+    CHECK(zxboard_shelf(b, 4, &it) && strcmp(it.ref, "shares.pos") == 0 &&
+              it.prov->kind == ZXAPP_KIND_TRUTH,
+          "shares.pos is a truth");
+    CHECK(!zxboard_shelf(b, 5, &it), "past the end");
+    CHECK(zxboard_contract(b, "fees.nope", 0) == 0 && zxboard_contract(b, "fees", 0) == 0 &&
+              zxboard_contract(b, "nope.fee", 0) == 0,
+          "only what is on the shelf");
+
+    /* CB2 */
+    CHECK(zxboard_input_add(b, "amount") == 0 && zxboard_input_add(b, "rate") == 1, "inputs");
+    CHECK(zxboard_input_add(b, "amount") == ZXAPP_E_NAME, "a name used twice");
+    CHECK(zxboard_input_add(b, "out") == ZXAPP_E_NAME, "out is the answer's name");
+    CHECK(zxboard_input_add(b, "2x") == ZXAPP_E_ARG, "an identifier");
+    int f = zxboard_part_add(b, "fees.fee", 240, 80);
+    int ok = zxboard_part_add(b, "fees.fee_ok", 480, 80);
+    int f2 = zxboard_part_add(b, "fees.fee", 240, 260);
+    CHECK(f == 0 && ok == 1 && f2 == 2, "three parts");
+    CHECK(strcmp(b->c.part[2].name, "fee2") == 0, "named after the entry, made unique: %s",
+          b->c.part[2].name);
+    CHECK(zxboard_part_add(b, "fees.nope", 0, 0) == ZXAPP_E_NAME, "not on the shelf");
+    CHECK(zxboard_part_add(b, "fees.fee", -1, 0) == ZXAPP_E_ARG, "off the board");
+    CHECK(b->c.part[0].nports == 2 && strcmp(b->c.part[0].port[1], "rate") == 0,
+          "ports from the contract");
+    zxboard_check_t k;
+    zxboard_check(b, &k);
+    CHECK(k.lp == ZXAPP_NEITHER && k.open == 7 && k.held == 0 && strstr(k.why, "not wired"),
+          "CB3: nothing wired yet: NEITHER (%u open): %s", k.open, k.why);
+    char text[ZXBOARD_TEXT];
+    CHECK(zxboard_save(b, text, sizeof text) == ZXAPP_E_CONTRACT && strstr(b->err, "not saved"),
+          "CB4: an open wire is not saved");
+    CHECK(zxboard_part_remove(b, (uint32_t) f2) == ZXAPP_OK && b->c.nparts == 2, "remove fee2");
+    zxwire_src_t s;
+    s = zxboard_src_input(0);
+    CHECK(zxboard_wire(b, 0, 0, &s) == ZXAPP_OK, "fee.amount <- amount");
+    s = zxboard_src_input(1);
+    CHECK(zxboard_wire(b, 0, 1, &s) == ZXAPP_OK, "fee.rate <- rate");
+    s = zxboard_src_input(0);
+    CHECK(zxboard_wire(b, 1, 0, &s) == ZXAPP_OK, "fee_ok.amount <- amount");
+    s = zxboard_src_part(1);
+    CHECK(zxboard_wire(b, 1, 1, &s) == ZXAPP_E_ARG, "a part cannot take its own answer");
+    s = zxboard_src_part(5);
+    CHECK(zxboard_wire(b, 1, 1, &s) == ZXAPP_E_ARG, "no such part");
+    CHECK(zxboard_wire(b, 1, 9, &s) == ZXAPP_E_ARG, "no such port");
+    s = zxboard_src_part(0);
+    CHECK(zxboard_wire(b, 1, 1, &s) == ZXAPP_OK, "fee_ok.fee <- fee");
+    s = zxboard_src_part(1);
+    CHECK(zxboard_out(b, &s) == ZXAPP_OK, "the answer <- fee_ok");
+    zxboard_check(b, &k);
+    CHECK(k.lp == ZXAPP_BOTH && k.held == 1 && k.out == ZXWIRE_HELD &&
+              strstr(k.why, "a truth, and the app answers numbers"),
+          "CB3: a truth answer on a numbers app is BOTH, shown, not converted: %s", k.why);
+    CHECK(zxboard_answer_kind(b, 7) == ZXAPP_E_ARG &&
+              zxboard_answer_kind(b, ZXAPP_KIND_TRUTH) == ZXAPP_OK,
+          "the app answers a truth");
+    zxboard_check(b, &k);
+    CHECK(k.lp == ZXAPP_TRUE && k.ok == 5 && !k.why[0], "every wire TRUE (%u ok): %s", k.ok, k.why);
+
+    /* CB4 */
+    int32_t len = zxboard_save(b, text, sizeof text);
+    static const char WANT[] = "zxapp 1\nid checkout\nname Checkout\nversion 1.0.0\nview auto\n"
+                               "use fees 1.2\n"
+                               "provides fees.fee num amount rate\n"
+                               "provides fees.fee_ok truth amount fee\n"
+                               "provides main truth amount rate\n"
+                               "logic wire main <<\n"
+                               "part fee fees.fee amount=amount rate=rate\n"
+                               "part fee_ok fees.fee_ok amount=amount fee=fee\n"
+                               "out fee_ok\n"
+                               "at amount 40 80\nat rate 40 176\n"
+                               "at fee 240 80\nat fee_ok 480 80\nat out 720 200\n.\n";
+    CHECK(len > 0 && strcmp(text, WANT) == 0, "CB4: the manifest:\n%s", len > 0 ? text : b->err);
+    CHECK(zxboard_save(b, text, 40) == ZXAPP_E_BUFFER, "too small");
+
+    /* the saved app is an ordinary app: it parses, composes, loads, runs and nests */
+    zxapp_host_init(&H);
+    zxapp_kron_register(&H);
+    zxwire_register(&H, &WIRE);
+    static char app_text[ZXBOARD_TEXT]; /* A4: outlives APP */
+    len = zxboard_save(b, app_text, sizeof app_text);
+    static zxapp_t APP;
+    CHECK(parse_into(&APP, app_text) == ZXAPP_OK && zxapp_compose(&APP, &reg) == ZXAPP_OK &&
+              zxapp_load(&APP, &H) == 4,
+          "the saved app loads: %s", APP.err);
+    int64_t amt[2] = {10000, 9000000}, rate[2] = {30, 30};
+    zxapp_arg_t args[2] = {{"amount", amt, 2}, {"rate", rate, 2}};
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    CHECK(zxapp_call_witnessed(&APP, &H, "main", args, 2, out, 8, &n, &lp) == ZXAPP_OK && n == 2 &&
+              out[0].num == ZXAPP_TRUE && out[1].num == ZXAPP_FALSE,
+          "checkout.main: %s", APP.err);
+    zxapp_unload(&APP, &H);
+    CHECK(zxapp_registry_add(&reg, &APP) == ZXAPP_OK, "C1: the board's app is a block too: %s",
+          reg.err);
+    zxapp_origin_t org[4];
+    CHECK(zxapp_provenance(&APP, org, 4) == 2 && org[1].from == &FB,
+          "C2: its parts are credited to fees");
+
+    /* CB6 */
+    n = 0;
+    CHECK(zxboard_try(b, &H, args, 2, out, 8, &n, &lp) == ZXAPP_OK && n == 2 &&
+              out[1].num == ZXAPP_FALSE && lp == ZXAPP_NEITHER,
+          "CB6: try it before keeping it: %s", b->err);
+
+    /* CB5 */
+    zxboard_t *b2 = &BOARD2;
+    CHECK(zxboard_open(b2, &reg, &APP, "main") == ZXAPP_OK, "open it again: %s", b2->err);
+    char again[ZXBOARD_TEXT];
+    CHECK(zxboard_save(b2, again, sizeof again) == len && strcmp(again, app_text) == 0,
+          "CB5: the same text, so the same content id:\n%s", again);
+    CHECK(zxboard_open(b2, &reg, &APP, "fees.fee") == ZXAPP_E_NAME, "not a circuit");
+
+    /* a board built on the first board's app */
+    CHECK(zxboard_init(b2, &reg, "till", "Till") == ZXAPP_OK && zxboard_shelf_count(b2) == 8,
+          "checkout is on the shelf now, with its 3 exports");
+    CHECK(zxboard_input_add(b2, "amount") == 0, "input");
+    int p = zxboard_part_add(b2, "checkout.main", 240, 80);
+    s = zxboard_src_input(0);
+    zxboard_wire(b2, (uint32_t) p, 0, &s);
+    CHECK(zxboard_src_setting("25", &s) && s.nconst == 1 &&
+              zxboard_wire(b2, (uint32_t) p, 1, &s) == ZXAPP_OK,
+          "rate=25, a setting");
+    int t = zxboard_part_add(b2, "fees.total", 480, 80);
+    s = zxboard_src_input(0);
+    zxboard_wire(b2, (uint32_t) t, 0, &s);
+    s = zxboard_src_part((uint32_t) p);
+    zxboard_wire(b2, (uint32_t) t, 1, &s);
+    s = zxboard_src_part((uint32_t) t);
+    zxboard_out(b2, &s);
+    zxboard_check(b2, &k);
+    CHECK(k.lp == ZXAPP_BOTH && k.port[t][1] == ZXWIRE_HELD &&
+              strstr(k.why, "total.fee takes whole numbers, and gets a truth"),
+          "CB3: a truth into a number input is drawn held: %s", k.why);
+    len = zxboard_save(b2, text, sizeof text);
+    CHECK(len > 0, "CB4: a held wire still saves: %s", b2->err);
+    n = 0;
+    CHECK(zxboard_try(b2, &H, args, 1, out, 8, &n, &lp) == ZXAPP_E_CONFLICT && lp == ZXAPP_BOTH,
+          "and holds when run, as the board said: %s", b2->err);
+    zxboard_src_setting("1,2", &s);
+    CHECK(zxboard_wire(b2, (uint32_t) t, 1, &s) == ZXAPP_OK, "rewire total.fee to a setting");
+    zxboard_check(b2, &k);
+    CHECK(k.lp == ZXAPP_TRUE, "TRUE again: %s", k.why);
+
+    /* loops, renames, removal */
+    s = zxboard_src_part((uint32_t) t);
+    CHECK(zxboard_wire(b2, (uint32_t) p, 1, &s) == ZXAPP_OK, "main.rate <- total");
+    s = zxboard_src_part((uint32_t) p);
+    zxboard_wire(b2, (uint32_t) t, 1, &s);
+    zxboard_check(b2, &k);
+    CHECK(k.loop[p] && k.loop[t] && k.held >= 2 && strstr(k.why, "on a loop"),
+          "CB3: a loop is held: %s", k.why);
+    CHECK(zxboard_save(b2, text, sizeof text) == ZXAPP_E_CONTRACT && strstr(b2->err, "loop"),
+          "CB4: a loop is not saved");
+    CHECK(zxboard_part_rename(b2, (uint32_t) t, "main") == ZXAPP_E_NAME &&
+              zxboard_part_rename(b2, (uint32_t) t, "amount") == ZXAPP_E_NAME &&
+              zxboard_part_rename(b2, (uint32_t) t, "sum") == ZXAPP_OK,
+          "rename");
+    CHECK(zxboard_part_remove(b2, (uint32_t) p) == ZXAPP_OK && b2->c.nparts == 1 &&
+              b2->c.part[0].src[1].kind == ZXWIRE_SRC_NONE && b2->c.out.kind == ZXWIRE_SRC_PART &&
+              b2->c.out.index == 0,
+          "removing a part unwires what took it, and renumbers the rest");
+    CHECK(zxboard_input_remove(b2, 0) == ZXAPP_OK && b2->c.ninputs == 0 &&
+              b2->c.part[0].src[0].kind == ZXWIRE_SRC_NONE,
+          "removing an input unwires it");
+    CHECK(zxboard_move(b2, ZXBOARD_NODE_PART, 0, 10, 20) == ZXAPP_OK && b2->c.part[0].x == 10 &&
+              zxboard_move(b2, ZXBOARD_NODE_OUT, 0, 5, 6) == ZXAPP_OK && b2->c.out_y == 6 &&
+              zxboard_move(b2, ZXBOARD_NODE_INPUT, 3, 1, 1) == ZXAPP_E_ARG &&
+              zxboard_move(b2, ZXBOARD_NODE_PART, 0, 1, 100001) == ZXAPP_E_ARG,
+          "move");
+    CHECK(!zxboard_src_setting("", &s) && !zxboard_src_setting("1x", &s) &&
+              !zxboard_src_setting("1,2,3,4,5,6,7,8,9", &s) &&
+              !zxboard_src_setting("1234567890123456789", &s) && zxboard_src_setting("-4, 5", &s) &&
+              s.konst[0] == -4 && s.konst[1] == 5,
+          "settings are up to 8 whole numbers");
+}
+
 int main(int argc, char **argv)
 {
     SRC_ROOT = argc > 1 ? argv[1] : 0;
@@ -1642,6 +2137,8 @@ int main(int argc, char **argv)
     test_myra();
     test_witness_mixed();
     test_fee_check();
+    test_wire();
+    test_board();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }
