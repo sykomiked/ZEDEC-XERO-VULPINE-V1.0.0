@@ -1,0 +1,497 @@
+test_zxv_http_guard: all checks passed
+gen_ui_strings: negotiation checked on 195959 tags, map 1729 entries
+gen_ui_strings: 326 keys, 135 string sets, 99 number formats, 778 locales
+[NOTE] node not found: the page i18n script was not run against the C results
+[PASS] check_ui_i18n: 326 ids from the i18n catalog, 778 locales, 135 string sets; no words written into zxv_ui.html
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:6590: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:3353: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:7325: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:11812: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:4898: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccoGoime.s: Assembler messages:
+/tmp/ccoGoime.s:81574: Warning: setting incorrect section attributes for .rodata.zxv_decl
+  ok   qwen2 test model rebuilt and opened
+  ok   tokenizer fixture opened
+  ok   tokenizer loaded; vocabulary matches the model (1200)
+  ok   the engine can run the test model
+  ok   a tokenizer-only file is reported as not runnable
+  ok   prompt tokenized (3 ids)
+  ok   chat-wrapped greedy reply matches the engine's reference chain (16 tokens)
+  ok   verdict: 16 tokens split 8/8, no saturation, no error
+  ok   verdict: greedy picks have a positive margin over the runner-up (674913, 548651)
+  ok   second request reuses the loaded model and gives the same reply
+  ok   a short output buffer cuts the reply and stays NUL-terminated
+  ok   a prompt longer than the context is refused: the message is too long for the model context (256 tokens)
+  ok   verdict: a request refused before the forward pass leaves it clear
+  ok   an out-of-range token id is refused: the forward pass failed (error -36)
+  ok   verdict: the refused forward pass is recorded
+  ok   a file without runnable weights is refused: the engine cannot run this file (missing metadata, error -31)
+glue test passed
+  ok   qwen2 test model rebuilt
+  ok   its rank-8 LoRA adapter rebuilt
+  ok   base loaded once ()
+  ok   agent without an adapter
+  ok   agent with the LoRA adapter ()
+  ok   agent with the same adapter at half scale
+  ok   the plain agent replies exactly as the single slot does (12 tokens)
+  ok   the adapter changes the reply, and its scale matters (12, 12 tokens)
+  ok   the agent's request sets the verdict
+  ok   agents taking turns on one base keep their own replies, bit for bit
+  ok   an adapter with B = 0 gives the plain reply
+  ok   the agent keeps working after the adapter's buffer is gone
+  ok   a qwen2 adapter on a qwen3 base is refused: the adapter did not load (adapter is for another architecture: general.architecture, error -30)
+  ok   an adapter scale of 0 is refused at this level: the adapter did not load (adapter scale out of range, error -36)
+  ok   a base with agents on it is not freed
+  ok   bases free once their agents are gone
+  ok   test model (with tokenizer) and adapter written to /tmp/zxv-hosted.XISjce
+  ok   slot 0 opened: zxv_swarm_test_model.gguf (qwen2, 0 MB): ready.
+  ok   slot 9 is out of range
+  ok   a missing file leaves the slot empty: Could not open the model file zxv_swarm_test_missing.gguf.
+  ok   agents 0 (plain) and 1 (adapter) on slot 0 ()
+  ok   an agent on an empty slot is refused: no model in slot 1
+  ok   a missing adapter file is refused: could not read the adapter file zxv_swarm_test_missing.gguf
+  ok   slot agents answer from the file, each with its own adapter
+  ok   an agent that was never opened says so: Agent 5 has no model.
+  ok   closing the slot closes its agents
+swarm slots test passed
+/tmp/ccKuV99h.s: Assembler messages:
+/tmp/ccKuV99h.s:4898: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccKuV99h.s: Assembler messages:
+/tmp/ccKuV99h.s:7325: Warning: setting incorrect section attributes for .rodata.zxv_decl
+  ok   steady clean reply: true/neutral/manifest, proceed
+  ok   margin up by more than an eighth: negentropic, proceed
+  ok   up by exactly an eighth: still neutral
+  ok   margin down by more than an eighth: entropic, wait
+  ok   down by exactly an eighth: still neutral
+  ok   from zero margin any rise is negentropic
+  ok   one token: no trend, neutral
+  ok   means past 32 bits clamp (both rails: neutral)
+  ok   one saturated logit: forbidden, rollback, reason saturated
+  ok   failed forward pass: forbidden, reason forward (wins over saturation)
+  ok   no tokens: neither/potential, wait
+  ok   no verdict: forbidden (fail closed)
+answer tag test passed
+H1 config
+  ok   a good config parses ()
+  ok   quoted paths keep their spaces; CRLF is accepted
+  ok   cells keep slot, lineage and adapter ('-' is none)
+  ok   keywords are lower-cased; a comment ends the line
+  ok   log path
+  ok   slot 4 is refused
+  ok   a cell on an empty slot is refused
+  ok   no cells is refused
+  ok   a name twice is refused
+  ok   an unknown directive is refused
+  ok   an open quote is refused
+  ok   a keyword longer than 23 bytes is refused
+  ok   extra words are refused
+H2 route
+  ok   keywords pick the lead; the witness is of another lineage
+  ok   no keyword: the first cell leads
+  ok   a smollm lead gets a qwen witness
+  ok   one lineage: no witness (same-trunk cells are one witness)
+H3 witness verdicts
+  ok   true
+  ok   False.
+  ok   earliest word wins
+  ok   whole words only
+  ok   no word: NEITHER
+H3 reckoner
+  ok   17 times 23: 391 is TRUE (17 x 23 = 391)
+  ok   371 is FALSE
+  ok   the sum restated after the result is skipped
+  ok   391.0 is whole
+  ok   390.5 is FALSE
+  ok   a result equal to an operand
+  ok   thousands commas
+  ok   negatives
+  ok   exact division
+  ok   a division with a remainder is not checked
+  ok   division by zero
+  ok   overflow is refused
+  ok   an answer with no number is not checked
+  ok   no sum in the question
+  ok   digits inside a word
+H4 join
+  ok   order and grouping never change the verdict; one BOTH stays BOTH
+  ok   TRUE with FALSE is BOTH
+  ok   NEITHER is the identity
+H4 answers
+  ok   witnessed TRUE: shown as checked
+  ok   the witness is shown question and answer as one statement
+  ok   reckoner FALSE: held, the draft not shown, no model asked against the proof
+  ok   reckoner TRUE: shown with the exact check
+  ok   a BOTH witness: held with its reason
+  ok   a FALSE witness: held
+  ok   nothing decides: shown, marked not checked
+  ok   a witness that cannot answer: not checked, with its reason
+  ok   a lead failing the integrity check is held; no witness is asked
+  ok   a lead that cannot answer says why
+  ok   one lineage: unwitnessed, never TRUE
+H3-H4 planted answers
+  ok   a planted answer goes to the witness; the lead is not asked
+  ok   a planted sum is decided by the reckoner alone
+H5 log
+  ok   the log is written
+  ok   one JSON line, strings escaped
+  ok   no log path: nothing written
+
+all passed
+[1] budget gate with a counting generator
+  ok   the companion starts the cycle with N = 37
+  ok   asked for 256: the model is allowed min(256, N) = 37
+  ok   exactly N generated and charged
+  ok   budget 0 afterwards
+  ok   next request: exhausted, the model is not run
+  ok   nothing expired: the cycle was spent
+  ok   the next cycle refills N
+  ok   an early stop charges only 10
+  ok   a request under the remainder is not raised
+  ok   a failed generation charges nothing
+  ok   outside an open cycle nothing is generated
+  ok   an unknown agent has no budget
+[1b] prompt tokens are charged (B5)
+  ok   budget 100, prompt 30: the model may write 70 (wrote 70, allowed 70)
+  ok   charged prompt + written = 100, 0 left
+  ok   a short answer: 30 + 5 = 35 charged, 65 left
+  ok   a prompt that uses everything left is refused without running or charging
+  ok   one token over the prompt: one token may be written
+  ok   a failed generation charges nothing, not even the prompt
+  ok   requesting 0 tokens runs nothing and charges nothing
+  ok   a prompt of 0 is the old gate
+  ok   no budget: -1, the request recorded
+[2] budget gate around the tensor engine (tiny qwen2 test model)
+  ok   model and tokenizer fixtures opened
+  ok   tokenizer loaded
+  ok   asked for 16 tokens with a budget of 5: 5 generated
+  ok   the reply is the reference chain's first 5 tokens
+  ok   budget 0 afterwards
+  ok   next request refused without a forward pass
+  ok   the next cycle refills it and the same 5 tokens come back
+budget gate test passed
+/tmp/cc2jLhAa.s: Assembler messages:
+/tmp/cc2jLhAa.s:6590: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/cc2jLhAa.s: Assembler messages:
+/tmp/cc2jLhAa.s:3353: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/cc2jLhAa.s: Assembler messages:
+/tmp/cc2jLhAa.s:7325: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/cc2jLhAa.s: Assembler messages:
+/tmp/cc2jLhAa.s:11812: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/cc2jLhAa.s: Assembler messages:
+/tmp/cc2jLhAa.s:4898: Warning: setting incorrect section attributes for .rodata.zxv_decl
+  ok   two hosts created
+[1] off by default
+  ok   a new host is OFF with no socket
+  ok   OFF: adding a peer is refused
+  ok   OFF: nothing was sent
+[2] two hosts on 127.0.0.1
+  ok   A starts in LAN mode
+  ok   B starts in LAN mode
+  ok   bound on ports 49299 and 35765
+  ok   distinct NodeIDs bc05f864890fb900 / a210b67a8be6a734
+  ok   LAN mode refuses a public address
+  ok   and nothing was sent for it (out 0, drops 1)
+  ok   A pings B by address
+  ok   A has B in its routing table
+  ok   B has A in its routing table
+  ok   FIND_NODE lookups started (slots 1, 0)
+  ok   A's FIND_NODE for B was answered by B
+  ok   B's FIND_NODE for A was answered by A
+  ok   U6: a cycle with no trades imports nothing; the rate stays at the base
+  ok   U6: no budget, refused
+  ok   peers 1 / 1, every datagram verified (in 4 / 4, out 4 / 4)
+  ok   U6: both mesh books conserved, nothing traded or refused
+[2b] U13 listings
+  ok   A lists 1 peer(s), B among them; the count needs no buffer
+  ok   B's row: address 127.0.0.1:35765, seen, not yet in the mesh book
+  ok   nothing wanted or outstanding yet
+  ok   A shares 50 compute
+  ok   B's wants listed in slot order; the count is all of them, even past cap
+  ok   and the compute want
+  ok   A offers B 4 compute
+  ok   A's offer is outstanding until B answers (seq 1)
+  ok   B is now in A's mesh book with one receipt pending
+  ok   after B accepts, nothing is outstanding on either side
+  ok   B still wants 6 compute
+  ok   A's row for B shows the credit delivered (9)
+  ok   A stops sharing
+[3] modes
+  ok   switching A off closes its socket
+  ok   and forgets its session
+  ok   U13: off (or no host), every listing is empty
+  ok   U6: off, the economic cycle does nothing
+  ok   A restarts ONLINE
+  ok   ONLINE accepts a public address (TEST-NET-1, nothing answers)
+  ok   mode names parse strictly
+  ok   bad peer strings refused
+[4] U10: two hosts find each other by LAN multicast alone
+  ok   C and D start in LAN mode with discovery on
+  ok   a second socket
+  ok   with no address typed, each has the other in its routing table
+  ok   signed LAN records accepted (C 1, D 1)
+[5] U9: the identity and the peer cache persist
+  ok   a state folder
+  ok   C keeps its state there
+  ok   C starts
+  ok   the identity file was written 0600
+  ok   C pings D
+  ok   C and D know each other
+  ok   stop saved one cached peer
+  ok   C restarts
+  ok   with the same NodeID 9fc2e7c02b8e7235
+  ok   and pings the cached peer
+  ok   which answers: they meet again with no address typed
+  ok   a second process on the same folder starts
+  ok   with a fresh NodeID: the folder is locked to C
+  ok   D accepts the restarted identity's LAN record: its seq moved on (2 -> 3)
+  ok   an identity file others can read is refused
+  ok   and says why: identity file is readable by others (chmod 600 it)
+  ok   a damaged identity file is refused, not replaced
+  ok   and says why: identity file does not give the NodeID it records
+  ok   a folder others can write is refused
+  ok   repaired, C starts again
+  ok   still the same NodeID
+[6] U11: introductions
+  ok   off: nobody to ask
+  ok   C and D are contacts
+  ok   C asks its one contact for an introduction
+  ok   C pings D
+  ok   D does not know the target, so relays nothing
+  ok   one peer's report is counted but not shown as the public address
+[7] U12: an AIPI call over Vinea, verified, and its bounty settled in both books
+  ok   both hold the module
+  ok   and the same function CID
+  ok   nothing attached yet
+  ok   attached: the contexts now have a mesh
+  ok   C chooses D as its executor
+  ok   no budget: a bounty cannot be escrowed
+  ok   with a budget, the call goes to the mesh
+  ok   25 in escrow, one call out
+  ok   D answered; C checked it by squaring: isqrt(1000000) = 1000
+  ok   escrow released to D
+  ok   the bounty settled as one compute receipt in both books (trades 1 / 1)
+  ok   stopped: the context is local-only again
+  ok   detached
+[8] U14: a watch hall made on one host, joined by CID from another
+  ok   OFF: no spaces
+  ok   E and F start
+  ok   a node holds 32 space records for others
+  ok   E makes a watch hall
+  ok   F holds E's host record (2)
+  ok   F joins by the CID alone
+  ok   F is in, with the genesis
+  ok   F posts
+  ok   only the owner steers an owner hall
+  ok   E presses play at 5 s
+  ok   E got F's post
+  ok   both compute the same playhead (5055 ms)
+  ok   status: in 1 space each, events 1 in at E
+  ok   the record allowance is bounded and can be turned off
+  ok   stopped: spaces gone
+net host test passed
+/tmp/ccq3aedE.s: Assembler messages:
+/tmp/ccq3aedE.s:6590: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccq3aedE.s: Assembler messages:
+/tmp/ccq3aedE.s:3353: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccq3aedE.s: Assembler messages:
+/tmp/ccq3aedE.s:7325: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccq3aedE.s: Assembler messages:
+/tmp/ccq3aedE.s:11812: Warning: setting incorrect section attributes for .rodata.zxv_decl
+/tmp/ccq3aedE.s: Assembler messages:
+/tmp/ccq3aedE.s:4898: Warning: setting incorrect section attributes for .rodata.zxv_decl
+[1] one paid request: PQ session, answer, settlement with the 0.08889% fee
+  ok   demo float issued to A's wallet
+  ok   A's ask settled (0 )
+  ok   answer came from B: "B says: what is 2+2?"
+  ok   gross 125000, fee 111 = floor(125000 * 8889 / 10^7) (got 125000, 111)
+  ok   fee split 50/25/15/10, remainder to the reserve: 57 27 16 11
+  ok   the seller is B's NodeID
+  ok   A's wallet paid price + fee (874889)
+  ok   A's four fee buckets hold the fee
+  ok   A's book: invariants hold and the hash chain verifies
+  ok   A remembers one purchase
+  ok   B was paid the whole price (125000) and its book holds
+  ok   both nodes hold the same invoice and settle digests
+[2] the sub-unit carry: 3 payments of 500 pay what one of 1500 would
+  ok   fees 0 + 0 + 1 = floor(1500 * 8889 / 10^7) = 1 (paid 1)
+  ok   B accepted the carried fee each time
+[3] refusals
+  ok   price above max_price: refused, nothing paid, nothing answered
+  ok   B's key does not hash to the NodeID A expected (C's): handshake fails
+  ok   fee under-paid by one: B refuses and credits nothing (signed refusal)
+  ok   forged settle signature: B refuses
+  ok   forged invoice signature: A refuses before paying
+  ok   an empty wallet asks nothing
+  ok   LAN mode refuses a public address before connecting
+[4] the real TCP listener on 127.0.0.1
+  ok   B listens ()
+  ok   TCP: answered and settled, fee 62 on 70000 (0 )
+  ok   TCP: B's book shows the sale
+  ok   stopped: no listener
+  ok   nobody serving: connect fails cleanly
+  ok   A's book still verifies after every case
+[PASS] peer host: PQ session, paid request, fee settlement, refusals
+  ok   --version
+  ok   prints its ZXV-URL with a 64-hex token
+  ok   page loads without a token
+  ok   page carries the token plumbing
+  ok   page does not contain the token
+  ok   page refuses framing
+  ok   page asks for ASCW Golden
+  ok   serves Latin II
+  ok   serves an OpenType face
+  ok   no font at /fonts/../LICENSE
+  ok   no font at /fonts/ASCW-..%2F..%2FLICENSE.ttf
+  ok   no font at /fonts/x.ttf
+  ok   no font at /fonts/ASCW-Golden-Latin2.ttf.bak
+  ok   no font at /fonts/ASCW-Nope.ttf
+  ok   fonts keep the Host check
+  ok   POST /api/quit refused: no token (403)
+  ok   POST /api/quit refused: wrong token (403)
+  ok   POST /api/quit refused: token as query (403)
+  ok   POST /api/quit refused: DNS-rebound Host (403)
+  ok   POST /api/quit refused: Host on another port (403)
+  ok   POST /api/quit refused: no Host (403)
+  ok   POST /api/quit refused: foreign Origin (403)
+  ok   POST /api/quit refused: null Origin (403)
+  ok   POST /api/quit refused: cross-site fetch (403)
+  ok   POST /api/quit refused: same-site fetch (403)
+  ok   cross-site simple POST from a web page refused
+  ok   CORS preflight never granted (405)
+  ok   rebinding read of /api/state refused
+  ok   chunked body refused
+  ok   GET /api/quit is not a quit
+  ok   the app is still running after all refused requests
+  ok   state with the token
+  ok   market cycles ran
+  ok   allotments 2481 == T 2481
+  ok   every cycle settled
+  ok   every cycle reconciled with the ledger of record, at the levy and after paying out (6 syncs, 233 postings)
+  ok   the fee loop: 11 levied = 12 fees - 1 bounties returned
+  ok   the node self-audits and signs every ledger transfer (201 of 201, state active)
+  ok   quest: eight skills, nothing credited before the owner trades
+  ok   companion first
+  ok   state reports the model slot
+  ok   state reports the companion budget: {'cycle_open': True, 'allotted': 370, 'used': 0, 'remaining': 370, 'exhausted': False, 'max_per_answer': 256, 'asks': 0, 'exhausted_asks': 0, 'quarantined': 0, 'quarantine_ok': True}
+  ok   networking is off by default (no socket, nothing sent)
+  ok   no update check ran by itself while offline
+  ok   notifications endpoint
+  ok   unknown network mode refused
+  ok   shorthand read back
+  ok   no model is a normal state
+  ok   authorised quit accepted
+  ok   the app stopped cleanly
+  ok   stops when its parent closes stdin
+  ok   ZXV_TOKEN used
+  ok   ZXV_TOKEN malformed, replaced by a fresh one
+  host API test passed
+  ok   --version
+  ok   prints its ZXV-URL with a 64-hex token
+  ok   page loads without a token
+  ok   page carries the token plumbing
+  ok   page does not contain the token
+  ok   page refuses framing
+  ok   page asks for ASCW Golden
+  ok   serves Latin II
+  ok   serves an OpenType face
+  ok   no font at /fonts/../LICENSE
+  ok   no font at /fonts/ASCW-..%2F..%2FLICENSE.ttf
+  ok   no font at /fonts/x.ttf
+  ok   no font at /fonts/ASCW-Golden-Latin2.ttf.bak
+  ok   no font at /fonts/ASCW-Nope.ttf
+  ok   fonts keep the Host check
+  ok   POST /api/quit refused: no token (403)
+  ok   POST /api/quit refused: wrong token (403)
+  ok   POST /api/quit refused: token as query (403)
+  ok   POST /api/quit refused: DNS-rebound Host (403)
+  ok   POST /api/quit refused: Host on another port (403)
+  ok   POST /api/quit refused: no Host (403)
+  ok   POST /api/quit refused: foreign Origin (403)
+  ok   POST /api/quit refused: null Origin (403)
+  ok   POST /api/quit refused: cross-site fetch (403)
+  ok   POST /api/quit refused: same-site fetch (403)
+  ok   cross-site simple POST from a web page refused
+  ok   CORS preflight never granted (405)
+  ok   rebinding read of /api/state refused
+  ok   chunked body refused
+  ok   GET /api/quit is not a quit
+  ok   the app is still running after all refused requests
+  ok   state with the token
+  ok   market cycles ran
+  ok   allotments 2420 == T 2420
+  ok   every cycle settled
+  ok   every cycle reconciled with the ledger of record, at the levy and after paying out (6 syncs, 230 postings)
+  ok   the fee loop: 8 levied = 8 fees - 0 bounties returned
+  ok   the node self-audits and signs every ledger transfer (198 of 198, state active)
+  ok   quest: eight skills, nothing credited before the owner trades
+  ok   companion first
+  ok   state reports the model slot
+  ok   state reports the companion budget: {'cycle_open': True, 'allotted': 344, 'used': 0, 'remaining': 344, 'exhausted': False, 'max_per_answer': 256, 'asks': 0, 'exhausted_asks': 0, 'quarantined': 0, 'quarantine_ok': True}
+  ok   networking is off by default (no socket, nothing sent)
+  ok   no update check ran by itself while offline
+  ok   notifications endpoint
+  ok   unknown network mode refused
+  ok   shorthand read back
+  ok   model slot loaded the GGUF and its tokenizer: tiny-test.gguf (qwen2, 0 MB): tokenizer ready; the engine cannot run these weights (see zt_model.h).
+  ok   ask goes through the model slot: I received your message (3 words). Routing plan: the companion splits it into steps, the market gives this cycle's 2420 
+  ok   authorised quit accepted
+  ok   the app stopped cleanly
+  ok   stops when its parent closes stdin
+  ok   ZXV_TOKEN used
+  ok   ZXV_TOKEN malformed, replaced by a fresh one
+  host API test passed
+  ok   started without --net: no network line
+  ok   state: net off
+  ok   the process holds no UDP socket (0)
+  ok   no update request was made by itself
+  ok   no desktop session: the OS notifier is none
+  ok   A: networking on, UDP port 56265
+  ok   B: networking on, UDP port 32899
+  ok   A and B see each other: peers 1 / 1
+  ok   every datagram verified (in 6 / 4)
+  ok   distinct node ids
+  ok   A holds its UDP socket and the LAN discovery socket (2)
+  ok   A keeps its identity in the per-user folder, mode 600
+  ok   B, on the same folder, runs with a fresh identity (the folder is locked to A)
+  ok   LAN discovery is on by default
+  ok   nothing shared by default
+  ok   A sells nothing before it shares
+  ok   A shares 3000000 compute tokens per cycle
+  ok   A cannot sell to a peer it never heard from
+  ok   a malformed sell is a bad request
+  ok   A offers B 100 compute on credit
+  ok   B refuses what it did not want (refused 2)
+  ok   sharing survives a restart
+  ok   B wants 2000000 compute at most 1000 a receipt
+  ok   A pings B again after the restart
+  ok   A offers B 48576 compute again
+  ok   the trade completes on both sides (1 / 1)
+  ok   below one quest unit (2^20): carried, not credited
+  ok   A offers B 1000000 more, completing a unit
+  ok   the second trade completes too (2 / 2)
+  ok   both books conserved
+  ok   every signed receipt fit in one datagram (send errors 0 / 0)
+  ok   A's sale is a verified contribution (1 units, 1 points)
+  ok   buying is not a contribution
+  ok   A stops sharing
+  ok   and then sells nothing
+  ok   Network setting off: socket closed (networking is off)
+  ok   and on again
+  ok   LAN mode refuses a public peer
+  ok   a LAN peer can be added from the window
+  ok   nothing fetched before asked
+  ok   OS notifier found: notify-send
+  ok   user-requested check ran: network unavailable (1 requests)
+  ok   a gateway without the bucket reports "network unavailable", nothing installable
+  ok   only trustless-gateway block requests were made: [('/ipfs/bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354?format=raw', 'application/vnd.ipld.raw')]
+  ok   for the built-in bucket CID
+  ok   the outcome is a note in /api/notes
+  ok   and was pushed to the OS notifier as an argv (no shell): ['-u', 'normal', '-a', 'ZXV', '--', 'Update check: network unavailable', 'the gateway request failed (curl 22)']
+  ok   notes marked read
+  host net test passed
+[PASS] hosted app: window strings from i18n, API guard, forward-pass glue, budget gate, net host, peer host, end-to-end API, model slot, peers, updates, notifications

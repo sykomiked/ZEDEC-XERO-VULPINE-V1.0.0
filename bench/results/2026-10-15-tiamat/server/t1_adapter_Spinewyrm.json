@@ -1,0 +1,77 @@
+{
+  "model": "/srv/tiamat/models/Spinewyrm/src",
+  "n_train": 20000,
+  "n_test": 4000,
+  "accuracy": 0.99825,
+  "false_certainty_rate": 0.0015,
+  "confusion_rows_truth_cols_pred": [
+    "FALSE",
+    "NEITHER",
+    "BOTH",
+    "TRUE"
+  ],
+  "confusion": [
+    [
+      1996,
+      1,
+      0,
+      3
+    ],
+    [
+      3,
+      1997,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "extra_test": {
+    "n": 200,
+    "accuracy": 0.765,
+    "false_certainty_rate": 0.28,
+    "confusion_rows_truth_cols_pred": [
+      "FALSE",
+      "NEITHER",
+      "BOTH",
+      "TRUE"
+    ],
+    "confusion": [
+      [
+        41,
+        8,
+        0,
+        1
+      ],
+      [
+        0,
+        50,
+        0,
+        0
+      ],
+      [
+        14,
+        6,
+        16,
+        14
+      ],
+      [
+        0,
+        4,
+        0,
+        46
+      ]
+    ],
+    "file": "/srv/tiamat/tests/2026-10-15/t1_handset.jsonl"
+  }
+}

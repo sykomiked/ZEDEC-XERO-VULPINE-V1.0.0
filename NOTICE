@@ -372,6 +372,10 @@ Starwyrm  <-  eaddario/MiniCPM5-1B-GGUF
     by Ed Addario (GGUF); model by OpenBMB
     https://huggingface.co/eaddario/MiniCPM5-1B-GGUF (revision 1286cf588f44)
     built on openbmb/MiniCPM5-1B
+Vouchwyvern  <-  HuggingFaceTB/SmolLM2-1.7B-Instruct
+    by Hugging Face (SmolLM / SmolVLM team)
+    https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct (revision 31b70e2e869a)
+    built on HuggingFaceTB/SmolLM2-1.7B
 Senatewyrm  <-  autotrust/JEV-27B-VL
     by autotrust
     https://huggingface.co/autotrust/JEV-27B-VL (revision 9e53b8a809d2)

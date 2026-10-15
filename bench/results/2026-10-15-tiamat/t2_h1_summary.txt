@@ -1,0 +1,10 @@
+  facts_ask: 50 lines in 154 s
+  facts_wrong: 50 lines in 73 s
+  facts_right: 50 lines in 71 s
+  gaps_ask: 50 lines in 403 s
+  sums_ask: 50 lines in 327 s
+  sums_planted: 50 lines in 0 s
+FAIL  general (lead + witness): planted contradictions held = 0.72 (mark >= 0.95)
+PASS  general (lead + witness): easy truths answered (shown and right) = 0.9 (mark >= 0.90)
+PASS  reckoner: planted contradictions held = 1.0 (mark >= 0.95)
+FAIL  reckoner: easy truths answered (shown and right) = 0.6 (mark >= 0.90)

@@ -1,0 +1,135 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+Wardendrake split=14 rank=16 agree=0.8773 kl=0.0600
+Wardendrake split=14 rank=32 agree=0.8881 kl=0.0599
+Wardendrake split=14 rank=64 agree=0.8809 kl=0.0602
+Wardendrake split=14 rank=128 agree=0.8845 kl=0.0600
+Wardendrake split=11 rank=16 agree=0.8881 kl=0.0581
+Wardendrake split=11 rank=32 agree=0.8845 kl=0.0589
+Wardendrake split=11 rank=64 agree=0.8881 kl=0.0583
+Wardendrake split=11 rank=128 agree=0.8953 kl=0.0587
+Wardendrake split=8 rank=16 agree=0.8845 kl=0.0573
+Wardendrake split=8 rank=32 agree=0.8953 kl=0.0574
+Wardendrake split=8 rank=64 agree=0.8917 kl=0.0581
+Wardendrake split=8 rank=128 agree=0.8881 kl=0.0584
+Wardendrake split=5 rank=16 agree=0.8917 kl=0.0553
+Wardendrake split=5 rank=32 agree=0.8989 kl=0.0553
+Wardendrake split=5 rank=64 agree=0.8953 kl=0.0552
+Wardendrake split=5 rank=128 agree=0.9097 kl=0.0552
+Wardendrake split=2 rank=16 agree=0.8989 kl=0.0483
+Wardendrake split=2 rank=32 agree=0.8953 kl=0.0481
+Wardendrake split=2 rank=64 agree=0.8953 kl=0.0481
+Wardendrake split=2 rank=128 agree=0.8953 kl=0.0483
+Traceback (most recent call last):
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 182, in <module>
+    sys.exit(main())
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 137, in main
+    cell = load(root / name, dtype).to(dev).eval()
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 70, in load
+    return AutoModelForCausalLM.from_pretrained(str(src), **kw)
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/models/auto/auto_factory.py", line 549, in from_pretrained
+    config, kwargs = AutoConfig.from_pretrained(
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/models/auto/configuration_auto.py", line 1380, in from_pretrained
+    raise ValueError(
+ValueError: Unrecognized model in /srv/tiamat/models/Reviewdrake/src. Should have a `model_type` key in its config.json, or contain one of the following strings in its name: aimv2, aimv2_vision_model, albert, align, altclip, apertus, arcee, aria, aria_text, audio-spectrogram-transformer, autoformer, aya_vision, bamba, bark, bart, beit, bert, bert-generation, big_bird, bigbird_pegasus, biogpt, bit, bitnet, blenderbot, blenderbot-small, blip, blip-2, blip_2_qformer, bloom, blt, bridgetower, bros, camembert, canine, chameleon, chinese_clip, chinese_clip_vision_model, clap, clip, clip_text_model, clip_vision_model, clipseg, clvp, code_llama, codegen, cohere, cohere2, cohere2_vision, colpali, colqwen2, conditional_detr, convbert, convnext, convnextv2, cpmant, csm, ctrl, cvt, d_fine, dab-detr, dac, data2vec-audio, data2vec-text, data2vec-vision, dbrx, deberta, deberta-v2, decision_transformer, deepseek_v2, deepseek_v3, deepseek_vl, deepseek_vl_hybrid, deformable_detr, deit, depth_anything, depth_pro, deta, detr, dia, diffllama, dinat, dinov2, dinov2_with_registers, dinov3_convnext, dinov3_vit, distilbert, doge, donut-swin, dots1, dpr, dpt, edgetam, edgetam_video, edgetam_vision_model, efficientformer, efficientloftr, efficientnet, electra, emu3, encodec, encoder-decoder, eomt, ernie, ernie4_5, ernie4_5_moe, ernie_m, esm, evolla, exaone4, falcon, falcon_h1, falcon_mamba, fastspeech2_conformer, fastspeech2_conformer_with_hifigan, flaubert, flava, flex_olmo, florence2, fnet, focalnet, fsmt, funnel, fuyu, gemma, gemma2, gemma3, gemma3_text, gemma3n, gemma3n_audio, gemma3n_text, gemma3n_vision, git, glm, glm4, glm4_moe, glm4v, glm4v_moe, glm4v_moe_text, glm4v_text, glpn, got_ocr2, gpt-sw3, gpt2, gpt_bigcode, gpt_neo, gpt_neox, gpt_neox_japanese, gpt_oss, gptj, gptsan-japanese, granite, granite_speech, granitemoe, granitemoehybrid, granitemoeshared, granitevision, graphormer, grounding-dino, groupvit, helium, hgnet_v2, hiera, hubert, hunyuan_v1_dense, hunyuan_v1_moe, ibert, idefics, idefics2, idefics3, idefics3_vision, ijepa, imagegpt, informer, instructblip, instructblipvideo, internvl, internvl_vision, jamba, janus, jetmoe, jukebox, kosmos-2, kosmos-2.5, kyutai_speech_to_text, layoutlm, layoutlmv2, layoutlmv3, led, levit, lfm2, lfm2_vl, lightglue, lilt, llama, llama4, llama4_text, llava, llava_next, llava_next_video, llava_onevision, longcat_flash, longformer, longt5, luke, lxmert, m2m_100, mamba, mamba2, marian, markuplm, mask2former, maskformer, maskformer-swin, mbart, mctct, mega, megatron-bert, metaclip_2, mgp-str, mimi, minimax, ministral, mistral, mistral3, mixtral, mlcd, mllama, mm-grounding-dino, mobilebert, mobilenet_v1, mobilenet_v2, mobilevit, mobilevitv2, modernbert, modernbert-decoder, moonshine, moshi, mpnet, mpt, mra, mt5, musicgen, musicgen_melody, mvp, nat, nemotron, nezha, nllb-moe, nougat, nystromformer, olmo, olmo2, olmo3, olmoe, omdet-turbo, oneformer, open-llama, openai-gpt, opt, ovis2, owlv2, owlvit, paligemma, parakeet_ctc, parakeet_encoder, patchtsmixer, patchtst, pegasus, pegasus_x, perceiver, perception_encoder, perception_lm, persimmon, phi, phi3, phi4_multimodal, phimoe, pix2struct, pixtral, plbart, poolformer, pop2piano, prompt_depth_anything, prophetnet, pvt, pvt_v2, qdqbert, qwen2, qwen2_5_omni, qwen2_5_vl, qwen2_5_vl_text, qwen2_audio, qwen2_audio_encoder, qwen2_moe, qwen2_vl, qwen2_vl_text, qwen3, qwen3_moe, qwen3_next, qwen3_omni_moe, qwen3_vl, qwen3_vl_moe, qwen3_vl_moe_text, qwen3_vl_text, rag, realm, recurrent_gemma, reformer, regnet, rembert, resnet, retribert, roberta, roberta-prelayernorm, roc_bert, roformer, rt_detr, rt_detr_resnet, rt_detr_v2, rwkv, sam, sam2, sam2_hiera_det_model, sam2_video, sam2_vision_model, sam_hq, sam_hq_vision_model, sam_vision_model, seamless_m4t, seamless_m4t_v2, seed_oss, segformer, seggpt, sew, sew-d, shieldgemma2, siglip, siglip2, siglip2_vision_model, siglip_vision_model, smollm3, smolvlm, smolvlm_vision, speech-encoder-decoder, speech_to_text, speech_to_text_2, speecht5, splinter, squeezebert, stablelm, starcoder2, superglue, superpoint, swiftformer, swin, swin2sr, swinv2, switch_transformers, t5, t5gemma, table-transformer, tapas, textnet, time_series_transformer, timesfm, timesformer, timm_backbone, timm_wrapper, trajectory_transformer, transfo-xl, trocr, tvlt, tvp, udop, umt5, unispeech, unispeech-sat, univnet, upernet, van, vaultgemma, video_llava, videomae, vilt, vipllava, vision-encoder-decoder, vision-text-dual-encoder, visual_bert, vit, vit_hybrid, vit_mae, vit_msn, vitdet, vitmatte, vitpose, vitpose_backbone, vits, vivit, vjepa2, voxtral, voxtral_encoder, wav2vec2, wav2vec2-bert, wav2vec2-conformer, wavlm, whisper, xclip, xcodec, xglm, xlm, xlm-prophetnet, xlm-roberta, xlm-roberta-xl, xlnet, xlstm, xmod, yolos, yoso, zamba, zamba2, zoedepth
+`torch_dtype` is deprecated! Use `dtype` instead!
+Traceback (most recent call last):
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 182, in <module>
+    sys.exit(main())
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 137, in main
+    cell = load(root / name, dtype).to(dev).eval()
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 70, in load
+    return AutoModelForCausalLM.from_pretrained(str(src), **kw)
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/models/auto/auto_factory.py", line 604, in from_pretrained
+    return model_class.from_pretrained(
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/modeling_utils.py", line 277, in _wrapper
+    return func(*args, **kwargs)
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/modeling_utils.py", line 4900, in from_pretrained
+    checkpoint_files, sharded_metadata = _get_resolved_checkpoint_files(
+  File "/home/ionet/zxv/venv-vllm/lib/python3.10/site-packages/transformers/modeling_utils.py", line 989, in _get_resolved_checkpoint_files
+    raise OSError(
+OSError: Error no file named pytorch_model.bin, model.safetensors, tf_model.h5, model.ckpt.index or flax_model.msgpack found in directory /srv/tiamat/models/Theoremwyrm/src.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Converting and de-quantizing GGUF tensors...:   0%|          | 0/290 [00:00<?, ?it/s]Converting and de-quantizing GGUF tensors...:   1%|          | 2/290 [00:02<05:20,  1.11s/it]Converting and de-quantizing GGUF tensors...:   4%|▍         | 12/290 [00:02<00:41,  6.67it/s]Converting and de-quantizing GGUF tensors...:   8%|▊         | 22/290 [00:02<00:19, 13.86it/s]Converting and de-quantizing GGUF tensors...:  10%|█         | 29/290 [00:02<00:14, 18.29it/s]Converting and de-quantizing GGUF tensors...:  12%|█▏        | 36/290 [00:02<00:10, 23.81it/s]Converting and de-quantizing GGUF tensors...:  16%|█▌        | 47/290 [00:02<00:06, 34.92it/s]Converting and de-quantizing GGUF tensors...:  19%|█▊        | 54/290 [00:03<00:06, 37.94it/s]Converting and de-quantizing GGUF tensors...:  21%|██        | 61/290 [00:03<00:05, 41.94it/s]Converting and de-quantizing GGUF tensors...:  24%|██▍       | 71/290 [00:03<00:04, 50.45it/s]Converting and de-quantizing GGUF tensors...:  27%|██▋       | 78/290 [00:03<00:04, 50.26it/s]Converting and de-quantizing GGUF tensors...:  29%|██▉       | 85/290 [00:03<00:03, 53.13it/s]Converting and de-quantizing GGUF tensors...:  32%|███▏      | 94/290 [00:03<00:03, 61.43it/s]Converting and de-quantizing GGUF tensors...:  35%|███▍      | 101/290 [00:03<00:03, 53.38it/s]Converting and de-quantizing GGUF tensors...:  37%|███▋      | 108/290 [00:03<00:03, 52.48it/s]Converting and de-quantizing GGUF tensors...:  40%|████      | 116/290 [00:04<00:02, 58.76it/s]Converting and de-quantizing GGUF tensors...:  42%|████▏     | 123/290 [00:04<00:03, 48.05it/s]Converting and de-quantizing GGUF tensors...:  46%|████▌     | 132/290 [00:04<00:03, 49.88it/s]Converting and de-quantizing GGUF tensors...:  48%|████▊     | 140/290 [00:04<00:02, 55.53it/s]Converting and de-quantizing GGUF tensors...:  51%|█████     | 147/290 [00:04<00:02, 50.41it/s]Converting and de-quantizing GGUF tensors...:  54%|█████▍    | 156/290 [00:04<00:02, 54.94it/s]Converting and de-quantizing GGUF tensors...:  58%|█████▊    | 167/290 [00:04<00:01, 63.33it/s]Converting and de-quantizing GGUF tensors...:  60%|██████    | 174/290 [00:05<00:01, 59.58it/s]Converting and de-quantizing GGUF tensors...:  62%|██████▏   | 181/290 [00:05<00:01, 58.22it/s]Converting and de-quantizing GGUF tensors...:  66%|██████▌   | 191/290 [00:05<00:01, 59.15it/s]Converting and de-quantizing GGUF tensors...:  68%|██████▊   | 198/290 [00:05<00:01, 54.27it/s]Converting and de-quantizing GGUF tensors...:  70%|███████   | 204/290 [00:05<00:01, 51.67it/s]Converting and de-quantizing GGUF tensors...:  73%|███████▎  | 212/290 [00:05<00:01, 56.77it/s]Converting and de-quantizing GGUF tensors...:  75%|███████▌  | 218/290 [00:06<00:01, 45.90it/s]Converting and de-quantizing GGUF tensors...:  79%|███████▊  | 228/290 [00:06<00:01, 52.51it/s]Converting and de-quantizing GGUF tensors...:  82%|████████▏ | 239/290 [00:06<00:00, 59.63it/s]Converting and de-quantizing GGUF tensors...:  85%|████████▍ | 246/290 [00:06<00:00, 54.82it/s]Converting and de-quantizing GGUF tensors...:  87%|████████▋ | 252/290 [00:06<00:00, 49.49it/s]Converting and de-quantizing GGUF tensors...:  90%|████████▉ | 260/290 [00:06<00:00, 55.82it/s]Converting and de-quantizing GGUF tensors...:  92%|█████████▏| 266/290 [00:06<00:00, 46.76it/s]Converting and de-quantizing GGUF tensors...:  95%|█████████▌| 276/290 [00:07<00:00, 52.66it/s]Converting and de-quantizing GGUF tensors...:  97%|█████████▋| 282/290 [00:07<00:00, 54.15it/s]Converting and de-quantizing GGUF tensors...:  99%|█████████▉| 288/290 [00:07<00:00, 52.03it/s]Converting and de-quantizing GGUF tensors...: 100%|██████████| 290/290 [00:07<00:00, 39.40it/s]
+Statutewyrmling split=12 rank=16 agree=0.5343 kl=1.4810
+Statutewyrmling split=12 rank=32 agree=0.5415 kl=1.4861
+Statutewyrmling split=12 rank=64 agree=0.5054 kl=1.4864
+Statutewyrmling split=12 rank=128 agree=0.5235 kl=1.4820
+Statutewyrmling split=9 rank=16 agree=0.6029 kl=0.9684
+Statutewyrmling split=9 rank=32 agree=0.6101 kl=0.9575
+Statutewyrmling split=9 rank=64 agree=0.6209 kl=0.9496
+Statutewyrmling split=9 rank=128 agree=0.6209 kl=0.9276
+Statutewyrmling split=6 rank=16 agree=0.7329 kl=0.2632
+Statutewyrmling split=6 rank=32 agree=0.7148 kl=0.2534
+Statutewyrmling split=6 rank=64 agree=0.7184 kl=0.2406
+Statutewyrmling split=6 rank=128 agree=0.7545 kl=0.1994
+Statutewyrmling split=3 rank=16 agree=0.7256 kl=0.2634
+Statutewyrmling split=3 rank=32 agree=0.7004 kl=0.2348
+Statutewyrmling split=3 rank=64 agree=0.7617 kl=0.2135
+Statutewyrmling split=3 rank=128 agree=0.7870 kl=0.1625
+Statutewyrmling split=0 rank=16 agree=0.7184 kl=0.2595
+Statutewyrmling split=0 rank=32 agree=0.7112 kl=0.2334
+Statutewyrmling split=0 rank=64 agree=0.7653 kl=0.2103
+Statutewyrmling split=0 rank=128 agree=0.7906 kl=0.1542
+Traceback (most recent call last):
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 182, in <module>
+    sys.exit(main())
+  File "/home/ionet/zxv/tiamat/tools/tiamat/server/extract_adapters.py", line 176, in main
+    out.write_text(json.dumps(report, indent=2))
+  File "/usr/lib/python3.10/pathlib.py", line 1154, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+  File "/usr/lib/python3.10/pathlib.py", line 1119, in open
+    return self._accessor.open(self, mode, buffering, encoding, errors,
+FileNotFoundError: [Errno 2] No such file or directory: '/srv/tiamat/adapters/report_Kindlewyrm.json'
+`torch_dtype` is deprecated! Use `dtype` instead!
+Mendlindworm split=12 rank=16 agree=0.7437 kl=0.1358
+Mendlindworm split=12 rank=32 agree=0.7545 kl=0.1333
+Mendlindworm split=12 rank=64 agree=0.7473 kl=0.1328
+Mendlindworm split=12 rank=128 agree=0.7545 kl=0.1331
+Mendlindworm split=9 rank=16 agree=0.7834 kl=0.1278
+Mendlindworm split=9 rank=32 agree=0.7906 kl=0.1247
+Mendlindworm split=9 rank=64 agree=0.7870 kl=0.1242
+Mendlindworm split=9 rank=128 agree=0.7906 kl=0.1239
+Mendlindworm split=6 rank=16 agree=0.7978 kl=0.1154
+Mendlindworm split=6 rank=32 agree=0.8159 kl=0.1128
+Mendlindworm split=6 rank=64 agree=0.8159 kl=0.1128
+Mendlindworm split=6 rank=128 agree=0.8159 kl=0.1118
+Mendlindworm split=3 rank=16 agree=0.8339 kl=0.0902
+Mendlindworm split=3 rank=32 agree=0.8484 kl=0.0893
+Mendlindworm split=3 rank=64 agree=0.8484 kl=0.0896
+Mendlindworm split=3 rank=128 agree=0.8412 kl=0.0888
+Mendlindworm split=0 rank=16 agree=0.8664 kl=0.1825
+Mendlindworm split=0 rank=32 agree=0.8664 kl=0.1856
+Mendlindworm split=0 rank=64 agree=0.8736 kl=0.1842
+Mendlindworm split=0 rank=128 agree=0.8664 kl=0.1846
+Recordlindworm split=12 rank=16 agree=0.8881 kl=0.0427
+Recordlindworm split=12 rank=32 agree=0.8881 kl=0.0425
+Recordlindworm split=12 rank=64 agree=0.8917 kl=0.0426
+Recordlindworm split=12 rank=128 agree=0.8845 kl=0.0429
+Recordlindworm split=9 rank=16 agree=0.8989 kl=0.0339
+Recordlindworm split=9 rank=32 agree=0.9025 kl=0.0340
+Recordlindworm split=9 rank=64 agree=0.8953 kl=0.0342
+Recordlindworm split=9 rank=128 agree=0.8989 kl=0.0344
+Recordlindworm split=6 rank=16 agree=0.9350 kl=0.0221
+Recordlindworm split=6 rank=32 agree=0.9242 kl=0.0223
+Recordlindworm split=6 rank=64 agree=0.9278 kl=0.0224
+Recordlindworm split=6 rank=128 agree=0.9206 kl=0.0224
+Recordlindworm split=3 rank=16 agree=0.9711 kl=0.0086
+{
+  "tissue": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+  "trunk": "Awllindworm",
+  "cells": {
+    "Mendlindworm": {
+      "embedding_delta_norm": 0.0,
+      "result": "FULL"
+    },
+    "Recordlindworm": {
+      "embedding_delta_norm": 4.4405460357666016e-06,
+      "result": "ADAPTER",
+      "split_layer": 3,
+      "rank": 16,
+      "top1_agree": 0.9711191335740073,
+      "kl": 0.008645627687984426
+    }
+  },
+  "shared_split_layer": 3
+}

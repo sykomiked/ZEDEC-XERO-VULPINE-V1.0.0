@@ -1,0 +1,48 @@
+Spinewyrm qwen2.5-1.5b-instruct-q4_k_m.gguf ok (cached)
+Spinewyrm model.safetensors ok (cached)
+Kindlewyrm qwen2.5-0.5b-instruct-q4_k_m.gguf ok (cached)
+Kindlewyrm model.safetensors ok (cached)
+Awllindworm qwen2.5-coder-0.5b-instruct-q4_k_m.gguf ok
+Awllindworm model.safetensors ok
+Parleywyvern EuroLLM-1.7B-Instruct.Q4_K_M.gguf ok
+Parleywyvern model.safetensors ok
+Mendlindworm model.safetensors ok
+Codelindworm qwen2.5-coder-1.5b-instruct-q4_k_m.gguf ok
+Codelindworm model.safetensors ok
+Wardendrake model.safetensors ok
+Reviewdrake adapter_model.safetensors ok
+Toolhatchling model.safetensors ok
+Tagwyrmling slim-ner.gguf ok
+Tagwyrmling slim-ner.gguf ok
+Gistwyrm model.safetensors ok
+Numberwyrm Qwen2.5-Math-1.5B.Q4_K_M.gguf ok
+Numberwyrm model.safetensors ok
+Theoremwyrm model-00001-of-00004.safetensors ok
+Theoremwyrm model-00002-of-00004.safetensors ok
+Theoremwyrm model-00003-of-00004.safetensors ok
+Theoremwyrm model-00004-of-00004.safetensors ok
+Puzzlewyrm model.safetensors ok
+Verdictwyrmling model.safetensors ok
+Debatelindworm adapter_model.safetensors ok
+Debatelindworm checkpoint-248/adapter_model.safetensors ok
+Debatelindworm checkpoint-372/adapter_model.safetensors ok
+Fallacydrakeling model.safetensors ok
+Indexserpent model.safetensors ok
+Spotwyvern inference.onnx ok
+Spotwyvern inference.onnx ok
+Letterwyvern inference.onnx ok
+Letterwyvern inference.onnx ok
+Watchwyvern SmolVLM2-500M-Video-Instruct-Q8_0.gguf ok
+Watchwyvern mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf ok
+Watchwyvern model.safetensors ok
+Listenlindworm models/OLMoASR-tiny.en/model.safetensors ok
+Chimedrake onnx/model_q8f16.onnx ok
+Chimedrake onnx/model_q8f16.onnx ok
+Tidedrakeling model.safetensors ok
+Recordlindworm model.safetensors ok
+Rustlewyrmling model.safetensors ok
+Alembicwyrm HamAI-Science-1b.Q4_K_M.gguf ok
+Alembicwyrm model.safetensors ok
+Vouchwyvern smollm2-1.7b-instruct-q4_k_m.gguf ok
+Vouchwyvern model.safetensors ok
+Statutewyrmling euaiact-qwen2.5-0.5b-q4_k_m.gguf ok

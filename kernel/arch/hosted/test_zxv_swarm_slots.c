@@ -196,7 +196,7 @@ int main(int argc, char **argv)
           "test model (with tokenizer) and adapter written to %s", dir);
     CHECK(zxv_slot_open(0, mpath) == 0 && zxv_slot_info(0)->can_generate, "slot 0 opened: %s",
           zxv_slot_info(0)->status);
-    CHECK(zxv_slot_open(9, mpath) == -1 && zxv_slot_info(9) == NULL, "slot 9 is out of range");
+    CHECK(zxv_slot_open(12, mpath) == -1 && zxv_slot_info(12) == NULL, "slot 12 is out of range");
     CHECK(zxv_slot_open(1, npath) == -1 && !zxv_slot_info(1)->loaded,
           "a missing file leaves the slot empty: %s", zxv_slot_info(1)->status);
     CHECK(zxv_agent_open(0, 0, NULL, 0, err, sizeof err) == 0 &&

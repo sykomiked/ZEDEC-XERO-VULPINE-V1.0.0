@@ -73,4 +73,14 @@ void zxvd_chat_close(void);
  * NULL leaves wall_ms out. Tests set a fixed one. */
 void zxvd_chat_set_clock(uint64_t (*now_ms)(void));
 
+/* R24 receipts (zxv_receipt.h E3): sign a 32-byte digest with the owner's
+ * chat key (ML-DSA-65, the key chat records are signed with). sig gets
+ * ZXVD_CHAT_SIG_LEN bytes; pk_id the SHA-256 of the public key; pk (may be
+ * NULL) the public key itself. 0, or -1 when the chat is not open or signing
+ * failed. */
+#define ZXVD_CHAT_SIG_LEN 3309u
+#define ZXVD_CHAT_PK_LEN  1952u
+int zxvd_chat_sign_digest(const uint8_t digest[32], uint8_t sig[ZXVD_CHAT_SIG_LEN],
+                          uint8_t pk_id[32], uint8_t *pk);
+
 #endif /* ZXVD_CHAT_H */
