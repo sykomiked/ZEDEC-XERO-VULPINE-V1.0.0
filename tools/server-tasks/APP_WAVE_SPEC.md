@@ -35,10 +35,12 @@ Before writing an app, read `docs/APP_BLOCKS.md`. It is generated from `kernel/s
 - `clang-format` (repo's .clang-format) on every changed C file.
 - Never copy anything from build_system/keys/.
 
-## Done means all of these pass
-bash kernel/src/apps/test_zxapp.sh      (ends [PASS], includes lang_coverage --check)
+## Done means all of these pass, in this order
+python3 tools/apps/lang_coverage.py && python3 tools/apps/concepts.py
+                                        (regenerate first: every new app changes docs/APP_LANGUAGE_COVERAGE.md
+                                         and docs/APP_BLOCKS.md; commit both with the app)
+bash kernel/src/apps/test_zxapp.sh      (ends [PASS]; its --check steps fail on a stale doc)
 bash kernel/src/apps/test_apps.sh
-python3 tools/apps/lang_coverage.py      (then commit docs/APP_LANGUAGE_COVERAGE.md)
 tools/apps/build_wasm_blocks.sh --check
 python3 build_system/relicense_apache.py --check
 Report back: the branch name, the commit, each test's last line, and anything you could not do.
