@@ -23,6 +23,8 @@
 #include "logistics.h"
 #include "surplus.h"
 
+#include "../zui/zui_applib.h"
+#include "../zui/zui_apps.h"
 #include "../zui/zui_canvas.h"
 #include "../zui/zui_desk.h"
 #include "../zui/zui_keymap.h"
@@ -1045,6 +1047,9 @@ static void enter_space(zxv_shell_state_t *st, int i)
 #define RAIL_TERMINAL 0
 #define RAIL_APPS     (1 + SHELL_APPS)
 static const char *RAIL_MARK[RAIL_APPS] = {">_", "V", "F", "S", "C", "R"};
+/* The catalogue app each rail entry is (its icon, and what the library opens).
+ * Fleet, Studio and Refinery have no catalogue entry yet, so keep their marks. */
+static const char *RAIL_CATALOGUE[RAIL_APPS] = {"Flint", "Vintner", 0, 0, "Kitling", 0};
 
 typedef struct {
     zxv_shell_state_t *st;
@@ -1208,6 +1213,125 @@ static void open_rail(zxv_shell_state_t *st, int32_t i)
     if (i != RAIL_TERMINAL) st->active_app = i - 1;
 }
 
+/* ============================================================================
+ *  THE APP LIBRARY: the launcher's first tile shows every app of the
+ *  catalogue with its vector icon (zui_applib over the window area). An app
+ *  the shell has a window for opens it; any other opens its card (AL5).
+ * ==========================================================================*/
+#define LIB_SLOTS 64u /* icons kept drawn: a screenful of tiles */
+#define LIB_SIDE  64u /* 64 pt icons at 1x; larger ones are drawn each frame */
+#define CARDS     6
+static zui_vec_work_t g_vw;
+static zui_apps_t g_apps;
+static bool g_have_apps;
+static zui_applib_t g_lib;
+static zui_applib_cache_t g_lib_cache;
+static uint32_t g_lib_px[LIB_SLOTS * LIB_SIDE * LIB_SIDE];
+
+typedef struct {
+    int32_t app;  /* catalogue index */
+    uint32_t id;  /* its window, 0 none */
+    uint32_t age; /* when it was opened, to reuse the oldest */
+} shell_card_t;
+static shell_card_t g_card[CARDS];
+static uint32_t g_card_age;
+
+static void apps_init(void)
+{
+    static int done;
+    if (done) return;
+    done = 1;
+    g_have_apps = zui_apps_bind(&g_apps, zxv_shell_apps_data(), zxv_shell_apps_size()) == 0;
+    zui_applib_cache_init(&g_lib_cache, g_lib_px, LIB_SLOTS, LIB_SIDE);
+    zui_applib_faces_t f = {&T_HEAD, &T_TITLE, &T_BODY, &T_LABEL, &T_CAP};
+    zui_applib_init(&g_lib, &g_apps, &g_vw, &g_lib_cache, &f, scale_q8());
+}
+
+/* the rail entry that is catalogue app idx, -1 none */
+static int32_t rail_of(int32_t idx)
+{
+    for (int32_t i = 0; i < RAIL_APPS; i++)
+        if (RAIL_CATALOGUE[i] && zui_apps_find(&g_apps, RAIL_CATALOGUE[i]) == idx) return i;
+    return -1;
+}
+
+static void card_paint(void *ctx, zui_surface_t *s, zui_rect_t c, uint32_t tick)
+{
+    shell_card_t *k = (shell_card_t *) ctx;
+    zui_app_t app;
+    (void) tick;
+    if (zui_apps_get(&g_apps, (uint32_t) k->app, &app))
+        zui_applib_card(s, &g_vw, &g_lib.f, scale_q8(), &app, false, c);
+}
+
+static void card_closed(void *ctx)
+{
+    ((shell_card_t *) ctx)->id = 0;
+}
+
+static void open_card(zxv_shell_state_t *st, int32_t idx)
+{
+    zui_app_t app;
+    if (!zui_apps_get(&g_apps, (uint32_t) idx, &app)) return;
+    shell_card_t *k = 0;
+    for (int32_t i = 0; i < CARDS; i++)
+        if (g_card[i].id && g_card[i].app == idx) {
+            zui_wm_focus(&g_desk.wm, g_card[i].id);
+            return;
+        }
+    for (int32_t i = 0; i < CARDS && !k; i++)
+        if (!g_card[i].id) k = &g_card[i];
+    if (!k) { /* every card is open: the oldest one gives way */
+        k = &g_card[0];
+        for (int32_t i = 1; i < CARDS; i++)
+            if (g_card[i].age < k->age) k = &g_card[i];
+        zui_wm_close(&g_desk.wm, k->id);
+    }
+    zui_wm_client_t c = {0};
+    c.ctx = k;
+    c.paint = card_paint;
+    c.closed = card_closed;
+    k->app = idx;
+    k->age = ++g_card_age;
+    k->id = zui_wm_open(&g_desk.wm, app.name, app.name, (const zui_launch_t *) 0, &c);
+    if (!k->id) {
+        term_push(st, "Too many windows are open; close one to see that card.");
+        return;
+    }
+    zui_wm_progress(&g_desk.wm, k->id, 256u);
+    zui_rect_t a = zui_desk_area(&g_desk);
+    /* a card with only what it does needs no room for the other sections */
+    bool more = app.built_from[0] || app.pillars[0] || app.paraconsistent[0];
+    int32_t ch = P(more ? 600 : 300);
+    int32_t w = P(520) < a.w ? P(520) : a.w, h = ch < a.h ? ch : a.h;
+    zui_wm_move(&g_desk.wm, k->id, (zui_rect_t){a.x + (a.w - w) / 2, a.y + (a.h - h) / 2, w, h});
+}
+
+static void lib_toggle(zxv_shell_state_t *st)
+{
+    if (!g_have_apps) {
+        term_push(st, "The app catalogue is missing from this image.");
+        g_desk.library = false;
+        return;
+    }
+    g_desk.library = !g_desk.library;
+    /* each visit starts from a fresh search, at the top */
+    if (g_desk.library) zui_applib_set_query(&g_lib, "");
+}
+
+/* what the library asked for after an event */
+static void lib_act(zxv_shell_state_t *st)
+{
+    if (g_lib.act == ZUI_APPLIB_CLOSE) g_desk.library = false;
+    if (g_lib.act != ZUI_APPLIB_OPEN) return;
+    g_desk.library = false;
+    int32_t r = rail_of(g_lib.act_app);
+    if (r >= 0)
+        open_rail(st, r);
+    else
+        open_card(st, g_lib.act_app);
+}
+
 static void place(int32_t i, int32_t x, int32_t y, int32_t w, int32_t h)
 {
     uint32_t id = g_desk.win_of[i];
@@ -1222,9 +1346,17 @@ static void desk_fit(zxv_shell_state_t *st, int32_t W, int32_t H)
     if (g_desk_w == W && g_desk_h == H) return;
     zui_desk_faces_t f = {&T_TITLE, &T_BODY, &T_CAP, &T_HEAD};
     if (!g_desk_w) {
+        apps_init();
         zui_desk_init(&g_desk, W, H, scale_q8(), false, &f);
         zui_desk_add(&g_desk, "Terminal", RAIL_MARK[0]);
         for (int i = 0; i < SHELL_APPS; i++) zui_desk_add(&g_desk, APP_NAME[i], RAIL_MARK[1 + i]);
+        zui_desk_use_work(&g_desk, &g_vw);
+        for (int32_t i = 0; i < RAIL_APPS; i++) {
+            zui_app_t app;
+            int32_t k = RAIL_CATALOGUE[i] ? zui_apps_find(&g_apps, RAIL_CATALOGUE[i]) : -1;
+            if (k >= 0 && zui_apps_get(&g_apps, (uint32_t) k, &app))
+                zui_desk_icon(&g_desk, (uint32_t) i, app.icon, app.icon_len);
+        }
         /* the window manager's frames are drawn at its own fixed size */
         g_desk.wm.text = &T_LABEL;
         zui_desk_status(&g_desk, "Economy 5 of 5  ·  Platform 8 of 8");
@@ -1384,6 +1516,14 @@ void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode)
     zui_event_t ev[ZUI_KBD_EV_MAX];
     uint32_t n = zui_kbd_feed(&g_kbd, code, down, repeat, g_ms, ev, ZUI_KBD_EV_MAX);
     for (uint32_t i = 0; i < n; i++) {
+        bool lib = st->view == 0 && g_desk.library;
+        if (lib && (ev[i].type == ZUI_EV_TEXT || ev[i].type == ZUI_EV_KEY_DOWN) &&
+            !(ev[i].mods & ZUI_MOD_CMD)) {
+            /* the library has the keyboard: typing searches */
+            zui_applib_event(&g_lib, &ev[i]);
+            lib_act(st);
+            continue;
+        }
         if (ev[i].type == ZUI_EV_KEY_DOWN) {
             /* the window manager's own keys (Cmd-Tab, Cmd-W, Cmd-M) first */
             if (st->view == 0 && (ev[i].mods & ZUI_MOD_CMD) && zui_desk_event(&g_desk, &ev[i]))
@@ -1616,6 +1756,28 @@ static void draw_space(zxv_shell_state_t *st, int32_t W, int32_t H, int32_t cx, 
 }
 
 /* ---- one frame ----------------------------------------------------------- */
+/* One pointer event: the library has the window area while it is open; the
+ * bar and the rail stay the desk's. */
+static void desk_send(zxv_shell_state_t *st, const zui_event_t *e)
+{
+    if (g_desk.library) {
+        zui_rect_t a = zui_desk_area(&g_desk);
+        bool inside = in_rect(a, e->x, e->y);
+        if (inside || e->type == ZUI_EV_PTR_UP) zui_applib_event(&g_lib, e);
+        if (inside) {
+            lib_act(st);
+            return;
+        }
+    }
+    zui_desk_event(&g_desk, e);
+    if (g_desk.act == ZUI_DESK_LAUNCH) {
+        g_desk.library = false;
+        open_rail(st, g_desk.act_app);
+    }
+    if (g_desk.act == ZUI_DESK_LIBRARY) lib_toggle(st);
+    if (g_desk.act == ZUI_DESK_SPACES) st->view = 1;
+}
+
 static void desk_pointer(zxv_shell_state_t *st, int32_t cx, int32_t cy, uint32_t buttons)
 {
     zui_event_t e = {0};
@@ -1625,24 +1787,20 @@ static void desk_pointer(zxv_shell_state_t *st, int32_t cx, int32_t cy, uint32_t
     if (cx != st->prev_cx || cy != st->prev_cy) {
         e.type = ZUI_EV_PTR_MOVE;
         e.button = (uint8_t) (st->prev_buttons & 7u);
-        zui_desk_event(&g_desk, &e);
+        desk_send(st, &e);
     }
     if (buttons & ZXV_SHELL_BTN_TAP) { /* a whole click inside one frame */
         e.button = 1;
         e.type = ZUI_EV_PTR_DOWN;
-        zui_desk_event(&g_desk, &e);
+        desk_send(st, &e);
         e.type = ZUI_EV_PTR_UP;
-        zui_desk_event(&g_desk, &e);
-        if (g_desk.act == ZUI_DESK_LAUNCH) open_rail(st, g_desk.act_app);
-        if (g_desk.act == ZUI_DESK_SPACES) st->view = 1;
+        desk_send(st, &e);
     }
     for (uint32_t b = 1; b <= 4; b <<= 1) {
         if ((buttons & b) == (st->prev_buttons & b)) continue;
         e.type = (buttons & b) ? ZUI_EV_PTR_DOWN : ZUI_EV_PTR_UP;
         e.button = (uint8_t) b;
-        zui_desk_event(&g_desk, &e);
-        if (g_desk.act == ZUI_DESK_LAUNCH) open_rail(st, g_desk.act_app);
-        if (g_desk.act == ZUI_DESK_SPACES) st->view = 1;
+        desk_send(st, &e);
     }
 }
 
@@ -1698,6 +1856,10 @@ void zxv_shell_frame(zxv_shell_state_t *st, vbe_state_t *v, int32_t cx, int32_t 
         int32_t front = zui_desk_front_app(&g_desk);
         st->active_app = front > 0 ? front - 1 : -1;
         zui_desk_draw(&g_desk, &g_s, tick);
+        if (g_desk.library) {
+            zui_applib_place(&g_lib, zui_desk_area(&g_desk), scale_q8());
+            zui_applib_draw(&g_lib, &g_s);
+        }
         zui_rect_t bar = zui_desk_bar(&g_desk);
         tagf(fphase, fdepth, 0, 0, W, bar.h, 2, 100); /* the bar: a little near */
     }

@@ -235,6 +235,9 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@EXECUTABLE@/$EXEC/g" -e "s/@UIELEMENT@/$U
     "$MACOS/Info.plist.in" > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 put_fonts "$APP/Contents/Resources/Fonts"
+# the app library's catalogue and its 407 vector icons (zxv_desktop.h HD6)
+mkdir -p "$APP/Contents/Resources/Icons"
+cp "$ROOT/assets/icons/apps/zxv-apps.zxap" "$APP/Contents/Resources/Icons/"
 cp "$MACOS/models.manifest" "$APP/Contents/Resources/models.manifest"
 cp "$MACOS/zxv-model-fetch.sh" "$APP/Contents/Resources/zxv-model-fetch.sh"
 chmod 755 "$APP/Contents/Resources/zxv-model-fetch.sh"

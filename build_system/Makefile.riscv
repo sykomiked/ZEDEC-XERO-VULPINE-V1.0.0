@@ -181,6 +181,10 @@ KERNEL_SRCS = \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/zxv_shell_apps.c \
+    kernel/src/zui/zui_vec.c \
+    kernel/src/zui/zui_apps.c \
+    kernel/src/zui/zui_applib.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \

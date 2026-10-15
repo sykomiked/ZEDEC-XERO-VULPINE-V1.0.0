@@ -5,7 +5,9 @@
  * (HD5) and driven by pointer events the way a person would click. Checks
  * the ground, the gold mark, the status line, that every app on the rail
  * opens in its own window and finishes launching, Spaces, closing and
- * reopening, a resize and a 2x panel. Writes a PPM of each screen to the
+ * reopening, a resize and a 2x panel, and the app library (HD6): the Apps
+ * tile, search, a card, an app on the rail, the card limit and a missing
+ * pack. Writes a PPM of each screen to the
  * folder named on the command line. Run by test_zxv_desktop.sh.
  *
  *   test_zxv_desktop FONT|none SHOTS_DIR [ZXVD_SOCKET]
@@ -254,6 +256,139 @@ static void test_desktop(const char *font, const char *rpc)
     zxv_desktop_close(d);
 }
 
+static void key(zxv_desktop_t *d, uint16_t k)
+{
+    zui_event_t e;
+    memset(&e, 0, sizeof e);
+    e.type = ZUI_EV_KEY_DOWN;
+    e.key = k;
+    e.ms = clock_ms;
+    zxv_desktop_feed(d, &e);
+    steps(d, 1);
+}
+
+static void type(zxv_desktop_t *d, const char *t)
+{
+    zui_event_t e;
+    memset(&e, 0, sizeof e);
+    e.type = ZUI_EV_TEXT;
+    snprintf(e.text, sizeof e.text, "%s", t);
+    e.ms = clock_ms;
+    zxv_desktop_feed(d, &e);
+    steps(d, 1);
+}
+
+static const char *front_title(zui_desk_t *k)
+{
+    zui_wm_window_t *w = zui_wm_get(&k->wm, zui_wm_front(&k->wm));
+    return w ? w->title : "";
+}
+
+/* HD6: the app library */
+static void test_library(const char *font)
+{
+    zxv_desktop_cfg_t cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.headless = true;
+    cfg.font = font;
+    cfg.rpc = "";
+    cfg.w_pt = 1280;
+    cfg.h_pt = 800;
+    zxv_desktop_t *d = zxv_desktop_open(&cfg, NULL);
+    CHECK(d != NULL, "library: opens");
+    if (!d) return;
+    zui_desk_t *k = zxv_desktop_desk(d);
+    zui_applib_t *l = zxv_desktop_library(d);
+    CHECK(l && zui_apps_count(l->apps) == 407, "the pack loads: 407 apps");
+    if (!l) {
+        zxv_desktop_close(d);
+        return;
+    }
+    for (uint32_t i = 0; i < zxv_desktop_apps(d); i++)
+        CHECK(k->app[i].icon && k->app[i].icon_len > 16, "%s wears its catalogue icon",
+              zxv_desktop_app_name(d, i));
+    steps(d, 2);
+    /* the rail's icons are gold vectors, not letters */
+    CHECK(count(d, zui_desk_tile(k, 0), ZUI_GOLD) > 100, "the Banker's tile is its gold icon (%u)",
+          count(d, zui_desk_tile(k, 0), ZUI_GOLD));
+
+    click(d, zui_desk_apps_tile(k));
+    CHECK(zxv_desktop_library_open(d) && k->library, "the Apps tile opens the library");
+    check_chrome(d, "library", HAVE_FONT);
+    zui_rect_t g = zui_applib_grid(l);
+    CHECK(l->nshown == 407 && count(d, g, ZUI_GOLD) > 2000, "407 tiles, gold icons drawn (%u)",
+          count(d, g, ZUI_GOLD));
+    CHECK(count(d, zui_desk_apps_tile(k), ZUI_GOLD) > 50, "the Apps tile is lit while open");
+    shot(d, "library");
+
+    /* typing searches; Enter on an app with no window opens its card */
+    type(d, "lectern");
+    CHECK(l->nshown >= 1 && l->qlen == 7, "typing searches (%u shown)", l->nshown);
+    zui_app_t app;
+    zui_apps_get(l->apps, l->shown[0], &app);
+    CHECK(!strcmp(app.name, "Lectern"), "Lectern first (%s)", app.name);
+    shot(d, "library-search");
+    key(d, ZUI_KEY_ENTER);
+    CHECK(!zxv_desktop_library_open(d), "choosing closes the library");
+    CHECK(!strcmp(front_title(k), "Lectern"), "Lectern's card is in front (%s)", front_title(k));
+    steps(d, 40);
+    zui_wm_window_t *cw = zui_wm_get(&k->wm, zui_wm_front(&k->wm));
+    if (cw && HAVE_FONT) {
+        zui_rect_t c = zui_wm_content(&k->wm, cw), a = zui_desk_area(k);
+        c.x += a.x;
+        c.y += a.y;
+        CHECK(inked(d, c) > 500 && count(d, c, ZUI_GOLD) > 500, "the card has its icon and words");
+    }
+    shot(d, "card");
+
+    /* a fresh search each time; an app on the rail opens its window */
+    click(d, zui_desk_apps_tile(k));
+    CHECK(zxv_desktop_library_open(d) && l->qlen == 0 && l->nshown == 407, "opens fresh");
+    type(d, "quillon");
+    key(d, ZUI_KEY_ENTER);
+    CHECK(k->win_of[1] != 0 && zui_desk_front_app(k) == 1, "Quillon opens its own window");
+    steps(d, 40);
+
+    /* Escape: clears the search, then closes */
+    click(d, zui_desk_apps_tile(k));
+    type(d, "zz");
+    key(d, ZUI_KEY_ESCAPE);
+    CHECK(zxv_desktop_library_open(d) && l->qlen == 0, "Escape clears the search first");
+    key(d, ZUI_KEY_ESCAPE);
+    CHECK(!zxv_desktop_library_open(d), "then closes the library");
+    /* the tile toggles, and Spaces takes over */
+    click(d, zui_desk_apps_tile(k));
+    click(d, zui_desk_apps_tile(k));
+    CHECK(!zxv_desktop_library_open(d), "a second press on the tile closes it");
+    click(d, zui_desk_apps_tile(k));
+    click(d, zui_desk_switch(k, true));
+    CHECK(!zxv_desktop_library_open(d) && zxv_desktop_in_spaces(d), "Spaces closes the library");
+    click(d, zui_desk_switch(k, false));
+
+    /* seven cards: at most six stay open, the oldest gives way */
+    uint32_t ids[7];
+    for (uint32_t i = 0; i < 7; i++) ids[i] = zxv_desktop_choose(d, 200 + i);
+    uint32_t open = 0;
+    for (uint32_t i = 0; i < 7; i++) open += ids[i] && zui_wm_get(&k->wm, ids[i]) ? 1u : 0u;
+    CHECK(ids[6] && open == 6 && !zui_wm_get(&k->wm, ids[0]), "six cards at most (%u)", open);
+    CHECK(zxv_desktop_choose(d, 203) == ids[3], "choosing an open card raises it");
+    CHECK(zxv_desktop_choose(d, 407) == 0, "no app 408");
+    zxv_desktop_close(d);
+
+    /* no pack: letter marks, and the tile says why */
+    cfg.apps = "/nonexistent/zxv-apps.zxap";
+    d = zxv_desktop_open(&cfg, NULL);
+    CHECK(d != NULL, "opens with no pack");
+    if (!d) return;
+    k = zxv_desktop_desk(d);
+    CHECK(!zxv_desktop_library(d) && !k->app[0].icon, "no pack, no library, letter marks");
+    steps(d, 1);
+    click(d, zui_desk_apps_tile(k));
+    CHECK(!zxv_desktop_library_open(d) && strstr(k->status, "catalogue"),
+          "the status says the catalogue is missing: '%s'", k->status);
+    zxv_desktop_close(d);
+}
+
 /* A Retina panel: the chrome and the apps at 2x. */
 static void test_retina(const char *font)
 {
@@ -289,6 +424,7 @@ int main(int argc, char **argv)
     SHOTS = argv[2];
     test_desktop(font, argc > 3 ? argv[3] : NULL);
     test_retina(font);
+    test_library(font);
     printf("%s test_zxv_desktop%s: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]",
            argc > 3 ? " (zxvd running)" : " (no zxvd)", checks - fails, checks);
     return fails ? 1 : 0;

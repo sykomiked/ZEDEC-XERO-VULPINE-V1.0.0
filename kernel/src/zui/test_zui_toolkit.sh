@@ -41,7 +41,9 @@ run test_zui_settings "" $Z/test_zui_settings.c $Z/zui_settings.c $Z/zui_palette
 run test_zui_workspace "" $Z/test_zui_workspace.c $Z/zui_workspace.c $Z/zui_settings.c $Z/zui_palette.c $Z/zui_wm.c $Z/zui_dock.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c
 M="$Z/zui_widget.c $Z/zui_input.c $Z/zui_present_fb.c $Z/zui_wm.c $Z/zui_dock.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c"
 run test_zui_switch "" $Z/test_zui_switch.c $Z/zui_switch.c $M
-run test_zui_desk "" $Z/test_zui_desk.c $Z/zui_desk.c $M
+run test_zui_desk "" $Z/test_zui_desk.c $Z/zui_desk.c $Z/zui_vec.c $M
+run test_zui_apps "" $Z/test_zui_apps.c $Z/zui_apps.c $Z/zui_vec.c $Z/zui_canvas.c src/font/truetype.c
+run test_zui_applib "" $Z/test_zui_applib.c $Z/zui_applib.c $Z/zui_apps.c $Z/zui_vec.c $Z/zui_canvas.c src/font/truetype.c
 run test_zui_voicectl "" $Z/test_zui_voicectl.c $Z/zui_voicectl.c $M
 run test_zui_caption "" $Z/test_zui_caption.c $Z/zui_caption.c $Z/zui_motion.c $Z/zui_palette.c $Z/zui_canvas.c $Z/zui_layout.c $Z/zui_input.c src/font/truetype.c
 run test_zui_motion "" $Z/test_zui_motion.c $Z/zui_motion.c
@@ -80,3 +82,5 @@ sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out
 tail -1 "$O/display.out"
 # Studio's Swift theme is generated from zui_tokens.h; it must not drift.
 python3 ../tools/zui/gen_theme_tokens.py --check
+# The app icon pack is generated from the catalogue and the icon vectors.
+python3 ../tools/zui/gen_appicons.py --check

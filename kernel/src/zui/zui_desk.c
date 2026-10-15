@@ -34,13 +34,24 @@ zui_rect_t zui_desk_area(const zui_desk_t *d)
     return (zui_rect_t){rail.w, rail.y, d->w - rail.w, rail.h};
 }
 
-zui_rect_t zui_desk_tile(const zui_desk_t *d, uint32_t i)
+/* the rail's slots: 0 is Apps, app i is slot i + 1 */
+static zui_rect_t slot(const zui_desk_t *d, uint32_t k)
 {
     zui_rect_t rail = zui_desk_rail(d);
     int32_t t = zui_desk_pt(d, ZUI_DESK_TILE_PT);
     int32_t step = t + zui_desk_pt(d, ZUI_S5); /* the name sits in the gap */
-    return (zui_rect_t){(rail.w - t) / 2, rail.y + zui_desk_pt(d, ZUI_S4) + (int32_t) i * step, t,
+    return (zui_rect_t){(rail.w - t) / 2, rail.y + zui_desk_pt(d, ZUI_S4) + (int32_t) k * step, t,
                         t};
+}
+
+zui_rect_t zui_desk_tile(const zui_desk_t *d, uint32_t i)
+{
+    return slot(d, i + 1u);
+}
+
+zui_rect_t zui_desk_apps_tile(const zui_desk_t *d)
+{
+    return slot(d, 0);
 }
 
 zui_rect_t zui_desk_switch(const zui_desk_t *d, bool spaces)
@@ -101,6 +112,8 @@ int32_t zui_desk_add(zui_desk_t *d, const char *name, const char *mark)
     if (d->napps >= ZUI_DESK_APPS) return -1;
     d->app[d->napps].name = name;
     d->app[d->napps].mark = mark;
+    d->app[d->napps].icon = 0;
+    d->app[d->napps].icon_len = 0;
     d->win_of[d->napps] = 0;
     return (int32_t) d->napps++;
 }
@@ -108,6 +121,19 @@ int32_t zui_desk_add(zui_desk_t *d, const char *name, const char *mark)
 void zui_desk_status(zui_desk_t *d, const char *text)
 {
     scopy(d->status, text, sizeof d->status);
+}
+
+void zui_desk_icon(zui_desk_t *d, uint32_t app, const uint8_t *zxvg, uint32_t len)
+{
+    if (app >= d->napps) return;
+    bool ok = zxvg && len && zui_zxvg_check(zxvg, len) == 0;
+    d->app[app].icon = ok ? zxvg : 0;
+    d->app[app].icon_len = ok ? len : 0;
+}
+
+void zui_desk_use_work(zui_desk_t *d, zui_vec_work_t *work)
+{
+    d->work = work;
 }
 
 uint32_t zui_desk_open(zui_desk_t *d, uint32_t app, const char *title, const zui_wm_client_t *c)
@@ -139,9 +165,13 @@ static bool in(zui_rect_t r, int32_t x, int32_t y)
 
 static int32_t tile_at(const zui_desk_t *d, int32_t x, int32_t y)
 {
+    int32_t name = zui_desk_pt(d, ZUI_S5) - zui_desk_pt(d, ZUI_S1); /* the name counts */
+    zui_rect_t a = zui_desk_apps_tile(d);
+    a.h += name;
+    if (in(a, x, y)) return ZUI_DESK_APPS_TILE;
     for (uint32_t i = 0; i < d->napps; i++) {
         zui_rect_t t = zui_desk_tile(d, i);
-        t.h += zui_desk_pt(d, ZUI_S5) - zui_desk_pt(d, ZUI_S1); /* the name counts */
+        t.h += name;
         if (in(t, x, y)) return (int32_t) i;
     }
     return -1;
@@ -159,11 +189,11 @@ bool zui_desk_event(zui_desk_t *d, const zui_event_t *e)
         int32_t t = tile_at(d, e->x, e->y);
         if (e->type == ZUI_EV_PTR_MOVE) {
             d->hover = t;
-            return t >= 0;
+            return t != -1;
         }
         if (e->type == ZUI_EV_PTR_DOWN && e->button == ZUI_BTN_LEFT) {
             d->press = t;
-            if (t >= 0) return true;
+            if (t != -1) return true;
             if (in(zui_desk_switch(d, true), e->x, e->y)) {
                 d->act = ZUI_DESK_SPACES;
                 return true;
@@ -175,7 +205,8 @@ bool zui_desk_event(zui_desk_t *d, const zui_event_t *e)
             return in(zui_desk_bar(d), e->x, e->y) || in(zui_desk_rail(d), e->x, e->y);
         }
         if (e->type == ZUI_EV_PTR_UP) {
-            bool used = d->press >= 0;
+            bool used = d->press != -1;
+            if (t == ZUI_DESK_APPS_TILE && t == d->press) d->act = ZUI_DESK_LIBRARY;
             if (t >= 0 && t == d->press) {
                 d->act = ZUI_DESK_LAUNCH;
                 d->act_app = t;
@@ -259,11 +290,46 @@ void zui_desk_draw_bar(zui_desk_t *d, zui_surface_t *s)
     }
 }
 
+static void tile_name(zui_desk_t *d, zui_surface_t *s, zui_rect_t t, const char *n, bool hot)
+{
+    if (!d->f.caption || !d->f.caption->font) return;
+    zui_rect_t r = zui_desk_rail(d);
+    int32_t max = r.w - zui_desk_pt(d, ZUI_S2);
+    int32_t w = zui_text_width(d->f.caption, n);
+    int32_t x = w > max ? zui_desk_pt(d, ZUI_S1) : (r.w - w) / 2;
+    zui_text_fit(s, d->f.caption, x, t.y + t.h + zui_desk_pt(d, 14), max, hot ? ZUI_TEXT : ZUI_MUTED,
+                 n);
+}
+
+/* D2: the Apps tile, nine carved squares (gold while the library is open) */
+static void apps_tile(zui_desk_t *d, zui_surface_t *s)
+{
+    zui_rect_t t = zui_desk_apps_tile(d);
+    int32_t rad = zui_desk_pt(d, ZUI_R_PANEL);
+    bool hot = d->hover == ZUI_DESK_APPS_TILE || d->press == ZUI_DESK_APPS_TILE;
+    zui_fill_rrect(s, t, rad, hot ? ZUI_RAISED : ZUI_VOID, 255);
+    zui_engrave(s, t, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 46);
+    if (d->library) {
+        int32_t g = zui_desk_pt(d, 2);
+        zui_stroke_rrect(s, (zui_rect_t){t.x - g, t.y - g, t.w + 2 * g, t.h + 2 * g}, rad + g, g,
+                         ZUI_GOLD, 255);
+    }
+    int32_t cell = t.w / 7, gap = (t.w - 3 * cell) / 4;
+    uint32_t ink = d->library ? ZUI_GOLD : ZUI_TEXT_2;
+    for (int32_t k = 0; k < 9; k++) {
+        zui_rect_t c = {t.x + gap + (k % 3) * (cell + gap),
+                        t.y + gap + (k / 3) * (cell + gap), cell, cell};
+        zui_fill_rrect(s, c, cell / 4, ink, 255);
+    }
+    tile_name(d, s, t, "Apps", hot);
+}
+
 static void rail(zui_desk_t *d, zui_surface_t *s)
 {
     zui_rect_t r = zui_desk_rail(d);
     zui_fill(s, r, ZUI_PANEL);
     zui_vline(s, r.x + r.w - 1, r.y, r.h, 1, ZUI_HAIRLINE);
+    apps_tile(d, s);
     int32_t front = zui_desk_front_app(d);
     int32_t rad = zui_desk_pt(d, ZUI_R_PANEL);
     for (uint32_t i = 0; i < d->napps; i++) {
@@ -277,21 +343,22 @@ static void rail(zui_desk_t *d, zui_surface_t *s)
             zui_stroke_rrect(s, (zui_rect_t){t.x - g, t.y - g, t.w + 2 * g, t.h + 2 * g}, rad + g,
                              g, ZUI_GOLD, 255);
         }
-        text_centre(s, d->f.mark, t, front == (int32_t) i ? ZUI_GOLD : ZUI_TEXT_2, d->app[i].mark);
+        if (d->app[i].icon && d->work) { /* D2: the app's own vector icon */
+            int32_t in2 = zui_desk_pt(d, 6);
+            zui_rect_t ib = {t.x + in2, t.y + in2, t.w - 2 * in2, t.h - 2 * in2};
+            zui_vec_opts_t o = {0};
+            zui_vec_draw_zxvg(s, d->work, d->app[i].icon, d->app[i].icon_len, ib, &o);
+        } else {
+            text_centre(s, d->f.mark, t, front == (int32_t) i ? ZUI_GOLD : ZUI_TEXT_2,
+                        d->app[i].mark);
+        }
         if (d->win_of[i]) { /* running: a gold dot at the rail's edge */
             int32_t dr = zui_desk_pt(d, 2);
             int32_t dy = t.y + t.h / 2;
             zui_fill_rrect(s, (zui_rect_t){zui_desk_pt(d, 3), dy - dr, 2 * dr, 2 * dr}, dr,
                            ZUI_GOLD, 255);
         }
-        if (d->f.caption && d->f.caption->font) {
-            const char *n = d->app[i].name;
-            int32_t max = r.w - zui_desk_pt(d, ZUI_S2);
-            int32_t w = zui_text_width(d->f.caption, n);
-            int32_t x = w > max ? zui_desk_pt(d, ZUI_S1) : (r.w - w) / 2;
-            zui_text_fit(s, d->f.caption, x, t.y + t.h + zui_desk_pt(d, 14), max,
-                         hot ? ZUI_TEXT : ZUI_MUTED, n);
-        }
+        tile_name(d, s, t, d->app[i].name, hot);
     }
 }
 
