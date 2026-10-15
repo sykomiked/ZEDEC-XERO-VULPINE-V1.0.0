@@ -134,7 +134,7 @@ provenance.
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
 | 1970s | Forth | | C, Pascal | Scheme, Prolog, Modula-2, AWK, REXX, SQL | 9 |
 | 1980s | | Ada | C++ | | 17 |
-| 1990s | | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 8 |
+| 1990s | Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 7 |
 | 2000s | | | C#, F#, Go | | 4 |
 | 2010s on | | | Rust, TypeScript, Swift, Solidity, WebAssembly | | 10 |
 

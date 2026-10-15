@@ -82,7 +82,7 @@
 1995	JavaScript	scripting	host	-	sdk/typescript
 1995	Ruby	scripting	host	-	sdk/ruby
 1995	PHP	scripting	host	-	sdk/php
-1995	Delphi	algol	catalogue	-	Pascal dialect
+1995	Delphi	algol	run	Formwyrm	kernel/src/lingua/zl_pascal.c (a Pascal dialect)
 1995	Racket	list	catalogue	-	-
 1996	OCaml	functional	catalogue	-	-
 2000	C#	object	host	-	sdk/dotnet

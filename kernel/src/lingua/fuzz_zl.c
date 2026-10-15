@@ -83,6 +83,13 @@ static const char *const seeds[] = {
     "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
     "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
     "-2 7 / 7)\n",
+    "// fuzz seed\nprogram Fz;\n{$APPTYPE CONSOLE}\nconst K = $1F;\nvar A: array[1..4] of Integer; "
+    "I, N: Integer; B: Boolean;\nfunction F(M: Integer): Integer;\n  procedure Bump; begin "
+    "Inc(Result, M) end;\nbegin Result := 0; if M <= 0 then Exit(1); Bump; Result := Result * "
+    "F(M - 1) end;\nvar T: Integer;\nbegin\n  read(N); for I := 1 to 4 do A[I] := I xor K and 6;\n"
+    "  T := 0; while T < 9 do begin Inc(T, 2); if Odd(T div 3) then Continue; if T > 6 then Break "
+    "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  WriteLn(F(4), "
+    "' ', T:3, B, -A[2] or 5, not 0);\nend.\n",
 };
 
 static const char *const dict[] = {

@@ -23,7 +23,23 @@
  * is well defined in ISO 7185 and fpc and Lingua must print the same text.
  * Functions are pure, so the order fpc picks for operands cannot show.
  *
- * Usage: gen_pascal <seed>   (writes the program to stdout) */
+ * The same tree prints as Delphi (ref_delphi.sh, fpc -Mdelphi), Modula-2
+ * (ref_modula2.sh, gm2 -fpim4) or Oberon (ref_oberon.sh, OBNC), executed
+ * with that language's rules: in Delphi mod truncates (a divisor of zero
+ * is the only unsafe one) and a case without a matching label does
+ * nothing or runs its else; in Modula-2 and Oberon DIV rounds down, MOD is
+ * never negative and a divisor below 1 is unsafe. Delphi adds bitwise and,
+ * or and xor on integers, Inc and Dec, Result and Exit, Continue and Break,
+ * case ranges and else, and // comments; Modula-2 adds INC and DEC, LOOP
+ * and EXIT, ELSIF, CASE ranges and ELSE; Oberon adds INC and DEC, ELSIF
+ * and CASE ranges. Modula-2 and Oberon have no write for Booleans, so a
+ * Boolean item is printed through IF; succ and pred print as e + 1 and
+ * e - 1, sqr becomes abs, and Oberon's v starts at 0 (its arrays do) and
+ * its nested procedure takes pr's t and x as parameters (an Oberon
+ * procedure cannot see the variables of the procedures around it). The
+ * Pascal stream (no dialect argument) is unchanged by all of this.
+ *
+ * Usage: gen_pascal [delphi|m2|oberon] <seed>   (writes the program to stdout) */
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,6 +54,9 @@ static unsigned rnd(unsigned n)
     rng ^= rng << 17;
     return n ? (unsigned) (rng % n) : 0;
 }
+
+enum { D_ISO, D_DELPHI, D_M2, D_OBERON };
+static int dia; /* every new random choice is made only when dia != D_ISO */
 
 /* ------------------------------------------------------------ names */
 
@@ -97,7 +116,7 @@ enum {
     E_MAXINT,
     E_ORD
 };
-enum { O_ADD, O_SUB, O_MUL, O_DIV, O_MOD };
+enum { O_ADD, O_SUB, O_MUL, O_DIV, O_MOD, O_BAND, O_BOR, O_BXOR };
 enum { F_ABS, F_SQR, F_SUCC, F_PRED };
 enum { R_EQ, R_NE, R_LT, R_LE, R_GT, R_GE };
 
@@ -148,11 +167,16 @@ static int gen_int(const scope_t *s, int d)
     if (d <= 0) return enew(E_NUM, 0, -1, -1, (int) rnd(100));
     if (k <= 8) {
         int op = (int) rnd(5);
+        if (dia == D_DELPHI && !rnd(4)) op = O_BAND + (int) rnd(3);
         int a = gen_int(s, d - 1), b = gen_int(s, d - 1);
         return enew(E_BIN, op, a, b, 0);
     }
     if (k == 9) return enew(E_NEG, 0, gen_int(s, d - 1), -1, 0);
-    if (k == 10 || k == 11) return enew(E_FN, (int) rnd(4), gen_int(s, d - 1), -1, 0);
+    if (k == 10 || k == 11) {
+        int a = gen_int(s, d - 1), op = (int) rnd(4); /* the order gcc gave the old call */
+        if (dia >= D_M2 && op == F_SQR) op = F_ABS;
+        return enew(E_FN, op, a, -1, 0);
+    }
     if (k == 12 && s->arrays) {
         int arr = (s->arrays & A_W) && (!(s->arrays & A_V) || rnd(2)) ? A_W : A_V;
         return enew(E_ELEM, 0, gen_int(s, d - 1), -1, arr);
@@ -162,7 +186,7 @@ static int gen_int(const scope_t *s, int d)
         return enew(E_FR, 0, enew(E_BIN, O_MOD, gen_int(s, d - 1), enew(E_NUM, 0, -1, -1, 6), 0),
                     -1, 0);
     if (k == 15 && !rnd(4)) return enew(E_MAXINT, 0, -1, -1, 0);
-    if (k == 16) /* ord(b) + 0: fpc gives ord of a Boolean a 0..1 type, so pred of it is a
+    if (k == 16 && dia < D_M2) /* ord(b) + 0: fpc gives ord of a Boolean a 0..1 type, so pred of it is a
                     range error under -Cr; ISO 7185 says ord is an integer */
         return enew(E_BIN, O_ADD, enew(E_ORD, 0, gen_bool(s, d - 1), -1, 0),
                     enew(E_NUM, 0, -1, -1, 0), 0);
@@ -188,7 +212,7 @@ static int gen_bool(const scope_t *s, int d)
 
 /* ------------------------------------------------------------ statements */
 
-enum { S_ASSIGN, S_ELEM, S_BASSIGN, S_IF, S_FOR, S_WHILE, S_REPEAT, S_CASE, S_WRITE, S_CALL };
+enum { S_ASSIGN, S_ELEM, S_BASSIGN, S_IF, S_FOR, S_WHILE, S_REPEAT, S_CASE, S_WRITE, S_CALL, S_INC };
 enum { W_INT, W_BOOL, W_STR };
 
 typedef struct {
@@ -263,6 +287,13 @@ static int gen_stmt(int depth)
     int st;
     switch (k) {
     case 0:
+        if (dia != D_ISO && !rnd(3)) { /* Inc(g[, e]) / Dec: g := g + e, repaired to g := g */
+            st = snew(S_INC);
+            sn[st].var = main_ivars[rnd(6)];
+            int by = rnd(2) ? enew(E_NUM, 0, -1, -1, 1) : gen_int(&s, 1 + (int) rnd(2));
+            sn[st].e1 = enew(E_BIN, rnd(2) ? O_ADD : O_SUB, enew(E_VAR, 0, -1, -1, sn[st].var), by, 0);
+            return st;
+        }
         st = snew(S_ASSIGN);
         sn[st].var = main_ivars[rnd(6)];
         sn[st].e1 = gen_int(&s, 1 + (int) rnd(4));
@@ -307,6 +338,12 @@ static int gen_stmt(int depth)
         st = snew(k == 7 ? S_WHILE : S_REPEAT);
         sn[st].var = C0 + counters_used++;
         sn[st].width = 1 + (int) rnd(4); /* the count */
+        if (k == 7 && (dia == D_DELPHI || dia == D_M2) && rnd(2)) {
+            /* count down first, then Continue when e2, Break after the body when e3
+             * (Modula-2: a LOOP with EXIT) */
+            sn[st].e2 = gen_bool(&s, 1 + (int) rnd(2));
+            sn[st].e3 = gen_bool(&s, 1 + (int) rnd(2));
+        }
         sn[st].body = gen_stmts(depth + 1, 1 + (int) rnd(3));
         counters_used--;
         return st;
@@ -322,7 +359,9 @@ static int gen_stmt(int depth)
             perm[j] = perm[r];
             perm[r] = t;
         }
-        for (int j = 0; j < kk;) {
+        int labelled = kk; /* with an else, the last label of perm is left to it */
+        if ((dia == D_DELPHI || dia == D_M2) && !rnd(3)) labelled = kk - 1;
+        for (int j = 0; j < labelled;) {
             if (nam >= MAXS) {
                 fprintf(stderr, "gen_pascal: case pool full\n");
                 exit(2);
@@ -331,7 +370,7 @@ static int gen_stmt(int depth)
             am[a].nl = 0;
             am[a].next = -1;
             int take = 1 + (int) rnd(2);
-            while (take-- && j < kk) am[a].labels[am[a].nl++] = perm[j++];
+            while (take-- && j < labelled) am[a].labels[am[a].nl++] = perm[j++];
             int b = rnd(5) ? gen_stmts(depth + 1, 1 + (int) rnd(2)) : -1;
             am[a].body = b;
             if (last >= 0)
@@ -340,6 +379,7 @@ static int gen_stmt(int depth)
                 sn[st].arm = a;
             last = a;
         }
+        if (labelled < kk) sn[st].els = gen_stmts(depth + 1, 1 + (int) rnd(2));
         return st;
     }
     default: {
@@ -413,6 +453,37 @@ static int64_t chk(int node, int64_t v)
     return v;
 }
 
+/* a divisor the dialect does not define (or the reference would refuse) */
+static int divbad(int op, int64_t y)
+{
+    if (op != O_DIV && op != O_MOD) return 0;
+    if (dia == D_ISO) return op == O_DIV ? y == 0 : y <= 0;
+    if (dia == D_DELPHI) return y == 0;
+    return y <= 0;
+}
+
+static int64_t arith(int op, int64_t x, int64_t y)
+{
+    switch (op) {
+    case O_ADD:
+        return x + y;
+    case O_SUB:
+        return x - y;
+    case O_MUL:
+        return x * y;
+    case O_DIV: /* y > 0 in Modula-2 and Oberon, which round down */
+        return x / y - (dia >= D_M2 && x % y < 0);
+    case O_MOD:
+        return dia == D_DELPHI ? x % y : ((x % y) + y) % y;
+    case O_BAND:
+        return x & y;
+    case O_BOR:
+        return x | y;
+    default:
+        return x ^ y;
+    }
+}
+
 static int64_t *cell(frame_t *f, int var)
 {
     for (; f; f = f->parent)
@@ -479,20 +550,8 @@ static int64_t ev(frame_t *f, int id)
     case E_BIN:
         x = ev(f, e->a);
         y = ev(f, e->b);
-        switch (e->op) {
-        case O_ADD:
-            return chk(id, x + y);
-        case O_SUB:
-            return chk(id, x - y);
-        case O_MUL:
-            return chk(id, x * y);
-        case O_DIV:
-            if (y == 0) unsafe(id, 0);
-            return chk(id, x / y);
-        default:
-            if (y <= 0) unsafe(id, 0);
-            return ((x % y) + y) % y;
-        }
+        if (divbad(e->op, y)) unsafe(id, 0);
+        return chk(id, arith(e->op, x, y));
     case E_NEG:
         return chk(id, -ev(f, e->a));
     case E_FN:
@@ -590,6 +649,7 @@ static void exec(frame_t *f, int st)
     switch (s->kind) {
     case S_ASSIGN:
     case S_BASSIGN:
+    case S_INC:
         glob[s->var] = ev(f, s->e1);
         break;
     case S_ELEM: {
@@ -614,6 +674,15 @@ static void exec(frame_t *f, int st)
     case S_WHILE:
     case S_REPEAT:
         glob[s->var] = s->width;
+        if (s->e2 >= 0) { /* count down, Continue when e2, Break when e3 */
+            while (glob[s->var] > 0) {
+                glob[s->var]--;
+                if (ev(f, s->e2)) continue;
+                exec_list(f, s->body);
+                if (ev(f, s->e3)) break;
+            }
+            break;
+        }
         do {
             exec_list(f, s->body);
             glob[s->var]--;
@@ -621,10 +690,15 @@ static void exec(frame_t *f, int st)
         break;
     case S_CASE: {
         int64_t v = ev(f, s->e1);
-        int64_t sel = ((v % s->width) + s->width) % s->width;
+        int64_t sel = dia == D_DELPHI ? v % s->width : ((v % s->width) + s->width) % s->width;
+        int hit = 0;
         for (int a = s->arm; a >= 0; a = am[a].next)
             for (int j = 0; j < am[a].nl; j++)
-                if (am[a].labels[j] == sel) exec_list(f, am[a].body);
+                if (am[a].labels[j] == sel) {
+                    exec_list(f, am[a].body);
+                    hit = 1;
+                }
+        if (!hit) exec_list(f, s->els); /* Delphi: no else, nothing */
         break;
     }
     case S_WRITE:
@@ -695,8 +769,7 @@ static int fold(int id, int64_t *out)
     case E_OR:
         cx = fold(e->a, &x);
         cy = fold(e->b, &y);
-        if (e->kind == E_BIN && cy && ((e->op == O_DIV && y == 0) || (e->op == O_MOD && y <= 0)))
-            return -1;
+        if (e->kind == E_BIN && cy && divbad(e->op, y)) return -1;
         /* fpc also folds x mod 1 and x * 0 to the constant 0 (folding them
          * where fpc does not only costs a needless repair) */
         if (e->kind == E_BIN && cx >= 0 && cy >= 0 &&
@@ -723,11 +796,7 @@ static int fold(int id, int64_t *out)
         else if (e->kind == E_OR)
             *out = x || y;
         else
-            *out = e->op == O_ADD   ? x + y
-                   : e->op == O_SUB ? x - y
-                   : e->op == O_MUL ? x * y
-                   : e->op == O_DIV ? x / y
-                                    : ((x % y) + y) % y;
+            *out = arith(e->op, x, y);
         return *out < INT32_MIN || *out > INT32_MAX ? -1 : 1;
     case E_NEG:
     case E_FN:
@@ -801,7 +870,7 @@ static void kw(const char *k)
 
 static void name(const char *n)
 {
-    int up = rnd(8) == 0; /* Pascal names are not case-sensitive */
+    int up = rnd(8) == 0 && dia < D_M2; /* Pascal names are not case-sensitive */
     for (int i = 0; n[i]; i++) putchar(up && n[i] >= 'a' && n[i] <= 'z' ? n[i] - 32 : n[i]);
 }
 
@@ -846,10 +915,10 @@ static void pe(int id, int need)
     case E_NEG:
         if (need == 0 && rnd(2)) {
             putchar('-');
-            pe(e->a, 3);
+            pe(e->a, dia == D_DELPHI ? 4 : 3); /* Delphi: the sign takes a factor */
         } else {
             fputs("(-", stdout);
-            pe(e->a, 3);
+            pe(e->a, dia == D_DELPHI ? 4 : 3);
             putchar(')');
         }
         return;
@@ -900,8 +969,12 @@ static void pe(int id, int need)
     default:
         break;
     }
-    /* binary: + - or at 2, * div mod and at 3, comparisons at 1 */
-    p = e->kind == E_REL ? 1 : e->kind == E_OR ? 2 : e->kind == E_AND ? 3 : e->op <= O_SUB ? 2 : 3;
+    /* binary: + - or xor at 2, * div mod and at 3, comparisons at 1 */
+    p = e->kind == E_REL                                                ? 1
+        : e->kind == E_OR                                               ? 2
+        : e->kind == E_AND                                              ? 3
+        : e->op <= O_SUB || e->op == O_BOR || e->op == O_BXOR ? 2
+                                                                        : 3;
     paren = p < need || rnd(6) == 0;
     if (paren) putchar('(');
     if (e->kind == E_REL) {
@@ -915,8 +988,9 @@ static void pe(int id, int need)
             kw(e->kind == E_AND ? "and" : "or");
             putchar(' ');
         } else if (e->op >= O_DIV) {
+            static const char *const wop[] = {"div", "mod", "and", "or", "xor"};
             putchar(' ');
-            kw(e->op == O_DIV ? "div" : "mod");
+            kw(wop[e->op - O_DIV]);
             putchar(' ');
         } else {
             fputs(bop[e->op], stdout);
@@ -928,15 +1002,45 @@ static void pe(int id, int need)
 
 static void ps_list(int st, int level, int wrap);
 
+/* a case arm's labels; two consecutive ones may be a range (not in ISO Pascal) */
+static void print_labels(int a)
+{
+    int *l = am[a].labels;
+    if (dia != D_ISO && am[a].nl == 2 && (l[1] == l[0] + 1 || l[0] == l[1] + 1) && rnd(2)) {
+        printf("%d..%d", l[0] < l[1] ? l[0] : l[1], l[0] < l[1] ? l[1] : l[0]);
+        return;
+    }
+    for (int j = 0; j < am[a].nl; j++) printf(j ? ", %d" : "%d", l[j]);
+}
+
 static void ps(int st, int level)
 {
     snode_t *s = &sn[st];
     if (rnd(12) == 0) {
         ind(level);
-        fputs(rnd(2) ? "{ step }\n" : "(* step *)\n", stdout);
+        fputs(dia == D_DELPHI && !rnd(3) ? "// step\n" : rnd(2) ? "{ step }\n" : "(* step *)\n",
+              stdout);
     }
     ind(level);
     switch (s->kind) {
+    case S_INC: {
+        enode_t *e = &en[s->e1];
+        if (e->kind == E_BIN && en[e->a].kind == E_VAR && en[e->a].v == s->var) {
+            name(e->op == O_ADD ? "inc" : "dec");
+            putchar('(');
+            name(vname[s->var]);
+            if (en[e->b].kind != E_NUM || en[e->b].v != 1 || rnd(2)) {
+                fputs(", ", stdout);
+                pe(e->b, 0);
+            }
+            putchar(')');
+            break;
+        }
+        name(vname[s->var]); /* repaired */
+        fputs(" := ", stdout);
+        pe(s->e1, 0);
+        break;
+    }
     case S_ASSIGN:
     case S_BASSIGN:
         name(vname[s->var]);
@@ -986,6 +1090,47 @@ static void ps(int st, int level)
         name(vname[s->var]);
         printf(" := %d;\n", s->width);
         ind(level);
+        if (s->e2 >= 0) { /* Delphi: Continue and Break */
+            kw("while");
+            putchar(' ');
+            name(vname[s->var]);
+            fputs(" > 0 ", stdout);
+            kw("do");
+            putchar('\n');
+            ind(level);
+            kw("begin");
+            putchar('\n');
+            ind(level + 1);
+            name(vname[s->var]);
+            fputs(" := ", stdout);
+            name(vname[s->var]);
+            fputs(" - 1;\n", stdout);
+            ind(level + 1);
+            kw("if");
+            putchar(' ');
+            pe(s->e2, 0);
+            putchar(' ');
+            kw("then");
+            putchar(' ');
+            name("continue");
+            fputs(";\n", stdout);
+            for (int b = s->body; b >= 0; b = sn[b].next) {
+                ps(b, level + 1);
+                fputs(";\n", stdout);
+            }
+            ind(level + 1);
+            kw("if");
+            putchar(' ');
+            pe(s->e3, 0);
+            putchar(' ');
+            kw("then");
+            putchar(' ');
+            name("break");
+            putchar('\n');
+            ind(level);
+            kw("end");
+            return;
+        }
         if (s->kind == S_WHILE) {
             kw("while");
             putchar(' ');
@@ -1030,11 +1175,21 @@ static void ps(int st, int level)
         putchar('\n');
         for (int a = s->arm; a >= 0; a = am[a].next) {
             ind(level + 1);
-            for (int j = 0; j < am[a].nl; j++) printf(j ? ", %d" : "%d", am[a].labels[j]);
+            print_labels(a);
             fputs(":\n", stdout);
             if (am[a].body >= 0) ps_list(am[a].body, level + 2, 0);
-            if (am[a].next >= 0 || rnd(2)) putchar(';');
+            /* a ';' before else, which would otherwise join a trailing if */
+            if (am[a].next >= 0 || s->els >= 0 || rnd(2)) putchar(';');
             putchar('\n');
+        }
+        if (s->els >= 0) { /* Delphi: else and a statement list */
+            ind(level);
+            kw("else");
+            putchar('\n');
+            for (int b = s->els; b >= 0; b = sn[b].next) {
+                ps(b, level + 1);
+                fputs(sn[b].next >= 0 || rnd(2) ? ";\n" : "\n", stdout);
+            }
         }
         ind(level);
         kw("end");
@@ -1105,6 +1260,7 @@ static void generate(void)
     k0 = (int64_t) rnd(20) - 5;
     k1 = -(int64_t) rnd(9) - 1;
     vlo = (int) rnd(7) - 3;
+    if (dia == D_OBERON) vlo = 0;
     vlen = 3 + (int) rnd(6);
     for (int k = 0; k < 6; k++) init[k] = (int64_t) rnd(50) - 10;
     static const int f1v[] = {FX, FY}, f1w[] = {FT, FX, FY}, rn[] = {RN}, bx[] = {BX};
@@ -1131,9 +1287,14 @@ static void print_program(void)
 {
     style = (int) rnd(3);
     kw("program");
-    fputs(" gen(", stdout);
-    name("output");
-    fputs(");\n", stdout);
+    if (dia == D_DELPHI) {
+        fputs(" gen;\n", stdout);
+        if (rnd(2)) fputs("{$APPTYPE CONSOLE}\n", stdout);
+    } else {
+        fputs(" gen(", stdout);
+        name("output");
+        fputs(");\n", stdout);
+    }
     kw("const");
     printf("\n  k0 = %lld;\n  k1 = %lld;\n", (long long) k0, (long long) k1);
     kw("var");
@@ -1156,7 +1317,12 @@ static void print_program(void)
     kw("begin");
     fputs("\n  t := ", stdout);
     pe(f1a, 0);
-    fputs(";\n  f1 := ", stdout);
+    fputs(";\n  ", stdout);
+    if (dia == D_DELPHI)
+        name(rnd(2) ? "result" : "f1");
+    else
+        fputs("f1", stdout);
+    fputs(" := ", stdout);
     pe(f1b, 0);
     putchar('\n');
     kw("end");
@@ -1169,20 +1335,37 @@ static void print_program(void)
     kw("if");
     fputs(" n <= 0 ", stdout);
     kw("then");
-    fputs(" fr := ", stdout);
-    pe(fr0, 0);
-    fputs("\n  ", stdout);
-    kw("else");
-    fputs(" fr := ", stdout);
-    pe(frstep, 0);
-    putchar('\n');
+    if (dia == D_DELPHI && rnd(2)) { /* Exit(value), then Result */
+        putchar(' ');
+        name("exit");
+        putchar('(');
+        pe(fr0, 0);
+        fputs(");\n  ", stdout);
+        name("result");
+        fputs(" := ", stdout);
+        pe(frstep, 0);
+        putchar('\n');
+    } else {
+        fputs(" fr := ", stdout);
+        pe(fr0, 0);
+        fputs("\n  ", stdout);
+        kw("else");
+        fputs(" fr := ", stdout);
+        pe(frstep, 0);
+        putchar('\n');
+    }
     kw("end");
     fputs(";\n\n", stdout);
 
     kw("function");
     fputs(" fb(x: integer): boolean;\n", stdout);
     kw("begin");
-    fputs("\n  fb := ", stdout);
+    fputs("\n  ", stdout);
+    if (dia == D_DELPHI)
+        name(rnd(2) ? "result" : "fb");
+    else
+        fputs("fb", stdout);
+    fputs(" := ", stdout);
     pe(fbe, 0);
     putchar('\n');
     kw("end");
@@ -1256,10 +1439,424 @@ static void print_program(void)
     fputs(".\n", stdout);
 }
 
+/* ------------------------------------------------------------ Modula-2 and Oberon */
+
+static void pm(int id, int need)
+{
+    enode_t *e = &en[id];
+    int ob = dia == D_OBERON, p, paren;
+    switch (e->kind) {
+    case E_NUM:
+        printf(e->v < 0 && need > 0 ? "(%d)" : "%d", e->v);
+        return;
+    case E_CONST:
+        fputs(e->v ? "k1" : "k0", stdout);
+        return;
+    case E_MAXINT:
+        fputs(ob ? "2147483647" : "MAX(INTEGER)", stdout);
+        return;
+    case E_VAR:
+    case E_BVAR:
+        fputs(vname[e->v], stdout);
+        return;
+    case E_BOOL:
+        fputs(e->v ? "TRUE" : "FALSE", stdout);
+        return;
+    case E_ELEM:
+        fputs(e->v == A_W ? "w[" : "v[", stdout);
+        pm(e->a, 0);
+        putchar(']');
+        return;
+    case E_NEG:
+        if (need == 0 && rnd(2)) {
+            putchar('-');
+            pm(e->a, 3);
+        } else {
+            fputs("(-", stdout);
+            pm(e->a, 3);
+            putchar(')');
+        }
+        return;
+    case E_FN: /* abs; succ and pred as e + 1 and e - 1 (sqr is not generated) */
+        if (e->op == F_ABS || e->op == F_SQR) {
+            fputs("ABS(", stdout);
+            pm(e->a, 0);
+            putchar(')');
+        } else {
+            putchar('(');
+            pm(e->a, 2);
+            fputs(e->op == F_SUCC ? " + 1)" : " - 1)", stdout);
+        }
+        return;
+    case E_F1:
+        fputs("f1(", stdout);
+        pm(e->a, 0);
+        fputs(rnd(3) ? ", " : ",", stdout);
+        pm(e->b, 0);
+        putchar(')');
+        return;
+    case E_FR:
+    case E_FB:
+        fputs(e->kind == E_FR ? "fr(" : "fb(", stdout);
+        pm(e->a, 0);
+        putchar(')');
+        return;
+    case E_FRREC:
+        fputs("fr(n - 1)", stdout);
+        return;
+    case E_ODD:
+        fputs("ODD(", stdout);
+        pm(e->a, 0);
+        putchar(')');
+        return;
+    case E_NOT:
+        fputs(ob || rnd(3) == 0 ? "~" : "NOT ", stdout);
+        pm(e->a, 4);
+        return;
+    default:
+        break;
+    }
+    p = e->kind == E_REL ? 1 : e->kind == E_OR ? 2 : e->kind == E_AND ? 3 : e->op <= O_SUB ? 2 : 3;
+    paren = p < need || rnd(6) == 0;
+    if (paren) putchar('(');
+    if (e->kind == E_REL) {
+        static const char *const rop[] = {" = ", " # ", " < ", " <= ", " > ", " >= "};
+        pm(e->a, 2);
+        fputs(e->op == R_NE && !ob && rnd(2) ? " <> " : rop[e->op], stdout);
+        pm(e->b, 2);
+    } else {
+        static const char *const bop[] = {" + ", " - ", " * ", " DIV ", " MOD "};
+        pm(e->a, p);
+        if (e->kind == E_AND)
+            fputs(ob || rnd(3) == 0 ? " & " : " AND ", stdout);
+        else if (e->kind == E_OR)
+            fputs(" OR ", stdout);
+        else
+            fputs(bop[e->op], stdout);
+        pm(e->b, p + 1);
+    }
+    if (paren) putchar(')');
+}
+
+static void psm(int st, int level);
+
+static void pseq(int st, int level)
+{
+    for (int b = st; b >= 0; b = sn[b].next) {
+        psm(b, level);
+        fputs(sn[b].next >= 0 ? ";\n" : "\n", stdout);
+    }
+}
+
+static void wint(int e, int width)
+{
+    fputs(dia == D_OBERON ? "Out.Int(" : "WriteInt(", stdout);
+    pm(e, 0);
+    printf(", %d)", width);
+}
+
+static void wstr(const char *s)
+{
+    fputs(dia == D_OBERON ? "Out.String(\"" : "WriteString(\"", stdout);
+    for (; *s; s++) {
+        putchar(*s);
+        if (s[0] == '\'' && s[1] == '\'') s++; /* Pascal's '' is one quote */
+    }
+    fputs("\")", stdout);
+}
+
+static void wln(void)
+{
+    fputs(dia == D_OBERON ? "Out.Ln" : "WriteLn", stdout);
+}
+
+/* a Boolean as TRUE or FALSE: IF b THEN WriteString("TRUE") ELSE ... END */
+static void wbool(int e)
+{
+    fputs("IF ", stdout);
+    pm(e, 0);
+    fputs(" THEN ", stdout);
+    wstr("TRUE");
+    fputs(" ELSE ", stdout);
+    wstr("FALSE");
+    fputs(" END", stdout);
+}
+
+static void psm(int st, int level)
+{
+    snode_t *s = &sn[st];
+    const char *v = vname[s->var];
+    if (rnd(12) == 0) {
+        ind(level);
+        fputs(rnd(2) ? "(* step *)\n" : "(* step (* nested *) *)\n", stdout);
+    }
+    ind(level);
+    switch (s->kind) {
+    case S_INC: {
+        enode_t *e = &en[s->e1];
+        if (e->kind == E_BIN && en[e->a].kind == E_VAR && en[e->a].v == s->var) {
+            printf("%s(%s", e->op == O_ADD ? "INC" : "DEC", v);
+            if (en[e->b].kind != E_NUM || en[e->b].v != 1 || rnd(2)) {
+                fputs(", ", stdout);
+                pm(e->b, 0);
+            }
+            putchar(')');
+            return;
+        }
+        printf("%s := ", v);
+        pm(s->e1, 0);
+        return;
+    }
+    case S_ASSIGN:
+    case S_BASSIGN:
+        printf("%s := ", v);
+        pm(s->e1, 0);
+        return;
+    case S_ELEM:
+        fputs("v[", stdout);
+        pm(s->e1, 0);
+        fputs("] := ", stdout);
+        pm(s->e2, 0);
+        return;
+    case S_IF:
+        fputs("IF ", stdout);
+        for (;;) {
+            pm(s->e1, 0);
+            fputs(" THEN\n", stdout);
+            pseq(s->body, level + 1);
+            /* ELSE IF ... END END as ELSIF when the else is one if */
+            if (s->els >= 0 && sn[s->els].kind == S_IF && sn[s->els].next < 0 && rnd(2)) {
+                s = &sn[s->els];
+                ind(level);
+                fputs("ELSIF ", stdout);
+                continue;
+            }
+            break;
+        }
+        if (s->els >= 0) {
+            ind(level);
+            fputs("ELSE\n", stdout);
+            pseq(s->els, level + 1);
+        }
+        ind(level);
+        fputs("END", stdout);
+        return;
+    case S_FOR:
+        printf("FOR %s := ", v);
+        pm(s->e1, 0);
+        fputs(" TO ", stdout);
+        pm(s->e2, 0);
+        fputs(s->down ? " BY -1 DO\n" : rnd(4) ? " DO\n" : " BY 1 DO\n", stdout);
+        pseq(s->body, level + 1);
+        ind(level);
+        fputs("END", stdout);
+        return;
+    case S_WHILE:
+    case S_REPEAT:
+        printf("%s := %d;\n", v, s->width);
+        ind(level);
+        if (s->e2 >= 0) { /* Modula-2: LOOP and EXIT */
+            fputs("LOOP\n", stdout);
+            ind(level + 1);
+            printf("IF %s <= 0 THEN EXIT END;\n", v);
+            ind(level + 1);
+            printf("%s := %s - 1;\n", v, v);
+            ind(level + 1);
+            fputs("IF NOT (", stdout);
+            pm(s->e2, 0);
+            fputs(") THEN\n", stdout);
+            for (int b = s->body; b >= 0; b = sn[b].next) {
+                psm(b, level + 2);
+                fputs(";\n", stdout);
+            }
+            ind(level + 2);
+            fputs("IF ", stdout);
+            pm(s->e3, 0);
+            fputs(" THEN EXIT END\n", stdout);
+            ind(level + 1);
+            fputs("END\n", stdout);
+            ind(level);
+            fputs("END", stdout);
+            return;
+        }
+        if (s->kind == S_WHILE)
+            printf("WHILE %s > 0 DO\n", v);
+        else
+            fputs("REPEAT\n", stdout);
+        for (int b = s->body; b >= 0; b = sn[b].next) {
+            psm(b, level + 1);
+            fputs(";\n", stdout);
+        }
+        ind(level + 1);
+        printf("%s := %s - 1\n", v, v);
+        ind(level);
+        if (s->kind == S_WHILE)
+            fputs("END", stdout);
+        else
+            printf("UNTIL %s <= 0", v);
+        return;
+    case S_CASE:
+        fputs("CASE (", stdout);
+        pm(s->e1, 0);
+        printf(") MOD %d OF\n", s->width);
+        for (int a = s->arm; a >= 0; a = am[a].next) {
+            ind(level);
+            fputs(a == s->arm ? "  " : "| ", stdout);
+            print_labels(a);
+            fputs(":\n", stdout);
+            pseq(am[a].body, level + 2);
+        }
+        if (s->els >= 0) {
+            ind(level);
+            fputs("ELSE\n", stdout);
+            pseq(s->els, level + 1);
+        }
+        ind(level);
+        fputs("END", stdout);
+        return;
+    case S_WRITE: {
+        int first = 1;
+        for (int k = s->item; k >= 0; k = it[k].next, first = 0) {
+            if (!first) fputs("; ", stdout);
+            if (it[k].kind == W_STR)
+                wstr(strs[it[k].str]);
+            else if (it[k].kind == W_BOOL)
+                wbool(it[k].e);
+            else
+                wint(it[k].e, it[k].width < 0 ? 0 : it[k].width);
+        }
+        if (s->var) {
+            fputs("; ", stdout);
+            wln();
+        }
+        return;
+    }
+    default:
+        fputs("pr(", stdout);
+        pm(s->e1, 0);
+        printf(", %s, ", v);
+        if (s->e3 >= 0) {
+            fputs(vname[s->e3], stdout);
+        } else {
+            fputs("v[", stdout);
+            pm(s->e2, 0);
+            putchar(']');
+        }
+        putchar(')');
+        return;
+    }
+}
+
+static void print_module(void)
+{
+    int ob = dia == D_OBERON;
+    fputs("MODULE gen;\n", stdout);
+    fputs(ob ? "IMPORT Out;\n" : "FROM InOut IMPORT WriteInt, WriteString, WriteLn;\n", stdout);
+    printf("CONST\n  k0 = %lld;\n  k1 = %lld;\n", (long long) k0, (long long) k1);
+    fputs("VAR\n  g0, g1, g2, g3, g4, g5, i, j, c0, c1, c2: INTEGER;\n  b0, b1: BOOLEAN;\n", stdout);
+    if (ob)
+        printf("  v: ARRAY %d OF INTEGER;\n\n", vlen);
+    else
+        printf("  v: ARRAY [%d..%d] OF INTEGER;\n\n", vlo, vlo + vlen - 1);
+
+    fputs("PROCEDURE f1(x, y: INTEGER): INTEGER;\nVAR t: INTEGER;\nBEGIN\n  t := ", stdout);
+    pm(f1a, 0);
+    fputs(";\n  RETURN ", stdout);
+    pm(f1b, 0);
+    fputs("\nEND f1;\n\n", stdout);
+
+    fputs("PROCEDURE fr(n: INTEGER): INTEGER;\n", stdout);
+    if (ob) { /* an Oberon function ends with its only RETURN */
+        fputs("VAR r: INTEGER;\nBEGIN\n  IF n <= 0 THEN r := ", stdout);
+        pm(fr0, 0);
+        fputs(" ELSE r := ", stdout);
+        pm(frstep, 0);
+        fputs(" END;\n  RETURN r\n", stdout);
+    } else if (rnd(2)) {
+        fputs("BEGIN\n  IF n <= 0 THEN RETURN ", stdout);
+        pm(fr0, 0);
+        fputs(" END;\n  RETURN ", stdout);
+        pm(frstep, 0);
+        putchar('\n');
+    } else {
+        fputs("BEGIN\n  IF n <= 0 THEN RETURN ", stdout);
+        pm(fr0, 0);
+        fputs(" ELSE RETURN ", stdout);
+        pm(frstep, 0);
+        fputs(" END\n", stdout);
+    }
+    fputs("END fr;\n\n", stdout);
+
+    fputs("PROCEDURE fb(x: INTEGER): BOOLEAN;\nBEGIN\n  RETURN ", stdout);
+    pm(fbe, 0);
+    fputs("\nEND fb;\n\n", stdout);
+
+    fputs("PROCEDURE pr(x: INTEGER; VAR y, z: INTEGER);\nVAR t, i: INTEGER;\n", stdout);
+    fputs(ob ? "  w: ARRAY 4 OF INTEGER;\n" : "  w: ARRAY [0..3] OF INTEGER;\n", stdout);
+    /* Oberon: inner cannot see pr's t and x, so they are its parameters */
+    fputs(ob ? "  PROCEDURE inner(VAR u, t: INTEGER; x: INTEGER);\n"
+             : "  PROCEDURE inner(VAR u: INTEGER);\n",
+          stdout);
+    fputs("  BEGIN\n    u := ", stdout);
+    pm(iu, 0);
+    fputs(";\n    t := ", stdout);
+    pm(it_, 0);
+    fputs("\n  END inner;\nBEGIN\n  t := ", stdout);
+    pm(pt, 0);
+    fputs(";\n  FOR i := 0 TO 3 DO w[i] := ", stdout);
+    pm(pw, 0);
+    fputs(ob ? " END;\n  inner(y, t, x);\n  inner(z, t, x);\n  z := "
+             : " END;\n  inner(y);\n  inner(z);\n  z := ",
+          stdout);
+    pm(pz, 0);
+    fputs(";\n  ", stdout);
+    wstr("pr");
+    fputs("; ", stdout);
+    for (int k = 0; k < 4; k++) {
+        static const int pv[] = {PX, PY, PZ, PT};
+        int id = enew(E_VAR, 0, -1, -1, pv[k]);
+        wint(id, k ? 6 : 0);
+        fputs("; ", stdout);
+    }
+    wln();
+    fputs("\nEND pr;\n\nBEGIN\n", stdout);
+    for (int k = 0; k < 6; k++) printf("  g%d := %lld;\n", k, (long long) init[k]);
+    printf("  b0 := TRUE; b1 := FALSE;\n  FOR i := %d TO %d DO v[i] := i * 3 - 1 END;\n", vlo,
+           vlo + vlen - 1);
+    for (int b = body; b >= 0; b = sn[b].next) {
+        psm(b, 1);
+        fputs(";\n", stdout);
+    }
+    fputs("  ", stdout);
+    for (int k = 0; k < 6; k++) {
+        wint(enew(E_VAR, 0, -1, -1, G0 + k), 12);
+        fputs("; ", stdout);
+    }
+    fputs("\n  ", stdout);
+    for (int k = 0; k < 2; k++) {
+        wbool(enew(E_BVAR, 0, -1, -1, B0 + k));
+        fputs("; ", stdout);
+    }
+    wln();
+    printf(";\n  FOR i := %d TO %d DO ", vlo, vlo + vlen - 1);
+    fputs(ob ? "Out.Int(v[i], 5)" : "WriteInt(v[i], 5)", stdout);
+    fputs(" END;\n  ", stdout);
+    wln();
+    fputs("\nEND gen.\n", stdout);
+}
+
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
-        fprintf(stderr, "usage: gen_pascal seed\n");
+    if (argc == 3) {
+        dia = !strcmp(argv[1], "delphi") ? D_DELPHI
+              : !strcmp(argv[1], "m2")   ? D_M2
+              : !strcmp(argv[1], "oberon") ? D_OBERON
+                                           : -1;
+        argv++;
+        argc--;
+    }
+    if (argc != 2 || dia < 0) {
+        fprintf(stderr, "usage: gen_pascal [delphi|m2|oberon] seed\n");
         return 2;
     }
     uint64_t seed = strtoull(argv[1], 0, 10);
@@ -1277,6 +1874,9 @@ int main(int argc, char **argv)
             return 1;
         }
     }
-    print_program();
+    if (dia >= D_M2)
+        print_module();
+    else
+        print_program();
     return 0;
 }

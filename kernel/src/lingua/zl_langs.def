@@ -5,7 +5,8 @@
  * id: ZL_LANG_<id>; number: stable (it is written into .zlir files), dense
  * from 1; name: exactly as catalogue.tsv names it; twin: the dragon name of
  * its AI twin; front-end: zl_<front-end>.c defines
- * zl_<front-end>_compile (LISP and Scheme share one); extensions: what
+ * zl_<front-end>_compile (LISP and Scheme share one, Pascal and Delphi
+ * another); extensions: what
  * zxlang accepts, space-separated; runtime: the name an app manifest writes
  * (zxapp.h), the id in lower case except FORTRAN 77, whose "fortran" is the
  * Trebago pillar's. A front-end that is still a placeholder
@@ -47,7 +48,7 @@ ZL_LANG_X(ICON, 33, "Icon", "Goaldrake", icon, ".icn", "icon") /* front-end to b
 ZL_LANG_X(PERL, 34, "Perl", "Gluewyrm", perl, ".pl", "perl") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(SNOBOL, 35, "SNOBOL", "Patternwyrm", snobol, ".sno", "snobol") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(TRAC, 36, "TRAC", "Macrodrake", trac, ".trac", "trac") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(DELPHI, 37, "Delphi", "Formwyrm", delphi, ".dpr", "delphi") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(DELPHI, 37, "Delphi", "Formwyrm", pascal, ".dpr", "delphi") /* Delphi integer subset, a dialect in zl_pascal.c (1995) */
 ZL_LANG_X(MODULA2, 38, "Modula-2", "Moduledrake", modula2, ".mod", "modula2") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(APT, 39, "APT", "Lathewyrm", apt, ".apt", "apt") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(OBERON, 40, "Oberon", "Faydrake", oberon, ".ob", "oberon") /* front-end to build: see LINGUA_SPEC.md */
