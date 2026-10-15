@@ -6,9 +6,10 @@
  * Rosetta does not speak each language natively. It bridges them: what it
  * recognises it carries through a shared pivot, and it says exactly which
  * parts it could not carry, so nothing machine-made passes as reviewed.
- * Its machine-side counterpart is Babel, the engine that explains code
- * (the "Every legacy language plus AI twin" work); Rosetta takes Babel's
- * plain-language explanation and brings it into the person's language.
+ * Its machine-side counterpart is Babel, which moves values and programs
+ * between runtimes (docs/BABEL.md). An explainer of code, built on a
+ * language's AI twin, can hand Rosetta a plain English explanation through
+ * zui_babel_explain_fn, and Rosetta brings it into the person's language.
  *
  *   R1 THE PIVOT. A sentence is read as parts, split on the source locale's
  *      list separator and ", ", exactly as zui_locale_phrase writes them.
@@ -35,9 +36,9 @@
  *      ZUI_REVIEW_MACHINE): English is ZUI_REVIEW_SOURCE, every other
  *      translation ZUI_REVIEW_MACHINE until a native speaker reviews it.
  *      Show it next to the text.
- *   R5 BABEL. zui_rosetta_explain asks Babel's callback for a plain English
+ *   R5 EXPLAINING CODE. zui_rosetta_explain asks the explainer for a plain English
  *      explanation of some code, then carries it into the target language
- *      as in R1 to R4. Babel's English is machine-made too.
+ *      as in R1 to R4. The explainer's English is machine-made too.
  *   R6 Integer only, no allocation, deterministic; every output is cut at a
  *      whole UTF-8 character and NUL-terminated when cap > 0.
  */
@@ -81,7 +82,7 @@ uint32_t zui_rosetta_translate(const zui_rosetta_t *r, const zui_locale_t *from,
                                const zui_locale_t *to, const char *text, char *out, uint32_t cap,
                                zui_rosetta_report_t *report);
 
-/* R5. Returns 0 (and an empty out) when there is no Babel callback or it
+/* R5. Returns 0 (and an empty out) when there is no explainer or it
  * gives nothing. */
 uint32_t zui_rosetta_explain(const zui_rosetta_t *r, const zui_locale_t *to, const char *code,
                              uint32_t n, char *out, uint32_t cap, zui_rosetta_report_t *report);

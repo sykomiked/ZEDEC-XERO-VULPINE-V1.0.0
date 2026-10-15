@@ -314,11 +314,12 @@ it recognises through a shared pivot and says plainly what it could not.
 - **Trust.** The report carries the weakest review state involved. Anything
   from the plugged-in translator or from a machine-made word list is
   `ZUI_REVIEW_MACHINE`, so it is never shown as reviewed.
-- **Babel.** Babel is the machine-side counterpart, which explains code. It
-  is built by the legacy-languages work and is not in the tree yet.
-  `zui_rosetta_explain` takes Babel's plain English explanation through a
-  callback (`zui_babel_explain_fn`) and carries it into the person's
-  language. Babel's English always counts as machine-made.
+- **Babel and code.** Babel is the machine-side counterpart: it moves values
+  and programs between runtimes ([BABEL.md](BABEL.md)). It does not explain
+  code itself. An explainer built on a language's AI twin can hand Rosetta a
+  plain English explanation through `zui_babel_explain_fn`, and
+  `zui_rosetta_explain` carries it into the person's language. That English
+  always counts as machine-made.
 
 **Name.** "Rosetta" and "Babel" are working names. Apple uses Rosetta for its
 translation software, and Babel names several software products, so both
