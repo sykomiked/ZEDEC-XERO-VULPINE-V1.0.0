@@ -4,8 +4,8 @@
 #
 # test_views.sh — build libzxv and the apl-kron and ada-eve pillars (incrementally) and run
 # test_views.c: the five built-in apps' native screens on their models and
-# zxvd's dispatcher in process, with Murmuration's KRON and Eve logic. Exits 3 when
-# only the build failed.
+# zxvd's dispatcher in process, with Murmuration's KRON and Eve logic, and the
+# Settings, Terminal and Playground screens. Exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 Z="$(cd "$HERE/.." && pwd)"
@@ -31,7 +31,8 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     -I"$S/web4" -I"$S/robin_debanks" -I"$S/mlkem" -I"$S/modbind" -I"$S/e8" -I"$S/event_space" -I"$S/surplus" \
     -I"$S/swarm" -I"$S/lpres" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/libzxv/include" \
     "$HERE/test_views.c" "$HERE/zv.c" "$HERE/burrow.c" "$HERE/quillon.c" "$HERE/glint.c" "$HERE/spindle.c" \
-    "$HERE/murmuration.c" "$HERE/autoview.c" "$HERE/circuit.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
+    "$HERE/murmuration.c" "$HERE/autoview.c" "$HERE/circuit.c" "$HERE/settings.c" "$HERE/terminal.c" "$HERE/playground.c" \
+    "$Z/zui_settings.c" "$Z/zui_workspace.c" "$Z/zui_palette.c" "$Z/zui_wm.c" "$Z/zui_dock.c" "$Z/zui_motion.c" "$Z/zui_keymap.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
     "$Z/zui_canvas.c" "$Z/zui_progress.c" "$Z/zui_emote.c" "$S/font/truetype.c" \
     "$A/zxm.c" "$A/burrow_model.c" "$A/quillon_model.c" "$A/glint_model.c" "$A/spindle_model.c" \
     "$A/murmuration_model.c" "$A/zxapp.c" "$A/zxwire.c" "$A/zxboard.c" "$A/zxapp_kron.c" "$A/zxapp_eve.c" "$S/swarm/swarm_emotion.c" "$S/swarm/swarm_budget.c" \

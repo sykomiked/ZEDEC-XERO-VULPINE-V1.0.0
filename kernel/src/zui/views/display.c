@@ -346,16 +346,20 @@ static void screen_row(const zui_ui_t *ui, zui_id_t list, int32_t row, zui_row_t
 /* A level 0..256 as an engraved track with a light fill and a knob. */
 static void track(zui_ui_t *ui, zui_id_t w, zui_surface_t *s, zui_rect_t r, void *ctx)
 {
-    (void) ui, (void) w;
+    (void) w;
     const uint32_t *level = ctx;
     int32_t cy = r.y + r.h / 2, x0 = r.x + 6, len = r.w - 12;
     if (len <= 0) return;
     zui_rect_t t = {x0, cy - 2, len, 4};
-    zui_fill_rrect(s, t, 2, ZUI_ENGRAVE_LO, 255);
-    zui_engrave(s, t, 2, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 60u);
+    zui_fill_rrect(s, t, 2, zui_ui_color(ui, ZUI_C_ENGRAVE_LO), 255);
+    zui_engrave(s, t, 2, zui_ui_color(ui, ZUI_C_ENGRAVE_LO), zui_ui_color(ui, ZUI_C_ENGRAVE_HI),
+                60u);
     int32_t fill = (int32_t) (((int64_t) len * *level) / DSP_LEVEL_MAX);
-    if (fill > 0) zui_fill_rrect(s, (zui_rect_t){x0, cy - 2, fill, 4}, 2, ZUI_TEXT_2, 255);
-    zui_fill_rrect(s, (zui_rect_t){x0 + fill - 6, cy - 6, 12, 12}, 6, ZUI_TEXT, 255);
+    if (fill > 0)
+        zui_fill_rrect(s, (zui_rect_t){x0, cy - 2, fill, 4}, 2, zui_ui_color(ui, ZUI_C_TEXT_2),
+                       255);
+    zui_fill_rrect(s, (zui_rect_t){x0 + fill - 6, cy - 6, 12, 12}, 6, zui_ui_color(ui, ZUI_C_TEXT),
+                   255);
 }
 
 static zui_id_t row(zui_ui_t *ui, zui_id_t col, const char *label)

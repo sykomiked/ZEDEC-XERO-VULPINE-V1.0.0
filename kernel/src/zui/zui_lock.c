@@ -4,6 +4,12 @@
 #include "zui_lock.h"
 #include "zui_tokens.h"
 
+/* zui_palette.h C6: every colour by role, in the active set */
+#define C(role) zui_color(l->colors, ZUI_C_##role)
+
+static uint32_t put(char *out, uint32_t cap, uint32_t n, const char *s);
+static uint32_t put_num(char *out, uint32_t cap, uint32_t n, int32_t v, int width);
+
 static int32_t imin(int32_t a, int32_t b)
 {
     return a < b ? a : b;
@@ -74,6 +80,18 @@ void zui_lock_account(zui_lock_t *l, uint32_t account, const char *name)
 void zui_lock_set_area(zui_lock_t *l, zui_rect_t area)
 {
     l->area = area;
+}
+
+void zui_lock_set_auth(zui_lock_t *l, zui_lock_auth_fn auth, void *ctx)
+{
+    l->auth = auth;
+    l->auth_ctx = ctx;
+}
+
+bool zui_lock_failure_shown(const zui_lock_t *l)
+{
+    if (l->state == ZUI_LOCK_FAILED) return true;
+    return l->state == ZUI_LOCK_LOCKED && l->said && l->now - l->said_at < ZUI_LOCK_SAY_MS;
 }
 
 static void go(zui_lock_t *l, zui_lock_state_t to)
@@ -179,6 +197,8 @@ static void failed(zui_lock_t *l)
     l->fails++;
     l->by_idle = false; /* L4: no grace after a failure */
     l->retry_at = l->now + backoff(&l->cfg, l->fails);
+    l->said = true; /* L10 */
+    l->said_at = l->now;
     go(l, ZUI_LOCK_FAILED);
 }
 
@@ -186,6 +206,7 @@ static void answer(zui_lock_t *l, int rc)
 {
     if (rc == ZUI_AUTH_OK) {
         l->fails = 0;
+        l->said = false;
         go(l, ZUI_LOCK_UNLOCKED);
     } else if (rc == ZUI_AUTH_PENDING) {
         go(l, ZUI_LOCK_AUTHENTICATING);
@@ -329,6 +350,12 @@ void zui_lock_notify(zui_lock_t *l, const char *app, const char *text)
     copy(n->text, sizeof n->text, text);
 }
 
+uint32_t zui_lock_summary(const zui_lock_t *l, char *out, uint32_t cap)
+{
+    uint32_t n = put_num(out, cap, 0, (int32_t) l->nnotice, 1);
+    return put(out, cap, n, l->nnotice == 1 ? " notification" : " notifications");
+}
+
 const char *zui_lock_notice_text(const zui_lock_t *l, uint32_t i)
 {
     if (i >= l->nnotice) return "";
@@ -467,31 +494,31 @@ static void centred(zui_surface_t *s, const zui_text_t *t, zui_rect_t r, uint32_
 }
 
 /* Engraved text: the shade of the cut above, the light lip below. */
-static void engraved(zui_surface_t *s, const zui_text_t *t, zui_rect_t r, uint32_t rgb,
-                     const char *str)
+static void engraved(const zui_lock_t *l, zui_surface_t *s, const zui_text_t *t, zui_rect_t r,
+                     uint32_t rgb, const char *str)
 {
     if (!t || !t->font) return;
     int32_t w = imin(zui_text_width(t, str), r.w), x = r.x + (r.w - w) / 2, b = baseline(t, r);
-    zui_text_a(s, t, x, b - 1, ZUI_ENGRAVE_LO, 255, str);
-    zui_text_a(s, t, x, b + 1, ZUI_ENGRAVE_HI, 50, str);
+    zui_text_a(s, t, x, b - 1, C(ENGRAVE_LO), 255, str);
+    zui_text_a(s, t, x, b + 1, C(ENGRAVE_HI), 50, str);
     zui_text(s, t, x, b, rgb, str);
 }
 
 static void field(zui_lock_t *l, zui_surface_t *s, zui_rect_t f, uint32_t tick)
 {
-    bool bad = l->state == ZUI_LOCK_FAILED;
-    zui_fill_rrect(s, f, ZUI_R_CONTROL, ZUI_RAISED, 255);
-    zui_engrave(s, f, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70u);
-    if (bad) zui_stroke_rrect(s, f, ZUI_R_CONTROL, 1, ZUI_ALERT, 255);
+    bool bad = zui_lock_failure_shown(l);
+    zui_fill_rrect(s, f, ZUI_R_CONTROL, C(RAISED), 255);
+    zui_engrave(s, f, ZUI_R_CONTROL, C(ENGRAVE_LO), C(ENGRAVE_HI), 70u);
+    if (bad) zui_stroke_rrect(s, f, ZUI_R_CONTROL, 1, C(ALERT), 255);
     uint32_t n = zui_lock_typed_chars(l);
     int32_t dot = 8, step = 14, x = f.x + ZUI_S3, cy = f.y + f.h / 2;
     for (uint32_t i = 0; i < n && x + dot < f.x + f.w - ZUI_S3; i++, x += step)
-        zui_fill_rrect(s, (zui_rect_t){x, cy - dot / 2, dot, dot}, dot / 2, ZUI_TEXT, 255);
+        zui_fill_rrect(s, (zui_rect_t){x, cy - dot / 2, dot, dot}, dot / 2, C(TEXT), 255);
     if (!n && l->text && l->text->font)
-        zui_text_fit(s, l->text, f.x + ZUI_S3, baseline(l->text, f), f.w - 2 * ZUI_S3, ZUI_FAINT,
+        zui_text_fit(s, l->text, f.x + ZUI_S3, baseline(l->text, f), f.w - 2 * ZUI_S3, C(FAINT),
                      "Password");
     if (l->state == ZUI_LOCK_LOCKED && (tick / 500u) % 2u == 0) /* the caret, gold */
-        zui_vline(s, n ? x : f.x + ZUI_S3, f.y + ZUI_S2, f.h - 2 * ZUI_S2, 2, ZUI_GOLD);
+        zui_vline(s, n ? x : f.x + ZUI_S3, f.y + ZUI_S2, f.h - 2 * ZUI_S2, 2, C(GOLD));
 }
 
 void zui_lock_draw(zui_lock_t *l, zui_surface_t *s, zui_rect_t area, int64_t epoch_s,
@@ -506,19 +533,19 @@ void zui_lock_draw(zui_lock_t *l, zui_surface_t *s, zui_rect_t area, int64_t epo
     zui_lock_layout_t lay;
     zui_lock_layout(l, area, &lay);
     zui_clip(s, area);
-    zui_fill(s, area, ZUI_VOID);
+    zui_fill(s, area, C(VOID));
     if (l->mark) l->mark(s, lay.mark, 256, l->mark_ctx);
     char buf[64];
     zui_lock_time_text(buf, sizeof buf, epoch_s, tz_min, l->cfg.h24);
-    engraved(s, l->big, lay.time, ZUI_TEXT, buf);
+    engraved(l, s, l->big, lay.time, C(TEXT), buf);
     zui_lock_date_text(buf, sizeof buf, epoch_s, tz_min);
-    engraved(s, l->text, lay.date, ZUI_TEXT_2, buf);
-    centred(s, l->text, lay.account, ZUI_TEXT, l->account_name);
+    engraved(l, s, l->text, lay.date, C(TEXT_2), buf);
+    centred(s, l->text, lay.account, C(TEXT), l->account_name);
     field(l, s, lay.field, tick);
     if (l->state == ZUI_LOCK_AUTHENTICATING) {
         zui_rect_t bar = {lay.message.x, lay.message.y + lay.message.h / 2 - 1, lay.message.w, 3};
-        zui_bar_draw(s, bar, ZUI_BAR_GATHER, ZUI_BAR_UNKNOWN, tick, 0, 0);
-    } else if (l->state == ZUI_LOCK_FAILED) {
+        zui_bar_draw_in(s, bar, ZUI_BAR_GATHER, ZUI_BAR_UNKNOWN, tick, 0, 0, l->colors);
+    } else if (zui_lock_failure_shown(l)) { /* L10 */
         uint32_t wait = zui_lock_wait_ms(l);
         uint32_t n = put(buf, sizeof buf, 0, "Wrong password");
         if (wait) {
@@ -526,22 +553,47 @@ void zui_lock_draw(zui_lock_t *l, zui_surface_t *s, zui_rect_t area, int64_t epo
             n = put_num(buf, sizeof buf, n, (int32_t) ((wait + 999u) / 1000u), 1);
             put(buf, sizeof buf, n, " s");
         }
-        centred(s, l->text, lay.message, ZUI_ALERT, buf);
+        centred(s, l->text, lay.message, C(ALERT), buf);
     }
-    for (uint32_t i = 0; i < l->nnotice; i++) {
+    if (!l->cfg.previews && l->nnotice) { /* L7: how many, and from whom */
+        zui_rect_t r = lay.notice[0];
+        char apps[96];
+        uint32_t n = 0;
+        for (uint32_t i = 0; i < l->nnotice; i++) {
+            bool seen = false;
+            for (uint32_t j = 0; j < i && !seen; j++) {
+                const char *a = l->notice[i].app, *b = l->notice[j].app;
+                uint32_t k = 0;
+                while (a[k] && a[k] == b[k]) k++;
+                seen = a[k] == b[k];
+            }
+            if (seen) continue;
+            if (n) n = put(apps, sizeof apps, n, ", ");
+            n = put(apps, sizeof apps, n, l->notice[i].app);
+        }
+        if (!n) apps[0] = 0;
+        zui_lock_summary(l, buf, sizeof buf);
+        zui_fill_rrect(s, r, ZUI_R_CONTROL, C(PANEL), 255);
+        zui_engrave(s, r, ZUI_R_CONTROL, C(ENGRAVE_LO), C(ENGRAVE_HI), 50u);
+        if (l->text && l->text->font) {
+            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 18, r.w - 2 * ZUI_S3, C(TEXT_2), buf);
+            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 36, r.w - 2 * ZUI_S3, C(MUTED), apps);
+        }
+    }
+    for (uint32_t i = 0; l->cfg.previews && i < l->nnotice; i++) {
         zui_rect_t r = lay.notice[i];
         if (r.y + r.h > lay.emergency.y - ZUI_S2) break;
-        zui_fill_rrect(s, r, ZUI_R_CONTROL, ZUI_PANEL, 255);
-        zui_engrave(s, r, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 50u);
+        zui_fill_rrect(s, r, ZUI_R_CONTROL, C(PANEL), 255);
+        zui_engrave(s, r, ZUI_R_CONTROL, C(ENGRAVE_LO), C(ENGRAVE_HI), 50u);
         if (l->text && l->text->font) {
-            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 18, r.w - 2 * ZUI_S3, ZUI_TEXT_2,
+            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 18, r.w - 2 * ZUI_S3, C(TEXT_2),
                          l->notice[i].app);
-            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 36, r.w - 2 * ZUI_S3, ZUI_MUTED,
+            zui_text_fit(s, l->text, r.x + ZUI_S3, r.y + 36, r.w - 2 * ZUI_S3, C(MUTED),
                          zui_lock_notice_text(l, i));
         }
     }
-    zui_engrave(s, lay.emergency, ZUI_R_CONTROL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70u);
-    zui_stroke_rrect(s, lay.emergency, ZUI_R_CONTROL, 1, ZUI_EDGE, 255);
-    centred(s, l->text, lay.emergency, ZUI_TEXT_2, "Emergency");
+    zui_engrave(s, lay.emergency, ZUI_R_CONTROL, C(ENGRAVE_LO), C(ENGRAVE_HI), 70u);
+    zui_stroke_rrect(s, lay.emergency, ZUI_R_CONTROL, 1, C(EDGE), 255);
+    centred(s, l->text, lay.emergency, C(TEXT_2), "Emergency");
     zui_unclip(s);
 }

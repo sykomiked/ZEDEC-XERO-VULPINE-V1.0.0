@@ -33,6 +33,41 @@
  *   W7 DAMAGE. A change marks only that widget's rectangle; zui_ui_paint
  *      repaints the damaged parts and hands the same rectangles to the
  *      present layer (zui_present.h P1).
+ *   W8 CHOICES. A toggle (a switch), a check box, radio buttons (the radios
+ *      of one box are one group), a slider and tabs (or a segmented control)
+ *      work by pointer, touch, keyboard, switch access and voice: Enter or
+ *      Space flips a toggle or check box and picks a radio or a tab; arrows
+ *      move within a radio group or a tab list (the choice follows) and step
+ *      a slider (Page Up/Down ten steps, Home/End the ends; a scroll wheel
+ *      steps too). Each says what changed with ZUI_ACT_CHANGE (arg = the new
+ *      value: 0/1 for a toggle or check box, the slider's value) or
+ *      ZUI_ACT_SELECT (arg = the index of the radio or tab chosen). Only the
+ *      chosen radio and the chosen tab are in the Tab order (roving focus).
+ *   W9 DIALOGS. zui_dialog builds a modal dialog (a sheet along the bottom on
+ *      a compact screen) that is hidden until zui_dialog_open. While one is
+ *      open a scrim covers the screen behind it, focus stays inside it (Tab
+ *      wraps within it, nothing behind can be clicked, focused or reached by
+ *      switch access), Escape closes it with ZUI_ACT_DISMISS on the dialog,
+ *      and closing puts focus back where it was.
+ *   W10 TOOLTIPS. zui_set_tooltip gives any widget a one-line tip, shown
+ *      ZUI_TIP_MS after the pointer rests on it or keyboard focus reaches it,
+ *      under it (above when there is no room), gone on any press, key or
+ *      scroll. It fades in over ZUI_MOTION_MS, or is simply there under
+ *      reduce_motion. A screen reader reads it as the widget's description.
+ *   W11 OVERFLOW SHOWS. A list, scroll area or text area holding more than
+ *      fits draws a scroll indicator (a track and a thumb at 3:1 against the
+ *      ground) and a fade at each edge with more beyond it; pressing the
+ *      track pages toward the press. zui_a11y_text says how much is hidden.
+ *   W12 EMPTY STATES. zui_empty is the one empty-state component: an
+ *      engraved vector icon, one line, and an optional primary action,
+ *      centred in the space it is given (ZUI_ACT_PRESS on the zui_empty id).
+ *   W13 COLOURS BY ROLE (zui_palette.h C6): zui_ui_set_colors chooses the
+ *      set; dark (NULL) is pixel for pixel the zui_tokens.h screen.
+ *   W14 CARET ORDER. With zui_ui_t.caret set (zui_caret.h: the UAX #9 one),
+ *      a text field lays each line out in visual order: the caret, the
+ *      selection, clicks and Left/Right follow what is seen in right-to-left
+ *      and mixed text, while the buffer and every edit stay in logical
+ *      order. NULL (the default) is left-to-right only.
  *
  * Sizes are in points; zui converts with the screen's scale. Integer only.
  */
@@ -44,6 +79,7 @@
 #include "zui_canvas.h"
 #include "zui_input.h"
 #include "zui_layout.h"
+#include "zui_palette.h"
 #include "zui_present.h"
 
 #ifndef ZUI_WIDGETS
@@ -59,17 +95,36 @@ typedef int32_t zui_id_t; /* a widget's index in the pool; -1 = none */
 #define ZUI_NONE (-1)
 
 typedef enum {
-    ZUI_W_BOX = 0,  /* a container: a row or a column of children   */
-    ZUI_W_LABEL,    /* text that is read, not edited                 */
-    ZUI_W_BUTTON,   /* activates on click, tap, Enter or Space       */
-    ZUI_W_LIST,     /* rows the caller supplies; selection; scrolls  */
-    ZUI_W_FIELD,    /* editable text, one line or many               */
-    ZUI_W_SCROLL,   /* a column taller than its box, scrolled        */
-    ZUI_W_HELD,     /* W4: an AI answer waiting for accept / reject  */
-    ZUI_W_PROGRESS, /* the ZXV bar (zui_progress.h)                  */
-    ZUI_W_CANVAS,   /* the app paints it (a picture, a chart, faces) */
-    ZUI_W_SEPARATOR /* an engraved hairline                          */
+    ZUI_W_BOX = 0,   /* a container: a row or a column of children   */
+    ZUI_W_LABEL,     /* text that is read, not edited                 */
+    ZUI_W_BUTTON,    /* activates on click, tap, Enter or Space       */
+    ZUI_W_LIST,      /* rows the caller supplies; selection; scrolls  */
+    ZUI_W_FIELD,     /* editable text, one line or many               */
+    ZUI_W_SCROLL,    /* a column taller than its box, scrolled        */
+    ZUI_W_HELD,      /* W4: an AI answer waiting for accept / reject  */
+    ZUI_W_PROGRESS,  /* the ZXV bar (zui_progress.h)                  */
+    ZUI_W_CANVAS,    /* the app paints it (a picture, a chart, faces) */
+    ZUI_W_SEPARATOR, /* an engraved hairline                          */
+    ZUI_W_TOGGLE,    /* W8: an on/off switch with its label           */
+    ZUI_W_CHECK,     /* W8: a check box (off, on, mixed)              */
+    ZUI_W_RADIO,     /* W8: one of the radios in its box              */
+    ZUI_W_SLIDER,    /* W8: a value in [min, max] by steps            */
+    ZUI_W_TABS,      /* W8: a row of tabs or segments (holds ZUI_W_TAB) */
+    ZUI_W_TAB,       /* W8: one tab of a ZUI_W_TABS                    */
+    ZUI_W_DIALOG,    /* W9: a modal dialog or sheet                   */
+    ZUI_W_EMPTY      /* W12: an empty state: icon, line, action        */
 } zui_kind_t;
+
+/* W12: the empty state's engraved icon. */
+typedef enum {
+    ZUI_ICON_FOLDER = 0, /* nothing in a folder         */
+    ZUI_ICON_PICTURE,    /* nothing to look at          */
+    ZUI_ICON_CONSOLE,    /* nothing called yet          */
+    ZUI_ICON_BELL,       /* no notifications            */
+    ZUI_ICON_SEARCH      /* nothing matched             */
+} zui_icon_t;
+
+#define ZUI_TIP_MS 500u /* W10: rest this long before a tooltip shows */
 
 typedef enum { ZUI_COL = 0, ZUI_ROW } zui_dir_t;
 
@@ -101,7 +156,7 @@ typedef enum {
     ZUI_ACT_SELECT,  /* a list: arg = the newly selected row (-1 none) */
     ZUI_ACT_OPEN,    /* a list: arg = row, by double click or Enter    */
     ZUI_ACT_CHANGE,  /* a field's text changed                         */
-    ZUI_ACT_SUBMIT,  /* Enter in a one-line field                      */
+    ZUI_ACT_SUBMIT,  /* Enter in a one-line field, Cmd-Enter in a text area */
     ZUI_ACT_CONTEXT, /* right click, long press, or the Menu key: arg = row for a list */
     ZUI_ACT_PICK,    /* a menu item or palette action: arg = its index */
     ZUI_ACT_ACCEPT,  /* W4: the held answer's Accept                   */
@@ -175,6 +230,8 @@ typedef struct {
     char label[ZUI_LABEL_MAX];
     char name[ZUI_NAME_MAX]; /* W6: accessible name when not the label */
     char shortcut[16];       /* shown on a button ("⌘S")               */
+    char tip[ZUI_NAME_MAX];  /* W10: the tooltip ("" none)             */
+    bool wrap;               /* a row that wraps onto more lines        */
     int32_t tag;             /* the app's own number                   */
     union {
         zui_field_t field;
@@ -191,6 +248,23 @@ typedef struct {
             void *ctx;
         } canvas;
         struct {
+            uint8_t state; /* W8: 0 off, 1 on, 2 mixed (check box only) */
+        } check;
+        struct {
+            int32_t value, min, max, step; /* W8: the slider */
+        } range;
+        struct {
+            int32_t sel;    /* W8: the chosen tab                   */
+            bool segmented; /* carved segments instead of tabs     */
+        } tabs;
+        struct {
+            zui_id_t back; /* W9: focus to restore on close */
+            bool sheet;    /* laid out as a bottom sheet      */
+        } dialog;
+        struct {
+            uint8_t icon; /* W12: zui_icon_t */
+        } empty;
+        struct {
             char agent[32];
             uint64_t tokens;
             bool exact;
@@ -202,6 +276,29 @@ typedef struct {
 typedef struct {
     zui_text_t body, label, title, mono;
 } zui_theme_t;
+
+/* W14: one line of a field in visual order. c[] is in logical order; each
+ * character has its bytes [a, b), its box [x0, x1) in 1/256 px from the
+ * line's start, whether it runs right to left, and the code point to draw
+ * (mirrored brackets in right-to-left runs). */
+#define ZUI_CARET_MAX 256u
+typedef struct {
+    uint32_t n;
+    bool rtl; /* the paragraph runs right to left (the line aligns right) */
+    int32_t width;
+    struct {
+        uint32_t a, b;
+        int32_t x0, x1;
+        bool rtl;
+        uint32_t cp;
+    } c[ZUI_CARET_MAX];
+} zui_caret_line_t;
+/* The width in 1/256 px of bytes [a, b) of s as the widget measures them. */
+typedef int32_t (*zui_measure_fn)(const zui_text_t *t, const char *s, uint32_t a, uint32_t b);
+/* W14: lay out bytes [a, b) of s (len bytes in all; the paragraph is
+ * found around [a, b)). False: draw this line left to right. */
+typedef bool (*zui_caret_fn)(const zui_text_t *t, zui_measure_fn measure, const char *s,
+                             uint32_t len, uint32_t a, uint32_t b, zui_caret_line_t *out);
 
 /* The modal layer: one menu or the palette at a time. */
 typedef struct {
@@ -261,12 +358,26 @@ struct zui_ui {
     char clip_local[1024];
     uint32_t clip_local_len;
     uint32_t overflow; /* widgets refused because the pool was full */
+    /* zui_palette.h C6: the colour set painted with (NULL: dark, zui_tokens.h) */
+    const zui_colors_t *colors;
+    zui_id_t modal;     /* W9: the open dialog, ZUI_NONE for none   */
+    zui_id_t tip_for;   /* W10: the widget the tip waits on or shows */
+    uint32_t tip_since; /* when it started waiting                   */
+    bool tip_kbd;       /* it came from keyboard focus               */
+    zui_rect_t tip_r;   /* where it was drawn (damage)               */
+    zui_caret_fn caret; /* W14: NULL left to right                   */
 };
 
 /* ---- building --------------------------------------------------------- */
 
 void zui_ui_init(zui_ui_t *ui, const zui_screen_t *screen, const zui_theme_t *theme);
 void zui_ui_on(zui_ui_t *ui, zui_on_fn on, void *ctx);
+/* zui_palette.h C6: paint with this colour set from now on (NULL: dark).
+ * Borrowed, not copied. Every colour the widgets draw is a role in it; a
+ * colour an app stored as a zui_tokens.h value (zui_set_font, a row's
+ * lead_rgb) names its role and follows the set too. Repaints everything. */
+void zui_ui_set_colors(zui_ui_t *ui, const zui_colors_t *colors);
+uint32_t zui_ui_color(const zui_ui_t *ui, zui_color_role_t role); /* for canvases */
 /* Remove every widget (a view switching screens rebuilds its tree). */
 void zui_ui_clear(zui_ui_t *ui);
 
@@ -284,6 +395,24 @@ zui_id_t zui_held(zui_ui_t *ui, zui_id_t parent); /* W4: builds its text and two
 zui_id_t zui_progress(zui_ui_t *ui, zui_id_t parent);
 zui_id_t zui_canvas(zui_ui_t *ui, zui_id_t parent, zui_paint_fn paint, void *ctx);
 zui_id_t zui_separator(zui_ui_t *ui, zui_id_t parent);
+/* W8 */
+zui_id_t zui_toggle(zui_ui_t *ui, zui_id_t parent, const char *text, bool on);
+zui_id_t zui_check(zui_ui_t *ui, zui_id_t parent, const char *text, bool on);
+zui_id_t zui_radio(zui_ui_t *ui, zui_id_t parent, const char *text, bool on);
+zui_id_t zui_slider(zui_ui_t *ui, zui_id_t parent, int32_t min, int32_t max, int32_t step,
+                    int32_t value);
+/* Tabs (segmented false) or a segmented control, with n labels; sel chosen. */
+zui_id_t zui_tabs(zui_ui_t *ui, zui_id_t parent, const char *const *labels, uint32_t n, int32_t sel,
+                  bool segmented);
+/* W9: a dialog over the whole screen with this title; add its content and
+ * buttons as children of the id returned. Hidden until opened. */
+zui_id_t zui_dialog(zui_ui_t *ui, const char *title);
+void zui_dialog_open(zui_ui_t *ui, zui_id_t dialog);
+void zui_dialog_close(zui_ui_t *ui, zui_id_t dialog);
+/* W12: action NULL draws no button. The button is the empty state's last
+ * child; a press on it reaches the app as ZUI_ACT_PRESS on the empty id. */
+zui_id_t zui_empty(zui_ui_t *ui, zui_id_t parent, zui_icon_t icon, const char *line,
+                   const char *action);
 
 zui_widget_t *zui_w(zui_ui_t *ui, zui_id_t id); /* NULL for ZUI_NONE or out of range */
 
@@ -305,6 +434,17 @@ void zui_field_selection(const zui_ui_t *ui, zui_id_t field, uint32_t *start, ui
 void zui_held_set(zui_ui_t *ui, zui_id_t held, const char *agent, uint64_t tokens, bool exact,
                   const char *text, uint8_t state);
 void zui_progress_set(zui_ui_t *ui, zui_id_t bar, uint32_t p, uint8_t mode);
+void zui_set_tooltip(zui_ui_t *ui, zui_id_t id, const char *tip); /* W10 */
+void zui_set_wrap(zui_ui_t *ui, zui_id_t row, bool wrap);         /* a row of buttons wraps */
+/* W8: a toggle's, check box's or radio's state (2 = mixed, check boxes
+ * only); choosing a radio clears the others of its box. */
+void zui_set_checked(zui_ui_t *ui, zui_id_t id, uint8_t state);
+uint8_t zui_checked(const zui_ui_t *ui, zui_id_t id);
+void zui_slider_set(zui_ui_t *ui, zui_id_t slider, int32_t value); /* clamped, on a step */
+int32_t zui_slider_value(const zui_ui_t *ui, zui_id_t slider);
+void zui_tabs_select(zui_ui_t *ui, zui_id_t tabs, int32_t sel);
+/* W8: the index of a radio among its box's radios, or of a tab. */
+int32_t zui_choice_index(const zui_ui_t *ui, zui_id_t id);
 void zui_invalidate(zui_ui_t *ui, zui_id_t id); /* repaint (a canvas whose data changed) */
 void zui_relayout(zui_ui_t *ui);                /* after a resize or a structural change */
 
@@ -347,6 +487,13 @@ bool zui_ui_frame(zui_ui_t *ui, zui_present_t *p, zui_queue_t *q, zui_surface_t 
 zui_id_t zui_hit(const zui_ui_t *ui, int32_t x, int32_t y); /* deepest widget at a point */
 /* The list row at a point, or -1. */
 int32_t zui_list_row_at(const zui_ui_t *ui, zui_id_t list, int32_t x, int32_t y);
+/* W11: the scroll indicator's track of a list, scroll area or text area
+ * (all zero when everything fits). */
+zui_rect_t zui_scroll_track(const zui_ui_t *ui, zui_id_t id);
+/* W10: the tooltip on screen now (r all zero and NULL when none). */
+const char *zui_tooltip_shown(const zui_ui_t *ui, zui_rect_t *r);
+/* W14: a field's caret as drawn: x, y of its top and its height, in px. */
+void zui_field_caret_rect(const zui_ui_t *ui, zui_id_t field, zui_rect_t *out);
 
 /* W6: the tree as a screen reader reads it, one widget per line, indented
  * by depth: "button \"Save\" focused", "list \"Files\" 12 rows, row 3 selected".

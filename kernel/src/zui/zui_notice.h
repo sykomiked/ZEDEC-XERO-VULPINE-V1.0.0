@@ -64,6 +64,11 @@
  *       two never share a screen).
  *       Drawing also records where each notice and action is, for
  *       zui_notice_hit. Integer only, no allocation, deterministic.
+ *   NC11 PREVIEWS OFF. With hide_previews set (the person's privacy
+ *       setting) no title, body or action is drawn: the panel shows one
+ *       card per app saying how many it has ("3 notifications", from
+ *       zui_notice_summary) and the banner says the same for its app.
+ *       Opening the card still reaches the app (ZUI_NOTICE_HIT_CARD).
  */
 #ifndef ZXV_ZUI_NOTICE_H
 #define ZXV_ZUI_NOTICE_H
@@ -72,6 +77,7 @@
 #include <stdint.h>
 
 #include "zui_canvas.h"
+#include "zui_palette.h"
 
 #ifndef ZUI_NOTICE_MAX
 #    define ZUI_NOTICE_MAX 64u
@@ -198,6 +204,8 @@ typedef struct {
     zui_notice_hit_t hit[ZUI_NOTICE_HITS];
     uint32_t nhit;
     uint64_t now; /* the latest time seen */
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark */
+    bool hide_previews;         /* NC11 */
 } zui_notice_center_t;
 
 void zui_notice_init(zui_notice_center_t *c);
@@ -270,6 +278,9 @@ int32_t zui_notice_draw_center(zui_notice_center_t *c, zui_surface_t *s, zui_rec
 /* Draws the banner (if any) in r. Returns false when there is none. */
 bool zui_notice_draw_banner(zui_notice_center_t *c, zui_surface_t *s, zui_rect_t r,
                             const zui_text_t *text);
+/* NC11: "3 notifications" ("1 notification") for app (NULL: all of them).
+ * Returns the length written (always NUL-terminated when cap > 0). */
+uint32_t zui_notice_summary(const zui_notice_center_t *c, const char *app, char *out, uint32_t cap);
 /* What the last drawing put at (x, y): its notice id (0 none) and the
  * action (an index, or ZUI_NOTICE_HIT_*); banner says it was the banner's. */
 uint32_t zui_notice_hit(const zui_notice_center_t *c, int32_t x, int32_t y, int32_t *action,

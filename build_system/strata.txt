@@ -60,6 +60,8 @@ choice                           kernel
 clock                            kernel
 codec                            kernel
 crash                            kernel     # crash records on disk and boot modes (safe, recovery)
+vaudio                           kernel     # ZXVA vector audio renderer and analyser: freestanding, integer only (zxva_cuda.c, zxva_vk.c: hosted GPU backends, never in an image)
+vshape                           kernel     # ZXVS data shape descriptors: freestanding, integer only
 deploy                           kernel
 display                          kernel
 el0_userspace                    kernel
@@ -290,6 +292,9 @@ community_chest                  above
 denconnect                       above
 desktop                          above
 zui                              above      # native UI: renderer, widgets, input, present, app screens (#104, #110)
+media                            above      # raster image and video decoders; draw into zui surfaces
+vshape/zxvs_draw                 above      # draws a ZXVS descriptor through zui_vec
+vtrace                           above      # raster pictures and films to ZXVG / ZXVM vector (GPU stages: CUDA, Vulkan)
 dualtrack                        above
 emu                              above
 font                             above

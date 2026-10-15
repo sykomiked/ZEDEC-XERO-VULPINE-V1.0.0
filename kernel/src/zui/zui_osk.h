@@ -43,6 +43,7 @@
 #include <stdint.h>
 
 #include "zui_canvas.h"
+#include "zui_palette.h"
 #include "zui_input.h"
 #include "zui_keymap.h"
 
@@ -103,6 +104,7 @@ typedef struct {
     uint32_t shift_ms; /* when Shift was last tapped                  */
     bool shift_tapped;
     uint32_t repeat_delay_ms, repeat_ms;
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark */
 } zui_osk_t;
 
 void zui_osk_init(zui_osk_t *o, const zui_keymap_t *km);
