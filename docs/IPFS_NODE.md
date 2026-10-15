@@ -10,7 +10,7 @@ AI use it for three things:
 
 1. **Pulling content from the network.** A CID is fetched and every block is
    checked before it is used.
-2. **Naming items in the peer-to-peer economy.** The Carracho network uses
+2. **Naming items in the peer-to-peer economy.** The Vinea network uses
    these CIDs as the IDs of the things it trades.
 3. **Naming files in the system.** Every file gets a content ID next to its
    path.
@@ -59,7 +59,7 @@ reference no libc symbols.
 | `ipfsn_multiformats.c` | Unsigned varint, multihash (sha2-256 `0x12`, identity `0x00`), CIDv0/v1 binary, base32-lower (`b…`), base58btc (`Qm…`), v0→v1 |
 | `ipfsn_unixfs.c` | Streaming UnixFS/dag-pb builder, strict dag-pb and UnixFS readers, DAG walker (`ipfsn_cat`) |
 | `ipfsn_store.c` | Blockstore over host storage ops, sealed private blocks, pins, provider gate, `ipfsn_add` |
-| `ipfsn_net.c` | CAR v1 reader and writer, trustless-gateway client, Carracho peer hook, `ipfsn_node_cat` |
+| `ipfsn_net.c` | CAR v1 reader and writer, trustless-gateway client, Vinea peer hook, `ipfsn_node_cat` |
 | `ipfsn_ubh.c` | UBH-168 framing of CIDs and blocks, text form, wire negotiation |
 | `ipfsn_fidx.c` | OS file index: path → CID and CID → paths |
 
@@ -187,7 +187,7 @@ caller-owned RAM and is not persisted.
 - **CAR responses.** The CAR's roots must include the CID requested. Every
   block is checked in a first pass, before any block is stored. A single
   tampered block rejects the whole response.
-- **Carracho peers.** `ipfsn_peer_ops_t.want(cid_bin) → bytes` is the hook.
+- **Vinea peers.** `ipfsn_peer_ops_t.want(cid_bin) → bytes` is the hook.
   The bytes are decoded in the negotiated wire syntax (§8) and checked here.
 - **One source for everything.** `ipfsn_node_source` tries the local store,
   then peers, then the gateway. Fetched blocks are stored as PUBLIC, since they
@@ -281,7 +281,7 @@ The negative tests cover:
 ## 10. Honest limits
 
 - No libp2p, Bitswap or DHT (§1). Announcing goes to a host-supplied provider
-  hook (for example a pinning service or the Carracho provider table), not to
+  hook (for example a pinning service or the Vinea provider table), not to
   the IPFS DHT.
 - Only UnixFS **files** are built. Plain and HAMT-sharded directories are read
   by `kernel/src/ipfs_node/ipfsn_dir.c` (tested by `test_ipfsn_dir.c` with

@@ -1,20 +1,24 @@
 <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
      SPDX-License-Identifier: Apache-2.0 -->
-# ZXV Complete Architecture
+# ZXV Architecture
 
-ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA. Registered to 36N9 Genetics LLC, Michael Laurence Curzi.
-Code licence Apache-2.0.
+ZEDEC XERO VULPINE (ZXV) / VOVINA SHAKINA. Created by 36N9 GENETICS LLC (Michael Laurence Curzi).
+Code licence Apache-2.0; hardware designs under the [ZXV Hardware License](../LICENSE-HARDWARE.md).
 
-Version 4.1, **2026-10-11, 01:30 UTC**. This is the full architecture: everything specified so far,
-how the parts fit together, and the state of each one. It replaces earlier versions of this file.
-New in 4.1: integration gap A4 is done (the fee loop and the trade loop are in the app), and the
-full-model low-bit weight results are in.
+Version 5.0, **2026-10-15**. This is the one architecture document for ZXV: every part of the
+system, how the parts fit together, what state each one is in, and where its detailed doc lives.
+It replaces version 4.1 (2026-10-11) and absorbs the older overlapping architecture files listed
+in section 22, which now point here. [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md) is its companion:
+one entry for every kernel module.
 
-Sources: the repository (PR #1, merged into `main` on 2026-10-11 as `d832fe1`; figures below were
-measured at `94fbd0d`, with all 21 GitHub checks green), the gap audit ([GAP_AUDIT.md](GAP_AUDIT.md)),
-the per-module reference ([SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md)), the audit
-([AUDIT_REPORT.md](AUDIT_REPORT.md)), project memory, the build thread "Plan adaptive local AI
-architecture" and the "Real model test" thread (report in draft PR #4).
+**What this version was checked against.** The tree at merge batch #156 (`7d4297c2`, which brings
+22 pull requests onto `main` `4bea0160`), the open draft pull requests #129, #140, #141, #153,
+#154 and #155, the branches other threads have committed locally and are holding for the CI
+freeze, the audits of 2026-10-15 (vertical integration, docs against code, GUI review) and the
+decisions recorded with the owner. Module facts come from `build_system/strata.txt`,
+`kernel/Makefile`, each module's tests (run for this audit) and a search for each module's
+callers. The audit behind this version, with its gap list and fill plan, is
+[ARCHITECTURE_AUDIT_2026-10-15.md](ARCHITECTURE_AUDIT_2026-10-15.md).
 
 ---
 
@@ -22,137 +26,287 @@ architecture" and the "Real model test" thread (report in draft PR #4).
 
 1. What ZXV is, and where it stands
 2. The rules every part follows
-3. The stack at a glance
-4. The two loops that join it
-5. Stratum 0: shared base
-6. Stratum 1: kernel and hardware abstraction
-7. Stratum 2: transport
-8. Stratum 3: trust and identity
-9. Stratum 4: logic and fault handling
-10. Stratum 5: AI runtime and swarm
-11. Stratum 6: settlement and economy
-12. Stratum 7: adapters and the five language pillars
-13. Above the strata: products, apps and people features
-14. Cross-cutting layers: privacy, transport continuum, use cases
-15. Quality: tests, self-audit, self-healing, the 13:1 target
-16. Order of work
-17. Decisions made
-18. Decisions still open
-19. Where spec text and the design differ
-20. Design analogy: the seven quantum levels
-21. Honest notes
+3. Two views of one system: value strata and hardware layers
+4. How ZXV runs: the four surfaces
+5. Building and shipping: images, the golden disc and packages
+6. The loops that join it
+7. Stratum 0: shared base
+8. Stratum 1: kernel and hardware
+9. Stratum 2: transport and networking
+10. Stratum 3: trust and identity
+11. Stratum 4: logic and fault handling
+12. Stratum 5: AI runtime and the Tiamat agency
+13. Stratum 6: settlement and economy
+14. Stratum 7: adapters, languages and the five pillars
+15. Above the strata: the desktop, apps and people features
+16. Cross-cutting: privacy, transport continuum, use cases
+17. Quality: tests, self-audit, the 13:1 target
+18. Order of work
+19. Decisions made
+20. Decisions still open
+21. Where spec text and the design differ
+22. Document map
+23. Honest notes
+
+Appendix A: every kernel module by stratum.
 
 ### Status labels
 
 | Label | Meaning |
 |---|---|
-| ✅ **Built** | In the code and tested on every CI run |
-| 🧩 **Built, not connected** | Works and is tested, but no product calls it yet |
-| 🟡 **Partial** | Some of it works; gaps listed |
-| 🔧 **In progress** | Being built now |
-| 📋 **Queued** | Specified and agreed; waiting its turn |
-| 💭 **Open** | Needs a decision or a design first |
+| ✅ **Built** | Code and tests on `main`, or in merge batch #156 (marked "#156"), run on every CI pass |
+| 🧩 **Built, not wired** | Works and is tested, but nothing a user runs (the app, zxvd, an image) calls it |
+| 🟡 **Partial** | Some of it works; the gaps are named |
+| 📝 **Draft PR** | Code and tests on an open draft pull request (number given), not merged |
+| 🔒 **Local** | Code and tests committed on a thread's branch that waits for the CI freeze to lift; not yet on GitHub |
+| 📋 **Designed** | A written design, no code |
+| 💭 **Open** | Needs a decision first |
 
-Every row also carries its **agreed limits**: what the part will deliberately not do, or not claim.
+Every row also says what the part deliberately will not do or claim, where that matters.
 
 ---
 
 ## 1. What ZXV is, and where it stands
 
-**ZXV is a vertically integrated stack: one freestanding, integer-only C code base that runs as a
-desktop app, as a bootable operating system and as an embeddable library.** On top of it sit a
-local AI swarm, a post-quantum peer-to-peer network, and an exact, interest-free settlement
+**ZXV is one freestanding, integer-only C code base that runs three ways: as a desktop app on
+macOS, Linux and Windows, as a bootable operating system, and as an embeddable library behind
+twelve language SDKs.** On it sit a local multi-agent AI (the Tiamat Productive Agency AI, a
+swarm of specialist models that check each other), a post-quantum peer-to-peer network, a
+four-valued (paraconsistent) logic used for every verdict, and an exact, interest-free settlement
 economy with adapters to the outside financial world.
 
-### Where it stands
+### Where it stands (2026-10-15)
 
-| Measure | Now |
-|---|---|
-| Code | ~300,000 lines of protocol C in 202 live modules; 12 dead modules archived |
-| GitHub second opinion | 21 of 21 checks green on `94fbd0d`, including CodeQL, the mutation gate, fail-closed boots of five CPU targets, and the TLA+/Lean proofs |
-| Local verify | 4,515 checks, 5 image builds, 2 boots, all passing |
-| Real AI model | **Runs.** Qwen2.5-1.5B on the ZXV integer engine: perplexity 9.371 vs llama.cpp 9.362, same answers on all 8 test prompts, bit-identical on x86 and arm64. Slower: ~11 vs 15–18 tokens/s |
-| Ledger fuzzing | 222 million netting operations across 4 ledgers, all clean |
-| Test strength | Mutation scores: settlement spine 89.6%, libzxv engine 86–89% (GitHub runner vs local), trade loop 86%, quota maths 96% |
-| Test-to-code ratio | **0.36:1** against a 13:1 target |
+| Measure | Now | Evidence |
+|---|---|---|
+| Kernel modules | 261 directories under `kernel/src` (242 on `main`, 19 added by #156), each assigned a stratum | `build_system/strata.txt`, checked by `verify_strata.py` in CI |
+| Code size | About 460,000 lines of C and headers in `kernel/src` outside tests; 61,000 in `kernel/arch` | `wc -l` at `7d4297c2` |
+| Tests | 408 test programs in `kernel/src` (about 200,000 lines); 707 test files in the repository | same |
+| Kernel images | Five CPU targets boot under QEMU and CI fails any that does not reach `[BOOT_OK]`; arm64 and x86_64 also pass the AI self-check `[AI_OK]` | `build_system/ci_boot_check.sh` |
+| What a user runs today | The desktop app (zxvd engine with an HTML window), ZXV Studio on the Mac, the phone companion, and plain UEFI discs that boot to a self-test | section 4 |
+| Real AI model | Qwen2.5-1.5B runs on the integer engine, bit-identical on every CPU; perplexity 9.371 against llama.cpp's 9.362; the whole forward pass also runs on an Apple GPU, bit-exact | [TENSOR_ENGINE.md](TENSOR_ENGINE.md), [GPU_STRATEGY.md](GPU_STRATEGY.md) |
+| libzxv | ABI 1.6.0 (#156; `main` has 1.5.0), 468 exported functions, 15 capability bits | `sdk/libzxv/include/zxv_api.h`, `sdk/docs/ABI.md` |
+| Test-to-code ratio | About 0.6:1 against the 13:1 target | 2026-10-15 audit (H1) |
+| Physical hardware | Never booted on a physical PC or board | [BAREMETAL.md](BAREMETAL.md) |
 
-### How far along
+### What merge batch #156 brings
 
-My judgement from the code, tests and gap audit.
+The x86_64 handoff and the four-state frame allocator, crash records and recovery boot (arm64),
+the bash-familiar terminal, the QUBO workbench and the other exact solvers, protocol twins and
+AFTP, the whole forward pass on the GPU, the paraconsistent decision engines, the IRC gateway,
+Lingua with FORTRAN, BASIC and Forth, the circuit-board app builder, the depth filter and login
+screen, AIRC, vector graphics with the astrolabe dock, the offline outbox counter, 104 spoken
+languages, public spaces, the end-user agreement, the launch screens, libzxv 1.6 (Vino) in every
+SDK, the README rewrite and the adversarial-audit fixes. Until #156 merges, those parts are on
+GitHub but not on `main`.
 
-| Stage | Progress |
-|---|---|
-| Build the parts | ~80% of what was specified up to this morning. Much more has been specified since (sections 12 and 14), so as a share of the whole plan it is lower, about 50% |
-| Harden them | ~80% |
-| Join them (integration pass A1–A6) | 3 of 6 done (A1 ledger of record, A2 libzxv engine, A4 fee and trade loops); A3 next |
-| Real model | First run done and measured |
-| Tests at 13:1 | 0.36:1 |
-| Ship and release | Not yet |
+### One sentence on maturity
+
+The parts are mostly built and tested one by one; joining them into one product that boots on
+real hardware with one native interface is the work that remains (section 18). ZXV is
+vertically **designed** but not yet vertically **integrated**.
 
 ---
 
 ## 2. The rules every part follows
 
-These rules came from you or were agreed with you. Every module is held to them.
+These rules came from the owner or were agreed with the owner. Every module is held to them.
 
 | # | Rule | Where it bites |
 |---|---|---|
 | R1 | **Integer only in the kernel.** No floating point in kernel images; banned at compile time | Bit-identical results on every chip, so answers can be signed and re-checked |
-| R2 | **Lower strata never depend on higher ones** | Checked in CI (gap B1, done): `build_system/strata.txt` gives every module a stratum, and `build_system/verify_layers.sh` with `build_system/verify_strata.py` fails on an upward include (`.github/workflows/ci.yml`) |
+| R2 | **Lower strata never depend on higher ones** | Checked in CI: `build_system/strata.txt` gives every module a stratum and `build_system/verify_strata.py` (run by `verify_layers.sh`) fails on an upward include |
 | R3 | **Money is exact.** A = L + E after every posting; claims equal deposits; issuance is backed only; no usury | Hard invariants that fail closed |
 | R4 | **The AI proposes; the exact kernel decides.** Model output is untrusted input | Nothing a model says can write a balance |
-| R5 | **Hard invariants are always FALSE when broken, never Both.** Only genuinely allowed disagreements (e.g. GAAP vs IFRS treatment) become Both | Four-valued logic can't hide a bug |
+| R5 | **Hard invariants are FALSE when broken, never BOTH.** Only genuinely allowed disagreements (GAAP against IFRS, two jurisdictions) become BOTH | Four-valued logic can't hide a bug |
 | R6 | **No silent fixes.** Forecasts report; production may only refuse, roll back or isolate, each with a signed receipt | Self-healing |
-| R7 | **Shorthand parser in libzxv, execution in userland, signed integer results back** | All five language pillars |
-| R8 | **Life-safety, clinical and grid actions are advisory and human-approved.** Defense work is limited to logistics, medical and mapping; no weapons targeting | Use cases |
-| R9 | **Measured, never promised.** Speed, compression and netting savings are reported only after measurement | All docs and pitches |
+| R7 | **Shorthand parser in libzxv, execution in user space, signed integer results back** | All five language pillars |
+| R8 | **Life-safety, clinical and grid actions are advisory and human-approved.** Defense work is limited to logistics, medical and mapping, including the tactics and strategy engines; no weapons targeting. Financial analysis is advisory | Use cases, `pce` engines |
+| R9 | **Measured, never promised.** Speed, compression and netting savings are reported only after measurement on named hardware | All docs and pitches |
 | R10 | **Designed to follow, never "certified" or "compliant".** No claimed connection to PAPSS, SWIFT, central banks or card schemes | Adapters |
 | R11 | **Local first; networking off by default** | The app opens no socket until the user turns it on |
-| R12 | **No monopoly; cooperative markets; one fee for everyone** | Economy |
-| R13 | **Holographic coding stays on the device; the wire carries original codes** | Measured: holographic form is lossless but larger |
+| R12 | **No monopoly; cooperative markets; one fee for everyone** (0.08889%) | Economy |
+| R13 | **Holographic weight coding stays on the device; the wire carries original codes** | Measured: the coded form is lossless but larger |
 | R14 | **No defensive reflection.** Tarpit and isolate; never send traffic anywhere unasked | Network defence |
-| R15 | **Guardians approve with their own signatures and hold no key shares** | Recovery |
-| R16 | **GPU-first, integer-exact.** Model work runs on the GPU wherever one exists, with no per-step round trips to the CPU; every GPU kernel gives the C reference's exact integers | [GPU_STRATEGY.md](GPU_STRATEGY.md); kernel images stay CPU-only (R1) |
+| R15 | **Guardians approve with their own signatures and hold no key shares** | Recovery. The code differs: `kernel/src/ident` gives each guardian a Shamir share of one of the three recovery factors (G); G alone opens nothing. 💭 section 20 |
+| R16 | **GPU-first, integer-exact.** Model work runs on the GPU wherever one exists, with no per-step round trips; every GPU kernel gives the C reference's exact integers | [GPU_STRATEGY.md](GPU_STRATEGY.md); kernel images stay CPU-only (R1) |
+| R17 | **Native vector graphics everywhere.** Icons, logos and boot art are vectors (ZXVG) drawn by `zui_vec`; PNG, JPEG and video can still be opened | Brand and UI (2026-10-14) |
+| R18 | **One native look on every surface.** Bare metal, the desktop app and Studio draw the same desktop from the same zui tokens; never browser-looking | UI (2026-10-12, 2026-10-15) |
+| R19 | **Nature boundaries are hard budgets** | Energy, compute and growth limits in the swarm and the economy |
+| R20 | **Shipped model weights must allow commercial use** (MIT, Apache-2.0, BSD, CC0 allow list); weights never go in git | AI lineup, golden disc |
+| R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
+| R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
+| R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
 
 ---
 
-## 3. The stack at a glance
+## 3. Two views of one system: value strata and hardware layers
+
+ZXV is described two ways. Both are true at once.
+
+### 3.1 The value strata (how the code depends on itself)
+
+Every module sits on one of nine strata, and a module may include only its own stratum or lower
+ones (R2). This is enforced in CI.
 
 ```text
  ┌───────────────────────────────────────────────────────────────────────────────┐
- │ PRODUCTS     Mac/Win/Linux app · zxvd daemon + SDKs · libzxv · kernel image · mobile │
+ │ S8 ABOVE     desktop, zui, apps, launch, i18n, terms, games, social, browser   │  45
  ├───────────────────────────────────────────────────────────────────────────────┤
- │ PEOPLE       chat, calls, streaming, social feed, speech, translation, games   │
+ │ S7 ADAPTERS  ISO 20022 · accounting · jurisdiction · zxv_policy · treaties ·   │  31
+ │              Lingua · five pillars · hardware emulation · fwadapt              │
+ │ S6 SETTLE    ledger of record · 0.08889% fee · V-Bills · auctions · Vino ·     │  42
+ │              central bank · cards · markets · estates · AIRC                   │
+ │ S5 AI        integer tensor engine · GPU · swarm · chiglet · AIPI · speech ·   │  15
+ │              Web4                                                              │
+ │ S4 LOGIC     paradox · peer audit · recovery · decision engines · QUBO ·       │  12
+ │              spatial                                                           │
+ │ S3 TRUST     ML-KEM/ML-DSA/SLH-DSA · identity · seats · TLS · Vinea · loader · │  28
+ │              hwkey · protocol twins                                            │
+ │ S2 TRANSPORT net stack · freight · IPFS · calls · streams · bearers            │  15
+ │ S1 KERNEL    M5 substrate · boot (5 CPUs) · memory · pmm · scheduler ·         │  53
+ │              syscalls · zxvfs · drivers · crash · power · time                 │
  ├───────────────────────────────────────────────────────────────────────────────┤
- │ 7 ADAPTERS   ISO 20022 · accounting regimes · jurisdiction plug-ins · gateways │
- │              five language pillars: COBOL/Sutra · Fortran/Trebago · Ada/Eve ·  │
- │              APL-K/KRON · MUMPS/MYRA                                           │
- │ 6 SETTLEMENT ledger of record · 0.08889% fee · V-Bills · auctions · Zenny chips│
- │              Sicily Account · Player Cards · vault · disputes · estates        │
- │ 5 AI         integer tensor engine · SIMD · swarm · intent layer · L4 adapter  │
- │ 4 LOGIC      four-valued truth · peer audit · forecasting · designed recovery  │
- │ 3 TRUST      PQ handshakes · identity · guardian recovery · privacy proofs     │
- │ 2 TRANSPORT  Vinea DHT · UBH-168 · freight · IPFS · link selection · modems    │
- │ 1 KERNEL     boot (5 CPUs) · zero-float · capability syscalls · zxvfs · WORM   │
- ├───────────────────────────────────────────────────────────────────────────────┤
- │ 0 BASE       SHA-2/3 · AEAD · ML-KEM · exact rationals · ISF maths             │
+ │ S0 BASE      SHA-2/3 · AEAD · lpres four-valued truth · rationals · ISF maths  │  20
  └───────────────────────────────────────────────────────────────────────────────┘
-   cross-cutting: privacy layer · transport continuum · quality loop
+   numbers = kernel module directories per stratum (Appendix A)
 ```
 
-**Three ways to run the same code:**
+A few modules sit higher than their role because their includes force it, and `strata.txt` says
+why on each line (AIRC, for example, sits in settlement because it carries paid relay records).
 
-| Product | Contains today | Status |
-|---|---|---|
-| ZXV Swarm app (`zxv-engine`) | Swarm, tensor engine, **settlement spine + payment ledger + fee**, Vinea node, ML-DSA/ML-KEM, updater, IPFS node, notifications | 🟡 Runs; most of the economy and all people features not linked yet |
-| Kernel image (arm64 reference, plus x86_64, riscv64, riscv32, arm32) | Core OS, AI boot self-check (`[AI_OK]`), economy self-checks at boot | 🟡 Boots under emulation; no network or full economy |
-| `libzxv` packages (`libzxv-econ`, `-pqc`, `-tensor`, `-legacy`) | The economy engine as a standalone library: compress / route / decompress | ✅ Builds standalone; single-file amalgamation queued |
+### 3.2 The hardware layers (silicon to apps)
+
+The strata put everything hardware-facing into stratum 1, which hides how much of a consumer OS
+is still missing. The vertical view, from the 2026-10-15 vertical-integration audit, says what
+runs on bare metal, what runs only in the hosted build, and what is absent.
+
+| Layer | What it holds | On bare metal today | Main gaps |
+|---|---|---|---|
+| L0 Silicon and firmware | UEFI stubs, handoff, ACPI, model checks on the disc | UEFI boot on x86_64 and arm64 under QEMU/OVMF; x86_64 handoff v2 (#156) | ACPI AML interpreter (📝 #140), device tree, PSCI, Secure Boot, measured boot, firmware updates |
+| L1 Hardware interface | CPU modes, exceptions, interrupts, timers, PCIe, RNG | arm64 GICv3 and timer; x86_64 long mode, one ring-3 test | x86 LAPIC/IOAPIC, MSI/MSI-X, IOMMU, SMP, ECAM, XSAVE |
+| L2 Kernel | memory, processes, scheduler, syscalls, IPC, faults, power | arm64: EL0 processes, preemption, four-state `pmm`; x86_64: none of these (halts in a `hlt` loop after self-tests) | x86 process runtime, kernel heap with `free`, threads, channel IPC, signals |
+| L3 Drivers | NVMe, AHCI, xHCI, USB keyboard and storage, NICs, HDA, virtio | x86_64 class drivers pass boot self-tests; arm64 virtio set | HID parser, I2C-HID, USB audio/video/serial, Bluetooth, Wi-Fi, GPU, display modes |
+| L4 System services | filesystems, update, login, network, TLS, time, search, backup | arm64: ZXVFS, signed `.zsp` apps, TCP/DHCP/DNS, crash records and recovery boot (#156) | root filesystem from disk, disc v2 layout, service manager, installer, system A/B, encryption at rest, IPv6, firewall |
+| L5 Runtimes | tensor engine, swarm, pillars, Lingua, Z-Wasm, SDKs | tensor self-check `[AI_OK]`; Sutra on arm64 | models from the disc, the swarm as a service, user-space runtime `zxrt`, four pillars and Lingua on bare metal |
+| L6 GUI | zui toolkit, window manager, fonts, shaping, input methods, accessibility | old framebuffer shell (`desktop/zxv_shell.c`); zui is in no image yet (🔒 one visual system ports the bare-metal desktop to zui) | zui as the compositor, window protocol, login on bare metal |
+| L7 Apps and tools | 407 apps, zxsh, editor, browser, no-code builder | `xedit`, the arm64 shell, a small browser | app container `.zxa`, sandbox from manifests, self-hosting toolchain, debugger |
+
+The bare-metal detail is in [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md) and its four companion
+files in `docs/baremetal-gaps/`.
+
+### 3.3 Hosted and bare-metal split
+
+Many finished libraries reach users only through the hosted build. These are linked into the
+desktop app or zxvd but into neither bare-metal image: zui (all of it), seats, ident, terms,
+power, crash (x86), hwkey, i18n, speech, legacy, four of the five pillars, Z-Wasm, the app
+runtime `zxapp`, every zxvd method group, the live Vinea node and the GPU path. Bringing them to
+bare metal is steps 4 to 11 of section 18.
 
 ---
 
-## 4. The two loops that join it
+## 4. How ZXV runs: the four surfaces
 
-### Loop A: value (each stratum feeds the next; the top feeds the bottom)
+### 4.1 The desktop app (what users run today)
+
+| Part | Status | What it is | Limits |
+|---|---|---|---|
+| Engine `zxv_host` / `zxvd` | ✅ | `kernel/arch/hosted`: kernel modules compiled as a native program; zxvd is the same code with a JSON-RPC socket and libzxv | macOS (universal), Linux and Windows |
+| Window | 🟡 | An HTML page (`kernel/arch/hosted/zxv_ui.html`) served on `127.0.0.1` with a per-launch token, shown in a WKWebView on the Mac (`macos/ZXVApp.m`) and in the default browser on Linux and Windows | Breaks R18. 🔒 The one-visual-system branch replaces the Mac web view with the native zui desktop; not compiled on a Mac yet |
+| ZXV Studio | ✅ | SwiftUI Mac app over zxvd's socket (`macos/studio`); colours generated from the zui tokens on the one-visual-system branch | A second Mac front end until zui ships |
+| Native zui present layers | 🧩 | Metal, Vulkan, D3D11, X11 and Win32 present code (`kernel/arch/hosted/zui_present_*`), tested under Xvfb in `zxvd.yml` | Shipped nowhere; the Metal backend is built by no script |
+| First-run model download | ✅ | `macos/zxv-model-fetch.sh` with a pinned manifest | Weights are never bundled in git |
+
+[MAC_APP.md](MAC_APP.md) and [DESKTOP_LINUX_WINDOWS.md](DESKTOP_LINUX_WINDOWS.md) have the build
+and install detail.
+
+### 4.2 zxvd, libzxv and the SDKs (the developer surface)
+
+| Part | Status | Detail |
+|---|---|---|
+| zxvd core methods | ✅ | About 100 methods: swarm, model, notes, net, ledger, AIPI, files (the Banker), spaces, phone link, playground, social, calls, translation, device mesh, UI settings. [ZXVD.md](ZXVD.md); spec `api/zxvd.openrpc.json` checked in CI |
+| zxvd method groups | ✅ | 17 groups, each behind a feature switch: cards, passkeys, vault, swap, auction, zenny, stats, bonds, derivatives, grants, estate, companion, web4, seats, power, irc (#156), pspace and hall (#156) |
+| libzxv C ABI | ✅ | 1.6.0 on #156 (468 functions; the 21 new ones are the `zxv_vino_*` group); frozen symbol lists per version in `sdk/libzxv/abi/`; policy [sdk/docs/STABILITY.md](../sdk/docs/STABILITY.md) |
+| Language SDKs | ✅ | Python, Java, .NET, TypeScript, Rust, Ruby, C++, Kotlin and Dart at 1.6.0 in lockstep; Go, PHP, Swift and Solidity tag-based. Each has its own CI workflow |
+| Kits, engines, frameworks | ✅ (preview) | 8 kits (Z-Wasm, Z-Contract, Adapter-Matrix, Z-FFI, AIPI, Z-Audit, Tri-Isolate, ZAB-Logic); 5 engine plug-ins; 4 web frameworks; 15 industry kits; Z-Fabric HDL; embedded ports |
+| Pillars | ✅ | `sdk/pillars`: COBOL/Sutra, Fortran/Trebago, Ada/Eve, APL-K/KRON, MUMPS/MYRA (section 14) |
+
+Gaps: zxvd's economy groups keep their books in memory, use stand-in signatures and touch no
+real payment rail; estate and grants checks use Ed25519 where the modules specify ML-DSA; the
+jurisdiction host starts with no verify hook, so no plug-in can register; the AIPI mesh binding
+is linked but never switched on; IRC and AIPI are missing on Windows ([ZXVD.md](ZXVD.md) "Honest
+limits"). The cb_mx and cb_vss bindings, card issue calls and the acct, juris, intent and privacy
+groups are not in libzxv yet.
+
+### 4.3 The bootable OS (bare metal)
+
+| Image | Status | What it does | What it lacks |
+|---|---|---|---|
+| x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_OK]` | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
+| arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
+| riscv64, riscv32, arm32 | 🟡 | Boot to `[BOOT_OK]` under QEMU | No AI self-check, no user processes |
+
+[BAREMETAL.md](BAREMETAL.md) covers building and booting; [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md)
+ranks the 29 gaps to a consumer OS.
+
+### 4.4 Phones and devices
+
+| Part | Status | Detail |
+|---|---|---|
+| Phone companion (Flutter, iOS and Android) | ✅ | Five views like Studio; drives zxvd over the phone link and holds no books or model; sideload only. `mobile/companion`, CI `companion.yml` |
+| Native device-mesh apps | 🧩 | `mobile/android`, `mobile/ios`, `mobile/core/zxv_mobile.c`; no CI builds them |
+| Hardware designs | 📋 | OEM specification package in `hardware/docs/oem` (consumer, institutional, servers); the design folders are empty on purpose: designs stay on the owner's machine ([LICENSE-HARDWARE.md](../LICENSE-HARDWARE.md)) |
+
+---
+
+## 5. Building and shipping: images, the golden disc and packages
+
+### 5.1 What gets built
+
+| Artifact | Status | How | Signed |
+|---|---|---|---|
+| Plain UEFI discs (arm64, x86_64) | ✅ | `build_system/baremetal_images.sh` in `Dockerfile.baremetal` → `mk_efi_disc.sh` → GPT image with one FAT32 ESP; booted under OVMF in CI (`uefi-disc`) and in the release workflow | No: SHA-256 sums only; Secure Boot must be turned off |
+| Golden disc (arm64, x86_64) | 🧩 | `build_system/mk_golden_disc.sh` adds two Qwen2.5 GGUF models (Apache-2.0, pinned commit, hash and size) and assets; the EFI stub re-hashes the models on every boot (`[MODELS_OK]`) | No; models hash-checked only |
+| Desktop packages | ✅ | `build_system/package_desktop.sh`: Mac `.dmg`/`.app.zip`, Studio `.zip`, Linux `.deb`/`.tar.gz`/AppImage (x86_64, aarch64), Windows `.zip` | Mac ad hoc unless a Developer ID is set; Windows unsigned |
+| Draft release | ✅ | `.github/workflows/release.yml` (manual): preflight, every package above, the plain UEFI discs (booted first), `SHA256SUMS`, then a **draft** GitHub release | Publishing is manual ([release/README.md](release/README.md)) |
+
+### 5.2 The gap between this and "golden ISO dist images"
+
+1. **There is no ISO.** The golden disc is a raw GPT `.img` (about 1.63 GB) for USB sticks and
+   VMs. `build_system/mkuniversal_disc.sh` can wrap one ESP with several boot files into a hybrid
+   ISO, but no workflow runs it and only x86_64 and arm64 have EFI stubs.
+2. **The golden disc is never released.** Only `golden-disc.yml` builds it, by hand, and keeps it
+   7 days. `release.yml` refuses model weights by rule; shipping weights as a release asset or a
+   mirror needs the owner's call (section 20).
+3. **It boots to a self-test, not a desktop.** The kernel verifies the models but does not run
+   them; x86_64 halts after its tests (section 4.3).
+4. **Unsigned, no installer, one partition.** No Secure Boot signature, no on-device installer,
+   no system A/B image, no recovery boot on x86_64.
+5. **Missing assets.** `golden.contents` lists `assets/boot`, `assets/brand`, `assets/app-icons`
+   and `assets/apps`; they are not in the tree yet (the brand and the 407 icon vectors are held
+   back until the trademark checks).
+6. **Two Linux/Windows engines.** `package_desktop.sh` ships zxvd; `build_desktop.sh` also
+   builds `zxv-swarm` (zxv_host). One should be retired.
+7. **Release signing exists but is not used.** `sign_release.sh`, the offline root ceremony and
+   `verify_release.sh` are tested by `test_release_signing.sh`, but `release.yml` does not call
+   them. `build_system/mk_deliverable_zip.sh` copies a `PROVENANCE/` folder that no longer exists,
+   and `make_release.sh` still ships the superseded `CANONICAL.md` and `ROADMAP.md`.
+
+Steps 5, 8 and 13 of section 18 close these.
+
+### 5.3 How the OS evolves after it ships
+
+ZXV has **no central OS releases** (R22). The release workflow above produces a starting image;
+after that, each install is maintained by its user and updated through community updates that
+pass the compatibility contract and an audit by owner-chosen auditors (📝 #155, section 15.6).
+Signed content-addressed packages (`update`, `zxpkg`, checked by `provenance`) and app-level A/B
+(`loader/abupdate`) are the mechanisms on arm64 today.
+
+---
+
+## 6. The loops that join it
+
+### Loop A: value
 
 ```text
             ┌──── 7 ADAPTERS ◄────── 6 SETTLEMENT ◄──────┐
@@ -166,375 +320,519 @@ These rules came from you or were agreed with you. Every module is held to them.
 
 | Arc | What flows | Status |
 |---|---|---|
-| A1 kernel → transport | Sockets for Vinea | 🟡 App: one UDP socket, LAN or online, off by default. Kernel image: none |
-| A2 transport → trust | Every datagram verified (ML-DSA-65, proof-of-work, replay window) | ✅ In the app |
-| A3 trust → logic | Verified records become four-valued verdicts; peers replay them | 🧩 Peer audit not in the app |
-| A4 logic → AI | The swarm budget gates every generated token | ✅ In the app |
-| A5 AI → settlement | Each swarm cycle settles on the ledger of record, with A = L + E reconciled every cycle | ✅ In the app (gaps A1 and A4). Compute that peers deliver, proven by signed receipts, raises the next cycle's budget; trading is off until the owner turns it on |
-| A6 settlement → adapters | Ledger entries become ISO 20022 and statements | 🧩 Both sides exist; not chained |
-| A7 adapters → outside | Wallet UI, gateways, statements | 💭 |
-| A8 outside → kernel | Signed updates and model hashes in the app; custodian receipts queued | 🟡 |
+| A1 kernel → transport | Sockets for Vinea | 🟡 App: one UDP socket, LAN or online, off by default, NAT hole punching. Bare metal: arm64 TCP/IP only |
+| A2 transport → trust | Every datagram verified (ML-DSA-87, proof-of-work, replay window) | ✅ in the app |
+| A3 trust → logic | Verified records become four-valued verdicts; peers replay them | 🟡 The app emits peer-audit records through settle's audit hook; no network transport for records and votes |
+| A4 logic → AI | The swarm budget gates every generated token | ✅ in the app |
+| A5 AI → settlement | Each swarm cycle settles on the ledger of record, with A = L + E reconciled every cycle; peers' delivered compute, proven by signed receipts, raises the next budget (off until the owner turns it on) | ✅ in the app |
+| A6 settlement → adapters | Ledger entries become ISO 20022 and statements | 🧩 both sides exist; not chained |
+| A7 adapters → outside | Wallet, gateways, statements | 🟡 zxvd exposes ledger, netting, ISO 20022 and cards; no live rail (R10) |
+| A8 outside → kernel | Signed updates and model hashes; custodian receipts | 🟡 update checks in the app; custodian receipts built in `vauction`, not fed from outside |
 
-**The "ouroboros" closed with gap A4:** every cycle the 0.08889% fee comes off the swarm's pot into
-the reserve, dividend, node-bounty and regenerative buckets, and last cycle's bounties go back into
-the next cycle's compute budget. The reserve, dividend and regenerative buckets only accumulate for
-now; spending them belongs to the reserve and V-Bill work (C2–C5).
+Every cycle the 0.08889% fee comes off the swarm's pot into the reserve, dividend, node-bounty
+and regenerative buckets, and last cycle's bounties go back into the next cycle's budget. The
+reserve, dividend and regenerative buckets only accumulate in the app today; the modules that
+spend them are built (section 13) and served by zxvd, not yet joined to the app's loop.
 
-### Loop B: quality (self-audit feeds the tests)
+### Loop B: quality
 
 ```text
- code ─► tests, fuzzers, proofs ─► mutation score ─► gap audit ─► fixes ─► code
+ code ─► tests, fuzzers, proofs ─► mutation score ─► audits ─► fixes ─► code
    ▲                                                                       │
    └─ peer-audit receipts ◄─ signed repair receipts ◄─ forecasts in production
 ```
 
-Built: tests, tier suites, fuzzers, sanitizers, proofs, mutation gate, gap audit. Queued:
-forecasting monitors, designed recovery with receipts, and peer-audit receipts feeding the test corpus.
+Built: tests, tier suites, fuzzers, sanitizers, proofs, the mutation gate, the strata check, the
+adversarial self-audit and community bounties (📝 #154, which pay for fixes). Not yet joined:
+forecasting monitors feeding repairs, and peer-audit receipts feeding the test corpus.
 
 ---
 
-## 5. Stratum 0: shared base
+## 7. Stratum 0: shared base
 
-Small, pure building blocks that every stratum may use.
-
-| Part | Status | Limits |
-|---|---|---|
-| SHA-256, SHA-3/Keccak, AES-GCM, ChaCha20-Poly1305, HKDF, X25519 (`robin_debanks`, `mlkem`, `tls`) | ✅ | Gap B4: three SHA-256 copies to merge into one; vendored Keccak copies stay (pinned to upstream test vectors) |
-| Exact rationals (`rational`) | ✅ | 64-bit numerator/denominator with overflow flag; wide values built from 64-bit parts, never 128-bit types. Not arbitrary precision |
-| ISF maths (`surplus`) | ✅ | Used by 45 modules |
-| Divide by zero | ✅ | Returns an explicit "underdetermined" flag that stops the calculation; never a number |
-
-## 6. Stratum 1: kernel and hardware abstraction
+Small, pure building blocks that every stratum may use (20 modules).
 
 | Part | Status | Limits |
 |---|---|---|
-| Boot on arm64, x86_64, riscv64, riscv32, arm32 | ✅ | CI fails closed on all five. Emulated hardware only; raw silicon 💭 |
-| Zero-float kernel images, widened scheduler pointers, allocator wrap checks | ✅ | |
-| Capability-checked syscalls, scheduler, memory | ✅ | |
-| zxvfs (journal, extents, Tri-Space store) | ✅ | 256-file limit to lift for model packs |
-| WORM journal, retention lock, IPFS anchoring | 📋 | |
-| Tri-Space filesystem recovery | 🟡 | Last open HIGH audit item |
-| Hardware RNG | 📋 | Mixed into the existing generator, never used raw for keys |
-| NIC adapters (POSIX, Winsock, kqueue, virtio-net) | 📋 | |
-| Rename of esoteric module names | 📋 | Script ready (44 modules); brands and Enochian data stay |
+| SHA-256, SHA-3/Keccak, ChaCha20-Poly1305, HKDF, X25519, ECDSA/RSA verify (`robin_debanks`, `mlkem/keccak`, `tls/*` primitives) | ✅ | Vendored Keccak copies pinned to upstream vectors |
+| Four-valued truth `lpres` (NEITHER, TRUE, FALSE, BOTH) | ✅ | The one truth type; `lpres_hex` (twelve-state) and `trit_t` are older encodings still to fold in (audit H4) |
+| Exact rationals `rational` | ✅ | 64-bit parts with overflow flags; never 128-bit types |
+| ISF maths `surplus` | ✅ | Interaction Surplus Framework; used by the swarm, chiglet and economy |
+| Nine forms of capital `zcapital` | ✅ | One canonical order for every module |
+| UBH-168 framing `crit168`, `ubh`; QR encoder `qr` (#156) | ✅ | |
+| Divide by zero | ✅ | Returns an explicit "underdetermined" flag; never a number |
 
-## 7. Stratum 2: transport
+## 8. Stratum 1: kernel and hardware
 
-| Part | Status | Limits |
+53 modules. Section 3.2 has the bare-metal picture; this section is the parts list.
+
+### 8.1 The M5 substrate
+
+Five kernel axioms, each a module, replace the usual kernel primitives. All are built and tested.
+
+| Axiom | Module | What it does |
 |---|---|---|
-| UBH-168 frames; 168-row erasure-coded freight | ✅ / 🧩 | Hashes and IDs stay 256-bit |
-| Vinea Kademlia DHT with PQ identities, agreements, file exchange, offline outbox | 🧩 + one node in the app | No NAT traversal, IPv6 or persisted identity yet |
-| IPFS node (Kubo-identical CIDs, private pins) | 🧩 + app updater | |
-| Endian hopping, harmonic wire | 🧩 | Not called by anything |
-| One PQ session layer (bootlegger at ML-KEM-1024 + ML-DSA-87, carried by Vinea) | 📋 gap A3 | Today there are two handshakes |
-| Two-laptop demo: handshake, inference A→B, settlement with fee | 📋 phase 2 | CI runs two nodes on one host; you get a script for real laptops |
-| Sybil/eclipse defence | 📋 | Per-prefix bucket caps, credibility weighting, quarantine partition |
-| Link selection and the transport continuum | 📋 | Section 14 |
+| K1 OSEQ | `oseq` | Ordinal sequencer: monotonic ordinal ids, a causal DAG of events, replay and cycle rejection, happens-before queries |
+| K2 RMAG | `rmag` | Rational magnitudes: exact compute, memory, bandwidth and energy budgets and quotas across the 13-phase pipeline |
+| K3 LPRES | `lpres` (stratum 0) | The four-valued truth type every verdict uses |
+| K4 IPHASE | `iphase` (stratum 2) | Deterministic route contracts between endpoints, with priority, weight and failover chains |
+| K5 CHOICE | `choice` | Deterministic selection among candidates with explicit tie policies; ambiguous choices are deferred, never guessed |
+| K6 PHASE_COORD | `phase_coord` | Admits, vetoes or defers coupled steps and hardware actions under coverage and health policy |
 
-## 8. Stratum 3: trust and identity
+### 8.2 Parts
 
-| Part | Status | Limits |
+| Part | Status | Limits and doc |
 |---|---|---|
-| ML-KEM-768/1024, ML-DSA-65/87, SLH-DSA, HQC-5, PQ matrix | ✅ | Vendored upstream reference code with NIST vectors, not clean-room |
-| Signed-transcript handshake; full-manifest update signatures | ✅ | |
+| Boot on arm64, x86_64, riscv64, riscv32, arm32; zero-float images | ✅ | Emulated hardware only |
+| x86_64 handoff v2 (memory map, RSDP, SMBIOS, clock, model verdict), `[HANDOFF_OK]` | ✅ #156 | arm64 stub has no handoff yet; 📝 a pushed follow-up moves the 90 MB of kernel buffers onto map frames ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md)) |
+| Four-state frame allocator `pmm`, page free, slot reuse, a faulting app ends only itself (arm64) | ✅ #156 | x86 has no allocator from the firmware map yet |
+| Capability-checked syscalls, scheduler, memory (`syscall`, `sched`, `mm`, `el0_userspace`) | 🟡 | Processes on arm64 only; ZXV error numbers (#156) |
+| zxvfs (journal, extents), FAT32 | 🟡 | 4 MB, 256 files, flat; FAT32 read-only 8.3 names; no fsck |
+| Class drivers `hwdrv`: NVMe, AHCI, xHCI, USB keyboard and storage, e1000/igb/r8169, HDA | ✅ (polled, x86_64 image) | No MSI, no IOMMU; [HW_DRIVERS.md](HW_DRIVERS.md) |
+| Crash records, safe mode, recovery boot `crash` | ✅ #156 (arm64 image) | x86 port missing; [CRASH_RECOVERY.md](CRASH_RECOVERY.md) |
+| ACPI tables `acpi`; AML interpreter, sleep, power-off, fault-safe MSR access | 🟡 / 📝 #140 | |
+| Power: per-app energy, battery, budgets `power` | 🟡 | zxvd `power.*`; bare-metal battery, thermal and sleep wait on #140; [POWER.md](POWER.md) |
+| Time: SNTP, RTC, IANA zones `timesvc` | 🧩 | Linked into all five images, never called; no NTS; [TIME.md](TIME.md) |
+| Exact quantum circuit simulator `qsim`, equivalence checker `qeq` (#156) | ✅ | Classical simulators, labelled as such; [QUANTUM_SIMULATOR.md](QUANTUM_SIMULATOR.md), [CIRCUIT_EQUIVALENCE.md](CIRCUIT_EQUIVALENCE.md) |
+| Hardware emulation standard `hwemu` | ✅ | Public emulation of the hardware classes (libzxv 1.4); designs stay private |
+| Hardware RNG | 🟡 | arm64 entropy source (`kernel/arch/arm64/entropy.c`), mixed into the generator, never used raw for keys; continuous health tests missing |
+| WORM journal, retention lock | 📋 | |
+
+## 9. Stratum 2: transport and networking
+
+| Part | Status | Limits and doc |
+|---|---|---|
+| Network stack `net`: TCP, DHCP, DNS (IPv4) | 🟡 | Runs on arm64 virtio-net; x86 NIC drivers exist but are not joined to it; no IPv6, firewall or VPN |
+| Vinea: PQ Kademlia DHT, sessions (X25519 + ML-KEM-1024), agreements, file exchange, LAN discovery, NAT hole punching, persisted identity | ✅ in the app | Spool re-sync between hosts not built; [VINEA.md](VINEA.md) (module in stratum 3) |
+| Public spaces and the watch hall (`vna_space`, `pspace.*`, `hall.*`) | ✅ #156 | [SPACES.md](SPACES.md) |
+| IPFS node: Kubo-identical CIDs, UnixFS, HAMT directories, private pins | 🟡 | No libp2p, Bitswap or DHT interop; index in RAM; [IPFS_NODE.md](IPFS_NODE.md) |
+| Freight (168-row erasure-coded transfer), harmonic wire, endian hopping | ✅ library | Served by zxvd module methods; ehop not on Vinea's frame hook; [HARMONIC_WIRE.md](HARMONIC_WIRE.md), [ENDIAN_HOPPING.md](ENDIAN_HOPPING.md) |
+| Calls (RTP, STUN, FEC, jitter, congestion) and streams | ✅ | zxvd `call.*` and the people features |
+| Bearers: cellular, satellite and radio link models `bearer` | ✅ #156 library | Models and selection, no modem driver; no caller yet; [retail/BEARERS.md](retail/BEARERS.md) |
+| Protocol twins `aproto`: catalogue of network protocols from the 1950s on, each with a P2P, PQ, auditable twin; AFTP built first; ham gate | ✅ #156 library | No caller yet; [P2P_PROTOCOL_TWINS.md](P2P_PROTOCOL_TWINS.md) |
+| AIRC agent relay chat; IRC gateway into the swarm on TLS 1.3 | ✅ #156 | Gateway in zxvd `irc.*`; AIRC core has no caller yet. Quorum-gated jumbo frames and adaptive zero trust adopted; the AIRC-XDCC training cache is next. [AIRC.md](AIRC.md), [IRC_GATEWAY.md](IRC_GATEWAY.md) |
+| Web4 agent envelopes, consent, Web2/Web3 bridge | ✅ library | Signs and holds, delivers nothing; no MCP/A2A; [WEB4.md](WEB4.md) |
+| `mesh_net` | 🧩 | Moves no bytes ("NOT YET" in its header) |
+| Sybil and eclipse defence | 📋 | Per-prefix bucket caps, credibility weighting, quarantine partition |
+
+## 10. Stratum 3: trust and identity
+
+| Part | Status | Limits and doc |
+|---|---|---|
+| ML-KEM-768/1024, ML-DSA-65/87, SLH-DSA, HQC-5, layered PQ matrix `pqsec` | ✅ | Vendored upstream reference code with NIST vectors; [PQ_MATRIX.md](PQ_MATRIX.md) |
+| TLS 1.3 client with X.509 chain checks and a root store; TLS server for the IRC gateway | ✅ | No OCSP, CRL or CT; [TLS_CERTIFICATES.md](TLS_CERTIFICATES.md) |
+| Identity: passkeys (ML-DSA), optional KYC, guardian recovery, fuzzy extractor `ident` | ✅ library | zxvd `passkeys.*`; no classical passkey for browsers; [IDENTITY_AND_RECOVERY.md](IDENTITY_AND_RECOVERY.md) |
+| Seats: people on a device, Argon2id login `seats` | ✅ hosted | zxvd `seats.*`; a passkey seat unlocks on the caller's flag (zxvd does not check the passkey itself); not in an image |
+| Hardware keys and the offline outbox counter `hwkey`, `outbox` | ✅ library (#156 adds the monotonic counter) | A restored backup can no longer pay twice; no image or app uses them yet |
+| Signed packages and loader (ZSP v2), A/B app updates, provenance (`loader`, `update`, `zxpkg`, `provenance`) | 🟡 | arm64 runs signed apps only (#156); system-image A/B missing |
+| Boot attestation `bootattest`, capability control `capctl`, zero-touch provisioning `ztp` (retail track) | ✅ #156 library | No kernel image uses them; bare-metal TPM missing; [retail/ROOT_OF_TRUST.md](retail/ROOT_OF_TRUST.md) |
 | Constant-time check | 🟡 | Valgrind secret-branch test; not a full side-channel audit |
-| Identity: passkeys, optional KYC | 🧩 | |
-| Recovery: 3-of-5 guardians, device keys under a root anchor, view-only sandbox, time lock, staged thaw | 📋 | Guardians sign approvals and hold no shares; 4-of-5 + 14-day lock overrides a stolen-device veto; dormancy changes nothing; claims rate-limited, every guardian notified |
-| Estate succession | 📋 | Only a filed death attestation starts it; living veto refunds the bond; sealed papers use a separate guardian-split key |
-| Agent payment cards | 📋 | Inherit their owner's identity and limits; no zero-KYC fiat |
 
-## 9. Stratum 4: logic and fault handling
+## 11. Stratum 4: logic and fault handling
 
-| Part | Status | Limits |
+| Part | Status | Limits and doc |
 |---|---|---|
-| Four-valued truth (`lpres`: Neither/U, True, False, Both) | ✅ | Reused everywhere; no second enum |
-| Peer audit (self-check before signing; peers replay and challenge) | 🧩 | Isolate, never seize funds |
-| Double spends | ✅ | First valid spend wins; slashing only on signed equivocation proof, only of posted bonds |
-| TLA+/Lean proofs of ledger, headroom and rational code | ✅ | Models of the C, not proof of the binary |
-| Forecasting (shadow state, headroom, cycle detection) | 📋 | `bombsquad` and `predictive` exist; `bombsquad` connects to nothing yet |
-| Designed recovery framework (`recover`) | 🧩 gap B5 | Refuse / roll back to a caller's A/B checkpoint / isolate, each with a RecoveryProof around paradox's RepairProof, ML-DSA-87 signed; hard invariants fail closed and state is never patched. `tripartite_fs` uses it (itself not yet in a product); `sdk_bridge` and `event_space` still recover ad hoc. It decides and proves recoveries; it detects only what the caller's tag and invariants report |
-| Defensive sinks | 📋 | Stateless cookies or small proof-of-work; inbound-only tarpit |
-| Four-valued deliberation with deterministic settlement | 📋 | Disputes stay in escrow |
-| Exact float-free circuit simulator; quantum-inspired netting optimiser | 📋 | Labelled classical simulator; benchmarked against cycle cancellation |
+| Paradox engine and paraconsistent ledger with four-valued agents `paradox` | ✅ | Used by `pce`, `recover` and libzxv; [PARADOX_ENGINE.md](PARADOX_ENGINE.md), [PARACONSISTENT_LEDGER.md](PARACONSISTENT_LEDGER.md) |
+| Paraconsistent probability, tactics, strategy and finance engines `pce` | ✅ #156 | Advisory (R8); usable as app blocks; [PARACONSISTENT_ENGINES.md](PARACONSISTENT_ENGINES.md) |
+| QUBO workbench `qubo`, exact risk `xrisk`, gridlock solver `gridlock` | ✅ #156 library | Exact classical solvers; [QUBO_WORKBENCH.md](QUBO_WORKBENCH.md), [EXACT_RISK.md](EXACT_RISK.md), [GRIDLOCK_RESOLUTION.md](GRIDLOCK_RESOLUTION.md) |
+| Peer audit (self-check before signing; peers replay and challenge) | 🟡 | Local hook wired; no network transport; [PEER_AUDIT.md](PEER_AUDIT.md) |
+| Designed recovery `recover` (refuse, roll back, isolate, each with a signed proof) | ✅ #156 | Callers: `tripartite_fs`, component rollback |
+| Forecasting `bombsquad`, `predictive` | 🧩 | Report only (R6) |
+| Spatial engine (exact geometry, fusion, fleet planning) | 🟡 | ROS 2 bridge, RTK over Vinea, Eve geofences not built; [SPATIAL_ENGINE.md](SPATIAL_ENGINE.md) |
+| TLA+ and Lean models of the ledger, headroom and rationals | ✅ | Models of the C, not proofs of the binary; [FORMAL_INVARIANTS.md](FORMAL_INVARIANTS.md) |
+| The Pit Boss: rulebook that enforces, advisor that proposes | 📋 | [PIT_BOSS.md](PIT_BOSS.md) |
+| The Cage: quarantine and clearance with desks | 📋 | [CAGE.md](CAGE.md) |
 
-## 10. Stratum 5: AI runtime and swarm
+## 12. Stratum 5: AI runtime and the Tiamat agency
 
-### Built
+### 12.1 The model runtime
 
-| Part | Status | Limits |
+| Part | Status | Limits and doc |
 |---|---|---|
-| Integer tensor engine, GGUF reader, tokenizer, RoPE, E8/Leech quantisers | ✅ | |
-| SIMD (NEON, AVX2, AVX-512) + row-parallel thread pool | ✅ | Bit-identical to the plain C path |
-| GPU: matrix products on Apple GPUs (Metal), bit-exact | ✅ | Prompt reading 1.8× on an M3 Max; one round trip per product, so generation stays on the CPU |
-| GPU: the whole forward pass in one command buffer (every layer, then the logits) | 🧩 | Bit-exact on an M3 Max; prompt reading 2.3× the CPU (289 vs 126 tok/s), generation 38 vs 60 tok/s, so decode still needs fused kernels. [GPU_STRATEGY.md](GPU_STRATEGY.md) |
-| Swarm economy: Fibonacci tokens-per-cycle, emotional economy, cooperative market, governor, DNA | ✅ | |
-| Budget gate on prompt and generated tokens | ✅ in the app | One budget token per prompt token and per written token |
+| Integer tensor engine: GGUF reader, tokenizer, RoPE, forward pass, E8/Leech quantisers `tensor` | ✅ | Reads qwen2, qwen3 and llama; no SentencePiece, no YaRN/LongRoPE; [TENSOR_ENGINE.md](TENSOR_ENGINE.md) |
+| SIMD (NEON, AVX2, AVX-512) and a row-parallel thread pool | ✅ | Bit-identical to the C path; hosted only (images are `-mgeneral-regs-only`) |
+| GPU: matrix products and the whole forward pass in one command buffer on Metal, plus the same op list on a C backend in CI | ✅ #156 | Bit-exact on an M3 Max; prompt reading 2.3× the CPU; generation still slower than the CPU until kernels are fused; Vulkan and CUDA next ([GPU_STRATEGY.md](GPU_STRATEGY.md)) |
+| Several models at once, LoRA per agent | ✅ | 4 model slots, 16 agents; no real adapter trained yet |
+| Grammar-constrained decoding `zt_gram`, evidence head `zt_evh` (μ/λ → T/F/B/N) | 🧩 | Not called by the app's generation path or libzxv; [AI_MODEL.md](AI_MODEL.md) slice 3 |
+| Whisper speech in, OuteTTS speech out on the engine | 🧩 | Tested; the speech module does not call them yet (📝 #153 wires them, section 12.4) |
+| Tensor-parallel inference across machines (slice 1) | ✅ | Head split, pipeline, batching and Vinea transport next; [HPC_DESIGN.md](HPC_DESIGN.md) |
+| VRAM block store, co-processor tiers, edge clusters (`vblock`, `cotier`, `edgeclus`) | 🧩 | No real GPU behind them; [VRAM_BLOCKS.md](VRAM_BLOCKS.md), [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md), [retail/EDGE_NODES.md](retail/EDGE_NODES.md) |
+| Fitted and compiled specialists, adapter synthesis, prompt-to-circuit | 📋 | [AI_MODEL.md](AI_MODEL.md) slices 1-9 |
 
-### Real model results (Qwen2.5-1.5B-Instruct, Q4_K_M, Apache-2.0)
+### 12.2 The swarm and its economy
 
-| Measure | Result |
-|---|---|
-| Accuracy | Perplexity 9.371 vs llama.cpp 9.362 (0.1% worse) on WikiText-2 |
-| Answers | Same tokens as llama.cpp on all 8 prompts, all correct |
-| Determinism | Bit-identical across C, AVX2, AVX-512 and arm64 NEON. llama.cpp changed 5% of next-token picks when only its batch size changed |
-| Speed | ~11 tokens/s vs 15–18; prompt reading ~5× slower. Main thing to improve; matrix-matrix prefill work started 2026-10-11 |
-| Defect | First token of a text diverges sharply (KL 4.5); being investigated since 2026-10-11 |
-| Golden-ratio parts | Phi scales: small harm (9.40). Lossless holographic coding: identical output but 8.12 vs 7.31 bits per weight. Lossy holographic decode: destroys the model (perplexity 332,000), so weights always decode all 10 shells |
-| Low-bit weights | On MLP output weights alone, E8 at 1.875 bits: 13.97; plain 4-level (2-bit): 20.5. On every matrix, both break the model: E8 7,698, 2-bit 52,602. E8 is the better of the two, and the only golden-ratio part that beats the conventional method it replaces. Low-bit weights need a model trained for them |
-
-### Queued
-
-| Part | Limits |
-|---|---|
-| Intent layer: routes, Sutra/copybook drafts with explicit unknowns, anomaly tags | Advisory only; every change goes through `pay_ledger_post`; market inputs must be signed feeds |
-| Paraconsistent adapter (μ/λ evidence head → T/F/B/U) | Sits beside softmax, not instead of it. Step 1: cheap CPU probe on Qwen hidden states; step 2 (only if the probe shows signal): LoRA training on GPU outside the engine, exported to integer form; step 3: wire into libzxv. Benefits measured on a held-out contradiction set |
-| Grammar-constrained decoding for the shorthands, plus attestation tags | Stops malformed commands, not wrong facts |
-| Ternary and quaternary experiments | BitNet b1.58 (MIT) packed 5 trits per byte; 2-bit packing for T/F/B/U states; low-bit weights only work on models trained for them |
-| Several models at once, LoRA per agent | ✅ built: `zt_lora_load` in `kernel/src/tensor/zt_model.c` (tested by `test_zt_lora.c`), 4 model slots and 16 agents in `kernel/arch/hosted/zxv_zt_glue.c` ([TENSOR_ENGINE.md](TENSOR_ENGINE.md) T23). No real adapter has been run on a real model yet |
-| The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
-| Rosetta Shell: POSIX, PowerShell and cmd.exe lines compiled to one typed CLI-IR on top of zxsh | [ROSETTA_SHELL.md](ROSETTA_SHELL.md), design only |
-| The Registrar: Burrow's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
-| The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
-| The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
-| The registry: 407 slots in three layers (L1 Foundation = the 144 apps, L2 Concourse, L3 Apparatus) and their crossing rules | [REGISTRY.md](REGISTRY.md), design only |
-| Trade routes: typed one-way channels (local rings with exact backpressure, Vinea frames between nodes) | [TRADE_ROUTES.md](TRADE_ROUTES.md), design only |
-| The lexicon: Firmament, Pit Boss, Registrar, Tally, Cage, Desks, Floor, Strongbox, Hoard, trade routes, Rosetta Shell, mapped to code | [LEXICON.md](LEXICON.md) |
-| Model-collapse experiment (invariant filter on synthetic training data) | Offered as a fair test; no "cure" claimed |
-
-## 11. Stratum 6: settlement and economy
-
-### Built
-
-| Part | Status | Limits |
+| Part | Status | Limits and doc |
 |---|---|---|
-| Ledger of record (`pay_ledger`) + settlement spine (`settle`) | ✅ in the app | Swarm books reconciled against it every cycle. Nine other balance-keeping modules still to post through it (gap A1 continues) |
-| libzxv engine: compress / route / decompress with the fee | ✅ `libzxv-econ` | |
-| 0.08889% assurance fee, 50 / 25 / 15 / 10, exact remainders | ✅ in the app | Levied once per swarm cycle on the pot and recorded in both books; one fee for all, no staker discounts |
-| Trade loop: peers' delivered compute, proven by signed receipts, raises the next cycle's budget | ✅ in the app | Off until the owner turns it on |
-| Rails 555 / 777 / 888, class 811; triple ledger; Vino; central-bank toolkit; cards; equity markets; capacity, provider and commerce markets | 🧩 | |
-| Multilateral cycle netting | 🧩 in `cbank` | 222M fuzz operations clean |
+| Fibonacci tokens-per-cycle budget, emotional economy (emoji type and intensity on an imaginary axis), cooperative market, governor, witness, DNA `swarm` | ✅ in the app | [SWARM_ECONOMY.md](SWARM_ECONOMY.md), [TOKEN_DENOMINATIONS.md](TOKEN_DENOMINATIONS.md) |
+| Venn computing: shared work done once (`swarm_overlap`, `swarm_logic`) | ✅ | |
+| Token yield: verified work per token, candle chart, pool weights by verified work | 📝 three pushed commits on PR #138's branch after the head #156 took | Measurement only; the pool link is off by default and never mints. Its doc, `TOKEN_YIELD.md`, lands with it |
+| Chiglet: small on-device mixture of experts weighted by ISF | ✅ | |
+| Growth and shrink by Fibonacci step, speculative decoding, shared KV cache, mmap loading | 📋 | [SWARM_ECONOMY.md](SWARM_ECONOMY.md) §11, §15 |
 
-### Queued (gap list C1–C9 plus later specs)
+### 12.3 The Tiamat Productive Agency AI
 
-Update 2026-10-15: rows marked ✅ below now exist with their own tests. zxvd serves the vault, swap, auction, Zenny, grants and estate modules ([ZXVD.md](ZXVD.md), `kernel/arch/hosted/zxvd_econ.c`, `kernel/arch/hosted/zxvd_estate.c`); the desktop app calls none of them. Rows without ✅ are still queued.
+The owner named the local AI **Tiamat Productive Agency AI**: an agency of many specialist
+models at many levels, not one agent. Its design (2026-10-15) is in the swarm model lineup report
+held in the project files; it names upstream models and their licences, so it stays out of the
+public tree until the lineup ships. The architecture is:
 
-| Part | Agreed design and limits |
+| Agency level | Biology level | What it is in ZXV |
+|---|---|---|
+| Specialist | Organelle, cell | One chiglet: a proposer, a witness from a different model lineage, its evidence head and a verifier, behind companion grants and spend caps. Gives one claim a T/F/B/N verdict |
+| Desk | Tissue, organ | Chiglets on one job (voice, documents, code, translation), picked by a router head |
+| Department | Organ system | Desks joined across apps: senses, reasoning, memory, defence, action |
+| Agency | Organism | One device's whole swarm, from its signed tier pack |
+| Agency network | Species, environment | Devices with the same pack, trading organs over Vinea through AIPI, checked by QUORUM |
+
+Three properties hold at every level: the same propose-verify-join operation (the Belnap join is
+a lattice join, so grouping order never changes a verdict and a BOTH stays BOTH); growth bounded
+by resources (Fibonacci budgets split exactly; levels that don't fit stay dormant); and evolution
+only under verification and user approval. Coordination comes from the Venn rule (shared work
+done once) and the Interaction Surplus Framework (members picked for diversity, paid by measured
+contribution, levels grown only while `surplus_can_grow` holds).
+
+| Part | Status |
 |---|---|
-| Dual mode | Fiat netting from day one; V-Bills and Zenny chips switched on per deployment |
-| V-Bills | ✅ built and host-tested: dividend in `kernel/src/vswap`, redemption floor in `kernel/src/svault`, fixed-term V-Bonds in `kernel/src/vbond`. Perpetual musharakah equity, dividend from the fee, redemption at the backing floor. Likely securities |
-| **Dutch-auction issuance, backed only** | ✅ built and host-tested (`kernel/src/vauction`). Descending uniform-price epochs; each epoch issues only what keeps the reserve at or above its floor, under a per-epoch cap; clearing price positive; auction fiat goes to the reserve or back to losing bidders, never burned |
-| Custodian receipts | ✅ built and host-tested (`kernel/src/vauction`). Custodian signs with ML-DSA; per-custodian haircut; signed median price feed with staleness limit; failed audit locks that slice; custody statements as semt.002 |
-| **Zenny chips** (user-built baskets) | ✅ built and host-tested (`kernel/src/zenny`). WORM manifest of weights + V-Bill anchor; minter picks κ and allowed assets; claim equals deposit exactly at mint and every rebalance; κ sets how much one chip holds, never exposure; spending part of a chip is a recorded sale with its cost basis. Trademark check (Capcom) |
-| Solvency vault | ✅ built and host-tested (`kernel/src/svault`). A third of the reserve share (16.67% of the fee) until it holds 1/3 of V-Bills; never counts toward Vino's floor |
-| Mint, Q-Note quarantine, credibility engine, three-level dispute funnel | ✅ Mint and Q-Note built and host-tested (`kernel/src/mint`, `kernel/src/qnote`). As decided |
-| FX and markets | Uniform-price batch epochs; multilateral non-USD netting; cooling epochs instead of cliff liquidation; leverage off by default |
+| The parts the hierarchy is built from | ✅ (`swarm`, `surplus`, `chiglet`, `aipi`) |
+| Pre-installed, rebrandable lineup per device tier (3 personal and 3 institutional devices, 3 personal and 3 institutional servers); licence allow list (R20); ternary BitNet and TriLM as cheap witnesses | 📋 report done; shipping the weights needs the owner's call on the release rule |
+| Digital DNA, hobbies (3 to 5 per agent, tilting proposals, never verdicts), chiglet-to-chiglet visits under both owners' grants | 📝 #155 (`chg_kin`) |
+| Pre-registered benchmark: one big model against Tiamat at equal memory and tokens | 📋 |
+| Brand | 💭 trademark search on "Tiamat" (classes 9 and 42); never marketed as "superintelligence" |
+
+### 12.4 Voice and the chiglet companion
+
+| Part | Status | Detail |
+|---|---|---|
+| The chiglet speaks only when tapped, held or asked; reads sections aloud like a person (names hashes and ids instead of spelling them); stops on tap; words-only mode; waits for the screen reader | 📝 #153 (`zui_chgvoice`, `speech_tidy`) | English voice only; other languages show words, never another language's voice |
+| On-device text to speech on the integer engine | 📝 #153 (OuteTTS); 🔒 switching to Kokoro-82M (Apache-2.0) | OuteTTS slurs long sentences; about 40 s per sentence on a 4-core x86 container; M3 Max not measured |
+| System-wide speech to text (Whisper) with dictation and "Chiglet, ..." routing `zui_hear` | 📝 #153 | Tests run on stand-ins and a tiny fixture, not the real models |
+| Face-to-face call tile, visits inside an open call, vector skins `.zxcs` | 📝 #153 / 🔒 | The network side of visits is not built |
+
+## 13. Stratum 6: settlement and economy
+
+42 modules. The economy follows the owner's rules: one 0.08889% assurance fee for everyone
+(8889/10,000,000, split 50% reserve floor, 25% V-Bill dividend, 15% node bounties, 10%
+regenerative), backed-only issuance, no usury, nine forms of capital, cooperative markets. Every
+legal point is pending counsel, and a name never changes legal substance.
+
+### 13.1 Built
+
+| Part | Status | Doc |
+|---|---|---|
+| Ledger of record `pay_ledger` and settlement spine `settle`; fee and trade loops | ✅ in the app | |
+| libzxv economy engine (compress, route, decompress with the fee) | ✅ | |
+| Central-bank toolkit: currencies, settlement net, ISO 20022 MX, VSS, no-usury `cbank` | ✅ library | [CENTRAL_BANK.md](CENTRAL_BANK.md) |
+| Charge cards (ISO 8583, EMV) `cardnet` | ✅ zxvd `cards.*` | [CARD_NETWORKS.md](CARD_NETWORKS.md) |
+| V-Bills: backed-only Dutch uniform-price auctions with custodian receipts `vauction`; dividend `vswap`; solvency vault `svault`; V-Bonds `vbond`; V-Calls and V-Perps `vderiv` | ✅ zxvd groups | Likely securities; regulated switches off by default |
+| Zenny chips (user-built baskets) `zenny`; public stats feed `zstats` | ✅ zxvd groups | Trademark check pending |
+| Sicily Account and Player Cards `sicily` | ✅ | `player.card` reports bond and giving as 0 today, so the higher tiers can't be reached yet |
+| Mint, Q-Note quarantine, credibility `cred`, three-level disputes `dispute`, FX epochs `fxepoch`, royalties, grants, estates | ✅ library | Estates and grants in zxvd; `dispute` uses a SHA-256 stand-in for its VRF |
+| Vino: three-ledger bank node `vino`, floating vouchers `vino_stores`, V-Bill hub `vhub`; Vino in libzxv 1.6 | ✅ | |
+| Markets: capacity, provider, commerce `capmkt`, `provider`, `market` | ✅ library | [PROVIDERS.md](PROVIDERS.md), [COMMERCE.md](COMMERCE.md) |
+| Multilateral netting (`cbank`, `qnet`) | ✅ | 222M fuzz operations clean; [QUANTUM_NETTING.md](QUANTUM_NETTING.md) |
+| Retail track: tax hooks `taxhook`, KYC wrapper `kycwrap` (stratum 7) | ✅ #156 library | [retail/COMPLIANCE_PLUGINS.md](retail/COMPLIANCE_PLUGINS.md) |
+
+### 13.2 New designs of 2026-10-15
+
+| Part | Status | What it is | Limits |
+|---|---|---|---|
+| **Naval ports** `navport` | 🔒 | Floating vouchers glue V-Bills to CBDC, fiat, commodity and compute rails. Parties that keep accepting each other's vouchers form a socket; the members, their pegs and one pooled **Sicilian account** of V-Bills form a naval port (one peg for K units without K(K−1)/2 bilateral pegs). Each party keeps nostro, vostro and its share of the Sicilian account. Only nets settle, signed by a quorum; peg health and reconciliation are four-valued | The share **is** the reserve: outflow past it is refused, which is the de-peg; no bail-out by other members; compression is netting and earns no yield; pipe yield (off by default) comes only from the realised 25% pool. Its doc, `NAVAL_PORTS.md`, lands with it |
+| **Jurisdiction router** `jroute` (routing Vino allotments) | 🔒 | When a user accepts a discretionary system allotment, a deterministic fallback stack delivers the first asset class the locale's 32-bit capability mask allows: compute (TPC ticks, 1 VINO = 2^16), AIRC bandwidth or storage quota, then local mutual credit. A contradiction between registries holds the value in escrow (BOTH); unknown territory gives non-transferable local compute (NEITHER). Remainders stay as exact p/q vouchers | Software first: the physical layer is off; commodities (olive-oil barrels) arrive only through a detachable producer-ingress driver. Its doc, `JURISDICTION_ROUTER.md`, lands with it |
+| **Community bounties** `pay_bounty` (the Sicilian Royal Navy board) | 📝 #154 (later commits 🔒) | The main way VFV is issued. Anyone posts a request free; a taker gets a letter of marque and returns with a proof and one signed bid, judged against a fair value; VFV is minted after audit and a 5-person panel drawn by beacon; BOTH goes to the arbiter. Standing vulnerability bounty, triage of frivolous and hostile requests, leaderboards | Payout amounts, caps and reviewer pay await the owner; never touches the 15% node-bounty pool. Its doc, `BOUNTIES.md`, lands with it |
+| **The Sicilian Crown Allotment** `allotment` | 🔒 | Selection of one steward by sortition each epoch. FREE mode by default: one ballot per verified person, endowment from the operator's surplus, the whole endowment to the steward; free civic ballots are accepted in every mode. App #075 Crown is its screen | Off until a jurisdiction plug-in sets the switch after legal review; SAVINGS and PAID modes stay regulated gaming. Renaming changes nothing legally; removing consideration does |
+| Token yield link to the node-bounty pool | 📝 | Section 12.2 | Never mints; pay for service, not a return to holders |
+
+### 13.3 Still designed only
+
+| Part | Design and limits |
+|---|---|
+| Community and institution build profiles | Not linkable; V-Bills, ports and reserve in the institution profile; no protocol fiat on- or off-ramp (closed-loop framing review) |
 | Sovereign and co-minted baskets | Each bank signs with its own steward threshold |
-| Sicily Account | ✅ built and host-tested, with the Player Card tiers (`kernel/src/sicily`). Assets / Liabilities / Equity, equity computed as A − L |
-| Player Cards and organisation programs | Tiers earned, never buy auction priority; founder powers need a steward threshold (3 of 5 + 7-day lock); org rewards pre-funded in escrow |
-| IP royalties, contribution grants, giving and investing split | ✅ built and host-tested (`kernel/src/royalty`, `kernel/src/grants`). Value only from realised royalties; grants capped by reserve surplus; split opt-in and shown before confirming |
-| Estate escrow | ✅ built and host-tested (`kernel/src/estate`). Contested shares stay under the deceased's account; exact-fraction calculators per regime |
-| Balances | Don't earn by default; only held or opted-in V-Bills earn |
+| FX markets | Uniform-price batch epochs; cooling epochs instead of cliff liquidation; leverage off by default |
+| Demurrage; dividend only to active users | 💭 section 20 |
 
-## 12. Stratum 7: adapters and the five language pillars
+## 14. Stratum 7: adapters, languages and the five pillars
 
-### Adapters
+### 14.1 Adapters
 
-| Part | Status | Limits |
+| Part | Status | Doc |
 |---|---|---|
 | ISO 20022 (pacs.008, camt.053, CBPR+), schema-validated | ✅ | Format-valid, not connected |
-| .NET SDK and ASP.NET gateway; C ABI for COBOL/Fortran/Pascal/Ada | ✅ | |
-| Accounting adapters: IFRS, US GAAP, AAOIFI, OHADA, CAS, insurer statutory | 📋 | Designed to follow; tested against published worked examples; export files for SAP/Oracle/QuickBooks cross-checks. AAOIFI blocks interest-like terms; a Shariah board rules |
-| Jurisdiction plug-in ABI, CBDC adapter | 📋 | Userland, signed manifests, fail closed |
-| PAPSS / RTGS gateways | 📋 | Designed to meet published criteria; you submit to PAPSS yourself |
-| Java bindings (Java 22 FFM) | 📋 | |
-| Inheritance regimes (common law, forced heirship, fara'id) | 📋 | A court or notary gateway signs |
+| Accounting adapters (IFRS, US GAAP, AAOIFI and others) `acct`; jurisdiction plug-in ABI `juris` | ✅ | zxvd `jurisdiction.*`; no libzxv group yet; [ADAPTERS.md](ADAPTERS.md) |
+| Policy engine and contract DSL `policy` (zxv_policy) | ✅ library | Deterministic. `legal_engine` (treaties, precedents, DAO) is a separate older module; its strings still cite an old licence |
+| Treaties (COBOL copybooks, Sutra) `treaty`, `sutra` | ✅ | |
+| Legacy bridge (SIP, SS7, EBCDIC, COBOL, Fortran) `legacy` | ✅ library | [LEGACY_BRIDGE.md](LEGACY_BRIDGE.md) |
+| Firmware adapter `fwadapt` (paraconsistent driver joins over `hwemu`) | 🧩 | No caller outside tests |
+| Manufacturing checker `mfg` | 🧩 | [MANUFACTURING.md](MANUFACTURING.md) |
+| Adapter box (retail) | ✅ #156 | [ADAPTER_BOX.md](ADAPTER_BOX.md) |
 
-### The five language pillars
+### 14.2 The five language pillars
 
-Every pillar pairs a legacy language with a compact AI shorthand. The pattern is the same for all
-five (rule R7): the shorthand's parser lives in libzxv, allocates nothing and fails closed with one
-reading per directive; the heavy work runs in userland; results come back signed by the operator
-as fixed-denominator integers or rationals. No pillar can mint, set κ or touch a balance.
+Every pillar pairs a legacy language with a compact AI shorthand (R7). No pillar can mint, set κ
+or touch a balance.
 
-| Pillar | Legacy side | Shorthand | Role | Status | Limits |
-|---|---|---|---|---|---|
-| Treaty | COBOL copybooks, `CALL 'ZXV_ENGINE'` | **Sutra** | Agreements and settlement records | Copybook parser ✅ (10M fuzz runs); treaties and Sutra 📋 | Sutra rejects weights not summing to exactly 1 and claims above deposit. Tested on big-endian s390x emulation; z/OS itself can't run here |
-| Physics | Fortran via `iso_c_binding` | **Trebago** | Commodity flows, large netting proposals | ✅ `sdk/pillars/fortran-trebago` (with tests) | Floats stay outside the kernel; replays use the signed value; may only tighten admission; proposed netting cycles re-checked exactly |
-| Spatial | Ada/SPARK geodesy | **Eve** | Geofences, corridors, collateral location | ✅ `sdk/pillars/ada-eve` (with tests) | WGS-84 in integer micro-degrees and millimetres; a geofence hit can only add a hold |
-| Time series | APL/K | **KRON** | SCADA and market series | ✅ `sdk/pillars/apl-kron` (with tests) | Advisory for grid control |
-| Clinical | MUMPS/M | **MYRA** | Clinical and genomic trees | ✅ `sdk/pillars/mumps-myra` (with tests) | Advisory; a licensed human acts |
+| Pillar | Legacy side | Shorthand | Role | Status |
+|---|---|---|---|---|
+| Treaty | COBOL copybooks | **Sutra** | Agreements and settlement records | ✅ `kernel/src/treaty`, `kernel/src/sutra`, `sdk/pillars/cobol-sutra`; Sutra also runs in the arm64 image |
+| Physics | Fortran | **Trebago** | Commodity flows, netting proposals | ✅ `sdk/pillars/fortran-trebago` (hosted) |
+| Spatial | Ada/SPARK | **Eve** | Geofences, corridors | ✅ `sdk/pillars/ada-eve` (hosted) |
+| Time series | APL/K | **KRON** | SCADA and market series | ✅ `sdk/pillars/apl-kron` (hosted) |
+| Clinical | MUMPS/M | **MYRA** | Clinical and genomic trees | ✅ `sdk/pillars/mumps-myra` (hosted) |
 
-The Hackronomicon book is all rights reserved: used as reference, its text stays out of the
-Apache repo unless you relicense it.
+### 14.3 Every programming language, and every spoken one
 
-## 13. Above the strata: products, apps and people features
-
-| Part | Status | Limits |
+| Part | Status | Detail |
 |---|---|---|
-| Mac (Intel + Apple Silicon), Windows, Linux builds; local API guard; update checker; notifications | ✅ | |
-| Single-file `libzxv.c` + `zxv_engine.h`, no malloc in the hot path | 📋 | Same tests as the full tree |
-| `zxvd` daemon + JSON-RPC + generated SDKs (Python/TS → JVM/Go → React Native/Flutter) | 📋 phase 3 | |
-| Five-view UI: Sicily Ledger & Patron Deck, Local AI Studio, P2P Mesh, Storefront & Escrow, Settings & Jurisdiction Bridge; command-center map with T/F/B/U corridors | 📋 | Mockups to you first |
-| UI strings from `i18n` (35k lines, CLDR) | 📋 gap B6 | |
-| Calls, streaming, ISF-ranked social feed, speech, translation, game mechanics, forks | 🧩 | |
-| Mobile (Android, iOS) | 🟡 | Core builds; apps not in CI |
-| Live demo: P2P chat → inference → Vino settlement | 📋 phase 4 | |
-| Signing and notarisation | 💭 | Needs your Apple Developer ID |
-| **Public release to GitHub and Hugging Face** | 📋 | When ready, and only after your go-ahead: code on GitHub, model files and benchmarks on Hugging Face |
+| Lingua: one shared IR with FORTRAN, BASIC and Forth front ends as app blocks, each with an AI twin; a 104-row language catalogue | ✅ #156 | [LANGUAGE_CATALOGUE.md](LANGUAGE_CATALOGUE.md). About 10 of the 104 run in ZXV today (C, Sutra, Trebago, Eve, KRON, MYRA, Wasm and the three Lingua front ends); the rest are host languages through SDKs, queued or recorded only. Not built into libzxv despite its README |
+| Dragon-themed twin names (purpose + wyrm, drake, hatchling or lindworm) | 📋 naming rule | Pillar names stay |
+| Apps are never single-language: each feature uses the best-fit language; critical features run in two and are joined with `lpres` | 🟡 | [APP_MODEL.md](APP_MODEL.md); apps use only C, JS and Swift today |
+| 104 spoken languages in the user space, keyboard layouts, Brahmic shaping, ASCW Golden faces for every script | ✅ #156 (machine translations, unreviewed) | [SPOKEN_LANGUAGES.md](SPOKEN_LANGUAGES.md), [FONTS.md](FONTS.md); input methods for Chinese, Cantonese, Japanese, Korean and Ge'ez in one pushed commit #156 did not take |
+| i18n library (778 locales, CLDR formatting) | 🟡 | Hosted; app strings now generated from it; non-Gregorian calendars missing; [LANGUAGES.md](LANGUAGES.md) |
 
-## 14. Cross-cutting layers
+## 15. Above the strata: the desktop, apps and people features
+
+### 15.1 The native interface `zui`
+
+| Part | Status | Detail |
+|---|---|---|
+| Toolkit: canvas, layout, widgets, theme tokens, text shaping, bidi, IME, keymaps, accessibility (screen reader, magnifier, captions, on-screen keyboard, switch access, voice control), lock, notices, settings, privacy indicators | 🧩 | Tested in verify-all and CI; linked into no image and no shipped app yet |
+| Window manager with the astrolabe dock (a corner seal blooming into rings) and icon motion that shows state (fast: needs input, medium: running, slow: idle, still: not running) | ✅ #156 | |
+| Vector renderer `zui_vec` and the ZXVG format; `tools/zxvg` converts and lints the 407 icons | ✅ #156 | Icons and partner logos held in the project files until the trademark checks |
+| Four-axis depth effect filter driven by the four-valued tag (integer only, also for video); vault-door login after boot; foil | ✅ #156 | Contrast tokens and glyph fallback in one pushed commit #156 did not take |
+| Image and video decoders (PNG, JPEG, GIF, BMP, QOI, MJPEG, Y4M) `media` | 🔒 | |
+| ZXVA vector audio (procedural app sounds, the launch synth) `vaudio` | 🔒 | Its doc, `ZXVA.md`, lands with it |
+| **One visual system**: bare-metal desktop ported to zui with ASCW text, 15 keyboard layouts and Spaces; Studio theme generated from the zui tokens; the Mac web view replaced by the native desktop | 🔒 | All five kernels build and every zui test passes; the Mac code is not compiled yet; title bars small on high-DPI; full-frame redraw |
+| End-user agreement and its screen `terms`, `zui_terms` (first boot, per seat, read to the end) | ✅ #156 | Licensor SCENIC BYPASS CONSULTING, LLC; shell hookup once login lands |
+| Chiglet companion: pops up like a call tile, shows its feeling, emoji status bar | 🟡 (`zui_chiglet`) / 📝 #153 | |
+
+### 15.2 Boot and launch screens
+
+| Part | Status | Detail |
+|---|---|---|
+| Boot: all gold on #002911; fox at the top; 36N9, ACOTO, ASCW crest, SMIC, CIS logos; mirrored bars that track real progress; vault doors | ✅ #156 | SMIC trademark check pending |
+| Every app launch replays the boot screen inside its window with the app's icon and its own sounds, at the speed of real loading | ✅ #156 (`launch`) | [APP_LAUNCH_SCREENS.md](APP_LAUNCH_SCREENS.md) |
+
+### 15.3 The 407 apps
+
+| Part | Status | Detail |
+|---|---|---|
+| Three tiers: L1 001-144 base modules, L2 145-271 built from L1, L3 272-407 built from L2 | 🟡 | Only a handful of L1 apps have real code (audit: 6 of 144); the catalogue is in the project files |
+| App runtime `zxapp`: blocks in many languages (C, Sutra, Trebago, Eve, KRON, MYRA, Wasm, Lingua, pce) | ✅ hosted | [APP_DEVELOPMENT.md](APP_DEVELOPMENT.md) |
+| Circuit board: build an app by wiring apps together | ✅ #156 | [CIRCUIT_BOARD.md](CIRCUIT_BOARD.md) |
+| Built-in system utilities (journal, backup, search, print, location, screen time) | 📝 #141 | hosted zxvd |
+| The Banker (file manager) and the Hoard (storage root), Sealed Hoard snapshots | 🟡 | Files layer in the app; encryption at rest missing; [LEXICON.md](LEXICON.md) |
+| Registry of 407 slots with crossing rules; Registrar; Rosetta Shell; trade routes | 📋 | [REGISTRY.md](REGISTRY.md), [REGISTRAR.md](REGISTRAR.md), [ROSETTA_SHELL.md](ROSETTA_SHELL.md), [TRADE_ROUTES.md](TRADE_ROUTES.md) |
+| Terminal zxsh: four-valued exit codes, bash-familiar syntax, line editing, sub-terminals | ✅ #156 | Hosted only |
+
+### 15.4 People features
+
+Calls, streaming, the social feed ranked by ISF, translation, quests and game mechanics, Spaces
+(Home, Office, Team, Cloud top, Park), the phone link and the device mesh are ✅ in zxvd;
+[STAPLE_APPS.md](STAPLE_APPS.md), [ENGAGEMENT.md](ENGAGEMENT.md),
+[MOBILE_AND_DEVICES.md](MOBILE_AND_DEVICES.md).
+
+### 15.5 Coding engine
+
+How sessions build ZXV (settle on the first pass, conflicts are BOTH, gaps are NEITHER) is
+[CODING_ENGINE.md](CODING_ENGINE.md), with the short form in `CLAUDE.md`.
+
+### 15.6 The user-evolved OS
+
+| Part | Status | Detail |
+|---|---|---|
+| Compatibility contract (identity is its CID, grows only by extension), ML-DSA audits, community gate (two owner-chosen auditors, no self-audit, any fail vetoes), trial and rollback journal `evo_comm` | 📝 #155 | Builds on the fork and capability module `evolve` ([FORKS_AND_EVOLUTION.md](FORKS_AND_EVOLUTION.md)) |
+| Personal chiglet bond: on-device habit model, three ISF-combined experts, export only with opt-in `chg_bond` | 📝 #155 | |
+| Pop-up UI, Web4 transport, zxvd methods, pinned launch contract | 📋 | `USER_EVOLVED_OS.md` lands with #155 |
+
+## 16. Cross-cutting: privacy, transport continuum, use cases
 
 ### Privacy
 
 | Part | Status | Limits |
 |---|---|---|
-| Lattice zero-knowledge proofs (e.g. on genomes) | 📋 | Fit the PQ stack |
-| Discrete-Gaussian differential privacy | 📋 | Exact, float-free |
-| Four-valued access control with minimal emergency release in state Both | 📋 | |
-| | | Doesn't protect metadata, query patterns, consent records, key handling or side channels on its own. Designed to support HIPAA/GDPR; not a replacement and not certified |
+| Privacy layer `privacy`, intent layer `intent` | 🧩 | No caller in the app or libzxv |
+| Lattice zero-knowledge proofs; discrete-Gaussian differential privacy; four-valued access with minimal emergency release | 📋 | Protects data, not metadata or side channels; designed to support HIPAA and GDPR, not certified |
 
 ### Transport continuum (Morse to 5G, satellite and subsea)
 
 | Part | Status | Limits |
 |---|---|---|
-| Self-contained PQ-signed envelopes with a 32–64 byte core | 📋 | Verify end to end across any carriers |
-| Store-and-forward (DTN); dropped links marked U | 📋 | |
-| Link selection by measured latency and loss; small settlement header on the fastest link, bulk on the cheapest | 📋 | Compatibility adapters only. We are a customer of Starlink/OneWeb IP service and can't steer their routing. Arriving first isn't finality: both ledgers must sign |
-| Software modems (OOK, FSK, GMSK); LoRa/Meshtastic, JS8/VARA, APRS, AREDN | 📋 | **No settlement over amateur bands** (US 47 CFR 97.113): ham links carry only cleartext, signed emergency messages. Per-jurisdiction radio rules table |
-| Graceful degradation in the UI | 📋 | |
+| Bearer models and link selection | ✅ #156 library (`bearer`) | We are a customer of satellite IP service and can't steer its routing; arriving first is not finality |
+| Self-contained PQ-signed envelopes, store-and-forward, graceful degradation | 📋 | |
+| Software modems, LoRa/Meshtastic, JS8/VARA, APRS, AREDN | 🟡 twins catalogued in `aproto` | Ham links: cleartext, signed, no settlement (R21) |
 
 ### Use cases
 
 | Area | How ZXV fits | Limits |
 |---|---|---|
-| Central banks and cross-border clearing | Netting, ISO 20022, interest-free design | No connection claimed; Shariah board and regulators decide |
-| Disaster and emergency (wildfire, flood, evacuation, mutual aid, CME grid protection, remote trauma, pandemics) | Offline-first, contradiction-tolerant; a use-case document after integration | Recommendations an authorised person confirms; forecasts ingested from NOAA/ECMWF/agencies; mutual-aid copybooks encode agreements, seizures need the declared authority's signature |
-| Defense | Logistics, medical, mapping, collateral tracking | No weapons targeting |
+| Central banks and cross-border clearing | Netting, ISO 20022, interest-free design, naval ports | No connection claimed; regulators decide |
+| Disaster and emergency | Offline-first, contradiction-tolerant | Recommendations a person confirms |
+| Defense | Logistics, medical, mapping, tactics and strategy engines | No weapons targeting (R8) |
 | AI agents trading | Agent cards under their owner | Owner's identity and limits apply |
 
-## 15. Quality: tests, self-audit, self-healing, the 13:1 target
-
-### Today
+## 17. Quality: tests, self-audit, the 13:1 target
 
 | Measure | Value |
 |---|---|
-| Ratio of test code to protocol code | **0.36:1** (target 13:1, which at today's size is roughly 3.9 million lines) |
-| Mutation scores | Settlement spine 89.6%, engine 86–89%, trade loop 86%, quota maths 96%; gated in CI |
-| Fuzzing | 13 parser harnesses; 222M netting operations; COBOL copybooks 10M |
+| verify-all | Runs every module's host test (many under ASan/UBSan), freestanding cross-compiles and the sub-suites. The last recorded count is 3,987 passing checks (2026-10-10, `fuzz/FUZZ_REPORT.md`), before 50+ pull requests merged; a fresh count belongs in the next report |
+| CI tiers | Drafts run the fast tier; ready PRs, nightly and manual runs add the slow tier; `ci-gate` needs both ([CI.md](CI.md)) |
+| Mutation gate | 102 targets; a CI subset of 21 with per-target baselines |
+| Strata check | 287 entries, 9 strata, run on every pass |
+| Fuzzing | 24 parser and 12 economy harnesses; 222M netting operations clean |
 | Proofs | TLA+ and Lean models; found two real arithmetic bugs |
-| Shipped code in no test (gap B2) | 20.5k lines (`emu`, `net`, `modbind`, `desktop`, `sdk_bridge`, `panopticon` and smaller) |
+| Test-to-code ratio | About 0.6:1 against 13:1, counted only by mutation-killing tests |
+| Audits | [AUDIT_REPORT.md](AUDIT_REPORT.md) (2026-10-10), [ADVERSARIAL_AUDIT_2026-10-12.md](ADVERSARIAL_AUDIT_2026-10-12.md) (its six design findings fixed in #156), [ARCHITECTURE_AUDIT_2026-10-15.md](ARCHITECTURE_AUDIT_2026-10-15.md) |
 
-### How the ratio is counted
+Self-healing is designed recovery only (R6): refuse, roll back to a checkpoint or isolate a
+peer, each with a signed proof; never auto-patch state.
 
-Only tests that fail when the code breaks count (proved by the mutation gate). Generated tables,
-copied tests and fuzz corpora don't. Archiving dead and duplicate code shrinks the protocol side.
-The ratio is reported with mutation score and coverage in every update.
+## 18. Order of work
 
-### The 13-tier catalogue (revised order in the build thread)
+The owner's instruction of 2026-10-15: add nothing new unless it is a missing component;
+consolidate cleanly; finish everything on GitHub and in the golden disc images.
 
-Exact-rational arithmetic · the four-valued lattice · conservation and zero drift · containment of
-contradictions (no explosion) · asymmetric routing costs · cycle netting · overdraft beyond real
-balance fails cleanly with no state change · backed-only Dutch auction · custodian default slashes
-only posted bonds, loss stays in the basket · bit-identical replay across CPUs · zero heap in the
-hot path · COBOL linkage (GnuCOBOL, PIC S9(18) parity) · Sutra grammar rejection · black-swan
-partition survival on the seeded simulator · adversarial agents (local models; external model APIs
-need keys and network access).
+1. **Consolidate.** Merge #156. Then one more batch for everything committed locally (one visual
+   system, naval ports, jurisdiction router, Crown Allotment, media and ZXVA, voice, bounties,
+   user-evolved OS, documentation fixes) and the pushed commits #156 did not take (token yield,
+   x86 kernel buffers, contrast tokens and glyph fallback, input methods, the OEM partner pages,
+   the image-averaging fix). Then the open drafts #129, #140, #141.
+2. **x86 memory:** frames from the handoff map, kernel buffers moved, a heap with `free`.
+3. **x86 interrupts and time:** LAPIC/IOAPIC, timer tick, XSAVE, `syscall`, RTC, ACPI reset and
+   power-off (#140).
+4. **Processes on both arches:** address spaces, ELF loader and scheduler on x86, spawn/wait/kill,
+   threads, syscall ABI 1.1, channel IPC.
+5. **Storage:** block layer v2, GPT by type, golden disc v2 layout (ESP, bootctl, system A/B,
+   models, data), signed system root, zxvfs v2 and fsck.
+6. **Service manager:** journal, crash records on x86, safe and recovery modes (`[SERVICES_OK]`).
+7. **User-space runtime `zxrt`:** libc subset, libzxv for user space, zxvd as a service, Z-Wasm,
+   the pillars and Lingua.
+8. **One native GUI everywhere:** zui as the compositor on bare metal, login and seats with the
+   agreement, then the hosted app on zui's present layers (`[LOGIN_READY]`).
+9. **Input breadth:** HID parser, PS/2, I2C-HID, keymaps on bare metal.
+10. **Apps as processes:** `.zxa` container, sandbox from manifests, L1→L2→L3 slots, the Banker
+    as the first bare-metal app.
+11. **Network and trust on bare metal:** NIC to IP on x86, SNTP then TLS live, IPv6, firewall,
+    WireGuard, Vinea and the swarm as services, models streamed from the disc.
+12. **Platform depth:** ECAM, MSI-X, SMP, IOMMU.
+13. **Security chain and distribution:** Secure Boot signing, signed model manifest, TPM measured
+    boot, encrypted data partition, installer, a signed release with the golden disc published as
+    a disc image (ISO or raw) once the owner settles where the weights are hosted.
+14. **Device breadth:** audio, USB classes, Bluetooth, display modes, battery and thermal UI,
+    then the driver VM for Wi-Fi and GPU.
+15. **Close the loop:** a physical hardware lab and compatibility list, hermetic CI with an SBOM,
+    and a self-hosting toolchain.
 
-### Self-healing
+Each step is one or more small pull requests, green on GitHub before the next starts.
 
-Designed recovery only (rule R6): refuse, roll back to a checkpoint, or isolate a peer, each with
-a signed RepairProof; hard invariants stay fail-closed; never auto-patch state.
+## 19. Decisions made
 
-## 16. Order of work
-
-1. **Integration pass** (in progress): A1 ✅, A2 ✅, A4 ✅, A3 🔧 one PQ session layer, then A5
-   connect or archive the 16 uncalled modules, A6 the end-to-end harness on a seeded simulated
-   network, and B1–B7 (layering check, untested code, duplicates, self-healing framework, i18n).
-2. **Integration phases 2–4:** sockets and the two-laptop demo; `zxvd` and the five-view UI;
-   the live demo.
-3. **The 13-tier suites** toward 13:1.
-4. **Queued specs:** the economy items in section 11, the five language pillars, privacy,
-   transport continuum, the AI adapter experiments, then the rename.
-5. **Release** to GitHub and Hugging Face after your go-ahead.
-
-This is weeks of steady, verified milestones, each pushed green on GitHub before the next starts.
-
-## 17. Decisions made
-
-| Date (2026-10-10 UTC) | Decision |
+| Date (UTC) | Decision |
 |---|---|
-| 09 Oct | Apache-2.0 only; Vinea replaces Carracho; rails 555/777/888, class 811 |
-| 00:28 | Full rename of esoteric module names, run last |
-| 04:04 | Closed clearing default; open batch auction as a per-jurisdiction switch |
-| 04:04 | 0.08889% fee replaces the φ% tithe; split 50 / 25 / 15 / 10 |
-| 04:18 | 25% goes to the V-Bill dividend; solvency from slashed bonds and salvage |
-| 04:20 | Vault funded by a third of the reserve share, capped at 1/3 of V-Bills |
-| 04:30 | Founder powers behind a steward threshold |
-| 04:58 | Purge binaries from history only after PR #1 merges, with a final check with you |
-| 04:58 | Integration phases 1–4 before the economy specs; Qwen2.5-1.5B as base model |
-| 05:27 | Guardians approve with signatures, no shares; 3 of 5 |
-| 06:25 | One fee for all, no staker discounts |
-| 09:07 | V-Bill issuance backed only |
-| 09:24 | Test target 13:1, counted via mutation-killing tests |
-| 11:40 | Transport: compatibility adapters and link selection only |
-| 11:43 | Holographic coding on the device, never on the wire |
-| 11:57 | Publish to GitHub and Hugging Face when ready |
+| 2026-10-09 | Apache-2.0 only; Vinea replaces Carracho; rails 555/777/888, class 811 |
+| 2026-10-10 | Closed clearing default, open batch auction per jurisdiction; 0.08889% fee split 50/25/15/10; 25% to the V-Bill dividend; vault funded by a third of the reserve share, capped at 1/3 of V-Bills; founder powers behind a steward threshold; guardians sign, hold no shares (3 of 5); one fee for all; backed-only V-Bill issuance; 13:1 test target counted by mutation-killing tests; transport by compatibility adapters and link selection; holographic coding on the device only; publish to GitHub and Hugging Face when ready |
+| 2026-10-12 | Own native UI, never browser-looking; palette #002911, light green text, gold #F2C230; boot and launch screens as in section 15.2; the policy engine is `zxv_policy`, never a "legal engine" |
+| 2026-10-14 | GPU-first, integer-exact (R16); vector graphics everywhere (R17); every programming language from the 1950s on, each with an AI twin; every network protocol with a P2P, PQ, auditable twin; bare metal and the golden disc as the universal platform, designed by paraconsistent logic; 407 apps in three tiers; the Banker and the Hoard; astrolabe dock and icon motion by state |
+| 2026-10-14 | End-user agreement 1.0 approved; California law for non-consumers |
+| 2026-10-15 | Licensor SCENIC BYPASS CONSULTING, LLC (Arizona); creator and root organisation 36N9 GENETICS LLC; manufacturers partner only through ILLUMAHEART FOUNDATION or SCENIC BYPASS CONSULTING, LLC |
+| 2026-10-15 | Tiamat Productive Agency AI as the local AI's brand; nested agency levels; lineage diversity; DNA and hobbies; licence allow list for shipped weights |
+| 2026-10-15 | 104 spoken languages on par with coding languages, all in ASCW Golden; chiglet voice on tap only; no central OS releases (R22); bounties as the main VFV issuance path; naval ports and Sicilian accounts; Vino allotments routed by jurisdiction, software first; the fee stays 0.08889%; "allotment" wording, Crown Allotment FREE by default |
+| 2026-10-15 | Consolidate; add only missing components (section 18) |
 
-## 18. Decisions still open
+## 20. Decisions still open
 
-| Question | Default |
+| Question | Default today |
 |---|---|
+| Ship model weights in the golden disc release (changes "weights never attached") and where to host the 1.6 GB image | Weights fetched at first run; golden disc built by hand |
+| Guardian recovery: signatures only (R15), or keep `ident`'s Shamir share of one factor | Code keeps the share; R15 says no shares |
 | Commons endowment's share of the fee | Half of regenerative (5%) |
 | Demurrage on idle vouchers | Not built |
-| Fibonacci-only denominations | Only minted vouchers |
-| IPNS or fixed CID for updates | Fixed CID default |
-| Dividend only to active users | Not built (changes the split) |
-| Custodian default: cover remaining loss from fee income? | No; loss stays in the basket |
+| Every VFV coin a Fibonacci rung? | Only minted vouchers |
+| Dividend only to active users | Not built |
+| Custodian default covered from fee income? | No; loss stays in the basket |
+| Bounty payout amounts, epoch cap, reviewer pay, self-fixes, minting at posting | Claude's defaults in #154 |
+| Naval ports: cycle length, SUSPEND or DEFEND default, settling silent members, yield weights | SUSPEND |
+| Pipe yield and any yield-linked voucher return | Off; waits for counsel |
+| Mac app icon: navy 36N9 logo or gold fox on green | Navy logo |
+| Trademarks: ZEDEC, ZXV, VOVINA SHAKINA held by 36N9; Tiamat, Zenny, Thunderbird, SMIC searches | Open |
 | Apple Developer ID | Needed to ship signed |
-| Running speed tests on your M3 Max | Offered in the model thread |
 
-Legal questions for you and a lawyer: V-Bills and Zenny chips as securities; operating the fee and
-vault; bank or money-transmitter status; inheritance and Shariah rulings; HIPAA/GDPR; PAPSS
-submission; "Thunderbird" and "Zenny" trademarks.
+Legal questions for the owner and counsel: V-Bills and Zenny chips as securities; operating the
+fee and vault; money-transmitter status; the closed-loop store-credit framing; the allotment's
+modes per market; inheritance and Shariah rulings; HIPAA and GDPR; the bounty leaderboards.
 
-## 19. Where spec text and the design differ
+## 21. Where spec text and the design differ
 
 | Spec text | Design |
 |---|---|
-| Guardians hold key shards | Guardians sign approvals; no shares |
+| Guardians hold key shards | Guardians sign approvals (the code still gives each a share of one factor; section 20) |
 | Sinks reflect attacks | Tarpit and isolate only |
 | Forecasting silently fixes bugs | Reports; designed recovery with receipts |
 | Arbitrary-precision rationals | 64-bit rationals with overflow checks |
 | Clean-room PQC | Vendored upstream reference code |
-| κ multiplies value or exposure; 1% anchor absorbs a 100× overdraft | κ sets chip size; claim = deposit; overdrafts fail closed |
-| FX "liquidity pump" | The fee still applies; savings come from netting |
+| κ multiplies value or exposure | κ sets chip size; claim = deposit; overdrafts fail closed |
 | Auction burns fiat | Fiat goes to the reserve or back to bidders |
-| Fee income covers a custodian default | Not without your decision |
-| Library-only escapes regulation | A lawyer decides |
+| Library-only escapes regulation; a new name changes the legal category | A lawyer decides; labels are not dispositive |
 | Zero-KYC agents | Owner's identity and limits apply |
-| "Impossible to leak", replaces HIPAA | Protects data, not metadata; designed to support compliance |
-| Four million lines of formal verification, DO-178C | 13:1 mutation-killing tests are a quality bar, not a certification |
-| Holographic expansion is negentropic | Lossless decode matched bit for bit; same information in more bits |
+| "Impossible to leak" | Protects data, not metadata |
+| Four million lines of formal verification | 13:1 mutation-killing tests are a quality bar, not a certification |
 | Lattice head replaces softmax | Sits beside it |
 | Settlement over ham bands; steering satellite paths | Not allowed; not possible as a customer |
-| Ada float types, Fortran doubles in settlement | Fixed point; signed results outside the kernel |
+| V-Bills backed by every commodity ever traded | Backed by registered, haircut custodian receipts and the reserve |
+| Compression multiplies value | Compression is netting; it moves less and creates nothing |
+| Fixed Fibonacci bounty tiers | One signed bid judged against a fair value (the bidding model the owner chose) |
+| Superintelligence | An agency of specialist AIs that check each other |
 
-## 20. Design analogy: the seven quantum levels
+## 22. Document map
 
-You map the strata onto quantum information theory: vacuum ground state (kernel), entanglement
-(transport), topological protection (trust), superposition (four-valued logic), unitary evolution
-(AI), measurement (settlement), decoherence (adapters). It is a **design analogy**, like the coil and
-field language in the tensor docs. The software runs on classical computers and claims no quantum
-physical properties. Where it stretches: freight is erasure coding, not entanglement; lattice crypto
-gives secrecy, not error correction; integer maths is deterministic but quantisation still loses
-precision. The principle taken from it is rule R2.
+This file is the architecture; [SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md) is the per-module
+reference. The others do one job each.
 
-## 21. Honest notes
+| Kind | Documents |
+|---|---|
+| Gaps and plans | [ARCHITECTURE_AUDIT_2026-10-15.md](ARCHITECTURE_AUDIT_2026-10-15.md) (this version's audit and fill plan), [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md) with `baremetal-gaps/`, [GAP_AUDIT.md](GAP_AUDIT.md) (2026-10-10 integration gaps) |
+| Subsystem specs (built) | ADAPTERS, ADAPTER_BOX, AIPI, AIRC, CARD_NETWORKS, CENTRAL_BANK, CIRCUIT_BOARD, CIRCUIT_EQUIVALENCE, COMMERCE, CRASH_RECOVERY, ENDIAN_HOPPING, EXACT_RISK, FONTS, FORKS_AND_EVOLUTION, GPU_STRATEGY, GRIDLOCK_RESOLUTION, HARMONIC_WIRE, HPC_DESIGN, HW_DRIVERS, IDENTITY_AND_RECOVERY, IPFS_NODE, IRC_GATEWAY, LANGUAGE_CATALOGUE, LEGACY_BRIDGE, P2P_PROTOCOL_TWINS, PARACONSISTENT_ENGINES, PARACONSISTENT_LEDGER, PARADOX_ENGINE, PEER_AUDIT, POWER, PQ_MATRIX, PROVIDERS, QUANTUM_NETTING, QUANTUM_SIMULATOR, QUBO_WORKBENCH, SPACES, SPATIAL_ENGINE, SPEECH_AND_TRANSLATION, SPOKEN_LANGUAGES, SWARM_ECONOMY, TENSOR_ENGINE, TIME, TLS_CERTIFICATES, TOKEN_DENOMINATIONS, VINEA, VRAM_BLOCKS, WEB4, ZXVD, `retail/*` |
+| Design only | AI_MODEL, CAGE, PIT_BOSS, REGISTRAR, REGISTRY, ROSETTA_SHELL, TRADE_ROUTES, LEXICON |
+| Products | MAC_APP, DESKTOP_LINUX_WINDOWS, MOBILE_AND_DEVICES, BAREMETAL, STAPLE_APPS, APP_DEVELOPMENT, APP_MODEL, APP_LAUNCH_SCREENS, DOTNET_SDK, `sdk/docs/*` |
+| Process | CI, CODING_ENGINE, COVERAGE, ADVERSARIAL_AUDIT, FORMAL_INVARIANTS, `release/*` |
+| Dated reports | AUDIT_REPORT (2026-10-10), ADVERSARIAL_AUDIT_2026-10-12, CI_QUALITY_AUDIT_2026-10-12, ARCHITECTURE_AUDIT_2026-10-15 |
+| Explainers | `academic/*`, `supplemental/*`, [DESIGN_PHILOSOPHY.md](../DESIGN_PHILOSOPHY.md) |
+| Superseded, kept for history (each opens with a pointer here) | [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md) (2026-10-09 survey), [TURNKEY_OS_GAPS.md](TURNKEY_OS_GAPS.md) (2026-10-12, followed by BAREMETAL_OS_GAPS), and in the repository root: ARCHITECTURE.md (early M5 substrate notes; section 8.1 replaces them), ARCHITECTURE_COMPLETE.md and ARCHITECTURE_VERIFICATION.md (CURZI-8889-A, 2026-09-12), ARCHITECTURE_WHITEPAPER.md, CANONICAL.md (2026-08-04, an older tree layout), ROADMAP.md (August tracks; section 18 replaces it), SUBSYSTEM_INDEX.md and SOURCE_CODE_NAVIGATION_GUIDE.md (Appendix A and SYSTEM_REFERENCE replace them), ZEDEC_NEW_MODULES.md, DEVELOPMENT_MAP.yaml, SERVER_HANDOVER.md, CID_TRACK_LOG.md, VOVINA_SHAKINA_README.md and VOVINA_SHAKINA_WHITE_PAPER.md |
+
+## 23. Honest notes
 
 - "Built" means tested in CI. Nothing here has had real users or moved real money, and there has
   been no outside audit.
-- The real model runs and is measured, but it is slower than llama.cpp today.
+- The bootable images are self-tests under emulation; what people can use today is the desktop
+  app, its SDKs and the phone companion.
+- The real model runs and is measured, and is slower than llama.cpp on the CPU today.
 - Standards are followed by design and checked against schemas or published examples; nothing is
   certified or connected.
-- Older root documents (ARCHITECTURE_COMPLETE, VOVINA_SHAKINA_*, ARCHITECTURE_VERIFICATION) are
-  superseded by this document and SYSTEM_REFERENCE.md.
+- The 🔒 rows describe work that exists only on a thread's branch until the CI freeze lifts; if a
+  branch is lost, so is that work, so the consolidation batch comes first.
+- The owner maps the strata onto quantum information theory (vacuum, entanglement, topological
+  protection, superposition, unitary evolution, measurement, decoherence). It is a design
+  analogy: the software runs on classical computers and claims no quantum properties.
+
+---
+
+## Appendix A: every kernel module by stratum
+
+From `build_system/strata.txt` at `7d4297c2`. A module whose files are pinned to different strata
+is listed once, at its directory's stratum. Every module has an entry in
+[SYSTEM_REFERENCE.md](SYSTEM_REFERENCE.md).
+
+| Stratum | Count | Modules |
+|---|---|---|
+| S0 base | 20 | axiom_matrix, crit168, dharana, dual_space, e8, edp_risk, event_space, fractal, invproof, lpres, mixmat, onepolicy, qr, rational, rce, rmag, sephirot, surplus, ubh, zcapital |
+| S1 kernel | 53 | acpi, alloc, ata, audio, blockdev, bluetooth, cellular_multikernel, choice, clock, codec, crash, deploy, display, el0_userspace, event_sched, fat32, fs, gdt, hardware, holographic, hwdrv, idt, keyboard, license, mbcomp, mm, modbind, mouse, oseq, pci, phase_coord, pic, pmm, power, qeq, qsim, quantum, recon, sched, sdk, smap, syscall, telemetry, timer, timesvc, trispace, vbe, vfs, video, virtio, wifi, yantra, zxvfs |
+| S2 transport | 15 | bearer, bridge, bringup, call, constellation, event_transport, freight, ipfs_node, iphase, lattice, mesh_net, net, plnp, porter_house, stream |
+| S3 trust | 28 | aproto, ascent, bios, bootattest, bootlegger, crypto_wallet, curzi, decent, ehop, hwkey, ident, identity, immigration, ipfs, loader, mage, mlkem, pqsec, provenance, pungent, reputation, robin_debanks, seats, tls, update, vinea, zab, ztp |
+| S4 logic | 12 | bombsquad, dharma, panopticon, paradox, pce, peer_audit, predictive, qubo, recover, situation, spatial, tripartite_fs |
+| S5 AI | 15 | ai_layer, aipi, chiglet, cotier, edgeclus, epu, harmonic, megarom, speech, swarm, tensor, vblock, voice, web4, xlate |
+| S6 settlement | 42 | abacus, airc, battering_ram, capmkt, cardnet, cbank, concord, count_house, cred, devmesh, dispute, engine, estate, finance, finance_markets, fxepoch, grants, gridlock, logistics, market, mesh_token, mint, outbox, pay, provider, qnet, qnote, royalty, settle, sicily, svault, vauction, vbond, vderiv, vena, vhub, vino, vino_stores, vswap, xrisk, zenny, zstats |
+| S7 adapters | 31 | acct, capctl, crown, evolve, financial_fabric, fwadapt, gematria, hdcm, hwemu, intent, interspace, iso20022, juris, kycwrap, legacy, legal_engine, lightningrod, lingua, mfg, ministry, orbital_compat, orbital_elevator, orbital_fabric, policy, privacy, rur, sdk_bridge, sovereign_node, sutra, taxhook, treaty |
+| S8 above | 45 | appkit, apps, art_studio, audiogenomics_pro, bootfeat, broker, browser, cards, chronicle, community_chest, denconnect, desktop, dualtrack, emu, font, fusion, games, holodeck, hypercube, i18n, icon, launch, macgyver, nlb, pirate_apps, pirate_fleet, prism_break, pterm, quest, reality, refinery, shimmer, social, social_spaces, subterm, superpos, synthesis, terms, theme, tolvovina, wyrmgate, wyverneye, xedit, zui, zxpkg |
+
+Modules on local branches or drafts, not yet in this list: `navport`, `allotment`, `jroute`,
+`media` and `vaudio`, plus new files inside `evolve`, `chiglet`, `pay`, `speech` and `zui`
+(sections 12 to 15).

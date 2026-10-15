@@ -1,3 +1,5 @@
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md). The repository root is the canonical tree; the `05_KERNEL/` layout below is from an older repository. This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZXV — Single Source of Truth
 
 This resolves the audit finding "no single source of truth." Authoritative as of 2026-08-04.
