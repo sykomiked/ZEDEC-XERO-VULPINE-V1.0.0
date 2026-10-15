@@ -73,7 +73,7 @@ cd "$SRC" || exit 1
 grep -q "no manifest for use swarm_shares" "$D/err" || no "unresolved use message"; ok
 [ -e "$D/mur.fab" ] && no "a recipe for an unresolved app"; ok
 [ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/mur.fab" $K --blocks apps/blocks --form "$D/mur.form" --store "$D/store")" = 0 ] || no "pack murmuration"; ok
-PIN=$(sed -n 's/^use    swarm_shares 1 \(sha256:[0-9a-f]*\)$/\1/p' "$D/mur.form")
+PIN=$(sed -En 's/^use    swarm_shares 1 (sha256:[0-9a-f]+)( .*)?$/\1/p' "$D/mur.form")
 [ -n "$PIN" ] || no "the use is pinned"; ok
 SS=$(grep -l '^id       swarm_shares' "$D"/store/* | head -1)
 [ -n "$SS" ] && grep -q '^logic    kron cycle_share <<$' "$SS" || no "the block is sealed (inline) in the store"; ok
@@ -99,11 +99,11 @@ sed 's/^name     Swarm shares$/name     Swarm shares too/' apps/blocks/swarm_sha
 grep -q "name one by its pin" "$D/err" || no "ambiguous message"; ok
 # a pin to a block that is not sealed (its sources are paths)
 RAWPIN=sha256:$(sha256sum apps/blocks/swarm_shares.zxblock | cut -c1-64)
-sed "s/^use    swarm_shares 1\$/use    swarm_shares 1 $RAWPIN/" apps/murmuration.zxapp > "$D/r/m.zxapp"
+sed -E "s/^(use    swarm_shares 1)( |\$)/\1 $RAWPIN\2/" apps/murmuration.zxapp > "$D/r/m.zxapp"
 [ "$(rc "$FAB" pack-app "$D/r/m.zxapp" "$D/x.fab" $K --blocks apps/blocks)" = 1 ] || no "a pin to an unsealed block"; ok
 grep -q "pinned but not sealed" "$D/err" || no "unsealed message: $(cat "$D/err")"; ok
 # a pin to the sealed form is carried as it is
-sed "s/^use    swarm_shares 1\$/use    swarm_shares 1 $PIN/" apps/murmuration.zxapp > "$D/r/m2.zxapp"
+sed -E "s/^(use    swarm_shares 1)( |\$)/\1 $PIN\2/" apps/murmuration.zxapp > "$D/r/m2.zxapp"
 cp "$SS" "$D/b/ss.zxblock"
 [ "$(rc "$FAB" pack-app "$D/r/m2.zxapp" "$D/x.fab" $K --blocks "$D/b")" = 0 ] || no "a pin to a sealed block"; ok
 # a source that is missing, or too big

@@ -30,10 +30,10 @@ make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a > "$L/p.log" 2>&1 || {
     "$K/fab/fab.c" "$K/fab/fab_send.c" "$K/ipfs_node/ipfsn_multiformats.c" "$K/ipfs_node/ipfsn_unixfs.c" \
     "$K/robin_debanks/sha256.c" "$K/tls/aead.c" "$K/tls/hkdf.c" "$K/mlkem/keccak.c" \
     "$K/pqsec/pq_mlkem1024.c" "$K/pqsec/pq_mldsa87.c" "$K/pqsec/mldsa/fips202.c" \
-    "$K/appfab/appfab.c" "$K/apps/zxapp.c" "$K/apps/zxapp_kron.c" "$K/apps/zxapp_eve.c" \
+    "$K/appfab/appfab.c" "$K/apps/zxapp.c" "$K/chiglet/chg_vocab.c" "$K/apps/zxapp_kron.c" "$K/apps/zxapp_eve.c" \
     "$K/apps/zxapp_sutra.c" "$K/apps/zxapp_trebago.c" "$K/apps/zxapp_myra.c" "$K/apps/zxapp_wasm.c" \
     "$K/apps/zxapp_lingua.c" "$K/apps/zxapp_pce.c" \
-    "$K/lingua/zl_ir.c" "$K/lingua/zl_basic.c" "$K/lingua/zl_fortran.c" "$K/lingua/zl_forth.c" "$K/lingua/zl_pack.c" \
+    "$K"/lingua/zl_*.c \
     "$K/pce/pce.c" "$K/pce/pce_prob.c" "$K/pce/pce_tac.c" "$K/pce/pce_strat.c" "$K/pce/pce_fin.c" "$K/pce/pce_entry.c" \
     "$K/paradox/paradox.c" "$K/lpres/lpres_hex.c" "$K/lpres/lpres.c" "$K/rational/rational.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" \

@@ -1682,7 +1682,7 @@ test-fab:
 # a freestanding build with only appfab_/zxapp_/ipfsn_/lpres_ external, then
 # the zxv-fab tool (files and apps, with the real app runtimes) end to end.
 .PHONY: test-appfab
-APPFAB_SRCS = src/appfab/appfab.c src/apps/zxapp.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c
+APPFAB_SRCS = src/appfab/appfab.c src/apps/zxapp.c src/chiglet/chg_vocab.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c
 test-appfab:
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(FAB_INC) src/appfab/test_appfab.c $(APPFAB_SRCS) $(FAB_SRC) -o $(ZXV_TMP)/test_appfab && $(ZXV_TMP)/test_appfab src > $(ZXV_TMP)/test_appfab.log 2>&1 && echo "[PASS] test_appfab ($$(tail -1 $(ZXV_TMP)/test_appfab.log))" || { cat $(ZXV_TMP)/test_appfab.log; echo "[FAIL] test_appfab"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) -c src/appfab/appfab.c -o $(ZXV_TMP)/appfab_free.o || { echo "[FAIL] appfab freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/appfab_free.o | grep -vE ' (appfab_|zxapp_|ipfsn_|lpres_)' | grep -q .; then nm -u $(ZXV_TMP)/appfab_free.o; echo "[FAIL] appfab freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] appfab freestanding (aarch64, i386; only appfab_/zxapp_/ipfsn_/lpres_ external)"
