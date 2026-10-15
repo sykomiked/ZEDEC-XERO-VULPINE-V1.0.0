@@ -2326,7 +2326,7 @@ test-terms:
 	@# Mach-O prefixes symbols with _ and Apple clang lowers memset to bzero
 	@for f in terms terms_text; do \
 	  gcc -ffreestanding -fno-stack-protector -U_FORTIFY_SOURCE -std=c11 -O2 -Wall -Werror -Wextra $(TERMS_INC) -c src/terms/$$f.c -o $(ZXV_TMP)/$${f}_x64.o || { echo "[FAIL] $$f.c freestanding build"; exit 1; }; \
-	  if nm -u $(ZXV_TMP)/$${f}_x64.o | grep -vE ' U _?(mem(set|cpy|cmp)|bzero|str(len|cmp)|sha256)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_x64.o; echo "[FAIL] $$f.c needs more than mem*/str*/sha256"; exit 1; fi; \
+	  if nm -u $(ZXV_TMP)/$${f}_x64.o | grep -vE '(^| U )_?(mem(set|cpy|cmp)|bzero|str(len|cmp)|sha256)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_x64.o; echo "[FAIL] $$f.c needs more than mem*/str*/sha256"; exit 1; fi; \
 	done; echo "[PASS] terms freestanding (x86_64: only mem*/str*/sha256)"
 
 # ==== economy modules (generated block) ====
