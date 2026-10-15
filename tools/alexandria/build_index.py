@@ -16,6 +16,7 @@ every division's blocks into one booklet, and writes:
              index node (ALEXANDRIA.IDX, alx_carto.h), the JSON and one file
              per booklet (B<division>.booklet)
 
+--slots FILE builds a test index from a frozen slot list instead.
 --check fails when a block entry has no slot, a slot names nothing, or the
 checked-in header is stale. --assign BLOCK NAMESPACE SECTION appends slots
 for every entry of BLOCK (or one BLOCK.ENTRY) that has none, numbered within
@@ -404,10 +405,21 @@ def main():
     ap.add_argument("--out-json")
     ap.add_argument("--out-hdr", nargs="?", const=HDR)
     ap.add_argument("--out-dir")
+    ap.add_argument("--slots", help="a frozen slot list (SLOTS_TEST.tsv) in place of SLOTS.tsv: "
+                    "only the entries it names are indexed, for tests that must not change "
+                    "as the library grows")
     a = ap.parse_args()
+    global SLOTS
+    fixture = bool(a.slots)
+    if fixture:
+        if a.assign or a.check:
+            fail("--slots is for building a test index; --assign and --check use SLOTS.tsv")
+        SLOTS = a.slots
     nums = lang_numbers()
     ents = entries(manifests(), nums)
     rows = read_slots()
+    if fixture:
+        ents = {t: e for t, e in ents.items() if t in {r[3] for r in rows}}
     if a.assign:
         assign(rows, ents, *a.assign)
         rows = read_slots()

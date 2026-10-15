@@ -8,8 +8,9 @@
  * also has a PLACE in the Alexandria classification, "CCC.II": class,
  * division and section digits, then an item ("512.01" is the greatest
  * common divisor). Each of its languages has a three-digit LANGUAGE number:
- * 1..99 are Lingua's own (zl_langs.def), 101..120 the other runtimes
- * (zxapp's order: c 101, sutra 102, eve 103, kron 104, ... zlir 120). So
+ * 1..99 are Lingua's own (zl_langs.def), 101..199 the other runtimes and
+ * targets (c 101, sutra 102, eve 103, kron 104, ... zlir 120, x86-64
+ * assembly 121, wire 122, then in the order they arrive). So
  * "512.01-001" is gcd in FORTRAN.
  *
  * Every division's blocks are packed into one BOOKLET: a 64-byte header
