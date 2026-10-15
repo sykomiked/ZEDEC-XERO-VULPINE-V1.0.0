@@ -247,6 +247,9 @@ hwemu                            adapters   # hardware-state emulation standard;
 fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
 lingua                           adapters   # shared language IR + FORTRAN/BASIC/Forth front-ends and AI twins; freestanding
+alexandria                       adapters   # the library, matrix and vector plane: content-addressed blocks over lingua; freestanding
+babel/bv                         adapters
+babel/bv_syntax                  adapters
 policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
 # ---- S8 above the strata: products, apps and people features
