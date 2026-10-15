@@ -1972,7 +1972,7 @@ test-metal:
 ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
 .PHONY: test-cuda test-cuda-offline
 # The device-mode compiler for the CUDA and HIP offline tests: the newest
-# clang++ on PATH, since sm_90 and gfx1100 need clang 15 or later.
+# clang++ on PATH, since sm_90 needs clang 16 or later.
 GPU_CLANGXX ?= $(firstword $(foreach v,20 19 18 17 16 15,$(shell command -v clang++-$(v) 2>/dev/null)) clang++)
 
 test-cuda-offline:

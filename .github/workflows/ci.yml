@@ -151,7 +151,12 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang clang-15 libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth fp-compiler sbcl guile-3.0 ucblogo
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth fp-compiler sbcl guile-3.0 ucblogo
+          # clang 18 for the CUDA/HIP offline tests: sm_90 needs clang 16+, jammy stops at 15
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update
+          sudo apt-get install -y clang-18
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
