@@ -189,7 +189,8 @@ static void m_top(zxvd_call_t *c)
                             (unsigned long long) p->last_mw);
         else
             zxvd_buf_printf(b, ",\"uj\":null,\"mw\":null");
-        zxvd_buf_printf(b, ",\"source\":\"%s\",\"state\":\"%s\",\"lifetime_uj\":%llu,\"cpu_ns\":%llu}",
+        zxvd_buf_printf(b,
+                        ",\"source\":\"%s\",\"state\":\"%s\",\"lifetime_uj\":%llu,\"cpu_ns\":%llu}",
                         pw_source_name(p->last_src), lpres_state_name(st),
                         (unsigned long long) p->total_uj, (unsigned long long) p->total_cpu_ns);
     }
