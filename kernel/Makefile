@@ -410,6 +410,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-hwdrv
 	$(MAKE) --no-print-directory test-devprof
 	$(MAKE) --no-print-directory test-arbiter
+	$(MAKE) --no-print-directory test-stripe
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1617,6 +1618,14 @@ test-devprof:
 	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/devprof -c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_free.o || { echo "[FAIL] devprof freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/devprof_free.o | grep -q .; then nm -u $(ZXV_TMP)/devprof_free.o; echo "[FAIL] devprof freestanding: external symbols ($$t)"; exit 1; fi; done; echo "[PASS] devprof freestanding (aarch64, x86_64, riscv64: no libc)"
 device-matrix:
 	@gcc -std=c11 -O1 -Wall -Werror -Wextra -Isrc/devprof src/devprof/devprof_matrix.c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_matrix && $(ZXV_TMP)/devprof_matrix
+
+# The erasure-coded storage service (src/stripe): k + m members over hw_blk_t, freight's
+# Reed-Solomon code, SHA-256 per piece, log-structured slots with the header written last.
+# Freestanding: stripe.o, freight.o and sha256.o together leave no symbol undefined.
+.PHONY: test-stripe
+test-stripe:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/stripe -Isrc/freight -Isrc/hwdrv -Isrc/robin_debanks src/stripe/test_stripe.c src/stripe/stripe.c src/freight/freight.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_stripe && $(ZXV_TMP)/test_stripe > $(ZXV_TMP)/test_stripe.log 2>&1 && echo "[PASS] test_stripe ($$(tail -1 $(ZXV_TMP)/test_stripe.log))" || { cat $(ZXV_TMP)/test_stripe.log; echo "[FAIL] test_stripe"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in stripe/stripe freight/freight robin_debanks/sha256; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/stripe -Isrc/freight -Isrc/hwdrv -Isrc/robin_debanks -c src/$$f.c -o $(ZXV_TMP)/stripe_free_$${f##*/}.o || { echo "[FAIL] stripe freestanding $$t $$f"; exit 1; }; done; objs="$(ZXV_TMP)/stripe_free_stripe.o $(ZXV_TMP)/stripe_free_freight.o $(ZXV_TMP)/stripe_free_sha256.o"; def=$$(nm --defined-only $$objs | awk 'NF==3{print $$3}'); for u in $$(nm -u $$objs | awk 'NF==2{print $$2}'); do echo "$$def" | grep -qxF "$$u" || { echo "[FAIL] stripe freestanding: external symbol $$u ($$t)"; exit 1; }; done; done; echo "[PASS] stripe freestanding (aarch64, x86_64, riscv64: only freight and sha256)"
 
 .PHONY: test-pmm
 test-pmm:
