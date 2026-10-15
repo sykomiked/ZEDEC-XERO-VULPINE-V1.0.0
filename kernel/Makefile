@@ -403,6 +403,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-allotment
 	$(MAKE) --no-print-directory test-lpres-hex
+	$(MAKE) --no-print-directory test-dnx
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
@@ -1683,6 +1684,12 @@ test-print:
 test-climate:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/climate -Isrc/cotier -Isrc/tensor src/climate/test_climate.c src/climate/climate.c src/climate/climate_ct.c src/climate/climate_arb.c $(ARBITER_SRCS) src/cotier/ct_budget.c src/tensor/zt.c src/tensor/zt_isf.c -lm -o $(ZXV_TMP)/test_climate && $(ZXV_TMP)/test_climate > $(ZXV_TMP)/test_climate.log 2>&1 && echo "[PASS] test_climate ($$(tail -1 $(ZXV_TMP)/test_climate.log))" || { cat $(ZXV_TMP)/test_climate.log; echo "[FAIL] test_climate"; exit 1; }
 	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in src/climate/climate.c src/climate/climate_ct.c src/climate/climate_arb.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/climate -Isrc/cotier -Isrc/tensor -c $$f -o $(ZXV_TMP)/climate_free.o || { echo "[FAIL] climate freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/climate_free.o | grep -v -e '^ *U arb_host_' | grep -q .; then nm -u $(ZXV_TMP)/climate_free.o; echo "[FAIL] climate freestanding: external symbols in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] climate freestanding (aarch64, x86_64, riscv64: no libc; climate_arb needs only arb_host_)"
+
+# Duplex digital DNA (src/dnx/dnx.h): strands read start to finish and finish
+# to start, both reads verified and joined in lpres; reversible codon programs.
+.PHONY: test-dnx
+test-dnx:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/dnx src/dnx/test_dnx.c src/dnx/dnx.c src/lpres/lpres.c -o $(ZXV_TMP)/test_dnx && $(ZXV_TMP)/test_dnx > $(ZXV_TMP)/test_dnx.log 2>&1 && echo "[PASS] test_dnx ($$(tail -1 $(ZXV_TMP)/test_dnx.log))" || { cat $(ZXV_TMP)/test_dnx.log; echo "[FAIL] test_dnx"; exit 1; }
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.

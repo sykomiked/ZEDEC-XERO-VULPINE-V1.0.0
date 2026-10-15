@@ -347,7 +347,10 @@
     {"name": "swarm_ledger", "target": "kernel/src/swarm/swarm_ledger.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_swarm", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_swarm p_swarm"},
     {"name": "swarm_reserve", "target": "kernel/src/swarm/swarm_reserve.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_swarm", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_swarm p_swarm"},
     {"name": "zcapital", "target": "kernel/src/zcapital/zcapital.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_zcapital", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_zcapital p_zcapital"},
-    {"name": "hkdf", "target": "kernel/src/tls/hkdf.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf p_hkdf"}
+    {"name": "hkdf", "target": "kernel/src/tls/hkdf.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf p_hkdf"},
+    {"name": "dnx", "target": "kernel/src/dnx/dnx.c",
+     "before": null, "before_note": "new module: duplex digital DNA, two-way reads joined in lpres",
+     "after": "make -C kernel --no-print-directory test-dnx"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub", "swarm_denom", "swarm_yield", "zxvd_rpc", "zxvd_aipi", "zxvd_cards", "zxvd_ident", "zxvd_econ", "zxvd_instruments", "zxvd_estate", "zxvd_sandbox", "zxvd_companion", "zxvd_web4", "zxvd_seats", "zxvd_power", "zxvd_pspace", "lpres", "oseq", "zphi", "swarm_budget", "swarm_market", "swarm_ledger", "swarm_reserve", "zcapital", "hkdf"],
