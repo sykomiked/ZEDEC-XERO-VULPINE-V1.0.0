@@ -299,6 +299,6 @@ const char *alx_status_name(int s)
 {
     static const char *const N[] = {"OK",      "FORM",    "HASH",  "NAME", "SLOT",
                                     "RETIRED", "DOCK",    "LIMIT", "LANG", "SYNTAX",
-                                    "LINEAGE", "OVERLAY", "DOMAIN"};
-    return s <= 0 && s >= -12 ? N[-s] : "?";
+                                    "LINEAGE", "OVERLAY", "DOMAIN", "BOTH", "TRUST", "SIGN"};
+    return s <= 0 && s >= -15 ? N[-s] : "?";
 }

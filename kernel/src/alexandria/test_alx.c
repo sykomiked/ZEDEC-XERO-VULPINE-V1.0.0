@@ -1037,7 +1037,7 @@ static void test_refusals(void)
     CHECK(strcmp(alx_status_name(ALX_E_DOCK), "DOCK") == 0 &&
               strcmp(alx_status_name(ALX_E_OVERLAY), "OVERLAY") == 0 &&
               strcmp(alx_status_name(ALX_E_DOMAIN), "DOMAIN") == 0 &&
-              strcmp(alx_status_name(-13), "?") == 0 && strcmp(alx_status_name(5), "?") == 0,
+              strcmp(alx_status_name(-15), "SIGN") == 0 && strcmp(alx_status_name(-16), "?") == 0 && strcmp(alx_status_name(5), "?") == 0,
           "status names");
 }
 

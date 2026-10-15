@@ -248,7 +248,9 @@ the code or the docs.
 
 1. **Built** (`make test-alexandria`): the index, booklets, references and
    lineage, TECTON and AXION, and the 64-bit grid words with their radix
-   resolver and layer lineage (docs/spec/GRID_CHAIN.md).
+   resolver and layer lineage (docs/spec/GRID_CHAIN.md), and cartography: the sealed
+   core index (ALEXANDRIA.IDX) and cartographers' signed overlays, built
+   with `zxv-index` (docs/spec/CARTOGRAPHY.md).
 2. **Slots for every block.** These are added as blocks land, with
    `--assign BLOCK NAMESPACE SECTION`. The apps thread's CONCEPTS.tsv stays
    the source of meanings; the shorthand is the handle.

@@ -12,8 +12,9 @@ every division's blocks into one booklet, and writes:
   --out-json the slots, places, booklets and language offsets, for people
              and models
   --out-hdr  alx_slots.h, one #define per slot for C code
-  --out-dir  the 05_alexandria tree for the bucket: the index, the JSON and
-             one file per booklet (B<division>.booklet)
+  --out-dir  the 05_alexandria tree for the bucket: the index, the core
+             index node (ALEXANDRIA.IDX, alx_carto.h), the JSON and one file
+             per booklet (B<division>.booklet)
 
 --check fails when a block entry has no slot, a slot names nothing, or the
 checked-in header is stale. --assign BLOCK NAMESPACE SECTION appends slots
@@ -263,6 +264,32 @@ def table(rows, ents, books):
     return data + hashlib.sha256(data).digest()
 
 
+def core_index(rows, ents, books, tbl):
+    """ALEXANDRIA.IDX (kernel/src/alexandria/alx_carto.h): one entry per
+    manifest and per language, by grid word, giving the target's own CID and
+    the booklet that holds it."""
+    divs = sorted(books)
+    ent = []
+    for slot, short, place, target, state, _ in rows:
+        if state != "base":
+            continue
+        cls, item = int(place[:3]), int(place[4:])
+        e = ents[target]
+        data, where = books[cls // 10 * 10]
+        bcid = cid_raw(data)
+        mrel = os.path.relpath(e["m"]["path"], SRC)
+        parts = [(1, 0, mrel)] + [(0, lang, path or mrel) for lang, path in sorted(e["langs"])]
+        for fmt, lang, rel in parts:
+            off, ln = where[rel]
+            word = 0x10 << 56 | cls << 40 | item << 32 | fmt << 8 | lang
+            ent.append((word, cid_raw(data[off:off + ln]), ln, off, bcid))
+    ent.sort()
+    head = b"ALXI" + struct.pack(">BBHII", 1, 0, 0, len(ent), 0) + cid_raw(tbl) + bytes(12)
+    body = head + b"".join(struct.pack(">Q", w) + c + struct.pack(">III", 0, ln, off) + b +
+                           bytes(4) for w, c, ln, off, b in ent)
+    return body + hashlib.sha256(body).digest()
+
+
 def index_json(rows, ents, books, tbl, nums):
     lang_name = {v: k for k, v in nums.items()}
     out = {"version": 1, "index_cid": cid_str(cid_raw(tbl)),
@@ -346,6 +373,7 @@ def main():
     books = booklets(rows, ents)
     tbl = table(rows, ents, books)
     js = index_json(rows, ents, books, tbl, nums)
+    idx = core_index(rows, ents, books, tbl)
     hdr = header(rows)
     if a.check and (not os.path.exists(HDR) or open(HDR).read() != hdr):
         fail("kernel/src/alexandria/alx_slots.h is stale (run with --out-hdr)")
@@ -361,10 +389,12 @@ def main():
             fail("%s exists; give a new directory" % d)
         os.makedirs(d)
         open(os.path.join(d, "ALEXANDRIA.TBL"), "wb").write(tbl)
+        open(os.path.join(d, "ALEXANDRIA.IDX"), "wb").write(idx)
         open(os.path.join(d, "alexandria_index.json"), "w").write(js)
         for div, (data, _) in books.items():
             open(os.path.join(d, "B%d.booklet" % div), "wb").write(data)
-    print("%d slots, %d booklets, index %s" % (len(rows), len(books), cid_str(cid_raw(tbl))))
+    print("%d slots, %d booklets, index %s, core index node %s" %
+          (len(rows), len(books), cid_str(cid_raw(tbl)), cid_str(cid_raw(idx))))
 
 
 if __name__ == "__main__":
