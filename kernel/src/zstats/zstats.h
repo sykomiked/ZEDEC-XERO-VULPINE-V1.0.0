@@ -16,9 +16,10 @@
  *     available grant inventory, and the prevailing G_rate."
  * G_rate = Olive Oil Reserve Inflow / Active Verified Enterprise Load, an
  * exact rational per epoch (grants.h G4 computes it). PROJECT WORDING: the
- * the allotment is an "allotment" (never a raffle); V-Notes ARE V-Bills; nothing here is called a
- * yield or interest: positions are "locked" (and dividend-eligible). Coordinator rule: aggregates
- * only, no per-account data.
+ * allotment is an "allotment" (never a raffle); V-Notes ARE V-Bills; nothing
+ * here is called a yield or interest: positions are "locked" (and eligible
+ * for patronage disbursement). Coordinator rule: aggregates only, no
+ * per-account data.
  *
  *   S1 SNAPSHOT. zstats_snapshot_t holds integer aggregates only: epoch,
  *      tick, the jurisdiction and publisher ids, and eight sections:
@@ -44,7 +45,7 @@
  *        AUCTION      the last finished epoch in the vauction history ring
  *                     (epoch, uniform clearing price, quantity), the V-Bill
  *                     issuer's outstanding N (vauc_outstanding: every V-Bill
- *                     ever issued and not redeemed, which is what "cumulative
+ *                     ever issued and not returned to the issuer, which is what "cumulative
  *                     issued" can honestly mean once the ring has wrapped),
  *                     the reserve R (vauc_reserve; flagged invalid when it
  *                     cannot be valued), the floor config and floor_ok.
