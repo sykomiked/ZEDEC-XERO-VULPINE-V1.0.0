@@ -127,9 +127,16 @@ for p in rpi5 jetson minipc; do
         own="$(printf '%s\n' "$out" | grep -F -e "v-$p.service" -e "$RUNP" || true)"
         [ -z "$own" ] || bad "systemd-analyze verify $p warns: $own"
         ok "systemd-analyze verify $p: no errors, no warnings"
-        sc="$(systemd-analyze security --offline=yes "$U" 2>/dev/null | sed -n 's/.*Overall exposure level for [^:]*: \([0-9.]*\).*/\1/p')"
-        case "$sc" in 0.*|1.*) ok "systemd-analyze security $p: exposure $sc (below 2.0)" ;;
-            *) bad "systemd-analyze security $p: exposure '$sc'" ;; esac
+        # `security --offline` (scoring a unit file that is not installed)
+        # arrived in systemd 250; Ubuntu 22.04 ships 249. The hardening keys
+        # are still checked line by line above.
+        if systemd-analyze security --help 2>/dev/null | grep -q -- '--offline'; then
+            sc="$(systemd-analyze security --offline=yes "$U" 2>/dev/null | sed -n 's/.*Overall exposure level for [^:]*: \([0-9.]*\).*/\1/p')"
+            case "$sc" in 0.*|1.*) ok "systemd-analyze security $p: exposure $sc (below 2.0)" ;;
+                *) bad "systemd-analyze security $p: exposure '$sc'" ;; esac
+        else
+            echo "[SKIP] systemd-analyze security $p: this systemd has no --offline (needs 250+)"
+        fi
     else
         echo "[SKIP] systemd-analyze not installed"
     fi
