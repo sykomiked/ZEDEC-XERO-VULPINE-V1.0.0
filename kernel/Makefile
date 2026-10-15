@@ -1262,6 +1262,12 @@ verify-all: test
 		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_apphost && \
 		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_zui_apphost && echo "[PASS] test_zui_apphost" || { echo "[FAIL] test_zui_apphost"; exit 1; }; \
+	echo "=== zui: the OS boot screen and its sounds at the pace of the real load (every target, the browser too) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		src/zui/test_zui_boot.c src/zui/zui_boot.c src/zui/zui_vec.c src/zui/zui_progress.c src/zui/zui_canvas.c \
+		src/zui/zui_layout.c src/font/truetype.c src/launch/zxl_launch.c src/launch/zxl_synth.c \
+		-o /tmp/test_zui_boot && \
+		/tmp/test_zui_boot && echo "[PASS] test_zui_boot" || { echo "[FAIL] test_zui_boot"; exit 1; }; \
 	echo "=== zui: PNG pictures (every format, fitted, drawn; damaged files under ASan+UBSan) ==="; \
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
 		src/zui/test_zui_image.c src/zui/zui_image.c src/zui/zui_canvas.c src/zui/zui_layout.c src/font/truetype.c \
