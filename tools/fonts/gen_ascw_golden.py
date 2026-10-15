@@ -71,6 +71,8 @@ FACES = [
     ("ASCW-Golden-Lao.ttf", ["Laoo"], "script"),
     ("ASCW-Golden-Khmer.ttf", ["Khmr"], "script"),
     ("ASCW-Golden-Myanmar.ttf", ["Mymr"], "script"),
+    ("ASCW-Golden-Tibetan.ttf", ["Tibt"], "script"),
+    ("ASCW-Golden-Thaana.ttf", ["Thaa"], "script"),
     ("ASCW-Golden-Ethiopic.ttf", ["Ethi"], "script"),
     ("ASCW-Golden-Cherokee.ttf", ["Cher"], "script"),
     ("ASCW-Golden-CanadianAboriginal.otf", ["Cans"], "script"),
@@ -535,6 +537,10 @@ def write_fontlog(faces):
          "ASCW Golden Cherokee was rebuilt for ZXV from Noto Sans Cherokee (OFL), because",
          "the Cherokee face in the ASCW source folder was Plantagenet Cherokee, a",
          "Tiro Typeworks font licensed with Windows, which may not be redistributed.", "",
+         "ASCW Golden Tibetan and ASCW Golden Thaana were made for ZXV from Noto Serif",
+         "Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at",
+         "weight 400), renamed into the family and given its golden-section metrics,",
+         "because the ASCW source folder has no face for either script.", "",
          "| File | Family | Upstream (name ID 3) | Version | Copyright (name ID 0) |",
          "|---|---|---|---|---|"]
     for f in faces:

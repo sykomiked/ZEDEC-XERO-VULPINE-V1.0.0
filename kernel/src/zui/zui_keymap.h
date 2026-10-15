@@ -129,11 +129,20 @@ typedef struct {
 bool zui_keymap_parse(zui_keymap_t *km, const char *text, uint32_t len, uint32_t *err_line);
 
 /* The built-in set: us uk us-intl de fr es it pt-br se dvorak colemak ru gr
- * he ar. */
+ * he ar, then 70 layouts generated from xkeyboard-config by
+ * tools/zui/gen_keymaps.py (zui_keymap_xkb.inc): a layout for every script
+ * and language of zui_locale's 104 locales (InScript for the Indic scripts,
+ * Thai, Lao, Khmer, Burmese, Tibetan, Ge'ez, Georgian, Armenian, Thaana,
+ * Ol Chiki, N'Ko, Tifinagh, Cherokee, Inuktitut syllabics, the Cyrillic and
+ * Arabic-script languages, and the Latin ones with their own letters). */
 uint32_t zui_keymap_builtin_count(void);
 const char *zui_keymap_builtin_id(uint32_t i);   /* 0 past the end */
 const char *zui_keymap_builtin_text(uint32_t i); /* the layout as text */
 bool zui_keymap_load(zui_keymap_t *km, const char *id);
+/* The built-in layout a locale types with (BCP 47 tag, any case; the whole
+ * tag, then its language); "us" when none is listed. Chinese, Cantonese,
+ * Japanese and Korean give a Latin layout for zui_ime to compose from. */
+const char *zui_keymap_for_locale(const char *tag);
 
 /* ---- lookups ------------------------------------------------------------------ */
 /* Scan codes to positions: -1 when the key is not a character key. */

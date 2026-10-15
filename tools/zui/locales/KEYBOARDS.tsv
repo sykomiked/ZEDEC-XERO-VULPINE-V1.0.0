@@ -1,0 +1,109 @@
+# The keyboard layout each locale types with (zui_keymap_for_locale).
+# locale	zui layout id	xkeyboard-config source (only for layouts made from it)	name
+# Layouts with no source column are zui's own (zui_keymap.c) or made by an earlier line.
+# Chinese, Cantonese, Japanese and Korean type Latin letters here until their
+# input methods exist; zui_ime composes the script from them.
+en	us	
+es	es	
+fr	fr	
+de	de	
+pt	pt-br	
+it	it	
+ru	ru	
+uk	ua	ua
+pl	pl	pl
+ar	ar	
+he	he	
+fa	ir	ir
+ur	pk	pk
+hi	in-hi	in	Hindi (InScript)
+bn	bd	bd
+ta	in-tamilnet	in(tamilnet)
+zh-Hans	us	
+zh-Hant	us	
+ja	us	
+ko	us	
+th	th	th
+vi	vn	vn
+tr	tr	tr
+id	us	
+sw	us	
+am	et	et
+yo	ng-yoruba	ng(yoruba)
+ha	ng-hausa	ng(hausa)
+el	gr	
+nl	us-intl	
+mr	in-marathi	in(marathi)
+te	in-tel	in(tel)
+gu	in-guj	in(guj)
+kn	in-kan	in(kan)
+ml	in-mal	in(mal)
+pa	in-guru	in(guru)
+or	in-ori	in(ori)
+as	in-asm-kagapa	in(asm-kagapa)
+ne	np	np
+si	lk	lk
+sd	pk-snd	pk(snd)
+ps	af-ps	af(ps)
+sat	in-sat	in(sat)
+dv	mv	mv
+ms	us	
+fil	ph	ph
+jv	us	
+su	us	
+my	mm	mm
+km	kh	kh
+lo	la	la
+mn	mn	mn
+bo	cn-tib	cn(tib)
+yue	us	
+kk	kz	kz
+uz	uz	uz
+ky	kg	kg
+tg	tj	tj
+tk	tm	tm
+az	az	az
+ka	ge	ge
+hy	am	am
+ckb	iq-ku-ara	iq(ku_ara)
+ug	cn-ug	cn(ug)
+ro	ro	ro
+cs	cz	cz
+hu	hu	hu
+sv	se	
+bg	bg	bg
+sr	rs	rs
+hr	hr	hr
+sk	sk	sk
+da	dk	dk
+fi	fi	fi
+nb	no	no
+lt	lt	lt
+be	by	by
+ca	es-cat	es(cat)
+cy	gb-extd	gb(extd)
+ga	ie	ie
+zu	us-intl	
+xh	us-intl	
+ig	ng-igbo	ng(igbo)
+so	us	
+om	us	
+ti	et	
+rw	us	
+mg	us	
+sn	us	
+wo	sn	sn
+ln	cd	cd
+af	us-intl	
+ff	gh-fula	gh(fula)
+nqo	gn	gn
+zgh	ma-tifinagh	ma(tifinagh)
+qu	latam	latam
+gn	latam	
+chr	us-chr	us(chr)
+nv	us-intl	
+mi	nz-mao	nz(mao)
+haw	us-haw	us(haw)
+iu	ca-ike	ca(ike)
+se	no-smi	no(smi)
+ht	us-intl	
