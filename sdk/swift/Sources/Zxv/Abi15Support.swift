@@ -1,7 +1,7 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// ABI 1.5: shared plumbing for the eight new groups.
+// ABI 1.5: shared plumbing for the eight new groups (ABI 1.6 Vino uses it too).
 //
 //   Treaty       COBOL copybook treaties and their Sutra text (pure)
 //   Cid / Aipi   IPFS content identifiers; AIPI records and an offline node

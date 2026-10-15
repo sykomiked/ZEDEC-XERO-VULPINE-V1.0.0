@@ -370,6 +370,119 @@ bool ok = k.proof && k.proof->verify();             // state is "AAAA..." again
 (void) o; (void) ok;
 ```
 
+## Vino Embed (ABI 1.6)
+
+ABI 1.6 adds one group, `zxv::vino`: what an app or game needs to take part
+in Vino without ever holding anyone's value or keys. `has_feature2(feature2::vino)`
+reports it. `caps::all_1_6` is every bit, adding `caps::vino`; the older
+`caps::all`, `all_1_4` and `all_1_5` keep their values.
+
+There are two lanes, and they never meet:
+
+- **Play** (`vino::Play`): a sandbox inside the app, with its own play
+  units, issuers, holders and vouchers, in process memory only. Play units
+  come from a faucet (`back`), are not money, are lost when the sandbox is
+  destroyed, and can never be converted into, redeemed for or moved into
+  live value: no call takes a play sandbox and anything live.
+- **Live**: real Vino stays in the user's own ZXV wallet, never in the app.
+  The app builds a payment request (`vino::Request`); the user approves it
+  in their wallet, which signs a receipt (`vino::sign_receipt`, the wallet's
+  call); the app checks the receipt offline (`vino::verify_receipt`). The
+  app never sees a balance, a key or a custody account.
+
+A **voucher** is one play coin with a Fibonacci ladder face (1, 2, 3, 5,
+8, ...; `coin::face`). It is held by one holder on exactly one rail at a
+time: `Rail::bearer` (a note in the hand) or `Rail::ghost` (its twin on the
+play ledger). A transfer must name the active rail, so a voucher can never
+be spent twice. **Coverage**: an issuer may issue only while
+`10 * backing >= 18 * outstanding` (1.8x, exact integers). **Redeeming**
+hands a voucher back to its issuer and retires it; nothing is paid out to
+anyone, and there is no interest, yield or return of any kind.
+
+New statuses map to new exception types: `RailMismatch`, `CoverageRefused`,
+`RequestExpired` and `PaidChanceRefused` (all `RefusedError`), and
+`LaneError` (`UsageError`).
+
+| Type | Main members | Needs |
+|---|---|---|
+| `vino::Play` | `open`, `open_issuer`, `open_holder`, `back`, `unback`, `issue`, `transfer`, `set_rail`, `redeem`, `voucher`, `account`, `vouchers`, `check` | `vino` |
+| `vino::Request` | fields `lane`, `flags`, `merchant`, `nonce`, `amount`, `created_at`, `expires_at`, `memo`; `encode`, `bytes`, `id`, `decode`, `decode_with_id` | - |
+| receipts | `receipt_message`, `verify_receipt`, `receipt_is_valid` (pure); `sign_receipt` (wallet side) | `crypto_sign` to sign |
+| `vino::SpendMeter` | `admit`, `try_admit` | `vino` |
+
+A play-lane shop: the issuer backs, issues a voucher to a player, the
+player spends it at a friend and the friend redeems it.
+
+```cpp
+namespace vino = zxv::vino;
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::vino);
+vino::Play play(cap);
+auto shop = play.open_issuer(1);           // account ids count up from 0
+auto player = play.open_holder(100);
+auto friend_ = play.open_holder(101);
+play.back(shop, 18);                       // play units from the faucet; worth nothing
+auto v = play.issue(shop, player, 8);      // 10*18 >= 18*8, so allowed; returns id 1
+try { play.issue(shop, player, 13); }      // 10*18 < 18*(8+13): refused, nothing changed
+catch (const zxv::CoverageRefused&) {}
+play.transfer(v, player, friend_, vino::Rail::bearer);   // spend it on its active rail
+try { play.transfer(v, friend_, player, vino::Rail::ghost); }
+catch (const zxv::RailMismatch&) {}        // not its rail: one coin, one rail
+play.redeem(v, friend_);                   // retired; nothing is paid out
+bool retired = play.voucher(v).state == vino::VoucherState::redeemed;   // true
+bool empty = play.vouchers(friend_).empty();                            // true
+play.check();                              // re-checks every invariant
+(void) retired; (void) empty;
+```
+
+A live payment request, a wallet receipt and an offline check. The wallet
+part normally runs in the user's wallet (zxvd), not in the app; it is here
+only so the example runs on its own.
+
+```cpp
+namespace vino = zxv::vino;
+// App side: a plain value, encoded to 160 canonical bytes. Its id is SHA-256 of them.
+vino::Request req;
+req.lane = vino::Lane::live;
+req.merchant.fill(0x01);                   // the payee's id
+zxv::random_bytes(req.nonce);              // unique per request
+req.amount = 1234567;                      // VFV minor units: exact integers
+req.created_at = 1700000000;
+req.expires_at = 1700000600;               // ten minutes to approve
+req.memo = "Sword of Dawn";                // 0..64 printable ASCII
+auto encoded = req.encode();               // encoded.bytes (160), encoded.id (32)
+
+// Wallet side (for this example only): approve with the wallet's ML-DSA-87 key.
+zxv::Context wallet_ctx;
+auto wallet_cap = wallet_ctx.root_capability(zxv::caps::crypto_sign);
+auto wallet = zxv::MlDsa87(wallet_cap).keygen();
+auto sig = vino::sign_receipt(wallet_cap, encoded.bytes, wallet.secret_key, wallet.public_key, 1700000100);
+
+// App side again, offline: no capability, no network.
+bool paid = vino::receipt_is_valid(encoded.bytes, wallet.public_key, 1700000100, sig, 1700000200);   // true
+bool late = vino::receipt_is_valid(encoded.bytes, wallet.public_key, 1700000100, sig, 1700000601);   // false: expired
+auto same = vino::Request::decode(encoded.bytes);   // == req
+(void) paid; (void) late; (void) same;
+```
+
+A live request marking a paid chance outcome (`flag::chance`: a loot box or
+a paid draw) is refused when it is encoded (`PaidChanceRefused`); the
+raffle is a separate module, not a payment request. A deployment that sets
+a per-device daily cap counts approvals with `vino::SpendMeter`:
+
+```cpp
+zxv::Context ctx;
+auto cap = ctx.root_capability(zxv::caps::vino);
+zxv::vino::SpendMeter meter(cap, 100);       // at most 100 per day index
+auto left = meter.admit(19700, 60);          // 40 left today
+auto d = meter.try_admit(19700, 41);         // {admitted = false, left = 40}: nothing counted
+(void) left; (void) d;
+```
+
+The meter is a counter, not a legal check, and makes no exemption claim.
+Play and SpendMeter are internally serialized (any thread may call them),
+move-only, and keep their capability and context alive.
+
 ## API overview
 
 | Type | Main members | Needs |
@@ -406,6 +519,8 @@ bool ok = k.proof && k.proof->verify();             // state is "AAAA..." again
 | `freight` | `Header`, `encode`, `decode`, `split`, `Join`, `set_count`, `OpsWriter`, `encode_ops`, `expand`, `peek`, `generate` | - |
 | `web4` | `Agent` (`card`, `issue_consent`, `seal`, `reply`), `Manifest`, `Directory`, `ConsentLog`, `verify_card`, `action_digest`, `decode_envelope`, `verify_envelope` | `crypto_sign` for keys and signing, `attest` for consent |
 | `paradox::Book` | `classify`, `registry_*`, `log_*`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`; `Policy`, `Hold`, `Graph`, `RepairProof`, `Draft` | `paradox` |
+| `vino::Play` / `SpendMeter` | `open_issuer`, `open_holder`, `back`, `unback`, `issue`, `transfer`, `set_rail`, `redeem`, `voucher`, `account`, `vouchers`, `check`; `admit`, `try_admit` | `vino` |
+| `vino` requests and receipts | `Request` (`encode`, `decode`), `receipt_message`, `verify_receipt`, `receipt_is_valid`; `sign_receipt` | `crypto_sign` to sign only |
 
 ## Examples
 
@@ -533,6 +648,14 @@ the paradox engine end to end, with every log record and head. It also covers mo
 buffer-growth path, capability refusals (a capability without `aipi`, `mint` or `paradox` gets
 `CapabilityDenied`) and fail-closed handles after `Context::halt`.
 
+`tests/test_zxv_abi16.cpp` (the `test_zxv_abi16` target) replays the `status_abi16` and `vino` sections
+exactly: every request's bytes, id and refusal status, each one-byte decode refusal, the receipt message,
+the deterministic signature and every verify check, the ordered play scenario with its final accounts,
+voucher lists and vouchers, and the meter scenario through both `admit` and `try_admit`. It also covers
+moved-from handles, handles that outlive their `Context` object, the voucher list's two-call path (600
+vouchers), the exception type for each new status, capability refusals (no `vino`, revoked, unattested)
+and fail-closed play and meter handles after `Context::halt`.
+
 ## Honest limits
 
 - **Capabilities are not a sandbox.** Inside one process they are a discipline of least privilege. Code in
@@ -557,5 +680,10 @@ buffer-growth path, capability refusals (a capability without `aipi`, `mint` or 
   owner, and `owner_ok` is the caller's assertion. Freight op streams make no compression promise. Token
   density carries no premium, and a treaty run is a report, not a payment. The paradox engine contains,
   holds and routes contradictions. It detects only through the checks you run, and it never acts against a sender.
+- **Vino Embed limits.** Play units are not money, are lost when the sandbox is destroyed, and can never
+  become live value. The live flow here is the app's half only: approval happens in the user's wallet, which
+  posts the payment on its own ledger. Receipts use the reference ML-DSA-87, not FIPS 140-3 validated.
+  `SpendMeter` is a counter, not a legal check. Whether a given deployment of Vino is store credit, a
+  prepaid access product or something else is a legal question pending counsel; this SDK does not decide it.
 - **Unreal needs exceptions.** Unreal turns exceptions off by default, so you must set `bEnableExceptions = true` in
   the module that includes `zxv.hpp`.

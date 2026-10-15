@@ -53,7 +53,7 @@ enum Feature {
   final int bit;
 }
 
-/// An ABI 1.5 feature group (`ZXV_FEAT2_*`, from `zxv_features2`).
+/// An ABI 1.5+ feature group (`ZXV_FEAT2_*`, from `zxv_features2`; [vino] is ABI 1.6).
 enum Feature2 {
   /// Treaties: COBOL copybook records and Sutra text ([Treaty]).
   treaty(0x01),
@@ -77,7 +77,11 @@ enum Feature2 {
   web4(0x40),
 
   /// The paradox engine ([ParadoxBook]).
-  paradox(0x80);
+  paradox(0x80),
+
+  /// Vino Embed: the play lane, payment requests, receipts and the meter
+  /// ([PlaySandbox]; ABI 1.6).
+  vino(0x100);
 
   const Feature2(this.bit);
   final int bit;
@@ -88,7 +92,7 @@ enum Feature2 {
 /// The library is found, on first use, in this order: the path given to
 /// [load]; `ZXV_LIBRARY_PATH` (a file or a directory); the copy bundled with
 /// the app (Android `lib/<abi>/libzxv.so`; iOS the statically linked
-/// xcframework); then the system loader. A library whose ABI is not 1.5 or
+/// xcframework); then the system loader. A library whose ABI is not 1.6 or
 /// a later 1.x is refused.
 abstract final class Zxv {
   /// Uses the library at `path` (a file or a directory). Call before anything else.

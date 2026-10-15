@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "zxv_net_host.h"
+#include "vna_space.h"
 
 static int failures = 0;
 #define CHECK(c, ...)                                                                              \
@@ -508,6 +509,80 @@ int main(void)
     zxv_net_stop(c);
     CHECK(xa->a.mesh.broadcast == NULL, "stopped: the context is local-only again");
     CHECK(zxv_net_attach_aipi(c, NULL) == 0, "detached");
+
+    printf("[8] U14: a watch hall made on one host, joined by CID from another\n");
+    {
+        zxv_net_t *e = zxv_net_new(), *f = zxv_net_new();
+        zxv_net_status_t se, sf;
+        uint8_t cid[VNA_CID_RAW_LEN];
+        CHECK(zxv_net_space_create(e, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, "Movie night", "film",
+                                   zxv_net_wall_ms(), cid) < 0 &&
+                  zxv_net_spaces(e) == NULL,
+              "OFF: no spaces");
+        zxv_net_set_lan_discovery(e, false, 0);
+        zxv_net_set_lan_discovery(f, false, 0);
+        now = zxv_net_wall_ms();
+        CHECK(zxv_net_start(e, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0 &&
+                  zxv_net_start(f, ZXV_NET_LAN, "127.0.0.1", 0, now) == 0,
+              "E and F start");
+        zxv_net_status(e, &se);
+        zxv_net_status(f, &sf);
+        CHECK(se.space_store == 32 && se.spaces == 0, "a node holds 32 space records for others");
+        (void) zxv_net_add_peer(f, "127.0.0.1", se.port, now);
+        for (int i = 0; i < 100 && !zxv_net_knows(e, "127.0.0.1", sf.port); i++) pump(e, f, 20);
+        CHECK(zxv_net_space_create(e, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, "Movie night", "film",
+                                   zxv_net_wall_ms(), cid) == 0,
+              "E makes a watch hall");
+        for (int i = 0; i < 50; i++) pump(e, f, 20);
+        zxv_net_status(f, &sf);
+        CHECK(sf.space_records >= 1, "F holds E's host record (%u)", sf.space_records);
+        CHECK(zxv_net_space_join(f, cid, zxv_net_wall_ms()) == 0, "F joins by the CID alone");
+        const vna_space_t *fs = 0;
+        for (int i = 0; i < 300; i++) {
+            fs = vna_space_get(zxv_net_spaces(f), cid);
+            if (fs && fs->phase == VNA_SPACE_IN) break;
+            pump(e, f, 20);
+        }
+        CHECK(fs && fs->phase == VNA_SPACE_IN && fs->have_gen, "F is in, with the genesis");
+        const char *hi = "hello hall";
+        CHECK(zxv_net_space_post(f, cid, (const uint8_t *) hi, (uint32_t) strlen(hi),
+                                 zxv_net_wall_ms()) == 0,
+              "F posts");
+        uint8_t media[VNA_CID_RAW_LEN];
+        vna_cid_raw((const uint8_t *) "a film", 6, media);
+        CHECK(zxv_net_hall_set(f, cid, VNA_HALL_PLAY, media, sizeof media, 0, VNA_SPACE_Q16,
+                               zxv_net_wall_ms()) == VNA_ERR_DENIED,
+              "only the owner steers an owner hall");
+        CHECK(zxv_net_hall_set(e, cid, VNA_HALL_PLAY, media, sizeof media, 5000, VNA_SPACE_Q16,
+                               zxv_net_wall_ms()) == 0,
+              "E presses play at 5 s");
+        const vna_space_t *es = vna_space_get(zxv_net_spaces(e), cid);
+        for (int i = 0; i < 200 && !(fs->hall_set && es->log_n >= 2); i++) pump(e, f, 20);
+        const vna_space_logent_t *ev[VNA_SPACE_LOG];
+        uint32_t ne = vna_space_events(es, 0, ev, VNA_SPACE_LOG);
+        bool got = false;
+        for (uint32_t i = 0; i < ne; i++)
+            got |= ev[i]->kind == VNA_SPACE_EV_POST && ev[i]->len == strlen(hi) &&
+                   memcmp(ev[i]->data, hi, ev[i]->len) == 0;
+        CHECK(got, "E got F's post");
+        uint64_t t = zxv_net_wall_ms();
+        CHECK(fs->hall_set && fs->hall.state == VNA_HALL_PLAY &&
+                  vna_space_hall_pos(&fs->hall, t) == vna_space_hall_pos(&es->hall, t) &&
+                  vna_space_hall_pos(&fs->hall, t) >= 5000,
+              "both compute the same playhead (%llu ms)",
+              (unsigned long long) vna_space_hall_pos(&fs->hall, t));
+        zxv_net_status(e, &se);
+        zxv_net_status(f, &sf);
+        CHECK(se.spaces == 1 && sf.spaces == 1 && sf.space_events_out >= 1 &&
+                  se.space_events_in >= 1,
+              "status: in 1 space each, events %u in at E", se.space_events_in);
+        CHECK(zxv_net_space_store(e, 9999) == -1 && zxv_net_space_store(e, 0) == 0,
+              "the record allowance is bounded and can be turned off");
+        zxv_net_stop(e);
+        CHECK(zxv_net_spaces(e) == NULL, "stopped: spaces gone");
+        zxv_net_free(e);
+        zxv_net_free(f);
+    }
 
     zxv_net_free(c);
     zxv_net_free(d);

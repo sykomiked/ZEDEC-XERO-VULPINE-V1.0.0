@@ -16,7 +16,7 @@ package org.zedec.zxv.mobile.internal
 @Suppress("TooManyFunctions")
 internal object Jni {
     /** The shim ABI this Kotlin code was written for (ZXVJ_SHIM_ABI in zxvj_common.h). */
-    const val SHIM_ABI: Int = 2
+    const val SHIM_ABI: Int = 3
 
     init {
         NativeLoader.ensureLoaded()

@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* outbox.c — offline grants, signed entries and once-only settlement
- * (outbox.h G1-G3, E1-E4, S1-S4, D1-D5, C1-C3). Freestanding. */
+ * (outbox.h G1-G3, E1-E4, R1-R4, S1-S4, D1-D5, C1-C3). Freestanding. */
 #include "outbox.h"
 #include "../pay/pay_util.h"
 #include "../mlkem/keccak.h"
@@ -140,16 +140,35 @@ obx_status_t obx_device_init(obx_device_t *dev, const obx_grant_t *g,
     return OBX_OK;
 }
 
-obx_status_t obx_device_spend(obx_device_t *dev, uint32_t payee, uint64_t amount, uint64_t tick,
-                              obx_sign_fn sign, void *sign_ctx, obx_persist_fn persist,
-                              void *persist_ctx, obx_entry_t *out)
+/* R2: the chip's counter must still read what this state recorded. */
+static obx_status_t ctr_check(const obx_device_t *dev, const obx_counter_t *ctr, uint64_t *v)
 {
-    if (!dev || !sign || !persist || !out || amount == 0) return OBX_ERR_ARG;
+    if (ctr->read(ctr->ctx, dev->grant.id, v)) return OBX_ERR_COUNTER;
+    return *v == dev->ctr ? OBX_OK : OBX_ERR_ROLLBACK;
+}
+
+/* R3: count up, after signing and before the write-ahead record. */
+static obx_status_t ctr_bump(const obx_device_t *dev, const obx_counter_t *ctr, uint64_t v,
+                             uint64_t *after)
+{
+    if (ctr->bump(ctr->ctx, dev->grant.id, after) || *after <= v) return OBX_ERR_COUNTER;
+    return OBX_OK;
+}
+
+static obx_status_t spend(obx_device_t *dev, const obx_counter_t *ctr, uint32_t payee,
+                          uint64_t amount, uint64_t tick, obx_sign_fn sign, void *sign_ctx,
+                          obx_persist_fn persist, void *persist_ctx, obx_entry_t *out)
+{
     if (dev->closed) return OBX_ERR_STATE;
     uint64_t cum;
     if (dev->next_seq > dev->grant.max_entries || dev->n >= OBX_MAX_ENTRIES ||
         !pay_add_ok(dev->cumulative, amount, &cum) || cum > dev->grant.limit)
         return OBX_ERR_LIMIT; /* E2 */
+    uint64_t v = 0, nv = dev->ctr;
+    if (ctr) {
+        obx_status_t st = ctr_check(dev, ctr, &v);
+        if (st != OBX_OK) return st;
+    }
     uint32_t i = dev->n;
     obx_entry_t *e = &dev->e[i];
     pay_memset(e, 0, sizeof *e);
@@ -166,12 +185,17 @@ obx_status_t obx_device_spend(obx_device_t *dev, uint32_t payee, uint64_t amount
         pay_memset(e, 0, sizeof *e);
         return OBX_ERR_SIGNER;
     }
+    if (ctr && ctr_bump(dev, ctr, v, &nv) != OBX_OK) {
+        pay_memset(e, 0, sizeof *e);
+        return OBX_ERR_COUNTER;
+    }
     /* E3: advance, persist, and undo on failure */
     uint8_t old_prev[OBX_ID_BYTES];
-    uint64_t old_cum = dev->cumulative;
+    uint64_t old_cum = dev->cumulative, old_ctr = dev->ctr;
     pay_memcpy(old_prev, dev->prev, OBX_ID_BYTES);
     obx_entry_hash(e, dev->prev);
     dev->cumulative = cum;
+    dev->ctr = nv;
     dev->next_seq++;
     dev->state[i] = OBX_E_PENDING;
     dev->result[i] = 0;
@@ -180,11 +204,49 @@ obx_status_t obx_device_spend(obx_device_t *dev, uint32_t payee, uint64_t amount
         dev->n--;
         dev->next_seq--;
         dev->cumulative = old_cum;
+        dev->ctr = old_ctr;
         pay_memcpy(dev->prev, old_prev, OBX_ID_BYTES);
         pay_memset(e, 0, sizeof *e);
         return OBX_ERR_PERSIST;
     }
     pay_memcpy(out, e, sizeof *e);
+    return OBX_OK;
+}
+
+obx_status_t obx_device_spend(obx_device_t *dev, uint32_t payee, uint64_t amount, uint64_t tick,
+                              obx_sign_fn sign, void *sign_ctx, obx_persist_fn persist,
+                              void *persist_ctx, obx_entry_t *out)
+{
+    if (!dev || !sign || !persist || !out || amount == 0) return OBX_ERR_ARG;
+    if (dev->guarded) return OBX_ERR_STATE; /* R4 */
+    return spend(dev, 0, payee, amount, tick, sign, sign_ctx, persist, persist_ctx, out);
+}
+
+obx_status_t obx_device_spend_guarded(obx_device_t *dev, const obx_counter_t *ctr, uint32_t payee,
+                                      uint64_t amount, uint64_t tick, obx_sign_fn sign,
+                                      void *sign_ctx, obx_persist_fn persist, void *persist_ctx,
+                                      obx_entry_t *out)
+{
+    if (!dev || !ctr || !ctr->read || !ctr->bump || !sign || !persist || !out || amount == 0)
+        return OBX_ERR_ARG;
+    if (!dev->guarded) return OBX_ERR_STATE;
+    return spend(dev, ctr, payee, amount, tick, sign, sign_ctx, persist, persist_ctx, out);
+}
+
+obx_status_t obx_device_guard(obx_device_t *dev, const obx_counter_t *ctr, obx_persist_fn persist,
+                              void *persist_ctx)
+{
+    if (!dev || !ctr || !ctr->read || !ctr->bump || !persist) return OBX_ERR_ARG;
+    if (dev->guarded || dev->closed || dev->n != 0) return OBX_ERR_STATE;
+    uint64_t v;
+    if (ctr->read(ctr->ctx, dev->grant.id, &v)) return OBX_ERR_COUNTER;
+    dev->guarded = true;
+    dev->ctr = v;
+    if (persist(persist_ctx, dev)) {
+        dev->guarded = false;
+        dev->ctr = 0;
+        return OBX_ERR_PERSIST;
+    }
     return OBX_OK;
 }
 
@@ -217,11 +279,16 @@ obx_status_t obx_device_ack(obx_device_t *dev, uint32_t seq, obx_result_t r, obx
     return OBX_OK;
 }
 
-obx_status_t obx_device_close(obx_device_t *dev, obx_sign_fn sign, void *sign_ctx,
-                              obx_persist_fn persist, void *persist_ctx, obx_close_t *out)
+static obx_status_t close_dev(obx_device_t *dev, const obx_counter_t *ctr, obx_sign_fn sign,
+                              void *sign_ctx, obx_persist_fn persist, void *persist_ctx,
+                              obx_close_t *out)
 {
-    if (!dev || !sign || !persist || !out) return OBX_ERR_ARG;
     if (!dev->closed) {
+        uint64_t v = 0, nv = dev->ctr;
+        if (ctr) {
+            obx_status_t st = ctr_check(dev, ctr, &v);
+            if (st != OBX_OK) return st;
+        }
         obx_close_t *c = &dev->close;
         pay_memset(c, 0, sizeof *c);
         pay_memcpy(c->grant_id, dev->grant.id, OBX_ID_BYTES);
@@ -234,15 +301,39 @@ obx_status_t obx_device_close(obx_device_t *dev, obx_sign_fn sign, void *sign_ct
             pay_memset(c, 0, sizeof *c);
             return OBX_ERR_SIGNER;
         }
+        if (ctr && ctr_bump(dev, ctr, v, &nv) != OBX_OK) {
+            pay_memset(c, 0, sizeof *c);
+            return OBX_ERR_COUNTER;
+        }
+        uint64_t old_ctr = dev->ctr;
         dev->closed = true;
+        dev->ctr = nv;
         if (persist(persist_ctx, dev)) {
             dev->closed = false;
+            dev->ctr = old_ctr;
             pay_memset(c, 0, sizeof *c);
             return OBX_ERR_PERSIST;
         }
     }
     pay_memcpy(out, &dev->close, sizeof *out);
     return OBX_OK;
+}
+
+obx_status_t obx_device_close(obx_device_t *dev, obx_sign_fn sign, void *sign_ctx,
+                              obx_persist_fn persist, void *persist_ctx, obx_close_t *out)
+{
+    if (!dev || !sign || !persist || !out) return OBX_ERR_ARG;
+    if (dev->guarded && !dev->closed) return OBX_ERR_STATE; /* R4 */
+    return close_dev(dev, 0, sign, sign_ctx, persist, persist_ctx, out);
+}
+
+obx_status_t obx_device_close_guarded(obx_device_t *dev, const obx_counter_t *ctr, obx_sign_fn sign,
+                                      void *sign_ctx, obx_persist_fn persist, void *persist_ctx,
+                                      obx_close_t *out)
+{
+    if (!dev || !ctr || !ctr->read || !ctr->bump || !sign || !persist || !out) return OBX_ERR_ARG;
+    if (!dev->guarded) return OBX_ERR_STATE;
+    return close_dev(dev, ctr, sign, sign_ctx, persist, persist_ctx, out);
 }
 
 /* ---- ledger ----------------------------------------------------------- */

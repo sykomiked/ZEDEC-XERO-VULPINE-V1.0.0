@@ -84,8 +84,11 @@ jobs:
           SOCK="$HOME/.local/state/zxv/run/zxvd.sock"
           zxv --models-dir "$RUNNER_TEMP/none" > "$RUNNER_TEMP/zxv.log" 2>&1 &
           PID=$!  # zxv execs zxvd, so this is the engine
-          for i in $(seq 1 30); do test -S "$SOCK" && break; sleep 1; done
+          # the socket is live before zxvd writes the window link ($SOCK.url)
+          # a second launch reads, so wait for both
+          for i in $(seq 1 30); do test -S "$SOCK" && test -e "$SOCK.url" && break; sleep 1; done
           test -S "$SOCK"
+          test -e "$SOCK.url"
           test "$(stat -c %a "$SOCK")" = 600
           test "$(stat -c %a "$(dirname "$SOCK")")" = 700
           zxv | grep 'already running'

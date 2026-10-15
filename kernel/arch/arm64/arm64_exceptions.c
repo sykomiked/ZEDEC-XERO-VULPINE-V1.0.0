@@ -23,11 +23,14 @@
  * the repository root.
  */
 #include "arm64_arch.h"
+#include "../../src/crash/crash.h"
 
 extern void gic_handle_irq(void);
 extern void uart_puts(const char *s);
 extern void uart_put_hex(uint64_t val);
 extern void uart_put_dec(uint64_t val);
+extern uint64_t arm64_timer_get_ticks(void);
+extern crash_area_t g_crash_area; /* kernel_main_arm64.c */
 
 /* EL0 scheduler — defined in el0_userspace.c */
 #include "el0_userspace.h"
@@ -180,7 +183,23 @@ void exception_handler(void *frame, uint64_t type, uint64_t esr) {
             uart_put_hex(r[i]);
         }
     }
-    uart_puts("\n[FAULT] Halting.\n");
+    uart_puts("\n");
+
+    /* Keep a sealed record on disk so the next boot can report it. A fault
+     * inside this block is not captured again (crash_begin). */
+    if (crash_begin()) {
+        static crash_record_t rec;
+        const uint64_t *r = (const uint64_t *) frame;
+        crash_record_fill(&rec, CRASH_ARCH_ARM64, CRASH_REASON_EXCEPTION, esr, elr,
+                          (uint64_t) (uintptr_t) frame, far, r, r ? 31 : 0, ec_name(ec));
+        rec.uptime = arm64_timer_get_ticks();
+        if (r) crash_backtrace(&rec, r[29], r[29], r[29] + 0x10000);
+        if (g_crash_area.attached && crash_area_save(&g_crash_area, &rec) == CRASH_OK)
+            uart_puts("[CRASH LOG] record saved to disk; the next boot reports it\n");
+        else
+            uart_puts("[CRASH LOG] no disk to keep it on: the lines above are the record\n");
+    }
+    uart_puts("[FAULT] Halting.\n");
 
     while (1) {
         halt();
@@ -294,8 +313,11 @@ void el0_sync_handler_c(void *frame, uint64_t type, uint64_t esr,
                     return;
                 }
             }
-            /* No ready processes — return to kernel idle */
-            uart_puts("[EL0] No ready processes after fault — kernel idle\n");
+            /* No process is READY right now (the shell is usually
+             * asleep). Idle until one wakes instead of falling into the
+             * fatal halt below: one app's fault must never stop the
+             * machine. Does not return. */
+            proc_run_next_or_idle(g_el0_sched);
         }
     }
 

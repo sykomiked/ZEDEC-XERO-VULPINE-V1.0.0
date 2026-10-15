@@ -47,26 +47,67 @@ public enum Permission {
      * Run paradox operators, write paradox logs and the signature registry, and create
      * paradox handles ({@link org.zedec.zxv.paradox.ParadoxBook}; ABI 1.5, {@code ZXV_CAP_PARADOX}).
      */
-    PARADOX;
+    PARADOX,
+    /**
+     * Use the Vino Embed play lane and the daily spend meter
+     * ({@link org.zedec.zxv.vino.PlaySandbox}, {@link org.zedec.zxv.vino.SpendMeter}; ABI 1.6,
+     * {@code ZXV_CAP_VINO}). Payment requests and verifying receipts are pure and need no
+     * permission; signing a receipt is the wallet's job and needs {@link #CRYPTO_SIGN}.
+     */
+    VINO;
 
-    /** The {@code ZXV_CAP_*} bit. */
+    /** {@code ZXV_CAP_ALL_1_5}: the mask of every permission defined as of ABI 1.5 (bits 0 to 14). */
+    public static final long ALL_1_5 = (1L << 15) - 1;
+    /** {@code ZXV_CAP_ALL_1_6}: the mask of every permission defined as of ABI 1.6 (bits 0 to 15). */
+    public static final long ALL_1_6 = (1L << 16) - 1;
+
+    /**
+     * The {@code ZXV_CAP_*} bit.
+     *
+     * @return the single bit of this permission ({@code 1L << ordinal()})
+     */
     public long bit() {
         return 1L << ordinal();
     }
 
-    /** Every permission (as of ABI 1.5: {@code ZXV_CAP_ALL_1_5}). */
+    /**
+     * Every permission this SDK knows: as of ABI 1.6 that is {@link #ALL_1_6}
+     * ({@code ZXV_CAP_ALL_1_6}). The set grows when an ABI adds a permission.
+     *
+     * @return a new mutable set of every permission
+     */
     public static Set<Permission> all() {
         return EnumSet.allOf(Permission.class);
     }
 
-    /** The bit mask of a set. */
+    /**
+     * Every permission defined as of ABI 1.5 ({@code ZXV_CAP_ALL_1_5}): {@link #all()} without
+     * {@link #VINO}. For code that must keep exactly the 1.5 set.
+     *
+     * @return a new mutable set of the fifteen ABI 1.5 permissions
+     */
+    public static Set<Permission> all1_5() {
+        return fromMask(ALL_1_5);
+    }
+
+    /**
+     * The bit mask of a set.
+     *
+     * @param perms the permissions
+     * @return the OR of their bits
+     */
     public static long mask(Collection<Permission> perms) {
         long m = 0;
         for (Permission p : perms) m |= p.bit();
         return m;
     }
 
-    /** The set for a bit mask (unknown bits ignored). */
+    /**
+     * The set for a bit mask (unknown bits ignored).
+     *
+     * @param mask a {@code ZXV_CAP_*} mask
+     * @return a new mutable set of the permissions whose bits are in {@code mask}
+     */
     public static Set<Permission> fromMask(long mask) {
         EnumSet<Permission> s = EnumSet.noneOf(Permission.class);
         for (Permission p : values()) if ((mask & p.bit()) != 0) s.add(p);

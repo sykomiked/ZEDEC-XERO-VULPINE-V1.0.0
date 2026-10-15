@@ -27,15 +27,7 @@
 #include "test_zt_fixture_run.h"
 #include "test_zt_metal_gen.h"
 
-typedef int64_t zl;
-typedef int32_t zi;
-typedef uint32_t zu;
-typedef int16_t zs;
-typedef uint8_t zb;
-typedef int8_t zc;
-#define ZM_DEV
-#define ZT_METAL_SRC(...) __VA_ARGS__
-#include "zt_metal_math.h"
+#include "zt_metal_c.h"
 
 static int failures = 0, checks = 0;
 #define CHECK(c, ...)                                                                              \
@@ -116,7 +108,7 @@ static void test_models(void)
             m.kern = 0;
             zt_fx *ref = fx_run(&m, v, kv, &n);
             for (uint32_t refuse = 0; refuse < 2; refuse++) {
-                zt_kern_t k = {"emu", 0, 0, 0, 0, 0, 0, 0, 0, 0, emu_mm_full, refuse ? &k : 0};
+                zt_kern_t k = {"emu", 0, 0, 0, 0, 0, 0, 0, 0, 0, emu_mm_full, refuse ? &k : 0, 0};
                 m.kern = &k;
                 emu_calls = emu_jobs = 0;
                 uint64_t n2 = 0;

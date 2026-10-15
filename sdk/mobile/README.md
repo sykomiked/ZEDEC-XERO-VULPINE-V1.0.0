@@ -6,14 +6,16 @@
 Two SDKs for phones, over the same [libzxv](../libzxv/) C ABI and the same
 [design rules](../docs/SDK_DESIGN.md) as every other ZXV SDK, tested against
 the same [`vectors.json`](../conformance/vectors.json). Both are version
-1.5.0, require libzxv ABI 1.5 or a later 1.x, and bind all eight ABI 1.5
-groups (treaty, AIPI, coin, fee, V-Bill hub, freight, Web 4, paradox). Two
+1.6.0, require libzxv ABI 1.6 or a later 1.x, and bind all eight ABI 1.5
+groups (treaty, AIPI, coin, fee, V-Bill hub, freight, Web 4, paradox) and
+the ABI 1.6 group vino (Vino Embed: play-lane vouchers, payment requests,
+receipts, the daily meter). Two
 web kits sit on the [TypeScript SDK](../typescript/).
 
 | SDK | Folder | Binds through | Ships to | Tests |
 |---|---|---|---|---|
-| Kotlin (Android + JVM) | [`kotlin`](kotlin/) | a small JNI shim (Android has no Java FFM) | AAR with `arm64-v8a` and `x86_64` | 74, host JVM |
-| Dart (Flutter + Dart) | [`dart`](dart/) | `dart:ffi`, drift-checked against `zxv_api.h` | your app's `jniLibs` / iOS xcframework | 76, Dart VM |
+| Kotlin (Android + JVM) | [`kotlin`](kotlin/) | a small JNI shim (Android has no Java FFM) | AAR with `arm64-v8a` and `x86_64` | 91, host JVM |
+| Dart (Flutter + Dart) | [`dart`](dart/) | `dart:ffi`, drift-checked against `zxv_api.h` | your app's `jniLibs` / iOS xcframework | 93, Dart VM |
 | Z-Web (`@zedec/zxv-web`) | [`z-web`](z-web/) | the wasm build of `@zedec/zxv` in a Web Worker; exact `"num/den"` message protocol | browsers (ES module + worker) | 32, Node `worker_threads` + real wasm |
 | React-ZXV (`@zedec/zxv-react`) | [`react-zxv`](react-zxv/) | an injected backend: Z-Web, the `@zedec/zxv` addon, or zxvd JSON-RPC | React DOM, React Native / Expo | 41, jsdom + real addon + real wasm |
 
@@ -33,12 +35,13 @@ sources. The Android script adds two workarounds for the NDK (no
 
 ## What was tested
 
-- Kotlin + JNI shim: 74 tests on a desktop JVM, against the real libzxv
-  (the 34 from 1.3 on JDK 21 and 25; the 1.5 ones on JDK 21). The Android
-  AAR was built (AGP 8.13, NDK r27) and Android lint found no API-level
-  errors before the 1.5 shim was added; it has not been rebuilt since.
+- Kotlin + JNI shim: 91 tests on a desktop JVM, against the real libzxv
+  (the 34 from 1.3 on JDK 21 and 25; the 1.5 and 1.6 ones on JDK 21). The
+  Android AAR was built (AGP 8.13, NDK r27) and Android lint found no
+  API-level errors before the 1.5 shim was added; it has not been rebuilt
+  since (so neither the 1.5 nor the 1.6 vino shim has been built with the NDK).
   Nothing ran on a device or emulator.
-- Dart: 76 tests with `dart test` on the Dart VM (Dart 3.13), and
+- Dart: 93 tests with `dart test` on the Dart VM (Dart 3.13), and
   `dart analyze --fatal-infos`. No Flutter app was built; nothing ran on a
   device.
 - Z-Web: 32 tests in Node 22 (`node:test`, a `worker_threads` worker

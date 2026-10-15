@@ -48,6 +48,12 @@ module Zxv
     E_LIMIT = -38         # refused by a hub limit rule (not a fault); REFUSED
     E_PARADOX_STEP = -39  # a paradox graph reached its step limit: goes to the owner; REFUSED
     E_PARADOX_OWNER = -40 # needs the owner's approval (money or device policy); REFUSED
+    # ABI 1.6: Vino Embed (-51 .. -59 are reserved for the vino group).
+    E_RAIL = -46     # not the voucher's active rail (bearer/ghost); REFUSED
+    E_COVERAGE = -47 # would take a play issuer below 1.8x coverage; REFUSED
+    E_LANE = -48     # wrong lane for this call (play vs live); USAGE
+    E_EXPIRED = -49  # the payment request expired, or was approved too late; REFUSED
+    E_CHANCE = -50   # a paid chance outcome in a live payment request; REFUSED
     E_INTERNAL = -99
 
     # Status classes (zxv_status_class).
@@ -167,6 +173,36 @@ module Zxv
   # ABI 1.5: a paradox registry entry, draft or policy touches money or
   # devices and needs the owner's approval (ZXV_E_PARADOX_OWNER).
   class OwnerApprovalRequiredError < ZxvRefusedError; end
+
+  # ABI 1.6: a voucher was spent or switched on a rail that is not its
+  # active one (ZXV_E_RAIL, class REFUSED). A voucher lives on exactly one
+  # rail at a time (BEARER or GHOST), so it can never be spent on both.
+  class WrongRailError < ZxvRefusedError; end
+
+  # ABI 1.6: the play issuer would fall below 1.8x coverage
+  # (ZXV_E_COVERAGE, class REFUSED): it may only issue, or withdraw
+  # backing, while 10 * backing >= 18 * outstanding. Nothing changed.
+  class CoverageError < ZxvRefusedError; end
+
+  # ABI 1.6: the payment request has expired, or the receipt says it was
+  # approved outside the request's window (ZXV_E_EXPIRED, class REFUSED).
+  class ExpiredError < ZxvRefusedError; end
+
+  # ABI 1.6: a LIVE payment request marked as having a paid chance outcome
+  # (loot boxes, paid draws) is refused (ZXV_E_CHANCE, class REFUSED).
+  class ChanceRefusedError < ZxvRefusedError; end
+
+  # ABI 1.6: the wrong lane for the call, or a lane number that is neither
+  # PLAY (1) nor LIVE (2) (ZXV_E_LANE, class USAGE: a caller bug).
+  class LaneError < ZxvUsageError; end
+
+  # ABI 1.6: {Vino::SpendMeter#admit} refused an amount that would pass the
+  # device's daily cap (ZXV_E_LIMIT, class REFUSED). Nothing was counted.
+  # {#left} is what may still be approved on that day.
+  class DailyCapExceededError < ZxvRefusedError
+    # @return [Integer, nil] what is left of the day's cap (nil if unknown)
+    attr_accessor :left
+  end
 
   # SYSTEM class: out of memory, I/O, internal: environmental.
   class ZxvSystemError < StandardError

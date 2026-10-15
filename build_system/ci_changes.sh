@@ -25,6 +25,9 @@
 #   dotnet  kernel or sdk/dotnet changed (the SDK links libzxv and the kernel)
 #   sdk     kernel, sdk/ or a bindings/<language>/ directory changed
 #   mac     kernel, macos/ or docs/MAC_APP.md (bundled into the app) changed
+#   zxvd    kernel, macos/, sdk/pillars/ or the AIPI, Z-Wasm and Z-Contract
+#           kits changed: everything zxvd links or its tests drive (the
+#           paths zxvd.yml starts on)
 #   proofs  proofs/ changed
 #   heavy   run the slow tier: nightly, manual runs, and pull requests that
 #           are ready for review (not drafts). Draft pushes and every branch
@@ -44,7 +47,7 @@ EVENT=${EVENT:-push}
 DRAFT=${DRAFT:-false}
 REF=${REF:-}
 
-kernel=false dotnet=false sdk=false mac=false proofs=false all=false
+kernel=false dotnet=false sdk=false mac=false proofs=false zxvd=false all=false
 
 case "$EVENT" in schedule|workflow_dispatch) all=true ;; esac
 if [ "$all" = false ]; then
@@ -60,12 +63,14 @@ if [ "$all" = false ]; then
             .github/workflows/ci.yml|build_system/ci_changes.sh) all=true ;;
             # other workflows and their scripts test themselves
             .github/workflows/*|.github/scripts/*) ;;
-            docs/MAC_APP.md|macos/*) mac=true ;;
+            macos/*) mac=true; zxvd=true ;;
+            docs/MAC_APP.md) mac=true ;;
             proofs/*) proofs=true ;;
             # libzxv (the C ABI) and its conformance vectors are linked into
             # the hosted engine and zxvd, so they count as kernel code.
             sdk/libzxv/*|sdk/conformance/*) kernel=true ;;
             sdk/dotnet/*) dotnet=true; sdk=true ;;
+            sdk/pillars/*|sdk/kits/aipi/*|sdk/kits/z-wasm/*|sdk/kits/z-contract/*) sdk=true; zxvd=true ;;
             sdk/*) sdk=true ;;
             # bindings/*.c and *.h are built by kernel verify-all; only the
             # per-language subdirectories are SDK-only.
@@ -85,7 +90,7 @@ if [ "$all" = true ]; then
     kernel=true dotnet=true sdk=true mac=true proofs=true
 fi
 if [ "$kernel" = true ]; then
-    dotnet=true sdk=true mac=true
+    dotnet=true sdk=true mac=true zxvd=true
 fi
 
 heavy=false
@@ -99,6 +104,7 @@ dotnet=$dotnet
 sdk=$sdk
 mac=$mac
 proofs=$proofs
+zxvd=$zxvd
 heavy=$heavy"
 echo "$out"
 if [ -n "${GITHUB_OUTPUT:-}" ]; then

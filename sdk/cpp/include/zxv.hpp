@@ -23,8 +23,8 @@
 // Swarm, Model and the ABI 1.4 hw::Matrix and hw::Region are safe to share
 // across threads. A Session is used by
 // one thread at a time (the SDK refuses concurrent use). The ABI 1.5 groups
-// (treaty, cid/aipi, coin/token, fee, vhub, freight, web4, paradox) state
-// their own threading rules on each type.
+// (treaty, cid/aipi, coin/token, fee, vhub, freight, web4, paradox) and the
+// ABI 1.6 group (vino) state their own threading rules on each type.
 #ifndef ZXV_HPP
 #define ZXV_HPP
 
@@ -378,6 +378,7 @@ inline constexpr std::uint32_t vhub = ZXV_FEAT2_VHUB;       ///< V-Bill hub pegs
 inline constexpr std::uint32_t freight = ZXV_FEAT2_FREIGHT; ///< erasure-coded freight packets
 inline constexpr std::uint32_t web4 = ZXV_FEAT2_WEB4;       ///< agent manifests, directory, consent
 inline constexpr std::uint32_t paradox = ZXV_FEAT2_PARADOX; ///< paradox engine
+inline constexpr std::uint32_t vino = ZXV_FEAT2_VINO;       ///< Vino Embed: play lane, payment requests, receipts (1.6)
 } // namespace feature2
 
 /// Capability bits (ZXV_CAP_*). Combine with `|`.
@@ -400,6 +401,8 @@ inline constexpr std::uint64_t aipi = ZXV_CAP_AIPI;                 ///< publish
 inline constexpr std::uint64_t mint = ZXV_CAP_MINT;                 ///< mint tokens, change token octane (1.5)
 inline constexpr std::uint64_t paradox = ZXV_CAP_PARADOX;           ///< paradox operators, logs and policies (1.5)
 inline constexpr std::uint64_t all_1_5 = ZXV_CAP_ALL_1_5;           ///< every bit as of ABI 1.5
+inline constexpr std::uint64_t vino = ZXV_CAP_VINO;                 ///< play-lane vouchers and the spend meter (1.6)
+inline constexpr std::uint64_t all_1_6 = ZXV_CAP_ALL_1_6;           ///< every bit as of ABI 1.6
 } // namespace caps
 
 // ===========================================================================
@@ -639,6 +642,47 @@ public:
     using RefusedError::RefusedError;
 };
 
+/// The play voucher is not on the rail the call named (ZXV_E_RAIL,
+/// REFUSED class, ABI 1.6). A voucher lives on exactly one rail at a time,
+/// BEARER or GHOST, and must be spent on that one; switching it to the rail
+/// it is already on is refused too. Read its rail with
+/// vino::Play::voucher() and call again.
+class RailMismatch : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// The play-lane issuer would fall below 1.8x coverage (ZXV_E_COVERAGE,
+/// REFUSED class, ABI 1.6): an issue or a withdrawal of backing that would
+/// break 10 * backing >= 18 * outstanding. Nothing changed; post more play
+/// backing or wait for vouchers to be redeemed.
+class CoverageRefused : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// Wrong lane for this call (ZXV_E_LANE, USAGE class, ABI 1.6): a payment
+/// request whose lane is neither vino::Lane::play nor vino::Lane::live.
+class LaneError : public UsageError {
+public:
+    using UsageError::UsageError;
+};
+
+/// The payment request expired, or the wallet approved it outside its time
+/// window (ZXV_E_EXPIRED, REFUSED class, ABI 1.6). Build a fresh request.
+class RequestExpired : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
+/// A LIVE payment request marked a paid chance outcome (a loot box, a paid
+/// draw) and was refused (ZXV_E_CHANCE, REFUSED class, ABI 1.6). Vino
+/// payment requests never carry paid chance outcomes on the live lane.
+class PaidChanceRefused : public RefusedError {
+public:
+    using RefusedError::RefusedError;
+};
+
 /// SYSTEM class: out of memory, I/O, internal or unknown status.
 class SystemError : public Exception {
 public:
@@ -737,6 +781,7 @@ struct CtxCore {
         if (status == ZXV_E_TARGET) throw TargetMismatch(status, std::move(detail));
         if (status == ZXV_E_DENOM) throw DenominationError(status, std::move(detail));
         if (status == ZXV_E_TREATY) throw TreatyError(status, std::move(detail));
+        if (status == ZXV_E_LANE) throw LaneError(status, std::move(detail));
         throw UsageError(status, std::move(detail));
     case StatusClass::refused:
         switch (status) {
@@ -758,6 +803,10 @@ struct CtxCore {
         case ZXV_E_LIMIT: throw LimitRefused(status, std::move(detail));
         case ZXV_E_PARADOX_STEP: throw ParadoxStepLimit(status, std::move(detail));
         case ZXV_E_PARADOX_OWNER: throw OwnerApprovalRequired(status, std::move(detail));
+        case ZXV_E_RAIL: throw RailMismatch(status, std::move(detail));
+        case ZXV_E_COVERAGE: throw CoverageRefused(status, std::move(detail));
+        case ZXV_E_EXPIRED: throw RequestExpired(status, std::move(detail));
+        case ZXV_E_CHANCE: throw PaidChanceRefused(status, std::move(detail));
         default: throw RefusedError(status, std::move(detail));
         }
     case StatusClass::ok: // a non-negative status never reaches here
@@ -8479,6 +8528,538 @@ private:
 };
 
 } // namespace paradox
+
+// ===========================================================================
+// Vino Embed (ABI 1.6)
+// ===========================================================================
+
+/// ABI 1.6: Vino Embed. What an app or game needs to take part in Vino
+/// without ever holding anyone's value or keys. There are two lanes, and
+/// they never meet:
+///
+///   * PLAY (vino::Play): a sandbox inside the app with its own play units,
+///     issuers, holders and Fibonacci-face vouchers, in process memory only.
+///     No call takes a play sandbox and anything live, so a play unit can
+///     never be converted into, redeemed for, or moved into live value.
+///     Play units are not money and are lost when the sandbox is destroyed.
+///   * LIVE: real Vino stays in the user's own ZXV wallet, never in the app.
+///     The app builds a payment request; the user approves it in their
+///     wallet, which signs a receipt (vino::sign_receipt, wallet side); the
+///     app checks the receipt offline (vino::verify_receipt). The app never
+///     sees a balance, a key or a custody account.
+///
+/// VOUCHERS (play lane). A voucher is one coin whose face is a Fibonacci
+/// ladder face (coin::face), held by one holder on exactly ONE active rail:
+/// Rail::bearer (a note in the holder's hand) or Rail::ghost (its twin on
+/// the play ledger). A transfer must name the active rail (else
+/// RailMismatch), so one voucher can never be spent twice. Switching rails
+/// moves nothing.
+///
+/// COVERAGE. An issuer posts play backing and may only issue while
+///     10 * backing >= 18 * outstanding    (exact integers, no rounding)
+/// i.e. backing stays at least 1.8x the faces it has outstanding. An issue
+/// or a withdrawal that would break this is refused (CoverageRefused).
+/// Redeeming a voucher hands it back to its issuer and retires it: the
+/// issuer's outstanding falls and nothing is paid out to anyone. No call
+/// turns a voucher into backing, play units or anything else, and there is
+/// no interest, yield or return of any kind.
+///
+/// DAILY CAP. vino::SpendMeter counts what one device approved per day and
+/// refuses an amount that would pass a deployment's daily cap. It is a
+/// counter, not a legal check, and makes no exemption claim.
+///
+/// CAPABILITIES. Play and SpendMeter need caps::vino (else
+/// CapabilityDenied; a halted context gives FatalError). Building a receipt
+/// message and verifying a receipt are pure and need no capability. Signing
+/// a receipt needs caps::crypto_sign: it is the wallet's call, not the app's.
+///
+/// NOT HERE, by design: minting live Vino, setting pegs, any way into or out
+/// of other currencies, V-Bill auctions or bids, V-Bonds and derivatives,
+/// and every operator or steward action. None of them is app-facing.
+///
+/// Honest limits: the LIVE flow here is the app's half only; approving a
+/// request happens in the user's wallet (zxvd), which posts the payment on
+/// its own ledger. ML-DSA-87 is the reference implementation, not FIPS
+/// 140-3 validated. Whether a given deployment of Vino is store credit, a
+/// prepaid access product or something else is a legal question pending
+/// counsel; nothing in this SDK decides it. The raffle is a separate
+/// module, not a payment request.
+namespace vino {
+
+/// The most issuers plus holders one play sandbox can hold (256).
+inline constexpr std::uint32_t max_accounts = ZXV_VINO_MAX_ACCOUNTS;
+/// The most active (unredeemed) vouchers one play sandbox can hold (4096).
+inline constexpr std::uint32_t max_vouchers = ZXV_VINO_MAX_VOUCHERS;
+/// The largest single amount: a backing post, a request amount, a daily cap
+/// or a meter admission (2^59).
+inline constexpr std::uint64_t amount_max = ZXV_VINO_AMOUNT_MAX;
+/// Size of an encoded payment request (160 bytes).
+inline constexpr std::size_t request_bytes = ZXV_VINO_REQ_BYTES;
+/// Size of a request id: SHA-256 of the request bytes (32 bytes).
+inline constexpr std::size_t request_id_bytes = 32;
+/// Longest memo on a payment request, in bytes of printable ASCII (64).
+inline constexpr std::size_t memo_max = ZXV_VINO_MEMO_MAX;
+/// Size of the message a wallet signs to approve a request (88 bytes).
+inline constexpr std::size_t receipt_message_bytes = ZXV_VINO_RCPT_MSG_BYTES;
+/// Size of a wallet's ML-DSA-87 public key (2592 bytes).
+inline constexpr std::size_t wallet_public_key_bytes = ZXV_MLDSA87_PK_BYTES;
+/// Size of a wallet's ML-DSA-87 secret key (4896 bytes).
+inline constexpr std::size_t wallet_secret_key_bytes = ZXV_MLDSA87_SK_BYTES;
+/// Size of a receipt signature (ML-DSA-87, 4627 bytes).
+inline constexpr std::size_t receipt_signature_bytes = ZXV_MLDSA87_SIG_BYTES;
+
+/// Payment request flags (Request::flags).
+namespace flag {
+/// The purchase has a paid chance outcome (a loot box, a paid draw). Only
+/// allowed on the PLAY lane; a LIVE request with it is PaidChanceRefused.
+inline constexpr std::uint32_t chance = ZXV_VINO_REQ_CHANCE;
+/// Every flag this ABI knows; any other bit is UsageError ZXV_E_FORMAT.
+inline constexpr std::uint32_t known = ZXV_VINO_REQ_FLAGS_KNOWN;
+} // namespace flag
+
+/// The rail a play voucher is on. Exactly one is active at a time.
+enum class Rail : std::int32_t {
+    bearer = ZXV_VINO_RAIL_BEARER, ///< a note in the holder's hand
+    ghost = ZXV_VINO_RAIL_GHOST,   ///< its twin on the play ledger
+};
+
+/// The lane of a payment request. The two lanes never meet.
+enum class Lane : std::int32_t {
+    play = ZXV_VINO_LANE_PLAY, ///< play units inside the app; never live value
+    live = ZXV_VINO_LANE_LIVE, ///< real Vino, approved in the user's own wallet
+};
+
+/// Whether a play account issues vouchers or holds them.
+enum class AccountKind : std::int32_t {
+    holder = 0, ///< receives, spends and redeems vouchers
+    issuer = 1, ///< posts play backing and issues vouchers against it
+};
+
+/// A play voucher's life: active until its holder redeems it.
+enum class VoucherState : std::int32_t {
+    active = ZXV_VINO_V_ACTIVE,     ///< can be transferred, switched or redeemed
+    redeemed = ZXV_VINO_V_REDEEMED, ///< retired; still listed by id, does nothing
+};
+
+/// The encoded bytes of a payment request (160 bytes).
+using RequestBytes = std::array<std::uint8_t, ZXV_VINO_REQ_BYTES>;
+/// A request id: SHA-256 of the 160 request bytes.
+using RequestId = Digest32;
+/// The 88 bytes a wallet signs to approve a request:
+/// "zxv/vino-rcpt/v1" || request id || SHA-256(wallet public key) ||
+/// approved_at (8 bytes little-endian).
+using ReceiptMessage = std::array<std::uint8_t, ZXV_VINO_RCPT_MSG_BYTES>;
+
+/// A snapshot of one play voucher (Play::voucher).
+struct VoucherInfo {
+    std::uint64_t face = 0;               ///< its Fibonacci ladder face, in play units
+    std::uint32_t issuer = 0;             ///< the issuer account that issued it
+    std::uint32_t holder = 0;             ///< the holder account that holds (or redeemed) it
+    Rail rail = Rail::bearer;             ///< its one active rail
+    VoucherState state = VoucherState::active; ///< active or redeemed
+    /// True while it can still be transferred, switched or redeemed.
+    [[nodiscard]] bool is_active() const noexcept { return state == VoucherState::active; }
+};
+
+/// A snapshot of one play account (Play::account).
+struct AccountInfo {
+    std::uint32_t owner = 0;                  ///< the owner id given to Play::open
+    AccountKind kind = AccountKind::holder;   ///< issuer or holder
+    std::uint64_t backing = 0;                ///< an issuer's play backing; 0 for a holder
+    std::uint64_t faces = 0;                  ///< an issuer's outstanding faces, or the faces a holder holds
+    std::uint32_t count = 0;                  ///< active vouchers it issued (issuer) or holds (holder)
+    /// True for an issuer account.
+    [[nodiscard]] bool is_issuer() const noexcept { return kind == AccountKind::issuer; }
+};
+
+/// One play-lane sandbox: issuers, holders and Fibonacci-face vouchers in
+/// play units, in process memory only. Play units come from nowhere (back()
+/// is a faucet), are worth nothing, are not money, can never become live
+/// value, and are lost when the sandbox is destroyed.
+///
+/// Every call needs caps::vino from the capability the sandbox was created
+/// with (it keeps that capability). Refusals change nothing. Account ids
+/// count up from 0; voucher ids start at 1 and are never reused.
+///
+/// Thread safety: internally serialized, so any thread may call it.
+/// Move-only; a moved-from Play throws UsageError (ZXV_E_ARG) instead of
+/// reaching C. It keeps its context alive, so it can never outlive it.
+class Play {
+public:
+    /// An empty sandbox on the capability's context. CapabilityDenied
+    /// without caps::vino; FatalError on a halted context.
+    explicit Play(const Capability& cap) : cap_(detail::cap_of(cap))
+    {
+        zxv_vino_play* p = nullptr;
+        cap_->call([&] { return zxv_vino_play_create(cap_->cap, &p); });
+        p_.reset(p);
+    }
+    Play(Play&&) noexcept = default;            ///< move
+    Play& operator=(Play&&) noexcept = default; ///< move-assign
+    Play(const Play&) = delete;
+    Play& operator=(const Play&) = delete;
+    ~Play() = default;
+
+    /// Open an account of `kind` for `owner` (an id of your choosing; owners
+    /// need not be distinct) and return its account id. RefusedError
+    /// ZXV_E_CAPACITY once max_accounts are open; UsageError ZXV_E_ARG for a
+    /// kind that is neither holder nor issuer.
+    std::uint32_t open(std::uint32_t owner, AccountKind kind)
+    {
+        std::uint32_t a = 0;
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_play_open(cap_->cap, p, owner, static_cast<std::int32_t>(kind), &a);
+        });
+        return a;
+    }
+    /// Open an issuer account for `owner`; returns its account id.
+    std::uint32_t open_issuer(std::uint32_t owner) { return open(owner, AccountKind::issuer); }
+    /// Open a holder account for `owner`; returns its account id.
+    std::uint32_t open_holder(std::uint32_t owner) { return open(owner, AccountKind::holder); }
+
+    /// Post `amount` play units of backing to `issuer` (the play faucet).
+    /// UsageError ZXV_E_ARG (not an issuer), ZXV_E_NOT_FOUND (no such
+    /// account), ZXV_E_RANGE (amount 0, above amount_max, or backing would
+    /// pass 2^62).
+    void back(std::uint32_t issuer, std::uint64_t amount)
+    {
+        run([&](zxv_vino_play* p) { return zxv_vino_play_back(cap_->cap, p, issuer, amount); });
+    }
+    /// Withdraw `amount` of an issuer's play backing, only while it stays at
+    /// 1.8x coverage. CoverageRefused (it would not), InsufficientFunds
+    /// (more than its backing), plus back()'s errors.
+    void unback(std::uint32_t issuer, std::uint64_t amount)
+    {
+        run([&](zxv_vino_play* p) { return zxv_vino_play_unback(cap_->cap, p, issuer, amount); });
+    }
+
+    /// Issue one voucher of Fibonacci face `face` from `issuer` to `holder`
+    /// on `rail`; returns its id (> 0, never reused here).
+    /// DenominationError (not a ladder face: 4, 6, ...), CoverageRefused
+    /// (the issuer would fall below 1.8x), UsageError ZXV_E_ARG (issuer not
+    /// an issuer, holder not a holder, bad rail) / ZXV_E_NOT_FOUND,
+    /// RefusedError ZXV_E_CAPACITY (max_vouchers active).
+    std::uint64_t issue(std::uint32_t issuer, std::uint32_t holder, std::uint64_t face, Rail rail = Rail::bearer)
+    {
+        std::uint64_t id = 0;
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_issue(cap_->cap, p, issuer, holder, face, static_cast<std::int32_t>(rail), &id);
+        });
+        return id;
+    }
+    /// Spend active voucher `voucher` from its holder `from` to holder `to`
+    /// on `rail`, which must be its active rail; the rail does not change.
+    /// RailMismatch (not the active rail), RefusedError ZXV_E_STATE
+    /// (redeemed), UsageError ZXV_E_ARG (`from` is not its holder, `to` not
+    /// a holder, from == to) / ZXV_E_NOT_FOUND.
+    void transfer(std::uint64_t voucher, std::uint32_t from, std::uint32_t to, Rail rail)
+    {
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_transfer(cap_->cap, p, voucher, from, to, static_cast<std::int32_t>(rail));
+        });
+    }
+    /// Switch active voucher `voucher`, by its holder, to `rail` (bearer <->
+    /// ghost). Nothing moves. RailMismatch (already on that rail),
+    /// RefusedError ZXV_E_STATE (redeemed), UsageError ZXV_E_ARG (not its
+    /// holder) / ZXV_E_NOT_FOUND.
+    void set_rail(std::uint64_t voucher, std::uint32_t holder, Rail rail)
+    {
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_set_rail(cap_->cap, p, voucher, holder, static_cast<std::int32_t>(rail));
+        });
+    }
+    /// Redeem active voucher `voucher`, by its holder, to its issuer: it is
+    /// retired and the issuer's outstanding falls by its face. Nothing is
+    /// paid out to anyone. RefusedError ZXV_E_STATE (already redeemed),
+    /// UsageError ZXV_E_ARG (not its holder) / ZXV_E_NOT_FOUND.
+    void redeem(std::uint64_t voucher, std::uint32_t holder)
+    {
+        run([&](zxv_vino_play* p) { return zxv_vino_redeem(cap_->cap, p, voucher, holder); });
+    }
+
+    /// A voucher's face, issuer, holder, rail and state (active or
+    /// redeemed). UsageError ZXV_E_NOT_FOUND for an id never issued here.
+    [[nodiscard]] VoucherInfo voucher(std::uint64_t id) const
+    {
+        VoucherInfo v;
+        std::int32_t rail = 0, state = 0;
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_voucher_info(cap_->cap, p, id, &v.face, &v.issuer, &v.holder, &rail, &state);
+        });
+        v.rail = static_cast<Rail>(rail);
+        v.state = static_cast<VoucherState>(state);
+        return v;
+    }
+    /// An account's owner, kind and totals. UsageError ZXV_E_NOT_FOUND for
+    /// an account never opened here.
+    [[nodiscard]] AccountInfo account(std::uint32_t account) const
+    {
+        AccountInfo a;
+        std::int32_t is_issuer = 0;
+        run([&](zxv_vino_play* p) {
+            return zxv_vino_account_info(cap_->cap, p, account, &a.owner, &is_issuer, &a.backing, &a.faces, &a.count);
+        });
+        a.kind = is_issuer ? AccountKind::issuer : AccountKind::holder;
+        return a;
+    }
+    /// The ids of the active vouchers `account` issued (issuer) or holds
+    /// (holder), ascending. Redeemed vouchers are not listed. UsageError
+    /// ZXV_E_NOT_FOUND for an unknown account.
+    [[nodiscard]] std::vector<std::uint64_t> vouchers(std::uint32_t account) const
+    {
+        std::vector<std::uint64_t> ids;
+        run([&](zxv_vino_play* p) {
+            // Two-call pattern: the list can change only under this call's
+            // own lock, so retry while another thread grows it in between.
+            for (;;) {
+                std::size_t n = 0;
+                const std::int32_t st =
+                    zxv_vino_vouchers(cap_->cap, p, account, ids.empty() ? nullptr : ids.data(), ids.size(), &n);
+                if (st != ZXV_E_BUFFER) {
+                    if (st == ZXV_OK) ids.resize(n);
+                    return st;
+                }
+                ids.assign(n, 0);
+            }
+        });
+        return ids;
+    }
+    /// Re-check every invariant of the sandbox: each active voucher has a
+    /// ladder face, one rail, an issuer and a holder; each issuer's
+    /// outstanding is the sum of its active faces and keeps 1.8x coverage;
+    /// each holder's total is what it holds. A failure is FatalError
+    /// (ZXV_E_INVARIANT) and halts the context.
+    void check() const
+    {
+        run([&](zxv_vino_play* p) { return zxv_vino_play_check(cap_->cap, p); });
+    }
+
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_vino_play* native_handle() const noexcept { return p_.get(); }
+
+private:
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_vino_play* p = detail::live(p_.get(), "vino::Play");
+        cap_->call([&] { return f(p); });
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the sandbox
+    detail::Owned<zxv_vino_play, zxv_vino_play_destroy> p_;
+};
+
+/// A payment request and its id, as Request::encode returns them.
+struct EncodedRequest {
+    RequestBytes bytes{}; ///< the canonical 160 bytes, what the wallet approves
+    RequestId id{};       ///< SHA-256 of `bytes`
+};
+
+/// A payment request: a plain value the app builds and the user's wallet
+/// approves. It travels as exactly 160 canonical bytes (encode); its id is
+/// SHA-256 of those bytes. Encoding and decoding are pure: no capability,
+/// no context, no network. Building a request moves nothing; only the
+/// wallet can approve it.
+///
+/// Layout (all integers little-endian): 0 "ZXVR", 4 version 1, 5 lane,
+/// 6 flags (2), 8 merchant (32), 40 nonce (16), 56 amount (8),
+/// 64 created_at (8), 72 expires_at (8), 80 memo length (1), 81 memo
+/// (NUL padded to 64), 145 fifteen zero bytes.
+struct Request {
+    Lane lane = Lane::live;                  ///< play units (play) or real Vino (live)
+    std::uint32_t flags = 0;                 ///< vino::flag bits; flag::chance is play-only
+    std::array<std::uint8_t, 32> merchant{}; ///< the payee's id (e.g. SHA-256 of its key)
+    std::array<std::uint8_t, 16> nonce{};    ///< unique per request (e.g. from random_bytes)
+    std::uint64_t amount = 0;     ///< 1..amount_max: VFV minor units (live) or play units (play)
+    std::uint64_t created_at = 0; ///< seconds of the caller's clock (Unix time by convention)
+    std::uint64_t expires_at = 0; ///< after created_at; the wallet cannot approve after it
+    std::string memo;             ///< 0..64 bytes of printable ASCII (0x20..0x7e)
+
+    /// The canonical 160 bytes and the id. LaneError (lane neither play nor
+    /// live), PaidChanceRefused (a live request with flag::chance),
+    /// UsageError ZXV_E_FORMAT (an unknown flag, a memo that is not
+    /// printable ASCII) / ZXV_E_RANGE (amount 0 or above amount_max,
+    /// expires_at not after created_at) / ZXV_E_TOO_LONG (memo above 64
+    /// bytes) / ZXV_E_ARG (memo with a NUL byte).
+    [[nodiscard]] EncodedRequest encode() const
+    {
+        const char* m = detail::cstr(memo, "request memo");
+        EncodedRequest e;
+        detail::check(zxv_vino_request_encode(static_cast<std::int32_t>(lane), flags, merchant.data(), nonce.data(),
+                                              amount, created_at, expires_at, m, e.bytes.data(), e.id.data()));
+        return e;
+    }
+    /// Just the canonical 160 bytes (see encode()).
+    [[nodiscard]] RequestBytes bytes() const { return encode().bytes; }
+    /// Just the id, SHA-256 of the canonical bytes (see encode()).
+    [[nodiscard]] RequestId id() const { return encode().id; }
+
+    /// Parse and validate 160 request bytes under the same rules as
+    /// encode(), plus the magic, the version and the zero padding
+    /// (UsageError ZXV_E_FORMAT). UsageError ZXV_E_ARG when `bytes` is not
+    /// 160 bytes long.
+    [[nodiscard]] static Request decode(std::span<const std::uint8_t> bytes) { return decode_with_id(bytes).first; }
+    /// decode() plus the request's id.
+    [[nodiscard]] static std::pair<Request, RequestId> decode_with_id(std::span<const std::uint8_t> bytes)
+    {
+        detail::need_size(bytes, request_bytes, "request");
+        Request r;
+        RequestId id{};
+        std::int32_t lane = 0;
+        char memo_buf[ZXV_VINO_MEMO_MAX + 1] = {};
+        detail::check(zxv_vino_request_decode(bytes.data(), &lane, &r.flags, r.merchant.data(), r.nonce.data(),
+                                              &r.amount, &r.created_at, &r.expires_at, memo_buf, id.data()));
+        r.lane = static_cast<Lane>(lane);
+        r.memo = memo_buf;
+        return {std::move(r), id};
+    }
+
+    /// Field-by-field equality.
+    friend bool operator==(const Request&, const Request&) = default;
+};
+
+/// The exact 88 bytes a wallet signs to approve request `request_id` with
+/// its public key `wallet_public_key` (2592 bytes) at `approved_at`. Pure.
+/// UsageError ZXV_E_ARG for a key of the wrong size.
+inline ReceiptMessage receipt_message(const RequestId& request_id, std::span<const std::uint8_t> wallet_public_key,
+                                      std::uint64_t approved_at)
+{
+    detail::need_size(wallet_public_key, wallet_public_key_bytes, "wallet public key");
+    ReceiptMessage m{};
+    detail::check(zxv_vino_receipt_msg(request_id.data(), wallet_public_key.data(), approved_at, m.data()));
+    return m;
+}
+
+/// WALLET SIDE: approve the encoded request `request` at `approved_at`
+/// (which must lie within the request's [created_at, expires_at]) by
+/// signing its receipt message with the wallet's ML-DSA-87 key. Returns the
+/// 4627-byte signature (hedged: two calls give different, equally valid
+/// signatures). Needs caps::crypto_sign.
+///
+/// The secret key stays the caller's: it is read for this call only and
+/// never copied into any object. RequestExpired (outside the window), the
+/// request decoding errors (UsageError ZXV_E_FORMAT / ZXV_E_RANGE /
+/// ZXV_E_TOO_LONG, LaneError, PaidChanceRefused), NotImplemented (built
+/// without post-quantum crypto), CapabilityDenied.
+inline std::vector<std::uint8_t> sign_receipt(const Capability& cap, std::span<const std::uint8_t> request,
+                                              const SecretKey& wallet_secret_key,
+                                              std::span<const std::uint8_t> wallet_public_key,
+                                              std::uint64_t approved_at)
+{
+    const auto& c = detail::cap_of(cap);
+    detail::need_size(request, request_bytes, "request");
+    detail::need_size(wallet_secret_key.bytes(), wallet_secret_key_bytes, "wallet secret key");
+    detail::need_size(wallet_public_key, wallet_public_key_bytes, "wallet public key");
+    std::vector<std::uint8_t> sig(receipt_signature_bytes);
+    c->call([&] {
+        return zxv_vino_receipt_sign(c->cap, request.data(), wallet_secret_key.bytes().data(),
+                                     wallet_public_key.data(), approved_at, sig.data());
+    });
+    return sig;
+}
+
+/// APP SIDE, offline: check that `signature` is the wallet's approval of the
+/// encoded `request` at `approved_at`, that approved_at lies within the
+/// request's window and that `now` is not past its expiry. Returns normally
+/// when it is. Pure: no capability, no network.
+///
+/// VerificationFailed (not that wallet's signature over this request and
+/// time), RequestExpired (approved outside the window, or `now` past the
+/// expiry), the request decoding errors, NotImplemented (built without
+/// post-quantum crypto), UsageError ZXV_E_ARG (a buffer of the wrong size).
+inline void verify_receipt(std::span<const std::uint8_t> request, std::span<const std::uint8_t> wallet_public_key,
+                           std::uint64_t approved_at, std::span<const std::uint8_t> signature, std::uint64_t now)
+{
+    detail::need_size(request, request_bytes, "request");
+    detail::need_size(wallet_public_key, wallet_public_key_bytes, "wallet public key");
+    detail::need_size(signature, receipt_signature_bytes, "receipt signature");
+    detail::check(zxv_vino_receipt_verify(request.data(), wallet_public_key.data(), approved_at, signature.data(), now));
+}
+
+/// verify_receipt as a yes/no answer: false for VerificationFailed or
+/// RequestExpired; every other error (a malformed request, a wrong-size
+/// buffer) still throws, since it is a bug, not a bad receipt.
+[[nodiscard]] inline bool receipt_is_valid(std::span<const std::uint8_t> request,
+                                           std::span<const std::uint8_t> wallet_public_key, std::uint64_t approved_at,
+                                           std::span<const std::uint8_t> signature, std::uint64_t now)
+{
+    try {
+        verify_receipt(request, wallet_public_key, approved_at, signature, now);
+        return true;
+    } catch (const VerificationFailed&) {
+        return false;
+    } catch (const RequestExpired&) {
+        return false;
+    }
+}
+
+/// What SpendMeter::try_admit decided.
+struct MeterDecision {
+    bool admitted = false;  ///< true when the amount was counted
+    std::uint64_t left = 0; ///< what is left of today's cap after the call (either way)
+};
+
+/// One device's daily spend counter. It counts what the device approved per
+/// day index and refuses an amount that would pass the daily cap. It is a
+/// counter, not a legal check, and makes no exemption claim. Needs
+/// caps::vino. Internally serialized; move-only; a moved-from meter throws
+/// UsageError (ZXV_E_ARG).
+class SpendMeter {
+public:
+    /// A meter with cap `daily_cap` (1..amount_max) per day. UsageError
+    /// ZXV_E_RANGE outside that, CapabilityDenied without caps::vino.
+    SpendMeter(const Capability& cap, std::uint64_t daily_cap) : cap_(detail::cap_of(cap))
+    {
+        zxv_vino_meter* m = nullptr;
+        cap_->call([&] { return zxv_vino_meter_create(cap_->cap, daily_cap, &m); });
+        m_.reset(m);
+    }
+    SpendMeter(SpendMeter&&) noexcept = default;            ///< move
+    SpendMeter& operator=(SpendMeter&&) noexcept = default; ///< move-assign
+    SpendMeter(const SpendMeter&) = delete;
+    SpendMeter& operator=(const SpendMeter&) = delete;
+    ~SpendMeter() = default;
+
+    /// Count `amount` against day `day` (for example Unix time / 86400) and
+    /// return what is left today. A day after the last one starts a fresh
+    /// count. LimitRefused when today's total would pass the cap (nothing is
+    /// counted; use try_admit to learn what is left), UsageError
+    /// ZXV_E_RANGE for an amount of 0 or above amount_max, or a day before
+    /// the last one (the clock went back).
+    std::uint64_t admit(std::uint64_t day, std::uint64_t amount)
+    {
+        std::uint64_t left = 0;
+        run([&](zxv_vino_meter* m) { return zxv_vino_meter_admit(cap_->cap, m, day, amount, &left); });
+        return left;
+    }
+    /// Like admit(), but a cap refusal is an answer, not an exception:
+    /// {false, left} when the amount would pass today's cap. Other errors
+    /// still throw.
+    MeterDecision try_admit(std::uint64_t day, std::uint64_t amount)
+    {
+        zxv_vino_meter* m = detail::live(m_.get(), "vino::SpendMeter");
+        detail::ensure_alive(cap_->ctx.get());
+        MeterDecision d;
+        const std::int32_t st = zxv_vino_meter_admit(cap_->cap, m, day, amount, &d.left);
+        if (st == ZXV_E_LIMIT) return d;
+        detail::check(st, cap_->ctx.get());
+        d.admitted = true;
+        return d;
+    }
+    /// The raw C handle (owned by this object; never destroy it).
+    [[nodiscard]] zxv_vino_meter* native_handle() const noexcept { return m_.get(); }
+
+private:
+    template <class F>
+    void run(F&& f) const
+    {
+        zxv_vino_meter* m = detail::live(m_.get(), "vino::SpendMeter");
+        cap_->call([&] { return f(m); });
+    }
+    std::shared_ptr<detail::CapCore> cap_; // declared first: outlives the meter
+    detail::Owned<zxv_vino_meter, zxv_vino_meter_destroy> m_;
+};
+
+} // namespace vino
 
 // Out-of-line definitions that need complete types.
 inline std::shared_ptr<detail::CtxCore> Message::ctx_core(const Context& c) { return c.core_; }

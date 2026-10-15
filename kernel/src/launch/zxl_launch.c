@@ -90,6 +90,18 @@ const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group)
     return g ? g : &GROUPS[0];
 }
 
+static const char *const ICON_FILE[] = {
+#include "zxl_icons.inc"
+};
+
+const char *zxl_icon_file(const char *app)
+{
+    if (app)
+        for (uint32_t i = 0; i < N_CURATED && i < sizeof ICON_FILE / sizeof ICON_FILE[0]; i++)
+            if (streq(app, CURATED[i].app)) return ICON_FILE[i];
+    return 0;
+}
+
 uint32_t zxl_curated_count(void)
 {
     return (uint32_t) N_CURATED;
@@ -160,24 +172,30 @@ static uint32_t rank(uint32_t i, uint32_t n)
     return i < r ? i : r;
 }
 
+/* Light tile i: its tick (when `tick`), then LIGHT once every tile is lit. */
+static void light(zxl_launch_t *l, uint32_t i, int tick)
+{
+    uint32_t inner = (l->n - 1) / 2, r = rank(i, l->n);
+    l->lit |= 1u << i;
+    if (tick) push(l, ZXL_EV_TICK, i, r == inner ? ZXL_TOP_STEP : l->nlit);
+    if (r != inner) l->nlit++;
+    if (l->lit == (1u << l->n) - 1u) {
+        push(l, ZXL_EV_LIGHT, 0, 0);
+        l->phase = ZXL_PH_RELEASE;
+    }
+}
+
 static void advance(zxl_launch_t *l)
 {
     if (l->phase == ZXL_PH_GATHER) {
         uint32_t inner = (l->n - 1) / 2, g = zxl_gather_p(l);
-        for (uint32_t i = 0; i < l->n; i++) {
+        for (uint32_t i = 0; i < l->n && l->phase == ZXL_PH_GATHER; i++) {
             if (l->lit & (1u << i) || l->part_p[i] < ZXL_FULL) continue;
             uint32_t r = rank(i, l->n);
             /* the head reaches rank r at the middle of its span; the innermost
              * rank lights only when everything is loaded */
             uint32_t need = r == inner ? ZXL_FULL : ZXL_FULL * (2 * r + 1) / (2 * (inner + 1));
-            if (g < need) continue;
-            l->lit |= 1u << i;
-            push(l, ZXL_EV_TICK, i, r == inner ? ZXL_TOP_STEP : l->nlit);
-            if (r != inner) l->nlit++;
-        }
-        if (l->lit == (1u << l->n) - 1u) {
-            push(l, ZXL_EV_LIGHT, 0, 0);
-            l->phase = ZXL_PH_RELEASE;
+            if (g >= need) light(l, i, 1);
         }
     }
     if (l->phase == ZXL_PH_RELEASE && l->rest == ZXL_FULL) {
@@ -222,6 +240,26 @@ void zxl_launch_rest(zxl_launch_t *l, uint32_t p)
     if (!l) return;
     if (p != ZXL_UNKNOWN && p > ZXL_FULL) p = ZXL_FULL;
     if (p == ZXL_UNKNOWN || l->rest == ZXL_UNKNOWN || p > l->rest) l->rest = p;
+    advance(l);
+}
+
+int zxl_launch_lit(zxl_launch_t *l, uint32_t part)
+{
+    if (!l || part >= l->n || l->phase != ZXL_PH_GATHER || (l->lit & (1u << part))) return -1;
+    l->part_p[part] = ZXL_FULL;
+    light(l, part, 1);
+    advance(l);
+    return 0;
+}
+
+void zxl_launch_finish(zxl_launch_t *l)
+{
+    if (!l || l->phase == ZXL_PH_OPEN) return;
+    for (uint32_t i = 0; i < l->n && l->phase == ZXL_PH_GATHER; i++) {
+        l->part_p[i] = ZXL_FULL;
+        if (!(l->lit & (1u << i))) light(l, i, 0);
+    }
+    l->rest = ZXL_FULL;
     advance(l);
 }
 

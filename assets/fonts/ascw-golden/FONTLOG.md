@@ -18,6 +18,11 @@ ASCW Golden Cherokee was rebuilt for ZXV from Noto Sans Cherokee (OFL), because
 the Cherokee face in the ASCW source folder was Plantagenet Cherokee, a
 Tiro Typeworks font licensed with Windows, which may not be redistributed.
 
+ASCW Golden Tibetan and ASCW Golden Thaana were made for ZXV from Noto Serif
+Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at
+weight 400), renamed into the family and given its golden-section metrics,
+because the ASCW source folder has no face for either script.
+
 | File | Family | Upstream (name ID 3) | Version | Copyright (name ID 0) |
 |---|---|---|---|---|
 | ASCW-Golden-Latin2.ttf | ASCW Golden Latin II | 2.007;GOOG;NotoSerif-Regular | Version 2.007 | Copyright 2015-2021 Google LLC. All Rights Reserved. |
@@ -47,6 +52,8 @@ Tiro Typeworks font licensed with Windows, which may not be redistributed.
 | ASCW-Golden-Lao.ttf | ASCW Golden Lao | 2.001;GOOG;NotoSansLao-Regular | Version 2.001 | Copyright 2017 Google Inc. All Rights Reserved. |
 | ASCW-Golden-Khmer.ttf | ASCW Golden Khmer | 2.002;GOOG;NotoSansKhmer-Regular | Version 2.002 | Copyright 2016-2022 Google Inc. All Rights Reserved. |
 | ASCW-Golden-Myanmar.ttf | ASCW Golden Myanmar | 2.105;GOOG;NotoSansMyanmar-Regular | Version 2.105 | Copyright 2015-2002 Google Inc. All Rights Reserved. |
+| ASCW-Golden-Tibetan.ttf | ASCW Golden Tibetan | ASCW;ASCWGoldenTibetan;2026; derived from Noto Serif Tibetan | Version 2.103 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tibetan) |
+| ASCW-Golden-Thaana.ttf | ASCW Golden Thaana | ASCW;ASCWGoldenThaana;2026; derived from Noto Sans Thaana | Version 3.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/thaana) |
 | ASCW-Golden-Ethiopic.ttf | ASCW Golden Ethiopic | 2.102;GOOG;NotoSansEthiopic-Regular | Version 2.102 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/ethiopic) |
 | ASCW-Golden-Cherokee.ttf | ASCW Golden Cherokee | ASCW;ASCWGoldenCherokee;2026; derived from Noto Sans Cherokee | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/cherokee) |
 | ASCW-Golden-CanadianAboriginal.otf | ASCW Golden Canadian Aboriginal | 2.001;GOOG;NotoSansCanadianAboriginal-Regular | Version 2.001 | Copyright 2018-2022 Google LLC. All Rights Reserved. |

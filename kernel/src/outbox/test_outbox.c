@@ -2,10 +2,11 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_outbox.c — offline grants and the outbox on a real pay_ledger, with
  * both keys sealed through hwkey (outbox.h G1-G3, E1-E4, S1-S4, D1-D5,
- * C1-C3): out-of-order and repeated settlement, a device restored from a
- * backup signing the same number twice, forged totals, failed writes, the
- * close and expiry refunds, and a seeded random run that checks after
- * every step that no money is created and the escrow is exact. */
+ * C1-C3, R1-R4): out-of-order and repeated settlement, a device restored
+ * from a backup signing the same number twice (and, with the chip counter
+ * guard, refused before it can), forged totals, failed writes, the close
+ * and expiry refunds, and a seeded random run that checks after every step
+ * that no money is created and the escrow is exact. */
 #include <stdio.h>
 #include <string.h>
 #include "outbox.h"
@@ -942,6 +943,249 @@ static void test_flag_list(void)
     CHECK(audit(), "audit");
 }
 
+/* R1-R4: a stand-in for the chip's monotonic counters, one per grant id */
+typedef struct {
+    uint8_t id[4][32];
+    uint64_t v[4];
+    int n;
+    int fail_read, fail_bump, stuck, reads, bumps;
+} chip_ctr_t;
+
+static uint64_t *ctr_slot(chip_ctr_t *c, const uint8_t id[32])
+{
+    for (int i = 0; i < c->n; i++)
+        if (!memcmp(c->id[i], id, 32)) return &c->v[i];
+    if (c->n == 4) return 0;
+    memcpy(c->id[c->n], id, 32);
+    c->v[c->n] = 1000; /* a chip counter does not start at zero */
+    return &c->v[c->n++];
+}
+static int ctr_read(void *ctx, const uint8_t id[32], uint64_t *v)
+{
+    chip_ctr_t *c = ctx;
+    c->reads++;
+    uint64_t *s = ctr_slot(c, id);
+    if (c->fail_read || !s) return 1;
+    *v = *s;
+    return 0;
+}
+static int ctr_bump(void *ctx, const uint8_t id[32], uint64_t *v)
+{
+    chip_ctr_t *c = ctx;
+    c->bumps++;
+    uint64_t *s = ctr_slot(c, id);
+    if (c->fail_bump || !s) return 1;
+    if (!c->stuck) (*s)++;
+    *v = *s;
+    return 0;
+}
+
+static void test_rollback_guard(void)
+{
+    static chip_ctr_t chip;
+    static obx_device_t backup;
+    memset(&chip, 0, sizeof chip);
+    obx_counter_t ctr = {&chip, ctr_read, ctr_bump}, no_read = {&chip, 0, ctr_bump},
+                  no_bump = {&chip, ctr_read, 0};
+    setup();
+    persist_fail = 0;
+    CHECK(obx_ledger_grant(&LG, HOLDER, dev3.key.pk, 500, 8, 10, 1000, &G) == OBX_OK, "grant");
+    CHECK(obx_device_init(&D, &G, ledger_key.key.pk, dev3.key.pk) == OBX_OK, "init");
+
+    /* R1 */
+    CHECK(obx_device_guard(0, &ctr, persist_cb, 0) == OBX_ERR_ARG &&
+              obx_device_guard(&D, 0, persist_cb, 0) == OBX_ERR_ARG &&
+              obx_device_guard(&D, &no_read, persist_cb, 0) == OBX_ERR_ARG &&
+              obx_device_guard(&D, &no_bump, persist_cb, 0) == OBX_ERR_ARG &&
+              obx_device_guard(&D, &ctr, 0, 0) == OBX_ERR_ARG && !D.guarded,
+          "R1: missing arguments refused");
+    chip.fail_read = 1;
+    CHECK(obx_device_guard(&D, &ctr, persist_cb, 0) == OBX_ERR_COUNTER && !D.guarded && D.ctr == 0,
+          "R1: an unreadable counter leaves the outbox unguarded");
+    chip.fail_read = 0;
+    persist_fail = 1;
+    CHECK(obx_device_guard(&D, &ctr, persist_cb, 0) == OBX_ERR_PERSIST && !D.guarded && D.ctr == 0,
+          "R1: a failed write undoes the guard");
+    persist_fail = 0;
+    CHECK(obx_device_guard(&D, &ctr, persist_cb, 0) == OBX_OK && D.guarded && D.ctr == 1000 &&
+              disk.guarded && disk.ctr == 1000,
+          "R1: guarded at the chip's value, and written");
+    CHECK(obx_device_guard(&D, &ctr, persist_cb, 0) == OBX_ERR_STATE, "R1: only once");
+
+    /* R4 */
+    CHECK(obx_device_spend(&D, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_STATE &&
+              D.n == 0,
+          "R4: the unguarded spend refuses a guarded outbox");
+    obx_close_t c, c2;
+    CHECK(obx_device_close(&D, sign_cb, &dev3, persist_cb, 0, &c) == OBX_ERR_STATE && !D.closed,
+          "R4: and so does the unguarded close");
+    CHECK(obx_device_spend_guarded(&D, 0, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &no_read, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0,
+                                       &X) == OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &no_bump, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0,
+                                       &X) == OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &ctr, PAYEE_A, 0, 1, sign_cb, &dev3, persist_cb, 0,
+                                       &X) == OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 1, 0, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 1, sign_cb, &dev3, 0, 0, &X) ==
+                  OBX_ERR_ARG &&
+              obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0,
+                                       0) == OBX_ERR_ARG &&
+              obx_device_spend_guarded(0, &ctr, PAYEE_A, 10, 1, sign_cb, &dev3, persist_cb, 0,
+                                       &X) == OBX_ERR_ARG &&
+              D.n == 0,
+          "guarded spend: missing arguments refused");
+
+    /* R2-R3: each spend counts the chip up and writes the new value */
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 100, 1, sign_cb, &dev3, persist_cb, 0,
+                                   &E[0]) == OBX_OK &&
+              chip.v[0] == 1001 && D.ctr == 1001 && disk.ctr == 1001 && E[0].seq == 1,
+          "R3: spend 1 counts the chip to 1001, saved with the state");
+    memcpy(&backup, &disk, sizeof disk); /* the user backs the device up here */
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 50, 2, sign_cb, &dev3, persist_cb, 0,
+                                   &E[1]) == OBX_OK &&
+              chip.v[0] == 1002 && D.ctr == 1002,
+          "spend 2");
+    CHECK(obx_verify_offline(ledger_key.key.pk, &G, dev3.key.pk, &E[1]) == OBX_OK,
+          "guarded entries are ordinary entries to a payee");
+
+    /* the backup is restored: the state says 1001, the chip says 1002 */
+    int bumps = chip.bumps;
+    memset(&X, 0xee, sizeof X);
+    CHECK(obx_device_spend_guarded(&backup, &ctr, PAYEE_B, 50, 3, sign_cb, &dev3, persist_cb, 0,
+                                   &X) == OBX_ERR_ROLLBACK &&
+              X.seq == 0xeeeeeeeeu && backup.n == 1 && chip.bumps == bumps && chip.v[0] == 1002,
+          "R2: a restored backup cannot sign number 2 again");
+    CHECK(obx_device_close_guarded(&backup, &ctr, sign_cb, &dev3, persist_cb, 0, &c) ==
+                  OBX_ERR_ROLLBACK &&
+              !backup.closed && chip.v[0] == 1002,
+          "R2: nor sign a close that would hide entry 2");
+    CHECK(obx_device_spend(&backup, PAYEE_B, 50, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+              OBX_ERR_STATE,
+          "R4: nor get round the guard with the unguarded spend");
+
+    /* failures around the counter */
+    chip.fail_read = 1;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_COUNTER &&
+              D.n == 2,
+          "unreadable counter: nothing signed");
+    chip.fail_read = 0;
+    chip.fail_bump = 1;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_COUNTER &&
+              D.n == 2 && D.ctr == 1002 && D.e[2].seq == 0,
+          "counter refuses the increment: the signed entry is dropped, not queued");
+    chip.fail_bump = 0;
+    chip.stuck = 1;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_COUNTER &&
+              D.n == 2 && D.e[2].seq == 0,
+          "a counter that does not go up is no counter");
+    chip.stuck = 0;
+    dev3.fail = 1;
+    bumps = chip.bumps;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_SIGNER &&
+              chip.bumps == bumps && chip.v[0] == 1002,
+          "a signer failure does not count the chip up");
+    dev3.fail = 0;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 600, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_LIMIT &&
+              chip.v[0] == 1002,
+          "E2 before the counter: over the limit counts nothing");
+
+    /* a write that fails after the increment locks the outbox (fail-closed) */
+    persist_fail = 1;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+                  OBX_ERR_PERSIST &&
+              D.n == 2 && D.ctr == 1002 && chip.v[0] == 1003,
+          "E3 + R3: failed write, state unchanged, chip already counted");
+    persist_fail = 0;
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_A, 10, 3, sign_cb, &dev3, persist_cb, 0, &X) ==
+              OBX_ERR_ROLLBACK,
+          "after that the outbox refuses to sign: it cannot prove it is the latest");
+
+    /* the two real entries still settle; the holder gets the rest at expiry */
+    CHECK(obx_ledger_submit(&LG, &E[1], 20, &R) == OBX_OK && R == OBX_R_ACCEPTED &&
+              obx_ledger_submit(&LG, &E[0], 21, &R) == OBX_OK && R == OBX_R_ACCEPTED &&
+              bal(a_acct) == 150 && audit(),
+          "both entries settle");
+    CHECK(!obx_ledger_flagged(&LG, G.device_id), "no conflict, the device is not flagged");
+    CHECK(obx_ledger_expire(&LG, 1000 + 100) == 1 && bal(holder_acct) == SUPPLY - 150 && audit(),
+          "C2: the unspent 350 goes back to the holder");
+
+    /* a guarded close: counts the chip, then repeats without counting (same
+     * ledger, so the second grant has a new id and a counter of its own) */
+    CHECK(obx_ledger_grant(&LG, HOLDER, dev4.key.pk, 100, 4, 10, 1000, &G) == OBX_OK &&
+              obx_device_init(&D, &G, ledger_key.key.pk, dev4.key.pk) == OBX_OK &&
+              obx_device_guard(&D, &ctr, persist_cb, 0) == OBX_OK && D.ctr == 1000,
+          "a second grant gets its own counter");
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_B, 30, 1, sign_cb, &dev4, persist_cb, 0,
+                                   &E[0]) == OBX_OK &&
+              D.ctr == 1001,
+          "spend");
+    CHECK(obx_device_close_guarded(&D, 0, sign_cb, &dev4, persist_cb, 0, &c) == OBX_ERR_ARG &&
+              obx_device_close_guarded(&D, &no_read, sign_cb, &dev4, persist_cb, 0, &c) ==
+                  OBX_ERR_ARG &&
+              obx_device_close_guarded(&D, &no_bump, sign_cb, &dev4, persist_cb, 0, &c) ==
+                  OBX_ERR_ARG &&
+              obx_device_close_guarded(&D, &ctr, 0, &dev4, persist_cb, 0, &c) == OBX_ERR_ARG &&
+              obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, 0, 0, &c) == OBX_ERR_ARG &&
+              obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, 0) == OBX_ERR_ARG &&
+              obx_device_close_guarded(0, &ctr, sign_cb, &dev4, persist_cb, 0, &c) == OBX_ERR_ARG &&
+              !D.closed,
+          "guarded close: missing arguments refused");
+    chip.fail_bump = 1;
+    CHECK(obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, &c) ==
+                  OBX_ERR_COUNTER &&
+              !D.closed && D.close.last_seq == 0,
+          "close: counter refuses, nothing closed");
+    chip.fail_bump = 0;
+    dev4.fail = 1;
+    CHECK(obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, &c) == OBX_ERR_SIGNER &&
+              !D.closed && D.ctr == 1001 && chip.v[1] == 1001,
+          "close: signer failure counts nothing");
+    dev4.fail = 0;
+    persist_fail = 1;
+    CHECK(obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, &c) ==
+                  OBX_ERR_PERSIST &&
+              !D.closed && D.ctr == 1001 && chip.v[1] == 1002,
+          "close: failed write undone, chip counted");
+    persist_fail = 0;
+    D.ctr = 1002; /* stand-in for a recovery that re-reads a state written at 1002 */
+    CHECK(obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, &c) == OBX_OK &&
+              D.closed && D.ctr == 1003 && disk.ctr == 1003 && c.last_seq == 1 &&
+              c.cumulative == 30,
+          "R3: the close counts the chip and is written");
+    bumps = chip.bumps;
+    CHECK(obx_device_close_guarded(&D, &ctr, sign_cb, &dev4, persist_cb, 0, &c2) == OBX_OK &&
+              !memcmp(&c, &c2, sizeof c) && chip.bumps == bumps,
+          "closing again returns the same statement and counts nothing");
+    CHECK(obx_device_close(&D, sign_cb, &dev4, persist_cb, 0, &c2) == OBX_OK &&
+              !memcmp(&c, &c2, sizeof c),
+          "R4 lets the unguarded close read back a finished close");
+    CHECK(obx_device_spend_guarded(&D, &ctr, PAYEE_B, 1, 2, sign_cb, &dev4, persist_cb, 0, &X) ==
+              OBX_ERR_STATE,
+          "no spend after the close");
+    CHECK(obx_ledger_close(&LG, &c, 30) == OBX_OK &&
+              obx_ledger_submit(&LG, &E[0], 31, &R) == OBX_OK && R == OBX_R_ACCEPTED &&
+              bal(b_acct) == 30 && bal(holder_acct) == SUPPLY - 180 && audit(),
+          "C1 settles the guarded grant");
+    static obx_device_t fresh;
+    CHECK(obx_device_init(&fresh, &G, ledger_key.key.pk, dev4.key.pk) == OBX_OK, "fresh outbox");
+    CHECK(obx_device_spend_guarded(&fresh, &ctr, PAYEE_B, 1, 2, sign_cb, &dev4, persist_cb, 0,
+                                   &X) == OBX_ERR_STATE &&
+              fresh.n == 0 &&
+              obx_device_close_guarded(&fresh, &ctr, sign_cb, &dev4, persist_cb, 0, &c2) ==
+                  OBX_ERR_STATE &&
+              !fresh.closed,
+          "guarded calls refuse an unguarded outbox");
+}
+
 int main(void)
 {
     signer_make(&ledger_key, 0x01, "ledger");
@@ -961,6 +1205,7 @@ int main(void)
     test_ledger_edges();
     test_close_edges();
     test_flag_list();
+    test_rollback_guard();
     printf("%d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

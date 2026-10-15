@@ -117,7 +117,8 @@ export class SecretKey implements Disposable {
   }
 }
 
-function needSecret(name: string, k: unknown, len: number, core: Core): SecretKey {
+/** @internal A SecretKey of exactly `len` bytes living in `core`, else a usage error. */
+export function needSecret(name: string, k: unknown, len: number, core: Core): SecretKey {
   if (!(k instanceof SecretKey)) throw usage(`${name} must be a SecretKey (use SecretKey.fromBytes for known bytes)`);
   if (k.length !== len) throw usage(`${name} must be ${len} bytes, got ${k.length}`);
   if (k._core !== core) throw usage(`${name} belongs to a different loaded library`);

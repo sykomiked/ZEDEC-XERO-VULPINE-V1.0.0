@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# pce_fin, a block: financial analytics from the paraconsistent decision
+# engines. Advisory analytics only: read-only figures in, exact numbers and
+# truth values out. No output is a balance, an order or a trade, and none
+# is investment advice.
+zxblock 1
+id       pce_fin
+name     Paraconsistent finance analytics
+version  1.0.0
+# Exact net present value of cash flows cf at each analyst's rate
+# rate_num/rate_den, one answer per rate.
+provides npv num cf rate_num rate_den
+logic    c npv <<
+fin.npv
+.
+# Positive at every rate TRUE, negative at every rate FALSE, all zero
+# NEITHER, otherwise BOTH: whose rate decides.
+provides npv_sign truth cf rate_num rate_den
+logic    c npv_sign <<
+fin.npv_sign
+.

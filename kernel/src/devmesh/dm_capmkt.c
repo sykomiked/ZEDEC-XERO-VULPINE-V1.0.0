@@ -6,6 +6,9 @@
 #include "../mlkem/keccak.h"
 #include "../pay/pay_util.h"
 
+_Static_assert(DM_MONEY_AMOUNT_MAX == CM_AMOUNT_MAX,
+               "an escrow the capacity market accepts must be a valid money action");
+
 dm_status_t dm_capmkt_account(const dm_mesh_t *m, uint8_t id[CM_ID_BYTES])
 {
     static const char L[] = "zxv-devmesh/v1/market";

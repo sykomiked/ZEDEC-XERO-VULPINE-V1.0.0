@@ -44,6 +44,27 @@ TEST(negate_test) {
     PASS();
 }
 
+TEST(kjoin_test) {
+    const lpres_state_t T = LPRES_STATE_TRUE, F = LPRES_STATE_FALSE,
+                        B = LPRES_STATE_BOTH, N = LPRES_STATE_NEITHER;
+    const lpres_state_t v[4] = {T, F, B, N};
+    /* row = a, column = b, in the order T F B N */
+    const lpres_state_t want[4][4] = {
+        {T, B, B, T},
+        {B, F, B, F},
+        {B, B, B, B},
+        {T, F, B, N},
+    };
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            ASSERT(lpres_kjoin(v[i], v[j]) == want[i][j], "kjoin table entry");
+    ASSERT(lpres_kjoin(T, F) == B, "two sources disagreeing is BOTH");
+    ASSERT(lpres_kjoin(N, T) == T, "a silent source adds nothing");
+    ASSERT(lpres_kjoin(lpres_kjoin(T, N), F) == lpres_kjoin(T, lpres_kjoin(N, F)),
+           "kjoin is associative");
+    ASSERT(lpres_conjoin(lpres_kjoin(T, F), N) == N, "a gap plus a contradiction waits");
+}
+
 TEST(conjoin_test) {
     /* T ∧ T = T */
     ASSERT(lpres_conjoin(LPRES_STATE_TRUE, LPRES_STATE_TRUE) == LPRES_STATE_TRUE, "T∧T=T");
@@ -379,6 +400,7 @@ int main(void) {
     printf("\n=== ZXV LPRES (K3) Tests ===\n\n");
 
     RUN(negate_test);
+    RUN(kjoin_test);
     RUN(conjoin_test);
     RUN(disjoin_test);
     RUN(state_classifiers_test);

@@ -859,6 +859,8 @@ static void test_real_graph(void)
     memset(&r, 0, sizeof r);
     CHECK(bind_dev(&fp, 0, &r, &note) == HW_T);
     CHECK(strstr(note.b, "out pin 0x0b (line out) via DAC 0x03") != 0);
+    /* SRST read back 1, so the reset is confirmed: no N on the line */
+    CHECK(strstr(note.b, "unconfirmed") == 0);
     CHECK(f->c[0].w[11].pinctl == 0x40 && f->c[0].w[10].pinctl == 0);
     CHECK(audible_pin(&f->c[0], &dac) == 11 && dac == 3);
     fake_plat_free(&fp);
@@ -1166,7 +1168,8 @@ static void test_faults(void)
         {"version 2", k_vmaj, HW_B, "version is not 1.x"},
         {"all-ones", k_ones, HW_F, "all-ones"},
         {"CORBRP reset stuck", k_corbrp, HW_F, "CORB read pointer will not reset"},
-        {"SRST resets at once, never reads 1", k_srst_set, HW_T, "via DAC 0x02"},
+        {"SRST resets at once, never reads 1", k_srst_set, HW_T,
+         "via DAC 0x02; stream reset unconfirmed (N: SRST never read back 1)"},
         {"SRST never clears", k_srst_clr, HW_F, "output stream reset timed out"},
         {"DAC without 48 kHz", k_no48k, HW_N, "no output pin"},
         {"DAC without 16 bit", k_16only, HW_N, "no output pin"},

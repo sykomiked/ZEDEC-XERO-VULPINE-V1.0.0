@@ -26,25 +26,31 @@
  *      It starts at phase POTENTIAL (waiting). `resolve ID VERDICT` or
  *      `drop ID` walks it EMERGING (decided), MANIFEST (applied: the rest
  *      runs as if its condition had returned VERDICT, or nothing runs for a
- *      drop), DISSOLVING (cleared), one Gray step each through lpx_advance. Resolving needs the RESOLVE capability,
- *      which a script (non-interactive run) does not have: a person decides.
- *   S6 FORBIDDEN. A forbidden tag appends a record (tag, command digest) to
- *      the lpx_qlog quarantine chain and ABORTS the rest of the input: no
- *      later command in that line or script runs. The record is handed to
- *      the host to persist. A full log refuses the append and the shell
- *      stays aborted (fail closed).
- *   S7 IF. `if L then A [else B] [both C] [neither D] fi` chooses by the
- *      condition's action: PROCEED A, REFUSE B. Otherwise the base picks
- *      `both` or `neither` when that clause is present, else the if is held.
- *      An if whose chosen branch is absent is TRUE (nothing was asked).
- *      Inside an if's clauses `both` and `neither` are keywords; the verdict
- *      builtins are also spelled `verdict both`, which works anywhere.
- *   S8 LOOPS. A for loop's verdict is the lpx_and of its iterations.
- *   S9 CAPABILITIES. The session holds a mask (exec, read, write, net,
- *      resolve). `cap drop` only narrows it; `sandbox CAPS -- cmd` runs one
- *      command with the intersection. A refusal for a missing capability is
- *      FALSE/neutral (an ordinary refusal). These are checks inside the
- *      shell: a program it runs still has the operating system's permissions.
+ *      drop), DISSOLVING (cleared), one Gray step each through lpx_advance. Resolving needs the
+ * RESOLVE capability, which a script (non-interactive run) does not have: a person decides. S6
+ * FORBIDDEN. A forbidden tag appends a record (tag, command digest) to the lpx_qlog quarantine
+ * chain and ABORTS the rest of the input: no later command in that line or script runs. The record
+ * is handed to the host to persist. A full log refuses the append and the shell stays aborted (fail
+ * closed). S7 IF. `if L then A [else B] [both C] [neither D] fi` chooses by the condition's action:
+ * PROCEED A, REFUSE B. Otherwise the base picks `both` or `neither` when that clause is present,
+ * else the if is held. An if whose chosen branch is absent is TRUE (nothing was asked). Inside an
+ * if's clauses `both` and `neither` are keywords; the verdict builtins are also spelled `verdict
+ * both`, which works anywhere. S8 LOOPS. A for loop's verdict is the lpx_and of its iterations. S9
+ * CAPABILITIES. The session holds a mask (exec, read, write, net, resolve). `cap drop` only narrows
+ * it; `sandbox CAPS -- cmd` runs one command with the intersection. A refusal for a missing
+ * capability is FALSE/neutral (an ordinary refusal). These are checks inside the shell: a program
+ * it runs still has the operating system's permissions. S10 FAMILIAR SYNTAX. Anyone who knows sh or
+ * bash can start at once:
+ *      `;` `&&` `||` `|` `<` `>` `>>` `2>` `2>>` `2>&1` `>&2` `&>` `&>>`,
+ *      `cmd &` (a background job: its verdict arrives at `wait`), `$(...)`
+ *      and backticks (unquoted results split on whitespace), `$1`..`$9`,
+ *      `$#`, `$@`, `$0`, `$?` (the numeric exit status, as in sh; the
+ *      verdict word is `$VERDICT`), `NAME=value cmd` (environment for one
+ *      command), `while`/`until`, `break`/`continue`, and interactive
+ *      aliases. A while/until whose condition is both or neither stops and
+ *      reports that condition, since it is not a plain yes or no.
+ *   S11 INTERRUPT. The host sets `interrupt` on Ctrl-C; the rest of the
+ *      input stops, as in sh.
  *
  * The core has no allocation and no stdio; the host supplies output, process
  * execution and persistence through zxsh_ops_t. It uses lpres_hex for every
@@ -60,25 +66,28 @@
 
 #define ZXSH_MAX_TOKENS 1024u
 #define ZXSH_MAX_STAGES 8u
-#define ZXSH_MAX_ARGS 32u
-#define ZXSH_ARENA 16384u
-#define ZXSH_MAX_VARS 64u
-#define ZXSH_NAME_MAX 32u
-#define ZXSH_VALUE_MAX 256u
-#define ZXSH_MAX_HELD 32u
-#define ZXSH_HOLD_TEXT 512u
-#define ZXSH_CAPTURE 8192u
-#define ZXSH_WHY_MAX 128u
-#define ZXSH_QLOG_CAP 64u
-#define ZXSH_MAX_DEPTH 16u
+#define ZXSH_MAX_ARGS   128u
+#define ZXSH_ARENA      65536u
+#define ZXSH_MAX_VARS   64u
+#define ZXSH_NAME_MAX   32u
+#define ZXSH_VALUE_MAX  2048u
+#define ZXSH_MAX_HELD   32u
+#define ZXSH_HOLD_TEXT  512u
+#define ZXSH_CAPTURE    8192u
+#define ZXSH_WHY_MAX    128u
+#define ZXSH_QLOG_CAP   64u
+#define ZXSH_MAX_DEPTH  16u
+#define ZXSH_MAX_ENV    8u
+#define ZXSH_MAX_ALIAS  32u
+#define ZXSH_ALIAS_SRC  8192u
 
 /* S9 */
-#define ZXSH_CAP_EXEC (1u << 0)
-#define ZXSH_CAP_READ (1u << 1)
-#define ZXSH_CAP_WRITE (1u << 2)
-#define ZXSH_CAP_NET (1u << 3)
+#define ZXSH_CAP_EXEC    (1u << 0)
+#define ZXSH_CAP_READ    (1u << 1)
+#define ZXSH_CAP_WRITE   (1u << 2)
+#define ZXSH_CAP_NET     (1u << 3)
 #define ZXSH_CAP_RESOLVE (1u << 4)
-#define ZXSH_CAP_ALL 0x1Fu
+#define ZXSH_CAP_ALL     0x1Fu
 
 /* Results of zxsh_eval. */
 typedef enum {
@@ -92,10 +101,16 @@ typedef enum {
 typedef struct {
     int argc;
     char *argv[ZXSH_MAX_ARGS + 1]; /* NULL-terminated */
-    uint32_t glob;                 /* bit i: argv[i] had unquoted * ? [ */
+    bool glob[ZXSH_MAX_ARGS];      /* argv[i] had an unquoted * ? [ */
     const char *in;                /* < path, or NULL */
     const char *out;               /* > or >> path, or NULL */
     bool append;
+    const char *err; /* 2> or 2>> path, or NULL */
+    bool err_append;
+    bool err_to_out; /* 2>&1 (applied after > and 2>) */
+    bool out_to_err; /* >&2 */
+    int nenv;
+    char *env[ZXSH_MAX_ENV]; /* NAME=value for this command only */
 } zxsh_stage_t;
 
 typedef struct zxsh zxsh_t;
@@ -113,13 +128,21 @@ typedef struct {
     void (*setenv)(void *u, const char *name, const char *value);
     /* Persist one quarantine record (may be NULL). */
     void (*quarantine)(void *u, const lpx_qrec_t *rec, const char *cmd);
+    /* The host environment, for $NAME not set in the shell (may be NULL). */
+    const char *(*getenv)(void *u, const char *name);
+    /* $(text): run text in a copy of the shell, its stdout into out (at most
+     * max bytes, *len set). May be NULL (then $(...) expands to nothing). */
+    void (*capture)(void *u, zxsh_t *sh, const char *text, char *out, uint32_t max, uint32_t *len);
+    /* text &: start text in a copy of the shell without waiting. TRUE when
+     * started. May be NULL (then & runs the command in the foreground). */
+    lpx_t (*background)(void *u, zxsh_t *sh, const char *text);
 } zxsh_ops_t;
 
 typedef struct {
     bool used;
     uint32_t id;
-    lpx_t tag;         /* the condition's verdict, phase per S5 */
-    bool is_if;        /* text is an if body ("then ... fi") */
+    lpx_t tag;                 /* the condition's verdict, phase per S5 */
+    bool is_if;                /* text is an if body ("then ... fi") */
     char text[ZXSH_HOLD_TEXT]; /* "&& rest" / "|| rest" / "then ... fi" */
 } zxsh_hold_t;
 
@@ -127,6 +150,8 @@ typedef struct {
     char name[ZXSH_NAME_MAX];
     char value[ZXSH_VALUE_MAX];
 } zxsh_var_t;
+
+typedef zxsh_var_t zxsh_alias_t;
 
 typedef struct {
     uint8_t kind;
@@ -139,11 +164,16 @@ struct zxsh {
     uint32_t caps;
     bool interactive;
 
-    lpx_t last;                 /* the last finished command's verdict */
-    char why[ZXSH_WHY_MAX];     /* its reason */
-    int exit_code;              /* for `exit` */
+    lpx_t last;             /* the last finished command's verdict */
+    int status;             /* its numeric exit status ($?); -1 while unknown */
+    volatile int interrupt; /* S11: set by the host on Ctrl-C */
+    char why[ZXSH_WHY_MAX]; /* its reason */
+    int exit_code;          /* for `exit` */
 
     zxsh_var_t vars[ZXSH_MAX_VARS];
+    zxsh_alias_t alias[ZXSH_MAX_ALIAS];
+    unsigned loops, brk, cont; /* loop depth; pending break / continue levels */
+    bool quiet_syntax;         /* the host reports syntax errors itself */
     zxsh_hold_t held[ZXSH_MAX_HELD];
     uint32_t next_hold;
 
@@ -155,16 +185,18 @@ struct zxsh {
     zxsh_tok_t tok[ZXSH_MAX_TOKENS];
     uint32_t ntok, pos;
     bool aborted, need_more, syntax, exiting, locked;
-    bool in_clause;             /* inside an if's clauses: both/neither are keywords */
+    bool in_clause; /* inside an if's clauses: both/neither are keywords */
     unsigned depth;
     char last_why[ZXSH_WHY_MAX];
     char pending[ZXSH_HOLD_TEXT + 32]; /* a resolved hold, run after this input */
     bool has_pending;
-    char *cap_buf;              /* builtin output captured for <?> */
+    char *cap_buf; /* builtin output captured for <?> */
     uint32_t *cap_len;
     char arena[ZXSH_ARENA];
     uint32_t arena_used;
     char capa[ZXSH_CAPTURE], capb[ZXSH_CAPTURE];
+    char subst[ZXSH_CAPTURE];  /* one $(...) result */
+    char asrc[ZXSH_ALIAS_SRC]; /* the input with aliases expanded */
 };
 
 void zxsh_init(zxsh_t *sh, const zxsh_ops_t *ops, void *u, bool interactive);
@@ -179,6 +211,28 @@ bool zxsh_set(zxsh_t *sh, const char *name, const char *value);
 /* A verdict's short letter (T F B N, '!' when forbidden) and long form. */
 char zxsh_letter(lpx_t t);
 const char *zxsh_base_word(lpx_t t);
+
+/* Run a core builtin by name (for a host running one inside a pipeline);
+ * false when argv[0] is not a core builtin. */
+bool zxsh_builtin(zxsh_t *sh, const zxsh_stage_t *st, lpx_t *v);
+bool zxsh_is_builtin(const char *name);
+/* 0 not a shell word, 1 core builtin, 2 host builtin, 3 keyword. */
+int zxsh_word_kind(const char *name);
+
+/* Evaluate src while another evaluation is in progress (a host builtin such
+ * as `source`). frame must hold zxsh_frame_size(sh) bytes: the current
+ * parse state is saved there and restored afterwards. A forbidden result
+ * inside also stops the outer input (S6). */
+size_t zxsh_frame_size(const zxsh_t *sh);
+zxsh_status_t zxsh_eval_nested(zxsh_t *sh, const char *src, void *frame);
+
+/* The status a verdict stands for when no process reported one:
+ * TRUE 0, FALSE 1, BOTH 4, NEITHER 5, forbidden 3 (as the host's exit). */
+int zxsh_code(lpx_t t);
+
+/* Aliases (interactive input only, as in sh). */
+const char *zxsh_alias_get(const zxsh_t *sh, const char *name);
+bool zxsh_alias_set(zxsh_t *sh, const char *name, const char *value);
 
 /* Count of live holds. */
 unsigned zxsh_held_count(const zxsh_t *sh);

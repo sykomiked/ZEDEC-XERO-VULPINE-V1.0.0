@@ -2,8 +2,10 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_progress.h — the ZXV loading bar and the launch screen built on it.
  *
- * The owner made this the one progress style for the whole ecosystem (boot,
- * app launch, any wait): a symmetric bar, never one-sided.
+ * The owner's loading screen for the ecosystem: the OS boot, opening an app,
+ * and connecting to a remote instance or space (the Park, a Cloud top, a
+ * hall). It does not replace an ordinary progress bar for byte-counted work
+ * such as downloads, copies or installs; those keep a plain one-sided bar.
  *
  *   GATHER   both ends fill toward the centre (things coming together)
  *   RELEASE  the centre fills out to both edges (the thing now running)
@@ -21,6 +23,21 @@
  * boot splash is this screen with the ZXV fox as the mark and the houses as
  * the parts.
  *
+ * Two owner rules (2026-10-12):
+ *   - Progress is real. Every phase value comes from actual loading work
+ *     (modules verified, models mapped, agents started); nothing is timed for
+ *     show. When the remaining work is unknown, pass ZUI_BAR_UNKNOWN.
+ *   - This module never makes sound. The OS boot has its own chime, coins
+ *     and gong; each app's launch gets its own themed begin / middle / end
+ *     cues from the launch-theme layer (a mute setting, sounds on by
+ *     default), with the middle cue tied to parts actually lighting.
+ *
+ * When the load is done the screen opens like a vault door (`open`): bolts
+ * that locked across the centre seam while the top bar filled throw back, and
+ * the whole screen splits down the middle, each half sliding to its edge to
+ * reveal what was loaded. The caller draws the loaded view first and passes
+ * it as `behind`.
+ *
  * Integer only, deterministic: same inputs -> same pixels.
  */
 #ifndef ZXV_ZUI_PROGRESS_H
@@ -28,6 +45,14 @@
 
 #include <stdint.h>
 #include "zui_canvas.h"
+
+/* How a lit thing rises (the foil sheen, a depth plane stamp, ...). The
+ * renderer supplies it, so this module links with nothing but the canvas:
+ * zui_depth.h's zui_foil_rise with ctx = a zui_depth_t is the usual one. */
+typedef struct {
+    void (*fn)(zui_surface_t *s, const void *ctx, zui_rect_t r, int32_t radius, int32_t z);
+    const void *ctx;
+} zui_rise_t;
 
 typedef enum { ZUI_BAR_GATHER = 0, ZUI_BAR_RELEASE } zui_bar_mode_t;
 
@@ -56,6 +81,7 @@ typedef struct {
     zui_part_fn parts[ZUI_LAUNCH_MAX_PARTS]; /* the row; the middle is centre */
     void *ctx[ZUI_LAUNCH_MAX_PARTS + 1];     /* ctx[0] mark, ctx[1+i] part i  */
     uint32_t n;                              /* odd is best: a true centre    */
+    const zui_rise_t *rise;                  /* lit tiles and the mark rise; may be NULL */
 } zui_launch_t;
 
 /* Phases of one launch, each 0..256:
@@ -64,11 +90,25 @@ typedef struct {
  *   release  the bar under the mark runs out with the rest of the load, or
  *            ZUI_BAR_UNKNOWN while the remaining time is unknown */
 typedef struct {
-    uint32_t gather, light, release;
+    uint32_t gather, light, release, open;
 } zui_launch_state_t;
+/*   open     0..256 once release is full: the bolts throw back (first quarter),
+ *            then the two halves slide apart to the edges */
+
+#define ZUI_VAULT_BOLTS 5
 
 /* Lay out and draw the launch screen into `area` (fills it with the ground). */
 void zui_launch_draw(zui_surface_t *s, zui_rect_t area, int32_t scale_q8, const zui_launch_t *l,
                      zui_launch_state_t st, uint32_t tick);
+
+/* The vault opening. Draw the finished face with zui_launch_draw (it draws the
+ * bolts: bolt i locks once release passes (i+1)*256/6, and they throw back
+ * over the first quarter of `open`), draw the loaded view into `behind`, then
+ * call this: it copies `behind` into area and lays the face over it split at
+ * the centre, each half moved out toward its edge by a smootherstep of the
+ * rest of `open`. face and behind must be at least area's size; their pixel
+ * (0,0) maps to area's top-left. */
+void zui_vault_draw(zui_surface_t *s, zui_rect_t area, int32_t scale_q8, const zui_surface_t *face,
+                    const zui_surface_t *behind, uint32_t open);
 
 #endif /* ZXV_ZUI_PROGRESS_H */

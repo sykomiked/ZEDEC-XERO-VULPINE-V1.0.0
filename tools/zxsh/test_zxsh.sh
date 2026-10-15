@@ -70,7 +70,9 @@ both
 fi
 EOF
 check "script" 0 "$(printf 'hi a P\nhi b P\ncontradiction')" -- s.zxs P
+export ZXSH_COMPAT=0
 check "script syntax error runs nothing" 2 "" -- -c "echo a; if"
+unset ZXSH_COMPAT
 check "cd and pwd" 0 "$T" -- -c "cd $T && pwd"
 check "cd failure" 1 "" -- -c "cd /no/such/dir"
 check "sandbox denies write" 1 "" -- -c "sandbox exec -- echo x > denied.txt"
@@ -113,6 +115,51 @@ EOF
     check "zxv needs net" 1 "" -- -c "cap drop net; zxv zxvd.version"
     unset ZXVD_SOCK
 fi
+
+# S10 the syntax sh and bash users already know
+check "status number" 0 "$(printf '1\n7')" -- -c "false; echo \$?; sh -c 'exit 7'; echo \$?"
+check "verdict word" 0 "both" -- -c "both; echo \$VERDICT"
+check "environment variables" 0 "$HOME" -- -c 'echo $HOME'
+check "export reaches programs" 0 "1" -- -c "export ZZ=1; sh -c 'echo \$ZZ'"
+check "env for one command" 0 "$(printf 'bar\nxx')" -- -c "FOO=bar sh -c 'echo \$FOO'; echo x\${FOO}x"
+check "command substitution" 0 "a b c" -- -c 'echo $(echo a b) c'
+check "for over lines" 0 "$(printf -- '-x-\n-y-')" -- -c "for f in \$(printf 'x\ny\n'); do echo -\$f-; done"
+check "arithmetic" 0 "6" -- -c 'i=2; echo $((i * 3))'
+check "while loop" 0 "$(printf '0\n1\n2')" -- -c 'i=0; while [ $i -lt 3 ]; do echo $i; i=$((i + 1)); done'
+check "2>&1 into a pipe" 0 "err" -- -c "sh -c 'echo err >&2' 2>&1 | cat"
+check "2> file" 0 "e" -- -c "sh -c 'echo e >&2' 2> e.txt; cat e.txt"
+check ">&2" 0 "" -- -c "echo x >&2"
+check "&> file" 0 "$(printf 'o\ne')" -- -c "sh -c 'echo o; echo e >&2' &> all.txt; cat all.txt"
+check "background and wait agree" 0 "" -- -c "sh -c 'exit 0' & sh -c 'exit 0' & wait"
+check "background and wait disagree" 4 "" -- -c "sh -c 'exit 0' & sh -c 'exit 1' & wait"
+check "wait for one job" 1 "" -- -c "sh -c 'exit 0' & sh -c 'exit 1' & wait %2"
+check "background output" 0 "a" -- -c "echo a & wait"
+check "jobs" 0 "[1] running     sleep 1" -- -c "sleep 1 & jobs"
+printf 'X=5\nY=$((X + 1))\n' > env.sh
+check "source" 0 "5 6" -- -c "source env.sh; echo \$X \$Y"
+check "dot" 0 "ok" -- -c ". env.sh && echo ok"
+check "source missing file" 1 "" -- -c "source no-such.sh"
+check "type builtin" 0 "cd is a shell builtin" -- -c "type cd"
+check "type keyword" 0 "while is a shell keyword" -- -c "type while"
+check "type missing" 1 "" -- -c "type no-such-cmd-zxsh"
+check "builtin in a pipeline" 0 "1" -- -c "help resolve | grep -c resolve"
+check "builtin redirected" 0 "1" -- -c "help resolve > h.txt; grep -c resolve h.txt"
+check "builtin verdict through a pipe" 4 "" -- -c "both | cat"
+check "cd -" 0 "/tmp" -- -c "cd /tmp; cd /; cd -"
+printf 'echo $1 $# "$@"\n' > args.zxs
+check "positional arguments" 0 "P 2 P Q" -- args.zxs P Q
+check "compat: bash runs what zxsh does not read" 0 "yes" -- -c 'case a in a) echo yes;; esac'
+grep -q "handled this" "$T/err" && ok || bad "compat says so"
+printf 'f() { echo in-f; }\nf\n' > fn.sh
+check "compat: a script with functions" 0 "in-f" -- fn.sh
+check "compat keeps bash's status" 3 "" -- -c 'case a in a) exit 3;; esac'
+
+# sub-terminals without a terminal
+check "together agree" 0 "" -- -c "together 'exit 0' 'true' > t.out"
+check "together disagree is both" 4 "" -- -c "together 'exit 0' 'exit 1' > t.out"
+grep -q '^\[2\]' t.out && ok || bad "together summary lines: $(cat t.out)"
+check "together output is labelled" 0 "$(printf '[1] hi\n[1] T  echo hi')" -- -c "together 'echo hi'"
+check "split needs a terminal" 5 "" -- -c "split"
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

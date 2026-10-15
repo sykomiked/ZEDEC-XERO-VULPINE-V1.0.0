@@ -25,4 +25,5 @@ module org.zedec.zxv {
     exports org.zedec.zxv.freight;
     exports org.zedec.zxv.web4;
     exports org.zedec.zxv.paradox;
+    exports org.zedec.zxv.vino;
 }

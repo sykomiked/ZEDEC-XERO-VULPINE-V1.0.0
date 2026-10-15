@@ -457,6 +457,125 @@ $r = $book->destructive(str_repeat("X", 16), str_repeat("A", 16), kind: "destruc
 $book->verifyLog("ops");
 ```
 
+## Vino Embed (ABI 1.6)
+
+The `Vino*` classes are what an app or game needs to take part in Vino
+without ever holding anyone's value or keys. There are two lanes, and they
+never meet:
+
+- **PLAY** (`VinoPlay`): a sandbox inside your app with its own play units,
+  issuers, holders and vouchers, in process memory only. Play units are not
+  money and are lost when the sandbox closes. No call takes a play sandbox
+  and anything live, so a play unit can never be converted to, redeemed
+  for, or moved into live value.
+- **LIVE** (`VinoPaymentRequest`, `VinoReceipt`): real Vino stays in the
+  user's own ZXV wallet. Your app builds a payment request, the user
+  approves it in their wallet, which signs a receipt, and your app checks
+  the receipt offline. Your app never sees a balance, a key or a custody
+  account.
+
+Concepts:
+
+- **Vouchers.** A voucher is one coin with a Fibonacci face (1, 2, 3, 5, 8,
+  ...), held by one holder on exactly one active rail: `VinoRail::Bearer` (a
+  note in the holder's hand) or `VinoRail::Ghost` (its twin on the play
+  ledger). Spending names the active rail, so a voucher can never be spent
+  twice (`WrongRailException`, `ZXV_E_RAIL`). `setRail()` switches rails and
+  moves nothing. `voucher()` returns a `VinoVoucher` (state
+  `VinoVoucherState::Active` or `Redeemed`), `account()` a `VinoAccount`,
+  and `vouchers()` the list of active voucher ids.
+- **Coverage.** An issuer may only issue, or withdraw backing, while
+  `10 * backing >= 18 * outstanding` (1.8x, exact integers); otherwise
+  `CoverageException` (`ZXV_E_COVERAGE`) and nothing changes.
+- **Redeeming** returns a voucher to its issuer and retires it. Nothing is
+  paid out to anyone. There is no call that turns a voucher into backing or
+  play units, and no interest, yield or return of any kind.
+- **Payment requests** are plain immutable values. `encode()` gives the
+  canonical 160 bytes, `id()` their SHA-256 (32 bytes), and
+  `VinoPaymentRequest::decode()` reads them back. A LIVE request with
+  `Vino::FLAG_CHANCE` (a paid chance outcome such as a loot box) is refused
+  (`ChanceRefusedException`, `ZXV_E_CHANCE`); the raffle is a separate
+  module, not a payment request. A lane other than `VinoLane::Play`/`Live`
+  is a `LaneException` (`ZXV_E_LANE`).
+- **Receipts** are the wallet's ML-DSA-87 signature over 88 bytes
+  (`VinoReceipt::message()`). `verify($now)` is pure and offline: it throws
+  `VerificationFailedException` for a wrong signature and `ExpiredException`
+  (`ZXV_E_EXPIRED`) for an expired request or an approval outside its
+  window; `isValid($now)` answers true/false instead. `VinoReceipt::sign()`
+  is the wallet's half (it needs `Capability::CRYPTO_SIGN` and a
+  `SecretKey`, which it uses once and does not keep); an app never holds a
+  wallet key.
+- **Daily cap.** `VinoSpendMeter` counts what one device approved per day
+  and refuses an amount that would pass the cap
+  (`DailyCapExceededException`, `ZXV_E_LIMIT`, with `$left`). It is a
+  counter, not a legal check.
+- **Capabilities.** The sandbox and the meter need the new
+  `Capability::VINO` (`1 << 15`). `ALL_1_5` does not include it: ask for
+  `rootCapability(Capability::ALL_1_6)` or add `VINO`.
+  `Zxv::hasFeature("vino")` (feature bit `0x100`) says whether the library
+  has the group; against an older library the SDK still loads and `Vino*`
+  calls throw `NotImplementedException`. Requests, receipt messages and
+  verification need no capability.
+- **Statuses.** `ZXV_E_RAIL`, `E_COVERAGE`, `E_EXPIRED` and `E_CHANCE` are
+  refusals (`WrongRailException`, `CoverageException`, `ExpiredException`,
+  `ChanceRefusedException`, all `ZxvRefusedException`); `ZXV_E_LANE` is a
+  usage error (`LaneException`, a `ZxvUsageException`). Amounts, ids and
+  times are uint64 (`int`, or a decimal string past `PHP_INT_MAX`); floats
+  are refused.
+
+A play-lane shop: the shop backs its vouchers with play units, issues one
+to a player, the player spends it at a friend, who redeems it.
+
+```php
+use Zedec\Zxv\{Capability, Context, VinoPlay, VinoRail};
+
+$ctx = new Context();
+$cap = $ctx->rootCapability(Capability::ALL_1_6);
+$play = new VinoPlay($cap);
+$shop = $play->openIssuer(700);
+$player = $play->openHolder(801);
+$friend = $play->openHolder(802);
+
+$play->back($shop, 100);                          // play units: not money
+$id = $play->issue($shop, $player, 34, VinoRail::Bearer);
+$play->transfer($id, $player, $friend, VinoRail::Bearer);   // spend on its active rail
+$play->redeem($id, $friend);                      // retired; nothing is paid out
+$play->voucher($id)->state;                       // VinoVoucherState::Redeemed
+$play->account($shop)->faces;                     // 0 outstanding
+$play->check();
+$ctx->close();
+```
+
+A live payment request, the wallet's receipt, and the app's offline check.
+The wallet half is shown only to make the example run; in a real
+deployment it happens in the user's wallet, never in your app.
+
+```php
+use Zedec\Zxv\{Capability, Context, Hashes, MlDsa87, VinoLane, VinoPaymentRequest, VinoReceipt, VinoSpendMeter, Zxv};
+
+$ctx = new Context();
+$now = 1700000000;
+$request = new VinoPaymentRequest(VinoLane::Live, Hashes::sha3_256("shop key"), Zxv::randomBytes(16),
+    amount: 1500, createdAt: $now, expiresAt: $now + 600, memo: "Sword of Dawn");
+$bytes = $request->encode();                      // 160 bytes, sent to the wallet
+
+// --- in the user's wallet (not the app) ---
+$walletCap = $ctx->rootCapability(Capability::CRYPTO_SIGN);
+$wallet = (new MlDsa87($walletCap))->generate();
+$receipt = VinoReceipt::sign($walletCap, $bytes, $wallet->secretKey, $wallet->publicKey, $now + 30);
+$wallet->close();
+
+// --- back in the app: offline, no capability ---
+$got = new VinoReceipt($bytes, $receipt->walletPublicKey, $receipt->approvedAt, $receipt->signature);
+$got->verify($now + 60);                          // throws unless genuine and in time
+$got->requestId() === $request->id();             // true
+$got->isValid($now + 601);                        // false (expired)
+
+$meter = new VinoSpendMeter($ctx->rootCapability(Capability::VINO), 10000);
+$meter->admit(intdiv($now, 86400), $request->amount);   // 8500 left today
+$ctx->close();
+```
+
 ## API overview
 
 | PHP (`Zedec\Zxv\...`) | Wraps | Main methods |
@@ -490,6 +609,7 @@ $book->verifyLog("ops");
 | `VHub` | `zxv_vhub_*` (1.5) | `pegMessage`, `addCurrency`, `setPeg`, `openAccount`, `issue`, `addLimit`, `nextEpoch`, `quote`, `swap`, `balance(s)`, `check` |
 | `Freight`, `FreightHeader`, `FreightJoin`, `FreightOps`, `FreightOpsWriter` | `zxv_freight_*` (1.5) | `encode`, `decode`, `rows`, `split`, `setCount`; `forPayload`, `build`; `add`, `status`, `result`; `encode`, `expand`, `peek`, `generate`; `literal`, `copy`, `cidref`, `seed`, `finish` |
 | `Web4`, `Web4Agent`, `Web4Envelope`, `Web4Manifest`, `Web4Directory`, `Web4ConsentLog` | `zxv_w4_*` (1.5) | `verifyCard`, `actionDigest`, `consentInfo`; `card`, `seal`, `reply`, `issueConsent`; `verify`; `addTool`, `sign`, `encode`, `decode`, `toJson`; `add`, `find`; `check`, `revoke`, `prune` |
+| `Vino`, `VinoPlay`, `VinoVoucher`, `VinoAccount`, `VinoPaymentRequest`, `VinoReceipt`, `VinoSpendMeter`, `VinoRail`, `VinoLane`, `VinoVoucherState` | `zxv_vino_*` (1.6) | `openIssuer`, `openHolder`, `back`, `unback`, `issue`, `transfer`, `setRail`, `redeem`, `voucher`, `account`, `vouchers`, `check`; `encode`, `id`, `decode`, `idOf`; `message`, `sign`, `verify`, `isValid`; `admit` |
 | `Paradox`, `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` | `zxv_paradox_*` (1.5) | `signature`, `classify`, `action`; `registryAdd`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`, `logRecords`, `verifyLog`; `values`, `proposal`; `add`, `evidence`; `addNode`, `addDependency`, `state`, `info` |
 
 ## Examples
@@ -560,6 +680,14 @@ path).
   the right human understood; envelopes are signed, not encrypted. Paradox
   handling contains and routes contradictions inside published bounds;
   `$ownerOk` is your assertion, which the library cannot check.
+- **Vino Embed is the app's half only.** Play units are not money, are
+  worth nothing and are lost on close; no play-lane call reaches live value.
+  Approving a payment happens in the user's wallet (zxvd), which posts it on
+  its own ledger. The spend meter is a counter, not a legal check, and makes
+  no exemption claim. Receipts use the reference ML-DSA-87 implementation,
+  not a FIPS 140-3 validated module. Whether a given deployment of Vino is
+  store credit, a prepaid access product or something else is a legal
+  question pending counsel; nothing in this SDK decides it.
 - **Web4 agent keys** stay inside `Web4Agent` and are wiped on close; a seed
   you pass as a PHP string is copied to a native buffer that is zeroed after
   use, but the PHP string itself lives in the PHP heap (pass a `SecretKey`

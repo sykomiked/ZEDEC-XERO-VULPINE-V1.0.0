@@ -14,8 +14,10 @@ void zui_depth_init(zui_depth_t *d, zui_depth_mode_t mode, uint32_t px_per_cm)
     d->ipd_px = (int32_t) ((63u * px_per_cm + 5u) / 10u);
     d->head_x = 0;
     d->head_y = 0;
-    d->chroma_k = 24;
+    d->chroma_k = mode == ZUI_DEPTH_FOIL ? 40 : 24;
     d->reverse_chroma = false;
+    d->foil_k = mode == ZUI_DEPTH_FOIL ? 256 : 0;
+    d->sheen = 0;
 }
 
 int32_t zui_role_z(zui_role_t role, int32_t m)
@@ -48,8 +50,8 @@ void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye, int32_t *dx, int
     int32_t x = 0, y = 0;
     if (d) {
         int32_t hx = 0, hy = 0;
-        if (d->mode == ZUI_DEPTH_PARALLAX || d->mode == ZUI_DEPTH_ANAGLYPH_AMBER_BLUE ||
-            d->mode == ZUI_DEPTH_ANAGLYPH_RED_CYAN) {
+        if (d->mode == ZUI_DEPTH_PARALLAX || d->mode == ZUI_DEPTH_FOIL ||
+            d->mode == ZUI_DEPTH_ANAGLYPH_AMBER_BLUE || d->mode == ZUI_DEPTH_ANAGLYPH_RED_CYAN) {
             hx = d->head_x;
             hy = d->head_y;
         }
@@ -65,7 +67,9 @@ void zui_layer_offset(const zui_depth_t *d, int32_t z, int eye, int32_t *dx, int
 
 uint32_t zui_chroma_px(const zui_depth_t *d, uint32_t rgb, int32_t z)
 {
-    if (!d || d->mode != ZUI_DEPTH_CHROMA || z == 0 || d->chroma_k == 0) return rgb & 0xFFFFFFu;
+    if (!d || (d->mode != ZUI_DEPTH_CHROMA && d->mode != ZUI_DEPTH_FOIL) || z == 0 ||
+        d->chroma_k == 0)
+        return rgb & 0xFFFFFFu;
     if (d->reverse_chroma) z = -z;
     return holo_shade(rgb & 0xFFFFFFu, 0, z, 8, d->chroma_k);
 }
@@ -124,4 +128,76 @@ bool zui_anaglyph(const zui_depth_t *d, zui_surface_t *out, const zui_surface_t 
                 zui_anaglyph_px(d->mode, left->px[(int64_t) y * left->stride + x],
                                 right->px[(int64_t) y * right->stride + x]);
     return true;
+}
+
+/* ---- FOIL: sheen and fringe -------------------------------------------- */
+uint32_t zui_foil_px(uint32_t rgb, uint32_t t, int32_t k)
+{
+    int32_t r = (int32_t) ((rgb >> 16) & 0xFF), g = (int32_t) ((rgb >> 8) & 0xFF),
+            b = (int32_t) (rgb & 0xFF);
+    int32_t mx = r > g ? (r > b ? r : b) : (g > b ? g : b),
+            mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    int32_t sat = mx - mn; /* 0..255: how coloured */
+    if (mx > 24 && sat < 56)
+        sat = 56; /* tinted panels catch a little foil; black and grey stay put */
+    if (mx - mn < 8) sat = 0;
+    t &= 255u;
+    int32_t tri = t < 128u ? (int32_t) t : 255 - (int32_t) t; /* 0..127..0 */
+    int32_t wave = tri * 2 - 127;                             /* -127..127 */
+    if (k < 0)
+        k = 0;
+    else if (k > 256)
+        k = 256;
+    int32_t v = wave * sat / 255 * k / 256; /* toward (+) or away from (-) the anti-colour */
+    if (v > 0) v = v * 3 / 4;               /* never all the way to the anti-colour */
+    return holo_shade(rgb & 0xFFFFFFu, v, 0, 8, 0);
+}
+
+static bool in_round(zui_rect_t r, int32_t rad, int32_t x, int32_t y)
+{
+    if (rad <= 0) return true;
+    int32_t cx = x < r.x + rad ? r.x + rad : x >= r.x + r.w - rad ? r.x + r.w - rad - 1 : x;
+    int32_t cy = y < r.y + rad ? r.y + rad : y >= r.y + r.h - rad ? r.y + r.h - rad - 1 : y;
+    int32_t dx = x - cx, dy = y - cy;
+    return dx * dx + dy * dy <= rad * rad;
+}
+
+void zui_foil_rect(zui_surface_t *s, const zui_depth_t *d, zui_rect_t r, int32_t radius, int32_t z)
+{
+    if (!s || !d || d->mode != ZUI_DEPTH_FOIL || z == 0 || d->foil_k <= 0 || r.w <= 0 || r.h <= 0)
+        return;
+    int32_t az = z < 0 ? -z : z, k = d->foil_k * (az > 24 ? 24 : az) / 24;
+    int32_t diag = r.w + r.h;
+    /* the sheen sweeps along the diagonal; tilting the view (head / pointer /
+     * gyro) slides it, and the host's idle drift moves it slowly */
+    int32_t shift = (d->head_x + d->head_y) * 256 / 320 + d->sheen;
+    if (z < 0) shift += 128; /* far things shimmer in counter-phase */
+    for (int32_t y = r.y; y < r.y + r.h; y++) {
+        if (y < s->clip.y || y >= s->clip.y + s->clip.h) continue;
+        uint32_t *row = s->px + (int64_t) y * s->stride;
+        for (int32_t x = r.x; x < r.x + r.w; x++) {
+            if (x < s->clip.x || x >= s->clip.x + s->clip.w || !in_round(r, radius, x, y)) continue;
+            int32_t t = ((x - r.x) + (y - r.y)) * 256 / diag + shift;
+            row[x] = zui_foil_px(row[x], (uint32_t) (t * 2) & 255u, k);
+        }
+    }
+    /* the fringe: colour on the lit edge, anti-colour on the far edge, split
+     * further the nearer the thing is (or the other way round behind the glass) */
+    int32_t o = 1 + (az > 24 ? 24 : az) / 12;
+    uint32_t warm = 0xFFB25Cu, cool = 0x4DA6FFu, a = (uint32_t) (60 + 140 * k / 256);
+    uint32_t first = z > 0 ? warm : cool, second = z > 0 ? cool : warm;
+    int32_t rr = radius < r.w / 2 && radius < r.h / 2 ? radius : (r.w < r.h ? r.w : r.h) / 2;
+    for (int32_t x = r.x + rr; x < r.x + r.w - rr; x++) { /* top and bottom edges */
+        zui_blend_px(s, x, r.y - o, first, a);
+        zui_blend_px(s, x, r.y + r.h - 1 + o, second, a);
+    }
+    for (int32_t y = r.y + rr; y < r.y + r.h - rr; y++) { /* left and right edges */
+        zui_blend_px(s, r.x - o, y, first, a);
+        zui_blend_px(s, r.x + r.w - 1 + o, y, second, a);
+    }
+}
+
+void zui_foil_rise(zui_surface_t *s, const void *d, zui_rect_t r, int32_t radius, int32_t z)
+{
+    zui_foil_rect(s, (const zui_depth_t *) d, r, radius, z);
 }

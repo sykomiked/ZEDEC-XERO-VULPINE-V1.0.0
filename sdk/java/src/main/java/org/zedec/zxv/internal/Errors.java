@@ -25,6 +25,11 @@ import org.zedec.zxv.paradox.StepLimitException;
 import org.zedec.zxv.treaty.TreatyException;
 import org.zedec.zxv.vhub.LimitException;
 import org.zedec.zxv.vhub.PegException;
+import org.zedec.zxv.vino.ChanceException;
+import org.zedec.zxv.vino.CoverageException;
+import org.zedec.zxv.vino.ExpiredException;
+import org.zedec.zxv.vino.LaneException;
+import org.zedec.zxv.vino.RailException;
 import org.zedec.zxv.web4.ConsentException;
 
 /** Maps status codes to the SDK's exception family (SDK_DESIGN section 5). Internal. */
@@ -62,6 +67,8 @@ public final class Errors {
                 case -24 -> new FloatRejectedException(detail);
                 case -32 -> new NotADenominationException(status, name, detail);
                 case -33 -> new TreatyException(status, name, detail);
+                // ABI 1.6
+                case -48 -> new LaneException(status, name, detail);
                 default -> new ZxvUsageException(status, name, detail);
             };
             case REFUSED -> switch (status) {
@@ -78,6 +85,11 @@ public final class Errors {
                 case -38 -> new LimitException(status, name, detail);
                 case -39 -> new StepLimitException(status, name, detail);
                 case -40 -> new OwnerApprovalRequiredException(status, name, detail);
+                // ABI 1.6
+                case -46 -> new RailException(status, name, detail);
+                case -47 -> new CoverageException(status, name, detail);
+                case -49 -> new ExpiredException(status, name, detail);
+                case -50 -> new ChanceException(status, name, detail);
                 default -> new ZxvRefusedException(status, name, detail);
             };
             default -> new ZxvSystemException(status, name, detail);

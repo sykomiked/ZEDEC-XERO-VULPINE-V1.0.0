@@ -9,7 +9,6 @@ kernel/src/ai_layer/test_ai_layer.c
 kernel/src/alloc/test_alloc.c
 kernel/src/alloc/test_alloc_q32.c
 kernel/src/appkit/test_doc.c
-kernel/src/apps/test_notes.c
 kernel/src/art_studio/test_art_studio.c
 kernel/src/audio/test_audio.c
 kernel/src/axiom_matrix/test_axiom_matrix.c

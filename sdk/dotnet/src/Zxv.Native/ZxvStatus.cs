@@ -135,6 +135,21 @@ public enum ZxvStatus
     /// <summary>The change touches money or devices and needs the owner's approval (<c>ZXV_E_PARADOX_OWNER</c>, ABI 1.5). Class REFUSED.</summary>
     ParadoxOwnerApproval = -40,
 
+    /// <summary>A voucher was spent on a rail that is not its active one (bearer or ghost), or switched to the rail it is already on (<c>ZXV_E_RAIL</c>, ABI 1.6). Class REFUSED.</summary>
+    WrongRail = -46,
+
+    /// <summary>The issue or withdrawal would take a play-lane issuer below 1.8x backing coverage (<c>ZXV_E_COVERAGE</c>, ABI 1.6). Class REFUSED: post more backing or redeem first.</summary>
+    InsufficientCoverage = -47,
+
+    /// <summary>The wrong lane for this call: a payment request lane is not PLAY (1) or LIVE (2) (<c>ZXV_E_LANE</c>, ABI 1.6). Class USAGE.</summary>
+    WrongLane = -48,
+
+    /// <summary>The payment request has expired, or the receipt approved it outside its time window (<c>ZXV_E_EXPIRED</c>, ABI 1.6). Class REFUSED.</summary>
+    Expired = -49,
+
+    /// <summary>A LIVE payment request marks a paid chance outcome (a loot box or paid draw), which is never allowed (<c>ZXV_E_CHANCE</c>, ABI 1.6). Class REFUSED.</summary>
+    PaidChance = -50,
+
     /// <summary>Unexpected kernel status (<c>ZXV_E_INTERNAL</c>).</summary>
     Internal = -99,
 }
