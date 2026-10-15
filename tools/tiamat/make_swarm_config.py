@@ -15,6 +15,18 @@ writes a --tiamat config with every disc cell the integer engine runs today:
   server's F16 conversion, <cell>-f16.gguf, or an upstream GGUF in src/);
 - every other cell is left out, and the assembly report says why.
 
+Resources are a hard budget, never borrowed. Each model's resident cost is
+counted before it is placed: a slot costs its GGUF's bytes (the engine maps
+the weights in place), a cell costs its KV cache (the engine's Q16 cache,
+4 bytes a value, at the app's 2048-token context, sized from the GGUF's own
+layer and head counts) plus its adapter. The budget is the smaller of the
+profile's resident budget (tiamat_swarm.json) and a share of the memory the
+machine has free now (/proc/meminfo MemAvailable, --mem-share, half by
+default); the profile's max_active_cells caps the count. A cell that would
+cross either is not loaded: it stays dormant, listed with what it would
+cost. Assembly order is the organs' order of need: the lead, the
+reckoner's and arbiter's checkers, then the rest.
+
 Lineage is the developer of the cell's pretrained family (its trunk's, for a
 cell on a trunk). tiamat_swarm.json's witness rule would accept another
 trunk of the same developer, but Qwen2.5's instruct, coder and maths models
@@ -32,6 +44,7 @@ import hashlib
 import json
 import pathlib
 import re
+import struct
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -55,6 +68,75 @@ ORGAN_WORDS = {
     "clerk": ["regulation", "legal", "compliance", "statute", "gdpr", "directive"],
 }
 PASSED = ("ADAPTER", "UPSTREAM_ADAPTER")
+APP_CTX, KV_VALUE_BYTES = 2048, 4  # zxv_zt_glue.c GLUE_CTX; zt_model.h ZT_KV_Q16 holds int32
+NEED = ["voice_of_tiamat", "reckoner", "arbiter", "smith", "warden", "scribe", "clerk"]
+
+
+def gguf_meta(path, want):
+    """The scalar metadata keys in want from a GGUF file's header (tensor data is not read)."""
+    fixed = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i", 6: "<f", 7: "<?", 10: "<Q", 11: "<q", 12: "<d"}
+    out = {}
+    with open(path, "rb") as f:
+        def rd(fmt):
+            n = struct.calcsize(fmt)
+            b = f.read(n)
+            if len(b) != n:
+                raise ValueError(f"{path}: the GGUF header ends early")
+            return struct.unpack(fmt, b)[0]
+
+        def string():
+            return f.read(rd("<Q")).decode("utf-8", "replace")
+
+        def value(t):
+            if t in fixed:
+                return rd(fixed[t])
+            if t == 8:
+                return string()
+            if t == 9:
+                et, n = rd("<I"), rd("<Q")
+                if et in fixed:
+                    f.seek(n * struct.calcsize(fixed[et]), 1)
+                else:
+                    for _ in range(n):
+                        value(et)
+                return None
+            raise ValueError(f"{path}: unknown GGUF value type {t}")
+
+        if f.read(4) != b"GGUF":
+            raise ValueError(f"{path} is not a GGUF file")
+        rd("<I")
+        rd("<Q")
+        for _ in range(rd("<Q")):
+            k = string()
+            v = value(rd("<I"))
+            if k in want:
+                out[k] = v
+    return out
+
+
+def kv_bytes(gguf):
+    """The app's KV cache for one cell on this model, from the model's own header."""
+    arch = gguf_meta(gguf, {"general.architecture"}).get("general.architecture")
+    keys = [f"{arch}.{k}" for k in ("block_count", "embedding_length", "attention.head_count",
+                                     "attention.head_count_kv", "attention.key_length", "context_length")]
+    m = gguf_meta(gguf, set(keys))
+    layers, embd, heads = (m.get(k) for k in keys[:3])
+    if not (layers and embd and heads):
+        raise ValueError(f"{gguf}: no layer or head counts in its header")
+    kv_heads = m.get(keys[3]) or heads
+    head_dim = m.get(keys[4]) or embd // heads
+    ctx = min(m.get(keys[5]) or APP_CTX, APP_CTX)
+    return 2 * layers * ctx * kv_heads * head_dim * KV_VALUE_BYTES
+
+
+def mem_available():
+    try:
+        for line in open("/proc/meminfo"):
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) * 1024
+    except OSError:
+        pass
+    return None
 
 
 def sha256(p):
@@ -93,13 +175,21 @@ def s3_results(adapters):
     return res
 
 
-def assemble(man, cfg, models, adapters, pin):
+def assemble(man, cfg, models, adapters, pin, budget=None, max_cells=CELLS):
     by = {m["dragon_name"]: m for m in man["models"]}
     trunk_of = {base: t["trunk"] for base, t in cfg["tissues"].items()}
     organs = organ_of(cfg)
     s3 = s3_results(adapters)
     lead = cfg["organs"]["voice_of_tiamat"]["lead"]
     slots, slot_of, cells, report = [], {}, [], {}
+    used = [0]
+    kv_of = {}
+
+    def cost(key, path, adapter):
+        """Bytes this cell adds: its slot's weights if the slot is new, its KV cache, its adapter."""
+        if path not in kv_of:
+            kv_of[path] = kv_bytes(path)
+        return (0 if key in slot_of else path.stat().st_size) + kv_of[path] + (adapter.stat().st_size if adapter else 0)
 
     def slot(key, path):
         if key not in slot_of:
@@ -116,7 +206,9 @@ def assemble(man, cfg, models, adapters, pin):
                 return p
         return None
 
-    order = [lead] + [m["dragon_name"] for m in man["models"] if m["dragon_name"] != lead]
+    rank = {o: i for i, o in enumerate(NEED)}
+    order = sorted((m["dragon_name"] for m in man["models"]),
+                   key=lambda n: (n != lead, rank.get(organs.get(n, by[n]["organ"]), len(NEED))))
     for name in order:
         m = by[name]
         if m["placement"] not in ("disc", "disc_gated"):
@@ -134,7 +226,7 @@ def assemble(man, cfg, models, adapters, pin):
             if not p:
                 report[name] = {"assembled": False, "organ": organ, "why": "its shipped GGUF is not in --models"}
                 continue
-            s, lineage, adapter, how = slot(name, p), lineage_of(m), None, "whole (shipped GGUF)"
+            key, path, lineage, adapter, how = name, p, lineage_of(m), None, "whole (shipped GGUF)"
         else:
             tname = trunk_of.get(m["trunk"])
             tm = by.get(tname)
@@ -150,7 +242,7 @@ def assemble(man, cfg, models, adapters, pin):
                     report[name] = {"assembled": False, "organ": organ, "s3": r["result"],
                                     "why": f"{'its GGUF adapter' if not ad.is_file() else 'its trunk GGUF'} is missing"}
                     continue
-                s, adapter, how = slot(tname, tp), ad, f"{r['result'].lower()} on {tname}"
+                key, path, adapter, how = tname, tp, ad, f"{r['result'].lower()} on {tname}"
                 entry["adapter_sha256"], entry["adapter_bytes"] = sha256(ad), ad.stat().st_size
             elif r["result"] == "FULL":
                 cands = [models / name / f"{name.lower()}-f16.gguf"] + sorted((models / name / "src").glob("*.gguf"))
@@ -159,18 +251,27 @@ def assemble(man, cfg, models, adapters, pin):
                     report[name] = {"assembled": False, "organ": organ, "s3": "FULL",
                                     "why": "kept whole by S3, and no whole GGUF of it yet"}
                     continue
-                s, adapter, how = slot(name, p), None, f"whole ({p.name}): S3 kept it FULL"
+                key, path, adapter, how = name, p, None, f"whole ({p.name}): S3 kept it FULL"
             else:
                 report[name] = {"assembled": False, "organ": organ, "s3": r["result"],
                                 "why": r.get("why", "S3 did not pass it")}
                 continue
-        if s is None or len(cells) >= CELLS:
-            report[name] = {"assembled": False, "organ": organ, "why": "the app's slot or cell limit is full"}
+        need = cost(key, path, adapter)
+        if len(cells) >= min(CELLS, max_cells) or (key not in slot_of and len(slots) >= SLOTS):
+            report[name] = {"assembled": False, "dormant": True, "organ": organ, "would_cost_bytes": need,
+                            "why": "the app's or the profile's slot or cell limit is full"}
             continue
+        if budget is not None and used[0] + need > budget:
+            report[name] = {"assembled": False, "dormant": True, "organ": organ, "would_cost_bytes": need,
+                            "why": f"over the resident budget ({used[0] + need} of {budget} bytes)"}
+            continue
+        s = slot(key, path)
+        used[0] += need
+        entry["resident_bytes"] = need
         kws = ORGAN_WORDS.get(organ, [])[:KEYWORDS]
         cells.append((name, s, lineage, adapter, kws))
         report[name] = {"assembled": True, **entry, "slot": s, "lineage": lineage, "how": how}
-    return slots, cells, report
+    return slots, cells, report, used[0]
 
 
 def main():
@@ -182,11 +283,24 @@ def main():
     ap.add_argument("--log", help="default: swarm_log.jsonl beside --out")
     ap.add_argument("--manifest", default=str(MANIFEST))
     ap.add_argument("--no-pin", action="store_true", help="leave slot SHA-256 pins out (tests)")
+    ap.add_argument("--profile", default="server", help="tiamat_swarm.json profile (resident budget, cell cap)")
+    ap.add_argument("--mem-share", type=float, default=0.5, help="share of MemAvailable the swarm may hold")
+    ap.add_argument("--mem-available", type=int, help="bytes free now (default: /proc/meminfo)")
     a = ap.parse_args()
     man = json.loads(pathlib.Path(a.manifest).read_text())
     cfg = json.loads(SWARM.read_text())
-    slots, cells, report = assemble(man, cfg, pathlib.Path(a.models).resolve(),
-                                    pathlib.Path(a.adapters).resolve(), not a.no_pin)
+    prof = cfg["profiles"][a.profile]
+    free = a.mem_available if a.mem_available is not None else mem_available()
+    if free is None:
+        raise SystemExit("the free memory cannot be read; give --mem-available")
+    if not 0 < a.mem_share <= 1:
+        raise SystemExit("--mem-share is a share: more than 0, at most 1")
+    budget = int(free * a.mem_share)
+    if prof["resident_budget_bytes"] is not None:
+        budget = min(budget, prof["resident_budget_bytes"])
+    slots, cells, report, used = assemble(man, cfg, pathlib.Path(a.models).resolve(),
+                                          pathlib.Path(a.adapters).resolve(), not a.no_pin, budget,
+                                          prof["max_active_cells"])
     lead = cfg["organs"]["voice_of_tiamat"]["lead"]
     if not cells or cells[0][0] != lead:
         raise SystemExit(f"the lead {lead} could not be assembled: {report.get(lead)}")
@@ -206,10 +320,12 @@ def main():
         organs.setdefault(e["organ"], {"assembled": [], "left_out": []})[
             "assembled" if e["assembled"] else "left_out"].append(name)
     lineages = {c[2] for c in cells}
-    doc = {"config": str(out), "slots": len(slots), "cells": len(cells), "lineages": sorted(lineages),
+    doc = {"config": str(out), "profile": a.profile, "mem_available_bytes": free, "budget_bytes": budget,
+           "resident_bytes": used, "dormant": sorted(n for n, e in report.items() if e.get("dormant")),
+           "slots": len(slots), "cells": len(cells), "lineages": sorted(lineages),
            "witness_possible": len(lineages) > 1, "organs": organs, "per_cell": report}
     pathlib.Path(a.report).write_text(json.dumps(doc, indent=2) + "\n")
-    print(f"{len(cells)} cells on {len(slots)} slots, {len(lineages)} lineages; "
+    print(f"{len(cells)} cells on {len(slots)} slots, {len(lineages)} lineages, {used} of {budget} bytes; "
           f"{sum(not e['assembled'] for e in report.values())} left out -> {a.report}")
     return 0
 

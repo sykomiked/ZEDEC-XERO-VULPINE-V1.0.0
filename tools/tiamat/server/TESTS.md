@@ -171,11 +171,20 @@ while read -r cell; do
     --outfile $M/$cell/$(echo $cell | tr 'A-Z' 'a-z')-f16.gguf $M/$cell/src 2>&1 | tail -2 | tee -a $OUT/j7_convert.log
 done < /srv/tiamat/full_cells.txt
 python3 test_make_swarm_config.py 2>&1 | tee $OUT/j7_selftest.log    # must end [PASS]
-python3 make_swarm_config.py --models $M --adapters /srv/tiamat/adapters \
+python3 make_swarm_config.py --models $M --adapters /srv/tiamat/adapters --profile server \
   --out $OUT/swarm.conf --report $OUT/assembly.json --log $OUT/swarm_log.jsonl 2>&1 | tee $OUT/j7_assemble.log
-# every organ answers through the assembled swarm
-/srv/tiamat/bin/zxv-host --tiamat $OUT/swarm.conf --ask-file bench/organ_questions.txt --state-dir "" \
-  --notify off --receipts $OUT/j7_receipts.jsonl > $OUT/j7_organs.jsonl 2> $OUT/j7_organs.stderr.txt
+# every organ answers through the assembled swarm; the peak memory it really held is measured
+python3 - $OUT <<'PY' | tee $OUT/j7_memory.txt
+import json, resource, subprocess, sys
+out = sys.argv[1]
+with open(f"{out}/j7_organs.jsonl", "w") as o, open(f"{out}/j7_organs.stderr.txt", "w") as e:
+    rc = subprocess.run(["/srv/tiamat/bin/zxv-host", "--tiamat", f"{out}/swarm.conf", "--ask-file",
+                         "bench/organ_questions.txt", "--state-dir", "", "--notify", "off",
+                         "--receipts", f"{out}/j7_receipts.jsonl"], stdout=o, stderr=e).returncode
+peak = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss * 1024
+a = json.load(open(f"{out}/assembly.json"))
+print(f"rc {rc}; peak resident {peak} bytes; assembly estimate {a['resident_bytes']}; budget {a['budget_bytes']}")
+PY
 python3 -c "import json; [print(x['lead'], '|', x['witness'], '|', x['verdict'], '|', x['q']) for x in map(json.loads, open('$OUT/j7_organs.jsonl'))]" \
   | tee $OUT/j7_organs.txt
 # T2 on the assembled swarm, same sets and seed as J2
@@ -192,7 +201,14 @@ cp /srv/tiamat/golden.models $OUT/offload_golden.models
 Pass marks, fixed before the run:
 
 - `assembly.json`: every disc cell the engine runs today is assembled, or
-  left out with its reason; `witness_possible` is true.
+  left out with its reason; `witness_possible` is true; `resident_bytes`
+  is within `budget_bytes` (half the memory free at assembly, under the
+  profile's own budget and cell cap), and any cell past it is listed as
+  dormant with what it would cost.
+- `j7_memory.txt`: the measured peak stays at or under the assembly's
+  estimate (the estimate counts every mapped weight byte and a full KV
+  cache, so it is an upper bound; on the cloud rehearsal 2.27 GB was held
+  against 4.33 GB estimated).
 - `j7_organs.txt`: each organ question is led by a cell of that organ, and
   "17 times 23" is decided by the reckoner (391).
 - T2 on the swarm: the same marks as J2.

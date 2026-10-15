@@ -1,5 +1,10 @@
 {
-  "config": "swarm.conf",
+  "config": "s.conf",
+  "profile": "server",
+  "mem_available_bytes": 16170389504,
+  "budget_bytes": 8085194752,
+  "resident_bytes": 4330438432,
+  "dormant": [],
   "slots": 3,
   "cells": 3,
   "lineages": [
@@ -14,42 +19,6 @@
       ],
       "left_out": [
         "Parleywyvern"
-      ]
-    },
-    "trunk": {
-      "assembled": [],
-      "left_out": [
-        "Kindlewyrm",
-        "Awllindworm"
-      ]
-    },
-    "smith": {
-      "assembled": [
-        "Codelindworm"
-      ],
-      "left_out": [
-        "Mendlindworm"
-      ]
-    },
-    "warden": {
-      "assembled": [],
-      "left_out": [
-        "Wardendrake",
-        "Reviewdrake"
-      ]
-    },
-    "herald": {
-      "assembled": [],
-      "left_out": [
-        "Toolhatchling"
-      ]
-    },
-    "scribe": {
-      "assembled": [],
-      "left_out": [
-        "Tagwyrmling",
-        "Gistwyrm",
-        "Recordlindworm"
       ]
     },
     "reckoner": {
@@ -68,6 +37,48 @@
         "Verdictwyrmling",
         "Debatelindworm",
         "Fallacydrakeling"
+      ]
+    },
+    "smith": {
+      "assembled": [
+        "Codelindworm"
+      ],
+      "left_out": [
+        "Mendlindworm"
+      ]
+    },
+    "warden": {
+      "assembled": [],
+      "left_out": [
+        "Wardendrake",
+        "Reviewdrake"
+      ]
+    },
+    "scribe": {
+      "assembled": [],
+      "left_out": [
+        "Tagwyrmling",
+        "Gistwyrm",
+        "Recordlindworm"
+      ]
+    },
+    "clerk": {
+      "assembled": [],
+      "left_out": [
+        "Statutewyrmling"
+      ]
+    },
+    "trunk": {
+      "assembled": [],
+      "left_out": [
+        "Kindlewyrm",
+        "Awllindworm"
+      ]
+    },
+    "herald": {
+      "assembled": [],
+      "left_out": [
+        "Toolhatchling"
       ]
     },
     "librarian": {
@@ -108,73 +119,21 @@
       "left_out": [
         "Alembicwyrm"
       ]
-    },
-    "clerk": {
-      "assembled": [],
-      "left_out": [
-        "Statutewyrmling"
-      ]
     }
   },
   "per_cell": {
     "Spinewyrm": {
       "assembled": true,
       "organ": "voice_of_tiamat",
+      "resident_bytes": 1234761248,
       "slot": 0,
       "lineage": "qwen",
       "how": "whole (shipped GGUF)"
-    },
-    "Kindlewyrm": {
-      "assembled": false,
-      "organ": "trunk",
-      "why": "a trunk only: its cells run on it"
-    },
-    "Awllindworm": {
-      "assembled": false,
-      "organ": "trunk",
-      "why": "a trunk only: its cells run on it"
     },
     "Parleywyvern": {
       "assembled": false,
       "organ": "voice_of_tiamat",
       "why": "engine: needs SentencePiece tokenizer (engine task E5)"
-    },
-    "Mendlindworm": {
-      "assembled": false,
-      "organ": "smith",
-      "why": "no S3 result for it in --adapters"
-    },
-    "Codelindworm": {
-      "assembled": true,
-      "organ": "smith",
-      "slot": 1,
-      "lineage": "qwen",
-      "how": "whole (shipped GGUF)"
-    },
-    "Wardendrake": {
-      "assembled": false,
-      "organ": "warden",
-      "why": "no S3 result for it in --adapters"
-    },
-    "Reviewdrake": {
-      "assembled": false,
-      "organ": "warden",
-      "why": "no S3 result for it in --adapters"
-    },
-    "Toolhatchling": {
-      "assembled": false,
-      "organ": "herald",
-      "why": "engine: needs Nandi arch (custom code)"
-    },
-    "Tagwyrmling": {
-      "assembled": false,
-      "organ": "scribe",
-      "why": "engine: needs SentencePiece tokenizer (engine task E5); quant type checked on load"
-    },
-    "Gistwyrm": {
-      "assembled": false,
-      "organ": "scribe",
-      "why": "engine: needs LED encoder-decoder path"
     },
     "Numberwyrm": {
       "assembled": false,
@@ -205,6 +164,72 @@
       "assembled": false,
       "organ": "arbiter",
       "why": "engine: needs ELECTRA encoder path"
+    },
+    "Vouchwyvern": {
+      "assembled": true,
+      "organ": "arbiter",
+      "resident_bytes": 1860915904,
+      "slot": 1,
+      "lineage": "hugging",
+      "how": "whole (shipped GGUF)"
+    },
+    "Mendlindworm": {
+      "assembled": false,
+      "organ": "smith",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Codelindworm": {
+      "assembled": true,
+      "organ": "smith",
+      "resident_bytes": 1234761280,
+      "slot": 2,
+      "lineage": "qwen",
+      "how": "whole (shipped GGUF)"
+    },
+    "Wardendrake": {
+      "assembled": false,
+      "organ": "warden",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Reviewdrake": {
+      "assembled": false,
+      "organ": "warden",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Tagwyrmling": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "engine: needs SentencePiece tokenizer (engine task E5); quant type checked on load"
+    },
+    "Gistwyrm": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "engine: needs LED encoder-decoder path"
+    },
+    "Recordlindworm": {
+      "assembled": false,
+      "organ": "scribe",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Statutewyrmling": {
+      "assembled": false,
+      "organ": "clerk",
+      "why": "no S3 result for it in --adapters"
+    },
+    "Kindlewyrm": {
+      "assembled": false,
+      "organ": "trunk",
+      "why": "a trunk only: its cells run on it"
+    },
+    "Awllindworm": {
+      "assembled": false,
+      "organ": "trunk",
+      "why": "a trunk only: its cells run on it"
+    },
+    "Toolhatchling": {
+      "assembled": false,
+      "organ": "herald",
+      "why": "engine: needs Nandi arch (custom code)"
     },
     "Indexserpent": {
       "assembled": false,
@@ -241,11 +266,6 @@
       "organ": "augur",
       "why": "engine: needs T5 encoder path"
     },
-    "Recordlindworm": {
-      "assembled": false,
-      "organ": "scribe",
-      "why": "no S3 result for it in --adapters"
-    },
     "Rustlewyrmling": {
       "assembled": false,
       "organ": "ear",
@@ -255,18 +275,6 @@
       "assembled": false,
       "organ": "natural_philosopher",
       "why": "engine: needs SentencePiece tokenizer (engine task E5)"
-    },
-    "Vouchwyvern": {
-      "assembled": true,
-      "organ": "arbiter",
-      "slot": 2,
-      "lineage": "hugging",
-      "how": "whole (shipped GGUF)"
-    },
-    "Statutewyrmling": {
-      "assembled": false,
-      "organ": "clerk",
-      "why": "no S3 result for it in --adapters"
     }
   }
 }
