@@ -15,6 +15,7 @@
 
 #include "chg_kin.h"
 #include "keccak.h"
+#include "swarm_dna.h"
 
 static int g_pass, g_fail;
 #define CHECK(c)                                                                                   \
@@ -78,6 +79,50 @@ static void k1_dna(void)
     CHECK(memcmp(kid.parent, g_a.id, 32) == 0 && kid.generation == 1);
     n = chgk_dna_encode(&kid, enc, sizeof(enc));
     CHECK(chgk_dna_decode(enc, n, &y) == CHGK_OK && memcmp(y.id, kid.id, 32) == 0);
+
+    /* a chiglet named by its person: the name leans three genes, the
+     * record fixes them, and a clash never re-seeds */
+    {
+        const uint64_t S = 0x5eed0f4a3eull;
+        swarm_dna_t base = swarm_dna_from_seed(S);
+        uint8_t lean[CHGK_GENES];
+        memcpy(lean, base.gene, CHGK_GENES);
+        lean[SWARM_GENE_WARMTH] = (uint8_t) (lean[SWARM_GENE_WARMTH] + 7);
+        lean[SWARM_GENE_TEMPERAMENT] = (uint8_t) (lean[SWARM_GENE_TEMPERAMENT] - 5);
+        lean[SWARM_GENE_PACE] = (uint8_t) (lean[SWARM_GENE_PACE] + 2);
+        chgk_registry_t rn;
+        chgk_registry_init(&rn);
+        chgk_dna_t nm, plain, again;
+        CHECK(chgk_dna_birth_named(&rn, OWN_A, SPECIES, LINEAGE, S, lean, &nm) == CHGK_OK);
+        CHECK(nm.named == 1 && nm.seed == S && memcmp(nm.genes, lean, CHGK_GENES) == 0);
+        CHECK(chgk_dna_birth(0, OWN_A, SPECIES, LINEAGE, 0, S, &plain) == CHGK_OK);
+        CHECK(plain.named == 0 && memcmp(plain.id, nm.id, 32) != 0);
+        CHECK(chgk_dna_birth_named(&rn, OWN_A, SPECIES, LINEAGE, S, lean, &again) == CHGK_ERR_DUP);
+        CHECK(rn.n == 1);
+        uint8_t odd[CHGK_GENES];
+        memcpy(odd, lean, CHGK_GENES);
+        odd[SWARM_GENE_CURIOSITY] ^= 1; /* a name does not lean curiosity */
+        CHECK(chgk_dna_birth_named(0, OWN_A, SPECIES, LINEAGE, S, odd, &again) == CHGK_ERR_ARG);
+        uint8_t ne[CHGK_DNA_ENC];
+        uint32_t nn = chgk_dna_encode(&nm, ne, sizeof(ne));
+        CHECK(nn == CHGK_DNA_ENC);
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_OK && memcmp(&again, &nm, sizeof(nm)) == 0);
+        const uint32_t gat = 4 + 128 + 8; /* first gene byte */
+        ne[gat + SWARM_GENE_CURIOSITY] ^= 1;
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_ERR_PARSE);
+        ne[gat + SWARM_GENE_CURIOSITY] ^= 1;
+        ne[gat + SWARM_GENE_WARMTH] ^= 1; /* a different lean is a different chiglet */
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_OK && memcmp(again.id, nm.id, 32) != 0);
+        ne[gat + SWARM_GENE_WARMTH] ^= 1;
+        ne[gat + CHGK_GENES] = 2; /* named flag out of range */
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_ERR_PARSE);
+        ne[gat + CHGK_GENES] = 0; /* claiming unnamed with leaned genes */
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_ERR_PARSE);
+        ne[gat + CHGK_GENES] = 1;
+        memset(ne + 4 + 96, 0x77, 32); /* a named chiglet with a parent */
+        ne[nn - 4] = 1;
+        CHECK(chgk_dna_decode(ne, nn, &again) == CHGK_ERR_PARSE);
+    }
 
     CHECK(chgk_dna_distance(&g_a, &g_a) == 0);
     CHECK(chgk_dna_distance(&g_a, &g_b) == chgk_dna_distance(&g_b, &g_a));

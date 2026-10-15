@@ -63,7 +63,7 @@
 #define CHGK_HOBBY_STEP   3u   /* per-cycle bound, swarm_dna's F(4) */
 #define CHGK_DRIFT_CAP    150u /* permille of ISF u from the DNA profile */
 #define CHGK_REG_MAX      64u
-#define CHGK_DNA_ENC      (4u + 32u * 4u + 8u + CHGK_GENES + 4u)
+#define CHGK_DNA_ENC      (4u + 32u * 4u + 8u + CHGK_GENES + 1u + 4u)
 #define CHGK_TOPICS       32u
 #define CHGK_PARTNERS     16u
 #define CHGK_SEEN_MAX     32u
@@ -79,7 +79,8 @@ typedef enum {
     CHGK_ERR_EXPIRED = -7,
     CHGK_ERR_SCOPE = -8,   /* topic or depth not granted */
     CHGK_ERR_CLOSED = -9,  /* no open visit */
-    CHGK_ERR_PARTY = -10   /* the grant does not name these two chiglets */
+    CHGK_ERR_PARTY = -10,  /* the grant does not name these two chiglets */
+    CHGK_ERR_DUP = -11     /* a named birth whose id is already registered */
 } chgk_status_t;
 
 /* ===== K1 ===== */
@@ -90,6 +91,7 @@ typedef struct {
     uint8_t parent[32]; /* zero: born to a person */
     uint64_t seed;
     uint8_t genes[CHGK_GENES];
+    uint8_t named;      /* 1: born from the person's name (chg_name) */
     uint32_t generation;
     uint8_t id[32];     /* SHA3-256 of the encoded record */
 } chgk_dna_t;
@@ -108,7 +110,19 @@ chgk_status_t chgk_dna_birth(chgk_registry_t *r, const uint8_t owner[32],
                              const uint8_t species[32], const uint8_t lineage[32],
                              const chgk_dna_t *parent, uint64_t seed, chgk_dna_t *out);
 uint32_t chgk_dna_encode(const chgk_dna_t *d, uint8_t *out, uint32_t cap);
-/* Decode and recompute the id; the genes must be the ones the seed grows. */
+/* A person names their chiglet once (kernel/src/chiglet/chg_name.h): the
+ * seed comes from the name and the name's sound leans temperament, warmth
+ * and pace. The leaned genes are stored in the hashed record, so the
+ * personality is fixed by the id. Every other gene must be the seed's. A
+ * named birth never re-seeds: an id already in r is CHGK_ERR_DUP. Named
+ * chiglets are born to a person (no parent). The name and salt are not in
+ * the record and never travel. */
+chgk_status_t chgk_dna_birth_named(chgk_registry_t *r, const uint8_t owner[32],
+                                   const uint8_t species[32], const uint8_t lineage[32],
+                                   uint64_t name_seed, const uint8_t genes[CHGK_GENES],
+                                   chgk_dna_t *out);
+/* Decode and recompute the id; the genes must be the ones the seed grows
+ * (for a named record, except the three the name leans). */
 chgk_status_t chgk_dna_decode(const uint8_t *in, uint32_t len, chgk_dna_t *d);
 /* ISF independence of two genomes, permille (0 identical direction). */
 uint32_t chgk_dna_distance(const chgk_dna_t *a, const chgk_dna_t *b);
