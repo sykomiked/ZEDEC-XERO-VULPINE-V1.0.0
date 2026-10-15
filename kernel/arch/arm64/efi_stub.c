@@ -15,6 +15,12 @@ typedef unsigned long long u64; typedef unsigned int u32; typedef unsigned short
 typedef u64 EFI_STATUS; typedef void* EFI_HANDLE;
 typedef struct { u32 a; u16 b; u16 c; u8 d[8]; } EFI_GUID;
 
+/* __kernel_end of kernel_arm64.elf (BSS and stack included), from the
+ * Makefile. The flat image ends where the BSS begins, so its size alone
+ * would understate the window by about 230 MB. */
+#ifndef ZXV_KERNEL_END
+#    error "build with -DZXV_KERNEL_END=<__kernel_end of kernel_arm64.elf>"
+#endif
 static void uputc(char ch){ *(volatile u32*)0x09000000U=(u32)(u8)ch; }
 static void uputs(const char*s){ while(*s) uputc(*s++); }
 static void uhex(u64 v){ uputs("0x"); for(int i=60;i>=0;i-=4){ int n=(v>>i)&0xF; uputc(n<10?'0'+n:'a'+n-10);} }
@@ -67,6 +73,73 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st)
         pixfmt = gop->Mode->Info->PixFmt;
         uputs("GOP fb="); uhex(fb); uputs(" res="); udec(w); uputc('x'); udec(h);
         uputs(" stride="); udec(pps); uputs(" fmt="); udec(pixfmt); uputs("\r\n");
+    }
+
+    /* The kernel's whole window, image + BSS + stack: 0x40070000 (the
+     * handoff pages) to __kernel_end, which the Makefile passes in. First the
+     * RAM must cover it, or the kernel cannot run on this machine: say so and
+     * stop, rather than hand off into memory that is not there (a silent hang
+     * otherwise). Then reserve as much of it as the firmware gives, in 2 MiB
+     * pieces, so the boot model and its scratch are placed outside it. Pieces
+     * the firmware already uses (this loader's own image among them) are left;
+     * the kernel still checks the model's regions itself. */
+    {
+        typedef EFI_STATUS (*GMM0)(u64 *, void *, u64 *, u64 *, u32 *);
+        typedef EFI_STATUS (*AP0)(u32, u64, void **);
+        typedef EFI_STATUS (*FP0)(void *);
+        typedef EFI_STATUS (*APG0)(u32, u32, u64, u64 *);
+        u64 lo = 0x40000000ULL, hi = (ZXV_KERNEL_END + 0xFFFULL) & ~0xFFFULL;
+        u64 msz = 0, mkey = 0, dsz = 0;
+        u32 dver = 0;
+        u8 *map = 0;
+        ((GMM0) st->BootSvc->GetMemoryMap)(&msz, 0, &mkey, &dsz, &dver);
+        msz += 8 * dsz;
+        int covered = 0;
+        if (dsz && ((AP0) st->BootSvc->AllocatePool)(2, msz, (void **) &map) == 0 &&
+            ((GMM0) st->BootSvc->GetMemoryMap)(&msz, map, &mkey, &dsz, &dver) == 0) {
+            /* Walk up from lo: each step jumps to the end of the RAM
+             * descriptor holding a, so it ends within one pass of the map. */
+            u64 a = lo, n = msz / dsz;
+            for (u64 step = 0; step <= n && a < hi; step++) {
+                u64 next = a;
+                for (u64 i = 0; i < n; i++) {
+                    const u8 *d = map + i * dsz;
+                    u32 type = *(const u32 *) d;
+                    u64 ps = *(const u64 *) (d + 8), np = *(const u64 *) (d + 24);
+                    int ram = (type >= 1 && type <= 7) || type == 9 || type == 10;
+                    if (ram && ps <= a && a < ps + np * 0x1000ULL) next = ps + np * 0x1000ULL;
+                }
+                if (next == a) break;
+                a = next;
+            }
+            covered = a >= hi;
+            ((FP0) st->BootSvc->FreePool)(map);
+        }
+        if (!covered) {
+            uputs("[BOOT_FAIL] this kernel needs RAM from 0x40000000 to ");
+            uhex(hi);
+            uputs(" (");
+            udec((hi - lo) >> 20);
+            uputs(" MiB for its image, BSS and stack); "
+                  "this machine has less there. Give it more memory.\r\n");
+            for (;;) __asm__ __volatile__("wfi");
+        }
+        u64 got = 0, busy = 0;
+        for (u64 a = 0x40200000ULL; a < hi; a += 0x200000ULL) {
+            u64 pa = a, np = (hi - a < 0x200000ULL ? hi - a : 0x200000ULL) / 0x1000ULL;
+            if (((APG0) st->BootSvc->AllocatePages)(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, np,
+                                                    &pa) == 0)
+                got++;
+            else
+                busy++;
+        }
+        uputs("kernel window 0x40070000..");
+        uhex(hi);
+        uputs(": ");
+        udec(got);
+        uputs(" x 2 MiB reserved, ");
+        udec(busy);
+        uputs(" in use by the firmware or this loader\r\n");
     }
 
     /* A golden disc carries AI models: check each one's SHA-256 while the

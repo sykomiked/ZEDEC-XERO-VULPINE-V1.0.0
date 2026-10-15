@@ -712,7 +712,12 @@ $(TARGET_BIN): $(TARGET)
 EFI_APP = BOOTAA64.EFI
 EFI_OBJS = kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_kernel_blob.o
 $(EFI_APP): $(TARGET_BIN) kernel/arch/arm64/efi_stub.c kernel/arch/efi_models.h kernel/arch/arm64/efi_header.S kernel/arch/arm64/efi_tramp.S kernel/arch/arm64/efi_kernel_blob.S build_system/efi_stub.ld
-	$(CC) -c -O2 -ffreestanding -fno-pic -fno-stack-protector -mgeneral-regs-only -o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_stub.c
+	@# The stub checks the RAM covers the kernel's whole window and keeps the
+	@# boot model out of it, so it needs __kernel_end (the .bin ends at the BSS).
+	@KEND=$$($(CROSS_COMPILE)nm $(TARGET) | awk '/ __kernel_end$$/{print "0x"$$1}'); \
+	 test -n "$$KEND" || { echo "  [EFI] ERROR: __kernel_end not found in $(TARGET)"; exit 1; }; \
+	 echo "  [EFI] kernel window 0x40070000 .. $$KEND"; \
+	 $(CC) -c -O2 -ffreestanding -fno-pic -fno-stack-protector -mgeneral-regs-only -DZXV_KERNEL_END=$${KEND}ULL -o kernel/arch/arm64/efi_stub.o kernel/arch/arm64/efi_stub.c
 	$(CC) -c -o kernel/arch/arm64/efi_header.o kernel/arch/arm64/efi_header.S
 	$(CC) -c -o kernel/arch/arm64/efi_tramp.o kernel/arch/arm64/efi_tramp.S
 	$(CC) -c -o kernel/arch/arm64/efi_kernel_blob.o kernel/arch/arm64/efi_kernel_blob.S

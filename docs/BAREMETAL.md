@@ -126,6 +126,21 @@ typo refused by the checksum, logged in as the DID the host's
 the digest `test_swarm_bootmodel` pins, logged out and refused again, then a new passport created, a
 wrong confirmation refused and the right one logged in, with no typed seed
 in the log (QEMU `-cpu max`, for RNDR). CI runs it in the `uefi-disc` job. x86_64 has no
+
+The same check then stresses it: hostile login lines (empty, overlong,
+punctuation, chat-template markup, a seed one character short or long), every
+fourth seed position mistyped, five logins and ten asks in a row (the same
+digest every time), the plain disc with no model (login works, `ask` says
+there is no model), 256 MB of RAM (the boot reaches the shell and says why
+the AI is off) and 128 MB.
+
+**RAM floor.** The arm64 kernel's image, BSS and stack run from 0x40000000 to
+`__kernel_end` (about 235 MB). The loader checks the firmware's memory map
+covers that window before anything else; when it does not it prints
+`[BOOT_FAIL] this kernel needs RAM from 0x40000000 to ...` and stops, where it
+used to hand off and hang without a word. It then reserves the window, so the
+boot model and its scratch are placed above it. The x86_64 loader already
+refuses a window it cannot own (`[BOOT_REFUSED]`) and returns to the firmware.
 console input yet, so its disc answers at boot but takes no login.
 
 Measured 2026-10-12: 1,632,632,832 bytes raw (1.63 GB) on both arches,
