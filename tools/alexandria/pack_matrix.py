@@ -55,7 +55,8 @@ TYPE = {"include": 1, "test": 2, "logic": 3, "same": 4}
 # files' tiers, so it is the first thing the matrix gives after boot
 BOOKLET_000 = ["kernel/src/lingua/alphabet.tsv", "kernel/src/lingua/zl.h",
                "kernel/src/lingua/zxp_rt.h", "kernel/src/lingua/zxp_rt.c",
-               "kernel/src/lingua/zl_proj.c"]
+               "kernel/src/lingua/zl_proj.c", "kernel/src/lingua/zl_sutra.h",
+               "kernel/src/lingua/zl_sutra.c"]
 
 
 def fail(msg):
