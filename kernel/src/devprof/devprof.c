@@ -49,7 +49,11 @@ static const dp_component_t g_comp[DPC__COUNT] = {
      "Reed-Solomon code only (kernel/src/freight); no striping service"},
     {DPC_STRIPE_CLUSTER, "stripe-cluster", "stripes across servers", DP_ST_MISSING,
      "placement protocol is R&D (servers/SERVER_COMMON.md s.8)"},
-    {DPC_MCA_ECC, "mca-ecc", "machine-check and ECC reporting", DP_ST_MISSING, "none"},
+    {DPC_MCA_ECC, "mca-ecc", "machine-check and ECC reporting", DP_ST_PARTIAL,
+     "kernel/src/mca (decode, SMCA UMC DRAM ECC, log ring, thresholds; test_mca.c) + "
+     "kernel/arch/x86_64/mca_x86.c (banks, #MC gate, poll), run in QEMU TCG with monitor-injected "
+     "errors on the legacy MSR map; SMCA only in host tests (QEMU has none), not yet on EPYC "
+     "silicon, no CMCI, UMC addresses not translated to system PA"},
     {DPC_XHCI_HID, "xhci-hid", "USB keyboard and storage", DP_ST_BUILT,
      "kernel/src/hwdrv/xhci.c, usbkbd.c, usbmsc.c (QEMU)"},
     {DPC_TOUCH, "touch", "touch panel and pen", DP_ST_MISSING, "no I2C-HID or USI driver"},

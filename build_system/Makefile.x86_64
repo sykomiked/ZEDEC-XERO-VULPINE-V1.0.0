@@ -126,6 +126,8 @@ SRCS := \
     kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
+    kernel/arch/x86_64/mca_x86.c \
+    kernel/src/mca/mca.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \

@@ -24,6 +24,7 @@ event_space                      base
 fractal                          base
 invproof                         base       # a witness check over bytes; zxvfs and codec use it
 lpres                            base       # the four-valued truth type; sched, vfs, net, pqsec use it
+mca                              base       # machine-check decode and log; pure, the x86_64 glue reads the MSRs
 mixmat                           base
 mlkem/keccak                     base       # SHA-3/SHAKE permutation
 onepolicy                        base

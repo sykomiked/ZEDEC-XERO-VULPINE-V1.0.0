@@ -412,6 +412,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-arbiter
 	$(MAKE) --no-print-directory test-stripe
 	$(MAKE) --no-print-directory test-climate
+	$(MAKE) --no-print-directory test-mca
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1620,6 +1621,13 @@ test-climate:
 test-arbiter:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/arbiter src/arbiter/test_arbiter.c $(ARBITER_SRCS) -o $(ZXV_TMP)/test_arbiter && $(ZXV_TMP)/test_arbiter > $(ZXV_TMP)/test_arbiter.log 2>&1 && echo "[PASS] test_arbiter ($$(tail -1 $(ZXV_TMP)/test_arbiter.log))" || { cat $(ZXV_TMP)/test_arbiter.log; echo "[FAIL] test_arbiter"; exit 1; }
 	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(ARBITER_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/arbiter -c $$f -o $(ZXV_TMP)/arb_free.o || { echo "[FAIL] arbiter freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/arb_free.o | grep -v -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/arb_free.o; echo "[FAIL] arbiter freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] arbiter freestanding (aarch64, x86_64, riscv64: no libc)"
+
+.PHONY: test-mca
+# Machine check (src/mca): the decoder, log ring and thresholds under ASan,
+# then the module alone for the three kernel targets, which must need no libc.
+test-mca:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/mca src/mca/test_mca.c src/mca/mca.c -o $(ZXV_TMP)/test_mca && $(ZXV_TMP)/test_mca > $(ZXV_TMP)/test_mca.log 2>&1 && echo "[PASS] test_mca ($$(tail -1 $(ZXV_TMP)/test_mca.log))" || { cat $(ZXV_TMP)/test_mca.log; echo "[FAIL] test_mca"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/mca -c src/mca/mca.c -o $(ZXV_TMP)/mca_free.o || { echo "[FAIL] mca freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/mca_free.o | grep -q .; then nm -u $(ZXV_TMP)/mca_free.o; echo "[FAIL] mca freestanding: external symbols ($$t)"; exit 1; fi; done; echo "[PASS] mca freestanding (aarch64, x86_64, riscv64: no libc)"
 
 .PHONY: test-devprof device-matrix
 test-devprof:

@@ -37,6 +37,7 @@
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "mca_x86.h"          /* machine check: banks, #MC, poll */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -364,6 +365,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         uart_put_dec(tsc_per_us);
         uart_puts(" ticks/us)\n");
     }
+    x86_mca_init(hw_log_line); /* after the IDT; one [OK] machine check line */
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a
      * mismatch prints [FAULT] and halts here, before [BOOT_OK]. */
@@ -385,6 +387,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
             cycle = 0;
             boot_msg("[BOOT_OK] heartbeat: cycle=10M");
         }
+        x86_mca_poll(); /* corrected errors raise no interrupt */
         hlt();
     }
 }
