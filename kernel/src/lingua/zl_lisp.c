@@ -1,14 +1,3042 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* zl_lisp.c — the LISP (twin Coilwyrm) and Scheme (twin Spiraldrake) front-end: placeholder until
- * it is built. */
+/* zl_lisp.c — LISP and Scheme front-end: a core subset of Common Lisp
+ * (as sbcl runs it) and of R7RS-small Scheme (as guile runs it), sharing
+ * one s-expression reader, with the twins "Coilwyrm" (LISP) and
+ * "Spiraldrake" (Scheme). c->p->lang says which dialect.
+ *
+ * Programs run with 62-bit words: a value is an integer strictly inside
+ * +-2^62 or a reference (the empty list, true, false, a quoted symbol or a
+ * pair). Functions get procedure frames; list cells are never reclaimed.
+ *
+ * Admitted in both: integers, quoted symbols and lists (built with CONS at
+ * run time; dotted pairs too), string literals as arguments of output
+ * forms only; quote, if, cond, when, unless, and, or, let, let*, do, and
+ * the procedures + - * / (exact: an inexact quotient traps), abs min max
+ * expt, = < > <= >= (two or more arguments), the sign and parity tests,
+ * number, symbol, pair and null tests, eq eql equal, car cdr and c[ad]r
+ * up to four letters, cons list length append reverse, member and assoc.
+ * Self tail calls (loops written as recursion) run in constant space.
+ *
+ * LISP (Common Lisp): defun, defvar, defparameter (with a value), setq,
+ * setf / incf / decf / push / pop on a variable, progn, dotimes, labels,
+ * floor truncate ceiling (one value) mod rem 1+ 1-, zerop plusp minusp
+ * evenp oddp numberp integerp symbolp null not consp atom listp, first
+ * rest second third, rplaca rplacd, print prin1 princ terpri, and
+ * (format t "...") with ~a ~d ~s ~% ~~. The empty list is NIL; car and
+ * cdr of NIL are NIL.
+ *
+ * Scheme: define (procedures, also as (define f (lambda ...)), and
+ * variables; inside a body, internal defines first), set!, begin, named
+ * let, quotient remainder modulo floor-quotient floor-remainder
+ * truncate-quotient truncate-remainder, zero? positive? negative?
+ * even? odd? number? integer? symbol? null? pair? not, eq? eqv? equal?,
+ * memq memv member assq assv assoc, set-car! set-cdr!, display write
+ * newline. A form whose value Scheme leaves unspecified (display, set!, an
+ * if without else, when, ...) is refused where that value would be used,
+ * including through a procedure that returns it.
+ *
+ * Refused by name (ZL_E_UNSUPPORTED): floats, ratios and bignums (an
+ * integer literal outside +-2^62; arithmetic past it traps OVERFLOW),
+ * strings as values, characters, vectors, hash tables, lambda and every
+ * use of a procedure as a value (funcall, apply, map, #'), macros,
+ * backquote, call/cc and non-local exits, multiple values, &optional /
+ * &rest / &key, variadic procedures, binding a defvar'd (special)
+ * variable, keywords. Using a function or global before the top-level
+ * form that defines it has run is refused (ZL_E_UNDEFINED), as both
+ * references would stop there. Non-tail recursion deeper than the call
+ * stack (ZL_MAX_CALLS) traps RSTACK where sbcl and guile would go on.
+ * Output is not pretty-printed: sbcl breaks a printed list that runs past
+ * column 80 onto further lines, and zxlang writes it on one.
+ *
+ * The twins: one space between elements; a top-level form or comment per
+ * line; a comment kept only between top-level forms, as "; text"; body
+ * forms (defun, define, lambda, let, let*, named let, labels and each of
+ * its functions, do, dotimes, when, unless, progn, begin, cond) keep their
+ * first 1-3 elements (the head and what names or binds) on the opening
+ * line and put each later element on its own line, indented two columns
+ * past the form's opening parenthesis. Every other list stays on one line,
+ * unless one of its elements spans lines: then each element after the
+ * second goes on its own line in the same way.
+ * (quote x) is written 'x; a quoted number, boolean or empty list is
+ * written bare where it means itself. Coilwyrm writes symbols upper case,
+ * the empty list as NIL (but () for an empty parameter or binding list),
+ * a bare let binding X as (X NIL), SETF of a variable as SETQ, and FIRST
+ * REST SECOND THIRD as CAR CDR CADR CADDR. Spiraldrake keeps the case of
+ * symbols, writes #t and #f, and (define f (lambda (x) ...)) as
+ * (define (f x) ...). */
 #include "zl_int.h"
+
+#define L_NODES  4096
+#define L_TOPS   2048
+#define L_FNS    256
+#define L_GLOB   256
+#define L_SCOPE  512
+#define L_FIX    2048
+#define L_OBS    1024
+#define L_EDGE   1024
+#define L_LOCALS 2048
+#define L_PARAMS 64
+#define L_STRBUF 1024
+#define L_NAME   64
+
+enum { K_NUM = 1, K_SYM, K_STR, K_LIST, K_QUOTE, K_TRUE, K_FALSE, K_COMMENT };
+/* node flags; the compiler sets all but F_DOT for the twin printer */
+enum {
+    F_DOT = 1,     /* the last child is the tail of a dotted list */
+    F_BLOCK = 2,   /* a body form: elements past k go on their own lines */
+    F_LAMDEF = 4,  /* (define f (lambda ...)): written (define (f ...) ...) */
+    F_ALIAS = 8,   /* a synonym: written as its canonical name */
+    F_BARE = 16,   /* a LISP binding without a value: written (X NIL) */
+    F_UNQ = 32,    /* a quoted datum that means itself: written bare */
+    F_SYNTAX = 64, /* an empty parameter or binding list: written () */
+};
+enum { X_EFFECT, X_TEST, X_VALUE, X_RESULT };
+enum { B_VAR = 1, B_FN };
+enum { T_FORM = 0, T_FN, T_VAR };
+
+typedef struct {
+    int64_t v; /* number; symbol, string, comment: source offset; define: its function */
+    int32_t kid, next;
+    uint32_t line, col;
+    uint16_t len;
+    uint8_t kind, flags, k, alias;
+    uint16_t pad;
+} lnode_t;
+
+typedef struct {
+    int32_t name, params, body, at; /* nodes; params: the first parameter */
+    int32_t entry;                  /* address of its ENTER, -1 until emitted */
+    int32_t top;                    /* defining top-level form, -1 when local */
+    uint16_t nparams;
+    uint8_t level, pkind; /* level of its frame; params are names (0) or bindings (1) */
+    uint8_t unspec;
+} lfn_t;
+
+typedef struct {
+    int32_t name, top, slot;
+} lglob_t;
+
+typedef struct {
+    int32_t name, v; /* B_VAR: frame offset; B_FN: function */
+    uint8_t kind, level;
+} lbind_t;
+
+typedef struct {
+    int32_t at, fid; /* fid < 0: helper -fid-1 */
+} lfix_t;
+
+typedef struct {
+    int32_t fid;
+    uint32_t line, col;
+} lobs_t;
+
+typedef struct {
+    int32_t from, to;
+} ledge_t;
+
+enum { H_LENGTH, H_REVERSE, H_APPEND, H_EQUAL, H_MEMQ, H_MEMBER, H_ASSQ, H_ASSOC, H__COUNT };
+
+typedef struct {
+    /* zeroed for every compile */
+    zl_cc_t *c;
+    zl_out_t *tw;
+    const char *src;
+    size_t len, pos, lstart;
+    uint32_t line;
+    int lisp;
+    int64_t F; /* the false value: NIL or #f */
+    uint32_t nnodes, ntops, nforms, nfns, nglob, nscope, nfix, nobs, nedge, nscr;
+    int32_t helper[H__COUNT];
+    uint8_t hused[H__COUNT];
+    int32_t scratch;
+    struct {
+        int32_t fid;
+        uint32_t level, nloc, maxloc;
+    } cur;
+    uint32_t depth;
+    size_t tcol;
+    /* tables: always written before they are read */
+    lnode_t nodes[L_NODES];
+    int32_t tops[L_TOPS]; /* top-level forms and comments, in order */
+    int32_t form[L_TOPS]; /* top-level forms */
+    uint8_t fkind[L_TOPS];
+    int32_t fref[L_TOPS];
+    lfn_t fns[L_FNS];
+    lglob_t glob[L_GLOB];
+    lbind_t scope[L_SCOPE];
+    lfix_t fix[L_FIX];
+    lobs_t obs[L_OBS];
+    ledge_t edge[L_EDGE];
+    int32_t scr[L_NODES];
+    uint32_t fcalls[L_FNS][L_FNS / 32], frefs[L_FNS][L_GLOB / 32];
+    char sbuf[L_STRBUF];         /* a decoded string */
+    char fbuf[L_STRBUF];         /* a format control */
+    char qbuf[2 * L_STRBUF + 2]; /* a quoted string */
+    size_t qlen;
+} lw_t;
+
+ZL_STATIC_ASSERT(sizeof(lw_t) <= sizeof(((zl_work_t *) 0)->fe), lw_fits);
+
+/* ------------------------------------------------------------ tables */
+
+/* Special forms. */
+enum {
+    S_QUOTE = 1,
+    S_IF,
+    S_COND,
+    S_WHEN,
+    S_UNLESS,
+    S_AND,
+    S_OR,
+    S_BEGIN,
+    S_LET,
+    S_LETSTAR,
+    S_SETQ,
+    S_SET,
+    S_DOTIMES,
+    S_DO,
+    S_LABELS,
+    S_DEFUN,
+    S_DEFVAR,
+    S_DEFINE,
+    S_LAMBDA,
+    S_INCF,
+    S_DECF,
+    S_PUSH,
+    S_POP
+};
+
+typedef struct {
+    const char *name; /* lower case */
+    uint8_t dial;     /* 1 LISP, 2 Scheme, 3 both */
+    uint8_t code;
+    const char *canon; /* the twin's spelling of a synonym */
+} lspec_t;
+
+static const lspec_t specs[] = {
+    {"quote", 3, S_QUOTE, 0},     {"if", 3, S_IF, 0},
+    {"cond", 3, S_COND, 0},       {"when", 3, S_WHEN, 0},
+    {"unless", 3, S_UNLESS, 0},   {"and", 3, S_AND, 0},
+    {"or", 3, S_OR, 0},           {"progn", 1, S_BEGIN, 0},
+    {"begin", 2, S_BEGIN, 0},     {"let", 3, S_LET, 0},
+    {"let*", 3, S_LETSTAR, 0},    {"setq", 1, S_SETQ, 0},
+    {"setf", 1, S_SETQ, "setq"},  {"set!", 2, S_SET, 0},
+    {"dotimes", 1, S_DOTIMES, 0}, {"do", 3, S_DO, 0},
+    {"labels", 1, S_LABELS, 0},   {"defun", 1, S_DEFUN, 0},
+    {"defvar", 1, S_DEFVAR, 0},   {"defparameter", 1, S_DEFVAR, 0},
+    {"define", 2, S_DEFINE, 0},   {"lambda", 3, S_LAMBDA, 0},
+    {"incf", 1, S_INCF, 0},       {"decf", 1, S_DECF, 0},
+    {"push", 1, S_PUSH, 0},       {"pop", 1, S_POP, 0},
+};
+
+/* Built-in procedures. */
+enum {
+    B_ADD = 1,
+    B_SUB,
+    B_MUL,
+    B_DIV,
+    B_ABS,
+    B_MIN,
+    B_MAX,
+    B_INC,
+    B_DEC,
+    B_FLOOR,
+    B_TRUNC,
+    B_CEIL,
+    B_MODF,
+    B_MODT,
+    B_EXPT,
+    B_NUMEQ,
+    B_NUMNE,
+    B_LT,
+    B_GT,
+    B_LE,
+    B_GE,
+    B_ZEROP,
+    B_PLUSP,
+    B_MINUSP,
+    B_EVENP,
+    B_ODDP,
+    B_NUMBERP,
+    B_SYMBOLP,
+    B_NULL,
+    B_NOT,
+    B_CONSP,
+    B_ATOM,
+    B_LISTP,
+    B_EQ,
+    B_EQUAL,
+    B_CXR,
+    B_CONS,
+    B_LIST,
+    B_LENGTH,
+    B_APPEND,
+    B_REVERSE,
+    B_MEMQ,
+    B_MEMBER,
+    B_ASSQ,
+    B_ASSOC,
+    B_SETCAR,
+    B_SETCDR,
+    B_PRINT,
+    B_PRIN1,
+    B_PRINC,
+    B_TERPRI,
+    B_FORMAT,
+    B_DISPLAY,
+    B_WRITE,
+    B_NEWLINE
+};
+
+typedef struct {
+    const char *name; /* lower case */
+    uint8_t dial, op;
+    int8_t min, max; /* argument count; max -1: any */
+    const char *canon;
+} lbi_t;
+
+static const lbi_t bis[] = {
+    {"+", 3, B_ADD, 0, -1, 0},
+    {"-", 3, B_SUB, 1, -1, 0},
+    {"*", 3, B_MUL, 0, -1, 0},
+    {"/", 3, B_DIV, 1, -1, 0},
+    {"abs", 3, B_ABS, 1, 1, 0},
+    {"min", 3, B_MIN, 1, -1, 0},
+    {"max", 3, B_MAX, 1, -1, 0},
+    {"1+", 1, B_INC, 1, 1, 0},
+    {"1-", 1, B_DEC, 1, 1, 0},
+    {"floor", 1, B_FLOOR, 1, 2, 0},
+    {"truncate", 1, B_TRUNC, 1, 2, 0},
+    {"ceiling", 1, B_CEIL, 1, 2, 0},
+    {"mod", 1, B_MODF, 2, 2, 0},
+    {"rem", 1, B_MODT, 2, 2, 0},
+    {"quotient", 2, B_TRUNC, 2, 2, 0},
+    {"remainder", 2, B_MODT, 2, 2, 0},
+    {"modulo", 2, B_MODF, 2, 2, 0},
+    {"floor-quotient", 2, B_FLOOR, 2, 2, 0},
+    {"floor-remainder", 2, B_MODF, 2, 2, 0},
+    {"truncate-quotient", 2, B_TRUNC, 2, 2, 0},
+    {"truncate-remainder", 2, B_MODT, 2, 2, 0},
+    {"expt", 3, B_EXPT, 2, 2, 0},
+    {"=", 3, B_NUMEQ, 2, -1, 0},
+    {"/=", 1, B_NUMNE, 2, 2, 0},
+    {"<", 3, B_LT, 2, -1, 0},
+    {">", 3, B_GT, 2, -1, 0},
+    {"<=", 3, B_LE, 2, -1, 0},
+    {">=", 3, B_GE, 2, -1, 0},
+    {"zerop", 1, B_ZEROP, 1, 1, 0},
+    {"zero?", 2, B_ZEROP, 1, 1, 0},
+    {"plusp", 1, B_PLUSP, 1, 1, 0},
+    {"positive?", 2, B_PLUSP, 1, 1, 0},
+    {"minusp", 1, B_MINUSP, 1, 1, 0},
+    {"negative?", 2, B_MINUSP, 1, 1, 0},
+    {"evenp", 1, B_EVENP, 1, 1, 0},
+    {"even?", 2, B_EVENP, 1, 1, 0},
+    {"oddp", 1, B_ODDP, 1, 1, 0},
+    {"odd?", 2, B_ODDP, 1, 1, 0},
+    {"numberp", 1, B_NUMBERP, 1, 1, 0},
+    {"integerp", 1, B_NUMBERP, 1, 1, 0},
+    {"number?", 2, B_NUMBERP, 1, 1, 0},
+    {"integer?", 2, B_NUMBERP, 1, 1, 0},
+    {"symbolp", 1, B_SYMBOLP, 1, 1, 0},
+    {"symbol?", 2, B_SYMBOLP, 1, 1, 0},
+    {"null", 1, B_NULL, 1, 1, 0},
+    {"not", 1, B_NULL, 1, 1, 0},
+    {"null?", 2, B_NULL, 1, 1, 0},
+    {"not", 2, B_NOT, 1, 1, 0},
+    {"consp", 1, B_CONSP, 1, 1, 0},
+    {"pair?", 2, B_CONSP, 1, 1, 0},
+    {"atom", 1, B_ATOM, 1, 1, 0},
+    {"listp", 1, B_LISTP, 1, 1, 0},
+    {"eq", 1, B_EQ, 2, 2, 0},
+    {"eql", 1, B_EQ, 2, 2, 0},
+    {"eq?", 2, B_EQ, 2, 2, 0},
+    {"eqv?", 2, B_EQ, 2, 2, 0},
+    {"equal", 1, B_EQUAL, 2, 2, 0},
+    {"equal?", 2, B_EQUAL, 2, 2, 0},
+    {"cons", 3, B_CONS, 2, 2, 0},
+    {"list", 3, B_LIST, 0, -1, 0},
+    {"length", 3, B_LENGTH, 1, 1, 0},
+    {"append", 3, B_APPEND, 0, -1, 0},
+    {"reverse", 3, B_REVERSE, 1, 1, 0},
+    {"first", 1, B_CXR, 1, 1, "car"},
+    {"rest", 1, B_CXR, 1, 1, "cdr"},
+    {"second", 1, B_CXR, 1, 1, "cadr"},
+    {"third", 1, B_CXR, 1, 1, "caddr"},
+    {"member", 1, B_MEMQ, 2, 2, 0},
+    {"assoc", 1, B_ASSQ, 2, 2, 0},
+    {"memq", 2, B_MEMQ, 2, 2, 0},
+    {"memv", 2, B_MEMQ, 2, 2, 0},
+    {"member", 2, B_MEMBER, 2, 2, 0},
+    {"assq", 2, B_ASSQ, 2, 2, 0},
+    {"assv", 2, B_ASSQ, 2, 2, 0},
+    {"assoc", 2, B_ASSOC, 2, 2, 0},
+    {"rplaca", 1, B_SETCAR, 2, 2, 0},
+    {"rplacd", 1, B_SETCDR, 2, 2, 0},
+    {"set-car!", 2, B_SETCAR, 2, 2, 0},
+    {"set-cdr!", 2, B_SETCDR, 2, 2, 0},
+    {"print", 1, B_PRINT, 1, 1, 0},
+    {"prin1", 1, B_PRIN1, 1, 1, 0},
+    {"princ", 1, B_PRINC, 1, 1, 0},
+    {"terpri", 1, B_TERPRI, 0, 0, 0},
+    {"format", 1, B_FORMAT, 2, -1, 0},
+    {"display", 2, B_DISPLAY, 1, 1, 0},
+    {"write", 2, B_WRITE, 1, 1, 0},
+    {"newline", 2, B_NEWLINE, 0, 0, 0},
+};
+
+/* Names refused by what they are. */
+static const char *const why[] = {
+    "procedures are not values in this subset (lambda, funcall, apply, mapping)",
+    "macros are not in this subset",
+    "continuations and non-local exits are not in this subset",
+    "floating point is not in the integer subset",
+    "strings are admitted only as literals passed to output",
+    "vectors, arrays and hash tables are not in this subset",
+    "multiple values are not in this subset",
+    "this form is not in the subset",
+};
+enum { R_PROC, R_MACRO, R_CONT, R_FLOAT, R_STRING, R_VECTOR, R_VALUES, R_OTHER };
+
+static const struct {
+    const char *name;
+    uint8_t dial, why;
+} refused[] = {
+    {"function", 1, R_PROC},
+    {"funcall", 1, R_PROC},
+    {"apply", 3, R_PROC},
+    {"mapcar", 1, R_PROC},
+    {"mapc", 1, R_PROC},
+    {"maplist", 1, R_PROC},
+    {"mapcan", 1, R_PROC},
+    {"reduce", 1, R_PROC},
+    {"remove-if", 1, R_PROC},
+    {"sort", 1, R_PROC},
+    {"flet", 1, R_PROC},
+    {"map", 2, R_PROC},
+    {"for-each", 2, R_PROC},
+    {"defmacro", 1, R_MACRO},
+    {"macrolet", 1, R_MACRO},
+    {"loop", 1, R_MACRO},
+    {"define-syntax", 2, R_MACRO},
+    {"let-syntax", 2, R_MACRO},
+    {"syntax-rules", 2, R_MACRO},
+    {"block", 1, R_CONT},
+    {"return", 1, R_CONT},
+    {"return-from", 1, R_CONT},
+    {"tagbody", 1, R_CONT},
+    {"go", 1, R_CONT},
+    {"catch", 1, R_CONT},
+    {"throw", 1, R_CONT},
+    {"unwind-protect", 1, R_CONT},
+    {"error", 3, R_CONT},
+    {"call/cc", 2, R_CONT},
+    {"call-with-current-continuation", 2, R_CONT},
+    {"dynamic-wind", 2, R_CONT},
+    {"raise", 2, R_CONT},
+    {"exit", 2, R_CONT},
+    {"sqrt", 3, R_FLOAT},
+    {"exp", 3, R_FLOAT},
+    {"log", 3, R_FLOAT},
+    {"sin", 3, R_FLOAT},
+    {"cos", 3, R_FLOAT},
+    {"float", 1, R_FLOAT},
+    {"round", 3, R_FLOAT},
+    {"exact->inexact", 2, R_FLOAT},
+    {"inexact", 2, R_FLOAT},
+    {"string", 3, R_STRING},
+    {"concatenate", 1, R_STRING},
+    {"string=", 1, R_STRING},
+    {"make-string", 3, R_STRING},
+    {"string-append", 2, R_STRING},
+    {"string-length", 2, R_STRING},
+    {"number->string", 2, R_STRING},
+    {"symbol->string", 2, R_STRING},
+    {"write-line", 1, R_STRING},
+    {"write-string", 3, R_STRING},
+    {"make-array", 1, R_VECTOR},
+    {"aref", 1, R_VECTOR},
+    {"vector", 3, R_VECTOR},
+    {"make-vector", 2, R_VECTOR},
+    {"vector-ref", 2, R_VECTOR},
+    {"make-hash-table", 3, R_VECTOR},
+    {"gethash", 1, R_VECTOR},
+    {"values", 3, R_VALUES},
+    {"multiple-value-bind", 1, R_VALUES},
+    {"call-with-values", 2, R_VALUES},
+    {"let-values", 2, R_VALUES},
+    {"defconstant", 1, R_OTHER},
+    {"defstruct", 1, R_OTHER},
+    {"defclass", 1, R_OTHER},
+    {"defmethod", 1, R_OTHER},
+    {"case", 3, R_OTHER},
+    {"typecase", 1, R_OTHER},
+    {"prog1", 1, R_OTHER},
+    {"eval", 3, R_OTHER},
+    {"read", 3, R_OTHER},
+    {"random", 3, R_OTHER},
+    {"declare", 1, R_OTHER},
+    {"write", 1, R_OTHER},
+    {"fresh-line", 1, R_OTHER},
+    {"nth", 1, R_OTHER},
+    {"last", 1, R_OTHER},
+    {"letrec", 2, R_OTHER},
+    {"letrec*", 2, R_OTHER},
+    {"list-ref", 2, R_OTHER},
+    {"list-tail", 2, R_OTHER},
+    {"delay", 2, R_OTHER},
+    {"force", 2, R_OTHER},
+    {"define-record-type", 2, R_OTHER},
+};
+
+/* ------------------------------------------------------------ helpers */
+
+#define TRY(x)                                                                                     \
+    do {                                                                                           \
+        int s_ = (x);                                                                              \
+        if (s_) return s_;                                                                         \
+    } while (0)
+
+static lnode_t *N(lw_t *w, int32_t n)
+{
+    return &w->nodes[n];
+}
+
+static int ok(lw_t *w)
+{
+    return w->c->failed ? w->c->d->status : ZL_OK;
+}
+
+static int lfail(lw_t *w, int32_t n, int st, const char *msg)
+{
+    if (n >= 0) {
+        w->c->line = N(w, n)->line;
+        w->c->col = N(w, n)->col;
+    }
+    return zl_fail(w->c, st, msg);
+}
+
+static int32_t E(lw_t *w, int op, int64_t a, int32_t b)
+{
+    return zl_emit(w->c, op, a, b);
+}
+
+static int32_t here(lw_t *w)
+{
+    return (int32_t) w->c->p->ncode;
+}
+
+static void patch_here(lw_t *w, int32_t at)
+{
+    zl_patch(w->c, at, here(w));
+}
+
+static int32_t nx(lw_t *w, int32_t n)
+{
+    return n < 0 ? -1 : N(w, n)->next;
+}
+
+static uint32_t count(lw_t *w, int32_t first)
+{
+    uint32_t k = 0;
+    for (; first >= 0; first = N(w, first)->next) k++;
+    return k;
+}
+
+static int lc(lw_t *w, int ch)
+{
+    return (w->lisp && ch >= 'A' && ch <= 'Z') ? ch + 32 : ch;
+}
+
+/* Is node n the symbol s (lower case; LISP ignores case)? */
+static int sym_is(lw_t *w, int32_t n, const char *s)
+{
+    if (n < 0 || N(w, n)->kind != K_SYM) return 0;
+    const char *p = w->src + N(w, n)->v;
+    size_t i = 0;
+    for (; i < N(w, n)->len; i++)
+        if (!s[i] || lc(w, (unsigned char) p[i]) != s[i]) return 0;
+    return s[i] == 0;
+}
+
+static int name_eq(lw_t *w, int32_t a, int32_t b)
+{
+    if (N(w, a)->len != N(w, b)->len) return 0;
+    const char *p = w->src + N(w, a)->v, *q = w->src + N(w, b)->v;
+    for (size_t i = 0; i < N(w, a)->len; i++)
+        if (lc(w, (unsigned char) p[i]) != lc(w, (unsigned char) q[i])) return 0;
+    return 1;
+}
+
+static int dial_ok(lw_t *w, int dial)
+{
+    return (dial & (w->lisp ? 1 : 2)) != 0;
+}
+
+static int find_spec(lw_t *w, int32_t n)
+{
+    for (size_t i = 0; i < sizeof specs / sizeof specs[0]; i++)
+        if (dial_ok(w, specs[i].dial) && sym_is(w, n, specs[i].name)) return (int) i;
+    return -1;
+}
+
+/* c[ad]{1,4}r: the path letters, or 0. */
+static int cxr_len(const char *p, size_t n, int (*low)(lw_t *, int), lw_t *w)
+{
+    if (n < 3 || n > 6 || low(w, (unsigned char) p[0]) != 'c' ||
+        low(w, (unsigned char) p[n - 1]) != 'r')
+        return 0;
+    for (size_t i = 1; i + 1 < n; i++) {
+        int ch = low(w, (unsigned char) p[i]);
+        if (ch != 'a' && ch != 'd') return 0;
+    }
+    return (int) n - 2;
+}
+
+static int find_bi(lw_t *w, int32_t n)
+{
+    for (size_t i = 0; i < sizeof bis / sizeof bis[0]; i++)
+        if (dial_ok(w, bis[i].dial) && sym_is(w, n, bis[i].name)) return (int) i;
+    return -1;
+}
+
+static int is_cxr(lw_t *w, int32_t n)
+{
+    return N(w, n)->kind == K_SYM && cxr_len(w->src + N(w, n)->v, N(w, n)->len, lc, w) > 0;
+}
+
+static int find_refused(lw_t *w, int32_t n)
+{
+    for (size_t i = 0; i < sizeof refused / sizeof refused[0]; i++)
+        if (dial_ok(w, refused[i].dial) && sym_is(w, n, refused[i].name)) return (int) i;
+    return -1;
+}
+
+/* A name the language itself owns (LISP: a standard function or macro). */
+static int is_standard(lw_t *w, int32_t n)
+{
+    return find_spec(w, n) >= 0 || find_bi(w, n) >= 0 || is_cxr(w, n) || find_refused(w, n) >= 0;
+}
+
+static int is_const(lw_t *w, int32_t n)
+{
+    return w->lisp && (sym_is(w, n, "nil") || sym_is(w, n, "t"));
+}
+
+/* LISP empty list: () or NIL. */
+static int is_empty(lw_t *w, int32_t n)
+{
+    return (N(w, n)->kind == K_LIST && N(w, n)->kid < 0) || (w->lisp && sym_is(w, n, "nil"));
+}
+
+/* ------------------------------------------------------------ reader */
+
+static int rfail(lw_t *w, int st, const char *msg)
+{
+    w->c->line = w->line;
+    w->c->col = (uint32_t) (w->pos - w->lstart) + 1;
+    return zl_fail(w->c, st, msg);
+}
+
+static int32_t newnode(lw_t *w, int kind)
+{
+    if (w->nnodes >= L_NODES) {
+        rfail(w, ZL_E_LIMIT, "program too large for the LISP reader");
+        return -1;
+    }
+    lnode_t *n = &w->nodes[w->nnodes];
+    zl_bzero(n, sizeof *n);
+    n->kind = (uint8_t) kind;
+    n->kid = n->next = -1;
+    n->line = w->line;
+    n->col = (uint32_t) (w->pos - w->lstart) + 1;
+    return (int32_t) w->nnodes++;
+}
+
+static int delim(int ch)
+{
+    return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' || ch == '(' || ch == ')' ||
+           ch == '"' || ch == ';' || ch == '\'' || ch == '`' || ch == ',';
+}
+
+/* Skip blanks and comments. At the top level a comment is kept. */
+static int skip(lw_t *w, int top)
+{
+    while (w->pos < w->len) {
+        char ch = w->src[w->pos];
+        if (ch == '\n') {
+            w->pos++;
+            w->line++;
+            w->lstart = w->pos;
+        } else if (ch == ' ' || ch == '\t' || ch == '\r') {
+            w->pos++;
+        } else if (ch == ';') {
+            int32_t n = top ? newnode(w, K_COMMENT) : 0;
+            if (n < 0) return ZL_E_LIMIT;
+            while (w->pos < w->len &&
+                   (w->src[w->pos] == ';' || w->src[w->pos] == ' ' || w->src[w->pos] == '\t'))
+                w->pos++;
+            size_t a = w->pos;
+            while (w->pos < w->len && w->src[w->pos] != '\n') w->pos++;
+            size_t b = w->pos;
+            while (b > a && zl_isspace((unsigned char) w->src[b - 1])) b--;
+            if (top) {
+                if (b - a > ZL_MAX_LINE) return rfail(w, ZL_E_LIMIT, "comment too long");
+                N(w, n)->v = (int64_t) a;
+                N(w, n)->len = (uint16_t) (b - a);
+                if (w->ntops >= L_TOPS) return rfail(w, ZL_E_LIMIT, "too many top-level forms");
+                w->tops[w->ntops++] = n;
+            }
+        } else {
+            break;
+        }
+    }
+    return ZL_OK;
+}
+
+static int32_t rdatum(lw_t *w, uint32_t depth);
+
+static int32_t rlist(lw_t *w, uint32_t depth)
+{
+    int32_t n = newnode(w, K_LIST), prev = -1;
+    uint32_t k = 0;
+    if (n < 0) return -1;
+    w->pos++;
+    for (;;) {
+        if (skip(w, 0)) return -1;
+        if (w->pos >= w->len) {
+            rfail(w, ZL_E_SYNTAX, "a ')' is missing");
+            return -1;
+        }
+        if (w->src[w->pos] == ')') {
+            w->pos++;
+            break;
+        }
+        int32_t e;
+        if (w->src[w->pos] == '.' && (w->pos + 1 >= w->len || delim(w->src[w->pos + 1]))) {
+            if (!k) {
+                rfail(w, ZL_E_SYNTAX, "a dot needs an element before it");
+                return -1;
+            }
+            w->pos++;
+            if ((e = rdatum(w, depth + 1)) < 0) return -1;
+            if (skip(w, 0)) return -1;
+            if (w->pos >= w->len || w->src[w->pos] != ')') {
+                rfail(w, ZL_E_SYNTAX, "exactly one element follows a dot");
+                return -1;
+            }
+            w->pos++;
+            N(w, prev)->next = e;
+            N(w, n)->flags |= F_DOT;
+            k++;
+            break;
+        }
+        if ((e = rdatum(w, depth + 1)) < 0) return -1;
+        if (prev < 0)
+            N(w, n)->kid = e;
+        else
+            N(w, prev)->next = e;
+        prev = e;
+        k++;
+    }
+    /* (quote x) reads as 'x */
+    int32_t h = N(w, n)->kid;
+    if (k == 2 && !(N(w, n)->flags & F_DOT) && sym_is(w, h, "quote")) {
+        N(w, n)->kind = K_QUOTE;
+        N(w, n)->kid = N(w, h)->next;
+    }
+    return n;
+}
+
+static int32_t rstring(lw_t *w)
+{
+    int32_t n = newnode(w, K_STR);
+    if (n < 0) return -1;
+    size_t a = ++w->pos;
+    while (w->pos < w->len && w->src[w->pos] != '"') {
+        unsigned char ch = (unsigned char) w->src[w->pos];
+        if (ch == '\n') {
+            rfail(w, ZL_E_UNSUPPORTED, "a line break inside a string is not in this subset");
+            return -1;
+        }
+        if (ch < 32 || ch > 126) {
+            rfail(w, ZL_E_UNSUPPORTED, "only printable ASCII is admitted in strings");
+            return -1;
+        }
+        if (ch == '\\') {
+            char e = w->pos + 1 < w->len ? w->src[w->pos + 1] : 0;
+            if (!(e == '"' || e == '\\' || (!w->lisp && e == 'n'))) {
+                rfail(w, ZL_E_UNSUPPORTED,
+                      w->lisp ? "only \\\" and \\\\ are admitted as string escapes"
+                              : "only \\\" \\\\ and \\n are admitted as string escapes");
+                return -1;
+            }
+            w->pos++;
+        }
+        w->pos++;
+    }
+    if (w->pos >= w->len) {
+        rfail(w, ZL_E_SYNTAX, "unterminated string");
+        return -1;
+    }
+    if (w->pos - a > L_STRBUF) {
+        rfail(w, ZL_E_LIMIT, "string too long");
+        return -1;
+    }
+    N(w, n)->v = (int64_t) a;
+    N(w, n)->len = (uint16_t) (w->pos - a);
+    w->pos++;
+    return n;
+}
+
+static int same(const char *t, size_t n, const char *s)
+{
+    size_t i = 0;
+    for (; i < n; i++)
+        if (!s[i] || t[i] != s[i]) return 0;
+    return s[i] == 0;
+}
+
+static int32_t rhash(lw_t *w)
+{
+    size_t a = w->pos, b = a + 1;
+    while (b < w->len && !delim(w->src[b])) b++;
+    const char *t = w->src + a;
+    size_t n = b - a;
+    if (!w->lisp) {
+        int k = 0;
+        if (same(t, n, "#t") || same(t, n, "#true"))
+            k = K_TRUE;
+        else if (same(t, n, "#f") || same(t, n, "#false"))
+            k = K_FALSE;
+        if (k) {
+            int32_t x = newnode(w, k);
+            w->pos = b;
+            return x;
+        }
+    }
+    char ch = a + 1 < w->len ? w->src[a + 1] : 0;
+    rfail(w, ZL_E_UNSUPPORTED,
+          ch == '('    ? "vectors are not in this subset"
+          : ch == '\\' ? "characters are not in this subset"
+          : ch == '\'' ? "#' (a function as a value) is not in this subset"
+          : ch == '|'  ? "#| block comments |# are not in this subset"
+          : ch == ';'  ? "#; datum comments are not in this subset"
+                       : "this # reader syntax is not in this subset");
+    return -1;
+}
+
+static int sym_char(int ch)
+{
+    if (zl_isalnum(ch)) return 1;
+    for (const char *p = "-+*/<>=!?_%&$~^.@"; *p; p++)
+        if (ch == *p) return 1;
+    return 0;
+}
+
+static int32_t ratom(lw_t *w)
+{
+    size_t a = w->pos, b = a;
+    while (b < w->len && !delim(w->src[b])) b++;
+    const char *t = w->src + a;
+    size_t n = b - a, i = 0;
+    int neg = 0;
+    if (n > 1 && (t[0] == '+' || t[0] == '-')) {
+        neg = t[0] == '-';
+        i = 1;
+    }
+    size_t d = i;
+    while (d < n && zl_isdigit((unsigned char) t[d])) d++;
+    int numeric = zl_isdigit((unsigned char) t[i]) ||
+                  (i < n && t[i] == '.' && i + 1 < n && zl_isdigit((unsigned char) t[i + 1]));
+    if (numeric && d == n && d > i) {
+        int64_t v = 0;
+        for (size_t k = i; k < n; k++) {
+            int dg = t[k] - '0';
+            if (v > (ZL_V_REF - 1 - dg) / 10) {
+                rfail(w, ZL_E_UNSUPPORTED,
+                      "integer outside +-2^62 (bignums are not in this subset)");
+                return -1;
+            }
+            v = v * 10 + dg;
+        }
+        int32_t x = newnode(w, K_NUM);
+        if (x < 0) return -1;
+        N(w, x)->v = neg ? -v : v;
+        w->pos = b;
+        return x;
+    }
+    if (numeric && !(w->lisp && n == 2 && t[0] == '1' && (t[1] == '+' || t[1] == '-'))) {
+        rfail(w, ZL_E_UNSUPPORTED,
+              "this number syntax (a float, a ratio or an exponent) is not in the integer subset");
+        return -1;
+    }
+    for (size_t k = 0; k < n; k++) {
+        if (t[k] == ':') {
+            w->pos = a + k;
+            rfail(w, ZL_E_UNSUPPORTED, "keywords and package prefixes are not in this subset");
+            return -1;
+        }
+        if (t[k] == '|') {
+            w->pos = a + k;
+            rfail(w, ZL_E_UNSUPPORTED, "escaped symbols |...| are not in this subset");
+            return -1;
+        }
+        if (!sym_char((unsigned char) t[k])) {
+            w->pos = a + k;
+            rfail(w, ZL_E_SYNTAX, "unexpected character");
+            return -1;
+        }
+    }
+    if (n == 1 && t[0] == '.') {
+        rfail(w, ZL_E_SYNTAX, "a dot outside a list");
+        return -1;
+    }
+    if (n > L_NAME) {
+        rfail(w, ZL_E_LIMIT, "name too long");
+        return -1;
+    }
+    int32_t x = newnode(w, K_SYM);
+    if (x < 0) return -1;
+    N(w, x)->v = (int64_t) a;
+    N(w, x)->len = (uint16_t) n;
+    w->pos = b;
+    return x;
+}
+
+static int32_t rdatum(lw_t *w, uint32_t depth)
+{
+    if (depth > ZL_MAX_DEPTH) {
+        rfail(w, ZL_E_LIMIT, "lists nested too deeply");
+        return -1;
+    }
+    if (skip(w, 0)) return -1;
+    if (w->pos >= w->len) {
+        rfail(w, ZL_E_SYNTAX, "a datum is missing at the end of the program");
+        return -1;
+    }
+    char ch = w->src[w->pos];
+    switch (ch) {
+    case '(':
+        return rlist(w, depth);
+    case ')':
+        rfail(w, ZL_E_SYNTAX, "unexpected ')'");
+        return -1;
+    case '\'': {
+        int32_t n = newnode(w, K_QUOTE);
+        if (n < 0) return -1;
+        w->pos++;
+        int32_t d = rdatum(w, depth + 1);
+        if (d < 0) return -1;
+        N(w, n)->kid = d;
+        return n;
+    }
+    case '"':
+        return rstring(w);
+    case '`':
+    case ',':
+        rfail(w, ZL_E_UNSUPPORTED, "backquote and comma (macro templates) are not in this subset");
+        return -1;
+    case '#':
+        return rhash(w);
+    case '|':
+        rfail(w, ZL_E_UNSUPPORTED, "escaped symbols |...| are not in this subset");
+        return -1;
+    default:
+        return ratom(w);
+    }
+}
+
+static int read_program(lw_t *w)
+{
+    for (;;) {
+        if (skip(w, 1)) return ok(w);
+        if (w->pos >= w->len) return ZL_OK;
+        int32_t n = rdatum(w, 0);
+        if (n < 0) return ok(w);
+        if (w->ntops >= L_TOPS) return lfail(w, n, ZL_E_LIMIT, "too many top-level forms");
+        w->tops[w->ntops++] = n;
+        w->form[w->nforms++] = n;
+    }
+}
+
+/* ------------------------------------------------------------ names and scopes */
+
+static int32_t find_scope(lw_t *w, int32_t sym, int fn)
+{
+    for (uint32_t i = w->nscope; i-- > 0;)
+        if (name_eq(w, w->scope[i].name, sym) &&
+            (!w->lisp || (w->scope[i].kind == B_FN) == (fn != 0)))
+            return (int32_t) i;
+    return -1;
+}
+
+static int32_t find_topfn(lw_t *w, int32_t sym)
+{
+    for (uint32_t i = 0; i < w->nfns; i++)
+        if (w->fns[i].top >= 0 && name_eq(w, w->fns[i].name, sym)) return (int32_t) i;
+    return -1;
+}
+
+static int32_t find_glob(lw_t *w, int32_t sym)
+{
+    for (uint32_t i = 0; i < w->nglob; i++)
+        if (name_eq(w, w->glob[i].name, sym)) return (int32_t) i;
+    return -1;
+}
+
+static int bind(lw_t *w, int32_t name, int kind, int32_t v, int32_t at)
+{
+    if (w->nscope >= L_SCOPE) return lfail(w, at, ZL_E_LIMIT, "too many names in scope");
+    lbind_t *b = &w->scope[w->nscope++];
+    b->name = name;
+    b->kind = (uint8_t) kind;
+    b->v = v;
+    b->level = (uint8_t) (kind == B_FN ? w->fns[v].level : w->cur.level);
+    return ZL_OK;
+}
+
+static int alloc_local(lw_t *w, int32_t at, uint32_t *off)
+{
+    *off = 0;
+    if (w->cur.nloc >= L_LOCALS) return lfail(w, at, ZL_E_LIMIT, "too many local variables");
+    *off = w->cur.nloc++;
+    if (w->cur.nloc > w->cur.maxloc) w->cur.maxloc = w->cur.nloc;
+    return ZL_OK;
+}
+
+/* A name that a let, a parameter or a loop may bind. */
+static int check_binder(lw_t *w, int32_t n)
+{
+    if (N(w, n)->kind != K_SYM) return lfail(w, n, ZL_E_SYNTAX, "a variable name is expected");
+    if (is_const(w, n)) return lfail(w, n, ZL_E_SYNTAX, "NIL and T are constants, not variables");
+    if (w->lisp && N(w, n)->len && w->src[N(w, n)->v] == '&')
+        return lfail(w, n, ZL_E_UNSUPPORTED,
+                     "lambda-list keywords (&optional, &rest, &key) are not in this subset");
+    if (w->lisp && find_glob(w, n) >= 0)
+        return lfail(
+            w, n, ZL_E_UNSUPPORTED,
+            "binding a defvar'd (special) variable is dynamic binding, not in this subset");
+    if (!w->lisp && find_spec(w, n) >= 0)
+        return lfail(w, n, ZL_E_UNSUPPORTED, "rebinding a syntax keyword is not in this subset");
+    return ZL_OK;
+}
+
+/* Parameters: a chain of names, or (pkind 1) of (name init) bindings. */
+static int32_t pname(lw_t *w, int32_t p, int pkind)
+{
+    return pkind ? N(w, p)->kid : p;
+}
+
+static int check_params(lw_t *w, int32_t first, int pkind, int32_t at, uint16_t *np)
+{
+    uint32_t k = 0;
+    for (int32_t p = first; p >= 0; p = nx(w, p), k++) {
+        int32_t nm = pname(w, p, pkind);
+        TRY(check_binder(w, nm));
+        for (int32_t q = first; q != p; q = nx(w, q))
+            if (name_eq(w, pname(w, q, pkind), nm))
+                return lfail(w, nm, ZL_E_SYNTAX, "a name is bound twice in one list");
+    }
+    if (k > L_PARAMS) return lfail(w, at, ZL_E_LIMIT, "too many parameters");
+    *np = (uint16_t) k;
+    return ZL_OK;
+}
+
+static int add_fn(lw_t *w, int32_t name, int32_t params, int pkind, int32_t body, int32_t at,
+                  uint32_t level, int32_t top, int32_t *fid)
+{
+    if (w->nfns >= L_FNS) return lfail(w, at, ZL_E_LIMIT, "too many functions");
+    if (level > ZL_MAX_DEPTH) return lfail(w, at, ZL_E_LIMIT, "functions nested too deeply");
+    lfn_t *f = &w->fns[w->nfns];
+    zl_bzero(f, sizeof *f);
+    TRY(check_params(w, params, pkind, at, &f->nparams));
+    f->name = name;
+    f->params = params;
+    f->pkind = (uint8_t) pkind;
+    f->body = body;
+    f->at = at;
+    f->entry = -1;
+    f->top = top;
+    f->level = (uint8_t) level;
+    *fid = (int32_t) w->nfns++;
+    return ZL_OK;
+}
+
+/* ------------------------------------------------------------ code helpers */
+
+static int add_fix(lw_t *w, int32_t at, int32_t fid, int32_t n)
+{
+    if (at < 0) return ok(w);
+    if (w->nfix >= L_FIX) return lfail(w, n, ZL_E_LIMIT, "too many calls");
+    w->fix[w->nfix].at = at;
+    w->fix[w->nfix].fid = fid;
+    w->nfix++;
+    return ZL_OK;
+}
+
+static int hcall(lw_t *w, int h, int32_t n)
+{
+    if (w->scratch < 0 && (w->scratch = zl_slots(w->c, 9)) < 0) return ok(w);
+    w->hused[h] = 1;
+    if (h == H_MEMBER || h == H_ASSOC) w->hused[H_EQUAL] = 1;
+    return add_fix(w, E(w, ZL_CALL, 0, 0), -h - 1, n);
+}
+
+/* Push the false value or a flag for "is the value on the stack true". */
+static void to_flag(lw_t *w)
+{
+    E(w, ZL_PUSH, w->F, 0);
+    E(w, ZL_NE, 0, 0);
+}
+
+/* A value is on the stack: make it what the context wants. */
+static int fin_value(lw_t *w, int ctx)
+{
+    if (ctx == X_EFFECT)
+        E(w, ZL_DROP, 0, 0);
+    else if (ctx == X_TEST)
+        to_flag(w);
+    return ok(w);
+}
+
+/* A 0/1 flag is on the stack. */
+static int fin_flag(lw_t *w, int ctx)
+{
+    if (ctx == X_EFFECT)
+        E(w, ZL_DROP, 0, 0);
+    else if (ctx != X_TEST) {
+        int32_t j = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_PUSH, ZL_V_TRUE, 0);
+        int32_t k = E(w, ZL_JMP, 0, 0);
+        patch_here(w, j);
+        E(w, ZL_PUSH, w->F, 0);
+        patch_here(w, k);
+    }
+    return ok(w);
+}
+
+/* Nothing is on the stack: the form's value is NIL (LISP) or unspecified
+ * (Scheme), which may flow out of a procedure but is never used. */
+static int fin_none(lw_t *w, int ctx, int32_t at)
+{
+    if (ctx == X_EFFECT) return ok(w);
+    if (w->lisp) {
+        E(w, ZL_PUSH, ctx == X_TEST ? 0 : ZL_V_NIL, 0);
+        return ok(w);
+    }
+    if (ctx == X_RESULT && w->cur.fid >= 0) {
+        w->fns[w->cur.fid].unspec = 1;
+        E(w, ZL_PUSH, ZL_V_FALSE, 0);
+        return ok(w);
+    }
+    return lfail(w, at, ZL_E_UNSUPPORTED,
+                 "the value of this form is unspecified in Scheme: use it only as a statement");
+}
+
+static void guard_num(lw_t *w, int isnum)
+{
+    if (!isnum) { /* = and EQ do not check their operands: make a reference trap */
+        E(w, ZL_PUSH, 0, 0);
+        E(w, ZL_ADD, 0, 0);
+    }
+}
+
+static int32_t chain(lw_t *w, int op, int32_t prev)
+{
+    int32_t at = E(w, op, prev, 0);
+    return at < 0 ? prev : at;
+}
+
+static void chain_patch(lw_t *w, int32_t at)
+{
+    while (at >= 0) {
+        int32_t nxt = (int32_t) w->c->p->code[at].a;
+        w->c->p->code[at].a = here(w);
+        at = nxt;
+    }
+}
+
+/* ------------------------------------------------------------ strings */
+
+/* Decode a string literal into sbuf; returns its length. */
+static size_t decode(lw_t *w, int32_t n)
+{
+    const char *p = w->src + N(w, n)->v;
+    size_t k = 0;
+    for (size_t i = 0; i < N(w, n)->len; i++) {
+        char ch = p[i];
+        if (ch == '\\') {
+            ch = p[++i];
+            if (ch == 'n') ch = '\n';
+        }
+        w->sbuf[k++] = ch;
+    }
+    return k;
+}
+
+/* The string as prin1 / write print it (and as the twin writes it). */
+static void encode(const char *s, size_t n, void (*put)(void *, const char *, size_t), void *ctx)
+{
+    put(ctx, "\"", 1);
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '"' || s[i] == '\\')
+            put(ctx, "\\", 1);
+        else if (s[i] == '\n') {
+            put(ctx, "\\n", 2);
+            continue;
+        }
+        put(ctx, s + i, 1);
+    }
+    put(ctx, "\"", 1);
+}
+
+static void qb_put(void *ctx, const char *s, size_t n)
+{
+    lw_t *w = (lw_t *) ctx;
+    for (size_t i = 0; i < n && w->qlen < sizeof w->qbuf; i++) w->qbuf[w->qlen++] = s[i];
+}
+
+static int out_text(lw_t *w, const char *s, size_t n, int32_t at)
+{
+    if (!n) return ok(w);
+    int32_t k = zl_addstr(w->c, s, n);
+    if (k < 0) return lfail(w, at, ZL_E_LIMIT, "too many strings");
+    E(w, ZL_OUTS, k, 0);
+    return ok(w);
+}
+
+/* Print a string literal, raw (princ, display) or quoted (prin1, write). */
+static int out_str(lw_t *w, int32_t n, int quoted)
+{
+    size_t k = decode(w, n);
+    if (!quoted) return out_text(w, w->sbuf, k, n);
+    w->qlen = 0;
+    encode(w->sbuf, k, qb_put, w);
+    return out_text(w, w->qbuf, w->qlen, n);
+}
+
+/* ------------------------------------------------------------ quoted data */
+
+static int data_sym_ok(lw_t *w, int32_t n)
+{
+    const char *p = w->src + N(w, n)->v;
+    if (!zl_isalpha((unsigned char) p[0])) return 0;
+    for (size_t i = 0; i < N(w, n)->len; i++) {
+        int ch = (unsigned char) p[i];
+        if (!zl_isalnum(ch) && ch != '-' && ch != '*' && ch != '+' && ch != '/' && ch != '<' &&
+            ch != '>' && ch != '=' && ch != '!' && ch != '?' && ch != '_')
+            return 0;
+    }
+    return 1;
+}
+
+/* Code that pushes a quoted datum (built afresh each time it runs). */
+static int datum(lw_t *w, int32_t n)
+{
+    lnode_t *x = N(w, n);
+    switch (x->kind) {
+    case K_NUM:
+        E(w, ZL_PUSH, x->v, 0);
+        return ok(w);
+    case K_TRUE:
+    case K_FALSE:
+        E(w, ZL_PUSH, x->kind == K_TRUE ? ZL_V_TRUE : ZL_V_FALSE, 0);
+        return ok(w);
+    case K_STR:
+        return lfail(w, n, ZL_E_UNSUPPORTED, why[R_STRING]);
+    case K_QUOTE:
+        return lfail(w, n, ZL_E_UNSUPPORTED, "a quote inside quoted data is not in this subset");
+    case K_SYM: {
+        if (sym_is(w, n, w->lisp ? "nil" : "")) {
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+            return ok(w);
+        }
+        if (w->lisp && sym_is(w, n, "t")) {
+            E(w, ZL_PUSH, ZL_V_TRUE, 0);
+            return ok(w);
+        }
+        if (!data_sym_ok(w, n))
+            return lfail(
+                w, n, ZL_E_UNSUPPORTED,
+                "a quoted symbol starts with a letter and has no punctuation but -*+/<>=!?_");
+        char b[L_NAME];
+        for (size_t i = 0; i < x->len; i++) {
+            int ch = (unsigned char) w->src[x->v + (int64_t) i];
+            b[i] = (char) (w->lisp ? zl_upper(ch) : ch);
+        }
+        int32_t k = zl_addstr(w->c, b, x->len);
+        if (k < 0) return lfail(w, n, ZL_E_LIMIT, "too many symbols");
+        E(w, ZL_PUSH, ZL_V_SYM + k, 0);
+        return ok(w);
+    }
+    case K_LIST: {
+        uint32_t base = w->nscr, m = 0;
+        int32_t tail = -1;
+        for (int32_t e = x->kid; e >= 0; e = N(w, e)->next) {
+            if ((x->flags & F_DOT) && N(w, e)->next < 0) {
+                tail = e;
+                break;
+            }
+            if (w->nscr >= L_NODES) return lfail(w, n, ZL_E_LIMIT, "quoted data too large");
+            w->scr[w->nscr++] = e;
+            m++;
+        }
+        if (tail >= 0)
+            TRY(datum(w, tail));
+        else
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+        for (uint32_t i = m; i-- > 0;) {
+            TRY(datum(w, w->scr[base + i]));
+            E(w, ZL_SWAP, 0, 0);
+            E(w, ZL_CONS, 0, 0);
+        }
+        w->nscr = base;
+        return ok(w);
+    }
+    default:
+        return lfail(w, n, ZL_E_SYNTAX, "not a datum");
+    }
+}
+
+/* ------------------------------------------------------------ expressions */
+
+static int cx(lw_t *w, int32_t n, int ctx, int *isnum);
+static int body(lw_t *w, int32_t first, int ctx, int32_t at);
+static int emit_fn(lw_t *w, int32_t fid);
+
+static int cv(lw_t *w, int32_t n)
+{
+    return cx(w, n, X_VALUE, 0);
+}
+
+/* A sequence: all but the last for effect. */
+static int seq(lw_t *w, int32_t first, int ctx, int32_t at)
+{
+    if (first < 0) {
+        if (!w->lisp) return lfail(w, at, ZL_E_SYNTAX, "a body needs at least one expression");
+        return fin_none(w, ctx, at);
+    }
+    for (int32_t e = first; e >= 0; e = N(w, e)->next)
+        TRY(cx(w, e, N(w, e)->next < 0 ? ctx : X_EFFECT, 0));
+    return ok(w);
+}
+
+/* Loop bodies in LISP are tagbodies: a bare atom there is a go tag. */
+static int loop_body(lw_t *w, int32_t first)
+{
+    for (int32_t e = first; e >= 0; e = N(w, e)->next) {
+        int k = N(w, e)->kind;
+        if (w->lisp && k != K_LIST && k != K_QUOTE && k != K_STR)
+            return lfail(w, e, ZL_E_UNSUPPORTED,
+                         "an atom in a loop body is a go tag, which is not in this subset");
+        TRY(cx(w, e, X_EFFECT, 0));
+    }
+    return ok(w);
+}
+
+static int load_var(lw_t *w, int32_t n)
+{
+    int32_t b = find_scope(w, n, 0);
+    if (b >= 0) {
+        if (w->scope[b].kind == B_FN) return lfail(w, n, ZL_E_UNSUPPORTED, why[R_PROC]);
+        E(w, ZL_LOADF, w->scope[b].v, (int32_t) (w->cur.level - w->scope[b].level));
+        return ok(w);
+    }
+    int32_t g = find_glob(w, n);
+    if (g >= 0) {
+        E(w, ZL_LOAD, w->glob[g].slot, 0);
+        return ok(w);
+    }
+    if (!w->lisp && (find_topfn(w, n) >= 0 || find_bi(w, n) >= 0 || is_cxr(w, n)))
+        return lfail(w, n, ZL_E_UNSUPPORTED, why[R_PROC]);
+    return lfail(w, n, ZL_E_UNDEFINED, "undefined variable");
+}
+
+static int store_var(lw_t *w, int32_t n)
+{
+    if (N(w, n)->kind != K_SYM) return lfail(w, n, ZL_E_SYNTAX, "a variable name is expected");
+    if (is_const(w, n)) return lfail(w, n, ZL_E_SYNTAX, "NIL and T are constants, not variables");
+    int32_t b = find_scope(w, n, 0);
+    if (b >= 0) {
+        if (w->scope[b].kind == B_FN) return lfail(w, n, ZL_E_UNSUPPORTED, why[R_PROC]);
+        E(w, ZL_STOREF, w->scope[b].v, (int32_t) (w->cur.level - w->scope[b].level));
+        return ok(w);
+    }
+    int32_t g = find_glob(w, n);
+    if (g >= 0) {
+        E(w, ZL_STORE, w->glob[g].slot, 0);
+        return ok(w);
+    }
+    if (!w->lisp && find_topfn(w, n) >= 0) return lfail(w, n, ZL_E_UNSUPPORTED, why[R_PROC]);
+    return lfail(w, n, ZL_E_UNDEFINED, "assignment to an undefined variable");
+}
+
+/* Bookkeeping after a call to a user function whose value is on the stack. */
+static int call_done(lw_t *w, int32_t fid, int ctx, int32_t n)
+{
+    if (!w->lisp) {
+        if (ctx == X_VALUE || ctx == X_TEST) {
+            if (w->nobs >= L_OBS) return lfail(w, n, ZL_E_LIMIT, "too many calls");
+            w->obs[w->nobs].fid = fid;
+            w->obs[w->nobs].line = N(w, n)->line;
+            w->obs[w->nobs].col = N(w, n)->col;
+            w->nobs++;
+        } else if (ctx == X_RESULT) {
+            if (w->nedge >= L_EDGE) return lfail(w, n, ZL_E_LIMIT, "too many calls");
+            w->edge[w->nedge].from = w->cur.fid;
+            w->edge[w->nedge].to = fid;
+            w->nedge++;
+        }
+    }
+    return fin_value(w, ctx == X_RESULT ? X_VALUE : ctx);
+}
+
+/* A call of a user function with the arguments args (inits of a named let). */
+static int ucall(lw_t *w, int32_t n, int32_t fid, int32_t args, int pkind, int ctx)
+{
+    lfn_t *f = &w->fns[fid];
+    if (count(w, args) != f->nparams)
+        return lfail(w, n, ZL_E_SYNTAX, "wrong number of arguments for this function");
+    if (ctx == X_RESULT && fid == w->cur.fid) { /* a self tail call is a jump */
+        for (int32_t a = args; a >= 0; a = N(w, a)->next) TRY(cv(w, a));
+        for (uint32_t i = f->nparams; i-- > 0;) E(w, ZL_STOREF, i, 0);
+        E(w, ZL_JMP, f->entry + 1, 0);
+        return ok(w);
+    }
+    E(w, ZL_LINK, w->cur.level - (f->level - 1u), 0);
+    for (int32_t a = args; a >= 0; a = N(w, a)->next)
+        TRY(cv(w, pkind ? N(w, N(w, a)->kid)->next : a));
+    TRY(add_fix(w, E(w, ZL_CALL, 0, 0), fid, n));
+    return call_done(w, fid, ctx, n);
+}
+
+/* print / prin1 / princ / display / write of one argument. */
+static int out_form(lw_t *w, int32_t n, int op, int32_t a, int ctx)
+{
+    int dial = w->lisp ? ZL_DIALECT_LISP : ZL_DIALECT_SCHEME;
+    if (N(w, a)->kind == K_STR) {
+        if (w->lisp && ctx != X_EFFECT) return lfail(w, a, ZL_E_UNSUPPORTED, why[R_STRING]);
+        if (op == B_PRINT) E(w, ZL_NL, 0, 0);
+        TRY(out_str(w, a, op == B_PRINT || op == B_PRIN1 || op == B_WRITE));
+        if (op == B_PRINT) TRY(out_text(w, " ", 1, n));
+        return fin_none(w, ctx, n);
+    }
+    TRY(cv(w, a));
+    if (w->lisp && ctx != X_EFFECT) E(w, ZL_DUP, 0, 0);
+    if (op == B_PRINT) E(w, ZL_NL, 0, 0);
+    E(w, ZL_OUTV, dial, 0);
+    if (op == B_PRINT) TRY(out_text(w, " ", 1, n));
+    if (w->lisp) return ctx == X_EFFECT ? ok(w) : fin_value(w, ctx);
+    return fin_none(w, ctx, n);
+}
+
+/* (format t "control" args...): ~a ~d ~s ~% ~~ only. Arguments are
+ * evaluated first, as for any call, then the output is written. */
+static int format_form(lw_t *w, int32_t n, int32_t a, int ctx)
+{
+    int32_t ctl = nx(w, a), args = nx(w, ctl);
+    if (!sym_is(w, a, "t"))
+        return lfail(w, a, ZL_E_UNSUPPORTED,
+                     "format to a destination other than T is not in this subset");
+    if (N(w, ctl)->kind != K_STR)
+        return lfail(w, ctl, ZL_E_UNSUPPORTED, "the format control must be a string literal");
+    uint32_t saved = w->cur.nloc, base = w->cur.nloc, k = 0, na = count(w, args);
+    for (int32_t e = args; e >= 0; e = N(w, e)->next) {
+        uint32_t off;
+        TRY(alloc_local(w, e, &off));
+        if (N(w, e)->kind == K_STR) continue;
+        TRY(cv(w, e));
+        E(w, ZL_STOREF, off, 0);
+    }
+    char *text = w->fbuf;
+    size_t len = decode(w, ctl), t = 0;
+    zl_bcopy(text, w->sbuf, len);
+    int32_t e = args;
+    for (size_t i = 0; i < len; i++) {
+        if (text[i] != '~') continue;
+        TRY(out_text(w, text + t, i - t, ctl));
+        if (++i >= len) return lfail(w, ctl, ZL_E_SYNTAX, "a format string ends with ~");
+        int d = zl_upper((unsigned char) text[i]);
+        t = i + 1;
+        if (d == '%')
+            E(w, ZL_NL, 0, 0);
+        else if (d == '~')
+            TRY(out_text(w, "~", 1, ctl));
+        else if (d == 'A' || d == 'D' || d == 'S') {
+            if (e < 0)
+                return lfail(w, ctl, ZL_E_UNSUPPORTED,
+                             "format arguments must match its directives");
+            if (N(w, e)->kind == K_STR)
+                TRY(out_str(w, e, d == 'S'));
+            else {
+                E(w, ZL_LOADF, base + k, 0);
+                E(w, ZL_OUTV, ZL_DIALECT_LISP, 0);
+            }
+            e = N(w, e)->next;
+            k++;
+        } else
+            return lfail(w, ctl, ZL_E_UNSUPPORTED,
+                         "format directives other than ~a ~d ~s ~% ~~ are not in this subset");
+    }
+    TRY(out_text(w, text + t, len - t, ctl));
+    if (k != na)
+        return lfail(w, ctl, ZL_E_UNSUPPORTED, "format arguments must match its directives");
+    w->cur.nloc = saved;
+    return fin_none(w, ctx, n);
+}
+
+static int compare(lw_t *w, int op, int32_t args, uint32_t na, int ctx, int32_t n)
+{
+    int num;
+    if (na == 2) {
+        TRY(cx(w, args, X_VALUE, &num));
+        if (op == ZL_EQ || op == ZL_NE) guard_num(w, num);
+        TRY(cx(w, N(w, args)->next, X_VALUE, &num));
+        if (op == ZL_EQ || op == ZL_NE) guard_num(w, num);
+        E(w, op, 0, 0);
+        return fin_flag(w, ctx);
+    }
+    uint32_t saved = w->cur.nloc, base = w->cur.nloc, i = 0;
+    for (int32_t e = args; e >= 0; e = N(w, e)->next) {
+        uint32_t off;
+        TRY(alloc_local(w, n, &off));
+    }
+    for (int32_t e = args; e >= 0; e = N(w, e)->next, i++) {
+        TRY(cx(w, e, X_VALUE, &num));
+        if (op == ZL_EQ) guard_num(w, num);
+        E(w, ZL_STOREF, base + i, 0);
+    }
+    for (i = 0; i + 1 < na; i++) {
+        E(w, ZL_LOADF, base + i, 0);
+        E(w, ZL_LOADF, base + i + 1, 0);
+        E(w, op, 0, 0);
+        if (i) E(w, ZL_AND, 0, 0);
+    }
+    w->cur.nloc = saved;
+    return fin_flag(w, ctx);
+}
+
+/* Fold a variadic arithmetic operator over the arguments. */
+static int fold(lw_t *w, int op, int32_t args)
+{
+    for (int32_t e = args; e >= 0; e = N(w, e)->next) {
+        TRY(cv(w, e));
+        if (e != args) E(w, op, 0, 0);
+    }
+    return ok(w);
+}
+
+static int bcall(lw_t *w, int32_t n, int bi, int ctx, int *isnum)
+{
+    const lbi_t *b = &bis[bi];
+    int32_t head = N(w, n)->kid, a = N(w, head)->next;
+    uint32_t na = count(w, a);
+    int op = b->op;
+    if ((int) na < b->min || (b->max >= 0 && (int) na > b->max))
+        return lfail(w, n, ZL_E_SYNTAX, "wrong number of arguments");
+    if (b->canon) {
+        N(w, head)->flags |= F_ALIAS;
+        N(w, head)->alias = (uint8_t) (bi + 1);
+    }
+    int32_t a2 = nx(w, a);
+    switch (op) {
+    case B_ADD:
+    case B_MUL:
+        if (na == 0)
+            E(w, ZL_PUSH, op == B_ADD ? 0 : 1, 0);
+        else {
+            TRY(fold(w, op == B_ADD ? ZL_ADD : ZL_MUL, a));
+            if (na == 1) { /* (+ x) is x, checked to be a number */
+                E(w, ZL_PUSH, op == B_ADD ? 0 : 1, 0);
+                E(w, op == B_ADD ? ZL_ADD : ZL_MUL, 0, 0);
+            }
+        }
+        break;
+    case B_SUB:
+        TRY(fold(w, ZL_SUB, a));
+        if (na == 1) E(w, ZL_NEG, 0, 0);
+        break;
+    case B_DIV:
+        if (na == 1) E(w, ZL_PUSH, 1, 0);
+        TRY(cv(w, a));
+        if (na == 1) E(w, ZL_DIVX, 0, 0);
+        for (int32_t e = a2; e >= 0; e = N(w, e)->next) {
+            TRY(cv(w, e));
+            E(w, ZL_DIVX, 0, 0);
+        }
+        break;
+    case B_MIN:
+    case B_MAX: {
+        int num;
+        TRY(cx(w, a, X_VALUE, &num));
+        if (na == 1) guard_num(w, num);
+        for (int32_t e = a2; e >= 0; e = N(w, e)->next) {
+            TRY(cv(w, e));
+            E(w, op == B_MIN ? ZL_MIN : ZL_MAX, 0, 0);
+        }
+        break;
+    }
+    case B_ABS:
+        TRY(cv(w, a));
+        E(w, ZL_ABS, 0, 0);
+        break;
+    case B_INC:
+    case B_DEC:
+        TRY(cv(w, a));
+        E(w, ZL_PUSH, 1, 0);
+        E(w, op == B_INC ? ZL_ADD : ZL_SUB, 0, 0);
+        break;
+    case B_FLOOR:
+    case B_TRUNC:
+    case B_CEIL:
+        TRY(cv(w, a));
+        if (op == B_CEIL) E(w, ZL_NEG, 0, 0);
+        if (na == 2)
+            TRY(cv(w, a2));
+        else
+            E(w, ZL_PUSH, 1, 0);
+        E(w, op == B_TRUNC ? ZL_DIVT : ZL_DIVF, 0, 0);
+        if (op == B_CEIL) E(w, ZL_NEG, 0, 0);
+        break;
+    case B_MODF:
+    case B_MODT:
+    case B_EXPT:
+        TRY(cv(w, a));
+        TRY(cv(w, a2));
+        E(w, op == B_MODF ? ZL_MODF : op == B_MODT ? ZL_MODT : ZL_POW, op == B_EXPT, 0);
+        break;
+    case B_NUMEQ:
+        return compare(w, ZL_EQ, a, na, ctx, n);
+    case B_NUMNE:
+        return compare(w, ZL_NE, a, na, ctx, n);
+    case B_LT:
+        return compare(w, ZL_LT, a, na, ctx, n);
+    case B_GT:
+        return compare(w, ZL_GT, a, na, ctx, n);
+    case B_LE:
+        return compare(w, ZL_LE, a, na, ctx, n);
+    case B_GE:
+        return compare(w, ZL_GE, a, na, ctx, n);
+    case B_ZEROP:
+        TRY(cv(w, a));
+        E(w, ZL_SGN, 0, 0); /* checks the number; 0 stays 0 */
+        E(w, ZL_NOT, 0, 0);
+        return fin_flag(w, ctx);
+    case B_PLUSP:
+    case B_MINUSP:
+        TRY(cv(w, a));
+        E(w, ZL_PUSH, 0, 0);
+        E(w, op == B_PLUSP ? ZL_GT : ZL_LT, 0, 0);
+        return fin_flag(w, ctx);
+    case B_EVENP:
+    case B_ODDP:
+        TRY(cv(w, a));
+        E(w, ZL_PUSH, 2, 0);
+        E(w, ZL_MODF, 0, 0);
+        if (op == B_EVENP) E(w, ZL_NOT, 0, 0);
+        return fin_flag(w, ctx);
+    case B_NUMBERP:
+    case B_CONSP:
+    case B_NULL:
+    case B_ATOM:
+        TRY(cv(w, a));
+        E(w, ZL_ISA, op == B_NUMBERP ? ZL_ISA_NUMBER : op == B_NULL ? ZL_ISA_NULL : ZL_ISA_PAIR, 0);
+        if (op == B_ATOM) E(w, ZL_NOT, 0, 0);
+        return fin_flag(w, ctx);
+    case B_SYMBOLP:
+        TRY(cv(w, a));
+        if (w->lisp) { /* NIL and T are symbols too */
+            E(w, ZL_DUP, 0, 0);
+            E(w, ZL_ISA, ZL_ISA_SYMBOL, 0);
+            E(w, ZL_SWAP, 0, 0);
+            E(w, ZL_DUP, 0, 0);
+            E(w, ZL_ISA, ZL_ISA_NULL, 0);
+            E(w, ZL_SWAP, 0, 0);
+            E(w, ZL_PUSH, ZL_V_TRUE, 0);
+            E(w, ZL_EQ, 0, 0);
+            E(w, ZL_OR, 0, 0);
+            E(w, ZL_OR, 0, 0);
+        } else
+            E(w, ZL_ISA, ZL_ISA_SYMBOL, 0);
+        return fin_flag(w, ctx);
+    case B_LISTP:
+        TRY(cv(w, a));
+        E(w, ZL_DUP, 0, 0);
+        E(w, ZL_ISA, ZL_ISA_PAIR, 0);
+        E(w, ZL_SWAP, 0, 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        E(w, ZL_OR, 0, 0);
+        return fin_flag(w, ctx);
+    case B_NOT:
+        TRY(cv(w, a));
+        E(w, ZL_PUSH, ZL_V_FALSE, 0);
+        E(w, ZL_EQ, 0, 0);
+        return fin_flag(w, ctx);
+    case B_EQ:
+    case B_EQUAL:
+        TRY(cv(w, a));
+        TRY(cv(w, a2));
+        if (op == B_EQ)
+            E(w, ZL_EQ, 0, 0);
+        else
+            TRY(hcall(w, H_EQUAL, n));
+        return fin_flag(w, ctx);
+    case B_CXR: {
+        const char *p = b->canon; /* first rest second third */
+        size_t len = 0;
+        while (p[len]) len++;
+        TRY(cv(w, a));
+        for (size_t i = len - 1; i-- > 1;) E(w, p[i] == 'a' ? ZL_CAR : ZL_CDR, w->lisp, 0);
+        break;
+    }
+    case B_CONS:
+        TRY(cv(w, a));
+        TRY(cv(w, a2));
+        E(w, ZL_CONS, 0, 0);
+        break;
+    case B_LIST:
+        for (int32_t e = a; e >= 0; e = N(w, e)->next) TRY(cv(w, e));
+        E(w, ZL_PUSH, ZL_V_NIL, 0);
+        for (uint32_t i = 0; i < na; i++) E(w, ZL_CONS, 0, 0);
+        break;
+    case B_LENGTH:
+    case B_REVERSE:
+        TRY(cv(w, a));
+        TRY(hcall(w, op == B_LENGTH ? H_LENGTH : H_REVERSE, n));
+        break;
+    case B_APPEND:
+        if (na == 0) E(w, ZL_PUSH, ZL_V_NIL, 0);
+        for (int32_t e = a; e >= 0; e = N(w, e)->next) TRY(cv(w, e));
+        for (uint32_t i = 1; i < na; i++) TRY(hcall(w, H_APPEND, n));
+        break;
+    case B_MEMQ:
+    case B_MEMBER:
+    case B_ASSQ:
+    case B_ASSOC:
+        TRY(cv(w, a));
+        TRY(cv(w, a2));
+        TRY(hcall(w,
+                  op == B_MEMQ     ? H_MEMQ
+                  : op == B_MEMBER ? H_MEMBER
+                  : op == B_ASSQ   ? H_ASSQ
+                                   : H_ASSOC,
+                  n));
+        break;
+    case B_SETCAR:
+    case B_SETCDR:
+        TRY(cv(w, a));
+        TRY(cv(w, a2));
+        if (w->lisp && ctx != X_EFFECT) { /* rplaca returns the pair */
+            E(w, ZL_OVER, 0, 0);
+            E(w, ZL_SWAP, 0, 0);
+        }
+        E(w, op == B_SETCAR ? ZL_SETCAR : ZL_SETCDR, 0, 0);
+        if (w->lisp && ctx != X_EFFECT) return fin_value(w, ctx);
+        return fin_none(w, ctx, n);
+    case B_PRINT:
+    case B_PRIN1:
+    case B_PRINC:
+    case B_DISPLAY:
+    case B_WRITE:
+        return out_form(w, n, op, a, ctx);
+    case B_TERPRI:
+    case B_NEWLINE:
+        E(w, ZL_NL, 0, 0);
+        return fin_none(w, ctx, n);
+    case B_FORMAT:
+        return format_form(w, n, a, ctx);
+    default:
+        return lfail(w, n, ZL_E_ARG, "internal: unknown built-in");
+    }
+    if (isnum) *isnum = op <= B_EXPT || op == B_LENGTH;
+    return fin_value(w, ctx);
+}
+
+/* ------------------------------------------------------------ special forms */
+
+static int f_if(lw_t *w, int32_t n, int32_t a, uint32_t na, int ctx)
+{
+    if (na < 2 || na > 3)
+        return lfail(w, n, ZL_E_SYNTAX, "if takes a test, a then form and an optional else form");
+    int32_t th = nx(w, a), el = nx(w, th);
+    TRY(cx(w, a, X_TEST, 0));
+    int32_t j = E(w, ZL_JZ, 0, 0);
+    TRY(cx(w, th, ctx, 0));
+    if (el < 0 && ctx == X_EFFECT) {
+        patch_here(w, j);
+        return ok(w);
+    }
+    int32_t k = E(w, ZL_JMP, 0, 0);
+    patch_here(w, j);
+    if (el >= 0)
+        TRY(cx(w, el, ctx, 0));
+    else
+        TRY(fin_none(w, ctx, n));
+    patch_here(w, k);
+    return ok(w);
+}
+
+static int f_cond(lw_t *w, int32_t n, int32_t a, int ctx)
+{
+    int32_t end = -1;
+    int has_else = 0;
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 1;
+    for (int32_t cl = a; cl >= 0; cl = N(w, cl)->next) {
+        if (N(w, cl)->kind != K_LIST || N(w, cl)->kid < 0 || (N(w, cl)->flags & F_DOT))
+            return lfail(w, cl, ZL_E_SYNTAX, "a cond clause is a list (test form ...)");
+        int32_t t = N(w, cl)->kid, bd = N(w, t)->next;
+        if (!w->lisp && sym_is(w, bd, "=>"))
+            return lfail(w, bd, ZL_E_UNSUPPORTED, "cond clauses with => are not in this subset");
+        if ((!w->lisp && sym_is(w, t, "else")) || (w->lisp && sym_is(w, t, "t"))) {
+            if (!w->lisp && N(w, cl)->next >= 0)
+                return lfail(w, cl, ZL_E_SYNTAX, "else must be the last cond clause");
+            if (bd < 0) {
+                if (!w->lisp) return lfail(w, cl, ZL_E_SYNTAX, "an else clause needs a body");
+                E(w, ZL_PUSH, ZL_V_TRUE, 0);
+                TRY(fin_value(w, ctx == X_RESULT ? X_VALUE : ctx));
+            } else
+                TRY(seq(w, bd, ctx, cl));
+            end = chain(w, ZL_JMP, end);
+            has_else = 1;
+            continue;
+        }
+        if (bd < 0) { /* (test): the value of the test */
+            if (ctx == X_EFFECT || ctx == X_TEST) {
+                TRY(cx(w, t, X_TEST, 0));
+                if (ctx == X_TEST) E(w, ZL_DUP, 0, 0);
+                end = chain(w, ZL_JNZ, end);
+                if (ctx == X_TEST) E(w, ZL_DROP, 0, 0);
+            } else {
+                TRY(cv(w, t));
+                E(w, ZL_DUP, 0, 0);
+                to_flag(w);
+                end = chain(w, ZL_JNZ, end);
+                E(w, ZL_DROP, 0, 0);
+            }
+            continue;
+        }
+        TRY(cx(w, t, X_TEST, 0));
+        int32_t j = E(w, ZL_JZ, 0, 0);
+        TRY(seq(w, bd, ctx, cl));
+        end = chain(w, ZL_JMP, end);
+        patch_here(w, j);
+    }
+    if (!has_else) TRY(fin_none(w, ctx, n));
+    chain_patch(w, end);
+    return ok(w);
+}
+
+static int f_when(lw_t *w, int32_t n, int32_t a, int unless, int ctx)
+{
+    if (a < 0) return lfail(w, n, ZL_E_SYNTAX, "when and unless need a test");
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 2;
+    TRY(cx(w, a, X_TEST, 0));
+    int32_t j = E(w, unless ? ZL_JNZ : ZL_JZ, 0, 0);
+    TRY(seq(w, N(w, a)->next, ctx, n));
+    if (ctx == X_EFFECT) {
+        patch_here(w, j);
+        return ok(w);
+    }
+    int32_t k = E(w, ZL_JMP, 0, 0);
+    patch_here(w, j);
+    TRY(fin_none(w, ctx, n));
+    patch_here(w, k);
+    return ok(w);
+}
+
+static int f_andor(lw_t *w, int32_t a, uint32_t na, int is_or, int ctx)
+{
+    if (na == 0) {
+        E(w, ZL_PUSH, is_or ? w->F : ZL_V_TRUE, 0);
+        return fin_value(w, ctx == X_RESULT ? X_VALUE : ctx);
+    }
+    int32_t out = -1, end = -1;
+    for (int32_t e = a; e >= 0; e = N(w, e)->next) {
+        if (N(w, e)->next < 0) {
+            TRY(cx(w, e, ctx, 0));
+            break;
+        }
+        if (ctx == X_EFFECT) {
+            TRY(cx(w, e, X_TEST, 0));
+            end = chain(w, is_or ? ZL_JNZ : ZL_JZ, end);
+        } else if (ctx == X_TEST || !is_or) {
+            TRY(cx(w, e, X_TEST, 0));
+            out = chain(w, is_or ? ZL_JNZ : ZL_JZ, out);
+        } else { /* or for its value: the first true value */
+            TRY(cv(w, e));
+            E(w, ZL_DUP, 0, 0);
+            to_flag(w);
+            end = chain(w, ZL_JNZ, end);
+            E(w, ZL_DROP, 0, 0);
+        }
+    }
+    if (out >= 0) {
+        int32_t k = E(w, ZL_JMP, 0, 0);
+        chain_patch(w, out);
+        if (ctx == X_TEST)
+            E(w, ZL_PUSH, is_or, 0);
+        else
+            E(w, ZL_PUSH, w->F, 0);
+        patch_here(w, k);
+    }
+    chain_patch(w, end);
+    return ok(w);
+}
+
+/* One let binding: LISP admits X, (X) and (X init); Scheme (x init). */
+static int binding(lw_t *w, int32_t b, int32_t *name, int32_t *init)
+{
+    *init = -1;
+    if (w->lisp && N(w, b)->kind == K_SYM) {
+        *name = b;
+        N(w, b)->flags |= F_BARE;
+        return ok(w);
+    }
+    uint32_t k = N(w, b)->kind == K_LIST && !(N(w, b)->flags & F_DOT) ? count(w, N(w, b)->kid) : 0;
+    if (k == 2 || (w->lisp && k == 1)) {
+        *name = N(w, b)->kid;
+        if (k == 2)
+            *init = N(w, *name)->next;
+        else
+            N(w, b)->flags |= F_BARE;
+        if (N(w, *name)->kind != K_SYM)
+            return lfail(w, *name, ZL_E_SYNTAX, "a variable name is expected");
+        return ok(w);
+    }
+    return lfail(w, b, ZL_E_SYNTAX, "a binding is (name value)");
+}
+
+/* A binding or parameter list: a proper list, or LISP's NIL. */
+static int binding_list(lw_t *w, int32_t b, int32_t *first)
+{
+    if (w->lisp && sym_is(w, b, "nil")) {
+        N(w, b)->flags |= F_SYNTAX;
+        *first = -1;
+        return ok(w);
+    }
+    if (N(w, b)->kind != K_LIST || (N(w, b)->flags & F_DOT))
+        return lfail(w, b, ZL_E_SYNTAX, "a list of bindings or parameters is expected");
+    if (N(w, b)->kid < 0) N(w, b)->flags |= F_SYNTAX;
+    *first = N(w, b)->kid;
+    return ok(w);
+}
+
+static int f_named_let(lw_t *w, int32_t n, int32_t name, int ctx)
+{
+    int32_t bl = nx(w, name), first, fid;
+    if (bl < 0) return lfail(w, n, ZL_E_SYNTAX, "a named let needs bindings and a body");
+    TRY(binding_list(w, bl, &first));
+    for (int32_t b = first; b >= 0; b = N(w, b)->next) {
+        int32_t nm, init;
+        TRY(binding(w, b, &nm, &init));
+    }
+    TRY(check_binder(w, name));
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 3;
+    TRY(add_fn(w, name, first, 1, nx(w, bl), n, w->cur.level + 1, -1, &fid));
+    int32_t j = E(w, ZL_JMP, 0, 0);
+    uint32_t sc = w->nscope;
+    TRY(bind(w, name, B_FN, fid, n));
+    TRY(emit_fn(w, fid));
+    w->nscope = sc;
+    patch_here(w, j);
+    return ucall(w, n, fid, first, 1, ctx);
+}
+
+static int f_let(lw_t *w, int32_t n, int32_t a, int star, int ctx)
+{
+    if (a < 0) return lfail(w, n, ZL_E_SYNTAX, "let needs a list of bindings");
+    if (!star && !w->lisp && N(w, a)->kind == K_SYM) return f_named_let(w, n, a, ctx);
+    int32_t first;
+    TRY(binding_list(w, a, &first));
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 2;
+    uint32_t sc = w->nscope, nl = w->cur.nloc, nb = 0;
+    for (int32_t b = first; b >= 0; b = N(w, b)->next, nb++) {
+        int32_t nm, init;
+        TRY(binding(w, b, &nm, &init));
+        TRY(check_binder(w, nm));
+        if (!star)
+            for (int32_t q = first; q != b; q = N(w, q)->next) {
+                int32_t qn, qi;
+                TRY(binding(w, q, &qn, &qi));
+                if (name_eq(w, qn, nm))
+                    return lfail(w, nm, ZL_E_SYNTAX, "a name is bound twice in one list");
+            }
+        if (init >= 0)
+            TRY(cv(w, init));
+        else
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+        if (star) {
+            uint32_t off;
+            TRY(alloc_local(w, b, &off));
+            E(w, ZL_STOREF, off, 0);
+            TRY(bind(w, nm, B_VAR, (int32_t) off, b));
+        }
+    }
+    if (!star) {
+        uint32_t base = w->cur.nloc, off;
+        for (uint32_t i = 0; i < nb; i++) TRY(alloc_local(w, n, &off));
+        for (uint32_t i = nb; i-- > 0;) E(w, ZL_STOREF, base + i, 0);
+        uint32_t i = 0;
+        for (int32_t b = first; b >= 0; b = N(w, b)->next, i++) {
+            int32_t nm, init;
+            TRY(binding(w, b, &nm, &init));
+            TRY(bind(w, nm, B_VAR, (int32_t) (base + i), b));
+        }
+    }
+    TRY(body(w, nx(w, a), ctx, n));
+    w->nscope = sc;
+    w->cur.nloc = nl;
+    return ok(w);
+}
+
+static int f_setq(lw_t *w, int32_t n, int32_t a, uint32_t na, int ctx, int scheme_set)
+{
+    if (scheme_set ? na != 2 : (na & 1))
+        return lfail(w, n, ZL_E_SYNTAX,
+                     scheme_set ? "set! takes a name and a value"
+                                : "setq takes names and values in pairs");
+    if (sym_is(w, N(w, n)->kid, "setf")) {
+        for (int32_t p = a; p >= 0; p = nx(w, N(w, p)->next))
+            if (N(w, p)->kind != K_SYM)
+                return lfail(w, p, ZL_E_UNSUPPORTED,
+                             "setf of a place other than a variable is not in this subset");
+    }
+    if (na == 0) return fin_none(w, ctx, n);
+    for (int32_t p = a; p >= 0; p = nx(w, N(w, p)->next)) {
+        int32_t v = N(w, p)->next;
+        if (N(w, p)->kind != K_SYM) return lfail(w, p, ZL_E_SYNTAX, "a variable name is expected");
+        TRY(cv(w, v));
+        if (N(w, v)->next < 0 && ctx != X_EFFECT && !scheme_set) E(w, ZL_DUP, 0, 0);
+        TRY(store_var(w, p));
+    }
+    if (scheme_set) return fin_none(w, ctx, n);
+    return ctx == X_EFFECT ? ok(w) : fin_value(w, ctx);
+}
+
+/* incf decf push pop on a variable. */
+static int f_modify(lw_t *w, int32_t n, int code, int32_t a, uint32_t na, int ctx, int *isnum)
+{
+    int32_t place = code == S_PUSH ? nx(w, a) : a;
+    if (code == S_PUSH ? na != 2 : code == S_POP ? na != 1 : (na < 1 || na > 2))
+        return lfail(w, n, ZL_E_SYNTAX, "wrong number of arguments");
+    if (N(w, place)->kind != K_SYM)
+        return lfail(w, place, ZL_E_UNSUPPORTED, "only a variable can be modified in this subset");
+    int keep = ctx != X_EFFECT;
+    if (code == S_POP) {
+        TRY(load_var(w, place));
+        E(w, ZL_DUP, 0, 0);
+        E(w, ZL_CDR, 1, 0);
+        TRY(store_var(w, place));
+        E(w, ZL_CAR, 1, 0);
+        return fin_value(w, ctx);
+    }
+    if (code == S_PUSH) {
+        TRY(cv(w, a));
+        TRY(load_var(w, place));
+        E(w, ZL_CONS, 0, 0);
+    } else {
+        TRY(load_var(w, place));
+        if (na == 2)
+            TRY(cv(w, nx(w, a)));
+        else
+            E(w, ZL_PUSH, 1, 0);
+        E(w, code == S_INCF ? ZL_ADD : ZL_SUB, 0, 0);
+        if (isnum) *isnum = 1;
+    }
+    if (keep) E(w, ZL_DUP, 0, 0);
+    TRY(store_var(w, place));
+    return keep ? fin_value(w, ctx) : ok(w);
+}
+
+static int f_dotimes(lw_t *w, int32_t n, int32_t a, int ctx)
+{
+    uint32_t k =
+        a >= 0 && N(w, a)->kind == K_LIST && !(N(w, a)->flags & F_DOT) ? count(w, N(w, a)->kid) : 0;
+    if (k < 2 || k > 3)
+        return lfail(w, n, ZL_E_SYNTAX, "dotimes takes (variable count [result]) and a body");
+    int32_t var = N(w, a)->kid, lim = N(w, var)->next, res = N(w, lim)->next;
+    TRY(check_binder(w, var));
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 2;
+    uint32_t sc = w->nscope, nl = w->cur.nloc, ol, oi;
+    TRY(cv(w, lim));
+    TRY(alloc_local(w, n, &ol));
+    TRY(alloc_local(w, n, &oi));
+    E(w, ZL_STOREF, ol, 0);
+    E(w, ZL_PUSH, 0, 0);
+    E(w, ZL_STOREF, oi, 0);
+    TRY(bind(w, var, B_VAR, (int32_t) oi, var));
+    int32_t top = here(w);
+    E(w, ZL_LOADF, oi, 0);
+    E(w, ZL_LOADF, ol, 0);
+    E(w, ZL_LT, 0, 0);
+    int32_t j = E(w, ZL_JZ, 0, 0);
+    TRY(loop_body(w, nx(w, a)));
+    E(w, ZL_LOADF, oi, 0);
+    E(w, ZL_PUSH, 1, 0);
+    E(w, ZL_ADD, 0, 0);
+    E(w, ZL_STOREF, oi, 0);
+    E(w, ZL_JMP, top, 0);
+    patch_here(w, j);
+    if (res >= 0)
+        TRY(cx(w, res, ctx, 0));
+    else
+        TRY(fin_none(w, ctx, n));
+    w->nscope = sc;
+    w->cur.nloc = nl;
+    return ok(w);
+}
+
+static int f_do(lw_t *w, int32_t n, int32_t a, int ctx)
+{
+    int32_t first, endc = nx(w, a);
+    if (endc < 0)
+        return lfail(w, n, ZL_E_SYNTAX, "do takes bindings, (test result ...) and a body");
+    TRY(binding_list(w, a, &first));
+    if (N(w, endc)->kind != K_LIST || N(w, endc)->kid < 0 || (N(w, endc)->flags & F_DOT))
+        return lfail(w, endc, ZL_E_SYNTAX, "do needs (test result ...)");
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 3;
+    uint32_t sc = w->nscope, nl = w->cur.nloc, nb = 0, base, off;
+    for (int32_t b = first; b >= 0; b = N(w, b)->next, nb++) {
+        uint32_t k =
+            N(w, b)->kind == K_LIST && !(N(w, b)->flags & F_DOT) ? count(w, N(w, b)->kid) : 0;
+        if (k < 2 || k > 3) return lfail(w, b, ZL_E_SYNTAX, "a do binding is (name init [step])");
+        int32_t nm = N(w, b)->kid;
+        TRY(check_binder(w, nm));
+        for (int32_t q = first; q != b; q = N(w, q)->next)
+            if (name_eq(w, N(w, q)->kid, nm))
+                return lfail(w, nm, ZL_E_SYNTAX, "a name is bound twice in one list");
+        TRY(cv(w, N(w, nm)->next));
+    }
+    base = w->cur.nloc;
+    for (uint32_t i = 0; i < nb; i++) TRY(alloc_local(w, n, &off));
+    for (uint32_t i = nb; i-- > 0;) E(w, ZL_STOREF, base + i, 0);
+    uint32_t i = 0;
+    for (int32_t b = first; b >= 0; b = N(w, b)->next, i++)
+        TRY(bind(w, N(w, b)->kid, B_VAR, (int32_t) (base + i), b));
+    int32_t top = here(w);
+    TRY(cx(w, N(w, endc)->kid, X_TEST, 0));
+    int32_t j = E(w, ZL_JNZ, 0, 0);
+    TRY(loop_body(w, nx(w, endc)));
+    uint32_t sbase = w->nscr;
+    i = 0;
+    for (int32_t b = first; b >= 0; b = N(w, b)->next, i++) {
+        int32_t step = nx(w, N(w, N(w, b)->kid)->next);
+        if (step < 0) continue;
+        TRY(cv(w, step));
+        if (w->nscr >= L_NODES) return lfail(w, n, ZL_E_LIMIT, "too many do variables");
+        w->scr[w->nscr++] = (int32_t) i;
+    }
+    while (w->nscr > sbase)
+        E(w, ZL_STOREF, base + (uint32_t) w->scr[--w->nscr], 0); /* in reverse */
+    E(w, ZL_JMP, top, 0);
+    patch_here(w, j);
+    int32_t res = N(w, N(w, endc)->kid)->next;
+    if (res >= 0)
+        TRY(seq(w, res, ctx, n));
+    else
+        TRY(fin_none(w, ctx, n));
+    w->nscope = sc;
+    w->cur.nloc = nl;
+    return ok(w);
+}
+
+/* The functions (name (params) body...) of a labels form, bound before
+ * any is compiled so they can call each other. */
+static int local_fns(lw_t *w, int32_t first)
+{
+    for (int32_t d = first; d >= 0; d = N(w, d)->next) {
+        int32_t name, params, bd, fid;
+        {
+            if (N(w, d)->kind != K_LIST || count(w, N(w, d)->kid) < 2 || (N(w, d)->flags & F_DOT))
+                return lfail(w, d, ZL_E_SYNTAX,
+                             "a labels function is (name (parameters) body ...)");
+            name = N(w, d)->kid;
+            TRY(binding_list(w, N(w, name)->next, &params));
+            bd = N(w, N(w, name)->next)->next;
+            N(w, d)->flags |= F_BLOCK;
+            N(w, d)->k = 2;
+            if (N(w, name)->kind != K_SYM)
+                return lfail(w, name, ZL_E_SYNTAX, "a function name is expected");
+            if (is_standard(w, name) || is_const(w, name))
+                return lfail(w, name, ZL_E_UNSUPPORTED,
+                             "redefining a standard function is not in this subset");
+            for (int32_t q = first; q != d; q = N(w, q)->next)
+                if (name_eq(w, N(w, q)->kid, name))
+                    return lfail(w, name, ZL_E_SYNTAX, "a function is defined twice");
+            TRY(add_fn(w, name, params, 0, bd, d, w->cur.level + 1, -1, &fid));
+            N(w, d)->v = fid;
+            TRY(bind(w, name, B_FN, fid, d));
+        }
+    }
+    return ok(w);
+}
+
+static int f_labels(lw_t *w, int32_t n, int32_t a, int ctx)
+{
+    int32_t first;
+    if (a < 0) return lfail(w, n, ZL_E_SYNTAX, "labels needs a list of functions");
+    TRY(binding_list(w, a, &first));
+    N(w, n)->flags |= F_BLOCK;
+    N(w, n)->k = 2;
+    uint32_t sc = w->nscope;
+    TRY(local_fns(w, first));
+    for (int32_t d = first; d >= 0; d = N(w, d)->next) {
+        int32_t j = E(w, ZL_JMP, 0, 0);
+        TRY(emit_fn(w, (int32_t) N(w, d)->v));
+        patch_here(w, j);
+    }
+    TRY(seq(w, nx(w, a), ctx, n));
+    w->nscope = sc;
+    return ok(w);
+}
+
+static int special(lw_t *w, int32_t n, int si, int ctx, int *isnum)
+{
+    int32_t h = N(w, n)->kid, a = N(w, h)->next;
+    uint32_t na = count(w, a);
+    if (specs[si].canon) {
+        N(w, h)->flags |= F_ALIAS;
+        N(w, h)->alias = (uint8_t) (128 + si);
+    }
+    switch (specs[si].code) {
+    case S_QUOTE:
+        return lfail(w, n, ZL_E_SYNTAX, "quote takes one datum");
+    case S_IF:
+        return f_if(w, n, a, na, ctx);
+    case S_COND:
+        return f_cond(w, n, a, ctx);
+    case S_WHEN:
+    case S_UNLESS:
+        return f_when(w, n, a, specs[si].code == S_UNLESS, ctx);
+    case S_AND:
+    case S_OR:
+        return f_andor(w, a, na, specs[si].code == S_OR, ctx);
+    case S_BEGIN:
+        N(w, n)->flags |= F_BLOCK;
+        N(w, n)->k = 1;
+        if (!w->lisp && a < 0) return lfail(w, n, ZL_E_SYNTAX, "(begin) needs an expression");
+        return seq(w, a, ctx, n);
+    case S_LET:
+    case S_LETSTAR:
+        return f_let(w, n, a, specs[si].code == S_LETSTAR, ctx);
+    case S_SETQ:
+    case S_SET:
+        return f_setq(w, n, a, na, ctx, specs[si].code == S_SET);
+    case S_INCF:
+    case S_DECF:
+    case S_PUSH:
+    case S_POP:
+        return f_modify(w, n, specs[si].code, a, na, ctx, isnum);
+    case S_DOTIMES:
+        return f_dotimes(w, n, a, ctx);
+    case S_DO:
+        return f_do(w, n, a, ctx);
+    case S_LABELS:
+        return f_labels(w, n, a, ctx);
+    case S_LAMBDA:
+        return lfail(w, n, ZL_E_UNSUPPORTED, why[R_PROC]);
+    case S_DEFUN:
+    case S_DEFVAR:
+        return lfail(w, n, ZL_E_UNSUPPORTED, "defun and defvar are admitted only at the top level");
+    default:
+        return lfail(w, n, ZL_E_SYNTAX,
+                     "define is admitted only at the top level or at the start of a body");
+    }
+}
+
+static int call(lw_t *w, int32_t n, int ctx, int *isnum)
+{
+    int32_t h = N(w, n)->kid;
+    int si = find_spec(w, h);
+    if (si >= 0) return special(w, n, si, ctx, isnum);
+    int32_t b = find_scope(w, h, 1);
+    if (b >= 0) {
+        if (w->scope[b].kind != B_FN)
+            return lfail(w, h, ZL_E_UNSUPPORTED,
+                         "calling a variable: procedures are not values in this subset");
+        return ucall(w, n, w->scope[b].v, N(w, h)->next, 0, ctx);
+    }
+    int32_t f = find_topfn(w, h);
+    if (f >= 0) return ucall(w, n, f, N(w, h)->next, 0, ctx);
+    if (!w->lisp && find_glob(w, h) >= 0)
+        return lfail(w, h, ZL_E_UNSUPPORTED,
+                     "calling a variable: procedures are not values in this subset");
+    int bi = find_bi(w, h);
+    if (bi >= 0) return bcall(w, n, bi, ctx, isnum);
+    if (is_cxr(w, h)) {
+        int32_t a = N(w, h)->next;
+        if (count(w, a) != 1) return lfail(w, n, ZL_E_SYNTAX, "wrong number of arguments");
+        TRY(cv(w, a));
+        size_t len = N(w, h)->len;
+        const char *p = w->src + N(w, h)->v;
+        for (size_t i = len - 1; i-- > 1;)
+            E(w, lc(w, (unsigned char) p[i]) == 'a' ? ZL_CAR : ZL_CDR, w->lisp, 0);
+        return fin_value(w, ctx);
+    }
+    int r = find_refused(w, h);
+    if (r >= 0) return lfail(w, h, ZL_E_UNSUPPORTED, why[refused[r].why]);
+    return lfail(w, h, ZL_E_UNDEFINED, "undefined function");
+}
+
+static int cx(lw_t *w, int32_t n, int ctx, int *isnum)
+{
+    lnode_t *x = N(w, n);
+    uint32_t saved = w->c->line;
+    int s = ZL_OK;
+    if (isnum) *isnum = 0;
+    if (++w->depth > 2 * ZL_MAX_DEPTH + 8)
+        return lfail(w, n, ZL_E_LIMIT, "forms nested too deeply");
+    w->c->line = x->line;
+    switch (x->kind) {
+    case K_NUM:
+        E(w, ZL_PUSH, x->v, 0);
+        if (isnum) *isnum = 1;
+        s = fin_value(w, ctx);
+        break;
+    case K_TRUE:
+    case K_FALSE:
+        E(w, ZL_PUSH, x->kind == K_TRUE ? ZL_V_TRUE : ZL_V_FALSE, 0);
+        s = fin_value(w, ctx);
+        break;
+    case K_STR:
+        s = lfail(w, n, ZL_E_UNSUPPORTED, why[R_STRING]);
+        break;
+    case K_QUOTE: {
+        int32_t d = x->kid;
+        int k = N(w, d)->kind;
+        if (k == K_NUM || k == K_TRUE || k == K_FALSE ||
+            (w->lisp && (is_empty(w, d) || sym_is(w, d, "t"))))
+            x->flags |= F_UNQ;
+        if (k == K_NUM && isnum) *isnum = 1;
+        if ((s = datum(w, d)) == ZL_OK) s = fin_value(w, ctx);
+        break;
+    }
+    case K_SYM:
+        if (sym_is(w, n, w->lisp ? "nil" : "")) {
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+        } else if (w->lisp && sym_is(w, n, "t")) {
+            E(w, ZL_PUSH, ZL_V_TRUE, 0);
+        } else if ((s = load_var(w, n)) != ZL_OK)
+            break;
+        s = fin_value(w, ctx);
+        break;
+    case K_LIST:
+        if (x->kid < 0) {
+            if (!w->lisp) {
+                s = lfail(w, n, ZL_E_SYNTAX, "() must be quoted in Scheme: '()");
+                break;
+            }
+            E(w, ZL_PUSH, ZL_V_NIL, 0);
+            s = fin_value(w, ctx);
+            break;
+        }
+        if (x->flags & F_DOT) {
+            s = lfail(w, n, ZL_E_SYNTAX, "a dotted list is not a form");
+            break;
+        }
+        if (N(w, x->kid)->kind != K_SYM) {
+            s = lfail(w, x->kid, N(w, x->kid)->kind == K_LIST ? ZL_E_UNSUPPORTED : ZL_E_SYNTAX,
+                      N(w, x->kid)->kind == K_LIST ? why[R_PROC] : "a function name is expected");
+            break;
+        }
+        s = call(w, n, ctx, isnum);
+        break;
+    default:
+        s = lfail(w, n, ZL_E_SYNTAX, "not a form");
+        break;
+    }
+    w->depth--;
+    w->c->line = saved;
+    return s ? s : ok(w);
+}
+
+/* ------------------------------------------------------------ bodies and functions */
+
+/* Scheme (define (name p ...) body ...) or (define name (lambda (p ...) body ...)). */
+static int fn_define(lw_t *w, int32_t d, int32_t *name, int32_t *params, int32_t *bd)
+{
+    int32_t h = N(w, N(w, d)->kid)->next;
+    if (h < 0) return 0;
+    if (N(w, h)->kind == K_LIST && N(w, h)->kid >= 0) {
+        if (N(w, h)->flags & F_DOT) return -1;
+        *name = N(w, h)->kid;
+        *params = N(w, *name)->next;
+        *bd = N(w, h)->next;
+        return 1;
+    }
+    int32_t v = N(w, h)->next;
+    if (N(w, h)->kind == K_SYM && v >= 0 && N(w, v)->next < 0 && N(w, v)->kind == K_LIST &&
+        sym_is(w, N(w, v)->kid, "lambda")) {
+        int32_t pl = N(w, N(w, v)->kid)->next;
+        if (pl < 0 || N(w, pl)->kind != K_LIST || (N(w, pl)->flags & F_DOT)) return -1;
+        *name = h;
+        *params = N(w, pl)->kid;
+        *bd = N(w, pl)->next;
+        N(w, d)->flags |= F_LAMDEF;
+        return 1;
+    }
+    return 0;
+}
+
+static int is_define(lw_t *w, int32_t e)
+{
+    return !w->lisp && N(w, e)->kind == K_LIST && sym_is(w, N(w, e)->kid, "define");
+}
+
+static int body(lw_t *w, int32_t first, int ctx, int32_t at)
+{
+    uint32_t sc = w->nscope, nl = w->cur.nloc;
+    int32_t e = first;
+    /* Scheme internal defines: procedures are bound first, so they can call each other */
+    for (int32_t d = first; d >= 0 && is_define(w, d); d = N(w, d)->next) {
+        int32_t name, params, bd, fid;
+        int k = fn_define(w, d, &name, &params, &bd);
+        if (k < 0)
+            return lfail(w, d, ZL_E_UNSUPPORTED, "variadic procedures are not in this subset");
+        if (!k) continue;
+        if (N(w, name)->kind != K_SYM)
+            return lfail(w, name, ZL_E_SYNTAX, "a procedure name is expected");
+        TRY(check_binder(w, name));
+        if (bd < 0) return lfail(w, d, ZL_E_SYNTAX, "a body needs at least one expression");
+        N(w, d)->flags |= F_BLOCK;
+        N(w, d)->k = 2;
+        for (uint32_t i = sc; i < w->nscope; i++)
+            if (name_eq(w, w->scope[i].name, name))
+                return lfail(w, name, ZL_E_SYNTAX, "a name is defined twice in one body");
+        TRY(add_fn(w, name, params, 0, bd, d, w->cur.level + 1, -1, &fid));
+        N(w, d)->v = fid;
+        TRY(bind(w, name, B_FN, fid, d));
+    }
+    for (; e >= 0 && is_define(w, e); e = N(w, e)->next) {
+        int32_t name, params, bd;
+        if (fn_define(w, e, &name, &params, &bd) > 0) {
+            int32_t j = E(w, ZL_JMP, 0, 0);
+            TRY(emit_fn(w, (int32_t) N(w, e)->v));
+            patch_here(w, j);
+            continue;
+        }
+        int32_t nm = N(w, N(w, e)->kid)->next;
+        uint32_t off;
+        if (count(w, N(w, e)->kid) != 3)
+            return lfail(w, e, ZL_E_SYNTAX, "define takes a name and a value");
+        TRY(check_binder(w, nm));
+        for (uint32_t i = sc; i < w->nscope; i++)
+            if (name_eq(w, w->scope[i].name, nm))
+                return lfail(w, nm, ZL_E_SYNTAX, "a name is defined twice in one body");
+        TRY(cv(w, N(w, nm)->next));
+        TRY(alloc_local(w, e, &off));
+        E(w, ZL_STOREF, off, 0);
+        TRY(bind(w, nm, B_VAR, (int32_t) off, e));
+    }
+    TRY(seq(w, e, ctx, at));
+    w->nscope = sc;
+    w->cur.nloc = nl;
+    return ok(w);
+}
+
+static int emit_fn(lw_t *w, int32_t fid)
+{
+    lfn_t *f = &w->fns[fid];
+    uint32_t sc = w->nscope, saved_line = w->c->line;
+    int32_t ofid = w->cur.fid;
+    uint32_t olevel = w->cur.level, onloc = w->cur.nloc, omax = w->cur.maxloc;
+    w->c->line = N(w, f->at)->line;
+    w->cur.fid = fid;
+    w->cur.level = f->level;
+    w->cur.nloc = w->cur.maxloc = f->nparams;
+    f->entry = E(w, ZL_ENTER, 0, f->nparams);
+    uint32_t i = 0;
+    for (int32_t p = f->params; p >= 0; p = N(w, p)->next, i++)
+        TRY(bind(w, pname(w, p, f->pkind), B_VAR, (int32_t) i, p));
+    TRY(body(w, f->body, X_RESULT, f->at));
+    E(w, ZL_LEAVE, 0, 0);
+    E(w, ZL_RET, 0, 0);
+    if (f->entry >= 0) w->c->p->code[f->entry].a = w->cur.maxloc;
+    w->nscope = sc;
+    w->cur.fid = ofid;
+    w->cur.level = olevel;
+    w->cur.nloc = onloc;
+    w->cur.maxloc = omax;
+    w->c->line = saved_line;
+    return ok(w);
+}
+
+/* ------------------------------------------------------------ top level */
+
+static int collect(lw_t *w)
+{
+    for (uint32_t i = 0; i < w->nforms; i++) {
+        int32_t n = w->form[i], h = N(w, n)->kind == K_LIST ? N(w, n)->kid : -1;
+        w->fkind[i] = T_FORM;
+        if (h < 0) continue;
+        int32_t name = N(w, h)->next, fid;
+        if (w->lisp && sym_is(w, h, "defun")) {
+            if (count(w, h) < 3 || (N(w, n)->flags & F_DOT))
+                return lfail(w, n, ZL_E_SYNTAX, "defun takes a name, parameters and a body");
+            if (N(w, name)->kind != K_SYM)
+                return lfail(w, name, ZL_E_SYNTAX, "a function name is expected");
+            if (is_standard(w, name) || is_const(w, name))
+                return lfail(w, name, ZL_E_UNSUPPORTED,
+                             "redefining a standard function is not in this subset");
+            if (find_topfn(w, name) >= 0)
+                return lfail(w, name, ZL_E_SYNTAX, "a function is defined twice");
+            int32_t params;
+            TRY(binding_list(w, N(w, name)->next, &params));
+            N(w, n)->flags |= F_BLOCK;
+            N(w, n)->k = 3;
+            TRY(add_fn(w, name, params, 0, N(w, N(w, name)->next)->next, n, 1, (int32_t) i, &fid));
+            w->fkind[i] = T_FN;
+            w->fref[i] = fid;
+        } else if ((w->lisp && (sym_is(w, h, "defvar") || sym_is(w, h, "defparameter"))) ||
+                   (!w->lisp && sym_is(w, h, "define"))) {
+            int32_t params, bd;
+            int k = w->lisp ? 0 : fn_define(w, n, &name, &params, &bd);
+            if (k < 0)
+                return lfail(w, n, ZL_E_UNSUPPORTED, "variadic procedures are not in this subset");
+            if (k == 0 && count(w, h) != 3) {
+                if (w->lisp && count(w, h) == 2)
+                    return lfail(w, n, ZL_E_UNSUPPORTED,
+                                 "defvar without a value is not in this subset");
+                return lfail(w, n, ZL_E_SYNTAX,
+                             w->lisp ? "defvar takes a name and a value"
+                                     : "define takes a name and a value");
+            }
+            if ((N(w, n)->flags & F_DOT) || N(w, name)->kind != K_SYM)
+                return lfail(w, name, ZL_E_SYNTAX, "a name is expected");
+            if (w->lisp ? (is_standard(w, name) || is_const(w, name)) : find_spec(w, name) >= 0)
+                return lfail(w, name, ZL_E_UNSUPPORTED,
+                             w->lisp ? "redefining a standard name is not in this subset"
+                                     : "redefining a syntax keyword is not in this subset");
+            if (find_glob(w, name) >= 0 || (!w->lisp && find_topfn(w, name) >= 0))
+                return lfail(w, name, ZL_E_SYNTAX, "a name is defined twice");
+            if (k) {
+                if (bd < 0) return lfail(w, n, ZL_E_SYNTAX, "a body needs at least one expression");
+                N(w, n)->flags |= F_BLOCK;
+                N(w, n)->k = 2;
+                TRY(add_fn(w, name, params, 0, bd, n, 1, (int32_t) i, &fid));
+                w->fkind[i] = T_FN;
+                w->fref[i] = fid;
+                continue;
+            }
+            if (w->nglob >= L_GLOB) return lfail(w, n, ZL_E_LIMIT, "too many global variables");
+            int32_t slot = zl_slots(w->c, 1);
+            if (slot < 0) return ok(w);
+            w->glob[w->nglob].name = name;
+            w->glob[w->nglob].top = (int32_t) i;
+            w->glob[w->nglob].slot = slot;
+            w->fkind[i] = T_VAR;
+            w->fref[i] = (int32_t) w->nglob++;
+        }
+    }
+    return ok(w);
+}
+
+/* Every function and global a node may reach, by name (over-approximate). */
+static void scan(lw_t *w, int32_t n, uint32_t *calls, uint32_t *refs)
+{
+    for (; n >= 0; n = N(w, n)->next) {
+        lnode_t *x = N(w, n);
+        if (x->kind == K_SYM) {
+            for (uint32_t f = 0; f < w->nfns; f++)
+                if (w->fns[f].top >= 0 && name_eq(w, w->fns[f].name, n))
+                    calls[f / 32] |= 1u << (f % 32);
+            for (uint32_t g = 0; g < w->nglob; g++)
+                if (name_eq(w, w->glob[g].name, n)) refs[g / 32] |= 1u << (g % 32);
+        } else if (x->kind == K_LIST) {
+            scan(w, x->kid, calls, refs);
+        }
+    }
+}
+
+static int bit(const uint32_t *s, uint32_t i)
+{
+    return (s[i / 32] >> (i % 32)) & 1;
+}
+
+/* A top-level form may only run functions and read globals whose
+ * definitions ran before it (sbcl and guile would stop there). */
+static int reach(lw_t *w)
+{
+    static const char *const late_fn = "a function is called before its definition has run";
+    static const char *const late_var = "a global variable is used before its definition has run";
+    uint32_t nf = w->nfns;
+    for (uint32_t f = 0; f < nf; f++) {
+        zl_bzero(w->fcalls[f], sizeof w->fcalls[f]);
+        zl_bzero(w->frefs[f], sizeof w->frefs[f]);
+        if (w->fns[f].top >= 0) scan(w, w->fns[f].body, w->fcalls[f], w->frefs[f]);
+    }
+    for (uint32_t i = 0; i < w->nforms; i++) {
+        uint32_t calls[L_FNS / 32], refs[L_GLOB / 32], seen[L_FNS / 32];
+        int32_t n = w->form[i];
+        if (w->fkind[i] == T_FN) continue;
+        zl_bzero(calls, sizeof calls);
+        zl_bzero(refs, sizeof refs);
+        zl_bzero(seen, sizeof seen);
+        if (w->fkind[i] == T_VAR) {
+            scan(w, N(w, w->glob[w->fref[i]].name)->next, calls, refs); /* the value */
+        } else
+            scan(w, n, calls, refs);
+        for (uint32_t g = 0; g < w->nglob; g++)
+            if (bit(refs, g) && w->glob[g].top >= (int32_t) i)
+                return lfail(w, n, ZL_E_UNDEFINED, late_var);
+        for (int changed = 1; changed;) { /* the transitive closure of calls */
+            changed = 0;
+            for (uint32_t f = 0; f < nf; f++) {
+                if (!bit(calls, f) || bit(seen, f)) continue;
+                seen[f / 32] |= 1u << (f % 32);
+                changed = 1;
+                if (w->fns[f].top > (int32_t) i) return lfail(w, n, ZL_E_UNDEFINED, late_fn);
+                for (uint32_t g = 0; g < w->nglob; g++)
+                    if (bit(w->frefs[f], g) && w->glob[g].top >= (int32_t) i)
+                        return lfail(w, n, ZL_E_UNDEFINED, late_var);
+                for (uint32_t k = 0; k < L_FNS / 32; k++) calls[k] |= w->fcalls[f][k];
+            }
+        }
+    }
+    return ok(w);
+}
+
+/* ------------------------------------------------------------ run-time helpers */
+
+static int32_t S(lw_t *w, int k)
+{
+    return w->scratch + k;
+}
+
+/* Helpers take their arguments on the stack and leave one result; they
+ * use scratch slots (never call back into the program, so never nest
+ * except member/assoc calling equal, which use other slots). */
+static int emit_helper(lw_t *w, int h)
+{
+    int32_t top, j1, j2;
+    int strict = 0;
+    w->helper[h] = here(w);
+    switch (h) {
+    case H_LENGTH:
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_PUSH, 0, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        top = E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        j1 = E(w, ZL_JNZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CDR, strict, 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_PUSH, 1, 0);
+        E(w, ZL_ADD, 0, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_JMP, top, 0);
+        patch_here(w, j1);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_RET, 0, 0);
+        break;
+    case H_REVERSE:
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_PUSH, ZL_V_NIL, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        top = E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        j1 = E(w, ZL_JNZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CAR, strict, 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_CONS, 0, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CDR, strict, 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_JMP, top, 0);
+        patch_here(w, j1);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_RET, 0, 0);
+        break;
+    case H_APPEND: /* copy the first list, share the second */
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        j1 = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_RET, 0, 0);
+        patch_here(w, j1);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CAR, strict, 0);
+        E(w, ZL_PUSH, ZL_V_NIL, 0);
+        E(w, ZL_CONS, 0, 0);
+        E(w, ZL_DUP, 0, 0);
+        E(w, ZL_STORE, S(w, 2), 0);
+        E(w, ZL_STORE, S(w, 3), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CDR, strict, 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        top = E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        j1 = E(w, ZL_JNZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 3), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CAR, strict, 0);
+        E(w, ZL_PUSH, ZL_V_NIL, 0);
+        E(w, ZL_CONS, 0, 0);
+        E(w, ZL_DUP, 0, 0);
+        E(w, ZL_STORE, S(w, 4), 0);
+        E(w, ZL_SETCDR, 0, 0);
+        E(w, ZL_LOAD, S(w, 4), 0);
+        E(w, ZL_STORE, S(w, 3), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CDR, strict, 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_JMP, top, 0);
+        patch_here(w, j1);
+        E(w, ZL_LOAD, S(w, 3), 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_SETCDR, 0, 0);
+        E(w, ZL_LOAD, S(w, 2), 0);
+        E(w, ZL_RET, 0, 0);
+        break;
+    case H_EQUAL: { /* pending (cdr, cdr) pairs wait on the data stack; S2 counts them */
+        int32_t same, diff, dl, yes, no;
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_PUSH, 0, 0);
+        E(w, ZL_STORE, S(w, 2), 0);
+        top = E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_EQ, 0, 0);
+        same = E(w, ZL_JNZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_ISA, ZL_ISA_PAIR, 0);
+        j1 = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_ISA, ZL_ISA_PAIR, 0);
+        j2 = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CDR, 0, 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_CDR, 0, 0);
+        E(w, ZL_LOAD, S(w, 2), 0);
+        E(w, ZL_PUSH, 1, 0);
+        E(w, ZL_ADD, 0, 0);
+        E(w, ZL_STORE, S(w, 2), 0);
+        E(w, ZL_LOAD, S(w, 0), 0);
+        E(w, ZL_CAR, 0, 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_LOAD, S(w, 1), 0);
+        E(w, ZL_CAR, 0, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_JMP, top, 0);
+        patch_here(w, same);
+        E(w, ZL_LOAD, S(w, 2), 0);
+        yes = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_STORE, S(w, 1), 0);
+        E(w, ZL_STORE, S(w, 0), 0);
+        E(w, ZL_LOAD, S(w, 2), 0);
+        E(w, ZL_PUSH, 1, 0);
+        E(w, ZL_SUB, 0, 0);
+        E(w, ZL_STORE, S(w, 2), 0);
+        E(w, ZL_JMP, top, 0);
+        diff = here(w);
+        patch_here(w, j1);
+        zl_patch(w->c, j2, diff);
+        dl = E(w, ZL_LOAD, S(w, 2), 0);
+        no = E(w, ZL_JZ, 0, 0);
+        E(w, ZL_DROP, 0, 0);
+        E(w, ZL_DROP, 0, 0);
+        E(w, ZL_LOAD, S(w, 2), 0);
+        E(w, ZL_PUSH, 1, 0);
+        E(w, ZL_SUB, 0, 0);
+        E(w, ZL_STORE, S(w, 2), 0);
+        E(w, ZL_JMP, dl, 0);
+        patch_here(w, yes);
+        E(w, ZL_PUSH, 1, 0);
+        E(w, ZL_RET, 0, 0);
+        patch_here(w, no);
+        E(w, ZL_PUSH, 0, 0);
+        E(w, ZL_RET, 0, 0);
+        break;
+    }
+    case H_MEMQ:
+    case H_MEMBER:
+    case H_ASSQ:
+    case H_ASSOC: {
+        int assoc = h == H_ASSQ || h == H_ASSOC, eq = h == H_MEMQ || h == H_ASSQ;
+        int32_t next = -1;
+        E(w, ZL_STORE, S(w, 7), 0);
+        E(w, ZL_STORE, S(w, 6), 0);
+        top = E(w, ZL_LOAD, S(w, 7), 0);
+        E(w, ZL_ISA, ZL_ISA_NULL, 0);
+        j1 = E(w, ZL_JNZ, 0, 0);
+        E(w, ZL_LOAD, S(w, 7), 0);
+        E(w, ZL_CAR, 0, 0);
+        if (assoc) {
+            E(w, ZL_STORE, S(w, 8), 0);
+            if (w->lisp) { /* LISP's assoc skips NIL elements */
+                E(w, ZL_LOAD, S(w, 8), 0);
+                E(w, ZL_ISA, ZL_ISA_NULL, 0);
+                next = E(w, ZL_JNZ, 0, 0);
+            }
+            E(w, ZL_LOAD, S(w, 8), 0);
+            E(w, ZL_CAR, 0, 0);
+        }
+        E(w, ZL_LOAD, S(w, 6), 0);
+        if (eq)
+            E(w, ZL_EQ, 0, 0);
+        else
+            add_fix(w, E(w, ZL_CALL, 0, 0), -H_EQUAL - 1, -1);
+        j2 = E(w, ZL_JNZ, 0, 0);
+        if (next >= 0) patch_here(w, next);
+        E(w, ZL_LOAD, S(w, 7), 0);
+        E(w, ZL_CDR, 0, 0);
+        E(w, ZL_STORE, S(w, 7), 0);
+        E(w, ZL_JMP, top, 0);
+        patch_here(w, j2);
+        E(w, ZL_LOAD, S(w, assoc ? 8 : 7), 0);
+        E(w, ZL_RET, 0, 0);
+        patch_here(w, j1);
+        E(w, ZL_PUSH, w->F, 0);
+        E(w, ZL_RET, 0, 0);
+        break;
+    }
+    }
+    return ok(w);
+}
+
+static int gen(lw_t *w)
+{
+    zl_cc_t *c = w->c;
+    w->cur.fid = -1;
+    w->cur.level = 1;
+    E(w, ZL_LINK, 0, 0);
+    int32_t enter = E(w, ZL_ENTER, 0, 0); /* the top level's own frame */
+    for (uint32_t i = 0; i < w->nforms; i++) {
+        int32_t n = w->form[i];
+        c->line = N(w, n)->line;
+        if (w->fkind[i] == T_FN) continue;
+        if (w->fkind[i] == T_VAR) {
+            lglob_t *g = &w->glob[w->fref[i]];
+            TRY(cv(w, N(w, g->name)->next));
+            E(w, ZL_STORE, g->slot, 0);
+            continue;
+        }
+        TRY(cx(w, n, X_EFFECT, 0));
+    }
+    E(w, ZL_HALT, 0, 0);
+    if (enter >= 0) c->p->code[enter].a = w->cur.maxloc;
+    for (uint32_t i = 0; i < w->nforms; i++)
+        if (w->fkind[i] == T_FN) TRY(emit_fn(w, w->fref[i]));
+    c->line = 0;
+    for (int h = 0; h < H__COUNT; h++)
+        if (w->hused[h]) TRY(emit_helper(w, h));
+    TRY(ok(w));
+    for (uint32_t k = 0; k < w->nfix; k++) {
+        int32_t f = w->fix[k].fid;
+        zl_patch(c, w->fix[k].at, f >= 0 ? w->fns[f].entry : w->helper[-f - 1]);
+    }
+    if (!w->lisp) { /* unspecified values flowing out of procedures */
+        for (int changed = 1; changed;) {
+            changed = 0;
+            for (uint32_t k = 0; k < w->nedge; k++)
+                if (w->fns[w->edge[k].to].unspec && !w->fns[w->edge[k].from].unspec) {
+                    w->fns[w->edge[k].from].unspec = 1;
+                    changed = 1;
+                }
+        }
+        for (uint32_t k = 0; k < w->nobs; k++)
+            if (w->fns[w->obs[k].fid].unspec) {
+                c->line = w->obs[k].line;
+                c->col = w->obs[k].col;
+                return zl_fail(
+                    c, ZL_E_UNSUPPORTED,
+                    "this procedure's value is unspecified in Scheme (it ends in display, "
+                    "set!, an if without else, ...): call it only as a statement");
+            }
+    }
+    return ok(w);
+}
+
+/* ------------------------------------------------------------ twin */
+
+static void tput(lw_t *w, const char *s, size_t n)
+{
+    zl_put(w->tw, s, n);
+    for (size_t i = 0; i < n; i++) w->tcol = s[i] == '\n' ? 0 : w->tcol + 1;
+}
+
+static void tputs(lw_t *w, const char *s)
+{
+    size_t n = 0;
+    while (s[n]) n++;
+    tput(w, s, n);
+}
+
+static void tw_put(void *ctx, const char *s, size_t n)
+{
+    tput((lw_t *) ctx, s, n);
+}
+
+static void tname(lw_t *w, const char *s, size_t n)
+{
+    for (size_t i = 0; i < n; i++) {
+        char ch = (char) (w->lisp ? zl_upper((unsigned char) s[i]) : s[i]);
+        tput(w, &ch, 1);
+    }
+}
+
+static void tindent(lw_t *w, size_t col)
+{
+    tput(w, "\n", 1);
+    for (size_t i = 0; i < col; i++) tput(w, " ", 1);
+}
+
+static void pnode(lw_t *w, int32_t n);
+
+/* Does the twin of n span more than one line? */
+static int multiline(lw_t *w, int32_t n)
+{
+    lnode_t *x = N(w, n);
+    if (x->kind != K_LIST) return 0;
+    if ((x->flags & (F_BLOCK | F_LAMDEF)) && count(w, x->kid) > ((x->flags & F_LAMDEF) ? 2u : x->k))
+        return 1;
+    for (int32_t e = x->kid; e >= 0; e = N(w, e)->next)
+        if (multiline(w, e)) return 1;
+    return 0;
+}
+
+static void pbare(lw_t *w, int32_t name)
+{
+    tput(w, "(", 1);
+    pnode(w, name);
+    tputs(w, " NIL)");
+}
+
+static void pnode(lw_t *w, int32_t n)
+{
+    lnode_t *x = N(w, n);
+    switch (x->kind) {
+    case K_NUM: {
+        char b[24];
+        tput(w, b, zl_itoa(x->v, b));
+        break;
+    }
+    case K_TRUE:
+        tputs(w, "#t");
+        break;
+    case K_FALSE:
+        tputs(w, "#f");
+        break;
+    case K_STR:
+        encode(w->sbuf, decode(w, n), tw_put, w);
+        break;
+    case K_QUOTE:
+        if (!(x->flags & F_UNQ)) tput(w, "'", 1);
+        pnode(w, x->kid);
+        break;
+    case K_SYM:
+        if (x->flags & F_SYNTAX)
+            tputs(w, "()");
+        else if (x->flags & F_BARE) {
+            x->flags &= (uint8_t) ~F_BARE;
+            pbare(w, n);
+            x->flags |= F_BARE;
+        } else if (x->flags & F_ALIAS) {
+            const char *s = x->alias >= 128 ? specs[x->alias - 128].canon : bis[x->alias - 1].canon;
+            size_t k = 0;
+            while (s[k]) k++;
+            tname(w, s, k);
+        } else
+            tname(w, w->src + x->v, x->len);
+        break;
+    case K_LIST: {
+        if (x->kid < 0) {
+            tputs(w, w->lisp && !(x->flags & F_SYNTAX) ? "NIL" : "()");
+            break;
+        }
+        if (x->flags & F_BARE) {
+            pbare(w, x->kid);
+            break;
+        }
+        size_t open = w->tcol;
+        int32_t e = x->kid;
+        if (x->flags &
+            F_LAMDEF) { /* (define f (lambda (p ...) b ...)) -> (define (f p ...) b ...) */
+            int32_t name = N(w, e)->next, lam = N(w, name)->next, pl = N(w, N(w, lam)->kid)->next;
+            tput(w, "(", 1);
+            pnode(w, e);
+            tputs(w, " (");
+            pnode(w, name);
+            for (int32_t p = N(w, pl)->kid; p >= 0; p = N(w, p)->next) {
+                tput(w, " ", 1);
+                pnode(w, p);
+            }
+            tput(w, ")", 1);
+            for (int32_t b = N(w, pl)->next; b >= 0; b = N(w, b)->next) {
+                tindent(w, open + 2);
+                pnode(w, b);
+            }
+            tput(w, ")", 1);
+            break;
+        }
+        uint32_t k = (x->flags & F_BLOCK) ? x->k : multiline(w, n) ? 2 : 0xffffffffu, i = 0;
+        tput(w, "(", 1);
+        for (; e >= 0; e = N(w, e)->next, i++) {
+            if (i) {
+                if (i >= k)
+                    tindent(w, open + 2);
+                else if ((x->flags & F_DOT) && N(w, e)->next < 0)
+                    tputs(w, " . ");
+                else
+                    tput(w, " ", 1);
+            }
+            pnode(w, e);
+        }
+        tput(w, ")", 1);
+        break;
+    }
+    case K_COMMENT:
+        tput(w, ";", 1);
+        if (x->len) {
+            tput(w, " ", 1);
+            tput(w, w->src + x->v, x->len);
+        }
+        break;
+    }
+}
+
+static void print_twin(lw_t *w)
+{
+    for (uint32_t i = 0; i < w->ntops; i++) {
+        pnode(w, w->tops[i]);
+        tput(w, "\n", 1);
+    }
+}
+
+/* ------------------------------------------------------------ entry */
 
 int zl_lisp_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work)
 {
-    (void) src;
-    (void) len;
-    (void) tw;
-    (void) work;
-    return zl_fail(c, ZL_E_UNSUPPORTED, "the LISP and Scheme front-end is not built yet");
+    lw_t *w = (lw_t *) work;
+    zl_bzero(w, offsetof(lw_t, nodes));
+    w->c = c;
+    w->tw = tw;
+    w->src = src;
+    w->len = len;
+    w->line = 1;
+    w->lisp = c->p->lang == ZL_LANG_LISP;
+    w->F = w->lisp ? ZL_V_NIL : ZL_V_FALSE;
+    w->scratch = -1;
+    c->p->word_bits = 62;
+    TRY(read_program(w));
+    TRY(collect(w));
+    TRY(reach(w));
+    TRY(gen(w));
+    if (tw) print_twin(w);
+    return ok(w);
 }

@@ -9,10 +9,9 @@
 # byte, and the integers it prints must equal, in order, the integers the
 # Pascal program prints when compiled with fpc. Layout is not compared: the
 # two languages pad numbers differently.
-# fpc is not among CI's packages yet, so its absence is a SKIP even when
-# ZXV_REQUIRE_LINGUA_REF=1; the .alg.out comparison runs regardless.
+# The .alg.out comparison runs even when fpc is missing.
 alg_fpc=0
-if command -v fpc >/dev/null 2>&1; then alg_fpc=1; else echo "[SKIP] lingua ALGOL 60 cross-check: fpc not installed"; fi
+if need fpc; then alg_fpc=1; fi
 for f in $G/*.alg; do
     [ -f "$f" ] || continue
     b=$(basename "$f" .alg)

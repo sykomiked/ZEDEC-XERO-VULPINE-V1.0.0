@@ -708,7 +708,7 @@ static const char *pas_ir(const char *src)
     return buf;
 }
 
-static void expect_ir(const char *src, const char *want, const char *what)
+static void pas_expect_ir(const char *src, const char *want, const char *what)
 {
     const char *got = pas_ir(src);
     CHECK(strcmp(got, want) == 0, "%s IR:\n got  %s\n want %s", what, got, want);
@@ -716,48 +716,48 @@ static void expect_ir(const char *src, const char *want, const char *what)
 
 static void test_pascal_ir(void)
 {
-    expect_ir("program t;\nvar x: integer;\nbegin\nx := 7 mod x\nend.\n",
-              "PUSH 7 0; LOAD 0 0; DUP 0 0; PUSH 0 0; LT 0 0; JZ 7 0; TRAP -2629 0; MODF 0 0; "
-              "STORE 0 0; HALT 0 0",
-              "ISO mod checks its divisor");
-    expect_ir(
+    pas_expect_ir("program t;\nvar x: integer;\nbegin\nx := 7 mod x\nend.\n",
+                  "PUSH 7 0; LOAD 0 0; DUP 0 0; PUSH 0 0; LT 0 0; JZ 7 0; TRAP -2629 0; MODF 0 0; "
+                  "STORE 0 0; HALT 0 0",
+                  "ISO mod checks its divisor");
+    pas_expect_ir(
         "program t;\nvar x: integer;\nbegin\nx := -x div 2 + abs(x) - sqr(x)\nend.\n",
         "LOAD 0 0; PUSH 2 0; DIVT 0 0; NEG 0 0; LOAD 0 0; ABS 0 0; ADD 0 0; LOAD 0 0; DUP 0 0; "
         "MUL 0 0; SUB 0 0; STORE 0 0; HALT 0 0",
         "sign, div, abs, sqr");
-    expect_ir(
+    pas_expect_ir(
         "program t;\nvar b: boolean; x: integer;\nbegin\nb := odd(x) and (x < 3) or not b;\n"
         "x := succ(pred(ord(b)))\nend.\n",
         "LOAD 1 0; PUSH 2 0; MODF 0 0; DUP 0 0; JZ 9 0; DROP 0 0; LOAD 1 0; PUSH 3 0; LT 0 0; "
         "DUP 0 0; JNZ 14 0; DROP 0 0; LOAD 0 0; NOT 0 0; STORE 0 0; LOAD 0 0; PUSH 1 0; "
         "SUB 0 0; PUSH 1 0; ADD 0 0; STORE 1 0; HALT 0 0",
         "short-circuit and/or, odd, succ, pred, ord");
-    expect_ir("program t;\nvar i: integer;\nbegin\nfor i := 1 to 3 do write(i)\nend.\n",
-              "PUSH 1 0; PUSH 3 0; STORE 1 0; STORE 0 0; LOAD 0 0; LOAD 1 0; GT 0 0; JNZ 19 0; "
-              "LOAD 0 0; OUTI 0 11; LOAD 0 0; LOAD 1 0; EQ 0 0; JNZ 19 0; LOAD 0 0; PUSH 1 0; "
-              "ADD 0 0; STORE 0 0; JMP 8 0; HALT 0 0",
-              "for to");
-    expect_ir("program t;\nvar i: integer;\nbegin\nfor i := 3 downto 1 do\nend.\n",
-              "PUSH 3 0; PUSH 1 0; STORE 1 0; STORE 0 0; LOAD 0 0; LOAD 1 0; LT 0 0; JNZ 17 0; "
-              "LOAD 0 0; LOAD 1 0; EQ 0 0; JNZ 17 0; LOAD 0 0; PUSH 1 0; SUB 0 0; STORE 0 0; "
-              "JMP 8 0; HALT 0 0",
-              "for downto");
-    expect_ir(
+    pas_expect_ir("program t;\nvar i: integer;\nbegin\nfor i := 1 to 3 do write(i)\nend.\n",
+                  "PUSH 1 0; PUSH 3 0; STORE 1 0; STORE 0 0; LOAD 0 0; LOAD 1 0; GT 0 0; JNZ 19 0; "
+                  "LOAD 0 0; OUTI 0 11; LOAD 0 0; LOAD 1 0; EQ 0 0; JNZ 19 0; LOAD 0 0; PUSH 1 0; "
+                  "ADD 0 0; STORE 0 0; JMP 8 0; HALT 0 0",
+                  "for to");
+    pas_expect_ir("program t;\nvar i: integer;\nbegin\nfor i := 3 downto 1 do\nend.\n",
+                  "PUSH 3 0; PUSH 1 0; STORE 1 0; STORE 0 0; LOAD 0 0; LOAD 1 0; LT 0 0; JNZ 17 0; "
+                  "LOAD 0 0; LOAD 1 0; EQ 0 0; JNZ 17 0; LOAD 0 0; PUSH 1 0; SUB 0 0; STORE 0 0; "
+                  "JMP 8 0; HALT 0 0",
+                  "for downto");
+    pas_expect_ir(
         "program t;\nvar b: boolean;\nbegin\nwhile b do b := false;\nrepeat until b;\n"
         "if b then writeln else write(1:3)\nend.\n",
         "LOAD 0 0; JZ 5 0; PUSH 0 0; STORE 0 0; JMP 0 0; LOAD 0 0; JZ 5 0; LOAD 0 0; JZ 11 0; "
         "NL 0 0; JMP 13 0; PUSH 1 0; OUTI 0 3; HALT 0 0",
         "while, repeat, if/else");
-    expect_ir(
+    pas_expect_ir(
         "program t;\nbegin\ncase 2 of 1, 2: writeln; -4: end\nend.\n",
         "PUSH 2 0; JMP 7 0; DROP 0 0; NL 0 0; JMP 20 0; DROP 0 0; JMP 20 0; DUP 0 0; PUSH 1 0; "
         "EQ 0 0; JNZ 2 0; DUP 0 0; PUSH 2 0; EQ 0 0; JNZ 2 0; DUP 0 0; PUSH -4 0; EQ 0 0; "
         "JNZ 5 0; TRAP -2629 0; HALT 0 0",
         "case dispatch");
-    expect_ir("program t;\nbegin\nwrite(true:2, 'ab':3)\nend.\n",
-              "PUSH 1 0; JZ 4 0; OUTS 0 0; JMP 5 0; OUTS 1 0; OUTS 2 0; HALT 0 0",
-              "Boolean and string widths");
-    expect_ir(
+    pas_expect_ir("program t;\nbegin\nwrite(true:2, 'ab':3)\nend.\n",
+                  "PUSH 1 0; JZ 4 0; OUTS 0 0; JMP 5 0; OUTS 1 0; OUTS 2 0; HALT 0 0",
+                  "Boolean and string widths");
+    pas_expect_ir(
         "program t;\nvar g: integer; v: array[2..4] of integer;\n"
         "procedure p(a: integer; var r: integer);\nvar l: integer; w: array[-1..1] of integer;\n"
         "begin l := a; r := l; w[0] := r; v[3] := w[a] end;\nbegin\np(g, v[4])\nend.\n",
@@ -768,12 +768,13 @@ static void test_pascal_ir(void)
         "LINK 0 0; LOAD 0 0; PUSH 4 0; PUSH 2 0; "
         "SUB 0 0; BOUND 3 0; PUSH 1 0; ADD 0 0; CALL 1 0; HALT 0 0",
         "frames, var parameters, local and global arrays");
-    expect_ir("program t;\nfunction f(n: integer): integer;\n  procedure s;\n  begin f := n end;\n"
-              "begin s end;\nbegin\nwriteln(f(1))\nend.\n",
-              "JMP 13 0; ENTER 2 1; JMP 8 0; ENTER 0 0; LOADF 0 1; STOREF 1 1; LEAVE 0 0; RET 0 0; "
-              "LINK 0 0; CALL 3 0; LOADF 1 0; LEAVE 0 0; RET 0 0; LINK 0 0; "
-              "PUSH 1 0; CALL 1 0; OUTI 0 11; NL 0 0; HALT 0 0",
-              "a function's result set from a nested procedure");
+    pas_expect_ir(
+        "program t;\nfunction f(n: integer): integer;\n  procedure s;\n  begin f := n end;\n"
+        "begin s end;\nbegin\nwriteln(f(1))\nend.\n",
+        "JMP 13 0; ENTER 2 1; JMP 8 0; ENTER 0 0; LOADF 0 1; STOREF 1 1; LEAVE 0 0; RET 0 0; "
+        "LINK 0 0; CALL 3 0; LOADF 1 0; LEAVE 0 0; RET 0 0; LINK 0 0; "
+        "PUSH 1 0; CALL 1 0; OUTI 0 11; NL 0 0; HALT 0 0",
+        "a function's result set from a nested procedure");
     {
         zl_diag_t d;
         CHECK(compile(ZL_LANG_PASCAL, "program t;\nbegin\n  x := 1\nend.\n", &d) ==

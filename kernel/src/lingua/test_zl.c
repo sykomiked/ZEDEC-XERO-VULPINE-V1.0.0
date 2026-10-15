@@ -6,6 +6,7 @@
  * and one algorithm in every language giving one trace.
  *
  * Usage: test_zl [golden-dir]   (default src/lingua/golden, run from kernel/) */
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1387,50 +1388,92 @@ static size_t slurp(const char *path, char *buf, size_t cap)
     return n;
 }
 
-static void test_golden(const char *dir)
+/* The language a golden file's extension names (zl_langs.def), or 0. */
+static int golden_lang(const char *name)
 {
     static const struct {
-        const char *name;
         int lang;
-    } g[] = {{"primes.f", ZL_LANG_FORTRAN},    {"collatz.f", ZL_LANG_FORTRAN},
-             {"features.bas", ZL_LANG_BASIC},  {"collatz.bas", ZL_LANG_BASIC},
-             {"features.fs", ZL_LANG_FORTH},   {"collatz.fs", ZL_LANG_FORTH},
-             {"primes.pas", ZL_LANG_PASCAL},   {"collatz.pas", ZL_LANG_PASCAL},
-             {"nesting.pas", ZL_LANG_PASCAL},  {"features.pas", ZL_LANG_PASCAL},
-             {"collatz.alg", ZL_LANG_ALGOL60}, {"sieve.alg", ZL_LANG_ALGOL60},
-             {"nested.alg", ZL_LANG_ALGOL60},  {"features.alg", ZL_LANG_ALGOL60}};
+        const char *ext;
+    } langs[] = {
+#define ZL_LANG_X(id, n, lname, twin, fe, ext) {ZL_LANG_##id, ext},
+#include "zl_langs.def"
+#undef ZL_LANG_X
+    };
+    const char *dot = strrchr(name, '.');
+    if (!dot) return 0;
+    size_t n = strlen(dot);
+    for (size_t i = 0; i < sizeof langs / sizeof langs[0]; i++)
+        for (const char *e = langs[i].ext; *e;) {
+            size_t k = strcspn(e, " ");
+            if (k == n && !strncmp(e, dot, n)) return langs[i].lang;
+            e += k + (e[k] == ' ');
+        }
+    return 0;
+}
+
+static int name_cmp(const void *a, const void *b)
+{
+    return strcmp(*(const char *const *) a, *(const char *const *) b);
+}
+
+/* Every program in the golden folder (any extension zl_langs.def knows)
+ * compiles, runs to its .out byte for byte and round-trips through its
+ * twin; every collatz program prints the same 40 numbers. */
+static void test_golden(const char *dir)
+{
+    enum { NG = 512 };
+    static char names[NG][256];
+    static const char *g[NG];
     static char src[1 << 16], want[1 << 16];
+    static int64_t traces[NG][64];
+    size_t tn[NG] = {0}, ng = 0;
     char path[512];
-    enum { NTRACE = 16 };
-    static int64_t traces[NTRACE][64];
-    size_t tn[NTRACE] = {0};
-    int ti = 0, ncollatz = 0;
-    for (size_t i = 0; i < sizeof g / sizeof g[0]; i++) {
-        snprintf(path, sizeof path, "%s/%s", dir, g[i].name);
+    int ti = 0, ncollatz = 0, langs_seen[ZL_LANG__COUNT] = {0};
+    DIR *dp = opendir(dir);
+    CHECK(dp != 0, "open %s", dir);
+    if (!dp) return;
+    for (struct dirent *e; (e = readdir(dp)) != 0;)
+        if (golden_lang(e->d_name) && ng < NG) {
+            snprintf(names[ng], sizeof names[ng], "%s", e->d_name);
+            g[ng] = names[ng];
+            ng++;
+        }
+    closedir(dp);
+    qsort(g, ng, sizeof g[0], name_cmp);
+    for (size_t i = 0; i < ng; i++) {
+        int lang = golden_lang(g[i]);
+        langs_seen[lang] = 1;
+        snprintf(path, sizeof path, "%s/%s", dir, g[i]);
         size_t n = slurp(path, src, sizeof src);
         CHECK(n != (size_t) -1, "read %s", path);
         if (n == (size_t) -1) continue;
-        snprintf(path, sizeof path, "%s/%s.out", dir, g[i].name);
+        snprintf(path, sizeof path, "%s/%s.out", dir, g[i]);
         size_t wn = slurp(path, want, sizeof want);
         CHECK(wn != (size_t) -1, "read %s", path);
         zl_diag_t d;
-        int s = zl_compile(g[i].lang, src, n, &P, &work, &d);
-        CHECK(s == ZL_OK, "%s compiles: %s line %u: %s", g[i].name, zl_status_name(s), d.line,
-              d.msg);
+        int s = zl_compile(lang, src, n, &P, &work, &d);
+        CHECK(s == ZL_OK, "%s compiles: %s line %u: %s", g[i], zl_status_name(s), d.line, d.msg);
         if (s) continue;
-        int is_collatz = strncmp(g[i].name, "collatz", 7) == 0 && ti < NTRACE;
-        ncollatz += strncmp(g[i].name, "collatz", 7) == 0;
-        zl_trace_t t = {traces[ti < NTRACE ? ti : 0], 64, 0};
+        int is_collatz = strncmp(g[i], "collatz.", 8) == 0;
+        ncollatz += is_collatz;
+        zl_trace_t t = {traces[ti], 64, 0};
         memset(&R, 0, sizeof R);
         R.out = out;
         R.out_cap = sizeof out;
         R.trace = is_collatz ? &t : 0;
+        if (lang == ZL_LANG_FORTH) R.preload = 1;
         s = zl_run(&P, &R);
-        CHECK(s == ZL_OK, "%s runs: %s at line %u", g[i].name, zl_status_name(s), R.trap_line);
+        CHECK(s == ZL_OK, "%s runs: %s at line %u", g[i], zl_status_name(s), R.trap_line);
         CHECK(R.out_len == wn && memcmp(out, want, wn) == 0,
-              "%s output matches %s.out byte for byte:\n%s", g[i].name, g[i].name, out);
-        twin_props(g[i].lang, src, n, g[i].name);
+              "%s output matches %s.out byte for byte:\n%s", g[i], g[i], out);
+        twin_props(lang, src, n, g[i]);
         if (is_collatz) tn[ti++] = t.n;
+    }
+    for (int lang = 1; lang < ZL_LANG__COUNT; lang++) {
+        zl_diag_t d;
+        if (compile(lang, "", &d) == ZL_E_UNSUPPORTED && d.msg && strstr(d.msg, "not built yet"))
+            continue; /* a placeholder front-end has no goldens yet */
+        CHECK(langs_seen[lang], "%s has golden programs", zl_lang_name(lang));
     }
     /* one algorithm, every language, one sequence of numbers */
     CHECK(ti >= 4 && ti == ncollatz, "every collatz golden ran (%d of %d)", ti, ncollatz);
