@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# zxv_upstream.cid — where a core disc looks for the rest of the release.
+# mk_golden_disc.sh copies it onto every core disc as /ZXV/UPSTREAM.CID (the
+# /etc/zxv_upstream.cid of the design, until the core disc has a root
+# filesystem). Lines are "<key> <value>"; '#' starts a comment.
+#
+#   cid   the master bucket (a UnixFS directory, see build_system/mk_bucket.sh).
+#         A CID never changes: adding to the bucket makes a new root CID, so
+#         this is the first-boot fallback, not the way updates arrive.
+#   ipns  the owner's IPNS name (k51...), which points at the newest bucket
+#         CID and is signed with the owner's key. Updates follow it. Not set
+#         yet: the owner creates the key and adds the line.
+
+cid bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354

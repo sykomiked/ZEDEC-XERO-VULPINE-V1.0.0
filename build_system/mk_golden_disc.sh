@@ -19,6 +19,10 @@
 #     /ZXV/...                        the asset folders in build_system/golden.contents
 #     /ZXV/MANIFEST.SHA256            sha256 of every file on it (sha256sum -c)
 #     /ZXV/README.TXT                 what is on the disc and the models' licences
+#     /ZXV/UPSTREAM.CID               build_system/zxv_upstream.cid: the bucket
+#                                     the swarm discs can be fetched from
+#     /ZXV/SWARM.LST                  "<disc> <GROUP> <image>" per swarm disc
+#                                     this core expects
 #   zxv-swarm-disc<N>-<group>.img    architecture: all; N from 2, one per group
 #     GPT, one FAT32 partition of type 5A585653-5741-4D53-9000-000000000001
 #     named ZXV_SWARM_<GROUP>, holding
@@ -71,6 +75,7 @@ MODELS_LIST="${GOLDEN_MODELS:-build_system/golden.models}"
 CORE_LIST="${GOLDEN_CORE:-build_system/golden.core}"
 SWARM_LIST="${GOLDEN_SWARM:-build_system/golden.swarm}"
 CONTENTS_LIST="${GOLDEN_CONTENTS:-build_system/golden.contents}"
+UPSTREAM="${GOLDEN_UPSTREAM:-build_system/zxv_upstream.cid}"
 ROM="$OUTDIR/MEGAROM.TVL"
 CACHE="${ZXV_MODEL_CACHE:-dist/models}"
 WORK="$OUTDIR/.$PREFIX-golden-$TARGET"
@@ -84,7 +89,7 @@ die(){ printf '\033[1;31mERR: %s\033[0m\n' "$*" >&2; exit 1; }
 for t in mformat mmd mcopy sgdisk sha256sum; do
   command -v "$t" >/dev/null 2>&1 || die "missing tool: $t"
 done
-for l in "$MODELS_LIST" "$CORE_LIST" "$SWARM_LIST"; do [ -f "$l" ] || die "$l missing"; done
+for l in "$MODELS_LIST" "$CORE_LIST" "$SWARM_LIST" "$UPSTREAM"; do [ -f "$l" ] || die "$l missing"; done
 if [ -n "$EFI" ]; then
   [ -f "$EFI" ] || die "$EFI not built: run build_system/baremetal_images.sh $TARGET first"
   [ -f "$ROM" ] || die "$ROM not built: run build_system/baremetal_images.sh $TARGET first"
@@ -330,6 +335,27 @@ done < <(lines "$CONTENTS_LIST")
   echo "Software: Apache-2.0, 36N9 Genetics LLC. No warranty."
 } > "$WORK/README.TXT"
 printf '%s\t%s\n' "$WORK/README.TXT" "ZXV/README.TXT" >> "$LIST"
+
+# Where the rest of the release is: the upstream bucket (UPSTREAM.CID, the
+# design's /etc/zxv_upstream.cid) and the swarm discs this core expects
+# (SWARM.LST: "<disc> <GROUP> <image>"), so the kernel can name the missing
+# ones and zxvd can fetch them.
+while read -r key val rest; do
+  [ -z "${rest:-}" ] || die "$UPSTREAM: '$key $val $rest' has extra fields"
+  case "$key" in
+    cid)  [[ "$val" =~ ^b[a-z2-7]{20,120}$ ]] || die "$UPSTREAM: '$val' is not a base32 CIDv1" ;;
+    ipns) [[ "$val" =~ ^k[0-9a-z]{20,120}$ ]] || die "$UPSTREAM: '$val' is not an IPNS name (k51...)" ;;
+    *) die "$UPSTREAM: unknown key '$key' (cid|ipns)" ;;
+  esac
+done < <(lines "$UPSTREAM")
+lines "$UPSTREAM" | grep -q '^cid ' || die "$UPSTREAM has no cid line"
+cp "$UPSTREAM" "$WORK/UPSTREAM.CID"
+printf '%s\t%s\n' "$WORK/UPSTREAM.CID" "ZXV/UPSTREAM.CID" >> "$LIST"
+{ echo "# disc GROUP image -- swarm discs this core disc expects (golden.swarm)"
+  n=2; for g in $GROUPS_IN_ORDER; do
+    echo "$n $(tr a-z A-Z <<<"$g") $PREFIX-swarm-disc$n-$g.img"; n=$((n + 1)); done
+} > "$WORK/SWARM.LST"
+printf '%s\t%s\n' "$WORK/SWARM.LST" "ZXV/SWARM.LST" >> "$LIST"
 printf '%s\t%s\n' "$EFI" "EFI/BOOT/$EFI" >> "$LIST"
 printf '%s\t%s\n' "$ROM" "MEGAROM.TVL" >> "$LIST"
 log "hashing $(wc -l < "$LIST") files for ZXV/MANIFEST.SHA256"

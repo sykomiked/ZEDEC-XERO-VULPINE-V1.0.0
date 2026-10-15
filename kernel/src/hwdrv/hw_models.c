@@ -134,6 +134,25 @@ static void log_fail(const hw_plat_t *p, const hw_models_vol_t *v, uint8_t vol, 
     p->log(l.b);
 }
 
+/* A bad side file on the core disc: "[MODELS_FAIL] sata0 <path> line N: why". */
+static void log_note(const hw_plat_t *p, const hw_models_vol_t *v, const char *path, uint32_t line,
+                     const char *why)
+{
+    hw_line_t l;
+    hw_line_init(&l);
+    hw_line_s(&l, "  [MODELS_FAIL] ");
+    hw_line_s(&l, v->disk->name);
+    hw_line_c(&l, ' ');
+    hw_line_s(&l, path);
+    if (line) {
+        hw_line_s(&l, " line ");
+        hw_line_u(&l, line);
+    }
+    hw_line_s(&l, ": ");
+    hw_line_s(&l, why);
+    p->log(l.b);
+}
+
 /* Parse volume `vol`'s manifest, appending to s->m. On any bad line it
  * logs, drops this volume's models and returns -1. */
 static int parse(hw_models_t *s, const hw_plat_t *p, uint8_t vol, const char *t, uint32_t n)
@@ -212,6 +231,137 @@ static uint32_t load(hw_models_t *s, const hw_plat_t *p, uint8_t vol)
     return s->n - base;
 }
 
+/* Read file `name` from the directory loaded on v into buf (cap bytes).
+ * Returns its size, -1 when absent, -2 when too large or unreadable. */
+static int read_small(hw_models_vol_t *v, const char *name, char *buf, uint32_t cap)
+{
+    fat32_file_t *f = fat32_find_file(&v->fs, name);
+    if (!f || f->is_dir) return -1;
+    if (f->size > cap || fat32_read_file(&v->fs, f, (uint8_t *) buf, cap) != 0) return -2;
+    return (int) f->size;
+}
+
+/* Copy [f, f+len) into out (cap bytes with NUL) if every byte is in the
+ * set: base32 lower case for a CIDv1 ("b..."), base36 for an IPNS name. */
+static int token(const char *f, uint32_t len, char *out, uint32_t cap, char lead, int digits)
+{
+    if (len < 21 || len >= cap || f[0] != lead) return 0;
+    for (uint32_t i = 0; i < len; i++) {
+        char c = f[i];
+        if (!((c >= 'a' && c <= 'z') || (digits ? (c >= '0' && c <= '9') : (c >= '2' && c <= '7'))))
+            return 0;
+        out[i] = c;
+    }
+    out[len] = 0;
+    return 1;
+}
+
+/* /ZXV/UPSTREAM.CID: "cid <bafy...>" and optionally "ipns <k51...>". */
+static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uint32_t *line)
+{
+    const char *q = t, *end = t + n;
+    *line = 0;
+    while (q < end) {
+        const char *e = q, *f, *g;
+        uint32_t len, glen;
+        while (e < end && *e != '\n') e++;
+        const char *le = e > q && e[-1] == '\r' ? e - 1 : e;
+        const char *a = q;
+        (*line)++;
+        q = e < end ? e + 1 : end;
+        if (!field(&a, le, &f, &len) || *f == '#') continue;
+        if (!field(&a, le, &g, &glen)) return "a key without a value";
+        const char *x;
+        uint32_t xlen;
+        if (field(&a, le, &x, &xlen) && *x != '#') return "extra fields";
+        if (len == 3 && f[0] == 'c' && f[1] == 'i' && f[2] == 'd') {
+            if (s->cid[0]) return "cid listed twice";
+            if (!token(g, glen, s->cid, sizeof s->cid, 'b', 0)) return "cid is not a base32 CIDv1";
+        } else if (len == 4 && f[0] == 'i' && f[1] == 'p' && f[2] == 'n' && f[3] == 's') {
+            if (s->ipns[0]) return "ipns listed twice";
+            if (!token(g, glen, s->ipns, sizeof s->ipns, 'k', 1))
+                return "ipns is not a base36 name";
+        } else {
+            return "unknown key (cid|ipns)";
+        }
+    }
+    *line = 0;
+    return s->cid[0] ? 0 : "no cid line";
+}
+
+/* /ZXV/SWARM.LST: "<disc> <GROUP> <image>" per expected swarm disc. */
+static const char *parse_want(hw_models_t *s, const char *t, uint32_t n, uint32_t *line)
+{
+    const char *q = t, *end = t + n;
+    *line = 0;
+    while (q < end) {
+        const char *e = q, *f;
+        uint32_t len;
+        while (e < end && *e != '\n') e++;
+        const char *le = e > q && e[-1] == '\r' ? e - 1 : e;
+        const char *a = q;
+        (*line)++;
+        q = e < end ? e + 1 : end;
+        if (!field(&a, le, &f, &len) || *f == '#') continue;
+        if (s->nwant == HW_SWARM_WANT_MAX) return "more swarm discs than the kernel tracks";
+        hw_swarm_want_t *w = &s->want[s->nwant];
+        uint32_t d = 0;
+        if (len > 3) return "disc is not a number from 2";
+        for (uint32_t i = 0; i < len; i++) {
+            if (f[i] < '0' || f[i] > '9') return "disc is not a number from 2";
+            d = d * 10u + (uint32_t) (f[i] - '0');
+        }
+        if (d < 2) return "disc is not a number from 2";
+        w->disc = d;
+        if (!field(&a, le, &f, &len) || len == 0 || len >= sizeof w->group)
+            return "group is not 1-16 of A-Z 0-9";
+        for (uint32_t i = 0; i < len; i++) {
+            if (!((f[i] >= 'A' && f[i] <= 'Z') || (f[i] >= '0' && f[i] <= '9')))
+                return "group is not 1-16 of A-Z 0-9";
+            w->group[i] = f[i];
+        }
+        w->group[len] = 0;
+        if (!field(&a, le, &f, &len) || len == 0 || len >= sizeof w->image)
+            return "image name missing or too long";
+        for (uint32_t i = 0; i < len; i++) w->image[i] = f[i];
+        w->image[len] = 0;
+        if (field(&a, le, &f, &len)) return "extra fields";
+        for (uint32_t i = 0; i < s->nwant; i++)
+            if (str_eq(s->want[i].group, w->group)) return "group listed twice";
+        s->nwant++;
+    }
+    *line = 0;
+    return 0;
+}
+
+/* Read UPSTREAM.CID and SWARM.LST from the core disc's /ZXV (loaded on
+ * vol[0]). Either may be absent; a bad one is logged and ignored. */
+static void core_extras(hw_models_t *s, const hw_plat_t *p)
+{
+    static char t[2048];
+    hw_models_vol_t *v = &s->vol[0];
+    const char *why;
+    uint32_t line;
+    int n = read_small(v, "UPSTREAM.CID", t, sizeof t);
+    if (n != -1) {
+        why = n < 0 ? "unreadable or larger than the kernel reads"
+                    : parse_upstream(s, t, (uint32_t) n, &line);
+        if (why) {
+            s->cid[0] = s->ipns[0] = 0;
+            log_note(p, v, "/ZXV/UPSTREAM.CID", n < 0 ? 0 : line, why);
+        }
+    }
+    n = read_small(v, "SWARM.LST", t, sizeof t);
+    if (n != -1) {
+        why = n < 0 ? "unreadable or larger than the kernel reads"
+                    : parse_want(s, t, (uint32_t) n, &line);
+        if (why) {
+            s->nwant = 0;
+            log_note(p, v, "/ZXV/SWARM.LST", n < 0 ? 0 : line, why);
+        }
+    }
+}
+
 static int swarm_name(const char *n)
 {
     const char *want = "ZXV_SWARM_";
@@ -240,6 +390,7 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
         fat32_file_t *f = fat32_find_file(&v->fs, "MODELS.SHA");
         if (!f || f->is_dir) continue;
         core = 1;
+        core_extras(s, p);
         on_esp = load(s, p, 0);
     }
 
@@ -285,6 +436,50 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
         hw_line_u(&l, k);
         hw_line_s(&l, k == 1 ? " model" : " models");
         p->log(l.b);
+    }
+
+    if (s->cid[0]) {
+        hw_line_t u;
+        hw_line_init(&u);
+        hw_line_s(&u, "  [UPSTREAM] ");
+        if (s->ipns[0]) {
+            hw_line_s(&u, "ipns ");
+            hw_line_s(&u, s->ipns);
+            hw_line_s(&u, ", fallback ");
+        }
+        hw_line_s(&u, "bucket ");
+        hw_line_s(&u, s->cid);
+        p->log(u.b);
+    }
+    uint32_t missing = 0;
+    for (uint32_t w = 0; w < s->nwant; w++) {
+        int found = 0;
+        for (uint32_t k = 1; k < s->nvol && !found; k++) {
+            const char *a = s->vol[k].part.name + 10, *g = s->want[w].group;
+            found = str_eq(a, g);
+        }
+        if (found) continue;
+        missing++;
+        hw_line_t m;
+        hw_line_init(&m);
+        hw_line_s(&m, "  [SWARM_MISSING] disc ");
+        hw_line_u(&m, s->want[w].disc);
+        hw_line_s(&m, " ZXV_SWARM_");
+        hw_line_s(&m, s->want[w].group);
+        hw_line_s(&m, " (");
+        hw_line_s(&m, s->want[w].image);
+        hw_line_s(&m, s->cid[0] ? "): attach it, or zxvd fetches it from the upstream bucket"
+                                : "): attach it");
+        p->log(m.b);
+    }
+    if (s->nwant && !missing) {
+        hw_line_t c;
+        hw_line_init(&c);
+        hw_line_s(&c, "  [SWARM_COMPLETE] all ");
+        hw_line_u(&c, s->nwant);
+        hw_line_s(&c, s->nwant == 1 ? " swarm disc the core expects is attached"
+                                    : " swarm discs the core expects are attached");
+        p->log(c.b);
     }
 
     hw_line_t l;

@@ -618,6 +618,163 @@ static void test_swarm_discs(void)
     CHECK(fake_log_has(&fp, "[MODELS_OK] 8 verified"));
 }
 
+/* A file in the core disc's /ZXV: directory slot `slot` (2 or 3, after
+ * MODELS.SHA and MODELS), one cluster `c`, `size` (the text's length when
+ * 0). NULL text removes the slot. */
+static void side(mdisk_t *m, int slot, const char *n11, uint32_t c, const char *text, uint32_t size)
+{
+    uint8_t *v = m->d + ESP0 * 512;
+    uint8_t *d = clu(v, 3) + 32 * slot;
+    memset(d, 0, 32);
+    if (!text) return;
+    size_t n = strlen(text);
+    if (n > 512) abort();
+    fat(v, c, 0x0FFFFFFF);
+    memset(clu(v, c), 0, 512);
+    memcpy(clu(v, c), text, n);
+    dirent(d, n11, 0x20, c, size ? size : (uint32_t) n);
+}
+
+#define CID  "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354"
+#define IPNS "k51qzi5uqu5dlvj2baxnqndepeb86cbk3ng7n3i84ftsqs2zsxwn4s3ggzpu9b"
+#define LST                                                                                        \
+    "# disc GROUP image\n2 REASON zxv-swarm-disc2-reason.img\n3 VISION "                           \
+    "zxv-swarm-disc3-vision.img\n"
+
+static mdisk_t ucore, ureason, uvision;
+
+/* Index the core disk with the reason disk and, if `all`, the vision disk. */
+static uint32_t index_up(const char *up, const char *lst, int all)
+{
+    side(&ucore, 2, "UPSTREAMCID", 9, up, 0);
+    side(&ucore, up ? 3 : 2, "SWARM   LST", 10, lst, 0);
+    fp.nlog = 0;
+    memset(&reg, 0, sizeof reg);
+    hw_reg_blk(&reg, &ucore.b);
+    hw_reg_blk(&reg, &ureason.b);
+    if (all) hw_reg_blk(&reg, &uvision.b);
+    return hw_models_index(&s, &fp.plat, &reg);
+}
+
+/* /ZXV/UPSTREAM.CID and /ZXV/SWARM.LST on the core disc. */
+static void test_upstream(void)
+{
+    char text[512], sb[65];
+    uint8_t hb[32];
+    build(&ucore);
+    retype(&ucore, 1);
+    strcpy(ucore.b.name, "sata0");
+    build(&ureason);
+    retype(&ureason, 0);
+    strcpy(ureason.b.name, "sata1");
+    build(&uvision);
+    retype(&uvision, 0);
+    strcpy(uvision.b.name, "sata2");
+    part_name(&uvision, 1, "ZXV_SWARM_VISION");
+    sha256(B, B_LEN, hb);
+    hexs(hb, sb);
+    snprintf(text, sizeof text, "%s %u smol-vision swarm MDL001.GGU\n", sb, B_LEN);
+    manifest_sw(&uvision, text);
+
+    /* the bucket, and one of two swarm discs attached */
+    CHECK(index_up("# master bucket\r\ncid " CID " # 00_base onward\r\n", LST, 0) == 2);
+    CHECK(fake_log_has(&fp, "[UPSTREAM] bucket " CID));
+    CHECK(!fake_log_has(&fp, "ipns"));
+    CHECK(s.nwant == 2 && s.want[0].disc == 2 && strcmp(s.want[1].group, "VISION") == 0);
+    CHECK(fake_log_has(&fp, "[SWARM_MISSING] disc 3 ZXV_SWARM_VISION (zxv-swarm-disc3-vision.img)"
+                            ": attach it, or zxvd fetches it from the upstream bucket"));
+    CHECK(!fake_log_has(&fp, "ZXV_SWARM_REASON (zxv"));
+    CHECK(!fake_log_has(&fp, "[SWARM_COMPLETE]"));
+    CHECK(fake_log_has(&fp, "[MODELS_INDEXED] 2 listed"));
+    /* both attached, and an IPNS name ahead of the CID */
+    CHECK(index_up("ipns " IPNS "\ncid " CID "\n", LST, 1) == 3);
+    CHECK(fake_log_has(&fp, "[UPSTREAM] ipns " IPNS ", fallback bucket " CID));
+    CHECK(fake_log_has(&fp, "[SWARM_COMPLETE] all 2 swarm discs the core expects are attached"));
+    CHECK(!fake_log_has(&fp, "[SWARM_MISSING]"));
+    CHECK(index_up(0, "2 REASON zxv-swarm-disc2-reason.img\n", 0) == 2);
+    CHECK(fake_log_has(&fp, "[SWARM_COMPLETE] all 1 swarm disc the core expects is attached"));
+    /* no upstream file: a missing disc can only be attached */
+    CHECK(index_up(0, LST, 0) == 2);
+    CHECK(s.cid[0] == 0 && !fake_log_has(&fp, "[UPSTREAM]"));
+    CHECK(fake_log_has(&fp, "(zxv-swarm-disc3-vision.img): attach it"));
+    CHECK(!fake_log_has(&fp, "zxvd"));
+    /* neither file: nothing is expected, nothing reported */
+    CHECK(index_up(0, 0, 0) == 2);
+    CHECK(s.nwant == 0 && !fake_log_has(&fp, "[SWARM_MISSING]"));
+    CHECK(!fake_log_has(&fp, "[SWARM_COMPLETE]"));
+
+    static const struct {
+        const char *text, *log;
+    } up[] = {
+        {"cid\n", "UPSTREAM.CID line 1: a key without a value"},
+        {"cid " CID " extra\n", "UPSTREAM.CID line 1: extra fields"},
+        {"\ncid B" CID "\n", "UPSTREAM.CID line 2: cid is not a base32 CIDv1"},
+        {"cid bafy1" CID "\n", "line 1: cid is not a base32 CIDv1"},
+        {"cid bafybeic\n", "line 1: cid is not a base32 CIDv1"},
+        {"cid " CID CID CID "\n", "line 1: cid is not a base32 CIDv1"},
+        {"cid " CID "\ncid " CID "\n", "line 2: cid listed twice"},
+        {"cid " CID "\nipns " IPNS "\nipns " IPNS "\n", "line 3: ipns listed twice"},
+        {"cid " CID "\nipns k51_" IPNS "\n", "line 2: ipns is not a base36 name"},
+        {"cid " CID "\nipns " CID "\n", "line 2: ipns is not a base36 name"},
+        {"url https://example\n", "line 1: unknown key (cid|ipns)"},
+        {"cids " CID "\n", "line 1: unknown key (cid|ipns)"},
+        {"ipns " IPNS "\n", "sata0 /ZXV/UPSTREAM.CID: no cid line"},
+        {"# empty\n", "UPSTREAM.CID: no cid line"},
+    };
+    for (unsigned i = 0; i < sizeof up / sizeof up[0]; i++) {
+        uint32_t n = index_up(up[i].text, LST, 0);
+        int ok = n == 2 && fake_log_has(&fp, up[i].log) && s.cid[0] == 0 && s.ipns[0] == 0 &&
+                 !fake_log_has(&fp, "[UPSTREAM]") &&
+                 fake_log_has(&fp, "(zxv-swarm-disc3-vision.img): attach it") &&
+                 !fake_log_has(&fp, "zxvd");
+        if (!ok) printf("  upstream case %u: %s\n", i, up[i].text);
+        CHECK(ok);
+    }
+
+    static const struct {
+        const char *text, *log;
+    } lst[] = {
+        {"1 REASON a.img\n", "SWARM.LST line 1: disc is not a number from 2"},
+        {"2a REASON a.img\n", "line 1: disc is not a number from 2"},
+        {"1000 REASON a.img\n", "line 1: disc is not a number from 2"},
+        {"#\n\n2 reason a.img\n", "line 3: group is not 1-16 of A-Z 0-9"},
+        {"2 ABCDEFGHIJKLMNOPQ a.img\n", "line 1: group is not 1-16 of A-Z 0-9"},
+        {"2 REASON\n", "line 1: image name missing or too long"},
+        {"2 REASON zxv-swarm-disc2-reason-with-a-name-too-long-for-it.img\n",
+         "line 1: image name missing or too long"},
+        {"2 REASON a.img b\n", "line 1: extra fields"},
+        {"2 REASON a.img\n3 REASON b.img\n", "line 2: group listed twice"},
+    };
+    for (unsigned i = 0; i < sizeof lst / sizeof lst[0]; i++) {
+        uint32_t n = index_up("cid " CID "\n", lst[i].text, 0);
+        int ok = n == 2 && fake_log_has(&fp, lst[i].log) && s.nwant == 0 &&
+                 fake_log_has(&fp, "[UPSTREAM] bucket " CID) &&
+                 !fake_log_has(&fp, "[SWARM_MISSING]") && !fake_log_has(&fp, "[SWARM_COMPLETE]");
+        if (!ok) printf("  swarm list case %u: %s\n", i, lst[i].text);
+        CHECK(ok);
+    }
+    /* more discs than the kernel tracks; the last one it can hold */
+    char many[512] = "";
+    for (int i = 0; i < HW_SWARM_WANT_MAX; i++) {
+        char l[64];
+        snprintf(l, sizeof l, "%d G%d g%d.img\n", i + 2, i, i);
+        strcat(many, l);
+    }
+    CHECK(index_up(0, many, 0) == 2 && s.nwant == HW_SWARM_WANT_MAX);
+    CHECK(fake_log_has(&fp, "[SWARM_MISSING] disc 17 ZXV_SWARM_G15 (g15.img): attach it"));
+    strcat(many, "18 G16 g16.img\n");
+    CHECK(index_up(0, many, 0) == 2 && s.nwant == 0);
+    CHECK(fake_log_has(&fp, "SWARM.LST line 17: more swarm discs than the kernel tracks"));
+    /* too large to read */
+    side(&ucore, 2, "UPSTREAMCID", 9, "cid " CID "\n", 4096);
+    side(&ucore, 3, "SWARM   LST", 10, LST, 0);
+    fp.nlog = 0;
+    memset(&reg, 0, sizeof reg);
+    hw_reg_blk(&reg, &ucore.b);
+    CHECK(hw_models_index(&s, &fp.plat, &reg) == 1 && s.cid[0] == 0 && s.nwant == 2);
+    CHECK(fake_log_has(&fp, "sata0 /ZXV/UPSTREAM.CID: unreadable or larger than the kernel reads"));
+}
+
 int main(void)
 {
     fake_plat_init(&fp);
@@ -627,6 +784,7 @@ int main(void)
     test_manifests();
     test_no_disc();
     test_swarm_discs();
+    test_upstream();
     fake_plat_free(&fp);
     printf("test_hw_models: %d checks, %d failures\n", fk_checks, fk_failures);
     return fk_failures ? 1 : 0;

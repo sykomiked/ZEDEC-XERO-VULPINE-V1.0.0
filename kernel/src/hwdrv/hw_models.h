@@ -70,6 +70,14 @@ typedef struct hw_model_cur {
     sha256_ctx_t ctx;
 } hw_model_cur_t;
 
+/* A swarm disc the core disc expects (/ZXV/SWARM.LST). */
+#define HW_SWARM_WANT_MAX 16
+typedef struct hw_swarm_want {
+    uint32_t disc;  /* 2, 3, ... */
+    char group[17]; /* REASON: the partition is ZXV_SWARM_REASON */
+    char image[48]; /* zxv-swarm-disc2-reason.img */
+} hw_swarm_want_t;
+
 typedef struct hw_models {
     hw_model_t m[HW_MODELS_MAX];
     uint32_t n;
@@ -78,12 +86,20 @@ typedef struct hw_models {
     hw_model_cur_t bg; /* the idle-loop check */
     uint32_t ok, bad;
     int reported;
+    /* from the core disc: where the release lives and what it holds */
+    char cid[121], ipns[121]; /* /ZXV/UPSTREAM.CID, "" when absent */
+    hw_swarm_want_t want[HW_SWARM_WANT_MAX];
+    uint32_t nwant;
 } hw_models_t;
 
 /* Find the models: the first registered disk whose ESP holds
  * /ZXV/MODELS.SHA (the core disc), then every disk with a ZXV_SWARM_*
  * partition (swarm discs). Reads and checks each manifest and logs:
+ *   [UPSTREAM] ipns <name>, bucket <cid>  from the core's /ZXV/UPSTREAM.CID
  *   [SWARM_MOUNTED] <label> on <disk>: <n> models     per swarm disc
+ *   [SWARM_MISSING] disc <n> ZXV_SWARM_<GROUP> (<image>): ...  for each
+ *   swarm disc the core's /ZXV/SWARM.LST names that is not attached, or
+ *   [SWARM_COMPLETE] when all are
  *   [MODELS_INDEXED] <n> listed (<e> on the boot partition, <s> on <d>
  *   swarm discs); each is verified when first used
  * or [MODELS_NONE] / [MODELS_FAIL] <why>; a bad manifest drops only its own
