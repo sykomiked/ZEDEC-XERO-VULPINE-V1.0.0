@@ -21,7 +21,8 @@ K2=4$(printf '%0127d' 0)
 "$FAB" keygen-sign "$D/b.pk" "$D/b.sk" "$S2" > /dev/null || no keygen-sign2; ok
 "$FAB" keygen-kem "$D/r.ek" "$D/r.dk" "$K1" > /dev/null || no keygen-kem; ok
 "$FAB" keygen-kem "$D/x.ek" "$D/x.dk" "$K2" > /dev/null || no keygen-kem2; ok
-[ "$(stat -c %a "$D/a.sk")" = 600 ] && [ "$(stat -c %a "$D/r.dk")" = 600 ] || no "secret key mode"; ok
+mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; } # GNU, then BSD/macOS
+[ "$(mode "$D/a.sk")" = 600 ] && [ "$(mode "$D/r.dk")" = 600 ] || no "secret key mode"; ok
 "$FAB" keygen-sign "$D/c.pk" "$D/c.sk" "$S1" > "$D/c.id" && cmp -s "$D/a.pk" "$D/c.pk" || no "seeded keys not reproducible"; ok
 
 # public blocks: three pseudo-random files; the target mixes them with private bytes
@@ -66,7 +67,7 @@ rm -f "$D/out"
 "$FAB" unpack "$D/sec.fab" "$D/out" --store "$D/store" > /dev/null 2>&1 && no "no key"; ok
 "$FAB" unpack "$D/sec.fab" "$D/out" --store "$D/store" --dk "$D/r.dk" > /dev/null || no "unpack sealed"; ok
 cmp -s "$D/target" "$D/out" || no "sealed round trip"; ok
-[ "$(stat -c %a "$D/out")" = 600 ] || no "output mode"; ok
+[ "$(mode "$D/out")" = 600 ] || no "output mode"; ok
 
 # a block that is missing or corrupted in the store
 B1=$("$FAB" put "$D/store" "$D/blocks/b1" | cut -d' ' -f1)
