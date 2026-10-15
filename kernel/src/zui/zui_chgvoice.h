@@ -6,9 +6,11 @@
  * feels and say what is going on; asking it to read a section reads that
  * section aloud. Every word it says is shown in its speech bubble while it
  * is said, so the same thing reaches people who cannot hear it. The voice is
- * whatever speaker the host binds (speech/speech_zt_tts.h: OuteTTS on the
- * integer engine, on the device); this module decides what is said, when,
- * and how the Chiglet looks while it says it.
+ * whatever speaker the host binds (speech/speech_kokoro.h: Kokoro-82M on the
+ * integer engine, on the device, with speech_kokoro_attribution shown in the
+ * Chiglet's settings; speech/speech_zt_tts.h's OuteTTS still binds the same
+ * way); this module decides what is said, when, and how the Chiglet looks
+ * while it says it.
  *
  *   CV1 ONLY WHEN ASKED. Speech starts from zui_cv_tap, zui_cv_hold,
  *       zui_cv_status, zui_cv_read and zui_cv_hear, and nothing else: there
