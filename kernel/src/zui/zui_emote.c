@@ -27,6 +27,56 @@ zui_face_t zui_face_of(swarm_emotion_t e)
     return (unsigned) e < SWARM_EMO_COUNT ? FACES[e] : FACES[SWARM_EMO_NEUTRAL];
 }
 
+static int emoji_feeling(uint32_t cp)
+{
+    switch (cp) {
+    case 0x1F610u:
+        return SWARM_EMO_NEUTRAL;
+    case 0x1F60Cu:
+    case 0x1F642u:
+    case 0x1F60Au:
+        return SWARM_EMO_CALM;
+    case 0x1F604u:
+    case 0x1F600u:
+    case 0x1F603u:
+        return SWARM_EMO_JOY;
+    case 0x1F914u:
+        return SWARM_EMO_CURIOUS;
+    case 0x1F970u:
+    case 0x1F60Du:
+        return SWARM_EMO_LOVE;
+    case 0x1F61Fu:
+        return SWARM_EMO_WORRY;
+    case 0x1F620u:
+        return SWARM_EMO_FRUSTRATION;
+    case 0x1F622u:
+    case 0x1F641u:
+    case 0x2639u:
+        return SWARM_EMO_SADNESS;
+    default:
+        return -1;
+    }
+}
+
+int32_t zui_emote_glyph(zui_surface_t *s, uint32_t cp, int32_t x, int32_t base, uint32_t size_px,
+                        uint32_t rgb, uint32_t a255, void *ctx)
+{
+    (void) rgb;
+    (void) a255;
+    (void) ctx;
+    int e = emoji_feeling(cp);
+    if (e < 0) return -1;
+    int32_t adv = (int32_t) size_px;
+    if (s) {
+        zui_face_t f = zui_face_of((swarm_emotion_t) e);
+        int32_t r = (int32_t) size_px * 42 / 100;
+        if (r < 3) r = 3;
+        /* sits on the line like a capital: centre at about 0.35 em */
+        zui_face_draw(s, &f, ZUI_HEALTH_OK, x + adv / 2, base - (int32_t) size_px * 35 / 100, r, 0);
+    }
+    return adv;
+}
+
 const char *zui_emote_word(swarm_emotion_t e)
 {
     return (unsigned) e < SWARM_EMO_COUNT ? WORDS[e] : WORDS[0];

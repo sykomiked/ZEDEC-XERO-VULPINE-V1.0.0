@@ -28,10 +28,34 @@
 #include "zui_progress.h"
 #include "zui_login.h"
 #include "zui_pxl.h"
+#include "zui_para.h"
 
 /* ---- fonts --------------------------------------------------------------- */
 static ttf_font_t F_REG, F_MED, F_SEMI, F_MONO, F_MONO_MED;
+static ttf_font_t F_FALL[4]; /* the glyph fallback chain: arrows, Arabic, Hebrew, Devanagari */
+static uint32_t N_FALL;
 static zui_glyph_cache_t CACHE;
+
+/* An optional face: from the font dir, else the repo's ASCW Golden set. */
+static int try_font(ttf_font_t *f, const char *dir, const char *name)
+{
+    const char *dirs[2] = {dir, "../assets/fonts/ascw-golden"};
+    for (int i = 0; i < 2; i++) {
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%s", dirs[i], name);
+        FILE *fp = fopen(path, "rb");
+        if (!fp) continue;
+        fseek(fp, 0, SEEK_END);
+        long n = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+        uint8_t *b = malloc((size_t) n);
+        int ok = b && fread(b, 1, (size_t) n, fp) == (size_t) n && ttf_parse(f, b, (uint32_t) n);
+        fclose(fp);
+        if (ok) return 1;
+        free(b);
+    }
+    return 0;
+}
 
 static void load_font(ttf_font_t *f, const char *dir, const char *name)
 {
@@ -421,10 +445,14 @@ static void top_bar(ctx_t *c, const char *place)
     zui_rect_t a = R(c, ax, mid - PT(c, 14), aw, PT(c, 28));
     zui_fill_rrect(&c->s, a, PT(c, ZUI_R_CONTROL), C(c, ZUI_PANEL), 255);
     zui_stroke_rrect(&c->s, a, PT(c, ZUI_R_CONTROL), 1, C(c, ZUI_EDGE), 255);
-    text(c, &F_REG, 13, ax + PT(c, 12), mid + PT(c, 5), ZUI_FAINT,
-         "Ask the swarm about anything on screen");
-    const char *k = "Cmd K";
-    text_r(c, &F_MONO, 11, ax + aw - PT(c, 10), mid + PT(c, 4), ZUI_MUTED, k);
+    /* the shortcut as a keycap on the right; the placeholder stops short of it */
+    const char *k = "\xE2\x8C\x98K";
+    int32_t kw = text_w(c, &F_MONO, 11, k) + PT(c, 10);
+    zui_rect_t cap = R(c, ax + aw - PT(c, 6) - kw, mid - PT(c, 9), kw, PT(c, 18));
+    zui_stroke_rrect(&c->s, cap, PT(c, 4), 1, C(c, ZUI_EDGE), 255);
+    text(c, &F_MONO, 11, ax + aw - PT(c, 6) - kw + PT(c, 5), mid + PT(c, 4), ZUI_MUTED, k);
+    text_fit(c, &F_REG, 13, ax + PT(c, 12), mid + PT(c, 5), aw - kw - PT(c, 30), ZUI_FAINT,
+             "Ask the swarm about anything on screen");
 
     int32_t rx = t.x + t.w - g;
     const char *m = "1,840 / 4,181 tok";
@@ -1958,6 +1986,66 @@ static void render(const char *dir, const char *name, screen_fn fn, uint32_t w, 
     free(px);
 }
 
+/* every script and symbol through one text path: fallback, shaping, bidi */
+static void scripts_screen(ctx_t *c)
+{
+    static zui_para_t P;
+    fill(c, (zui_rect_t){0, 0, c->s.w, c->s.h}, ZUI_VOID);
+    layer(c, 0);
+    c->bg = ZUI_VOID;
+    int32_t x = PT(c, 48), y = PT(c, 64), col = PT(c, 300);
+    text(c, &F_SEMI, 22, x, y, ZUI_TEXT, "Shortcuts");
+    static const char *keys[][2] = {
+        {"\xE2\x8C\x98K", "Ask the swarm"},
+        {"\xE2\x87\xA7\xE2\x8C\x98P", "Command palette"},
+        {"\xE2\x8C\x83\xE2\x8C\xA5T", "New terminal"},
+        {"\xE2\x8F\x8E", "Accept a held suggestion"},
+        {"\xE2\x8E\x8B", "Reject it"},
+        {"\xE2\x8C\xAB", "Delete"},
+        {"\xE2\x87\xA5", "Next field"},
+        {"\xE2\x86\x90 \xE2\x86\x92", "Move between spaces"},
+    };
+    y += PT(c, 40);
+    for (int i = 0; i < 8; i++) {
+        int32_t kw = text_w(c, &F_MONO, 15, keys[i][0]) + PT(c, 16);
+        zui_rect_t cap = R(c, x, y - PT(c, 20), kw, PT(c, 28));
+        zui_fill_rrect(&c->s, cap, PT(c, 6), C(c, ZUI_PANEL), 255);
+        zui_stroke_rrect(&c->s, cap, PT(c, 6), 1, C(c, ZUI_EDGE), 255);
+        text(c, &F_MONO, 15, x + PT(c, 8), y, ZUI_GOLD, keys[i][0]);
+        text(c, &F_REG, 15, x + PT(c, 110), y, ZUI_TEXT_2, keys[i][1]);
+        y += PT(c, 40);
+    }
+    int32_t x2 = x + col + PT(c, 160), y2 = PT(c, 64);
+    text(c, &F_SEMI, 22, x2, y2, ZUI_TEXT, "Every script, one path");
+    static const char *lines[][2] = {
+        {"Arabic", "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 "
+                   "\xD8\xA8\xD8\xA7\xD9\x84\xD8\xB3\xD8\xB1\xD8\xA8"},
+        {"Hebrew", "\xD7\xA9\xD7\x9C\xD7\x95\xD7\x9D \xD7\x9C\xD7\x9B\xD7\x95\xD7\x9C\xD7\x9D"},
+        {"Devanagari", "\xE0\xA4\xA8\xE0\xA4\xAE\xE0\xA4\xB8\xE0\xA5\x8D\xE0\xA4\xA4\xE0\xA5\x87 "
+                       "\xE0\xA4\x95\xE0\xA4\xBF\xE0\xA4\xA4\xE0\xA4\xBE\xE0\xA4\xAC"},
+        {"Mixed", "Reply to \xD7\xA9\xD7\x9C\xD7\x95\xD7\x9D (2 files) today"},
+    };
+    y2 += PT(c, 40);
+    for (int i = 0; i < 4; i++) {
+        text(c, &F_MONO, 11, x2, y2, ZUI_MUTED, lines[i][0]);
+        zui_text_t t = font(c, &F_REG, 20);
+        const char *v = zui_para_layout(&P, lines[i][1], 0, ZUI_BIDI_AUTO);
+        int32_t w = zui_text_width(&t, v), right = x2 + PT(c, 520);
+        /* right-to-left paragraphs sit on the right edge */
+        zui_text(&c->s, &t, P.rtl ? right - w : x2 + PT(c, 110), y2, T(c, ZUI_TEXT), v);
+        y2 += PT(c, 44);
+    }
+    y2 += PT(c, 20);
+    text(c, &F_SEMI, 22, x2, y2, ZUI_TEXT, "Feelings as emoji");
+    y2 += PT(c, 44);
+    text(c, &F_REG, 28, x2, y2, ZUI_TEXT,
+         "\xF0\x9F\x98\x90 \xF0\x9F\x98\x8C \xF0\x9F\x98\x84 \xF0\x9F\xA4\x94 "
+         "\xF0\x9F\xA5\xB0 \xF0\x9F\x98\x9F \xF0\x9F\x98\xA0 \xF0\x9F\x98\xA2");
+    y2 += PT(c, 40);
+    text(c, &F_REG, 15, x2, y2, ZUI_TEXT_2,
+         "Done \xE2\x9C\x93   Dismissed \xE2\x9C\x95   calm \xF0\x9F\x98\x8C in a sentence");
+}
+
 static void tokens_json(void)
 {
     printf("{\n  \"color\": {\n");
@@ -2001,6 +2089,18 @@ int main(int argc, char **argv)
     load_font(&F_MONO, fd, "IBMPlexMono-Regular.ttf");
     load_font(&F_MONO_MED, fd, "IBMPlexMono-Medium.ttf");
     zui_glyph_cache_init(&CACHE);
+    {
+        static const char *fall[4] = {"ASCW-Golden-Latin.ttf", "ASCW-Golden-Arabic.ttf",
+                                      "ASCW-Golden-Hebrew.ttf", "ASCW-Golden-Devanagari.ttf"};
+        const ttf_font_t *chain[4];
+        for (int i = 0; i < 4; i++)
+            if (try_font(&F_FALL[N_FALL], fd, fall[i])) {
+                chain[N_FALL] = &F_FALL[N_FALL];
+                N_FALL++;
+            }
+        zui_text_fallback(&CACHE, chain, N_FALL);
+        zui_text_painter(&CACHE, zui_emote_glyph, 0); /* emoji as the swarm's own faces */
+    }
     load_fox(fd);
 
     /* sizes: phone 390x844 pt @2x, laptop 1440x900 pt @1x, large 2560x1440 @1x */
@@ -2141,6 +2241,8 @@ int main(int argc, char **argv)
         snprintf(n, sizeof n, "foil-login-tilt-%03d", k);
         render(out, n, login_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FOIL, hx, 48);
     }
+    render(out, "text-scripts", scripts_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT,
+           0, 48);
     /* the paraconsistent pixel filter: before / after, and the light moving */
     render(out, "pxl-home-before", home_screen, 1440, 900, 256, ZUI_INPUT_POINTER, ZUI_DEPTH_FLAT,
            0, 48);
