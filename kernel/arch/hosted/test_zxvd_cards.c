@@ -726,6 +726,10 @@ static void test_statements(void)
             CHECK(cn_settle(&S, i) == CN_OK, "shadow settle %u", (unsigned) i);
             EXPECT(req("cards.capture", "{\"auth\":%u}", (unsigned) i), ok("%s", posted_json(i)));
         }
+    /* the smallest payment, one minor unit, is accepted */
+    CHECK(cn_pay(&S, 0, 1, T0 + 100) == CN_OK, "shadow pay 1");
+    EXPECT(req("cards.pay", "{\"account\":0,\"amount_minor\":1,\"now\":%lld}", U(T0 + 100)),
+           ok("%s", acct_json(0)));
     CHECK(cn_pay(&S, 0, 1000, T0 + 100) == CN_OK, "shadow pay");
     EXPECT(req("cards.pay", "{\"account\":0,\"amount_minor\":1000,\"now\":%lld}", U(T0 + 100)),
            ok("%s", acct_json(0)));
