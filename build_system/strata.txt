@@ -221,6 +221,7 @@ xrisk                            settlement # exact discrete loss distributions 
 zenny                            settlement
 zstats                           settlement # the stats feed reads the other finance modules
 cred                             settlement # Player Card tiers through sicily
+airc                             settlement # agent relay chat; trust tiers from cred
 dispute                          settlement
 fxepoch                          settlement
 mint                             settlement
