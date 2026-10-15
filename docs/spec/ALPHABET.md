@@ -110,7 +110,54 @@ has a result (`t`) exactly when it pushes.
 
 Fixed answer: ADD with evidence T is `10000402a0004005`.
 
-### 3.2 Readings of common actions
+### 3.2 The four states and the bilateral fuse
+
+The tag in bits 60..61 is one of four states. Their names in the
+catuṣkoṭi, the four-cornered tetralemma, and the svara each is sometimes
+paired with, are names only: the svara bits stay reserved and do not carry
+the tag.
+
+| Code | State | Catuṣkoṭi | Svara | Means here |
+|---|---|---|---|---|
+| 0 | N, neither | śūnya (na-ubhaya) | anudātta | no claim either way |
+| 1 | T, true | asti | udātta | supported, not refuted |
+| 2 | F, false | nāsti | pracaya | refuted, not supported |
+| 3 | B, both | ubhaya | svarita | supported and refuted |
+
+**Pooling evidence.** When two sources speak about the same reading, their
+tags pool the way lpres pools evidence (`lpres_add_evidence`): support from
+either side and refutation from either side. With these codes that is a
+bitwise OR, so T with F gives B, and N adds nothing. `zl_sutra_evidence`
+does it, and `test_zl_sutra` checks it against lpres for all 16 pairs. This
+is Belnap's information join exactly.
+
+**Combining truth values is different.** lpres's AND and OR
+(`lpres_conjoin`, `lpres_disjoin`) are min and max on the chain
+F < N < B < T, not Belnap's lattice. They agree with Belnap everywhere
+except where B meets N: Belnap gives B AND N = F and B OR N = T, while lpres
+gives N and B. That is a deliberate choice: no mix of a contradiction and a
+gap can ever give T, the only value that authorises an action. So lpres is
+not "Belnap gates", and nothing here uses Belnap's truth tables.
+
+**The bilateral fuse** (`zl_sutra_fuse`) puts two sources' cells for one
+place together:
+
+- **One reading** (the two cells are equal apart from the tag): the result
+  is that cell with the pooled tag.
+- **Two readings**: if only one side made a claim (the other's tag is N),
+  its reading stands. Otherwise both readings are kept, each tagged B (each
+  stays N if neither side made a claim). This is the śleṣa case, one
+  utterance with two readings. Nothing is dropped and neither reading is
+  picked; choosing between them is a later step with its own evidence.
+- A cell with its sandhi or svara bits set is refused.
+
+**What this does and does not do.** It holds ambiguity and disagreement
+without crashing and without throwing either side away. It does not parse
+speech or decide what anything means. Turning a sentence into cells needs a
+parser or a model, and that output is a claim like any other: tagged, and
+held as B when sources disagree.
+
+### 3.3 Readings of common actions
 
 | Action | Reading |
 |---|---|
@@ -120,7 +167,7 @@ Fixed answer: ADD with evidence T is `10000402a0004005`.
 | √dhṛ, pin | STORE and its variants (√dhṛ) |
 | √dā, grant | no single op: a CALL of the verified block that grants |
 
-### 3.3 What the view does and does not claim
+### 3.4 What the view does and does not claim
 
 - **The same CID means the same canonical IR.** Two programs written in
   different languages get the same block, and so the same CID, only when
@@ -138,7 +185,7 @@ Fixed answer: ADD with evidence T is `10000402a0004005`.
   that shares none of our languages is an idea to explore, not a property of
   the code.
 
-### 3.4 Where it lives and how it is hashed
+### 3.5 Where it lives and how it is hashed
 
 The alphabet and its Dhātu view are core: booklet 000 of the matrix, with
 Lingua, not a separate layer. Blocks are named by raw sha2-256 CIDs, like

@@ -13,6 +13,7 @@
 #include "zl.h"
 #include "zl_sutra.h"
 #include "zl_kpy.h"
+#include "lpres.h"
 
 static unsigned checks, fails;
 #define CHECK(c, ...)                                                                              \
@@ -149,6 +150,53 @@ int main(int argc, char **argv)
         }
         CHECK(seen == ((1u << (pops + 1)) - 2u), "%s: kāraka names the %u cells it pops", NAME[op], pops);
         CHECK((top == 1) == (pushes > 0) && top <= 1, "%s: a result iff it pushes", NAME[op]);
+    }
+
+    /* pooling evidence is lpres's rule: replay each side's evidence into an
+     * lpres attestation and compare */
+    for (uint32_t a = 0; a < 4; a++)
+        for (uint32_t b = 0; b < 4; b++) {
+            static lpres_registry_t reg;
+            lpres_registry_init(&reg);
+            int32_t i = lpres_attest(&reg, "x", LPRES_SUBJECT_SOURCE, LPRES_STATE_NEITHER, "t", 0, 0);
+            for (uint32_t s = 0; s < 2; s++) {
+                uint32_t t = s ? b : a;
+                if (t & 1u) lpres_add_evidence(&reg, (uint32_t) i, true);
+                if (t & 2u) lpres_add_evidence(&reg, (uint32_t) i, false);
+            }
+            uint32_t want = (uint32_t) lpres_get(&reg, (uint32_t) i)->state;
+            CHECK(i >= 0 && zl_sutra_evidence(a, b) == want, "evidence %u + %u = %u, lpres says %u", a, b,
+                  zl_sutra_evidence(a, b), want);
+        }
+    /* the fuse: one reading pools its tags; two readings are both kept */
+    for (uint32_t op = 0; op < ZL_OP__COUNT; op++)
+        for (uint32_t a = 0; a < 4; a++)
+            for (uint32_t b = 0; b < 4; b++) {
+                uint64_t out[2] = {0, 0}, q = zl_sutra_cell((op * 7u + 3u) % ZL_OP__COUNT, b);
+                int32_t n = zl_sutra_fuse(zl_sutra_cell(op, a), zl_sutra_cell(op, b), out);
+                CHECK(n == 1 && out[0] == zl_sutra_cell(op, zl_sutra_evidence(a, b)), "%s fuses %u and %u", NAME[op],
+                      a, b);
+                if (zl_sutra_op(q) == (int32_t) op) continue;
+                n = zl_sutra_fuse(zl_sutra_cell(op, a), q, out);
+                if (!a != !b) {
+                    CHECK(n == 1 && out[0] == (a ? zl_sutra_cell(op, a) : q), "%s: only one side claims", NAME[op]);
+                } else {
+                    uint32_t t = a ? 3u : 0u;
+                    CHECK(n == 2 && out[0] == zl_sutra_cell(op, t) &&
+                              zl_sutra_op(out[1]) == zl_sutra_op(q) && (out[1] >> 60) == t,
+                          "%s against another reading, tags %u and %u", NAME[op], a, b);
+                }
+            }
+    {
+        uint64_t out[2];
+        CHECK(zl_sutra_fuse(zl_sutra_cell(ZL_ADD, 1) | 1ull << 50, zl_sutra_cell(ZL_ADD, 1), out) < 0 &&
+                  zl_sutra_fuse(zl_sutra_cell(ZL_ADD, 1), zl_sutra_cell(ZL_ADD, 1) | 1ull << 63, out) < 0 &&
+                  zl_sutra_fuse(1, 1, 0) < 0,
+              "fuse refuses reserved bits");
+        /* the classic case: one source says T, the other F, same reading */
+        CHECK(zl_sutra_fuse(zl_sutra_cell(ZL_ADD, 1), zl_sutra_cell(ZL_ADD, 2), out) == 1 &&
+                  out[0] == zl_sutra_cell(ZL_ADD, 3),
+              "T with F is B");
     }
 
     if (argc > 2) { /* the table for ALPHABET.md */

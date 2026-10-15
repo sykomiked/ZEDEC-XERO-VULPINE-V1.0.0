@@ -88,4 +88,19 @@ const char *zl_sutra_pratyaya(uint32_t p);  /* the variant's name; "" for 0 */
 char zl_sutra_kchar(uint32_t code);         /* one letter per operand code */
 uint32_t zl_sutra_count(void);              /* the number of operations */
 
+/* Pooling evidence (lpres's rule, lpres_add_evidence): a state with support
+ * from either side and refutation from either side. With the lpres codes
+ * (N 0, T 1, F 2, B 3) that is a | b: T and F give B, N adds nothing. */
+uint32_t zl_sutra_evidence(uint32_t a, uint32_t b);
+/* Fuse two sources' cells for the same place (the bilateral reading).
+ *   One reading (the cells are equal but for the tag): out[0] is that cell
+ *   with the pooled tag; returns 1.
+ *   Two readings: a reading with tag N carries no claim, so if only one
+ *   side has a claim, out[0] is its cell, returns 1. Otherwise both are kept,
+ *   out[0] = a and out[1] = b, each tagged B when both sides made a claim
+ *   (each stays N when neither did); returns 2. Nothing is dropped, and
+ *   neither reading is chosen: deciding between them is a later step.
+ * Returns -1 for a cell with sandhi or svara set. */
+int32_t zl_sutra_fuse(uint64_t a, uint64_t b, uint64_t out[2]);
+
 #endif
