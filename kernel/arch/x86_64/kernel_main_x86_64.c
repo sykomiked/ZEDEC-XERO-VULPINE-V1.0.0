@@ -40,8 +40,8 @@
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "swarmnet/swarmnet.h" /* missing swarm discs over the network */
-#include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
-#include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
+#include "x86_irq.h"           /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"     /* ring-3 processes and the scheduler (gap 6) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -199,7 +199,6 @@ static uint64_t handoff_rsdp(void)
     if (!h || (h->flags & ZXH_F_ACPI_TABLES_LOST)) return 0;
     return h->rsdp;
 }
-
 
 /* Milliseconds and the heartbeat for the swarm-disc fetch (swarmnet.h), which
  * polls instead of halting. */

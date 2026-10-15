@@ -72,12 +72,12 @@
 /* MDIC: PHY register access. The 8254x and 82574 PHY sits at address 1; the
  * PCH parts' PHY needs the software/firmware semaphore, which this driver
  * does not take, so their PHY is left alone. */
-#define MDIC_PHY1      (1u << 21)
-#define MDIC_OP_WRITE  (1u << 26)
-#define MDIC_READY     (1u << 28)
-#define MDIC_ERROR     (1u << 30)
-#define BMCR_PDOWN     0x0800u /* PHY control register 0: power down */
-#define MDIC_US        10000u
+#define MDIC_PHY1     (1u << 21)
+#define MDIC_OP_WRITE (1u << 26)
+#define MDIC_READY    (1u << 28)
+#define MDIC_ERROR    (1u << 30)
+#define BMCR_PDOWN    0x0800u /* PHY control register 0: power down */
+#define MDIC_US       10000u
 
 #define STATUS_LU            (1u << 1)
 #define STATUS_FUNC_1        (1u << 2)

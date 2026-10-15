@@ -391,7 +391,8 @@ uint32_t tcp_read(tcp_conn_t *c, uint8_t *dst, uint32_t cap) {
     return n;
 }
 
-uint32_t tcp_window_update(tcp_conn_t *c, uint8_t *out, uint32_t cap) {
+uint32_t tcp_window_update(tcp_conn_t *c, uint8_t *out, uint32_t cap)
+{
     if (!c || (c->state != TCPS_ESTABLISHED && c->state != TCPS_FIN_WAIT_1 &&
                c->state != TCPS_FIN_WAIT_2))
         return 0;

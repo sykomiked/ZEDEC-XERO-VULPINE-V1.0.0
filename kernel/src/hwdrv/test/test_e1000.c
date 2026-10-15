@@ -99,8 +99,8 @@ static void do_reset(fe1k_t *f)
 static int link_ok(fe1k_t *f, uint64_t now)
 {
     uint32_t c = rd(f, CTRL);
-    return !f->unplugged && !(f->phy_ctrl & 0x0800) && (c & (1u << 6)) && !(c & ((1u << 3) | (1u << 7) | (1u << 31))) &&
-           now >= f->link_at;
+    return !f->unplugged && !(f->phy_ctrl & 0x0800) && (c & (1u << 6)) &&
+           !(c & ((1u << 3) | (1u << 7) | (1u << 31))) && now >= f->link_at;
 }
 
 static int rx_accept(fe1k_t *f, const uint8_t *fr)

@@ -113,7 +113,7 @@ typedef struct {
     /* delivered, in-order data waiting for the application */
     uint8_t  rx[TCP_RCV_BUF];
     uint32_t rx_len;
-    uint32_t rcv_adv;       /* the window the last segment we sent advertised */
+    uint32_t rcv_adv; /* the window the last segment we sent advertised */
 
     bool     fin_sent;      /* our FIN is in flight or acknowledged */
     bool     fin_acked;
