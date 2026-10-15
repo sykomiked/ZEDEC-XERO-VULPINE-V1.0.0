@@ -7,7 +7,6 @@
  * Design principles:
  * - Sutra speaks ratios natively: every value is num/den, exact
  * - Paraconsistent logic: TRUE/FALSE/BOTH/NEITHER as first-class values
- * - M5 coverage hyperbola enforcement at language boundary
  * - Self-audit/self-heal hooks for every translation
  * - No rounding, no approximation: exact or refuse
  *
@@ -19,18 +18,14 @@
  */
 #include "orbital_compat.h"
 #include "lpres.h"
-#include "m5_types.h"
-#include "surplus.h"
 #include "../sdk/selfaudit.h"
 
-/* ===== Sutra LPRES Logic Values in IR ===== */
-
-typedef enum {
-    SUTRA_LOGIC_TRUE      = 0,  /* LPRES: TRUE */
-    SUTRA_LOGIC_FALSE     = 1,  /* LPRES: FALSE */
-    SUTRA_LOGIC_BOTH      = 2,  /* LPRES: BOTH (contradiction) */
-    SUTRA_LOGIC_NEITHER   = 3   /* LPRES: NEITHER (unknown) */
-} sutra_logic_t;
+/* ===== Sutra LPRES Logic Values in IR =====
+ *
+ * The logic state rides in field 1 in lpres numbering (NEITHER 0, TRUE 1,
+ * FALSE 2, BOTH 3), so it lines up with lpres_conjoin and friends. NEITHER is
+ * the absence of a tag: it is never embedded, and a missing or malformed tag
+ * lifts back as NEITHER. A contradiction (BOTH) always survives the trip. */
 
 /* ===== Sutra Lower: Sutra source -> Canonical IR ===== */
 
@@ -38,28 +33,29 @@ int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
 {
     if (len < sizeof(oc_sutra_src_t)) return OC_ERR_ARG;
     const oc_sutra_src_t *s = (const oc_sutra_src_t *)src;
-    
+
     /* Validate denominator */
     if (s->den == 0) return OC_ERR_CONV;
-    
+    if (s->logic_state > LPRES_STATE_BOTH) return OC_ERR_CONV;
+
     /* Create exact rational */
     rat_t v = oc_rat_from_sutra(s->num, s->den);
     if (!v.valid) return OC_ERR_CONV;
-    
+
     /* Single field with rational value */
     out->num_fields = 1;
     out->fields[0].type = OC_TYPE_RATIONAL;
     out->fields[0].num = v;
     out->fields[0].scale = s->scale;
-    
-    /* Embed LPRES logic state as a second field if not NEITHER */
-    if (s->logic_state != SUTRA_LOGIC_NEITHER && out->num_fields < OC_MAX_FIELDS) {
+
+    /* Embed the LPRES logic state as a second field unless it is NEITHER */
+    if (s->logic_state != LPRES_STATE_NEITHER) {
         out->fields[1].type = OC_TYPE_RATIONAL;
         out->fields[1].num = rat_from_int((int64_t)s->logic_state);
         out->fields[1].scale = 0;
         out->num_fields = 2;
     }
-    
+
     return OC_OK;
 }
 
@@ -68,119 +64,55 @@ int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
 int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
 {
     if (cap < sizeof(oc_sutra_src_t)) return OC_ERR_CAP;
-    
+
     /* Get primary rational value */
     rat_t v;
     uint32_t scale;
     int32_t rc = oc_ir_get_rat(ir, &v, &scale);
     if (rc != OC_OK) return rc;
-    
-    /* Extract LPRES logic state if present */
-    lpres_state_t logic_state = SUTRA_LOGIC_NEITHER;
-    if (ir->num_fields >= 2 && ir->fields[1].type == OC_TYPE_RATIONAL) {
-        if (rat_is_int(ir->fields[1].num)) {
-            int64_t logic_val = ir->fields[1].num.num;
-            if (logic_val >= 0 && logic_val <= 3) {
-                logic_state = (lpres_state_t)logic_val;
-            }
-        }
-    }
-    
+
     oc_sutra_src_t *s = (oc_sutra_src_t *)out;
     s->num = v.num;
     s->den = v.den;
-    s->logic_state = logic_state;
+    s->logic_state = oc_field_lpres(ir, 1, LPRES_STATE_NEITHER);
     s->scale = scale;
-    
+
     return (int32_t)sizeof(oc_sutra_src_t);
 }
 
 /* ===== Sutra Paraconsistent Operations ===== */
 
-/* LPRES conjunction (AND) on two Sutra values */
-static int32_t sutra_lpres_conjoin(const oc_ir_t *a, const oc_ir_t *b, oc_ir_t *out) {
-    /* Extract logic states */
-    lpres_state_t state_a = SUTRA_LOGIC_NEITHER;
-    lpres_state_t state_b = SUTRA_LOGIC_NEITHER;
-    
-    if (a->num_fields >= 2 && a->fields[1].type == OC_TYPE_RATIONAL && rat_is_int(a->fields[1].num)) {
-        state_a = (lpres_state_t)a->fields[1].num.num;
-    }
-    if (b->num_fields >= 2 && b->fields[1].type == OC_TYPE_RATIONAL && rat_is_int(b->fields[1].num)) {
-        state_b = (lpres_state_t)b->fields[1].num.num;
-    }
-    
-    /* LPRES conjunction */
-    lpres_state_t result = lpres_conjoin(state_a, state_b);
-    
-    /* Build output IR with result logic state */
+/* The result of a logic op is one field holding the lpres state. */
+static void sutra_logic_result(oc_ir_t *out, lpres_state_t result)
+{
     oc_zero_ir(out);
     out->num_fields = 1;
     out->fields[0].type = OC_TYPE_RATIONAL;
     out->fields[0].num = rat_from_int((int64_t)result);
     out->fields[0].scale = 0;
-    
+}
+
+/* LPRES conjunction (AND) on two Sutra values */
+static int32_t sutra_lpres_conjoin(const oc_ir_t *a, const oc_ir_t *b, oc_ir_t *out) {
+    if (!a || !b || !out) return OC_ERR_ARG;
+    sutra_logic_result(out, lpres_conjoin(oc_field_lpres(a, 1, LPRES_STATE_NEITHER),
+                                          oc_field_lpres(b, 1, LPRES_STATE_NEITHER)));
     return OC_OK;
 }
 
 /* LPRES disjunction (OR) on two Sutra values */
 static int32_t sutra_lpres_disjoin(const oc_ir_t *a, const oc_ir_t *b, oc_ir_t *out) {
-    lpres_state_t state_a = SUTRA_LOGIC_NEITHER;
-    lpres_state_t state_b = SUTRA_LOGIC_NEITHER;
-    
-    if (a->num_fields >= 2 && a->fields[1].type == OC_TYPE_RATIONAL && rat_is_int(a->fields[1].num)) {
-        state_a = (lpres_state_t)a->fields[1].num.num;
-    }
-    if (b->num_fields >= 2 && b->fields[1].type == OC_TYPE_RATIONAL && rat_is_int(b->fields[1].num)) {
-        state_b = (lpres_state_t)b->fields[1].num.num;
-    }
-    
-    lpres_state_t result = lpres_disjoin(state_a, state_b);
-    
-    oc_zero_ir(out);
-    out->num_fields = 1;
-    out->fields[0].type = OC_TYPE_RATIONAL;
-    out->fields[0].num = rat_from_int((int64_t)result);
-    out->fields[0].scale = 0;
-    
+    if (!a || !b || !out) return OC_ERR_ARG;
+    sutra_logic_result(out, lpres_disjoin(oc_field_lpres(a, 1, LPRES_STATE_NEITHER),
+                                          oc_field_lpres(b, 1, LPRES_STATE_NEITHER)));
     return OC_OK;
 }
 
 /* LPRES negation (NOT) on a Sutra value */
 static int32_t sutra_lpres_negate(const oc_ir_t *a, oc_ir_t *out) {
-    lpres_state_t state_a = SUTRA_LOGIC_NEITHER;
-    if (a->num_fields >= 2 && a->fields[1].type == OC_TYPE_RATIONAL && rat_is_int(a->fields[1].num)) {
-        state_a = (lpres_state_t)a->fields[1].num.num;
-    }
-    
-    lpres_state_t result = lpres_negate(state_a);
-    
-    oc_zero_ir(out);
-    out->num_fields = 1;
-    out->fields[0].type = OC_TYPE_RATIONAL;
-    out->fields[0].num = rat_from_int((int64_t)result);
-    out->fields[0].scale = 0;
-    
+    if (!a || !out) return OC_ERR_ARG;
+    sutra_logic_result(out, lpres_negate(oc_field_lpres(a, 1, LPRES_STATE_NEITHER)));
     return OC_OK;
-}
-
-/* ===== Sutra M5 Coverage Check ===== */
-
-static int32_t sutra_check_coverage(const oc_ir_t *ir, surplus_real_t min_ratio) {
-    if (ir->num_fields < 1) return -1;
-    
-    /* Extract M5 coordinates from IR fields */
-    m5_coords_t m5 = {0};
-    m5.omega = 1;
-    m5.r = SR_FROM_FLOAT(2.4);
-    m5.ell = SR_ONE;
-    m5.phi = SR_ZERO;
-    m5.chi = 0;
-    
-    surplus_real_t coverage = SR_DIV(SR_MUL(SR_MUL(SR_FROM_INT(m5.omega), m5.r), m5.ell), SR_MUL(m5.phi, SR_FROM_INT(m5.chi)));
-    
-    if (SR_CMP(coverage, min_ratio) < 0) return -1;
-    return 0;
 }
 
 /* ===== Sutra Self-Audit ===== */
@@ -200,7 +132,7 @@ static int32_t sutra_self_audit(const oc_ir_t *ir) {
     if (ir->num_fields >= 2 && ir->fields[1].type == OC_TYPE_RATIONAL) {
         if (!rat_is_int(ir->fields[1].num)) return -1;
         int64_t val = ir->fields[1].num.num;
-        if (val < 0 || val > 3) return -1;
+        if (val < LPRES_STATE_NEITHER || val > LPRES_STATE_BOTH) return -1;
     }
     
     return 0;
@@ -214,22 +146,11 @@ static const oc_lang_ops_t OC_SUTRA_OPS = {
     sutra_lift
 };
 
-/* Extended ops for Sutra-specific operations */
-typedef struct {
-    const oc_lang_ops_t base;
-    int32_t (*lpres_conjoin)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
-    int32_t (*lpres_disjoin)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
-    int32_t (*lpres_negate)(const oc_ir_t *, oc_ir_t *);
-    int32_t (*check_coverage)(const oc_ir_t *, surplus_real_t);
-    int32_t (*self_audit)(const oc_ir_t *);
-} oc_sutra_extended_ops_t;
-
 static const oc_sutra_extended_ops_t OC_SUTRA_EXTENDED = {
     .base = OC_SUTRA_OPS,
     .lpres_conjoin = sutra_lpres_conjoin,
     .lpres_disjoin = sutra_lpres_disjoin,
     .lpres_negate = sutra_lpres_negate,
-    .check_coverage = sutra_check_coverage,
     .self_audit = sutra_self_audit
 };
 
