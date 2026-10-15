@@ -10,6 +10,7 @@
  */
 #include "kernel_main_x86_64.h"
 #include "../zxv_handoff.h"
+#include "bootmem_x86.h"
 #include "uart_16550.h"
 #include "x86_64_arch.h"
 #include "boot_evidence.h"
@@ -220,9 +221,8 @@ static void handoff_report(void)
     boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
 
-void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
-    (void)mb2_magic;
-    (void)mb2_info;
+void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
+{
 
     boot_evidence_init();
     uart_init();
@@ -245,6 +245,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     if (efifb_init())
         boot_msg("  [DRIVER ONLINE] UEFI GOP text console (serial mirrored on screen)");
     handoff_report();
+    bootmem_x86_init(mb2_magic, mb2_info);
 
     /* Ring-3 (user-mode) parity — mirrors the arm64 EL0 path. Runs FIRST so it is
      * isolated from the rest of bring-up during development. */
@@ -301,16 +302,25 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
 
     boot_msg("[BOOT] Economy core: ledger/instruments/rails/bridge/identity/quantum...");
     predictive_config_t pcfg; predictive_config_init(&pcfg);
-    static triple_ledger_t tl; triple_ledger_init(&tl);
-    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL, "Genesis:Financial");
+    /* The two ledgers are 62 MB together: they come from firmware-usable
+     * memory past the kernel (bootmem_x86.c), not from a fixed BSS window. */
+    triple_ledger_t *tl = bootmem_x86_take(sizeof *tl, "the triple ledger");
+    vino_ledger_t *vino = bootmem_x86_take(sizeof *vino, "the vino ledger");
+    if (!tl || !vino) {
+        boot_msg("[BOOT_REFUSED] no firmware memory map with room for the ledgers");
+        for (;;) __asm__ __volatile__("cli; hlt");
+    }
+    triple_ledger_init(tl);
+    triple_ledger_create_account(tl, 1, CAP_FINANCIAL, "Genesis:Financial");
     static portfolio_t pf; portfolio_init(&pf);
     static rail_system_t rs; rail_system_init(&rs);
     static bridge_registry_t br; bridge_registry_init(&br);
     static identity_registry_t idr; identity_registry_init(&idr);
     static quantum_system_t qs; quantum_system_init(&qs);
-    static vino_ledger_t vino; vino_init(&vino, 1);
-    vino_create_account(&vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
-    static vena_runtime_t vena; vena_init(&vena, &vino);
+    vino_init(vino, 1);
+    vino_create_account(vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
+    static vena_runtime_t vena;
+    vena_init(&vena, vino);
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     static holo_ctx_t holo; holo_init(&holo);
     boot_msg("  [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo");
