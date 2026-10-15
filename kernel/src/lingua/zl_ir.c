@@ -180,7 +180,7 @@ int zl_fits(const zl_cc_t *c, int64_t v)
 const char *zl_lang_name(int lang)
 {
     switch (lang & ~ZL_TWIN) {
-#define ZL_LANG_X(id, n, name, twin, fe, ext)                                                      \
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt)                                                  \
     case ZL_LANG_##id:                                                                             \
         return name;
 #include "zl_langs.def"
@@ -193,7 +193,7 @@ const char *zl_lang_name(int lang)
 const char *zl_twin_name(int lang)
 {
     switch (lang & ~ZL_TWIN) {
-#define ZL_LANG_X(id, n, name, twin, fe, ext)                                                      \
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt)                                                  \
     case ZL_LANG_##id:                                                                             \
         return twin;
 #include "zl_langs.def"
@@ -1458,7 +1458,7 @@ trap:
 static int dispatch(int lang, const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *fe)
 {
     switch (lang) {
-#define ZL_LANG_X(id, n, name, twin, fename, ext)                                                  \
+#define ZL_LANG_X(id, n, name, twin, fename, ext, rt)                                              \
     case ZL_LANG_##id:                                                                             \
         return zl_##fename##_compile(src, len, c, tw, fe);
 #include "zl_langs.def"

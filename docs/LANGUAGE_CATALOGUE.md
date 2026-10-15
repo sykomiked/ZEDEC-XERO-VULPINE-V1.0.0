@@ -96,8 +96,12 @@ the language, and every app uses it by name.
 - **Writing a block.** A block names each entry's inputs and answer
   (`provides gcd num a b`) and binds it to programs in one or more
   languages (`logic fortran77 gcd ...`, `logic basic ...`, `logic forth ...`).
-  The arguments are the program's input (FORTRAN `READ *`, BASIC `INPUT`, the
-  Forth stack) and the answer is every number it prints.
+  Every Lingua language is accepted by its runtime name from
+  `kernel/src/lingua/zl_langs.def` (`pascal`, `algol60`, `scheme`, `logo` ...),
+  its catalogue name or its twin's name (`Tutordrake`); one whose front-end is
+  not built yet refuses at load, by name. The arguments are the program's
+  input (FORTRAN `READ *`, BASIC `INPUT`, Pascal `read`, the Forth stack) and
+  the answer is every number it prints.
 - **Precompiled.** `zxlang pack prog.f` writes the program already compiled,
   as Lingua IR text (`.zlir`). An app that ships it as `logic zlir ...`
   needs no compiler on the device. The text carries a digest and is

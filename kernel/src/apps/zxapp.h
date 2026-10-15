@@ -184,12 +184,16 @@ typedef enum {
     ZXAPP_LANG_DART,
     ZXAPP_LANG_RUBY,
     ZXAPP_LANG_PHP,
-    ZXAPP_LANG_WASM,      /* anything that compiles to WebAssembly (Z-Wasm) */
-    ZXAPP_LANG_FORTRAN77, /* the legacy languages, through Lingua (zxapp_lingua.c) */
-    ZXAPP_LANG_BASIC,
-    ZXAPP_LANG_FORTH,
+    ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
     ZXAPP_LANG_ZLIR, /* a Lingua program precompiled to IR text (zl_pack) */
+/* Every Lingua language (zxapp_lingua.c), in zl_langs.def order. */
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) ZXAPP_LANG_ZL_##id,
+#include "../lingua/zl_langs.def"
+#undef ZL_LANG_X
     ZXAPP_LANG_COUNT,
+    ZXAPP_LANG_FORTRAN77 = ZXAPP_LANG_ZL_FORTRAN, /* the names apps used first */
+    ZXAPP_LANG_BASIC = ZXAPP_LANG_ZL_BASIC,
+    ZXAPP_LANG_FORTH = ZXAPP_LANG_ZL_FORTH,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
 

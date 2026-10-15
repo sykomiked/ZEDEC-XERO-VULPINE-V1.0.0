@@ -1395,7 +1395,7 @@ static int golden_lang(const char *name)
         int lang;
         const char *ext;
     } langs[] = {
-#define ZL_LANG_X(id, n, lname, twin, fe, ext) {ZL_LANG_##id, ext},
+#define ZL_LANG_X(id, n, lname, twin, fe, ext, rt) {ZL_LANG_##id, ext},
 #include "zl_langs.def"
 #undef ZL_LANG_X
     };

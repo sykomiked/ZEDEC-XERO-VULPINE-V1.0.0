@@ -73,7 +73,7 @@ typedef enum {
 /* ---- languages ---- */
 /* One per line of zl_langs.def (names, twins, front-ends, extensions). */
 typedef enum {
-#define ZL_LANG_X(id, n, name, twin, fe, ext) ZL_LANG_##id = n,
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) ZL_LANG_##id = n,
 #include "zl_langs.def"
 #undef ZL_LANG_X
     ZL_LANG__COUNT /* one past the last; the ids are dense */

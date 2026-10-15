@@ -4,7 +4,7 @@
 #
 # test_zxapp.sh — build libzxv, the apl-kron, ada-eve, cobol-sutra, fortran-trebago and mumps-myra
 # pillars and the Z-Wasm kit (incrementally) and run test_zxapp.c: app manifests, and KRON, Eve,
-# Sutra, Trebago, MYRA, WebAssembly and legacy (Lingua: FORTRAN 77, BASIC, Forth) app logic. Exits 3 when only the build failed.
+# Sutra, Trebago, MYRA, WebAssembly and legacy (every Lingua language) app logic. Exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 R="$(cd "$HERE/../../.." && pwd)"

@@ -82,7 +82,7 @@ int zl_wordeq(const char *a, size_t n, const char *w);
 /* Front-ends (one per language, see zl_langs.def). Each compiles into p,
  * and, when tw is not NULL, also writes the canonical twin text into it.
  * LISP and Scheme share zl_lisp_compile; c->p->lang says which. */
-#define ZL_LANG_X(id, n, name, twin, fe, ext)                                                      \
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt)                                                  \
     int zl_##fe##_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
 #include "zl_langs.def"
 #undef ZL_LANG_X
