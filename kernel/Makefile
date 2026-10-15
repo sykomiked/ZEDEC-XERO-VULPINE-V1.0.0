@@ -1712,7 +1712,7 @@ test-metal:
 # and the warp product kernels run on the CPU (32 threads a warp) bit for bit
 # against the C reference. test-cuda runs everything on a real GPU (driver and
 # NVRTC needed, nothing at build time); SKIP with none, unless ZT_CUDA_REQUIRE=1.
-ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
 .PHONY: test-cuda test-cuda-offline
 test-cuda-offline:
 	@mkdir -p $(ZXV_TMP)
@@ -1739,7 +1739,7 @@ test-cuda: test-cuda-offline
 # reference. test-hip runs everything on a real GPU (the HIP runtime and
 # hiprtc needed, nothing at build time); SKIP with none, unless
 # ZT_HIP_REQUIRE=1.
-ZT_HIP_SRCS = src/tensor/zt_hip.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+ZT_HIP_SRCS = src/tensor/zt_hip.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
 ZT_HIP_ARCHS = gfx906 gfx90a gfx1030 gfx1100
 .PHONY: test-hip test-hip-offline
 test-hip-offline:
@@ -1797,7 +1797,12 @@ test-vk:
 	  $(ZXV_TMP)/test_zt_vk > $$log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $$log || true; echo "[PASS] test_zt_vk, kernels $$set, state $$mode ($$(tail -1 $$log))"; } || { cat $$log; echo "[FAIL] test_zt_vk, kernels $$set, state $$mode"; exit 1; }; \
 	  if grep -q "^\[SKIP\]" $$log; then break 2; fi; \
 	  if [ $$set = i32 ] && ! grep -q "kernels: 32-bit words only" $$log; then echo "[FAIL] ZT_VK_FORCE_I32=1 did not select the 32-bit kernels"; exit 1; fi; \
-	done; done
+	done; done; \
+	if ! grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_vk_int64_import.log; then \
+	  unset ZT_VK_FORCE_I32 ZT_VK_NO_IMPORT; \
+	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_gpu || { echo "[FAIL] test_zxv_zt_gpu build"; exit 1; }; \
+	  ZT_GPU=vulkan ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_gpu > $(ZXV_TMP)/test_zxv_zt_gpu.log 2>&1 && echo "[PASS] the app's models on Vulkan == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_gpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_gpu.log; echo "[FAIL] test_zxv_zt_gpu on Vulkan"; exit 1; }; \
+	fi
 
 .PHONY: hwe-vectors
 hwe-vectors:

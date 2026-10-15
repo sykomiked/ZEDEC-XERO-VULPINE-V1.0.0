@@ -36,7 +36,7 @@ TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tens
 	$(K)/src/tensor/zt_gpu.c
 # macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
 ifeq ($(shell uname -s),Darwin)
-TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
+TENSOR_SRCS += $(K)/src/tensor/zt_metal.m $(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
 GPU_LIBS := -framework Metal -framework Foundation
 else
@@ -44,7 +44,8 @@ else
 # (zt_vk.h, any Vulkan GPU). All open their driver at run time, so none needs a
 # GPU SDK to build. Vulkan's kernels are built to SPIR-V by glslangValidator
 # when it is installed; without it zt_vk.c builds as stubs and --gpu says so.
-GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c
+GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c \
+	$(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_HIP -DZT_HAVE_VULKAN
 GPU_LIBS := -ldl
 ifneq ($(shell command -v glslangValidator 2>/dev/null),)

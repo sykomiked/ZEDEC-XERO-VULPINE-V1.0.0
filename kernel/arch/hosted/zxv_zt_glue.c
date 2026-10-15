@@ -16,12 +16,20 @@
  *      context limit. Generation stops at tok->eos, <|im_end|> or
  *      <|endoftext|>; the stop token is not written.
  *   G4 LIMITS. One sequence at a time (the host is single-threaded), a
- *      context of at most 2048 tokens. The matrix products run on
- *      zt_simd_default() (zt_simd.h): the best SIMD kernels this CPU has
- *      (AVX2 / AVX-512 / NEON) with the rows split over a thread pool, which
- *      gives the same bits as the scalar C reference (test_zt_simd);
- *      ZT_KERN and ZT_THREADS override the choice. No sampling settings are
- *      exposed yet.
+ *      context of at most 2048 tokens. No sampling settings are exposed yet.
+ *   G7 GPU FIRST. Each loaded model (the slot's, and each G6 base) opens
+ *      the GPU this machine has (zt_accel.h: Metal on a Mac, else CUDA,
+ *      HIP or Vulkan), puts the weights on it and runs the whole forward
+ *      pass there, prompt and generation alike; the KV caches are shared
+ *      with it in place. Every backend gives the C reference's bits, so
+ *      replies are the same with or without a GPU. With no GPU (or
+ *      ZT_GPU=cpu) the model runs on zt_simd_default() (zt_simd.h): the best
+ *      SIMD kernels this CPU has with the rows split over a thread pool,
+ *      the same bits again (test_zt_simd); ZT_KERN and ZT_THREADS override
+ *      that choice. A pass the GPU cannot take (a LoRA agent's, or more
+ *      agents than the GPU can share caches with) runs its products on the
+ *      GPU and the rest on the CPU. zxv_zt_gpu and zxv_zt_base_gpu say
+ *      which device runs a model.
  *   G6 SWARM.  Several models at once (zxv_model_host.h M6): each base is
  *      loaded once (zxv_zt_base_load) and any number of agents run on it
  *      (zxv_zt_agent_new), each with its own KV cache and its own LoRA
@@ -41,12 +49,75 @@
 #include <string.h>
 
 #include "zxv_model_host.h"
+#include "zt_accel.h"
 #include "zt_model.h"
 #include "zt_simd.h"
 
 #define GLUE_CTX     2048u
 #define GLUE_BATCH   64u
 #define GLUE_MAX_NEW 256u
+#define GLUE_POOL    15u /* KV caches a base shares with its GPU (16 regions less the weights) */
+
+/* ---- G7: the GPU behind one loaded model ---- */
+typedef struct {
+    zt_accel_t *acc; /* null: the CPU */
+    zt_kern_t k;
+    char info[192]; /* "metal: Apple M3 Max", or "cpu (why)" */
+} gpu_t;
+
+/* Memory a GPU may share in place: aligned and rounded to
+ * zt_accel_state_align(); the block malloc returned sits just before it. */
+static uint64_t amem_round(uint64_t n)
+{
+    uint64_t a = zt_accel_state_align();
+    return (n + a - 1) / a * a;
+}
+
+static void *amem_alloc(uint64_t n)
+{
+    uint64_t a = zt_accel_state_align();
+    if (!n || n > ((uint64_t) 1 << 40)) return NULL;
+    uint8_t *raw = malloc((size_t) (n + a + sizeof(void *)));
+    if (!raw) return NULL;
+    uintptr_t p = ((uintptr_t) raw + sizeof(void *) + a - 1) / a * a;
+    ((void **) p)[-1] = raw;
+    return (void *) p;
+}
+
+static void amem_free(void *p)
+{
+    if (p) free(((void **) p)[-1]);
+}
+
+/* m runs on the GPU when there is one that takes g's weights, else on the
+ * CPU's SIMD kernels. */
+static void gpu_open(gpu_t *u, zt_model_t *m, const zt_gguf_t *g)
+{
+    char why[160] = "";
+    memset(u, 0, sizeof *u);
+    m->kern = zt_simd_default(); /* same output bits as the C reference */
+    u->acc = zt_accel_open(why, sizeof why);
+    if (u->acc && zt_accel_map(u->acc, g->buf, g->size)) {
+        snprintf(why, sizeof why, "%s: the weights do not fit on %s", zt_accel_api(u->acc),
+                 zt_accel_name(u->acc));
+        zt_accel_free(u->acc);
+        u->acc = NULL;
+    }
+    if (!u->acc) {
+        snprintf(u->info, sizeof u->info, "cpu (%s)", why[0] ? why : "no GPU");
+        return;
+    }
+    zt_accel_kern(u->acc, &u->k, m->kern, true);
+    m->kern = &u->k;
+    snprintf(u->info, sizeof u->info, "%s: %s", zt_accel_api(u->acc), zt_accel_name(u->acc));
+}
+
+/* before the memory it shares is freed */
+static void gpu_close(gpu_t *u)
+{
+    zt_accel_free(u->acc);
+    memset(u, 0, sizeof *u);
+}
 
 static struct {
     const zt_gguf_t *g; /* the file the model was loaded from */
@@ -56,6 +127,7 @@ static struct {
     zt_model_state_t s;
     void *state_mem;
     uint32_t n_ctx;
+    gpu_t gpu;
 } G;
 
 static zxv_zt_verdict_t V;
@@ -79,9 +151,15 @@ static uint64_t step_margin(const zt_fx *l, uint32_t n, int32_t top, uint32_t *s
 
 void zxv_zt_release(void)
 {
+    gpu_close(&G.gpu);
     free(G.arena);
-    free(G.state_mem);
+    amem_free(G.state_mem);
     memset(&G, 0, sizeof G);
+}
+
+const char *zxv_zt_gpu(void)
+{
+    return G.gpu.info;
 }
 
 static void set_err(char *err, size_t cap, const char *fmt, const char *a, int b)
@@ -120,16 +198,19 @@ static int32_t ensure_loaded(const zt_gguf_t *g, char *err, size_t err_cap)
         zxv_zt_release();
         return r;
     }
-    G.m.kern = zt_simd_default(); /* same output bits as the C reference */
+    gpu_open(&G.gpu, &G.m, g);
     uint32_t n_ctx = G.m.cfg.n_ctx_train;
     if (n_ctx == 0 || n_ctx > GLUE_CTX) n_ctx = GLUE_CTX;
     uint64_t sb = zt_model_state_bytes(&G.m, n_ctx, GLUE_BATCH, ZT_KV_Q16);
-    if (!sb || !(G.state_mem = malloc((size_t) sb)) ||
+    if (!sb || !(G.state_mem = amem_alloc(amem_round(sb))) ||
         zt_model_state_init(&G.s, &G.m, n_ctx, GLUE_BATCH, ZT_KV_Q16, G.state_mem, sb) != 0) {
         set_err(err, err_cap, "%s (error %d)", "could not set up the KV cache", -1);
         zxv_zt_release();
         return -1;
     }
+    /* whole passes on the GPU need the cache shared; without it each pass
+     * runs its products there and the rest on the CPU */
+    if (G.gpu.acc) (void) zt_accel_map_state(G.gpu.acc, G.state_mem, amem_round(sb));
     G.g = g;
     G.buf = g->buf;
     G.n_ctx = n_ctx;
@@ -288,16 +369,67 @@ struct zxv_zt_base {
     void *arena;
     uint32_t n_ctx;
     uint32_t n_agents; /* agents still running on it */
+    gpu_t gpu;
+    /* KV caches shared with the GPU: kept until the base is freed (the GPU
+     * holds them until then) and handed to the next agent */
+    struct {
+        void *mem;
+        bool busy;
+    } pool[GLUE_POOL];
+    uint32_t n_pool;
 };
 
 struct zxv_zt_agent {
     zxv_zt_base_t *base;
     zt_model_state_t s;
     void *state_mem;
+    int32_t pool; /* its index in base->pool, or -1: its own memory */
     zt_lora_t lora;
     void *lora_arena;
     bool has_lora;
 };
+
+/* a KV cache of sb bytes for an agent on b: a free shared one, else a new
+ * one shared when the GPU still has room */
+static void *state_take(zxv_zt_base_t *b, uint64_t sb, int32_t *pool)
+{
+    *pool = -1;
+    for (uint32_t i = 0; i < b->n_pool; i++)
+        if (!b->pool[i].busy) {
+            b->pool[i].busy = true;
+            *pool = (int32_t) i;
+            return b->pool[i].mem;
+        }
+    void *mem = amem_alloc(amem_round(sb));
+    if (mem && b->gpu.acc && b->n_pool < GLUE_POOL &&
+        zt_accel_map_state(b->gpu.acc, mem, amem_round(sb)) == 0) {
+        b->pool[b->n_pool].mem = mem;
+        b->pool[b->n_pool].busy = true;
+        *pool = (int32_t) b->n_pool++;
+    }
+    return mem;
+}
+
+static void state_give(zxv_zt_base_t *b, void *mem, int32_t pool)
+{
+    if (pool >= 0)
+        b->pool[pool].busy = false;
+    else
+        amem_free(mem);
+}
+
+const char *zxv_zt_base_gpu(const zxv_zt_base_t *b)
+{
+    return b ? b->gpu.info : "";
+}
+
+void zxv_zt_base_gpu_work(const zxv_zt_base_t *b, uint64_t *passes, uint64_t *products)
+{
+    zt_accel_stats_t st;
+    zt_accel_stats(b ? b->gpu.acc : NULL, &st);
+    if (passes) *passes = st.passes;
+    if (products) *products = st.products;
+}
 
 int32_t zxv_zt_base_load(zxv_zt_base_t **out, const zt_gguf_t *g, char *err, size_t err_cap)
 {
@@ -330,7 +462,7 @@ int32_t zxv_zt_base_load(zxv_zt_base_t **out, const zt_gguf_t *g, char *err, siz
         free(b);
         return r;
     }
-    b->m.kern = zt_simd_default(); /* same output bits as the C reference */
+    gpu_open(&b->gpu, &b->m, g);
     b->n_ctx = b->m.cfg.n_ctx_train;
     if (b->n_ctx == 0 || b->n_ctx > GLUE_CTX) b->n_ctx = GLUE_CTX;
     *out = b;
@@ -341,6 +473,8 @@ int32_t zxv_zt_base_free(zxv_zt_base_t *b)
 {
     if (!b) return 0;
     if (b->n_agents) return -1; /* agents still read its weights */
+    gpu_close(&b->gpu);
+    for (uint32_t i = 0; i < b->n_pool; i++) amem_free(b->pool[i].mem);
     free(b->arena);
     free(b);
     return 0;
@@ -384,11 +518,12 @@ int32_t zxv_zt_agent_new(zxv_zt_agent_t **out, zxv_zt_base_t *b, const zt_gguf_t
         a->has_lora = true;
     }
     uint64_t sb = zt_model_state_bytes(&b->m, b->n_ctx, GLUE_BATCH, ZT_KV_Q16);
-    if (!sb || !(a->state_mem = malloc((size_t) sb)) ||
+    a->pool = -1;
+    if (!sb || !(a->state_mem = state_take(b, sb, &a->pool)) ||
         zt_model_state_init(&a->s, &b->m, b->n_ctx, GLUE_BATCH, ZT_KV_Q16, a->state_mem, sb) != 0 ||
         zt_model_state_set_lora(&a->s, &b->m, a->has_lora ? &a->lora : 0) != 0) {
         set_err(err, err_cap, "%s (error %d)", "could not set up the KV cache", -1);
-        free(a->state_mem);
+        if (a->state_mem) state_give(b, a->state_mem, a->pool);
         free(a->lora_arena);
         free(a);
         return -1;
@@ -402,7 +537,7 @@ void zxv_zt_agent_free(zxv_zt_agent_t *a)
 {
     if (!a) return;
     if (a->base && a->base->n_agents) a->base->n_agents--;
-    free(a->state_mem);
+    if (a->base && a->state_mem) state_give(a->base, a->state_mem, a->pool);
     free(a->lora_arena);
     free(a);
 }

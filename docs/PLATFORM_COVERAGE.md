@@ -36,6 +36,25 @@ Three levels, and nothing in between:
 | AArch64 SVE / SVE2 (Graviton 3/4, Neoverse V, A64FX, recent phones) | `sve` (`zt_simd_sve.c`, base SVE; Linux, GCC 13+ or clang 18+) | Emulated | `test_zt_simd` under `qemu-aarch64 -cpu max` at 128, 256, 384, 512, 1024 and 2048-bit vectors: 53/53 each; with SVE off the set is not offered. No SVE hardware has run it |
 | RISC-V RVV 1.0 | `rvv` (`zt_simd_rvv.c`, built with `-march=rv64gcv`; Linux) | Emulated | `test_zt_simd` under `qemu-riscv64` at VLEN 128, 256 and 1024: 34/34 each; with V off the C reference is used. No RISC-V hardware has run it |
 
+## In the app
+
+The app (zxv-host and zxvd) runs every model on the GPU when there is one:
+`zt_accel_open` tries Metal on a Mac, else CUDA, HIP and Vulkan, and the CPU
+rows above are the fallback (`kernel/arch/hosted/zxv_zt_glue.c`, G7). Each
+build gets what its platform can load:
+
+| Build | GPU backends in it |
+|---|---|
+| Mac app built on a Mac (`build_desktop.sh`, `build_zxvd.sh`) | Metal |
+| zxvd on Linux and the edge packages (`build_zxvd.sh`) | CUDA and HIP; Vulkan too when the build machine has glslangValidator and the Vulkan headers |
+| Windows `zxv-swarm.exe` (zig) | CUDA and HIP (no Vulkan headers in that build) |
+| Linux `zxv-swarm` tarballs (zig, static musl) | none in practice: a static binary cannot load the GPU drivers, so it runs on the CPU |
+| Mac binary cross-built off a Mac (zig) | none: no Metal framework there |
+
+`test_zxv_zt_gpu` checks the app path: on lavapipe 17 agents on one base, a
+LoRA agent, recycled caches and the single model slot all reply exactly as
+on the CPU.
+
 ## What would move a row
 
 - Emulated to tested: the platform's own hardware runs the same check. The

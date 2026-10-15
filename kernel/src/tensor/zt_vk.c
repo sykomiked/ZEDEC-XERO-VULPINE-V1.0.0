@@ -513,7 +513,7 @@ zt_vk_t *zt_vk_new(int index, char *err, uint32_t errcap)
 {
     zt_vk_t *g = calloc(1, sizeof *g);
     if (!g) return NULL;
-    VkResult r;
+    VkResult r = VK_SUCCESS;
     const char *env = getenv("ZT_VK_DEVICE");
     if (index < 0 && env && *env) index = atoi(env);
     g->lib = lib_open();

@@ -90,133 +90,14 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
-/* the GPU backend, behind one small table: Metal on macOS; CUDA (NVIDIA),
- * HIP (AMD, ROCm) and Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and
- * Windows. ZT_GPU=cuda, ZT_GPU=hip or ZT_GPU=vulkan picks one; by default
- * CUDA, then HIP, then Vulkan. */
-#if defined(ZT_HAVE_METAL)
-#    include "zt_metal.h"
-#endif
-#if defined(ZT_HAVE_CUDA)
-#    include "zt_cuda.h"
-#endif
-#if defined(ZT_HAVE_HIP)
-#    include "zt_hip.h"
-#endif
-#if defined(ZT_HAVE_VULKAN)
-#    include "zt_vk.h"
-#endif
+/* the GPU (zt_accel.h): Metal on macOS; CUDA (NVIDIA), HIP (AMD, ROCm) and
+ * Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and Windows. ZT_GPU=cuda,
+ * ZT_GPU=hip or ZT_GPU=vulkan picks one; by default CUDA, then HIP, then
+ * Vulkan. */
 #if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_HIP) ||                     \
     defined(ZT_HAVE_VULKAN)
 #    define ZB_GPU 1
-typedef struct {
-    uint64_t calls, products, declined, gpu_ns, wall_ns, passes, passes_declined, pass_ops;
-} zb_gpu_stats_t;
-#    define ZB_STATS(dst, src)                                                                     \
-        ((dst)->calls = (src).calls, (dst)->products = (src).products,                             \
-         (dst)->declined = (src).declined, (dst)->gpu_ns = (src).gpu_ns,                           \
-         (dst)->wall_ns = (src).wall_ns, (dst)->passes = (src).passes,                             \
-         (dst)->passes_declined = (src).passes_declined, (dst)->pass_ops = (src).pass_ops)
-typedef struct {
-    const char *api;
-    void *g;
-    int (*map)(void *g, const void *base, uint64_t len); /* weights */
-    int (*map_state)(void *g, void *base, uint64_t len); /* the KV cache, shared */
-    void (*set_min_tokens)(void *g, uint32_t n);
-    void (*kern)(zt_kern_t *out, const zt_kern_t *base, void *g, bool resident);
-    const char *(*name)(const void *g);
-    void (*stats)(const void *g, zb_gpu_stats_t *out);
-} zb_gpu_t;
-/* one backend's entries: P is its prefix (zt_metal, zt_cuda, zt_hip, zt_vk), K its
- * zt_kern_ prefix, M its map_state function */
-#    define ZB_BACKEND(tag, P, K, M)                                                               \
-        static int tag##_map(void *g, const void *b, uint64_t n) { return P##_map(g, b, n); }       \
-        static int tag##_map_state(void *g, void *b, uint64_t n) { return M(g, b, n); }             \
-        static void tag##_min(void *g, uint32_t n) { P##_set_min_tokens(g, n); }                    \
-        static void tag##_kern(zt_kern_t *o, const zt_kern_t *b, void *g, bool res)                 \
-        {                                                                                           \
-            if (res)                                                                                \
-                K##_resident(o, b, g);                                                              \
-            else                                                                                    \
-                K(o, b, g);                                                                         \
-        }                                                                                           \
-        static const char *tag##_name(const void *g) { return P##_name(g); }                        \
-        static void tag##_stats(const void *g, zb_gpu_stats_t *o)                                   \
-        {                                                                                           \
-            P##_stats_t s;                                                                          \
-            P##_stats(g, &s);                                                                       \
-            ZB_STATS(o, s);                                                                         \
-        }
-#    define ZB_TABLE(api, tag, g)                                                                  \
-        (zb_gpu_t)                                                                                  \
-        {                                                                                           \
-            api, g, tag##_map, tag##_map_state, tag##_min, tag##_kern, tag##_name, tag##_stats     \
-        }
-#    if defined(ZT_HAVE_METAL)
-ZB_BACKEND(mt, zt_metal, zt_kern_metal, zt_metal_map) /* unified memory: shared either way */
-#    endif
-#    if defined(ZT_HAVE_CUDA)
-ZB_BACKEND(cu, zt_cuda, zt_kern_cuda, zt_cuda_map_shared)
-#    endif
-#    if defined(ZT_HAVE_HIP)
-ZB_BACKEND(hp, zt_hip, zt_kern_hip, zt_hip_map_shared)
-#    endif
-#    if defined(ZT_HAVE_VULKAN)
-ZB_BACKEND(vk, zt_vk, zt_kern_vk, zt_vk_map_shared)
-#    endif
-/* the first backend that finds a GPU (or the one ZT_GPU names); 0 on success */
-static int zb_gpu_open(zb_gpu_t *out, char *err, uint32_t cap)
-{
-    const char *want = getenv("ZT_GPU");
-    char why[256] = "";
-    err[0] = 0;
-    (void) why;
-#    if defined(ZT_HAVE_METAL)
-    if (!want || !strcmp(want, "metal")) {
-        void *g = zt_metal_new(err, cap);
-        if (g) {
-            *out = ZB_TABLE("metal", mt, g);
-            return 0;
-        }
-    }
-#    endif
-#    if defined(ZT_HAVE_CUDA)
-    if (!want || !strcmp(want, "cuda")) {
-        const char *d = getenv("ZT_CUDA_DEVICE"); /* default 0, the first */
-        void *g = zt_cuda_new(d ? atoi(d) : 0, why, sizeof why);
-        if (g) {
-            *out = ZB_TABLE("cuda", cu, g);
-            return 0;
-        }
-        snprintf(err, cap, "cuda: %s", why);
-    }
-#    endif
-#    if defined(ZT_HAVE_HIP)
-    if (!want || !strcmp(want, "hip")) {
-        const char *d = getenv("ZT_HIP_DEVICE"); /* default 0, the first */
-        void *g = zt_hip_new(d ? atoi(d) : 0, why, sizeof why);
-        if (g) {
-            *out = ZB_TABLE("hip", hp, g);
-            return 0;
-        }
-        size_t l = strlen(err);
-        snprintf(err + l, cap - l, "%ship: %s", l ? "; " : "", why);
-    }
-#    endif
-#    if defined(ZT_HAVE_VULKAN)
-    if (!want || !strcmp(want, "vulkan")) {
-        void *g = zt_vk_new(-1, why, sizeof why); /* ZT_VK_DEVICE picks the GPU */
-        if (g) {
-            *out = ZB_TABLE("vulkan", vk, g);
-            return 0;
-        }
-        size_t l = strlen(err);
-        snprintf(err + l, cap - l, "%svulkan: %s", l ? "; " : "", why);
-    }
-#    endif
-    if (!err[0]) snprintf(err, cap, "ZT_GPU=%s is not built in", want ? want : "");
-    return -1;
-}
+#    include "zt_accel.h"
 #endif
 
 static double now_s(void)
@@ -342,8 +223,7 @@ int main(int argc, char **argv)
             tcp_rank = (uint32_t) strtoul(argv[++i], NULL, 10);
             tcp_hosts = argv[++i];
             tcp_port = (uint32_t) strtoul(argv[++i], NULL, 10);
-        }
-        else if (!strcmp(a, "--gpu"))
+        } else if (!strcmp(a, "--gpu"))
             gpu = true;
         else if (!strcmp(a, "--gpu-decode"))
             gpu = gpu_decode = true;
@@ -358,7 +238,8 @@ int main(int argc, char **argv)
                 stderr,
                 "usage: %s MODEL.gguf [--prompt TEXT] [-n N] [--ctx C] [--batch B] "
                 "[--kv q16|q8] [--text FILE] [--kern NAME] [--threads T] [--special] [--convert] "
-                "[--mmap] [--gpu] [--gpu-decode] [--gpu-resident] [--gpu-sim] [--ranks P | --tcp RANK HOST0,HOST1,... PORT]\n",
+                "[--mmap] [--gpu] [--gpu-decode] [--gpu-resident] [--gpu-sim] [--ranks P | --tcp "
+                "RANK HOST0,HOST1,... PORT]\n",
                 argv[0]);
             return 2;
         }
@@ -457,22 +338,21 @@ int main(int argc, char **argv)
     }
 #ifdef ZB_GPU
     zt_kern_t gkern;
-    zb_gpu_t gpu_be, *mt = NULL;
+    zt_accel_t *mt = NULL;
     if (gpu) {
         char gerr[512] = "";
-        if (zb_gpu_open(&gpu_be, gerr, sizeof gerr)) {
+        if (!(mt = zt_accel_open(gerr, sizeof gerr))) {
             fprintf(stderr, "zt_bench: --gpu: %s\n", gerr);
             return 2;
         }
-        mt = &gpu_be;
-        if (mt->map(mt->g, file, size)) {
+        if (zt_accel_map(mt, file, size)) {
             fprintf(stderr, "zt_bench: --gpu: cannot map the model file\n");
             return 2;
         }
-        if (!gpu_decode) mt->set_min_tokens(mt->g, 2); /* decode stays on the CPU */
-        mt->kern(&gkern, &kern, mt->g, gpu_resident);
+        if (!gpu_decode) zt_accel_set_min_tokens(mt, 2); /* decode stays on the CPU */
+        zt_accel_kern(mt, &gkern, &kern, gpu_resident);
         m.kern = &gkern;
-        printf("zt.gpu=%s\nzt.gpu_api=%s\n", mt->name(mt->g), mt->api);
+        printf("zt.gpu=%s\nzt.gpu_api=%s\n", zt_accel_name(mt), zt_accel_api(mt));
     }
 #else
     if (gpu) {
@@ -532,7 +412,7 @@ int main(int argc, char **argv)
         return 5;
     }
 #ifdef ZB_GPU
-    if (gpu_resident && mt->map_state(mt->g, smem, sbytes)) {
+    if (gpu_resident && zt_accel_map_state(mt, smem, sbytes)) {
         fprintf(stderr, "zt_bench: --gpu-resident: cannot share the model state with the GPU\n");
         return 2;
     }
@@ -572,8 +452,8 @@ int main(int argc, char **argv)
     printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
 #ifdef ZB_GPU
     if (mt) {
-        zb_gpu_stats_t gs;
-        mt->stats(mt->g, &gs);
+        zt_accel_stats_t gs;
+        zt_accel_stats(mt, &gs);
         printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
                (unsigned long long) gs.products, (unsigned long long) gs.declined,
                (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
@@ -602,8 +482,9 @@ int main(int argc, char **argv)
         for (uint32_t q = 0; q < (tcp_hosts ? 1u : n_ranks); q++) {
             rank_report_t o = me;
             if (q && read(rep_pipe[0], &o, sizeof o) != (ssize_t) sizeof o) break;
-            printf("zt.rank%u.macs=%llu\nzt.rank%u.maxrss_mb=%.1f\nzt.rank%u.sent_mb=%.3f\n", o.rank,
-                   (unsigned long long) o.macs, o.rank, o.rss_mb, o.rank, (double) o.sent / 1e6);
+            printf("zt.rank%u.macs=%llu\nzt.rank%u.maxrss_mb=%.1f\nzt.rank%u.sent_mb=%.3f\n",
+                   o.rank, (unsigned long long) o.macs, o.rank, o.rss_mb, o.rank,
+                   (double) o.sent / 1e6);
         }
     } else {
         printf("zt.maxrss_mb=%.1f\n", maxrss_mb());

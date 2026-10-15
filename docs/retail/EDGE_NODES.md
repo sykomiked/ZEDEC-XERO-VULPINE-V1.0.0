@@ -31,11 +31,13 @@ exactly what was tested and what was not.
 For a 4 GB Pi 5, edit the profile before building: `MEMORY_MAX_MB=3072`, `MEMORY_HIGH_MB=2816`,
 and one 1B-class model.
 
-The Jetson's GPU is **not used yet**: zxvd runs its own integer inference engine on the CPU cores.
-The Jetson still works as an edge node, but you are not getting its GPU speed. The NVIDIA and Vulkan
-backends (`kernel/src/tensor/zt_cuda.c`, `zt_vk.c`, bit-exact with the CPU) are built and checked,
-but they have not run on a Jetson and zxvd does not use them yet
-([GPU_STRATEGY.md](../GPU_STRATEGY.md)).
+zxvd runs its models on the GPU when it finds one (`zt_accel.h`: CUDA, then HIP, then Vulkan),
+with the same bits as the CPU, and on the CPU cores otherwise. On a Jetson that means CUDA through
+the driver JetPack installs. This has **not been run on a Jetson**: the CUDA backend has so far run
+only on desktop NVIDIA cards, emulators and offline compiles
+([PLATFORM_COVERAGE.md](../PLATFORM_COVERAGE.md)). The Jetson's GPU and CPU share one memory, and
+the CUDA backend copies the weights to GPU memory once, so a model takes about twice its file size
+there.
 
 ## Build the package
 
