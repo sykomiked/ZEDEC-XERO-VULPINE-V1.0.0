@@ -1,0 +1,523 @@
+// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// zt_vk.comp — the Vulkan compute kernels (zt_vk.c): zt_metal_math.h's
+// integer steps in GLSL, line for line, so every logit is bit for bit the
+// CPU's (test_zt_vk checks it on lavapipe and on real GPUs).
+//
+// Built once per kernel with glslangValidator -DZK=<kernel> (see
+// kernel/Makefile vk-shaders). ZK 0..14 are zt_gpu.h's ZG_K_* (3, the
+// generic product, is not built: products use the tiled kernels); ZK 100 +
+// 3 * tiled + type are the products (type 0 Q4_K, 1 Q6_K, 2 Q8_0).
+//
+// Portable on purpose: buffers are 32-bit words (no 8- or 16-bit storage
+// needed); a byte or 16-bit store is an atomic and/or on its word, so
+// neighbouring threads never clobber each other; a binding may start off a
+// word boundary (pc.d holds each one's byte offset within its first word);
+// products sum through shared memory, so any subgroup width works (8 on
+// lavapipe, 16 to 128 on phones and desktops). Needs shaderInt64.
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#define zl int64_t
+#define zw uint64_t
+#define zi int
+#define zu uint
+
+layout(std430, set = 0, binding = 0) buffer B0 { uint w[]; } m0;
+layout(std430, set = 0, binding = 1) buffer B1 { uint w[]; } m1;
+layout(std430, set = 0, binding = 2) buffer B2 { uint w[]; } m2;
+layout(std430, set = 0, binding = 3) buffer B3 { uint w[]; } m3;
+layout(std430, set = 0, binding = 4) buffer B4 { uint w[]; } m4;
+layout(std430, set = 0, binding = 5) buffer B5 { uint w[]; } m5;
+layout(std430, set = 0, binding = 6) buffer BC { uint c; } ctr;
+
+// u: the op's zg_p; d: each binding's byte offset in its first word;
+// gx: workgroups per row of the grid (grids past 65535 groups go 2-D)
+layout(push_constant) uniform PC
+{
+    uint u[16];
+    uint d[6];
+    uint gx;
+} pc;
+
+#define ZV_MEM(N)                                                                              \
+    uint ld8_##N(uint o)                                                                       \
+    {                                                                                          \
+        o += pc.d[N];                                                                          \
+        return (m##N.w[o >> 2] >> ((o & 3u) << 3)) & 255u;                                     \
+    }                                                                                          \
+    uint ldu32_##N(uint o)                                                                     \
+    {                                                                                          \
+        uint a = o + pc.d[N];                                                                  \
+        if ((a & 3u) == 0u) return m##N.w[a >> 2];                                             \
+        return ld8_##N(o) | (ld8_##N(o + 1u) << 8) | (ld8_##N(o + 2u) << 16) |                 \
+               (ld8_##N(o + 3u) << 24);                                                        \
+    }                                                                                          \
+    int ld16_##N(uint o)                                                                       \
+    {                                                                                          \
+        return int((ld8_##N(o) | (ld8_##N(o + 1u) << 8)) << 16) >> 16;                         \
+    }                                                                                          \
+    int ld32_##N(uint o) { return int(ldu32_##N(o)); }                                         \
+    zw ld64_##N(uint o) { return zw(ldu32_##N(o)) | (zw(ldu32_##N(o + 4u)) << 32); }           \
+    void st8_##N(uint o, uint v)                                                               \
+    {                                                                                          \
+        o += pc.d[N];                                                                          \
+        uint s = (o & 3u) << 3;                                                                \
+        atomicAnd(m##N.w[o >> 2], ~(255u << s));                                               \
+        atomicOr(m##N.w[o >> 2], (v & 255u) << s);                                             \
+    }                                                                                          \
+    void st16_##N(uint o, uint v)                                                              \
+    {                                                                                          \
+        st8_##N(o, v);                                                                         \
+        st8_##N(o + 1u, v >> 8);                                                               \
+    }                                                                                          \
+    void st32_##N(uint o, uint v)                                                              \
+    {                                                                                          \
+        uint a = o + pc.d[N];                                                                  \
+        if ((a & 3u) == 0u) {                                                                  \
+            m##N.w[a >> 2] = v;                                                                \
+            return;                                                                            \
+        }                                                                                      \
+        st16_##N(o, v);                                                                        \
+        st16_##N(o + 2u, v >> 16);                                                             \
+    }                                                                                          \
+    void st64_##N(uint o, zw v)                                                                \
+    {                                                                                          \
+        st32_##N(o, uint(v));                                                                  \
+        st32_##N(o + 4u, uint(v >> 32));                                                       \
+    }
+
+ZV_MEM(0)
+ZV_MEM(1)
+ZV_MEM(2)
+ZV_MEM(3)
+ZV_MEM(4)
+ZV_MEM(5)
+
+const zl ZV_I32_MAX = 2147483647l;
+const zl ZV_I32_MIN = -2147483648l;
+
+zl zm_term52(zl v, zi e)
+{
+    const zl lim = 1l << 52;
+    if (v == 0l) return 0l;
+    if (e <= 0) {
+        if (e < -62) return v < 0l ? -1l : 0l;
+        v >>= -e;
+    } else {
+        if (e > 52 || v > (lim >> e) || v < -(lim >> e)) return v < 0l ? -lim : lim;
+        v *= 1l << e;
+    }
+    return v > lim ? lim : v < -lim ? -lim : v;
+}
+
+zi zm_round(zl acc)
+{
+    zl v = (acc + 32768l) >> 16;
+    return zi(v > ZV_I32_MAX ? ZV_I32_MAX : v < ZV_I32_MIN ? ZV_I32_MIN : v);
+}
+
+zi zm_f16_m(zu d)
+{
+    zu ex = (d >> 10) & 31u;
+    zi m = zi(d & 0x3FFu);
+    if (ex == 31u) return 0;
+    if (ex != 0u) m |= 0x400;
+    return (d & 0x8000u) != 0u ? -m : m;
+}
+
+zi zm_f16_e(zu d)
+{
+    zu ex = (d >> 10) & 31u;
+    if (ex == 31u) return 0;
+    return ex != 0u ? zi(ex) - 25 : -24;
+}
+
+// ---- products: weights in binding 0 (byte offsets), activations in 1 ----
+
+zu zm_u16_w(uint o) { return ld8_0(o) | (ld8_0(o + 1u) << 8); }
+
+zi zm_dot32_q4(uint q, zu hi, uint x)
+{
+    zi s = 0;
+    for (zu i = 0u; i < 32u; i++) s += zi((ld8_0(q + i) >> hi) & 15u) * ld16_1(x + 2u * i);
+    return s;
+}
+
+zl zm_q4k_sub(uint blk, zu j, uint x, zi sh, zi asum)
+{
+    zu d = zm_u16_w(blk), dmin = zm_u16_w(blk + 2u);
+    uint p = blk + 4u;
+    zu sc, mn;
+    if (j < 4u) {
+        sc = ld8_0(p + j) & 63u;
+        mn = ld8_0(p + j + 4u) & 63u;
+    } else {
+        sc = (ld8_0(p + j + 4u) & 15u) | ((ld8_0(p + j - 4u) >> 6) << 4);
+        mn = (ld8_0(p + j + 4u) >> 4) | ((ld8_0(p + j) >> 6) << 4);
+    }
+    zi s = zm_dot32_q4(blk + 16u + (j / 2u) * 32u, (j & 1u) * 4u, x);
+    return zm_term52(zl(s) * zl(sc) * zl(zm_f16_m(d)), zm_f16_e(d) + 16 + sh) -
+           zm_term52(zl(asum) * zl(mn) * zl(zm_f16_m(dmin)), zm_f16_e(dmin) + 16 + sh);
+}
+
+zl zm_q6k_sub(uint blk, zu j, uint x, zi sh)
+{
+    zu h = j / 4u, quarter = j % 4u;
+    uint ql = blk + h * 64u + (quarter & 1u) * 32u;
+    uint qh = blk + 128u + h * 32u;
+    zu s4 = (quarter & 2u) != 0u ? 4u : 0u, s2 = 2u * quarter;
+    zi s0 = 0, s1 = 0;
+    for (zu l = 0u; l < 16u; l++) {
+        s0 += (zi(((ld8_0(ql + l) >> s4) & 15u) | (((ld8_0(qh + l) >> s2) & 3u) << 4)) - 32) *
+              ld16_1(x + 2u * l);
+        s1 += (zi(((ld8_0(ql + l + 16u) >> s4) & 15u) |
+                  (((ld8_0(qh + l + 16u) >> s2) & 3u) << 4)) -
+               32) *
+              ld16_1(x + 2u * (l + 16u));
+    }
+    zu d = zm_u16_w(blk + 208u);
+    zl sc0 = zl(int(ld8_0(blk + 192u + 2u * j) << 24) >> 24);
+    zl sc1 = zl(int(ld8_0(blk + 193u + 2u * j) << 24) >> 24);
+    zl v = sc0 * zl(s0) + sc1 * zl(s1);
+    return zm_term52(v * zl(zm_f16_m(d)), zm_f16_e(d) + 16 + sh);
+}
+
+zl zm_q80_sub(uint blk, uint x, zi sh)
+{
+    zi s = 0;
+    for (zu i = 0u; i < 32u; i++)
+        s += (int(ld8_0(blk + 2u + i) << 24) >> 24) * ld16_1(x + 2u * i);
+    zu d = zm_u16_w(blk);
+    return zm_term52(zl(s) * zl(zm_f16_m(d)), zm_f16_e(d) + 16 + sh);
+}
+
+zl zm_sub(zu qt, uint row, zu b, uint x, zi sh, zi asum)
+{
+    if (qt == 12u) return zm_q4k_sub(row + (b / 8u) * 144u, b % 8u, x, sh, asum);
+    if (qt == 14u) return zm_q6k_sub(row + (b / 8u) * 210u, b % 8u, x, sh);
+    return zm_q80_sub(row + b * 34u, x, sh);
+}
+
+// ---- the layer kernels' helpers ----
+
+zi zm_sat32(zl v) { return zi(v > ZV_I32_MAX ? ZV_I32_MAX : v < ZV_I32_MIN ? ZV_I32_MIN : v); }
+
+zu zm_uabs(zi v) { return v < 0 ? 0u - zu(v) : zu(v); }
+
+zu zm_bitlen(zw v)
+{
+    zu n = 0u;
+    while (v != 0ul) {
+        v >>= 1;
+        n++;
+    }
+    return n;
+}
+
+zw zm_udiv(zw n, zw d) { return d == 0ul ? 0ul : n / d; }
+
+zw zm_isqrt(zw v)
+{
+    zw r = 0ul, bit = 1ul << 62;
+    while (bit > v) bit >>= 2;
+    while (bit != 0ul) {
+        if (v >= r + bit) {
+            v -= r + bit;
+            r = (r >> 1) + bit;
+        } else {
+            r >>= 1;
+        }
+        bit >>= 2;
+    }
+    return zw(zu(r));
+}
+
+zw zm_w64(zu k) { return zw(pc.u[k]) | (zw(pc.u[k + 1u]) << 32); }
+
+// the exp2 table is binding 2 in both kernels that use it
+zi zm_exp(zi x)
+{
+    if (x > 0) x = 0;
+    zl t = (zl(x) * 94548l) >> 16;
+    zl ip = t >> 16;
+    zu f = zu(t - ip * 65536l);
+    zu hi = f >> 8, lo = f & 255u;
+    zu e0 = ldu32_2(4u * hi), e1 = ldu32_2(4u * (hi + 1u));
+    zu m = e0 + (((e1 - e0) * lo + 128u) >> 8);
+    zl sh = -ip;
+    if (sh >= 32l) return 0;
+    if (sh <= 0l) return zi(m);
+    return zi((m + (1u << zu(sh - 1l))) >> zu(sh));
+}
+
+zl zm_mul_shr(zl a, zu b, zu sh)
+{
+    const zw lim = 1ul << 58;
+    bool neg = a < 0l;
+    zw u = neg ? 0ul - zw(a) : zw(a);
+    zw hi = (u >> 32) * zw(b), lo = zw(zu(u)) * zw(b), r;
+    if (sh >= 32u) {
+        zw t = hi + (lo >> 32);
+        r = sh - 32u >= 64u ? 0ul : t >> (sh - 32u);
+    } else if ((hi >> (26u + sh)) != 0ul || (lo >> sh) > lim) {
+        r = lim;
+    } else {
+        r = (hi << (32u - sh)) + (lo >> sh);
+    }
+    if (r > lim) r = lim;
+    return neg ? -zl(r) : zl(r);
+}
+
+zl zm_round_div(zl n, zw d)
+{
+    bool neg = n < 0l;
+    zw u = neg ? 0ul - zw(n) : zw(n);
+    zw q = zm_udiv(u + (d >> 1), d);
+    return neg ? -zl(q) : zl(q);
+}
+
+void zm_count(zu n)
+{
+    if (n != 0u) atomicAdd(ctr.c, n);
+}
+
+// ---- the layer kernels (zt_metal_math.h zk_*), one output per thread ----
+
+#if ZK == 0
+void zk(zu i) // rms_inv
+{
+    uint x = 4u * (i * pc.u[2]);
+    zu n = pc.u[1];
+    zw eps = zm_w64(3u);
+    zu amax = 0u;
+    for (zu j = 0u; j < n; j++) amax = max(amax, zm_uabs(ld32_0(x + 4u * j)));
+    zu bb = 2u * zm_bitlen(zw(amax)) + zm_bitlen(zw(n)), sh = bb > 60u ? bb - 60u : 0u;
+    zw ss = 0ul;
+    for (zu j = 0u; j < n; j++) {
+        zl v = zl(ld32_0(x + 4u * j));
+        ss += zw(v * v) >> sh;
+    }
+    zw M = zm_udiv(ss, zw(n));
+    zi F = 32 - zi(sh);
+    M += eps >> zu(48 - F);
+    if (M == 0ul) {
+        st64_1(8u * i, 0ul);
+        return;
+    }
+    zi k = 62 - zi(zm_bitlen(M));
+    if (((k + F) & 1) != 0) k--;
+    zw r = zm_isqrt(M << zu(k));
+    zi N = 32 + (k + F) / 2;
+    zw q0 = zm_udiv(1ul << 63, r), inv;
+    if (N >= 63) {
+        zu up = zu(N - 63);
+        inv = (up >= 63u || (q0 >> (62u - up)) != 0ul) ? 1ul << 62 : q0 << up;
+    } else {
+        inv = q0 >> zu(63 - N);
+    }
+    st64_1(8u * i, inv);
+}
+#elif ZK == 1
+void zk(zu i) // rms_apply
+{
+    zu n = pc.u[1], row = i / n, col = i % n, frac = pc.u[3];
+    zi xv = ld32_0(4u * (row * pc.u[2] + col));
+    zl inv = zl(ld64_1(8u * row));
+    zl t = (zl(xv) * inv + (1l << 31)) >> 32;
+    if (t > (1l << 32)) t = 1l << 32;
+    if (t < -(1l << 32)) t = -(1l << 32);
+    zl hw = frac != 0u ? 1l << (frac - 1u) : 0l;
+    zl g = zl(ld32_2(4u * col));
+    st32_3(4u * (row * pc.u[4] + col), uint(zm_sat32((t * g + hw) >> frac)));
+}
+#elif ZK == 2
+void zk(zu i) // act: 32 values to int16 with a shift
+{
+    zu n = pc.u[1], nb = n / 32u, row = i / nb, blk = i % nb;
+    uint v = 4u * (row * pc.u[2] + blk * 32u);
+    uint q = 2u * (i * 32u);
+    zu amax = 0u;
+    for (zu j = 0u; j < 32u; j++) amax = max(amax, zm_uabs(ld32_0(v + 4u * j)));
+    zu s = 0u;
+    while (s < 17u && ((zw(amax) + ((1ul << s) >> 1)) >> s) > 32767ul) s++;
+    zu hw = (1u << s) >> 1;
+    zi t = 0;
+    for (zu j = 0u; j < 32u; j++) {
+        zi vj = ld32_0(v + 4u * j);
+        zu r = zu((zw(zm_uabs(vj)) + zw(hw)) >> s);
+        zi qv = ((vj < 0 ? -zi(r) : zi(r)) << 16) >> 16; // (zs) truncation
+        st16_1(q + 2u * j, uint(qv));
+        t += qv;
+    }
+    st8_2(i, s);
+    st32_3(4u * i, uint(t));
+}
+#elif ZK == 4
+void zk(zu i) // bias, and the saturation count
+{
+    zl v = zl(ld32_0(4u * i)) + (pc.u[2] != 0u ? zl(ld32_1(4u * (i % pc.u[1]))) : 0l);
+    zm_count((v >= ZV_I32_MAX || v <= ZV_I32_MIN) ? 1u : 0u);
+    st32_0(4u * i, uint(zm_sat32(v)));
+}
+#elif ZK == 5
+void zk(zu i) // rope
+{
+    zu nh = pc.u[1], hd = pc.u[2], hw = pc.u[3];
+    zu b = i / (nh * hw), h = (i / hw) % nh, k = i % hw;
+    uint x = 4u * ((b * nh + h) * hd);
+    uint sc = 4u * ((b * hw + k) * 2u);
+    zu ia = pc.u[4] != 0u ? k : 2u * k, ib = pc.u[4] != 0u ? k + hw : 2u * k + 1u;
+    zl x0 = zl(ld32_0(x + 4u * ia)), x1 = zl(ld32_0(x + 4u * ib));
+    zl s = zl(ld32_1(sc)), c = zl(ld32_1(sc + 4u));
+    st32_0(x + 4u * ia, uint(zm_sat32((x0 * c - x1 * s + (1l << 29)) >> 30)));
+    st32_0(x + 4u * ib, uint(zm_sat32((x0 * s + x1 * c + (1l << 29)) >> 30)));
+}
+#elif ZK == 6
+void zk(zu i) // kv store
+{
+    zu kvd = pc.u[1], b = i / kvd, j = i % kvd;
+    uint cell = (pc.u[2] + b) * kvd + j;
+    st32_2(4u * cell, ldu32_0(4u * i));
+    st32_3(4u * cell, ldu32_1(4u * i));
+}
+#elif ZK == 7
+void zk(zu i) // att_q: scale the query to under 2^22
+{
+    zu hd = pc.u[2];
+    uint qh = 4u * (i * hd), qs = 4u * (i * hd);
+    zu qmax = 0u, sq = 0u;
+    for (zu j = 0u; j < hd; j++) qmax = max(qmax, zm_uabs(ld32_0(qh + 4u * j)));
+    while ((qmax >> sq) >= (1u << 22)) sq++;
+    for (zu j = 0u; j < hd; j++) {
+        zi v = ld32_0(qh + 4u * j);
+        st32_1(qs + 4u * j, uint(sq != 0u ? zi((zl(v) + (1l << (sq - 1u))) >> sq) : v));
+    }
+    st32_2(4u * i, sq);
+}
+#elif ZK == 8
+void zk(zu i) // att_score
+{
+    zu nh = pc.u[1], hd = pc.u[2], P = pc.u[5];
+    zu item = i / P, pos = i % P, b = item / nh, h = item % nh;
+    if (pos > pc.u[6] + b) return;
+    uint qs = 4u * (item * hd);
+    uint kr = 4u * ((pc.u[7] + pos) * pc.u[4] + (h / pc.u[3]) * hd);
+    zl S = 0l;
+    for (zu j = 0u; j < hd; j++) S += zl(ld32_0(qs + 4u * j)) * zl(ld32_3(kr + 4u * j));
+    zu sq = ldu32_1(4u * item);
+    st32_2(4u * i, uint(zm_sat32(zm_mul_shr(S, pc.u[8], 46u - sq))));
+}
+#elif ZK == 9
+void zk(zu i) // att_max
+{
+    zu nh = pc.u[1], P = pc.u[5], n = pc.u[6] + i / nh + 1u;
+    uint sc = 4u * (i * P);
+    zi mx = -2147483647 - 1;
+    for (zu j = 0u; j < n; j++) mx = max(mx, ld32_0(sc + 4u * j));
+    st32_1(4u * i, uint(mx));
+}
+#elif ZK == 10
+void zk(zu i) // att_exp
+{
+    zu nh = pc.u[1], P = pc.u[5], item = i / P, pos = i % P;
+    if (pos > pc.u[6] + item / nh) return;
+    zl d = zl(ld32_0(4u * i)) - zl(ld32_1(4u * item));
+    st32_0(4u * i, uint(zm_exp(d < ZV_I32_MIN ? -2147483647 - 1 : zi(d))));
+}
+#elif ZK == 11
+void zk(zu i) // att_sum
+{
+    zu nh = pc.u[1], P = pc.u[5], n = pc.u[6] + i / nh + 1u;
+    uint w = 4u * (i * P);
+    zw sum = 0ul;
+    for (zu j = 0u; j < n; j++) sum += zw(ldu32_0(w + 4u * j));
+    st64_1(8u * i, sum);
+}
+#elif ZK == 12
+void zk(zu i) // att_wv
+{
+    zu nh = pc.u[1], hd = pc.u[2], P = pc.u[5];
+    zu item = i / hd, j = i % hd, b = item / nh, h = item % nh, n = pc.u[6] + b + 1u;
+    uint w = 4u * (item * P);
+    uint v = 4u * (pc.u[7] * pc.u[4] + (h / pc.u[3]) * hd + j);
+    zl acc = 0l;
+    for (zu k = 0u; k < n; k++) {
+        zi wk = ld32_0(w + 4u * k);
+        if (wk != 0) acc += zl(wk) * zl(ld32_3(v + 4u * (k * pc.u[4])));
+    }
+    st32_2(4u * i, uint(zm_sat32(zm_round_div(acc, ld64_1(8u * item)))));
+}
+#elif ZK == 13
+void zk(zu i) // residual, and the saturation count
+{
+    zl v = zl(ld32_0(4u * i)) + zl(ld32_1(4u * i));
+    zm_count((v > ZV_I32_MAX || v < ZV_I32_MIN) ? 1u : 0u);
+    st32_0(4u * i, uint(zm_sat32(v)));
+}
+#elif ZK == 14
+void zk(zu i) // silu(gate) * up
+{
+    zi g = ld32_0(4u * i), u = ld32_1(4u * i);
+    if (g == 0) {
+        st32_0(4u * i, 0u);
+        return;
+    }
+    zu e = zu(zm_exp(g < 0 ? g : -g));
+    zu sig = 0xFFFFFFFFu / (65536u + e);
+    if (g < 0) sig = 65536u - sig;
+    zl s = (zl(g) * zl(sig) + 32768l) >> 16;
+    st32_0(4u * i, uint(zm_sat32((s * zl(u) + 32768l) >> 16)));
+}
+#endif
+
+#if ZK < 100
+layout(local_size_x = 256) in;
+void main()
+{
+    zu i = (gl_WorkGroupID.y * pc.gx + gl_WorkGroupID.x) * 256u + gl_LocalInvocationID.x;
+    if (i < pc.u[0]) zk(i);
+}
+#else
+// the products: 4 rows a workgroup, 32 threads a row, tiles of ZV_T tokens.
+// pc.u: 0 rows (this dispatch), 1 nb, 2 astride, 3 B, 4 rowbytes, 5 ystride
+// (rows of the whole product), 6 row0 (this dispatch's first row in y).
+// Bindings: 0 weights (from row0), 1 a (int16), 2 shifts, 3 sums, 4 y.
+#    define ZV_TILED (((ZK - 100) / 3) == 1)
+#    define ZV_QT    (((ZK - 100) % 3) == 0 ? 12u : ((ZK - 100) % 3) == 1 ? 14u : 8u)
+#    if ZV_TILED
+#        define ZV_T 8u
+#    else
+#        define ZV_T 1u
+#    endif
+layout(local_size_x = 128) in;
+shared zl red[ZV_T * 128u];
+void main()
+{
+    zu lid = gl_LocalInvocationID.x, sg = lid >> 5, lane = lid & 31u;
+    zu r = gl_WorkGroupID.x * 4u + sg;
+    zu rows = pc.u[0], nb = pc.u[1], as = pc.u[2], B = pc.u[3], sb = as / 32u;
+    zu t0 = gl_WorkGroupID.y * ZV_T, nt = min(ZV_T, B - t0);
+    bool live = r < rows;
+    zl acc[ZV_T];
+    for (zu t = 0u; t < ZV_T; t++) acc[t] = 0l;
+    if (live) {
+        uint row = r * pc.u[4];
+        for (zu b = lane; b < nb; b += 32u)
+            for (zu t = 0u; t < ZV_T; t++)
+                if (t < nt) {
+                    zu tok = t0 + t;
+                    acc[t] += zm_sub(ZV_QT, row, b, 2u * (tok * as + b * 32u),
+                                     zi(ld8_2(tok * sb + b)), ld32_3(4u * (tok * sb + b)));
+                }
+    }
+    for (zu t = 0u; t < ZV_T; t++) red[t * 128u + lid] = acc[t];
+    barrier();
+    if (live && lane < nt) {
+        zl s = 0l;
+        for (zu l = 0u; l < 32u; l++) s += red[lane * 128u + sg * 32u + l];
+        st32_4(4u * ((t0 + lane) * pc.u[5] + pc.u[6] + r), uint(zm_round(s)));
+    }
+}
+#endif

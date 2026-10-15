@@ -316,6 +316,10 @@ verify-all: test
 	@if grep -l "zt_dist" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_dist*.c (hosted only)"; exit 1; fi
 	@echo "=== tensor: the Metal kernels' integer arithmetic (zt_metal_math.h) as C, and the whole-matrix hook == the C reference ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_metal_math.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_metal_math && /tmp/test_zt_metal_math > /tmp/test_zt_metal_math.log 2>&1 && echo "[PASS] test_zt_metal_math ($$(tail -1 /tmp/test_zt_metal_math.log))" || { cat /tmp/test_zt_metal_math.log; echo "[FAIL] test_zt_metal_math"; exit 1; }
+	@echo "=== tensor: the CUDA backend (zt_cuda.c) offline: kernels compile to PTX, warp products == the C reference ==="
+	@$(MAKE) --no-print-directory test-cuda-offline
+	@echo "=== tensor: the Vulkan backend (zt_vk.c): builds, SPIR-V valid, and bit for bit on any Vulkan device present ==="
+	@$(MAKE) --no-print-directory test-vk
 	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu && /tmp/test_zt_gpu > /tmp/test_zt_gpu.log 2>&1 && echo "[PASS] test_zt_gpu ($$(tail -1 /tmp/test_zt_gpu.log))" || { cat /tmp/test_zt_gpu.log; echo "[FAIL] test_zt_gpu"; exit 1; }
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu_asan && /tmp/test_zt_gpu_asan > /tmp/test_zt_gpu_asan.log 2>&1 && echo "[PASS] test_zt_gpu ASan/UBSan" || { cat /tmp/test_zt_gpu_asan.log; echo "[FAIL] test_zt_gpu ASan/UBSan"; exit 1; }
@@ -1697,6 +1701,56 @@ test-metal:
 	@if [ "$$(uname -s)" != Darwin ]; then echo "[SKIP] test_zt_metal (macOS only)"; exit 0; fi; \
 	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
 	$(ZXV_TMP)/test_zt_metal > $(ZXV_TMP)/test_zt_metal.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_metal.log || true; echo "[PASS] test_zt_metal ($$(tail -1 $(ZXV_TMP)/test_zt_metal.log))"; } || { cat $(ZXV_TMP)/test_zt_metal.log; echo "[FAIL] test_zt_metal"; exit 1; }
+
+# The NVIDIA backend (zt_cuda.c). test-cuda-offline needs no GPU and runs in
+# verify-all: the host code builds with -Werror, the kernel source compiles to
+# PTX for Turing, Ampere and Hopper (clang, stub built-ins, no CUDA toolkit),
+# and the warp product kernels run on the CPU (32 threads a warp) bit for bit
+# against the C reference. test-cuda runs everything on a real GPU (driver and
+# NVRTC needed, nothing at build time); SKIP with none, unless ZT_CUDA_REQUIRE=1.
+ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+.PHONY: test-cuda test-cuda-offline
+test-cuda-offline:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_cuda.c $(ZT_CUDA_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_cuda && \
+	$(ZXV_TMP)/test_zt_cuda --source > $(ZXV_TMP)/zt_cuda_gen.cu && echo "[PASS] zt_cuda builds with no CUDA toolkit" || { echo "[FAIL] zt_cuda build"; exit 1; }
+	@if echo 'int main(){}' | clang++ -x cuda --cuda-device-only --cuda-gpu-arch=sm_86 -nocudainc -nocudalib -S - -o /dev/null 2>/dev/null; then \
+	  cat src/tensor/test_zt_cuda_ptx.h $(ZXV_TMP)/zt_cuda_gen.cu > $(ZXV_TMP)/zt_cuda_ptx.cu && \
+	  for a in sm_75 sm_86 sm_90; do clang++ -x cuda --cuda-device-only --cuda-gpu-arch=$$a -nocudainc -nocudalib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_cuda_ptx.cu -o $(ZXV_TMP)/zt_cuda_$$a.ptx || { echo "[FAIL] zt_cuda kernels to PTX ($$a)"; exit 1; }; \
+	    test "$$(grep -c '^.visible .entry' $(ZXV_TMP)/zt_cuda_$$a.ptx)" = 21 || { echo "[FAIL] zt_cuda: 21 kernels expected in $$a PTX"; exit 1; }; done && \
+	  echo "[PASS] zt_cuda kernels compile to PTX (sm_75, sm_86, sm_90: 21 kernels each)"; \
+	else echo "[SKIP] zt_cuda PTX (clang without the NVPTX target)"; fi
+	@g++ -std=c++20 -O1 -Wall -Werror -Wextra -Wno-unused-function -Wno-misleading-indentation -I$(ZXV_TMP) src/tensor/test_zt_cuda_emu.cpp -lpthread -o $(ZXV_TMP)/test_zt_cuda_emu && \
+	$(ZXV_TMP)/test_zt_cuda_emu > $(ZXV_TMP)/test_zt_cuda_emu.log 2>&1 && echo "[PASS] test_zt_cuda_emu ($$(tail -1 $(ZXV_TMP)/test_zt_cuda_emu.log))" || { cat $(ZXV_TMP)/test_zt_cuda_emu.log; echo "[FAIL] test_zt_cuda_emu"; exit 1; }
+
+test-cuda: test-cuda-offline
+	@$(ZXV_TMP)/test_zt_cuda > $(ZXV_TMP)/test_zt_cuda.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_cuda.log || true; echo "[PASS] test_zt_cuda ($$(tail -1 $(ZXV_TMP)/test_zt_cuda.log))"; } || { cat $(ZXV_TMP)/test_zt_cuda.log; echo "[FAIL] test_zt_cuda"; exit 1; }
+
+# The Vulkan backend (zt_vk.c: AMD Radeon, Arm Mali, Qualcomm Adreno, Intel,
+# NVIDIA). test-vk builds zt_vk.c both ways (stubs without the SPIR-V, the real
+# backend with it) with -Werror; with glslangValidator it builds the 20 kernels
+# from zt_vk.comp and validates them (spirv-val, when installed); with a
+# Vulkan device that has shaderInt64 (a GPU, or lavapipe: Mesa's Vulkan on the
+# CPU, apt mesa-vulkan-drivers) it runs test_zt_vk, bit for bit against the C
+# reference, also with shared state mirrored. SKIP for what is missing, unless
+# ZT_VK_REQUIRE=1.
+.PHONY: test-vk
+test-vk:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -c src/tensor/zt_vk.c -o $(ZXV_TMP)/zt_vk_stub.o && echo "[PASS] zt_vk builds without Vulkan (stubs)" || { echo "[FAIL] zt_vk stub build"; exit 1; }
+	@if ! command -v glslangValidator >/dev/null; then echo "[SKIP] zt_vk kernels (needs glslangValidator: apt glslang-tools)"; exit 0; fi; \
+	sh src/tensor/gen_zt_vk_spv.sh $(ZXV_TMP)/zt_vk_spv.h && echo "[PASS] zt_vk.comp builds to SPIR-V (20 kernels)" || { echo "[FAIL] zt_vk.comp"; exit 1; }; \
+	if command -v spirv-val >/dev/null; then \
+	  for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do glslangValidator -S comp --target-env vulkan1.1 -DZK=$$k -o $(ZXV_TMP)/zt_vk_$$k.spv src/tensor/zt_vk.comp >/dev/null && spirv-val --target-env vulkan1.1 $(ZXV_TMP)/zt_vk_$$k.spv || { echo "[FAIL] spirv-val kernel $$k"; exit 1; }; done; \
+	  echo "[PASS] spirv-val: all 20 kernels valid for Vulkan 1.1"; \
+	else echo "[SKIP] spirv-val (apt spirv-tools)"; fi; \
+	if ! echo '#include <vulkan/vulkan.h>' | gcc -E -x c - >/dev/null 2>&1; then echo "[SKIP] test_zt_vk (needs the Vulkan headers: apt libvulkan-dev)"; exit 0; fi; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' src/tensor/test_zt_vk.c src/tensor/zt_vk.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -ldl -lpthread -o $(ZXV_TMP)/test_zt_vk || { echo "[FAIL] test_zt_vk build"; exit 1; }; \
+	for mode in import mirror; do \
+	  if [ $$mode = mirror ]; then export ZT_VK_NO_IMPORT=1; fi; \
+	  $(ZXV_TMP)/test_zt_vk > $(ZXV_TMP)/test_zt_vk_$$mode.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_vk_$$mode.log || true; echo "[PASS] test_zt_vk, state $$mode ($$(tail -1 $(ZXV_TMP)/test_zt_vk_$$mode.log))"; } || { cat $(ZXV_TMP)/test_zt_vk_$$mode.log; echo "[FAIL] test_zt_vk, state $$mode"; exit 1; }; \
+	  if grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_vk_$$mode.log; then break; fi; \
+	done
 
 .PHONY: hwe-vectors
 hwe-vectors:

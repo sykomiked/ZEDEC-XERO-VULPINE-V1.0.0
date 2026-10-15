@@ -46,14 +46,17 @@
  *   zt.rank<r>.macs=<multiply-adds in matrix products>
  *   zt.rank<r>.maxrss_mb=<peak resident memory>  zt.rank<r>.sent_mb=<bytes sent>
  * (with --tcp each rank prints only its own).
- * --gpu runs the prompt's matrix products on the GPU (zt_metal.h; macOS builds
- * with ZT_HAVE_METAL only), and decoding on --kern/--threads, which is faster
+ * --gpu runs the prompt's matrix products on the GPU (zt_metal.h in macOS builds
+ * with ZT_HAVE_METAL; in Linux and Windows builds zt_cuda.h, NVIDIA, with
+ * ZT_HAVE_CUDA, and zt_vk.h, any Vulkan GPU, with ZT_HAVE_VULKAN: CUDA first,
+ * then Vulkan, or ZT_GPU=cuda|vulkan; ZT_CUDA_DEVICE / ZT_VK_DEVICE pick the
+ * GPU), and decoding on --kern/--threads, which is faster
  * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
- * zt.logits_fnv do not change. It prints zt.gpu=<name> and the GPU's share
+ * zt.logits_fnv do not change. It prints zt.gpu=<name>, zt.gpu_api and the GPU's share
  * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
  * --gpu-resident runs the whole forward pass on the GPU (zt_gpu.h): every
  * layer's norms, RoPE, attention, SiLU and residual as well as the products,
- * one command buffer per pass, the state's memory (KV cache) shared in place.
+ * one command buffer (Metal) or stream (CUDA) per pass, the state's memory (KV cache) shared in place.
  * It adds zt.gpu_passes, zt.gpu_passes_declined and zt.gpu_pass_ops; the ids
  * and zt.logits_fnv still do not change.
  * --gpu-sim runs the same whole-pass op list through zt_gpu.h's C backend
@@ -85,8 +88,113 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
-#ifdef ZT_HAVE_METAL
+/* the GPU backend, behind one small table: Metal on macOS; CUDA (NVIDIA)
+ * and Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and Windows.
+ * ZT_GPU=cuda or ZT_GPU=vulkan picks one; by default CUDA, then Vulkan. */
+#if defined(ZT_HAVE_METAL)
 #    include "zt_metal.h"
+#endif
+#if defined(ZT_HAVE_CUDA)
+#    include "zt_cuda.h"
+#endif
+#if defined(ZT_HAVE_VULKAN)
+#    include "zt_vk.h"
+#endif
+#if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_VULKAN)
+#    define ZB_GPU 1
+typedef struct {
+    uint64_t calls, products, declined, gpu_ns, wall_ns, passes, passes_declined, pass_ops;
+} zb_gpu_stats_t;
+#    define ZB_STATS(dst, src)                                                                     \
+        ((dst)->calls = (src).calls, (dst)->products = (src).products,                             \
+         (dst)->declined = (src).declined, (dst)->gpu_ns = (src).gpu_ns,                           \
+         (dst)->wall_ns = (src).wall_ns, (dst)->passes = (src).passes,                             \
+         (dst)->passes_declined = (src).passes_declined, (dst)->pass_ops = (src).pass_ops)
+typedef struct {
+    const char *api;
+    void *g;
+    int (*map)(void *g, const void *base, uint64_t len); /* weights */
+    int (*map_state)(void *g, void *base, uint64_t len); /* the KV cache, shared */
+    void (*set_min_tokens)(void *g, uint32_t n);
+    void (*kern)(zt_kern_t *out, const zt_kern_t *base, void *g, bool resident);
+    const char *(*name)(const void *g);
+    void (*stats)(const void *g, zb_gpu_stats_t *out);
+} zb_gpu_t;
+/* one backend's entries: P is its prefix (zt_metal, zt_cuda, zt_vk), K its
+ * zt_kern_ prefix, M its map_state function */
+#    define ZB_BACKEND(tag, P, K, M)                                                               \
+        static int tag##_map(void *g, const void *b, uint64_t n) { return P##_map(g, b, n); }       \
+        static int tag##_map_state(void *g, void *b, uint64_t n) { return M(g, b, n); }             \
+        static void tag##_min(void *g, uint32_t n) { P##_set_min_tokens(g, n); }                    \
+        static void tag##_kern(zt_kern_t *o, const zt_kern_t *b, void *g, bool res)                 \
+        {                                                                                           \
+            if (res)                                                                                \
+                K##_resident(o, b, g);                                                              \
+            else                                                                                    \
+                K(o, b, g);                                                                         \
+        }                                                                                           \
+        static const char *tag##_name(const void *g) { return P##_name(g); }                        \
+        static void tag##_stats(const void *g, zb_gpu_stats_t *o)                                   \
+        {                                                                                           \
+            P##_stats_t s;                                                                          \
+            P##_stats(g, &s);                                                                       \
+            ZB_STATS(o, s);                                                                         \
+        }
+#    define ZB_TABLE(api, tag, g)                                                                  \
+        (zb_gpu_t)                                                                                  \
+        {                                                                                           \
+            api, g, tag##_map, tag##_map_state, tag##_min, tag##_kern, tag##_name, tag##_stats     \
+        }
+#    if defined(ZT_HAVE_METAL)
+ZB_BACKEND(mt, zt_metal, zt_kern_metal, zt_metal_map) /* unified memory: shared either way */
+#    endif
+#    if defined(ZT_HAVE_CUDA)
+ZB_BACKEND(cu, zt_cuda, zt_kern_cuda, zt_cuda_map_shared)
+#    endif
+#    if defined(ZT_HAVE_VULKAN)
+ZB_BACKEND(vk, zt_vk, zt_kern_vk, zt_vk_map_shared)
+#    endif
+/* the first backend that finds a GPU (or the one ZT_GPU names); 0 on success */
+static int zb_gpu_open(zb_gpu_t *out, char *err, uint32_t cap)
+{
+    const char *want = getenv("ZT_GPU");
+    char why[256] = "";
+    err[0] = 0;
+    (void) why;
+#    if defined(ZT_HAVE_METAL)
+    if (!want || !strcmp(want, "metal")) {
+        void *g = zt_metal_new(err, cap);
+        if (g) {
+            *out = ZB_TABLE("metal", mt, g);
+            return 0;
+        }
+    }
+#    endif
+#    if defined(ZT_HAVE_CUDA)
+    if (!want || !strcmp(want, "cuda")) {
+        const char *d = getenv("ZT_CUDA_DEVICE"); /* default 0, the first */
+        void *g = zt_cuda_new(d ? atoi(d) : 0, why, sizeof why);
+        if (g) {
+            *out = ZB_TABLE("cuda", cu, g);
+            return 0;
+        }
+        snprintf(err, cap, "cuda: %s", why);
+    }
+#    endif
+#    if defined(ZT_HAVE_VULKAN)
+    if (!want || !strcmp(want, "vulkan")) {
+        void *g = zt_vk_new(-1, why, sizeof why); /* ZT_VK_DEVICE picks the GPU */
+        if (g) {
+            *out = ZB_TABLE("vulkan", vk, g);
+            return 0;
+        }
+        size_t l = strlen(err);
+        snprintf(err + l, cap - l, "%svulkan: %s", l ? "; " : "", why);
+    }
+#    endif
+    if (!err[0]) snprintf(err, cap, "ZT_GPU=%s is not built in", want ? want : "");
+    return -1;
+}
 #endif
 
 static double now_s(void)
@@ -325,27 +433,29 @@ int main(int argc, char **argv)
         if (!ring) return 5;
         m.dist = zt_dist_ring_dist(ring);
     }
-#ifdef ZT_HAVE_METAL
+#ifdef ZB_GPU
     zt_kern_t gkern;
-    zt_metal_t *mt = NULL;
+    zb_gpu_t gpu_be, *mt = NULL;
     if (gpu) {
-        char gerr[256] = "";
-        mt = zt_metal_new(gerr, sizeof gerr);
-        if (!mt || zt_metal_map(mt, file, size)) {
-            fprintf(stderr, "zt_bench: --gpu: %s\n", mt ? "cannot map the model file" : gerr);
+        char gerr[512] = "";
+        if (zb_gpu_open(&gpu_be, gerr, sizeof gerr)) {
+            fprintf(stderr, "zt_bench: --gpu: %s\n", gerr);
             return 2;
         }
-        if (!gpu_decode) zt_metal_set_min_tokens(mt, 2); /* decode stays on the CPU */
-        if (gpu_resident)
-            zt_kern_metal_resident(&gkern, &kern, mt);
-        else
-            zt_kern_metal(&gkern, &kern, mt);
+        mt = &gpu_be;
+        if (mt->map(mt->g, file, size)) {
+            fprintf(stderr, "zt_bench: --gpu: cannot map the model file\n");
+            return 2;
+        }
+        if (!gpu_decode) mt->set_min_tokens(mt->g, 2); /* decode stays on the CPU */
+        mt->kern(&gkern, &kern, mt->g, gpu_resident);
         m.kern = &gkern;
-        printf("zt.gpu=%s\n", zt_metal_name(mt));
+        printf("zt.gpu=%s\nzt.gpu_api=%s\n", mt->name(mt->g), mt->api);
     }
 #else
     if (gpu) {
-        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL)\n");
+        fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL; "
+                        "Linux, Windows: ZT_HAVE_CUDA, ZT_HAVE_VULKAN)\n");
         return 2;
     }
 #endif
@@ -399,8 +509,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "zt_bench: cannot set up a %u-token context\n", n_ctx);
         return 5;
     }
-#ifdef ZT_HAVE_METAL
-    if (gpu_resident && zt_metal_map(mt, smem, sbytes)) {
+#ifdef ZB_GPU
+    if (gpu_resident && mt->map_state(mt->g, smem, sbytes)) {
         fprintf(stderr, "zt_bench: --gpu-resident: cannot share the model state with the GPU\n");
         return 2;
     }
@@ -438,10 +548,10 @@ int main(int argc, char **argv)
     double t2 = now_s();
 
     printf("zt.kern=%s\nzt.threads=%u\n", kb->name, pool ? n_threads : 1);
-#ifdef ZT_HAVE_METAL
+#ifdef ZB_GPU
     if (mt) {
-        zt_metal_stats_t gs;
-        zt_metal_stats(mt, &gs);
+        zb_gpu_stats_t gs;
+        mt->stats(mt->g, &gs);
         printf("zt.gpu_products=%llu\nzt.gpu_declined=%llu\nzt.gpu_s=%.6f\nzt.gpu_wall_s=%.6f\n",
                (unsigned long long) gs.products, (unsigned long long) gs.declined,
                (double) gs.gpu_ns * 1e-9, (double) gs.wall_ns * 1e-9);
