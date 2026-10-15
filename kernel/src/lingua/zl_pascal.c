@@ -122,12 +122,14 @@
  * ... TO ... [BY constant] exactly as the report defines it (v := beg;
  * WHILE v <= end DO S; v := v + inc END: the limit is evaluated every
  * time and the variable may be assigned), CASE with label lists and
- * ranges (no match traps DOMAIN), INC and DEC; + - * DIV MOD, = # < <= >
+ * ranges of numbers or named constants, none negative (no match traps DOMAIN),
+ * INC and DEC; + - * DIV MOD, = # < <= >
  * >=, & OR ~; ABS ODD TRUE FALSE; Out.Int(e, width) with a constant width,
  * Out.String and Out.Char of literals, Out.Ln. A procedure sees its own
  * and the module's variables, not those of the procedures around it.
  * DIV and MOD as in Modula-2 (a divisor of zero or below traps). OBNC
- * wraps on overflow and divides by a negative divisor; both trap here
+ * wraps on overflow, divides by a negative divisor and gives 0 for a
+ * DIV by zero; all three trap here
  * (the report defines DIV and MOD for positive divisors only). Refused by
  * name: other modules, aliases, export marks, CHAR, REAL, BYTE, SET and
  * other types, TYPE, RECORD, POINTER, IS, IN, procedure values, open
@@ -538,7 +540,7 @@ static int newline(pw_t *w, size_t at)
 /* Is n bytes at s, past a leading '$', one of Delphi's accepted directives? */
 static int delphi_directive(const char *s, size_t n)
 {
-    static const char *const ok[] = {"$APPTYPE CONSOLE", "$MODE DELPHI", "$Q+", "$R+",
+    static const char *const ok[] = {"$APPTYPE CONSOLE",   "$MODE DELPHI",    "$Q+", "$R+",
                                      "$OVERFLOWCHECKS ON", "$RANGECHECKS ON", 0};
     for (int k = 0; ok[k]; k++)
         if (zl_wordeq(s, n, ok[k])) return 1;
@@ -663,8 +665,8 @@ static int lex(pw_t *w)
                 t->op = kwtab[k].k;
                 break;
             }
-    } else if (zl_isdigit(ch) || (ch == '$' && w->dia == D_DELPHI && a + 1 < n &&
-                                  is_hex((unsigned char) s[a + 1]))) {
+    } else if (zl_isdigit(ch) ||
+               (ch == '$' && w->dia == D_DELPHI && a + 1 < n && is_hex((unsigned char) s[a + 1]))) {
         int64_t v = 0;
         if (ch == '$') {
             for (j = a + 1; j < n && is_hex((unsigned char) s[j]); j++)
@@ -750,9 +752,10 @@ static int lex(pw_t *w)
                                w->dia == D_ISO ? "an underscore in a name (not ISO 7185)"
                                                : "an underscore in a name");
             return lexfail(w, a, ZL_E_SYNTAX,
-                           ch == '"'                         ? "strings are written in single quotes"
-                           : ch == '\'' && w->dia == D_OBERON ? "strings are written in double quotes"
-                                                              : "unexpected character");
+                           ch == '"' ? "strings are written in single quotes"
+                           : ch == '\'' && w->dia == D_OBERON
+                               ? "strings are written in double quotes"
+                               : "unexpected character");
         }
     }
     t->len = (uint32_t) (j - a);
@@ -849,33 +852,46 @@ static int refuse_name(pw_t *w)
     static const char *const files[] = {"TEXT", "EOF",  "EOLN",  "RESET",  "REWRITE", "GET",
                                         "PUT",  "PAGE", "INPUT", "OUTPUT", 0};
     static const char *const heap[] = {"NEW", "DISPOSE", "PACK", "UNPACK", 0};
-    static const char *const dreal[] = {"DOUBLE", "SINGLE", "EXTENDED", "CURRENCY", "FRAC",
+    static const char *const dreal[] = {"DOUBLE", "SINGLE", "EXTENDED", "CURRENCY",  "FRAC",
                                         "INT",    "PI",     "RANDOM",   "RANDOMIZE", 0};
-    static const char *const dstr[] = {"ANSISTRING", "WIDESTRING", "SHORTSTRING", "INTTOSTR",
-                                       "STRTOINT",   "LENGTH",     "COPY",        "POS",
-                                       "ANSICHAR",   "WIDECHAR",   0};
-    static const char *const dint[] = {"INT64",    "CARDINAL", "BYTE",    "WORD",    "SHORTINT",
-                                       "SMALLINT", "LONGWORD", "UINT64",  "NATIVEINT",
-                                       "INT8",     "INT16",    "INT32",   "UINT8",   "UINT16",
-                                       "UINT32",   "QWORD",    "NATIVEUINT", 0};
+    static const char *const dstr[] = {
+        "ANSISTRING", "WIDESTRING", "SHORTSTRING", "INTTOSTR", "STRTOINT", "LENGTH",
+        "COPY",       "POS",        "ANSICHAR",    "WIDECHAR", 0};
+    static const char *const dint[] = {"INT64",    "CARDINAL",   "BYTE",   "WORD",      "SHORTINT",
+                                       "SMALLINT", "LONGWORD",   "UINT64", "NATIVEINT", "INT8",
+                                       "INT16",    "INT32",      "UINT8",  "UINT16",    "UINT32",
+                                       "QWORD",    "NATIVEUINT", 0};
     static const char *const dsys[] = {"HIGH", "LOW", "SIZEOF", 0};
     static const char *const dmisc[] = {"HALT", "ASSERT", "GETMEM", "FREEMEM", "SWAP", 0};
-    static const char *const m2types[] = {"CARDINAL", "LONGINT",  "LONGCARD", "SHORTINT",
-                                          "SHORTCARD", "BITSET",  "PROC",     "INTEGER8",
+    static const char *const m2types[] = {"CARDINAL",  "LONGINT",   "LONGCARD",  "SHORTINT",
+                                          "SHORTCARD", "BITSET",    "PROC",      "INTEGER8",
                                           "INTEGER16", "INTEGER32", "INTEGER64", "WORD",
-                                          "ADDRESS",  "BYTE",     "SET",      0};
-    static const char *const m2real[] = {"REAL", "LONGREAL", "SHORTREAL", "FLOAT", "TRUNC",
-                                         "FLOOR", "FLT",     "LFLOAT",    0};
+                                          "ADDRESS",   "BYTE",      "SET",       0};
+    static const char *const m2real[] = {"REAL",  "LONGREAL", "SHORTREAL", "FLOAT", "TRUNC",
+                                         "FLOOR", "FLT",      "LFLOAT",    0};
     static const char *const m2char[] = {"CHAR", "CHR", "CAP", "ORD", "VAL", 0};
     static const char *const m2sys[] = {"SIZE", "TSIZE", "HIGH", "ADR", "LEN", "MAX", "MIN", 0};
-    static const char *const m2misc[] = {"HALT", "INCL", "EXCL", "NEW",  "DISPOSE", "ASSERT",
-                                         "LSL",  "ASR",  "ROR",  "PACK", "UNPK",    "NIL",
-                                         0};
-    static const char *const m2io[] = {"Write",    "WriteCard", "WriteHex", "WriteOct",
-                                       "Read",     "ReadInt",   "ReadCard", "ReadString",
-                                       "WriteBf",  "Done",      "EOL",      "OpenInput",
-                                       "OpenOutput", "CloseInput", "CloseOutput", "In",
-                                       "Texts",    "Files",     0};
+    static const char *const m2misc[] = {"HALT", "INCL", "EXCL", "NEW",  "DISPOSE", "ASSERT", "LSL",
+                                         "ASR",  "ROR",  "PACK", "UNPK", "NIL",     0};
+    static const char *const m2io[] = {"Write",
+                                       "WriteCard",
+                                       "WriteHex",
+                                       "WriteOct",
+                                       "Read",
+                                       "ReadInt",
+                                       "ReadCard",
+                                       "ReadString",
+                                       "WriteBf",
+                                       "Done",
+                                       "EOL",
+                                       "OpenInput",
+                                       "OpenOutput",
+                                       "CloseInput",
+                                       "CloseOutput",
+                                       "In",
+                                       "Texts",
+                                       "Files",
+                                       0};
     if (pas(w)) {
         if (name_in(w, real) || (w->dia == D_DELPHI && name_in(w, dreal)))
             return pfail(w, ZL_E_UNSUPPORTED, "real values (integer subset)");
@@ -897,9 +913,10 @@ static int refuse_name(pw_t *w)
     if (name_in(w, m2real)) return pfail(w, ZL_E_UNSUPPORTED, "real values (integer subset)");
     if (name_in(w, m2char)) return pfail(w, ZL_E_UNSUPPORTED, "CHAR values and conversions");
     if (name_in(w, m2sys))
-        return pfail(w, ZL_E_UNSUPPORTED, w->dia == D_M2 ? "SIZE, HIGH, ADR, and MAX and MIN "
-                                                          "of types other than INTEGER"
-                                                        : "LEN and the SYSTEM procedures");
+        return pfail(w, ZL_E_UNSUPPORTED,
+                     w->dia == D_M2 ? "SIZE, HIGH, ADR, and MAX and MIN "
+                                      "of types other than INTEGER"
+                                    : "LEN and the SYSTEM procedures");
     if (name_in(w, m2misc))
         return pfail(w, ZL_E_UNSUPPORTED, "this standard procedure (outside the subset)");
     if (w->dia == D_M2 && name_in(w, m2io))
@@ -1317,7 +1334,8 @@ static int32_t p_factor(pw_t *w)
         return -1;
     }
     if (is_sym(w, '/')) {
-        pfail(w, ZL_E_UNSUPPORTED, pas(w) ? "real division '/' (use div)" : "real division '/' (use DIV)");
+        pfail(w, ZL_E_UNSUPPORTED,
+              pas(w) ? "real division '/' (use div)" : "real division '/' (use DIV)");
         return -1;
     }
     if (is_sym(w, '^') || is_sym(w, '@')) {
@@ -1484,7 +1502,8 @@ static int32_t p_term(pw_t *w)
         l = binary(w, op, l, p_factor(w), line);
     }
     if (l >= 0 && is_sym(w, '/')) {
-        pfail(w, ZL_E_UNSUPPORTED, pas(w) ? "real division '/' (use div)" : "real division '/' (use DIV)");
+        pfail(w, ZL_E_UNSUPPORTED,
+              pas(w) ? "real division '/' (use div)" : "real division '/' (use DIV)");
         return -1;
     }
     if (l >= 0 && is_kw(w, K_DSHIFT)) {
@@ -1556,15 +1575,15 @@ static int prec(const pw_t *w, const pnode_t *n)
 
 static void pexpr(pw_t *w, int32_t id, int need, int start)
 {
-    static const char *const pasop[] = {"",      " = ",   " <> ",  " < ",   " <= ",
-                                        " > ",   " >= ",  " + ",   " - ",   " or ",
-                                        " xor ", " * ",   " div ", " mod ", " and "};
-    static const char *const modop[] = {"",   " = ",   " # ",   " < ",   " <= ", " > ",
-                                        " >= ", " + ", " - ",   " OR ",  "",     " * ",
-                                        " DIV ", " MOD ", " AND "};
+    static const char *const pasop[] = {
+        "",    " = ",  " <> ",  " < ", " <= ",  " > ",   " >= ", " + ",
+        " - ", " or ", " xor ", " * ", " div ", " mod ", " and "};
+    static const char *const modop[] = {
+        "",    " = ",  " # ", " < ", " <= ",  " > ",   " >= ", " + ",
+        " - ", " OR ", "",    " * ", " DIV ", " MOD ", " AND "};
     static const char *const pasfn[] = {"", "abs(", "sqr(", "odd(", "succ(", "pred(", "ord("};
-    static const char *const modfn[] = {"",  "ABS(", "", "ODD(", "", "", "",
-                                        "MAX(INTEGER)", "MIN(INTEGER)"};
+    static const char *const modfn[] = {
+        "", "ABS(", "", "ODD(", "", "", "", "MAX(INTEGER)", "MIN(INTEGER)"};
     const pnode_t *n = &w->pool[id];
     int p = prec(w, n), paren = p < need || (n->kind == N_NEG && !start);
     if (paren) {
@@ -1814,8 +1833,9 @@ static int p_target(pw_t *w, ptarget_t *t, int32_t y, int allow_func)
     t->func = -1;
     if (s->kind == Y_FUNC) {
         if (!allow_func || (uint32_t) s->level + 1 > w->level || w->cur[s->level + 1] != y)
-            return pfail(w, ZL_E_SYNTAX, pas(w) ? "a function's result is set only inside it"
-                                                : "a function cannot be assigned");
+            return pfail(w, ZL_E_SYNTAX,
+                         pas(w) ? "a function's result is set only inside it"
+                                : "a function cannot be assigned");
         t->func = y;
         t->type = s->type;
         return lex(w);
@@ -1918,17 +1938,24 @@ static void loop_close(pw_t *w, int64_t cont, int64_t brk)
 static int case_label(pw_t *w, uint32_t lab0, int64_t arm, int lfirst)
 {
     pconst_t k, h;
+    if (w->dia == D_OBERON && (is_sym(w, '-') || is_sym(w, '+')))
+        return pfail(w, ZL_E_SYNTAX, "an Oberon CASE label has no sign (name a constant)");
     TRY(p_constant(w, &k));
     if (k.type != TY_INT)
-        return pfail(w, ZL_E_SYNTAX, pas(w) ? "case labels are integers" : "CASE labels are integers");
+        return pfail(w, ZL_E_SYNTAX,
+                     pas(w) ? "case labels are integers" : "CASE labels are integers");
     h = k;
     int range = w->dia != D_ISO && is_sym(w, SY_DOTDOT);
     if (range) {
         TRY(lex(w));
+        if (w->dia == D_OBERON && (is_sym(w, '-') || is_sym(w, '+')))
+            return pfail(w, ZL_E_SYNTAX, "an Oberon CASE label has no sign (name a constant)");
         TRY(p_constant(w, &h));
         if (h.type != TY_INT) return pfail(w, ZL_E_SYNTAX, "case labels are integers");
         if (h.v < k.v) return pfail(w, ZL_E_SYNTAX, "an empty label range");
     }
+    if (w->dia == D_OBERON && k.v < 0) /* as OBNC requires */
+        return pfail(w, ZL_E_UNSUPPORTED, "a negative CASE label");
     for (uint32_t j = lab0; j < w->nlab; j++)
         if (w->lab[j].v <= h.v && k.v <= w->lab[j].hi)
             return pfail(w, ZL_E_SYNTAX, "a case label used twice");
@@ -2705,7 +2732,8 @@ static int m_while(pw_t *w, uint32_t L)
         TRY(emit(w, ZL_JMP, top, 0));
         zl_patch(w->c, jx, (int64_t) w->c->p->ncode);
         if (!is_kw(w, K_ELSIF)) break;
-        if (w->dia != D_OBERON) return pfail(w, ZL_E_SYNTAX, "END expected (ELSIF in WHILE is Oberon)");
+        if (w->dia != D_OBERON)
+            return pfail(w, ZL_E_SYNTAX, "END expected (ELSIF in WHILE is Oberon)");
         tw_s(w, "\n");
         bol(w, L);
         tw_s(w, "ELSIF ");
@@ -2939,10 +2967,10 @@ static int m_return(pw_t *w)
 static int m_string(pw_t *w, int one)
 {
     if (w->t.kind != TK_STR)
-        return pfail(w, ZL_E_UNSUPPORTED, one ? "Out.Char of anything but a one-character literal"
-                                              : "a string that is not a literal");
-    if (one && w->slen != 1)
-        return pfail(w, ZL_E_SYNTAX, "Out.Char takes a one-character string");
+        return pfail(w, ZL_E_UNSUPPORTED,
+                     one ? "Out.Char of anything but a one-character literal"
+                         : "a string that is not a literal");
+    if (one && w->slen != 1) return pfail(w, ZL_E_SYNTAX, "Out.Char takes a one-character string");
     if (w->tw) {
         int dq = 1;
         for (uint32_t k = 0; k < w->slen; k++)
@@ -3128,7 +3156,8 @@ static int p_typename(pw_t *w, int *type)
             return lex(w);
         }
         if (pas(w)) {
-            if (tok_is(w, "REAL")) return pfail(w, ZL_E_UNSUPPORTED, "real values (integer subset)");
+            if (tok_is(w, "REAL"))
+                return pfail(w, ZL_E_UNSUPPORTED, "real values (integer subset)");
             if (tok_is(w, "CHAR") || tok_is(w, "STRING"))
                 return pfail(w, ZL_E_UNSUPPORTED, "char and string values");
             if (tok_is(w, "TEXT")) return pfail(w, ZL_E_UNSUPPORTED, "files and file functions");
@@ -3152,8 +3181,9 @@ static int p_typename(pw_t *w, int *type)
     if (w->t.kind == TK_ID && lookup(w) >= 0 && w->sym[lookup(w)].kind == Y_CONST)
         return pfail(w, ZL_E_UNSUPPORTED, "subrange types");
     if (w->t.kind == TK_ID)
-        return pfail(w, ZL_E_UNSUPPORTED, pas(w) ? "types other than integer and Boolean"
-                                                 : "types other than INTEGER and BOOLEAN");
+        return pfail(w, ZL_E_UNSUPPORTED,
+                     pas(w) ? "types other than integer and Boolean"
+                            : "types other than INTEGER and BOOLEAN");
     return pfail(w, ZL_E_SYNTAX, "a type is expected");
 }
 
@@ -3215,10 +3245,8 @@ static int const_item(pw_t *w, uint32_t B)
     tw_name(w, name.pos, name.len);
     tw_s(w, " = ");
     TRY(lex(w));
-    if (w->dia == D_OBERON && is_sym(w, '*'))
-        return pfail(w, ZL_E_UNSUPPORTED, "export marks (*)");
-    if (w->dia == D_DELPHI && is_sym(w, ':'))
-        return pfail(w, ZL_E_UNSUPPORTED, "typed constants");
+    if (w->dia == D_OBERON && is_sym(w, '*')) return pfail(w, ZL_E_UNSUPPORTED, "export marks (*)");
+    if (w->dia == D_DELPHI && is_sym(w, ':')) return pfail(w, ZL_E_UNSUPPORTED, "typed constants");
     TRY(expect_sym(w, '=', "'=' expected"));
     TRY(p_constant(w, &k));
     tw_const(w, &k);
@@ -3371,8 +3399,9 @@ static int p_params(pw_t *w, int32_t y, int func)
         int type;
         tw_s(w, ": ");
         if (!is_sym(w, ':'))
-            return pfail(w, ZL_E_SYNTAX, pas(w) ? "a function needs ': type'"
-                                                : "a function procedure needs ': type'");
+            return pfail(w, ZL_E_SYNTAX,
+                         pas(w) ? "a function needs ': type'"
+                                : "a function procedure needs ': type'");
         TRY(lex(w));
         TRY(p_typename(w, &type));
         w->sym[y].type = (uint8_t) type;
@@ -3514,8 +3543,10 @@ static int m_proc(pw_t *w, uint32_t H)
             if (w->src[j] == '(' && j + 1 < w->n && w->src[j + 1] == '*') {
                 int cd = 1;
                 for (j += 2; j < w->n && cd; j++) {
-                    if (w->src[j] == '(' && j + 1 < w->n && w->src[j + 1] == '*') cd++, j++;
-                    else if (w->src[j] == '*' && j + 1 < w->n && w->src[j + 1] == ')') cd--, j++;
+                    if (w->src[j] == '(' && j + 1 < w->n && w->src[j + 1] == '*')
+                        cd++, j++;
+                    else if (w->src[j] == '*' && j + 1 < w->n && w->src[j + 1] == ')')
+                        cd--, j++;
                 }
                 continue;
             }
@@ -3597,12 +3628,15 @@ static int m_decls(pw_t *w, uint32_t S)
     int32_t jover = -1;
     int stage = 0; /* Oberon: CONST, TYPE, VAR, then procedures */
     for (;;) {
-        int st = is_kw(w, K_CONST) ? 1 : is_kw(w, K_TYPE) ? 2 : is_kw(w, K_VAR) ? 3
-                 : is_kw(w, K_PROCEDURE)                   ? 4
-                                                           : 0;
+        int st = is_kw(w, K_CONST)       ? 1
+                 : is_kw(w, K_TYPE)      ? 2
+                 : is_kw(w, K_VAR)       ? 3
+                 : is_kw(w, K_PROCEDURE) ? 4
+                                         : 0;
         if (!st) break;
         if (w->dia == D_OBERON && (st < stage || (st == stage && st != 4)))
-            return pfail(w, ZL_E_SYNTAX, "declarations out of order (CONST, TYPE, VAR, procedures)");
+            return pfail(w, ZL_E_SYNTAX,
+                         "declarations out of order (CONST, TYPE, VAR, procedures)");
         stage = st;
         if (st == 1) {
             TRY(p_const_part(w, S));
@@ -3667,7 +3701,8 @@ static int m_imports(pw_t *w)
                 w->t = m;
                 int out = tok_is(w, "Out");
                 w->t = save;
-                if (!out) return pfail_at(w, m.line, m.col, ZL_E_UNSUPPORTED, "modules other than Out");
+                if (!out)
+                    return pfail_at(w, m.line, m.col, ZL_E_UNSUPPORTED, "modules other than Out");
                 if (w->imports & IMP_OUT) return pfail(w, ZL_E_SYNTAX, "a module imported twice");
                 w->imports |= IMP_OUT;
                 if (!first) tw_s(w, ", ");

@@ -66,7 +66,7 @@
 1987	VHDL	hardware	catalogue	-	-
 1987	HyperTalk	scripting	catalogue	-	-
 1988	Tcl	scripting	catalogue	-	-
-1988	Oberon	algol	catalogue	-	-
+1988	Oberon	algol	run	Faydrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1988	Mathematica	symbolic	catalogue	-	-
 1989	Bash	shell	catalogue	-	-
 1990	Haskell	functional	catalogue	-	-

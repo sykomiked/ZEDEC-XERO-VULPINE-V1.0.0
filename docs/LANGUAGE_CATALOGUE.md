@@ -133,7 +133,7 @@ provenance.
 | 1950s | FORTRAN | COBOL | | LISP, JOVIAL, RPG | 6 |
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
 | 1970s | Forth, Modula-2 | | C, Pascal | Scheme, Prolog, AWK, REXX, SQL | 9 |
-| 1980s | | Ada | C++ | | 17 |
+| 1980s | Oberon | Ada | C++ | | 16 |
 | 1990s | Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 7 |
 | 2000s | | | C#, F#, Go | | 4 |
 | 2010s on | | | Rust, TypeScript, Swift, Solidity, WebAssembly | | 10 |

@@ -60,9 +60,12 @@ static unsigned rnd(unsigned n)
 }
 
 enum { D_ISO, D_DELPHI, D_M2, D_OBERON };
-static int dia; /* every new random choice is made only when dia != D_ISO */
+static int dia;   /* every new random choice is made only when dia != D_ISO */
 static int as_m2; /* oberon-m2: an Oberon program printed as Modula-2 */
-static int obp(void) { return dia == D_OBERON && !as_m2; }
+static int obp(void)
+{
+    return dia == D_OBERON && !as_m2;
+}
 
 /* ------------------------------------------------------------ names */
 
@@ -192,8 +195,8 @@ static int gen_int(const scope_t *s, int d)
         return enew(E_FR, 0, enew(E_BIN, O_MOD, gen_int(s, d - 1), enew(E_NUM, 0, -1, -1, 6), 0),
                     -1, 0);
     if (k == 15 && !rnd(4)) return enew(E_MAXINT, 0, -1, -1, 0);
-    if (k == 16 && dia < D_M2) /* ord(b) + 0: fpc gives ord of a Boolean a 0..1 type, so pred of it is a
-                    range error under -Cr; ISO 7185 says ord is an integer */
+    if (k == 16 && dia < D_M2) /* ord(b) + 0: fpc gives ord of a Boolean a 0..1 type, so pred of it
+                    is a range error under -Cr; ISO 7185 says ord is an integer */
         return enew(E_BIN, O_ADD, enew(E_ORD, 0, gen_bool(s, d - 1), -1, 0),
                     enew(E_NUM, 0, -1, -1, 0), 0);
     return enew(E_NUM, 0, -1, -1, (int) rnd(1000));
@@ -218,7 +221,19 @@ static int gen_bool(const scope_t *s, int d)
 
 /* ------------------------------------------------------------ statements */
 
-enum { S_ASSIGN, S_ELEM, S_BASSIGN, S_IF, S_FOR, S_WHILE, S_REPEAT, S_CASE, S_WRITE, S_CALL, S_INC };
+enum {
+    S_ASSIGN,
+    S_ELEM,
+    S_BASSIGN,
+    S_IF,
+    S_FOR,
+    S_WHILE,
+    S_REPEAT,
+    S_CASE,
+    S_WRITE,
+    S_CALL,
+    S_INC
+};
 enum { W_INT, W_BOOL, W_STR };
 
 typedef struct {
@@ -297,7 +312,8 @@ static int gen_stmt(int depth)
             st = snew(S_INC);
             sn[st].var = main_ivars[rnd(6)];
             int by = rnd(2) ? enew(E_NUM, 0, -1, -1, 1) : gen_int(&s, 1 + (int) rnd(2));
-            sn[st].e1 = enew(E_BIN, rnd(2) ? O_ADD : O_SUB, enew(E_VAR, 0, -1, -1, sn[st].var), by, 0);
+            sn[st].e1 =
+                enew(E_BIN, rnd(2) ? O_ADD : O_SUB, enew(E_VAR, 0, -1, -1, sn[st].var), by, 0);
             return st;
         }
         st = snew(S_ASSIGN);
@@ -986,11 +1002,11 @@ static void pe(int id, int need)
         break;
     }
     /* binary: + - or xor at 2, * div mod and at 3, comparisons at 1 */
-    p = e->kind == E_REL                                                ? 1
-        : e->kind == E_OR                                               ? 2
-        : e->kind == E_AND                                              ? 3
+    p = e->kind == E_REL                                      ? 1
+        : e->kind == E_OR                                     ? 2
+        : e->kind == E_AND                                    ? 3
         : e->op <= O_SUB || e->op == O_BOR || e->op == O_BXOR ? 2
-                                                                        : 3;
+                                                              : 3;
     paren = p < need || rnd(6) == 0;
     if (paren) putchar('(');
     if (e->kind == E_REL) {
@@ -1034,7 +1050,9 @@ static void ps(int st, int level)
     snode_t *s = &sn[st];
     if (rnd(12) == 0) {
         ind(level);
-        fputs(dia == D_DELPHI && !rnd(3) ? "// step\n" : rnd(2) ? "{ step }\n" : "(* step *)\n",
+        fputs(dia == D_DELPHI && !rnd(3) ? "// step\n"
+              : rnd(2)                   ? "{ step }\n"
+                                         : "(* step *)\n",
               stdout);
     }
     ind(level);
@@ -1769,7 +1787,8 @@ static void print_module(void)
     fputs("MODULE gen;\n", stdout);
     fputs(ob ? "IMPORT Out;\n" : "FROM InOut IMPORT WriteInt, WriteString, WriteLn;\n", stdout);
     printf("CONST\n  k0 = %lld;\n  k1 = %lld;\n", (long long) k0, (long long) k1);
-    fputs("VAR\n  g0, g1, g2, g3, g4, g5, i, j, c0, c1, c2: INTEGER;\n  b0, b1: BOOLEAN;\n", stdout);
+    fputs("VAR\n  g0, g1, g2, g3, g4, g5, i, j, c0, c1, c2: INTEGER;\n  b0, b1: BOOLEAN;\n",
+          stdout);
     if (ob)
         printf("  v: ARRAY %d OF INTEGER;\n\n", vlen);
     else
@@ -1865,10 +1884,10 @@ int main(int argc, char **argv)
 {
     if (argc == 3) {
         as_m2 = !strcmp(argv[1], "oberon-m2");
-        dia = !strcmp(argv[1], "delphi") ? D_DELPHI
-              : !strcmp(argv[1], "m2")   ? D_M2
+        dia = !strcmp(argv[1], "delphi")                                    ? D_DELPHI
+              : !strcmp(argv[1], "m2")                                      ? D_M2
               : !strcmp(argv[1], "oberon") || !strcmp(argv[1], "oberon-m2") ? D_OBERON
-                                           : -1;
+                                                                            : -1;
         argv++;
         argc--;
     }

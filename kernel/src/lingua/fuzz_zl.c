@@ -88,9 +88,11 @@ static const char *const seeds[] = {
     "Inc(Result, M) end;\nbegin Result := 0; if M <= 0 then Exit(1); Bump; Result := Result * "
     "F(M - 1) end;\nvar T: Integer;\nbegin\n  read(N); for I := 1 to 4 do A[I] := I xor K and 6;\n"
     "  T := 0; while T < 9 do begin Inc(T, 2); if Odd(T div 3) then Continue; if T > 6 then Break "
-    "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  WriteLn(F(4), "
+    "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  "
+    "WriteLn(F(4), "
     "' ', T:3, B, -A[2] or 5, not 0);\nend.\n",
-    "(* fuzz (* seed *) *)\nMODULE Fz;\nFROM InOut IMPORT WriteInt, WriteString, WriteLn;\nCONST K = "
+    "(* fuzz (* seed *) *)\nMODULE Fz;\nFROM InOut IMPORT WriteInt, WriteString, WriteLn;\nCONST K "
+    "= "
     "-3;\nVAR a: ARRAY [-2..2] OF INTEGER; i, n: INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): "
     "INTEGER;\nVAR s: INTEGER;\n  PROCEDURE Add(k: INTEGER); BEGIN INC(s, k * m) END Add;\nBEGIN "
     "s := 0; IF m <= 0 THEN RETURN 1 END; Add(2); RETURN s + F(m - 1) END F;\nBEGIN\n  FOR i := "
@@ -99,6 +101,15 @@ static const char *const seeds[] = {
     "& (a[-2] < 0) ELSE b := FALSE END;\n  REPEAT n := n DIV 2 UNTIL n < 2;\n  WHILE n < 4 DO "
     "INC(n) END;\n  IF b OR NOT (n = 4) THEN WriteString(\"y\") END; WriteInt(F(3), 4); "
     "WriteInt(MAX(INTEGER), 0); WriteLn\nEND Fz.\n",
+    "(* fuzz seed *)\nMODULE Fo;\nIMPORT Out;\nCONST K = 5;\nVAR a: ARRAY K OF INTEGER; i, n: "
+    "INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): INTEGER;\nVAR r: INTEGER;\nBEGIN IF m <= 0 "
+    "THEN r := 1 ELSE r := m * F(m - 1) END\nRETURN r\nEND F;\nPROCEDURE G(VAR x, y: INTEGER);\n"
+    "BEGIN WHILE x > y DO DEC(x, y) ELSIF y > x DO DEC(y, x) END END G;\nBEGIN\n  n := K;\n"
+    "  FOR i := 0 TO n - 1 BY 2 DO a[i] := -i DIV 2; n := 4 END;\n  i := 84; n := 36; G(i, n);\n"
+    "  CASE i MOD 4 OF 0..1: b := ~(i # 12) | 2, 3: b := FALSE END;\n  REPEAT INC(n) UNTIL n > "
+    "13;\n"
+    "  IF b OR (a[2] < 0) THEN Out.String(\"y\") END; Out.Int(F(5), 5); Out.Char(\"!\"); Out.Ln\n"
+    "END Fo.\n",
 };
 
 static const char *const dict[] = {
