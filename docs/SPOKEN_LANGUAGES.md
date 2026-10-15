@@ -25,8 +25,9 @@ be in place:
 
 ## Status
 
-Items 1 to 3 are done for all 104 languages. The other three are shown per
-language below.
+Items 1 to 4 are done for all 104 languages, except input methods for
+Chinese, Cantonese, Japanese, Korean and the Ge'ez syllables. Shaping is shown
+per language below.
 
 **Translations are machine-made.** The screen reader words of every
 language except English were translated by Claude and have not yet been
@@ -42,114 +43,121 @@ the table.
 
 | Tag | Language | Script | Direction | ASCW Golden face | Keyboard | Shaping |
 |---|---|---|---|---|---|---|
-| en | English | Latn | LTR | Golden Latin II | us, uk, dvorak, colemak | none needed |
-| es | Spanish | Latn | LTR | Golden Latin II | es | none needed |
-| fr | French | Latn | LTR | Golden Latin II | fr | none needed |
-| de | German | Latn | LTR | Golden Latin II | de | none needed |
-| pt | Portuguese | Latn | LTR | Golden Latin II | pt-br | none needed |
-| it | Italian | Latn | LTR | Golden Latin II | it | none needed |
-| ru | Russian | Cyrl | LTR | Golden Cyrillic | ru | none needed |
-| uk | Ukrainian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| pl | Polish | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ar | Arabic | Arab | RTL | Golden Arabic | ar | done |
-| he | Hebrew | Hebr | RTL | Golden Hebrew | he | none needed |
-| fa | Persian | Arab | RTL | Golden Arabic | needed | done |
-| ur | Urdu | Arab | RTL | Golden Arabic | needed | done |
-| hi | Hindi | Deva | LTR | Golden Devanagari | needed | done |
-| bn | Bangla | Beng | LTR | Golden Bengali | needed | needs reordering |
-| ta | Tamil | Taml | LTR | Golden Tamil | needed | needs reordering |
-| zh-Hans | Chinese (Simplified) | Hans | LTR | Golden ChineseSimplified | input method needed | none needed |
-| zh-Hant | Chinese (Traditional) | Hant | LTR | Golden ChineseTraditional | input method needed | none needed |
-| ja | Japanese | Jpan | LTR | Golden Japanese | input method needed | none needed |
-| ko | Korean | Kore | LTR | Golden Korean | input method needed | none needed |
-| th | Thai | Thai | LTR | Golden Thai | needed | needs word breaking |
-| vi | Vietnamese | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| tr | Turkish | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| id | Indonesian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| sw | Swahili | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| am | Amharic | Ethi | LTR | Golden Ethiopic | needed | none needed |
-| yo | Yoruba | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ha | Hausa | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| el | Greek | Grek | LTR | Golden Greek | gr | none needed |
-| nl | Dutch | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| mr | Marathi | Deva | LTR | Golden Devanagari | needed | done |
-| te | Telugu | Telu | LTR | Golden Telugu | needed | needs reordering |
-| gu | Gujarati | Gujr | LTR | Golden Gujarati | needed | needs reordering |
-| kn | Kannada | Knda | LTR | Golden Kannada | needed | needs reordering |
-| ml | Malayalam | Mlym | LTR | Golden Malayalam | needed | needs reordering |
-| pa | Punjabi | Guru | LTR | Golden Gurmukhi | needed | needs reordering |
-| or | Odia | Orya | LTR | Golden Oriya | needed | needs reordering |
-| as | Assamese | Beng | LTR | Golden Bengali | needed | needs reordering |
-| ne | Nepali | Deva | LTR | Golden Devanagari | needed | done |
-| si | Sinhala | Sinh | LTR | Golden Sinhala | needed | needs reordering |
-| sd | Sindhi | Arab | RTL | Golden Arabic | needed | done |
-| ps | Pashto | Arab | RTL | Golden Arabic | needed | done |
-| sat | Santali | Olck | LTR | Golden OlChiki | needed | none needed |
-| dv | Dhivehi | Thaa | RTL | Golden Thaana | needed | none needed |
-| ms | Malay | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| fil | Filipino | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| jv | Javanese | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| su | Sundanese | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| my | Burmese | Mymr | LTR | Golden Myanmar | needed | needs reordering |
-| km | Khmer | Khmr | LTR | Golden Khmer | needed | needs reordering |
-| lo | Lao | Laoo | LTR | Golden Lao | needed | needs word breaking |
-| mn | Mongolian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| bo | Tibetan | Tibt | LTR | Golden Tibetan | needed | needs reordering |
-| yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | input method needed | none needed |
-| kk | Kazakh | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| uz | Uzbek | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ky | Kyrgyz | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| tg | Tajik | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| tk | Turkmen | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| az | Azerbaijani | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ka | Georgian | Geor | LTR | Golden Georgian | needed | none needed |
-| hy | Armenian | Armn | LTR | Golden Armenian | needed | none needed |
-| ckb | Central Kurdish | Arab | RTL | Golden Arabic | needed | done |
-| ug | Uyghur | Arab | RTL | Golden Arabic | needed | done |
-| ro | Romanian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| cs | Czech | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| hu | Hungarian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| sv | Swedish | Latn | LTR | Golden Latin II | se | none needed |
-| bg | Bulgarian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| sr | Serbian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| hr | Croatian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| sk | Slovak | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| da | Danish | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| fi | Finnish | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| nb | Norwegian Bokmål | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| lt | Lithuanian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| be | Belarusian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| ca | Catalan | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| cy | Welsh | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ga | Irish | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| zu | Zulu | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| xh | Xhosa | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ig | Igbo | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| so | Somali | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| om | Oromo | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ti | Tigrinya | Ethi | LTR | Golden Ethiopic | needed | none needed |
-| rw | Kinyarwanda | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| mg | Malagasy | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| sn | Shona | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| wo | Wolof | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ln | Lingala | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| af | Afrikaans | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ff | Fula | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| nqo | N'Ko | Nkoo | RTL | ASCW NKo | needed | needs joining from the font |
-| zgh | Standard Moroccan Tamazight | Tfng | LTR | ASCW Tifinagh | needed | none needed |
-| qu | Quechua | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| gn | Guarani | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| chr | Cherokee | Cher | LTR | Golden Cherokee | needed | none needed |
-| nv | Navajo | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| mi | Māori | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| haw | Hawaiian | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| iu | Inuktitut | Cans | LTR | Golden CanadianAboriginal | needed | none needed |
-| se | Northern Sami | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
-| ht | Haitian Creole | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
+| en | English | Latn | LTR | Golden Latin II | `us` | none needed |
+| es | Spanish | Latn | LTR | Golden Latin II | `es` | none needed |
+| fr | French | Latn | LTR | Golden Latin II | `fr` | none needed |
+| de | German | Latn | LTR | Golden Latin II | `de` | none needed |
+| pt | Portuguese | Latn | LTR | Golden Latin II | `pt-br` | none needed |
+| it | Italian | Latn | LTR | Golden Latin II | `it` | none needed |
+| ru | Russian | Cyrl | LTR | Golden Cyrillic | `ru` | none needed |
+| uk | Ukrainian | Cyrl | LTR | Golden Cyrillic | `ua` | none needed |
+| pl | Polish | Latn | LTR | Golden Latin II | `pl` | none needed |
+| ar | Arabic | Arab | RTL | Golden Arabic | `ar` | done |
+| he | Hebrew | Hebr | RTL | Golden Hebrew | `he` | none needed |
+| fa | Persian | Arab | RTL | Golden Arabic | `ir` | done |
+| ur | Urdu | Arab | RTL | Golden Arabic | `pk` | done |
+| hi | Hindi | Deva | LTR | Golden Devanagari | `in-hi` | done |
+| bn | Bangla | Beng | LTR | Golden Bengali | `bd` | needs reordering |
+| ta | Tamil | Taml | LTR | Golden Tamil | `in-tamilnet` | needs reordering |
+| zh-Hans | Chinese (Simplified) | Hans | LTR | Golden ChineseSimplified | `us` + input method needed | none needed |
+| zh-Hant | Chinese (Traditional) | Hant | LTR | Golden ChineseTraditional | `us` + input method needed | none needed |
+| ja | Japanese | Jpan | LTR | Golden Japanese | `us` + input method needed | none needed |
+| ko | Korean | Kore | LTR | Golden Korean | `us` + input method needed | none needed |
+| th | Thai | Thai | LTR | Golden Thai | `th` | needs word breaking |
+| vi | Vietnamese | Latn | LTR | Golden Latin II | `vn` | none needed |
+| tr | Turkish | Latn | LTR | Golden Latin II | `tr` | none needed |
+| id | Indonesian | Latn | LTR | Golden Latin II | `us` | none needed |
+| sw | Swahili | Latn | LTR | Golden Latin II | `us` | none needed |
+| am | Amharic | Ethi | LTR | Golden Ethiopic | `et`; syllables need an input method | none needed |
+| yo | Yoruba | Latn | LTR | Golden Latin II | `ng-yoruba` | none needed |
+| ha | Hausa | Latn | LTR | Golden Latin II | `ng-hausa` | none needed |
+| el | Greek | Grek | LTR | Golden Greek | `gr` | none needed |
+| nl | Dutch | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| mr | Marathi | Deva | LTR | Golden Devanagari | `in-marathi` | done |
+| te | Telugu | Telu | LTR | Golden Telugu | `in-tel` | needs reordering |
+| gu | Gujarati | Gujr | LTR | Golden Gujarati | `in-guj` | needs reordering |
+| kn | Kannada | Knda | LTR | Golden Kannada | `in-kan` | needs reordering |
+| ml | Malayalam | Mlym | LTR | Golden Malayalam | `in-mal` | needs reordering |
+| pa | Punjabi | Guru | LTR | Golden Gurmukhi | `in-guru` | needs reordering |
+| or | Odia | Orya | LTR | Golden Oriya | `in-ori` | needs reordering |
+| as | Assamese | Beng | LTR | Golden Bengali | `in-asm-kagapa` | needs reordering |
+| ne | Nepali | Deva | LTR | Golden Devanagari | `np` | done |
+| si | Sinhala | Sinh | LTR | Golden Sinhala | `lk` | needs reordering |
+| sd | Sindhi | Arab | RTL | Golden Arabic | `pk-snd` | done |
+| ps | Pashto | Arab | RTL | Golden Arabic | `af-ps` | done |
+| sat | Santali | Olck | LTR | Golden OlChiki | `in-sat` | none needed |
+| dv | Dhivehi | Thaa | RTL | Golden Thaana | `mv` | none needed |
+| ms | Malay | Latn | LTR | Golden Latin II | `us` | none needed |
+| fil | Filipino | Latn | LTR | Golden Latin II | `ph` | none needed |
+| jv | Javanese | Latn | LTR | Golden Latin II | `us` | none needed |
+| su | Sundanese | Latn | LTR | Golden Latin II | `us` | none needed |
+| my | Burmese | Mymr | LTR | Golden Myanmar | `mm` | needs reordering |
+| km | Khmer | Khmr | LTR | Golden Khmer | `kh` | needs reordering |
+| lo | Lao | Laoo | LTR | Golden Lao | `la` | needs word breaking |
+| mn | Mongolian | Cyrl | LTR | Golden Cyrillic | `mn` | none needed |
+| bo | Tibetan | Tibt | LTR | Golden Tibetan | `cn-tib` | needs reordering |
+| yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | `us` + input method needed | none needed |
+| kk | Kazakh | Cyrl | LTR | Golden Cyrillic | `kz` | none needed |
+| uz | Uzbek | Latn | LTR | Golden Latin II | `uz` | none needed |
+| ky | Kyrgyz | Cyrl | LTR | Golden Cyrillic | `kg` | none needed |
+| tg | Tajik | Cyrl | LTR | Golden Cyrillic | `tj` | none needed |
+| tk | Turkmen | Latn | LTR | Golden Latin II | `tm` | none needed |
+| az | Azerbaijani | Latn | LTR | Golden Latin II | `az` | none needed |
+| ka | Georgian | Geor | LTR | Golden Georgian | `ge` | none needed |
+| hy | Armenian | Armn | LTR | Golden Armenian | `am` | none needed |
+| ckb | Central Kurdish | Arab | RTL | Golden Arabic | `iq-ku-ara` | done |
+| ug | Uyghur | Arab | RTL | Golden Arabic | `cn-ug` | done |
+| ro | Romanian | Latn | LTR | Golden Latin II | `ro` | none needed |
+| cs | Czech | Latn | LTR | Golden Latin II | `cz` | none needed |
+| hu | Hungarian | Latn | LTR | Golden Latin II | `hu` | none needed |
+| sv | Swedish | Latn | LTR | Golden Latin II | `se` | none needed |
+| bg | Bulgarian | Cyrl | LTR | Golden Cyrillic | `bg` | none needed |
+| sr | Serbian | Cyrl | LTR | Golden Cyrillic | `rs` | none needed |
+| hr | Croatian | Latn | LTR | Golden Latin II | `hr` | none needed |
+| sk | Slovak | Latn | LTR | Golden Latin II | `sk` | none needed |
+| da | Danish | Latn | LTR | Golden Latin II | `dk` | none needed |
+| fi | Finnish | Latn | LTR | Golden Latin II | `fi` | none needed |
+| nb | Norwegian Bokmål | Latn | LTR | Golden Latin II | `no` | none needed |
+| lt | Lithuanian | Latn | LTR | Golden Latin II | `lt` | none needed |
+| be | Belarusian | Cyrl | LTR | Golden Cyrillic | `by` | none needed |
+| ca | Catalan | Latn | LTR | Golden Latin II | `es-cat` | none needed |
+| cy | Welsh | Latn | LTR | Golden Latin II | `gb-extd` | none needed |
+| ga | Irish | Latn | LTR | Golden Latin II | `ie` | none needed |
+| zu | Zulu | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| xh | Xhosa | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| ig | Igbo | Latn | LTR | Golden Latin II | `ng-igbo` | none needed |
+| so | Somali | Latn | LTR | Golden Latin II | `us` | none needed |
+| om | Oromo | Latn | LTR | Golden Latin II | `us` | none needed |
+| ti | Tigrinya | Ethi | LTR | Golden Ethiopic | `et`; syllables need an input method | none needed |
+| rw | Kinyarwanda | Latn | LTR | Golden Latin II | `us` | none needed |
+| mg | Malagasy | Latn | LTR | Golden Latin II | `us` | none needed |
+| sn | Shona | Latn | LTR | Golden Latin II | `us` | none needed |
+| wo | Wolof | Latn | LTR | Golden Latin II | `sn` | none needed |
+| ln | Lingala | Latn | LTR | Golden Latin II | `cd` | none needed |
+| af | Afrikaans | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| ff | Fula | Latn | LTR | Golden Latin II | `gh-fula` | none needed |
+| nqo | N'Ko | Nkoo | RTL | ASCW NKo | `gn` | needs joining from the font |
+| zgh | Standard Moroccan Tamazight | Tfng | LTR | ASCW Tifinagh | `ma-tifinagh` | none needed |
+| qu | Quechua | Latn | LTR | Golden Latin II | `latam` | none needed |
+| gn | Guarani | Latn | LTR | Golden Latin II | `latam` | none needed |
+| chr | Cherokee | Cher | LTR | Golden Cherokee | `us-chr` | none needed |
+| nv | Navajo | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| mi | Māori | Latn | LTR | Golden Latin II | `nz-mao` | none needed |
+| haw | Hawaiian | Latn | LTR | Golden Latin II | `us-haw` | none needed |
+| iu | Inuktitut | Cans | LTR | Golden CanadianAboriginal | `ca-ike` | none needed |
+| se | Northern Sami | Latn | LTR | Golden Latin II | `no-smi` | none needed |
+| ht | Haitian Creole | Latn | LTR | Golden Latin II | `us-intl` | none needed |
 
-"us-intl, partly" means the US international layout types most of the
-language's letters through dead keys, but not all of them (for example
-Hausa ɓ ɗ ƙ, Yoruba ẹ ọ ṣ with tones, or Vietnamese stacked tones).
+The keyboard column is the layout `zui_keymap_for_locale` picks
+(`tools/zui/locales/KEYBOARDS.tsv`). 70 of the layouts are generated from
+xkeyboard-config by `tools/zui/gen_keymaps.py`: InScript for the Indic
+scripts, the national layouts, and the community layouts for Cherokee,
+Inuktitut, N'Ko, Tifinagh, Māori, Hawaiian, Northern Sami, Yoruba, Hausa,
+Igbo and Fula. Languages typed with `us-intl` (Dutch, Afrikaans, Zulu,
+Xhosa, Navajo, Haitian Creole) or `us` have no national layout of their own
+in xkeyboard-config; `us-intl` reaches most of their letters through dead
+keys. A layout keeps at most eight dead keys, so a few rare ones on the
+Czech, Slovak, Hungarian and similar layouts type nothing yet.
 
 ## Gaps, in the order they will be closed
 
@@ -157,10 +165,10 @@ Hausa ɓ ɗ ƙ, Yoruba ẹ ọ ṣ with tones, or Vietnamese stacked tones).
    were the last two; their faces were built from the OFL Noto fonts the
    same way Golden Cherokee was, renamed into the family with its metrics.
    Newly drawn glyphs in the Golden style can replace them later.
-2. **Keyboards and input methods.** Layouts for every script in the table and
-   for the Latin-script languages with letters us-intl lacks. Real input
-   methods for Chinese, Cantonese, Japanese and Korean (today there is only
-   a sample Pinyin table).
+2. **Input methods.** Every language has a keyboard layout now. Still to
+   come: real input methods for Chinese, Cantonese, Japanese and Korean (today
+   there is only a sample Pinyin table), a syllable input method for Amharic
+   and Tigrinya, and a Navajo layout.
 3. **Shaping.** Indic reordering beyond Devanagari (Bengali, Tamil, Telugu,
    Kannada, Malayalam, Gujarati, Gurmukhi, Odia, Sinhala), Myanmar, Khmer and
    Tibetan reordering, Thai and Lao word breaking. Text drawing also has to
