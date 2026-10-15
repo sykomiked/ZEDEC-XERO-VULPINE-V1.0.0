@@ -394,6 +394,19 @@ static void test_none(void)
     CHECK(zth_read(R, &REP) == LPRES_STATE_TRUE && REP.cls[ZTH_CPU].max_mdeg == -1000 &&
               REP.cls[ZTH_CPU].n == 4,
           "the highest of several below zero (%ld)", (long) REP.cls[ZTH_CPU].max_mdeg);
+    /* NULL and "" read this machine: the same answer, from the Linux reader on Linux */
+    static zth_report_t live;
+    lpres_state_t a = zth_read(NULL, &live);
+    CHECK(zth_read("", &REP) == a && REP.n == live.n && !strcmp(REP.reason, live.reason) &&
+              !strcmp(REP.host, live.host),
+          "NULL and \"\" are this machine (%s, %u readings)", live.host, (unsigned) live.n);
+#if defined(__linux__)
+    CHECK(!strcmp(live.host, "linux") &&
+              (live.n || !strcmp(live.reason, "no temperature sensor "
+                                              "under /sys/class/hwmon or "
+                                              "/sys/class/thermal")),
+          "this Linux machine: %s", live.reason);
+#endif
     /* a root that is not there, and one too long */
     CHECK(zth_read("/nonexistent/zxv-thermal", &REP) == LPRES_STATE_NEITHER && REP.reason[0],
           "a missing root");
