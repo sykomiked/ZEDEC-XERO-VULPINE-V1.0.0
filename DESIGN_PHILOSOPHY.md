@@ -132,7 +132,20 @@ software is published under the Apache License 2.0 so that others can
 learn from it, use it, and carry it forward, just as we carry forward the
 work that came before us.
 
-## 7. In short
+## 7. Still at rest, alive when touched
+
+Left to itself, ZXV is a collection of recursive circuits, each deterministic and each holding
+its fixed point: the same state goes in and the same state comes out, and nothing moves on its
+own. A person interacting with it is the one thing that breaks that symmetry. Each interaction
+closes exactly one complete cycle through the recursion: the input enters, propagates through
+the layers, is sealed in a receipt and the system returns to rest. Because every circuit is
+deterministic, the receipt is enough to replay the cycle and get the same result.
+
+So the system never acts unprompted. Suggestions wait until they are accepted, the companion's
+voice speaks only when tapped, and the swarm spends only the budget a cycle grants it. The
+architecture records this as rule R24, with the places the code does not yet follow it.
+
+## 8. In short
 
 1. Learn from nature, and stay humble before it.
 2. Code is hardware and hardware is code; emulate efficiently.
@@ -140,5 +153,6 @@ work that came before us.
 4. Keep what works. COBOL, Fortran and their peers are carried forward.
 5. Claim only what the code delivers.
 6. Cooperate; no monopolies.
+7. At rest it holds still; each interaction closes one cycle.
 
 — **Jolly Dragon Roger**, 36N9 GENETICS LLC

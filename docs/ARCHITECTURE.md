@@ -137,6 +137,44 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
+| R24 | **At rest, a fixed point; each user interaction closes one cycle.** With no input the system is a set of deterministic recursive circuits holding a fixed point: same state in, same state out, nothing advances and nothing acts on its own. A user interaction is the one event that breaks that symmetry; it runs exactly one full cycle (input, propagate through the layers, seal a receipt, return to rest), and the receipt is enough to replay it | Swarm clock, suggestions, voice, network upkeep, updates (section 2.1) |
+
+### 2.1 R24 in the code today
+
+R24 (owner, 2026-10-15) is the rule; this is where the code stands against it.
+
+Already follows it:
+
+- **AI suggestions are held until accepted.** App models keep AI help pending until the owner
+  accepts it (`kernel/src/apps/quillon_model.h`); nothing is applied on the model's own say.
+- **The voice speaks only on a tap** and never unprompted (📝 #153, `zui_chgvoice`).
+- **The swarm spends a tokens-per-cycle budget.** A reply runs only inside the companion's
+  allotment for the open market cycle and stops at exactly that many tokens
+  (`zxv_budget_gate`, `swarm_budget`).
+- **Determinism and replay exist for money.** The settlement spine posts every transfer in
+  peer_audit's replayable form, and the same cycles replayed give the same postings
+  (`kernel/src/settle/settle.h` A1, `kernel/src/peer_audit/pa_runtime.h`). Every answer carries a
+  64-state tag and lands in a quarantine log (`zxv_answer_tag`, `lpres`).
+- **The update checker** runs only when asked by default (`zxv_update_host.c`, `interval_s = 0`).
+
+Does not follow it yet:
+
+- **The swarm clock runs on wall time.** The desktop app and zxvd call `step()` on a timer
+  "however busy the window is" (`kernel/arch/hosted/zxv_host.c`): market cycles, stand-in agent
+  spending, evolution (`evolve()`) and hardware rescans advance with no user input. Under R24
+  they run only as the propagation step of a user's cycle, and the swarm otherwise holds.
+- **Automatic update checks.** While online, `zxv_update_tick` checks once a day on its own.
+- **Network upkeep.** Vinea refreshes, keepalives every 25 s, LAN discovery, AIPI and public
+  space ticks, the IRC bridge and the people poll all run on timers (`zxv_net_tick`,
+  `zxvd_irc.c`, `zxvd_people_poll`). Answering a peer's request is a protocol duty rather than
+  an autonomous action, but keepalives and refreshes are not tied to a user's cycle.
+- **Power policy** ticks once a second (`zxvd_power_tick`).
+- **No per-interaction receipt.** Money and answers are replayable; a whole interaction
+  (input, every layer it touched, the resulting state) is not sealed as one receipt, so a
+  cycle cannot yet be replayed from its receipt alone.
+
+Closing these is a code change for the threads that own the swarm loop, networking and zxvd;
+until then the list above is the honest state.
 
 ---
 
