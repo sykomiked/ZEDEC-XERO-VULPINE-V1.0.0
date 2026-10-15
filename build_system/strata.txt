@@ -57,6 +57,7 @@ cellular_multikernel             kernel
 choice                           kernel
 clock                            kernel
 codec                            kernel
+crash                            kernel     # crash records on disk and boot modes (safe, recovery)
 deploy                           kernel
 display                          kernel
 el0_userspace                    kernel

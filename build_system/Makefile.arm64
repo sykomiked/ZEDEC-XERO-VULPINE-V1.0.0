@@ -307,6 +307,8 @@ KERNEL_SRCS = \
     kernel/src/fat32/fat32.c \
     kernel/src/zxvfs/zxvfs.c \
     kernel/src/pmm/pmm.c \
+    kernel/src/crash/crash.c \
+    kernel/src/crash/bootctl.c \
     kernel/src/loader/elf.c \
     kernel/src/loader/zsp.c \
     kernel/src/loader/abupdate.c \

@@ -511,6 +511,8 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
 #include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
+#include "../src/crash/crash.h"      /* crash dumps kept on disk across a reboot */
+#include "../src/crash/bootctl.h"    /* boot modes: normal, safe, recovery */
 /* Bridge between the TCP/IP stack and the virtio-net driver. The stack calls
  * knet_tx to put a fully-built frame on the wire; knet_pump drains received
  * frames into the stack. Kept here (arch layer) so src/net stays portable. */
@@ -589,6 +591,15 @@ static doc_t g_doc;              /* AppKit: the open document */
 static bool g_doc_open = false;
 static bool g_ab_ready = false;
 
+/* Crash dumps and boot modes (src/crash). The reserved area sits right after
+ * the ZXVFS region of the persistent disk, so it never overlaps a file.
+ * arm64_exceptions.c writes a crash record through g_crash_area. */
+crash_area_t g_crash_area;
+static bootctl_t g_bootctl;
+static uint32_t g_boot_mode = BOOT_MODE_NORMAL;
+static crash_record_t g_last_crash; /* the previous boot's crash, if any */
+static bool g_last_crash_valid = false;
+
 /* Event-cycle bookkeeping */
 static uint32_t g_event_cycle = 0;
 static bool g_auto_stats = false;   /* periodic stats spam: only in the
@@ -600,6 +611,69 @@ extern void el0_set_event_cycle_hook(void (*fn)(void));
 void kernel_event_cycle_run(void);
 void kernel_stats_report(void);
 void kernel_shell_exec(const char *line);
+
+static void boot_msg(const char *msg);
+
+static void crash_print_record(const crash_record_t *r)
+{
+    uart_puts("  reason: ");
+    uart_puts(crash_reason_str(r->reason));
+    uart_puts(" on ");
+    uart_puts(crash_arch_str(r->arch));
+    uart_puts(", boot #");
+    uart_put_dec(r->boot_count);
+    uart_puts(" at tick ");
+    uart_put_dec(r->uptime);
+    uart_puts("\n  code=0x");
+    uart_put_hex(r->code);
+    uart_puts(" pc=0x");
+    uart_put_hex(r->pc);
+    uart_puts(" addr=0x");
+    uart_put_hex(r->fault_addr);
+    if (r->msg[0]) {
+        uart_puts("\n  ");
+        uart_puts(r->msg);
+    }
+    for (uint32_t i = 0; i < r->nframes; i++) {
+        uart_puts(i ? " 0x" : "\n  called from: 0x");
+        uart_put_hex(r->frames[i]);
+    }
+    uart_puts("\n");
+}
+
+/* After ZXVFS mounts: report and clear any crash record the last boot left,
+ * then choose this boot's mode. */
+static void boot_crash_check(void)
+{
+    if (!crash_area_attach(&g_crash_area, &g_vblk, ZXVFS_TOTAL_SECTORS)) {
+        boot_msg("  [SKIP] crash log: disk too small for the reserved area");
+        return;
+    }
+    crash_status_t st = crash_area_load(&g_crash_area, &g_last_crash);
+    if (st == CRASH_OK) {
+        g_last_crash_valid = true;
+        boot_msg("  [CRASH LOG] the last boot crashed; record kept (shell: crash)");
+        crash_print_record(&g_last_crash);
+        crash_area_clear(&g_crash_area);
+    } else if (st == CRASH_CORRUPT || st == CRASH_VERSION_UNKNOWN) {
+        boot_msg("  [CRASH LOG] a damaged crash record was found and cleared");
+        crash_area_clear(&g_crash_area);
+    } else {
+        boot_msg("  [CRASH LOG] no crash from the last boot");
+    }
+    bootctl_load(&g_crash_area, &g_bootctl);
+    g_boot_mode = bootctl_begin(&g_bootctl, st == CRASH_OK, false);
+    bootctl_save(&g_crash_area, &g_bootctl);
+    crash_set_boot_count(g_bootctl.boot_count);
+    uart_puts("[BOOT] Boot mode: ");
+    uart_puts(boot_mode_str(g_boot_mode));
+    uart_puts(g_boot_mode == BOOT_MODE_NORMAL
+                  ? "\n"
+                  : " (optional subsystems and user programs stay off)\n");
+    if (g_boot_mode == BOOT_MODE_RECOVERY)
+        uart_puts("[BOOT] Recovery: 'crash' shows the last crash, 'rollback' reverts an "
+                  "update, 'bootmode normal' returns to a normal boot\n");
+}
 
 static void boot_msg(const char *msg) {
     uint32_t eid = boot_evidence_record(msg);
@@ -2148,6 +2222,7 @@ void kernel_main_arm64(void) {
                 g_ab_ready = true;
                 boot_msg("  [A/B] signed-update state ready (slots/update/confirm/rollback)");
             }
+            boot_crash_check();
         } else {
             boot_msg("  [WARN] ZXVFS mount failed — persistence unavailable");
         }
@@ -2922,8 +2997,12 @@ void kernel_main_arm64(void) {
     /* Phase 22: Platform layer — deploy/theme/icon/font/bridge/update/mage/
      * reality brought up on top of the M5 core. Emitted raw (its own lines),
      * in phase-tick order, no wall-clock read. cores/mem 0 => probe-default. */
-    boot_features_init(uart_puts, 0, 0);
-    boot_economy_init(uart_puts);
+    if (g_boot_mode == BOOT_MODE_NORMAL) {
+        boot_features_init(uart_puts, 0, 0);
+        boot_economy_init(uart_puts);
+    } else {
+        boot_msg("  [SKIP] platform layer and economy (safe mode)");
+    }
 
     /* Phase 22b: AI self-check. One Fibonacci budget cycle of the swarm and a
      * tiny integer forward step of the tensor engine, compared against the
@@ -2931,9 +3010,17 @@ void kernel_main_arm64(void) {
      * means this build does not compute what the host computes: the [FAULT]
      * line is printed and boot stops here, before [BOOT_OK] can claim
      * otherwise. */
-    if (!ai_boot_selfcheck(uart_puts)) {
+    if (g_boot_mode != BOOT_MODE_NORMAL) {
+        boot_msg("  [SKIP] AI self-check (safe mode)");
+    } else if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
         for (;;) halt();
+    }
+
+    /* The boot got this far: confirm it, so the next one is normal. */
+    if (g_crash_area.attached) {
+        bootctl_mark_good(&g_bootctl);
+        bootctl_save(&g_crash_area, &g_bootctl);
     }
 
     /* Phase 18: Enable interrupts and enter event loop */
@@ -3424,6 +3511,59 @@ void kernel_shell_exec(const char *line) {
         kernel_stats_report();
         return;
     }
+    if (strcmp(line, "crash") == 0) {
+        if (!g_last_crash_valid) {
+            uart_puts("crash: no crash recorded by the last boot\r\n");
+            return;
+        }
+        uart_puts("crash: the last boot stopped here\r\n");
+        crash_print_record(&g_last_crash);
+        uart_puts("  console before it:\r\n");
+        for (uint32_t i = 0; i < g_last_crash.log_len; i++) {
+            char c[2] = {g_last_crash.log[i], 0};
+            uart_puts(c);
+        }
+        uart_puts("\r\n");
+        return;
+    }
+    if (line[0] == 'b' && line[1] == 'o' && line[2] == 'o' && line[3] == 't' && line[4] == 'm' &&
+        line[5] == 'o' && line[6] == 'd' && line[7] == 'e' && (line[8] == 0 || line[8] == ' ')) {
+        if (!g_crash_area.attached) {
+            uart_puts("bootmode: no persistent disk\r\n");
+            return;
+        }
+        const char *arg = line[8] ? line + 9 : "";
+        if (strcmp(arg, "safe") == 0 || strcmp(arg, "recovery") == 0) {
+            bootctl_request(&g_bootctl, arg[0] == 's' ? BOOT_MODE_SAFE : BOOT_MODE_RECOVERY);
+        } else if (strcmp(arg, "normal") == 0) {
+            bootctl_request(&g_bootctl, BOOT_MODE_NORMAL);
+            bootctl_mark_good(&g_bootctl);
+        } else if (arg[0]) {
+            uart_puts("bootmode: normal | safe | recovery\r\n");
+            return;
+        }
+        if (arg[0] && !bootctl_save(&g_crash_area, &g_bootctl)) {
+            uart_puts("bootmode: could not save\r\n");
+            return;
+        }
+        uart_puts("bootmode: this boot ");
+        uart_puts(boot_mode_str(g_boot_mode));
+        uart_puts(", next boot ");
+        uart_puts(g_bootctl.requested ? boot_mode_str(g_bootctl.requested) : "automatic");
+        uart_puts(", boots ");
+        uart_put_dec(g_bootctl.boot_count);
+        uart_puts(", crashes ");
+        uart_put_dec(g_bootctl.crashes);
+        uart_puts("\r\n");
+        return;
+    }
+    if (strcmp(line, "crashtest") == 0) {
+        /* Deliberately fault (an unmapped read), to check the crash path. */
+        uart_puts("crashtest: reading an unmapped address\r\n");
+        volatile uint64_t *bad = (volatile uint64_t *) 0xDEAD00000000ULL;
+        (void) *bad;
+        return;
+    }
     if (strcmp(line, "uptime") == 0) {
         uart_puts("uptime: ticks=");
         uart_put_dec(arm64_timer_get_ticks());
@@ -3795,6 +3935,11 @@ void kernel_shell_exec(const char *line) {
      * it on the next tick, alongside the shell. */
     if (line[0]=='r' && line[1]=='u' && line[2]=='n' && line[3]==' ') {
         if (!g_zxvfs_ready) { uart_puts("run: no persistent disk\r\n"); return; }
+        if (g_boot_mode != BOOT_MODE_NORMAL) {
+            uart_puts(
+                "run: user programs stay off in safe mode ('bootmode normal', then reboot)\r\n");
+            return;
+        }
         const char *name = line + 4;
         static uint8_t filebuf[ZXVFS_FILE_MAX_BYTES];
         int n = zxvfs_read(&g_zxvfs, name, filebuf, sizeof(filebuf));
@@ -3879,6 +4024,10 @@ void kernel_shell_exec(const char *line) {
         uart_puts("  rm <f>  \xe2\x80\x94  delete a persistent file\r\n");
         uart_puts("  run <f>  \xe2\x80\x94  load & execute a signed (.zsp) program from disk\r\n");
         uart_puts("  slots / update <f> / confirm / rollback  \xe2\x80\x94  A/B signed updates\r\n");
+        uart_puts("  crash  \xe2\x80\x94  show the crash the last boot recorded\r\n");
+        uart_puts("  bootmode [normal|safe|recovery]  \xe2\x80\x94  show or set the next boot's "
+                  "mode\r\n");
+        uart_puts("  crashtest  \xe2\x80\x94  fault on purpose to test the crash log\r\n");
         uart_puts("  writer new|add|undo|redo|save|open  \xe2\x80\x94  native word processor\r\n");
         uart_puts("  pulse  \xe2\x80\x94  live kernel heartbeat\r\n");
         uart_puts("  forge <intent>  \xe2\x80\x94  Magitech Refinery: any language -> sigil card + AI preset\r\n");
