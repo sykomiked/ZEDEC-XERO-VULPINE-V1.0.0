@@ -127,11 +127,21 @@ static void test_config(void)
     CHECK(allot_free_entry(&r, who, &rc) == ALLOT_ERR_DISABLED, "disabled free entry");
     CHECK(memcmp(&before, &r, sizeof r) == 0, "disabled: state untouched");
 
-    /* L2: free entry needs both switches. */
+    /* L2: free entry is always on; a config that turns it off is refused. */
     c.jurisdiction_permits = true;
     c.free_entry = false;
-    CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 16) == ALLOT_OK, "init");
-    CHECK(allot_free_entry(&r, who, &rc) == ALLOT_ERR_DISABLED, "free entry needs free_entry");
+    CHECK(allot_config_check(&c) == ALLOT_ERR_CONFIG &&
+              allot_init(&r, &c, 1, NULL, g_ranges, 16) == ALLOT_ERR_CONFIG,
+          "L2: free entry cannot be switched off");
+    for (uint32_t m = 0; m <= ALLOT_MODE_FREE; m++) {
+        allot_config_t cm = c;
+        cm.free_entry = true;
+        cm.mode = m;
+        CHECK(allot_init(&r, &cm, 1, NULL, g_ranges, 16) == ALLOT_OK &&
+                  allot_free_entry(&r, who, &rc) == ALLOT_OK && r.ranges[0].gratuitous &&
+                  r.ranges[0].fee == 0,
+              "L2: a free civic ballot is accepted and marked gratuitous in mode %u", m);
+    }
     c.free_entry = true;
     CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 16) == ALLOT_OK, "init free");
     CHECK(allot_free_entry(&r, who, &rc) == ALLOT_OK, "free entry");
@@ -596,6 +606,7 @@ static void test_post(void)
     allot_enter(&r, alice, a610, NULL, NULL);
     allot_enter(&r, bob, a987, NULL, NULL);
     allot_reveal(&r, p, sec);
+    CHECK(!r.ranges[0].gratuitous && !r.ranges[1].gratuitous, "L2: paid runs are not gratuitous");
     CHECK(allot_select(&r, &s) == ALLOT_OK, "draw");
     CHECK(s.pool == 1597 && s.reserve_skim == 25 && s.grant_pool == 145 && s.crown_endowment == 1427,
           "1597 -> 25 + 145 + 1427 (got %llu %llu %llu)", (unsigned long long) s.reserve_skim,
@@ -737,6 +748,7 @@ static void test_nav(void)
     k1.max_rate = k2.max_rate = c.max_rate;
     k1.fib_index = k2.fib_index = c.fib_index;
     k1.luck_cap = k2.luck_cap = 1;
+    k1.free_entry = k2.free_entry = true; /* L2 */
     CHECK(allot_config_check(&k1) == ALLOT_ERR_CONFIG, "carry case 1: sum >= 1");
     CHECK(allot_config_check(&k2) == ALLOT_OK, "carry case 2: sum < 1");
 

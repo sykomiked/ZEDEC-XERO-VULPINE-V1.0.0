@@ -25,8 +25,12 @@
  *       closed with ALLOT_ERR_DISABLED, in every mode. Only a jurisdiction
  *       plug-in, after legal review, should set it. Some places restrict
  *       any private selection by lot, free or not; they keep it off.
- *   L2  `free_entry` (default true) turns on the no-purchase entry route,
- *       allot_free_entry(). In FREE mode (M0) it is the only route. In the
+ *   L2  ALWAYS-ON FREE ENTRY (owner rule 2026-10-15). Wherever the
+ *       allotment runs, a free civic ballot is accepted: allot_free_entry()
+ *       needs no payment, stake or voucher, and allot_config_check refuses
+ *       a config with `free_entry` false. Each free run of ballots is marked
+ *       `gratuitous` in its range record. In FREE mode (M0) it is the only
+ *       route. In the
  *       SAVINGS and PAID modes a free entry mints ONE ballot while a paid
  *       or yield entry mints one per fee unit, so a free entrant does not
  *       get the same odds as a paying one. Most sweepstakes rules require
@@ -288,7 +292,7 @@ int allot_rate_cmp(allot_rate_t a, allot_rate_t b);
 
 typedef struct {
     bool jurisdiction_permits;       /* L1: default false                       */
-    bool free_entry;                 /* L2: default true                        */
+    bool free_entry;                 /* L2: must be true (always-on free entry) */
     allot_rate_t min_rate;          /* F2: default 1/100                       */
     allot_rate_t max_rate;          /* F2: default 1/2 (the ceiling)           */
     uint64_t skim_num, skim_den;     /* S1: default 987/61000                 */
@@ -308,7 +312,8 @@ typedef struct {
     uint8_t owner[ALLOT_ID_LEN];
     uint64_t first;
     uint64_t count;
-    uint64_t fee; /* S6: what this run paid in */
+    uint64_t fee;    /* S6: what this run paid in */
+    bool gratuitous; /* L2: a free civic ballot (fee 0, no stake) */
 } allot_range_t;
 
 typedef enum {
@@ -448,8 +453,9 @@ allot_rate_t allot_luck_mult(const allot_config_t *c, uint32_t misses);
 /* W1: floor(fee * m), or 0 on overflow or a weight outside [1, luck_cap]. */
 uint64_t allot_luck_ballots(const allot_config_t *c, uint64_t fee, allot_rate_t m);
 
-/* L2, A1: one free ballot (no fee). Fails with ALLOT_ERR_DISABLED unless
- * both jurisdiction_permits and free_entry are set. In FREE mode an owner
+/* L2, A1: one free civic ballot (no fee, no stake), always accepted while
+ * the allotment is switched on. ALLOT_ERR_DISABLED while
+ * jurisdiction_permits is false. In FREE mode an owner
  * that already holds a ballot this epoch is refused (ALLOT_ERR_CAP). */
 allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
                                   allot_receipt_t *out);

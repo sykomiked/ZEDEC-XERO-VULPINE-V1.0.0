@@ -161,6 +161,7 @@ allot_status_t allot_config_check(const allot_config_t *c)
     if (c->nav_den && c->nav_num >= c->nav_den) return ALLOT_ERR_CONFIG;
     if (c->rebate_den && c->rebate_num >= c->rebate_den) return ALLOT_ERR_CONFIG;
     if (c->mode > ALLOT_MODE_FREE) return ALLOT_ERR_CONFIG;
+    if (!c->free_entry) return ALLOT_ERR_CONFIG; /* L2: free entry is always on */
     if (c->luck_cap < 1 || c->luck_cap > ALLOT_LUCK_CEIL) return ALLOT_ERR_CONFIG;
     if (!split_fits(c)) return ALLOT_ERR_CONFIG; /* S3 */
     if (c->fib_index < ALLOT_FIB_MIN || c->fib_index > ALLOT_FIB_MAX) return ALLOT_ERR_CONFIG;
@@ -376,6 +377,7 @@ static allot_status_t mint(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64
         g->first = first;
         g->count = count;
         g->fee = fee;
+        g->gratuitous = kind == 1; /* L2 */
         if (r->tally) {
             allot_tally_t *t = &r->tally[tally_slot(r, owner)];
             if (t->held == 0) {

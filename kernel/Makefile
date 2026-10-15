@@ -1551,6 +1551,10 @@ test-allotment:
 	if nm -u $(ZXV_TMP)/allot_token_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+|sha3_256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_token_a64.o; echo "[FAIL] allot_token libc symbol"; exit 1; fi && \
 	echo "[PASS] allot_token freestanding (aarch64-none-elf, no libc)"
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_savings.c src/allotment/allot_guard.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_savings && $(ZXV_TMP)/test_allot_savings > $(ZXV_TMP)/test_allot_savings.log 2>&1 && echo "[PASS] test_allot_savings ($$(tail -1 $(ZXV_TMP)/test_allot_savings.log))" || { cat $(ZXV_TMP)/test_allot_savings.log; echo "[FAIL] test_allot_savings"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_view.c src/allotment/allot_view.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_view && $(ZXV_TMP)/test_allot_view > $(ZXV_TMP)/test_allot_view.log 2>&1 && echo "[PASS] test_allot_view ($$(tail -1 $(ZXV_TMP)/test_allot_view.log))" || { cat $(ZXV_TMP)/test_allot_view.log; echo "[FAIL] test_allot_view"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_view.c -o $(ZXV_TMP)/allot_view_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_view_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_view_a64.o; echo "[FAIL] allot_view libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_view freestanding (aarch64-none-elf, no libc)"
 
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex

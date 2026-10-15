@@ -49,6 +49,21 @@ odds, so the free route does not take those two modes out of gaming law.
 - **Player protections stay on.** The jurisdiction switch, the age gate
   (fail closed) and self-exclusion apply to free ballots too.
 
+## Free ballots are always accepted
+
+In every mode, wherever the allotment is switched on, a free civic ballot
+is accepted with no payment, stake or voucher. A config that tries to turn
+free entry off is refused, and every free ballot is marked `gratuitous` in
+its record.
+
+## The Crown screen (app #075)
+
+`allot_view.h` is what the screen shows. With the jurisdiction switch on, it
+shows the header "The Sicilian Crown Allotment", the subtext and a
+"Register Sortition Ballot" button that costs nothing. Where the switch is
+off, there is no entry prompt at all: the screen lists past stewardships
+read-only, from a history of settlements anyone can replay.
+
 The selection is the same commit-reveal draw as before: anyone can replay it,
 and one honest party is enough to stop it being steered.
 

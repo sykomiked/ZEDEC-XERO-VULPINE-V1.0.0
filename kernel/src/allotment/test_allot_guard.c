@@ -95,9 +95,9 @@ static void test_free_check(void)
     allot_player_init(&pt, teen);
     CHECK(allot_guard_check_free(&pol, &c, &pt, now, who) == ALLOT_ERR_AGE,
           "G8: the age gate applies to free ballots");
-    c.free_entry = false;
+    c.jurisdiction_permits = false;
     CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_DISABLED,
-          "G8: free_entry off refuses");
+          "G8: switch off refuses");
     CHECK(allot_guard_check_free(NULL, &c, &pl, now, who) == ALLOT_ERR_ARG &&
               allot_guard_check_free(&pol, &c, &pl, now, NULL) == ALLOT_ERR_ARG,
           "G8: null args");
