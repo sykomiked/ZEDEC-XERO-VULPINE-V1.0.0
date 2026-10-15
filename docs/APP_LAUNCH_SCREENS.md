@@ -130,7 +130,10 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
   looked for first as `.zxvg` beside its PNG (`001-burrow.zxvg`, `logos/ascw-gold.zxvg`, built with
   `tools/zxvg/svg2zxvg.py` from `zxv-brand/app-icons/svg/` and `zxv-brand/vector/gold/`) and drawn live at the
   window's own size, exactly as drawn (each file carries its plate and palette); the PNG is only the fallback
-  for a missing or malformed vector. Test: `kernel/src/zui/test_zui_launch_shell.c`
+  for a missing or malformed vector. Each vector is drawn once per size (on black and on white, the difference
+  its coverage) and blended every frame after, so a launch frame is a blit. The tiles are small, so the crest
+  installed as `logos/ascw-gold.zxvg` is the lighter `vector/gold/ascw-small.svg` (46 KB; the full seal is for
+  the big boot frames). Test: `kernel/src/zui/test_zui_launch_shell.c`
   (a whole launch: files read, gold icon for a system app, own colours for a person's app, five ticks as five
   tiles light, the end the moment the app is ready, sound reaching the audio device, mute, missing files,
   vectors before PNGs and the fallback when a vector is malformed).

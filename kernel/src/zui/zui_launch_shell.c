@@ -92,6 +92,48 @@ static int load(zui_launch_shell_t *ls, const char *path, zui_image_t *img, uint
     return zui_image_load(img, px, m, m, c->file, (uint32_t) n, key, c->work, c->work_cap) ? -1 : 0;
 }
 
+/* LS6: a vector drawn at strength into box. It is drawn once at the box's
+ * size into img (px holds cap x cap) and blended from there every frame
+ * after, so a launch frame costs a blit, not a redraw; a box larger than
+ * that is drawn live. -1 when the vector is malformed. */
+static int vec_draw(zui_launch_shell_t *ls, zui_surface_t *s, const uint8_t *d, uint32_t n,
+                    zui_rect_t box, uint32_t strength, zui_image_t *img, uint32_t *px, int32_t cap)
+{
+    const zui_ls_config_t *c = &ls->cfg;
+    if (box.w < 1 || box.h < 1) return 0;
+    if (box.w > cap || box.h > cap) return c->vec(c->vec_ctx, s, d, n, box, strength, 0);
+    if (img->px != px || img->w != box.w || img->h != box.h) {
+        /* drawn on black and on white: the difference is its coverage */
+        uint32_t m = (uint32_t) (box.w * box.h);
+        zui_surface_t k, w;
+        zui_surface_init(&k, ls->bake[0], box.w, box.h, box.w);
+        zui_surface_init(&w, ls->bake[1], box.w, box.h, box.w);
+        for (uint32_t i = 0; i < m; i++) ls->bake[0][i] = 0, ls->bake[1][i] = 0xFFFFFFu;
+        zui_rect_t all = {0, 0, box.w, box.h};
+        img->px = 0;
+        if (c->vec(c->vec_ctx, &k, d, n, all, 256u, 0) < 0 ||
+            c->vec(c->vec_ctx, &w, d, n, all, 256u, 0) < 0)
+            return -1;
+        for (uint32_t i = 0; i < m; i++) {
+            uint32_t b = ls->bake[0][i], h = ls->bake[1][i], a = 0, out = 0;
+            for (uint32_t sh = 0; sh < 24; sh += 8) {
+                int32_t cov = 255 - (int32_t) ((h >> sh) & 255u) + (int32_t) ((b >> sh) & 255u);
+                if (cov > (int32_t) a) a = (uint32_t) (cov > 255 ? 255 : cov);
+            }
+            for (uint32_t sh = 0; sh < 24; sh += 8) {
+                uint32_t v = (b >> sh) & 255u;
+                out |= (v > a ? a : v) << sh;
+            }
+            px[i] = a << 24 | out;
+        }
+        img->px = px;
+        img->w = box.w;
+        img->h = box.h;
+    }
+    zui_image_draw(s, img, box, strength, ZUI_IMG_NO_KEY);
+    return 0;
+}
+
 /* the app's picture: its vector if it has one, else its PNG */
 static void load_icon(zui_launch_shell_t *ls, zui_ls_icon_t *e)
 {
@@ -100,6 +142,7 @@ static void load_icon(zui_launch_shell_t *ls, zui_ls_icon_t *e)
     if (zui_ls_icon_path(ls->cfg.icons_dir, e->app, path, sizeof path)) return;
     if (!e->no_vec && (e->vec_len = load_vec(ls, path, e->vec, sizeof e->vec)) != 0) {
         e->state = ZUI_LS_VECTOR;
+        e->img.px = 0; /* not drawn at any size yet */
         return;
     }
     if (!load(ls, path, &e->img, e->px, ZUI_LS_ICON_PX, ZUI_IMG_KEY_GROUND))
@@ -136,11 +179,11 @@ static void draw_icon(void *ctx, const char *app, zxl_icon_ink_t ink, zui_surfac
     e->age = ++ls->age;
     if (lit > 256u) lit = 256u;
     uint32_t tint = ink == ZXL_ICON_PALETTE ? ZXL_GOLD_RGB : ZUI_IMG_NO_KEY;
-    if (e->state == ZUI_LS_VECTOR) { /* LS6: drawn live, at this box's size, as drawn */
-        const zui_ls_config_t *c = &ls->cfg;
+    if (e->state == ZUI_LS_VECTOR) { /* LS6: at this box's size, as drawn */
         uint32_t at = lit < 256u ? 36u * (256u - lit) / 256u : 0u;
         if (lit > at) at = lit;
-        if (c->vec(c->vec_ctx, s, e->vec, e->vec_len, box, at, 0) >= 0) return;
+        if (vec_draw(ls, s, e->vec, e->vec_len, box, at, &e->img, e->px, ZUI_LS_ICON_PX) >= 0)
+            return;
         e->no_vec = 1; /* malformed: its PNG from now on */
         load_icon(ls, e);
     }
@@ -157,9 +200,9 @@ static void draw_logo(void *ctx, uint32_t which, zui_surface_t *s, zui_rect_t bo
     if (ls->logo_state[which] == ZUI_LS_EMPTY) zui_ls_load_logos(ls);
     if (lit > 256u) lit = 256u;
     if (ls->logo_state[which] == ZUI_LS_VECTOR) { /* LS6 */
-        const zui_ls_config_t *c = &ls->cfg;
-        if (c->vec(c->vec_ctx, s, ls->logo_vec[which], ls->logo_vec_len[which], box,
-                   46u + 210u * lit / 256u, 0) >= 0)
+        if (vec_draw(ls, s, ls->logo_vec[which], ls->logo_vec_len[which], box,
+                     46u + 210u * lit / 256u, &ls->logo[which], ls->logo_px[which],
+                     ZUI_LS_LOGO_PX) >= 0)
             return;
         ls->logo_no_vec[which] = 1; /* malformed: its PNG from now on */
         ls->logo_state[which] = ZUI_LS_EMPTY;
@@ -220,6 +263,7 @@ uint32_t zui_ls_load_logos(zui_launch_shell_t *ls)
             ls->logo_vec_len[i] = n;
             ls->vec_used += n;
             ls->logo_state[i] = ZUI_LS_VECTOR;
+            ls->logo[i].px = 0;
             got++;
             continue;
         }

@@ -33,8 +33,11 @@
  *       through a three-line adapter), each icon and logo is looked for first
  *       as ZXVG beside its PNG, the same name ending .zxvg (001-burrow.zxvg,
  *       l2/145-dragon-archivist.zxvg, logos/ascw-gold.zxvg), kept as bytes
- *       and drawn live every frame at the box's own size, sharp at any
- *       scale: faint until its part lights, then in full. A vector is drawn
+ *       and drawn at the box's own size, sharp at any scale: faint until
+ *       its part lights, then in full. Each is drawn once per size (on black
+ *       and on white; the difference is its coverage) and blended from there
+ *       every frame, so a launch frame is a blit, not a redraw; a box larger
+ *       than the kept size is drawn live. A vector is drawn
  *       exactly as it was made, never tinted: each file carries its own
  *       plate and the palette (gold on ZXV green for the base apps, their
  *       own colours on gold above them; tools/zxvg/lint_icons.py holds the
@@ -45,7 +48,7 @@
  *       empty (the screen still runs, the sounds still play); it is tried
  *       again when the app next opens.
  *
- * Integer only, no allocation: the session owns the struct (about 1.8 MiB)
+ * Integer only, no allocation: the session owns the struct (about 2.3 MiB)
  * and the two buffers named in the config. */
 #ifndef ZXV_ZUI_LAUNCH_SHELL_H
 #define ZXV_ZUI_LAUNCH_SHELL_H
@@ -116,7 +119,8 @@ typedef struct {
     const uint8_t *logo_vec[ZUI_LT_LOGOS];
     uint32_t logo_vec_len[ZUI_LT_LOGOS];
     uint8_t logo_no_vec[ZUI_LT_LOGOS];
-    uint32_t vec_used; /* of cfg.vec_store */
+    uint32_t vec_used;                                 /* of cfg.vec_store */
+    uint32_t bake[2][ZUI_LS_ICON_PX * ZUI_LS_ICON_PX]; /* LS6: a vector drawn on black, on white */
     int16_t pcm[ZXL_SYN_BLOCK * 2];
     uint32_t frames_out; /* frames handed to the audio device so far */
 } zui_launch_shell_t;

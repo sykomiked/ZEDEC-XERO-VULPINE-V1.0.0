@@ -132,7 +132,7 @@ static void w_logo(void *ctx, uint32_t which, zui_surface_t *s, zui_rect_t box, 
  * tint), at the strength given. "BAD": malformed. */
 static uint8_t VSTORE[1 << 12];
 static int vec_on, vec_calls, vec_bad_calls;
-static uint32_t vec_last_tint, vec_last_strength;
+static uint32_t vec_last_tint;
 static int fake_vec(void *ctx, zui_surface_t *s, const uint8_t *d, uint32_t n, zui_rect_t box,
                     uint32_t strength, uint32_t tint)
 {
@@ -142,13 +142,10 @@ static int fake_vec(void *ctx, zui_surface_t *s, const uint8_t *d, uint32_t n, z
         vec_bad_calls++;
         return -1;
     }
-    if (box.x == icon_box.x && box.y == icon_box.y && box.w == icon_box.w) {
-        vec_last_tint = tint;
-        if (strength > vec_last_strength) vec_last_strength = strength;
-    }
+    vec_last_tint = tint;
     uint32_t rgb = tint ? tint & 0xFFFFFFu : (uint32_t) d[3] << 16 | (uint32_t) d[4] << 8 | d[5];
-    if (strength >= 128)
-        zui_fill(s, (zui_rect_t){box.x + box.w / 4, box.y + box.h / 4, box.w / 2, box.h / 2}, rgb);
+    zui_fill_a(s, (zui_rect_t){box.x + box.w / 4, box.y + box.h / 4, box.w / 2, box.h / 2}, rgb,
+               strength >= 256u ? 255u : strength * 255u / 256u);
     return 0;
 }
 
@@ -353,7 +350,6 @@ static void test_vectors_first(void)
     put_file("icons/mytool.zxvg", RED, 6);
     put_file("logos/ascw-gold.zxvg", RED, 6);
     put_file("logos/cis-gold.zxvg", BAD, 6);
-    vec_last_strength = 0;
     uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
     frame(id, 0, 0);
     CHECK(reads_of("icons/001-burrow.zxvg") == 1 && reads_of("icons/001-burrow.png") == 0,
@@ -364,21 +360,25 @@ static void test_vectors_first(void)
     CHECK(reads_of("logos/cis-gold.zxvg") == 1 && reads_of("logos/cis-gold.png") == 1,
           "LS6: a malformed vector falls back to its PNG");
     CHECK(vec_bad_calls == 1, "and is not tried again (%d)", vec_bad_calls);
-    CHECK(vec_last_strength > 0 && vec_last_strength < 128 && vec_last_tint == 0,
-          "LS6: unlit, faint, as drawn (%u)", vec_last_strength);
+    CHECK(vec_last_tint == 0, "LS6: drawn as made, never tinted");
+    uint32_t faint = near(ZXL_GOLD_RGB, 40);
+    CHECK(faint == 0, "LS6: unlit, not yet in full (%u gold px)", faint);
     int calls = vec_calls;
-    frame(id, 256, 1);
-    frame(id, 0, 2);
-    CHECK(vec_calls > calls, "LS6: drawn live every frame");
+    CHECK(calls == 5, "each vector drawn once on black, once on white (the broken one once) (%d)",
+          calls);
+    for (uint32_t t = 1; t < 6; t++) frame(id, 0, t);
+    CHECK(vec_calls == calls, "LS6: later frames blend what was drawn: no redraw (%d)", vec_calls);
+    frame(id, 256, 7);
+    frame(id, 0, 8);
     uint32_t gold = near(ZXL_GOLD_RGB, 40), red = near(0xD02020u, 30);
-    CHECK(gold > 20 && red == 0 && vec_last_tint == 0 && vec_last_strength == 256,
-          "LS6: a system app's vector, lit, in its own gold (%u gold, %u red)", gold, red);
+    CHECK(gold > 20 && red == 0,
+          "LS6: lit, a system app's vector in its own gold (%u gold, %u red)", gold, red);
     CHECK(reads_of("icons/001-burrow.zxvg") == 1, "kept, not read again");
     zui_wm_close(&WM, id);
 
     id = zui_launch_theme_open(&LT, "My Tool", "My Tool", "", false, false, 0);
-    frame(id, 256, 3);
-    frame(id, 0, 4);
+    frame(id, 256, 9);
+    frame(id, 0, 10);
     gold = near(ZXL_GOLD_RGB, 40), red = near(0xD02020u, 30);
     CHECK(red > 20 && gold == 0 && vec_last_tint == 0,
           "LS2: a person's vector keeps its own colours (%u red, %u gold)", red, gold);
@@ -386,12 +386,12 @@ static void test_vectors_first(void)
 
     put_file("icons/l2/145-dragon-archivist.zxvg", BAD, 6);
     id = zui_launch_theme_open(&LT, "Cartulary", "Cartulary", "", true, false, 0);
-    frame(id, 256, 5);
-    frame(id, 0, 6);
+    frame(id, 256, 11);
+    frame(id, 0, 12);
     CHECK(reads_of("icons/l2/145-dragon-archivist.png") == 1,
           "LS6: a malformed icon vector falls back to its PNG");
     calls = vec_bad_calls;
-    frame(id, 0, 7);
+    frame(id, 0, 13);
     CHECK(vec_bad_calls == calls, "and its vector is not tried again");
     CHECK(near(ZXL_GOLD_RGB, 40) > 20, "its PNG drawn in gold");
     vec_on = 0;
