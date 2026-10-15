@@ -2,12 +2,25 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_print.c — the IPP and eSCL codecs (ipp.h, escl.h): requests byte by
  * byte, replies a printer or scanner sends, and damaged input. */
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "escl.h"
 #include "ipp.h"
+
+/* Appends to b at *k, never past cap - 1: *k stops at the end when the text
+ * does not fit. */
+static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
+{
+    if (*k < 0 || (size_t) *k + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(b + *k, cap - (size_t) *k, fmt, ap);
+    va_end(ap);
+    if (r > 0) *k = (size_t) r < cap - (size_t) *k ? *k + r : (int) cap - 1;
+}
 
 static int fails, checks;
 #define CHECK(c, ...)                                                                              \
@@ -537,9 +550,9 @@ static void test_escl(void)
         static char many[4096];
         int k = snprintf(many, sizeof many, "<ScannerCapabilities>");
         for (int i = 0; i < 12; i++)
-            k += snprintf(many + k, sizeof many - (size_t) k,
-                          "<XResolution>%d</XResolution><ColorMode>m%d</ColorMode>", 100 + i, i);
-        k += snprintf(many + k, sizeof many - (size_t) k, "</ScannerCapabilities>");
+            catf(many, sizeof many, &k, "<XResolution>%d</XResolution><ColorMode>m%d</ColorMode>",
+                 100 + i, i);
+        catf(many, sizeof many, &k, "</ScannerCapabilities>");
         CHECK(escl_parse_caps(many, (uint32_t) k, &c) == ESCL_OK && c.ndpi == ESCL_LIST &&
                   c.ncolors == ESCL_LIST && c.dpi[7] == 107,
               "lists stop at %u", ESCL_LIST);

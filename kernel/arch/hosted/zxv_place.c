@@ -170,12 +170,12 @@ static int save(void)
     for (uint32_t i = 0; i < NPL && n < sizeof buf; i++) {
         k = snprintf(buf + n, sizeof buf - n, "place\t%ld\t%ld\t%s\t%s\n", (long) PL[i].at.lat,
                      (long) PL[i].at.lon, PL[i].name, PL[i].note);
-        n += k > 0 ? (size_t) k : 0;
+        n = k >= 0 && (size_t) k < sizeof buf - n ? n + (size_t) k : sizeof buf;
     }
     for (uint32_t i = 0; i < NAP && n < sizeof buf; i++) {
         if (AP[i].mode == ZPL_ASK || AP[i].mode == ZPL_ONCE) continue; /* only lasting answers */
         k = snprintf(buf + n, sizeof buf - n, "app\t%s\t%s\n", AP[i].app, MODE[AP[i].mode]);
-        n += k > 0 ? (size_t) k : 0;
+        n = k >= 0 && (size_t) k < sizeof buf - n ? n + (size_t) k : sizeof buf;
     }
     if (n + 70 >= sizeof buf) return ZPL_E_IO;
     uint8_t h[32];

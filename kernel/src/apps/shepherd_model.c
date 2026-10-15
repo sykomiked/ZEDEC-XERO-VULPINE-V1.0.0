@@ -201,10 +201,10 @@ int shepherd_ai(shepherd_t *s, int32_t action)
     for (uint32_t d = 0; d < s->ndays && n < sizeof in; d++) {
         const shepherd_day_t *y = &s->day[d];
         k = snprintf(in + n, sizeof in - n, "%u: %u in all", y->date, y->total);
-        n += k > 0 ? (size_t) k : 0;
+        n = k >= 0 && (size_t) k < sizeof in - n ? n + (size_t) k : sizeof in;
         for (uint32_t i = 0; i < y->n && n < sizeof in; i++) {
             k = snprintf(in + n, sizeof in - n, ", %s %u", y->a[i].app, y->a[i].minutes);
-            n += k > 0 ? (size_t) k : 0;
+            n = k >= 0 && (size_t) k < sizeof in - n ? n + (size_t) k : sizeof in;
         }
         if (n < sizeof in) in[n++] = '\n';
     }
@@ -213,7 +213,7 @@ int shepherd_ai(shepherd_t *s, int32_t action)
         k = snprintf(in + n, sizeof in - n, "Limit %s: %d minutes a day, hours %u-%u\n",
                      strcmp(t->app, SHEPHERD_ALL) ? t->app : "all apps", (int) t->minutes, t->from,
                      t->to);
-        n += k > 0 ? (size_t) k : 0;
+        n = k >= 0 && (size_t) k < sizeof in - n ? n + (size_t) k : sizeof in;
     }
     if (n >= sizeof in) n = zxm_utf8_cut(in, sizeof in - 1);
     return zxm_ai_ask(s->link, &SHEPHERD_AI[action], action,

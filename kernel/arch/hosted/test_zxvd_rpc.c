@@ -9,6 +9,7 @@
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -48,6 +49,18 @@
 #include "zxv_place.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
+
+/* Appends to b at *k, never past cap - 1: *k stops at the end when the text
+ * does not fit. */
+static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
+{
+    if (*k < 0 || (size_t) *k + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(b + *k, cap - (size_t) *k, fmt, ap);
+    va_end(ap);
+    if (r > 0) *k = (size_t) r < cap - (size_t) *k ? *k + r : (int) cap - 1;
+}
 
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
@@ -4053,8 +4066,7 @@ static void test_sys_shapes(void)
                      "%s{\"name\":\"%s\",\"up\":%s,\"loopback\":%s,\"addresses\":[", i ? "," : "[",
                      ifs[i].name, ifs[i].up ? "true" : "false", ifs[i].loopback ? "true" : "false");
         for (uint32_t a = 0; a < ifs[i].naddr; a++)
-            k += snprintf(want + k, sizeof want - (size_t) k, "%s\"%s\"", a ? "," : "",
-                          ifs[i].addr[a]);
+            catf(want, sizeof want, &k, "%s\"%s\"", a ? "," : "", ifs[i].addr[a]);
         snprintf(want + k, sizeof want - (size_t) k, "],\"rx_bytes\":%s",
                  ifs[i].counters ? "" : "null");
         const char *f = strstr(at, want);
@@ -4211,9 +4223,9 @@ static void test_search(void)
     {
         char t[400];
         int k = snprintf(t, sizeof t, "%s", "\xc3\xa9");
-        for (int i = 0; i < 25; i++) k += snprintf(t + k, sizeof t - (size_t) k, "ab ");
-        k += snprintf(t + k, sizeof t - (size_t) k, "needle");
-        for (int i = 0; i < 60; i++) k += snprintf(t + k, sizeof t - (size_t) k, "\xc3\xa9");
+        for (int i = 0; i < 25; i++) catf(t, sizeof t, &k, "ab ");
+        catf(t, sizeof t, &k, "needle");
+        for (int i = 0; i < 60; i++) catf(t, sizeof t, &k, "\xc3\xa9");
         put("snip.txt", t, (size_t) k);
         CHECK(zsr_refresh(&st) == 0 && zsr_query("needle", h, 10, &n, &total) == 0 && n == 1,
               "needle");
@@ -4749,8 +4761,7 @@ static bool bk_snap(const char *space, uint32_t id, const char *body, uint32_t f
     int n = snprintf(text, sizeof text, "%s", body);
     bk_hex(text, (size_t) n, hex);
     if (!good) hex[0] = hex[0] == '0' ? '1' : '0';
-    n += snprintf(text + n, sizeof text - (size_t) n, "end %u %llu %s\n", files,
-                  (unsigned long long) bytes, hex);
+    catf(text, sizeof text, &n, "end %u %llu %s\n", files, (unsigned long long) bytes, hex);
     snprintf(dir, sizeof dir, "%s/" ZKS_DIR "/spaces/%s", BK_DEST, space);
     mkdir(dir, 0700);
     snprintf(name, sizeof name, "%s/%u.snap", dir, id);
@@ -5883,8 +5894,7 @@ static void test_screen(void)
         int n = snprintf(body, sizeof body, "zxv-screen 1\nlimit * 60 0 0 0 0\n");
         for (int d = 1; d <= 9; d++)
             for (int m = 1; m <= 4; m++)
-                n += snprintf(body + n, sizeof body - (size_t) n, "day 2026%02d%02d a%d %d\n", m,
-                              d * 3, d, d);
+                catf(body, sizeof body, &n, "day 2026%02d%02d a%d %d\n", m, d * 3, d, d);
         sha256((const uint8_t *) body, (size_t) n, h);
         for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", h[k]);
         snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);

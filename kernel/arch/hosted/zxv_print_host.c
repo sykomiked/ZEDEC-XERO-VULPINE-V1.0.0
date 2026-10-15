@@ -10,6 +10,7 @@
 
 #include "zxv_print_host.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -101,6 +102,23 @@ int zph_scan(const char *url, const escl_settings_t *s, const char *folder,
 #    include <sys/types.h>
 #    include <time.h>
 #    include <unistd.h>
+
+/* Appends to b at *n, never past cap - 1. False once the text did not fit
+ * (*n then stays at cap: every later append is refused too). */
+static bool addf(char *b, size_t cap, size_t *n, const char *fmt, ...)
+{
+    if (*n >= cap) return false;
+    va_list ap;
+    va_start(ap, fmt);
+    int k = vsnprintf(b + *n, cap - *n, fmt, ap);
+    va_end(ap);
+    if (k < 0 || (size_t) k >= cap - *n) {
+        *n = cap;
+        return false;
+    }
+    *n += (size_t) k;
+    return true;
+}
 
 /* ===================== addresses (N1, N2) ===================== */
 
@@ -347,17 +365,17 @@ static int http(const url_t *u, const char *path, const req_t *q, resp_t *s, sin
     int fd = dial(u, err, cap);
     if (fd < 0) return fd;
     static char head[1024];
-    int hn = snprintf(head, sizeof head,
-                      "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: ZXV-Platen/1\r\n"
-                      "Connection: close\r\n",
-                      q->method, path, u->hosthdr);
+    size_t hn = 0;
+    bool fits = addf(head, sizeof head, &hn,
+                     "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: ZXV-Platen/1\r\n"
+                     "Connection: close\r\n",
+                     q->method, path, u->hosthdr);
     if (q->ctype)
-        hn += snprintf(head + hn, sizeof head - (size_t) hn,
-                       "Content-Type: %s\r\nContent-Length: %llu\r\n", q->ctype,
-                       (unsigned long long) q->len);
-    hn += snprintf(head + hn, sizeof head - (size_t) hn, "\r\n");
+        fits = fits && addf(head, sizeof head, &hn, "Content-Type: %s\r\nContent-Length: %llu\r\n",
+                            q->ctype, (unsigned long long) q->len);
+    fits = fits && addf(head, sizeof head, &hn, "\r\n");
     int rc = ZPH_OK;
-    if (hn <= 0 || (size_t) hn >= sizeof head || !send_all(fd, head, (size_t) hn) ||
+    if (!fits || !send_all(fd, head, hn) ||
         (q->body_len && !send_all(fd, q->body, (size_t) q->body_len)))
         rc = say(err, cap, ZPH_E_NET, "the device closed the connection");
     if (!rc && q->more && (rc = q->more(q->more_ctx, fd)) != 0) {
@@ -544,10 +562,11 @@ int zph_print(const char *uri, const char *path, const ipp_job_opts_t *o, ipp_jo
     if ((rc = zph_printer(uri, &p, err, cap)) != 0) return rc;
     if (!fmt || !ipp_takes(&p, fmt)) {
         if (cap) {
-            int k = snprintf(err, cap, "the printer does not take %s files; it takes",
+            size_t k = 0;
+            bool fits = addf(err, cap, &k, "the printer does not take %s files; it takes",
                              fmt ? fmt : "these");
-            for (uint32_t i = 0; i < p.nformats && k > 0 && (size_t) k < cap; i++)
-                k += snprintf(err + k, cap - (size_t) k, "%s %s", i ? "," : "", p.formats[i]);
+            for (uint32_t i = 0; i < p.nformats && fits; i++)
+                fits = addf(err, cap, &k, "%s %s", i ? "," : "", p.formats[i]);
         }
         return ZPH_E_FORMAT;
     }

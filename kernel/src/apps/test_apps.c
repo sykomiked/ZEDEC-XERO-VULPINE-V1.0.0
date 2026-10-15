@@ -42,6 +42,18 @@
 #include "zxv_place.h"
 #include "sha256.h"
 
+/* Appends to b at *k, never past cap - 1: *k stops at the end when the text
+ * does not fit. */
+static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
+{
+    if (*k < 0 || (size_t) *k + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(b + *k, cap - (size_t) *k, fmt, ap);
+    va_end(ap);
+    if (r > 0) *k = (size_t) r < cap - (size_t) *k ? *k + r : (int) cap - 1;
+}
+
 /* Appends to b at *o, never past cap - 1: *o stops at the end when the
  * text does not fit. */
 static void appendf(char *b, size_t cap, uint32_t *o, const char *fmt, ...)
@@ -1711,7 +1723,7 @@ static void test_platen(void)
     static char many[PLATEN_PAGES * 6 + 200];
     int k = snprintf(many, sizeof many, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"saved\":[");
     for (uint32_t i = 0; i <= PLATEN_PAGES; i++)
-        k += snprintf(many + k, sizeof many - (size_t) k, "%s\"p\"", i ? "," : "");
+        catf(many, sizeof many, &k, "%s\"p\"", i ? "," : "");
     snprintf(many + k, sizeof many - (size_t) k, "]}}");
     CANNED = many;
     CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_PROTOCOL && PL.nsaved == 2, "too many pages");
@@ -2172,9 +2184,9 @@ static void test_keepsake(void)
     int m = snprintf(many, sizeof many,
                      "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"total\":99,\"snapshots\":[");
     for (uint32_t i = 0; i <= KEEPSAKE_SNAPS; i++)
-        m += snprintf(many + m, sizeof many - (size_t) m,
-                      "%s{\"snapshot\":%u,\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}",
-                      i ? "," : "", i + 1);
+        catf(many, sizeof many, &m,
+             "%s{\"snapshot\":%u,\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}",
+             i ? "," : "", i + 1);
     snprintf(many + m, sizeof many - (size_t) m, "]}}");
     CANNED = many;
     CHECK(keepsake_refresh(&F) == ZXM_E_PROTOCOL && F.nsnaps == 1, "too many");
@@ -2242,9 +2254,9 @@ static void test_keepsake(void)
     static char vmany[KEEPSAKE_VERS * 160 + 200];
     m = snprintf(vmany, sizeof vmany, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"versions\":[");
     for (uint32_t i = 0; i < KEEPSAKE_VERS + 3; i++)
-        m += snprintf(vmany + m, sizeof vmany - (size_t) m,
-                      "%s{\"snapshot\":%u,\"time\":1,\"size\":2,\"mtime\":-3,\"hash\":\"%064u\"}",
-                      i ? "," : "", i + 1, i);
+        catf(vmany, sizeof vmany, &m,
+             "%s{\"snapshot\":%u,\"time\":1,\"size\":2,\"mtime\":-3,\"hash\":\"%064u\"}",
+             i ? "," : "", i + 1, i);
     snprintf(vmany + m, sizeof vmany - (size_t) m, "]}}");
     CANNED = vmany;
     CHECK(keepsake_versions(&F, "a") == ZXM_OK && F.nvers == KEEPSAKE_VERS &&
