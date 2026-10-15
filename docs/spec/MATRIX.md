@@ -30,6 +30,8 @@ of their size (assets such as fonts are already dense).
 the paths whose files live there (the longest matching path wins). A shared
 piece lives in exactly one layer; other layers reach it through the glue
 (section 4), never through a second copy.
+The last column marks the twelve Fibonacci layers, the anchors of the
+spine (section 9).
 LAYER_MAP.md writes the whole mapping out layer by layer, with booklet
 000's contents and where each unnamed module landed.
 
@@ -245,9 +247,10 @@ byte layouts):
   chunks at 64-byte boundaries. Opening one checks every chunk against its
   CID.
 - **ALXN fan-out node:** up to 256 child CIDs and the booklet count beneath.
-- **ALXG glue:** the layer's files (CID, chunk refs), links and chunk refs.
-  A ref names a layer, booklet and atom, because a chunk is stored once in
-  the whole matrix.
+- **ALXG v2 glue:** the layer's files (CID, chunk refs), links and chunk
+  refs, and the glue CID and layer of the anchor the layer hangs from
+  (section 9). A ref names a layer, booklet and atom, because a chunk is
+  stored once in the whole matrix.
 - **ALXM root:** 145 entries (tree, glue, icon, booklet count) and a
   SHA-256.
 - **ALXZ stored booklet:** a booklet compressed (`alx_z.h`): codec (1, the
@@ -377,3 +380,37 @@ did not change. Additions (overlays, letters of marque, new models) arrive
 as new layers' content or new roots, and an older root still resolves
 exactly as before.
 
+## 9. The spine: the Fibonacci layers
+
+The layers whose numbers are Fibonacci numbers are the prime dimensional
+layers: 0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 and 144 (F0 to F12; F1 and F2
+are both layer 1). They are structurally critical, so the matrix is built
+around them as a spine, and the top of the chain, 144 = F12, is itself one.
+`MATRIX.tsv` flags each in its anchor column, and the packer refuses the
+file when the column disagrees with the rule.
+
+- **Sealed first.** The packer lays out the anchors before any other layer
+  (rising: the core, then 1, 2, 3, 5 ... 144; with `--seal-order down`:
+  booklet 000, then 144 down to 1 and the core). A chunk shared by an
+  anchor and a branch layer is stored in the anchor, so an anchor's
+  booklets name chunks in anchors only, and its CIDs are fixed before any
+  layer that hangs from it.
+- **Hung from the anchor below.** Every glue node carries the glue CID and
+  layer of the nearest non-empty anchor below it: a branch layer hangs from
+  the anchor under it (4 from 3, 6 and 7 from 5, 90 to 143 from 89), and
+  each anchor from the one before it (144 from 89, down to 1 from the core).
+  Changing an anchor changes the CID of every glue node that hangs from it,
+  and so the root.
+- **No upward lean.** An anchor's glue keeps no link into a branch layer's
+  files (the branch's glue keeps the link from its side). The packer counts
+  the links it left out (`anchor_branch_edges` in the report) and lists
+  anchors with no content yet (`empty_anchors`); a layer above an empty
+  anchor hangs from the next anchor down.
+- **Fetch and seal order.** A reader takes the core and booklet 000, then
+  the anchors, then the branches in the order of their anchors. The
+  dendritic fetch order follows the same spine.
+
+`alx_mx_anchor` and `alx_mx_anchor_below` give the rule in the kernel, and
+`alx_glue_anchor` reads it from a glue node. `test_alx_matrix` checks every
+glue node against its anchor's CID in the root, and every anchor's chunk
+refs and links against the spine.

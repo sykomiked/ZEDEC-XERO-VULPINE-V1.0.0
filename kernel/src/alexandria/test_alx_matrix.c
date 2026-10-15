@@ -371,6 +371,83 @@ static void test_files(const char *repo)
 }
 
 /* each refusal on a copy of real nodes */
+/* the spine: the Fibonacci layers are packed first and every glue node
+ * names the nearest non-empty anchor below it */
+static void test_spine(void)
+{
+    static const int idx[ALX_MX_LAYERS + 1] = {[0] = 0, [1] = 1, [2] = 3, [3] = 4, [5] = 5, [8] = 6,
+                                               [13] = 7, [21] = 8, [34] = 9, [55] = 10, [89] = 11,
+                                               [144] = 12};
+    uint32_t anchors = 0;
+    for (uint32_t k = 0; k <= ALX_MX_LAYERS; k++) {
+        int want = (k == 0 || idx[k]) && k < ALX_MX_LAYERS ? idx[k] : -1;
+        CHECK(alx_mx_anchor(k) == want, "layer %u is F%d", k, want);
+        anchors += want >= 0;
+        uint32_t below = 0;
+        for (uint32_t j = 0; j < k && j < ALX_MX_LAYERS; j++)
+            if (j == 0 || idx[j]) below = j;
+        CHECK(alx_mx_anchor_below(k) == below, "layer %u hangs from %u", k, below);
+    }
+    CHECK(anchors == 12, "twelve anchors (%u)", anchors);
+    uint32_t hung = 0, refs_checked = 0;
+    for (uint32_t k = 0; k < ALX_MX_LAYERS; k++) {
+        if (!GLUE[k]) continue;
+        alx_mx_layer_t self;
+        alx_mx_layer(ROOT, k, &self);
+        uint32_t up = 99, nf = 0, ne = 0;
+        const uint8_t *cid = alx_glue_anchor(GLUE[k], &up);
+        if (k == 0) {
+            CHECK(!cid && up == 0, "the core hangs from nothing");
+            continue;
+        }
+        uint32_t a = alx_mx_anchor_below(k);
+        while (!GLUE[a]) a = alx_mx_anchor_below(a);
+        alx_mx_layer_t l;
+        alx_mx_layer(ROOT, a, &l);
+        CHECK(up == a && cid && memcmp(cid, l.glue, 36) == 0,
+              "layer %u's glue names anchor %u's glue (it names %u)", k, a, up);
+        hung++;
+        if (alx_mx_anchor(k) < 0) continue;
+        /* an anchor leans only on anchors */
+        alx_glue_check(GLUE[k], GLUEN[k], 0, &nf, &ne, 0);
+        for (uint32_t f = 0; f < nf; f++)
+            for (uint32_t i = 0; i < alx_glue_nrefs(GLUE[k], f); i++) {
+                uint32_t lay, bk, at;
+                alx_glue_ref(GLUE[k], f, i, &lay, &bk, &at);
+                CHECK(alx_mx_anchor(lay) >= 0, "anchor %u's chunk is in layer %u, an anchor", k, lay);
+                refs_checked++;
+            }
+        const uint8_t *e = GLUE[k] + 64u + nf * ALX_MX_FILE;
+        for (uint32_t i = 0; i < ne; i++, e += ALX_MX_EDGE)
+            CHECK(alx_mx_anchor((uint32_t) e[4] << 8 | e[5]) >= 0, "anchor %u's edge %u stays in the spine", k, i);
+    }
+    printf("matrix: %u layers hang from the spine; %u anchor chunk refs all in anchors\n", hung, refs_checked);
+    /* refusals: an old glue node, a branch anchor, the core hanging */
+    uint32_t k = 1;
+    while (k < ALX_MX_LAYERS && !GLUE[k]) k++;
+    CHECK(k < ALX_MX_LAYERS, "a layer above the core holds content");
+    if (k == ALX_MX_LAYERS) return;
+    uint8_t *g = malloc(GLUEN[k]);
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[4] = 1;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "version 1 glue is the old format");
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[56] = 0, g[57] = 4; /* layer 4 is not an anchor */
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "hanging from a branch");
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[56] = (uint8_t) (k >> 8), g[57] = (uint8_t) k;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "hanging from itself");
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[60] = 1;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "reserved bytes set");
+    free(g);
+    g = malloc(GLUEN[0]);
+    memcpy(g, GLUE[0], GLUEN[0]);
+    g[20] = 1;
+    CHECK(alx_glue_check(g, GLUEN[0], 0, 0, 0, 0) == ALX_E_FORM, "the core hanging from something");
+    free(g);
+}
+
 static void test_refusals(void)
 {
     uint8_t *r = malloc(ROOTN);
@@ -464,6 +541,7 @@ int main(int argc, char **argv)
     test_layout();
     test_files(argv[2]);
     test_refusals();
+    test_spine();
     /* the packer stores booklets compressed (--zpack): every one is read back above */
     CHECK(ZBOOK > 0 && ZSTORED < ZPLAIN, "booklets are stored compressed");
     printf("matrix: %u booklets compressed; booklets stored in %llu of %llu bytes (%.1f%%)\n", ZBOOK,

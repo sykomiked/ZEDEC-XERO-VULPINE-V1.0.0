@@ -147,11 +147,34 @@ static const uint8_t *g_ref(const uint8_t *b, uint32_t i)
     return g_edge(b, alx_be32(b + 12)) + i * ALX_MX_REF;
 }
 
+/* the prime dimensional layers: F(i) for i = 0..12 (F1 = F2 = 1) */
+static const uint8_t FIBS[] = {0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144};
+
+int alx_mx_anchor(uint32_t k)
+{
+    for (uint32_t i = 0; i < sizeof FIBS; i++)
+        if (FIBS[i] == k) return (int) (i < 2u ? i : i + 1u);
+    return -1;
+}
+
+uint32_t alx_mx_anchor_below(uint32_t k)
+{
+    uint32_t a = 0;
+    for (uint32_t i = 0; i < sizeof FIBS; i++)
+        if (FIBS[i] < k) a = FIBS[i];
+    return a;
+}
+
 int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *files,
                    uint32_t *edges, uint32_t *refs)
 {
-    if (!head(b, len, "ALXG", 1) || b[5] != 0 || !alx_zero(b + 20, 44)) return ALX_E_FORM;
+    if (!head(b, len, "ALXG", 2) || b[5] != 0 || !alx_zero(b + 58, 6)) return ALX_E_FORM;
     uint32_t lay = alx_be16(b + 6), n = alx_be32(b + 8), m = alx_be32(b + 12), r = alx_be32(b + 16);
+    /* the anchor it hangs from: none for the core, else an anchor below */
+    uint32_t up = alx_be16(b + 56);
+    if (lay == 0 ? !alx_zero(b + 20, 38)
+                 : (!raw_cid(b + 20) || up >= lay || alx_mx_anchor(up) < 0))
+        return ALX_E_FORM;
     uint64_t want =
         64u + (uint64_t) n * ALX_MX_FILE + (uint64_t) m * ALX_MX_EDGE + (uint64_t) r * ALX_MX_REF;
     if (lay >= ALX_MX_LAYERS || n == 0 || r < n || want != len) return ALX_E_FORM;
@@ -185,6 +208,12 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
     if (edges) *edges = m;
     if (refs) *refs = r;
     return ALX_OK;
+}
+
+const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer)
+{
+    if (layer) *layer = alx_be16(b + 56);
+    return alx_be16(b + 6) ? b + 20 : 0;
 }
 
 int32_t alx_glue_find(const uint8_t *b, const uint8_t cid[36])

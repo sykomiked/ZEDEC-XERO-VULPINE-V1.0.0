@@ -12,6 +12,9 @@ home in MATRIX.tsv names it (longest path wins), docs/ and unnamed files at
 the top to layer 130, and a module no home names to the layer its glue pulls
 hardest, else the core. Files are cut into chunks by alx_cdc (through the CDC_CUT helper, so
 the cuts are the kernel's own), each chunk stored once in the whole matrix.
+The twelve Fibonacci layers (0 1 2 3 5 8 13 21 34 55 89 144, MATRIX.tsv's
+anchor column) are packed first, so their chunks live in anchors only, and
+every glue node names the glue of the anchor it hangs from.
 Within a layer, files are laid out in glue order (each next file the one
 bound most strongly to those already laid) and their new chunks filled into
 booklets of their tier. --order path lays them out by path instead, to
@@ -40,6 +43,16 @@ import zlib
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MATRIX_TSV = os.path.join(ROOT, "kernel", "src", "alexandria", "MATRIX.tsv")
 LAYERS = 145
+# the prime dimensional layers: every layer whose number is a Fibonacci
+# number, F(i) -> layer (F1 = F2 = 1 is one layer, written F1). They are the
+# matrix's spine: sealed first, their booklets name chunks only in anchors,
+# and each glue node names the glue of the nearest non-empty anchor below
+FIB = {0: 0, 1: 1, 2: 3, 3: 4, 5: 5, 8: 6, 13: 7, 21: 8, 34: 9, 55: 10, 89: 11, 144: 12}
+
+
+def anchor_below(k):
+    """the anchor a layer hangs from: the nearest Fibonacci layer below it"""
+    return max(f for f in FIB if f < k)
 FAN = 256
 BOOK_MAX = 1 << 20
 # booklet targets by tier: small dense booklets for hot code, large for bulk
@@ -81,11 +94,14 @@ def layers():
         if line.startswith("#") or not line.strip():
             continue
         f = line.rstrip("\n").split("\t")
-        if len(f) != 5 or not f[0].isdigit():
-            fail("MATRIX.tsv:%d: want five fields" % n)
+        if len(f) != 6 or not f[0].isdigit():
+            fail("MATRIX.tsv:%d: want six fields" % n)
         k = int(f[0])
         if k in out or k >= LAYERS:
             fail("MATRIX.tsv:%d: layer %d" % (n, k))
+        if f[5] != ("F%d" % FIB[k] if k in FIB else "-"):
+            fail("MATRIX.tsv:%d: layer %d's anchor column must be %s" %
+                 (n, k, "F%d" % FIB[k] if k in FIB else "-"))
         out[k] = {"app": f[1], "group": f[2], "icon": None if f[3] == "-" else f[3],
                   "homes": [] if f[4] == "-" else f[4].split()}
     if sorted(out) != list(range(LAYERS)):
@@ -348,7 +364,11 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
          "booklets": 0, "nodes": 0, "plain_booklet_bytes": 0, "stored_booklet_bytes": 0, "by_tier": {t: {"chunks": 0, "bytes": 0, "z": 0}
                                                  for t in TIER_NAME.values()}}
     root_rows, blocks = [None] * LAYERS, {}
-    order = list(range(LAYERS))
+    # anchors before branches: an anchor's chunks are stored in anchors, so
+    # its booklets are fixed before any layer that hangs from it
+    anchors = sorted(FIB)
+    branches = [k for k in range(LAYERS) if k not in FIB]
+    order = anchors + branches
     pre000 = None
     if getattr(args, "seal_order", "up") == "down":
         # sealing downward: booklet 000 is the first block sealed, before layer
@@ -368,7 +388,7 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
                     bt["chunks"] += 1
                     bt["bytes"] += len(c)
                     bt["z"] += len(zlib.compress(c, 6))
-        order = list(range(LAYERS - 1, 0, -1)) + [0]
+        order = anchors[:0:-1] + [0] + branches[::-1]
     for k in order:
         ps = [p for p in files if where[p] == k]
         if not ps:
@@ -456,7 +476,8 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
                           "booklets": len(bcids), "depth": depth, "laid": laid}
     # glue nodes, now that every chunk has its place
     fcid = {p: cid_raw(data[p]) for p in refs}
-    for k in range(LAYERS):
+    m["anchor_branch_edges"] = 0
+    for k in range(LAYERS):  # rising, so the anchor below is already sealed
         if k not in m["layers"]:
             continue
         ps = sorted((p for p in refs if where[p] == k), key=lambda p: fcid[p])
@@ -475,6 +496,12 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
                 if to_l != k:
                     others = sorted({fcid[q] for q in refs if where[q] == to_l})
                     to = others.index(fcid[b])
+                if k in FIB and to_l not in FIB:
+                    # an anchor's glue never depends on a branch: the link
+                    # is counted, not stored (the branch's own glue keeps
+                    # the links it makes)
+                    m["anchor_branch_edges"] += 1
+                    continue
                 key = (index[a], to_l, to)
                 if to_l == k and to == index[a]:
                     continue
@@ -488,7 +515,16 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
             nref += len(refs[p])
         for (a, to_l, to), (w, ty) in sorted(es.items()):
             eb += struct.pack(">IHHIHH", a, to_l, ty, to, w, 0)
-        g = struct.pack(">4sBBHIII", b"ALXG", 1, 0, k, len(uniq), len(es), nref) + bytes(44)
+        # the anchor this layer hangs from: the nearest anchor below with
+        # content (the core always has some), its glue CID and layer
+        if k:
+            a = anchor_below(k)
+            while a not in m["layers"]:
+                a = anchor_below(a)
+            up = root_rows[a][1] + struct.pack(">H", a) + bytes(6)
+        else:
+            up = bytes(44)
+        g = struct.pack(">4sBBHIII", b"ALXG", 2, 0, k, len(uniq), len(es), nref) + up
         g += fr + eb + rb
         if len(g) > BOOK_MAX:
             fail("layer %d: glue is %d bytes, over one block" % (k, len(g)))
@@ -726,8 +762,9 @@ def main():
     ap.add_argument("--baseline")
     ap.add_argument("--order", choices=("glue", "path"), default="glue")
     ap.add_argument("--seal-order", choices=("up", "down"), default="up",
-                    help="down: booklet 000 first, then layers 144 to 1, then the core, so "
-                         "every chunk ref names a layer sealed earlier")
+                    help="down: booklet 000 first, then the anchors 144 to 1 and the core, then "
+                         "the other layers 143 to 4, so every chunk ref names a layer sealed "
+                         "earlier")
     ap.add_argument("--vectorize", type=int, metavar="DIM",
                     help="also write the vector plane (docs/spec/VECTORS.md)")
     ap.add_argument("--shape", help="the vec_shape helper (the shape embedding)")
@@ -762,6 +799,9 @@ def main():
         "booklet_bytes": m["plain_booklet_bytes"], "stored_booklet_bytes": m["stored_booklet_bytes"],
         "compressed": bool(ZP),
         "glue_nodes": len(m["layers"]), "icons": m["icons"],
+        "anchors": {k: "F%d" % i for k, i in sorted(FIB.items())},
+        "empty_anchors": [k for k in sorted(FIB) if k not in m["layers"]],
+        "anchor_branch_edges": m["anchor_branch_edges"],
         "cids": m["chunks"] + m["booklets"] + m["nodes"] + len(m["layers"]) + m["icons"] + 1,
         "max_depth": max(v["depth"] for v in m["layers"].values()),
         "by_tier": {t: {"chunks": v["chunks"], "bytes": v["bytes"],
