@@ -17,7 +17,7 @@ protocol shims that already exist. Every bridge is checked by running both
 sides; when they disagree the answer is BOTH and the call is held.
 
 Status: steps 1 and the first half of 2 are built (kernel/src/babel, `make
-test-babel`); section 7 gives the order of the rest.
+test-babel`); section 7 gives the order of the rest. The packet layout for sending values and programs between runtimes is docs/BABEL_WIRE.md.
 
 ## 1. One value between runtimes
 
