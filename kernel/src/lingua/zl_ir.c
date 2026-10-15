@@ -473,6 +473,11 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
     int64_t *st = r->stack, *mem = r->mem;
     uint32_t *rs = r->rstack;
     for (uint32_t i = 0; i < p->nslots; i++) mem[i] = 0;
+    if (r->preload) {
+        if (r->nin > ZL_MAX_STACK) return ZL_E_STACK;
+        for (; sp < r->nin; sp++) st[sp] = r->in[sp];
+        inpos = r->nin;
+    }
 
 #define NEED(n)                                                                                    \
     do {                                                                                           \

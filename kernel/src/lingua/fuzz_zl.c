@@ -5,7 +5,9 @@
  * compiles: the IR verifies, it runs to an ok status or a trap within a
  * small fuel budget, its twin compiles in twin mode to the same IR, and the
  * twin of the twin is the twin. Any input accepted in twin mode must equal
- * its own twin byte for byte. Run under ASan + UBSan.
+ * its own twin byte for byte. Every accepted program packs and reads back as
+ * the same IR, and a randomly damaged pack is refused or still verifies.
+ * Run under ASan + UBSan.
  *
  * Usage: fuzz_zl [iterations] [seed] */
 #include <stdio.h>
@@ -137,7 +139,7 @@ static uint32_t rnd(uint32_t n)
 static zl_work_t work;
 static zl_prog_t p1, p2;
 static zl_run_t run;
-static char buf[1 << 15], tw1[1 << 16], tw2[1 << 16], outb[4096];
+static char buf[1 << 15], tw1[1 << 16], tw2[1 << 16], outb[4096], pk[1 << 19];
 
 static void die(const char *what, int lang, size_t n)
 {
@@ -224,6 +226,15 @@ int main(int argc, char **argv)
                 die("run returned a non-trap status", lang, n);
             if (run.out_len > sizeof outb || run.used > 20000)
                 die("run overstepped its limits", lang, n);
+            size_t pn = 0;
+            if (zl_pack(&p1, pk, sizeof pk, &pn) != ZL_OK)
+                die("accepted program does not pack", lang, n);
+            if (zl_unpack(pk, pn, &p2, &d) != ZL_OK || !zl_prog_equal(&p1, &p2))
+                die("packed program does not read back", lang, n);
+            pk[rnd((uint32_t) pn)] =
+                (char) rnd(256); /* a damaged pack is refused or still verifies */
+            if (zl_unpack(pk, pn, &p2, &d) == ZL_OK && zl_verify(&p2, &d) != ZL_OK)
+                die("damaged pack accepted without verifying", lang, n);
             s = zl_twin(lang, buf, n, tw1, sizeof tw1, &l1, &work, &d);
             if (s == ZL_E_LIMIT) continue;
             if (s != ZL_OK) die("accepted program has no twin", lang, n);

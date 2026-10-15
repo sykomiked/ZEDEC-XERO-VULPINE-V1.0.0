@@ -27,7 +27,8 @@ static int fails, checks;
 static zl_work_t work;
 static zl_prog_t P, P2;
 static zl_run_t R;
-static char out[1 << 16], tw[1 << 16], tw2[1 << 16];
+static char out[1 << 16], tw[1 << 16], tw2[1 << 16], pk[1 << 20];
+static zl_prog_t P3;
 
 /* ------------------------------------------------------------ IR builder */
 
@@ -730,6 +731,17 @@ static void twin_props(int lang, const char *src, size_t len, const char *label)
     int s = zl_compile(lang, src, len, &P, &work, &d);
     CHECK(s == ZL_OK, "%s compiles: %s line %u: %s", label, zl_status_name(s), d.line, d.msg);
     if (s) return;
+    /* the precompiled form reads back as the same program, line numbers too */
+    size_t pn = 0;
+    s = zl_pack(&P, pk, sizeof pk, &pn);
+    CHECK(s == ZL_OK && strlen(pk) == pn, "%s packs", label);
+    s = zl_unpack(pk, pn, &P3, &d);
+    CHECK(s == ZL_OK && zl_prog_equal(&P, &P3), "%s unpacks to the same IR: %s", label, d.msg);
+    for (uint32_t i = 0; s == ZL_OK && i < P.ncode; i++)
+        if (P3.code[i].line != P.code[i].line) {
+            CHECK(0, "%s unpack keeps line %u", label, i);
+            break;
+        }
     s = zl_twin(lang, src, len, tw, sizeof tw, &n1, &work, &d);
     CHECK(s == ZL_OK, "%s twin: %s", label, d.msg);
     if (s) return;
@@ -1412,6 +1424,157 @@ static void test_golden(const char *dir)
                   (long long) traces[1][k], (long long) traces[2][k]);
 }
 
+/* ------------------------------------------------------------ precompiled */
+
+static int unpack_s(const char *t)
+{
+    zl_diag_t d;
+    memset(&P3, 0x5a, sizeof P3);
+    int s = zl_unpack(t, strlen(t), &P3, &d);
+    if (s != ZL_OK)
+        CHECK(d.status == s && d.msg && d.msg[0] && P3.ncode == 0 && P3.lang == 0,
+              "refusal %d is reported and zeroes the program", s);
+    return s;
+}
+
+static void test_pack(void)
+{
+    zl_diag_t d;
+    size_t n = 0;
+    prog_reset(64);
+    I(ZL_PUSH, -0x7fffffffffffffffll - 1, 0);
+    I(ZL_PUSH, 0x7fffffffffffffffll, -0x7fffffff - 1);
+    I(ZL_DROP, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_OUTS, 1, 0);
+    I(ZL_HALT, 0, 0);
+    P.nstr = 2;
+    P.str_off[0] = 0;
+    P.str_len[0] = 0;
+    P.str_off[1] = 0;
+    P.str_len[1] = 3;
+    memcpy(P.str, "a\n\xff", 3);
+    P.strbytes = 3;
+    P.code[5].line = 4000000000u;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "pack fixture verifies: %s", d.msg);
+    CHECK(zl_pack(&P, pk, sizeof pk, &n) == ZL_OK, "extremes pack");
+    CHECK(strstr(pk, "PUSH -9223372036854775808 0 1\n") &&
+              strstr(pk, "PUSH 9223372036854775807 -2147483648 2\n") && strstr(pk, "str 0 \n") &&
+              strstr(pk, "str 3 610aff\n") && strstr(pk, "HALT 0 0 4000000000\n"),
+          "pack text:\n%s", pk);
+    CHECK(strncmp(pk, "zlir 1\nlang 3\nbits 64\nslots 8\ncode 6\n", 37) == 0, "header:\n%s", pk);
+    CHECK(unpack_s(pk) == ZL_OK && zl_prog_equal(&P, &P3) && P3.code[5].line == 4000000000u &&
+              P3.str_len[1] == 3 && memcmp(P3.str + P3.str_off[1], "a\n\xff", 3) == 0,
+          "extremes read back");
+    CHECK(run_p(&P3, 0, 0, 0) == ZL_OK && strcmp(out, "a\n\xff") == 0, "unpacked program runs");
+    size_t full = n;
+    for (size_t cap = 1; cap <= full; cap += full / 7 + 1) {
+        size_t m = 99;
+        CHECK(zl_pack(&P, pk, cap, &m) == ZL_E_LIMIT && m == 0 && pk[0] == 0,
+              "cap %zu is too small", cap);
+    }
+    CHECK(zl_pack(&P, pk, full, &n) == ZL_E_LIMIT, "no room for the NUL");
+    CHECK(zl_pack(&P, 0, 0, &n) == ZL_E_LIMIT && n == 0, "a size query is refused, not written");
+    CHECK(zl_pack(&P, pk, full + 1, &n) == ZL_OK && n == full, "length + 1 is enough");
+    CHECK(zl_pack(0, pk, sizeof pk, &n) == ZL_E_ARG && zl_pack(&P, pk, sizeof pk, 0) == ZL_E_ARG,
+          "pack arguments");
+    P.code[0].op = 200;
+    CHECK(zl_pack(&P, pk, sizeof pk, &n) == ZL_E_VERIFY && n == 0,
+          "an unverified program is not packed");
+    P.code[0].op = ZL_PUSH;
+    CHECK(zl_unpack(0, 3, &P3, &d) == ZL_E_ARG && zl_unpack("x", 1, 0, &d) == ZL_E_ARG,
+          "unpack arguments");
+    CHECK(zl_unpack("", 0, &P3, 0) == ZL_E_SYNTAX, "empty text, no diagnostic wanted");
+
+    /* every single-byte change to a packed program is refused or reads back as a
+     * verified program with the same digest it claims */
+    prog_reset(32);
+    I(ZL_PUSH, 12, 0);
+    I(ZL_JZ, 3, 0);
+    I(ZL_OUTS, 0, 0);
+    I(ZL_HALT, 0, 0);
+    P.nstr = 1;
+    P.str_len[0] = 2;
+    memcpy(P.str, "ok", 2);
+    P.strbytes = 2;
+    CHECK(zl_pack(&P, pk, sizeof pk, &n) == ZL_OK, "small program packs");
+    static char good[4096], bad[4096];
+    memcpy(good, pk, n + 1);
+    int accepted = 0;
+    for (size_t i = 0; i < n; i++) {
+        static const char subst[] = "0 1-9az\nAZ";
+        for (const char *c = subst; *c; c++) {
+            if (good[i] == *c) continue;
+            memcpy(bad, good, n + 1);
+            bad[i] = *c;
+            if (unpack_s(bad) == ZL_OK) {
+                accepted++;
+                CHECK(zl_verify(&P3, &d) == ZL_OK, "accepted mutant verifies");
+            }
+        }
+        memcpy(bad, good, n + 1);
+        memmove(bad + i, bad + i + 1, n - i); /* delete one byte */
+        CHECK(unpack_s(bad) != ZL_OK, "deleting byte %zu is refused", i);
+    }
+    /* only a change in a source line number keeps the digest (lines are not in it) */
+    CHECK(accepted > 0 && accepted < 40, "%d single-byte mutants accepted, all in line numbers",
+          accepted);
+
+    static const struct {
+        const char *t, *why;
+    } refuse[] = {
+        {"zlir 2\n", "version"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALT 0 0 1\ndigest 0000000000000000\nend\n",
+         "wrong digest"},
+        {"zlir 1\nlang 9\nbits 32\nslots 0\ncode 1\nHALT 0 0 1\n", "language"},
+        {"zlir 1\nlang 1\nbits 33\nslots 0\ncode 1\nHALT 0 0 1\n", "width"},
+        {"zlir 1\nlang 1\nbits 032\n", "leading zero"},
+        {"zlir 1\nlang 1\nbits 32\nslots -0\n", "minus zero"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 0\n", "no code"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALTX 0 0 1\n", "unknown op"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALT 0 0 1 \n", "trailing space"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nPUSH 9223372036854775808 0 1\n", "a too big"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nPUSH 0 2147483648 1\n", "b too big"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nJMP 5 0 1\n", "jump outside"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALT 0 0 1\nstr 1 4G\n", "bad hex"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALT 0 0 1\nstr 1 4A\n", "upper-case hex"},
+        {"zlir 1\nlang 1\nbits 32\nslots 0\ncode 1\nHALT 0 0 1\nstr 9000 \n", "string too long"},
+        {"zlir 1\r\n", "CRLF"},
+    };
+    for (size_t i = 0; i < sizeof refuse / sizeof refuse[0]; i++)
+        CHECK(unpack_s(refuse[i].t) != ZL_OK, "refused: %s", refuse[i].why);
+    memcpy(bad, good, n + 1);
+    strcpy(bad + n, "x");
+    CHECK(unpack_s(bad) == ZL_E_SYNTAX, "text after end is refused");
+    CHECK(unpack_s(good) == ZL_OK, "the original still reads");
+
+    /* Forth-style arguments arrive on the data stack */
+    zl_diag_t dd;
+    int64_t args[3] = {7, -2, 40};
+    CHECK(compile(ZL_LANG_FORTH, ". . .", &dd) == ZL_OK, "stack printer compiles");
+    memset(&R, 0, sizeof R);
+    R.in = args;
+    R.nin = 3;
+    R.preload = 1;
+    R.out = out;
+    R.out_cap = sizeof out;
+    CHECK(zl_run(&P, &R) == ZL_OK && strcmp(out, "40 -2 7 ") == 0, "preload: [%s]", out);
+    CHECK(run_p(&P, args, 3, 0) == ZL_E_STACK, "without preload the stack is empty");
+    static int64_t many[ZL_MAX_STACK + 1];
+    memset(&R, 0, sizeof R);
+    R.in = many;
+    R.nin = ZL_MAX_STACK + 1;
+    R.preload = 1;
+    R.out = out;
+    R.out_cap = sizeof out;
+    CHECK(zl_run(&P, &R) == ZL_E_STACK, "more arguments than the stack holds");
+    R.nin = ZL_MAX_STACK;
+    CHECK(zl_run(&P, &R) == ZL_OK && strcmp(out, "0 0 0 ") == 0, "a full stack is fine");
+    CHECK(strcmp(zl_op_name(ZL_PUSH), "PUSH") == 0 && strcmp(zl_op_name(ZL_TRAP), "TRAP") == 0 &&
+              strcmp(zl_op_name(ZL_OP__COUNT), "?") == 0 && strcmp(zl_op_name(-1), "?") == 0,
+          "op names");
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "src/lingua/golden";
@@ -1425,6 +1588,7 @@ int main(int argc, char **argv)
     test_fortran();
     test_forth();
     test_api();
+    test_pack();
     test_golden(dir);
     printf("%d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;

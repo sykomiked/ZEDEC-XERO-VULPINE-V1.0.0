@@ -203,6 +203,15 @@ int zl_prog_equal(const zl_prog_t *a, const zl_prog_t *b);
 /* 64-bit FNV-1a digest of the same bytes zl_prog_equal compares. */
 uint64_t zl_prog_digest(const zl_prog_t *p);
 
+/* Precompiled programs (zl_pack.c): write a verified program as "zlir"
+ * text, or read one back without a front-end. zl_unpack refuses text that
+ * is malformed, fails zl_verify or does not match its digest, leaving `p`
+ * zeroed. zl_pack NUL-terminates, so cap must exceed the text's length;
+ * otherwise it returns ZL_E_LIMIT with *out_len = 0 and out empty. */
+int zl_pack(const zl_prog_t *p, char *out, size_t cap, size_t *out_len);
+int zl_unpack(const char *src, size_t len, zl_prog_t *p, zl_diag_t *d);
+const char *zl_op_name(int op); /* "PUSH"; "?" when out of range */
+
 /* Optional record of every number the program printed, in order, so the
  * same algorithm written in different languages can be compared by value
  * even when their print formats differ. */
@@ -214,7 +223,10 @@ typedef struct {
 typedef struct {
     const int64_t *in; /* INPUT / READ values */
     size_t nin;
-    char *out; /* program output */
+    int preload; /* nonzero: push in[0..nin) onto the data stack before the
+                    first instruction instead (Forth takes its arguments
+                    there); more than ZL_MAX_STACK traps ZL_E_STACK */
+    char *out;   /* program output */
     size_t out_cap;
     size_t out_len;     /* set by zl_run */
     uint64_t fuel;      /* instructions allowed; 0 means 10^7 */

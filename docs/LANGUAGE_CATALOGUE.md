@@ -72,6 +72,41 @@ A twin gets a name when its front-end lands:
 
 Until a language is named, its twin is called "&lt;language&gt; twin".
 
+## In apps: precompiled building blocks
+
+The languages are built into apps as blocks, so a person can build an app
+without knowing any of them. A block is written once by someone who knows
+the language, and every app uses it by name.
+
+- **Using a block.** An app takes one with a single manifest line, such as
+  `use number_classics 1.0.0`, and calls `number_classics.gcd` like any
+  other entry. With `view auto` the app gets a form for it: number inputs
+  and a Run button, and no code at all.
+- **Writing a block.** A block names each entry's inputs and answer
+  (`provides gcd num a b`) and binds it to programs in one or more
+  languages (`logic fortran77 gcd ...`, `logic basic ...`, `logic forth ...`).
+  The arguments are the program's input (FORTRAN `READ *`, BASIC `INPUT`, the
+  Forth stack) and the answer is every number it prints.
+- **Precompiled.** `zxlang pack prog.f` writes the program already compiled,
+  as Lingua IR text (`.zlir`). An app that ships it as `logic zlir ...`
+  needs no compiler on the device. The text carries a digest and is
+  verified before it runs, so a damaged or edited file is refused. Source
+  entries are also compiled only once, when the app loads.
+- **Checked twice.** An entry written in several languages runs all of them
+  on a witnessed call. They must agree; if one traps or differs, the answer
+  is held as BOTH, never picked silently.
+
+`kernel/src/apps/blocks/number_classics.zxblock` is the first such block:
+Euclid's greatest common divisor in FORTRAN 77, BASIC and Forth, plus the
+FORTRAN precompiled. Its test shows the join working: for -2^31 the 32-bit
+FORTRAN and BASIC trap on the overflow while 64-bit Forth answers, so the
+result is held.
+
+In the proposed mapping of the three app tiers, L1 base modules carry blocks
+like this one, L2 modules combine them, and L3 apps are assembled from
+both, each shipping the precompiled form with its source kept beside it for
+provenance.
+
 ## By era
 
 | Decade | run | pillar | host | queued | catalogue only |

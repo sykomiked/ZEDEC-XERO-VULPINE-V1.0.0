@@ -6,8 +6,9 @@
 #include "../robin_debanks/sha256.h"
 
 static const char *const LANG[ZXAPP_LANG_COUNT] = {
-    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",  "swift",
-    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm"};
+    "c",    "sutra", "eve",    "kron",      "trebago", "myra",   "cpp",        "rust",
+    "go",   "swift", "kotlin", "java",      "dotnet",  "python", "typescript", "dart",
+    "ruby", "php",   "wasm",   "fortran77", "basic",   "forth",  "zlir"};
 
 /* Other names people write for the same languages. */
 static const struct {
@@ -25,7 +26,9 @@ static const struct {
     {"vb", ZXAPP_LANG_DOTNET},        {"py", ZXAPP_LANG_PYTHON},
     {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
     {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
-    {"webassembly", ZXAPP_LANG_WASM},
+    {"webassembly", ZXAPP_LANG_WASM}, {"f77", ZXAPP_LANG_FORTRAN77},
+    {"bede", ZXAPP_LANG_BASIC},       {"quern", ZXAPP_LANG_FORTH},
+    {"lingua", ZXAPP_LANG_ZLIR},
 };
 
 static bool seq(const char *a, const char *b)

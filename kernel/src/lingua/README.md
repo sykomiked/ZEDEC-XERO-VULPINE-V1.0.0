@@ -32,6 +32,14 @@ or input exhaustion, or a domain error. `zl_verify` checks any IR before it
 runs: every jump lands inside the program and every slot, array and string
 exists. Stack depth is checked as the program runs.
 
+## Precompiled programs
+
+`zl_pack` writes a verified program as "zlir" text (one line per
+instruction, strings in hex, a digest) and `zl_unpack` reads it back with no
+front-end, refusing text that is malformed, fails `zl_verify` or does not
+match its digest. Apps ship legacy logic this way (`logic zlir ...`, run by
+`kernel/src/apps/zxapp_lingua.c`); see `docs/LANGUAGE_CATALOGUE.md`.
+
 ## Commands
 
 ```
@@ -39,7 +47,11 @@ zxlang run   [--twin] prog.f [inputs...]   compile and run
 zxlang twin  prog.bas                      print the twin
 zxlang check prog.fs                       compile, round-trip the twin
 zxlang ir    prog.f                        list the IR
+zxlang pack  prog.f > prog.zlir            precompile; run and ir take .zlir too
 ```
+
+`zxlang run` passes its inputs to `READ *` and `INPUT`; for Forth they are
+pushed onto the data stack, first deepest.
 
 ## Tests
 
@@ -55,7 +67,8 @@ skips when they are missing unless `ZXV_REQUIRE_LINGUA_REF=1` (set in CI).
 
 1. Write `zl_<lang>.c`: a parser that emits IR through `zl_emit` and a twin
    printer, refusing what it does not support.
-2. Add the language to `zl.h`, `zl_ir.c`'s dispatch and `zxlang.c`.
+2. Add the language to `zl.h`, `zl_ir.c`'s dispatch, `zxlang.c`, and to
+   `zxapp.h`/`zxapp_lingua.c` so apps can use it.
 3. Add unit tests, goldens from a reference implementation, a generator
    mode, fuzz seeds and a mutation target.
 4. Move its line in `catalogue.tsv` to `run` with its twin's name.

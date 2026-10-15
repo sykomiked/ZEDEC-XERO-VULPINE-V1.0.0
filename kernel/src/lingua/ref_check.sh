@@ -12,7 +12,7 @@ T=${ZXV_TMP:-/tmp}
 d=$(mktemp -d "$T/zl_ref.XXXXXX") || exit 1
 G=src/lingua/golden
 gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/zxlang.c src/lingua/zl_ir.c \
-    src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c -o "$d/zxlang" || { echo "[FAIL] zxlang build"; exit 1; }
+    src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c -o "$d/zxlang" || { echo "[FAIL] zxlang build"; exit 1; }
 fail=0
 ran=0
 need() {

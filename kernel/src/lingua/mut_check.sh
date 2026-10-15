@@ -7,7 +7,7 @@
 # only a build failed (the harness then drops the mutant as not valid), 1
 # when a test failed, 0 when everything passed.
 T=${ZXV_TMP:-/tmp}
-SRC="src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c"
+SRC="src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c"
 SAN="-O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all"
 W="-std=c11 -Wall -Werror -Wextra -Isrc/lingua"
 gcc $W $SAN src/lingua/test_zl.c $SRC -o "$T/test_zl_mut" 2>/dev/null || exit 3
