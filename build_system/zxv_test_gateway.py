@@ -38,6 +38,7 @@ def main():
     ap.add_argument("--down-after", type=int)
     ap.add_argument("--down-for", type=float)
     a = ap.parse_args()
+    root = os.path.realpath(a.blocks)
     state = {"served": 0, "down_at": None}
     lock = threading.Lock()
 
@@ -68,9 +69,12 @@ def main():
         def do_GET(self):
             path, _, q = self.path.partition("?")
             cid = path[len("/ipfs/"):]
-            f = os.path.join(a.blocks, cid)
-            if not path.startswith("/ipfs/") or q != "format=raw" or "/" in cid or \
-                    not cid or not os.path.isfile(f):
+            # a CID is letters and digits only; the block must sit directly in BLOCKS
+            if not path.startswith("/ipfs/") or q != "format=raw" or not cid.isalnum() or \
+                    not cid.isascii():
+                return self.reply(404)
+            f = os.path.realpath(os.path.join(root, cid))
+            if os.path.dirname(f) != root or not os.path.isfile(f):
                 return self.reply(404)
             if down():
                 return self.reply(503)

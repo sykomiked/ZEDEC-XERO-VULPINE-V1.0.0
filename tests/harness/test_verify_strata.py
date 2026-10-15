@@ -349,7 +349,7 @@ class RealTree(unittest.TestCase):
         self.assertIn("the seven-strata layering check", r.stdout)
         r = self.script("--graph")
         self.assertEqual(r.returncode, 0)
-        self.assertIn("tensor -> e8\n", r.stdout)
+        self.assertIn("tensor -> e8 robin_debanks\n", r.stdout)
 
     def test_verify_layers_fails_on_a_strata_problem(self):
         tmp = tempfile.mkdtemp(prefix="strata-vl.")
