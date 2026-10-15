@@ -591,7 +591,46 @@ void zui_cv_visit_end(zui_cv_t *cv, uint32_t now_ms)
 {
     if (!cv) return;
     cv->visiting = false;
+    cv->guest_skin = 0;
     cv->call_last = now_ms;
+}
+
+/* ---- CV12: its own look --------------------------------------------------------- */
+
+void zui_cv_set_skin(zui_cv_t *cv, const zui_chg_skin_t *skin)
+{
+    if (cv) cv->skin = skin;
+}
+
+void zui_cv_set_guest_skin(zui_cv_t *cv, const zui_chg_skin_t *skin)
+{
+    if (cv && cv->visiting) cv->guest_skin = skin;
+}
+
+void zui_cv_pointer(zui_cv_t *cv, bool over, int32_t x, int32_t y)
+{
+    if (!cv) return;
+    cv->pointer = over;
+    cv->pointer_x = x;
+    cv->pointer_y = y;
+}
+
+/* draw one Chiglet in its skin: the pose from its face, mouth, gaze, blink */
+static void draw_one(const zui_cv_t *cv, zui_surface_t *s, const zui_chiglet_t *who,
+                     const zui_chg_skin_t *skin, const zui_face_t *face, int32_t cx, int32_t cy,
+                     int32_t r, uint32_t now, bool reduce, int16_t look_x)
+{
+    zui_chg_pose_t p;
+    zui_chg_pose_from(&p, who);
+    p.face = *face;
+    p.tick = reduce ? 0u : now / 125u;
+    p.blink = zui_chg_blink(who, now, reduce);
+    if (look_x) {
+        p.gaze_x = look_x;
+    } else if (cv->pointer) {
+        zui_chg_gaze(cx, cy, r, cv->pointer_x, cv->pointer_y, &p.gaze_x, &p.gaze_y);
+    }
+    zui_chg_skin_draw(s, skin, who, &p, cx, cy, r);
 }
 
 /* ---- CV2, CV3, CV4: asking --------------------------------------------------- */
@@ -1112,19 +1151,21 @@ static void draw_call(zui_cv_t *cv, zui_surface_t *s, const zui_text_t *text, ui
         who.mouth =
             cv->playing && !reduce ? (uint8_t) (1u + (cv->level > 254u ? 254u : cv->level)) : 128u;
     }
-    zui_chiglet_draw(s, &who, mx, scy, r, tick);
     zui_face_t face = zui_emote_now(&cv->face, now, reduce);
+    draw_one(cv, s, &who, cv->skin, &face, mx, scy, r, now, reduce, 0);
     int32_t fr = r / 3 < 6 ? 6 : r / 3;
-    zui_face_draw(s, &face, cv->health, mx + r, scy - r + fr / 2, fr, tick);
+    if (!zui_chg_skin_expressive(cv->skin) || cv->health != ZUI_HEALTH_OK)
+        zui_face_draw(s, &face, cv->health, mx + r, scy - r + fr / 2, fr, tick);
     int32_t ly = scy + r * 3 / 2 + ZUI_S1 + (font ? zui_text_ascent(text) : 0);
     if (font) label(s, text, mx, ly, 2 * half - 2 * ZUI_S2, name);
     if (cv->visiting) {
         int32_t gx = stage.x + 3 * half;
-        zui_chiglet_draw(s, &cv->guest, gx, scy, r, tick);
         zui_emote_t ge;
         zui_emote_init(&ge, cv->guest_feeling, now);
         zui_face_t gf = zui_emote_now(&ge, now, 1);
-        zui_face_draw(s, &gf, ZUI_HEALTH_OK, gx + r, scy - r + fr / 2, fr, tick);
+        draw_one(cv, s, &cv->guest, cv->guest_skin, &gf, gx, scy, r, now, reduce, -160);
+        if (!zui_chg_skin_expressive(cv->guest_skin))
+            zui_face_draw(s, &gf, ZUI_HEALTH_OK, gx + r, scy - r + fr / 2, fr, tick);
         if (font) {
             char line[ZUI_CV_SMALL * 2];
             sb_t o = {line, sizeof line, 0};
@@ -1158,15 +1199,23 @@ void zui_cv_draw(zui_cv_t *cv, zui_surface_t *s, const zui_text_t *text, uint32_
     }
     /* motes turn with the frame clock unless motion is reduced */
     uint32_t tick = reduce ? 0u : now_ms / 125u;
-    zui_chiglet_draw(s, &who, b.cx, b.cy, b.r, tick);
-    if (!popped) return;
+    zui_face_t face = zui_emote_now(&cv->face, now_ms, reduce);
+    if (!popped) { /* resting: still, eyes open, the classic face at rest */
+        zui_chg_pose_t rest;
+        zui_chg_pose_from(&rest, &who);
+        rest.face = face;
+        rest.tick = tick;
+        zui_chg_skin_draw(s, cv->skin, &who, &rest, b.cx, b.cy, b.r);
+        return;
+    }
+    draw_one(cv, s, &who, cv->skin, &face, b.cx, b.cy, b.r, now_ms, reduce, 0);
 
     /* the feeling: zui_emote's face, top right of the body */
-    zui_face_t face = zui_emote_now(&cv->face, now_ms, reduce);
     int32_t fr = b.r / 3 < 6 ? 6 : b.r / 3;
     int32_t fx = b.cx + b.r; /* on the side away from the screen's edge */
     if (fx + fr + 2 > s->w) fx = b.cx - b.r;
-    zui_face_draw(s, &face, cv->health, fx, b.cy - b.r + fr / 2, fr, tick);
+    if (!zui_chg_skin_expressive(cv->skin) || cv->health != ZUI_HEALTH_OK)
+        zui_face_draw(s, &face, cv->health, fx, b.cy - b.r + fr / 2, fr, tick);
 
     if (!text || !text->font) return;
     const char *words = cv->chunk;

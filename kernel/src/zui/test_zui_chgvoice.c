@@ -1298,6 +1298,86 @@ static void test_call(void)
     CHECK(tl.x == ZUI_S4 && tl.y == ZUI_S4, "top-left corner Chiglet: top-left tile");
 }
 
+static void test_skin(void)
+{
+    zui_cv_t cv;
+    fresh(&cv);
+    zui_text_t t;
+    memset(&t, 0, sizeof t);
+    t.size_px = 14;
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, true);
+    CHECK(zui_cv_call(&cv, true, 1000) == ZUI_CV_SPEAKING, "a call to look at");
+    finish(&cv);
+    uint64_t classic = draw(&cv, &t, 2000);
+    const zui_chg_skin_t *anime = zui_chg_skin_anime();
+    zui_cv_set_skin(&cv, anime);
+    CHECK(cv.skin == anime, "it wears the skin");
+    uint64_t dressed = draw(&cv, &t, 2000);
+    CHECK(dressed != classic, "CV12 the skin shows");
+    CHECK(draw(&cv, &t, 2000) == dressed, "deterministic");
+    CHECK(draw(&cv, &t, 9000) == dressed, "reduce motion: no blink, no breathing");
+    /* the pointer: its eyes follow */
+    zui_rect_t w = cv.call_rect;
+    zui_cv_pointer(&cv, true, w.x, w.y + w.h / 2);
+    uint64_t left = draw(&cv, &t, 2000);
+    zui_cv_pointer(&cv, true, w.x + w.w, w.y + w.h / 2);
+    uint64_t right = draw(&cv, &t, 2000);
+    CHECK(left != right && left != dressed && right != dressed, "eyes follow the pointer");
+    zui_cv_pointer(&cv, false, 0, 0);
+    CHECK(draw(&cv, &t, 2000) == dressed, "pointer gone: it looks at the person");
+    /* health still shows on an expressive skin */
+    swarm_feeling_t calm = {SWARM_EMO_NEUTRAL, 0};
+    zui_cv_set_feeling(&cv, calm, ZUI_HEALTH_FAILING, 2000);
+    CHECK(draw(&cv, &t, 2000) != dressed, "failing health shows");
+    zui_cv_set_feeling(&cv, calm, ZUI_HEALTH_OK, 2000);
+    swarm_feeling_t sad = {SWARM_EMO_SADNESS, 5};
+    zui_cv_set_feeling(&cv, sad, ZUI_HEALTH_OK, 2000);
+    CHECK(draw(&cv, &t, 2000) != dressed, "its face shows the feeling");
+    zui_cv_set_feeling(&cv, calm, ZUI_HEALTH_OK, 2000);
+    /* a visitor in its own skin */
+    zui_cv_set_guest_skin(&cv, anime);
+    CHECK(cv.guest_skin == 0, "no visitor, no visitor's skin");
+    zui_chiglet_t peer = {{9, 8, 7, 6, 5, 4, 3, 2}, 1, ZUI_CHG_DECIDED, 0};
+    swarm_feeling_t joy = {SWARM_EMO_JOY, 3};
+    CHECK(zui_cv_visit(&cv, &peer, "Ember", joy, 2100) == ZUI_CV_SET, "a visitor");
+    uint64_t plain = draw(&cv, &t, 2100);
+    zui_cv_set_guest_skin(&cv, anime);
+    CHECK(cv.guest_skin == anime && draw(&cv, &t, 2100) != plain, "it arrives in its own skin");
+    if (getenv("ZXV_CV_SKIN_PPM") && load_font()) { /* a picture, with words */
+        zui_text_t ft = t;
+        zui_glyph_cache_init(&CACHE);
+        ft.font = &FONT;
+        ft.cache = &CACHE;
+        zui_cv_set_name(&cv, "Pip");
+        zui_cv_heard(&cv, "Chiglet, how are you?", 2100);
+        zui_cv_pointer(&cv, true, cv.call_rect.x + cv.call_rect.w / 3, cv.call_rect.y);
+        draw(&cv, &ft, 2100);
+        dump_ppm(getenv("ZXV_CV_SKIN_PPM"));
+        zui_cv_pointer(&cv, false, 0, 0);
+        zui_cv_set_name(&cv, 0);
+    }
+    zui_cv_visit_end(&cv, 2200);
+    CHECK(cv.guest_skin == 0, "and takes it home");
+    /* the pop-up wears it too */
+    zui_cv_call(&cv, false, 2300);
+    finish(&cv);
+    zui_cv_set_skin(&cv, 0);
+    zui_cv_tap(&cv, 0, 3000);
+    uint64_t pc = draw(&cv, &t, 3000 + ZUI_CV_RISE_MS);
+    zui_cv_set_skin(&cv, anime);
+    CHECK(draw(&cv, &t, 3000 + ZUI_CV_RISE_MS) != pc, "the pop-up wears it");
+    zui_cv_set_skin(0, anime);
+    zui_cv_set_guest_skin(0, anime);
+    zui_cv_pointer(0, true, 1, 1);
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, false);
+    /* with motion: it blinks and breathes */
+    uint64_t first = draw(&cv, &t, 3000 + ZUI_CV_RISE_MS);
+    uint32_t moved = 0;
+    for (uint32_t ms = 0; ms < 6000; ms += 125)
+        moved += draw(&cv, &t, 3000 + ZUI_CV_RISE_MS + ms) != first;
+    CHECK(moved > 0, "alive with motion (%u frames differ)", moved);
+}
+
 int main(void)
 {
     test_status_text();
@@ -1315,6 +1395,7 @@ int main(void)
     test_draw();
     test_human();
     test_call();
+    test_skin();
     printf("%s test_zui_chgvoice: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;

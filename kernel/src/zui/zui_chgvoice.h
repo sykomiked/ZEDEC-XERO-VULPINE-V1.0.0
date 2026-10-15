@@ -76,6 +76,16 @@
  *       Another person's Chiglet visiting (zui_cv_visit) sits beside it in
  *       the window with its name and feeling; a visit is shown only in a
  *       call the person opened.
+ *   CV12 ITS OWN LOOK. The person can dress their Chiglet in a skin
+ *       (zui_chgskin.h; NULL is the classic look from its genes), and a
+ *       visiting Chiglet arrives in its own (zui_cv_set_guest_skin). Its
+ *       eyes follow the pointer while the pointer is over the screen
+ *       (zui_cv_pointer) and look at the person otherwise; it blinks and
+ *       breathes unless motion is reduced. A skin that draws its own
+ *       feelings replaces the small face beside it while it is healthy (the
+ *       face comes back, with its health ring, when it is slow, failing or
+ *       stopped); the bubble still names the feeling. A visitor looks at
+ *       its host.
  *
  * Integer only, no allocation, no libc, deterministic: the same calls at the
  * same times give the same words and the same pixels. Time is the caller's
@@ -88,6 +98,7 @@
 #include <stdint.h>
 #include "zui_canvas.h"
 #include "zui_chiglet.h"
+#include "zui_chgskin.h"
 #include "zui_emote.h"
 #include "speech_tidy.h"
 
@@ -222,6 +233,10 @@ typedef struct {
     zui_cv_call_fn on_call;
     void *call_ctx;
     zui_rect_t call_rect, end_rect; /* where they were last drawn */
+    /* CV12 */
+    const zui_chg_skin_t *skin, *guest_skin; /* NULL: classic */
+    bool pointer;                            /* over the screen */
+    int32_t pointer_x, pointer_y;
     /* counters */
     uint32_t said, refused, stops, calls;
 } zui_cv_t;
@@ -271,6 +286,13 @@ void zui_cv_heard(zui_cv_t *cv, const char *utf8, uint32_t now_ms);
 zui_cv_result_t zui_cv_visit(zui_cv_t *cv, const zui_chiglet_t *who, const char *name,
                              swarm_feeling_t feeling, uint32_t now_ms);
 void zui_cv_visit_end(zui_cv_t *cv, uint32_t now_ms);
+
+/* CV12: what it wears (NULL: classic), what the visitor wears (set after
+ * zui_cv_visit; cleared when the visit ends), and where the pointer is. The
+ * skins are the caller's and must outlive their use. */
+void zui_cv_set_skin(zui_cv_t *cv, const zui_chg_skin_t *skin);
+void zui_cv_set_guest_skin(zui_cv_t *cv, const zui_chg_skin_t *skin);
+void zui_cv_pointer(zui_cv_t *cv, bool over, int32_t x, int32_t y);
 /* The call window for a sw x sh screen, and what (x, y) is on it. */
 zui_rect_t zui_cv_call_rect(const zui_cv_t *cv, int32_t sw, int32_t sh);
 zui_cv_hit_t zui_cv_call_hit(const zui_cv_t *cv, int32_t x, int32_t y);

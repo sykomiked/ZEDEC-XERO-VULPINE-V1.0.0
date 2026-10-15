@@ -42,6 +42,11 @@ typedef struct {
 void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
                       uint32_t tick);
 
+/* Only its halo and motes: the part of the base schematic every skin keeps
+ * (zui_chgskin.h). zui_chiglet_draw draws these first. */
+void zui_chiglet_draw_aura(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy,
+                           int32_t r, uint32_t tick);
+
 /* The accent colour its home-emotion gene selects (for its speech bubble). */
 uint32_t zui_chiglet_accent(const zui_chiglet_t *c);
 
