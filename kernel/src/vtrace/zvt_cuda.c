@@ -110,14 +110,37 @@ static bool lib_sym(void *h, const char *name, void *fp)
     return s != NULL;
 }
 
-static void *open_first(const char *const *names, const char *env)
+/* The loader's reason for the last failed lib_open (into why). */
+static void lib_why(char *why, size_t cap)
+{
+#ifdef _WIN32
+    snprintf(why, cap, "LoadLibrary error %lu", (unsigned long) GetLastError());
+#else
+    const char *d = dlerror();
+    snprintf(why, cap, "%s", d ? d : "not found");
+#endif
+}
+
+/* env's library if set, else the first of names that loads; null with why
+ * saying what was tried and what the loader said */
+static void *open_first(const char *const *names, const char *env, char *why, size_t cap)
 {
     const char *e = getenv(env);
-    if (e && *e) return lib_open(e);
-    for (; *names; names++) {
-        void *h = lib_open(*names);
+    char d[256];
+    if (e && *e) {
+        void *h = lib_open(e);
+        if (!h) {
+            lib_why(d, sizeof d);
+            snprintf(why, cap, "%s=%s: %s", env, e, d);
+        }
+        return h;
+    }
+    for (const char *const *n = names; *n; n++) {
+        void *h = lib_open(*n);
         if (h) return h;
     }
+    lib_why(d, sizeof d);
+    snprintf(why, cap, "%s not set; %s and the other names not found (%s)", env, names[0], d);
     return NULL;
 }
 
@@ -347,9 +370,10 @@ zvt_cuda_t *zvt_cuda_new(int ordinal, char *err, uint32_t errcap)
     zvt_cuda_t *g = (zvt_cuda_t *) calloc(1, sizeof *g);
     if (!g) return NULL;
     if (err && errcap) err[0] = 0;
-    g->libcu = open_first(k_cuda_libs, "ZVT_CUDA_LIB");
+    char why[384] = "";
+    g->libcu = open_first(k_cuda_libs, "ZVT_CUDA_LIB", why, sizeof why);
     if (!g->libcu || !load_cu(g->libcu, &g->cu)) {
-        say(err, errcap, "no CUDA driver", g->libcu ? "libcuda lacks a needed function" : 0);
+        say(err, errcap, "no CUDA driver", g->libcu ? "libcuda lacks a needed function" : why);
         zvt_cuda_free(g);
         return NULL;
     }
@@ -373,9 +397,10 @@ zvt_cuda_t *zvt_cuda_new(int ordinal, char *err, uint32_t errcap)
         zvt_cuda_free(g);
         return NULL;
     }
-    g->libnvrtc = open_first(k_nvrtc_libs, "ZVT_NVRTC_LIB");
+    g->libnvrtc = open_first(k_nvrtc_libs, "ZVT_NVRTC_LIB", why, sizeof why);
     if (!g->libnvrtc || !load_nvrtc(g->libnvrtc, &g->rt)) {
-        say(err, errcap, "no NVRTC (the CUDA run-time compiler, libnvrtc)", 0);
+        say(err, errcap, "no NVRTC (the CUDA run-time compiler, libnvrtc)",
+            g->libnvrtc ? "libnvrtc lacks a needed function" : why);
         zvt_cuda_free(g);
         return NULL;
     }

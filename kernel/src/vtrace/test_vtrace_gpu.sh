@@ -25,7 +25,8 @@ CF="-std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST"
 
 # 1
 gcc $CF $INC src/vtrace/test_zvt_gpu.c $SRC -ldl -o "$T/test_zvt_gpu_stub" || { echo "[FAIL] vtrace GPU stub build"; exit 1; }
-"$T/test_zvt_gpu_stub" > "$T/stub.log" 2>&1 || { cat "$T/stub.log"; echo "[FAIL] test_zvt_gpu (stubs)"; exit 1; }
+# (no Vulkan in this build by design: ZVT_GPU_REQUIRE is for step 6's binary)
+env -u ZVT_GPU_REQUIRE "$T/test_zvt_gpu_stub" > "$T/stub.log" 2>&1 || { cat "$T/stub.log"; echo "[FAIL] test_zvt_gpu (stubs)"; exit 1; }
 echo "[PASS] vtrace GPU backends build with no GPU SDK ($(tail -1 "$T/stub.log" | sed 's/^\[PASS\] //'))"
 "$T/test_zvt_gpu_stub" --source > "$T/zvt_cuda_gen.cu"
 

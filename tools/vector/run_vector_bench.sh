@@ -42,6 +42,9 @@ step() { # name, command...
     nvidia-smi 2>&1 || echo "no nvidia-smi"
     ldconfig -p 2>/dev/null | grep -E 'libcuda|libnvrtc|libvulkan' || echo "no libcuda/libnvrtc/libvulkan in ldconfig"
     vulkaninfo --summary 2>&1 | head -40 || echo "no vulkaninfo"
+    for v in ZT_NVRTC_LIB ZVT_NVRTC_LIB ZXVA_NVRTC_LIB ZVT_CUDA_LIB ZXVA_CUDA_LIB; do
+        eval "echo \"$v=\${$v:-<unset>}\""
+    done
     command -v glslangValidator || echo "no glslangValidator (Vulkan kernels will be unavailable)"
     $CC --version | head -1
 } >"$R/host.txt" 2>&1
