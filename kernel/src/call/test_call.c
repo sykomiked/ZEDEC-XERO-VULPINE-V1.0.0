@@ -782,8 +782,8 @@ static void make_world(mesh_world_t *w, uint32_t n, bool tight)
     w->n = n;
     for (uint32_t i = 0; i < n; i++) {
         call_mesh_member_t *m = &w->m[i];
-        m->id = 1000 + i * 7919u % 100000u + rnd_below(5) * 100000u;
         for (int k = 0; k < 32; k++) m->pubkey[k] = (uint8_t) rng32();
+        m->id = call_mesh_id_of(m->pubkey); /* the id is bound to the key */
         m->version = 1;
         m->uplink_kbps = tight ? 800 + rnd_below(2400) : 4000 + rnd_below(20000);
         m->fanout = (uint8_t) (4 + rnd_below(9));
@@ -879,6 +879,101 @@ static mesh_check_t verify_plan(const call_mesh_t *mesh, const call_mesh_plan_t 
         if (cur != dl->publisher) c.missing++;
     }
     return c;
+}
+
+/* Id squatting and equivocation (audit 2026-10-12, section 4 item 3). */
+static void test_mesh_identity(mesh_world_t *w, call_mesh_member_t *table)
+{
+    uint8_t msg[CALL_MESH_MAX_MSG];
+    uint32_t f0 = g_fail, c0 = g_checks;
+    make_world(w, 3, false);
+    call_mesh_member_t *victim = &w->m[0], *other = &w->m[1];
+    CHECK(victim->id == call_mesh_id_of(victim->pubkey) && victim->id != 0);
+    call_mesh_t A;
+
+    /* 1. squatting LEAVE before the victim joins: an attacker key signs a
+     * LEAVE for the victim's id. Refused, no tombstone, victim joins fine. */
+    call_mesh_init(&A, 77, table, 40, toy_verify, NULL);
+    call_mesh_member_t sq = *victim;
+    sq.version = 1000;
+    for (int k = 0; k < 32; k++) sq.pubkey[k] = (uint8_t) (0xA5 ^ k);
+    int l = call_mesh_encode_leave(&sq, 77, msg, sizeof(msg), toy_sign, sq.pubkey);
+    CHECK(l > 0 && call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_AUTH);
+    CHECK(A.n == 0 && A.changes == 0);
+    CHECK(call_mesh_on_message(&A, w->msg[0], w->len[0]) == 1);
+    CHECK(call_mesh_alive(&A) == 1);
+
+    /* 2. forged key for someone else's id: MEMBER with the victim's id and
+     * the attacker's key, validly self-signed. Refused before and after the
+     * victim joins; the attacker under its own id is accepted. */
+    call_mesh_init(&A, 77, table, 40, toy_verify, NULL);
+    call_mesh_member_t fk = *victim;
+    fk.version = 7;
+    for (int k = 0; k < 32; k++) fk.pubkey[k] = (uint8_t) (0x3C + k);
+    l = call_mesh_encode_member(&fk, 77, msg, sizeof(msg), toy_sign, fk.pubkey);
+    CHECK(l > 0 && call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_AUTH);
+    CHECK(A.n == 0);
+    CHECK(call_mesh_on_message(&A, w->msg[0], w->len[0]) == 1);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_AUTH);
+    fk.id = call_mesh_id_of(fk.pubkey);
+    fk.streams[0].id = fk.id * 16 + 1;
+    fk.streams[1].id = fk.id * 16 + 2;
+    l = call_mesh_encode_member(&fk, 77, msg, sizeof(msg), toy_sign, fk.pubkey);
+    CHECK(l > 0 && call_mesh_on_message(&A, msg, (uint32_t) l) == 1);
+    CHECK(call_mesh_alive(&A) == 2);
+
+    /* 3. double-signed version: the same member signs version 3 twice with
+     * different content. The second is refused and the member is evicted for
+     * good; an honest member alongside is untouched. */
+    call_mesh_init(&A, 77, table, 40, toy_verify, NULL);
+    CHECK(call_mesh_on_message(&A, w->msg[1], w->len[1]) == 1);
+    call_mesh_member_t ev = *victim;
+    ev.version = 3;
+    l = call_mesh_encode_member(&ev, 77, msg, sizeof(msg), toy_sign, ev.pubkey);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == 1);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == 0); /* replay is a duplicate */
+    uint32_t ch = A.changes;
+    ev.uplink_kbps += 1000; /* same version, different content */
+    l = call_mesh_encode_member(&ev, 77, msg, sizeof(msg), toy_sign, ev.pubkey);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_CONFLICT);
+    CHECK(call_mesh_alive(&A) == 1 && A.changes == ch + 1);
+    ev.version = 4; /* a newer version does not buy it back */
+    l = call_mesh_encode_member(&ev, 77, msg, sizeof(msg), toy_sign, ev.pubkey);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_CONFLICT);
+    CHECK(call_mesh_alive(&A) == 1 && A.changes == ch + 1);
+    for (uint32_t i = 0; i < A.n; i++)
+        if (A.members[i].id == other->id) CHECK(A.members[i].alive == 1);
+
+    /* 3b. a MEMBER and a LEAVE with one version also equivocate */
+    call_mesh_init(&A, 77, table, 40, toy_verify, NULL);
+    CHECK(call_mesh_on_message(&A, w->msg[0], w->len[0]) == 1);
+    l = call_mesh_encode_leave(victim, 77, msg, sizeof(msg), toy_sign, victim->pubkey);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == CALL_ERR_CONFLICT);
+    CHECK(call_mesh_alive(&A) == 0);
+
+    /* honest path: join, update, duplicate, leave at a newer version, and a
+     * genuine LEAVE that overtakes its JOIN still wins in either order */
+    call_mesh_init(&A, 77, table, 40, toy_verify, NULL);
+    call_mesh_t B;
+    static call_mesh_member_t table_b2[8];
+    call_mesh_init(&B, 77, table_b2, 8, toy_verify, NULL);
+    call_mesh_member_t h = *other;
+    h.version = 2;
+    l = call_mesh_encode_leave(&h, 77, msg, sizeof(msg), toy_sign, h.pubkey);
+    CHECK(call_mesh_on_message(&A, w->msg[1], w->len[1]) == 1);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == 1);
+    CHECK(call_mesh_on_message(&B, msg, (uint32_t) l) == 0); /* tombstone */
+    CHECK(call_mesh_on_message(&B, w->msg[1], w->len[1]) == 0);
+    CHECK(call_mesh_alive(&A) == 0 && call_mesh_alive(&B) == 0);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == 0); /* duplicate LEAVE */
+    h.version = 3;
+    l = call_mesh_encode_member(&h, 77, msg, sizeof(msg), toy_sign, h.pubkey);
+    CHECK(call_mesh_on_message(&A, msg, (uint32_t) l) == 1); /* rejoin */
+    CHECK(call_mesh_on_message(&B, msg, (uint32_t) l) == 1);
+    CHECK(call_mesh_alive(&A) == 1 && call_mesh_alive(&B) == 1);
+    printf("  identity: squatting LEAVE, forged key, double-signed version refused; honest "
+           "path ok: %u/%u\n",
+           g_checks - c0 - (g_fail - f0), g_checks - c0);
 }
 
 static void test_mesh(void)
@@ -1005,6 +1100,7 @@ static void test_mesh(void)
     CHECK(call_mesh_on_message(&A, im, (uint32_t) il) == CALL_ERR_AUTH);
     int ol = call_mesh_encode_member(&w.m[0], 78, im, sizeof(im), toy_sign, w.m[0].pubkey);
     CHECK(call_mesh_on_message(&A, im, (uint32_t) ol) == CALL_ERR_ARG); /* other group */
+    test_mesh_identity(&w, table_a);
 }
 
 /* ================================================================

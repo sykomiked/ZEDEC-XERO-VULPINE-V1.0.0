@@ -12,21 +12,28 @@
  * random account quadruples, pure S1/S2/S4 checks, and outside postings
  * (V-Bill issue / redeem / transfer, reserve top-up and drain, and hostile
  * deposits straight into the vault's accounts, which svault_check must
- * detect), with edge-biased amounts.
+ * tolerate and svault_buy must never spend, and withdrawals from them, which
+ * svault_check must detect), with edge-biased amounts.
  * Invariants after every op:
  *   S1' an independent model of the carry: share_total, carry < 3,
  *       swept_total + overflow_total == floor(share_total / 3), and the
  *       status (OK / OVERFLOW at room 0 / ZERO for part 0) agree with svault
+ *   S1F a sweep that moves money refuses (SVAULT_ERR_FLOOR) exactly when
+ *       the reserve left would fail S4 at the vault's floor (set in op 8)
  *   S2' a buy never takes the vault above floor(N / 3): after a buy of
- *       qty > 0, h <= floor(N / 3); qty == min(max_qty, room, cash / price)
+ *       qty > 0, h <= floor(N / 3); qty == min(max_qty, room, own / price),
+ *       own = min(swept - spent, cash); a seller whose two accounts have
+ *       different owners is refused (SVAULT_ERR_AUTH)
  *   S3' buy postings move exactly cost fiat cash -> seller and qty V-Bills
  *       seller -> vault; cash only ever comes from sweeps
  *   S4' zxv_verify_vault_solvency agrees with an independent 192-bit
  *       reference; svault_redemption_floor is reserve / (N - h)
  *   S5' first loss burns min(loss, h) vault V-Bills at par (N and h fall by
  *       it), never touches the reserve or the cash, reports the rest
- *   S6  svault_check passes after every op (and fails after a hostile
- *       deposit into the vault's accounts); pay_ledger_check passes
+ *   S6  svault_check passes after every op, including after a hostile
+ *       deposit into the vault's accounts, and fails exactly when a
+ *       withdrawal takes either account below what svault accounts for;
+ *       pay_ledger_check passes
  *   C   conservation: fiat supply moves only by outside issuance; N moves
  *       only by outside issue / redeem and first loss
  *   R   a refused op (status < 0) changes no balance and no counter
@@ -107,7 +114,7 @@ static uint64_t C(uint32_t i)
 
 typedef struct {
     uint64_t d[NA], c[NA], lseq;
-    uint64_t carry, share, swept, over, spent, bought, burned;
+    uint64_t carry, share, swept, over, spent, bought, burned, fburned;
 } snap_t;
 static snap_t g_b, g_a;
 
@@ -125,10 +132,20 @@ static void snap(snap_t *s)
     s->spent = g_V.spent_total;
     s->bought = g_V.vbills_bought;
     s->burned = g_V.vbills_burned;
+    s->fburned = g_V.foreign_burned;
 }
 static bool same(const snap_t *x, const snap_t *y)
 {
     return !memcmp(x, y, sizeof *x);
+}
+
+static const pay_account_t *live(uint32_t a)
+{
+    return (a < g_L.n_accounts && g_L.acct[a].active) ? &g_L.acct[a] : 0;
+}
+static bool vault_acct(uint32_t a)
+{
+    return a == g_acc[A_RES] || a == g_acc[A_CASH] || a == g_acc[A_VISS] || a == g_acc[A_VAULT];
 }
 
 /* independent model of S1 */
@@ -219,9 +236,14 @@ static void run(const uint8_t *data, size_t size)
             uint64_t xx = share + m_carry; /* share_total >= carry: no wrap here */
             uint64_t part = xx / 3, rem = xx % 3;
             uint64_t cap = N0 / 3, room = h0 < cap ? cap - h0 : 0;
+            bool moves = part && room;
+            bool below =
+                moves && part <= res0 &&
+                !ref_solvency(res0 - part, N0, h0, g_V.floor_num, g_V.floor_den, g_V.backing);
+            if (below != (st == SVAULT_ERR_FLOOR)) abort(); /* S1F */
             if (st < 0) {
-                /* only the ledger may refuse, and only for a real transfer */
-                if (st != SVAULT_ERR_LEDGER || !part || !room) abort();
+                /* the floor, or the ledger, and only for a real transfer */
+                if (st != SVAULT_ERR_FLOOR && (st != SVAULT_ERR_LEDGER || !moves)) abort();
                 break;
             }
             if (part == 0) {
@@ -248,9 +270,15 @@ static void run(const uint8_t *data, size_t size)
             uint64_t sf0 = sf < g_L.n_accounts ? g_L.acct[sf].debit : 0;
             uint64_t sb0 = sb < g_L.n_accounts ? g_L.acct[sb].debit : 0;
             st = svault_buy(&g_V, &g_L, &req, sf, sb, price, maxq);
+            const pay_account_t *fa = live(sf), *ba = live(sb);
+            bool auth =
+                price && !vault_acct(sf) && !vault_acct(sb) && fa && ba && fa->owner != ba->owner;
+            if (auth != (st == SVAULT_ERR_AUTH)) abort(); /* S2' owner binding */
             if (st < 0) break;
             uint64_t cap = N0 / 3, room = h0 < cap ? cap - h0 : 0;
-            uint64_t q = cash0 / price;
+            uint64_t own = g_b.swept - g_b.spent; /* fees only, never outside cash */
+            if (own > cash0) own = cash0;
+            uint64_t q = own / price;
             if (q > room) q = room;
             if (q > maxq) q = maxq;
             if (q == 0) {
@@ -279,6 +307,12 @@ static void run(const uint8_t *data, size_t size)
             }
             if (st != SVAULT_OK || unc != loss - b) abort();
             if (D(A_VAULT) != h0 - b || C(A_VISS) != N0 - b) abort(); /* S5' */
+            /* the vault's own V-Bills burn first, then outside ones */
+            uint64_t mine = g_b.bought - g_b.burned;
+            if (mine > b) mine = b;
+            if (g_V.vbills_burned != g_b.burned + mine ||
+                g_V.foreign_burned != g_b.fburned + b - mine)
+                abort();
             if (D(A_RES) != res0 || D(A_CASH) != cash0) abort();
             dn = 0 - b;
             break;
@@ -334,6 +368,13 @@ static void run(const uint8_t *data, size_t size)
             if (svault_verify_solvency(&g_V, &g_L, fn, fd, bk) !=
                 ref_solvency(D(A_RES), C(A_VISS), D(A_VAULT), fn, fd, bk))
                 abort();
+            /* and make it the floor sweeps must keep (S1F); fd 0 is refused */
+            svault_t keep = g_V;
+            svault_status_t fs2 = svault_set_floor(&g_V, fn, fd, bk);
+            if (fd ? (fs2 != SVAULT_OK || g_V.floor_num != fn || g_V.floor_den != fd ||
+                      g_V.backing != bk)
+                   : (fs2 != SVAULT_ERR_ARG || memcmp(&keep, &g_V, sizeof keep)))
+                abort();
             uint64_t room = svault_room(&g_V, &g_L), cap = C(A_VISS) / 3;
             if (room != (D(A_VAULT) < cap ? cap - D(A_VAULT) : 0)) abort();
             st = SVAULT_ZERO;
@@ -361,21 +402,34 @@ static void run(const uint8_t *data, size_t size)
             st = SVAULT_ZERO;
             break;
         }
-        case 11: { /* hostile: fiat straight into vault cash; S6 must notice */
+        case 11: { /* hostile: fiat into vault cash (kept, S6 tolerates it), then a
+                    * withdrawal of a + 1 (S6 fails exactly when it cuts into
+                    * the vault's own cash), which is put back */
             uint64_t a = fz_u8(&in) % 100u + 1u;
             if (raw(g_acc[A_SF0], -(int64_t) a, 0, g_acc[A_CASH], (int64_t) a, 0) == PAY_OK) {
-                if (svault_check(&g_V, &g_L)) abort();
-                if (raw(g_acc[A_CASH], -(int64_t) a, 0, g_acc[A_SF0], (int64_t) a, 0) != PAY_OK)
-                    abort();
+                if (!svault_check(&g_V, &g_L)) abort();
+                if (raw(g_acc[A_CASH], -(int64_t) (a + 1), 0, g_acc[A_SF0], (int64_t) (a + 1), 0) ==
+                    PAY_OK) {
+                    if (svault_check(&g_V, &g_L) !=
+                        (D(A_CASH) >= g_V.swept_total - g_V.spent_total))
+                        abort();
+                    if (raw(g_acc[A_SF0], -(int64_t) 1, 0, g_acc[A_CASH], 1, 0) != PAY_OK) abort();
+                }
             }
             break;
         }
-        default: { /* hostile: V-Bills straight into the vault; S6 must notice */
+        default: { /* hostile: V-Bills into the vault (kept, S6 tolerates them),
+                    * then a withdrawal of a + 1, put back */
             uint64_t a = fz_u8(&in) % 100u + 1u;
             if (raw(g_acc[A_SB0], -(int64_t) a, 0, g_acc[A_VAULT], (int64_t) a, 0) == PAY_OK) {
-                if (svault_check(&g_V, &g_L)) abort();
-                if (raw(g_acc[A_VAULT], -(int64_t) a, 0, g_acc[A_SB0], (int64_t) a, 0) != PAY_OK)
-                    abort();
+                if (!svault_check(&g_V, &g_L)) abort();
+                if (raw(g_acc[A_VAULT], -(int64_t) (a + 1), 0, g_acc[A_SB0], (int64_t) (a + 1),
+                        0) == PAY_OK) {
+                    if (svault_check(&g_V, &g_L) !=
+                        (D(A_VAULT) >= g_V.vbills_bought - g_V.vbills_burned))
+                        abort();
+                    if (raw(g_acc[A_SB0], -(int64_t) 1, 0, g_acc[A_VAULT], 1, 0) != PAY_OK) abort();
+                }
             }
             break;
         }
@@ -410,7 +464,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     if (memcmp(acct1, g_L.acct, sizeof acct1) || memcmp(head1, g_L.chain_head, sizeof head1) ||
         v1.share_total != g_V.share_total || v1.carry != g_V.carry ||
         v1.spent_total != g_V.spent_total || v1.vbills_bought != g_V.vbills_bought ||
-        v1.vbills_burned != g_V.vbills_burned || v1.overflow_total != g_V.overflow_total)
+        v1.vbills_burned != g_V.vbills_burned || v1.overflow_total != g_V.overflow_total ||
+        v1.foreign_burned != g_V.foreign_burned)
         abort();
     return 0;
 }

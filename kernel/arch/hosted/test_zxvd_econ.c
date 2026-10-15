@@ -178,7 +178,7 @@ static void test_switches(void)
            "\"methods\":2}]}],\"saved\":false}"));
     CHECK(
         has(req0("rpc.discover"),
-            "\"backup.prune\",\"vault.deposit\",\"vault.buy\",\"vault.first_loss\","
+            "\"web4.card_verify\",\"vault.deposit\",\"vault.buy\",\"vault.first_loss\","
             "\"vault.status\",\"vault.check\",\"swap.deposit\",\"swap.withdraw\",\"swap.enable\","
             "\"swap.quote\",\"swap.in\",\"swap.out\",\"swap.lock\",\"swap.notice\",\"swap.unlock\","
             "\"swap.dividend\",\"swap.status\",\"swap.check\",\"auction.configure\","

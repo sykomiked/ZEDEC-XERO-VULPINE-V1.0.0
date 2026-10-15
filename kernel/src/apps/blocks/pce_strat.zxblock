@@ -1,0 +1,30 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# pce_strat, a block: general planning from the paraconsistent decision
+# engines (games, logistics, scheduling, business and negotiation; never
+# weapons targeting). Options against scenarios whose likelihoods are exact
+# intervals lo/den..hi/den; three rules vote (best lower expected payoff,
+# best worst case, least regret) and a split vote is BOTH, not one rule's
+# answer. Advisory: a person decides.
+zxblock 1
+id       pce_strat
+name     Paraconsistent strategy
+version  1.0.0
+# TRUE when all three rules pick the same option, BOTH when they split,
+# NEITHER when no option is allowed.
+provides decide truth payoff nopt lo hi den
+logic    c decide <<
+strat.decide
+.
+# The option most rules pick (ties: the lowest), or -1.
+provides leader num payoff nopt lo hi den
+logic    c leader <<
+strat.leader
+.
+# Several estimates of each side's walk-away point: a deal under every
+# estimate with one common price range TRUE, under none FALSE, else BOTH.
+provides zopa truth seller_min buyer_max
+logic    c zopa <<
+strat.zopa
+.

@@ -91,6 +91,20 @@ typedef struct lpres_registry {
 lpres_state_t lpres_negate(lpres_state_t s);
 lpres_state_t lpres_conjoin(lpres_state_t a, lpres_state_t b);
 lpres_state_t lpres_disjoin(lpres_state_t a, lpres_state_t b);
+/* The knowledge join: combine what two SOURCES say about ONE subject.
+ * Conjoin/disjoin are the truth order (all must hold / any holds); this is
+ * the information order, where agreement keeps the value, a source that
+ * says nothing adds nothing, and T from one source with F from another is
+ * B (a contradiction is recorded, never resolved by picking one):
+ *       T F B N
+ *   T   T B B T
+ *   F   B F B F
+ *   B   B B B B
+ *   N   T F B N
+ * In this encoding (bit 0 told-true, bit 1 told-false) it is a bitwise OR.
+ * Rule: kjoin across sources about a subject, then conjoin across subjects
+ * that must all hold (docs/BAREMETAL_OS_GAPS.md section 3). */
+lpres_state_t lpres_kjoin(lpres_state_t a, lpres_state_t b);
 bool lpres_is_certain(lpres_state_t s);
 bool lpres_is_contradictory(lpres_state_t s);
 bool lpres_is_unknown(lpres_state_t s);

@@ -19,7 +19,7 @@ default = []
 static = ["zxv-sys/static"]
 
 [dependencies]
-zxv-sys = { path = "../zxv-sys", version = "1.5.0" }
+zxv-sys = { path = "../zxv-sys", version = "1.6.0" }
 
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["executor", "std"] }

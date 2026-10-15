@@ -4,7 +4,7 @@
 # ZXV Rust SDK
 
 Safe Rust bindings to `libzxv`, the stable C ABI of the ZXV platform
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.4). Two crates:
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.6). Two crates:
 
 | Crate | What it is |
 |---|---|
@@ -399,6 +399,76 @@ let mut pol = ParadoxPolicy::new(&cap, &[0], &[100], &[50], 0)?;
 assert_eq!(book.constructive(&mut pol, c, Some(&[60]), 5)?, ParadoxOutcome::Applied);
 ```
 
+## Vino Embed (ABI 1.6)
+
+The [`vino`] module lets an app or game take part in Vino without ever
+holding anyone's value or keys. Two lanes never meet:
+
+- **PLAY** (`VinoPlay`): a sandbox inside the app with its own play units,
+  issuers, holders and Fibonacci-face vouchers, in process memory only.
+  Play units are not money, cannot be converted into or moved to live
+  value, and are lost on drop.
+- **LIVE**: real Vino stays in the user's own ZXV wallet. The app builds a
+  `PaymentRequest`; the wallet approves it and signs a receipt
+  (`vino::sign_receipt`, the wallet's call with its own key); the app
+  checks the receipt offline (`vino::verify_receipt`). The app never sees a
+  balance, a key or a custody account.
+
+A voucher is active on exactly one `Rail` (`Bearer` or `Ghost`) and can be
+spent only on that rail (`RefusedKind::Rail`). An issuer may issue only
+while `10 * backing >= 18 * outstanding` (`RefusedKind::Coverage`).
+Redeeming retires a voucher and pays nothing out; there is no interest,
+yield or return of any kind. `SpendMeter` counts what one device approved
+per day against a daily cap (`RefusedKind::Limit`); it is a counter, not a
+legal check.
+
+New: `Caps::VINO` (play lane and meter; `Caps::ALL_1_6` is every bit),
+`Features2::VINO`, `RefusedKind::{Rail, Coverage, Expired, Chance}` and
+`ZXV_E_LANE` (USAGE). Requests (`[u8; 160]`), ids (`[u8; 32]`) and receipt
+messages (`[u8; 88]`) are plain arrays; amounts, ids and times are `u64`.
+`VinoPlay` and `SpendMeter` borrow their capability (they cannot outlive
+it), are `Send + Sync`, and release on drop. Encoding, decoding, the
+receipt message and verification are pure and need no capability.
+
+Play-lane shop:
+
+```rust
+use zxv::vino::{PlayAccountKind, Rail, VinoPlay};
+let cap = ctx.root_capability(1, None, Caps::VINO)?;
+let play = VinoPlay::new(&cap)?;
+let issuer = play.open(100, PlayAccountKind::Issuer)?;
+let player = play.open(200, PlayAccountKind::Holder)?;
+let shop = play.open(300, PlayAccountKind::Holder)?;
+play.back(issuer, 18)?;                                // play faucet: faces up to 10
+let coin = play.issue(issuer, player, 8, Rail::Bearer)?; // 13 would be RefusedKind::Coverage
+play.transfer(coin, player, shop, Rail::Bearer)?;        // the player spends it
+play.redeem(coin, shop)?;                                // retired; nothing is paid out
+assert!(play.vouchers(shop)?.is_empty());
+```
+
+Live payment request, wallet receipt, offline verify:
+
+```rust
+use zxv::vino::{self, Lane, PaymentRequest, RequestFlags};
+let req = PaymentRequest { lane: Lane::Live, flags: RequestFlags::NONE,
+    merchant, nonce, amount: 1_234_567, created_at: now, expires_at: now + 600,
+    memo: "Sword of Dawn".into() };
+let (bytes, id) = req.encode()?;   // RefusedKind::Chance for a paid chance outcome on LIVE
+// in the wallet, never the app:
+let sig = vino::sign_receipt(&wallet_cap, &bytes, &wallet_sk, &wallet_pk, approved_at)?;
+// back in the app, offline:
+vino::verify_receipt(&bytes, &wallet_pk, approved_at, &sig, now)?; // VerificationFailed or Expired
+```
+
+`cargo run --example vino` runs both. Honest limits: the LIVE flow here is
+only the app's half; the wallet posts the payment on its own ledger.
+ML-DSA-87 is the reference implementation, not FIPS 140-3 validated.
+Whether a deployment of Vino is store credit, a prepaid access product or
+something else is a legal question pending counsel; nothing here decides
+it. The raffle is a separate module.
+
+[`vino`]: https://docs.rs/zxv/latest/zxv/vino/
+
 ## API overview
 
 | Area | Types | Key calls |
@@ -428,6 +498,7 @@ assert_eq!(book.constructive(&mut pol, c, Some(&[60]), 5)?, ParadoxOutcome::Appl
 | Freight (1.5) | `FreightHeader`, `FreightJoin`, `FreightOpsWriter` | `encode`, `decode`, `split`, `ops_expand_with`, `gen_run`, `ops_encode` |
 | Web 4 (1.5) | `W4Agent`, `W4Manifest`, `W4Directory`, `ConsentToken`, `ConsentLog` | `card`, `seal`, `reply`, `sign`, `issue_consent`, `check`, `verify_envelope` |
 | Paradox (1.5) | `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` | `classify`, `constructive`, `destructive`, `neutral`, `special`, `review`, `graph_pass` |
+| Vino (1.6) | `VinoPlay`, `SpendMeter`, `PaymentRequest`, `Rail`, `Lane`, `VoucherInfo`, `PlayAccount` | `open`, `back`, `unback`, `issue`, `transfer`, `set_rail`, `redeem`, `vouchers`, `encode`, `decode`, `sign_receipt`, `verify_receipt`, `admit` |
 | Escape hatch | `zxv::sys`, `as_raw()` | raw calls for anything not wrapped |
 
 ## Examples
@@ -438,6 +509,7 @@ cargo run --example quickstart       # capabilities, ledger, rationals, Truth
 cargo run --example async_budget     # consume_async and deferred ticks on tokio
 cargo run --example generate         # streamed, budgeted generation
 cargo run --example sign_and_frame   # ML-DSA-87, ML-KEM-1024, UBH-168
+cargo run --example vino             # play-lane shop; live request, receipt, offline verify
 ```
 
 ## Tests
@@ -458,6 +530,13 @@ the audit log and fail-closed when it fills (three SLH-DSA signings, ~5 s).
 included, plus handle lifetimes, R4 buffer growth, status-to-class
 mapping, capability refusals (AIPI, MINT, PARADOX), resolver failures and
 panics, and a poisoned (halted) context.
+
+`tests/vino.rs` checks the ABI 1.6 sections (`status_abi16`, `vino`:
+requests, decode refusals by changed byte, the fixed-seed receipt and its
+checks, the ordered play scenario with final accounts and vouchers, the
+meter) exactly, plus status-to-class mapping, the voucher list buffer
+growth, a cap without VINO or CRYPTO_SIGN, a revoked cap, drop and
+shared-thread use, and a poisoned (halted) context.
 
 `tests/hexagram.rs` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.

@@ -324,7 +324,7 @@ static void test_switch(void)
     const zxvd_group_t *g = zxvd_cards_group();
     CHECK(g->regulated && !strcmp(g->feature, "cards") && g->n_methods == 17, "group shape");
     const char *d = rpc(req("rpc.discover", "{}"));
-    CHECK(strstr(d, "\"backup.prune\",\"cards.status\",\"cards.check_pan\","
+    CHECK(strstr(d, "\"web4.card_verify\",\"cards.status\",\"cards.check_pan\","
                     "\"cards.iso8583_parse\",\"cards.issuer\",\"cards.open_account\","
                     "\"cards.account\",\"cards.issue\",\"cards.reissue\",\"cards.freeze\","
                     "\"cards.card\",\"cards.challenge\",\"cards.authorize\",\"cards.capture\","

@@ -13,6 +13,9 @@ workstation. One machine is built for two OEMs:
 | [OEM_INSTITUTIONAL.md](OEM_INSTITUTIONAL.md) | Rugged and defence-adjacent integrator (TAA-compliant manufacturing, FIPS and TEMPEST experience) | Vanguard, Sovereign, Citadel |
 | [OEM_CONSUMER.md](OEM_CONSUMER.md) | High-volume notebook or all-in-one ODM (Taiwan or Shenzhen) | Pioneer |
 
+The ZXV servers (three civilian, three institutional models, any climate)
+are a separate package in [servers/](servers/README.md).
+
 Both OEMs also receive these shared documents:
 
 | Document | What it fixes |
@@ -60,8 +63,10 @@ These are commercial or legal choices that belong to the licensor:
 ## Status of the operating system on this hardware
 
 ZXV boots under emulation in CI on x86_64, arm64 and riscv64. It has not yet
-booted on a physical board, and it has no NVMe, USB, physical NIC or GPU
-driver yet. The hardware here is chosen so that ZXV can run on every
+booted on a physical board. Since this package was written it has gained
+NVMe, AHCI, xHCI (USB keyboard and storage), Intel e1000/igb and HD Audio
+drivers, bound and self-tested at boot in QEMU (`kernel/src/hwdrv`); it
+still has no 10/25 GbE, GPU or Wi-Fi silicon driver. The hardware here is chosen so that ZXV can run on every
 processor in it, but **an OEM cannot ship either product until the driver
 work in [OS_HARDWARE_INTERFACE.md](OS_HARDWARE_INTERFACE.md) section 3 is
 done.** Section 7 of that document lists the off-the-shelf development boards to start

@@ -482,3 +482,14 @@ ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
 CFLAGS += -I$(ZXV_GENDIR)
+
+# FAIL-CLOSED BOOT TEST HOOK (roadmap 2.14). `make ZXV_BOOT_INJECT=n` forces one
+# boot check in the kernel main to fail (1 = declaration gate, 2 = MegaROM) so
+# build_system/test_boot_fail_closed.sh can boot the refusal path itself. The
+# value lives in a generated header rewritten only when it changes, so -MMD
+# rebuilds exactly the main when it flips and never leaves a stale injected
+# object behind. Default 0: nothing injected.
+ZXV_BOOT_INJECT ?= 0
+ZXV_INJECT_HDR  := $(ZXV_GENDIR)/zxv_boot_inject.h
+ZXV_INJECT_DEF  := \#define ZXV_BOOT_INJECT $(ZXV_BOOT_INJECT)
+$(shell l='$(ZXV_INJECT_DEF)'; grep -qxF "$$l" $(ZXV_INJECT_HDR) 2>/dev/null || echo "$$l" > $(ZXV_INJECT_HDR))

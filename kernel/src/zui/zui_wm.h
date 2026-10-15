@@ -4,7 +4,7 @@
  * its own window, and a way to switch between them.
  *
  * The window manager owns geometry, stacking, focus, the window frames,
- * the strip of open apps and the switcher. What is inside a window belongs
+ * the dock (or the strip) of open apps and the switcher. What is inside a window belongs
  * to the app (a zui view): the manager asks it to paint into its content
  * rectangle and hands it the events meant for it.
  *
@@ -31,12 +31,13 @@
  *       maximise button, fills the work area and back. The title bar has
  *       minimise, maximise and close.
  *   WM4 PHONES. On a compact screen every window fills the work area and
- *       does not move or resize; the strip and switcher still work.
+ *       does not move or resize; the dock, strip and switcher still work.
  *   WM5 SWITCHING. Cmd-Tab shows the switcher: open apps, most recently
  *       used first, with the next one chosen. Tab and Shift-Tab move the
  *       choice; letting go of Cmd, or Enter, switches; Esc stays. Cmd-W
  *       closes the window in front, Cmd-M minimises it.
- *   WM6 THE STRIP along the bottom shows every open window in the order it
+ *   WM6 THE STRIP (with zui_wm_use_dock(wm, false); the dock of WM9 is the
+ *       default) along the bottom shows every open window in the order it
  *       was opened. Pressing one brings it to the front (restoring it when
  *       minimised); pressing the one in front minimises it. A window still
  *       launching shows its gathering bar there too.
@@ -46,7 +47,24 @@
  *       window in front. A launching window gets none.
  *   WM8 Integer only and deterministic: the same events and ticks give the
  *       same pixels. Colours are zui_tokens.h; frames are engraved; the one
- *       gold element is the window in front's mark in the strip. */
+ *       gold element is the window in front's mark in the strip (WM9: the
+ *       dock's active slot).
+ *   WM9 THE DOCK. By default the astrolabe dock (zui_dock.h) stands in
+ *       place of the strip (zui_wm_use_dock switches): a seal in a corner
+ *       that blooms into rings of the open apps (most recently used first)
+ *       and the pinned ones (pin them on zui_wm_t.dock). The work area is
+ *       then the whole screen; only a seal in a top corner takes a band of
+ *       its height off the top (so title bars stay clear of it), and on a
+ *       phone a band of its height off the bottom. Choosing an open app
+ *       raises it (restoring it when minimised); choosing the one in front
+ *       minimises it; choosing a pinned app that is not open asks
+ *       launch_app (NULL: zui_wm_open with no client), which opens its
+ *       window on the launch screen of WM2. The dock sees events first, but
+ *       not while the switcher is up or a window is being dragged.
+ *       zui_wm_activity sets what an app's pip shows; a launching window
+ *       shows BUSY and its gathering bar. zui_wm_dock_pick and
+ *       zui_wm_launch do what choosing does without a pointer (switch
+ *       access, voice control). */
 #ifndef ZXV_ZUI_WM_H
 #define ZXV_ZUI_WM_H
 
@@ -54,6 +72,7 @@
 #include <stdint.h>
 
 #include "zui_canvas.h"
+#include "zui_dock.h"
 #include "zui_input.h"
 #include "zui_progress.h"
 
@@ -94,6 +113,7 @@ typedef struct {
     uint32_t opened_ms; /* time spent opening, 0..ZUI_WM_OPEN_MS */
     uint32_t order;     /* when it was opened, for the strip */
     uint8_t cued;       /* the cues already told (1 << ZUI_CUE_*) */
+    uint8_t activity;   /* WM9: zui_dock_act_t, for the dock's pip */
     zui_launch_t launch;
     zui_wm_client_t client;
 } zui_wm_window_t;
@@ -130,6 +150,11 @@ struct zui_wm {
     /* WM2: a launch reached a sound cue (ZUI_CUE_*); NULL plays nothing */
     void (*cue)(zui_wm_t *wm, uint32_t id, int cue, void *ctx);
     void *cue_ctx;
+    /* WM9: the dock in place of the strip */
+    bool use_dock;
+    zui_dock_t dock;
+    uint32_t (*launch_app)(zui_wm_t *wm, const char *app, const char *title, void *ctx);
+    void *launch_app_ctx;
 };
 
 void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch);
@@ -146,18 +171,30 @@ bool zui_wm_maximise(zui_wm_t *wm, uint32_t id, bool on);
 bool zui_wm_move(zui_wm_t *wm, uint32_t id, zui_rect_t r); /* WM3 limits apply */
 uint32_t zui_wm_front(const zui_wm_t *wm); /* the window with the keyboard, 0 none */
 zui_wm_window_t *zui_wm_get(zui_wm_t *wm, uint32_t id);
-zui_rect_t zui_wm_work(const zui_wm_t *wm); /* the screen above the strip */
+zui_rect_t zui_wm_work(const zui_wm_t *wm); /* the screen above the strip (WM9: or the dock) */
 zui_rect_t zui_wm_content(const zui_wm_t *wm, const zui_wm_window_t *w);
 /* Which part of the screen is at (x, y): the window id (0 none) and where
  * on it: 0 content, 1 title, 2 minimise, 3 maximise, 4 close, 5 an edge
- * (with *edges), 6 the strip (with *id the strip's window). */
+ * (with *edges), 6 the strip (with *id the strip's window), 7 nothing,
+ * 8 the dock (WM9; with *id the window of the slot there, 0 for none). */
 int zui_wm_hit(const zui_wm_t *wm, int32_t x, int32_t y, uint32_t *id, uint8_t *edges);
-/* The windows in the strip, in opening order; returns how many. */
+/* The windows in the strip, in opening order; returns how many (also
+ * when the dock is in use). */
 uint32_t zui_wm_strip(const zui_wm_t *wm, uint32_t *ids, uint32_t cap);
 zui_rect_t zui_wm_strip_slot(const zui_wm_t *wm, uint32_t i, uint32_t n);
 
 bool zui_wm_event(zui_wm_t *wm, const zui_event_t *e); /* WM7 */
 void zui_wm_tick(zui_wm_t *wm, uint32_t ms);           /* WM2: the doors */
 void zui_wm_draw(zui_wm_t *wm, zui_surface_t *s, uint32_t tick);
+/* WM9 */
+void zui_wm_use_dock(zui_wm_t *wm, bool on);
+bool zui_wm_activity(zui_wm_t *wm, uint32_t id, zui_dock_act_t a);
+/* WM9: choose the dock's item (zui_wm_t.dock.item[item]) as a press on its
+ * slot would, whether or not the dock is open; it closes. For switch access
+ * and voice control. */
+bool zui_wm_dock_pick(zui_wm_t *wm, uint32_t item);
+/* Raise app's most recent window, else launch it as the dock does (launch_app,
+ * else zui_wm_open). Returns the window id, 0 when none could open. */
+uint32_t zui_wm_launch(zui_wm_t *wm, const char *app, const char *title);
 
 #endif /* ZXV_ZUI_WM_H */

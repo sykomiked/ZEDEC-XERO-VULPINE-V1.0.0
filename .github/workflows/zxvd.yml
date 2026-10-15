@@ -10,12 +10,12 @@ name: zxvd
 on:
   push:
     branches: [main, develop]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
     types: [ opened, synchronize, reopened, ready_for_review ]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   workflow_dispatch:
@@ -77,6 +77,10 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_power.sh
+      - name: Public spaces unit test (pspace.*, hall.* on two real net hosts)
+        env:
+          CC: ${{ matrix.cc }}
+        run: sh kernel/arch/hosted/test_zxvd_pspace.sh
       - name: Economy modules unit test (svault, vswap, vauction, zenny, zstats)
         env:
           CC: ${{ matrix.cc }}
@@ -95,6 +99,11 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_web4.sh
+      - name: IRC gateway unit tests (engine, TLS 1.3 server, ML-DSA-87 records, bridge)
+        env:
+          CC: ${{ matrix.cc }}
+          OPENSSL: '0'
+        run: sh kernel/arch/hosted/test_zxvd_irc.sh
       - name: The ZXV folder behind the built-in apps (zxv_files.c)
         run: |
           ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
@@ -121,6 +130,12 @@ jobs:
           CC: ${{ matrix.cc }}
           CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
         run: sh kernel/src/zui/test_zui_toolkit.sh
+      - name: Vector tools (icon linter, SVG to ZXVG on the test fixture)
+        run: |
+          python3 -m unittest tools/zxvg/test_lint_icons.py
+          python3 tools/zxvg/svg2zxvg.py tools/zxvg/test/fixture.svg /tmp/fixture.zxvg
+          python3 tools/zxvg/svg2zxvg.py kernel/src/zui/brand/fox.svg /tmp/fox.zxvg --c zxv_fox /tmp/fox_zxvg.inc
+          cmp /tmp/fox_zxvg.inc kernel/src/zui/brand/fox_zxvg.inc
       - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
         if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
         run: |
@@ -145,6 +160,8 @@ jobs:
         run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: Phone link (pairing, encrypted frames, phone permissions, revoke)
         run: python3 kernel/arch/hosted/test_zxvd_phone.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: IRC gateway through OpenSSL (pinned certificate, the swarm, the switch)
+        run: python3 kernel/arch/hosted/test_zxvd_irc.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, with the tokenizer test model
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \
@@ -232,7 +249,7 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
-      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power --ci --jobs 4 --out mutation-results
+      - run: python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --only zxvd_rpc,zxvd_aipi,zxvd_cards,zxvd_ident,zxvd_econ,zxvd_instruments,zxvd_estate,zxvd_sandbox,zxvd_companion,zxvd_web4,zxvd_seats,zxvd_power,zxvd_pspace --ci --jobs 4 --out mutation-results
 
   real-model:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}  # drafts: fast tier only (docs/CI.md)

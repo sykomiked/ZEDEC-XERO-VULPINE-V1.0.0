@@ -362,6 +362,11 @@ static zt_fx exp2_neg(int64_t t)
     return (zt_fx) ((m + ((uint32_t) 1 << (sh - 1))) >> sh);
 }
 
+const uint32_t *zt_exp2_table(void)
+{
+    return EXP2;
+}
+
 zt_fx zt_exp(zt_fx x)
 {
     if (x > 0) x = 0;

@@ -1384,7 +1384,7 @@ static void test_platen(void)
     static char longuri[PLATEN_URI + 2];
     memset(longuri, 'u', PLATEN_URI + 1);
     CHECK(platen_add_printer(&PL, longuri) == ZXM_E_ARG, "address too long");
-    CHECK(platen_add_printer(&PL, bad) == ZXM_E_REMOTE && LINK.err_code == -32017 &&
+    CHECK(platen_add_printer(&PL, bad) == ZXM_E_REMOTE && LINK.err_code == -32022 &&
               PL.nprinters == 0,
           "a printer that does not answer is not added: %d", LINK.err_code);
     CHECK(platen_add_printer(&PL, "ipp://8.8.8.8/ipp/print") == ZXM_E_REMOTE && PL.nprinters == 0,
@@ -1413,7 +1413,7 @@ static void test_platen(void)
               platen_print(&PL, 0, "", NULL) == ZXM_E_ARG && sent == before,
           "nothing to print: not asked");
     CHECK(platen_print(&PL, 0, "platen/photo.png", NULL) == ZXM_E_REMOTE &&
-              LINK.err_code == -32017 && PL.njobs == 0,
+              LINK.err_code == -32022 && PL.njobs == 0,
           "a format it does not take");
     CHECK(platen_print(&PL, 0, "platen/none.pdf", NULL) == ZXM_E_REMOTE && PL.njobs == 0,
           "no such file");
@@ -1659,7 +1659,7 @@ static void test_platen(void)
           "bad dpi");
     PL.nscanners = 2;
     memcpy(PL.scanner[1].url, half, strlen(half) + 1);
-    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32017 &&
+    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32022 &&
               strstr(LINK.err, "(1 page saved)") && !strcmp(PL.saved[0], "Scan 3.jpg"),
           "half a scan: %s", LINK.err);
     CHECK(platen_remove_scanner(&PL, 2) == ZXM_E_ARG && platen_remove_scanner(&PL, 0) == ZXM_OK &&

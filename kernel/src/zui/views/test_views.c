@@ -20,6 +20,7 @@
 #include "burrow.h"
 #include "glint.h"
 #include "autoview.h"
+#include "circuit.h"
 #include "murmuration.h"
 #include "quillon.h"
 #include "spindle.h"
@@ -848,6 +849,182 @@ static void test_autoview(void)
     zxapp_unload(&TALLY, &HOST);
 }
 
+/* ---------------- The Circuit board: apps wired like a circuit ---------------- */
+
+static cb_view_t CV;
+static zxboard_t CBOARD;
+static zxapp_t FEES;
+static zxapp_registry_t CREG;
+static bool cb_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
+{
+    return cb_view_action(v, w, a, arg);
+}
+
+static void ptr(uint8_t type, int32_t x, int32_t y)
+{
+    zui_event_t e = ev(type, x, y);
+    if (!cb_view_pointer(&CV, &e)) zui_ui_event(&UI, &e);
+    paint();
+}
+
+static void drag(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    now += 1000;
+    ptr(ZUI_EV_PTR_DOWN, x0, y0);
+    ptr(ZUI_EV_PTR_MOVE, (x0 + x1) / 2, (y0 + y1) / 2);
+    ptr(ZUI_EV_PTR_MOVE, x1, y1);
+    ptr(ZUI_EV_PTR_UP, x1, y1);
+}
+
+static int32_t shelf_row_of(const char *ref)
+{
+    zxboard_item_t it;
+    for (uint32_t i = 0; zxboard_shelf(&CBOARD, i, &it); i++)
+        if (!strcmp(it.ref, ref)) return (int32_t) i;
+    return -1;
+}
+
+static uint32_t px_at(int32_t x, int32_t y)
+{
+    return PX[y * SURF.w + x] & 0xFFFFFFu;
+}
+
+static void test_circuit(void)
+{
+    static const char SRC[] = "zxblock 1\nid fees\nname Fees\nversion 1.2.0\n"
+                              "provides fee num amount rate\n"
+                              "logic kron fee <<\n50|_amount*rate%10000\n.\n"
+                              "provides fee_ok truth amount fee\n"
+                              "logic kron fee_ok <<\n(amount>0)&fee<2501\n.\n"
+                              "provides total num amount fee\n"
+                              "logic kron total <<\n+/amount+fee\n.\n";
+    zxapp_registry_init(&CREG);
+    CHECK(zxapp_parse(&FEES, SRC, (uint32_t) strlen(SRC)) == ZXAPP_OK &&
+              zxapp_registry_add(&CREG, &BLOCK) == ZXAPP_OK &&
+              zxapp_registry_add(&CREG, &FEES) == ZXAPP_OK,
+          "a shelf: swarm_shares and fees");
+    zxboard_t *b = &CBOARD;
+    CHECK(zxboard_init(b, &CREG, "checkout", "Checkout") == ZXAPP_OK &&
+              zxboard_input_add(b, "amount") == 0 && zxboard_input_add(b, "rate") == 1,
+          "a board with two inputs");
+    screen(&LAPTOP, cb_act, &CV);
+    cb_view_build(&CV, &UI, b);
+    paint();
+    check_ground("circuit");
+    CHECK(zui_w(&UI, CV.shelf)->u.list.rows == 6, "CB1: the shelf lists all six entries");
+    CHECK(has(text_of(CV.sh.status), "NEITHER"), "nothing wired: %s", text_of(CV.sh.status));
+
+    /* CV1: place three parts */
+    cb_view_action(&CV, CV.shelf, ZUI_ACT_OPEN, shelf_row_of("fees.fee"));
+    cb_view_action(&CV, CV.shelf, ZUI_ACT_OPEN, shelf_row_of("fees.fee_ok"));
+    cb_view_action(&CV, CV.shelf, ZUI_ACT_OPEN, shelf_row_of("fees.total"));
+    CHECK(b->c.nparts == 3 && CV.node == ZXBOARD_NODE_PART && CV.sel == 2,
+          "placed, the newest picked");
+    CHECK(b->c.part[0].x != b->c.part[1].x || b->c.part[0].y != b->c.part[1].y,
+          "each in its own place");
+    paint();
+    zui_rect_t r0 = cb_node_rect(&CV, ZXBOARD_NODE_PART, 0), br = zui_w(&UI, CV.board)->r;
+    CHECK(r0.w > 0 && r0.x >= br.x && r0.x + r0.w <= br.x + br.w, "a tile inside the board");
+    CHECK(px_at(r0.x + r0.w / 2, r0.y + r0.h - 4) == ZUI_PANEL, "a carved tile");
+
+    /* CV2 by pointer: amount -> fee.amount, by dragging between the dots */
+    int32_t ax, ay, px, py;
+    cb_answer_at(&CV, ZXBOARD_NODE_INPUT, 0, &ax, &ay);
+    cb_port_at(&CV, 0, 0, &px, &py);
+    drag(ax, ay, px, py);
+    CHECK(b->c.part[0].src[0].kind == ZXWIRE_SRC_INPUT && b->c.part[0].src[0].index == 0,
+          "CV2: dragged from amount's dot to fee.amount");
+    CHECK(CV.node == ZXBOARD_NODE_PART && CV.sel == 0 && CV.port == 0,
+          "the input just wired is picked");
+    /* CV2 by lists: fee.rate <- rate */
+    cb_view_action(&CV, CV.ports, ZUI_ACT_SELECT, 1);
+    CHECK(shown(CV.sources) && shown(CV.setting), "picking an input offers its sources");
+    cb_view_action(&CV, CV.sources, ZUI_ACT_SELECT, 1);
+    CHECK(b->c.part[0].src[1].kind == ZXWIRE_SRC_INPUT && b->c.part[0].src[1].index == 1,
+          "fee.rate <- rate, without a pointer");
+    /* fee_ok, picked by clicking its tile */
+    zui_rect_t r1 = cb_node_rect(&CV, ZXBOARD_NODE_PART, 1);
+    now += 1000;
+    ptr(ZUI_EV_PTR_DOWN, r1.x + r1.w / 2, r1.y + 8);
+    ptr(ZUI_EV_PTR_UP, r1.x + r1.w / 2, r1.y + 8);
+    CHECK(CV.node == ZXBOARD_NODE_PART && CV.sel == 1 && has(text_of(CV.part_name), "fee_ok"),
+          "a click picks a tile");
+    cb_view_action(&CV, CV.ports, ZUI_ACT_SELECT, 0);
+    cb_view_action(&CV, CV.sources, ZUI_ACT_SELECT, 0);
+    cb_answer_at(&CV, ZXBOARD_NODE_PART, 0, &ax, &ay);
+    cb_port_at(&CV, 1, 1, &px, &py);
+    drag(ax, ay, px, py);
+    CHECK(b->c.part[1].src[1].kind == ZXWIRE_SRC_PART && b->c.part[1].src[1].index == 0,
+          "fee_ok.fee <- fee, dragged from fee's answer");
+    /* total: amount and a setting */
+    cb_view_action(&CV, CV.shelf, ZUI_ACT_SELECT, 0);
+    CV.node = ZXBOARD_NODE_PART, CV.sel = 2;
+    cb_view_action(&CV, CV.ports, ZUI_ACT_SELECT, 0);
+    cb_view_action(&CV, CV.sources, ZUI_ACT_SELECT, 0);
+    cb_view_action(&CV, CV.ports, ZUI_ACT_SELECT, 1);
+    fill(CV.setting, "1,x");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(shown(CV.sh.error) && has(text_of(CV.sh.error), "whole numbers"),
+          "a bad setting is refused in words");
+    fill(CV.setting, "100");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(b->c.part[2].src[1].kind == ZXWIRE_SRC_CONST && b->c.part[2].src[1].konst[0] == 100 &&
+              !shown(CV.sh.error),
+          "total.fee set to 100");
+    CHECK(click(CV.save) && CV.saved_len < 0 && has(text_of(CV.sh.error), "not saved") &&
+              has(text_of(CV.sh.error), "answer"),
+          "CV4: the open answer is not saved: %s", text_of(CV.sh.error));
+    /* the answer: fee_ok, a truth, on an app that answers numbers -> held */
+    int32_t ox, oy;
+    zui_rect_t ro = cb_node_rect(&CV, ZXBOARD_NODE_OUT, 0);
+    ox = ro.x, oy = ro.y + ro.h / 2;
+    cb_answer_at(&CV, ZXBOARD_NODE_PART, 1, &ax, &ay);
+    drag(ax, ay, ox, oy);
+    CHECK(b->c.out.kind == ZXWIRE_SRC_PART && b->c.out.index == 1 && CV.node == ZXBOARD_NODE_OUT,
+          "the answer <- fee_ok");
+    CHECK(CV.chk.out == ZXWIRE_HELD && has(text_of(CV.sh.status), "BOTH, held") &&
+              has(text_of(CV.sh.status), "a truth"),
+          "CV3: held, said in words: %s", text_of(CV.sh.status));
+    CHECK(shown(CV.kind) && has(text_of(CV.kind), "make it a truth"), "the answer's kind button");
+    CHECK(click(CV.kind) && b->c.kind == ZXAPP_KIND_TRUTH && CV.chk.lp == ZXAPP_TRUE &&
+              has(text_of(CV.sh.status), "TRUE"),
+          "the person makes it a truth: TRUE: %s", text_of(CV.sh.status));
+    CHECK(click(CV.save) && CV.saved_len > 0 && !strncmp(CV.cid, "sha256:", 7) &&
+              has(text_of(CV.sh.status), "Saved sha256:"),
+          "CV4: saved, with its content id: %s", text_of(CV.sh.status));
+    CHECK(has(CV.saved, "part fee_ok fees.fee_ok amount=amount fee=fee\n") &&
+              has(CV.saved, "fee=100") && has(CV.saved, "use fees 1.2\n"),
+          "the manifest:\n%s", CV.saved);
+    /* move a tile by dragging its title */
+    r0 = cb_node_rect(&CV, ZXBOARD_NODE_PART, 2);
+    int32_t was_x = b->c.part[2].x;
+    drag(r0.x + 60, r0.y + 10, r0.x + 100, r0.y + 30);
+    CHECK(b->c.part[2].x > was_x && !CV.cid[0], "dragging a tile moves it, and it needs saving");
+    shot("circuit");
+    /* a truth into a number input: held where it is drawn */
+    CV.node = ZXBOARD_NODE_PART, CV.sel = 2;
+    cb_view_action(&CV, CV.ports, ZUI_ACT_SELECT, 1);
+    cb_view_action(&CV, CV.sources, ZUI_ACT_SELECT, 2 + 1);
+    CHECK(CV.chk.port[2][1] == ZXWIRE_HELD && has(text_of(CV.sh.status), "total.fee takes whole"),
+          "CV3: fee_ok into total.fee is held: %s", text_of(CV.sh.status));
+    int32_t hx, hy;
+    cb_port_at(&CV, 2, 1, &hx, &hy);
+    paint();
+    CHECK(px_at(hx, hy) == ZUI_GOLD, "the held dot is gold");
+    shot("circuit-held");
+    cb_view_action(&CV, CV.sources, ZUI_ACT_SELECT, 2 + 2);
+    CHECK(has(text_of(CV.sh.error), "own answer"), "a part cannot take itself: %s",
+          text_of(CV.sh.error));
+    CHECK(click(CV.remove) && b->c.nparts == 2 && CV.node == -1, "Remove takes the part away");
+    CHECK(unhandled == 0, "every action reached the view (%d not)", unhandled);
+
+    /* a phone still draws it */
+    screen(&PHONE, cb_act, &CV);
+    cb_view_build(&CV, &UI, b);
+    paint();
+    check_ground("circuit on a phone");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -875,6 +1052,7 @@ int main(int argc, char **argv)
     test_spindle();
     test_murmuration(argv[1]);
     test_autoview();
+    test_circuit();
     free(OUT.p);
     nftw(root, rm_one, 16, FTW_DEPTH | FTW_PHYS);
     printf("%s test_views: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);

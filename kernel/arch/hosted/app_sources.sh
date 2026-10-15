@@ -2,7 +2,7 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# app_sources.sh [srcs|incs|vinea|update] — the hosted app's C sources, one
+# app_sources.sh [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|modules|people|people_deps|people_incs] — the hosted app's C sources, one
 # path per line, relative to kernel/. build_system/build_desktop.sh and
 # kernel/arch/hosted/test_hosted.sh both read this list, so the shipped app
 # and the tested app are built from the same files.
@@ -16,6 +16,14 @@
 #           serve, after zxvd_groups.c; groupincs: their include directories
 #   rpcdeps what zxvd_rpc.c links beyond web4, keccak and sha256, for the
 #           unit tests that build it on its own; rpcincs: their includes
+#   modules the module methods zxvd_rpc.c falls back to (zxvd_rpc_modules.c)
+#           and what they link beyond web4_json, web4_util, keccak and
+#           sha256: the one list zxvd_mod_archive.sh, build_zxvd.sh and
+#           fuzz/Makefile read
+#   people  zxvd's people features (zxvd_people.c: social, calls, translation,
+#           device mesh) and what they need beyond srcs; zxvd only
+#   people_deps  what they use from srcs (tests that build without srcs)
+#   people_incs  their include directories
 set -eu
 K="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$K"
@@ -59,6 +67,39 @@ update() {
     done
 }
 
+people() {
+    echo arch/hosted/zxvd_people.c
+    for f in social_post social_feed social_store social_bucket social_group social_sign_mldsa; do
+        echo "src/social/$f.c"
+    done
+    echo src/reputation/reputation.c
+    for f in call_rtp call_jitter call_cc call_fec call_mesh call_ice call_session; do
+        echo "src/call/$f.c"
+    done
+    for f in xlate xlate_langid xlate_prompts; do echo "src/xlate/$f.c"; done
+    for f in devmesh dm_sync dm_remote dm_capmkt; do echo "src/devmesh/$f.c"; done
+    echo src/capmkt/capmkt.c
+    # pq_matrix (devmesh identities): its hybrid layers and the SLH-DSA code
+    for f in pq_matrix pq_mlkem1024 pq_mldsa87 pq_hqc5 pq_slh256s pq_slhdsa; do
+        echo "src/pqsec/$f.c"
+    done
+    for f in src/pqsec/slhdsa/*.c; do echo "$f"; done
+    # ML-KEM-768 (pq_matrix's STANDARD level)
+    for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do echo "src/mlkem/$f.c"; done
+}
+
+# what the people features use from srcs (for a test built without srcs)
+people_deps() {
+    for f in src/robin_debanks/sha256.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c \
+             src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c \
+             src/pqsec/mldsa/[a-z]*.c src/tls/x25519.c src/tls/aead.c src/tensor/zt.c \
+             src/tensor/zt_isf.c src/pay/pay_util.c src/pay/pay_assure.c src/web4/web4_json.c \
+             src/web4/web4_util.c src/swarm/swarm_market.c src/swarm/swarm_budget.c \
+             src/swarm/swarm_emotion.c; do
+        echo "$f"
+    done
+}
+
 case "${1:-srcs}" in
     srcs)
         for f in zxv_host zxv_http_guard zxv_model_host zxv_budget_gate zxv_net_host zxv_peer_host \
@@ -92,6 +133,19 @@ case "${1:-srcs}" in
         for d in arch/hosted src/swarm src/tensor src/settle src/peer_audit src/quest src/pay src/sicily src/zcapital src/social src/vinea src/lpres src/robin_debanks src/juris \
                  src/edp_risk src/update src/ipfs_node src/pqsec src/mlkem include src/modbind \
                  src/e8 src/event_space src/surplus src/aipi; do
+            echo "$d"
+        done
+        ;;
+    people)
+        # only what srcs does not already list, so no file is compiled twice
+        have="$(sh "$K/arch/hosted/app_sources.sh" srcs)"
+        people | awk '!seen[$0]++' | while read -r f; do
+            printf '%s\n' "$have" | grep -qxF "$f" || echo "$f"
+        done
+        ;;
+    people_deps) people_deps ;;
+    people_incs)
+        for d in src/call src/xlate src/devmesh src/capmkt src/reputation src/tls src/web4; do
             echo "$d"
         done
         ;;
@@ -129,12 +183,22 @@ case "${1:-srcs}" in
         echo arch/hosted/zxvd_power.c
         echo arch/hosted/zxv_power_host.c
         echo src/power/power_ledger.c
+        # irc.*: the IRC gateway (docs/IRC_GATEWAY.md), its protocol engine
+        # and the repo's TLS 1.3 server and verifier (x25519, aead and hkdf
+        # are in srcs; ML-DSA-87, keccak and sha256 too)
+        echo arch/hosted/zxvd_irc.c
+        echo arch/hosted/zxv_irc.c
+        for f in server handshake record selfsigned ecdsa ecdsa_sign bn sha512 digest rsa x509 trust; do
+            echo "src/tls/$f.c"
+        done
+        # pspace.*, hall.*: the net host and Vinea (vna_space) are in srcs
+        echo arch/hosted/zxvd_pspace.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea; do echo "$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
@@ -158,5 +222,14 @@ case "${1:-srcs}" in
         echo src/juris
         echo src/print
         ;;
-    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs]" >&2; exit 2 ;;
+    modules)
+        echo arch/hosted/zxvd_rpc_modules.c
+        for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c \
+                 stream/stream_seg.c ipfs_node/ipfsn_multiformats.c ehop/ehop_sched.c \
+                 ehop/ehop_frame.c tls/aead.c web4/web4_cid.c web4/web4_agent.c pqsec/pq_mldsa65.c; do
+            echo "src/$f"
+        done
+        for f in src/pqsec/mldsa/[a-z]*.c; do echo "$f"; done
+        ;;
+    *) echo "usage: $0 [srcs|incs|vinea|update|groups|groupincs|rpcdeps|rpcincs|modules|people|people_deps|people_incs]" >&2; exit 2 ;;
 esac

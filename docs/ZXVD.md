@@ -24,6 +24,7 @@
 | Printing and scanning for the Platen app: IPP Everywhere and eSCL to devices on the local network only | `zxv_print_host.c`, `kernel/src/print` | `print.*`, `scan.*` |
 | Backups with versions for the Keepsake app: content-addressed copies and checked snapshots in a folder the owner picks | `zxv_keepsake.c` | `backup.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
+| Freight packets, harmonic wire frames, stream segments, Endian Hopping frames, Web 4 CIDs and agent cards (pure codecs, no state) | `kernel/src/freight`, `harmonic`, `stream`, `ehop`, `web4` via `zxvd_rpc_modules.c` | `freight.*`, `harmonic.*`, `stream.*`, `ehop.*`, `web4.*` |
 
 It is `zxv_host.c` built with `-DZXVD`, plus `zxvd_rpc.c` and `zxvd_aipi.c`
 (with the Z-Wasm and Z-Contract libraries from `sdk/kits/aipi`), linked
@@ -276,35 +277,84 @@ CI checks it matches what zxvd serves.
 | `phone.pair` | `name`, `allow_post`? | `phone_id`, `name`, `allow_post`, `host`, `port`, `link` |
 | `phone.list` | | `on`, `port`, `phones` |
 | `phone.revoke` | `phone_id` | `revoked`, `closed` |
+| `irc.status` (read-only) | | `on`, `listening`, `port`, `clients`, `password`, `cert_sha256`, `cert_file`, `signer`, `signer_id`, `delivered`, `refused`, `bridge` |
+| `irc.record` (read-only) | `msgid` | `msgid`, `target`, `nick`, `truth`, `ms`, `text`, `signer_id`, `context`, `public_key`, `signature`, `record` |
+| `irc.bridge` | `on`, `host`, `port`?, `remote`, `local`, `nick`, `password`? | the bridge (or null) |
+| `pspace.create` | `kind`, `gov`, `quorum_pct`?, `name`, `topic`? | `cid` |
+| `pspace.find` | `topic` | `topic`, `done`, `found` |
+| `pspace.join` / `pspace.leave` | `cid` | `cid`, `phase` / `left` |
+| `pspace.post` | `cid`, `text` | `cid`, `posted` |
+| `pspace.events` | `cid`, `since`? | `events`, `next` |
+| `pspace.members` | `cid` | `members`, `count` |
+| `pspace.list` | | `online`, `spaces` |
+| `hall.load` / `hall.play` / `hall.pause` / `hall.seek` | `cid`, then `media` / `pos_ms`?, `rate_q16`? / `pos_ms`? / `pos_ms` | the `hall.status` object |
+| `hall.status` | `cid` | `set`, `state`, `media`, `pos_ms`, `at_ms`, `rate_q16`, `now_ms`, `viewers`, `may_control` |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
 (the message says why: price, funds, handshake, signature, connect), -32011
 an AIPI call refused or failed (the `AIPI_ERR_*` name and what it means),
 -32012 the method's feature is off (see "Feature switches" below),
+-32017 a module method refused well-formed input (see "Module methods"),
 -32020 a payment step refused (netting, passkey or escrow; the message says
 why), -32040 a card operation the issuer refused, -32041 a passkey ceremony
-refused (the message says why), -32050 an economy engine refused (the message is its status name, e.g.
+refused (the message says why), -32050 a vault, swap, auction, Zenny or
+stats engine refused (the message is its status name, e.g.
 `VSWAP_ERR_DISABLED`, or `VAUC_ERR_LEDGER (PAY_ERR_FUNDS)`),
--32060 an economy engine refused (the message is `<STATUS>: why`, see
-"Bonds, derivatives, grants and estates" below), -32070 no companion yet
+-32060 a bond, derivative, grant or estate engine refused (the message is
+`<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
+-32070 no companion yet
 (`companion.*` before the swarm has an agent),
-"Bonds, derivatives, grants and estates" below),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
--32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
+-32096 an IRC gateway refusal (the message says why, see "The IRC gateway"
 below),
+-32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
+below), -32095 power tracking is not running or a budget's target is
+unknown (see "Power" below),
+-32032 a public space or watch hall request refused (the message says why,
+see "Public spaces and the watch hall" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
-refused or failed (the message says why), -32017 a printer or scanner
+refused or failed (the message says why), -32022 a printer or scanner
 refused or out of reach (`print.*`, `scan.*`), -32018 a backup refused
 (`backup.*`), -32019 a screen-time refusal (`screen.*`), -32021 a place
-refused (`place.*`); each message says why. -32000 a
+refused (`place.*`), -32030 a people method (`social.*`, `call.*`,
+`xlate.*`, `devmesh.*`, `ui.*`) refused, -32031 `xlate.translate` with no
+local model that can generate (nothing is invented); each message says why. -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
 never sent over the socket.
 
+### Module methods
+
+`zxvd_rpc_modules.c` serves five kernel modules beside the methods above
+(`zxvd_rpc_modules.h` X1-X4). They are pure codecs: no state between calls,
+and they never open the books, post to a ledger or touch the swarm. Bytes
+travel as hex (`*_hex`); 64-bit values as decimal strings. Input a module
+refuses (too few rows, a hash or an AEAD tag that does not verify) is error
+-32017 with the reason; a bad parameter is -32602.
+
+| Method | Params | Result |
+|---|---|---|
+| `freight.pack` | `data_hex` (at most 3360 bytes), `k`?, `freight_id`? | `freight_id`, `k`, `payload_len`, `rows`, `header_hex`, `packets_hex` (168 x 21 bytes; any k rebuild) |
+| `freight.unpack` | `header_hex`, `packets_hex` (any k distinct packets) | `freight_id`, `k`, `flags`, `payload_len`, `packets_received`, `data_hex` |
+| `harmonic.encode` | `trunk`, `shell`?, `sync`?, `s_plus` (3 words), `s_minus` (2 words) | `tag`, `trunk`, `trunk_hz`, `frame_hex` (21 octets) |
+| `harmonic.decode` | `frame_hex`, `threshold_q16`? | `tag`, `trunk`, `shell`, `sync`, `axis_trunk`, `trunk_hz`, `s_plus`, `s_minus`, `idle`, `correlation_q16`, `truth` |
+| `stream.plan` | `units` ([len, pts_us, keyframe], at most 120), `target_us`, `max_us`, `max_bytes`?, `tail_us`? | `segments` |
+| `stream.segment` | `data_hex`, `k`?, `stream_id`?, `seq`? | `cid`, `nfreights`, `freight_id`, `freight_sha256`, ... |
+| `ehop.bands` | | `bands` |
+| `ehop.seal` | `key_hex`, `band`, `chan_id`, `epoch`, channel fields?, `sender`, `seq`, `plaintext_hex` | `frame_hex`, `band`, `priority`, `sender`, `seq`, `frame_len` |
+| `ehop.open` | `key_hex`, `band`, `chan_id`, `epoch`, channel fields?, `frame_hex` | `plaintext_hex`, `band`, `sender`, `seq` |
+| `web4.cid` | `data_hex` or `cid` | `cid`, `uri`, `version`, `codec`, `bytes32_hex` |
+| `web4.agent_card` | `seed_hex`, `name`, `bound_ms`? | `agent_id`, `peer_id`, `name`, `bound_ms`, `self_bound`, `pk_hex`, `bind_sig_hex` |
+| `web4.card_verify` | `name`, `bound_ms`, `pk_hex`, `bind_sig_hex`, `agent_id`? | `valid`, `agent_id`, `reason`? |
+
+`ehop.*` keeps no channel: the caller owns the nonce rule (never seal two
+plaintexts under the same key, channel, configuration, sender and seq) and the
+replay window. `web4.agent_card` takes the agent's secret seed over the
+owner-only socket and wipes the derived secret key before answering.
 ## The phone link
 
 ZXV Companion ([mobile/companion](../mobile/companion)) reaches zxvd from a
@@ -341,7 +391,8 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 `notes.mark_read`. A phone paired with `allow_post` may also call
 `net.command`, `peer.ask`, `currency.enable`, `ledger.open_account` and
 `ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`, `aipi.put`,
-`aipi.publish`, `aipi.execute`, `phone.*`, and the system utilities and
+`aipi.publish`, `aipi.execute`, `phone.*`, the people methods (`social.*`,
+`call.*`, `xlate.*`, `devmesh.*`, `ui.*`), and the system utilities and
 apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
 `search.*`, `print.*`, `scan.*`, `backup.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
@@ -936,12 +987,26 @@ window is spent, or a strict budget has nothing measured to judge by, the
 model does not run and the answer says "Energy budget reached". Nothing
 buys past a budget. The battery posture scales the swarm's tokens per
 cycle: x1 on mains or without a battery, x0.618 on battery, x0.382 at 20%
-or below, x0 at 5% or below. Error -32100 means power tracking is not
+or below, x0 at 5% or below. Error -32095 means power tracking is not
 running in this zxvd or the budget's target is unknown.
 
 Limits: the stand-in agents (levels 1 and up) run no model, so only the
 companion is noted. GPU time is not measured yet (`gpu_ns` is 0). Budgets
 and the ledger are in memory and start again at each start.
+
+## Public spaces and the watch hall
+
+`pspace.*` and `hall.*` (`kernel/arch/hosted/zxvd_pspace.c`, rules W1-W6 in
+`zxvd_pspace.h`) put the node's Vinea spaces (`zxv_net_host.h` U14,
+`kernel/src/vinea/vna_space.h`) on the socket: rooms and watch halls named
+by a CID, hosted by whoever is in them, with a playhead every viewer
+computes the same. The group sits behind the feature `pspace`, which is not
+regulated; `pspace.leave`, `pspace.events`, `pspace.members`, `pspace.list`
+and `hall.status` answer with the switch off. Every method needs the
+network on (`net.command` `lan` or `online`); refusals are -32032 with the
+reason. The protocol, the methods and the limits (control only: delivering
+the video between viewers is not built yet) are in
+[SPACES.md](SPACES.md).
 
 ## The Web4 envelope feed
 
@@ -1003,11 +1068,32 @@ Honest limits:
   encrypted. A `web4.verify` request line holds about 6000 envelope bytes
   with a `pk`, so a large envelope with a consent token is checked by `id`.
 
+## The IRC gateway
+
+`irc.*` (`kernel/arch/hosted/zxvd_irc.c`, rules G1-G8 in `zxvd_irc.h`; the
+protocol engine is `zxv_irc.c`, rules E1-E9 in `zxv_irc.h`) lets any IRC
+client talk to the swarm. The feature `irc` starts off; while it is on,
+zxvd listens on 127.0.0.1 only (`--irc-port N`, default 6697), over TLS 1.3
+only, with a self-signed certificate the client pins. Every message carries
+its Belnap tag (`[T] `, `[F] `, `[B] `, `[N] `) and is signed with
+ML-DSA-87 at the gateway; `#swarm` asks the swarm. It never carries money,
+keys or Player Card actions. Bridging one channel to a public network is
+`irc.bridge`, off until called. The design, what the tag and signature do
+and do not mean, and the threat model are in
+[docs/IRC_GATEWAY.md](IRC_GATEWAY.md).
+
+```sh
+zxvd --rpc ~/.zxv/zxvd.sock --enable irc   # prints ZXVD-IRC: TLS 127.0.0.1:6697
+irc.status {}                              # password, cert_file (irc-cert.pem), cert_sha256
+```
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
 stub host and the real libzxv (exact replies, every error, the socket); it is
-the mutation harness's test for `zxvd_rpc.c`. `kernel/arch/hosted/test_zxvd_aipi.sh`
+the mutation harness's test for `zxvd_rpc.c`; the same script then runs
+`test_zxvd_rpc_modules.c`, every module method's results and refusals, and
+checks that none of them changes the books. `kernel/arch/hosted/test_zxvd_aipi.sh`
 runs `zxvd_aipi.c` behind the RPC layer on the real AIPI core and the Z-Wasm
 sandbox (exact replies, every refusal); it is the harness's test for
 `zxvd_aipi.c`. `kernel/arch/hosted/test_zxvd_chat.sh` runs the chat methods
@@ -1040,6 +1126,10 @@ the harness's test for `zxvd_seats.c`.
 ledger, read from a Linux-style `/sys` and `/proc` fixture with a test clock
 (exact replies, the agent under zxvd's app, budgets that make it wait, the
 battery posture's token scale); it is the harness's test for `zxvd_power.c`.
+`test_zxvd_pspace.sh` runs `pspace.*` and `hall.*` behind the RPC layer
+on two real net hosts on 127.0.0.1 (the switch, every parameter rule, a
+hall made on one host and joined by CID from the other, the owner's
+control, posts both ways); it is the harness's test for `zxvd_pspace.c`.
 `kernel/arch/hosted/test_zxvd.py ZXVD [GGUF]` drives everything above over
 the socket only. CI (`.github/workflows/zxvd.yml`) runs it on Linux x86_64
 (gcc, clang, gcc with ASan+UBSan), Linux arm64 and macOS, without a model and
@@ -1049,6 +1139,11 @@ runs it on Windows against the packaged zxvd.exe, and on Linux against the
 installed .deb.
 `kernel/arch/hosted/test_zxvd_phone.py ZXVD` drives the phone link with its
 own Python X25519 and ChaCha20-Poly1305 (checked against the RFC vectors).
+`kernel/arch/hosted/test_zxvd_irc.sh` runs the IRC engine with no network,
+then `irc.*` behind the RPC layer over real sockets with the repo's TLS
+client pinned to the gateway (every signed record checked with ML-DSA-87,
+the bridge against the gateway itself), and `test_zxvd_irc.py ZXVD` drives
+a real zxvd with OpenSSL as the client.
 
 ## Honest limits
 
@@ -1082,6 +1177,10 @@ own Python X25519 and ChaCha20-Poly1305 (checked against the RFC vectors).
   memory on sandbox ledgers, not in the owner's books; see their section.
 - The Web4 envelope feed signs and holds envelopes but delivers none, and
   lives in memory; see its section.
+- The IRC gateway is a door on this machine, not a network: 16 clients, no
+  channel operators or modes, no history, and its signatures say what the
+  gateway relayed, not who typed it. Not on Windows yet. See
+  docs/IRC_GATEWAY.md.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

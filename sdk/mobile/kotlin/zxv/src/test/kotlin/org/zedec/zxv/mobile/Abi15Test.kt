@@ -56,9 +56,11 @@ class Abi15Test {
         assertEquals(1L shl 12, Permission.AIPI.bit)
         assertEquals(1L shl 13, Permission.MINT.bit)
         assertEquals(1L shl 14, Permission.PARADOX.bit)
-        assertEquals((1L shl 15) - 1, Permission.mask(Permission.all()))
+        // ABI 1.6 added VINO (1 << 15); the 1.5 mask keeps its value.
+        assertEquals((1L shl 15) - 1, Permission.ALL_1_5)
+        assertEquals(Permission.ALL_1_5, Permission.mask(Permission.all() - Permission.VINO))
         ZxvContext.create().use { ctx ->
-            V15.root(ctx).use { cap -> assertEquals(Permission.all(), cap.info().permissions, "a 1.5 library keeps the new bits") }
+            V15.root(ctx).use { cap -> assertEquals(Permission.all(), cap.info().permissions, "the library keeps the new bits") }
         }
     }
 

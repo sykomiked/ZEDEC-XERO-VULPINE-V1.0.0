@@ -9,6 +9,7 @@ import { Hashes, SecretKey } from './crypto.js';
 import { Fees } from './fee.js';
 import { FreightCodec } from './freight.js';
 import { Paradox } from './paradox.js';
+import { Vino } from './vino.js';
 import { Treaties } from './treaty.js';
 import { Web4 } from './web4.js';
 import { usage } from './errors.js';
@@ -64,7 +65,7 @@ export const Feature = Object.freeze({
 export type FeatureName = keyof typeof Feature;
 
 /**
- * ABI 1.5 feature bits (`ZXV_FEAT2_*`), reported through the second mask
+ * ABI 1.5+ feature bits (`ZXV_FEAT2_*`), reported through the second mask
  * ({@link Zxv.featureMask2}). A group not built into the library leaves its
  * bit clear and refuses every call with ZXV_E_NOTIMPL.
  */
@@ -85,6 +86,8 @@ export const Feature2 = Object.freeze({
   WEB4: 0x00000040,
   /** The paradox engine. */
   PARADOX: 0x00000080,
+  /** Vino Embed: play-lane vouchers, payment requests and receipts (ABI 1.6). */
+  VINO: 0x00000100,
 } as const);
 /** A Feature2 name. */
 export type Feature2Name = keyof typeof Feature2;
@@ -376,6 +379,12 @@ export class Zxv {
   readonly web4: Web4;
   /** The paradox engine's pure functions (ABI 1.5); books are {@link ParadoxBook}. */
   readonly paradox: Paradox;
+  /**
+   * Vino Embed's pure side (ABI 1.6): receipt messages and offline receipt
+   * checks. Requests are {@link PaymentRequest}, receipts {@link Receipt},
+   * the play lane {@link VinoPlay} and the daily meter {@link SpendMeter}.
+   */
+  readonly vino: Vino;
   readonly #features: number;
   readonly #features2: number;
 
@@ -387,8 +396,8 @@ export class Zxv {
     const pat = new Uint32Array(1);
     core.call(core, 'zxv_version', maj, min, pat);
     this.version = Object.freeze({ major: maj[0] ?? 0, minor: min[0] ?? 0, patch: pat[0] ?? 0 });
-    if (this.version.major !== 1 || this.version.minor < 5) {
-      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.5+): ${backend.origin}`);
+    if (this.version.major !== 1 || this.version.minor < 6) {
+      throw usage(`libzxv ABI ${this.version.major}.${this.version.minor} is not supported (need 1.6+): ${backend.origin}`);
     }
     const f = new Uint32Array(1);
     core.call(core, 'zxv_features', f);
@@ -405,6 +414,7 @@ export class Zxv {
     this.freight = new FreightCodec(owner);
     this.web4 = new Web4(owner);
     this.paradox = new Paradox(owner);
+    this.vino = new Vino(owner);
     this.hashes = new Hashes(core);
     this.wire = new KernelWire(core);
     this.kernel = new KernelExact(core);

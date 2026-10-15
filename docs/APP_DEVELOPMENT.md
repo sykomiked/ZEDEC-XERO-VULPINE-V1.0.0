@@ -37,7 +37,7 @@ The template shows the shape every app uses:
 - **A key handler, a tick and a render**, wired to the launcher.
 - **A main loop** that yields with `m5_syscall(M5_SYS_YIELD, …)`.
 
-Real examples of the same shape are in `kernel/src/apps/`: `notes_app.c` (it has a test, `test_notes.c`), `wallet_app.c`, `clock_app.c` and `treaty_app.c`. Register a new app in `kernel/src/apps/apps.c` and `apps.h`.
+A real example of the same shape is `kernel/src/apps/notes_app.c` (it has a test, `test_notes.c`); `wallet_app.c`, `clock_app.c` and `treaty_app.c` were moved to `kernel/experimental/m5_apps` because they do not build (`kernel/experimental/README.md`). Register a new app in `kernel/src/apps/apps.c` and `apps.h`.
 
 ### 1.3 Documents and editing: AppKit
 

@@ -111,7 +111,9 @@ dm_status_t dm_money_confirm_local(dm_mesh_t *m, const dm_money_t *a, bool appro
 dm_status_t dm_money_verify(dm_mesh_t *m, const dm_money_t *a, const dm_confirm_t *c,
                             uint64_t now_ms);
 /* Ask held device `peer` to confirm `a`; the answer arrives at
- * host.on_money_answer, already verified. */
+ * host.on_money_answer, already verified. Only `peer` can answer (approve
+ * or decline): a MONEY_ANSWER from any other device is dropped and the
+ * request stays pending. Asking again replaces the pending request. */
 dm_status_t dm_money_ask(dm_mesh_t *m, const uint8_t peer[DM_ID_BYTES], const dm_money_t *a,
                          uint64_t now_ms);
 /* Held device: answer the last action shown by host.on_money. */

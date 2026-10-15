@@ -120,7 +120,7 @@ static void test_group(void)
           "group shape");
     for (uint32_t i = 0; i < g->n_methods; i++) CHECK(g->methods[i].always, "method %u always", i);
     const char *d = rpc(req("rpc.discover"));
-    CHECK(strstr(d, "\"backup.prune\",\"companion.dna\",\"companion.generation\","
+    CHECK(strstr(d, "\"web4.card_verify\",\"companion.dna\",\"companion.generation\","
                     "\"companion.mood\"]") != NULL,
           "discover lists the companion methods: %.300s", d);
     EXPECT(req("features.get"),

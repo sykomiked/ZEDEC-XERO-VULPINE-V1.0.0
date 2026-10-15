@@ -31,7 +31,8 @@ BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
-	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c \
+	$(K)/src/tensor/zt_gpu.c
 # macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
 ifeq ($(shell uname -s),Darwin)
 TENSOR_SRCS += $(K)/src/tensor/zt_metal.m

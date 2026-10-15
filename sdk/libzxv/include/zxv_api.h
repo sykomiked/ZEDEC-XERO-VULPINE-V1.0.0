@@ -103,7 +103,7 @@ extern "C" {
 
 /* ===== Version ===== */
 #define ZXV_ABI_VERSION_MAJOR 1
-#define ZXV_ABI_VERSION_MINOR 5
+#define ZXV_ABI_VERSION_MINOR 6
 #define ZXV_ABI_VERSION_PATCH 0
 
 /* ===== Status codes (stable; never renumbered) ===== */
@@ -3761,6 +3761,281 @@ ZXV_API int32_t zxv_paradox_graph_info(const zxv_paradox_graph *g, uint32_t *out
                                        uint8_t out_chain[32]);
 
 /* ===== end paradox ===== */
+
+/* ===== vino (ABI 1.6): Vino Embed: Play-lane vouchers, payment requests and receipts ===== */
+
+/* What an app or game needs to take part in Vino without ever holding
+ * anyone's value or keys. Two lanes, which never meet:
+ *
+ *   PLAY  a sandbox inside the app (zxv_vino_play). It has its own play
+ *         units (asset "PLAY", never VFV), its own issuers, holders and
+ *         Fibonacci-face vouchers, and lives in process memory only.
+ *         Nothing in this ABI takes a play handle and something live, so a
+ *         play unit can never be converted, redeemed for, or moved into
+ *         live value (invariant L6). Games use it freely.
+ *   LIVE  real Vino, held in the user's own ZXV wallet, never in the app.
+ *         The app builds a payment REQUEST (zxv_vino_request_encode); the
+ *         user approves it in their wallet, which signs a RECEIPT with its
+ *         ML-DSA-87 key (zxv_vino_receipt_sign, wallet side); the app
+ *         checks the receipt offline (zxv_vino_receipt_verify). The app
+ *         never sees a balance, a key or a custody account.
+ *
+ * VOUCHERS (play lane). A voucher is one coin: its face is a Fibonacci
+ * ladder face (zxv_coin_face), held by one holder on exactly ONE active
+ * rail at a time: BEARER (a note in the holder's hand) or GHOST (its twin
+ * on the ledger). A transfer must name the active rail (else ZXV_E_RAIL),
+ * so one coin can never be spent on both. Switching rails moves nothing.
+ *
+ * COVERAGE. An issuer posts play backing (zxv_vino_play_back) and may only
+ * issue while its backing stays at least 1.8x everything it has outstanding:
+ *   10 * backing >= 18 * outstanding     (exact integers, no rounding)
+ * An issue that would break this is refused (ZXV_E_COVERAGE), and so is a
+ * withdrawal of backing. Redeeming a voucher returns it to its issuer and
+ * retires it: outstanding falls, and nothing is paid out to anyone. There
+ * is no call that turns a voucher into backing, play units, or anything
+ * else, and no interest, yield or return of any kind.
+ *
+ * REQUESTS AND RECEIPTS (both lanes). A request is a fixed
+ * ZXV_VINO_REQ_BYTES-byte canonical record (layout below); its id is
+ * SHA-256 of those bytes. A receipt is the wallet's ML-DSA-87 signature
+ * (empty FIPS 204 context) over ZXV_VINO_RCPT_MSG_BYTES bytes: the tag
+ * "zxv/vino-rcpt/v1" || request id || SHA-256(wallet public key) ||
+ * approved_at (8 bytes LE). The request carries its expiry; a receipt for
+ * an expired request, or approved after expiry, is ZXV_E_EXPIRED.
+ * A LIVE request that marks a paid chance outcome (ZXV_VINO_REQ_CHANCE:
+ * loot boxes, paid draws) is refused when it is encoded (ZXV_E_CHANCE).
+ * The raffle is a separate module, not a payment request.
+ *
+ * DAILY CAP. A deployment may set a per-device daily cap. zxv_vino_meter
+ * counts what one device approved per day index and refuses an amount
+ * that would pass the cap (ZXV_E_LIMIT). It is a counter, not a legal
+ * check, and makes no exemption claim.
+ *
+ * CAPABILITIES. Every play-lane call and the meter need ZXV_CAP_VINO from
+ * a cap of the handle's context (else ZXV_E_CAP; a poisoned context gives
+ * ZXV_E_POISONED). Encoding a request, building a receipt message and
+ * verifying a receipt are pure and need no cap. Signing a receipt needs
+ * ZXV_CAP_CRYPTO_SIGN (it is the wallet's call, not the app's).
+ *
+ * NOT IN THIS ABI, by design: minting live Vino, setting pegs, any fiat
+ * on-ramp or off-ramp, V-Bill auctions or bids, V-Bonds and derivatives,
+ * and every operator or steward action. They are never app-facing.
+ *
+ * THREADING (R6). A zxv_vino_play or zxv_vino_meter may be used from
+ * several threads; its calls are serialized by an internal lock. Destroy it
+ * once, after every other call on it has returned, and before its context.
+ *
+ * HONEST LIMITS. Play units are not money and are lost on destroy. The
+ * LIVE flow here is the app's half only: approving a request happens in
+ * the user's wallet (zxvd), which posts the payment on its own ledger.
+ * ML-DSA-87 here is the reference implementation, not FIPS 140-3
+ * validated. Whether a given deployment of Vino is store credit, a
+ * prepaid access product or something else is a legal question pending
+ * counsel; nothing in this ABI decides it. */
+
+#define ZXV_FEAT2_VINO 0x00000100u /* Vino Embed: play lane, requests, receipts */
+
+#define ZXV_CAP_VINO (UINT64_C(1) << 15) /* play-lane vouchers and the spend meter */
+/* ZXV_CAP_ALL keeps its 1.1 value forever; this is every bit as of 1.6. */
+#define ZXV_CAP_ALL_1_6 ((UINT64_C(1) << 16) - 1)
+
+#define ZXV_E_RAIL     (-46) /* not the voucher's active rail (bearer/ghost)   */
+#define ZXV_E_COVERAGE (-47) /* would take an issuer below 1.8x coverage       */
+#define ZXV_E_LANE     (-48) /* wrong lane for this call (play vs live)        */
+#define ZXV_E_EXPIRED  (-49) /* the request expired, or was approved too late  */
+#define ZXV_E_CHANCE   (-50) /* a paid chance outcome in a live request        */
+/* -51 .. -59 are reserved for the vino group. */
+
+typedef struct zxv_vino_play zxv_vino_play;   /* one play-lane sandbox      */
+typedef struct zxv_vino_meter zxv_vino_meter; /* one device's daily counter */
+
+#define ZXV_VINO_RAIL_BEARER 0 /* the note in the holder's hand  */
+#define ZXV_VINO_RAIL_GHOST  1 /* its twin on the play ledger     */
+
+#define ZXV_VINO_LANE_PLAY 1
+#define ZXV_VINO_LANE_LIVE 2
+
+#define ZXV_VINO_MAX_ACCOUNTS 256u  /* issuers + holders per play sandbox */
+#define ZXV_VINO_MAX_VOUCHERS 4096u /* live (unredeemed) vouchers         */
+#define ZXV_VINO_AMOUNT_MAX   (UINT64_C(1) << 59)
+
+/* Voucher states (zxv_vino_voucher_info). */
+#define ZXV_VINO_V_ACTIVE   1
+#define ZXV_VINO_V_REDEEMED 2
+
+/* --- play lane --------------------------------------------------------- */
+
+/* Create an empty play sandbox on the cap's context (needs VINO). It holds
+ * no accounts. ZXV_E_ARG (out NULL), ZXV_E_CAP, ZXV_E_POISONED,
+ * ZXV_E_NOMEM. */
+ZXV_API int32_t zxv_vino_play_create(const zxv_cap *cap, zxv_vino_play **out);
+/* Destroy it (R6: before its context). NULL is ignored. */
+ZXV_API void zxv_vino_play_destroy(zxv_vino_play *p);
+
+/* Open an account for `owner` (an id of the caller's choosing; owners need
+ * not be distinct). is_issuer 1 opens an issuer, 0 a holder. Account ids
+ * count up from 0. ZXV_E_ARG (NULL p or out, is_issuer not 0/1),
+ * ZXV_E_CAPACITY (ZXV_VINO_MAX_ACCOUNTS open), ZXV_E_CAP, ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_play_open(const zxv_cap *cap, zxv_vino_play *p, uint32_t owner,
+                                   int32_t is_issuer, uint32_t *out_account);
+/* Post `amount` play units of backing to an issuer (the play faucet: play
+ * units come from nowhere and are worth nothing). ZXV_E_ARG (NULL p, not
+ * an issuer), ZXV_E_NOT_FOUND (no such account), ZXV_E_RANGE (amount 0,
+ * above ZXV_VINO_AMOUNT_MAX, or backing would pass 2^62), ZXV_E_CAP,
+ * ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_play_back(const zxv_cap *cap, zxv_vino_play *p, uint32_t issuer,
+                                   uint64_t amount);
+/* Withdraw `amount` of an issuer's backing, only while it stays at 1.8x
+ * coverage. ZXV_E_COVERAGE (it would not), ZXV_E_FUNDS (more than its
+ * backing), plus play_back's codes. A refusal changes nothing. */
+ZXV_API int32_t zxv_vino_play_unback(const zxv_cap *cap, zxv_vino_play *p, uint32_t issuer,
+                                     uint64_t amount);
+
+/* Issue one voucher of Fibonacci face `face` from `issuer` to `holder` on
+ * `rail`. Its id (> 0, never reused in this sandbox) goes to *out_id.
+ * ZXV_E_DENOM (face not a ladder face), ZXV_E_COVERAGE (issuer would fall
+ * below 1.8x), ZXV_E_ARG (NULL p or out, issuer not an issuer, holder not
+ * a holder, rail not BEARER/GHOST), ZXV_E_NOT_FOUND, ZXV_E_CAPACITY
+ * (ZXV_VINO_MAX_VOUCHERS active), ZXV_E_NOMEM (the voucher table could
+ * not grow; redeemed vouchers stay listed by id), ZXV_E_CAP,
+ * ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_issue(const zxv_cap *cap, zxv_vino_play *p, uint32_t issuer,
+                               uint32_t holder, uint64_t face, int32_t rail, uint64_t *out_id);
+/* Move an active voucher from its holder `from` to holder `to`, spending it
+ * on `rail`, which must be its active rail. The rail does not change.
+ * ZXV_E_RAIL (not the active rail), ZXV_E_STATE (redeemed), ZXV_E_ARG
+ * (`from` is not its holder, `to` not a holder, from == to, bad rail),
+ * ZXV_E_NOT_FOUND (no such voucher or account), ZXV_E_CAP, ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_transfer(const zxv_cap *cap, zxv_vino_play *p, uint64_t voucher,
+                                  uint32_t from, uint32_t to, int32_t rail);
+/* Switch an active voucher, by its holder, to `rail` (BEARER <-> GHOST).
+ * Switching to the rail it is already on is ZXV_E_RAIL. ZXV_E_STATE,
+ * ZXV_E_ARG (not its holder, bad rail), ZXV_E_NOT_FOUND, ZXV_E_CAP,
+ * ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_set_rail(const zxv_cap *cap, zxv_vino_play *p, uint64_t voucher,
+                                  uint32_t holder, int32_t rail);
+/* Redeem an active voucher, by its holder, to its issuer: it is retired
+ * and the issuer's outstanding falls by its face. Nothing is paid out.
+ * ZXV_E_STATE (already redeemed), ZXV_E_ARG (not its holder),
+ * ZXV_E_NOT_FOUND, ZXV_E_CAP, ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_redeem(const zxv_cap *cap, zxv_vino_play *p, uint64_t voucher,
+                                uint32_t holder);
+
+/* A voucher's face, issuer, holder, active rail and state (ZXV_VINO_V_*).
+ * Any out may be NULL. ZXV_E_NOT_FOUND, ZXV_E_ARG, ZXV_E_CAP,
+ * ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_voucher_info(const zxv_cap *cap, zxv_vino_play *p, uint64_t voucher,
+                                      uint64_t *out_face, uint32_t *out_issuer,
+                                      uint32_t *out_holder, int32_t *out_rail, int32_t *out_state);
+/* An account's owner, kind (1 issuer, 0 holder) and totals. For an issuer:
+ * its backing and the faces it has outstanding; for a holder: 0 and the
+ * faces it holds. *out_count is the number of active vouchers it issued
+ * (issuer) or holds (holder). Any out may be NULL. ZXV_E_NOT_FOUND,
+ * ZXV_E_ARG, ZXV_E_CAP, ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_account_info(const zxv_cap *cap, zxv_vino_play *p, uint32_t account,
+                                      uint32_t *out_owner, int32_t *out_is_issuer,
+                                      uint64_t *out_backing, uint64_t *out_faces,
+                                      uint32_t *out_count);
+/* The ids of the active vouchers an account issued or holds, ascending.
+ * Writes *out_count always; ids[] only when it fits `cap_len` (else
+ * ZXV_E_BUFFER, ids untouched; ids may be NULL when the count is 0). ZXV_E_NOT_FOUND, ZXV_E_ARG,
+ * ZXV_E_CAP, ZXV_E_POISONED. */
+ZXV_API int32_t zxv_vino_vouchers(const zxv_cap *cap, zxv_vino_play *p, uint32_t account,
+                                  uint64_t *ids, size_t cap_len, size_t *out_count);
+/* Re-check every invariant: each active voucher has a ladder face, one
+ * rail, an issuer and a holder; each issuer's outstanding equals the sum
+ * of its active faces and 10*backing >= 18*outstanding; each holder's
+ * total equals what it holds. ZXV_OK, or ZXV_E_INVARIANT (the context is
+ * poisoned). Needs VINO. */
+ZXV_API int32_t zxv_vino_play_check(const zxv_cap *cap, zxv_vino_play *p);
+
+/* --- payment requests (pure) ------------------------------------------- */
+
+#define ZXV_VINO_REQ_BYTES       160u
+#define ZXV_VINO_MEMO_MAX        64u  /* printable ASCII 0x20..0x7e      */
+#define ZXV_VINO_RCPT_MSG_BYTES  88u  /* 16 tag + 32 + 32 + 8            */
+#define ZXV_VINO_REQ_CHANCE      0x1u /* the purchase has a paid chance outcome */
+#define ZXV_VINO_REQ_FLAGS_KNOWN 0x1u
+
+/* A payment request. Encoded as ZXV_VINO_REQ_BYTES bytes:
+ *   0   "ZXVR"            4  version (1)        5  lane (1 or 2)
+ *   6   flags (2, LE)     8  merchant (32)     40  nonce (16)
+ *   56  amount (8, LE)   64  created_at (8, LE) 72 expires_at (8, LE)
+ *   80  memo length (1)  81  memo, NUL padded to 64 bytes
+ *   145 zero (15)
+ * amount is in VFV minor units for LIVE and play units for PLAY. Times are
+ * seconds of the caller's clock (Unix time is the convention). The fields
+ * are passed one by one (rule R2: no struct crosses the ABI):
+ *   lane        ZXV_VINO_LANE_*
+ *   flags       ZXV_VINO_REQ_*
+ *   merchant    the payee's id (e.g. SHA-256 of its key)
+ *   nonce       unique per request
+ *   amount      1 .. ZXV_VINO_AMOUNT_MAX
+ *   expires_at  > created_at
+ *   memo        0..64 printable ASCII bytes (0x20..0x7e), NUL-terminated;
+ *               NULL means "" */
+
+/* Encode a request into out[ZXV_VINO_REQ_BYTES] and its id
+ * (SHA-256 of those bytes) into out_id (may be NULL). ZXV_E_LANE (lane not
+ * 1 or 2), ZXV_E_FORMAT (unknown flag, memo not printable ASCII),
+ * ZXV_E_CHANCE (a LIVE request with ZXV_VINO_REQ_CHANCE), ZXV_E_RANGE
+ * (amount 0 or too large, expires_at <= created_at), ZXV_E_TOO_LONG (memo
+ * above 64 bytes), ZXV_E_ARG (NULL merchant, nonce or out). A refusal
+ * writes nothing. */
+ZXV_API int32_t zxv_vino_request_encode(int32_t lane, uint32_t flags, const uint8_t merchant[32],
+                                        const uint8_t nonce[16], uint64_t amount,
+                                        uint64_t created_at, uint64_t expires_at, const char *memo,
+                                        uint8_t out[160], uint8_t out_id[32]);
+/* Decode and validate request bytes: the same rules as encode, plus the
+ * magic, version and zero padding (ZXV_E_FORMAT). Every out may be NULL;
+ * memo (if not NULL) receives the memo NUL-terminated, so it has room for
+ * ZXV_VINO_MEMO_MAX + 1 bytes. A refusal writes nothing. ZXV_E_ARG (in
+ * NULL). */
+ZXV_API int32_t zxv_vino_request_decode(const uint8_t in[160], int32_t *out_lane,
+                                        uint32_t *out_flags, uint8_t out_merchant[32],
+                                        uint8_t out_nonce[16], uint64_t *out_amount,
+                                        uint64_t *out_created_at, uint64_t *out_expires_at,
+                                        char memo[65], uint8_t out_id[32]);
+
+/* The ZXV_VINO_RCPT_MSG_BYTES bytes a wallet signs to approve request
+ * `request_id` with key `wallet_pk` at `approved_at`. ZXV_E_ARG. */
+ZXV_API int32_t zxv_vino_receipt_msg(const uint8_t request_id[32], const uint8_t wallet_pk[2592],
+                                     uint64_t approved_at, uint8_t out[88]);
+/* Wallet side: approve a request (bytes as encoded) at approved_at, which
+ * must be within [created_at, expires_at]; sign with the wallet's
+ * ML-DSA-87 key (hedged: randomized like zxv_mldsa87_sign, so two calls
+ * give different signatures that both verify). Needs CRYPTO_SIGN.
+ * ZXV_E_EXPIRED, the decode codes,
+ * ZXV_E_NOTIMPL (ZXV_NO_PQC), ZXV_E_CAP, ZXV_E_ARG. */
+ZXV_API int32_t zxv_vino_receipt_sign(const zxv_cap *cap, const uint8_t request[160],
+                                      const uint8_t wallet_sk[4896], const uint8_t wallet_pk[2592],
+                                      uint64_t approved_at, uint8_t sig[4627]);
+/* App side, offline: is `sig` the wallet's approval of `request` at
+ * approved_at, with approved_at within the request's window and `now` not
+ * past its expiry? ZXV_OK; ZXV_E_VERIFY (not that wallet's signature over
+ * this request and time); ZXV_E_EXPIRED; the decode codes; ZXV_E_NOTIMPL
+ * (ZXV_NO_PQC); ZXV_E_ARG. Pure: no cap. */
+ZXV_API int32_t zxv_vino_receipt_verify(const uint8_t request[160], const uint8_t wallet_pk[2592],
+                                        uint64_t approved_at, const uint8_t sig[4627],
+                                        uint64_t now);
+
+/* --- the daily meter --------------------------------------------------- */
+
+/* A per-device daily counter with cap `daily_cap` (1 .. ZXV_VINO_AMOUNT_MAX)
+ * (needs VINO). ZXV_E_RANGE, ZXV_E_ARG, ZXV_E_CAP, ZXV_E_POISONED,
+ * ZXV_E_NOMEM. */
+ZXV_API int32_t zxv_vino_meter_create(const zxv_cap *cap, uint64_t daily_cap, zxv_vino_meter **out);
+ZXV_API void zxv_vino_meter_destroy(zxv_vino_meter *m);
+/* Count `amount` against day `day` (e.g. Unix time / 86400). A day above
+ * the last one starts a fresh count; a day below it is ZXV_E_RANGE (the
+ * clock went back). ZXV_E_LIMIT (the day's total would pass the cap:
+ * nothing is counted), ZXV_E_RANGE (amount 0 or too large), ZXV_E_ARG,
+ * ZXV_E_CAP, ZXV_E_POISONED. *out_left (may be NULL) is what is left today
+ * after the call, on success and on ZXV_E_LIMIT. */
+ZXV_API int32_t zxv_vino_meter_admit(const zxv_cap *cap, zxv_vino_meter *m, uint64_t day,
+                                     uint64_t amount, uint64_t *out_left);
+
+/* ===== end vino ===== */
 
 #ifdef __cplusplus
 }

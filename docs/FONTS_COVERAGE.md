@@ -12,9 +12,9 @@ characters, punctuation and digits each locale needs
 is in the locale's face or in ASCW Golden Latin II behind it.
 
 - Locales: **778**
-- Covered by their own face plus Latin II: **726**
-- Covered by the ASCW set as a whole (some characters from another member): **736**
-- With no ASCW face for their script (platform fonts draw them): **18**
+- Covered by their own face plus Latin II: **730**
+- Covered by the ASCW set as a whole (some characters from another member): **740**
+- With no ASCW face for their script (platform fonts draw them): **14**
 
 ## By script
 
@@ -38,7 +38,7 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | Rohg Hanifi Rohingya | 3 | none: platform font | 0 | rhg: 42 (U+060C U+061B U+061F U+10D00 U+10D01 U+10D02 …) |
 | Syrc Syriac | 3 | ASCW Golden Syriac | 1 | syr: 3 (U+060C U+061B U+061F) |
 | Tfng Tifinagh | 3 | ASCW Tifinagh | 3 |  |
-| Tibt Tibetan | 3 | none: platform font | 0 | dz: 93 (U+0F04 U+0F05 U+0F06 U+0F08 U+0F09 U+0F0A …) |
+| Tibt Tibetan | 3 | ASCW Golden Tibetan | 3 |  |
 | Cakm Chakma | 2 | none: platform font | 0 | ccp: 67 (U+11100 U+11101 U+11102 U+11103 U+11104 U+11105 …) |
 | Cans Canadian Aboriginal | 2 | ASCW Golden Canadian Aboriginal | 2 |  |
 | Guru Gurmukhi | 2 | ASCW Golden Gurmukhi | 2 |  |
@@ -66,7 +66,7 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | Sinh Sinhala | 1 | ASCW Golden Sinhala | 1 |  |
 | Sunu Sunuwar | 1 | none: platform font | 0 | suz-Sunu: 34 (U+11BC0 U+11BC1 U+11BC2 U+11BC3 U+11BC4 U+11BC5 …) |
 | Tavt Tai Viet | 1 | ASCW Golden Tai Viet | 1 |  |
-| Thaa Thaana | 1 | none: platform font | 0 | dv: 35 (U+0780 U+0781 U+0782 U+0783 U+0784 U+0785 …) |
+| Thaa Thaana | 1 | ASCW Golden Thaana | 1 |  |
 | Thai Thai | 1 | ASCW Golden Thai | 1 |  |
 | Yiii Yi | 1 | ASCW Golden Yi | 0 | ii: 73 (U+3003 U+301D U+301E U+FE30 U+FE31 U+FE33 …) |
 
@@ -101,6 +101,8 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | ASCW-Golden-Lao.ttf | ASCW Golden Lao | script | Laoo | 74 |
 | ASCW-Golden-Khmer.ttf | ASCW Golden Khmer | script | Khmr | 153 |
 | ASCW-Golden-Myanmar.ttf | ASCW Golden Myanmar | script | Mymr | 230 |
+| ASCW-Golden-Tibetan.ttf | ASCW Golden Tibetan | script | Tibt | 552 |
+| ASCW-Golden-Thaana.ttf | ASCW Golden Thaana | script | Thaa | 408 |
 | ASCW-Golden-Ethiopic.ttf | ASCW Golden Ethiopic | script | Ethi | 530 |
 | ASCW-Golden-Cherokee.ttf | ASCW Golden Cherokee | script | Cher | 186 |
 | ASCW-Golden-CanadianAboriginal.otf | ASCW Golden Canadian Aboriginal | script | Cans | 738 |
@@ -165,12 +167,8 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | as Assamese | Beng | ASCW Golden Bengali | 1 U+0964 | 0 |
 | bn Bangla | Beng | ASCW Golden Bengali | 2 U+0964 U+0965 | 0 |
 | bn-IN Bangla (India) | Beng | ASCW Golden Bengali | 2 U+0964 U+0965 | 0 |
-| bo Tibetan | Tibt | none | 87 U+0F40 U+0F41 U+0F42 U+0F44 … | 87 |
-| bo-IN Tibetan (India) | Tibt | none | 87 U+0F40 U+0F41 U+0F42 U+0F44 … | 87 |
 | ccp Chakma | Cakm | none | 67 U+11100 U+11101 U+11102 U+11103 … | 67 |
 | ccp-IN Chakma (India) | Cakm | none | 67 U+11100 U+11101 U+11102 U+11103 … | 67 |
-| dv Divehi | Thaa | none | 35 U+0780 U+0781 U+0782 U+0783 … | 35 |
-| dz Dzongkha | Tibt | none | 93 U+0F04 U+0F05 U+0F06 U+0F08 … | 93 |
 | en-Dsrt English (Deseret) | Dsrt | none | 40 U+10428 U+10429 U+1042A U+1042B … | 40 |
 | en-Shaw English (Shavian) | Shaw | none | 48 U+10450 U+10451 U+10452 U+10453 … | 48 |
 | hnj Hmong Njua | Hmnp | none | 66 U+1E100 U+1E101 U+1E102 U+1E103 … | 66 |

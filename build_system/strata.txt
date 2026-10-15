@@ -39,11 +39,14 @@ tls/hkdf                         base       # RFC 5869
 tls/x25519                       base       # RFC 7748
 tls/sha512                       base       # SHA-384/512 (FIPS 180-4)
 tls/digest                       base       # SHA-2 dispatch for the signature code
-tls/bn                           base       # Montgomery arithmetic, verification only
+tls/bn                           base       # Montgomery arithmetic (constant time)
 tls/ecdsa                        base       # P-256/P-384 ECDSA verification
+tls/ecdsa_int                    base       # the curve arithmetic ecdsa.c shares with ecdsa_sign.c
+tls/ecdsa_sign                   base       # RFC 6979 P-256 signing (the IRC gateway's certificate key)
 tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
+qr                               base       # QR Code encoder: pure bytes to modules
 
 # ---- S1 kernel and hardware abstraction
 acpi                             kernel
@@ -56,6 +59,7 @@ cellular_multikernel             kernel
 choice                           kernel
 clock                            kernel
 codec                            kernel
+crash                            kernel     # crash records on disk and boot modes (safe, recovery)
 deploy                           kernel
 display                          kernel
 el0_userspace                    kernel
@@ -71,6 +75,7 @@ keyboard                         kernel
 license                          kernel
 mbcomp                           kernel
 mm                               kernel
+pmm                              kernel     # four-state physical frame allocator; el0_userspace takes user pages from it
 modbind                          kernel
 mouse                            kernel
 oseq                             kernel
@@ -78,6 +83,7 @@ pci                              kernel
 phase_coord                      kernel
 power                            kernel     # energy ledger per app and agent, battery, budgets; RAPL reader
 pic                              kernel
+qeq                              kernel # exact circuit equivalence checker over qsim
 quantum                          kernel
 qsim                             kernel     # exact float-free circuit simulator (#83 research track Q.1/Q.2), beside quantum
 recon                            kernel
@@ -88,7 +94,6 @@ syscall                          kernel
 telemetry                        kernel
 timer                            kernel
 timesvc                          kernel     # wall-clock time (RTC, SNTP) and time zones
-tripartite_fs                    kernel
 trispace                         kernel
 vbe                              kernel
 vfs                              kernel
@@ -114,6 +119,10 @@ plnp                             transport
 porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
 stream                           transport
 swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
+bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
+bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)
+bootattest                       trust      # measured-boot quote and golden manifest, ML-DSA signed
+ztp                              trust      # ZHP-1 provisioning profile and owner claim
 
 # ---- S3 trust and identity: post-quantum crypto, identity, capabilities, PQ sessions
 ascent                           trust
@@ -140,6 +149,7 @@ robin_debanks                    trust
 tls                              trust
 update                           trust
 vinea                            trust      # the DHT's wire carries PQ identities (vna_id.h includes vna_pq.h), so the protocol sits in trust
+aproto                           trust      # protocol twins: records over vinea sessions, audit chain (docs/P2P_PROTOCOL_TWINS.md)
 zab                              trust
 zxvfs/zxvfs_tri                  trust      # capability-gated storage: calls zab to decide who may execute a triad
 
@@ -149,8 +159,12 @@ dharma                           logic
 panopticon                       logic
 peer_audit                       logic
 predictive                       logic
+qubo                             logic # QUBO/Ising workbench with proven gap certificates
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+recover                          logic      # refuse / roll back / isolate with signed RepairProofs over paradox (gap B5)
+tripartite_fs                    logic      # its CID-checked self-heal runs through recover (S4); no module includes it
+pce                              logic      # paraconsistent decision engines: probability, tactics, strategy, finance analytics
 spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
 
 # ---- S5 AI runtime and swarm
@@ -168,11 +182,13 @@ voice                            ai
 web4                             ai
 xlate                            ai
 aipi                             ai         # AI pinning index; stores model blobs through ipfs_node (S2)
+edgeclus                         ai         # edge cluster scheduler on the swarm token budget; adverts signed through vinea (S3)
 
 # ---- S6 settlement and economy
 abacus                           settlement
 battering_ram                    settlement
 capmkt                           settlement
+gridlock                         settlement # RTGS gridlock resolution, exact
 qnet                             settlement # netting optimiser: greedy cycles, min-cost circulation, annealer (#83 Q.6)
 cardnet                          settlement
 cbank                            settlement
@@ -205,14 +221,17 @@ vauction                         settlement
 vbond                            settlement
 vderiv                           settlement
 vswap                            settlement
+xrisk                            settlement # exact discrete loss distributions (VaR, ES)
 zenny                            settlement
 zstats                           settlement # the stats feed reads the other finance modules
 cred                             settlement # Player Card tiers through sicily
+airc                             settlement # agent relay chat; trust tiers from cred
 dispute                          settlement
 fxepoch                          settlement
 mint                             settlement
 qnote                            settlement # first loss through svault
 royalty                          settlement
+bearer/br_devmesh                settlement # wraps devmesh host send (devmesh is S6)
 
 # ---- S7 adapters: jurisdiction, formats, legacy languages, the five pillars
 acct                             adapters   # IFRS / US GAAP / AAOIFI accounting adapters
@@ -247,6 +266,10 @@ sutra                            adapters
 hwemu                            adapters   # hardware-state emulation standard; dual-signed updates include pqsec (S3)
 fwadapt                          adapters   # smart firmware adapter; writes its decisions into hwemu ZHP-1 nodes
 treaty                           adapters   # COBOL/Sutra treaty pillar; runs on engine (S6)
+capctl                           adapters   # capital-control profiles (jurisdiction plug-in, off by default)
+kycwrap                          adapters   # minimal-disclosure KYC wrapper (off by default)
+taxhook                          adapters   # VAT/GST/sales-tax hooks (off by default)
+lingua                           adapters   # shared language IR + FORTRAN/BASIC/Forth front-ends and AI twins; freestanding
 policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
 # ---- S8 above the strata: products, apps and people features

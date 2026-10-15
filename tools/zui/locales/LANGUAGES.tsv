@@ -1,0 +1,108 @@
+# The user-space languages: one line per zui locale, in table order.
+# tag	English name	script	group	note
+# The first 30 shipped in PR #110; the rest were added for "as many spoken
+# languages as coding languages". Order inside a group is by speakers.
+en	English	Latn	Europe	source language of the reader's words
+es	Spanish	Latn	Europe
+fr	French	Latn	Europe
+de	German	Latn	Europe
+pt	Portuguese	Latn	Europe
+it	Italian	Latn	Europe
+ru	Russian	Cyrl	Europe
+uk	Ukrainian	Cyrl	Europe
+pl	Polish	Latn	Europe
+ar	Arabic	Arab	West Asia and North Africa
+he	Hebrew	Hebr	West Asia and North Africa
+fa	Persian	Arab	West Asia and North Africa
+ur	Urdu	Arab	South Asia
+hi	Hindi	Deva	South Asia
+bn	Bangla	Beng	South Asia
+ta	Tamil	Taml	South Asia
+zh-Hans	Chinese (Simplified)	Hans	East Asia
+zh-Hant	Chinese (Traditional)	Hant	East Asia
+ja	Japanese	Jpan	East Asia
+ko	Korean	Kore	East Asia
+th	Thai	Thai	Southeast Asia
+vi	Vietnamese	Latn	Southeast Asia
+tr	Turkish	Latn	West Asia and North Africa
+id	Indonesian	Latn	Southeast Asia
+sw	Swahili	Latn	Africa
+am	Amharic	Ethi	Africa
+yo	Yoruba	Latn	Africa
+ha	Hausa	Latn	Africa
+el	Greek	Grek	Europe
+nl	Dutch	Latn	Europe
+mr	Marathi	Deva	South Asia
+te	Telugu	Telu	South Asia
+gu	Gujarati	Gujr	South Asia
+kn	Kannada	Knda	South Asia
+ml	Malayalam	Mlym	South Asia
+pa	Punjabi	Guru	South Asia
+or	Odia	Orya	South Asia
+as	Assamese	Beng	South Asia
+ne	Nepali	Deva	South Asia
+si	Sinhala	Sinh	South Asia
+sd	Sindhi	Arab	South Asia
+ps	Pashto	Arab	South Asia
+sat	Santali	Olck	South Asia	Indigenous (Adivasi)
+dv	Dhivehi	Thaa	South Asia
+ms	Malay	Latn	Southeast Asia
+fil	Filipino	Latn	Southeast Asia
+jv	Javanese	Latn	Southeast Asia
+su	Sundanese	Latn	Southeast Asia
+my	Burmese	Mymr	Southeast Asia
+km	Khmer	Khmr	Southeast Asia
+lo	Lao	Laoo	Southeast Asia
+mn	Mongolian	Cyrl	East Asia
+bo	Tibetan	Tibt	East Asia
+yue	Cantonese	Hant	East Asia
+kk	Kazakh	Cyrl	Central Asia and Caucasus
+uz	Uzbek	Latn	Central Asia and Caucasus
+ky	Kyrgyz	Cyrl	Central Asia and Caucasus
+tg	Tajik	Cyrl	Central Asia and Caucasus
+tk	Turkmen	Latn	Central Asia and Caucasus
+az	Azerbaijani	Latn	Central Asia and Caucasus
+ka	Georgian	Geor	Central Asia and Caucasus
+hy	Armenian	Armn	Central Asia and Caucasus
+ckb	Central Kurdish	Arab	West Asia and North Africa
+ug	Uyghur	Arab	Central Asia and Caucasus
+ro	Romanian	Latn	Europe
+cs	Czech	Latn	Europe
+hu	Hungarian	Latn	Europe
+sv	Swedish	Latn	Europe
+bg	Bulgarian	Cyrl	Europe
+sr	Serbian	Cyrl	Europe
+hr	Croatian	Latn	Europe
+sk	Slovak	Latn	Europe
+da	Danish	Latn	Europe
+fi	Finnish	Latn	Europe
+nb	Norwegian Bokmål	Latn	Europe
+lt	Lithuanian	Latn	Europe
+be	Belarusian	Cyrl	Europe
+ca	Catalan	Latn	Europe
+cy	Welsh	Latn	Europe
+ga	Irish	Latn	Europe
+zu	Zulu	Latn	Africa
+xh	Xhosa	Latn	Africa
+ig	Igbo	Latn	Africa
+so	Somali	Latn	Africa
+om	Oromo	Latn	Africa
+ti	Tigrinya	Ethi	Africa
+rw	Kinyarwanda	Latn	Africa
+mg	Malagasy	Latn	Africa
+sn	Shona	Latn	Africa
+wo	Wolof	Latn	Africa
+ln	Lingala	Latn	Africa
+af	Afrikaans	Latn	Africa
+ff	Fula	Latn	Africa
+nqo	N'Ko	Nkoo	Africa
+zgh	Standard Moroccan Tamazight	Tfng	Africa	Indigenous (Amazigh)
+qu	Quechua	Latn	Americas	Indigenous
+gn	Guarani	Latn	Americas	Indigenous
+chr	Cherokee	Cher	Americas	Indigenous
+nv	Navajo	Latn	Americas	Indigenous
+mi	Māori	Latn	Pacific	Indigenous
+haw	Hawaiian	Latn	Pacific	Indigenous
+iu	Inuktitut	Cans	Americas	Indigenous
+se	Northern Sami	Latn	Europe	Indigenous
+ht	Haitian Creole	Latn	Americas

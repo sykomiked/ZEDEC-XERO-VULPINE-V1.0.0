@@ -1691,6 +1691,17 @@ static int32_t forward(const zt_model_t *m, zt_model_state_t *s, const int32_t *
         r = zt_gguf_dequant(&m->embd, (uint64_t) tok[b] * ne, ne, s->x + b * ne);
         if (r) return r;
     }
+    /* the whole pass on an accelerator (zt_kern.h fwd_full), when it takes it */
+    const zt_kern_t *K = m->kern;
+    if (K && K->fwd_full && !m->dist && !s->lora && !s->tap && s->kv_type == ZT_KV_Q16) {
+        uint32_t ns = 0;
+        if (!K->fwd_full(K->fctx, m, s, B, logits, all ? 0 : B - 1, &ns)) {
+            s->n_sat += ns;
+            s->pos = p0 + B;
+            if (logits) s->hid = s->xn + (uint64_t) (B - 1) * ne;
+            return ZT_GGUF_OK;
+        }
+    }
     /* work estimates for the thread pool's threshold (values touched) */
     uint64_t wn = (uint64_t) B * ne * 8, wf = (uint64_t) B * nf * 32;
     for (uint32_t l = 0; l < c->n_layer; l++) {

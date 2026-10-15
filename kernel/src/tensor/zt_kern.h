@@ -323,6 +323,21 @@ typedef struct zt_mmf {
  * all n with the kernels below. */
 typedef int (*zt_mm_full_fn)(void *fctx, const zt_mmf_t *jobs, uint32_t n);
 
+/* ---- the whole forward pass on an accelerator (zt_gpu.h) ----
+ * m and s are the zt_model_t and zt_model_state_t (void here: zt_model.h
+ * includes this header). s->x holds the B tokens' input vectors and the
+ * cache holds s->pos positions. The hook runs every layer for them (KV cache
+ * included), leaves the last layer's output in s->x, and when logits is
+ * non-null the output norm in s->xn and the logits of tokens first..B - 1
+ * (n_vocab apart), all bit for bit what zt_model.c computes; *n_sat gets the
+ * saturations it counted. zt_model.c offers it only an undistributed model
+ * with a Q16 cache, no LoRA adapter and no hidden-state tap, and updates
+ * s->pos, s->n_sat and s->hid itself. Returns 0 when done, nonzero when it
+ * declines (the CPU then runs the pass; any cache cells it wrote are
+ * written again). */
+typedef int (*zt_fwd_full_fn)(void *fctx, const void *m, void *s, uint32_t B, zt_fx *logits,
+                              uint32_t first, uint32_t *n_sat);
+
 /* A set of kernels. Each function must return exactly what the C reference
  * returns for every input (test_zt_simd checks this). */
 typedef zt_fx (*zt_dot_raw_fn)(const uint8_t *row, const int16_t *a, const uint8_t *ash,
@@ -353,6 +368,7 @@ typedef struct zt_kern {
     zt_att_wv_fn att_wv; /* null: the C reference (Q16 KV cache only) */
     zt_mm_full_fn mm_full; /* null: none; tried first for every matrix product */
     void *fctx;
+    zt_fwd_full_fn fwd_full; /* null: none; tried first for every forward pass (fctx) */
 } zt_kern_t;
 
 #endif /* ZT_KERN_H */

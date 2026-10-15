@@ -158,7 +158,13 @@ static void test_launch(void)
     WM.on_window = on_window;
     WM.cue = on_cue;
     zui_rect_t a = zui_wm_work(&WM);
-    CHECK(a.w == W && a.h == H - ZUI_WM_STRIP && !WM.compact, "the work area is above the strip");
+    CHECK(WM.use_dock && a.x == 0 && a.y == 0 && a.w == W && a.h == H && !WM.compact,
+          "WM9: the dock by default; the work area is the whole screen");
+    zui_wm_use_dock(&WM, false);
+    a = zui_wm_work(&WM);
+    CHECK(a.w == W && a.h == H - ZUI_WM_STRIP, "WM6: with the strip, the screen above it");
+    zui_wm_use_dock(&WM, true);
+    a = zui_wm_work(&WM);
     zui_launch_t l = launch_with_mark();
     uint32_t id = zui_wm_open(&WM, "glint", "Glint", &l, &CL1);
     zui_wm_window_t *w = zui_wm_get(&WM, id);
@@ -219,6 +225,7 @@ static void test_launch(void)
 static void test_windows(void)
 {
     zui_wm_init(&WM, W, H, false);
+    zui_wm_use_dock(&WM, false); /* WM6: this test covers the strip */
     WM.on_window = on_window;
     memset(&A1, 0, sizeof A1);
     memset(&A2, 0, sizeof A2);
@@ -388,8 +395,18 @@ static void test_limits(void)
     CHECK(l && strlen(zui_wm_get(&WM, l)->title) == ZUI_WM_NAME_MAX - 1u, "long names are cut");
     for (uint32_t i = 0; i < ZUI_WM_MAX; i++) zui_wm_progress(&WM, ids[i], 128);
     memset(PX, 0, sizeof PX);
-    zui_wm_draw(&WM, &S, 5); /* every window and the strip, without a crash */
-    CHECK(at(W / 2, H - 2) != 0, "the strip is drawn");
+    zui_wm_draw(&WM, &S, 5); /* every window and the dock, without a crash */
+    CHECK(WM.dock.nopen == ZUI_WM_MAX && at(8, H - 8) != ZUI_VOID, "the dock holds them all");
+    zui_dock_bloom(&WM.dock, true, true);
+    zui_wm_tick(&WM, ZUI_DOCK_BLOOM_MS);
+    zui_wm_draw(&WM, &S, 5);
+    const zui_dock_ring_t *r1 = &WM.dock.ring[1];
+    CHECK(zui_dock_slots(&WM.dock, 0, 0) == WM.dock.ring[0].cap + r1->cap && r1->n > r1->cap,
+          "bloomed, the rest on a ring that turns");
+    zui_wm_use_dock(&WM, false);
+    memset(PX, 0, sizeof PX);
+    zui_wm_draw(&WM, &S, 5);
+    CHECK(at(W / 2, H - 2) == ZUI_PANEL, "the strip is drawn");
 }
 
 static void test_phone(void)
@@ -421,6 +438,140 @@ static void test_phone(void)
     uint32_t t = zui_wm_open(&T, "x", 0, 0, 0);
     zui_wm_window_t *tw = zui_wm_get(&T, t);
     CHECK(zui_wm_content(&T, tw).y == tw->r.y + ZUI_WM_TITLE_T, "touch: a taller title bar");
+}
+
+/* WM9: the astrolabe dock in place of the strip */
+static int launched;
+static char launched_app[ZUI_WM_NAME_MAX];
+static uint32_t launch_app(zui_wm_t *wm, const char *app, const char *title, void *ctx)
+{
+    (void) ctx;
+    launched++;
+    strcpy(launched_app, app);
+    return zui_wm_open(wm, app, title, 0, &CL1);
+}
+static bool dock_click(int32_t slot)
+{
+    zui_dock_slot_t s;
+    if (!zui_dock_slot(&WM.dock, slot, &s)) return false;
+    move(5, H - 5); /* onto the seal: it blooms */
+    zui_wm_tick(&WM, ZUI_DOCK_BLOOM_MS);
+    down(s.cx, s.cy);
+    bool r = up(s.cx, s.cy);
+    zui_wm_tick(&WM, ZUI_DOCK_BLOOM_MS);
+    move(W / 2, H / 2);
+    return r;
+}
+
+static void test_dock(void)
+{
+    zui_wm_init(&WM, W, H, false);
+    CHECK(WM.use_dock, "the dock unless the strip is asked for");
+    zui_wm_use_dock(&WM, false);
+    uint32_t a = zui_wm_open(&WM, "burrow", "Burrow", 0, &CL1);
+    open_fully(a);
+    zui_wm_maximise(&WM, a, true);
+    zui_wm_use_dock(&WM, true);
+    zui_rect_t work = zui_wm_work(&WM);
+    zui_wm_window_t *wa = zui_wm_get(&WM, a);
+    CHECK(work.x == 0 && work.y == 0 && work.w == W && work.h == H, "WM9: the whole screen");
+    CHECK(wa->maximised && wa->r.h == H, "a full window grows into it");
+    zui_wm_maximise(&WM, a, false);
+    uint32_t b = zui_wm_open(&WM, "quillon", "Quillon", 0, &CL2);
+    open_fully(b);
+    zui_dock_pin(&WM.dock, "atlas", "Atlas");
+    zui_dock_pin(&WM.dock, "burrow", "Burrow");
+    CHECK(WM.dock.nopen == 2 && WM.dock.nitem == 3 && !strcmp(WM.dock.item[0].app, "quillon") &&
+              WM.dock.item[0].front && WM.dock.item[1].pinned,
+          "the dock has the open windows, most recent first, then the pinned");
+    uint32_t id = 99;
+    CHECK(zui_wm_hit(&WM, 4, H - 4, &id, 0) == 8 && id == 0, "the seal is the dock's");
+    CHECK(zui_wm_hit(&WM, W / 2, H - 4, &id, 0) != 6, "no strip");
+    memset(PX, 0, sizeof PX);
+    zui_wm_draw(&WM, &S, 0);
+    CHECK(at(W / 2, H - 2) == ZUI_VOID && at(8, H - 8) != ZUI_VOID, "the seal is drawn, no strip");
+    zui_wm_window_t *wb = zui_wm_get(&WM, b);
+    CHECK(dock_click(0) && wb->minimised && zui_wm_front(&WM) == a,
+          "choosing the app in front minimises it");
+    CHECK(!strcmp(WM.dock.item[0].app, "burrow") && WM.dock.item[1].minimised, "and reorders");
+    CHECK(dock_click(1) && !wb->minimised && zui_wm_front(&WM) == b,
+          "choosing a minimised app restores and raises it");
+    CHECK(dock_click(2) && zui_wm_front(&WM) != a && zui_wm_front(&WM) != b &&
+              !strcmp(zui_wm_get(&WM, zui_wm_front(&WM))->app, "atlas") &&
+              zui_wm_get(&WM, zui_wm_front(&WM))->phase == ZUI_WIN_LAUNCHING,
+          "choosing a pinned app launches it in its window");
+    uint32_t c = zui_wm_front(&WM);
+    CHECK(WM.dock.item[0].win == c && WM.dock.item[0].activity == ZUI_DOCK_BUSY &&
+              WM.dock.item[0].progress == 1,
+          "a launching app is busy, with its gathering bar");
+    zui_wm_progress(&WM, c, 64);
+    CHECK(WM.dock.item[0].progress == 64, "fed its real progress");
+    zui_wm_close(&WM, c);
+    WM.launch_app = launch_app;
+    CHECK(dock_click(2) && launched == 1 && !strcmp(launched_app, "atlas"),
+          "or the shell launches it");
+    c = zui_wm_front(&WM);
+    open_fully(c);
+    CHECK(zui_wm_activity(&WM, c, ZUI_DOCK_ASK) && WM.dock.item[0].activity == ZUI_DOCK_ASK,
+          "an app says it needs input");
+    CHECK(!zui_wm_activity(&WM, 999, ZUI_DOCK_ASK), "bad id");
+    zui_wm_close(&WM, c);
+
+    /* keys: the dock's shortcut; the switcher still works */
+    CHECK(keyev(ZUI_EV_KEY_DOWN, 'd', ZUI_MOD_CMD | ZUI_MOD_SHIFT) && zui_dock_is_open(&WM.dock),
+          "the shortcut opens the dock");
+    int ev0 = A1.events + A2.events;
+    keyev(ZUI_EV_KEY_DOWN, ZUI_KEY_RIGHT, 0);
+    CHECK(A1.events + A2.events == ev0 && WM.dock.focus == 1, "it has the keyboard");
+    keyev(ZUI_EV_KEY_DOWN, ZUI_KEY_ENTER, 0);
+    CHECK(!zui_dock_is_open(&WM.dock) && zui_wm_front(&WM) == a, "Enter raises the app");
+    keyev(ZUI_EV_KEY_DOWN, ZUI_KEY_TAB, ZUI_MOD_CMD);
+    keyev(ZUI_EV_KEY_UP, 0, 0);
+    CHECK(zui_wm_front(&WM) == b, "Cmd-Tab still switches");
+    keyev(ZUI_EV_KEY_DOWN, 'q', 0);
+    CHECK(A2.last.key == 'q', "keys reach the app when the dock is closed");
+
+    /* dragging a window across the corner does not open the dock */
+    zui_wm_move(&WM, b, (zui_rect_t){200, 200, 500, 400});
+    down(260, 210);
+    move(60, H - 150);
+    move(10, H - 10);
+    CHECK(!zui_dock_is_open(&WM.dock), "a drag passes over the seal");
+    up(10, H - 10);
+    move(W / 2, H / 2);
+    move(10, H - 10);
+    CHECK(zui_dock_is_open(&WM.dock), "the pointer alone opens it");
+    move(W / 2, H / 2);
+    zui_wm_tick(&WM, ZUI_DOCK_LEAVE_MS + ZUI_DOCK_BLOOM_MS);
+    CHECK(!zui_dock_is_open(&WM.dock), "and leaving closes it");
+
+    /* a top corner keeps the title bars clear; a phone keeps a band */
+    zui_dock_place(&WM.dock, ZUI_DOCK_TOP_RIGHT, ZUI_DOCK_SEAL, false);
+    zui_wm_resize(&WM, W, H);
+    work = zui_wm_work(&WM);
+    CHECK(work.y == ZUI_DOCK_SEAL && work.h == H - ZUI_DOCK_SEAL && wb->r.y >= ZUI_DOCK_SEAL,
+          "top corner: a band of the seal's height");
+    CHECK(zui_wm_hit(&WM, W - 4, 4, &id, 0) == 8, "the seal moved");
+    zui_wm_event(&WM, &(zui_event_t){.type = ZUI_EV_RESIZE, .x = 390, .y = 800});
+    work = zui_wm_work(&WM);
+    CHECK(WM.compact && work.y == 0 && work.h == 800 - ZUI_DOCK_SEAL && WM.dock.compact &&
+              zui_wm_hit(&WM, 195, 798, &id, 0) == 8,
+          "a phone: the half seal at the bottom centre");
+    /* without a pointer: pick an item, launch by name */
+    uint32_t f = zui_wm_front(&WM);
+    CHECK(zui_wm_dock_pick(&WM, 0) && zui_wm_get(&WM, f)->minimised,
+          "pick the first item: the front app minimises");
+    CHECK(!zui_wm_dock_pick(&WM, 99), "no such item");
+    uint32_t nb = zui_wm_launch(&WM, "quillon", 0);
+    CHECK(nb == b && zui_wm_front(&WM) == b, "launch an open app: raised");
+    uint32_t nn = zui_wm_launch(&WM, "ledger", "Ledger");
+    CHECK(nn && nn != a && nn != b && launched == 2 && !zui_wm_launch(&WM, "", 0),
+          "launch another: through launch_app");
+    zui_wm_use_dock(&WM, false);
+    CHECK(!zui_wm_dock_pick(&WM, 0), "no dock, no pick");
+    work = zui_wm_work(&WM);
+    CHECK(work.h == 800 - ZUI_WM_STRIP && zui_wm_hit(&WM, 195, 798, &id, 0) != 8,
+          "and back to the strip");
 }
 
 /* A picture for people (not checked): ZXV_WM_SHOT names a PPM file and
@@ -491,6 +642,7 @@ int main(void)
     test_windows();
     test_limits();
     test_phone();
+    test_dock();
     picture();
     printf("%s test_zui_wm: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;

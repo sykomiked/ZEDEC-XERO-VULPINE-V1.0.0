@@ -258,6 +258,7 @@ int32_t tf_verify_file_content(tripartite_fs_t *fs, uint32_t file_id, const uint
 {
     tf_file_entry_t *file = tf_get_file(fs, file_id);
     if (!file || (!payload && payload_len > 0)) return TF_EINVAL;
+    if (file->isolated) return TF_EISOLATED;
     uint8_t cid[TF_CID_LEN];
     tf_compute_cid(payload, payload_len, cid);
     bool ok = file->size == payload_len && tf_mem_eq(cid, file->cid, TF_CID_LEN);
@@ -620,10 +621,94 @@ int32_t tf_self_audit_system(tripartite_fs_t *fs)
     return failed == 0 ? 0 : TF_EMISMATCH;
 }
 
+/* ============================================================================
+ * RECOVERY (recover.h): refuse, roll back to a checkpoint, isolate
+ * ============================================================================ */
+
+#define TF_RCV_CODE 0x7466u /* "tf": the reason code in tripartite proofs */
+
+/* The hard invariant: the bytes are the file's content (size and CID). */
+static bool tf_cid_holds(const uint8_t *s, uint32_t len, void *ctx)
+{
+    const tf_file_entry_t *f = (const tf_file_entry_t *) ctx;
+    if (!f || (!s && len) || f->size != len) return false;
+    uint8_t cid[TF_CID_LEN];
+    tf_compute_cid(s, len, cid);
+    return tf_mem_eq(cid, f->cid, TF_CID_LEN);
+}
+
+static rcv_case_t tf_case(tf_file_entry_t *f)
+{
+    rcv_case_t k;
+    k.component = f->id;
+    k.tag = lpx_make(lpx_base_from_lpres(f->lpres_state), LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+    k.code = TF_RCV_CODE;
+    k.inv = tf_cid_holds;
+    k.inv_ctx = f;
+    return k;
+}
+
+int32_t tf_attach_recovery(tripartite_fs_t *fs, rcv_t *rc, rcv_proof_t *proof)
+{
+    if (!fs || !rc || !proof) return TF_EINVAL;
+    fs->recover = rc;
+    fs->recover_proof = proof;
+    return 0;
+}
+
 int32_t tf_self_heal_file(tripartite_fs_t *fs, uint32_t file_id)
 {
-    if (!tf_get_file(fs, file_id)) return TF_EINVAL;
-    return tf_self_audit_file(fs, file_id) == 0 ? 0 : TF_ENOTSUP;
+    tf_file_entry_t *file = tf_get_file(fs, file_id);
+    if (!file) return TF_EINVAL;
+    if (tf_self_audit_file(fs, file_id) == 0) return 0;
+    if (!fs->recover || !fs->recover_proof) return TF_ENOTSUP;
+    /* No replica to restore from: the framework's REFUSE, signed and logged. */
+    rcv_case_t k = tf_case(file);
+    return rcv_refuse(fs->recover, &k, 0, 0, fs->recover_proof) == RCV_OUT_REFUSED ? TF_ENOTSUP
+                                                                                   : TF_EHALTED;
+}
+
+int32_t tf_checkpoint_file(tripartite_fs_t *fs, uint32_t file_id, const uint8_t *payload,
+                           uint32_t payload_len)
+{
+    tf_file_entry_t *file = tf_get_file(fs, file_id);
+    if (!file || !payload) return TF_EINVAL;
+    if (!fs->recover) return TF_ENOTSUP;
+    if (file->isolated) return TF_EISOLATED;
+    if (!tf_cid_holds(payload, payload_len, file)) return TF_EMISMATCH;
+    rcv_case_t k = tf_case(file);
+    return rcv_checkpoint(fs->recover, &k, payload, payload_len, 0) ? 0 : TF_ENOTSUP;
+}
+
+int32_t tf_recover_file(tripartite_fs_t *fs, uint32_t file_id, uint8_t *payload,
+                        uint32_t payload_len)
+{
+    tf_file_entry_t *file = tf_get_file(fs, file_id);
+    if (!file || !payload || payload_len == 0) return TF_EINVAL;
+    if (!fs->recover || !fs->recover_proof) return TF_ENOTSUP;
+    if (file->isolated) return TF_EISOLATED; /* proven when it was isolated */
+    rcv_case_t k = tf_case(file);
+    rcv_out_t o = rcv_recover(fs->recover, &k, payload, payload_len, fs->recover_proof);
+    uint8_t action = fs->recover_proof->action;
+    if (o == RCV_OUT_ISOLATED || (o == RCV_OUT_UNSIGNED && action == RCV_ACT_ISOLATE)) {
+        file->isolated = true;
+        file->verified = false;
+        file->lpres_state = LPRES_STATE_FALSE;
+        file->global_attestation = LPRES_STATE_FALSE;
+        if (fs->loaded_pair && file->pair_id == fs->loaded_pair) fs->loaded_pair = 0;
+        return o == RCV_OUT_ISOLATED ? TF_EISOLATED : TF_EHALTED;
+    }
+    if (o == RCV_OUT_ROLLED_BACK) return tf_verify_file_content(fs, file_id, payload, payload_len);
+    if (o == RCV_OUT_REFUSED) {
+        if (fs->recover_proof->why == RCV_WHY_ISOLATED) {
+            file->isolated = true; /* the framework isolated it earlier */
+            file->verified = false;
+            return TF_EISOLATED;
+        }
+        /* RCV_WHY_SOFT: the bytes already hold; nothing was patched. */
+        return tf_verify_file_content(fs, file_id, payload, payload_len);
+    }
+    return o == RCV_OUT_BAD_INPUT ? TF_EINVAL : TF_EHALTED;
 }
 
 /* ============================================================================

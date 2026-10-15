@@ -10,7 +10,8 @@ fails when the committed file differs, or when:
 
   * a manifest names a language whose fit-table runtime is "-" (no
     front-end yet: a language is never claimed before it can run);
-  * a WebAssembly entry has no C, C++, Rust or Zig source beside its .wasm
+  * a WebAssembly entry has no C, C++, Rust or Zig source beside its .wasm,
+    or a precompiled Lingua (zlir) entry does not say its language
     (the source language is what the table counts, so it must be there);
   * the fit table and kernel/src/lingua/catalogue.tsv (when the tree has
     it) do not list the same 104 languages in the same order.
@@ -37,6 +38,8 @@ RUNTIME_ALIAS = {
 }
 # a .wasm entry's language is its source's
 WASM_SOURCE = {".cpp": "C++", ".cc": "C++", ".rs": "Rust", ".zig": "Zig", ".c": "C"}
+# a precompiled Lingua entry's language is the one its "lang N" line names (zl.h)
+ZLIR_LANG = {"1": "FORTRAN", "2": "BASIC", "3": "Forth"}
 # runtimes the kernel itself carries (the rest need their SDK's process)
 IN_KERNEL = {"c", "sutra", "eve", "kron", "trebago", "myra", "wasm", "basic", "forth"}
 
@@ -119,6 +122,21 @@ def build():
                     continue
                 by_name[WASM_SOURCE[src[0]]]["apps"].setdefault(who, set()).add(entry)
                 by_name["WebAssembly"]["apps"].setdefault(who, set()).add(entry)
+                continue
+            if rt == "zlir":
+                lang = None
+                try:
+                    with open(os.path.join(SRC, path), encoding="utf-8") as z:
+                        for zl in z:
+                            if zl.startswith("lang "):
+                                lang = ZLIR_LANG.get(zl.split()[1])
+                                break
+                except OSError:
+                    pass
+                if not lang:
+                    errors.append(f"{file}: {entry}: {path} names no Lingua language")
+                    continue
+                by_name[lang]["apps"].setdefault(who, set()).add(entry)
                 continue
             langs = by_runtime.get(rt)
             if not langs:

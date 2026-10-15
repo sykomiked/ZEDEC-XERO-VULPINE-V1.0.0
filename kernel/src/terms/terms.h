@@ -71,7 +71,8 @@ enum { /* return codes */
        TERMS_ERR_UTF8 = -3, /* text is not valid UTF-8 */
        TERMS_ERR_GATE = -4, /* accept before the end was shown */
        TERMS_ERR_PARSE = -5,
-       TERMS_ERR_CHAIN = -6 /* record hash or chain link is wrong */
+       TERMS_ERR_CHAIN = -6, /* record hash or chain link is wrong */
+       TERMS_ERR_TEXT = -7   /* text differs from its build fingerprint: damaged image */
 };
 
 typedef struct terms_doc {
@@ -81,6 +82,8 @@ typedef struct terms_doc {
     size_t len;
     int controlling;                   /* 1: this language version governs */
     const struct terms_doc *reference; /* English reference, NULL if this is it */
+    const uint8_t *sha256;             /* SHA-256 of text taken when the image was built
+                                        * (embed_terms.py); NULL: not fingerprinted */
 } terms_doc_t;
 
 typedef struct {
@@ -131,6 +134,11 @@ enum {
 
 /* ---- text ---- */
 void terms_hash(const terms_doc_t *doc, uint8_t out[TERMS_HASH_LEN]);
+/* Does the text (and its reference) still match the fingerprint taken at
+ * build time? TERMS_OK, or TERMS_ERR_TEXT. terms_reader_init* and
+ * terms_accept refuse a text that fails, so what a person is shown and what
+ * the record names are always the text that was built and signed. */
+int terms_doc_check(const terms_doc_t *doc);
 int terms_utf8_valid(const char *s, size_t n);
 /* Display width of one codepoint: 0 for combining marks, 2 for East Asian
  * wide/fullwidth, 1 otherwise. */

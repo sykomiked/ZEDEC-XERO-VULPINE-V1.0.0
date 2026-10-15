@@ -19,9 +19,11 @@
  *   5  call_sig_parse: byte-exact re-encode of every accepted message
  *   6  call_mesh_parse: byte-exact re-encode (call_mesh_encode_member/_leave)
  *   7  mesh membership: generated MEMBER/LEAVE messages (good, bad and
- *      wrong-key signatures) applied to a table. A refused message changes
- *      nothing; a bad signature is always refused; a member's key never
- *      changes; versions only grow. call_mesh_build: no member is charged
+ *      wrong-key signatures, and ids that are not their key's) applied to a
+ *      table. A refused message changes nothing, except that an equivocation
+ *      (CALL_ERR_CONFLICT) marks just that member dead and equivocated for
+ *      good; a bad signature or a squatted id is always refused; a member's
+ *      key never changes; versions only grow. call_mesh_build: no member is charged
  *      more than its declared uplink, per-tree fanout and max depth hold,
  *      every edge's sender is in the tree (publisher or already fed), dead
  *      members get nothing, delivered layer <= wanted, served+degraded+
@@ -434,7 +436,9 @@ static void mode_mesh(const uint8_t *p, size_t n)
 {
     fz_in in;
     fz_init(&in, p, n);
-    static const uint8_t keys[3][32] = {{1}, {2}, {3}};
+    static const uint8_t keys[8][32] = {{1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}};
+    uint32_t ids[8];
+    for (uint32_t i = 0; i < 8; i++) ids[i] = call_mesh_id_of(keys[i]);
     uint32_t nm = 1u + fz_u8(&in) % MESH_MSGS;
     bool distinct = true;
     uint32_t ids_seen[MESH_MSGS];
@@ -443,16 +447,18 @@ static void mode_mesh(const uint8_t *p, size_t n)
         static call_mesh_member_t mm;
         memset(&mm, 0, sizeof mm);
         uint8_t c = fz_u8(&in);
-        mm.id = 1u + (c & 7u);
+        uint32_t mi = c & 7u;
+        mm.id = ids[mi];
         mm.version = fz_u8(&in) % 5u;
-        uint32_t ki = (c >> 3) % 3u;
-        memcpy(mm.pubkey, keys[ki], 32);
+        /* one in three claims the id with another member's key (squatting) */
+        bool squat = (c >> 3) % 3u == 1u;
+        memcpy(mm.pubkey, keys[squat ? (mi + 1u) & 7u : mi], 32);
         mm.uplink_kbps = (uint32_t) (fz_u16(&in) % 5000u);
         mm.fanout = fz_u8(&in) % 6u;
         mm.nstreams = fz_u8(&in) % (CALL_MESH_MAX_STREAMS + 1u);
         for (uint32_t s = 0; s < mm.nstreams; s++) {
             call_mesh_stream_t *st = &mm.streams[s];
-            st->id = mm.id * 16u + s + 1u;
+            st->id = (mi + 1u) * 16u + s + 1u;
             st->kind = (uint8_t) (1u + fz_u8(&in) % 4u);
             st->nlayers = (uint8_t) (1u + fz_u8(&in) % CALL_MESH_MAX_LAYERS);
             uint16_t k0 = (uint16_t) (1u + fz_u8(&in) * 4u);
@@ -473,7 +479,7 @@ static void mode_mesh(const uint8_t *p, size_t n)
         uint8_t how = fz_u8(&in);
         uint8_t skey[32];
         memcpy(skey, mm.pubkey, 32);
-        bad[k] = false;
+        bad[k] = squat;
         if ((how & 7u) == 7u) {
             skey[0] ^= 0x80; /* signed by somebody else */
             bad[k] = true;
@@ -510,7 +516,14 @@ static void mode_mesh(const uint8_t *p, size_t n)
         if (at >= 0) memcpy(old_key, A.members[at].pubkey, 32);
         int r = call_mesh_on_message(&A, g_msgs[k], g_mlen[k]);
         if (bad[k] && r != CALL_ERR_AUTH) abort();
-        if (r <= 0) {
+        if (r == CALL_ERR_CONFLICT) {
+            /* only that member changes: dead and equivocated, nothing else */
+            if (at < 0 || A.n != n0 || !A.members[at].equivocated || A.members[at].alive) abort();
+            if (A.changes != ch0 + g_snap[at].alive) abort();
+            g_snap[at].alive = 0;
+            g_snap[at].equivocated = 1;
+            if (memcmp(g_snap, g_ta, sizeof g_snap) != 0) abort();
+        } else if (r <= 0) {
             if (A.n != n0 && !(r == 0 && A.n == n0 + 1u && type == CALL_MESH_MSG_LEAVE)) abort();
             if (r < 0 && memcmp(g_snap, g_ta, sizeof g_snap) != 0) abort();
             if (r < 0 && A.changes != ch0) abort();
@@ -523,6 +536,10 @@ static void mode_mesh(const uint8_t *p, size_t n)
         }
         for (uint32_t i = 1; i < A.n; i++)
             if (A.members[i - 1].id >= A.members[i].id) abort();
+        for (uint32_t i = 0; i < A.n; i++) {
+            if (A.members[i].equivocated && A.members[i].alive) abort();
+            if (A.members[i].id != call_mesh_id_of(A.members[i].pubkey)) abort();
+        }
     }
     for (uint32_t k = nm; k-- > 0;) (void) call_mesh_on_message(&B, g_msgs[k], g_mlen[k]);
     if (distinct) {
@@ -531,8 +548,8 @@ static void mode_mesh(const uint8_t *p, size_t n)
     /* local failure detection on one member */
     uint8_t f = fz_u8(&in);
     if (f & 1u) {
-        (void) call_mesh_mark_failed(&A, 1u + ((f >> 1) & 7u));
-        (void) call_mesh_mark_failed(&B, 1u + ((f >> 1) & 7u));
+        (void) call_mesh_mark_failed(&A, ids[(f >> 1) & 7u]);
+        (void) call_mesh_mark_failed(&B, ids[(f >> 1) & 7u]);
     }
     A.max_depth = B.max_depth = (uint8_t) (1u + (f >> 4) % 6u);
     call_mesh_plan_t pa;

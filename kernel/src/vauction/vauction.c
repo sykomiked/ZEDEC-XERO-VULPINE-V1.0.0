@@ -350,8 +350,9 @@ static vauc_status_t post(vauc_t *a, const pay_line_t *ln, uint32_t n, uint8_t k
     pay_uetr_from_random(d, r.uetr);
     pay_w w;
     pay_w_init(&w, r.e2e, sizeof r.e2e);
+    derive(a, 'E', d); /* unguessable without the seed */
     pay_w_s(&w, "VAUC-");
-    pay_w_u64(&w, a->seq);
+    pay_w_hex(&w, d, 12);
     pay_w_finish(&w);
     pay_strlcpy(r.memo, memo, sizeof r.memo);
     r.tick = tick;
@@ -388,6 +389,8 @@ vauc_status_t vauc_bid(vauc_t *a, uint32_t fiat, uint32_t vbill, uint64_t qty, u
     const pay_account_t *f = acct(a, fiat), *v = acct(a, vbill);
     if (!f || !v || f->asset != a->fiat || v->asset != a->vbill) return VAUC_ERR_ARG;
     if (fiat == a->escrow || fiat == a->reserve || vbill == a->issuer) return VAUC_ERR_ARG;
+    /* one owner holds both; authenticating the caller is the zxvd layer's job */
+    if (f->owner != v->owner) return VAUC_ERR_AUTH;
     uint64_t lock, total;
     if (!qty || limit < a->cfg.p_min || __builtin_mul_overflow(qty, limit, &lock) ||
         !pay_add_ok(a->locked, lock, &total) || total >= PAY_BAL_MAX)

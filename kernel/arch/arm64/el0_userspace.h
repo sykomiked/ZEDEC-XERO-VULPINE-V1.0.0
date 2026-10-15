@@ -231,6 +231,11 @@ void proc_save_context(proc_scheduler_t *ps, cpu_context_t *ctx);
 
 /* Restore EL0 context and ERET (called after context switch) */
 void proc_restore_el0(cpu_context_t *ctx);
+/* Run the next READY process, or idle with IRQs on until one wakes.
+ * Called after the current process exited or faulted. Does not return. */
+void proc_run_next_or_idle(proc_scheduler_t *ps);
+/* Free pages left in the user page pool (diagnostics and tests). */
+uint32_t proc_user_pages_free(void);
 
 /* Preemptive scheduler tick — called from timer IRQ.
  * Saves current context, selects next process, switches address space. */

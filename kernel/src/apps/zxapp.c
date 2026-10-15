@@ -6,26 +6,44 @@
 #include "../robin_debanks/sha256.h"
 
 static const char *const LANG[ZXAPP_LANG_COUNT] = {
-    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",  "swift",
-    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm"};
+    "c",    "sutra", "eve",    "kron", "trebago",   "myra",   "cpp",        "rust",
+    "go",   "swift", "kotlin", "java", "dotnet",    "python", "typescript", "dart",
+    "ruby", "php",   "wasm",   "wire", "fortran77", "basic",  "forth",      "zlir"};
 
 /* Other names people write for the same languages. */
 static const struct {
     const char *name;
     zxapp_lang_t lang;
 } ALIAS[] = {
-    {"cobol", ZXAPP_LANG_SUTRA},      {"ada", ZXAPP_LANG_EVE},
-    {"apl", ZXAPP_LANG_KRON},         {"k", ZXAPP_LANG_KRON},
-    {"fortran", ZXAPP_LANG_TREBAGO},  {"mumps", ZXAPP_LANG_MYRA},
-    {"m", ZXAPP_LANG_MYRA},           {"c++", ZXAPP_LANG_CPP},
-    {"cxx", ZXAPP_LANG_CPP},          {"golang", ZXAPP_LANG_GO},
-    {"kt", ZXAPP_LANG_KOTLIN},        {"csharp", ZXAPP_LANG_DOTNET},
-    {"c#", ZXAPP_LANG_DOTNET},        {"cs", ZXAPP_LANG_DOTNET},
-    {"fsharp", ZXAPP_LANG_DOTNET},    {"f#", ZXAPP_LANG_DOTNET},
-    {"vb", ZXAPP_LANG_DOTNET},        {"py", ZXAPP_LANG_PYTHON},
-    {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
-    {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
+    {"cobol", ZXAPP_LANG_SUTRA},
+    {"ada", ZXAPP_LANG_EVE},
+    {"apl", ZXAPP_LANG_KRON},
+    {"k", ZXAPP_LANG_KRON},
+    {"fortran", ZXAPP_LANG_TREBAGO},
+    {"mumps", ZXAPP_LANG_MYRA},
+    {"m", ZXAPP_LANG_MYRA},
+    {"c++", ZXAPP_LANG_CPP},
+    {"cxx", ZXAPP_LANG_CPP},
+    {"golang", ZXAPP_LANG_GO},
+    {"kt", ZXAPP_LANG_KOTLIN},
+    {"csharp", ZXAPP_LANG_DOTNET},
+    {"c#", ZXAPP_LANG_DOTNET},
+    {"cs", ZXAPP_LANG_DOTNET},
+    {"fsharp", ZXAPP_LANG_DOTNET},
+    {"f#", ZXAPP_LANG_DOTNET},
+    {"vb", ZXAPP_LANG_DOTNET},
+    {"py", ZXAPP_LANG_PYTHON},
+    {"ts", ZXAPP_LANG_TYPESCRIPT},
+    {"javascript", ZXAPP_LANG_TYPESCRIPT},
+    {"js", ZXAPP_LANG_TYPESCRIPT},
+    {"rb", ZXAPP_LANG_RUBY},
     {"webassembly", ZXAPP_LANG_WASM},
+    {"circuit", ZXAPP_LANG_WIRE},
+    {"f77", ZXAPP_LANG_FORTRAN77},
+    {"hatchling", ZXAPP_LANG_BASIC},
+    {"cairndrake", ZXAPP_LANG_FORTH},
+    {"lingua", ZXAPP_LANG_ZLIR},
+    {"reckonwyrm", ZXAPP_LANG_FORTRAN77},
 };
 
 static bool seq(const char *a, const char *b)
@@ -617,7 +635,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (!word_copy(lang, sizeof lang, w[1], wl[1]) ||
                 zxapp_lang_of(lang) == ZXAPP_LANG_UNKNOWN) {
                 put_err(a, r.line,
-                        "an unknown language (a pillar, c, a libzxv SDK language or wasm)", 0);
+                        "an unknown language (a pillar, c, a libzxv SDK language, wasm or wire)",
+                        0);
                 return ZXAPP_E_SYNTAX;
             }
             if (!ident(w[2], wl[2]) || wl[2] + 1u > ZXAPP_ID_MAX) {
@@ -731,6 +750,12 @@ static void report(zxapp_host_t *h, uint32_t done, uint32_t total)
     if (h->progress) h->progress(h->progress_ctx, total ? done * 256u / total : 256u);
 }
 
+/* W1: a circuit goes to the wiring hook, not to a runtime. */
+static bool wired(const zxapp_host_t *h, const zxapp_logic_t *L)
+{
+    return L->lang == ZXAPP_LANG_WIRE && h->wiring && h->wiring->check && h->wiring->run;
+}
+
 static const zxapp_runtime_t *rt_for(const zxapp_host_t *h, zxapp_lang_t lang)
 {
     for (uint32_t i = 0; i < h->n; i++)
@@ -765,6 +790,17 @@ int zxapp_load(zxapp_t *a, zxapp_host_t *h)
         zxapp_logic_t *L = &a->logic[i];
         if (i) report(h, i, a->n);
         if (L->loaded) {
+            loaded++;
+            continue;
+        }
+        if (wired(h, L)) {
+            if (!L->src) { /* W1: the circuit is the manifest's own text */
+                put_err(a, L->line, L->entry, ": a circuit is written inline (<<)");
+                return ZXAPP_E_RUNTIME;
+            }
+            int rc = h->wiring->check(h->wiring->ctx, a, L);
+            if (rc != ZXAPP_OK) return rc; /* a->err says why */
+            L->loaded = true;
             loaded++;
             continue;
         }
@@ -807,7 +843,7 @@ void zxapp_unload(zxapp_t *a, zxapp_host_t *h)
     for (uint32_t i = 0; i < a->n; i++) {
         zxapp_logic_t *L = &a->logic[i];
         if (!L->loaded) continue;
-        const zxapp_runtime_t *rt = rt_for(h, L->lang);
+        const zxapp_runtime_t *rt = wired(h, L) ? 0 : rt_for(h, L->lang);
         if (rt && rt->unload) rt->unload(rt->ctx, L->compiled);
         L->compiled = 0;
         L->loaded = false;
@@ -830,23 +866,33 @@ const zxapp_provide_t *zxapp_contract(const zxapp_t *a, const char *entry)
     return L ? contract_of(a, L) : 0;
 }
 
+/* *inner is a circuit's own join (W1), or -1 for any other language. */
 static int run_one(zxapp_t *a, zxapp_host_t *h, const zxapp_logic_t *L, const zxapp_arg_t *args,
-                   uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out)
+                   uint32_t nargs, zxapp_num_t *out, uint32_t cap, uint32_t *n_out, int32_t *inner)
 {
-    const zxapp_runtime_t *rt = rt_for(h, L->lang);
     uint32_t got = 0;
-    char err[ZXAPP_ERR_MAX];
-    err[0] = 0;
-    int rc = rt->call(rt->ctx, L->compiled, args, nargs, out, cap, &got, err, sizeof err);
-    *n_out = got;
-    if (rc == ZXAPP_E_BUFFER) return rc;
-    if (rc != ZXAPP_OK) {
-        put_err(a, L->line, L->entry, ": ");
-        uint32_t k = 0;
-        while (a->err[k]) k++;
-        for (uint32_t j = 0; err[j] && k + 1u < ZXAPP_ERR_MAX; j++) a->err[k++] = err[j];
-        a->err[k] = 0;
-        return ZXAPP_E_RUNTIME;
+    *inner = -1;
+    if (wired(h, L)) {
+        int32_t lp = ZXAPP_NEITHER;
+        int rc = h->wiring->run(h->wiring->ctx, a, h, L, args, nargs, out, cap, &got, &lp);
+        *n_out = got;
+        if (rc != ZXAPP_OK) return rc; /* a->err says which part or wire */
+        *inner = lp;
+    } else {
+        const zxapp_runtime_t *rt = rt_for(h, L->lang);
+        char err[ZXAPP_ERR_MAX];
+        err[0] = 0;
+        int rc = rt->call(rt->ctx, L->compiled, args, nargs, out, cap, &got, err, sizeof err);
+        *n_out = got;
+        if (rc == ZXAPP_E_BUFFER) return rc;
+        if (rc != ZXAPP_OK) {
+            put_err(a, L->line, L->entry, ": ");
+            uint32_t k = 0;
+            while (a->err[k]) k++;
+            for (uint32_t j = 0; err[j] && k + 1u < ZXAPP_ERR_MAX; j++) a->err[k++] = err[j];
+            a->err[k] = 0;
+            return ZXAPP_E_RUNTIME;
+        }
     }
     const zxapp_provide_t *P = contract_of(a, L);
     if (P) /* B3: the answer is the kind it promised */
@@ -886,7 +932,7 @@ static int check_args(zxapp_t *a, const char *entry, const zxapp_arg_t *args, ui
 
 static bool runnable(const zxapp_logic_t *L, const zxapp_host_t *h, const char *entry)
 {
-    return seq(L->entry, entry) && L->loaded && rt_for(h, L->lang);
+    return seq(L->entry, entry) && L->loaded && (wired(h, L) || rt_for(h, L->lang));
 }
 
 int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t *args,
@@ -900,7 +946,8 @@ int zxapp_call(zxapp_t *a, zxapp_host_t *h, const char *entry, const zxapp_arg_t
     if (crc != ZXAPP_OK) return crc;
     for (uint32_t i = 0; i < a->n; i++) /* the first that can run (A5) */
         if (runnable(&a->logic[i], h, entry)) {
-            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &got);
+            int32_t inner;
+            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &got, &inner);
             if (n_out) *n_out = got;
             return rc;
         }
@@ -921,7 +968,8 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
 {
     zxapp_num_t other[ZXAPP_WITNESS_MAX];
     uint32_t n = 0, got = 0, tried = 0, answered = 0;
-    bool differ = false;
+    bool differ = false, held = false;
+    int32_t inner = -1, first_inner = -1;
     if (n_out) *n_out = 0;
     if (lp) *lp = ZXAPP_NEITHER;
     if (!entry || (!out && cap) || (!args && nargs) || !lp) return ZXAPP_E_ARG;
@@ -932,25 +980,36 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
         if (!runnable(&a->logic[i], h, entry)) continue;
         tried++;
         if (!answered) { /* the first answer speaks for the entry */
-            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &n);
+            int rc = run_one(a, h, &a->logic[i], args, nargs, out, cap, &n, &inner);
             if (rc == ZXAPP_E_BUFFER) {
                 if (n_out) *n_out = n;
                 return rc;
             }
+            held |= rc == ZXAPP_E_CONFLICT; /* a circuit held inside (W1) */
             if (rc == ZXAPP_OK) {
                 answered++;
+                first_inner = inner;
                 differ |= tried > 1u; /* an earlier one refused what this answers */
             }
             continue;
         }
-        int rc = run_one(a, h, &a->logic[i], args, nargs, other, ZXAPP_WITNESS_MAX, &got);
+        int rc = run_one(a, h, &a->logic[i], args, nargs, other, ZXAPP_WITNESS_MAX, &got, &inner);
+        held |= rc == ZXAPP_E_CONFLICT;
         if (rc == ZXAPP_OK) answered++;
         differ |= rc != ZXAPP_OK || zxapp_witness(out, n, other, got) != ZXAPP_TRUE;
     }
     if (!tried) return ZXAPP_E_NORUNTIME;
+    if (!answered && held) { /* W1: held, not refused: nothing to show */
+        *lp = ZXAPP_BOTH;
+        return ZXAPP_E_CONFLICT;
+    }
     if (!answered) return ZXAPP_E_RUNTIME; /* every witness refused */
     if (n_out) *n_out = n;
-    *lp = differ ? ZXAPP_BOTH : tried == 1u ? ZXAPP_NEITHER : ZXAPP_TRUE;
+    differ |= held;
+    /* One implementation: a circuit speaks for its parts' join (W1). */
+    *lp = differ        ? ZXAPP_BOTH
+          : tried == 1u ? (first_inner == ZXAPP_TRUE ? ZXAPP_TRUE : ZXAPP_NEITHER)
+                        : ZXAPP_TRUE;
     return differ ? ZXAPP_E_CONFLICT : ZXAPP_OK;
 }
 

@@ -15,8 +15,8 @@ never claimed. Critical answers run in two languages and are joined by the
 paraconsistent witness (`zxapp_call_witnessed`): when they disagree the
 answer is BOTH and the app holds it.
 
-- **In use by an app:** 9 of 104
-- **Can run, no app uses it yet:** 17
+- **In use by an app:** 11 of 104
+- **Can run, no app uses it yet:** 15
 - **Waiting for a front-end (Lingua):** 78
 
 | Language | Runs as | Best at | Owns | Apps |
@@ -26,7 +26,7 @@ answer is BOTH and the app holds it.
 | Laning and Zierler | waiting | writing equations the way they are written on paper | formula | - |
 | FLOW-MATIC | waiting | English-worded business data processing, the ancestor of COBOL | business | - |
 | IPL | waiting | list processing and symbolic search | lists | - |
-| FORTRAN | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 014 Wake (count); 142 Shepherd (week); example fee_check (total) |
+| FORTRAN | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 014 Wake (count); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
 | ALGOL 58 | waiting | block-structured algorithms as published | formula | - |
 | LISP | waiting | symbolic data, trees and self-describing structures | symbolic, lists | - |
 | COBOL | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 115 Platen (copies_ok, sheets); 142 Shepherd (left); block used_share (used_x100); example fee_check (fee, fee_ok) |
@@ -39,7 +39,7 @@ answer is BOTH and the app holds it.
 | Simula I | waiting | discrete-event simulation | simulation | - |
 | CPL | waiting | general systems programming, the root of BCPL | formula | - |
 | JOSS | waiting | interactive calculation at a desk | formula | - |
-| BASIC | basic | plain step-by-step procedures anyone can read | stepwise | - |
+| BASIC | basic | plain step-by-step procedures anyone can read | stepwise | block number_classics (gcd) |
 | PL/I | waiting | mixed business and scientific records | business, numeric | - |
 | JCL | waiting | describing batch jobs and their datasets | jobs | - |
 | System/360 assembler | waiting | exact machine-level arithmetic | machine | - |
@@ -50,9 +50,9 @@ answer is BOTH and the app holds it.
 | Simula 67 | waiting | simulation with classes | simulation, objects | - |
 | ALGOL 68 | waiting | strongly typed expression-rich algorithms | formula | - |
 | B | waiting | word-level systems code | machine | - |
-| Forth | forth | tiny stack programs for devices and boot-time checks | stack, control | - |
+| Forth | forth | tiny stack programs for devices and boot-time checks | stack, control | block number_classics (gcd) |
 | Pascal | waiting | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
-| C | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 005 Scent (view/model); 010 Keepsake (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 022 Spindle (view/model); 037 Quillon (view/model); 049 Glint (view/model); 061 Murmuration (view/model); 085 Waymark (view/model); 115 Platen (view/model); 142 Shepherd (view/model) |
+| C | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 005 Scent (view/model); 010 Keepsake (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 022 Spindle (view/model); 037 Quillon (view/model); 049 Glint (view/model); 061 Murmuration (view/model); 085 Waymark (view/model); 115 Platen (view/model); 142 Shepherd (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
 | Prolog | waiting | logic rules and searching for every answer that fits | rules, search | - |
 | Smalltalk | waiting | live objects and message passing | objects, view | - |
 | ML | waiting | typed functional transforms with inference | types, proof | - |
