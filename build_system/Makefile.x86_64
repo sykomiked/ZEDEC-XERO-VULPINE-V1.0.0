@@ -147,6 +147,10 @@ SRCS := \
     kernel/src/hwdrv/r8169.c \
     kernel/src/hwdrv/usbkbd.c \
     kernel/src/hwdrv/usbmsc.c \
+    kernel/src/hwdrv/virtio_pci.c \
+    kernel/src/hwdrv/vblk.c \
+    kernel/src/hwdrv/vnet.c \
+    kernel/src/hwdrv/vscsi.c \
     kernel/src/abacus/abacus.c \
     kernel/src/ai_layer/ai_layer.c \
     kernel/src/alloc/alloc.c \

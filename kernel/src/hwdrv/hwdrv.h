@@ -4,7 +4,8 @@
  * plan in docs/TURNKEY_OS_GAPS.md).
  *
  * Drivers are written against STANDARDS, not chips: NVMe, AHCI, xHCI + USB
- * classes, Intel HD Audio, the e1000 NIC family. Each one talks to hardware
+ * classes, Intel HD Audio, the e1000 NIC family, and virtio-pci (net, blk,
+ * scsi) for KVM cloud VMs. Each one talks to hardware
  * only through hw_plat_t (config space, MMIO mapping, DMA memory, a delay and a
  * log line), so the same driver source runs:
  *   - on x86_64 bare metal (kernel/arch/x86_64/hwplat_x86.c), tested in QEMU;
@@ -257,6 +258,9 @@ uint32_t hw_selftest_all(const hw_plat_t *p, hw_registry_t *r);
 extern const hw_id_t e1000_ids[]; /* e1000.c: the Intel PRO/1000 family it drives */
 extern const hw_id_t igb_ids[];   /* igb.c: 82576 / I350 / I210 / I211 */
 extern const hw_id_t r8169_ids[]; /* r8169.c: Realtek RTL8169/8168/8111/8101 */
+extern const hw_id_t vnet_ids[];  /* vnet.c: virtio-net, transitional and modern */
+extern const hw_id_t vblk_ids[];  /* vblk.c: virtio-blk, transitional and modern */
+extern const hw_id_t vscsi_ids[]; /* vscsi.c: virtio-scsi, transitional and modern */
 hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                        hw_line_t *note);
 hw_verdict_t ahci_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
@@ -268,6 +272,12 @@ hw_verdict_t e1000_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t
 hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t igb_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t r8169_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
+                        hw_line_t *note);
+hw_verdict_t vnet_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
+                       hw_line_t *note);
+hw_verdict_t vblk_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
+                       hw_line_t *note);
+hw_verdict_t vscsi_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);
 
 #endif

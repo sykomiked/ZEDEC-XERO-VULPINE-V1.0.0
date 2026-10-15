@@ -1804,7 +1804,7 @@ test-boot-features:
 # (layers_boot.c) over a golden disc built in the test.
 test-layers:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind src/layers/test_layers.c src/layers/layers.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers && $(ZXV_TMP)/test_layers > $(ZXV_TMP)/test_layers.log 2>&1 && echo "[PASS] test_layers ($$(tail -1 $(ZXV_TMP)/test_layers.log))" || { tail -40 $(ZXV_TMP)/test_layers.log; echo "[FAIL] test_layers"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/virtio/vring.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
 
 .PHONY: test-swarmnet
 # Swarm-disc fetch (src/swarmnet): URL, HTTP head and manifest.txt parsing, the
@@ -1816,13 +1816,14 @@ test-swarmnet:
 .PHONY: test-blockdev test-hwdrv
 # Standard class drivers (src/hwdrv) against register-level fake devices. Every
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
-# drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
+# drivers (the virtio ones with src/virtio's ring engine), built with
+# ASan/UBSan. QEMU boot coverage of the same drivers is
 # build_system/hw_drivers_check.sh.
 HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c,$(sort $(wildcard src/hwdrv/*.c)))
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/virtio/vring.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:
