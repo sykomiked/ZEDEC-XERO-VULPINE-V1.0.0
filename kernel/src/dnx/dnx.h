@@ -59,8 +59,8 @@
  *     as protein letters as well as bases.
  *
  * Bounds: every writer takes a capacity and checks it before writing
- * anything (DNX_E_CAP). Payloads are capped at DNX_MAX_PAYLOAD bytes so no
- * length arithmetic can overflow 32 bits.
+ * anything (DNX_E_CAP). Payloads are capped at DNX_MAX_PAYLOAD bytes and
+ * strands at DNX_MAX_BASES, so no length arithmetic can overflow 32 bits.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0
@@ -92,6 +92,8 @@
 
 /* Bases a duplex strand of a len-byte payload needs. */
 #define DNX_DUPLEX_BASES(len) (2u * (DNX_FRAME_FIXED + 4u * (uint32_t) (len)) + DNX_PIVOT_BASES)
+/* The longest strand any call takes: one frame of the largest payload. */
+#define DNX_MAX_BASES DNX_DUPLEX_BASES(DNX_MAX_PAYLOAD)
 
 #define DNX_REGS 4u
 #define DNX_OPS  32u

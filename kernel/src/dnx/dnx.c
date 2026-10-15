@@ -48,7 +48,7 @@ int32_t dnx_bases_to_bytes(const uint8_t *bases, uint32_t n, uint8_t *out, uint3
 
 int32_t dnx_revcomp(const uint8_t *in, uint32_t n, uint8_t *out, uint32_t cap)
 {
-    if ((in == NULL && n != 0) || out == NULL || n > INT32_MAX) return DNX_E_ARG;
+    if ((in == NULL && n != 0) || out == NULL || n > DNX_MAX_BASES) return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (in[i] > DNX_T) return DNX_E_BASE;
     if (cap < n) return DNX_E_CAP;
@@ -65,7 +65,7 @@ int32_t dnx_revcomp(const uint8_t *in, uint32_t n, uint8_t *out, uint32_t cap)
 int32_t dnx_to_text(const uint8_t *bases, uint32_t n, bool rna, char *out, uint32_t cap)
 {
     static const char dna[4] = {'A', 'C', 'G', 'T'};
-    if ((bases == NULL && n != 0) || out == NULL || n > INT32_MAX) return DNX_E_ARG;
+    if ((bases == NULL && n != 0) || out == NULL || n > DNX_MAX_BASES) return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (bases[i] > DNX_T) return DNX_E_BASE;
     if (cap < n) return DNX_E_CAP;
@@ -97,7 +97,7 @@ static int dnx_letter(char ch)
 
 int32_t dnx_from_text(const char *text, uint32_t n, uint8_t *bases, uint32_t cap)
 {
-    if ((text == NULL && n != 0) || bases == NULL || n > INT32_MAX) return DNX_E_ARG;
+    if ((text == NULL && n != 0) || bases == NULL || n > DNX_MAX_BASES) return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (dnx_letter(text[i]) < 0) return DNX_E_BASE;
     if (cap < n) return DNX_E_CAP;
@@ -109,7 +109,7 @@ int32_t dnx_from_text(const char *text, uint32_t n, uint8_t *bases, uint32_t cap
 
 int32_t dnx_metrics(const uint8_t *bases, uint32_t n, dnx_metrics_t *m)
 {
-    if ((bases == NULL && n != 0) || m == NULL || n > INT32_MAX) return DNX_E_ARG;
+    if ((bases == NULL && n != 0) || m == NULL || n > DNX_MAX_BASES) return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (bases[i] > DNX_T) return DNX_E_BASE;
     dnx_metrics_t r = {0};
@@ -120,7 +120,7 @@ int32_t dnx_metrics(const uint8_t *bases, uint32_t n, dnx_metrics_t *m)
         run = (i > 0 && bases[i] == bases[i - 1u]) ? run + 1u : 1u;
         if (run > r.longest_run) r.longest_run = run;
     }
-    if (n > 0)
+    if (n != 0)
         r.gc_permille = (uint32_t) (((uint64_t) (r.count[DNX_C] + r.count[DNX_G]) * 1000u) / n);
     for (uint32_t i = 0; i + 3u <= n; i += 3u) {
         uint8_t c = dnx_codon_value(bases + i);
@@ -242,7 +242,7 @@ int32_t dnx_duplex_encode(const uint8_t *payload, uint32_t len, uint8_t *strand,
 int32_t dnx_duplex_decode(const uint8_t *strand, uint32_t n, uint8_t *fwd_out, uint8_t *rev_out,
                           uint32_t cap, dnx_verdict_t *v)
 {
-    if ((strand == NULL && n != 0) || v == NULL || n > INT32_MAX) return DNX_E_ARG;
+    if ((strand == NULL && n != 0) || v == NULL || n > DNX_MAX_BASES) return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (strand[i] > DNX_T) return DNX_E_BASE;
     dnx_reader_t fr = {strand, n, false};
@@ -342,7 +342,8 @@ static void dnx_exec(uint8_t op, dnx_state_t *s)
 
 static int32_t dnx_prog_check(const uint8_t *bases, uint32_t n, const dnx_state_t *s)
 {
-    if ((bases == NULL && n != 0) || s == NULL || n % 3u != 0 || n > INT32_MAX) return DNX_E_ARG;
+    if ((bases == NULL && n != 0) || s == NULL || n % 3u != 0 || n > DNX_MAX_BASES)
+        return DNX_E_ARG;
     for (uint32_t i = 0; i < n; i++)
         if (bases[i] > DNX_T) return DNX_E_BASE;
     return DNX_OK;
