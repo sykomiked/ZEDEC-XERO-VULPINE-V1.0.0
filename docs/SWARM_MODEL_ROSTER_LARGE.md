@@ -17,7 +17,9 @@ twin is `docs/release/swarm_model_large_manifest.json`, written by
 
 - The model's Hub card says `license: apache-2.0`; the script refuses any row
   whose card says otherwise.
-- Each base model named on the card was read too, and its licence recorded.
+- Each base model named on the card was read too, and must be Apache-2.0 on
+  its own card: the owner chose Apache only (2026-10-15), so the script
+  refuses a row whose lineage leaves Apache-2.0.
 - Weights are SafeTensors or ONNX, pinned to the Hub commit with the SHA-256
   and size of every file. Pickle-only weights are refused, as in the small
   roster.
@@ -28,7 +30,7 @@ twin is `docs/release/swarm_model_large_manifest.json`, written by
   Every other row is runtime-gated: it runs under its own runtime on a server
   until the engine gains its path.
 
-## The verified models (32)
+## The verified models (31)
 
 | Model | Developer | Params | Source size | Runs on | Used for |
 |---|---|---|---|---|---|
@@ -47,13 +49,12 @@ twin is `docs/release/swarm_model_large_manifest.json`, written by
 | `ibm-granite/granite-20b-code-instruct-8k` | IBM Granite team | 20B | 40.1 GB | server runtime (GPTBigCode) | code review |
 | `Qwen/QwQ-32B` | Qwen team, Alibaba Cloud | 32B | 65.5 GB | integer engine (qwen2) | math, decision calibration |
 | `Qwen/Qwen2.5-Math-7B-Instruct` | Qwen team, Alibaba Cloud | 7B | 15.2 GB | integer engine (qwen2) | math |
-| `cross-encoder/nli-deberta-v3-base` (MIT base) | Sentence Transformers (cross-encoder) | 184M | 1.5 GB | needs DeBERTa encoder path | nli |
-| `cross-encoder/nli-deberta-v3-large` (MIT base) | Sentence Transformers (cross-encoder) | 435M | 3.5 GB | needs DeBERTa encoder path | nli |
-| `Snowflake/snowflake-arctic-embed-l` (MIT base) | Snowflake | 335M | 2.7 GB | needs BERT encoder path | embeddings, recommendation |
+| `tasksource/ModernBERT-base-nli` | tasksource (Damien Sileo) | 150M | 0.6 GB | needs ModernBERT encoder path | nli |
+| `tasksource/ModernBERT-large-nli` | tasksource (Damien Sileo) | 396M | 1.6 GB | needs ModernBERT encoder path | nli |
+| `Alibaba-NLP/gte-modernbert-base` | Alibaba (Tongyi Lab, NLP) | 149M | 0.9 GB | needs ModernBERT encoder path | embeddings, recommendation |
 | `nomic-ai/nomic-embed-text-v1.5` | Nomic AI | 137M | 1.1 GB | needs NomicBERT path (custom code) | embeddings, recommendation |
 | `Alibaba-NLP/gte-large-en-v1.5` | Alibaba (Tongyi Lab, NLP) | 434M | 3.5 GB | needs custom 'NewModel' path | embeddings, recommendation |
-| `sentence-transformers/all-mpnet-base-v2` (MIT base) | Sentence Transformers | 109M | 0.9 GB | needs MPNet encoder path | embeddings |
-| `cross-encoder/ms-marco-MiniLM-L-12-v2` (MIT base) | Sentence Transformers (cross-encoder) | 33M | 0.3 GB | needs BERT encoder path | reranking |
+| `Alibaba-NLP/gte-reranker-modernbert-base` | Alibaba (Tongyi Lab, NLP) | 149M | 1.2 GB | needs ModernBERT encoder path | reranking |
 | `cross-encoder/ms-marco-electra-base` | Sentence Transformers (cross-encoder) | 110M | 0.9 GB | needs ELECTRA encoder path | reranking |
 | `Qwen/Qwen2.5-VL-32B-Instruct` | Qwen team, Alibaba Cloud | 33B | 68.3 GB | server runtime (Qwen2.5-VL) | vision, document ocr |
 | `Qwen/Qwen2.5-VL-7B-Instruct` | Qwen team, Alibaba Cloud | 8B | 16.6 GB | server runtime (Qwen2.5-VL) | vision, document ocr, vla planning |
@@ -87,9 +88,19 @@ sources and get their own hashes there.
 - **Nous-Hermes-2-Mixtral-8x7B-DPO** is Apache-2.0 on an Apache-2.0 Mixtral
   base; its base, **Mixtral-8x7B-Instruct**, is listed too so the trunk is
   pinned.
-- **Granite 20B code**, **Granite Guardian 3.1 8B**, the **cross-encoder** NLI
-  and reranking models, and the four **embedding** models are Apache-2.0 on
-  their cards; the bases are recorded below.
+- **Apache only (owner, 2026-10-15).** Five rows were Apache-2.0 checkpoints
+  on MIT bases and were replaced by models whose whole lineage is Apache-2.0
+  (all on the Apache-2.0 ModernBERT base from Answer.AI):
+  - **nli-deberta-v3-base** and **-large** (DeBERTa-v3, MIT) by
+    **tasksource/ModernBERT-base-nli** and **-large-nli** (three labels:
+    entailment, neutral, contradiction);
+  - **snowflake-arctic-embed-l** (from e5-large-unsupervised, MIT) and
+    **all-mpnet-base-v2** (MPNet, MIT code) by **gte-modernbert-base**;
+  - **ms-marco-MiniLM-L-12-v2** (MiniLM, MIT) by
+    **gte-reranker-modernbert-base**.
+- **Granite 20B code**, **Granite Guardian 3.1 8B**, the ELECTRA reranker and
+  the other embedding models are Apache-2.0 on their cards, with Apache-2.0
+  bases.
 - Out for format or missing weights: **unispeech-sat-base-plus** (no licence on
   its card, pickle weights), **VoxCPM2** (Apache-2.0, but its audio VAE is only
   a pickle), **prose-humanizer-7b** (no weights published), and, as in the
@@ -117,13 +128,8 @@ sources and get their own hashes there.
 
 ## For the owner to decide
 
-- **MIT.** The list leaves out MIT models (Whisper, DeepSeek), but the
-  project's allow list admits MIT, BSD and CC0 as well as Apache-2.0. Five
-  rows here are Apache-2.0 checkpoints on MIT bases: the two NLI cross-encoders
-  (DeBERTa-v3, MIT), arctic-embed-l (initialised from e5-large-unsupervised,
-  MIT), all-mpnet-base-v2 (MPNet; its base card names no licence, MPNet's code
-  is MIT) and ms-marco-MiniLM-L-12 (MiniLM, MIT). They are kept and flagged.
-- **Training data.** The two MS MARCO rerankers learned from data under
-  non-commercial research terms, and the Hermes fine-tune learned largely from
+- **Training data.** The ELECTRA reranker learned from MS MARCO, and the two
+  ModernBERT NLI models partly from ANLI (CC BY-NC 4.0); both datasets carry
+  non-commercial terms. The Hermes fine-tune learned largely from
   GPT-4 output. The weights' licences allow commercial use; the data's terms
   are recorded for the owner.

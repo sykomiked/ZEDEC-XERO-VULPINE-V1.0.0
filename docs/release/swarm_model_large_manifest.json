@@ -6,8 +6,8 @@
   "rules": "Apache-2.0 checkpoints, checked on the card; bases checked on their own cards; SafeTensors, GGUF or ONNX only. zero_float_verified is false for every row until the integer engine passes parity tests at that exact quantisation.",
   "attribution": "Every model carries its developer and source URL; every creator is credited.",
   "conflicts_for_the_owner": [
-    "MIT: the list excludes MIT models (Whisper, DeepSeek), but the project's allow list admits MIT, BSD and CC0 as well as Apache-2.0. Five admitted rows here are Apache-2.0 checkpoints on MIT bases (marked mit_base). Kept and flagged; the owner decides.",
-    "Training data: two rerankers learned from MS MARCO (non-commercial research terms on the data) and the Hermes fine-tune from GPT-4 output. The weights' licences allow commercial use; the data's terms are recorded in data_notes for the owner."
+    "Licence: the owner chose Apache only (10-15). Every admitted row is Apache-2.0 on its card and every base it names is Apache-2.0 on its own card; the five rows on MIT bases were replaced.",
+    "Training data: the ELECTRA reranker learned from MS MARCO and the two NLI models partly from ANLI (non-commercial terms on that data), and the Hermes fine-tune from GPT-4 output. The weights' licences allow commercial use; the data's terms are recorded in data_notes for the owner."
   ],
   "models": [
     {
@@ -1585,25 +1585,25 @@
       "verified": true
     },
     {
-      "model_id": "cross-encoder/nli-deberta-v3-base",
-      "developer": "Sentence Transformers (cross-encoder)",
+      "model_id": "tasksource/ModernBERT-base-nli",
+      "developer": "tasksource (Damien Sileo)",
       "license": "Apache-2.0",
       "license_checked": {
         "card": "apache-2.0",
         "bases": [
           {
-            "model_id": "microsoft/deberta-v3-base",
-            "license": "mit"
+            "model_id": "answerdotai/ModernBERT-base",
+            "license": "apache-2.0"
           }
         ],
-        "mit_base": "microsoft/deberta-v3-base (MIT)"
+        "mit_base": null
       },
-      "params": "184M",
+      "params": "150M",
       "capabilities": [
         "nli"
       ],
-      "architecture": "DebertaV2ForSequenceClassification",
-      "engine": "needs DeBERTa encoder path",
+      "architecture": "ModernBertForSequenceClassification",
+      "engine": "needs ModernBERT encoder path",
       "zt_runs_today": false,
       "zero_float_verified": false,
       "runtime_gated": true,
@@ -1611,50 +1611,44 @@
       "planning_only": false,
       "placement": "anchor_or_agora",
       "iso_seed": false,
-      "revision": "6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
-      "source_url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/tree/6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
+      "revision": "de4ab7e77845098b7fab7f6ab9d370ddff27b19c",
+      "source_url": "https://huggingface.co/tasksource/ModernBERT-base-nli/tree/de4ab7e77845098b7fab7f6ab9d370ddff27b19c",
       "weight_files": [
         {
           "path": "model.safetensors",
-          "size": 737726552,
-          "sha256": "d8148c6d49e0a7925134294c56326c71fe0ab1dc390e37355e00c7efbb488afa",
-          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/resolve/6c749ce3425cd33b46d187e45b92bbf96ee12ec7/model.safetensors"
-        },
-        {
-          "path": "onnx/model.onnx",
-          "size": 738574335,
-          "sha256": "369ebf04fce8206c83b8fd62e9dc860144f10351a7f885ed3076beb17b7c6dda",
-          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/resolve/6c749ce3425cd33b46d187e45b92bbf96ee12ec7/onnx/model.onnx"
+          "size": 598442860,
+          "sha256": "86c32c52ce38b8f26e028ca959b06daee3a5f3f6947c63258bc8695dde88a465",
+          "url": "https://huggingface.co/tasksource/ModernBERT-base-nli/resolve/de4ab7e77845098b7fab7f6ab9d370ddff27b19c/model.safetensors"
         }
       ],
-      "source_bytes": 1476300887,
+      "source_bytes": 598442860,
       "quant_target": null,
       "quant_sha256": null,
       "quant_status": "not quantised: runs under its own runtime",
-      "note": "Feeds lpres: entailment TRUE, contradiction FALSE, neutral NEITHER, strong conflicting signals BOTH.",
-      "data_note": null,
+      "note": "Replaces cross-encoder/nli-deberta-v3-base (MIT base). Feeds lpres: entailment TRUE, contradiction FALSE, neutral NEITHER, strong conflicting signals BOTH.",
+      "data_note": "Its card lists GLUE and ANLI among its training sets; ANLI is CC BY-NC 4.0 (non-commercial terms on the data).",
       "verified": true
     },
     {
-      "model_id": "cross-encoder/nli-deberta-v3-large",
-      "developer": "Sentence Transformers (cross-encoder)",
+      "model_id": "tasksource/ModernBERT-large-nli",
+      "developer": "tasksource (Damien Sileo)",
       "license": "Apache-2.0",
       "license_checked": {
         "card": "apache-2.0",
         "bases": [
           {
-            "model_id": "microsoft/deberta-v3-large",
-            "license": "mit"
+            "model_id": "answerdotai/ModernBERT-large",
+            "license": "apache-2.0"
           }
         ],
-        "mit_base": "microsoft/deberta-v3-large (MIT)"
+        "mit_base": null
       },
-      "params": "435M",
+      "params": "396M",
       "capabilities": [
         "nli"
       ],
-      "architecture": "DebertaV2ForSequenceClassification",
-      "engine": "needs DeBERTa encoder path",
+      "architecture": "ModernBertForSequenceClassification",
+      "engine": "needs ModernBERT encoder path",
       "zt_runs_today": false,
       "zero_float_verified": false,
       "runtime_gated": true,
@@ -1662,46 +1656,45 @@
       "planning_only": false,
       "placement": "anchor_or_agora",
       "iso_seed": false,
-      "revision": "bab4bc7178836f731dcfd18c06ca9def0a137712",
-      "source_url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/tree/bab4bc7178836f731dcfd18c06ca9def0a137712",
+      "revision": "ca476cb923a8637073d4ceb0f19f7fc236e260d4",
+      "source_url": "https://huggingface.co/tasksource/ModernBERT-large-nli/tree/ca476cb923a8637073d4ceb0f19f7fc236e260d4",
       "weight_files": [
         {
           "path": "model.safetensors",
-          "size": 1740312740,
-          "sha256": "01cb91b046c0c88c538c06c6d2a8ab8b11f9b9c5f9c2ef0c8e20c4086710063c",
-          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/resolve/bab4bc7178836f731dcfd18c06ca9def0a137712/model.safetensors"
-        },
-        {
-          "path": "onnx/model.onnx",
-          "size": 1742010231,
-          "sha256": "522031148bd5696cf67ca4a682ee56090cd5219558f29b62b311ea345e9f0fb7",
-          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/resolve/bab4bc7178836f731dcfd18c06ca9def0a137712/onnx/model.onnx"
+          "size": 1583355740,
+          "sha256": "f56738ff6d17e2c4b28eac0969290cc5325be886a7be069ddc2c6d69128f1e2a",
+          "url": "https://huggingface.co/tasksource/ModernBERT-large-nli/resolve/ca476cb923a8637073d4ceb0f19f7fc236e260d4/model.safetensors"
         }
       ],
-      "source_bytes": 3482322971,
+      "source_bytes": 1583355740,
       "quant_target": null,
       "quant_sha256": null,
       "quant_status": "not quantised: runs under its own runtime",
-      "note": null,
-      "data_note": null,
+      "note": "Replaces cross-encoder/nli-deberta-v3-large (MIT base).",
+      "data_note": "Its card lists GLUE and ANLI among its training sets; ANLI is CC BY-NC 4.0 (non-commercial terms on the data).",
       "verified": true
     },
     {
-      "model_id": "Snowflake/snowflake-arctic-embed-l",
-      "developer": "Snowflake",
+      "model_id": "Alibaba-NLP/gte-modernbert-base",
+      "developer": "Alibaba (Tongyi Lab, NLP)",
       "license": "Apache-2.0",
       "license_checked": {
         "card": "apache-2.0",
-        "bases": [],
-        "mit_base": "initialised from intfloat/e5-large-unsupervised (MIT), per Snowflake's report"
+        "bases": [
+          {
+            "model_id": "answerdotai/ModernBERT-base",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
       },
-      "params": "335M",
+      "params": "149M",
       "capabilities": [
         "embeddings",
         "recommendation"
       ],
-      "architecture": "BertModel",
-      "engine": "needs BERT encoder path",
+      "architecture": "ModernBertModel",
+      "engine": "needs ModernBERT encoder path",
       "zt_runs_today": false,
       "zero_float_verified": false,
       "runtime_gated": true,
@@ -1709,27 +1702,27 @@
       "planning_only": false,
       "placement": "anchor_or_agora",
       "iso_seed": false,
-      "revision": "d8fb21ca8d905d2832ee8b96c894d3298964346b",
-      "source_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/tree/d8fb21ca8d905d2832ee8b96c894d3298964346b",
+      "revision": "e7f32e3c00f91d699e8c43b53106206bcc72bb22",
+      "source_url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/tree/e7f32e3c00f91d699e8c43b53106206bcc72bb22",
       "weight_files": [
         {
           "path": "model.safetensors",
-          "size": 1336413848,
-          "sha256": "46e36bf399c152c51818e1d0423bfe628d79fc9536dbf9d4fcc93078827d6c99",
-          "url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/resolve/d8fb21ca8d905d2832ee8b96c894d3298964346b/model.safetensors"
+          "size": 298041568,
+          "sha256": "3e85899d5728cb7de79781c0c3acfb91ccef9f875f1f7e0b3c9f3dd4b6a724ba",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/e7f32e3c00f91d699e8c43b53106206bcc72bb22/model.safetensors"
         },
         {
           "path": "onnx/model.onnx",
-          "size": 1336854283,
-          "sha256": "9c6ae4c0108aa2f7fb4cf95776f40bfd7dca7edb6d8c686d6470b6ab105ca559",
-          "url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/resolve/d8fb21ca8d905d2832ee8b96c894d3298964346b/onnx/model.onnx"
+          "size": 596392315,
+          "sha256": "947f31df7effaeec4edb57c50e4ed7e0f2034d9336063f92615b92e3e0d24d78",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-modernbert-base/resolve/e7f32e3c00f91d699e8c43b53106206bcc72bb22/onnx/model.onnx"
         }
       ],
-      "source_bytes": 2673268131,
+      "source_bytes": 894433883,
       "quant_target": null,
       "quant_sha256": null,
       "quant_status": "not quantised: runs under its own runtime",
-      "note": null,
+      "note": "Replaces Snowflake/snowflake-arctic-embed-l and sentence-transformers/all-mpnet-base-v2 (MIT bases).",
       "data_note": null,
       "verified": true
     },
@@ -1828,71 +1821,25 @@
       "verified": true
     },
     {
-      "model_id": "sentence-transformers/all-mpnet-base-v2",
-      "developer": "Sentence Transformers",
-      "license": "Apache-2.0",
-      "license_checked": {
-        "card": "apache-2.0",
-        "bases": [],
-        "mit_base": "microsoft/mpnet-base (its card names no licence; MPNet's code is MIT)"
-      },
-      "params": "109M",
-      "capabilities": [
-        "embeddings"
-      ],
-      "architecture": "MPNetForMaskedLM",
-      "engine": "needs MPNet encoder path",
-      "zt_runs_today": false,
-      "zero_float_verified": false,
-      "runtime_gated": true,
-      "advisory_only": false,
-      "planning_only": false,
-      "placement": "anchor_or_agora",
-      "iso_seed": false,
-      "revision": "e8c3b32edf5434bc2275fc9bab85f82640a19130",
-      "source_url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/tree/e8c3b32edf5434bc2275fc9bab85f82640a19130",
-      "weight_files": [
-        {
-          "path": "model.safetensors",
-          "size": 437971872,
-          "sha256": "78c0197b6159d92658e319bc1d72e4c73a9a03dd03815e70e555c5ef05615658",
-          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/e8c3b32edf5434bc2275fc9bab85f82640a19130/model.safetensors"
-        },
-        {
-          "path": "onnx/model.onnx",
-          "size": 435826548,
-          "sha256": "74187b16d9c946fea252e120cfd7a12c5779d8b8b86838a2e4c56573c47941bd",
-          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/e8c3b32edf5434bc2275fc9bab85f82640a19130/onnx/model.onnx"
-        }
-      ],
-      "source_bytes": 873798420,
-      "quant_target": null,
-      "quant_sha256": null,
-      "quant_status": "not quantised: runs under its own runtime",
-      "note": null,
-      "data_note": null,
-      "verified": true
-    },
-    {
-      "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
-      "developer": "Sentence Transformers (cross-encoder)",
+      "model_id": "Alibaba-NLP/gte-reranker-modernbert-base",
+      "developer": "Alibaba (Tongyi Lab, NLP)",
       "license": "Apache-2.0",
       "license_checked": {
         "card": "apache-2.0",
         "bases": [
           {
-            "model_id": "microsoft/MiniLM-L12-H384-uncased",
-            "license": "mit"
+            "model_id": "answerdotai/ModernBERT-base",
+            "license": "apache-2.0"
           }
         ],
-        "mit_base": "microsoft/MiniLM-L12-H384-uncased (MIT)"
+        "mit_base": null
       },
-      "params": "33M",
+      "params": "149M",
       "capabilities": [
         "reranking"
       ],
-      "architecture": "BertForSequenceClassification",
-      "engine": "needs BERT encoder path",
+      "architecture": "ModernBertForSequenceClassification",
+      "engine": "needs ModernBERT encoder path",
       "zt_runs_today": false,
       "zero_float_verified": false,
       "runtime_gated": true,
@@ -1900,28 +1847,28 @@
       "planning_only": false,
       "placement": "anchor_or_agora",
       "iso_seed": false,
-      "revision": "7b0235231ca2674cb8ca8f022859a6eba2b1c968",
-      "source_url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/tree/7b0235231ca2674cb8ca8f022859a6eba2b1c968",
+      "revision": "f7481e6055501a30fb19d090657df9ec1f79ab2c",
+      "source_url": "https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base/tree/f7481e6055501a30fb19d090657df9ec1f79ab2c",
       "weight_files": [
         {
           "path": "model.safetensors",
-          "size": 133469020,
-          "sha256": "1ed84b90cdf3518f76ec9bb93a16f97887eea7c4e7ee5dfb03cc297e394fbbc3",
-          "url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/resolve/7b0235231ca2674cb8ca8f022859a6eba2b1c968/model.safetensors"
+          "size": 598436708,
+          "sha256": "13c533d902d6a48fa97375c6856c3e60854f9228ea760e3fc18ebde057e0cf31",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base/resolve/f7481e6055501a30fb19d090657df9ec1f79ab2c/model.safetensors"
         },
         {
           "path": "onnx/model.onnx",
-          "size": 133743863,
-          "sha256": "2ac389ab6abe08dcbddf2c41a69b6a18853e0dca440adbc2abc1adfcee46483f",
-          "url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/resolve/7b0235231ca2674cb8ca8f022859a6eba2b1c968/onnx/model.onnx"
+          "size": 598803940,
+          "sha256": "c6d3226502addbcd4d2cf273802957ebf8a2a6bf94037dcb9b1d95bfc01e5d93",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-reranker-modernbert-base/resolve/f7481e6055501a30fb19d090657df9ec1f79ab2c/onnx/model.onnx"
         }
       ],
-      "source_bytes": 267212883,
+      "source_bytes": 1197240648,
       "quant_target": null,
       "quant_sha256": null,
       "quant_status": "not quantised: runs under its own runtime",
-      "note": null,
-      "data_note": "Trained on MS MARCO (non-commercial research terms on the data).",
+      "note": "Replaces cross-encoder/ms-marco-MiniLM-L-12-v2 (MIT base).",
+      "data_note": null,
       "verified": true
     },
     {
@@ -2511,6 +2458,36 @@
     }
   ],
   "excluded": [
+    {
+      "model_id": "cross-encoder/nli-deberta-v3-base",
+      "reason_kind": "licence",
+      "reason": "Apache-2.0 card on a base outside Apache-2.0: microsoft/deberta-v3-base (MIT). The owner chose Apache only (10-15).",
+      "replacement": "tasksource/ModernBERT-base-nli"
+    },
+    {
+      "model_id": "cross-encoder/nli-deberta-v3-large",
+      "reason_kind": "licence",
+      "reason": "Apache-2.0 card on a base outside Apache-2.0: microsoft/deberta-v3-large (MIT). The owner chose Apache only (10-15).",
+      "replacement": "tasksource/ModernBERT-large-nli"
+    },
+    {
+      "model_id": "Snowflake/snowflake-arctic-embed-l",
+      "reason_kind": "licence",
+      "reason": "Apache-2.0 card on a base outside Apache-2.0: initialised from intfloat/e5-large-unsupervised (MIT), per Snowflake's report. The owner chose Apache only (10-15).",
+      "replacement": "Alibaba-NLP/gte-modernbert-base"
+    },
+    {
+      "model_id": "sentence-transformers/all-mpnet-base-v2",
+      "reason_kind": "licence",
+      "reason": "Apache-2.0 card on a base outside Apache-2.0: microsoft/mpnet-base (no licence on its card; MPNet's code is MIT). The owner chose Apache only (10-15).",
+      "replacement": "Alibaba-NLP/gte-modernbert-base"
+    },
+    {
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+      "reason_kind": "licence",
+      "reason": "Apache-2.0 card on a base outside Apache-2.0: microsoft/MiniLM-L12-H384-uncased (MIT). The owner chose Apache only (10-15).",
+      "replacement": "Alibaba-NLP/gte-reranker-modernbert-base"
+    },
     {
       "model_id": "Qwen/Qwen2.5-72B-Instruct",
       "reason_kind": "licence",

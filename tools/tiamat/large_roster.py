@@ -94,28 +94,28 @@ ADMITTED = [
     row("Qwen/Qwen2.5-Math-7B-Instruct", QWEN, "7B", ["math"], ST, "zt (qwen2)",
         note="Replaces the Qwen2.5-Math-14B-Instruct the list named, which does not exist."),
     # --- contradiction-aware (NLI), embeddings, reranking --------------------
-    row("cross-encoder/nli-deberta-v3-base", "Sentence Transformers (cross-encoder)", "184M",
-        ["nli"], ST + ["onnx/model.onnx"], "needs DeBERTa encoder path",
-        mit_base="microsoft/deberta-v3-base (MIT)",
-        note="Feeds lpres: entailment TRUE, contradiction FALSE, neutral NEITHER, strong conflicting "
-             "signals BOTH."),
-    row("cross-encoder/nli-deberta-v3-large", "Sentence Transformers (cross-encoder)", "435M",
-        ["nli"], ST + ["onnx/model.onnx"], "needs DeBERTa encoder path",
-        mit_base="microsoft/deberta-v3-large (MIT)"),
-    row("Snowflake/snowflake-arctic-embed-l", "Snowflake", "335M", ["embeddings", "recommendation"],
-        ST + ["onnx/model.onnx"], "needs BERT encoder path",
-        mit_base="initialised from intfloat/e5-large-unsupervised (MIT), per Snowflake's report"),
+    row("tasksource/ModernBERT-base-nli", "tasksource (Damien Sileo)", "150M", ["nli"], ST,
+        "needs ModernBERT encoder path",
+        note="Replaces cross-encoder/nli-deberta-v3-base (MIT base). Feeds lpres: entailment TRUE, "
+             "contradiction FALSE, neutral NEITHER, strong conflicting signals BOTH.",
+        data="Its card lists GLUE and ANLI among its training sets; ANLI is CC BY-NC 4.0 "
+             "(non-commercial terms on the data)."),
+    row("tasksource/ModernBERT-large-nli", "tasksource (Damien Sileo)", "396M", ["nli"], ST,
+        "needs ModernBERT encoder path",
+        note="Replaces cross-encoder/nli-deberta-v3-large (MIT base).",
+        data="Its card lists GLUE and ANLI among its training sets; ANLI is CC BY-NC 4.0 "
+             "(non-commercial terms on the data)."),
+    row("Alibaba-NLP/gte-modernbert-base", "Alibaba (Tongyi Lab, NLP)", "149M",
+        ["embeddings", "recommendation"], ST + ["onnx/model.onnx"], "needs ModernBERT encoder path",
+        note="Replaces Snowflake/snowflake-arctic-embed-l and sentence-transformers/all-mpnet-base-v2 "
+             "(MIT bases)."),
     row("nomic-ai/nomic-embed-text-v1.5", "Nomic AI", "137M", ["embeddings", "recommendation"],
         ST + ["onnx/model.onnx"], "needs NomicBERT path (custom code)"),
     row("Alibaba-NLP/gte-large-en-v1.5", "Alibaba (Tongyi Lab, NLP)", "434M",
         ["embeddings", "recommendation"], ST + ["onnx/model.onnx"], "needs custom 'NewModel' path"),
-    row("sentence-transformers/all-mpnet-base-v2", "Sentence Transformers", "109M", ["embeddings"],
-        ST + ["onnx/model.onnx"], "needs MPNet encoder path",
-        mit_base="microsoft/mpnet-base (its card names no licence; MPNet's code is MIT)"),
-    row("cross-encoder/ms-marco-MiniLM-L-12-v2", "Sentence Transformers (cross-encoder)", "33M",
-        ["reranking"], ST + ["onnx/model.onnx"], "needs BERT encoder path",
-        mit_base="microsoft/MiniLM-L12-H384-uncased (MIT)",
-        data="Trained on MS MARCO (non-commercial research terms on the data)."),
+    row("Alibaba-NLP/gte-reranker-modernbert-base", "Alibaba (Tongyi Lab, NLP)", "149M",
+        ["reranking"], ST + ["onnx/model.onnx"], "needs ModernBERT encoder path",
+        note="Replaces cross-encoder/ms-marco-MiniLM-L-12-v2 (MIT base)."),
     row("cross-encoder/ms-marco-electra-base", "Sentence Transformers (cross-encoder)", "110M",
         ["reranking"], ST + ["onnx/model.onnx"], "needs ELECTRA encoder path",
         data="Trained on MS MARCO (non-commercial research terms on the data)."),
@@ -147,6 +147,21 @@ ADMITTED = [
 
 # The owner's rows that were not admitted, and why.
 EXCLUDED = [
+    ("cross-encoder/nli-deberta-v3-base", "licence",
+     "Apache-2.0 card on a base outside Apache-2.0: microsoft/deberta-v3-base (MIT). The owner chose Apache only (10-15).",
+     "tasksource/ModernBERT-base-nli"),
+    ("cross-encoder/nli-deberta-v3-large", "licence",
+     "Apache-2.0 card on a base outside Apache-2.0: microsoft/deberta-v3-large (MIT). The owner chose Apache only (10-15).",
+     "tasksource/ModernBERT-large-nli"),
+    ("Snowflake/snowflake-arctic-embed-l", "licence",
+     "Apache-2.0 card on a base outside Apache-2.0: initialised from intfloat/e5-large-unsupervised (MIT), per Snowflake's report. The owner chose Apache only (10-15).",
+     "Alibaba-NLP/gte-modernbert-base"),
+    ("sentence-transformers/all-mpnet-base-v2", "licence",
+     "Apache-2.0 card on a base outside Apache-2.0: microsoft/mpnet-base (no licence on its card; MPNet's code is MIT). The owner chose Apache only (10-15).",
+     "Alibaba-NLP/gte-modernbert-base"),
+    ("cross-encoder/ms-marco-MiniLM-L-12-v2", "licence",
+     "Apache-2.0 card on a base outside Apache-2.0: microsoft/MiniLM-L12-H384-uncased (MIT). The owner chose Apache only (10-15).",
+     "Alibaba-NLP/gte-reranker-modernbert-base"),
     ("Qwen/Qwen2.5-72B-Instruct", "licence", "Qwen licence (license: other), not Apache-2.0.",
      "Qwen/Qwen3-32B, Qwen/Qwen2.5-32B-Instruct"),
     ("Qwen/Qwen2.5-Math-72B-Instruct", "licence", "Qwen licence (license: other).", "Qwen/QwQ-32B"),
@@ -188,11 +203,10 @@ SMALL_TO_REVIEW = [
 
 # For the owner: two points where the list and the project's rules differ.
 CONFLICTS = [
-    "MIT: the list excludes MIT models (Whisper, DeepSeek), but the project's allow list admits "
-    "MIT, BSD and CC0 as well as Apache-2.0. Five admitted rows here are Apache-2.0 checkpoints on "
-    "MIT bases (marked mit_base). Kept and flagged; the owner decides.",
-    "Training data: two rerankers learned from MS MARCO (non-commercial research terms on the "
-    "data) and the Hermes fine-tune from GPT-4 output. The weights' licences allow commercial use; "
+    "Licence: the owner chose Apache only (10-15). Every admitted row is Apache-2.0 on its card and "
+    "every base it names is Apache-2.0 on its own card; the five rows on MIT bases were replaced.",
+    "Training data: the ELECTRA reranker learned from MS MARCO and the two NLI models partly from "
+    "ANLI (non-commercial terms on that data), and the Hermes fine-tune from GPT-4 output. The weights' licences allow commercial use; "
     "the data's terms are recorded in data_notes for the owner.",
 ]
 
@@ -202,12 +216,16 @@ def entry(r, meta, metas):
     lic = cd.get("license")
     if lic != "apache-2.0":
         raise SystemExit(f"{r['id']}: card licence is {lic!r}, not apache-2.0")
+    if r["mit_base"]:
+        raise SystemExit(f"{r['id']}: built on {r['mit_base']}, not Apache-2.0")
     files = files_of(meta, r["weights"])
     if not files:
         raise SystemExit(f"{r['id']}: no weight files match {r['weights']} at {meta.get('sha')}")
     bases = []
     for b in base_chain(meta):
         bl = ((metas.get(b) or {}).get("cardData") or {}).get("license")
+        if bl != "apache-2.0":  # Apache only (owner, 10-15): the whole lineage
+            raise SystemExit(f"{r['id']}: base {b} is under {bl!r}, not apache-2.0")
         bases.append({"model_id": b, "license": bl})
     arch = ((meta.get("config") or {}).get("architectures") or [None])[0]
     return {
