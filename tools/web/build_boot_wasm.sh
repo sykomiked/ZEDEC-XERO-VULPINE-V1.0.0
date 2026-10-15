@@ -59,6 +59,9 @@ trap 'rm -f "$tmp"' EXIT
     "$R/web/boot/zxv_boot_wasm.c" "$K/src/zui/zui_boot.c" "$K/src/zui/zui_vec.c" \
     "$K/src/zui/zui_progress.c" "$K/src/zui/zui_canvas.c" "$K/src/zui/zui_layout.c" \
     "$K/src/zui/zui_login.c" "$K/src/zui/zui_depth.c" \
+    "$K/src/zui/zui_desk.c" "$K/src/zui/zui_wm.c" "$K/src/zui/zui_dock.c" \
+    "$K/src/zui/zui_motion.c" "$K/src/zui/zui_palette.c" "$K/src/zui/zui_launch_theme.c" \
+    "$K/src/zui/zui_input.c" \
     "$K/src/font/truetype.c" "$K/src/launch/zxl_launch.c" "$K/src/launch/zxl_synth.c" \
     -o "$tmp"
 if [ "$mode" = check ]; then

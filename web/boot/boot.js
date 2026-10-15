@@ -168,6 +168,75 @@ async function boot()
 
     const sound = new Sound(zb, memory);
     let last = performance.now(), handed = false, manifest = null;
+    let packBuf = null, iconInflight = -1, lastMode = -1;
+
+    // the desk asks for one rail app's icon at a time. With a pack it is a
+    // slice already verified; without one it streams from its layer inside
+    // the sealed root and the launch's parts light as the bytes arrive.
+    function serveIcons()
+    {
+        if (!zb.zb_icon_want) return;
+        const want = zb.zb_icon_want();
+        if (!want || want - 1 === iconInflight) return;
+        iconInflight = want - 1;
+        const app = manifest.apps && manifest.apps[iconInflight];
+        const i = iconInflight;
+        if (!app || (!app.icon && app.off === undefined)) {
+            zb.zb_icon_fail(i);
+            iconInflight = -1;
+            return;
+        }
+        if (packBuf && app.off !== undefined) {
+            const bytes = packBuf.subarray(app.off, app.off + app.size);
+            const p = zb.zb_icon_buf(i, bytes.length);
+            if (p) {
+                new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
+                if (zb.zb_icon_set(i, bytes.length) === 0) {
+                    iconInflight = -1;
+                    return;
+                }
+            }
+            zb.zb_icon_fail(i);
+            iconInflight = -1;
+            return;
+        }
+        (async () => {
+            try {
+                const res = await fetch(app.icon, {cache : 'no-cache'});
+                if (!res.ok) throw new Error(`${app.icon}: ${res.status}`);
+                const len = +res.headers.get('content-length') || 0;
+                let buf = new Uint8Array(len || 65536);
+                let at = 0;
+                const reader = res.body.getReader();
+                for (;;) {
+                    const {done : end, value} = await reader.read();
+                    if (end) break;
+                    if (at + value.length > buf.length) {
+                        const grown = new Uint8Array(
+                            Math.max(buf.length * 2, at + value.length));
+                        grown.set(buf.subarray(0, at));
+                        buf = grown;
+                    }
+                    buf.set(value, at);
+                    at += value.length;
+                    if (len && zb.zb_icon_prog) zb.zb_icon_prog(i, at, len);
+                }
+                const p = zb.zb_icon_buf(i, at);
+                if (!p) throw new Error(`${app.icon}: too large`);
+                new Uint8Array(memory.buffer, p, at).set(buf.subarray(0, at));
+                if (zb.zb_icon_set(i, at) !== 0)
+                    throw new Error(`${app.icon}: not a ZXVG file`);
+            } catch (e) {
+                zb.zb_icon_fail(i);
+            }
+            iconInflight = -1;
+        })();
+    }
+
+    const MODE_HINT = {
+        1 : 'the doors are open — choose the guest to come in',
+        2 : 'welcome, guest — click a tile to open its app',
+    };
     function frame(now)
     {
         const ms = Math.max(0, Math.min(250, now - last));
@@ -177,6 +246,12 @@ async function boot()
         if (img.data.buffer !== memory.buffer) size();
         g.putImageData(img, 0, 0);
         sound.pump(ms);
+        serveIcons();
+        if (zb.zb_desk) {
+            const mode = zb.zb_desk();
+            if (mode !== lastMode && MODE_HINT[mode]) say(MODE_HINT[mode]);
+            lastMode = mode;
+        }
         if (zb.zb_phase() === PHASE.DONE && !handed) {
             handed = true;
             dispatchEvent(new CustomEvent('zxv:booted'));
@@ -185,6 +260,46 @@ async function boot()
         requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
+
+    // the session's events, in canvas pixels
+    if (zb.zb_pointer) {
+        const pt = (e) => {
+            const r = canvas.getBoundingClientRect();
+            return [ Math.round((e.clientX - r.left) * canvas.width / r.width),
+                     Math.round((e.clientY - r.top) * canvas.height / r.height) ];
+        };
+        let held = 0;
+        canvas.addEventListener('pointerdown', (e) => {
+            held = 1;
+            const [x, y] = pt(e);
+            zb.zb_pointer(1, x, y, 1);
+            e.preventDefault();
+        });
+        canvas.addEventListener('pointerup', (e) => {
+            held = 0;
+            const [x, y] = pt(e);
+            zb.zb_pointer(2, x, y, 1);
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            const [x, y] = pt(e);
+            zb.zb_pointer(0, x, y, held);
+        });
+        canvas.addEventListener('wheel', (e) => {
+            if (!zb.zb_scroll) return;
+            const [x, y] = pt(e);
+            zb.zb_scroll(x, y, Math.round(e.deltaX), Math.round(e.deltaY));
+            e.preventDefault();
+        }, {passive : false});
+        addEventListener('keydown', (e) => {
+            if (!zb.zb_key) return;
+            const keys = {Enter : 13, Escape : 27, Backspace : 8, Tab : 9, ' ' : 32,
+                          ArrowLeft : 0x100, ArrowRight : 0x101, ArrowUp : 0x102,
+                          ArrowDown : 0x103, Home : 0x104, End : 0x105,
+                          PageUp : 0x106, PageDown : 0x107, Delete : 127};
+            const k = keys[e.key] || (e.key.length === 1 ? e.key.charCodeAt(0) : 0);
+            if (k) zb.zb_key(k, 1);
+        });
+    }
 
     // the system, from the sealed root
     try {
@@ -203,17 +318,58 @@ async function boot()
                 throw new Error('boot.json: every file needs a path and a size');
             total += f.size;
         }
-        let done = 0;
+        let done = 0, filesDone = 0;
+        const filesTotal = files.length;
+        const mib = (n) => (n / 1048576).toFixed(1);
+        const status = () =>
+            say(`loading the system — ${mib(done)} of ${mib(total)} MiB · file ${filesDone} of ${filesTotal}`);
         zb.zb_load(0, total);
+        status();
         const onBytes = (n) => {
             done += n;
             zb.zb_load(Math.min(done, total), total);
         };
+        const slice = (entry) => packBuf.subarray(entry.off, entry.off + entry.size);
+        if (manifest.pack && manifest.pack.path) {
+            // one file holds every byte the session reads: the logos, the
+            // font, the whole system set and every app's icon, end to end.
+            // One fetch and one hash check it all; the entries below are
+            // slices out of it — no path resolves through the tree at all.
+            const pe = manifest.pack;
+            const iconBytes = (manifest.apps || []).reduce((n, a) => n + (a.size || 0), 0);
+            if (pe.size !== total + iconBytes)
+                throw new Error('boot.json: the pack does not cover the file set');
+            say(`loading the system — one file, ${mib(pe.size)} MiB`);
+            const res = await fetch(pe.path, {cache : 'no-cache'});
+            if (!res.ok) throw new Error(`${pe.path}: ${res.status} ${res.statusText}`);
+            packBuf = new Uint8Array(pe.size);
+            let at = 0;
+            const reader = res.body.getReader();
+            for (;;) {
+                const {done : end, value} = await reader.read();
+                if (end) break;
+                if (at + value.length > pe.size)
+                    throw new Error(`${pe.path}: longer than its ${pe.size} bytes`);
+                packBuf.set(value, at);
+                at += value.length;
+                onBytes(value.length);
+                filesDone = Math.min(filesTotal,
+                    Math.floor(filesTotal * at / pe.size));
+                if (at % 1048576 < value.length) status();
+            }
+            if (at !== pe.size) throw new Error(`${pe.path}: ${at} of ${pe.size} bytes`);
+            if (pe.sha256 && (await sha256hex(packBuf)) !== pe.sha256.toLowerCase())
+                throw new Error(`${pe.path}: does not match its SHA-256`);
+            filesDone = filesTotal;
+            status();
+        }
+        const get = async (entry) =>
+            packBuf ? slice(entry) : await fetchChecked(entry, onBytes);
         // the logos first, so each tile has its logo before its gold comes up
         for (let i = 0; i < LOGOS.length; i++) {
             const entry = manifest.logos && manifest.logos[LOGOS[i]];
             if (!entry) continue; // its tile stays carved and empty
-            const bytes = await fetchChecked(entry, onBytes);
+            const bytes = await get(entry);
             const p = zb.zb_logo_buf(bytes.length);
             if (!p) throw new Error(`${entry.path}: too large`);
             new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
@@ -221,14 +377,37 @@ async function boot()
                 throw new Error(`${entry.path}: not a ZXVG file`);
         }
         if (manifest.font) {
-            const bytes = await fetchChecked(manifest.font, onBytes);
+            const bytes = await get(manifest.font);
             const p = zb.zb_font_buf(bytes.length);
             if (!p) throw new Error(`${manifest.font.path}: too large`);
             new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
             if (zb.zb_font_set(bytes.length) !== 0)
                 throw new Error(`${manifest.font.path}: not a TrueType font`);
         }
-        for (const entry of manifest.system || []) await fetchChecked(entry, onBytes);
+        if (!packBuf) {
+            // no pack in this manifest: the files come one by one, a few in
+            // flight at once — every byte still fetched, every hash checked
+            const CONCURRENCY = 6;
+            const system = manifest.system || [];
+            let next = 0, firstErr = null;
+            const worker = async () => {
+                while (next < system.length && !firstErr) {
+                    const i = next++;
+                    try {
+                        await fetchChecked(system[i], onBytes);
+                    } catch (e) {
+                        if (!firstErr) firstErr = e;
+                        return;
+                    }
+                    filesDone++;
+                    if (filesDone % 8 === 0 || filesDone === filesTotal) status();
+                }
+            };
+            await Promise.all(
+                Array.from({length : Math.min(CONCURRENCY, system.length)}, worker));
+            if (firstErr) throw firstErr;
+            status();
+        }
         zb.zb_ready();
     } catch (err) {
         zb.zb_fail();
