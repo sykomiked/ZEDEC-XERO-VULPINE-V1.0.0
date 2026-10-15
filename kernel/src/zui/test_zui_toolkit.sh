@@ -28,7 +28,7 @@ run test_zui_palette "" $Z/test_zui_palette.c $Z/zui_palette.c
 run test_zui_magnifier "" $Z/test_zui_magnifier.c $Z/zui_magnifier.c $Z/zui_layout.c $DRAW
 run test_zui_reader "" $Z/test_zui_reader.c $Z/zui_reader.c $UI
 run test_zui_keymap "" $Z/test_zui_keymap.c $Z/zui_keymap.c $Z/zui_input.c
-run test_zui_ime "" $Z/test_zui_ime.c $Z/zui_ime.c $Z/zui_keymap.c $Z/zui_input.c
+run test_zui_ime "" $Z/test_zui_ime.c $Z/zui_ime.c $Z/zui_ime_lang.c $Z/zui_keymap.c $Z/zui_input.c
 run test_zui_osk "" $Z/test_zui_osk.c $Z/zui_osk.c $Z/zui_keymap.c $Z/zui_input.c $Z/zui_layout.c $DRAW
 run test_zui_gesture "" $Z/test_zui_gesture.c $Z/zui_gesture.c $Z/zui_input.c
 run test_zui_notice "" $Z/test_zui_notice.c $Z/zui_notice.c $DRAW

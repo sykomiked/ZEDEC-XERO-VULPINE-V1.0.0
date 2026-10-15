@@ -546,7 +546,7 @@ static void test_split_and_dead(void)
     CHECK(zui_ime_cand_add(&IME, "x", 1, 1) && !zui_ime_cand_add(&IME, "", 0, 0) &&
               !zui_ime_cand_add(&IME, "0123456789012345678901234", 25, 0),
           "empty and oversize candidates are refused");
-    for (int i = 0; i < 40; i++) zui_ime_cand_add(&IME, "y", 1, 0);
+    for (uint32_t i = 0; i < ZUI_IME_CAND_MAX + 8u; i++) zui_ime_cand_add(&IME, "y", 1, 0);
     CHECK(zui_ime_cand_count(&IME) == ZUI_IME_CAND_MAX, "at most ZUI_IME_CAND_MAX");
     CHECK(zui_ime_cand_nav(&IME, ZUI_KEY_END) && IME.sel == ZUI_IME_CAND_MAX - 1 &&
               zui_ime_cand_nav(&IME, ZUI_KEY_DOWN) && IME.sel == ZUI_IME_CAND_MAX - 1 &&
@@ -563,6 +563,214 @@ static void test_split_and_dead(void)
     CHECK(IME.ncommit == ZUI_IME_COMMIT_MAX - 1, "the commit buffer is bounded");
 }
 
+/* ---- M6: the languages' input methods --------------------------------------------- */
+
+/* text from elsewhere (an on-screen keyboard), one character per event */
+static void feed_chars(const char *s)
+{
+    zui_event_t e, out[ZUI_IME_EV_MAX];
+    while (*s) {
+        memset(&e, 0, sizeof e);
+        e.type = ZUI_EV_TEXT;
+        uint32_t cp, n = zui_km_utf8_get(s, (uint32_t) strlen(s), &cp);
+        memcpy(e.text, s, n);
+        s += n;
+        app(out, zui_ime_feed(&IME, &e, out, ZUI_IME_EV_MAX));
+    }
+}
+
+static bool has_cand(const char *c)
+{
+    for (uint32_t i = 0; i < zui_ime_cand_count(&IME); i++)
+        if (strcmp(zui_ime_cand(&IME, i), c) == 0) return true;
+    return false;
+}
+
+static void test_han(void)
+{
+    setup(&zui_ime_pinyin);
+    type_ascii("zhong");
+    CHECK(strcmp(PRE, "zhong") == 0 && strcmp(zui_ime_cand(&IME, 0), "中") == 0,
+          "pinyin: zhong offers 中 first");
+    type_ascii(" ");
+    type_ascii("guo1");
+    CHECK(strcmp(DOC, "中国") == 0 && PRE[0] == 0, "pinyin: 中国 (%s)", DOC);
+    reset_app();
+    type_ascii("nv");
+    CHECK(has_cand("女"), "pinyin: v is u-umlaut");
+    type_ascii(" ");
+    CHECK(strcmp(DOC, "女") == 0, "pinyin: nv -> 女");
+    reset_app();
+    type_ascii("shi");
+    CHECK(zui_ime_cand_count(&IME) > 32 && strcmp(zui_ime_cand(&IME, 0), "是") == 0,
+          "pinyin: shi has many candidates, 是 first (%u)", zui_ime_cand_count(&IME));
+    type_ascii("xue");
+    CHECK(strcmp(PRE, "shixue") == 0 && has_cand("是"), "pinyin: the longest syllable first");
+    type_ascii("1");
+    CHECK(strcmp(DOC, "是") == 0 && strcmp(PRE, "xue") == 0 && has_cand("学"),
+          "pinyin: the rest keeps composing");
+    tap(K_ENTER);
+    CHECK(strcmp(DOC, "是xue") == 0 && PRE[0] == 0, "pinyin: Enter sends the letters");
+
+    setup(&zui_ime_pinyin_hant);
+    type_ascii("zhong guo ");
+    CHECK(strcmp(DOC, "中國") == 0, "traditional pinyin: 中國 (%s)", DOC);
+    reset_app();
+    type_ascii("xue");
+    CHECK(has_cand("學") && !has_cand("学"), "traditional pinyin: 學, not 学");
+
+    setup(&zui_ime_jyutping);
+    type_ascii("gwong2dung2");
+    CHECK(strcmp(DOC, "廣東") == 0, "jyutping: 廣東 (%s)", DOC);
+    reset_app();
+    type_ascii("nei");
+    CHECK(strcmp(zui_ime_cand(&IME, 0), "你") == 0, "jyutping: nei offers 你 first");
+    type_ascii(" hou ");
+    CHECK(strcmp(DOC, "你好") == 0, "jyutping: 你好 (%s)", DOC);
+}
+
+static void test_kana(void)
+{
+    setup(&zui_ime_kana);
+    type_ascii("ni");
+    CHECK(strcmp(PRE, "に") == 0, "kana: ni");
+    type_ascii("h");
+    CHECK(strcmp(PRE, "にh") == 0, "kana: a consonant waits");
+    type_ascii("onn");
+    CHECK(strcmp(PRE, "にほん") == 0, "kana: nihonn (%s)", PRE);
+    CHECK(strcmp(zui_ime_cand(&IME, 0), "にほん") == 0 &&
+              strcmp(zui_ime_cand(&IME, 1), "ニホン") == 0,
+          "kana: hiragana then katakana");
+    tap(K_ENTER);
+    CHECK(strcmp(DOC, "にほん") == 0 && PRE[0] == 0, "kana: Enter sends the hiragana");
+    reset_app();
+    type_ascii("gakkou");
+    CHECK(strcmp(PRE, "がっこう") == 0, "kana: a doubled consonant is っ (%s)", PRE);
+    tap(K_ESC);
+    CHECK(PRE[0] == 0 && DOC[0] == 0, "kana: Escape drops it");
+    type_ascii("kyou");
+    CHECK(strcmp(PRE, "きょう") == 0, "kana: kyo");
+    tap(K_BKSP);
+    CHECK(strcmp(PRE, "きょ") == 0, "kana: Backspace takes back a letter");
+    tap(K_ESC);
+    type_ascii("kanji");
+    CHECK(strcmp(PRE, "かんじ") == 0, "kana: n before a consonant is ん (%s)", PRE);
+    tap(K_ESC);
+    type_ascii("yama");
+    CHECK(has_cand("山"), "kana: yama offers 山");
+    type_ascii("3");
+    CHECK(strcmp(DOC, "山") == 0 && PRE[0] == 0, "kana: choose the kanji (%s)", DOC);
+    reset_app();
+    type_ascii("gaku");
+    CHECK(has_cand("学") && has_cand("ガク"), "kana: gaku offers 学");
+    tap(K_ESC);
+    type_ascii("sushi-.");
+    CHECK(strcmp(PRE, "すしー。") == 0, "kana: - and . (%s)", PRE);
+    tap(K_ESC);
+    type_ascii("pan");
+    type_ascii(" ");
+    CHECK(strcmp(DOC, "ぱん") == 0, "kana: a final n is ん on commit (%s)", DOC);
+    reset_app();
+    type_ascii("tya");
+    CHECK(strcmp(PRE, "ちゃ") == 0, "kana: Kunrei tya");
+}
+
+static void test_hangul(void)
+{
+    setup(&zui_ime_hangul);
+    type_ascii("g");
+    CHECK(strcmp(PRE, "ㅎ") == 0, "hangul: a lone consonant");
+    type_ascii("k");
+    CHECK(strcmp(PRE, "하") == 0, "hangul: 하");
+    type_ascii("s");
+    CHECK(strcmp(PRE, "한") == 0 && DOC[0] == 0, "hangul: 한");
+    type_ascii("r");
+    CHECK(strcmp(DOC, "한") == 0 && strcmp(PRE, "ㄱ") == 0, "hangul: ㄴㄱ do not join: 한 is sent");
+    type_ascii("ml");
+    CHECK(strcmp(DOC, "한") == 0 && strcmp(PRE, "긔") == 0, "hangul: 한 then 긔 (%s|%s)", DOC, PRE);
+    type_ascii("f");
+    CHECK(strcmp(PRE, "긜") == 0, "hangul: 긜");
+    tap(K_BKSP);
+    CHECK(strcmp(PRE, "긔") == 0, "hangul: Backspace takes back a jamo");
+    tap(K_BKSP);
+    CHECK(strcmp(PRE, "그") == 0, "hangul: and the second vowel part");
+    type_ascii("f");
+    type_ascii(" ");
+    CHECK(strcmp(DOC, "한글 ") == 0 && PRE[0] == 0, "hangul: space sends (%s)", DOC);
+    reset_app();
+    type_ascii("dkssudgktpdy");
+    CHECK(strcmp(DOC, "안녕하세") == 0 && strcmp(PRE, "요") == 0, "hangul: 안녕하세요 (%s|%s)", DOC,
+          PRE);
+    tap(K_ENTER);
+    CHECK(strcmp(DOC, "안녕하세요") == 0 && NKEY >= 1, "hangul: Enter sends and passes on");
+    reset_app();
+    type_ascii("dlfr");
+    CHECK(strcmp(PRE, "읽") == 0, "hangul: a double final 읽 (%s)", PRE);
+    type_ascii("j");
+    CHECK(strcmp(DOC, "일") == 0 && strcmp(PRE, "거") == 0, "hangul: its second part moves on");
+    tap(K_ESC);
+    reset_app();
+    type_ascii("Rk");
+    CHECK(strcmp(PRE, "까") == 0, "hangul: shift gives the double consonant");
+}
+
+static void test_geez(void)
+{
+    setup(&zui_ime_geez);
+    type_ascii("s");
+    CHECK(strcmp(PRE, "ስ") == 0, "geez: a consonant waits in its sixth form");
+    type_ascii("e");
+    CHECK(strcmp(DOC, "ሰ") == 0 && PRE[0] == 0, "geez: se");
+    type_ascii("lam");
+    CHECK(strcmp(DOC, "ሰላ") == 0 && strcmp(PRE, "ም") == 0, "geez: selam (%s|%s)", DOC, PRE);
+    type_ascii(" ");
+    CHECK(strcmp(DOC, "ሰላም ") == 0, "geez: space sends the sixth form");
+    reset_app();
+    type_ascii("amarNa");
+    CHECK(strcmp(DOC, "ኣማርኛ") == 0, "geez: amarNa (%s)", DOC);
+    reset_app();
+    type_ascii("ityoPya");
+    CHECK(strcmp(DOC, "ኢትዮጵያ") == 0, "geez: P (%s)", DOC);
+    reset_app();
+    type_ascii("lWa");
+    CHECK(strcmp(DOC, "ሏ") == 0, "geez: the wa form");
+    reset_app();
+    feed_chars("`a`se");
+    CHECK(strcmp(DOC, "ዓሠ") == 0, "geez: the backtick rows (%s)", DOC);
+    reset_app();
+    feed_chars("ba::");
+    CHECK(strcmp(DOC, "ባ።") == 0, "geez: :: is a full stop (%s)", DOC);
+    reset_app();
+    feed_chars("t:b,");
+    CHECK(strcmp(DOC, "ት፡ብ፣") == 0, "geez: word space and comma (%s)", DOC);
+    reset_app();
+    type_ascii("k");
+    tap(K_BKSP);
+    CHECK(PRE[0] == 0 && DOC[0] == 0 && !zui_ime_composing(&IME), "geez: Backspace drops it");
+    type_ascii("1");
+    CHECK(strcmp(DOC, "1") == 0, "geez: digits pass");
+}
+
+static void test_for_locale(void)
+{
+    CHECK(zui_ime_for_locale("zh-Hans") == &zui_ime_pinyin &&
+              zui_ime_for_locale("zh-Hant") == &zui_ime_pinyin_hant &&
+              zui_ime_for_locale("zh_TW") == &zui_ime_pinyin_hant &&
+              zui_ime_for_locale("zh-CN") == &zui_ime_pinyin &&
+              zui_ime_for_locale("yue") == &zui_ime_jyutping &&
+              zui_ime_for_locale("ja-JP") == &zui_ime_kana &&
+              zui_ime_for_locale("KO") == &zui_ime_hangul &&
+              zui_ime_for_locale("am") == &zui_ime_geez &&
+              zui_ime_for_locale("ti-ER") == &zui_ime_geez,
+          "for locale: the languages that need one");
+    CHECK(!zui_ime_for_locale("en") && !zui_ime_for_locale("hi") && !zui_ime_for_locale("") &&
+              !zui_ime_for_locale(0) && !zui_ime_for_locale("zhx"),
+          "for locale: the rest type directly");
+    CHECK(zui_pinyin_dict.n > 300 && zui_pinyin_hant_dict.n > 300 && zui_jyutping_dict.n > 400 &&
+              zui_kana_dict.n > 1000,
+          "the Unihan tables are there");
+}
+
 int main(void)
 {
     test_passthrough();
@@ -570,6 +778,11 @@ int main(void)
     test_compose();
     test_pinyin();
     test_split_and_dead();
+    test_han();
+    test_kana();
+    test_hangul();
+    test_geez();
+    test_for_locale();
     printf("%s test_zui_ime: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }
