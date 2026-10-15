@@ -32,8 +32,6 @@
  */
 #include "orbital_compat.h"
 #include "lpres.h"
-#include "m5_types.h"
-#include "surplus.h"
 #include "../sdk/selfaudit.h"
 #include "dtmf.h"
 
@@ -163,8 +161,6 @@ int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     rat_t digit_rat = ir->fields[0].num;
     /* Reverse mapping: combined = low*10000 + high */
     int64_t combined = digit_rat.num / digit_rat.den;
-    int64_t low = combined / 10000;
-    int64_t high = combined % 10000;
     
     /* Find matching digit */
     d->digit = 0xFF;  /* invalid */
@@ -189,7 +185,7 @@ int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     }
     
     d->twist = (ir->fields[4].num.num != 0);
-    d->logic_state = (lpres_state_t)ir->fields[5].num.num;
+    d->logic_state = oc_field_lpres(ir, 5, LPRES_STATE_NEITHER);
     
     return (int32_t)sizeof(oc_dtmf_src_t);
 }
@@ -351,7 +347,7 @@ int32_t ss7_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     if (!rat_is_int(ir->fields[2].num)) return OC_ERR_ARG;
     s->sls = (uint8_t)ir->fields[2].num.num;
     
-    s->logic_state = (lpres_state_t)ir->fields[3].num.num;
+    s->logic_state = oc_field_lpres(ir, 3, LPRES_STATE_NEITHER);
     
     return (int32_t)sizeof(oc_ss7_src_t);
 }
@@ -372,7 +368,7 @@ int32_t fsk_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     f->modulation = (uint8_t)ir->fields[1].num.num;
     
     if (!rat_is_int(ir->fields[3].num)) return OC_ERR_ARG;
-    f->logic_state = (lpres_state_t)ir->fields[3].num.num;
+    f->logic_state = oc_field_lpres(ir, 3, LPRES_STATE_NEITHER);
     
     return (int32_t)sizeof(oc_fsk_src_t);
 }
@@ -399,7 +395,7 @@ int32_t pulse_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     if (!rat_is_int(ir->fields[3].num)) return OC_ERR_ARG;
     p->inter_digit_ms = (uint16_t)ir->fields[3].num.num;
     
-    p->logic_state = (lpres_state_t)ir->fields[4].num.num;
+    p->logic_state = oc_field_lpres(ir, 4, LPRES_STATE_NEITHER);
     
     return (int32_t)sizeof(oc_pulse_src_t);
 }
@@ -426,7 +422,7 @@ int32_t mf_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     int64_t power_dbm = ir->fields[4].num.num;
     m->power_dbm = (int16_t)power_dbm;
     
-    m->logic_state = (lpres_state_t)ir->fields[5].num.num;
+    m->logic_state = oc_field_lpres(ir, 5, LPRES_STATE_NEITHER);
     
     for (uint8_t i = 0; i < m->num_digits && i < 16; i++) {
         m->digits[i] = 0;
@@ -481,10 +477,10 @@ static int32_t telecom_glare_detect(const oc_ir_t *a, const oc_ir_t *b, oc_ir_t 
     lpres_state_t state_b = LPRES_STATE_NEITHER;
     
     if (a->num_fields >= 6 && a->fields[5].type == OC_TYPE_RATIONAL && rat_is_int(a->fields[5].num)) {
-        state_a = (lpres_state_t)a->fields[5].num.num;
+        state_a = oc_field_lpres(a, 5, LPRES_STATE_NEITHER);
     }
     if (b->num_fields >= 6 && b->fields[5].type == OC_TYPE_RATIONAL && rat_is_int(b->fields[5].num)) {
-        state_b = (lpres_state_t)b->fields[5].num.num;
+        state_b = oc_field_lpres(b, 5, LPRES_STATE_NEITHER);
     }
     
     /* Glare = BOTH (contradiction) when both sides seize simultaneously */
@@ -524,21 +520,6 @@ static int32_t telecom_self_audit(const oc_ir_t *ir) {
         if (state < 0 || state > 4) return -1;
     }
     
-    return 0;
-}
-
-/* ===== Telecom M5 Coverage ===== */
-
-static int32_t telecom_check_coverage(const oc_ir_t *ir, surplus_real_t min_ratio) {
-    m5_coords_t m5 = {0};
-    m5.omega = 1;
-    m5.r = SR_FROM_FLOAT(1.0);  /* Telecom rail */
-    m5.ell = SR_ONE;
-    m5.phi = SR_ZERO;
-    m5.chi = 0;
-    
-    surplus_real_t coverage = SR_DIV(SR_MUL(SR_MUL(SR_FROM_INT(m5.omega), m5.r), m5.ell), SR_MUL(m5.phi, SR_FROM_INT(m5.chi)));
-    if (SR_CMP(coverage, min_ratio) < 0) return -1;
     return 0;
 }
 
@@ -585,14 +566,12 @@ typedef struct {
     const oc_lang_ops_t base;
     int32_t (*glare_detect)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
     int32_t (*self_audit)(const oc_ir_t *);
-    int32_t (*check_coverage)(const oc_ir_t *, surplus_real_t);
 } oc_telecom_extended_ops_t;
 
 static const oc_telecom_extended_ops_t OC_TELECOM_EXTENDED = {
     .base = OC_TELECOM_OPS,
     .glare_detect = telecom_glare_detect,
-    .self_audit = telecom_self_audit,
-    .check_coverage = telecom_check_coverage
+    .self_audit = telecom_self_audit
 };
 
 /* Register all telecom languages */

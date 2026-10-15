@@ -17,8 +17,6 @@
  */
 #include "orbital_compat.h"
 #include "lpres.h"
-#include "m5_types.h"
-#include "surplus.h"
 #include "../sdk/selfaudit.h"
 
 /* ===== Helpers ===== */
@@ -104,10 +102,10 @@ int32_t python_type_check(const oc_ir_t *a, const oc_ir_t *b, oc_ir_t *out) {
     lpres_state_t state_b = LPRES_STATE_TRUE;
     
     if (a->num_fields >= 4 && a->fields[3].type == OC_TYPE_RATIONAL && rat_is_int(a->fields[3].num)) {
-        state_a = (lpres_state_t)a->fields[3].num.num;
+        state_a = oc_field_lpres(a, 3, LPRES_STATE_NEITHER);
     }
     if (b->num_fields >= 4 && b->fields[3].type == OC_TYPE_RATIONAL && rat_is_int(b->fields[3].num)) {
-        state_b = (lpres_state_t)b->fields[3].num.num;
+        state_b = oc_field_lpres(b, 3, LPRES_STATE_NEITHER);
     }
     
     /* Exact + Exact = TRUE, Exact + Float = BOTH, Float + Float = TRUE */
@@ -139,17 +137,3 @@ int32_t python_self_audit(const oc_ir_t *ir) {
     return 0;
 }
 
-/* ===== Python M5 Coverage ===== */
-
-static int32_t python_check_coverage(const oc_ir_t *ir, surplus_real_t min_ratio) {
-    m5_coords_t m5 = {0};
-    m5.omega = 1;
-    m5.r = SR_FROM_FLOAT(7.0);  /* Python rail */
-    m5.ell = SR_ONE;
-    m5.phi = SR_ZERO;
-    m5.chi = 0;
-    
-    surplus_real_t coverage = SR_DIV(SR_MUL(SR_MUL(SR_FROM_INT(m5.omega), m5.r), m5.ell), SR_MUL(m5.phi, SR_FROM_INT(m5.chi)));
-    if (SR_CMP(coverage, min_ratio) < 0) return -1;
-    return 0;
-}

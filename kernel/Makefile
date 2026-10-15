@@ -602,7 +602,7 @@ verify-all: test
 	OC_INC="-DTEST_HOST -Isrc/orbital_compat -Isrc/lightningrod -Isrc/rational -Isrc/surplus -Isrc/wyverneye -Isrc/lpres -Isrc/net"; \
 	mkdir -p /tmp/oc_adapters && \
 	for a in src/orbital_compat/orbital_compat_*.c; do \
-		gcc -std=c11 -Wall -Wextra $$OC_INC -c $$a -o /tmp/oc_adapters/$$(basename $$a .c).o || { echo "[FAIL] test_orbital_compat"; exit 1; }; \
+		gcc -std=c11 -Wall -Werror -Wextra $$OC_INC -c $$a -o /tmp/oc_adapters/$$(basename $$a .c).o || { echo "[FAIL] test_orbital_compat"; exit 1; }; \
 	done && \
 	gcc -std=c11 -Wall -Werror -Wextra $$OC_INC src/orbital_compat/test_orbital_compat.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c src/lpres/lpres.c /tmp/oc_adapters/*.o -o /tmp/test_orbital_compat -lm && /tmp/test_orbital_compat && echo "[PASS] test_orbital_compat" || { echo "[FAIL] test_orbital_compat"; exit 1; }
 	@echo "=== test_fusion ==="; \
