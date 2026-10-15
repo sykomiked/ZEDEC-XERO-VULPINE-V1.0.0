@@ -126,8 +126,8 @@ static void test_grammar(void)
         "pay 5 VFV to 42 memo \"back\\slash\"",
         "pay 5 VFV to 42 memo \"unterminated",
         "pay 5 VFV to 42 memo \"ok\" extra",
-        "pay 5 VFV to 42 memo "
-        "\"0123456789012345678901234567890123456789012345678901234567890123456789\"",
+        ("pay 5 VFV to 42 memo "
+         "\"0123456789012345678901234567890123456789012345678901234567890123456789\""),
         "route 5 VFV to 9 memo \"x\"",
         "invoice 5 VFV to 42",
         "report",

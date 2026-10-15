@@ -198,8 +198,8 @@ static void test_http(void)
                                 sizeof cb) == W4_ERR_PENDING,
           "HTTP incomplete chunked body -> PENDING");
     const char *smuggle[] = {
-        "POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 3\r\nTransfer-Encoding: "
-        "chunked\r\n\r\n0\r\n\r\n",
+        ("POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 3\r\nTransfer-Encoding: "
+         "chunked\r\n\r\n0\r\n\r\n"),
         "POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 3\r\nContent-Length: 4\r\n\r\nabcd",
         "POST / HTTP/1.1\r\nHost: h\r\nTransfer-Encoding: gzip, chunked\r\n\r\n",
         "POST / HTTP/1.1\r\nHost: h\r\nContent-Length : 3\r\n\r\nabc",
