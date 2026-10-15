@@ -1,0 +1,13 @@
+# Wave 26 task: Luminaire (slot 308), Building lighting
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 1 (021 brazier); wave 7 (094 homestead); wave 14 (172 escapement); wave 18 (217 wisp); wave 19 (236 levin).
+Manifest: `slot 308`, `layer L3`, `icon icons/l3/308-luminaire.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: controls lighting across a home or building, saving energy with schedules, presence and daylight (`power.status`, `power.budget`, `sys.info`, `files.read`, `files.write`). zxvd has no method for light and presence device control: use only existing methods; list what's missing in your report.
+Uses: `use levin 1` (circuit loads, wiring safety checks); `use wisp 1` (low-power start, for outages); `use escapement 1` ("job may run" for schedules); `use homestead 1` ("command allowed", energy totals); `use brazier 1` (temperature limits). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `circuit_ok` (lights on a circuit at most its declared load) in Ada as Eve + APL as KRON witnessed; `daylight` (daylight minutes and level by hour from the date and place, integer) in FORTRAN as Trebago + APL as KRON witnessed; `energy_bills` (Wh x tariff in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `rooms` light grid in APL as KRON; `zones` tree in MUMPS as MYRA.
+BOTH test: the presence sensor in hall 2 says occupied and the motion sensor says empty: the room is BOTH and keeps a dim safe light instead of going dark. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Advisory; switching needs the owner's approval (Homestead's rule); wiring is for qualified people.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: sys.read, fs.read, fs.write, notify, location.
+Planned (no runtime yet): Bash, IEC 61131-3 Structured Text.
+Pending: Bash (jobs): no entry here is an obvious fit; put `pending Bash <entry>` on the one closest to jobs and name it in your report; `pending IEC_61131-3_Structured_Text circuit_ok` (control).

@@ -1,0 +1,11 @@
+# Wave 26 task: Quay (slot 316), Port and marina
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 7 (090 caravan); wave 12 (150 pannier); wave 13 (161 chandler); wave 19 (234 neap); wave 20 (242 silt).
+Manifest: `slot 316`, `layer L3`, `icon icons/l3/316-quay.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: runs a port or marina: berths, arrivals, cargo handling, customs papers and fees (`place.list`, `files.read`, `files.write`, `ledger.entries`, `ledger.post`, `print.submit`).
+Uses: `use chandler 1` (tide height, "within load limits"); `use pannier 1` ("send now", delivery receipts); `use neap 1` ("entry may post"); `use silt 1` (records office for customs papers); `use caravan 1` (charged weight, shipment records). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `berth_ok` (vessel draught at most the berth depth at the tide AND length at most the berth) in Ada as Eve + APL as KRON witnessed; `berth_schedule` (arrivals to berths with no overlap, earliest first) in FORTRAN as Trebago + APL as KRON witnessed; `harbour_dues` (length x nights x rate in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `berths` grid in APL as KRON; `vessels_cargo` tree in MUMPS as MYRA.
+BOTH test: container 88's manifest says machinery and the scan shows textiles: it is BOTH, the container is held, the ship is not blocked. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Advisory; customs decisions are officers'.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: location, fs.read, fs.write, ledger.read, ledger.post, print, notify.

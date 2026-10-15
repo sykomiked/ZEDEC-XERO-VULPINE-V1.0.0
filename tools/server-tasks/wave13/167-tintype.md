@@ -1,0 +1,11 @@
+# Wave 13 task: Tintype (slot 167), Photo workflow
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 0 (049 glint), wave 4 (053 gesso, 058 pinhole), wave 9 (111 glimpse).
+Manifest: `slot 167`, `layer L2`, `icon icons/l2/167-tintype.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: captures, develops and catalogues photos and screen grabs in one workflow in the Hoard (`files.list`, `files.stat`, `files.write`), within the free space `sys.disk` reports. zxvd has no method for image decode (as Gridmark reports), display capture (as Glimpse reports): use only existing methods; list what's missing in your report.
+Uses: `use glint 1` (`glint.item_ok`); `use gesso 1` (pixel operations, histogram); `use pinhole 1` (device ready, "photo fits", exposure limits, photo record); `use glimpse 1` (capture region, recording size, first free N). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): exposure value from aperture, shutter and ISO (integer log2 tables, thirds of a stop) in FORTRAN as Trebago + APL as KRON witnessed; "possibly altered" (recorded width, height, time or content id differ from what the file decodes to) in Ada as Eve + APL as KRON witnessed; rights register (photo, owner, licence code, release flag) as fixed records in COBOL as Sutra; storage limits (album at most the declared bytes) in Ada as Eve; develop curves over image arrays in APL as KRON; album tree in MUMPS as MYRA.
+BOTH test: metadata says 4000 x 3000 and the content decodes to 3990 x 3000: the photo is BOTH and flagged as possibly altered.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: camera, fs.read, fs.write, sys.read.
+Planned (no runtime yet): Julia, Clojure, JavaScript.
