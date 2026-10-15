@@ -55,9 +55,10 @@ def main():
       "directory) goes to the layer its glue links pull hardest, app layers preferred over the "
       "core; if nothing pulls it, to the core. The table lists where these landed.\n")
     w("7. **The twelve Fibonacci layers are the spine** (Anchor column): 0, 1, 2, 3, 5, 8, 13, "
-      "21, 34, 55, 89 and 144, the prime dimensional layers. They are packed first, so their "
-      "chunks live in anchors only, and every layer's glue names the glue of the nearest "
-      "non-empty anchor below it.\n\n")
+      "21, 34, 55, 89 and 144, the prime dimensional layers and the corners of the frame. Every "
+      "other layer N splits one way only as F(k) + M: it hangs from anchor F(k), repeats layer "
+      "M's pattern and draws chunks only from that lineage. A layer with no files is an empty "
+      "scaffold position (state N) until its content lands (MATRIX.md sections 9 and 10).\n\n")
     w("## The layers\n\n")
     w("Files: how many files the current tree puts there. Pulled in: modules placed by rule 6.\n\n")
     w("| Layer | Anchor | App | Group | Homes | Files | Pulled in |\n|---|---|---|---|---|---|---|\n")
@@ -66,7 +67,7 @@ def main():
         h = " ".join("`%s`" % x for x in v["homes"]) or "none yet"
         if k == 130:
             h += " and `docs/`"
-        anc = "F%d" % pm.FIB[k] if k in pm.FIB else "hangs from %d" % pm.anchor_below(k)
+        anc = "F%d" % pm.FIB[k] if k in pm.FIB else "%d + %d" % pm.zeck(k)
         w("| %d | %s | %s | %s | %s | %d | %s |\n" % (k, anc, v["app"], v["group"], h, cnt[k],
                                                  " ".join("`%s`" % x for x in sorted(loose[k]))))
     w("\n%d files in %d layers that hold content; %d layers are empty until their apps' code "

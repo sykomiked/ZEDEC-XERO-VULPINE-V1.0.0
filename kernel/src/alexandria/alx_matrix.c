@@ -104,7 +104,7 @@ int alx_mx_check(const uint8_t *b, uint32_t len)
 {
     uint32_t body = 64u + ALX_MX_LAYERS * ALX_MX_LAYER;
     if (!b || len != body + 32u || b[0] != 'A' || b[1] != 'L' || b[2] != 'X' || b[3] != 'M' ||
-        b[4] != 1 || b[5] != 0 || alx_be16(b + 6) != ALX_MX_LAYERS ||
+        b[4] != 2 || b[5] != 0 || alx_be16(b + 6) != ALX_MX_LAYERS ||
         alx_be32(b + 8) != ALX_MX_FAN || !alx_zero(b + 12, 52))
         return ALX_E_FORM;
     uint8_t h[32];
@@ -113,10 +113,10 @@ int alx_mx_check(const uint8_t *b, uint32_t len)
     for (uint32_t k = 0; k < ALX_MX_LAYERS; k++) {
         const uint8_t *r = b + 64u + k * ALX_MX_LAYER;
         uint32_t n = alx_be32(r + 108);
-        /* an empty layer has no tree and no glue; a full one has both */
+        /* every layer has its glue (an empty one's is marked N); a tree
+         * exactly when it holds booklets */
         bool empty = alx_zero(r, 36);
-        if (empty ? n != 0 || !alx_zero(r + 36, 36) : n == 0 || !raw_cid(r) || !raw_cid(r + 36))
-            return ALX_E_FORM;
+        if (!raw_cid(r + 36) || (empty ? n != 0 : n == 0 || !raw_cid(r))) return ALX_E_FORM;
         if (!alx_zero(r + 72, 36) && !raw_cid(r + 72)) return ALX_E_FORM;
     }
     /* the core boots first: it is never empty */
@@ -165,19 +165,84 @@ uint32_t alx_mx_anchor_below(uint32_t k)
     return a;
 }
 
+void alx_mx_split(uint32_t k, uint32_t *anchor, uint32_t *pattern)
+{
+    if (k == 0 || alx_mx_anchor(k) >= 0) {
+        *anchor = alx_mx_anchor_below(k);
+        *pattern = 0;
+        return;
+    }
+    uint64_t a = 1, b = 2; /* the largest Fibonacci number at most k */
+    while (b <= k) {
+        uint64_t c = a + b;
+        a = b;
+        b = c;
+    }
+    *anchor = (uint32_t) a;
+    *pattern = k - (uint32_t) a;
+}
+
+bool alx_mx_draws(uint32_t k, uint32_t l)
+{
+    while (k) {
+        if (alx_mx_anchor(k) >= 0) return alx_mx_anchor(l) >= 0 && l < k;
+        uint32_t a, m;
+        alx_mx_split(k, &a, &m);
+        if ((alx_mx_anchor(l) >= 0 && l <= a) || l == m) return true;
+        k = m;
+    }
+    return false;
+}
+
+/* the frame: three star tetrahedra, scales 1, phi^4 = 2 + 3 phi and
+ * phi^8 = 13 + 21 phi; a vertex is the scale times a corner of the +
+ * tetrahedron in doubled E8 coordinates (a, b, c, 1, 1, 1, 1, 1) */
+static const int8_t TETRA[4][3] = {{1, 1, 1}, {1, -1, -1}, {-1, 1, -1}, {-1, -1, 1}};
+static const int64_t STAR_SCALE[3][2] = {{1, 0}, {2, 3}, {13, 21}};
+
+int alx_mx_pos(uint32_t k, int64_t out[16])
+{
+    if (k >= ALX_MX_LAYERS) return ALX_E_FORM;
+    uint32_t a, m;
+    alx_mx_split(k, &a, &m);
+    uint32_t f = alx_mx_anchor(k) >= 0 ? k : a, at = 0;
+    while (FIBS[at] != f) at++;
+    uint32_t g = at / 4u, i = at % 4u; /* star g, corner i */
+    for (uint32_t j = 0; j < 8; j++) {
+        int64_t c = j < 3 ? TETRA[i][j] : 1;
+        out[2 * j] = c * STAR_SCALE[g][0];
+        out[2 * j + 1] = c * STAR_SCALE[g][1];
+    }
+    if (f == k) return ALX_OK;
+    int64_t sub[16];
+    int r = alx_mx_pos(m, sub);
+    if (r != ALX_OK) return r;
+    /* minus (p + q phi) / phi = minus ((q - p) + p phi) */
+    for (uint32_t j = 0; j < 8; j++) {
+        out[2 * j] -= sub[2 * j + 1] - sub[2 * j];
+        out[2 * j + 1] -= sub[2 * j];
+    }
+    return ALX_OK;
+}
+
 int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *files,
                    uint32_t *edges, uint32_t *refs)
 {
-    if (!head(b, len, "ALXG", 2) || b[5] != 0 || !alx_zero(b + 58, 6)) return ALX_E_FORM;
+    /* state: lpres N (0, an empty scaffold layer) or T (1, it holds content) */
+    if (!head(b, len, "ALXG", 3) || b[5] > 1 || !alx_zero(b + 60, 4)) return ALX_E_FORM;
     uint32_t lay = alx_be16(b + 6), n = alx_be32(b + 8), m = alx_be32(b + 12), r = alx_be32(b + 16);
-    /* the anchor it hangs from: none for the core, else an anchor below */
-    uint32_t up = alx_be16(b + 56);
-    if (lay == 0 ? !alx_zero(b + 20, 38)
-                 : (!raw_cid(b + 20) || up >= lay || alx_mx_anchor(up) < 0))
+    if (lay >= ALX_MX_LAYERS) return ALX_E_FORM;
+    /* the anchor it hangs from and its pattern layer, exactly as the rule says */
+    uint32_t up = alx_be16(b + 56), pat = alx_be16(b + 58), wa, wp;
+    alx_mx_split(lay, &wa, &wp);
+    if (up != wa || pat != wp || (lay == 0 ? !alx_zero(b + 20, 36) : !raw_cid(b + 20)))
         return ALX_E_FORM;
-    uint64_t want =
-        64u + (uint64_t) n * ALX_MX_FILE + (uint64_t) m * ALX_MX_EDGE + (uint64_t) r * ALX_MX_REF;
-    if (lay >= ALX_MX_LAYERS || n == 0 || r < n || want != len) return ALX_E_FORM;
+    uint64_t want = 64u + (uint64_t) n * ALX_MX_FILE + (uint64_t) m * ALX_MX_EDGE +
+                    (uint64_t) r * ALX_MX_REF + (pat ? 36u : 0u);
+    /* N carries nothing; T may hold only chunks its descendants share */
+    if (want != len || r < n || (b[5] == 0 && (n || m || r)) || (n == 0 && (m || r)))
+        return ALX_E_FORM;
+    if (pat && !raw_cid(b + len - 36u)) return ALX_E_FORM;
     uint32_t next = 0;
     for (uint32_t i = 0; i < n; i++) {
         const uint8_t *f = g_file(b, i);
@@ -189,6 +254,7 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
     }
     if (next != r) return ALX_E_FORM;
     uint64_t prev = 0;
+    bool anchor = alx_mx_anchor(lay) >= 0;
     for (uint32_t i = 0; i < m; i++) {
         const uint8_t *e = g_edge(b, i);
         uint32_t from = alx_be32(e), to_l = alx_be16(e + 4), type = alx_be16(e + 6),
@@ -196,13 +262,17 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
         uint64_t key = (uint64_t) from << 40 | (uint64_t) to_l << 32 | to;
         if (from >= n || to_l >= ALX_MX_LAYERS || type < ALX_GLUE_INCLUDE || type > ALX_GLUE_SAME ||
             w == 0 || !alx_zero(e + 14, 2) || (to_l == lay && (to >= n || to == from)) ||
-            (i && key <= prev))
+            (i && key <= prev) || (anchor && alx_mx_anchor(to_l) < 0))
             return ALX_E_FORM;
         prev = key;
     }
-    for (uint32_t i = 0; i < r; i++)
-        if (alx_be16(g_ref(b, i)) >= ALX_MX_LAYERS || !alx_zero(g_ref(b, i) + 2, 2))
+    /* a layer's chunks are its own or its lineage's, never a stranger's */
+    for (uint32_t i = 0; i < r; i++) {
+        uint32_t l = alx_be16(g_ref(b, i));
+        if (l >= ALX_MX_LAYERS || !alx_zero(g_ref(b, i) + 2, 2) ||
+            (l != lay && !alx_mx_draws(lay, l)))
             return ALX_E_FORM;
+    }
     if (layer) *layer = lay;
     if (files) *files = n;
     if (edges) *edges = m;
@@ -210,10 +280,21 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
     return ALX_OK;
 }
 
+int alx_glue_state(const uint8_t *b)
+{
+    return b[5];
+}
+
 const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer)
 {
     if (layer) *layer = alx_be16(b + 56);
     return alx_be16(b + 6) ? b + 20 : 0;
+}
+
+const uint8_t *alx_glue_pattern(const uint8_t *b, uint32_t len, uint32_t *layer)
+{
+    if (layer) *layer = alx_be16(b + 58);
+    return alx_be16(b + 58) ? b + len - 36u : 0;
 }
 
 int32_t alx_glue_find(const uint8_t *b, const uint8_t cid[36])

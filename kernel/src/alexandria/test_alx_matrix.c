@@ -280,12 +280,17 @@ static void test_layout(void)
         BOOK[k] = calloc(l.booklets + 1u, sizeof *BOOK[k]);
         BOOKN[k] = calloc(l.booklets + 1u, sizeof *BOOKN[k]);
         icons += k && l.icon[0];
-        if (!l.booklets) continue;
-        used++;
+        /* every layer has its glue; N exactly when it holds nothing */
         GLUE[k] = block(l.glue, &GLUEN[k]);
         uint32_t lay, nf, ne, nr;
         CHECK(alx_glue_check(GLUE[k], GLUEN[k], &lay, &nf, &ne, &nr) == ALX_OK && lay == k,
               "layer %u glue", k);
+        CHECK(alx_glue_state(GLUE[k]) == (l.booklets ? 1 : 0), "layer %u's state", k);
+        if (!l.booklets) {
+            CHECK(nf == 0 && ne == 0 && nr == 0, "scaffold layer %u carries nothing", k);
+            continue;
+        }
+        used++;
         for (uint32_t i = 0; i < l.booklets; i++) {
             uint32_t n;
             booklet_at(k, i, &n);
@@ -371,10 +376,84 @@ static void test_files(const char *repo)
 }
 
 /* each refusal on a copy of real nodes */
-/* the spine: the Fibonacci layers are packed first and every glue node
- * names the nearest non-empty anchor below it */
-static void test_spine(void)
+/* the spine and the frame (MATRIX.md sections 9 and 10) */
+static int64_t ZPOS[ALX_MX_LAYERS][16];
+
+static void zeck_unique(void)
 {
+    /* Zeckendorf: every n has exactly one sum of non-consecutive Fibonacci
+     * numbers (from 1, 2, 3, 5 ...); the split takes its largest part */
+    static const uint32_t fib[] = {1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233};
+    static uint8_t ways[400];
+    memset(ways, 0, sizeof ways);
+    for (uint32_t set = 0; set < (1u << 12); set++) {
+        if (set & (set >> 1)) continue; /* two consecutive */
+        uint32_t sum = 0;
+        for (uint32_t i = 0; i < 12; i++)
+            if (set >> i & 1) sum += fib[i];
+        if (sum < sizeof ways && ways[sum] < 255) ways[sum]++;
+    }
+    for (uint32_t n = 1; n < 377; n++) {
+        CHECK(ways[n] == 1, "%u has one Zeckendorf sum (%u)", n, ways[n]);
+        uint32_t a, m;
+        alx_mx_split(n, &a, &m);
+        uint32_t big = 0;
+        for (uint32_t i = 0; i < 12; i++)
+            if (fib[i] <= n) big = fib[i];
+        if (alx_mx_anchor(n) >= 0 && n < ALX_MX_LAYERS)
+            CHECK(m == 0 && a == alx_mx_anchor_below(n), "anchor %u hangs from the anchor below", n);
+        else
+            CHECK(a == big && m == n - big && (m == 0 || m < n - m), "%u = %u + %u", n, a, m);
+    }
+}
+
+/* the golden lineage table (docs/spec/ZECKENDORF_ANCESTORS.tsv): the one
+ * the packer writes and the fabricator checks; the kernel's rule must say
+ * the same for every pair of layers */
+static void lineage_table(const char *repo)
+{
+    char path[2048], line[1024];
+    snprintf(path, sizeof path, "%s/docs/spec/ZECKENDORF_ANCESTORS.tsv", repo);
+    FILE *f = fopen(path, "r");
+    CHECK(f != 0, "%s", path);
+    if (!f) return;
+    uint32_t rows = 0, cells = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (line[0] == '#') continue;
+        unsigned k, a, m;
+        char fl[8];
+        int at = 0;
+        if (sscanf(line, "%u\t%7s\t%u\t%u\t%n", &k, fl, &a, &m, &at) != 4 || k >= ALX_MX_LAYERS) {
+            CHECK(0, "a lineage row: %s", line);
+            break;
+        }
+        uint32_t wa, wm;
+        alx_mx_split(k, &wa, &wm);
+        CHECK(k == rows && wa == a && wm == m && (fl[0] == 'F') == (alx_mx_anchor(k) >= 0),
+              "row %u: anchor %u, pattern %u", k, a, m);
+        uint8_t in[ALX_MX_LAYERS] = {0};
+        const char *c = line + at;
+        while (*c >= '0' && *c <= '9') {
+            unsigned l;
+            int used = 0;
+            if (sscanf(c, "%u%n", &l, &used) != 1 || l >= ALX_MX_LAYERS) break;
+            in[l] = 1;
+            c += used;
+            while (*c == ' ') c++;
+        }
+        for (uint32_t l = 0; l < ALX_MX_LAYERS; l++, cells++)
+            CHECK(alx_mx_draws(k, l) == (in[l] != 0), "layer %u may draw on %u: %s", k, l,
+                  in[l] ? "yes" : "no");
+        rows++;
+    }
+    fclose(f);
+    CHECK(rows == ALX_MX_LAYERS, "the table has every layer (%u)", rows);
+    printf("matrix: the kernel's lineage rule agrees with ZECKENDORF_ANCESTORS.tsv on %u pairs\n", cells);
+}
+
+static void test_spine(const char *dir, const char *repo)
+{
+    lineage_table(repo);
     static const int idx[ALX_MX_LAYERS + 1] = {[0] = 0, [1] = 1, [2] = 3, [3] = 4, [5] = 5, [8] = 6,
                                                [13] = 7, [21] = 8, [34] = 9, [55] = 10, [89] = 11,
                                                [144] = 12};
@@ -386,61 +465,135 @@ static void test_spine(void)
         uint32_t below = 0;
         for (uint32_t j = 0; j < k && j < ALX_MX_LAYERS; j++)
             if (j == 0 || idx[j]) below = j;
-        CHECK(alx_mx_anchor_below(k) == below, "layer %u hangs from %u", k, below);
+        CHECK(alx_mx_anchor_below(k) == below, "layer %u's anchor below is %u", k, below);
     }
     CHECK(anchors == 12, "twelve anchors (%u)", anchors);
-    uint32_t hung = 0, refs_checked = 0;
+    zeck_unique();
+
+    /* positions: exact in Z[phi], one per layer, the kernel's rule equal to
+     * the packer's (SPINE.tsv) */
+    char path[2048];
+    snprintf(path, sizeof path, "%s/SPINE.tsv", dir);
+    FILE *f = fopen(path, "r");
+    CHECK(f != 0, "the packer wrote SPINE.tsv");
+    uint32_t rows = 0;
     for (uint32_t k = 0; k < ALX_MX_LAYERS; k++) {
-        if (!GLUE[k]) continue;
+        CHECK(alx_mx_pos(k, ZPOS[k]) == ALX_OK, "layer %u has a position", k);
+        for (uint32_t j = 0; j < k; j++)
+            CHECK(memcmp(ZPOS[j], ZPOS[k], sizeof ZPOS[k]) != 0, "layers %u and %u apart", j, k);
+        uint32_t a, m;
+        alx_mx_split(k, &a, &m);
+        if (alx_mx_anchor(k) >= 0) {
+            /* a corner of the + tetrahedron: an even number of minus signs,
+             * so the vertex over the scale is a doubled E8 root */
+            uint32_t minus = 0;
+            for (uint32_t j = 0; j < 8; j++) minus += ZPOS[k][2 * j] < 0 || ZPOS[k][2 * j + 1] < 0;
+            CHECK(minus % 2 == 0, "anchor %u sits on an even corner", k);
+        } else {
+            /* the recursion, checked from outside: phi (vertex - pos) = pos(M) */
+            int64_t v[16];
+            alx_mx_pos(a, v);
+            for (uint32_t j = 0; j < 8; j++) {
+                int64_t p = v[2 * j] - ZPOS[k][2 * j], q = v[2 * j + 1] - ZPOS[k][2 * j + 1];
+                CHECK(q == ZPOS[m][2 * j] && p + q == ZPOS[m][2 * j + 1],
+                      "layer %u: (vertex %u - pos) phi = pos(%u)", k, a, m);
+            }
+        }
+        if (!f) continue;
+        char line[1024];
+        if (!fgets(line, sizeof line, f)) break;
+        unsigned lk, la, lm;
+        char fl[8], st[4];
+        int at = 0;
+        if (sscanf(line, "%u\t%7s\t%u\t%u\t%3s\t%n", &lk, fl, &la, &lm, st, &at) != 5) break;
+        int ok = lk == k && la == a && lm == m;
+        const char *c = line + at;
+        for (uint32_t j = 0; j < 16 && ok; j += 2) {
+            long long p, q;
+            int used = 0;
+            ok = sscanf(c, "%lld:%lld%n", &p, &q, &used) == 2 && p == ZPOS[k][j] && q == ZPOS[k][j + 1];
+            c += used;
+        }
+        alx_mx_layer_t l;
+        alx_mx_layer(ROOT, k, &l);
+        CHECK(ok && (st[0] == 'T') == (l.booklets != 0), "SPINE.tsv row %u matches the kernel's rule", k);
+        rows++;
+    }
+    if (f) fclose(f);
+    CHECK(rows == ALX_MX_LAYERS, "SPINE.tsv has every layer (%u)", rows);
+
+    /* the glue: hung from its anchor and its pattern, refs in the lineage */
+    uint32_t hung = 0, refs_checked = 0, scaffold = 0;
+    for (uint32_t k = 0; k < ALX_MX_LAYERS; k++) {
         alx_mx_layer_t self;
         alx_mx_layer(ROOT, k, &self);
-        uint32_t up = 99, nf = 0, ne = 0;
+        scaffold += !self.booklets;
+        uint32_t up = 99, pat = 99, nf = 0, ne = 0, a, m;
+        alx_mx_split(k, &a, &m);
         const uint8_t *cid = alx_glue_anchor(GLUE[k], &up);
+        const uint8_t *pc = alx_glue_pattern(GLUE[k], GLUEN[k], &pat);
         if (k == 0) {
-            CHECK(!cid && up == 0, "the core hangs from nothing");
+            CHECK(!cid && up == 0 && !pc, "the core hangs from nothing");
             continue;
         }
-        uint32_t a = alx_mx_anchor_below(k);
-        while (!GLUE[a]) a = alx_mx_anchor_below(a);
-        alx_mx_layer_t l;
+        alx_mx_layer_t l, lp;
         alx_mx_layer(ROOT, a, &l);
-        CHECK(up == a && cid && memcmp(cid, l.glue, 36) == 0,
-              "layer %u's glue names anchor %u's glue (it names %u)", k, a, up);
+        alx_mx_layer(ROOT, m, &lp);
+        CHECK(up == a && cid && memcmp(cid, l.glue, 36) == 0, "layer %u hangs from %u's glue", k, a);
+        CHECK(pat == m && (m ? pc && memcmp(pc, lp.glue, 36) == 0 : !pc),
+              "layer %u repeats %u's glue", k, m);
         hung++;
-        if (alx_mx_anchor(k) < 0) continue;
-        /* an anchor leans only on anchors */
-        alx_glue_check(GLUE[k], GLUEN[k], 0, &nf, &ne, 0);
-        for (uint32_t f = 0; f < nf; f++)
-            for (uint32_t i = 0; i < alx_glue_nrefs(GLUE[k], f); i++) {
+        uint32_t nr = 0;
+        alx_glue_check(GLUE[k], GLUEN[k], 0, &nf, &ne, &nr);
+        for (uint32_t fi = 0; fi < nf; fi++)
+            for (uint32_t i = 0; i < alx_glue_nrefs(GLUE[k], fi); i++) {
                 uint32_t lay, bk, at;
-                alx_glue_ref(GLUE[k], f, i, &lay, &bk, &at);
-                CHECK(alx_mx_anchor(lay) >= 0, "anchor %u's chunk is in layer %u, an anchor", k, lay);
+                alx_glue_ref(GLUE[k], fi, i, &lay, &bk, &at);
+                CHECK(lay == k || alx_mx_draws(k, lay), "layer %u's chunk is in %u, its lineage", k, lay);
                 refs_checked++;
             }
-        const uint8_t *e = GLUE[k] + 64u + nf * ALX_MX_FILE;
-        for (uint32_t i = 0; i < ne; i++, e += ALX_MX_EDGE)
-            CHECK(alx_mx_anchor((uint32_t) e[4] << 8 | e[5]) >= 0, "anchor %u's edge %u stays in the spine", k, i);
     }
-    printf("matrix: %u layers hang from the spine; %u anchor chunk refs all in anchors\n", hung, refs_checked);
-    /* refusals: an old glue node, a branch anchor, the core hanging */
-    uint32_t k = 1;
-    while (k < ALX_MX_LAYERS && !GLUE[k]) k++;
-    CHECK(k < ALX_MX_LAYERS, "a layer above the core holds content");
-    if (k == ALX_MX_LAYERS) return;
-    uint8_t *g = malloc(GLUEN[k]);
+    printf("matrix: %u layers hang from the spine, %u are scaffold (N), %u chunk refs all in "
+           "their lineage\n", hung, scaffold, refs_checked);
+
+    /* refusals */
+    uint32_t k = 4; /* a branch: 3 + 1 */
+    uint8_t *g = malloc(GLUEN[k] + 64u);
     memcpy(g, GLUE[k], GLUEN[k]);
-    g[4] = 1;
-    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "version 1 glue is the old format");
+    g[4] = 2;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "version 2 glue is the old format");
     memcpy(g, GLUE[k], GLUEN[k]);
-    g[56] = 0, g[57] = 4; /* layer 4 is not an anchor */
-    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "hanging from a branch");
+    g[57] = 2; /* hangs from 2, not 3 */
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "hanging from the wrong anchor");
     memcpy(g, GLUE[k], GLUEN[k]);
-    g[56] = (uint8_t) (k >> 8), g[57] = (uint8_t) k;
-    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "hanging from itself");
+    g[59] = 0; /* no pattern */
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "a branch without its pattern");
     memcpy(g, GLUE[k], GLUEN[k]);
-    g[60] = 1;
+    g[61] = 1;
     CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "reserved bytes set");
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[5] = 3; /* B is not a glue state */
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "a state other than N or T");
     free(g);
+    /* N never carries content: a holding layer marked N, and a ref out of the lineage */
+    for (k = 1; k < ALX_MX_LAYERS; k++) {
+        uint32_t nf;
+        if (alx_glue_check(GLUE[k], GLUEN[k], 0, &nf, 0, 0) != ALX_OK || !nf) continue;
+        g = malloc(GLUEN[k]);
+        memcpy(g, GLUE[k], GLUEN[k]);
+        g[5] = 0;
+        CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "layer %u marked N with content", k);
+        /* the first ref, pointed at a layer outside its lineage */
+        uint32_t ne = (uint32_t) g[12] << 24 | (uint32_t) g[13] << 16 | (uint32_t) g[14] << 8 | g[15];
+        uint8_t *rf = g + 64u + nf * ALX_MX_FILE + ne * ALX_MX_EDGE;
+        uint32_t stranger = ALX_MX_LAYERS - 1u;
+        while (stranger == k || alx_mx_draws(k, stranger)) stranger--;
+        memcpy(g, GLUE[k], GLUEN[k]);
+        rf[0] = (uint8_t) (stranger >> 8), rf[1] = (uint8_t) stranger;
+        CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "layer %u drawing from %u", k, stranger);
+        free(g);
+        break;
+    }
     g = malloc(GLUEN[0]);
     memcpy(g, GLUE[0], GLUEN[0]);
     g[20] = 1;
@@ -541,7 +694,7 @@ int main(int argc, char **argv)
     test_layout();
     test_files(argv[2]);
     test_refusals();
-    test_spine();
+    test_spine(argv[1], argv[2]);
     /* the packer stores booklets compressed (--zpack): every one is read back above */
     CHECK(ZBOOK > 0 && ZSTORED < ZPLAIN, "booklets are stored compressed");
     printf("matrix: %u booklets compressed; booklets stored in %llu of %llu bytes (%.1f%%)\n", ZBOOK,

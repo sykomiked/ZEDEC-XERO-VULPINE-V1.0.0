@@ -247,11 +247,14 @@ byte layouts):
   chunks at 64-byte boundaries. Opening one checks every chunk against its
   CID.
 - **ALXN fan-out node:** up to 256 child CIDs and the booklet count beneath.
-- **ALXG v2 glue:** the layer's files (CID, chunk refs), links and chunk
-  refs, and the glue CID and layer of the anchor the layer hangs from
-  (section 9). A ref names a layer, booklet and atom, because a chunk is
-  stored once in the whole matrix.
-- **ALXM root:** 145 entries (tree, glue, icon, booklet count) and a
+- **ALXG v3 glue:** one per layer, empty layers too: the state (N or T),
+  the layer's files (CID, chunk refs), links and chunk refs, the glue CID
+  of the anchor it hangs from and, for a branch, of its pattern layer
+  (sections 9 and 10). A ref names a layer, booklet and atom, because a
+  chunk is stored once in the whole matrix; the layer is the ref's own or
+  one in its lineage.
+- **ALXM v2 root:** 145 entries (tree, glue, icon, booklet count; every
+  layer has its glue) and a
   SHA-256.
 - **ALXZ stored booklet:** a booklet compressed (`alx_z.h`): codec (1, the
   LZ4 block format), the plain length, the payload length, and the plain
@@ -389,28 +392,102 @@ around them as a spine, and the top of the chain, 144 = F12, is itself one.
 `MATRIX.tsv` flags each in its anchor column, and the packer refuses the
 file when the column disagrees with the rule.
 
-- **Sealed first.** The packer lays out the anchors before any other layer
-  (rising: the core, then 1, 2, 3, 5 ... 144; with `--seal-order down`:
-  booklet 000, then 144 down to 1 and the core). A chunk shared by an
-  anchor and a branch layer is stored in the anchor, so an anchor's
-  booklets name chunks in anchors only, and its CIDs are fixed before any
-  layer that hangs from it.
-- **Hung from the anchor below.** Every glue node carries the glue CID and
-  layer of the nearest non-empty anchor below it: a branch layer hangs from
-  the anchor under it (4 from 3, 6 and 7 from 5, 90 to 143 from 89), and
-  each anchor from the one before it (144 from 89, down to 1 from the core).
-  Changing an anchor changes the CID of every glue node that hangs from it,
-  and so the root.
-- **No upward lean.** An anchor's glue keeps no link into a branch layer's
-  files (the branch's glue keeps the link from its side). The packer counts
-  the links it left out (`anchor_branch_edges` in the report) and lists
-  anchors with no content yet (`empty_anchors`); a layer above an empty
-  anchor hangs from the next anchor down.
-- **Fetch and seal order.** A reader takes the core and booklet 000, then
-  the anchors, then the branches in the order of their anchors. The
-  dendritic fetch order follows the same spine.
+Every other layer is a branch. By Zeckendorf's theorem every whole number
+is a sum of non-consecutive Fibonacci numbers in exactly one way, so every
+branch splits one way only as N = F(k) + M, with F(k) the largest Fibonacci
+number at most N and M smaller than F(k-1): 4 = 3 + 1, 12 = 8 + 4 (and 4 =
+3 + 1), 100 = 89 + 11, 143 = 89 + 54. The branch hangs from anchor F(k)
+and repeats the pattern of layer M, so the band from F(k) up to F(k+1) - 1
+repeats the layers 0 to F(k-1) - 1: the same shape at every scale, and it
+goes on past 144 with no new rule (145 = 144 + 1, ..., 233 the next
+anchor).
 
-`alx_mx_anchor` and `alx_mx_anchor_below` give the rule in the kernel, and
-`alx_glue_anchor` reads it from a glue node. `test_alx_matrix` checks every
-glue node against its anchor's CID in the root, and every anchor's chunk
-refs and links against the spine.
+- **Lineage.** A layer may draw on its lineage: an anchor on the anchors
+  below it; a branch F(k) + M on the anchors up to F(k), on M and on M's
+  lineage. Every chunk is stored once, in the deepest layer that is the
+  lineage (or the self) of every layer using it. An anchor's chunks so live
+  in anchors only, a branch's in its own lineage, and no layer leans on a
+  stranger. A chunk two branches share goes down to their deepest common
+  ancestor, which is a user of it or an anchor; an anchor may so hold
+  chunks its band shares before any of its own files land (the report
+  lists these and the bytes moved: `adopted_chunks`,
+  `anchors_holding_only_shared_chunks`).
+- **Hung from the anchor and the pattern.** Every layer has a glue node,
+  empty ones too. It names the glue CID of the anchor the layer hangs from
+  (a branch: F(k); an anchor: the anchor below it) and, for a branch, the
+  glue CID of its pattern layer M. Changing an anchor or a pattern changes
+  every layer above it in the lineage, and so the root.
+- **States.** A glue node carries an lpres state: T when the layer holds
+  content, N when it is an empty scaffold layer. An N layer carries nothing:
+  no files, no links, no refs, no booklets. Nothing is faked to fill a
+  position; a layer becomes T when its content lands, resolved and
+  checked. (F and B, a failed check and witnesses that disagree, belong to
+  the app gate and the witnessed calls, never to a sealed glue node.)
+- **No upward lean.** An anchor's glue keeps no link into a branch layer's
+  files (the branch's glue keeps the link from its side). A branch's links
+  into layers outside its lineage are kept, because the code makes them,
+  and counted (`cross_lineage_edges`) so they can be moved home.
+- **Order.** Because every chunk's layer is fixed by the lineage rule
+  before anything is laid out, the order layers are packed in changes no
+  byte; `--seal-order` is kept for older scripts. Fetching and building
+  run core first and outward (section 10).
+
+`alx_mx_anchor`, `alx_mx_anchor_below`, `alx_mx_split` and `alx_mx_draws`
+give the rules in the kernel; `alx_glue_check` refuses a glue node whose
+anchor or pattern is not the rule's, whose state is not N or T, whose N
+carries anything, or one of whose refs leaves the lineage.
+
+## 10. The frame: three star tetrahedra
+
+The positions come from geometry, so they are generated, not authored. A
+star tetrahedron is a cube's corners split by sign parity: an even number of
+minus signs gives one tetrahedron (+), an odd number the other (-). The same
+split exists in eight dimensions, where the 8-cube's 256 corners fall into
+two half-cubes; in doubled E8 coordinates (`kernel/src/e8/e8_lattice.h`) the
+even half is E8's 128 half-integer roots and the odd half lies in E8's
+mirror coset. Alternating polarity is that sign-parity flip.
+
+- **The anchors are the corners.** The twelve anchors are the + corners of
+  three nested star tetrahedra, four each: 0, 1, 2, 3 at scale 1; 5, 8, 13,
+  21 at scale phi^4 = 2 + 3 phi; 34, 55, 89, 144 at scale phi^8 = 13 + 21
+  phi. Each star closes on a multiple of 3 (F4 = 3, F8 = 21, F12 = 144):
+  every fourth Fibonacci number is divisible by 3, so the trinary step is
+  the arithmetic's own. A corner is (a, b, c, 1, 1, 1, 1, 1) with abc = 1,
+  times the scale: a scaled root of E8. The opposite corners (the -
+  tetrahedra) are the frame's other half and hold no layer.
+- **The branches are generated.** pos(F(k) + M) = vertex(F(k)) - pos(M) /
+  phi. Dividing by phi is exact in Z[phi] ((p + q phi) / phi = (q - p) + p
+  phi), and the minus sign turns the pattern over at every level of the
+  split: an iterated function system, so the frame is a fractal, and the
+  next star (233, 377, 610, 987 at phi^12 = 89 + 144 phi) extends it with
+  no new rule. All 145 positions are distinct.
+- **The fill follows the alternating current** of the tensor engine
+  (`zt.h` T12): sealing is the positive half-cycle, outermost first, in to
+  the core; fetching and building are the negative half-cycle, core first,
+  then the anchors star by star, then each star's bands.
+
+`docs/spec/ZECKENDORF_ANCESTORS.tsv` writes the lineage rule out, one row
+per layer (anchor, pattern, lineage). `pack_matrix.py --ancestors-table`
+generates it, make checks it is current, `test_alx_matrix` checks the
+kernel's `alx_mx_draws` against every pair of layers in it, and the
+fabricator (appfab) checks against the same file.
+
+**Folding until stable.** The build is the pattern folded until the matrix
+stops changing: each fold generates the positions, the fabricator packs the
+layers whose content now resolves, and the packer seals a root.
+`pack_matrix.py --fold-state FILE` records each fold (count, root, the root
+before it, T and N counts) and writes `STABILIZED` (the root CID and the fold
+count) in the output folder when the fold has converged: the root is the one
+the last fold recorded, every ref lands on a booklet of this pack, every
+layer with content is T and every scaffold layer N carries nothing. The
+witness tests are the test suite's, so the seal needs both: a STABILIZED
+record and a green run. make packs the tree twice and requires the second
+fold to be STABILIZED with the same root.
+
+`alx_mx_pos` computes a layer's position in the kernel. The packer writes
+the same table as `SPINE.tsv` (layer, F index, anchor, pattern, state, the
+eight coordinates as p:q), and `test_alx_matrix` checks the two agree for
+every layer, that every position is distinct, that every anchor sits on an
+even corner, and that every branch satisfies the recursion; it also checks
+Zeckendorf's uniqueness for every number below 377 and that the kernel's
+split takes the largest part.

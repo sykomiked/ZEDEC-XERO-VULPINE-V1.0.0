@@ -18,12 +18,13 @@
 # size; pack_matrix --icons fails when one is missing or too big.
 # anchor: "F<i>" when the layer number is the Fibonacci number F(i), else
 # "-". The twelve Fibonacci layers (0 1 2 3 5 8 13 21 34 55 89 144) are the
-# prime dimensional layers, the matrix's load-bearing spine: they are
-# sealed before every other layer, their booklets name chunks only in
-# anchors, each one's glue names the glue of the anchor below it, and
-# every other layer's glue names the nearest anchor below it
-# (docs/spec/MATRIX.md section 9). pack_matrix checks the column against
-# the rule.
+# prime dimensional layers, the matrix's spine and the corners of its frame
+# of three star tetrahedra. Every other layer N splits one way only as
+# F(k) + M (Zeckendorf): it hangs from anchor F(k), repeats the pattern of
+# layer M and draws chunks only from that lineage. A layer with no content
+# is an N scaffold position, never filled with anything faked
+# (docs/spec/MATRIX.md sections 9 and 10). pack_matrix checks the column
+# against the rule.
 0	core	Core	-	alloc mm sched syscall gdt idt pic timer pci acpi ata blockdev bios bringup el0_userspace loader modbind lpres oseq event_space event_sched event_transport e8 edp_risk surplus trispace pqsec mlkem tls robin_debanks clock keyboard mouse display vbe virtio fs vfs zxvfs fat32 tripartite_fs ubh alexandria lingua tensor zui appkit apps cellular_multikernel hwdrv net /kernel/arch /kernel/boot /kernel/include /kernel/compat /kernel/third_party /kernel/experimental /kernel/userapp /kernel/freestanding.c /kernel/linker.ld /kernel/linker_arm64.ld /kernel/grub.cfg /kernel/lpres_core.c /kernel/rmag_core.c /kernel/telemetry_core.c /kernel/Makefile pmm bootattest	F0
 1	The Banker	System core	zxv-brand/app-icons/svg/l1/001-burrow.svg	apps/burrow_model.c apps/burrow_model.h	F1
 2	Hollow	System core	zxv-brand/app-icons/svg/l1/002-hollow.svg	desktop theme dual_space launch icon /macos /gui /subsystems/gui /ZXV-Desktop.command	F3
