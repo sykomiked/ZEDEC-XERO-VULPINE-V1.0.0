@@ -132,9 +132,9 @@ provenance.
 | 1940s | | | | | 1 |
 | 1950s | FORTRAN | COBOL | | LISP, JOVIAL, RPG | 6 |
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
-| 1970s | Forth, ML, Prolog | | C, Pascal | Scheme, Modula-2, AWK, REXX, SQL | 8 |
-| 1980s | | Ada | C++ | | 17 |
-| 1990s | OCaml | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 7 |
+| 1970s | Forth, ML, Prolog, Modula-2 | | C, Pascal | Scheme, AWK, REXX, SQL | 8 |
+| 1980s | Oberon | Ada | C++ | | 16 |
+| 1990s | OCaml, Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 6 |
 | 2000s | | | C#, F#, Go | | 4 |
 | 2010s on | | | Rust, TypeScript, Swift, Solidity, WebAssembly | | 10 |
 
@@ -146,8 +146,7 @@ maintained toolchain, then languages that teach, then the rest.
 - **next1:** Pascal, ALGOL 60, LISP, Scheme, Logo. Block-structured and
   list languages exercise the parts of the IR the first three did not
   (nested scopes, recursion over lists).
-- **next2:** PL/I, BCPL, B, Modula-2, SNOBOL, Lua (Prolog has moved to
-  run: SWI-Prolog 9 is its reference).
+- **next2:** PL/I, BCPL, B, SNOBOL, Lua (Prolog and Modula-2 now run).
 - **next3:** JOVIAL, RPG, IEC 61131-3 Structured Text, AWK, REXX, plus a
   parse tier for SQL and JCL, which ZXV reads rather than runs.
 
