@@ -38,6 +38,7 @@
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
 #include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
 
@@ -346,10 +347,13 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     /* Standard class drivers: scan PCI, bind NVMe/AHCI/xHCI/e1000/HDA, then a
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
+    static hw_models_t models;
+    const hw_plat_t *hp;
+    int models_left;
     {
         boot_msg("[BOOT] Hardware: PCI scan and standard class drivers...");
         uint64_t tsc_per_us = 0;
-        const hw_plat_t *hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
+        hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
         static hw_registry_t hreg;
         hw_probe_all(hp, &hreg);
         uint32_t ok = hw_selftest_all(hp, &hreg);
@@ -357,6 +361,10 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * read the MegaROM the disc carries, so a driver is proven all the
          * way to a file. */
         hw_storage_selftest(hp, &hreg, "MEGAROM.TVL");
+        /* A golden disc lists its AI models in /ZXV/MODELS.SHA, some on the
+         * ESP and the swarm on its own partition. Only the list is read now;
+         * the models are hashed in the idle loop below (hw_models.h). */
+        models_left = hw_models_index(&models, hp, &hreg) > 0;
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -380,10 +388,16 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
 
     /* The LAPIC timer (X86_HZ) wakes each hlt, so the heartbeat counts timer
      * ticks: one line every ten seconds. Counting wake-ups instead (10M of
-     * them) printed once a day at 100 Hz, which read as no timer at all. */
+     * them) printed once a day at 100 Hz, which read as no timer at all.
+     * While golden-disc models are unchecked the loop hashes 1 MiB (256
+     * clusters of 4 KiB) per pass instead of halting; the timer keeps
+     * interrupting the reads, so the heartbeat goes on. */
     uint64_t next = x86_ticks() + 10u * X86_HZ;
     while (1) {
-        hlt();
+        if (models_left)
+            models_left = hw_models_step(&models, hp, 256);
+        else
+            hlt();
         uint64_t now = x86_ticks();
         if (now >= next) {
             next = now + 10u * X86_HZ;
