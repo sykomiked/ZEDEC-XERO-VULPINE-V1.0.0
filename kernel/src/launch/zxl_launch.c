@@ -55,6 +55,14 @@ static int strieq(const char *a, const char *b)
     return lower(*a) == lower(*b);
 }
 
+static const zxl_theme_t BOOT = {
+    "ZXV", 1, ZXL_BOOT_KEY, 6, ZXL_TIMBRE_COIN, ZXL_REVEAL_VAULT, ZXL_AMB_DUST, 0};
+
+const zxl_theme_t *zxl_boot_theme(void)
+{
+    return &BOOT;
+}
+
 const zxl_theme_t *zxl_theme_pick(const char *id)
 {
     if (!id) return 0;
