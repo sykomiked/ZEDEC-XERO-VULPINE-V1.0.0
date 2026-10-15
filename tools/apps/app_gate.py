@@ -221,7 +221,7 @@ def check_slots(mans):
     layer = {}
     for line in open(MATRIX, encoding="utf-8"):
         f = line.rstrip("\n").split("\t")
-        if not line.startswith("#") and len(f) == 5 and f[0].isdigit():
+        if not line.startswith("#") and len(f) >= 5 and f[0].isdigit():
             layer[int(f[0], 10)] = f[1]
     for p, m in mans:
         rel = os.path.relpath(p, ROOT)
