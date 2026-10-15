@@ -6,12 +6,14 @@
  * driver talking to a scripted modem on the master side. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700
+#define _DARWIN_C_SOURCE /* macOS hides B57600 and up under _XOPEN_SOURCE */
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
 #include <termios.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "bearer_host.h"
@@ -86,8 +88,11 @@ static void test_frames(void)
     static uint8_t msg[3000];
     for (int i = 0; i < 3000; i++) msg[i] = (uint8_t) (i * 7 % 256);
     int fd = g_slave;
-    CHECK("serial link send (COBS + CRC-32) over the pty",
-          bh_serial_link_send(&fd, NULL, msg, 3000) == BR_OK);
+    /* the sender runs in a child while this side reads: a pty holds about
+     * 1 KB on macOS (more on Linux), so a 3 KB frame only gets through if
+     * someone drains the master as it is written */
+    pid_t kid = fork();
+    if (kid == 0) _exit(bh_serial_link_send(&fd, NULL, msg, 3000) == BR_OK ? 0 : 1);
     uint8_t buf[512];
     int got = 0;
     uint32_t ol = 0;
@@ -97,6 +102,9 @@ static void test_frames(void)
         for (ssize_t i = 0; i < n; i++)
             if (br_serial_rx_byte(&rx, buf[i], out, sizeof out, &ol) == 1) got = 1;
     }
+    int st = 1;
+    CHECK("serial link send (COBS + CRC-32) over the pty",
+          kid > 0 && waitpid(kid, &st, 0) == kid && WIFEXITED(st) && WEXITSTATUS(st) == 0);
     CHECK("master decodes the 3000-byte frame exactly",
           got && ol == 3000 && !memcmp(out, msg, 3000));
     CHECK("serial link send refuses empty", bh_serial_link_send(&fd, NULL, msg, 0) == BR_ERR_ARG);

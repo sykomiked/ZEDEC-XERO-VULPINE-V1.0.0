@@ -5,6 +5,7 @@
  * kernel build. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700
+#define _DARWIN_C_SOURCE /* macOS hides B57600 and up under _XOPEN_SOURCE */
 #include "bearer_host.h"
 
 #include <errno.h>
