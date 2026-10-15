@@ -653,6 +653,7 @@ static zui_launch_state_t state_of(uint32_t p)
     st.gather = p >= 128u ? 256u : p * 2u;
     st.light = p <= 128u ? 0u : (p - 128u) * 4u > 256u ? 256u : (p - 128u) * 4u;
     st.release = p <= 192u ? 0u : (p - 192u) * 4u;
+    st.open = 0; /* set it: zui_launch_draw reads it once release is full */
     return st;
 }
 

@@ -259,7 +259,8 @@ static void test_own_colours_and_paths(void)
     setup(0, 0);
     uint32_t id = zui_launch_theme_open(&LT, "My Tool", "My Tool", "group3", false, false, 0);
     CHECK(id != 0, "a person's app opens");
-    frame(id, 256, 1);
+    /* lit (192) and before the vault bolts lock over it (zui_progress.h) */
+    frame(id, 192, 1);
     frame(id, 0, 2);
     CHECK(reads_of("icons/mytool.png") >= 1, "LS1: its icon by its name (mytool.png)");
     uint32_t red = near(0xD02020u, 30), gold = near(ZXL_GOLD_RGB, 40);
@@ -377,7 +378,7 @@ static void test_vectors_first(void)
     zui_wm_close(&WM, id);
 
     id = zui_launch_theme_open(&LT, "My Tool", "My Tool", "", false, false, 0);
-    frame(id, 256, 9);
+    frame(id, 192, 9); /* lit, before the vault bolts lock over it */
     frame(id, 0, 10);
     gold = near(ZXL_GOLD_RGB, 40), red = near(0xD02020u, 30);
     CHECK(red > 20 && gold == 0 && vec_last_tint == 0,
