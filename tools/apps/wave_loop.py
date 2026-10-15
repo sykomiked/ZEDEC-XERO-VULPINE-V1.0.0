@@ -9,10 +9,11 @@ it (NNN-<id>.md, in file order), the loop runs the builder (--runner, a shell
 command; {task}, {context}, {id} and {attempt} are filled in), then asks the
 gate for the app's verdict (app_gate.py --app <id> --verdict) and acts on it:
 
-  T  fits and functions: the app's files are committed with the two docs
-     every new app changes (lang_coverage.py and concepts.py regenerate
-     them; a failure of either makes the attempt F), and the next task
-     starts from them.
+  T  fits and functions: the app's files are committed with what every
+     new app changes: its entries' Alexandria slots (build_index.py --assign
+     <id> auto auto) and the two generated docs (lang_coverage.py,
+     concepts.py); a failure of any of them makes the attempt F. The next
+     task starts from them.
   F  a clear failure: the builder runs again on its own work, the context
      file carrying what failed.
   N  nothing usable: the builder starts again from a clean tree, the
@@ -52,7 +53,8 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TASKS = os.path.join(ROOT, "tools", "server-tasks")
 OUT = os.path.join(ROOT, "build", "wave_loop")
-DOCS = ("docs/APP_BLOCKS.md", "docs/APP_LANGUAGE_COVERAGE.md")
+DOCS = ("docs/APP_BLOCKS.md", "docs/APP_LANGUAGE_COVERAGE.md",
+        "kernel/src/alexandria/SLOTS.tsv", "kernel/src/alexandria/alx_slots.h")
 
 
 def apps(root):
@@ -109,9 +111,19 @@ def verdict(root, app_id, runs):
     return r
 
 
-def regenerate(root):
-    """The two generated docs every new app changes; their failures, if any."""
+def regenerate(root, app_id):
+    """What every new app changes besides its own files: its entries' slots on the
+    Alexandria app shelf (build_index.py --assign APP auto auto, so the slot numbers
+    follow the order apps are committed in) and the two generated docs. Their
+    failures, if any."""
     bad = []
+    # slots from an earlier attempt may name entries since renamed: assign afresh
+    git(root, "checkout", "-q", "HEAD", "--", *DOCS[2:])
+    p = subprocess.run([sys.executable, os.path.join(root, "tools", "alexandria", "build_index.py"),
+                        "--assign", app_id, "auto", "auto", "--out-hdr"], cwd=root,
+                       capture_output=True, text=True)
+    if p.returncode and "has no entry without a slot" not in p.stdout + p.stderr:
+        bad += [f"build_index.py: {x}" for x in (p.stdout + p.stderr).strip().splitlines()[-8:]]
     for tool in ("lang_coverage.py", "concepts.py"):
         p = subprocess.run([sys.executable, os.path.join(root, "tools", "apps", tool)], cwd=root,
                            capture_output=True, text=True)
@@ -123,7 +135,7 @@ def regenerate(root):
 
 def judge(root, app_id, runs):
     """The docs regenerated, then the gate's verdict; a doc that fails makes T into F."""
-    docs = regenerate(root)
+    docs = regenerate(root, app_id)
     r = verdict(root, app_id, runs)
     if docs and r["verdict"] in ("T", "B"):
         r["fits"] += docs
@@ -230,7 +242,8 @@ def levels(todo):
 
 
 def merge(app_id, base, sha, a):
-    """A worktree's T into the main tree, the generated docs made here, judged again here."""
+    """A worktree's T into the main tree: its own files only; the slots and the generated
+    docs are made again here, in merge order, and the app is judged again here."""
     patch = git(ROOT, "diff", "--binary", base, sha, "--", ".",
                 *[f":(exclude){d}" for d in DOCS])
     p = git(ROOT, "apply", "--index", "-", check=False, stdin=patch)

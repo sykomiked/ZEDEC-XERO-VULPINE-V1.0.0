@@ -10,7 +10,32 @@
 #define ALX_SLOT_SWARM_CYCLE_SHARE               2u /* 931.01 swarm_shares.cycle_share */
 #define ALX_SLOT_SWARM_BUSIEST                   3u /* 931.02 swarm_shares.busiest */
 #define ALX_SLOT_SWARM_WITHIN_LIMITS             4u /* 932.01 swarm_shares.within_limits */
-#define ALX_SLOT__COUNT 4u
+#define ALX_SLOT_TIME_ALMANAC_DAYS               5u /* 911.01 almanac.days */
+#define ALX_SLOT_TIME_ALMANAC_HOURS              6u /* 911.02 almanac.hours */
+#define ALX_SLOT_TIME_SHEPHERD_WEEK              7u /* 911.03 shepherd.week */
+#define ALX_SLOT_FIN_NPV                         8u /* 621.01 pce_fin.npv */
+#define ALX_SLOT_PROB_JOIN                       9u /* 631.01 pce_prob.join */
+#define ALX_SLOT_STRAT_DECIDE                    10u /* 641.01 pce_strat.decide */
+#define ALX_SLOT_NUM_USED_X100                   11u /* 521.01 used_share.used_x100 */
+#define ALX_SLOT_LOGIC_BANKER_ENTRY_OK           12u /* 490.01 banker.entry_ok */
+#define ALX_SLOT_NUM_BANKER_SHARE                13u /* 590.01 banker.share */
+#define ALX_SLOT_NUM_BANKER_TOTAL                14u /* 590.02 banker.total */
+#define ALX_SLOT_LOGIC_GLINT_ITEM_OK             15u /* 490.02 glint.item_ok */
+#define ALX_SLOT_LOGIC_KEEPSAKE_KEEP_OK          16u /* 490.03 keepsake.keep_ok */
+#define ALX_SLOT_NUM_KEEPSAKE_REMOVED            17u /* 590.03 keepsake.removed */
+#define ALX_SLOT_LOGIC_PLATEN_COPIES_OK          18u /* 490.04 platen.copies_ok */
+#define ALX_SLOT_NUM_PLATEN_SHEETS               19u /* 590.04 platen.sheets */
+#define ALX_SLOT_LOGIC_QUILLON_SIZE_OK           20u /* 490.05 quillon.size_ok */
+#define ALX_SLOT_NUM_SCENT_SCORE                 21u /* 590.05 scent.score */
+#define ALX_SLOT_NUM_SHEPHERD_LEFT               22u /* 590.06 shepherd.left */
+#define ALX_SLOT_LOGIC_SHEPHERD_LIMIT_OK         23u /* 490.06 shepherd.limit_ok */
+#define ALX_SLOT_NUM_SOUNDING_RATE               24u /* 590.07 sounding.rate */
+#define ALX_SLOT_LOGIC_SPINDLE_CALL_OK           25u /* 490.07 spindle.call_ok */
+#define ALX_SLOT_NUM_TIDEWATCH_CPU_X100          26u /* 590.08 tidewatch.cpu_x100 */
+#define ALX_SLOT_NUM_TIDEWATCH_PEAK              27u /* 590.09 tidewatch.peak */
+#define ALX_SLOT_NUM_WAKE_COUNT                  28u /* 590.10 wake.count */
+#define ALX_SLOT_LOGIC_WAYMARK_PLACE_OK          29u /* 490.08 waymark.place_ok */
+#define ALX_SLOT__COUNT 29u
 /* clang-format on */
 
 #endif

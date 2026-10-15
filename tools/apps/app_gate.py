@@ -25,6 +25,14 @@ For every app manifest with a slot (kernel/src/apps/*.zxapp) it fails when:
     or itself;
   * the model calls a daemon method (zxm_begin) that api/zxvd.openrpc.json
     does not list: an app reaches only methods that exist;
+  * it does not fit the Library of Alexandria: an entry it provides has no
+    slot (kernel/src/alexandria/SLOTS.tsv), a reference in its manifest,
+    tests or blocks (@num.gcd, @512.01, @S:0001, -NNN or 512.01:NNN for one
+    language) does not resolve to a live slot of the sealed index or names
+    a language the entry lacks, a use line does not say in slot syntax which
+    entries of that block it is for, or (an L1 app) its name is not the one
+    its slot's layer has in kernel/src/alexandria/MATRIX.tsv; and the index
+    itself must build with its header fresh (tools/alexandria/build_index.py);
 and for every app and block, when a file in its blocks/<id>/ folder is used
 by no logic line (a .wasm's source beside it counts as used).
 
@@ -67,7 +75,8 @@ MODEL_LINES = 20
 
 
 def manifest(path):
-    m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": []}
+    m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": [],
+         "name": "", "use_refs": {}}
     inline = False
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -87,6 +96,9 @@ def manifest(path):
                 m["provides"].append(w[1])
             elif w[0] == "use" and len(w) >= 3:
                 m["uses"].append(w[1])
+                m["use_refs"][w[1]] = REF_RE.findall(line.split("#", 1)[1]) if "#" in line else []
+            elif w[0] == "name" and len(w) >= 2:
+                m["name"] = " ".join(w[1:])
             elif w[0] == "logic" and len(w) >= 4:
                 m["entries"][w[2]] = m["entries"].get(w[2], 0) + 1
                 inline = w[3] == "<<"
@@ -96,6 +108,13 @@ def manifest(path):
 
 
 TASKS = os.path.join(ROOT, "tools", "server-tasks")
+MATRIX = os.path.join(SRC, "alexandria", "MATRIX.tsv")
+# References to the Library of Alexandria (docs/ALEXANDRIA.md section 4, alx_ref.c):
+# @S:0011, @521.01 or @num.used_x100, each with -NNN for one language, or 521.01:NNN.
+REF_RE = re.compile(r"(?<![\w@])@(S:\d{1,5}|\d{3}\.\d{2}|[a-z][a-z0-9_]*\.[a-z0-9_]+)(?:-(\d{3}))?|"
+                    r"(?<![\w.@])(\d{3}\.\d{2}):(\d{3})\b")
+# An addendum (<CID>/<place>...): never part of the sealed base.
+ADDENDUM_RE = re.compile(r"\b(b[a-z2-7]{58})/(\d{3}\.\d{2}[0-9.]*)")
 
 
 def build_rank(mans):
@@ -142,6 +161,104 @@ def check_layers(mans):
                               f"place {rank[u][1]}) than {m['id']} (layer {rank[m['id']][0]}, place "
                               f"{rank[m['id']][1]}); build it here and register it, or wait for "
                               "the layer that owns it")
+    return errors
+
+
+def library():
+    """The sealed index as tools/alexandria/build_index.py builds it: (slots, entries,
+    language numbers, errors). An error here is the whole library's, no one app's."""
+    sys.path.insert(0, os.path.join(ROOT, "tools", "alexandria"))
+    try:
+        import build_index as bi
+        nums = bi.lang_numbers()
+        ents = bi.entries(bi.manifests(), nums)
+        rows = bi.read_slots()
+        errors = []
+        if not os.path.exists(bi.HDR) or open(bi.HDR, encoding="utf-8").read() != bi.header(rows):
+            errors.append("kernel/src/alexandria/alx_slots.h is stale: run python3 "
+                          "tools/alexandria/build_index.py --out-hdr")
+        for slot, short, place, target, state, n in rows:
+            if state == "base" and target not in ents:
+                errors.append(f"kernel/src/alexandria/SLOTS.tsv:{n}: @{short} names no entry "
+                              "in the tree")
+        return rows, ents, nums, errors
+    except SystemExit as e:
+        return [], {}, {}, [f"the Alexandria index does not build: {e}"]
+    finally:
+        sys.path.pop(0)
+
+
+def resolve(ref, rows, ents):
+    """One reference (a REF_RE match) to its block entry, or why it does not resolve."""
+    name, lang, place, plang = ref
+    lang = lang or plang
+    key = name or place
+    if key.startswith("S:"):
+        hit = [r for r in rows if r[0] == int(key[2:], 10)]
+    elif re.fullmatch(r"\d{3}\.\d{2}", key):
+        hit = [r for r in rows if r[2] == key]
+    else:
+        hit = [r for r in rows if r[1] == key]
+    text = ("@" + key + ("-" + lang if lang and name else "")) if name else f"{place}:{plang}"
+    if not hit:
+        return None, f"{text} resolves to nothing in the sealed index"
+    slot, short, pl, target, state, _ = hit[0]
+    if state != "base":
+        return None, f"{text} names slot {slot}, which is {state}"
+    if lang and int(lang, 10) not in [n for n, _ in ents[target]["langs"]]:
+        return None, f"{text}: {target} has no language {lang} (never substituted)"
+    return target, ""
+
+
+def check_slots(mans):
+    """Fits: every entry an app provides has its slot, every reference resolves in
+    the sealed index, every use says in slot syntax which entry it is for, and an
+    L1 app's slot is its layer in the matrix (kernel/src/alexandria/MATRIX.tsv)."""
+    rows, ents, _, errors = library()
+    if not rows:
+        return errors
+    named = {r[3] for r in rows}
+    layer = {}
+    for line in open(MATRIX, encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if not line.startswith("#") and len(f) == 5 and f[0].isdigit():
+            layer[int(f[0], 10)] = f[1]
+    for p, m in mans:
+        rel = os.path.relpath(p, ROOT)
+        for t in sorted(t for t in ents if t.split(".")[0] == m["id"] and t not in named):
+            errors.append(f"{rel}: {t} has no slot (python3 tools/alexandria/build_index.py "
+                          f"--assign {m['id']} auto auto --out-hdr)")
+        files = [p]
+        folder = os.path.join(APPS, "blocks", m["id"])
+        if m["id"] and os.path.isdir(folder):
+            files += [os.path.join(folder, f) for f in sorted(os.listdir(folder))]
+        files += [os.path.join(TESTS, f"{m['id']}_{k}.inc") for k in ("zxapp", "apps")]
+        for f in files:
+            if not os.path.isfile(f):
+                continue
+            try:
+                text = open(f, encoding="utf-8").read()
+            except UnicodeDecodeError:
+                continue  # a .wasm
+            frel = os.path.relpath(f, ROOT)
+            for ref in REF_RE.findall(text):
+                _, why = resolve(ref, rows, ents)
+                if why:
+                    errors.append(f"{frel}: {why}")
+            for cid, place in ADDENDUM_RE.findall(text):
+                errors.append(f"{frel}: {cid}/{place} is an addendum, not in the sealed base "
+                              "(mounting addenda is not built)")
+        for u, refs in m["use_refs"].items():
+            if not refs:
+                errors.append(f"{rel}: use {u} says in slot syntax which entry it is for "
+                              f"(use {u} 1   # @<shorthand>)")
+            for ref in refs:
+                target, why = resolve(ref, rows, ents)
+                if target and target.split(".")[0] != u:
+                    errors.append(f"{rel}: use {u}: {ref[0] or ref[2]} is {target}, not an entry of {u}")
+        if p.endswith(".zxapp") and 0 < m["slot"] <= 144 and layer.get(m["slot"]) != m["name"]:
+            errors.append(f"{rel}: slot {m['slot']} is layer {m['slot']} of the matrix, "
+                          f"{layer.get(m['slot'], 'missing')!r} there, not {m['name']!r}")
     return errors
 
 
@@ -232,6 +349,7 @@ def gate_errors(want):
     blocks = os.path.join(APPS, "blocks")
     files += [os.path.join(blocks, f) for f in sorted(os.listdir(blocks)) if f.endswith(".zxblock")]
     errors += check_layers([(p, manifest(p)) for p in files])
+    errors += check_slots([(p, manifest(p)) for p in files])
     claimed = set()
     for p in files:
         rel = os.path.relpath(p, ROOT)
@@ -327,7 +445,8 @@ SUITES = (("test_zxapp.sh", "ran app "), ("test_apps.sh", "ran model "))
 # A link that must resolve: what an app reaches (a block or app it uses, a
 # daemon method, a logic file, its model). The tests can pass while one of
 # these is broken only when they do not exercise it: that is BOTH.
-LINK = ("uses ", "which zxvd does not have", "logic file", "does not exist")
+LINK = ("uses ", "use ", "which zxvd does not have", "logic file", "does not exist",
+        "resolves to nothing", "has no language", "names slot", "an addendum", "is layer")
 
 
 def names(line, app_id):
