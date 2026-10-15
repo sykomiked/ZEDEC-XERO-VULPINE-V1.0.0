@@ -216,8 +216,8 @@ vf_status_t vf_issue(vf_t *f, uint32_t peer, uint8_t resource, const uint8_t sco
 
 vf_status_t vf_issue_chunk(vf_t *f, uint32_t peer, const uint8_t scope[VNA_CID_RAW_LEN],
                            const uint8_t letter[32], const uint8_t chunk_cid[VNA_CID_RAW_LEN],
-                           const uint8_t *data, uint32_t len, uint32_t lifetime,
-                           const uint8_t *rnd, uint8_t out[VF_VOUCHER_LEN])
+                           const uint8_t *data, uint32_t len, uint32_t lifetime, const uint8_t *rnd,
+                           uint8_t out[VF_VOUCHER_LEN])
 {
     if (!chunk_cid || !data || len == 0) return VF_E_ARG;
     uint8_t cid[VNA_CID_RAW_LEN];
@@ -330,8 +330,7 @@ uint32_t vf_weight(const vf_t *f, uint32_t peer)
     return VF_PRIO_BASE + (uint32_t) ((VF_PRIO_BOOST * s) / (s + VF_PRIO_HALF));
 }
 
-vf_status_t vf_split(const vf_t *f, const uint32_t *idx, uint32_t n, uint32_t slots,
-                     uint32_t *out)
+vf_status_t vf_split(const vf_t *f, const uint32_t *idx, uint32_t n, uint32_t slots, uint32_t *out)
 {
     if (!idx || !out || n == 0 || n > VF_MAX_PEERS) return VF_E_ARG;
     uint64_t sum = 0;

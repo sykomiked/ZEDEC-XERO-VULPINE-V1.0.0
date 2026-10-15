@@ -6,13 +6,14 @@
 #include "vf_prize.h"
 
 static int g_pass, g_fail;
-#define CHECK(c)                                                                   \
-    do {                                                                           \
-        if (c) g_pass++;                                                           \
-        else {                                                                     \
-            g_fail++;                                                              \
-            printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c);                     \
-        }                                                                          \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        if (c)                                                                                     \
+            g_pass++;                                                                              \
+        else {                                                                                     \
+            g_fail++;                                                                              \
+            printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c);                                     \
+        }                                                                                          \
     } while (0)
 
 static vna_identity_t IA, IB, IC, ICOM; /* A commissions and pays out, B and C deliver */
@@ -102,8 +103,10 @@ static vfp_warrant_t warrant(uint8_t tag, const vna_id_t *bearer, uint64_t cap, 
     w.id[0] = tag;
     w.id[31] = 0x4C;
     memcpy(w.commissioner, ICOM.id.b, 32);
-    if (bearer) w.bearer = *bearer;
-    else memset(w.bearer.b, 0xFF, 32);
+    if (bearer)
+        w.bearer = *bearer;
+    else
+        memset(w.bearer.b, 0xFF, 32);
     w.kind = VFP_RETRIEVAL;
     w.resource = VF_RES_TRANSFER;
     w.alexandria_x100 = 52010;

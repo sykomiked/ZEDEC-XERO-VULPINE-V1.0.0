@@ -85,8 +85,7 @@ typedef struct {
 } vfp_entry_t;
 
 /* The board's word that the commissioner sealed this warrant. */
-typedef bool (*vfp_verify_fn)(void *ctx, const vfp_warrant_t *w, const uint8_t *seal,
-                              uint32_t len);
+typedef bool (*vfp_verify_fn)(void *ctx, const vfp_warrant_t *w, const uint8_t *seal, uint32_t len);
 /* AXION's verdict on a prize; on TRUE it sets *units (what the prize earns). */
 typedef lpres_state_t (*vfp_audit_fn)(void *ctx, const vfp_warrant_t *w, const vna_id_t *claimant,
                                       const uint8_t *payload, uint32_t len, uint64_t *units);
@@ -121,8 +120,8 @@ const vfp_entry_t *vfp_get(const vfp_court_t *c, const uint8_t id[32]);
  * when it clears, issue the voucher (vf_issue) into out. *verdict (may be
  * NULL) gets the audit's verdict, or NEITHER when no audit ran. */
 int32_t vfp_claim(vfp_court_t *c, uint32_t peer, const uint8_t id[32], const uint8_t *payload,
-                  uint32_t len, uint32_t lifetime, const uint8_t *rnd,
-                  uint8_t out[VF_VOUCHER_LEN], lpres_state_t *verdict);
+                  uint32_t len, uint32_t lifetime, const uint8_t *rnd, uint8_t out[VF_VOUCHER_LEN],
+                  lpres_state_t *verdict);
 
 /* The vf_letter_fn the court installs (ctx = the court). */
 bool vfp_letter(void *ctx, const uint8_t letter[32], const vna_id_t *bearer, uint8_t resource,

@@ -6,13 +6,14 @@
 #include "vfloat.h"
 
 static int g_pass, g_fail;
-#define CHECK(c)                                                                   \
-    do {                                                                           \
-        if (c) g_pass++;                                                           \
-        else {                                                                     \
-            g_fail++;                                                              \
-            printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c);                     \
-        }                                                                          \
+#define CHECK(c)                                                                                   \
+    do {                                                                                           \
+        if (c)                                                                                     \
+            g_pass++;                                                                              \
+        else {                                                                                     \
+            g_fail++;                                                                              \
+            printf("FAIL %s:%d %s\n", __FILE__, __LINE__, #c);                                     \
+        }                                                                                          \
     } while (0)
 
 /* ---- a stand-in bounty board: letters of marque with an allowance ---- */
@@ -115,9 +116,11 @@ static void t_codec(void)
     vf_voucher_t v, w;
     memset(&v, 0, sizeof v);
     v.resource = VF_RES_STORAGE;
-    for (uint32_t i = 0; i < 32; i++) v.issuer.b[i] = (uint8_t) i, v.bearer.b[i] = (uint8_t) (99 - i);
+    for (uint32_t i = 0; i < 32; i++)
+        v.issuer.b[i] = (uint8_t) i, v.bearer.b[i] = (uint8_t) (99 - i);
     for (uint32_t i = 0; i < VNA_CID_RAW_LEN; i++) v.scope[i] = (uint8_t) (i * 3);
-    for (uint32_t i = 0; i < 32; i++) v.letter[i] = (uint8_t) (i ^ 0xA5), v.prev[i] = (uint8_t) (i + 7);
+    for (uint32_t i = 0; i < 32; i++)
+        v.letter[i] = (uint8_t) (i ^ 0xA5), v.prev[i] = (uint8_t) (i + 7);
     v.units = 0x0102030405060708ull;
     v.pair_seq = 0x1112131415161718ull;
     v.issued_epoch = 0x21222324u;
@@ -128,11 +131,11 @@ static void t_codec(void)
     CHECK(memcmp(buf, "VFLT", 4) == 0 && buf[4] == VF_VERSION && buf[5] == VF_RES_STORAGE);
     CHECK(buf[6] == 0 && buf[7] == 0);
     CHECK(buf[8] == 0 && buf[39] == 31 && buf[40] == 99 && buf[71] == 68);
-    CHECK(buf[72] == 0 && buf[107] == 105);         /* scope */
+    CHECK(buf[72] == 0 && buf[107] == 105);             /* scope */
     CHECK(buf[108] == 0xA5 && buf[139] == (31 ^ 0xA5)); /* letter */
-    CHECK(buf[140] == 0x08 && buf[147] == 0x01);    /* units LE */
-    CHECK(buf[148] == 0x18 && buf[155] == 0x11);    /* seq LE */
-    CHECK(buf[156] == 7 && buf[187] == 38);         /* prev */
+    CHECK(buf[140] == 0x08 && buf[147] == 0x01);        /* units LE */
+    CHECK(buf[148] == 0x18 && buf[155] == 0x11);        /* seq LE */
+    CHECK(buf[156] == 7 && buf[187] == 38);             /* prev */
     CHECK(buf[188] == 0x24 && buf[191] == 0x21 && buf[192] == 0x34 && buf[195] == 0x31);
     CHECK(vf_decode(buf, VF_VOUCHER_LEN, &w) == VF_OK);
     CHECK(memcmp(&v.issuer, &w.issuer, 32) == 0 && memcmp(&v.bearer, &w.bearer, 32) == 0);
@@ -375,8 +378,8 @@ static void t_caps_full(void)
     vf_status_t st = VF_OK;
     uint32_t n = 0;
     while (st == VF_OK && n < VF_MAX_OPEN + 2) {
-        st = vf_issue(&x, 0, (uint8_t) (n % VF_RES_COUNT), SCOPE, LB[n % VF_RES_COUNT], 1, 9,
-                      NULL, V);
+        st = vf_issue(&x, 0, (uint8_t) (n % VF_RES_COUNT), SCOPE, LB[n % VF_RES_COUNT], 1, 9, NULL,
+                      V);
         if (st == VF_OK) n++;
     }
     CHECK(n == VF_MAX_OPEN && st == VF_E_FULL);
@@ -596,7 +599,8 @@ static void t_tick(void)
     CHECK(vf_issue(&h, 0, VF_RES_COMPUTE, SCOPE, LB[1], 4, 2, NULL, V) == VF_OK);
     V[VF_BODY_LEN] ^= 1;
     CHECK(vf_tick(&k, 20) == VF_OK);
-    CHECK(vf_accept(&k, V, VF_VOUCHER_LEN) == VF_E_SIG && k.peer[0].in_seq == 0 && k.evaporated == 0);
+    CHECK(vf_accept(&k, V, VF_VOUCHER_LEN) == VF_E_SIG && k.peer[0].in_seq == 0 &&
+          k.evaporated == 0);
 }
 
 static void t_priority(void)

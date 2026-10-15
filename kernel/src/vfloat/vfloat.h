@@ -105,13 +105,13 @@
 #define VF_VOUCHER_LEN  (VF_BODY_LEN + VNA_SIG_LEN)
 #define VF_SECTOR_BYTES 4096u
 
-#define VF_MAX_PEERS  32u
-#define VF_MAX_OPEN   256u
+#define VF_MAX_PEERS   32u
+#define VF_MAX_OPEN    256u
 #define VF_DEFAULT_CAP (1ull << 32) /* per pair, per resource, per direction */
 #define VF_CAP_LIMIT   (1ull << 62) /* no ceiling may be set above this */
 
-#define VF_PRIO_BASE  21u /* every peer's floor weight */
-#define VF_PRIO_BOOST 13u /* the boost stays below this: max weight < 34 */
+#define VF_PRIO_BASE  21u          /* every peer's floor weight */
+#define VF_PRIO_BOOST 13u          /* the boost stays below this: max weight < 34 */
 #define VF_PRIO_HALF  (1ull << 20) /* score at which half the boost is earned */
 #define VF_DECAY_NUM  13u
 #define VF_DECAY_DEN  21u
@@ -128,16 +128,16 @@ typedef enum {
     VF_OK = 0,
     VF_E_ARG = -1,
     VF_E_SEALED = -2,
-    VF_E_PEER = -3,    /* unknown peer, or the table is full */
-    VF_E_DECODE = -4,  /* bad magic, version, reserved bytes or resource */
-    VF_E_BEARER = -5,  /* not addressed to this node */
-    VF_E_SEQ = -6,     /* not the next voucher in this pair (or a replay) */
+    VF_E_PEER = -3,   /* unknown peer, or the table is full */
+    VF_E_DECODE = -4, /* bad magic, version, reserved bytes or resource */
+    VF_E_BEARER = -5, /* not addressed to this node */
+    VF_E_SEQ = -6,    /* not the next voucher in this pair (or a replay) */
     VF_E_EXPIRED = -7,
     VF_E_SIG = -8,
-    VF_E_CAP = -9,     /* over the pair's ceiling */
-    VF_E_FULL = -10,   /* no room for another open voucher */
-    VF_E_CHUNK = -11,  /* the chunk does not hash to its CID */
-    VF_E_LETTER = -12  /* no letter hook, or the letter does not cover it */
+    VF_E_CAP = -9,    /* over the pair's ceiling */
+    VF_E_FULL = -10,  /* no room for another open voucher */
+    VF_E_CHUNK = -11, /* the chunk does not hash to its CID */
+    VF_E_LETTER = -12 /* no letter hook, or the letter does not cover it */
 } vf_status_t;
 
 typedef enum { VF_DIR_HELD = 0, VF_DIR_OWED = 1 } vf_dir_t;
@@ -162,10 +162,10 @@ typedef struct {
     bool used;
     vna_id_t id;
     uint8_t pk[VNA_PK_LEN];
-    uint64_t out_seq, in_seq;      /* last voucher issued to / accepted from */
+    uint64_t out_seq, in_seq; /* last voucher issued to / accepted from */
     uint8_t out_prev[32], in_prev[32];
-    uint64_t cap[VF_RES_COUNT];    /* ceiling, each direction */
-    uint64_t score;                /* V5 */
+    uint64_t cap[VF_RES_COUNT]; /* ceiling, each direction */
+    uint64_t score;             /* V5 */
 } vf_peer_t;
 
 typedef struct {
@@ -202,13 +202,13 @@ vf_status_t vf_decode(const uint8_t *in, uint32_t len, vf_voucher_t *v);
 /* V1. Writes VF_VOUCHER_LEN bytes to out and records the voucher as OWED.
  * rnd: 32 bytes for hedged signing, or NULL (deterministic). */
 vf_status_t vf_issue(vf_t *f, uint32_t peer, uint8_t resource, const uint8_t scope[VNA_CID_RAW_LEN],
-                     const uint8_t letter[32], uint64_t units, uint32_t lifetime, const uint8_t *rnd,
-                     uint8_t out[VF_VOUCHER_LEN]);
+                     const uint8_t letter[32], uint64_t units, uint32_t lifetime,
+                     const uint8_t *rnd, uint8_t out[VF_VOUCHER_LEN]);
 /* V1 for one hydration chunk: checks vna_cid_raw(data) == chunk_cid, then
  * issues a TRANSFER voucher for ceil(len / 4096) sectors scoped to `scope`. */
 vf_status_t vf_issue_chunk(vf_t *f, uint32_t peer, const uint8_t scope[VNA_CID_RAW_LEN],
-                           const uint8_t letter[32], const uint8_t chunk_cid[VNA_CID_RAW_LEN], const uint8_t *data,
-                           uint32_t len, uint32_t lifetime, const uint8_t *rnd,
+                           const uint8_t letter[32], const uint8_t chunk_cid[VNA_CID_RAW_LEN],
+                           const uint8_t *data, uint32_t len, uint32_t lifetime, const uint8_t *rnd,
                            uint8_t out[VF_VOUCHER_LEN]);
 /* V2. The letter hook is asked with take == false. */
 vf_status_t vf_accept(vf_t *f, const uint8_t *in, uint32_t len);
@@ -228,8 +228,7 @@ vf_status_t vf_tick(vf_t *f, uint32_t epoch);
 uint32_t vf_weight(const vf_t *f, uint32_t peer);
 /* Share `slots` over peers idx[0..n) by weight, largest remainder; out[i]
  * sums to exactly `slots`. Returns VF_E_ARG on a bad index or n == 0. */
-vf_status_t vf_split(const vf_t *f, const uint32_t *idx, uint32_t n, uint32_t slots,
-                     uint32_t *out);
+vf_status_t vf_split(const vf_t *f, const uint32_t *idx, uint32_t n, uint32_t slots, uint32_t *out);
 
 /* V6. vf_seal returns the units evaporated by this seal. */
 uint64_t vf_seal(vf_t *f);

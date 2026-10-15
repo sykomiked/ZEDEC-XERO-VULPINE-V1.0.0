@@ -115,8 +115,8 @@ bool vfp_letter(void *ctx, const uint8_t letter[32], const vna_id_t *bearer, uin
 }
 
 int32_t vfp_claim(vfp_court_t *c, uint32_t peer, const uint8_t id[32], const uint8_t *payload,
-                  uint32_t len, uint32_t lifetime, const uint8_t *rnd,
-                  uint8_t out[VF_VOUCHER_LEN], lpres_state_t *verdict)
+                  uint32_t len, uint32_t lifetime, const uint8_t *rnd, uint8_t out[VF_VOUCHER_LEN],
+                  lpres_state_t *verdict)
 {
     if (verdict) *verdict = LPRES_STATE_NEITHER;
     if (!c->f || !id) return VF_E_ARG;
@@ -151,8 +151,8 @@ int32_t vfp_claim(vfp_court_t *c, uint32_t peer, const uint8_t id[32], const uin
     c->pend_slot = (uint32_t) k;
     cpy(&c->pend_bearer, who, (uint32_t) sizeof *who);
     c->pend_units = units;
-    vf_status_t st = vf_issue(c->f, peer, e->w.resource, e->w.scope, e->w.id, units, lifetime,
-                              rnd, out);
+    vf_status_t st =
+        vf_issue(c->f, peer, e->w.resource, e->w.scope, e->w.id, units, lifetime, rnd, out);
     c->pending = false;
     if (st != VF_OK) return st;
     e->cleared++;
