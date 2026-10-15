@@ -154,9 +154,12 @@ Apps reach fabrication through one shared interface, never their own copy:
 | receive (rebuild a file) | `fab_recipe_parse`, `fab_recipe_check`, `fab_open_plan`, `fab_hydrate`, `fab_assemble` |
 | stream | `fab_recipe_seal` (open), `fab_frame_seal`, `fab_frame_apply`, `fab_checkpoint_sign`, `fab_checkpoint_verify` |
 
-The zxvd methods that expose these, and their use by the installer and the
-server's app waves, are being agreed with the threads that own zxvd, the
-app waves and the installer; this page will name them once they exist.
+Over zxvd's socket these are the `fab.*` methods (`docs/ZXVD.md`, rules
+in `kernel/arch/hosted/zxvd_fab.h`): `fab.send`, `fab.receive`, and
+`fab.stream.start`, `.send`, `.sign`, `.open`, `.frame`, `.checkpoint` and
+`.close`, with `fab.put`, `fab.keys` and `fab.status`. The air-gap seal is
+a callback the host registers (`zxvd_fab_set_seal`); `airgap: true` is
+refused until one is.
 
 ## 6. Streams
 
@@ -270,8 +273,8 @@ What the numbers say and do not say:
 
 ## 9. Not built yet
 
-- The zxvd methods (send, receive, stream) and their use by the installer
-  and the app waves (section 5).
+- The installer and the app waves calling `fab.*` (section 5), and the
+  host's air-gap seal callback (`zxvd_fab_set_seal`).
 - A mesh test of 60 fps frames over real radios (loss and latency on air).
 - Placement in the 144 installation layers: that matrix belongs to the
   Lingua thread and the placement is being agreed with it. The user's

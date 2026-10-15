@@ -193,12 +193,17 @@ case "${1:-srcs}" in
         done
         # pspace.*, hall.*: the net host and Vinea (vna_space) are in srcs
         echo arch/hosted/zxvd_pspace.c
+        # fab.*: file fabrication (docs/spec/FABRICATION.md); its ML-DSA-87,
+        # ML-KEM-1024, aead, hkdf, sha256 and the IPFS CID code are in srcs
+        echo arch/hosted/zxvd_fab.c
+        echo src/fab/fab.c
+        echo src/fab/fab_send.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea src/fab; do echo "$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
