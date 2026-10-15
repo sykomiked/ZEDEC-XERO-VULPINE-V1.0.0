@@ -7,8 +7,9 @@
 static const char text_doc_en[] =
     "ZXV End-User Agreement\n"
     "\n"
-    "Version 1.0, 14 October 2026\n"
-    "36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States\n"
+    "Version 1.0, 15 October 2026\n"
+    "Licensor: Scenic Bypass Consulting LLC, Arizona, United States\n"
+    "Creator: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States\n"
     "deal@zedec.ai\n"
     "\n"
     "THE SHORT VERSION\n"
@@ -27,7 +28,7 @@ static const char text_doc_en[] =
     "\n"
     "1. WHO WE ARE AND WHAT THIS COVERS\n"
     "\n"
-    "1.1 \"We\", \"us\" and \"our\" mean 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States. \"You\" means the person agreeing on this screen.\n"
+    "1.1 \"We\", \"us\" and \"our\" mean Scenic Bypass Consulting LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. \"You\" means the person agreeing on this screen.\n"
     "\n"
     "1.2 This agreement covers the \"Distribution\": the ZXV operating system image, installers and disc images we publish, the apps bundled with them, and the update and network services we operate for them (\"Services\").\n"
     "\n"
@@ -38,6 +39,8 @@ static const char text_doc_en[] =
     "1.5 AI models and other third-party components bundled with the Distribution come under their own licences, which are listed under Settings, About, Licences, and in the LICENSES folder of the Distribution. Those licences apply to those components exactly as their authors wrote them. We do not change them and cannot grant you more than they allow.\n"
     "\n"
     "1.6 Nothing in this agreement is legal, financial, medical or other professional advice.\n"
+    "\n"
+    "1.7 ZXV was created by 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States (the \"Creator\"), which owns the copyright in it. We license the Distribution and operate the Services under rights the Creator has granted to us. The Creator keeps its copyright, and its copyright and attribution notices, including the NOTICE file required by the Apache Licence, stay with the code and the Distribution. The Creator is not a party to this agreement and takes on no obligation to you under it. Where your local law allows, sections 12 and 13 protect the Creator as they protect us.\n"
     "\n"
     "2. HOW YOU AGREE\n"
     "\n"
@@ -201,16 +204,16 @@ static const char text_doc_en[] =
     "\n"
     "20.3 We may transfer this agreement to a business that takes over the Distribution, provided your rights under it are not reduced. You may transfer it to anyone you give the Distribution to, if they agree to it.\n"
     "\n"
-    "20.4 Contact: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.\n"
+    "20.4 Contact: Scenic Bypass Consulting LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.\n"
     "\n"
     "End of agreement.\n";
 
-/* SHA-256 3942389df99d15196ea008b8dfea26cb90440c931bd8cbbce2573c276ca4bef7 */
+/* SHA-256 00fe84416527b471c7d57ee7170ab6c9a861bb676d4b71de53985406044bbf9d */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0x39, 0x42, 0x38, 0x9d, 0xf9, 0x9d, 0x15, 0x19,
-    0x6e, 0xa0, 0x08, 0xb8, 0xdf, 0xea, 0x26, 0xcb,
-    0x90, 0x44, 0x0c, 0x93, 0x1b, 0xd8, 0xcb, 0xbc,
-    0xe2, 0x57, 0x3c, 0x27, 0x6c, 0xa4, 0xbe, 0xf7
+    0x00, 0xfe, 0x84, 0x41, 0x65, 0x27, 0xb4, 0x71,
+    0xc7, 0xd5, 0x7e, 0xe7, 0x17, 0x0a, 0xb6, 0xc9,
+    0xa8, 0x61, 0xbb, 0x67, 0x6d, 0x4b, 0x71, 0xde,
+    0x53, 0x98, 0x54, 0x06, 0x04, 0x4b, 0xbf, 0x9d
 };
 
 static const terms_doc_t doc_en = {

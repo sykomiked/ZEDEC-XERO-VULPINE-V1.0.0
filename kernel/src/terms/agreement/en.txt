@@ -1,7 +1,8 @@
 ZXV End-User Agreement
 
-Version 1.0, 14 October 2026
-36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States
+Version 1.0, 15 October 2026
+Licensor: Scenic Bypass Consulting LLC, Arizona, United States
+Creator: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States
 deal@zedec.ai
 
 THE SHORT VERSION
@@ -20,7 +21,7 @@ This summary helps you read the agreement. It is not a substitute for it.
 
 1. WHO WE ARE AND WHAT THIS COVERS
 
-1.1 "We", "us" and "our" mean 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States. "You" means the person agreeing on this screen.
+1.1 "We", "us" and "our" mean Scenic Bypass Consulting LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. "You" means the person agreeing on this screen.
 
 1.2 This agreement covers the "Distribution": the ZXV operating system image, installers and disc images we publish, the apps bundled with them, and the update and network services we operate for them ("Services").
 
@@ -31,6 +32,8 @@ This summary helps you read the agreement. It is not a substitute for it.
 1.5 AI models and other third-party components bundled with the Distribution come under their own licences, which are listed under Settings, About, Licences, and in the LICENSES folder of the Distribution. Those licences apply to those components exactly as their authors wrote them. We do not change them and cannot grant you more than they allow.
 
 1.6 Nothing in this agreement is legal, financial, medical or other professional advice.
+
+1.7 ZXV was created by 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States (the "Creator"), which owns the copyright in it. We license the Distribution and operate the Services under rights the Creator has granted to us. The Creator keeps its copyright, and its copyright and attribution notices, including the NOTICE file required by the Apache Licence, stay with the code and the Distribution. The Creator is not a party to this agreement and takes on no obligation to you under it. Where your local law allows, sections 12 and 13 protect the Creator as they protect us.
 
 2. HOW YOU AGREE
 
@@ -194,6 +197,6 @@ This summary helps you read the agreement. It is not a substitute for it.
 
 20.3 We may transfer this agreement to a business that takes over the Distribution, provided your rights under it are not reduced. You may transfer it to anyone you give the Distribution to, if they agree to it.
 
-20.4 Contact: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.
+20.4 Contact: Scenic Bypass Consulting LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.
 
 End of agreement.
