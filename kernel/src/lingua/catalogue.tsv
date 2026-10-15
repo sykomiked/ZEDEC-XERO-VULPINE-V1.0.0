@@ -1,6 +1,6 @@
 # Lingua language catalogue. One language per line, tab-separated:
 # year  language  family  tier  twin  where
-# tier: run | pillar | native | host | next1 | next2 | next3 | catalogue
+# tier: run | pillar | native | ir | host | next1 | next2 | next3 | catalogue
 #   (see docs/LANGUAGE_CATALOGUE.md). twin is "-" until a front-end exists.
 # check_catalogue.sh validates this file in make test-lingua.
 1949	Short Code	early	catalogue	-	-
@@ -110,3 +110,4 @@
 2026	LEXIS	intent	native	Lexwyrm	kernel/src/alexandria/alx_ref.c
 2026	TECTON	intent	native	Tectondrake	kernel/src/alexandria/alx_tecton.c
 2026	AXION	intent	native	Axiomdrake	kernel/src/alexandria/alx_axion.c
+2026	Lingua IR	intermediate	ir	-	kernel/src/lingua/zl.h
