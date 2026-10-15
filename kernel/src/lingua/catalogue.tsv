@@ -35,7 +35,7 @@
 1970	Forth	stack	run	Cairndrake	kernel/src/lingua/zl_forth.c
 1970	Pascal	algol	run	Tutordrake	bindings/pascal; kernel/src/lingua/zl_pascal.c
 1972	C	systems	host	-	kernel and libzxv are C11
-1972	Prolog	logic	next2	-	-
+1972	Prolog	logic	run	Riddlewyrm	kernel/src/lingua/zl_prolog.c
 1972	Smalltalk	object	catalogue	-	-
 1973	ML	functional	run	Proofdrake	kernel/src/lingua/zl_ml.c
 1974	SQL	database	next3	-	parse tier planned

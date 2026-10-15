@@ -22,7 +22,7 @@ ZL_LANG_X(LISP, 6, "LISP", "Coilwyrm", lisp, ".lisp .lsp", "lisp") /* LISP core 
 ZL_LANG_X(SCHEME, 7, "Scheme", "Spiraldrake", lisp, ".scm .ss", "scheme") /* R7RS small core subset (1975 lineage) */
 ZL_LANG_X(LOGO, 8, "Logo", "Kiteling", logo, ".lg .logo", "logo") /* UCBLogo core subset, integers (1967 lineage) */
 ZL_LANG_X(MOJO, 9, "Mojo", "Forgewyrm", mojo, ".mojo", "mojo") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(PROLOG, 10, "Prolog", "Riddlewyrm", prolog, ".pro .prolog", "prolog") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(PROLOG, 10, "Prolog", "Riddlewyrm", prolog, ".pro .prolog", "prolog") /* zl_prolog.c: Horn clauses over integers, atoms and lists; swipl */
 ZL_LANG_X(TEX, 11, "TeX", "Typedrake", tex, ".tex", "tex") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(HASKELL, 12, "Haskell", "Purewyrm", haskell, ".hs", "haskell") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* Standard ML 97 integer and list subset as MLton runs it (1973 lineage) */
