@@ -56,7 +56,8 @@ TYPE = {"include": 1, "test": 2, "logic": 3, "same": 4}
 BOOKLET_000 = ["kernel/src/lingua/alphabet.tsv", "kernel/src/lingua/zl.h",
                "kernel/src/lingua/zxp_rt.h", "kernel/src/lingua/zxp_rt.c",
                "kernel/src/lingua/zl_proj.c", "kernel/src/lingua/zl_sutra.h",
-               "kernel/src/lingua/zl_sutra.c"]
+               "kernel/src/lingua/zl_sutra.c", "kernel/src/lingua/zl_kpy.h",
+               "kernel/src/lingua/zl_kpy.c"]
 
 
 def fail(msg):
