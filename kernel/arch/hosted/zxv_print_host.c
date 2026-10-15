@@ -610,7 +610,10 @@ static int escl_get(const url_t *u, const char *leaf, uint32_t *n, char *err, si
 {
     char path[ZPH_URI_MAX + 32];
     size_t pl = strlen(u->path);
-    snprintf(path, sizeof path, "%s%s%s", u->path, pl && u->path[pl - 1] == '/' ? "" : "/", leaf);
+    int pn = snprintf(path, sizeof path, "%s%s%s", u->path, pl && u->path[pl - 1] == '/' ? "" : "/",
+                      leaf);
+    if (pn < 0 || (size_t) pn >= sizeof path)
+        return say(err, cap, ZPH_E_URI, "the scanner's address is too long");
     req_t rq = {"GET", NULL, 0, NULL, NULL, NULL, 0};
     resp_t rs;
     mem_t m = {(uint8_t *) XML, 0, sizeof XML - 1};
@@ -700,7 +703,10 @@ int zph_scan(const char *url, const escl_settings_t *s, const char *folder,
     if (er) return say(err, errcap, ZPH_E_URI, "the scan settings are out of range");
     char path[ZPH_URI_MAX + 32];
     size_t pl = strlen(u.path);
-    snprintf(path, sizeof path, "%s%sScanJobs", u.path, pl && u.path[pl - 1] == '/' ? "" : "/");
+    int pn =
+        snprintf(path, sizeof path, "%s%sScanJobs", u.path, pl && u.path[pl - 1] == '/' ? "" : "/");
+    if (pn < 0 || (size_t) pn >= sizeof path)
+        return say(err, errcap, ZPH_E_URI, "the scanner's address is too long");
     req_t rq = {"POST", "text/xml", xn, (const uint8_t *) settings, NULL, NULL, xn};
     resp_t rs;
     mem_t m = {(uint8_t *) XML, 0, sizeof XML - 1};
