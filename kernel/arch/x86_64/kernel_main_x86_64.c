@@ -37,6 +37,7 @@
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -218,6 +219,15 @@ static void handoff_report(void)
     boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
 
+/* The ACPI RSDP from an accepted handoff whose tables survived, else 0 (the
+ * interrupt layer then takes the LAPIC base from the MSR). */
+static uint64_t handoff_rsdp(void)
+{
+    const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
+    if (zxh_accept(h) != 1 || (h->flags & ZXH_F_ACPI_TABLES_LOST)) return 0;
+    return h->rsdp;
+}
+
 void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     (void)mb2_magic;
     (void)mb2_info;
@@ -286,6 +296,11 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         else
             boot_msg("  [WARN] ring-3 self-test faulted");
     }
+
+    /* Interrupts (gap 6): the full IDT, LAPIC and masked PIC/IOAPIC replace
+     * the ring-3 self-test's exception-only IDT (x86_irq.c). */
+    boot_msg("[BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...");
+    x86_irq_boot(handoff_rsdp());
 
     cell_fabric_boot_init();
 

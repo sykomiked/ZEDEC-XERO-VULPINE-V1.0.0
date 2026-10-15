@@ -72,6 +72,12 @@ static void gdt_tss_init(void) {
         "mov $0x28, %%ax\n\t ltr %%ax\n\t" : : : "ax");
 }
 
+/* Interrupt stack table entry n (1..7) of the one TSS. x86_irq.c uses IST1
+ * for hardware interrupts and IST2 for #DF/NMI/#MC. */
+void x86_tss_set_ist(unsigned n, uint64_t stack_top) {
+    if (n >= 1 && n <= 7) g_tss.ist[n - 1] = stack_top;
+}
+
 /* ================= IDT ================= */
 struct idt_gate {
     uint16_t off_lo; uint16_t sel; uint8_t ist; uint8_t type_attr;

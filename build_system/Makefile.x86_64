@@ -124,6 +124,7 @@ SRCS := \
     kernel/arch/x86_64/efifb_con.c \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
+    kernel/arch/x86_64/x86_irq.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
     kernel/src/hwdrv/hwdrv_core.c \
@@ -410,6 +411,7 @@ SRCS := \
 OBJDIR := build/x86_64
 OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
           $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
+          $(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 # Directories created ONCE at parse time, before any recipe runs, so no two -j
@@ -435,6 +437,10 @@ $(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
 	nasm -f elf64 $< -o $@
 
 $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o: kernel/arch/x86_64/ring3_asm.S
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -c $< -o $@
+
+$(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o: kernel/arch/x86_64/x86_trap_asm.S
 	@mkdir -p $(dir $@)
 	$(CC) -ffreestanding -fno-pie -c $< -o $@
 

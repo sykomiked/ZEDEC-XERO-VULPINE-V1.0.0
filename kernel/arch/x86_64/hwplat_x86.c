@@ -121,6 +121,13 @@ static volatile void *mmio_map(void *ctx, uint64_t phys, uint64_t size)
     return (volatile void *) (uintptr_t) phys;
 }
 
+/* The same mapper for the interrupt layer (LAPIC, IOAPIC, ACPI tables above
+ * 1 GB), which runs before the class drivers are initialised. */
+volatile void *hwplat_x86_map_mmio(uint64_t phys, uint64_t size)
+{
+    return mmio_map(0, phys, size);
+}
+
 /* ---- DMA pool --------------------------------------------------------------- */
 #define DMA_POOL (8u << 20)
 static uint8_t g_dma[DMA_POOL] __attribute__((aligned(4096)));
