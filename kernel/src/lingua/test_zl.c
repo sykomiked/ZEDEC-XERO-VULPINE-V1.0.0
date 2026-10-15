@@ -1268,7 +1268,7 @@ static void test_forth(void)
     expect_trap(Q, "300 EMIT", ZL_E_DOMAIN, 1, "EMIT past a byte");
     expect_trap(Q, ": F DUP 1 > IF DUP 1- RECURSE * THEN ; 25 F", ZL_E_OVERFLOW, 1,
                 "factorial overflow");
-    expect_trap(Q, ": F DUP 1 > IF DUP 1- RECURSE * THEN ; 100 F", ZL_E_RSTACK, 1,
+    expect_trap(Q, ": F DUP IF 1- RECURSE THEN ; 2000 F", ZL_E_RSTACK, 1,
                 "recursion past the call depth");
     expect_trap(Q, ": D RECURSE ; D", ZL_E_RSTACK, 1, "unbounded recursion");
     expect_trap(Q, ": G BEGIN AGAIN ; G", ZL_E_FUEL, 1, "endless loop");
@@ -1575,6 +1575,664 @@ static void test_pack(void)
           "op names");
 }
 
+/* ------------------------------------------------- frames and lists */
+
+static uint32_t here(void)
+{
+    return P.ncode;
+}
+
+static void patch(uint32_t at, uint32_t target)
+{
+    P.code[at].a = target;
+}
+
+static void sym(const char *name)
+{
+    size_t n = strlen(name);
+    P.str_off[P.nstr] = P.strbytes;
+    P.str_len[P.nstr] = (uint32_t) n;
+    memcpy(P.str + P.strbytes, name, n);
+    P.strbytes += (uint32_t) n;
+    P.nstr++;
+}
+
+/* Verify and run P, then compare the status and (when given) the output. */
+static void expect_run(int status, const char *want, const char *what)
+{
+    zl_diag_t d;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "%s verifies: %s", what, d.msg);
+    int s = run_p(&P, 0, 0, 0);
+    CHECK(s == status, "%s: status %d want %d (out [%s])", what, s, status, out);
+    if (want) CHECK(strcmp(out, want) == 0, "%s: out [%s] want [%s]", what, out, want);
+}
+
+static void test_frames(void)
+{
+    uint32_t j, sub, inner, call;
+
+    /* arguments arrive in order; the result is left on the stack */
+    prog_reset(64);
+    j = here();
+    I(ZL_JMP, 0, 0);
+    sub = here();
+    I(ZL_ENTER, 3, 2); /* sub(a, b), local c */
+    I(ZL_LOADF, 0, 0);
+    I(ZL_LOADF, 1, 0);
+    I(ZL_SUB, 0, 0);
+    I(ZL_STOREF, 2, 0);
+    I(ZL_LOADF, 2, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(j, here());
+    I(ZL_LINK, 0, 0);
+    I(ZL_PUSH, 7, 0);
+    I(ZL_PUSH, 5, 0);
+    I(ZL_CALL, sub, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "2", "two parameters");
+    CHECK(R.used == 15, "every instruction costs one unit of fuel (%llu)",
+          (unsigned long long) R.used);
+
+    /* a nested procedure reaches its parent's locals through the static link */
+    prog_reset(64);
+    j = here();
+    I(ZL_JMP, 0, 0);
+    inner = here();
+    I(ZL_ENTER, 1, 0); /* inner, local z */
+    I(ZL_LOADF, 0, 1);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_ADD, 0, 0);
+    I(ZL_STOREF, 0, 1); /* x := x + 1 in the parent */
+    I(ZL_PUSH, 4, 0);
+    I(ZL_STOREF, 0, 0); /* z is its own */
+    I(ZL_LINK, 1, 0);   /* the parent's handle, then the main frame's */
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LINK, 2, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LINK, 9, 0); /* walking past the main frame stays there */
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    sub = here();
+    I(ZL_ENTER, 2, 0); /* outer, locals x y */
+    I(ZL_PUSH, 10, 0);
+    I(ZL_STOREF, 0, 0);
+    I(ZL_PUSH, 99, 0);
+    I(ZL_STOREF, 1, 0);
+    I(ZL_LINK, 0, 0);
+    I(ZL_CALL, inner, 0);
+    I(ZL_LOADF, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LOADF, 1, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(j, here());
+    I(ZL_LINK, 0, 0);
+    I(ZL_CALL, sub, 0);
+    I(ZL_LINK, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "1 0 0 11 99 0", "static link");
+
+    /* recursion: each call has its own frame */
+    prog_reset(64);
+    j = here();
+    I(ZL_JMP, 0, 0);
+    sub = here();
+    I(ZL_ENTER, 1, 1); /* fact(n) */
+    I(ZL_LOADF, 0, 0);
+    I(ZL_PUSH, 2, 0);
+    I(ZL_LT, 0, 0);
+    call = here();
+    I(ZL_JNZ, 0, 0);
+    I(ZL_LINK, 1, 0); /* a sibling call: the same parent */
+    I(ZL_LOADF, 0, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_SUB, 0, 0);
+    I(ZL_CALL, sub, 0);
+    I(ZL_LOADF, 0, 0);
+    I(ZL_MUL, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(call, here());
+    I(ZL_PUSH, 1, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(j, here());
+    call = here();
+    I(ZL_LINK, 0, 0);
+    I(ZL_PUSH, 20, 0);
+    I(ZL_CALL, sub, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "2432902008176640000", "recursive factorial");
+    P.code[call + 1].a = 21;
+    expect_run(ZL_E_OVERFLOW, 0, "factorial past 64 bits");
+    P.code[call + 1].a = 2000;
+    expect_run(ZL_E_RSTACK, 0, "recursion past the call depth");
+
+    /* frame cells run out before the call depth */
+    prog_reset(64);
+    sub = here();
+    I(ZL_LINK, 0, 0);
+    I(ZL_ENTER, ZL_MAX_FRAMES / 4, 0);
+    I(ZL_JMP, sub, 0);
+    expect_run(ZL_E_RSTACK, 0, "frame cells exhausted");
+    CHECK(R.trap_pc == 1 && R.used == 14, "the fifth frame is refused (pc %u, used %llu)",
+          R.trap_pc, (unsigned long long) R.used);
+    prog_reset(64);
+    I(ZL_LINK, 0, 0);
+    I(ZL_ENTER, ZL_MAX_FRAMES, 0);
+    I(ZL_LOADF, ZL_MAX_FRAMES - 1, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_LINK, 0, 0);
+    I(ZL_ENTER, ZL_MAX_FRAMES, 0); /* LEAVE gave the cells back */
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "0", "one frame may take every cell, and locals start at zero");
+
+    /* var parameters: a frame cell's address works with LOADA / STOREA */
+    prog_reset(64);
+    I(ZL_LINK, 0, 0);
+    I(ZL_PUSH, 3, 0);
+    I(ZL_ENTER, 2, 1);
+    I(ZL_PUSH, 41, 0);
+    I(ZL_ADDRF, 1, 0);
+    I(ZL_STOREA, 0, 0);
+    I(ZL_ADDRF, 1, 0);
+    I(ZL_LOADA, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_ADDRF, 0, 0);
+    I(ZL_LOADA, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_ADDRF, 1, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "41 3 4097", "frame addresses");
+    P.code[4].a = 2;
+    expect_run(ZL_E_BOUNDS, 0, "ADDRF past the frame");
+    prog_reset(64);
+    I(ZL_LINK, 0, 0);
+    I(ZL_ENTER, 1, 0);
+    I(ZL_ADDRF, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_LOADA, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_BOUNDS, 0, "an address in a dropped frame");
+    prog_reset(64);
+    I(ZL_PUSH, 7, 0);
+    I(ZL_PUSH, ZL_MAX_SLOTS, 0);
+    I(ZL_STOREA, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_BOUNDS, 0, "no frame cells in the main program");
+    prog_reset(64);
+    I(ZL_PUSH, 7, 0);
+    I(ZL_PUSH, 5, 0);
+    I(ZL_STOREA, 0, 0);
+    I(ZL_PUSH, 5, 0);
+    I(ZL_LOADA, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_PUSH, 8, 0);
+    I(ZL_LOADA, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_BOUNDS, "7", "slot addresses still work, and stop at nslots");
+    prog_reset(64);
+    I(ZL_PUSH, 5, 0);
+    I(ZL_STOREA, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "STOREA needs a value under the address");
+
+    /* traps */
+    prog_reset(64);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_RSTACK, 0, "LEAVE in the main program");
+    prog_reset(64);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_ENTER, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_DOMAIN, 0, "a static link to a frame that does not exist");
+    P.code[0].a = -1;
+    expect_run(ZL_E_DOMAIN, 0, "a negative static link");
+    P.code[0].a = 0;
+    expect_run(ZL_OK, "", "the main frame as static link");
+    prog_reset(64);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_ENTER, 1, 1);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "ENTER without its static link");
+    prog_reset(64);
+    I(ZL_LOADF, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_BOUNDS, 0, "LOADF in the empty main frame");
+    prog_reset(64);
+    I(ZL_LINK, 0, 0);
+    I(ZL_ENTER, 1, 0);
+    I(ZL_STOREF, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "STOREF with nothing to store");
+    P.code[2].a = 1;
+    expect_run(ZL_E_BOUNDS, 0, "STOREF past the frame");
+
+    /* BOUND checks and keeps the index */
+    for (int64_t v = -1; v <= 3; v++) {
+        prog_reset(64);
+        I(ZL_PUSH, v, 0);
+        I(ZL_BOUND, 3, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        char want[24];
+        snprintf(want, sizeof want, "%lld", (long long) v);
+        expect_run(v >= 0 && v < 3 ? ZL_OK : ZL_E_BOUNDS, v >= 0 && v < 3 ? want : "", "BOUND");
+    }
+    prog_reset(64);
+    I(ZL_BOUND, 3, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "BOUND on an empty stack");
+}
+
+/* Emit code that pushes the list of n numbers 1..n (or NIL). */
+static void push_list(int n)
+{
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    for (int i = n; i >= 1; i--) {
+        I(ZL_PUSH, i, 0);
+        I(ZL_SWAP, 0, 0);
+        I(ZL_CONS, 0, 0);
+    }
+}
+
+static void print_in(int dialect, void (*build)(void), const char *want)
+{
+    prog_reset(62);
+    P.lang = ZL_LANG_FORTH;
+    sym("FOO");
+    build();
+    I(ZL_OUTV, dialect, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, want, "print");
+}
+
+static void b_list(void)
+{
+    push_list(3);
+}
+static void b_nil(void)
+{
+    I(ZL_PUSH, ZL_V_NIL, 0);
+}
+static void b_true(void)
+{
+    I(ZL_PUSH, ZL_V_TRUE, 0);
+}
+static void b_false(void)
+{
+    I(ZL_PUSH, ZL_V_FALSE, 0);
+}
+static void b_sym(void)
+{
+    I(ZL_PUSH, ZL_V_SYM, 0);
+}
+static void b_neg(void)
+{
+    I(ZL_PUSH, -42, 0);
+}
+static void b_nested(void) /* ((1) () FOO -5) */
+{
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_PUSH, -5, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_PUSH, ZL_V_SYM, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_CONS, 0, 0);
+    push_list(1);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_CONS, 0, 0);
+}
+static void b_dotted(void) /* (1 2 . 3) */
+{
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 2, 0);
+    I(ZL_PUSH, 3, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_CONS, 0, 0);
+}
+static void b_pair_last(void) /* ((1 2)) */
+{
+    push_list(2);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_CONS, 0, 0);
+}
+
+static void test_lists(void)
+{
+    static const struct {
+        void (*build)(void);
+        const char *want[ZL_DIALECT__COUNT];
+    } cases[] = {
+        {b_list, {"(1 2 3)", "(1 2 3)", "1 2 3", "[1 2 3]"}},
+        {b_nil, {"NIL", "()", "", "[]"}},
+        {b_true, {"T", "#t", "true", "true"}},
+        {b_false, {"NIL", "#f", "false", "false"}},
+        {b_sym, {"FOO", "FOO", "FOO", "FOO"}},
+        {b_neg, {"-42", "-42", "-42", "-42"}},
+        {b_nested, {"((1) NIL FOO -5)", "((1) () FOO -5)", "[1] [] FOO -5", "[[1] [] FOO -5]"}},
+        {b_pair_last, {"((1 2))", "((1 2))", "[1 2]", "[[1 2]]"}},
+        {b_dotted, {"(1 2 . 3)", "(1 2 . 3)", 0, 0}},
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++)
+        for (int d = 0; d < ZL_DIALECT__COUNT; d++) {
+            if (cases[c].want[d])
+                print_in(d, cases[c].build, cases[c].want[d]);
+            else {
+                prog_reset(62);
+                cases[c].build();
+                I(ZL_OUTV, d, 0);
+                I(ZL_HALT, 0, 0);
+                expect_run(ZL_E_DOMAIN, 0, "Logo has no dotted pairs");
+            }
+        }
+
+    /* CAR, CDR, and the empty list */
+    prog_reset(62);
+    push_list(3);
+    I(ZL_DUP, 0, 0);
+    I(ZL_CAR, 0, 0);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_CAR, 1, 0);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_CDR, 1, 0);
+    I(ZL_OUTV, 1, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "1(2 3)NIL()", "CAR and CDR");
+    for (int op = ZL_CAR; op <= ZL_CDR; op++) {
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(op, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "strict CAR / CDR of the empty list");
+        P.code[0].a = 5;
+        P.code[1].a = 1;
+        expect_run(ZL_E_DOMAIN, 0, "CAR / CDR of a number");
+        P.code[0].a = ZL_V_TRUE;
+        expect_run(ZL_E_DOMAIN, 0, "CAR / CDR of true");
+        P.code[0].op = ZL_NL;
+        expect_run(ZL_E_STACK, 0, "CAR / CDR of nothing");
+    }
+
+    /* SETCAR, SETCDR, and a cycle that runs into the output cap */
+    prog_reset(62);
+    push_list(2);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 9, 0);
+    I(ZL_SETCAR, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_PUSH, 8, 0);
+    I(ZL_SETCDR, 0, 0);
+    I(ZL_OUTV, 1, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "(9 2 . 8)", "SETCAR and SETCDR");
+    prog_reset(62);
+    push_list(1);
+    I(ZL_DUP, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_SETCDR, 0, 0);
+    I(ZL_OUTV, 1, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_OUTPUT, 0, "a cycle stops at the output cap");
+    CHECK(R.out_len == sizeof out && strncmp(out, "(1 1 1", 6) == 0, "cycle output [%.8s]", out);
+    for (int op = ZL_SETCAR; op <= ZL_SETCDR; op++) {
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_PUSH, 1, 0);
+        I(op, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "SETCAR / SETCDR of the empty list");
+        P.code[0].op = ZL_NL;
+        expect_run(ZL_E_STACK, 0, "SETCAR / SETCDR with one value");
+    }
+
+    /* ISA */
+    {
+        static const int64_t vals[] = {0,          -7,       ZL_V_NIL,    ZL_V_TRUE,
+                                       ZL_V_FALSE, ZL_V_SYM, ZL_V_SYM + 1};
+        static const char *const want[] = {"1000", "1000", "0010", "0000", "0000", "0001", "0001"};
+        for (size_t v = 0; v < sizeof vals / sizeof vals[0]; v++) {
+            prog_reset(62);
+            sym("A");
+            sym("B");
+            for (int t = 0; t < ZL_ISA__COUNT; t++) {
+                I(ZL_PUSH, vals[v], 0);
+                I(ZL_ISA, t, 0);
+                I(ZL_OUTI, 0, 0);
+            }
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_OK, want[v], "ISA");
+        }
+        prog_reset(62);
+        push_list(1);
+        I(ZL_ISA, ZL_ISA_PAIR, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_ISA, ZL_ISA_NUMBER, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_STACK, "1", "ISA of a pair, then of nothing");
+    }
+
+    /* references are not numbers: only EQ and NE take them */
+    {
+        static const int ops[] = {ZL_ADD, ZL_SUB, ZL_MUL, ZL_DIVT, ZL_MODF, ZL_POW, ZL_MIN, ZL_MAX,
+                                  ZL_LT,  ZL_LE,  ZL_GT,  ZL_GE,   ZL_AND,  ZL_OR,  ZL_XOR};
+        for (size_t k = 0; k < sizeof ops / sizeof ops[0]; k++)
+            for (int side = 0; side < 2; side++) {
+                prog_reset(62);
+                I(ZL_PUSH, side ? 1 : ZL_V_NIL, 0);
+                I(ZL_PUSH, side ? ZL_V_TRUE : 1, 0);
+                I(ops[k], 0, 0);
+                I(ZL_HALT, 0, 0);
+                expect_run(ZL_E_DOMAIN, 0, "arithmetic on a reference");
+            }
+        static const int un[] = {ZL_NEG, ZL_ABS, ZL_SGN, ZL_INVERT};
+        for (size_t k = 0; k < sizeof un / sizeof un[0]; k++) {
+            prog_reset(62);
+            I(ZL_PUSH, ZL_V_NIL, 0);
+            I(un[k], 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_E_DOMAIN, 0, "unary arithmetic on a reference");
+            P.code[0].a = -5;
+            I(ZL_OUTI, 0, 0);
+            P.code[2] = P.code[3];
+            P.code[3].op = ZL_HALT;
+            expect_run(ZL_OK, 0, "unary arithmetic on a number");
+        }
+        prog_reset(62);
+        push_list(1);
+        I(ZL_DUP, 0, 0);
+        I(ZL_EQ, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        push_list(1);
+        push_list(1);
+        I(ZL_EQ, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_NE, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_PUSH, ZL_V_TRUE, 0);
+        I(ZL_PUSH, ZL_V_FALSE, 0);
+        I(ZL_NE, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "1001", "EQ and NE compare identity");
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_REF - 1, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_ADD, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_OVERFLOW, 0, "a number stays inside 62 bits");
+        P.code[0].a = -ZL_V_REF + 1;
+        P.code[2].op = ZL_SUB;
+        expect_run(ZL_E_OVERFLOW, 0, "and below -2^62");
+        P.code[2].op = ZL_ADD;
+        I(ZL_OUTI, 0, 0);
+        P.code[3] = P.code[4];
+        P.code[4].op = ZL_HALT;
+        expect_run(ZL_OK, "-4611686018427387902", "62-bit edge arithmetic");
+        prog_reset(62);
+        I(ZL_IN, 0, 0);
+        I(ZL_HALT, 0, 0);
+        int64_t big = ZL_V_REF;
+        memset(&R, 0, sizeof R);
+        R.in = &big;
+        R.nin = 1;
+        R.out = out;
+        R.out_cap = sizeof out;
+        CHECK(zl_run(&P, &R) == ZL_E_OVERFLOW, "input cannot forge a reference");
+    }
+
+    /* the heap runs out; deep nesting refuses to print */
+    prog_reset(62);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_JMP, 1, 0);
+    expect_run(ZL_E_HEAP, 0, "cons cells exhausted");
+    CHECK(R.trap_pc == 2 && R.used == 1 + 3 * (ZL_MAX_CELLS - 1) + 2,
+          "every cell but the reserved 0 is used (used %llu)", (unsigned long long) R.used);
+    prog_reset(62);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "CONS needs two values");
+    for (int depth = ZL_MAX_STACK; depth <= ZL_MAX_STACK + 1; depth++) {
+        prog_reset(62);
+        I(ZL_PUSH, 7, 0);
+        for (int i = 0; i < depth; i++) {
+            I(ZL_PUSH, ZL_V_NIL, 0);
+            I(ZL_CONS, 0, 0);
+        }
+        I(ZL_OUTV, 2, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(depth <= ZL_MAX_STACK ? ZL_OK : ZL_E_DOMAIN, 0, "print nesting limit");
+        if (depth <= ZL_MAX_STACK)
+            CHECK(out[0] == '[' && out[depth - 2] == '[' && out[depth - 1] == '7' &&
+                      out[depth] == ']' && strlen(out) == 2 * (size_t) depth - 1,
+                  "deep Logo list printed (%zu)", strlen(out));
+    }
+    prog_reset(62);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "OUTV of nothing");
+    prog_reset(62);
+    push_list(3);
+    I(ZL_OUTV, 3, 0);
+    I(ZL_HALT, 0, 0);
+    zl_diag_t d;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "fixture");
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = 4;
+    CHECK(zl_run(&P, &R) == ZL_E_OUTPUT && R.out_len == 4 && memcmp(out, "[1 2", 4) == 0,
+          "OUTV fills the cap and stops");
+
+    /* verifier rules for the new instructions */
+#define BAD(bits, setup, what)                                                                     \
+    do {                                                                                           \
+        prog_reset(bits);                                                                          \
+        setup;                                                                                     \
+        I(ZL_HALT, 0, 0);                                                                          \
+        CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "verify rejects %s", what);                        \
+    } while (0)
+#define OK(bits, setup, what)                                                                      \
+    do {                                                                                           \
+        prog_reset(bits);                                                                          \
+        setup;                                                                                     \
+        I(ZL_HALT, 0, 0);                                                                          \
+        CHECK(zl_verify(&P, &d) == ZL_OK, "verify accepts %s: %s", what, d.msg);                   \
+    } while (0)
+    for (int op = ZL_CONS; op <= ZL_OUTV; op++) {
+        BAD(64, I(op, 0, 0), "a list op in a 64-bit program");
+        BAD(32, I(op, 0, 0), "a list op in a 32-bit program");
+        OK(62, I(op, 0, 0), "a list op in a 62-bit program");
+    }
+    BAD(62, I(ZL_CAR, 2, 0), "CAR mode 2");
+    BAD(62, I(ZL_CDR, -1, 0), "CDR mode -1");
+    OK(62, (I(ZL_CAR, 1, 0), I(ZL_CDR, 1, 0)), "nil-tolerant CAR / CDR");
+    BAD(62, I(ZL_ISA, ZL_ISA__COUNT, 0), "an unknown type test");
+    BAD(62, I(ZL_ISA, -1, 0), "a negative type test");
+    OK(62, I(ZL_ISA, ZL_ISA__COUNT - 1, 0), "the last type test");
+    BAD(62, I(ZL_OUTV, ZL_DIALECT__COUNT, 0), "an unknown dialect");
+    BAD(62, I(ZL_OUTV, -1, 0), "a negative dialect");
+    OK(62, I(ZL_OUTV, ZL_DIALECT__COUNT - 1, 0), "the last dialect");
+    BAD(62, I(ZL_PUSH, ZL_V_REF + 5, 0), "a forged pair constant");
+    BAD(62, I(ZL_PUSH, -ZL_V_REF, 0), "-2^62");
+    BAD(62, I(ZL_PUSH, ZL_V_SYM, 0), "a symbol with no strings");
+    BAD(62, (sym("A"), I(ZL_PUSH, ZL_V_SYM + 1, 0)), "a symbol past the strings");
+    BAD(62, I(ZL_PUSH, ZL_V_FALSE + 1, 0), "a constant past false");
+    BAD(62, I(ZL_PUSH, ZL_V_TRUE - 1, 0), "a constant before true");
+    BAD(62, I(ZL_PUSH, INT64_MAX, 0), "INT64_MAX in 62 bits");
+    OK(62,
+       (sym("A"), I(ZL_PUSH, ZL_V_SYM, 0), I(ZL_PUSH, ZL_V_NIL, 0), I(ZL_PUSH, ZL_V_TRUE, 0),
+        I(ZL_PUSH, ZL_V_FALSE, 0), I(ZL_PUSH, ZL_V_REF - 1, 0), I(ZL_PUSH, -ZL_V_REF + 1, 0)),
+       "the 62-bit constants");
+    OK(64, I(ZL_PUSH, ZL_V_REF + 5, 0), "any constant in 64 bits");
+    BAD(62, P.word_bits = 63, "63-bit words");
+    BAD(64, I(ZL_ENTER, ZL_MAX_FRAMES + 1, 0), "an oversized frame");
+    BAD(64, I(ZL_ENTER, -1, 0), "a negative frame");
+    BAD(64, I(ZL_ENTER, 2, 3), "more parameters than cells");
+    BAD(64, I(ZL_ENTER, 2, -1), "negative parameters");
+    BAD(64, I(ZL_ENTER, ZL_MAX_STACK, ZL_MAX_STACK), "more parameters than the stack holds");
+    OK(64, (I(ZL_ENTER, ZL_MAX_FRAMES, ZL_MAX_STACK - 1), I(ZL_ENTER, 0, 0)), "frame edges");
+    BAD(64, I(ZL_LINK, -1, 0), "a negative link");
+    BAD(64, I(ZL_LINK, ZL_MAX_CALLS, 0), "a link deeper than any call");
+    OK(64, I(ZL_LINK, ZL_MAX_CALLS - 1, 0), "the deepest link");
+    for (int op = ZL_LOADF; op <= ZL_ADDRF; op++) {
+        BAD(64, I(op, -1, 0), "a negative frame offset");
+        BAD(64, I(op, ZL_MAX_FRAMES, 0), "a frame offset past the cells");
+        BAD(64, I(op, 0, -1), "negative hops");
+        BAD(64, I(op, 0, ZL_MAX_CALLS), "too many hops");
+        OK(64, I(op, ZL_MAX_FRAMES - 1, ZL_MAX_CALLS - 1), "frame operand edges");
+    }
+    BAD(64, I(ZL_BOUND, 0, 0), "an empty bound");
+    BAD(64, I(ZL_BOUND, -3, 0), "a negative bound");
+    OK(64, (I(ZL_BOUND, 1, 0), I(ZL_LEAVE, 0, 0)), "bound 1 and LEAVE");
+#undef BAD
+#undef OK
+
+    /* the new instructions pack and unpack */
+    {
+        size_t n = 0;
+        prog_reset(62);
+        sym("FOO");
+        for (int op = ZL_ENTER; op < ZL_OP__COUNT; op++) I(op, op == ZL_BOUND, 0);
+        I(ZL_PUSH, ZL_V_SYM, 0);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_HALT, 0, 0);
+        CHECK(zl_verify(&P, &d) == ZL_OK, "pack fixture: %s", d.msg);
+        CHECK(zl_pack(&P, pk, sizeof pk, &n) == ZL_OK && strstr(pk, "\nOUTV 0 0 ") &&
+                  strstr(pk, "\nbits 62\n"),
+              "62-bit programs pack");
+        CHECK(unpack_s(pk) == ZL_OK && zl_prog_equal(&P, &P3), "and unpack unchanged");
+        for (int op = ZL_ENTER; op < ZL_OP__COUNT; op++)
+            CHECK(strcmp(zl_op_name(op), "?") != 0, "op %d has a name", op);
+    }
+    CHECK(strcmp(zl_status_name(ZL_E_HEAP), "list cells exhausted") == 0, "heap status name");
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "src/lingua/golden";
@@ -1589,6 +2247,8 @@ int main(int argc, char **argv)
     test_forth();
     test_api();
     test_pack();
+    test_frames();
+    test_lists();
     test_golden(dir);
     printf("%d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;

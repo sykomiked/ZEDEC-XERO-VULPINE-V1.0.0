@@ -65,7 +65,8 @@ typedef enum {
     ZL_E_FUEL = -2626,    /* instruction budget spent */
     ZL_E_OUTPUT = -2627,  /* output buffer full */
     ZL_E_INPUT = -2628,   /* input list exhausted */
-    ZL_E_DOMAIN = -2629   /* e.g. a zero DO step, a negative power */
+    ZL_E_DOMAIN = -2629,  /* e.g. a zero DO step, a negative power, CAR of a number */
+    ZL_E_HEAP = -2630     /* list cells exhausted (CONS) */
 } zl_status_t;
 
 /* ---- languages ---- */
@@ -88,10 +89,12 @@ const char *zl_status_name(int status);
 #define ZL_MAX_SLOTS    4096 /* integer memory cells (variables + arrays) */
 #define ZL_MAX_STR      256  /* string literals */
 #define ZL_MAX_STRBYTES 8192
-#define ZL_MAX_STACK    256 /* data stack depth */
-#define ZL_MAX_CALLS    64  /* call (GOSUB / word) depth */
-#define ZL_MAX_DEPTH    48  /* expression and control nesting */
-#define ZL_MAX_LINE     512 /* longest source line or statement */
+#define ZL_MAX_STACK    256   /* data stack depth */
+#define ZL_MAX_CALLS    1024  /* call (GOSUB / word / procedure) depth */
+#define ZL_MAX_FRAMES   16384 /* procedure frame cells (locals, links) */
+#define ZL_MAX_CELLS    16384 /* list (cons) cells */
+#define ZL_MAX_DEPTH    48    /* expression and control nesting */
+#define ZL_MAX_LINE     512   /* longest source line or statement */
 
 /* ---- the IR ---- */
 typedef enum {
@@ -145,8 +148,46 @@ typedef enum {
     ZL_LOADA,  /* pops an address (slot); checks it is < nslots */
     ZL_STOREA, /* pops an address, then a value */
     ZL_TRAP,   /* a: status to stop with (e.g. STOP with a code) */
+    /* procedure frames (Pascal, ALGOL, Lisp, Logo). A frame holds its
+     * locals; its static link is the handle (call depth) of the frame of
+     * the enclosing procedure, so b ("hops") walks that many static links
+     * out, 0 = this frame. The main program is frame 0, of size 0.
+     * Calling: LINK hops, the arguments, CALL; the callee runs ENTER ...
+     * LEAVE RET. Frames live until LEAVE: no closures outlive their frame. */
+    ZL_ENTER, /* a: frame size, b: params: pops b args (last on top), then the static link */
+    ZL_LEAVE, /* drop the current frame */
+    ZL_LINK,  /* a: hops: pushes that frame's handle (the static link for a call) */
+    ZL_LOADF, /* a: offset, b: hops */
+    ZL_STOREF,
+    ZL_ADDRF, /* a: offset, b: hops: pushes the cell's address for LOADA/STOREA */
+    ZL_BOUND, /* a: length: traps BOUNDS unless 0 <= top < a (leaves it) */
+    /* lists (Lisp, Scheme, Logo): values of 62-bit programs, see ZL_V_* */
+    ZL_CONS, /* pops cdr, then car; pushes a new pair (cells are never reclaimed) */
+    ZL_CAR,  /* a: 1 = the car of the empty list is the empty list (Lisp) */
+    ZL_CDR,
+    ZL_SETCAR, /* pops the value, then the pair */
+    ZL_SETCDR,
+    ZL_ISA,  /* a: ZL_ISA_*: pushes 1 or 0 */
+    ZL_OUTV, /* pops a value and prints it; a: ZL_DIALECT_* */
     ZL_OP__COUNT
 } zl_op_t;
+
+/* Values in 62-bit programs (word_bits 62). Numbers are the integers
+ * strictly inside +-2^62; everything else is a reference. Arithmetic and
+ * ordering on a reference trap DOMAIN; EQ and NE compare identity. */
+#define ZL_V_REF   ((int64_t) 1 << 62)
+#define ZL_V_NIL   ZL_V_REF                         /* the empty list */
+#define ZL_V_SYM   (ZL_V_REF + ((int64_t) 1 << 32)) /* + string index: a symbol */
+#define ZL_V_TRUE  (ZL_V_REF + ((int64_t) 1 << 33)) /* T, #t, "true */
+#define ZL_V_FALSE (ZL_V_TRUE + 1)                  /* #f, "false */
+enum { ZL_ISA_NUMBER = 0, ZL_ISA_PAIR, ZL_ISA_NULL, ZL_ISA_SYMBOL, ZL_ISA__COUNT };
+enum {
+    ZL_DIALECT_LISP = 0,
+    ZL_DIALECT_SCHEME,
+    ZL_DIALECT_LOGO,
+    ZL_DIALECT_LOGO_SHOW,
+    ZL_DIALECT__COUNT
+};
 
 /* ZL_OUTI flags */
 #define ZL_FMT_SIGNSPACE 1u /* a space before a non-negative number */
@@ -163,7 +204,8 @@ typedef struct {
 
 typedef struct {
     int lang;           /* ZL_LANG_* (never with ZL_TWIN) */
-    uint32_t word_bits; /* 32 or 64: integer width checked on every result */
+    uint32_t word_bits; /* 32, 62 or 64: integer width checked on every result
+                           (62: list programs, whose other values are references) */
     uint32_t ncode, nslots, nstr, strbytes;
     zl_ins_t code[ZL_MAX_CODE];
     uint32_t str_off[ZL_MAX_STR], str_len[ZL_MAX_STR];
@@ -238,6 +280,9 @@ typedef struct {
     int64_t mem[ZL_MAX_SLOTS];
     int64_t stack[ZL_MAX_STACK];
     uint32_t rstack[ZL_MAX_CALLS];
+    int64_t frames[ZL_MAX_FRAMES]; /* frame cells: locals and parameters */
+    uint32_t fbase[ZL_MAX_CALLS], fstat[ZL_MAX_CALLS], fsize[ZL_MAX_CALLS]; /* per frame */
+    int64_t heap[2 * ZL_MAX_CELLS]; /* pair k: car heap[2k], cdr heap[2k+1]; k >= 1 */
 } zl_run_t;
 
 /* Run a program that passed zl_verify. Returns ZL_OK on HALT/END/STOP, or

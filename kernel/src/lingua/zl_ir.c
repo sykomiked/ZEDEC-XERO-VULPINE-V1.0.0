@@ -170,7 +170,9 @@ int32_t zl_slots(zl_cc_t *c, uint32_t n)
 
 int zl_fits(const zl_cc_t *c, int64_t v)
 {
-    return c->p->word_bits == 64 || (v >= INT32_MIN && v <= INT32_MAX);
+    uint32_t b = c->p->word_bits;
+    if (b == 62) return v > -ZL_V_REF && v < ZL_V_REF;
+    return b == 64 || (v >= INT32_MIN && v <= INT32_MAX);
 }
 
 /* ---------------------------------------------------------------- names */
@@ -242,6 +244,8 @@ const char *zl_status_name(int s)
         return "input exhausted";
     case ZL_E_DOMAIN:
         return "argument outside the domain";
+    case ZL_E_HEAP:
+        return "list cells exhausted";
     default:
         return "unknown status";
     }
@@ -264,7 +268,8 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
 {
     if (!p) return vfail(d, 0, "no program");
     if (p->lang <= 0 || p->lang >= ZL_LANG__COUNT) return vfail(d, 0, "unknown language");
-    if (p->word_bits != 32 && p->word_bits != 64) return vfail(d, 0, "word width must be 32 or 64");
+    if (p->word_bits != 32 && p->word_bits != 62 && p->word_bits != 64)
+        return vfail(d, 0, "word width must be 32, 62 or 64");
     if (p->ncode == 0 || p->ncode > ZL_MAX_CODE) return vfail(d, 0, "empty or oversized code");
     if (p->nslots > ZL_MAX_SLOTS || p->nstr > ZL_MAX_STR || p->strbytes > ZL_MAX_STRBYTES)
         return vfail(d, 0, "table counts out of range");
@@ -311,6 +316,42 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
         case ZL_PUSH:
             if (p->word_bits == 32 && (i->a < INT32_MIN || i->a > INT32_MAX))
                 return vfail(d, i->line, "constant wider than the word");
+            if (p->word_bits == 62 && (i->a <= -ZL_V_REF || i->a >= ZL_V_REF) && i->a != ZL_V_NIL &&
+                i->a != ZL_V_TRUE && i->a != ZL_V_FALSE &&
+                (i->a < ZL_V_SYM || i->a >= ZL_V_SYM + (int64_t) p->nstr))
+                return vfail(d, i->line, "constant is neither a number nor a known value");
+            break;
+        case ZL_ENTER:
+            if (i->a < 0 || i->a > ZL_MAX_FRAMES || i->b < 0 || i->b > i->a || i->b >= ZL_MAX_STACK)
+                return vfail(d, i->line, "bad frame size");
+            break;
+        case ZL_LINK:
+            if (i->a < 0 || i->a >= ZL_MAX_CALLS) return vfail(d, i->line, "bad link depth");
+            break;
+        case ZL_LOADF:
+        case ZL_STOREF:
+        case ZL_ADDRF:
+            if (i->a < 0 || i->a >= ZL_MAX_FRAMES || i->b < 0 || i->b >= ZL_MAX_CALLS)
+                return vfail(d, i->line, "bad frame operand");
+            break;
+        case ZL_BOUND:
+            if (i->a <= 0) return vfail(d, i->line, "bad bound");
+            break;
+        case ZL_CONS:
+        case ZL_CAR:
+        case ZL_CDR:
+        case ZL_SETCAR:
+        case ZL_SETCDR:
+        case ZL_ISA:
+        case ZL_OUTV:
+            if (p->word_bits != 62)
+                return vfail(d, i->line, "list operation outside a list program");
+            if ((i->op == ZL_CAR || i->op == ZL_CDR) && i->a != 0 && i->a != 1)
+                return vfail(d, i->line, "bad CAR/CDR mode");
+            if (i->op == ZL_ISA && (i->a < 0 || i->a >= ZL_ISA__COUNT))
+                return vfail(d, i->line, "bad type test");
+            if (i->op == ZL_OUTV && (i->a < 0 || i->a >= ZL_DIALECT__COUNT))
+                return vfail(d, i->line, "bad print dialect");
             break;
         default:
             if (i->op >= ZL_OP__COUNT) return vfail(d, i->line, "unknown opcode");
@@ -414,7 +455,89 @@ static int vm_put(vm_out_t *o, const char *s, size_t n)
 
 static int fits(uint32_t bits, int64_t v)
 {
+    if (bits == 62) return v > -ZL_V_REF && v < ZL_V_REF;
     return bits == 64 || (v >= INT32_MIN && v <= INT32_MAX);
+}
+
+/* A pair's cell index, or 0 when v is not a pair. */
+static uint32_t pair_of(int64_t v, uint32_t hp)
+{
+    if (v <= ZL_V_NIL || v >= ZL_V_SYM) return 0;
+    int64_t k = v - ZL_V_REF;
+    return k < (int64_t) hp ? (uint32_t) k : 0;
+}
+
+static int put_cstr(vm_out_t *o, const char *t)
+{
+    size_t n = 0;
+    while (t[n]) n++;
+    return vm_put(o, t, n);
+}
+
+/* A value that is not a pair. bare: the empty list at the top of a Logo
+ * PRINT, which prints nothing. */
+static int print_atom(vm_out_t *o, const zl_prog_t *p, int64_t v, int dialect, int bare)
+{
+    char num[24];
+    if (v > -ZL_V_REF && v < ZL_V_REF) return vm_put(o, num, zl_itoa(v, num));
+    if (v == ZL_V_NIL)
+        return put_cstr(o, dialect == ZL_DIALECT_LISP     ? "NIL"
+                           : dialect == ZL_DIALECT_SCHEME ? "()"
+                           : bare                         ? ""
+                                                          : "[]");
+    if (v == ZL_V_TRUE || v == ZL_V_FALSE) {
+        int t = v == ZL_V_TRUE;
+        return put_cstr(o, dialect == ZL_DIALECT_LISP     ? (t ? "T" : "NIL")
+                           : dialect == ZL_DIALECT_SCHEME ? (t ? "#t" : "#f")
+                                                          : (t ? "true" : "false"));
+    }
+    if (v >= ZL_V_SYM && v < ZL_V_SYM + (int64_t) p->nstr) {
+        uint32_t i = (uint32_t) (v - ZL_V_SYM);
+        return vm_put(o, p->str + p->str_off[i], p->str_len[i]);
+    }
+    return ZL_E_DOMAIN; /* a dangling reference cannot be printed */
+}
+
+/* ZL_OUTV: print a value in a dialect's notation. Lists print without
+ * recursion: todo holds the rest of each list still open. A Logo PRINT
+ * leaves out the outermost brackets; a cycle runs into the output cap. */
+static int print_value(vm_out_t *o, const zl_prog_t *p, const int64_t *heap, uint32_t hp, int64_t v,
+                       int dialect)
+{
+    int64_t todo[ZL_MAX_STACK];
+    uint32_t depth = 0;
+    int bare = dialect == ZL_DIALECT_LOGO, logo = dialect >= ZL_DIALECT_LOGO, s;
+    const char *open = logo ? "[" : "(", *close = logo ? "]" : ")";
+    for (;;) {
+        uint32_t k = pair_of(v, hp);
+        if (k) {
+            if (depth >= ZL_MAX_STACK) return ZL_E_DOMAIN;
+            if (!(bare && depth == 0) && (s = vm_put(o, open, 1)) != ZL_OK) return s;
+            todo[depth++] = heap[2 * k + 1];
+            v = heap[2 * k];
+            continue;
+        }
+        if ((s = print_atom(o, p, v, dialect, bare && depth == 0)) != ZL_OK) return s;
+        for (;;) {
+            if (!depth) return ZL_OK;
+            int64_t rest = todo[depth - 1];
+            if ((k = pair_of(rest, hp)) != 0) {
+                if ((s = vm_put(o, " ", 1)) != ZL_OK) return s;
+                todo[depth - 1] = heap[2 * k + 1];
+                v = heap[2 * k];
+                break;
+            }
+            if (rest != ZL_V_NIL) { /* a dotted pair */
+                if (logo) return ZL_E_DOMAIN;
+                if ((s = vm_put(o, " . ", 3)) != ZL_OK) return s;
+                todo[depth - 1] = ZL_V_NIL;
+                v = rest;
+                break;
+            }
+            depth--;
+            if (!(bare && depth == 0) && (s = vm_put(o, close, 1)) != ZL_OK) return s;
+        }
+    }
 }
 
 /* Integer power by squaring. mode 0: a negative exponent truncates toward
@@ -470,9 +593,11 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
     if (r->trace) r->trace->n = 0;
     o.r = r;
     o.col = 0;
-    int64_t *st = r->stack, *mem = r->mem;
+    int64_t *st = r->stack, *mem = r->mem, *fr = r->frames, *heap = r->heap;
     uint32_t *rs = r->rstack;
+    uint32_t fd = 0, ftop = 0, hp = 1; /* frame depth, first free frame cell, next pair */
     for (uint32_t i = 0; i < p->nslots; i++) mem[i] = 0;
+    r->fbase[0] = r->fstat[0] = r->fsize[0] = 0; /* the main program's empty frame */
     if (r->preload) {
         if (r->nin > ZL_MAX_STACK) return ZL_E_STACK;
         for (; sp < r->nin; sp++) st[sp] = r->in[sp];
@@ -493,6 +618,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             goto trap;                                                                             \
         }                                                                                          \
     } while (0)
+#define NUM(v) (bits != 62 || ((v) > -ZL_V_REF && (v) < ZL_V_REF))
 #define CHK(v)                                                                                     \
     do {                                                                                           \
         if (!fits(bits, (v))) {                                                                    \
@@ -549,24 +675,27 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             mem[in->a + x] = y;
             break;
         case ZL_LOADA:
-            NEED(1);
+        case ZL_STOREA: {
+            /* an address is a slot, or ZL_MAX_SLOTS + a live frame cell */
+            int64_t *cell;
+            NEED(in->op == ZL_LOADA ? 1 : 2);
             x = st[sp - 1];
-            if (x < 0 || x >= (int64_t) p->nslots) {
+            if (x >= 0 && x < (int64_t) p->nslots)
+                cell = &mem[x];
+            else if (x >= ZL_MAX_SLOTS && x < (int64_t) ZL_MAX_SLOTS + ftop)
+                cell = &fr[x - ZL_MAX_SLOTS];
+            else {
                 s = ZL_E_BOUNDS;
                 goto trap;
             }
-            st[sp - 1] = mem[x];
-            break;
-        case ZL_STOREA:
-            NEED(2);
-            x = st[--sp];
-            y = st[--sp];
-            if (x < 0 || x >= (int64_t) p->nslots) {
-                s = ZL_E_BOUNDS;
-                goto trap;
+            if (in->op == ZL_LOADA)
+                st[sp - 1] = *cell;
+            else {
+                *cell = st[sp - 2];
+                sp -= 2;
             }
-            mem[x] = y;
             break;
+        }
         case ZL_ADD:
         case ZL_SUB:
         case ZL_MUL:
@@ -590,6 +719,10 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             NEED(2);
             y = st[--sp];
             x = st[sp - 1];
+            if (bits == 62 && in->op != ZL_EQ && in->op != ZL_NE && (!NUM(x) || !NUM(y))) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
             switch (in->op) {
             case ZL_ADD:
                 if (__builtin_add_overflow(x, y, &z)) {
@@ -687,6 +820,10 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             break;
         case ZL_NEG:
             NEED(1);
+            if (!NUM(st[sp - 1])) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
             x = st[sp - 1];
             if (x == INT64_MIN) {
                 s = ZL_E_OVERFLOW;
@@ -697,6 +834,10 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             break;
         case ZL_ABS:
             NEED(1);
+            if (!NUM(st[sp - 1])) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
             x = st[sp - 1];
             if (x == INT64_MIN) {
                 s = ZL_E_OVERFLOW;
@@ -708,11 +849,19 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             break;
         case ZL_SGN:
             NEED(1);
+            if (!NUM(st[sp - 1])) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
             x = st[sp - 1];
             st[sp - 1] = (x > 0) - (x < 0);
             break;
         case ZL_INVERT:
             NEED(1);
+            if (!NUM(st[sp - 1])) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
             st[sp - 1] = ~st[sp - 1];
             break;
         case ZL_NOT:
@@ -827,6 +976,132 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
         case ZL_TRAP:
             s = (int) in->a;
             goto trap;
+        case ZL_ENTER: {
+            /* stack: static link (a frame handle), then b arguments */
+            uint32_t nb = (uint32_t) in->b, base = ftop;
+            NEED(nb + 1);
+            x = st[sp - nb - 1];
+            if (x < 0 || x > (int64_t) fd) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (fd + 1 >= ZL_MAX_CALLS || in->a > (int64_t) (ZL_MAX_FRAMES - ftop)) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            fd++;
+            r->fbase[fd] = base;
+            r->fstat[fd] = (uint32_t) x;
+            r->fsize[fd] = (uint32_t) in->a;
+            ftop = base + (uint32_t) in->a;
+            for (uint32_t i = 0; i < nb; i++) fr[base + i] = st[sp - nb + i];
+            for (uint32_t i = nb; i < (uint32_t) in->a; i++) fr[base + i] = 0;
+            sp -= nb + 1;
+            break;
+        }
+        case ZL_LEAVE:
+            if (fd == 0) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            ftop = r->fbase[fd--];
+            break;
+        case ZL_LINK:
+        case ZL_LOADF:
+        case ZL_STOREF:
+        case ZL_ADDRF: {
+            /* walk hops static links out; handles only ever point inward */
+            uint32_t f = fd;
+            for (int64_t h = in->op == ZL_LINK ? in->a : in->b; h > 0 && f; h--) f = r->fstat[f];
+            if (in->op == ZL_LINK) {
+                ROOM(1);
+                st[sp++] = f;
+                break;
+            }
+            if (in->a >= (int64_t) r->fsize[f]) {
+                s = ZL_E_BOUNDS;
+                goto trap;
+            }
+            uint32_t c = r->fbase[f] + (uint32_t) in->a;
+            if (in->op == ZL_LOADF) {
+                ROOM(1);
+                st[sp++] = fr[c];
+            } else if (in->op == ZL_STOREF) {
+                NEED(1);
+                fr[c] = st[--sp];
+            } else {
+                ROOM(1);
+                st[sp++] = (int64_t) ZL_MAX_SLOTS + c;
+            }
+            break;
+        }
+        case ZL_BOUND:
+            NEED(1);
+            x = st[sp - 1];
+            if (x < 0 || x >= in->a) {
+                s = ZL_E_BOUNDS;
+                goto trap;
+            }
+            break;
+        case ZL_CONS:
+            NEED(2);
+            if (hp >= ZL_MAX_CELLS) {
+                s = ZL_E_HEAP;
+                goto trap;
+            }
+            heap[2 * hp] = st[sp - 2];
+            heap[2 * hp + 1] = st[sp - 1];
+            st[sp - 2] = ZL_V_REF + hp++;
+            sp--;
+            break;
+        case ZL_CAR:
+        case ZL_CDR: {
+            NEED(1);
+            uint32_t k = pair_of(st[sp - 1], hp);
+            if (k)
+                st[sp - 1] = heap[2 * k + (in->op == ZL_CDR)];
+            else if (!(in->a == 1 && st[sp - 1] == ZL_V_NIL)) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            break;
+        }
+        case ZL_SETCAR:
+        case ZL_SETCDR: {
+            NEED(2);
+            uint32_t k = pair_of(st[sp - 2], hp);
+            if (!k) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            heap[2 * k + (in->op == ZL_SETCDR)] = st[sp - 1];
+            sp -= 2;
+            break;
+        }
+        case ZL_ISA:
+            NEED(1);
+            x = st[sp - 1];
+            switch (in->a) {
+            case ZL_ISA_NUMBER:
+                z = x > -ZL_V_REF && x < ZL_V_REF;
+                break;
+            case ZL_ISA_PAIR:
+                z = pair_of(x, hp) != 0;
+                break;
+            case ZL_ISA_NULL:
+                z = x == ZL_V_NIL;
+                break;
+            default:
+                z = x >= ZL_V_SYM && x < ZL_V_SYM + (int64_t) p->nstr;
+                break;
+            }
+            st[sp - 1] = z;
+            break;
+        case ZL_OUTV:
+            NEED(1);
+            x = st[--sp];
+            if ((s = print_value(&o, p, heap, hp, x, (int) in->a)) != ZL_OK) goto trap;
+            break;
         default:
             s = ZL_E_VERIFY;
             goto trap;
@@ -840,6 +1115,7 @@ trap:
 #undef NEED
 #undef ROOM
 #undef CHK
+#undef NUM
 }
 
 /* ---------------------------------------------------------------- entry */
