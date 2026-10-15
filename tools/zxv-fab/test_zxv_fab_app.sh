@@ -128,6 +128,53 @@ cd "$D" || exit 1
 grep -q "only one language witnesses fee" out.txt || no "and is witnessed by its one language"; ok
 cd "$SRC" || exit 1
 
+# ---- no floating point, anywhere ------------------------------------------------------
+# the C an app names (view, model) is checked before anything is signed
+mkdir -p "$D/f/m"
+fl() { # fl NAME C-TEXT: a model with that text; prints pack-app's exit status
+    printf '%s\n' "$2" > "$D/f/m/$1.c"
+    printf 'zxapp 1\nid fl\nversion 1.0.0\nmodel m/%s.c\nprovides fee num amount rate\nlogic kron fee <<\n%s\n.\n' \
+        "$1" "$(cat "$SRC/apps/blocks/fee_check/fee.kron")" > "$D/f/$1.zxapp"
+    rm -f "$D/f/x.fab"
+    rc "$FAB" pack-app "$D/f/$1.zxapp" "$D/f/x.fab" $K --root "$D/f"
+}
+for c in 'double x;' 'static float f(void);' 'int x = 1.5;' 'long y = 3e2;' 'int z = .5 > 0;' \
+         'unsigned h = 0x1p3;' '#include <math.h>' '# include "tgmath.h"' '_Float64 q;' 'long double r;'; do
+    [ "$(fl bad "$c")" = 1 ] || no "a float in a model: $c"; ok
+    grep -q "floating point in the model" "$D/err" || no "float message: $c"; ok
+    [ -e "$D/f/x.fab" ] && no "a recipe signed over a float: $c"; ok
+done
+for c in '/* 1.5 double */ int x;' '// float 2.0' 'const char *s = "3.25 float";' "char c = '.';" \
+         'unsigned h = 0x1e5;' 'unsigned long long u = 10ULL;' 'struct p { int x; } a[2]; int b = a[1].x;' \
+         '#include <stdint.h>'; do
+    [ "$(fl good "$c")" = 0 ] || no "no float, yet refused: $c ($(cat "$D/err"))"; ok
+done
+printf 'double h;\n' > "$D/f/m/good.h"
+[ "$(fl good 'int x;')" = 1 ] && grep -q "header" "$D/err" || no "a float in the model's header"; ok
+# the runtimes refuse floats in logic (R11): Eve has no float type, and Z-Wasm
+# refuses an f32 module that loads as i32
+sed 's/^cents = 0 .. 100000000$/cents = float/' "$SRC/apps/blocks/fee_check/fee_ok.eve" > "$D/f/m/e.eve"
+printf 'zxapp 1\nid fe\nversion 1.0.0\nprovides fee_ok truth amount fee\nlogic eve fee_ok m/e.eve\n' > "$D/f/fe.zxapp"
+[ "$(rc "$FAB" pack-app "$D/f/fe.zxapp" "$D/f/fe.fab" $K --root "$D/f" --store "$D/store")" = 0 ] || no "pack an Eve float"; ok
+(cd "$D" && "$FAB" unpack-app f/fe.fab f/o1 --store store > out.txt 2>&1); [ $? = 1 ] || no "an Eve float fits"; ok
+grep -q "is not an Eve type" "$D/out.txt" || no "Eve float message: $(cat "$D/out.txt")"; ok
+for t in 7d 7f; do
+    python3 -I -c '
+import sys
+v = int(sys.argv[1], 16)
+t = bytes([0x60, 1, v, 1, v])
+m = b"\0asm\x01\0\0\0" + bytes([1, len(t) + 1, 1]) + t + bytes([3, 2, 1, 0])
+ex = bytes([1, 1]) + b"f" + bytes([0, 0])
+body = bytes([0, 0x20, 0, 0x0B])
+m += bytes([7, len(ex)]) + ex + bytes([10, len(body) + 2, 1, len(body)]) + body
+open(sys.argv[2], "wb").write(m)' "$t" "$D/f/m/f$t.wasm"
+    printf 'zxapp 1\nid fw\nversion 1.0.0\nprovides f num a\nlogic wasm f m/f%s.wasm\n' "$t" > "$D/f/w$t.zxapp"
+    [ "$(rc "$FAB" pack-app "$D/f/w$t.zxapp" "$D/f/w$t.fab" $K --root "$D/f" --store "$D/store")" = 0 ] || no "pack wasm $t"; ok
+    (cd "$D" && "$FAB" unpack-app "f/w$t.fab" "f/ow$t" --store store > out.txt 2>&1)
+    if [ $t = 7d ]; then grep -q "^fit FALSE: .*Z-Wasm refused" "$D/out.txt" || no "an f32 module fits: $(cat "$D/out.txt")"; ok
+    else grep -q "^fit TRUE" "$D/out.txt" || no "the same module in i32 does not fit: $(cat "$D/out.txt")"; ok; fi
+done
+
 # ---- FABRICATED.tsv and the matrix --------------------------------------------------
 sed 's/^name   Fee Check$/name   Fee Check 2/' apps/fee_check.zxapp > "$D/r/fee2.zxapp"
 cp "$T" "$D/t.bak"

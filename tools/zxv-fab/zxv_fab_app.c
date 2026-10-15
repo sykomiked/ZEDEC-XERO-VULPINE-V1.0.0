@@ -112,7 +112,7 @@ static uint32_t add_part(const uint8_t *data, uint32_t len)
     uint8_t *copy = malloc(len);
     if (!copy) die("out of memory");
     memcpy(copy, data, len);
-    PART[NPART] = (appfab_part_t) {copy, len, c, 0, false};
+    PART[NPART] = (appfab_part_t){copy, len, c, 0, false};
     return NPART++;
 }
 
@@ -277,6 +277,126 @@ static bool inlinable(const uint8_t *s, uint32_t n)
 
 static void seal(const char *text, uint32_t len, const char *what, uint32_t depth, buf_t *out);
 
+/* ---- no floating point in the C an app names (view, model) ------------------------ */
+
+static bool ident_ch(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/* The first floating-point use in C text: a float type, a floating
+ * constant, or a header that brings floats in; NULL when there is none.
+ * Comments, strings and character constants are skipped. *line says where. */
+static const char *c_float(const char *s, uint32_t n, uint32_t *line)
+{
+    static const char *TYPES[] = {
+        "float",     "double", "_Float16", "_Float32",   "_Float64",   "_Float128",   "_Float32x",
+        "_Float64x", "__fp16", "_Complex", "_Decimal32", "_Decimal64", "_Decimal128", "__float128"};
+    static const char *HEADERS[] = {"math.h", "tgmath.h", "float.h", "complex.h", "fenv.h"};
+    static char what[96];
+    *line = 1;
+    bool after_include = false;
+    for (uint32_t i = 0; i < n;) {
+        char c = s[i];
+        if (c == '\n') {
+            (*line)++;
+            i++;
+        } else if (c == '/' && i + 1 < n && s[i + 1] == '/') {
+            while (i < n && s[i] != '\n') i++;
+        } else if (c == '/' && i + 1 < n && s[i + 1] == '*') {
+            for (i += 2; i < n && !(s[i] == '*' && i + 1 < n && s[i + 1] == '/'); i++)
+                if (s[i] == '\n') (*line)++;
+            i += 2;
+        } else if (c == '"' || c == '\'' || (c == '<' && after_include)) {
+            char close = c == '<' ? '>' : c;
+            uint32_t b = ++i;
+            while (i < n && s[i] != close && s[i] != '\n') i += s[i] == '\\' ? 2u : 1u;
+            if (after_include) {
+                for (uint32_t h = 0; h < sizeof HEADERS / sizeof HEADERS[0]; h++) {
+                    uint32_t hl = (uint32_t) strlen(HEADERS[h]);
+                    if (i - b >= hl && !memcmp(s + i - hl, HEADERS[h], hl) &&
+                        (i - b == hl || s[i - hl - 1] == '/')) {
+                        snprintf(what, sizeof what, "#include of %s", HEADERS[h]);
+                        return what;
+                    }
+                }
+                after_include = false;
+            }
+            i++;
+        } else if ((c >= '0' && c <= '9') ||
+                   (c == '.' && i + 1 < n && s[i + 1] >= '0' && s[i + 1] <= '9')) {
+            uint32_t b = i;
+            bool hex = c == '0' && i + 1 < n && (s[i + 1] == 'x' || s[i + 1] == 'X'), fl = false;
+            while (i < n &&
+                   (ident_ch(s[i]) || s[i] == '.' ||
+                    ((s[i] == '+' || s[i] == '-') &&
+                     (s[i - 1] == 'e' || s[i - 1] == 'E' || s[i - 1] == 'p' || s[i - 1] == 'P') &&
+                     (hex ? (s[i - 1] == 'p' || s[i - 1] == 'P') : true)))) {
+                if (s[i] == '.' ||
+                    (hex ? (s[i] == 'p' || s[i] == 'P') : (s[i] == 'e' || s[i] == 'E')))
+                    fl = true;
+                i++;
+            }
+            if (fl) {
+                snprintf(what, sizeof what, "the floating constant %.*s",
+                         (int) (i - b < 40 ? i - b : 40), s + b);
+                return what;
+            }
+        } else if (ident_ch(c)) {
+            uint32_t b = i;
+            while (i < n && ident_ch(s[i])) i++;
+            for (uint32_t t = 0; t < sizeof TYPES / sizeof TYPES[0]; t++)
+                if (strlen(TYPES[t]) == i - b && !memcmp(s + b, TYPES[t], i - b)) {
+                    snprintf(what, sizeof what, "the type %s", TYPES[t]);
+                    return what;
+                }
+            after_include = i - b == 7 && !memcmp(s + b, "include", 7);
+        } else {
+            if (c != ' ' && c != '\t') after_include = after_include && c == '#';
+            i++;
+        }
+    }
+    return 0;
+}
+
+/* F8 on the sender's side: an app's view and model are C built into the
+ * image, not carried by the recipe, so they are checked here, before
+ * anything is signed (the runtimes refuse floats in logic, R11). */
+static void no_floats(const char *field, const char *path)
+{
+    if (!path[0]) return;
+    char full[4096];
+    uint32_t n, line;
+    if (snprintf(full, sizeof full, "%s/%s", ROOT, path) >= (int) sizeof full) die("path too long");
+    uint8_t *b = read_file(full, &n, MAX_FILE);
+    const char *f = c_float((const char *) b, n, &line);
+    if (f) {
+        fprintf(stderr,
+                "zxv-fab: floating point in the %s %s, line %u: %s (integers or "
+                "kernel/src/rational only)\n",
+                field, path, (unsigned) line, f);
+        exit(1);
+    }
+    free(b);
+    /* a model's header goes with it */
+    uint32_t pl = (uint32_t) strlen(full);
+    if (pl > 2 && !strcmp(full + pl - 2, ".c")) {
+        full[pl - 1] = 'h';
+        FILE *h = fopen(full, "rb");
+        if (h) {
+            fclose(h);
+            b = read_file(full, &n, MAX_FILE);
+            f = c_float((const char *) b, n, &line);
+            if (f) {
+                fprintf(stderr, "zxv-fab: floating point in the %s header %s, line %u: %s\n", field,
+                        full, (unsigned) line, f);
+                exit(1);
+            }
+            free(b);
+        }
+    }
+}
+
 /* A source named cid:<CID> in a manifest: the file must be among the
  * --blocks files (any file, by its bytes). */
 static void cid_source(const char *path)
@@ -342,6 +462,8 @@ static void seal(const char *text, uint32_t len, const char *what, uint32_t dept
         fprintf(stderr, "zxv-fab: %s: line %u: %s\n", what, (unsigned) m->err_line, m->err);
         exit(1);
     }
+    no_floats("view", m->view);
+    no_floats("model", m->model);
     uint32_t at = 0, line = 0;
     while (at < len) {
         uint32_t b = at;
@@ -721,7 +843,7 @@ static void parse_check(const char *s, cspec_t *cs, appfab_check_t *c)
             if (*p != ':') break;
             p++;
         }
-        cs->za[na] = (zxapp_arg_t) {A->name, A->v, A->n};
+        cs->za[na] = (zxapp_arg_t){A->name, A->v, A->n};
         na++;
     }
     const char *q = eq + 3;
@@ -738,16 +860,16 @@ static void parse_check(const char *s, cspec_t *cs, appfab_check_t *c)
         zxapp_num_t *w = &cs->want[nw];
         if (nw >= 16u) die("--check: too many answers");
         if (ql == 4 && !strncmp(q, "true", 4))
-            *w = (zxapp_num_t) {ZXAPP_TRUE, 0};
+            *w = (zxapp_num_t){ZXAPP_TRUE, 0};
         else if (ql == 5 && !strncmp(q, "false", 5))
-            *w = (zxapp_num_t) {ZXAPP_FALSE, 0};
+            *w = (zxapp_num_t){ZXAPP_FALSE, 0};
         else {
             const char *sl = memchr(q, '/', ql);
             int64_t num, den = 1;
             if (!parse_i64(q, sl ? (uint32_t) (sl - q) : ql, &num) ||
                 (sl && (!parse_i64(sl + 1, ql - (uint32_t) (sl - q) - 1u, &den) || den <= 0)))
                 die("--check: a bad answer");
-            *w = (zxapp_num_t) {num, den};
+            *w = (zxapp_num_t){num, den};
         }
         nw++;
         q += ql;
@@ -856,7 +978,8 @@ int cmd_unpack_app(int argc, char **argv)
     lpres_state_t fit = appfab_fit_layered(&G, io.out, olen, layer, PART, NPART, &HOST);
     printf("fit %s%s%s\n", state_name(fit), G.why[0] ? ": " : "", G.why);
     lpres_state_t fn = appfab_function(&G, &HOST, ck, nck);
-    if (fit == LPRES_STATE_TRUE) printf("function %s%s%s\n", state_name(fn), G.why[0] ? ": " : "", G.why);
+    if (fit == LPRES_STATE_TRUE)
+        printf("function %s%s%s\n", state_name(fn), G.why[0] ? ": " : "", G.why);
     lpres_state_t v = appfab_verdict(fit, fn);
     char ts[IPFSN_CID_STR_MAX];
     cid_str(&p.target, ts);

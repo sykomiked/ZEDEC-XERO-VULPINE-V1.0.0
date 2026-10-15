@@ -356,6 +356,25 @@ gap (NEITHER) holds the app.
 `unpack-app` writes the app only on TRUE. It exits 1 on FALSE and 4 when
 held.
 
+**No floating point.** Integer and exact arithmetic only, so floats are
+stopped in two places:
+
+- **Logic.** The runtimes refuse floats at load (R11): Eve has no float
+  type, Sutra refuses COMP-1 and COMP-2, and Z-Wasm refuses any f32 or f64
+  type or instruction. A logic source with a float therefore does not fit.
+- **C.** The `view` and `model` an app names are C built into the image,
+  not carried by the recipe. `pack-app` reads them, and the model's
+  header, before anything is signed. It refuses:
+  - a float type (`float`, `double`, `_FloatN`, `_Complex` and kin);
+  - a floating constant (`1.5`, `3e2`, `.5`, `0x1p3`);
+  - an include of `math.h`, `tgmath.h`, `float.h`, `complex.h` or
+    `fenv.h`.
+
+  Comments, strings and character constants are skipped, so `0x1e5` and
+  `10ULL` pass. The 16 app models and views in the tree pass.
+
+A generated app that "passes its tests with floats" cannot reach a recipe.
+
 **The matrix.** `appfab_fit_layered` (and `pack-app --layer`) enforce the
 Zeckendorf lineage rule, the same rule as the matrix's `alx_mx_draws` and
 pack_matrix `lineage()`, checked against the golden table
