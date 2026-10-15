@@ -71,8 +71,21 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st)
 
     /* A golden disc carries AI models: check each one's SHA-256 while the
      * firmware's file system is still there. Nothing happens on a plain disc. */
+    zxai_rec_t *airec = 0;
+    {
+        typedef EFI_STATUS (*APG)(u32, u32, u64, u64 *);
+        u64 ra = ZXAI_REC_ADDR_ARM64;
+        if (((APG) st->BootSvc->AllocatePages)(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, 1,
+                                               &ra) == 0) {
+            airec = (zxai_rec_t *) ra;
+            for (u64 i = 0; i < sizeof(*airec); i++) ((u8 *) airec)[i] = 0;
+        } else {
+            uputs("[AI_HANDOFF_NONE] record page 0x40071000 busy -- no boot model handoff\r\n");
+        }
+    }
     efi_check_models(image, st->BootSvc->HandleProtocol, st->BootSvc->AllocatePool,
-                     st->BootSvc->FreePool);
+                     st->BootSvc->FreePool, st->BootSvc->AllocatePages, st->BootSvc->FreePages,
+                     ZXAI_MAX_ADDR_ARM64, airec);
 
     /* ---- GetMemoryMap + ExitBootServices (spec 7.4) ---- */
     typedef EFI_STATUS (*GMM)(u64*, void*, u64*, u64*, u32*);
@@ -150,6 +163,20 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st)
      * copy can safely overwrite this EFI image (which AAVMF placed in the same
      * low RAM the kernel links to). The kernel then enters el1_entry MMU-off,
      * exactly as on the tested -kernel path. */
+    /* The boot model went into memory through the firmware's file reads with
+     * the D-cache on; the kernel first reads it with the MMU (and so the
+     * cache) off. Clean it to the point of coherency, as efi_tramp.S does for
+     * the kernel and the record page. */
+    if (airec && airec->magic == ZXAI_MAGIC) {
+        u64 ctr;
+        __asm__ __volatile__("mrs %0, ctr_el0" : "=r"(ctr));
+        u64 line = 4ull << ((ctr >> 16) & 0xF);
+        for (u64 a = airec->model_phys & ~(line - 1); a < airec->model_phys + airec->model_bytes;
+             a += line)
+            __asm__ __volatile__("dc cvac, %0" ::"r"(a) : "memory");
+        __asm__ __volatile__("dsb sy" ::: "memory");
+        uputs("boot model cleaned to memory for the kernel\r\n");
+    }
     uputs(">>> handing off to ZXV kernel via trampoline (MMU off) <<<\r\n");
     ((void(*)(u64,u64,u64))tramp)(staging, 0x40080000ULL, ksize);
     for(;;) __asm__ __volatile__("wfi");

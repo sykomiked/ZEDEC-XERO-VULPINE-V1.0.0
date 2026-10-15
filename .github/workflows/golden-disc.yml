@@ -3,7 +3,9 @@
 #
 # Golden disc: the bare-metal UEFI disc with the AI models and assets on it
 # (build_system/mk_golden_disc.sh, docs/BAREMETAL.md). Builds both arches,
-# boots each under UEFI firmware until both models verify and [AI_OK] prints,
+# boots each under UEFI firmware until both models verify, the loader hands the
+# boot model (Qwen2.5-0.5B) to the kernel and the kernel's [AI_OK] line shows
+# its answer (swarm_bootmodel.h),
 # and keeps the gzipped discs as workflow artifacts for seven days.
 #
 #   - Manual only (workflow_dispatch). No push, pull request, tag or schedule.
@@ -40,8 +42,10 @@ jobs:
         run: docker build -f build_system/Dockerfile.baremetal -t zxv-baremetal .
       - name: Build the kernel and the golden disc (downloads the pinned models)
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c 'bash build_system/baremetal_images.sh ${{ matrix.arch }} && bash build_system/mk_golden_disc.sh ${{ matrix.arch }}'
-      - name: Boot it under UEFI firmware (both models verified, [AI_OK])
-        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img 300 "[AI_OK]" "[MODELS_OK] 2 verified"
+      # 3 GB of guest RAM: the boot model and its scratch (zxv_aimodel.h) take
+      # about 1 GB. Under emulation the model's answer takes a few minutes.
+      - name: Boot it under UEFI firmware (both models verified, the model answers)
+        run: docker run --rm -e ZXV_UEFI_MEM=3G -v "$PWD:/src" -w /src zxv-baremetal bash build_system/uefi_boot_check.sh ${{ matrix.arch }} dist/discs/zxv-${{ matrix.arch }}-uefi-golden.img 1200 "[MODELS_OK] 2 verified" "[AI_HANDOFF] qwen2.5-0.5b-instruct-q4_k_m.gguf" "[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered"
       - name: Compress and report the size
         run: |
           set -eu

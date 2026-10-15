@@ -18,15 +18,18 @@ engine (`swarm_boot_selfcheck`, `zt_boot_selfcheck`) are not linked in.
 ## Boot check
 
 ```bash
-bash build_system/uefi_boot_check.sh arm64  "" 90 "[AI_OK]"
-bash build_system/uefi_boot_check.sh x86_64 "" 90 "[AI_OK]"
+bash build_system/uefi_boot_check.sh arm64  "" 90 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]"
+bash build_system/uefi_boot_check.sh x86_64 "" 90 "[AI_SELFCHECK_OK]" "[AI_NO_MODEL]"
 ```
 
 Runs inside the container (OVMF / QEMU_EFI) or on a Mac with Homebrew QEMU
 (edk2 firmware). The firmware loads the EFI app from the disc itself; QEMU uses
 `snapshot=on`, so the image file is never modified. It exits non-zero unless the
-serial log reaches `[BOOT_OK]` and `[AI_OK]` with no fault marker. CI runs the
-same check in the `uefi-disc` job.
+serial log reaches `[BOOT_OK]` and the markers given, with no fault marker. CI
+runs the same check in the `uefi-disc` job. A plain disc carries no model:
+`[AI_SELFCHECK_OK]` is the swarm and tensor arithmetic self-check, and
+`[AI_NO_MODEL]` says the AI is not running. `[AI_OK]` appears only on a disc
+whose model answered (next section).
 
 ## Golden disc: models and assets on the disc
 
@@ -39,7 +42,8 @@ and app icons once those land in `assets/`).
 ```bash
 docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash -c \
   'bash build_system/baremetal_images.sh x86_64 && bash build_system/mk_golden_disc.sh x86_64'
-bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-uefi-golden.img 150 "[AI_OK]" "[MODELS_OK] 2 verified"
+ZXV_UEFI_MEM=3G bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-uefi-golden.img 1200 \
+  "[MODELS_OK] 2 verified" "[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered"
 ```
 
 Each model is downloaded once from its pinned URL into `dist/models` (or
@@ -55,15 +59,42 @@ On every boot the EFI loader re-hashes each model before it starts the kernel
 reported, it does not stop the boot. A plain disc has no `MODELS.SHA` and
 prints nothing. Under QEMU emulation the check takes about 36 s for 1.6 GB; on
 real hardware it is bounded by the disk's read speed.
-`build_system/test_golden_disc.sh <arch>` proves the check in about two
-minutes with a 3 MiB test file in place of a model: intact, it must verify;
-with one byte changed on the disc, it must be caught. CI runs it in the
+
+### The kernel runs the boot model: what `[AI_OK]` means
+
+The smallest model on the disc (Qwen2.5-0.5B-Instruct) is the boot model. The
+loader reads it into its own pages, hashes it there, and when it verifies
+allocates a scratch region as large as the model and leaves a record for the
+kernel (`kernel/arch/zxv_aimodel.h`, `[AI_HANDOFF]`). The kernel
+(`kernel/src/swarm/swarm_bootmodel.c`) checks that both regions are inside
+the memory it maps and outside its own image, hashes the model a second time
+and joins the two digests (`lpres_kjoin`: they must agree), loads it into the
+integer engine (`zt_model`, `zt_tok`) and answers a fixed prompt greedily:
+
+```
+[AI_MODEL] qwen2.5-0.5b-instruct-q4_k_m.gguf 491400032 bytes, kernel sha256 74a4da8c9fdbcd15 agrees with the loader
+[AI_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf answered "Hello! It's nice to meet you!" (32 prompt + 9 tokens, digest 0x7af4f2fc)
+```
+
+Both lines are from QEMU boots of the golden disc on x86_64 (OVMF) and arm64
+(QEMU_EFI) with 2 GB of guest RAM, 2026-10-15; a host run of the same file
+gives the same answer and digest. Under emulation the answer takes a few
+minutes; with hardware virtualisation or on a real machine, seconds. Any
+refusal prints `[AI_FAULT] <name> <why>` and the boot goes on; a disc without
+a model prints `[AI_NO_MODEL]`. Neither prints `[AI_OK]`.
+
+`build_system/test_golden_disc.sh <arch>` proves the whole path in about two
+minutes with a tiny generated model (`build_system/mk_boot_test_model.py`,
+120 KB, a real qwen2 GGUF with random weights, so its answer is noise): intact,
+it must verify, be handed over and answer with the token digest
+`test_swarm_bootmodel` pins on the host; with one byte changed on the disc, it
+must be caught and the kernel must say `[AI_NO_MODEL]`. CI runs it in the
 `uefi-disc` job.
 
 Measured 2026-10-12: 1,632,632,832 bytes raw (1.63 GB) on both arches,
 1,569,507,209 bytes gzipped (x86_64). The models are 1,608,720,768 bytes of
-that. The kernel does not yet run the disc's models on bare metal: it checks
-them, and runs its built-in swarm and tensor self-check (`[AI_OK]`).
+that. The kernel runs the 0.5B boot model at boot (above); the 1.5B is checked
+and carried but not yet run on bare metal.
 
 ## Run it on any OS (Docker only)
 
@@ -117,7 +148,8 @@ You need: the PC, a USB stick of 64 MB or more **that will be erased**, and
 4. Plug in the stick, power on, open the one-time boot menu (F12, F11, F8 or
    Esc depending on the maker) and pick the entry named "UEFI: <your stick>".
 5. Expected: grey capital-letter boot log on screen, ending in
-   `[AI_OK] SWARM+TENSOR SELFCHECK ...` and
+   `[AI_SELFCHECK_OK] SWARM+TENSOR SELFCHECK ...` (and, on a golden disc,
+   `[AI_OK] ... ANSWERED "..."`) and
    `[BOOT_OK] PHASE E0082 COMPLETE`, then the event cycle running. The same
    text goes to COM1 at 38400 baud if the PC has a serial port.
 

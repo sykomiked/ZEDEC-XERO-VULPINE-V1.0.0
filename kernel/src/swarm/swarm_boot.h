@@ -38,7 +38,8 @@
 #define SWARM_BOOT_MODELS 11u
 #define SWARM_BOOT_UNUSED 536u
 #define SWARM_BOOT_HASH   0x4346b551u
-/* fnv(fnv(INIT, SWARM_BOOT_HASH), ZT_BOOT_HASH): the hash on the [AI_OK] line. */
+/* fnv(fnv(INIT, SWARM_BOOT_HASH), ZT_BOOT_HASH): the hash on the
+ * [AI_SELFCHECK_OK] line. */
 #define AI_BOOT_HASH 0x90553e54u
 
 /* Run the cycle and check every number above. Returns 0 on success, or the
@@ -50,10 +51,12 @@ int swarm_boot_selfcheck(uint32_t *hash);
 /* THE COMBINED CHECK, called by kernel_main before [BOOT_OK] on arm64 and
  * x86_64. Runs swarm_boot_selfcheck and zt_boot_selfcheck (zt_boot.h) and
  * prints ONE line through `out` (newline included):
- *   "[AI_OK] swarm+tensor selfcheck 0x<AI_BOOT_HASH>"           on success,
+ *   "[AI_SELFCHECK_OK] swarm+tensor selfcheck 0x<AI_BOOT_HASH>" on success,
  *   "[FAULT] AI selfcheck mismatch: swarm step N 0x.., tensor step M 0x.."
  * otherwise. Returns true only when both pass and the combined hash equals
- * AI_BOOT_HASH; on false the caller halts. */
+ * AI_BOOT_HASH; on false the caller halts. This is the arithmetic, not the
+ * AI: no model runs here. [AI_OK] belongs to swarm_bootmodel.h, printed only
+ * after a model answered. */
 bool ai_boot_selfcheck(void (*out)(const char *));
 
 #endif /* SWARM_BOOT_H */

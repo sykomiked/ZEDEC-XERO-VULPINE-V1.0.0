@@ -2,10 +2,12 @@
  * SPDX-License-Identifier: Apache-2.0 */
 /* test_ai_selfcheck.c — host side of the boot AI self-check.
  *
- * The kernel prints "[AI_OK] swarm+tensor selfcheck 0x<hash>" only when its
- * own computation equals AI_BOOT_HASH. This test runs the SAME functions on
- * the host and requires the SAME constants, so a passing host test plus an
- * [AI_OK] line on bare metal means the two builds computed identical bits.
+ * The kernel prints "[AI_SELFCHECK_OK] swarm+tensor selfcheck 0x<hash>" only
+ * when its own computation equals AI_BOOT_HASH. This test runs the SAME
+ * functions on the host and requires the SAME constants, so a passing host
+ * test plus that line on bare metal means the two builds computed identical
+ * bits. It is the arithmetic, not the AI: [AI_OK] is printed only after a
+ * model answered (swarm_bootmodel.h, test_swarm_bootmodel.c).
  * It also recomputes each constant independently of the code under test:
  *   - the swarm hash from the hand-worked allotments in swarm_boot.h;
  *   - the matvec from a plain integer dot product;
@@ -63,9 +65,10 @@ int main(void)
 
     /* The line the kernel prints, byte for byte. */
     char want[64];
-    snprintf(want, sizeof want, "[AI_OK] swarm+tensor selfcheck 0x%08x\n", AI_BOOT_HASH);
+    snprintf(want, sizeof want, "[AI_SELFCHECK_OK] swarm+tensor selfcheck 0x%08x\n", AI_BOOT_HASH);
     CHECK(ai_boot_selfcheck(capture) && strcmp(g_line, want) == 0,
-          "ai_boot_selfcheck prints the [AI_OK] line");
+          "ai_boot_selfcheck prints the [AI_SELFCHECK_OK] line");
+    CHECK(strstr(g_line, "[AI_OK]") == NULL, "the self-check never claims [AI_OK]");
 
     /* Second run is identical (no hidden state carried between runs). */
     uint32_t hs2 = 0, ht2 = 0;

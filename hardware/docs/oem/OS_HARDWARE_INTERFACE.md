@@ -32,7 +32,7 @@ HQC uses `pclmulqdq` (x86) or `pmull` (AArch64) when built with those flags
 |---|---|
 | UEFI 2.x, 64-bit, no CSM needed | ZXV boots as `/EFI/BOOT/BOOTX64.EFI` ([docs/BAREMETAL.md](../../../docs/BAREMETAL.md)) |
 | GOP with a 32-bit linear framebuffer on the centre panel | ZXV's boot console is the GOP framebuffer (`kernel/arch/x86_64/efifb_con.c`). Without GOP the screen stays black |
-| A 16550-compatible UART at COM1 (0x3F8), brought out to the trench (institutional) or to a test pad (Pioneer) | ZXV logs `[BOOT_OK]` / `[AI_OK]` there at 38400 baud. It is the bring-up lifeline |
+| A 16550-compatible UART at COM1 (0x3F8), brought out to the trench (institutional) or to a test pad (Pioneer) | ZXV logs `[BOOT_OK]` / `[AI_SELFCHECK_OK]` / `[AI_OK]` there at 38400 baud. It is the bring-up lifeline |
 | Owner-controlled Secure Boot keys (custom PK/KEK/db) | The ZXV image is not yet signed by a CA the firmware trusts. Institutional: the arbiter does the real post-quantum check before UEFI runs ([OEM_INSTITUTIONAL.md](OEM_INSTITUTIONAL.md) section 6.1) |
 | ACPI tables (MADT, FADT, MCFG, HPET or equivalent), complete and correct | `kernel/src/acpi` parses them for interrupts and PCIe configuration |
 | Machine-check (MCA) error reporting enabled, with ECC errors reported, not hidden by firmware | The institutional spec promises ECC on every bus. ZXV must see corrected and uncorrected errors to act on them |

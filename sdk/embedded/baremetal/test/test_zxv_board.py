@@ -371,12 +371,12 @@ class Plan(Base):
         self.assertEqual([s["argv"] for s in p["steps"]], [
             ["bash", "build_system/baremetal_images.sh", "x86_64"],
             ["bash", "build_system/uefi_boot_check.sh", "x86_64", "dist/discs/zxv-x86_64-uefi.img",
-             "90", "[AI_OK]", "UEFI GOP text console"]])
+             "90", "[AI_SELFCHECK_OK]", "UEFI GOP text console"]])
         p = self.plan(self.manifest(console__framebuffer="none"), host=True, boot_check=True)
         self.assertNotIn("UEFI GOP text console", p["steps"][1]["argv"])
         p = self.plan(self.manifest(ARM_UEFI), host=True, boot_check=True)
         self.assertEqual(p["steps"][1]["argv"][2:], ["arm64", "dist/discs/zxv-arm64-uefi.img",
-                                                      "90", "[AI_OK]"])
+                                                      "90", "[AI_SELFCHECK_OK]"])
 
     def test_devicetree(self):
         p = self.plan(self.manifest(ARM_DT))

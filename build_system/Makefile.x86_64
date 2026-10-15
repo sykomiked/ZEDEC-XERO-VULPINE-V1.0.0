@@ -266,6 +266,7 @@ SRCS := \
     kernel/src/loader/zsp.c \
     kernel/src/logistics/logistics.c \
     kernel/src/lpres/lpres_core.c \
+    kernel/src/lpres/lpres.c \
     kernel/src/mage/mage.c \
     kernel/src/mesh_net/mesh_net.c \
     kernel/src/mesh_token/mesh_token.c \
@@ -378,6 +379,7 @@ SRCS := \
     kernel/src/timesvc/tz.c \
     kernel/src/bringup/arch_globals.c \
     kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_bootmodel.c \
     kernel/src/swarm/swarm_budget.c \
     kernel/src/swarm/swarm_dna.c \
     kernel/src/swarm/swarm_emotion.c \

@@ -542,6 +542,7 @@ KERNEL_SRCS = \
     kernel/src/wifi/wifi.c \
     kernel/src/zxpkg/zxpkg.c \
     kernel/src/swarm/swarm_boot.c \
+    kernel/src/swarm/swarm_bootmodel.c \
     kernel/src/swarm/swarm_budget.c \
     kernel/src/swarm/swarm_dna.c \
     kernel/src/swarm/swarm_emotion.c \

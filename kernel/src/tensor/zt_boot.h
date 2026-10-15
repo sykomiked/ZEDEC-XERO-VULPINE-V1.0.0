@@ -1,7 +1,8 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
-/* zt_boot.h — the tensor engine's boot self-check (one half of the [AI_OK]
- * line; swarm_boot.h holds the other half and the combined check).
+/* zt_boot.h — the tensor engine's boot self-check (one half of the
+ * [AI_SELFCHECK_OK] line; swarm_boot.h holds the other half and the combined
+ * check).
  *
  * THE FORWARD STEP.  A fixed, tiny slice of one transformer layer, all in
  * the engine's own integer arithmetic (zt.h, zt_rope.h):

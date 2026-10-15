@@ -6,7 +6,7 @@
 #
 #   image    default dist/discs/zxv-<arch>-uefi.img (from baremetal_images.sh)
 #   seconds  how long QEMU runs before timeout stops it (default 60)
-#   marker   extra literal lines the log must also contain, e.g. [AI_OK]
+#   marker   extra literal lines the log must also contain, e.g. [AI_SELFCHECK_OK]
 #
 # Unlike ci_boot_check.sh (qemu -kernel), this is a real media boot: the
 # firmware (OVMF for x86_64, QEMU_EFI for arm64) finds /EFI/BOOT/BOOT<arch>.EFI
@@ -25,16 +25,20 @@ LOG="uefi_boot_${ARCH}.log"
 [ "$ARCH" = x86_64 ] && set -- "$@" "[HANDOFF_OK]"
 FAULT_RE='\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
 
+# Guest RAM: 512M by default; a golden disc's boot model and its scratch
+# (zxv_aimodel.h) need about twice the model's size, so golden-disc.yml sets
+# ZXV_UEFI_MEM (test_golden_disc.sh's 120 KB model fits the default).
+MEM="${ZXV_UEFI_MEM:-512M}"
 firmware(){ for f in "$@"; do [ -f "$f" ] && { echo "$f"; return; }; done; }
 case "$ARCH" in
   x86_64)
     FW=$(firmware "${OVMF:-}" /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF_CODE.fd \
                   /opt/homebrew/share/qemu/edk2-x86_64-code.fd /usr/local/share/qemu/edk2-x86_64-code.fd)
-    QEMU=(qemu-system-x86_64 -machine q35 -m 512M) ;;
+    QEMU=(qemu-system-x86_64 -machine q35 -m "$MEM") ;;
   arm64)
     FW=$(firmware "${AAVMF:-}" /usr/share/qemu-efi-aarch64/QEMU_EFI.fd /usr/share/AAVMF/AAVMF_CODE.fd \
                   /opt/homebrew/share/qemu/edk2-aarch64-code.fd /usr/local/share/qemu/edk2-aarch64-code.fd)
-    QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a57 -m 512M) ;;
+    QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a57 -m "$MEM") ;;
   *) echo "::error::unknown arch $ARCH (arm64|x86_64)"; exit 2 ;;
 esac
 [ -n "$FW" ] || { echo "::error::$ARCH: no UEFI firmware found (install ovmf / qemu-efi-aarch64)"; exit 1; }

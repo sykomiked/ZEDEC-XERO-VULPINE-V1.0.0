@@ -264,8 +264,21 @@ EFIAPI unsigned long efi_main(EFI_HANDLE image, SYSTAB *st){
 
     /* A golden disc carries AI models: check each one's SHA-256 while the
      * firmware's file system is still there. Nothing happens on a plain disc. */
+    /* The boot model record page (zxv_aimodel.h): reserved and zeroed, so a
+     * plain disc hands over nothing and a stale record cannot survive. */
+    zxai_rec_t *airec = 0;
+    {
+        u64 ra = ZXAI_REC_ADDR_X86_64;
+        if (AllocatePages(2 /*AllocateAddress*/, 2 /*EfiLoaderData*/, 1, &ra) == 0) {
+            airec = (zxai_rec_t *) ra;
+            for (u64 i = 0; i < sizeof(*airec); i++) ((u8 *) airec)[i] = 0;
+        } else {
+            uputs("[AI_HANDOFF_NONE] record page 0x81000 busy -- no boot model handoff\n");
+        }
+    }
     int nmod = efi_check_models(image, st->BootSvc->HandleProtocol, st->BootSvc->AllocatePool,
-                                st->BootSvc->FreePool);
+                                st->BootSvc->FreePool, st->BootSvc->AllocatePages,
+                                st->BootSvc->FreePages, ZXAI_MAX_ADDR_X86_64, airec);
     hx.models_bad = (u32) em_last_bad;
     hx.models_ok = nmod > em_last_bad ? (u32) (nmod - em_last_bad) : 0;
     hx.models = nmod == 0 ? 0 /*NEITHER*/ : (nmod < 0 || em_last_bad) ? 2 /*FALSE*/ : 1 /*TRUE*/;

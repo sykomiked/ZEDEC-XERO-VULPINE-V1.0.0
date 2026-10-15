@@ -145,7 +145,7 @@ These rules came from you or were agreed with you. Every module is held to them.
 | Product | Contains today | Status |
 |---|---|---|
 | ZXV Swarm app (`zxv-engine`) | Swarm, tensor engine, **settlement spine + payment ledger + fee**, Vinea node, ML-DSA/ML-KEM, updater, IPFS node, notifications | 🟡 Runs; most of the economy and all people features not linked yet |
-| Kernel image (arm64 reference, plus x86_64, riscv64, riscv32, arm32) | Core OS, AI boot self-check (`[AI_OK]`), economy self-checks at boot | 🟡 Boots under emulation; no network or full economy |
+| Kernel image (arm64 reference, plus x86_64, riscv64, riscv32, arm32) | Core OS, AI arithmetic self-check (`[AI_SELFCHECK_OK]`), the golden disc's boot model answering (`[AI_OK]`, `swarm_bootmodel.c`), economy self-checks at boot | 🟡 Boots under emulation; no network or full economy |
 | `libzxv` packages (`libzxv-econ`, `-pqc`, `-tensor`, `-legacy`) | The economy engine as a standalone library: compress / route / decompress | ✅ Builds standalone; single-file amalgamation queued |
 
 ---

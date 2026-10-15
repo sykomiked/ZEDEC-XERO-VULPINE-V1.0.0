@@ -66,7 +66,7 @@ The format check is clang-format 18.1.8 on the lines a commit changes, with
 `.clang-format-ignore`'s files excluded (older sources), exactly as CI's
 quick-checks runs it; commit first, since it compares commits. Then
 whatever the change touches: `make -f build_system/Makefile.arm64 all`
-then `build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"`
+then `build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_SELFCHECK_OK]"`
 and `python3 build_system/arm64_session_check.py kernel_arm64.elf` for the
 arm64 kernel (name the `all` target; build the x86_64 kernel the same way),
 `sh kernel/arch/hosted/zxvd_checks.sh OUT` for zxvd, `make -C kernel

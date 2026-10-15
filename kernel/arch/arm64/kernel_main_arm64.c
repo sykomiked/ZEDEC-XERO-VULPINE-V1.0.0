@@ -509,7 +509,9 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "../src/loader/abupdate.h"  /* A/B update + probation + rollback */
 #include "../src/appkit/doc.h"       /* AppKit document model (Writer et al) */
 #include "../src/refinery/refinery.h" /* Magitech Refinery: text -> sigil card */
-#include "../src/swarm/swarm_boot.h"  /* swarm + tensor boot self-check ([AI_OK]) */
+#include "../src/swarm/swarm_boot.h"  /* swarm + tensor arithmetic self-check ([AI_SELFCHECK_OK]) */
+#include "../src/swarm/swarm_bootmodel.h" /* the boot model answers ([AI_OK]) */
+#include "../zxv_aimodel.h"               /* the loader's boot model record */
 #include "../userapp/hello_signed.h" /* root pubkey + signed .zsp, seeded to disk */
 #include "../src/crash/crash.h"      /* crash dumps kept on disk across a reboot */
 #include "../src/crash/bootctl.h"    /* boot modes: normal, safe, recovery */
@@ -854,6 +856,36 @@ static void cell_fabric_boot_init(void) {
         cell_fabric_add_route(&cell_fabric, &r_net2);
         boot_msg("  [RECOVERED] arm64-io re-admitted with incarnation=2 and new routes");
     }
+}
+
+/* ---- the boot model (zxv_aimodel.h, swarm_bootmodel.h) ----
+ * The loader leaves its record at ZXAI_REC_ADDR_ARM64, below the kernel; the
+ * model and scratch lie in RAM arm64_mmu.c maps as Normal memory
+ * (0x40000000 up to ZXAI_MAX_ADDR_ARM64). The -kernel path has no loader:
+ * the page is zero and the record is absent. */
+extern char __kernel_end[];
+
+static void ai_boot_model(void)
+{
+    static swarm_bootmodel_out_t res;
+    const zxai_rec_t *r = (const zxai_rec_t *) (uintptr_t) ZXAI_REC_ADDR_ARM64;
+    if (!zxai_valid(r)) {
+        swarm_bootmodel_none("no model handed over by the loader", uart_puts);
+        return;
+    }
+    swarm_bootmodel_in_t in;
+    in.model = (const uint8_t *) (uintptr_t) r->model_phys;
+    in.model_bytes = r->model_bytes;
+    in.loader_sha256 = r->sha256;
+    in.name = r->name;
+    in.name_len = r->name_len;
+    in.scratch = (uint8_t *) (uintptr_t) r->scratch_phys;
+    in.scratch_bytes = r->scratch_bytes;
+    in.map_lo = 0x40000000ULL;
+    in.map_hi = ZXAI_MAX_ADDR_ARM64;
+    in.kernel_lo = 0x40070000ULL; /* the bootinfo and record pages, then the image */
+    in.kernel_hi = (uint64_t) (uintptr_t) __kernel_end;
+    swarm_bootmodel_run(&in, &res, uart_puts);
 }
 
 void kernel_main(void) {
@@ -3015,6 +3047,10 @@ void kernel_main_arm64(void) {
     } else if (!ai_boot_selfcheck(uart_puts)) {
         uart_puts("[FAULT] AI selfcheck failed; halting before BOOT_OK\n");
         for (;;) halt();
+    } else {
+        /* The AI itself: run the model the loader handed over. [AI_OK]
+         * means it answered; a boot without a model says so and goes on. */
+        ai_boot_model();
     }
 
     /* The boot got this far: confirm it, so the next one is normal. */

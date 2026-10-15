@@ -10,7 +10,7 @@
 #   name      label for messages and the log file (boot_<name>.log)
 #   makefile  e.g. build_system/Makefile.riscv; its `run` target boots QEMU
 #   seconds   how long QEMU runs before timeout stops it (default 30)
-#   marker    extra literal lines the log must also contain, e.g. [AI_OK]
+#   marker    extra literal lines the log must also contain, e.g. [AI_SELFCHECK_OK]
 #
 # The kernels never exit, so `timeout` ending QEMU (exit 124) is the normal
 # outcome. Any OTHER non-zero exit means make or QEMU failed before or while

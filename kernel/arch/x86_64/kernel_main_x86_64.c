@@ -34,7 +34,9 @@
 #include "holographic/holo.h"
 #include "bootfeat/boot_features.h"
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
-#include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
+#include "swarm/swarm_boot.h" /* swarm + tensor arithmetic self-check ([AI_SELFCHECK_OK]) */
+#include "swarm/swarm_bootmodel.h" /* the boot model answers ([AI_OK]) */
+#include "../zxv_aimodel.h"        /* the loader's boot model record */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 
@@ -170,6 +172,75 @@ static void cell_fabric_boot_init(void) {
  * damaged record is never half-used; an absent one (direct -kernel boot)
  * changes nothing. Nothing below consumes the map yet: the frame allocator
  * on x86_64 is the next step (docs/BAREMETAL_OS_GAPS.md, gap 3). */
+/* ---- the boot model (zxv_aimodel.h, swarm_bootmodel.h) ----
+ * boot.asm maps the low 1 GB; the loader puts the model and its scratch
+ * anywhere below 4 GB. Map exactly those ranges, identity and write-back
+ * cached, with 2 MB pages. A 1 GB slot that already has a table (the
+ * framebuffer's, or a driver's MMIO pages) keeps every entry it has; only
+ * absent entries are filled. */
+#define AI_PTE_P  0x001ULL
+#define AI_PTE_RW 0x002ULL
+#define AI_PTE_PS 0x080ULL
+#define AI_PTE_A  0x000FFFFFFFFFF000ULL
+static uint64_t g_ai_l2[3][512] __attribute__((aligned(4096)));
+static uint32_t g_ai_l2_used;
+
+static int ai_map_ram(uint64_t lo, uint64_t hi)
+{
+    if (hi > ZXAI_MAX_ADDR_X86_64 || lo >= hi) return 0;
+    uint64_t cr3;
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(cr3));
+    uint64_t *l4 = (uint64_t *) (uintptr_t) (cr3 & AI_PTE_A);
+    if (!(l4[0] & AI_PTE_P)) return 0;
+    uint64_t *l3 = (uint64_t *) (uintptr_t) (l4[0] & AI_PTE_A);
+    for (uint64_t a = lo & ~0x1FFFFFULL; a < hi; a += 0x200000ULL) {
+        if (a < 0x40000000ULL) continue; /* the low 1 GB: boot.asm's */
+        uint32_t i3 = (uint32_t) (a >> 30), i2 = (uint32_t) (a >> 21) & 511u;
+        if (l3[i3] & AI_PTE_PS) continue; /* a 1 GB page covers it */
+        if (!(l3[i3] & AI_PTE_P)) {
+            if (g_ai_l2_used == 3u) return 0;
+            uint64_t *t = g_ai_l2[g_ai_l2_used++];
+            for (int i = 0; i < 512; i++) t[i] = 0;
+            l3[i3] = (uint64_t) (uintptr_t) t | AI_PTE_P | AI_PTE_RW;
+        }
+        uint64_t *l2 = (uint64_t *) (uintptr_t) (l3[i3] & AI_PTE_A);
+        if (!(l2[i2] & AI_PTE_P)) l2[i2] = a | AI_PTE_P | AI_PTE_RW | AI_PTE_PS;
+    }
+    __asm__ __volatile__("mov %%cr3, %%rax\n\tmov %%rax, %%cr3" : : : "rax", "memory");
+    return 1;
+}
+
+extern char __stack_top[];
+
+static void ai_boot_model(void)
+{
+    static swarm_bootmodel_out_t res;
+    const zxai_rec_t *r = (const zxai_rec_t *) (uintptr_t) ZXAI_REC_ADDR_X86_64;
+    if (!zxai_valid(r)) {
+        swarm_bootmodel_none("no model handed over by the loader", uart_puts);
+        return;
+    }
+    if (!ai_map_ram(r->model_phys, r->model_phys + r->model_bytes) ||
+        !ai_map_ram(r->scratch_phys, r->scratch_phys + r->scratch_bytes)) {
+        swarm_bootmodel_none("the loader's model is outside the memory this kernel can map",
+                             uart_puts);
+        return;
+    }
+    swarm_bootmodel_in_t in;
+    in.model = (const uint8_t *) (uintptr_t) r->model_phys;
+    in.model_bytes = r->model_bytes;
+    in.loader_sha256 = r->sha256;
+    in.name = r->name;
+    in.name_len = r->name_len;
+    in.scratch = (uint8_t *) (uintptr_t) r->scratch_phys;
+    in.scratch_bytes = r->scratch_bytes;
+    in.map_lo = 0x100000ULL;
+    in.map_hi = ZXAI_MAX_ADDR_X86_64;
+    in.kernel_lo = 0x80000ULL; /* the handoff pages, the record page, the image */
+    in.kernel_hi = (uint64_t) (uintptr_t) __stack_top;
+    swarm_bootmodel_run(&in, &res, uart_puts);
+}
+
 static void handoff_report(void)
 {
     const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
@@ -372,6 +443,10 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         cli();
         for (;;) hlt();
     }
+
+    /* The AI itself: run the model the loader handed over. [AI_OK] means it
+     * answered; a boot without a model says so and goes on. */
+    ai_boot_model();
 
     boot_msg("\n[BOOT] ZEDEC pqOS [x86-64] — All systems online.");
     boot_msg("[BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready\n");
