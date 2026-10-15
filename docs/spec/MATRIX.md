@@ -282,9 +282,10 @@ table, and that inserting one byte keeps all but the first few cut points.
 
 ## 7. Not built yet
 
-- **The bucket layout:** where the matrix sits beside Disc 1 and the swarm
-  packs. This belongs to the Bare-metal thread's ipfs-dist, and is in
-  coordination.
+- **The bucket layout:** the matrix goes in the library bucket,
+  `05_alexandria`, beside Disc 1 and the swarm packs (the name replaces the
+  earlier proposal, `06_matrix`). The bucket's layout belongs to the
+  Bare-metal thread's ipfs-dist.
 - **L2 and L3 layers.** These go on top when those apps exist.
 - **Placement of the class 000 to 900 booklets.** The blocks' Alexandria
   classification stays an index axis (the grid word and the core index,

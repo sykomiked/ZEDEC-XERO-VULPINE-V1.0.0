@@ -45,9 +45,12 @@ given, a name is never renumbered or reused.
 Each of a block's languages has a three-digit **language number**. 001 to
 099 are Lingua's own numbers from zl_langs.def: FORTRAN is 001, BASIC 002
 and Forth 003. 101 to 120 are the other runtimes, in zxapp's order: c 101,
-sutra 102, eve 103, kron 104 and so on, up to zlir 120. So `512.01-001` is
-the greatest common divisor in FORTRAN, and `512.01-120` is the same block
-compiled to Lingua IR.
+sutra 102, eve 103, kron 104 and so on, up to zlir 120. 121 is x86-64
+assembly, a projection target. Runtimes added later take the next number
+from 122 in the order they arrive, whatever their place in zxapp's list:
+wire, a circuit of other entries (zxwire.h), is 122. A number is never
+reused or changed. So `512.01-001` is the greatest common divisor in
+FORTRAN, and `512.01-120` is the same block compiled to Lingua IR.
 
 The classes, and the namespace that belongs to each:
 
