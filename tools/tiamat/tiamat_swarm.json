@@ -96,11 +96,12 @@
   },
 
   "dna": {
-    "_status": "Field list proposed; the encoding is agreed with the 'Two-way genomic DNA encoding' thread through the coordinator.",
-    "records": ["owner key hash", "device profile", "organism composition: for each cell its dragon name, model id, revision, shipped sha256, adapter sha256, evidence head sha256", "tissues and split layers", "ISF budget class", "hobby set", "birth seed", "parent DNA hash (for agents a chiglet creates)", "journal head hash"],
-    "signature": "ML-DSA-87 owner signature (kernel/src/companion)"
+    "_status": "TDNA v1, agreed with the two-way genomic DNA thread (/mnt/project-files/zxv-dnx/TIAMAT_DNA_ENCODING.md). Record codec: tools/tiamat/tiamat_dna.py; strand: kernel/src/dnx dnx_duplex_encode/decode, accepted only on TRUE.",
+    "records": ["owner key hash (SHA3-256 of the ML-DSA-87 public key)", "profile id (index into profiles: laptop_core, laptop_plus, workstation, server) and SHA-256 of that profile's canonical JSON", "ISF class: Fibonacci index k, budget F(k) tokens per cycle (18, 20, 23, 26 for the four profiles)", "birth seed (8 bytes)", "parent A and parent B DNA ids (zero for a founder; B zero for a single-parent spawn)", "reconfiguration journal head hash", "hobby indexes into hobbies.txt (3 to 5, sorted)", "cells (1 to 128): dragon name, model id, revision (20-byte commit SHA-1), shipped sha256, adapter sha256, evidence-head sha256", "tissues (0 to 16): trunk cell index, split layer, member cell indexes (1 to 32, a cell in at most one tissue)"],
+    "id": "SHA3-256 of the body (everything before the signature)",
+    "signature": "ML-DSA-87 owner signature over the body (kernel/src/companion)",
+    "breeding": "on decoded fields only, never on strands; child gets a new seed, an empty journal head, both parent ids, and a new owner signature"
   },
-
   "hobbies": {
     "catalogue": "tools/tiamat/hobbies.txt (144 entries)",
     "per_member": [3, 5],
