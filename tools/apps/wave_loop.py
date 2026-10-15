@@ -77,6 +77,9 @@ DOCS = ("docs/APP_BLOCKS.md", "docs/APP_LANGUAGE_COVERAGE.md",
         "kernel/src/alexandria/SLOTS.tsv", "kernel/src/alexandria/alx_slots.h",
         "docs/APP_GRAPH.md", "tools/server-tasks/BUILD_ORDER.tsv")
 HOOK = {"cmd": None}  # --on-accept
+# The reviewed check lines (tools/apps/app_checks.py): a builder never writes them, so an
+# app cannot set its own exam; the loop puts the file back after every attempt.
+REVIEWED = "kernel/src/apps/CHECKS.tsv"
 
 
 def apps(root):
@@ -263,6 +266,8 @@ def build(root, task, app_id, a, last=None):
             subprocess.run(cmd, shell=True, cwd=root, timeout=a.timeout)
         except subprocess.TimeoutExpired:
             pass  # whatever it wrote is judged like any other attempt
+        if os.path.exists(os.path.join(root, REVIEWED)):
+            git(root, "checkout", "-q", "HEAD", "--", REVIEWED)
         last = judge(root, app_id, a.runs)
         v = last["verdict"]
         if v == "T":
@@ -315,7 +320,7 @@ def merge(app_id, base, sha, a):
     """A worktree's T into the main tree: its own files only; the slots and the generated
     docs are made again here, in merge order, and the app is judged again here."""
     patch = git(ROOT, "diff", "--binary", base, sha, "--", ".",
-                *[f":(exclude){d}" for d in DOCS])
+                *[f":(exclude){d}" for d in DOCS + (REVIEWED,)])
     p = git(ROOT, "apply", "--index", "-", check=False, stdin=patch)
     if p.returncode:
         put_back(ROOT)
