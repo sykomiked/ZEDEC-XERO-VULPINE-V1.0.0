@@ -450,6 +450,13 @@ static void test_more(void)
               dnx_prog_run_reverse(pl, 3, &st) == DNX_E_BASE,
           "programs: first and last");
     CHECK(dnx_bases_to_bytes(bf, 5, out1, 2) == DNX_E_ARG, "five bases are not whole bytes");
+    struct {
+        uint8_t o[3];
+        uint8_t guard;
+    } g = {{0, 0, 0}, 0xEE};
+    uint8_t twelve[12] = {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+    CHECK(dnx_bases_to_bytes(twelve, 12, g.o, 3) == 3 && g.o[2] == 0xFF && g.guard == 0xEE,
+          "twelve bases write exactly three bytes");
 
     /* Metrics edges. */
     uint8_t g1[1] = {DNX_G}, cg[2] = {DNX_C, DNX_G};
@@ -494,7 +501,10 @@ static void test_more(void)
 
     /* The empty program: x == y both ways. */
     dnx_state_t x = {{9, 8, 7, 6}};
-    CHECK(dnx_prog_bidi(NULL, 0, &x, &x, NULL, NULL) == LPRES_STATE_TRUE, "empty program");
+    lpres_state_t ef, eb;
+    CHECK(dnx_prog_bidi(NULL, 0, &x, &x, &ef, &eb) == LPRES_STATE_TRUE && ef == LPRES_STATE_TRUE &&
+              eb == LPRES_STATE_TRUE,
+          "empty program: TRUE both ways");
     dnx_state_t y = x;
     y.r[0]++;
     CHECK(dnx_prog_bidi(NULL, 0, &x, &y, NULL, NULL) == LPRES_STATE_FALSE,
