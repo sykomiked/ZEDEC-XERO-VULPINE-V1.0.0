@@ -77,3 +77,15 @@
 40	logic.stillwater_quiet_now	490.14	stillwater.quiet_now	base
 41	logic.stillwater_record_ok	490.15	stillwater.record_ok	base
 42	logic.stillwater_schedule_ok	490.16	stillwater.schedule_ok	base
+43	logic.witness_audit_ok	490.17	witness.audit_ok	base
+44	logic.witness_chain_ok	490.18	witness.chain_ok	base
+45	num.witness_kind_count	590.16	witness.kind_count	base
+46	logic.brazier_heat_ok	490.19	brazier.heat_ok	base
+47	logic.brazier_heat_safe	490.20	brazier.heat_safe	base
+48	num.brazier_minutes_left	590.17	brazier.minutes_left	base
+49	num.coffer_balance	590.18	coffer.balance	base
+50	num.coffer_holdings	590.19	coffer.holdings	base
+51	logic.coffer_transfer_ok	490.21	coffer.transfer_ok	base
+52	num.flint_cells	590.20	flint.cells	base
+53	logic.flint_history_ok	490.22	flint.history_ok	base
+54	logic.flint_scroll_ok	490.23	flint.scroll_ok	base

@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Witness files an entry of its audit record, in MYRA (witness_rules.h
+; WR3): its index (zxvd's seq), the index of the entry before it, its kind
+; (witness_model.h WITNESS_CHANGE .. WITNESS_OTHER) and its stamp, ms
+; since 1970. Witness asks whether the numbers fit before it keeps them.
+^ZXWIT(seq:i18) = prev:i18! ^ kind:i1! ^ stamp:i15!

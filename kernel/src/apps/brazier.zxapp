@@ -1,0 +1,74 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Brazier, power, battery and heat: the battery's level and charge state,
+# the device's power draw, minutes left at that draw, and the battery's
+# temperature against a warning and a critical limit. Read only: every
+# reading comes from zxvd's power.status (the energy ledger, docs/POWER.md)
+# and sys.info; nothing is invented. Warnings are advice for the owner,
+# never an action: Brazier stops nothing.
+#
+#   used_share.used_x100  the battery's level x100 (10000 = full): the
+#                         share of its full capacity holding charge, with
+#                         total = full_mwh and left = full_mwh - now_mwh.
+#                         The used_share block owns that share (Sutra and
+#                         KRON, witnessed), so it is used, never rewritten.
+#   minutes_left          whole minutes the charge lasts at the present
+#                         draw: floor(60 * charge mWh / draw mW). Sutra and
+#                         KRON; a draw of 0 (on mains, or idle) is refused.
+#   heat_ok               a temperature with no warning: 0.0..45.0 C.
+#   heat_safe             a temperature short of critical: -20.0..60.0 C.
+#                         Temperatures are integer tenths of a degree; Eve
+#                         declares each limit, KRON compares, witnessed.
+#
+# Defaults taken (brazier_model.h): the usual lithium-ion limits, charging
+# 0.0 to 45.0 C and discharging -20.0 to 60.0 C; outside the first the
+# owner is warned, outside the second the warning is critical.
+#
+# Readings zxvd does not give: no thermal zones (CPU, GPU, case), so the
+# battery's own temperature (power.status battery.temp_dc, when the
+# platform reports one) is the only heat Brazier shows; no per-sensor
+# draw beyond the ledger's meters. zxvd has no power capability, so the
+# energy ledger is read under sys.read (the machine's facts), and no
+# notification method, so the model only composes the notice's text.
+#
+# Kept in C, since no runnable language owns it: reading the ledger's JSON
+# and writing the notice's words.
+zxapp 1
+id     brazier
+name   Brazier
+version 1.0.0
+slot   21
+layer  L1
+matrix 21
+icon   icons/l1/021-brazier.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/brazier_model.c
+use    used_share 1   # @num.used_x100
+
+# Whole minutes left at the present draw, never rounded up: Sutra and KRON.
+provides minutes_left num charge draw
+logic    sutra minutes_left apps/blocks/brazier/minutes.sutra
+logic    kron  minutes_left apps/blocks/brazier/minutes.kron
+
+# No heat warning: Eve declares 0.0..45.0 C, KRON compares.
+provides heat_ok truth temp
+logic    eve  heat_ok apps/blocks/brazier/heat_ok.eve
+logic    kron heat_ok apps/blocks/brazier/heat_ok.kron
+
+# Short of critical heat: Eve declares -20.0..60.0 C, KRON compares.
+provides heat_safe truth temp
+logic    eve  heat_safe apps/blocks/brazier/heat_safe.eve
+logic    kron heat_safe apps/blocks/brazier/heat_safe.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check minutes_left charge=0,1000,999999999,90000 draw=1000,1000,1,14090 = 0,60,59999999940,383
+check minutes_left charge=1,1000000000 draw=1,1 = both
+check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
+# agree: heat_ok one integer against one declared range: Eve and KRON read the same reading the same way, and Eve shares a lone value as KRON does when it is the only input
+check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
+# agree: heat_safe one integer against one declared range: Eve and KRON read the same reading the same way, and Eve shares a lone value as KRON does when it is the only input
+check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
+check used_share.used_x100 total=50000,50000 left=0,50001 = both

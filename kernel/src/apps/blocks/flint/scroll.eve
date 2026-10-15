@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What Flint's scrollback may be set to (flint_model.h): from 24 lines (one
+# screen of a classic terminal) to 10000, and from 4096 bytes to 1 MiB of
+# text. A setting outside either range is refused, never clamped: the
+# scrollback keeps the limits it had.
+eve flint
+line_limit = 24 .. 10000
+byte_limit = 4096 .. 1048576
+
+scrollback {
+  lines: line_limit
+  bytes: byte_limit
+}

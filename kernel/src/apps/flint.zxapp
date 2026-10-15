@@ -1,0 +1,70 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Flint, the terminal: layer 13 of the matrix. The session a terminal
+# window shows, as a model (flint_model.c): a command line is read with
+# zxsh's word rules (tools/zxsh: blanks split words, '...' is literal,
+# "..." takes \" \\ \$ \`, a # word starts a comment), the read-only
+# builtins run over zxvd (pwd, cd, ls, cat, stat over files.*; df, free,
+# uname, net over sys.*; echo, history, clear, help), and their lines go
+# into a bounded scrollback. No new shell: zxsh stays the shell; Flint is
+# the window around it. zxvd has no method that runs a zxsh line or a
+# process, so a line with a pipe, a redirection, a list or a job (| ; & <
+# >) is refused as misuse (status 2) and runs nothing, and any other
+# command is "no such command" (status 127), as sh counts it.
+#
+#   cells       how many whole character cells fit across a span of
+#               pixels: floor(pixels / cell), once for the columns (width
+#               over cell width) and once for the rows (height over cell
+#               height). KRON and C++ (as WebAssembly) are witnessed: the
+#               C++ refuses a span outside 0..65535 or a cell outside
+#               1..256 with -1, where KRON still answers; the two then
+#               disagree, and the window keeps its old size (BOTH).
+#               A shared idea (CONCEPTS.tsv cells_in_span, @num.flint_cells):
+#               every grid of characters or tiles a later layer draws.
+#   scroll_ok   the scrollback limits as an Eve range record: 24..10000
+#               lines and 4096..1048576 bytes. Eve alone: a limit is a
+#               declared range, one domain, so no second language could
+#               disagree with it.
+#   history_ok  a command's history record in MYRA (^ZXFLINT): its number
+#               (i9), when it ran (i12), its exit status (i3) and the line's
+#               length (i4). A line whose record does not fit runs nothing.
+#   used_share.used_x100 (@num.used_x100): df and free show the share in
+#               use, from the block that owns it.
+#
+# Text work stays in C: parsing a command line (quotes, escapes, words)
+# and joining paths. Its best-fit languages, AWK (text) and Bash (jobs),
+# have no runtime yet (LANGUAGE_FIT.tsv), and no entry here is theirs to
+# stand in for, so there is no pending line.
+zxapp 1
+id     flint
+name   Flint
+version 1.0.0
+slot   13
+layer  L1
+matrix 13
+icon   icons/l1/013-flint.svg
+budget 233
+needs  sys.read
+needs  fs.read
+model  apps/flint_model.c
+use    used_share 1   # @num.used_x100
+
+provides cells num pixels cell
+logic    kron cells apps/blocks/flint/cells.kron
+logic    wasm cells apps/blocks/flint/cells.wasm
+
+provides scroll_ok truth lines bytes
+logic    eve scroll_ok apps/blocks/flint/scroll.eve
+
+provides history_ok truth seq stamp status bytes
+logic    myra history_ok apps/blocks/flint/history.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check cells pixels=0,7,8,1919,65535,65535 cell=8,8,8,8,1,256 = 0,0,1,239,65535,255
+check cells pixels=800,65536 cell=8,8 = both
+check cells pixels=800,800 cell=8,257 = both
+check scroll_ok lines=23,24,10000,10001,500,500 bytes=65536,4096,1048576,65536,4095,1048577 = false,true,true,false,false,false
+check history_ok seq=999999999,1000000000,1,1,1 stamp=999999999999,1,1000000000000,1,1 status=999,0,0,1000,127 bytes=9999,1,1,1,10000 = true,false,false,false,false
+check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
+check used_share.used_x100 total=100 left=101 = both

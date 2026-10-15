@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# An account's balance after a movement, in Sutra: before + moved, one
+# account per row, in integer minor units (cents for USD). Every field is
+# s9(18), so a balance, a movement or a result past 18 digits either way is
+# a size error: refused, never cut short. balance.tb says the same in
+# Trebago.
+record coffer-balance
+  before: s9(18)
+  moved: s9(18)
+  balance: s9(18)
+procedure
+  compute balance = before + moved
+  answer balance

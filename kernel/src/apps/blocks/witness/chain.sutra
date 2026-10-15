@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# One link of an audit chain, in Sutra (witness_rules.h WR1): an entry is
+# linked to the one before it when its prev index equals that entry's
+# index (last) and its own index is past it. The first entry's last is 0.
+# Indexes are zxvd's seqs and fit 9(18); a negative one, or one of 19
+# digits, does not fit: refused.
+record chain-link
+  seq: 9(18)
+  prev: 9(18)
+  last: 9(18)
+procedure
+  answer prev = last and seq > last
