@@ -8,7 +8,7 @@ root: every block of code, table and document, packed into content-addressed
 pieces that the system can fetch, check and reuse. It has 145 layers. Layer
 0 is the core, and its first booklet is booklet 000, the unified alphabet
 (`kernel/src/lingua/alphabet.tsv`, the projection runtime, and the
-alphabet's Dhātu and number views; see ALPHABET.md), so the alphabet is the first thing
+alphabet's Dhātu, number and sound views; see ALPHABET.md), so the alphabet is the first thing
 the matrix gives after boot. Layers 1 to 144
 are the 144 L1 system apps in the order of the app catalogue, twelve groups
 of twelve, each with its icon. The L2 and L3 app layers go on top of these.
