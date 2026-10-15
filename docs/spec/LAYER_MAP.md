@@ -76,7 +76,7 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 52 | 34 + 18 | Fireglow | Media and creative | none yet | 0 |  |
 | 53 | 34 + 19 | Gesso | Media and creative | `art_studio` | 3 |  |
 | 54 | 34 + 20 | Burin | Media and creative | none yet | 0 |  |
-| 55 | F10 | Birdsong | Media and creative | none yet | 0 |  |
+| 55 | F10 | Birdsong | Media and creative | `apps/birdsong.zxapp` `apps/birdsong_model.c` `apps/birdsong_model.h` `apps/blocks/birdsong` | 0 |  |
 | 56 | 55 + 1 | Cutwater | Media and creative | none yet | 0 |  |
 | 57 | 55 + 2 | Fiddlehead | Media and creative | `audiogenomics_pro` `/audiogenomics` `/subsystems/audiogenomics` | 15 | `crit168` |
 | 58 | 55 + 3 | Pinhole | Media and creative | none yet | 0 |  |
@@ -110,10 +110,10 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 86 | 55 + 31 | Meadow | Places, spaces and life | `social_spaces` `interspace` | 14 |  |
 | 87 | 55 + 32 | Belvedere | Places, spaces and life | `sovereign_node` | 3 |  |
 | 88 | 55 + 33 | Weatherglass | Places, spaces and life | none yet | 0 |  |
-| 89 | F11 | Wellspring | Places, spaces and life | none yet | 0 |  |
+| 89 | F11 | Wellspring | Places, spaces and life | `apps/wellspring.zxapp` `apps/wellspring_model.c` `apps/wellspring_model.h` `apps/blocks/wellspring` | 0 |  |
 | 90 | 89 + 1 | Caravan | Places, spaces and life | `freight` `logistics` `porter_house` | 10 |  |
 | 91 | 89 + 2 | Vintner | Places, spaces and life | `vino` `vino_stores` `jroute` `jringress` | 6 |  |
-| 92 | 89 + 3 | Hearth | Places, spaces and life | none yet | 0 |  |
+| 92 | 89 + 3 | Kettle | Places, spaces and life | none yet | 0 |  |
 | 93 | 89 + 4 | Understory | Places, spaces and life | none yet | 0 |  |
 | 94 | 89 + 5 | Homestead | Places, spaces and life | none yet | 0 |  |
 | 95 | 89 + 6 | Bonfire | Places, spaces and life | none yet | 0 |  |
@@ -151,7 +151,7 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 127 | 89 + 38 | Colonnade | Developer tools | `sutra` `legacy` `apps/cobol` `apps/fortran` `apps/python` `apps/rust` `apps/sutra` `apps/assembly` `apps/telecom` `apps/blocks` | 69 |  |
 | 128 | 89 + 39 | Mockingbird | Developer tools | `hwemu` `emu` | 117 | `fwadapt` `shimmer` `tolvovina` |
 | 129 | 89 + 40 | Gauntlet | Developer tools | `bombsquad` `/tests` `/fuzz` `/kernel/tests` `/bench` `/proofs` `/.github` | 5154 | `gematria` `hdcm` `hypercube` `iphase` `orbital_elevator` `quantum` `rce` `rur` |
-| 130 | 89 + 41 | Scriptorium | Developer tools | none yet and `docs/` | 131 |  |
+| 130 | 89 + 41 | Scriptorium | Developer tools | none yet and `docs/` | 132 |  |
 | 131 | 89 + 42 | Trestle | Developer tools | none yet | 0 |  |
 | 132 | 89 + 43 | Twelvefold | Developer tools | `paradox` `axiom_matrix` `superpos` `pce` | 32 | `gridchain` `hccs` `subsystems` |
 | 133 | 89 + 44 | Nightjar | Access, language and safety | `speech` | 9 |  |
@@ -165,6 +165,6 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 141 | 89 + 52 | Conch | Access, language and safety | none yet | 0 |  |
 | 142 | 89 + 53 | Shepherd | Access, language and safety | `ministry` | 3 |  |
 | 143 | 89 + 54 | Watchfire | Access, language and safety | none yet | 0 |  |
-| 144 | F12 | Stillwater | Access, language and safety | none yet | 0 |  |
+| 144 | F12 | Stillwater | Access, language and safety | `apps/stillwater.zxapp` `apps/stillwater_model.c` `apps/stillwater_model.h` `apps/stillwater_rules.h` `apps/blocks/stillwater` | 0 |  |
 
-10472 files in 81 layers that hold content; 64 layers are empty until their apps' code lands.
+10473 files in 81 layers that hold content; 64 layers are empty until their apps' code lands.

@@ -80,7 +80,7 @@
 52	Fireglow	Media and creative	zxv-brand/app-icons/svg/l1/052-fireglow.svg	-	-
 53	Gesso	Media and creative	zxv-brand/app-icons/svg/l1/053-gesso.svg	art_studio	-
 54	Burin	Media and creative	zxv-brand/app-icons/svg/l1/054-burin.svg	-	-
-55	Birdsong	Media and creative	zxv-brand/app-icons/svg/l1/055-birdsong.svg	-	F10
+55	Birdsong	Media and creative	zxv-brand/app-icons/svg/l1/055-birdsong.svg	apps/birdsong.zxapp apps/birdsong_model.c apps/birdsong_model.h apps/blocks/birdsong	F10
 56	Cutwater	Media and creative	zxv-brand/app-icons/svg/l1/056-cutwater.svg	-	-
 57	Fiddlehead	Media and creative	zxv-brand/app-icons/svg/l1/057-fiddlehead.svg	audiogenomics_pro /audiogenomics /subsystems/audiogenomics	-
 58	Pinhole	Media and creative	zxv-brand/app-icons/svg/l1/058-pinhole.svg	-	-
@@ -114,10 +114,10 @@
 86	Meadow	Places, spaces and life	zxv-brand/app-icons/svg/l1/086-meadow.svg	social_spaces interspace	-
 87	Belvedere	Places, spaces and life	zxv-brand/app-icons/svg/l1/087-belvedere.svg	sovereign_node	-
 88	Weatherglass	Places, spaces and life	zxv-brand/app-icons/svg/l1/088-weatherglass.svg	-	-
-89	Wellspring	Places, spaces and life	zxv-brand/app-icons/svg/l1/089-wellspring.svg	-	F11
+89	Wellspring	Places, spaces and life	zxv-brand/app-icons/svg/l1/089-wellspring.svg	apps/wellspring.zxapp apps/wellspring_model.c apps/wellspring_model.h apps/blocks/wellspring	F11
 90	Caravan	Places, spaces and life	zxv-brand/app-icons/svg/l1/090-caravan.svg	freight logistics porter_house	-
 91	Vintner	Places, spaces and life	zxv-brand/app-icons/svg/l1/091-vintner.svg	vino vino_stores jroute jringress	-
-92	Hearth	Places, spaces and life	zxv-brand/app-icons/svg/l1/092-hearth.svg	-	-
+92	Kettle	Places, spaces and life	zxv-brand/app-icons/svg/l1/092-hearth.svg	-	-
 93	Understory	Places, spaces and life	zxv-brand/app-icons/svg/l1/093-understory.svg	-	-
 94	Homestead	Places, spaces and life	zxv-brand/app-icons/svg/l1/094-homestead.svg	-	-
 95	Bonfire	Places, spaces and life	zxv-brand/app-icons/svg/l1/095-bonfire.svg	-	-
@@ -169,4 +169,4 @@
 141	Conch	Access, language and safety	zxv-brand/app-icons/svg/l1/141-conch.svg	-	-
 142	Shepherd	Access, language and safety	zxv-brand/app-icons/svg/l1/142-shepherd.svg	ministry	-
 143	Watchfire	Access, language and safety	zxv-brand/app-icons/svg/l1/143-watchfire.svg	-	-
-144	Stillwater	Access, language and safety	zxv-brand/app-icons/svg/l1/144-stillwater.svg	-	F12
+144	Stillwater	Access, language and safety	zxv-brand/app-icons/svg/l1/144-stillwater.svg	apps/stillwater.zxapp apps/stillwater_model.c apps/stillwater_model.h apps/stillwater_rules.h apps/blocks/stillwater	F12
