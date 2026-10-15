@@ -23,7 +23,7 @@ ZL_LANG_X(MOJO, 9, "Mojo", "Forgewyrm", mojo, ".mojo", "mojo") /* front-end to b
 ZL_LANG_X(PROLOG, 10, "Prolog", "Riddlewyrm", prolog, ".pro .prolog", "prolog") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(TEX, 11, "TeX", "Typedrake", tex, ".tex", "tex") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(HASKELL, 12, "Haskell", "Purewyrm", haskell, ".hs", "haskell") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* Standard ML 97 integer and list subset as MLton runs it (1973 lineage) */
 ZL_LANG_X(ELIXIR, 14, "Elixir", "Flaskwyrm", elixir, ".ex .exs", "elixir") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(ERLANG, 15, "Erlang", "Switchwyrm", erlang, ".erl", "erlang") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(LABVIEW, 16, "LabVIEW", "Wiredrake", labview, ".vit", "labview") /* front-end to build: see LINGUA_SPEC.md */

@@ -83,6 +83,12 @@ static const char *const seeds[] = {
     "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
     "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
     "-2 7 / 7)\n",
+    "(* fuzz seed *)\nfun f (0, a) = a\n  | f (n, a) = f (n - 1, a + n mod 3)\nfun g [] = 0 | g (x :: r) "
+    "= x * 2 + g r\nval l = [3, ~4] @ rev [1, 2]\n"
+    "val _ = print (Int.toString (f (9, 0)) ^ \" \" ^ Int.toString (g l div ~3) ^ \"\\n\")\n"
+    "val _ = print (Bool.toString (1 :: tl l = l andalso not (null l)) ^ Int.toString (case hd l of "
+    "3 => Int.quot (~7, 2) | n => Int.min (n, 2)))\n"
+    "fun h x y = let val z = x * y in if z > 10 orelse z < ~10 then z else h (x + 1) y end;\nh 2 3;\n",
 };
 
 static const char *const dict[] = {
