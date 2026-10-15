@@ -441,14 +441,12 @@ void nlb_update_coverage(nlb_session_t *s) {
      */
     surplus_real_t total_r = SR_ONE;
     surplus_real_t total_ell = SR_ZERO;
-    uint32_t passed = 0;
     uint32_t i;
 
     for (i = 0; i < s->num_branches; i++) {
         if (s->branches[i].state == NLB_BRANCH_PASSED ||
             s->branches[i].state == NLB_BRANCH_MERGED) {
             total_ell = SR_ADD(total_ell, s->branches[i].m5.ell);
-            passed++;
         }
     }
 
