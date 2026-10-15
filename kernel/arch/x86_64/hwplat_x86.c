@@ -11,6 +11,7 @@
  *
  * Integer only. */
 #include "hwplat_x86.h"
+#include "bootmem_x86.h"
 
 static inline void outb(uint16_t port, uint8_t v)
 {
@@ -123,12 +124,16 @@ static volatile void *mmio_map(void *ctx, uint64_t phys, uint64_t size)
 
 /* ---- DMA pool --------------------------------------------------------------- */
 #define DMA_POOL (8u << 20)
-static uint8_t g_dma[DMA_POOL] __attribute__((aligned(4096)));
+/* From firmware-usable memory on first use (bootmem_x86.c), not BSS: a
+ * fixed 8 MB in the kernel window covered firmware memory. */
+static uint8_t *g_dma;
 static uint32_t g_dma_used;
 
 static void *dma_alloc(void *ctx, uint32_t size, uint32_t align, uint64_t *phys)
 {
     (void) ctx;
+    if (!g_dma) g_dma = bootmem_x86_take(DMA_POOL, "the DMA pool");
+    if (!g_dma) return 0;
     if (align < 64) align = 64;
     uint32_t at = (g_dma_used + align - 1) & ~(align - 1);
     if (at > DMA_POOL || size > DMA_POOL - at) return 0;

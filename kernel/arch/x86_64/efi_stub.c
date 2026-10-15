@@ -101,10 +101,10 @@ extern u8 _kernel_blob_start[]; extern u8 _kernel_blob_end[];
 
 #define KERNEL_LOAD 0x100000ULL   /* Multiboot1 load_addr / link base */
 
-/* The kernel's full extent: image AND BSS (__kernel_end, passed in by
- * Makefile.x86_64 from nm). The flat image is about 200 KB but its BSS runs
- * to about 90 MB; reserving only the file left the BSS on memory firmware may
- * still own. 0 means "not known": fall back to the file size. */
+/* The kernel's full extent: image, BSS and boot stack (__stack_top, passed
+ * in by Makefile.x86_64 from nm). The flat image is about 200 KB; reserving
+ * only the file left the BSS and stack on memory firmware may still own.
+ * 0 means "not known": fall back to the file size. */
 #ifndef ZXV_KERNEL_END
 #    define ZXV_KERNEL_END 0ULL
 #endif

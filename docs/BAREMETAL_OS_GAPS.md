@@ -58,7 +58,7 @@ with the evidence.
 |---|---|---|---|---|
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
 | 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **x86_64 done in this PR** (handoff v2); arm64 stub and boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
-| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); map feed and heap missing | M | kernel_core #2, #13 |
+| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); x86 big buffers now on map memory (**this PR**); heap missing | M | kernel_core #2, #13 |
 | 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64, missing x86 | M | kernel_core #3 |
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
 | 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | missing | L | kernel_core #4, #9 |
@@ -175,8 +175,14 @@ Each wave ends in a serial marker the CI QEMU job checks.
 - Found doing it: the x86 kernel's fixed window (1 MB to ~91 MB, mostly BSS:
   vino 39 MB, tl 23 MB, ramdisk 16 MB, DMA 8 MB) covers OVMF's ACPI NVS at
   8 MB, so today's kernel overwrites firmware ACPI memory even under QEMU.
-- Next: move those buffers onto frames from the handoff map (#3); arm64 stub
-  parity; power-off (#15); `lpres_hex` linked into both images; loader
+- Fixed after that: those buffers now come from firmware-usable memory past
+  the kernel (`kernel/arch/zxv_bootmem.h`, `bootmem_x86.c`), fed by the
+  handoff map or, on a direct boot, the Multiboot map. The fixed window
+  shrank from about 91 MB to under 5 MB, the stub's reservation now succeeds,
+  and nothing overlaps ACPI. The window also counts the boot stack now (it
+  sat after `__kernel_end`, outside what the stub reserved), and the
+  Multiboot magic reaches the kernel (boot.asm used to clobber it).
+- Next: arm64 stub parity; power-off (#15); `lpres_hex` linked into both images; loader
   hardening (#8, with the Security thread).
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),
