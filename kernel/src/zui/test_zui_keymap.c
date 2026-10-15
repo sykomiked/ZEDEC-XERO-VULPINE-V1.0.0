@@ -319,7 +319,7 @@ static void test_builtins(void)
 {
     static zui_keymap_t k;
     uint32_t n = zui_keymap_builtin_count();
-    CHECK(n == 85, "85 built-in layouts (%u)", n);
+    CHECK(n == 86, "86 built-in layouts (%u)", n);
     for (uint32_t i = 0; i < n; i++) {
         uint32_t line = 0;
         const char *t = zui_keymap_builtin_text(i);
@@ -385,6 +385,25 @@ static void test_builtins(void)
             if (!strcmp(v.dead[i].name, "belowdot")) d = (int32_t) i;
         CHECK(d >= 0 && zui_keymap_combine(&v, (uint32_t) d, 'a') == 0x1EA1, "vn: dot below + a");
     }
+    /* Navajo: ogonek vowels, barred l, high tone, nasal high tone */
+    zui_keymap_load(&KM, "nv");
+    zui_kbd_init(&KB, &KM);
+    reset_log();
+    tap(K_APOS);
+    tap_altgr(K_A);
+    tap_altgr(K_SEMI);
+    tap(K_A);
+    tap_altgr(K_E);
+    tap_altgr(K_APOS);
+    tap_altgr(K_L);
+    tap_altgr(K_I);
+    tap_altgr(K_O);
+    tap_altgr(K_SEMI);
+    tap(K_N);
+    CHECK(strcmp(TYPED, "'ąáę\u0301łįǫń") == 0, "Navajo (%s)", TYPED);
+    CHECK(!strcmp(zui_keymap_for_locale("nv"), "nv") &&
+              !strcmp(zui_keymap_for_locale("am"), "us") && zui_keymap_load(&k, "et"),
+          "Navajo has its layout; Amharic types Latin letters for its input method");
 
     int32_t E = ZUI_KP_ROW_E, D = ZUI_KP_ROW_D, C = ZUI_KP_ROW_C, B = ZUI_KP_ROW_B;
     CHECK(cp_at("us", ZUI_KP(D, 1), false, false) == 'q' &&

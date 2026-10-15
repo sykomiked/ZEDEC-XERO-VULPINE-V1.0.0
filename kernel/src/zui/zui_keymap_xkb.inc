@@ -177,19 +177,6 @@ static const char LX_TR[] =
     "altgr+shift D01 Ω -- -- ® -- ¥ Û Î Ô -- dead:ring dead:macron dead:grave\n"
     "altgr+shift C01 Â -- -- -- -- -- dead:horn -- -- dead:acute\n"
     "altgr+shift B00 ¦ < > © ‚ ‘ ’ º -- ÷ dead:abovedot\n";
-/* et */
-static const char LX_ET[] =
-    "keyboard et Amharic\n"
-    "base E01 ፩ ፪ ፫ ፬ ፭ ፮ ፯ ፰ ፱ ፻ - =\n"
-    "base D01 ቀ ወ -- ረ ተ የ -- -- -- ፐ ፀ ጨ\n"
-    "base C02 ሰ ደ ፈ ገ ሀ ጀ ከ ለ ። ፦\n"
-    "base B00 < ዘ አ ቸ ሸ በ ነ መ ፣ ፤ ፧\n"
-    "shift E01 ፲ ፳ ፴ ፵ ፶ ፷ ፸ ፹ ፺ ፼ _ +\n"
-    "shift D01 ቐ -- -- -- ጠ -- -- -- -- ጰ ጸ ኀ ‐\n"
-    "shift C02 ሠ ዸ -- ጘ ሐ -- ኸ -- ፡ ፥\n"
-    "shift B00 > ዠ ዐ -- ቨ -- ኘ -- -- -- ?\n"
-    "altgr B00 |\n"
-    "altgr+shift B00 ¦\n";
 /* ng(yoruba) */
 static const char LX_NG_YORUBA[] =
     "keyboard ng-yoruba Yoruba\n"
@@ -1216,6 +1203,19 @@ static const char LX_NO_SMI[] =
     "altgr+shift D01 Q W -- ™ Þ Y Ü Ï Õ Œ dead:circumflex dead:caron *\n"
     "altgr+shift C01 Â ẞ Ð ª Ǧ Ǥ ‚ Ǩ \\u{AD} Ö Ä\n"
     "altgr+shift B00 Ǯ Ʒ X ‘ ‹ › ’ º · … —\n";
+/* et */
+static const char LX_ET[] =
+    "keyboard et Amharic\n"
+    "base E01 ፩ ፪ ፫ ፬ ፭ ፮ ፯ ፰ ፱ ፻ - =\n"
+    "base D01 ቀ ወ -- ረ ተ የ -- -- -- ፐ ፀ ጨ\n"
+    "base C02 ሰ ደ ፈ ገ ሀ ጀ ከ ለ ። ፦\n"
+    "base B00 < ዘ አ ቸ ሸ በ ነ መ ፣ ፤ ፧\n"
+    "shift E01 ፲ ፳ ፴ ፵ ፶ ፷ ፸ ፹ ፺ ፼ _ +\n"
+    "shift D01 ቐ -- -- -- ጠ -- -- -- -- ጰ ጸ ኀ ‐\n"
+    "shift C02 ሠ ዸ -- ጘ ሐ -- ኸ -- ፡ ፥\n"
+    "shift B00 > ዠ ዐ -- ቨ -- ኘ -- -- -- ?\n"
+    "altgr B00 |\n"
+    "altgr+shift B00 ¦\n";
 #define ZUI_KEYMAP_XKB_LAYOUTS \
     {"ua", LX_UA}, \
     {"pl", LX_PL}, \
@@ -1227,7 +1227,6 @@ static const char LX_NO_SMI[] =
     {"th", LX_TH}, \
     {"vn", LX_VN}, \
     {"tr", LX_TR}, \
-    {"et", LX_ET}, \
     {"ng-yoruba", LX_NG_YORUBA}, \
     {"ng-hausa", LX_NG_HAUSA}, \
     {"in-marathi", LX_IN_MARATHI}, \
@@ -1286,7 +1285,8 @@ static const char LX_NO_SMI[] =
     {"nz-mao", LX_NZ_MAO}, \
     {"us-haw", LX_US_HAW}, \
     {"ca-ike", LX_CA_IKE}, \
-    {"no-smi", LX_NO_SMI},
+    {"no-smi", LX_NO_SMI}, \
+    {"et", LX_ET},
 
 /* the layout each locale types with (zui_keymap_for_locale) */
 static const struct {
@@ -1317,7 +1317,7 @@ static const struct {
     {"tr", "tr"},
     {"id", "us"},
     {"sw", "us"},
-    {"am", "et"},
+    {"am", "us"},
     {"yo", "ng-yoruba"},
     {"ha", "ng-hausa"},
     {"el", "gr"},
@@ -1377,7 +1377,7 @@ static const struct {
     {"ig", "ng-igbo"},
     {"so", "us"},
     {"om", "us"},
-    {"ti", "et"},
+    {"ti", "us"},
     {"rw", "us"},
     {"mg", "us"},
     {"sn", "us"},
@@ -1390,7 +1390,7 @@ static const struct {
     {"qu", "latam"},
     {"gn", "latam"},
     {"chr", "us-chr"},
-    {"nv", "us-intl"},
+    {"nv", "nv"},
     {"mi", "nz-mao"},
     {"haw", "us-haw"},
     {"iu", "ca-ike"},

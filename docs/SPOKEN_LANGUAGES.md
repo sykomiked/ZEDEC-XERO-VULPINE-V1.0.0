@@ -25,9 +25,9 @@ be in place:
 
 ## Status
 
-Items 1 to 4 are done for all 104 languages, except input methods for
-Chinese, Cantonese, Japanese, Korean and the Ge'ez syllables. Shaping is shown
-per language below.
+Items 1 to 4 are done for all 104 languages. Chinese, Cantonese and Japanese
+input converts one character at a time; word conversion is still to come.
+Shaping is shown per language below.
 
 **Translations are machine-made.** The screen reader words of every
 language except English were translated by Claude and have not yet been
@@ -59,20 +59,20 @@ the table.
 | hi | Hindi | Deva | LTR | Golden Devanagari | `in-hi` | done |
 | bn | Bangla | Beng | LTR | Golden Bengali | `bd` | done |
 | ta | Tamil | Taml | LTR | Golden Tamil | `in-tamilnet` | done |
-| zh-Hans | Chinese (Simplified) | Hans | LTR | Golden ChineseSimplified | `us` + input method needed | none needed |
-| zh-Hant | Chinese (Traditional) | Hant | LTR | Golden ChineseTraditional | `us` + input method needed | none needed |
-| ja | Japanese | Jpan | LTR | Golden Japanese | `us` + input method needed | none needed |
-| ko | Korean | Kore | LTR | Golden Korean | `us` + input method needed | none needed |
+| zh-Hans | Chinese (Simplified) | Hans | LTR | Golden ChineseSimplified | `us` + Pinyin (`zui_ime_pinyin`) | none needed |
+| zh-Hant | Chinese (Traditional) | Hant | LTR | Golden ChineseTraditional | `us` + Pinyin (`zui_ime_pinyin_hant`) | none needed |
+| ja | Japanese | Jpan | LTR | Golden Japanese | `us` + romaji to kana and kanji (`zui_ime_kana`) | none needed |
+| ko | Korean | Kore | LTR | Golden Korean | `us` + two-set Hangul (`zui_ime_hangul`) | none needed |
 | th | Thai | Thai | LTR | Golden Thai | `th` | needs word breaking |
 | vi | Vietnamese | Latn | LTR | Golden Latin II | `vn` | none needed |
 | tr | Turkish | Latn | LTR | Golden Latin II | `tr` | none needed |
 | id | Indonesian | Latn | LTR | Golden Latin II | `us` | none needed |
 | sw | Swahili | Latn | LTR | Golden Latin II | `us` | none needed |
-| am | Amharic | Ethi | LTR | Golden Ethiopic | `et`; syllables need an input method | none needed |
+| am | Amharic | Ethi | LTR | Golden Ethiopic | `us` + Ge'ez syllables (`zui_ime_geez`), or `et` | none needed |
 | yo | Yoruba | Latn | LTR | Golden Latin II | `ng-yoruba` | none needed |
 | ha | Hausa | Latn | LTR | Golden Latin II | `ng-hausa` | none needed |
 | el | Greek | Grek | LTR | Golden Greek | `gr` | none needed |
-| nl | Dutch | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| nl | Dutch | Latn | LTR | Golden Latin II | `nv` | none needed |
 | mr | Marathi | Deva | LTR | Golden Devanagari | `in-marathi` | done |
 | te | Telugu | Telu | LTR | Golden Telugu | `in-tel` | done |
 | gu | Gujarati | Gujr | LTR | Golden Gujarati | `in-guj` | done |
@@ -96,7 +96,7 @@ the table.
 | lo | Lao | Laoo | LTR | Golden Lao | `la` | needs word breaking |
 | mn | Mongolian | Cyrl | LTR | Golden Cyrillic | `mn` | none needed |
 | bo | Tibetan | Tibt | LTR | Golden Tibetan | `cn-tib` | no reordering; stacks drawn as marks |
-| yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | `us` + input method needed | none needed |
+| yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | `us` + Jyutping (`zui_ime_jyutping`) | none needed |
 | kk | Kazakh | Cyrl | LTR | Golden Cyrillic | `kz` | none needed |
 | uz | Uzbek | Latn | LTR | Golden Latin II | `uz` | none needed |
 | ky | Kyrgyz | Cyrl | LTR | Golden Cyrillic | `kg` | none needed |
@@ -123,30 +123,30 @@ the table.
 | ca | Catalan | Latn | LTR | Golden Latin II | `es-cat` | none needed |
 | cy | Welsh | Latn | LTR | Golden Latin II | `gb-extd` | none needed |
 | ga | Irish | Latn | LTR | Golden Latin II | `ie` | none needed |
-| zu | Zulu | Latn | LTR | Golden Latin II | `us-intl` | none needed |
-| xh | Xhosa | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| zu | Zulu | Latn | LTR | Golden Latin II | `nv` | none needed |
+| xh | Xhosa | Latn | LTR | Golden Latin II | `nv` | none needed |
 | ig | Igbo | Latn | LTR | Golden Latin II | `ng-igbo` | none needed |
 | so | Somali | Latn | LTR | Golden Latin II | `us` | none needed |
 | om | Oromo | Latn | LTR | Golden Latin II | `us` | none needed |
-| ti | Tigrinya | Ethi | LTR | Golden Ethiopic | `et`; syllables need an input method | none needed |
+| ti | Tigrinya | Ethi | LTR | Golden Ethiopic | `us` + Ge'ez syllables (`zui_ime_geez`), or `et` | none needed |
 | rw | Kinyarwanda | Latn | LTR | Golden Latin II | `us` | none needed |
 | mg | Malagasy | Latn | LTR | Golden Latin II | `us` | none needed |
 | sn | Shona | Latn | LTR | Golden Latin II | `us` | none needed |
 | wo | Wolof | Latn | LTR | Golden Latin II | `sn` | none needed |
 | ln | Lingala | Latn | LTR | Golden Latin II | `cd` | none needed |
-| af | Afrikaans | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| af | Afrikaans | Latn | LTR | Golden Latin II | `nv` | none needed |
 | ff | Fula | Latn | LTR | Golden Latin II | `gh-fula` | none needed |
 | nqo | N'Ko | Nkoo | RTL | ASCW NKo | `gn` | needs joining from the font |
 | zgh | Standard Moroccan Tamazight | Tfng | LTR | ASCW Tifinagh | `ma-tifinagh` | none needed |
 | qu | Quechua | Latn | LTR | Golden Latin II | `latam` | none needed |
 | gn | Guarani | Latn | LTR | Golden Latin II | `latam` | none needed |
 | chr | Cherokee | Cher | LTR | Golden Cherokee | `us-chr` | none needed |
-| nv | Navajo | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| nv | Navajo | Latn | LTR | Golden Latin II | `nv` | none needed |
 | mi | Māori | Latn | LTR | Golden Latin II | `nz-mao` | none needed |
 | haw | Hawaiian | Latn | LTR | Golden Latin II | `us-haw` | none needed |
 | iu | Inuktitut | Cans | LTR | Golden CanadianAboriginal | `ca-ike` | none needed |
 | se | Northern Sami | Latn | LTR | Golden Latin II | `no-smi` | none needed |
-| ht | Haitian Creole | Latn | LTR | Golden Latin II | `us-intl` | none needed |
+| ht | Haitian Creole | Latn | LTR | Golden Latin II | `nv` | none needed |
 
 The keyboard column is the layout `zui_keymap_for_locale` picks
 (`tools/zui/locales/KEYBOARDS.tsv`). 70 of the layouts are generated from
@@ -165,10 +165,12 @@ Czech, Slovak, Hungarian and similar layouts type nothing yet.
    were the last two; their faces were built from the OFL Noto fonts the
    same way Golden Cherokee was, renamed into the family with its metrics.
    Newly drawn glyphs in the Golden style can replace them later.
-2. **Input methods.** Every language has a keyboard layout now. Still to
-   come: real input methods for Chinese, Cantonese, Japanese and Korean (today
-   there is only a sample Pinyin table), a syllable input method for Amharic
-   and Tigrinya, and a Navajo layout.
+2. **Input methods.** Every language has a keyboard layout, and the
+   languages that need one have an input method (`zui_ime.h` M6). Pinyin,
+   Jyutping and the kanji of Japanese come from the Unihan database
+   (`tools/zui/gen_ime_han.py`) one character at a time. Still to come: word
+   dictionaries for Chinese, Cantonese and Japanese (phrase conversion), and
+   Zhuyin for Taiwan.
 3. **Shaping.** Syllables and reordering now cover all the Brahmic scripts
    that need it: the nine Indic scripts of India, Sinhala, Myanmar and Khmer
    (`zui_shape.h` S7, S8, tables generated from the Unicode 15.1 character
