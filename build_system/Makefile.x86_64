@@ -490,6 +490,9 @@ $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X
 	$(CC) -ffreestanding -fno-pie -DX86_USER_ELF='"$(X86_USER_ELF)"' -c $< -o $@
 
 $(OBJDIR)/kernel/arch/x86_64/msr_safe_asm.o: kernel/arch/x86_64/msr_safe_asm.S
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -c $< -o $@
+
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
