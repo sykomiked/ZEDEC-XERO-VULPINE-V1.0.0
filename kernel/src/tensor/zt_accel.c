@@ -87,6 +87,7 @@ ZA_BACKEND(hp, "hip", zt_hip, zt_kern_hip, zt_hip_map_shared)
 ZA_BACKEND(vk, "vulkan", zt_vk, zt_kern_vk, zt_vk_map_shared)
 #endif
 
+#if defined(ZT_HAVE_METAL) || defined(ZA_DL) /* a macOS build without Metal has no backend */
 static zt_accel_t *wrap(const za_ops_t *ops, void *g)
 {
     zt_accel_t *a = calloc(1, sizeof *a);
@@ -98,6 +99,7 @@ static zt_accel_t *wrap(const za_ops_t *ops, void *g)
     a->g = g;
     return a;
 }
+#endif
 
 /* "api: why" after what err already holds */
 static void add_why(char *err, uint32_t cap, const char *api, const char *why)
