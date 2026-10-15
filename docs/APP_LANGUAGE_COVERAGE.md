@@ -19,6 +19,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 - **In use by an app:** 11 of 104
 - **Can run, no app uses it yet:** 15
 - **Waiting for a front-end (Lingua):** 78
+- **Promised by a pending line in an app:** 1 languages, 1 app places
 
 | Language | AI twin | Runs as | Best at | Owns | Apps |
 |---|---|---|---|---|---|
@@ -126,3 +127,15 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | WebAssembly | - | wasm | sandboxed, fuel-metered logic from any compiled language | sandbox | 001 The Banker (share); 016 Sounding (rate); 017 Almanac (days, hours) |
 | Gleam | - | waiting | typed fault-tolerant services | messaging, types | - |
 | Mojo | - | waiting | numeric kernels for models | numeric, ai | - |
+
+## Pending: apps waiting on a language
+
+A `pending <language> <entry>` line (zxapp.h P1) marks a feature whose
+best-fit language has no front-end yet; a runnable language stands in.
+When Lingua lands the front-end, `tools/apps/lang_coverage.py --retrofit
+<language>` writes the server tasks: the entry in that language, the
+stand-in kept as the second witness.
+
+| Language | Waiting apps (entries) |
+|---|---|
+| Natural | 014 Wake (count) |

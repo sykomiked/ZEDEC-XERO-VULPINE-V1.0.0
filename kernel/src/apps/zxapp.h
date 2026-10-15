@@ -126,6 +126,15 @@
  * other entries as parts and wires their inputs (W1 to W6 in zxwire.h; the
  * hook is zxapp_wiring_t below). The Circuit board (zxboard.h) edits them.
  *
+ * No language is left out because it cannot run yet.
+ *
+ *   P1 PENDING. "pending <language> <entry>" says the entry's best-fit
+ *      language (LANGUAGE_FIT.tsv, spaces written as _) has no front-end
+ *      yet, so a runnable language stands in. It changes no call: it is a
+ *      promise, kept by tools/apps/lang_coverage.py, which lists every
+ *      app waiting on each language and refuses a pending line for a
+ *      language that already runs or for an entry with no logic.
+ *
  * Apps hand work to each other by what they can do, not by name.
  *
  *   I1 AN INTENT says an app can do something with a kind of content:
@@ -325,6 +334,7 @@ typedef struct zxapp {
     uint64_t budget;                 /* R2: tokens per cycle; 0 = none given */
     zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */
     uint32_t nneeds;
+    uint32_t npending;       /* P1: "pending" lines (a best-fit language still waiting) */
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     bool resolved;           /* zxapp_compose succeeded (C1) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */

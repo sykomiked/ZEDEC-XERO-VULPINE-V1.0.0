@@ -17,3 +17,5 @@ model  apps/wake_model.c
 provides count num level bar
 logic    kron    count apps/blocks/wake/count.kron
 logic    trebago count apps/blocks/wake/count.tb
+# best fit is Natural (queries over records); it has no front-end yet
+pending  Natural count

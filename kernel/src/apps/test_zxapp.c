@@ -143,6 +143,23 @@ static void test_parse(void)
     CHECK(parse("zxapp 1\nid x\nview\n") == ZXAPP_E_SYNTAX && A.err_line == 3, "missing value");
     CHECK(parse("zxapp 1\nid x\ncolour gold\n") == ZXAPP_E_SYNTAX && A.err_line == 3,
           "unknown directive");
+    CHECK(parse("zxapp 1\nid x\npending Common_Lisp risk\npending C# share\npending Objective-C "
+                "a.b\n") == ZXAPP_OK &&
+              A.npending == 3,
+          "pending lines name a waiting language");
+    CHECK(parse("zxapp 1\nid x\npending Lisp\n") == ZXAPP_E_SYNTAX && A.err_line == 3,
+          "pending needs a language and an entry");
+    CHECK(parse("zxapp 1\nid x\npending Lisp a b\n") == ZXAPP_E_SYNTAX, "pending one entry");
+    CHECK(parse("zxapp 1\nid x\npending Lisp/2 a\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "fit-table name"),
+          "pending language characters");
+    CHECK(parse("zxapp 1\nid x\npending ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef a\n") == ZXAPP_E_SYNTAX,
+          "pending language at most 31 characters");
+    CHECK(parse("zxapp 1\nid x\npending ABCDEFGHIJKLMNOPQRSTUVWXYZabcde a\n") == ZXAPP_OK,
+          "pending language of 31 characters");
+    CHECK(parse("zxapp 1\nid x\npending Lisp 1a\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "entry name"),
+          "pending entry identifier");
     CHECK(parse("zxapp 1\nid x\nlogic brainfork a b\n") == ZXAPP_E_SYNTAX &&
               strstr(A.err, "unknown language"),
           "unknown language");

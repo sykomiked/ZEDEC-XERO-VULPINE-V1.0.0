@@ -472,6 +472,36 @@ static bool whole(const char *w, uint32_t n, uint64_t max, uint64_t *out)
     return true;
 }
 
+/* P1: "pending <language> <entry>". The language is a fit-table name with
+ * spaces as _ (letters, digits and + # - . _), checked against the table by
+ * tools/apps/lang_coverage.py; the entry is the one a runnable language
+ * stands in for. */
+static int parse_pending(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                         uint32_t k)
+{
+    if (k != 3) {
+        put_err(a, line, "pending needs: pending <language> <entry>", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    bool ok = wl[1] && wl[1] < 32u;
+    for (uint32_t i = 0; ok && i < wl[1]; i++) {
+        char c = w[1][i];
+        ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+             c == '+' || c == '#' || c == '-' || c == '.' || c == '_';
+    }
+    if (!ok) {
+        put_err(a, line, "a pending language is its fit-table name, spaces as _", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!dotted(w[2], wl[2]) || wl[2] + 1u > ZXAPP_ID_MAX) {
+        put_err(a, line,
+                "an entry name must be a short identifier (block.entry for a composed one)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    a->npending++;
+    return ZXAPP_OK;
+}
+
 /* R1-R4: slot, layer, icon, budget and needs. */
 static int parse_registry(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
                           uint32_t k)
@@ -698,6 +728,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "pending")) {
+            int rc = parse_pending(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         if (word_is(w[0], wl[0], "intent")) {
             int rc = parse_intent(a, r.line, w, wl, k);
             if (rc != ZXAPP_OK) return rc;
@@ -712,7 +747,7 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use, intent, slot, layer, icon, budget, needs)",
+                "provides, use, intent, pending, slot, layer, icon, budget, needs)",
                 0);
         return ZXAPP_E_SYNTAX;
     }

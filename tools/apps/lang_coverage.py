@@ -14,7 +14,14 @@ fails when the committed file differs, or when:
     or a precompiled Lingua (zlir) entry does not say its language
     (the source language is what the table counts, so it must be there);
   * the fit table and kernel/src/lingua/catalogue.tsv (when the tree has
-    it) do not list the same 104 languages in the same order.
+    it) do not list the same 104 languages in the same order;
+  * a "pending <language> <entry>" line (zxapp.h P1) names a language not
+    in the fit table, one that already runs in the kernel (write the block
+    instead), or an entry the manifest has no logic for.
+
+--retrofit <language> prints one server task per app waiting on that
+language: when Lingua lands its front-end, each pending entry is written in
+it and the current block stays on as the second witness.
 """
 import argparse
 import os
@@ -62,14 +69,14 @@ def read_fit():
 
 
 def read_manifests():
-    """[(file, id, name, slot, [(runtime, entry, path)], has_c)]"""
+    """[(file, id, name, slot, [(runtime, entry, path)], has_c, [(language, entry)])]"""
     found = []
     paths = [os.path.join(APPS, f) for f in sorted(os.listdir(APPS)) if f.endswith(".zxapp")]
     blocks = os.path.join(APPS, "blocks")
     paths += [os.path.join(blocks, f) for f in sorted(os.listdir(blocks)) if f.endswith(".zxblock")]
     for p in paths:
         meta = {"id": "", "name": "", "slot": 0}
-        logic, has_c = [], False
+        logic, has_c, pending = [], False, []
         inline = False
         with open(p, encoding="utf-8") as f:
             for line in f:
@@ -88,8 +95,10 @@ def read_manifests():
                 elif w[0] == "logic" and len(w) >= 4:
                     logic.append((w[1].lower(), w[2], w[3]))
                     inline = w[3] == "<<"
+                elif w[0] == "pending" and len(w) == 3:
+                    pending.append((w[1].replace("_", " "), w[2]))
         found.append((os.path.relpath(p, ROOT), meta["id"], meta["name"] or meta["id"],
-                      meta["slot"], logic, has_c))
+                      meta["slot"], logic, has_c, pending))
     return found
 
 
@@ -115,9 +124,22 @@ def build():
         if r["runtime"] != "-":
             by_runtime.setdefault(r["runtime"], []).append(r)
     by_name = {r["lang"]: r for r in fit}
-    for file, ident, name, slot, logic, has_c in read_manifests():
+    for r in fit:
+        r["pending"] = {}
+    for file, ident, name, slot, logic, has_c, pending in read_manifests():
         kind = "block" if file.endswith(".zxblock") else "example"
         who = f"{slot:03d} {name}" if slot else f"{kind} {ident}"
+        entries = {e for _, e, _ in logic}
+        for lang, entry in pending:
+            r = by_name.get(lang)
+            if not r:
+                errors.append(f"{file}: pending {lang}: not a language in LANGUAGE_FIT.tsv")
+            elif r["runtime"] in IN_KERNEL:
+                errors.append(f"{file}: pending {lang}: it runs now ({r['runtime']}); write the block")
+            elif entry not in entries:
+                errors.append(f"{file}: pending {lang} {entry}: no logic stands in for that entry")
+            else:
+                r["pending"].setdefault(who, set()).add(entry)
         if has_c:
             by_name["C"]["apps"].setdefault(who, set()).add("view/model")
         for runtime, entry, path in logic:
@@ -163,6 +185,7 @@ def render(fit):
     used = [r for r in fit if r["apps"]]
     ready = [r for r in fit if not r["apps"] and r["runtime"] != "-"]
     waiting = [r for r in fit if r["runtime"] == "-"]
+    pend = [r for r in fit if r["pending"]]
     out = [
         "<!--",
         "Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC",
@@ -185,6 +208,8 @@ def render(fit):
         f"- **In use by an app:** {len(used)} of {len(fit)}",
         f"- **Can run, no app uses it yet:** {len(ready)}",
         f"- **Waiting for a front-end (Lingua):** {len(waiting)}",
+        f"- **Promised by a pending line in an app:** {len(pend)} languages, "
+        f"{sum(len(r['pending']) for r in pend)} app places",
         "",
         "| Language | AI twin | Runs as | Best at | Owns | Apps |",
         "|---|---|---|---|---|---|",
@@ -199,14 +224,56 @@ def render(fit):
         apps = "; ".join(f"{a} ({', '.join(sorted(e))})" for a, e in sorted(r["apps"].items()))
         out.append(f"| {r['lang']} | {r['twin']} | {runs} | {r['best']} | {', '.join(r['owns'])} | "
                    f"{apps or '-'} |")
+    out += [
+        "",
+        "## Pending: apps waiting on a language",
+        "",
+        "A `pending <language> <entry>` line (zxapp.h P1) marks a feature whose",
+        "best-fit language has no front-end yet; a runnable language stands in.",
+        "When Lingua lands the front-end, `tools/apps/lang_coverage.py --retrofit",
+        "<language>` writes the server tasks: the entry in that language, the",
+        "stand-in kept as the second witness.",
+        "",
+    ]
+    if not pend:
+        out.append("None yet.")
+    else:
+        out += ["| Language | Waiting apps (entries) |", "|---|---|"]
+        for r in pend:
+            apps = "; ".join(f"{a} ({', '.join(sorted(e))})" for a, e in sorted(r["pending"].items()))
+            out.append(f"| {r['lang']} | {apps} |")
     return "\n".join(out) + "\n"
+
+
+def retrofit(fit, lang):
+    r = next((x for x in fit if x["lang"].lower() == lang.replace("_", " ").lower()), None)
+    if not r:
+        return None
+    out = []
+    for who, entries in sorted(r["pending"].items()):
+        out += [f"# Retrofit task: {who}, {r['lang']}",
+                "Read ../APP_WAVE_SPEC.md first.",
+                f"Write {', '.join(sorted(entries))} in {r['lang']} ({r['best']}), as a new logic line for",
+                "the same entry, in the twin's canonical form if it has one. Keep the current logic line:",
+                "it becomes the second witness. Remove the pending line. Tests: the 64-row sweep agrees",
+                "with the C model, and one input that makes the two disagree gives BOTH.",
+                ""]
+    return "\n".join(out)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--retrofit", metavar="LANGUAGE")
     a = ap.parse_args()
     fit, errors = build()
+    if a.retrofit:
+        text = retrofit(fit, a.retrofit)
+        if text is None:
+            print(f"lang_coverage: {a.retrofit} is not in LANGUAGE_FIT.tsv", file=sys.stderr)
+            return 1
+        sys.stdout.write(text)
+        return 0
     text = render(fit)
     for e in errors:
         print("lang_coverage:", e, file=sys.stderr)
