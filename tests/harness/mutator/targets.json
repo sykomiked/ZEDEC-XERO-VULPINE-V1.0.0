@@ -379,7 +379,16 @@
      "before": null, "before_note": "new module: duplex digital DNA, two-way reads joined in lpres",
      "after": "make -C kernel --no-print-directory test-dnx"},
     {"name": "fab", "target": "kernel/src/fab/fab.c", "before": null, "before_note": "new module: file fabrication, receiving side (docs/spec/FABRICATION.md)", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/fab/test_fab.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all $I $S -o $T/tfab_m 2>/dev/null || exit 3; } && $T/tfab_m > /dev/null 2>&1"},
-    {"name": "fab_send", "target": "kernel/src/fab/fab_send.c", "before": null, "before_note": "new module: file fabrication, sending side", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/fab/test_fab.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all $I $S -o $T/tfab_m 2>/dev/null || exit 3; } && $T/tfab_m > /dev/null 2>&1"}
+    {"name": "fab_send", "target": "kernel/src/fab/fab_send.c", "before": null, "before_note": "new module: file fabrication, sending side", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/fab/test_fab.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all $I $S -o $T/tfab_m 2>/dev/null || exit 3; } && $T/tfab_m > /dev/null 2>&1"},
+    {"name": "aml_region", "target": "kernel/src/acpi/aml_region.c",
+     "before": null, "before_note": "new module: AML operation regions, fields and the embedded controller (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "aml_dev", "target": "kernel/src/acpi/aml_dev.c",
+     "before": null, "before_note": "new module: AML device walk, _INI/_REG and the typed helpers (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "acpi_pm", "target": "kernel/src/acpi/acpi_pm.c",
+     "before": null, "before_note": "new module: ACPI power management over the AML interpreter (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub", "swarm_denom", "swarm_yield", "zxvd_rpc", "zxvd_aipi", "zxvd_cards", "zxvd_ident", "zxvd_econ", "zxvd_instruments", "zxvd_estate", "zxvd_sandbox", "zxvd_companion", "zxvd_web4", "zxvd_seats", "zxvd_power", "zxvd_pspace", "lpres", "oseq", "zphi", "swarm_budget", "swarm_market", "swarm_ledger", "swarm_reserve", "zcapital", "hkdf"],
