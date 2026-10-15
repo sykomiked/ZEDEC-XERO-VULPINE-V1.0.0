@@ -137,6 +137,18 @@ typedef struct {
 /* Format a block device with an empty ZXVFS (destroys existing data). */
 int zxvfs_format(block_device_t *dev);
 
+/* Is the region a format would overwrite (sectors 0 .. ZXVFS_DATA_SECTOR-1)
+ * entirely zero? A mount that fails says only "no ZXVFS here"; it does not
+ * say "nothing here". A GPT disc, an MBR disk or another filesystem all fail
+ * the mount too, and formatting them would destroy them. Read as a
+ * four-valued answer to "is there data here":
+ *   1  FALSE   every sector read back zero: a blank disk, safe to format;
+ *   0  NEITHER something is there that we don't recognise: leave it alone
+ *              (only the installer, acting for a person, may format it);
+ *  -1  read error: unknown, also leave it alone.
+ * Only 1 permits an automatic format. */
+int zxvfs_probe_blank(block_device_t *dev);
+
 /* Mount; replays a committed journal if present. Returns 0 on success,
  * <0 if the device has no valid ZXVFS superblock. */
 int zxvfs_mount(zxvfs_t *fs, block_device_t *dev);
