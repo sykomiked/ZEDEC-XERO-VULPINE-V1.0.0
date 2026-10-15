@@ -175,8 +175,8 @@ APPS_TEST(talisman)
                 TL_NEXT(1, "Bronze", "Carnelian", "100", "1000", "9000", ""), "5"),
         TL_CARD(0, "Copper2", "Obsidian", TL_INPUTS("1", "1", "1", "1"),
                 TL_NEXT(1, "Bronze", "Carnelian", "100", "1000", "9000", ""), ""),
-        "{\"tier\":0,\"metal\":\"Copper\",\"stone\":\"Obsidian\",\"inputs\":{\"credibility\":"
-        "{\"value\":\"1\",\"source\":\"x\"}},\"next\":null,\"perks\":[]}",
+        ("{\"tier\":0,\"metal\":\"Copper\",\"stone\":\"Obsidian\",\"inputs\":{\"credibility\":"
+         "{\"value\":\"1\",\"source\":\"x\"}},\"next\":null,\"perks\":[]}"),
         "[1]",
     };
     for (uint32_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++)

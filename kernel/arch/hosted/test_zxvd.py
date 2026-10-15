@@ -567,7 +567,11 @@ def name_checks(c, env):
     check(r.get('error', {}).get('code') == -32072 and
           r['error']['message'].startswith('CHGN_E_LOCKED:'),
           'the name can never change (%s)' % r)
-    rec = os.path.join(env['XDG_DATA_HOME'], 'zxv', 'net', 'chiglet_name')
+    # the host's state folder (zxv_host.c pal_state_dir): XDG on Linux, the app folder on macOS
+    if sys.platform == 'darwin':
+        rec = os.path.join(env['HOME'], 'Library', 'Application Support', 'ZXV', 'net', 'chiglet_name')
+    else:
+        rec = os.path.join(env['XDG_DATA_HOME'], 'zxv', 'net', 'chiglet_name')
     check(os.path.isfile(rec) and os.path.getsize(rec) == 79 and open(rec, 'rb').read(4) == b'ZXCN',
           'the name is kept in the state folder (%s)' % rec)
     if not WINDOWS:
