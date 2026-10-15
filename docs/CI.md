@@ -35,6 +35,7 @@ merged, and every night on `main`.
    | `.github/workflows/ci.yml` or `ci_changes.sh` itself | every job |
    | other workflows (`sdk*.yml`, `zxvd.yml`, `codeql.yml`) | quick-checks only |
    | `release.yml` (manual only; builds the draft release, see `docs/release/README.md`) | quick-checks only |
+   | `verify-boot.yml` (manual only; builds the disc and checks every boot marker, see `docs/VERIFY_BOOT.md`) | quick-checks only |
 
    Nightly and manual runs (`workflow_dispatch`) always run every job.
 
@@ -115,8 +116,16 @@ allowance.
 
 ## Merge gate
 
-`ci-gate` is the last job in `ci.yml` and the one check a merge should
-require. It passes only when:
+`ci-gate` is the one check a merge should require. It is a commit status
+that `ci.yml` sets twice: `ci-gate-pending`, the first job, marks the commit
+pending within seconds of a push, and `ci-gate-result`, the last job, sets
+success or failure. The last job runs even when the run is cancelled (a
+newer push, or fail-fast), and then reports failure naming the cancelled
+jobs. Before this, `ci-gate` was the last job's own check: GitHub creates
+that only once every job before it has had a runner, so on a busy queue it
+showed "Expected - waiting for status to be reported" for hours, and a
+cancelled run never reported it at all. The ruleset on `main` requires the
+`ci-gate` status from GitHub Actions. It passes only when:
 
 - quick-checks passed;
 - no job failed or was cancelled;

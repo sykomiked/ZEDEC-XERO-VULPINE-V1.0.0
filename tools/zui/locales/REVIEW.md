@@ -11,7 +11,7 @@ None has been checked by a native speaker yet. This page is for reviewers.
 4. When the whole file is right, change `"review": "unreviewed"` to `"review": "reviewed"` and set `note` to who reviewed it and when.
 5. Run `python3 tools/zui/gen_locales.py` and `sh kernel/src/zui/test_zui_toolkit.sh`.
 
-Only a native speaker should mark a file reviewed. The locale test expects every language but English to be unreviewed, so marking one reviewed also means changing that test, which keeps the change visible in a pull request.
+Only a native speaker should mark a file reviewed. For the classical languages (la, grc, sa, pi, cu, ang, lzh, ota, syr), a scholar of the language takes that role. The locale test expects every language but English to be unreviewed, so marking one reviewed also means changing that test, which keeps the change visible in a pull request.
 
 ## Where to start
 
@@ -122,3 +122,12 @@ These are the keys each translator was least sure of. Earlier languages (the fir
 | iu | Inuktitut | rough draft, needs a full review; lowest: button, ai, scroll, region, heading, about, by, no_focus, no_actions, verb_medium, heading_level, counts.token, counts.percent |
 | se | Northern Sami | checkbox, dimmed, blank, from, by, position, no_focus, not_a_control, lm_* |
 | ht | Haitian Creole | dimmed, blank, from |
+| la | Latin | button, menuitem, disabled, reader_on, reader_off, no_focus, not_a_control, by |
+| grc | Ancient Greek | checkbox, scroll, disabled, no_focus, nothing_to_activate, not_a_control, verb_low, shortcut |
+| sa | Sanskrit | button, textfield, scroll, menu, no_focus, not_a_control, lm_banner, counts.token |
+| pi | Pali | button, disabled, selected, no_focus, lm_banner, by, about, counts.token |
+| cu | Church Slavonic | every word (no notes were kept on the least sure ones) |
+| ang | Old English | scroll, checkbox, menu, disabled, no_focus, not_a_control, lm_status, verb_low, position |
+| lzh | Classical Chinese | button, checkbox, dialog, scroll, no_focus, not_a_control, lm_banner, lm_status |
+| ota | Ottoman Turkish | every word (no notes were kept on the least sure ones) |
+| syr | Classical Syriac | every word (no notes were kept on the least sure ones) |

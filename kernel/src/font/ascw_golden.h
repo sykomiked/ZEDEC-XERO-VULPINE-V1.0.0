@@ -41,7 +41,8 @@ typedef enum {
     ASCW_ROLE_PRIMARY = 0,   /* Latin II: the system face                     */
     ASCW_ROLE_SCRIPT = 1,    /* the Golden member for a script                */
     ASCW_ROLE_ALTERNATE = 2, /* a second member (Latin, Persian), by choice   */
-    ASCW_ROLE_FALLBACK = 3   /* an ASCW sibling where Golden has no member    */
+    ASCW_ROLE_FALLBACK = 3,  /* an ASCW sibling where Golden has no member    */
+    ASCW_ROLE_MONO = 4       /* the fixed-width member (code, terminals)      */
 } ascw_role_t;
 
 typedef struct {

@@ -143,7 +143,7 @@ struct StorefrontView: View {
                 Text("Hold \(h.hold) · \(h.amount.map { Money.format($0, currency: h.currency) } ?? h.amountMinor)")
                     .font(.callout)
                 Text("\(store.name(of: h.from)) → \(store.name(of: h.to)) · \(h.state)")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(Theme.mono(11))
                     .foregroundStyle(h.isHeld ? Theme.gold : Theme.muted)
             }
             Spacer()
@@ -195,7 +195,7 @@ struct StorefrontView: View {
             }
             HStack {
                 Text((try? command.text()) ?? AppStore.explain(Result { try command.text() }.failureError))
-                    .font(.system(size: 13, design: .monospaced))
+                    .font(Theme.mono(13))
                     .foregroundStyle((try? command.text()) == nil ? Theme.warn : Theme.gold)
                     .padding(10)
                     .background(Theme.inset, in: RoundedRectangle(cornerRadius: 8))
@@ -218,7 +218,7 @@ struct StorefrontView: View {
             }
             if !posted.isEmpty {
                 Text("Posted from this window").font(Theme.caption).foregroundStyle(Theme.muted)
-                ForEach(posted.prefix(5), id: \.self) { Text($0).font(.system(size: 12, design: .monospaced)) }
+                ForEach(posted.prefix(5), id: \.self) { Text($0).font(Theme.mono(12)) }
             }
         }
     }
@@ -241,7 +241,7 @@ struct StorefrontView: View {
                                           : "Bought \(r.units) units, waiting for the seller")
                         .font(Theme.callout)
                     Text("\(r.peer.prefix(16))… · sent \(r.tries) time(s)")
-                        .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
+                        .font(Theme.mono(11)).foregroundStyle(Theme.muted)
                 }
             }
         }

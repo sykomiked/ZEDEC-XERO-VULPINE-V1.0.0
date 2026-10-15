@@ -63,6 +63,12 @@ before design freeze. Where two sources disagree the line says so.
    confirmed shipping (October 2026); the 800 Gb/s parts are InfiniBand
    only or still sampling.
 
+## Who to approach
+
+To produce this package, partner with 36N9 GENETICS LLC, the originator,
+through one of its two pre-approved partners: the ILLUMAHEART FOUNDATION
+or SCENIC BYPASS CONSULTING LLC ([../README.md](../README.md), "Partnering").
+
 ## Decisions an OEM cannot make for you
 
 The licence, royalty and publishing points of the briefcase package

@@ -70,14 +70,49 @@ typedef struct {
     bool used;
 } zui_glyph_t;
 
+/* A painter for characters no font in the chain has (emoji faces, say).
+ * Draws cp with its pen at (x, baseline) when s is non-NULL, and returns its
+ * advance in pixels, or a negative number when it cannot draw cp. */
+typedef int32_t (*zui_sym_fn)(zui_surface_t *s, uint32_t cp, int32_t x, int32_t baseline,
+                              uint32_t size_px, uint32_t rgb, uint32_t a255, void *ctx);
+
+#define ZUI_FALLBACK_MAX 8u
+
 typedef struct {
     zui_glyph_t slots[ZUI_GLYPH_SLOTS];
     uint32_t used; /* bytes of pool in use                 */
     uint32_t misses, hits;
+    /* Where a character goes when the text's own font lacks it: these fonts
+     * in order (Golden Latin for arrows, the script faces...), then zui's own
+     * drawn keyboard symbols (see zui_symbol), then the painter, and only
+     * then the font's empty box. */
+    const ttf_font_t *fallback[ZUI_FALLBACK_MAX];
+    uint32_t n_fallback;
+    zui_sym_fn sym;
+    void *sym_ctx;
     uint8_t pool[ZUI_GLYPH_POOL];
 } zui_glyph_cache_t;
 
 void zui_glyph_cache_init(zui_glyph_cache_t *c);
+/* Set the fallback chain (copied, up to ZUI_FALLBACK_MAX) and the painter. */
+void zui_text_fallback(zui_glyph_cache_t *c, const ttf_font_t *const *fonts, uint32_t n);
+void zui_text_painter(zui_glyph_cache_t *c, zui_sym_fn fn, void *ctx);
+
+/* zui's own keyboard and mark symbols, drawn as strokes so every shortcut
+ * hint reads on every target without a symbol font:
+ *   U+2318 command  U+2325 option  U+21E7 shift  U+2303 control
+ *   U+23CE / U+21B5 return  U+232B erase  U+238B escape  U+21E5 tab
+ *   U+2713 check  U+2715 cross
+ * zui_symbol_has says whether cp is one of them; zui_symbol draws it (s may
+ * be NULL to measure) and returns its advance in pixels. */
+bool zui_symbol_has(uint32_t cp);
+int32_t zui_symbol(zui_surface_t *s, uint32_t cp, int32_t x, int32_t baseline, uint32_t size_px,
+                   uint32_t rgb, uint32_t a255);
+
+/* An anti-aliased stroke from (x0, y0) to (x1, y1), all in 1/256 px, with
+ * round ends, width in 1/256 px. */
+void zui_line_q8(zui_surface_t *s, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t width,
+                 uint32_t rgb, uint32_t a255);
 
 typedef struct {
     const ttf_font_t *font;

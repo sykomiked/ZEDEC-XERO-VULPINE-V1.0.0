@@ -11,6 +11,7 @@
 #include "../../src/syscall/syscall.h"
 #include <stdint.h>
 #include "ring3.h"
+#include "x86_irq.h" /* x86_irq_idt_live: the interrupt layer's IDT */
 
 extern void uart_puts(const char *s);
 
@@ -72,6 +73,13 @@ static void gdt_tss_init(void) {
         "mov $0x28, %%ax\n\t ltr %%ax\n\t" : : : "ax");
 }
 
+/* Interrupt stack table entry n (1..7) of the one TSS. x86_irq.c uses IST1
+ * for hardware interrupts and IST2 for #DF/NMI/#MC. */
+void x86_tss_set_ist(unsigned n, uint64_t stack_top)
+{
+    if (n >= 1 && n <= 7) g_tss.ist[n - 1] = stack_top;
+}
+
 /* ================= IDT ================= */
 struct idt_gate {
     uint16_t off_lo; uint16_t sel; uint8_t ist; uint8_t type_attr;
@@ -97,6 +105,22 @@ static void idt_init(void) {
     idt_set(0x80, x86_syscall_isr, 3);                              /* syscall gate, callable from ring 3 */
     struct desc_ptr ip = { sizeof g_idt - 1, (uint64_t)g_idt };
     __asm__ __volatile__("lidt %0" : : "m"(ip));
+}
+
+/* 1 when the IDTR currently points at THIS kernel's IDT, i.e. #GP goes to
+ * x86_exc_13 -> x86_exc_common, which consults the exception-fixup table
+ * (msr_safe.h). Read back off the CPU (SIDT) rather than trusted from a flag,
+ * so firmware's IDT before x86_ring3_init() is never mistaken for ours. */
+int x86_idt_ready(void)
+{
+    struct desc_ptr cur = {0, 0};
+    __asm__ __volatile__("sidt %0" : "=m"(cur));
+    if (cur.base == (uint64_t) g_idt && cur.limit == sizeof g_idt - 1 &&
+        (g_idt[13].type_attr & 0x80) != 0)
+        return 1;
+    /* Once the interrupt layer (x86_irq.c) has loaded its own IDT, its trap
+     * dispatcher recovers #GP through the same table. */
+    return x86_irq_idt_live();
 }
 
 /* ================= User-page U/S mapping ================= */
@@ -129,6 +153,21 @@ static void make_user_page(uint64_t vaddr) {
     l2[i2] |= 0x4;
     uint64_t *l1 = phys(l2[i2]);
     l1[(vaddr >> 12) & 0x1FF] |= 0x4;                   /* leaf: U/S=1 */
+}
+
+/* Undo make_user_page's leaf U/S bit (the upper levels keep theirs: with
+ * the leaf supervisor-only, ring 3 still cannot reach the page). */
+static void clear_user_page(uint64_t vaddr)
+{
+    uint64_t cr3;
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(cr3));
+    uint64_t *l4 = (uint64_t *) (cr3 & ~0xFFFULL);
+    uint64_t *l3 = phys(l4[(vaddr >> 39) & 0x1FF]);
+    uint64_t *l2 = phys(l3[(vaddr >> 30) & 0x1FF]);
+    uint64_t e2 = l2[(vaddr >> 21) & 0x1FF];
+    if (e2 & 0x80) return; /* still a 2 MB page: never made user */
+    uint64_t *l1 = phys(e2);
+    l1[(vaddr >> 12) & 0x1FF] &= ~0x4ULL;
 }
 
 /* ================= syscall dispatch (called from the ISR) ================= */
@@ -280,6 +319,12 @@ int x86_ring3_selftest(void) {
                     (uint64_t)(g_user_stack + sizeof g_user_stack));
     g_ring3_active = 0;
     /* returns here after the user's SYS_EXIT */
+    /* The two pages go back to supervisor-only: every process the scheduler
+     * starts later shares this kernel half of the tables, and none of them
+     * may reach the self-test's code or stack. */
+    clear_user_page((uint64_t) g_user_code);
+    clear_user_page((uint64_t) g_user_stack);
+    __asm__ __volatile__("mov %%cr3, %%rax\n\t mov %%rax, %%cr3" : : : "rax");
     return x86_last_exc == 0;   /* 0 = clean ring-3 run, no exception */
 }
 

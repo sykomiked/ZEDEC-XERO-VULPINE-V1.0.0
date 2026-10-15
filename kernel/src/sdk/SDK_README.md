@@ -225,11 +225,7 @@ The kernel supports 32 languages natively, including:
 
 ## License
 
-All code in this SDK is licensed under:
-- OPL-1.1 (Open Piracy License)
-- CC BY-SA 4.0
-- Royal Writ of the Sicilian Crown 1.0
-- SEL-3.3
+All code in this SDK is licensed under the Apache License, Version 2.0.
 
 See `LICENSE` at repository root.
 

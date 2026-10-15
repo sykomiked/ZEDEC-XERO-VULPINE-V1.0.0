@@ -127,7 +127,7 @@ def g_dot(d,S): d.ellipse((S*.3,S*.3,S*.7,S*.7),outline=255,width=int(S*.06)); d
 
 # ---- the six themes ----------------------------------------------------------------------------
 THEMES = {
- 'burrow':      dict(num=1, title='Burrow', role='Files', mark=M_burrow, ambient='arches',
+ 'burrow':      dict(num=1, title='The Banker', role='Files', mark=M_burrow, ambient='arches',
                      parts=[('Index',g_grid),('Spaces',g_layers),('Places',g_pin),('Trash',g_trash),('Sync',g_sync)],
                      status='indexing Documents  ·  1,204 files'),
  'flint':       dict(num=13, title='Flint', role='Terminal', mark=M_flint, ambient='sparks',

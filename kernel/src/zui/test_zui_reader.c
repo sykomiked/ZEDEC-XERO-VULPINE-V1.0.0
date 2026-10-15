@@ -885,7 +885,7 @@ static void test_marks(void)
 /* ---- R5: the speech engine adapter ---------------------------------------------- */
 
 typedef struct {
-    char said[8][128];
+    char said[8][128], cap[128];
     int n_said, n_stop, n_cap;
     int fail_next;
     const char *lang;
@@ -911,15 +911,26 @@ static void eng_stop(void *e)
 
 static void eng_caption(void *e, const char *text)
 {
-    (void) text;
+    snprintf(((engine_t *) e)->cap, 128, "%s", text);
     ((engine_t *) e)->n_cap++;
+}
+
+/* stands in for speech_tidy_fn: the reader does not depend on speech/ */
+static uint32_t fake_tidy(const char *in, uint32_t n, char *out, uint32_t cap, const void *w)
+{
+    if (n == 3 && !memcmp(in, "---", 3)) {
+        out[0] = 0;
+        return 0;
+    }
+    int k = snprintf(out, cap, "%.*s a hash %s", 6, in, (const char *) w);
+    return (uint32_t) k;
 }
 
 static void test_voice(void)
 {
     static engine_t g;
     memset(&g, 0, sizeof g);
-    zui_reader_voice_t v = {eng_say, eng_stop, eng_caption, &g, "en", 0, 0, 0};
+    zui_reader_voice_t v = {eng_say, eng_stop, eng_caption, &g, "en", 0, 0, 0, 0, 0};
     zui_reader_voice_speak("hello", ZUI_SAY_QUEUE, &v);
     CHECK(g.n_said == 1 && g.n_stop == 0 && strcmp(g.said[0], "hello") == 0 && v.said == 1,
           "queue: just say");
@@ -934,15 +945,26 @@ static void test_voice(void)
     g.fail_next = 1;
     zui_reader_voice_speak("x", ZUI_SAY_QUEUE, &v);
     CHECK(v.failed == 1 && v.said == 2, "an engine failure is counted");
-    zui_reader_voice_t none = {0, 0, 0, 0, 0, 0, 0, 0};
+    zui_reader_voice_t none = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     zui_reader_voice_speak("x", ZUI_SAY_INTERRUPT, &none);
     CHECK(none.failed == 1 && none.stopped == 0, "no engine: counted as failed, no crash");
     zui_reader_voice_speak("x", ZUI_SAY_QUEUE, 0);
     CHECK(true, "NULL voice is safe");
+    /* said the way a person would: the caption keeps the text */
+    v.tidy = fake_tidy;
+    v.tidy_words = "W";
+    int said0 = g.n_said;
+    zui_reader_voice_speak("commit 4bea0160fe2f", ZUI_SAY_QUEUE, &v);
+    CHECK(g.n_said == said0 + 1 && !strcmp(g.said[g.n_said - 1], "commit a hash W"),
+          "tidied for the voice: %s", g.said[g.n_said - 1]);
+    CHECK(!strcmp(g.cap, "commit 4bea0160fe2f"), "the caption shows what is written: %s", g.cap);
+    zui_reader_voice_speak("---", ZUI_SAY_QUEUE, &v);
+    CHECK(g.n_said == said0 + 1, "nothing to say after tidying: silent");
+    v.tidy = 0;
     /* the reader through the adapter */
     build();
     memset(&g, 0, sizeof g);
-    zui_reader_voice_t v2 = {eng_say, eng_stop, 0, &g, 0, 0, 0, 0};
+    zui_reader_voice_t v2 = {eng_say, eng_stop, 0, &g, 0, 0, 0, 0, 0, 0};
     zui_reader_init(&RD, &UI, zui_reader_voice_speak, &v2);
     zui_focus(&UI, S.save, true);
     zui_reader_update(&RD);

@@ -90,7 +90,8 @@ static uint32_t do_add(cpu_m68k_t *c, uint32_t a, uint32_t b, int sz, int with_x
     uint64_t t=(uint64_t)(a&m)+(b&m)+x; uint32_t r=(uint32_t)t & m;
     int carry = t > m; int ov = (~(a^b) & (a^r) & s) != 0;
     c->sr &= ~(M68_C|M68_V|M68_X);
-    if (carry) c->sr |= (M68_C|M68_X); if (ov) c->sr |= M68_V;
+    if (carry) c->sr |= (M68_C | M68_X);
+    if (ov) c->sr |= M68_V;
     setNZ(c,r,sz); return r;
 }
 static uint32_t do_sub(cpu_m68k_t *c, uint32_t a, uint32_t b, int sz, int with_x, int cmp){

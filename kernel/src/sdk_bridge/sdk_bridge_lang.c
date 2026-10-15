@@ -377,6 +377,7 @@ static int32_t sb_lang_mn_send_message(sb_lang_context_t *ctx,
 static int32_t sb_lang_rails_issue_card(sb_lang_context_t *ctx,
                                         const oc_ir_t *input,
                                         oc_ir_t *output) {
+    (void) input;
     if (!ctx || !ctx->active) return SB_LANG_ERR_CAP;
     if (!sb_lang_has_capability(ctx, SB_CAP_CAPITAL_TRANSFER)) return SB_LANG_ERR_CAP;
 
@@ -436,6 +437,7 @@ static int32_t sb_lang_bridge_create(sb_lang_context_t *ctx,
 static int32_t sb_lang_self_audit_op(sb_lang_context_t *ctx,
                                      const oc_ir_t *input,
                                      oc_ir_t *output) {
+    (void) input;
     if (!ctx) return SB_LANG_ERR_ARG;
 
     sdk_bridge_t *bridge = sb_lang_bridge;
@@ -466,6 +468,7 @@ static int32_t sb_lang_self_audit_op(sb_lang_context_t *ctx,
 static int32_t sb_lang_self_heal_op(sb_lang_context_t *ctx,
                                     const oc_ir_t *input,
                                     oc_ir_t *output) {
+    (void) input;
     if (!ctx) return SB_LANG_ERR_ARG;
 
     sdk_bridge_t *bridge = sb_lang_bridge;

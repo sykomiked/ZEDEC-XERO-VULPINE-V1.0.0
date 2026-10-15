@@ -14,7 +14,10 @@ workstation. One machine is built for two OEMs:
 | [OEM_CONSUMER.md](OEM_CONSUMER.md) | High-volume notebook or all-in-one ODM (Taiwan or Shenzhen) | Pioneer |
 
 The ZXV servers (three civilian, three institutional models, any climate)
-are a separate package in [servers/](servers/README.md).
+are in [servers/](servers/README.md), and the Signet phone, Folio tablet and
+Courier laptop in [mobile/](mobile/README.md). Every device shares
+[HARDENING.md](HARDENING.md) (shock, water, EMP, surge, the honeycomb window
+and the standard design) and [PORTS.md](PORTS.md).
 
 Both OEMs also receive these shared documents:
 
@@ -38,6 +41,29 @@ Every line that names a part or a number carries one of these tags:
 This follows the repository's rule of **no hollow capabilities**. A spec sheet
 handed to an OEM is a promise the OEM will try to build. It must not promise
 what no part can do.
+
+## Partnering: who to approach
+
+**36N9 GENETICS LLC** is the root organisation: the originator of the
+concept and the designs, and the party a manufacturer partners with to
+produce any ZXV device (briefcase, servers, Signet, Folio, Courier).
+
+Partnerships with 36N9 GENETICS LLC are made under its **master
+partnership licence**, and a prospective partner approaches through one
+of its two **pre-approved partners**:
+
+| Pre-approved partner | Approach for |
+|---|---|
+| **ILLUMAHEART FOUNDATION** | Partnerships through the Foundation, which is also the manufacturer brand: its emblem is the badge at the centre of every device's grille ([HARDENING.md](HARDENING.md) section 6.5), and it receives the royalty under the ZXV Hardware License ([../../LICENSE](../../LICENSE), Section 4) |
+| **SCENIC BYPASS CONSULTING LLC** | Partnerships through Scenic Bypass Consulting |
+
+A manufacturer does not approach 36N9 GENETICS LLC directly to produce;
+it goes through either pre-approved partner. This sits alongside the
+published licences, which are unchanged: the hardware designs are under
+the ZXV Hardware License 1.1 (Licensor: 36N9 GENETICS LLC) and the software
+under the Apache License 2.0. **For counsel:** the terms of the master
+partnership licence, and how it relates to those two licences, are not
+written in this repository yet.
 
 ## Decisions an OEM cannot make for you
 

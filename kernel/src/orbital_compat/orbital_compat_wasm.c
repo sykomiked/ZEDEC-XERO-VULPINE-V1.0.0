@@ -126,18 +126,3 @@ int32_t wasm_self_audit(const oc_ir_t *ir) {
     
     return 0;
 }
-
-/* ===== WASM M5 Coverage ===== */
-
-static int32_t wasm_check_coverage(const oc_ir_t *ir, surplus_real_t min_ratio) {
-    m5_coords_t m5 = {0};
-    m5.omega = 1;
-    m5.r = SR_FROM_FLOAT(8.0);  /* WASM rail */
-    m5.ell = SR_ONE;
-    m5.phi = SR_ZERO;
-    m5.chi = 0;
-    
-    surplus_real_t coverage = SR_DIV(SR_MUL(SR_MUL(SR_FROM_INT(m5.omega), m5.r), m5.ell), SR_MUL(m5.phi, SR_FROM_INT(m5.chi)));
-    if (SR_CMP(coverage, min_ratio) < 0) return -1;
-    return 0;
-}

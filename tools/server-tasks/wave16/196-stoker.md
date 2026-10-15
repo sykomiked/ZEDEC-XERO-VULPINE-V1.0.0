@@ -1,0 +1,11 @@
+# Wave 16 task: Stoker (slot 196), Model runner
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 1 (021 brazier), wave 5 (064 granary, 070 retort, 066 temper, 065 hatchery).
+Manifest: `slot 196`, `layer L2`, `icon icons/l2/196-stoker.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: runs models on the fastest hardware present, GPU first: picks the backend, places weights in video memory, checks each model's signature and licence (`model.info`), and reports speed per watt (`power.status`, `power.top`, `sys.info`, `swarm.state`). zxvd has no method for GPU and backend enumeration, video-memory placement: use only existing methods; list what's missing in your report.
+Uses: `use granary 1` ("licence allows this use", "fits on disk", memory need); `use retort 1` (latency min and max, run limits, energy per answer); `use temper 1` (octane grade, budget record); `use brazier 1` (temperature limits); `use hatchery 1` (agent limits). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): "admit this model" (signed AND licence allows commercial use) in Ada as Eve + APL as KRON witnessed, refusing unsigned or non-commercial weights; tokens per second per watt (tokens x 10^6 / microjoules) in FORTRAN as Trebago + APL as KRON witnessed; layers placed in video memory (largest prefix of layer bytes that fits the free bytes) in APL as KRON + FORTRAN as Trebago witnessed; model admission log (model, signature result, licence code) as fixed records in COBOL as Sutra; model catalogue in MUMPS as MYRA.
+BOTH test: the GPU picks token 512 and the integer reference 513: the answer is BOTH and the CPU result is shown with the doubt marked.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: ai.ask, sys.read, swarm, fs.read.
+Planned (no runtime yet): Python, B, Simula I.

@@ -765,6 +765,13 @@ static int elf_seg_map(void *vctx, const elf_segment_t *seg) {
  * Returns PID on success, or a negative elf_result_t / -100 on error. */
 int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
                              const uint8_t *image, uint32_t len) {
+    return proc_create_from_elf_caps(ps, name, image, len, CAP_APP_DEFAULT);
+}
+
+int32_t proc_create_from_elf_caps(proc_scheduler_t *ps, const char *name, const uint8_t *image,
+                                  uint32_t len, uint32_t caps)
+{
+    if ((caps & ~CAP_TRUSTED_ALL) != 0) return -100; /* a bit the kernel does not know */
     if (!ps || ps->num_procs >= MAX_USER_PROCS) return -100;
 
     uint32_t slot = proc_take_slot(ps);
@@ -809,10 +816,10 @@ int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
     for (int i = 0; i < 31 && name[i]; i++) proc->name[i] = name[i];
     proc->name[31] = 0;
     proc->state = PROC_READY;
-    /* Loaded applications run at LEAST PRIVILEGE: console + self-control
-     * only. They cannot run shell commands (CAP_EXEC), do IPC (CAP_IPC),
-     * or touch the filesystem (CAP_FS) unless explicitly granted. */
-    proc->capabilities = CAP_APP_DEFAULT;
+    /* Loaded applications run with what the loader decided: by default
+     * LEAST PRIVILEGE, console + self-control only (CAP_APP_DEFAULT); more
+     * only when a signed ZSP2 header grants it (the `run` command). */
+    proc->capabilities = caps;
     proc->priority = 1;
     proc->cpu_time_ticks = 0;
     proc->quantum_ticks = 10;

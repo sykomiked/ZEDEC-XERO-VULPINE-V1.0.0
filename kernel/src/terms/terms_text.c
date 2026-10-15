@@ -89,7 +89,7 @@ static const char text_doc_en[] =
     "\n"
     "6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, money transmitter, custodian, insurer or investment adviser, and it does not hold your money or assets for you. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.\n"
     "\n"
-    "6.3 Payment and settlement features do not charge interest. Raffle features are offered only where the operator has confirmed they are lawful, are switched off by default where local rules forbid games of chance, and include age checks, limits and self-exclusion.\n"
+    "6.3 Payment and settlement features do not charge interest. The Sicilian Crown Allotment selects a steward by lot. In its default form it is free: no payment, stake or forgone yield is needed to take part, and the endowment comes from surplus the operator already holds. Any form of it is offered only where the operator has confirmed it is lawful, is switched off by default where local rules restrict selection by lot or games of chance, and includes age checks, limits and self-exclusion. Any paid or savings-linked form is offered only where a licence or exemption allows it.\n"
     "\n"
     "6.4 Do not use the Distribution as the only safeguard for a decision that could cause death, serious injury, environmental damage or serious financial loss.\n"
     "\n"
@@ -214,12 +214,12 @@ static const char text_doc_en[] =
     "\n"
     "End of agreement.\n";
 
-/* SHA-256 e1e19b058ff1785c38d92241d7340a049d087a357fbe286f0e6df2609bef3626 */
+/* SHA-256 9e060bcf95db86856f3e66a5fbb4cd9dc8ead32826ebee73d835a10ddbc47007 */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0xe1, 0xe1, 0x9b, 0x05, 0x8f, 0xf1, 0x78, 0x5c,
-    0x38, 0xd9, 0x22, 0x41, 0xd7, 0x34, 0x0a, 0x04,
-    0x9d, 0x08, 0x7a, 0x35, 0x7f, 0xbe, 0x28, 0x6f,
-    0x0e, 0x6d, 0xf2, 0x60, 0x9b, 0xef, 0x36, 0x26
+    0x9e, 0x06, 0x0b, 0xcf, 0x95, 0xdb, 0x86, 0x85,
+    0x6f, 0x3e, 0x66, 0xa5, 0xfb, 0xb4, 0xcd, 0x9d,
+    0xc8, 0xea, 0xd3, 0x28, 0x26, 0xeb, 0xee, 0x73,
+    0xd8, 0x35, 0xa1, 0x0d, 0xdb, 0xc4, 0x70, 0x07
 };
 
 static const terms_doc_t doc_en = {

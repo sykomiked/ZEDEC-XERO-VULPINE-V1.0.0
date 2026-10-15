@@ -44,7 +44,7 @@
 //! expiry, is [`RefusedKind::Expired`](crate::RefusedKind::Expired). A LIVE
 //! request marked as a paid chance outcome ([`RequestFlags::CHANCE`]: loot
 //! boxes, paid draws) is refused when it is encoded
-//! ([`RefusedKind::Chance`](crate::RefusedKind::Chance)). The raffle is a
+//! ([`RefusedKind::Chance`](crate::RefusedKind::Chance)). The allotment is a
 //! separate module, not a payment request.
 //!
 //! **Daily cap.** A deployment may set a per-device daily cap;

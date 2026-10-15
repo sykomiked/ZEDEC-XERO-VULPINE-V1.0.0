@@ -46,17 +46,6 @@ static capital_type_t capital_form_to_vino(capital_form_t form)
     }
 }
 
-/* Convert rat_t to surplus_real_t (Q32.32 on target, double on host) */
-static surplus_real_t rat_to_surplus(const rat_t *r)
-{
-    if (!r || !r->valid || r->den == 0) return SR_ZERO;
-#ifdef TEST_HOST
-    return (surplus_real_t) r->num / (surplus_real_t) r->den;
-#else
-    return SR_DIV(SR_FROM_INT(r->num), SR_FROM_INT(r->den));
-#endif
-}
-
 /* Find ledger entry by backing CID (stored in description field) */
 static const ledger_entry_t *find_backing_entry(const triple_ledger_t *tl,
                                                 const uint8_t backing_cid[32])

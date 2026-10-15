@@ -1,0 +1,12 @@
+# Wave 14 task: Damper (slot 174), Fire and power watch
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 0 (014 wake), wave 1 (021 brazier), wave 7 (094 homestead), wave 11 (143 watchfire, 141 conch).
+Manifest: `slot 174`, `layer L2`, `icon icons/l2/174-damper.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: watches heat, smoke and power readings (`sys.info`, `power.status`, `log.tail`, `journal.query`) and coordinates alarms and evacuation contacts (`phone.list`, `call.start` on the person's request, `place.here`). zxvd has no method for home heat and smoke sensor readings, notice post: use only existing methods; list what's missing in your report.
+Uses: `use wake 1` (`wake.count`); `use brazier 1` (temperature limits, battery); `use homestead 1` (devices, energy totals); `use watchfire 1` ("share location with this contact", cancel window, contact records); `use conch 1` (alert mapping, level within the cap). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): "raise the alarm" (any sensor over its temperature limit OR smoke reported OR a reading that is BOTH) in Ada as Eve + APL as KRON witnessed; temperature rise per minute over the last readings (tenths of a degree) against the declared rate exact in FORTRAN as Trebago; temperature limits in Ada as Eve; sensor grid (room by sensor) in APL as KRON; building tree (floors, rooms, exits) in MUMPS as MYRA.
+BOTH test: sensor 5 reports smoke 1 and smoke 0 in the same second: the reading is BOTH and the alarm is still raised.
+Life-safety: advisory and human-approved; never replaces a certified smoke alarm; never calls emergency services or anyone by itself; contacts are rung only after the person confirms, and Watchfire's cancel window is never skipped.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: journal, sys.read, notify, peers, location.
+Planned (no runtime yet): JOVIAL, Scala, Objective-C.

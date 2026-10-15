@@ -394,6 +394,211 @@ static int parse_intent(zxapp_t *a, uint32_t line, const char *const w[4], const
     return ZXAPP_OK;
 }
 
+/* ---- R: registry fields ------------------------------------------------------ */
+
+/* R3: the one table of capability names. */
+static const char *const CAPS[] = {
+    "net",                         /* the network (beyond peers) */
+    "peers",                       /* other ZXV nodes */
+    "location",                    /* where the device is (Waymark's place.*) */
+    "fs.read",                     /* the Hoard's files, read */
+    "fs.write",                    /* the Hoard's files, write */
+    "ledger.read",                 /* the owner's books, read */
+    "ledger.post",                 /* the owner's books, post */
+    "camera",      "mic", "print", /* printers on the local network (print.*) */
+    "scan",                        /* scanners on the local network (scan.*) */
+    "backup",                      /* backups and versions (backup.*) */
+    "journal",                     /* zxvd's event history (journal.*, log.tail) */
+    "screen.time",                 /* screen time and its limits (screen.*) */
+    "sys.read",                    /* the machine's facts (sys.*) */
+    "search",                      /* the Hoard's index (search.*) */
+    "swarm",                       /* the local swarm (swarm.*) */
+    "ai.ask",                      /* the swarm's answers (swarm.ask) */
+    "notify",                      /* notices to the person */
+};
+
+const char *const *zxapp_caps(uint32_t *n)
+{
+    *n = (uint32_t) (sizeof CAPS / sizeof CAPS[0]);
+    return CAPS;
+}
+
+bool zxapp_cap_known(const char *cap)
+{
+    if (!cap) return false;
+    for (uint32_t i = 0; i < sizeof CAPS / sizeof CAPS[0]; i++)
+        if (seq(CAPS[i], cap)) return true;
+    return false;
+}
+
+int zxapp_slot_layer(uint32_t slot)
+{
+    if (slot < 1u || slot > ZXAPP_SLOTS) return ZXAPP_LAYER_NONE;
+    return slot <= 144u ? ZXAPP_LAYER_L1 : slot <= 271u ? ZXAPP_LAYER_L2 : ZXAPP_LAYER_L3;
+}
+
+bool zxapp_needs(const zxapp_t *a, const char *cap, const char *scope)
+{
+    for (uint32_t i = 0; i < a->nneeds; i++)
+        if (seq(a->needs[i].cap, cap) && (!scope || seq(a->needs[i].scope, scope))) return true;
+    return false;
+}
+
+/* A scope word: letters, digits and . _ : / - */
+static bool scope_ok(const char *w, uint32_t n)
+{
+    if (!n || n + 1u > ZXAPP_SCOPE_MAX) return false;
+    for (uint32_t i = 0; i < n; i++) {
+        char c = w[i];
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+              c == '.' || c == '_' || c == ':' || c == '/' || c == '-'))
+            return false;
+    }
+    return true;
+}
+
+/* A whole number of 1 to 19 digits; false when it is not, or it is 0 or
+ * past max. */
+static bool whole(const char *w, uint32_t n, uint64_t max, uint64_t *out)
+{
+    if (!n || n > 19u) return false;
+    uint64_t v = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (w[i] < '0' || w[i] > '9') return false;
+        v = v * 10u + (uint64_t) (w[i] - '0');
+    }
+    if (!v || v > max) return false;
+    *out = v;
+    return true;
+}
+
+/* P1: "pending <language> <entry>". The language is a fit-table name with
+ * spaces as _ (letters, digits and + # - . _), checked against the table by
+ * tools/apps/lang_coverage.py; the entry is the one a runnable language
+ * stands in for. */
+static int parse_pending(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                         uint32_t k)
+{
+    if (k != 3) {
+        put_err(a, line, "pending needs: pending <language> <entry>", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    bool ok = wl[1] && wl[1] < 32u;
+    for (uint32_t i = 0; ok && i < wl[1]; i++) {
+        char c = w[1][i];
+        ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+             c == '+' || c == '#' || c == '-' || c == '.' || c == '_';
+    }
+    if (!ok) {
+        put_err(a, line, "a pending language is its fit-table name, spaces as _", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (!dotted(w[2], wl[2]) || wl[2] + 1u > ZXAPP_ID_MAX) {
+        put_err(a, line,
+                "an entry name must be a short identifier (block.entry for a composed one)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    a->npending++;
+    return ZXAPP_OK;
+}
+
+/* R1-R4: slot, layer, icon, budget and needs. */
+static int parse_registry(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                          uint32_t k)
+{
+    if (a->block) {
+        put_err(a, line, "a block may not carry slot, layer, icon, budget or needs", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (word_is(w[0], wl[0], "needs")) {
+        if (k < 2 || k > 3 || wl[1] + 1u > ZXAPP_CAP_MAX) {
+            put_err(a, line, "needs needs: needs <capability> [<scope>]", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        char cap[ZXAPP_CAP_MAX];
+        word_copy(cap, sizeof cap, w[1], wl[1]);
+        if (!zxapp_cap_known(cap)) {
+            put_err(a, line, "an unknown capability: ", cap);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (k == 3 && !scope_ok(w[2], wl[2])) {
+            put_err(a, line, "a scope is one short word (space:home)", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (a->nneeds >= ZXAPP_NEEDS) {
+            put_err(a, line, "too many needs lines", 0);
+            return ZXAPP_E_FULL;
+        }
+        zxapp_need_t *N = &a->needs[a->nneeds];
+        word_copy(N->cap, sizeof N->cap, cap, wl[1]);
+        if (k == 3) word_copy(N->scope, sizeof N->scope, w[2], wl[2]);
+        for (uint32_t i = 0; i < a->nneeds; i++)
+            if (seq(a->needs[i].cap, N->cap) && seq(a->needs[i].scope, N->scope)) {
+                put_err(a, line, "the same need twice: ", N->cap);
+                N->cap[0] = N->scope[0] = 0;
+                return ZXAPP_E_SYNTAX;
+            }
+        N->line = line;
+        a->nneeds++;
+        return ZXAPP_OK;
+    }
+    if (k != 2) {
+        put_err(a, line, "one value is expected", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    uint64_t v;
+    if (word_is(w[0], wl[0], "slot")) {
+        if (a->slot) {
+            put_err(a, line, "a second slot line", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (!whole(w[1], wl[1], ZXAPP_SLOTS, &v)) {
+            put_err(a, line, "a slot is a number from 1 to 407", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        a->slot = (uint16_t) v;
+    } else if (word_is(w[0], wl[0], "layer")) {
+        if (a->layer) {
+            put_err(a, line, "a second layer line", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (word_is(w[1], wl[1], "L1"))
+            a->layer = ZXAPP_LAYER_L1;
+        else if (word_is(w[1], wl[1], "L2"))
+            a->layer = ZXAPP_LAYER_L2;
+        else if (word_is(w[1], wl[1], "L3"))
+            a->layer = ZXAPP_LAYER_L3;
+        else {
+            put_err(a, line, "a layer is L1, L2 or L3", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+    } else if (word_is(w[0], wl[0], "icon")) {
+        if (a->icon[0]) {
+            put_err(a, line, "a second icon line", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (!word_copy(a->icon, sizeof a->icon, w[1], wl[1])) {
+            put_err(a, line, "the icon path is too long", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+    } else {
+        if (a->budget) {
+            put_err(a, line, "a second budget line", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (!whole(w[1], wl[1], UINT64_C(9223372036854775807), &v)) {
+            put_err(a, line, "a budget is a whole number of tokens per cycle, from 1", 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        a->budget = v;
+    }
+    if (a->slot && a->layer && zxapp_slot_layer(a->slot) != a->layer) {
+        put_err(a, line, "the slot is outside its layer (L1 1-144, L2 145-271, L3 272-407)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    return ZXAPP_OK;
+}
+
 int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
 {
     uint8_t *z = (uint8_t *) a;
@@ -523,14 +728,26 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "pending")) {
+            int rc = parse_pending(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         if (word_is(w[0], wl[0], "intent")) {
             int rc = parse_intent(a, r.line, w, wl, k);
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "slot") || word_is(w[0], wl[0], "layer") ||
+            word_is(w[0], wl[0], "icon") || word_is(w[0], wl[0], "budget") ||
+            word_is(w[0], wl[0], "needs")) {
+            int rc = parse_registry(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use, intent)",
+                "provides, use, intent, pending, slot, layer, icon, budget, needs)",
                 0);
         return ZXAPP_E_SYNTAX;
     }

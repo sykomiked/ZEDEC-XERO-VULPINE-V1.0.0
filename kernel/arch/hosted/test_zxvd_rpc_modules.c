@@ -31,21 +31,43 @@ static int fails, checks;
 static zxvd_buf_t OUT;
 static char LINE[ZXVD_RPC_MAX_LINE + 64];
 
+/* append to LINE at *n, never past its end: a request that does not fit is a
+ * broken test, so it stops the run instead of being cut short */
+static void vput(int *n, const char *fmt, va_list ap)
+{
+    int w = vsnprintf(LINE + *n, sizeof LINE - (size_t) *n, fmt, ap);
+    if (w < 0 || (size_t) w >= sizeof LINE - (size_t) *n) {
+        fprintf(stderr, "test request does not fit LINE\n");
+        exit(2);
+    }
+    *n += w;
+}
+
+static void put(int *n, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+static void put(int *n, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vput(n, fmt, ap);
+    va_end(ap);
+}
+
 /* one request built from a method and a params object body -> its reply */
 static const char *call(const char *method, const char *params_fmt, ...)
     __attribute__((format(printf, 2, 3)));
 static const char *call(const char *method, const char *params_fmt, ...)
 {
-    int n = snprintf(LINE, sizeof LINE, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\"", method);
+    int n = 0;
+    put(&n, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\"", method);
     if (params_fmt) {
         va_list ap;
         va_start(ap, params_fmt);
-        n += snprintf(LINE + n, sizeof LINE - (size_t) n, ",\"params\":{");
-        n += vsnprintf(LINE + n, sizeof LINE - (size_t) n, params_fmt, ap);
-        n += snprintf(LINE + n, sizeof LINE - (size_t) n, "}");
+        put(&n, ",\"params\":{");
+        vput(&n, params_fmt, ap);
+        put(&n, "}");
         va_end(ap);
     }
-    snprintf(LINE + n, sizeof LINE - (size_t) n, "}");
+    put(&n, "}");
     if (!zxvd_rpc_handle_line(LINE, strlen(LINE), &OUT)) return "<none>";
     return OUT.p ? OUT.p : "";
 }
@@ -92,7 +114,8 @@ static long num(const char *r, const char *key)
 static void test_dispatch(void)
 {
     const char *r = call("rpc.discover", NULL);
-    CHECK(strstr(r, "\"ui.get\",\"ui.set\",\"freight.pack\",\"freight.unpack\",\"harmonic.encode\","
+    CHECK(strstr(r, "\"ui.get\",\"ui.set\",\"freight.pack\",\"freight.unpack\","
+                    "\"harmonic.encode\","
                     "\"harmonic.decode\",\"stream.plan\",\"stream.segment\",\"ehop.bands\","
                     "\"ehop.seal\",\"ehop.open\",\"web4.cid\",\"web4.agent_card\","
                     "\"web4.card_verify\"]}") != NULL,

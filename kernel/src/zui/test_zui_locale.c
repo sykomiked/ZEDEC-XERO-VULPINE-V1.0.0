@@ -102,22 +102,29 @@ static void test_find(void)
     CHECK(!strcmp(zui_locale_tag(LOC(NULL)), "en"), "NULL -> en");
     CHECK(!strcmp(zui_locale_tag(NULL), "en"), "NULL locale is en");
     static const char *const ALL[] = {
-        "en", "es",  "fr",  "de", "pt",      "it",      "ru",  "uk", "pl", "ar",  "he",  "fa",
-        "ur", "hi",  "bn",  "ta", "zh-Hans", "zh-Hant", "ja",  "ko", "th", "vi",  "tr",  "id",
-        "sw", "am",  "yo",  "ha", "el",      "nl",      "mr",  "te", "gu", "kn",  "ml",  "pa",
-        "or", "as",  "ne",  "si", "sd",      "ps",      "sat", "dv", "ms", "fil", "jv",  "su",
-        "my", "km",  "lo",  "mn", "bo",      "yue",     "kk",  "uz", "ky", "tg",  "tk",  "az",
-        "ka", "hy",  "ckb", "ug", "ro",      "cs",      "hu",  "sv", "bg", "sr",  "hr",  "sk",
-        "da", "fi",  "nb",  "lt", "be",      "ca",      "cy",  "ga", "zu", "xh",  "ig",  "so",
-        "om", "ti",  "rw",  "mg", "sn",      "wo",      "ln",  "af", "ff", "nqo", "zgh", "qu",
-        "gn", "chr", "nv",  "mi", "haw",     "iu",      "se",  "ht"};
-    CHECK(zui_locale_count_all() == N(ALL) && N(ALL) == 104, "104 locales");
+        "en", "es", "fr", "de", "pt", "it", "ru", "uk", "pl", "ar", "he", "fa", "ur", "hi", "bn",
+        "ta", "zh-Hans", "zh-Hant", "ja", "ko", "th", "vi", "tr", "id", "sw", "am", "yo", "ha",
+        "el", "nl", "mr", "te", "gu", "kn", "ml", "pa", "or", "as", "ne", "si", "sd", "ps", "sat",
+        "dv", "ms", "fil", "jv", "su", "my", "km", "lo", "mn", "bo", "yue", "kk", "uz", "ky", "tg",
+        "tk", "az", "ka", "hy", "ckb", "ug", "ro", "cs", "hu", "sv", "bg", "sr", "hr", "sk", "da",
+        "fi", "nb", "lt", "be", "ca", "cy", "ga", "zu", "xh", "ig", "so", "om", "ti", "rw", "mg",
+        "sn", "wo", "ln", "af", "ff", "nqo", "zgh", "qu", "gn", "chr", "nv", "mi", "haw", "iu",
+        "se", "ht",
+        /* ancient and historical */
+        "la", "grc", "sa", "pi", "cu", "ang", "lzh", "ota", "syr", "gez", "cop", "hbo", "arc",
+        "arc-Nbat", "arc-Palm", "arc-Hatr", "arc-Elym", "myz", "akk", "sux", "hit", "elx", "xur",
+        "egy", "peo", "uga", "phn", "gmy", "lab", "grc-Cprt", "und-Cpmn", "ett", "osc", "xum",
+        "xlc", "xld", "xcr", "hlu", "xmr", "onw", "otk", "sog", "sog-Sogo", "xpr", "pal",
+        "pal-Phlp", "xmn", "ae", "xco", "xsa", "xna", "smp", "pra", "pgd", "sa-Sidd", "sa-Shrd",
+        "sa-Gran", "kaw", "xct", "xzh", "cmg", "txg", "zkt", "ohu", "oge", "xcl", "xag", "kv-Perm",
+        "sq-Elba", "sq-Vith", "cu-Glag", "got", "non", "pgl", "sga", "goh", "enm", "fro", "pro"};
+    CHECK(zui_locale_count_all() == N(ALL) && N(ALL) == 183, "183 locales");
     for (uint32_t k = 0; k < N(ALL); k++) {
         const zui_locale_t *l = LOC(ALL[k]);
         CHECK(!strcmp(zui_locale_tag(l), ALL[k]) && l == zui_locale_at(k), "own tag %s", ALL[k]);
         CHECK(zui_locale_name(l)[0] != 0, "name %s", ALL[k]);
     }
-    CHECK(zui_locale_at(104) == NULL, "past the end");
+    CHECK(zui_locale_at(183) == NULL, "past the end");
     static const struct {
         const char *in, *want;
     } A[] = {{"tl", "fil"},     {"tl-PH", "fil"},    {"no", "nb"},      {"no-NO", "nb"},
@@ -138,9 +145,41 @@ static void test_find(void)
     /* only English is the source; every other locale's words are machine-made until a
      * native speaker reviews them, and none claims a review it has not had */
     CHECK(zui_locale_review(LOC("en")) == ZUI_REVIEW_SOURCE, "en is the source");
-    for (uint32_t i = 1; i < zui_locale_count_all(); i++)
-        CHECK(zui_locale_review(zui_locale_at(i)) == ZUI_REVIEW_MACHINE, "%s unreviewed",
-              zui_locale_tag(zui_locale_at(i)));
+    /* the historical languages with no vocabulary for a user interface keep en's words */
+    static const char *const SCRIPT_ONLY[] = {
+        "gez", "cop",      "hbo",     "arc",     "arc-Nbat", "arc-Palm", "arc-Hatr", "arc-Elym",
+        "myz", "akk",      "sux",     "hit",     "elx",      "xur",      "egy",      "peo",
+        "uga", "phn",      "gmy",     "lab",     "grc-Cprt", "und-Cpmn", "ett",      "osc",
+        "xum", "xlc",      "xld",     "xcr",     "hlu",      "xmr",      "onw",      "otk",
+        "sog", "sog-Sogo", "xpr",     "pal",     "pal-Phlp", "xmn",      "ae",       "xco",
+        "xsa", "xna",      "smp",     "pra",     "pgd",      "sa-Sidd",  "sa-Shrd",  "sa-Gran",
+        "kaw", "xct",      "xzh",     "cmg",     "txg",      "zkt",      "ohu",      "oge",
+        "xcl", "xag",      "kv-Perm", "sq-Elba", "sq-Vith",  "cu-Glag",  "got",      "non",
+        "pgl", "sga",      "goh",     "enm",     "fro",      "pro"};
+    for (uint32_t i = 1; i < zui_locale_count_all(); i++) {
+        const zui_locale_t *l = zui_locale_at(i);
+        bool script_only = false;
+        for (uint32_t k = 0; k < N(SCRIPT_ONLY); k++)
+            if (!strcmp(zui_locale_tag(l), SCRIPT_ONLY[k])) script_only = true;
+        CHECK(zui_locale_review(l) == (script_only ? ZUI_REVIEW_UNTRANSLATED : ZUI_REVIEW_MACHINE),
+              "%s unreviewed", zui_locale_tag(l));
+        if (script_only)
+            CHECK(!strcmp(zui_locale_word(l, ZUI_WORD_BUTTON), "button"), "%s en words",
+                  zui_locale_tag(l));
+    }
+    /* a script subtag names its own locale; a legacy tag finds its locale */
+    CHECK(!strcmp(zui_locale_tag(LOC("arc-Nbat")), "arc-Nbat") &&
+              !strcmp(zui_locale_tag(LOC("arc")), "arc") &&
+              !strcmp(zui_locale_tag(LOC("cu-Glag")), "cu-Glag") &&
+              !strcmp(zui_locale_tag(LOC("cu-Cyrl")), "cu") &&
+              !strcmp(zui_locale_tag(LOC("arc-Syrc")), "en") &&
+              !strcmp(zui_locale_tag(LOC("syc")), "syr") &&
+              !strcmp(zui_locale_tag(LOC("akk-Xsux-IQ")), "akk"),
+          "historical tags");
+    CHECK(!strcmp(zui_locale_script(LOC("akk")), "Xsux") &&
+              !strcmp(zui_locale_script(LOC("egy")), "Egyp") &&
+              !strcmp(zui_locale_script(LOC("gmy")), "Linb"),
+          "historical scripts");
     CHECK(!strcmp(zui_locale_name(LOC("de")), "Deutsch") &&
               !strcmp(zui_locale_name(LOC("ja")), "日本語") &&
               !strcmp(zui_locale_name(LOC("ar")), "العربية"),
@@ -154,8 +193,12 @@ static void test_direction_week(void)
     for (uint32_t i = 0; i < zui_locale_count_all(); i++) {
         const zui_locale_t *l = zui_locale_at(i);
         const char *t = zui_locale_tag(l);
-        static const char *const RTL[] = {"ar", "he", "fa",  "ur", "sd",
-                                          "ps", "dv", "ckb", "ug", "nqo"};
+        static const char *const RTL[] = {
+            "ar",       "he",       "fa",  "ur",  "sd",       "ps",  "dv",       "ckb",
+            "ug",       "nqo",      "ota", "syr", "hbo",      "arc", "arc-Nbat", "arc-Palm",
+            "arc-Hatr", "arc-Elym", "myz", "phn", "grc-Cprt", "xld", "xmr",      "otk",
+            "sog",      "sog-Sogo", "xpr", "pal", "pal-Phlp", "xmn", "ae",       "xco",
+            "xsa",      "xna",      "smp", "pgd", "ohu"};
         bool rtl = false;
         for (uint32_t k = 0; k < N(RTL); k++)
             if (!strcmp(t, RTL[k])) rtl = true;
@@ -543,7 +586,8 @@ static void test_words(void)
         }
         CHECK(ok, "%s: words present", zui_locale_tag(l));
         CHECK(ph, "%s: placeholders", zui_locale_tag(l));
-        CHECK(i == 0 ? same == ZUI_WORD_COUNT : same <= 3, "%s: %u words left in English",
+        bool english = i == 0 || zui_locale_review(l) == ZUI_REVIEW_UNTRANSLATED;
+        CHECK(english ? same == ZUI_WORD_COUNT : same <= 3, "%s: %u words left in English",
               zui_locale_tag(l), same);
     }
     static const struct {
@@ -907,6 +951,7 @@ static void test_shim(void)
     bool all = true;
     for (uint32_t i = 1; i < zui_locale_count_all(); i++) {
         const zui_locale_t *l = zui_locale_at(i);
+        if (zui_locale_review(l) == ZUI_REVIEW_UNTRANSLATED) continue; /* en's words */
         for (int v = 0; v < ZUI_VERB_COUNT; v++) {
             zui_reader_set_verbosity(&RD, (zui_verbosity_t) v);
             zui_id_t ids[] = {list, save, check, title};

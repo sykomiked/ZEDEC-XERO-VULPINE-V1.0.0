@@ -49,7 +49,7 @@ STAGE=$(mktemp -d)
 mkdir -p "$STAGE/zxv/images" "$STAGE/zxv/install"
 cp "$OUT"/zxv-*.bin "$OUT"/zxv-*.elf "$STAGE/zxv/images/" 2>/dev/null
 cp build_system/install_zxv.py "$STAGE/zxv/install/" 2>/dev/null || true
-cp CANONICAL.md ROADMAP.md "$STAGE/zxv/" 2>/dev/null || true
+cp docs/ARCHITECTURE.md docs/SYSTEM_REFERENCE.md "$STAGE/zxv/" 2>/dev/null || true
 
 cat > "$STAGE/zxv/install/README.txt" <<'EOF'
 ZXV / ZEDEC pqOS — universal installer bundle

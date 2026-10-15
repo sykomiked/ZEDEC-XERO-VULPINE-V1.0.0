@@ -1,0 +1,32 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Banker, the file manager: the Hoard's folders, their files and the
+# Trash. The screen and the zxvd link are C (burrow_model.c; the file names
+# keep the old name). How much of a folder each entry takes is worked out
+# in KRON and in C++ (as WebAssembly) and shown only when they agree; the
+# folder's total is an exact Trebago sum; whether an entry's numbers fit
+# its record is MYRA.
+zxapp 1
+id     banker
+name   The Banker
+version 1.0.0
+slot   1
+layer  L1
+icon   icons/l1/001-banker.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  ai.ask
+view   zui/views/burrow.c
+model  apps/burrow_model.c
+
+provides share num size total
+logic    kron share apps/blocks/banker/share.kron
+logic    wasm share apps/blocks/banker/share.wasm
+
+provides total num size
+logic    trebago total apps/blocks/banker/total.tb
+
+provides entry_ok truth folder seq size mtime
+logic    myra entry_ok apps/blocks/banker/entry.myra

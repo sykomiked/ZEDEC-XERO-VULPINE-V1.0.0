@@ -122,7 +122,8 @@ int cinder_selfcheck(void){
         if (c != first) var++;
         if ((c & 0xFFFFFF) != (fb[1*W+x] & 0xFFFFFF)) wall++;       /* wall != ceiling   */
         int r = (c >> 16) & 0xFF;                                   /* mid-band red      */
-        if (r < minr) minr = r; if (r > maxr) maxr = r;
+        if (r < minr) minr = r;
+        if (r > maxr) maxr = r;
     }
     /* holo depth cue active: across the wall band the red channel spans a range
      * (near walls warm / far walls cool), so the depth shading is producing

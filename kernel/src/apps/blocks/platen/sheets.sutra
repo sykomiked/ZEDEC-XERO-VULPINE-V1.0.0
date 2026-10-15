@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sheets of paper a job needs: pages per copy, two to a sheet when printed
+# on both sides (sides = 2), rounded up, times the copies.
+record sheets
+  pages: 9(9)
+  sides: 9
+  copies: 9(4)
+  per-copy: 9(9)
+procedure
+  compute per-copy = (pages + sides - 1) / sides
+  answer per-copy * copies

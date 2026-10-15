@@ -581,11 +581,11 @@ uint64_t zenny_topup_quote(const zenny_t *z, uint32_t slot, uint64_t want,
     return (a && topup_plan(&z->chip[slot], a, prices, tick, &v) == ZENNY_OK) ? a : 0;
 }
 
-bool zenny_raffle_credit(void *ctx, uint32_t dest, const void *who, uint64_t amount)
+bool zenny_allot_credit(void *ctx, uint32_t dest, const void *who, uint64_t amount)
 {
-    zenny_raffle_ctx_t *c = ctx;
+    zenny_allot_ctx_t *c = ctx;
     (void) who;
-    if (!c || dest != ZENNY_RAFFLE_DEST_NAV) return false;
+    if (!c || dest != ZENNY_ALLOT_DEST_NAV) return false;
     c->last = zenny_topup(c->z, c->slot, amount, c->prices, c->recipient, c->tick, 0);
     return c->last == ZENNY_OK;
 }

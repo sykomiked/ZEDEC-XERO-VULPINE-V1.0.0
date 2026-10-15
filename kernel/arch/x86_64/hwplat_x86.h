@@ -11,4 +11,9 @@
  * not 0, receives the calibration result. */
 const hw_plat_t *hwplat_x86_init(void (*log)(const char *), uint64_t *tsc_per_us);
 
+/* Map physical MMIO uncached (identity, 2 MB pages; the low 1 GB is already
+ * mapped and left as boot set it). Usable before hwplat_x86_init. 0 when the
+ * mapping tables are full. */
+volatile void *hwplat_x86_map_mmio(uint64_t phys, uint64_t size);
+
 #endif

@@ -58,10 +58,9 @@ typedef struct {
     uint16_t required_schema_version;       /* Version required */
     
     /* Custom guard function */
-    bool (*guard_fn)(const smart_device_t *sa_device,
-                     const yf_device_t *yf_device,
+    bool (*guard_fn)(smart_device_t *sa_device, const yf_device_t *yf_device,
                      const oe_elevator_t *elevator);
-    
+
     lpres_state_t guard_attestation;
     bool enabled;
 } sai_capability_guard_t;
@@ -339,37 +338,29 @@ int32_t sai_emit_sa_register(sai_integration_fabric_t *fabric,
 
 /* ===== Default Guard Functions ===== */
 
-bool sai_guard_model_to_emulated(const smart_device_t *sa_device,
-                                  const yf_device_t *yf_device,
+bool sai_guard_model_to_emulated(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                 const oe_elevator_t *elevator);
+
+bool sai_guard_emulated_to_rtl(smart_device_t *sa_device, const yf_device_t *yf_device,
+                               const oe_elevator_t *elevator);
+
+bool sai_guard_rtl_to_synthesized(smart_device_t *sa_device, const yf_device_t *yf_device,
                                   const oe_elevator_t *elevator);
 
-bool sai_guard_emulated_to_rtl(const smart_device_t *sa_device,
-                                const yf_device_t *yf_device,
-                                const oe_elevator_t *elevator);
-
-bool sai_guard_rtl_to_synthesized(const smart_device_t *sa_device,
-                                   const yf_device_t *yf_device,
+bool sai_guard_synthesized_to_fpga(smart_device_t *sa_device, const yf_device_t *yf_device,
                                    const oe_elevator_t *elevator);
 
-bool sai_guard_synthesized_to_fpga(const smart_device_t *sa_device,
-                                    const yf_device_t *yf_device,
-                                    const oe_elevator_t *elevator);
+bool sai_guard_fpga_to_connected(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                 const oe_elevator_t *elevator);
 
-bool sai_guard_fpga_to_connected(const smart_device_t *sa_device,
-                                  const yf_device_t *yf_device,
-                                  const oe_elevator_t *elevator);
+bool sai_guard_connected_to_measured(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                     const oe_elevator_t *elevator);
 
-bool sai_guard_connected_to_measured(const smart_device_t *sa_device,
-                                      const yf_device_t *yf_device,
+bool sai_guard_measured_to_qualified(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                     const oe_elevator_t *elevator);
+
+bool sai_guard_qualified_to_certified(smart_device_t *sa_device, const yf_device_t *yf_device,
                                       const oe_elevator_t *elevator);
-
-bool sai_guard_measured_to_qualified(const smart_device_t *sa_device,
-                                      const yf_device_t *yf_device,
-                                      const oe_elevator_t *elevator);
-
-bool sai_guard_qualified_to_certified(const smart_device_t *sa_device,
-                                       const yf_device_t *yf_device,
-                                       const oe_elevator_t *elevator);
 
 /* ===== Utility ===== */
 

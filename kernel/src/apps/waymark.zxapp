@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Waymark, places and location. Whether a place is on the globe is Eve and
+# KRON, and a place they do not both accept is held, never saved.
+zxapp 1
+id     waymark
+name   Waymark
+version 1.0.0
+slot   85
+layer  L1
+icon   icons/l1/085-waymark.svg
+budget 233
+needs  location
+needs  ai.ask
+model  apps/waymark_model.c
+
+provides place_ok truth lat lon
+logic    eve  place_ok apps/blocks/waymark/place.eve
+logic    kron place_ok apps/blocks/waymark/place.kron

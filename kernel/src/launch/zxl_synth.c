@@ -563,7 +563,7 @@ typedef struct {
 
 /* clang-format off */
 static const recipe_t HAND[] = {
-    {"Burrow",      burrow,      {1300, 450, 1800}, {{140, 250}, {160, 220}}},
+    {"Banker",      burrow,      {1300, 450, 1800}, {{140, 250}, {160, 220}}},
     {"Flint",       flint,       {1000, 250, 1400}, {{ 90, 300}, {110, 200}}},
     {"Murmuration", murmuration, {1500, 350, 1900}, {{200, 250}, {220, 250}}},
     {"Coffer",      coffer,      {1200, 400, 2000}, {{120, 250}, {150, 220}}},

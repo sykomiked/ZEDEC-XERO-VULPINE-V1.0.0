@@ -96,6 +96,14 @@ void zui_face_draw(zui_surface_t *s, const zui_face_t *f, zui_health_t h, int32_
  * FAILING health is entropic, STOPPED is dissolving. Feeds zui_look(). */
 lpx_t zui_emote_tag(swarm_feeling_t f, zui_health_t h);
 
+/* The emoji glyph painter (a zui_sym_fn for zui_text_painter): the emoji
+ * of the eight feelings, and their nearest neighbours (U+1F600 grinning,
+ * U+1F642 slight smile, U+1F60A smiling eyes as joy or calm, U+1F641 /
+ * U+2639 as sadness), drawn as the swarm's own faces, one em wide. Anything
+ * else returns -1 so the font's own box shows. ctx is unused. */
+int32_t zui_emote_glyph(zui_surface_t *s, uint32_t cp, int32_t x, int32_t baseline,
+                        uint32_t size_px, uint32_t rgb, uint32_t a255, void *ctx);
+
 /* Short word for the feeling ("calm", "curious"...). */
 const char *zui_emote_word(swarm_emotion_t e);
 

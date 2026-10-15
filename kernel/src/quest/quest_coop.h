@@ -20,7 +20,7 @@
  *       over into the new season with its progress: nothing expires, so a
  *       season end is never a deadline. A goal complete but not yet paid
  *       stays owed. A goal archived a full season ago frees its slot (goal
- *       ids are never reused), unless fraud was found after its payout.
+ *       ids are never reused), unless fraud was found after its disbursement.
  *   C5  Completion posts a notification only to members who asked
  *       (quest.h Q7).
  *

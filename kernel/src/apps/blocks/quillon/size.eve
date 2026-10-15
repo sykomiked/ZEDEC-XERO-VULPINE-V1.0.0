@@ -1,0 +1,11 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How big a document Quillon edits: up to 1 MiB of UTF-8
+# (quillon_model.h QUILLON_TEXT_MAX).
+eve quillon
+doc_bytes = 0 .. 1048576
+
+doc_limits {
+  bytes: doc_bytes
+}

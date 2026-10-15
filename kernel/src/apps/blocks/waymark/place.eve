@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Where a place may be: latitude and longitude in millionths of a degree
+# (zxv_place.h ZPL_LAT_MAX, ZPL_LON_MAX).
+eve waymark
+latitude = -90000000 .. 90000000
+longitude = -180000000 .. 180000000
+
+place_limits {
+  lat: latitude
+  lon: longitude
+}

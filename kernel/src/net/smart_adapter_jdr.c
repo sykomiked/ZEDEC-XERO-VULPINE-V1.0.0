@@ -278,6 +278,8 @@ static int32_t jdr_smart_reset(smart_adapter_t *adapter, smart_device_t *device)
 /* ===== Register Read ===== */
 static int32_t jdr_smart_reg_read(smart_adapter_t *adapter, smart_device_t *device,
                                    uint32_t reg_offset, uint32_t *value, uint32_t width) {
+    (void) adapter;
+    (void) width;
     if (!device || !value) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -322,6 +324,7 @@ static int32_t jdr_smart_reg_read(smart_adapter_t *adapter, smart_device_t *devi
 /* ===== Register Write ===== */
 static int32_t jdr_smart_reg_write(smart_adapter_t *adapter, smart_device_t *device,
                                     uint32_t reg_offset, uint32_t value, uint32_t width) {
+    (void) width;
     if (!device) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -374,6 +377,10 @@ static int32_t jdr_smart_reg_write(smart_adapter_t *adapter, smart_device_t *dev
 static int32_t jdr_smart_dma_setup(smart_adapter_t *adapter, smart_device_t *device,
                                     uint32_t channel, uint32_t direction,
                                     uint32_t buffer_phys, uint32_t buffer_size) {
+    (void) adapter;
+    (void) channel;
+    (void) buffer_phys;
+    (void) buffer_size;
     if (!device) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -393,6 +400,7 @@ static int32_t jdr_smart_dma_setup(smart_adapter_t *adapter, smart_device_t *dev
 /* ===== State Transition ===== */
 static int32_t jdr_smart_state_transition(smart_adapter_t *adapter, smart_device_t *device,
                                            uint32_t event_id) {
+    (void) adapter;
     if (!device) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -464,6 +472,7 @@ static int32_t jdr_smart_state_transition(smart_adapter_t *adapter, smart_device
 /* ===== Self-Test ===== */
 static int32_t jdr_smart_self_test(smart_adapter_t *adapter, smart_device_t *device,
                                     uint32_t test_id, void *results) {
+    (void) results;
     if (!device) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -532,6 +541,7 @@ static int32_t jdr_smart_self_test(smart_adapter_t *adapter, smart_device_t *dev
 /* ===== Health Check ===== */
 static int32_t jdr_smart_health_check(smart_adapter_t *adapter, smart_device_t *device,
                                        smart_health_t *health) {
+    (void) adapter;
     if (!device || !health) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -554,6 +564,7 @@ static int32_t jdr_smart_health_check(smart_adapter_t *adapter, smart_device_t *
 /* ===== Coverage Verify ===== */
 static int32_t jdr_smart_coverage_verify(smart_adapter_t *adapter, smart_device_t *device,
                                           surplus_real_t *coverage) {
+    (void) adapter;
     if (!device || !coverage) return -1;
     
     *coverage = smart_compute_coverage(device);
@@ -570,6 +581,7 @@ static int32_t jdr_smart_virtual_init(smart_adapter_t *adapter, smart_device_t *
 /* ===== Virtual Step: Simulate hardware for delta_ticks ===== */
 static int32_t jdr_smart_virtual_step(smart_adapter_t *adapter, smart_device_t *device,
                                        uint64_t delta_ticks) {
+    (void) adapter;
     if (!device) return -1;
     
     jdr_virtual_sdr_t *virt = (jdr_virtual_sdr_t *)device->virtual_context;
@@ -620,6 +632,7 @@ static int32_t jdr_smart_virtual_step(smart_adapter_t *adapter, smart_device_t *
 
 /* ===== Virtual Sync: Sync virtual state to physical ===== */
 static int32_t jdr_smart_virtual_sync(smart_adapter_t *adapter, smart_device_t *device) {
+    (void) adapter;
     if (!device) return -1;
     
     jdr_transceiver_t *tc = (jdr_transceiver_t *)device->virtual_context;
@@ -634,6 +647,9 @@ static int32_t jdr_smart_virtual_sync(smart_adapter_t *adapter, smart_device_t *
 /* ===== LPRES Attestation ===== */
 static lpres_state_t jdr_smart_attest(smart_adapter_t *adapter, smart_device_t *device,
                                        uint32_t op_id, void *args, int32_t result) {
+    (void) adapter;
+    (void) op_id;
+    (void) args;
     if (!device) return LPRES_NEITHER;
     
     lpres_state_t result_att = (result >= 0) ? LPRES_TRUE : LPRES_FALSE;
@@ -651,16 +667,19 @@ static lpres_state_t jdr_smart_attest(smart_adapter_t *adapter, smart_device_t *
 
 /* ===== LPRES State Get/Set ===== */
 static smart_device_state_t jdr_smart_get_lpres(smart_adapter_t *adapter, smart_device_t *device) {
+    (void) adapter;
     return device ? device->lpres_state : SMART_STATE_NEITHER;
 }
 
 static void jdr_smart_set_lpres(smart_adapter_t *adapter, smart_device_t *device,
                                  smart_device_state_t state) {
+    (void) adapter;
     if (!device) return;
     smart_set_lpres_state(device, state);
 }
 
 /* ===== Safety Gate ===== */
 static bool jdr_smart_safety_gate(smart_adapter_t *adapter, smart_device_t *device) {
+    (void) adapter;
     return smart_safety_gate(device);
 }

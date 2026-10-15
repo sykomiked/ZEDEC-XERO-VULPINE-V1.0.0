@@ -32,8 +32,8 @@ built-in marketplace ([`docs/COMMERCE.md`](../COMMERCE.md)).
   License 2.0 (see [`README.md`](../../README.md) and [`LICENSE`](../../LICENSE)).
 
 **If you want to use it with real money,** for example to move funds between
-people, issue cards, run anything that looks like a security, or run a
-raffle, that activity is regulated in most places. You need local legal
+people, issue cards, run anything that looks like a security, or run the
+allotment in its paid or savings mode, that activity is regulated in most places. You need local legal
 review and the right licences before you start. The code does not supply
 either.
 
@@ -79,10 +79,12 @@ sections.
 | Peer-to-peer compute trading (off by default) | [`docs/VINEA.md`](../VINEA.md) | `kernel/src/vinea/` |
 | Peer audit | [`docs/PEER_AUDIT.md`](../PEER_AUDIT.md) | `kernel/src/peer_audit/` |
 
-**The raffle.** A raffle prototype exists on a separate branch. It is not in
-`main` and is off by default. `kernel/src/zstats/zstats.h` notes that the
-raffle "lives on another branch and is NOT included"; main only defines an
-input struct a deployment could fill.
+**The Sicilian Crown Allotment** (formerly the Sicilian Crown Raffle) is in
+`kernel/src/allotment/` and is off by default. Its default mode is free:
+one ballot per verified person, nothing paid in, and an endowment the
+operator puts in from surplus it already holds. Renaming it did not change
+the legal analysis; removing payment did. See
+[`kernel/src/allotment/README.md`](../../kernel/src/allotment/README.md).
 
 ## Limits
 
@@ -103,6 +105,6 @@ input struct a deployment could fill.
   whether every VFV coin must be a Fibonacci value still needs the owner's
   decision.
 - **Regulated activities.** Money transmission, card issuing,
-  securities-like instruments and raffles are regulated in most
+  securities-like instruments and paid allotments are regulated in most
   jurisdictions. Anyone operating them for real must get local legal review
   and the required licences first.

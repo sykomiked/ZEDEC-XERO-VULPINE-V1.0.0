@@ -735,6 +735,11 @@ static void table_recompute(zui_ime_t *ime)
     }
 }
 
+void zui_ime_table_refresh(zui_ime_t *ime)
+{
+    table_recompute(ime);
+}
+
 void zui_ime_table_reset(zui_ime_t *ime)
 {
     ime->st.table.n = 0;

@@ -176,8 +176,8 @@ See `GOOD_FIRST_ISSUE.md` for tasks suitable for new contributors.
 
 ## Getting Help
 
-- **Documentation:** See `ARCHITECTURE.md` for deep technical details
-- **Source Navigation:** See `SOURCE_CODE_NAVIGATION_GUIDE.md`
+- **Documentation:** See `docs/ARCHITECTURE.md` for the architecture
+- **Source Navigation:** See `docs/SYSTEM_REFERENCE.md`, one entry per module
 - **Issues:** Open a GitHub issue for bugs or questions
 
 ## License

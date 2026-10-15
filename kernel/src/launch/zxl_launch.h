@@ -122,7 +122,7 @@ typedef struct {
 const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group);
 
 /* The sound sequence an app maker picked, by name: a curated app's name
- * any app on the list ("Burrow", "Flint", ...; case-insensitive) or a group's,
+ * any app on the list ("Banker", "Flint", ...; case-insensitive) or a group's,
  * "group1".."group12".
  * NULL for anything else; the caller then uses zxl_theme_for. */
 const zxl_theme_t *zxl_theme_pick(const char *id);

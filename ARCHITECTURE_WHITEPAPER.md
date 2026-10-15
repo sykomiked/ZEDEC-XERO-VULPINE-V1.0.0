@@ -1,6 +1,8 @@
 <!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md). This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZXV / ZEDEC pqOS — Architecture White Paper
 
 **Kernel:** VOVINA SHAKINA M5 Axiomatic Kernel

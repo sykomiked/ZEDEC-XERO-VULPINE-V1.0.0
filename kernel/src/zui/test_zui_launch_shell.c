@@ -207,8 +207,8 @@ static double frame(uint32_t id, uint32_t p, uint32_t tick)
 static void test_cold_launch(void)
 {
     setup(0, 0);
-    uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
-    CHECK(id != 0, "Burrow opens");
+    uint32_t id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
+    CHECK(id != 0, "The Banker opens");
     CHECK(LS.player.age == 1, "LS4: its begin is sounding from the moment it opens");
     double e0 = frame(id, 0, 0);
     CHECK(e0 > 0, "and is heard in the first frame");
@@ -272,12 +272,12 @@ static void test_own_colours_and_paths(void)
     CHECK(!zui_ls_icon_path("icons", "Cartulary", p, sizeof p) &&
               !strcmp(p, "icons/l2/145-dragon-archivist.png"),
           "a tier-2 app's icon from the catalogue (%s)", p);
-    CHECK(!zui_ls_icon_path("/zxv/icons/", "Burrow", p, sizeof p) &&
+    CHECK(!zui_ls_icon_path("/zxv/icons/", "Banker", p, sizeof p) &&
               !strcmp(p, "/zxv/icons/001-burrow.png"),
           "one slash between folder and file (%s)", p);
     CHECK(!zui_ls_icon_path("i", "Night Owl 2!", p, sizeof p) && !strcmp(p, "i/nightowl2.png"),
           "a person's app: lower case, letters and digits (%s)", p);
-    CHECK(zui_ls_icon_path("icons", "Burrow", p, 12) == -1, "too long for the room: refused");
+    CHECK(zui_ls_icon_path("icons", "Banker", p, 12) == -1, "too long for the room: refused");
     CHECK(zui_ls_icon_path("icons", "!!!", p, sizeof p) == -1, "no letters: no file");
 }
 
@@ -300,18 +300,18 @@ static void test_missing_files(void)
 static void test_icon_cache(void)
 {
     setup(0, 0);
-    static const char *APPS[5] = {"Burrow", "Cartulary", "My Tool", "Hollow", "Threshold"};
+    static const char *APPS[5] = {"Banker", "Cartulary", "My Tool", "Hollow", "Threshold"};
     for (int i = 0; i < 5; i++) {
         uint32_t id = zui_launch_theme_open(&LT, APPS[i], APPS[i], "", true, false, 0);
         frame(id, 0, (uint32_t) i);
         zui_wm_close(&WM, id);
     }
-    CHECK(reads_of("icons/001-burrow.png") == 1, "Burrow read once so far");
-    uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
+    CHECK(reads_of("icons/001-burrow.png") == 1, "The Banker read once so far");
+    uint32_t id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
     frame(id, 0, 9);
     CHECK(reads_of("icons/001-burrow.png") == 2, "the oldest of %d kept icons gave way",
           ZUI_LS_ICONS);
-    id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
+    id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
     frame(id, 0, 10);
     CHECK(reads_of("icons/001-burrow.png") == 2, "a kept icon is not read again");
 }
@@ -351,7 +351,7 @@ static void test_vectors_first(void)
     put_file("icons/mytool.zxvg", RED, 6);
     put_file("logos/ascw-gold.zxvg", RED, 6);
     put_file("logos/cis-gold.zxvg", BAD, 6);
-    uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
+    uint32_t id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
     frame(id, 0, 0);
     CHECK(reads_of("icons/001-burrow.zxvg") == 1 && reads_of("icons/001-burrow.png") == 0,
           "LS6: the vector is read, not the PNG");
