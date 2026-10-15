@@ -159,9 +159,10 @@ The software is licensed under the [Apache License, Version 2.0](LICENSE), and
 every source file carries `SPDX-License-Identifier: Apache-2.0`. Anyone who
 redistributes it must keep the attribution in [NOTICE](NOTICE). Vendored
 third-party code keeps its own licence. The software is provided as is, with
-no warranty of any kind. The end-user licence agreement, issued by
-**SCENIC BYPASS CONSULTING, LLC** as licensor, is being prepared in a draft
-pull request.
+no warranty of any kind. The ready-to-run ZXV system is licensed to end users,
+and supported, by **SCENIC BYPASS CONSULTING, LLC** (Arizona), under the ZXV
+End-User Agreement. Support tickets go to SCENIC BYPASS CONSULTING, LLC, not
+to 36N9 GENETICS LLC: see [SUPPORT.md](SUPPORT.md).
 
 Commercial use is free under Apache-2.0. We ask, but never require, for-profit
 users to give 18% of gross revenue from ZXV to ILLUMAHEART FOUNDATION; see
