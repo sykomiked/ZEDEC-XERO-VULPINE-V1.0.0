@@ -57,6 +57,14 @@
  *       open instead of moving. Its feeling is zui_emote's morphing face
  *       beside it and the feeling's word heads the bubble. Nothing flashes:
  *       no part of it blinks or strobes.
+ *   CV10 SAID LIKE A PERSON. What it reads (a section, a title, the facts in
+ *       a status) goes through speech_tidy (speech/speech_tidy.h) first: a
+ *       hash, an id or a code is named ("a hash", "3 IDs"), never spelled; a
+ *       link is "a link to github.com"; a code block is "There is some code
+ *       here."; markup is silent. The bubble shows the same words. "Spell
+ *       that" (zui_cv_spell) says the last read again exactly, with hashes
+ *       and codes spelled out in groups of four; zui_cv_set_verbatim turns
+ *       the tidying off for a person who wants every character.
  *
  * Integer only, no allocation, no libc, deterministic: the same calls at the
  * same times give the same words and the same pixels. Time is the caller's
@@ -70,6 +78,7 @@
 #include "zui_canvas.h"
 #include "zui_chiglet.h"
 #include "zui_emote.h"
+#include "speech_tidy.h"
 
 #define ZUI_CV_TEXT    4096u /* bytes of one utterance (a status, a section), with the NUL */
 #define ZUI_CV_CHUNK   240u  /* CV5: bytes of one spoken chunk                             */
@@ -109,6 +118,7 @@ typedef struct {
     const char *not_found; /* zui_cv_hear: %s is the section asked for */
     const char *reading;   /* zui_cv_read with a title: %s */
     const char *nothing;   /* a read of empty text */
+    const speech_tidy_words_t *say; /* CV10: NULL is English */
 } zui_cv_words_t;
 
 extern const zui_cv_words_t zui_cv_words_en;
@@ -158,6 +168,9 @@ typedef struct {
     zui_cv_kind_t kind;
     char text[ZUI_CV_TEXT];
     uint32_t len, pos;         /* pos: where the next chunk starts          */
+    char exact[ZUI_CV_TEXT];   /* CV10: the last read as it was written     */
+    uint32_t exact_len;
+    bool verbatim;             /* CV10: read every character, untidied */
     uint32_t cur_start;        /* CV5: where the chunk being said started   */
     uint32_t resume_at;        /* a stopped read; ZUI_CV_UNKNOWN = none     */
     char chunk[ZUI_CV_CHUNK];  /* the words in the bubble now               */
@@ -205,11 +218,16 @@ zui_cv_result_t zui_cv_read(zui_cv_t *cv, const char *text, const char *title, u
 zui_cv_result_t zui_cv_stop(zui_cv_t *cv, uint32_t now_ms);
 zui_cv_result_t zui_cv_resume(zui_cv_t *cv, uint32_t now_ms);
 zui_cv_result_t zui_cv_repeat(zui_cv_t *cv, uint32_t now_ms);
+/* CV10: the last read again, exactly, with hashes and codes spelled out. */
+zui_cv_result_t zui_cv_spell(zui_cv_t *cv, uint32_t now_ms);
+void zui_cv_set_verbatim(zui_cv_t *cv, bool on);
 
 /* What the person said to it (push-to-talk). English phrases:
  *   stop | quiet | be quiet | shush                       -> stop
  *   continue | go on | keep reading | resume              -> resume
  *   repeat | again | say that again                       -> repeat
+ *   spell that | spell it (out) | read that exactly | say it exactly
+ *                                                          -> spell (CV10)
  *   how are you | how are you feeling | how do you feel   -> short status
  *   status | status report | report | what is going on    -> full status
  *   read this | read this section | read me this section | read it | read this to me

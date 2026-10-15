@@ -124,6 +124,7 @@ const zui_cv_words_t zui_cv_words_en = {
     .not_found = "I cannot find %s.",
     .reading = "Reading %s.",
     .nothing = "There is nothing to read.",
+    .say = &speech_tidy_en,
 };
 
 void zui_cv_facts_init(zui_cv_facts_t *f)
@@ -161,22 +162,33 @@ uint32_t zui_cv_status_text(const zui_cv_words_t *w, const zui_cv_facts_t *f, sw
         }                                                                                          \
     } while (0)
 
-    bool what = f->need_what && f->need_what[0];
+    /* CV10: the facts' words as a person would say them */
+    char nw[ZUI_CV_SMALL * 2], wy[ZUI_CV_SMALL * 2];
+    const char *need_what = f->need_what, *why_s = f->why;
+    if (need_what && need_what[0]) {
+        speech_tidy(need_what, slen(need_what), nw, sizeof nw, w->say);
+        need_what = nw;
+    }
+    if (why_s && why_s[0]) {
+        speech_tidy(why_s, slen(why_s), wy, sizeof wy, w->say);
+        why_s = wy;
+    }
+    bool what = need_what && need_what[0];
     if (known(f->need_you)) {
         if (f->need_you == 0)
             SAY(w->need_none, 0, 0, 0);
         else if (f->need_you == 1)
-            SAY(what ? w->need_one_what : w->need_one, f->need_what, 0, 1);
+            SAY(what ? w->need_one_what : w->need_one, need_what, 0, 1);
         else
-            SAY(what ? w->need_many_what : w->need_many, f->need_what, 0, f->need_you);
+            SAY(what ? w->need_many_what : w->need_many, need_what, 0, f->need_you);
     }
     if (h == ZUI_HEALTH_SLOW) SAY(w->slow, 0, 0, 0);
     if (h == ZUI_HEALTH_FAILING) SAY(w->failing, 0, 0, 0);
     if (h == ZUI_HEALTH_STOPPED) SAY(w->stopped, 0, 0, 0);
     bool very = feel.intensity >= 4u;
-    bool why = f->why && f->why[0];
+    bool why = why_s && why_s[0];
     pat = why ? (very ? w->feel_very_why : w->feel_why) : (very ? w->feel_very : w->feel);
-    SAY(pat, zui_emote_word(feel.emotion), f->why, 0);
+    SAY(pat, zui_emote_word(feel.emotion), why_s, 0);
     if (known(f->failed) && f->failed)
         SAY(f->failed == 1 ? w->failed_one : w->failed_many, 0, 0, f->failed);
     if (known(f->running))
@@ -541,10 +553,40 @@ zui_cv_result_t zui_cv_read(zui_cv_t *cv, const char *text, const char *title, u
         begin(cv, ZUI_CV_K_NOTE, now_ms);
         return ZUI_CV_NOTHING;
     }
-    if (text != cv->text) set_text(cv, text);
+    /* CV10: keep it as written, say it as a person would */
+    cv->exact_len = scopy(cv->exact, sizeof cv->exact, text, n);
+    if (cv->verbatim)
+        set_text(cv, cv->exact);
+    else
+        cv->len = speech_tidy(cv->exact, cv->exact_len, cv->text, sizeof cv->text, cv->words->say);
+    if (!cv->len) {
+        set_text(cv, cv->words->nothing);
+        begin(cv, ZUI_CV_K_NOTE, now_ms);
+        return ZUI_CV_NOTHING;
+    }
+    char t[ZUI_CV_SMALL * 2];
+    if (title && title[0] && !cv->verbatim) {
+        speech_tidy(title, slen(title), t, sizeof t, cv->words->say);
+        title = t;
+    }
     prepend_title(cv, title);
     cv->resume_at = ZUI_CV_UNKNOWN;
     return begin(cv, ZUI_CV_K_READ, now_ms);
+}
+
+zui_cv_result_t zui_cv_spell(zui_cv_t *cv, uint32_t now_ms)
+{
+    if (!cv) return ZUI_CV_BAD;
+    if (!cv->exact_len) return ZUI_CV_NOTHING;
+    quiet_now(cv);
+    cv->len = speech_spell(cv->exact, cv->exact_len, cv->text, sizeof cv->text, cv->words->say);
+    cv->resume_at = ZUI_CV_UNKNOWN;
+    return begin(cv, ZUI_CV_K_READ, now_ms);
+}
+
+void zui_cv_set_verbatim(zui_cv_t *cv, bool on)
+{
+    if (cv) cv->verbatim = on;
 }
 
 zui_cv_result_t zui_cv_resume(zui_cv_t *cv, uint32_t now_ms)
@@ -650,6 +692,10 @@ zui_cv_result_t zui_cv_hear(zui_cv_t *cv, const char *utf8, const zui_cv_facts_t
     if (one_of(s, AGAIN)) return zui_cv_repeat(cv, now_ms);
     if (one_of(s, HOW)) return zui_cv_status(cv, f, false, now_ms);
     if (one_of(s, REPORT)) return zui_cv_status(cv, f, true, now_ms);
+    static const char *const SPELL[] = {"spell that",     "spell it",          "spell it out",
+                                        "spell that out", "read that exactly", "read it exactly",
+                                        "say it exactly", "say that exactly",  0};
+    if (one_of(s, SPELL)) return zui_cv_spell(cv, now_ms);
     if (one_of(s, THIS)) return read_section(cv, "", now_ms);
     if (seq(s, "louder") || seq(s, "speak up")) {
         zui_cv_set_volume(cv, cv->volume + 10u);

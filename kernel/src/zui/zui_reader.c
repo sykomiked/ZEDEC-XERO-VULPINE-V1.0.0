@@ -1086,6 +1086,13 @@ void zui_reader_voice_speak(const char *text, zui_say_t how, void *ctx)
     }
     if (!text || !text[0]) return;
     if (v->caption) v->caption(v->engine, text);
+    char tidied[1024];
+    if (v->tidy) {
+        uint32_t n = 0;
+        while (text[n]) n++;
+        if (v->tidy(text, n, tidied, sizeof tidied, v->tidy_words) == 0) return; /* only markup */
+        text = tidied;
+    }
     if (v->say && v->say(v->engine, text, v->lang) == 0)
         v->said++;
     else

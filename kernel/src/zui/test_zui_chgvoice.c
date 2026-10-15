@@ -1062,6 +1062,93 @@ static void test_draw(void)
     CHECK(bad == 0, "tiny surface: guards intact: %d", bad);
 }
 
+/* CV10: read the way a person would */
+static void finish(zui_cv_t *cv)
+{
+    for (int i = 0; i < 40 && zui_cv_talking(cv); i++) zui_cv_spoken(cv, 0);
+}
+
+static void test_human(void)
+{
+    zui_cv_t cv;
+    fresh(&cv);
+    zui_cv_read(&cv, "Merged in commit 4bea0160fe2f16193a9b6f4169c71711b1550dc0.", 0, 0);
+    CHECK(n_heard == 1 && !strcmp(HEARD[0].text, "Merged in commit a hash."), "hash named: %s",
+          HEARD[0].text);
+    CHECK(!strcmp(cv.chunk, "Merged in commit a hash."), "the bubble says the same: %s", cv.chunk);
+    finish(&cv);
+    CHECK(zui_cv_spell(&cv, 10) == ZUI_CV_SPEAKING, "spell that");
+    CHECK(strstr(HEARD[1].text, "Merged in commit 4 b e a, 0 1 6 0,") == HEARD[1].text,
+          "spelled in fours: %s", HEARD[1].text);
+    finish(&cv);
+    fresh(&cv);
+    CHECK(zui_cv_spell(&cv, 0) == ZUI_CV_NOTHING && n_heard == 0, "nothing read yet");
+    zui_cv_read(&cv, "Steps:\n- open https://github.com/a/b\n- run `make`\n```\nint x;\n```", 0, 0);
+    finish(&cv);
+    char all[512] = "";
+    for (int i = 0; i < n_heard && i < HEARD_MAX; i++) {
+        if (i) strcat(all, " ");
+        strcat(all, HEARD[i].text);
+    }
+    CHECK(!strcmp(all, "Steps: open a link to github.com. run make. There is some code here."),
+          "markup silent, link and code named: %s", all);
+    fresh(&cv);
+    zui_cv_read(&cv, "--- *** ---", 0, 0);
+    CHECK(n_heard == 1 && !strcmp(HEARD[0].text, zui_cv_words_en.nothing),
+          "only rules: nothing to read (%s)", HEARD[0].text);
+    fresh(&cv);
+    zui_cv_read(&cv, "It is done.", "Build 1954a42d55bf", 0);
+    CHECK(!strcmp(HEARD[0].text, "Reading Build a hash."), "the title too: %s", HEARD[0].text);
+    fresh(&cv);
+    zui_cv_set_verbatim(&cv, true);
+    CHECK(cv.verbatim, "verbatim on");
+    zui_cv_read(&cv, "Commit 1954a42d55bf.", "T 1954a42d55bf", 0);
+    CHECK(!strcmp(HEARD[0].text, "Reading T 1954a42d55bf."), "verbatim: as written: %s",
+          HEARD[0].text);
+    zui_cv_set_verbatim(&cv, false);
+    zui_cv_set_verbatim(0, true);
+    CHECK(!cv.verbatim, "verbatim off");
+    /* the facts of a status */
+    fresh(&cv);
+    zui_cv_facts_t f = facts();
+    f.need_you = 1;
+    f.need_what = "review of 1954a42d55bf";
+    zui_cv_status(&cv, &f, false, 0);
+    CHECK(strstr(HEARD[0].text, "waiting for you: review of a hash.") != 0, "status fact: %s",
+          HEARD[0].text);
+    char out[256];
+    f.why = "job `cmsg_01SiwTxCAS9qLbWY3tFVth` is slow";
+    zui_cv_status_text(0, &f, (swarm_feeling_t){0}, ZUI_HEALTH_OK, true, out, sizeof out);
+    CHECK(strstr(out, "because job an ID is slow") != 0, "the why: %s", out);
+    /* hear it */
+    fresh(&cv);
+    zui_cv_read(&cv, "Key sk-ab12Cd34Ef56Gh78.", 0, 0);
+    finish(&cv);
+    CHECK(zui_cv_hear(&cv, "Spell that, please", &f, 5) == ZUI_CV_SPEAKING &&
+              strstr(HEARD[n_heard - 1].text, "capital C") != 0,
+          "'spell that' heard: %s", HEARD[n_heard - 1].text);
+    finish(&cv);
+    CHECK(zui_cv_hear(&cv, "read that exactly", &f, 6) == ZUI_CV_SPEAKING, "read that exactly");
+    finish(&cv);
+    /* another language's words */
+    fresh(&cv);
+    static speech_tidy_words_t sfr;
+    static zui_cv_words_t wfr;
+    sfr = speech_tidy_en;
+    sfr.hash = "une empreinte";
+    wfr = zui_cv_words_en;
+    wfr.say = &sfr;
+    zui_cv_set_words(&cv, &wfr);
+    zui_cv_read(&cv, "voir 1954a42d55bf", 0, 0);
+    CHECK(!strcmp(HEARD[0].text, "voir une empreinte"), "French: %s", HEARD[0].text);
+    wfr.say = 0;
+    finish(&cv);
+    zui_cv_read(&cv, "voir 1954a42d55bf", 0, 1);
+    CHECK(!strcmp(HEARD[n_heard - 1].text, "voir a hash"), "no tidy words: English: %s",
+          HEARD[n_heard - 1].text);
+    CHECK(zui_cv_spell(0, 0) == ZUI_CV_BAD, "NULL");
+}
+
 int main(void)
 {
     test_status_text();
@@ -1077,6 +1164,7 @@ int main(void)
     test_popup();
     test_level();
     test_draw();
+    test_human();
     printf("%s test_zui_chgvoice: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;
