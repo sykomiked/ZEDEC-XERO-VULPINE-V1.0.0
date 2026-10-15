@@ -1392,11 +1392,13 @@ static void test_golden(const char *dir)
     static const struct {
         const char *name;
         int lang;
-    } g[] = {{"primes.f", ZL_LANG_FORTRAN},   {"collatz.f", ZL_LANG_FORTRAN},
-             {"features.bas", ZL_LANG_BASIC}, {"collatz.bas", ZL_LANG_BASIC},
-             {"features.fs", ZL_LANG_FORTH},  {"collatz.fs", ZL_LANG_FORTH},
-             {"primes.pas", ZL_LANG_PASCAL},  {"collatz.pas", ZL_LANG_PASCAL},
-             {"nesting.pas", ZL_LANG_PASCAL}, {"features.pas", ZL_LANG_PASCAL}};
+    } g[] = {{"primes.f", ZL_LANG_FORTRAN},    {"collatz.f", ZL_LANG_FORTRAN},
+             {"features.bas", ZL_LANG_BASIC},  {"collatz.bas", ZL_LANG_BASIC},
+             {"features.fs", ZL_LANG_FORTH},   {"collatz.fs", ZL_LANG_FORTH},
+             {"primes.pas", ZL_LANG_PASCAL},   {"collatz.pas", ZL_LANG_PASCAL},
+             {"nesting.pas", ZL_LANG_PASCAL},  {"features.pas", ZL_LANG_PASCAL},
+             {"collatz.alg", ZL_LANG_ALGOL60}, {"sieve.alg", ZL_LANG_ALGOL60},
+             {"nested.alg", ZL_LANG_ALGOL60},  {"features.alg", ZL_LANG_ALGOL60}};
     static char src[1 << 16], want[1 << 16];
     char path[512];
     enum { NTRACE = 16 };
