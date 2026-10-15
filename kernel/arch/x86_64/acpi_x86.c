@@ -241,7 +241,6 @@ static void log_kv(const char *k, uint64_t v)
 
 /* ---- boot -------------------------------------------------------------------- */
 #define AML_ARENA (3u << 20)
-static uint8_t g_arena[AML_ARENA] __attribute__((aligned(16)));
 static aml_ctx_t g_aml;
 static acpi_state_t g_st;
 
@@ -311,7 +310,14 @@ int acpi_x86_boot(const hw_plat_t *hp, uint64_t tsc_per_us, void (*log)(const ch
     g_ap.timer_100ns = x_timer;
     g_ap.global_lock = x_glock;
     g_ap.log = x_log;
-    if (aml_init(&g_aml, &g_ap, g_arena, AML_ARENA)) {
+    /* The 3 MB arena comes from the firmware memory map, not the BSS: in the
+     * BSS it pushed the kernel window over OVMF's ACPI NVS at 8 MB. */
+    uint8_t *arena = bootmem_x86_take(AML_ARENA, "the AML arena");
+    if (!arena) {
+        log("[ACPI] no memory for the AML arena -- ACPI skipped");
+        return 0;
+    }
+    if (aml_init(&g_aml, &g_ap, arena, AML_ARENA)) {
         log("[ACPI] AML arena too small -- ACPI skipped");
         return 0;
     }
