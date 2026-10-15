@@ -76,6 +76,12 @@ if [ "${SANCC_STRIP_SAN:-0}" = 1 ]; then
         i=$((i + 1))
     done
 fi
+# A shared library leaves the sanitizer runtime to the instrumented program
+# that loads it (clang links the runtime into executables only), so a
+# library's own -Wl,-z,defs is relaxed for these symbols.
+for a in "$@"; do
+    [ "$a" = "-shared" ] && SANCC_FLAGS="$SANCC_FLAGS -Wl,-z,undefs" && break
+done
 if [ -z "${SANCC_COV_DIR:-}" ]; then
     # shellcheck disable=SC2086
     exec "$SAN_CC" "$@" $SANCC_FLAGS

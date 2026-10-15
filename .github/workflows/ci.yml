@@ -144,19 +144,18 @@ jobs:
   host-tests:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth fp-compiler sbcl guile-3.0 ucblogo
-          # clang 18 for the CUDA/HIP offline tests: sm_90 needs clang 16+, jammy stops at 15
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-          echo "deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
-          sudo apt-get update
-          sudo apt-get install -y clang-18
+          # ubuntu-24.04 for the Lingua references (GHC 9.4, SWI-Prolog 9, gm2)
+          # and clang 18 (sm_90); gcc 11 stays the C compiler, as on 22.04
+          sudo apt-get install -y gcc-11 make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user \
+            gfortran gforth fp-compiler sbcl guile-3.0 ucblogo racket clojure xvfb mlton ocaml swi-prolog-core gm2 ghc
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
@@ -693,7 +692,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Host test suite under ASan + UBSan (clang, abort on first report)
         run: |
@@ -719,7 +718,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Economy, pay, rational and RMAG tests under -fsanitize=integer
         # Unsigned wrap that the algorithm needs (hash and cipher cores) is in
@@ -747,7 +746,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Fuzz corpora and ledger properties under MSan
         # MSan needs every byte's producer instrumented. libc is not, so the
@@ -771,7 +770,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Replay the committed corpora (gcc, ASan + UBSan)
         run: make -C fuzz replay prop PROP_ITERS=1000
@@ -794,7 +793,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Line, branch and MC/DC coverage (clang source-based)
         run: |
