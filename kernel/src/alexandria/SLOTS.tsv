@@ -27,8 +27,12 @@
 # division's booklet.
 #
 # tools/alexandria/build_index.py --assign BLOCK NAMESPACE SECTION appends
-# a line for every entry of BLOCK that has none; --check fails when one is
-# missing.
+# a line for every entry of BLOCK (or one BLOCK.ENTRY) that has none;
+# --check fails when one is missing. A shared block's shorthand is its
+# entry's name (num.gcd); an app's carries the app (num.banker_total),
+# since apps use local words. "--assign APP auto auto" puts an app's
+# entries on the app shelf: truths in logic 490-499, numbers in num
+# 590-599. The build server does that for every new app.
 #
 # slot	shorthand	place	block.entry	state
 1	num.gcd	512.01	number_classics.gcd	base
