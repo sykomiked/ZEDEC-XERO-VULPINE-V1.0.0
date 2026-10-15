@@ -88,6 +88,16 @@
  *       face comes back, with its health ring, when it is slow, failing or
  *       stopped); the bubble still names the feeling. A visitor looks at
  *       its host.
+ *   CV13 A TONE ON TAP, IF WANTED. A block that carries a sutra cell (an
+ *       operation and its evidence tag, lingua/zl_sutra.h) can sound its
+ *       earcon when the person taps it: zui_cv_tap_tone hands the cell to
+ *       the tone hook the host binds (launch/zxl_nada.h's zxl_nada_tap, which
+ *       plays zl_nada_tone's carrier, formant, envelope and phase). The tone
+ *       is off until the person turns it on (zui_cv_set_tone_on), and a tap
+ *       is the only way to it: nothing else calls the hook. It stays silent
+ *       in WORDS (quiet) mode, at volume 0, while another voice speaks (CV7)
+ *       and while the Chiglet itself speaks. The tone is extra: whatever it
+ *       reports is also shown, so nothing depends on hearing it.
  *
  * Integer only, no allocation, no libc, deterministic: the same calls at the
  * same times give the same words and the same pixels. Time is the caller's
@@ -163,7 +173,8 @@ typedef enum {
     ZUI_CV_SET,          /* a setting changed (louder, slower ...)           */
     ZUI_CV_NOT_MINE,     /* zui_cv_hear: not a Chiglet phrase                */
     ZUI_CV_NOTHING,      /* nothing to resume, repeat or read                */
-    ZUI_CV_BAD           /* a NULL or bad argument                           */
+    ZUI_CV_BAD,          /* a NULL or bad argument                           */
+    ZUI_CV_TONE          /* CV13: the tone is playing                        */
 } zui_cv_result_t;
 
 /* The speaker: start saying text (one chunk); 0 = it is playing (call
@@ -182,6 +193,9 @@ typedef enum {
     ZUI_CV_HIT_WINDOW,
     ZUI_CV_HIT_END
 } zui_cv_hit_t;
+/* CV13: sound the earcon of a sutra cell at volume 0..100; 0 = it is
+ * playing, < 0 = no tone for that cell. */
+typedef int (*zui_cv_tone_fn)(uint64_t cell, uint32_t volume, void *ctx);
 typedef int32_t (*zui_cv_section_fn)(const char *name, char *text, uint32_t cap, char *title,
                                      uint32_t title_cap, void *ctx);
 
@@ -239,8 +253,12 @@ typedef struct {
     const zui_chg_skin_t *skin, *guest_skin; /* NULL: classic */
     bool pointer;                            /* over the screen */
     int32_t pointer_x, pointer_y;
+    /* CV13 */
+    zui_cv_tone_fn tone;
+    void *tone_ctx;
+    bool tone_on; /* the person's choice; off by default */
     /* counters */
-    uint32_t said, refused, stops, calls;
+    uint32_t said, refused, stops, calls, tones;
 } zui_cv_t;
 
 void zui_cv_facts_init(zui_cv_facts_t *f);
@@ -295,6 +313,14 @@ void zui_cv_visit_end(zui_cv_t *cv, uint32_t now_ms);
 void zui_cv_set_skin(zui_cv_t *cv, const zui_chg_skin_t *skin);
 void zui_cv_set_guest_skin(zui_cv_t *cv, const zui_chg_skin_t *skin);
 void zui_cv_pointer(zui_cv_t *cv, bool over, int32_t x, int32_t y);
+
+/* CV13: the tone hook (NULL: none), the person's on/off (off at init), and
+ * the person's tap on a block carrying `cell`: TONE when it sounds, NOTHING
+ * when the tone is off, unbound, quiet, at volume 0, under another voice,
+ * while the Chiglet speaks, or when the hook has no tone for the cell. */
+void zui_cv_set_tone(zui_cv_t *cv, zui_cv_tone_fn fn, void *ctx);
+void zui_cv_set_tone_on(zui_cv_t *cv, bool on);
+zui_cv_result_t zui_cv_tap_tone(zui_cv_t *cv, uint64_t cell, uint32_t now_ms);
 /* The call window for a sw x sh screen, and what (x, y) is on it. */
 zui_rect_t zui_cv_call_rect(const zui_cv_t *cv, int32_t sw, int32_t sh);
 zui_cv_hit_t zui_cv_call_hit(const zui_cv_t *cv, int32_t x, int32_t y);
