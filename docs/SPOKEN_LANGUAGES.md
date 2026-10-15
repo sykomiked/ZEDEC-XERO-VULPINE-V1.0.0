@@ -289,6 +289,41 @@ yet.
 | fro | Old French | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
 | pro | Old Occitan | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
 
+## Rosetta: carrying text between languages
+
+Rosetta (`kernel/src/zui/zui_rosetta.h`) is the human-side bridge between
+the 183 languages. It does not speak each language natively. It carries what
+it recognises through a shared pivot and says plainly what it could not.
+
+- **The pivot.** A sentence in any language is read as parts. A part that is
+  one of the screen reader's words or patterns ("кнопка", "3 из 12",
+  "5 элементов") is recognised by writing it back with that language's own
+  locale data and comparing. It then becomes the reader's English form and
+  is said in the target language, numbers in the target's digits included.
+  Every pair of the 92 translated languages carries the reader's sentences
+  exactly (`test_zui_rosetta`: 153,228 of 153,228 pairs).
+- **Bridges.** A script-only language is spoken through its bridge, the
+  translated language its readers most likely know: Biblical Hebrew through
+  Hebrew, the Aramaic scripts through Syriac, Old and Middle Persian and
+  Avestan through Persian, Linear B through Greek, Akkadian and Sumerian
+  through English (`bridge` column of `LANGUAGES.tsv`, `zui_locale_bridge`).
+- **Gaps.** A part Rosetta does not recognise (a name, a label, typed text)
+  goes to a translator the caller plugs in, such as a local model of the
+  swarm. Without one, the part is kept as written. The report counts the
+  parts bridged, provided and kept.
+- **Trust.** The report carries the weakest review state involved. Anything
+  from the plugged-in translator or from a machine-made word list is
+  `ZUI_REVIEW_MACHINE`, so it is never shown as reviewed.
+- **Babel.** Babel is the machine-side counterpart, which explains code. It
+  is built by the legacy-languages work and is not in the tree yet.
+  `zui_rosetta_explain` takes Babel's plain English explanation through a
+  callback (`zui_babel_explain_fn`) and carries it into the person's
+  language. Babel's English always counts as machine-made.
+
+**Name.** "Rosetta" and "Babel" are working names. Apple uses Rosetta for its
+translation software, and Babel names several software products, so both
+need a trademark check before release.
+
 ## Gaps, in the order they will be closed
 
 1. **Fonts.** Done: every script has an ASCW Golden face. Tibetan and Thaana

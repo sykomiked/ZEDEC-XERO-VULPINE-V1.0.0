@@ -57,6 +57,7 @@ run test_zui_kinetic "" $Z/test_zui_kinetic.c $Z/zui_kinetic.c $Z/zui_motion.c
 # zui_vec: the vector renderer; a 100 px band width exercises the band split (V3)
 run test_zui_vec "-DZUI_VEC_MAX_W=100" $Z/test_zui_vec.c $Z/zui_vec.c $Z/zui_progress.c $DRAW
 run test_zui_brand "" $Z/test_zui_brand.c $Z/zui_brand.c $Z/zui_vec.c $Z/zui_progress.c $Z/zui_layout.c $DRAW
+run test_zui_rosetta "" $Z/test_zui_rosetta.c $Z/zui_rosetta.c $Z/zui_locale.c $Z/zui_bidi.c $Z/zui_reader.c $UI
 sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out"; echo "[FAIL] test_display_view"; exit 1; }
 tail -1 "$O/display.out"
 # Studio's Swift theme is generated from zui_tokens.h; it must not drift.

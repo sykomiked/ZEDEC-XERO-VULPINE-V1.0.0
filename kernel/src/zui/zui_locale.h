@@ -9,7 +9,8 @@
  * day periods, first day of the week, cardinal plural rules). The screen
  * reader's words are this project's translations.
  *
- *   L1 LOCALES. 104 of them (tools/zui/locales/LANGUAGES.tsv): en es fr de
+ *   L1 LOCALES. 183 of them (tools/zui/locales/LANGUAGES.tsv): 104 living
+ *      languages and 79 ancient and historical ones (L7). The living: en es fr de
  *      pt it ru uk pl ar he fa ur hi bn ta zh-Hans zh-Hant ja ko th vi tr id
  *      sw am yo ha el nl; South Asia mr te gu kn ml pa or as ne si sd ps sat
  *      dv; Southeast and East Asia ms fil jv su my km lo mn bo yue; Central
@@ -193,6 +194,9 @@ const char *zui_locale_tag(const zui_locale_t *loc);  /* "pt", "zh-Hant", ... */
 const char *zui_locale_name(const zui_locale_t *loc); /* its own name: "Deutsch" */
 const char *zui_locale_script(const zui_locale_t *loc); /* ISO 15924: "Latn" */
 zui_review_t zui_locale_review(const zui_locale_t *loc);
+/* The translated locale that stands in for a script-only one (hbo -> he,
+ * arc -> syr, akk -> en); a translated locale is its own bridge. */
+const zui_locale_t *zui_locale_bridge(const zui_locale_t *loc);
 /* L2: true when the locale is written right to left. */
 bool zui_locale_rtl(const zui_locale_t *loc);
 

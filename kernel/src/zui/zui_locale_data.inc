@@ -8529,553 +8529,553 @@ static const char *const C_syr[ZUI_COUNT_NOUNS][ZUI_PLURAL_COUNT] = {
 
 #define ZUI_LOCALE_COUNT 183
 static const struct zui_locale LOCALES[ZUI_LOCALE_COUNT] = {
-    {"en", "English", "Latn", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_SOURCE,
+    {"en", "English", "Latn", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_SOURCE, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "h:mm\u202Fa", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"es", "español", "Latn", 0, 2, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"es", "español", "Latn", 0, 2, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 1,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "H:mm", "a.\u202Fm.", "p.\u202Fm.", ", ", W_es, C_es}, /* region ES */
-    {"fr", "français", "Latn", 0, 3, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"fr", "français", "Latn", 0, 3, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 2,
      {{SYS_LATN, ",", "\u202F", "-"}, {SYS_LATN, ",", "\u202F", "-"}},
      "dd/MM/y", "HH:mm", "AM", "PM", ", ", W_fr, C_fr}, /* region FR */
-    {"de", "Deutsch", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"de", "Deutsch", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 3,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_de, C_de}, /* region DE */
-    {"pt", "português", "Latn", 0, 4, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"pt", "português", "Latn", 0, 4, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 4,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd/MM/y", "HH:mm", "AM", "PM", ", ", W_pt, C_pt}, /* region BR */
-    {"it", "italiano", "Latn", 0, 5, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"it", "italiano", "Latn", 0, 5, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 5,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd/MM/yy", "HH:mm", "AM", "PM", ", ", W_it, C_it}, /* region IT */
-    {"ru", "русский", "Cyrl", 0, 6, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ru", "русский", "Cyrl", 0, 6, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 6,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.y", "HH:mm", "AM", "PM", ", ", W_ru, C_ru}, /* region RU */
-    {"uk", "українська", "Cyrl", 0, 6, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"uk", "українська", "Cyrl", 0, 6, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 7,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "дп", "пп", ", ", W_uk, C_uk}, /* region UA */
-    {"pl", "polski", "Latn", 0, 7, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"pl", "polski", "Latn", 0, 7, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 8,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d.MM.y", "HH:mm", "AM", "PM", ", ", W_pl, C_pl}, /* region PL */
-    {"ar", "العربية", "Arab", 1, 8, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ar", "العربية", "Arab", 1, 8, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 9,
      {{SYS_LATN, ".", ",", "\u200E-"}, {SYS_ARAB, "٫", "٬", "\u061C-"}},
      "d\u200F/M\u200F/y", "h:mm a", "ص", "م", "، ", W_ar, C_ar}, /* region EG */
-    {"he", "עברית", "Hebr", 1, 9, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"he", "עברית", "Hebr", 1, 9, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 10,
      {{SYS_LATN, ".", ",", "\u200E-"}, {SYS_LATN, ".", ",", "\u200E-"}},
      "d.M.y", "H:mm", "AM", "PM", ", ", W_he, C_he}, /* region IL */
-    {"fa", "فارسی", "Arab", 1, 10, 6, CAL_PERSIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"fa", "فارسی", "Arab", 1, 10, 6, CAL_PERSIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 11,
      {{SYS_ARABEXT, "٫", "٬", "\u200E\u2212"}, {SYS_ARABEXT, "٫", "٬", "\u200E\u2212"}},
      "y/M/d", "H:mm", "ق.ظ.", "ب.ظ.", "، ", W_fa, C_fa}, /* region IR */
-    {"ur", "اردو", "Arab", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ur", "اردو", "Arab", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 12,
      {{SYS_LATN, ".", ",", "\u200E-"}, {SYS_ARABEXT, "٫", "٬", "\u200E-\u200E"}},
      "d/M/yy", "h:mm a", "AM", "PM", "، ", W_ur, C_ur}, /* region PK */
-    {"hi", "हिन्दी", "Deva", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"hi", "हिन्दी", "Deva", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 13,
      {{SYS_LATN, ".", ",", "-"}, {SYS_DEVA, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "am", "pm", ", ", W_hi, C_hi}, /* region IN */
-    {"bn", "বাংলা", "Beng", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"bn", "বাংলা", "Beng", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 14,
      {{SYS_BENG, ".", ",", "-"}, {SYS_BENG, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_bn, C_bn}, /* region BD */
-    {"ta", "தமிழ்", "Taml", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"ta", "தமிழ்", "Taml", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 15,
      {{SYS_LATN, ".", ",", "-"}, {SYS_TAMLDEC, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_ta, C_ta}, /* region IN */
-    {"zh-Hans", "简体中文", "Hans", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"zh-Hans", "简体中文", "Hans", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 16,
      {{SYS_LATN, ".", ",", "-"}, {SYS_HANIDEC, ".", ",", "-"}},
      "y/M/d", "HH:mm", "上午", "下午", "，", W_zh_Hans, C_zh_Hans}, /* region CN */
-    {"zh-Hant", "繁體中文", "Hant", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"zh-Hant", "繁體中文", "Hant", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 17,
      {{SYS_LATN, ".", ",", "-"}, {SYS_HANIDEC, ".", ",", "-"}},
      "y/M/d", "Bh:mm", "上午", "下午", "，", W_zh_Hant, C_zh_Hant}, /* region TW */
-    {"ja", "日本語", "Jpan", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ja", "日本語", "Jpan", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 18,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y/MM/dd", "H:mm", "午前", "午後", "、", W_ja, C_ja}, /* region JP */
-    {"ko", "한국어", "Kore", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ko", "한국어", "Kore", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 19,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "yy. M. d.", "a h:mm", "오전", "오후", ", ", W_ko, C_ko}, /* region KR */
-    {"th", "ไทย", "Thai", 0, 0, 0, CAL_BUDDHIST, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"th", "ไทย", "Thai", 0, 0, 0, CAL_BUDDHIST, 3, 3, 1, ZUI_REVIEW_MACHINE, 20,
      {{SYS_LATN, ".", ",", "-"}, {SYS_THAI, ".", ",", "-"}},
      "d/M/yy", "HH:mm", "AM", "PM", " ", W_th, C_th}, /* region TH */
-    {"vi", "Tiếng Việt", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"vi", "Tiếng Việt", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 21,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "HH:mm", "SA", "CH", ", ", W_vi, C_vi}, /* region VN */
-    {"tr", "Türkçe", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"tr", "Türkçe", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 22,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d.MM.y", "HH:mm", "ÖÖ", "ÖS", ", ", W_tr, C_tr}, /* region TR */
-    {"id", "Bahasa Indonesia", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"id", "Bahasa Indonesia", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 23,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd/MM/yy", "HH.mm", "AM", "PM", ", ", W_id, C_id}, /* region ID */
-    {"sw", "Kiswahili", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sw", "Kiswahili", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 24,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/y", "HH:mm", "AM", "PM", ", ", W_sw, C_sw}, /* region TZ */
-    {"am", "አማርኛ", "Ethi", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"am", "አማርኛ", "Ethi", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 25,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/y", "h:mm a", "ጥዋት", "ከሰዓት", "፣ ", W_am, C_am}, /* region ET */
-    {"yo", "Èdè Yorùbá", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"yo", "Èdè Yorùbá", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 26,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/y", "H:m", "Àárọ̀", "Ọ̀sán", ", ", W_yo, C_yo}, /* region NG */
-    {"ha", "Hausa", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ha", "Hausa", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 27,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "HH:mm", "SF", "YM", ", ", W_ha, C_ha}, /* region NG */
-    {"el", "Ελληνικά", "Grek", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"el", "Ελληνικά", "Grek", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 28,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "h:mm\u202Fa", "π.μ.", "μ.μ.", ", ", W_el, C_el}, /* region GR */
-    {"nl", "Nederlands", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"nl", "Nederlands", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 29,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd-MM-y", "HH:mm", "a.m.", "p.m.", ", ", W_nl, C_nl}, /* region NL */
-    {"mr", "मराठी", "Deva", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"mr", "मराठी", "Deva", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 30,
      {{SYS_DEVA, ".", ",", "-"}, {SYS_DEVA, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_mr, C_mr}, /* region IN */
-    {"te", "తెలుగు", "Telu", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"te", "తెలుగు", "Telu", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 31,
      {{SYS_LATN, ".", ",", "-"}, {SYS_TELU, ".", ",", "-"}},
      "dd-MM-yy", "h:mm a", "AM", "PM", ", ", W_te, C_te}, /* region IN */
-    {"gu", "ગુજરાતી", "Gujr", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"gu", "ગુજરાતી", "Gujr", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 32,
      {{SYS_LATN, ".", ",", "-"}, {SYS_GUJR, ".", ",", "-"}},
      "d/M/yy", "hh:mm a", "AM", "PM", ", ", W_gu, C_gu}, /* region IN */
-    {"kn", "ಕನ್ನಡ", "Knda", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"kn", "ಕನ್ನಡ", "Knda", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 33,
      {{SYS_LATN, ".", ",", "-"}, {SYS_KNDA, ".", ",", "-"}},
      "d/M/yy", "hh:mm a", "AM", "PM", ", ", W_kn, C_kn}, /* region IN */
-    {"ml", "മലയാളം", "Mlym", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"ml", "മലയാളം", "Mlym", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 34,
      {{SYS_LATN, ".", ",", "-"}, {SYS_MLYM, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_ml, C_ml}, /* region IN */
-    {"pa", "ਪੰਜਾਬੀ", "Guru", 0, 12, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"pa", "ਪੰਜਾਬੀ", "Guru", 0, 12, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 35,
      {{SYS_LATN, ".", ",", "-"}, {SYS_GURU, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_pa, C_pa}, /* region IN */
-    {"or", "ଓଡ଼ିଆ", "Orya", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"or", "ଓଡ଼ିଆ", "Orya", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 36,
      {{SYS_LATN, ".", ",", "-"}, {SYS_ORYA, ".", ",", "-"}},
      "M/d/yy", "h:mm a", "AM", "PM", ", ", W_or, C_or}, /* region IN */
-    {"as", "অসমীয়া", "Beng", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"as", "অসমীয়া", "Beng", 0, 10, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 37,
      {{SYS_BENG, ".", ",", "-"}, {SYS_BENG, ".", ",", "-"}},
      "d-M-y", "a h.mm", "পূৰ্বাহ্ন", "অপৰাহ্ন", ", ", W_as, C_as}, /* region IN */
-    {"ne", "नेपाली", "Deva", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"ne", "नेपाली", "Deva", 0, 11, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 38,
      {{SYS_DEVA, ".", ",", "-"}, {SYS_DEVA, ".", ",", "-"}},
      "yy/M/d", "HH:mm", "पूर्वाह्न", "अपराह्न", ", ", W_ne, C_ne}, /* region NP */
-    {"si", "සිංහල", "Sinh", 0, 13, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"si", "සිංහල", "Sinh", 0, 13, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 39,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH.mm", "පෙ.ව.", "ප.ව.", ", ", W_si, C_si}, /* region LK */
-    {"sd", "سنڌي", "Arab", 1, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sd", "سنڌي", "Arab", 1, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 40,
      {{SYS_ARAB, ".", "٬", "\u061C-"}, {SYS_ARAB, ".", "٬", "\u061C-"}},
      "y-MM-dd", "h:mm a", "صبح", "شام", "، ", W_sd, C_sd}, /* region PK */
-    {"ps", "پښتو", "Arab", 1, 11, 6, CAL_PERSIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ps", "پښتو", "Arab", 1, 11, 6, CAL_PERSIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 41,
      {{SYS_ARABEXT, "٫", "٬", "\u200E-\u200E"}, {SYS_ARABEXT, "٫", "٬", "\u200E-\u200E"}},
      "GGGGG y/M/d", "H:mm", "غ.م.", "غ.و.", "، ", W_ps, C_ps}, /* region AF */
-    {"sat", "ᱥᱟᱱᱛᱟᱲᱤ", "Olck", 0, 14, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sat", "ᱥᱟᱱᱛᱟᱲᱤ", "Olck", 0, 14, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 42,
      {{SYS_OLCK, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_sat, C_sat}, /* region IN */
-    {"dv", "ދިވެހިބަސް", "Thaa", 1, 11, 5, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"dv", "ދިވެހިބަސް", "Thaa", 1, 11, 5, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 43,
      {{SYS_LATN, ".", ",", "-"}, {SYS_ARAB, "٫", "٬", "\u061C-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", "، ", W_dv, C_dv}, /* region MV */
-    {"ms", "Melayu", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ms", "Melayu", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 44,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/MM/yy", "h:mm\u202Fa", "PG", "PTG", ", ", W_ms, C_ms}, /* region MY */
-    {"fil", "Filipino", "Latn", 0, 15, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"fil", "Filipino", "Latn", 0, 15, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 45,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "h:mm\u202Fa", "AM", "PM", ", ", W_fil, C_fil}, /* region PH */
-    {"jv", "Jawa", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"jv", "Jawa", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 46,
      {{SYS_LATN, ",", ".", "-"}, {SYS_JAVA, ",", ".", "-"}},
      "dd-MM-y", "HH:mm", "Isuk", "Wengi", ", ", W_jv, C_jv}, /* region ID */
-    {"su", "Basa Sunda", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"su", "Basa Sunda", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 47,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "H.mm", "AM", "PM", ", ", W_su, C_su}, /* region ID */
-    {"my", "မြန်မာ", "Mymr", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"my", "မြန်မာ", "Mymr", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 48,
      {{SYS_MYMR, ".", ",", "-"}, {SYS_MYMR, ".", ",", "-"}},
      "d/M/yy", "H:mm", "နံနက်", "ညနေ", "၊ ", W_my, C_my}, /* region MM */
-    {"km", "ខ្មែរ", "Khmr", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"km", "ខ្មែរ", "Khmr", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 49,
      {{SYS_LATN, ".", ",", "-"}, {SYS_KHMR, ",", ".", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_km, C_km}, /* region KH */
-    {"lo", "ລາວ", "Laoo", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"lo", "ລາວ", "Laoo", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 50,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LAOO, ",", ".", "-"}},
      "d/M/y", "H:mm", "ກ່ອນທ່ຽງ", "ຫຼັງທ່ຽງ", ", ", W_lo, C_lo}, /* region LA */
-    {"mn", "монгол", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"mn", "монгол", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 51,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y.MM.dd", "HH:mm", "ү.ө.", "ү.х.", ", ", W_mn, C_mn}, /* region MN */
-    {"bo", "བོད་སྐད་", "Tibt", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"bo", "བོད་སྐད་", "Tibt", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 52,
      {{SYS_LATN, ".", ",", "-"}, {SYS_TIBT, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "སྔ་དྲོ་", "ཕྱི་དྲོ་", ", ", W_bo, C_bo}, /* region CN */
-    {"yue", "粵語", "Hant", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"yue", "粵語", "Hant", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 53,
      {{SYS_LATN, ".", ",", "-"}, {SYS_HANIDEC, ".", ",", "-"}},
      "y/M/d", "ah:mm", "上晝", "下晝", "，", W_yue, C_yue}, /* region HK */
-    {"kk", "қазақ тілі", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"kk", "қазақ тілі", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 54,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_kk, C_kk}, /* region KZ */
-    {"uz", "o‘zbek", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"uz", "o‘zbek", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 55,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd/MM/yy", "HH:mm", "TO", "TK", ", ", W_uz, C_uz}, /* region UZ */
-    {"ky", "кыргызча", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ky", "кыргызча", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 56,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d/M/yy", "HH:mm", "тң", "тк", ", ", W_ky, C_ky}, /* region KG */
-    {"tg", "тоҷикӣ", "Cyrl", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"tg", "тоҷикӣ", "Cyrl", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 57,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd/MM/yy", "HH:mm", "AM", "PM", ", ", W_tg, C_tg}, /* region TJ */
-    {"tk", "türkmen dili", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"tk", "türkmen dili", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 58,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.y", "HH:mm", "go.öň", "go.soň", ", ", W_tk, C_tk}, /* region TM */
-    {"az", "azərbaycan", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"az", "azərbaycan", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 59,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_az, C_az}, /* region AZ */
-    {"ka", "ქართული", "Geor", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"ka", "ქართული", "Geor", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 60,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_ka, C_ka}, /* region GE */
-    {"hy", "հայերեն", "Armn", 0, 16, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"hy", "հայերեն", "Armn", 0, 16, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 61,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_hy, C_hy}, /* region AM */
-    {"ckb", "کوردیی ناوەندی", "Arab", 1, 11, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ckb", "کوردیی ناوەندی", "Arab", 1, 11, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 62,
      {{SYS_ARAB, "٫", "٬", "\u200F-"}, {SYS_ARAB, "٫", "٬", "\u200F-"}},
      "y-MM-dd", "h:mm a", "ب.ن", "د.ن", "، ", W_ckb, C_ckb}, /* region IQ */
-    {"ug", "ئۇيغۇرچە", "Arab", 1, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ug", "ئۇيغۇرچە", "Arab", 1, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 63,
      {{SYS_LATN, ".", ",", "-"}, {SYS_ARABEXT, "٫", "٬", "\u200E-\u200E"}},
      "y-MM-dd", "HH:mm", "چ.ب", "چ.ك", "، ", W_ug, C_ug}, /* region CN */
-    {"ro", "română", "Latn", 0, 17, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ro", "română", "Latn", 0, 17, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 64,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd.MM.y", "HH:mm", "a.m.", "p.m.", ", ", W_ro, C_ro}, /* region RO */
-    {"cs", "čeština", "Latn", 0, 18, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"cs", "čeština", "Latn", 0, 18, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 65,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "H:mm", "dop.", "odp.", ", ", W_cs, C_cs}, /* region CZ */
-    {"hu", "magyar", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"hu", "magyar", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 66,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "y. MM. dd.", "H:mm", "de.", "du.", ", ", W_hu, C_hu}, /* region HU */
-    {"sv", "svenska", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sv", "svenska", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 67,
      {{SYS_LATN, ",", "\u00A0", "\u2212"}, {SYS_LATN, ",", "\u00A0", "\u2212"}},
      "y-MM-dd", "HH:mm", "fm", "em", ", ", W_sv, C_sv}, /* region SE */
-    {"bg", "български", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"bg", "български", "Cyrl", 0, 11, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 68,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d.MM.yy\u202F'г'.", "H:mm", "am", "pm", ", ", W_bg, C_bg}, /* region BG */
-    {"sr", "српски", "Cyrl", 0, 19, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sr", "српски", "Cyrl", 0, 19, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 69,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d. M. y.", "HH:mm", "AM", "PM", ", ", W_sr, C_sr}, /* region RS */
-    {"hr", "hrvatski", "Latn", 0, 19, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"hr", "hrvatski", "Latn", 0, 19, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 70,
      {{SYS_LATN, ",", ".", "\u2212"}, {SYS_LATN, ",", ".", "\u2212"}},
      "dd. MM. y.", "HH:mm", "AM", "PM", ", ", W_hr, C_hr}, /* region HR */
-    {"sk", "slovenčina", "Latn", 0, 18, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sk", "slovenčina", "Latn", 0, 18, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 71,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d. M. y", "H:mm", "AM", "PM", ", ", W_sk, C_sk}, /* region SK */
-    {"da", "dansk", "Latn", 0, 20, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"da", "dansk", "Latn", 0, 20, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 72,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd.MM.y", "HH.mm", "AM", "PM", ", ", W_da, C_da}, /* region DK */
-    {"fi", "suomi", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"fi", "suomi", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 73,
      {{SYS_LATN, ",", "\u00A0", "\u2212"}, {SYS_LATN, ",", "\u00A0", "\u2212"}},
      "d.M.y", "H.mm", "ap.", "ip.", ", ", W_fi, C_fi}, /* region FI */
-    {"nb", "norsk bokmål", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"nb", "norsk bokmål", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 74,
      {{SYS_LATN, ",", "\u00A0", "\u2212"}, {SYS_LATN, ",", "\u00A0", "\u2212"}},
      "dd.MM.y", "HH:mm", "a.m.", "p.m.", ", ", W_nb, C_nb}, /* region NO */
-    {"lt", "lietuvių", "Latn", 0, 21, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"lt", "lietuvių", "Latn", 0, 21, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 75,
      {{SYS_LATN, ",", "\u00A0", "\u2212"}, {SYS_LATN, ",", "\u00A0", "\u2212"}},
      "y-MM-dd", "HH:mm", "priešpiet", "popiet", ", ", W_lt, C_lt}, /* region LT */
-    {"be", "беларуская", "Cyrl", 0, 22, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE,
+    {"be", "беларуская", "Cyrl", 0, 22, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_MACHINE, 76,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d.MM.yy", "HH:mm", "AM", "PM", ", ", W_be, C_be}, /* region BY */
-    {"ca", "català", "Latn", 0, 5, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ca", "català", "Latn", 0, 5, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 77,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "H:mm", "a.\u202Fm.", "p.\u202Fm.", ", ", W_ca, C_ca}, /* region ES */
-    {"cy", "Cymraeg", "Latn", 0, 23, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"cy", "Cymraeg", "Latn", 0, 23, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 78,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/yy", "HH:mm", "AM", "PM", ", ", W_cy, C_cy}, /* region GB */
-    {"ga", "Gaeilge", "Latn", 0, 24, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ga", "Gaeilge", "Latn", 0, 24, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 79,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "HH:mm", "r.n.", "i.n.", ", ", W_ga, C_ga}, /* region IE */
-    {"zu", "isiZulu", "Latn", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"zu", "isiZulu", "Latn", 0, 10, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 80,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "HH:mm", "AM", "PM", ", ", W_zu, C_zu}, /* region ZA */
-    {"xh", "IsiXhosa", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"xh", "IsiXhosa", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 81,
      {{SYS_LATN, ".", "\u00A0", "-"}, {SYS_LATN, ".", "\u00A0", "-"}},
      "M/d/yy", "HH:mm", "AM", "PM", ", ", W_xh, C_xh}, /* region ZA */
-    {"ig", "Igbo", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ig", "Igbo", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 82,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "HH:mm", "N’ụtụtụ", "N’abalị", ", ", W_ig, C_ig}, /* region NG */
-    {"so", "Soomaali", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"so", "Soomaali", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 83,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/yy", "h:mm\u202Fa", "GH", "GD", ", ", W_so, C_so}, /* region SO */
-    {"om", "Oromoo", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"om", "Oromoo", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 84,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "h:mm\u202Fa", "WD", "WB", ", ", W_om, C_om}, /* region ET */
-    {"ti", "ትግርኛ", "Ethi", 0, 12, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ti", "ትግርኛ", "Ethi", 0, 12, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 85,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "h:mm a", "ቅ.ቀ.", "ድ.ቀ.", "፣ ", W_ti, C_ti}, /* region ET */
-    {"rw", "Ikinyarwanda", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"rw", "Ikinyarwanda", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 86,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_rw, C_rw}, /* region RW */
-    {"mg", "Malagasy", "Latn", 0, 12, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"mg", "Malagasy", "Latn", 0, 12, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 87,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_mg, C_mg}, /* region MG */
-    {"sn", "chiShona", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"sn", "chiShona", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 88,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_sn, C_sn}, /* region ZW */
-    {"wo", "Wolof", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"wo", "Wolof", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 89,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd-MM-y", "HH:mm", "Sub", "Ngo", ", ", W_wo, C_wo}, /* region SN */
-    {"ln", "lingála", "Latn", 0, 12, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ln", "lingála", "Latn", 0, 12, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 90,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/y", "HH:mm", "ntɔ́ngɔ́", "mpókwa", ", ", W_ln, C_ln}, /* region CD */
-    {"af", "Afrikaans", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"af", "Afrikaans", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 91,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "y-MM-dd", "HH:mm", "vm.", "nm.", ", ", W_af, C_af}, /* region ZA */
-    {"ff", "Pulaar", "Latn", 0, 16, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ff", "Pulaar", "Latn", 0, 16, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 92,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d/M/y", "HH:mm", "subaka", "kikiiɗe", ", ", W_ff, C_ff}, /* region SN */
-    {"nqo", "ߒߞߏ", "Nkoo", 1, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"nqo", "ߒߞߏ", "Nkoo", 1, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 93,
      {{SYS_NKOO, ".", "،", "-"}, {SYS_NKOO, ".", "،", "-"}},
      "y-MM-dd", "HH:mm", "ߛ", "ߥ", "߸ ", W_nqo, C_nqo}, /* region GN */
-    {"zgh", "ⵜⴰⵎⴰⵣⵉⵖⵜ", "Tfng", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"zgh", "ⵜⴰⵎⴰⵣⵉⵖⵜ", "Tfng", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 94,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "d/M/y", "HH:mm", "ⵜⵉⴼⴰⵡⵜ", "ⵜⴰⴷⴳⴳⵯⴰⵜ", ", ", W_zgh, C_zgh}, /* region MA */
-    {"qu", "Runasimi", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"qu", "Runasimi", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 95,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "h:mm\u202Fa", "a.m.", "p.m.", ", ", W_qu, C_qu}, /* region PE */
-    {"gn", "avañe’ẽ", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"gn", "avañe’ẽ", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 96,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_gn, C_gn}, /* region PY */
-    {"chr", "ᏣᎳᎩ", "Cher", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"chr", "ᏣᎳᎩ", "Cher", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 97,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "M/d/yy", "h:mm a", "ᏌᎾᎴ", "ᏒᎯᏱᎢ", ", ", W_chr, C_chr}, /* region US */
-    {"nv", "Diné Bizaad", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"nv", "Diné Bizaad", "Latn", 0, 0, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 98,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_nv, C_nv}, /* region US */
-    {"mi", "Māori", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"mi", "Māori", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 99,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd-MM-y", "h:mm\u202Fa", "AM", "PM", ", ", W_mi, C_mi}, /* region NZ */
-    {"haw", "ʻŌlelo Hawaiʻi", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"haw", "ʻŌlelo Hawaiʻi", "Latn", 0, 11, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 100,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "h:mm\u202Fa", "AM", "PM", ", ", W_haw, C_haw}, /* region US */
-    {"iu", "ᐃᓄᒃᑎᑐᑦ", "Cans", 0, 14, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"iu", "ᐃᓄᒃᑎᑐᑦ", "Cans", 0, 14, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 101,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "MM/dd/y", "h:mm a", "AM", "PM", ", ", W_iu, C_iu}, /* region CA */
-    {"se", "davvisámegiella", "Latn", 0, 14, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"se", "davvisámegiella", "Latn", 0, 14, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 102,
      {{SYS_LATN, ",", "\u00A0", "\u2212"}, {SYS_LATN, ",", "\u00A0", "\u2212"}},
      "y-MM-dd", "HH:mm", "i.b.", "e.b.", ", ", W_se, C_se}, /* region NO */
-    {"ht", "Kreyòl Ayisyen", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ht", "Kreyòl Ayisyen", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 103,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd/MM/y", "HH:mm", "AM", "PM", ", ", W_ht, C_ht}, /* region HT */
-    {"la", "Lingua Latina", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"la", "Lingua Latina", "Latn", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 104,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_la, C_la}, /* region VA */
-    {"grc", "Ἀρχαία Ἑλληνική", "Grek", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"grc", "Ἀρχαία Ἑλληνική", "Grek", 0, 11, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 105,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "d/M/yy", "h:mm\u202Fa", "π.μ.", "μ.μ.", ", ", W_grc, C_grc}, /* region GR */
-    {"sa", "संस्कृत भाषा", "Deva", 0, 14, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE,
+    {"sa", "संस्कृत भाषा", "Deva", 0, 14, 0, CAL_GREGORIAN, 3, 2, 1, ZUI_REVIEW_MACHINE, 106,
      {{SYS_DEVA, ".", ",", "-"}, {SYS_DEVA, ".", ",", "-"}},
      "d/M/yy", "h:mm a", "AM", "PM", ", ", W_sa, C_sa}, /* region IN */
-    {"pi", "Pāli", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"pi", "Pāli", "Latn", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 107,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_pi, C_pi}, /* region GB */
-    {"cu", "Церковнословѣнскїй", "Cyrl", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"cu", "Церковнословѣнскїй", "Cyrl", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 108,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_cu, C_cu}, /* region RU */
-    {"ang", "Ænglisc", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ang", "Ænglisc", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 109,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/y", "HH:mm", "am", "pm", ", ", W_ang, C_ang}, /* region GB */
-    {"lzh", "文言", "Hant", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"lzh", "文言", "Hant", 0, 0, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 110,
      {{SYS_LATN, ".", ",", "-"}, {SYS_HANIDEC, ".", ",", "-"}},
      "y/M/d", "Bh:mm", "上午", "下午", "，", W_lzh, C_lzh}, /* region CN */
-    {"ota", "لسان عثمانی", "Arab", 1, 8, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"ota", "لسان عثمانی", "Arab", 1, 8, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 111,
      {{SYS_LATN, ".", ",", "\u200E-"}, {SYS_ARAB, "٫", "٬", "\u061C-"}},
      "d\u200F/M\u200F/y", "h:mm a", "ص", "م", "، ", W_ota, C_ota}, /* region TR */
-    {"syr", "ܣܘܪܝܝܐ", "Syrc", 1, 11, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE,
+    {"syr", "ܣܘܪܝܝܐ", "Syrc", 1, 11, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_MACHINE, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d-MM-y", "h:mm a", "܏ܩܛ‌", "܏ܒܛ‌", ", ", W_syr, C_syr}, /* region IQ */
-    {"gez", "Geez", "Ethi", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"gez", "Geez", "Ethi", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 25,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region ET */
-    {"cop", "Coptic", "Copt", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"cop", "Coptic", "Copt", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 9,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region EG */
-    {"hbo", "Biblical Hebrew", "Hebr", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"hbo", "Biblical Hebrew", "Hebr", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 10,
      {{SYS_LATN, ".", ",", "\u200E-"}, {SYS_LATN, ".", ",", "\u200E-"}},
      "d.M.y", "H:mm", "AM", "PM", ", ", W_en, C_en}, /* region IL */
-    {"arc", "Imperial Aramaic", "Armi", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"arc", "Imperial Aramaic", "Armi", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"arc-Nbat", "Nabataean Aramaic", "Nbat", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"arc-Nbat", "Nabataean Aramaic", "Nbat", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region JO */
-    {"arc-Palm", "Palmyrene Aramaic", "Palm", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"arc-Palm", "Palmyrene Aramaic", "Palm", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region SY */
-    {"arc-Hatr", "Hatran Aramaic", "Hatr", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"arc-Hatr", "Hatran Aramaic", "Hatr", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IQ */
-    {"arc-Elym", "Elymaic Aramaic", "Elym", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"arc-Elym", "Elymaic Aramaic", "Elym", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"myz", "Classical Mandaic", "Mand", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"myz", "Classical Mandaic", "Mand", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 112,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"akk", "Akkadian", "Xsux", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"akk", "Akkadian", "Xsux", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IQ */
-    {"sux", "Sumerian", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sux", "Sumerian", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"hit", "Hittite", "Xsux", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"hit", "Hittite", "Xsux", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region TR */
-    {"elx", "Elamite", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"elx", "Elamite", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"xur", "Urartian", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xur", "Urartian", "Xsux", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"egy", "Ancient Egyptian", "Egyp", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"egy", "Ancient Egyptian", "Egyp", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 9,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region EG */
-    {"peo", "Old Persian", "Xpeo", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"peo", "Old Persian", "Xpeo", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"uga", "Ugaritic", "Ugar", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"uga", "Ugaritic", "Ugar", 0, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region SY */
-    {"phn", "Phoenician", "Phnx", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"phn", "Phoenician", "Phnx", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region LB */
-    {"gmy", "Mycenaean Greek", "Linb", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"gmy", "Mycenaean Greek", "Linb", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 28,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region GR */
-    {"lab", "Linear A", "Lina", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"lab", "Linear A", "Lina", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 28,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region GR */
-    {"grc-Cprt", "Arcadocypriot Greek", "Cprt", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"grc-Cprt", "Arcadocypriot Greek", "Cprt", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 28,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region GR */
-    {"und-Cpmn", "Cypro-Minoan", "Cpmn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"und-Cpmn", "Cypro-Minoan", "Cpmn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CY */
-    {"ett", "Etruscan", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"ett", "Etruscan", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IT */
-    {"osc", "Oscan", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"osc", "Oscan", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 5,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IT */
-    {"xum", "Umbrian", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xum", "Umbrian", "Ital", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 5,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IT */
-    {"xlc", "Lycian", "Lyci", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xlc", "Lycian", "Lyci", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region TR */
-    {"xld", "Lydian", "Lydi", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xld", "Lydian", "Lydi", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region TR */
-    {"xcr", "Carian", "Cari", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xcr", "Carian", "Cari", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region TR */
-    {"hlu", "Hieroglyphic Luwian", "Hluw", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"hlu", "Hieroglyphic Luwian", "Hluw", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region TR */
-    {"xmr", "Meroitic", "Mero", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xmr", "Meroitic", "Mero", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 9,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region SD */
-    {"onw", "Old Nubian", "Copt", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"onw", "Old Nubian", "Copt", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 9,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"otk", "Old Turkic", "Orkh", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"otk", "Old Turkic", "Orkh", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 22,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region MN */
-    {"sog", "Sogdian", "Sogd", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sog", "Sogdian", "Sogd", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region UZ */
-    {"sog-Sogo", "Old Sogdian", "Sogo", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sog-Sogo", "Old Sogdian", "Sogo", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region UZ */
-    {"xpr", "Parthian", "Prti", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xpr", "Parthian", "Prti", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"pal", "Middle Persian", "Phli", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pal", "Middle Persian", "Phli", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"pal-Phlp", "Psalter Pahlavi", "Phlp", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pal-Phlp", "Psalter Pahlavi", "Phlp", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CN */
-    {"xmn", "Manichaean Middle Persian", "Mani", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xmn", "Manichaean Middle Persian", "Mani", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CN */
-    {"ae", "Avestan", "Avst", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"ae", "Avestan", "Avst", 1, 1, 6, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IR */
-    {"xco", "Chorasmian", "Chrs", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xco", "Chorasmian", "Chrs", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 11,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region UZ */
-    {"xsa", "Sabaean", "Sarb", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xsa", "Sabaean", "Sarb", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region YE */
-    {"xna", "Ancient North Arabian", "Narb", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xna", "Ancient North Arabian", "Narb", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region SA */
-    {"smp", "Samaritan Hebrew", "Samr", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"smp", "Samaritan Hebrew", "Samr", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 10,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IL */
-    {"pra", "Prakrit", "Brah", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pra", "Prakrit", "Brah", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 13,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region US */
-    {"pgd", "Gandhari", "Khar", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pgd", "Gandhari", "Khar", 1, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 13,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region PK */
-    {"sa-Sidd", "Sanskrit (Siddham)", "Sidd", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sa-Sidd", "Sanskrit (Siddham)", "Sidd", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 106,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IN */
-    {"sa-Shrd", "Sanskrit (Sharada)", "Shrd", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sa-Shrd", "Sanskrit (Sharada)", "Shrd", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 106,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IN */
-    {"sa-Gran", "Sanskrit (Grantha)", "Gran", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sa-Gran", "Sanskrit (Grantha)", "Gran", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 106,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IN */
-    {"kaw", "Old Javanese", "Kawi", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"kaw", "Old Javanese", "Kawi", 0, 1, 0, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 46,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region ID */
-    {"xct", "Classical Tibetan", "Tibt", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xct", "Classical Tibetan", "Tibt", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 52,
      {{SYS_LATN, ".", ",", "-"}, {SYS_TIBT, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "སྔ་དྲོ་", "ཕྱི་དྲོ་", ", ", W_en, C_en}, /* region CN */
-    {"xzh", "Zhang-Zhung", "Marc", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xzh", "Zhang-Zhung", "Marc", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CN */
-    {"cmg", "Classical Mongolian", "Mong", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"cmg", "Classical Mongolian", "Mong", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 51,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region MN */
-    {"txg", "Tangut", "Tang", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"txg", "Tangut", "Tang", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CN */
-    {"zkt", "Khitan", "Kits", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"zkt", "Khitan", "Kits", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region CN */
-    {"ohu", "Old Hungarian", "Hung", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"ohu", "Old Hungarian", "Hung", 1, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 66,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region HU */
-    {"oge", "Old Georgian", "Geor", 0, 1, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_UNTRANSLATED,
+    {"oge", "Old Georgian", "Geor", 0, 1, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_UNTRANSLATED, 60,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region GE */
-    {"xcl", "Classical Armenian", "Armn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_UNTRANSLATED,
+    {"xcl", "Classical Armenian", "Armn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 2, ZUI_REVIEW_UNTRANSLATED, 61,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region AM */
-    {"xag", "Caucasian Albanian", "Aghb", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"xag", "Caucasian Albanian", "Aghb", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region AZ */
-    {"kv-Perm", "Old Permic", "Perm", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"kv-Perm", "Old Permic", "Perm", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region RU */
-    {"sq-Elba", "Albanian (Elbasan)", "Elba", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sq-Elba", "Albanian (Elbasan)", "Elba", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region AL */
-    {"sq-Vith", "Albanian (Vithkuqi)", "Vith", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sq-Vith", "Albanian (Vithkuqi)", "Vith", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region AL */
-    {"cu-Glag", "Church Slavonic (Glagolitic)", "Glag", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"cu-Glag", "Church Slavonic (Glagolitic)", "Glag", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 108,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region BG */
-    {"got", "Gothic", "Goth", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"got", "Gothic", "Goth", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region UA */
-    {"non", "Old Norse", "Runr", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"non", "Old Norse", "Runr", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 74,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region SE */
-    {"pgl", "Primitive Irish", "Ogam", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pgl", "Primitive Irish", "Ogam", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 79,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region IE */
-    {"sga", "Old Irish", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"sga", "Old Irish", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 79,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "d/M/yy", "HH:mm", "r.n.", "i.n.", ", ", W_en, C_en}, /* region IE */
-    {"goh", "Old High German", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"goh", "Old High German", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 3,
      {{SYS_LATN, ",", ".", "-"}, {SYS_LATN, ",", ".", "-"}},
      "dd.MM.yy", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region DE */
-    {"enm", "Middle English", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"enm", "Middle English", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 0,
      {{SYS_LATN, ".", ",", "-"}, {SYS_LATN, ".", ",", "-"}},
      "dd/MM/y", "HH:mm", "am", "pm", ", ", W_en, C_en}, /* region GB */
-    {"fro", "Old French", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"fro", "Old French", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 2,
      {{SYS_LATN, ",", "\u202F", "-"}, {SYS_LATN, ",", "\u202F", "-"}},
      "dd/MM/y", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region FR */
-    {"pro", "Old Occitan", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED,
+    {"pro", "Old Occitan", "Latn", 0, 1, 1, CAL_GREGORIAN, 3, 3, 1, ZUI_REVIEW_UNTRANSLATED, 77,
      {{SYS_LATN, ",", "\u00A0", "-"}, {SYS_LATN, ",", "\u00A0", "-"}},
      "y-MM-dd", "HH:mm", "AM", "PM", ", ", W_en, C_en}, /* region FR */
 };

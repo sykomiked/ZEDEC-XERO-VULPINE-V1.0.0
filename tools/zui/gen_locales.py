@@ -193,9 +193,10 @@ def main():
             if line.startswith("#") or not line.strip():
                 continue
             cols = line.rstrip("\n").split("\t")
-            cols += [""] * (7 - len(cols))
+            cols += [""] * (8 - len(cols))
             langs.append({"tag": cols[0], "english": cols[1], "script": cols[2],
-                          "group": cols[3], "data": cols[5], "ui": cols[6] or "full"})
+                          "group": cols[3], "data": cols[5], "ui": cols[6] or "full",
+                          "bridge": cols[7]})
 
     plurals = load(cldr, "cldr-core", "supplemental", "plurals.json")["supplemental"][
         "plurals-type-cardinal"]
@@ -326,7 +327,7 @@ def main():
             rows.append(dict(tag=tag, name=name, rtl=rtl, rule=rid, first=days[week["firstDay"].get(
                 region, week["firstDay"]["001"])], cal=cal, g1=g1, g2=g2, ming=ming, nums=nums,
                 date=date, time=time, am=am, pm=pm, sep=sep, cid="en", script=L["script"],
-                region=region, review="ZUI_REVIEW_UNTRANSLATED"))
+                region=region, review="ZUI_REVIEW_UNTRANSLATED", bridge=L["bridge"] or "en"))
             continue
         with open(os.path.join(LOC_DIR, "words", f"{tag}.json"), encoding="utf-8") as f:
             w = json.load(f)
@@ -347,7 +348,14 @@ def main():
         rows.append(dict(tag=tag, name=name, rtl=rtl, rule=rid, first=first, cal=cal,
                          g1=g1, g2=g2, ming=ming, nums=nums, date=date, time=time, am=am,
                          pm=pm, sep=sep, cid=cid, script=L["script"], region=region,
-                         review=REVIEW[w["review"]]))
+                         review=REVIEW[w["review"]], bridge=tag))
+
+    index = {r["tag"]: i for i, r in enumerate(rows)}
+    for r in rows:
+        b = rows[index[r["bridge"]]] if r["bridge"] in index else None
+        if not b or b["review"] == "ZUI_REVIEW_UNTRANSLATED":
+            raise SystemExit(f"{r['tag']}: bridge {r['bridge']} is not a translated locale here")
+        r["bridge_i"] = index[r["bridge"]]
 
     # ---- write zui_locale_data.inc ----
     o = []
@@ -407,7 +415,7 @@ def main():
         ns = ", ".join("{SYS_%s, %s, %s, %s}" % (n[0].upper(), c_str(n[1]), c_str(n[2]), c_str(n[3]))
                        for n in r["nums"])
         o.append(f"    {{{c_str(r['tag'])}, {c_str(r['name'])}, \"{r['script']}\", {int(r['rtl'])}, {r['rule']}, {r['first']}, "
-                 f"{calname[r['cal']]}, {r['g1']}, {r['g2']}, {r['ming']}, {r['review']},")
+                 f"{calname[r['cal']]}, {r['g1']}, {r['g2']}, {r['ming']}, {r['review']}, {r['bridge_i']},")
         o.append(f"     {{{ns}}},")
         o.append(f"     {c_str(r['date'])}, {c_str(r['time'])}, {c_str(r['am'])}, {c_str(r['pm'])}, "
                  f"{c_str(r['sep'])}, W_{r['cid']}, C_{r['cid']}}}, /* region {r['region']} */")

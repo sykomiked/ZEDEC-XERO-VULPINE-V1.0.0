@@ -24,6 +24,7 @@ struct zui_locale {
     uint8_t rtl, plural, first_day, calendar;
     uint8_t g1, g2, min_group; /* grouping: first group, the others, minimum digits */
     uint8_t review;            /* zui_review_t of the reader's words */
+    uint8_t bridge;            /* the translated locale spoken for it (itself if translated) */
     numsys_t num[2];           /* default, native */
     const char *date, *time, *am, *pm, *list;
     const char *const *words;
@@ -190,6 +191,10 @@ const char *zui_locale_script(const zui_locale_t *loc)
 zui_review_t zui_locale_review(const zui_locale_t *loc)
 {
     return (zui_review_t) L_(loc)->review;
+}
+const zui_locale_t *zui_locale_bridge(const zui_locale_t *loc)
+{
+    return &LOCALES[L_(loc)->bridge];
 }
 bool zui_locale_rtl(const zui_locale_t *loc)
 {
