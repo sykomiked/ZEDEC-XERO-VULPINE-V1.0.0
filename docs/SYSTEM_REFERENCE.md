@@ -2712,6 +2712,14 @@ Tests: src/terms/test_terms.c under ASan/UBSan, 446 passed, plus a freestanding 
 Used by: src/zui/zui_terms.c (the native screen). Nothing else calls it: no shell opens the screen and nothing writes the acceptance log on a device.
 Gaps: English text only; the README recommends counsel review before the first public release. Login, lock and per-seat terms on screen on bare metal are missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 13). Flow and clauses backed in code: [kernel/src/terms/README.md](../kernel/src/terms/README.md).
 
+### terms — first-boot end-user agreement gate
+Status: WORKING (tested in verify-all)
+What it does: holds the logic every screen shares for showing the ZXV End-User Agreement at a person's first sign-in. It lays the embedded text out for reading (character cells or pixels with a font measure callback), tracks scroll, page, section jumps and screen-reader progress, and only allows "I agree" once the end has been shown. An acceptance is a per-seat, hash-chained record, and the log status says whether a seat has accepted the current version. The text is agreement/en.txt embedded by tools/terms/embed_terms.py with its SHA-256; a mismatch refuses to show or record the text.
+Main entry points: terms_reader_init/_ex, terms_reader_resize, terms_scroll, terms_page, terms_goto_section, terms_reader_spoke, terms_view, terms_can_accept, terms_accept, terms_decline, terms_record_format/parse, terms_log_verify, terms_log_status.
+Tests: src/terms/test_terms.c under ASan/UBSan, 446 passed, plus a freestanding x86_64 build check, via test-terms in verify-all. src/zui/test_zui_terms.c (132 checks, in verify-all through test_zui_toolkit.sh) tests the screen.
+Used by: src/zui/zui_terms.c (the native screen). Nothing else calls it: no shell opens the screen and nothing writes the acceptance log on a device.
+Gaps: English text only; the README recommends counsel review before the first public release. Login, lock and per-seat terms on screen on bare metal are missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 13). Flow and clauses backed in code: [kernel/src/terms/README.md](../kernel/src/terms/README.md).
+
 ### theme — palette tokens that every drawable resolves through
 Status: WORKING (tested in verify-all)
 What it does: maps THEME_* tokens to RGB values, with overrides, so the UI can be recoloured from one place.
