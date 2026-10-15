@@ -17,6 +17,13 @@
  *   random  TPM2_GetRandom.
  *   Z is the x coordinate, 32 bytes; E is stored as 04 || x || y.
  *
+ * Monotonic counters (outbox.h R1-R4, hwk_host_ctr_*): one NV counter
+ * index per 32-byte id, in the owner range 0x01000000-0x013FFFFF at an
+ * offset taken from SHAKE256("ZXV-TPM-CTR1" || id). NV_DefineSpace (owner
+ * read and write, counter type, noDA), then one NV_Increment so it can be
+ * read; NV_Read, NV_Increment and NV_UndefineSpace after that. A TPM keeps
+ * a counter's value across reboots and never lets it go down.
+ *
  * Transport: /dev/tpmrm0 (the kernel's resource manager), or the MS
  * simulator protocol over TCP when ZXV_TPM=mssim:HOST:PORT (swtpm socket
  * --tpm2 --server type=tcp,port=PORT --flags startup-clear), or another
@@ -44,6 +51,14 @@
 #define TPM_CC_ECDH_KeyGen   0x00000163u
 #define TPM_CC_FlushContext  0x00000165u
 #define TPM_CC_GetRandom     0x0000017Bu
+#define TPM_CC_NV_Undefine   0x00000122u
+#define TPM_CC_NV_Define     0x0000012Au
+#define TPM_CC_NV_Increment  0x00000134u
+#define TPM_CC_NV_Read       0x0000014Eu
+#define TPM_RC_NV_UNINIT     0x0000014Au
+#define TPM_RC_NV_DEFINED    0x0000014Cu
+#define TPM_RC_HANDLE_1      0x0000018Bu /* TPM_RC_HANDLE on the first handle */
+#define TPM_RC_HANDLE_2      0x0000028Bu
 #define TPM_RH_OWNER         0x40000001u
 #define TPM_RS_PW            0x40000009u
 #define TPM_ALG_ECC          0x0023u
@@ -52,6 +67,10 @@
 #define TPM_ECC_NIST_P256    0x0003u
 /* fixedTPM | fixedParent | sensitiveDataOrigin | userWithAuth | noDA | decrypt */
 #define KEY_ATTRS 0x00020472u
+/* ownerWrite | counter | ownerRead | noDA */
+#define CTR_ATTRS 0x02020012u
+#define CTR_BASE  0x01000000u
+#define CTR_SPAN  0x00400000u
 
 #define HANDLE_VER 1u
 #define HANDLE_LEN 33u /* version + unique */
@@ -333,6 +352,91 @@ static int tpm_random(void *ctx, uint8_t *out, uint32_t len)
         len -= got;
     }
     return 0;
+}
+
+/* ---- monotonic counters ------------------------------------------------- */
+static uint32_t ctr_index(const uint8_t id[32])
+{
+    uint8_t in[12 + 32], h[4];
+    memcpy(in, "ZXV-TPM-CTR1", 12);
+    memcpy(in + 12, id, 32);
+    shake256(in, sizeof in, h, sizeof h);
+    return CTR_BASE + (be32(h) % CTR_SPAN);
+}
+
+/* an owner-authorised NV command on one index; returns the response code */
+static long nv_cmd(tpm_t *t, uint32_t cc, uint32_t index, const uint8_t *par, uint32_t pn,
+                   uint8_t *r, uint32_t *rn)
+{
+    mb_t m;
+    begin(&m, TPM_ST_SESSIONS, cc);
+    u32(&m, TPM_RH_OWNER);
+    if (cc != TPM_CC_NV_Define) u32(&m, index);
+    pw_session(&m);
+    if (pn) bytes(&m, par, pn);
+    finish(&m);
+    return xfer(t, m.b, m.n, r, rn);
+}
+
+static long nv_read(tpm_t *t, uint32_t index, uint64_t *v)
+{
+    uint8_t par[4] = {0, 8, 0, 0}, r[BUF_MAX]; /* size 8, offset 0 */
+    uint32_t rn;
+    long rc = nv_cmd(t, TPM_CC_NV_Read, index, par, sizeof par, r, &rn);
+    if (rc != 0) return rc;
+    if (rn < 16 + 8 || be16(r + 14) != 8) return -1;
+    uint64_t x = 0;
+    for (int i = 0; i < 8; i++) x = (x << 8) | r[16 + i];
+    *v = x;
+    return 0;
+}
+
+int hwk_tpm_ctr(void *impl, hwk_ctr_op_t op, const uint8_t id[32], uint64_t *v)
+{
+    tpm_t *t = impl;
+    if (!t || !id) return -1;
+    uint32_t index = ctr_index(id), rn;
+    uint8_t r[BUF_MAX];
+    uint64_t dummy;
+    long rc;
+    switch (op) {
+    case HWK_CTR_CREATE: {
+        uint8_t par[2 + 2 + 14];
+        uint32_t o = 0;
+        par[o++] = 0; /* TPM2B_AUTH: empty */
+        par[o++] = 0;
+        par[o++] = 0; /* TPM2B_NV_PUBLIC */
+        par[o++] = 14;
+        for (int i = 3; i >= 0; i--) par[o++] = (uint8_t) (index >> (8 * i));
+        par[o++] = (uint8_t) (TPM_ALG_SHA256 >> 8);
+        par[o++] = (uint8_t) TPM_ALG_SHA256;
+        for (int i = 3; i >= 0; i--) par[o++] = (uint8_t) (CTR_ATTRS >> (8 * i));
+        par[o++] = 0; /* authPolicy: empty */
+        par[o++] = 0;
+        par[o++] = 0; /* dataSize 8 */
+        par[o++] = 8;
+        rc = nv_cmd(t, TPM_CC_NV_Define, index, par, o, r, &rn);
+        if (rc != 0 && rc != TPM_RC_NV_DEFINED) return -1;
+        /* a counter cannot be read until it is incremented once */
+        rc = nv_read(t, index, v ? v : &dummy);
+        if (rc == TPM_RC_NV_UNINIT) {
+            if (nv_cmd(t, TPM_CC_NV_Increment, index, 0, 0, r, &rn) != 0) return -1;
+            rc = nv_read(t, index, v ? v : &dummy);
+        }
+        return rc == 0 ? 0 : -1;
+    }
+    case HWK_CTR_READ:
+        if (!v) return -1;
+        rc = nv_read(t, index, v);
+        return rc == 0 ? 0 : -1;
+    case HWK_CTR_BUMP:
+        if (!v || nv_cmd(t, TPM_CC_NV_Increment, index, 0, 0, r, &rn) != 0) return -1;
+        return nv_read(t, index, v) == 0 ? 0 : -1;
+    case HWK_CTR_RELEASE:
+        rc = nv_cmd(t, TPM_CC_NV_Undefine, index, 0, 0, r, &rn);
+        return rc == 0 || rc == TPM_RC_HANDLE_2 ? 0 : -1; /* already gone is fine */
+    }
+    return -1;
 }
 
 static int connect_mssim(const char *spec, char *why, size_t cap)
