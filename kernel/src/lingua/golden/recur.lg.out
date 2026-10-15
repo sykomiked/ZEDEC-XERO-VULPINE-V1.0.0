@@ -1,0 +1,25 @@
+0 1
+1 1
+2 2
+3 6
+4 24
+5 120
+6 720
+7 5040
+8 40320
+9 362880
+10 3628800
+1307674368000
+9
+61
+move 1 a to c
+move 2 a to b
+move 1 c to b
+move 3 a to c
+move 1 b to a
+move 2 b to c
+move 1 a to c
+true
+true
+200
+9876543210

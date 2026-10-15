@@ -278,7 +278,8 @@ typedef struct {
     size_t out_len;     /* set by zl_run */
     uint64_t fuel;      /* instructions allowed; 0 means 10^7 */
     uint64_t used;      /* set by zl_run */
-    uint32_t trap_line; /* source line of the trapping instruction */
+    uint32_t trap_line; /* source line of the trapping instruction (of its
+                           nearest caller when it has none) */
     uint32_t trap_pc;
     zl_trace_t *trace; /* may be NULL */
     /* machine state, owned by the caller so zl_run needs little stack */

@@ -499,7 +499,11 @@ static int put_cstr(vm_out_t *o, const char *t)
 static int print_atom(vm_out_t *o, const zl_prog_t *p, int64_t v, int dialect, int bare)
 {
     char num[24];
-    if (v > -ZL_V_REF && v < ZL_V_REF) return vm_put(o, num, zl_itoa(v, num));
+    if (v > -ZL_V_REF && v < ZL_V_REF) { /* a number: traced as OUTI traces it */
+        zl_trace_t *t = o->r->trace;
+        if (t && t->n < t->cap) t->v[t->n++] = v;
+        return vm_put(o, num, zl_itoa(v, num));
+    }
     if (v == ZL_V_NIL)
         return put_cstr(o, dialect == ZL_DIALECT_LISP     ? "NIL"
                            : dialect == ZL_DIALECT_SCHEME ? "()"
@@ -1131,6 +1135,9 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
 trap:
     r->trap_pc = pc;
     r->trap_line = pc < p->ncode ? p->code[pc].line : 0;
+    /* a trap in line-less code (a front-end's helper) reports its caller's line */
+    for (uint32_t k = rp; r->trap_line == 0 && k > 0; k--)
+        if (rs[k - 1] >= 1 && rs[k - 1] <= p->ncode) r->trap_line = p->code[rs[k - 1] - 1].line;
     return s;
 #undef NEED
 #undef ROOM
