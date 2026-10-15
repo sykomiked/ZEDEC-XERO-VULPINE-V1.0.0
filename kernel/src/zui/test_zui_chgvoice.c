@@ -6,6 +6,7 @@
  * borrowed voice, the phrases it hears, the pop-up's phases under full and
  * reduced motion, the mouth, and the drawing. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "zui_chgvoice.h"
@@ -1149,6 +1150,155 @@ static void test_human(void)
     CHECK(zui_cv_spell(0, 0) == ZUI_CV_BAD, "NULL");
 }
 
+/* CV11: face to face */
+static int n_hook, hook_open;
+static void on_call(bool open, void *ctx)
+{
+    (void) ctx;
+    n_hook++;
+    hook_open = open;
+}
+
+static void dump_ppm(const char *path)
+{
+    FILE *f = path ? fopen(path, "wb") : 0;
+    if (!f) return;
+    fprintf(f, "P6\n%d %d\n255\n", W, H);
+    for (uint32_t i = 0; i < W * H; i++) {
+        uint8_t px[3] = {(uint8_t) (PX[i] >> 16), (uint8_t) (PX[i] >> 8), (uint8_t) PX[i]};
+        fwrite(px, 1, 3, f);
+    }
+    fclose(f);
+}
+
+static void test_call(void)
+{
+    zui_cv_t cv;
+    fresh(&cv);
+    n_hook = hook_open = 0;
+    zui_cv_set_call_hook(&cv, on_call, 0);
+    zui_cv_facts_t f = facts();
+    CHECK(!zui_cv_in_call(&cv), "no call at first");
+    CHECK(zui_cv_hear(&cv, "bye", &f, 0) == ZUI_CV_NOT_MINE, "bye with no call is not its");
+    CHECK(zui_cv_hear(&cv, "Let's talk.", &f, 10) == ZUI_CV_SPEAKING && zui_cv_in_call(&cv),
+          "let's talk opens it");
+    CHECK(n_hook == 1 && hook_open, "the host is told: listen");
+    CHECK(n_heard == 1 && !strcmp(HEARD[0].text, "I am here."), "hello: %s", HEARD[0].text);
+    CHECK(cv.calls == 1, "counted");
+    CHECK(zui_cv_hear(&cv, "talk to me", &f, 20) == ZUI_CV_SAME && n_hook == 1, "already open");
+    CHECK(zui_cv_call(&cv, true, 20) == ZUI_CV_NOTHING, "open twice: nothing");
+    finish(&cv);
+    /* it does not settle away while the call is open */
+    zui_cv_tick(&cv, 30);
+    zui_cv_tick(&cv, 30 + ZUI_CV_HOLD_MS + 1000);
+    CHECK(cv.phase == ZUI_CV_SHOWN, "stays up in a call (phase %d)", cv.phase);
+    /* the mic and what was heard */
+    zui_cv_listening(&cv, true, 5000);
+    CHECK(cv.listening, "listening");
+    zui_cv_tick(&cv, 5000 + ZUI_CV_CALL_IDLE_MS + 1);
+    CHECK(zui_cv_in_call(&cv), "never closed while the person is speaking");
+    zui_cv_heard(&cv, "how are you", 200000);
+    CHECK(!cv.listening && !strcmp(cv.heard, "how are you"), "heard kept: %s", cv.heard);
+    CHECK(zui_cv_hear(&cv, "how are you", &f, 200000) == ZUI_CV_SPEAKING, "it answers");
+    /* a visitor */
+    zui_chiglet_t peer = {{9, 8, 7, 6, 5, 4, 3, 2}, 1, ZUI_CHG_DECIDED, 0};
+    swarm_feeling_t joy = {SWARM_EMO_JOY, 3};
+    CHECK(zui_cv_visit(&cv, &peer, "Ember", joy, 200100) == ZUI_CV_SET && cv.visiting &&
+              !strcmp(cv.guest_name, "Ember"),
+          "a visitor in the call");
+    CHECK(zui_cv_visit(&cv, 0, "x", joy, 0) == ZUI_CV_BAD, "NULL visitor");
+    /* drawn: the window, the visitor, End */
+    zui_text_t t;
+    memset(&t, 0, sizeof t);
+    t.size_px = 14;
+    if (load_font()) {
+        zui_glyph_cache_init(&CACHE);
+        t.font = &FONT;
+        t.cache = &CACHE;
+    }
+    zui_cv_set_name(&cv, "Pip");
+    zui_cv_listening(&cv, true, 200200);
+    zui_cv_heard(&cv, "Chiglet, how are you?", 200200);
+    zui_cv_listening(&cv, true, 200200);
+    uint64_t h1 = draw(&cv, &t, 200300);
+    zui_rect_t w = cv.call_rect;
+    CHECK(w.w == 520 && w.h == 400 && w.x == W - ZUI_S4 - 520 && w.y == H - ZUI_S4 - 400,
+          "a call tile in its corner: %d,%d %dx%d", w.x, w.y, w.w, w.h);
+    uint32_t in = 0, out = 0;
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) {
+            bool on = PX[y * W + x] != ZUI_VOID;
+            bool inw = x >= w.x && y >= w.y && x < w.x + w.w && y < w.y + w.h;
+            if (on && inw) in++;
+            if (on && !inw) out++;
+        }
+    CHECK(in > 100000 && out == 0, "drawn inside its window only: %u in, %u out", in, out);
+    dump_ppm(getenv("ZXV_CV_CALL_PPM"));
+    CHECK(draw(&cv, &t, 200300) == h1, "deterministic");
+    zui_rect_t e = cv.end_rect;
+    CHECK(e.w > 0 && e.x + e.w <= w.x + w.w && e.y >= w.y, "End in the bar");
+    CHECK(zui_cv_call_hit(&cv, e.x + 2, e.y + 2) == ZUI_CV_HIT_END, "End hit");
+    CHECK(zui_cv_call_hit(&cv, w.x + w.w / 2, w.y + w.h / 2) == ZUI_CV_HIT_WINDOW, "window hit");
+    CHECK(zui_cv_call_hit(&cv, 1, 1) == ZUI_CV_HIT_NONE, "elsewhere");
+    CHECK(zui_cv_call_hit(0, 1, 1) == ZUI_CV_HIT_NONE, "NULL");
+    zui_cv_visit_end(&cv, 200400);
+    uint64_t h2 = draw(&cv, &t, 200400);
+    CHECK(!cv.visiting && h2 != h1, "the visitor leaves");
+    zui_cv_listening(&cv, false, 200400);
+    CHECK(draw(&cv, &t, 200400) != h2, "the mic mark changes when it stops listening");
+    /* reduce motion: in place at once */
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, true);
+    draw(&cv, &t, cv.call_ms);
+    CHECK(changed() > 100000, "reduce motion: whole at once");
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, false);
+    /* bye closes it and says so */
+    finish(&cv);
+    int before = n_heard;
+    CHECK(zui_cv_hear(&cv, "Goodbye!", &f, 210000) == ZUI_CV_STOPPED && !zui_cv_in_call(&cv),
+          "goodbye closes it");
+    CHECK(n_heard == before + 1 && !strcmp(HEARD[n_heard - 1].text, "Bye for now."), "bye: %s",
+          HEARD[n_heard - 1].text);
+    CHECK(n_hook == 2 && !hook_open && !cv.visiting && !cv.listening && !cv.heard[0],
+          "the host is told: stop listening");
+    CHECK(zui_cv_visit(&cv, &peer, "Ember", joy, 210001) == ZUI_CV_NOTHING,
+          "no visit without a call");
+    CHECK(zui_cv_call(&cv, false, 0) == ZUI_CV_NOTHING, "close twice: nothing");
+    finish(&cv);
+    zui_cv_tick(&cv, 210000 + ZUI_CV_HOLD_MS + 10);
+    zui_cv_tick(&cv, 210000 + ZUI_CV_HOLD_MS + 10 + ZUI_CV_RISE_MS + 1);
+    CHECK(cv.phase == ZUI_CV_HIDDEN, "and settles away (phase %d)", cv.phase);
+    /* a quiet call closes itself, silently */
+    CHECK(zui_cv_call(&cv, true, 300000) == ZUI_CV_SPEAKING, "open again");
+    finish(&cv);
+    before = n_heard;
+    zui_cv_tick(&cv, 300000 + ZUI_CV_CALL_IDLE_MS - 1);
+    CHECK(zui_cv_in_call(&cv), "not before two minutes");
+    zui_cv_tick(&cv, 300000 + ZUI_CV_CALL_IDLE_MS);
+    CHECK(!zui_cv_in_call(&cv) && n_heard == before && !hook_open, "idle: closed without a word");
+    /* other words */
+    static zui_cv_words_t wq;
+    wq = zui_cv_words_en;
+    wq.call_hello = 0;
+    zui_cv_set_words(&cv, &wq);
+    before = n_heard;
+    CHECK(zui_cv_call(&cv, true, 400000) == ZUI_CV_SPEAKING && n_heard == before,
+          "no hello words: opens quietly");
+    zui_cv_set_words(&cv, 0);
+    zui_cv_set_name(&cv, 0);
+    CHECK(!cv.name[0], "name cleared");
+    CHECK(zui_cv_call(0, true, 0) == ZUI_CV_BAD && !zui_cv_in_call(0), "NULL");
+    zui_cv_set_call_hook(0, 0, 0);
+    zui_cv_listening(0, 1, 0);
+    zui_cv_heard(0, "x", 0);
+    zui_cv_visit_end(0, 0);
+    zui_cv_set_name(0, "x");
+    zui_rect_t tiny = zui_cv_call_rect(&cv, 100, 90);
+    CHECK(tiny.x == 0 && tiny.y == 0 && tiny.w == 100 && tiny.h == 90, "a tiny screen: all of it");
+    zui_cv_set_anchor(&cv, (zui_rect_t){10, 10, 48, 48});
+    zui_rect_t tl = zui_cv_call_rect(&cv, W, H);
+    CHECK(tl.x == ZUI_S4 && tl.y == ZUI_S4, "top-left corner Chiglet: top-left tile");
+}
+
 int main(void)
 {
     test_status_text();
@@ -1165,6 +1315,7 @@ int main(void)
     test_level();
     test_draw();
     test_human();
+    test_call();
     printf("%s test_zui_chgvoice: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;

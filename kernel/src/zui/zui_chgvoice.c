@@ -125,6 +125,12 @@ const zui_cv_words_t zui_cv_words_en = {
     .reading = "Reading %s.",
     .nothing = "There is nothing to read.",
     .say = &speech_tidy_en,
+    .call_hello = "I am here.",
+    .call_bye = "Bye for now.",
+    .call_end = "End",
+    .call_you = "You: %s",
+    .visiting = "%s is visiting.",
+    .name = "Chiglet",
 };
 
 void zui_cv_facts_init(zui_cv_facts_t *f)
@@ -459,6 +465,7 @@ static zui_cv_result_t begin_at(zui_cv_t *cv, zui_cv_kind_t kind, uint32_t from,
     cv->kind = kind;
     cv->pos = from;
     cv->cur_start = from;
+    cv->call_last = now; /* CV11: a call with words in it is not idle */
     cv->words_only = cv->mode == ZUI_CV_WORDS;
     cv->noted = false;
     cv->note[0] = 0;
@@ -496,6 +503,95 @@ static void prepend_title(zui_cv_t *cv, const char *title)
     for (uint32_t i = 0; i < h; i++) cv->text[i] = head[i];
     cv->len = keep + h;
     cv->text[cv->len] = 0;
+}
+
+/* ---- CV11: face to face ------------------------------------------------------- */
+
+void zui_cv_set_name(zui_cv_t *cv, const char *name)
+{
+    if (cv) scopy(cv->name, sizeof cv->name, name ? name : "", slen(name));
+}
+
+void zui_cv_set_call_hook(zui_cv_t *cv, zui_cv_call_fn fn, void *ctx)
+{
+    if (!cv) return;
+    cv->on_call = fn;
+    cv->call_ctx = ctx;
+}
+
+bool zui_cv_in_call(const zui_cv_t *cv)
+{
+    return cv && cv->call;
+}
+
+static void end_call(zui_cv_t *cv, bool say, uint32_t now)
+{
+    cv->call = cv->visiting = cv->listening = false;
+    cv->heard[0] = 0;
+    cv->hold_until = now ? now : 1u;
+    if (cv->on_call) cv->on_call(false, cv->call_ctx);
+    if (say && cv->words->call_bye) {
+        set_text(cv, cv->words->call_bye);
+        begin(cv, ZUI_CV_K_NOTE, now);
+    } else {
+        quiet_now(cv);
+        cv->pos = cv->len;
+    }
+}
+
+zui_cv_result_t zui_cv_call(zui_cv_t *cv, bool open, uint32_t now_ms)
+{
+    if (!cv) return ZUI_CV_BAD;
+    if (open == cv->call) return ZUI_CV_NOTHING;
+    if (!open) {
+        end_call(cv, true, now_ms);
+        return ZUI_CV_STOPPED;
+    }
+    cv->call = true;
+    cv->calls++;
+    cv->call_ms = cv->call_last = now_ms;
+    cv->heard[0] = 0;
+    pop_up(cv, now_ms);
+    if (cv->on_call) cv->on_call(true, cv->call_ctx);
+    if (!cv->words->call_hello) return ZUI_CV_SPEAKING;
+    set_text(cv, cv->words->call_hello);
+    return begin(cv, ZUI_CV_K_NOTE, now_ms);
+}
+
+void zui_cv_listening(zui_cv_t *cv, bool on, uint32_t now_ms)
+{
+    if (!cv) return;
+    cv->listening = on;
+    cv->call_last = now_ms;
+}
+
+void zui_cv_heard(zui_cv_t *cv, const char *utf8, uint32_t now_ms)
+{
+    if (!cv) return;
+    cv->listening = false;
+    cv->call_last = now_ms;
+    scopy(cv->heard, sizeof cv->heard, utf8 ? utf8 : "", slen(utf8));
+}
+
+zui_cv_result_t zui_cv_visit(zui_cv_t *cv, const zui_chiglet_t *who, const char *name,
+                             swarm_feeling_t feeling, uint32_t now_ms)
+{
+    if (!cv || !who) return ZUI_CV_BAD;
+    if (!cv->call) return ZUI_CV_NOTHING; /* only in a call the person opened */
+    cv->guest = *who;
+    cv->guest.mouth = 0;
+    scopy(cv->guest_name, sizeof cv->guest_name, name ? name : "", slen(name));
+    cv->guest_feeling = feeling;
+    cv->visiting = true;
+    cv->call_last = now_ms;
+    return ZUI_CV_SET;
+}
+
+void zui_cv_visit_end(zui_cv_t *cv, uint32_t now_ms)
+{
+    if (!cv) return;
+    cv->visiting = false;
+    cv->call_last = now_ms;
 }
 
 /* ---- CV2, CV3, CV4: asking --------------------------------------------------- */
@@ -696,6 +792,13 @@ zui_cv_result_t zui_cv_hear(zui_cv_t *cv, const char *utf8, const zui_cv_facts_t
                                         "spell that out", "read that exactly", "read it exactly",
                                         "say it exactly", "say that exactly",  0};
     if (one_of(s, SPELL)) return zui_cv_spell(cv, now_ms);
+    static const char *const CALL[] = {"let's talk",   "lets talk",       "talk to me", "come here",
+                                       "face to face", "come talk to me", "let's chat", 0};
+    static const char *const BYE[] = {
+        "bye",          "goodbye",    "good bye",  "bye bye", "hang up", "end call",
+        "end the call", "that's all", "thats all", "see you", 0};
+    if (one_of(s, CALL)) return cv->call ? ZUI_CV_SAME : zui_cv_call(cv, true, now_ms);
+    if (cv->call && one_of(s, BYE)) return zui_cv_call(cv, false, now_ms);
     if (one_of(s, THIS)) return read_section(cv, "", now_ms);
     if (seq(s, "louder") || seq(s, "speak up")) {
         zui_cv_set_volume(cv, cv->volume + 10u);
@@ -791,7 +894,10 @@ void zui_cv_tick(zui_cv_t *cv, uint32_t now_ms)
         cv->phase = ZUI_CV_SHOWN;
         cv->phase_ms = now_ms;
     }
-    if (cv->phase == ZUI_CV_SHOWN && !zui_cv_talking(cv) && cv->hold_until &&
+    if (cv->call && !zui_cv_talking(cv) && !cv->listening &&
+        now_ms - cv->call_last >= ZUI_CV_CALL_IDLE_MS)
+        end_call(cv, false, now_ms); /* CV11: quiet, so it closes quietly */
+    if (cv->phase == ZUI_CV_SHOWN && !cv->call && !zui_cv_talking(cv) && cv->hold_until &&
         (int32_t) (now_ms - cv->hold_until) >= 0) {
         cv->phase = ZUI_CV_SETTLING;
         cv->phase_ms = now_ms;
@@ -890,10 +996,154 @@ static uint32_t wrap(zui_surface_t *s, const zui_text_t *tx, const char *t, int3
     return lines;
 }
 
+/* ---- CV11: the call window ------------------------------------------------------ */
+
+zui_rect_t zui_cv_call_rect(const zui_cv_t *cv, int32_t sw, int32_t sh)
+{
+    int32_t m = ZUI_S4, w = 520, h = 400;
+    if (w > sw - 2 * m) w = sw - 2 * m;
+    if (h > sh - 2 * m) h = sh - 2 * m;
+    if (w < 160) w = sw < 160 ? sw : 160;
+    if (h < 160) h = sh < 160 ? sh : 160;
+    /* in the corner the Chiglet lives in, like a call tile */
+    int32_t ax = cv ? cv->anchor.x + cv->anchor.w / 2 : sw;
+    int32_t ay = cv ? cv->anchor.y + cv->anchor.h / 2 : sh;
+    int32_t x = ax >= sw / 2 ? sw - m - w : m;
+    int32_t y = ay >= sh / 2 ? sh - m - h : m;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    zui_rect_t r = {x, y, w, h};
+    return r;
+}
+
+static bool inside(zui_rect_t r, int32_t x, int32_t y)
+{
+    return r.w > 0 && x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h;
+}
+
+zui_cv_hit_t zui_cv_call_hit(const zui_cv_t *cv, int32_t x, int32_t y)
+{
+    if (!cv) return ZUI_CV_HIT_NONE;
+    if (!cv->call) return zui_cv_hit(cv, x, y) ? ZUI_CV_HIT_BODY : ZUI_CV_HIT_NONE;
+    if (inside(cv->end_rect, x, y)) return ZUI_CV_HIT_END;
+    if (inside(cv->call_rect, x, y)) return ZUI_CV_HIT_WINDOW;
+    zui_rect_t a = cv->anchor;
+    return inside(a, x, y) ? ZUI_CV_HIT_BODY : ZUI_CV_HIT_NONE;
+}
+
+static void dot(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t rgb, uint32_t a,
+                bool filled)
+{
+    zui_rect_t d = {cx - r, cy - r, 2 * r, 2 * r};
+    if (filled)
+        zui_fill_rrect(s, d, r, rgb, a);
+    else
+        zui_stroke_rrect(s, d, r, 1, rgb, a);
+}
+
+/* a label centred under a body, cut to fit */
+static void label(zui_surface_t *s, const zui_text_t *t, int32_t cx, int32_t y, int32_t maxw,
+                  const char *str)
+{
+    int32_t tw = zui_text_width(t, str);
+    if (tw > maxw) tw = maxw;
+    zui_text_fit(s, t, cx - tw / 2, y, maxw, ZUI_MUTED, str);
+}
+
+static void draw_call(zui_cv_t *cv, zui_surface_t *s, const zui_text_t *text, uint32_t now,
+                      bool reduce, uint32_t tick)
+{
+    zui_rect_t w = zui_cv_call_rect(cv, s->w, s->h);
+    cv->call_rect = w;
+    uint32_t d = rise_ms(), e = now - cv->call_ms;
+    uint32_t a = reduce || !d || e >= d ? 255u : e * 255u / d;
+    uint32_t accent = zui_chiglet_accent(&cv->who);
+    zui_fill_rrect(s, w, ZUI_R_PANEL, ZUI_PANEL, zui_motion_alpha(a * 245u / 255u));
+    zui_stroke_rrect(s, w, ZUI_R_PANEL, 1, accent, a);
+    bool font = text && text->font;
+    int32_t lh = font ? zui_text_ascent(text) - zui_text_descent(text) + 4 : 18;
+    int32_t pad = ZUI_S3, bar = lh + 2 * ZUI_S2;
+    /* the bar: mic mark, name and feeling, End */
+    int32_t cy = w.y + bar / 2;
+    dot(s, w.x + pad + 5, cy, 5, cv->listening ? ZUI_OK : ZUI_FAINT, a, cv->listening);
+    int32_t ew = font ? zui_text_width(text, cv->words->call_end) + 2 * ZUI_S3 : 48;
+    cv->end_rect = (zui_rect_t){w.x + w.w - pad - ew, w.y + ZUI_S1, ew, bar - 2 * ZUI_S1};
+    zui_fill_rrect(s, cv->end_rect, ZUI_R_CONTROL, ZUI_ALERT, a);
+    zui_hline(s, w.x + 1, w.y + bar, w.w - 2, 1, ZUI_HAIRLINE);
+    const char *name = cv->name[0] ? cv->name : cv->words->name ? cv->words->name : "";
+    if (font) {
+        int32_t base = cy + (zui_text_ascent(text) + zui_text_descent(text)) / 2;
+        int32_t x = w.x + pad + 10 + ZUI_S2;
+        x = zui_text_a(s, text, x, base, ZUI_GOLD, a, name);
+        zui_text_a(s, text, x + ZUI_S2, base, ZUI_MUTED, a, zui_emote_word(cv->feeling.emotion));
+        zui_text_a(s, text, cv->end_rect.x + ZUI_S3, base, ZUI_VOID, a, cv->words->call_end);
+    }
+    /* the caption: what the person said, then its words */
+    int32_t cap_h = font ? lh * 4 + 2 * pad : 0;
+    zui_rect_t stage = {w.x, w.y + bar + 1, w.w, w.h - bar - 1 - cap_h};
+    if (font) {
+        int32_t y = stage.y + stage.h + pad;
+        zui_hline(s, w.x + 1, stage.y + stage.h, w.w - 2, 1, ZUI_HAIRLINE);
+        if (cv->heard[0] && cv->words->call_you) {
+            char you[ZUI_CV_SMALL * 3];
+            sb_t o = {you, sizeof you, 0};
+            you[0] = 0;
+            sb_fmt(&o, cv->words->call_you, cv->heard, 0, 0);
+            zui_text_fit(s, text, w.x + pad, y + zui_text_ascent(text), w.w - 2 * pad, ZUI_MUTED,
+                         you);
+        }
+        y += lh;
+        const char *words = cv->chunk[0] ? cv->chunk : cv->note;
+        wrap(s, text, words, w.x + pad, y, w.w - 2 * pad, lh, 3, ZUI_TEXT, a);
+    }
+    /* the stage: it, and a visitor beside it */
+    int32_t half = cv->visiting ? stage.w / 4 : stage.w / 2;
+    /* the motes orbit at 1.5 r: keep them, and the name under it, on the stage */
+    int32_t r = (half - ZUI_S2) * 3 / 5, rv = (stage.h / 2 - lh - ZUI_S2) * 3 / 5;
+    if (r > rv) r = rv;
+    if (r > 90) r = 90;
+    if (r < 8) r = 8;
+    int32_t scy = stage.y + stage.h / 2 - lh / 2;
+    int32_t mx = stage.x + half;
+    zui_chiglet_t who = cv->who;
+    who.mouth = 0;
+    if (cv->playing || cv->words_until) {
+        who.mood = ZUI_CHG_SPEAKING;
+        who.mouth =
+            cv->playing && !reduce ? (uint8_t) (1u + (cv->level > 254u ? 254u : cv->level)) : 128u;
+    }
+    zui_chiglet_draw(s, &who, mx, scy, r, tick);
+    zui_face_t face = zui_emote_now(&cv->face, now, reduce);
+    int32_t fr = r / 3 < 6 ? 6 : r / 3;
+    zui_face_draw(s, &face, cv->health, mx + r, scy - r + fr / 2, fr, tick);
+    int32_t ly = scy + r * 3 / 2 + ZUI_S1 + (font ? zui_text_ascent(text) : 0);
+    if (font) label(s, text, mx, ly, 2 * half - 2 * ZUI_S2, name);
+    if (cv->visiting) {
+        int32_t gx = stage.x + 3 * half;
+        zui_chiglet_draw(s, &cv->guest, gx, scy, r, tick);
+        zui_emote_t ge;
+        zui_emote_init(&ge, cv->guest_feeling, now);
+        zui_face_t gf = zui_emote_now(&ge, now, 1);
+        zui_face_draw(s, &gf, ZUI_HEALTH_OK, gx + r, scy - r + fr / 2, fr, tick);
+        if (font) {
+            char line[ZUI_CV_SMALL * 2];
+            sb_t o = {line, sizeof line, 0};
+            line[0] = 0;
+            sb_fmt(&o, cv->words->visiting, cv->guest_name, 0, 0);
+            label(s, text, gx, ly, 2 * half - 2 * ZUI_S2, line);
+        }
+    }
+}
+
 void zui_cv_draw(zui_cv_t *cv, zui_surface_t *s, const zui_text_t *text, uint32_t now_ms)
 {
     if (!cv || !s) return;
     cv->now = now_ms;
+    if (cv->call) {
+        bool rm = zui_motion_style() != ZUI_MOTION_FULL;
+        draw_call(cv, s, text, now_ms, rm, rm ? 0u : now_ms / 125u);
+        return;
+    }
     body_t b = body_at(cv, now_ms);
     zui_chiglet_t who = cv->who;
     bool popped = cv->phase != ZUI_CV_HIDDEN;

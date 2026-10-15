@@ -65,6 +65,17 @@
  *       that" (zui_cv_spell) says the last read again exactly, with hashes
  *       and codes spelled out in groups of four; zui_cv_set_verbatim turns
  *       the tidying off for a person who wants every character.
+ *   CV11 FACE TO FACE. "Let's talk" (or zui_cv_call) opens a call window: the
+ *       Chiglet large in its own panel with its name, its feeling, a mic
+ *       mark, what the person said ("You: ...") and its own words as a
+ *       caption, and an End button. Only the person opens it; it never opens
+ *       itself. While it is open the host may listen hands-free (the call
+ *       hook says when to arm and disarm speech_session), and the mic mark
+ *       shows when it is listening. "Bye", "hang up", End, or two minutes
+ *       with nothing said either way close it; closing on idle is silent.
+ *       Another person's Chiglet visiting (zui_cv_visit) sits beside it in
+ *       the window with its name and feeling; a visit is shown only in a
+ *       call the person opened.
  *
  * Integer only, no allocation, no libc, deterministic: the same calls at the
  * same times give the same words and the same pixels. Time is the caller's
@@ -88,6 +99,7 @@
 #define ZUI_CV_RISE_MS 180u        /* CV9: = ZUI_MOTION_MS                                       */
 #define ZUI_CV_HOLD_MS 2500u       /* CV9 */
 #define ZUI_CV_UNKNOWN 0xFFFFFFFFu /* a count or share that was not given                  */
+#define ZUI_CV_CALL_IDLE_MS 120000u     /* CV11: a quiet call closes                          */
 
 /* CV4: the facts a status is made from. Start from zui_cv_facts_init (every
  * count ZUI_CV_UNKNOWN, every string NULL) and fill in what is known; an
@@ -119,6 +131,10 @@ typedef struct {
     const char *reading;   /* zui_cv_read with a title: %s */
     const char *nothing;   /* a read of empty text */
     const speech_tidy_words_t *say; /* CV10: NULL is English */
+    const char *call_hello, *call_bye; /* CV11: "I am here.", "Bye for now." */
+    const char *call_end, *call_you;   /* CV11: "End", "You: %s"          */
+    const char *visiting;              /* CV11: "%s is visiting."          */
+    const char *name;                  /* CV11: the name when none is set  */
 } zui_cv_words_t;
 
 extern const zui_cv_words_t zui_cv_words_en;
@@ -145,6 +161,14 @@ typedef void (*zui_cv_stop_fn)(void *ctx);
 /* zui_cv_hear: the text of a section. name "" is "this section" (what the
  * person has selected or is looking at). Writes the text and, optionally, a
  * title; returns the text's length, or < 0 when there is no such section. */
+/* CV11: the call window opened (true) or closed: arm or disarm listening. */
+typedef void (*zui_cv_call_fn)(bool open, void *ctx);
+typedef enum {
+    ZUI_CV_HIT_NONE = 0,
+    ZUI_CV_HIT_BODY,
+    ZUI_CV_HIT_WINDOW,
+    ZUI_CV_HIT_END
+} zui_cv_hit_t;
 typedef int32_t (*zui_cv_section_fn)(const char *name, char *text, uint32_t cap, char *title,
                                      uint32_t title_cap, void *ctx);
 
@@ -187,8 +211,19 @@ typedef struct {
     zui_cv_phase_t phase;
     uint32_t phase_ms, hold_until, now;
     uint32_t level; /* smoothed mouth level 0..256 */
+    /* CV11 */
+    bool call, listening, visiting;
+    uint32_t call_ms, call_last;
+    char name[ZUI_CV_SMALL];
+    char heard[ZUI_CV_SMALL * 2];
+    zui_chiglet_t guest;
+    char guest_name[ZUI_CV_SMALL];
+    swarm_feeling_t guest_feeling;
+    zui_cv_call_fn on_call;
+    void *call_ctx;
+    zui_rect_t call_rect, end_rect; /* where they were last drawn */
     /* counters */
-    uint32_t said, refused, stops;
+    uint32_t said, refused, stops, calls;
 } zui_cv_t;
 
 void zui_cv_facts_init(zui_cv_facts_t *f);
@@ -222,12 +257,32 @@ zui_cv_result_t zui_cv_repeat(zui_cv_t *cv, uint32_t now_ms);
 zui_cv_result_t zui_cv_spell(zui_cv_t *cv, uint32_t now_ms);
 void zui_cv_set_verbatim(zui_cv_t *cv, bool on);
 
+/* CV11: face to face. */
+void zui_cv_set_name(zui_cv_t *cv, const char *name);
+void zui_cv_set_call_hook(zui_cv_t *cv, zui_cv_call_fn fn, void *ctx);
+/* Open (says hello: SPEAKING) or close (says bye: STOPPED); NOTHING when it
+ * already is so. */
+zui_cv_result_t zui_cv_call(zui_cv_t *cv, bool open, uint32_t now_ms);
+bool zui_cv_in_call(const zui_cv_t *cv);
+/* From zui_hear: the mic is listening, and what was understood. */
+void zui_cv_listening(zui_cv_t *cv, bool on, uint32_t now_ms);
+void zui_cv_heard(zui_cv_t *cv, const char *utf8, uint32_t now_ms);
+/* Another Chiglet visits (only in a call: else NOTHING), or leaves. */
+zui_cv_result_t zui_cv_visit(zui_cv_t *cv, const zui_chiglet_t *who, const char *name,
+                             swarm_feeling_t feeling, uint32_t now_ms);
+void zui_cv_visit_end(zui_cv_t *cv, uint32_t now_ms);
+/* The call window for a sw x sh screen, and what (x, y) is on it. */
+zui_rect_t zui_cv_call_rect(const zui_cv_t *cv, int32_t sw, int32_t sh);
+zui_cv_hit_t zui_cv_call_hit(const zui_cv_t *cv, int32_t x, int32_t y);
+
 /* What the person said to it (push-to-talk). English phrases:
  *   stop | quiet | be quiet | shush                       -> stop
  *   continue | go on | keep reading | resume              -> resume
  *   repeat | again | say that again                       -> repeat
  *   spell that | spell it (out) | read that exactly | say it exactly
  *                                                          -> spell (CV10)
+ *   let's talk | talk to me | come here | face to face     -> open the call
+ *   bye | goodbye | hang up | end call | that's all        -> close it (in a call)
  *   how are you | how are you feeling | how do you feel   -> short status
  *   status | status report | report | what is going on    -> full status
  *   read this | read this section | read me this section | read it | read this to me

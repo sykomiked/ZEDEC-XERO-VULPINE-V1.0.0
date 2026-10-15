@@ -34,6 +34,7 @@ void zui_hear_start(zui_hear_t *h, uint32_t now_ms)
         if (zui_cv_talking(h->cv) && h->cv->playing) h->barge_ins++;
         if (zui_cv_talking(h->cv)) zui_cv_stop(h->cv, now_ms); /* HE2 */
         zui_cv_set_busy(h->cv, true, now_ms);
+        zui_cv_listening(h->cv, true, now_ms); /* HE3: the mic mark in a call */
     }
 }
 
@@ -42,7 +43,10 @@ void zui_hear_end(zui_hear_t *h, uint32_t now_ms)
     if (!h) return;
     h->now = now_ms;
     h->listening = false;
-    if (h->cv) zui_cv_set_busy(h->cv, false, now_ms);
+    if (h->cv) {
+        zui_cv_set_busy(h->cv, false, now_ms);
+        zui_cv_listening(h->cv, false, now_ms);
+    }
 }
 
 /* a focused, editable text field that AUTO dictation would type into */
@@ -88,6 +92,7 @@ zui_hear_result_t zui_hear_text(zui_hear_t *h, const char *utf8, uint32_t now_ms
     if (utf8)
         for (; utf8[n] && n + 1 < sizeof h->heard; n++) h->heard[n] = utf8[n];
     h->heard[n] = 0;
+    if (h->cv) zui_cv_heard(h->cv, h->heard, now_ms); /* HE3: "You: ..." in a call */
     bool blank = true;
     for (uint32_t i = 0; i < n; i++)
         if (h->heard[i] != ' ' && h->heard[i] != '.') blank = false;
