@@ -240,6 +240,7 @@ uint32_t hw_selftest_all(const hw_plat_t *p, hw_registry_t *r);
 /* ---- drivers (one bind each; see the .c files) ---------------------------- */
 extern const hw_id_t e1000_ids[]; /* e1000.c: the Intel PRO/1000 family it drives */
 extern const hw_id_t igb_ids[];   /* igb.c: 82576 / I350 / I210 / I211 */
+extern const hw_id_t igc_ids[];   /* igc.c: I225 / I226 2.5 GbE (and I220/I221) */
 extern const hw_id_t r8169_ids[]; /* r8169.c: Realtek RTL8169/8168/8111/8101 */
 hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                        hw_line_t *note);
@@ -251,6 +252,7 @@ hw_verdict_t e1000_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t
                         hw_line_t *note);
 hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t igb_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
+hw_verdict_t igc_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r, hw_line_t *note);
 hw_verdict_t r8169_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);
 /* arbmbox.c: the arbiter mailbox (class 08/80/5A + "ZXVARBMB" in BAR 0). The

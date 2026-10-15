@@ -135,6 +135,7 @@ SRCS := \
     kernel/src/hwdrv/e1000.c \
     kernel/src/hwdrv/hda.c \
     kernel/src/hwdrv/igb.c \
+    kernel/src/hwdrv/igc.c \
     kernel/src/hwdrv/r8169.c \
     kernel/src/hwdrv/usbkbd.c \
     kernel/src/hwdrv/usbmsc.c \

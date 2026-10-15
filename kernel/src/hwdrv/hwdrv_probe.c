@@ -14,6 +14,7 @@
 const hw_driver_t hw_drivers[] = {
     {"e1000", 0x02, 0x00, 0xFF, e1000_ids, e1000_bind},
     {"igb", 0x02, 0x00, 0xFF, igb_ids, igb_bind},
+    {"igc", 0x02, 0x00, 0xFF, igc_ids, igc_bind},
     {"r8169", 0x02, 0x00, 0xFF, r8169_ids, r8169_bind},
     {"nvme", 0x01, 0x08, 0x02, 0, nvme_bind},
     {"ahci", 0x01, 0x06, 0x01, 0, ahci_bind},
