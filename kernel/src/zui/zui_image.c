@@ -354,9 +354,9 @@ static void row_done(dec_t *d)
             PX(x);
             uint64_t *s = &d->acc[4 * dx];
             s[0] += a;
-            s[1] += r * a;
-            s[2] += g * a;
-            s[3] += b * a;
+            s[1] += (uint64_t) r * a;
+            s[2] += (uint64_t) g * a;
+            s[3] += (uint64_t) b * a;
             d->cnt[dx]++;
             num += d->dw;
             if (num >= bw) num -= bw, dx++;
