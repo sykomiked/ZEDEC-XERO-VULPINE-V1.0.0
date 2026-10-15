@@ -164,6 +164,12 @@ and supported, by **SCENIC BYPASS CONSULTING, LLC** (Arizona), under the ZXV
 End-User Agreement. Support tickets go to SCENIC BYPASS CONSULTING, LLC, not
 to 36N9 GENETICS LLC: see [SUPPORT.md](SUPPORT.md).
 
+**Partnerships.** 36N9 GENETICS LLC is the root organisation: it originated the
+concept and the designs, and manufacturers partner with it under its master
+partnership licence. Prospective partners approach it only through one of its
+two pre-approved partners, both based in Arizona, **ILLUMAHEART FOUNDATION** or
+**SCENIC BYPASS CONSULTING, LLC**, never 36N9 GENETICS LLC directly.
+
 Commercial use is free under Apache-2.0. We ask, but never require, for-profit
 users to give 18% of gross revenue from ZXV to ILLUMAHEART FOUNDATION; see
 [COMMERCIAL_USE.md](COMMERCIAL_USE.md). Hardware material under

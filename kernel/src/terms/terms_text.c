@@ -40,7 +40,7 @@ static const char text_doc_en[] =
     "\n"
     "1.6 Nothing in this agreement is legal, financial, medical or other professional advice.\n"
     "\n"
-    "1.7 ZXV was created by 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States (the \"Creator\"), which owns the copyright in it. We license the Distribution and operate the Services under rights the Creator has granted to us. The Creator keeps its copyright, and its copyright and attribution notices, including the NOTICE file required by the Apache Licence, stay with the code and the Distribution. The Creator is not a party to this agreement and takes on no obligation to you under it. Where your local law allows, sections 12 and 13 protect the Creator as they protect us.\n"
+    "1.7 ZXV was created by 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States (the \"Creator\"). The Creator is the root organisation of ZXV: it originated the concept and the designs, and it owns the copyright in them. We license the Distribution and operate the Services under rights the Creator has granted to us. The Creator keeps its copyright, and its copyright and attribution notices, including the NOTICE file required by the Apache Licence, stay with the code and the Distribution. The Creator is not a party to this agreement and takes on no obligation to you under it. Where your local law allows, sections 12 and 13 protect the Creator as they protect us.\n"
     "\n"
     "2. HOW YOU AGREE\n"
     "\n"
@@ -208,14 +208,16 @@ static const char text_doc_en[] =
     "\n"
     "20.5 Support for the Distribution and the Services, including help requests, bug reports and support tickets, is provided by SCENIC BYPASS CONSULTING, LLC. Send them to the support contact shown under Settings, About, Support. The Creator does not provide support for the Distribution.\n"
     "\n"
+    "20.6 Manufacturers and other businesses that want to partner on ZXV partner with the Creator under its master partnership licence. They approach the Creator only through one of its two pre-approved partners, both based in Arizona, United States: ILLUMAHEART FOUNDATION, an Arizona nonprofit corporation, or SCENIC BYPASS CONSULTING, LLC, an Arizona limited liability company. They never approach the Creator directly. This agreement does not grant any partnership or manufacturing rights.\n"
+    "\n"
     "End of agreement.\n";
 
-/* SHA-256 cbc18086cbbb110a33ed60baec2ba0167c7309d07fe586e4f49d74f7222843a5 */
+/* SHA-256 a3fceb4111bce13594b181fcddd6e0ee6fdece3d83cc455a094584eefcdb060e */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0xcb, 0xc1, 0x80, 0x86, 0xcb, 0xbb, 0x11, 0x0a,
-    0x33, 0xed, 0x60, 0xba, 0xec, 0x2b, 0xa0, 0x16,
-    0x7c, 0x73, 0x09, 0xd0, 0x7f, 0xe5, 0x86, 0xe4,
-    0xf4, 0x9d, 0x74, 0xf7, 0x22, 0x28, 0x43, 0xa5
+    0xa3, 0xfc, 0xeb, 0x41, 0x11, 0xbc, 0xe1, 0x35,
+    0x94, 0xb1, 0x81, 0xfc, 0xdd, 0xd6, 0xe0, 0xee,
+    0x6f, 0xde, 0xce, 0x3d, 0x83, 0xcc, 0x45, 0x5a,
+    0x09, 0x45, 0x84, 0xee, 0xfc, 0xdb, 0x06, 0x0e
 };
 
 static const terms_doc_t doc_en = {
