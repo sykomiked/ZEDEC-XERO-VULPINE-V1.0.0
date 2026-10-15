@@ -181,6 +181,11 @@ in `kernel/arch/hosted/zxvd_fab.h`): `fab.send`, `fab.receive` (or
 a callback the host registers (`zxvd_fab_set_seal`); `airgap: true` is
 refused until one is.
 
+A stored Alexandria booklet may be an ALXZ (compressed) block. Its CID is
+taken over the stored bytes, and the plain booklet's CID is carried
+inside. A recipe lists the CID of the block as it is stored, because that
+is what the receiver fetches and checks.
+
 ## 6. Streams
 
 A stream is the same format with time slots. The open recipe (kind STREAM,
@@ -297,8 +302,13 @@ What the numbers say and do not say:
   launch screen pulling `fab.receive.step` for its bars and jingle, and the
   host's air-gap seal callback (`zxvd_fab_set_seal`).
 - A mesh test of 60 fps frames over real radios (loss and latency on air).
-- Placement in the 144 installation layers: that matrix belongs to the
-  Lingua thread and the placement is being agreed with it. The user's
-  proposal puts fabrication in layers 073-096 between storage resolution
-  (025-072) and sovereign execution with the air-gap seal (097-144); this
-  page will give the agreed numbers once they are settled.
+- Its row in the Alexandria matrix. Layers there are keyed by app: layer
+  N is L1 system app N in APP_CATALOG_407 order, layer 0 is the core
+  (`/mnt/project-files/alexandria/MATRIX.md`). The engine's home is layer
+  126, Toolchest, beside manufacturing and the SDK, once the Alexandria
+  thread adds it to MATRIX.tsv. The user's original proposal of bands
+  (001-024, storage resolution 025-072, fabrication 073-096, sovereign
+  execution with the seal 097-144, entry at "layer 080") is recorded here
+  as a proposal only. It is not the shipped mapping, where layer 80 is
+  Ninefold. Moving to bands would change every layer's meaning, so it is
+  the user's decision.
