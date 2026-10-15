@@ -44,6 +44,7 @@ backends are hosted code (the Mac app, bench, servers).
 | Blocks kept in VRAM under their IPFS CIDs | 🧩 data layer only, simulated GPU | [VRAM_BLOCKS.md](VRAM_BLOCKS.md) |
 | Accelerator tier between two integer tiers | 🧩 design and integer tiers; no GPU behind tier 2 yet | [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md) |
 | NVIDIA GPUs (CUDA): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI; not yet run on a GPU (first run: the A6000 test server) | `zt_cuda.c`, `zt_kern_cuda_resident`, `make -C kernel test-cuda`, `zt_bench --gpu*` on Linux |
+| AMD GPUs under ROCm (HIP): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI (gfx906, gfx90a, gfx1030, gfx1100; wave32 and wave64 emulated); not yet run on an AMD GPU | `zt_hip.c`, `zt_kern_hip_resident`, `make -C kernel test-hip`, `zt_bench --gpu*` (`ZT_GPU=hip`) |
 | Any Vulkan GPU (AMD Radeon, Arm Mali, Qualcomm Adreno, Intel, NVIDIA): the products and the whole pass | 🧩 built; bit-exact on lavapipe (Mesa's Vulkan on the CPU), including real Qwen2.5-1.5B; not yet run on a Vulkan GPU | `zt_vk.comp`, `zt_vk.c`, `zt_kern_vk_resident`, `make -C kernel test-vk`, `zt_bench --gpu*` (`ZT_GPU=vulkan`) |
 
 ### NVIDIA (CUDA)
@@ -237,8 +238,9 @@ adapter, a hidden-state tap, a distributed model or weights converted to
 5. Batch several agents' tokens into one pass (the freight train), and a
    start-up gauge probe that sizes tiles from the measured bandwidth.
 6. CUDA: run `test-cuda` and the bench on the A6000 server. Vulkan: run
-   `test-vk` and the bench on a Radeon, a Mali and an Adreno device; then the
-   32-bit-pair kernels for GPUs without `shaderInt64`.
+   `test-vk` and the bench on a Radeon, a Mali and an Adreno device (both
+   kernel sets). HIP: run `test-hip` and the bench on an AMD GPU. Status per
+   chip: [PLATFORM_COVERAGE.md](PLATFORM_COVERAGE.md).
 7. Wire `vblock` (blocks in VRAM) and `cotier` tier 2 to a real backend.
 8. Q5_0 and Q8_0-mixed files on the GPU (Qwen2.5-0.5B's Q4_K_M uses them, so
    its passes run on the CPU today).
