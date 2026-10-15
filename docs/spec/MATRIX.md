@@ -25,6 +25,8 @@ number on this page comes from running the packer on this repository
 the paths whose files live there (the longest matching path wins). A shared
 piece lives in exactly one layer; other layers reach it through the glue
 (section 4), never through a second copy.
+LAYER_MAP.md writes the whole mapping out layer by layer, with booklet
+000's contents and where each unnamed module landed.
 
 - **Layer 0, the core:** what boots: memory, scheduling, drivers, the
   integer tensor engine, the native UI toolkit, Lingua, Alexandria and the
