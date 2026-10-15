@@ -442,7 +442,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (!word_copy(lang, sizeof lang, w[1], wl[1]) ||
                 zxapp_lang_of(lang) == ZXAPP_LANG_UNKNOWN) {
                 put_err(a, r.line,
-                        "an unknown language (a pillar, c, a libzxv SDK language or wasm)", 0);
+                        "an unknown language (a pillar, c, a libzxv SDK language, wasm or wire)",
+                        0);
                 return ZXAPP_E_SYNTAX;
             }
             if (!ident(w[2], wl[2]) || wl[2] + 1u > ZXAPP_ID_MAX) {

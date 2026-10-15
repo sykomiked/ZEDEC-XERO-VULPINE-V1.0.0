@@ -120,6 +120,10 @@
  *      covers code only when it is all in the manifest, so a pinned block
  *      must carry its own logic inline ("<<") and pin its own uses too.
  *
+ * Apps are wired together like a circuit, too: a "logic wire" entry names
+ * other entries as parts and wires their inputs (W1 to W6 in zxwire.h; the
+ * hook is zxapp_wiring_t below). The Circuit board (zxboard.h) edits them.
+ *
  * Apps hand work to each other by what they can do, not by name.
  *
  *   I1 AN INTENT says an app can do something with a kind of content:
