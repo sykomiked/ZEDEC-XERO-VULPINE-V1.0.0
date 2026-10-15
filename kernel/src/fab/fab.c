@@ -401,20 +401,47 @@ static void forget(const fab_plan_t *p, fab_work_t *w)
     for (uint32_t i = 0; i < p->n_blocks; i++) w->view[i] = 0;
 }
 
+int fab_plan_bytes(const fab_plan_t *p, uint32_t n, uint64_t *bytes)
+{
+    if (!p || !bytes || n > p->n_blocks) return FAB_ERR_ARG;
+    uint64_t t = 0;
+    for (uint32_t i = 0; i < n; i++) t += fab__get32(p->blocks + i * FAB_BLOCK_REC + FAB_CID);
+    *bytes = t;
+    return FAB_OK;
+}
+
+static void report(fab_io_t *io, uint8_t phase, uint32_t blocks_done, uint32_t blocks_total,
+                   uint64_t bytes_done, uint64_t bytes_total)
+{
+    if (!io->progress) return;
+    fab_progress_t pr = {phase, blocks_done, blocks_total, bytes_done, bytes_total};
+    io->progress(io->progress_ctx, &pr);
+}
+
+int fab_hydrate_from(const fab_plan_t *p, fab_io_t *io, uint32_t from, uint32_t n,
+                     uint32_t *fetched)
+{
+    if (!p || !io || (!io->get && !io->view) || !io->work || from > p->n_blocks) return FAB_ERR_ARG;
+    uint32_t end = n > p->n_blocks - from ? p->n_blocks : from + n, i = from;
+    uint64_t done, total;
+    (void) fab_plan_bytes(p, from, &done);
+    (void) fab_plan_bytes(p, p->n_blocks, &total);
+    forget(p, io->work);
+    int rc = FAB_OK;
+    for (; i < end; i++) {
+        const uint8_t *b;
+        rc = block_bytes(p, i, io, &b);
+        if (rc != FAB_OK) break;
+        done += fab__get32(p->blocks + i * FAB_BLOCK_REC + FAB_CID);
+        report(io, FAB_PHASE_FETCH, i + 1u, p->n_blocks, done, total);
+    }
+    if (fetched) *fetched = i;
+    return rc;
+}
+
 int fab_hydrate(const fab_plan_t *p, fab_io_t *io, uint32_t *fetched)
 {
-    if (!p || !io || (!io->get && !io->view) || !io->work) return FAB_ERR_ARG;
-    uint32_t n = 0;
-    forget(p, io->work);
-    for (uint32_t i = 0; i < p->n_blocks; i++) {
-        const uint8_t *b;
-        int rc = block_bytes(p, i, io, &b);
-        if (fetched) *fetched = n;
-        if (rc != FAB_OK) return rc;
-        n++;
-    }
-    if (fetched) *fetched = n;
-    return FAB_OK;
+    return p ? fab_hydrate_from(p, io, 0, p->n_blocks, fetched) : FAB_ERR_ARG;
 }
 
 static int no_sink(void *ctx, const ipfsn_cid_t *cid, const uint8_t *block, uint32_t len)
@@ -458,11 +485,13 @@ static int apply(const fab_plan_t *p, fab_io_t *io, const uint8_t *diff, const u
             fab__cpy(io->out + pos, prev + src, l);
         }
         pos += l;
+        report(io, FAB_PHASE_BUILD, p->n_blocks, p->n_blocks, pos, p->target_len);
     }
     ipfsn_cid_t got;
     int rc = fab_target_cid(io->out, pos, io->work, &got);
     if (rc != FAB_OK) return rc;
     if (!ipfsn_cid_equal(&got, &p->target)) return FAB_ERR_TARGET;
+    report(io, FAB_PHASE_DONE, p->n_blocks, p->n_blocks, pos, p->target_len);
     return FAB_OK;
 }
 

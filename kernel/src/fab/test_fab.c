@@ -155,7 +155,7 @@ static fab_ient_t table[1u << 14];
 
 static fab_io_t io(void)
 {
-    fab_io_t x = {get, &st, 0, 0, 0, 0, diffb, OUTCAP, out, OUTCAP, &W};
+    fab_io_t x = {get, &st, 0, 0, 0, 0, diffb, OUTCAP, out, OUTCAP, &W, 0, 0};
     return x;
 }
 
@@ -2033,6 +2033,136 @@ static void test_ring(void)
     EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_ERR_STREAM);
 }
 
+/* ---- progress ---------------------------------------------------------------------------- */
+
+static fab_progress_t prog[8192];
+static uint32_t nprog;
+static void *prog_ctx;
+static void on_progress(void *ctx, const fab_progress_t *pr)
+{
+    prog_ctx = ctx;
+    if (nprog < 8192) prog[nprog] = *pr;
+    nprog++;
+}
+
+static void test_progress(void)
+{
+    uint32_t tl = make_target(), dl = 0, len = 0, olen = 0, got = 0;
+    uint32_t pl = plan_for(tl, NB, 0, &dl);
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, 0, rec, sizeof rec, &len), FAB_OK);
+    fab_recipe_t r;
+    fab_plan_t p;
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    uint64_t all = 0, two = 0, b = 1;
+    for (int i = 0; i < NB; i++) all += blen[i];
+    EQ(fab_plan_bytes(&p, NB, &b), FAB_OK);
+    EQ(b, all);
+    EQ(fab_plan_bytes(&p, 2, &two), FAB_OK);
+    EQ(two, (uint64_t) blen[0] + blen[1]);
+    EQ(fab_plan_bytes(&p, 0, &b), FAB_OK);
+    EQ(b, 0);
+    EQ(fab_plan_bytes(&p, NB + 1, &b), FAB_ERR_ARG);
+    EQ(fab_plan_bytes(0, 0, &b), FAB_ERR_ARG);
+    EQ(fab_plan_bytes(&p, 0, 0), FAB_ERR_ARG);
+
+    /* hydrate: one FETCH per verified block, in plan order */
+    fab_io_t x = io();
+    x.progress = on_progress;
+    x.progress_ctx = &st;
+    store_reset();
+    nprog = 0;
+    EQ(fab_hydrate(&p, &x, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(nprog, NB);
+    CHECK(prog_ctx == &st);
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < NB; i++) {
+        sum += blen[i];
+        EQ(prog[i].phase, FAB_PHASE_FETCH);
+        EQ(prog[i].blocks_done, i + 1u);
+        EQ(prog[i].blocks_total, NB);
+        EQ(prog[i].bytes_done, sum);
+        EQ(prog[i].bytes_total, all);
+    }
+    /* assemble: one BUILD per op, rising to target_len, then one DONE */
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(olen, tl);
+    EQ(nprog, p.n_ops + 1u);
+    uint64_t last = 0;
+    for (uint32_t i = 0; i < p.n_ops; i++) {
+        EQ(prog[i].phase, FAB_PHASE_BUILD);
+        CHECK(prog[i].bytes_done > last);
+        last = prog[i].bytes_done;
+        EQ(prog[i].bytes_total, tl);
+        EQ(prog[i].blocks_done, NB);
+        EQ(prog[i].blocks_total, NB);
+    }
+    EQ(last, tl);
+    EQ(prog[p.n_ops].phase, FAB_PHASE_DONE);
+    EQ(prog[p.n_ops].bytes_done, tl);
+    EQ(prog[p.n_ops].bytes_total, tl);
+    EQ(prog[p.n_ops].blocks_done, NB);
+    EQ(prog[p.n_ops].blocks_total, NB);
+
+    /* in steps: the same reports, n clipped at the end */
+    nprog = 0;
+    EQ(fab_hydrate_from(&p, &x, 0, 1, &got), FAB_OK);
+    EQ(got, 1);
+    EQ(nprog, 1);
+    EQ(prog[0].bytes_done, blen[0]);
+    EQ(fab_hydrate_from(&p, &x, 1, 2, &got), FAB_OK);
+    EQ(got, 3);
+    EQ(nprog, 3);
+    EQ(prog[1].blocks_done, 2);
+    EQ(prog[1].bytes_done, two);
+    EQ(prog[2].bytes_done, two + blen[2]);
+    EQ(fab_hydrate_from(&p, &x, 3, 100, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(nprog, NB);
+    EQ(prog[NB - 1].bytes_done, all);
+    EQ(fab_hydrate_from(&p, &x, 3, 0xFFFFFFFFu, &got), FAB_OK); /* no wrap */
+    EQ(got, NB);
+    EQ(fab_hydrate_from(&p, &x, NB, 5, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(fab_hydrate_from(&p, &x, 2, 0, &got), FAB_OK);
+    EQ(got, 2);
+    EQ(nprog, NB + 1u); /* the 3..NB call above; nothing since */
+    EQ(fab_hydrate_from(&p, &x, NB + 1, 1, &got), FAB_ERR_ARG);
+    EQ(fab_hydrate_from(&p, &x, 0, 1, 0), FAB_OK);
+    EQ(fab_hydrate(0, &x, &got), FAB_ERR_ARG);
+
+    /* a bad block stops the reports at the blocks before it */
+    nprog = 0;
+    st.corrupt = 2;
+    EQ(fab_hydrate(&p, &x, &got), FAB_ERR_BLOCK);
+    EQ(got, 2);
+    EQ(nprog, 2);
+    EQ(prog[1].bytes_done, two);
+    store_reset();
+    nprog = 0;
+    EQ(fab_hydrate_from(&p, &x, 1, NB, &got), FAB_OK);
+    EQ(prog[0].blocks_done, 2);
+    EQ(prog[0].bytes_done, two); /* counts the blocks before `from` */
+
+    /* rebuilt bytes that miss the target: BUILD reports, never DONE */
+    rec[r.diff - rec] ^= 1;
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_ERR_TARGET);
+    EQ(nprog, p.n_ops);
+    for (uint32_t i = 0; i < nprog; i++) CHECK(prog[i].phase != FAB_PHASE_DONE);
+    rec[r.diff - rec] ^= 1;
+    /* no callback: no reports */
+    x.progress = 0;
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(fab_hydrate(&p, &x, &got), FAB_OK);
+    EQ(nprog, 0);
+}
+
 int main(void)
 {
     setvbuf(stdout, 0, _IONBF, 0);
@@ -2058,6 +2188,7 @@ int main(void)
     test_build_edges();
     test_frame_edges();
     test_ring();
+    test_progress();
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

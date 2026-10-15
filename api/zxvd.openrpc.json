@@ -22710,7 +22710,7 @@
     },
     {
       "name": "fab.status",
-      "summary": "File fabrication in this zxvd: whether its keys and block store are open, the key ids, whether an air-gap seal check is registered, and the open streams. Always on (feature \"fab\").",
+      "summary": "File fabrication in this zxvd: whether its keys and block store are open, the key ids, whether an air-gap seal check is registered, the open streams and the open receive jobs. Always on (feature \"fab\").",
       "params": [],
       "result": {
         "name": "status",
@@ -22762,6 +22762,37 @@
                     "type": "string",
                     "pattern": "^[0-9]+$",
                     "description": "decimal 64-bit sequence"
+                  }
+                }
+              }
+            },
+            "receives": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "blocks_done": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "blocks fetched and matched to their CIDs"
+                  },
+                  "blocks_total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "bytes_done": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "decimal 64-bit: bytes of the blocks verified so far"
+                  },
+                  "bytes_total": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "decimal 64-bit: bytes of all the plan's blocks"
                   }
                 }
               }
@@ -23019,6 +23050,209 @@
             "blocks": {
               "type": "integer",
               "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fab.receive.start",
+      "summary": "Starts receiving a file in steps, so a loading screen can move only as fast as the work: checks the recipe (signature, trust list) and opens it as fab.receive does, and answers a job with the block totals. Nothing is fetched or written yet; fab.receive.step does the work (zxvd_fab.h B13). At most 4 jobs are open. Feature \"fab\" (off by default, not regulated). Error -32085: \"<status>: why\" (zxvd_fab.h B12).",
+      "params": [
+        {
+          "name": "recipe",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1023
+          },
+          "description": "absolute path of the recipe"
+        },
+        {
+          "name": "out",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1023
+          },
+          "description": "absolute path for the file"
+        },
+        {
+          "name": "trust",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[0-9a-fA-F]{64}$"
+                }
+              }
+            },
+            "maxItems": 64
+          },
+          "description": "accept only these senders (sign_id of fab.keys); absent: any signer"
+        },
+        {
+          "name": "airgap",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          },
+          "description": "fetch and check every block, then assemble only when the registered air-gap seal answers TRUE (zxvd_fab.h B4); refused when no seal is registered"
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "cid": {
+              "type": "string",
+              "description": "CIDv1 string of the target"
+            },
+            "len": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "public",
+                "sealed"
+              ]
+            },
+            "sender": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{64}$"
+            },
+            "blocks_done": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "blocks fetched and matched to their CIDs"
+            },
+            "blocks_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes_done": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "decimal 64-bit: bytes of the blocks verified so far"
+            },
+            "bytes_total": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "decimal 64-bit: bytes of all the plan's blocks"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fab.receive.step",
+      "summary": "One step of a receive job: fetches and checks up to `blocks` more blocks against their CIDs and answers phase \"fetch\" with the counts verified so far, never more. The step after the last block asks the air-gap seal (when the job asked for it), assembles, checks the target CID, writes the file and answers phase \"done\"; the job then ends, as it does on any failed step (zxvd_fab.h B13). Feature \"fab\" (off by default, not regulated). Error -32085: \"<status>: why\" (zxvd_fab.h B12).",
+      "params": [
+        {
+          "name": "job",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "the handle fab.receive.start answered"
+        },
+        {
+          "name": "blocks",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096,
+            "default": 16
+          },
+          "description": "most blocks to fetch in this step"
+        }
+      ],
+      "result": {
+        "name": "progress",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "fetch",
+                "done"
+              ]
+            },
+            "blocks_done": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "blocks fetched and matched to their CIDs"
+            },
+            "blocks_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes_done": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "decimal 64-bit: bytes of the blocks verified so far"
+            },
+            "bytes_total": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "decimal 64-bit: bytes of all the plan's blocks"
+            },
+            "cid": {
+              "type": "string",
+              "description": "phase done only: CIDv1 string of the file"
+            },
+            "len": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "phase done only"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fab.receive.cancel",
+      "summary": "Ends a receive job without writing anything (zxvd_fab.h B13). Feature \"fab\" (off by default, not regulated). Error -32085: \"<status>: why\" (zxvd_fab.h B12).",
+      "params": [
+        {
+          "name": "job",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "description": "the handle fab.receive.start answered"
+        }
+      ],
+      "result": {
+        "name": "done",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean",
+              "const": true
             }
           }
         }

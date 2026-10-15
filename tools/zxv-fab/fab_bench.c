@@ -145,7 +145,7 @@ static int run_scene(int scene, uint32_t n, stats_t *st, fab_stream_t *tx, fab_s
         ipfsn_cid_sha256(IPFSN_MC_RAW, sprite, SPB, &src[nsrc].cid);
         nsrc++;
     }
-    fab_io_t io = {bget, src, bview, src, 0, 0, diffb, FB, out, FB, &W};
+    fab_io_t io = {bget, src, bview, src, 0, 0, diffb, FB, out, FB, &W, 0, 0};
     uint32_t no, dl, pl, len, olen;
     ipfsn_cid_t tc;
 
@@ -270,7 +270,7 @@ static int udp_test(uint32_t n)
         src[1].data = sprite;
         src[1].len = SPB;
         ipfsn_cid_sha256(IPFSN_MC_RAW, sprite, SPB, &src[1].cid);
-        fab_io_t io = {bget, src, bview, src, 0, 0, diffb, FB, out, FB, &W};
+        fab_io_t io = {bget, src, bview, src, 0, 0, diffb, FB, out, FB, &W, 0, 0};
         if (run_scene(SCENE_SHARED, 0, &st, &tx, &rx, 0, 0)) _exit(2);
         static uint8_t asm_buf[sizeof frame];
         uint32_t want = 0, got = 0, applied = 0, bad = 0, olen;

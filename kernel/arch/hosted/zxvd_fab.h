@@ -28,7 +28,8 @@
  *       is read. airgap: false (the default) asks no check.
  *   B5  fab.status: {open, sign_id, kem_id, seal: true when a check is
  *       registered, streams: [{stream, role: "send"|"receive", seq,
- *       checked}]} (ids null while closed). fab.keys: {sign_id, sign_pk,
+ *       checked}], receives: [{job, blocks_done, blocks_total, bytes_done,
+ *       bytes_total}]} (ids null while closed). fab.keys: {sign_id, sign_pk,
  *       kem_id, kem_ek} as hex (ids are SHA-256 of the public key; give
  *       kem_ek to a sender, sign_id to a receiver's trust list).
  *   B6  fab.put {path}: copy one file (1..FAB_BLOCK_MAX bytes) into the
@@ -64,6 +65,22 @@
  *       TRUST, SIGN, KEY, AUTH, PLAN, SPACE, FETCH, BLOCK, TARGET, SEAL,
  *       REPLAY, RESYNC, STREAM) or "FILE: why" for a file that cannot be
  *       read or written; bad parameters are ZXVD_E_PARAMS.
+ *   B13 Receiving in steps, for a loading screen whose bars may only move
+ *       as fast as the work (FABRICATION.md, PROGRESS). zxvd answers one
+ *       call at a time and sends nothing unasked, so progress is pulled:
+ *       fab.receive.start {recipe, out, trust, airgap} checks and opens the
+ *       recipe as fab.receive does and answers {job, cid, len, mode,
+ *       sender, blocks_done: 0, blocks_total, bytes_done: "0", bytes_total}
+ *       (64-bit byte counts as decimal strings, zxvd_rpc.h M3).
+ *       fab.receive.step {job, blocks = 16 (1..FAB_MAX_BLOCKS)} fetches and
+ *       verifies up to that many more blocks and answers {job, phase:
+ *       "fetch", blocks_done, blocks_total, bytes_done, bytes_total}: the
+ *       counts are blocks that matched their CIDs, never more. The step
+ *       after the last block asks the seal (airgap), assembles, checks the
+ *       target CID, writes out (B3) and answers {job, phase: "done", the
+ *       counts, cid, len}; the job then ends. A failed step also ends it.
+ *       fab.receive.cancel {job} ends one; at most ZXVD_FAB_JOBS are open,
+ *       handles count up from 1, and an unknown job is "STREAM: ...".
  */
 #ifndef ZXVD_FAB_H
 #define ZXVD_FAB_H
@@ -75,6 +92,7 @@
 
 #define ZXVD_E_FAB        (-32085) /* B12; in -32099..-32001 (zxvd_rpc.h X4) */
 #define ZXVD_FAB_STREAMS  4u
+#define ZXVD_FAB_JOBS     4u
 #define ZXVD_FAB_PATH     1024u
 #define ZXVD_FAB_MAX_FILE (256u << 20)
 

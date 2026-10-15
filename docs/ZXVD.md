@@ -973,7 +973,7 @@ and the ledger are in memory and start again at each start.
 
 ## File fabrication: send, receive and stream
 
-`fab.*` (`kernel/arch/hosted/zxvd_fab.c`, rules B1-B12 in `zxvd_fab.h`)
+`fab.*` (`kernel/arch/hosted/zxvd_fab.c`, rules B1-B13 in `zxvd_fab.h`)
 is the one block method apps use to send, receive and stream files: a
 signed recipe names public blocks by CID plus a private diff, and the
 receiver rebuilds the file and checks it against the target CID
@@ -985,7 +985,8 @@ which no method returns. Paths in parameters are absolute; outputs are
 written owner-only and only after the CID check passes.
 
 - `fab.status`, `fab.keys` (always on): whether fabrication is open, the
-  key ids, whether an air-gap seal check is registered, the open streams;
+  key ids, whether an air-gap seal check is registered, the open streams
+  and receive jobs;
   the public keys (give `kem_ek` to a sender, `sign_id` to a trust list).
 - `fab.put` `path`: copy a file into the store as a block.
 - `fab.send` `target`, `out`, `blocks` (`[{cid}]`), `to` (a recipient's
@@ -993,6 +994,13 @@ written owner-only and only after the CID check passes.
   installs), sealed with it. Unused blocks stay as decoys.
 - `fab.receive` `recipe`, `out`, `trust` (`[{id}]`), `airgap`: check, open,
   fetch every block from the store, rebuild and write.
+- `fab.receive.start` (the same parameters), `fab.receive.step` `job`,
+  `blocks` (default 16), `fab.receive.cancel` `job`: the same receive in
+  steps, for loading screens whose bars may only move as fast as the work.
+  Each step answers the blocks and bytes verified against their CIDs so
+  far (phase `fetch`); the step after the last block seals, rebuilds,
+  checks the target CID and writes (phase `done`). zxvd sends nothing
+  unasked, so the screen pulls a step per frame it draws. At most 4 jobs.
 - Streams: `fab.stream.start` / `.send` / `.sign` on the sending end,
   `fab.stream.open` / `.frame` / `.checkpoint` on the receiving end,
   `fab.stream.close` on either; at most 4 at once. A repeated frame is
@@ -1145,7 +1153,8 @@ battery posture's token scale); it is the harness's test for `zxvd_power.c`.
 fabrication engine in a temporary folder (keys kept across opens, public
 and sealed files, the trust list, the air-gap seal in all four states,
 damaged blocks, recipes and frames, both ends of a stream with REPLAY,
-RESYNC, checkpoints and frames that grow); it is the harness's test for
+RESYNC, checkpoints and frames that grow, receive jobs step by step with
+their exact counts); it is the harness's test for
 `zxvd_fab.c`.
 `test_zxvd_pspace.sh` runs `pspace.*` and `hall.*` behind the RPC layer
 on two real net hosts on 127.0.0.1 (the switch, every parameter rule, a

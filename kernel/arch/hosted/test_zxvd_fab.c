@@ -305,9 +305,9 @@ static void test_open(void)
     EXPECT(call("features.get", "{}"),
            ok("{\"features\":[{\"name\":\"fab\",\"enabled\":false,\"regulated\":false,"
               "\"groups\":[{\"note\":\"file fabrication: send, receive and stream files built "
-              "from public blocks plus a sealed diff\",\"methods\":12}]}],\"saved\":false}"));
-    EXPECT(call("fab.status", "{}"),
-           ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":false,\"streams\":[]}"));
+              "from public blocks plus a sealed diff\",\"methods\":15}]}],\"saved\":false}"));
+    EXPECT(call("fab.status", "{}"), ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":"
+                                        "false,\"streams\":[],\"receives\":[]}"));
     EXPECT(call("fab.keys", "{}"), err(ZXVD_E_FAB, "FILE: fabrication is not open in this zxvd"));
     EXPECT(call("fab.put", "{\"path\":\"%s\"}", path("b1")),
            err(ZXVD_E_OFF, "fab is off: start zxvd with --enable fab, or call features.set"));
@@ -359,14 +359,14 @@ static void test_open(void)
     hex(id, FAB_ID, idh);
     CHECK(!strcmp(idh, sid), "B5: sign_id is SHA-256 of sign_pk");
     CHECK(!strstr(OUT.p, "seed"), "B2: no seed in the reply");
-    EXPECT(call("fab.status", "{}"),
-           ok("{\"open\":true,\"sign_id\":\"%s\",\"kem_id\":\"%s\",\"seal\":false,\"streams\":[]}",
-              sid, kid));
+    EXPECT(call("fab.status", "{}"), ok("{\"open\":true,\"sign_id\":\"%s\",\"kem_id\":\"%s\","
+                                        "\"seal\":false,\"streams\":[],\"receives\":[]}",
+                                        sid, kid));
 
     /* B2: a second open reads the same seeds */
     zxvd_fab_close();
-    EXPECT(call("fab.status", "{}"),
-           ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":false,\"streams\":[]}"));
+    EXPECT(call("fab.status", "{}"), ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":"
+                                        "false,\"streams\":[],\"receives\":[]}"));
     CHECK(zxvd_fab_open(path("fab")) == 0, "reopen");
     rpc(call("fab.keys", "{}"));
     CHECK(!strcmp(str("sign_id"), sid) && !strcmp(str("kem_id"), kid), "B2: the same keys");
@@ -379,8 +379,8 @@ static void test_open(void)
     wfile("fab/sign.seed", keep, 31);
     CHECK(zxvd_fab_open(path("fab")) == -1, "B2: a short seed refuses to open");
     CHECK(same("fab/sign.seed", keep, 31), "B2: and stays as it was");
-    EXPECT(call("fab.status", "{}"),
-           ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":false,\"streams\":[]}"));
+    EXPECT(call("fab.status", "{}"), ok("{\"open\":false,\"sign_id\":null,\"kem_id\":null,\"seal\":"
+                                        "false,\"streams\":[],\"receives\":[]}"));
     wfile("fab/sign.seed", keep, 32);
     uint8_t kk[64];
     k = rfile("fab/kem.seed", &kn);
@@ -669,6 +669,150 @@ static void test_airgap(void)
     CHECK(strstr(OUT.p, "\"seal\":false"), "B4: NULL removes the seal");
 }
 
+/* ----- receiving in steps (B13) ----- */
+
+static const char *rstart(const char *recipe, const char *out, const char *extra)
+{
+    return call("fab.receive.start", "{\"recipe\":\"%s\",\"out\":\"%s\"%s}", path(recipe),
+                path(out), extra);
+}
+
+static const char *rstep(long job, const char *extra)
+{
+    return call("fab.receive.step", "{\"job\":%ld%s}", job, extra);
+}
+
+#define PROG(d, b)                                                                                 \
+    "\"blocks_done\":" #d ",\"blocks_total\":3,\"bytes_done\":\"" b "\",\"bytes_total\":"          \
+                                                                    "\"450000\""
+
+static void test_jobs(void)
+{
+    fresh();
+    CHECK(zxvd_rpc_enable("fab") == 0 && zxvd_fab_open(path("fab")) == 0, "fab on and open");
+    EXPECT(rstart("pub.fab", "j1", ""),
+           ok("{\"job\":1,\"cid\":\"%s\",\"len\":%u,\"mode\":\"public\",\"sender\":\"%s\"," PROG(
+                  0, "0") "}",
+              tcid, (unsigned) tlen, sid));
+    rpc(call("fab.status", "{}"));
+    CHECK(strstr(OUT.p, "\"receives\":[{\"job\":1," PROG(0, "0") "}]"), "B5: the job: %.400s",
+          OUT.p);
+    EXPECT(rstep(1, ",\"blocks\":1"), ok("{\"job\":1,\"phase\":\"fetch\"," PROG(1, "300000") "}"));
+    EXPECT(rstep(1, ",\"blocks\":1"), ok("{\"job\":1,\"phase\":\"fetch\"," PROG(2, "400000") "}"));
+    rpc(call("fab.status", "{}"));
+    CHECK(strstr(OUT.p, "\"receives\":[{\"job\":1," PROG(2, "400000") "}]"), "B5: progress");
+    EXPECT(rstep(1, ""), ok("{\"job\":1,\"phase\":\"fetch\"," PROG(3, "450000") "}"));
+    CHECK(!exists("j1"), "B13: nothing written while fetching");
+    EXPECT(rstep(1, ""),
+           ok("{\"job\":1,\"phase\":\"done\"," PROG(3, "450000") ",\"cid\":\"%s\",\"len\":%u}",
+              tcid, (unsigned) tlen));
+    CHECK(same("j1", tgt, tlen) && mode_of("j1") == 0600, "B13: the file comes back");
+    EXPECT(rstep(1, ""), err(ZXVD_E_FAB, "STREAM: no receive job 1"));
+    rpc(call("fab.status", "{}"));
+    CHECK(strstr(OUT.p, "\"receives\":[]}"), "B13: done ends the job");
+
+    /* the default step takes up to 16 blocks; sealed recipes too */
+    rpc(rstart("sec.fab", "j2", ""));
+    CHECK(num("job") == 2 && !strcmp(str("mode"), "sealed"), "B13: sealed: %.200s", OUT.p);
+    EXPECT(rstep(2, ",\"blocks\":0"), err(ZXVD_E_PARAMS, "\\\"blocks\\\" must be 1..4096"));
+    EXPECT(rstep(2, ",\"blocks\":4097"), err(ZXVD_E_PARAMS, "\\\"blocks\\\" must be 1..4096"));
+    rpc(rstep(2, ",\"blocks\":4096"));
+    CHECK(num("blocks_done") == 3, "B13: a step of 4096: %.200s", OUT.p);
+    rpc(rstep(2, ""));
+    CHECK(!strcmp(str("phase"), "done") && same("j2", tgt, tlen), "B13: sealed done");
+
+    /* no blocks: the first step builds */
+    rpc(rstart("lit.fab", "j3", ""));
+    CHECK(num("blocks_total") == 0 && !strcmp(str("bytes_total"), "0"), "B13: no blocks");
+    rpc(rstep(num("job"), ""));
+    CHECK(!strcmp(str("phase"), "done") && same("j3", tgt, tlen), "B13: built at once");
+
+    /* cancel */
+    rpc(rstart("pub.fab", "j4", ""));
+    long j = num("job");
+    CHECK(j == 4, "handles count up (%ld)", j);
+    rpc(rstep(j, ",\"blocks\":1"));
+    EXPECT(call("fab.receive.cancel", "{\"job\":%ld}", j), ok("{\"ok\":true}"));
+    EXPECT(call("fab.receive.cancel", "{\"job\":%ld}", j),
+           err(ZXVD_E_FAB, "STREAM: no receive job 4"));
+    EXPECT(call("fab.receive.cancel", "{\"job\":0}"), err(ZXVD_E_FAB, "STREAM: no receive job 0"));
+    CHECK(!exists("j4") && !exists("j4.tmp"), "B13: cancel writes nothing");
+
+    /* at most ZXVD_FAB_JOBS */
+    long h[ZXVD_FAB_JOBS];
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS; i++) {
+        rpc(rstart("pub.fab", "j5", ""));
+        h[i] = num("job");
+    }
+    CHECK(h[0] == 5 && h[ZXVD_FAB_JOBS - 1] == 4 + (long) ZXVD_FAB_JOBS, "handles %ld..%ld", h[0],
+          h[ZXVD_FAB_JOBS - 1]);
+    EXPECT(rstart("pub.fab", "j5", ""),
+           err(ZXVD_E_FAB, "STREAM: 4 receive jobs are open; finish or cancel one"));
+    rpc(rstep(h[2], ",\"blocks\":2"));
+    CHECK(num("blocks_done") == 2 && num("job") == h[2], "B13: jobs are apart: %.200s", OUT.p);
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS; i++)
+        rpc(call("fab.receive.cancel", "{\"job\":%ld}", h[i]));
+    rpc(call("fab.status", "{}"));
+    CHECK(strstr(OUT.p, "\"receives\":[]}"), "B13: all cancelled");
+
+    /* refusals at the start leave no job */
+    EXPECT(rstart("x.fab", "j6", ""), err(ZXVD_E_FAB, "KEY: it is not sealed to this zxvd's key"));
+    EXPECT(call("fab.receive.start", "{\"recipe\":\"%s\"}", path("pub.fab")),
+           err(ZXVD_E_PARAMS, "missing string parameter \\\"out\\\""));
+    EXPECT(rstart("s.fab", "j6", ""),
+           err(ZXVD_E_FAB, "FORM: a stream recipe; use fab.stream.open"));
+    EXPECT(rstart("sec.fab", "j6", ",\"airgap\":true"),
+           err(ZXVD_E_FAB, "SEAL: no air-gap seal is registered in this zxvd"));
+    rpc(call("fab.status", "{}"));
+    CHECK(strstr(OUT.p, "\"receives\":[]}"), "B13: no job from a refusal: %.300s", OUT.p);
+    EXPECT(call("fab.receive.step", "{}"),
+           err(ZXVD_E_PARAMS, "missing integer parameter \\\"job\\\""));
+
+    /* a missing block ends the job at that step */
+    char sp[300];
+    snprintf(sp, sizeof sp, "fab/blocks/%s", c2);
+    remove(path(sp));
+    rpc(rstart("pub.fab", "j7", ""));
+    j = num("job");
+    EXPECT(rstep(j, ",\"blocks\":1"),
+           ok("{\"job\":%ld,\"phase\":\"fetch\"," PROG(1, "300000") "}", j));
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "FETCH: a block is not in the store"));
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "STREAM: no receive job %ld", j));
+    wfile(sp, b2, B2);
+
+    /* the seal: asked once, after every block, and only then */
+    zxvd_fab_set_seal(seal, &SEAL);
+    SEAL = LPRES_STATE_BOTH;
+    SEAL_CALLS = 0;
+    rpc(rstart("sec.fab", "j8", ",\"airgap\":true"));
+    j = num("job");
+    rpc(rstep(j, ""));
+    CHECK(num("blocks_done") == 3 && SEAL_CALLS == 0, "B13: fetching asks no seal");
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "SEAL: the air-gap seal is not in place"));
+    CHECK(SEAL_CALLS == 1 && !exists("j8"), "B13: refused by the seal, nothing written");
+    SEAL = LPRES_STATE_TRUE;
+    rpc(rstart("sec.fab", "j8", ",\"airgap\":true"));
+    j = num("job");
+    rpc(rstep(j, ""));
+    rpc(rstep(j, ""));
+    CHECK(!strcmp(str("phase"), "done") && same("j8", tgt, tlen), "B13: TRUE assembles");
+    /* a seal removed after the start is refused at the build */
+    rpc(rstart("sec.fab", "j9", ",\"airgap\":true"));
+    j = num("job");
+    rpc(rstep(j, ""));
+    zxvd_fab_set_seal(NULL, &SEAL);
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "SEAL: no air-gap seal is registered in this zxvd"));
+    CHECK(!exists("j9"), "B13: nothing written");
+
+    /* the group's close ends every job */
+    rpc(rstart("pub.fab", "j10", ""));
+    j = num("job");
+    zxvd_fab_close();
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "FILE: fabrication is not open in this zxvd"));
+    CHECK(zxvd_fab_open(path("fab")) == 0, "reopen");
+    EXPECT(rstep(j, ""), err(ZXVD_E_FAB, "STREAM: no receive job %ld", j));
+}
+
 /* ----- streams ----- */
 
 #define FR 20000u
@@ -738,11 +882,12 @@ static void test_stream(void)
     EXPECT(call("fab.stream.open", "{\"recipe\":\"%s\",\"out\":\"%s\"}", path("s.fab"), path("r0")),
            ok("{\"stream\":2,\"cid\":\"%s\",\"len\":%u,\"slot_us\":16667}", f0cid, FR));
     CHECK(same("r0", f[0], FR), "B10: frame 0");
-    EXPECT(call("fab.status", "{}"),
-           ok("{\"open\":true,\"sign_id\":\"%s\",\"kem_id\":\"%s\",\"seal\":false,\"streams\":["
-              "{\"stream\":1,\"role\":\"send\",\"seq\":\"0\",\"checked\":\"0\"},"
-              "{\"stream\":2,\"role\":\"receive\",\"seq\":\"0\",\"checked\":\"0\"}]}",
-              sid, kid));
+    EXPECT(
+        call("fab.status", "{}"),
+        ok("{\"open\":true,\"sign_id\":\"%s\",\"kem_id\":\"%s\",\"seal\":false,\"streams\":["
+           "{\"stream\":1,\"role\":\"send\",\"seq\":\"0\",\"checked\":\"0\"},"
+           "{\"stream\":2,\"role\":\"receive\",\"seq\":\"0\",\"checked\":\"0\"}],\"receives\":[]}",
+           sid, kid));
     /* roles are not interchangeable */
     EXPECT(call("fab.stream.frame", "{\"stream\":1,\"frame\":\"%s\",\"out\":\"%s\"}", path("s.fab"),
                 path("x")),
@@ -908,6 +1053,7 @@ int main(void)
     test_receive_refusals();
     test_airgap();
     test_stream();
+    test_jobs();
     zxvd_rpc_groups_reset();
     zxvd_fab_set_random(NULL);
     nftw(R, rm_one, 16, FTW_DEPTH | FTW_PHYS);

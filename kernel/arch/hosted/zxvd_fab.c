@@ -231,9 +231,12 @@ static void stream_free(stream_t *s)
     memset(s, 0, sizeof *s);
 }
 
+static void jobs_free(void);
+
 void zxvd_fab_close(void)
 {
     for (uint32_t i = 0; i < ZXVD_FAB_STREAMS; i++) stream_free(&G.s[i]);
+    jobs_free();
     memset(G.ssk, 0, sizeof G.ssk);
     memset(G.dk, 0, sizeof G.dk);
     G.open = false;
@@ -586,19 +589,19 @@ static void opened_free(opened_t *o)
     memset(o, 0, sizeof *o);
 }
 
-/* Read, check and open a recipe of `kind`, hydrate its blocks and assemble
- * it (into o->io.out) after the seal when airgap is asked (B4). */
-static bool receive(zxvd_call_t *c, uint8_t kind, fab_stream_t *s, opened_t *o, uint32_t *olen)
+/* Read, check and open a recipe of `kind` and make its buffers (o->io),
+ * refusing airgap: true at once when no seal is registered (B4). */
+static bool open_recipe(zxvd_call_t *c, uint8_t kind, opened_t *o, bool *airgap)
 {
     char path[ZXVD_FAB_PATH];
-    bool airgap, bad;
+    bool bad;
     uint32_t len = 0, nt = 0;
     memset(o, 0, sizeof *o);
-    if (!p_path(c, "recipe", path) || !zxvd_p_bool(c, "airgap", false, &airgap)) return false;
+    if (!p_path(c, "recipe", path) || !zxvd_p_bool(c, "airgap", false, airgap)) return false;
     uint8_t(*trust)[FAB_ID] = p_trust(c, &nt, &bad);
     if (bad) return false;
     bool ok = false;
-    if (airgap && !G.seal) {
+    if (*airgap && !G.seal) {
         zxvd_fail(c, ZXVD_E_FAB, "SEAL: no air-gap seal is registered in this zxvd");
         goto done;
     }
@@ -632,15 +635,81 @@ static bool receive(zxvd_call_t *c, uint8_t kind, fab_stream_t *s, opened_t *o, 
         zxvd_fail(c, ZXVD_E_INTERNAL, "out of memory");
         goto done;
     }
-    if (!fab_ok(c, fab_hydrate(&o->p, &o->io, &o->got))) goto done;
-    if (airgap) {
-        o->io.seal = G.seal;
-        o->io.seal_ctx = G.seal_ctx;
-    }
-    ok = fab_ok(c, fab_assemble(&o->r, &o->p, G.dk, &o->io, s, olen));
+    ok = true;
 done:
     free(trust);
     return ok;
+}
+
+/* Assemble an opened recipe whose blocks are hydrated, after the seal when
+ * airgap is asked (B4). The seal may have been removed since the open. */
+static bool assemble(zxvd_call_t *c, opened_t *o, bool airgap, fab_stream_t *s, uint32_t *olen)
+{
+    if (airgap) {
+        if (!G.seal) {
+            zxvd_fail(c, ZXVD_E_FAB, "SEAL: no air-gap seal is registered in this zxvd");
+            return false;
+        }
+        o->io.seal = G.seal;
+        o->io.seal_ctx = G.seal_ctx;
+    }
+    return fab_ok(c, fab_assemble(&o->r, &o->p, G.dk, &o->io, s, olen));
+}
+
+/* B8, B10: open, hydrate every block, assemble */
+static bool receive(zxvd_call_t *c, uint8_t kind, fab_stream_t *s, opened_t *o, uint32_t *olen)
+{
+    bool airgap;
+    return open_recipe(c, kind, o, &airgap) && fab_ok(c, fab_hydrate(&o->p, &o->io, &o->got)) &&
+           assemble(c, o, airgap, s, olen);
+}
+
+/* ---- receiving in steps (B13) ---------------------------------------------------- */
+
+typedef struct {
+    uint32_t handle; /* 0: free */
+    bool airgap;
+    char out[ZXVD_FAB_PATH];
+    opened_t o;
+    uint64_t bytes, total; /* block bytes verified, of total */
+} job_t;
+
+static job_t J[ZXVD_FAB_JOBS];
+static uint32_t next_job;
+
+static void job_free(job_t *j)
+{
+    opened_free(&j->o);
+    memset(j, 0, sizeof *j);
+}
+
+static void jobs_free(void)
+{
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS; i++) job_free(&J[i]);
+}
+
+static void on_fetch(void *ctx, const fab_progress_t *pr)
+{
+    ((job_t *) ctx)->bytes = pr->bytes_done;
+}
+
+static void put_progress(zxvd_buf_t *b, const job_t *j)
+{
+    zxvd_buf_printf(b,
+                    "\"blocks_done\":%u,\"blocks_total\":%u,\"bytes_done\":\"%llu\","
+                    "\"bytes_total\":\"%llu\"",
+                    (unsigned) j->o.got, (unsigned) j->o.p.n_blocks, (unsigned long long) j->bytes,
+                    (unsigned long long) j->total);
+}
+
+static job_t *p_job(zxvd_call_t *c)
+{
+    uint32_t h;
+    if (!zxvd_p_u32(c, "job", &h)) return NULL;
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS; i++)
+        if (h && J[i].handle == h) return &J[i];
+    zxvd_fail(c, ZXVD_E_FAB, "STREAM: no receive job %u", (unsigned) h);
+    return NULL;
 }
 
 /* ---- methods ---------------------------------------------------------------------- */
@@ -668,6 +737,15 @@ static void m_status(zxvd_call_t *c)
                         "%s{\"stream\":%u,\"role\":\"%s\",\"seq\":\"%llu\",\"checked\":\"%llu\"}",
                         first ? "" : ",", (unsigned) s->handle, s->send ? "send" : "receive",
                         (unsigned long long) s->st.seq, (unsigned long long) s->st.checked_seq);
+        first = false;
+    }
+    zxvd_buf_raw(b, "],\"receives\":[", 14);
+    first = true;
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS; i++) {
+        if (!J[i].handle) continue;
+        zxvd_buf_printf(b, "%s{\"job\":%u,", first ? "" : ",", (unsigned) J[i].handle);
+        put_progress(b, &J[i]);
+        zxvd_buf_raw(b, "}", 1);
         first = false;
     }
     zxvd_buf_raw(b, "]}", 2);
@@ -786,6 +864,82 @@ static void m_receive(zxvd_call_t *c)
         zxvd_buf_printf(b, ",\"blocks\":%u}", (unsigned) o.got);
     }
     opened_free(&o);
+}
+
+/* B13 */
+static void m_receive_start(zxvd_call_t *c)
+{
+    job_t *j = NULL;
+    if (!need_open(c)) return;
+    for (uint32_t i = 0; i < ZXVD_FAB_JOBS && !j; i++)
+        if (!J[i].handle) j = &J[i];
+    if (!j) {
+        zxvd_fail(c, ZXVD_E_FAB, "STREAM: %u receive jobs are open; finish or cancel one",
+                  (unsigned) ZXVD_FAB_JOBS);
+        return;
+    }
+    if (!p_path(c, "out", j->out) || !open_recipe(c, FAB_KIND_FILE, &j->o, &j->airgap)) {
+        job_free(j);
+        return;
+    }
+    (void) fab_plan_bytes(&j->o.p, j->o.p.n_blocks, &j->total);
+    j->o.io.progress = on_fetch;
+    j->o.io.progress_ctx = j;
+    j->handle = ++next_job;
+    zxvd_buf_t *b = zxvd_res(c);
+    zxvd_buf_printf(b, "{\"job\":%u,\"cid\":", (unsigned) j->handle);
+    put_cid(b, &j->o.p.target);
+    zxvd_buf_printf(b, ",\"len\":%u,\"mode\":\"%s\",\"sender\":", (unsigned) j->o.p.target_len,
+                    j->o.r.mode == FAB_MODE_SEALED ? "sealed" : "public");
+    zxvd_buf_hex(b, j->o.r.sender_id, FAB_ID);
+    zxvd_buf_raw(b, ",", 1);
+    put_progress(b, j);
+    zxvd_buf_raw(b, "}", 1);
+}
+
+/* B13 */
+static void m_receive_step(zxvd_call_t *c)
+{
+    uint32_t n = 16, olen = 0;
+    job_t *j;
+    if (!need_open(c) || !(j = p_job(c)) ||
+        (zxvd_p_has(c, "blocks") && !zxvd_p_u32(c, "blocks", &n)))
+        return;
+    if (n < 1 || n > FAB_MAX_BLOCKS) {
+        zxvd_fail(c, ZXVD_E_PARAMS, "\"blocks\" must be 1..%u", (unsigned) FAB_MAX_BLOCKS);
+        return;
+    }
+    zxvd_buf_t *b;
+    if (j->o.got < j->o.p.n_blocks) {
+        if (!fab_ok(c, fab_hydrate_from(&j->o.p, &j->o.io, j->o.got, n, &j->o.got))) {
+            job_free(j);
+            return;
+        }
+        b = zxvd_res(c);
+        zxvd_buf_printf(b, "{\"job\":%u,\"phase\":\"fetch\",", (unsigned) j->handle);
+        put_progress(b, j);
+        zxvd_buf_raw(b, "}", 1);
+        return;
+    }
+    j->o.io.progress = NULL;
+    if (assemble(c, &j->o, j->airgap, NULL, &olen) && p_write(c, j->out, j->o.io.out, olen)) {
+        b = zxvd_res(c);
+        zxvd_buf_printf(b, "{\"job\":%u,\"phase\":\"done\",", (unsigned) j->handle);
+        put_progress(b, j);
+        zxvd_buf_raw(b, ",\"cid\":", 7);
+        put_cid(b, &j->o.p.target);
+        zxvd_buf_printf(b, ",\"len\":%u}", (unsigned) olen);
+    }
+    job_free(j);
+}
+
+/* B13 */
+static void m_receive_cancel(zxvd_call_t *c)
+{
+    job_t *j;
+    if (!need_open(c) || !(j = p_job(c))) return;
+    job_free(j);
+    zxvd_buf_printf(zxvd_res(c), "{\"ok\":true}");
 }
 
 /* B9 */
@@ -1056,6 +1210,9 @@ static const zxvd_group_method_t METHODS[] = {
     {"fab.put", m_put, false},
     {"fab.send", m_send, false},
     {"fab.receive", m_receive, false},
+    {"fab.receive.start", m_receive_start, false},
+    {"fab.receive.step", m_receive_step, false},
+    {"fab.receive.cancel", m_receive_cancel, false},
     {"fab.stream.start", m_stream_start, false},
     {"fab.stream.send", m_stream_send, false},
     {"fab.stream.sign", m_stream_sign, false},
