@@ -29,7 +29,10 @@
  *   X6  registry is append-only: existing entries never change; review
  *       accepts only with the owner (money/device drafts) or owner or
  *       consensus (others), and a tampered draft (record hash or signature)
- *       is refused
+ *       is refused; so is a draft whose kind, reason or flags changed after
+ *       pdx_draft, unless the log holds a DRAFT record committing to exactly
+ *       the altered fields (checked with a reference of the documented
+ *       draft binding)
  *   X7  graph: the same nodes and updates in any order give the same
  *       states, tension and chain after every pass; contained, rolled back
  *       and tainted are sticky; every dependant of contained work is
@@ -67,6 +70,33 @@ static void ref_sig(const uint8_t *d, uint32_t len, uint8_t out[32])
     sha256_update(&c, (const uint8_t *) "zxv/pdx-sig/v1", 14);
     if (d) sha256_update(&c, d, len);
     sha256_final(&c, out);
+}
+
+/* SHA-256 of "zxv/pdx-draft/v1" || rec || rec hash || sig || kind || reason || flags */
+static void ref_draft_bind(const pdx_draft_t *d, uint8_t out[32])
+{
+    uint8_t buf[16 + 4 + 64 + 3];
+    memcpy(buf, "zxv/pdx-draft/v1", 16);
+    le32(buf + 16, d->rec);
+    memcpy(buf + 20, d->rec_hash, 32);
+    memcpy(buf + 52, d->sig, 32);
+    buf[84] = d->kind;
+    buf[85] = d->reason;
+    buf[86] = d->flags;
+    sha256(buf, sizeof buf, out);
+}
+/* Does log hold a DRAFT record committing to exactly *d? */
+static bool ref_draft_logged(const pdx_log_t *log, const pdx_draft_t *d)
+{
+    uint8_t b[32];
+    ref_draft_bind(d, b);
+    for (uint32_t k = 0; k < log->n; k++) {
+        const pdx_rec_t *r = &log->rec[k];
+        if (r->op == PDX_OP_DRAFT && r->outcome == PDX_OUT_RECORDED && r->aux == d->rec &&
+            r->kind == d->kind && !memcmp(r->a, d->rec_hash, 32) && !memcmp(r->b, b, 32))
+            return true;
+    }
+    return false;
 }
 
 typedef struct {
@@ -389,6 +419,7 @@ static void op_special(fz_in *in)
         pdx_out_t o = pdx_draft(&g_front, rec, kind, reason, flags, &g_draft, &g_log);
         if (o == PDX_OUT_RECORDED) {
             if (rec >= g_front.n || kind == PDX_KIND_SPECIAL || kind >= PDX_KIND_NONE) abort();
+            if (!ref_draft_logged(&g_log, &g_draft)) abort(); /* the record binds the draft */
             g_have_draft = true;
         }
         break;
@@ -404,13 +435,26 @@ static void op_special(fz_in *in)
         } else if ((t & 3) == 2) {
             d.sig[fz_u8(in) % 32u] ^= (uint8_t) (1u + (t >> 2));
             tampered = true;
+        } else if ((t & 3) == 3) { /* kind, reason or flags changed after pdx_draft */
+            uint8_t x = (uint8_t) (1u + (t >> 4));
+            uint8_t w = (uint8_t) ((t >> 2) & 3u);
+            if (w == 0)
+                d.flags ^= x;
+            else if (w == 1)
+                d.kind ^= x;
+            else if (w == 2)
+                d.reason ^= x;
+            else
+                d.flags &= (uint8_t) ~PDX_DRAFT_MONEY;
+            /* an alteration that matches another recorded draft is that draft */
+            tampered = !ref_draft_logged(&g_log, &d);
         }
         bool owner = (a & 4) != 0, cons = (a & 8) != 0;
         bool needs_owner = (d.flags & (PDX_DRAFT_MONEY | PDX_DRAFT_DEVICE)) != 0;
         bool known = pdx_reg_find(&g_reg, d.sig) >= 0;
         pdx_out_t o = pdx_review(&g_reg, &g_front, &d, owner, cons, &g_log);
+        if (tampered && o != PDX_OUT_REFUSED) abort(); /* X6 */
         if (o == PDX_OUT_ACCEPTED) {
-            if (tampered) abort();                       /* X6 */
             if (!(owner || (!needs_owner && cons))) abort();
             if (known || g_reg.n != rn + 1 || memcmp(g_reg.ent[rn].sig, d.sig, 32)) abort();
         } else if (g_reg.n != rn) {

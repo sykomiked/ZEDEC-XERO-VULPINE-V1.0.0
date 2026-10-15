@@ -48,6 +48,10 @@ export const Cap = Object.freeze({
   PARADOX: 1n << 14n,
   /** Every capability as of ABI 1.5 (ZXV_CAP_ALL_1_5). */
   ALL_1_5: (1n << 15n) - 1n,
+  /** Vino Embed: the play-lane sandbox and the daily spend meter (ABI 1.6). */
+  VINO: 1n << 15n,
+  /** Every capability as of ABI 1.6 (ZXV_CAP_ALL_1_6). */
+  ALL_1_6: (1n << 16n) - 1n,
 } as const);
 
 /** Octets in a capability identity (168 bits). */

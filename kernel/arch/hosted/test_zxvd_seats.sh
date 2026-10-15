@@ -14,6 +14,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
 # what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
 RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive goes last on the link line, after every object (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
@@ -61,6 +64,6 @@ if [ ! -f "$LIB/objs.a" ]; then
 fi
 # shellcheck disable=SC2086
 $CC $FLAGS $WERR $INCS "$HERE/test_zxvd_seats.c" "$HERE/zxvd_seats.c" "$LIB/objs.a" \
-    -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_seats" 2>"$T/cc.log" ||
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_seats" 2>"$T/cc.log" ||
     { grep -v "Assembler messages\|incorrect section attributes" "$T/cc.log" | tail -20; exit 3; }
 ZXV_TMP="$T" "$T/test_zxvd_seats"

@@ -265,13 +265,22 @@ typedef struct {
 #define DM_MONEY_SIGN    4u /* sign a ledger posting */
 #define DM_MONEY_MEMO    48u
 #define DM_MONEY_SEEN    16u /* replay ring */
+/* Largest amount a money action may carry, in VFV minor units: 2^62 - 1.
+ * Every accepted amount fits int64_t, and the sum of any two still does
+ * (2 * (2^62 - 1) < 2^63), so a host adding two actions (a pay and its
+ * release, an escrow and its fee) in signed 64-bit arithmetic cannot
+ * overflow. It equals the capacity market's CM_AMOUNT_MAX (dm_capmkt.c
+ * checks this), so every escrow dm_capmkt_bid_action builds is valid here.
+ * dm_money_encode / dm_money_decode and every dm_money_* call refuse a larger
+ * amount. */
+#define DM_MONEY_AMOUNT_MAX ((1ull << 62) - 1ull)
 
 typedef struct {
     uint8_t action_id[DM_ID_BYTES]; /* unique per action (host random) */
     uint8_t kind;                   /* DM_MONEY_* */
     uint16_t rail;                  /* 555 / 777 / 888 */
     char currency[4];               /* "VFV" */
-    uint64_t amount;                /* VFV minor units */
+    uint64_t amount;                /* VFV minor units, 1..DM_MONEY_AMOUNT_MAX */
     uint8_t payee[DM_HASH_BYTES];   /* account / provider id */
     char memo[DM_MONEY_MEMO];
     uint8_t origin[DM_ID_BYTES]; /* device that asked */
@@ -424,6 +433,7 @@ typedef struct {
     uint8_t money_pending_from[DM_ID_BYTES];
     uint8_t money_pending_used;
     dm_money_t money_asked; /* asking side: last action sent for confirmation */
+    uint8_t money_asked_to[DM_ID_BYTES]; /* the held device it was sent to: only it may answer */
     uint8_t money_asked_used;
     dm_confirm_t conf_tmp;
 } dm_mesh_t;

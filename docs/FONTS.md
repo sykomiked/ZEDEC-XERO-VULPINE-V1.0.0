@@ -11,7 +11,7 @@ Each other script gets the Golden member made for it.
 
 | Where | How |
 |---|---|
-| Font files | `assets/fonts/ascw-golden/`: 83 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
+| Font files | `assets/fonts/ascw-golden/`: 85 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
 | Kernel and native UI (`zui`) | `kernel/src/font/ascw_golden.h`: face per locale, per script and per code point; `ascw_install()` fills a `font_registry_t` |
 | Browser and desktop window (zxvd) | `@font-face` block in `kernel/arch/hosted/zxv_ui.html`; zxvd serves `/fonts/<file>` |
 | Mac app (ZXV Studio) | `ASCWFont.swift`: registers the faces from `Contents/Resources/Fonts`; every text style is a CoreText font with the family as its cascade list |
@@ -45,16 +45,14 @@ against the real files and every CLDR locale.
 These figures are measured against the characters each CLDR locale needs.
 The per-locale table is in [FONTS_COVERAGE.md](FONTS_COVERAGE.md).
 
-- 760 of 778 locales have an ASCW face for their script.
-- 726 locales are fully covered by their own face plus Latin II.
-- 736 locales are covered by the ASCW set as a whole.
+- 764 of 778 locales have an ASCW face for their script.
+- 730 locales are fully covered by their own face plus Latin II.
+- 740 locales are covered by the ASCW set as a whole.
 
-**No ASCW face (18 locales).** These locales are drawn by the platform's
+**No ASCW face (14 locales).** These locales are drawn by the platform's
 fonts:
 
-- Tibetan (bo, dz)
 - Mongolian script (mn-Mong)
-- Thaana (dv)
 - Hanifi Rohingya (rhg)
 - Chakma (ccp)
 - Nyiakeng Puachue Hmong (hnj)
@@ -62,7 +60,10 @@ fonts:
 - Deseret
 - Shavian
 
-The same Noto route used for Cherokee would fill these gaps.
+The same Noto route used for Cherokee would fill these gaps. ASCW Golden
+Tibetan (from Noto Serif Tibetan) and ASCW Golden Thaana (from Noto Sans
+Thaana) were made that way for the user space's spoken languages
+(docs/SPOKEN_LANGUAGES.md), with the family's golden-section metrics.
 
 **Partial coverage.**
 

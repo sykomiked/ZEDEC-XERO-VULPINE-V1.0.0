@@ -30,7 +30,7 @@ Uint8List ramp(int n) => Uint8List.fromList(List.generate(n, (x) => x & 0xFF));
 Uint8List fill(int value, int n) => Uint8List(n)..fillRange(0, n, value);
 
 final Map<String, int> _codes = {
-  for (final t in ['status', 'status_abi15'])
+  for (final t in ['status', 'status_abi15', 'status_abi16'])
     for (final e in arr(vectors[t])) obj(e)['name'] as String: i(obj(e)['code']),
 };
 

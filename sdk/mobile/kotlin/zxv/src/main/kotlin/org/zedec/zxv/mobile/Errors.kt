@@ -91,8 +91,10 @@ class ZxvFatalError(
  * on [ZxvException.status]. The numbers are stable: libzxv never renumbers a
  * status and only adds new ones. The class (USAGE, REFUSED, FATAL, SYSTEM)
  * decides the exception type; the codes added in ABI 1.5 (-32..-40) also
- * have their own subclasses (for example [TreatyException] for [E_TREATY]).
- * -41..-45 are reserved by the ABI and not defined here.
+ * have their own subclasses (for example [TreatyException] for [E_TREATY]),
+ * and so do the vino codes added in ABI 1.6 (-46..-50, for example
+ * [RailException] for [E_RAIL]). -41..-45 and -51..-59 are reserved by the
+ * ABI and not defined here.
  */
 object ZxvStatus {
     /** `ZXV_OK`: Success. */
@@ -220,6 +222,21 @@ object ZxvStatus {
 
     /** `ZXV_E_PARADOX_OWNER`: The action needs the owner's approval (a money or device policy) (ABI 1.5). */
     const val E_PARADOX_OWNER: Int = -40
+
+    /** `ZXV_E_RAIL`: Not the voucher's active rail (bearer/ghost) (ABI 1.6). */
+    const val E_RAIL: Int = -46
+
+    /** `ZXV_E_COVERAGE`: Would take a play-lane issuer below 1.8x coverage (ABI 1.6). */
+    const val E_COVERAGE: Int = -47
+
+    /** `ZXV_E_LANE`: Wrong lane for this call (play vs live) (ABI 1.6). */
+    const val E_LANE: Int = -48
+
+    /** `ZXV_E_EXPIRED`: The payment request expired, or was approved too late (ABI 1.6). */
+    const val E_EXPIRED: Int = -49
+
+    /** `ZXV_E_CHANCE`: A paid chance outcome in a live payment request (ABI 1.6). */
+    const val E_CHANCE: Int = -50
 }
 
 // ---- ABI 1.5 status subclasses ----
@@ -296,6 +313,49 @@ class StepLimitException(status: Int, statusName: String, detail: String) :
  * "Owner ok" is the caller's assertion; in one process libzxv cannot check who the owner is.
  */
 class OwnerApprovalRequiredException(status: Int, statusName: String, detail: String) :
+    ZxvRefusedException(status, statusName, detail)
+
+// ---- ABI 1.6 status subclasses (vino) ----
+
+/**
+ * A voucher was spent or switched on the wrong rail (`ZXV_E_RAIL`, -46, REFUSED).
+ * A play voucher is on exactly one active rail at a time, BEARER or GHOST; a
+ * transfer must name that rail, and switching to the rail it is already on is
+ * refused too. Nothing moved. See [PlaySandbox.transfer] and [PlaySandbox.setRail].
+ */
+class RailException(status: Int, statusName: String, detail: String) :
+    ZxvRefusedException(status, statusName, detail)
+
+/**
+ * The play-lane coverage rule refused the call (`ZXV_E_COVERAGE`, -47, REFUSED): an
+ * issue, or a withdrawal of backing, would leave the issuer below 1.8x coverage
+ * (`10 * backing >= 18 * outstanding`). Nothing changed; post more play backing
+ * ([PlaySandbox.back]) or let vouchers be redeemed first.
+ */
+class CoverageException(status: Int, statusName: String, detail: String) :
+    ZxvRefusedException(status, statusName, detail)
+
+/**
+ * The lane is wrong for this call (`ZXV_E_LANE`, -48, USAGE): a payment request
+ * whose lane is not PLAY (1) or LIVE (2). A caller bug: fix the request.
+ */
+class LaneException(status: Int, statusName: String, detail: String) :
+    ZxvUsageException(status, statusName, detail)
+
+/**
+ * The payment request expired, or the receipt was approved outside the request's
+ * window (`ZXV_E_EXPIRED`, -49, REFUSED). Ask for a new request; this one cannot
+ * be approved or accepted any more.
+ */
+class ExpiredException(status: Int, statusName: String, detail: String) :
+    ZxvRefusedException(status, statusName, detail)
+
+/**
+ * A LIVE payment request marks a paid chance outcome (`ZXV_E_CHANCE`, -50, REFUSED):
+ * loot boxes and paid draws cannot be paid for with live value through this ABI.
+ * The raffle is a separate module, not a payment request.
+ */
+class ChanceException(status: Int, statusName: String, detail: String) :
     ZxvRefusedException(status, statusName, detail)
 
 /** What the SDK does when a context halts. */

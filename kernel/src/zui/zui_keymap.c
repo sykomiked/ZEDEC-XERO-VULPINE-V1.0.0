@@ -407,14 +407,15 @@ static const char L_AR[] = "keyboard ar Arabic\n"
                            "shift C01 \\u{0650} \\u{064D} ] [ لأ أ \\u0640 ، / : \"\n"
                            "shift B01 ~ \\u{0652} } { لآ آ ’ , . ؟\n";
 
+#include "zui_keymap_xkb.inc"
+
 static const struct {
     const char *id;
     const char *text;
-} BUILTIN[] = {
-    {"us", L_US},           {"uk", L_UK}, {"us-intl", L_USINTL}, {"de", L_DE}, {"fr", L_FR},
-    {"es", L_ES},           {"it", L_IT}, {"pt-br", L_PTBR},     {"se", L_SE}, {"dvorak", L_DVORAK},
-    {"colemak", L_COLEMAK}, {"ru", L_RU}, {"gr", L_GR},          {"he", L_HE}, {"ar", L_AR},
-};
+} BUILTIN[] = {{"us", L_US}, {"uk", L_UK},         {"us-intl", L_USINTL},  {"de", L_DE},
+               {"fr", L_FR}, {"es", L_ES},         {"it", L_IT},           {"pt-br", L_PTBR},
+               {"se", L_SE}, {"dvorak", L_DVORAK}, {"colemak", L_COLEMAK}, {"ru", L_RU},
+               {"gr", L_GR}, {"he", L_HE},         {"ar", L_AR},           ZUI_KEYMAP_XKB_LAYOUTS};
 #define BUILTIN_N (sizeof BUILTIN / sizeof BUILTIN[0])
 
 uint32_t zui_keymap_builtin_count(void)
@@ -440,6 +441,33 @@ bool zui_keymap_load(zui_keymap_t *km, const char *id)
     }
     zero(km, (uint32_t) sizeof *km);
     return false;
+}
+
+/* A BCP 47 tag's language matches when equal ignoring case, with "-" and "_"
+ * the same; n is how much of tag to compare. */
+static bool tag_eq(const char *tag, uint32_t n, const char *lit)
+{
+    uint32_t i = 0;
+    for (; i < n && lit[i]; i++) {
+        char a = tag[i], b = lit[i];
+        if (a >= 'A' && a <= 'Z') a = (char) (a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z') b = (char) (b - 'A' + 'a');
+        if (a == '_') a = '-';
+        if (a != b) return false;
+    }
+    return i == n && lit[i] == 0;
+}
+
+const char *zui_keymap_for_locale(const char *tag)
+{
+    uint32_t n = slen(tag), lang = 0;
+    while (lang < n && tag[lang] != '-' && tag[lang] != '_') lang++;
+    const uint32_t N_ = (uint32_t) (sizeof LOCALE_KEYMAP / sizeof LOCALE_KEYMAP[0]);
+    for (uint32_t i = 0; i < N_; i++) /* the whole tag: zh-Hant */
+        if (tag_eq(tag, n, LOCALE_KEYMAP[i].tag)) return LOCALE_KEYMAP[i].layout;
+    for (uint32_t i = 0; i < N_; i++) /* its language: pt-BR -> pt */
+        if (lang && tag_eq(tag, lang, LOCALE_KEYMAP[i].tag)) return LOCALE_KEYMAP[i].layout;
+    return "us";
 }
 
 /* ---- K5: the parser -------------------------------------------------------------- */

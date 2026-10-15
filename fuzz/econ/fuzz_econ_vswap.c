@@ -33,6 +33,9 @@
  *   V6  W4: o = floor(v*R/B) and (R - o) * B >= R * (B - v)
  *   V7  T3: unlock only after notice and tick >= notice + period[tier];
  *       wrong owner refused; every locked V-Bill returns to the owner
+ *   VA  owner binding: swap in / swap out / lock with the two accounts of
+ *       different ledger owners is VSWAP_ERR_AUTH, and a success always had
+ *       one owner on both sides
  *   V8  W5: on success the pool is emptied exactly: paid + reinvest == P;
  *       each holder's paid[i] equals the largest-remainder share computed
  *       independently; reinvesting positions get floor(share*rd/rn) V-Bills
@@ -119,6 +122,38 @@ static uint32_t pick_ub(fz_in *in)
     uint8_t b = fz_u8(in);
     return (b & 0xC0u) == 0xC0u ? pick(in) : g_acc[A_UB0 + b % NU];
 }
+/* the second account of a party: mostly the same user's (b & 0x20 clear),
+ * else as pick_ub / pick_uv would choose */
+static uint32_t user_of(uint32_t a, uint32_t base)
+{
+    for (uint32_t k = 0; k < NU; k++)
+        if (a == g_acc[base + k]) return k;
+    return NU;
+}
+static uint32_t pair_ub(fz_in *in, uint32_t uv)
+{
+    uint8_t b = fz_u8(in);
+    uint32_t k = user_of(uv, A_UV0);
+    if ((b & 0xC0u) == 0xC0u) return pick(in);
+    return g_acc[A_UB0 + (!(b & 0x20u) && k < NU ? k : b % NU)];
+}
+static uint32_t pair_uv(fz_in *in, uint32_t ub)
+{
+    uint8_t b = fz_u8(in);
+    uint32_t k = user_of(ub, A_UB0);
+    if ((b & 0xF0u) == 0xB0u) return g_acc[A_POOL];
+    if ((b & 0xC0u) == 0xC0u) return pick(in);
+    return g_acc[A_UV0 + (!(b & 0x20u) && k < NU ? k : b % NU)];
+}
+/* VA: AUTH exactly when both are live accounts of different owners and the
+ * call got that far; a success always had one owner */
+static void owner_bound(uint32_t x, uint32_t y, vswap_status_t st)
+{
+    const pay_account_t *a = pay_ledger_account(&g_L, x), *b = pay_ledger_account(&g_L, y);
+    bool differ = a && b && a->owner != b->owner;
+    if ((st == VSWAP_ERR_AUTH && !differ) || (st == VSWAP_OK && differ)) abort();
+}
+
 /* amounts: mostly small (so the ops succeed), sometimes edge values */
 static uint64_t amt(fz_in *in)
 {
@@ -278,11 +313,12 @@ static void run(const uint8_t *data, size_t size)
             break;
         }
         case 1: { /* SWAP IN */
-            uint32_t uv = pick_uv(&in), ub = pick_ub(&in);
+            uint32_t uv = pick_uv(&in), ub = pair_ub(&in, uv);
             uint64_t a = amt(&in);
             vswap_quote_t q;
             uint64_t uv0 = debit(uv), ub0 = debit(ub);
             vswap_status_t st = vswap_swap_in(&g_S, uv, ub, a, tick, &q);
+            owner_bound(uv, ub, st);
             if (!g_b.enabled && st != VSWAP_ERR_DISABLED) abort(); /* V4 */
             if (st != VSWAP_OK) {
                 refused = true;
@@ -306,11 +342,12 @@ static void run(const uint8_t *data, size_t size)
             break;
         }
         case 2: { /* SWAP OUT */
-            uint32_t ub = pick_ub(&in), uv = pick_uv(&in);
+            uint32_t ub = pick_ub(&in), uv = pair_uv(&in, ub);
             uint64_t v = amt(&in);
             vswap_quote_t q;
             uint64_t uv0 = debit(uv), ub0 = debit(ub);
             vswap_status_t st = vswap_swap_out(&g_S, ub, uv, v, tick, &q);
+            owner_bound(uv, ub, st);
             if (st == VSWAP_ERR_DISABLED) abort(); /* V4: leaving never blocked */
             if (st != VSWAP_OK) {
                 refused = true;
@@ -326,7 +363,7 @@ static void run(const uint8_t *data, size_t size)
             break;
         }
         case 3: { /* LOCK */
-            uint32_t owner = pick_ub(&in), payee = pick_uv(&in);
+            uint32_t owner = pick_ub(&in), payee = pair_uv(&in, owner);
             uint8_t tb = fz_u8(&in);
             uint8_t tier = (tb & 0x80u) ? tb % 4u : (uint8_t) (1u + (tb & 1u));
             uint64_t v = (tb & 0x40u) ? amt(&in) : fz_u8(&in) % 300u + 1u;
@@ -334,6 +371,7 @@ static void run(const uint8_t *data, size_t size)
             uint32_t id = 0xFFFFu;
             uint64_t o0 = debit(owner);
             vswap_status_t st = vswap_lock(&g_S, owner, payee, tier, v, re, tick, &id);
+            owner_bound(owner, payee, st);
             if (!g_b.enabled && st != VSWAP_ERR_DISABLED) abort(); /* V4 */
             if (st != VSWAP_OK) {
                 refused = true;

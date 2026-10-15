@@ -100,17 +100,20 @@ static const char *const PAY_N[] = {
     "PAY_ERR_OVERFLOW", "PAY_ERR_REPLAY",     "PAY_ERR_DUP_UETR",  "PAY_ERR_UETR",
     "PAY_ERR_CROWN",    "PAY_ERR_INVARIANT",  "PAY_ERR_NOT_FOUND", "PAY_ERR_STATE",
     "PAY_ERR_LIMIT",    "PAY_ERR_POLICY",     "PAY_ERR_USURY"};
-static const char *const SV_N[] = {"SVAULT_OK", "SVAULT_ERR_ARG", "SVAULT_ERR_STATE",
-                                   "SVAULT_ERR_OVERFLOW", "SVAULT_ERR_LEDGER"};
-static const char *const VS_N[] = {
-    "VSWAP_OK",           "VSWAP_ERR_ARG",   "VSWAP_ERR_DISABLED", "VSWAP_ERR_SIG",
-    "VSWAP_ERR_EPOCH",    "VSWAP_ERR_JURIS", "VSWAP_ERR_DUST",     "VSWAP_ERR_FUNDS",
-    "VSWAP_ERR_OVERFLOW", "VSWAP_ERR_STATE", "VSWAP_ERR_LEDGER",   "VSWAP_ERR_EMPTY",
-    "VSWAP_ERR_NOHOLD",   "VSWAP_ERR_FULL",  "VSWAP_ERR_LOCKED",   "VSWAP_ERR_PARTIAL"};
-static const char *const VA_N[] = {
-    "VAUC_OK",          "VAUC_ERR_ARG",   "VAUC_ERR_FULL",    "VAUC_ERR_SIG",     "VAUC_ERR_STATE",
-    "VAUC_ERR_UNKNOWN", "VAUC_ERR_DUP",   "VAUC_ERR_STALE",   "VAUC_ERR_EXPIRED", "VAUC_ERR_QUOTES",
-    "VAUC_ERR_LEDGER",  "VAUC_ERR_FLOOR", "VAUC_ERR_OVERFLOW"};
+static const char *const SV_N[] = {"SVAULT_OK",           "SVAULT_ERR_ARG",    "SVAULT_ERR_STATE",
+                                   "SVAULT_ERR_OVERFLOW", "SVAULT_ERR_LEDGER", "SVAULT_ERR_FLOOR",
+                                   "SVAULT_ERR_AUTH"};
+static const char *const VS_N[] = {"VSWAP_OK",          "VSWAP_ERR_ARG",    "VSWAP_ERR_DISABLED",
+                                   "VSWAP_ERR_SIG",     "VSWAP_ERR_EPOCH",  "VSWAP_ERR_JURIS",
+                                   "VSWAP_ERR_DUST",    "VSWAP_ERR_FUNDS",  "VSWAP_ERR_OVERFLOW",
+                                   "VSWAP_ERR_STATE",   "VSWAP_ERR_LEDGER", "VSWAP_ERR_EMPTY",
+                                   "VSWAP_ERR_NOHOLD",  "VSWAP_ERR_FULL",   "VSWAP_ERR_LOCKED",
+                                   "VSWAP_ERR_PARTIAL", "VSWAP_ERR_AUTH"};
+static const char *const VA_N[] = {"VAUC_OK",           "VAUC_ERR_ARG",    "VAUC_ERR_FULL",
+                                   "VAUC_ERR_SIG",      "VAUC_ERR_STATE",  "VAUC_ERR_UNKNOWN",
+                                   "VAUC_ERR_DUP",      "VAUC_ERR_STALE",  "VAUC_ERR_EXPIRED",
+                                   "VAUC_ERR_QUOTES",   "VAUC_ERR_LEDGER", "VAUC_ERR_FLOOR",
+                                   "VAUC_ERR_OVERFLOW", "VAUC_ERR_AUTH"};
 static const char *const ZE_N[] = {"ZENNY_OK",
                                    "ZENNY_ERR_ARG",
                                    "ZENNY_ERR_FULL",
@@ -221,7 +224,9 @@ static bool world(void)
               open_acct(E.vno, 0, &E.regen) && open_acct(E.vbl, PAY_ACCT_ISSUER, &E.biss) &&
               open_acct(E.vbl, 0, &E.vvb) && open_acct(E.vbl, 0, &E.lock_m) &&
               open_acct(E.vbl, 0, &E.lock_d) &&
-              svault_init(&E.V, &E.L, E.rsv, E.vcash, E.biss, E.vvb) == SVAULT_OK;
+              svault_init(&E.V, &E.L, E.rsv, E.vcash, E.biss, E.vvb) == SVAULT_OK &&
+              /* the sweep keeps the reserve at the auction floor (1/1 at par) */
+              svault_set_floor(&E.V, 1, 1, ECON_PAR) == SVAULT_OK;
     vswap_cfg_t sc;
     vswap_cfg_default(&sc);
     sc.vino = E.vno;

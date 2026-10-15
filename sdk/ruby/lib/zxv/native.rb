@@ -488,6 +488,32 @@ module Zxv
       [:zxv_paradox_graph_info, %i[pointer pointer pointer pointer pointer pointer pointer], :int32]
     ].freeze
 
+    # ABI 1.6 (add-only): Vino Embed. Attached like FUNCTIONS_1_5: against
+    # an older libzxv each one returns ZXV_E_NOTIMPL instead (rule R9).
+    FUNCTIONS_1_6 = [
+      [:zxv_vino_play_create, %i[pointer pointer], :int32],
+      [:zxv_vino_play_destroy, %i[pointer], :void],
+      [:zxv_vino_play_open, %i[pointer pointer uint32 int32 pointer], :int32],
+      [:zxv_vino_play_back, %i[pointer pointer uint32 uint64], :int32],
+      [:zxv_vino_play_unback, %i[pointer pointer uint32 uint64], :int32],
+      [:zxv_vino_issue, %i[pointer pointer uint32 uint32 uint64 int32 pointer], :int32],
+      [:zxv_vino_transfer, %i[pointer pointer uint64 uint32 uint32 int32], :int32],
+      [:zxv_vino_set_rail, %i[pointer pointer uint64 uint32 int32], :int32],
+      [:zxv_vino_redeem, %i[pointer pointer uint64 uint32], :int32],
+      [:zxv_vino_voucher_info, %i[pointer pointer uint64 pointer pointer pointer pointer pointer], :int32],
+      [:zxv_vino_account_info, %i[pointer pointer uint32 pointer pointer pointer pointer pointer], :int32],
+      [:zxv_vino_vouchers, %i[pointer pointer uint32 pointer size_t pointer], :int32],
+      [:zxv_vino_play_check, %i[pointer pointer], :int32],
+      [:zxv_vino_request_encode, %i[int32 uint32 pointer pointer uint64 uint64 uint64 string pointer pointer], :int32],
+      [:zxv_vino_request_decode, %i[pointer pointer pointer pointer pointer pointer pointer pointer pointer pointer], :int32],
+      [:zxv_vino_receipt_msg, %i[pointer pointer uint64 pointer], :int32],
+      [:zxv_vino_receipt_sign, %i[pointer pointer pointer pointer uint64 pointer], :int32, { blocking: true }],
+      [:zxv_vino_receipt_verify, %i[pointer pointer uint64 pointer uint64], :int32, { blocking: true }],
+      [:zxv_vino_meter_create, %i[pointer uint64 pointer], :int32],
+      [:zxv_vino_meter_destroy, %i[pointer], :void],
+      [:zxv_vino_meter_admit, %i[pointer pointer uint64 uint64 pointer], :int32]
+    ].freeze
+
     @loaded = nil
     @lock = Mutex.new
 
@@ -564,13 +590,13 @@ module Zxv
                         :int32, blocking: true
       end
 
-      # Attach the ABI 1.5 functions one by one. A symbol the library lacks
+      # Attach the ABI 1.5 and 1.6 functions one by one. A symbol the library lacks
       # (an older libzxv) becomes a stub that returns ZXV_E_NOTIMPL (or
       # "INVALID" for the name functions), so callers see a clean
       # Zxv::NotImplementedError instead of a load failure.
       def bind_1_5!
         @missing_1_5 = []
-        FUNCTIONS_1_5.each do |name, args, ret, opts|
+        (FUNCTIONS_1_5 + FUNCTIONS_1_6).each do |name, args, ret, opts|
           attach_function name, args, ret, **(opts || {})
         rescue FFI::NotFoundError
           @missing_1_5 << name

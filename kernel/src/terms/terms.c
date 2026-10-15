@@ -96,6 +96,26 @@ void terms_hash(const terms_doc_t *doc, uint8_t out[TERMS_HASH_LEN])
     sha256((const uint8_t *) doc->text, doc->len, out);
 }
 
+static int doc_matches(const terms_doc_t *doc)
+{
+    uint8_t h[TERMS_HASH_LEN];
+    uint8_t diff = 0;
+    size_t i;
+    if (!doc->sha256) return 1;
+    terms_hash(doc, h);
+    for (i = 0; i < TERMS_HASH_LEN; i++) diff |= (uint8_t) (h[i] ^ doc->sha256[i]);
+    return diff == 0;
+}
+
+int terms_doc_check(const terms_doc_t *doc)
+{
+    if (!doc || !doc->text) return TERMS_ERR_ARG;
+    if (!doc_matches(doc)) return TERMS_ERR_TEXT;
+    if (doc->reference && (!doc->reference->text || !doc_matches(doc->reference)))
+        return TERMS_ERR_TEXT;
+    return TERMS_OK;
+}
+
 /* ------------------------------------------------------------- wrapping */
 
 static const char KEY_MARK[] = " [KEY]";
@@ -278,6 +298,7 @@ int terms_reader_init_ex(terms_reader_t *r, const terms_doc_t *doc, uint16_t wid
     if (!measure && width < TERMS_MIN_COLS) return TERMS_ERR_ARG;
     if (doc->len > 0xFFFFFFFFu) return TERMS_ERR_ARG;
     if (!terms_utf8_valid(doc->text, doc->len)) return TERMS_ERR_UTF8;
+    if (terms_doc_check(doc)) return TERMS_ERR_TEXT;
     r->doc = doc;
     r->measure = measure;
     r->measure_ctx = ctx;
@@ -566,6 +587,7 @@ int terms_accept(const terms_reader_t *r, const char *seat, uint64_t time,
     if (!r || !rec || !r->doc) return TERMS_ERR_ARG;
     if (!terms_can_accept(r)) return TERMS_ERR_GATE;
     d = r->doc;
+    if (terms_doc_check(d)) return TERMS_ERR_TEXT;
     if (!terms_seat_valid(seat) || !tag_valid(d->version, TERMS_TAG_MAX) ||
         !tag_valid(d->lang, TERMS_TAG_MAX))
         return TERMS_ERR_ARG;

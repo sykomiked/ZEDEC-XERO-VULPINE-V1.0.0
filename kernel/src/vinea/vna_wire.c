@@ -3,6 +3,7 @@
 /* vna_wire.c — signed messages and DHT records. See vna_wire.h. */
 #include "vna_wire.h"
 #include "vna_agree.h"
+#include "vna_space.h"
 
 /* ---- schemas: the single declaration of every wire record ---- */
 #define M vna_msg_t
@@ -46,6 +47,13 @@ static const vna_field_t aipi_fields[] = {
 };
 const vna_schema_t vna_b_aipi_schema = {"body_aipi", 0x000C, 1, aipi_fields, 3};
 
+static const vna_field_t space_fields[] = {
+    VNA_FU8(vna_b_space_t, kind, VNA_SPACE_M_EVENT, VNA_AXIS_NONE),
+    VNA_FFIX(vna_b_space_t, space, VNA_AXIS_NONE),
+    VNA_FVAR(vna_b_space_t, data, len, VNA_AXIS_NONE),
+};
+const vna_schema_t vna_b_space_schema = {"body_space", 0x000D, 1, space_fields, 3};
+
 static const vna_field_t key_fields[] = {VNA_FFIX(vna_b_key_t, key, VNA_AXIS_NONE)};
 const vna_schema_t vna_b_key_schema = {"body_key", 0x0002, 1, key_fields, 1};
 
@@ -78,7 +86,7 @@ const vna_schema_t vna_b_hk_schema = {"body_hk", 0x0007, 1, hk_fields, 3};
 #define R vna_rec_t
 static const vna_field_t rec_fields[] = {
     VNA_FCONST(R, magic, VNA_REC_MAGIC),
-    VNA_FU8(R, rtype, 2, VNA_AXIS_NONE),
+    VNA_FU8(R, rtype, VNA_REC_SPACE_EV, VNA_AXIS_NONE),
     VNA_FFIX(R, key, VNA_AXIS_NONE),
     VNA_FFIX(R, publisher, VNA_AXIS_PROVENANCE),
     VNA_FU64(R, pow, 0, VNA_AXIS_PROVENANCE),
@@ -252,6 +260,8 @@ vna_status_t vna_rec_verify(vna_verifier_t *v, const uint8_t *buf, uint32_t len,
         if (!vna_id_eq(&a.owner, &r->publisher)) return VNA_ERR_BINDING;
         return VNA_OK;
     }
+    if (r->rtype == VNA_REC_SPACE || r->rtype == VNA_REC_SPACE_EV)
+        return vna_space_rec_check(r); /* vna_space.c: payload and key binding */
     return VNA_ERR_PARSE;
 }
 

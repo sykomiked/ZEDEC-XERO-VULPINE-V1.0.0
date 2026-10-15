@@ -63,6 +63,16 @@ export const Status = Object.freeze({
   E_PARADOX_STEP: -39,
   /** The change touches money or devices and needs the owner's approval (ABI 1.5; class REFUSED). */
   E_PARADOX_OWNER: -40,
+  /** Not the voucher's active rail (bearer or ghost) (ABI 1.6; class REFUSED). */
+  E_RAIL: -46,
+  /** The call would take a play issuer below 1.8x coverage (ABI 1.6; class REFUSED). */
+  E_COVERAGE: -47,
+  /** The wrong lane for this call: play vs live (ABI 1.6; class USAGE). */
+  E_LANE: -48,
+  /** The payment request expired, or was approved outside its window (ABI 1.6; class REFUSED). */
+  E_EXPIRED: -49,
+  /** A live payment request marks a paid chance outcome (ABI 1.6; class REFUSED). */
+  E_CHANCE: -50,
   E_INTERNAL: -99,
 } as const);
 
@@ -185,6 +195,39 @@ export class ParadoxStepLimitError extends ZxvRefusedError {}
 /** `ZXV_E_PARADOX_OWNER` (ABI 1.5): the change touches money or devices, so the owner must approve it. */
 export class OwnerApprovalRequiredError extends ZxvRefusedError {}
 
+/**
+ * `ZXV_E_RAIL` (ABI 1.6, class REFUSED): the call named a rail (BEARER or
+ * GHOST) that is not the voucher's active rail, or asked to switch a
+ * voucher to the rail it is already on. One voucher is spendable on exactly
+ * one rail at a time, so it can never be spent twice.
+ */
+export class WrongRailError extends ZxvRefusedError {}
+/**
+ * `ZXV_E_COVERAGE` (ABI 1.6, class REFUSED): issuing this voucher, or
+ * withdrawing this backing, would leave a play issuer with less than 1.8x
+ * backing for what it has outstanding (`10 * backing >= 18 * outstanding`).
+ * Nothing changed. Post more play backing, or issue a smaller face.
+ */
+export class CoverageError extends ZxvRefusedError {}
+/**
+ * `ZXV_E_LANE` (ABI 1.6, class USAGE): the lane is neither PLAY (1) nor
+ * LIVE (2), or the call is for the other lane. A caller bug.
+ */
+export class WrongLaneError extends ZxvUsageError {}
+/**
+ * `ZXV_E_EXPIRED` (ABI 1.6, class REFUSED): the payment request has
+ * expired, or the receipt's approval time is outside the request's
+ * `[createdAt, expiresAt]` window. Ask for a fresh request.
+ */
+export class RequestExpiredError extends ZxvRefusedError {}
+/**
+ * `ZXV_E_CHANCE` (ABI 1.6, class REFUSED): a LIVE payment request may not
+ * buy a paid chance outcome (loot boxes, paid draws). Such purchases can
+ * only use the PLAY lane. The raffle is a separate module, not a payment
+ * request.
+ */
+export class PaidChanceRefusedError extends ZxvRefusedError {}
+
 /** SYSTEM class: out of memory, I/O, internal. */
 export class ZxvSystemError extends ZxvError {}
 
@@ -227,6 +270,7 @@ export function errorFor(status: number, cls: number, name: string, detail: stri
     if (status === Status.E_FLOAT) return new FloatRejectedError(detail);
     if (status === Status.E_DENOM) return new DenominationError(status, name, detail);
     if (status === Status.E_TREATY) return new TreatyError(status, name, detail);
+    if (status === Status.E_LANE) return new WrongLaneError(status, name, detail);
     return new ZxvUsageError(status, name, detail);
   }
   if (cls === StatusClass.REFUSED) {
@@ -243,6 +287,10 @@ export function errorFor(status: number, cls: number, name: string, detail: stri
       case Status.E_LIMIT: return new LimitExceededError(status, name, detail);
       case Status.E_PARADOX_STEP: return new ParadoxStepLimitError(status, name, detail);
       case Status.E_PARADOX_OWNER: return new OwnerApprovalRequiredError(status, name, detail);
+      case Status.E_RAIL: return new WrongRailError(status, name, detail);
+      case Status.E_COVERAGE: return new CoverageError(status, name, detail);
+      case Status.E_EXPIRED: return new RequestExpiredError(status, name, detail);
+      case Status.E_CHANCE: return new PaidChanceRefusedError(status, name, detail);
       default: return new ZxvRefusedError(status, name, detail);
     }
   }

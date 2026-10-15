@@ -39,10 +39,10 @@ public sealed class Abi15PlumbingTests
     }
 
     [Fact]
-    public void Features2_reports_every_group_and_minimum_abi_is_1_5()
+    public void Features2_reports_every_1_5_group_and_minimum_abi_is_1_6()
     {
         Assert.True(ZxvLibrary.AbiVersion >= new Version(1, 5));
-        Assert.Equal(5, ZxvLibrary.MinimumAbiMinor);
+        Assert.Equal(6, ZxvLibrary.MinimumAbiMinor);
         ZxvFeatures2 all = ZxvFeatures2.Treaty | ZxvFeatures2.Aipi | ZxvFeatures2.Coin | ZxvFeatures2.Fee | ZxvFeatures2.VHub | ZxvFeatures2.Freight | ZxvFeatures2.Web4 | ZxvFeatures2.Paradox;
         Assert.Equal(all, ZxvLibrary.Features2 & all);
         Assert.True(ZxvLibrary.Supports(ZxvFeatures2.Paradox));

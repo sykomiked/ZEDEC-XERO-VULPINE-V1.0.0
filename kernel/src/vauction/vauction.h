@@ -47,6 +47,10 @@
  *      bidder -> escrow; if the ledger refuses (funds), nothing is recorded.
  *      At most VAUC_MAX_BIDS per epoch; limit >= p_min; the epoch's total
  *      locked stays below PAY_BAL_MAX, so every sum of quantities fits.
+ *      The fiat and V-Bill accounts must have the same ledger owner
+ *      (VAUC_ERR_AUTH), so V-Bills bought with one owner's fiat cannot be
+ *      sent to another's account; authenticating the caller as that owner
+ *      belongs to the layer above (zxvd).
  *   A6 CLEARING. The ladder runs p_start, p_start - step, ... and ends on
  *      p_min (a last step shorter than `step` lands exactly on p_min); at
  *      most VAUC_MAX_RUNGS rungs. D(p) = sum of qty over bids with limit >=
@@ -81,6 +85,11 @@
  *      winners, R and N before clearing and after settlement, floor check
  *      after) in a ring of VAUC_HISTORY.
  *
+ * IDENTIFIERS. Each posting's idempotency key and UETR are SHA-256(seed ||
+ * tag || seq); its e2e is "VAUC-" and the first 12 bytes of SHA-256(seed ||
+ * 'E' || seq) in hex, so a ledger poster without the seed cannot take a
+ * future e2e first and stall settlement.
+ *
  * NO USURY. Nothing here grows with time or balance: no interest, no fee.
  *
  * HONEST LIMITS. V-Bills are likely securities in many jurisdictions; this
@@ -112,16 +121,17 @@ typedef enum {
     VAUC_OK = 0,
     VAUC_ERR_ARG = -1,
     VAUC_ERR_FULL = -2,
-    VAUC_ERR_SIG = -3,      /* A1: bad signature */
-    VAUC_ERR_STATE = -4,    /* A7: out of order */
-    VAUC_ERR_UNKNOWN = -5,  /* unknown custodian, oracle, feed or receipt */
-    VAUC_ERR_DUP = -6,      /* A1: receipt id already held */
-    VAUC_ERR_STALE = -7,    /* A1: quote not newer than the oracle's last */
-    VAUC_ERR_EXPIRED = -8,  /* A1: receipt already expired */
-    VAUC_ERR_QUOTES = -9,   /* A1: fewer than min_quotes fresh quotes */
-    VAUC_ERR_LEDGER = -10,  /* the ledger refused (see last_ledger) */
-    VAUC_ERR_FLOOR = -11,   /* A7: settling would break the floor */
-    VAUC_ERR_OVERFLOW = -12 /* A1: R does not fit 64 bits */
+    VAUC_ERR_SIG = -3,       /* A1: bad signature */
+    VAUC_ERR_STATE = -4,     /* A7: out of order */
+    VAUC_ERR_UNKNOWN = -5,   /* unknown custodian, oracle, feed or receipt */
+    VAUC_ERR_DUP = -6,       /* A1: receipt id already held */
+    VAUC_ERR_STALE = -7,     /* A1: quote not newer than the oracle's last */
+    VAUC_ERR_EXPIRED = -8,   /* A1: receipt already expired */
+    VAUC_ERR_QUOTES = -9,    /* A1: fewer than min_quotes fresh quotes */
+    VAUC_ERR_LEDGER = -10,   /* the ledger refused (see last_ledger) */
+    VAUC_ERR_FLOOR = -11,    /* A7: settling would break the floor */
+    VAUC_ERR_OVERFLOW = -12, /* A1: R does not fit 64 bits */
+    VAUC_ERR_AUTH = -13      /* A5: fiat and V-Bill accounts of different owners */
 } vauc_status_t;
 
 typedef enum { VAUC_IDLE = 0, VAUC_OPEN = 1, VAUC_CLEARED = 2, VAUC_SETTLED = 3 } vauc_state_t;

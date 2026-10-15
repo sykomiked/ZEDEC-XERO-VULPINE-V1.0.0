@@ -232,5 +232,32 @@ share of its entries, for example: the app's own 2 entries (50%), and
 crediting authors can build on later; nothing is paid or charged by it
 today.
 
+## Wiring apps together, with no code
+
+Apps can also be wired like a circuit. A `logic wire` entry (a circuit)
+names parts, which are other entries, and wires each part's inputs to the
+circuit's inputs, to an earlier part's answer, or to a setting:
+
+```
+provides pay_ok truth amount rate
+logic    wire pay_ok <<
+part f  fees.fee    amount=amount rate=rate
+part ok fees.fee_ok amount=amount fee=f
+out  ok
+.
+```
+
+Wires are typed. A truth wired into an input (inputs take whole
+numbers), a fraction arriving there, or an answer of the wrong kind is
+never converted: the circuit is held as BOTH and says which wire. Each
+part is called witnessed, and a part whose languages disagree holds the
+circuit at that part. A circuit is an entry like any other, so it has a
+contract, can be exported and used as a block, gets `view auto`, and is
+credited by provenance.
+
+The Circuit board is the screen that draws and edits these, so people
+build apps by placing apps on a board and dragging wires between them.
+See `docs/CIRCUIT_BOARD.md` and `kernel/src/apps/zxwire.h` (W1 to W6).
+
 See `kernel/src/apps/zxapp.h` (A1 to A5, B1 to B4, C1 to C3) and
 `kernel/src/zui/views/autoview.h` for the exact contract.

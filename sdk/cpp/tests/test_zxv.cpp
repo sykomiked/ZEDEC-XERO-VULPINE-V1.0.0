@@ -1133,9 +1133,12 @@ void test_hw_version_and_statuses()
     CHECK_THROWS_AS(zxv::detail::check(ZXV_E_TARGET), zxv::TargetMismatch);
     CHECK_THROWS_AS(zxv::detail::check(ZXV_E_TARGET), zxv::UsageError);
     zxv::Context ctx;
-    // The 1.4 bits are a subset of the 1.5 bits; a bit above all_1_5 is unknown.
+    // The 1.4 bits are a subset of the 1.5 bits, and those of the 1.6 bits;
+    // a bit above all_1_6 is unknown (1.6 added caps::vino at all_1_5 + 1).
     CHECK((zxv::caps::all_1_5 & zxv::caps::all_1_4) == zxv::caps::all_1_4);
-    CHECK_STATUS(ctx.root_capability(zxv::caps::all_1_5 + 1), ZXV_E_ARG);
+    CHECK((zxv::caps::all_1_6 & zxv::caps::all_1_5) == zxv::caps::all_1_5);
+    CHECK(zxv::caps::all_1_5 + 1 == zxv::caps::vino);
+    CHECK_STATUS(ctx.root_capability(zxv::caps::all_1_6 + 1), ZXV_E_ARG);
 }
 
 void test_hw_profiles()

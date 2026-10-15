@@ -3,7 +3,9 @@
 /* test_hwkey_host.c — the machine's own chip, end to end: seal an account
  * key, store and reload it, sign, show that another device key cannot open
  * it, then run an offline grant through the outbox with that key signing
- * and settle it on a ledger.
+ * and settle it on a ledger. Where the chip keeps monotonic counters (a
+ * TPM), a second grant is guarded by one (outbox.h R1-R4) and a restored
+ * backup of the outbox is shown to be refused.
  *
  *   test_hwkey_host [--require-hw] [--soft-only] [--foreign] STATE_DIR
  *
@@ -28,6 +30,10 @@ static int pass, fail;
             printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, msg);                                   \
         }                                                                                          \
     } while (0)
+
+/* CHECK, and give back the outcome */
+#define CHECK_OK(c, msg)                                                                           \
+    ((c) ? (pass++, 1) : (fail++, printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, msg), 0))
 
 static hwk_host_t H;
 static hwk_sealed_t K, K2, KL;
@@ -66,9 +72,27 @@ static int persist_cb(void *ctx, const obx_device_t *d)
     return 0;
 }
 
+/* outbox.h R1: the chip's counter for a grant */
+static int ctr_read(void *ctx, const uint8_t id[32], uint64_t *v)
+{
+    return hwk_host_ctr(ctx, HWK_CTR_READ, id, v) == HWK_OK ? 0 : 1;
+}
+static int ctr_bump(void *ctx, const uint8_t id[32], uint64_t *v)
+{
+    return hwk_host_ctr(ctx, HWK_CTR_BUMP, id, v) == HWK_OK ? 0 : 1;
+}
+
+static int read_state(obx_device_t *d)
+{
+    FILE *f = fopen(dev_path, "rb");
+    int ok = f && fread(d, sizeof *d, 1, f) == 1;
+    if (f) fclose(f);
+    return ok;
+}
+
 static pay_ledger_t L;
 static obx_ledger_t LG;
-static obx_device_t D, D2;
+static obx_device_t D, D2, D3, OLD;
 static obx_entry_t E[3];
 static uint64_t nreq;
 
@@ -204,6 +228,47 @@ int main(int argc, char **argv)
     CHECK(L.acct[payee].debit == 1950 && L.acct[hold].debit == 7500 && obx_ledger_check(&LG) &&
               pay_ledger_check(&L),
           "balances: payee 19.50, holder 75.00, escrow 5.50");
+
+    /* R1-R4 with the chip's own counter */
+    obx_grant_t g2;
+    uint64_t v = 0, v2 = 0;
+    CHECK(obx_ledger_grant(&LG, 2, K2.pk, 1000, 4, 2, 100, &g2) == OBX_OK, "second grant");
+    hwk_status_t cs = hwk_host_ctr(&H, HWK_CTR_CREATE, g2.id, &v);
+#if !defined(__APPLE__) && !defined(_WIN32)
+    if (H.p.kind == HWK_KIND_TPM) CHECK(cs == HWK_OK, "a TPM keeps a counter for the grant");
+#endif
+    if (cs == HWK_ERR_UNAVAILABLE) {
+        printf("no chip counter on this machine: the outbox runs unguarded (outbox.h HONEST "
+               "LIMITS)\n");
+    } else if (CHECK_OK(cs == HWK_OK, "counter created")) {
+        obx_counter_t ctr = {&H, ctr_read, ctr_bump};
+        snprintf(dev_path, sizeof dev_path, "%s/outbox2.state", dir);
+        obx_entry_t e1, e2, e3;
+        CHECK(obx_device_init(&D3, &g2, KL.pk, K2.pk) == OBX_OK &&
+                  obx_device_guard(&D3, &ctr, persist_cb, 0) == OBX_OK && D3.ctr == v,
+              "R1: the outbox is bound to the chip counter");
+        CHECK(obx_device_spend_guarded(&D3, &ctr, 3, 100, 7, sign_cb, &dev_signer, persist_cb, 0,
+                                       &e1) == OBX_OK &&
+                  read_state(&OLD) && OLD.ctr == v + 1,
+              "R3: spend 1 counts the chip up; the state on disk is backed up");
+        CHECK(obx_device_spend_guarded(&D3, &ctr, 3, 200, 8, sign_cb, &dev_signer, persist_cb, 0,
+                                       &e2) == OBX_OK &&
+                  hwk_host_ctr(&H, HWK_CTR_READ, g2.id, &v2) == HWK_OK && v2 == v + 2,
+              "spend 2");
+        CHECK(obx_device_spend_guarded(&OLD, &ctr, 3, 200, 9, sign_cb, &dev_signer, persist_cb, 0,
+                                       &e3) == OBX_ERR_ROLLBACK,
+              "R2: the restored backup cannot sign number 2 again");
+        printf("a restored backup was refused by the chip counter (%llu on disk, %llu in the "
+               "chip)\n",
+               (unsigned long long) OLD.ctr, (unsigned long long) v2);
+        CHECK(obx_ledger_submit(&LG, &e1, 9, &r) == OBX_OK && r == OBX_R_ACCEPTED &&
+                  obx_ledger_submit(&LG, &e2, 9, &r) == OBX_OK && r == OBX_R_ACCEPTED &&
+                  L.acct[payee].debit == 2250 && obx_ledger_check(&LG) && pay_ledger_check(&L),
+              "the guarded entries settle");
+        CHECK(hwk_host_ctr(&H, HWK_CTR_RELEASE, g2.id, 0) == HWK_OK &&
+                  hwk_host_ctr(&H, HWK_CTR_READ, g2.id, &v2) != HWK_OK,
+              "the counter is released with its grant");
+    }
 
     hwk_host_close(&H);
     printf("%d passed, %d failed\n", pass, fail);

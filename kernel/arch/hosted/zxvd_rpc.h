@@ -286,8 +286,20 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *      built-ins, the first error stands.
  *   X3 a method that neither fails nor writes a result answers -32603.
  *   X4 the codes a method may use are the JSON-RPC ones below or its own,
- *      in -32099..-32001 (zxvd_rpc keeps -32000 and -32010 to -32016;
- *      -32012 is the code of a method whose feature switch is off, zxvd_ext.h X4).
+ *      in -32099..-32001. Every code in use, and its one meaning (a new
+ *      code takes a free number from this list and is added here, to
+ *      docs/ZXVD.md's error list and to api/zxvd.openrpc.json's):
+ *        -32000 a libzxv status (X5)        -32010 peer      -32011 AIPI
+ *        -32012 the method's feature is off (zxvd_ext.h X4)
+ *        -32013 spaces   -32014 files   -32015 not for a phone
+ *        -32016 play     -32017 module methods (zxvd_rpc_modules.h)
+ *        -32020 payments (zxvd_pay.h)   -32030 people   -32031 no model
+ *        -32040 cards    -32041 passkeys
+ *        -32050 vault, swap, auctions, Zenny, stats (zxvd_econ.c)
+ *        -32060 bonds, derivatives, grants, estates (zxvd_sandbox.h)
+ *        -32070 companion   -32080 seats   -32090 Web4 feed
+ *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
+ *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -374,6 +386,19 @@ void zxvd_rpc_set_phone_ops(const zxvd_phone_ops_t *ops);
  * ZXVD_E_PHONE, and a notification is refused (-32600) rather than run.
  * allow_post: the pairing may move money and change the network. */
 bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, bool allow_post);
+
+/* social.*, call.*, xlate.*, devmesh.*, ui.* (zxvd_people.c): the people
+ * features. Set separately; unset methods answer -32601. call() gets the
+ * method's full name and the params object's JSON text ("{}" when absent)
+ * and returns 0 with the result written into `out`, or a JSON-RPC error code
+ * (-32602, ZXVD_E_PEOPLE, ZXVD_E_NO_MODEL) with the reason in msg. */
+#define ZXVD_E_PEOPLE   (-32030)
+#define ZXVD_E_NO_MODEL (-32031) /* xlate.translate: no local model can generate */
+typedef struct {
+    int (*call)(const char *method, const char *params, size_t len, zxvd_buf_t *out, char *msg,
+                size_t msg_cap);
+} zxvd_people_ops_t;
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops);
 
 /* Open the socket and the libzxv context. 0, or -1 with a reason on stderr
  * (nothing is left open). */

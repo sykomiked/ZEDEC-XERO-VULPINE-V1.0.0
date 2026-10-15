@@ -40,10 +40,21 @@ static int mem_read(block_device_t *d, uint32_t lba, uint8_t *b)
     memcpy(b, g_disk[lba], 512);
     return 0;
 }
+/* Power-loss injection (as in test_zxvfs.c): once g_crash_after sector writes
+ * have landed, that write and every later one fail. -1 = no crash. */
+static long g_crash_after = -1;
+static long g_writes = 0;
+static int g_crashed = 0;
 static int mem_write(block_device_t *d, uint32_t lba, const uint8_t *b)
 {
     (void) d;
     if (lba >= DISK_SECTORS) return -1;
+    if (g_crashed) return -1;
+    if (g_crash_after >= 0 && g_writes >= g_crash_after) {
+        g_crashed = 1;
+        return -1;
+    }
+    g_writes++;
     memcpy(g_disk[lba], b, 512);
     return 0;
 }
@@ -95,6 +106,138 @@ static uint32_t make_zsp2(const test_signer_t *s, const char *name, uint32_t ver
     test_signer_sign(s, out, ZSP2_PREIMAGE_LEN, out + ZSP2_PREIMAGE_LEN);
     memcpy(out + ZSP2_HEADER_LEN, payload, sizeof payload);
     return ZSP2_HEADER_LEN + (uint32_t) sizeof payload;
+}
+
+/* ---- power loss at every write of an update cycle ----
+ *
+ * The header promises that an update interrupted by power loss recovers to
+ * a consistent A-or-B state, never a half-applied one. For each cycle below,
+ * the disk is reset to the same baseline (slot A active with version 2) and
+ * the cycle is cut before its k-th sector write, for every k up to the
+ * cycle's clean write count. After a "reboot" (remount, journal replay,
+ * ab_init) the state must be well formed, the active slot must hold a
+ * package that verifies, the outcome must be exactly the old one or exactly
+ * the new one, a pending probation must point at the verified new package,
+ * and finishing the cycle must then succeed. */
+enum { CYCLE_CONFIRM, CYCLE_EXPIRE };
+static uint8_t g_base[DISK_SECTORS][BLOCKDEV_SECTOR_SIZE];
+
+/* 0 when slot `s` holds a ZSP v2 package that verifies under `pk`. */
+static int slot_version(zxvfs_t *fs, uint8_t s, const uint8_t pk[32], uint32_t *ver)
+{
+    static uint8_t b[ZXVFS_FILE_MAX_BYTES];
+    int n = zxvfs_read(fs, s ? "app.slotB" : "app.slotA", b, sizeof b);
+    if (n <= 0) return -1;
+    zsp_meta_t m;
+    const uint8_t *p;
+    uint32_t pl;
+    if (zsp_verify2(b, (uint32_t) n, pk, 0, ZSP_ARCH_ANY, &m, &p, &pl) != ZSP_OK) return -1;
+    *ver = m.version;
+    return 0;
+}
+
+/* Runs the cycle; errors after a crash are expected and ignored. */
+static void run_cycle(zxvfs_t *fs, ab_state_t *st, int cycle, const uint8_t *pkg, uint32_t len,
+                      const uint8_t pk[32])
+{
+    bool rb;
+    if (ab_stage_update(fs, st, pkg, len, pk) != AB_OK) return;
+    if (cycle == CYCLE_CONFIRM)
+        (void) ab_confirm(fs, st);
+    else
+        (void) ab_boot_tick(fs, st, &rb);
+}
+
+/* One cut at write k: returns 0 when every invariant holds, else prints why. */
+static int crash_at(block_device_t *dev, int cycle, long k, const uint8_t *pkg, uint32_t len,
+                    const uint8_t pk[32])
+{
+    memcpy(g_disk, g_base, sizeof g_disk);
+    zxvfs_t fs;
+    ab_state_t st;
+    g_crash_after = -1;
+    g_crashed = 0;
+    if (zxvfs_mount(&fs, dev) != 0 || ab_init(&fs, &st) != AB_OK) return -1;
+    g_writes = 0;
+    g_crash_after = k;
+    run_cycle(&fs, &st, cycle, pkg, len, pk);
+
+    /* reboot */
+    g_crash_after = -1;
+    g_crashed = 0;
+    zxvfs_t f2;
+    ab_state_t s2;
+    uint32_t va = 0, vp = 0;
+    const char *why = 0;
+    if (zxvfs_mount(&f2, dev) != 0)
+        why = "remount failed";
+    else if (ab_init(&f2, &s2) != AB_OK)
+        why = "ab_init failed";
+    else if (s2.magic != AB_STATE_MAGIC || s2.active_slot > 1 ||
+             (s2.probation_slot != AB_SLOT_NONE && s2.probation_slot > 1))
+        why = "state not well formed";
+    else if (slot_version(&f2, s2.active_slot, pk, &va) != 0)
+        why = "active slot does not hold a verified package";
+    else if (!(s2.active_slot == 0 && va == 2 && s2.rollback_floor == 0) &&
+             !(cycle == CYCLE_CONFIRM && s2.active_slot == 1 && va == 3 &&
+               s2.version[1] == 3 && s2.rollback_floor == 3))
+        why = "outcome is neither the old state nor the new one";
+    else if (s2.probation_slot != AB_SLOT_NONE &&
+             (s2.probation_slot == s2.active_slot ||
+              slot_version(&f2, s2.probation_slot, pk, &vp) != 0 || vp != 3 ||
+              s2.version[s2.probation_slot] != 3))
+        why = "probation points at something other than the verified new package";
+    else if (cycle == CYCLE_EXPIRE && s2.active_slot != 0)
+        why = "an expired probation was promoted";
+    if (!why && cycle == CYCLE_CONFIRM && s2.active_slot == 0) {
+        /* finish the update after recovery */
+        if (s2.probation_slot == AB_SLOT_NONE &&
+            ab_stage_update(&f2, &s2, pkg, len, pk) != AB_OK)
+            why = "could not re-stage after recovery";
+        else if (ab_confirm(&f2, &s2) != AB_OK || s2.active_slot != 1 ||
+                 slot_version(&f2, 1, pk, &va) != 0 || va != 3)
+            why = "could not complete the update after recovery";
+    }
+    if (why) printf("  cut before write %ld of the %s cycle: %s\n", k,
+                    cycle == CYCLE_CONFIRM ? "confirm" : "expire", why);
+    return why ? -1 : 0;
+}
+
+static void crash_sweep(block_device_t *dev)
+{
+    test_signer_t root;
+    test_signer_init(&root, 0x73);
+    static uint8_t v2[512], v3[512];
+    uint32_t l2 = make_zsp2(&root, "app", 2, v2), l3 = make_zsp2(&root, "app", 3, v3);
+
+    /* baseline: slot A holds version 2, state initialized */
+    g_crash_after = -1;
+    g_crashed = 0;
+    memset(g_disk, 0, sizeof g_disk);
+    zxvfs_t fs;
+    ab_state_t st;
+    CHECK(zxvfs_format(dev) == 0 && zxvfs_mount(&fs, dev) == 0 &&
+              zxvfs_write(&fs, "app.slotA", v2, l2) == 0 && ab_init(&fs, &st) == AB_OK,
+          "crash sweep: baseline disk (slot A holds version 2)");
+    memcpy(g_base, g_disk, sizeof g_disk);
+
+    for (int cycle = CYCLE_CONFIRM; cycle <= CYCLE_EXPIRE; cycle++) {
+        /* count the sector writes of an uninterrupted cycle */
+        memcpy(g_disk, g_base, sizeof g_disk);
+        CHECK(zxvfs_mount(&fs, dev) == 0 && ab_init(&fs, &st) == AB_OK,
+              "crash sweep: baseline mounts");
+        g_writes = 0;
+        run_cycle(&fs, &st, cycle, v3, l3, root.pk);
+        long total = g_writes;
+        int bad = 0;
+        for (long k = 0; k <= total; k++) bad += crash_at(dev, cycle, k, v3, l3, root.pk) != 0;
+        char msg[256];
+        snprintf(msg, sizeof msg,
+                 "power cut before each of the %ld writes of the %s cycle: recovers to the old "
+                 "or the new state, never a mix, and the update can finish",
+                 total, cycle == CYCLE_CONFIRM ? "stage+confirm" : "stage+expire");
+        CHECK(total > 0 && bad == 0, msg);
+    }
 }
 
 int main(void)
@@ -258,6 +401,8 @@ int main(void)
         CHECK(zxvfs_mount(&f4, &dev) == 0 && ab_init(&f4, &s4) == AB_OK && s4.rollback_floor == 10,
               "anti-rollback floor survived reboot");
     }
+
+    crash_sweep(&dev);
 
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;

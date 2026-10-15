@@ -88,6 +88,7 @@ enum {
     CALL_ERR_STATE = -6,
     CALL_ERR_FULL = -7,
     CALL_ERR_AUTH = -8,
+    CALL_ERR_CONFLICT = -9, /* peer contradicted itself (call_mesh equivocation) */
 };
 
 typedef struct call_rtp_hdr {

@@ -148,8 +148,8 @@ static void test_save_restore(void)
     CHECK(zui_set_int(&ST, va, "workspace.0.n") == 4, "n");
     CHECK(zui_set_int(&ST, va, "workspace.0.front") == 0, "front is the first");
     CHECK(zui_set_int(&ST, va, "workspace.0.sw") == 1280 &&
-              zui_set_int(&ST, va, "workspace.0.sh") == 800 - ZUI_WM_STRIP,
-          "the work area");
+              zui_set_int(&ST, va, "workspace.0.sh") == 800,
+          "the work area (the dock leaves the whole screen)");
     char b[ZUI_SET_STR_MAX];
     zui_set_str(&ST, va, "workspace.0.name", b, sizeof b);
     CHECK(strcmp(b, "work") == 0, "name");
@@ -188,7 +188,7 @@ static void test_save_restore(void)
     zui_wm_close(&WM2, w0->id);
     CHECK(closed_seen == 1, "the client is live");
     /* a screen twice the size: twice the frames */
-    zui_wm_init(&WM2, 2560, 1504 + ZUI_WM_STRIP, false);
+    zui_wm_init(&WM2, 2560, 1600, false);
     CHECK(zui_ws_restore(&WS, &WM2, "work", 0, 0) == 4, "no callback is fine");
     w0 = nth(&WM2, 0), w1 = nth(&WM2, 1), w2 = nth(&WM2, 2), w3 = nth(&WM2, 3);
     CHECK(req(w0->r, (zui_rect_t){80, 80, 1400, 960}), "doubled (%d %d %d %d)", w0->r.x, w0->r.y,
@@ -202,9 +202,9 @@ static void test_save_restore(void)
     CHECK(zui_ws_restore(&WS, &WM2, "work", 0, 0) == 4, "restore small");
     w0 = nth(&WM2, 0), w3 = nth(&WM2, 3);
     zui_rect_t wa = zui_wm_work(&WM2);
-    CHECK(req(w0->r, (zui_rect_t){25, 29, ZUI_WM_MIN_W > 437 ? ZUI_WM_MIN_W : 437, 352}),
+    CHECK(req(w0->r, (zui_rect_t){25, 30, ZUI_WM_MIN_W > 437 ? ZUI_WM_MIN_W : 437, 360}),
           "scaled down (%d %d %d %d)", w0->r.x, w0->r.y, w0->r.w, w0->r.h);
-    CHECK(w3->r.w == 375 && w3->r.h == 220 && w3->r.x == 800 - 375 && w3->r.y == 220,
+    CHECK(w3->r.w == 375 && w3->r.h == 225 && w3->r.x == 800 - 375 && w3->r.y == 225,
           "small, at least the minimum, inside (%d %d %d)", w3->r.x, w3->r.w, w3->r.h);
     int all = 1;
     static const int32_t SIZES[][2] = {{640, 480},   {800, 600},   {1024, 768}, {1366, 768},
@@ -225,6 +225,18 @@ static void test_save_restore(void)
         if (zui_wm_front(&WM2) != nth(&WM2, 0)->id) all = 0;
     }
     CHECK(all, "every screen size: every frame inside the work area, front kept");
+    /* saved above the strip, restored with the dock: stretched to the taller area */
+    layout(&WM2);
+    zui_wm_use_dock(&WM2, false);
+    CHECK(zui_ws_save(&WS, &WM2, "strip") == 4 &&
+              zui_set_int(&ST, WS.view, "workspace.1.sh") == 800 - ZUI_WM_STRIP,
+          "with the strip, the work area is above it");
+    zui_wm_init(&WM2, 1280, 800, false);
+    CHECK(zui_ws_restore(&WS, &WM2, "strip", 0, 0) == 4, "restored with the dock");
+    w0 = nth(&WM2, 0);
+    CHECK(w0->r.x == 40 && w0->r.y == 40 * 800 / 752 && w0->r.h == 480 * 800 / 752,
+          "taller by 800/752 (%d %d %d %d)", w0->r.x, w0->r.y, w0->r.w, w0->r.h);
+    CHECK(zui_ws_forget(&WS, "strip") == ZUI_SET_OK, "forget it");
     /* a phone: in order, nothing moved */
     zui_wm_init(&WM2, 400, 800, true);
     CHECK(WM2.compact, "compact");

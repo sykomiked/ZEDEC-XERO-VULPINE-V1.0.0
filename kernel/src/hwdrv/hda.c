@@ -427,18 +427,24 @@ static int walk_codec(hda_dev_t *h)
 }
 
 /* ---- stream ---------------------------------------------------------------- */
-static int stream_reset(hda_dev_t *h)
+/* The stream reset has its own verdict:
+ *   HW_T  SRST read back 1 (the reset was seen to happen) and then cleared
+ *   HW_N  SRST cleared but never read back 1: the reset is not observed.
+ *         Some controllers finish it at once and never show the latch
+ *         (QEMU before 8.0 among them), so this is not a failure, as in
+ *         Linux; but nothing confirms the reset either, so it is reported
+ *         as unconfirmed rather than folded into T.
+ *   HW_F  the stream would not stop, or would not leave reset */
+static hw_verdict_t stream_reset(hda_dev_t *h)
 {
     uint32_t ctl = hw_rd32(h->r, h->sd + SD_CTL) & 0x00FFFFFFu & ~(SDCTL_RUN | SDCTL_SRST);
     hw_wr32(h->r, h->sd + SD_CTL, ctl);
-    if (!wait32(h, h->sd + SD_CTL, SDCTL_RUN, 0, T_SRST)) return 0;
+    if (!wait32(h, h->sd + SD_CTL, SDCTL_RUN, 0, T_SRST)) return HW_F;
     hw_wr32(h->r, h->sd + SD_CTL, ctl | SDCTL_SRST);
-    /* Some controllers finish the reset at once and never show SRST as 1
-     * (QEMU before 8.0 among them), so the latch is waited for but not
-     * required, as Linux does. Leaving reset is required. */
-    (void) wait32(h, h->sd + SD_CTL, SDCTL_SRST, SDCTL_SRST, T_LATCH);
+    int seen = wait32(h, h->sd + SD_CTL, SDCTL_SRST, SDCTL_SRST, T_LATCH);
     hw_wr32(h->r, h->sd + SD_CTL, ctl);
-    return wait32(h, h->sd + SD_CTL, SDCTL_SRST, 0, T_SRST);
+    if (!wait32(h, h->sd + SD_CTL, SDCTL_SRST, 0, T_SRST)) return HW_F;
+    return seen ? HW_T : HW_N;
 }
 
 static void stream_stop(hda_dev_t *h)
@@ -453,7 +459,7 @@ static int hda_play(hw_audio_t *a, const int16_t *frames, uint32_t nframes)
     if (!frames || nframes == 0) return -1;
     uint32_t bytes = nframes > BUF_BYTES / 4 ? BUF_BYTES : nframes * 4;
     h->running = 0;
-    if (!stream_reset(h)) return -1;
+    if (stream_reset(h) == HW_F) return -1;
     hw_memcpy(h->buf, frames, bytes);
     /* Two BDL entries of equal length, each a multiple of 128 bytes; the
      * padding is silence. */
@@ -710,10 +716,14 @@ hw_verdict_t hda_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *
     hw_line_s(note, pin_kind(&h->w[h->path[0]]));
     hw_line_s(note, ") via DAC 0x");
     hw_line_x(note, h->path[h->len - 1], 2);
-    if (!stream_reset(h)) {
+    hw_verdict_t rv = stream_reset(h);
+    if (rv == HW_F) {
         hw_line_s(note, "; output stream reset timed out");
         return HW_F;
     }
+    /* The device still binds (it plays), but the boot line says the reset
+     * was not observed, so a log reader can tell it from a confirmed one. */
+    if (rv == HW_N) hw_line_s(note, "; stream reset unconfirmed (N: SRST never read back 1)");
     hw_audio_t *a = &h->audio;
     a->name[0] = 'h';
     a->name[1] = 'd';

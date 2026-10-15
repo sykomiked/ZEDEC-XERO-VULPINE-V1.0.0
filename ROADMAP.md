@@ -1,7 +1,7 @@
 # ZXV / ZEDEC pqOS — Build Roadmap
 
 Working engineering plan. Honest maturity labels, real dependencies, one canonical sequence.
-Authoritative alongside `CANONICAL.md`. Last updated 2026-08-05.
+Authoritative alongside `CANONICAL.md`. Last updated 2026-08-05; section 4 (G7 status) 2026-10-14.
 
 Legend: **[done]** built + tested + in the gate · **[partial]** exists, incomplete · **[planned]** designed, not built · **[research]** speculative, evidence-gated.
 
@@ -104,16 +104,27 @@ Track H (hardware) runs parallel as research; H3 pack follows software proof.
 
 ---
 
-## 4. Immediate next step — virtio-net (Track B1)
+## 4. Where G7 stands (measured 2026-10-14)
 
-**Goal:** the kernel can send and receive Ethernet frames in QEMU, on the same virtio-mmio path as virtio-blk.
+Sections 0 and 1 date from August; drivers, networking and the economy have
+moved a long way since (`docs/GAP_AUDIT.md` for integration,
+`kernel/src/hwdrv` for NVMe, AHCI, xHCI, e1000, igb and HD Audio, checked by
+`build_system/hw_drivers_check.sh`). This table measures each G7 item in
+the code, not in earlier labels.
 
-1. Discover the virtio-mmio net device (device id 1); reset → ACK → DRIVER.
-2. Negotiate features (MAC; no checksum offload for v1); read the 6-byte MAC from config space.
-3. Set up two virtqueues: RX (0) and TX (1) — descriptor table, avail ring, used ring.
-4. Pre-fill RX with buffers (virtio-net header + frame); notify.
-5. TX: prepend the 10/12-byte virtio-net header, chain the frame, put on TX, notify, reclaim used.
-6. Poll used rings (interrupt-free v1, like virtio-blk).
-7. **Host-test the framing + ring management** with a mock device (descriptor/avail/used bookkeeping, header layout, wrap-around); prove RX/TX round-trip in QEMU with `-netdev user`.
+| G7 item | arm64 | x86_64 | Proved by | Missing |
+|---|---|---|---|---|
+| Boot protected userspace | **built**: EL0 with per-process page tables and W^X (`kernel/arch/arm64/el0_userspace.c`) | partial: one ring-3 self-test on the kernel's page tables (`kernel/arch/x86_64/ring3.c`) | `build_system/arm64_session_check.py` (CI `boot` job) | x86: per-process CR3, scheduler, full syscall ABI |
+| P-TERM | **built**: the EL0 shell answers typed commands | missing | `arm64_session_check.py` | x86 shell loop |
+| Persist files | **built**: ZXVFS on virtio-blk, formatted when blank, read back after a reboot | missing: ZXVFS is linked but not mounted | `arm64_session_check.py`; `test_zxvfs` (crash at every write) | x86: mount ZXVFS on NVMe through `hw_bdev_t` |
+| Run only signed apps | **built**: `run` verifies Ed25519 and refuses tampered packages and bare ELFs | missing: no loader path | `arm64_session_check.py`; `test_zsp`, `test_zsp2`, `test_elf` | x86 loader; spawn/wait syscalls (ABI is 1-11) |
+| A/B update, interrupted at every transition | partial: app-level A/B recovers from a power cut at every write | none | `test_abupdate` crash sweep (verify-all) | kernel-slot A/B in the EFI stubs |
+| Kill/restart a protected cell, siblings survive | partial: an EL0 fault ends only that process | partial | `test_cellular_multikernel` (logical cells only) | supervisor respawn bound to EL0 processes, boot marker |
+| Durable 13-phase transaction | missing: `phase_envelope.h` has no user; `chronicle_persist.c` is host-tested but not called | missing | `test_chronicle_persist` | phase executor journaling to ZXVFS, recover on mount |
+| Reach a TLS endpoint | partial: TLS 1.3 client linked, boot does plain HTTP | partial: DHCP self-test only | `test_handshake`, `test-tls-verify` | handshake over `net_connect(…, 443)` at boot, checked in QEMU |
+| Threshold-signed install on a blank disk | partial: single Ed25519 root (`build_system/sign_release.sh`); installer stages files only | same | `test_release_signing`, `install_zxv.py --selftest` | k-of-n verification; image-to-disk install verified before write; install-then-boot check |
+| Evidence capsule from the signed commit | missing | missing | none | `git archive` capsule, double-build hash compare, secrets scan |
 
-**Unblocks:** Den Connect transport, the distributed fabric (D), TLS/DHCP/DNS (B2), and the Holodeck's streaming rails.
+Next, in order: TLS at boot on arm64; ZXVFS on NVMe for x86 (the base for
+the x86 shell and loader); the durable phase executor; kernel-slot A/B;
+the installer and threshold signing; the evidence capsule.

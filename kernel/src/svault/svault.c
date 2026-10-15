@@ -37,7 +37,18 @@ svault_status_t svault_init(svault_t *v, const pay_ledger_t *L, uint32_t reserve
     v->vbill_issuer = vbill_issuer;
     v->vbills = vbills;
     v->last_ledger = PAY_OK;
+    v->floor_den = 1; /* floor 0 until svault_set_floor */
     v->ready = true;
+    return SVAULT_OK;
+}
+
+svault_status_t svault_set_floor(svault_t *v, uint64_t floor_num, uint64_t floor_den,
+                                 uint64_t backing)
+{
+    if (!v || !v->ready || floor_den == 0) return SVAULT_ERR_ARG;
+    v->floor_num = floor_num;
+    v->floor_den = floor_den;
+    v->backing = backing;
     return SVAULT_OK;
 }
 
@@ -84,8 +95,8 @@ uint64_t svault_room(const svault_t *v, const pay_ledger_t *L)
 svault_status_t svault_sweep(svault_t *v, pay_ledger_t *L, pay_posting_req_t *req,
                              uint64_t reserve_share)
 {
-    uint64_t n, h, part, rem, total;
-    if (!req || !svault_balances(v, L, &n, &h, 0, 0)) return SVAULT_ERR_ARG;
+    uint64_t n, h, reserve, part, rem, total;
+    if (!req || !svault_balances(v, L, &n, &h, 0, &reserve)) return SVAULT_ERR_ARG;
     /* share_total >= carry, so this also bounds share + carry; and since
      * swept + overflow == floor(share_total / 3), neither of those can
      * overflow once share_total does not. */
@@ -96,6 +107,11 @@ svault_status_t svault_sweep(svault_t *v, pay_ledger_t *L, pay_posting_req_t *re
         v->overflow_total += part;
         st = SVAULT_OVERFLOW;
     } else if (part) {
+        /* the reserve left must keep the floor (a part above the reserve is
+         * left for the ledger to refuse: funds) */
+        if (part <= reserve && !zxv_verify_vault_solvency(reserve - part, n, h, v->floor_num,
+                                                          v->floor_den, v->backing))
+            return SVAULT_ERR_FLOOR;
         pay_receipt_t rc;
         req->kind = PAY_KIND_TRANSFER;
         v->last_ledger = pay_ledger_transfer(L, req, v->reserve, v->cash, part, &rc);
@@ -132,16 +148,23 @@ svault_status_t svault_buy(svault_t *v, pay_ledger_t *L, pay_posting_req_t *req,
                            uint32_t seller_fiat_acct, uint32_t seller_vbill_acct, uint64_t price,
                            uint64_t max_qty)
 {
-    uint64_t n, h, cash, bought;
+    uint64_t n, h, cash, own, bought;
     if (!req || price == 0 || !svault_balances(v, L, &n, &h, &cash, 0)) return SVAULT_ERR_ARG;
     if (is_vault_acct(v, seller_fiat_acct) || is_vault_acct(v, seller_vbill_acct))
         return SVAULT_ERR_ARG;
+    /* one owner holds both seller accounts (a missing one is left for the
+     * ledger to refuse); authenticating the caller is the zxvd layer's job */
+    const pay_account_t *sf = acct(L, seller_fiat_acct), *sb = acct(L, seller_vbill_acct);
+    if (sf && sb && sf->owner != sb->owner) return SVAULT_ERR_AUTH;
     v->last_qty = v->last_cost = 0;
-    uint64_t qty = pay_udiv64(cash, price, 0), room = room_of(n, h);
+    /* fees only: cash posted in from outside is never spent (S6) */
+    if (!pay_sub_ok(v->swept_total, v->spent_total, &own)) return SVAULT_ERR_STATE;
+    if (own > cash) own = cash;
+    uint64_t qty = pay_udiv64(own, price, 0), room = room_of(n, h);
     if (qty > room) qty = room;
     if (qty > max_qty) qty = max_qty;
     if (qty == 0) return SVAULT_ZERO;
-    /* qty <= floor(cash / price), so cost <= cash < 2^62: no overflow; and
+    /* qty <= floor(own / price), so cost <= cash < 2^62: no overflow; and
      * spent_total + cost <= swept_total by S6, so neither can spent_total. */
     uint64_t cost = qty * price;
     if (!pay_add_ok(v->vbills_bought, qty, &bought)) return SVAULT_ERR_OVERFLOW;
@@ -208,12 +231,18 @@ svault_status_t svault_first_loss(svault_t *v, pay_ledger_t *L, pay_posting_req_
     uint64_t h;
     if (uncovered) *uncovered = loss_vbills;
     if (!req || !svault_balances(v, L, 0, &h, 0, 0)) return SVAULT_ERR_ARG;
-    uint64_t b = loss_vbills < h ? loss_vbills : h;
+    uint64_t b = loss_vbills < h ? loss_vbills : h, own, fb;
     if (b == 0) return SVAULT_ZERO;
+    /* the vault's own V-Bills first, then any posted in from outside, so
+     * burned <= bought stays true (S6) */
+    if (!pay_sub_ok(v->vbills_bought, v->vbills_burned, &own)) own = 0;
+    uint64_t mine = b < own ? b : own;
+    if (!pay_add_ok(v->foreign_burned, b - mine, &fb)) return SVAULT_ERR_OVERFLOW;
     pay_receipt_t rc;
     v->last_ledger = pay_ledger_redeem(L, req, v->vbills, v->vbill_issuer, b, &rc);
     if (v->last_ledger != PAY_OK) return SVAULT_ERR_LEDGER;
-    v->vbills_burned += b; /* burned <= bought: S6 */
+    v->vbills_burned += mine;
+    v->foreign_burned = fb;
     if (uncovered) *uncovered = loss_vbills - b;
     return SVAULT_OK;
 }
@@ -228,9 +257,11 @@ bool svault_check(const svault_t *v, const pay_ledger_t *L)
         __builtin_mul_overflow(s, (uint64_t) SVAULT_SHARE_DEN, &t) ||
         !pay_add_ok(t, v->carry, &t) || t != v->share_total)
         return false;
-    if (!pay_sub_ok(v->swept_total, v->spent_total, &s) || a[1]->debit != s || a[1]->credit)
+    /* only svault's own postings are counted: a deposit from outside is
+     * surplus (>=), value taken out other than by svault is not (S6) */
+    if (!pay_sub_ok(v->swept_total, v->spent_total, &s) || a[1]->debit < s || a[1]->credit)
         return false;
-    if (!pay_sub_ok(v->vbills_bought, v->vbills_burned, &s) || a[3]->debit != s || a[3]->credit)
+    if (!pay_sub_ok(v->vbills_bought, v->vbills_burned, &s) || a[3]->debit < s || a[3]->credit)
         return false;
     return true;
 }

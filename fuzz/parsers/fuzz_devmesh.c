@@ -14,7 +14,8 @@
  *   1  dm_caps_decode: field ranges (nmodels <= DM_MAX_MODELS, net, battery,
  *      model class, NUL-terminated names); byte-exact re-encode
  *   2  dm_money_decode: kind, rail 555/777/888, currency "VFV", memo
- *      terminated, amount > 0 (an amount of 0 is refused); byte-exact
+ *      terminated, 0 < amount <= DM_MONEY_AMOUNT_MAX (0 and anything above
+ *      the cap are refused); byte-exact
  *      re-encode; the amount reads back exactly (big-endian u64, no rounding)
  *   3  dm_confirm_decode: approve in {0,1}, sig_len <= PQM_SIG_MAX_BYTES;
  *      byte-exact re-encode
@@ -115,7 +116,7 @@ static void mode_money(const uint8_t *p, size_t n)
         if (a.rail != DM_RAIL_DEBIT && a.rail != DM_RAIL_CREDIT && a.rail != DM_RAIL_EQUITY)
             abort();
         if (memcmp(a.currency, "VFV", 4) != 0 || a.memo[DM_MONEY_MEMO - 1] != 0) abort();
-        if (a.amount == 0) abort();
+        if (a.amount == 0 || a.amount > DM_MONEY_AMOUNT_MAX) abort();
         if (a.amount != be64(b + DM_ID_BYTES + 1u + 2u + 4u)) abort();
         uint8_t out[DM_MONEY_WIRE];
         int32_t w = dm_money_encode(&a, out, sizeof out);
@@ -127,6 +128,7 @@ static void mode_money(const uint8_t *p, size_t n)
         bool ok = q[0] >= DM_MONEY_PAY && q[0] <= DM_MONEY_SIGN &&
                   (rail == DM_RAIL_DEBIT || rail == DM_RAIL_CREDIT || rail == DM_RAIL_EQUITY) &&
                   !memcmp(q + 3, "VFV", 4) && be64(q + 7) != 0 &&
+                  be64(q + 7) <= DM_MONEY_AMOUNT_MAX &&
                   b[DM_ID_BYTES + 15u + DM_HASH_BYTES + DM_MONEY_MEMO - 1u] == 0;
         if (ok) abort();
     }

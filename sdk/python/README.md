@@ -3,7 +3,7 @@
 
 # ZXV for Python (`zxv-sdk`)
 
-The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.5,
+The Python SDK for the ZXV platform core. It wraps `libzxv` (C ABI 1.6,
 `sdk/libzxv/include/zxv_api.h`) with [cffi](https://cffi.readthedocs.io) in
 ABI mode, so there is nothing to compile. It gives you:
 
@@ -19,7 +19,9 @@ ABI mode, so there is nothing to compile. It gives you:
 - EVM state-channel encoding,
 - the ABI 1.5 groups: treaties, CIDs and AIPI records, Fibonacci coins and
   token octane, the assurance fee, a V-Bill FX hub, freight erasure coding,
-  web4 agents with consent, and the paradox book.
+  web4 agents with consent, and the paradox book,
+- Vino Embed (ABI 1.6): play-lane vouchers, payment requests, wallet
+  receipts checked offline, and a daily spend meter.
 
 Requires Python 3.10+ and `cffi`. Fully typed (`py.typed`, `mypy --strict` clean).
 
@@ -37,7 +39,7 @@ export ZXV_LIBRARY_PATH=$PWD/../libzxv/build     # a file or a directory
 
 # 2b. Or build a wheel that bundles the library under zxv/_lib/
 python scripts/bundle_lib.py                       # copies libzxv.so/.dylib/zxv.dll
-pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.5.0-py3-none-<platform>.whl
+pip install build && python -m build --wheel       # -> dist/zxv_sdk-1.6.0-py3-none-<platform>.whl
 ```
 
 The library is found in this order: a path passed to `zxv.load_library()`,
@@ -523,6 +525,127 @@ Detection covers only the checks the caller runs. Destructive work is
 contained, never answered. This is contradiction-tolerant bookkeeping; it
 never makes both sides true. All of it is advisory to the owner.
 
+## Vino Embed (ABI 1.6)
+
+`zxv.vino` (`Feature2.VINO`) is what an app or game needs to take part in
+Vino **without ever holding anyone's value or keys**. There are two lanes,
+and they never meet:
+
+- **PLAY**: `VinoPlay(cap)` is a sandbox inside your app, with its own
+  play units, issuers, holders and Fibonacci-face vouchers. It lives in
+  process memory only. Play units are not money and can never be
+  converted into, redeemed for, or moved into live value: no call takes a
+  play sandbox and anything live.
+- **LIVE**: real Vino stays in the user's own ZXV wallet. Your app builds a
+  `PaymentRequest`. The user approves it in their wallet, which signs a
+  `Receipt` with its ML-DSA-87 key, and your app checks that receipt
+  offline with `Receipt.verify`. Your app never sees a balance, a key or a
+  custody account.
+
+Some rules:
+
+- **One rail at a time.** A voucher is one coin, held by one holder on
+  exactly one rail: `VinoRail.BEARER` (a note in the hand) or
+  `VinoRail.GHOST` (its twin on the play ledger). A transfer must name the
+  active rail or it fails with `RailError`, so a voucher can never be spent
+  twice. `set_rail` switches rails and moves nothing.
+- **Coverage.** An issuer may only issue while `10 * backing >= 18 *
+  outstanding` (1.8x, exact integers). An issue or `unback` that would
+  break this fails with `CoverageError`.
+- **Redeeming pays nothing out.** `redeem` returns a voucher to its issuer
+  and retires it, so the issuer's outstanding falls. No call turns a
+  voucher into backing, play units or anything else. There is no interest,
+  yield or return of any kind.
+- **Chance outcomes.** A LIVE request marked `RequestFlag.CHANCE` (a loot
+  box, a paid draw) is refused with `ChanceOutcomeError`. The raffle is a
+  separate module, not a payment request.
+- **Daily cap.** `SpendMeter(cap, daily_cap).admit(day, amount)` counts
+  what one device approved per day. An amount that would pass the cap is
+  refused with `LimitRefusedError`, and its `.left` says what is left
+  today. The meter is a counter, not a legal check, and makes no exemption
+  claim.
+- **Capabilities.** `VinoPlay` and `SpendMeter` need `Cap.VINO`, and so
+  does every call on them (each method takes an optional `cap=`).
+  `PaymentRequest.encode/decode/id`, `Receipt.message` and `Receipt.verify`
+  are pure and need no capability. `Receipt.sign` needs `Cap.CRYPTO_SIGN`;
+  it belongs to the wallet, not the app. `Cap.ALL_1_6` holds every bit as
+  of 1.6, and the older `Cap.ALL*` constants keep their values.
+- **Numbers.** Amounts, faces, ids and times are exact Python `int`s
+  (uint64), and floats are refused. Times are seconds on your clock (Unix
+  time is the convention).
+- **Bytes.** Requests are 160 bytes, request ids 32, receipt messages 88.
+  ML-DSA-87 public keys are 2592 bytes, secret keys 4896 and signatures 4627.
+
+| Status | Exception | Class |
+|---|---|---|
+| `ZXV_E_RAIL` -46 | `RailError` | refused |
+| `ZXV_E_COVERAGE` -47 | `CoverageError` | refused |
+| `ZXV_E_LANE` -48 | `LaneError` | usage |
+| `ZXV_E_EXPIRED` -49 | `RequestExpiredError` | refused |
+| `ZXV_E_CHANCE` -50 | `ChanceOutcomeError` | refused |
+
+**A play-lane shop.** An issuer backs, issues a voucher to a player, the
+player spends it, and the receiver redeems it:
+
+```python
+import zxv
+from zxv import Cap
+from zxv.vino import VinoPlay, VinoRail
+
+with zxv.Context() as ctx, VinoPlay(ctx.root_capability(Cap.VINO)) as play:
+    shop = play.open_issuer(owner=1)          # account 0
+    player = play.open_holder(owner=2)        # account 1
+    friend = play.open_holder(owner=3)        # account 2
+    play.back(shop, 18)                       # play backing from the faucet: worth nothing
+    try:
+        play.issue(shop, player, 13)          # 10*18 < 18*13: below 1.8x coverage
+    except zxv.CoverageError:
+        pass
+    vid = play.issue(shop, player, 8, VinoRail.BEARER)    # one voucher, face 8
+    play.transfer(vid, player, friend, VinoRail.BEARER)   # the player spends it
+    play.redeem(vid, friend)                  # back to the shop and retired; nothing is paid out
+    print(play.voucher(vid).state.name, play.account(shop).faces)   # REDEEMED 0
+    play.check()                              # every invariant holds
+```
+
+**A live payment request, a wallet receipt and an offline check.** The
+wallet half is shown only so the example runs. In a real deployment the
+user's wallet (`zxvd`) signs, and the app never holds the wallet's key:
+
+```python
+import zxv
+from zxv import Cap
+from zxv.vino import PaymentRequest, Receipt, VinoLane
+
+now = 1_700_000_000
+merchant = bytes(32)                          # your payee id, e.g. SHA-256 of your key
+req = PaymentRequest(VinoLane.LIVE, merchant, zxv.random_bytes(16), amount=1_250,
+                     created_at=now, expires_at=now + 600, memo="Sword of Dawn")
+data = req.encode()                           # 160 bytes to hand to the wallet
+assert PaymentRequest.decode(data) == req
+
+# --- wallet side (the user's wallet, not your app) ---
+with zxv.Context() as wallet_ctx:
+    wcap = wallet_ctx.root_capability(Cap.CRYPTO_SIGN)
+    with zxv.MlDsa87(wcap).generate() as wallet:
+        receipt = Receipt.sign(wcap, data, wallet.secret_key, wallet.public_key, approved_at=now + 30)
+        wallet_pk = wallet.public_key
+
+# --- app side, offline, no capability needed ---
+checked = Receipt(data, wallet_pk, receipt.approved_at, receipt.signature)
+checked.verify(now=now + 60)                  # raises VerificationFailedError or RequestExpiredError
+print(checked.is_valid(now + 601))            # False: the request expired at now + 600
+```
+
+Honest limits: play units are not money, and they are lost when the
+sandbox is closed. The LIVE flow here is only the app's half. Approving a
+request happens in the user's wallet, which posts the payment on its own
+ledger. This SDK has no way to mint live Vino, set pegs, or take any operator
+action. ML-DSA-87 here is the reference
+implementation, not FIPS 140-3 validated. Whether a given deployment of
+Vino is store credit, a prepaid access product or something else is a
+legal question pending counsel, and nothing in this SDK decides it.
+
 ## API overview
 
 | Area | Python | Notes |
@@ -554,6 +677,8 @@ never makes both sides true. All of it is advisory to the owner.
 | Freight | `FreightHeader`, `encode/decode/split/set_count`, `FreightJoin`, `ops_encode/ops_expand/ops_peek/gen_run`, `OpsWriter` | resolver callbacks |
 | Web4 | `W4Agent(cap)`, `verify_card`, `W4Directory`, `W4Manifest`, `action_digest`, `W4ConsentLog`, `decode_envelope/verify_envelope` | keys stay in handles |
 | Paradox | `ParadoxBook(cap)`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `Classification`, `RepairProof` | needs `PARADOX`; advisory |
+| Library 1.6 | `Feature2.VINO`, `Cap.VINO`, `Cap.ALL_1_6` | group bit, cap bit |
+| Vino | `VinoPlay(cap).open_account/open_issuer/open_holder/back/unback/issue/transfer/set_rail/redeem/voucher/account/vouchers/check`, `PaymentRequest.encode/decode/id`, `Receipt.message/sign/verify/is_valid`, `SpendMeter(cap, daily_cap).admit`, `VinoRail`, `VinoLane`, `VoucherState`, `RequestFlag` | play lane needs `VINO`; requests and verify are pure |
 
 Every public class and method has a docstring: `help(zxv.Session)`.
 
@@ -598,6 +723,10 @@ device with its events and audit log, a contract package),
 the ABI 1.5 vectors (`status_abi15`, treaty, cid, aipi, coin, fee, vhub,
 freight, web4, paradox) with handle lifetimes, buffer growth, every new
 status's exception, capability refusals and a poisoned context,
+the ABI 1.6 vectors (`status_abi16` and `vino`: request bytes and ids,
+decode refusals, the fixed-seed receipt and its checks, the play scenario
+and the meter scenario) with the same lifetime, buffer, capability and
+poison checks for the play sandbox and the meter,
 plus the fatal path via `zxv_ctx_halt` (including `FatalPolicy.ABORT` in a
 subprocess), capability denial, budget exhaustion and async waiting, phase
 deferral, the GIL release, and `test_cdef_drift.py`, which fails if any
