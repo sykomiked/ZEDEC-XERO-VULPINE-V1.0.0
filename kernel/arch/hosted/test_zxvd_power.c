@@ -18,6 +18,7 @@
 
 #include "zxvd_groups.h"
 #include "zxvd_power.h"
+#include "zxv_thermal_host.h"
 
 static int fails, checks;
 
@@ -190,8 +191,8 @@ static void test_closed(void)
     fresh();
     EXPECT(call("features.get", "{}"),
            ok("{\"features\":[{\"name\":\"power\",\"enabled\":false,\"regulated\":false,"
-              "\"groups\":[{\"note\":\"energy per app and agent, battery posture and energy "
-              "budgets\",\"methods\":3}]}],\"saved\":false}"));
+              "\"groups\":[{\"note\":\"energy per app and agent, battery posture, energy "
+              "budgets and temperatures\",\"methods\":4}]}],\"saved\":false}"));
     zxvd_power_close();
     CHECK(!zxvd_power_is_open(), "closed");
     EXPECT(call("power.status", "{}"), err(ZXVD_E_POWER, NOT));
@@ -419,6 +420,88 @@ static void test_params(void)
           "unnamed agents: %.400s", ag);
 }
 
+/* ----- thermal.read (W9) ----- */
+
+static const char *NO_CLASSES =
+    "\"classes\":{\"cpu\":{\"state\":\"neither\",\"n\":0,\"max_mdeg\":null},"
+    "\"gpu\":{\"state\":\"neither\",\"n\":0,\"max_mdeg\":null},"
+    "\"case\":{\"state\":\"neither\",\"n\":0,\"max_mdeg\":null},"
+    "\"other\":{\"state\":\"neither\",\"n\":0,\"max_mdeg\":null}}";
+
+static void test_thermal(void)
+{
+    char want[3000], empty[512];
+    fresh(); /* the switch is off and power is not open: thermal.read still answers */
+    CHECK(!zxvd_rpc_enabled("power") && !zxvd_power_is_open(), "off and closed");
+    snprintf(empty, sizeof empty, "%s/thermal-empty", R);
+    mk("thermal-empty");
+    zxvd_power_set_thermal_root(empty);
+    snprintf(want, sizeof want,
+             "{\"state\":\"neither\",\"host\":\"linux\",\"reason\":\"no temperature sensor under "
+             "/sys/class/hwmon or /sys/class/thermal\",%s,\"readings\":[],\"rejected\":0,"
+             "\"dropped\":0}",
+             NO_CLASSES);
+    EXPECT(call("thermal.read", "{}"), ok("%s", want));
+    /* the fixture: a CPU package, a GPU edge, an absurd board value */
+    put("sys/class/hwmon/hwmon0/name", "k10temp");
+    put("sys/class/hwmon/hwmon0/temp1_label", "Tctl");
+    put("sys/class/hwmon/hwmon0/temp1_input", "47250");
+    put("sys/class/hwmon/hwmon1/name", "amdgpu");
+    put("sys/class/hwmon/hwmon1/temp1_label", "edge");
+    put("sys/class/hwmon/hwmon1/temp1_input", "55000");
+    put("sys/class/thermal/thermal_zone0/type", "acpitz");
+    put("sys/class/thermal/thermal_zone0/temp", "999999");
+    zxvd_power_set_thermal_root(R);
+    snprintf(want, sizeof want,
+             "{\"state\":\"both\",\"host\":\"linux\",\"reason\":null,\"classes\":{"
+             "\"cpu\":{\"state\":\"true\",\"n\":1,\"max_mdeg\":47250},"
+             "\"gpu\":{\"state\":\"true\",\"n\":1,\"max_mdeg\":55000},"
+             "\"case\":{\"state\":\"false\",\"n\":0,\"max_mdeg\":null},"
+             "\"other\":{\"state\":\"neither\",\"n\":0,\"max_mdeg\":null}},\"readings\":["
+             "{\"class\":\"cpu\",\"state\":\"true\",\"mdeg\":47250,\"source\":\"hwmon\","
+             "\"driver\":\"k10temp\",\"label\":\"Tctl\",\"path\":"
+             "\"/sys/class/hwmon/hwmon0/temp1_input\",\"reason\":null},"
+             "{\"class\":\"gpu\",\"state\":\"true\",\"mdeg\":55000,\"source\":\"hwmon\","
+             "\"driver\":\"amdgpu\",\"label\":\"edge\",\"path\":"
+             "\"/sys/class/hwmon/hwmon1/temp1_input\",\"reason\":null},"
+             "{\"class\":\"case\",\"state\":\"false\",\"mdeg\":null,\"source\":\"thermal_zone\","
+             "\"driver\":\"acpitz\",\"label\":\"\",\"path\":"
+             "\"/sys/class/thermal/thermal_zone0/temp\",\"reason\":\"out of range\"}],"
+             "\"rejected\":1,\"dropped\":0}");
+    EXPECT(call("thermal.read", "{}"), ok("%s", want));
+    /* each call reads afresh */
+    put("sys/class/thermal/thermal_zone0/temp", "31000");
+    const char *got = rpc(call("thermal.read", "{}"));
+    CHECK(strstr(got, "\"state\":\"true\",\"host\"") &&
+              strstr(got, "\"case\":{\"state\":\"true\",\"n\":1,\"max_mdeg\":31000}"),
+          "W9: read on each call: %.300s", got);
+    /* a root too long for a fixture is this machine: whatever it has, the
+     * reply is a report (no error) */
+    char lng[ZTH_ROOT_MAX + 2];
+    memset(lng, 'a', sizeof lng - 1);
+    lng[sizeof lng - 1] = 0;
+    zxvd_power_set_thermal_root(lng);
+    static zth_report_t live;
+    static char live_js[96u * 1024u];
+    zth_read(NULL, &live);
+    int ln = zth_render_json(&live, live_js, sizeof live_js);
+    const char *cls = ln > 0 ? strstr(live_js, ",\"classes\":") : NULL;
+    got = rpc(call("thermal.read", "{}"));
+    static const char *HEAD = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":";
+    CHECK(cls && !strncmp(got, HEAD, strlen(HEAD)) &&
+              !strncmp(got + strlen(HEAD), live_js, (size_t) (cls - live_js)),
+          "W9: this machine's state, host and reason: %.200s", got);
+    lng[ZTH_ROOT_MAX - 1] = 0; /* the longest root kept: a fixture that is not there */
+    zxvd_power_set_thermal_root(lng);
+    snprintf(want, sizeof want,
+             "{\"state\":\"neither\",\"host\":\"linux\",\"reason\":\"no temperature sensor under "
+             "/sys/class/hwmon or /sys/class/thermal\",%s,\"readings\":[],\"rejected\":0,"
+             "\"dropped\":0}",
+             NO_CLASSES);
+    EXPECT(call("thermal.read", "{}"), ok("%s", want));
+    zxvd_power_set_thermal_root(NULL);
+}
+
 /* ----- the CPU clock (W3) ----- */
 
 static uint64_t cpu_now(void)
@@ -445,6 +528,7 @@ int main(void)
     test_closed();
     test_ledger();
     test_params();
+    test_thermal();
     test_cpu();
     zxvd_rpc_groups_reset();
     zxvd_power_set_clock(NULL);
