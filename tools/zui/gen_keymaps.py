@@ -219,7 +219,8 @@ def main():
                 continue
             cols = line.rstrip("\n").split("\t")
             tag, zid = cols[0], cols[1]
-            uses.append((tag, zid))
+            if tag != "-":  # "-": only make the layout
+                uses.append((tag, zid))
             if len(cols) > 2 and cols[2]:
                 if zid in [m[0] for m in made]:
                     continue

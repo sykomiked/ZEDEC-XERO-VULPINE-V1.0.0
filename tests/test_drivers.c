@@ -218,7 +218,7 @@ static void test_acpi_structures(void)
     printf("=== ACPI Structure Tests ===\n");
     assert(sizeof(acpi_header_t) > 0);
     assert(sizeof(acpi_madt_t) > 0);
-    assert(ACPI_MAX_TABLES == 16);
+    assert(ACPI_MAX_TABLES == 64); /* room for the many SSDTs laptops ship */
 
     acpi_state_t state;
     memset(&state, 0, sizeof(state));

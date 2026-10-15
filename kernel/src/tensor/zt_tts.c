@@ -651,11 +651,8 @@ static int32_t clamp30(int64_t v)
     return (int32_t) (v > (1 << 30) ? (1 << 30) : v < -(1 << 30) ? -(1 << 30) : v);
 }
 
-void zt_tts_cossin(zt_fx angle, int32_t *c, int32_t *s)
+void zt_tts_cossin_turns(uint64_t t, int32_t *c, int32_t *s)
 {
-    /* the angle in turns * 2^64, modulo 2^64 (exact up to the rounding of
-     * TURN_K: at most |angle| / 2 units of 2^-64 turn) */
-    uint64_t t = (uint64_t) (int64_t) angle * ZT_TTS_TURN_K;
     uint32_t i = (uint32_t) (t >> 54), j = (uint32_t) (t >> 44) & 1023;
     uint64_t rem = t & ((1ull << 44) - 1);
     int64_t sa = qsin(i), ca = qsin((i + 256) & 1023), sf = ZT_TTS_FSIN[j], cf = ZT_TTS_FCOS[j];
@@ -665,6 +662,13 @@ void zt_tts_cossin(zt_fx angle, int32_t *c, int32_t *s)
     int64_t dl = (int64_t) (((rem >> 12) * TWOPI_Q28 + (1ull << 49)) >> 50);
     *s = clamp30(s0 + rshr(dl * c0, 30));
     *c = clamp30(c0 - rshr(dl * s0, 30));
+}
+
+void zt_tts_cossin(zt_fx angle, int32_t *c, int32_t *s)
+{
+    /* the angle in turns * 2^64, modulo 2^64 (exact up to the rounding of
+     * TURN_K: at most |angle| / 2 units of 2^-64 turn) */
+    zt_tts_cossin_turns((uint64_t) (int64_t) angle * ZT_TTS_TURN_K, c, s);
 }
 
 typedef struct {

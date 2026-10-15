@@ -177,6 +177,34 @@ int main(void)
     len = build_elf(buf, 0x10000, PF_R | PF_X, 8, 8, 0x10000, 1);
     CHECK(elf_load(buf, len, reject_all, 0, &entry) == ELF_ERR_MAP, "mapper rejection propagates");
 
+    /* elf_load_target: the x86-64 port's machine and user window (the top
+     * 512 GB slot of the lower half, x86_userspace.h). */
+    {
+        const uint64_t base = 0x00007F8000010000ULL;
+        const elf_target_t x86 = { ELF_EM_X86_64, base, base + 0x70000 };
+        len = build_elf(buf, base, PF_R | PF_X, 8, 8, base, 1);
+        buf[18] = ELF_EM_X86_64;
+        g_nseg = 0;
+        CHECK(elf_load_target(&x86, buf, len, collect, 0, &entry) == ELF_OK && entry == base &&
+                  g_nseg == 1 && g_segs[0].vaddr == base,
+              "x86-64 target: EM_X86_64 image in its window loads");
+        CHECK(elf_load(buf, len, collect, 0, &entry) == ELF_ERR_MACHINE,
+              "x86-64 image refused by the AArch64 loader");
+        buf[18] = 183;
+        CHECK(elf_load_target(&x86, buf, len, collect, 0, &entry) == ELF_ERR_MACHINE,
+              "x86-64 target refuses an AArch64 image");
+        len = build_elf(buf, 0x10000, PF_R | PF_X, 8, 8, 0x10000, 1);
+        buf[18] = ELF_EM_X86_64;
+        CHECK(elf_load_target(&x86, buf, len, collect, 0, &entry) == ELF_ERR_RANGE,
+              "x86-64 target: a low (kernel-half) address is outside the window");
+        len = build_elf(buf, base + 0x6F000, PF_R | PF_W, 8, 0x2000, base + 0x6F000, 1);
+        buf[18] = ELF_EM_X86_64;
+        CHECK(elf_load_target(&x86, buf, len, collect, 0, &entry) == ELF_ERR_RANGE,
+              "x86-64 target: a segment running past the window end is refused");
+        CHECK(elf_load_target(0, buf, len, collect, 0, &entry) == ELF_ERR_SHORT,
+              "no target refused");
+    }
+
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }

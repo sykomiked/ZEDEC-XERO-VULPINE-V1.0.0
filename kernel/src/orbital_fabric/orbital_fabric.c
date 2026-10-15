@@ -32,10 +32,6 @@ static int of_str_cmp(const char *a, const char *b) {
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
 
-static uint32_t of_str_len(const char *s) {
-    uint32_t n = 0; while (s[n]) n++; return n;
-}
-
 static void of_str_copy(char *dst, const char *src, uint32_t max) {
     uint32_t i = 0;
     while (i < max - 1 && src[i]) { dst[i] = src[i]; i++; }
@@ -85,6 +81,8 @@ static surplus_real_t of_compute_coverage(const m5_coords_t *m5) {
 
 lpres_state_t of_attest(orbital_fabric_t *fabric, uint32_t domain_id,
                         uint32_t op_id, void *args, int32_t result) {
+    (void) op_id;
+    (void) args;
     if (!fabric || domain_id >= fabric->num_domains) return LPRES_STATE_NEITHER;
     
     of_domain_t *dom = &fabric->domains[domain_id];
@@ -342,6 +340,9 @@ int32_t of_translate_event(orbital_fabric_t *fabric, uint32_t domain_id,
                            const char *target_yf_schema, uint16_t target_yf_version,
                            const char *target_oe_schema, uint16_t target_oe_version,
                            const char *target_oc_schema, uint16_t target_oc_version) {
+    /* No stage below translates to an SA target schema. */
+    (void) target_sa_schema;
+    (void) target_sa_version;
     if (!fabric || !env) return -1;
     
     of_domain_t *dom = of_get_domain(fabric, domain_id);
@@ -370,7 +371,7 @@ int32_t of_translate_event(orbital_fabric_t *fabric, uint32_t domain_id,
                 int32_t lower_result = lr->ops.lower(env->payload, env->payload_len, &ir);
                 if (lower_result == OC_OK) {
                     int32_t lift_result = lr->ops.lift(&ir, env->payload, EV_PAYLOAD_MAX);
-                    if (lift_result != OC_OK) {
+                    if (lift_result < 0) {
                         fabric->stats.total_translation_failures++;
                         of_attest(fabric, domain_id, 0x2000, (void*)target_oc_schema, -1);
                         return -1;

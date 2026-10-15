@@ -291,6 +291,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
 	@$(MAKE) --no-print-directory test-crash
+	@$(MAKE) --no-print-directory test-yield
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -334,6 +335,10 @@ verify-all: test
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_asan && /tmp/test_zt_tts_asan > /tmp/test_zt_tts_asan.log 2>&1 && echo "[PASS] test_zt_tts ASan/UBSan" || { cat /tmp/test_zt_tts_asan.log; echo "[FAIL] test_zt_tts ASan/UBSan"; exit 1; }
 	@if command -v aarch64-linux-gnu-gcc >/dev/null && command -v qemu-aarch64 >/dev/null; then aarch64-linux-gnu-gcc -std=c11 -O2 -Wall -Werror -Wextra -static -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_tts.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_tts_a64 && qemu-aarch64 /tmp/test_zt_tts_a64 > /tmp/test_zt_tts_a64.log 2>&1 && echo "[PASS] test_zt_tts arm64 NEON ($$(tail -1 /tmp/test_zt_tts_a64.log))" || { cat /tmp/test_zt_tts_a64.log; echo "[FAIL] test_zt_tts arm64"; exit 1; }; else echo "[SKIP] test_zt_tts arm64 (needs aarch64-linux-gnu-gcc and qemu-aarch64)"; fi
 	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c src/tensor/zt_tts.c -o /tmp/zt_tts_free.o || { echo "[FAIL] zt_tts freestanding $$t"; exit 1; }; if nm -u /tmp/zt_tts_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_tts_free.o; echo "[FAIL] zt_tts freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] zt_tts freestanding (aarch64 -mgeneral-regs-only, i386; only zt_ external)"
+	@echo "=== tensor: Kokoro speech out (T27 zt_kokoro) helpers vs float64, freestanding ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -D_GNU_SOURCE -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_kokoro.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_kokoro && /tmp/test_zt_kokoro > /tmp/test_zt_kokoro.log 2>&1 && echo "[PASS] test_zt_kokoro ($$(tail -1 /tmp/test_zt_kokoro.log))" || { cat /tmp/test_zt_kokoro.log; echo "[FAIL] test_zt_kokoro"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -D_GNU_SOURCE -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_kokoro.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_kokoro_asan && /tmp/test_zt_kokoro_asan > /tmp/test_zt_kokoro_asan.log 2>&1 && echo "[PASS] test_zt_kokoro ASan/UBSan" || { cat /tmp/test_zt_kokoro_asan.log; echo "[FAIL] test_zt_kokoro ASan/UBSan"; exit 1; }
+	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/tensor -c src/tensor/zt_kokoro.c -o /tmp/zt_kokoro_free.o || { echo "[FAIL] zt_kokoro freestanding $$t"; exit 1; }; if nm -u /tmp/zt_kokoro_free.o | grep -vE " zt_" | grep -q .; then nm -u /tmp/zt_kokoro_free.o; echo "[FAIL] zt_kokoro freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] zt_kokoro freestanding (aarch64 -mgeneral-regs-only, i386; only zt_ external)"
 	@echo "=== tensor: holographic coding stays on the device (bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md) ==="
 	@bad=$$(grep -rlE "zt_holo_(e8_)?(encode|decode)" src/net src/mesh_net src/freight src/ubh src/web4 src/vinea src/ipfs_node src/event_transport src/tls src/stream 2>/dev/null); \
 	if [ -n "$$bad" ]; then echo "$$bad"; echo "[FAIL] network modules must carry the original weight codes, not holographic residuals (residuals measured 8.12 vs 7.31 bits a weight on Qwen2.5-1.5B)"; exit 1; fi; \
@@ -390,26 +395,34 @@ verify-all: test
 	@echo "=== pay: ledger, assurance fee, ISO 20022 builders/parsers + XSD, equity, treasury, farm ==="; \
 	python3 -I src/pay/gen_assure_ref.py /tmp/p10econ_assure_ref.txt && mkdir -p /tmp/test_pay_xml && \
 	gcc -std=c11 -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/swarm -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/pay/test_pay.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_pay && /tmp/test_pay /tmp/p10econ_assure_ref.txt src/pay/xsd /tmp/test_pay_xml > /tmp/test_pay.log 2>&1 && echo "[PASS] test_pay" || { tail -40 /tmp/test_pay.log; echo "[FAIL] test_pay"; exit 1; }
+	@echo "=== pay_bounty: free bounties, audit + independent panel, VFV minted within the epoch cap ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/swarm -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/pay/test_pay_bounty.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_pay_bounty && /tmp/test_pay_bounty > /tmp/test_pay_bounty.log 2>&1 && echo "[PASS] $$(tail -1 /tmp/test_pay_bounty.log)" || { tail -40 /tmp/test_pay_bounty.log; echo "[FAIL] test_pay_bounty"; exit 1; }
 	@echo "=== vblock: CID-keyed VRAM block store (simulated GPU backend) ==="; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vblock -Isrc/ipfs_node -Isrc/robin_debanks src/vblock/test_vblock.c src/vblock/vblock.c src/vblock/vblock_cpu.c src/vblock/vblock_sim.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/tensor/zt.c -o /tmp/test_vblock && /tmp/test_vblock > /tmp/test_vblock.log 2>&1 && echo "[PASS] test_vblock" || { tail -40 /tmp/test_vblock.log; echo "[FAIL] test_vblock"; exit 1; }
 	@echo "=== hosted app: API guard, budget gate, Vinea UDP host, end-to-end API, model slot, peers, updates, notifications ==="; \
 	$(MAKE) --no-print-directory test-settle
+	$(MAKE) --no-print-directory test-allotment
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
+	$(MAKE) --no-print-directory test-print
 	$(MAKE) --no-print-directory test-fab
 	$(MAKE) --no-print-directory test-appfab
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
 	$(MAKE) --no-print-directory test-handoff
+	$(MAKE) --no-print-directory test-x86-irq
+	$(MAKE) --no-print-directory test-x86-sched
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
+	$(MAKE) --no-print-directory test-x86-extable
+	$(MAKE) --no-print-directory test-aml
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -468,8 +481,27 @@ verify-all: test
 		src/update/update.c src/robin_debanks/sha256.c src/tensor/zt.c src/pay/pay_assure.c src/pay/pay_util.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c \
 		$(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/tls/x25519.c src/tls/aead.c \
 		-o /tmp/test_evolve && /tmp/test_evolve > /tmp/test_evolve.log 2>&1 && echo "[PASS] test_evolve" || { tail -40 /tmp/test_evolve.log; echo "[FAIL] test_evolve"; exit 1; }
+	@echo "=== community updates: compatibility contract, audits, consent gate, rollback ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -fsanitize=address,undefined -Iinclude -Isrc/evolve -Isrc/mlkem -Isrc/tensor -Isrc/update -Isrc/ipfs_node -Isrc/robin_debanks -Isrc/pqsec -Isrc/pay -Isrc/swarm -Isrc/zcapital -Isrc/surplus -Isrc/modbind -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/trispace \
+		src/evolve/test_evo_comm.c src/evolve/evo_comm.c src/evolve/evo_cap.c src/evolve/evo_lineage.c src/evolve/evo_trust.c src/tensor/zt.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/*.c)) \
+		-o /tmp/test_evo_comm && /tmp/test_evo_comm > /tmp/test_evo_comm.log 2>&1 && echo "[PASS] test_evo_comm" || { tail -40 /tmp/test_evo_comm.log; echo "[FAIL] test_evo_comm"; exit 1; }
+	@echo "=== chiglet bond (private ISF habit model) and kin (DNA, hobbies, visits) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -O2 -DTEST_HOST -fsanitize=address,undefined -Isrc/chiglet src/chiglet/test_chg_bond.c src/chiglet/chg_bond.c -lm -o /tmp/test_chg_bond && /tmp/test_chg_bond > /tmp/test_chg_bond.log 2>&1 && echo "[PASS] test_chg_bond" || { tail -40 /tmp/test_chg_bond.log; echo "[FAIL] test_chg_bond"; exit 1; }
+	gcc -std=c11 -Wall -Werror -Wextra -O2 -fsanitize=address,undefined -Iinclude -Isrc/chiglet -Isrc/surplus -Isrc/swarm -Isrc/mlkem -Isrc/modbind src/chiglet/test_chg_kin.c src/chiglet/chg_kin.c src/surplus/surplus.c src/swarm/swarm_dna.c src/mlkem/keccak.c -lm -o /tmp/test_chg_kin && /tmp/test_chg_kin > /tmp/test_chg_kin.log 2>&1 && echo "[PASS] test_chg_kin" || { tail -40 /tmp/test_chg_kin.log; echo "[FAIL] test_chg_kin"; exit 1; }
+	@for t in aarch64 riscv32; do for f in src/evolve/evo_comm.c src/chiglet/chg_bond.c src/chiglet/chg_kin.c; do clang --target=$$t-none-elf -ffreestanding -std=c11 -O2 -Wall -Wextra -Werror -Iinclude -Isrc/evolve -Isrc/pay -Isrc/surplus -Isrc/swarm -Isrc/mlkem -c $$f -o /tmp/evochg_$$t.o || exit 1; nm -u /tmp/evochg_$$t.o | grep -E '^ +U (mem|__)' && { echo "[FAIL] $$f needs libc/libgcc on $$t"; exit 1; }; done; done; echo "[PASS] community updates + chiglet kin freestanding"
 	@echo "=== speech: log-mel front end, VAD, sessions, STT/TTS binding ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/speech -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c -lm -o /tmp/test_speech && /tmp/test_speech > /tmp/test_speech.log 2>&1 && echo "[PASS] test_speech" || { tail -40 /tmp/test_speech.log; echo "[FAIL] test_speech"; exit 1; }
+	@echo "=== speech: English pronouncer (G1-G7) and the Kokoro voice (KS1-KS6), freestanding ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -D_GNU_SOURCE -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_kokoro.c src/speech/speech_kokoro.c src/speech/speech_g2p_en.c src/speech/speech_dsp.c src/tensor/zt_kokoro.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_kokoro && /tmp/test_speech_kokoro > /tmp/test_speech_kokoro.log 2>&1 && echo "[PASS] test_speech_kokoro ($$(tail -1 /tmp/test_speech_kokoro.log))" || { cat /tmp/test_speech_kokoro.log; echo "[FAIL] test_speech_kokoro"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -D_GNU_SOURCE -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_kokoro.c src/speech/speech_kokoro.c src/speech/speech_g2p_en.c src/speech/speech_dsp.c src/tensor/zt_kokoro.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_kokoro_asan && /tmp/test_speech_kokoro_asan > /tmp/test_speech_kokoro_asan.log 2>&1 && echo "[PASS] test_speech_kokoro ASan/UBSan" || { cat /tmp/test_speech_kokoro_asan.log; echo "[FAIL] test_speech_kokoro ASan/UBSan"; exit 1; }
+	for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in speech_g2p_en speech_kokoro; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus -c src/speech/$$f.c -o /tmp/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u /tmp/$${f}_free.o | grep -vE " (zt_|speech_)" | grep -q .; then nm -u /tmp/$${f}_free.o; echo "[FAIL] $$f freestanding: libc or 64-bit division helper ($$t)"; exit 1; fi; done; done; echo "[PASS] speech_g2p_en + speech_kokoro freestanding (aarch64 -mgeneral-regs-only, i386)"
+	@echo "=== speech: the on-device voice (OuteTTS codes -> WavTokenizer -> 16 kHz), respelling, refusals ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_zt_tts.c src/speech/speech_zt_tts.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_zt_tts && /tmp/test_speech_zt_tts > /tmp/test_speech_zt_tts.log 2>&1 && echo "[PASS] test_speech_zt_tts ($$(tail -1 /tmp/test_speech_zt_tts.log))" || { cat /tmp/test_speech_zt_tts.log; echo "[FAIL] test_speech_zt_tts"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_zt_tts.c src/speech/speech_zt_tts.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c src/tensor/zt_tts.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_zt_tts_asan && /tmp/test_speech_zt_tts_asan > /tmp/test_speech_zt_tts_asan.log 2>&1 && echo "[PASS] test_speech_zt_tts ASan/UBSan" || { cat /tmp/test_speech_zt_tts_asan.log; echo "[FAIL] test_speech_zt_tts ASan/UBSan"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_zt_stt.c src/speech/speech_zt_stt.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_zt_stt && /tmp/test_speech_zt_stt > /tmp/test_speech_zt_stt.log 2>&1 && echo "[PASS] test_speech_zt_stt ($$(tail -1 /tmp/test_speech_zt_stt.log))" || { cat /tmp/test_speech_zt_stt.log; echo "[FAIL] test_speech_zt_stt"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/speech -Isrc/tensor -Isrc/voice -Isrc/chiglet -Isrc/surplus src/speech/test_speech_zt_stt.c src/speech/speech_zt_stt.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c src/tensor/zt_whisper.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_tok.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_speech_zt_stt_asan && /tmp/test_speech_zt_stt_asan > /tmp/test_speech_zt_stt_asan.log 2>&1 && echo "[PASS] test_speech_zt_stt ASan/UBSan" || { cat /tmp/test_speech_zt_stt_asan.log; echo "[FAIL] test_speech_zt_stt ASan/UBSan"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/speech src/speech/test_speech_tidy.c src/speech/speech_tidy.c -o /tmp/test_speech_tidy && /tmp/test_speech_tidy > /tmp/test_speech_tidy.log 2>&1 && echo "[PASS] test_speech_tidy ($$(tail -1 /tmp/test_speech_tidy.log))" || { cat /tmp/test_speech_tidy.log; echo "[FAIL] test_speech_tidy"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/speech src/speech/test_speech_tidy.c src/speech/speech_tidy.c -o /tmp/test_speech_tidy_asan && /tmp/test_speech_tidy_asan > /tmp/test_speech_tidy_asan.log 2>&1 && echo "[PASS] test_speech_tidy ASan/UBSan" || { cat /tmp/test_speech_tidy_asan.log; echo "[FAIL] test_speech_tidy ASan/UBSan"; exit 1; }
 	@echo "=== xlate: language ID (82 languages), translation pipeline, cache ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/xlate -Isrc/speech -Isrc/voice -Isrc/chiglet -Isrc/surplus -Isrc/robin_debanks src/xlate/test_xlate.c src/xlate/xlate.c src/xlate/xlate_langid.c src/xlate/xlate_prompts.c src/robin_debanks/sha256.c src/speech/speech_dsp.c src/speech/speech_session.c src/voice/voice.c src/chiglet/chiglet.c src/surplus/surplus.c -lm -o /tmp/test_xlate && /tmp/test_xlate > /tmp/test_xlate.log 2>&1 && echo "[PASS] test_xlate" || { tail -40 /tmp/test_xlate.log; echo "[FAIL] test_xlate"; exit 1; }
 	@echo "=== market: Web 4 commerce (signed shops, escrow, disputes, refunds, reviews, agent mandates, B2B) ==="
@@ -639,9 +671,12 @@ verify-all: test
 	OC_INC="-DTEST_HOST -Isrc/orbital_compat -Isrc/lightningrod -Isrc/rational -Isrc/surplus -Isrc/wyverneye -Isrc/lpres -Isrc/net"; \
 	mkdir -p /tmp/oc_adapters && \
 	for a in src/orbital_compat/orbital_compat_*.c; do \
-		gcc -std=c11 -Wall -Wextra $$OC_INC -c $$a -o /tmp/oc_adapters/$$(basename $$a .c).o || { echo "[FAIL] test_orbital_compat"; exit 1; }; \
+		gcc -std=c11 -Wall -Werror -Wextra $$OC_INC -c $$a -o /tmp/oc_adapters/$$(basename $$a .c).o || { echo "[FAIL] test_orbital_compat"; exit 1; }; \
 	done && \
 	gcc -std=c11 -Wall -Werror -Wextra $$OC_INC src/orbital_compat/test_orbital_compat.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c src/lpres/lpres.c /tmp/oc_adapters/*.o -o /tmp/test_orbital_compat -lm && /tmp/test_orbital_compat && echo "[PASS] test_orbital_compat" || { echo "[FAIL] test_orbital_compat"; exit 1; }
+	@echo "=== test_oc_sutra ==="; \
+	OC_INC="-DTEST_HOST -Isrc/orbital_compat -Isrc/lightningrod -Isrc/rational -Isrc/surplus -Isrc/wyverneye -Isrc/lpres -Isrc/net"; \
+	gcc -std=c11 -Wall -Werror -Wextra $$OC_INC src/orbital_compat/test_oc_sutra.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c src/lpres/lpres.c /tmp/oc_adapters/*.o -o /tmp/test_oc_sutra -lm && /tmp/test_oc_sutra && echo "[PASS] test_oc_sutra" || { echo "[FAIL] test_oc_sutra"; exit 1; }
 	@echo "=== test_fusion ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/fusion -Isrc/trispace -Isrc/robin_debanks src/fusion/test_fusion.c src/fusion/fusion.c src/trispace/trispace.c src/robin_debanks/sha256.c -o /tmp/test_fusion -lm && /tmp/test_fusion && echo "[PASS] test_fusion" || { echo "[FAIL] test_fusion"; exit 1; }
 	@echo "=== test_sovereign_node ==="; \
@@ -1230,7 +1265,7 @@ verify-all: test
 	echo "=== zui: native renderer core (layout, shapes, text, depth effects) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm \
 		src/zui/test_zui.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_depth.c \
-		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/zui/zui_login.c src/zui/zui_pxl.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
+		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/zui/zui_login.c src/zui/zui_pxl.c src/zui/zui_para.c src/zui/zui_bidi.c src/zui/zui_shape.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
@@ -1563,6 +1598,7 @@ test-swarm:
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-yield
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -1618,10 +1654,45 @@ test-appfab:
 test-settle:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/settle -Isrc/pay -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/settle/test_settle.c src/settle/settle.c src/peer_audit/pa_runtime.c src/robin_debanks/sha256.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/tensor/zt.c src/mlkem/keccak.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_settle && $(ZXV_TMP)/test_settle > $(ZXV_TMP)/test_settle.log 2>&1 && echo "[PASS] test_settle ($$(tail -1 $(ZXV_TMP)/test_settle.log))" || { cat $(ZXV_TMP)/test_settle.log; echo "[FAIL] test_settle"; exit 1; }
 
+# The Sicilian Crown Allotment (src/allotment/allot.h): opt-in ballots, Fibonacci
+# epoch trigger, exact split, commit-reveal draw replayed against a Python model.
+ALLOT_SRCS = src/allotment/allot.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c
+ALLOT_INC = -Iinclude -Isrc/modbind -Isrc/allotment -Isrc/pay -Isrc/mlkem -Isrc/tensor
+.PHONY: test-allotment
+test-allotment:
+	@python3 -I src/allotment/gen_allot_ref.py $(ZXV_TMP)/allot_ref.txt || { echo "[FAIL] gen_allot_ref"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot && $(ZXV_TMP)/test_allot $(ZXV_TMP)/allot_ref.txt > $(ZXV_TMP)/test_allot.log 2>&1 && echo "[PASS] test_allot ($$(tail -1 $(ZXV_TMP)/test_allot.log))" || { cat $(ZXV_TMP)/test_allot.log; echo "[FAIL] test_allot"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot.c -o $(ZXV_TMP)/allot_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_a64.o; echo "[FAIL] allotment libc symbol"; exit 1; fi && \
+	echo "[PASS] allotment freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_ladder.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_ladder && $(ZXV_TMP)/test_allot_ladder > $(ZXV_TMP)/test_allot_ladder.log 2>&1 && echo "[PASS] test_allot_ladder ($$(tail -1 $(ZXV_TMP)/test_allot_ladder.log); $$(grep '^cost:' $(ZXV_TMP)/test_allot_ladder.log))" || { cat $(ZXV_TMP)/test_allot_ladder.log; echo "[FAIL] test_allot_ladder"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_ladder.c -o $(ZXV_TMP)/allot_ladder_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_ladder_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_ladder_a64.o; echo "[FAIL] allot_ladder libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_ladder freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_guard.c src/allotment/allot_guard.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_guard && $(ZXV_TMP)/test_allot_guard > $(ZXV_TMP)/test_allot_guard.log 2>&1 && echo "[PASS] test_allot_guard ($$(tail -1 $(ZXV_TMP)/test_allot_guard.log))" || { cat $(ZXV_TMP)/test_allot_guard.log; echo "[FAIL] test_allot_guard"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_guard.c -o $(ZXV_TMP)/allot_guard_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_guard_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_guard_a64.o; echo "[FAIL] allot_guard libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_guard freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_token.c src/allotment/allot_token.c src/allotment/allot_guard.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_token && $(ZXV_TMP)/test_allot_token > $(ZXV_TMP)/test_allot_token.log 2>&1 && echo "[PASS] test_allot_token ($$(tail -1 $(ZXV_TMP)/test_allot_token.log))" || { cat $(ZXV_TMP)/test_allot_token.log; echo "[FAIL] test_allot_token"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_token.c -o $(ZXV_TMP)/allot_token_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_token_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+|sha3_256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_token_a64.o; echo "[FAIL] allot_token libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_token freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_savings.c src/allotment/allot_guard.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_savings && $(ZXV_TMP)/test_allot_savings > $(ZXV_TMP)/test_allot_savings.log 2>&1 && echo "[PASS] test_allot_savings ($$(tail -1 $(ZXV_TMP)/test_allot_savings.log))" || { cat $(ZXV_TMP)/test_allot_savings.log; echo "[FAIL] test_allot_savings"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_view.c src/allotment/allot_view.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_view && $(ZXV_TMP)/test_allot_view > $(ZXV_TMP)/test_allot_view.log 2>&1 && echo "[PASS] test_allot_view ($$(tail -1 $(ZXV_TMP)/test_allot_view.log))" || { cat $(ZXV_TMP)/test_allot_view.log; echo "[FAIL] test_allot_view"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_view.c -o $(ZXV_TMP)/allot_view_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_view_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_view_a64.o; echo "[FAIL] allot_view libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_view freestanding (aarch64-none-elf, no libc)"
+
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# Platen's printer and scanner codecs (src/print/ipp.h, escl.h): IPP requests
+# byte by byte, printer and scanner replies, every truncation refused.
+.PHONY: test-print
+test-print:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/print src/print/test_print.c src/print/ipp.c src/print/escl.c -o $(ZXV_TMP)/test_print && $(ZXV_TMP)/test_print > $(ZXV_TMP)/test_print.log 2>&1 && echo "[PASS] test_print ($$(tail -1 $(ZXV_TMP)/test_print.log))" || { cat $(ZXV_TMP)/test_print.log; echo "[FAIL] test_print"; exit 1; }
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
@@ -1633,6 +1704,18 @@ test-pmm:
 .PHONY: test-handoff
 test-handoff:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/test_zxv_handoff.c -o $(ZXV_TMP)/test_handoff && $(ZXV_TMP)/test_handoff > $(ZXV_TMP)/test_handoff.log 2>&1 && echo "[PASS] test_handoff ($$(tail -1 $(ZXV_TMP)/test_handoff.log))" || { cat $(ZXV_TMP)/test_handoff.log; echo "[FAIL] test_handoff"; exit 1; }
+
+# x86_64 interrupt layer (arch/x86_64/x86_irq.h): LAPIC timer calibration
+# arithmetic and the MADT walk.
+.PHONY: test-x86-irq
+test-x86-irq:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/x86_64/test_x86_irq.c -o $(ZXV_TMP)/test_x86_irq && $(ZXV_TMP)/test_x86_irq > $(ZXV_TMP)/test_x86_irq.log 2>&1 && echo "[PASS] test_x86_irq ($$(tail -1 $(ZXV_TMP)/test_x86_irq.log))" || { cat $(ZXV_TMP)/test_x86_irq.log; echo "[FAIL] test_x86_irq"; exit 1; }
+
+# x86_64 process scheduler logic (arch/x86_64/x86_sched.c): slot reuse, round
+# robin, quantum expiry, sleep and wake, exit verdicts.
+.PHONY: test-x86-sched
+test-x86-sched:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/x86_64 -Iinclude -Isrc/lpres -Isrc/event_space arch/x86_64/test_x86_sched.c arch/x86_64/x86_sched.c -o $(ZXV_TMP)/test_x86_sched && $(ZXV_TMP)/test_x86_sched > $(ZXV_TMP)/test_x86_sched.log 2>&1 && echo "[PASS] test_x86_sched ($$(tail -1 $(ZXV_TMP)/test_x86_sched.log))" || { cat $(ZXV_TMP)/test_x86_sched.log; echo "[FAIL] test_x86_sched"; exit 1; }
 
 .PHONY: test-fwadapt
 test-fwadapt:
@@ -1749,6 +1832,16 @@ test-market:
 
 # V-Bill hub demo (src/vhub): signed exact-rational pegs, fiat A -> V-Bill -> fiat B
 # as one balanced pay_ledger posting, sovereign rule plug-ins that fail closed.
+# Token yield (src/swarm/swarm_yield.h): verified work per token, counting
+# retries and revisions, verified work per second, the yield candle chart and
+# the (off by default) pool-weight link, checked against pay_commons_split.
+.PHONY: test-yield
+test-yield:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_swarm_yield || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield > $(ZXV_TMP)/test_swarm_yield.log 2>&1 && echo "[PASS] test_swarm_yield" || { tail -40 $(ZXV_TMP)/test_swarm_yield.log; echo "[FAIL] test_swarm_yield"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DYIELD_WITH_PAY -Iinclude -Isrc/swarm -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarm_yield_pay || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield_pay > $(ZXV_TMP)/test_swarm_yield_pay.log 2>&1 && echo "[PASS] test_swarm_yield (pool link)" || { tail -40 $(ZXV_TMP)/test_swarm_yield_pay.log; echo "[FAIL] test_swarm_yield (pool link)"; exit 1; }
+
 # Token denominations and octane (src/swarm/swarm_denom.h): plain, compressed
 # and super tokens on the Fibonacci ladder, exact wrap/unwrap, budget lockstep.
 .PHONY: test-denom
@@ -1799,7 +1892,10 @@ test-vfs:
 test-boot-features:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
 
-.PHONY: test-blockdev test-hwdrv
+.PHONY: test-blockdev test-hwdrv test-x86-extable
+# The x86_64 #GP handler's exception-fixup lookup (fault-safe RDMSR/WRMSR).
+test-x86-extable:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iarch/x86_64 arch/x86_64/test_x86_extable.c arch/x86_64/x86_extable.c -o $(ZXV_TMP)/test_x86_extable && $(ZXV_TMP)/test_x86_extable > $(ZXV_TMP)/test_x86_extable.log 2>&1 && echo "[PASS] test_x86_extable ($$(tail -1 $(ZXV_TMP)/test_x86_extable.log))" || { cat $(ZXV_TMP)/test_x86_extable.log; echo "[FAIL] test_x86_extable"; exit 1; }
 # Standard class drivers (src/hwdrv) against register-level fake devices. Every
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
 # drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
@@ -1810,6 +1906,19 @@ test-hwdrv:
 		b=$$(basename $$t .c); \
 		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
+	done
+# ACPI: the AML interpreter (src/acpi/aml_*.c) and power management
+# (acpi_pm.c, acpi.c) against fake firmware tables and fake chipset registers.
+# The ASL fixtures are compiled once into src/acpi/test/aml_fixtures.h
+# (gen_fixtures.sh needs iasl; CI does not). QEMU coverage of the same code is
+# build_system/acpi_check.sh.
+.PHONY: test-aml
+AML_SRCS = src/acpi/aml_core.c src/acpi/aml_region.c src/acpi/aml_dev.c src/acpi/acpi_pm.c src/acpi/acpi.c
+test-aml:
+	@for t in $(sort $(wildcard src/acpi/test/test_*.c)); do \
+		b=$$(basename $$t .c); \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc -Isrc/acpi -Isrc/modbind $$t src/acpi/test/amlfake.c $(AML_SRCS) -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { tail -60 $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude src/blockdev/test_blockdev.c src/blockdev/blockdev.c -o $(ZXV_TMP)/test_blockdev && $(ZXV_TMP)/test_blockdev > $(ZXV_TMP)/test_blockdev.log 2>&1 && echo "[PASS] test_blockdev" || { tail -40 $(ZXV_TMP)/test_blockdev.log; echo "[FAIL] test_blockdev"; exit 1; }
@@ -2006,6 +2115,21 @@ ECON_LEDGER = src/pay/pay_ledger.c src/pay/pay_assure.c src/swarm/swarm_market.c
 test-svault:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/svault/test_svault.c src/svault/svault.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_svault -lm && $(ZXV_TMP)/test_svault > $(ZXV_TMP)/test_svault.log 2>&1 && echo "[PASS] test_svault" || { tail -40 $(ZXV_TMP)/test_svault.log; echo "[FAIL] test_svault"; exit 1; }
 
+# Jurisdictional routing matrix (src/jroute, docs/JURISDICTION_ROUTER.md): VINO redemption by zone capability mask,
+# exact p/q vouchers, Belnap BOTH to escrow and NEITHER to local credit; institution profile only, off by default.
+# ASan/UBSan tests, then a freestanding build (aarch64 -mgeneral-regs-only and i386) whose only external symbols are sha256*.
+.PHONY: test-jroute
+test-jroute:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/jroute/test_jroute.c src/jroute/jroute.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_jroute && $(ZXV_TMP)/test_jroute > $(ZXV_TMP)/test_jroute.log 2>&1 && echo "[PASS] test_jroute ($$(tail -1 $(ZXV_TMP)/test_jroute.log))" || { tail -40 $(ZXV_TMP)/test_jroute.log; echo "[FAIL] test_jroute"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/jroute/jroute.c -o $(ZXV_TMP)/jroute_free.o || { echo "[FAIL] jroute freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/jroute_free.o | grep -vE ' sha256' | grep -q .; then nm -u $(ZXV_TMP)/jroute_free.o; echo "[FAIL] jroute freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] jroute freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 external)"
+
+# Producer ingress driver (src/jringress): the optional, detachable layer that pledges physical lots into jroute
+# and turns its physical layer on; leaving it out keeps every allotment on compute and mutual credit.
+.PHONY: test-jringress
+test-jringress:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/jringress/test_jringress.c src/jringress/jringress.c src/jroute/jroute.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_jringress && $(ZXV_TMP)/test_jringress > $(ZXV_TMP)/test_jringress.log 2>&1 && echo "[PASS] test_jringress ($$(tail -1 $(ZXV_TMP)/test_jringress.log))" || { tail -40 $(ZXV_TMP)/test_jringress.log; echo "[FAIL] test_jringress"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/jringress/jringress.c -o $(ZXV_TMP)/jringress_free.o || { echo "[FAIL] jringress freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/jringress_free.o | grep -vE ' (sha256|jr_)' | grep -q .; then nm -u $(ZXV_TMP)/jringress_free.o; echo "[FAIL] jringress freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] jringress freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 and jr_ external)"
+
 # Vino <-> V-Bill swap (src/vswap): exact reserve-ratio swaps, perpetual lock tiers, realised-dividend split; off per jurisdiction.
 .PHONY: test-vswap
 test-vswap:
@@ -2086,9 +2210,18 @@ test-qnote:
 test-fxepoch:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/fxepoch/test_fxepoch.c src/fxepoch/fxepoch.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_fxepoch -lm && $(ZXV_TMP)/test_fxepoch > $(ZXV_TMP)/test_fxepoch.log 2>&1 && echo "[PASS] test_fxepoch" || { tail -40 $(ZXV_TMP)/test_fxepoch.log; echo "[FAIL] test_fxepoch"; exit 1; }
 
+# Naval ports (src/navport): pegs between two or more units through a shared V-Bill Sicilian account,
+# nostro/vostro books reconciled four-valued, quorum-signed closes, pipe yield off by default; plus the stress simulation.
+.PHONY: test-navport
+test-navport:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/test_navport.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_navport -lm && $(ZXV_TMP)/test_navport > $(ZXV_TMP)/test_navport.log 2>&1 && echo "[PASS] test_navport ($$(tail -1 $(ZXV_TMP)/test_navport.log))" || { tail -40 $(ZXV_TMP)/test_navport.log; echo "[FAIL] test_navport"; exit 1; }
+	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/navport_sim.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/navport_sim -lm && $(ZXV_TMP)/navport_sim > $(ZXV_TMP)/navport_sim.md 2>&1 && echo "[PASS] navport_sim ($$(tail -1 $(ZXV_TMP)/navport_sim.md))" || { tail -40 $(ZXV_TMP)/navport_sim.md; echo "[FAIL] navport_sim"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
+	$(MAKE) --no-print-directory test-jroute
+	$(MAKE) --no-print-directory test-jringress
 	$(MAKE) --no-print-directory test-vswap
 	$(MAKE) --no-print-directory test-sicily
 	$(MAKE) --no-print-directory test-recovery
@@ -2105,6 +2238,7 @@ test-econ:
 	$(MAKE) --no-print-directory test-mint
 	$(MAKE) --no-print-directory test-qnote
 	$(MAKE) --no-print-directory test-fxepoch
+	$(MAKE) --no-print-directory test-navport
 # ==== end economy modules ====
 
 # ==== AIRC: agent relay chat over the post-quantum mesh (src/airc, docs/AIRC.md) ====

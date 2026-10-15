@@ -208,7 +208,8 @@ int dimfold_band_count(int n){ int b = 0; while ((1 << b) < n) b++; return b + 1
 void dimfold_band_range(int n, int band, int *lo, int *hi){
     if (band <= 0){ *lo = 0; *hi = (n >= 1) ? 1 : 0; return; }
     int l = 1 << (band - 1), h = 1 << band;
-    if (l > n) l = n; if (h > n) h = n;
+    if (l > n) l = n;
+    if (h > n) h = n;
     *lo = l; *hi = h;
 }
 
@@ -351,7 +352,9 @@ int dimfold_selfcheck(uint32_t *ratio_permille_out){
     { int lo, hi, expect = 1; dimfold_band_range(256, 0, &lo, &hi);
       if (!(lo == 0 && hi == 1)) bands_ok = 0;
       for (int b = 1; b < 9; b++){ dimfold_band_range(256, b, &lo, &hi);
-          if (lo != expect) bands_ok = 0; expect = hi; }
+          if (lo != expect) bands_ok = 0;
+          expect = hi;
+      }
       if (expect != 256) bands_ok = 0; }
 
     static uint8_t gfx[400], txt[300], bin[200];

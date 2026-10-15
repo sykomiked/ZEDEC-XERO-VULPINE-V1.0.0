@@ -73,7 +73,8 @@ const char *elf_strerror(elf_result_t r) {
         case ELF_ERR_CLASS:   return "not ELF64";
         case ELF_ERR_ENDIAN:  return "not little-endian";
         case ELF_ERR_TYPE:    return "not a static executable (ET_EXEC)";
-        case ELF_ERR_MACHINE: return "not AArch64";
+        case ELF_ERR_MACHINE:
+            return "wrong machine for this architecture";
         case ELF_ERR_PHNUM:   return "bad program-header count";
         case ELF_ERR_WX:      return "segment is both writable and executable";
         case ELF_ERR_RANGE:   return "segment outside allowed address window";
@@ -85,7 +86,14 @@ const char *elf_strerror(elf_result_t r) {
 
 elf_result_t elf_load(const uint8_t *image, uint64_t len,
                       elf_map_fn map, void *ctx, uint64_t *entry_out) {
-    if (!image || !map || len < sizeof(elf64_ehdr_t)) return ELF_ERR_SHORT;
+    static const elf_target_t aarch64 = {EM_AARCH64, ELF_VA_MIN, ELF_VA_MAX};
+    return elf_load_target(&aarch64, image, len, map, ctx, entry_out);
+}
+
+elf_result_t elf_load_target(const elf_target_t *target, const uint8_t *image, uint64_t len,
+                             elf_map_fn map, void *ctx, uint64_t *entry_out)
+{
+    if (!target || !image || !map || len < sizeof(elf64_ehdr_t)) return ELF_ERR_SHORT;
 
     /* --- ELF identification --- */
     if (!(image[0] == 0x7f && image[1] == 'E' &&
@@ -101,7 +109,7 @@ elf_result_t elf_load(const uint8_t *image, uint64_t len,
     uint16_t e_phnum     = rd16(image + 56);
 
     if (e_type != ET_EXEC)      return ELF_ERR_TYPE;
-    if (e_machine != EM_AARCH64) return ELF_ERR_MACHINE;
+    if (e_machine != target->machine) return ELF_ERR_MACHINE;
     if (e_phnum == 0 || e_phnum > MAX_PHNUM) return ELF_ERR_PHNUM;
     if (e_phentsize < sizeof(elf64_phdr_t)) return ELF_ERR_PHNUM;
 
@@ -137,9 +145,9 @@ elf_result_t elf_load(const uint8_t *image, uint64_t len,
         if (w && x) return ELF_ERR_WX;
 
         /* address window check (overflow-safe) */
-        if (p_vaddr < ELF_VA_MIN) return ELF_ERR_RANGE;
+        if (p_vaddr < target->va_min) return ELF_ERR_RANGE;
         if (p_vaddr + p_memsz < p_vaddr) return ELF_ERR_RANGE;
-        if (p_vaddr + p_memsz > ELF_VA_MAX) return ELF_ERR_RANGE;
+        if (p_vaddr + p_memsz > target->va_max) return ELF_ERR_RANGE;
 
         elf_segment_t seg;
         seg.vaddr = p_vaddr;

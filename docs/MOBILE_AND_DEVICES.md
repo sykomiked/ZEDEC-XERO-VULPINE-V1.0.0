@@ -191,7 +191,7 @@ These are the honest gaps as of this version:
   - The JNI glue compiles for arm64.
   - It links with the core into a shared library that has no undefined symbols.
 - **The iOS app has not been built.** It needs Xcode on a Mac, which this build machine does not have. `mobile/ios` is a Swift package written to the same C API, but no compiler has checked it.
-- **The internet carrier is not bridged.** The apps carry frames over UDP on the local network. Over the internet, frames are meant to go through Carracho or EHOP, and the core already gives a session key for EHOP. This is not connected in the apps yet.
+- **The internet carrier is not bridged.** The apps carry frames over UDP on the local network. Over the internet, frames are meant to go through Vinea or EHOP, and the core already gives a session key for EHOP. This is not connected in the apps yet.
 - **Metadata hiding:** device and mesh IDs and traffic timing are visible to anyone on the same network.
 - **Sybil limits in the market:** the anti-monopoly cap counts providers, not people. Someone running many provider identities could get around it. Fixing this needs the identity layer (`kernel/src/ident`) or stake, and that is not done.
 - **No agreement on order sets:** clearing is the same everywhere for the same orders, and the round digest lets two parties compare. But nothing yet makes sure every participant sees the same set of orders, and the gossip and signing of orders is left to the caller.

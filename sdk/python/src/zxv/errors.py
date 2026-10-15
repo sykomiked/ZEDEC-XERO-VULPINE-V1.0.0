@@ -263,7 +263,7 @@ class RequestExpiredError(ZxvRefusedError):
 class ChanceOutcomeError(ZxvRefusedError):
     """``ZXV_E_CHANCE`` (ABI 1.6): a LIVE payment request marked as a paid
     chance outcome (loot boxes, paid draws). Such requests are never encoded
-    or accepted. The raffle is a separate module, not a payment request."""
+    or accepted. The allotment is a separate module, not a payment request."""
 
 
 class ZxvSystemError(ZxvError):

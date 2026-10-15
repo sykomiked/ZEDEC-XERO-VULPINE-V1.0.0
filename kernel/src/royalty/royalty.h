@@ -61,7 +61,7 @@
  *      the payer a net DEBIT gain of at least `gross` (the payer received at
  *      least the gross it declares). A receipt id is consumed once
  *      (ROY_ERR_DUP), and so is the hash of every royalty posting this
- *      module makes, so a royalty payout can never be presented as a sale.
+ *      module makes, so a royalty disbursement can never be presented as a sale.
  *      0 < gross < PAY_BAL_MAX.
  *   R6 ROYALTY. PERCENT: R = floor(gross * num / den) (the remainder is not
  *      royalty: it stays with the payer). FLAT: R = flat and gross >= flat
@@ -79,7 +79,7 @@
  *      the lower owner index; so sum q_j == k exactly.
  *          R == fee + sum_i k_i == fee + sum over owners of their gross.
  *   R8 GIVING / INVESTING, OPT-IN. Each owner may direct giving_bps and
- *      invest_bps (sum <= 10000) of their own payout to a giving account and
+ *      invest_bps (sum <= 10000) of their own disbursement to a giving account and
  *      an investing account of their choosing (routing only: what the
  *      investing account buys is out of scope). DEFAULT 0: nothing is
  *      diverted unless the owner signs roy_split_msg:
@@ -159,7 +159,8 @@
 #define ROY_MAX_DEPTH    8u /* R2: ancestors of a work */
 #define ROY_MAX_LEVELS   (ROY_MAX_DEPTH + 1u)
 #define ROY_MAX_PAYOUTS  (ROY_MAX_LEVELS * ROY_MAX_OWNERS)
-#define ROY_MAX_RECEIPTS 1024u /* R5: consumed ids (sales and payouts) */
+#define ROY_MAX_DISBURSEMENTS ROY_MAX_PAYOUTS /* mutual-aid name; ABI name stays */
+#define ROY_MAX_RECEIPTS      1024u           /* R5: consumed ids (sales and disbursements) */
 #define ROY_BPS          10000u
 #define ROY_ID_LEN       32u
 #define ROY_DIGEST_LEN   32u
@@ -250,6 +251,7 @@ typedef struct {
     uint32_t account, giving_acct, invest_acct;
     uint64_t gross, giving, investing, net;
 } roy_payout_t;
+typedef roy_payout_t roy_disbursement_t; /* mutual-aid name; ABI name stays */
 
 typedef struct {
     uint32_t work; /* index */

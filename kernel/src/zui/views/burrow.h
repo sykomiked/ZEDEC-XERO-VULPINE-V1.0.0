@@ -1,8 +1,8 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* burrow.h — Burrow's native screen (zv.h): the folder as a list, the
+/* burrow.h — the Banker's native screen (zv.h): the folder as a list, the
  * selected item's details and actions, the Trash, and AI help, over the
- * Burrow model (burrow_model.h). */
+ * Banker model (burrow_model.h). */
 #ifndef ZXV_VIEW_BURROW_H
 #define ZXV_VIEW_BURROW_H
 

@@ -131,15 +131,13 @@ cp "$ROOT/icap_out/uefi_arm64.png"   "$OUT/screendumps/arm64_uefi_gop_BLTONLY_bl
 cp "$ROOT/icap_out/uefi_x86_64.png"  "$OUT/screendumps/x86_64_uefi_ovmf_firmware_console.png"
 
 # ---------------------------------------------------------------------------
-# 6. docs/ — all PROVENANCE/*.md + two matrices + key top-level context docs +
+# 6. docs/ — the master architecture doc and system reference + two matrices +
 #    the capture scripts used to produce the screendumps (reference).
 # ---------------------------------------------------------------------------
 echo "[6] docs/ ..."
-mkdir -p "$OUT/docs/PROVENANCE" "$OUT/docs/capture"
-cp "$ROOT"/PROVENANCE/*.md "$OUT/docs/PROVENANCE/"
-cp "$ROOT/ARCHITECTURE_WHITEPAPER.md" "$OUT/docs/" 2>/dev/null || true
-cp "$ROOT/SUBSYSTEM_INDEX.md"         "$OUT/docs/" 2>/dev/null || true
-cp "$ROOT/SOURCE_CODE_NAVIGATION_GUIDE.md" "$OUT/docs/" 2>/dev/null || true
+mkdir -p "$OUT/docs/capture"
+cp "$ROOT/docs/ARCHITECTURE.md"     "$OUT/docs/"
+cp "$ROOT/docs/SYSTEM_REFERENCE.md" "$OUT/docs/"
 cp "$ROOT/icap.py"      "$OUT/docs/capture/" 2>/dev/null || true
 cp "$ROOT/icap_uefi.py" "$OUT/docs/capture/" 2>/dev/null || true
 

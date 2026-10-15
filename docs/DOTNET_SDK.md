@@ -340,12 +340,12 @@ if (zxv.Supports(ZxvFeatures.Netting)) { /* ... */ }
 | Ledger, pacs.008, camt.053 | live | iso20022, finance/triple_ledger, vino_stores |
 | ISO 4217 table, AU membership | live | cbank/cb_ccy |
 | PAN check digits (Damm, Luhn, Verhoeff) | live | cardnet/cn_check |
-| pacs.002, pacs.004, pacs.009, camt.056, camt.029 | pending, `ZxvFeatureNotAvailableException` | cbank/cb_mx |
+| pacs.002, pacs.004, pacs.009, camt.056, camt.029 | pending, `ZxvFeatureNotAvailableException`: `kernel/src/cbank/cb_mx.c` is built and tested (`test_cb_mx.c`), but `sdk/libzxv/src/zxv_api.c` does not bind it yet | cbank/cb_mx |
 | Netting cycles (net of the obligations; no liquidity limit, no screening, in memory) | live | cbank/cb_net |
 | Card issue, reissue, authorize | pending | cardnet |
 | VSS conformance checks | pending | cbank/cb_vss |
 
-When those modules land, only `sdk/libzxv/src` changes; the C ABI, the SDK
+When libzxv binds those modules, only `sdk/libzxv/src` changes; the C ABI, the SDK
 API and the gateway contract stay the same.
 
 ## The operator gateway sample

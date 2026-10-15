@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# zxvd's share of one CPU, x100 (1234 = 12.34%): microseconds of CPU per
+# millisecond of wall time, times 10, as tidewatch_model.c works it out.
+record cpu-share
+  cpu: 9(18)
+  ms: 9(18)
+  share: 9(9)
+procedure
+  compute share = cpu * 10 / ms
+  answer share

@@ -9,6 +9,7 @@
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -22,6 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <wchar.h>
 #include <stdint.h>
 
@@ -37,6 +39,28 @@
 
 #include "zxv_files.h"
 #include "zxv_spaces.h"
+#include "zxv_sysinfo.h"
+#include "zxvd_log.h"
+#include "zxv_search.h"
+#include "zxv_print_host.h"
+#include "zxv_keepsake.h"
+#include "zxv_journal.h"
+#include "zxv_screen.h"
+#include "zxv_place.h"
+#include "test_fake_device.h"
+#include "web4_web2.h"
+
+/* Appends to b at *k, never past cap - 1: *k stops at the end when the text
+ * does not fit. */
+static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
+{
+    if (*k < 0 || (size_t) *k + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(b + *k, cap - (size_t) *k, fmt, ap);
+    va_end(ap);
+    if (r > 0) *k = (size_t) r < cap - (size_t) *k ? *k + r : (int) cap - 1;
+}
 
 /* the module methods (zxvd_rpc_modules.h), listed after zxvd's own */
 #define MODS                                                                                       \
@@ -516,10 +540,21 @@ static void test_host_methods(void)
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
            "\"phone.list\",\"phone.revoke\","
-           "\"play.catalogue\",\"play.run\",\"play.draft\"," PEOPLE_M ","
+           "\"play.catalogue\",\"play.run\",\"play.draft\","
+           "\"sys.info\",\"sys.disk\",\"sys.net\","
+           "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
+           "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
+           "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
+           "\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\",\"place.add\","
+           "\"place.remove\",\"search.refresh\",\"search.query\","
+           "\"print.status\",\"print.submit\","
+           "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
+           "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
+           "\"backup.prune\"," PEOPLE_M ","
            /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
            MODS "]"
            "}"));
+
     stopped = 0;
     EXPECT(REQ("12", "zxvd.shutdown", ""), OK("12", "{\"stopping\":true}"));
     CHECK(stopped == 1, "shutdown reaches the host");
@@ -556,6 +591,17 @@ static void test_host_methods(void)
 
 /* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
 
+/* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
+ * Waymark, Scent, Platen and Keepsake */
+#define ZXVD_MINE_TAIL                                                                             \
+    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
+    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
+    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
+    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
+    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","         \
+    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","              \
+    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","     \
+    "\"backup.prune\","
 #define FERR(id, msg) ERR(id, "-32014", msg)
 #define SERR(id, msg) ERR(id, "-32013", msg)
 #define SPS(id, kind, name, owner, role, view, write, pub, members, self)                          \
@@ -638,9 +684,9 @@ static void test_spaces_methods(void)
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"attic\",\"name\":\"x\"}"),
            ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"a\\nb\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
 
     /* files in a space stay in it */
     EXPECT(REQ("3", "files.write",
@@ -657,7 +703,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("3", "files.read", ",\"params\":{\"path\":\"plan.txt\"}"),
            FERR("3", "no such file or folder"));
     EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\".spaces/studio-a/x\",\"text\":\"\"}"),
-           FERR("3", "not a valid name or path in the ZXV folder"));
+           FERR("3", "not a valid name or path in the Hoard"));
     EXPECT(REQ("3", "files.trash", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
            OK("3", "{\"trashed\":\".Trash/plan.txt\",\"removed\":false}"));
     EXPECT(REQ("3", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
@@ -681,7 +727,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"me\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"owner\"}"),
@@ -689,7 +735,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"home\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "files.list", ",\"params\":{\"space\":\"crew\"}"),
            OK("4", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("4", "files.write", ",\"params\":{\"space\":\"crew\",\"path\":\"a\",\"text\":\"\"}"),
@@ -1102,7 +1148,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"../x\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
-           FERR("6", "not a valid name or path in the ZXV folder"));
+           FERR("6", "not a valid name or path in the Hoard"));
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"nope\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
@@ -2968,7 +3014,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x."
               "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
               "\"zxvd.version\"]}"),
@@ -3002,7 +3048,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
@@ -3015,7 +3061,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
@@ -3039,7 +3085,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
@@ -3056,7 +3102,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
@@ -3123,7 +3169,7 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"," PEOPLE_M "," MODS "]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"backup.prune\"," PEOPLE_M "," MODS "]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");
@@ -3552,7 +3598,7 @@ static void test_groups(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");
@@ -3812,7 +3858,7 @@ static void test_files_methods(void)
     EXPECT(REQ("1", "files.root", ""), want);
     EXPECT(REQ("2", "files.list", ""), OK("2", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":\"..\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":7}"),
            ERR("2", "-32602", "\\\"path\\\" must be a string of at most 1024 bytes"));
     /* write, read back, stat */
@@ -3958,11 +4004,2424 @@ static void test_files_methods(void)
     char bad[260];
     snprintf(bad, sizeof bad, "%s/b.bin", root);
     CHECK(zxf_set_root(bad) == ZXF_E_ROOT, "a file is no root");
-    EXPECT(REQ("14", "files.root", ""), FERR("14", "the ZXV folder cannot be found or made"));
-    EXPECT(REQ("14", "files.empty_trash", ""),
-           FERR("14", "the ZXV folder cannot be found or made"));
+    EXPECT(REQ("14", "files.root", ""), FERR("14", "the Hoard cannot be found or made"));
+    EXPECT(REQ("14", "files.empty_trash", ""), FERR("14", "the Hoard cannot be found or made"));
     CHECK(zxf_set_root(root) == 0, "root back");
     CHECK(rm_tree(root) == 0, "cleanup");
+}
+
+/* ---------------- sys.* and log.* (zxv_sysinfo.h, zxvd_log.h) ---------------- */
+
+static void test_sys_and_log(void)
+{
+    char root[200], want[260];
+    snprintf(root, sizeof root, "%s/zxvd-sys-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0, "root set");
+
+    zsi_host_t h;
+    zsi_self_t me;
+    zsi_disk_t d;
+    CHECK(zsi_host(&h) == 0 && h.cpus > 0 && h.mem_total > 0 && h.arch[0] && h.os[0],
+          "host facts: %u cpus, %llu bytes", h.cpus, (unsigned long long) h.mem_total);
+#if defined(__linux__)
+    CHECK(!strcmp(h.os, "linux") && h.uptime_s > 0 && h.mem_avail > 0 &&
+              h.mem_avail <= h.mem_total && h.load_x100[0] >= 0,
+          "linux: uptime, available memory, load");
+#elif defined(__APPLE__)
+    CHECK(!strcmp(h.os, "macos") && h.uptime_s > 0 && h.mem_avail > 0, "macos facts");
+#endif
+    CHECK(zsi_self(&me) == 0 && me.pid == (uint64_t) getpid() && me.max_rss_bytes > 0,
+          "zxvd itself");
+    CHECK(zsi_disk(root, &d) == 0 && d.total > 0 && d.free <= d.total && d.avail <= d.total,
+          "the volume");
+    CHECK(zsi_disk("/no/such/place/zxv", &d) == -1 && d.total == 0, "no volume");
+
+    snprintf(want, sizeof want, "\"zxvd\":{\"pid\":%llu,", (unsigned long long) getpid());
+    CHECK(has(REQ("1", "sys.info", ""), want) && has(REQ("1", "sys.info", ""), "\"cpus\":") &&
+              !has(REQ("1", "sys.info", ""), "\"cpus\":0,"),
+          "sys.info: %s", OUT.p);
+    snprintf(want, sizeof want, "{\"path\":\"%s\",\"total\":", root);
+    CHECK(has(REQ("2", "sys.disk", ""), want), "sys.disk: %s", OUT.p);
+#if defined(__linux__) || defined(__APPLE__)
+    CHECK(has(REQ("3", "sys.net", ""), ",\"supported\":true,\"interfaces\":[") &&
+              has(REQ("3", "sys.net", ""), "\"loopback\":true,\"addresses\":[\"127.0.0.1\"") &&
+              has(REQ("3", "sys.net", ""), "],\"rpc\":{\"requests\":"),
+          "sys.net: %s", OUT.p);
+    {
+        static zsi_if_t ifs[2];
+        uint32_t n = 9;
+        CHECK(zsi_interfaces(ifs, 0, &n) == 0 && n == 0, "no room: none listed");
+        CHECK(zsi_interfaces(ifs, 2, &n) == 0 && n >= 1 && n <= 2, "listed: %u", n);
+    }
+#endif
+
+    /* the log: refusals and changes, not polls */
+    zxvd_log_reset();
+    EXPECT(REQ("4", "spaces.get", ",\"params\":{\"space\":\"nope\"}"),
+           ERR("4", "-32013", "no such space"));
+    CHECK(has(REQ("4", "files.list", ""), "\"entries\":[]"), "a poll");
+    CHECK(has(REQ("4", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"Green\"}"),
+              "\"id\":\"green\""),
+          "a change");
+    rpc("{\"jsonrpc\":\"2.0\",\"method\":\"nope.nope\"}"); /* a notification: no reply */
+    rpc("not json");
+    zxvd_traffic_t tr;
+    zxvd_traffic_get(&tr);
+    CHECK(tr.requests == 5 && tr.errors == 3 && tr.bytes_in > 50 && tr.bytes_out > 50,
+          "traffic: %llu requests, %llu errors", (unsigned long long) tr.requests,
+          (unsigned long long) tr.errors);
+    CHECK(zxvd_log_last() == 4, "four events: %llu", (unsigned long long) zxvd_log_last());
+    const char *l = rpc(REQ("5", "log.tail", ""));
+    CHECK(
+        strstr(l, "{\"seq\":1,\"time_ms\":") &&
+            strstr(l, "\"level\":\"warn\",\"source\":\"rpc\",\"text\":\"spaces.get refused "
+                      "(-32013): no such space\"}") &&
+            strstr(l, "\"level\":\"info\",\"source\":\"rpc\",\"text\":\"spaces.create done in ") &&
+            strstr(l, "\"text\":\"(no method) refused (-32601): method not found\"") &&
+            strstr(l, "\"text\":\"(no method) refused (-32700): parse error\"") &&
+            !strstr(l, "files.list") && strstr(l, "],\"next\":4,\"dropped\":0}"),
+        "log.tail: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"level\":\"warn\",\"since\":1}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":3,") && !strstr(l, "spaces.create") &&
+              strstr(l, "\"next\":4,"),
+          "warnings after 1: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"max\":1}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":1,") && strstr(l, "],\"next\":1,"), "one: %s", l);
+    l = rpc(REQ("5", "log.tail", ",\"params\":{\"level\":\"error\"}"));
+    CHECK(strstr(l, "{\"entries\":[],\"next\":"), "no errors: %s", l);
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"max\":0}"),
+           ERR("5", "-32602", "\\\"max\\\" must be 1 to 256"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"max\":257}"),
+           ERR("5", "-32602", "\\\"max\\\" must be 1 to 256"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"level\":\"debug\"}"),
+           ERR("5", "-32602", "\\\"level\\\" must be info, warn or error"));
+    EXPECT(REQ("5", "log.tail", ",\"params\":{\"since\":-1}"),
+           ERR("5", "-32602", "\\\"since\\\" must not be negative"));
+
+    /* the ring: old events drop, the reader is told how many */
+    zxvd_log_reset();
+    for (int i = 0; i < 600; i++) zxvd_log(ZXVD_LOG_INFO, "test", "event %d", i);
+    static zxvd_log_entry_t e[4];
+    uint64_t dropped;
+    CHECK(zxvd_log_tail(0, 4, ZXVD_LOG_INFO, e, &dropped) == 4 && dropped == 88 && e[0].seq == 89 &&
+              !strcmp(e[0].text, "event 88") && e[3].seq == 92,
+          "dropped %llu, first %llu", (unsigned long long) dropped, (unsigned long long) e[0].seq);
+    CHECK(zxvd_log_tail(598, 4, ZXVD_LOG_INFO, e, &dropped) == 2 && dropped == 0 && e[1].seq == 600,
+          "the newest");
+    CHECK(zxvd_log_tail(600, 4, ZXVD_LOG_INFO, e, &dropped) == 0, "nothing newer");
+    /* text: control characters become spaces, long text is cut whole characters */
+    zxvd_log_reset();
+    zxvd_log(ZXVD_LOG_ERROR, "a-source-longer-than-fifteen", "a\nb\tc\x7f");
+    char big[400];
+    memset(big, 'x', sizeof big);
+    memcpy(big + 158, "\xc3\xa9\xc3\xa9", 4); /* é é across the 160-byte cut */
+    big[sizeof big - 1] = 0;
+    zxvd_log(ZXVD_LOG_WARN, NULL, "%s", big);
+    CHECK(zxvd_log_tail(0, 4, ZXVD_LOG_INFO, e, &dropped) == 2 && !strcmp(e[0].text, "a b c ") &&
+              !strcmp(e[0].source, "a-source-longer") && e[0].level == ZXVD_LOG_ERROR &&
+              strlen(e[1].text) == 160 && !strcmp(e[1].text + 158, "\xc3\xa9") &&
+              e[1].source[0] == 0,
+          "clean text: [%s] %zu", e[0].text, strlen(e[1].text));
+    CHECK(!strcmp(zxvd_log_level_name(ZXVD_LOG_WARN), "warn") &&
+              !strcmp(zxvd_log_level_name((zxvd_log_level_t) 7), "error"),
+          "level names");
+    uint64_t a = zxvd_mono_us(), b = zxvd_mono_us();
+    CHECK(b >= a && zxvd_now_ms() > 1700000000000ull, "clocks");
+
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
+/* well-formed JSON, so a stray or missing comma is caught */
+static bool json_ok(const char *s)
+{
+    static w4_jtok_t t[4096];
+    return w4_json_parse(s, (uint32_t) strlen(s), t, 4096, 16) > 0;
+}
+
+static void test_sys_shapes(void)
+{
+    char want[512];
+    /* load: the same three numbers zsi_host reads, or null; retried while it moves */
+    bool load_ok = false;
+    for (int tries = 0; tries < 5 && !load_ok; tries++) {
+        zsi_host_t a, b;
+        zsi_host(&a);
+        const char *r = rpc(REQ("1", "sys.info", ""));
+        zsi_host(&b);
+        if (memcmp(a.load_x100, b.load_x100, sizeof a.load_x100)) continue;
+        if (a.load_x100[0] < 0)
+            snprintf(want, sizeof want, ",\"load\":null,");
+        else
+            snprintf(want, sizeof want, ",\"load\":[%d,%d,%d],", (int) a.load_x100[0],
+                     (int) a.load_x100[1], (int) a.load_x100[2]);
+        load_ok = strstr(r, want) && json_ok(r);
+    }
+    CHECK(load_ok, "sys.info load: %s", OUT.p);
+    CHECK(json_ok(rpc(REQ("1", "sys.disk", ""))) || strstr(OUT.p, "\"error\""), "sys.disk JSON");
+
+#if defined(__linux__) || defined(__APPLE__)
+    /* sys.net: every interface, in order, with every address */
+    static zsi_if_t ifs[32];
+    uint32_t n = 0;
+    CHECK(zsi_interfaces(ifs, 32, &n) == 0 && n >= 1, "interfaces: %u", n);
+    const char *r = rpc(REQ("2", "sys.net", ""));
+    CHECK(json_ok(r), "sys.net is JSON: %s", r);
+    const char *at = r;
+    uint32_t names = 0;
+    for (const char *q = r; (q = strstr(q, "{\"name\":")); q++) names++;
+    CHECK(names == n, "%u interfaces listed, %u known", names, n);
+    for (uint32_t i = 0; i < n; i++) {
+        int k =
+            snprintf(want, sizeof want,
+                     "%s{\"name\":\"%s\",\"up\":%s,\"loopback\":%s,\"addresses\":[", i ? "," : "[",
+                     ifs[i].name, ifs[i].up ? "true" : "false", ifs[i].loopback ? "true" : "false");
+        for (uint32_t a = 0; a < ifs[i].naddr; a++)
+            catf(want, sizeof want, &k, "%s\"%s\"", a ? "," : "", ifs[i].addr[a]);
+        snprintf(want + k, sizeof want - (size_t) k, "],\"rx_bytes\":%s",
+                 ifs[i].counters ? "" : "null");
+        const char *f = strstr(at, want);
+        CHECK(f != NULL, "interface %u in order: %s", i, want);
+        if (f) at = f + 1;
+    }
+#endif
+
+    /* traffic: a notification sends nothing back; busy time is a duration */
+    zxvd_traffic_t t0, t1;
+    zxvd_traffic_get(&t0);
+    rpc("{\"jsonrpc\":\"2.0\",\"method\":\"files.list\"}");
+    zxvd_traffic_get(&t1);
+    CHECK(t1.requests == t0.requests + 1 && t1.bytes_out == t0.bytes_out &&
+              t1.bytes_in > t0.bytes_in && t1.busy_us - t0.busy_us < 10000000u,
+          "a notification: %llu bytes out, %llu us",
+          (unsigned long long) (t1.bytes_out - t0.bytes_out),
+          (unsigned long long) (t1.busy_us - t0.busy_us));
+
+    /* "done in N ms" counts milliseconds */
+    zxvd_log_reset();
+    rpc(REQ("3", "spaces.create", ",\"params\":{\"kind\":\"park\",\"name\":\"Shapes\"}"));
+    static zxvd_log_entry_t e[2];
+    uint64_t dropped;
+    unsigned long ms = 99999;
+    CHECK(zxvd_log_tail(0, 2, ZXVD_LOG_INFO, e, &dropped) == 1 &&
+              sscanf(e[0].text, "spaces.create done in %lu ms", &ms) == 1 && ms < 1000,
+          "duration: %s", e[0].text);
+
+    /* log.tail: 100 by default, 256 at most */
+    zxvd_log_reset();
+    for (int i = 0; i < 300; i++) zxvd_log(ZXVD_LOG_INFO, "test", "event %d", i);
+    const char *l = rpc(REQ("4", "log.tail", ""));
+    CHECK(strstr(l, "{\"seq\":100,") && !strstr(l, "{\"seq\":101,") && strstr(l, "\"next\":100,") &&
+              json_ok(l),
+          "default 100: %.80s", l);
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"max\":256}"));
+    CHECK(strstr(l, "{\"seq\":256,") && !strstr(l, "{\"seq\":257,") && strstr(l, "\"next\":256,"),
+          "max 256: %.80s", l);
+    /* a filter that skips the rest: next is the last event held */
+    zxvd_log(ZXVD_LOG_WARN, "test", "the one warning");
+    zxvd_log(ZXVD_LOG_INFO, "test", "after it");
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"level\":\"warn\",\"max\":5}"));
+    CHECK(strstr(l, "{\"entries\":[{\"seq\":301,") && strstr(l, "],\"next\":302,"), "skip: %s", l);
+    l = rpc(REQ("4", "log.tail", ",\"params\":{\"since\":900}"));
+    CHECK(strstr(l, "{\"entries\":[],\"next\":900,"), "since ahead: %s", l);
+}
+
+static void put(const char *path, const char *text, size_t n)
+{
+    uint64_t size;
+    CHECK(zxf_write(path, (const uint8_t *) text, (uint32_t) n, ZXF_W_REPLACE, false, &size) == 0,
+          "write %s", path);
+}
+#define PUT(p, lit) put(p, lit, sizeof lit - 1)
+
+static void test_search(void)
+{
+    char root[200];
+    snprintf(root, sizeof root, "%s/zxvd-search-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    zsr_reset();
+    CHECK(zxf_mkdir("notes") == 0 && zxf_mkdir("photos") == 0, "folders");
+    PUT("notes/harvest.md", "The Harvest moon rises\tover the vineyard.\nharvest, HARVEST!");
+    PUT("notes/recipe.txt", "Bread: flour, water, salt.");
+    PUT("photos/pic.png", "\x89PNG\r\n\x1a\n\0\0\0\rIHDR harvest");
+    PUT("Vineyard plan.txt", "rows of grapes, caf\xc3\xa9 by the gate");
+    PUT("old.txt", "harvest of last year");
+    char trashed[ZXF_PATH_MAX + 1];
+    CHECK(zxf_trash("old.txt", trashed, sizeof trashed) == 0, "into the Trash");
+
+    zsr_stats_t st;
+    CHECK(zsr_refresh(&st) == 0 && st.files == 4 && st.text_files == 3 && st.added == 4 &&
+              st.changed == 0 && st.removed == 0 && st.left_out == 0,
+          "first refresh: %u files, %u text, %u added", st.files, st.text_files, st.added);
+
+    static zsr_hit_t h[ZSR_HITS_MAX];
+    uint32_t n, total;
+    /* a prefix, in a name and the text; the Trash and binary text are not searched */
+    CHECK(
+        zsr_query("harv", h, 10, &n, &total) == 0 && n == 1 && total == 1 &&
+            !strcmp(h[0].path, "notes/harvest.md") && h[0].in_name && h[0].score == 1003 &&
+            !strcmp(h[0].snippet, "The Harvest moon rises over the vineyard. harvest, HARVEST!") &&
+            h[0].size == 59,
+        "harv: %u %u %s %u [%s]", n, total, n ? h[0].path : "", n ? h[0].score : 0,
+        n ? h[0].snippet : "");
+    /* a name ranks above the text */
+    CHECK(zsr_query("Vineyard", h, 10, &n, &total) == 0 && n == 2 && total == 2 &&
+              !strcmp(h[0].path, "Vineyard plan.txt") && h[0].in_name && h[0].score == 1000 &&
+              h[0].snippet[0] == 0 && !strcmp(h[1].path, "notes/harvest.md") && !h[1].in_name &&
+              h[1].score == 1 && strstr(h[1].snippet, "vineyard."),
+          "vineyard: %u %s %u", n, n ? h[0].path : "", n ? h[0].score : 0);
+    CHECK(zsr_query("vineyard", h, 1, &n, &total) == 0 && n == 1 && total == 2 &&
+              !strcmp(h[0].path, "Vineyard plan.txt"),
+          "the best one");
+    /* a folder's name */
+    CHECK(zsr_query("notes", h, 10, &n, &total) == 0 && n == 2 && h[0].score == 100 &&
+              !strcmp(h[0].path, "notes/harvest.md") && !strcmp(h[1].path, "notes/recipe.txt") &&
+              !h[0].in_name,
+          "notes: %u", n);
+    /* every term */
+    CHECK(zsr_query("flour SALT", h, 10, &n, &total) == 0 && n == 1 && h[0].score == 2 &&
+              !strcmp(h[0].snippet, "Bread: flour, water, salt."),
+          "flour salt: %u [%s]", n, n ? h[0].snippet : "");
+    CHECK(zsr_query("flour grapes", h, 10, &n, &total) == 0 && n == 0 && total == 0, "not both");
+    CHECK(zsr_query("pic", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].path, "photos/pic.png"),
+          "a picture by name");
+    CHECK(zsr_query("ihdr", h, 10, &n, &total) == 0 && n == 0, "binary not read");
+    CHECK(zsr_query("caf\xc3\xa9", h, 10, &n, &total) == 0 && n == 1 && h[0].score == 1 &&
+              !strcmp(h[0].path, "Vineyard plan.txt"),
+          "UTF-8 words: %u", n);
+    CHECK(zsr_query("m", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].path, "notes/harvest.md"),
+          "one letter: names only");
+    CHECK(zsr_query("", h, 10, &n, &total) == ZXF_E_PATH &&
+              zsr_query(" ,; ", h, 10, &n, &total) == ZXF_E_PATH,
+          "no words");
+    CHECK(zsr_query("a b c d e f g h", h, 10, &n, &total) == 0 &&
+              zsr_query("a b c d e f g h i", h, 10, &n, &total) == ZXF_E_PATH,
+          "eight words at most");
+    {
+        char big[ZSR_QUERY_MAX + 2];
+        memset(big, 'a', sizeof big);
+        big[ZSR_QUERY_MAX] = 0;
+        CHECK(zsr_query(big, h, 10, &n, &total) == 0, "256 bytes");
+        big[ZSR_QUERY_MAX] = 'a';
+        big[ZSR_QUERY_MAX + 1] = 0;
+        CHECK(zsr_query(big, h, 10, &n, &total) == ZXF_E_PATH, "257 bytes");
+    }
+
+    /* long words: prefixes to 24 bytes, and the whole word */
+    PUT("long.txt", "x abcdefghijklmnopqrstuvwxyz0123 y");
+    CHECK(zsr_refresh(&st) == 0 && st.added == 1 && st.files == 5 && st.changed == 0, "one added");
+    CHECK(zsr_query("abcdefghijklmnopqrstuvwx", h, 10, &n, &total) == 0 && n == 1 &&
+              zsr_query("abcdefghijklmnopqrstuvwxyz0123", h, 10, &n, &total) == 0 && n == 1 &&
+              zsr_query("abcdefghijklmnopqrstuvwxy", h, 10, &n, &total) == 0 && n == 0,
+          "long words");
+    /* changes: only what changed is read again */
+    PUT("notes/recipe.txt", "Rye bread: rye flour, water, salt, caraway.");
+    CHECK(zxf_trash("long.txt", trashed, sizeof trashed) == 0, "trash one");
+    CHECK(zsr_refresh(&st) == 0 && st.changed == 1 && st.removed == 1 && st.added == 0 &&
+              st.files == 4,
+          "changed %u removed %u added %u files %u", st.changed, st.removed, st.added, st.files);
+    CHECK(zsr_query("caraway", h, 10, &n, &total) == 0 && n == 1 &&
+              !strcmp(h[0].snippet, "Rye bread: rye flour, water, salt, caraway."),
+          "the new text");
+    CHECK(zsr_refresh(&st) == 0 && st.changed == 0 && st.removed == 0 && st.added == 0,
+          "nothing new");
+
+    /* the snippet: from up to 40 bytes before, on whole characters, 120 at most */
+    {
+        char t[400];
+        int k = snprintf(t, sizeof t, "%s", "\xc3\xa9");
+        for (int i = 0; i < 25; i++) catf(t, sizeof t, &k, "ab ");
+        catf(t, sizeof t, &k, "needle");
+        for (int i = 0; i < 60; i++) catf(t, sizeof t, &k, "\xc3\xa9");
+        put("snip.txt", t, (size_t) k);
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("needle", h, 10, &n, &total) == 0 && n == 1,
+              "needle");
+        CHECK(!strncmp(h[0].snippet, " ab ab", 6) &&
+                  strstr(h[0].snippet, "needle") == h[0].snippet + 40 &&
+                  strlen(h[0].snippet) == 120,
+              "snippet [%s] %zu", h[0].snippet, strlen(h[0].snippet));
+        /* the first hit starts a word: "eedle" alone does not */
+        PUT("snip2.txt", "needles needle");
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("needle", h, 10, &n, &total) == 0 && n == 2 &&
+                  !strcmp(h[0].path, "snip2.txt") && h[0].score == 2 &&
+                  !strcmp(h[0].snippet, "needles needle") && !strcmp(h[1].path, "snip.txt"),
+              "two: [%s]", n ? h[0].snippet : "");
+        CHECK(zsr_query("eedle", h, 10, &n, &total) == 0 && n == 0, "mid-word is not a word");
+    }
+    /* a hit far into a long file, across a read's cut */
+    {
+        static char big[ZXF_READ_MAX + 64];
+        memset(big, 'z', sizeof big);
+        for (size_t i = 7; i < sizeof big; i += 8) big[i] = ' ';
+        memcpy(big + ZXF_READ_MAX - 3, " far", 4);
+        put("big.txt", big, sizeof big);
+        CHECK(zsr_refresh(&st) == 0 && zsr_query("far", h, 10, &n, &total) == 0 && n == 1 &&
+                  strstr(h[0].snippet, "far"),
+              "far: %u [%.20s]", n, n ? h[0].snippet : "");
+    }
+
+    /* too deep: left out */
+    {
+        char d[200] = "";
+        for (int i = 0; i < 33; i++) {
+            strcat(d, i ? "/d" : "d");
+            CHECK(zxf_mkdir(d) == 0, "deep %d", i);
+        }
+        CHECK(zsr_refresh(&st) == 0 && st.left_out == 1, "left out: %u", st.left_out);
+    }
+
+    /* each space its own index; four kept, the least used goes */
+    uint32_t files_home = st.files;
+    const char *sp[] = {"s1", "s2", "s3", "s4"};
+    for (int i = 0; i < 4; i++) {
+        CHECK(zxf_use_space(sp[i]) == 0, "space");
+        zsr_refresh(&st);
+        CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "not in %s", sp[i]);
+        if (i == 1) {
+            zxf_use_space("home"); /* home used again: s1 is now the least used */
+            CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 1, "home kept");
+        }
+    }
+    zxf_use_space("home");
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 1, "home still kept");
+    zxf_use_space("s1");
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "s1 gone");
+    zxf_use_space("home");
+    CHECK(zsr_refresh(&st) == 0 && st.files == files_home && st.added == 0, "home: %u", st.added);
+
+    /* over zxvd */
+    zxvd_log_reset();
+    const char *r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"harv\"}"));
+    CHECK(
+        strstr(r, "{\"space\":\"home\",\"hits\":[{\"path\":\"notes/"
+                  "harvest.md\",\"size\":59,\"mtime\":") &&
+            strstr(r,
+                   ",\"in_name\":true,\"score\":1003,\"snippet\":\"The Harvest moon rises over the "
+                   "vineyard. harvest, HARVEST!\"}],\"total\":1}") &&
+            json_ok(r),
+        "search.query: %s", r);
+    r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"needle\",\"max\":1,\"refresh\":false}"));
+    CHECK(strstr(r, "\"hits\":[{\"path\":\"snip2.txt\",") && strstr(r, "}],\"total\":2}"),
+          "max 1: %s", r);
+    r = rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"needle\",\"max\":100}"));
+    CHECK(strstr(r, "\"path\":\"snip2.txt\",") && strstr(r, "},{\"path\":\"snip.txt\","), "two: %s",
+          r);
+    r = rpc(REQ("1", "search.refresh", ""));
+    CHECK(strstr(r, "{\"space\":\"home\",\"files\":") &&
+              strstr(r, ",\"added\":0,\"changed\":0,\"removed\":0,\"left_out\":1}"),
+          "search.refresh: %s", r);
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"max\":0}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 100"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"max\":101}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 100"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"--\"}"),
+           ERR("1", "-32602", "\\\"q\\\" needs 1 to 8 words"));
+    EXPECT(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"refresh\":1}"),
+           ERR("1", "-32602", "\\\"refresh\\\" must be true or false"));
+    CHECK(has(REQ("1", "search.query", ""), "-32602"), "q required: %s", OUT.p);
+    CHECK(has(REQ("1", "search.query", ",\"params\":{\"q\":\"x\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space: %s", OUT.p);
+    CHECK(has(REQ("1", "search.refresh", ",\"params\":{\"space\":\"nope\"}"), "no such space"),
+          "space: %s", OUT.p);
+    zxvd_log_reset();
+    rpc(REQ("1", "search.query", ",\"params\":{\"q\":\"harv\"}"));
+    rpc(REQ("1", "search.refresh", ""));
+    rpc(REQ("1", "rpc.discover", ""));
+    CHECK(zxvd_log_last() == 0, "searches and discovery are not logged: %llu",
+          (unsigned long long) zxvd_log_last());
+
+    zsr_reset();
+    CHECK(zsr_query("harvest", h, 10, &n, &total) == 0 && total == 0, "reset");
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
+static void test_print(void)
+{
+    char root[200], err[ZPH_ERR], uri[128];
+    snprintf(root, sizeof root, "%s/zxvd-print-XXXXXX",
+             getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(root) != NULL, "scratch root");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    CHECK(fake_start(), "the fake printer and scanner");
+    zph_set_timeout_ms(3000);
+
+    /* formats by extension */
+    CHECK(!strcmp(zph_format_of("a.PDF"), "application/pdf") &&
+              !strcmp(zph_format_of("x/b.jpeg"), "image/jpeg") &&
+              !strcmp(zph_format_of("c.Jpg"), "image/jpeg") &&
+              !strcmp(zph_format_of("d.png"), "image/png") &&
+              !strcmp(zph_format_of("e.pwg"), "image/pwg-raster") &&
+              !strcmp(zph_format_of("f.urf"), "image/urf") &&
+              !strcmp(zph_format_of("g.txt"), "text/plain") && !zph_format_of("h") &&
+              !zph_format_of("i.pd") && !zph_format_of("j.pdfx") && !zph_format_of("k.d/l") &&
+              !zph_format_of("m."),
+          "formats");
+
+    /* the printer */
+    ipp_printer_t p;
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.name, "Fake") &&
+              p.state == IPP_PRINTER_IDLE && p.nformats == 2 && p.accepting && p.color,
+          "printer: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/ipp/chunked", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.make, "Fake Printer 1"),
+          "chunked answer: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/continue", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_OK && !strcmp(p.name, "Fake"),
+          "after 100 Continue: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/refuse", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_HTTP && strstr(err, "IPP status 0x0400"),
+          "refused: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_PROTO && strstr(err, "not IPP"),
+          "garbage: %s", err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/500", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_HTTP && strstr(err, "HTTP 500"), "500: %s",
+          err);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/close", FAKE_PORT);
+    CHECK(zph_printer(uri, &p, err, sizeof err) == ZPH_E_PROTO && strstr(err, "not HTTP"),
+          "closed: %s", err);
+
+    /* addresses (N1, N2) */
+    static const struct {
+        const char *uri;
+        int rc;
+        const char *says;
+    } A[] = {
+        {"ipps://127.0.0.1/ipp", ZPH_E_URI, "secure"},
+        {"https://127.0.0.1/ipp", ZPH_E_URI, "secure"},
+        {"ftp://127.0.0.1/ipp", ZPH_E_URI, "ipp://"},
+        {"ipp://", ZPH_E_URI, "no host"},
+        {"ipp://:631/x", ZPH_E_URI, "no host"},
+        {"ipp://user@127.0.0.1/x", ZPH_E_URI, "plain name"},
+        {"ipp://127.0.0.1:0/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:65536/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:12a/x", ZPH_E_URI, "port"},
+        {"ipp://127.0.0.1:1234567/x", ZPH_E_URI, "port"},
+        {"ipp://[::1/x", ZPH_E_URI, "closing ]"},
+        {"ipp://[::1]x/x", ZPH_E_URI, "host[:port]"},
+        {"ipp://127.0.0.1/a b", ZPH_E_URI, "space"},
+        {"ipp://8.8.8.8/ipp/print", ZPH_E_LOCAL, "local network"},
+        {"ipp://[2001:4860:4860::8888]/ipp", ZPH_E_LOCAL, "local network"},
+        {"ipp://[::ffff:8.8.8.8]/ipp", ZPH_E_LOCAL, "local network"},
+        {"ipp://no-such-host.invalid/ipp", ZPH_E_NET, "could not be found"},
+    };
+    for (size_t i = 0; i < sizeof A / sizeof *A; i++)
+        CHECK(zph_printer(A[i].uri, &p, err, sizeof err) == A[i].rc && strstr(err, A[i].says),
+              "%s: %s", A[i].uri, err);
+    {
+        char longu[ZPH_URI_MAX + 8];
+        memset(longu, 'a', sizeof longu - 1);
+        longu[sizeof longu - 1] = 0;
+        memcpy(longu, "ipp://", 6);
+        CHECK(zph_printer(longu, &p, err, sizeof err) == ZPH_E_URI && strstr(err, "too long"),
+              "long");
+    }
+    /* private ranges pass N2 and fail to connect quickly (a closed port) */
+    zph_set_timeout_ms(300);
+    CHECK(zph_printer("ipp://127.0.0.1:1/ipp", &p, err, sizeof err) == ZPH_E_NET &&
+              strstr(err, "did not answer"),
+          "closed port: %s", err);
+    zph_set_timeout_ms(3000);
+    CHECK(zph_printer("http://127.0.0.1:1/ipp", &p, err, 0) == ZPH_E_NET, "no room for why");
+
+    /* printing a file from the ZXV folder */
+    uint64_t size;
+    CHECK(zxf_write("Plan.pdf", (const uint8_t *) "%PDF-1.4 fake", 13, ZXF_W_REPLACE, false,
+                    &size) == 0 &&
+              zxf_write("notes.txt", (const uint8_t *) "hi", 2, ZXF_W_REPLACE, false, &size) == 0 &&
+              zxf_mkdir("Folder") == 0,
+          "files");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    ipp_job_opts_t o = {NULL, NULL, 2, "one-sided", NULL, NULL};
+    ipp_job_t j;
+    CHECK(zph_print(uri, "Plan.pdf", &o, &j, err, sizeof err) == ZPH_OK && j.id == 77 &&
+              j.state == IPP_JOB_PENDING,
+          "printed: %s", err);
+    CHECK(
+        !strcmp(fake_get("/fake/last"),
+                "print fmt=application/pdf name=Plan.pdf copies=2 sides=one-sided doc=13:%PDF-1.4"),
+        "the printer got: %s", fake_get("/fake/last"));
+    CHECK(
+        zph_print(uri, "notes.txt", &o, &j, err, sizeof err) == ZPH_E_FORMAT &&
+            !strcmp(
+                err,
+                "the printer does not take text/plain files; it takes application/pdf, image/jpeg"),
+        "format: %s", err);
+    CHECK(zxf_write("noext", (const uint8_t *) "x", 1, ZXF_W_REPLACE, false, &size) == 0 &&
+              zph_print(uri, "noext", &o, &j, err, sizeof err) == ZPH_E_FORMAT &&
+              strstr(err, "does not take these files"),
+          "no extension: %s", err);
+    CHECK(zph_print(uri, "missing.pdf", &o, &j, err, sizeof err) == ZPH_E_FILE &&
+              strstr(err, "the file: "),
+          "missing: %s", err);
+    CHECK(zph_print(uri, "Folder", &o, &j, err, sizeof err) == ZPH_E_FILE && strstr(err, "folder"),
+          "a folder: %s", err);
+    CHECK(zph_print("ftp://x", "Plan.pdf", &o, &j, err, sizeof err) == ZPH_E_URI, "bad uri");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/refuse", FAKE_PORT);
+    CHECK(zph_print(uri, "Plan.pdf", &o, &j, err, sizeof err) == ZPH_E_HTTP, "refused printer");
+    /* jobs */
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    CHECK(zph_job(uri, 77, false, &j, err, sizeof err) == ZPH_OK && j.state == IPP_JOB_COMPLETED &&
+              j.pages == 2,
+          "job: %s", err);
+    CHECK(zph_job(uri, 77, true, &j, err, sizeof err) == ZPH_OK && j.state == IPP_JOB_CANCELED,
+          "cancel: %s", err);
+    CHECK(zph_job(uri, 5, false, &j, err, sizeof err) == ZPH_E_HTTP &&
+              !strcmp(err, "the printer refused (IPP status 0x0406): no such job"),
+          "no such job: %s", err);
+    CHECK(zph_job("ipps://h/x", 5, false, &j, err, sizeof err) == ZPH_E_URI, "bad uri");
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    CHECK(zph_job(uri, 77, false, &j, err, sizeof err) == ZPH_E_PROTO, "garbage job");
+
+    /* scanning */
+    escl_caps_t k;
+    escl_status_t st;
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_OK && !strcmp(k.make, "Fake Scanner") &&
+              k.ndpi == 2 && !strcmp(st.state, "Idle"),
+          "scanner: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL/", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_OK, "a trailing slash");
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nowhere", FAKE_PORT);
+    CHECK(zph_scanner(uri, &k, &st, err, sizeof err) == ZPH_E_HTTP && strstr(err, "404"), "404: %s",
+          err);
+    CHECK(zph_scanner("ipp://127.0.0.1/eSCL", &k, &st, err, sizeof err) == ZPH_E_URI &&
+              strstr(err, "starts http://"),
+          "a scanner is http: %s", err);
+    static char saved[ZPH_PAGES_MAX][ZXF_PATH_MAX + 1];
+    uint32_t pages = 9;
+    escl_settings_t s = {ESCL_SRC_FEEDER, ESCL_COLOR_RGB, 600, 0, 0, "image/jpeg"};
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "Folder", saved, ZPH_PAGES_MAX, &pages, err, sizeof err) == ZPH_OK &&
+              pages == 2 && !strcmp(saved[0], "Folder/Scan 1.jpg") &&
+              !strcmp(saved[1], "Folder/Scan 2.jpg"),
+          "scanned %u: %s", pages, err);
+    zxf_entry_t e;
+    CHECK(zxf_stat("Folder/Scan 1.jpg", &e) == 0 && e.size == 3000 &&
+              zxf_stat("Folder/Scan 2.jpg", &e) == 0 && e.size == 10,
+          "pages saved whole");
+    CHECK(!strcmp(fake_get("/fake/last"), "scan dpi=600< src=Feeder"), "settings sent: %s",
+          fake_get("/fake/last"));
+    s.format = "application/pdf";
+    s.source = ESCL_SRC_PLATEN;
+    CHECK(zph_scan(uri, &s, "", saved, 1, &pages, err, sizeof err) == ZPH_OK && pages == 1 &&
+              !strcmp(saved[0], "Scan 1.pdf"),
+          "one page wanted, at the top: %u %s", pages, pages ? saved[0] : "");
+    CHECK(zph_scan(uri, &s, "Folder", saved, 0, &pages, err, sizeof err) == ZPH_OK && pages == 0,
+          "no room for pages");
+    s.format = "image/png";
+    CHECK(zph_scan(uri, &s, "Folder", saved, ZPH_PAGES_MAX, &pages, err, sizeof err) == ZPH_OK &&
+              pages == 2 && !strcmp(saved[1], "Folder/Scan 2.png"),
+          "png");
+    s.dpi = 5;
+    CHECK(zph_scan(uri, &s, "Folder", saved, 4, &pages, err, sizeof err) == ZPH_E_URI &&
+              strstr(err, "out of range"),
+          "bad settings");
+    s.dpi = 300;
+    CHECK(zph_scan(uri, &s, "Plan.pdf", saved, 4, &pages, err, sizeof err) == ZPH_E_FILE &&
+              strstr(err, "it is a file"),
+          "not a folder: %s", err);
+    CHECK(zph_scan(uri, &s, "Nope", saved, 4, &pages, err, sizeof err) == ZPH_E_FILE, "no folder");
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/busy", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP &&
+              strstr(err, "busy"),
+          "busy: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nopaper", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP &&
+              strstr(err, "paper"),
+          "no paper: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/noloc", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_PROTO &&
+              strstr(err, "where"),
+          "no location: %s", err);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/nowhere", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP, "404 job");
+    CHECK(zph_scan("ftp://x", &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_URI, "bad url");
+
+    /* over zxvd */
+    char req[512];
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.status\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\"}}",
+             FAKE_PORT);
+    const char *r = rpc(req);
+    CHECK(strstr(r,
+                 "{\"name\":\"Fake\",\"info\":\"\",\"make\":\"Fake Printer 1\",\"location\":\"\","
+                 "\"state\":\"idle\",\"reasons\":\"none\",\"accepting\":true,\"color\":true,"
+                 "\"queued\":0,\"copies_max\":0,\"formats\":[\"application/pdf\",\"image/jpeg\"],"
+                 "\"media\":[\"iso_a4_210x297mm\"],\"media_default\":\"iso_a4_210x297mm\","
+                 "\"sides\":[\"one-sided\"]}"),
+          "print.status: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.submit\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"path\":\"Plan.pdf\",\"copies\":3,\"color\":"
+             "\"monochrome\",\"sides\":\"two-sided-short-edge\",\"media\":\"na_letter_8.5x11in\","
+             "\"job_name\":\"The plan\"}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"job_id\":77,\"state\":\"pending\",\"reasons\":\"none\",\"message\":\"\","
+                    "\"pages\":-1}"),
+          "print.submit: %s", r);
+    CHECK(!strcmp(fake_get("/fake/last"), "print fmt=application/pdf name=The plan copies=3 "
+                                          "sides=two-sided-short-edge doc=13:%PDF-1.4"),
+          "the printer got: %s", fake_get("/fake/last"));
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.job\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"job_id\":77}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"job_id\":77,\"state\":\"completed\",\"reasons\":\"\",\"message\":\"\","
+                    "\"pages\":2}"),
+          "print.job: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.cancel\",\"params\":{\"uri\":"
+             "\"ipp://127.0.0.1:%d/ipp/print\",\"job_id\":77}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"state\":\"canceled\""), "print.cancel: %s", OUT.p);
+    EXPECT(REQ("1", "print.status", ",\"params\":{\"uri\":\"ipp://8.8.8.8/p\"}"),
+           ERR("1", "-32022", "the device is not on the local network"));
+    EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":0}"),
+           ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
+    EXPECT(REQ("1", "print.job", ",\"params\":{\"uri\":\"ipp://h/p\",\"job_id\":2147483648}"),
+           ERR("1", "-32602", "\\\"job_id\\\" must be 1 to 2147483647"));
+    CHECK(has(REQ("1", "print.job", ",\"params\":{\"uri\":\"ftp://h/p\",\"job_id\":2147483647}"),
+              "-32022"),
+          "the biggest id reaches the device check");
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"copies\":1000}"),
+           ERR("1", "-32602", "\\\"copies\\\" must be 1 to 999"));
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"color\":\"red\"}"),
+           ERR("1", "-32602", "\\\"color\\\" must be color or monochrome"));
+    EXPECT(REQ("1", "print.submit",
+               ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"sides\":\"both\"}"),
+           ERR("1", "-32602",
+               "\\\"sides\\\" must be one-sided, two-sided-long-edge or two-sided-short-edge"));
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ftp://h/p\",\"path\":\"a.pdf\",\"copies\":999,"
+                  "\"color\":\"color\",\"sides\":\"one-sided\"}"),
+              "-32022"),
+          "the edges pass: %s", OUT.p);
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ftp://h/"
+                  "p\",\"path\":\"a.pdf\",\"sides\":\"two-sided-long-edge\"}"),
+              "-32022"),
+          "long edge");
+    CHECK(has(REQ("1", "print.submit", ",\"params\":{\"uri\":\"ipp://h/p\"}"), "-32602"),
+          "path required");
+    CHECK(has(REQ("1", "print.submit",
+                  ",\"params\":{\"uri\":\"ipp://h/p\",\"path\":\"a.pdf\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.status\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\"}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(
+        strstr(
+            r,
+            "{\"make\":\"Fake Scanner\",\"platen\":true,\"feeder\":false,\"resolutions\":[300,600],"
+            "\"color_modes\":[\"RGB24\",\"Grayscale8\"],\"formats\":[\"image/jpeg\"],"
+            "\"max_width\":2550,\"max_height\":3508,\"state\":\"Idle\",\"adf_state\":\"\",\"jobs\":"
+            "0}"),
+        "scan.status: %s", r);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"folder\":\"Folder\",\"color\":\"gray\",\"dpi\":75}}",
+             FAKE_PORT);
+    r = rpc(req);
+    CHECK(strstr(r, "{\"pages\":2,\"saved\":[\"Folder/Scan 3.jpg\",\"Folder/Scan 4.jpg\"]}"),
+          "scan.start: %s", r);
+    CHECK(!strcmp(fake_get("/fake/last"), "scan dpi=75</ src=Platen"), "%s",
+          fake_get("/fake/last"));
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"source\":\"feeder\",\"color\":\"bw\",\"dpi\":1200,"
+             "\"format\":\"application/pdf\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "{\"pages\":2,\"saved\":[\"Scan 2.pdf\",\"Scan 3.pdf\"]}"), "feeder: %s",
+          OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/eSCL\",\"source\":\"platen\",\"color\":\"color\","
+             "\"format\":\"image/png\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"saved\":[\"Scan 1.png\","), "the named defaults: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/busy\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req), "\"code\":-32022,\"message\":\"the scanner is busy\""), "busy: %s",
+          OUT.p);
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"source\":\"tray\"}"),
+           ERR("1", "-32602", "\\\"source\\\" must be platen or feeder"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"color\":\"sepia\"}"),
+           ERR("1", "-32602", "\\\"color\\\" must be color, gray or bw"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"dpi\":74}"),
+           ERR("1", "-32602", "\\\"dpi\\\" must be 75 to 1200"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"dpi\":1201}"),
+           ERR("1", "-32602", "\\\"dpi\\\" must be 75 to 1200"));
+    EXPECT(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"format\":\"image/tiff\"}"),
+           ERR("1", "-32602", "\\\"format\\\" must be image/jpeg, application/pdf or image/png"));
+    EXPECT(REQ("1", "scan.status", ",\"params\":{\"url\":\"http://8.8.8.8/eSCL\"}"),
+           ERR("1", "-32022", "the device is not on the local network"));
+    CHECK(has(REQ("1", "scan.start", ",\"params\":{\"url\":\"http://h/e\",\"space\":\"nope\"}"),
+              "no such space"),
+          "space");
+    /* a scan that fails after saving pages says so, and keeps them */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"scan.start\",\"params\":{\"url\":"
+             "\"http://127.0.0.1:%d/half\"}}",
+             FAKE_PORT);
+    CHECK(strstr(rpc(req),
+                 "\"code\":-32022,\"message\":\"the device answered HTTP 500 (1 page saved)\""),
+          "half: %s", OUT.p);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/half", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP && pages == 1 &&
+              zxf_stat(saved[0], &e) == 0 && e.size == 4,
+          "kept: %u", pages);
+    snprintf(uri, sizeof uri, "http://127.0.0.1:%d/stuck", FAKE_PORT);
+    CHECK(zph_scan(uri, &s, "", saved, 4, &pages, err, sizeof err) == ZPH_E_HTTP && pages == 0 &&
+              strstr(err, "HTTP 503"),
+          "busy for ever: %s", err);
+    /* what is logged */
+    {
+        zxvd_log_reset();
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.status\",\"params\":{\"uri\":"
+                 "\"ipp://127.0.0.1:%d/ipp/print\"}}",
+                 FAKE_PORT);
+        rpc(req);
+        CHECK(zxvd_log_last() == 0, "print.status is not logged");
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"print.submit\",\"params\":{\"uri\":"
+                 "\"ipp://127.0.0.1:%d/ipp/print\",\"path\":\"Plan.pdf\"}}",
+                 FAKE_PORT);
+        rpc(req);
+        CHECK(zxvd_log_last() == 1, "print.submit is: %llu", (unsigned long long) zxvd_log_last());
+    }
+    fake_stop();
+    zph_set_timeout_ms(0);
+    CHECK(rm_tree(root) == 0, "cleanup");
+}
+
+/* ---------------- backup.* (zxv_keepsake.h) ---------------- */
+
+static char BK_DEST[200];
+
+static void bk_hex(const void *d, size_t n, char out[65])
+{
+    uint8_t h[32];
+    sha256(d, n, h);
+    for (int i = 0; i < 32; i++) snprintf(out + 2 * i, 3, "%02x", h[i]);
+}
+
+static bool bk_put(const char *rel, const void *d, size_t n)
+{
+    uint64_t size;
+    return zxf_write(rel, d, (uint32_t) n, ZXF_W_REPLACE, false, &size) == 0;
+}
+
+/* a store file's absolute path */
+static const char *bk_abs(const char *fmt, const char *a)
+{
+    static char p[700];
+    char tail[400];
+    snprintf(tail, sizeof tail, fmt, a);
+    snprintf(p, sizeof p, "%s/" ZKS_DIR "/%s", BK_DEST, tail);
+    return p;
+}
+
+static bool bk_exists(const char *p)
+{
+    struct stat st;
+    return lstat(p, &st) == 0;
+}
+
+static long bk_read(const char *p, char *buf, size_t cap)
+{
+    FILE *f = fopen(p, "rb");
+    if (!f) return -1;
+    long n = (long) fread(buf, 1, cap, f);
+    fclose(f);
+    return n;
+}
+
+static bool bk_write(const char *p, const char *d, size_t n)
+{
+    FILE *f = fopen(p, "wb");
+    if (!f) return false;
+    bool ok = fwrite(d, 1, n, f) == n;
+    return fclose(f) == 0 && ok;
+}
+
+/* a snapshot file from lines, with a good end line unless told otherwise */
+static bool bk_snap(const char *space, uint32_t id, const char *body, uint32_t files,
+                    uint64_t bytes, bool good)
+{
+    static char text[8192];
+    char hex[65], dir[600], name[700];
+    int n = snprintf(text, sizeof text, "%s", body);
+    bk_hex(text, (size_t) n, hex);
+    if (!good) hex[0] = hex[0] == '0' ? '1' : '0';
+    catf(text, sizeof text, &n, "end %u %llu %s\n", files, (unsigned long long) bytes, hex);
+    snprintf(dir, sizeof dir, "%s/" ZKS_DIR "/spaces/%s", BK_DEST, space);
+    mkdir(dir, 0700);
+    snprintf(name, sizeof name, "%s/%u.snap", dir, id);
+    return bk_write(name, text, (size_t) n);
+}
+
+static uint64_t bk_file_size(const char *rel)
+{
+    zxf_entry_t e;
+    return zxf_stat(rel, &e) == 0 ? e.size : UINT64_MAX;
+}
+
+static void test_backup(void)
+{
+    char root[200], err[ZKS_ERR], landed[ZXF_PATH_MAX + 1], req[1200], p[700];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    snprintf(root, sizeof root, "%s/zxvd-keep-XXXXXX", tmp);
+    snprintf(BK_DEST, sizeof BK_DEST, "%s/zxvd-dest-XXXXXX", tmp);
+    CHECK(mkdtemp(root) && mkdtemp(BK_DEST), "scratch folders");
+    CHECK(zxf_set_root(root) == 0 && zxf_use_space("home") == 0, "root set");
+    static uint8_t big[100000];
+    for (size_t i = 0; i < sizeof big; i++) big[i] = (uint8_t) (i * 7 + i / 300);
+    CHECK(zxf_mkdir("Notes") == 0 && zxf_mkdir("Notes/deep") == 0 &&
+              bk_put("Notes/a.txt", "hello", 5) && bk_put("Notes/deep/b.bin", big, sizeof big) &&
+              bk_put("top.md", "# top\n", 6) && bk_put("empty.txt", "", 0) &&
+              bk_put("README", "read me", 7),
+          "files");
+    zks_run_t r;
+    int zxf = 7;
+
+    /* K1: the destination */
+    const char *bad[] = {NULL, "", "rel/dir", "/no/such/zxv/folder"};
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++)
+        CHECK(zks_run(bad[i], false, &r, &zxf, err, sizeof err) == ZKS_E_DEST && zxf == 0 &&
+                  r.snapshot == 0,
+              "bad destination %zu: %s", i, err);
+    static char longdest[ZKS_DEST_MAX + 2];
+    memset(longdest, 'd', ZKS_DEST_MAX + 1);
+    longdest[0] = '/';
+    CHECK(zks_run(longdest, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST, "too long");
+    snprintf(p, sizeof p, "%s/plain", BK_DEST);
+    CHECK(bk_write(p, "x", 1) && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "no folder at the destination"),
+          "a file: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s/link", BK_DEST);
+    CHECK(symlink(BK_DEST, p) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "the destination is a link"),
+          "a link: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s/Notes", root);
+    CHECK(zks_run(root, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
+              !strcmp(err, "the destination is inside the Hoard") &&
+              zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "inside the Hoard: %s", err);
+    snprintf(p, sizeof p, "%s-sibling", root); /* shares a prefix, but is not inside */
+    CHECK(mkdir(p, 0700) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_OK &&
+              r.files == 5,
+          "a sibling: %s", err);
+    char sib[700];
+    snprintf(sib, sizeof sib, "%s", p);
+    snprintf(p, sizeof p, "%s/blocked", BK_DEST);
+    char blocked[800];
+    snprintf(blocked, sizeof blocked, "%s/" ZKS_DIR, p);
+    CHECK(mkdir(p, 0700) == 0 && bk_write(blocked, "x", 1) &&
+              zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "\"" ZKS_DIR "\" is a file: %s", err);
+    uint32_t n, total;
+    zks_snap_t snaps[8];
+    CHECK(zks_list(p, snaps, 8, &n, &total, err, sizeof err) == ZKS_E_DEST, "list there too");
+
+    /* nothing yet */
+    zks_version_t ver[8];
+    zks_verify_t v;
+    uint32_t files, so, oo;
+    uint64_t freed;
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && n == 0 &&
+              total == 0,
+          "no list yet");
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0,
+          "no versions yet");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_E_NOTFOUND &&
+              !strcmp(err, "no backups there yet"),
+          "nothing to check: %s", err);
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 0 && oo == 0,
+          "nothing to prune");
+    CHECK(zks_restore(BK_DEST, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+              ZKS_E_NOTFOUND,
+          "nothing to restore");
+
+    /* the first backup keeps everything */
+    char ha[65], hb[65], ht[65], he[65], hr[65], hc[65];
+    bk_hex("hello", 5, ha);
+    bk_hex(big, sizeof big, hb);
+    bk_hex("# top\n", 6, ht);
+    bk_hex("", 0, he);
+    bk_hex("read me", 7, hr);
+    bk_hex("changed!", 8, hc);
+    uint64_t all = 5 + sizeof big + 6 + 0 + 7;
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 1 &&
+              r.files == 5 && r.new_files == 5 && r.bytes == all && r.new_bytes == all &&
+              r.skipped == 0 && r.time > 1600000000 && zxf == 0,
+          "first: %u %u %u %s", r.snapshot, r.files, r.new_files, err);
+    static char text[300000];
+    long tn = bk_read(bk_abs("objects/%.2s/", hb), text, sizeof text);
+    snprintf(p, sizeof p, "%s%s", bk_abs("objects/%.2s/", hb), hb);
+    tn = bk_read(p, text, sizeof text);
+    CHECK(tn == (long) sizeof big && !memcmp(text, big, sizeof big), "the big file kept: %ld", tn);
+    tn = bk_read(bk_abs("spaces/%s/1.snap", "home"), text, sizeof text);
+    text[tn > 0 ? tn : 0] = 0;
+    char want[600];
+    snprintf(want, sizeof want, "f %s 5 ", ha);
+    CHECK(tn > 0 && !strncmp(text, "zxv-keepsake 1\nspace home\ntime ", 31) && strstr(text, want) &&
+              strstr(text, " Notes/a.txt\n") && strstr(text, " Notes/deep/b.bin\n") &&
+              strstr(text, "\nend 5 "),
+          "the snapshot: %.200s", text);
+    CHECK(!bk_exists(bk_abs("spaces/%s/1.tmp", "home")) &&
+              !bk_exists(bk_abs("objects/%s", "incoming.tmp")),
+          "no temporary files left");
+
+    /* nothing changed: nothing new */
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 2 &&
+              r.files == 5 && r.new_files == 0 && r.new_bytes == 0 && r.bytes == all,
+          "second: %u new", r.new_files);
+    /* a change */
+    CHECK(bk_put("Notes/a.txt", "changed!", 8) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 3 &&
+              r.new_files == 1 && r.new_bytes == 8 && r.bytes == all + 3,
+          "third: %u new", r.new_files);
+    /* back as it was: read again, but its copy is already kept */
+    CHECK(bk_put("Notes/a.txt", "hello", 5) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 4 &&
+              r.new_files == 0 && r.bytes == all,
+          "fourth: %u new", r.new_files);
+
+    /* list */
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && n == 4 &&
+              total == 4 && snaps[0].id == 4 && snaps[3].id == 1 && snaps[0].files == 5 &&
+              snaps[0].bytes == all && snaps[1].bytes == all + 3 && !snaps[0].damaged &&
+              snaps[0].time > 1600000000,
+          "list: %u %u", n, total);
+    CHECK(zks_list(BK_DEST, snaps, 2, &n, &total, err, sizeof err) == ZKS_OK && n == 2 &&
+              total == 4 && snaps[1].id == 3,
+          "list, two");
+
+    /* versions */
+    CHECK(zks_versions(BK_DEST, "Notes/a.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 2 &&
+              ver[0].snapshot == 4 && !strcmp(ver[0].hash, ha) && ver[0].size == 5 &&
+              ver[1].snapshot == 3 && !strcmp(ver[1].hash, hc) && ver[1].size == 8 &&
+              ver[0].time >= ver[1].time,
+          "versions: %u", n);
+    CHECK(zks_versions(BK_DEST, "Notes/a.txt", ver, 1, &n, err, sizeof err) == ZKS_OK && n == 1 &&
+              ver[0].snapshot == 4,
+          "one version");
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 1 &&
+              ver[0].snapshot == 4 && ver[0].size == 6,
+          "unchanged: one");
+    CHECK(zks_versions(BK_DEST, "nope.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0,
+          "never");
+    CHECK(zks_versions(BK_DEST, "", ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND &&
+              zks_versions(BK_DEST, NULL, ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND &&
+              zks_versions(BK_DEST, "../x", ver, 8, &n, err, sizeof err) == ZKS_E_NOTFOUND,
+          "not a path");
+    CHECK(zks_versions(p, "a", ver, 8, &n, err, sizeof err) == ZKS_E_DEST, "bad destination");
+
+    /* verify, then break things */
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.snapshot == 4 &&
+              v.files == 5 && v.bytes == all && v.bad == 0 && v.missing == 0 && !v.first_bad[0],
+          "verified: %u %u %u", v.files, v.bad, v.missing);
+    CHECK(zks_verify(BK_DEST, 3, &v, err, sizeof err) == ZKS_OK && v.snapshot == 3 &&
+              v.bytes == all + 3,
+          "verified 3");
+    CHECK(zks_verify(BK_DEST, 9, &v, err, sizeof err) == ZKS_E_NOTFOUND &&
+              !strcmp(err, "no such snapshot"),
+          "no such snapshot");
+    char ob[700], ot[700];
+    snprintf(ob, sizeof ob, "%s%s", bk_abs("objects/%.2s/", hb), hb);
+    snprintf(ot, sizeof ot, "%s%s", bk_abs("objects/%.2s/", ht), ht);
+    tn = bk_read(ob, text, sizeof text);
+    text[500] ^= 1; /* one bit, same size */
+    CHECK(bk_write(ob, text, (size_t) tn) && unlink(ot) == 0, "damage two copies");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 1 && v.missing == 1 &&
+              !strcmp(v.first_bad, "Notes/deep/b.bin"),
+          "found: %u bad, %u missing, first %s", v.bad, v.missing, v.first_bad);
+    CHECK(zks_restore(BK_DEST, 0, "Notes", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_DAMAGED &&
+              !strcmp(err, "a kept copy of \"Notes/deep/b.bin\" is missing or damaged") &&
+              files == 0 && bk_file_size("Notes (restored)") == UINT64_MAX,
+          "a damaged copy stops the restore before anything is written: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_DAMAGED &&
+              !strcmp(err, "a kept copy of \"Notes/deep/b.bin\" is missing or damaged"),
+          "and the whole: %s", err);
+    /* a plain backup reuses what looks unchanged; the missing copy comes back */
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.new_files == 1 &&
+              r.new_bytes == 6 && bk_exists(ot),
+          "the missing copy is kept again: %u", r.new_files);
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.snapshot == 5 && v.bad == 1 &&
+              v.missing == 0,
+          "still one bad");
+    /* full re-reads everything and repairs it */
+    CHECK(zks_run(BK_DEST, true, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 6 &&
+              r.new_files == 1 && r.new_bytes == sizeof big && r.files == 5,
+          "full: %u repaired", r.new_files);
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 0 && v.missing == 0 &&
+              zks_verify(BK_DEST, 1, &v, err, sizeof err) == ZKS_OK && v.bad == 0,
+          "all good again");
+
+    /* restore */
+    CHECK(zks_restore(BK_DEST, 3, "Notes/a.txt", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "Notes/a (restored).txt") && files == 1,
+          "beside it: %s %s", landed, err);
+    char got[64];
+    uint32_t gn;
+    uint64_t gs;
+    CHECK(zxf_read("Notes/a (restored).txt", 0, (uint8_t *) got, sizeof got, false, &gn, &gs) ==
+                  0 &&
+              gn == 8 && !memcmp(got, "changed!", 8),
+          "the old words");
+    CHECK(zks_restore(BK_DEST, 3, "Notes/a.txt", "", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "Notes/a (restored 2).txt"),
+          "and again: %s", landed);
+    CHECK(zks_restore(BK_DEST, 1, "README", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "README (restored)"),
+          "no extension: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back/old/a.txt", landed, &files, &zxf, err,
+                      sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Back/old/a.txt") && bk_file_size("Back/old/a.txt") == 5,
+          "somewhere new, its folders made: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back/old/a.txt", landed, &files, &zxf, err,
+                      sizeof err) == ZKS_E_FILE &&
+              zxf == ZXF_E_EXISTS && files == 0,
+          "never over a file: %d", zxf);
+    CHECK(zks_restore(BK_DEST, 0, "Notes/a.txt", "Back", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_FILE &&
+              zxf == ZXF_E_EXISTS,
+          "never over a folder");
+    CHECK(zks_restore(BK_DEST, 0, "Notes", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Notes (restored)") && files == 2 &&
+              bk_file_size("Notes (restored)/deep/b.bin") == sizeof big &&
+              bk_file_size("Notes (restored)/a.txt") == 5,
+          "a folder: %s %u %s", landed, files, err);
+    static uint8_t back[100000];
+    uint64_t off = 0;
+    while (off < sizeof back &&
+           zxf_read("Notes (restored)/deep/b.bin", off, back + off, ZXF_READ_MAX, false, &gn,
+                    &gs) == 0 &&
+           gn)
+        off += gn;
+    CHECK(off == sizeof big && !memcmp(back, big, sizeof big), "every byte: %llu",
+          (unsigned long long) off);
+    char trashed[ZXF_PATH_MAX + 1];
+    CHECK(zxf_trash("top.md", trashed, sizeof trashed) == 0 &&
+              zks_restore(BK_DEST, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              !strcmp(landed, "top.md") && bk_file_size("top.md") == 6,
+          "back where it was: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "empty.txt", "e2.txt", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_OK &&
+              bk_file_size("e2.txt") == 0,
+          "an empty file");
+    CHECK(zks_restore(BK_DEST, 2, NULL, NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Keepsake 2") && files == 5 &&
+              bk_file_size("Keepsake 2/Notes/deep/b.bin") == sizeof big,
+          "everything: %s %u", landed, files);
+    CHECK(zks_restore(BK_DEST, 2, "", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_OK &&
+              !strcmp(landed, "Keepsake 2 (restored)"),
+          "everything again: %s", landed);
+    CHECK(zks_restore(BK_DEST, 0, "Note", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              strstr(err, "\"Note\" is not in snapshot 6") &&
+              zks_restore(BK_DEST, 0, "Notes/a", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND,
+          "only whole names: %s", err);
+    CHECK(zks_restore(BK_DEST, 0, "../x", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              zks_restore(BK_DEST, 0, "top.md", "a/../b", landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND &&
+              zks_restore(BK_DEST, 77, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                  ZKS_E_NOTFOUND,
+          "bad paths, no such snapshot");
+    CHECK(zks_restore(p, 0, "top.md", NULL, landed, &files, &zxf, err, sizeof err) == ZKS_E_DEST,
+          "a bad destination");
+
+    /* deep folders are left out and counted */
+    char deep[200] = "z";
+    CHECK(zxf_mkdir("z") == 0, "deep top");
+    for (int i = 1; i < 64; i++) {
+        strcat(deep, "/z");
+        if (zxf_mkdir(deep) != 0) break;
+    }
+    strcat(deep, "/f.txt");
+    CHECK(bk_put(deep, "deep", 4), "a deep file");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.skipped == 1,
+          "too deep: %u skipped", r.skipped);
+
+    /* damaged snapshots: never trusted */
+    char head[200], line[200], body[2000];
+    snprintf(head, sizeof head, "zxv-keepsake 1\nspace home\ntime 1700000000\n");
+    snprintf(line, sizeof line, "f %s 6 5 top.md\n", ht);
+    snprintf(body, sizeof body, "%s%s", head, line);
+    CHECK(bk_snap("home", 90, body, 1, 6, true) &&
+              zks_verify(BK_DEST, 90, &v, err, sizeof err) == ZKS_OK && v.files == 1 && v.bad == 0,
+          "a made snapshot reads: %s", err);
+    struct {
+        const char *body;
+        uint32_t files;
+        uint64_t bytes;
+        bool good;
+    } dmg[] = {
+        {"zxv-keepsake 2\nspace home\ntime 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace other\ntime 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\ntime x\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\ntime 1 \n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\nwhen 1\n", 0, 0, true},
+        {"zxv-keepsake 1\nspace home\n", 0, 0, true},
+        {body, 1, 6, false},
+        {body, 2, 6, true},
+        {body, 1, 7, true},
+        {"zxv-keepsake 1\nspace home\ntime 1\nf zz 6 5 top.md\n", 1, 6, true},
+        {"zxv-keepsake 1\nspace home\ntime 1\nx\n", 1, 6, true},
+    };
+    for (size_t i = 0; i < sizeof dmg / sizeof *dmg; i++) {
+        CHECK(bk_snap("home", 91, dmg[i].body, dmg[i].files, dmg[i].bytes, dmg[i].good) &&
+                  zks_verify(BK_DEST, 91, &v, err, sizeof err) == ZKS_E_DAMAGED &&
+                  !strcmp(err, "snapshot 91 is damaged") &&
+                  zks_restore(BK_DEST, 91, "top.md", NULL, landed, &files, &zxf, err, sizeof err) ==
+                      ZKS_E_DAMAGED,
+              "damaged %zu", i);
+    }
+    /* entry lines that do not add up */
+    const char *lines[] = {
+        "f %s 6 5 \n",
+        "f %s 6 5 ../top.md\n",
+        "f %s x 5 top.md\n",
+        "f %s 6 x top.md\n",
+        "f %s 06 5 top.md\n",
+        "f %s 6  top.md\n",
+        "f %s 6 5top.md\n",
+        "f %sX 6 5 top.md\n",
+        "f %s 18446744073709551616 5 top.md\n",
+        "f %s 6 9223372036854775808 top.md\n",
+    };
+    for (size_t i = 0; i < sizeof lines / sizeof *lines; i++) {
+        char l[300], b[600];
+        snprintf(l, sizeof l, lines[i], ht);
+        snprintf(b, sizeof b, "%s%s", head, l);
+        CHECK(bk_snap("home", 91, b, 1, 6, true) &&
+                  zks_verify(BK_DEST, 91, &v, err, sizeof err) == ZKS_E_DAMAGED,
+              "bad line %zu", i);
+    }
+    snprintf(body, sizeof body, "%sf %s 6 -5 top.md\n", head, ht);
+    CHECK(bk_snap("home", 91, body, 1, 6, true) &&
+              zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK &&
+              ver[0].snapshot == 91 && ver[0].mtime == -5 && ver[0].time == 1700000000,
+          "a time before 1970: %lld", (long long) ver[0].mtime);
+    /* a tail that does not parse shows as damaged in the list */
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/91.snap", "home"));
+    CHECK(bk_write(p, "zxv-keepsake 1\nspace home\ntime 3\nend x\n", 38) &&
+              zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK &&
+              snaps[0].id == 91 && snaps[0].damaged && snaps[0].time == 3 && snaps[1].id == 90 &&
+              !snaps[1].damaged && snaps[1].files == 1 && snaps[1].bytes == 6,
+          "listed as damaged");
+    CHECK(bk_write(p, "zxv-keepsake 1\nspace home\ntime 3\nend 1 2 x", 41) &&
+              zks_list(BK_DEST, snaps, 1, &n, &total, err, sizeof err) == ZKS_OK &&
+              snaps[0].damaged,
+          "no final newline");
+    CHECK(bk_write(p, "nope\n", 5) &&
+              zks_list(BK_DEST, snaps, 1, &n, &total, err, sizeof err) == 0 && snaps[0].damaged &&
+              snaps[0].time == 0,
+          "no header");
+    /* versions skip it; a backup builds on the newest good one */
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK &&
+              ver[0].snapshot == 90,
+          "skipped: %u", ver[0].snapshot);
+    /* prune refuses while one is damaged, and removes nothing */
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_E_DAMAGED && so == 0 &&
+              bk_exists(bk_abs("spaces/%s/1.snap", "home")),
+          "prune waits: %s", err);
+    unlink(p);
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/90.snap", "home"));
+    unlink(p);
+    /* names that are not snapshots are left alone */
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/0.snap", "home"));
+    CHECK(bk_write(p, "x", 1), "0.snap");
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/1234567.snap", "home"));
+    CHECK(bk_write(p, "x", 1), "1234567.snap");
+    snprintf(p, sizeof p, "%s", bk_abs("spaces/%s/12.snapx", "home"));
+    CHECK(bk_write(p, "x", 1), "12.snapx");
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && total == 7 &&
+              snaps[0].id == 7,
+          "ignored: %u, newest %u", total, snaps[0].id);
+
+    /* another space's snapshot keeps its copies through a prune */
+    char hx[65];
+    bk_hex("other", 5, hx);
+    snprintf(p, sizeof p, "%s%s", bk_abs("objects/%.2s/", hx), hx);
+    char od[700];
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%.2s", hx));
+    mkdir(od, 0700);
+    snprintf(body, sizeof body, "zxv-keepsake 1\nspace team-x\ntime 5\nf %s 5 5 o.txt\n", hx);
+    CHECK(bk_write(p, "other", 5) && bk_snap("team-x", 1, body, 1, 5, true), "another space");
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%s", "incoming.tmp"));
+    CHECK(bk_write(od, "junk", 4), "a stray");
+    snprintf(od, sizeof od, "%s", bk_abs("objects/%s", "README"));
+    CHECK(bk_write(od, "not ours", 8), "not an object");
+    /* prune: keep the newest two of home's seven */
+    char oc[700];
+    snprintf(oc, sizeof oc, "%s%s", bk_abs("objects/%.2s/", hc), hc);
+    CHECK(bk_exists(oc), "the changed copy");
+    CHECK(zks_prune(BK_DEST, 2, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 5 &&
+              oo == 0 && freed == 0,
+          "pruned: %u snapshots, %u objects, %llu bytes: %s", so, oo, (unsigned long long) freed,
+          err);
+    CHECK(bk_exists(oc) && bk_exists(p) && bk_exists(ob) &&
+              !bk_exists(bk_abs("objects/%s", "incoming.tmp")) && bk_exists(od) &&
+              !bk_exists(bk_abs("spaces/%s/5.snap", "home")) &&
+              bk_exists(bk_abs("spaces/%s/6.snap", "home")) &&
+              bk_exists(bk_abs("spaces/%s/7.snap", "home")),
+          "what is left");
+    CHECK(zks_verify(BK_DEST, 0, &v, err, sizeof err) == ZKS_OK && v.bad == 0 && v.missing == 0,
+          "the kept still check");
+    CHECK(zks_prune(BK_DEST, 0, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 1,
+          "keep 0 is keep 1: %u", so);
+    CHECK(zks_list(BK_DEST, snaps, 8, &n, &total, err, sizeof err) == ZKS_OK && total == 1 &&
+              snaps[0].id == 7,
+          "one left");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 8 &&
+              r.new_files == 0,
+          "numbers go on: %u", r.snapshot);
+    /* a file kept only by a snapshot that goes is swept with it */
+    char hg[65], og[700];
+    bk_hex("gone soon", 9, hg);
+    snprintf(og, sizeof og, "%s%s", bk_abs("objects/%.2s/", hg), hg);
+    CHECK(bk_put("gone.txt", "gone soon", 9) &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.new_files == 1 &&
+              bk_exists(og) && zxf_trash("gone.txt", trashed, sizeof trashed) == 0 &&
+              zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 10,
+          "kept, then deleted");
+    CHECK(zks_prune(BK_DEST, 1, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 3 &&
+              oo == 1 && freed == 9 && !bk_exists(og) && bk_exists(oc),
+          "swept: %u %u %llu", so, oo, (unsigned long long) freed);
+    CHECK(zks_prune(p, 1, &so, &oo, &freed, err, sizeof err) == ZKS_E_DEST, "bad destination");
+    CHECK(zks_prune(sib, 5, &so, &oo, &freed, err, sizeof err) == ZKS_OK && so == 0 && oo == 0,
+          "nothing to prune there");
+    /* each space has its own snapshots (K6) */
+    CHECK(zxf_use_space("other-space") == 0 && bk_put("o.txt", "other", 5), "another space");
+    CHECK(zks_run(BK_DEST, false, &r, &zxf, err, sizeof err) == ZKS_OK && r.snapshot == 1 &&
+              r.files == 1 && r.new_files == 0 &&
+              bk_exists(bk_abs("spaces/%s/1.snap", "other-space")),
+          "its own numbers; the copy was already kept: %u %u", r.snapshot, r.new_files);
+    CHECK(zks_versions(BK_DEST, "top.md", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 0 &&
+              zks_versions(BK_DEST, "o.txt", ver, 8, &n, err, sizeof err) == ZKS_OK && n == 1,
+          "its own versions");
+    CHECK(zxf_use_space("home") == 0, "home again");
+
+    /* over JSON-RPC */
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    const char *o = rpc(req);
+    CHECK(strstr(o, "\"result\":{\"space\":\"home\",\"snapshot\":11,\"time\":") &&
+              strstr(o, ",\"new_files\":0,\"new_bytes\":0,\"skipped\":1}"),
+          "backup.run: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\","
+             "\"full\":true}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"snapshot\":12,"), "backup.run full: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":2}}",
+             BK_DEST);
+    o = rpc(req);
+    CHECK(
+        strstr(o, "\"result\":{\"space\":\"home\",\"total\":3,\"snapshots\":[{\"snapshot\":12,") &&
+            strstr(o, "},{\"snapshot\":11,") && strstr(o, ",\"damaged\":false}]}"),
+        "backup.list: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.versions\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"top.md\"}}",
+             BK_DEST);
+    snprintf(want, sizeof want, "\"size\":6,\"mtime\":");
+    o = rpc(req);
+    CHECK(strstr(o, "{\"space\":\"home\",\"versions\":[{\"snapshot\":12,\"time\":") &&
+              strstr(o, want) && strstr(o, ht),
+          "backup.versions: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\"}}",
+             BK_DEST);
+    o = rpc(req);
+    CHECK(strstr(o, "{\"space\":\"home\",\"snapshot\":12,\"files\":") &&
+              strstr(o, ",\"bad\":0,\"missing\":0,\"ok\":true,\"first_bad\":\"\"}"),
+          "backup.verify: %s", o);
+    snprintf(ot, sizeof ot, "%s%s", bk_abs("objects/%.2s/", ha), ha);
+    CHECK(unlink(ot) == 0 &&
+              strstr(rpc(req),
+                     ",\"bad\":0,\"missing\":5,\"ok\":false,\"first_bad\":\"Back/old/a.txt\"}"),
+          "backup.verify, one missing: %s", OUT.p);
+    CHECK(bk_write(ot, "hello", 5), "put back");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":100001}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "snapshot too big");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.verify\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":3}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "{\"code\":-32018,\"message\":\"no such snapshot\"}"),
+          "backup.verify 3: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
+             "\"%s\",\"snapshot\":11,\"path\":\"README\",\"to\":\"Old/README\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"result\":{\"space\":\"home\",\"to\":\"Old/README\",\"files\":1}"),
+          "backup.restore: %s", OUT.p);
+    CHECK(strstr(rpc(req),
+                 "{\"code\":-32014,\"message\":\"something with that name already exists\"}"),
+          "backup.restore, taken: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.restore\",\"params\":{\"dest\":"
+             "\"%s\",\"path\":\"README\"}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"to\":\"README (restored 2)\""), "backup.restore beside: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":1}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "{\"space\":\"home\",\"snapshots_removed\":2,\"objects_removed\":0,"
+                           "\"freed\":0}"),
+          "backup.prune: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":0}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "\"keep\\\" must be 1 to 100000"), "keep 0: %s", OUT.p);
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.prune\",\"params\":{\"dest\":\"%s\","
+        "\"keep\":100001}}",
+        BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "keep too many");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":0}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"max\\\" must be 1 to 100"), "max 0: %s", OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":101}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"code\":-32602"), "max 101");
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\","
+             "\"max\":100}}",
+             BK_DEST);
+    CHECK(strstr(rpc(req), "\"total\":1,\"snapshots\":[{\"snapshot\":12,"), "max 100: %s", OUT.p);
+    EXPECT(REQ("1", "backup.run", ",\"params\":{}"),
+           ERR("1", "-32602", "missing string parameter \\\"dest\\\""));
+    EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"rel\"}"),
+           ERR("1", "-32018", "the destination must be a folder's absolute path"));
+    EXPECT(REQ("1", "backup.list", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32018", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\",\"path\":\"a\"}"),
+           ERR("1", "-32018", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.versions", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32602", "missing string parameter \\\"path\\\""));
+    EXPECT(REQ("1", "backup.run", ",\"params\":{\"dest\":\"/x\",\"full\":1}"),
+           ERR("1", "-32602", "\\\"full\\\" must be true or false"));
+    EXPECT(REQ("1", "backup.restore", ",\"params\":{\"dest\":\"/no/such/zxv\"}"),
+           ERR("1", "-32018", "no folder at the destination"));
+    EXPECT(REQ("1", "backup.prune", ",\"params\":{\"dest\":\"/no/such/zxv\",\"keep\":1}"),
+           ERR("1", "-32018", "no folder at the destination"));
+    const char *ms[] = {"backup.run",    "backup.list",    "backup.versions",
+                        "backup.verify", "backup.restore", "backup.prune"};
+    for (size_t i = 0; i < sizeof ms / sizeof *ms; i++) {
+        snprintf(req, sizeof req,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":{\"dest\":\"%s\","
+                 "\"space\":\"nope\",\"path\":\"a\",\"keep\":1}}",
+                 ms[i], BK_DEST);
+        CHECK(strstr(rpc(req), "\"code\":-32013"), "%s: no such space: %s", ms[i], OUT.p);
+    }
+    unsigned long long before = zxvd_log_last();
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.list\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    rpc(req);
+    CHECK(zxvd_log_last() == before, "backup.list is quiet");
+    snprintf(
+        req, sizeof req,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"backup.run\",\"params\":{\"dest\":\"%s\"}}",
+        BK_DEST);
+    rpc(req);
+    CHECK(zxvd_log_last() == before + 1, "backup.run is logged");
+    CHECK(rm_tree(root) == 0 && rm_tree(BK_DEST) == 0 && rm_tree(sib) == 0, "cleanup");
+}
+
+/* ---------------- journal.* (zxv_journal.h) ---------------- */
+
+static char JDIR[256];
+
+static const char *jseg(uint64_t n)
+{
+    static char p[300];
+    snprintf(p, sizeof p, "%s/%llu.jnl", JDIR, (unsigned long long) n);
+    return p;
+}
+
+static long jread(const char *p, char *buf, size_t cap)
+{
+    FILE *f = fopen(p, "rb");
+    if (!f) return -1;
+    long n = (long) fread(buf, 1, cap - 1, f);
+    fclose(f);
+    buf[n > 0 ? n : 0] = 0;
+    return n;
+}
+
+static bool jwrite(const char *p, const char *d)
+{
+    FILE *f = fopen(p, "wb");
+    if (!f) return false;
+    bool ok = fputs(d, f) >= 0;
+    return fclose(f) == 0 && ok;
+}
+
+static uint64_t jlast(void)
+{
+    zjr_verify_t v;
+    zjr_verify(&v);
+    return v.last_seq;
+}
+
+static void test_journal(void)
+{
+    static zjr_entry_t e[600];
+    uint32_t n;
+    bool more;
+    zjr_query_t q = {0};
+    zjr_verify_t v;
+    char req[600];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    snprintf(JDIR, sizeof JDIR, "%s/zxvd-journal-XXXXXX", tmp);
+    CHECK(mkdtemp(JDIR) != NULL, "a folder");
+    zjr_close();
+    CHECK(!zjr_on() && zjr_query(&q, e, 10, &n, &more) == -1 && n == 0 && zjr_verify(&v) == -1 &&
+              !v.ok,
+          "off");
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\"}"),
+                 "\"result\":{\"on\":false,\"entries\":[],\"more\":false}"),
+          "journal.query, off: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
+                 "\"result\":{\"on\":false,\"ok\":false,\"segments\":0,\"entries\":0,"
+                 "\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\"}"),
+          "journal.verify, off: %s", OUT.p);
+    CHECK(zjr_open(NULL) == 0 && zjr_open("") == 0 && !zjr_on(), "nothing to open");
+    static char longdir[ZJR_DIR_MAX + 2];
+    memset(longdir, 'j', ZJR_DIR_MAX + 1);
+    longdir[0] = '/';
+    char afile[300];
+    snprintf(afile, sizeof afile, "%s/a-file", JDIR);
+    CHECK(zjr_open(longdir) == -1 && jwrite(afile, "x") && zjr_open(afile) == -1 && !zjr_on(),
+          "cannot open");
+    char sub[300];
+    strcat(JDIR, "/j"); /* mkdtemp's name is short */
+    snprintf(sub, sizeof sub, "%s", JDIR);
+
+    /* open: a header, then "opened" as seq 1 */
+    CHECK(zjr_open(JDIR) == 0 && zjr_on(), "open");
+    static char text[1 << 16];
+    CHECK(jread(jseg(1), text, sizeof text) > 0 &&
+              !strncmp(text,
+                       "zxv-journal 1 1 "
+                       "0000000000000000000000000000000000000000000000000000000000000000\n1 ",
+                       82) &&
+              strstr(text, " info journal ") && strstr(text, " opened\n"),
+          "the first segment: %s", text);
+    CHECK(jread(strcat(strcpy(req, JDIR), "/head"), text, sizeof text) > 0 &&
+              !strcmp(text, "1 1\n"),
+          "head: %s", text);
+    zxvd_log(ZXVD_LOG_INFO, "rpc", "files.list done in 3 ms");
+    zxvd_log(ZXVD_LOG_WARN, "rpc", "files.write refused (-32012): Exists");
+    zxvd_log(ZXVD_LOG_ERROR, "net", "peer 10.0.0.2 gone");
+    zxvd_log(ZXVD_LOG_INFO, "my src", "spaces in the source");
+    zxvd_log(ZXVD_LOG_INFO, "", "no source");
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 6 && !more && e[0].seq == 6 &&
+              !strcmp(e[0].source, "-") && !strcmp(e[1].source, "my_src") &&
+              e[2].level == ZXVD_LOG_ERROR && !strcmp(e[2].text, "peer 10.0.0.2 gone") &&
+              e[5].seq == 1 && e[5].ms > 1600000000000ull,
+          "all, newest first: %u", n);
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 2 && more && e[1].seq == 5, "a page");
+    q.before = 5;
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 2 && more && e[0].seq == 4 && e[1].seq == 3,
+          "the next page");
+    q.before = 2;
+    CHECK(zjr_query(&q, e, 2, &n, &more) == 0 && n == 1 && !more && e[0].seq == 1, "the last page");
+    q.before = 0;
+    q.min_level = ZXVD_LOG_WARN;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 2 && e[0].seq == 4 && e[1].seq == 3,
+          "warn and up");
+    q.min_level = ZXVD_LOG_ERROR;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 4, "errors");
+    q.min_level = 0;
+    q.source = "rpc";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 2, "a source");
+    q.source = "rp";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "exactly");
+    q.source = "";
+    q.text = "REFUSED";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 3, "text, case ignored");
+    q.text = "my_";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 1 && e[0].seq == 5, "text in the source");
+    q.text = "zzz";
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "no such text");
+    q.text = NULL;
+    q.since_ms = e[0].ms; /* nothing: n was 0 */
+    zjr_query_t all = {0};
+    zjr_query(&all, e, 10, &n, &more);
+    uint64_t t4 = e[2].ms;
+    q.since_ms = t4 + 100000000;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "since the future");
+    q.since_ms = 0;
+    q.until_ms = 1;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 0, "until 1970");
+    q.until_ms = t4 + 100000000;
+    q.since_ms = t4 - 100000000;
+    CHECK(zjr_query(&q, e, 10, &n, &more) == 0 && n == 6, "a window");
+    q = all;
+    CHECK(zjr_verify(&v) == 0 && v.ok && v.segments == 1 && v.entries == 6 && v.first_seq == 1 &&
+              v.last_seq == 6 && v.broken_at == 0 && !v.why[0],
+          "verified: %llu", (unsigned long long) v.entries);
+
+    /* restart: the chain and the numbers go on in a new segment */
+    zjr_close();
+    zxvd_log(ZXVD_LOG_INFO, "rpc", "not kept: closed");
+    CHECK(zjr_open(JDIR) == 0 && zjr_query(&q, e, 10, &n, &more) == 0 && n == 7 && e[0].seq == 7 &&
+              !strcmp(e[0].text, "opened") && e[1].seq == 6,
+          "reopened: %u, %llu", n, (unsigned long long) e[0].seq);
+    CHECK(jread(jseg(2), text, sizeof text) > 0 && !strncmp(text, "zxv-journal 1 7 ", 16),
+          "segment 2: %.40s", text);
+    CHECK(zjr_verify(&v) == 0 && v.ok && v.segments == 2 && v.entries == 7, "the chain holds");
+
+    /* a crash mid-line: the torn line is ignored, the chain goes on */
+    zjr_close();
+    FILE *f = fopen(jseg(2), "ab");
+    CHECK(f && fputs("8 1 info rpc 00", f) >= 0 && fclose(f) == 0, "a torn line");
+    CHECK(zjr_open(JDIR) == 0 && jlast() == 8 && zjr_verify(&v) == 0 && v.ok && v.segments == 3,
+          "after the crash: %llu %s", (unsigned long long) jlast(), v.why);
+    /* the head fell behind: the newest is found anyway, nothing overwritten */
+    zjr_close();
+    CHECK(jwrite(strcat(strcpy(req, JDIR), "/head"), "1\n"), "an old head");
+    CHECK(zjr_open(JDIR) == 0 && jread(jseg(4), text, sizeof text) > 0 &&
+              !strncmp(text, "zxv-journal 1 9 ", 16) && zjr_verify(&v) == 0 && v.ok,
+          "segment 4 after 3: %.30s %s", text, v.why);
+    zjr_close();
+    CHECK(remove(req) == 0 && zjr_open(JDIR) == 0 && jseg(5) && jlast() == 10, "no head at all");
+    zjr_close();
+    CHECK(jwrite(req, "nonsense\n") && zjr_open(JDIR) == 0 && jlast() == 11, "a bad head");
+
+    /* tampering shows */
+    zjr_close();
+    CHECK(jread(jseg(1), text, sizeof text) > 0, "read 1");
+    char *gone = strstr(text, "peer 10.0.0.2 gone");
+    static char saved[1 << 16];
+    strcpy(saved, text);
+    CHECK(gone != NULL, "find the line");
+    if (gone) gone[0] = 'P';
+    CHECK(jwrite(jseg(1), text) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.broken_at == 4 && !strcmp(v.why, "line 4 was changed or is missing") &&
+              v.entries == 3,
+          "a changed line: %llu %s", (unsigned long long) v.broken_at, v.why);
+    CHECK(zjr_query(&q, e, 100, &n, &more) == 0 && n == 9 && e[n - 1].seq == 1 && e[n - 4].seq == 7,
+          "query skips the rest of the broken segment: %u", n);
+    zjr_close();
+    char *l4 = strstr(saved, "\n4 ");
+    char cut[1 << 16];
+    snprintf(cut, sizeof cut, "%.*s%s", (int) (l4 - saved + 1), saved, strstr(l4 + 1, "\n") + 1);
+    CHECK(jwrite(jseg(1), cut) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.broken_at == 4,
+          "a removed line");
+    zjr_close();
+    CHECK(jwrite(jseg(1), saved) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok,
+          "put back: %s", v.why);
+    zjr_close();
+    CHECK(jread(jseg(3), text, sizeof text) > 0, "read 3");
+    strcpy(saved, text);
+    text[20] = text[20] == 'a' ? 'b' : 'a'; /* in the prev hash */
+    CHECK(jwrite(jseg(3), text) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              !strcmp(v.why, "segment 3 does not follow the one before it") && v.broken_at == 8,
+          "a header that does not follow: %s %llu", v.why, (unsigned long long) v.broken_at);
+    zjr_close();
+    CHECK(jwrite(jseg(3), "zxv-journal 1 x\n") && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 &&
+              !v.ok && !strcmp(v.why, "segment 3 is missing or its header is damaged"),
+          "a bad header: %s", v.why);
+    zjr_close();
+    CHECK(remove(jseg(3)) == 0 && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && !v.ok &&
+              v.segments == 2 && v.first_seq == 1 && v.broken_at == 8 &&
+              !strcmp(v.why, "segment 3 is missing or its header is damaged"),
+          "a segment gone from the middle: %u %s", v.segments, v.why);
+    zjr_close();
+    CHECK(jwrite(jseg(3), saved) && zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok,
+          "whole again: %s", v.why);
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0 && jlast() > 0, "still whole");
+
+    /* size limits: rotate, then let the oldest go */
+    zjr_close();
+    zjr_set_limits(300, 2000);
+    CHECK(zjr_open(JDIR) == 0, "small limits");
+    for (int i = 0; i < 60; i++) zxvd_log(ZXVD_LOG_INFO, "rpc", "event number %d of sixty", i);
+    CHECK(!bk_exists(jseg(1)) && zjr_verify(&v) == 0 && v.ok && v.first_seq > 1 && v.segments > 3 &&
+              v.last_seq == jlast(),
+          "rotated and pruned: %u segments from %llu, %s", v.segments,
+          (unsigned long long) v.first_seq, v.why);
+    CHECK(zjr_query(&q, e, 600, &n, &more) == 0 && !more && n == v.entries &&
+              e[0].seq == v.last_seq && e[n - 1].seq == v.first_seq &&
+              !strcmp(e[0].text, "event number 59 of sixty"),
+          "the kept, all of them: %u", n);
+    zjr_close();
+    CHECK(zjr_open(JDIR) == 0 && zjr_verify(&v) == 0 && v.ok, "reopened after pruning");
+    zjr_set_limits(0, 0);
+
+    /* over JSON-RPC */
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"max\":2,"
+             "\"level\":\"info\",\"text\":\"SIXTY\"}}");
+    const char *o = rpc(req);
+    CHECK(
+        strstr(o, "\"result\":{\"on\":true,\"entries\":[{\"seq\":") &&
+            strstr(
+                o,
+                ",\"level\":\"info\",\"source\":\"rpc\",\"text\":\"event number 59 of sixty\"},") &&
+            strstr(o, "],\"more\":true}"),
+        "journal.query: %s", o);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"source\":"
+             "\"journal\",\"level\":\"warn\",\"since_ms\":1,\"until_ms\":99999999999999,"
+             "\"before\":99999}}");
+    CHECK(strstr(rpc(req), "{\"on\":true,\"entries\":[],\"more\":false}"), "nothing at warn: %s",
+          OUT.p);
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":{\"source\":"
+             "\"journal\",\"level\":\"error\"}}");
+    CHECK(strstr(rpc(req), "\"entries\":[]"), "level error: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\",\"params\":"
+                     "{\"source\":\"journal\",\"max\":500}}"),
+                 "\"text\":\"opened\""),
+          "opened, at most 500: %s", OUT.p);
+    CHECK(strstr(rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.verify\"}"),
+                 "\"result\":{\"on\":true,\"ok\":true,\"segments\":"),
+          "journal.verify: %s", OUT.p);
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":0}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"max\":501}"),
+           ERR("1", "-32602", "\\\"max\\\" must be 1 to 500"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"level\":\"loud\"}"),
+           ERR("1", "-32602", "\\\"level\\\" must be info, warn or error"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"source\":\"aaaaaaaaaaaaaaaaa\"}"),
+           ERR("1", "-32602", "\\\"source\\\" must be a string of at most 15 bytes"));
+    EXPECT(REQ("1", "journal.query", ",\"params\":{\"since_ms\":-1}"),
+           ERR("1", "-32602", "\\\"since_ms\\\" must not be negative"));
+    uint64_t before = jlast();
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"journal.query\"}");
+    CHECK(jlast() == before, "journal.query is quiet");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"files.root\",\"params\":{}}");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"zxvd.version\"}");
+    rpc("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"files.mkdir\",\"params\":{\"path\":\"\"}}");
+    CHECK(jlast() == before + 1, "a refusal reaches the journal: %llu",
+          (unsigned long long) (jlast() - before));
+    zjr_close();
+    CHECK(rm_tree(sub) == 0 && remove(afile) == 0, "cleanup");
+    *strrchr(sub, '/') = 0;
+    CHECK(rmdir(sub) == 0, "cleanup 2");
+}
+
+/* ---------------- screen time (zxv_screen.h) ---------------- */
+
+static int64_t SNOW;
+static int64_t snow(void)
+{
+    return SNOW;
+}
+
+static void test_screen(void)
+{
+    char *oldtz = getenv("TZ") ? strdup(getenv("TZ")) : NULL;
+    setenv("TZ", "UTC", 1);
+    tzset();
+    zsc_set_clock(snow);
+    SNOW = 1791799200; /* 2026-10-12 10:00 UTC */
+    zsc_answer_t a;
+    CHECK(zsc_open(NULL) == 0 && zsc_today() == 20261012 && zsc_day_count() == 0, "in memory");
+
+    /* SC1: one minute a tick, not twice in the same minute */
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && a.used == 1 && a.total == 1 && a.allowed &&
+              a.left == -1 && !a.why[0],
+          "a minute");
+    SNOW += 44;
+    CHECK(zsc_tick("glint", &a) == 0 && !a.counted && a.used == 0 && a.total == 1, "too soon");
+    SNOW += 1;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && a.used == 2 && a.total == 2, "45 s on");
+    CHECK(zsc_tick("*", &a) == ZSC_E_ARG && zsc_tick("a b", &a) == ZSC_E_ARG &&
+              zsc_tick("", &a) == ZSC_E_ARG && zsc_tick(NULL, &a) == ZSC_E_ARG &&
+              zsc_tick("abcdefghijklmnopqrstuvwxyz123456", &a) == ZSC_E_ARG &&
+              zsc_check("x*", &a) == ZSC_E_ARG && zsc_check("é", &a) == ZSC_E_ARG &&
+              zsc_tick("abcdefghijklmnopqrstuvwxyz12345", &a) == 0,
+          "app names");
+    CHECK(zsc_day_count() == 1 && zsc_day(0)->n == 1 && zsc_day(0)->total == 2 &&
+              zsc_day(0)->a[0].minutes == 2 && !zsc_day(1),
+          "today");
+
+    /* SC2, SC5: a daily cap */
+    CHECK(zsc_set_limit(NULL, "quillon", 3, 0, 0) == 0 && zsc_check("quillon", &a) == 0 &&
+              a.allowed && a.left == 1,
+          "one minute left: %d", a.left);
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.counted && !a.allowed && a.left == 0 && a.used == 3 &&
+              !strcmp(a.why, "today's 3 minutes of quillon are used up"),
+          "used up: %s", a.why);
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && a.used == 4 && !a.allowed && a.left == 0,
+          "still counted past the cap");
+    /* SC4: more time, for today only */
+    CHECK(zsc_grant(NULL, "quillon", 2) == 0 && zsc_check("quillon", &a) == 0 && a.allowed &&
+              a.left == 1,
+          "granted: %d", a.left);
+    CHECK(zsc_grant(NULL, "quillon", 1440) == 0 && zsc_limit(0)->extra == 1440, "at most a day");
+    CHECK(zsc_grant(NULL, "glint", 5) == ZSC_E_NOTFOUND &&
+              zsc_grant(NULL, "quillon", 0) == ZSC_E_ARG &&
+              zsc_grant(NULL, "quillon", 1441) == ZSC_E_ARG,
+          "grant refusals");
+    SNOW += 86400;
+    CHECK(zsc_check("quillon", &a) == 0 && a.used == 0 && a.left == 3 && a.allowed &&
+              zsc_today() == 20261013,
+          "the next day: the grant lapsed");
+    CHECK(zsc_grant(NULL, "quillon", 1) == 0 && zsc_check("quillon", &a) == 0 && a.left == 4,
+          "a grant on a new day starts over");
+    CHECK(zsc_set_limit(NULL, "quillon", 0, 0, 0) == 0 && zsc_check("quillon", &a) == 0 &&
+              a.allowed && a.left == 1,
+          "0 minutes plus the grant");
+    SNOW += 60;
+    CHECK(zsc_tick("quillon", &a) == 0 && !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "today's 1 minute of quillon is used up"),
+          "the grant used: %s", a.why);
+    CHECK(zsc_set_limit(NULL, "quillon", -2, 0, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1441, 0, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1, 1440, 0) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "quillon", 1, 0, 1440) == ZSC_E_ARG &&
+              zsc_set_limit(NULL, "a b", 1, 0, 0) == ZSC_E_ARG,
+          "limit refusals");
+
+    /* hours */
+    CHECK(zsc_set_limit(NULL, "glint", -1, 8 * 60, 9 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "glint can be used only from 08:00 to 09:00"),
+          "outside the hours: %s", a.why);
+    /* it is 10:03 */
+    CHECK(zsc_set_limit(NULL, "glint", -1, 10 * 60 + 3, 10 * 60 + 4) == 0 &&
+              zsc_check("glint", &a) == 0 && a.allowed && a.left == -1,
+          "the first minute of the hours");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 10 * 60 + 4, 10 * 60 + 9) == 0 &&
+              zsc_check("glint", &a) == 0 && !a.allowed,
+          "not yet");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 9 * 60, 10 * 60 + 3) == 0 &&
+              zsc_check("glint", &a) == 0 && !a.allowed,
+          "the end is not in the hours");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 22 * 60, 11 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              a.allowed,
+          "past midnight: in");
+    CHECK(zsc_set_limit(NULL, "glint", -1, 22 * 60, 10 * 60) == 0 && zsc_check("glint", &a) == 0 &&
+              !a.allowed,
+          "past midnight: out");
+    SNOW += 12 * 3600; /* 22:00 */
+    CHECK(zsc_check("glint", &a) == 0 && a.allowed, "22:00 is in");
+    SNOW -= 12 * 3600;
+    CHECK(zsc_set_limit(NULL, "glint", 30, 600, 600) == 0 && zsc_check("glint", &a) == 0 &&
+              a.allowed && a.left == 30 && zsc_limit_count() == 2,
+          "equal hours: any time");
+
+    /* "*": all apps together */
+    CHECK(zsc_set_limit(NULL, "*", 2, 0, 0) == 0 && zsc_tick("burrow", &a) == 0 && a.allowed &&
+              a.left == 1,
+          "one of two");
+    SNOW += 60;
+    CHECK(zsc_tick("burrow", &a) == 0 && !a.allowed && a.left == 0 &&
+              !strcmp(a.why, "today's 2 minutes are used up"),
+          "all used up: %s", a.why);
+    CHECK(zsc_check("glint", &a) == 0 && !a.allowed && a.left == 0, "for every app");
+    CHECK(zsc_set_limit(NULL, "*", -1, 23 * 60, 6 * 60) == 0 && zsc_check("burrow", &a) == 0 &&
+              !strcmp(a.why, "the machine can be used only from 23:00 to 06:00"),
+          "the machine's hours: %s", a.why);
+    CHECK(zsc_clear_limit(NULL, "*") == 0 && zsc_clear_limit(NULL, "*") == ZSC_E_NOTFOUND &&
+              zsc_clear_limit(NULL, "") == ZSC_E_ARG && zsc_check("burrow", &a) == 0 && a.allowed,
+          "cleared");
+
+    /* SC3: the guardian */
+    CHECK(!zsc_locked() && zsc_lock(NULL, "abc") == ZSC_E_ARG && !zsc_locked(), "too short");
+    static char longpass[ZSC_PASS_MAX + 2];
+    memset(longpass, 'p', ZSC_PASS_MAX + 1);
+    CHECK(zsc_lock(NULL, longpass) == ZSC_E_ARG, "too long");
+    longpass[ZSC_PASS_MAX] = 0;
+    CHECK(zsc_lock(NULL, longpass) == 0 && zsc_locked() && zsc_lock(longpass, "open sesame") == 0,
+          "locked, then changed");
+    CHECK(zsc_set_limit(NULL, "glint", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_set_limit("open", "glint", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_clear_limit(longpass, "glint") == ZSC_E_PASS && zsc_wait() == 0,
+          "three wrong");
+    CHECK(zsc_set_limit("open sesame", "glint", 5, 0, 0) == 0 && zsc_limit(1)->minutes == 5,
+          "right: the count starts over");
+    for (int i = 0; i < 4; i++) CHECK(zsc_grant("x", "glint", 1) == ZSC_E_PASS, "wrong %d", i);
+    CHECK(zsc_wait() == 0 && zsc_grant("y", "glint", 1) == ZSC_E_PASS && zsc_wait() == ZSC_WAIT_S,
+          "the fifth: wait %lld", (long long) zsc_wait());
+    CHECK(zsc_grant("open sesame", "glint", 1) == ZSC_E_WAIT &&
+              zsc_lock("open sesame", "") == ZSC_E_WAIT,
+          "even the right one waits");
+    SNOW += ZSC_WAIT_S - 1;
+    CHECK(zsc_wait() == 1 && zsc_grant("open sesame", "glint", 1) == ZSC_E_WAIT, "a second more");
+    SNOW += 1;
+    CHECK(zsc_grant("open sesame", "glint", 1) == 0 && zsc_tick("glint", &a) == 0,
+          "after the wait");
+    CHECK(zsc_lock("nope", "") == ZSC_E_PASS && zsc_lock("open sesame", "") == 0 && !zsc_locked() &&
+              zsc_set_limit(NULL, "glint", 5, 0, 0) == 0,
+          "unlocked");
+
+    /* SC6: the file */
+    char dir[256], path[300], aside[320];
+    snprintf(dir, sizeof dir, "%s/zxv-screen-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/screen.zxst", dir);
+    snprintf(aside, sizeof aside, "%s.damaged", path);
+    CHECK(zsc_open(path) == 0 && zsc_day_count() == 0 && zsc_limit_count() == 0 && !zsc_locked() &&
+              bk_exists(path) && !zsc_was_reset(),
+          "a new file");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600: %o",
+          (unsigned) (st.st_mode & 0777));
+    SNOW += 3600;
+    CHECK(zsc_tick("quillon", &a) == 0 && zsc_set_limit(NULL, "quillon", 30, 480, 1260) == 0 &&
+              zsc_set_limit(NULL, "*", -1, 0, 0) == 0 && zsc_grant(NULL, "quillon", 5) == 0 &&
+              zsc_lock(NULL, "open sesame") == 0,
+          "changes");
+    SNOW -= 86400; /* a tick on the day before */
+    CHECK(zsc_tick("glint", &a) == 0 && zsc_day_count() == 2, "yesterday");
+    SNOW += 86400;
+    zsc_close();
+    CHECK(!zsc_locked() && zsc_limit_count() == 0 && zsc_day_count() == 0, "closed");
+    CHECK(zsc_open(path) == 0 && !zsc_was_reset() && zsc_locked() && zsc_limit_count() == 2 &&
+              zsc_limit(0)->minutes == 30 && zsc_limit(0)->from == 480 &&
+              zsc_limit(0)->to == 1260 && zsc_limit(0)->extra == 5 && zsc_limit(1)->minutes == -1 &&
+              zsc_day_count() == 2 && zsc_day(0)->date == 20261013 &&
+              zsc_day(1)->date == 20261012 && zsc_day(0)->a[0].minutes == 1 &&
+              !strcmp(zsc_day(1)->a[0].app, "glint"),
+          "reloaded: %u limits %u days", zsc_limit_count(), zsc_day_count());
+    CHECK(zsc_check("quillon", &a) == 0 && a.left == 34 &&
+              zsc_set_limit("x", "a", 1, 0, 0) == ZSC_E_PASS &&
+              zsc_set_limit("open sesame", "a", 1, 0, 0) == 0,
+          "the same passphrase");
+    zsc_close();
+    static char text[1 << 16];
+    CHECK(jread(path, text, sizeof text) > 0 && strstr(text, "\nlock ") &&
+              strstr(text, "\nlimit quillon 30 480 1260 20261013 5\n") &&
+              strstr(text, "\nday 20261012 glint 1\n") && !strstr(text, "open sesame"),
+          "the file: %s", text);
+    /* damage, in several ways */
+    const char *edits[][2] = {{"limit quillon 30", "limit quillon 99"},
+                              {"zxv-screen 1", "zxv-screen 2"},
+                              {"\nend ", "\nEnd "}};
+    for (size_t i = 0; i < sizeof edits / sizeof *edits; i++) {
+        CHECK(jread(path, text, sizeof text) > 0, "read");
+        char *at = strstr(text, edits[i][0]);
+        CHECK(at != NULL, "find %zu", i);
+        if (at) memcpy(at, edits[i][1], strlen(edits[i][1]));
+        remove(aside);
+        CHECK(jwrite(path, text) && zsc_open(path) == 0 && zsc_was_reset() && !zsc_locked() &&
+                  zsc_limit_count() == 0 && zsc_day_count() == 0 && bk_exists(aside),
+              "damaged %zu: moved aside", i);
+        CHECK(zsc_tick("quillon", &a) == 0 && zsc_set_limit(NULL, "quillon", 30, 480, 1260) == 0,
+              "starts again");
+        zsc_close();
+    }
+    /* well-formed files whose lines are wrong */
+    const char *bodies[] = {
+        "limit quillon 30 480 1260 0 0\nlimit quillon 30 480 1260 0 0\n",
+        "limit quillon 1441 0 0 0 0\n",
+        "limit quillon -2 0 0 0 0\n",
+        "limit quillon 1 1440 0 0 0\n",
+        "limit quillon 1 0 1440 0 0\n",
+        "limit quillon 1 0 0 0 100001\n",
+        "limit quillon 1 0 0 99991232 0\n",
+        "limit a*b 1 0 0 0 0\n",
+        "limit quillon 1 0 0 0 0 x\n",
+        "day 20261012 * 3\n",
+        "day 20261012 glint 1441\n",
+        "day 19691231 glint 1\n",
+        "day 20261012 glint 1\nday 20261012 glint 2\n",
+        "lock 00 00\n",
+        "lock 000000000000000000000000000000zz "
+        "0000000000000000000000000000000000000000000000000000000000000000\n",
+        "lock 00000000000000000000000000000000 "
+        "0000000000000000000000000000000000000000000000000000000000000000\n"
+        "lock 00000000000000000000000000000000 "
+        "0000000000000000000000000000000000000000000000000000000000000000\n",
+        "something else\n",
+    };
+    for (size_t i = 0; i < sizeof bodies / sizeof *bodies; i++) {
+        uint8_t h[32];
+        char body[1024], hex[65];
+        int n = snprintf(body, sizeof body, "zxv-screen 1\n%s", bodies[i]);
+        sha256((const uint8_t *) body, (size_t) n, h);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", h[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        remove(aside);
+        CHECK(jwrite(path, body) && zsc_open(path) == 0 && zsc_was_reset() && bk_exists(aside),
+              "a bad line %zu: %s", i, bodies[i]);
+        zsc_close();
+    }
+    {
+        /* a good file written by hand, with days older than kept */
+        char body[1 << 12], hex[65];
+        uint8_t h[32];
+        int n = snprintf(body, sizeof body, "zxv-screen 1\nlimit * 60 0 0 0 0\n");
+        for (int d = 1; d <= 9; d++)
+            for (int m = 1; m <= 4; m++)
+                catf(body, sizeof body, &n, "day 2026%02d%02d a%d %d\n", m, d * 3, d, d);
+        sha256((const uint8_t *) body, (size_t) n, h);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", h[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        CHECK(jwrite(path, body) && zsc_open(path) == 0 && !zsc_was_reset() &&
+                  zsc_day_count() == ZSC_DAYS && zsc_day(0)->date == 20260427 &&
+                  zsc_day(ZSC_DAYS - 1)->date == 20260118 && zsc_limit_count() == 1,
+              "the newest 31 days: %u, %u", zsc_day_count(),
+              zsc_day(ZSC_DAYS - 1) ? zsc_day(ZSC_DAYS - 1)->date : 0);
+        zsc_close();
+    }
+    CHECK(jwrite(path, "short\n") && zsc_open(path) == 0 && zsc_was_reset(), "too short");
+    zsc_close();
+    char nodir[320];
+    snprintf(nodir, sizeof nodir, "%s/no/such/screen.zxst", dir);
+    CHECK(zsc_open(nodir) == ZSC_E_IO && zsc_tick("a", &a) == 0, "no folder: memory only");
+    static char longpath[ZSC_PATH_MAX + 2];
+    memset(longpath, 'x', ZSC_PATH_MAX + 1);
+    CHECK(zsc_open(longpath) == ZSC_E_ARG, "too long a path");
+    for (int i = -1; i >= -7; i--) CHECK(zsc_strerror(i)[0], "strerror %d", i);
+    CHECK(strcmp(zsc_strerror(ZSC_E_PASS), zsc_strerror(-99)), "unknown");
+
+    /* SC1: the newest 31 days, a new day in front */
+    CHECK(zsc_open(path) == 0, "again");
+    remove(aside);
+    for (int d = 0; d < 40; d++) {
+        SNOW += 86400;
+        CHECK(zsc_tick("quillon", &a) == 0 && a.counted, "day %d", d);
+    }
+    CHECK(zsc_day_count() == ZSC_DAYS && zsc_day(0)->date > zsc_day(1)->date &&
+              zsc_day(0)->date == zsc_today(),
+          "31 days");
+    for (int i = 0; i < (int) ZSC_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%d", i);
+        SNOW += 60;
+        zsc_tick(app, &a);
+    }
+    SNOW += 60;
+    CHECK(zsc_tick("one-more", &a) == ZSC_E_FULL, "64 apps a day");
+    for (int i = (int) zsc_limit_count(); i < (int) ZSC_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%d", i);
+        CHECK(zsc_set_limit(NULL, app, 1, 0, 0) == 0, "limit %d", i);
+    }
+    CHECK(zsc_set_limit(NULL, "one-more", 1, 0, 0) == ZSC_E_FULL, "64 limits");
+    for (int i = 0; i < 3 * 1440; i++) {
+        SNOW += 60;
+        zsc_tick("app0", &a);
+    }
+    CHECK(zsc_day(0)->total <= 1440 && zsc_day(1)->total <= 1440, "no more than a day in a day");
+
+    /* over JSON-RPC */
+    zsc_close();
+    CHECK(zsc_open(NULL) == 0, "memory");
+    SNOW = 1791799200;
+    CHECK(has(REQ("1", "screen.tick", ",\"params\":{\"app\":\"quillon\"}"),
+              "\"result\":{\"app\":\"quillon\",\"counted\":true,\"allowed\":true,\"used\":1,"
+              "\"total\":1,\"left\":-1,\"why\":\"\"}"),
+          "screen.tick: %s", OUT.p);
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"quillon\",\"minutes\":1}"),
+           OK("1", "{\"app\":\"quillon\",\"set\":true}"));
+    CHECK(has(REQ("1", "screen.check", ",\"params\":{\"app\":\"quillon\"}"),
+              "{\"app\":\"quillon\",\"allowed\":false,\"used\":1,\"total\":1,\"left\":0,\"why\":"
+              "\"today's 1 minute of quillon is used up\"}"),
+          "screen.check: %s", OUT.p);
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"quillon\",\"minutes\":10}"),
+           OK("1", "{\"app\":\"quillon\",\"left\":10}"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"*\",\"from\":480,\"to\":1260}"),
+           OK("1", "{\"app\":\"*\",\"set\":true}"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"*\",\"minutes\":10}"),
+           OK("1", "{\"app\":\"*\"}"));
+    CHECK(has(REQ("1", "screen.status", ""),
+              "\"result\":{\"locked\":false,\"reset\":false,\"wait_s\":0,\"today\":20261012,"
+              "\"limits\":[{\"app\":\"quillon\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":10},"
+              "{\"app\":\"*\",\"minutes\":null,\"from\":480,\"to\":1260,\"extra\":10}],\"days\":["
+              "{\"date\":20261012,\"total\":1,\"apps\":[{\"app\":\"quillon\",\"minutes\":1}]}]}"),
+          "screen.status: %s", OUT.p);
+    SNOW += 86400 + 60;
+    rpc(REQ("1", "screen.tick", ",\"params\":{\"app\":\"glint\"}"));
+    rpc(REQ("1", "screen.tick", ",\"params\":{\"app\":\"burrow\"}"));
+    CHECK(has(REQ("1", "screen.status", ",\"params\":{\"days\":1}"),
+              "\"extra\":0}],\"days\":[{\"date\":20261013,\"total\":1,\"apps\":[{\"app\":\"glint\","
+              "\"minutes\":1}]}]}"),
+          "one day, yesterday's grants gone: %s", OUT.p);
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"open sesame\"}"),
+           OK("1", "{\"locked\":true}"));
+    EXPECT(REQ("1", "screen.clear_limit", ",\"params\":{\"app\":\"*\"}"),
+           ERR("1", "-32019", "the guardian's passphrase is wrong"));
+    EXPECT(REQ("1", "screen.clear_limit",
+               ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
+           OK("1", "{\"app\":\"*\",\"cleared\":true}"));
+    EXPECT(REQ("1", "screen.clear_limit",
+               ",\"params\":{\"app\":\"*\",\"passphrase\":\"open sesame\"}"),
+           ERR("1", "-32019", "no limit for that app"));
+    EXPECT(REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"\",\"old\":\"open sesame\"}"),
+           OK("1", "{\"locked\":false}"));
+    EXPECT(
+        REQ("1", "screen.lock", ",\"params\":{\"passphrase\":\"abc\"}"),
+        ERR("1", "-32602", "\\\"passphrase\\\" must be at least 4 bytes, or \\\"\\\" to unlock"));
+    EXPECT(REQ("1", "screen.lock", ""),
+           ERR("1", "-32602", "missing string parameter \\\"passphrase\\\""));
+    EXPECT(REQ("1", "screen.tick", ",\"params\":{\"app\":\"a b\"}"),
+           ERR("1", "-32602", "a bad app name, minutes or hours"));
+    EXPECT(REQ("1", "screen.tick", ""), ERR("1", "-32602", "missing string parameter \\\"app\\\""));
+    EXPECT(REQ("1", "screen.check", ",\"params\":{\"app\":\"*\"}"),
+           ERR("1", "-32602", "a bad app name, minutes or hours"));
+    EXPECT(REQ("1", "screen.status", ",\"params\":{\"days\":0}"),
+           ERR("1", "-32602", "\\\"days\\\" must be 1 to 31"));
+    EXPECT(REQ("1", "screen.status", ",\"params\":{\"days\":32}"),
+           ERR("1", "-32602", "\\\"days\\\" must be 1 to 31"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"minutes\":1441}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 0 to 1440"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"from\":1440}"),
+           ERR("1", "-32602", "\\\"from\\\" must be 0 to 1439 (minutes after midnight)"));
+    EXPECT(REQ("1", "screen.set_limit", ",\"params\":{\"app\":\"a\",\"to\":-1}"),
+           ERR("1", "-32602", "\\\"to\\\" must not be negative"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"a\"}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"a\",\"minutes\":1441}"),
+           ERR("1", "-32602", "\\\"minutes\\\" must be 1 to 1440"));
+    EXPECT(REQ("1", "screen.grant", ",\"params\":{\"app\":\"nolimit\",\"minutes\":5}"),
+           ERR("1", "-32019", "no limit for that app"));
+    zsc_close();
+    zsc_set_clock(NULL);
+    CHECK(zsc_today() > 20260000, "the real clock");
+    if (oldtz)
+        setenv("TZ", oldtz, 1);
+    else
+        unsetenv("TZ");
+    free(oldtz);
+    tzset();
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
+/* ---------------- location (zxv_place.h) ---------------- */
+
+static int64_t PNOW;
+static int64_t pnow(void)
+{
+    return PNOW;
+}
+
+static void test_place(void)
+{
+    zpl_set_clock(pnow);
+    PNOW = 1791799200;
+    zpl_here_t h;
+    const zpl_point_t paris = {48856600, 2352200}, london = {51507400, -127800};
+    CHECK(zpl_open(NULL) == 0 && !zpl_here()->known && !zpl_stale() && zpl_count() == 0,
+          "in memory");
+
+    /* P4 */
+    uint64_t d = zpl_distance_m(paris, london);
+    CHECK(d > 340000 && d < 347000, "Paris to London: %llu m", (unsigned long long) d);
+    CHECK(zpl_distance_m(london, paris) == d && zpl_distance_m(paris, paris) == 0, "symmetric");
+    CHECK(zpl_distance_m((zpl_point_t){0, 0}, (zpl_point_t){0, 1000000}) == 111320 &&
+              zpl_distance_m((zpl_point_t){0, 0}, (zpl_point_t){1000000, 0}) == 111132,
+          "a degree at the equator");
+    d = zpl_distance_m((zpl_point_t){0, 179900000}, (zpl_point_t){0, -179900000});
+    CHECK(d == 22264, "across the date line: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){0, -179900000}, (zpl_point_t){0, 179900000});
+    CHECK(d == 22264, "and back: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){60000000, 0}, (zpl_point_t){60000000, 1000000});
+    CHECK(d == 55660, "a degree at 60 north: %llu", (unsigned long long) d);
+    d = zpl_distance_m((zpl_point_t){-60500000, 0}, (zpl_point_t){-60500000, 1000000});
+    CHECK(d > 54700 && d < 54900, "between table rows, south: %llu", (unsigned long long) d);
+    CHECK(zpl_distance_m((zpl_point_t){90000000, 0}, (zpl_point_t){90000000, 90000000}) == 0,
+          "at the pole");
+    CHECK(zpl_valid((zpl_point_t){90000000, 180000000}) &&
+              zpl_valid((zpl_point_t){-90000000, -180000000}) &&
+              !zpl_valid((zpl_point_t){90000001, 0}) && !zpl_valid((zpl_point_t){-90000001, 0}) &&
+              !zpl_valid((zpl_point_t){0, 180000001}) && !zpl_valid((zpl_point_t){0, -180000001}),
+          "valid points");
+
+    /* P1 */
+    CHECK(zpl_set_here(paris, 0, "owner") == ZPL_E_ARG &&
+              zpl_set_here(paris, 1000001, "owner") == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, "") == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, NULL) == ZPL_E_ARG &&
+              zpl_set_here(paris, 5, "sixteen-bytes-xx") == ZPL_E_ARG &&
+              zpl_set_here((zpl_point_t){0, 180000001}, 5, "owner") == ZPL_E_ARG &&
+              !zpl_here()->known,
+          "bad locations");
+    CHECK(zpl_set_here(paris, 1000000, "fifteen-bytes-x") == 0 &&
+              zpl_set_here(paris, 5, "owner") == 0 && zpl_here()->known &&
+              zpl_here()->accuracy_m == 5 && !strcmp(zpl_here()->source, "owner") &&
+              zpl_here()->time == PNOW && !zpl_stale(),
+          "here");
+    PNOW += ZPL_STALE_S;
+    CHECK(!zpl_stale(), "ten minutes is fresh");
+    PNOW += 1;
+    CHECK(zpl_stale(), "then stale");
+
+    /* P2 */
+    CHECK(zpl_ask("glint", &h) == ZPL_E_PENDING && !h.known && zpl_app_count() == 1 &&
+              zpl_app(0)->pending && zpl_app(0)->asked == PNOW && zpl_app(0)->mode == ZPL_ASK,
+          "asks: pending");
+    CHECK(zpl_ask("glint", &h) == ZPL_E_PENDING && zpl_app_count() == 1, "one entry per app");
+    CHECK(zpl_permit("glint", ZPL_ONCE) == 0 && !zpl_app(0)->pending && zpl_ask("glint", &h) == 0 &&
+              h.known && h.at.lat == paris.lat && zpl_ask("glint", &h) == ZPL_E_PENDING,
+          "once is once");
+    CHECK(zpl_permit("glint", ZPL_ALWAYS) == 0 && zpl_ask("glint", &h) == 0 &&
+              zpl_ask("glint", &h) == 0,
+          "always");
+    zpl_forget_here();
+    CHECK(zpl_ask("glint", &h) == ZPL_E_NONE && !h.known, "allowed, not known");
+    CHECK(zpl_permit("quillon", ZPL_NEVER) == 0 && zpl_ask("quillon", &h) == ZPL_E_DENIED, "never");
+    CHECK(zpl_ask("a b", &h) == ZPL_E_ARG && zpl_ask("", &h) == ZPL_E_ARG &&
+              zpl_permit("glint", (zpl_mode_t) 4) == ZPL_E_ARG &&
+              zpl_permit("abcdefghijklmnopqrstuvwxyz123456", ZPL_NEVER) == ZPL_E_ARG,
+          "bad asks");
+    CHECK(zpl_mode_parse("always") == ZPL_ALWAYS && zpl_mode_parse("ask") == ZPL_ASK &&
+              zpl_mode_parse("never") == ZPL_NEVER && zpl_mode_parse("once") == ZPL_ONCE &&
+              zpl_mode_parse("Always") == -1 && zpl_mode_parse(NULL) == -1 &&
+              !strcmp(zpl_mode_name(ZPL_ONCE), "once") &&
+              !strcmp(zpl_mode_name((zpl_mode_t) 9), "ask"),
+          "modes");
+    for (uint32_t i = zpl_app_count(); i < ZPL_APPS; i++) {
+        char app[16];
+        snprintf(app, sizeof app, "app%u", i);
+        CHECK(zpl_ask(app, &h) == ZPL_E_PENDING, "app %u", i);
+    }
+    CHECK(zpl_ask("one-more", &h) == ZPL_E_FULL && zpl_permit("one-more", ZPL_NEVER) == ZPL_E_FULL,
+          "64 apps");
+
+    /* P3 */
+    CHECK(zpl_add("Home", paris, "the flat") == 0 && zpl_add("home", london, "") == ZPL_E_EXISTS &&
+              zpl_add("Office", london, NULL) == 0 && zpl_count() == 2 &&
+              !strcmp(zpl_find("OFFICE")->name, "Office") && !zpl_find("Offic") &&
+              !zpl_find(NULL) && !strcmp(zpl_place(1)->note, ""),
+          "places");
+    CHECK(zpl_add("", paris, "") == ZPL_E_ARG && zpl_add(" lead", paris, "") == ZPL_E_ARG &&
+              zpl_add("tab\there", paris, "") == ZPL_E_ARG &&
+              zpl_add("x", paris, "line\nbreak") == ZPL_E_ARG &&
+              zpl_add("del\x7f", paris, "") == ZPL_E_ARG &&
+              zpl_add("x", (zpl_point_t){90000001, 0}, "") == ZPL_E_ARG &&
+              zpl_add(NULL, paris, "") == ZPL_E_ARG,
+          "bad places");
+    static char longname[ZPL_NAME_MAX + 2], longnote[ZPL_NOTE_MAX + 2];
+    memset(longname, 'n', ZPL_NAME_MAX + 1);
+    memset(longnote, 'o', ZPL_NOTE_MAX + 1);
+    CHECK(zpl_add(longname, paris, "") == ZPL_E_ARG && zpl_add("n", paris, longnote) == ZPL_E_ARG,
+          "too long");
+    longname[ZPL_NAME_MAX] = longnote[ZPL_NOTE_MAX] = 0;
+    CHECK(zpl_add(longname, paris, longnote) == 0 && zpl_remove(longname) == 0, "at the limit");
+    CHECK(zpl_remove("home") == 0 && zpl_count() == 1 && !strcmp(zpl_place(0)->name, "Office") &&
+              !zpl_place(1) && zpl_remove("home") == ZPL_E_NOTFOUND &&
+              zpl_remove(NULL) == ZPL_E_ARG,
+          "removed");
+    for (uint32_t i = zpl_count(); i < ZPL_PLACES; i++) {
+        char name[16];
+        snprintf(name, sizeof name, "p%u", i);
+        CHECK(zpl_add(name, paris, "") == 0, "place %u", i);
+    }
+    CHECK(zpl_add("one-more", paris, "") == ZPL_E_FULL, "200 places");
+
+    /* P5 */
+    char dir[256], path[300], aside[320];
+    snprintf(dir, sizeof dir, "%s/zxv-place-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/places.zxpl", dir);
+    snprintf(aside, sizeof aside, "%s.damaged", path);
+    CHECK(zpl_open(path) == 0 && zpl_count() == 0 && zpl_app_count() == 0 && bk_exists(path) &&
+              !zpl_was_reset(),
+          "a new file");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600");
+    CHECK(zpl_set_here(london, 20, "owner") == 0 && zpl_add("Home", paris, "the flat") == 0 &&
+              zpl_add("Café Ω", london, "with a note") == 0 &&
+              zpl_permit("glint", ZPL_ALWAYS) == 0 && zpl_permit("quillon", ZPL_NEVER) == 0 &&
+              zpl_permit("burrow", ZPL_ONCE) == 0 && zpl_ask("scent", &h) == ZPL_E_PENDING,
+          "changes");
+    zpl_close();
+    CHECK(zpl_open(path) == 0 && !zpl_was_reset() && zpl_count() == 2 &&
+              !strcmp(zpl_place(1)->name, "Café Ω") && zpl_place(1)->at.lon == london.lon &&
+              !strcmp(zpl_place(0)->note, "the flat") && zpl_app_count() == 2 &&
+              zpl_app(0)->mode == ZPL_ALWAYS && zpl_app(1)->mode == ZPL_NEVER && !zpl_here()->known,
+          "reloaded: lasting answers only, never the location");
+    CHECK(zpl_permit("glint", ZPL_ASK) == 0 && zpl_permit("burrow", ZPL_ONCE) == 0, "changed");
+    zpl_close();
+    CHECK(zpl_open(path) == 0 && zpl_app_count() == 1 && !strcmp(zpl_app(0)->app, "quillon"),
+          "ask again is not kept");
+    zpl_close();
+    static char text[1 << 16];
+    CHECK(jread(path, text, sizeof text) > 0 &&
+              strstr(text, "\nplace\t48856600\t2352200\tHome\tthe flat\n") &&
+              strstr(text, "\napp\tquillon\tnever\n") && !strstr(text, "owner"),
+          "the file: %s", text);
+    const char *bodies[] = {
+        "place\t1\t2\tA\tx\nplace\t1\t2\ta\ty\n",
+        "place\t90000001\t0\tA\t\n",
+        "place\t0\t180000001\tA\t\n",
+        "place\tx\t0\tA\t\n",
+        "place\t0\t0\t\t\n",
+        "place\t0\t0\tA\n",
+        "place\t0\t0\tA\tb\tc\n",
+        "app\tglint\tonce\n",
+        "app\tglint\task\n",
+        "app\tglint\tsometimes\n",
+        "app\ta b\tnever\n",
+        "app\tglint\tnever\napp\tglint\talways\n",
+        "app\tglint\n",
+        "else\n",
+        "place\t\t0\tA\t\n",
+    };
+    for (size_t i = 0; i < sizeof bodies / sizeof *bodies; i++) {
+        uint8_t hh[32];
+        char body[1024], hex[65];
+        int n = snprintf(body, sizeof body, "zxv-places 1\n%s", bodies[i]);
+        sha256((const uint8_t *) body, (size_t) n, hh);
+        for (int k = 0; k < 32; k++) snprintf(hex + 2 * k, 3, "%02x", hh[k]);
+        snprintf(body + n, sizeof body - (size_t) n, "end %s\n", hex);
+        remove(aside);
+        CHECK(jwrite(path, body) && zpl_open(path) == 0 && zpl_was_reset() && bk_exists(aside) &&
+                  zpl_count() == 0 && zpl_app_count() == 0,
+              "a bad line %zu", i);
+        zpl_close();
+    }
+    const char *edits[][2] = {
+        {"Home", "Hope"}, {"zxv-places 1", "zxv-places 2"}, {"\nend ", "\nEnd "}};
+    for (size_t i = 0; i < sizeof edits / sizeof *edits; i++) {
+        CHECK(zpl_open(path) == 0 && zpl_add("Home", paris, "") == 0, "fresh %zu", i);
+        zpl_close();
+        CHECK(jread(path, text, sizeof text) > 0, "read");
+        char *at = strstr(text, edits[i][0]);
+        CHECK(at != NULL, "find %zu", i);
+        if (at) memcpy(at, edits[i][1], strlen(edits[i][1]));
+        remove(aside);
+        CHECK(jwrite(path, text) && zpl_open(path) == 0 && zpl_was_reset() && zpl_count() == 0,
+              "damaged %zu", i);
+        zpl_close();
+        remove(path);
+    }
+    CHECK(jwrite(path, "short\n") && zpl_open(path) == 0 && zpl_was_reset(), "too short");
+    zpl_close();
+    char nodir[320];
+    snprintf(nodir, sizeof nodir, "%s/no/such/places.zxpl", dir);
+    CHECK(zpl_open(nodir) == ZPL_E_IO && zpl_add("x", paris, "") == 0, "no folder: memory only");
+    static char longpath[ZPL_PATH_MAX + 2];
+    memset(longpath, 'x', ZPL_PATH_MAX + 1);
+    CHECK(zpl_open(longpath) == ZPL_E_ARG, "too long a path");
+    for (int i = -1; i >= -8; i--) CHECK(zpl_strerror(i)[0], "strerror %d", i);
+    CHECK(strcmp(zpl_strerror(-99), zpl_strerror(ZPL_E_ARG)), "unknown");
+
+    /* over JSON-RPC */
+    zpl_close();
+    CHECK(zpl_open(NULL) == 0, "memory");
+    EXPECT(REQ("1", "place.here", ""), OK("1", "{\"known\":false}"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":48856600,\"lon\":2352200}"),
+           OK("1", "{\"known\":true,\"lat\":48856600,\"lon\":2352200,\"accuracy_m\":50,\"source\":"
+                   "\"owner\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here",
+               ",\"params\":{\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,"
+               "\"source\":\"corelocation\"}"),
+           OK("1", "{\"known\":true,\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,\"source\":"
+                   "\"corelocation\",\"time\":1791799801,\"stale\":false}"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":90000001,\"lon\":0}"),
+           ERR("1", "-32602",
+               "\\\"lat\\\" and \\\"lon\\\" are millionths of a degree: lat within 90, "
+               "lon within 180 degrees"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":-180000001}"),
+           ERR("1", "-32602",
+               "\\\"lat\\\" and \\\"lon\\\" are millionths of a degree: lat within 90, "
+               "lon within 180 degrees"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"accuracy_m\":0}"),
+           ERR("1", "-32602", "\\\"accuracy_m\\\" must be 1 to 1000000"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0,\"lon\":0,\"source\":\"a b\"}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.set_here", ",\"params\":{\"lat\":0}"),
+           ERR("1", "-32602", "missing integer parameter \\\"lon\\\""));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"pending\"}"));
+    EXPECT(REQ("1", "place.apps", ""),
+           OK("1", "{\"apps\":[{\"app\":\"glint\",\"mode\":\"ask\",\"pending\":true,\"asked\":"
+                   "1791799801}]}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"once\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"once\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1",
+              "{\"app\":\"glint\",\"answer\":\"allowed\",\"lat\":-1,\"lon\":-2,\"accuracy_m\":9,"
+              "\"source\":\"corelocation\",\"time\":1791799801}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"never\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"never\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"never\"}"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"always\"}"),
+           OK("1", "{\"app\":\"glint\",\"mode\":\"always\"}"));
+    EXPECT(REQ("1", "place.forget_here", ""), OK("1", "{\"known\":false}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"glint\"}"),
+           OK("1", "{\"app\":\"glint\",\"answer\":\"unknown\"}"));
+    EXPECT(REQ("1", "place.ask", ",\"params\":{\"app\":\"a b\"}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.permit", ",\"params\":{\"app\":\"glint\",\"mode\":\"maybe\"}"),
+           ERR("1", "-32602", "\\\"mode\\\" must be ask, once, always or never"));
+    EXPECT(REQ("1", "place.list", ""), OK("1", "{\"reset\":false,\"places\":[]}"));
+    EXPECT(REQ("1", "place.add",
+               ",\"params\":{\"name\":\"Home\",\"lat\":48856600,\"lon\":2352200,"
+               "\"note\":\"the flat\"}"),
+           OK("1", "{\"name\":\"Home\",\"added\":true}"));
+    EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"home\",\"lat\":0,\"lon\":0}"),
+           ERR("1", "-32021", "a place has that name"));
+    EXPECT(REQ("1", "place.add", ",\"params\":{\"name\":\"\",\"lat\":0,\"lon\":0}"),
+           ERR("1", "-32602", "a bad name, app or coordinate"));
+    EXPECT(REQ("1", "place.list", ""),
+           OK("1",
+              "{\"reset\":false,\"places\":[{\"name\":\"Home\",\"lat\":48856600,\"lon\":2352200,"
+              "\"note\":\"the flat\",\"distance_m\":null}]}"));
+    rpc(REQ("1", "place.set_here", ",\"params\":{\"lat\":51507400,\"lon\":-127800}"));
+    CHECK(has(REQ("1", "place.list", ""), "\"distance_m\":34"), "a distance: %s", OUT.p);
+    EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
+           OK("1", "{\"name\":\"HOME\",\"removed\":true}"));
+    EXPECT(REQ("1", "place.remove", ",\"params\":{\"name\":\"HOME\"}"),
+           ERR("1", "-32021", "no such place"));
+    zpl_close();
+    zpl_set_clock(NULL);
+    CHECK(rm_tree(dir) == 0, "cleanup");
 }
 
 int main(void)
@@ -3976,6 +6435,14 @@ int main(void)
     test_aipi_methods();
     test_files_methods();
     test_spaces_methods();
+    test_sys_and_log();
+    test_sys_shapes();
+    test_search();
+    test_print();
+    test_backup();
+    test_journal();
+    test_screen();
+    test_place();
     test_people_methods();
     test_books_closed();
     test_books();

@@ -1,6 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_chiglet.c — the companion's form from its genes. See zui_chiglet.h. */
+#include <stdbool.h>
 #include "zui_chiglet.h"
 #include "zui_tokens.h"
 #include "holo.h"
@@ -26,8 +27,8 @@ static void disc(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t r
 static const int16_t SIN16[16] = {0, 392,  724,  946,  1024,  946,  724,  392,
                                   0, -392, -724, -946, -1024, -946, -724, -392};
 
-void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
-                      uint32_t tick)
+void zui_chiglet_draw_aura(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy,
+                           int32_t r, uint32_t tick)
 {
     if (!s || !c || r < 8) return;
     const uint8_t *g = c->genes;
@@ -50,6 +51,16 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int3
         int32_t my = cy + (orx * SIN16[(ph + 4u) & 15u]) / 2048;
         disc(s, mx, my, r / 10 + 1, accent);
     }
+}
+
+void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
+                      uint32_t tick)
+{
+    if (!s || !c || r < 8) return;
+    const uint8_t *g = c->genes;
+    uint32_t accent = zui_chiglet_accent(c);
+
+    zui_chiglet_draw_aura(s, c, cx, cy, r, tick);
 
     /* antennae: curiosity */
     uint32_t ant = g[G_CURIOUS] % 4u;
@@ -88,8 +99,13 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int3
     /* mouth: verbosity sets width; speaking opens it */
     int32_t mw = r / 4 + (int32_t) ((uint32_t) r / 2u * (g[G_VERBOSE] % 5u) / 4u);
     int32_t mh = c->mood == ZUI_CHG_SPEAKING ? r / 5 + 1 : 2;
+    bool open = c->mood == ZUI_CHG_SPEAKING;
+    if (c->mouth) { /* the speech level: 2 px closed .. r / 4 + 2 wide open */
+        mh = 2 + (int32_t) (((uint32_t) r / 4u) * c->mouth / 255u);
+        open = mh > 3;
+    }
     zui_rect_t mouth = {cx - mw / 2, cy + r / 4, mw, mh};
-    zui_fill_rrect(s, mouth, mh / 2, c->mood == ZUI_CHG_SPEAKING ? ZUI_VOID : ZUI_TEXT_2, 255u);
+    zui_fill_rrect(s, mouth, mh / 2, open ? ZUI_VOID : ZUI_TEXT_2, 255u);
 
     /* chest emblem: specialty, one of four marks in the accent colour */
     int32_t ey2 = cy + r / 2 + r / 8, k = r / 8 + 1;

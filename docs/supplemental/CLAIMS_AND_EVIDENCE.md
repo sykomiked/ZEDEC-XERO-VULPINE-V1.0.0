@@ -163,22 +163,20 @@ locally with `scripts/verify-local.sh --all` (or `--docker --all`).
 
 These appear in the documents but should not be read as working features.
 
-- A supercomputer (HPC) version: deferred by the owner (`docs/AUDIT_REPORT.md`, requirement 9).
-- One LoRA adapter per swarm agent: no LoRA loading exists (`docs/AUDIT_REPORT.md`, requirement 15).
+- A full supercomputer (HPC) version. Slice 1 is built: tensor-parallel inference across processes and machines in `kernel/src/tensor/dist` (`docs/HPC_DESIGN.md`; `docs/AUDIT_REPORT.md` requirement 9, PARTIAL). Multi-machine measurements, pipeline parallelism and the PQ mesh transport are not built.
+- One LoRA adapter per swarm agent on a real model. Loading and applying adapters is built and tested on tiny models (`zt_lora_load` in `kernel/src/tensor/zt_model.c`, `test_zt_lora.c`; `docs/TENSOR_ENGINE.md` T23), but no real adapter has been run on a real model yet.
 - A PQ-signed model manifest and the `tools/zxv_pack` converter (`docs/AUDIT_REPORT.md`, requirement 14).
 - The MegaROM, a game ROM combining mechanics from many games; its own plan calls the full scope "a decades-scale effort" (`MEGAROM_PLAN.md`).
-- A CI layering check over the seven strata (`docs/ARCHITECTURE.md` rule R2; `docs/GAP_AUDIT.md` B1).
-- The Trebago, Eve, KRON and MYRA pillars are marked as planned (📋) in `docs/ARCHITECTURE.md` §12, while `sdk/README.md` lists each with its own tests. Check `sdk/pillars/` for the current state.
 
 ## Where the documents disagree
 
 Some documents were written at different times. Known differences, so a
 reader is not misled:
 
-- `docs/TENSOR_ENGINE.md` ("Limits") says the model runtime "is in pieces" and
-  that speed "is not yet measured". The later benchmark reports under
+- `docs/TENSOR_ENGINE.md` ("Limits") said the model runtime "is in pieces" and
+  that speed "is not yet measured", while the benchmark reports under
   `bench/results/` show a full forward pass on a real model with measured
-  speed. The reports are newer.
+  speed. Corrected on 2026-10-15.
 - `README.md` lists the bare-metal discs (#25) and the two-node demo (#31) as
   "landing", while this checkout already has the CI jobs that test them
   (`uefi-disc` in `ci.yml`, the demo check in `zxvd.yml`).

@@ -18,6 +18,8 @@
  * The mood drawn on its face is the Chiglet runtime's honest state: DECIDED
  * (steady eyes), UNCERTAIN (one eye narrowed, the "not sure" face the runtime
  * returns when its evidence is not independent enough), SPEAKING (open mouth).
+ * mouth, when not 0, is how far the mouth is open (1..255, any mood): the
+ * speech level while it talks (zui_chgvoice.h CV9); 0 keeps the mood's mouth.
  *
  * Deterministic: same genes, generation, mood and tick -> same pixels.
  */
@@ -33,11 +35,17 @@ typedef struct {
     uint8_t genes[8];
     uint32_t generation;
     zui_chg_mood_t mood;
+    uint8_t mouth; /* 0: the mood's mouth; 1..255: open this far */
 } zui_chiglet_t;
 
 /* Draw centred at (cx, cy), body radius r pixels. tick animates the motes. */
 void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
                       uint32_t tick);
+
+/* Only its halo and motes: the part of the base schematic every skin keeps
+ * (zui_chgskin.h). zui_chiglet_draw draws these first. */
+void zui_chiglet_draw_aura(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy,
+                           int32_t r, uint32_t tick);
 
 /* The accent colour its home-emotion gene selects (for its speech bubble). */
 uint32_t zui_chiglet_accent(const zui_chiglet_t *c);

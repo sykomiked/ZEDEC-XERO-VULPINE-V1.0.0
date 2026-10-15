@@ -3,6 +3,8 @@ Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 SPDX-License-Identifier: Apache-2.0
 -->
 
+> **Superseded (2026-10-15).** The current architecture is [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and every module is described in [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md). The `PROVENANCE/` files it links are not in this repository. This file is kept for the record; where it disagrees with them or with the code, they win.
+
 # ZEDEC pqOS — Server Cross-Compile Handover Schema
 
 **For: the AI operator who will run the cross-compile on a Linux server.**

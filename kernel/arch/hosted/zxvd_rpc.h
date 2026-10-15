@@ -293,6 +293,7 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32012 the method's feature is off (zxvd_ext.h X4)
  *        -32013 spaces   -32014 files   -32015 not for a phone
  *        -32016 play     -32017 module methods (zxvd_rpc_modules.h)
+ *        -32018 backup   -32019 screen time   -32021 places   -32022 devices
  *        -32020 payments (zxvd_pay.h)   -32030 people   -32031 no model
  *        -32040 cards    -32041 passkeys
  *        -32050 vault, swap, auctions, Zenny, stats (zxvd_econ.c)
@@ -301,6 +302,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *        -32085 file fabrication (zxvd_fab.h)
+ *        -32018 backups   -32019 screen time   -32021 places
+ *        -32022 printers and scanners (zxv_print_host.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -359,13 +362,27 @@ int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint
 int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
                         const char *ref, uint64_t *entry);
 
-/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+/* files.* (zxv_files.h F1-F6): the Hoard (the ZXV folder) behind the Banker, Quillon
  * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
  */
 #define ZXVD_E_FILES (-32014)
 /* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
  * space, or a role that may not do what was asked. */
 #define ZXVD_E_SPACE (-32013)
+/* print.* and scan.* (zxv_print_host.h): the printer or scanner could not
+ * be reached, refused, or does not take the file; the message says which. */
+#define ZXVD_E_DEVICE (-32022)
+/* backup.* (zxv_keepsake.h): the destination is not usable, a snapshot or a
+ * kept copy is missing or damaged, or there was no room; the message says
+ * which. A refusal by the ZXV folder itself is ZXVD_E_FILES. */
+#define ZXVD_E_BACKUP (-32018)
+/* screen.* (zxv_screen.h): the guardian's passphrase is wrong or missing,
+ * too many wrong tries, no such limit, no room, or the file could not be
+ * written; the message says which. */
+#define ZXVD_E_SCREEN (-32019)
+/* place.* (zxv_place.h): no such place, a name taken, no room, or the file
+ * could not be written; the message says which. */
+#define ZXVD_E_PLACE (-32021)
 
 /* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
  * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and

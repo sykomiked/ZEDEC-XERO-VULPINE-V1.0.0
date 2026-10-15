@@ -1,0 +1,56 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Verify boot: the same check anyone can run locally (docs/VERIFY_BOOT.md).
+# Builds the bare-metal UEFI disc from the chosen commit inside
+# build_system/Dockerfile.baremetal, boots it headless under UEFI firmware,
+# requires every boot marker, and keeps the serial log, a screenshot, the
+# report and the disc's SHA-256 as artifacts for 14 days.
+#
+#   - Manual only (workflow_dispatch). No push, pull request or schedule.
+#   - It never publishes and never creates a release.
+#   - No model weights are downloaded (that is golden-disc.yml).
+name: Verify boot
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "Which disc to verify"
+        type: choice
+        options: [all, x86_64, arm64]
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-boot
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify boot (${{ inputs.arch }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Build, boot and check every marker
+        run: bash build_system/verify_boot.sh "${{ inputs.arch }}" --docker
+      - name: Summary
+        if: always()
+        run: |
+          set -u
+          sudo chown -R "$(id -u)" dist 2>/dev/null || true
+          { echo '```'; cat dist/verify/REPORT.txt 2>/dev/null || echo "no report"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-boot-${{ inputs.arch }}
+          retention-days: 14
+          path: |
+            dist/verify/
+            dist/discs/SHA256SUMS
+          if-no-files-found: warn

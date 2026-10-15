@@ -16,9 +16,10 @@ them and uses each one for what it does well:
 | **Web 3** (Ethereum-style chains, content addressing) | Public, verifiable, final records. Ownership. Data addressed by hash | Chain tokens, ownership proofs, final settlement, CIDs |
 | **Web 4** (this layer) | Agent-to-agent work with post-quantum identity, on any link, offline first | Agent messages and streams, discovery, VFV payments, consent |
 
-Status: built 2026-10-09 in `kernel/src/web4/` and not yet in
-`kernel/Makefile`. It is tested by three host programs (see
-[Tests](#tests)). Every Web 2 and Web 3 encoding below is checked against
+Status: built 2026-10-09 in `kernel/src/web4/`. `kernel/Makefile` builds and
+runs its three host test programs (see [Tests](#tests)), and zxvd serves an
+envelope feed on `web4_agent` as `web4.*` (`kernel/arch/hosted/zxvd_web4.c`,
+[ZXVD.md](ZXVD.md)). Every Web 2 and Web 3 encoding below is checked against
 published vectors. It has **not** been run against a live OIDC provider, an
 Ethereum node, a Mastodon server or a Bluesky PDS. The
 [Honest limits](#honest-limits) section explains what that means.
@@ -48,15 +49,15 @@ The module reuses code that already exists in the kernel:
 - Freight from `kernel/src/freight`.
 - CIDs and base58 from `kernel/src/ipfs_node`.
 
-It uses Carracho through a small transport interface (`w4_transport_t`) and
-does not call Carracho internals.
+It uses Vinea through a small transport interface (`w4_transport_t`) and
+does not call Vinea internals.
 
 ## Web 4 itself: agents
 
 ### Identity
 
 - **A1.** An agent's key pair is ML-DSA-65 (FIPS 204), and
-  `agent_id = SHA3-256(public key)`. Carracho uses the same rule for a NodeID.
+  `agent_id = SHA3-256(public key)`. Vinea uses the same rule for a NodeID.
   So an agent that runs with its node's key has an `agent_id` equal to the
   NodeID, and anyone can check that from the key alone.
 - **A2.** A binding record ties an agent to the peer that hosts it. The record
@@ -80,7 +81,7 @@ A manifest lists the tools an agent offers. For each tool it gives:
 - the largest input the tool accepts;
 - flags: `MONEY`, `PII` (personal data) and `STREAM`.
 
-The manifest is signed and has an expiry. It has a binary form for Carracho
+The manifest is signed and has an expiry. It has a binary form for Vinea
 and a JSON form for Web 2 discovery, which can be served at, for example,
 `/.well-known/web4-agent.json`. The JSON form names the signature algorithm.
 It also marks any tool with a price as `moves_money`, because charging for a
@@ -164,7 +165,7 @@ with only `PII` does not allow money.
 
 `w4_transport_t` is the only thing the agent layer needs from a network. It
 holds a `send` callback and the current reach: `OFFLINE`, `LAN` or `ONLINE`.
-A Carracho session, a raw LAN socket, a radio link or a test harness can all
+A Vinea session, a raw LAN socket, a radio link or a test harness can all
 fill this role. There are two ways to carry envelopes:
 
 - **Raw.** The envelope bytes go to `send` as they are.
@@ -282,7 +283,7 @@ that every row routes at every reach.
 | Operation | Primary (needs) | Fallback (needs) | Otherwise | Why |
 |---|---|---|---|---|
 | LOGIN | Web 2 (online) | Web 4 (offline) | refuse | Web 2 identity providers own human identity and account recovery. Once a link record is verified, Web 4 can recognise the person on a LAN or offline without asking the provider |
-| DISCOVER | Web 4 (LAN) | — | local | Signed manifests over the Carracho DHT work on a LAN, and the JSON form serves Web 2 clients. Offline, only the cached directory is available |
+| DISCOVER | Web 4 (LAN) | — | local | Signed manifests over the Vinea DHT work on a LAN, and the JSON form serves Web 2 clients. Offline, only the cached directory is available |
 | AGENT_MSG | Web 4 (LAN) | — | queue | Post-quantum signed envelopes between instances. Offline, they wait in the outbox |
 | STREAM | Web 4 (LAN) | — | refuse | A live stream needs a live link. Queuing it would be meaningless |
 | FEED_PUBLISH | Web 2 (online) | Web 4 (LAN) | queue | The audience is on ActivityPub and AT Protocol. LAN peers get the native feed. Offline, the post is kept and the mirror to Web 2 is queued |
@@ -318,7 +319,7 @@ Notes on the choices:
 Everything is set up by the caller. There is no global state.
 
 - **Identity:** `w4_agent_create(seed, name, node_pk?, node_sk?, now, rnd?)`.
-  Pass the node key pair to bind the agent to its Carracho node. Pass `NULL`
+  Pass the node key pair to bind the agent to its Vinea node. Pass `NULL`
   for a self-hosted agent. `rnd = NULL` gives deterministic ML-DSA
   signatures. A 32-byte random value gives hedged signatures.
 - **Runtime:** `w4_rt_init` takes:
@@ -378,7 +379,7 @@ layer and on Vinea. The catalogue, the shared rules and the build order are in
   only. MCP, A2A and other agent protocols are not implemented and not
   claimed.
 - **Envelopes are signed, not encrypted.** Confidentiality comes from the
-  carrier, such as Carracho sessions or `pq_mesh_encapsulate`.
+  carrier, such as Vinea sessions or `pq_mesh_encapsulate`.
 - **Consent proves only that a key holder signed.** It cannot show that the
   holder was the right person, or that they understood the action. That
   depends on the device and the screen that showed it. This code cannot see

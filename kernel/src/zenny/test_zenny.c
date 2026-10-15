@@ -1131,24 +1131,24 @@ static void test_topup(void)
               zenny_verify_chain(&Z, sm) == ZENNY_OK && zenny_current(&Z, sm)->chips == 160,
           "15 top-ups then the log is full; still exact (160 chips)");
 
-    /* the raffle adapter */
+    /* the allotment adapter */
     uint32_t r = small(ZENNY_RULE_ALLOW_TOPUP, 7);
-    zenny_raffle_ctx_t rc = {&Z, r, sp, 55, 9, ZENNY_ERR_ARG};
+    zenny_allot_ctx_t rc = {&Z, r, sp, 55, 9, ZENNY_ERR_ARG};
     int who = 0;
-    CHECK(zenny_raffle_credit(&rc, ZENNY_RAFFLE_DEST_NAV, &who, 20) && rc.last == ZENNY_OK &&
+    CHECK(zenny_allot_credit(&rc, ZENNY_ALLOT_DEST_NAV, &who, 20) && rc.last == ZENNY_OK &&
               zenny_current(&Z, r)->chips == 30 && zenny_current(&Z, r)->recipient == 55 &&
               zenny_current(&Z, r)->tick == 9,
-          "a raffle NAV credit of 20 mints 20 chips to the recipient");
+          "an allotment NAV credit of 20 mints 20 chips to the recipient");
     uint32_t nv = Z.chip[r].n_ver;
     rc.last = ZENNY_OK;
-    CHECK(!zenny_raffle_credit(&rc, ZENNY_RAFFLE_DEST_NAV, &who, 5) &&
-              rc.last == ZENNY_ERR_INEXACT && Z.chip[r].n_ver == nv,
+    CHECK(!zenny_allot_credit(&rc, ZENNY_ALLOT_DEST_NAV, &who, 5) && rc.last == ZENNY_ERR_INEXACT &&
+              Z.chip[r].n_ver == nv,
           "an inexact credit returns false and changes nothing");
     rc.last = ZENNY_ERR_ARG;
-    CHECK(!zenny_raffle_credit(&rc, 2, &who, 20) && !zenny_raffle_credit(&rc, 4, &who, 20) &&
+    CHECK(!zenny_allot_credit(&rc, 2, &who, 20) && !zenny_allot_credit(&rc, 4, &who, 20) &&
               rc.last == ZENNY_ERR_ARG && Z.chip[r].n_ver == nv,
           "another destination returns false and changes nothing");
-    CHECK(!zenny_raffle_credit(NULL, ZENNY_RAFFLE_DEST_NAV, &who, 20), "no context: false");
+    CHECK(!zenny_allot_credit(NULL, ZENNY_ALLOT_DEST_NAV, &who, 20), "no context: false");
 }
 
 int main(void)

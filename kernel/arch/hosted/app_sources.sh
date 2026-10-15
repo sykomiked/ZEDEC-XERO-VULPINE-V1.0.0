@@ -214,8 +214,19 @@ case "${1:-srcs}" in
         echo src/acct/acct.c
         echo src/lpres/lpres_hex.c
         echo src/lpres/lpres.c
+        # the utilities (sys.*, log.tail), Scent's index, Platen's printers
+        # and scanners with their IPP and eSCL codecs, Keepsake's backups,
+        # Wake's journal, Shepherd's screen time and Waymark's places
+        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place; do
+            echo "arch/hosted/$f.c"
+        done
+        echo src/print/ipp.c
+        echo src/print/escl.c
         ;;
-    rpcincs) echo src/juris ;;
+    rpcincs)
+        echo src/juris
+        echo src/print
+        ;;
     modules)
         echo arch/hosted/zxvd_rpc_modules.c
         for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c \

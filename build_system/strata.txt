@@ -49,7 +49,7 @@ zcapital                         base       # the nine-form capital types; swarm
 qr                               base       # QR Code encoder: pure bytes to modules
 
 # ---- S1 kernel and hardware abstraction
-acpi                             kernel
+acpi                             kernel     # tables, AML interpreter, sleep states, power button, battery, thermal
 alloc                            kernel
 ata                              kernel
 audio                            kernel
@@ -214,6 +214,9 @@ vinea/vna_econ                   settlement # agreements priced in swarm budgets
 vinea/vna_link                   settlement # includes vna_econ.h
 vino                             settlement
 vino_stores                      settlement
+allotment                        settlement # Crown Allotment: ballots and the endowment on pay_util
+jroute                           settlement # VINO redemption routing by zone capability; lpres + sha256 only
+jringress                        settlement # optional producer ingress for jroute physical lots; detachable
 estate                           settlement # estate succession, recovery and faraid shares on pay_util
 grants                           settlement
 sicily                           settlement
@@ -229,6 +232,7 @@ cred                             settlement # Player Card tiers through sicily
 airc                             settlement # agent relay chat; trust tiers from cred
 dispute                          settlement
 fxepoch                          settlement
+navport                          settlement # pegs through a shared V-Bill account (pay)
 mint                             settlement
 qnote                            settlement # first loss through svault
 royalty                          settlement
@@ -258,6 +262,7 @@ net/smart_adapter_integration    adapters   # integrates net's adapters with orb
 orbital_compat                   adapters
 orbital_elevator                 adapters
 orbital_fabric                   adapters
+print                            adapters   # IPP (RFC 8010) and eSCL codecs for printers and scanners (Platen)
 privacy                          adapters   # privacy layer: consent, access and exact discrete Laplace
 rur                              adapters
 sdk_bridge                       adapters

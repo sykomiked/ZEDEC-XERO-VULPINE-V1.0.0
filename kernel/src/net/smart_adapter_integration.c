@@ -33,10 +33,6 @@ static int sai_str_cmp(const char *a, const char *b) {
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
 }
 
-static uint32_t sai_str_len(const char *s) {
-    uint32_t n = 0; while (s[n]) n++; return n;
-}
-
 static void sai_str_copy(char *dst, const char *src, uint32_t max) {
     uint32_t i = 0;
     while (i < max - 1 && src[i]) { dst[i] = src[i]; i++; }
@@ -175,9 +171,10 @@ const sai_capability_guard_t SAI_GUARD_QUALIFIED_TO_CERTIFIED = {
 
 /* ===== Default Guard Implementations ===== */
 
-bool sai_guard_model_to_emulated(const smart_device_t *sa_device,
-                                  const yf_device_t *yf_device,
-                                  const oe_elevator_t *elevator) {
+bool sai_guard_model_to_emulated(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                 const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     /* Check basic self-test passed */
@@ -193,9 +190,10 @@ bool sai_guard_model_to_emulated(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_emulated_to_rtl(const smart_device_t *sa_device,
-                                const yf_device_t *yf_device,
-                                const oe_elevator_t *elevator) {
+bool sai_guard_emulated_to_rtl(smart_device_t *sa_device, const yf_device_t *yf_device,
+                               const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 3) return false;
@@ -212,9 +210,10 @@ bool sai_guard_emulated_to_rtl(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_rtl_to_synthesized(const smart_device_t *sa_device,
-                                   const yf_device_t *yf_device,
-                                   const oe_elevator_t *elevator) {
+bool sai_guard_rtl_to_synthesized(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                  const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 5) return false;
@@ -230,9 +229,10 @@ bool sai_guard_rtl_to_synthesized(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_synthesized_to_fpga(const smart_device_t *sa_device,
-                                    const yf_device_t *yf_device,
-                                    const oe_elevator_t *elevator) {
+bool sai_guard_synthesized_to_fpga(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                   const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 10) return false;
@@ -248,9 +248,10 @@ bool sai_guard_synthesized_to_fpga(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_fpga_to_connected(const smart_device_t *sa_device,
-                                  const yf_device_t *yf_device,
-                                  const oe_elevator_t *elevator) {
+bool sai_guard_fpga_to_connected(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                 const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 5) return false;
@@ -267,9 +268,10 @@ bool sai_guard_fpga_to_connected(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_connected_to_measured(const smart_device_t *sa_device,
-                                      const yf_device_t *yf_device,
-                                      const oe_elevator_t *elevator) {
+bool sai_guard_connected_to_measured(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                     const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 10) return false;
@@ -286,9 +288,10 @@ bool sai_guard_connected_to_measured(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_measured_to_qualified(const smart_device_t *sa_device,
-                                      const yf_device_t *yf_device,
-                                      const oe_elevator_t *elevator) {
+bool sai_guard_measured_to_qualified(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                     const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 20) return false;
@@ -305,9 +308,10 @@ bool sai_guard_measured_to_qualified(const smart_device_t *sa_device,
     return true;
 }
 
-bool sai_guard_qualified_to_certified(const smart_device_t *sa_device,
-                                       const yf_device_t *yf_device,
-                                       const oe_elevator_t *elevator) {
+bool sai_guard_qualified_to_certified(smart_device_t *sa_device, const yf_device_t *yf_device,
+                                      const oe_elevator_t *elevator)
+{
+    (void) elevator;
     if (!sa_device || !yf_device) return false;
     
     if (sa_device->health.self_test_pass_count < 50) return false;
@@ -409,11 +413,9 @@ int32_t sai_register_device(sai_integration_fabric_t *fabric,
 
 int32_t sai_unregister_device(sai_integration_fabric_t *fabric, uint32_t device_idx) {
     if (!fabric || device_idx >= fabric->num_devices) return -1;
-    
-    sai_integrated_device_t *int_dev = &fabric->devices[device_idx];
-    
-    /* Remove from Yantra Fabric (would need yf_unregister_device) */
-    
+
+    /* yantra_fabric.h has no unregister call: the device's Yantra entry stays. */
+
     /* Shift remaining devices */
     for (uint32_t i = device_idx; i < fabric->num_devices - 1; i++) {
         fabric->devices[i] = fabric->devices[i + 1];
@@ -871,6 +873,8 @@ int32_t sai_check_global_health(sai_integration_fabric_t *fabric) {
 lpres_state_t sai_attest_integration(sai_integration_fabric_t *fabric,
                                       uint32_t device_idx,
                                       uint32_t op_id, void *args, int32_t result) {
+    (void) op_id;
+    (void) args;
     if (!fabric || device_idx >= fabric->num_devices) return LPRES_NEITHER;
     
     sai_integrated_device_t *int_dev = &fabric->devices[device_idx];
@@ -922,6 +926,7 @@ int32_t sai_emit_yf_event(sai_integration_fabric_t *fabric,
                           uint32_t device_idx,
                           uint32_t yf_event_idx,
                           const smart_register_t *sa_reg, uint32_t sa_value) {
+    (void) sa_reg;
     if (!fabric || device_idx >= fabric->num_devices) return -1;
     
     sai_integrated_device_t *int_dev = &fabric->devices[device_idx];

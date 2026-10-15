@@ -37,6 +37,25 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # The required check `ci-gate` is a commit status, not this workflow's last
+  # job: that job is created only once every job before it has had a runner,
+  # so on a busy queue GitHub showed "Expected - waiting for status" for
+  # hours, and a cancelled run never reported at all. This job marks the
+  # commit pending within seconds; ci-gate-result sets the final state.
+  ci-gate-pending:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      statuses: write
+    steps:
+      - name: Mark ci-gate pending on the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state=pending -f context=ci-gate \
+            -f target_url="$RUN" -f description="CI run started; the gate reports when it ends"
   # Change detection, Apache-2.0 check and clang-format in one short job.
   # Every other job reads its outputs; a lint failure does not hide them.
   quick-checks:
@@ -211,7 +230,9 @@ jobs:
           make -j"$(nproc)" -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
         if: ${{ !cancelled() }}
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
+        # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
+        # user fault ending only its own process (x86_userspace.c).
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -352,6 +373,14 @@ jobs:
       - name: Class drivers on emulated hardware
         if: ${{ matrix.arch == 'x86_64' }}
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/hw_drivers_check.sh "" 150
+      # ACPI (kernel/src/acpi) on QEMU's firmware tables: the AML namespace
+      # loads, \_S5_/S3/power button/processors are reported, the power
+      # button and a direct request both power the machine off through S5,
+      # and S3 entry suspends the guest. Batteries, lid, thermal, backlight
+      # and CPPC are host-tested only (QEMU's q35 tables have none).
+      - name: ACPI power management on emulated hardware
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/acpi_check.sh "" 150
       # Golden disc model check with a 3 MiB test file as the model: verified
       # when intact, caught when one byte changes (docs/BAREMETAL.md).
       - name: Golden disc model check (${{ matrix.arch }})
@@ -772,13 +801,18 @@ jobs:
   # has a time limit, so a hung job fails the gate within that limit instead
   # of holding it for GitHub's six-hour default.
   ci-gate:
-    name: ci-gate
-    needs: [ quick-checks, host-tests, zxvd, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
-    if: ${{ !cancelled() }}
+    name: ci-gate-result
+    needs: [ ci-gate-pending, quick-checks, host-tests, zxvd, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
+    # always(): a cancelled run (a newer push, or fail-fast) still reports,
+    # as a failure naming the cancelled jobs, instead of staying pending.
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      statuses: write
     steps:
       - name: Every job the change needs ran and passed
+        id: gate
         env:
           NEEDS: ${{ toJSON(needs) }}
           KERNEL: ${{ needs.quick-checks.outputs.kernel }}
@@ -788,11 +822,16 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, sys
+          def done(ok, why):
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"ok={'true' if ok else 'false'}\nwhy={why[:140]}\n")
+              sys.exit(0 if ok else 1)
           if os.environ.get("DRAFT") == "true":
               print("ci-gate: this pull request is a draft, which runs the fast tier only.")
               print("Mark it ready for review: the full checks start then and this gate reports again.")
-              sys.exit(1)
+              done(False, "Draft: fast tier only. Mark it ready for review to run the full checks.")
           needs = json.loads(os.environ["NEEDS"])
+          needs.pop("ci-gate-pending", None)
           kernel = os.environ.get("KERNEL") == "true"
           heavy = os.environ.get("HEAVY") == "true"
           zxvd = os.environ.get("ZXVD") == "true"
@@ -819,6 +858,19 @@ jobs:
           if bad:
               print("\nci-gate FAILED:")
               print("\n".join("  " + b for b in sorted(set(bad))))
-              sys.exit(1)
+              done(False, "; ".join(sorted(set(bad))))
           print("\nci-gate passed")
+          done(True, "Every job this change needs passed")
           PY
+      - name: Report ci-gate on the commit
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OK: ${{ steps.gate.outputs.ok }}
+          WHY: ${{ steps.gate.outputs.why }}
+        run: |
+          if [ "$OK" = true ]; then state=success; else state=failure; fi
+          gh api "repos/${{ github.repository }}/statuses/$SHA" -f state="$state" -f context=ci-gate \
+            -f target_url="$RUN" -f description="${WHY:-the gate step did not finish}"

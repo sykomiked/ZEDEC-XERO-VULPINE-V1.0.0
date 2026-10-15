@@ -124,12 +124,86 @@ FACES = [
     ("ASCW-Golden-Hanunoo.ttf", ["Hano"], "script"),
     ("ASCW-Golden-Buhid.ttf", ["Buhd"], "script"),
     ("ASCW-Golden-Tagbanwa.ttf", ["Tagb"], "script"),
+    # historical and other scripts, built from OFL Noto by build_golden_from_noto.py
+    ("ASCW-Golden-OldPersian.ttf", ["Xpeo"], "script"),
+    ("ASCW-Golden-Ugaritic.ttf", ["Ugar"], "script"),
+    ("ASCW-Golden-LinearB.ttf", ["Linb"], "script"),
+    ("ASCW-Golden-LinearA.ttf", ["Lina"], "script"),
+    ("ASCW-Golden-Phoenician.ttf", ["Phnx"], "script"),
+    ("ASCW-Golden-Ogham.ttf", ["Ogam"], "script"),
+    ("ASCW-Golden-Brahmi.ttf", ["Brah"], "script"),
+    ("ASCW-Golden-Kharoshthi.ttf", ["Khar"], "script"),
+    ("ASCW-Golden-OldSouthArabian.ttf", ["Sarb"], "script"),
+    ("ASCW-Golden-OldNorthArabian.ttf", ["Narb"], "script"),
+    ("ASCW-Golden-Samaritan.ttf", ["Samr"], "script"),
+    ("ASCW-Golden-Nabataean.ttf", ["Nbat"], "script"),
+    ("ASCW-Golden-Palmyrene.ttf", ["Palm"], "script"),
+    ("ASCW-Golden-InscriptionalPahlavi.ttf", ["Phli"], "script"),
+    ("ASCW-Golden-PsalterPahlavi.ttf", ["Phlp"], "script"),
+    ("ASCW-Golden-InscriptionalParthian.ttf", ["Prti"], "script"),
+    ("ASCW-Golden-Sogdian.ttf", ["Sogd"], "script"),
+    ("ASCW-Golden-OldSogdian.ttf", ["Sogo"], "script"),
+    ("ASCW-Golden-Lycian.ttf", ["Lyci"], "script"),
+    ("ASCW-Golden-Lydian.ttf", ["Lydi"], "script"),
+    ("ASCW-Golden-Cypriot.ttf", ["Cprt"], "script"),
+    ("ASCW-Golden-CyproMinoan.ttf", ["Cpmn"], "script"),
+    ("ASCW-Golden-Elbasan.ttf", ["Elba"], "script"),
+    ("ASCW-Golden-Manichaean.ttf", ["Mani"], "script"),
+    ("ASCW-Golden-Chorasmian.ttf", ["Chrs"], "script"),
+    ("ASCW-Golden-Elymaic.ttf", ["Elym"], "script"),
+    ("ASCW-Golden-Hatran.ttf", ["Hatr"], "script"),
+    ("ASCW-Golden-Mahajani.ttf", ["Mahj"], "script"),
+    ("ASCW-Golden-Sharada.ttf", ["Shrd"], "script"),
+    ("ASCW-Golden-Siddham.ttf", ["Sidd"], "script"),
+    ("ASCW-Golden-Tirhuta.ttf", ["Tirh"], "script"),
+    ("ASCW-Golden-Grantha.ttf", ["Gran"], "script"),
+    ("ASCW-Golden-Ahom.ttf", ["Ahom"], "script"),
+    ("ASCW-Golden-Dogra.ttf", ["Dogr"], "script"),
+    ("ASCW-Golden-Modi.ttf", ["Modi"], "script"),
+    ("ASCW-Golden-Takri.ttf", ["Takr"], "script"),
+    ("ASCW-Golden-Khojki.ttf", ["Khoj"], "script"),
+    ("ASCW-Golden-Khudawadi.ttf", ["Sind"], "script"),
+    ("ASCW-Golden-Tangut.ttf", ["Tang"], "script"),
+    ("ASCW-Golden-Duployan.ttf", ["Dupl"], "script"),
+    ("ASCW-Golden-Mro.ttf", ["Mroo"], "script"),
+    ("ASCW-Golden-PauCinHau.ttf", ["Pauc"], "script"),
+    ("ASCW-Golden-Yezidi.ttf", ["Yezi"], "script"),
+    ("ASCW-Golden-Vithkuqi.ttf", ["Vith"], "script"),
+    ("ASCW-Golden-Kawi.ttf", ["Kawi"], "script"),
+    ("ASCW-Golden-Nandinagari.ttf", ["Nand"], "script"),
+    ("ASCW-Golden-ZanabazarSquare.ttf", ["Zanb"], "script"),
+    ("ASCW-Golden-Soyombo.ttf", ["Soyo"], "script"),
+    ("ASCW-Golden-Mongolian.ttf", ["Mong"], "script"),
+    ("ASCW-Golden-PhagsPa.ttf", ["Phag"], "script"),
+    ("ASCW-Golden-Marchen.ttf", ["Marc"], "script"),
+    ("ASCW-Golden-Bhaiksuki.ttf", ["Bhks"], "script"),
+    ("ASCW-Golden-DivesAkuru.ttf", ["Diak"], "script"),
+    ("ASCW-Golden-Toto.ttf", ["Toto"], "script"),
+    ("ASCW-Golden-KhitanSmallScript.ttf", ["Kits"], "script"),
+    ("ASCW-Golden-OldPermic.ttf", ["Perm"], "script"),
+    ("ASCW-Golden-CaucasianAlbanian.ttf", ["Aghb"], "script"),
+    ("ASCW-Golden-Medefaidrin.ttf", ["Medf"], "script"),
+    ("ASCW-Golden-Makasar.ttf", ["Maka"], "script"),
+    ("ASCW-Golden-SignWriting.ttf", ["Sgnw"], "script"),
+    ("ASCW-Golden-NyiakengPuachueHmong.ttf", ["Hmnp"], "script"),
+    ("ASCW-Golden-HanifiRohingya.ttf", ["Rohg"], "script"),
+    ("ASCW-Golden-Chakma.ttf", ["Cakm"], "script"),
+    ("ASCW-Golden-Deseret.ttf", ["Dsrt"], "script"),
+    ("ASCW-Golden-Shavian.ttf", ["Shaw"], "script"),
+    ("ASCW-Golden-Saurashtra.ttf", ["Saur"], "script"),
+    ("ASCW-Golden-Rejang.ttf", ["Rjng"], "script"),
+    ("ASCW-Golden-Kaithi.ttf", ["Kthi"], "script"),
+    ("ASCW-Golden-KayahLi.ttf", ["Kali"], "script"),
+    ("ASCW-Golden-Tangsa.ttf", ["Tnsa"], "script"),
+    ("ASCW-Golden-Sunuwar.ttf", ["Sunu"], "script"),
     # ASCW siblings for scripts the Golden set does not have
     ("ASCW-Adlam-Regular.ttf", ["Adlm"], "fallback"),
     ("ASCW-NKo-Regular.ttf", ["Nkoo"], "fallback"),
     ("ASCW-Vai-Regular.ttf", ["Vaii"], "fallback"),
     ("ASCW-Tifinagh-Regular.otf", ["Tfng"], "fallback"),
     ("ASCW-Osmanya-Regular.ttf", ["Osma"], "fallback"),
+    # the fixed-width member: code, paths, terminals (never in the script cascade)
+    ("ASCW-Golden-Mono.ttf", [], "mono"),
 ]
 PRIMARY = 0
 # the members a locale of one script may use instead of the script's own face
@@ -142,7 +216,7 @@ SCRIPT_ALIAS = {"Hani": "Hans"}
 SCRIPT_NAMES = {"Hans": "Han (Simplified)", "Hant": "Han (Traditional)", "Jpan": "Japanese",
                 "Kore": "Korean"}
 
-ROLE_CODE = {"primary": 0, "script": 1, "alternate": 2, "fallback": 3}
+ROLE_CODE = {"primary": 0, "script": 1, "alternate": 2, "fallback": 3, "mono": 4}
 
 
 def load_faces():
@@ -186,7 +260,7 @@ def assign(faces):
         for x in sorted(ucd.script_extension(cp)):
             if x in owner:
                 cands.append(owner[x])
-        cands += [f["i"] for f in faces if f["role"] != "alternate"]
+        cands += [f["i"] for f in faces if f["role"] not in ("alternate", "mono")]
         cands += [f["i"] for f in faces]
         table[cp] = next(c for c in cands if cp in faces[c]["cps"])
     return owner, table
@@ -541,6 +615,15 @@ def write_fontlog(faces):
          "Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at",
          "weight 400), renamed into the family and given its golden-section metrics,",
          "because the ASCW source folder has no face for either script.", "",
+         "The members for historical and other scripts the ASCW source folder lacks",
+         "(Old Persian, Ugaritic, Linear A and B, Phoenician, Ogham, Brahmi, Tangut,",
+         "Mongolian and the rest listed below as derived from Noto) were made the same",
+         "way by tools/fonts/build_golden_from_noto.py.", "",
+         "ASCW Golden Mono, the fixed-width member, was made for ZXV from Noto Sans Mono",
+         "(OFL, weight 400, width 100) with the key symbols it lacks (command, option,",
+         "shift, return, delete, control, escape, caps lock) taken from Noto Sans",
+         "Symbols and Noto Sans Symbols 2 (OFL) and fitted to its advance width",
+         "(tools/fonts/build_golden_mono.py).", "",
          "| File | Family | Upstream (name ID 3) | Version | Copyright (name ID 0) |",
          "|---|---|---|---|---|"]
     for f in faces:

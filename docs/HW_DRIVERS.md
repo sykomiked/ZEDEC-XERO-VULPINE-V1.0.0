@@ -10,6 +10,10 @@ yet), integer-only, and uses no libc.
 
 Code: `kernel/src/hwdrv/`. Platform glue for x86_64: `kernel/arch/x86_64/hwplat_x86.c`.
 
+Power management (sleep states, power button, battery, lid, thermal zones,
+CPU performance states, backlight) goes through the firmware's ACPI byte code
+and has its own page: [ACPI.md](ACPI.md).
+
 ## How a driver is chosen
 
 At boot, after the economy self-checks and before `[BOOT_OK]`, the x86_64

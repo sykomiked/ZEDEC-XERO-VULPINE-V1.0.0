@@ -1,0 +1,148 @@
+# SPDX-FileCopyrightText: 2026 Michael Laurence Curzi & 36N9 GENETICS LLC
+# SPDX-License-Identifier: Apache-2.0
+# Tiamat hobby catalogue: 144 entries, one per line. Order is fixed: the
+# assignment indexes it, so append only, never reorder or delete.
+astronomy
+birdwatching
+bonsai
+bookbinding
+calligraphy
+cartography
+ceramics
+chess
+go
+origami
+knot tying
+beekeeping
+gardening
+herbalism
+mycology
+fossil hunting
+rock collecting
+tide pooling
+cloud watching
+stargazing
+kite flying
+sailing
+canoeing
+hiking
+orienteering
+geocaching
+cycling
+running
+swimming
+rock climbing
+fencing
+archery
+tai chi
+yoga
+meditation
+dance
+choral singing
+fiddle playing
+piano
+drumming
+harmonica
+composing
+sound collecting
+radio listening
+morse code
+cryptograms
+crosswords
+sudoku
+logic puzzles
+riddles
+magic tricks
+juggling
+woodworking
+whittling
+blacksmithing
+leatherwork
+weaving
+knitting
+quilting
+embroidery
+sewing
+dyeing
+papermaking
+printmaking
+letterpress
+sketching
+watercolour
+oil painting
+mosaic
+stained glass
+glassblowing
+pottery wheel
+sculpture
+photography
+film developing
+model railways
+ship models
+clockmaking
+lock picking (own locks)
+radio building
+electronics tinkering
+robot kits
+3D modelling
+pixel art
+typography
+font design
+map drawing
+genealogy
+local history
+archaeology
+museum visits
+old maps
+coin collecting
+stamp collecting
+postcard writing
+letter writing
+journaling
+poetry
+short stories
+translation practice
+learning languages
+etymology
+storytelling
+reading aloud
+book clubs
+philosophy
+mathematics recreations
+geometry art
+tessellations
+fractals
+weather logging
+bird song
+insect watching
+pond life
+seed saving
+composting
+foraging
+baking
+bread making
+fermenting
+cheese making
+tea tasting
+coffee roasting
+spice blending
+preserving
+cooking regional dishes
+puzzle boxes
+board game design
+card games
+tabletop strategy
+trivia
+debate
+volunteering
+mentoring
+community gardens
+repair cafes
+bicycle repair
+furniture restoration
+upcycling
+interior arranging
+flower arranging
+landscape drawing
+sun dials
+paper planes

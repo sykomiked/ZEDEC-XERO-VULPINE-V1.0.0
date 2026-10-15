@@ -1,34 +1,51 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 //
-// The look approved in the mockups: dark ground, gold accent, panels with a
-// thin border. Text is ASCW Golden (ASCWFont.swift); numbers and IDs stay in
-// SF Mono.
+// The one ZXV look, the same as zui, the bare-metal desktop and the boot:
+// the #002911 green ground with carved steps of the same hue, light green
+// text and one gold #F2C230 accent. Every value comes from ZUIToken
+// (ThemeTokens.swift, generated from kernel/src/zui/zui_tokens.h), so
+// Studio cannot drift from the native screens. Text is ASCW Golden
+// (ASCWFont.swift); numbers and IDs use Theme.mono.
+import CoreText
 import SwiftUI
 import ZXVRPC
 
 enum Theme {
-    static let ground = Color(red: 0x0C / 255, green: 0x0F / 255, blue: 0x14 / 255)
-    static let sidebar = Color(red: 0x10 / 255, green: 0x14 / 255, blue: 0x1B / 255)
-    static let panel = Color(red: 0x14 / 255, green: 0x19 / 255, blue: 0x22 / 255)
-    static let inset = Color(red: 0x0F / 255, green: 0x13 / 255, blue: 0x19 / 255)
-    static let border = Color(red: 0x22 / 255, green: 0x2A / 255, blue: 0x35 / 255)
-    static let text = Color(red: 0xE7 / 255, green: 0xE9 / 255, blue: 0xEE / 255)
-    static let muted = Color(red: 0x9A / 255, green: 0xA3 / 255, blue: 0xB2 / 255)
-    static let gold = Color(red: 0xD9 / 255, green: 0xA9 / 255, blue: 0x2E / 255)
-    static let good = Color(red: 0x8F / 255, green: 0xD3 / 255, blue: 0xA8 / 255)
-    static let warn = Color(red: 0xF0 / 255, green: 0xA3 / 255, blue: 0x5E / 255)
-    static let floor = Color(red: 0x4C / 255, green: 0x8D / 255, blue: 0xFF / 255)
-    static let emotional = Color(red: 0xE0 / 255, green: 0x5F / 255, blue: 0xA8 / 255)
+    static let ground = ZUIToken.ground
+    static let sidebar = ZUIToken.panel
+    static let panel = ZUIToken.panel
+    static let inset = ZUIToken.raised
+    static let border = ZUIToken.edge
+    static let text = ZUIToken.text
+    static let muted = ZUIToken.muted
+    static let gold = ZUIToken.gold
+    static let good = ZUIToken.ok
+    static let warn = ZUIToken.alert
+    static let floor = ZUIToken.info
+    static let emotional = ZUIToken.goldGlow
+    static let radiusPanel = ZUIToken.radiusPanel
+    static let radiusControl = ZUIToken.radiusControl
 }
 
 extension Theme {
     /// ASCW Golden at a size; the macOS text-style sizes below.
     static func ui(_ size: CGFloat) -> Font { ASCWFont.font(size: size) }
-    static var body: Font { ui(13) }
-    static var callout: Font { ui(12) }
-    static var caption: Font { ui(10) }
-    static var caption2: Font { ui(10) }
+    static var body: Font { ui(ZUIToken.body) }
+    static var callout: Font { ui(ZUIToken.label) }
+    static var caption: Font { ui(ZUIToken.caption) }
+    static var caption2: Font { ui(ZUIToken.caption) }
+
+    /// The family's monospaced face for numbers, IDs, paths and code: ASCW
+    /// Golden Mono once assets/fonts/ascw-golden carries it, else the
+    /// system's monospaced face.
+    static func mono(_ size: CGFloat) -> Font {
+        let ct = CTFontCreateWithName(monoFamily as CFString, size, nil)
+        if (CTFontCopyFamilyName(ct) as String) == monoFamily { return Font(ct) }
+        return .system(size: size, design: .monospaced)
+    }
+
+    static let monoFamily = "ASCW Golden Mono"
 }
 
 @MainActor
@@ -54,9 +71,9 @@ struct Panel<Content: View>: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(dashed ? Color.clear : Theme.panel, in: RoundedRectangle(cornerRadius: 14))
+        .background(dashed ? Color.clear : Theme.panel, in: RoundedRectangle(cornerRadius: Theme.radiusPanel))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: Theme.radiusPanel)
                 .strokeBorder(dashed ? Theme.muted.opacity(0.5) : Theme.border,
                               style: StrokeStyle(lineWidth: 1, dash: dashed ? [5, 4] : []))
         )
@@ -74,7 +91,7 @@ struct KV: View {
         HStack {
             Text(key).foregroundStyle(Theme.muted)
             Spacer()
-            Text(value).font(.system(.body, design: .monospaced)).foregroundStyle(color)
+            Text(value).font(Theme.mono(ZUIToken.body)).foregroundStyle(color)
                 .textSelection(.enabled)
         }
         .font(Theme.callout)
@@ -89,13 +106,13 @@ struct Stat: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(value).font(.system(size: 20, design: .monospaced))
+            Text(value).font(Theme.mono(20))
             Text(label).font(Theme.caption).foregroundStyle(Theme.muted)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.inset, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.border))
+        .background(Theme.inset, in: RoundedRectangle(cornerRadius: Theme.radiusControl))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusControl).strokeBorder(Theme.border))
     }
 }
 

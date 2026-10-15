@@ -57,7 +57,7 @@ static void test_themes(void)
     static const struct {
         uint32_t at;
         const char *name;
-    } hand[] = {{0, "Burrow"},    {12, "Flint"},       {26, "Commons"},
+    } hand[] = {{0, "Banker"},    {12, "Flint"},       {26, "Commons"},
                 {55, "Cutwater"}, {60, "Murmuration"}, {72, "Coffer"}};
     for (uint32_t i = 0; i < 6; i++) {
         const zxl_theme_t *t = zxl_curated(hand[i].at);
@@ -95,16 +95,16 @@ static void test_themes(void)
     for (uint32_t i = 0; i < ZXL_APPS; i++) per[zxl_curated(i)->group]++;
     for (uint32_t g = 1; g <= ZXL_GROUPS; g++)
         CHECK(per[g] >= 12, "every family has its twelve and more");
-    CHECK(zxl_theme_for("burrow", 1) == zxl_group_theme(1), "names are case-sensitive");
-    CHECK(zxl_theme_for("Burrowx", 6) == zxl_group_theme(6), "no prefix match");
+    CHECK(zxl_theme_for("banker", 1) == zxl_group_theme(1), "names are case-sensitive");
+    CHECK(zxl_theme_for("Bankerx", 6) == zxl_group_theme(6), "no prefix match");
     CHECK(zxl_theme_for("Burro", 6) == zxl_group_theme(6), "no short match");
     CHECK(zxl_theme_for("", 4) == zxl_group_theme(4), "empty name uses its group");
     const zxl_theme_t *m = zxl_theme_for("Murmuration", 6);
     CHECK(m->key == ZXL_E, "the swarm shares the OS key");
     CHECK(m->reveal == ZXL_REVEAL_VAULT && m->ambient == ZXL_AMB_FLOCK,
           "the swarm: the vault, a flock behind");
-    CHECK(zxl_theme_for("Burrow", 1)->reveal == ZXL_REVEAL_VAULT &&
-              zxl_theme_for("Burrow", 1)->ambient == ZXL_AMB_ARCHES,
+    CHECK(zxl_theme_for("Banker", 1)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Banker", 1)->ambient == ZXL_AMB_ARCHES,
           "vault, own ambient");
     CHECK(zxl_theme_for("Flint", 2)->reveal == ZXL_REVEAL_VAULT &&
               zxl_theme_for("Flint", 2)->ambient == ZXL_AMB_SPARKS,
@@ -129,8 +129,8 @@ static void test_themes(void)
 
 static void test_notes(void)
 {
-    const zxl_theme_t *b = zxl_theme_for("Burrow", 1); /* D4 = MIDI 62 */
-    CHECK(zxl_tick_note(b, 0) == 62, "Burrow step 0 is D4");
+    const zxl_theme_t *b = zxl_theme_for("Banker", 1); /* D4 = MIDI 62 */
+    CHECK(zxl_tick_note(b, 0) == 62, "Banker step 0 is D4");
     CHECK(zxl_tick_note(b, 1) == 64, "step 1 is E4");
     CHECK(zxl_tick_note(b, 2) == 66, "step 2 is F#4");
     CHECK(zxl_tick_note(b, 3) == 69, "step 3 is A4");
@@ -156,7 +156,7 @@ static void test_prefs(void)
     CHECK(!p.system_muted && !p.focus_quiet && !p.screen_reader && !p.reduce_motion,
           "flags off by default");
     CHECK(strcmp(ZXL_SETTING_KEY, "sound.app_launch") == 0, "setting key");
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     CHECK(zxl_effective_reveal(t, &p) == ZXL_REVEAL_VAULT, "theme reveal: the vault");
     CHECK(zxl_effective_reveal(t, 0) == ZXL_REVEAL_VAULT, "NULL prefs keep the theme reveal");
     p.reduce_motion = 1;
@@ -180,7 +180,7 @@ static void test_sequence(void)
     zxl_launch_t l;
     zxl_event_t ev[16];
     int n;
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     CHECK(zxl_launch_init(0, t, 5, 0, 0) == -1, "NULL launch refused");
     CHECK(zxl_launch_init(&l, 0, 5, 0, 0) == -1, "NULL theme refused");
     CHECK(zxl_launch_init(&l, t, 5, 0, 0) == 0, "init");
@@ -441,7 +441,8 @@ static void test_icon_files(void)
     }
     CHECK(named == ZXL_APPS, "all 407 apps have an icon file");
     CHECK(tier == ZXL_APPS, "each a .png inside the icons folder");
-    CHECK(!strcmp(zxl_icon_file("Burrow"), "001-burrow.png"), "Burrow's is 001-burrow.png");
+    CHECK(!strcmp(zxl_icon_file("Banker"), "001-burrow.png"),
+          "the Banker keeps the icon drawn as 001-burrow.png");
     CHECK(!strcmp(zxl_icon_file("Cartulary"), "l2/145-dragon-archivist.png"),
           "a tier-2 app's is in l2/");
     CHECK(!strcmp(zxl_icon_file("Chorale"), zxl_icon_file("Chorale")) &&
@@ -452,8 +453,8 @@ static void test_icon_files(void)
 
 static void test_pick(void)
 {
-    CHECK(zxl_theme_pick("Burrow") == zxl_theme_for("Burrow", 1), "pick a curated sequence");
-    CHECK(zxl_theme_pick("burrow") == zxl_theme_for("Burrow", 1), "pick ignores case");
+    CHECK(zxl_theme_pick("Banker") == zxl_theme_for("Banker", 1), "pick a curated sequence");
+    CHECK(zxl_theme_pick("banker") == zxl_theme_for("Banker", 1), "pick ignores case");
     CHECK(zxl_theme_pick("MURMURATION")->key == ZXL_E, "the swarm's sequence is in E");
     for (uint32_t i = 0; i < zxl_curated_count(); i++)
         CHECK(zxl_theme_pick(zxl_curated(i)->app) == zxl_curated(i),
@@ -468,7 +469,7 @@ static void test_pick(void)
     CHECK(zxl_theme_pick("group123") == 0, "three digits");
     CHECK(zxl_theme_pick("groupA") == 0, "letter for a number");
     CHECK(zxl_theme_pick("Burro") == 0, "prefix of a name");
-    CHECK(zxl_theme_pick("Burrows") == 0, "name plus more");
+    CHECK(zxl_theme_pick("Bankers") == 0, "name plus more");
     CHECK(zxl_theme_pick("") == 0, "empty");
     CHECK(zxl_theme_pick(0) == 0, "NULL");
     CHECK(zxl_icon_ink(1) == ZXL_ICON_PALETTE, "system icons held to the palette");
@@ -482,7 +483,7 @@ static void test_screen_lit(void)
 {
     zxl_launch_t l;
     zxl_event_t ev[16];
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     zxl_launch_init(&l, t, 5, 0, 0);
     CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_BEGIN, "begin first");
     CHECK(zxl_launch_lit(&l, 4) == 0, "an outer tile lights");

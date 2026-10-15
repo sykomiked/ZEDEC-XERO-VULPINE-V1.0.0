@@ -423,7 +423,7 @@ limits: the LIVE flow here is only the app's half; the wallet posts the
 payment on its own ledger. ML-DSA-87 is the reference implementation, not
 FIPS 140-3 validated. Whether a deployment of Vino is store credit, a
 prepaid access product or something else is a legal question pending
-counsel; nothing here decides it. The raffle is a separate module.
+counsel; nothing here decides it. The allotment is a separate module.
 
 ## API overview
 

@@ -201,12 +201,35 @@ static void apply(const struct vin_event *e) {
         else if (e->code == ABS_Y) s_cy = (int32_t)((uint64_t)e->value * (uint32_t)(s_h - 1) / 32767u), s_moves++;
         break;
     case EV_KEY:
-        if (e->code == BTN_LEFT)   { if (e->value) { s_btn |= 1u; s_clicks++; } else s_btn &= ~1u; }
-        else if (e->code == BTN_RIGHT)  { if (e->value) s_btn |= 2u; else s_btn &= ~2u; }
-        else if (e->code == BTN_MIDDLE) { if (e->value) s_btn |= 4u; else s_btn &= ~4u; }
-        else if (e->value) {                       /* keyboard key-down -> queue */
+        if (e->code == BTN_LEFT) {
+            if (e->value) {
+                s_btn |= 1u;
+                s_clicks++;
+            } else
+                s_btn &= ~1u;
+        } else if (e->code == BTN_RIGHT) {
+            if (e->value)
+                s_btn |= 2u;
+            else
+                s_btn &= ~2u;
+        } else if (e->code == BTN_MIDDLE) {
+            if (e->value)
+                s_btn |= 4u;
+            else
+                s_btn &= ~4u;
+        } else { /* keyboard: press, repeat, release */
+            /* releases are queued too (bit 15; repeat is bit 14), so Shift,
+             * AltGr and the Cmd-Tab switcher know when a key is let go */
+            uint16_t k = (uint16_t) (e->code & 0x3FFFu);
+            if (e->value == 0)
+                k |= 0x8000u;
+            else if (e->value == 2)
+                k |= 0x4000u;
             uint32_t nt = (s_ktail + 1u) % KEYQ_N;
-            if (nt != s_khead) { s_keyq[s_ktail] = e->code; s_ktail = nt; }
+            if (nt != s_khead) {
+                s_keyq[s_ktail] = k;
+                s_ktail = nt;
+            }
         }
         break;
     default: break;   /* EV_SYN etc. */
@@ -244,7 +267,8 @@ void virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons) {
     if (y) *y = s_cy;
     if (buttons) *buttons = s_btn;
 }
-/* pop one queued keyboard keycode (Linux evdev code), or -1 if none */
+/* pop one queued keyboard change (Linux evdev code; bit 15 = release,
+ * bit 14 = auto-repeat), or -1 if none */
 int32_t virtio_input_pop_key(void) {
     if (s_khead == s_ktail) return -1;
     uint16_t k = s_keyq[s_khead];

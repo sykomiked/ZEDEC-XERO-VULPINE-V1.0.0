@@ -107,7 +107,8 @@ typedef struct {
 
 /* ===== ops boundary: a language front/back-end ===== */
 /* lower: a source representation -> IR.   lift: IR -> a target representation.
- * Both return OC_OK (0) or a negative oc_status_t. A back/front-end that is
+ * lower returns OC_OK (0) or a negative oc_status_t; lift returns the number
+ * of bytes it wrote to `out` (>= 0) or a negative oc_status_t. A back/front-end that is
  * not bound is simply absent from the registry (fails closed). */
 typedef int32_t (*oc_lower_fn)(const void *src, uint32_t len, oc_ir_t *out);
 typedef int32_t (*oc_lift_fn)(const oc_ir_t *ir, void *out, uint32_t cap);

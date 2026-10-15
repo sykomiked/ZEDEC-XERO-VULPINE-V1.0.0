@@ -501,7 +501,7 @@ let same = try Vino.Request.decode(encoded.bytes)  // == req
 
 A live request marking a paid chance outcome (`.chance`: a loot box or a
 paid draw) is refused when it is encoded (`.paidChanceRefused`); the
-raffle is a separate module, not a payment request. A deployment that sets
+allotment is a separate module, not a payment request. A deployment that sets
 a per-device daily cap counts approvals with `Vino.SpendMeter`:
 
 ```swift

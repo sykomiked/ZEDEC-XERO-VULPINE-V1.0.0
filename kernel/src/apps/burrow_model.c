@@ -1,6 +1,6 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* burrow_model.c — Burrow, the file manager (see burrow_model.h). */
+/* burrow_model.c — the Banker, the file manager (see burrow_model.h). */
 #include <string.h>
 
 #include "burrow_model.h"

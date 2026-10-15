@@ -80,9 +80,9 @@ seven strata above it: 1 kernel, 2 transport, 3 trust, 4 logic, 5 AI runtime, 6 
 **Rule R2 (layering).** For modules $m, n$ with strata $s(m), s(n)$: if $m$ depends on $n$ then $s(n) \le s(m)$.
 Lower strata never depend on higher ones.
 
-This is **design intent as an enforced property**. `docs/ARCHITECTURE.md` rule R2 says "A CI layering check
-is planned (gap B1)", and `docs/GAP_AUDIT.md` B1 records it as open. Readers should expect violations to
-exist until the check is built; we have not measured them. `docs/ARCHITECTURE.md` §20 maps the strata onto
+This is **an enforced property**. Every module under `kernel/src` has a stratum in `build_system/strata.txt`,
+and `build_system/verify_layers.sh` with `build_system/verify_strata.py` fails on an include of a higher stratum;
+CI runs the check (`.github/workflows/ci.yml`, and `docs/GAP_AUDIT.md` B1 records it as done). `docs/ARCHITECTURE.md` §20 maps the strata onto
 quantum-information concepts as a labelled design analogy with no physical claim; its only engineering
 content is R2.
 
@@ -311,7 +311,7 @@ CI jobs locally (`docs/CI.md`); `zxvd` builds with `kernel/arch/hosted/build_zxv
 |---|---|---|
 | libzxv ABI is add-only, checked against recorded baselines | Tested (CI) | `sdk/libzxv/tools/abi_check.py`; `.github/workflows/sdk-release.yml`; `sdk/libzxv/abi/` |
 | No floats in the libzxv ABI; floats enter only as IEEE-754 bits | Implemented, not evaluated (by inspection of the header) | `sdk/libzxv/include/zxv_api.h` R2, R11 |
-| Seven strata with no upward dependency | Design intent (check not built) | `docs/ARCHITECTURE.md` R2; `docs/GAP_AUDIT.md` B1 |
+| Seven strata with no upward dependency | Checked in CI (`build_system/verify_strata.py`) | `docs/ARCHITECTURE.md` R2; `docs/GAP_AUDIT.md` B1 |
 | Kernel builds for five ISAs and boots under QEMU | Tested (CI) | `build_system/ci_boot_check.sh`; CI jobs `boot`, `boot-extra` |
 | Kernel boots on physical hardware | Design intent | `README.md`; `docs/BAREMETAL.md` |
 | Floating point rejected at compile time in kernel images | Tested (CI build) | `build_system/Makefile.arm64` and siblings |

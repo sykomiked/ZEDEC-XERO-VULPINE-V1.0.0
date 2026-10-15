@@ -146,11 +146,11 @@ struct LedgerView: View {
                     .font(Theme.caption).foregroundStyle(Theme.muted)
                     ForEach(store.entries.reversed()) { e in
                         GridRow {
-                            Text(e.entryId).font(.system(.callout, design: .monospaced)).foregroundStyle(Theme.muted)
+                            Text(e.entryId).font(Theme.mono(ZUIToken.label)).foregroundStyle(Theme.muted)
                             Text(e.reference)
                             Text(store.name(of: e.counterparty))
                             Text(e.signed.map { ($0 > 0 ? "+" : "") + Money.format($0, currency: ccy) } ?? e.signedMinor)
-                                .font(.system(.callout, design: .monospaced))
+                                .font(Theme.mono(ZUIToken.label))
                                 .foregroundStyle((e.signed ?? 0) < 0 ? Theme.warn : Theme.good)
                         }
                         .font(Theme.callout)
@@ -269,9 +269,9 @@ struct RailTile: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(Theme.caption).foregroundStyle(Theme.muted)
             Text(minor.map { Money.format($0, currency: currency) } ?? "\u{2014}")
-                .font(.system(size: 22, design: .monospaced))
+                .font(Theme.mono(22))
                 .lineLimit(1).minimumScaleFactor(0.6)
-            Text("\(rail) · \(raw ?? "?") minor").font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
+            Text("\(rail) · \(raw ?? "?") minor").font(Theme.mono(11)).foregroundStyle(Theme.muted)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -299,7 +299,7 @@ struct SkillCard: View {
             }
             ProgressView(value: min(max(frac, 0), 1)).tint(Theme.gold)
             Text(top == floor ? "\(skill.points) pts · top level" : "\(skill.points) pts · \(top - skill.points) to level \(lv + 1)")
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
+                .font(Theme.mono(11)).foregroundStyle(Theme.muted)
         }
         .padding(14)
         .background(Theme.inset, in: RoundedRectangle(cornerRadius: 12))

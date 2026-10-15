@@ -126,14 +126,14 @@ static void sec_auction(cur_t *c, zstats_snapshot_t *s)
     c64(c, &s->auction.backing);
     cb(c, &s->auction.floor_ok);
 }
-static void sec_raffle(cur_t *c, zstats_snapshot_t *s)
+static void sec_allot(cur_t *c, zstats_snapshot_t *s)
 {
-    c64(c, &s->raffle.epoch);
-    c64(c, &s->raffle.pot);
-    c64(c, &s->raffle.tickets);
-    c64(c, &s->raffle.threshold);
-    c64(c, &s->raffle.entries);
-    c64(c, &s->raffle.mode);
+    c64(c, &s->allotment.epoch);
+    c64(c, &s->allotment.pot);
+    c64(c, &s->allotment.ballots);
+    c64(c, &s->allotment.threshold);
+    c64(c, &s->allotment.entries);
+    c64(c, &s->allotment.mode);
 }
 static void sec_barrels(cur_t *c, zstats_snapshot_t *s)
 {
@@ -162,8 +162,8 @@ static void sec_zenny(cur_t *c, zstats_snapshot_t *s)
 }
 
 /* indexed like the ZSTATS_SEC_* bits */
-static const sec_fn SEC[8] = {sec_reserve, sec_vault,  sec_comp,    sec_bonds,
-                              sec_auction, sec_raffle, sec_barrels, sec_zenny};
+static const sec_fn SEC[8] = {sec_reserve, sec_vault, sec_comp,    sec_bonds,
+                              sec_auction, sec_allot, sec_barrels, sec_zenny};
 
 static void walk(cur_t *c, zstats_snapshot_t *s, uint8_t prev[32])
 {
@@ -357,7 +357,7 @@ zstats_status_t zstats_check(const zstats_snapshot_t *s)
     for (uint32_t i = 0; i < 8; i++)
         if (!(t.present & (1u << i)) && !sec_zero(SEC[i], &t)) return ZSTATS_ERR_CONSIST;
     bool ok = chk_reserve(&t) && chk_vault(&t) && chk_lock(&t) && chk_auction(&t) &&
-              t.raffle.mode <= ZSTATS_RAFFLE_PAID && chk_barrels(&t) && chk_zenny(&t);
+              t.allotment.mode <= ZSTATS_ALLOT_FREE && chk_barrels(&t) && chk_zenny(&t);
     return ok ? ZSTATS_OK : ZSTATS_ERR_CONSIST;
 }
 
@@ -517,9 +517,9 @@ static zstats_status_t collect(zstats_snapshot_t *s, uint64_t tick, const zstats
     if (st == ZSTATS_OK) st = col_zenny(s, src->zenny);
     if (st != ZSTATS_OK) return st;
     col_auction(s, src->auction, tick);
-    if (src->raffle) {
-        s->present |= ZSTATS_SEC_RAFFLE;
-        s->raffle = *src->raffle;
+    if (src->allotment) {
+        s->present |= ZSTATS_SEC_ALLOT;
+        s->allotment = *src->allotment;
     }
     if (src->grants) {
         s->present |= ZSTATS_SEC_BARRELS;
@@ -726,15 +726,17 @@ static void j_auction(jw_t *w, const zstats_snapshot_t *s)
     kb(w, ",\"floor_ok\":", s->auction.floor_ok);
     jc(w, '}');
 }
-static void j_raffle(jw_t *w, const zstats_snapshot_t *s)
+static void j_allot(jw_t *w, const zstats_snapshot_t *s)
 {
-    if (!sect(w, s, ",\"raffle\":", ZSTATS_SEC_RAFFLE)) return;
-    ku(w, "{\"epoch\":", s->raffle.epoch);
-    ku(w, ",\"pot\":", s->raffle.pot);
-    ku(w, ",\"tickets\":", s->raffle.tickets);
-    ku(w, ",\"threshold\":", s->raffle.threshold);
-    ku(w, ",\"entries\":", s->raffle.entries);
-    js(w, s->raffle.mode == ZSTATS_RAFFLE_PAID ? ",\"mode\":\"paid\"}" : ",\"mode\":\"savings\"}");
+    if (!sect(w, s, ",\"allotment\":", ZSTATS_SEC_ALLOT)) return;
+    ku(w, "{\"epoch\":", s->allotment.epoch);
+    ku(w, ",\"pot\":", s->allotment.pot);
+    ku(w, ",\"ballots\":", s->allotment.ballots);
+    ku(w, ",\"threshold\":", s->allotment.threshold);
+    ku(w, ",\"entries\":", s->allotment.entries);
+    js(w, s->allotment.mode == ZSTATS_ALLOT_PAID   ? ",\"mode\":\"paid\"}"
+          : s->allotment.mode == ZSTATS_ALLOT_FREE ? ",\"mode\":\"free\"}"
+                                                   : ",\"mode\":\"savings\"}");
 }
 static void j_barrels(jw_t *w, const zstats_snapshot_t *s)
 {
@@ -780,7 +782,7 @@ zstats_status_t zstats_json(const zstats_snapshot_t *s, char *buf, uint32_t cap,
     j_comp(&w, s);
     j_bonds(&w, s);
     j_auction(&w, s);
-    j_raffle(&w, s);
+    j_allot(&w, s);
     j_barrels(&w, s);
     j_zenny(&w, s);
     jc(&w, '}');

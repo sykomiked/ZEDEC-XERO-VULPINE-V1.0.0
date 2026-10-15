@@ -24,6 +24,7 @@ struct zui_locale {
     uint8_t rtl, plural, first_day, calendar;
     uint8_t g1, g2, min_group; /* grouping: first group, the others, minimum digits */
     uint8_t review;            /* zui_review_t of the reader's words */
+    uint8_t bridge;            /* the translated locale spoken for it (itself if translated) */
     numsys_t num[2];           /* default, native */
     const char *date, *time, *am, *pm, *list;
     const char *const *words;
@@ -154,6 +155,16 @@ const zui_locale_t *zui_locale_find(const char *tag)
         if (seq(region, "TW") || seq(region, "HK") || seq(region, "MO")) return by_tag("zh-Hant");
         return by_tag("zh-Hans");
     }
+    if (script[0]) { /* a locale for this script: arc-Nbat, cu-Glag, und-Cpmn */
+        char ls[14];
+        uint32_t n = 0;
+        for (uint32_t j = 0; lang[j]; j++) ls[n++] = lang[j];
+        ls[n++] = '-';
+        for (uint32_t j = 0; j < 4; j++) ls[n++] = script[j];
+        ls[n] = 0;
+        const zui_locale_t *s = by_tag(ls);
+        if (s) return s;
+    }
     const zui_locale_t *l = by_tag(lang);
     /* another script is another locale (sr-Latn, uz-Cyrl, pa-Arab): not this one */
     if (l && script[0] && !seq(script, l->script)) return EN;
@@ -180,6 +191,10 @@ const char *zui_locale_script(const zui_locale_t *loc)
 zui_review_t zui_locale_review(const zui_locale_t *loc)
 {
     return (zui_review_t) L_(loc)->review;
+}
+const zui_locale_t *zui_locale_bridge(const zui_locale_t *loc)
+{
+    return &LOCALES[L_(loc)->bridge];
 }
 bool zui_locale_rtl(const zui_locale_t *loc)
 {

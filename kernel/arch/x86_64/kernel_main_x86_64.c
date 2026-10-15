@@ -10,6 +10,7 @@
  */
 #include "kernel_main_x86_64.h"
 #include "../zxv_handoff.h"
+#include "bootmem_x86.h"
 #include "uart_16550.h"
 #include "x86_64_arch.h"
 #include "boot_evidence.h"
@@ -36,7 +37,11 @@
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
+#include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
+#include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
+#include "msr_safe.h"         /* fault-safe RDMSR/WRMSR + RAPL helpers */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -168,8 +173,8 @@ static void cell_fabric_boot_init(void) {
 
 /* Handoff v2 (zxv_handoff.h): accept the stub's record or say why not. A
  * damaged record is never half-used; an absent one (direct -kernel boot)
- * changes nothing. Nothing below consumes the map yet: the frame allocator
- * on x86_64 is the next step (docs/BAREMETAL_OS_GAPS.md, gap 3). */
+ * changes nothing. bootmem_x86.c takes the kernel's large buffers from the
+ * map. */
 static void handoff_report(void)
 {
     const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
@@ -182,45 +187,21 @@ static void handoff_report(void)
         boot_msg("[HANDOFF_BAD] handoff record damaged: ignored");
         return;
     }
-    uart_puts("  memory: ");
-    uart_put_dec(h->n_mem);
-    uart_puts(" regions, usable ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_USABLE) / 256u);
-    uart_puts(" MiB, loader ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_LOADER) / 256u);
-    uart_puts(" MiB, firmware runtime ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_RUNTIME) * 4u);
-    uart_puts(" KiB");
-    if (h->flags & ZXH_F_MEM_TRUNCATED) uart_puts(" (map truncated)");
-    uart_puts("\n  kernel window 0x");
-    uart_put_hex(h->kernel_lo);
-    uart_puts("-0x");
-    uart_put_hex(h->kernel_hi);
-    uart_puts(h->window == 1   ? " verified free\n"
-              : h->window == 3 ? " free but covering ACPI memory (held)\n"
-                               : " NOT verified\n");
-    if (h->flags & ZXH_F_ACPI_NVS_LOST)
-        uart_puts("  ACPI NVS overwritten by the kernel window: sleep and AML held\n");
-    uart_puts("  ACPI RSDP 0x");
-    uart_put_hex(h->flags & ZXH_F_ACPI_TABLES_LOST ? 0 : h->rsdp);
-    if (h->flags & ZXH_F_ACPI_TABLES_LOST) uart_puts(" (tables overwritten: not trusted)");
-    uart_puts(h->smbios3 ? ", SMBIOS 3 present" : ", no SMBIOS 3");
-    uart_puts("\n  firmware clock ");
-    if (h->efi_time) {
-        uart_put_dec((uint64_t) h->efi_time);
-        uart_puts(" s since 1970 UTC\n");
-    } else {
-        uart_puts("unavailable\n");
-    }
-    uart_puts("  disc models: ");
-    uart_puts(h->models == 1 ? "verified" : h->models == 2 ? "FAILED" : "none on this disc");
-    uart_puts("\n");
+    zxh_report(h, uart_puts, uart_put_dec, uart_put_hex);
     boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
 
-void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
-    (void)mb2_magic;
-    (void)mb2_info;
+/* The ACPI RSDP from an accepted handoff whose tables survived, else 0 (the
+ * interrupt layer then takes the LAPIC base from the MSR). */
+static uint64_t handoff_rsdp(void)
+{
+    const zxh_t *h = zxv_handoff();
+    if (!h || (h->flags & ZXH_F_ACPI_TABLES_LOST)) return 0;
+    return h->rsdp;
+}
+
+void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
+{
 
     boot_evidence_init();
     uart_init();
@@ -243,6 +224,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     if (efifb_init())
         boot_msg("  [DRIVER ONLINE] UEFI GOP text console (serial mirrored on screen)");
     handoff_report();
+    bootmem_x86_init(mb2_magic, mb2_info);
 
     /* Ring-3 (user-mode) parity — mirrors the arm64 EL0 path. Runs FIRST so it is
      * isolated from the rest of bring-up during development. */
@@ -287,6 +269,16 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
             boot_msg("  [WARN] ring-3 self-test faulted");
     }
 
+    /* Interrupts (gap 6): the full IDT, LAPIC and masked PIC/IOAPIC replace
+     * the ring-3 self-test's exception-only IDT (x86_irq.c). */
+    boot_msg("[BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...");
+    if (x86_irq_boot(handoff_rsdp()) == 0 && x86_timer_boot() == 0) {
+        /* Processes (gap 6): preemptive round robin over ring-3 processes
+         * with their own page tables; prints [SCHED_OK] (x86_userspace.c). */
+        boot_msg("[BOOT] Ring-3 processes: preemptive scheduler self-test...");
+        x86_sched_selftest();
+    }
+
     cell_fabric_boot_init();
 
     /* ---- Full subsystem bring-up (mirrors kernel_main_riscv.c/arm32) ---- */
@@ -299,16 +291,25 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
 
     boot_msg("[BOOT] Economy core: ledger/instruments/rails/bridge/identity/quantum...");
     predictive_config_t pcfg; predictive_config_init(&pcfg);
-    static triple_ledger_t tl; triple_ledger_init(&tl);
-    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL, "Genesis:Financial");
+    /* The two ledgers are 62 MB together: they come from firmware-usable
+     * memory past the kernel (bootmem_x86.c), not from a fixed BSS window. */
+    triple_ledger_t *tl = bootmem_x86_take(sizeof *tl, "the triple ledger");
+    vino_ledger_t *vino = bootmem_x86_take(sizeof *vino, "the vino ledger");
+    if (!tl || !vino) {
+        boot_msg("[BOOT_REFUSED] no firmware memory map with room for the ledgers");
+        for (;;) __asm__ __volatile__("cli; hlt");
+    }
+    triple_ledger_init(tl);
+    triple_ledger_create_account(tl, 1, CAP_FINANCIAL, "Genesis:Financial");
     static portfolio_t pf; portfolio_init(&pf);
     static rail_system_t rs; rail_system_init(&rs);
     static bridge_registry_t br; bridge_registry_init(&br);
     static identity_registry_t idr; identity_registry_init(&idr);
     static quantum_system_t qs; quantum_system_init(&qs);
-    static vino_ledger_t vino; vino_init(&vino, 1);
-    vino_create_account(&vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
-    static vena_runtime_t vena; vena_init(&vena, &vino);
+    vino_init(vino, 1);
+    vino_create_account(vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
+    static vena_runtime_t vena;
+    vena_init(&vena, vino);
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     static holo_ctx_t holo; holo_init(&holo);
     boot_msg("  [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo");
@@ -344,6 +345,74 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
 
+    /* Fault-safe MSR access (msr_safe.h). A valid MSR must read; an MSR access
+     * the CPU rejects must #GP, be recovered through the exception-fixup
+     * table, come back as X86_MSR_EFAULT -- and the kernel must keep going.
+     *
+     * MEASURED ON QEMU 8.2 TCG (the CI machine): no RDMSR at CPL0 ever raises
+     * #GP. Unknown MSRs read as 0 (probed: 0xDEADBEEF, 0x1FF, 0x2FF, 0x802 in
+     * xAPIC mode, 0x606, 0xC0010299, ...). The one MSR fault TCG does raise
+     * here is WRMSR of reserved bits into IA32_PKRS (0x6E1) -- which also #GPs
+     * on every real CPU (bits 63:32 are reserved where PKS exists; the MSR
+     * does not exist where it does not), so writing it changes no state
+     * anywhere. So: the read probe reports what the CPU did, the write probe
+     * MUST fault and recover, and both table entries must be registered. */
+    {
+        extern const char x86_rdmsr_insn[], x86_wrmsr_insn[];
+        uint64_t apic = 0, tsc = 0, junk = 0x5A5Au;
+        int ra = x86_rdmsr_safe(MSR_IA32_APIC_BASE, &apic);
+        int rt = x86_rdmsr_safe(MSR_IA32_TSC, &tsc);
+        /* x2APIC registers #GP by definition while x2APIC mode is off. */
+        uint32_t bad = (ra == X86_MSR_OK && !(apic & (1u << 10))) ? MSR_X2APIC_APICID : 0xDEADBEEFu;
+        int rb = x86_rdmsr_safe(bad, &junk);
+        int rw = x86_wrmsr_safe(MSR_IA32_PKRS, 0xFFFFFFFF00000000ull);
+        int reg = x86_extable_fixup((uint64_t) (uintptr_t) x86_rdmsr_insn) != 0 &&
+                  x86_extable_fixup((uint64_t) (uintptr_t) x86_wrmsr_insn) != 0;
+        /* APIC_BASE is never 0 on a CPU with an APIC (0xFEE00900 under QEMU).
+         * The TSC MSR's VALUE is not checked: QEMU TCG reads it back as 0. */
+        int valid_ok = ra == X86_MSR_OK && rt == X86_MSR_OK && apic != 0;
+        if (valid_ok && rb == X86_MSR_EFAULT && junk == 0x5A5Au)
+            boot_msg("  [MSR OK] safe rdmsr: valid read ok, invalid MSR faulted and recovered");
+        else if (valid_ok && rb == X86_MSR_OK)
+            boot_msg(
+                "  [MSR OK] safe rdmsr: valid read ok; invalid MSR read did not #GP on this CPU "
+                "(emulator reads unknown MSRs as 0)");
+        else {
+            uart_puts("  [MSR FAIL] safe rdmsr: apic_base rc=-");
+            uart_put_dec((uint64_t) (-ra));
+            uart_puts(" tsc rc=-");
+            uart_put_dec((uint64_t) (-rt));
+            uart_puts(" invalid rc=-");
+            uart_put_dec((uint64_t) (-rb));
+            uart_puts("\n");
+        }
+        if (rw == X86_MSR_EFAULT)
+            boot_msg("  [MSR OK] safe wrmsr: invalid MSR write faulted and recovered");
+        else
+            boot_msg("  [MSR FAIL] safe wrmsr: reserved-bit write to IA32_PKRS did not fault");
+        if (reg)
+            boot_msg("  [MSR OK] fixup table: rdmsr and wrmsr registered with the #GP handler");
+        else
+            boot_msg("  [MSR FAIL] fixup table: rdmsr/wrmsr entry missing");
+        uint32_t pu = 0, eu = 0, tu = 0;
+        int rr = x86_rapl_units(&pu, &eu, &tu);
+        if (rr == X86_MSR_OK) {
+            uart_puts("  [MSR] RAPL present (");
+            uart_puts(x86_rapl_kind() == X86_RAPL_AMD ? "AMD" : "Intel");
+            uart_puts("): power 1/2^");
+            uart_put_dec(pu);
+            uart_puts(" W, energy 1/2^");
+            uart_put_dec(eu);
+            uart_puts(" J, time 1/2^");
+            uart_put_dec(tu);
+            uart_puts(" s\n");
+        } else {
+            uart_puts(rr == X86_MSR_ENODEV
+                          ? "  [MSR] RAPL absent (CPUID: no RAPL interface)\n"
+                          : "  [MSR] RAPL absent (CPUID claims it; unit MSR faulted)\n");
+        }
+    }
+
     /* Standard class drivers: scan PCI, bind NVMe/AHCI/xHCI/e1000/HDA, then a
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
@@ -363,6 +432,12 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         uart_puts(" (TSC ");
         uart_put_dec(tsc_per_us);
         uart_puts(" ticks/us)\n");
+
+        /* ACPI: tables, the AML namespace (DSDT + SSDTs), sleep states, power
+         * button, batteries, lid, thermal zones, processors, backlight. Only
+         * reports; a failure is logged and the boot goes on. */
+        boot_msg("[BOOT] ACPI: tables and AML namespace...");
+        acpi_x86_boot(hp, tsc_per_us, hw_log_line);
     }
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a
@@ -379,12 +454,18 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
 
     boot_evidence_final();
 
-    uint64_t cycle = 0;
+    /* The LAPIC timer (X86_HZ) wakes each hlt, so the heartbeat counts timer
+     * ticks: one line every ten seconds. Counting wake-ups instead (10M of
+     * them) printed once a day at 100 Hz, which read as no timer at all. */
+    uint64_t next = x86_ticks() + 10u * X86_HZ;
     while (1) {
-        if (++cycle >= 10000000) {
-            cycle = 0;
-            boot_msg("[BOOT_OK] heartbeat: cycle=10M");
-        }
         hlt();
+        uint64_t now = x86_ticks();
+        if (now >= next) {
+            next = now + 10u * X86_HZ;
+            uart_puts("[BOOT_OK] heartbeat: ticks=");
+            uart_put_dec(now);
+            uart_puts("\n");
+        }
     }
 }

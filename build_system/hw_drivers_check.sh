@@ -95,13 +95,23 @@ KPID=$!
 rc=0; wait "$QPID" || rc=$?
 kill "$KPID" 2>/dev/null; wait "$KPID" 2>/dev/null
 rm -f "$MON"
-grep -aE '\[DRIVER|\[SELFTEST|\[STORAGE|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
+grep -aE '\[MSR|\[DRIVER|\[SELFTEST|\[STORAGE|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
 echo "[hw-drivers] QEMU exited $rc after at most ${SECS}s"
 
 fail=0
 need(){ grep -aqF -- "$1" "$LOG" || { echo "::error::missing: $1"; fail=1; }; }
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then echo "::error::QEMU failed with exit $rc"; fail=1; fi
 need '[BOOT_OK]'
+# Fault-safe MSR layer (kernel/arch/x86_64/msr_safe.h): valid MSRs read, a
+# rejected MSR access #GPs, is recovered through the exception-fixup table, and
+# the boot goes on. QEMU TCG never faults an RDMSR at CPL0 (unknown MSRs read
+# as 0), so the read line accepts either outcome and the reserved-bit WRMSR
+# (IA32_PKRS, which TCG and every real CPU fault) is what must recover here.
+need '[MSR OK] safe rdmsr: valid read ok'
+need '[MSR OK] safe wrmsr: invalid MSR write faulted and recovered'
+need '[MSR OK] fixup table: rdmsr and wrmsr registered with the #GP handler'
+need '[MSR] RAPL '
+if grep -aq '\[MSR FAIL\]' "$LOG"; then echo "::error::MSR self-test failed:"; grep -a '\[MSR FAIL\]' "$LOG"; fail=1; fi
 need '[DRIVER ONLINE] nvme'
 need '[DRIVER ONLINE] ahci'
 need '[DRIVER ONLINE] xhci'

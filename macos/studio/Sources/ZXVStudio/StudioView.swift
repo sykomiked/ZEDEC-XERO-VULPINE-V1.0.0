@@ -80,7 +80,7 @@ struct StudioView: View {
         let remaining = c?.remaining ?? 0
         return Panel(title: "This cycle's budget") {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(grouped(remaining)).font(.system(size: 28, design: .monospaced))
+                Text(grouped(remaining)).font(Theme.mono(28))
                 Text("of \(grouped(c?.allotted ?? 0)) tokens left").foregroundStyle(Theme.muted)
             }
             ProgressView(value: Double(remaining), total: Double(allotted)).tint(Theme.gold)
@@ -160,7 +160,7 @@ struct ChatBubble: View {
                         TagChip(text: t.phase)
                         TagChip(text: t.action, color: t.action == "proceed" ? Theme.good : Theme.gold)
                         if let n = line.charged {
-                            Text("\(n) tokens").font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.muted)
+                            Text("\(n) tokens").font(Theme.mono(11)).foregroundStyle(Theme.muted)
                         }
                     }
                 }
@@ -180,7 +180,7 @@ struct TagChip: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11, design: .monospaced))
+            .font(Theme.mono(11))
             .foregroundStyle(color)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
@@ -205,10 +205,10 @@ struct SwarmTable: View {
                 Divider().gridCellUnsizedAxes(.horizontal)
                 ForEach(state?.agents ?? []) { a in
                     GridRow {
-                        Text("\(a.level)").font(.system(.body, design: .monospaced))
+                        Text("\(a.level)").font(Theme.mono(ZUIToken.body))
                         Text(a.name)
                         Text("\(a.emoji) \(a.intensity)")
-                        Text(grouped(a.tokens)).font(.system(.body, design: .monospaced))
+                        Text(grouped(a.tokens)).font(Theme.mono(ZUIToken.body))
                         SplitBar(agent: a).frame(minWidth: 160, maxWidth: .infinity)
                         Text(a.witness == 1 ? "true, by \(a.witnessBy)" : "not verified, by \(a.witnessBy)")
                             .foregroundStyle(a.witness == 1 ? Theme.good : Theme.warn)

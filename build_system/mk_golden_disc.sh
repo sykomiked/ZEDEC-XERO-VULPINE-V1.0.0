@@ -154,6 +154,9 @@ mformat -i "$ESP" -F -c "$CSEC" -v ZXVGOLDEN :: || die "mformat (FAT32) failed"
 
 # Directories first (parents before children), then the files.
 cut -f2 "$LIST" | while read -r d; do
+  # a top-level file (MEGAROM.TVL) has no parent to make: without this guard
+  # ${d%/*} is the file name itself and mmd turned it into a directory
+  case "$d" in */*) ;; *) continue ;; esac
   d="${d%/*}"; p=""
   IFS=/ read -ra parts <<<"$d"
   for part in "${parts[@]}"; do p="$p/$part"; echo "$p"; done

@@ -10,7 +10,7 @@ AI use it for three things:
 
 1. **Pulling content from the network.** A CID is fetched and every block is
    checked before it is used.
-2. **Naming items in the peer-to-peer economy.** The Carracho network uses
+2. **Naming items in the peer-to-peer economy.** The Vinea network uses
    these CIDs as the IDs of the things it trades.
 3. **Naming files in the system.** Every file gets a content ID next to its
    path.
@@ -21,8 +21,8 @@ data. This document explains how it does that.
 
 Status: built 2026-10-09 in `kernel/src/ipfs_node/` and tested by
 `kernel/src/ipfs_node/test_ipfs_node.c` against vectors made with Kubo 0.32.1.
-The module is not yet wired into `kernel/Makefile`. The build line is at the
-top of the test file.
+`kernel/Makefile` builds and runs `test_ipfs_node` and `test_ipfsn_dir` (the
+directory reader, `kernel/src/ipfs_node/ipfsn_dir.c`).
 
 `kernel/src/ipfs/` has not changed. Its "CID" is a bare SHA-256 digest, not an
 IPFS CID. This module makes real CIDs. Code that needs to work with the IPFS
@@ -37,7 +37,7 @@ network should use this module.
 | CIDv1 and CIDv0, byte for byte as other implementations write them | libp2p (no peer ID, no transports, no Noise or TLS handshake) |
 | `ipfs add --cid-version=1` root CIDs (Kubo defaults) | Bitswap |
 | Trustless gateway `?format=raw` and `?format=car` | The public IPFS DHT (no provider records are published there) |
-| CAR v1 read and write (matches `ipfs dag export` byte for byte) | CARv2, directories and HAMT shards, non-file UnixFS |
+| CAR v1 read and write (matches `ipfs dag export` byte for byte) | CARv2, writing directories and HAMT shards (reading them is built, `ipfsn_dir.c`), other non-file UnixFS |
 
 ZXV talks to IPFS through **gateways and CIDs**. It is not a full libp2p peer.
 A CID made here is the same one any IPFS implementation computes for the same
@@ -59,7 +59,7 @@ reference no libc symbols.
 | `ipfsn_multiformats.c` | Unsigned varint, multihash (sha2-256 `0x12`, identity `0x00`), CIDv0/v1 binary, base32-lower (`b…`), base58btc (`Qm…`), v0→v1 |
 | `ipfsn_unixfs.c` | Streaming UnixFS/dag-pb builder, strict dag-pb and UnixFS readers, DAG walker (`ipfsn_cat`) |
 | `ipfsn_store.c` | Blockstore over host storage ops, sealed private blocks, pins, provider gate, `ipfsn_add` |
-| `ipfsn_net.c` | CAR v1 reader and writer, trustless-gateway client, Carracho peer hook, `ipfsn_node_cat` |
+| `ipfsn_net.c` | CAR v1 reader and writer, trustless-gateway client, Vinea peer hook, `ipfsn_node_cat` |
 | `ipfsn_ubh.c` | UBH-168 framing of CIDs and blocks, text form, wire negotiation |
 | `ipfsn_fidx.c` | OS file index: path → CID and CID → paths |
 
@@ -187,7 +187,7 @@ caller-owned RAM and is not persisted.
 - **CAR responses.** The CAR's roots must include the CID requested. Every
   block is checked in a first pass, before any block is stored. A single
   tampered block rejects the whole response.
-- **Carracho peers.** `ipfsn_peer_ops_t.want(cid_bin) → bytes` is the hook.
+- **Vinea peers.** `ipfsn_peer_ops_t.want(cid_bin) → bytes` is the hook.
   The bytes are decoded in the negotiated wire syntax (§8) and checked here.
 - **One source for everything.** `ipfsn_node_source` tries the local store,
   then peers, then the gateway. Fetched blocks are stored as PUBLIC, since they
@@ -281,10 +281,11 @@ The negative tests cover:
 ## 10. Honest limits
 
 - No libp2p, Bitswap or DHT (§1). Announcing goes to a host-supplied provider
-  hook (for example a pinning service or the Carracho provider table), not to
+  hook (for example a pinning service or the Vinea provider table), not to
   the IPFS DHT.
-- Only UnixFS **files** are built and walked. There are no directories, HAMT
-  shards, symlinks, mode or mtime (mode and mtime are parsed and skipped), and
+- Only UnixFS **files** are built. Plain and HAMT-sharded directories are read
+  by `kernel/src/ipfs_node/ipfsn_dir.c` (tested by `test_ipfsn_dir.c` with
+  Kubo-made vectors) but not built. There are no symlinks, mode or mtime (mode and mtime are parsed and skipped), and
   no trickle layout or other chunkers.
 - `ipfsn_add` matches Kubo only with the defaults: 256 KiB, raw leaves,
   balanced, 174 links. Other `chunk_size` values match Kubo's

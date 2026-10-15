@@ -250,7 +250,7 @@ static void grants_run(void)
           "grant epoch distributed");
 }
 
-static const zstats_raffle_t RAF = {7, 5000, 5400, 10000, 12, ZSTATS_RAFFLE_PAID};
+static const zstats_allot_t RAF = {7, 5000, 5400, 10000, 12, ZSTATS_ALLOT_PAID};
 
 static zstats_sources_t all(void)
 {
@@ -265,7 +265,7 @@ static zstats_sources_t all(void)
     s.auction = &A;
     s.grants = &G;
     s.zenny = &Z;
-    s.raffle = &RAF;
+    s.allotment = &RAF;
     s.juris = JURIS;
     s.publisher = PUB;
     return s;
@@ -284,7 +284,7 @@ static void test_collect(void)
     CHECK(s.epoch == 1 && s.tick == 50 && s.juris == JURIS && s.publisher == PUB &&
               s.min_cohort == 5 && s.present == ZSTATS_SEC_ALL,
           "header and every section present");
-    /* Vino issued: 12 * 1e6 users + 500000 reserve + 2e7 auction + 100000 raffle */
+    /* Vino issued: 12 * 1e6 users + 500000 reserve + 2e7 auction + 100000 allotment */
     CHECK(s.reserve.reserve == 500000 && s.reserve.claims == 32600000 &&
               s.reserve.floor.num == 500000 && s.reserve.floor.den == 32600000 &&
               s.reserve.floor.defined && s.reserve.req_num == 1 && s.reserve.req_den == 1 &&
@@ -315,7 +315,7 @@ static void test_collect(void)
               s.auction.floor_num == 1 && s.auction.floor_den == 1 && s.auction.backing == 1 &&
               s.auction.floor_ok,
           "auction: 10 at 100, reserve 20001000, floor holds");
-    CHECK(!memcmp(&s.raffle, &RAF, sizeof RAF), "raffle copied as given");
+    CHECK(!memcmp(&s.allotment, &RAF, sizeof RAF), "allotment copied as given");
     CHECK(s.barrels.epoch == 1 && s.barrels.inflow == 500 && s.barrels.weight == 3 &&
               s.barrels.rate_num == 500 && s.barrels.rate_den == 3 && s.barrels.rate_defined &&
               s.barrels.granted_barrels == 5 && s.barrels.granted_cost == 500 &&
@@ -400,7 +400,7 @@ static void test_absent(void)
     zstats_snapshot_t s;
     zstats_sources_default(&src);
     CHECK(src.reserve_acct == ZSTATS_NONE && src.req_num == 1 && src.req_den == 1 &&
-              src.min_cohort == 5 && !src.L && !src.swap && !src.raffle,
+              src.min_cohort == 5 && !src.L && !src.swap && !src.allotment,
           "defaults");
     CHECK(zstats_collect(&s, 2, 3, &src) == ZSTATS_OK && s.present == 0 && s.suppressed == 0,
           "nothing given: nothing present");
@@ -409,7 +409,7 @@ static void test_absent(void)
     static const char want[] =
         "{\"format\":\"zxv/stats/v1\",\"epoch\":\"2\",\"tick\":\"3\",\"juris\":\"0\","
         "\"publisher\":\"0\",\"min_cohort\":\"5\",\"reserve\":null,\"vault\":null,"
-        "\"compression\":null,\"bonds\":null,\"auction\":null,\"raffle\":null,\"barrels\":null,"
+        "\"compression\":null,\"bonds\":null,\"auction\":null,\"allotment\":null,\"barrels\":null,"
         "\"zenny\":null}";
     CHECK(zstats_json(&s, buf, sizeof buf, &n) == ZSTATS_OK && n == sizeof want - 1 &&
               !memcmp(buf, want, n),
@@ -422,7 +422,7 @@ static void test_absent(void)
         uint32_t bit;
         int which;
     } one[] = {{ZSTATS_SEC_RESERVE, 0}, {ZSTATS_SEC_VAULT, 1},   {ZSTATS_SEC_COMPRESSION, 2},
-               {ZSTATS_SEC_BONDS, 3},   {ZSTATS_SEC_AUCTION, 4}, {ZSTATS_SEC_RAFFLE, 5},
+               {ZSTATS_SEC_BONDS, 3},   {ZSTATS_SEC_AUCTION, 4}, {ZSTATS_SEC_ALLOT, 5},
                {ZSTATS_SEC_BARRELS, 6}, {ZSTATS_SEC_ZENNY, 7}};
     for (uint32_t i = 0; i < 8; i++) {
         zstats_sources_default(&src);
@@ -445,7 +445,7 @@ static void test_absent(void)
             src.auction = &A;
             break;
         case 5:
-            src.raffle = &RAF;
+            src.allotment = &RAF;
             break;
         case 6:
             src.grants = &G;
@@ -817,7 +817,7 @@ static zstats_snapshot_t fixed(void)
     s.auction.floor_den = 1;
     s.auction.backing = 1;
     s.auction.floor_ok = true;
-    s.raffle = RAF;
+    s.allotment = RAF;
     grant_snapshot_t *b = &s.barrels;
     b->epoch = 1;
     b->inflow = 500;
@@ -856,7 +856,7 @@ static const char WANT_JSON[] =
     "\"auction\":{\"last\":{\"epoch\":\"2\",\"price\":\"100\",\"qty\":\"10\"},"
     "\"vbills_outstanding\":\"300\",\"reserve\":\"1000\",\"floor\":{\"num\":\"1\",\"den\":\"1\"},"
     "\"backing\":\"1\",\"floor_ok\":true},"
-    "\"raffle\":{\"epoch\":\"7\",\"pot\":\"5000\",\"tickets\":\"5400\",\"threshold\":\"10000\","
+    "\"allotment\":{\"epoch\":\"7\",\"pot\":\"5000\",\"ballots\":\"5400\",\"threshold\":\"10000\","
     "\"entries\":\"12\",\"mode\":\"paid\"},"
     "\"barrels\":{\"epoch\":\"1\",\"inflow\":\"500\",\"weight\":\"3\","
     "\"g_rate\":{\"num\":\"500\",\"den\":\"3\"},\"granted_barrels\":\"5\","
@@ -902,7 +902,7 @@ static void test_json(void)
     s.auction.reserve_valid = false;
     s.auction.reserve = 0;
     s.auction.floor_ok = false;
-    s.raffle.mode = ZSTATS_RAFFLE_SAVINGS;
+    s.allotment.mode = ZSTATS_ALLOT_SAVINGS;
     s.vault.outstanding = 30;
     s.vault.share = (zstats_rat_t){30, 30, true};
     s.reserve.floor_ok = true;
@@ -976,16 +976,17 @@ static void test_encoding(void)
     uint32_t n2;
     CHECK(zstats_encode(&d, p2, e2, sizeof e2, &n2) == ZSTATS_OK && n2 == n && !memcmp(e2, enc, n),
           "round trip: re-encoding gives the same bytes");
-    CHECK(
-        d.epoch == s.epoch && d.tick == s.tick && d.juris == s.juris &&
-            d.publisher == s.publisher && d.present == s.present && d.suppressed == s.suppressed &&
-            d.min_cohort == s.min_cohort && d.reserve.floor.num == 500 && d.reserve.floor.defined &&
-            d.reserve.floor_ok && d.vault.share.den == 300 && d.comp.tier[0].count == 5 &&
-            d.comp.tier[0].sum == 70 && d.bonds.k[2] == 21 && d.bonds.n_terms == 3 &&
-            d.auction.has_last && d.auction.floor_ok && d.auction.reserve_valid &&
-            !memcmp(&d.raffle, &RAF, sizeof RAF) && d.barrels.rate_defined && d.barrels.lots == 1 &&
-            d.barrels.rate_den == 3 && d.zenny.chips == 150 && d.zenny.live == 5,
-        "round trip: the fields");
+    CHECK(d.epoch == s.epoch && d.tick == s.tick && d.juris == s.juris &&
+              d.publisher == s.publisher && d.present == s.present &&
+              d.suppressed == s.suppressed && d.min_cohort == s.min_cohort &&
+              d.reserve.floor.num == 500 && d.reserve.floor.defined && d.reserve.floor_ok &&
+              d.vault.share.den == 300 && d.comp.tier[0].count == 5 && d.comp.tier[0].sum == 70 &&
+              d.bonds.k[2] == 21 && d.bonds.n_terms == 3 && d.auction.has_last &&
+              d.auction.floor_ok && d.auction.reserve_valid &&
+              !memcmp(&d.allotment, &RAF, sizeof RAF) && d.barrels.rate_defined &&
+              d.barrels.lots == 1 && d.barrels.rate_den == 3 && d.zenny.chips == 150 &&
+              d.zenny.live == 5,
+          "round trip: the fields");
     CHECK(zstats_decode(enc, n, &d, NULL) == ZSTATS_OK, "prev optional on decode");
     CHECK(zstats_encode(&s, NULL, e2, sizeof e2, &n2) == ZSTATS_OK && n2 == n &&
               zstats_decode(e2, n2, &d, p2) == ZSTATS_OK && p2[0] == 0 && p2[31] == 0,
@@ -1254,7 +1255,7 @@ static void test_consistency(void)
     memset(&s.comp, 0, sizeof s.comp);
     memset(&s.bonds, 0, sizeof s.bonds);
     memset(&s.auction, 0, sizeof s.auction);
-    memset(&s.raffle, 0, sizeof s.raffle);
+    memset(&s.allotment, 0, sizeof s.allotment);
     memset(&s.barrels, 0, sizeof s.barrels);
     memset(&s.zenny, 0, sizeof s.zenny);
     CHECK(good(s), "every section absent and zero");
@@ -1497,11 +1498,11 @@ static void test_consistency(void)
     s.auction.outstanding = 2000; /* 1000*2 >= 2000 */
     CHECK(good(s), "den used on the reserve side");
 
-    /* raffle */
+    /* allotment */
     s = f;
-    s.raffle.mode = 2;
-    CHECK(bad(s), "an unknown raffle mode");
-    s.raffle.mode = 0;
+    s.allotment.mode = 3;
+    CHECK(bad(s), "an unknown allotment mode");
+    s.allotment.mode = 0;
     CHECK(good(s), "savings mode");
 
     /* barrels */

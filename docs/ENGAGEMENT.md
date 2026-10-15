@@ -205,5 +205,5 @@ The test runs 133 checks: every guard rule, mastery and the daily cap, no decay,
 - **Revoked badges stay in reputation.** `reputation.h` badge levels only ever rise, so a badge that was mirrored and later revoked stays in reputation's score until that module can lower a level. Quest keeps the authoritative signed record and revocation list.
 - **Revocations travel slowly.** Revocations reach only the peers who exchange revocation lists.
 - **Settlement is not atomic.** A goal is settled with one posting per member, not one atomic posting. Rerunning is safe. Fraud discovered after a payout is flagged for the operator to reverse in pay, and quest does not claw back money by itself.
-- **Not yet wired in.** No module calls `qst_record` yet. The event table in 3.10 is the contract each module needs to implement.
+- **Wired in for trades only.** The desktop app calls `qst_record` for each compute or storage sale from the Vinea trade loop (`kernel/arch/hosted/zxv_host.c`). Other modules do not call it yet; the event table in 3.10 is the contract each of them needs to implement.
 - **Legal questions for counsel:** whether VFV shares are income, and how child-protection and consumer-protection law apply to a particular deployment.

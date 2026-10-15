@@ -1,0 +1,4088 @@
+{
+  "schema": "zxv.tiamat.swarm_model_manifest/1",
+  "generated": "2026-10-15",
+  "brand": "Tiamat Productive Agency AI",
+  "rules": "Apache-2.0 checkpoints; bases and data without incompatible riders; SafeTensors, GGUF or ONNX only. See docs/release/SWARM_MODEL_VERIFICATION.md.",
+  "attribution": "Every cell carries its model id, developer and source URL; every creator is credited in NOTICE whether or not the licence asks for it.",
+  "disc_bytes": {
+    "disc_pinned": 7221530368,
+    "disc_estimated": 550530068,
+    "gated_pinned": 117073475,
+    "gated_estimated": 980940301,
+    "limit": 10000000000
+  },
+  "models": [
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dragon_name": "Spinewyrm",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 1117320736,
+      "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "trunk",
+      "languages": [
+        "29+ languages"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct",
+      "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+      "placement": "disc",
+      "organ": "trunk",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-1.5B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+          "revision": "91cad51170dc346986eccefdc2dd33a9da36ead9",
+          "file": "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+          "size": 1117320736,
+          "sha256": "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3087467144,
+          "sha256": "dd924a11b4c220f385b51ffa522daea7c9f3d850e31b162bb5661df483c6d3ee"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud"
+      ],
+      "notes": "Already on the golden disc. Trunk for the 1.5B adapters."
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "dragon_name": "Kindlewyrm",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "0.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 491400032,
+      "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "trunk",
+      "languages": [
+        "29+ languages"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct",
+      "revision": "7ae557604adf67be50417f59c2c2f167def9a775",
+      "placement": "disc",
+      "organ": "trunk",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-0.5B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
+          "revision": "9217f5db79a29953eb74d5343926648285ec7e67",
+          "file": "qwen2.5-0.5b-instruct-q4_k_m.gguf",
+          "size": 491400032,
+          "sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 988097824,
+          "sha256": "fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud"
+      ],
+      "notes": "Already on the golden disc. Trunk for the 0.5B adapters."
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "dragon_name": "Awllindworm",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "0.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 491400064,
+      "sha256": "1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "trunk",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "revision": "ea3f2471cf1b1f0db85067f1ef93848e38e88c25",
+      "placement": "disc",
+      "organ": "trunk",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-0.5B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+          "revision": "ebb2015119c907b064c512bf053e945850b5875f",
+          "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+          "size": 491400064,
+          "sha256": "1d9614638d18024d0fbb36575a15f1302a3adf044df10345688ec4f6e1c4ff32",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/ebb2015119c907b064c512bf053e945850b5875f/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 988097824,
+          "sha256": "f9523886352217ded3aeeef552b381af79d568c6d49a4b9e423288cea56b0a44"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud"
+      ],
+      "notes": "Trunk for TIMPS-Coder and pocketsql."
+    },
+    {
+      "model_id": "utter-project/EuroLLM-1.7B-Instruct",
+      "dragon_name": "Parleywyvern",
+      "developer": "UTTER consortium (Unbabel, Instituto Superior Tecnico, University of Edinburgh, Aveni, Sorbonne Universite, Naver Labs Europe, University of Amsterdam), funded by EU Horizon Europe",
+      "license": "Apache-2.0",
+      "params": "1.7B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 1045157088,
+      "sha256": "1cade17f491ea46a686dbee51fbd52442e0f001f102380c3b9d66b4a77f84093",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "ui_dialogue",
+      "languages": [
+        "35 languages"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/utter-project/EuroLLM-1.7B-Instruct",
+      "revision": "a25c7fa65fc2a644e6270b8940dbe295b51da681",
+      "placement": "disc",
+      "organ": "voice_of_tiamat",
+      "trunk": null,
+      "engine": "runs now (llama)",
+      "base_models": [
+        "utter-project/EuroLLM-1.7B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "mradermacher/EuroLLM-1.7B-Instruct-GGUF",
+          "revision": "2951f08f66429c934c8b01a94347161362430808",
+          "file": "EuroLLM-1.7B-Instruct.Q4_K_M.gguf",
+          "size": 1045157088,
+          "sha256": "1cade17f491ea46a686dbee51fbd52442e0f001f102380c3b9d66b4a77f84093",
+          "url": "https://huggingface.co/mradermacher/EuroLLM-1.7B-Instruct-GGUF/resolve/2951f08f66429c934c8b01a94347161362430808/EuroLLM-1.7B-Instruct.Q4_K_M.gguf",
+          "packaging_credit": "GGUF conversion by mradermacher"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3313726248,
+          "sha256": "853ac1edd51009c46ce28e457a389ef69206b27e3b9734a43ae0644e766553ac"
+        }
+      ],
+      "credits": [
+        "UTTER consortium (Unbabel, Instituto Superior Tecnico, University of Edinburgh, Aveni, Sorbonne Universite, Naver Labs Europe, University of Amsterdam), funded by EU Horizon Europe",
+        "GGUF conversion by mradermacher"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "HuggingFaceTB/SmolLM3-3B",
+      "dragon_name": "Greetwyvern",
+      "developer": "Hugging Face (SmolLM / SmolVLM team)",
+      "license": "Apache-2.0",
+      "params": "3B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "ui_dialogue",
+      "languages": [
+        "en",
+        "fr",
+        "es",
+        "it",
+        "pt",
+        "zh",
+        "ar",
+        "ru"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/HuggingFaceTB/SmolLM3-3B",
+      "revision": "a07cc9a04f16550a088caea529712d1d335b0ac1",
+      "placement": "pack_laptop",
+      "organ": "voice_of_tiamat",
+      "trunk": null,
+      "engine": "needs smollm3 arch",
+      "base_models": [
+        "HuggingFaceTB/SmolLM3-3B-Base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "size": 4966315264,
+          "sha256": "e5eed4113a925264c33e3cdf76cd9f547c06a207ef2270914a7274a2bf685ffd"
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "size": 1183919744,
+          "sha256": "6c3ad90646457295723e4da5ee8afac47006e20407b122df5174693dd8d68a43"
+        }
+      ],
+      "credits": [
+        "Hugging Face (SmolLM / SmolVLM team)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "arcee-ai/AFM-4.5B",
+      "dragon_name": "Hostwyvern",
+      "developer": "Arcee AI",
+      "license": "Apache-2.0",
+      "params": "4.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "ui_dialogue",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/arcee-ai/AFM-4.5B",
+      "revision": "e84d19711eca5817c1608cb344d931bf05c966dd",
+      "placement": "pack_workstation",
+      "organ": "voice_of_tiamat",
+      "trunk": null,
+      "engine": "needs arcee arch",
+      "base_models": [
+        "arcee-ai/AFM-4.5B-Base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "size": 4965245872,
+          "sha256": "57ef34a05def7d83a9fa33f11a44c842b99c4ab3fc72eab03403a15c0b6de445"
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "size": 4273167472,
+          "sha256": "fcf0b354a1975416200837ff9401064fa72462bc57044741d36854658f5bc25e"
+        }
+      ],
+      "credits": [
+        "Arcee AI"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "dragon_name": "Heraldwyvern",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "7B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "ui_dialogue",
+      "languages": [
+        "29+ languages"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+      "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+      "placement": "pack_workstation",
+      "organ": "voice_of_tiamat",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-7B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 3945441440,
+          "sha256": "a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 3864726352,
+          "sha256": "f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 3864726424,
+          "sha256": "8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 3556377672,
+          "sha256": "1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "sandeeprdy1729/TIMPS-Coder-0.5B",
+      "dragon_name": "Mendlindworm",
+      "developer": "Sandeep Reddy (TIMPS)",
+      "license": "Apache-2.0",
+      "params": "0.5B",
+      "format": "adapter on Qwen2.5-Coder-0.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 35000000,
+      "primary_capability": "code_repair",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/sandeeprdy1729/TIMPS-Coder-0.5B",
+      "revision": "236e77a2c793393978fa373db1091d6286a5ca29",
+      "placement": "disc",
+      "organ": "smith",
+      "trunk": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 988097824,
+          "sha256": "fc1d360b7acfb136c97a5da725c0fe17cd1abf4eda816308d913cd42e52f316f"
+        }
+      ],
+      "credits": [
+        "Sandeep Reddy (TIMPS)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+      "dragon_name": "Codelindworm",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 1117320768,
+      "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "code_generation",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct",
+      "revision": "2e1fd397ee46e1388853d2af2c993145b0f1098a",
+      "placement": "disc",
+      "organ": "smith",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-1.5B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+          "revision": "f86cb2c1fa58255f8052cc32aeede1b7482d4361",
+          "file": "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+          "size": 1117320768,
+          "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/f86cb2c1fa58255f8052cc32aeede1b7482d4361/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3087467144,
+          "sha256": "c1b9b30e907950516ba3c646bdf570d8084c25a6410a0cdca80cf04b11bc13a8"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "JackKozmo29/codeguard-jev-style-1.5b",
+      "dragon_name": "Wardendrake",
+      "developer": "JackKozmo29",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "adapter on Qwen2.5-1.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 74000000,
+      "primary_capability": "code_review",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/JackKozmo29/codeguard-jev-style-1.5b",
+      "revision": "1c72673434d423258387d4b119285d3d50941000",
+      "placement": "disc",
+      "organ": "warden",
+      "trunk": "Qwen/Qwen2.5-1.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-1.5B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 6174895536,
+          "sha256": "05bf64070ac2a68c4539e960e137098d634846d88a96c6b37044cb3977b8a161"
+        }
+      ],
+      "credits": [
+        "JackKozmo29"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "DharaneswarReddy/codereview-agent",
+      "dragon_name": "Reviewdrake",
+      "developer": "Dharaneswar Reddy",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "adapter on Qwen2.5-1.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 74000000,
+      "primary_capability": "code_review",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/DharaneswarReddy/codereview-agent",
+      "revision": "e6d0b78df8c6913ecd4c1e659135790002bf2476",
+      "placement": "disc",
+      "organ": "warden",
+      "trunk": "Qwen/Qwen2.5-1.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "size": 73911112,
+          "sha256": "aabcdaf9e00e25ac23dae4ca87bf612de6dfb9c59bf5dc744fad0fd8b7cab069"
+        }
+      ],
+      "credits": [
+        "Dharaneswar Reddy"
+      ],
+      "notes": "Base is unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit, a 4-bit copy of Qwen2.5-1.5B-Instruct (Apache-2.0); credit Unsloth too."
+    },
+    {
+      "model_id": "vitorallo/securereview-coder-32B-FP8",
+      "dragon_name": "Bastiondrake",
+      "developer": "vitorallo (Foil)",
+      "license": "Apache-2.0",
+      "params": "32B",
+      "format": "FP8 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "security_review",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/vitorallo/securereview-coder-32B-FP8",
+      "revision": "d0c0f9c519e7bcbbe74df5fe8241dfec68046e39",
+      "placement": "server",
+      "organ": "warden",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-32B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 34331581440,
+          "sha256": "237e7ec8c226b9d448e8e291c28024f6c2bf2690d61bce14fdb0088b251e97ab"
+        }
+      ],
+      "credits": [
+        "vitorallo (Foil)"
+      ],
+      "notes": "Gated: the owner accepts the access terms on Hugging Face before download. Base Qwen2.5-Coder-32B-Instruct is Apache-2.0. Ships its own NOTICE."
+    },
+    {
+      "model_id": "FrontiersMind/Nandi-Mini-150M-Tool-Calling",
+      "dragon_name": "Toolhatchling",
+      "developer": "FrontiersMind",
+      "license": "Apache-2.0",
+      "params": "150M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 306842392,
+      "primary_capability": "tool_routing",
+      "languages": [
+        "en",
+        "10 Indic languages"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/FrontiersMind/Nandi-Mini-150M-Tool-Calling",
+      "revision": "d0f1124a4086ae265080f37d63e13b6e7c683cb4",
+      "placement": "disc_gated",
+      "organ": "herald",
+      "trunk": null,
+      "engine": "needs Nandi arch (custom code)",
+      "base_models": [
+        "FrontiersMind/Nandi-Mini-150M"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 306842392,
+          "sha256": "a18cef1889a6895a9a83c819fd91b6e8e769e5b019b682d884466b72ffa8f949"
+        }
+      ],
+      "credits": [
+        "FrontiersMind"
+      ],
+      "notes": "Replaces Cactus-Compute/needle2 (pickle only). Pretrained from scratch on 525B tokens; base FrontiersMind/Nandi-Mini-150M is Apache-2.0."
+    },
+    {
+      "model_id": "ajvikram/toolcall-2b",
+      "dragon_name": "Toolwyvern",
+      "developer": "ajvikram",
+      "license": "Apache-2.0",
+      "params": "2B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "tool_routing",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ajvikram/toolcall-2b",
+      "revision": "e74096d01e0f58bea267ee83af9be6953cf536a1",
+      "placement": "pack_laptop",
+      "organ": "herald",
+      "trunk": null,
+      "engine": "needs qwen3.5 arch",
+      "base_models": [
+        "Qwen/Qwen3.5-2B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors-00001-of-00001.safetensors",
+          "size": 4548221488,
+          "sha256": "35d7dd88ef3e572debbacdaca412de4d3484cb19c4b20c52975675e042d76219"
+        }
+      ],
+      "credits": [
+        "ajvikram"
+      ],
+      "notes": "Base Qwen/Qwen3.5-2B is Apache-2.0."
+    },
+    {
+      "model_id": "llmware/slim-ner-tool",
+      "dragon_name": "Tagwyrmling",
+      "developer": "llmware (AI Bloks)",
+      "license": "Apache-2.0",
+      "params": "1.1B",
+      "format": "GGUF (upstream)",
+      "file_size_bytes": 668787680,
+      "sha256": "8b1125052d2960c9c9415dc11841848abc2f6eb79e0c028ee4a58d514f45bd3c",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "structured_extraction",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/llmware/slim-ner-tool",
+      "revision": "860f1f937875ca640c54378341f66f7b45424d30",
+      "placement": "disc",
+      "organ": "scribe",
+      "trunk": null,
+      "engine": "runs now (llama); quant type checked on load",
+      "base_models": [],
+      "shipped_files": [
+        {
+          "repo": "llmware/slim-ner-tool",
+          "revision": "860f1f937875ca640c54378341f66f7b45424d30",
+          "file": "slim-ner.gguf",
+          "size": 668787680,
+          "sha256": "8b1125052d2960c9c9415dc11841848abc2f6eb79e0c028ee4a58d514f45bd3c",
+          "url": "https://huggingface.co/llmware/slim-ner-tool/resolve/860f1f937875ca640c54378341f66f7b45424d30/slim-ner.gguf"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "slim-ner.gguf",
+          "size": 668787680,
+          "sha256": "8b1125052d2960c9c9415dc11841848abc2f6eb79e0c028ee4a58d514f45bd3c"
+        }
+      ],
+      "credits": [
+        "llmware (AI Bloks)"
+      ],
+      "notes": "Card names no base model; the config is a 1.1B llama (TinyLlama shape, Apache-2.0). Confirm with llmware before release."
+    },
+    {
+      "model_id": "pszemraj/led-base-book-summary",
+      "dragon_name": "Gistwyrm",
+      "developer": "Peter Szemraj (pszemraj)",
+      "license": "Apache-2.0",
+      "params": "162M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 323807059,
+      "primary_capability": "summarization",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/pszemraj/led-base-book-summary",
+      "revision": "842ba9376965acac7e72cab2161ba21f5830be70",
+      "placement": "disc_gated",
+      "organ": "scribe",
+      "trunk": null,
+      "engine": "needs LED encoder-decoder path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 647614118,
+          "sha256": "5a08ab8231e58381a51d97153e6715d14b2e56271fb830ca66f385c100c8e6f1"
+        }
+      ],
+      "credits": [
+        "Peter Szemraj (pszemraj)"
+      ],
+      "notes": "Replaces llmware/slim-summary-tool (CC-BY-SA-4.0). Base allenai/led-base-16384 is Apache-2.0; data kmfoda/booksum is BSD-3-Clause."
+    },
+    {
+      "model_id": "mithulaartigala/reasoning-summarizer-qwen3.5-0.8b-preview",
+      "dragon_name": "Briefwyrm",
+      "developer": "Mithula Artigala",
+      "license": "Apache-2.0",
+      "params": "0.8B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "summarization",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/mithulaartigala/reasoning-summarizer-qwen3.5-0.8b-preview",
+      "revision": "558fc651bf01bbe7cf306ebf2fb32032d7b4e818",
+      "placement": "pack_laptop",
+      "organ": "scribe",
+      "trunk": null,
+      "engine": "needs qwen3.5 arch",
+      "base_models": [
+        "Qwen/Qwen3.5-0.8B-Base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "adapters/best_adapter/adapter_model.safetensors",
+          "size": 51143344,
+          "sha256": "8f9a79e8bb73d67b9f38920355f092804c79f1da1846a55e210f33d8621b3178"
+        },
+        {
+          "path": "adapters/final_adapter/adapter_model.safetensors",
+          "size": 51143344,
+          "sha256": "c734515b6c0130fa3e9b957b7b65b52a87ba457741e5ebb555b0025e18af4745"
+        },
+        {
+          "path": "model.safetensors",
+          "size": 1504827288,
+          "sha256": "86d18e255137dd12be7501bf83e45de60faf01d1a2635acf2ce8c5f1741000ba"
+        }
+      ],
+      "credits": [
+        "Mithula Artigala"
+      ],
+      "notes": "Base Qwen/Qwen3.5-0.8B-Base and data reasoning-summaries-61k are Apache-2.0."
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Math-1.5B",
+      "dragon_name": "Numberwyrm",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 986048896,
+      "sha256": "b4e6565fbe33520bf82fd3e34db37895cb446a41742b05fbc986ee70362651ed",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "math_reasoning",
+      "languages": [
+        "en",
+        "zh"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Math-1.5B",
+      "revision": "4a83ca6e4526a4f2da3aa259ec36c259f66b2ab2",
+      "placement": "disc",
+      "organ": "reckoner",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-1.5B"
+      ],
+      "shipped_files": [
+        {
+          "repo": "mradermacher/Qwen2.5-Math-1.5B-GGUF",
+          "revision": "d6887b8563dd7e43d8a47c2e404d608127bd5cc9",
+          "file": "Qwen2.5-Math-1.5B.Q4_K_M.gguf",
+          "size": 986048896,
+          "sha256": "b4e6565fbe33520bf82fd3e34db37895cb446a41742b05fbc986ee70362651ed",
+          "url": "https://huggingface.co/mradermacher/Qwen2.5-Math-1.5B-GGUF/resolve/d6887b8563dd7e43d8a47c2e404d608127bd5cc9/Qwen2.5-Math-1.5B.Q4_K_M.gguf",
+          "packaging_credit": "GGUF conversion by mradermacher"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3087467144,
+          "sha256": "f7aa8d665ab44d3b461bed742fe93cdcedc15d2e31e50dc372c126e6f720857b"
+        }
+      ],
+      "credits": [
+        "Qwen team, Alibaba Cloud",
+        "GGUF conversion by mradermacher"
+      ],
+      "notes": "This exact checkpoint is Apache-2.0. Trunk for the math adapters."
+    },
+    {
+      "model_id": "zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4",
+      "dragon_name": "Theoremwyrm",
+      "developer": "zbeeb",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "adapter on Qwen2.5-Math-1.5B",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 74000000,
+      "primary_capability": "math_reasoning",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4",
+      "revision": "5f0c1ff0a0cea89d2fd6380290e53f87d669d45b",
+      "placement": "disc",
+      "organ": "reckoner",
+      "trunk": "Qwen/Qwen2.5-Math-1.5B",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-Math-1.5B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 1946537592,
+          "sha256": "ec9998d08962a9e820fde29508df00d0d91042c5c9dadf5aeebf8fc79915dd32"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 1994631464,
+          "sha256": "e3845143367c818694e77d3da75aeb4b60be6d667497065c8f53c1ab99a9ea99"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 1991464528,
+          "sha256": "24d1f8c88ea0ac4dada14c681bb001fbc2e0bdc69060ef71e0324e6a9bd7cae8"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 242261752,
+          "sha256": "3a19e2b42ca21adbf906f4680a35650d468c57fd6b84240b6af616064c1e5c89"
+        }
+      ],
+      "credits": [
+        "zbeeb"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "OpceanAI/Yuuki-RxG-nano",
+      "dragon_name": "Puzzlewyrm",
+      "developer": "OpceanAI",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "adapter on Qwen2.5-Math-1.5B",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 74000000,
+      "primary_capability": "math_reasoning",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/OpceanAI/Yuuki-RxG-nano",
+      "revision": "26a65645833a5d18cc107dc2842cebd85d09cd3e",
+      "placement": "disc",
+      "organ": "reckoner",
+      "trunk": "Qwen/Qwen2.5-Math-1.5B",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "WeiboAI/VibeThinker-1.5B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3554214752,
+          "sha256": "0749eaae0ab7d4d920637eb251ba163d3f1c25985fc71ca2f21d5ab1d4eb63ee"
+        }
+      ],
+      "credits": [
+        "OpceanAI"
+      ],
+      "notes": "Base WeiboAI/VibeThinker-1.5B (MIT, itself on Qwen2.5-Math-1.5B); credit Weibo AI too."
+    },
+    {
+      "model_id": "Pankaj8922/bert-small-nli",
+      "dragon_name": "Verdictwyrmling",
+      "developer": "Pankaj8922",
+      "license": "Apache-2.0",
+      "params": "29M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 57534546,
+      "primary_capability": "nli_contradiction",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/Pankaj8922/bert-small-nli",
+      "revision": "cd578a157edb3b785730005b94dd29bafccc4e39",
+      "placement": "disc_gated",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "prajjwal1/bert-small"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 115069092,
+          "sha256": "ba50008343c42acccb77eeab9cf0dd1c26db76e2cbb1a226129f1bccb53e4700"
+        }
+      ],
+      "credits": [
+        "Pankaj8922"
+      ],
+      "notes": "Base prajjwal1/bert-small is MIT. NLI data descends from SNLI/MultiNLI; see data notes."
+    },
+    {
+      "model_id": "cross-encoder/nli-deberta-v3-xsmall",
+      "dragon_name": "Weighwyrmling",
+      "developer": "sentence-transformers / cross-encoder (UKP Lab, Nils Reimers, Tom Aarsen)",
+      "license": "Apache-2.0",
+      "params": "70M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 141676586,
+      "primary_capability": "nli_contradiction",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall",
+      "revision": "a150876415327c80daeff35ca6f68f5ed8cf5c24",
+      "placement": "pack_laptop",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs DeBERTa encoder path",
+      "base_models": [
+        "microsoft/deberta-v3-xsmall"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 283353172,
+          "sha256": "4e4fc4977f8d29d2a164255c8f69b9d6c158deeb309bb5e70445b94666ccd9e9"
+        }
+      ],
+      "credits": [
+        "sentence-transformers / cross-encoder (UKP Lab, Nils Reimers, Tom Aarsen)"
+      ],
+      "notes": "Base microsoft/deberta-v3-xsmall is MIT. Trained on SNLI and MultiNLI."
+    },
+    {
+      "model_id": "iamjayeshc/ArgParser-v4-Qwen1.5B",
+      "dragon_name": "Debatelindworm",
+      "developer": "Jayesh C (iamjayeshc)",
+      "license": "Apache-2.0",
+      "params": "1.5B",
+      "format": "adapter on Qwen2.5-1.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 74000000,
+      "primary_capability": "argument_mining",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/iamjayeshc/ArgParser-v4-Qwen1.5B",
+      "revision": "5254c540c3abed6124bccf5871a19059ad09ad6c",
+      "placement": "disc",
+      "organ": "arbiter",
+      "trunk": "Qwen/Qwen2.5-1.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-1.5B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "size": 17462432,
+          "sha256": "030161fc03794c4aaabde5a20e82ec19926e3b9aea8df6468251b36f1f7fc9e9"
+        },
+        {
+          "path": "checkpoint-248/adapter_model.safetensors",
+          "size": 17462432,
+          "sha256": "50f3411e6291547879fcc9992deee2456a5de9dd623adf396c7b748f79862e85"
+        },
+        {
+          "path": "checkpoint-372/adapter_model.safetensors",
+          "size": 17462432,
+          "sha256": "030161fc03794c4aaabde5a20e82ec19926e3b9aea8df6468251b36f1f7fc9e9"
+        }
+      ],
+      "credits": [
+        "Jayesh C (iamjayeshc)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "heavyhelium/electra-base-logic-fallacy",
+      "dragon_name": "Fallacydrakeling",
+      "developer": "heavyhelium",
+      "license": "Apache-2.0",
+      "params": "110M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 218996530,
+      "primary_capability": "fallacy_detection",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/heavyhelium/electra-base-logic-fallacy",
+      "revision": "8327c1fac323b5155f3c09a4b51dc71b2e99ba3b",
+      "placement": "disc_gated",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs ELECTRA encoder path",
+      "base_models": [
+        "google/electra-base-discriminator"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 437993060,
+          "sha256": "9dff0513eaa351ef0c83106709b393e17f5d8954e0f75efe574d1dfa1a67dd0a"
+        }
+      ],
+      "credits": [
+        "heavyhelium"
+      ],
+      "notes": "Replaces EliaMengozzi/fallama (Llama 3.1). Base google/electra-base-discriminator is Apache-2.0; data is the LOGIC set (Jin et al. 2022)."
+    },
+    {
+      "model_id": "MidhunKanadan/roberta-large-fallacy-classification",
+      "dragon_name": "Sophismdrake",
+      "developer": "Midhun Kanadan",
+      "license": "Apache-2.0",
+      "params": "355M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 710770258,
+      "primary_capability": "fallacy_detection",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/MidhunKanadan/roberta-large-fallacy-classification",
+      "revision": "3ca022bde21e30ee9b97128c714830c4edf865dd",
+      "placement": "server",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "roberta-large"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1421540516,
+          "sha256": "921c003401f25379671b1c2dc772365ca2cc38da8a3ac0b63289b761f07ec9cd"
+        }
+      ],
+      "credits": [
+        "Midhun Kanadan"
+      ],
+      "notes": "Base FacebookAI/roberta-large is MIT."
+    },
+    {
+      "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "dragon_name": "Indexserpent",
+      "developer": "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft",
+      "license": "Apache-2.0",
+      "params": "22M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 45434188,
+      "primary_capability": "embeddings",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
+      "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+      "placement": "disc_gated",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "nreimers/MiniLM-L6-H384-uncased"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 90868376,
+          "sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+        }
+      ],
+      "credits": [
+        "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft"
+      ],
+      "notes": "Base nreimers/MiniLM-L6-H384-uncased is MIT."
+    },
+    {
+      "model_id": "sentence-transformers/all-MiniLM-L12-v2",
+      "dragon_name": "Shelfserpent",
+      "developer": "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft",
+      "license": "Apache-2.0",
+      "params": "33M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 66733152,
+      "primary_capability": "embeddings",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2",
+      "revision": "a50ef00143b4d5391434df20ae11632588ac25be",
+      "placement": "pack_laptop",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "microsoft/MiniLM-L12-H384-uncased"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 133466304,
+          "sha256": "d2d541e5f101695ae495eacd867a8d025ecfe8f9674fb23aa6cf93cdb60a5542"
+        }
+      ],
+      "credits": [
+        "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft"
+      ],
+      "notes": "Base microsoft/MiniLM-L12-H384-uncased is MIT."
+    },
+    {
+      "model_id": "dragonkue/multilingual-e5-small-ko",
+      "dragon_name": "Bridgeserpent",
+      "developer": "dragonkue",
+      "license": "Apache-2.0",
+      "params": "118M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 235318708,
+      "primary_capability": "embeddings",
+      "languages": [
+        "ko",
+        "en",
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/dragonkue/multilingual-e5-small-ko",
+      "revision": "bba4cb8e3299d445c04f62bf62e2b26461d03715",
+      "placement": "pack_laptop",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "intfloat/multilingual-e5-small"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 470637416,
+          "sha256": "44f418d707a01d4fb443823f5df26757f905cedf450a4c9c48860ade42d0630b"
+        }
+      ],
+      "credits": [
+        "dragonkue"
+      ],
+      "notes": "Base intfloat/multilingual-e5-small is MIT."
+    },
+    {
+      "model_id": "exp-models/dragonkue-KoEn-E5-Tiny",
+      "dragon_name": "Twinserpent",
+      "developer": "dragonkue / exp-models",
+      "license": "Apache-2.0",
+      "params": "37M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 75045472,
+      "primary_capability": "embeddings",
+      "languages": [
+        "ko",
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/exp-models/dragonkue-KoEn-E5-Tiny",
+      "revision": "292c09c78c71a3f00ed56ee0d1ed9f0d39182fc9",
+      "placement": "pack_laptop",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "intfloat/multilingual-e5-small",
+        "dragonkue/multilingual-e5-small-ko"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 150090944,
+          "sha256": "e518f4afa630929731c87980f3d5afa63afea3529dc9e344c5956aec3985b574"
+        }
+      ],
+      "credits": [
+        "dragonkue / exp-models"
+      ],
+      "notes": "Built on intfloat/multilingual-e5-small (MIT)."
+    },
+    {
+      "model_id": "jinaai/jina-reranker-v1-tiny-en",
+      "dragon_name": "Sortserpent",
+      "developer": "Jina AI",
+      "license": "Apache-2.0",
+      "params": "33M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 33050137,
+      "primary_capability": "reranking",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/jinaai/jina-reranker-v1-tiny-en",
+      "revision": "aca45de6945b5dc6399abcd2a9c55ded5dc9111f",
+      "placement": "pack_laptop",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs JinaBERT path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 66100274,
+          "sha256": "f7e9ea4e0b0879e9624fd0606f02b85384fe209ce5bc7cf5daecaf7e3fecf82f"
+        }
+      ],
+      "credits": [
+        "Jina AI"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "jinaai/jina-reranker-v1-turbo-en",
+      "dragon_name": "Swiftserpent",
+      "developer": "Jina AI",
+      "license": "Apache-2.0",
+      "params": "38M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 37777373,
+      "primary_capability": "reranking",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/jinaai/jina-reranker-v1-turbo-en",
+      "revision": "b8c14f4e723d9e0aab4732a7b7b93741eeeb77c2",
+      "placement": "pack_laptop",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs JinaBERT path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 75554746,
+          "sha256": "6faa4c9876a52aed86716a7c99385da1af985d9eaf9ffec3d52b30a3d2600ee9"
+        }
+      ],
+      "credits": [
+        "Jina AI"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "BAAI/bge-reranker-v2-m3",
+      "dragon_name": "Rankserpent",
+      "developer": "BAAI (Beijing Academy of Artificial Intelligence)",
+      "license": "Apache-2.0",
+      "params": "568M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 1135535926,
+      "primary_capability": "reranking",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/BAAI/bge-reranker-v2-m3",
+      "revision": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e",
+      "placement": "pack_workstation",
+      "organ": "librarian",
+      "trunk": null,
+      "engine": "needs XLM-R encoder path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 2271071852,
+          "sha256": "d9e3e081faff1eefb84019509b2f5558fd74c1a05a2c7db22f74174fcedb5286"
+        }
+      ],
+      "credits": [
+        "BAAI (Beijing Academy of Artificial Intelligence)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "PaddlePaddle/PP-OCRv6_small_det_onnx",
+      "dragon_name": "Spotwyvern",
+      "developer": "PaddlePaddle team (Baidu)",
+      "license": "Apache-2.0",
+      "params": "small",
+      "format": "ONNX",
+      "file_size_bytes": 9880512,
+      "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "document_ocr",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx",
+      "revision": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "placement": "disc_gated",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "needs DBNet path",
+      "base_models": [],
+      "shipped_files": [
+        {
+          "repo": "PaddlePaddle/PP-OCRv6_small_det_onnx",
+          "revision": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+          "file": "inference.onnx",
+          "size": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.onnx"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "inference.onnx",
+          "size": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+        }
+      ],
+      "credits": [
+        "PaddlePaddle team (Baidu)"
+      ],
+      "notes": "ONNX release of the roster's PP-OCRv6 (the .pdiparams one was excluded for format)."
+    },
+    {
+      "model_id": "PaddlePaddle/PP-OCRv6_small_rec_onnx",
+      "dragon_name": "Letterwyvern",
+      "developer": "PaddlePaddle team (Baidu)",
+      "license": "Apache-2.0",
+      "params": "small",
+      "format": "ONNX",
+      "file_size_bytes": 21159378,
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "document_ocr",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx",
+      "revision": "b8f84f0b80c529de40b4fbb3544b84fa7233a513",
+      "placement": "disc_gated",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "needs SVTR path",
+      "base_models": [],
+      "shipped_files": [
+        {
+          "repo": "PaddlePaddle/PP-OCRv6_small_rec_onnx",
+          "revision": "b8f84f0b80c529de40b4fbb3544b84fa7233a513",
+          "file": "inference.onnx",
+          "size": 21159378,
+          "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+          "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "inference.onnx",
+          "size": 21159378,
+          "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+        }
+      ],
+      "credits": [
+        "PaddlePaddle team (Baidu)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "tiiuae/Falcon-OCR",
+      "dragon_name": "Scrollwyvern",
+      "developer": "Technology Innovation Institute (TII)",
+      "license": "Apache-2.0",
+      "params": "270M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "document_ocr",
+      "languages": [
+        "en",
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/tiiuae/Falcon-OCR",
+      "revision": "fe757d59ecd79d4d68760162306a70a015761ad9",
+      "placement": "pack_laptop",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1079789464,
+          "sha256": "3df91e403dc48794bf1c48511e75c3508b1cc52df599dcc15f1080d46101ab16"
+        }
+      ],
+      "credits": [
+        "Technology Innovation Institute (TII)"
+      ],
+      "notes": "Unlike TII's Falcon LLMs, this card declares plain Apache-2.0."
+    },
+    {
+      "model_id": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+      "dragon_name": "Watchwyvern",
+      "developer": "Hugging Face (SmolLM / SmolVLM team)",
+      "license": "Apache-2.0",
+      "params": "500M",
+      "format": "GGUF-Q8_0 + mmproj F16",
+      "file_size_bytes": 636279328,
+      "sha256": null,
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "vision_language",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+      "revision": "7b375e1b73b11138ff12fe22c8f2822d8fe03467",
+      "placement": "disc",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "zt_vision (SigLIP + Idefics3); confirm the smolvlm2 projector on load",
+      "base_models": [
+        "HuggingFaceTB/SmolVLM-500M-Instruct"
+      ],
+      "shipped_files": [
+        {
+          "repo": "ggml-org/SmolVLM2-500M-Video-Instruct-GGUF",
+          "revision": "ccd7aae53bcb1997355c2f094959e72b3642ce17",
+          "file": "SmolVLM2-500M-Video-Instruct-Q8_0.gguf",
+          "size": 436808704,
+          "sha256": "6f67b8036b2469fcd71728702720c6b51aebd759b78137a8120733b4d66438bc",
+          "url": "https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/ccd7aae53bcb1997355c2f094959e72b3642ce17/SmolVLM2-500M-Video-Instruct-Q8_0.gguf",
+          "packaging_credit": "GGUF conversion by ggml-org"
+        },
+        {
+          "repo": "ggml-org/SmolVLM2-500M-Video-Instruct-GGUF",
+          "revision": "ccd7aae53bcb1997355c2f094959e72b3642ce17",
+          "file": "mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
+          "size": 199470624,
+          "sha256": "b5dc8ebe7cbeab66a5369693960a52515d7824f13d4063ceca78431f2a6b59b0",
+          "url": "https://huggingface.co/ggml-org/SmolVLM2-500M-Video-Instruct-GGUF/resolve/ccd7aae53bcb1997355c2f094959e72b3642ce17/mmproj-SmolVLM2-500M-Video-Instruct-f16.gguf",
+          "packaging_credit": "GGUF conversion by ggml-org"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 2029990624,
+          "sha256": "b9bfd456c9472c0acd5719d6e514c4b859891af205ee1a736552fd3497b8b0c3"
+        }
+      ],
+      "credits": [
+        "Hugging Face (SmolLM / SmolVLM team)",
+        "GGUF conversion by ggml-org",
+        "GGUF conversion by ggml-org"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "HuggingFaceTB/SmolVLM-Instruct",
+      "dragon_name": "Sightwyvern",
+      "developer": "Hugging Face (SmolLM / SmolVLM team)",
+      "license": "Apache-2.0",
+      "params": "2.2B",
+      "format": "GGUF-Q4_K_M + mmproj",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "vision_language",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct",
+      "revision": "81cd9a775a4d644f2faf4e7becff4559b46b14c7",
+      "placement": "pack_laptop",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "zt_vision (SmolVLM family)",
+      "base_models": [
+        "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+        "google/siglip-so400m-patch14-384"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 4492630912,
+          "sha256": "8a4f76cb64f6f2e4e74716d8fc1cfc6a70bbb3eeea69d424c3ec9902655065eb"
+        }
+      ],
+      "credits": [
+        "Hugging Face (SmolLM / SmolVLM team)"
+      ],
+      "notes": "Bases SmolLM2-1.7B-Instruct (Apache-2.0) and google/siglip-so400m (Apache-2.0)."
+    },
+    {
+      "model_id": "Quazim0t0/Byrne-VLM-131M",
+      "dragon_name": "Glimpsewyvern",
+      "developer": "Quazim0t0",
+      "license": "Apache-2.0",
+      "params": "131M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "vision_language",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/Quazim0t0/Byrne-VLM-131M",
+      "revision": "c00ae5156dc2fc59ed7abe0a5c9c84ab64091081",
+      "placement": "pack_laptop",
+      "organ": "reader",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "lm/model.safetensors",
+          "size": 387815772,
+          "sha256": "da81c2dcf0b25acff79556a5d51db513f22a185d605809d2326055c7ce1dbe98"
+        }
+      ],
+      "credits": [
+        "Quazim0t0"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "allenai/OLMoASR",
+      "dragon_name": "Listenlindworm",
+      "developer": "Allen Institute for AI (Ai2)",
+      "license": "Apache-2.0",
+      "params": "39M (tiny.en)",
+      "format": "F16 (zt_whisper)",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 75530068,
+      "primary_capability": "speech_recognition",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "whisper.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/allenai/OLMoASR",
+      "revision": "6841d494515badbbb2364ef37a706ba65eeb6698",
+      "placement": "disc",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "zt_whisper (Whisper arch)",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "models/OLMoASR-tiny.en/model.safetensors",
+          "size": 151060136,
+          "sha256": "0cdd6057b71c384c00037aee76f54b552e74487cc1df561cd1e1178814959fa2"
+        }
+      ],
+      "credits": [
+        "Allen Institute for AI (Ai2)"
+      ],
+      "notes": "The roster's id allenai/OLMoASR-tiny does not exist; tiny.en lives inside allenai/OLMoASR."
+    },
+    {
+      "model_id": "ibm-granite/granite-4.0-1b-speech",
+      "dragon_name": "Dictatelindworm",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "params": "1B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "speech_recognition",
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "pt",
+        "ja"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ibm-granite/granite-4.0-1b-speech",
+      "revision": "bd87ab862416353633ea431fe49b1614003623c5",
+      "placement": "pack_workstation",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "needs granite speech arch",
+      "base_models": [
+        "ibm-granite/granite-4.0-1b-base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00003.safetensors",
+          "size": 2143518808,
+          "sha256": "2ed1c8a94a3ea0bebc3faa93490cc1b5543ed0d33e345c26f4b0ca878ad12f8e"
+        },
+        {
+          "path": "model-00002-of-00003.safetensors",
+          "size": 2143963456,
+          "sha256": "cbc16c9712d1174fa77dcfba36b6bfa32961ec6c713d9494fce8d61b657809be"
+        },
+        {
+          "path": "model-00003-of-00003.safetensors",
+          "size": 339045512,
+          "sha256": "1f9ea0edb2847633edcdf257c8d5d3cd8be751cab2cefb039452ec689fe7f6fc"
+        }
+      ],
+      "credits": [
+        "IBM Granite team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "ibm-granite/granite-speech-3.3-2b",
+      "dragon_name": "Hearinglindworm",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "params": "2B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "speech_recognition",
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "pt"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ibm-granite/granite-speech-3.3-2b",
+      "revision": "4ac2f02f413c6169ae8c0ccc217115a366e552d7",
+      "placement": "server",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "ibm-granite/granite-3.3-2b-instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "adapter_model.safetensors",
+          "size": 68178600,
+          "sha256": "30de576bc1338e63d49d9bd74930aaeb0695745efe5cfd09bc62c8416c2db567"
+        },
+        {
+          "path": "model-00001-of-00003.safetensors",
+          "size": 1992459128,
+          "sha256": "bd355249426713a1628972b46d82d4cc1e5efc5af62b77884410d4d2b42004c7"
+        },
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 1992459128,
+          "sha256": "bd355249426713a1628972b46d82d4cc1e5efc5af62b77884410d4d2b42004c7"
+        },
+        {
+          "path": "model-00002-of-00003.safetensors",
+          "size": 1992453224,
+          "sha256": "a6fb9326afc6776e711662437ae38957b898b38716772ad24f6ef0a3c3e06694"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 1992453224,
+          "sha256": "a6fb9326afc6776e711662437ae38957b898b38716772ad24f6ef0a3c3e06694"
+        },
+        {
+          "path": "model-00003-of-00003.safetensors",
+          "size": 1703356524,
+          "sha256": "2eaba70566e777f00625eac8762390fcaa5b786d8113e6e4c9d723609b5a0bb2"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 1998075896,
+          "sha256": "9aa9c5af42824c1b0b928b98b5526fd745448a2e57a31d261753a7770b489143"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 35696040,
+          "sha256": "102d069fe3ff523609ca1e535fb494e0987e69f571438ab3c67e3dcd8f3cecb0"
+        }
+      ],
+      "credits": [
+        "IBM Granite team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "ibm-granite/granite-speech-4.1-2b-plus",
+      "dragon_name": "Minutelindworm",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "params": "2B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "speech_recognition",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ibm-granite/granite-speech-4.1-2b-plus",
+      "revision": "1454e6e1e33845ca9280ff65f52cf1141ba6e6e2",
+      "placement": "server",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "ibm-granite/granite-4.0-1b-base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00003.safetensors",
+          "size": 1992505016,
+          "sha256": "af45105ba955e3a796f39c3cddc6feae9fb4696b46e99f18355df9d7c8bdb0ba"
+        },
+        {
+          "path": "model-00002-of-00003.safetensors",
+          "size": 1993777408,
+          "sha256": "172bddcb0b9fe4e59b4302eecc478bbe5fb477759b80a52e476b43b55c9493a7"
+        },
+        {
+          "path": "model-00003-of-00003.safetensors",
+          "size": 237587992,
+          "sha256": "12994776f7c9e24cda3339ee8a6ca6a07600f5ae4a4c38d66703dcefb8ff4624"
+        }
+      ],
+      "credits": [
+        "IBM Granite team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
+      "dragon_name": "Chimedrake",
+      "developer": "hexgrad (Kokoro); ONNX export by onnx-community; architecture StyleTTS 2 by Yinghao Aaron Li et al.",
+      "license": "Apache-2.0",
+      "params": "82M",
+      "format": "ONNX q8f16",
+      "file_size_bytes": 86033585,
+      "sha256": "04c658aec1b6008857c2ad10f8c589d4180d0ec427e7e6118ceb487e215c3cd0",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "text_to_speech",
+      "languages": [
+        "en",
+        "ja",
+        "zh",
+        "es",
+        "fr",
+        "hi",
+        "it",
+        "pt"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX",
+      "revision": "1939ad2a8e416c0acfeecc08a694d14ef25f2231",
+      "placement": "disc_gated",
+      "organ": "voice",
+      "trunk": null,
+      "engine": "needs StyleTTS2/iSTFTNet path",
+      "base_models": [
+        "hexgrad/Kokoro-82M"
+      ],
+      "shipped_files": [
+        {
+          "repo": "onnx-community/Kokoro-82M-v1.0-ONNX",
+          "revision": "1939ad2a8e416c0acfeecc08a694d14ef25f2231",
+          "file": "onnx/model_q8f16.onnx",
+          "size": 86033585,
+          "sha256": "04c658aec1b6008857c2ad10f8c589d4180d0ec427e7e6118ceb487e215c3cd0",
+          "url": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/1939ad2a8e416c0acfeecc08a694d14ef25f2231/onnx/model_q8f16.onnx"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "onnx/model_q8f16.onnx",
+          "size": 86033585,
+          "sha256": "04c658aec1b6008857c2ad10f8c589d4180d0ec427e7e6118ceb487e215c3cd0"
+        }
+      ],
+      "credits": [
+        "hexgrad (Kokoro); ONNX export by onnx-community; architecture StyleTTS 2 by Yinghao Aaron Li et al."
+      ],
+      "notes": "Replaces hexgrad/Kokoro-82M, whose weights are only a pickle. Kokoro's card credits CC-BY audio (Koniwa, SIWIS): credited too."
+    },
+    {
+      "model_id": "KittenML/kitten-tts-nano-0.1",
+      "dragon_name": "Purrdrake",
+      "developer": "KittenML",
+      "license": "Apache-2.0",
+      "params": "15M",
+      "format": "ONNX",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "text_to_speech",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/KittenML/kitten-tts-nano-0.1",
+      "revision": "7d99aae46867223af52d5ea16d076d8839ce1a2e",
+      "placement": "pack_laptop",
+      "organ": "voice",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "kitten_tts_nano_v0_1.onnx",
+          "size": 23847845,
+          "sha256": "8818e8f06eb34bc9d17ba3987a9b513c5759e2f5f119b1242cfbb503d12bdc0a"
+        }
+      ],
+      "credits": [
+        "KittenML"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "parler-tts/parler-tts-mini-multilingual",
+      "dragon_name": "Choirdrake",
+      "developer": "Parler-TTS (Hugging Face)",
+      "license": "Apache-2.0",
+      "params": "0.9B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "text_to_speech",
+      "languages": [
+        "en",
+        "fr",
+        "es",
+        "pt",
+        "pl",
+        "de",
+        "nl",
+        "it"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/parler-tts/parler-tts-mini-multilingual",
+      "revision": "e0e121325d1f0471756ef67b159d889f4b7db231",
+      "placement": "server",
+      "organ": "voice",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3751321772,
+          "sha256": "4269500ac2c4754ec1ffd320f5b33cf0ebba61be33db524ea1b18a63ec551ff9"
+        }
+      ],
+      "credits": [
+        "Parler-TTS (Hugging Face)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "google/madlad400-3b-mt",
+      "dragon_name": "Polyglotwyvern",
+      "developer": "Google Research (MADLAD-400 team)",
+      "license": "Apache-2.0",
+      "params": "3B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "translation",
+      "languages": [
+        "400+ languages"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/google/madlad400-3b-mt",
+      "revision": "fa184c675da0b5c9e1c8694fccd4e12e2d422094",
+      "placement": "server",
+      "organ": "interpreter",
+      "trunk": null,
+      "engine": "needs T5 path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 11761587872,
+          "sha256": "66ff5f8fcaf92291da486fdfbd4d5233cec90e1359348a56e3172c978b3a76d4"
+        }
+      ],
+      "credits": [
+        "Google Research (MADLAD-400 team)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "amazon/chronos-bolt-tiny",
+      "dragon_name": "Tidedrakeling",
+      "developer": "Amazon Science (Chronos team)",
+      "license": "Apache-2.0",
+      "params": "9M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 17311176,
+      "primary_capability": "time_series",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/amazon/chronos-bolt-tiny",
+      "revision": "a0e552de83495b5c28c14c71c374f3e33280b340",
+      "placement": "disc_gated",
+      "organ": "augur",
+      "trunk": null,
+      "engine": "needs T5 encoder path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 34622352,
+          "sha256": "75068728d376d2bec670379eeef4bfb4d24c0cfe24d957451f8d19b447030a32"
+        }
+      ],
+      "credits": [
+        "Amazon Science (Chronos team)"
+      ],
+      "notes": "Replaces eulogik/nanoforecast-500k, whose weights are only a pickle."
+    },
+    {
+      "model_id": "amazon/chronos-bolt-mini",
+      "dragon_name": "Tidedrake",
+      "developer": "Amazon Science (Chronos team)",
+      "license": "Apache-2.0",
+      "params": "21M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 42478048,
+      "primary_capability": "time_series",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/amazon/chronos-bolt-mini",
+      "revision": "251268337516a88e253628c43e1d26ec577b376b",
+      "placement": "pack_laptop",
+      "organ": "augur",
+      "trunk": null,
+      "engine": "needs T5 encoder path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 84956096,
+          "sha256": "1a1a4297f132b808c5c7da24e3cce549d519c01ff5c2661fcad404baba018f24"
+        }
+      ],
+      "credits": [
+        "Amazon Science (Chronos team)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "autogluon/mitra-classifier",
+      "dragon_name": "Ledgerdrake",
+      "developer": "AutoGluon team (Amazon)",
+      "license": "Apache-2.0",
+      "params": "72M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "tabular",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/autogluon/mitra-classifier",
+      "revision": "c425e9fa0910a6be1c494321792e7ba2a1367b1a",
+      "placement": "pack_laptop",
+      "organ": "augur",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 302717904,
+          "sha256": "e06a055e91a3baeffc37f9cf634d9e69a27d904b6686131dc3b702f9c0126b19"
+        }
+      ],
+      "credits": [
+        "AutoGluon team (Amazon)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "autogluon/mitra-regressor",
+      "dragon_name": "Gaugedrake",
+      "developer": "AutoGluon team (Amazon)",
+      "license": "Apache-2.0",
+      "params": "72M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "tabular",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/autogluon/mitra-regressor",
+      "revision": "5f277aa8f69042d39d6ac3612aed18bb9279bd95",
+      "placement": "pack_laptop",
+      "organ": "augur",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 302683140,
+          "sha256": "d8e75c62af0bec2fd404b0ad20a442d951d43ca6d331315cfcc0509b54f2c642"
+        }
+      ],
+      "credits": [
+        "AutoGluon team (Amazon)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "AungMoonLord/bert-log-anomaly-detection",
+      "dragon_name": "Lanterndrake",
+      "developer": "AungMoonLord",
+      "license": "Apache-2.0",
+      "params": "110M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 218979324,
+      "primary_capability": "anomaly_logs",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/AungMoonLord/bert-log-anomaly-detection",
+      "revision": "9ece304f330c8fa08a9ba825fd3d1adcf746aaf6",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "google-bert/bert-base-uncased"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 437958648,
+          "sha256": "9cd32047860f126fe0e2694d188669279ababa7a60de1f25c671f6bf42d72114"
+        }
+      ],
+      "credits": [
+        "AungMoonLord"
+      ],
+      "notes": "Replaces stetteh/otics-anomaly. Database transaction logs, normal or anomaly. Base bert-base-uncased is Apache-2.0; training data not named: confirm."
+    },
+    {
+      "model_id": "Fazmaj/modernbert-flow-anomaly-classifier",
+      "dragon_name": "Currentdrake",
+      "developer": "Fazmaj",
+      "license": "Apache-2.0",
+      "params": "150M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 299227582,
+      "primary_capability": "anomaly_network",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/Fazmaj/modernbert-flow-anomaly-classifier",
+      "revision": "cbf6d2c482ec546b79f04165107d3f03d7f36679",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs ModernBERT path",
+      "base_models": [
+        "answerdotai/ModernBERT-base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 598455164,
+          "sha256": "0e615e285959636b2c4545f9e14260e07aaadd4e5292275e748d6514e13c749c"
+        }
+      ],
+      "credits": [
+        "Fazmaj"
+      ],
+      "notes": "Replaces nvidia/Kumo-Anomaly. Base answerdotai/ModernBERT-base is Apache-2.0; training data not named: confirm."
+    },
+    {
+      "model_id": "ManasKumar28/mimii-distilhubert-anomaly",
+      "dragon_name": "Humdrake",
+      "developer": "Manas Kumar",
+      "license": "Apache-2.0",
+      "params": "24M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 47381724,
+      "primary_capability": "anomaly_machine_sound",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ManasKumar28/mimii-distilhubert-anomaly",
+      "revision": "68b6b27b477cea5d3f79f60fa904064fcd993a7a",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs HuBERT path",
+      "base_models": [
+        "ntu-spml/distilhubert"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 94763448,
+          "sha256": "728f54bfc72eb45bb59b2ea8797a3e98616471ac0015b7c656004a65616dfe84"
+        }
+      ],
+      "credits": [
+        "Manas Kumar"
+      ],
+      "notes": "Replaces kkonathala/powerplant-anomaly-transformer. Base ntu-spml/distilhubert is Apache-2.0; MIMII audio is CC-BY-SA-4.0 (data notes)."
+    },
+    {
+      "model_id": "MidlightDDK/pocketsql-0.5b",
+      "dragon_name": "Recordlindworm",
+      "developer": "MidlightDDK",
+      "license": "Apache-2.0",
+      "params": "0.5B",
+      "format": "adapter on Qwen2.5-Coder-0.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 35000000,
+      "primary_capability": "sql",
+      "languages": [
+        "en",
+        "sql"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/MidlightDDK/pocketsql-0.5b",
+      "revision": "de60f0f6515208c9b24fe9d9d36f56f1dc336506",
+      "placement": "disc",
+      "organ": "scribe",
+      "trunk": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-0.5B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 988097536,
+          "sha256": "64c1ef4b0a4a2bcc3d74b97a52f3cc4e54672766575493b652e66b3d1fa038e1"
+        }
+      ],
+      "credits": [
+        "MidlightDDK"
+      ],
+      "notes": "Training data MidlightDDK/pocketsql-data is CC-BY-SA-4.0; see data notes."
+    },
+    {
+      "model_id": "ibm-granite/granite-guardian-hap-38m",
+      "dragon_name": "Shieldwyvern",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "params": "38M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 76915688,
+      "primary_capability": "moderation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ibm-granite/granite-guardian-hap-38m",
+      "revision": "faf9291163c7363d4a7ba7fc1dc72243214af931",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs RoBERTa encoder path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 153831376,
+          "sha256": "7b7f9375201fd0cef57426be64f0ad36e1b7fc2abb0104e9c768b5017a427f6c"
+        }
+      ],
+      "credits": [
+        "IBM Granite team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "lakresi/toxic-comment-moderator",
+      "dragon_name": "Thornwyvern",
+      "developer": "Lloyd Akresi",
+      "license": "Apache-2.0",
+      "params": "66M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 133922436,
+      "primary_capability": "moderation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/lakresi/toxic-comment-moderator",
+      "revision": "f76c8eac4bc25844ad469855adff30e1e515d7e4",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs DistilBERT path",
+      "base_models": [
+        "distilbert-base-uncased"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 267844872,
+          "sha256": "baf9072a61b01b84cfefa402941744137d9e77662fab54f5ae1bc3142c5fdc1f"
+        }
+      ],
+      "credits": [
+        "Lloyd Akresi"
+      ],
+      "notes": "Trained on the Jigsaw toxic-comment set (competition terms); see data notes."
+    },
+    {
+      "model_id": "navodPeiris/minilm-toxic-spam-classifier",
+      "dragon_name": "Sievewyvern",
+      "developer": "Navod Peiris",
+      "license": "Apache-2.0",
+      "params": "22M",
+      "format": "ONNX",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "moderation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/navodPeiris/minilm-toxic-spam-classifier",
+      "revision": "d3948e3a10fa2f77621442a297985e84b55b8c03",
+      "placement": "pack_laptop",
+      "organ": "sentinel",
+      "trunk": null,
+      "engine": "needs BERT encoder path",
+      "base_models": [
+        "nreimers/MiniLMv2-L6-H384-distilled-from-BERT-Large"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "onnx/model.onnx",
+          "size": 90970413,
+          "sha256": "5345e40dd23aa497bb417840208cfc7c4247d233c745d9bd14fd15d4c07394d0"
+        }
+      ],
+      "credits": [
+        "Navod Peiris"
+      ],
+      "notes": "Base nreimers/MiniLMv2 declares no licence on its card (Microsoft MiniLM is MIT upstream). Confirm before shipping."
+    },
+    {
+      "model_id": "mispeech/ced-tiny",
+      "dragon_name": "Rustlewyrmling",
+      "developer": "Xiaomi speech team (mispeech; Heinrich Dinkel et al.)",
+      "license": "Apache-2.0",
+      "params": "5.5M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 11014410,
+      "primary_capability": "audio_events",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/mispeech/ced-tiny",
+      "revision": "ace276d29dd0bb3f3517b0fa8cf300738c409019",
+      "placement": "disc_gated",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "needs ViT audio path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 22028820,
+          "sha256": "0e086f0cd62814c6def89001f3f25193f75955696f6975ef6800af31d00d6dd7"
+        }
+      ],
+      "credits": [
+        "Xiaomi speech team (mispeech; Heinrich Dinkel et al.)"
+      ],
+      "notes": "Trained on AudioSet; see data notes."
+    },
+    {
+      "model_id": "mispeech/ced-mini",
+      "dragon_name": "Murmurwyrmling",
+      "developer": "Xiaomi speech team (mispeech)",
+      "license": "Apache-2.0",
+      "params": "10M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 19401402,
+      "primary_capability": "audio_events",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/mispeech/ced-mini",
+      "revision": "26c3ebcae85d4330f4fc26763f029539a3afcda0",
+      "placement": "pack_laptop",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "needs ViT audio path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 38802804,
+          "sha256": "e4070d02ca53ec7a1df83bbf779a0e70bc2bbc0a9bacde6330e1dc37c990b215"
+        }
+      ],
+      "credits": [
+        "Xiaomi speech team (mispeech)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "mispeech/ced-small",
+      "dragon_name": "Thunderwyrmling",
+      "developer": "Xiaomi speech team (mispeech)",
+      "license": "Apache-2.0",
+      "params": "22M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 43253210,
+      "primary_capability": "audio_events",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/mispeech/ced-small",
+      "revision": "06bb40c5ec089e96867ebc5246be02441f4a71e4",
+      "placement": "pack_laptop",
+      "organ": "ear",
+      "trunk": null,
+      "engine": "needs ViT audio path",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 86506420,
+          "sha256": "a495e319a620dec4c8b7ca7bb927667ed68169a9efc1a943ccbf5d5c6f9c0c71"
+        }
+      ],
+      "credits": [
+        "Xiaomi speech team (mispeech)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "AuroraAI-Research/AuroraIMG-6M",
+      "dragon_name": "Sketchwyvern",
+      "developer": "AuroraAI-Research",
+      "license": "Apache-2.0",
+      "params": "6.8M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "image_generation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/AuroraAI-Research/AuroraIMG-6M",
+      "revision": "3d66743c3139d034b832a670d067221f5d544bbb",
+      "placement": "pack_laptop",
+      "organ": "painter",
+      "trunk": null,
+      "engine": "needs new arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "text_encoder/diffusion_pytorch_model.safetensors",
+          "size": 5276328,
+          "sha256": "42a2fe37b3a7ff491b92be5fbccf633fa01d7d8a87b162aaf122d07dcb42c7cb"
+        },
+        {
+          "path": "unet/diffusion_pytorch_model.safetensors",
+          "size": 17706432,
+          "sha256": "46599d97ffa85c59660a9a34b10cf25d93f640bf2bfa168685a0d3df31bfc7ab"
+        },
+        {
+          "path": "vae/diffusion_pytorch_model.safetensors",
+          "size": 4342996,
+          "sha256": "5f0a1d8e203a8e535414ebd140dd97c47d665ba45a420c6df1d59078f7d98b97"
+        }
+      ],
+      "credits": [
+        "AuroraAI-Research"
+      ],
+      "notes": "Trained on CC12M (web images with their own terms); see data notes."
+    },
+    {
+      "model_id": "Arrexel/pattern-diffusion",
+      "dragon_name": "Tilewyvern",
+      "developer": "Alex Reid (Arrexel)",
+      "license": "Apache-2.0",
+      "params": "0.9B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "image_generation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/Arrexel/pattern-diffusion",
+      "revision": "89dbf0d25ec8621d880bfa07edf8275cb1e176d6",
+      "placement": "server",
+      "organ": "painter",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "text_encoder/model.safetensors",
+          "size": 680820392,
+          "sha256": "bc1827c465450322616f06dea41596eac7d493f4e95904dcb51f0fc745c4e13f"
+        },
+        {
+          "path": "unet/diffusion_pytorch_model.safetensors",
+          "size": 3463726504,
+          "sha256": "e48201d4a02955730245a18cc59dfcbb6b000bc2c5666741199e4af9d9d600fe"
+        },
+        {
+          "path": "vae/diffusion_pytorch_model.safetensors",
+          "size": 167335342,
+          "sha256": "3e4c08995484ee61270175e9e7a072b66a6e4eeb5f0c266667fe1f45b90daf9a"
+        }
+      ],
+      "credits": [
+        "Alex Reid (Arrexel)"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "alfredplpl/CommonArt-PoC",
+      "dragon_name": "Muralwyvern",
+      "developer": "alfredplpl (Yasunori Ozaki)",
+      "license": "Apache-2.0",
+      "params": "DiT",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "image_generation",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/alfredplpl/CommonArt-PoC",
+      "revision": "2bb53274c9fec1afcac266253159b3c9a3ab0766",
+      "placement": "server",
+      "organ": "painter",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "diffusion_pytorch_model.safetensors",
+          "size": 2443492488,
+          "sha256": "deaeb28707afc69a73a0a171515403d4cf973a06dfc8b502f24e38046c40763a"
+        }
+      ],
+      "credits": [
+        "alfredplpl (Yasunori Ozaki)"
+      ],
+      "notes": "Trained on CommonCatalog CC-BY images, whose authors are listed with the dataset; we credit the dataset."
+    },
+    {
+      "model_id": "lerobot/smolvla_base",
+      "dragon_name": "Gripdrake",
+      "developer": "Hugging Face LeRobot team",
+      "license": "Apache-2.0",
+      "params": "450M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "robotics_vla",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/lerobot/smolvla_base",
+      "revision": "5e8d12a6e2975b0e5e5fce7c8caf47c371d257b6",
+      "placement": "server",
+      "organ": "hand",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 906712520,
+          "sha256": "7cd549ac2351fb069c0ddb3c34ad2d09cfc92b56a15dccdfc2e41467aaca01eb"
+        },
+        {
+          "path": "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+          "size": 640,
+          "sha256": "490ab239d96e263687c0b2e386a0afbc235a2eceb9857c36ed32f2f162a3e7c8"
+        },
+        {
+          "path": "policy_preprocessor_step_5_normalizer_processor.safetensors",
+          "size": 640,
+          "sha256": "490ab239d96e263687c0b2e386a0afbc235a2eceb9857c36ed32f2f162a3e7c8"
+        }
+      ],
+      "credits": [
+        "Hugging Face LeRobot team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "lerobot/smolvla_libero",
+      "dragon_name": "Reachdrake",
+      "developer": "Hugging Face LeRobot team",
+      "license": "Apache-2.0",
+      "params": "450M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "robotics_vla",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/lerobot/smolvla_libero",
+      "revision": "a24f1f380461b665158d52acd140152c79e8b36d",
+      "placement": "server",
+      "organ": "hand",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "lerobot/smolvla_base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 906712520,
+          "sha256": "9a9f6413e42c0f332fccbce9a0dc796af2790f82cf002f791cdbf7e01e1afca8"
+        },
+        {
+          "path": "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+          "size": 5676,
+          "sha256": "b0cdde6e8a6f49a8e19eefb376728e47c09d3b3cc20ce3a97c45619fe7a732d9"
+        },
+        {
+          "path": "policy_preprocessor_step_5_normalizer_processor.safetensors",
+          "size": 5676,
+          "sha256": "b0cdde6e8a6f49a8e19eefb376728e47c09d3b3cc20ce3a97c45619fe7a732d9"
+        }
+      ],
+      "credits": [
+        "Hugging Face LeRobot team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "lerobot/smolvla_robotwin",
+      "dragon_name": "Pairdrake",
+      "developer": "Hugging Face LeRobot team",
+      "license": "Apache-2.0",
+      "params": "450M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "robotics_vla",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/lerobot/smolvla_robotwin",
+      "revision": "eb55d3a74f6cd26c6388aecd116b37b63fac144d",
+      "placement": "server",
+      "organ": "hand",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "lerobot/smolvla_base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 906712520,
+          "sha256": "6fbaa809585cb10924351ce101ca2d576787a472cf8c34b5e2f10c84ef8a3134"
+        },
+        {
+          "path": "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+          "size": 4624,
+          "sha256": "d606283ad4f5b92495fcd93c51a3209116c4037d4ea9d1d0fe1b87da08409798"
+        },
+        {
+          "path": "policy_preprocessor_step_5_normalizer_processor.safetensors",
+          "size": 4624,
+          "sha256": "d606283ad4f5b92495fcd93c51a3209116c4037d4ea9d1d0fe1b87da08409798"
+        }
+      ],
+      "credits": [
+        "Hugging Face LeRobot team"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "ThiennNguyen/act_so101_small",
+      "dragon_name": "Armdrakeling",
+      "developer": "Thien Nguyen",
+      "license": "Apache-2.0",
+      "params": "small",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "robotics_policy",
+      "languages": [
+        "n/a"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/ThiennNguyen/act_so101_small",
+      "revision": "8b10bec9c359d4f6d78db55a714d184d2240b77e",
+      "placement": "server",
+      "organ": "hand",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 206699768,
+          "sha256": "c13c4ca2dadcdead036da43a3ea32c3d5c1fd434d20a451610b6f098d1d66a63"
+        },
+        {
+          "path": "policy_postprocessor_step_0_unnormalizer_processor.safetensors",
+          "size": 6560,
+          "sha256": "e8eeab08219acf26cabacbeb1e10ba2fc44df6c084be4833bc01b65ee89c2a4b"
+        },
+        {
+          "path": "policy_preprocessor_step_3_normalizer_processor.safetensors",
+          "size": 6568,
+          "sha256": "34757eda89b2d4837aa2f849449c7fabbbf0b592415953a9b5e3aa77797490c0"
+        }
+      ],
+      "credits": [
+        "Thien Nguyen"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "Haamipromax/HamAI-Science-1b",
+      "dragon_name": "Alembicwyrm",
+      "developer": "Haamipromax",
+      "license": "Apache-2.0",
+      "params": "1.1B",
+      "format": "GGUF-Q4_K_M",
+      "file_size_bytes": 667815776,
+      "sha256": "896b281753ca7283baea2170f660160f76b53952821808d9f88bce7d5ddb49d7",
+      "sha256_status": "pinned upstream",
+      "estimated_size_bytes": null,
+      "primary_capability": "science_qa",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/Haamipromax/HamAI-Science-1b",
+      "revision": "cfc2dbf29ac6cf7793a0e7c46068434bd65efa51",
+      "placement": "disc",
+      "organ": "natural_philosopher",
+      "trunk": null,
+      "engine": "runs now (llama)",
+      "base_models": [
+        "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+      ],
+      "shipped_files": [
+        {
+          "repo": "mradermacher/HamAI-Science-1b-GGUF",
+          "revision": "25ae30178b275f9bad3ed52aadec851d88ddbd64",
+          "file": "HamAI-Science-1b.Q4_K_M.gguf",
+          "size": 667815776,
+          "sha256": "896b281753ca7283baea2170f660160f76b53952821808d9f88bce7d5ddb49d7",
+          "url": "https://huggingface.co/mradermacher/HamAI-Science-1b-GGUF/resolve/25ae30178b275f9bad3ed52aadec851d88ddbd64/HamAI-Science-1b.Q4_K_M.gguf",
+          "packaging_credit": "GGUF conversion by mradermacher"
+        }
+      ],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 2200119664,
+          "sha256": "effe6d44b0419c04451a97e640db5d367ed08ba3b1d95951156a2ce9eccd7f19"
+        }
+      ],
+      "credits": [
+        "Haamipromax",
+        "GGUF conversion by mradermacher"
+      ],
+      "notes": "Base TinyLlama-1.1B-Chat (Apache-2.0); credit the TinyLlama team."
+    },
+    {
+      "model_id": "eaddario/MiniCPM5-1B-GGUF",
+      "dragon_name": "Starwyrm",
+      "developer": "Ed Addario (GGUF); model by OpenBMB",
+      "license": "Apache-2.0",
+      "params": "1B",
+      "format": "GGUF (upstream)",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "science_qa",
+      "languages": [
+        "en",
+        "zh"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/eaddario/MiniCPM5-1B-GGUF",
+      "revision": "1286cf588f449b13198acc1cc0ca4490dc245997",
+      "placement": "pack_laptop",
+      "organ": "natural_philosopher",
+      "trunk": null,
+      "engine": "needs minicpm arch",
+      "base_models": [
+        "openbmb/MiniCPM5-1B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "MiniCPM5-1B-F16.gguf",
+          "size": 2166553184,
+          "sha256": "481bdb513eef63b7b9c4321293f3f713d1ab069b02475e0baac5d47f9fd687c9"
+        },
+        {
+          "path": "MiniCPM5-1B-Q1_L.gguf",
+          "size": 243118944,
+          "sha256": "44afb11c28ed52e585d4e19c33dad34e53201ab3ff7a0537960d691b45ee3ee2"
+        },
+        {
+          "path": "MiniCPM5-1B-Q2_K.gguf",
+          "size": 342823776,
+          "sha256": "5c0298cbb093806470e2a4f28de074f866bd2eb9c0fff0d7d5044ae6518e59d8"
+        },
+        {
+          "path": "MiniCPM5-1B-Q3_K.gguf",
+          "size": 477908832,
+          "sha256": "9c818d3639d710960de1c98106e71f3a8b308ed0d90c20416a7f3b39294e3033"
+        },
+        {
+          "path": "MiniCPM5-1B-Q4_K.gguf",
+          "size": 612981600,
+          "sha256": "650014ddfbc19066a522d1d45c5cfa74ea3f4e2594e2aa0e8974306dcf9600c4"
+        },
+        {
+          "path": "MiniCPM5-1B-Q5_K.gguf",
+          "size": 748054368,
+          "sha256": "178f2622cc23230abaf311431979d93305b9759f3a4d77840e1f6939935892ff"
+        },
+        {
+          "path": "MiniCPM5-1B-Q6_K.gguf",
+          "size": 883111776,
+          "sha256": "603102a79a834423f014569c00ddc12d68b30c85954b78937b621119dfb0787d"
+        },
+        {
+          "path": "MiniCPM5-1B-Q7_K.gguf",
+          "size": 1018206048,
+          "sha256": "8a1a081182935b57ccfa5f80460fadeb492eea57d030c60b26396e8f0f20e829"
+        },
+        {
+          "path": "MiniCPM5-1B-Q8_0.gguf",
+          "size": 1153137504,
+          "sha256": "7f1b578a2145f999a993ed746c6bad597a58cfa6855dc7933d5a6b356e59f957"
+        },
+        {
+          "path": "imatrix/imatrix-MiniCPM5-1B-medium.gguf",
+          "size": 2821920,
+          "sha256": "4a275afb850aa0f6bedef18eacff98994871c9edd66c522a7816b34d95cedd1e"
+        }
+      ],
+      "credits": [
+        "Ed Addario (GGUF); model by OpenBMB"
+      ],
+      "notes": "Base openbmb/MiniCPM5-1B is tagged Apache-2.0."
+    },
+    {
+      "model_id": "autotrust/JEV-27B-VL",
+      "dragon_name": "Senatewyrm",
+      "developer": "autotrust",
+      "license": "Apache-2.0",
+      "params": "27B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "decision_vl",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers",
+        "vLLM"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/autotrust/JEV-27B-VL",
+      "revision": "9e53b8a809d2ab98e3e6a55b2b2dbf94b4c1e84a",
+      "placement": "server",
+      "organ": "council",
+      "trunk": null,
+      "engine": "server runtime",
+      "base_models": [
+        "Qwen/Qwen3.8-27B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "adapter_vllm/adapter_model.safetensors",
+          "size": 451501776,
+          "sha256": "c26cb3fb6d43eaf734cfef74afc40172d30459f6a6bd47e3cfa1f8e866ed6bd9"
+        },
+        {
+          "path": "model-00001-of-00018.safetensors",
+          "size": 3966730552,
+          "sha256": "ba0ce20aae489ad196733da5064bcdf159a1fe84f53336648196e1ebb7751b1c"
+        },
+        {
+          "path": "model-00002-of-00018.safetensors",
+          "size": 3043080328,
+          "sha256": "06a148c01bfbe3faa14a5f184a7ff29a706f7ae1c8b2705d2058e26d17a001fb"
+        },
+        {
+          "path": "model-00003-of-00018.safetensors",
+          "size": 2542796952,
+          "sha256": "2e1bf62cbcd406eaa64b60d10353e1f0ef4039d0976e56f05cabe953454f9968"
+        },
+        {
+          "path": "model-00004-of-00018.safetensors",
+          "size": 3988973152,
+          "sha256": "511e34063187882659753c4d93f3859f93c019fd438d8813071921c81d9a3f1a"
+        },
+        {
+          "path": "model-00005-of-00018.safetensors",
+          "size": 2099339864,
+          "sha256": "635cb53446dc74f219740fc59e18b774f877b803b9722e289ca62575a6efa701"
+        },
+        {
+          "path": "model-00006-of-00018.safetensors",
+          "size": 3979553696,
+          "sha256": "0bc5214fac607f0e6cc92eec3789d4b8559410ef9fce66621ba8158e8410dae0"
+        },
+        {
+          "path": "model-00007-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "80b0c49033e9a0d5762562aa12f4acdb7f54da586f3d0110f28c48d91cf07892"
+        },
+        {
+          "path": "model-00008-of-00018.safetensors",
+          "size": 3979553696,
+          "sha256": "7192c5b66185d3592927daabee1cc19e6f6e0ce75988ee20e824b624765fda79"
+        },
+        {
+          "path": "model-00009-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "af3c48cc37af44f3db6ae0579baf019180d48d9c527caa0a1f03ff85813a56d8"
+        },
+        {
+          "path": "model-00010-of-00018.safetensors",
+          "size": 3979553696,
+          "sha256": "163490a76f3bea3a40855b7efc04ce6d27afaf1a34f0bbde495b9491f76457c9"
+        },
+        {
+          "path": "model-00011-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "5f3ae1b948aeee39da77aec558e8236cd65fe4d7cb7686a76bb007acc563c6d8"
+        },
+        {
+          "path": "model-00012-of-00018.safetensors",
+          "size": 3979553696,
+          "sha256": "a3de1c7114677a8f5ac5c4892c90e8238ea5c1e2038c80e757dfc87c3902ca55"
+        },
+        {
+          "path": "model-00013-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "06ab79a41f74c9c5cb734816feb0c7fc364104b227165ee7391231e1155aa02a"
+        },
+        {
+          "path": "model-00014-of-00018.safetensors",
+          "size": 3979553696,
+          "sha256": "4138ed94603065ba884bbcadedb04d7718bb40117e85e6f5c6fc5b9c05b7a85b"
+        },
+        {
+          "path": "model-00015-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "69224e27b9de4e7dbf6fc936c6eaae08447bda3b80a6c31a871ab451173afd22"
+        },
+        {
+          "path": "model-00016-of-00018.safetensors",
+          "size": 3979564040,
+          "sha256": "73cb9a1089fb6155cb648609478d6633be8a5c7d9ca5a05bc8925ce8a553cefe"
+        },
+        {
+          "path": "model-00017-of-00018.safetensors",
+          "size": 2108759344,
+          "sha256": "beb51f01056142ac4984bd800507b0dd0fd18de57f8e9ef6ea41d1a3598983a8"
+        },
+        {
+          "path": "model-00018-of-00018.safetensors",
+          "size": 3392197344,
+          "sha256": "1d3479509e21494658f9b64d317f5ea8e55c4025d28c702d6c4d0b356ce8ea06"
+        }
+      ],
+      "credits": [
+        "autotrust"
+      ],
+      "notes": null
+    },
+    {
+      "model_id": "chinhnc/Quyet-1.0-Tiny",
+      "dragon_name": "Choicewyrmling",
+      "developer": "Chinh Nguyen",
+      "license": "Apache-2.0",
+      "params": "183M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 365857586,
+      "primary_capability": "calibrated_decision",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/chinhnc/Quyet-1.0-Tiny",
+      "revision": "fba8ca9292a705e21b14a4c5150e79a4ddcc8db3",
+      "placement": "pack_laptop",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs ModernBERT path",
+      "base_models": [
+        "jhu-clsp/mmBERT-small"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 731715172,
+          "sha256": "49256c653c856d4a66efcf2ac3af2e1bf21ad91c054c95a817a6d610a921d85f"
+        }
+      ],
+      "credits": [
+        "Chinh Nguyen"
+      ],
+      "notes": "Base jhu-clsp/mmBERT-small is MIT. Ships its own NOTICE."
+    },
+    {
+      "model_id": "chinhnc/Quyet-1.0-Small",
+      "dragon_name": "Choicewyrm",
+      "developer": "Chinh Nguyen",
+      "license": "Apache-2.0",
+      "params": "328M",
+      "format": "F16 safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 655227978,
+      "primary_capability": "calibrated_decision",
+      "languages": [
+        "multilingual"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/chinhnc/Quyet-1.0-Small",
+      "revision": "f007dfeb4874f0f3b3a3cc0a63f4d4192164c1c2",
+      "placement": "pack_workstation",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs ModernBERT path",
+      "base_models": [
+        "aisingapore/SEA-LION-ModernBERT-300M"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1310455956,
+          "sha256": "f74d6c466f6dcb9aa1b1ca37c23f4cd48c98c8f9c090ad835708d4068a6bb06e"
+        }
+      ],
+      "credits": [
+        "Chinh Nguyen"
+      ],
+      "notes": "Base aisingapore/SEA-LION-ModernBERT-300M is MIT. Ships its own NOTICE."
+    },
+    {
+      "model_id": "samratduttaofficial/WaterSheep",
+      "dragon_name": "Balancewyrm",
+      "developer": "Samrat Dutta",
+      "license": "Apache-2.0",
+      "params": "149M",
+      "format": "ONNX",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "calibrated_decision",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/samratduttaofficial/WaterSheep",
+      "revision": "236de6496b530d37e36a8ac63ff8412e92940f6e",
+      "placement": "pack_laptop",
+      "organ": "arbiter",
+      "trunk": null,
+      "engine": "needs ModernBERT path",
+      "base_models": [
+        "answerdotai/ModernBERT-base"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "onnx/model_quantized.onnx",
+          "size": 158196995,
+          "sha256": "160ae91868f919ae0ddc6d1bd509b17d93194102aa33a466095469fbf04dc25b"
+        }
+      ],
+      "credits": [
+        "Samrat Dutta"
+      ],
+      "notes": "Trained on ~80 datasets with mixed terms (some non-commercial benchmark sets); see data notes. Ships its own NOTICE."
+    },
+    {
+      "model_id": "BananaMind/StoryBananaMind-7.5M",
+      "dragon_name": "Fablehatchling",
+      "developer": "BananaMind",
+      "license": "Apache-2.0",
+      "params": "7.5M",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "creative_writing",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/BananaMind/StoryBananaMind-7.5M",
+      "revision": "b25ca49faaf1abd93915dbc9185c31b978fbf25b",
+      "placement": "pack_laptop",
+      "organ": "bard",
+      "trunk": null,
+      "engine": "check arch",
+      "base_models": [],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model.safetensors",
+          "size": 29722144,
+          "sha256": "204ab1e9b27bd705c34440f40ff6253b7b82b5ea859d29d638580d313e3e01d5"
+        }
+      ],
+      "credits": [
+        "BananaMind"
+      ],
+      "notes": "Trained on TinyStories (CDLA-Sharing-1.0); see data notes."
+    },
+    {
+      "model_id": "VertexAGI/prism-creative-1-mini",
+      "dragon_name": "Fablewyvern",
+      "developer": "VertexAGI",
+      "license": "Apache-2.0",
+      "params": "4B",
+      "format": "GGUF (upstream)",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "creative_writing",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": false,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/VertexAGI/prism-creative-1-mini",
+      "revision": "771d4e01f292e095bf517ba50a7eb6f3f7422948",
+      "placement": "pack_laptop",
+      "organ": "bard",
+      "trunk": null,
+      "engine": "runs now (qwen3)",
+      "base_models": [
+        "mlx-community/Qwen3-4B-Instruct-2507-4bit"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "prism_creative_1_mini_Q4_K_M.gguf",
+          "size": 2497280800,
+          "sha256": "1b59130c189cc0e2c000dad257bded7676bcce6ae6f6f4564e2bd3d3dd697b89"
+        }
+      ],
+      "credits": [
+        "VertexAGI"
+      ],
+      "notes": "Base Qwen3-4B-Instruct-2507 (via an MLX 4-bit copy) is Apache-2.0."
+    },
+    {
+      "model_id": "sallani/EUAIAct-Qwen2.5-0.5B-Edge",
+      "dragon_name": "Statutewyrmling",
+      "developer": "sallani",
+      "license": "Apache-2.0",
+      "params": "0.5B",
+      "format": "adapter on Qwen2.5-0.5B-Instruct",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": 35000000,
+      "primary_capability": "regulatory_qa",
+      "languages": [
+        "en",
+        "fr"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": true,
+      "source_url": "https://huggingface.co/sallani/EUAIAct-Qwen2.5-0.5B-Edge",
+      "revision": "04524ad173bf70a6a401485d629c6c54577d78c3",
+      "placement": "disc",
+      "organ": "clerk",
+      "trunk": "Qwen/Qwen2.5-0.5B-Instruct",
+      "engine": "runs now (qwen2 + zt_lora)",
+      "base_models": [
+        "Qwen/Qwen2.5-0.5B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "euaiact-qwen2.5-0.5b-q4_k_m.gguf",
+          "size": 397807968,
+          "sha256": "c7694eba0fe92dcb99bedcc12a52be99468d579be2e74c5cfa4779490ab1839e"
+        }
+      ],
+      "credits": [
+        "sallani"
+      ],
+      "notes": "Advisory only, never legal advice (project policy). Adapter extracted from the upstream GGUF dequantised; if that loses quality it ships as the upstream GGUF."
+    },
+    {
+      "model_id": "AlexandruGirlea/precommiteu-models",
+      "dragon_name": "Compliancewyrm",
+      "developer": "Alexandru Girlea",
+      "license": "Apache-2.0",
+      "params": "7B + adapters",
+      "format": "GGUF (upstream)",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "regulatory_code_scan",
+      "languages": [
+        "en",
+        "code"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/AlexandruGirlea/precommiteu-models",
+      "revision": "5d319e03bb48c0ba39d62fcc207deea99d2be53a",
+      "placement": "server",
+      "organ": "clerk",
+      "trunk": null,
+      "engine": "runs now (qwen2)",
+      "base_models": [
+        "Qwen/Qwen2.5-Coder-7B-Instruct"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "base.gguf",
+          "size": 4683074336,
+          "sha256": "1664fccab734674a50763490a8c6931b70e3f2f8ec10031b54806d30e5f956b6"
+        },
+        {
+          "path": "cra_dma_nis2/detector-adapter.gguf",
+          "size": 80767424,
+          "sha256": "88b14ff46017b578e9db89014b12a5a6f0b833fcb16c8eb10f0864de56f2e4dd"
+        },
+        {
+          "path": "dora/detector-adapter.gguf",
+          "size": 80767392,
+          "sha256": "cedfd692ce4262383ada3d1d5fd95d5ca3eb2d8d2674549d7b68e992bba92ace"
+        },
+        {
+          "path": "dsa/detector-adapter.gguf",
+          "size": 80767392,
+          "sha256": "bf625966dac56e1aed1015e70cefa90f1111ac8831237c2c1d6a8140b75eb7ce"
+        },
+        {
+          "path": "eu_ai_act/detector-adapter.gguf",
+          "size": 80767424,
+          "sha256": "b96983226932f37ff71ae81dca4e776e5b33ab0c8d24882096763e31572469bb"
+        },
+        {
+          "path": "eu_data_act/detector-adapter.gguf",
+          "size": 80767424,
+          "sha256": "c6e62a81db69526521251a83d81c8c45946004dd90a200994f80e4173b57e4d2"
+        },
+        {
+          "path": "gdpr/detector-adapter.gguf",
+          "size": 80767584,
+          "sha256": "ebc77226ce9ca56185d1bb9bee13f6603afe84fd5bba136cbd9fa5295452a58b"
+        }
+      ],
+      "credits": [
+        "Alexandru Girlea"
+      ],
+      "notes": "Base Qwen2.5-Coder-7B-Instruct is Apache-2.0. Ships its own NOTICE."
+    },
+    {
+      "model_id": "PrinceRansom7/gemma4-e2b-it-regulatory-obligation-v1",
+      "dragon_name": "Dutywyrm",
+      "developer": "PrinceRansom7; base Gemma 4 by Google DeepMind",
+      "license": "Apache-2.0",
+      "params": "2B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "regulatory_extraction",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "Transformers"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/PrinceRansom7/gemma4-e2b-it-regulatory-obligation-v1",
+      "revision": "e1c4042c5c4c8573957b8e63c013e7b406544ea5",
+      "placement": "server",
+      "organ": "clerk",
+      "trunk": null,
+      "engine": "needs gemma4 arch",
+      "base_models": [
+        "google/gemma-4-E2B-it"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00005.safetensors",
+          "size": 1422130752,
+          "sha256": "f26e99e1fa290296828da6d00423b5557125badf7dc8d05f84dfd4f71e35b688"
+        },
+        {
+          "path": "model-00002-of-00005.safetensors",
+          "size": 4697620648,
+          "sha256": "2ea02bad44856b48a53786446e9d32217ea9c377b26d16032919b8785c2b87be"
+        },
+        {
+          "path": "model-00003-of-00005.safetensors",
+          "size": 1585731424,
+          "sha256": "36a20dcb8665d15d84424e9bf51841e1e1a35bafdc74ca8e20bad9031f74ccad"
+        },
+        {
+          "path": "model-00004-of-00005.safetensors",
+          "size": 1573107586,
+          "sha256": "d3479a39d8a573192a8f62c8accba9b33c72d2da90dc110b332553742f43637a"
+        },
+        {
+          "path": "model-00005-of-00005.safetensors",
+          "size": 968028372,
+          "sha256": "d27221fc730434f2aab01a26c4de9eae01c8ea05466e1ba9484760199e191090"
+        }
+      ],
+      "credits": [
+        "PrinceRansom7; base Gemma 4 by Google DeepMind"
+      ],
+      "notes": "Gemma 4 is released under Apache-2.0 (google/gemma-4-E2B-it card), unlike Gemma 1-3."
+    },
+    {
+      "model_id": "zenlm/zen-legal",
+      "dragon_name": "Covenantwyrm",
+      "developer": "zenlm",
+      "license": "Apache-2.0",
+      "params": "8B",
+      "format": "safetensors",
+      "file_size_bytes": null,
+      "sha256": null,
+      "sha256_status": "built on the server",
+      "estimated_size_bytes": null,
+      "primary_capability": "legal_research",
+      "languages": [
+        "en"
+      ],
+      "runtime": [
+        "zt (ZXV integer engine)",
+        "llama.cpp"
+      ],
+      "para_synergy": true,
+      "iso_seed": false,
+      "source_url": "https://huggingface.co/zenlm/zen-legal",
+      "revision": "94fb1cac02fb78d31056317bb76beaa4c9faf5c2",
+      "placement": "server",
+      "organ": "clerk",
+      "trunk": null,
+      "engine": "runs now (qwen3)",
+      "base_models": [
+        "Qwen/Qwen3-8B"
+      ],
+      "shipped_files": [],
+      "source_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 4902257696,
+          "sha256": "ffa5adf27cd383b1fc16daba75f7fd8d15655c3a259c276dfbcb64aaca8b8e1c"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 4915960368,
+          "sha256": "05ceadcaaaf4bbb4c721db8a234a93f3a7ee945ecd28ffbcdd5adc05cc4b0ce8"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 4983068496,
+          "sha256": "4a8c92051605490ed632f85e88286fe9af9259229b3db85f0d18602cd7fef205"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 1580230264,
+          "sha256": "a19975bea23acc006b444e5cf2d6b76f2163c47b39214d2c7f8fb86f7b4629d6"
+        }
+      ],
+      "credits": [
+        "zenlm"
+      ],
+      "notes": "Base Qwen3-8B is Apache-2.0. Ships its own NOTICE."
+    }
+  ],
+  "excluded": [
+    {
+      "model_id": "prithivMLmods/Draco-CoderMini-3B",
+      "reason_kind": "licence",
+      "reason": "Card says Apache-2.0, but its base Qwen2.5-3B-Instruct is under the Qwen Research licence (no commercial use). A fine-tune cannot relicense its base.",
+      "replacement": "Qwen2.5-Coder-1.5B-Instruct and TIMPS-Coder-0.5B"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-3B-Instruct",
+      "reason_kind": "licence",
+      "reason": "Qwen Research licence (license: other / qwen-research).",
+      "replacement": "Qwen2.5-Coder-1.5B-Instruct"
+    },
+    {
+      "model_id": "llmware/slim-extract-tool",
+      "reason_kind": "licence",
+      "reason": "CC-BY-SA-4.0.",
+      "replacement": "slim-ner-tool"
+    },
+    {
+      "model_id": "llmware/slim-summary-tool",
+      "reason_kind": "licence",
+      "reason": "CC-BY-SA-4.0.",
+      "replacement": "pszemraj/led-base-book-summary"
+    },
+    {
+      "model_id": "Dongwei/Qwen2.5-1.5B-Open-R1-GRPO_Math",
+      "reason_kind": "licence",
+      "reason": "No licence declared; weights partly pickled (.bin).",
+      "replacement": "zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4"
+    },
+    {
+      "model_id": "EliaMengozzi/fallama",
+      "reason_kind": "licence",
+      "reason": "Llama 3.1 Community licence.",
+      "replacement": "heavyhelium/electra-base-logic-fallacy"
+    },
+    {
+      "model_id": "eulogik/TinyDoc-VLM-256M",
+      "reason_kind": "licence",
+      "reason": "No licence declared on the card.",
+      "replacement": "SmolVLM2-500M-Video-Instruct"
+    },
+    {
+      "model_id": "docling-project/SmolDocling-256M-preview",
+      "reason_kind": "licence",
+      "reason": "CDLA-Permissive-2.0, not Apache-2.0 (permissive; admit only if you widen the rule).",
+      "replacement": "PP-OCRv6 small (ONNX)"
+    },
+    {
+      "model_id": "nums-ai/causilo",
+      "reason_kind": "licence",
+      "reason": "Custom causilo-1.0 licence.",
+      "replacement": "autogluon/mitra-classifier"
+    },
+    {
+      "model_id": "melihemin/qwen2.5-0.5b-text2sql-full",
+      "reason_kind": "licence",
+      "reason": "No licence declared.",
+      "replacement": "MidlightDDK/pocketsql-0.5b"
+    },
+    {
+      "model_id": "saadxsalman/SS-350M-SQL-Strict-GGUF",
+      "reason_kind": "licence",
+      "reason": "Base LiquidAI/LFM2.5-350M is under the LFM Open License 1.0.",
+      "replacement": "MidlightDDK/pocketsql-0.5b"
+    },
+    {
+      "model_id": "openjev/openjev",
+      "reason_kind": "licence",
+      "reason": "CC-BY-NC-4.0 (non-commercial).",
+      "replacement": "the three moderation cells"
+    },
+    {
+      "model_id": "yasserrmd/MegaSciMoE-1.2B",
+      "reason_kind": "licence",
+      "reason": "Base LiquidAI/LFM2-1.2B is under the LFM Open License 1.0.",
+      "replacement": "Haamipromax/HamAI-Science-1b"
+    },
+    {
+      "model_id": "Arigadam/TinyStories-with-EOS",
+      "reason_kind": "licence",
+      "reason": "Base Gemma 2 2B carries the Gemma terms.",
+      "replacement": "BananaMind/StoryBananaMind-7.5M"
+    },
+    {
+      "model_id": "DavidAU/L3.2-Rogue-Creative-Instruct-Uncensored-7B-GGUF",
+      "reason_kind": "licence",
+      "reason": "Tagged Apache-2.0, but it is a Llama 3.2 merge (its own tags say llama-3.2), so the Llama licence applies.",
+      "replacement": "VertexAGI/prism-creative-1-mini"
+    },
+    {
+      "model_id": "Cactus-Compute/needle2",
+      "reason_kind": "format",
+      "reason": "Weights published only as a pickle (checkpoints/needle2.pkl).",
+      "replacement": "FrontiersMind/Nandi-Mini-150M-Tool-Calling"
+    },
+    {
+      "model_id": "llmware/slim-sql-1b-v0",
+      "reason_kind": "format",
+      "reason": "Weights only as pickled pytorch_model.bin.",
+      "replacement": "MidlightDDK/pocketsql-0.5b"
+    },
+    {
+      "model_id": "eulogik/nanoforecast-500k",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle (model.pt).",
+      "replacement": "amazon/chronos-bolt-tiny"
+    },
+    {
+      "model_id": "zerooneresearch/predictlm-mini-13m",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle (.pt).",
+      "replacement": "amazon/chronos-bolt-mini"
+    },
+    {
+      "model_id": "hexgrad/Kokoro-82M",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle (kokoro-v1_0.pth). Licence is fine.",
+      "replacement": "onnx-community/Kokoro-82M-v1.0-ONNX (same weights)"
+    },
+    {
+      "model_id": "stetteh/otics-anomaly",
+      "reason_kind": "format",
+      "reason": "Weights only as pickles (.pkl/.pth).",
+      "replacement": "AungMoonLord/bert-log-anomaly-detection"
+    },
+    {
+      "model_id": "kkonathala/powerplant-anomaly-transformer",
+      "reason_kind": "format",
+      "reason": "No weight files published (code only).",
+      "replacement": "ManasKumar28/mimii-distilhubert-anomaly"
+    },
+    {
+      "model_id": "nvidia/Kumo-Anomaly",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle (.pth).",
+      "replacement": "Fazmaj/modernbert-flow-anomaly-classifier"
+    },
+    {
+      "model_id": "ash12321/deep-svdd-anomaly-detection",
+      "reason_kind": "format",
+      "reason": "Weights only as pickles (.pkl/.pth).",
+      "replacement": "the three anomaly cells"
+    },
+    {
+      "model_id": "jibala1022/easyrec-base",
+      "reason_kind": "format",
+      "reason": "Weights only as pickles (.bin/.pt/.pth).",
+      "replacement": "all-MiniLM-L6-v2 with the Jina rerankers"
+    },
+    {
+      "model_id": "DamonDemon/SpanUQ",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle (.pt).",
+      "replacement": "Tiamat's evidence head (zt_evh)"
+    },
+    {
+      "model_id": "PaddlePaddle/PP-OCRv6_tiny_rec",
+      "reason_kind": "format",
+      "reason": "Paddle inference format (.pdiparams).",
+      "replacement": "PaddlePaddle/PP-OCRv6_small_*_onnx"
+    },
+    {
+      "model_id": "litert-community/SmolVLM2-500M",
+      "reason_kind": "format",
+      "reason": "LiteRT .litertlm container only.",
+      "replacement": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+    },
+    {
+      "model_id": "onnx-community/kitten-tts-nano-0.1-ONNX",
+      "reason_kind": "duplicate",
+      "reason": "Same model as KittenML/kitten-tts-nano-0.1, which publishes ONNX itself.",
+      "replacement": "KittenML/kitten-tts-nano-0.1"
+    },
+    {
+      "model_id": "mudler/ced-gguf",
+      "reason_kind": "duplicate",
+      "reason": "A GGUF packaging of the CED models, which we convert from the originals; Ettore Di Giacinto is credited for ced.cpp.",
+      "replacement": "mispeech/ced-*"
+    },
+    {
+      "model_id": "segmind/Segmind-Vega",
+      "reason_kind": "data",
+      "reason": "Licence is Apache-2.0, but its card lists a Midjourney-output dataset among its training data, whose terms restrict use.",
+      "replacement": "AuroraIMG-6M / pattern-diffusion"
+    }
+  ],
+  "considered_and_declined": [
+    {
+      "model_id": "tjarvis91/Q-ToolCall-50M-Sovereign",
+      "reason": "Weights only as a pickle (.pt)."
+    },
+    {
+      "model_id": "eoinedge/AnomalyNet",
+      "reason": "Weights only as .pt/.pte/.tflite."
+    },
+    {
+      "model_id": "Jvachier/dcase2020-task2-anomaly-detection",
+      "reason": "Keras/NumPy archive only."
+    },
+    {
+      "model_id": "kha-white/manga-ocr-base",
+      "reason": "Weights only as pickled .bin."
+    },
+    {
+      "model_id": "Falconsai/text_summarization",
+      "reason": "Fine, but led-base-book-summary handles long documents, which swarm memory needs."
+    }
+  ],
+  "data_notes": {
+    "nli": "SNLI is CC-BY-SA-4.0 and MultiNLI mixes CC-BY-3.0, CC-BY-SA-3.0 and other terms. The arbiter's T/F/B/N training uses Tiamat's own derived statements (tools/tiamat/server/make_tfbn_data.py), so its evidence head does not depend on them.",
+    "jigsaw": "Jigsaw toxic-comment data came from a Kaggle competition with its own terms.",
+    "audioset": "AudioSet labels are CC-BY-4.0; the audio is YouTube clips.",
+    "mimii": "The MIMII machine-sound set is CC-BY-SA-4.0 (share-alike for the data, not for model outputs).",
+    "logic": "The LOGIC fallacy set (Jin et al. 2022) is published with its paper's code.",
+    "booksum": "BookSum (Salesforce) is BSD-3-Clause.",
+    "tinystories": "TinyStories is CDLA-Sharing-1.0 (share-alike for the data, not for model outputs).",
+    "cc12m": "CC12M is a list of web image URLs, each under its own terms.",
+    "pocketsql": "pocketsql-data is CC-BY-SA-4.0.",
+    "watersheep": "WaterSheep's card lists about 80 training sets, some non-commercial."
+  }
+}

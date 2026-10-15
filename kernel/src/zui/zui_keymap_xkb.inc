@@ -177,19 +177,6 @@ static const char LX_TR[] =
     "altgr+shift D01 Ω -- -- ® -- ¥ Û Î Ô -- dead:ring dead:macron dead:grave\n"
     "altgr+shift C01 Â -- -- -- -- -- dead:horn -- -- dead:acute\n"
     "altgr+shift B00 ¦ < > © ‚ ‘ ’ º -- ÷ dead:abovedot\n";
-/* et */
-static const char LX_ET[] =
-    "keyboard et Amharic\n"
-    "base E01 ፩ ፪ ፫ ፬ ፭ ፮ ፯ ፰ ፱ ፻ - =\n"
-    "base D01 ቀ ወ -- ረ ተ የ -- -- -- ፐ ፀ ጨ\n"
-    "base C02 ሰ ደ ፈ ገ ሀ ጀ ከ ለ ። ፦\n"
-    "base B00 < ዘ አ ቸ ሸ በ ነ መ ፣ ፤ ፧\n"
-    "shift E01 ፲ ፳ ፴ ፵ ፶ ፷ ፸ ፹ ፺ ፼ _ +\n"
-    "shift D01 ቐ -- -- -- ጠ -- -- -- -- ጰ ጸ ኀ ‐\n"
-    "shift C02 ሠ ዸ -- ጘ ሐ -- ኸ -- ፡ ፥\n"
-    "shift B00 > ዠ ዐ -- ቨ -- ኘ -- -- -- ?\n"
-    "altgr B00 |\n"
-    "altgr+shift B00 ¦\n";
 /* ng(yoruba) */
 static const char LX_NG_YORUBA[] =
     "keyboard ng-yoruba Yoruba\n"
@@ -1216,6 +1203,104 @@ static const char LX_NO_SMI[] =
     "altgr+shift D01 Q W -- ™ Þ Y Ü Ï Õ Œ dead:circumflex dead:caron *\n"
     "altgr+shift C01 Â ẞ Ð ª Ǧ Ǥ ‚ Ǩ \\u{AD} Ö Ä\n"
     "altgr+shift B00 Ǯ Ʒ X ‘ ‹ › ’ º · … —\n";
+/* et */
+static const char LX_ET[] =
+    "keyboard et Amharic\n"
+    "base E01 ፩ ፪ ፫ ፬ ፭ ፮ ፯ ፰ ፱ ፻ - =\n"
+    "base D01 ቀ ወ -- ረ ተ የ -- -- -- ፐ ፀ ጨ\n"
+    "base C02 ሰ ደ ፈ ገ ሀ ጀ ከ ለ ። ፦\n"
+    "base B00 < ዘ አ ቸ ሸ በ ነ መ ፣ ፤ ፧\n"
+    "shift E01 ፲ ፳ ፴ ፵ ፶ ፷ ፸ ፹ ፺ ፼ _ +\n"
+    "shift D01 ቐ -- -- -- ጠ -- -- -- -- ጰ ጸ ኀ ‐\n"
+    "shift C02 ሠ ዸ -- ጘ ሐ -- ኸ -- ፡ ፥\n"
+    "shift B00 > ዠ ዐ -- ቨ -- ኘ -- -- -- ?\n"
+    "altgr B00 |\n"
+    "altgr+shift B00 ¦\n";
+/* gr(polytonic) */
+static const char LX_GR_POLYTONIC[] =
+    "keyboard gr-polytonic Greek (polytonic)\n"
+    "deadkey iota \\u{345} \n"
+    "deadkey breve \\u{306} aă AĂ eĕ EĔ gğ GĞ iĭ IĬ oŏ OŎ uŭ UŬ\n"
+    "base E00 ` 1 2 3 4 5 6 7 8 9 0 - =\n"
+    "base D01 ; ς ε ρ τ υ θ ι ο π dead:tilde dead:iota \\u{5C}\n"
+    "base C01 α σ δ φ γ η ξ κ λ dead:acute dead:grave\n"
+    "base B00 « ζ χ ψ ω β ν μ , . /\n"
+    "shift E00 ~ ! @ \\u{23} $ % ^ & * ( ) _ +\n"
+    "shift D01 : Σ Ε Ρ Τ Υ Θ Ι Ο Π dead:diaeresis -- |\n"
+    "shift C01 Α Σ Δ Φ Γ Η Ξ Κ Λ\n"
+    "shift B00 » Ζ Χ Ψ Ω Β Ν Μ < > ?\n"
+    "altgr E00 ― • ½ £ ¼ ‰ ϰ ϗ ₯ -- ° ±\n"
+    "altgr D01 · ϙ € ® -- ϒ ϑ ͻ ϙ ϖ dead:macron dead:breve\n"
+    "altgr C02 ϛ ↓ ϝ ϝ ϳ ϳ ϗ ϲ dead:acute '\n"
+    "altgr B00 | ͽ → © ϖ ϡ ʹ ϻ « »\n"
+    "altgr+shift E01 ¹ ² ³ ¾ ‱ -- Ϗ\n"
+    "altgr+shift D02 Ϙ -- ϱ -- ϒ ϴ Ͻ Ϙ ϕ dead:macron dead:breve\n"
+    "altgr+shift C02 Ϛ ↑ Ϝ Ϝ Ϳ Ϳ Ϗ Ϲ dead:acute \"\n"
+    "altgr+shift B00 ¦ Ͽ ← -- -- Ϡ ͵ Ϻ … ·\n";
+/* il(biblical) */
+static const char LX_IL_BIBLICAL[] =
+    "keyboard il-biblical Hebrew (Biblical, Tiro)\n"
+    "base E00 ׃ 1 2 3 4 5 6 7 8 9 0 ־ =\n"
+    "base D01 \\u{307} ׳ ק ר א ט ו ן ם פ ] [ ׀\n"
+    "base C01 ש ד ג כ ע י ח ל ך ף \\u{59A}\n"
+    "base B00 < ז ס ב ה נ מ צ ת ץ \\u{5AD}\n"
+    "shift E00 \\u{5AE} \\u{5A9} \\u{599} \\u{592} \\u{5AF} \\u{5BA} \\u{5B9} \\u{5BF} \\u{5C2} \\u{5C1} \\u{59D} \\u{5A0} \\u{5BC}\n"
+    "shift D01 \\u{5C4} \\u{5AC} \\u{5AB} \\u{59F} \\u{593} \\u{59E} \\u{59C} \\u{5A1} \\u{595} \\u{594} \\u{597} \\u{598} \\u{5A8}\n"
+    "shift C01 \\u{5BD} \\u{5B0} \\u{5BB} \\u{5B4} \\u{5B1} \\u{5B6} \\u{5B5} \\u{5B3} \\u{5B8} \\u{5B2} \\u{5B7}\n"
+    "shift B00 > \\u{5C5} \\u{5A4} \\u{5AA} \\u{5A6} \\u{5A5} \\u{5A7} \\u{59B} \\u{591} \\u{596} \\u{5A3}\n"
+    "altgr E00 ; -- -- -- ₪ \\u{200D} \\u{200C} \\u{34F} \\u{200E} \\u{200F} ◌ -\n"
+    "altgr D01 \\u{308} ״ € -- -- -- װ -- -- -- -- -- \\u{5C}\n"
+    "altgr C06 ײ ױ -- \\u{5C7} -- ,\n"
+    "altgr B00 | -- -- \\u{5A2} -- ׆ -- -- -- -- .\n"
+    "altgr+shift E00 ~ ! @ \\u{23} $ % ^ & * ) ( _ +\n"
+    "altgr+shift D01 / ' -- -- -- -- -- -- -- -- } { |\n"
+    "altgr+shift C10 : \"\n"
+    "altgr+shift B00 ¦ -- -- -- -- -- -- -- > < ?\n";
+/* sy(syc) */
+static const char LX_SY_SYC[] =
+    "keyboard sy-syc Syriac\n"
+    "base E00 \\u{70F} 1 2 3 4 5 6 7 8 9 0 - =\n"
+    "base D01 ܔ ܨ ܖ ܩ ܦ ܜ ܥ ܗ ܞ ܚ ܓ ܕ ܆\n"
+    "base C01 ܫ ܣ ܝ ܒ ܠ ܐ ܬ ܢ ܡ ܟ ܛ\n"
+    "base B00 < ] [ ܤ ܪ ܧ ܀ . ܘ ܙ ܇\n"
+    "shift E00 \\u{32E} ! \\u{30A} \\u{325} \\u{749} ♰ ♱ ܊ » ) ( « +\n"
+    "shift D01 \\u{730} \\u{733} \\u{736} \\u{73A} \\u{73D} \\u{740} \\u{741} \\u{308} \\u{304} \\u{307} \\u{303} \\u{74A} :\n"
+    "shift C01 \\u{731} \\u{734} \\u{737} \\u{73B} \\u{73E} \\u{711} ـ \\u{324} \\u{331} \\u{323} \\u{330}\n"
+    "shift B00 > \\u{732} \\u{735} \\u{738} \\u{73C} \\u{73F} \\u{739} \\u{742} ، ؛ ؟\n"
+    "altgr E00 \\u{651} ܁ ܂ ܃ ܄ ܅ ܈ ܉ ܋ ܌ ܍ ┌ ┐\n"
+    "altgr D01 \\u{64E} \\u{64B} \\u{64F} \\u{64C} \\u{653} \\u{654} \\u{747} \\u{743} \\u{745} \\u{32D}\n"
+    "altgr C01 \\u{650} \\u{64D} -- ء \\u{655} \\u{670} \\u{748} \\u{744} \\u{746}\n"
+    "altgr B00 | \\u{652} -- \\u{200D} \\u{200C} \\u{200E} \\u{200F}\n"
+    "altgr+shift B00 ¦\n";
+/* ru(chu) */
+static const char LX_RU_CHU[] =
+    "keyboard ru-chu Church Slavonic\n"
+    "base E00 ї ѡ є ѯ ѱ ѳ ѵ ѻ ѿ ѕ у \\u{483} \\u{301}\n"
+    "base D01 й ц ꙋ к е н г ш щ з х ъ \\u{5C}\n"
+    "base C01 ф ы в а п р о л д ж ѣ\n"
+    "base B00 < ѧ ч с м и т ь б ю .\n"
+    "shift E00 Ї Ѡ Є Ѯ Ѱ Ѳ Ѵ Ѻ Ѿ Ѕ У \\u{486} \\u{300}\n"
+    "shift D01 Й Ц Ꙋ К Е Н Г Ш Щ З Х Ъ /\n"
+    "shift C01 Ф Ы В А П Р О Л Д Ж Ѣ\n"
+    "shift B00 > Ѧ Ч С М И Т Ь Б Ю ,\n"
+    "altgr E00 ҂ ѽ ѥ ѩ ѭ ꙗ ѷ ꙍ ѫ ( ) \\u{487} \\u{484}\n"
+    "altgr D01 і \\u{2DF0} \\u{2DF9} \\u{2DE6} \\u{2DF7} \\u{2DE9} \\u{2DE2} \\u{2DF2} \\u{2DF3} \\u{2DE5} \\u{2DEF} \\u{A67D} :\n"
+    "altgr C03 \\u{2DE1} \\u{2DF6} \\u{2DEB} \\u{2DEC} \\u{2DEA} \\u{2DE7} \\u{2DE3} \\u{2DE4} \\u{2DFA}\n"
+    "altgr B00 | \\u{2DFD} \\u{2DF1} \\u{2DED} \\u{2DE8} -- \\u{2DEE} -- \\u{2DE0} \\u{2DFB} ;\n"
+    "altgr+shift E00 \\u{20DD} Ѽ Ѥ Ѩ Ѭ Ꙗ Ѷ Ꙍ Ѫ * \\u{488} _ ꙾\n"
+    "altgr+shift D13 ?\n"
+    "altgr+shift B00 ¦ -- -- -- -- -- -- -- -- -- !\n";
+/* ie(ogam) */
+static const char LX_IE_OGAM[] =
+    "keyboard ie-ogam Ogham\n"
+    "base E00 ᚜\n"
+    "base D01 ᚊ ᚕ ᚓ ᚏ ᚈ ᚘ ᚒ ᚔ ᚑ ᚚ -- -- \\u{1680}\n"
+    "base C01 ᚐ ᚄ ᚇ ᚃ ᚌ ᚆ ᚗ ᚖ ᚂ\n"
+    "base B00 ᚛ ᚎ ᚙ ᚉ ᚍ ᚁ ᚅ ᚋ ᚜ ᚛ \\u{1680}\n"
+    "shift E00 ᚜\n"
+    "shift D01 ᚊ ᚕ ᚓ ᚏ ᚈ ᚘ ᚒ ᚔ ᚑ ᚚ -- -- \\u{1680}\n"
+    "shift C01 ᚐ ᚄ ᚇ ᚃ ᚌ ᚆ ᚗ ᚖ ᚂ\n"
+    "shift B00 ᚜ ᚎ ᚙ ᚉ ᚍ ᚁ ᚅ ᚋ ᚜ ᚛ \\u{1680}\n";
 #define ZUI_KEYMAP_XKB_LAYOUTS \
     {"ua", LX_UA}, \
     {"pl", LX_PL}, \
@@ -1227,7 +1312,6 @@ static const char LX_NO_SMI[] =
     {"th", LX_TH}, \
     {"vn", LX_VN}, \
     {"tr", LX_TR}, \
-    {"et", LX_ET}, \
     {"ng-yoruba", LX_NG_YORUBA}, \
     {"ng-hausa", LX_NG_HAUSA}, \
     {"in-marathi", LX_IN_MARATHI}, \
@@ -1286,7 +1370,13 @@ static const char LX_NO_SMI[] =
     {"nz-mao", LX_NZ_MAO}, \
     {"us-haw", LX_US_HAW}, \
     {"ca-ike", LX_CA_IKE}, \
-    {"no-smi", LX_NO_SMI},
+    {"no-smi", LX_NO_SMI}, \
+    {"et", LX_ET}, \
+    {"gr-polytonic", LX_GR_POLYTONIC}, \
+    {"il-biblical", LX_IL_BIBLICAL}, \
+    {"sy-syc", LX_SY_SYC}, \
+    {"ru-chu", LX_RU_CHU}, \
+    {"ie-ogam", LX_IE_OGAM},
 
 /* the layout each locale types with (zui_keymap_for_locale) */
 static const struct {
@@ -1317,7 +1407,7 @@ static const struct {
     {"tr", "tr"},
     {"id", "us"},
     {"sw", "us"},
-    {"am", "et"},
+    {"am", "us"},
     {"yo", "ng-yoruba"},
     {"ha", "ng-hausa"},
     {"el", "gr"},
@@ -1377,7 +1467,7 @@ static const struct {
     {"ig", "ng-igbo"},
     {"so", "us"},
     {"om", "us"},
-    {"ti", "et"},
+    {"ti", "us"},
     {"rw", "us"},
     {"mg", "us"},
     {"sn", "us"},
@@ -1390,11 +1480,31 @@ static const struct {
     {"qu", "latam"},
     {"gn", "latam"},
     {"chr", "us-chr"},
-    {"nv", "us-intl"},
+    {"nv", "nv"},
     {"mi", "nz-mao"},
     {"haw", "us-haw"},
     {"iu", "ca-ike"},
     {"se", "no-smi"},
     {"ht", "us-intl"},
+    {"la", "latn-hist"},
+    {"ang", "latn-hist"},
+    {"pi", "latn-hist"},
+    {"sga", "latn-hist"},
+    {"goh", "latn-hist"},
+    {"enm", "latn-hist"},
+    {"fro", "latn-hist"},
+    {"pro", "latn-hist"},
+    {"non", "latn-hist"},
+    {"grc", "gr-polytonic"},
+    {"hbo", "il-biblical"},
+    {"syr", "sy-syc"},
+    {"cu", "ru-chu"},
+    {"pgl", "ie-ogam"},
+    {"sa", "in-hi"},
+    {"ota", "ir"},
+    {"xcl", "am"},
+    {"oge", "ge"},
+    {"xct", "cn-tib"},
+    {"lzh", "us"},
 };
 // clang-format on

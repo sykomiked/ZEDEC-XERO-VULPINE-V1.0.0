@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Minutes left today under a cap, in Sutra: the cap plus today's extra,
+# less what was used, and never below 0 (zxv_screen.c apply).
+record minutes-left
+  minutes: 9(4)
+  extra: 9(4)
+  used: 9(9)
+procedure
+  if used >= minutes + extra
+    answer 0
+  end-if
+  answer minutes + extra - used
