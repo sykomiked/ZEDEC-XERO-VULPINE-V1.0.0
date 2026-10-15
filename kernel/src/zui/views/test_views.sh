@@ -34,7 +34,7 @@ RP="-Wl,-rpath,$R/sdk/libzxv/build"
     "$HERE/murmuration.c" "$HERE/autoview.c" "$HERE/circuit.c" "$Z/zui_widget.c" "$Z/zui_input.c" "$Z/zui_present_fb.c" "$Z/zui_layout.c" \
     "$Z/zui_canvas.c" "$Z/zui_progress.c" "$Z/zui_emote.c" "$S/font/truetype.c" \
     "$A/zxm.c" "$A/burrow_model.c" "$A/quillon_model.c" "$A/glint_model.c" "$A/spindle_model.c" \
-    "$A/murmuration_model.c" "$A/zxapp.c" "$A/zxwire.c" "$A/zxboard.c" "$A/zxapp_kron.c" "$A/zxapp_eve.c" "$S/swarm/swarm_emotion.c" "$S/swarm/swarm_budget.c" \
+    "$A/murmuration_model.c" "$A/zxapp.c" "$S/chiglet/chg_vocab.c" "$A/zxwire.c" "$A/zxboard.c" "$A/zxapp_kron.c" "$A/zxapp_eve.c" "$S/swarm/swarm_emotion.c" "$S/swarm/swarm_budget.c" \
     "$H/zxvd_rpc.c" $RPCINC $RPCDEPS "$S/web4/web4_json.c" "$S/web4/web4_util.c" \
     "$S/mlkem/keccak.c" "$S/robin_debanks/sha256.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lpthread -lm \

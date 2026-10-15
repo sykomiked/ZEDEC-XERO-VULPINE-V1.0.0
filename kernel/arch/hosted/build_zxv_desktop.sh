@@ -48,6 +48,7 @@ kernel/src/apps/glint_model.c
 kernel/src/apps/spindle_model.c
 kernel/src/apps/murmuration_model.c
 kernel/src/apps/zxapp.c
+kernel/src/chiglet/chg_vocab.c
 kernel/src/swarm/swarm_emotion.c
 kernel/src/swarm/swarm_budget.c
 kernel/src/web4/web4_json.c

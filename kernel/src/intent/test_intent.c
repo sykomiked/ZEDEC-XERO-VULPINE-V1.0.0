@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "intent.h"
+#include "../chiglet/chg_vocab.h"
 #include "../juris/juris_vhub.h"
 #include "../robin_debanks/sha256.h"
 
@@ -666,6 +667,136 @@ static void test_route_edges(void)
     CHECK(intent_rank_routes(a, 2, NULL) == 0, "no order array");
 }
 
+/* ---- I7: held acts at every layer ---- */
+static void test_acts(void)
+{
+    intent_cfg_t c = cfg();
+    intent_req_t q;
+    /* I1/I7 grammar */
+    CHECK(P(&c, "act trust_device usb:1-2", &q) == INTENT_OK && q.kind == INTENT_ACT &&
+              q.act == CHGV_A_TRUST_DEVICE && strcmp(q.object, "usb:1-2") == 0 && q.memo[0] == 0 &&
+              q.amount == 0 && q.from == 0 && q.to == 0,
+          "act parses");
+    CHECK(P(&c, "act stage_update upd/7f3a memo \"weekly fixes\"", &q) == INTENT_OK &&
+              q.act == CHGV_A_STAGE_UPDATE && strcmp(q.memo, "weekly fixes") == 0,
+          "act with a memo");
+    CHECK(P(&c, "act run_command cmd.42_a", &q) == INTENT_OK && q.act == CHGV_A_RUN_COMMAND,
+          "act at L7");
+    CHECK(P(&c, "act format_disk sda", &q) == INTENT_E_PARSE, "unknown verb refused");
+    CHECK(P(&c, "act trust usb:1", &q) == INTENT_E_PARSE, "verb prefix refused");
+    CHECK(P(&c, "act Trust_device usb:1", &q) == INTENT_E_PARSE, "verb case is exact");
+    CHECK(P(&c, "act trust_device", &q) == INTENT_E_PARSE, "missing object");
+    CHECK(P(&c, "act trust_device ", &q) == INTENT_E_PARSE, "trailing space");
+    CHECK(P(&c, "act  trust_device usb:1", &q) == INTENT_E_PARSE, "double space");
+    CHECK(P(&c, "act trust_device USB:1", &q) == INTENT_E_PARSE, "upper case object refused");
+    CHECK(P(&c, "act trust_device usb;1", &q) == INTENT_E_PARSE, "';' in object refused");
+    CHECK(P(&c, "act trust_device usb:1 extra", &q) == INTENT_E_PARSE, "a third word refused");
+    CHECK(P(&c, "act trust_device usb:1 memo \"x", &q) == INTENT_E_PARSE, "open memo refused");
+    CHECK(P(&c, "act", &q) == INTENT_E_PARSE, "bare act");
+    char t[128];
+    snprintf(t, sizeof t, "act add_rule %s", "a23456789012345678901234567890123456789012345678");
+    CHECK(P(&c, t, &q) == INTENT_OK && strlen(q.object) == INTENT_OBJECT_MAX, "longest object");
+    snprintf(t, sizeof t, "act add_rule %s", "a234567890123456789012345678901234567890123456789");
+    CHECK(P(&c, t, &q) == INTENT_E_PARSE, "object one too long");
+    CHECK(P(&c, "act add_rule a._:/-09z", &q) == INTENT_OK, "every object character");
+
+    /* G7: the owner's mask */
+    intent_t x;
+    intent_init(&x, &c);
+    intent_set_epoch(&x, 1);
+    intent_status_t st;
+    uint64_t s0 = prop(&x, "act trust_device usb:1-2", &st);
+    const intent_draft_t *d = intent_get(&x, s0);
+    CHECK(st == INTENT_E_GUARD && d && d->state == INTENT_ST_REFUSED, "G7: no acts allowed");
+    c.acts = 1ull << CHGV_A_TRUST_DEVICE;
+    intent_init(&x, &c);
+    intent_set_epoch(&x, 1);
+    uint64_t s1 = prop(&x, "act deny_device usb:1-2", &st);
+    CHECK(st == INTENT_E_GUARD, "G7: another act stays refused");
+    uint64_t s2 = prop(&x, "act trust_device usb:1-2", &st);
+    d = intent_get(&x, s2);
+    CHECK(st == INTENT_OK && d && d->state == INTENT_ST_PROPOSED &&
+              lpx_action(d->tag) == LPX_ACT_PROCEED,
+          "G7: an allowed act is held, not released");
+    CHECK(x.released == 0, "I2: proposing an act changes nothing");
+    (void) s1;
+
+    /* I4/I5: approval binds verb and object */
+    uint64_t s3 = prop(&x, "act trust_device usb:1-3", &st);
+    const intent_draft_t *d3 = intent_get(&x, s3);
+    CHECK(st == INTENT_OK && d3 && memcmp(d->digest, d3->digest, 32) != 0,
+          "I7: a different object has a different digest");
+    intent_draft_t out;
+    uint8_t sig[32];
+    approve(&x, s2, sig);
+    CHECK(intent_release(&x, s3, sig, 32, &out) == INTENT_E_SIG,
+          "I7: approving usb:1-2 cannot release usb:1-3");
+    CHECK(intent_release(&x, s2, sig, 32, &out) == INTENT_OK && out.req.kind == INTENT_ACT &&
+              out.req.act == CHGV_A_TRUST_DEVICE && strcmp(out.req.object, "usb:1-2") == 0,
+          "I4: the approved act is released");
+    CHECK(intent_release(&x, s2, sig, 32, &out) == INTENT_E_USED, "I4: used once");
+    CHECK(x.spent == 0, "an act spends nothing");
+    intent_draft_t *dm = (intent_draft_t *) intent_get(&x, s3);
+    approve(&x, s3, sig);
+    dm->req.object[4] = '9';
+    CHECK(intent_release(&x, s3, sig, 32, &out) == INTENT_E_SIG, "I5: an edited object fails");
+    dm->req.object[4] = '1';
+    dm->req.act = CHGV_A_DENY_DEVICE;
+    CHECK(intent_release(&x, s3, sig, 32, &out) == INTENT_E_SIG, "I5: an edited verb fails");
+    dm->req.act = CHGV_A_TRUST_DEVICE;
+    CHECK(intent_release(&x, s3, sig, 32, &out) == INTENT_OK, "I5: restored, it releases");
+
+    /* I4: acts expire like payments */
+    uint64_t s4 = prop(&x, "act trust_device usb:9", &st);
+    approve(&x, s4, sig);
+    intent_set_epoch(&x, 4);
+    CHECK(intent_release(&x, s4, sig, 32, &out) == INTENT_E_EXPIRED, "I4: an old act expires");
+
+    /* G5: acts count toward the per-epoch limit */
+    c.max_per_epoch = 2;
+    intent_init(&x, &c);
+    intent_set_epoch(&x, 1);
+    prop(&x, "act trust_device a", &st);
+    prop(&x, "act trust_device b", &st);
+    CHECK(prop(&x, "act trust_device c", &st) == 0 && st == INTENT_E_WAIT, "G5 counts acts");
+
+    /* I5 layout: the v1 bytes, then act, object length, object */
+    c = cfg();
+    c.acts = ~0ull;
+    intent_init(&x, &c);
+    const uint64_t E = 0x1122334455667788ull, S0 = 0x0102030405060707ull;
+    intent_set_epoch(&x, E);
+    x.seq = S0;
+    uint64_t s5 = prop(&x, "act load_model qwen2.5-1.5b memo \"hi\"", &st);
+    uint8_t b[200], w[32];
+    size_t o = 0;
+    memcpy(b, "zxv/intent/v1", 13);
+    o = 13;
+    b[o++] = INTENT_ACT;
+    le(b + o, 0, 8);
+    o += 8;
+    memset(b + o, 0, 4);
+    o += 4;
+    le(b + o, 0, 4);
+    o += 4;
+    le(b + o, 0, 4);
+    o += 4;
+    b[o++] = 2;
+    memcpy(b + o, "hi", 2);
+    o += 2;
+    le(b + o, S0 + 1, 8);
+    o += 8;
+    le(b + o, E, 8);
+    o += 8;
+    b[o++] = CHGV_A_LOAD_MODEL;
+    b[o++] = 12;
+    memcpy(b + o, "qwen2.5-1.5b", 12);
+    o += 12;
+    sha256(b, o, w);
+    d = intent_get(&x, s5);
+    CHECK(st == INTENT_OK && d && memcmp(d->digest, w, 32) == 0, "act digest layout");
+}
+
 int main(void)
 {
     test_grammar();
@@ -677,6 +808,7 @@ int main(void)
     test_grammar_edges();
     test_layer_edges();
     test_route_edges();
+    test_acts();
     printf("PASS %d FAIL %d\n", pass, fail);
     return fail ? 1 : 0;
 }

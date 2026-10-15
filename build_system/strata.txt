@@ -179,6 +179,7 @@ spatial                          logic      # exact geometry, four-valued sensor
 ai_layer                         ai
 chiglet                          ai
 climate/climate_ct               ai         # the climate controller's caps and headroom as ct_budget metrics (includes ct_budget.h)
+companion                        ai         # the person's Chiglet companion: signed manifest, grants, cmp_decide over the chiglet gate
 cotier                           ai
 epu                              ai
 harmonic                         ai         # the harmonic carrier reads tensor residuals and swarm budgets

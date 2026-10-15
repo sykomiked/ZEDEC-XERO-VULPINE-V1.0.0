@@ -86,6 +86,7 @@ CI checks it matches what zxvd serves.
 | `zxvd.shutdown` | | `stopping` |
 | `swarm.state` | | the full live state (same as the window's `/api/state`) |
 | `swarm.ask` | `prompt` | `answer` |
+| `swarm.organ` | `organ`, `prompt` | `organ`, `answer`, `lead`, `witness`, `verdict`, `witnessed`, `action`, `tokens` (one Tiamat organ with a witness of another lineage, `kernel/src/chiglet/chg_organ.h`; this build has one model and no fitted evidence head, so the verdict is `neither` and the answer is shown held) |
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
@@ -259,6 +260,9 @@ CI checks it matches what zxvd serves.
 | `companion.dna` | | `agent_id`, `seed`, `genes` (8 by name), `traits` (`home`, `*_permille`, `specialty`, `specialty_name`), `parent_a`, `parent_b`, `founder`, `generation` |
 | `companion.generation` | | `agent_id`, `generation`, `seed`, `steps`, `growths`, `last_step` |
 | `companion.mood` | | `agent_id`, `feeling`, `home`, `at_home`, `swarm_mood` (each feeling: `emotion`, `emoji`, `codepoint`, `intensity`, `charge`, `valence`) |
+| `companion.name` | | `named`, `name` (null until named) |
+| `companion.name_preview` | `name` | `name`, `seed`, `genes`, `traits` (as `companion.dna`), `confirm` (64 hex) |
+| `companion.name_confirm` | `name`, `confirm` | `named`, `name` |
 | `web4.open` | `name`?, `seed`?, `now`? | `open`, `new`, `agent_id`, `name`, `pk`, `envelopes`, `held`, `max_envelopes`, `max_held`, `in_memory` |
 | `web4.post` | `kind`, `to`, `tool`?, `payload`?, `req_id`?, `chunk`?, `final`?, `pii`?, `amount_minor`?, `now`? | the entry (`id`, `kind`, `status`, `from`, `to`, `tool`, `req_id`, `chunk`, `final`, `payload`, `pii`, `amount_minor`, `seq`, `ts`, `consent`, `answers`, `grant`, `bytes`) |
 | `web4.consent` | `id`, `grant`, `expires_in`?, `now`? | `envelope`, `consent` (both entries) |
@@ -305,6 +309,10 @@ stats engine refused (the message is its status name, e.g.
 `<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
 -32070 no companion yet
 (`companion.*` before the swarm has an agent),
+-32071 the organ could not answer (`swarm.organ`),
+-32072 the chiglet's name was refused, is already given, cannot be kept, or
+naming is not available here (`companion.name*`; the message starts with
+the `chg_name.h` code, e.g. `CHGN_E_RESERVED`, then why),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
 -32096 an IRC gateway refusal (the message says why, see "The IRC gateway"
@@ -917,7 +925,7 @@ Honest limits:
 
 The person's Chiglet companion is the swarm's agent 0, the one seat on
 level 0 (`kernel/src/swarm/swarm_evolve.h` V4). `companion.*`
-(`kernel/arch/hosted/zxvd_companion.c`, rules H1-H6 in `zxvd_companion.h`)
+(`kernel/arch/hosted/zxvd_companion.c`, rules H1-H11 in `zxvd_companion.h`)
 reads it from the live swarm: a fresh snapshot per call, nothing cached.
 The group sits behind the feature `companion`, which is not regulated, and
 every method answers with the switch off: they read and move no money.
@@ -937,6 +945,29 @@ every method answers with the switch off: they read and move no money.
 - `companion.generation`: the generation, and how it got there in this run:
   `steps` (times it evolved), `growths` (GROWTH harmonics seen) and
   `last_step` (the fundamental of the last step, 0 for none).
+
+**Naming the chiglet** (`kernel/src/chiglet/chg_name.h` N1-N7). The first
+thing a person does with their chiglet is name it. From then on it answers
+to that name, the name never changes, and the personality is grown from it.
+
+- `companion.name_preview {name}` shows what the name would give, keeping
+  nothing: the seed (the first 8 bytes of SHA-256 over a tag, the person's
+  32-byte salt and the name, so the same name for two people is two
+  chiglets), the genes and traits as `companion.dna` shows them (the seed's
+  DNA with warmth, temperament and pace leaned by the name's sound: soft
+  letters warm, hard letters lively, short names quick), and `confirm`.
+- `companion.name_confirm {name, confirm}` names it with that digest, so the
+  person confirms exactly what they saw. The record goes to `chiglet_name`
+  in the state folder (0600, written then renamed) before the companion
+  takes the name's personality; after a restart it is the same chiglet.
+  Once named, preview and confirm answer `CHGN_E_LOCKED`: a new name means
+  a new chiglet, never a rename. A damaged record is never overwritten.
+- Names are 1 to 32 bytes of UTF-8 starting with a letter (any script);
+  system words and other companies' assistant and character names are
+  reserved. The companion manifest refuses a rename too
+  (`kernel/src/companion/companion.h` C.1, `CMP_ERR_NAME`).
+- Voice routing ("Chiglet, ..." in the voice work) should answer to the
+  given name instead: `chgn_addressed` (N6) is the check.
 
 **How the companion evolves (new wiring).** Before this, the GROWTH harmonic
 bred levels 1 and up only and the companion's DNA never changed. Now, on

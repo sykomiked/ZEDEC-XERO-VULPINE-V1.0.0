@@ -4,6 +4,7 @@
 #include "zxapp.h"
 
 #include "../robin_debanks/sha256.h"
+#include "../chiglet/chg_vocab.h"
 
 static const char *const LANG[ZXAPP_LANG_COUNT] = {
     "c",    "sutra", "eve",    "kron", "trebago",   "myra",   "cpp",        "rust",
@@ -599,6 +600,76 @@ static int parse_registry(zxapp_t *a, uint32_t line, const char *const w[4], con
     return ZXAPP_OK;
 }
 
+/* K1: chiglet <organ> <acts> */
+static int parse_chiglet(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                         uint32_t k)
+{
+    if (k != 3) {
+        put_err(a, line, "chiglet needs: chiglet <organ> <acts> (acts: - or a,b,c)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->block) {
+        put_err(a, line, "a block has no person in front of it; chiglet lines belong to apps", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    int organ = chgv_organ_find(w[1], wl[1]);
+    if (organ < 0) {
+        put_err(a, line, "not a Tiamat organ (smith, warden, scribe, arbiter ...)", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    for (uint32_t i = 0; i < a->nchiglet; i++)
+        if (a->chiglet[i].organ == (uint8_t) organ) {
+            put_err(a, line, "a second chiglet line for the organ ",
+                    chgv_organ_name((uint32_t) organ));
+            return ZXAPP_E_SYNTAX;
+        }
+    uint64_t acts = 0;
+    if (!(wl[2] == 1u && w[2][0] == '-')) {
+        uint32_t i = 0;
+        for (;;) {
+            uint32_t b = i;
+            while (i < wl[2] && w[2][i] != ',') i++;
+            int act = chgv_act_find(w[2] + b, i - b);
+            if (act < 0) {
+                put_err(a, line, "not a held act (trust_device, apply_edit, run_command ...)", 0);
+                return ZXAPP_E_SYNTAX;
+            }
+            if ((acts >> act) & 1u) {
+                put_err(a, line, "an act listed twice: ", chgv_act_name((uint32_t) act));
+                return ZXAPP_E_SYNTAX;
+            }
+            acts |= 1ull << act;
+            if (i == wl[2]) break;
+            i++; /* the comma: an item must follow */
+        }
+    }
+    if (a->nchiglet >= ZXAPP_CHIGLETS) {
+        put_err(a, line, "too many chiglet lines", 0);
+        return ZXAPP_E_FULL;
+    }
+    zxapp_chiglet_t *C = &a->chiglet[a->nchiglet++];
+    C->organ = (uint8_t) organ;
+    C->acts = acts;
+    C->line = line;
+    return ZXAPP_OK;
+}
+
+bool zxapp_chiglet_may(const zxapp_t *a, uint8_t organ, uint32_t act)
+{
+    if (!a || act >= CHGV_ACTS) return false;
+    for (uint32_t i = 0; i < a->nchiglet && i < ZXAPP_CHIGLETS; i++)
+        if (a->chiglet[i].organ == organ) return (a->chiglet[i].acts >> act) & 1u;
+    return false;
+}
+
+uint64_t zxapp_chiglet_acts(const zxapp_t *a)
+{
+    uint64_t m = 0;
+    if (!a) return 0;
+    for (uint32_t i = 0; i < a->nchiglet && i < ZXAPP_CHIGLETS; i++) m |= a->chiglet[i].acts;
+    return m;
+}
+
 int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
 {
     uint8_t *z = (uint8_t *) a;
@@ -738,6 +809,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "chiglet")) {
+            int rc = parse_chiglet(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         if (word_is(w[0], wl[0], "slot") || word_is(w[0], wl[0], "layer") ||
             word_is(w[0], wl[0], "icon") || word_is(w[0], wl[0], "budget") ||
             word_is(w[0], wl[0], "needs")) {
@@ -747,7 +823,7 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use, intent, pending, slot, layer, icon, budget, needs)",
+                "provides, use, intent, pending, slot, layer, icon, budget, needs, chiglet)",
                 0);
         return ZXAPP_E_SYNTAX;
     }

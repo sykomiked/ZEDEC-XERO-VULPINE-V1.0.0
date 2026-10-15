@@ -175,6 +175,24 @@
  *   R4 These belong to apps: a block may not carry slot, layer, icon,
  *      budget or needs (the app that uses it declares them). Each of slot,
  *      layer, icon and budget appears at most once.
+ *
+ * Every app is a place where the chiglet works with its person
+ * (zxv-docs/CHIGLET_LAYER_MAP.md). The manifest says how.
+ *
+ *   K1 A CHIGLET LINE names a Tiamat organ the app asks and the held acts
+ *      that organ may propose here: "chiglet <organ> <acts>". The organ is
+ *      one of chiglet/chg_vocab.h V1 (smith, warden, scribe ...); <acts> is
+ *      "-" (the organ only reads and explains) or a comma list of V2 acts
+ *      with no spaces ("apply_edit,apply_fix"). Unknown names, an empty
+ *      item or an act listed twice are refused. One line per organ, up to
+ *      ZXAPP_CHIGLETS; a block has no person in front of it, so chiglet
+ *      lines belong to apps.
+ *   K2 WHAT IT MAY. zxapp_chiglet_may says whether an organ may propose an
+ *      act in this app; zxapp_chiglet_acts is the union over its lines, the
+ *      mask the app hands the intent layer (intent.h G7). Anything not
+ *      listed cannot even be proposed.
+ *   K3 STILL HELD. A listed act is only a proposal the person accepts or
+ *      rejects (intent.h I4); listing it grants nothing.
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -200,6 +218,7 @@
 #define ZXAPP_CAP_MAX     24u
 #define ZXAPP_SCOPE_MAX   48u
 #define ZXAPP_SLOTS       407u
+#define ZXAPP_CHIGLETS    8u /* K1 */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
@@ -310,6 +329,13 @@ typedef struct {
     const struct zxapp *origin;      /* C2: the manifest that wrote it; NULL = this one */
 } zxapp_logic_t;
 
+/* K1: "chiglet <organ> <acts>" */
+typedef struct {
+    uint8_t organ; /* CHGV_O_* */
+    uint64_t acts; /* bit i: act i (CHGV_A_*) */
+    uint32_t line;
+} zxapp_chiglet_t;
+
 typedef struct zxapp {
     char id[ZXAPP_ID_MAX];
     char name[48];
@@ -335,6 +361,8 @@ typedef struct zxapp {
     zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */
     uint32_t nneeds;
     uint32_t npending;       /* P1: "pending" lines (a best-fit language still waiting) */
+    zxapp_chiglet_t chiglet[ZXAPP_CHIGLETS]; /* K1 */
+    uint32_t nchiglet;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     bool resolved;           /* zxapp_compose succeeded (C1) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */
@@ -500,5 +528,12 @@ uint32_t zxapp_handlers(const zxapp_t *const *apps, uint32_t n, const char *verb
 /* I2 over a registry's apps (those that export entries, C1). */
 uint32_t zxapp_registry_handlers(const zxapp_registry_t *r, const char *verb, const char *type,
                                  zxapp_handler_t *out, uint32_t cap);
+
+/* ---- K: the chiglet ---------------------------------------------------------- */
+
+/* K2: may this organ propose this act in this app? */
+bool zxapp_chiglet_may(const zxapp_t *a, uint8_t organ, uint32_t act);
+/* K2: every act any of its organs may propose (intent.h cfg.acts) */
+uint64_t zxapp_chiglet_acts(const zxapp_t *a);
 
 #endif /* ZXAPP_H */

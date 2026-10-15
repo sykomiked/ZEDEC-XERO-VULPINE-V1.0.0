@@ -190,6 +190,24 @@ static void p_status(zxvd_buf_t *o)
     zxvd_buf_raw(o, "{\"sold\":2}", 10);
 }
 static const zxvd_peer_ops_t PEER_STUB = {p_ask, p_serve, p_status};
+
+static int organ_asks;
+static uint8_t last_organ;
+static char last_organ_prompt[64];
+static const char *o_ask(uint8_t organ, const char *prompt, zxvd_buf_t *o)
+{
+    organ_asks++;
+    last_organ = organ;
+    snprintf(last_organ_prompt, sizeof last_organ_prompt, "%s", prompt);
+    if (!strcmp(prompt, "fail")) {
+        zxvd_buf_raw(o, "{\"partial\":", 11); /* must be discarded */
+        return "the organ's budget is spent";
+    }
+    zxvd_buf_printf(o, "{\"organ\":%u}", (unsigned) organ);
+    return NULL;
+}
+static const zxvd_organ_ops_t ORGAN_STUB = {o_ask};
+static const zxvd_organ_ops_t ORGAN_NONE = {0};
 static const zxvd_peer_ops_t PEER_NONE = {0};
 
 /* phone.* stubs (zxvd_phone.h) */
@@ -526,7 +544,8 @@ static void test_host_methods(void)
         REQ("11", "rpc.discover", ""),
         OK("11",
            "{\"protocol\":\"zxvd-rpc/1\",\"methods\":[\"rpc.discover\",\"zxvd.version\","
-           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"model.info\",\"notes.list\","
+           "\"zxvd.shutdown\",\"swarm.state\",\"swarm.ask\",\"swarm.organ\",\"model.info\","
+           "\"notes.list\","
            "\"notes.mark_read\",\"net.command\",\"net.peers\",\"net.offers\",\"player.card\","
            "\"peer.ask\",\"peer.serve\",\"peer.status\","
            "\"update.check\",\"currency.enable\","
@@ -2735,6 +2754,44 @@ static void test_socket(void)
     rmdir(nd);
     unlink(fileparent);
     rmdir(tmpl);
+}
+
+/* ---------------- swarm.organ ---------------- */
+
+static void test_organ_method(void)
+{
+    zxvd_rpc_set_organ_ops(NULL);
+    EXPECT(REQ("1", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"x\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_organ_ops(&ORGAN_NONE);
+    EXPECT(REQ("1", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"x\"}"),
+           ERR("1", "-32601", "not available"));
+    zxvd_rpc_set_organ_ops(&ORGAN_STUB);
+    EXPECT(REQ("2", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"fix it\"}"),
+           OK("2", "{\"organ\":2}"));
+    CHECK(last_organ == 2 && !strcmp(last_organ_prompt, "fix it"),
+          "swarm.organ passes the organ index and prompt (%u %s)", (unsigned) last_organ,
+          last_organ_prompt);
+    EXPECT(
+        REQ("3", "swarm.organ", ",\"params\":{\"organ\":\"voice_of_tiamat\",\"prompt\":\"hello\"}"),
+        OK("3", "{\"organ\":0}"));
+    EXPECT(REQ("3", "swarm.organ", ",\"params\":{\"organ\":\"clerk\",\"prompt\":\"hello\"}"),
+           OK("3", "{\"organ\":19}"));
+    EXPECT(REQ("4", "swarm.organ", ",\"params\":{\"organ\":\"smith\",\"prompt\":\"fail\"}"),
+           ERR("4", "-32071", "the organ's budget is spent"));
+    int n = organ_asks;
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"blacksmith\",\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "\\\"organ\\\" is not a Tiamat organ"));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"Smith\",\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "\\\"organ\\\" is not a Tiamat organ"));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"prompt\":\"x\"}"),
+           ERR("5", "-32602", "missing string parameter \\\"organ\\\""));
+    EXPECT(REQ("5", "swarm.organ", ",\"params\":{\"organ\":\"smith\"}"),
+           ERR("5", "-32602", "missing string parameter \\\"prompt\\\""));
+    CHECK(has(REQ("5", "swarm.organ", ",\"params\":{\"organ\":7,\"prompt\":\"x\"}"), "-32602"),
+          "a non-string organ is refused");
+    CHECK(organ_asks == n, "bad params never reach the host");
+    zxvd_rpc_set_organ_ops(NULL);
 }
 
 /* ---------------- peer.* ---------------- */
@@ -6431,6 +6488,7 @@ int main(void)
     test_protocol();
     test_host_methods();
     test_peer_methods();
+    test_organ_method();
     test_phone_methods();
     test_aipi_methods();
     test_files_methods();

@@ -47,6 +47,7 @@
 #include "zxv_screen.h"       /* screen.*: Shepherd's screen time */
 #include "zxv_place.h"        /* place.*: Waymark's location and places */
 #include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
+#include "../../src/chiglet/chg_vocab.h" /* swarm.organ: the organ names */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -1144,6 +1145,29 @@ static const zxvd_peer_ops_t *PEER;
 void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops)
 {
     PEER = ops;
+}
+
+static const zxvd_organ_ops_t *ORGAN;
+
+void zxvd_rpc_set_organ_ops(const zxvd_organ_ops_t *ops)
+{
+    ORGAN = ops;
+}
+
+static void m_organ(call_t *c)
+{
+    char organ[32], prompt[4096];
+    if (!ORGAN || !ORGAN->ask) return fail(c, E_METHOD, "not available");
+    if (!p_str(c, "organ", organ, sizeof organ, true) ||
+        !p_str(c, "prompt", prompt, sizeof prompt, true))
+        return;
+    int o = chgv_organ_find(organ, strlen(organ));
+    if (o < 0) return fail(c, E_PARAMS, "\"organ\" is not a Tiamat organ");
+    const char *why = ORGAN->ask((uint8_t) o, prompt, c->res);
+    if (why) {
+        c->res->len = 0;
+        fail(c, ZXVD_E_ORGAN, "%s", why);
+    }
 }
 
 static bool p_price(call_t *c, const char *key, uint64_t *v)
@@ -3244,6 +3268,7 @@ static const method_t METHODS[] = {
     {"zxvd.shutdown", m_shutdown, PH_NO},
     {"swarm.state", m_state, PH_READ},
     {"swarm.ask", m_ask, PH_READ},
+    {"swarm.organ", m_organ, PH_READ},
     {"model.info", m_model, PH_READ},
     {"notes.list", m_notes, PH_READ},
     {"notes.mark_read", m_notes_read, PH_READ},

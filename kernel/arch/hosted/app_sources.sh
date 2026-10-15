@@ -124,6 +124,11 @@ case "${1:-srcs}" in
         echo src/acct/acct.c
         # the Player Card's tiers (zxvd's player.card)
         echo src/sicily/sicily.c
+        # swarm.organ: the organ router and the chiglet's names for organs and acts
+        echo src/chiglet/chg_organ.c
+        echo src/chiglet/chg_vocab.c
+        # the chiglet's name, given once (companion.name*, chg_name.h)
+        echo src/chiglet/chg_name.c
         # one copy of each file: vinea and update share sha256, aead, hkdf, ubh,
         # event_envelope and the ML-DSA sources
         { vinea; update; } | awk '!seen[$0]++'
@@ -210,6 +215,7 @@ case "${1:-srcs}" in
         # host (J5) with the accounting names and the 64-state log it uses
         echo arch/hosted/zxv_files.c
         echo arch/hosted/zxv_spaces.c
+        echo src/chiglet/chg_vocab.c
         echo src/juris/juris.c
         echo src/acct/acct.c
         echo src/lpres/lpres_hex.c

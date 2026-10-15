@@ -79,6 +79,7 @@ typedef SOCKET sock_t;
 #    include <netinet/in.h>
 #    include <arpa/inet.h>
 #    include <sys/stat.h>
+#    include <fcntl.h>
 #    include <unistd.h>
 #    include <signal.h>
 typedef int sock_t;
@@ -92,6 +93,7 @@ typedef int sock_t;
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <errno.h>
 #include <time.h>
 
 #include "swarm_budget.h"
@@ -117,6 +119,9 @@ typedef int sock_t;
 #include "zxv_receipt.h" /* R24: one sealed receipt per interaction */
 #include "zxv_tiamat.h"
 _Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot");
+#include "../../src/chiglet/chg_organ.h" /* swarm.organ */
+#include "../../src/chiglet/chg_vocab.h"
+#include "../../src/chiglet/chg_name.h" /* the chiglet's name, given once */
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"
@@ -858,6 +863,105 @@ static void build_swarm(void)
             swarm_emotion_set_feeling(&S.e, id, t.home);
         }
     }
+}
+
+/* The chiglet's name (kernel/src/chiglet/chg_name.h): given once, kept as
+ * "chiglet_name" in the state folder (zxv_net_host.h U9), and the companion
+ * (agent 0) has the personality the name grows. Until it is named the
+ * salt lives only in memory; a record that fails its checks is never
+ * overwritten and naming stays off (zxvd_companion.h H7). */
+static chgn_t NAME;
+static bool NAME_OK;
+static char NAME_DIR[1024], NAME_PATH[1100];
+
+static void name_apply(void)
+{
+    swarm_dna_t d;
+    if (!S.num_agents || !chgn_dna(&NAME, &d)) return;
+    agent_t *a = &S.agent[0];
+    a->dna = d;
+    swarm_emotion_set_feeling(&S.e, a->id, swarm_dna_express(&d, NUM_SPECIALTIES).home);
+}
+
+/* 1 missing, 0 read (*len bytes), -1 error */
+static int name_read(uint8_t *buf, size_t cap, size_t *len)
+{
+    *len = 0;
+    FILE *f = fopen(NAME_PATH, "rb");
+    if (!f) return errno == ENOENT ? 1 : -1;
+    *len = fread(buf, 1, cap, f);
+    int bad = ferror(f);
+    fclose(f);
+    return bad ? -1 : 0;
+}
+
+#if defined(ZXVD)
+/* write NAME_PATH.tmp (0600), flush to disk, rename over NAME_PATH: zxvd
+ * names the chiglet (companion.name_confirm) */
+static int name_write(const uint8_t *buf, size_t len)
+{
+    char tmp[1110];
+    if (snprintf(tmp, sizeof tmp, "%s.tmp", NAME_PATH) >= (int) sizeof tmp) return -1;
+#    if defined(_WIN32)
+    CreateDirectoryA(NAME_DIR, NULL);
+    FILE *f = fopen(tmp, "wb");
+    if (!f) return -1;
+    size_t w = fwrite(buf, 1, len, f);
+    int bad = fflush(f) != 0 || w != len;
+    if (fclose(f) != 0) bad = 1;
+    if (bad || !MoveFileExA(tmp, NAME_PATH, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        remove(tmp);
+        return -1;
+    }
+    return 0;
+#    else
+    (void) mkdir(NAME_DIR, S_IRWXU);
+    (void) unlink(tmp);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+    if (fd < 0) return -1;
+    size_t off = 0;
+    while (off < len) {
+        ssize_t k = write(fd, buf + off, len - off);
+        if (k < 0 && errno == EINTR) continue;
+        if (k <= 0) break;
+        off += (size_t) k;
+    }
+    int bad = off != len || fsync(fd) != 0;
+    if (close(fd) != 0) bad = 1;
+    if (bad || rename(tmp, NAME_PATH) != 0) {
+        (void) unlink(tmp);
+        return -1;
+    }
+    return 0;
+#    endif
+}
+#endif
+
+static void name_load(const char *dir)
+{
+    NAME_OK = false;
+    if (!dir || !dir[0] ||
+        snprintf(NAME_DIR, sizeof NAME_DIR, "%s", dir) >= (int) sizeof NAME_DIR ||
+        snprintf(NAME_PATH, sizeof NAME_PATH, "%s/chiglet_name", dir) >= (int) sizeof NAME_PATH)
+        return;
+    uint8_t rec[CHGN_RECORD + 1];
+    size_t len;
+    int r = name_read(rec, sizeof rec, &len);
+    if (r == 1) {
+        uint8_t salt[CHGN_SALT];
+        if (zxv_os_random(salt, sizeof salt) != 0) return;
+        chgn_init(&NAME, salt);
+        memset(salt, 0, sizeof salt);
+        NAME_OK = true;
+        return;
+    }
+    if (r != 0 || len != CHGN_RECORD || chgn_decode(&NAME, rec) != CHGN_OK) {
+        fprintf(stderr, "zxv-host: %s is damaged; the chiglet cannot be named until it is fixed\n",
+                NAME_PATH);
+        return;
+    }
+    NAME_OK = true;
+    name_apply();
 }
 
 /* The last cycle's allotments, kept after the cycle closes so the window can
@@ -2242,6 +2346,80 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
     zxvd_buf_json_str(o, ans);
 }
 
+/* swarm.organ (zxvd_rpc.h, kernel/src/chiglet/chg_organ.h). This build has
+ * one model slot, so every organ's only cell is that model (one lineage):
+ * there is no cell of another lineage to witness it (O3). No evidence head
+ * is fitted to it either (zt_evh.h), so its verdict is NEITHER and the
+ * organ reports "not sure" (O4). The answer comes through answer(), the
+ * same path as swarm.ask (budget gate, answer tag, quarantine), and the
+ * screen shows it held. The cycle's budget gate charges every run, so the
+ * router's own budget (O5) is left unbounded here. */
+static int organ_answer(void *ctx, const chgo_cell_t *cell, const char *prompt, size_t plen,
+                        char *out, size_t cap, lpres_state_t *verdict, uint64_t *tokens)
+{
+    (void) ctx;
+    (void) cell;
+    (void) plen;
+    answer(prompt, out, cap);
+    *verdict = LPRES_STATE_NEITHER;
+    *tokens = ANSWER_REAL ? S.last_gate.charged : 0;
+    return 0;
+}
+
+static int organ_check(void *ctx, const chgo_cell_t *cell, const char *prompt, size_t plen,
+                       const char *ans, size_t alen, lpres_state_t *verdict, uint64_t *tokens)
+{
+    (void) ctx;
+    (void) cell;
+    (void) prompt;
+    (void) plen;
+    (void) ans;
+    (void) alen;
+    *verdict = LPRES_STATE_NEITHER; /* no evidence head to check with */
+    *tokens = 0;
+    return 0;
+}
+
+static const char *lpres_word(lpres_state_t v)
+{
+    switch (v) {
+    case LPRES_STATE_TRUE:
+        return "true";
+    case LPRES_STATE_FALSE:
+        return "false";
+    case LPRES_STATE_BOTH:
+        return "both";
+    default:
+        return "neither";
+    }
+}
+
+static const char *rpc_organ(uint8_t organ, const char *prompt, zxvd_buf_t *o)
+{
+    static chgo_table_t t;
+    chgo_init(&t);
+    for (uint32_t i = 0; i < CHGV_ORGANS; i++)
+        if (chgo_add(&t, (uint8_t) i, 0, 1) != CHGO_OK) return "the organ table is full";
+    char ans[1400];
+    chgo_result_t r;
+    int rc = chgo_ask(&t, organ, prompt, strlen(prompt), UINT64_MAX, organ_answer, organ_check,
+                      NULL, ans, sizeof ans, &r);
+    if (rc != CHGO_OK) return "the organ could not answer";
+    zxvd_buf_raw(o, "{\"organ\":", 9);
+    zxvd_buf_json_str(o, chgv_organ_name(organ));
+    zxvd_buf_raw(o, ",\"answer\":", 10);
+    zxvd_buf_json_str(o, ans);
+    zxvd_buf_printf(o,
+                    ",\"lead\":\"%s\",\"witness\":\"%s\",\"verdict\":\"%s\",\"witnessed\":%s,"
+                    "\"action\":\"%s\",\"tokens\":\"%llu\"}",
+                    lpres_word(r.lead), lpres_word(r.witness), lpres_word(r.verdict),
+                    r.witnessed ? "true" : "false", lpx_action_name(lpx_action(r.tag)),
+                    (unsigned long long) r.tokens);
+    return NULL;
+}
+
+static const zxvd_organ_ops_t ORGAN_OPS = {rpc_organ};
+
 #    if defined(ZXV_HAVE_PLAY)
 /* play.* (zxvd_rpc.h P1-P3) over sdk/playground. */
 static void to_zp(const zxvd_play_file_t *f, uint32_t n, zp_file *z)
@@ -2622,6 +2800,26 @@ static void rpc_player_card(zxvd_buf_t *o)
 
 static const zxvd_view_ops_t VIEW_OPS = {rpc_net_peers, rpc_net_offers, rpc_player_card};
 
+/* zxvd_companion.h H7: the name store */
+static bool rpc_name_get(chgn_t *out)
+{
+    if (!NAME_OK) return false;
+    *out = NAME;
+    return true;
+}
+
+static bool rpc_name_commit(const chgn_t *n)
+{
+    uint8_t rec[CHGN_RECORD];
+    chgn_encode(n, rec);
+    if (!NAME_OK || name_write(rec, sizeof rec) != 0) return false;
+    NAME = *n;
+    name_apply();
+    return true;
+}
+
+static const zxvd_names_t NAMES = {rpc_name_get, rpc_name_commit};
+
 /* zxvd_companion.h H2: the companion (agent 0) as the swarm holds it now */
 static bool rpc_companion(zxvd_companion_t *k)
 {
@@ -2979,6 +3177,7 @@ int main(int argc, char **argv)
                 fprintf(stderr, "zxv-host: cannot write %s; no receipts this run\n", receipts);
             }
         }
+        name_load(state_dir); /* a named chiglet has its name's personality */
     }
     zxv_net_set_lan_discovery(S.net, lan_discovery, 0);
     if (!(S.peer = zxv_peer_new()) || (peer_float && zxv_peer_fund(S.peer, peer_float) != 0)) {
@@ -2987,8 +3186,10 @@ int main(int argc, char **argv)
     }
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
+    zxvd_rpc_set_organ_ops(&ORGAN_OPS);
     zxvd_rpc_set_view_ops(&VIEW_OPS);
     zxvd_companion_set_source(rpc_companion);
+    zxvd_companion_set_names(&NAMES);
 #endif
 
     pal_find_fonts(fonts_dir, argc > 0 ? argv[0] : NULL);

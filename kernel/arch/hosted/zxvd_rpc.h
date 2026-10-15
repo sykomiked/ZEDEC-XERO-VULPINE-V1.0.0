@@ -196,6 +196,17 @@ typedef struct {
 } zxvd_peer_ops_t;
 void zxvd_rpc_set_peer_ops(const zxvd_peer_ops_t *ops);
 
+/* swarm.organ (kernel/src/chiglet/chg_organ.h O1-O6): ask one Tiamat organ;
+ * its lead answers and a cell of another lineage witnesses the answer. The
+ * method checks the organ name against chg_vocab.h V1 (-32602 when it is not
+ * one). ask returns NULL with the result object written into `out`, or why
+ * it failed (error ZXVD_E_ORGAN). Unset: -32601. */
+#define ZXVD_E_ORGAN (-32071)
+typedef struct {
+    const char *(*ask)(uint8_t organ, const char *prompt, zxvd_buf_t *out); /* swarm.organ */
+} zxvd_organ_ops_t;
+void zxvd_rpc_set_organ_ops(const zxvd_organ_ops_t *ops);
+
 /* V1-V3: read-only views the host builds (zxv_net_host.h U9, sicily.h S2).
  * Each writes one JSON object into `out`; unset members answer -32601.
  *   V1 net.peers   {"peers":[{"id","addr","bucket","ubh","last_seen_ms",
@@ -298,7 +309,9 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32040 cards    -32041 passkeys
  *        -32050 vault, swap, auctions, Zenny, stats (zxvd_econ.c)
  *        -32060 bonds, derivatives, grants, estates (zxvd_sandbox.h)
- *        -32070 companion   -32080 seats   -32090 Web4 feed
+ *        -32070 companion   -32071 organ (swarm.organ)
+ *        -32072 the chiglet's name (companion.name*)
+ *        -32080 seats   -32090 Web4 feed
  *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *        -32018 backups   -32019 screen time   -32021 places

@@ -62,14 +62,16 @@ run_cc "$T/zxv-host"
 
 # the forward-pass glue against the tensor engine's reference chain
 if [ -n "$DEFS" ]; then
-    set -- "$HERE/test_zxv_zt_glue.c" "$HERE/zxv_zt_glue.c"
+    # zt_zxvc.c checks a .zxvc package's digest: SHA-256 links with the engine
+    set -- "$HERE/test_zxv_zt_glue.c" "$HERE/zxv_zt_glue.c" "$K/src/robin_debanks/sha256.c"
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
-    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" "$@" -o "$T/test_glue"
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" -o "$T/test_glue"
     "$T/test_glue"
     # several models at once: slots, agents, a LoRA adapter per agent (M6, G6)
-    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c"
+    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c" \
+        "$K/src/robin_debanks/sha256.c"
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
-    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" -lpthread \
         -o "$T/test_swarm_slots"
     "$T/test_swarm_slots" "$T"
     # the models on the GPU this machine has (G7: Metal on a Mac; CUDA, HIP
@@ -122,6 +124,7 @@ printf '%s\n' arch/hosted/test_zxv_budget_gate.c arch/hosted/zxv_budget_gate.c \
     src/swarm/swarm_budget.c > "$T/gate"
 if [ -n "$DEFS" ]; then
     echo arch/hosted/zxv_zt_glue.c >> "$T/gate"
+    echo src/robin_debanks/sha256.c >> "$T/gate"
     (cd "$K" && for f in src/tensor/zt*.c; do echo "$f"; done) >> "$T/gate"
 fi
 args "$T/gate"

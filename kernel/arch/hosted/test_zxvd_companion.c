@@ -116,17 +116,19 @@ static void test_group(void)
 {
     fresh();
     const zxvd_group_t *g = zxvd_companion_group();
-    CHECK(!g->regulated && !strcmp(g->feature, "companion") && g->n_methods == 3 && !g->close,
+    CHECK(!g->regulated && !strcmp(g->feature, "companion") && g->n_methods == 6 && !g->close,
           "group shape");
     for (uint32_t i = 0; i < g->n_methods; i++) CHECK(g->methods[i].always, "method %u always", i);
     const char *d = rpc(req("rpc.discover"));
     CHECK(strstr(d, "\"web4.card_verify\",\"companion.dna\",\"companion.generation\","
-                    "\"companion.mood\"]") != NULL,
+                    "\"companion.mood\",\"companion.name\",\"companion.name_preview\","
+                    "\"companion.name_confirm\"]") != NULL,
           "discover lists the companion methods: %.300s", d);
     EXPECT(req("features.get"),
            ok("{\"features\":[{\"name\":\"companion\",\"enabled\":false,\"regulated\":false,"
               "\"groups\":[{\"note\":\"the Chiglet companion: its DNA, generation and mood, read "
-              "from the swarm (moves no money)\",\"methods\":3}]}],\"saved\":false}"));
+              "from the swarm, and its name, given once (moves no money)\",\"methods\":6}]}],"
+              "\"saved\":false}"));
     /* a second add of the same group is a no-op, a clash with it is refused */
     CHECK(zxvd_rpc_add_group(g) == 0, "re-adding is a no-op");
     static const zxvd_group_method_t CLASH[] = {{"companion.mood", NULL, true}};
@@ -331,6 +333,237 @@ static void test_step(void)
           "companion.dna shows the lineage: %s", r);
 }
 
+/* ----- H7-H11: the name ----- */
+
+static chgn_t STORE;
+static bool STORE_OK, KEEP_OK;
+static int COMMITS;
+
+static bool st_get(chgn_t *out)
+{
+    if (!STORE_OK) return false;
+    *out = STORE;
+    return true;
+}
+
+static bool st_commit(const chgn_t *n)
+{
+    COMMITS++;
+    if (!KEEP_OK) return false;
+    STORE = *n;
+    return true;
+}
+
+static const zxvd_names_t STORE_OPS = {st_get, st_commit};
+
+static void fresh_names(void)
+{
+    fresh();
+    uint8_t salt[CHGN_SALT];
+    for (uint32_t i = 0; i < CHGN_SALT; i++) salt[i] = (uint8_t) (3 * i + 11);
+    chgn_init(&STORE, salt);
+    STORE_OK = KEEP_OK = true;
+    COMMITS = 0;
+    zxvd_companion_set_names(&STORE_OPS);
+}
+
+static char NB[700];
+static const char *nreq(const char *method, const char *params)
+{
+    snprintf(NB, sizeof NB, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"%s\",\"params\":%s}",
+             method, params);
+    return NB;
+}
+
+static char EB[700];
+static const char *err(int code, const char *msg)
+{
+    snprintf(EB, sizeof EB,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":%d,\"message\":\"%s\"}}", code,
+             msg);
+    return EB;
+}
+
+static void hex(const uint8_t *d, char out[65], bool upper)
+{
+    for (uint32_t i = 0; i < 32; i++)
+        snprintf(out + 2 * i, 3, upper ? "%02X" : "%02x", (unsigned) d[i]);
+}
+
+#define OFF_MSG "naming is not available here: no name store, or its record is damaged"
+
+static void test_name_off(void)
+{
+    fresh_names();
+    zxvd_companion_set_names(NULL);
+    const char *off = err(-32072, OFF_MSG);
+    EXPECT(req("companion.name"), off);
+    EXPECT(nreq("companion.name_preview", "{\"name\":\"Pip\"}"), off);
+    EXPECT(nreq("companion.name_confirm", "{\"name\":\"Pip\",\"confirm\":\"00\"}"), off);
+    zxvd_companion_set_names(&STORE_OPS);
+    STORE_OK = false; /* a damaged record */
+    EXPECT(req("companion.name"), off);
+    EXPECT(nreq("companion.name_preview", "{\"name\":\"Pip\"}"), off);
+    EXPECT(nreq("companion.name_confirm", "{\"name\":\"Pip\",\"confirm\":\"00\"}"), off);
+    CHECK(COMMITS == 0, "nothing kept");
+    /* preview needs the companion too */
+    STORE_OK = true;
+    HAVE = false;
+    EXPECT(nreq("companion.name_preview", "{\"name\":\"Pip\"}"), NONE_ERR);
+}
+
+static void test_name_preview(void)
+{
+    fresh_names();
+    EXPECT(req("companion.name"), ok("{\"named\":false,\"name\":null}"));
+    chgn_preview_t p;
+    CHECK(chgn_preview(&STORE, "Pip", 3, &p) == CHGN_OK, "preview Pip");
+    /* the genes and traits exactly as companion.dna shows that DNA */
+    K.dna = p.dna;
+    const char *d = rpc(req("companion.dna"));
+    const char *from = strstr(d, "\"seed\""), *to = strstr(d, ",\"parent_a\"");
+    CHECK(from && to && to > from, "dna parts");
+    char h[65], want[1500];
+    hex(p.confirm, h, false);
+    snprintf(want, sizeof want, "{\"name\":\"Pip\",%.*s,\"confirm\":\"%s\"}", (int) (to - from),
+             from ? from : "", h);
+    fixture();
+    EXPECT(nreq("companion.name_preview", "{\"name\":\"Pip\"}"), ok("%s", want));
+    CHECK(COMMITS == 0 && !STORE.locked, "a preview keeps nothing");
+    /* the specialty name comes from the companion's table */
+    K.specialty = NULL;
+    d = rpc(nreq("companion.name_preview", "{\"name\":\"Pip\"}"));
+    CHECK(strstr(d, "\"specialty_name\":null},\"confirm\"") != NULL, "no table: %s", d);
+    fixture();
+    /* a quote and a multi-byte letter travel escaped and as UTF-8 */
+    d = rpc(nreq("companion.name_preview", "{\"name\":\"Zo\u00eb O'Hara\"}"));
+    CHECK(strstr(d, "\"result\":{\"name\":\"Zo\xc3\xab O'Hara\",\"seed\":") != NULL,
+          "UTF-8 name: %s", d);
+
+    /* refused names: the code, then the reason */
+    static const struct {
+        const char *params, *msg;
+    } bad[] = {
+        {"{\"name\":\"Chiglet\"}", "CHGN_E_RESERVED: that name is reserved"},
+        {"{\"name\":\"\"}", "CHGN_E_EMPTY: a name has 1 to 32 bytes"},
+        {"{\"name\":\"abcdefghijklmnopqrstuvwxyzabcdefg\"}",
+         "CHGN_E_EMPTY: a name has 1 to 32 bytes"},
+        {"{\"name\":\"9lives\"}", "CHGN_E_START: a name starts with a letter"},
+        {"{\"name\":\"Pip!\"}",
+         "CHGN_E_CHAR: a name holds letters, digits and single spaces, hyphens or apostrophes"},
+        {"{\"name\":\"Pip \"}",
+         "CHGN_E_SEP: a space, hyphen or apostrophe goes between two letters or digits"},
+        {"{\"name\":\"\\u0009A\"}", "CHGN_E_START: a name starts with a letter"},
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        EXPECT(nreq("companion.name_preview", bad[i].params), err(-32072, bad[i].msg));
+    /* params: missing, not a string, 64 bytes */
+    d = rpc(nreq("companion.name_preview", "{}"));
+    CHECK(strstr(d, "\"code\":-32602") != NULL, "name is required: %s", d);
+    d = rpc(nreq("companion.name_preview", "{\"name\":7}"));
+    CHECK(strstr(d, "\"code\":-32602") != NULL, "name is a string: %s", d);
+    char long_name[200];
+    snprintf(long_name, sizeof long_name, "{\"name\":\"%s\"}",
+             "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl");
+    d = rpc(nreq("companion.name_preview", long_name));
+    CHECK(strstr(d, "\"code\":-32602") != NULL, "64 bytes: %s", d);
+    snprintf(long_name, sizeof long_name, "{\"name\":\"%s\"}",
+             "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijk");
+    EXPECT(nreq("companion.name_preview", long_name),
+           err(-32072, "CHGN_E_EMPTY: a name has 1 to 32 bytes"));
+    CHECK(COMMITS == 0 && !STORE.locked, "refusals keep nothing");
+}
+
+static void test_name_confirm(void)
+{
+    fresh_names();
+    chgn_preview_t p, other;
+    chgn_preview(&STORE, "Pip", 3, &p);
+    chgn_preview(&STORE, "Pipa", 4, &other);
+    char h[65], params[300];
+    /* confirm: 64 hex digits */
+    static const char *const badhex[] = {
+        "\"\"",
+        "\"0\"",
+        "7",
+        "\"000000000000000000000000000000000000000000000000000000000000000\"",
+        "\"00000000000000000000000000000000000000000000000000000000000000000\"",
+    };
+    for (size_t i = 0; i < sizeof badhex / sizeof badhex[0]; i++) {
+        snprintf(params, sizeof params, "{\"name\":\"Pip\",\"confirm\":%s}", badhex[i]);
+        const char *d = rpc(nreq("companion.name_confirm", params));
+        CHECK(strstr(d, "\"code\":-32602") != NULL, "bad confirm %s: %s", badhex[i], d);
+    }
+    /* a character just outside each hex range, first or last */
+    static const char OUTSIDE[] = "/:@G`g";
+    for (size_t i = 0; OUTSIDE[i]; i++)
+        for (int at = 0; at < 64; at += 63) {
+            hex(p.confirm, h, false);
+            h[at] = OUTSIDE[i];
+            snprintf(params, sizeof params, "{\"name\":\"Pip\",\"confirm\":\"%s\"}", h);
+            EXPECT(nreq("companion.name_confirm", params),
+                   err(-32602, "confirm: 64 hex digits, as companion.name_preview gave"));
+        }
+    EXPECT(nreq("companion.name_confirm", "{\"name\":\"Pip\"}"),
+           err(-32602, "missing string parameter \\\"confirm\\\""));
+    hex(p.confirm, h, false);
+    snprintf(params, sizeof params, "{\"confirm\":\"%s\"}", h);
+    const char *d = rpc(nreq("companion.name_confirm", params));
+    CHECK(strstr(d, "\"code\":-32602") != NULL, "name is required: %s", d);
+    /* another name's digest, a name that breaks the rules */
+    hex(other.confirm, h, false);
+    snprintf(params, sizeof params, "{\"name\":\"Pip\",\"confirm\":\"%s\"}", h);
+    EXPECT(nreq("companion.name_confirm", params),
+           err(-32072, "CHGN_E_DIGEST: that is not the name you were shown"));
+    snprintf(params, sizeof params, "{\"name\":\"Siri\",\"confirm\":\"%s\"}", h);
+    EXPECT(nreq("companion.name_confirm", params),
+           err(-32072, "CHGN_E_RESERVED: that name is reserved"));
+    CHECK(COMMITS == 0 && !STORE.locked, "nothing kept yet");
+    /* the store cannot keep it: not named */
+    hex(p.confirm, h, true); /* upper case is hex too */
+    snprintf(params, sizeof params, "{\"name\":\"Pip\",\"confirm\":\"%s\"}", h);
+    KEEP_OK = false;
+    EXPECT(nreq("companion.name_confirm", params),
+           err(-32072, "the name could not be kept; the chiglet is not named"));
+    CHECK(COMMITS == 1 && !STORE.locked, "not kept, not named");
+    EXPECT(req("companion.name"), ok("{\"named\":false,\"name\":null}"));
+    /* named */
+    KEEP_OK = true;
+    EXPECT(nreq("companion.name_confirm", params), ok("{\"named\":true,\"name\":\"Pip\"}"));
+    CHECK(COMMITS == 2 && STORE.locked && !strcmp(STORE.name, "Pip") && STORE.seed == p.seed,
+          "named and kept");
+    EXPECT(req("companion.name"), ok("{\"named\":true,\"name\":\"Pip\"}"));
+    /* never renamed */
+    const char *locked = err(-32072, "CHGN_E_LOCKED: this chiglet already has its name; a new name "
+                                     "means a new chiglet");
+    EXPECT(nreq("companion.name_confirm", params), locked);
+    hex(other.confirm, h, false);
+    snprintf(params, sizeof params, "{\"name\":\"Pipa\",\"confirm\":\"%s\"}", h);
+    EXPECT(nreq("companion.name_confirm", params), locked);
+    EXPECT(nreq("companion.name_preview", "{\"name\":\"Pipa\"}"), locked);
+    CHECK(COMMITS == 2 && !strcmp(STORE.name, "Pip"), "the name stays");
+
+    /* every hex digit, both cases: a digest that uses them all */
+    fresh_names();
+    for (uint32_t i = 0; i < 4096; i++) {
+        char nm[8];
+        snprintf(nm, sizeof nm, "N%u", i);
+        chgn_preview(&STORE, nm, strlen(nm), &p);
+        hex(p.confirm, h, i & 1u);
+        bool all = true;
+        for (const char *x = (i & 1u) ? "0123456789ABCDEF" : "0123456789abcdef"; *x; x++)
+            if (!strchr(h, *x)) all = false;
+        if (!all) continue;
+        snprintf(params, sizeof params, "{\"name\":\"%s\",\"confirm\":\"%s\"}", nm, h);
+        char w[100];
+        snprintf(w, sizeof w, "{\"named\":true,\"name\":\"%s\"}", nm);
+        EXPECT(nreq("companion.name_confirm", params), ok("%s", w));
+        if (i & 1u) break;
+        fresh_names();
+    }
+    CHECK(STORE.locked, "a digest with every digit");
+}
+
 int main(void)
 {
     test_group();
@@ -339,6 +572,10 @@ int main(void)
     test_generation();
     test_mood();
     test_step();
+    test_name_off();
+    test_name_preview();
+    test_name_confirm();
+    zxvd_companion_set_names(NULL);
     zxvd_rpc_groups_reset();
     free(OUT.p);
     if (fails) {
