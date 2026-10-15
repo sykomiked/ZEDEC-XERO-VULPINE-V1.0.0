@@ -270,7 +270,7 @@ static uint64_t fms;         /* the fake clock, ms */
 static int down_calls;       /* the source fails this many more requests */
 static int serve_limit = -1; /* full leaves the source serves before failing (-1: all) */
 static uint32_t served;      /* full raw leaves served */
-static uint32_t gets, pb_gets;
+static uint32_t n_gets, pb_gets;
 static uint32_t fresh_seen; /* steps that said a disc had just committed */
 
 static uint64_t fake_ms(void *ctx)
@@ -282,7 +282,7 @@ static uint64_t fake_ms(void *ctx)
 /* tb_get, optionally changing one byte of the image's raw leaves */
 static int get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len)
 {
-    gets++;
+    n_gets++;
     fms += 10; /* every request takes a while: the rate shows */
     if (down_calls > 0) {
         down_calls--;
@@ -493,8 +493,8 @@ static void test_elastic(void)
     down_calls = 3;
     uint64_t t0 = fms;
     CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.next_try == fms + 1000);
-    uint32_t g = gets;
-    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && gets == g); /* asks nobody while waiting */
+    uint32_t g = n_gets;
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && n_gets == g); /* asks nobody while waiting */
     CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
     CHECK(has("  [SWARM_FETCH] disc 2: waiting for peers (no gateway served the next block); "
               "retry 1 in 1 s; 0 bytes so far"));
