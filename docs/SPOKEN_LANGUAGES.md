@@ -25,7 +25,7 @@ be in place:
 
 ## Status
 
-Items 1 and 2 are done for all 104 languages. The other four are shown per
+Items 1 to 3 are done for all 104 languages. The other three are shown per
 language below.
 
 **Translations are machine-made.** The screen reader words of every
@@ -85,7 +85,7 @@ the table.
 | sd | Sindhi | Arab | RTL | Golden Arabic | needed | done |
 | ps | Pashto | Arab | RTL | Golden Arabic | needed | done |
 | sat | Santali | Olck | LTR | Golden OlChiki | needed | none needed |
-| dv | Dhivehi | Thaa | RTL | **missing** | needed | none needed |
+| dv | Dhivehi | Thaa | RTL | Golden Thaana | needed | none needed |
 | ms | Malay | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
 | fil | Filipino | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
 | jv | Javanese | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
@@ -94,7 +94,7 @@ the table.
 | km | Khmer | Khmr | LTR | Golden Khmer | needed | needs reordering |
 | lo | Lao | Laoo | LTR | Golden Lao | needed | needs word breaking |
 | mn | Mongolian | Cyrl | LTR | Golden Cyrillic | needed | none needed |
-| bo | Tibetan | Tibt | LTR | **missing** | needed | needs reordering |
+| bo | Tibetan | Tibt | LTR | Golden Tibetan | needed | needs reordering |
 | yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | input method needed | none needed |
 | kk | Kazakh | Cyrl | LTR | Golden Cyrillic | needed | none needed |
 | uz | Uzbek | Latn | LTR | Golden Latin II | us-intl, partly | none needed |
@@ -153,10 +153,10 @@ Hausa ɓ ɗ ƙ, Yoruba ẹ ọ ṣ with tones, or Vietnamese stacked tones).
 
 ## Gaps, in the order they will be closed
 
-1. **Fonts.** Tibetan and Thaana have no ASCW Golden face. They will get one
-   the same way Golden Cherokee was made: rebuilt from the OFL Noto face and
-   renamed into the family. Newly drawn glyphs in the Golden style would
-   replace them later.
+1. **Fonts.** Done: every script has an ASCW Golden face. Tibetan and Thaana
+   were the last two; their faces were built from the OFL Noto fonts the
+   same way Golden Cherokee was, renamed into the family with its metrics.
+   Newly drawn glyphs in the Golden style can replace them later.
 2. **Keyboards and input methods.** Layouts for every script in the table and
    for the Latin-script languages with letters us-intl lacks. Real input
    methods for Chinese, Cantonese, Japanese and Korean (today there is only

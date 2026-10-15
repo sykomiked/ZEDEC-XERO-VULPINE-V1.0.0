@@ -90,7 +90,8 @@ static void test_scripts(void)
     CHECK(!strcmp(file_of(ascw_face_for_script("Kore")), "ASCW-Golden-Korean.ttf"));
     CHECK(!strcmp(file_of(ascw_face_for_script("Ethi")), "ASCW-Golden-Ethiopic.ttf"));
     CHECK(!strcmp(file_of(ascw_face_for_script("Adlm")), "ASCW-Adlam-Regular.ttf"));
-    CHECK(ascw_face_for_script("Tibt") == -1); /* no ASCW face: platform fonts */
+    CHECK(!strcmp(file_of(ascw_face_for_script("Tibt")), "ASCW-Golden-Tibetan.ttf"));
+    CHECK(ascw_face_for_script("Mong") == -1); /* no ASCW face: platform fonts */
     CHECK(ascw_face_for_script("latn") == -1); /* ISO 15924 case */
     CHECK(ascw_face_for_script(NULL) == -1);
 }
@@ -104,12 +105,16 @@ static void test_locales(void)
     CHECK(!strcmp(file_of(ascw_face_for_locale("ar", "Arab")), "ASCW-Golden-Arabic.ttf"));
     CHECK(!strcmp(file_of(ascw_face_for_locale("far", "Arab")), "ASCW-Golden-Arabic.ttf"));
     CHECK(ascw_face_for_locale("en", "Latn") == ascw_primary());
-    CHECK(ascw_face_for_locale("dz", "Tibt") == -1);
+    CHECK(!strcmp(file_of(ascw_face_for_locale("dz", "Tibt")), "ASCW-Golden-Tibetan.ttf"));
+    CHECK(!strcmp(file_of(ascw_face_for_locale("bo", "Tibt")), "ASCW-Golden-Tibetan.ttf"));
+    CHECK(!strcmp(file_of(ascw_face_for_locale("dv", "Thaa")), "ASCW-Golden-Thaana.ttf"));
+    CHECK(ascw_face_for_locale("mn-Mong", "Mong") == -1);
 
     int32_t ch[4];
     CHECK(ascw_face_chain("en", "Latn", ch, 4) == 1 && ch[0] == ascw_primary());
     CHECK(ascw_face_chain("hi", "Deva", ch, 4) == 2 && ch[1] == ascw_primary());
-    CHECK(ascw_face_chain("dz", "Tibt", ch, 4) == 1 && ch[0] == ascw_primary());
+    CHECK(ascw_face_chain("dz", "Tibt", ch, 4) == 2 && ch[1] == ascw_primary());
+    CHECK(ascw_face_chain("mn-Mong", "Mong", ch, 4) == 1 && ch[0] == ascw_primary());
     CHECK(ascw_face_chain("hi", "Deva", ch, 1) == 1 && ch[0] != ascw_primary());
     CHECK(ascw_face_chain("hi", "Deva", ch, 0) == 0);
 
@@ -128,7 +133,7 @@ static void test_locales(void)
     }
     printf("  %u of %u CLDR locales have an ASCW face for their script\n", with_face,
            i18n_locale_count());
-    CHECK(with_face + 18u == i18n_locale_count()); /* docs/FONTS_COVERAGE.md */
+    CHECK(with_face + 14u == i18n_locale_count()); /* docs/FONTS_COVERAGE.md */
     /* the resolver's answer for a bare region tag still lands on a face */
     const i18n_locale_t *tw = i18n_locale_resolve("zh-TW");
     CHECK(!strcmp(file_of(ascw_face_for_locale(i18n_locale_tag(tw), i18n_locale_script(tw))),
@@ -151,7 +156,9 @@ static void test_codepoints(void)
     CHECK(!strcmp(file_of(ascw_face_for_codepoint(0x13A0)), "ASCW-Golden-Cherokee.ttf"));
     CHECK(!strcmp(file_of(ascw_face_for_codepoint(0x1E900)), "ASCW-Adlam-Regular.ttf"));
     CHECK(!strcmp(file_of(ascw_face_for_codepoint(0x10840)), "ASCW-Golden-Aramaic.ttf"));
-    CHECK(ascw_face_for_codepoint(0x0F40) == -1); /* Tibetan */
+    CHECK(!strcmp(file_of(ascw_face_for_codepoint(0x0F40)), "ASCW-Golden-Tibetan.ttf"));
+    CHECK(!strcmp(file_of(ascw_face_for_codepoint(0x0780)), "ASCW-Golden-Thaana.ttf"));
+    CHECK(ascw_face_for_codepoint(0x1820) == -1); /* Mongolian script */
     CHECK(ascw_face_for_codepoint(0x10FFFD) == -1);
 
     /* the table never claims a code point its face lacks: check against the
