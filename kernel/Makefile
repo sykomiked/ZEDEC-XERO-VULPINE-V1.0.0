@@ -1845,6 +1845,21 @@ ECON_LEDGER = src/pay/pay_ledger.c src/pay/pay_assure.c src/swarm/swarm_market.c
 test-svault:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/svault/test_svault.c src/svault/svault.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_svault -lm && $(ZXV_TMP)/test_svault > $(ZXV_TMP)/test_svault.log 2>&1 && echo "[PASS] test_svault" || { tail -40 $(ZXV_TMP)/test_svault.log; echo "[FAIL] test_svault"; exit 1; }
 
+# Jurisdictional routing matrix (src/jroute, docs/JURISDICTION_ROUTER.md): VINO redemption by zone capability mask,
+# exact p/q vouchers, Belnap BOTH to escrow and NEITHER to local credit; institution profile only, off by default.
+# ASan/UBSan tests, then a freestanding build (aarch64 -mgeneral-regs-only and i386) whose only external symbols are sha256*.
+.PHONY: test-jroute
+test-jroute:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/jroute/test_jroute.c src/jroute/jroute.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_jroute && $(ZXV_TMP)/test_jroute > $(ZXV_TMP)/test_jroute.log 2>&1 && echo "[PASS] test_jroute ($$(tail -1 $(ZXV_TMP)/test_jroute.log))" || { tail -40 $(ZXV_TMP)/test_jroute.log; echo "[FAIL] test_jroute"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/jroute/jroute.c -o $(ZXV_TMP)/jroute_free.o || { echo "[FAIL] jroute freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/jroute_free.o | grep -vE ' sha256' | grep -q .; then nm -u $(ZXV_TMP)/jroute_free.o; echo "[FAIL] jroute freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] jroute freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 external)"
+
+# Producer ingress driver (src/jringress): the optional, detachable layer that pledges physical lots into jroute
+# and turns its physical layer on; leaving it out keeps every allotment on compute and mutual credit.
+.PHONY: test-jringress
+test-jringress:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/jringress/test_jringress.c src/jringress/jringress.c src/jroute/jroute.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_jringress && $(ZXV_TMP)/test_jringress > $(ZXV_TMP)/test_jringress.log 2>&1 && echo "[PASS] test_jringress ($$(tail -1 $(ZXV_TMP)/test_jringress.log))" || { tail -40 $(ZXV_TMP)/test_jringress.log; echo "[FAIL] test_jringress"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/jringress/jringress.c -o $(ZXV_TMP)/jringress_free.o || { echo "[FAIL] jringress freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/jringress_free.o | grep -vE ' (sha256|jr_)' | grep -q .; then nm -u $(ZXV_TMP)/jringress_free.o; echo "[FAIL] jringress freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] jringress freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 and jr_ external)"
+
 # Vino <-> V-Bill swap (src/vswap): exact reserve-ratio swaps, perpetual lock tiers, realised-dividend split; off per jurisdiction.
 .PHONY: test-vswap
 test-vswap:
@@ -1928,6 +1943,8 @@ test-fxepoch:
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
+	$(MAKE) --no-print-directory test-jroute
+	$(MAKE) --no-print-directory test-jringress
 	$(MAKE) --no-print-directory test-vswap
 	$(MAKE) --no-print-directory test-sicily
 	$(MAKE) --no-print-directory test-recovery

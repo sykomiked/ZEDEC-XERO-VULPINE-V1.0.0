@@ -197,6 +197,8 @@ vinea/vna_econ                   settlement # agreements priced in swarm budgets
 vinea/vna_link                   settlement # includes vna_econ.h
 vino                             settlement
 vino_stores                      settlement
+jroute                           settlement # VINO redemption routing by zone capability; lpres + sha256 only
+jringress                        settlement # optional producer ingress for jroute physical lots; detachable
 estate                           settlement # estate succession, recovery and faraid shares on pay_util
 grants                           settlement
 sicily                           settlement

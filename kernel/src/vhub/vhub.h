@@ -37,7 +37,7 @@
  *      `limit` minor units out of a currency per sender per epoch.
  *   H7 PARTIES. A swap's sender and receiver may not be any currency's pool
  *      or V-Bill float (the hub's own accounts), and every amount, the
- *      V-Bills and the payout are at most VHUB_LINE_MAX (2^59), the ledger's
+ *      V-Bills and the disbursement are at most VHUB_LINE_MAX (2^59), the ledger's
  *      per-line cap.
  *
  * HONEST LIMITS. Rules run in software, here and in userland; a tag reports
