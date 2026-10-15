@@ -146,7 +146,11 @@ unsigned long efi_main(EFI_HANDLE image, SYSTAB *st)
                                 st->BootSvc->FreePool);
     hx.models_bad = (u32) em_last_bad;
     hx.models_ok = nmod > em_last_bad ? (u32) (nmod - em_last_bad) : 0;
-    hx.models = nmod == 0 ? 0 /*NEITHER*/ : (nmod < 0 || em_last_bad) ? 2 /*FALSE*/ : 1 /*TRUE*/;
+    /* TRUE only when every listed model was checked and matched; models left
+     * on the swarm partition keep it NEITHER unless one checked was bad. */
+    hx.models = (nmod < 0 || em_last_bad)         ? 2 /*FALSE*/
+                : (nmod > 0 && !em_last_deferred) ? 1 /*TRUE*/
+                                                  : 0 /*NEITHER*/;
 
     /* ---- GetMemoryMap + ExitBootServices (spec 7.4) ---- */
     typedef EFI_STATUS (*GMM)(u64*, void*, u64*, u64*, u32*);

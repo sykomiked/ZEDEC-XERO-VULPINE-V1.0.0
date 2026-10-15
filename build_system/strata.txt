@@ -79,6 +79,7 @@ holographic                      kernel
 hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
 idt                              kernel
 keyboard                         kernel
+layers                           kernel     # release layer manifests L0..L4 and their lineage check at boot; reads the ESP through fat32 and hwdrv
 license                          kernel
 mbcomp                           kernel
 mm                               kernel
@@ -126,6 +127,7 @@ plnp                             transport
 porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
 stream                           transport
 stripe                           transport  # erasure-coded storage service: hw_blk_t members (S1) coded with freight (S2)
+swarmnet                         transport  # bare-metal fetch of missing swarm discs: hwdrv NIC + net + ipfs_node
 swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
 bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
 bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)

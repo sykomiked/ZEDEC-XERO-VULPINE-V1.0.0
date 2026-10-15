@@ -208,8 +208,9 @@ def cid_str(cb):
     return "b" + "".join(out)
 
 
-def _node(links):
-    """links: [(cid_bin, tsize, fsize)] -> (cid_bin, tsize, fsize) of a File node."""
+def _node(links, sink=None):
+    """links: [(cid_bin, tsize, fsize)] -> (cid_bin, tsize, fsize) of a File node.
+    sink(cid_bin, block), when given, receives the node's block."""
     body = bytearray()
     fsize = sum(l[2] for l in links)
     tsum = sum(l[1] for l in links)
@@ -221,11 +222,21 @@ def _node(links):
         data += b"\x20" + varint(l[2])
     body += b"\x0a" + varint(len(data)) + data
     cb = cid_bin(0x70, hashlib.sha256(bytes(body)).digest())
+    if sink:
+        sink(cb, bytes(body))
     return (cb, tsum + len(body), fsize)
 
 
 def file_cid(path):
     """(cid string, size, sha256 hex) the way `ipfs add --cid-version=1` builds it."""
+    cb, _, total, sha = file_dag(path)
+    return cid_str(cb), total, sha
+
+
+def file_dag(path, sink=None):
+    """(root cid_bin, tsize, size, sha256 hex) of the file's UnixFS DAG, the
+    way `ipfs add --cid-version=1` builds it; sink(cid_bin, block) receives
+    every block when given."""
     levels = [[]]
     total, sh = 0, hashlib.sha256()
 
@@ -233,7 +244,7 @@ def file_cid(path):
         if lvl == len(levels):
             levels.append([])
         if len(levels[lvl]) == LINKS:
-            up = _node(levels[lvl])
+            up = _node(levels[lvl], sink)
             levels[lvl] = []
             add(lvl + 1, up)
         levels[lvl].append(link)
@@ -246,7 +257,10 @@ def file_cid(path):
                 break
             total += len(chunk)
             sh.update(chunk)
-            add(0, (cid_bin(0x55, hashlib.sha256(chunk).digest()), len(chunk), len(chunk)))
+            leaf = cid_bin(0x55, hashlib.sha256(chunk).digest())
+            if sink:
+                sink(leaf, chunk)
+            add(0, (leaf, len(chunk), len(chunk)))
             leaves += 1
             if len(chunk) < CHUNK:
                 break
@@ -257,13 +271,13 @@ def file_cid(path):
         lvl = 0
         while lvl < top:
             if levels[lvl]:
-                up = _node(levels[lvl])
+                up = _node(levels[lvl], sink)
                 levels[lvl] = []
                 add(lvl + 1, up)
                 top = len(levels) - 1
             lvl += 1
-        root = _node(levels[top])
-    return cid_str(root[0]), total, sh.hexdigest()
+        root = _node(levels[top], sink)
+    return root[0], root[1], total, sh.hexdigest()
 
 
 # ---- manifest -------------------------------------------------------------------

@@ -446,6 +446,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-climate
 	$(MAKE) --no-print-directory test-mca
 	$(MAKE) --no-print-directory test-opal
+	$(MAKE) --no-print-directory test-swarmnet
+	$(MAKE) --no-print-directory test-layers
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -2196,6 +2198,23 @@ test-vfs:
 test-boot-features:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
 
+.PHONY: test-layers
+# Release layers (src/layers): mk_layers.py's manifests read in their one
+# layout and named by the same CIDs; every other layout refused; lineage
+# L0 -> L4 with the evo_comm admit for L3 and L4 only; and the boot check
+# (layers_boot.c) over a golden disc built in the test.
+test-layers:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind src/layers/test_layers.c src/layers/layers.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers && $(ZXV_TMP)/test_layers > $(ZXV_TMP)/test_layers.log 2>&1 && echo "[PASS] test_layers ($$(tail -1 $(ZXV_TMP)/test_layers.log))" || { tail -40 $(ZXV_TMP)/test_layers.log; echo "[FAIL] test_layers"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
+
+.PHONY: test-swarmnet
+# Swarm-disc fetch (src/swarmnet): URL, HTTP head and manifest.txt parsing, the
+# blank-drive rule, the commit-last writer, a whole fetch from an in-memory
+# bucket, and the post-hydration seal against a fake NIC. The network half runs under QEMU in build_system/test_swarm_fetch.sh.
+test-swarmnet:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/ipfs_node -Isrc/event_space src/swarmnet/test_swarmnet.c src/swarmnet/sn_fetch.c src/swarmnet/sn_proto.c src/swarmnet/sn_seal.c src/hwdrv/hwdrv_core.c src/ipfs_node/ipfsn_dir.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarmnet && $(ZXV_TMP)/test_swarmnet > $(ZXV_TMP)/test_swarmnet.log 2>&1 && echo "[PASS] test_swarmnet ($$(tail -1 $(ZXV_TMP)/test_swarmnet.log))" || { tail -40 $(ZXV_TMP)/test_swarmnet.log; echo "[FAIL] test_swarmnet"; exit 1; }
+
+
 .PHONY: test-opal
 # TCG Opal SED unlock (src/opal): the host against a fake TPer (golden bytes,
 # right/wrong keys, hostile and random responses) and the arbiter key release
@@ -2220,7 +2239,7 @@ HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwd
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 # ACPI: the AML interpreter (src/acpi/aml_*.c) and power management

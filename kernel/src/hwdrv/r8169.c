@@ -508,6 +508,8 @@ hw_verdict_t r8169_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t
     n->drv = t;
     n->send = rtl_send;
     n->recv = rtl_recv;
+    n->on_pci = 1;
+    n->bdf = d->bdf;
     hw_line_s(note, n->link_up ? " link up as " : " link down as ");
     hw_line_s(note, n->name);
     hw_reg_nic(r, n);

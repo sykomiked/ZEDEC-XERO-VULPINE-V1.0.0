@@ -16,5 +16,7 @@ void uart_putc(char c);
 void uart_puts(const char *s);
 void uart_put_hex(uint64_t val);
 void uart_put_dec(uint64_t val);
+/* A received byte, or -1 when none is waiting (never blocks). */
+int uart_try_getc(void);
 
 #endif

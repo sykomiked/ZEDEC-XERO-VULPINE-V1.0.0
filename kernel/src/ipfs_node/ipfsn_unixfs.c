@@ -375,8 +375,19 @@ static int fetch(ipfsn_walk_t *w, const ipfsn_cid_t *cid, ipfsn_get_fn get, void
     return ipfsn_cid_verify(cid, w->leaf, *len); /* never trust the source */
 }
 
-static int open_frame(ipfsn_walk_t *w, uint32_t d, uint32_t len, uint64_t total, ipfsn_write_fn out,
-                      void *octx)
+/* Emit data[0..len), which starts at file offset `at`, minus what lies before
+ * `skip`. */
+static int emit(const uint8_t *data, uint32_t len, uint64_t at, uint64_t skip, ipfsn_write_fn out,
+                void *octx)
+{
+    if (at + len <= skip) return IPFSN_OK;
+    uint32_t cut = at < skip ? (uint32_t) (skip - at) : 0;
+    if (len - cut && out(octx, data + cut, len - cut) != 0) return IPFSN_ERR_IO;
+    return IPFSN_OK;
+}
+
+static int open_frame(ipfsn_walk_t *w, uint32_t d, uint32_t len, uint64_t total, uint64_t skip,
+                      ipfsn_write_fn out, void *octx)
 {
     ipfsn_walk_frame_t *F = &w->f[d];
     if (len > IPFSN_NODE_MAX) return IPFSN_ERR_SPACE;
@@ -389,12 +400,17 @@ static int open_frame(ipfsn_walk_t *w, uint32_t d, uint32_t len, uint64_t total,
     F->link_pos = 0;
     F->bs_pos = 0;
     F->start = total;
-    if (F->fs.data_len && out(octx, F->fs.data, F->fs.data_len) != 0) return IPFSN_ERR_IO;
-    return IPFSN_OK;
+    return emit(F->fs.data, F->fs.data_len, total, skip, out, octx);
 }
 
 int ipfsn_cat(ipfsn_walk_t *w, const ipfsn_cid_t *root, ipfsn_get_fn get, void *get_ctx,
               ipfsn_write_fn out, void *out_ctx, uint64_t *size)
+{
+    return ipfsn_cat_from(w, root, 0, get, get_ctx, out, out_ctx, size);
+}
+
+int ipfsn_cat_from(ipfsn_walk_t *w, const ipfsn_cid_t *root, uint64_t skip, ipfsn_get_fn get,
+                   void *get_ctx, ipfsn_write_fn out, void *out_ctx, uint64_t *size)
 {
     uint32_t len, d = 0;
     uint64_t total = 0;
@@ -403,11 +419,11 @@ int ipfsn_cat(ipfsn_walk_t *w, const ipfsn_cid_t *root, ipfsn_get_fn get, void *
     if (!w || !root || !get || !out || !w->leaf) return IPFSN_ERR_ARG;
     if ((r = fetch(w, root, get, get_ctx, &len)) != 0) return r;
     if (root->codec == IPFSN_MC_RAW) {
-        if (len && out(out_ctx, w->leaf, len) != 0) return IPFSN_ERR_IO;
+        if ((r = emit(w->leaf, len, 0, skip, out, out_ctx)) != 0) return r;
         if (size) *size = len;
         return IPFSN_OK;
     }
-    if ((r = open_frame(w, 0, len, 0, out, out_ctx)) != 0) return r;
+    if ((r = open_frame(w, 0, len, 0, skip, out, out_ctx)) != 0) return r;
     total = w->f[0].fs.data_len;
     for (;;) {
         ipfsn_walk_frame_t *F = &w->f[d];
@@ -425,16 +441,22 @@ int ipfsn_cat(ipfsn_walk_t *w, const ipfsn_cid_t *root, ipfsn_get_fn get, void *
         if (ipfsn_unixfs_next_blocksize(&F->fs, &F->bs_pos, &bs)) return IPFSN_ERR_MALFORMED;
         F->child_start = total;
         F->child_expect = bs;
+        if (total + bs <= skip && bs) {
+            /* wholly before skip: its size is in this node, which was
+             * verified, so the child is not fetched at all */
+            total += bs;
+            continue;
+        }
         if ((r = fetch(w, &l.cid, get, get_ctx, &len)) != 0) return r;
         if (l.cid.codec == IPFSN_MC_RAW) {
             if (len != bs) return IPFSN_ERR_MALFORMED;
-            if (len && out(out_ctx, w->leaf, len) != 0) return IPFSN_ERR_IO;
+            if ((r = emit(w->leaf, len, total, skip, out, out_ctx)) != 0) return r;
             total += len;
             continue;
         }
         if (d + 1 >= IPFSN_DAG_MAX_DEPTH) return IPFSN_ERR_DEPTH;
         d++;
-        if ((r = open_frame(w, d, len, total, out, out_ctx)) != 0) return r;
+        if ((r = open_frame(w, d, len, total, skip, out, out_ctx)) != 0) return r;
         total += w->f[d].fs.data_len;
     }
     if (size) *size = total;

@@ -22,6 +22,7 @@ enum {
     STATUS = 0x8,
     EECD = 0x10,
     EERD = 0x14,
+    MDIC = 0x20,
     CTRL_EXT = 0x18,
     ICR = 0xC0,
     IMS = 0xD0,
@@ -58,7 +59,8 @@ typedef struct fe1k {
     peer_t peer;
     /* fault knobs */
     int reset_stuck, zero_mac, eeprom_dead, unplugged, tx_dd_never, ones, rx_err_next, split_next,
-        func1;
+        func1, mdic_dead;
+    uint16_t phy_ctrl; /* PHY register 0, written through MDIC */
     uint64_t link_at; /* link comes up at this time (after SLU) */
     /* observations */
     uint32_t resets, tx_frames, rx_frames, rx_filtered, rx_full, violations, eerd_reads;
@@ -97,8 +99,8 @@ static void do_reset(fe1k_t *f)
 static int link_ok(fe1k_t *f, uint64_t now)
 {
     uint32_t c = rd(f, CTRL);
-    return !f->unplugged && (c & (1u << 6)) && !(c & ((1u << 3) | (1u << 7) | (1u << 31))) &&
-           now >= f->link_at;
+    return !f->unplugged && !(f->phy_ctrl & 0x0800) && (c & (1u << 6)) &&
+           !(c & ((1u << 3) | (1u << 7) | (1u << 31))) && now >= f->link_at;
 }
 
 static int rx_accept(fe1k_t *f, const uint8_t *fr)
@@ -229,6 +231,16 @@ static void tick(fake_dev_t *d, uint64_t now)
         uint32_t a = (eerd >> shift) & 0x3F;
         f->eerd_reads++;
         wr(f, EERD, (eerd & ~1u & 0xFFFF) | done | ((uint32_t) f->eeprom[a] << 16));
+    }
+    uint32_t mdic = rd(f, MDIC);
+    if (mdic && !(mdic & (1u << 28)) && !f->mdic_dead) {
+        uint32_t phy = (mdic >> 21) & 31, reg = (mdic >> 16) & 31, op = (mdic >> 26) & 3;
+        if (phy != 1 || op != 1)
+            wr(f, MDIC, mdic | (1u << 28) | (1u << 30)); /* only PHY 1 writes answer */
+        else {
+            if (reg == 0) f->phy_ctrl = (uint16_t) mdic;
+            wr(f, MDIC, mdic | (1u << 28));
+        }
     }
     uint32_t st = rd(f, STATUS);
     wr(f, STATUS, link_ok(f, now) ? st | 2 : st & ~2u);
@@ -686,6 +698,47 @@ static void test_tx_stall_and_link_down(void)
     env_free(e);
 }
 
+/* The post-hydration seal: PHY powered down, Bus Master and Memory Space
+ * cleared and read back, the wire dead. */
+static void test_power_off(void)
+{
+    env_t *e = env_new(0x100E, K_8254X, 0);
+    hw_nic_t *n = e->r.nic[0];
+    uint32_t *cmd = &e->fp.devs[0]->cfg[1];
+    CHECK(n->on_pci && n->bdf == HW_BDF(0, 5, 0) && (*cmd & 6) == 6);
+    CHECK(hw_nic_power_off(&e->fp.plat, n) == (HW_NIC_OFF_PCI | HW_NIC_OFF_PHY));
+    CHECK((*cmd & 6) == 0 && (e->f->phy_ctrl & 0x0800) && n->link_up == 0);
+    CHECK(rd(e->f, RCTL) == 0 && rd(e->f, TCTL) == 0 && !(rd(e->f, CTRL) & (1u << 6)));
+    wait_us(&e->fp, 10);
+    CHECK(!(rd(e->f, STATUS) & 2));
+    env_free(e);
+
+    /* a PHY that never answers MDIC: the bus is still cut, PHY not claimed */
+    e = env_new(0x10D3, K_82574, 0);
+    e->f->mdic_dead = 1;
+    n = e->r.nic[0];
+    CHECK(hw_nic_power_off(&e->fp.plat, n) == HW_NIC_OFF_PCI);
+    CHECK((e->fp.devs[0]->cfg[1] & 6) == 0 && e->f->phy_ctrl == 0);
+    env_free(e);
+
+    /* PCH: MAC stopped, PHY left alone (no semaphore), bus cut */
+    e = env_new(0x15B7, K_PCH, 0);
+    n = e->r.nic[0];
+    CHECK(hw_nic_power_off(&e->fp.plat, n) == HW_NIC_OFF_PCI);
+    CHECK((e->fp.devs[0]->cfg[1] & 6) == 0 && e->f->phy_ctrl == 0 && rd(e->f, RCTL) == 0);
+    env_free(e);
+
+    /* a command register that keeps its bits: reported, not claimed */
+    e = env_new(0x100E, K_8254X, 0);
+    e->fp.devs[0]->cmd_locked = 1;
+    CHECK(hw_nic_power_off(&e->fp.plat, e->r.nic[0]) == -1);
+    env_free(e);
+
+    /* not on PCI: refused, nothing touched */
+    hw_nic_t off = {0};
+    CHECK(hw_nic_power_off(0, &off) == -1);
+}
+
 static void test_no_bar_unknown_full_dma(void)
 {
     fake_plat_t fp;
@@ -788,6 +841,7 @@ int main(void)
     test_faults();
     test_82546_port_b();
     test_tx_stall_and_link_down();
+    test_power_off();
     test_no_bar_unknown_full_dma();
     test_probe_and_selftest();
     printf("test_e1000: %d checks, %d failures\n", fk_checks, fk_failures);

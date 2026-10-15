@@ -1,19 +1,26 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* efi_models.h — check the AI models a golden disc carries, from the EFI stub.
+/* efi_models.h — check the boot partition's AI models from the EFI stub.
  *
- * Included by both kernel/arch/{arm64,x86_64}/efi_stub.c. Before the stub
- * leaves boot services it opens the volume it was loaded from (LoadedImage ->
- * DeviceHandle -> SimpleFileSystem) and looks for \ZXV\MODELS.SHA, written by
- * build_system/mk_golden_disc.sh. One line per model:
+ * Included by kernel/arch/arm64/efi_stub.c. Before the stub leaves boot
+ * services it opens the volume it was loaded from (LoadedImage ->
+ * DeviceHandle -> SimpleFileSystem) and looks for \ZXV\MODELS.SHA, written
+ * by build_system/mk_golden_disc.sh. One line per model:
  *
- *     <sha256, 64 hex> <bytes> <file name in \ZXV\MODELS\>
+ *     <sha256, 64 hex> <bytes> <name> <esp|swarm> <8.3 file name>
  *
- * Each file is streamed through SHA-256 in 4 MiB reads and compared with its
- * line, so a corrupt or swapped model is caught on the machine that boots it.
- * It prints one serial line per model and a summary:
+ * Only the "esp" models (the small boot core in \ZXV\MODELS\) are checked
+ * here: each is streamed through SHA-256 in 4 MiB reads, never loaded
+ * whole, and compared with its line. "swarm" models live on the disc's
+ * second partition, which firmware does not mount; they are counted as
+ * deferred. The x86_64 stub does not include this file at all: its kernel
+ * reads the disc itself and checks every model after boot
+ * (kernel/src/hwdrv/hw_models.h). arm64 keeps this check until its kernel
+ * has a PCI storage driver. It prints one serial line per model and a
+ * summary:
  *
  *     [MODEL_OK] <name> <bytes>      or  [MODEL_BAD] <name> <why>
+ *     [MODELS_DEFERRED] <s> on the swarm partition ...
  *     [MODELS_OK] <n> verified       or  [MODELS_FAIL] <bad> of <n>
  *
  * A plain disc has no MODELS.SHA and this prints nothing. A failed model never
@@ -202,11 +209,12 @@ static void em_putn(const u8 *s, u32 n)
 }
 
 /* Models the last efi_check_models call found bad (missing, wrong size or
- * hash, unreadable manifest line). */
-static int em_last_bad;
+ * hash, unreadable manifest line), and swarm models it left to the kernel. */
+static int em_last_bad, em_last_deferred;
 
 /* Returns 0 when the disc has no model manifest, -1 when the check could
- * not run, else the number checked (em_last_bad of them bad). */
+ * not run, else the number of boot-partition models checked (em_last_bad of
+ * them bad; em_last_deferred swarm models not checked). */
 static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *allocate_pool,
                             void *free_pool)
 {
@@ -218,6 +226,7 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     em_guid(&sfs_guid, 0x964E5B22, 0x6459, 0x11d2, 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B);
 
     em_last_bad = 0;
+    em_last_deferred = 0;
     EM_LOADED_IMAGE *li = 0;
     EM_SFS *sfs = 0;
     EM_FILE *root = 0, *mf = 0;
@@ -241,7 +250,7 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     if (mf->Read(mf, &mlen, man)) mlen = 0;
     mf->Close(mf);
 
-    int n = 0, bad = 0;
+    int n = 0, bad = 0, deferred = 0;
     u64 i = 0;
     while (i < mlen) {
         u64 e = i;
@@ -249,7 +258,7 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
         u64 ln = e;
         if (ln > i && man[ln - 1] == '\r') ln--;
         if (ln > i && man[i] != '#') {
-            /* <64 hex> <bytes> <name> */
+            /* <64 hex> <bytes> <name> <esp|swarm> <8.3 file> */
             u8 want[32];
             int ok = (ln - i) > 67;
             for (int k = 0; ok && k < 32; k++) {
@@ -266,16 +275,33 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
                 size = size * 10 + (man[p++] - '0');
             if (ok && (p >= ln || man[p] != ' ')) ok = 0;
             p++;
-            const u8 *name = man + p;
-            u32 nlen = (u32) (ln > p ? ln - p : 0);
-            if (nlen == 0 || nlen > 120) ok = 0;
-            n++;
+            /* three space-separated words: name, partition, 8.3 file */
+            u64 w[3], wl[3];
+            for (int k = 0; k < 3; k++) {
+                w[k] = p;
+                while (p < ln && man[p] != ' ') p++;
+                wl[k] = p - w[k];
+                if (wl[k] == 0) ok = 0;
+                p++;
+            }
+            if (p <= ln) ok = 0; /* a fourth word */
+            const u8 *name = man + w[0], *part = man + w[1], *file = man + w[2];
+            u32 nlen = (u32) wl[0];
+            if (nlen > 63 || wl[2] > 12) ok = 0;
+            int swarm = wl[1] == 5 && part[0] == 's' && part[1] == 'w' && part[2] == 'a' &&
+                        part[3] == 'r' && part[4] == 'm';
+            int esp = wl[1] == 3 && part[0] == 'e' && part[1] == 's' && part[2] == 'p';
+            if (!swarm && !esp) ok = 0;
             if (!ok) {
+                n++;
                 uputs("[MODEL_BAD] unreadable manifest line\n");
                 bad++;
+            } else if (swarm) {
+                deferred++;
             } else {
+                n++;
                 EM_FILE *f = 0;
-                if (em_open(root, "\\ZXV\\MODELS\\", name, nlen, &f)) {
+                if (em_open(root, "\\ZXV\\MODELS\\", file, (u32) wl[2], &f)) {
                     uputs("[MODEL_BAD] ");
                     em_putn(name, nlen);
                     uputs(" missing\n");
@@ -311,7 +337,14 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     FreePool(man);
     root->Close(root);
     em_last_bad = bad;
+    em_last_deferred = deferred;
+    if (deferred) {
+        uputs("[MODELS_DEFERRED] ");
+        udec((u64) deferred);
+        uputs(" on the swarm partition, not checked: this kernel cannot read that partition yet\n");
+    }
     if (n == 0) {
+        if (deferred) return 0;
         uputs("[MODELS_FAIL] MODELS.SHA lists no models\n");
         return -1;
     }

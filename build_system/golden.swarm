@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# golden.swarm — which swarm disc each model from build_system/golden.models
+# goes on, one "<group> <model name>" per line. Each group becomes one swarm
+# disc, numbered from 2 in the order groups first appear here:
+# dist/discs/zxv-swarm-disc<N>-<group>.img, its partition named
+# ZXV_SWARM_<GROUP>. Swarm discs hold no machine code, so the same discs
+# serve every architecture's core disc. A disc may not pass 1.8 GB; split a
+# group that grows past it. Models in build_system/golden.core go on the
+# core disc instead, and every model is on exactly one disc.
+#
+# Groups: 1-16 characters of a-z and 0-9 (vision, audio, reason, ...).
+
+reason qwen2.5-1.5b-instruct-q4_k_m.gguf

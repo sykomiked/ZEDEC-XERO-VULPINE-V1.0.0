@@ -67,6 +67,7 @@ static void cfg_write(void *ctx, uint32_t bdf, uint32_t off, uint32_t val)
     }
     if (off >= 0x10 && off < 0x28) return; /* unimplemented BAR: hardwired to 0 */
     if (off == 0x04) {                     /* command: low half writable, status read-only */
+        if (d->cmd_locked) return;
         d->cfg[1] = (d->cfg[1] & 0xFFFF0000u) | (val & 0xFFFF);
         return;
     }

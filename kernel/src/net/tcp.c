@@ -66,6 +66,7 @@ static uint32_t emit(tcp_conn_t *c, uint8_t *out, uint32_t cap, uint8_t flags,
     /* Advertise what is actually free, not a constant: claiming space we do
      * not have invites the peer to send data we must then drop. */
     p16(out + 14, (uint16_t)(TCP_RCV_BUF - c->rx_len));
+    c->rcv_adv = TCP_RCV_BUF - c->rx_len;
     p16(out + 16, 0);                    /* checksum, filled below */
     p16(out + 18, 0);                    /* urgent pointer */
 
@@ -388,4 +389,15 @@ uint32_t tcp_read(tcp_conn_t *c, uint8_t *dst, uint32_t cap) {
         c->rx_len = 0;
     }
     return n;
+}
+
+uint32_t tcp_window_update(tcp_conn_t *c, uint8_t *out, uint32_t cap)
+{
+    if (!c || (c->state != TCPS_ESTABLISHED && c->state != TCPS_FIN_WAIT_1 &&
+               c->state != TCPS_FIN_WAIT_2))
+        return 0;
+    uint32_t wnd = TCP_RCV_BUF - c->rx_len;
+    uint32_t step = TCP_RCV_BUF / 2u < TCP_MAX_SEG ? TCP_RCV_BUF / 2u : TCP_MAX_SEG;
+    if (wnd < c->rcv_adv + step) return 0;
+    return emit(c, out, cap, TCPF_ACK, 0, 0, false);
 }

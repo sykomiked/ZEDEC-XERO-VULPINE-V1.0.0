@@ -10,8 +10,9 @@
 # (36N9 Genetics may sell the OS). sha256 and size are copied from the
 # upstream file, never invented; the URL pins an upstream commit so the file
 # behind it cannot change. The builder refuses a download whose sha256 or size
-# differs, and writes \ZXV\MODELS.SHA so the EFI stub checks them again on
-# every boot (kernel/arch/efi_models.h).
+# differs, and writes \ZXV\MODELS.SHA so the OS checks them again on the
+# machine that boots the disc (kernel/src/hwdrv/hw_models.h). Which disc each
+# model goes on: build_system/golden.core and build_system/golden.swarm.
 #
 # Not eligible: Qwen2.5-3B (Qwen Research licence, no commercial use) and
 # Qwen2.5-72B (Qwen licence, user cap). 0.5B, 1.5B, 7B, 14B and 32B are Apache-2.0.
