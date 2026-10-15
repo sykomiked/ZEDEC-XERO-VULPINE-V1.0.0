@@ -195,6 +195,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Credit: **Michael Laurence Curzi & 36N9 GENETICS LLC**, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.
 
+The ready-to-run ZXV system is licensed to end users, and supported, by **SCENIC BYPASS CONSULTING, LLC** (Arizona). Support tickets go to SCENIC BYPASS CONSULTING, LLC, not to 36N9 GENETICS LLC: see [SUPPORT.md](SUPPORT.md).
+
 Under section 4(d) of the Apache License, anyone who redistributes this software or a work derived from it must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.
 
 **Hardware designs** under [`hardware/`](hardware/) are not covered by the Apache License. They are source-available under the [ZXV Hardware License 1.1](hardware/LICENSE): free for noncommercial use, with an 18% gross royalty to ILLUMAHEART FOUNDATION for commercial manufacture, and required attribution. See [`LICENSE-HARDWARE.md`](LICENSE-HARDWARE.md) and [`hardware/README.md`](hardware/README.md).

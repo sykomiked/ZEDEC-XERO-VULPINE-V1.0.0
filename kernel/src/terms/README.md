@@ -78,10 +78,17 @@ fingerprint, and everyone sees it again at their next sign-in.
   97.113 and the per-jurisdiction radio table). Choosing an amateur-radio
   transport (AX.25, APRS, JS8, VARA on ham frequencies) switches the link to
   cleartext signed-only mode. Encryption and settlement traffic are refused
-  there, not silently sent. Today the AX.25/APRS code (`src/net/dtmf.c`) only
-  encodes frames and is not connected to the encrypted mesh or the
-  settlement paths. The transport switch that enforces cleartext signed-only
-  mode is being built with the protocol twins (AFTP and the radio adapters).
+  there, not silently sent. The protocol-twins router (PR #137,
+  `docs/P2P_PROTOCOL_TWINS.md` section 4.3) enforces it: on AX.25/APRS and HF
+  it sends only plain-text signed emergency, priority, welfare or drill
+  messages, and the person cannot change that. Counsel should confirm that
+  an open signature is not "obscuring meaning" under Part 97. The AX.25/APRS
+  encoders on main (`src/net/dtmf.c`) only build frames and are not connected
+  to the encrypted mesh or the settlement paths.
+- §20.5, support: support tickets go to SCENIC BYPASS CONSULTING, LLC, at
+  the contact shown under Settings, About, Support (see `SUPPORT.md`). The
+  address lives on that screen, not in the agreement, so it can change
+  without a new agreement version.
 
 Translations are added as `agreement/<lang>.txt`, each pointing at the English
 reference; a language whose local law makes it govern is marked controlling

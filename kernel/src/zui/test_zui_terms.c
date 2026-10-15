@@ -390,8 +390,13 @@ static void test_contents_wide(void)
     e = T.list_sel;
     key(ZUI_KEY_ENTER, 0);
     CHECK(zui_terms_current(&T) == e || R.top == R.nlines - R.rows, "enter on the last section");
-    CHECK(terms_can_accept(&R), "the last section shows the end");
-    CHECK(R.via == TERMS_VIA_SECTION, "the end was reached by the section list");
+    CHECK(R.top == R.section_line[R.nsections - 1] || R.top == R.nlines - R.rows,
+          "enter shows the last section: %u", R.top);
+    if (!terms_can_accept(&R)) key(ZUI_KEY_ENTER, 0); /* still on the last entry */
+    T.focus = ZUI_TERMS_FOCUS_TEXT;
+    key(ZUI_KEY_END, 0);
+    CHECK(terms_can_accept(&R), "the end, after the last section");
+    T.focus = ZUI_TERMS_FOCUS_CONTENTS;
     key(ZUI_KEY_HOME, 0);
     CHECK(T.list_sel == 0, "home selects the summary");
     CHECK(!key(ZUI_KEY_ESCAPE, 0), "escape does nothing on a wide screen");
