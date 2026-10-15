@@ -277,7 +277,7 @@ static void env_free(env_t *e)
 
 static void test_ids(void)
 {
-    static const uint16_t want[] = {0x8169, 0x8167, 0x8168, 0x8161, 0x8136};
+    static const uint16_t want[] = {0x8169, 0x8167, 0x8168, 0x8161, 0x8136, 0x8125, 0x3000};
     uint32_t n = 0;
     for (const hw_id_t *id = r8169_ids; id->vendor; id++) {
         n++;

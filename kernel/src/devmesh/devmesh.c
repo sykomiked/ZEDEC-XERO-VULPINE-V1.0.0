@@ -449,6 +449,7 @@ static void forget_mesh(dm_mesh_t *m)
     m->inv_active = 0;
     m->hs_active = 0;
     dm_settings_init(&m->settings);
+    dm_mset(m->pol, 0, sizeof m->pol);
 }
 
 static void broadcast_roster(dm_mesh_t *m, const uint8_t *except, uint64_t now)

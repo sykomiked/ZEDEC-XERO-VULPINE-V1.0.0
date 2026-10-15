@@ -6,7 +6,8 @@
  * pq_matrix-signed, ML-KEM-1024 + X25519 keyed frames through an in-memory
  * queue: pairing by QR and by short code, SAS agreement, wrong codes,
  * session resumption, remote prompts with streamed replies, fallback when
- * the home node disappears, routing rules, settings sync conflicts (and a
+ * the home node disappears, routing rules, the owner's route policies (always
+ * here, always home, pinned) and link classes, settings sync conflicts (and a
  * randomised convergence property), money confirmation on a held device,
  * and revocation lock-out.
  *
@@ -52,6 +53,8 @@ typedef struct {
     uint32_t last_sas;
     int sas_events, paired, revoked_ev, self_revoked, fallback, caps_ev, sync_ev, peer_down;
     uint32_t fallback_id;
+    int unavail; /* DM_EV_REQ_UNAVAILABLE */
+    uint32_t unavail_id;
     char reply[8192];
     uint32_t reply_len;
     int reply_final, reply_calls;
@@ -122,6 +125,10 @@ static void h_event(void *ctx, const dm_event_t *ev)
     case DM_EV_REQ_FALLBACK:
         nd->fallback++;
         nd->fallback_id = (uint32_t) ev->u64;
+        break;
+    case DM_EV_REQ_UNAVAILABLE:
+        nd->unavail++;
+        nd->unavail_id = (uint32_t) ev->u64;
         break;
     case DM_EV_CAPS:
         nd->caps_ev++;
@@ -587,6 +594,226 @@ static void test_remote_and_fallback(void)
     pump();
 }
 
+/* --- route policy (MOBILE_COMMON 3.2) and link class (3.3) --- */
+static void reconnect_all(void)
+{
+    for (int i = 0; i < 3; i++) dm_tick(&g_mesh[i], g_now);
+    drop_queue();
+    dm_connect(&g_mesh[PHONE], ID(HOME), g_now);
+    pump();
+    dm_connect(&g_mesh[TABLET], ID(HOME), g_now);
+    pump();
+    dm_connect(&g_mesh[TABLET], ID(PHONE), g_now);
+    pump();
+}
+
+static void test_route_policy(void)
+{
+    printf("route policy: automatic, always here, always home, pinned; link class\n");
+    dm_mesh_t *ph = &g_mesh[PHONE];
+    uint8_t tgt[DM_ID_BYTES], pin[DM_ID_BYTES], z[DM_ID_BYTES], stranger[DM_ID_BYTES];
+    memset(z, 0, sizeof z);
+    memset(stranger, 0xAB, sizeof stranger);
+    uint32_t rid;
+    const char *prompt = "Where am I?";
+    const uint32_t plen = (uint32_t) strlen(prompt);
+    CHECK(dm_peer_up(ph, ID(HOME), g_now) && dm_peer_up(ph, ID(TABLET), g_now),
+          "policy: phone sees home and tablet");
+
+    /* defaults and argument checks */
+    memset(pin, 0x55, sizeof pin);
+    CHECK(dm_policy_get(ph, ID(PHONE), DM_REQ_PROMPT, pin) == DM_POL_AUTO && !memcmp(pin, z, 16),
+          "policy: default is automatic, no pin");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_WALLET, DM_POL_HERE, 0) == DM_ERR_PERM,
+          "policy: money is never policy-routed");
+    CHECK(dm_policy_set(ph, ID(PHONE), 9, DM_POL_HERE, 0) == DM_ERR_ARG, "policy: unknown kind");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, 4, 0) == DM_ERR_ARG,
+          "policy: unknown policy");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, 0) == DM_ERR_ARG &&
+              dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, z) == DM_ERR_ARG,
+          "policy: pinned needs a device");
+    CHECK(dm_policy_set(ph, z, DM_REQ_PROMPT, DM_POL_HERE, 0) == DM_ERR_ARG,
+          "policy: zero device id refused");
+    CHECK(dm_policy_get(ph, ID(PHONE), DM_REQ_PROMPT, 0) == DM_POL_AUTO,
+          "policy: refused sets change nothing");
+
+    /* automatic baseline (unmetered phone, home and tablet live) */
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(HOME), DM_ID_BYTES),
+          "automatic: small prompt goes home");
+    CHECK(dm_route(ph, DM_REQ_MEDIA, 0, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(HOME), DM_ID_BYTES),
+          "automatic: media goes to the streaming device");
+
+    /* Always here */
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_HERE, 0) == DM_OK &&
+              dm_policy_get(ph, ID(PHONE), DM_REQ_PROMPT, 0) == DM_POL_HERE,
+          "always here: set");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_LOCAL &&
+              !memcmp(tgt, ID(PHONE), DM_ID_BYTES),
+          "always here: small prompt stays on the phone");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_LARGE, g_now, tgt) == DM_ROUTE_LOCAL_DEGRADED &&
+              !memcmp(tgt, ID(PHONE), DM_ID_BYTES),
+          "always here: large prompt degrades, never leaves");
+    CHECK(dm_request(ph, ID(HOME), DM_REQ_PROMPT, (const uint8_t *) prompt, plen, g_now, &rid) ==
+              DM_ERR_PERM,
+          "always here: a direct send is refused");
+    /* task kinds are independent */
+    CHECK(dm_route(ph, DM_REQ_FILE, 0, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(HOME), DM_ID_BYTES),
+          "kinds independent: files still automatic");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_FILE, DM_POL_HERE, 0) == DM_OK &&
+              dm_route(ph, DM_REQ_FILE, 0, g_now, tgt) == DM_ROUTE_UNAVAILABLE,
+          "always here: no local file store, unavailable");
+    CHECK(dm_route(ph, DM_REQ_MEDIA, 0, g_now, tgt) == DM_ROUTE_REMOTE,
+          "kinds independent: media still automatic");
+    /* devices are independent: a policy held for the tablet does not steer the phone */
+    CHECK(dm_policy_set(ph, ID(TABLET), DM_REQ_MEDIA, DM_POL_HERE, 0) == DM_OK &&
+              dm_route(ph, DM_REQ_MEDIA, 0, g_now, tgt) == DM_ROUTE_REMOTE &&
+              dm_policy_get(ph, ID(TABLET), DM_REQ_MEDIA, 0) == DM_POL_HERE,
+          "devices independent: tablet's entry leaves the phone automatic");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_FILE, DM_POL_AUTO, 0) == DM_OK &&
+              dm_policy_set(ph, ID(TABLET), DM_REQ_MEDIA, DM_POL_AUTO, 0) == DM_OK &&
+              dm_policy_get(ph, ID(TABLET), DM_REQ_MEDIA, 0) == DM_POL_AUTO,
+          "automatic clears an entry");
+
+    /* Pinned */
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, ID(TABLET)) == DM_OK &&
+              dm_policy_get(ph, ID(PHONE), DM_REQ_PROMPT, pin) == DM_POL_PINNED &&
+              !memcmp(pin, ID(TABLET), DM_ID_BYTES),
+          "pinned: set (replaces always here)");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(TABLET), DM_ID_BYTES),
+          "pinned: small prompt goes to the tablet, not home");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_LARGE, g_now, tgt) == DM_ROUTE_UNAVAILABLE &&
+              !memcmp(tgt, ID(PHONE), DM_ID_BYTES),
+          "pinned: tablet cannot run large, unavailable (no fallback)");
+    CHECK(dm_request(ph, ID(HOME), DM_REQ_PROMPT, (const uint8_t *) prompt, plen, g_now, &rid) ==
+              DM_ERR_PERM,
+          "pinned: send to another device refused");
+    int fb0 = g_node[PHONE].fallback, un0 = g_node[PHONE].unavail;
+    CHECK(dm_request(ph, ID(TABLET), DM_REQ_PROMPT, (const uint8_t *) prompt, plen, g_now, &rid) ==
+              DM_OK,
+          "pinned: send to the pinned device");
+    pump(); /* the tablet does not answer */
+    g_now += DM_REQ_TIMEOUT_MS + 1u;
+    dm_tick(ph, g_now);
+    CHECK(g_node[PHONE].unavail == un0 + 1 && g_node[PHONE].unavail_id == rid &&
+              g_node[PHONE].fallback == fb0,
+          "pinned: 20 s silence reports unavailable, no local takeover");
+    reconnect_all();
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, stranger) == DM_OK &&
+              dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_UNAVAILABLE &&
+              !memcmp(tgt, ID(PHONE), DM_ID_BYTES),
+          "pinned: unknown device, unavailable");
+    dm_peer_t *tp = peer_of(PHONE, TABLET);
+    uint64_t tab_rx = tp->s.last_rx_ms;
+    tp->s.last_rx_ms = g_now - DM_LIVE_MS - 1u;
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, ID(TABLET)) == DM_OK &&
+              dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_UNAVAILABLE,
+          "pinned: paired device silent, unavailable (no takeover)");
+    tp->s.last_rx_ms = tab_rx;
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_PINNED, ID(PHONE)) == DM_OK &&
+              dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_LOCAL,
+          "pinned to itself: runs here");
+
+    /* Always home */
+    dm_caps_t c;
+    memcpy(&c, &ph->caps, sizeof c);
+    c.net = DM_NET_METERED;
+    dm_caps_update(ph, &c, g_now);
+    pump();
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_HOME, 0) == DM_OK &&
+              dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(HOME), DM_ID_BYTES),
+          "always home: goes home even on a metered link");
+    CHECK(dm_request(ph, ID(TABLET), DM_REQ_PROMPT, (const uint8_t *) prompt, plen, g_now, &rid) ==
+              DM_ERR_PERM,
+          "always home: send to a non-home device refused");
+    dm_peer_t *hp = peer_of(PHONE, HOME);
+    uint64_t saved_rx = hp->s.last_rx_ms;
+    hp->s.last_rx_ms = g_now - DM_LIVE_MS - 1u;
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_UNAVAILABLE &&
+              !memcmp(tgt, ID(PHONE), DM_ID_BYTES),
+          "always home: home unreachable, unavailable (not local, not the tablet)");
+    CHECK(dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_AUTO, 0) == DM_OK &&
+              dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_LOCAL,
+          "automatic again: home unreachable, metered, local small model");
+    hp->s.last_rx_ms = saved_rx;
+    CHECK(dm_policy_set(&g_mesh[HOME], ID(HOME), DM_REQ_PROMPT, DM_POL_HOME, 0) == DM_OK &&
+              dm_route(&g_mesh[HOME], DM_REQ_PROMPT, DM_MODEL_LARGE, g_now, tgt) == DM_ROUTE_LOCAL,
+          "always home on a home device: runs there");
+    dm_policy_set(&g_mesh[HOME], ID(HOME), DM_REQ_PROMPT, DM_POL_AUTO, 0);
+
+    /* bounded table */
+    uint8_t dev[DM_ID_BYTES];
+    memset(dev, 0x11, sizeof dev);
+    uint32_t ok = 0;
+    for (uint32_t i = 0; i < DM_POL_MAX; i++) {
+        dev[0] = (uint8_t) (i + 1u);
+        ok += dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_HERE, 0) == DM_OK;
+    }
+    dev[0] = 0xF0;
+    CHECK(ok == DM_POL_MAX && dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_HERE, 0) == DM_ERR_FULL,
+          "policy table is bounded");
+    dev[0] = 1;
+    CHECK(dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_HOME, 0) == DM_OK &&
+              dm_policy_get(ph, dev, DM_REQ_MEDIA, 0) == DM_POL_HOME,
+          "full table: an existing entry can still change");
+    for (uint32_t i = 0; i < DM_POL_MAX; i++) {
+        dev[0] = (uint8_t) (i + 1u);
+        dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_AUTO, 0);
+    }
+    dev[0] = 0xF0;
+    CHECK(dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_HERE, 0) == DM_OK &&
+              dm_policy_set(ph, dev, DM_REQ_MEDIA, DM_POL_AUTO, 0) == DM_OK,
+          "cleared entries are reused");
+
+    /* link class: satellite carries no media, LoRa no requests */
+    c.net = DM_NET_SATELLITE;
+    dm_caps_update(ph, &c, g_now);
+    pump();
+    CHECK(dm_route(ph, DM_REQ_MEDIA, 0, g_now, tgt) == DM_ROUTE_WAIT_LINK,
+          "satellite: media waits for a better link");
+    CHECK(dm_request(ph, ID(HOME), DM_REQ_MEDIA, (const uint8_t *) "v", 1, g_now, &rid) ==
+              DM_ERR_TRANSPORT,
+          "satellite: media send refused");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_LOCAL,
+          "satellite: metered rule keeps small prompts local");
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_LARGE, g_now, tgt) == DM_ROUTE_REMOTE,
+          "satellite: text answers may come home");
+    dm_policy_set(ph, ID(PHONE), DM_REQ_MEDIA, DM_POL_PINNED, ID(HOME));
+    CHECK(dm_route(ph, DM_REQ_MEDIA, 0, g_now, tgt) == DM_ROUTE_WAIT_LINK,
+          "satellite: pinned media waits too");
+    dm_policy_set(ph, ID(PHONE), DM_REQ_MEDIA, DM_POL_AUTO, 0);
+    c.net = DM_NET_LORA;
+    dm_caps_update(ph, &c, g_now);
+    pump();
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_LARGE, g_now, tgt) == DM_ROUTE_LOCAL_DEGRADED,
+          "LoRa: large prompt runs degraded here");
+    CHECK(dm_route(ph, DM_REQ_FILE, 0, g_now, tgt) == DM_ROUTE_WAIT_LINK,
+          "LoRa: file action waits");
+    CHECK(dm_route(ph, DM_REQ_WALLET, 0, g_now, tgt) == DM_ROUTE_CONFIRM,
+          "LoRa: approvals still go");
+    dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_HOME, 0);
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_WAIT_LINK,
+          "LoRa: always home waits for a link");
+    dm_policy_set(ph, ID(PHONE), DM_REQ_PROMPT, DM_POL_AUTO, 0);
+    uint8_t cw[DM_CAPS_WIRE];
+    dm_caps_t cd;
+    int32_t cn = dm_caps_encode(&c, cw, sizeof cw);
+    CHECK(cn > 0 && dm_caps_decode(&cd, cw, (uint32_t) cn) == DM_OK && cd.net == DM_NET_LORA,
+          "caps carry the LoRa link class");
+    cw[14] = DM_NET_MAX + 1u;
+    CHECK(dm_caps_decode(&cd, cw, (uint32_t) cn) == DM_ERR_FORMAT, "unknown link class refused");
+    c.net = DM_NET_UNMETERED;
+    dm_caps_update(ph, &c, g_now);
+    pump();
+    CHECK(dm_route(ph, DM_REQ_PROMPT, DM_MODEL_SMALL, g_now, tgt) == DM_ROUTE_REMOTE &&
+              !memcmp(tgt, ID(HOME), DM_ID_BYTES),
+          "back to automatic: small prompt goes home");
+}
+
 /* --- settings sync --- */
 static void test_sync(void)
 {
@@ -974,6 +1201,7 @@ int main(int argc, char **argv)
     test_pair_code();
     test_resume();
     test_remote_and_fallback();
+    test_route_policy();
     test_sync();
     test_money();
     test_capmkt_glue();

@@ -421,6 +421,12 @@ verify-all: test
 	$(MAKE) --no-print-directory test-hwdrv
 	$(MAKE) --no-print-directory test-x86-extable
 	$(MAKE) --no-print-directory test-aml
+	$(MAKE) --no-print-directory test-devprof
+	$(MAKE) --no-print-directory test-arbiter
+	$(MAKE) --no-print-directory test-stripe
+	$(MAKE) --no-print-directory test-climate
+	$(MAKE) --no-print-directory test-mca
+	$(MAKE) --no-print-directory test-opal
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1668,9 +1674,47 @@ test-lpres-hex:
 .PHONY: test-print
 test-print:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/print src/print/test_print.c src/print/ipp.c src/print/escl.c -o $(ZXV_TMP)/test_print && $(ZXV_TMP)/test_print > $(ZXV_TMP)/test_print.log 2>&1 && echo "[PASS] test_print ($$(tail -1 $(ZXV_TMP)/test_print.log))" || { cat $(ZXV_TMP)/test_print.log; echo "[FAIL] test_print"; exit 1; }
+# Thermal modes and the climate shell controller (src/climate): briefcase modes and
+# scram, the server start interlock and door rule, handheld charging, the integer
+# dew point, and the ct_budget feed (climate_ct).
+.PHONY: test-climate
+test-climate:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/climate -Isrc/cotier -Isrc/tensor src/climate/test_climate.c src/climate/climate.c src/climate/climate_ct.c src/climate/climate_arb.c $(ARBITER_SRCS) src/cotier/ct_budget.c src/tensor/zt.c src/tensor/zt_isf.c -lm -o $(ZXV_TMP)/test_climate && $(ZXV_TMP)/test_climate > $(ZXV_TMP)/test_climate.log 2>&1 && echo "[PASS] test_climate ($$(tail -1 $(ZXV_TMP)/test_climate.log))" || { cat $(ZXV_TMP)/test_climate.log; echo "[FAIL] test_climate"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in src/climate/climate.c src/climate/climate_ct.c src/climate/climate_arb.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/climate -Isrc/cotier -Isrc/tensor -c $$f -o $(ZXV_TMP)/climate_free.o || { echo "[FAIL] climate freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/climate_free.o | grep -v -e '^ *U arb_host_' | grep -q .; then nm -u $(ZXV_TMP)/climate_free.o; echo "[FAIL] climate freestanding: external symbols in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] climate freestanding (aarch64, x86_64, riscv64: no libc; climate_arb needs only arb_host_)"
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
+# Device profiles (src/devprof): the briefcase, server and handheld specs as data, the OS
+# support table and the gap matrix generated from it (docs/DEVICE_COMPAT_MATRIX.md).
+.PHONY: test-arbiter
+# The arbiter mailbox (src/arbiter): both ends over one window, then the
+# protocol code alone for the three kernel targets, which must need no libc.
+test-arbiter:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/arbiter src/arbiter/test_arbiter.c $(ARBITER_SRCS) -o $(ZXV_TMP)/test_arbiter && $(ZXV_TMP)/test_arbiter > $(ZXV_TMP)/test_arbiter.log 2>&1 && echo "[PASS] test_arbiter ($$(tail -1 $(ZXV_TMP)/test_arbiter.log))" || { cat $(ZXV_TMP)/test_arbiter.log; echo "[FAIL] test_arbiter"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(ARBITER_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/arbiter -c $$f -o $(ZXV_TMP)/arb_free.o || { echo "[FAIL] arbiter freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/arb_free.o | grep -v -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/arb_free.o; echo "[FAIL] arbiter freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] arbiter freestanding (aarch64, x86_64, riscv64: no libc)"
+
+.PHONY: test-mca
+# Machine check (src/mca): the decoder, log ring and thresholds under ASan,
+# then the module alone for the three kernel targets, which must need no libc.
+test-mca:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/mca src/mca/test_mca.c src/mca/mca.c -o $(ZXV_TMP)/test_mca && $(ZXV_TMP)/test_mca > $(ZXV_TMP)/test_mca.log 2>&1 && echo "[PASS] test_mca ($$(tail -1 $(ZXV_TMP)/test_mca.log))" || { cat $(ZXV_TMP)/test_mca.log; echo "[FAIL] test_mca"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/mca -c src/mca/mca.c -o $(ZXV_TMP)/mca_free.o || { echo "[FAIL] mca freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/mca_free.o | grep -q .; then nm -u $(ZXV_TMP)/mca_free.o; echo "[FAIL] mca freestanding: external symbols ($$t)"; exit 1; fi; done; echo "[PASS] mca freestanding (aarch64, x86_64, riscv64: no libc)"
+
+.PHONY: test-devprof device-matrix
+test-devprof:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/devprof src/devprof/test_devprof.c src/devprof/devprof.c -o $(ZXV_TMP)/test_devprof && $(ZXV_TMP)/test_devprof > $(ZXV_TMP)/test_devprof.log 2>&1 && echo "[PASS] test_devprof ($$(tail -1 $(ZXV_TMP)/test_devprof.log))" || { cat $(ZXV_TMP)/test_devprof.log; echo "[FAIL] test_devprof"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/devprof -c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_free.o || { echo "[FAIL] devprof freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/devprof_free.o | grep -q .; then nm -u $(ZXV_TMP)/devprof_free.o; echo "[FAIL] devprof freestanding: external symbols ($$t)"; exit 1; fi; done; echo "[PASS] devprof freestanding (aarch64, x86_64, riscv64: no libc)"
+device-matrix:
+	@gcc -std=c11 -O1 -Wall -Werror -Wextra -Isrc/devprof src/devprof/devprof_matrix.c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_matrix && $(ZXV_TMP)/devprof_matrix
+
+# The erasure-coded storage service (src/stripe): k + m members over hw_blk_t, freight's
+# Reed-Solomon code, SHA-256 per piece, log-structured slots with the header written last.
+# Freestanding: stripe.o, freight.o and sha256.o together leave no symbol undefined.
+.PHONY: test-stripe
+test-stripe:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/stripe -Isrc/freight -Isrc/hwdrv -Isrc/robin_debanks src/stripe/test_stripe.c src/stripe/stripe.c src/freight/freight.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_stripe && $(ZXV_TMP)/test_stripe > $(ZXV_TMP)/test_stripe.log 2>&1 && echo "[PASS] test_stripe ($$(tail -1 $(ZXV_TMP)/test_stripe.log))" || { cat $(ZXV_TMP)/test_stripe.log; echo "[FAIL] test_stripe"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in stripe/stripe freight/freight robin_debanks/sha256; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/stripe -Isrc/freight -Isrc/hwdrv -Isrc/robin_debanks -c src/$$f.c -o $(ZXV_TMP)/stripe_free_$${f##*/}.o || { echo "[FAIL] stripe freestanding $$t $$f"; exit 1; }; done; objs="$(ZXV_TMP)/stripe_free_stripe.o $(ZXV_TMP)/stripe_free_freight.o $(ZXV_TMP)/stripe_free_sha256.o"; def=$$(nm --defined-only $$objs | awk 'NF==3{print $$3}'); for u in $$(nm -u $$objs | awk 'NF==2{print $$2}'); do echo "$$def" | grep -qxF "$$u" || { echo "[FAIL] stripe freestanding: external symbol $$u ($$t)"; exit 1; }; done; done; echo "[PASS] stripe freestanding (aarch64, x86_64, riscv64: only freight and sha256)"
+
 .PHONY: test-pmm
 test-pmm:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/pmm src/pmm/test_pmm.c src/pmm/pmm.c -o $(ZXV_TMP)/test_pmm && $(ZXV_TMP)/test_pmm > $(ZXV_TMP)/test_pmm.log 2>&1 && echo "[PASS] test_pmm ($$(tail -1 $(ZXV_TMP)/test_pmm.log))" || { cat $(ZXV_TMP)/test_pmm.log; echo "[FAIL] test_pmm"; exit 1; }
@@ -1867,6 +1911,16 @@ test-vfs:
 test-boot-features:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
 
+.PHONY: test-opal
+# TCG Opal SED unlock (src/opal): the host against a fake TPer (golden bytes,
+# right/wrong keys, hostile and random responses) and the arbiter key release
+# end to end; then freestanding builds that may reference only opal_/arb_.
+OPAL_SRCS = src/opal/opal.c src/opal/opal_arb.c
+test-opal:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/opal src/opal/test_opal.c src/opal/fake_tper.c $(OPAL_SRCS) $(ARBITER_SRCS) -o $(ZXV_TMP)/test_opal && $(ZXV_TMP)/test_opal > $(ZXV_TMP)/test_opal.log 2>&1 && echo "[PASS] test_opal ($$(tail -1 $(ZXV_TMP)/test_opal.log))" || { cat $(ZXV_TMP)/test_opal.log; echo "[FAIL] test_opal"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(OPAL_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/opal -c $$f -o $(ZXV_TMP)/opal_free.o || { echo "[FAIL] opal freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/opal_free.o | grep -v -e '^ *U opal_' -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/opal_free.o; echo "[FAIL] opal freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] opal freestanding (aarch64, x86_64, riscv64: no libc)"
+
+
 .PHONY: test-blockdev test-hwdrv test-x86-extable
 # The x86_64 #GP handler's exception-fixup lookup (fault-safe RDMSR/WRMSR).
 test-x86-extable:
@@ -1875,11 +1929,13 @@ test-x86-extable:
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
 # drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
 # build_system/hw_drivers_check.sh.
+# arbmbox.c speaks the arbiter protocol, so every driver test links it.
+ARBITER_SRCS = src/arbiter/arb_proto.c src/arbiter/arb_host.c src/arbiter/arb_dev.c
 HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c,$(sort $(wildcard src/hwdrv/*.c)))
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 # ACPI: the AML interpreter (src/acpi/aml_*.c) and power management

@@ -7,6 +7,14 @@
  * the repository root.
  */
 #include "riscv_arch.h"
+#include "riscv_board.h"
+
+/* The context that routes external interrupts to this hart in S-mode, where
+ * the kernel runs under OpenSBI (riscv_board.h explains the numbering). */
+static uint32_t plic_ctx(void)
+{
+    return rv_plic_s_context(rv_board(), (uint32_t) riscv_boot_hart);
+}
 
 typedef void (*irq_handler_t)(void);
 static irq_handler_t plic_handlers[256];
@@ -20,45 +28,45 @@ void plic_init(void) {
         mmio_write(PLIC_PRIORITY(i), 1);
     }
 
-    /* Set threshold to 0 (allow all priorities) for hart 0 M-mode */
-    mmio_write(PLIC_THRESHOLD(0), 0);
+    /* Set threshold to 0 (allow all priorities) for this hart's S context */
+    mmio_write(PLIC_THRESHOLD(plic_ctx()), 0);
 
     /* Disable all interrupts initially */
     for (i = 0; i < 8; i++) {
-        mmio_write(PLIC_ENABLE(0, i * 32), 0);
+        mmio_write(PLIC_ENABLE(plic_ctx(), i * 32), 0);
     }
 }
 
 void plic_register_handler(uint32_t irq, irq_handler_t handler) {
     if (irq < 256) plic_handlers[irq] = handler;
 
-    /* Enable interrupt for hart 0 M-mode */
+    /* Enable interrupt for this hart's S context */
     uint32_t reg = irq / 32;
     uint32_t bit = 1 << (irq % 32);
-    uint32_t current = mmio_read(PLIC_ENABLE(0, reg * 32));
-    mmio_write(PLIC_ENABLE(0, reg * 32), current | bit);
+    uint32_t current = mmio_read(PLIC_ENABLE(plic_ctx(), reg * 32));
+    mmio_write(PLIC_ENABLE(plic_ctx(), reg * 32), current | bit);
 }
 
 void plic_enable_irq(uint32_t irq) {
     uint32_t reg = irq / 32;
     uint32_t bit = 1 << (irq % 32);
-    uint32_t current = mmio_read(PLIC_ENABLE(0, reg * 32));
-    mmio_write(PLIC_ENABLE(0, reg * 32), current | bit);
+    uint32_t current = mmio_read(PLIC_ENABLE(plic_ctx(), reg * 32));
+    mmio_write(PLIC_ENABLE(plic_ctx(), reg * 32), current | bit);
 }
 
 void plic_disable_irq(uint32_t irq) {
     uint32_t reg = irq / 32;
     uint32_t bit = 1 << (irq % 32);
-    uint32_t current = mmio_read(PLIC_ENABLE(0, reg * 32));
-    mmio_write(PLIC_ENABLE(0, reg * 32), current & ~bit);
+    uint32_t current = mmio_read(PLIC_ENABLE(plic_ctx(), reg * 32));
+    mmio_write(PLIC_ENABLE(plic_ctx(), reg * 32), current & ~bit);
 }
 
 uint32_t plic_claim(void) {
-    return mmio_read(PLIC_CLAIM(0));
+    return mmio_read(PLIC_CLAIM(plic_ctx()));
 }
 
 void plic_complete(uint32_t irq) {
-    mmio_write(PLIC_CLAIM(0), irq);
+    mmio_write(PLIC_CLAIM(plic_ctx()), irq);
 }
 
 void plic_handle_irq(void) {

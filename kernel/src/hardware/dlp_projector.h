@@ -8,8 +8,24 @@
  *
  * Every number this file computes is real, checkable physics/optics,
  * not a claim about what Unihertz's exact silicon does:
- *   - Native array (854x480), 5.4um mirror pitch, +/-17 deg tilt, and
- *     120Hz max input rate match TI's DLP2010 .2" WVGA datasheet --
+ *   - Two chipset profiles (dlp_profile_t, DLP_PROFILE_*):
+ *     DLP2010    native array (854x480), 5.4um mirror pitch, +/-17 deg
+ *                tilt, and 120Hz max input rate match TI's DLP2010 .2"
+ *                WVGA datasheet (the Tank model; dlp_projector_init()).
+ *     DLP230NP   the 1080p engine for the briefcase projector bay
+ *                (hardware/docs/oem/PLATFORM_COMMON.md section 4). That
+ *                spec names no TI chipset ("laser-phosphor DLP
+ *                short-throw module, 1920 x 1080 native"), so the
+ *                DLP230NP .23 1080p DMD + DLPC3436 controller is the
+ *                stated default, not a part the spec chose. Its 960x540
+ *                array shows four pixels per mirror per frame (TI
+ *                DLPS144G 6.1), i.e. a built-in 2x2 sub-frame shift.
+ *                The spec says "1920 x 1080 native"; this chipset is
+ *                1080p on screen, not native. That conflict is open.
+ *     Every profile value is from TI's public product pages and data
+ *     sheets (DLPS123C for DLP2010, DLPS144G for DLP230NP), cited per
+ *     field in dlp_projector.c.
+ *   - The DLP2010 is
  *     the DLP Pico chipset class publicly reported as consistent with
  *     these products (Tank's DLP is NOT confirmed by Unihertz to be
  *     this exact TI part number; the class characteristics are what
@@ -53,7 +69,8 @@
 /* ===== Real physical constants ===== */
 #define DLP_SPEED_OF_LIGHT_M_S   SR_FROM_INT(299792458)   /* c, exact by SI definition */
 
-/* ===== TI DLP2010-class .2" WVGA DMD (see file header) ===== */
+/* ===== TI DLP2010-class .2" WVGA DMD (see file header) =====
+ * Kept as the DLP_PROFILE_DLP2010 values; code selects by profile. */
 #define DLP_NATIVE_WIDTH         854
 #define DLP_NATIVE_HEIGHT        480
 #define DLP_MIRROR_PITCH_UM_X100 540   /* 5.40 um, x100 to stay integer at the API boundary */
@@ -62,11 +79,50 @@
 
 #define DLP_MAX_LABEL_LEN        32
 
+/* ===== Chipset profiles ===== */
+#define DLP_PROFILE_DLP2010  0u /* .2" WVGA pico (Tank) */
+#define DLP_PROFILE_DLP230NP 1u /* .23" 1080p (briefcase projector bay default) */
+#define DLP_PROFILE_COUNT    2u
+
+/* Host (video source -> controller) interfaces, bit mask */
+#define DLP_HOST_PARALLEL24 0x01u /* 24-bit parallel RGB */
+#define DLP_HOST_BT656      0x02u
+#define DLP_HOST_MIPI_DSI   0x04u
+
+/* Everything is an integer at a stated scale; no floating point. */
+typedef struct dlp_profile {
+    uint8_t id;             /* DLP_PROFILE_* */
+    const char *dmd;        /* TI DMD part number */
+    const char *controller; /* TI display controller(s) */
+    const char *pmic;       /* TI PMIC / LED driver(s) */
+    uint32_t native_width;  /* micromirror columns */
+    uint32_t native_height; /* micromirror rows */
+    uint32_t screen_width;  /* pixels on screen as the chipset ships */
+    uint32_t screen_height;
+    uint32_t shift_x, shift_y;     /* built-in sub-frame shift: screen / native */
+    uint32_t mirror_pitch_um_x100; /* micromirror pitch, um x100 */
+    uint32_t mirror_tilt_deg_x10;  /* micromirror tilt, deg x10 */
+    uint32_t diagonal_mm_x100;     /* active array diagonal, mm x100 */
+    uint32_t max_input_hz;         /* chipset input frame rate, max */
+    uint32_t controller_max_hz;    /* controller input frame rate, max (any resolution) */
+    uint8_t dmd_sublvds_bits;      /* controller -> DMD SubLVDS data bus width */
+    uint32_t dmd_dclk_max_mhz;     /* DMD high-speed DCLK, recommended max */
+    uint8_t host_if;               /* DLP_HOST_* mask the controller(s) accept */
+    uint32_t host_pclk_max_mhz;    /* controller input pixel clock, max */
+    uint32_t dmd_power_typ_uw;     /* DMD supply power dissipation PTOTAL, typ, uW */
+    uint32_t dmd_power_max_uw;     /* PTOTAL, max, uW */
+    uint32_t system_lumens_max;    /* TI's max system brightness for the chipset, lm */
+} dlp_profile_t;
+
+/* NULL for an unknown id. */
+const dlp_profile_t *dlp_profile_get(uint32_t id);
+
 /* ===== Device ===== */
 
 typedef struct dlp_projector {
     uint32_t device_id;
     char name[DLP_MAX_LABEL_LEN];
+    uint32_t profile; /* DLP_PROFILE_* this device was built from */
 
     /* Native DMD array (fixed, from the datasheet class above) */
     uint32_t native_width;
@@ -120,6 +176,13 @@ typedef struct dlp_projector {
 
 /* ===== API ===== */
 
+/* Initialise from chipset profile `profile` (DLP_PROFILE_*): native
+ * array, tilt and input rate from the profile, and the profile's built-in
+ * sub-frame shift (1x1 for DLP2010, 2x2 for DLP230NP). Returns false and
+ * leaves *p untouched for an unknown profile. */
+bool dlp_projector_init_profile(dlp_projector_t *p, uint32_t device_id, const char *name,
+                                uint32_t profile);
+/* dlp_projector_init_profile(p, device_id, name, DLP_PROFILE_DLP2010). */
 void dlp_projector_init(dlp_projector_t *p, uint32_t device_id, const char *name);
 
 /* Configure the N-way actuator and recompute apparent resolution +
@@ -148,7 +211,8 @@ surplus_real_t dlp_projector_laser_measure(dlp_projector_t *p, surplus_real_t ro
  * tilted by theta at throw distance d, the far/near edge width ratio
  * scales as (d +/- h*sin(theta)) / d -- approximated here via tan(theta)
  * scaled by a normalized geometry factor so scale_top/scale_bottom
- * bound to [~0.5, ~1.5] over the DMD's own +/-17 deg mechanical range. */
+ * bound to [~0.5, ~1.5] over the DMD's own mechanical tilt range
+ * (the profile's mirror tilt: +/-17 deg for both profiles). */
 void dlp_projector_set_tilt(dlp_projector_t *p, surplus_real_t tilt_deg);
 
 /* Advance exactly one event cycle (call from the kernel's event-cycle

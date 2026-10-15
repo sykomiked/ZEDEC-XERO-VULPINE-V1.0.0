@@ -24,6 +24,7 @@ event_space                      base
 fractal                          base
 invproof                         base       # a witness check over bytes; zxvfs and codec use it
 lpres                            base       # the four-valued truth type; sched, vfs, net, pqsec use it
+mca                              base       # machine-check decode and log; pure, the x86_64 glue reads the MSRs
 mixmat                           base
 mlkem/keccak                     base       # SHA-3/SHAKE permutation
 onepolicy                        base
@@ -47,6 +48,9 @@ tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verificat
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 qr                               base       # QR Code encoder: pure bytes to modules
+devprof                          base       # the device line as data: profiles, OS support table, gap matrix
+arbiter                          base       # arbiter mailbox protocol: both ends, rings over a shared window, no hardware access
+opal                             base       # TCG Opal host for SED unlock: tokens, framing, methods over a two-callback transport; opal_arb.c takes the key from arbiter (base)
 
 # ---- S1 kernel and hardware abstraction
 acpi                             kernel     # tables, AML interpreter, sleep states, power button, battery, thermal
@@ -57,6 +61,7 @@ blockdev                         kernel
 bluetooth                        kernel
 cellular_multikernel             kernel
 choice                           kernel
+climate                          kernel     # thermal modes, climate shell, start interlock, integer dew point
 clock                            kernel
 codec                            kernel
 crash                            kernel     # crash records on disk and boot modes (safe, recovery)
@@ -118,6 +123,7 @@ net                              transport
 plnp                             transport
 porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
 stream                           transport
+stripe                           transport  # erasure-coded storage service: hw_blk_t members (S1) coded with freight (S2)
 swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
 bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
 bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)
@@ -170,6 +176,7 @@ spatial                          logic      # exact geometry, four-valued sensor
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
 chiglet                          ai
+climate/climate_ct               ai         # the climate controller's caps and headroom as ct_budget metrics (includes ct_budget.h)
 cotier                           ai
 epu                              ai
 harmonic                         ai         # the harmonic carrier reads tensor residuals and swarm budgets

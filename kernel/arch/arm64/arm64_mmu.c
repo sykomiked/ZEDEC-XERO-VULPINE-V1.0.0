@@ -54,6 +54,12 @@ static uint64_t l2_table[TABLE_ENTRIES] __attribute__((aligned(4096)));
  * kernel image) is refined again to 4KB pages by kernel_l3. */
 static uint64_t kernel_ram_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
 static uint64_t kernel_l3[TABLE_ENTRIES]     __attribute__((aligned(4096)));
+/* Peripheral GB above the kernel's RAM GB. RK3588, Zynq UltraScale+ and
+ * Versal keep their console UART and GIC in 0xC0000000-0xFFFFFFFF, which the
+ * ram_base loop below would otherwise map as one Normal 1GB block. When a
+ * board profile puts peripherals there, that GB gets this 2MB-grained table
+ * with the same padded device windows the first GB uses. */
+static uint64_t periph_hi_l2[TABLE_ENTRIES] __attribute__((aligned(4096)));
 
 /* Expose the kernel's L1 entries so USER page tables can share the kernel's
  * identity mapping (VA 1-4GB, where kernel code/data/RAM live). Without this,
@@ -108,6 +114,26 @@ static bool block_overlaps_periph(uint64_t block_start, uint64_t periph_base, ui
     return block_start < win_end && block_end > win_start;
 }
 
+/* True if the 2MB block at addr lies in any of the board's device windows. */
+static bool block_is_device(const board_profile_t *bp, uint64_t addr)
+{
+    return block_overlaps_periph(addr, bp->uart_base, 0x1000000) ||
+           block_overlaps_periph(addr, bp->gicd_base, 0x1000000) ||
+           (bp->gicr_base && block_overlaps_periph(addr, bp->gicr_base, 0x1000000)) ||
+           (bp->gicc_base && block_overlaps_periph(addr, bp->gicc_base, 0x1000000)) ||
+           (bp->virtio_mmio_base && block_overlaps_periph(addr, bp->virtio_mmio_base, 0x1000000));
+}
+
+/* The GB (other than 0 and the kernel's RAM GB) holding the board's console
+ * UART and GIC, or 0 when they all sit in the first GB (QEMU virt, Tank). */
+static uint64_t periph_hi_gb(const board_profile_t *bp)
+{
+    uint64_t ram_gb = bp->ram_base >> 30;
+    uint64_t g = bp->uart_base >> 30;
+    if (g == 0 || g == ram_gb) g = bp->gicd_base >> 30;
+    return (g == 0 || g == ram_gb) ? 0 : g;
+}
+
 void arm64_mmu_init(void) {
     const board_profile_t *bp = board_get_profile();
 
@@ -142,6 +168,18 @@ void arm64_mmu_init(void) {
      * enabled, causing an immediate Level-1 instruction-abort loop. */
     uint64_t ram_base_gb = bp->ram_base / (1024ULL * 1024 * 1024);
     for (i = (int)ram_base_gb; i < (int)ram_base_gb + 4 && i < TABLE_ENTRIES; i++) {
+        if (periph_hi_gb(bp) == (uint64_t) i) {
+            uint64_t gb = (uint64_t) i << 30;
+            for (int j = 0; j < TABLE_ENTRIES; j++) {
+                uint64_t addr = gb + (uint64_t) j * (2 * 1024 * 1024);
+                uint64_t attr = block_is_device(bp, addr)
+                                    ? (PTE_ATTR_DEVICE | PTE_AF | PTE_SH_OUTER)
+                                    : (PTE_ATTR_NORMAL | PTE_AF | PTE_SH_INNER);
+                periph_hi_l2[j] = addr | attr | PTE_BLOCK | PTE_VALID | PTE_AP_RW;
+            }
+            l1_table[i] = ((uint64_t) periph_hi_l2) | PTE_TABLE | PTE_VALID;
+            continue;
+        }
         if (i == (int)ram_base_gb) {
             /* First RAM GB via a table (not a 1GB block) so we can enforce W^X
              * on the kernel image that lives in its first 2MB. */
@@ -204,15 +242,7 @@ void arm64_mmu_init(void) {
          * virt). Both are mapped unconditionally because this runs
          * BEFORE gic_init(): the MMU must cover both layouts so the
          * GICD_PIDR2 probe itself has somewhere to read from. */
-        bool is_device =
-            block_overlaps_periph(addr, bp->uart_base, 0x1000000) ||
-            block_overlaps_periph(addr, bp->gicd_base, 0x1000000) ||
-            (bp->gicr_base &&
-             block_overlaps_periph(addr, bp->gicr_base, 0x1000000)) ||
-            (bp->gicc_base &&
-             block_overlaps_periph(addr, bp->gicc_base, 0x1000000)) ||
-            (bp->virtio_mmio_base &&
-             block_overlaps_periph(addr, bp->virtio_mmio_base, 0x1000000));
+        bool is_device = block_is_device(bp, addr);
 
         if (is_device) {
             attr = PTE_ATTR_DEVICE | PTE_AF | PTE_SH_OUTER;

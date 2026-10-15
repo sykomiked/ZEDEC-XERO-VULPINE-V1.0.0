@@ -19,8 +19,15 @@
 .section .text.boot
 .global _start
 _start:
-    /* Hart id is in a0 (from OpenSBI); if not hart 0, park */
-    bnez a0, park
+    /* One hart boots: the first to swap boot_claim from 0 to 1, whatever its
+     * id. OpenSBI's boot hart is whichever hart wins its own lottery, and on
+     * PolarFire SoC hart 0 is the M-mode-only E51 that never enters S-mode,
+     * so "park unless hart 0" parked every hart there. Any later arrival
+     * (a firmware that releases every hart here) parks. */
+    la t0, boot_claim
+    li t1, 1
+    amoswap.w t1, t1, (t0)
+    bnez t1, park
 
     /* Preserve what the FIRMWARE told us about this machine across the BSS
      * clear (a0 = hart id, a1 = device-tree blob). s0/s1 are callee-saved and
@@ -126,3 +133,9 @@ trap_vector:
 
     /* Return from trap (S-mode) */
     sret
+
+/* In .data, not .bss: the claim is taken before the BSS clear runs. */
+.section .data
+.align 2
+boot_claim:
+    .word 0

@@ -180,6 +180,90 @@ int main(void)
         assert(feq(cov, expected_cov, 1e-9));
     }
 
+    /* ===== chipset profiles: DLP2010 (Tank) and DLP230NP (1080p bay) ===== */
+    {
+        const dlp_profile_t *a = dlp_profile_get(DLP_PROFILE_DLP2010);
+        const dlp_profile_t *n = dlp_profile_get(DLP_PROFILE_DLP230NP);
+        assert(a && n && dlp_profile_get(DLP_PROFILE_COUNT) == NULL);
+        assert(a->id == DLP_PROFILE_DLP2010 && n->id == DLP_PROFILE_DLP230NP);
+        /* TI DLPS123C / product page */
+        assert(strcmp(a->dmd, "DLP2010") == 0);
+        assert(a->native_width == 854 && a->native_height == 480);
+        assert(a->screen_width == 854 && a->screen_height == 480);
+        assert(a->mirror_pitch_um_x100 == 540 && a->mirror_tilt_deg_x10 == 170);
+        assert(a->diagonal_mm_x100 == 529 && a->max_input_hz == 120);
+        assert(a->dmd_sublvds_bits == 4 && a->dmd_power_typ_uw == 90800);
+        /* TI DLPS144G / product pages (DLP230NP, DLPC3436) */
+        assert(strcmp(n->dmd, "DLP230NP") == 0 && strcmp(n->controller, "DLPC3436") == 0);
+        assert(n->native_width == 960 && n->native_height == 540);
+        assert(n->screen_width == 1920 && n->screen_height == 1080);
+        assert(n->native_width * n->shift_x == n->screen_width);
+        assert(n->native_height * n->shift_y == n->screen_height);
+        assert(n->mirror_pitch_um_x100 == 540 && n->mirror_tilt_deg_x10 == 170);
+        assert(n->diagonal_mm_x100 == 595 && n->max_input_hz == 60);
+        assert(n->dmd_sublvds_bits == 8 && n->dmd_dclk_max_mhz == 540);
+        assert(n->host_if == DLP_HOST_PARALLEL24 && n->host_pclk_max_mhz == 155);
+        assert(n->dmd_power_typ_uw == 151220 && n->dmd_power_max_uw == 190300);
+        assert(n->dmd_power_typ_uw <= n->dmd_power_max_uw);
+        assert(a->dmd_power_typ_uw <= a->dmd_power_max_uw);
+        /* active array = pitch x mirrors: 5.4 um x 960 = 5.184 mm (DLPS144G) */
+        assert(n->mirror_pitch_um_x100 * n->native_width == 518400);
+
+        /* dlp_projector_init is the DLP2010 profile, unchanged */
+        dlp_projector_t d, e;
+        memset(&d, 0, sizeof d);
+        memset(&e, 0xFF, sizeof e);
+        dlp_projector_init(&d, 11, "same");
+        assert(dlp_projector_init_profile(&e, 11, "same", DLP_PROFILE_DLP2010));
+        assert(d.profile == DLP_PROFILE_DLP2010 && e.profile == DLP_PROFILE_DLP2010);
+        assert(d.native_width == e.native_width && d.native_height == e.native_height);
+        assert(d.mirror_tilt_deg == e.mirror_tilt_deg && d.max_input_hz == e.max_input_hz);
+        assert(d.apparent_width == e.apparent_width && d.actuator_freq_hz == e.actuator_freq_hz);
+        assert(d.mirror_tilt_deg == SR_FROM_INT(17));
+
+        /* 1080p profile: native 960x540, 2x2 built-in shift, 60 Hz */
+        dlp_projector_t q;
+        assert(dlp_projector_init_profile(&q, 12, "Bay-1080p", DLP_PROFILE_DLP230NP));
+        assert(q.profile == DLP_PROFILE_DLP230NP);
+        assert(q.native_width == 960 && q.native_height == 540);
+        assert(q.apparent_width == 1920 && q.apparent_height == 1080);
+        assert(q.shift_factor_x == 2 && q.shift_factor_y == 2);
+        assert(q.max_input_hz == 60 && q.actuator_freq_hz == 240u);
+        assert(dlp_projector_verify_actuator_sync(&q));
+        assert(feq(q.mirror_tilt_deg, 17.0, 1e-9));
+
+        /* four sub-frames per frame from init */
+        for (int i = 1; i <= 3; i++) {
+            dlp_projector_tick(&q);
+            assert(q.subframe_index == (uint32_t) i && !q.irq_frame_ready);
+        }
+        dlp_projector_tick(&q);
+        assert(q.subframe_index == 0 && q.irq_frame_ready);
+
+        /* photometry uses the profile's own aspect (540/960) */
+        double lumens = 450.0, tr = 0.25, dist = 0.55;
+        dlp_projector_set_photometrics(&q, SR_FROM_FLOAT(lumens), SR_FROM_FLOAT(tr));
+        double got = dlp_projector_compute_screen_lux(&q, SR_FROM_FLOAT(dist));
+        double w = dist / tr, h = w * (540.0 / 960.0);
+        assert(feq(got, lumens / (w * h), 1e-9));
+
+        /* keystone normalised to the profile's tilt */
+        dlp_projector_set_tilt(&q, SR_FROM_FLOAT(8.5));
+        assert(feq(q.keystone_scale_top, 0.75, 1e-9));
+        assert(feq(q.keystone_scale_bottom, 1.25, 1e-9));
+
+        /* wobulation still overrides from the profile's native array */
+        assert(dlp_projector_set_wobulation(&q, 1, 1));
+        assert(q.apparent_width == 960 && q.actuator_freq_hz == 60u);
+
+        /* unknown profile: refused, the device is not touched */
+        dlp_projector_t u;
+        memset(&u, 0x5A, sizeof u);
+        assert(!dlp_projector_init_profile(&u, 13, "bad", DLP_PROFILE_COUNT));
+        assert(u.device_id == 0x5A5A5A5Au);
+        assert(!dlp_projector_init_profile(NULL, 13, "bad", DLP_PROFILE_DLP2010));
+    }
+
     printf("All DLP Projector tests passed\n");
     return 0;
 }

@@ -9,6 +9,7 @@
  * the repository root.
  */
 #include "riscv_arch.h"
+#include "riscv_board.h"
 
 typedef void (*timer_callback_t)(void);
 static timer_callback_t timer_cb = 0;
@@ -50,7 +51,9 @@ static inline void sbi_set_timer(uint64_t next) {
  * riscv_dtb_addr. Reading it needs an FDT parser this file does not have; until
  * that lands, a board with a different timebase gets a proportionally wrong tick
  * rate (it still boots and still ticks — the rate is off, nothing faults). */
-#define RISCV_TIMEBASE_HZ 10000000UL
+/* The board profile (riscv_board.h) carries the timebase: 10 MHz on QEMU
+ * virt, 1 MHz on PolarFire SoC. */
+#define RISCV_TIMEBASE_HZ ((unsigned long) rv_board()->timebase_hz)
 
 void riscv_timer_init(void) {
     /* 100 Hz tick. */

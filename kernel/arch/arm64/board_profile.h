@@ -36,7 +36,10 @@
 #define BOARD_TANK5_PRO   2   /* Unihertz 8849 Tank 5 Pro -- chipset UNCONFIRMED (pre-MWC2026 as of last research pass) */
 #define BOARD_TANKPAD     3   /* Unihertz 8849 Tank Pad -- MediaTek Dimensity 8200 (MT6896Z) */
 #define BOARD_TANKPAD_E   4   /* Unihertz 8849 Tank Pad E -- MediaTek Helio G99 (MT6789) */
-#define BOARD_MAX         5
+#define BOARD_RK3588      5   /* Rockchip RK3588 / RK3588S -- Signet, Folio, Courier open board */
+#define BOARD_ZYNQMP      6   /* AMD Zynq UltraScale+ (ZU7EV) -- Sovereign arbiter */
+#define BOARD_VERSAL      7   /* AMD Versal Prime (VM1802) -- Citadel arbiter */
+#define BOARD_MAX         8
 
 #ifndef TARGET_BOARD
 #define TARGET_BOARD BOARD_QEMU_VIRT
@@ -60,7 +63,11 @@ typedef struct {
     uint64_t uart_base;
     uint32_t uart_reg_shift;        /* register stride: 0 = byte-packed (PL011), 2 = 4-byte-strided (dw-apb-uart/16550-class) */
     bool     uart_is_pl011;         /* true = PL011 register set (DR/FR/IBRD/FBRD/LCRH/CR); false = 16550-class (THR/RBR/DLL/DLH/LCR/LSR/FCR) */
+    bool uart_is_cadence; /* true = Cadence UART (cdns,uart-r1p12: CR/MR/BAUDGEN/SR/FIFO/BAUDDIV),
+                           * the Zynq UltraScale+ console; overrides uart_is_pl011 */
     uint32_t uart_clock_hz;
+    uint32_t uart_baud;             /* console baud rate; 0 = 115200. Rockchip boot ROM, U-Boot and
+                                     * Linux all run the RK3588 debug UART at 1,500,000 */
     uint32_t uart_irq_spi;          /* GIC SPI number; INTID = 32 + this */
 
     /* GIC addresses. The distributor base is the one address that is
@@ -95,6 +102,8 @@ typedef struct {
 } board_profile_t;
 
 static inline const board_profile_t *board_get_profile(void) {
+    /* One aligned row per field group, kept by hand. */
+    /* clang-format off */
     static const board_profile_t profiles[BOARD_MAX] = {
         [BOARD_QEMU_VIRT] = {
             .board_name = "QEMU virt", .soc_name = "Generic AArch64 (-cpu cortex-a53)",
@@ -180,7 +189,65 @@ static inline const board_profile_t *board_get_profile(void) {
             .gicd_base = 0x0C000000, .gicr_base = 0x0C040000, .gic_num_cpus = 8,
             .timer_irq_ppi = 14,
         },
+        /* The three profiles below are the ZXV device line (hardware/docs/oem):
+         * every address is taken from the mainline device tree of the SAME
+         * silicon (GPL-published, cited inline), so they are ADDR_VERIFIED in
+         * this file's sense -- cross-checked against same-silicon GPL source.
+         * That is not the same as booted: ZYNQMP and VERSAL boot in QEMU's
+         * models of those chips (build_system/boards_boot_check.sh); RK3588
+         * has no QEMU model and has not booted anywhere yet.
+         *
+         * ram_base is the GB the kernel image lives in (it is linked at
+         * 0x40080000), not the first DRAM byte: all three SoCs have DRAM from
+         * physical 0, so 0x40000000 is ordinary DRAM on any part with >= 2 GB.
+         * All three keep their console UART and GIC in the fourth GB
+         * (0xC0000000-0xFFFFFFFF); arm64_mmu.c maps that GB with device
+         * windows when a profile puts peripherals there. */
+        [BOARD_RK3588] = {
+            .board_name = "Rockchip RK3588 / RK3588S", .soc_name = "Rockchip RK3588 (4x A76 + 4x A55)",
+            .confidence = ADDR_VERIFIED,
+            .confidence_note = "linux arch/arm64/boot/dts/rockchip/rk3588-base.dtsi: gic-v3 GICD "
+                                "0xfe600000, GICR 0xfe680000; uart2 (the debug UART on RK3588 "
+                                "boards) 0xfeb50000, snps,dw-apb-uart, reg-shift 2, reg-io-width "
+                                "4, GIC_SPI 333; 24 MHz UART clock and 1.5 Mbaud are the Rockchip "
+                                "boot ROM / U-Boot defaults. NOT booted: RK3588 has no QEMU model.",
+            .ram_base = 0x40000000, .kernel_load_offset = 0x80000,
+            .uart_base = 0xFEB50000, .uart_reg_shift = 2, .uart_is_pl011 = false,
+            .uart_clock_hz = 24000000, .uart_baud = 1500000, .uart_irq_spi = 333,
+            .gicd_base = 0xFE600000, .gicr_base = 0xFE680000, .gicc_base = 0,
+            .gic_num_cpus = 8,
+            .timer_irq_ppi = 14,
+        },
+        [BOARD_ZYNQMP] = {
+            .board_name = "AMD Zynq UltraScale+ MPSoC", .soc_name = "ZU7EV (4x Cortex-A53, GIC-400)",
+            .confidence = ADDR_VERIFIED,
+            .confidence_note = "linux arch/arm64/boot/dts/xilinx/zynqmp.dtsi: gic-400 GICD "
+                                "0xf9010000, GICC 0xf9020000; uart0 0xff000000 cdns,uart-r1p12, "
+                                "GIC_SPI 21. Boots in QEMU -M xlnx-zcu102. The 100 MHz UART "
+                                "reference clock is the ZCU10x board default (board-specific).",
+            .ram_base = 0x40000000, .kernel_load_offset = 0x80000,
+            .uart_base = 0xFF000000, .uart_reg_shift = 0, .uart_is_pl011 = false,
+            .uart_is_cadence = true, .uart_clock_hz = 100000000, .uart_irq_spi = 21,
+            .gicd_base = 0xF9010000, .gicr_base = 0, .gicc_base = 0xF9020000,
+            .gic_num_cpus = 4,
+            .timer_irq_ppi = 14,
+        },
+        [BOARD_VERSAL] = {
+            .board_name = "AMD Versal", .soc_name = "Versal Prime VM1802 (2x Cortex-A72, GICv3)",
+            .confidence = ADDR_VERIFIED,
+            .confidence_note = "linux-xlnx arch/arm64/boot/dts/xilinx/versal.dtsi: gic-v3 GICD "
+                                "0xf9000000, GICR 0xf9080000; serial0 0xff000000 arm,pl011, SPI "
+                                "18. Boots in QEMU -M xlnx-versal-virt. 100 MHz UART clock is the "
+                                "VMK180 default (board-specific).",
+            .ram_base = 0x40000000, .kernel_load_offset = 0x80000,
+            .uart_base = 0xFF000000, .uart_reg_shift = 0, .uart_is_pl011 = true,
+            .uart_clock_hz = 100000000, .uart_irq_spi = 18,
+            .gicd_base = 0xF9000000, .gicr_base = 0xF9080000, .gicc_base = 0,
+            .gic_num_cpus = 2,
+            .timer_irq_ppi = 14,
+        },
     };
+    /* clang-format on */
     return &profiles[TARGET_BOARD];
 }
 

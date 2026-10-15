@@ -12,24 +12,112 @@
  */
 #include "dlp_projector.h"
 
+/* ===== chipset profiles =====
+ * Sources (TI public documents, read 2026-10):
+ *   DLP2010   ti.com/product/DLP2010; data sheet DLPS123C (Jul 2023).
+ *   DLPC3430 / DLPC3435  ti.com/product/DLPC3430, /DLPC3435.
+ *   DLP230NP  ti.com/product/DLP230NP; data sheet DLPS144G (Oct 2024).
+ *   DLPC3436  ti.com/product/DLPC3436.
+ * Not verified, so not modelled: controller and PMIC power (no figure on
+ * the product pages; system power is dominated by the illumination,
+ * which belongs to the optical module, not the chipset), and whether the
+ * DLP230NP optical engine moves an actuator or relies on mirror switching
+ * alone for its four pixels per mirror (DLPS144G says "fast switching
+ * speed ... combined with advanced DLP image processing"). */
+static const dlp_profile_t PROFILES[DLP_PROFILE_COUNT] = {
+    {
+        .id = DLP_PROFILE_DLP2010,
+        .dmd = "DLP2010",
+        .controller = "DLPC3430/DLPC3435",
+        .pmic = "DLPA200x/DLPA3000",
+        .native_width = DLP_NATIVE_WIDTH,   /* 854 columns, orthogonal (DLPS123C 1) */
+        .native_height = DLP_NATIVE_HEIGHT, /* 480 rows */
+        .screen_width = DLP_NATIVE_WIDTH,   /* WVGA shown as is */
+        .screen_height = DLP_NATIVE_HEIGHT,
+        .shift_x = 1,
+        .shift_y = 1,
+        .mirror_pitch_um_x100 = DLP_MIRROR_PITCH_UM_X100, /* 5.4 um */
+        .mirror_tilt_deg_x10 = DLP_MIRROR_TILT_DEG_X10,   /* +/-17 deg */
+        .diagonal_mm_x100 = 529,                          /* 0.2 in = 5.29 mm */
+        .max_input_hz = DLP_MAX_INPUT_HZ,                 /* 120 Hz (product page) */
+        .controller_max_hz = 240,                         /* DLPC3430/3435 page */
+        .dmd_sublvds_bits = 4,                            /* 4-bit SubLVDS */
+        .dmd_dclk_max_mhz = 600,                          /* DLPS123C rec. DCLK max */
+        /* MIPI DSI is on the DLPC3430 only; the common set is listed. */
+        .host_if = DLP_HOST_PARALLEL24 | DLP_HOST_BT656,
+        .host_pclk_max_mhz = 155,
+        .dmd_power_typ_uw = 90800,  /* PTOTAL typ 90.8 mW (DLPS123C) */
+        .dmd_power_max_uw = 140300, /* PTOTAL max 140.3 mW */
+        .system_lumens_max = 200,   /* product page */
+    },
+    {
+        .id = DLP_PROFILE_DLP230NP,
+        .dmd = "DLP230NP",
+        .controller = "DLPC3436",
+        .pmic = "DLPA2000/DLPA2005/DLPA3000/DLPA3005",
+        .native_width = 960,  /* 960 columns, square arrangement (DLPS144G 5.x, 6.1) */
+        .native_height = 540, /* 540 rows */
+        .screen_width = 1920, /* "Displays 1920 x 1080 pixels on the screen" */
+        .screen_height = 1080,
+        .shift_x = 2, /* four distinct pixels per mirror per frame */
+        .shift_y = 2,
+        .mirror_pitch_um_x100 = 540, /* 5.4 um */
+        .mirror_tilt_deg_x10 = 170,  /* 17 deg */
+        .diagonal_mm_x100 = 595,     /* 0.23 in = 5.95 mm */
+        .max_input_hz = 60,          /* product page; DLPC3436: 60 Hz at 1080p */
+        .controller_max_hz = 240,    /* DLPC3436 page */
+        .dmd_sublvds_bits = 8,       /* 8-bit SubLVDS */
+        .dmd_dclk_max_mhz = 540,     /* DLPS144G rec. DCLK 300..540 MHz */
+        /* DLPC3436 page lists a 24-bit parallel interface and "selectable
+         * input pixel data formats"; BT656 and MIPI DSI are not listed. */
+        .host_if = DLP_HOST_PARALLEL24,
+        .host_pclk_max_mhz = 155,
+        .dmd_power_typ_uw = 151220, /* PTOTAL typ 151.22 mW (DLPS144G 5.6) */
+        .dmd_power_max_uw = 190300, /* PTOTAL max 190.3 mW */
+        /* 450 lm is TI's LED chipset figure; the bay spec asks 500-800 lm
+         * from a laser-phosphor engine, which TI does not rate here. */
+        .system_lumens_max = 450,
+    },
+};
+
+const dlp_profile_t *dlp_profile_get(uint32_t id)
+{
+    return id < DLP_PROFILE_COUNT ? &PROFILES[id] : 0;
+}
+
+static surplus_real_t tilt_deg_of(const dlp_profile_t *pr)
+{
+    return SR_DIV(SR_FROM_INT((int64_t) pr->mirror_tilt_deg_x10), SR_FROM_INT(10));
+}
+
 void dlp_projector_init(dlp_projector_t *p, uint32_t device_id, const char *name) {
-    if (!p) return;
+    (void) dlp_projector_init_profile(p, device_id, name, DLP_PROFILE_DLP2010);
+}
+
+bool dlp_projector_init_profile(dlp_projector_t *p, uint32_t device_id, const char *name,
+                                uint32_t profile)
+{
+    const dlp_profile_t *pr = dlp_profile_get(profile);
+    if (!p || !pr) return false;
     p->device_id = device_id;
+    p->profile = profile;
     int i;
     for (i = 0; i < DLP_MAX_LABEL_LEN - 1 && name && name[i]; i++) p->name[i] = name[i];
     p->name[i] = '\0';
 
-    p->native_width = DLP_NATIVE_WIDTH;
-    p->native_height = DLP_NATIVE_HEIGHT;
-    p->mirror_tilt_deg = SR_FROM_FLOAT((double)DLP_MIRROR_TILT_DEG_X10 / 10.0);
-    p->max_input_hz = DLP_MAX_INPUT_HZ;
+    p->native_width = pr->native_width;
+    p->native_height = pr->native_height;
+    p->mirror_tilt_deg = tilt_deg_of(pr);
+    p->max_input_hz = pr->max_input_hz;
 
-    p->shift_factor_x = 1;
-    p->shift_factor_y = 1;
-    p->apparent_width = p->native_width;
-    p->apparent_height = p->native_height;
+    /* The chipset's own sub-frame shift (1x1 = none); set_wobulation()
+     * may change it afterwards like before. */
+    p->shift_factor_x = pr->shift_x;
+    p->shift_factor_y = pr->shift_y;
+    p->apparent_width = p->native_width * pr->shift_x;
+    p->apparent_height = p->native_height * pr->shift_y;
     p->subframe_index = 0;
-    p->actuator_freq_hz = p->max_input_hz;
+    p->actuator_freq_hz = p->max_input_hz * pr->shift_x * pr->shift_y;
     p->actuator_sync_valid = true;
 
     p->rated_lumens = SR_ZERO;
@@ -56,6 +144,7 @@ void dlp_projector_init(dlp_projector_t *p, uint32_t device_id, const char *name
     p->cycle_count = 0;
     p->irq_frame_ready = false;
     p->active = true;
+    return true;
 }
 
 bool dlp_projector_verify_actuator_sync(dlp_projector_t *p) {
@@ -98,7 +187,7 @@ surplus_real_t dlp_projector_compute_screen_lux(dlp_projector_t *p, surplus_real
     }
     /* Spec-sheet throw-ratio convention: throw_ratio = distance / image_width. */
     surplus_real_t image_width_m = SR_DIV(throw_distance_m, p->throw_ratio);
-    /* Native array is ~16:9 (854:480); use that aspect for image height. */
+    /* Native array aspect (854:480 or 960:540, both ~16:9) gives the image height. */
     surplus_real_t aspect = SR_DIV(SR_FROM_INT((int64_t)p->native_height),
                                     SR_FROM_INT((int64_t)p->native_width));
     surplus_real_t image_height_m = SR_MUL(image_width_m, aspect);
@@ -132,7 +221,7 @@ void dlp_projector_set_tilt(dlp_projector_t *p, surplus_real_t tilt_deg) {
      * mechanical tilt range so scale factors stay in a physically
      * sane band; beyond that range the optics don't meaningfully
      * resolve keystone anyway, so the ratio is clamped to +/-1. */
-    surplus_real_t max_tilt = SR_FROM_FLOAT((double)DLP_MIRROR_TILT_DEG_X10 / 10.0);
+    surplus_real_t max_tilt = p->mirror_tilt_deg;
     surplus_real_t ratio = SR_DIV(tilt_deg, max_tilt);
     if (SR_CMP(ratio, SR_ONE) > 0) ratio = SR_ONE;
     surplus_real_t neg_one = SR_SUB(SR_ZERO, SR_ONE);
