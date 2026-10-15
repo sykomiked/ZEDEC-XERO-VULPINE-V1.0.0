@@ -193,221 +193,221 @@
     { "Courser",      12, ZXL_AB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 188 */
     { "Flue",         11, ZXL_AB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 189 */
     { "Shipwright",    4, ZXL_D,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    2 }, /* 190 */
-    { "Lapidary",      7, ZXL_A,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 191 */
+    { "Lapidary",     10, ZXL_DB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 191 */
     { "Coppice",       8, ZXL_C,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 192 */
     { "Glazier",       4, ZXL_EB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 193 */
     { "Icehouse",     11, ZXL_A,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 194 */
     { "Sexton",        2, ZXL_DB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 195 */
-    { "Stoker",       11, ZXL_BB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  8 }, /* 196 */
-    { "Millrace",     11, ZXL_B,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 197 */
+    { "Stoker",        6, ZXL_EB, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   8 }, /* 196 */
+    { "Millrace",     11, ZXL_BB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 197 */
     { "Taper",        12, ZXL_A,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 198 */
-    { "Furnace",      10, ZXL_DB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 199 */
-    { "Linkman",      11, ZXL_C,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 200 */
-    { "Gearwright",   10, ZXL_D,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    9 }, /* 201 */
+    { "Furnace",      10, ZXL_D,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 199 */
+    { "Linkman",      11, ZXL_B,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 200 */
+    { "Gearwright",   10, ZXL_EB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    9 }, /* 201 */
     { "Stationer",     4, ZXL_F,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    2 }, /* 202 */
-    { "Tiler",        11, ZXL_DB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  7 }, /* 203 */
+    { "Tiler",        11, ZXL_C,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  7 }, /* 203 */
     { "Topiary",       8, ZXL_DB, 4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 204 */
     { "Lampwright",    8, ZXL_D,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 205 */
     { "Verger",        9, ZXL_AB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 206 */
-    { "Fellowcraft",  11, ZXL_D,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 207 */
-    { "Cooper",       10, ZXL_EB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 208 */
-    { "Freshet",      11, ZXL_EB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 209 */
+    { "Fellowcraft",  11, ZXL_DB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 207 */
+    { "Cooper",       10, ZXL_F,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 208 */
+    { "Freshet",      11, ZXL_D,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 209 */
     { "Moraine",       2, ZXL_D,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 210 */
     { "Tradewind",     3, ZXL_B,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 211 */
-    { "Eddy",          7, ZXL_BB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 212 */
-    { "Shingle",       2, ZXL_EB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 213 */
+    { "Eddy",          7, ZXL_A,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 212 */
+    { "Shingle",       1, ZXL_F,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  9 }, /* 213 */
     { "Updraft",       3, ZXL_C,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 214 */
-    { "Headland",      1, ZXL_F,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  7 }, /* 215 */
+    { "Headland",      1, ZXL_FS, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  7 }, /* 215 */
     { "Rill",          9, ZXL_A,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  0 }, /* 216 */
     { "Wisp",         12, ZXL_BB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 217 */
     { "Gust",          9, ZXL_BB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 218 */
     { "Scree",         9, ZXL_B,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 219 */
     { "Glen",          9, ZXL_C,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  8 }, /* 220 */
     { "Watershed",     8, ZXL_EB, 4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 221 */
-    { "Windbreak",     8, ZXL_F,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 222 */
+    { "Windbreak",     1, ZXL_G,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  6 }, /* 222 */
     { "Spindrift",     5, ZXL_A,  4, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  11 }, /* 223 */
     { "Tarn",         12, ZXL_B,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 224 */
-    { "Tributary",     6, ZXL_EB, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   9 }, /* 225 */
-    { "Swale",         8, ZXL_FS, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 226 */
+    { "Tributary",     6, ZXL_F,  4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   9 }, /* 225 */
+    { "Swale",         8, ZXL_F,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 226 */
     { "Cirque",        5, ZXL_BB, 4, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   7 }, /* 227 */
     { "Rapids",       12, ZXL_C,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 228 */
-    { "Thunderhead",   5, ZXL_B,  4, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 229 */
-    { "Fen",           6, ZXL_F,  4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  10 }, /* 230 */
-    { "Terroir",       8, ZXL_G,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 231 */
-    { "Fumarole",      6, ZXL_FS, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   8 }, /* 232 */
+    { "Muster",        1, ZXL_AB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  5 }, /* 229 */
+    { "Fen",           6, ZXL_FS, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  10 }, /* 230 */
+    { "Terroir",       8, ZXL_FS, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 231 */
+    { "Decanter",      7, ZXL_BB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 232 */
     { "Stratum",       6, ZXL_G,  4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   1 }, /* 233 */
     { "Neap",          7, ZXL_B,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 234 */
-    { "Copse",         5, ZXL_C,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  11 }, /* 235 */
-    { "Levin",         8, ZXL_AB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 236 */
-    { "Weir",          8, ZXL_A,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 237 */
-    { "Billow",        5, ZXL_DB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   2 }, /* 238 */
+    { "Copse",         5, ZXL_B,  4, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  11 }, /* 235 */
+    { "Levin",         8, ZXL_G,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 236 */
+    { "Weir",          8, ZXL_AB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 237 */
+    { "Billow",        5, ZXL_C,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   2 }, /* 238 */
     { "Isobar",        6, ZXL_AB, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   7 }, /* 239 */
     { "Isthmus",       4, ZXL_FS, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    0 }, /* 240 */
     { "Shallows",     12, ZXL_DB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 241 */
     { "Silt",          4, ZXL_G,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 242 */
     { "Varve",         9, ZXL_DB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 243 */
-    { "Riffle",        5, ZXL_D,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   8 }, /* 244 */
-    { "Fulgurite",     5, ZXL_EB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   1 }, /* 245 */
+    { "Dragoman",     11, ZXL_EB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  8 }, /* 244 */
+    { "Fulgurite",    11, ZXL_F,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 245 */
     { "Lode",          7, ZXL_C,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 246 */
-    { "Fusee",         1, ZXL_FS, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 11 }, /* 247 */
+    { "Fusee",         1, ZXL_A,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 11 }, /* 247 */
     { "Sedge",        12, ZXL_D,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 248 */
-    { "Bourn",         8, ZXL_BB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 249 */
-    { "Scarp",         8, ZXL_B,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 250 */
-    { "Swell",         5, ZXL_F,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   7 }, /* 251 */
-    { "Gloaming",      5, ZXL_FS, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   0 }, /* 252 */
+    { "Bourn",         8, ZXL_A,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 249 */
+    { "Plumbline",     1, ZXL_BB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  2 }, /* 250 */
+    { "Swell",         5, ZXL_DB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   7 }, /* 251 */
+    { "Overture",      1, ZXL_B,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  0 }, /* 252 */
     { "Fell",         12, ZXL_EB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 253 */
-    { "Outcrop",       5, ZXL_G,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  10 }, /* 254 */
-    { "Glebe",         8, ZXL_C,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 255 */
-    { "Massif",        1, ZXL_G,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  8 }, /* 256 */
-    { "Reedbed",       8, ZXL_DB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 257 */
+    { "Plinth",        1, ZXL_C,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 10 }, /* 254 */
+    { "Glebe",         8, ZXL_BB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 255 */
+    { "Massif",        1, ZXL_DB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  8 }, /* 256 */
+    { "Reedbed",       8, ZXL_B,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 257 */
     { "Atoll",         3, ZXL_DB, 4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 258 */
     { "Caldera",      12, ZXL_F,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 259 */
-    { "Serac",         1, ZXL_AB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  4 }, /* 260 */
+    { "Serac",         7, ZXL_DB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 260 */
     { "Rainshadow",    9, ZXL_D,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 261 */
-    { "Thicket",       8, ZXL_D,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 262 */
-    { "Grotto",        2, ZXL_F,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  7 }, /* 263 */
+    { "Thicket",       1, ZXL_D,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  2 }, /* 262 */
+    { "Grotto",        2, ZXL_EB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  7 }, /* 263 */
     { "Meander",       4, ZXL_AB, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 264 */
-    { "Oxbow",        11, ZXL_F,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  5 }, /* 265 */
-    { "Thaw",          1, ZXL_A,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 10 }, /* 266 */
-    { "Holm",          2, ZXL_FS, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 267 */
-    { "Hoarfrost",    12, ZXL_FS, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 268 */
+    { "Loom",         11, ZXL_FS, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  5 }, /* 265 */
+    { "Thaw",          1, ZXL_EB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 10 }, /* 266 */
+    { "Holm",          2, ZXL_F,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 267 */
+    { "Chrysalis",     1, ZXL_F,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  8 }, /* 268 */
     { "Col",           3, ZXL_D,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 269 */
-    { "Lagoon",        7, ZXL_DB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 270 */
+    { "Lagoon",        7, ZXL_D,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 270 */
     { "Cairn",         4, ZXL_A,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 271 */
-    { "Barbican",      2, ZXL_G,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 272 */
-    { "Relume",        1, ZXL_BB, 5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  9 }, /* 273 */
-    { "Vigil",        11, ZXL_FS, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 274 */
-    { "Tracery",       8, ZXL_EB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 275 */
-    { "Albedo",        5, ZXL_AB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   0 }, /* 276 */
+    { "Barbican",      2, ZXL_FS, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 272 */
+    { "Relume",        1, ZXL_FS, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  9 }, /* 273 */
+    { "Vigil",        11, ZXL_G,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 274 */
+    { "Tracery",       8, ZXL_C,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 275 */
+    { "Albedo",        5, ZXL_D,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   0 }, /* 276 */
     { "Aureole",       4, ZXL_BB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 277 */
-    { "Cabochon",      7, ZXL_D,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 278 */
-    { "Vesper",        8, ZXL_F,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 279 */
-    { "Volute",        8, ZXL_FS, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 280 */
-    { "Lozenge",       8, ZXL_G,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 281 */
-    { "Cupola",        1, ZXL_B,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  6 }, /* 282 */
-    { "Gibbous",      12, ZXL_G,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 283 */
-    { "Penumbra",      2, ZXL_AB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 284 */
-    { "Annulus",      12, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 285 */
+    { "Cabochon",      7, ZXL_EB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 278 */
+    { "Vesper",        8, ZXL_DB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 279 */
+    { "Volute",        8, ZXL_D,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 280 */
+    { "Lozenge",       8, ZXL_EB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 281 */
+    { "Cupola",        1, ZXL_G,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  6 }, /* 282 */
+    { "Gibbous",      12, ZXL_FS, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 283 */
+    { "Penumbra",      2, ZXL_G,  5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  4 }, /* 284 */
+    { "Annulus",      12, ZXL_G,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 285 */
     { "Perigee",       3, ZXL_EB, 4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 286 */
-    { "Cusp",          8, ZXL_AB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 287 */
+    { "Cusp",          8, ZXL_F,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 287 */
     { "Lambent",       9, ZXL_EB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  0 }, /* 288 */
-    { "Rampart",       2, ZXL_A,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  5 }, /* 289 */
-    { "Kerf",         10, ZXL_F,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 290 */
+    { "Rampart",       2, ZXL_AB, 5, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  5 }, /* 289 */
+    { "Kerf",         10, ZXL_FS, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 290 */
     { "Meridian",      3, ZXL_F,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 291 */
-    { "Solarium",      8, ZXL_A,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 292 */
+    { "Solarium",      8, ZXL_FS, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 292 */
     { "Clerestory",    9, ZXL_F,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 293 */
-    { "Parallax",      5, ZXL_A,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   6 }, /* 294 */
-    { "Sanctum",       7, ZXL_EB, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 295 */
-    { "Cistern",      10, ZXL_FS, 4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 296 */
+    { "Parallax",      5, ZXL_EB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   6 }, /* 294 */
+    { "Sanctum",       7, ZXL_F,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 295 */
+    { "Cistern",      10, ZXL_G,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 296 */
     { "Armature",      6, ZXL_A,  4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   9 }, /* 297 */
-    { "Sightline",     8, ZXL_BB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 298 */
+    { "Sightline",     8, ZXL_G,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 298 */
     { "Ephemeris",     6, ZXL_BB, 4, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   7 }, /* 299 */
-    { "Lumen",        12, ZXL_A,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 300 */
-    { "Elevation",    10, ZXL_G,  4, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 301 */
+    { "Lumen",        12, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 300 */
+    { "Elevation",    10, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 301 */
     { "Transit",       3, ZXL_FS, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  10 }, /* 302 */
     { "Syzygy",        4, ZXL_B,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 303 */
     { "Firstlight",    9, ZXL_FS, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  8 }, /* 304 */
-    { "Culmen",       10, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 305 */
+    { "Culmen",       10, ZXL_A,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 305 */
     { "Azimuth",       3, ZXL_G,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 306 */
-    { "Bitting",       2, ZXL_BB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 11 }, /* 307 */
-    { "Luminaire",     8, ZXL_B,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 308 */
-    { "Collet",        2, ZXL_B,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 309 */
-    { "Cleave",       11, ZXL_G,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 310 */
+    { "Bitting",       2, ZXL_A,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 11 }, /* 307 */
+    { "Luminaire",     8, ZXL_AB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 308 */
+    { "Collet",        2, ZXL_BB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 309 */
+    { "Cleave",       11, ZXL_AB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 310 */
     { "Parsec",        6, ZXL_B,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   7 }, /* 311 */
     { "Equinox",       4, ZXL_C,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    0 }, /* 312 */
-    { "Illumine",      5, ZXL_BB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 313 */
-    { "Umbra",         2, ZXL_C,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 314 */
-    { "Escutcheon",    7, ZXL_F,  4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 315 */
+    { "Illumine",      5, ZXL_F,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 313 */
+    { "Umbra",         2, ZXL_B,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 314 */
+    { "Escutcheon",    7, ZXL_FS, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 315 */
     { "Quay",          3, ZXL_AB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 316 */
-    { "Pinion",       10, ZXL_A,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 317 */
-    { "Bevel",         2, ZXL_DB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 318 */
+    { "Pinion",       10, ZXL_BB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 317 */
+    { "Bevel",         2, ZXL_C,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 318 */
     { "Lunette",       4, ZXL_DB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 319 */
     { "Equant",        4, ZXL_D,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 320 */
     { "Diadem",        4, ZXL_EB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    9 }, /* 321 */
-    { "Archivolt",    11, ZXL_AB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 322 */
+    { "Archivolt",    11, ZXL_A,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 322 */
     { "Spire",         6, ZXL_C,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   7 }, /* 323 */
-    { "Druse",         1, ZXL_C,  5, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  0 }, /* 324 */
+    { "Druse",         1, ZXL_AB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES,  0 }, /* 324 */
     { "Arcology",      4, ZXL_F,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 325 */
     { "Pharos",        4, ZXL_FS, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   10 }, /* 326 */
-    { "Viaduct",       7, ZXL_FS, 4, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 327 */
+    { "Viaduct",       7, ZXL_G,  3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 327 */
     { "Tephra",        6, ZXL_DB, 3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   8 }, /* 328 */
     { "Caustic",       6, ZXL_D,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   1 }, /* 329 */
-    { "Sunfleck",      8, ZXL_C,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 330 */
+    { "Sunfleck",      8, ZXL_A,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 330 */
     { "Rotunda",       6, ZXL_EB, 3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  11 }, /* 331 */
-    { "Atrium",        8, ZXL_DB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 332 */
-    { "Ravelin",       2, ZXL_D,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 333 */
-    { "Nymphaeum",    12, ZXL_BB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 334 */
-    { "Insolation",   10, ZXL_BB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 335 */
-    { "Portcullis",    2, ZXL_EB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  0 }, /* 336 */
-    { "Apse",          5, ZXL_B,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 337 */
+    { "Atrium",        8, ZXL_BB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 332 */
+    { "Ravelin",       2, ZXL_DB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 333 */
+    { "Nymphaeum",    12, ZXL_A,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 334 */
+    { "Insolation",   10, ZXL_B,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 335 */
+    { "Portcullis",    2, ZXL_D,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  0 }, /* 336 */
+    { "Apse",          5, ZXL_FS, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 337 */
     { "Corbel",        9, ZXL_G,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 338 */
     { "Athenaeum",     9, ZXL_AB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 339 */
-    { "Windlass",     10, ZXL_B,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 340 */
-    { "Vernier",      10, ZXL_C,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 341 */
-    { "Dulcimer",     10, ZXL_DB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 342 */
+    { "Windlass",     10, ZXL_C,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 340 */
+    { "Vernier",      10, ZXL_DB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 341 */
+    { "Dulcimer",     10, ZXL_D,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    6 }, /* 342 */
     { "Monochord",     6, ZXL_F,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  11 }, /* 343 */
-    { "Portolan",      8, ZXL_D,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 344 */
-    { "Caravel",       7, ZXL_G,  3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    9 }, /* 345 */
+    { "Portolan",      8, ZXL_B,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 344 */
+    { "Caravel",       7, ZXL_AB, 3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    9 }, /* 345 */
     { "Chintz",        6, ZXL_FS, 3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   2 }, /* 346 */
-    { "Sampler",       5, ZXL_C,  6, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   7 }, /* 347 */
-    { "Theorbo",       5, ZXL_DB, 6, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   0 }, /* 348 */
-    { "Armillary",    10, ZXL_D,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 349 */
-    { "Stereoscope",   5, ZXL_D,  6, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  10 }, /* 350 */
+    { "Sampler",       5, ZXL_G,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   7 }, /* 347 */
+    { "Theorbo",       5, ZXL_AB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   0 }, /* 348 */
+    { "Armillary",    10, ZXL_EB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    5 }, /* 349 */
+    { "Stereoscope",   5, ZXL_A,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,  10 }, /* 350 */
     { "Athanor",       6, ZXL_G,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   3 }, /* 351 */
     { "Consonance",    4, ZXL_G,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    8 }, /* 352 */
-    { "Gauze",        12, ZXL_B,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 353 */
-    { "Pianola",      11, ZXL_A,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 354 */
-    { "Damask",        8, ZXL_EB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 355 */
+    { "Gauze",        12, ZXL_BB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 353 */
+    { "Pianola",      11, ZXL_BB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 354 */
+    { "Damask",        8, ZXL_C,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 355 */
     { "Landfall",      3, ZXL_A,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 356 */
-    { "Heartstring",  12, ZXL_C,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 357 */
-    { "Crowsnest",     2, ZXL_F,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 358 */
-    { "Capstan",       8, ZXL_F,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 359 */
-    { "Carrick",       4, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    0 }, /* 360 */
-    { "Pyrometer",     8, ZXL_FS, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 361 */
-    { "Shanty",        8, ZXL_G,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 362 */
-    { "Linen",         8, ZXL_AB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 363 */
-    { "Fanfare",       8, ZXL_A,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 364 */
-    { "Veil",          2, ZXL_FS, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 365 */
+    { "Heartstring",  12, ZXL_B,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 357 */
+    { "Crowsnest",     2, ZXL_EB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 358 */
+    { "Capstan",       8, ZXL_DB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 359 */
+    { "Carrick",       4, ZXL_AB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    1 }, /* 360 */
+    { "Pyrometer",     8, ZXL_D,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 361 */
+    { "Shanty",        8, ZXL_EB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  10 }, /* 362 */
+    { "Linen",         8, ZXL_F,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 363 */
+    { "Fanfare",       8, ZXL_FS, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 364 */
+    { "Veil",          2, ZXL_F,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  2 }, /* 365 */
     { "Spinnaker",     3, ZXL_BB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 366 */
-    { "Argonaut",      7, ZXL_AB, 3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 367 */
-    { "Aubade",       12, ZXL_DB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 368 */
-    { "Nocturne",     12, ZXL_D,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 369 */
-    { "Rondo",        12, ZXL_EB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 370 */
-    { "Ostinato",     10, ZXL_EB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 371 */
+    { "Argonaut",      7, ZXL_A,  3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 367 */
+    { "Aubade",       12, ZXL_C,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 368 */
+    { "Conclave",      6, ZXL_AB, 3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,   9 }, /* 369 */
+    { "Rondo",        12, ZXL_DB, 3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 370 */
+    { "Ostinato",     10, ZXL_F,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 371 */
     { "Tatting",       3, ZXL_B,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 372 */
-    { "Paisley",       5, ZXL_EB, 6, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 373 */
+    { "Paisley",       5, ZXL_BB, 3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   5 }, /* 373 */
     { "Calliope",      9, ZXL_A,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 374 */
-    { "Bulwark",       2, ZXL_G,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 375 */
-    { "Brocade",       5, ZXL_F,  6, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   8 }, /* 376 */
-    { "Buckram",       2, ZXL_AB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 377 */
-    { "Counterpoint",  8, ZXL_BB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 378 */
-    { "Hydrophone",    6, ZXL_AB, 3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  11 }, /* 379 */
-    { "Moire",        12, ZXL_F,  6, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 380 */
-    { "Rigging",      11, ZXL_BB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 381 */
+    { "Bulwark",       2, ZXL_FS, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 375 */
+    { "Brocade",       5, ZXL_B,  3, ZXL_TIMBRE_STRINGS, ZXL_REVEAL_VAULT, ZXL_AMB_WATER,   8 }, /* 376 */
+    { "Buckram",       2, ZXL_G,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  1 }, /* 377 */
+    { "Counterpoint",  8, ZXL_G,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 378 */
+    { "Hydrophone",    6, ZXL_A,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  11 }, /* 379 */
+    { "Moire",        12, ZXL_D,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 380 */
+    { "Rigging",      11, ZXL_B,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 381 */
     { "Seine",         3, ZXL_C,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 382 */
-    { "Carapace",      8, ZXL_B,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 383 */
+    { "Carapace",      8, ZXL_AB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 383 */
     { "Hornpipe",      9, ZXL_BB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  0 }, /* 384 */
-    { "Piccolo",       8, ZXL_C,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 385 */
-    { "Privateer",     2, ZXL_A,  6, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 386 */
-    { "Tocsin",       12, ZXL_FS, 6, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 387 */
+    { "Piccolo",       8, ZXL_A,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /* 385 */
+    { "Privateer",     2, ZXL_AB, 3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 386 */
+    { "Commonweal",    7, ZXL_BB, 3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    3 }, /* 387 */
     { "Patchwork",     9, ZXL_B,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  8 }, /* 388 */
-    { "Distaff",       3, ZXL_DB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 389 */
+    { "Distaff",       3, ZXL_DB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 389 */
     { "Galliard",      9, ZXL_C,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  6 }, /* 390 */
-    { "Planisphere",   6, ZXL_A,  3, ZXL_TIMBRE_FLUTE,   ZXL_REVEAL_VAULT, ZXL_AMB_FLOCK,  11 }, /* 391 */
-    { "Consort",       8, ZXL_DB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 392 */
-    { "Perihelion",    3, ZXL_D,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 393 */
-    { "Quadrant",      3, ZXL_EB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 394 */
-    { "Manometer",     8, ZXL_D,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 395 */
-    { "Macrame",       3, ZXL_F,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 396 */
+    { "Planisphere",   1, ZXL_A,  3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_ARCHES, 11 }, /* 391 */
+    { "Consort",       8, ZXL_BB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   4 }, /* 392 */
+    { "Atelier",      11, ZXL_C,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  9 }, /* 393 */
+    { "Quadrant",      3, ZXL_D,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 394 */
+    { "Manometer",     8, ZXL_B,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /* 395 */
+    { "Macrame",       3, ZXL_EB, 3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /* 396 */
     { "Descant",       9, ZXL_DB, 3, ZXL_TIMBRE_MARIMBA, ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  5 }, /* 397 */
-    { "Orlop",        11, ZXL_B,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 398 */
-    { "Topsail",      11, ZXL_C,  3, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 399 */
-    { "Foghorn",       3, ZXL_FS, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 400 */
-    { "Bearing",       3, ZXL_G,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 401 */
-    { "Heliostat",     8, ZXL_EB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 402 */
-    { "Seachest",      7, ZXL_A,  3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 403 */
+    { "Orlop",        11, ZXL_DB, 6, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS, 10 }, /* 398 */
+    { "Topsail",      11, ZXL_D,  6, ZXL_TIMBRE_CHIP,    ZXL_REVEAL_VAULT, ZXL_AMB_SPARKS,  3 }, /* 399 */
+    { "Foghorn",       3, ZXL_F,  3, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /* 400 */
+    { "Bearing",       3, ZXL_FS, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   1 }, /* 401 */
+    { "Heliostat",     8, ZXL_C,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   6 }, /* 402 */
+    { "Seachest",      7, ZXL_B,  3, ZXL_TIMBRE_COIN,    ZXL_REVEAL_VAULT, ZXL_AMB_DUST,   11 }, /* 403 */
     { "Chronometer",   4, ZXL_A,  3, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    4 }, /* 404 */
-    { "Wardian",       8, ZXL_F,  4, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   9 }, /* 405 */
-    { "Celesta",       3, ZXL_AB, 6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /* 406 */
+    { "Wardian",       8, ZXL_DB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  11 }, /* 405 */
+    { "Celesta",       3, ZXL_G,  6, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /* 406 */
     { "Chorale",       4, ZXL_BB, 6, ZXL_TIMBRE_GLASS,   ZXL_REVEAL_VAULT, ZXL_AMB_DUST,    7 }, /* 407 */
 /* clang-format on */
