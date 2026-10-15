@@ -1236,9 +1236,9 @@ verify-all: test
 		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_widget && \
 		/tmp/test_zui_widget && echo "[PASS] test_zui_widget" || { echo "[FAIL] test_zui_widget"; exit 1; }; \
-	echo "=== zui: windows, the strip of open apps, the switcher ==="; \
+	echo "=== zui: windows, the strip or the astrolabe dock, the switcher ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
-		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_wm && \
 		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \

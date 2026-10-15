@@ -9,7 +9,17 @@
 
 enum { DRAG_NONE = 0, DRAG_MOVE, DRAG_RESIZE, DRAG_APP };
 enum { E_LEFT = 1, E_RIGHT = 2, E_TOP = 4, E_BOTTOM = 8 };
-enum { HIT_CONTENT = 0, HIT_TITLE, HIT_MIN, HIT_MAX, HIT_CLOSE, HIT_EDGE, HIT_STRIP, HIT_NONE };
+enum {
+    HIT_CONTENT = 0,
+    HIT_TITLE,
+    HIT_MIN,
+    HIT_MAX,
+    HIT_CLOSE,
+    HIT_EDGE,
+    HIT_STRIP,
+    HIT_NONE,
+    HIT_DOCK
+};
 
 static int32_t title_h(const zui_wm_t *wm)
 {
@@ -49,6 +59,13 @@ static void copy(char *d, uint32_t cap, const char *s)
 zui_rect_t zui_wm_work(const zui_wm_t *wm)
 {
     zui_rect_t r = {0, 0, wm->w, imax(0, wm->h - ZUI_WM_STRIP)};
+    if (wm->use_dock) { /* WM9: only the seal's band, and only where it would cover */
+        const zui_dock_t *d = &wm->dock;
+        bool top =
+            !d->compact && (d->corner == ZUI_DOCK_TOP_LEFT || d->corner == ZUI_DOCK_TOP_RIGHT);
+        int32_t band = top || d->compact ? d->seal : 0;
+        r = (zui_rect_t){0, top ? band : 0, wm->w, imax(0, wm->h - band)};
+    }
     return r;
 }
 
@@ -82,6 +99,8 @@ void zui_wm_init(zui_wm_t *wm, int32_t w, int32_t h, bool touch)
     for (uint32_t i = 0; i < sizeof *wm; i++) z[i] = 0;
     wm->touch = touch;
     wm->next_id = 1;
+    zui_dock_init(&wm->dock, w, h, touch);
+    wm->use_dock = true; /* WM9: the dock unless the strip is asked for */
     zui_wm_resize(wm, w, h);
 }
 
@@ -111,6 +130,7 @@ void zui_wm_resize(zui_wm_t *wm, int32_t w, int32_t h)
     wm->w = imax(w, 1);
     wm->h = imax(h, ZUI_WM_STRIP + 1);
     wm->compact = w < 600;
+    zui_dock_resize(&wm->dock, wm->w, wm->h, wm->compact);
     for (uint32_t i = 0; i < ZUI_WM_MAX; i++)
         if (wm->win[i].id) fit(wm, &wm->win[i]);
 }
@@ -133,6 +153,30 @@ static void mru_drop(zui_wm_t *wm, uint32_t id)
     for (uint32_t i = 0; i < wm->nm; i++)
         if (wm->mru[i] != id) wm->mru[j++] = wm->mru[i];
     wm->nm = j;
+}
+
+/* WM9: the dock shows the open windows, most recently used first. */
+static void sync(zui_wm_t *wm)
+{
+    if (!wm->use_dock) return;
+    zui_dock_item_t it[ZUI_WM_MAX];
+    uint32_t n = 0, front = zui_wm_front(wm);
+    for (uint32_t i = 0; i < wm->nm; i++) {
+        const zui_wm_window_t *w = cget(wm, wm->mru[i]);
+        if (!w) continue;
+        zui_dock_item_t *d = &it[n++];
+        uint8_t *z = (uint8_t *) d;
+        for (uint32_t k = 0; k < sizeof *d; k++) z[k] = 0;
+        copy(d->app, sizeof d->app, w->app);
+        copy(d->title, sizeof d->title, w->title);
+        d->win = w->id;
+        d->front = w->id == front;
+        d->minimised = w->minimised;
+        d->activity = w->phase != ZUI_WIN_OPEN ? (uint8_t) ZUI_DOCK_BUSY : w->activity;
+        if (w->phase == ZUI_WIN_LAUNCHING)
+            d->progress = w->progress ? (uint32_t) imin((int32_t) w->progress, 255) : 1u;
+    }
+    zui_dock_set_open(&wm->dock, it, n);
 }
 
 static void raise(zui_wm_t *wm, uint32_t slot)
@@ -187,6 +231,7 @@ uint32_t zui_wm_open(zui_wm_t *wm, const char *app, const char *title, const zui
     mru_front(wm, w->id);
     if (wm->on_window) wm->on_window(wm, w->id, true, wm->on_window_ctx);
     cue(wm, w, ZUI_CUE_BEGIN);
+    sync(wm);
     return w->id;
 }
 
@@ -200,6 +245,7 @@ void zui_wm_progress(zui_wm_t *wm, uint32_t id, uint32_t done256)
         cue(wm, w, ZUI_CUE_END);
         w->phase = ZUI_WIN_OPENING; /* WM2: the doors */
     }
+    sync(wm);
 }
 
 bool zui_wm_close(zui_wm_t *wm, uint32_t id)
@@ -217,6 +263,7 @@ bool zui_wm_close(zui_wm_t *wm, uint32_t id)
     if (c.closed) c.closed(c.ctx);
     if (wm->on_window) wm->on_window(wm, id, false, wm->on_window_ctx);
     if (wm->switching && wm->pick >= wm->nm) wm->pick = 0;
+    sync(wm);
     return true;
 }
 
@@ -227,6 +274,7 @@ bool zui_wm_focus(zui_wm_t *wm, uint32_t id)
     w->minimised = false;
     raise(wm, slot_of(wm, id));
     mru_front(wm, id);
+    sync(wm);
     return true;
 }
 
@@ -238,6 +286,7 @@ bool zui_wm_minimise(zui_wm_t *wm, uint32_t id)
     if (wm->drag_id == id) wm->drag = DRAG_NONE;
     mru_drop(wm, id); /* out of the way: the window now in front comes first */
     wm->mru[wm->nm++] = id;
+    sync(wm);
     return true;
 }
 
@@ -302,7 +351,16 @@ int zui_wm_hit(const zui_wm_t *wm, int32_t x, int32_t y, uint32_t *id, uint8_t *
 {
     if (id) *id = 0;
     if (edges) *edges = 0;
-    if (y >= wm->h - ZUI_WM_STRIP) {
+    if (wm->use_dock) { /* WM9: the dock is above the windows */
+        int32_t slot;
+        zui_dock_slot_t sl;
+        int dh = zui_dock_hit(&wm->dock, x, y, &slot);
+        if (dh != ZUI_DOCK_HIT_NONE) {
+            if (id && dh == ZUI_DOCK_HIT_SLOT && zui_dock_slot(&wm->dock, slot, &sl))
+                *id = wm->dock.item[sl.item].win;
+            return HIT_DOCK;
+        }
+    } else if (y >= wm->h - ZUI_WM_STRIP) {
         uint32_t ids[ZUI_WM_MAX];
         uint32_t n = zui_wm_strip(wm, ids, ZUI_WM_MAX);
         for (uint32_t i = 0; i < n; i++)
@@ -468,8 +526,61 @@ static void drag_to(zui_wm_t *wm, int32_t x, int32_t y)
     zui_wm_move(wm, wm->drag_id, r);
 }
 
+/* WM9: what choosing an app in the dock does. */
+static uint32_t launch(zui_wm_t *wm, const char *app_in, const char *title_in)
+{
+    char app[ZUI_DOCK_NAME], title[ZUI_DOCK_NAME]; /* the names may live in the dock */
+    copy(app, sizeof app, app_in);
+    copy(title, sizeof title, title_in && title_in[0] ? title_in : app_in);
+    if (wm->launch_app) return wm->launch_app(wm, app, title, wm->launch_app_ctx);
+    return zui_wm_open(wm, app, title, 0, 0);
+}
+
+static bool chose(zui_wm_t *wm, const zui_dock_item_t *it)
+{
+    if (!it) return true;
+    if (it->win && zui_wm_get(wm, it->win)) {
+        if (it->win == zui_wm_front(wm)) return zui_wm_minimise(wm, it->win);
+        return zui_wm_focus(wm, it->win);
+    }
+    launch(wm, it->app, it->title);
+    return true;
+}
+
+static bool dock_chose(zui_wm_t *wm)
+{
+    return chose(wm, zui_dock_chosen(&wm->dock));
+}
+
+bool zui_wm_dock_pick(zui_wm_t *wm, uint32_t item)
+{
+    if (!wm->use_dock || item >= wm->dock.nitem) return false;
+    zui_dock_bloom(&wm->dock, false, false);
+    return chose(wm, &wm->dock.item[item]);
+}
+
+uint32_t zui_wm_launch(zui_wm_t *wm, const char *app, const char *title)
+{
+    if (!app || !app[0]) return 0;
+    for (uint32_t i = 0; i < wm->nm; i++) { /* already open: the most recent window */
+        const zui_wm_window_t *w = cget(wm, wm->mru[i]);
+        bool same = w != 0;
+        for (uint32_t k = 0; same && (w->app[k] || app[k]); k++) same = w->app[k] == app[k];
+        if (same) {
+            zui_wm_focus(wm, w->id);
+            return w->id;
+        }
+    }
+    return launch(wm, app, title);
+}
+
 bool zui_wm_event(zui_wm_t *wm, const zui_event_t *e)
 {
+    if (wm->use_dock && !wm->switching && wm->drag == DRAG_NONE) {
+        int r = zui_dock_event(&wm->dock, e);
+        if (r == ZUI_DOCK_CHOSE) return dock_chose(wm);
+        if (r == ZUI_DOCK_USED) return true;
+    }
     switch (e->type) {
     case ZUI_EV_KEY_DOWN:
     case ZUI_EV_KEY_UP:
@@ -518,6 +629,8 @@ bool zui_wm_event(zui_wm_t *wm, const zui_event_t *e)
 
 void zui_wm_tick(zui_wm_t *wm, uint32_t ms)
 {
+    if (wm->use_dock) zui_dock_tick(&wm->dock, ms);
+    bool opened = false;
     for (uint32_t i = 0; i < ZUI_WM_MAX; i++) {
         zui_wm_window_t *w = &wm->win[i];
         if (!w->id || w->phase != ZUI_WIN_OPENING) continue;
@@ -525,8 +638,10 @@ void zui_wm_tick(zui_wm_t *wm, uint32_t ms)
         if (w->opened_ms >= ZUI_WM_OPEN_MS) {
             w->opened_ms = ZUI_WM_OPEN_MS;
             w->phase = ZUI_WIN_OPEN;
+            opened = true;
         }
     }
+    if (opened) sync(wm);
 }
 
 /* ---- drawing ------------------------------------------------------------------ */
@@ -641,7 +756,8 @@ static void switcher(zui_wm_t *wm, zui_surface_t *s)
     int32_t per = imax(1, imin(n, (wm->w - 4 * gap) / (tile + gap)));
     int32_t rows = (n + per - 1) / per;
     int32_t pw = per * (tile + gap) + gap, ph = rows * (72 + gap) + gap;
-    zui_rect_t p = {(wm->w - pw) / 2, (wm->h - ZUI_WM_STRIP - ph) / 2, pw, ph};
+    zui_rect_t a = zui_wm_work(wm);
+    zui_rect_t p = {(wm->w - pw) / 2, a.y + (a.h - ph) / 2, pw, ph};
     zui_fill_rrect(s, p, ZUI_R_PANEL, ZUI_PANEL, 245);
     zui_engrave(s, p, ZUI_R_PANEL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 90u);
     for (int32_t i = 0; i < n; i++) {
@@ -663,12 +779,35 @@ static void switcher(zui_wm_t *wm, zui_surface_t *s)
 void zui_wm_draw(zui_wm_t *wm, zui_surface_t *s, uint32_t tick)
 {
     zui_unclip(s);
-    zui_fill(s, zui_wm_work(wm), ZUI_VOID);
+    zui_fill(s, wm->use_dock ? (zui_rect_t){0, 0, wm->w, wm->h} : zui_wm_work(wm), ZUI_VOID);
     uint32_t front = zui_wm_front(wm);
     for (uint32_t i = 0; i < wm->nz; i++) {
         const zui_wm_window_t *w = &wm->win[wm->z[i]];
         if (!w->minimised) frame(wm, s, w, w->id == front, tick);
     }
-    strip(wm, s, tick);
+    if (wm->use_dock) {
+        if (!wm->dock.text) wm->dock.text = wm->text;
+        zui_dock_draw(&wm->dock, s);
+    } else {
+        strip(wm, s, tick);
+    }
     switcher(wm, s);
+}
+
+void zui_wm_use_dock(zui_wm_t *wm, bool on)
+{
+    wm->use_dock = on;
+    zui_dock_bloom(&wm->dock, false, false);
+    sync(wm);
+    for (uint32_t i = 0; i < ZUI_WM_MAX; i++) /* the work area changed */
+        if (wm->win[i].id) fit(wm, &wm->win[i]);
+}
+
+bool zui_wm_activity(zui_wm_t *wm, uint32_t id, zui_dock_act_t a)
+{
+    zui_wm_window_t *w = zui_wm_get(wm, id);
+    if (!w || a > ZUI_DOCK_ASK) return false;
+    w->activity = (uint8_t) a;
+    sync(wm);
+    return true;
 }
