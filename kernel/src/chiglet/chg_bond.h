@@ -63,8 +63,8 @@
 typedef enum {
     CHGB_OK = 0,
     CHGB_ERR_ARG = -1,
-    CHGB_PAUSED = -2,    /* learning is paused: nothing was stored */
-    CHGB_DENIED = -3,    /* not the owner, or the owner has not opted in */
+    CHGB_PAUSED = -2, /* learning is paused: nothing was stored */
+    CHGB_DENIED = -3, /* not the owner, or the owner has not opted in */
     CHGB_ERR_PARSE = -4,
     CHGB_ERR_SPACE = -5
 } chgb_status_t;
@@ -73,9 +73,9 @@ typedef enum { CHGB_NOTHING = 0, CHGB_SUGGEST = 1, CHGB_UNSURE = 2 } chgb_state_
 typedef enum { CHGB_E_TIME = 0, CHGB_E_APP = 1, CHGB_E_PREV = 2 } chgb_expert_t;
 
 typedef struct {
-    uint16_t slot;   /* 0..167, hour of the week */
-    uint16_t app;    /* app id, CHGB_NONE if none */
-    uint16_t prev;   /* previous action id, CHGB_NONE if none */
+    uint16_t slot; /* 0..167, hour of the week */
+    uint16_t app;  /* app id, CHGB_NONE if none */
+    uint16_t prev; /* previous action id, CHGB_NONE if none */
 } chgb_ctx_t;
 
 typedef struct {
@@ -98,12 +98,12 @@ typedef struct {
 
 typedef struct {
     chgb_state_t state;
-    uint16_t action;            /* meaningful when state == CHGB_SUGGEST */
-    uint16_t share;             /* permille of combined evidence on action */
-    uint16_t second;            /* permille on the runner-up */
-    uint8_t experts;            /* experts with any evidence */
-    uint8_t distinct;           /* independent voices after merging */
-    uint32_t R_permille;        /* ISF effective independent reasons x1000 */
+    uint16_t action;                        /* meaningful when state == CHGB_SUGGEST */
+    uint16_t share;                         /* permille of combined evidence on action */
+    uint16_t second;                        /* permille on the runner-up */
+    uint8_t experts;                        /* experts with any evidence */
+    uint8_t distinct;                       /* independent voices after merging */
+    uint32_t R_permille;                    /* ISF effective independent reasons x1000 */
     uint16_t u[CHGB_EXPERTS][CHGB_EXPERTS]; /* pairwise independence, permille */
     uint16_t support[CHGB_EXPERTS];         /* each expert's weight on action */
 } chgb_suggestion_t;

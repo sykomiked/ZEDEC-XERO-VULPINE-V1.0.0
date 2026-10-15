@@ -150,8 +150,9 @@ static void probe(zxv_desktop_t *d)
         d->connected = false;
     } else {
         char reply[8192];
-        d->connected = zxv_rpc_call(d->rpc, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"zxvd.version\"}",
-                                    reply, sizeof reply, PROBE_TIMEOUT_MS) >= 0;
+        d->connected =
+            zxv_rpc_call(d->rpc, "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"zxvd.version\"}",
+                         reply, sizeof reply, PROBE_TIMEOUT_MS) >= 0;
     }
     d->last_probe = d->now;
     d->probed = true;
@@ -316,12 +317,23 @@ static void on_action(zui_ui_t *ui, zui_id_t w, zui_action_t a, int32_t arg, voi
     (void) ui;
     appwin_t *aw = (appwin_t *) ctx;
     switch (aw->app) {
-    case APP_BURROW: burrow_view_action(&aw->v.burrow, w, a, arg); break;
-    case APP_QUILLON: quillon_view_action(&aw->v.quillon, w, a, arg); break;
-    case APP_GLINT: glint_view_action(&aw->v.glint, w, a, arg); break;
-    case APP_SPINDLE: spindle_view_action(&aw->v.spindle, w, a, arg); break;
-    case APP_MURMURATION: murm_view_action(&aw->v.murm, w, a, arg); break;
-    default: break;
+    case APP_BURROW:
+        burrow_view_action(&aw->v.burrow, w, a, arg);
+        break;
+    case APP_QUILLON:
+        quillon_view_action(&aw->v.quillon, w, a, arg);
+        break;
+    case APP_GLINT:
+        glint_view_action(&aw->v.glint, w, a, arg);
+        break;
+    case APP_SPINDLE:
+        spindle_view_action(&aw->v.spindle, w, a, arg);
+        break;
+    case APP_MURMURATION:
+        murm_view_action(&aw->v.murm, w, a, arg);
+        break;
+    default:
+        break;
     }
     aw->d->dirty = true;
 }
@@ -441,7 +453,8 @@ static void load_app(zxv_desktop_t *d, appwin_t *aw)
         rc = burrow_init(&d->glint_dir, l);
         glint_scan(&d->glint, &d->glint_dir);
         zui_wm_progress(wm, aw->id, 160);
-        glint_view_build(&aw->v.glint, &aw->ui, &d->glint, d->glint_buf, d->glint_buf ? GLINT_BUF : 0);
+        glint_view_build(&aw->v.glint, &aw->ui, &d->glint, d->glint_buf,
+                         d->glint_buf ? GLINT_BUF : 0);
         zv_shell_result(&aw->v.glint.sh, rc, l);
         break;
     case APP_SPINDLE:
@@ -559,7 +572,9 @@ zui_rect_t zxv_desktop_space_card(const zxv_desktop_t *d, uint32_t i)
     if (!d || !d->spaces || i >= SPACES) return none;
     zui_rect_t a = zui_desk_area(&d->desk);
     int32_t g = px_of(d->scale_q8, ZUI_S5), head = px_of(d->scale_q8, 72);
-    int32_t cols = a.w >= px_of(d->scale_q8, 5 * 150) + 6 * g ? 5 : a.w >= px_of(d->scale_q8, 3 * 150) + 4 * g ? 3 : 2;
+    int32_t cols = a.w >= px_of(d->scale_q8, 5 * 150) + 6 * g   ? 5
+                   : a.w >= px_of(d->scale_q8, 3 * 150) + 4 * g ? 3
+                                                                : 2;
     int32_t cw = (a.w - (cols + 1) * g) / cols, maxw = px_of(d->scale_q8, 200);
     if (cw > maxw) cw = maxw;
     if (cw < 1) return none;
@@ -610,9 +625,10 @@ static void sign(zui_surface_t *s, uint32_t i, int32_t cx, int32_t cy, int32_t u
     case 2: /* three heads */
         for (int32_t j = -1; j <= 1; j++) {
             int32_t r = u / 3;
-            zui_stroke_rrect(s, (zui_rect_t){cx + j * u * 2 / 3 - r, cy - u / 2 - r, 2 * r, 2 * r}, r, k,
-                             rgb, 255);
-            zui_fill_rrect(s, (zui_rect_t){cx + j * u * 2 / 3 - r, cy + r / 2, 2 * r, r}, r / 2, rgb, 255);
+            zui_stroke_rrect(s, (zui_rect_t){cx + j * u * 2 / 3 - r, cy - u / 2 - r, 2 * r, 2 * r},
+                             r, k, rgb, 255);
+            zui_fill_rrect(s, (zui_rect_t){cx + j * u * 2 / 3 - r, cy + r / 2, 2 * r, r}, r / 2,
+                           rgb, 255);
         }
         break;
     case 3: /* a cloud */
@@ -647,8 +663,8 @@ static void draw_spaces(zxv_desktop_t *d, zui_surface_t *s)
         zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70);
         if (on) {
             int32_t g = px_of(d->scale_q8, 2);
-            zui_stroke_rrect(s, (zui_rect_t){r.x - g, r.y - g, r.w + 2 * g, r.h + 2 * g}, rad + g, g,
-                             ZUI_GOLD, 255);
+            zui_stroke_rrect(s, (zui_rect_t){r.x - g, r.y - g, r.w + 2 * g, r.h + 2 * g}, rad + g,
+                             g, ZUI_GOLD, 255);
         }
         sign(s, i, r.x + r.w / 2, r.y + r.h * 2 / 5, r.h / 6, on ? ZUI_GOLD : ZUI_TEXT_2);
         text_in(s, &d->t_body, (zui_rect_t){r.x + rad, r.y, r.w - 2 * rad, r.h},
@@ -759,10 +775,10 @@ static bool handle(zxv_desktop_t *d, const zui_event_t *e)
     }
     bool move = e->type == ZUI_EV_PTR_MOVE;
     if (!move) d->dirty = true;
-    bool ptr = e->type == ZUI_EV_PTR_DOWN || e->type == ZUI_EV_PTR_MOVE || e->type == ZUI_EV_PTR_UP ||
-               e->type == ZUI_EV_SCROLL;
-    if (d->spaces && ((ptr && in_rect(zui_desk_area(&d->desk), e->x, e->y)) ||
-                      e->type == ZUI_EV_KEY_DOWN)) {
+    bool ptr = e->type == ZUI_EV_PTR_DOWN || e->type == ZUI_EV_PTR_MOVE ||
+               e->type == ZUI_EV_PTR_UP || e->type == ZUI_EV_SCROLL;
+    if (d->spaces &&
+        ((ptr && in_rect(zui_desk_area(&d->desk), e->x, e->y)) || e->type == ZUI_EV_KEY_DOWN)) {
         spaces_event(d, e);
         return true;
     }
@@ -812,7 +828,8 @@ int zxv_desktop_step(zxv_desktop_t *d, uint32_t wait_ms)
         if (n < 0) rc = -1;
         if (n > 0 && (d->p.screen.px_w != (uint32_t) d->w || d->p.screen.px_h != (uint32_t) d->h ||
                       d->p.screen.scale_q8 != d->scale_q8))
-            resized(d, (int32_t) d->p.screen.px_w, (int32_t) d->p.screen.px_h, d->p.screen.scale_q8);
+            resized(d, (int32_t) d->p.screen.px_w, (int32_t) d->p.screen.px_h,
+                    d->p.screen.scale_q8);
     } else {
         d->fake_ms += 16;
     }
@@ -891,8 +908,9 @@ static bool open_present(zxv_desktop_t *d, const zxv_desktop_cfg_t *cfg, const c
             return true;
         }
     }
-    if (why) *why = cfg->backend && cfg->backend[0] ? "the named present layer did not open"
-                                                    : "no present layer opened";
+    if (why)
+        *why = cfg->backend && cfg->backend[0] ? "the named present layer did not open"
+                                               : "no present layer opened";
     return false;
 }
 

@@ -552,8 +552,7 @@ static void test_host_methods(void)
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
            "\"phone.list\",\"phone.revoke\","
-           "\"play.catalogue\",\"play.run\",\"play.draft\"," PEOPLE_M ","
-           ZXVD_MINE_TAIL
+           "\"play.catalogue\",\"play.run\",\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL
            /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
            MODS "]"
            "}"));
@@ -3161,7 +3160,8 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""), "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS "]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""),
+              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS "]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");

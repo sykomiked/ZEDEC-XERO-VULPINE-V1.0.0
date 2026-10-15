@@ -79,7 +79,8 @@ int main(void)
     /* V3: history ring */
     allot_stewardship_t rec[2];
     allot_history_t h;
-    CHECK(allot_history_init(&h, rec, 0) == ALLOT_ERR_ARG && allot_history_init(&h, rec, 2) == ALLOT_OK,
+    CHECK(allot_history_init(&h, rec, 0) == ALLOT_ERR_ARG &&
+              allot_history_init(&h, rec, 2) == ALLOT_OK,
           "V3: init");
     allot_settlement_t s;
     allot_reveal(&r, p, sec);
@@ -98,8 +99,8 @@ int main(void)
     c.jurisdiction_permits = false;
     CHECK(allot_view_build(&c, NULL, &h, a, &v) == ALLOT_OK && v.history_len == 2 && !v.action,
           "V2: read-only history listed");
-    CHECK(allot_history_note(NULL, &s) == ALLOT_ERR_ARG && allot_view_build(NULL, &r, &h, a, &v) ==
-                                                              ALLOT_ERR_ARG,
+    CHECK(allot_history_note(NULL, &s) == ALLOT_ERR_ARG &&
+              allot_view_build(NULL, &r, &h, a, &v) == ALLOT_ERR_ARG,
           "null args");
     printf("%u passed, %u failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;

@@ -34,11 +34,11 @@
 #include "zui_input.h"
 #include "zui_wm.h"
 
-#define ZUI_DESK_APPS   16u
-#define ZUI_DESK_BAR_PT 40 /* the top bar's height                 */
+#define ZUI_DESK_APPS    16u
+#define ZUI_DESK_BAR_PT  40 /* the top bar's height                 */
 #define ZUI_DESK_RAIL_PT 84 /* the launcher rail's width            */
 #define ZUI_DESK_TILE_PT 52 /* one launcher tile (square)           */
-#define ZUI_DESK_STATUS 96u
+#define ZUI_DESK_STATUS  96u
 
 typedef struct {
     const char *name; /* shown under the tile and in the strip  */

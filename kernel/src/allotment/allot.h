@@ -224,12 +224,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define ALLOT_ID_LEN      32u
-#define ALLOT_HASH_LEN    32u
-#define ALLOT_MAX_PARTIES 16u
-#define ALLOT_FIB_MIN     2u  /* F(2)  = 1 ballot (tests)    */
-#define ALLOT_FIB_MAX     80u /* F(80) ~ 2.3e16 fee units */
-#define ALLOT_SELECT_TRIES  128u
+#define ALLOT_ID_LEN       32u
+#define ALLOT_HASH_LEN     32u
+#define ALLOT_MAX_PARTIES  16u
+#define ALLOT_FIB_MIN      2u  /* F(2)  = 1 ballot (tests)    */
+#define ALLOT_FIB_MAX      80u /* F(80) ~ 2.3e16 fee units */
+#define ALLOT_SELECT_TRIES 128u
 
 #define ALLOT_SKIM_NUM          987u
 #define ALLOT_SKIM_DEN          61000u
@@ -257,7 +257,7 @@ typedef enum {
     ALLOT_ERR_COMMIT = -9,      /* reveal does not open the commitment     */
     ALLOT_ERR_REVEALS = -10,    /* not enough reveals to draw              */
     ALLOT_ERR_NO_BALLOTS = -11, /* nothing to draw from                    */
-    ALLOT_ERR_SELECT = -12,       /* rejection sampling ran out (2^-128)     */
+    ALLOT_ERR_SELECT = -12,     /* rejection sampling ran out (2^-128)     */
     ALLOT_ERR_SETTLEMENT = -13, /* settlement record does not match        */
     ALLOT_ERR_RATE = -14,       /* F2: rate outside [min_rate, max_rate]   */
     ALLOT_ERR_CAP = -15,        /* F6: the owner would pass the share cap  */
@@ -293,8 +293,8 @@ int allot_rate_cmp(allot_rate_t a, allot_rate_t b);
 typedef struct {
     bool jurisdiction_permits;       /* L1: default false                       */
     bool free_entry;                 /* L2: must be true (always-on free entry) */
-    allot_rate_t min_rate;          /* F2: default 1/100                       */
-    allot_rate_t max_rate;          /* F2: default 1/2 (the ceiling)           */
+    allot_rate_t min_rate;           /* F2: default 1/100                       */
+    allot_rate_t max_rate;           /* F2: default 1/2 (the ceiling)           */
     uint64_t skim_num, skim_den;     /* S1: default 987/61000                 */
     uint64_t grant_num, grant_den;   /* S2: default 5/55; den 0 = no grants   */
     uint32_t fib_index;              /* E1: default 18 (2584 ballots)           */
@@ -328,12 +328,12 @@ typedef struct {
     uint64_t pool;
     uint64_t selected_ballot;
     uint8_t steward[ALLOT_ID_LEN];
-    uint64_t reserve_skim; /* S1: to the reserve floor   */
-    uint64_t grant_pool;   /* S2: to the grant pool      */
-    uint64_t nav_slice;    /* S5: to the basket's NAV    */
-    uint64_t rebate_pool;  /* S6: the rebate slice       */
-    uint64_t rebate_paid;  /* S6: sum of the rebates     */
-    uint64_t crown_endowment;    /* S3: to the steward          */
+    uint64_t reserve_skim;    /* S1: to the reserve floor   */
+    uint64_t grant_pool;      /* S2: to the grant pool      */
+    uint64_t nav_slice;       /* S5: to the basket's NAV    */
+    uint64_t rebate_pool;     /* S6: the rebate slice       */
+    uint64_t rebate_paid;     /* S6: sum of the rebates     */
+    uint64_t crown_endowment; /* S3: to the steward          */
     uint8_t header_hash[ALLOT_HASH_LEN];
     uint8_t seed[ALLOT_HASH_LEN];
     uint8_t link[ALLOT_HASH_LEN]; /* hash of this record; seeds the next epoch's chain */
@@ -390,7 +390,7 @@ uint64_t allot_fib(uint32_t n);
 /* F2/F3 without state: fee (== ballots) for an amount at `rate` (NULL =
  * the deployment's min_rate). */
 allot_status_t allot_quote(const allot_config_t *c, uint64_t amount, const allot_rate_t *rate,
-                             uint64_t *fee, uint64_t *ballots);
+                           uint64_t *fee, uint64_t *ballots);
 
 /* F6: how many more ballots `owner` may take this epoch (UINT64_MAX when
  * the cap is off). */
@@ -406,45 +406,45 @@ allot_status_t allot_set_tally(allot_t *r, allot_tally_t *tally, uint32_t cap);
 /* Start epoch `epoch`. `prev_link` is the previous settlement's link (zeros
  * for the first epoch). `ranges` is caller storage for range_cap runs. */
 allot_status_t allot_init(allot_t *r, const allot_config_t *c, uint64_t epoch,
-                            const uint8_t prev_link[ALLOT_HASH_LEN], allot_range_t *ranges,
-                            uint32_t range_cap);
+                          const uint8_t prev_link[ALLOT_HASH_LEN], allot_range_t *ranges,
+                          uint32_t range_cap);
 
 /* R2: register a party's commitment. Only while OPEN with no ballots yet. */
 allot_status_t allot_commit(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
-                              const uint8_t commitment[ALLOT_HASH_LEN]);
+                            const uint8_t commitment[ALLOT_HASH_LEN]);
 
 /* The commitment a party publishes for `secret` in `epoch`. */
 void allot_commitment(uint64_t epoch, const uint8_t party[ALLOT_ID_LEN],
-                       const uint8_t secret[ALLOT_HASH_LEN], uint8_t out[ALLOT_HASH_LEN]);
+                      const uint8_t secret[ALLOT_HASH_LEN], uint8_t out[ALLOT_HASH_LEN]);
 
 /* F1-F6, E2: a paid, opt-in entry of `amount` at `rate`. On error
  * nothing changes. */
 allot_status_t allot_enter(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
-                             const allot_rate_t *rate, allot_receipt_t *out);
+                           const allot_rate_t *rate, allot_receipt_t *out);
 
 /* Would minting `count` ballots for `fee` to `owner` succeed now? Checks the
  * switch, the phase, the share cap, overflow and the range table; changes
  * nothing. */
-allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                  uint64_t fee, uint64_t count);
+allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t fee,
+                                uint64_t count);
 
 /* Ladder use (allot_ladder.h): mint `fee` ballots for a share of a payment
  * whose fee was already computed. `amount` and `rate` are recorded in
  * the chain for audit. */
 allot_status_t allot_enter_share(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
-                                   const allot_rate_t *rate, uint64_t fee, allot_receipt_t *out);
+                                 const allot_rate_t *rate, uint64_t fee, allot_receipt_t *out);
 
 /* M1: a savings entry. fee = floor(profit * share), share in (0, 1]; it
  * mints floor(fee * luck) ballots (luck NULL = 1; else 1 <= luck <=
  * luck_cap, see allot_luck_mult). Allowed in both modes. */
 allot_status_t allot_enter_yield(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t profit,
-                                   allot_rate_t share, const allot_rate_t *luck,
-                                   allot_receipt_t *out);
+                                 allot_rate_t share, const allot_rate_t *luck,
+                                 allot_receipt_t *out);
 
 /* Ladder use: mint `ballots` for `fee` (fee <= ballots <= fee * luck_cap). */
-allot_status_t allot_enter_weighted(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                      uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                      uint64_t ballots, allot_receipt_t *out);
+allot_status_t allot_enter_weighted(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
+                                    const allot_rate_t *rate, uint64_t fee, uint64_t ballots,
+                                    allot_receipt_t *out);
 
 /* W1: the weight after `misses` consecutive non-selections, capped at
  * c->luck_cap. Always >= 1. */
@@ -458,7 +458,7 @@ uint64_t allot_luck_ballots(const allot_config_t *c, uint64_t fee, allot_rate_t 
  * jurisdiction_permits is false. In FREE mode an owner
  * that already holds a ballot this epoch is refused (ALLOT_ERR_CAP). */
 allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                  allot_receipt_t *out);
+                                allot_receipt_t *out);
 
 /* A2 (FREE mode only): the operator adds `amount` of surplus it already
  * holds to this epoch's endowment. `source` names the account it comes
@@ -470,7 +470,7 @@ allot_status_t allot_endow(allot_t *r, const uint8_t source[ALLOT_ID_LEN], uint6
 
 /* R2: reveal a party's secret. Only while CLOSED. */
 allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
-                              const uint8_t secret[ALLOT_HASH_LEN]);
+                            const uint8_t secret[ALLOT_HASH_LEN]);
 
 /* R2-R4, S1: compute the settlement. Pure with respect to `r`. */
 allot_status_t allot_select(const allot_t *r, allot_settlement_t *out);
@@ -479,22 +479,20 @@ allot_status_t allot_select(const allot_t *r, allot_settlement_t *out);
 typedef enum {
     ALLOT_DEST_RESERVE_FLOOR = 0, /* PAY_ASSURE_RESERVE_FLOOR account   */
     ALLOT_DEST_GRANT_POOL = 1,    /* Olive Oil Barrel grant pool account */
-    ALLOT_DEST_STEWARD = 2,        /* `who` = the selected owner           */
+    ALLOT_DEST_STEWARD = 2,       /* `who` = the selected owner           */
     ALLOT_DEST_BASKET_NAV = 3,    /* S5: the basket token's component buy */
     ALLOT_DEST_REBATE = 4         /* S6: `who` = a non-selected owner      */
 } allot_dest_t;
 
 /* Stage one leg; return false to abort. `who` is NULL except for the steward. */
-typedef bool (*allot_credit_fn)(void *ctx, allot_dest_t dest, const uint8_t *who,
-                                 uint64_t amount);
+typedef bool (*allot_credit_fn)(void *ctx, allot_dest_t dest, const uint8_t *who, uint64_t amount);
 
 /* S4: call `credit` for the reserve floor, the grant pool, the basket NAV
  * leg (S5), each rebate (S6, one per run of ballots, in ballot order) and the
  * steward, in that order, skipping zero legs. `r` is the closed epoch `s` was
  * drawn from (the rebates need its runs). Returns false on the first refusal
  * or a mismatch (the caller then discards its staged posting). */
-bool allot_post(const allot_t *r, const allot_settlement_t *s, allot_credit_fn credit,
-                 void *ctx);
+bool allot_post(const allot_t *r, const allot_settlement_t *s, allot_credit_fn credit, void *ctx);
 
 /* S4: after the caller has posted `s` to the ledger, mark the epoch settled.
  * Refuses a record that allot_select would not produce now. */

@@ -55,13 +55,13 @@
 typedef bool (*allot_age_gate_fn)(void *ctx, const uint8_t owner[ALLOT_ID_LEN]);
 typedef bool (*allot_eligible_fn)(void *ctx, const uint8_t identity[ALLOT_ID_LEN]);
 typedef bool (*allot_identity_fn)(void *ctx, const uint8_t owner[ALLOT_ID_LEN],
-                                   uint8_t identity[ALLOT_ID_LEN]);
+                                  uint8_t identity[ALLOT_ID_LEN]);
 
 typedef struct {
     allot_rate_t confirm_above; /* G2: default 1/10                */
-    uint64_t cooling_off;        /* G4: seconds, default 86,400     */
-    uint64_t day_len;            /* G3: seconds, default 86,400     */
-    bool require_limits;         /* G3: default true                */
+    uint64_t cooling_off;       /* G4: seconds, default 86,400     */
+    uint64_t day_len;           /* G3: seconds, default 86,400     */
+    bool require_limits;        /* G3: default true                */
     allot_age_gate_fn age_gate; /* G6: NULL = refuse everyone      */
     void *age_ctx;
     allot_identity_fn identity_of; /* G7: NULL = no luck weight     */
@@ -78,7 +78,7 @@ typedef struct {
 
 typedef struct {
     uint8_t owner[ALLOT_ID_LEN];
-    allot_rate_t rate;              /* G1: 0/1 = out (default)          */
+    allot_rate_t rate;               /* G1: 0/1 = out (default)          */
     uint64_t day_limit, epoch_limit; /* G3: 0 = not set                  */
     uint64_t pend_day, pend_epoch;   /* G4: queued raises, 0 = none      */
     uint64_t pend_day_at, pend_epoch_at;
@@ -94,11 +94,11 @@ void allot_player_init(allot_player_t *pl, const uint8_t owner[ALLOT_ID_LEN]);
 
 /* G1: rate num == 0 opts out; otherwise it must lie in cfg's range. */
 allot_status_t allot_player_set_rate(const allot_config_t *cfg, allot_player_t *pl,
-                                       allot_rate_t rate);
+                                     allot_rate_t rate);
 
 /* G3/G4: both limits must be > 0. */
 allot_status_t allot_player_set_limits(const allot_guard_policy_t *pol, allot_player_t *pl,
-                                         uint64_t day_limit, uint64_t epoch_limit, uint64_t now);
+                                       uint64_t day_limit, uint64_t epoch_limit, uint64_t now);
 
 /* G5 */
 void allot_player_exclude(allot_player_t *pl, uint64_t now, uint64_t duration);
@@ -113,15 +113,15 @@ uint64_t allot_player_epoch_limit(const allot_player_t *pl, uint64_t now);
  * confirm_above). On ALLOT_OK or ALLOT_ERR_CONFIRM, *fee is the exact fee
  * to show / that was charged. */
 allot_status_t allot_guard_check(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                   const allot_player_t *pl, uint64_t amount, uint64_t now,
-                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee);
+                                 const allot_player_t *pl, uint64_t amount, uint64_t now,
+                                 uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee);
 
 /* G1, G3, G5, G6 and the switch for a fee the caller already computed and
  * whose confirmation (G2) it already holds; pl->rate is only the opt-in
  * flag here. Used by prize-linked savings (allot_token.h T6). */
 allot_status_t allot_guard_check_fee(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                       const allot_player_t *pl, uint64_t fee, uint64_t now,
-                                       uint64_t epoch);
+                                     const allot_player_t *pl, uint64_t fee, uint64_t now,
+                                     uint64_t epoch);
 
 /* G8: may `pl` register a free ballot (FREE mode, or free_entry on in the
  * other modes)? On ALLOT_OK `ballot_owner` is the verified person id to
@@ -133,8 +133,8 @@ allot_status_t allot_guard_check_free(const allot_guard_policy_t *pol, const all
 /* G7: the weight for `owner`: allot_luck_mult of their person's record in
  * book[0..n) (no record = 0 misses). {1, 1} without a usable identity. */
 allot_rate_t allot_guard_luck(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                const uint8_t owner[ALLOT_ID_LEN], const allot_luck_t *book,
-                                uint32_t n);
+                              const uint8_t owner[ALLOT_ID_LEN], const allot_luck_t *book,
+                              uint32_t n);
 
 /* G7/W1: after an epoch a person took part in, `won` (in any level) resets
  * the count, otherwise it grows by one (saturating). */
@@ -142,6 +142,6 @@ void allot_luck_note(allot_luck_t *rec, bool won);
 
 /* Record `fee` as spent after the entry was accepted. */
 void allot_guard_commit(const allot_guard_policy_t *pol, allot_player_t *pl, uint64_t now,
-                         uint64_t epoch, uint64_t fee);
+                        uint64_t epoch, uint64_t fee);
 
 #endif /* ZXV_ALLOT_GUARD_H */

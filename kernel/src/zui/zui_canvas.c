@@ -312,10 +312,7 @@ typedef struct {
     uint8_t rings; /* 1: command loops at the square's corners; 2: escape's ring */
 } sym_def_t;
 
-#define SYM(cp, a, r)                                                                              \
-    {                                                                                              \
-        cp, a, (uint8_t) (sizeof a / sizeof a[0]), r                                               \
-    }
+#define SYM(cp, a, r) {cp, a, (uint8_t) (sizeof a / sizeof a[0]), r}
 static const sym_def_t SYMS[] = {
     SYM(0x2318u, SYM_CMD, 1),   SYM(0x2325u, SYM_OPT, 0),  SYM(0x21E7u, SYM_SHIFT, 0),
     SYM(0x2303u, SYM_CTRL, 0),  SYM(0x23CEu, SYM_RET, 0),  SYM(0x21B5u, SYM_RET, 0),

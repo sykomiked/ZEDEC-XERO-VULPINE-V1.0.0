@@ -120,21 +120,21 @@
 typedef enum {
     NAVP_OK = 0,
     NAVP_E_ARG = -1,
-    NAVP_E_STATE = -2,    /* wrong port, member or proposal state       */
+    NAVP_E_STATE = -2, /* wrong port, member or proposal state       */
     NAVP_E_FULL = -3,
-    NAVP_E_DUST = -4,     /* the conversion is worth 0 of a unit        */
-    NAVP_E_LIMIT = -5,    /* N4: net debit would exceed the share       */
-    NAVP_E_DEPEG = -6,    /* N5: evidence says off peg (SUSPEND mode)   */
-    NAVP_E_HELD = -7,     /* N5: conflicting evidence, held for quorum  */
-    NAVP_E_STALE = -8,    /* N5: no fresh evidence, stale cap reached   */
+    NAVP_E_DUST = -4,  /* the conversion is worth 0 of a unit        */
+    NAVP_E_LIMIT = -5, /* N4: net debit would exceed the share       */
+    NAVP_E_DEPEG = -6, /* N5: evidence says off peg (SUSPEND mode)   */
+    NAVP_E_HELD = -7,  /* N5: conflicting evidence, held for quorum  */
+    NAVP_E_STALE = -8, /* N5: no fresh evidence, stale cap reached   */
     NAVP_E_SIG = -9,
-    NAVP_E_DUP = -10,     /* vote already counted                       */
-    NAVP_E_QUORUM = -11,  /* N7: fewer agreeing votes than the quorum   */
-    NAVP_E_CONFLICT = -12,/* N7: a vote for a different settlement      */
-    NAVP_E_SHORT = -13,   /* N7: a debtor's share cannot pay its net    */
+    NAVP_E_DUP = -10,      /* vote already counted                       */
+    NAVP_E_QUORUM = -11,   /* N7: fewer agreeing votes than the quorum   */
+    NAVP_E_CONFLICT = -12, /* N7: a vote for a different settlement      */
+    NAVP_E_SHORT = -13,    /* N7: a debtor's share cannot pay its net    */
     NAVP_E_OVERFLOW = -14,
-    NAVP_E_DISABLED = -15,/* N9: pipe yield is off                      */
-    NAVP_E_UNKNOWN = -16  /* unknown member or proposal                 */
+    NAVP_E_DISABLED = -15, /* N9: pipe yield is off                      */
+    NAVP_E_UNKNOWN = -16   /* unknown member or proposal                 */
 } navp_status_t;
 
 /* Four-valued truth (same order as lpres_state_t). */
@@ -170,23 +170,23 @@ typedef struct {
 typedef struct {
     uint32_t key;
     char code[NAVP_CODE_MAX + 1];
-    uint64_t num, den;  /* peg: num minor units of this unit per den V-Bill units */
-    uint64_t share;     /* S_i: this member's share of the Sicilian account      */
-    uint8_t state;      /* navp_mstate_t */
+    uint64_t num, den; /* peg: num minor units of this unit per den V-Bill units */
+    uint64_t share;    /* S_i: this member's share of the Sicilian account      */
+    uint8_t state;     /* navp_mstate_t */
     uint32_t on_votes, off_votes;
-    uint64_t stale_used;  /* V-Bill value moved out on NEITHER this cycle */
-    uint64_t fee_due;     /* fees on outflows, in this member's unit      */
-    uint64_t fee_v;       /* the same in V-Bill value, since the last yield */
-    uint64_t returned;    /* V-Bills returned on exit                      */
+    uint64_t stale_used; /* V-Bill value moved out on NEITHER this cycle */
+    uint64_t fee_due;    /* fees on outflows, in this member's unit      */
+    uint64_t fee_v;      /* the same in V-Bill value, since the last yield */
+    uint64_t returned;   /* V-Bills returned on exit                      */
 } navp_member_t;
 
 typedef struct {
     uint32_t id;
-    uint8_t kind;    /* navp_prop_kind_t, 0 = free slot */
-    uint8_t member;  /* PEG: the member; ADMIT: the new slot */
+    uint8_t kind;   /* navp_prop_kind_t, 0 = free slot */
+    uint8_t member; /* PEG: the member; ADMIT: the new slot */
     uint8_t ratified;
-    uint8_t approved;/* bitmask of member indices */
-    uint32_t key;    /* ADMIT */
+    uint8_t approved; /* bitmask of member indices */
+    uint32_t key;     /* ADMIT */
     char code[NAVP_CODE_MAX + 1];
     uint64_t num, den, stake;
     uint8_t digest[32];
@@ -221,7 +221,7 @@ typedef struct {
     /* history */
     uint64_t total_gross, total_settled, closes;
     uint64_t genesis, deposits, withdrawals; /* V-Bill conservation */
-    bool started; /* a conversion happened: no genesis members after */
+    bool started;                            /* a conversion happened: no genesis members after */
     navp_proposal_t prop[NAVP_MAX_PROPOSALS];
     uint32_t next_prop;
 } navp_t;
@@ -232,8 +232,8 @@ navp_status_t navp_init(navp_t *p, uint32_t port_id, const navp_config_t *cfg,
 const char *navp_status_name(navp_status_t s);
 
 /* Genesis members, before the first conversion. stake >= min_stake. */
-navp_status_t navp_member_add(navp_t *p, uint32_t key, const char *code, uint64_t num,
-                              uint64_t den, uint64_t stake, uint32_t *out_idx);
+navp_status_t navp_member_add(navp_t *p, uint32_t key, const char *code, uint64_t num, uint64_t den,
+                              uint64_t stake, uint32_t *out_idx);
 navp_status_t navp_deposit(navp_t *p, uint32_t m, uint64_t vbills);
 navp_status_t navp_withdraw(navp_t *p, uint32_t m, uint64_t vbills);
 
@@ -242,8 +242,7 @@ navp_lp_t navp_evidence(navp_t *p, uint32_t m, uint32_t on, uint32_t off);
 navp_lp_t navp_health(const navp_t *p, uint32_t m);
 
 /* N3 */
-navp_status_t navp_quote(const navp_t *p, uint32_t from, uint32_t to, uint64_t x,
-                         navp_quote_t *q);
+navp_status_t navp_quote(const navp_t *p, uint32_t from, uint32_t to, uint64_t x, navp_quote_t *q);
 navp_status_t navp_convert(navp_t *p, uint32_t from, uint32_t to, uint64_t x, navp_quote_t *q);
 
 /* liabilities (others' holdings of m) and claims (m's holdings), V-Bill value */
@@ -264,8 +263,7 @@ navp_status_t navp_close_abort(navp_t *p);
 uint32_t navp_quorum(const navp_t *p);
 
 /* N8 */
-navp_status_t navp_propose_peg(navp_t *p, uint32_t m, uint64_t num, uint64_t den,
-                               uint32_t *out_id);
+navp_status_t navp_propose_peg(navp_t *p, uint32_t m, uint64_t num, uint64_t den, uint32_t *out_id);
 navp_status_t navp_propose_admit(navp_t *p, uint32_t key, const char *code, uint64_t num,
                                  uint64_t den, uint64_t stake, uint32_t *out_id);
 /* "zxv/navp-prop/v1" || port || id || digest */

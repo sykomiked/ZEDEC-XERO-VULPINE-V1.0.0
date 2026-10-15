@@ -38,15 +38,15 @@
 #include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
 #include "zxv_files.h"        /* files.*: the ZXV folder */
 #include "zxv_spaces.h"       /* spaces.*: who may see and change each place */
-#include "zxv_sysinfo.h"    /* sys.*: the machine and zxvd, for the system utilities */
-#include "zxvd_log.h"       /* log.tail and the RPC traffic counts */
-#include "zxv_search.h"     /* search.*: Scent's index of the ZXV folder */
-#include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
-#include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
-#include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
-#include "zxv_screen.h"     /* screen.*: Shepherd's screen time */
-#include "zxv_place.h"      /* place.*: Waymark's location and places */
-#include "juris.h"          /* J5: the jurisdiction host (kernel/src/juris) */
+#include "zxv_sysinfo.h"      /* sys.*: the machine and zxvd, for the system utilities */
+#include "zxvd_log.h"         /* log.tail and the RPC traffic counts */
+#include "zxv_search.h"       /* search.*: Scent's index of the ZXV folder */
+#include "zxv_print_host.h"   /* print.*, scan.*: Platen's printers and scanners */
+#include "zxv_keepsake.h"     /* backup.*: Keepsake's backups and versions */
+#include "zxv_journal.h"      /* journal.*: Wake's history across restarts */
+#include "zxv_screen.h"       /* screen.*: Shepherd's screen time */
+#include "zxv_place.h"        /* place.*: Waymark's location and places */
+#include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's

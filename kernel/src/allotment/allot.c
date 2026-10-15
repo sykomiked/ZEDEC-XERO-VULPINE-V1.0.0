@@ -72,8 +72,8 @@ void allot_config_default(allot_config_t *c)
     c->min_reveals = 0;
     c->share_num = 8;
     c->share_den = 21;
-    c->mode = ALLOT_MODE_FREE;    /* M0 */
-    c->rebate_num = 1;             /* S6 */
+    c->mode = ALLOT_MODE_FREE; /* M0 */
+    c->rebate_num = 1;         /* S6 */
     c->rebate_den = 5;
     c->luck_cap = ALLOT_LUCK_DEFAULT; /* W1 */
 }
@@ -166,8 +166,7 @@ allot_status_t allot_config_check(const allot_config_t *c)
     if (!split_fits(c)) return ALLOT_ERR_CONFIG; /* S3 */
     if (c->fib_index < ALLOT_FIB_MIN || c->fib_index > ALLOT_FIB_MAX) return ALLOT_ERR_CONFIG;
     if (c->min_reveals > ALLOT_MAX_PARTIES) return ALLOT_ERR_CONFIG;
-    if (c->share_den && (c->share_num == 0 || c->share_num > c->share_den))
-        return ALLOT_ERR_CONFIG;
+    if (c->share_den && (c->share_num == 0 || c->share_num > c->share_den)) return ALLOT_ERR_CONFIG;
     return ALLOT_OK;
 }
 
@@ -184,7 +183,7 @@ uint64_t allot_fib(uint32_t n)
 }
 
 allot_status_t allot_quote(const allot_config_t *c, uint64_t amount, const allot_rate_t *rate,
-                             uint64_t *fee, uint64_t *ballots)
+                           uint64_t *fee, uint64_t *ballots)
 {
     allot_status_t st = allot_config_check(c);
     if (st != ALLOT_OK) return st;
@@ -212,8 +211,8 @@ static void genesis_chain(uint64_t epoch, const uint8_t prev_link[ALLOT_HASH_LEN
 }
 
 allot_status_t allot_init(allot_t *r, const allot_config_t *c, uint64_t epoch,
-                            const uint8_t prev_link[ALLOT_HASH_LEN], allot_range_t *ranges,
-                            uint32_t range_cap)
+                          const uint8_t prev_link[ALLOT_HASH_LEN], allot_range_t *ranges,
+                          uint32_t range_cap)
 {
     static const uint8_t zero[ALLOT_HASH_LEN] = {0};
     if (!r || !c || !ranges || range_cap == 0) return ALLOT_ERR_ARG;
@@ -231,7 +230,7 @@ allot_status_t allot_init(allot_t *r, const allot_config_t *c, uint64_t epoch,
 }
 
 void allot_commitment(uint64_t epoch, const uint8_t party[ALLOT_ID_LEN],
-                       const uint8_t secret[ALLOT_HASH_LEN], uint8_t out[ALLOT_HASH_LEN])
+                      const uint8_t secret[ALLOT_HASH_LEN], uint8_t out[ALLOT_HASH_LEN])
 {
     pre_t p;
     p.len = 0;
@@ -250,7 +249,7 @@ static int find_party(const allot_t *r, const uint8_t party[ALLOT_ID_LEN])
 }
 
 allot_status_t allot_commit(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
-                              const uint8_t commitment[ALLOT_HASH_LEN])
+                            const uint8_t commitment[ALLOT_HASH_LEN])
 {
     if (!r || !party || !commitment) return ALLOT_ERR_ARG;
     if (r->phase != ALLOT_OPEN || r->ballots != 0) return ALLOT_ERR_PHASE;
@@ -341,15 +340,15 @@ uint64_t allot_room(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN])
     return held >= cap ? 0 : cap - held;
 }
 
-allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                  uint64_t fee, uint64_t count)
+allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t fee,
+                                uint64_t count)
 {
     uint64_t t;
     if (!r || !owner) return ALLOT_ERR_ARG;
     if (!r->cfg.jurisdiction_permits) return ALLOT_ERR_DISABLED;
     if (r->phase != ALLOT_OPEN) return ALLOT_ERR_PHASE;
     if (r->cfg.mode == ALLOT_MODE_FREE && fee) return ALLOT_ERR_MODE; /* A3 */
-    if (count > allot_room(r, owner)) return ALLOT_ERR_CAP;               /* F6, A1 */
+    if (count > allot_room(r, owner)) return ALLOT_ERR_CAP;           /* F6, A1 */
     if (!pay_add_ok(r->pool, fee, &t)) return ALLOT_ERR_OVERFLOW;
     if (count && !pay_add_ok(r->ballots, count, &t)) return ALLOT_ERR_OVERFLOW;
     if (count && r->range_len >= r->range_cap) return ALLOT_ERR_FULL;
@@ -362,8 +361,8 @@ allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_L
 /* Mint `count` ballots to `owner` for `fee` (kind 0 = paid, 1 = free, 2 = a
  * ladder share, 3 = weighted or savings) at `rate` (0/1 for a free entry). */
 static allot_status_t mint(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
-                            allot_rate_t rate, uint64_t fee, uint64_t count, uint8_t kind,
-                            allot_receipt_t *out)
+                           allot_rate_t rate, uint64_t fee, uint64_t count, uint8_t kind,
+                           allot_receipt_t *out)
 {
     if (r->cfg.mode == ALLOT_MODE_FREE && kind != 1) return ALLOT_ERR_MODE; /* A3 */
     allot_status_t st = allot_mint_check(r, owner, fee, count);
@@ -425,7 +424,7 @@ static allot_status_t mint(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64
 }
 
 allot_status_t allot_enter(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
-                             const allot_rate_t *rate, allot_receipt_t *out)
+                           const allot_rate_t *rate, allot_receipt_t *out)
 {
     uint64_t fee, n;
     if (!r || !owner) return ALLOT_ERR_ARG;
@@ -439,7 +438,7 @@ allot_status_t allot_enter(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64
 }
 
 allot_status_t allot_enter_share(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
-                                   const allot_rate_t *rate, uint64_t fee, allot_receipt_t *out)
+                                 const allot_rate_t *rate, uint64_t fee, allot_receipt_t *out)
 {
     if (!r || !owner) return ALLOT_ERR_ARG;
     if (fee == 0) return ALLOT_ERR_DUST;
@@ -472,9 +471,9 @@ uint64_t allot_luck_ballots(const allot_config_t *c, uint64_t fee, allot_rate_t 
     return t;
 }
 
-allot_status_t allot_enter_weighted(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                      uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                      uint64_t ballots, allot_receipt_t *out)
+allot_status_t allot_enter_weighted(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t amount,
+                                    const allot_rate_t *rate, uint64_t fee, uint64_t ballots,
+                                    allot_receipt_t *out)
 {
     uint64_t most;
     if (!r || !owner) return ALLOT_ERR_ARG;
@@ -485,8 +484,7 @@ allot_status_t allot_enter_weighted(allot_t *r, const uint8_t owner[ALLOT_ID_LEN
 }
 
 allot_status_t allot_enter_yield(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64_t profit,
-                                   allot_rate_t share, const allot_rate_t *luck,
-                                   allot_receipt_t *out)
+                                 allot_rate_t share, const allot_rate_t *luck, allot_receipt_t *out)
 {
     uint64_t fee, ballots;
     if (!r || !owner) return ALLOT_ERR_ARG;
@@ -499,8 +497,7 @@ allot_status_t allot_enter_yield(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], 
     return mint(r, owner, profit, share, fee, ballots, 3, out);
 }
 
-allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
-                                  allot_receipt_t *out)
+allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], allot_receipt_t *out)
 {
     if (!r || !owner) return ALLOT_ERR_ARG;
     if (!r->cfg.jurisdiction_permits || !r->cfg.free_entry) return ALLOT_ERR_DISABLED;
@@ -531,7 +528,7 @@ allot_status_t allot_endow(allot_t *r, const uint8_t source[ALLOT_ID_LEN], uint6
 }
 
 allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
-                              const uint8_t secret[ALLOT_HASH_LEN])
+                            const uint8_t secret[ALLOT_HASH_LEN])
 {
     uint8_t c[ALLOT_HASH_LEN];
     if (!r || !party || !secret) return ALLOT_ERR_ARG;
@@ -689,8 +686,7 @@ allot_status_t allot_select(const allot_t *r, allot_settlement_t *out)
     return ALLOT_OK;
 }
 
-bool allot_post(const allot_t *r, const allot_settlement_t *s, allot_credit_fn credit,
-                 void *ctx)
+bool allot_post(const allot_t *r, const allot_settlement_t *s, allot_credit_fn credit, void *ctx)
 {
     bool ok = true;
     if (!r || !s || !credit) return false;
@@ -698,13 +694,13 @@ bool allot_post(const allot_t *r, const allot_settlement_t *s, allot_credit_fn c
         !pay_memeq(s->header_hash, r->header_hash, ALLOT_HASH_LEN) ||
         rebates(r, s->steward, s->rebate_pool, 0, 0, 0) != s->rebate_paid)
         return false;
-    if (s->reserve_skim && !credit(ctx, ALLOT_DEST_RESERVE_FLOOR, 0, s->reserve_skim))
-        return false;
+    if (s->reserve_skim && !credit(ctx, ALLOT_DEST_RESERVE_FLOOR, 0, s->reserve_skim)) return false;
     if (s->grant_pool && !credit(ctx, ALLOT_DEST_GRANT_POOL, 0, s->grant_pool)) return false;
     if (s->nav_slice && !credit(ctx, ALLOT_DEST_BASKET_NAV, 0, s->nav_slice)) return false;
     (void) rebates(r, s->steward, s->rebate_pool, credit, ctx, &ok);
     if (!ok) return false;
-    if (s->crown_endowment && !credit(ctx, ALLOT_DEST_STEWARD, s->steward, s->crown_endowment)) return false;
+    if (s->crown_endowment && !credit(ctx, ALLOT_DEST_STEWARD, s->steward, s->crown_endowment))
+        return false;
     return true;
 }
 

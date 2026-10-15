@@ -209,11 +209,10 @@ int main(void)
     CHECK(allot_token_config(&dep, &b, &c) == ALLOT_ERR_DISABLED, "deployment off: refused");
     CHECK(allot_token_set_rate(&dep, &b, &pl, (allot_rate_t){1, 20}) == ALLOT_ERR_DISABLED,
           "cannot opt in while off");
-    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0,
-                             &fee) == ALLOT_ERR_DISABLED,
-          "slice refused while off");
-    CHECK(allot_token_savings_check(&pol, &dep, &b, &pl, 1000, now, 1, &fee) ==
+    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0, &fee) ==
               ALLOT_ERR_DISABLED,
+          "slice refused while off");
+    CHECK(allot_token_savings_check(&pol, &dep, &b, &pl, 1000, now, 1, &fee) == ALLOT_ERR_DISABLED,
           "savings refused while off");
     dep.jurisdiction_permits = true;
 
@@ -248,14 +247,14 @@ int main(void)
     t.slice_min = t.slice_max = (allot_rate_t){0, 0};
     CHECK(allot_token_config(&dep, &t, &c) == ALLOT_OK && c.min_rate.den == dep.min_rate.den,
           "savings-only pot: deployment rate range");
-    CHECK(allot_token_check(&pol, &dep, &t, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0,
-                             &fee) == ALLOT_ERR_EVENT,
+    CHECK(allot_token_check(&pol, &dep, &t, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0, &fee) ==
+              ALLOT_ERR_EVENT,
           "no slice events");
     allot_token_config(&dep, &b, &c);
 
     /* ---- G1 + T2: holder opt-in and events ---- */
-    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0,
-                             &fee) == ALLOT_ERR_NOT_IN,
+    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0, &fee) ==
+              ALLOT_ERR_NOT_IN,
           "holder out by default");
     CHECK(allot_token_set_rate(&dep, &b, &pl, (allot_rate_t){1, 100}) == ALLOT_ERR_RATE,
           "1%% below the issuer's 2%%");
@@ -265,13 +264,13 @@ int main(void)
               ALLOT_ERR_EVENT,
           "burn not enabled");
     CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER | ALLOT_TOKEN_EV_MINT, &pl,
-                             1000, now, 1, 0, &fee) == ALLOT_ERR_EVENT,
+                            1000, now, 1, 0, &fee) == ALLOT_ERR_EVENT,
           "one event at a time");
     CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_SAVINGS, &pl, 1000, now, 1, 0, &fee) ==
               ALLOT_ERR_EVENT,
           "savings is not a slice");
-    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0,
-                             &fee) == ALLOT_OK &&
+    CHECK(allot_token_check(&pol, &dep, &b, ALLOT_TOKEN_EV_TRANSFER, &pl, 1000, now, 1, 0, &fee) ==
+                  ALLOT_OK &&
               fee == 50,
           "5%% of 1000 on transfer");
 
@@ -348,20 +347,18 @@ int main(void)
     allot_rate_t none = {0, 1};
     CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1000, now, 1, &fee) == ALLOT_ERR_NOT_IN,
           "savings opt-in required");
-    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){3, 4}, none) ==
-              ALLOT_ERR_RATE,
+    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){3, 4}, none) == ALLOT_ERR_RATE,
           "75%% above the issuer's 50%%");
     CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){1, 4}, none) ==
               ALLOT_ERR_CONFIRM,
           "25%% needs a confirmation at enrolment");
-    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){1, 4},
-                                 (allot_rate_t){2, 8}) == ALLOT_ERR_CONFIRM,
+    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){1, 4}, (allot_rate_t){2, 8}) ==
+              ALLOT_ERR_CONFIRM,
           "the exact share must be confirmed");
-    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){1, 4},
-                                 (allot_rate_t){1, 4}) == ALLOT_OK,
+    CHECK(allot_token_set_share(&pol, &dep, &b, &sv, (allot_rate_t){1, 4}, (allot_rate_t){1, 4}) ==
+              ALLOT_OK,
           "enrolled at 25%%");
-    CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1003, now, 1, &fee) ==
-              ALLOT_ERR_NO_LIMITS,
+    CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1003, now, 1, &fee) == ALLOT_ERR_NO_LIMITS,
           "limits required for savings too");
     allot_player_set_limits(&pol, &sv, 600, 5000, now);
     CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1003, now, 1, &fee) == ALLOT_OK &&
@@ -392,8 +389,8 @@ int main(void)
     allot_config_default(&lc);
     lc.jurisdiction_permits = true;
     lc.mode = ALLOT_MODE_PAID;
-    CHECK(allot_ladder_init(&L, &lc, LADDER_N, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv,
-                             g_rg, 64, NULL, 0, NULL) == ALLOT_OK,
+    CHECK(allot_ladder_init(&L, &lc, LADDER_N, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv, g_rg,
+                            64, NULL, 0, NULL) == ALLOT_OK,
           "ladder");
     for (uint32_t k = 0; k < LADDER_N; k++) commit_one(&g_lv[k], (uint8_t) (0x20 + k));
     allot_ladder_receipt_t lr;
@@ -413,27 +410,26 @@ int main(void)
     top2.tier_hi = 3;
     uint64_t before0 = g_lv[0].ballots;
     allot_token_span(&top2, LADDER_N, &lo, &hi);
-    CHECK(allot_ladder_enter_span(&L, alice, 10000, &(allot_rate_t){1, 100}, 0, NULL, NULL, lo,
-                                   hi, &lr) == ALLOT_OK &&
+    CHECK(allot_ladder_enter_span(&L, alice, 10000, &(allot_rate_t){1, 100}, 0, NULL, NULL, lo, hi,
+                                  &lr) == ALLOT_OK &&
               lr.fee == 100 && lr.share[0] == 0 && lr.share[1] + lr.share[2] == 100 &&
               g_lv[0].ballots == before0,
           "span 2-3: level 1 untouched, fee conserved");
     CHECK(allot_ladder_enter_span(&L, alice, 10000, &(allot_rate_t){1, 100}, 0, NULL, NULL, 2, 1,
-                                   &lr) == ALLOT_ERR_CONFIG &&
+                                  &lr) == ALLOT_ERR_CONFIG &&
               allot_ladder_enter_span(&L, alice, 10000, &(allot_rate_t){1, 100}, 0, NULL, NULL, 0,
-                                       LADDER_N, &lr) == ALLOT_ERR_CONFIG,
+                                      LADDER_N, &lr) == ALLOT_ERR_CONFIG,
           "bad spans refused");
     /* If no level in the span can take it, refuse rather than spill. */
     allot_t keep = g_lv[2];
     g_lv[2].phase = ALLOT_CLOSED;
     CHECK(allot_ladder_enter_span(&L, alice, 10000, &(allot_rate_t){1, 100}, 0, NULL, NULL, 2, 2,
-                                   &lr) == ALLOT_ERR_PHASE,
+                                  &lr) == ALLOT_ERR_PHASE,
           "closed span: refused, no spill");
     g_lv[2] = keep;
 
     allot_guard_commit(&pol, &sv, now, 1, fee);
-    CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1600, now, 1, &fee) ==
-              ALLOT_ERR_DAY_LIMIT,
+    CHECK(allot_token_savings_check(&pol, &dep, &b, &sv, 1600, now, 1, &fee) == ALLOT_ERR_DAY_LIMIT,
           "250 + 400 passes the 600 day limit");
 
     /* A later manifest that lowers savings_max stops the old share. */

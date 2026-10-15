@@ -162,7 +162,7 @@ static void sec_zenny(cur_t *c, zstats_snapshot_t *s)
 }
 
 /* indexed like the ZSTATS_SEC_* bits */
-static const sec_fn SEC[8] = {sec_reserve, sec_vault,  sec_comp,    sec_bonds,
+static const sec_fn SEC[8] = {sec_reserve, sec_vault, sec_comp,    sec_bonds,
                               sec_auction, sec_allot, sec_barrels, sec_zenny};
 
 static void walk(cur_t *c, zstats_snapshot_t *s, uint8_t prev[32])

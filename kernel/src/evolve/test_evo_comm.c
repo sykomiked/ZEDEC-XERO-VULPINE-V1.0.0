@@ -65,8 +65,8 @@ static uint8_t g_wire[16384];
 static uint32_t seal(const key_t_ *k, const uint8_t *body, uint32_t bl)
 {
     pq_mldsa65_sign(k->sk, body, bl, CTX, sizeof(CTX) - 1, 0, g_sig);
-    return evo_fork_wire(body, bl, k->pk, PQ_MLDSA65_PK_BYTES, g_sig, PQ_MLDSA65_SIG_BYTES,
-                         g_wire, sizeof(g_wire));
+    return evo_fork_wire(body, bl, k->pk, PQ_MLDSA65_PK_BYTES, g_sig, PQ_MLDSA65_SIG_BYTES, g_wire,
+                         sizeof(g_wire));
 }
 
 /* ----- descriptors ----- */
@@ -343,8 +343,8 @@ static evo_status_t add_record(const key_t_ *k, const evo_cid_t *parent, const c
 static evo_audit_t g_aud[16];
 static uint32_t g_naud;
 
-static void push_audit(const key_t_ *k, const evo_cid_t *rec, const evo_cid_t *con,
-                       uint8_t verdict, uint32_t conform, const char *bounty)
+static void push_audit(const key_t_ *k, const evo_cid_t *rec, const evo_cid_t *con, uint8_t verdict,
+                       uint32_t conform, const char *bounty)
 {
     uint32_t n = audit_wire(k, rec, con, verdict, conform, bounty);
     CHECK(evo_audit_open(g_wire, n, hook, 0, &g_aud[g_naud]) == EVO_OK);
@@ -375,8 +375,8 @@ static void c4_gate(void)
     const uint64_t now = 500;
 
 #define GATE(caps, cons, tr)                                                                       \
-    evo_community_gate(&g_dag, &r_fix, tr, &g_con, &g_reg, caps, EVO_CHK_ALL, g_aud, g_naud,     \
-                       &pol, cons, now, &res)
+    evo_community_gate(&g_dag, &r_fix, tr, &g_con, &g_reg, caps, EVO_CHK_ALL, g_aud, g_naud, &pol, \
+                       cons, now, &res)
 
     evo_cid_t ghost;
     evo_cid_of((const uint8_t *) "nope", 4, &ghost);
@@ -420,8 +420,8 @@ static void c4_gate(void)
     /* the build breaks the contract: refused before audits are looked at */
     GATE(&broken, &yes, 0);
     CHECK(res.verdict == EVO_GATE_INCOMPATIBLE);
-    CHECK(evo_community_gate(&g_dag, &r_fix, 0, &g_con, &g_reg, &good, EVO_CHK_HASH, g_aud,
-                             g_naud, &pol, &yes, now, &res) == EVO_OK &&
+    CHECK(evo_community_gate(&g_dag, &r_fix, 0, &g_con, &g_reg, &good, EVO_CHK_HASH, g_aud, g_naud,
+                             &pol, &yes, now, &res) == EVO_OK &&
           res.verdict == EVO_GATE_INCOMPATIBLE);
 
     /* user blocks: the author, or an ancestor record */
@@ -519,10 +519,18 @@ static void c5_journal(void)
     for (uint32_t step = 0; step < 20000; step++) {
         t += rnd() % 30;
         switch (rnd() % 4) {
-        case 0: evo_journal_install(&j, &r[rnd() % 24], t); break;
-        case 1: evo_journal_confirm(&j, rnd() & 1); break;
-        case 2: if (rnd() % 4 == 0) evo_journal_rollback(&j); break;
-        default: evo_journal_tick(&j, t); break;
+        case 0:
+            evo_journal_install(&j, &r[rnd() % 24], t);
+            break;
+        case 1:
+            evo_journal_confirm(&j, rnd() & 1);
+            break;
+        case 2:
+            if (rnd() % 4 == 0) evo_journal_rollback(&j);
+            break;
+        default:
+            evo_journal_tick(&j, t);
+            break;
         }
         uint32_t trials = 0;
         for (uint32_t i = 0; i < j.n; i++) trials += j.e[i].state == EVO_J_TRIAL;

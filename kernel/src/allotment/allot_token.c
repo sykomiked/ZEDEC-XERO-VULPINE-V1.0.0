@@ -68,8 +68,8 @@ allot_status_t allot_token_block_check(const allot_token_block_t *b)
          b->local_fib_index > ALLOT_FIB_MAX))
         return ALLOT_ERR_MANIFEST;
     if (b->tier_lo || b->tier_hi) { /* T8 */
-        if (b->target != ALLOT_TOKEN_TARGET_NETWORK || b->tier_lo == 0 ||
-            b->tier_lo > b->tier_hi || b->tier_hi > ALLOT_LADDER_MAX)
+        if (b->target != ALLOT_TOKEN_TARGET_NETWORK || b->tier_lo == 0 || b->tier_lo > b->tier_hi ||
+            b->tier_hi > ALLOT_LADDER_MAX)
             return ALLOT_ERR_MANIFEST;
     }
     if (!rate_zero(b->nav)) { /* T7 */
@@ -83,8 +83,7 @@ allot_status_t allot_token_block_check(const allot_token_block_t *b)
     return ALLOT_OK;
 }
 
-allot_status_t allot_token_encode(const allot_token_block_t *b,
-                                    uint8_t out[ALLOT_TOKEN_BLOCK_LEN])
+allot_status_t allot_token_encode(const allot_token_block_t *b, uint8_t out[ALLOT_TOKEN_BLOCK_LEN])
 {
     if (!out) return ALLOT_ERR_ARG;
     allot_status_t st = allot_token_block_check(b);
@@ -112,8 +111,8 @@ allot_status_t allot_token_decode(const uint8_t *in, size_t len, allot_token_blo
 {
     allot_token_block_t t;
     if (!in || !b) return ALLOT_ERR_ARG;
-    if (len != ALLOT_TOKEN_BLOCK_LEN || !pay_memeq(in, MAGIC, 4) ||
-        in[4] != ALLOT_TOKEN_VERSION || in[7] != 0 || in[62] || in[63])
+    if (len != ALLOT_TOKEN_BLOCK_LEN || !pay_memeq(in, MAGIC, 4) || in[4] != ALLOT_TOKEN_VERSION ||
+        in[7] != 0 || in[62] || in[63])
         return ALLOT_ERR_MANIFEST;
     t.events = in[5];
     t.target = in[6];
@@ -148,7 +147,7 @@ allot_status_t allot_token_digest(const allot_token_block_t *b, uint8_t out[ALLO
 }
 
 allot_status_t allot_token_config(const allot_config_t *dep, const allot_token_block_t *b,
-                                    allot_config_t *out)
+                                  allot_config_t *out)
 {
     if (!dep || !b || !out) return ALLOT_ERR_ARG;
     allot_status_t st = allot_config_check(dep);
@@ -175,7 +174,7 @@ allot_status_t allot_token_config(const allot_config_t *dep, const allot_token_b
 }
 
 allot_status_t allot_token_span(const allot_token_block_t *b, uint32_t n, uint32_t *lo,
-                                  uint32_t *hi)
+                                uint32_t *hi)
 {
     if (!b || !lo || !hi || n == 0) return ALLOT_ERR_ARG;
     allot_status_t st = allot_token_block_check(b);
@@ -193,7 +192,7 @@ allot_status_t allot_token_span(const allot_token_block_t *b, uint32_t n, uint32
 }
 
 allot_status_t allot_token_pot_check(const allot_config_t *dep, const allot_token_block_t *b,
-                                       const allot_t *r)
+                                     const allot_t *r)
 {
     allot_config_t c;
     if (!r) return ALLOT_ERR_ARG;
@@ -212,7 +211,7 @@ allot_status_t allot_token_pot_check(const allot_config_t *dep, const allot_toke
 }
 
 allot_status_t allot_token_set_rate(const allot_config_t *dep, const allot_token_block_t *b,
-                                      allot_player_t *pl, allot_rate_t rate)
+                                    allot_player_t *pl, allot_rate_t rate)
 {
     allot_config_t c;
     if (!pl) return ALLOT_ERR_ARG;
@@ -222,9 +221,9 @@ allot_status_t allot_token_set_rate(const allot_config_t *dep, const allot_token
 }
 
 allot_status_t allot_token_check(const allot_guard_policy_t *pol, const allot_config_t *dep,
-                                   const allot_token_block_t *b, uint8_t event,
-                                   const allot_player_t *pl, uint64_t amount, uint64_t now,
-                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
+                                 const allot_token_block_t *b, uint8_t event,
+                                 const allot_player_t *pl, uint64_t amount, uint64_t now,
+                                 uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
 {
     allot_config_t c;
     if (!pol || !pl || !fee) return ALLOT_ERR_ARG;
@@ -257,8 +256,8 @@ static bool share_ok(const allot_token_block_t *b, allot_rate_t s)
 }
 
 allot_status_t allot_token_set_share(const allot_guard_policy_t *pol, const allot_config_t *dep,
-                                       const allot_token_block_t *b, allot_player_t *pl,
-                                       allot_rate_t share, allot_rate_t confirmed_share)
+                                     const allot_token_block_t *b, allot_player_t *pl,
+                                     allot_rate_t share, allot_rate_t confirmed_share)
 {
     if (!pol || !pl || share.den == 0) return ALLOT_ERR_ARG;
     if (share.num == 0) { /* G1: leaving is always allowed, even when switched off */
@@ -274,11 +273,10 @@ allot_status_t allot_token_set_share(const allot_guard_policy_t *pol, const allo
     return ALLOT_OK;
 }
 
-allot_status_t allot_token_savings_check(const allot_guard_policy_t *pol,
-                                           const allot_config_t *dep,
-                                           const allot_token_block_t *b, const allot_player_t *pl,
-                                           uint64_t realised_profit, uint64_t now, uint64_t epoch,
-                                           uint64_t *fee)
+allot_status_t allot_token_savings_check(const allot_guard_policy_t *pol, const allot_config_t *dep,
+                                         const allot_token_block_t *b, const allot_player_t *pl,
+                                         uint64_t realised_profit, uint64_t now, uint64_t epoch,
+                                         uint64_t *fee)
 {
     uint64_t f = 0;
     if (!pol || !pl || !fee) return ALLOT_ERR_ARG;

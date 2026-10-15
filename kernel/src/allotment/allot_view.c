@@ -45,8 +45,8 @@ const allot_stewardship_t *allot_history_at(const allot_history_t *h, uint32_t i
     return &h->rec[k];
 }
 
-allot_status_t allot_view_build(const allot_config_t *c, const allot_t *r,
-                                const allot_history_t *h, const uint8_t *who, allot_view_t *out)
+allot_status_t allot_view_build(const allot_config_t *c, const allot_t *r, const allot_history_t *h,
+                                const uint8_t *who, allot_view_t *out)
 {
     if (!c || !out) return ALLOT_ERR_ARG;
     pay_memset(out, 0, sizeof *out);
@@ -66,7 +66,6 @@ allot_status_t allot_view_build(const allot_config_t *c, const allot_t *r,
     out->threshold = r->threshold;
     out->endowment = r->pool;
     out->can_register = who && r->phase == ALLOT_OPEN && r->cfg.jurisdiction_permits &&
-                        allot_room(r, who) > 0 &&
-                        allot_mint_check(r, who, 0, 1) == ALLOT_OK;
+                        allot_room(r, who) > 0 && allot_mint_check(r, who, 0, 1) == ALLOT_OK;
     return ALLOT_OK;
 }

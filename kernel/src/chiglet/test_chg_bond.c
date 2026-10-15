@@ -88,8 +88,8 @@ static void live_four_weeks(chgb_t *b)
             chgb_observe(b, &e, MUSIC);
             /* noise: random things at random hours */
             for (uint32_t k = 0; k < 3; k++) {
-                chgb_ctx_t r = ctx((uint16_t) (rnd() % CHGB_SLOTS), (uint16_t) (20 + rnd() % 5),
-                                   CHGB_NONE);
+                chgb_ctx_t r =
+                    ctx((uint16_t) (rnd() % CHGB_SLOTS), (uint16_t) (20 + rnd() % 5), CHGB_NONE);
                 chgb_observe(b, &r, (uint16_t) (1000 + rnd() % 6));
             }
         }
@@ -262,7 +262,7 @@ static void b5_owner(void)
     chgb_ctx_t fri21 = ctx(4 * 24 + 21, PLAYER_APP, CHGB_NONE);
     chgb_suggest(&g_b2, &fri21, &s);
     CHECK(s.state == CHGB_SUGGEST && s.action == MUSIC); /* the rest is untouched */
-    chgb_forget_action(&g_b2, 31337);                     /* unknown: no-op */
+    chgb_forget_action(&g_b2, 31337);                    /* unknown: no-op */
 
     /* forget an app */
     chgb_forget_app(&g_b2, MAIL_APP);
@@ -315,22 +315,32 @@ static void b6_random(void)
     chgb_init(b, OWNER);
     bool ok = true;
     for (uint32_t i = 0; i < 60000; i++) {
-        chgb_ctx_t c = ctx((uint16_t) (rnd() % CHGB_SLOTS),
-                           (uint16_t) (rnd() % 3 ? rnd() % 70 : CHGB_NONE),
-                           (uint16_t) (rnd() % 3 ? rnd() % 50 : CHGB_NONE));
+        chgb_ctx_t c =
+            ctx((uint16_t) (rnd() % CHGB_SLOTS), (uint16_t) (rnd() % 3 ? rnd() % 70 : CHGB_NONE),
+                (uint16_t) (rnd() % 3 ? rnd() % 50 : CHGB_NONE));
         uint16_t a = (uint16_t) (rnd() % 50);
         chgb_suggestion_t s;
         switch (rnd() % 8) {
-        case 0: chgb_feedback(b, &c, a, rnd() & 1); break;
-        case 1: if (rnd() % 64 == 0) chgb_forget_action(b, a); break;
-        case 2: if (rnd() % 64 == 0) chgb_forget_app(b, c.app); break;
-        case 3: if (rnd() % 256 == 0) chgb_decay_all(b); break;
+        case 0:
+            chgb_feedback(b, &c, a, rnd() & 1);
+            break;
+        case 1:
+            if (rnd() % 64 == 0) chgb_forget_action(b, a);
+            break;
+        case 2:
+            if (rnd() % 64 == 0) chgb_forget_app(b, c.app);
+            break;
+        case 3:
+            if (rnd() % 256 == 0) chgb_decay_all(b);
+            break;
         case 4:
             chgb_suggest(b, &c, &s);
             if (s.share > 1000 || s.second > s.share || s.distinct > s.experts) ok = false;
             if (s.experts && (s.R_permille < 1000 || s.R_permille > 1000u * s.distinct)) ok = false;
             break;
-        default: chgb_observe(b, &c, a); break;
+        default:
+            chgb_observe(b, &c, a);
+            break;
         }
         if (b->n_act > CHGB_ACTIONS || b->n_app > CHGB_APPS) ok = false;
     }

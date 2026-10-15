@@ -30,10 +30,10 @@
 #define ALLOT_UI_HEADER "The Sicilian Crown Allotment"
 #define ALLOT_UI_SUBTEXT                                                                           \
     "A mutual discretionary sortition conducted in accordance with Section 6.3 covenants. "        \
-    "Selection is non-commercial, interest-free, and confers custodial endowment of available "     \
+    "Selection is non-commercial, interest-free, and confers custodial endowment of available "    \
     "system surplus to the designated steward."
-#define ALLOT_UI_ACTION       "Register Sortition Ballot"
-#define ALLOT_UI_NO_COST      "No consideration required"
+#define ALLOT_UI_ACTION  "Register Sortition Ballot"
+#define ALLOT_UI_NO_COST "No consideration required"
 #define ALLOT_UI_HISTORY_NOTE                                                                      \
     "Selection by lot is switched off where you are. Past stewardships are shown read-only."
 #define ALLOT_UI_CATALOG "The Crown Allotment: Mutual endowment and distribution by sortition."
@@ -59,9 +59,9 @@ typedef struct {
 typedef struct {
     allot_view_mode_t mode;
     const char *header, *subtext;
-    const char *action;  /* V1: the button label; NULL in V2 */
-    const char *note;    /* V1: ALLOT_UI_NO_COST; V2: ALLOT_UI_HISTORY_NOTE */
-    bool can_register;   /* V1: open epoch and no ballot held yet */
+    const char *action; /* V1: the button label; NULL in V2 */
+    const char *note;   /* V1: ALLOT_UI_NO_COST; V2: ALLOT_UI_HISTORY_NOTE */
+    bool can_register;  /* V1: open epoch and no ballot held yet */
     uint64_t epoch, ballots, threshold, endowment; /* the current epoch (V1) */
     uint32_t history_len;
 } allot_view_t;
@@ -77,7 +77,7 @@ const allot_stewardship_t *allot_history_at(const allot_history_t *h, uint32_t i
 
 /* V1/V2: fill `out` for `who` (the person's ballot owner id; NULL = not
  * signed in, so nothing to register). `r` may be NULL in V2. */
-allot_status_t allot_view_build(const allot_config_t *c, const allot_t *r,
-                                const allot_history_t *h, const uint8_t *who, allot_view_t *out);
+allot_status_t allot_view_build(const allot_config_t *c, const allot_t *r, const allot_history_t *h,
+                                const uint8_t *who, allot_view_t *out);
 
 #endif /* ZXV_ALLOT_VIEW_H */

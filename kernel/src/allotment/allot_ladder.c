@@ -20,10 +20,9 @@ uint64_t allot_ladder_threshold(uint32_t j, uint32_t n, uint32_t idx_lo, uint32_
 }
 
 allot_status_t allot_ladder_init(allot_ladder_t *L, const allot_config_t *base, uint32_t n,
-                                   uint32_t idx_lo, uint32_t idx_hi, allot_t *levels,
-                                   allot_range_t *ranges, uint32_t per_level,
-                                   allot_tally_t *tallies, uint32_t tally_per_level,
-                                   const uint64_t *weights)
+                                 uint32_t idx_lo, uint32_t idx_hi, allot_t *levels,
+                                 allot_range_t *ranges, uint32_t per_level, allot_tally_t *tallies,
+                                 uint32_t tally_per_level, const uint64_t *weights)
 {
     if (!L || !base || !levels || !ranges || per_level == 0) return ALLOT_ERR_ARG;
     if (allot_ladder_threshold(0, n, idx_lo, idx_hi) == 0) return ALLOT_ERR_CONFIG;
@@ -44,7 +43,7 @@ allot_status_t allot_ladder_init(allot_ladder_t *L, const allot_config_t *base, 
             allot_init(&levels[k], &c, 1, 0, ranges + (size_t) k * per_level, per_level);
         if (st == ALLOT_OK && tallies)
             st = allot_set_tally(&levels[k], tallies + (size_t) k * tally_per_level,
-                                  tally_per_level);
+                                 tally_per_level);
         if (st != ALLOT_OK) return st;
         L->weight[k] = weights ? weights[k] : 1;
     }
@@ -58,16 +57,16 @@ bool allot_ladder_ready(const allot_ladder_t *L, uint32_t k)
     return r->phase == ALLOT_OPEN && r->n_parties > 0;
 }
 
-allot_status_t allot_ladder_plan_span(const allot_ladder_t *L,
-                                        const uint8_t owner[ALLOT_ID_LEN], uint64_t fee,
-                                        const uint64_t *weights, const allot_rate_t *luck,
-                                        uint32_t lo, uint32_t hi, allot_ladder_receipt_t *plan)
+allot_status_t allot_ladder_plan_span(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
+                                      uint64_t fee, const uint64_t *weights,
+                                      const allot_rate_t *luck, uint32_t lo, uint32_t hi,
+                                      allot_ladder_receipt_t *plan)
 {
     uint64_t wsum = 0, given = 0, carry = 0;
     allot_status_t st;
     if (!L || !owner || !plan || L->n == 0) return ALLOT_ERR_ARG;
     if (lo > hi || hi >= L->n) return ALLOT_ERR_CONFIG; /* P5 */
-    for (uint32_t k = 0; k < L->n; k++)                  /* L1: every level must be switched on */
+    for (uint32_t k = 0; k < L->n; k++)                 /* L1: every level must be switched on */
         if (!L->lv[k].cfg.jurisdiction_permits) return ALLOT_ERR_DISABLED;
     if (fee == 0) return ALLOT_ERR_DUST;
     const uint64_t *w = weights ? weights : L->weight;
@@ -112,16 +111,16 @@ allot_status_t allot_ladder_plan_span(const allot_ladder_t *L,
 }
 
 allot_status_t allot_ladder_plan_fee(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                       uint64_t fee, const uint64_t *weights,
-                                       allot_ladder_receipt_t *plan)
+                                     uint64_t fee, const uint64_t *weights,
+                                     allot_ladder_receipt_t *plan)
 {
     if (!L || L->n == 0) return ALLOT_ERR_ARG;
     return allot_ladder_plan_span(L, owner, fee, weights, 0, 0, L->n - 1, plan);
 }
 
 allot_status_t allot_ladder_plan(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                   uint64_t amount, const allot_rate_t *rate,
-                                   const uint64_t *weights, allot_ladder_receipt_t *plan)
+                                 uint64_t amount, const allot_rate_t *rate, const uint64_t *weights,
+                                 allot_ladder_receipt_t *plan)
 {
     uint64_t fee, n;
     if (!L || !owner || !plan || L->n == 0) return ALLOT_ERR_ARG;
@@ -134,12 +133,12 @@ allot_status_t allot_ladder_plan(const allot_ladder_t *L, const uint8_t owner[AL
 }
 
 static allot_status_t mint_plan(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                 uint64_t amount, const allot_rate_t *rate,
-                                 allot_ladder_receipt_t *plan, allot_ladder_receipt_t *out);
+                                uint64_t amount, const allot_rate_t *rate,
+                                allot_ladder_receipt_t *plan, allot_ladder_receipt_t *out);
 
 allot_status_t allot_ladder_enter(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                    uint64_t amount, const allot_rate_t *rate,
-                                    const uint64_t *weights, allot_ladder_receipt_t *out)
+                                  uint64_t amount, const allot_rate_t *rate,
+                                  const uint64_t *weights, allot_ladder_receipt_t *out)
 {
     allot_ladder_receipt_t plan;
     allot_status_t st = allot_ladder_plan(L, owner, amount, rate, weights, &plan);
@@ -148,8 +147,8 @@ allot_status_t allot_ladder_enter(allot_ladder_t *L, const uint8_t owner[ALLOT_I
 }
 
 allot_status_t allot_ladder_enter_fee(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                        uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                        const uint64_t *weights, allot_ladder_receipt_t *out)
+                                      uint64_t amount, const allot_rate_t *rate, uint64_t fee,
+                                      const uint64_t *weights, allot_ladder_receipt_t *out)
 {
     allot_ladder_receipt_t plan;
     if (!rate || rate->den == 0) return ALLOT_ERR_ARG;
@@ -159,9 +158,9 @@ allot_status_t allot_ladder_enter_fee(allot_ladder_t *L, const uint8_t owner[ALL
 }
 
 allot_status_t allot_ladder_enter_span(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                         uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                         const allot_rate_t *luck, const uint64_t *weights,
-                                         uint32_t lo, uint32_t hi, allot_ladder_receipt_t *out)
+                                       uint64_t amount, const allot_rate_t *rate, uint64_t fee,
+                                       const allot_rate_t *luck, const uint64_t *weights,
+                                       uint32_t lo, uint32_t hi, allot_ladder_receipt_t *out)
 {
     allot_ladder_receipt_t plan;
     uint64_t n;
@@ -179,8 +178,8 @@ allot_status_t allot_ladder_enter_span(allot_ladder_t *L, const uint8_t owner[AL
 }
 
 static allot_status_t mint_plan(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                 uint64_t amount, const allot_rate_t *rate,
-                                 allot_ladder_receipt_t *plan, allot_ladder_receipt_t *out)
+                                uint64_t amount, const allot_rate_t *rate,
+                                allot_ladder_receipt_t *plan, allot_ladder_receipt_t *out)
 {
     allot_status_t st;
     for (uint32_t k = 0; k < L->n; k++) {
@@ -189,7 +188,7 @@ static allot_status_t mint_plan(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_
         st = plan->ballots[k] == plan->share[k]
                  ? allot_enter_share(&L->lv[k], owner, amount, rate, plan->share[k], &rc)
                  : allot_enter_weighted(&L->lv[k], owner, amount, rate, plan->share[k],
-                                         plan->ballots[k], &rc);
+                                        plan->ballots[k], &rc);
         if (st != ALLOT_OK) return st; /* unreachable: checked in the plan */
         plan->closed += rc.closed_epoch ? 1u : 0u;
     }

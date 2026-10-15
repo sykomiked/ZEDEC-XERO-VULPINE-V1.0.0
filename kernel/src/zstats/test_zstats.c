@@ -976,16 +976,17 @@ static void test_encoding(void)
     uint32_t n2;
     CHECK(zstats_encode(&d, p2, e2, sizeof e2, &n2) == ZSTATS_OK && n2 == n && !memcmp(e2, enc, n),
           "round trip: re-encoding gives the same bytes");
-    CHECK(
-        d.epoch == s.epoch && d.tick == s.tick && d.juris == s.juris &&
-            d.publisher == s.publisher && d.present == s.present && d.suppressed == s.suppressed &&
-            d.min_cohort == s.min_cohort && d.reserve.floor.num == 500 && d.reserve.floor.defined &&
-            d.reserve.floor_ok && d.vault.share.den == 300 && d.comp.tier[0].count == 5 &&
-            d.comp.tier[0].sum == 70 && d.bonds.k[2] == 21 && d.bonds.n_terms == 3 &&
-            d.auction.has_last && d.auction.floor_ok && d.auction.reserve_valid &&
-            !memcmp(&d.allotment, &RAF, sizeof RAF) && d.barrels.rate_defined && d.barrels.lots == 1 &&
-            d.barrels.rate_den == 3 && d.zenny.chips == 150 && d.zenny.live == 5,
-        "round trip: the fields");
+    CHECK(d.epoch == s.epoch && d.tick == s.tick && d.juris == s.juris &&
+              d.publisher == s.publisher && d.present == s.present &&
+              d.suppressed == s.suppressed && d.min_cohort == s.min_cohort &&
+              d.reserve.floor.num == 500 && d.reserve.floor.defined && d.reserve.floor_ok &&
+              d.vault.share.den == 300 && d.comp.tier[0].count == 5 && d.comp.tier[0].sum == 70 &&
+              d.bonds.k[2] == 21 && d.bonds.n_terms == 3 && d.auction.has_last &&
+              d.auction.floor_ok && d.auction.reserve_valid &&
+              !memcmp(&d.allotment, &RAF, sizeof RAF) && d.barrels.rate_defined &&
+              d.barrels.lots == 1 && d.barrels.rate_den == 3 && d.zenny.chips == 150 &&
+              d.zenny.live == 5,
+          "round trip: the fields");
     CHECK(zstats_decode(enc, n, &d, NULL) == ZSTATS_OK, "prev optional on decode");
     CHECK(zstats_encode(&s, NULL, e2, sizeof e2, &n2) == ZSTATS_OK && n2 == n &&
               zstats_decode(e2, n2, &d, p2) == ZSTATS_OK && p2[0] == 0 && p2[31] == 0,

@@ -33,8 +33,7 @@ static bool verify(void *ctx, uint32_t who, const uint8_t *m, uint32_t n, const 
 {
     (void) ctx;
     uint8_t want[32];
-    if (sl != 32 || n > 128)
-        return false;
+    if (sl != 32 || n > 128) return false;
     sign(who, m, n, want);
     return memcmp(want, sig, 32) == 0;
 }
@@ -66,14 +65,11 @@ static void report_true(navp_t *p, uint32_t m)
 static navp_status_t close_all(navp_t *p)
 {
     for (uint32_t i = 0; i < p->n; i++)
-        if (p->m[i].state == NAVP_M_ACTIVE || p->m[i].state == NAVP_M_EXITING)
-            report_true(p, i);
+        if (p->m[i].state == NAVP_M_ACTIVE || p->m[i].state == NAVP_M_EXITING) report_true(p, i);
     navp_status_t s = navp_close_prepare(p);
-    if (s != NAVP_OK)
-        return s;
+    if (s != NAVP_OK) return s;
     for (uint32_t i = 0; i < p->n; i++)
-        if (p->m[i].state == NAVP_M_ACTIVE || p->m[i].state == NAVP_M_EXITING)
-            vote(p, i, p->hash);
+        if (p->m[i].state == NAVP_M_ACTIVE || p->m[i].state == NAVP_M_EXITING) vote(p, i, p->hash);
     return navp_close_commit(p);
 }
 
@@ -85,8 +81,7 @@ static void port3(navp_t *p, navp_config_t *cfg)
     navp_member_add(p, KA, "TCBDC", 150, 1, 100000, NULL);
     navp_member_add(p, KB, "TFIAT", 1, 1, 100000, NULL);
     navp_member_add(p, KC, "TGOLD", 7, 3, 100000, NULL);
-    for (uint32_t i = 0; i < 3; i++)
-        navp_evidence(p, i, 3, 0);
+    for (uint32_t i = 0; i < 3; i++) navp_evidence(p, i, 3, 0);
 }
 
 static void test_args(void)
@@ -151,14 +146,13 @@ static void test_quote(void)
     for (uint64_t x = 1; x < 3000; x++)
         for (uint32_t f = 0; f < 3; f++)
             for (uint32_t t = 0; t < 3; t++) {
-                if (f == t)
-                    continue;
+                if (f == t) continue;
                 navp_status_t s = navp_quote(&p, f, t, x, &q);
-                if (s == NAVP_E_DUST)
-                    continue;
+                if (s == NAVP_E_DUST) continue;
                 uint64_t xn = x - pay_assure_fee(x);
                 if (s != NAVP_OK || q.x_used > xn || q.v != xn * p.m[f].den / p.m[f].num ||
-                    q.y != q.v * p.m[t].num / p.m[t].den || q.x_used * p.m[f].den < q.v * p.m[f].num ||
+                    q.y != q.v * p.m[t].num / p.m[t].den ||
+                    q.x_used * p.m[f].den < q.v * p.m[f].num ||
                     (q.x_used - 1) * p.m[f].den >= q.v * p.m[f].num)
                     bad++;
             }
@@ -244,8 +238,7 @@ static void test_close(void)
     navp_convert(&p, 2, 0, 70, &q);
     uint64_t s0 = p.m[0].share, s1 = p.m[1].share, s2 = p.m[2].share;
     int64_t n0 = (int64_t) (p.val[0][1] + p.val[0][2]) - (int64_t) (p.val[1][0] + p.val[2][0]);
-    for (uint32_t i = 0; i < 3; i++)
-        report_true(&p, i);
+    for (uint32_t i = 0; i < 3; i++) report_true(&p, i);
     CHECK(navp_convert(&p, 0, 1, 15000, &q) == NAVP_OK, "open still converts");
     n0 = (int64_t) (p.val[0][1] + p.val[0][2]) - (int64_t) (p.val[1][0] + p.val[2][0]);
     /* the report was before the last conversion: A's nostro still right,
@@ -257,8 +250,7 @@ static void test_close(void)
     CHECK(navp_convert(&p, 0, 1, 15000, &q) == NAVP_E_STATE, "closing blocks");
     CHECK(navp_close_abort(&p) == NAVP_OK, "abort");
     CHECK(navp_close_abort(&p) == NAVP_E_STATE, "abort twice");
-    for (uint32_t i = 0; i < 3; i++)
-        report_true(&p, i);
+    for (uint32_t i = 0; i < 3; i++) report_true(&p, i);
     CHECK(navp_close_prepare(&p) == NAVP_OK, "prepare again");
     CHECK(p.net[0] + p.net[1] + p.net[2] == 0, "nets sum to zero");
     CHECK(p.net[0] == n0, "A's net");
@@ -326,8 +318,7 @@ static void test_carry_and_short(void)
     navp_member_add(&p, KA, "A", 1, 1, 100, NULL);
     navp_member_add(&p, KB, "B", 1, 1, 100, NULL);
     navp_member_add(&p, KC, "C", 1, 1, 0, NULL);
-    for (uint32_t i = 0; i < 3; i++)
-        navp_evidence(&p, i, 1, 0);
+    for (uint32_t i = 0; i < 3; i++) navp_evidence(&p, i, 1, 0);
     CHECK(navp_convert(&p, 2, 1, 100, &q) == NAVP_E_LIMIT, "C has no share");
     CHECK(navp_convert(&p, 0, 1, 100, &q) == NAVP_OK, "B holds A's 100");
     CHECK(navp_convert(&p, 1, 0, 200, &q) == NAVP_OK, "A holds B's 200 (B net 100)");
@@ -361,8 +352,7 @@ static void test_proposals(void)
     }
     navp_proposal_t *r = NULL;
     for (uint32_t k = 0; k < NAVP_MAX_PROPOSALS; k++)
-        if (p.prop[k].id == id)
-            r = &p.prop[k];
+        if (p.prop[k].id == id) r = &p.prop[k];
     CHECK(r && !r->ratified, "others alone cannot reset A's peg");
     sign(p.m[0].key, msg, sizeof msg, sig);
     CHECK(navp_approve(&p, id, 0, sig, 32) == NAVP_OK && r->ratified, "with A: ratified");
@@ -400,8 +390,7 @@ static void test_proposals(void)
     CHECK(navp_convert(&p, 2, 1, 70, &q) == NAVP_E_STATE, "no conversions with exiting");
     uint64_t b_share = p.m[1].share;
     CHECK(close_all(&p) == NAVP_OK, "close exits");
-    CHECK(p.m[1].state == NAVP_M_EXITED && p.m[1].share == 0 &&
-              p.m[1].returned == b_share + 30,
+    CHECK(p.m[1].state == NAVP_M_EXITED && p.m[1].share == 0 && p.m[1].returned == b_share + 30,
           "share returned after settling");
     CHECK(navp_check(&p), "check after exit");
     CHECK(navp_exit(&p, 1, sig, 32) == NAVP_E_STATE, "exit twice");
@@ -446,8 +435,7 @@ static void test_yield(void)
         p.m[0].share = pool * 7 % 13 + 1;
         p.m[1].share = pool * 5 % 11;
         p.m[2].share = pool % 3;
-        if (navp_yield(&p, pool, sh) != NAVP_OK || sh[0] + sh[1] + sh[2] != pool)
-            bad++;
+        if (navp_yield(&p, pool, sh) != NAVP_OK || sh[0] + sh[1] + sh[2] != pool) bad++;
     }
     CHECK(bad == 0, "yield sums exactly");
 }
@@ -489,27 +477,22 @@ static void test_fuzz(void)
                 break;
             case 3:
                 report_true(&p, a);
-                if (rnd() % 4 == 0)
-                    p.nostro_rep[a][b] ^= 1;
+                if (rnd() % 4 == 0) p.nostro_rep[a][b] ^= 1;
                 break;
             case 4:
                 if (navp_close_prepare(&p) == NAVP_OK) {
                     for (uint32_t i = 0; i < k; i++)
-                        if (rnd() % 5)
-                            vote(&p, i, p.hash);
-                    if (navp_close_commit(&p) != NAVP_OK)
-                        navp_close_abort(&p);
+                        if (rnd() % 5) vote(&p, i, p.hash);
+                    if (navp_close_commit(&p) != NAVP_OK) navp_close_abort(&p);
                 }
                 break;
             default: {
                 navp_quote_t q;
-                if (navp_convert(&p, a, b, rnd() % 200000 + 1, &q) == NAVP_OK)
-                    ok++;
+                if (navp_convert(&p, a, b, rnd() % 200000 + 1, &q) == NAVP_OK) ok++;
             }
             }
             ops++;
-            if (!navp_check(&p))
-                bad++;
+            if (!navp_check(&p)) bad++;
         }
     }
     CHECK(bad == 0, "invariants hold in random sessions");

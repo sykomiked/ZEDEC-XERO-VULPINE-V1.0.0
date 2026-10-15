@@ -51,10 +51,10 @@ static allot_config_t enabled_cfg(void)
     allot_config_t c;
     allot_config_default(&c);
     c.jurisdiction_permits = true;
-    c.share_den = 0;           /* F6 off here; test_cap turns it on */
+    c.share_den = 0;          /* F6 off here; test_cap turns it on */
     c.mode = ALLOT_MODE_PAID; /* M2: these tests exercise the paid mode */
-    c.rebate_den = 0;          /* S6 off here; test_rebate and the replay turn it on */
-    c.min_rate.num = 987;      /* this test deployment's floor: 987/61000 */
+    c.rebate_den = 0;         /* S6 off here; test_rebate and the replay turn it on */
+    c.min_rate.num = 987;     /* this test deployment's floor: 987/61000 */
     c.min_rate.den = 61000;
     return c;
 }
@@ -200,8 +200,7 @@ static void test_fee(void)
         if (n != fee) bad++; /* F3: one ballot per fee unit */
     }
     CHECK(bad == 0, "fee is the exact floor and ballots == fee (%u bad)", bad);
-    CHECK(allot_quote(&c, 61, NULL, &fee, &n) == ALLOT_OK && fee == 0 && n == 0,
-          "61 rounds to 0");
+    CHECK(allot_quote(&c, 61, NULL, &fee, &n) == ALLOT_OK && fee == 0 && n == 0, "61 rounds to 0");
     CHECK(allot_quote(&c, 62, NULL, &fee, &n) == ALLOT_OK && fee == 1 && n == 1,
           "62 is one ballot");
     CHECK(allot_quote(&c, 100000, NULL, &fee, &n) == ALLOT_OK && fee == 1618 && n == 1618,
@@ -328,7 +327,7 @@ static void test_rate_cap(void)
           "(%u bad, %u inside)",
           bad, inside);
     allot_rate_t r10 = {10, 100}, r50 = {1, 2}, r51 = {51, 100}, r0 = {0, 1}, rbad = {1, 0},
-                  r_low = {99, 10000};
+                 r_low = {99, 10000};
     CHECK(allot_quote(&c, 100000, NULL, &fee, &n) == ALLOT_OK && fee == 1000, "default 1%%");
     CHECK(allot_quote(&c, 100000, &r10, &fee, &n) == ALLOT_OK && fee == 10000, "10%%");
     CHECK(allot_quote(&c, 100000, &r50, &fee, &n) == ALLOT_OK && fee == 50000, "50%%");
@@ -395,8 +394,7 @@ static void test_rate_cap(void)
     CHECK(bad == 0 && b.tally_len == 12, "tally matches the scan (%u bad)", bad);
     uint8_t o13[32];
     ident("owner", 13, o13);
-    CHECK(allot_enter(&b, o13, 100000, NULL, &rc) == ALLOT_ERR_FULL,
-          "13th owner: table 3/4 full");
+    CHECK(allot_enter(&b, o13, 100000, NULL, &rc) == ALLOT_ERR_FULL, "13th owner: table 3/4 full");
     CHECK(allot_enter(&a, o13, 100000, NULL, &rc) == ALLOT_OK, "no limit without a tally");
     CHECK(allot_set_tally(&b, tl, 16) == ALLOT_ERR_PHASE, "no tally after the first ballot");
     c.fib_index = 18;
@@ -453,8 +451,7 @@ static void test_epoch(void)
         }
     }
     for (int i = 0; i < 4; i++) {
-        CHECK(allot_enter(&r, who, amt11, NULL, &rc) == ALLOT_OK && !rc.closed_epoch,
-              "below F10");
+        CHECK(allot_enter(&r, who, amt11, NULL, &rc) == ALLOT_OK && !rc.closed_epoch, "below F10");
         if (i == 0) {
             uint8_t p1[32];
             ident("party", 1, p1);
@@ -608,7 +605,8 @@ static void test_post(void)
     allot_reveal(&r, p, sec);
     CHECK(!r.ranges[0].gratuitous && !r.ranges[1].gratuitous, "L2: paid runs are not gratuitous");
     CHECK(allot_select(&r, &s) == ALLOT_OK, "draw");
-    CHECK(s.pool == 1597 && s.reserve_skim == 25 && s.grant_pool == 145 && s.crown_endowment == 1427,
+    CHECK(s.pool == 1597 && s.reserve_skim == 25 && s.grant_pool == 145 &&
+              s.crown_endowment == 1427,
           "1597 -> 25 + 145 + 1427 (got %llu %llu %llu)", (unsigned long long) s.reserve_skim,
           (unsigned long long) s.grant_pool, (unsigned long long) s.crown_endowment);
     post_log_t l;
@@ -733,17 +731,17 @@ static void test_nav(void)
     /* Two boundary cases (found by search) where the middle limb of the
      * 192-bit product carries into the top limb. */
     allot_config_t k1 = {.skim_num = 44014762627701610u,
-                          .skim_den = 6285553496060013302u,
-                          .grant_num = 97986660132726312u,
-                          .grant_den = 16935719385909495326u,
-                          .nav_num = 16830415908127182580u,
-                          .nav_den = 17048436880914430469u};
+                         .skim_den = 6285553496060013302u,
+                         .grant_num = 97986660132726312u,
+                         .grant_den = 16935719385909495326u,
+                         .nav_num = 16830415908127182580u,
+                         .nav_den = 17048436880914430469u};
     allot_config_t k2 = {.skim_num = 4945820902038762u,
-                          .skim_den = 10837172685248731065u,
-                          .grant_num = 40302845090192681u,
-                          .grant_den = 5639152777121214260u,
-                          .nav_num = 12234363465484111036u,
-                          .nav_den = 12328098233373433401u};
+                         .skim_den = 10837172685248731065u,
+                         .grant_num = 40302845090192681u,
+                         .grant_den = 5639152777121214260u,
+                         .nav_num = 12234363465484111036u,
+                         .nav_den = 12328098233373433401u};
     k1.min_rate = k2.min_rate = c.min_rate;
     k1.max_rate = k2.max_rate = c.max_rate;
     k1.fib_index = k2.fib_index = c.fib_index;
@@ -790,7 +788,8 @@ static void test_nav(void)
             continue;
         }
         unsigned __int128 n = (unsigned __int128) s.pool * c.nav_num;
-        if ((unsigned __int128) s.reserve_skim + s.grant_pool + s.nav_slice + s.crown_endowment != s.pool)
+        if ((unsigned __int128) s.reserve_skim + s.grant_pool + s.nav_slice + s.crown_endowment !=
+            s.pool)
             bad++;
         if (!((unsigned __int128) s.nav_slice * c.nav_den <= n &&
               n < ((unsigned __int128) s.nav_slice + 1) * c.nav_den))
@@ -1048,7 +1047,8 @@ static void test_free_mode(void)
     allot_rate_t half = {1, 2}, one = {1, 1};
     CHECK(allot_enter_yield(&r, a, 1000, half, NULL, &rc) == ALLOT_ERR_MODE,
           "free: a share of yield is consideration, refused");
-    CHECK(allot_enter_share(&r, a, 100, &one, 5, &rc) == ALLOT_ERR_MODE, "free: ladder share refused");
+    CHECK(allot_enter_share(&r, a, 100, &one, 5, &rc) == ALLOT_ERR_MODE,
+          "free: ladder share refused");
     CHECK(allot_enter_weighted(&r, a, 100, &one, 5, 5, &rc) == ALLOT_ERR_MODE,
           "free: weighted entry refused");
     CHECK(allot_mint_check(&r, a, 1, 1) == ALLOT_ERR_MODE, "free: a fee never passes mint_check");
@@ -1069,7 +1069,8 @@ static void test_free_mode(void)
     CHECK(allot_room(&r, a) == 0 && allot_free_entry(&r, a, &rc) == ALLOT_ERR_CAP,
           "free: a second ballot is refused");
     CHECK(allot_free_entry(&r, b, &rc) == ALLOT_OK && !rc.closed_epoch, "free: bob registers");
-    CHECK(allot_endow(&r, fund, 1000) == ALLOT_OK && r.pool == 10000, "free: endow again while open");
+    CHECK(allot_endow(&r, fund, 1000) == ALLOT_OK && r.pool == 10000,
+          "free: endow again while open");
     CHECK(allot_free_entry(&r, d, &rc) == ALLOT_OK && rc.closed_epoch && r.phase == ALLOT_CLOSED,
           "free: the third ballot closes the epoch");
     CHECK(allot_endow(&r, fund, 1) == ALLOT_ERR_PHASE, "free: no endowment after close");

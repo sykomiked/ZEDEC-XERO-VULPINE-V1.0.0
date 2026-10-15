@@ -120,8 +120,7 @@ static void test_thresholds(void)
         if (allot_ladder_threshold(j, N, 13, 40) != want) bad++;
     }
     CHECK(bad == 0, "threshold formula K2");
-    CHECK(allot_ladder_threshold(0, 0, 13, 40) == 0 &&
-              allot_ladder_threshold(144, N, 13, 40) == 0,
+    CHECK(allot_ladder_threshold(0, 0, 13, 40) == 0 && allot_ladder_threshold(144, N, 13, 40) == 0,
           "bad level");
     CHECK(allot_ladder_threshold(0, 145, 13, 40) == 0, "more than 144 levels");
     CHECK(allot_ladder_threshold(0, N, 13, 81) == 0 && allot_ladder_threshold(0, N, 20, 19) == 0,
@@ -208,8 +207,7 @@ static void test_split_cascade(void)
     f->range_cap = f->range_len;
     static allot_t snap[N];
     memcpy(snap, g_lv, sizeof snap);
-    CHECK(allot_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == ALLOT_ERR_FULL,
-          "full refused");
+    CHECK(allot_ladder_enter(&L, who, 1000000, NULL, NULL, &rc) == ALLOT_ERR_FULL, "full refused");
     CHECK(memcmp(snap, g_lv, sizeof snap) == 0, "refused payment changed no level");
     f->range_cap = saved;
 

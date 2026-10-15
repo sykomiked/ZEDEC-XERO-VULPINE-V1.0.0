@@ -88,7 +88,7 @@ typedef struct {
     int32_t  sview_count;
     int32_t  subsel;                                  /* selected sub-space 0..5, -1 none */
     int32_t  act_hot;                                 /* last action pressed (highlight)  */
-    int32_t  prev_cx, prev_cy;                        /* last pointer position            */
+    int32_t prev_cx, prev_cy;                         /* last pointer position            */
 } zxv_shell_state_t;
 
 /* push-in transition length (frames): a depth sweep far->near when entering a space */

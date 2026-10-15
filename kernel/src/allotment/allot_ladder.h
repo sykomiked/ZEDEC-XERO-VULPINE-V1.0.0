@@ -73,12 +73,12 @@ typedef struct {
 } allot_ladder_t;
 
 typedef struct {
-    uint64_t fee;                        /* total fee of the payment        */
+    uint64_t fee;                       /* total fee of the payment        */
     uint64_t share[ALLOT_LADDER_MAX];   /* fee units per level               */
     uint64_t ballots[ALLOT_LADDER_MAX]; /* ballots minted per level (W1)     */
     uint64_t first[ALLOT_LADDER_MAX];   /* first ballot id per level        */
-    uint64_t cascaded;                   /* units moved up by P2             */
-    uint32_t closed;                     /* levels this payment closed       */
+    uint64_t cascaded;                  /* units moved up by P2             */
+    uint32_t closed;                    /* levels this payment closed       */
 } allot_ladder_receipt_t;
 
 /* K2: the threshold of level j of n. 0 when the arguments are invalid. */
@@ -90,49 +90,48 @@ uint64_t allot_ladder_threshold(uint32_t j, uint32_t n, uint32_t idx_lo, uint32_
  * which makes the share cap O(1) per level (allot_set_tally). `weights`
  * NULL = equal weights. */
 allot_status_t allot_ladder_init(allot_ladder_t *L, const allot_config_t *base, uint32_t n,
-                                   uint32_t idx_lo, uint32_t idx_hi, allot_t *levels,
-                                   allot_range_t *ranges, uint32_t per_level,
-                                   allot_tally_t *tallies, uint32_t tally_per_level,
-                                   const uint64_t *weights);
+                                 uint32_t idx_lo, uint32_t idx_hi, allot_t *levels,
+                                 allot_range_t *ranges, uint32_t per_level, allot_tally_t *tallies,
+                                 uint32_t tally_per_level, const uint64_t *weights);
 
 /* P2: can level k take a share now (open and with committed parties)? */
 bool allot_ladder_ready(const allot_ladder_t *L, uint32_t k);
 
 /* P1-P3 without state change: the per-level plan for a payment. */
 allot_status_t allot_ladder_plan(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                   uint64_t amount, const allot_rate_t *rate,
-                                   const uint64_t *weights, allot_ladder_receipt_t *plan);
+                                 uint64_t amount, const allot_rate_t *rate, const uint64_t *weights,
+                                 allot_ladder_receipt_t *plan);
 
 /* P1-P3 for a fee already computed by the caller (e.g. prize-linked
  * savings, allot_token.h T6). */
 allot_status_t allot_ladder_plan_fee(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                       uint64_t fee, const uint64_t *weights,
-                                       allot_ladder_receipt_t *plan);
+                                     uint64_t fee, const uint64_t *weights,
+                                     allot_ladder_receipt_t *plan);
 
 /* P1-P4: enter a payment into the ladder. `weights` NULL = the ladder's. */
 allot_status_t allot_ladder_enter(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                    uint64_t amount, const allot_rate_t *rate,
-                                    const uint64_t *weights, allot_ladder_receipt_t *out);
+                                  uint64_t amount, const allot_rate_t *rate,
+                                  const uint64_t *weights, allot_ladder_receipt_t *out);
 
 /* P5: P1-P3 confined to levels [lo, hi]. `luck` (NULL = none) is the
  * player's weight (allot.h W1), applied on levels below luck_levels. */
-allot_status_t allot_ladder_plan_span(const allot_ladder_t *L,
-                                        const uint8_t owner[ALLOT_ID_LEN], uint64_t fee,
-                                        const uint64_t *weights, const allot_rate_t *luck,
-                                        uint32_t lo, uint32_t hi, allot_ladder_receipt_t *plan);
+allot_status_t allot_ladder_plan_span(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
+                                      uint64_t fee, const uint64_t *weights,
+                                      const allot_rate_t *luck, uint32_t lo, uint32_t hi,
+                                      allot_ladder_receipt_t *plan);
 
 /* P1-P5: enter into levels [lo, hi]. `fee` 0 = quote `amount` at `rate`
  * (PAID mode only); otherwise the caller's fee, e.g. a savings tick
  * (amount and rate recorded for audit). `luck` as in plan_span. */
 allot_status_t allot_ladder_enter_span(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                         uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                         const allot_rate_t *luck, const uint64_t *weights,
-                                         uint32_t lo, uint32_t hi, allot_ladder_receipt_t *out);
+                                       uint64_t amount, const allot_rate_t *rate, uint64_t fee,
+                                       const allot_rate_t *luck, const uint64_t *weights,
+                                       uint32_t lo, uint32_t hi, allot_ladder_receipt_t *out);
 
 /* P1-P4 with a fee the caller computed; `amount` and `rate` are recorded in
  * each level's chain for audit. */
 allot_status_t allot_ladder_enter_fee(allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
-                                        uint64_t amount, const allot_rate_t *rate, uint64_t fee,
-                                        const uint64_t *weights, allot_ladder_receipt_t *out);
+                                      uint64_t amount, const allot_rate_t *rate, uint64_t fee,
+                                      const uint64_t *weights, allot_ladder_receipt_t *out);
 
 #endif /* ZXV_ALLOT_LADDER_H */

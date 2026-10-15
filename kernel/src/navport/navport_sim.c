@@ -25,8 +25,7 @@ static bool verify(void *ctx, uint32_t who, const uint8_t *m, uint32_t n, const 
 {
     (void) ctx;
     uint8_t want[32];
-    if (sl != 32 || n > 128)
-        return false;
+    if (sl != 32 || n > 128) return false;
     sign(who, m, n, want);
     return memcmp(want, sig, 32) == 0;
 }
@@ -45,13 +44,13 @@ static int broken;
 typedef struct {
     const char *name;
     navp_mode_t mode;
-    uint64_t share;     /* starting share of every member, V-Bill units */
-    uint32_t run_on;    /* member under a run (3 = none)                */
-    uint32_t bias_pct;  /* % of flows that sell the run member's unit   */
-    uint32_t run_from;  /* first cycle of the run                       */
-    uint32_t silent;    /* member that stops reporting / voting (3 = none) */
+    uint64_t share;    /* starting share of every member, V-Bill units */
+    uint32_t run_on;   /* member under a run (3 = none)                */
+    uint32_t bias_pct; /* % of flows that sell the run member's unit   */
+    uint32_t run_from; /* first cycle of the run                       */
+    uint32_t silent;   /* member that stops reporting / voting (3 = none) */
     uint32_t silent_from, silent_to;
-    uint32_t wash;      /* extra round trips per cycle between A and C  */
+    uint32_t wash; /* extra round trips per cycle between A and C  */
     uint32_t fee_weight;
     uint32_t cycles;
 } scen_t;
@@ -75,10 +74,8 @@ static void evidence(navp_t *p, uint64_t start, uint32_t m)
     /* rule-of-thumb oracle: two feeds watch the issuer's coverage */
     uint64_t cov = p->m[m].share * 10000 / start;
     uint32_t on = 0, off = 0;
-    if (cov >= 2500)
-        on++;
-    if (cov < 3500)
-        off++;
+    if (cov >= 2500) on++;
+    if (cov < 3500) off++;
     navp_evidence(p, m, on, off);
 }
 
@@ -101,8 +98,7 @@ static void run(const scen_t *s, res_t *r)
     }
     rs = 0x2545F4914F6CDD1Dull;
     for (uint32_t cy = 0; cy < s->cycles; cy++) {
-        for (uint32_t i = 0; i < 3; i++)
-            evidence(&p, s->share, i);
+        for (uint32_t i = 0; i < 3; i++) evidence(&p, s->share, i);
         if (navp_health(&p, 1) == NAVP_BOTH || navp_health(&p, 0) == NAVP_BOTH ||
             navp_health(&p, 2) == NAVP_BOTH)
             r->both_cycles++;
@@ -112,14 +108,11 @@ static void run(const scen_t *s, res_t *r)
                 break;
             }
         uint64_t fees_before[3];
-        for (uint32_t i = 0; i < 3; i++)
-            fees_before[i] = p.m[i].fee_due;
+        for (uint32_t i = 0; i < 3; i++) fees_before[i] = p.m[i].fee_due;
         for (uint32_t k = 0; k < 300; k++) {
             uint32_t f = (uint32_t) (rnd() % 3), t = (uint32_t) (rnd() % 3);
-            if (s->run_on < 3 && cy >= s->run_from && rnd() % 100 < s->bias_pct)
-                f = s->run_on;
-            if (f == t)
-                t = (f + 1 + (uint32_t) (rnd() % 2)) % 3;
+            if (s->run_on < 3 && cy >= s->run_from && rnd() % 100 < s->bias_pct) f = s->run_on;
+            if (f == t) t = (f + 1 + (uint32_t) (rnd() % 2)) % 3;
             uint64_t vv = rnd() % 5000 + 1; /* V-Bill value of the order */
             uint64_t x = vv * NUM[f] / DEN[f] + NUM[f];
             navp_quote_t q;
@@ -128,8 +121,7 @@ static void run(const scen_t *s, res_t *r)
                 r->ok++;
             else {
                 r->refused[-st]++;
-                if (r->first_refusal_cycle < 0)
-                    r->first_refusal_cycle = cy;
+                if (r->first_refusal_cycle < 0) r->first_refusal_cycle = cy;
             }
         }
         for (uint32_t k = 0; k < s->wash; k++) {
@@ -140,8 +132,7 @@ static void run(const scen_t *s, res_t *r)
         /* close: reports, prepare, votes */
         bool quiet = s->silent < 3 && cy >= s->silent_from && cy < s->silent_to;
         for (uint32_t i = 0; i < 3; i++) {
-            if (quiet && i == s->silent)
-                continue;
+            if (quiet && i == s->silent) continue;
             uint64_t no[8] = {0}, vo[8] = {0};
             for (uint32_t j = 0; j < 3; j++) {
                 no[j] = p.hold[i][j];
@@ -154,8 +145,7 @@ static void run(const scen_t *s, res_t *r)
             continue;
         }
         for (uint32_t i = 0; i < 3; i++) {
-            if (quiet && i == s->silent)
-                continue;
+            if (quiet && i == s->silent) continue;
             uint8_t msg[NAVP_CLOSE_MSG], sig[32];
             navp_close_msg(p.port_id, p.cycle, p.hash, msg);
             sign(KEY[i], msg, sizeof msg, sig);
@@ -185,18 +175,14 @@ static void run(const scen_t *s, res_t *r)
         pool /= 4;
         uint64_t sh[8];
         if (pool && navp_yield(&p, pool, sh) == NAVP_OK)
-            for (uint32_t i = 0; i < 3; i++)
-                r->yield[i] += sh[i];
+            for (uint32_t i = 0; i < 3; i++) r->yield[i] += sh[i];
         for (uint32_t i = 0; i < 3; i++) {
             uint64_t cov = p.m[i].share * 10000 / s->share;
-            if (cov < r->min_cov_bps[i])
-                r->min_cov_bps[i] = cov;
+            if (cov < r->min_cov_bps[i]) r->min_cov_bps[i] = cov;
         }
-        if (!navp_check(&p))
-            broken++;
+        if (!navp_check(&p)) broken++;
     }
-    for (uint32_t i = 0; i < 3; i++)
-        r->end[i] = p.m[i].share;
+    for (uint32_t i = 0; i < 3; i++) r->end[i] = p.m[i].share;
 }
 
 static void pct(uint64_t bps)
@@ -217,8 +203,7 @@ static void ratio(uint64_t a, uint64_t b)
 static void report(const scen_t *s, const res_t *r)
 {
     uint64_t refused = 0;
-    for (int i = 0; i < 17; i++)
-        refused += r->refused[i];
+    for (int i = 0; i < 17; i++) refused += r->refused[i];
     printf("\n### %s\n\n", s->name);
     printf("| | |\n|---|---|\n");
     printf("| cycles | %u |\n", s->cycles);
@@ -234,8 +219,8 @@ static void report(const scen_t *s, const res_t *r)
            (long long) r->false_cycles);
     printf("| closes held / closes with carried pairs | %llu / %llu |\n",
            (unsigned long long) r->held_closes, (unsigned long long) r->carried_closes);
-    printf("| gross settled value / net moved | %llu / %llu V |\n",
-           (unsigned long long) r->gross, (unsigned long long) r->settled);
+    printf("| gross settled value / net moved | %llu / %llu V |\n", (unsigned long long) r->gross,
+           (unsigned long long) r->settled);
     printf("| compression (gross / net) | ");
     ratio(r->gross, r->settled);
     printf(" |\n");

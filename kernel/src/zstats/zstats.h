@@ -16,9 +16,9 @@
  *     available grant inventory, and the prevailing G_rate."
  * G_rate = Olive Oil Reserve Inflow / Active Verified Enterprise Load, an
  * exact rational per epoch (grants.h G4 computes it). PROJECT WORDING: the
- * the allotment is an "allotment" (never a raffle); V-Notes ARE V-Bills; nothing here is called a yield
- * or interest: positions are "locked" (and dividend-eligible). Coordinator
- * rule: aggregates only, no per-account data.
+ * the allotment is an "allotment" (never a raffle); V-Notes ARE V-Bills; nothing here is called a
+ * yield or interest: positions are "locked" (and dividend-eligible). Coordinator rule: aggregates
+ * only, no per-account data.
  *
  *   S1 SNAPSHOT. zstats_snapshot_t holds integer aggregates only: epoch,
  *      tick, the jurisdiction and publisher ids, and eight sections:
@@ -155,9 +155,9 @@
 #define ZSTATS_TIERS          2u /* lock tiers MEDIUM, DEEP */
 #define ZSTATS_TERMS          VBOND_MAX_TERMS
 #define ZSTATS_ENC_LEN        597u /* S4 */
-#define ZSTATS_ALLOT_SAVINGS 0u
-#define ZSTATS_ALLOT_PAID    1u
-#define ZSTATS_ALLOT_FREE    2u /* allot.h M0, the default */
+#define ZSTATS_ALLOT_SAVINGS  0u
+#define ZSTATS_ALLOT_PAID     1u
+#define ZSTATS_ALLOT_FREE     2u /* allot.h M0, the default */
 
 /* S1 present bits */
 #define ZSTATS_SEC_RESERVE     0x01u
@@ -165,7 +165,7 @@
 #define ZSTATS_SEC_COMPRESSION 0x04u
 #define ZSTATS_SEC_BONDS       0x08u
 #define ZSTATS_SEC_AUCTION     0x10u
-#define ZSTATS_SEC_ALLOT      0x20u
+#define ZSTATS_SEC_ALLOT       0x20u
 #define ZSTATS_SEC_BARRELS     0x40u
 #define ZSTATS_SEC_ZENNY       0x80u
 #define ZSTATS_SEC_ALL         0xFFu
@@ -206,7 +206,8 @@ typedef struct {
 typedef struct {
     uint64_t epoch;
     uint64_t pot;       /* Vino in the pot */
-    uint64_t ballots;   /* may exceed pot: a luck weight mints extra ballots; in FREE mode one per person */
+    uint64_t ballots;   /* may exceed pot: a luck weight mints extra ballots; in FREE mode one per
+                           person */
     uint64_t threshold; /* counted in ballots */
     uint64_t entries;
     uint64_t mode; /* ZSTATS_ALLOT_SAVINGS, _PAID or _FREE */

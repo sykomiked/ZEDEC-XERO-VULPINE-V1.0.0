@@ -1030,7 +1030,8 @@ static void test_record(void)
           "spend 150 of 100 counted: count floors at 0, the 50 left can still be recorded");
     /* a partial spend lowers the count by exactly the spend */
     setup();
-    CHECK(grant_pool_credit(&G, allotment, 300, 1) == GRANT_OK && grant_set_cap(&G, 1, 2) == GRANT_OK,
+    CHECK(grant_pool_credit(&G, allotment, 300, 1) == GRANT_OK &&
+              grant_set_cap(&G, 1, 2) == GRANT_OK,
           "300 counted, half may be spent");
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 100, 2, NULL) == GRANT_OK && deb(G.pool) == 200 &&
               G.pool_seen == 200 && grant_pool_record(&G, 1) == GRANT_ERR_FUNDS,

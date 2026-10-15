@@ -199,8 +199,7 @@ static void test_guard_mode(void)
     uint64_t fee = 0;
     CHECK(allot_guard_check(&pol, &c, &pl, 1000, 0, 1, 0, &fee) == ALLOT_ERR_MODE,
           "paid guard check refused in savings mode");
-    CHECK(allot_guard_check_fee(&pol, &c, &pl, 250, 0, 1) == ALLOT_OK,
-          "savings fee check passes");
+    CHECK(allot_guard_check_fee(&pol, &c, &pl, 250, 0, 1) == ALLOT_OK, "savings fee check passes");
     CHECK(allot_guard_check_fee(&pol, &c, &pl, 10001, 0, 1) == ALLOT_ERR_DAY_LIMIT,
           "limits apply in savings mode");
 }
@@ -438,7 +437,7 @@ static void test_luck(void)
     CHECK(m.num == 1 && m.den == 1, "no identity hook: 1x");
     pol.identity_of = identity;
     allot_rate_t m1 = allot_guard_luck(&pol, &c, acc1, book, 3),
-                  m2 = allot_guard_luck(&pol, &c, acc2, book, 3);
+                 m2 = allot_guard_luck(&pol, &c, acc2, book, 3);
     CHECK(m1.num == 10946 + 3 * 6765 && m1.num == m2.num && m1.den == m2.den,
           "two accounts of one person share one weight");
     m = allot_guard_luck(&pol, &c, other, book, 3);
@@ -471,8 +470,8 @@ static void test_ladder(void)
     allot_ladder_receipt_t lr;
     uint8_t a[32];
     id_of(0x51, a);
-    CHECK(allot_ladder_init(&L, &c, LN, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv, g_lrg,
-                             64, NULL, 0, NULL) == ALLOT_OK &&
+    CHECK(allot_ladder_init(&L, &c, LN, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv, g_lrg, 64,
+                            NULL, 0, NULL) == ALLOT_OK &&
               L.luck_levels == ALLOT_LADDER_LUCK_LEVELS,
           "ladder, luck on the lowest 24 levels by default");
     for (uint32_t k = 0; k < LN; k++) commit_party(&g_lv[k], (uint8_t) (0xB0 + k));
@@ -482,13 +481,11 @@ static void test_ladder(void)
     CHECK(allot_ladder_enter_span(&L, a, 100000, &pct, 0, NULL, NULL, 0, LN - 1, &lr) ==
               ALLOT_ERR_MODE,
           "and a quoted span entry");
-    CHECK(allot_ladder_enter_span(&L, a, 90, &share, 90, NULL, NULL, 0, LN - 1, &lr) ==
-                  ALLOT_OK &&
+    CHECK(allot_ladder_enter_span(&L, a, 90, &share, 90, NULL, NULL, 0, LN - 1, &lr) == ALLOT_OK &&
               lr.share[0] == 30 && lr.ballots[0] == 30 && lr.ballots[2] == 30,
           "a savings tick spread over the ladder");
     L.luck_levels = 1;
-    CHECK(allot_ladder_enter_span(&L, a, 90, &share, 90, &two, NULL, 0, LN - 1, &lr) ==
-                  ALLOT_OK &&
+    CHECK(allot_ladder_enter_span(&L, a, 90, &share, 90, &two, NULL, 0, LN - 1, &lr) == ALLOT_OK &&
               lr.share[0] == 30 && lr.ballots[0] == 60 && lr.ballots[1] == 30 &&
               lr.ballots[2] == 30 && g_lv[0].ballots == 90 && g_lv[0].pool == 60,
           "luck applies only below luck_levels");
@@ -502,8 +499,8 @@ static void test_ladder(void)
     allot_config_t cc = c;
     cc.share_num = 8;
     cc.share_den = 21; /* level 0: F(13) = 233 -> cap 88 ballots */
-    allot_ladder_init(&L, &cc, LN, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv, g_lrg, 64,
-                       NULL, 0, NULL);
+    allot_ladder_init(&L, &cc, LN, ALLOT_LADDER_IDX_LO, ALLOT_LADDER_IDX_HI, g_lv, g_lrg, 64, NULL,
+                      0, NULL);
     for (uint32_t k = 0; k < LN; k++) commit_party(&g_lv[k], (uint8_t) (0xB0 + k));
     uint64_t w[LN] = {1, 0, 0};
     CHECK(allot_ladder_enter_span(&L, a, 100, &share, 100, &two, w, 0, LN - 1, &lr) == ALLOT_OK &&

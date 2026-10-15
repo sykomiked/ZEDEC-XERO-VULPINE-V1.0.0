@@ -257,7 +257,8 @@ chgb_status_t chgb_suggest(const chgb_t *b, const chgb_ctx_t *c, chgb_suggestion
     for (uint32_t i = 0; i < nl; i++)
         for (uint32_t j = 0; j < nl; j++)
             out->u[live[i]][live[j]] =
-                i == j ? 0 : (uint16_t) chgb_interaction(rows[live[i]], rows[live[j]], CHGB_ACTIONS);
+                i == j ? 0
+                       : (uint16_t) chgb_interaction(rows[live[i]], rows[live[j]], CHGB_ACTIONS);
 
     /* merge near-parallel experts into one voice (duplication cannot add
      * confidence: the chiglet.h lesson) */
@@ -369,7 +370,8 @@ uint32_t chgb_app_affinity(const chgb_t *b, uint16_t app)
 }
 
 /* ----- P3 ----- */
-#define TABLE_WORDS (CHGB_SLOTS * CHGB_ACTIONS + CHGB_APPS * CHGB_ACTIONS + CHGB_ACTIONS * CHGB_ACTIONS)
+#define TABLE_WORDS                                                                                \
+    (CHGB_SLOTS * CHGB_ACTIONS + CHGB_APPS * CHGB_ACTIONS + CHGB_ACTIONS * CHGB_ACTIONS)
 #define EXPORT_SIZE                                                                                \
     (4u + 32u + 2u * 4u + 1u + 2u + 2u * CHGB_ACTIONS + 2u + 2u * CHGB_APPS + 2u * TABLE_WORDS + 8u)
 
@@ -443,8 +445,7 @@ chgb_status_t chgb_import(chgb_t *b, const uint8_t owner[32], const uint8_t *in,
     if (h != fnv(in, len - 8)) return CHGB_ERR_PARSE;
     if (!same32(in + 4, owner)) return CHGB_DENIED;
     uint32_t at = 36;
-    uint16_t eta = get16(in, &at), cost = get16(in, &at), dec = get16(in, &at),
-             ms = get16(in, &at);
+    uint16_t eta = get16(in, &at), cost = get16(in, &at), dec = get16(in, &at), ms = get16(in, &at);
     uint8_t learning = in[at++];
     uint16_t n_act = get16(in, &at);
     uint32_t act_at = at;

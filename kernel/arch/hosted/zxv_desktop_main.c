@@ -41,9 +41,10 @@ static int write_ppm(const char *path, const zui_surface_t *s)
 
 static void usage(void)
 {
-    fprintf(stderr, "usage: zxv-desktop [--backend NAME] [--rpc SOCKET] [--font FILE] [--mono FILE]\n"
-                    "                   [--size W H] [--launch APP]... [--frames N]\n"
-                    "                   [--screenshot OUT.ppm]\n");
+    fprintf(stderr,
+            "usage: zxv-desktop [--backend NAME] [--rpc SOCKET] [--font FILE] [--mono FILE]\n"
+            "                   [--size W H] [--launch APP]... [--frames N]\n"
+            "                   [--screenshot OUT.ppm]\n");
     exit(2);
 }
 
@@ -84,13 +85,14 @@ int main(int argc, char **argv)
         return 3;
     }
     zui_present_t *p = zxv_desktop_present(d);
-    printf("desktop %s %ux%u scale_q8=%u %s\n", p ? p->ops->name : "headless", p ? p->screen.px_w : 0,
-           p ? p->screen.px_h : 0, p ? p->screen.scale_q8 : 0,
+    printf("desktop %s %ux%u scale_q8=%u %s\n", p ? p->ops->name : "headless",
+           p ? p->screen.px_w : 0, p ? p->screen.px_h : 0, p ? p->screen.scale_q8 : 0,
            zxv_desktop_connected(d) ? "zxvd connected" : "zxvd not running");
     for (uint32_t k = 0; k < nlaunch; k++)
         for (uint32_t a = 0; a < zxv_desktop_apps(d); a++)
             if (!strcmp(launch[k], "all") || !strcmp(launch[k], zxv_desktop_app_name(d, a)))
-                printf("launch %s window %u\n", zxv_desktop_app_name(d, a), zxv_desktop_launch(d, a));
+                printf("launch %s window %u\n", zxv_desktop_app_name(d, a),
+                       zxv_desktop_launch(d, a));
     int rc = 1;
     long n = 0;
     while (frames < 0 || n < frames) {

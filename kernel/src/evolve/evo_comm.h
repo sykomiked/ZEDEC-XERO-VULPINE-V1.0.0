@@ -50,7 +50,7 @@
 #include "evo.h"
 
 /* ===== U1: compatibility contract ===== */
-#define EVO_CONTRACT_MAX 24u
+#define EVO_CONTRACT_MAX     24u
 #define EVO_CONTRACT_ENC_MAX (4u + 4u + 1u + EVO_CONTRACT_MAX * EVO_CID_LEN)
 
 typedef struct {
@@ -82,18 +82,18 @@ bool evo_contract_extends(const evo_contract_t *nw, const evo_contract_t *old,
                           const evo_registry_t *reg);
 
 /* ===== U2: audit attestations ===== */
-#define EVO_AUDIT_PASS 1u
-#define EVO_AUDIT_FAIL 2u
+#define EVO_AUDIT_PASS     1u
+#define EVO_AUDIT_FAIL     2u
 #define EVO_AUDIT_BODY_MAX (4u + 2u * EVO_CID_LEN + 32u + 1u + 4u + 8u + 1u + EVO_NAME_MAX)
 
 typedef struct {
-    evo_cid_t record;   /* the lineage record audited */
-    evo_cid_t contract; /* the contract CID it was tested against */
-    uint8_t auditor[32];/* key id of the signer */
-    uint8_t verdict;    /* EVO_AUDIT_PASS / EVO_AUDIT_FAIL */
-    uint32_t conform;   /* conformance bits the auditor observed */
-    uint64_t stamp;     /* auditor's choice */
-    uint8_t bounty_len; /* 0: no bounty claim */
+    evo_cid_t record;    /* the lineage record audited */
+    evo_cid_t contract;  /* the contract CID it was tested against */
+    uint8_t auditor[32]; /* key id of the signer */
+    uint8_t verdict;     /* EVO_AUDIT_PASS / EVO_AUDIT_FAIL */
+    uint32_t conform;    /* conformance bits the auditor observed */
+    uint64_t stamp;      /* auditor's choice */
+    uint8_t bounty_len;  /* 0: no bounty claim */
     char bounty[EVO_NAME_MAX];
 } evo_audit_t;
 
@@ -108,7 +108,7 @@ evo_status_t evo_audit_open(const uint8_t *wire, uint32_t len, evo_verify_fn vf,
 #define EVO_AUDITORS_MAX 16u
 
 typedef struct {
-    uint32_t k;          /* passes needed; 0 is treated as 2 */
+    uint32_t k; /* passes needed; 0 is treated as 2 */
     uint32_t n;
     uint8_t auditor[EVO_AUDITORS_MAX][32]; /* the user's chosen auditors */
 } evo_audit_policy_t;
@@ -117,7 +117,7 @@ evo_status_t evo_audit_policy_init(evo_audit_policy_t *p, uint32_t k);
 evo_status_t evo_audit_policy_add(evo_audit_policy_t *p, const uint8_t key_id[32]);
 
 typedef struct {
-    evo_cid_t record;   /* consent is for this exact record */
+    evo_cid_t record; /* consent is for this exact record */
     bool granted;
     uint64_t expires_at;
 } evo_install_consent_t;
@@ -134,10 +134,10 @@ typedef enum {
 
 typedef struct {
     evo_gate_t verdict;
-    uint32_t passes;    /* distinct listed auditors that passed it */
-    uint32_t fails;     /* distinct listed auditors that failed it */
-    uint32_t bad;       /* contract index on INCOMPATIBLE */
-    bool bounty_ready;  /* passes >= k and a passing audit names a bounty */
+    uint32_t passes;   /* distinct listed auditors that passed it */
+    uint32_t fails;    /* distinct listed auditors that failed it */
+    uint32_t bad;      /* contract index on INCOMPATIBLE */
+    bool bounty_ready; /* passes >= k and a passing audit names a bounty */
     uint8_t bounty_len;
     char bounty[EVO_NAME_MAX];
 } evo_gate_result_t;
@@ -165,10 +165,10 @@ typedef struct {
 } evo_jent_t;
 
 typedef struct {
-    evo_cid_t base;   /* the build the device shipped or was restored to */
+    evo_cid_t base; /* the build the device shipped or was restored to */
     uint32_t n;
     evo_jent_t e[EVO_JOURNAL_MAX];
-    int32_t cur;      /* index of the running build, -1 = base */
+    int32_t cur; /* index of the running build, -1 = base */
     uint64_t trial_window;
 } evo_journal_t;
 

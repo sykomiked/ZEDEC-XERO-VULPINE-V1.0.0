@@ -1141,8 +1141,8 @@ static void test_topup(void)
           "an allotment NAV credit of 20 mints 20 chips to the recipient");
     uint32_t nv = Z.chip[r].n_ver;
     rc.last = ZENNY_OK;
-    CHECK(!zenny_allot_credit(&rc, ZENNY_ALLOT_DEST_NAV, &who, 5) &&
-              rc.last == ZENNY_ERR_INEXACT && Z.chip[r].n_ver == nv,
+    CHECK(!zenny_allot_credit(&rc, ZENNY_ALLOT_DEST_NAV, &who, 5) && rc.last == ZENNY_ERR_INEXACT &&
+              Z.chip[r].n_ver == nv,
           "an inexact credit returns false and changes nothing");
     rc.last = ZENNY_ERR_ARG;
     CHECK(!zenny_allot_credit(&rc, 2, &who, 20) && !zenny_allot_credit(&rc, 4, &who, 20) &&

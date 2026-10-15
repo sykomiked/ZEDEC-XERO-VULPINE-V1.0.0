@@ -95,7 +95,8 @@ static uint32_t count(const zxv_desktop_t *d, zui_rect_t r, uint32_t rgb)
     uint32_t n = 0;
     for (int32_t y = r.y; y < r.y + r.h && y < s->h; y++)
         for (int32_t x = r.x; x < r.x + r.w && x < s->w; x++)
-            if (x >= 0 && y >= 0 && (s->px[(size_t) y * (size_t) s->stride + (size_t) x] & 0xFFFFFFu) == rgb)
+            if (x >= 0 && y >= 0 &&
+                (s->px[(size_t) y * (size_t) s->stride + (size_t) x] & 0xFFFFFFu) == rgb)
                 n++;
     return n;
 }

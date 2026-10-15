@@ -117,7 +117,8 @@ uint32_t zui_desk_open(zui_desk_t *d, uint32_t app, const char *title, const zui
         zui_wm_focus(&d->wm, d->win_of[app]);
         return d->win_of[app];
     }
-    uint32_t id = zui_wm_open(&d->wm, d->app[app].name, title ? title : d->app[app].name, (const zui_launch_t *) 0, c);
+    uint32_t id = zui_wm_open(&d->wm, d->app[app].name, title ? title : d->app[app].name,
+                              (const zui_launch_t *) 0, c);
     d->win_of[app] = id;
     return id;
 }
@@ -237,8 +238,8 @@ void zui_desk_draw_bar(zui_desk_t *d, zui_surface_t *s)
     int32_t cx = zui_desk_pt(d, ZUI_S4) + r;
     mark(s, cx, bar.h / 2, r);
     if (d->f.title && d->f.title->font)
-        zui_text(s, d->f.title, cx + r + zui_desk_pt(d, ZUI_S2), text_mid(d->f.title, bar), ZUI_TEXT,
-                 "ZXV");
+        zui_text(s, d->f.title, cx + r + zui_desk_pt(d, ZUI_S2), text_mid(d->f.title, bar),
+                 ZUI_TEXT, "ZXV");
     /* D1: the switch, carved into the bar; the chosen half is raised */
     zui_rect_t l = zui_desk_switch(d, false), rr = zui_desk_switch(d, true);
     zui_rect_t whole = {l.x, l.y, l.w + rr.w, l.h};
@@ -273,15 +274,15 @@ static void rail(zui_desk_t *d, zui_surface_t *s)
         zui_engrave(s, t, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 46);
         if (front == (int32_t) i) {
             int32_t g = zui_desk_pt(d, 2);
-            zui_stroke_rrect(s, (zui_rect_t){t.x - g, t.y - g, t.w + 2 * g, t.h + 2 * g}, rad + g, g,
-                             ZUI_GOLD, 255);
+            zui_stroke_rrect(s, (zui_rect_t){t.x - g, t.y - g, t.w + 2 * g, t.h + 2 * g}, rad + g,
+                             g, ZUI_GOLD, 255);
         }
         text_centre(s, d->f.mark, t, front == (int32_t) i ? ZUI_GOLD : ZUI_TEXT_2, d->app[i].mark);
         if (d->win_of[i]) { /* running: a gold dot at the rail's edge */
             int32_t dr = zui_desk_pt(d, 2);
             int32_t dy = t.y + t.h / 2;
-            zui_fill_rrect(s, (zui_rect_t){zui_desk_pt(d, 3), dy - dr, 2 * dr, 2 * dr}, dr, ZUI_GOLD,
-                           255);
+            zui_fill_rrect(s, (zui_rect_t){zui_desk_pt(d, 3), dy - dr, 2 * dr, 2 * dr}, dr,
+                           ZUI_GOLD, 255);
         }
         if (d->f.caption && d->f.caption->font) {
             const char *n = d->app[i].name;

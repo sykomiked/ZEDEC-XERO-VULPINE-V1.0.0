@@ -19,8 +19,8 @@ static int fails, checks;
         }                                                                                          \
     } while (0)
 
-#define W 1280
-#define H 800
+#define W  1280
+#define H  800
 #define C1 0x204060u /* what the app paints (test only) */
 
 static uint32_t PX[W * H], PX2[W * H];

@@ -121,7 +121,7 @@ int main(void)
     allot_player_init(&pl, id);
     uint64_t fee = 0, now = 100 * DAY;
     allot_rate_t r1 = {1, 100}, r10 = {1, 10}, r25 = {1, 4}, r50 = {1, 2}, r60 = {3, 5},
-                  out = {0, 1}, half_pct = {1, 200};
+                 out = {0, 1}, half_pct = {1, 200};
 
     /* G1: out by default. */
     CHECK(pl.rate.num == 0, "player starts opted out");
@@ -153,8 +153,7 @@ int main(void)
 
     /* Spend: 1% of 100,000 = 1,000 per entry; day limit 3,000. */
     for (int i = 0; i < 3; i++) {
-        CHECK(allot_guard_check(&pol, &c, &pl, 100000, now, 1, 0, &fee) == ALLOT_OK &&
-                  fee == 1000,
+        CHECK(allot_guard_check(&pol, &c, &pl, 100000, now, 1, 0, &fee) == ALLOT_OK && fee == 1000,
               "entry %d ok", i);
         allot_guard_commit(&pol, &pl, now, 1, fee);
     }
@@ -164,8 +163,7 @@ int main(void)
           "next day ok");
     allot_guard_commit(&pol, &pl, now + DAY, 1, fee);
     allot_guard_commit(&pol, &pl, now + DAY, 1, fee); /* epoch 1 total now 5,000 */
-    CHECK(allot_guard_check(&pol, &c, &pl, 100000, now + DAY, 1, 0, &fee) ==
-              ALLOT_ERR_EPOCH_LIMIT,
+    CHECK(allot_guard_check(&pol, &c, &pl, 100000, now + DAY, 1, 0, &fee) == ALLOT_ERR_EPOCH_LIMIT,
           "epoch limit");
     CHECK(allot_guard_check(&pol, &c, &pl, 100000, now + DAY, 2, 0, &fee) == ALLOT_OK,
           "a new epoch resets");
@@ -212,8 +210,7 @@ int main(void)
 
     /* G5: self-exclusion only extends. */
     allot_player_exclude(&pl, t2, 30 * DAY);
-    CHECK(allot_guard_check(&pol, &c, &pl, 100000, t2 + DAY, 9, 50000, &fee) ==
-              ALLOT_ERR_EXCLUDED,
+    CHECK(allot_guard_check(&pol, &c, &pl, 100000, t2 + DAY, 9, 50000, &fee) == ALLOT_ERR_EXCLUDED,
           "excluded");
     allot_player_exclude(&pl, t2, DAY); /* an attempt to shorten */
     CHECK(pl.excluded_until == t2 + 30 * DAY, "cannot shorten");

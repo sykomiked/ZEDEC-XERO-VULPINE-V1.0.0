@@ -107,13 +107,13 @@
 #define ALLOT_TOKEN_TARGET_LOCAL   1u
 
 typedef struct {
-    uint8_t events;            /* T2: 0 = off (default)                     */
-    uint8_t target;            /* T4                                        */
+    uint8_t events;           /* T2: 0 = off (default)                     */
+    uint8_t target;           /* T4                                        */
     allot_rate_t slice_min;   /* T3: 0/0 when no slice event is on         */
     allot_rate_t slice_max;   /* T3                                        */
     allot_rate_t savings_max; /* T6: 0/0 unless SAVINGS                    */
-    uint32_t local_fib_index;  /* T4: LOCAL only; 0 = the deployment's      */
-    uint8_t tier_lo, tier_hi;  /* T8: NETWORK only; 0/0 = every level       */
+    uint32_t local_fib_index; /* T4: LOCAL only; 0 = the deployment's      */
+    uint8_t tier_lo, tier_hi; /* T8: NETWORK only; 0/0 = every level       */
     allot_rate_t nav;         /* T7: LOCAL only; 0/0 = off                 */
 } allot_token_block_t;
 
@@ -124,8 +124,7 @@ void allot_token_block_default(allot_token_block_t *b);
 allot_status_t allot_token_block_check(const allot_token_block_t *b);
 
 /* T1 */
-allot_status_t allot_token_encode(const allot_token_block_t *b,
-                                    uint8_t out[ALLOT_TOKEN_BLOCK_LEN]);
+allot_status_t allot_token_encode(const allot_token_block_t *b, uint8_t out[ALLOT_TOKEN_BLOCK_LEN]);
 allot_status_t allot_token_decode(const uint8_t *in, size_t len, allot_token_block_t *b);
 
 /* T1: SHA3-256("ZXV-ALLOT-TOKEN1" || encoding), for the signed manifest. */
@@ -137,22 +136,22 @@ allot_status_t allot_token_digest(const allot_token_block_t *b, uint8_t out[ALLO
  * (ALLOT_ERR_CONFIG if skim + grant + nav would reach 1). ALLOT_ERR_DISABLED while the deployment
  * is off. */
 allot_status_t allot_token_config(const allot_config_t *dep, const allot_token_block_t *b,
-                                    allot_config_t *out);
+                                  allot_config_t *out);
 
 /* T8: the 0-based ladder span [lo, hi] for a NETWORK token on a ladder of
  * n levels. ALLOT_ERR_CONFIG if the map names a level the ladder lacks. */
 allot_status_t allot_token_span(const allot_token_block_t *b, uint32_t n, uint32_t *lo,
-                                  uint32_t *hi);
+                                uint32_t *hi);
 
 /* T4: is `r` a valid LOCAL pot for this token (its config is exactly
  * allot_token_config's)? */
 allot_status_t allot_token_pot_check(const allot_config_t *dep, const allot_token_block_t *b,
-                                       const allot_t *r);
+                                     const allot_t *r);
 
 /* G1 for a token slice: the holder's own rate inside the T3 range (num 0
  * opts out). */
 allot_status_t allot_token_set_rate(const allot_config_t *dep, const allot_token_block_t *b,
-                                      allot_player_t *pl, allot_rate_t rate);
+                                    allot_player_t *pl, allot_rate_t rate);
 
 /* T2-T5 + G1-G6 for one slice on `event` (exactly one of MINT, BURN,
  * TRANSFER) of `amount`. Pure. On ALLOT_OK or ALLOT_ERR_CONFIRM, *fee is
@@ -161,25 +160,24 @@ allot_status_t allot_token_set_rate(const allot_config_t *dep, const allot_token
  * pl->rate) and calls
  * allot_guard_commit. */
 allot_status_t allot_token_check(const allot_guard_policy_t *pol, const allot_config_t *dep,
-                                   const allot_token_block_t *b, uint8_t event,
-                                   const allot_player_t *pl, uint64_t amount, uint64_t now,
-                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee);
+                                 const allot_token_block_t *b, uint8_t event,
+                                 const allot_player_t *pl, uint64_t amount, uint64_t now,
+                                 uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee);
 
 /* T6: enrol (or, num 0, leave) with share s of realised profit. Use a
  * allot_player_t kept for savings only: its `rate` holds s. A share above
  * pol->confirm_above needs confirmed_share equal to it (G2, given once). */
 allot_status_t allot_token_set_share(const allot_guard_policy_t *pol, const allot_config_t *dep,
-                                       const allot_token_block_t *b, allot_player_t *pl,
-                                       allot_rate_t share, allot_rate_t confirmed_share);
+                                     const allot_token_block_t *b, allot_player_t *pl,
+                                     allot_rate_t share, allot_rate_t confirmed_share);
 
 /* T6: the fee this tick's realised profit buys. Pure; no principal is ever
  * an input. The caller then enters it (allot_ladder_enter_span for NETWORK,
  * allot_enter_share for LOCAL, with amount = realised_profit and
  * rate = pl->rate) and calls allot_guard_commit. */
-allot_status_t allot_token_savings_check(const allot_guard_policy_t *pol,
-                                           const allot_config_t *dep,
-                                           const allot_token_block_t *b, const allot_player_t *pl,
-                                           uint64_t realised_profit, uint64_t now, uint64_t epoch,
-                                           uint64_t *fee);
+allot_status_t allot_token_savings_check(const allot_guard_policy_t *pol, const allot_config_t *dep,
+                                         const allot_token_block_t *b, const allot_player_t *pl,
+                                         uint64_t realised_profit, uint64_t now, uint64_t epoch,
+                                         uint64_t *fee);
 
 #endif /* ZXV_ALLOT_TOKEN_H */

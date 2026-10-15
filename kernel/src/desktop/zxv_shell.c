@@ -419,8 +419,8 @@ static const char *LAT_DESC[LATTICE_NODES][4] = {
      "Modular contracts and syndicates", "Shares by merit, not seniority"},
     {"Miss Potimus Art Studio", "Canvas, sound, motion and 3D", "Every medium in one toolkit",
      "Export as [S+], [S-] or [S0]"},
-    {"Chiglet, a native mixture of experts", "Match trolls with trolls",
-     "Concord: rehabilitative", "Distinct evidence 3.0, decided"},
+    {"Chiglet, a native mixture of experts", "Match trolls with trolls", "Concord: rehabilitative",
+     "Distinct evidence 3.0, decided"},
     {"Magitech Refinery", "Text to Enochian gematria", "Then a sigil card, then a 58-byte preset",
      "Deck parity verified"},
     {"Concord, non-coercive social", "Complementary pairing",
@@ -1019,7 +1019,6 @@ static void enter_space(zxv_shell_state_t *st, int i)
     st->act_hot = -1;
     space_enter(st, i);
 }
-
 
 /* ============================================================================
  *  THE DESKTOP (view 0): zui_desk's bar, launcher and windows. The launcher

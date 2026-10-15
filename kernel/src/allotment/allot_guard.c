@@ -26,7 +26,7 @@ void allot_player_init(allot_player_t *pl, const uint8_t owner[ALLOT_ID_LEN])
 }
 
 allot_status_t allot_player_set_rate(const allot_config_t *cfg, allot_player_t *pl,
-                                       allot_rate_t rate)
+                                     allot_rate_t rate)
 {
     uint64_t fee;
     if (!cfg || !pl || rate.den == 0) return ALLOT_ERR_ARG;
@@ -68,7 +68,7 @@ static void set_one(uint64_t *cur, uint64_t *pend, uint64_t *pend_at, uint64_t w
 }
 
 allot_status_t allot_player_set_limits(const allot_guard_policy_t *pol, allot_player_t *pl,
-                                         uint64_t day_limit, uint64_t epoch_limit, uint64_t now)
+                                       uint64_t day_limit, uint64_t epoch_limit, uint64_t now)
 {
     if (!pol || !pl || day_limit == 0 || epoch_limit == 0) return ALLOT_ERR_ARG;
     set_one(&pl->day_limit, &pl->pend_day, &pl->pend_day_at, day_limit, now, pol->cooling_off);
@@ -91,11 +91,11 @@ static uint64_t day_of(const allot_guard_policy_t *pol, uint64_t now)
 
 /* The switch, G1, G5, G6 and "limits set" (G3), in that order. */
 static allot_status_t gates(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                             const allot_player_t *pl, uint64_t now)
+                            const allot_player_t *pl, uint64_t now)
 {
     if (!cfg->jurisdiction_permits) return ALLOT_ERR_DISABLED;
-    if (pl->rate.num == 0) return ALLOT_ERR_NOT_IN;               /* G1 */
-    if (now < pl->excluded_until) return ALLOT_ERR_EXCLUDED;      /* G5 */
+    if (pl->rate.num == 0) return ALLOT_ERR_NOT_IN;                /* G1 */
+    if (now < pl->excluded_until) return ALLOT_ERR_EXCLUDED;       /* G5 */
     if (!pol->age_gate || !pol->age_gate(pol->age_ctx, pl->owner)) /* G6 */
         return ALLOT_ERR_AGE;
     if (pol->require_limits &&
@@ -105,8 +105,8 @@ static allot_status_t gates(const allot_guard_policy_t *pol, const allot_config_
 }
 
 /* G3: would `f` pass the daily or per-epoch limit? */
-static allot_status_t limits(const allot_guard_policy_t *pol, const allot_player_t *pl,
-                              uint64_t f, uint64_t now, uint64_t epoch)
+static allot_status_t limits(const allot_guard_policy_t *pol, const allot_player_t *pl, uint64_t f,
+                             uint64_t now, uint64_t epoch)
 {
     uint64_t total;
     if (f == 0) return ALLOT_ERR_DUST;
@@ -119,8 +119,8 @@ static allot_status_t limits(const allot_guard_policy_t *pol, const allot_player
 }
 
 allot_status_t allot_guard_check(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                   const allot_player_t *pl, uint64_t amount, uint64_t now,
-                                   uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
+                                 const allot_player_t *pl, uint64_t amount, uint64_t now,
+                                 uint64_t epoch, uint64_t confirmed_fee, uint64_t *fee)
 {
     uint64_t f, n;
     if (!pol || !cfg || !pl || !fee) return ALLOT_ERR_ARG;
@@ -136,8 +136,8 @@ allot_status_t allot_guard_check(const allot_guard_policy_t *pol, const allot_co
 }
 
 allot_status_t allot_guard_check_fee(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                       const allot_player_t *pl, uint64_t fee, uint64_t now,
-                                       uint64_t epoch)
+                                     const allot_player_t *pl, uint64_t fee, uint64_t now,
+                                     uint64_t epoch)
 {
     if (!pol || !cfg || !pl) return ALLOT_ERR_ARG;
     allot_status_t st = gates(pol, cfg, pl, now);
@@ -151,7 +151,7 @@ allot_status_t allot_guard_check_free(const allot_guard_policy_t *pol, const all
     uint8_t id[ALLOT_ID_LEN];
     if (!pol || !cfg || !pl || !ballot_owner) return ALLOT_ERR_ARG;
     if (!cfg->jurisdiction_permits || !cfg->free_entry) return ALLOT_ERR_DISABLED;
-    if (now < pl->excluded_until) return ALLOT_ERR_EXCLUDED;      /* G5 */
+    if (now < pl->excluded_until) return ALLOT_ERR_EXCLUDED;       /* G5 */
     if (!pol->age_gate || !pol->age_gate(pol->age_ctx, pl->owner)) /* G6 */
         return ALLOT_ERR_AGE;
     if (!pol->identity_of || !pol->identity_of(pol->identity_ctx, pl->owner, id))
@@ -162,7 +162,7 @@ allot_status_t allot_guard_check_free(const allot_guard_policy_t *pol, const all
 }
 
 void allot_guard_commit(const allot_guard_policy_t *pol, allot_player_t *pl, uint64_t now,
-                         uint64_t epoch, uint64_t fee)
+                        uint64_t epoch, uint64_t fee)
 {
     if (!pol || !pl) return;
     uint64_t d = day_of(pol, now);
@@ -179,8 +179,8 @@ void allot_guard_commit(const allot_guard_policy_t *pol, allot_player_t *pl, uin
 }
 
 allot_rate_t allot_guard_luck(const allot_guard_policy_t *pol, const allot_config_t *cfg,
-                                const uint8_t owner[ALLOT_ID_LEN], const allot_luck_t *book,
-                                uint32_t n)
+                              const uint8_t owner[ALLOT_ID_LEN], const allot_luck_t *book,
+                              uint32_t n)
 {
     allot_rate_t one = {1, 1};
     uint8_t id[ALLOT_ID_LEN];

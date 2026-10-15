@@ -267,7 +267,7 @@ evo_status_t evo_community_gate(const evo_dag_t *g, const evo_cid_t *record,
         const evo_audit_t *a = &audits[i];
         if (!evo_cid_eq(&a->record, record)) continue;
         int32_t p = policy_index(pol, a->auditor);
-        if (p < 0) continue;                              /* not chosen by this user */
+        if (p < 0) continue;                                /* not chosen by this user */
         if (evo_cmp(a->auditor, author, 32) == 0) continue; /* no self-audit */
         if (a->verdict == EVO_AUDIT_FAIL) {
             failed |= 1u << p; /* a fail counts whatever contract it used */
@@ -307,13 +307,20 @@ evo_status_t evo_community_gate(const evo_dag_t *g, const evo_cid_t *record,
 const char *evo_gate_str(evo_gate_t g)
 {
     switch (g) {
-    case EVO_GATE_INSTALLABLE: return "installable";
-    case EVO_GATE_UNKNOWN_RECORD: return "unknown record";
-    case EVO_GATE_BLOCKED: return "blocked by you";
-    case EVO_GATE_INCOMPATIBLE: return "breaks the compatibility contract";
-    case EVO_GATE_AUDIT_FAILED: return "an auditor failed it";
-    case EVO_GATE_NEED_AUDITS: return "needs more independent audits";
-    case EVO_GATE_NEED_CONSENT: return "waiting for your consent";
+    case EVO_GATE_INSTALLABLE:
+        return "installable";
+    case EVO_GATE_UNKNOWN_RECORD:
+        return "unknown record";
+    case EVO_GATE_BLOCKED:
+        return "blocked by you";
+    case EVO_GATE_INCOMPATIBLE:
+        return "breaks the compatibility contract";
+    case EVO_GATE_AUDIT_FAILED:
+        return "an auditor failed it";
+    case EVO_GATE_NEED_AUDITS:
+        return "needs more independent audits";
+    case EVO_GATE_NEED_CONSENT:
+        return "waiting for your consent";
     }
     return "?";
 }
