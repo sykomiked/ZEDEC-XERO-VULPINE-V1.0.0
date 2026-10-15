@@ -51,11 +51,11 @@
 17	Almanac	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/017-almanac.svg	hardware /hardware apps/almanac.zxapp apps/almanac_model.c apps/almanac_model.h apps/blocks/almanac	-	T
 18	Witness	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/018-witness.svg	peer_audit invproof provenance dispute apps/witness.zxapp apps/witness_model.c apps/witness_model.h apps/blocks/witness	-	T
 19	Cellar	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/019-cellar.svg	megarom /megarom_corpus	-	N
-20	Warren	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/020-warren.svg	-	-	N
+20	Warren	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/020-warren.svg	apps/warren.zxapp apps/warren_model.c apps/warren_model.h apps/blocks/warren	-	T
 21	Brazier	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/021-brazier.svg	power apps/brazier.zxapp apps/brazier_model.c apps/brazier_model.h apps/blocks/brazier	F8	T
 22	Spindle	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/022-spindle.svg	apps/spindle_model.c apps/spindle_model.h apps/spindle.zxapp apps/blocks/spindle	-	T
 23	Lodestone	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/023-lodestone.svg	aipi	-	N
-24	Treadle	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/024-treadle.svg	-	-	N
+24	Treadle	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/024-treadle.svg	apps/treadle.zxapp apps/treadle_model.c apps/treadle_model.h apps/blocks/treadle	-	T
 25	Ramble	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/025-ramble.svg	web4 browser intent	-	N
 26	Rookery	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/026-rookery.svg	outbox	-	N
 27	Commons	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/027-commons.svg	concord airc	-	N
@@ -102,12 +102,12 @@
 68	Parley	AI and the swarm	zxv-brand/app-icons/svg/l1/068-parley.svg	i18n xlate babel	-	N
 69	Quarry	AI and the swarm	zxv-brand/app-icons/svg/l1/069-quarry.svg	-	-	N
 70	Retort	AI and the swarm	zxv-brand/app-icons/svg/l1/070-retort.svg	engine qsim /physics_sim /subsystems/physics_sim qeq qubo	-	N
-71	Gleaner	AI and the swarm	zxv-brand/app-icons/svg/l1/071-gleaner.svg	refinery	-	N
+71	Gleaner	AI and the swarm	zxv-brand/app-icons/svg/l1/071-gleaner.svg	refinery apps/gleaner.zxapp apps/gleaner_model.c apps/gleaner_model.h apps/blocks/gleaner	-	T
 72	Assay	AI and the swarm	zxv-brand/app-icons/svg/l1/072-assay.svg	reputation	-	N
 73	Coffer	Money and the economy	zxv-brand/app-icons/svg/l1/073-coffer.svg	pay acct crypto_wallet finance apps/assurance_app.c apps/fee_check.zxapp cbank mint navport apps/coffer.zxapp apps/coffer_model.c apps/coffer_model.h apps/blocks/coffer	-	T
 74	Gavel	Money and the economy	zxv-brand/app-icons/svg/l1/074-gavel.svg	vauction vbond vderiv apps/derivatives_app.c xrisk	-	N
 75	Crown	Money and the economy	zxv-brand/app-icons/svg/l1/075-crown.svg	crown community_chest allotment	-	N
-76	Talisman	Money and the economy	zxv-brand/app-icons/svg/l1/076-talisman.svg	cards cardnet sicily /cards	-	N
+76	Talisman	Money and the economy	zxv-brand/app-icons/svg/l1/076-talisman.svg	cards cardnet sicily /cards apps/talisman.zxapp apps/talisman_model.c apps/talisman_model.h apps/blocks/talisman	-	T
 77	Trickle	Money and the economy	zxv-brand/app-icons/svg/l1/077-trickle.svg	royalty	-	N
 78	Tallystick	Money and the economy	zxv-brand/app-icons/svg/l1/078-tallystick.svg	settle iso20022 gridlock	-	N
 79	Fairground	Money and the economy	zxv-brand/app-icons/svg/l1/079-fairground.svg	market capmkt finance_markets financial_fabric zenny	-	N
