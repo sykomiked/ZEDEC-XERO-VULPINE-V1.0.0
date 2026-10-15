@@ -120,11 +120,14 @@ static long file(const char *name, uint8_t *buf, size_t cap, unsigned *mode)
 {
     char p[512];
     snprintf(p, sizeof p, "%s/%s", DIR_, name);
-    struct stat st;
-    if (stat(p, &st) != 0) return -1;
-    if (mode) *mode = (unsigned) (st.st_mode & 0777);
     FILE *f = fopen(p, "rb");
     if (!f) return -1;
+    struct stat st; /* the mode of the file that was opened, not of the name */
+    if (fstat(fileno(f), &st) != 0) {
+        fclose(f);
+        return -1;
+    }
+    if (mode) *mode = (unsigned) (st.st_mode & 0777);
     long n = (long) fread(buf, 1, cap, f);
     fclose(f);
     return n;

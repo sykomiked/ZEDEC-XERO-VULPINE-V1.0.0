@@ -876,8 +876,13 @@ static void cmd_ison(irc_t *s, int id, int argc, char **argv)
         for (char *t = tok(&cur, ' '); t; t = tok(&cur, ' ')) {
             int k = find_nick(s, t), g = find_agent(s, t);
             const char *nm = k >= 0 ? s->c[k].nick : g >= 0 ? s->agents[g] : NULL;
-            if (nm && n + strlen(nm) + 2 < sizeof out)
-                n += (size_t) snprintf(out + n, sizeof out - n, "%s%s", n ? " " : "", nm);
+            if (!nm) continue;
+            int w = snprintf(out + n, sizeof out - n, "%s%s", n ? " " : "", nm);
+            if (w < 0 || (size_t) w >= sizeof out - n) {
+                out[n] = 0; /* no room for this nick: leave it out */
+                continue;
+            }
+            n += (size_t) w;
         }
     }
     NUM(s, id, "303", ":%s", out);
@@ -890,9 +895,14 @@ static void cmd_userhost(irc_t *s, int id, int argc, char **argv)
     out[0] = 0;
     for (int a = 0; a < argc && a < 5; a++) {
         int k = find_nick(s, argv[a]);
-        if (k >= 0)
-            n += (size_t) snprintf(out + n, sizeof out - n, "%s%s=%c%s@zxv", n ? " " : "",
-                                   s->c[k].nick, s->c[k].away ? '-' : '+', s->c[k].user);
+        if (k < 0) continue;
+        int w = snprintf(out + n, sizeof out - n, "%s%s=%c%s@zxv", n ? " " : "", s->c[k].nick,
+                         s->c[k].away ? '-' : '+', s->c[k].user);
+        if (w < 0 || (size_t) w >= sizeof out - n) {
+            out[n] = 0; /* the reply is full: stop at the last whole entry */
+            break;
+        }
+        n += (size_t) w;
     }
     NUM(s, id, "302", ":%s", out);
 }
