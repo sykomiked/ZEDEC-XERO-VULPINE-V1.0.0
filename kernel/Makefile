@@ -390,6 +390,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
+	$(MAKE) --no-print-directory test-lingua
+	$(MAKE) --no-print-directory test-lingua-ref
 	$(MAKE) --no-print-directory test-policy
 	$(MAKE) --no-print-directory test-policy-cobol
 	$(MAKE) --no-print-directory test-terms
@@ -1785,6 +1787,30 @@ test-treaty-cobol:
 	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
 	rm -rf $$d
+
+# Lingua (src/lingua): one shared IR and one checked runtime for every
+# language ZXV runs; front-ends for FORTRAN 77, Minimal BASIC and Forth, each
+# with its canonical AI twin (see docs/LANGUAGE_CATALOGUE.md). The front-ends
+# and runtime are freestanding (no libc symbols at all). test-lingua-ref
+# compares golden and randomly generated programs with gfortran and gforth.
+LINGUA_SRC := src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c
+LINGUA_FUZZ ?= 20000
+
+.PHONY: test-lingua test-lingua-ref test-lingua-mut
+test-lingua-mut:
+	@sh src/lingua/mut_check.sh
+test-lingua:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/test_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/test_zl && $(ZXV_TMP)/test_zl src/lingua/golden > $(ZXV_TMP)/test_zl.log 2>&1 && echo "[PASS] test_zl ($$(tail -1 $(ZXV_TMP)/test_zl.log))" || { cat $(ZXV_TMP)/test_zl.log; echo "[FAIL] test_zl"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl && $(ZXV_TMP)/fuzz_zl $(LINGUA_FUZZ) 1 > $(ZXV_TMP)/fuzz_zl.log 2>&1 && echo "[PASS] fuzz_zl ($$(tail -1 $(ZXV_TMP)/fuzz_zl.log))" || { cat $(ZXV_TMP)/fuzz_zl.log; echo "[FAIL] fuzz_zl"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl_san && $(ZXV_TMP)/fuzz_zl_san 5000 2 > $(ZXV_TMP)/fuzz_zl_san.log 2>&1 && echo "[PASS] fuzz_zl under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zl_san.log))" || { cat $(ZXV_TMP)/fuzz_zl_san.log; echo "[FAIL] fuzz_zl_san"; exit 1; }
+	@for f in $(LINGUA_SRC); do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U zl_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] lingua freestanding (aarch64-none-elf, x86_64: no symbols outside the module)"
+	@sh src/lingua/check_catalogue.sh
+test-lingua-ref:
+	@sh src/lingua/ref_check.sh
 
 # Policy engine (src/policy): a deterministic policy evaluation engine that
 # enforces machine-verifiable transactional constraints, bilateral treaty rules
