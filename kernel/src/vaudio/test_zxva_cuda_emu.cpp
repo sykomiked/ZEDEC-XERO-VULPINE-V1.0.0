@@ -99,8 +99,10 @@ int main()
         p.win = win.data(), p.tw = tw.data(), p.x = x.data(), p.len = len;
         p.floor_mag = rnd() % 1000, p.rel = 1 + rnd() % 100000;
         uint64_t k0 = rnd() % 4;
-        std::vector<int32_t> re0(nf * H), im0(nf * H), re1(nf * H), im1(nf * H), scr0(2 * N), scr1((size_t) nf * 2 * N);
-        std::vector<uint32_t> m0(nf * H), m1(nf * H), k0m(nf * mw), k1m(nf * mw, 0x5a5a5a5au), t0(nf), t1(nf);
+        std::vector<int32_t> re0((size_t) nf * H), im0((size_t) nf * H), re1((size_t) nf * H),
+            im1((size_t) nf * H), scr0(2 * N), scr1((size_t) nf * 2 * N);
+        std::vector<uint32_t> m0((size_t) nf * H), m1((size_t) nf * H), k0m((size_t) nf * mw),
+            k1m((size_t) nf * mw, 0x5a5a5a5au), t0(nf), t1(nf);
         zxva_backend_t cpu;
         zxva_backend_cpu(&cpu);
         cpu.scratch = scr0.data();

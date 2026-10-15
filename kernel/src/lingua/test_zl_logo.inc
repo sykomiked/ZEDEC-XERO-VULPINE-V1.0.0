@@ -343,22 +343,36 @@ static void test_logo(void)
         for (int k = 0; k < 4; k++) {
             size_t n = 0;
             n += (size_t) snprintf(big + n, sizeof big - n, "%s", open[k]);
-            for (int i = 0; i < 70; i++)
-                n += (size_t) snprintf(big + n, sizeof big - n, "%s", pre[k]);
+            for (int i = 0; i < 70; i++) {
+                int w_ = snprintf(big + n, sizeof big - n, "%s", pre[k]);
+                if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+                n += (size_t) w_;
+            }
             n += (size_t) snprintf(big + n, sizeof big - n, "%s", k == 3 ? "print 1" : "1");
-            for (int i = 0; i < 70; i++)
-                n += (size_t) snprintf(big + n, sizeof big - n, "%s", post[k]);
+            for (int i = 0; i < 70; i++) {
+                int w_ = snprintf(big + n, sizeof big - n, "%s", post[k]);
+                if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+                n += (size_t) w_;
+            }
             snprintf(big + n, sizeof big - n, "\n");
             expect_refused(G, big, ZL_E_LIMIT, 1, "nesting limit");
         }
         /* a long chain of prefix calls nests too */
         size_t n = (size_t) snprintf(big, sizeof big, "print ");
-        for (int i = 0; i < 200; i++) n += (size_t) snprintf(big + n, sizeof big - n, "minus ");
+        for (int i = 0; i < 200; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "minus ");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         snprintf(big + n, sizeof big - n, "1\n");
         expect_refused(G, big, ZL_E_LIMIT, 1, "call nesting limit");
         /* within the limits it compiles and runs */
         n = (size_t) snprintf(big, sizeof big, "print ");
-        for (int i = 0; i < 20; i++) n += (size_t) snprintf(big + n, sizeof big - n, "minus ");
+        for (int i = 0; i < 20; i++) {
+            int w_ = snprintf(big + n, sizeof big - n, "minus ");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - n)) abort();
+            n += (size_t) w_;
+        }
         snprintf(big + n, sizeof big - n, "1\n");
         expect_out(G, big, "1\n", "20 nested calls");
         /* too many procedures */

@@ -5,6 +5,7 @@
  * test_zxapp.sh, which passes kernel/src for apps/fee_check.zxapp. */
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "zxapp.h"
@@ -3172,8 +3173,11 @@ static void test_checks(void)
     {
         char many[4096];
         uint32_t k = (uint32_t) snprintf(many, sizeof many, "zxapp 1\nid k\n");
-        for (uint32_t i = 0; i <= ZXAPP_CHECKS; i++)
-            k += (uint32_t) snprintf(many + k, sizeof many - k, "check e x=1 = 1\n");
+        for (uint32_t i = 0; i <= ZXAPP_CHECKS; i++) {
+            int w_ = snprintf(many + k, sizeof many - k, "check e x=1 = 1\n");
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof many - k)) abort();
+            k += (uint32_t) w_;
+        }
         CHECK(zxapp_parse(&A, many, k) == ZXAPP_E_FULL && strstr(A.err, "too many check"),
               "more than ZXAPP_CHECKS lines");
     }

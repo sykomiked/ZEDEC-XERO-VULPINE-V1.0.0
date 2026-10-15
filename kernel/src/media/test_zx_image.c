@@ -376,7 +376,7 @@ static void test_gif_anim(void)
         int k = 0, rc;
         uint32_t delay;
         while ((rc = zui_gif_next(&g, &delay)) == 1) {
-            CHECK(k < FX_GIF_NFRAMES && !memcmp(CANVAS, FX_GIF_FRAMES[k], f->w * f->h * 4),
+            CHECK(k < FX_GIF_NFRAMES && !memcmp(CANVAS, FX_GIF_FRAMES[k], (size_t) f->w * f->h * 4),
                   "pass %d frame %d composites as the model (disposal, transparency, clipping)",
                   pass, k);
             CHECK(delay == FX_GIF_DELAYS[k], "frame %d delay %u cs", k, delay);

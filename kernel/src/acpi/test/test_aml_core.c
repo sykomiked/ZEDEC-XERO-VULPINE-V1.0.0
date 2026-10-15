@@ -1832,8 +1832,11 @@ static void test_names_more(void)
         CHECK(aml_lookup(&c, 0, p) == 0);
         /* sixteen segments are looked up, seventeen are refused */
         uint32_t n = 0;
-        for (int i = 1; i <= 17; i++)
-            n += (uint32_t) snprintf(p + n, sizeof p - n, "%sL%02d_", i == 1 ? "\\" : ".", i);
+        for (int i = 1; i <= 17; i++) {
+            int w_ = snprintf(p + n, sizeof p - n, "%sL%02d_", i == 1 ? "\\" : ".", i);
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof p - n)) abort();
+            n += (uint32_t) w_;
+        }
         CHECK(aml_lookup(&c, 0, p) == 0);
         p[n - 5] = 0;
         aml_node_t *d16 = aml_lookup(&c, 0, p);

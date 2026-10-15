@@ -627,10 +627,16 @@ static void test_algol_limits(void)
     n += (size_t) snprintf(src + n, sizeof src - n, " end");
     expect_refused(AL, src, ZL_E_LIMIT, 1, "deep parentheses");
     n = 0;
-    for (int k = 0; k < ZL_MAX_DEPTH + 4; k++)
-        n += (size_t) snprintf(src + n, sizeof src - n, "begin ");
-    for (int k = 0; k < ZL_MAX_DEPTH + 4; k++)
-        n += (size_t) snprintf(src + n, sizeof src - n, "end ");
+    for (int k = 0; k < ZL_MAX_DEPTH + 4; k++) {
+        int w_ = snprintf(src + n, sizeof src - n, "begin ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - n)) abort();
+        n += (size_t) w_;
+    }
+    for (int k = 0; k < ZL_MAX_DEPTH + 4; k++) {
+        int w_ = snprintf(src + n, sizeof src - n, "end ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - n)) abort();
+        n += (size_t) w_;
+    }
     expect_refused(AL, src, ZL_E_LIMIT, 1, "deep blocks");
     /* nesting just inside the limit works */
     n = 0;
@@ -647,13 +653,21 @@ static void test_algol_limits(void)
     /* many variables */
     n = 0;
     n += (size_t) snprintf(src + n, sizeof src - n, "begin integer v0");
-    for (int k = 1; k < 300; k++) n += (size_t) snprintf(src + n, sizeof src - n, ", v%d", k);
+    for (int k = 1; k < 300; k++) {
+        int w_ = snprintf(src + n, sizeof src - n, ", v%d", k);
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - n)) abort();
+        n += (size_t) w_;
+    }
     n += (size_t) snprintf(src + n, sizeof src - n, ";\n v299 := 5; outinteger(1, v299) end\n");
     expect_out(AL, src, "5 ", "300 variables");
     /* a long program of statements */
     n = 0;
     n += (size_t) snprintf(src + n, sizeof src - n, "begin integer i;\n");
-    for (int k = 0; k < 400; k++) n += (size_t) snprintf(src + n, sizeof src - n, "i := i + 1;\n");
+    for (int k = 0; k < 400; k++) {
+        int w_ = snprintf(src + n, sizeof src - n, "i := i + 1;\n");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - n)) abort();
+        n += (size_t) w_;
+    }
     n += (size_t) snprintf(src + n, sizeof src - n, "outinteger(1, i)\nend\n");
     expect_out(AL, src, "400 ", "400 statements");
 }

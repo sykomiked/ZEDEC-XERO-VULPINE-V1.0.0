@@ -596,15 +596,22 @@ static void test_receive_refusals(void)
         err(ZXVD_E_PARAMS, "\\\"trust\\\" must be an array"));
     char many[70 * 80 + 10];
     int k = 0;
-    for (int i = 0; i < 65; i++)
-        k += snprintf(many + k, sizeof many - (size_t) k, "%s{\"id\":\"%s\"}", i ? "," : "", sid);
+    for (int i = 0; i < 65; i++) {
+        int w_ =
+            snprintf(many + k, sizeof many - (size_t) k, "%s{\"id\":\"%s\"}", i ? "," : "", sid);
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof many - (size_t) k)) abort();
+        k += w_;
+    }
     EXPECT(call("fab.receive", "{\"recipe\":\"%s\",\"out\":\"%s\",\"trust\":[%s]}", path("pub.fab"),
                 o, many),
            err(ZXVD_E_PARAMS, "at most 64 trusted senders"));
     k = 0;
-    for (int i = 0; i < 64; i++)
-        k += snprintf(many + k, sizeof many - (size_t) k, "%s{\"id\":\"%s\"}", i ? "," : "",
-                      i == 63 ? sid : xid_hex);
+    for (int i = 0; i < 64; i++) {
+        int w_ = snprintf(many + k, sizeof many - (size_t) k, "%s{\"id\":\"%s\"}", i ? "," : "",
+                          i == 63 ? sid : xid_hex);
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof many - (size_t) k)) abort();
+        k += w_;
+    }
     rpc(call("fab.receive", "{\"recipe\":\"%s\",\"out\":\"%s\",\"trust\":[%s]}", path("pub.fab"), o,
              many));
     CHECK(is_ok() && same("r1", tgt, tlen), "B8: 64 trusted, the last one the sender: %.200s",

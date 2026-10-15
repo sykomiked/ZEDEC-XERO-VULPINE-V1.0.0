@@ -138,8 +138,11 @@ static void render(char *out, size_t cap, int depth, const char *parent, const c
                                  " \"layer_name\": \"%s\",\n \"parent_layer_cid\": %s,\n"
                                  " \"parent_compat\": \"%s\",\n \"objects\": [\n",
                                  depth, NM[depth], par, compat);
-    for (int i = 0; i < n; i++)
-        k += (size_t) snprintf(out + k, cap - k, "  %s%s\n", objs[i], i + 1 < n ? "," : "");
+    for (int i = 0; i < n; i++) {
+        int w_ = snprintf(out + k, cap - k, "  %s%s\n", objs[i], i + 1 < n ? "," : "");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (cap - k)) abort();
+        k += (size_t) w_;
+    }
     snprintf(out + k, cap - k, " ]\n}\n");
 }
 

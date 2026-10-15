@@ -344,10 +344,15 @@ char *zt_hip_source(void)
     for (int k = 0; k < ZG_NK; k++) n += sizeof k_wrap + 2 * strlen(zg_kernel_name[k]);
     char *src = malloc(n);
     if (!src) return NULL;
-    size_t at = (size_t) snprintf(src, n, "%s%s%s", k_prelude, k_math, k_kernels);
-    for (int k = 0; k < ZG_NK; k++)
-        at += (size_t) snprintf(src + at, n - at, k_wrap, zg_kernel_name[k], zg_kernel_name[k]);
-    return src;
+    int w = snprintf(src, n, "%s%s%s", k_prelude, k_math, k_kernels);
+    size_t at = 0;
+    for (int k = 0; w >= 0 && (size_t) w < n - at; k++) {
+        at += (size_t) w;
+        if (k == ZG_NK) return src;
+        w = snprintf(src + at, n - at, k_wrap, zg_kernel_name[k], zg_kernel_name[k]);
+    }
+    free(src); /* n is sized to fit, so not reached */
+    return NULL;
 }
 
 /* ---- the backend ---- */

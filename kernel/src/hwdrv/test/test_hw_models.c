@@ -453,8 +453,11 @@ static void test_manifests(void)
     {
         static char big[HW_MODELS_SHA_MAX];
         size_t o = 0;
-        for (int i = 0; i <= HW_MODELS_MAX; i++)
-            o += (size_t) snprintf(big + o, sizeof big - o, "%s 1 m%d esp M%d.GGU\n", sa, i, i);
+        for (int i = 0; i <= HW_MODELS_MAX; i++) {
+            int w_ = snprintf(big + o, sizeof big - o, "%s 1 m%d esp M%d.GGU\n", sa, i, i);
+            if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - o)) abort();
+            o += (size_t) w_;
+        }
         /* longer than one cluster: give the manifest its own chain */
         uint8_t *v = m.d + ESP0 * 512;
         uint32_t clusters = (uint32_t) (o + 511) / 512;

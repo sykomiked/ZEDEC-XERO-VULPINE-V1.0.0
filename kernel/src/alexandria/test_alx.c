@@ -390,7 +390,11 @@ static void test_tecton(void)
     }
     char big[1024];
     int k = snprintf(big, sizeof big, "BIND a { SOURCE : @num.gcd");
-    for (int i = 0; i < 15; i++) k += snprintf(big + k, sizeof big - (size_t) k, " PIPE : @931.01");
+    for (int i = 0; i < 15; i++) {
+        int w_ = snprintf(big + k, sizeof big - (size_t) k, " PIPE : @931.01");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof big - (size_t) k)) abort();
+        k += w_;
+    }
     snprintf(big + k, sizeof big - (size_t) k, " }");
     CHECK(alx_tecton(&t, big, (uint32_t) strlen(big), &p, &at) == ALX_OK && p.n == 16, "16 stages");
     snprintf(big + k, sizeof big - (size_t) k, " PIPE : @931.01 }");
@@ -498,17 +502,33 @@ static void test_axion(void)
     /* the bounds: 32 cells, 256 words */
     char src[4096];
     int k = 0;
-    for (int i = 0; i < 32; i++) k += snprintf(src + k, sizeof src - (size_t) k, "true ");
-    for (int i = 0; i < 31; i++) k += snprintf(src + k, sizeof src - (size_t) k, "and ");
+    for (int i = 0; i < 32; i++) {
+        int w_ = snprintf(src + k, sizeof src - (size_t) k, "true ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - (size_t) k)) abort();
+        k += w_;
+    }
+    for (int i = 0; i < 31; i++) {
+        int w_ = snprintf(src + k, sizeof src - (size_t) k, "and ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - (size_t) k)) abort();
+        k += w_;
+    }
     CHECK(ax(src, 0, 0, 0) == LPRES_STATE_TRUE, "32 deep");
     k = 0;
-    for (int i = 0; i < 33; i++) k += snprintf(src + k, sizeof src - (size_t) k, "true ");
+    for (int i = 0; i < 33; i++) {
+        int w_ = snprintf(src + k, sizeof src - (size_t) k, "true ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - (size_t) k)) abort();
+        k += w_;
+    }
     alx_axion_t p;
     uint32_t at;
     CHECK(alx_axion_parse(src, (uint32_t) k, &p, &at) == ALX_E_LIMIT && at == 160, "33 deep (%u)",
           at);
     k = snprintf(src, sizeof src, "true ");
-    for (int i = 0; i < 255; i++) k += snprintf(src + k, sizeof src - (size_t) k, "not ");
+    for (int i = 0; i < 255; i++) {
+        int w_ = snprintf(src + k, sizeof src - (size_t) k, "not ");
+        if (w_ < 0 || (size_t) w_ >= (size_t) (sizeof src - (size_t) k)) abort();
+        k += w_;
+    }
     CHECK(ax(src, 0, 0, 0) == LPRES_STATE_FALSE, "256 words");
     k += snprintf(src + k, sizeof src - (size_t) k, "not ");
     CHECK(alx_axion_parse(src, (uint32_t) k, &p, &at) == ALX_E_LIMIT && at == 5 + 255 * 4, "257");
