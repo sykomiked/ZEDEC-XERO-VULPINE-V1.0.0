@@ -210,5 +210,8 @@ table, and that inserting one byte keeps all but the first few cut points.
   licence is theirs to grant. The proposal is a glyph notation over the
   existing core: each glyph maps one-to-one to a primitive (the lpres
   Belnap gates, the AXION checks, the booklet 000 alphabet), and the kernel
-  keeps its integer opcodes. Nothing is built until the script's definition
-  is in hand.
+  keeps its integer opcodes. The original script tops out at a fixed number
+  of dimensions; ours has no cap in the format (the dimension count is a
+  variable-length field) and renders as many as a structure needs, projected
+  to the screen. Each instance is still bounded by its own memory and fuel
+  budget. Nothing is built until the script's definition is in hand.
