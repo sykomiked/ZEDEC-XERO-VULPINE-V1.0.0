@@ -13,8 +13,8 @@
  *     or fraud finding). An appeal path exists: a signed dispute-funnel
  *     ruling can override a failed check for one epoch.
  *   - "Grants are paid ONLY from the funded grant pool balance, never
- *     minted." The pool is fed by the raffle slice (default 5/55 of the pot,
- *     computed in the raffle module) through grant_pool_credit.
+ *     minted." The pool is fed by the allotment slice (default 5/55 of the pot,
+ *     computed in the allotment module) through grant_pool_credit.
  *   - "VIRTUAL UNTIL BACKED": every barrel is a virtual ledger unit labelled
  *     exactly "Virtual Barrel Allocation (Unbacked Synthetic Unit)" with
  *     status "Pending Physical Underwriter Attestation". The protocol makes
@@ -23,7 +23,7 @@
  *     barrel count, underwriter id, expiry). Unbacked units are for display
  *     and weighting only: NOT redeemable into Vino and NOT lockable into
  *     V-Notes. A disputed or expired attestation reverts the lot to unbacked.
- *   The word is always "raffle".
+ *   The word is always "allotment".
  *
  *   G1 BARRELS. grant_init registers the barrel asset "BRL-V" (pay_ledger
  *      kind UNIT, 0 decimals, not ISO 4217) and opens three accounts for the
@@ -89,7 +89,7 @@
  *
  * HONEST LIMITS. Barrels are software accounting units until an underwriter
  * attests; an attestation proves who signed, not that any oil exists. A pool
- * funded by raffle proceeds may share the raffle's legal treatment. A unit
+ * funded by allotment proceeds may share the allotment's legal treatment. A unit
  * that converts to money carries value whatever its label. Commodity custody
  * needs real custodians and insurance. The redemption price is supplied by
  * the caller and is paid only while the reserve holds it (the ledger refuses
@@ -265,11 +265,11 @@ grant_status_t grant_underwriter_add(grant_t *g, uint32_t id);
 
 /* Start epoch e (> the current one): a fresh G4 record, stale appeals freed. */
 grant_status_t grant_epoch_begin(grant_t *g, uint64_t epoch);
-/* Move `amount` Vino from `from` into the pool (the raffle slice) and count
+/* Move `amount` Vino from `from` into the pool (the allotment slice) and count
  * it as this epoch's inflow. */
 grant_status_t grant_pool_credit(grant_t *g, uint32_t from, uint64_t amount, uint64_t tick);
 /* Record-only form, for a caller that posts the pool line itself inside a
- * larger all-or-nothing posting (the raffle's settlement): call it AFTER
+ * larger all-or-nothing posting (the allotment's settlement): call it AFTER
  * that posting commits. It counts `amount` as this epoch's inflow only when
  * the pool's ledger balance holds at least that much Vino not yet counted,
  * so inflow can never be recorded for money that did not land. */

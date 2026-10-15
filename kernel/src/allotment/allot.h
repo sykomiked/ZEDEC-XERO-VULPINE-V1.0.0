@@ -1,44 +1,73 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* allot.h — the Sicilian Crown Allotment: opt-in ballot minting, a Fibonacci
- * epoch trigger, an exact pot split, and a commit-reveal draw anyone can
- * replay.
+/* allot.h — the Sicilian Crown Allotment: selection of a steward by lot
+ * (sortition), a Fibonacci epoch trigger, an exact split, and a
+ * commit-reveal selection anyone can replay.
  *
- * NAME. "Crown" here is the name of the pot. This module is NOT part of the
- * Crown pillar (kernel/src/crown), which by design never touches money; it
- * lives on the money side, next to kernel/src/pay.
+ * NAME. "Crown" here is the name of the endowment. This module is NOT part
+ * of the Crown pillar (kernel/src/crown), which by design never touches
+ * money; it lives on the money side, next to kernel/src/pay. It was called
+ * the Sicilian Crown Raffle until 2026-10-15 (owner decision).
  *
- * OFF BY DEFAULT (LEGAL)
- * ----------------------
- *   L1  An allotment where people pay for a chance to win an endowment is regulated
- *       gaming under most laws (in the US the test is endowment + chance +
- *       consideration). In many places only licensed or charitable
- *       organisers may run one, often under limits. allot_config_default()
- *       leaves `jurisdiction_permits` false, and while it is false every
- *       entry call fails closed with ALLOT_ERR_DISABLED. Only a jurisdiction
- *       plug-in, after legal review, should set it.
- *   L2  `free_entry` turns on a no-purchase entry route (one ballot, no fee),
- *       the usual sweepstakes-style mitigation. Whether that makes a given
- *       deployment lawful is for counsel; this code makes no such claim.
- *       De-duplicating free entries (one per person per epoch) is the
- *       caller's job: it has the identity layer, this module does not.
+ * WHAT THE RENAME DOES AND DOES NOT DO (LEGAL)
+ * --------------------------------------------
+ *   L0  Most laws (California Penal Code 319, US federal law, the UK
+ *       Gambling Act, EU member-state laws) test the SUBSTANCE: a prize, a
+ *       chance and consideration. If all three are present the activity is
+ *       regulated gaming whatever it is called. Calling it an "allotment",
+ *       a ballot or a steward changes nothing on its own. What can change
+ *       the analysis is removing one element; this module removes
+ *       consideration (M0, the default). Whether a given deployment is
+ *       lawful is still a question for counsel in each market; this code
+ *       makes no such claim.
+ *   L1  Off by default. allot_config_default() leaves `jurisdiction_permits`
+ *       false, and while it is false every entry and endowment call fails
+ *       closed with ALLOT_ERR_DISABLED, in every mode. Only a jurisdiction
+ *       plug-in, after legal review, should set it. Some places restrict
+ *       any private selection by lot, free or not; they keep it off.
+ *   L2  `free_entry` (default true) turns on the no-purchase entry route,
+ *       allot_free_entry(). In FREE mode (M0) it is the only route. In the
+ *       SAVINGS and PAID modes a free entry mints ONE ballot while a paid
+ *       or yield entry mints one per fee unit, so a free entrant does not
+ *       get the same odds as a paying one. Most sweepstakes rules require
+ *       that ("equal dignity"), so those two modes stay ordinary regulated
+ *       gaming and stay behind L1.
  *
- * TWO MODES (owner request 2026-10-11)
- * -----------------------------------
- *   M1  SAVINGS (the default, mode 0). Nothing is paid in. The amount a
- *       player opts in is converted, outside this module, into their own
- *       V-Notes (finance build); only a share of the REALISED profit those
- *       notes earn buys ballots: allot_enter_yield(), fee =
+ * THREE MODES (owner requests 2026-10-11 and 2026-10-15)
+ * -----------------------------------------------------
+ *   M0  FREE (the default, mode 2): a no-consideration civic allotment.
+ *       Nothing is paid in and no yield is given up. A1 allot_free_entry
+ *       registers ONE ballot per owner per epoch (the module refuses a
+ *       second with ALLOT_ERR_CAP); the owner should be the verified PERSON
+ *       (allot_guard_check_free returns that id), so many accounts do not
+ *       mean many ballots. A2 The endowment is put in by the operator from
+ *       surplus it already holds (the regenerative or grant pool, a
+ *       sponsor): allot_endow(), never by entrants. A3 Every paid, ladder,
+ *       weighted and yield entry is refused (ALLOT_ERR_MODE): a share of
+ *       yield given up to enter is consideration too. A4 The whole pool
+ *       goes to the selected steward: no reserve skim, grant slice, NAV
+ *       leg or rebate (the money was already surplus; nobody paid in to
+ *       rebate). A5 Merit gate (Model C, optional): allot_guard_policy_t
+ *       .eligible lets a deployment limit ballots to members in good
+ *       standing (credibility, a seat, a duty already held), as jury and
+ *       civic sortition do. Keep the gate on status a person already has;
+ *       a gate that makes people do new work or spend in order to qualify
+ *       can itself be argued to be consideration.
+ *   M1  SAVINGS (mode 0, opt-in per deployment). Nothing is paid in. The
+ *       amount a player opts in is converted, outside this module, into
+ *       their own V-Notes (finance build); only a share of the REALISED
+ *       profit those notes earn buys ballots: allot_enter_yield(), fee =
  *       floor(profit * share), share in (0, 1]. allot_enter() and every
  *       other amount-at-a-rate entry are refused (ALLOT_ERR_MODE).
  *       HONEST LIMITS: the principal is kept in units, but V-Notes redeem
  *       at the exact reserve ratio, so their value can still fall; this is
  *       not a guarantee against loss. Forgone yield can itself count as
- *       consideration, and endowment-linked savings is lawful mainly through
+ *       consideration, and prize-linked savings is lawful mainly through
  *       licensed institutions, so L1 (the switch, default off) still
  *       governs this mode too.
  *   M2  PAID (mode 1, opt-in per deployment). The rate slider below: a
- *       slice of an amount is paid into the pool and is gone.
+ *       slice of an amount is paid into the pool and is gone. This is
+ *       regulated gaming in most places.
  *
  * THE FEE (PAID mode; opt-in, separate from the assurance fee)
  * ------------------------------------------------------------
@@ -156,13 +185,18 @@
  *       a top-up can be refused (prices moved, an unbacked leg), and neither
  *       may stall or change a settlement that anyone can replay.
  *
+ *   S7  FREE mode (M0, A4): reserve_skim, grant_pool, nav_slice and the
+ *       rebate are all 0 and crown_endowment is the whole pool. The ratios
+ *       stay in the config (and are checked) so a deployment can switch
+ *       modes, but FREE mode does not apply them.
+ *
  * LUCK WEIGHT (owner request 2026-10-11)
  * -------------------------------------
  *   W1  A player who keeps entering without selected gets more ballots per
  *       fee unit: m(n) = min(1 + n * F(20) / F(21), luck_cap), with n
  *       consecutive non-selections (F(20)/F(21) = 6765/10946, a Fibonacci
  *       convergent of 1/phi) and luck_cap at most ALLOT_LUCK_CEIL (8),
- *       default 5. Any win resets n to 0. Entries with a weight mint
+ *       default 5. Any selection resets n to 0. Entries with a weight mint
  *       floor(fee * m) ballots, so odds are no longer exactly fee-
  *       proportional for those players. The ballot count, not the pool,
  *       closes the epoch (E1) and the share cap (F6) counts ballots, so a
@@ -172,10 +206,10 @@
  *       with no hook every weight is 1 (otherwise splitting play across
  *       many accounts would farm it). The ladder applies it only to its
  *       lowest levels (default 24).
- *   W3  "Eventually wins" holds only as a bounded expected wait in small
+ *   W3  "Eventually selected" holds only as a bounded expected wait in small
  *       pots: with the cap, a player's chance per epoch is at most
  *       luck_cap times their fee share, so in a large pot the wait can
- *       still be very long. Nothing here guarantees a win.
+ *       still be very long. Nothing here guarantees selection.
  *
  * Freestanding: no libc, no allocation, no floating point.
  */
@@ -197,8 +231,9 @@
 #define ALLOT_SKIM_DEN          61000u
 #define ALLOT_DEFAULT_FIB_INDEX 18u /* 2584 fee units */
 
-#define ALLOT_MODE_SAVINGS 0u /* M1, the default */
+#define ALLOT_MODE_SAVINGS 0u /* M1 */
 #define ALLOT_MODE_PAID    1u /* M2 */
+#define ALLOT_MODE_FREE    2u /* M0, the default */
 
 #define ALLOT_LUCK_CEIL    8u /* W1: hard ceiling on luck_cap */
 #define ALLOT_LUCK_DEFAULT 5u
@@ -233,7 +268,10 @@ typedef enum {
     /* allot_token.h */
     ALLOT_ERR_EVENT = -27,    /* T2: event not enabled, or an unknown event bit */
     ALLOT_ERR_MANIFEST = -28, /* T1: the manifest block is malformed            */
-    ALLOT_ERR_MODE = -29      /* M1/M2: not allowed in this deployment's mode   */
+    ALLOT_ERR_MODE = -29,     /* M0-M2: not allowed in this deployment's mode   */
+    /* allot_guard.h (M0) */
+    ALLOT_ERR_IDENTITY = -30,  /* G8: no verified person for this account        */
+    ALLOT_ERR_INELIGIBLE = -31 /* G8/A5: the merit gate said no                  */
 } allot_status_t;
 
 /* An exact rational rate num/den (den > 0). */
@@ -250,7 +288,7 @@ int allot_rate_cmp(allot_rate_t a, allot_rate_t b);
 
 typedef struct {
     bool jurisdiction_permits;       /* L1: default false                       */
-    bool free_entry;                 /* L2: default false                       */
+    bool free_entry;                 /* L2: default true                        */
     allot_rate_t min_rate;          /* F2: default 1/100                       */
     allot_rate_t max_rate;          /* F2: default 1/2 (the ceiling)           */
     uint64_t skim_num, skim_den;     /* S1: default 987/61000                 */
@@ -260,7 +298,7 @@ typedef struct {
     uint32_t min_reveals;            /* R3: 0 = every committed party (default) */
     uint64_t share_num, share_den;   /* F6: default 8/21; den 0 = no cap      */
     uint64_t nav_num, nav_den;       /* S5: default off (den 0)               */
-    uint32_t mode;                   /* M1/M2: default ALLOT_MODE_SAVINGS      */
+    uint32_t mode;                   /* M0-M2: default ALLOT_MODE_FREE          */
     uint64_t rebate_num, rebate_den; /* S6: default 1/5; den 0 = off        */
     uint32_t luck_cap;               /* W1: 1..8, default 5; 1 = no weight  */
 } allot_config_t;
@@ -333,7 +371,8 @@ typedef struct {
     bool closed_epoch;     /* E2: this entry reached the threshold      */
 } allot_receipt_t;
 
-/* Defaults listed above (the allotment is OFF). */
+/* Defaults listed above: FREE mode (M0) with free entry on, and the
+ * jurisdiction switch OFF (L1). */
 void allot_config_default(allot_config_t *c);
 
 /* Checks every ratio (num < den, den > 0), fib_index and
@@ -409,10 +448,19 @@ allot_rate_t allot_luck_mult(const allot_config_t *c, uint32_t misses);
 /* W1: floor(fee * m), or 0 on overflow or a weight outside [1, luck_cap]. */
 uint64_t allot_luck_ballots(const allot_config_t *c, uint64_t fee, allot_rate_t m);
 
-/* L2: one free ballot (no fee). Fails with ALLOT_ERR_DISABLED unless both
- * jurisdiction_permits and free_entry are set. */
+/* L2, A1: one free ballot (no fee). Fails with ALLOT_ERR_DISABLED unless
+ * both jurisdiction_permits and free_entry are set. In FREE mode an owner
+ * that already holds a ballot this epoch is refused (ALLOT_ERR_CAP). */
 allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
                                   allot_receipt_t *out);
+
+/* A2 (FREE mode only): the operator adds `amount` of surplus it already
+ * holds to this epoch's endowment. `source` names the account it comes
+ * from and is folded into the chain for audit. Only while OPEN; the
+ * caller moves the money into its holding account in the same posting.
+ * No ballot is minted. ALLOT_ERR_MODE outside FREE mode, ALLOT_ERR_DUST
+ * for 0. */
+allot_status_t allot_endow(allot_t *r, const uint8_t source[ALLOT_ID_LEN], uint64_t amount);
 
 /* R2: reveal a party's secret. Only while CLOSED. */
 allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],

@@ -103,7 +103,7 @@ allot_status_t allot_ladder_plan(const allot_ladder_t *L, const uint8_t owner[AL
                                    uint64_t amount, const allot_rate_t *rate,
                                    const uint64_t *weights, allot_ladder_receipt_t *plan);
 
-/* P1-P3 for a fee already computed by the caller (e.g. endowment-linked
+/* P1-P3 for a fee already computed by the caller (e.g. prize-linked
  * savings, allot_token.h T6). */
 allot_status_t allot_ladder_plan_fee(const allot_ladder_t *L, const uint8_t owner[ALLOT_ID_LEN],
                                        uint64_t fee, const uint64_t *weights,

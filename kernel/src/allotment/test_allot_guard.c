@@ -28,6 +28,81 @@ static bool adult(void *ctx, const uint8_t owner[ALLOT_ID_LEN])
 
 #define DAY 86400u
 
+/* G8 test hooks: a person is the account id with byte 0 set to 0x50; an
+ * account starting 0x00 has no verified person. Member if byte 1 is even. */
+static bool person_of(void *ctx, const uint8_t owner[ALLOT_ID_LEN], uint8_t identity[ALLOT_ID_LEN])
+{
+    (void) ctx;
+    if (owner[0] == 0) return false;
+    memcpy(identity, owner, ALLOT_ID_LEN);
+    identity[0] = 0x50;
+    return true;
+}
+static bool member(void *ctx, const uint8_t identity[ALLOT_ID_LEN])
+{
+    (void) ctx;
+    return identity[0] == 0x50 && (identity[1] & 1) == 0;
+}
+
+static void test_free_check(void)
+{
+    allot_config_t c;
+    allot_config_default(&c); /* FREE mode, free entry on, switch off */
+    allot_guard_policy_t pol;
+    allot_guard_policy_default(&pol);
+    uint8_t acct[32], other[32], who[32], none[32];
+    memset(acct, 7, sizeof acct);
+    memcpy(other, acct, 32);
+    other[0] = 9; /* a second account of the same person */
+    memset(none, 0, sizeof none);
+    allot_player_t pl, p2, pn;
+    allot_player_init(&pl, acct);
+    allot_player_init(&p2, other);
+    allot_player_init(&pn, none);
+    uint64_t now = 100 * DAY;
+
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_DISABLED,
+          "G8: switch off refuses a free ballot");
+    c.jurisdiction_permits = true;
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_AGE,
+          "G8: no age gate fails closed");
+    pol.age_gate = adult;
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_IDENTITY,
+          "G8: no identity hook fails closed");
+    pol.identity_of = person_of;
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_OK && who[0] == 0x50,
+          "G8: no rate, no limits, no confirmation needed; ballot owner is the person");
+    uint8_t who2[32];
+    CHECK(allot_guard_check_free(&pol, &c, &p2, now, who2) == ALLOT_OK && !memcmp(who, who2, 32),
+          "G8: two accounts of one person map to one ballot owner");
+    CHECK(allot_guard_check_free(&pol, &c, &pn, now, who) == ALLOT_ERR_IDENTITY,
+          "G8: an account with no verified person is refused");
+    pol.eligible = member;
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_INELIGIBLE,
+          "G8/A5: the merit gate can say no");
+    acct[1] = 8;
+    allot_player_init(&pl, acct);
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_OK,
+          "G8/A5: a member in good standing passes");
+    allot_player_exclude(&pl, now, DAY);
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_EXCLUDED,
+          "G8: self-exclusion applies to free ballots too");
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now + DAY, who) == ALLOT_OK,
+          "G8: exclusion ends when it ends");
+    uint8_t teen[32];
+    memset(teen, 0xEE, sizeof teen);
+    allot_player_t pt;
+    allot_player_init(&pt, teen);
+    CHECK(allot_guard_check_free(&pol, &c, &pt, now, who) == ALLOT_ERR_AGE,
+          "G8: the age gate applies to free ballots");
+    c.free_entry = false;
+    CHECK(allot_guard_check_free(&pol, &c, &pl, now, who) == ALLOT_ERR_DISABLED,
+          "G8: free_entry off refuses");
+    CHECK(allot_guard_check_free(NULL, &c, &pl, now, who) == ALLOT_ERR_ARG &&
+              allot_guard_check_free(&pol, &c, &pl, now, NULL) == ALLOT_ERR_ARG,
+          "G8: null args");
+}
+
 int main(void)
 {
     allot_config_t c;
@@ -162,6 +237,7 @@ int main(void)
           "switch off");
     CHECK(g_gate_calls > 0, "the gate was consulted");
 
+    test_free_check();
     printf("%u passed, %u failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }

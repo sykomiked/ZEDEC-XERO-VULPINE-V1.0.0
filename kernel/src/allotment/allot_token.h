@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* allot_token.h — the Sicilian Crown Allotment as a block on a token's signed
- * manifest (Zenny chips, barrel tokens, V-Note states), plus endowment-linked
+ * manifest (Zenny chips, barrel tokens, V-Note states), plus prize-linked
  * savings. Owner request 2026-10-11.
  *
  * THE BLOCK
@@ -22,7 +22,7 @@
  *       allot_token_digest() is what the manifest embeds and signs; signing
  *       and the rest of the manifest are the token layer's job.
  *   T2  EVENTS. MINT, BURN and TRANSFER each turn on an opt-in allotment slice
- *       on that event; SAVINGS turns on endowment-linked savings (T6). Any other
+ *       on that event; SAVINGS turns on prize-linked savings (T6). Any other
  *       bit is refused. There is deliberately no borrow, lien or collateral
  *       event (T5).
  *   T3  SLICES. The issuer's range [slice_min, slice_max] (each in (0, 1/2])
@@ -75,7 +75,7 @@
  *       barrel grants and vault hooks live in the finance build), not this
  *       module's.
  *
- * HONEST LIMITS. Endowment-linked savings is the most defensible shape of this
+ * HONEST LIMITS. Prize-linked savings is the most defensible shape of this
  * (it is lawful in some places, usually only through regulated banks or
  * credit unions), but it is still regulated. A slice on every transfer of a
  * third-party token turns every holder of that token into a potential allotment

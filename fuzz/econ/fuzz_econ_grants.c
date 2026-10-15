@@ -5,7 +5,7 @@
  *
  * Eight participants (owner 200+i) each hold a BRL-V and a Vino account. The
  * verify hook accepts sig == first 8 bytes of SHA-256(signer || msg). Ops:
- * EPOCH_BEGIN, POOL_CREDIT (from the raffle account, or from any account
+ * EPOCH_BEGIN, POOL_CREDIT (from the allotment account, or from any account
  * including the pool and the reserve), POOL_RECORD (with or without a real
  * pool deposit first), APPEAL, DISTRIBUTE (eligible or not, edge prices),
  * LOT_OPEN, UNDERWRITER_ADD, ATTEST, DISPUTE, REDEEM (own or another
@@ -52,7 +52,7 @@
 static pay_ledger_t L;
 static grant_t G;
 static uint16_t vno;
-static uint32_t viss, raffle, brl[NP], vin[NP];
+static uint32_t viss, allotment, brl[NP], vin[NP];
 static uint64_t nfund;
 static unsigned long long g_ops, g_okc[16];
 
@@ -126,7 +126,7 @@ static void setup(void)
     g_nap = 0;
     if (pay_ledger_add_asset(&L, "VNO", 2, PAY_ASSET_UNIT, &vno) != PAY_OK) abort();
     viss = opn(vno, 1, PAY_ACCT_ISSUER);
-    raffle = opn(vno, 2, 0);
+    allotment = opn(vno, 2, 0);
     uint8_t seed[32];
     for (int i = 0; i < 32; i++) seed[i] = (uint8_t) (i * 3 + 1);
     if (grant_init(&G, &L, vno, OWNER, FUNNEL, verify, NULL, seed) != GRANT_OK) abort();
@@ -134,7 +134,7 @@ static void setup(void)
         brl[i] = opn(G.barrel, 200 + i, 0);
         vin[i] = opn(vno, 200 + i, 0);
     }
-    if (raw(raffle, 1000000000000, viss, 0, 1000000000000) != PAY_OK) abort();
+    if (raw(allotment, 1000000000000, viss, 0, 1000000000000) != PAY_OK) abort();
     if (grant_lot_open(&G, 1) != GRANT_OK) abort();
     if (grant_underwriter_add(&G, 60) != GRANT_OK) abort();
     if (grant_epoch_begin(&G, 1) != GRANT_OK) abort();
@@ -233,7 +233,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             if (st == GRANT_OK && e <= snap.epoch) abort();
         } else if (op == 1) { /* POOL_CREDIT */
             uint8_t f = fz_u8(&in);
-            uint32_t from = (f & 3) ? raffle
+            uint32_t from = (f & 3) ? allotment
                             : (f & 4) ? G.pool
                             : (f & 8) ? G.reserve
                                       : vin[f % NP];
@@ -247,8 +247,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         } else if (op == 2) { /* POOL_RECORD */
             uint8_t f = fz_u8(&in);
             uint64_t amt = fz_u32(&in);
-            if (f & 1) { /* the raffle's own settlement deposits first */
-                if (raw(raffle, -(int64_t) (amt & 0xFFFFFFF), G.pool, (int64_t) (amt & 0xFFFFFFF),
+            if (f & 1) { /* the allotment's own settlement deposits first */
+                if (raw(allotment, -(int64_t) (amt & 0xFFFFFFF), G.pool, (int64_t) (amt & 0xFFFFFFF),
                         0) == PAY_OK) {
                     snap = G;
                     memcpy(asnap, L.acct, L.n_accounts * sizeof L.acct[0]);
@@ -420,9 +420,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                 st = grant_set_thresholds(&G, &th);
                 if (st == GRANT_OK && th.min_uptime_bps > 10000) abort();
             }
-        } else { /* FUND the raffle account (explicit mint) */
+        } else { /* FUND the allotment account (explicit mint) */
             uint64_t amt = fz_edge64(&in) & (((uint64_t) 1 << 59) - 1);
-            if (raw(raffle, (int64_t) amt, viss, 0, (int64_t) amt) == PAY_OK) minted = amt;
+            if (raw(allotment, (int64_t) amt, viss, 0, (int64_t) amt) == PAY_OK) minted = amt;
             st = GRANT_OK;
         }
 

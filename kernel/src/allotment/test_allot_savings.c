@@ -96,12 +96,13 @@ static void test_defaults_and_mode(void)
 {
     allot_config_t c;
     allot_config_default(&c);
-    CHECK(c.mode == ALLOT_MODE_SAVINGS && c.rebate_num == 1 && c.rebate_den == 5 &&
+    CHECK(c.mode == ALLOT_MODE_FREE && c.rebate_num == 1 && c.rebate_den == 5 &&
               c.luck_cap == ALLOT_LUCK_DEFAULT && !c.jurisdiction_permits,
-          "defaults: savings mode, 1/5 rebate, luck cap 5, switch off");
+          "defaults: FREE mode, 1/5 rebate kept for the other modes, luck cap 5, switch off");
+    c.mode = ALLOT_MODE_SAVINGS; /* M1: what this file tests */
     CHECK(allot_config_check(&c) == ALLOT_OK, "defaults valid");
     allot_config_t b = c;
-    b.mode = 2;
+    b.mode = 3;
     CHECK(allot_config_check(&b) == ALLOT_ERR_CONFIG, "unknown mode");
     b = c;
     b.luck_cap = 0;
@@ -184,6 +185,7 @@ static void test_guard_mode(void)
 {
     allot_config_t c;
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     c.jurisdiction_permits = true;
     allot_guard_policy_t pol;
     allot_guard_policy_default(&pol);
@@ -209,6 +211,7 @@ static void test_rebate_exact(void)
 {
     allot_config_t c;
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     c.jurisdiction_permits = true;
     c.free_entry = true;
     c.share_den = 0;
@@ -312,6 +315,7 @@ static void test_rebate_random(void)
     for (int i = 0; i < 400; i++) {
         allot_config_t c;
         allot_config_default(&c);
+        c.mode = ALLOT_MODE_SAVINGS; /* M1 */
         c.jurisdiction_permits = true;
         c.share_den = 0;
         c.rebate_num = 1 + xorshift(&seed) % 70;
@@ -362,6 +366,7 @@ static void test_luck(void)
 {
     allot_config_t c;
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     allot_rate_t m = allot_luck_mult(&c, 0);
     CHECK(m.num == 1 && m.den == 1, "no misses: 1x");
     m = allot_luck_mult(&c, 1);
@@ -382,6 +387,7 @@ static void test_luck(void)
     CHECK(m.num == 1 && m.den == 1, "cap 1: never weighted");
 
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     CHECK(allot_luck_ballots(&c, 1000, (allot_rate_t){17711, 10946}) == 1618,
           "floor(1000 * 17711 / 10946) = 1618");
     CHECK(allot_luck_ballots(&c, 1000, (allot_rate_t){1, 2}) == 0, "weight below 1 refused");
@@ -427,6 +433,7 @@ static void test_luck(void)
     id_of(0x40, other);
     id_of(0xEE, anon);
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     m = allot_guard_luck(&pol, &c, acc1, book, 3);
     CHECK(m.num == 1 && m.den == 1, "no identity hook: 1x");
     pol.identity_of = identity;
@@ -457,6 +464,7 @@ static void test_ladder(void)
 {
     allot_config_t c;
     allot_config_default(&c);
+    c.mode = ALLOT_MODE_SAVINGS; /* M1 */
     c.jurisdiction_permits = true;
     c.share_den = 0; /* F6 off until the cap test below */
     allot_ladder_t L;

@@ -340,7 +340,7 @@ int main(void)
               bk.to[0] + bk.to[1] + bk.to[2] + bk.to[3] + bk.to[4] == 150 && bk.calls == 6,
           "local pot: skim to the main reserve floor, NAV leg from the endowment side");
 
-    /* ---- T6: endowment-linked savings ---- */
+    /* ---- T6: prize-linked savings ---- */
     allot_player_t sv;
     uint8_t bob[32];
     memset(bob, 0xB0, sizeof bob);

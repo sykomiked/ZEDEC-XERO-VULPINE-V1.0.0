@@ -24,7 +24,7 @@ static int pass, fail;
 
 static pay_ledger_t L;
 static grant_t G;
-static uint32_t vissuer, raffle, brl[16], vino[16];
+static uint32_t vissuer, allotment, brl[16], vino[16];
 static uint64_t nfund;
 enum { OWNER = 7, FUNNEL = 90, UW1 = 91, UW2 = 92, LOT = 100 };
 
@@ -84,8 +84,8 @@ static void setup(void)
     nfund = 0;
     pay_ledger_init(&L, NULL);
     vissuer = open_acct(L.vfv_asset, 1, PAY_ACCT_ISSUER);
-    raffle = open_acct(L.vfv_asset, 2, 0);
-    issue(vissuer, raffle, (uint64_t) 1 << 59);
+    allotment = open_acct(L.vfv_asset, 2, 0);
+    issue(vissuer, allotment, (uint64_t) 1 << 59);
     grant_init(&G, &L, L.vfv_asset, OWNER, FUNNEL, verify, NULL, seed);
     for (uint32_t i = 0; i < 16; i++) {
         brl[i] = open_acct(G.barrel, 200 + i, 0);
@@ -155,7 +155,7 @@ static void test_init(void)
               g2.L == 0,
           "a second BRL-V on one ledger is refused and the instance stays unusable");
     CHECK(grant_epoch_begin(&g2, 5) == GRANT_ERR_ARG &&
-              grant_pool_credit(&g2, raffle, 1, 0) == GRANT_ERR_ARG,
+              grant_pool_credit(&g2, allotment, 1, 0) == GRANT_ERR_ARG,
           "an unusable instance refuses work");
     const pay_asset_t *a = pay_ledger_asset(&L, G.barrel);
     CHECK(a && !strcmp(a->code, "BRL-V") && a->kind == PAY_ASSET_UNIT && !a->iso4217 &&
@@ -328,15 +328,15 @@ static void test_credit_and_rate(void)
     setup();
     uint64_t n, d;
     bool def;
-    CHECK(grant_pool_credit(&G, raffle, 0, 1) == GRANT_ERR_ARG &&
-              grant_pool_credit(NULL, raffle, 5, 1) == GRANT_ERR_ARG,
+    CHECK(grant_pool_credit(&G, allotment, 0, 1) == GRANT_ERR_ARG &&
+              grant_pool_credit(NULL, allotment, 5, 1) == GRANT_ERR_ARG,
           "zero credit refused");
-    CHECK(grant_pool_credit(&G, raffle, ((uint64_t) 1 << 59) + 1, 1) == GRANT_ERR_ARG,
+    CHECK(grant_pool_credit(&G, allotment, ((uint64_t) 1 << 59) + 1, 1) == GRANT_ERR_ARG,
           "above one line's limit refused");
     uint64_t seq = L.seq;
-    CHECK(grant_pool_credit(&G, raffle, 500, 1) == GRANT_OK && deb(G.pool) == 500 &&
+    CHECK(grant_pool_credit(&G, allotment, 500, 1) == GRANT_OK && deb(G.pool) == 500 &&
               L.seq == seq + 1 && G.hist[1].inflow == 500 && grant_check(&G),
-          "raffle slice credited");
+          "allotment slice credited");
     CHECK(grant_pool_credit(&G, vino[0], 1, 1) == GRANT_ERR_LEDGER &&
               G.last_ledger == PAY_ERR_FUNDS && G.hist[1].inflow == 500,
           "an unfunded credit posts nothing and counts nothing");
@@ -357,7 +357,7 @@ static void test_credit_and_rate(void)
               grant_rate(&G, 1, &n, &d, NULL) == GRANT_ERR_ARG,
           "null rate args");
     grant_epoch_begin(&G, 2);
-    CHECK(grant_pool_credit(&G, raffle, 77, 3) == GRANT_OK && G.hist[2].inflow == 77 &&
+    CHECK(grant_pool_credit(&G, allotment, 77, 3) == GRANT_OK && G.hist[2].inflow == 77 &&
               G.hist[1].inflow == 500,
           "inflow is per epoch");
     CHECK(grant_rate(&G, 2, &n, &d, &def) == GRANT_OK && !def && n == 0 && d == 0,
@@ -369,12 +369,12 @@ static void test_credit_and_rate(void)
               grant_rate(&G, 9, &n, &d, &def) == GRANT_OK,
           "epoch 9 replaces epoch 1 in the ring");
     G.hist[9 & (GRANT_HIST - 1)].inflow = UINT64_MAX - 10;
-    CHECK(grant_pool_credit(&G, raffle, 11, 4) == GRANT_ERR_OVERFLOW &&
-              grant_pool_credit(&G, raffle, 10, 4) == GRANT_OK,
+    CHECK(grant_pool_credit(&G, allotment, 11, 4) == GRANT_ERR_OVERFLOW &&
+              grant_pool_credit(&G, allotment, 10, 4) == GRANT_OK,
           "inflow overflow refused before posting");
     /* a full line's worth */
     setup();
-    CHECK(grant_pool_credit(&G, raffle, (uint64_t) 1 << 59, 1) == GRANT_OK &&
+    CHECK(grant_pool_credit(&G, allotment, (uint64_t) 1 << 59, 1) == GRANT_OK &&
               deb(G.pool) == (uint64_t) 1 << 59 && grant_check(&G),
           "exactly 2^59 moves");
 }
@@ -405,7 +405,7 @@ static void reference(uint64_t B, const uint64_t *w, uint32_t n)
 static void test_distribute_exact(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 100, 1);
+    grant_pool_credit(&G, allotment, 100, 1);
     grant_recipient_t r[3] = {rcp(0, 1), rcp(1, 1), rcp(2, 1)};
     grant_dist_t out;
     uint64_t seq = L.seq;
@@ -430,19 +430,19 @@ static void test_distribute_exact(void)
 
     /* remainder ordering by size, not index */
     grant_epoch_begin(&G, 2);
-    grant_pool_credit(&G, raffle, 100, 1);
+    grant_pool_credit(&G, allotment, 100, 1);
     grant_recipient_t s[3] = {rcp(3, 2), rcp(4, 1), rcp(5, 1)};
     CHECK(grant_epoch_distribute(&G, LOT, s, 3, 10, 6, NULL) == GRANT_OK && deb(brl[3]) == 5 &&
               deb(brl[4]) == 3 && deb(brl[5]) == 2 && grant_check(&G),
           "10 by 2:1:1 is 5,3,2");
     grant_epoch_begin(&G, 3);
-    grant_pool_credit(&G, raffle, 70, 1);
+    grant_pool_credit(&G, allotment, 70, 1);
     grant_recipient_t t[3] = {rcp(6, 1), rcp(7, 2), rcp(8, 4)};
     CHECK(grant_epoch_distribute(&G, LOT, t, 3, 10, 6, &out) == GRANT_OK && out.share[0] == 1 &&
               out.share[1] == 2 && out.share[2] == 4,
           "exact division leaves no remainder");
     grant_epoch_begin(&G, 4);
-    grant_pool_credit(&G, raffle, 50, 1);
+    grant_pool_credit(&G, allotment, 50, 1);
     grant_recipient_t u[3] = {rcp(9, 1), rcp(10, 5), rcp(11, 4)};
     CHECK(grant_epoch_distribute(&G, LOT, u, 3, 10, 6, &out) == GRANT_OK && out.share[0] == 1 &&
               out.share[1] == 2 && out.share[2] == 2,
@@ -453,7 +453,7 @@ static void test_distribute_exact(void)
 static void test_distribute_batches(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 1000003, 1);
+    grant_pool_credit(&G, allotment, 1000003, 1);
     grant_recipient_t r[12];
     uint64_t w[12];
     for (uint32_t i = 0; i < 12; i++) {
@@ -479,7 +479,7 @@ static void test_distribute_batches(void)
 
     /* few barrels: only some recipients get one, still batched */
     setup();
-    grant_pool_credit(&G, raffle, 30, 1);
+    grant_pool_credit(&G, allotment, 30, 1);
     for (uint32_t i = 0; i < 12; i++) r[i] = rcp(i, 1);
     r[11].weight = 5;
     seq = L.seq;
@@ -491,7 +491,7 @@ static void test_distribute_batches(void)
           "3 by 1x11:5 -> largest remainders");
     /* five shares then zero shares: the tail posts nothing */
     setup();
-    grant_pool_credit(&G, raffle, 5, 1);
+    grant_pool_credit(&G, allotment, 5, 1);
     for (uint32_t i = 0; i < 7; i++) r[i] = rcp(i, i < 5 ? 100 : 1);
     seq = L.seq;
     CHECK(grant_epoch_distribute(&G, LOT, r, 7, 1, 9, &out) == GRANT_OK && out.postings == 1 &&
@@ -499,20 +499,20 @@ static void test_distribute_batches(void)
           "a zero-share tail adds no posting");
     /* six recipients with a share: two postings, the second with one */
     setup();
-    grant_pool_credit(&G, raffle, 60, 1);
+    grant_pool_credit(&G, allotment, 60, 1);
     for (uint32_t i = 0; i < 6; i++) r[i] = rcp(i, 1);
     CHECK(grant_epoch_distribute(&G, LOT, r, 6, 10, 9, &out) == GRANT_OK && out.postings == 2 &&
               deb(brl[5]) == 1 && deb(G.reserve) == 60 && grant_check(&G),
           "a batch of exactly five then one");
     /* exactly five: one posting */
     setup();
-    grant_pool_credit(&G, raffle, 50, 1);
+    grant_pool_credit(&G, allotment, 50, 1);
     CHECK(grant_epoch_distribute(&G, LOT, r, 5, 10, 9, &out) == GRANT_OK && out.postings == 1 &&
               grant_check(&G),
           "five fit in one posting");
     /* max recipients */
     setup();
-    grant_pool_credit(&G, raffle, 1000, 1);
+    grant_pool_credit(&G, allotment, 1000, 1);
     grant_recipient_t m[GRANT_MAX_RECIP];
     for (uint32_t i = 0; i < GRANT_MAX_RECIP; i++) {
         m[i] = rcp(i & 15, 1);
@@ -526,7 +526,7 @@ static void test_distribute_batches(void)
 static void test_distribute_guards(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 1000, 1);
+    grant_pool_credit(&G, allotment, 1000, 1);
     grant_recipient_t r[GRANT_MAX_RECIP + 1];
     for (uint32_t i = 0; i < 4; i++) r[i] = rcp(i, 1);
     grant_dist_t out;
@@ -593,7 +593,7 @@ static void test_distribute_guards(void)
 
     /* the cap */
     setup();
-    grant_pool_credit(&G, raffle, 1000, 1);
+    grant_pool_credit(&G, allotment, 1000, 1);
     grant_set_cap(&G, 1, 3);
     for (uint32_t i = 0; i < 2; i++) r[i] = rcp(i, 1);
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 10, 1, &out) == GRANT_OK && out.barrels == 33 &&
@@ -619,7 +619,7 @@ static void test_distribute_guards(void)
             w[i] = 1 + ((x >> (i * 3)) & 63);
             r[i] = rcp(i, w[i]);
         }
-        grant_pool_credit(&G, raffle, fund, 1);
+        grant_pool_credit(&G, allotment, fund, 1);
         grant_status_t st = grant_epoch_distribute(&G, LOT, r, n, price, 1, &out);
         bool ok = st == (fund / price ? GRANT_OK : GRANT_ERR_EMPTY);
         if (st == GRANT_OK) {
@@ -646,7 +646,7 @@ static void mirror(void *ctx, const pay_journal_t *rec)
 static void test_distribute_partial(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 70, 1);
+    grant_pool_credit(&G, allotment, 70, 1);
     grant_recipient_t r[7];
     for (uint32_t i = 0; i < 7; i++) r[i] = rcp(i, 1);
     grant_dist_t out;
@@ -669,7 +669,7 @@ static void test_distribute_partial(void)
 
     /* holding slots: exactly enough, then one short */
     setup();
-    grant_pool_credit(&G, raffle, 1000, 1);
+    grant_pool_credit(&G, allotment, 1000, 1);
     for (uint32_t i = 2; i < GRANT_MAX_HOLD; i++)
         G.hold[i] = (grant_hold_t){true, 0xFFFF0000u + i, 7777, 0};
     for (uint32_t i = 0; i < 3; i++) r[i] = rcp(i, 1);
@@ -689,7 +689,7 @@ static void test_distribute_partial(void)
     CHECK(grant_check(&G), "check");
     /* the running total cannot wrap */
     grant_epoch_begin(&G, 3);
-    grant_pool_credit(&G, raffle, 100, 1);
+    grant_pool_credit(&G, allotment, 100, 1);
     uint64_t keep = G.total_barrels;
     G.total_barrels = UINT64_MAX - 9;
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 1, 1, &out) == GRANT_ERR_OVERFLOW,
@@ -704,7 +704,7 @@ static void test_distribute_partial(void)
 static void test_backing(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 1000, 1);
+    grant_pool_credit(&G, allotment, 1000, 1);
     grant_recipient_t r[2] = {rcp(0, 3), rcp(1, 1)};
     grant_epoch_distribute(&G, LOT, r, 2, 10, 1, NULL); /* 75 + 25 barrels */
     const char *st = 0;
@@ -756,7 +756,7 @@ static void test_backing(void)
           "label follows expiry");
     grant_dist_t out;
     grant_epoch_begin(&G, 2);
-    grant_pool_credit(&G, raffle, 100, 1);
+    grant_pool_credit(&G, allotment, 100, 1);
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 10, 1, &out) == GRANT_ERR_STATE,
           "an attested lot takes no new barrels");
 
@@ -841,7 +841,7 @@ static void test_snapshot(void)
     grant_snapshot_t a, b;
     for (int k = 0; k < 2; k++) {
         setup();
-        grant_pool_credit(&G, raffle, 1000, 1);
+        grant_pool_credit(&G, allotment, 1000, 1);
         grant_recipient_t r[2] = {rcp(k ? 5 : 0, 1), rcp(k ? 9 : 1, 3)};
         r[0].m.subject = k ? 77 : 1;
         grant_epoch_distribute(&G, LOT, r, 2, 10, 1, NULL);
@@ -860,7 +860,7 @@ static void test_snapshot(void)
               b.granted_barrels == 0 && b.granted_cost == 0 && b.total_barrels_granted == 100 &&
               b.barrels_outstanding == 100,
           "a new epoch starts its counters at zero");
-    grant_pool_credit(&G, raffle, 33, 3);
+    grant_pool_credit(&G, allotment, 33, 3);
     grant_snapshot(&G, 3, &b);
     CHECK(b.inflow == 33 && b.pool_balance == 33, "the snapshot reads the current epoch");
     memset(&b, 0xAB, sizeof b);
@@ -873,7 +873,7 @@ static void test_snapshot(void)
 static void test_check_and_msgs(void)
 {
     setup();
-    grant_pool_credit(&G, raffle, 100, 1);
+    grant_pool_credit(&G, allotment, 100, 1);
     grant_recipient_t r[2] = {rcp(0, 1), rcp(1, 1)};
     grant_epoch_distribute(&G, LOT, r, 2, 10, 1, NULL);
     grant_lot_open(&G, LOT + 1);
@@ -968,14 +968,14 @@ static void test_check_and_msgs(void)
     /* a lot whose id is 0, like every empty table row */
     setup();
     grant_lot_open(&G, 0);
-    grant_pool_credit(&G, raffle, 20, 1);
+    grant_pool_credit(&G, allotment, 20, 1);
     grant_recipient_t z[1] = {rcp(0, 1)};
     CHECK(grant_epoch_distribute(&G, 0, z, 1, 10, 1, NULL) == GRANT_OK &&
               grant_holding(&G, brl[0], 0) == 2 && grant_check(&G),
           "lot id 0 checks; empty rows are skipped");
 }
 
-/* the raffle posts the pool line itself, then records the inflow */
+/* the allotment posts the pool line itself, then records the inflow */
 static pay_status_t direct(uint32_t to, uint64_t amt)
 {
     pay_posting_req_t r;
@@ -986,7 +986,7 @@ static pay_status_t direct(uint32_t to, uint64_t amt)
     snprintf(r.e2e, sizeof r.e2e, "DIRECT-%llu", (unsigned long long) nfund);
     memcpy(r.idem_key, &nfund, sizeof nfund);
     r.idem_key[31] = 0xD1;
-    return pay_ledger_transfer(&L, &r, raffle, to, amt, &rc);
+    return pay_ledger_transfer(&L, &r, allotment, to, amt, &rc);
 }
 
 static void test_record(void)
@@ -996,14 +996,14 @@ static void test_record(void)
           "record: bad arguments refused");
     CHECK(grant_pool_record(&G, 1) == GRANT_ERR_FUNDS && G.hist[1].inflow == 0,
           "nothing landed: nothing can be recorded");
-    CHECK(direct(G.pool, 300) == PAY_OK, "the raffle's own posting lands 300");
+    CHECK(direct(G.pool, 300) == PAY_OK, "the allotment's own posting lands 300");
     CHECK(grant_pool_record(&G, 301) == GRANT_ERR_FUNDS && G.hist[1].inflow == 0,
           "more than landed is refused");
     CHECK(grant_pool_record(&G, 300) == GRANT_OK && G.hist[1].inflow == 300 && G.pool_seen == 300,
           "exactly what landed is counted");
     CHECK(grant_pool_record(&G, 1) == GRANT_ERR_FUNDS && G.hist[1].inflow == 300,
           "the same money cannot be counted twice");
-    CHECK(grant_pool_credit(&G, raffle, 100, 1) == GRANT_OK && G.pool_seen == 400 &&
+    CHECK(grant_pool_credit(&G, allotment, 100, 1) == GRANT_OK && G.pool_seen == 400 &&
               grant_pool_record(&G, 1) == GRANT_ERR_FUNDS,
           "a credit is counted once, by the credit");
     grant_recipient_t r[2] = {rcp(0, 1), rcp(1, 1)};
@@ -1022,7 +1022,7 @@ static void test_record(void)
           "inflow overflow refused, nothing counted");
     /* a spend larger than what was counted floors the count at zero */
     setup();
-    CHECK(direct(G.pool, 100) == PAY_OK && grant_pool_credit(&G, raffle, 100, 1) == GRANT_OK &&
+    CHECK(direct(G.pool, 100) == PAY_OK && grant_pool_credit(&G, allotment, 100, 1) == GRANT_OK &&
               G.pool_seen == 100,
           "100 counted, 100 more landed uncounted");
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 75, 2, NULL) == GRANT_OK && deb(G.pool) == 50 &&
@@ -1030,7 +1030,7 @@ static void test_record(void)
           "spend 150 of 100 counted: count floors at 0, the 50 left can still be recorded");
     /* a partial spend lowers the count by exactly the spend */
     setup();
-    CHECK(grant_pool_credit(&G, raffle, 300, 1) == GRANT_OK && grant_set_cap(&G, 1, 2) == GRANT_OK,
+    CHECK(grant_pool_credit(&G, allotment, 300, 1) == GRANT_OK && grant_set_cap(&G, 1, 2) == GRANT_OK,
           "300 counted, half may be spent");
     CHECK(grant_epoch_distribute(&G, LOT, r, 2, 100, 2, NULL) == GRANT_OK && deb(G.pool) == 200 &&
               G.pool_seen == 200 && grant_pool_record(&G, 1) == GRANT_ERR_FUNDS,

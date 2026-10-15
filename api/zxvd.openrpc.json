@@ -8298,7 +8298,7 @@
     },
     {
       "name": "stats.snapshot",
-      "summary": "Collect one aggregate snapshot of the in-memory economy (zstats.h S1-S3: reserve, vault, compression, auction, Zenny; bonds, raffle and barrels are absent), with the k-anonymity floor min_cohort, hash-chained to the last one (S4/S5). Not signed: zxvd holds no publisher key. Feature 'stats' (not regulated, off by default). An engine refusal is -32020 with the engine's status name.",
+      "summary": "Collect one aggregate snapshot of the in-memory economy (zstats.h S1-S3: reserve, vault, compression, auction, Zenny; bonds, allotment and barrels are absent), with the k-anonymity floor min_cohort, hash-chained to the last one (S4/S5). Not signed: zxvd holds no publisher key. Feature 'stats' (not regulated, off by default). An engine refusal is -32020 with the engine's status name.",
       "params": [
         {
           "name": "now",
@@ -11204,7 +11204,7 @@
     },
     {
       "name": "grants.pool_credit",
-      "summary": "Move Vino into the grant pool (the raffle slice) and count it as this epoch's inflow.",
+      "summary": "Move Vino into the grant pool (the allotment slice) and count it as this epoch's inflow.",
       "params": [
         {
           "name": "from",

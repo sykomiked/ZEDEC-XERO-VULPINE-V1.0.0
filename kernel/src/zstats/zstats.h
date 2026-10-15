@@ -16,7 +16,7 @@
  *     available grant inventory, and the prevailing G_rate."
  * G_rate = Olive Oil Reserve Inflow / Active Verified Enterprise Load, an
  * exact rational per epoch (grants.h G4 computes it). PROJECT WORDING: the
- * raffle is a "raffle"; V-Notes ARE V-Bills; nothing here is called a yield
+ * the allotment is an "allotment" (never a raffle); V-Notes ARE V-Bills; nothing here is called a yield
  * or interest: positions are "locked" (and dividend-eligible). Coordinator
  * rule: aggregates only, no per-account data.
  *
@@ -48,7 +48,7 @@
  *                     issued" can honestly mean once the ring has wrapped),
  *                     the reserve R (vauc_reserve; flagged invalid when it
  *                     cannot be valued), the floor config and floor_ok.
- *        RAFFLE       zstats_raffle_t as the deployment fills it (see S2).
+ *        ALLOT       zstats_allot_t as the deployment fills it (see S2).
  *        BARRELS      grant_snapshot_t as grants.h G4 gives it: G_rate
  *                     num/den/defined, inflow, weight, barrels granted,
  *                     outstanding, backed and unbacked, pool and reserve.
@@ -63,12 +63,12 @@
  *      never read as real zeros. Sums are overflow-checked (ZSTATS_ERR_
  *      OVERFLOW); a source that contradicts itself (locked above
  *      outstanding, h above N) is ZSTATS_ERR_STATE. The result must pass
- *      zstats_check. The raffle lives on another branch and is NOT included:
- *      zstats_raffle_t is a plain input the deployment fills. The raffle
+ *      zstats_check. The allotment module (kernel/src/allotment) is not linked here:
+ *      zstats_allot_t is a plain input the deployment fills. The allotment
  *      does not track time, so it carries no velocity or time-to-threshold:
- *      a reader derives velocity from successive snapshots (pot and tickets
- *      against epoch / tick). Tickets and pot can differ, because a luck
- *      weight mints extra tickets; the threshold is counted in tickets.
+ *      a reader derives velocity from successive snapshots (pot and ballots
+ *      against epoch / tick). Ballots and pot can differ, because a luck
+ *      weight mints extra ballots; the threshold is counted in ballots.
  *   S3 PRIVACY. A k-anonymity floor min_cohort (default 5, at least 1)
  *      applies to every count-backed group: each lock tier, each bond term
  *      and the Zenny chip set. A group with fewer than min_cohort members
@@ -106,8 +106,8 @@
  *      h <= N, locked + unlocked == outstanding, published groups summing to
  *      at most the locked total (exactly it when none is suppressed), every
  *      group below min_cohort suppressed, every suppressed group zero, no
- *      lone suppressed group in a lock family of two or more, raffle mode 0
- *      or 1, backed + unbacked == outstanding barrels, lots_backed <= lots.
+ *      lone suppressed group in a lock family of two or more, allotment mode 0,
+ *      1 or 2, backed + unbacked == outstanding barrels, lots_backed <= lots.
  *   S6 JSON. zstats_json renders integer-only JSON in a fixed key order with
  *      no whitespace. Every integer is a quoted decimal string (so no reader
  *      rounds a 64-bit figure through a double); a rational is
@@ -126,9 +126,9 @@
  * its numbers are true. The k-anonymity floor is a floor, not a guarantee:
  * differencing a series of snapshots (a group crossing the threshold, a
  * total moving between epochs, a single winner of an auction epoch) can
- * still reveal one holder's figures. The raffle, auction and barrel
+ * still reveal one holder's figures. The allotment, auction and barrel
  * sections publish the aggregates their modules define; a pool funded by
- * raffle proceeds may share the raffle's legal treatment. Designed to
+ * allotment proceeds may share the allotment's legal treatment. Designed to
  * support transparent reporting; it claims no audit, certification or
  * regulatory status. Freestanding C11: no allocation, no float, no libc.
  */
@@ -155,8 +155,9 @@
 #define ZSTATS_TIERS          2u /* lock tiers MEDIUM, DEEP */
 #define ZSTATS_TERMS          VBOND_MAX_TERMS
 #define ZSTATS_ENC_LEN        597u /* S4 */
-#define ZSTATS_RAFFLE_SAVINGS 0u
-#define ZSTATS_RAFFLE_PAID    1u
+#define ZSTATS_ALLOT_SAVINGS 0u
+#define ZSTATS_ALLOT_PAID    1u
+#define ZSTATS_ALLOT_FREE    2u /* allot.h M0, the default */
 
 /* S1 present bits */
 #define ZSTATS_SEC_RESERVE     0x01u
@@ -164,7 +165,7 @@
 #define ZSTATS_SEC_COMPRESSION 0x04u
 #define ZSTATS_SEC_BONDS       0x08u
 #define ZSTATS_SEC_AUCTION     0x10u
-#define ZSTATS_SEC_RAFFLE      0x20u
+#define ZSTATS_SEC_ALLOT      0x20u
 #define ZSTATS_SEC_BARRELS     0x40u
 #define ZSTATS_SEC_ZENNY       0x80u
 #define ZSTATS_SEC_ALL         0xFFu
@@ -199,17 +200,17 @@ typedef struct {
     uint64_t sum;
 } zstats_group_t;
 
-/* S2: the raffle's aggregates, filled by the deployment (the raffle module
- * is on another branch and not included). No velocity and no time: a reader
+/* S2: the allotment's aggregates, filled by the deployment (the allotment module
+ * is not linked into zstats). No velocity and no time: a reader
  * derives velocity from successive snapshots. */
 typedef struct {
     uint64_t epoch;
     uint64_t pot;       /* Vino in the pot */
-    uint64_t tickets;   /* may exceed pot: a luck weight mints extra tickets */
-    uint64_t threshold; /* counted in tickets */
+    uint64_t ballots;   /* may exceed pot: a luck weight mints extra ballots; in FREE mode one per person */
+    uint64_t threshold; /* counted in ballots */
     uint64_t entries;
-    uint64_t mode; /* ZSTATS_RAFFLE_SAVINGS or ZSTATS_RAFFLE_PAID */
-} zstats_raffle_t;
+    uint64_t mode; /* ZSTATS_ALLOT_SAVINGS, _PAID or _FREE */
+} zstats_allot_t;
 
 typedef struct {
     uint64_t epoch, tick;
@@ -245,7 +246,7 @@ typedef struct {
         uint64_t floor_num, floor_den, backing;
         bool floor_ok;
     } auction;
-    zstats_raffle_t raffle;
+    zstats_allot_t allotment;
     grant_snapshot_t barrels;
     struct {
         uint32_t live;
@@ -265,7 +266,7 @@ typedef struct {
     const vauc_t *auction;
     const grant_t *grants;
     const zenny_t *zenny;
-    const zstats_raffle_t *raffle;
+    const zstats_allot_t *allotment;
     uint32_t juris, publisher;
     uint32_t min_cohort; /* >= 1 */
 } zstats_sources_t;

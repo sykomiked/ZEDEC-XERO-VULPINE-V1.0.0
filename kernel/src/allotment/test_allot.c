@@ -66,7 +66,8 @@ static void test_config(void)
 {
     allot_config_t c;
     allot_config_default(&c);
-    CHECK(!c.jurisdiction_permits && !c.free_entry, "defaults are off");
+    CHECK(!c.jurisdiction_permits, "default: the jurisdiction switch is off");
+    CHECK(c.free_entry && c.mode == ALLOT_MODE_FREE, "default: FREE mode, free entry on (M0)");
     CHECK(c.min_rate.num == 1 && c.min_rate.den == 100 && c.max_rate.num == 1 &&
               c.max_rate.den == 2 && c.skim_num == 987 && c.skim_den == 61000,
           "default ratios: rate 1%%..50%%, skim 987/61000");
@@ -128,8 +129,9 @@ static void test_config(void)
 
     /* L2: free entry needs both switches. */
     c.jurisdiction_permits = true;
+    c.free_entry = false;
     CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 16) == ALLOT_OK, "init");
-    CHECK(allot_free_entry(&r, who, &rc) == ALLOT_ERR_DISABLED, "free entry off by default");
+    CHECK(allot_free_entry(&r, who, &rc) == ALLOT_ERR_DISABLED, "free entry needs free_entry");
     c.free_entry = true;
     CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 16) == ALLOT_OK, "init free");
     CHECK(allot_free_entry(&r, who, &rc) == ALLOT_OK, "free entry");
@@ -1007,6 +1009,94 @@ static void test_replay(const char *ref)
           "next epoch starts clean");
 }
 
+/* ===== M0: the free, no-consideration allotment (A1-A5, S7) ===== */
+static void test_free_mode(void)
+{
+    allot_config_t c;
+    allot_config_default(&c);
+    c.jurisdiction_permits = true;
+    c.fib_index = 4; /* F(4) = 3 ballots close the epoch */
+    allot_t r;
+    allot_settlement_t s;
+    allot_receipt_t rc;
+    uint8_t a[32], b[32], d[32], fund[32], p[32], sec[32], cm[32];
+    ident("alice", 0, a);
+    ident("bob", 0, b);
+    ident("dora", 0, d);
+    ident("regenerative-pool", 0, fund);
+    ident("party", 0, p);
+    epoch_secret(1, 0, sec);
+    CHECK(allot_init(&r, &c, 1, NULL, g_ranges, 8) == ALLOT_OK, "free: init");
+    allot_commitment(1, p, sec, cm);
+    CHECK(allot_commit(&r, p, cm) == ALLOT_OK, "free: commit");
+
+    /* A3: nothing paid, no yield, no ladder share, no weighted entry */
+    allot_t before = r;
+    CHECK(allot_enter(&r, a, 1000000, NULL, &rc) == ALLOT_ERR_MODE, "free: paid entry refused");
+    allot_rate_t half = {1, 2}, one = {1, 1};
+    CHECK(allot_enter_yield(&r, a, 1000, half, NULL, &rc) == ALLOT_ERR_MODE,
+          "free: a share of yield is consideration, refused");
+    CHECK(allot_enter_share(&r, a, 100, &one, 5, &rc) == ALLOT_ERR_MODE, "free: ladder share refused");
+    CHECK(allot_enter_weighted(&r, a, 100, &one, 5, 5, &rc) == ALLOT_ERR_MODE,
+          "free: weighted entry refused");
+    CHECK(allot_mint_check(&r, a, 1, 1) == ALLOT_ERR_MODE, "free: a fee never passes mint_check");
+    CHECK(memcmp(&before, &r, sizeof r) == 0, "free: refusals change nothing");
+
+    /* A2: the operator endows from surplus; entrants never do */
+    CHECK(allot_endow(&r, fund, 0) == ALLOT_ERR_DUST, "free: endow 0 refused");
+    CHECK(allot_endow(&r, NULL, 5) == ALLOT_ERR_ARG, "free: endow needs a source");
+    CHECK(allot_endow(&r, fund, 9000) == ALLOT_OK && r.pool == 9000 && r.ballots == 0,
+          "free: endowment adds to the pool, mints no ballot");
+    CHECK(allot_endow(&r, fund, UINT64_MAX) == ALLOT_ERR_OVERFLOW && r.pool == 9000,
+          "free: endowment overflow refused");
+
+    /* A1: one ballot per owner per epoch */
+    CHECK(allot_room(&r, a) == 1, "free: room is one ballot");
+    CHECK(allot_free_entry(&r, a, &rc) == ALLOT_OK && rc.fee == 0 && rc.count == 1,
+          "free: alice registers one ballot at no cost");
+    CHECK(allot_room(&r, a) == 0 && allot_free_entry(&r, a, &rc) == ALLOT_ERR_CAP,
+          "free: a second ballot is refused");
+    CHECK(allot_free_entry(&r, b, &rc) == ALLOT_OK && !rc.closed_epoch, "free: bob registers");
+    CHECK(allot_endow(&r, fund, 1000) == ALLOT_OK && r.pool == 10000, "free: endow again while open");
+    CHECK(allot_free_entry(&r, d, &rc) == ALLOT_OK && rc.closed_epoch && r.phase == ALLOT_CLOSED,
+          "free: the third ballot closes the epoch");
+    CHECK(allot_endow(&r, fund, 1) == ALLOT_ERR_PHASE, "free: no endowment after close");
+    CHECK(r.pool == 10000 && r.free_entries == 3 && r.paid_entries == 0, "free: counts");
+
+    /* S7: the whole endowment goes to the selected steward */
+    CHECK(allot_reveal(&r, p, sec) == ALLOT_OK, "free: reveal");
+    CHECK(allot_select(&r, &s) == ALLOT_OK, "free: select");
+    CHECK(s.crown_endowment == 10000 && s.reserve_skim == 0 && s.grant_pool == 0 &&
+              s.nav_slice == 0 && s.rebate_pool == 0 && s.rebate_paid == 0,
+          "free: no skim, grant, NAV or rebate; all 10000 to the steward");
+    CHECK(!memcmp(s.steward, a, 32) || !memcmp(s.steward, b, 32) || !memcmp(s.steward, d, 32),
+          "free: the steward is one of the three");
+    post_log_t l;
+    memset(&l, 0, sizeof l);
+    l.refuse_at = -1;
+    CHECK(allot_post(&r, &s, record_leg, &l) && l.n == 1 && l.dest[0] == ALLOT_DEST_STEWARD &&
+              l.amount[0] == 10000 && !memcmp(l.who, s.steward, 32),
+          "free: one leg, to the steward");
+    CHECK(allot_settle(&r, &s) == ALLOT_OK && allot_next_epoch(&r) == ALLOT_OK,
+          "free: settle and open the next epoch");
+    CHECK(allot_room(&r, a) == 1 && r.pool == 0, "free: the next epoch starts empty");
+
+    /* L1 still governs FREE mode, and endowment is FREE mode only */
+    allot_config_t off = c;
+    off.jurisdiction_permits = false;
+    CHECK(allot_init(&r, &off, 1, NULL, g_ranges, 8) == ALLOT_OK, "free: init with switch off");
+    CHECK(allot_free_entry(&r, a, &rc) == ALLOT_ERR_DISABLED &&
+              allot_endow(&r, fund, 5) == ALLOT_ERR_DISABLED,
+          "free: switch off refuses entry and endowment");
+    allot_config_t paid = enabled_cfg();
+    CHECK(allot_init(&r, &paid, 1, NULL, g_ranges, 8) == ALLOT_OK &&
+              allot_endow(&r, fund, 5) == ALLOT_ERR_MODE,
+          "free: endowment refused outside FREE mode");
+    allot_config_t bad = c;
+    bad.mode = 3;
+    CHECK(allot_config_check(&bad) == ALLOT_ERR_CONFIG, "free: an unknown mode is refused");
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 2) {
@@ -1022,6 +1112,7 @@ int main(int argc, char **argv)
     test_split();
     test_nav();
     test_post();
+    test_free_mode();
     test_draw_uniform();
     test_pick();
     test_replay(argv[1]);

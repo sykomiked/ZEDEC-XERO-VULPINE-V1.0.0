@@ -144,6 +144,23 @@ allot_status_t allot_guard_check_fee(const allot_guard_policy_t *pol, const allo
     return st != ALLOT_OK ? st : limits(pol, pl, fee, now, epoch);
 }
 
+allot_status_t allot_guard_check_free(const allot_guard_policy_t *pol, const allot_config_t *cfg,
+                                      const allot_player_t *pl, uint64_t now,
+                                      uint8_t ballot_owner[ALLOT_ID_LEN])
+{
+    uint8_t id[ALLOT_ID_LEN];
+    if (!pol || !cfg || !pl || !ballot_owner) return ALLOT_ERR_ARG;
+    if (!cfg->jurisdiction_permits || !cfg->free_entry) return ALLOT_ERR_DISABLED;
+    if (now < pl->excluded_until) return ALLOT_ERR_EXCLUDED;      /* G5 */
+    if (!pol->age_gate || !pol->age_gate(pol->age_ctx, pl->owner)) /* G6 */
+        return ALLOT_ERR_AGE;
+    if (!pol->identity_of || !pol->identity_of(pol->identity_ctx, pl->owner, id))
+        return ALLOT_ERR_IDENTITY; /* G8: one ballot per person needs a person */
+    if (pol->eligible && !pol->eligible(pol->eligible_ctx, id)) return ALLOT_ERR_INELIGIBLE;
+    pay_memcpy(ballot_owner, id, ALLOT_ID_LEN);
+    return ALLOT_OK;
+}
+
 void allot_guard_commit(const allot_guard_policy_t *pol, allot_player_t *pl, uint64_t now,
                          uint64_t epoch, uint64_t fee)
 {

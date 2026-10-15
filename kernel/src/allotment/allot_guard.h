@@ -29,12 +29,22 @@
  *       by that identity, so several accounts of one person share one
  *       count. With no hook, or an owner it cannot map, the weight is 1.
  *
+ *   G8  FREE ENTRY (allot.h M0). allot_guard_check_free() needs no rate,
+ *       limits or confirmation, since nothing is spent. It still applies
+ *       the switch, self-exclusion (G5) and the age gate (G6), then maps
+ *       the account to its verified person through identity_of (no hook,
+ *       or no person: ALLOT_ERR_IDENTITY, fail closed) and asks the
+ *       optional merit gate `eligible` (Model C; NULL = no merit gate,
+ *       otherwise a "no" is ALLOT_ERR_INELIGIBLE). It returns the person
+ *       id, which is the ballot owner, so one person holds one ballot an
+ *       epoch however many accounts they have.
+ *
  * USE. allot_guard_check() (pure) -> allot_enter / allot_ladder_enter
  * with the player's rate -> allot_guard_commit() to record the spend.
  *
  * HONEST LIMITS. These are standard harm-reduction controls, not legal
  * compliance. Letting players choose their stake does not take a paid
- * chance at an endowment outside gambling law (allot.h L1), and a high rate
+ * chance at a prize outside gaming law (allot.h L1), and a high rate
  * raises both the regulatory and the consumer-harm stakes.
  */
 #ifndef ZXV_ALLOT_GUARD_H
@@ -43,6 +53,7 @@
 #include "allot.h"
 
 typedef bool (*allot_age_gate_fn)(void *ctx, const uint8_t owner[ALLOT_ID_LEN]);
+typedef bool (*allot_eligible_fn)(void *ctx, const uint8_t identity[ALLOT_ID_LEN]);
 typedef bool (*allot_identity_fn)(void *ctx, const uint8_t owner[ALLOT_ID_LEN],
                                    uint8_t identity[ALLOT_ID_LEN]);
 
@@ -55,6 +66,8 @@ typedef struct {
     void *age_ctx;
     allot_identity_fn identity_of; /* G7: NULL = no luck weight     */
     void *identity_ctx;
+    allot_eligible_fn eligible; /* G8: NULL = no merit gate          */
+    void *eligible_ctx;
 } allot_guard_policy_t;
 
 /* G7: one verified person's run of consecutive non-selections. */
@@ -105,10 +118,17 @@ allot_status_t allot_guard_check(const allot_guard_policy_t *pol, const allot_co
 
 /* G1, G3, G5, G6 and the switch for a fee the caller already computed and
  * whose confirmation (G2) it already holds; pl->rate is only the opt-in
- * flag here. Used by endowment-linked savings (allot_token.h T6). */
+ * flag here. Used by prize-linked savings (allot_token.h T6). */
 allot_status_t allot_guard_check_fee(const allot_guard_policy_t *pol, const allot_config_t *cfg,
                                        const allot_player_t *pl, uint64_t fee, uint64_t now,
                                        uint64_t epoch);
+
+/* G8: may `pl` register a free ballot (FREE mode, or free_entry on in the
+ * other modes)? On ALLOT_OK `ballot_owner` is the verified person id to
+ * pass to allot_free_entry. Changes nothing. */
+allot_status_t allot_guard_check_free(const allot_guard_policy_t *pol, const allot_config_t *cfg,
+                                      const allot_player_t *pl, uint64_t now,
+                                      uint8_t ballot_owner[ALLOT_ID_LEN]);
 
 /* G7: the weight for `owner`: allot_luck_mult of their person's record in
  * book[0..n) (no record = 0 misses). {1, 1} without a usable identity. */

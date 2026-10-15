@@ -59,7 +59,7 @@ void allot_config_default(allot_config_t *c)
     if (!c) return;
     pay_memset(c, 0, sizeof *c);
     c->jurisdiction_permits = false;
-    c->free_entry = false;
+    c->free_entry = true; /* L2 */
     c->min_rate.num = 1;
     c->min_rate.den = 100;
     c->max_rate.num = ALLOT_RATE_CEIL_NUM;
@@ -72,7 +72,7 @@ void allot_config_default(allot_config_t *c)
     c->min_reveals = 0;
     c->share_num = 8;
     c->share_den = 21;
-    c->mode = ALLOT_MODE_SAVINGS; /* M1 */
+    c->mode = ALLOT_MODE_FREE;    /* M0 */
     c->rebate_num = 1;             /* S6 */
     c->rebate_den = 5;
     c->luck_cap = ALLOT_LUCK_DEFAULT; /* W1 */
@@ -160,7 +160,7 @@ allot_status_t allot_config_check(const allot_config_t *c)
     if (c->grant_den && c->grant_num >= c->grant_den) return ALLOT_ERR_CONFIG;
     if (c->nav_den && c->nav_num >= c->nav_den) return ALLOT_ERR_CONFIG;
     if (c->rebate_den && c->rebate_num >= c->rebate_den) return ALLOT_ERR_CONFIG;
-    if (c->mode > ALLOT_MODE_PAID) return ALLOT_ERR_CONFIG;
+    if (c->mode > ALLOT_MODE_FREE) return ALLOT_ERR_CONFIG;
     if (c->luck_cap < 1 || c->luck_cap > ALLOT_LUCK_CEIL) return ALLOT_ERR_CONFIG;
     if (!split_fits(c)) return ALLOT_ERR_CONFIG; /* S3 */
     if (c->fib_index < ALLOT_FIB_MIN || c->fib_index > ALLOT_FIB_MAX) return ALLOT_ERR_CONFIG;
@@ -328,8 +328,13 @@ static uint64_t held_by(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN])
 uint64_t allot_room(const allot_t *r, const uint8_t owner[ALLOT_ID_LEN])
 {
     if (!r || !owner) return 0;
-    if (!r->cfg.share_den) return UINT64_MAX;
-    uint64_t cap = ratio_floor(r->threshold, r->cfg.share_num, r->cfg.share_den);
+    uint64_t cap;
+    if (r->cfg.mode == ALLOT_MODE_FREE)
+        cap = 1; /* A1: one ballot per owner per epoch */
+    else if (!r->cfg.share_den)
+        return UINT64_MAX;
+    else
+        cap = ratio_floor(r->threshold, r->cfg.share_num, r->cfg.share_den);
     if (cap == 0) cap = 1;
     uint64_t held = held_by(r, owner);
     return held >= cap ? 0 : cap - held;
@@ -342,7 +347,8 @@ allot_status_t allot_mint_check(const allot_t *r, const uint8_t owner[ALLOT_ID_L
     if (!r || !owner) return ALLOT_ERR_ARG;
     if (!r->cfg.jurisdiction_permits) return ALLOT_ERR_DISABLED;
     if (r->phase != ALLOT_OPEN) return ALLOT_ERR_PHASE;
-    if (count > allot_room(r, owner)) return ALLOT_ERR_CAP; /* F6 */
+    if (r->cfg.mode == ALLOT_MODE_FREE && fee) return ALLOT_ERR_MODE; /* A3 */
+    if (count > allot_room(r, owner)) return ALLOT_ERR_CAP;               /* F6, A1 */
     if (!pay_add_ok(r->pool, fee, &t)) return ALLOT_ERR_OVERFLOW;
     if (count && !pay_add_ok(r->ballots, count, &t)) return ALLOT_ERR_OVERFLOW;
     if (count && r->range_len >= r->range_cap) return ALLOT_ERR_FULL;
@@ -358,6 +364,7 @@ static allot_status_t mint(allot_t *r, const uint8_t owner[ALLOT_ID_LEN], uint64
                             allot_rate_t rate, uint64_t fee, uint64_t count, uint8_t kind,
                             allot_receipt_t *out)
 {
+    if (r->cfg.mode == ALLOT_MODE_FREE && kind != 1) return ALLOT_ERR_MODE; /* A3 */
     allot_status_t st = allot_mint_check(r, owner, fee, count);
     if (st != ALLOT_OK) return st;
     uint64_t pool2 = r->pool + fee, ballots2 = r->ballots + count;
@@ -500,6 +507,27 @@ allot_status_t allot_free_entry(allot_t *r, const uint8_t owner[ALLOT_ID_LEN],
     return mint(r, owner, 0, none, 0, 1, 1, out);
 }
 
+allot_status_t allot_endow(allot_t *r, const uint8_t source[ALLOT_ID_LEN], uint64_t amount)
+{
+    uint64_t pool2;
+    if (!r || !source) return ALLOT_ERR_ARG;
+    if (!r->cfg.jurisdiction_permits) return ALLOT_ERR_DISABLED;
+    if (r->cfg.mode != ALLOT_MODE_FREE) return ALLOT_ERR_MODE;
+    if (r->phase != ALLOT_OPEN) return ALLOT_ERR_PHASE;
+    if (amount == 0) return ALLOT_ERR_DUST;
+    if (!pay_add_ok(r->pool, amount, &pool2)) return ALLOT_ERR_OVERFLOW;
+    /* E3: kind 4 = endowment; no ballot, so first = count = 0 */
+    pre_t p;
+    p.len = 0;
+    pre_str(&p, "ZXV-ALLOT-ENDOW");
+    pre_bytes(&p, r->chain, ALLOT_HASH_LEN);
+    pre_bytes(&p, source, ALLOT_ID_LEN);
+    pre_u64(&p, amount);
+    sha3_256(p.buf, p.len, r->chain);
+    r->pool = pool2;
+    return ALLOT_OK;
+}
+
 allot_status_t allot_reveal(allot_t *r, const uint8_t party[ALLOT_ID_LEN],
                               const uint8_t secret[ALLOT_HASH_LEN])
 {
@@ -638,6 +666,12 @@ allot_status_t allot_select(const allot_t *r, allot_settlement_t *out)
     if (!allot_pick(s.seed, r->ballots, &s.selected_ballot)) return ALLOT_ERR_SELECT;
     if (!allot_owner_of(r, s.selected_ballot, s.steward)) return ALLOT_ERR_SELECT;
 
+    if (r->cfg.mode == ALLOT_MODE_FREE) { /* S7: the whole endowment */
+        s.crown_endowment = r->pool;
+        settlement_link(&s, s.link);
+        *out = s;
+        return ALLOT_OK;
+    }
     s.reserve_skim = ratio_floor(r->pool, r->cfg.skim_num, r->cfg.skim_den); /* S1 */
     s.grant_pool =
         r->cfg.grant_den ? ratio_floor(r->pool, r->cfg.grant_num, r->cfg.grant_den) : 0; /* S2 */
