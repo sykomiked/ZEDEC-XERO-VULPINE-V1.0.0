@@ -141,8 +141,8 @@ toolchains, and [docs/CI.md](docs/CI.md) for what CI checks.
 
 | I want to… | Read |
 |---|---|
-| See the architecture | [ARCHITECTURE.md](ARCHITECTURE.md), [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md) |
-| Navigate the source | [SOURCE_CODE_NAVIGATION_GUIDE.md](SOURCE_CODE_NAVIGATION_GUIDE.md), [SUBSYSTEM_INDEX.md](SUBSYSTEM_INDEX.md) |
+| See the architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Look up any module | [docs/SYSTEM_REFERENCE.md](docs/SYSTEM_REFERENCE.md) |
 | Look up a term or see why a choice was made | [docs/supplemental/](docs/supplemental/README.md) |
 | Read the academic papers | [docs/academic/](docs/academic/README.md) |
 | See the roadmap | [ROADMAP.md](ROADMAP.md) |
