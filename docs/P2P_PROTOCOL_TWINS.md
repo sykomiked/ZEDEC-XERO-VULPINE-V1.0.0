@@ -48,7 +48,7 @@ ledger. A twin adds only the records and the state machine its job needs.
 | **P10 Money** | No twin creates a payment path. Value moves only through the existing economy (Vinea receipts, pay ledger, settlement spine). |
 | **P11 Gateways** | A bridge to the legacy protocol (a real FTP or IRC server) is optional, off by default, and marks everything that crosses it as unsigned outside data. |
 | **P12 Bearers** | Transport scope is compatibility only: serial lines, Ethernet, Wi-Fi, cellular, fibre, satellite and radio are bearers we run over, not networks we operate. |
-| **P13 Amateur radio** | Over amateur bands a twin sends only cleartext, signed emergency traffic: no encryption, no payments, no settlement. A signature is allowed because it does not obscure meaning. |
+| **P13 Amateur radio** | Over amateur bands only cleartext, signed, non-commercial emergency traffic leaves: no encryption, no sessions, no payments, no settlement. This is enforced by the router, not chosen by the user (section 4.3). The signature travels in the clear; it authenticates the message and does not obscure its meaning. |
 
 ## 2. The catalogue
 
@@ -94,7 +94,7 @@ is building it; **Planned** means it is designed here and not yet built.
 | X11 (1984) | Remote graphical display | **ASHELL** (display) | Same consent and logging rules as ASHELL | Planned |
 | X.400 (1984) | Formal message handling | **AMAIL** | | Planned |
 | FidoNet (1984) | Hobbyist store-and-forward mail between BBSes | **AMAIL** | The spool is FidoNet's idea with signatures | Planned |
-| AX.25 packet radio (1984) | Data over amateur radio | **AHAM** | Cleartext signed emergency traffic only (P13) | Planned |
+| AX.25 packet radio (1984) | Data over amateur radio | **AHAM** | Cleartext signed emergency traffic only (P13), enforced by the router | **This PR** (frame and gate) |
 | NTP (1985), Time protocol (1983) | Clock synchronisation | **ATIME** | Several peers' signed timestamps; the median of the agreeing set, outliers tagged F, a split tagged B. SNTP already exists in `kernel/src/timesvc` | Planned |
 | Kerberos (1988), RADIUS (1991) | Central login tickets | **AKEY** | Capability tokens signed by the owner's key; no central ticket server | Planned (Web 4 consent tokens built) |
 | IRC (1988) | Channels and nicknames for live chat | **AIRC** | Owned by the IRC gateway thread: phase 1 is an IRC gateway, phase 2 AIRC on the PQ mesh with large payloads and a public bulletin | Owned |
@@ -110,7 +110,7 @@ is building it; **Planned** means it is designed here and not yet built.
 | HTTP (1991) | Hypertext pages | **AWEB** | Pages are content-addressed bundles, signed by their author, fetched from any holder. Web 2 bridging already exists in `kernel/src/web4` | Planned (bridge built) |
 | Gopher (1991) | Menus of documents | **AWEB** | A Gopher menu is an AFTP listing | **This PR** (listing) |
 | MIME (1992) | Typed attachments | Part of every twin | Each AFTP entry carries a kind; payloads are content-addressed | **This PR** |
-| APRS (1992) | Positions and short messages over amateur radio | **AHAM** | P13 applies | Planned |
+| APRS (1992) | Positions and short messages over amateur radio | **AHAM** | P13 applies | **This PR** (frame and gate) |
 | LDAP (1993) | Directories of people and resources | **ADIR** | Signed directory records in the DHT and in spaces | Planned |
 | DHCP (1993) | Address assignment | Not needed | Peers are their NodeIDs; addresses are bearer details | Not applicable |
 | SSL (1994), TLS (1999) | Encrypted connections | Vinea sessions | Hybrid post-quantum sessions; the repo's own TLS remains for Web 2 bridging | Built |
@@ -233,7 +233,53 @@ Transfer rules:
 Nothing AFTP receives is ever run. An entry's kind is a label for the
 interface, not permission.
 
-### 4.3 Honest limits
+### 4.3 AHAM: the amateur-radio gate (`kernel/src/net/ham_gate.h`, `kernel/src/aproto/aham.h`)
+
+This is the technical side of End-User Agreement section 4.1(e). When the
+router sends on an amateur bearer (`M5_PROTO_HAM_VHF` for AX.25 and APRS,
+`M5_PROTO_HAM_HF` for HF digital modes), it lets out one thing only: an AHAM
+frame. Encryption and value traffic are not switched off by a setting. They
+cannot be sent, because the router refuses every other byte string on those
+bearers and the frame has no field for either.
+
+| Rule | Meaning |
+|---|---|
+| H1 | The frame starts with the magic `AHM1`. |
+| H2 | Precedence is EMERGENCY, PRIORITY (life or safety), WELFARE (health and welfare) or DRILL (an exercise, marked as one). There is no commercial or routine class. |
+| H3 | The sending station's callsign is carried for station identification: 3 to 10 characters from `A-Z`, `0-9` and `/`, with at least one letter and one digit. |
+| H4 | Time, a sequence number and the signer's NodeID. |
+| H5 | The text is 1 to 1024 bytes of printable ASCII or newline. There is no binary data, no UTF-8, no control byte and no attachment. |
+| H6 | An ML-DSA-87 signature over everything before it (context `aproto/v1/aham`), sent in the clear. |
+| H7 | Nothing may follow the signature. |
+
+Enforcement:
+
+- `m5_router_send` refuses any payload on an amateur bearer that is not a
+  well-formed AHAM frame, and counts it in `ham_refused`. `m5_router_broadcast`
+  skips amateur bearers for such a payload and still sends it on the others.
+- `aham_build` produces only frames that the gate accepts, and `aham_open`
+  checks the shape, the key binding and the signature.
+- Tests (`make -C kernel test-aproto`, section 6) show the following are all
+  refused on AX.25 and HF: an AFTP listing, an AFTP offer, an encrypted
+  session record, 4096 random buffers, and a signed frame with a single binary
+  byte in its text. The same encrypted record still goes out over IP.
+
+Honest limits:
+
+- The gate cannot tell whether a person typed text that is itself a code. What
+  it guarantees is that the system never puts ciphertext, a session record, a
+  payment or a settlement on an amateur band. What a licensed operator types
+  remains their responsibility under their licence.
+- A host program that writes straight to a radio device, bypassing the router,
+  bypasses the gate. Radio adapters must be registered with the router.
+- An ML-DSA-87 signature is 4627 bytes, which takes about 31 seconds at
+  1200 baud and about 4 seconds at 9600 baud. Whether a cleartext digital
+  signature is acceptable under each country's amateur rules (for example the
+  United States' 47 CFR 97.113(a)(4) on messages encoded to obscure their
+  meaning) is a question for counsel. This design assumes that it is, because
+  the signature hides nothing.
+
+### 4.4 Honest limits
 
 - AFTP is a library of pure state machines, like Vinea. A host binds it to
   sessions, to storage and to the DHT provider lookups; the zxvd methods for

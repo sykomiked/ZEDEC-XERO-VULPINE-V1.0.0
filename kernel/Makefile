@@ -425,7 +425,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-aipi
 	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
 	$(MAKE) --no-print-directory test-aipi-vna
-	@echo "=== protocol twins: ap_log audit chain, AFTP (signed listings, consented offers, multi-source Merkle-verified gets) ===";
+	@echo "=== protocol twins: ap_log audit chain, AFTP (signed listings, consented offers, multi-source gets), AHAM amateur-radio gate ===";
 	$(MAKE) --no-print-directory test-aproto
 	@echo "=== power: energy per app and per agent, battery, budgets, RAPL, host and phone readers ===";
 	$(MAKE) --no-print-directory test-power
@@ -1734,11 +1734,11 @@ test-aipi-vna:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk src/aipi/test_aipi_vna.c src/aipi/aipi_vna.c $(AIPI_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aipi_vna -lm && $(ZXV_TMP)/test_aipi_vna > $(ZXV_TMP)/test_aipi_vna.log 2>&1 && echo "[PASS] test_aipi_vna ($$(tail -1 $(ZXV_TMP)/test_aipi_vna.log))" || { cat $(ZXV_TMP)/test_aipi_vna.log; echo "[FAIL] test_aipi_vna"; exit 1; }
 
 # Protocol twins (src/aproto, docs/P2P_PROTOCOL_TWINS.md): the ap_log audit chain and AFTP, the FTP twin.
-APROTO_DEPS := src/aproto/ap_log.c src/aproto/aftp.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c
+APROTO_DEPS := src/aproto/ap_log.c src/aproto/aftp.c src/aproto/aham.c src/net/m5route.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c
 
 .PHONY: test-aproto
 test-aproto:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk src/aproto/test_aftp.c $(APROTO_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aftp -lm && $(ZXV_TMP)/test_aftp > $(ZXV_TMP)/test_aftp.log 2>&1 && echo "[PASS] test_aftp ($$(tail -1 $(ZXV_TMP)/test_aftp.log))" || { cat $(ZXV_TMP)/test_aftp.log; echo "[FAIL] test_aftp"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk -Isrc/net -Isrc/crit168 src/aproto/test_aftp.c $(APROTO_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aftp -lm && $(ZXV_TMP)/test_aftp > $(ZXV_TMP)/test_aftp.log 2>&1 && echo "[PASS] test_aftp ($$(tail -1 $(ZXV_TMP)/test_aftp.log))" || { cat $(ZXV_TMP)/test_aftp.log; echo "[FAIL] test_aftp"; exit 1; }
 
 .PHONY: test-aipi
 test-aipi:

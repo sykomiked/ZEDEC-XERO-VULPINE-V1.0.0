@@ -3,10 +3,13 @@
 /* test_aftp.c — host tests for ap_log (the twin audit chain) and AFTP (the FTP
  * twin). Every rule in ap_log.h and aftp.h has a check that tries to break it.
  * Build: make -C kernel test-aproto */
+#define _GNU_SOURCE /* memmem */
 #include <stdio.h>
 #include <string.h>
 
 #include "aftp.h"
+#include "aham.h"
+#include "../net/m5route.h"
 
 static int g_pass, g_fail;
 #define CHECK(c, ...)                                                                              \
@@ -787,6 +790,163 @@ static void test_offer(void)
           "receiver's log still replays end to end");
 }
 
+/* ------------------------------------------------------------------ */
+static uint32_t g_radio_sent;
+static bool radio_send(const m5_address_t *d, const void *data, uint32_t len,
+                       const m5_net_header_t *meta)
+{
+    (void) d;
+    (void) meta;
+    g_radio_sent++;
+    return ham_frame_ok(data, len, 0); /* the "radio" itself double-checks */
+}
+static uint32_t g_ip_sent;
+static bool ip_send(const m5_address_t *d, const void *data, uint32_t len,
+                    const m5_net_header_t *meta)
+{
+    (void) d;
+    (void) data;
+    (void) len;
+    (void) meta;
+    g_ip_sent++;
+    return true;
+}
+
+static void msg(aham_msg_t *m, uint8_t prec, const char *call, const char *text)
+{
+    memset(m, 0, sizeof *m);
+    m->precedence = prec;
+    m->call_len = (uint8_t) strlen(call);
+    memcpy(m->call, call, m->call_len);
+    m->time = 4000000;
+    m->seq = 1;
+    m->text_len = (uint16_t) strlen(text);
+    memcpy(m->text, text, m->text_len);
+}
+
+static void test_ham(void)
+{
+    printf("[6] amateur radio (P13, H1-H7): cleartext, signed, non-commercial, enforced\n");
+    static uint8_t fr[HAM_FRAME_MAX + 16], fr2[HAM_FRAME_MAX + 16];
+    static aham_msg_t m, o;
+    uint8_t r[32];
+    rnd(r, 32);
+    msg(&m, HAM_PREC_EMERGENCY, "KK6ABC", "Bridge on Route 49 out.\nDetour via Calpine Rd.");
+    int32_t fl = aham_build(&m, &A, r, fr, sizeof fr);
+    CHECK(fl > 0 && ham_frame_ok(fr, (uint32_t) fl, 0), "emergency message built (%d bytes)", fl);
+    CHECK(aham_open(fr, (uint32_t) fl, A.pk, &o) == VNA_OK && o.text_len == m.text_len &&
+              memcmp(o.text, m.text, m.text_len) == 0 && o.call_len == 6 &&
+              vna_id_eq(&o.signer, &A.id) && o.precedence == HAM_PREC_EMERGENCY,
+          "it opens and verifies");
+    CHECK(memmem(fr, (size_t) fl, "Detour via Calpine Rd.", 22) != 0 &&
+              memmem(fr, (size_t) fl, "KK6ABC", 6) != 0,
+          "text and callsign are on the air in the clear");
+    CHECK(aham_open(fr, (uint32_t) fl, B.pk, &o) == VNA_ERR_BINDING, "another key: binding");
+    uint32_t caught = 0, tried = 0;
+    for (int32_t i = 0; i < fl; i += 29) {
+        memcpy(fr2, fr, (size_t) fl);
+        fr2[i] ^= 0x01;
+        tried++;
+        caught += aham_open(fr2, (uint32_t) fl, A.pk, &o) != VNA_OK;
+    }
+    CHECK(caught == tried, "every changed byte refused (%u of %u)", caught, tried);
+    CHECK(!ham_frame_ok(fr, (uint32_t) fl - 1, 0) && !ham_frame_ok(fr, 5, 0), "truncated refused");
+    memcpy(fr2, fr, (size_t) fl);
+    fr2[fl] = 0;
+    CHECK(!ham_frame_ok(fr2, (uint32_t) fl + 1, 0), "a trailing byte refused (H7)");
+
+    /* H2-H5 at building: the system cannot produce a frame the gate refuses */
+    static const struct {
+        uint8_t prec;
+        const char *call, *text, *why;
+    } bad[] = {
+        {0, "KK6ABC", "hello", "no precedence"},
+        {5, "KK6ABC", "for sale: 2 radios $40", "a fifth (commercial) precedence"},
+        {1, "kk6abc", "hello", "lower-case callsign"},
+        {1, "K6", "hello", "callsign too short"},
+        {1, "KKKKKK6ABCD", "hello", "callsign too long"},
+        {1, "ABCDEF", "hello", "callsign without a digit"},
+        {1, "123456", "hello", "callsign without a letter"},
+        {1, "KK6-ABC", "hello", "callsign with a dash"},
+        {1, "KK6ABC", "", "empty text"},
+        {1, "KK6ABC", "caf\xc3\xa9", "non-ASCII text"},
+        {1, "KK6ABC", "a\tb", "tab"},
+        {1, "KK6ABC", "a\x1b[2J", "terminal escape"},
+        {1, "KK6ABC", "a\rb", "carriage return"},
+    };
+    uint32_t refused = 0;
+    for (uint32_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        msg(&m, bad[i].prec, bad[i].call, bad[i].text);
+        int32_t l = aham_build(&m, &A, r, fr2, sizeof fr2);
+        refused += l < 0;
+        if (l >= 0) printf("    built a frame with %s\n", bad[i].why);
+    }
+    CHECK(refused == sizeof bad / sizeof *bad, "every bad message refused at building");
+    msg(&m, HAM_PREC_DRILL, "W1AW/6", "THIS IS A DRILL");
+    CHECK(aham_build(&m, &A, r, fr2, sizeof fr2) > 0, "a drill with a portable callsign builds");
+    msg(&m, HAM_PREC_WELFARE, "KK6ABC", "x");
+    m.text_len = HAM_TEXT_MAX + 1;
+    CHECK(aham_build(&m, &A, r, fr2, sizeof fr2) == VNA_ERR_PARSE, "text over 1024 refused");
+    msg(&m, HAM_PREC_WELFARE, "KK6ABC", "x");
+    CHECK(aham_build(&m, &A, r, fr2, 100) == VNA_ERR_SPACE, "small buffer");
+
+    /* everything else the stack makes is refused by the gate */
+    CHECK(!ham_frame_ok(g_buf, sizeof g_buf, 0), "an AFTP listing is not a ham frame");
+    static uint8_t ob[12000];
+    aftp_entry_t f;
+    entry(&f, "x", 1, 10);
+    rnd(r, 32);
+    int32_t ol = aftp_offer_make(&FA, &B.id, &f, 0, 0, 900, r, 4000000, ob, sizeof ob);
+    CHECK(ol > 0 && !ham_frame_ok(ob, (uint32_t) ol, 0), "an AFTP offer is not a ham frame");
+    uint32_t sweep_ok = 0;
+    for (uint32_t i = 0; i < 4096; i++) {
+        rnd(fr2, (uint32_t) fl);
+        sweep_ok += ham_frame_ok(fr2, (uint32_t) fl, 0);
+    }
+    CHECK(sweep_ok == 0, "4096 random (ciphertext-like) buffers all refused");
+    /* a signed frame whose text carries ciphertext bytes is refused */
+    memcpy(fr2, fr, (size_t) fl);
+    fr2[6 + 6 + 44 + 2 + 3] = 0x9c;
+    CHECK(!ham_frame_ok(fr2, (uint32_t) fl, 0), "one binary byte in the text: refused (H5)");
+
+    /* the router enforces it: not a user choice */
+    static m5_router_t rt;
+    m5_address_t local, dst_ham, dst_ip, gw;
+    memset(&local, 0, sizeof local);
+    m5_router_init(&rt, &local);
+    m5_router_register_adapter(&rt, M5_PROTO_HAM_VHF, "ax25", radio_send, 0, 0, 0);
+    m5_router_register_adapter(&rt, M5_PROTO_HAM_HF, "hf", radio_send, 0, 0, 0);
+    m5_router_register_adapter(&rt, M5_PROTO_IPV6, "ip6", ip_send, 0, 0, 0);
+    m5_addr_from_callsign(&dst_ham, "KK6XYZ", M5_PROTO_HAM_VHF);
+    memset(&dst_ip, 0, sizeof dst_ip);
+    uint8_t ip6[16] = {0x20, 0x01, 0x0d, 0xb8, 1};
+    m5_addr_from_ipv6(&dst_ip, ip6, 4242);
+    memset(&gw, 0, sizeof gw);
+    m5_router_add_route(&rt, &dst_ham, &gw, M5_PROTO_HAM_VHF, 1, 100, 1);
+    m5_router_add_route(&rt, &dst_ip, &gw, M5_PROTO_IPV6, 1, 10, 1000);
+    CHECK(m5_proto_is_amateur(M5_PROTO_HAM_VHF) && m5_proto_is_amateur(M5_PROTO_HAM_HF) &&
+              !m5_proto_is_amateur(M5_PROTO_IPV6) && !m5_proto_is_amateur(M5_PROTO_LORA),
+          "VHF/UHF and HF amateur bearers are marked");
+    CHECK(m5_router_send(&rt, &dst_ham, fr, (uint32_t) fl, 0) == fl && g_radio_sent == 1,
+          "a signed cleartext frame goes out on AX.25");
+    CHECK(m5_router_send(&rt, &dst_ham, ob, (uint32_t) ol, 0) == -1 && g_radio_sent == 1 &&
+              rt.ham_refused == 1,
+          "an AFTP offer is refused on AX.25 and never reaches the radio");
+    static uint8_t sealed[200];
+    rnd(sealed, sizeof sealed);
+    CHECK(m5_router_send(&rt, &dst_ham, sealed, sizeof sealed, 0) == -1 && g_radio_sent == 1 &&
+              rt.ham_refused == 2,
+          "an encrypted session record is refused on AX.25");
+    CHECK(m5_router_send(&rt, &dst_ip, sealed, sizeof sealed, 0) == (int32_t) sizeof sealed &&
+              g_ip_sent == 1,
+          "the same record goes out on IP");
+    int32_t bc = m5_router_broadcast(&rt, sealed, sizeof sealed, 0);
+    CHECK(bc == 1 && g_ip_sent == 2 && g_radio_sent == 1 && rt.ham_refused == 4,
+          "a broadcast of ciphertext skips both amateur bearers");
+    bc = m5_router_broadcast(&rt, fr, (uint32_t) fl, 0);
+    CHECK(bc == 3 && g_radio_sent == 3, "a broadcast of a ham frame reaches every bearer");
+}
+
 int main(void)
 {
     uint8_t seed[32];
@@ -806,6 +966,7 @@ int main(void)
     test_dir();
     test_get();
     test_offer();
+    test_ham();
     printf("%d passed, %d failed\n", g_pass, g_fail);
     return g_fail ? 1 : 0;
 }
