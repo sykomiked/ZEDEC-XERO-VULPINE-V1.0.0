@@ -31,6 +31,7 @@ name   Birdsong
 version 1.0.0
 slot   55
 layer  L1
+matrix 55
 icon   icons/l1/055-birdsong.svg
 budget 233
 needs  mic

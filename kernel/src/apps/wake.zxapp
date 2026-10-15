@@ -10,6 +10,7 @@ name   Wake
 version 1.0.0
 slot   14
 layer  L1
+matrix 14
 icon   icons/l1/014-wake.svg
 budget 55
 needs  journal

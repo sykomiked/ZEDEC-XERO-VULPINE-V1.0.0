@@ -10,6 +10,7 @@ name   Platen
 version 1.0.0
 slot   115
 layer  L1
+matrix 115
 icon   icons/l1/115-platen.svg
 budget 55
 needs  print

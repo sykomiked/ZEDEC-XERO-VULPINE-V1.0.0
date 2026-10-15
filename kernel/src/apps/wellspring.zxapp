@@ -39,6 +39,7 @@ name   Wellspring
 version 1.0.0
 slot   89
 layer  L1
+matrix 89
 icon   icons/l1/089-wellspring.svg
 budget 233
 needs  fs.read

@@ -631,6 +631,28 @@ static bool whole(const char *w, uint32_t n, uint64_t max, uint64_t *out)
     return true;
 }
 
+/* M1: "matrix <n>", 0 to 144 in one to three digits; never wraps. */
+static int parse_matrix(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                        uint32_t k)
+{
+    if (a->matrix != ZXAPP_MATRIX_NONE) {
+        put_err(a, line, "a second matrix line", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    uint32_t v = 0;
+    bool ok = k == 2 && wl[1] >= 1u && wl[1] <= 3u;
+    for (uint32_t i = 0; ok && i < wl[1]; i++) {
+        ok = w[1][i] >= '0' && w[1][i] <= '9';
+        v = v * 10u + (uint32_t) (w[1][i] - '0');
+    }
+    if (!ok || v > ZXAPP_MATRIX_TOP) {
+        put_err(a, line, "a matrix layer is a number from 0 (the core) to 144", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    a->matrix = (uint8_t) v;
+    return ZXAPP_OK;
+}
+
 /* P1: "pending <language> <entry>". The language is a fit-table name with
  * spaces as _ (letters, digits and + # - . _), checked against the table by
  * tools/apps/lang_coverage.py; the entry is the one a runnable language
@@ -766,6 +788,7 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         put_err(a, 0, "no manifest text", 0);
         return ZXAPP_E_ARG;
     }
+    a->matrix = ZXAPP_MATRIX_NONE;
     zxapp_cid(text, len, a->cid);
     rd_t r = {text, len, 0, 0};
     const char *p;
@@ -907,6 +930,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "matrix")) {
+            int rc = parse_matrix(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
         if (word_is(w[0], wl[0], "intent")) {
             int rc = parse_intent(a, r.line, w, wl, k);
             if (rc != ZXAPP_OK) return rc;
@@ -921,7 +949,7 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use, intent, pending, check, slot, layer, icon, budget, needs)",
+                "provides, use, intent, pending, check, matrix, slot, layer, icon, budget, needs)",
                 0);
         return ZXAPP_E_SYNTAX;
     }
@@ -931,6 +959,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
     }
     if (!a->id[0]) {
         put_err(a, 0, "the manifest has no id", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->matrix != ZXAPP_MATRIX_NONE && zxapp_slot_layer(a->slot) == ZXAPP_LAYER_L1 &&
+        a->matrix != a->slot) {
+        put_err(a, 0, "an L1 app sits on its own matrix layer: matrix must equal slot", 0);
         return ZXAPP_E_SYNTAX;
     }
     return ZXAPP_OK;

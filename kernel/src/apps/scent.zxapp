@@ -10,6 +10,7 @@ name   Scent
 version 1.0.0
 slot   5
 layer  L1
+matrix 5
 icon   icons/l1/005-scent.svg
 budget 233
 needs  search

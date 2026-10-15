@@ -11,6 +11,7 @@ name   Murmuration
 version 1.0.0
 slot   61
 layer  L1
+matrix 61
 icon   icons/l1/061-murmuration.svg
 budget 89
 needs  swarm

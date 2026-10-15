@@ -10,6 +10,7 @@ name   Tidewatch
 version 1.0.0
 slot   15
 layer  L1
+matrix 15
 icon   icons/l1/015-tidewatch.svg
 budget 55
 needs  sys.read

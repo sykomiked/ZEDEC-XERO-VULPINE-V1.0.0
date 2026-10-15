@@ -10,6 +10,7 @@ name   Shepherd
 version 1.0.0
 slot   142
 layer  L1
+matrix 142
 icon   icons/l1/142-shepherd.svg
 budget 233
 needs  screen.time

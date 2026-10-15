@@ -45,6 +45,7 @@ name   Stillwater
 version 1.0.0
 slot   144
 layer  L1
+matrix 144
 icon   icons/l1/144-stillwater.svg
 budget 233
 needs  notify

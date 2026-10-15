@@ -2991,6 +2991,39 @@ static int check_err(const char *line, const char *want)
     return 1;
 }
 
+/* M1: the matrix line, 0..144, never wrapped; an L1 app sits on its slot */
+static void test_matrix(void)
+{
+    CHECK(parse("zxapp 1\nid m\n") == ZXAPP_OK && A.matrix == ZXAPP_MATRIX_NONE,
+          "no matrix line: none given");
+    CHECK(parse("zxblock 1\nid m\nmatrix 0\n") == ZXAPP_OK && A.matrix == 0,
+          "a block in the core: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nslot 89\nlayer L1\nmatrix 89\n") == ZXAPP_OK && A.matrix == 89,
+          "an L1 app on its own layer: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nmatrix 144\nslot 144\n") == ZXAPP_OK && A.matrix == 144,
+          "the outermost layer, matrix before slot: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nslot 200\nmatrix 13\n") == ZXAPP_OK && A.matrix == 13,
+          "an L2 app names any layer: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nmatrix 007\n") == ZXAPP_OK && A.matrix == 7, "leading zeros");
+    static const char *bad[] = {
+        "matrix 145", "matrix 300", "matrix 256", "matrix 1000", "matrix -1",
+        "matrix 4a",  "matrix",     "matrix 1 2", "matrix 0144",
+    };
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        char t[128];
+        snprintf(t, sizeof t, "zxapp 1\nid m\n%s\n", bad[i]);
+        CHECK(parse(t) == ZXAPP_E_SYNTAX && A.err_line == 3 &&
+                  strstr(A.err, "a matrix layer is a number from 0 (the core) to 144"),
+              "%s is refused, never wrapped: %s", bad[i], A.err);
+    }
+    CHECK(parse("zxapp 1\nid m\nmatrix 1\nmatrix 1\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "a second matrix line") && A.err_line == 4,
+          "a second matrix line");
+    CHECK(parse("zxapp 1\nid m\nslot 89\nmatrix 88\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "matrix must equal slot"),
+          "an L1 app off its own layer");
+}
+
 static void test_checks(void)
 {
     static zxapp_t K, BLK, USER;
@@ -3130,6 +3163,7 @@ int main(int argc, char **argv)
     test_board();
     test_lingua();
     test_checks();
+    test_matrix();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

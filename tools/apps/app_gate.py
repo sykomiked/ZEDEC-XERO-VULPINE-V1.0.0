@@ -76,7 +76,7 @@ MODEL_LINES = 20
 
 def manifest(path):
     m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": [],
-         "name": "", "use_refs": {}, "checks": [], "agree": set()}
+         "name": "", "use_refs": {}, "checks": [], "agree": set(), "matrix": None}
     inline = False
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -92,6 +92,8 @@ def manifest(path):
                 m["id"] = w[1]
             elif w[0] == "slot" and len(w) == 2:
                 m["slot"] = int(w[1], 10)
+            elif w[0] == "matrix" and len(w) == 2 and w[1].isdigit():
+                m["matrix"] = int(w[1], 10)
             elif w[0] == "model" and len(w) == 2:
                 m["model"] = w[1]
             elif w[0] == "provides" and len(w) >= 3:
@@ -287,6 +289,66 @@ def code_lines(path):
     return n
 
 
+# Integers only (CLAUDE.md "Exact arithmetic"): a floating type, a float function or a
+# decimal literal in an app's code, blocks or tests fails the gate outright, in every
+# language it may be written in. Comments and strings are skipped, nothing else.
+C_LIKE = (".c", ".h", ".cpp", ".cc", ".rs", ".zig", ".inc")
+LINE_COMMENT = {".eve": "#", ".sutra": "#", ".kron": "#", ".myra": ";", ".tb": "!",
+                 ".f90": "!", ".fs": "\\"}
+FLOAT_WORDS = ("float", "double", "f32", "f64", "fabs", "fabsf", "sqrt", "sqrtf", "powf")
+FLOAT_MORE = {".eve": ("long_float", "digits"), ".sutra": ("comp-1", "comp-2"),
+              ".f": ("real", "complex", "dble"), ".f90": ("real", "complex", "dble"),
+              ".tb": ("real", "complex"), ".bas": ("sqr", "exp", "log")}
+
+
+def float_words(ext):
+    words = FLOAT_WORDS + FLOAT_MORE.get(ext, ())
+    return re.compile(r"(?<![\w.-])(%s)(?![\w-])" % "|".join(map(re.escape, words)), re.I)
+FLOAT_LIT = re.compile(r"(?<![\w.])(\d+\.\d*|\.\d+|\d+[eE][+-]?\d+)(?![\w.])")
+
+
+def code_of(path):
+    """The code of a source file, comments and strings blanked, as (line, text) pairs."""
+    ext = os.path.splitext(path)[1].lower()
+    text = open(path, encoding="utf-8", errors="replace").read()
+    if ext in C_LIKE:
+        text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group().count("\n"), text, flags=re.S)
+        text = re.sub(r'"(\\.|[^"\\\n])*"|\'(\\.|[^\'\\\n])*\'', '""', text)
+        text = re.sub(r"//.*", "", text)
+    out = []
+    for n, line in enumerate(text.split("\n"), 1):
+        if ext == ".f" and line[:1] in ("C", "c", "*", "!"):
+            continue
+        if ext in (".f", ".f90"):
+            line = line.split("!", 1)[0]
+        if ext == ".bas" and re.match(r"\s*\d*\s*REM\b", line, re.I):
+            continue
+        if ext == ".fs":
+            line = re.sub(r"\(\s[^)]*\)", "", line)
+        mark = LINE_COMMENT.get(ext)
+        if mark:
+            line = line.split(mark, 1)[0]
+        if ext not in C_LIKE:
+            line = re.sub(r'"[^"]*"', '""', line)
+        out.append((n, line))
+    return out
+
+
+def floats_in(paths):
+    """Each place a path uses floating point, as gate errors."""
+    errors = []
+    for path in paths:
+        if path.endswith(".wasm") or not os.path.isfile(path):
+            continue
+        words = float_words(os.path.splitext(path)[1].lower())
+        for n, line in code_of(path):
+            m = words.search(line) or FLOAT_LIT.search(line)
+            if m:
+                errors.append(f"{os.path.relpath(path, ROOT)}:{n}: floating point ({m.group().strip()}): "
+                              "integers only, kernel/src/rational for fractions")
+    return errors
+
+
 def delivered(app_id):
     """--app: the app is really there, with code and its own tests."""
     errors = []
@@ -355,6 +417,37 @@ def tree_cids():
     return out
 
 
+def check_matrix(mans):
+    """Every manifest names its matrix layer (zxapp.h M1): a shared block is the core
+    (0), an L1 app sits on its slot, and a part MATRIX.tsv homes sits on that layer."""
+    home = {}
+    for line in open(MATRIX, encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if not line.startswith("#") and len(f) >= 5 and f[0].isdigit():
+            for word in f[4].split():
+                if word.startswith("apps/") and word.endswith((".zxapp", ".zxblock")):
+                    home[word] = int(f[0], 10)
+    errors = []
+    for p, m in mans:
+        rel = os.path.relpath(p, ROOT)
+        part = os.path.relpath(p, SRC)
+        want, why = None, ""
+        if p.endswith(".zxblock"):
+            want, why = 0, "a shared block is the core"
+        elif 1 <= m["slot"] <= 144:
+            want, why = m["slot"], "an L1 app sits on its slot"
+        elif part in home:
+            want, why = home[part], "MATRIX.tsv homes it there"
+        if m["matrix"] is None:
+            errors.append(f"{rel}: no matrix line (matrix <0..144>, zxapp.h M1)"
+                          + (f"; {why}: matrix {want}" if want is not None else ""))
+        elif m["matrix"] > 144:
+            errors.append(f"{rel}: matrix {m['matrix']} is past 144")
+        elif want is not None and m["matrix"] != want:
+            errors.append(f"{rel}: matrix {m['matrix']}, but {why}: matrix {want}")
+    return errors
+
+
 def check_proofs(mans):
     """K1: an app proves each entry it provides with a check line, and an entry it runs in
     two languages or more with a "= both" line too (where they disagree), unless a
@@ -396,6 +489,7 @@ def gate_errors(want):
     errors += check_layers([(p, manifest(p)) for p in files])
     errors += check_slots([(p, manifest(p)) for p in files])
     errors += check_proofs([(p, manifest(p)) for p in files])
+    errors += check_matrix([(p, manifest(p)) for p in files])
     cids = None
     claimed = set()
     for p in files:
@@ -417,6 +511,15 @@ def gate_errors(want):
                 stem = full[:-5]
                 used.update(os.path.normpath(stem + e) for e in WASM_SRC)
         folder = os.path.join(blocks, m["id"])
+        mine = sorted(used)
+        if m["id"] and os.path.isdir(folder):
+            mine += [os.path.join(folder, f) for f in sorted(os.listdir(folder))]
+        if m["id"]:
+            mine += [os.path.join(TESTS, f"{m['id']}_{k}.inc") for k in ("zxapp", "apps")]
+        if m["model"]:
+            model_c = os.path.join(SRC, m["model"])
+            mine += [model_c, model_c[:-2] + ".h"]
+        errors += [e for e in floats_in(sorted(set(mine))) if e not in errors]
         if m["id"] and os.path.isdir(folder):
             for f in sorted(os.listdir(folder)):
                 full = os.path.normpath(os.path.join(folder, f))

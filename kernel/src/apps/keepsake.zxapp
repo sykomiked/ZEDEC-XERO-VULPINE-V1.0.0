@@ -10,6 +10,7 @@ name   Keepsake
 version 1.0.0
 slot   10
 layer  L1
+matrix 10
 icon   icons/l1/010-keepsake.svg
 budget 233
 needs  backup

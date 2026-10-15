@@ -9,6 +9,7 @@ name   Waymark
 version 1.0.0
 slot   85
 layer  L1
+matrix 85
 icon   icons/l1/085-waymark.svg
 budget 233
 needs  location

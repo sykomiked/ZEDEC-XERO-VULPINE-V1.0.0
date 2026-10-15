@@ -182,6 +182,17 @@
  *      budget or needs (the app that uses it declares them). Each of slot,
  *      layer, icon and budget appears at most once.
  *
+ * Every manifest may name its place in the 144-layer matrix
+ * (docs/spec/MATRIX.md), so the fabricator can hold each part to its
+ * Zeckendorf ancestors:
+ *
+ *   M1 "matrix <n>": the matrix layer the manifest's code belongs to, 0
+ *      (the core: the shared blocks) to 144, at most once, in one to three
+ *      digits. A number past 144 is refused, never wrapped (300 is not 44).
+ *      Blocks may carry it (the one registry line they may). An L1 app with
+ *      a slot sits on its own layer: its matrix must equal its slot.
+ *      ZXAPP_MATRIX_NONE when the manifest names none.
+ *
  * A manifest carries its own proof that it works, so a copy of it built
  * anywhere (by the wave loop, or the fabricator from verified blocks) can
  * be judged by the same lines.
@@ -224,6 +235,8 @@
 #define ZXAPP_CAP_MAX     24u
 #define ZXAPP_SCOPE_MAX   48u
 #define ZXAPP_SLOTS       407u
+#define ZXAPP_MATRIX_TOP  144u /* M1: the outermost matrix layer */
+#define ZXAPP_MATRIX_NONE 255u /* M1: no matrix line */
 #define ZXAPP_CHECKS      32u /* K1: check lines in one manifest */
 #define ZXAPP_CHECK_VALS  16u /* K1: values in one input or answer */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
@@ -369,6 +382,7 @@ typedef struct zxapp {
     uint32_t nintent;
     uint16_t slot;                   /* R1: 1..ZXAPP_SLOTS; 0 = none given */
     uint8_t layer;                   /* R1: ZXAPP_LAYER_* */
+    uint8_t matrix;                  /* M1: 0..144; ZXAPP_MATRIX_NONE = none given */
     char icon[ZXAPP_PATH_MAX];       /* R2: "" = none given */
     uint64_t budget;                 /* R2: tokens per cycle; 0 = none given */
     zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */

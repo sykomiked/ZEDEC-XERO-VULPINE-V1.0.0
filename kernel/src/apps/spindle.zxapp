@@ -9,6 +9,7 @@ name   Spindle
 version 1.0.0
 slot   22
 layer  L1
+matrix 22
 icon   icons/l1/022-spindle.svg
 budget 233
 needs  sys.read

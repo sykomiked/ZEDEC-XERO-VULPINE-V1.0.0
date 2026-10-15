@@ -10,6 +10,7 @@ name   Sounding
 version 1.0.0
 slot   16
 layer  L1
+matrix 16
 icon   icons/l1/016-sounding.svg
 budget 55
 needs  sys.read

@@ -10,6 +10,7 @@ name   Almanac
 version 1.0.0
 slot   17
 layer  L1
+matrix 17
 icon   icons/l1/017-almanac.svg
 budget 233
 needs  sys.read
