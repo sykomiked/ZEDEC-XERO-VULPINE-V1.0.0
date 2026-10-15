@@ -46,6 +46,11 @@ const char *zt_vk_name(const zt_vk_t *g)
     (void) g;
     return "";
 }
+int zt_vk_i32(const zt_vk_t *g)
+{
+    (void) g;
+    return 0;
+}
 int zt_vk_map(zt_vk_t *g, const void *base, uint64_t len)
 {
     (void) g, (void) base, (void) len;
@@ -97,7 +102,7 @@ void zt_vk_stats(const zt_vk_t *g, zt_vk_stats_t *out)
 #        include <dlfcn.h>
 #    endif
 
-#    include ZT_VK_SPV_H /* zv_spv_<ZK>[]: one SPIR-V module per kernel */
+#    include ZT_VK_SPV_H /* zv_mods, zv_mods_i32: one SPIR-V module per kernel, each set */
 
 #    define ZV_REGIONS 16u
 #    define ZV_R       4u   /* rows per product workgroup */
@@ -229,6 +234,7 @@ struct zt_vk {
     char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
     zt_vk_stats_t st;
     uint32_t min_tokens;
+    bool i32; /* the kernels without 64-bit integers (zv_mods_i32) */
 };
 
 static uint64_t now_ns(void)
@@ -539,10 +545,10 @@ zt_vk_t *zt_vk_new(int index, char *err, uint32_t errcap)
     snprintf(g->name, sizeof g->name, "%s", pp.deviceName);
     VkPhysicalDeviceFeatures pf;
     g->vk.GetPhysicalDeviceFeatures(g->pd, &pf);
-    if (!pf.shaderInt64) {
-        say(err, errcap, "this GPU has no 64-bit integers in shaders (shaderInt64)", 0);
-        goto fail;
-    }
+    /* no 64-bit integers in shaders (many Mali and Adreno): the kernels that do
+     * those steps on pairs of 32-bit words; ZT_VK_FORCE_I32=1 takes them anywhere */
+    const char *fi32 = getenv("ZT_VK_FORCE_I32");
+    g->i32 = !pf.shaderInt64 || (fi32 && fi32[0] == '1');
     g->vk.GetPhysicalDeviceMemoryProperties(g->pd, &g->memp);
     g->max_range = pp.limits.maxStorageBufferRange;
     g->align =
@@ -589,7 +595,7 @@ zt_vk_t *zt_vk_new(int index, char *err, uint32_t errcap)
     qi.queueCount = 1;
     qi.pQueuePriorities = &prio;
     VkPhysicalDeviceFeatures want = {0};
-    want.shaderInt64 = VK_TRUE;
+    want.shaderInt64 = g->i32 ? VK_FALSE : VK_TRUE;
     const char *exts[] = {VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME};
     VkDeviceCreateInfo di = {.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     di.queueCreateInfoCount = 1;
@@ -634,10 +640,12 @@ zt_vk_t *zt_vk_new(int index, char *err, uint32_t errcap)
         say(err, errcap, "cannot create the pipeline layout", 0);
         goto fail;
     }
+    _Static_assert(sizeof zv_mods == sizeof zv_mods_i32, "one module per kernel in each set");
+    const zv_mod_t *mods = g->i32 ? zv_mods_i32 : zv_mods;
     for (uint32_t i = 0; i < sizeof zv_mods / sizeof zv_mods[0]; i++) {
-        uint32_t k = zv_mods[i].zk;
+        uint32_t k = mods[i].zk;
         VkPipeline *pp_ = k >= 100 ? &g->mm[(k - 100) / 3][(k - 100) % 3] : &g->zk[k];
-        if (make_pipeline(g, zv_mods[i].code, zv_mods[i].bytes, pp_)) {
+        if (make_pipeline(g, mods[i].code, mods[i].bytes, pp_)) {
             say(err, errcap, "a Vulkan kernel did not build", 0);
             goto fail;
         }
@@ -674,6 +682,11 @@ fail:
 const char *zt_vk_name(const zt_vk_t *g)
 {
     return g ? g->name : "";
+}
+
+int zt_vk_i32(const zt_vk_t *g)
+{
+    return g && g->i32;
 }
 
 /* ---- regions ---- */

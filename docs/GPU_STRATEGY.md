@@ -92,10 +92,18 @@ end-user devices need no shader compiler.
   cache is imported in place where the driver allows it
   (`VK_EXT_external_memory_host`), else mirrored and copied in and out around
   each pass (slower, the same bits).
-- **Needs 64-bit integers in shaders (`shaderInt64`).** Desktop Radeon,
-  Intel and NVIDIA have them; many Mali and Adreno parts do not. On those the
-  backend says so and the engine stays on the CPU. A variant that does the
-  64-bit steps as pairs of 32-bit words is the next step for them.
+- **With or without 64-bit integers in shaders.** Desktop Radeon, Intel and
+  NVIDIA have `shaderInt64`; many Mali and Adreno parts do not. Every kernel
+  is built twice: with 64-bit integers, and with none (`-DZV_I32=1`, no
+  `Int64` capability in the SPIR-V), where each 64-bit value is a pair of
+  32-bit words and each 64-bit step (carries, signed compares, shifts,
+  multiplies, division) is done exactly on the pair. A GPU without
+  `shaderInt64` gets the second set; `ZT_VK_FORCE_I32=1` takes it on any GPU.
+  Checked on lavapipe with that knob: `test-vk` runs all 29 checks on both
+  sets (state imported and mirrored), `spirv-dis` finds no 64-bit integer in
+  the second set, and Qwen2.5-1.5B Q4_K_M with `--gpu-resident` gives the
+  CPU's exact token ids and `zt.logits_fnv`. Not yet run on a real Mali or
+  Adreno.
 - **Checked (2026-10-15, lavapipe).** `make -C kernel test-vk` (in
   `verify-all`) builds both ways with `-Werror` and runs `spirv-val` on all
   20 kernels. It then runs `test_zt_metal.c`'s checks: random products,

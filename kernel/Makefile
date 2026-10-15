@@ -1729,28 +1729,38 @@ test-cuda: test-cuda-offline
 # The Vulkan backend (zt_vk.c: AMD Radeon, Arm Mali, Qualcomm Adreno, Intel,
 # NVIDIA). test-vk builds zt_vk.c both ways (stubs without the SPIR-V, the real
 # backend with it) with -Werror; with glslangValidator it builds the 20 kernels
-# from zt_vk.comp and validates them (spirv-val, when installed); with a
-# Vulkan device that has shaderInt64 (a GPU, or lavapipe: Mesa's Vulkan on the
+# from zt_vk.comp twice (64-bit integers, and -DZV_I32=1: pairs of 32-bit
+# words for GPUs without shaderInt64) and validates all 40 (spirv-val, when
+# installed), checking that no ZV_I32 module declares the Int64 capability
+# (spirv-dis); with a Vulkan device (a GPU, or lavapipe: Mesa's Vulkan on the
 # CPU, apt mesa-vulkan-drivers) it runs test_zt_vk, bit for bit against the C
-# reference, also with shared state mirrored. SKIP for what is missing, unless
+# reference, also with shared state mirrored, and again with ZT_VK_FORCE_I32=1
+# (the 32-bit kernels on any device). SKIP for what is missing, unless
 # ZT_VK_REQUIRE=1.
 .PHONY: test-vk
 test-vk:
 	@mkdir -p $(ZXV_TMP)
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -c src/tensor/zt_vk.c -o $(ZXV_TMP)/zt_vk_stub.o && echo "[PASS] zt_vk builds without Vulkan (stubs)" || { echo "[FAIL] zt_vk stub build"; exit 1; }
 	@if ! command -v glslangValidator >/dev/null; then echo "[SKIP] zt_vk kernels (needs glslangValidator: apt glslang-tools)"; exit 0; fi; \
-	sh src/tensor/gen_zt_vk_spv.sh $(ZXV_TMP)/zt_vk_spv.h && echo "[PASS] zt_vk.comp builds to SPIR-V (20 kernels)" || { echo "[FAIL] zt_vk.comp"; exit 1; }; \
+	sh src/tensor/gen_zt_vk_spv.sh $(ZXV_TMP)/zt_vk_spv.h && echo "[PASS] zt_vk.comp builds to SPIR-V (20 kernels, with 64-bit integers and with 32-bit words only)" || { echo "[FAIL] zt_vk.comp"; exit 1; }; \
 	if command -v spirv-val >/dev/null; then \
-	  for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do glslangValidator -S comp --target-env vulkan1.1 -DZK=$$k -o $(ZXV_TMP)/zt_vk_$$k.spv src/tensor/zt_vk.comp >/dev/null && spirv-val --target-env vulkan1.1 $(ZXV_TMP)/zt_vk_$$k.spv || { echo "[FAIL] spirv-val kernel $$k"; exit 1; }; done; \
-	  echo "[PASS] spirv-val: all 20 kernels valid for Vulkan 1.1"; \
+	  for i32 in 0 1; do for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do glslangValidator -S comp --target-env vulkan1.1 -DZK=$$k -DZV_I32=$$i32 -o $(ZXV_TMP)/zt_vk_$${i32}_$$k.spv src/tensor/zt_vk.comp >/dev/null && spirv-val --target-env vulkan1.1 $(ZXV_TMP)/zt_vk_$${i32}_$$k.spv || { echo "[FAIL] spirv-val kernel $$k (ZV_I32=$$i32)"; exit 1; }; done; done; \
+	  echo "[PASS] spirv-val: all 40 kernels (20 each set) valid for Vulkan 1.1"; \
+	  if command -v spirv-dis >/dev/null; then \
+	    for k in 0 1 2 4 5 6 7 8 9 10 11 12 13 14 100 101 102 103 104 105; do spirv-dis $(ZXV_TMP)/zt_vk_1_$$k.spv > $(ZXV_TMP)/zt_vk_1_$$k.dis || { echo "[FAIL] spirv-dis kernel $$k"; exit 1; }; if grep -qE "OpCapability Int64|OpTypeInt 64" $(ZXV_TMP)/zt_vk_1_$$k.dis; then echo "[FAIL] ZV_I32 kernel $$k uses 64-bit integers"; exit 1; fi; done; \
+	    echo "[PASS] spirv-dis: no ZV_I32 kernel declares Int64 or a 64-bit integer type"; \
+	  else echo "[SKIP] the ZV_I32 Int64 check (spirv-dis: apt spirv-tools)"; fi; \
 	else echo "[SKIP] spirv-val (apt spirv-tools)"; fi; \
 	if ! echo '#include <vulkan/vulkan.h>' | gcc -E -x c - >/dev/null 2>&1; then echo "[SKIP] test_zt_vk (needs the Vulkan headers: apt libvulkan-dev)"; exit 0; fi; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' src/tensor/test_zt_vk.c src/tensor/zt_vk.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -ldl -lpthread -o $(ZXV_TMP)/test_zt_vk || { echo "[FAIL] test_zt_vk build"; exit 1; }; \
-	for mode in import mirror; do \
-	  if [ $$mode = mirror ]; then export ZT_VK_NO_IMPORT=1; fi; \
-	  $(ZXV_TMP)/test_zt_vk > $(ZXV_TMP)/test_zt_vk_$$mode.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_vk_$$mode.log || true; echo "[PASS] test_zt_vk, state $$mode ($$(tail -1 $(ZXV_TMP)/test_zt_vk_$$mode.log))"; } || { cat $(ZXV_TMP)/test_zt_vk_$$mode.log; echo "[FAIL] test_zt_vk, state $$mode"; exit 1; }; \
-	  if grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_vk_$$mode.log; then break; fi; \
-	done
+	for set in int64 i32; do for mode in import mirror; do \
+	  if [ $$set = i32 ]; then export ZT_VK_FORCE_I32=1; else unset ZT_VK_FORCE_I32; fi; \
+	  if [ $$mode = mirror ]; then export ZT_VK_NO_IMPORT=1; else unset ZT_VK_NO_IMPORT; fi; \
+	  log=$(ZXV_TMP)/test_zt_vk_$${set}_$$mode.log; \
+	  $(ZXV_TMP)/test_zt_vk > $$log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $$log || true; echo "[PASS] test_zt_vk, kernels $$set, state $$mode ($$(tail -1 $$log))"; } || { cat $$log; echo "[FAIL] test_zt_vk, kernels $$set, state $$mode"; exit 1; }; \
+	  if grep -q "^\[SKIP\]" $$log; then break 2; fi; \
+	  if [ $$set = i32 ] && ! grep -q "kernels: 32-bit words only" $$log; then echo "[FAIL] ZT_VK_FORCE_I32=1 did not select the 32-bit kernels"; exit 1; fi; \
+	done; done
 
 .PHONY: hwe-vectors
 hwe-vectors:

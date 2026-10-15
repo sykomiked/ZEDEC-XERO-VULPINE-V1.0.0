@@ -1,8 +1,10 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0 */
 /* test_zt_vk.c — the Vulkan backend (zt_vk.c) against zt_kern.h's C
- * reference, bit for bit, on any Vulkan GPU with shaderInt64, or on lavapipe
- * (Mesa's Vulkan on the CPU, so it runs with no GPU at all):
+ * reference, bit for bit, on any Vulkan GPU, or on lavapipe (Mesa's Vulkan on
+ * the CPU, so it runs with no GPU at all). With ZT_VK_FORCE_I32=1 it checks
+ * the kernels without 64-bit integers (pairs of 32-bit words, as GPUs
+ * without shaderInt64 run them) on any device:
  *
  *   src/tensor/gen_zt_vk_spv.sh /tmp/zt_vk_spv.h
  *   gcc -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -Isrc/tensor \
@@ -28,35 +30,9 @@
  *    logits, cache, hidden state and saturation count identical to the C
  *    reference, also with gains that saturate; with the state not mapped,
  *    every pass is declined and the products path gives the same.
- * With no Vulkan loader, no device with shaderInt64, or a build without the
- * SPIR-V it prints SKIP and passes, unless ZT_VK_REQUIRE=1. ZT_VK_DEVICE=<n>
+ * With no Vulkan loader, no Vulkan device, or a build without the SPIR-V it
+ * prints SKIP and passes, unless ZT_VK_REQUIRE=1. ZT_VK_DEVICE=<n>
  * picks the device. */
-/* test_zt_vk.c — the Metal matrix products (zt_vk.m) against zt_kern.h's
- * C reference, bit for bit, on the GPU. macOS only:
- *
- *   clang -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -fno-objc-arc -Isrc/tensor \
- *       src/tensor/test_zt_vk.c src/tensor/zt_vk.m src/tensor/zt_gpu.c src/tensor/zt_simd.c \
- *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c \
- *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
- *       -framework Metal -framework Foundation -lpthread -o /tmp/test_zt_vk
- *
- * 1. random products: Q4_K, Q6_K and Q8_0 rows (every f16 class, all-ones and
- *    all-zero quants, activation shifts 0..255, and model-like values), row
- *    counts that leave the last threadgroup partial, 1 token (decode) and
- *    token counts that leave the last tile partial, padded activation rows,
- *    and three products in one call sharing their input;
- * 2. products it must decline (weights outside every mapped region, zt_q8_t
- *    rows): nonzero return, nothing else;
- * 3. Qwen2.5-1.5B's shapes (1536 x 1536, 8960 x 1536, 1536 x 8960) at model
- *    scale, 1 and 37 tokens;
- * 4. whole forward passes of the fixture models with the GPU on: all logits
- *    identical to the C reference, with the file mapped by copy and without;
- * 5. the whole pass resident on the GPU (zt_kern_vk_resident, zt_gpu.h):
- *    every layer and the logits in one stream, the state shared in
- *    place: logits, cache, hidden state and saturation count identical to
- *    the C reference, also with gains that saturate; with the state not
- *    mapped, every pass is declined and the products path gives the same.
- * With no Metal device it prints SKIP and passes, unless ZT_VK_REQUIRE=1. */
 #define _POSIX_C_SOURCE 200112L
 #include <stdint.h>
 #include <stdio.h>
@@ -393,7 +369,8 @@ int main(void)
         printf("[%s] no usable Vulkan GPU: %s\n", must ? "FAIL" : "SKIP", err);
         return must ? 1 : 0;
     }
-    printf("[INFO] GPU: %s\n", zt_vk_name(mt));
+    printf("[INFO] GPU: %s, kernels: %s\n", zt_vk_name(mt),
+           zt_vk_i32(mt) ? "32-bit words only (no shaderInt64 used)" : "64-bit integers");
     if (posix_memalign((void **) &arena, 65536, ARENA) || zt_vk_map_shared(mt, arena, ARENA)) {
         CHECK(0, "the test arena maps");
         return 1;

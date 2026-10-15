@@ -15,10 +15,19 @@
  * every logit is bit for bit what the CPU computes (rule R1; test_zt_vk
  * checks it, also on lavapipe, Mesa's Vulkan on the CPU, with no GPU).
  *
+ * Every kernel is built twice: with 64-bit integers in shaders, for GPUs
+ * that have them (shaderInt64: desktop Radeon, Intel, NVIDIA), and with
+ * none (-DZV_I32=1, no Int64 capability in the SPIR-V), for GPUs that do
+ * not (many Arm Mali and Qualcomm Adreno parts): there every 64-bit value is
+ * a pair of 32-bit words and every 64-bit step (carries, signed compares,
+ * shifts, multiplies, division) is done exactly on the pair, so the logits
+ * are the same bits either way. zt_vk_new takes the second set when the GPU
+ * lacks shaderInt64 (and then does not ask for it).
+ *
  * No Vulkan library is linked: the loader (libvulkan.so.1, vulkan-1.dll) is
- * opened when zt_vk_new runs. With no loader, no GPU with 64-bit integers in
- * shaders (shaderInt64), or a build without the Vulkan headers or the SPIR-V,
- * zt_vk_new returns null and says why; callers stay on the CPU.
+ * opened when zt_vk_new runs. With no loader, or a build without the Vulkan
+ * headers or the SPIR-V, zt_vk_new returns null and says why; callers stay
+ * on the CPU.
  *
  *     zt_vk_t *g = zt_vk_new(-1, err, sizeof err);   (null: no usable GPU)
  *     zt_vk_map(g, file, file_bytes);     (weights: in VRAM once)
@@ -37,7 +46,8 @@
  *
  * Test knobs (environment): ZT_VK_NO_IMPORT=1 mirrors shared regions as a
  * driver without host import would; ZT_VK_MAX_RANGE=<bytes> lowers the
- * binding limit so products split by rows as on a phone; ZT_VK_LIB names the
+ * binding limit so products split by rows as on a phone; ZT_VK_FORCE_I32=1
+ * runs the kernels without 64-bit integers on any GPU; ZT_VK_LIB names the
  * loader. */
 #ifndef ZT_VK_H
 #define ZT_VK_H
@@ -54,6 +64,10 @@ void zt_vk_free(zt_vk_t *g);
 
 /* The GPU's name ("AMD Radeon RX 7900 XTX", "llvmpipe ..."). */
 const char *zt_vk_name(const zt_vk_t *g);
+
+/* 1 when g runs the kernels without 64-bit integers (no shaderInt64, or
+ * ZT_VK_FORCE_I32=1), else 0. */
+int zt_vk_i32(const zt_vk_t *g);
 
 /* Put [base, base + len) on the GPU (weights; later host writes are not
  * seen). 0 on success. At most 16 regions, mapped and shared together. */
