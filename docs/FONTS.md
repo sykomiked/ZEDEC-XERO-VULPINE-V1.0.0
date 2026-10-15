@@ -17,7 +17,7 @@ Mono and Noto Sans Symbols (OFL) by `tools/fonts/build_golden_mono.py`.
 
 | Where | How |
 |---|---|
-| Font files | `assets/fonts/ascw-golden/`: 86 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
+| Font files | `assets/fonts/ascw-golden/`: 157 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
 | Kernel and native UI (`zui`) | `kernel/src/font/ascw_golden.h`: face per locale, per script and per code point; `ascw_install()` fills a `font_registry_t` |
 | Browser and desktop window (zxvd) | `@font-face` block in `kernel/arch/hosted/zxv_ui.html`; zxvd serves `/fonts/<file>` |
 | Mac app (ZXV Studio) | `ASCWFont.swift`: registers the faces from `Contents/Resources/Fonts`; every text style is a CoreText font with the family as its cascade list |
@@ -51,25 +51,23 @@ against the real files and every CLDR locale.
 These figures are measured against the characters each CLDR locale needs.
 The per-locale table is in [FONTS_COVERAGE.md](FONTS_COVERAGE.md).
 
-- 764 of 778 locales have an ASCW face for their script.
-- 730 locales are fully covered by their own face plus Latin II.
-- 740 locales are covered by the ASCW set as a whole.
+- Every one of the 778 locales has an ASCW face for its script.
+- 744 locales are fully covered by their own face plus Latin II.
+- 755 locales are covered by the ASCW set as a whole.
 
-**No ASCW face (14 locales).** These locales are drawn by the platform's
-fonts:
+**Historical and minority scripts.** `tools/fonts/build_golden_from_noto.py`
+builds 72 faces from the OFL Noto fonts in google/fonts (Khitan Small Script
+from its Fontsource package), with the family's name and golden-section
+metrics. They cover the scripts of ancient and historical languages (Old
+Persian, Ugaritic, Linear A and B, Phoenician, Imperial and Nabataean
+Aramaic, Pahlavi, Sogdian, Brahmi, Kharoshthi, Ogham, Tangut, Khitan and
+others) and minority scripts CLDR lists (Mongolian, Chakma, Hanifi
+Rohingya, Nyiakeng Puachue Hmong, Sunuwar, Deseret, Shavian and others).
+Run it, then `gen_ascw_golden.py`.
 
-- Mongolian script (mn-Mong)
-- Hanifi Rohingya (rhg)
-- Chakma (ccp)
-- Nyiakeng Puachue Hmong (hnj)
-- Sunuwar
-- Deseret
-- Shavian
-
-The same Noto route used for Cherokee would fill these gaps. ASCW Golden
-Tibetan (from Noto Serif Tibetan) and ASCW Golden Thaana (from Noto Sans
-Thaana) were made that way for the user space's spoken languages
-(docs/SPOKEN_LANGUAGES.md), with the family's golden-section metrics.
+**Still no face.** Old Uyghur (Ougr): no OFL font for it was reachable from
+the build machine. Its text falls to the platform's fonts until a face is
+added.
 
 **Partial coverage.**
 
@@ -122,8 +120,8 @@ is sold. It has four conditions, and this repository meets each one:
   0.382 em descender. The Arabic, CJK, Myanmar and hieroglyph faces draw
   above that, so give those scripts a line height of 1.4 or more, and do
   not clip text to the font's own ascender.
-- **The kernel rasteriser can't read some faces.** `truetype.c` reads 72
-  of the 78 TrueType faces; the rest need cmap format 12 or other tables it
+- **The kernel rasteriser can't read some faces.** `truetype.c` reads 146
+  of the 152 TrueType faces; the rest need cmap format 12 or other tables it
   does not read. The five `.otf` faces are CFF outlines, which it does not
   rasterise. Host platforms draw all of them.
 - **Itemization has gaps.** `script.c`'s enum still names only 27 scripts.

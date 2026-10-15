@@ -23,6 +23,11 @@ Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at
 weight 400), renamed into the family and given its golden-section metrics,
 because the ASCW source folder has no face for either script.
 
+The members for historical and other scripts the ASCW source folder lacks
+(Old Persian, Ugaritic, Linear A and B, Phoenician, Ogham, Brahmi, Tangut,
+Mongolian and the rest listed below as derived from Noto) were made the same
+way by tools/fonts/build_golden_from_noto.py.
+
 ASCW Golden Mono, the fixed-width member, was made for ZXV from Noto Sans Mono
 (OFL, weight 400, width 100) with the key symbols it lacks (command, option,
 shift, return, delete, control, escape, caps lock) taken from Noto Sans
@@ -111,6 +116,77 @@ Symbols and Noto Sans Symbols 2 (OFL) and fitted to its advance width
 | ASCW-Golden-Hanunoo.ttf | ASCW Golden Hanunoo | 2.000;GOOG;NotoSansHanunoo-Regular | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. |
 | ASCW-Golden-Buhid.ttf | ASCW Golden Buhid | 2.000;GOOG;NotoSansBuhid-Regular | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. |
 | ASCW-Golden-Tagbanwa.ttf | ASCW Golden Tagbanwa | 2.000;GOOG;NotoSansTagbanwa-Regular | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. |
+| ASCW-Golden-OldPersian.ttf | ASCW Golden Old Persian | ASCW;ASCWGoldenOldPersian;2026; derived from Noto Sans Old Persian | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/old-persian) |
+| ASCW-Golden-Ugaritic.ttf | ASCW Golden Ugaritic | ASCW;ASCWGoldenUgaritic;2026; derived from Noto Sans Ugaritic | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/ugaritic) |
+| ASCW-Golden-LinearB.ttf | ASCW Golden Linear B | ASCW;ASCWGoldenLinearB;2026; derived from Noto Sans Linear B | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/linear-b) |
+| ASCW-Golden-LinearA.ttf | ASCW Golden Linear A | ASCW;ASCWGoldenLinearA;2026; derived from Noto Sans Linear A | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/linear-a) |
+| ASCW-Golden-Phoenician.ttf | ASCW Golden Phoenician | ASCW;ASCWGoldenPhoenician;2026; derived from Noto Sans Phoenician | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/phoenician) |
+| ASCW-Golden-Ogham.ttf | ASCW Golden Ogham | ASCW;ASCWGoldenOgham;2026; derived from Noto Sans Ogham | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/ogham) |
+| ASCW-Golden-Brahmi.ttf | ASCW Golden Brahmi | ASCW;ASCWGoldenBrahmi;2026; derived from Noto Sans Brahmi | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/brahmi) |
+| ASCW-Golden-Kharoshthi.ttf | ASCW Golden Kharoshthi | ASCW;ASCWGoldenKharoshthi;2026; derived from Noto Sans Kharoshthi | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/kharoshthi) |
+| ASCW-Golden-OldSouthArabian.ttf | ASCW Golden Old South Arabian | ASCW;ASCWGoldenOldSouthArabian;2026; derived from Noto Sans Old South Arabian | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/old-south-arabian) |
+| ASCW-Golden-OldNorthArabian.ttf | ASCW Golden Old North Arabian | ASCW;ASCWGoldenOldNorthArabian;2026; derived from Noto Sans Old North Arabian | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/old-north-arabian) |
+| ASCW-Golden-Samaritan.ttf | ASCW Golden Samaritan | ASCW;ASCWGoldenSamaritan;2026; derived from Noto Sans Samaritan | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/samaritan) |
+| ASCW-Golden-Nabataean.ttf | ASCW Golden Nabataean | ASCW;ASCWGoldenNabataean;2026; derived from Noto Sans Nabataean | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/nabataean) |
+| ASCW-Golden-Palmyrene.ttf | ASCW Golden Palmyrene | ASCW;ASCWGoldenPalmyrene;2026; derived from Noto Sans Palmyrene | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/palmyrene) |
+| ASCW-Golden-InscriptionalPahlavi.ttf | ASCW Golden Inscriptional Pahlavi | ASCW;ASCWGoldenInscriptionalPahlavi;2026; derived from Noto Sans Inscriptional Pahlavi | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/inscriptional-pahlavi) |
+| ASCW-Golden-PsalterPahlavi.ttf | ASCW Golden Psalter Pahlavi | ASCW;ASCWGoldenPsalterPahlavi;2026; derived from Noto Sans Psalter Pahlavi | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/psalter-pahlavi) |
+| ASCW-Golden-InscriptionalParthian.ttf | ASCW Golden Inscriptional Parthian | ASCW;ASCWGoldenInscriptionalParthian;2026; derived from Noto Sans Inscriptional Parthian | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/inscriptional-parthian) |
+| ASCW-Golden-Sogdian.ttf | ASCW Golden Sogdian | ASCW;ASCWGoldenSogdian;2026; derived from Noto Sans Sogdian | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/sogdian) |
+| ASCW-Golden-OldSogdian.ttf | ASCW Golden Old Sogdian | ASCW;ASCWGoldenOldSogdian;2026; derived from Noto Sans Old Sogdian | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/old-sogdian) |
+| ASCW-Golden-Lycian.ttf | ASCW Golden Lycian | ASCW;ASCWGoldenLycian;2026; derived from Noto Sans Lycian | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/lycian) |
+| ASCW-Golden-Lydian.ttf | ASCW Golden Lydian | ASCW;ASCWGoldenLydian;2026; derived from Noto Sans Lydian | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/lydian) |
+| ASCW-Golden-Cypriot.ttf | ASCW Golden Cypriot | ASCW;ASCWGoldenCypriot;2026; derived from Noto Sans Cypriot | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/cypriot) |
+| ASCW-Golden-CyproMinoan.ttf | ASCW Golden Cypro Minoan | ASCW;ASCWGoldenCyproMinoan;2026; derived from Noto Sans Cypro Minoan | Version 1.503 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/cypro-minoan) |
+| ASCW-Golden-Elbasan.ttf | ASCW Golden Elbasan | ASCW;ASCWGoldenElbasan;2026; derived from Noto Sans Elbasan | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/elbasan) |
+| ASCW-Golden-Manichaean.ttf | ASCW Golden Manichaean | ASCW;ASCWGoldenManichaean;2026; derived from Noto Sans Manichaean | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/manichaean) |
+| ASCW-Golden-Chorasmian.ttf | ASCW Golden Chorasmian | ASCW;ASCWGoldenChorasmian;2026; derived from Noto Sans Chorasmian | Version 1.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/chorasmian) |
+| ASCW-Golden-Elymaic.ttf | ASCW Golden Elymaic | ASCW;ASCWGoldenElymaic;2026; derived from Noto Sans Elymaic | Version 1.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/elymaic) |
+| ASCW-Golden-Hatran.ttf | ASCW Golden Hatran | ASCW;ASCWGoldenHatran;2026; derived from Noto Sans Hatran | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/hatran) |
+| ASCW-Golden-Mahajani.ttf | ASCW Golden Mahajani | ASCW;ASCWGoldenMahajani;2026; derived from Noto Sans Mahajani | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/mahajani) |
+| ASCW-Golden-Sharada.ttf | ASCW Golden Sharada | ASCW;ASCWGoldenSharada;2026; derived from Noto Sans Sharada | Version 2.006 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/sharada) |
+| ASCW-Golden-Siddham.ttf | ASCW Golden Siddham | ASCW;ASCWGoldenSiddham;2026; derived from Noto Sans Siddham | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/siddham) |
+| ASCW-Golden-Tirhuta.ttf | ASCW Golden Tirhuta | ASCW;ASCWGoldenTirhuta;2026; derived from Noto Sans Tirhuta | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tirhuta) |
+| ASCW-Golden-Grantha.ttf | ASCW Golden Grantha | ASCW;ASCWGoldenGrantha;2026; derived from Noto Sans Grantha | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/grantha) |
+| ASCW-Golden-Ahom.ttf | ASCW Golden Ahom | ASCW;ASCWGoldenAhom;2026; derived from Noto Serif Ahom | Version 2.007 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/ahom) |
+| ASCW-Golden-Dogra.ttf | ASCW Golden Dogra | ASCW;ASCWGoldenDogra;2026; derived from Noto Serif Dogra | Version 1.007 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/dogra) |
+| ASCW-Golden-Modi.ttf | ASCW Golden Modi | ASCW;ASCWGoldenModi;2026; derived from Noto Sans Modi | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/modi) |
+| ASCW-Golden-Takri.ttf | ASCW Golden Takri | ASCW;ASCWGoldenTakri;2026; derived from Noto Sans Takri | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/takri) |
+| ASCW-Golden-Khojki.ttf | ASCW Golden Khojki | ASCW;ASCWGoldenKhojki;2026; derived from Noto Sans Khojki | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/khojki) |
+| ASCW-Golden-Khudawadi.ttf | ASCW Golden Khudawadi | ASCW;ASCWGoldenKhudawadi;2026; derived from Noto Sans Khudawadi | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/khudawadi) |
+| ASCW-Golden-Tangut.ttf | ASCW Golden Tangut | ASCW;ASCWGoldenTangut;2026; derived from Noto Serif Tangut | Version 2.170 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tangut) |
+| ASCW-Golden-Duployan.ttf | ASCW Golden Duployan | ASCW;ASCWGoldenDuployan;2026; derived from Noto Sans Duployan | Version 3.002 | Copyright 2018-2019, 2022-2023 David Corbett. Copyright 2019-2022 Google LLC. All Rights Reserved. |
+| ASCW-Golden-Mro.ttf | ASCW Golden Mro | ASCW;ASCWGoldenMro;2026; derived from Noto Sans Mro | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/mro) |
+| ASCW-Golden-PauCinHau.ttf | ASCW Golden Pau Cin Hau | ASCW;ASCWGoldenPauCinHau;2026; derived from Noto Sans Pau Cin Hau | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/pau-cin-hau) |
+| ASCW-Golden-Yezidi.ttf | ASCW Golden Yezidi | ASCW;ASCWGoldenYezidi;2026; derived from Noto Serif Yezidi | Version 1.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/yezidi) |
+| ASCW-Golden-Vithkuqi.ttf | ASCW Golden Vithkuqi | ASCW;ASCWGoldenVithkuqi;2026; derived from Noto Serif Vithkuqi | Version 1.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/vithkuqi) |
+| ASCW-Golden-Kawi.ttf | ASCW Golden Kawi | ASCW;ASCWGoldenKawi;2026; derived from Noto Sans Kawi | Version 1.000 | Copyright 2023 The Noto Project Authors (https://github.com/notofonts/kawi) |
+| ASCW-Golden-Nandinagari.ttf | ASCW Golden Nandinagari | ASCW;ASCWGoldenNandinagari;2026; derived from Noto Sans Nandinagari | Version 1.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/nandinagari) |
+| ASCW-Golden-ZanabazarSquare.ttf | ASCW Golden Zanabazar Square | ASCW;ASCWGoldenZanabazarSquare;2026; derived from Noto Sans Zanabazar Square | Version 2.006 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/zanabazar-square) |
+| ASCW-Golden-Soyombo.ttf | ASCW Golden Soyombo | ASCW;ASCWGoldenSoyombo;2026; derived from Noto Sans Soyombo | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/soyombo) |
+| ASCW-Golden-Mongolian.ttf | ASCW Golden Mongolian | ASCW;ASCWGoldenMongolian;2026; derived from Noto Sans Mongolian | Version 3.002 | Copyright 2023 The Noto Project Authors (https://github.com/notofonts/mongolian) |
+| ASCW-Golden-PhagsPa.ttf | ASCW Golden Phags Pa | ASCW;ASCWGoldenPhagsPa;2026; derived from Noto Sans PhagsPa | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/phags-pa) |
+| ASCW-Golden-Marchen.ttf | ASCW Golden Marchen | ASCW;ASCWGoldenMarchen;2026; derived from Noto Sans Marchen | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/marchen) |
+| ASCW-Golden-Bhaiksuki.ttf | ASCW Golden Bhaiksuki | ASCW;ASCWGoldenBhaiksuki;2026; derived from Noto Sans Bhaiksuki | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/bhaiksuki) |
+| ASCW-Golden-DivesAkuru.ttf | ASCW Golden Dives Akuru | ASCW;ASCWGoldenDivesAkuru;2026; derived from Noto Serif Dives Akuru | Version 2.000 | Copyright 2024 The Noto Project Authors (https://github.com/notofonts/dives-akuru) |
+| ASCW-Golden-Toto.ttf | ASCW Golden Toto | ASCW;ASCWGoldenToto;2026; derived from Noto Serif Toto | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/toto) |
+| ASCW-Golden-KhitanSmallScript.ttf | ASCW Golden Khitan Small Script | ASCW;ASCWGoldenKhitanSmallScript;2026; derived from Noto Serif Khitan Small Script | Version 1.000 | Copyright 2022 Google LLC. All Rights Reserved. |
+| ASCW-Golden-OldPermic.ttf | ASCW Golden Old Permic | ASCW;ASCWGoldenOldPermic;2026; derived from Noto Sans Old Permic | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/old-permic) |
+| ASCW-Golden-CaucasianAlbanian.ttf | ASCW Golden Caucasian Albanian | ASCW;ASCWGoldenCaucasianAlbanian;2026; derived from Noto Sans Caucasian Albanian | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/caucasian-albanian) |
+| ASCW-Golden-Medefaidrin.ttf | ASCW Golden Medefaidrin | ASCW;ASCWGoldenMedefaidrin;2026; derived from Noto Sans Medefaidrin | Version 1.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/medefaidrin) |
+| ASCW-Golden-Makasar.ttf | ASCW Golden Makasar | ASCW;ASCWGoldenMakasar;2026; derived from Noto Serif Makasar | Version 1.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/makasar) |
+| ASCW-Golden-SignWriting.ttf | ASCW Golden Sign Writing | ASCW;ASCWGoldenSignWriting;2026; derived from Noto Sans SignWriting | Version 2.005 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/sign-writing) |
+| ASCW-Golden-NyiakengPuachueHmong.ttf | ASCW Golden Nyiakeng Puachue Hmong | ASCW;ASCWGoldenNyiakengPuachueHmong;2026; derived from Noto Serif NP Hmong | Version 1.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/nyiakeng-puachue-hmong) |
+| ASCW-Golden-HanifiRohingya.ttf | ASCW Golden Hanifi Rohingya | ASCW;ASCWGoldenHanifiRohingya;2026; derived from Noto Sans Hanifi Rohingya | Version 2.102 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/hanifi-rohingya) |
+| ASCW-Golden-Chakma.ttf | ASCW Golden Chakma | ASCW;ASCWGoldenChakma;2026; derived from Noto Sans Chakma | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/chakma) |
+| ASCW-Golden-Deseret.ttf | ASCW Golden Deseret | ASCW;ASCWGoldenDeseret;2026; derived from Noto Sans Deseret | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/deseret) |
+| ASCW-Golden-Shavian.ttf | ASCW Golden Shavian | ASCW;ASCWGoldenShavian;2026; derived from Noto Sans Shavian | Version 2.001 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/shavian) |
+| ASCW-Golden-Saurashtra.ttf | ASCW Golden Saurashtra | ASCW;ASCWGoldenSaurashtra;2026; derived from Noto Sans Saurashtra | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/saurashtra) |
+| ASCW-Golden-Rejang.ttf | ASCW Golden Rejang | ASCW;ASCWGoldenRejang;2026; derived from Noto Sans Rejang | Version 2.003 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/rejang) |
+| ASCW-Golden-Kaithi.ttf | ASCW Golden Kaithi | ASCW;ASCWGoldenKaithi;2026; derived from Noto Sans Kaithi | Version 2.006 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/kaithi) |
+| ASCW-Golden-KayahLi.ttf | ASCW Golden Kayah Li | ASCW;ASCWGoldenKayahLi;2026; derived from Noto Sans Kayah Li | Version 2.002 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/kayah-li) |
+| ASCW-Golden-Tangsa.ttf | ASCW Golden Tangsa | ASCW;ASCWGoldenTangsa;2026; derived from Noto Sans Tangsa | Version 1.506 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tangsa) |
+| ASCW-Golden-Sunuwar.ttf | ASCW Golden Sunuwar | ASCW;ASCWGoldenSunuwar;2026; derived from Noto Sans Sunuwar | Version 1.000 | Copyright 2021 The Noto Sunuwar Project Authors (https://github.com/ScriptEncodingInitiative/sunuwar) |
 | ASCW-Adlam-Regular.ttf | ASCW Adlam | ASCW;ASCWAdlam;2026 | Version 3.000 | Copyright 2017-2019 Google LLC. All Rights Reserved. | ASCW derivative under the original license; renamed per OFL RFN requirements. |
 | ASCW-NKo-Regular.ttf | ASCW NKo | ASCW;ASCWNKo;2026 | Version 2.004 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/nko) | ASCW derivative under the original license; renamed per OFL RFN requirements. |
 | ASCW-Vai-Regular.ttf | ASCW Vai | ASCW;ASCWVai;2026 | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. | ASCW derivative under the original license; renamed per OFL RFN requirements. |

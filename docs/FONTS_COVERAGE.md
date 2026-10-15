@@ -12,9 +12,9 @@ characters, punctuation and digits each locale needs
 is in the locale's face or in ASCW Golden Latin II behind it.
 
 - Locales: **778**
-- Covered by their own face plus Latin II: **730**
-- Covered by the ASCW set as a whole (some characters from another member): **741**
-- With no ASCW face for their script (platform fonts draw them): **14**
+- Covered by their own face plus Latin II: **744**
+- Covered by the ASCW set as a whole (some characters from another member): **755**
+- With no ASCW face for their script (platform fonts draw them): **0**
 
 ## By script
 
@@ -29,20 +29,20 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | Hant Han (Traditional) | 8 | ASCW Golden Chinese Traditional | 0 | yue: 76 (U+6B8B U+7CE5 U+9421 U+9759 U+FE30 U+FE31 …) |
 | Hans Han (Simplified) | 7 | ASCW Golden Chinese Simplified | 0 | yue-Hans: 59 (U+FE30 U+FE31 U+FE33 U+FE34 U+FE35 U+FE36 …) |
 | Beng Bengali | 5 | ASCW Golden Bengali | 2 | bn: 2 (U+0964 U+0965) |
-| Hmnp Nyiakeng Puachue Hmong | 4 | none: platform font | 0 | hnj: 66 (U+1E100 U+1E101 U+1E102 U+1E103 U+1E104 U+1E105 …) |
+| Hmnp Nyiakeng Puachue Hmong | 4 | ASCW Golden Nyiakeng Puachue Hmong | 4 |  |
 | Taml Tamil | 4 | ASCW Golden Tamil | 4 |  |
 | Grek Greek | 3 | ASCW Golden Greek | 3 |  |
 | Hebr Hebrew | 3 | ASCW Golden Hebrew | 3 |  |
 | Kore Korean | 3 | ASCW Golden Korean | 0 | ko: 13 (U+30FB U+FF03 U+FF05 U+FF06 U+FF0A U+FF0F …) |
 | Mymr Myanmar | 3 | ASCW Golden Myanmar | 3 |  |
-| Rohg Hanifi Rohingya | 3 | none: platform font | 0 | rhg: 42 (U+060C U+061B U+061F U+10D00 U+10D01 U+10D02 …) |
+| Rohg Hanifi Rohingya | 3 | ASCW Golden Hanifi Rohingya | 3 |  |
 | Syrc Syriac | 3 | ASCW Golden Syriac | 1 | syr: 3 (U+060C U+061B U+061F) |
 | Tfng Tifinagh | 3 | ASCW Tifinagh | 3 |  |
 | Tibt Tibetan | 3 | ASCW Golden Tibetan | 3 |  |
-| Cakm Chakma | 2 | none: platform font | 0 | ccp: 67 (U+11100 U+11101 U+11102 U+11103 U+11104 U+11105 …) |
+| Cakm Chakma | 2 | ASCW Golden Chakma | 2 |  |
 | Cans Canadian Aboriginal | 2 | ASCW Golden Canadian Aboriginal | 2 |  |
 | Guru Gurmukhi | 2 | ASCW Golden Gurmukhi | 2 |  |
-| Mong Mongolian | 2 | none: platform font | 0 | mn-Mong: 45 (U+1810 U+1811 U+1812 U+1813 U+1814 U+1815 …) |
+| Mong Mongolian | 2 | ASCW Golden Mongolian | 2 |  |
 | Nkoo Nko | 2 | ASCW NKo | 2 |  |
 | Olck Ol Chiki | 2 | ASCW Golden Ol Chiki | 2 |  |
 | Orya Oriya | 2 | ASCW Golden Oriya | 1 | or: 1 (U+0964) |
@@ -52,7 +52,7 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | Armn Armenian | 1 | ASCW Golden Armenian | 1 |  |
 | Cher Cherokee | 1 | ASCW Golden Cherokee | 1 |  |
 | Copt Coptic | 1 | ASCW Golden Coptic | 1 |  |
-| Dsrt Deseret | 1 | none: platform font | 0 | en-Dsrt: 40 (U+10428 U+10429 U+1042A U+1042B U+1042C U+1042D …) |
+| Dsrt Deseret | 1 | ASCW Golden Deseret | 1 |  |
 | Geor Georgian | 1 | ASCW Golden Georgian | 1 |  |
 | Gujr Gujarati | 1 | ASCW Golden Gujarati | 1 |  |
 | Jpan Japanese | 1 | ASCW Golden Japanese | 0 | ja: 17 (U+FF03 U+FF05 U+FF06 U+FF0A U+FF0F U+FF20 …) |
@@ -62,9 +62,9 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | Mlym Malayalam | 1 | ASCW Golden Malayalam | 1 |  |
 | Mtei Meetei Mayek | 1 | ASCW Golden Meetei Mayek | 1 |  |
 | Osge Osage | 1 | ASCW Golden Osage | 1 |  |
-| Shaw Shavian | 1 | none: platform font | 0 | en-Shaw: 48 (U+10450 U+10451 U+10452 U+10453 U+10454 U+10455 …) |
+| Shaw Shavian | 1 | ASCW Golden Shavian | 1 |  |
 | Sinh Sinhala | 1 | ASCW Golden Sinhala | 1 |  |
-| Sunu Sunuwar | 1 | none: platform font | 0 | suz-Sunu: 34 (U+11BC0 U+11BC1 U+11BC2 U+11BC3 U+11BC4 U+11BC5 …) |
+| Sunu Sunuwar | 1 | ASCW Golden Sunuwar | 1 |  |
 | Tavt Tai Viet | 1 | ASCW Golden Tai Viet | 1 |  |
 | Thaa Thaana | 1 | ASCW Golden Thaana | 1 |  |
 | Thai Thai | 1 | ASCW Golden Thai | 1 |  |
@@ -154,6 +154,77 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | ASCW-Golden-Hanunoo.ttf | ASCW Golden Hanunoo | script | Hano | 37 |
 | ASCW-Golden-Buhid.ttf | ASCW Golden Buhid | script | Buhd | 36 |
 | ASCW-Golden-Tagbanwa.ttf | ASCW Golden Tagbanwa | script | Tagb | 34 |
+| ASCW-Golden-OldPersian.ttf | ASCW Golden Old Persian | script | Xpeo | 385 |
+| ASCW-Golden-Ugaritic.ttf | ASCW Golden Ugaritic | script | Ugar | 366 |
+| ASCW-Golden-LinearB.ttf | ASCW Golden Linear B | script | Linb | 603 |
+| ASCW-Golden-LinearA.ttf | ASCW Golden Linear A | script | Lina | 722 |
+| ASCW-Golden-Phoenician.ttf | ASCW Golden Phoenician | script | Phnx | 364 |
+| ASCW-Golden-Ogham.ttf | ASCW Golden Ogham | script | Ogam | 364 |
+| ASCW-Golden-Brahmi.ttf | ASCW Golden Brahmi | script | Brah | 450 |
+| ASCW-Golden-Kharoshthi.ttf | ASCW Golden Kharoshthi | script | Khar | 406 |
+| ASCW-Golden-OldSouthArabian.ttf | ASCW Golden Old South Arabian | script | Sarb | 367 |
+| ASCW-Golden-OldNorthArabian.ttf | ASCW Golden Old North Arabian | script | Narb | 367 |
+| ASCW-Golden-Samaritan.ttf | ASCW Golden Samaritan | script | Samr | 397 |
+| ASCW-Golden-Nabataean.ttf | ASCW Golden Nabataean | script | Nbat | 375 |
+| ASCW-Golden-Palmyrene.ttf | ASCW Golden Palmyrene | script | Palm | 367 |
+| ASCW-Golden-InscriptionalPahlavi.ttf | ASCW Golden Inscriptional Pahlavi | script | Phli | 349 |
+| ASCW-Golden-PsalterPahlavi.ttf | ASCW Golden Psalter Pahlavi | script | Phlp | 355 |
+| ASCW-Golden-InscriptionalParthian.ttf | ASCW Golden Inscriptional Parthian | script | Prti | 352 |
+| ASCW-Golden-Sogdian.ttf | ASCW Golden Sogdian | script | Sogd | 380 |
+| ASCW-Golden-OldSogdian.ttf | ASCW Golden Old Sogdian | script | Sogo | 363 |
+| ASCW-Golden-Lycian.ttf | ASCW Golden Lycian | script | Lyci | 363 |
+| ASCW-Golden-Lydian.ttf | ASCW Golden Lydian | script | Lydi | 359 |
+| ASCW-Golden-Cypriot.ttf | ASCW Golden Cypriot | script | Cprt | 436 |
+| ASCW-Golden-CyproMinoan.ttf | ASCW Golden Cypro Minoan | script | Cpmn | 433 |
+| ASCW-Golden-Elbasan.ttf | ASCW Golden Elbasan | script | Elba | 403 |
+| ASCW-Golden-Manichaean.ttf | ASCW Golden Manichaean | script | Mani | 387 |
+| ASCW-Golden-Chorasmian.ttf | ASCW Golden Chorasmian | script | Chrs | 359 |
+| ASCW-Golden-Elymaic.ttf | ASCW Golden Elymaic | script | Elym | 352 |
+| ASCW-Golden-Hatran.ttf | ASCW Golden Hatran | script | Hatr | 362 |
+| ASCW-Golden-Mahajani.ttf | ASCW Golden Mahajani | script | Mahj | 399 |
+| ASCW-Golden-Sharada.ttf | ASCW Golden Sharada | script | Shrd | 435 |
+| ASCW-Golden-Siddham.ttf | ASCW Golden Siddham | script | Sidd | 428 |
+| ASCW-Golden-Tirhuta.ttf | ASCW Golden Tirhuta | script | Tirh | 439 |
+| ASCW-Golden-Grantha.ttf | ASCW Golden Grantha | script | Gran | 439 |
+| ASCW-Golden-Ahom.ttf | ASCW Golden Ahom | script | Ahom | 397 |
+| ASCW-Golden-Dogra.ttf | ASCW Golden Dogra | script | Dogr | 396 |
+| ASCW-Golden-Modi.ttf | ASCW Golden Modi | script | Modi | 426 |
+| ASCW-Golden-Takri.ttf | ASCW Golden Takri | script | Takr | 414 |
+| ASCW-Golden-Khojki.ttf | ASCW Golden Khojki | script | Khoj | 418 |
+| ASCW-Golden-Khudawadi.ttf | ASCW Golden Khudawadi | script | Sind | 406 |
+| ASCW-Golden-Tangut.ttf | ASCW Golden Tangut | script | Tang | 7238 |
+| ASCW-Golden-Duployan.ttf | ASCW Golden Duployan | script | Dupl | 486 |
+| ASCW-Golden-Mro.ttf | ASCW Golden Mro | script | Mroo | 378 |
+| ASCW-Golden-PauCinHau.ttf | ASCW Golden Pau Cin Hau | script | Pauc | 392 |
+| ASCW-Golden-Yezidi.ttf | ASCW Golden Yezidi | script | Yezi | 387 |
+| ASCW-Golden-Vithkuqi.ttf | ASCW Golden Vithkuqi | script | Vith | 402 |
+| ASCW-Golden-Kawi.ttf | ASCW Golden Kawi | script | Kawi | 419 |
+| ASCW-Golden-Nandinagari.ttf | ASCW Golden Nandinagari | script | Nand | 410 |
+| ASCW-Golden-ZanabazarSquare.ttf | ASCW Golden Zanabazar Square | script | Zanb | 406 |
+| ASCW-Golden-Soyombo.ttf | ASCW Golden Soyombo | script | Soyo | 419 |
+| ASCW-Golden-Mongolian.ttf | ASCW Golden Mongolian | script | Mong | 516 |
+| ASCW-Golden-PhagsPa.ttf | ASCW Golden Phags Pa | script | Phag | 420 |
+| ASCW-Golden-Marchen.ttf | ASCW Golden Marchen | script | Marc | 391 |
+| ASCW-Golden-Bhaiksuki.ttf | ASCW Golden Bhaiksuki | script | Bhks | 434 |
+| ASCW-Golden-DivesAkuru.ttf | ASCW Golden Dives Akuru | script | Diak | 371 |
+| ASCW-Golden-Toto.ttf | ASCW Golden Toto | script | Toto | 354 |
+| ASCW-Golden-KhitanSmallScript.ttf | ASCW Golden Khitan Small Script | script | Kits | 475 |
+| ASCW-Golden-OldPermic.ttf | ASCW Golden Old Permic | script | Perm | 382 |
+| ASCW-Golden-CaucasianAlbanian.ttf | ASCW Golden Caucasian Albanian | script | Aghb | 392 |
+| ASCW-Golden-Medefaidrin.ttf | ASCW Golden Medefaidrin | script | Medf | 426 |
+| ASCW-Golden-Makasar.ttf | ASCW Golden Makasar | script | Maka | 357 |
+| ASCW-Golden-SignWriting.ttf | ASCW Golden Sign Writing | script | Sgnw | 1008 |
+| ASCW-Golden-NyiakengPuachueHmong.ttf | ASCW Golden Nyiakeng Puachue Hmong | script | Hmnp | 407 |
+| ASCW-Golden-HanifiRohingya.ttf | ASCW Golden Hanifi Rohingya | script | Rohg | 392 |
+| ASCW-Golden-Chakma.ttf | ASCW Golden Chakma | script | Cakm | 429 |
+| ASCW-Golden-Deseret.ttf | ASCW Golden Deseret | script | Dsrt | 415 |
+| ASCW-Golden-Shavian.ttf | ASCW Golden Shavian | script | Shaw | 383 |
+| ASCW-Golden-Saurashtra.ttf | ASCW Golden Saurashtra | script | Saur | 419 |
+| ASCW-Golden-Rejang.ttf | ASCW Golden Rejang | script | Rjng | 363 |
+| ASCW-Golden-Kaithi.ttf | ASCW Golden Kaithi | script | Kthi | 415 |
+| ASCW-Golden-KayahLi.ttf | ASCW Golden Kayah Li | script | Kali | 387 |
+| ASCW-Golden-Tangsa.ttf | ASCW Golden Tangsa | script | Tnsa | 420 |
+| ASCW-Golden-Sunuwar.ttf | ASCW Golden Sunuwar | script | Sunu | 371 |
 | ASCW-Adlam-Regular.ttf | ASCW Adlam | fallback | Adlm | 149 |
 | ASCW-NKo-Regular.ttf | ASCW NKo | fallback | Nkoo | 79 |
 | ASCW-Vai-Regular.ttf | ASCW Vai | fallback | Vaii | 304 |
@@ -168,48 +239,34 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | as Assamese | Beng | ASCW Golden Bengali | 1 U+0964 | 0 |
 | bn Bangla | Beng | ASCW Golden Bengali | 2 U+0964 U+0965 | 0 |
 | bn-IN Bangla (India) | Beng | ASCW Golden Bengali | 2 U+0964 U+0965 | 0 |
-| ccp Chakma | Cakm | none | 67 U+11100 U+11101 U+11102 U+11103 … | 67 |
-| ccp-IN Chakma (India) | Cakm | none | 67 U+11100 U+11101 U+11102 U+11103 … | 67 |
-| en-Dsrt English (Deseret) | Dsrt | none | 40 U+10428 U+10429 U+1042A U+1042B … | 40 |
-| en-Shaw English (Shavian) | Shaw | none | 48 U+10450 U+10451 U+10452 U+10453 … | 48 |
-| hnj Hmong Njua | Hmnp | none | 66 U+1E100 U+1E101 U+1E102 U+1E103 … | 66 |
-| hnj-Hmnp Hmong Njua (Nyiakeng Puachue Hmong) | Hmnp | none | 66 U+1E100 U+1E101 U+1E102 U+1E103 … | 66 |
 | hu Hungarian | Latn | ASCW Golden Latin II | 2 U+27E8 U+27E9 | 0 |
-| ii Sichuan Yi | Yiii | ASCW Golden Yi | 73 U+3003 U+301D U+301E U+FE30 … | 57 |
-| ja Japanese | Jpan | ASCW Golden Japanese | 17 U+FF03 U+FF05 U+FF06 U+FF0A … | 10 |
-| ko Korean | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
-| ko-CN Korean (China) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
-| ko-KP Korean (North Korea) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
+| ii Sichuan Yi | Yiii | ASCW Golden Yi | 73 U+3003 U+301D U+301E U+FE30 … | 55 |
+| ja Japanese | Jpan | ASCW Golden Japanese | 17 U+FF03 U+FF05 U+FF06 U+FF0A … | 8 |
+| ko Korean | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 8 |
+| ko-CN Korean (China) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 8 |
+| ko-KP Korean (North Korea) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 8 |
 | ku-Arab Kurdish (Arabic) | Arab | ASCW Golden Arabic | 1 U+2212 | 0 |
 | ku-Arab-IR Kurdish (Arabic, Iran) | Arab | ASCW Golden Arabic | 1 U+2212 | 0 |
 | kxv-Telu Kuvi (Telugu) | Telu | ASCW Golden Telugu | 1 U+0C3C | 1 |
-| mn-Mong Mongolian (Mongolian) | Mong | none | 45 U+1810 U+1811 U+1812 U+1813 … | 45 |
-| mn-Mong-MN Mongolian (Mongolian, Mongolia) | Mong | none | 45 U+1810 U+1811 U+1812 U+1813 … | 45 |
-| mww mww | Hmnp | none | 10 U+1E140 U+1E141 U+1E142 U+1E143 … | 10 |
-| mww-Hmnp mww-Hmnp | Hmnp | none | 10 U+1E140 U+1E141 U+1E142 U+1E143 … | 10 |
 | oc Occitan | Latn | ASCW Golden Latin II | 1 U+22C5 | 1 |
 | oc-ES Occitan (Spain) | Latn | ASCW Golden Latin II | 1 U+22C5 | 1 |
 | or Odia | Orya | ASCW Golden Oriya | 1 U+0964 | 0 |
-| rhg Rohingya | Rohg | none | 42 U+060C U+061B U+061F U+10D00 … | 39 |
-| rhg-Rohg Rohingya (Hanifi) | Rohg | none | 42 U+060C U+061B U+061F U+10D00 … | 39 |
-| rhg-Rohg-BD Rohingya (Hanifi, Bangladesh) | Rohg | none | 42 U+060C U+061B U+061F U+10D00 … | 39 |
 | sa-Latn Sanskrit (Latin) | Latn | ASCW Golden Latin II | 16 U+093E U+093F U+0940 U+0941 … | 0 |
-| suz-Sunu suz-Sunu | Sunu | none | 34 U+11BC0 U+11BC1 U+11BC2 U+11BC3 … | 34 |
 | syr Syriac | Syrc | ASCW Golden Syriac | 3 U+060C U+061B U+061F | 0 |
 | syr-SY Syriac (Syria) | Syrc | ASCW Golden Syriac | 3 U+060C U+061B U+061F | 0 |
 | vec Venetian | Latn | ASCW Golden Latin II | 2 U+3008 U+3009 | 0 |
-| yue Cantonese | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
-| yue-Hans Cantonese (Simplified) | Hans | ASCW Golden Chinese Simplified | 59 U+FE30 U+FE31 U+FE33 U+FE34 … | 57 |
-| yue-Hant Cantonese (Traditional) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
-| yue-Hant-CN Cantonese (Traditional, China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
-| yue-Hant-MO Cantonese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
+| yue Cantonese | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 57 |
+| yue-Hans Cantonese (Simplified) | Hans | ASCW Golden Chinese Simplified | 59 U+FE30 U+FE31 U+FE33 U+FE34 … | 55 |
+| yue-Hant Cantonese (Traditional) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 57 |
+| yue-Hant-CN Cantonese (Traditional, China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 57 |
+| yue-Hant-MO Cantonese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 57 |
 | zh Chinese | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans Simplified Chinese | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-HK Chinese (Simplified, Hong Kong SAR China) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-MO Chinese (Simplified, Macao SAR China) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-MY Chinese (Simplified, Malaysia) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-SG Chinese (Simplified, Singapore) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
-| zh-Hant Traditional Chinese | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
-| zh-Hant-HK Chinese (Traditional, Hong Kong SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
-| zh-Hant-MO Chinese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
-| zh-Hant-MY Chinese (Traditional, Malaysia) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
+| zh-Hant Traditional Chinese | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 57 |
+| zh-Hant-HK Chinese (Traditional, Hong Kong SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 57 |
+| zh-Hant-MO Chinese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 57 |
+| zh-Hant-MY Chinese (Traditional, Malaysia) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 57 |

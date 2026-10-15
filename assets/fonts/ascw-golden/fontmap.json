@@ -725,6 +725,645 @@
             "codepoints": 34
         },
         {
+            "file": "ASCW-Golden-OldPersian.ttf",
+            "family": "ASCW Golden Old Persian",
+            "role": "script",
+            "scripts": [
+                "Xpeo"
+            ],
+            "codepoints": 385
+        },
+        {
+            "file": "ASCW-Golden-Ugaritic.ttf",
+            "family": "ASCW Golden Ugaritic",
+            "role": "script",
+            "scripts": [
+                "Ugar"
+            ],
+            "codepoints": 366
+        },
+        {
+            "file": "ASCW-Golden-LinearB.ttf",
+            "family": "ASCW Golden Linear B",
+            "role": "script",
+            "scripts": [
+                "Linb"
+            ],
+            "codepoints": 603
+        },
+        {
+            "file": "ASCW-Golden-LinearA.ttf",
+            "family": "ASCW Golden Linear A",
+            "role": "script",
+            "scripts": [
+                "Lina"
+            ],
+            "codepoints": 722
+        },
+        {
+            "file": "ASCW-Golden-Phoenician.ttf",
+            "family": "ASCW Golden Phoenician",
+            "role": "script",
+            "scripts": [
+                "Phnx"
+            ],
+            "codepoints": 364
+        },
+        {
+            "file": "ASCW-Golden-Ogham.ttf",
+            "family": "ASCW Golden Ogham",
+            "role": "script",
+            "scripts": [
+                "Ogam"
+            ],
+            "codepoints": 364
+        },
+        {
+            "file": "ASCW-Golden-Brahmi.ttf",
+            "family": "ASCW Golden Brahmi",
+            "role": "script",
+            "scripts": [
+                "Brah"
+            ],
+            "codepoints": 450
+        },
+        {
+            "file": "ASCW-Golden-Kharoshthi.ttf",
+            "family": "ASCW Golden Kharoshthi",
+            "role": "script",
+            "scripts": [
+                "Khar"
+            ],
+            "codepoints": 406
+        },
+        {
+            "file": "ASCW-Golden-OldSouthArabian.ttf",
+            "family": "ASCW Golden Old South Arabian",
+            "role": "script",
+            "scripts": [
+                "Sarb"
+            ],
+            "codepoints": 367
+        },
+        {
+            "file": "ASCW-Golden-OldNorthArabian.ttf",
+            "family": "ASCW Golden Old North Arabian",
+            "role": "script",
+            "scripts": [
+                "Narb"
+            ],
+            "codepoints": 367
+        },
+        {
+            "file": "ASCW-Golden-Samaritan.ttf",
+            "family": "ASCW Golden Samaritan",
+            "role": "script",
+            "scripts": [
+                "Samr"
+            ],
+            "codepoints": 397
+        },
+        {
+            "file": "ASCW-Golden-Nabataean.ttf",
+            "family": "ASCW Golden Nabataean",
+            "role": "script",
+            "scripts": [
+                "Nbat"
+            ],
+            "codepoints": 375
+        },
+        {
+            "file": "ASCW-Golden-Palmyrene.ttf",
+            "family": "ASCW Golden Palmyrene",
+            "role": "script",
+            "scripts": [
+                "Palm"
+            ],
+            "codepoints": 367
+        },
+        {
+            "file": "ASCW-Golden-InscriptionalPahlavi.ttf",
+            "family": "ASCW Golden Inscriptional Pahlavi",
+            "role": "script",
+            "scripts": [
+                "Phli"
+            ],
+            "codepoints": 349
+        },
+        {
+            "file": "ASCW-Golden-PsalterPahlavi.ttf",
+            "family": "ASCW Golden Psalter Pahlavi",
+            "role": "script",
+            "scripts": [
+                "Phlp"
+            ],
+            "codepoints": 355
+        },
+        {
+            "file": "ASCW-Golden-InscriptionalParthian.ttf",
+            "family": "ASCW Golden Inscriptional Parthian",
+            "role": "script",
+            "scripts": [
+                "Prti"
+            ],
+            "codepoints": 352
+        },
+        {
+            "file": "ASCW-Golden-Sogdian.ttf",
+            "family": "ASCW Golden Sogdian",
+            "role": "script",
+            "scripts": [
+                "Sogd"
+            ],
+            "codepoints": 380
+        },
+        {
+            "file": "ASCW-Golden-OldSogdian.ttf",
+            "family": "ASCW Golden Old Sogdian",
+            "role": "script",
+            "scripts": [
+                "Sogo"
+            ],
+            "codepoints": 363
+        },
+        {
+            "file": "ASCW-Golden-Lycian.ttf",
+            "family": "ASCW Golden Lycian",
+            "role": "script",
+            "scripts": [
+                "Lyci"
+            ],
+            "codepoints": 363
+        },
+        {
+            "file": "ASCW-Golden-Lydian.ttf",
+            "family": "ASCW Golden Lydian",
+            "role": "script",
+            "scripts": [
+                "Lydi"
+            ],
+            "codepoints": 359
+        },
+        {
+            "file": "ASCW-Golden-Cypriot.ttf",
+            "family": "ASCW Golden Cypriot",
+            "role": "script",
+            "scripts": [
+                "Cprt"
+            ],
+            "codepoints": 436
+        },
+        {
+            "file": "ASCW-Golden-CyproMinoan.ttf",
+            "family": "ASCW Golden Cypro Minoan",
+            "role": "script",
+            "scripts": [
+                "Cpmn"
+            ],
+            "codepoints": 433
+        },
+        {
+            "file": "ASCW-Golden-Elbasan.ttf",
+            "family": "ASCW Golden Elbasan",
+            "role": "script",
+            "scripts": [
+                "Elba"
+            ],
+            "codepoints": 403
+        },
+        {
+            "file": "ASCW-Golden-Manichaean.ttf",
+            "family": "ASCW Golden Manichaean",
+            "role": "script",
+            "scripts": [
+                "Mani"
+            ],
+            "codepoints": 387
+        },
+        {
+            "file": "ASCW-Golden-Chorasmian.ttf",
+            "family": "ASCW Golden Chorasmian",
+            "role": "script",
+            "scripts": [
+                "Chrs"
+            ],
+            "codepoints": 359
+        },
+        {
+            "file": "ASCW-Golden-Elymaic.ttf",
+            "family": "ASCW Golden Elymaic",
+            "role": "script",
+            "scripts": [
+                "Elym"
+            ],
+            "codepoints": 352
+        },
+        {
+            "file": "ASCW-Golden-Hatran.ttf",
+            "family": "ASCW Golden Hatran",
+            "role": "script",
+            "scripts": [
+                "Hatr"
+            ],
+            "codepoints": 362
+        },
+        {
+            "file": "ASCW-Golden-Mahajani.ttf",
+            "family": "ASCW Golden Mahajani",
+            "role": "script",
+            "scripts": [
+                "Mahj"
+            ],
+            "codepoints": 399
+        },
+        {
+            "file": "ASCW-Golden-Sharada.ttf",
+            "family": "ASCW Golden Sharada",
+            "role": "script",
+            "scripts": [
+                "Shrd"
+            ],
+            "codepoints": 435
+        },
+        {
+            "file": "ASCW-Golden-Siddham.ttf",
+            "family": "ASCW Golden Siddham",
+            "role": "script",
+            "scripts": [
+                "Sidd"
+            ],
+            "codepoints": 428
+        },
+        {
+            "file": "ASCW-Golden-Tirhuta.ttf",
+            "family": "ASCW Golden Tirhuta",
+            "role": "script",
+            "scripts": [
+                "Tirh"
+            ],
+            "codepoints": 439
+        },
+        {
+            "file": "ASCW-Golden-Grantha.ttf",
+            "family": "ASCW Golden Grantha",
+            "role": "script",
+            "scripts": [
+                "Gran"
+            ],
+            "codepoints": 439
+        },
+        {
+            "file": "ASCW-Golden-Ahom.ttf",
+            "family": "ASCW Golden Ahom",
+            "role": "script",
+            "scripts": [
+                "Ahom"
+            ],
+            "codepoints": 397
+        },
+        {
+            "file": "ASCW-Golden-Dogra.ttf",
+            "family": "ASCW Golden Dogra",
+            "role": "script",
+            "scripts": [
+                "Dogr"
+            ],
+            "codepoints": 396
+        },
+        {
+            "file": "ASCW-Golden-Modi.ttf",
+            "family": "ASCW Golden Modi",
+            "role": "script",
+            "scripts": [
+                "Modi"
+            ],
+            "codepoints": 426
+        },
+        {
+            "file": "ASCW-Golden-Takri.ttf",
+            "family": "ASCW Golden Takri",
+            "role": "script",
+            "scripts": [
+                "Takr"
+            ],
+            "codepoints": 414
+        },
+        {
+            "file": "ASCW-Golden-Khojki.ttf",
+            "family": "ASCW Golden Khojki",
+            "role": "script",
+            "scripts": [
+                "Khoj"
+            ],
+            "codepoints": 418
+        },
+        {
+            "file": "ASCW-Golden-Khudawadi.ttf",
+            "family": "ASCW Golden Khudawadi",
+            "role": "script",
+            "scripts": [
+                "Sind"
+            ],
+            "codepoints": 406
+        },
+        {
+            "file": "ASCW-Golden-Tangut.ttf",
+            "family": "ASCW Golden Tangut",
+            "role": "script",
+            "scripts": [
+                "Tang"
+            ],
+            "codepoints": 7238
+        },
+        {
+            "file": "ASCW-Golden-Duployan.ttf",
+            "family": "ASCW Golden Duployan",
+            "role": "script",
+            "scripts": [
+                "Dupl"
+            ],
+            "codepoints": 486
+        },
+        {
+            "file": "ASCW-Golden-Mro.ttf",
+            "family": "ASCW Golden Mro",
+            "role": "script",
+            "scripts": [
+                "Mroo"
+            ],
+            "codepoints": 378
+        },
+        {
+            "file": "ASCW-Golden-PauCinHau.ttf",
+            "family": "ASCW Golden Pau Cin Hau",
+            "role": "script",
+            "scripts": [
+                "Pauc"
+            ],
+            "codepoints": 392
+        },
+        {
+            "file": "ASCW-Golden-Yezidi.ttf",
+            "family": "ASCW Golden Yezidi",
+            "role": "script",
+            "scripts": [
+                "Yezi"
+            ],
+            "codepoints": 387
+        },
+        {
+            "file": "ASCW-Golden-Vithkuqi.ttf",
+            "family": "ASCW Golden Vithkuqi",
+            "role": "script",
+            "scripts": [
+                "Vith"
+            ],
+            "codepoints": 402
+        },
+        {
+            "file": "ASCW-Golden-Kawi.ttf",
+            "family": "ASCW Golden Kawi",
+            "role": "script",
+            "scripts": [
+                "Kawi"
+            ],
+            "codepoints": 419
+        },
+        {
+            "file": "ASCW-Golden-Nandinagari.ttf",
+            "family": "ASCW Golden Nandinagari",
+            "role": "script",
+            "scripts": [
+                "Nand"
+            ],
+            "codepoints": 410
+        },
+        {
+            "file": "ASCW-Golden-ZanabazarSquare.ttf",
+            "family": "ASCW Golden Zanabazar Square",
+            "role": "script",
+            "scripts": [
+                "Zanb"
+            ],
+            "codepoints": 406
+        },
+        {
+            "file": "ASCW-Golden-Soyombo.ttf",
+            "family": "ASCW Golden Soyombo",
+            "role": "script",
+            "scripts": [
+                "Soyo"
+            ],
+            "codepoints": 419
+        },
+        {
+            "file": "ASCW-Golden-Mongolian.ttf",
+            "family": "ASCW Golden Mongolian",
+            "role": "script",
+            "scripts": [
+                "Mong"
+            ],
+            "codepoints": 516
+        },
+        {
+            "file": "ASCW-Golden-PhagsPa.ttf",
+            "family": "ASCW Golden Phags Pa",
+            "role": "script",
+            "scripts": [
+                "Phag"
+            ],
+            "codepoints": 420
+        },
+        {
+            "file": "ASCW-Golden-Marchen.ttf",
+            "family": "ASCW Golden Marchen",
+            "role": "script",
+            "scripts": [
+                "Marc"
+            ],
+            "codepoints": 391
+        },
+        {
+            "file": "ASCW-Golden-Bhaiksuki.ttf",
+            "family": "ASCW Golden Bhaiksuki",
+            "role": "script",
+            "scripts": [
+                "Bhks"
+            ],
+            "codepoints": 434
+        },
+        {
+            "file": "ASCW-Golden-DivesAkuru.ttf",
+            "family": "ASCW Golden Dives Akuru",
+            "role": "script",
+            "scripts": [
+                "Diak"
+            ],
+            "codepoints": 371
+        },
+        {
+            "file": "ASCW-Golden-Toto.ttf",
+            "family": "ASCW Golden Toto",
+            "role": "script",
+            "scripts": [
+                "Toto"
+            ],
+            "codepoints": 354
+        },
+        {
+            "file": "ASCW-Golden-KhitanSmallScript.ttf",
+            "family": "ASCW Golden Khitan Small Script",
+            "role": "script",
+            "scripts": [
+                "Kits"
+            ],
+            "codepoints": 475
+        },
+        {
+            "file": "ASCW-Golden-OldPermic.ttf",
+            "family": "ASCW Golden Old Permic",
+            "role": "script",
+            "scripts": [
+                "Perm"
+            ],
+            "codepoints": 382
+        },
+        {
+            "file": "ASCW-Golden-CaucasianAlbanian.ttf",
+            "family": "ASCW Golden Caucasian Albanian",
+            "role": "script",
+            "scripts": [
+                "Aghb"
+            ],
+            "codepoints": 392
+        },
+        {
+            "file": "ASCW-Golden-Medefaidrin.ttf",
+            "family": "ASCW Golden Medefaidrin",
+            "role": "script",
+            "scripts": [
+                "Medf"
+            ],
+            "codepoints": 426
+        },
+        {
+            "file": "ASCW-Golden-Makasar.ttf",
+            "family": "ASCW Golden Makasar",
+            "role": "script",
+            "scripts": [
+                "Maka"
+            ],
+            "codepoints": 357
+        },
+        {
+            "file": "ASCW-Golden-SignWriting.ttf",
+            "family": "ASCW Golden Sign Writing",
+            "role": "script",
+            "scripts": [
+                "Sgnw"
+            ],
+            "codepoints": 1008
+        },
+        {
+            "file": "ASCW-Golden-NyiakengPuachueHmong.ttf",
+            "family": "ASCW Golden Nyiakeng Puachue Hmong",
+            "role": "script",
+            "scripts": [
+                "Hmnp"
+            ],
+            "codepoints": 407
+        },
+        {
+            "file": "ASCW-Golden-HanifiRohingya.ttf",
+            "family": "ASCW Golden Hanifi Rohingya",
+            "role": "script",
+            "scripts": [
+                "Rohg"
+            ],
+            "codepoints": 392
+        },
+        {
+            "file": "ASCW-Golden-Chakma.ttf",
+            "family": "ASCW Golden Chakma",
+            "role": "script",
+            "scripts": [
+                "Cakm"
+            ],
+            "codepoints": 429
+        },
+        {
+            "file": "ASCW-Golden-Deseret.ttf",
+            "family": "ASCW Golden Deseret",
+            "role": "script",
+            "scripts": [
+                "Dsrt"
+            ],
+            "codepoints": 415
+        },
+        {
+            "file": "ASCW-Golden-Shavian.ttf",
+            "family": "ASCW Golden Shavian",
+            "role": "script",
+            "scripts": [
+                "Shaw"
+            ],
+            "codepoints": 383
+        },
+        {
+            "file": "ASCW-Golden-Saurashtra.ttf",
+            "family": "ASCW Golden Saurashtra",
+            "role": "script",
+            "scripts": [
+                "Saur"
+            ],
+            "codepoints": 419
+        },
+        {
+            "file": "ASCW-Golden-Rejang.ttf",
+            "family": "ASCW Golden Rejang",
+            "role": "script",
+            "scripts": [
+                "Rjng"
+            ],
+            "codepoints": 363
+        },
+        {
+            "file": "ASCW-Golden-Kaithi.ttf",
+            "family": "ASCW Golden Kaithi",
+            "role": "script",
+            "scripts": [
+                "Kthi"
+            ],
+            "codepoints": 415
+        },
+        {
+            "file": "ASCW-Golden-KayahLi.ttf",
+            "family": "ASCW Golden Kayah Li",
+            "role": "script",
+            "scripts": [
+                "Kali"
+            ],
+            "codepoints": 387
+        },
+        {
+            "file": "ASCW-Golden-Tangsa.ttf",
+            "family": "ASCW Golden Tangsa",
+            "role": "script",
+            "scripts": [
+                "Tnsa"
+            ],
+            "codepoints": 420
+        },
+        {
+            "file": "ASCW-Golden-Sunuwar.ttf",
+            "family": "ASCW Golden Sunuwar",
+            "role": "script",
+            "scripts": [
+                "Sunu"
+            ],
+            "codepoints": 371
+        },
+        {
             "file": "ASCW-Adlam-Regular.ttf",
             "family": "ASCW Adlam",
             "role": "fallback",
@@ -779,6 +1418,8 @@
     ],
     "scripts": {
         "Adlm": "ASCW-Adlam-Regular.ttf",
+        "Aghb": "ASCW-Golden-CaucasianAlbanian.ttf",
+        "Ahom": "ASCW-Golden-Ahom.ttf",
         "Arab": "ASCW-Golden-Arabic.ttf",
         "Armi": "ASCW-Golden-Aramaic.ttf",
         "Armn": "ASCW-Golden-Armenian.ttf",
@@ -788,23 +1429,36 @@
         "Bass": "ASCW-Golden-BassaVah.ttf",
         "Batk": "ASCW-Golden-Batak.ttf",
         "Beng": "ASCW-Golden-Bengali.ttf",
+        "Bhks": "ASCW-Golden-Bhaiksuki.ttf",
         "Bopo": "ASCW-Golden-ChineseSimplified.ttf",
+        "Brah": "ASCW-Golden-Brahmi.ttf",
         "Bugi": "ASCW-Golden-Buginese.ttf",
         "Buhd": "ASCW-Golden-Buhid.ttf",
+        "Cakm": "ASCW-Golden-Chakma.ttf",
         "Cans": "ASCW-Golden-CanadianAboriginal.otf",
         "Cari": "ASCW-Golden-Carian.ttf",
         "Cham": "ASCW-Golden-Cham.ttf",
         "Cher": "ASCW-Golden-Cherokee.ttf",
+        "Chrs": "ASCW-Golden-Chorasmian.ttf",
         "Copt": "ASCW-Golden-Coptic.ttf",
+        "Cpmn": "ASCW-Golden-CyproMinoan.ttf",
+        "Cprt": "ASCW-Golden-Cypriot.ttf",
         "Cyrl": "ASCW-Golden-Cyrillic.ttf",
         "Deva": "ASCW-Golden-Devanagari.ttf",
+        "Diak": "ASCW-Golden-DivesAkuru.ttf",
+        "Dogr": "ASCW-Golden-Dogra.ttf",
+        "Dsrt": "ASCW-Golden-Deseret.ttf",
+        "Dupl": "ASCW-Golden-Duployan.ttf",
         "Egyp": "ASCW-Golden-EgyptianHieroglyphs.ttf",
+        "Elba": "ASCW-Golden-Elbasan.ttf",
+        "Elym": "ASCW-Golden-Elymaic.ttf",
         "Ethi": "ASCW-Golden-Ethiopic.ttf",
         "Geor": "ASCW-Golden-Georgian.ttf",
         "Glag": "ASCW-Golden-Glagolitic.ttf",
         "Gong": "ASCW-Golden-GunjalaGondi.otf",
         "Gonm": "ASCW-Golden-MasaramGondi.otf",
         "Goth": "ASCW-Golden-Gothic.ttf",
+        "Gran": "ASCW-Golden-Grantha.ttf",
         "Grek": "ASCW-Golden-Greek.ttf",
         "Gujr": "ASCW-Golden-Gujarati.ttf",
         "Guru": "ASCW-Golden-Gurmukhi.ttf",
@@ -813,48 +1467,96 @@
         "Hano": "ASCW-Golden-Hanunoo.ttf",
         "Hans": "ASCW-Golden-ChineseSimplified.ttf",
         "Hant": "ASCW-Golden-ChineseTraditional.ttf",
+        "Hatr": "ASCW-Golden-Hatran.ttf",
         "Hebr": "ASCW-Golden-Hebrew.ttf",
         "Hira": "ASCW-Golden-Japanese.ttf",
         "Hluw": "ASCW-Golden-AnatolianHieroglyphs.ttf",
         "Hmng": "ASCW-Golden-PahawhHmong.ttf",
+        "Hmnp": "ASCW-Golden-NyiakengPuachueHmong.ttf",
         "Hung": "ASCW-Golden-OldHungarian.ttf",
         "Ital": "ASCW-Golden-OldItalic.ttf",
         "Java": "ASCW-Golden-Javanese.otf",
         "Jpan": "ASCW-Golden-Japanese.ttf",
+        "Kali": "ASCW-Golden-KayahLi.ttf",
         "Kana": "ASCW-Golden-Japanese.ttf",
+        "Kawi": "ASCW-Golden-Kawi.ttf",
+        "Khar": "ASCW-Golden-Kharoshthi.ttf",
         "Khmr": "ASCW-Golden-Khmer.ttf",
+        "Khoj": "ASCW-Golden-Khojki.ttf",
+        "Kits": "ASCW-Golden-KhitanSmallScript.ttf",
         "Knda": "ASCW-Golden-Kannada.ttf",
         "Kore": "ASCW-Golden-Korean.ttf",
+        "Kthi": "ASCW-Golden-Kaithi.ttf",
         "Lana": "ASCW-Golden-TaiTham.ttf",
         "Laoo": "ASCW-Golden-Lao.ttf",
         "Latn": "ASCW-Golden-Latin2.ttf",
         "Lepc": "ASCW-Golden-Lepcha.ttf",
         "Limb": "ASCW-Golden-Limbu.ttf",
+        "Lina": "ASCW-Golden-LinearA.ttf",
+        "Linb": "ASCW-Golden-LinearB.ttf",
         "Lisu": "ASCW-Golden-Lisu.ttf",
+        "Lyci": "ASCW-Golden-Lycian.ttf",
+        "Lydi": "ASCW-Golden-Lydian.ttf",
+        "Mahj": "ASCW-Golden-Mahajani.ttf",
+        "Maka": "ASCW-Golden-Makasar.ttf",
         "Mand": "ASCW-Golden-Mandaic.ttf",
+        "Mani": "ASCW-Golden-Manichaean.ttf",
+        "Marc": "ASCW-Golden-Marchen.ttf",
+        "Medf": "ASCW-Golden-Medefaidrin.ttf",
         "Mend": "ASCW-Golden-MendeKikakui.ttf",
         "Merc": "ASCW-Golden-Meroitic.ttf",
         "Mero": "ASCW-Golden-Meroitic.ttf",
         "Mlym": "ASCW-Golden-Malayalam.ttf",
+        "Modi": "ASCW-Golden-Modi.ttf",
+        "Mong": "ASCW-Golden-Mongolian.ttf",
+        "Mroo": "ASCW-Golden-Mro.ttf",
         "Mtei": "ASCW-Golden-MeeteiMayek.ttf",
         "Mymr": "ASCW-Golden-Myanmar.ttf",
+        "Nand": "ASCW-Golden-Nandinagari.ttf",
+        "Narb": "ASCW-Golden-OldNorthArabian.ttf",
+        "Nbat": "ASCW-Golden-Nabataean.ttf",
         "Nkoo": "ASCW-NKo-Regular.ttf",
         "Nshu": "ASCW-Golden-Nushu.ttf",
+        "Ogam": "ASCW-Golden-Ogham.ttf",
         "Olck": "ASCW-Golden-OlChiki.ttf",
         "Orkh": "ASCW-Golden-OldTurkic.ttf",
         "Orya": "ASCW-Golden-Oriya.ttf",
         "Osge": "ASCW-Golden-Osage.ttf",
         "Osma": "ASCW-Osmanya-Regular.ttf",
+        "Palm": "ASCW-Golden-Palmyrene.ttf",
+        "Pauc": "ASCW-Golden-PauCinHau.ttf",
+        "Perm": "ASCW-Golden-OldPermic.ttf",
+        "Phag": "ASCW-Golden-PhagsPa.ttf",
+        "Phli": "ASCW-Golden-InscriptionalPahlavi.ttf",
+        "Phlp": "ASCW-Golden-PsalterPahlavi.ttf",
+        "Phnx": "ASCW-Golden-Phoenician.ttf",
         "Plrd": "ASCW-Golden-Miao.ttf",
+        "Prti": "ASCW-Golden-InscriptionalParthian.ttf",
+        "Rjng": "ASCW-Golden-Rejang.ttf",
+        "Rohg": "ASCW-Golden-HanifiRohingya.ttf",
         "Runr": "ASCW-Golden-Runic.ttf",
+        "Samr": "ASCW-Golden-Samaritan.ttf",
+        "Sarb": "ASCW-Golden-OldSouthArabian.ttf",
+        "Saur": "ASCW-Golden-Saurashtra.ttf",
+        "Sgnw": "ASCW-Golden-SignWriting.ttf",
+        "Shaw": "ASCW-Golden-Shavian.ttf",
+        "Shrd": "ASCW-Golden-Sharada.ttf",
+        "Sidd": "ASCW-Golden-Siddham.ttf",
+        "Sind": "ASCW-Golden-Khudawadi.ttf",
         "Sinh": "ASCW-Golden-Sinhala.ttf",
+        "Sogd": "ASCW-Golden-Sogdian.ttf",
+        "Sogo": "ASCW-Golden-OldSogdian.ttf",
         "Sora": "ASCW-Golden-SoraSompeng.ttf",
+        "Soyo": "ASCW-Golden-Soyombo.ttf",
         "Sund": "ASCW-Golden-Sundanese.ttf",
+        "Sunu": "ASCW-Golden-Sunuwar.ttf",
         "Syrc": "ASCW-Golden-Syriac.ttf",
         "Tagb": "ASCW-Golden-Tagbanwa.ttf",
+        "Takr": "ASCW-Golden-Takri.ttf",
         "Tale": "ASCW-Golden-TaiLe.ttf",
         "Talu": "ASCW-Golden-NewTaiLue.ttf",
         "Taml": "ASCW-Golden-Tamil.ttf",
+        "Tang": "ASCW-Golden-Tangut.ttf",
         "Tavt": "ASCW-Golden-TaiViet.ttf",
         "Telu": "ASCW-Golden-Telugu.ttf",
         "Tfng": "ASCW-Tifinagh-Regular.otf",
@@ -862,11 +1564,19 @@
         "Thaa": "ASCW-Golden-Thaana.ttf",
         "Thai": "ASCW-Golden-Thai.ttf",
         "Tibt": "ASCW-Golden-Tibetan.ttf",
+        "Tirh": "ASCW-Golden-Tirhuta.ttf",
+        "Tnsa": "ASCW-Golden-Tangsa.ttf",
+        "Toto": "ASCW-Golden-Toto.ttf",
+        "Ugar": "ASCW-Golden-Ugaritic.ttf",
         "Vaii": "ASCW-Vai-Regular.ttf",
+        "Vith": "ASCW-Golden-Vithkuqi.ttf",
         "Wara": "ASCW-Golden-WarangCiti.ttf",
         "Wcho": "ASCW-Golden-Wancho.ttf",
+        "Xpeo": "ASCW-Golden-OldPersian.ttf",
         "Xsux": "ASCW-Golden-Cuneiform.ttf",
-        "Yiii": "ASCW-Golden-Yi.ttf"
+        "Yezi": "ASCW-Golden-Yezidi.ttf",
+        "Yiii": "ASCW-Golden-Yi.ttf",
+        "Zanb": "ASCW-Golden-ZanabazarSquare.ttf"
     },
     "locale_overrides": {
         "fa": "ASCW-Golden-Persian.ttf",
@@ -1087,6 +1797,16 @@
             2045,
             2047,
             "ASCW-NKo-Regular.ttf"
+        ],
+        [
+            2048,
+            2093,
+            "ASCW-Golden-Samaritan.ttf"
+        ],
+        [
+            2096,
+            2110,
+            "ASCW-Golden-Samaritan.ttf"
         ],
         [
             2112,
@@ -2014,6 +2734,11 @@
             "ASCW-Golden-CanadianAboriginal.otf"
         ],
         [
+            5760,
+            5788,
+            "ASCW-Golden-Ogham.ttf"
+        ],
+        [
             5792,
             5880,
             "ASCW-Golden-Runic.ttf"
@@ -2072,6 +2797,21 @@
             6128,
             6137,
             "ASCW-Golden-Khmer.ttf"
+        ],
+        [
+            6144,
+            6169,
+            "ASCW-Golden-Mongolian.ttf"
+        ],
+        [
+            6176,
+            6264,
+            "ASCW-Golden-Mongolian.ttf"
+        ],
+        [
+            6272,
+            6314,
+            "ASCW-Golden-Mongolian.ttf"
         ],
         [
             6320,
@@ -2254,6 +2994,56 @@
             "ASCW-Golden-Sundanese.ttf"
         ],
         [
+            7376,
+            7376,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            7378,
+            7379,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            7383,
+            7383,
+            "ASCW-Golden-Sharada.ttf"
+        ],
+        [
+            7385,
+            7385,
+            "ASCW-Golden-Sharada.ttf"
+        ],
+        [
+            7388,
+            7389,
+            "ASCW-Golden-Sharada.ttf"
+        ],
+        [
+            7392,
+            7392,
+            "ASCW-Golden-Sharada.ttf"
+        ],
+        [
+            7401,
+            7401,
+            "ASCW-Golden-Nandinagari.ttf"
+        ],
+        [
+            7410,
+            7412,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            7416,
+            7417,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            7418,
+            7418,
+            "ASCW-Golden-Nandinagari.ttf"
+        ],
+        [
             7424,
             7673,
             "ASCW-Golden-Latin2.ttf"
@@ -2372,6 +3162,16 @@
             8384,
             8384,
             "ASCW-Golden-Mono.ttf"
+        ],
+        [
+            8411,
+            8411,
+            "ASCW-Golden-OldPermic.ttf"
+        ],
+        [
+            8413,
+            8413,
+            "ASCW-Golden-Duployan.ttf"
         ],
         [
             8432,
@@ -2666,7 +3466,7 @@
         [
             8968,
             8971,
-            "ASCW-Golden-Mono.ttf"
+            "ASCW-Golden-Duployan.ttf"
         ],
         [
             8976,
@@ -2754,6 +3554,11 @@
             "ASCW-Golden-Latin.ttf"
         ],
         [
+            9760,
+            9760,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
             9784,
             9784,
             "ASCW-Golden-Tibetan.ttf"
@@ -2762,6 +3567,11 @@
             9837,
             9839,
             "ASCW-Golden-Mono.ttf"
+        ],
+        [
+            10013,
+            10013,
+            "ASCW-Golden-Duployan.ttf"
         ],
         [
             10038,
@@ -3104,9 +3914,49 @@
             "ASCW-Golden-Latin2.ttf"
         ],
         [
+            43056,
+            43065,
+            "ASCW-Golden-Khojki.ttf"
+        ],
+        [
+            43072,
+            43127,
+            "ASCW-Golden-PhagsPa.ttf"
+        ],
+        [
+            43136,
+            43205,
+            "ASCW-Golden-Saurashtra.ttf"
+        ],
+        [
+            43214,
+            43225,
+            "ASCW-Golden-Saurashtra.ttf"
+        ],
+        [
+            43264,
+            43309,
+            "ASCW-Golden-KayahLi.ttf"
+        ],
+        [
             43310,
             43310,
             "ASCW-Golden-Latin2.ttf"
+        ],
+        [
+            43311,
+            43311,
+            "ASCW-Golden-KayahLi.ttf"
+        ],
+        [
+            43312,
+            43347,
+            "ASCW-Golden-Rejang.ttf"
+        ],
+        [
+            43359,
+            43359,
+            "ASCW-Golden-Rejang.ttf"
         ],
         [
             43360,
@@ -3369,6 +4219,16 @@
             "ASCW-Golden-ChineseSimplified.ttf"
         ],
         [
+            65339,
+            65339,
+            "ASCW-Golden-Mongolian.ttf"
+        ],
+        [
+            65341,
+            65341,
+            "ASCW-Golden-Mongolian.ttf"
+        ],
+        [
             65371,
             65371,
             "ASCW-Golden-Mono.ttf"
@@ -3387,6 +4247,61 @@
             65532,
             65533,
             "ASCW-Golden-Latin2.ttf"
+        ],
+        [
+            65536,
+            65547,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65549,
+            65574,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65576,
+            65594,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65596,
+            65597,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65599,
+            65613,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65616,
+            65629,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65664,
+            65786,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            65792,
+            65794,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            65799,
+            65843,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            65847,
+            65855,
+            "ASCW-Golden-LinearB.ttf"
+        ],
+        [
+            66176,
+            66204,
+            "ASCW-Golden-Lycian.ttf"
         ],
         [
             66208,
@@ -3414,6 +4329,41 @@
             "ASCW-Golden-Gothic.ttf"
         ],
         [
+            66384,
+            66426,
+            "ASCW-Golden-OldPermic.ttf"
+        ],
+        [
+            66432,
+            66461,
+            "ASCW-Golden-Ugaritic.ttf"
+        ],
+        [
+            66463,
+            66463,
+            "ASCW-Golden-Ugaritic.ttf"
+        ],
+        [
+            66464,
+            66499,
+            "ASCW-Golden-OldPersian.ttf"
+        ],
+        [
+            66504,
+            66517,
+            "ASCW-Golden-OldPersian.ttf"
+        ],
+        [
+            66560,
+            66639,
+            "ASCW-Golden-Deseret.ttf"
+        ],
+        [
+            66640,
+            66687,
+            "ASCW-Golden-Shavian.ttf"
+        ],
+        [
             66688,
             66717,
             "ASCW-Osmanya-Regular.ttf"
@@ -3434,6 +4384,76 @@
             "ASCW-Golden-Osage.ttf"
         ],
         [
+            66816,
+            66855,
+            "ASCW-Golden-Elbasan.ttf"
+        ],
+        [
+            66864,
+            66915,
+            "ASCW-Golden-CaucasianAlbanian.ttf"
+        ],
+        [
+            66927,
+            66927,
+            "ASCW-Golden-CaucasianAlbanian.ttf"
+        ],
+        [
+            66928,
+            66938,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66940,
+            66954,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66956,
+            66962,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66964,
+            66965,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66967,
+            66977,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66979,
+            66993,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            66995,
+            67001,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            67003,
+            67004,
+            "ASCW-Golden-Vithkuqi.ttf"
+        ],
+        [
+            67072,
+            67382,
+            "ASCW-Golden-LinearA.ttf"
+        ],
+        [
+            67392,
+            67413,
+            "ASCW-Golden-LinearA.ttf"
+        ],
+        [
+            67424,
+            67431,
+            "ASCW-Golden-LinearA.ttf"
+        ],
+        [
             67456,
             67461,
             "ASCW-Golden-Mono.ttf"
@@ -3449,6 +4469,36 @@
             "ASCW-Golden-Mono.ttf"
         ],
         [
+            67584,
+            67589,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            67592,
+            67592,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            67594,
+            67637,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            67639,
+            67640,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            67644,
+            67644,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
+            67647,
+            67647,
+            "ASCW-Golden-Cypriot.ttf"
+        ],
+        [
             67648,
             67669,
             "ASCW-Golden-Aramaic.ttf"
@@ -3457,6 +4507,56 @@
             67671,
             67679,
             "ASCW-Golden-Aramaic.ttf"
+        ],
+        [
+            67680,
+            67711,
+            "ASCW-Golden-Palmyrene.ttf"
+        ],
+        [
+            67712,
+            67742,
+            "ASCW-Golden-Nabataean.ttf"
+        ],
+        [
+            67751,
+            67759,
+            "ASCW-Golden-Nabataean.ttf"
+        ],
+        [
+            67808,
+            67826,
+            "ASCW-Golden-Hatran.ttf"
+        ],
+        [
+            67828,
+            67829,
+            "ASCW-Golden-Hatran.ttf"
+        ],
+        [
+            67835,
+            67839,
+            "ASCW-Golden-Hatran.ttf"
+        ],
+        [
+            67840,
+            67867,
+            "ASCW-Golden-Phoenician.ttf"
+        ],
+        [
+            67871,
+            67871,
+            "ASCW-Golden-Phoenician.ttf"
+        ],
+        [
+            67872,
+            67897,
+            "ASCW-Golden-Lydian.ttf"
+        ],
+        [
+            67903,
+            67903,
+            "ASCW-Golden-Lydian.ttf"
         ],
         [
             67968,
@@ -3474,6 +4574,66 @@
             "ASCW-Golden-Meroitic.ttf"
         ],
         [
+            68096,
+            68099,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68101,
+            68102,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68108,
+            68115,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68117,
+            68119,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68121,
+            68149,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68152,
+            68154,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68159,
+            68168,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68176,
+            68184,
+            "ASCW-Golden-Kharoshthi.ttf"
+        ],
+        [
+            68192,
+            68223,
+            "ASCW-Golden-OldSouthArabian.ttf"
+        ],
+        [
+            68224,
+            68255,
+            "ASCW-Golden-OldNorthArabian.ttf"
+        ],
+        [
+            68288,
+            68326,
+            "ASCW-Golden-Manichaean.ttf"
+        ],
+        [
+            68331,
+            68342,
+            "ASCW-Golden-Manichaean.ttf"
+        ],
+        [
             68352,
             68405,
             "ASCW-Golden-Avestan.ttf"
@@ -3482,6 +4642,41 @@
             68409,
             68415,
             "ASCW-Golden-Avestan.ttf"
+        ],
+        [
+            68416,
+            68437,
+            "ASCW-Golden-InscriptionalParthian.ttf"
+        ],
+        [
+            68440,
+            68447,
+            "ASCW-Golden-InscriptionalParthian.ttf"
+        ],
+        [
+            68448,
+            68466,
+            "ASCW-Golden-InscriptionalPahlavi.ttf"
+        ],
+        [
+            68472,
+            68479,
+            "ASCW-Golden-InscriptionalPahlavi.ttf"
+        ],
+        [
+            68480,
+            68497,
+            "ASCW-Golden-PsalterPahlavi.ttf"
+        ],
+        [
+            68505,
+            68508,
+            "ASCW-Golden-PsalterPahlavi.ttf"
+        ],
+        [
+            68521,
+            68527,
+            "ASCW-Golden-PsalterPahlavi.ttf"
         ],
         [
             68608,
@@ -3504,6 +4699,76 @@
             "ASCW-Golden-OldHungarian.ttf"
         ],
         [
+            68864,
+            68903,
+            "ASCW-Golden-HanifiRohingya.ttf"
+        ],
+        [
+            68912,
+            68921,
+            "ASCW-Golden-HanifiRohingya.ttf"
+        ],
+        [
+            69248,
+            69289,
+            "ASCW-Golden-Yezidi.ttf"
+        ],
+        [
+            69291,
+            69293,
+            "ASCW-Golden-Yezidi.ttf"
+        ],
+        [
+            69296,
+            69297,
+            "ASCW-Golden-Yezidi.ttf"
+        ],
+        [
+            69376,
+            69415,
+            "ASCW-Golden-OldSogdian.ttf"
+        ],
+        [
+            69424,
+            69465,
+            "ASCW-Golden-Sogdian.ttf"
+        ],
+        [
+            69552,
+            69579,
+            "ASCW-Golden-Chorasmian.ttf"
+        ],
+        [
+            69600,
+            69622,
+            "ASCW-Golden-Elymaic.ttf"
+        ],
+        [
+            69632,
+            69709,
+            "ASCW-Golden-Brahmi.ttf"
+        ],
+        [
+            69714,
+            69749,
+            "ASCW-Golden-Brahmi.ttf"
+        ],
+        [
+            69759,
+            69759,
+            "ASCW-Golden-Brahmi.ttf"
+        ],
+        [
+            69760,
+            69826,
+            "ASCW-Golden-Kaithi.ttf"
+        ],
+        [
+            69837,
+            69837,
+            "ASCW-Golden-Kaithi.ttf"
+        ],
+        [
             69840,
             69864,
             "ASCW-Golden-SoraSompeng.ttf"
@@ -3512,6 +4777,186 @@
             69872,
             69881,
             "ASCW-Golden-SoraSompeng.ttf"
+        ],
+        [
+            69888,
+            69940,
+            "ASCW-Golden-Chakma.ttf"
+        ],
+        [
+            69942,
+            69959,
+            "ASCW-Golden-Chakma.ttf"
+        ],
+        [
+            69968,
+            70006,
+            "ASCW-Golden-Mahajani.ttf"
+        ],
+        [
+            70016,
+            70111,
+            "ASCW-Golden-Sharada.ttf"
+        ],
+        [
+            70144,
+            70161,
+            "ASCW-Golden-Khojki.ttf"
+        ],
+        [
+            70163,
+            70208,
+            "ASCW-Golden-Khojki.ttf"
+        ],
+        [
+            70320,
+            70378,
+            "ASCW-Golden-Khudawadi.ttf"
+        ],
+        [
+            70384,
+            70393,
+            "ASCW-Golden-Khudawadi.ttf"
+        ],
+        [
+            70400,
+            70403,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70405,
+            70412,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70415,
+            70416,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70419,
+            70440,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70442,
+            70448,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70450,
+            70451,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70453,
+            70457,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70459,
+            70468,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70471,
+            70472,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70475,
+            70477,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70480,
+            70480,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70487,
+            70487,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70493,
+            70499,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70502,
+            70508,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70512,
+            70516,
+            "ASCW-Golden-Grantha.ttf"
+        ],
+        [
+            70784,
+            70855,
+            "ASCW-Golden-Tirhuta.ttf"
+        ],
+        [
+            70864,
+            70873,
+            "ASCW-Golden-Tirhuta.ttf"
+        ],
+        [
+            71040,
+            71093,
+            "ASCW-Golden-Siddham.ttf"
+        ],
+        [
+            71096,
+            71133,
+            "ASCW-Golden-Siddham.ttf"
+        ],
+        [
+            71168,
+            71236,
+            "ASCW-Golden-Modi.ttf"
+        ],
+        [
+            71248,
+            71257,
+            "ASCW-Golden-Modi.ttf"
+        ],
+        [
+            71264,
+            71276,
+            "ASCW-Golden-Mongolian.ttf"
+        ],
+        [
+            71296,
+            71353,
+            "ASCW-Golden-Takri.ttf"
+        ],
+        [
+            71360,
+            71369,
+            "ASCW-Golden-Takri.ttf"
+        ],
+        [
+            71424,
+            71450,
+            "ASCW-Golden-Ahom.ttf"
+        ],
+        [
+            71453,
+            71467,
+            "ASCW-Golden-Ahom.ttf"
+        ],
+        [
+            71472,
+            71494,
+            "ASCW-Golden-Ahom.ttf"
+        ],
+        [
+            71680,
+            71739,
+            "ASCW-Golden-Dogra.ttf"
         ],
         [
             71840,
@@ -3524,9 +4969,154 @@
             "ASCW-Golden-WarangCiti.ttf"
         ],
         [
+            71936,
+            71936,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71938,
+            71938,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71940,
+            71940,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71942,
+            71942,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71945,
+            71945,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71948,
+            71948,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71950,
+            71950,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71952,
+            71952,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71958,
+            71958,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71960,
+            71977,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71979,
+            71989,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71991,
+            71993,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            71997,
+            72000,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            72002,
+            72006,
+            "ASCW-Golden-DivesAkuru.ttf"
+        ],
+        [
+            72096,
+            72103,
+            "ASCW-Golden-Nandinagari.ttf"
+        ],
+        [
+            72106,
+            72151,
+            "ASCW-Golden-Nandinagari.ttf"
+        ],
+        [
+            72154,
+            72164,
+            "ASCW-Golden-Nandinagari.ttf"
+        ],
+        [
+            72192,
+            72263,
+            "ASCW-Golden-ZanabazarSquare.ttf"
+        ],
+        [
+            72272,
+            72354,
+            "ASCW-Golden-Soyombo.ttf"
+        ],
+        [
             72368,
             72383,
             "ASCW-Golden-CanadianAboriginal.otf"
+        ],
+        [
+            72384,
+            72440,
+            "ASCW-Golden-PauCinHau.ttf"
+        ],
+        [
+            72640,
+            72673,
+            "ASCW-Golden-Sunuwar.ttf"
+        ],
+        [
+            72688,
+            72697,
+            "ASCW-Golden-Sunuwar.ttf"
+        ],
+        [
+            72704,
+            72712,
+            "ASCW-Golden-Bhaiksuki.ttf"
+        ],
+        [
+            72714,
+            72758,
+            "ASCW-Golden-Bhaiksuki.ttf"
+        ],
+        [
+            72760,
+            72773,
+            "ASCW-Golden-Bhaiksuki.ttf"
+        ],
+        [
+            72784,
+            72812,
+            "ASCW-Golden-Bhaiksuki.ttf"
+        ],
+        [
+            72816,
+            72847,
+            "ASCW-Golden-Marchen.ttf"
+        ],
+        [
+            72850,
+            72871,
+            "ASCW-Golden-Marchen.ttf"
+        ],
+        [
+            72873,
+            72886,
+            "ASCW-Golden-Marchen.ttf"
         ],
         [
             72960,
@@ -3594,6 +5184,31 @@
             "ASCW-Golden-GunjalaGondi.otf"
         ],
         [
+            73440,
+            73464,
+            "ASCW-Golden-Makasar.ttf"
+        ],
+        [
+            73472,
+            73488,
+            "ASCW-Golden-Kawi.ttf"
+        ],
+        [
+            73490,
+            73530,
+            "ASCW-Golden-Kawi.ttf"
+        ],
+        [
+            73532,
+            73532,
+            "ASCW-Golden-Kawi.ttf"
+        ],
+        [
+            73534,
+            73561,
+            "ASCW-Golden-Kawi.ttf"
+        ],
+        [
             73728,
             74649,
             "ASCW-Golden-Cuneiform.ttf"
@@ -3614,6 +5229,11 @@
             "ASCW-Golden-Cuneiform.ttf"
         ],
         [
+            77712,
+            77810,
+            "ASCW-Golden-CyproMinoan.ttf"
+        ],
+        [
             77824,
             78894,
             "ASCW-Golden-EgyptianHieroglyphs.ttf"
@@ -3627,6 +5247,31 @@
             92160,
             92728,
             "ASCW-Golden-Bamum.ttf"
+        ],
+        [
+            92736,
+            92766,
+            "ASCW-Golden-Mro.ttf"
+        ],
+        [
+            92768,
+            92777,
+            "ASCW-Golden-Mro.ttf"
+        ],
+        [
+            92782,
+            92783,
+            "ASCW-Golden-Mro.ttf"
+        ],
+        [
+            92784,
+            92862,
+            "ASCW-Golden-Tangsa.ttf"
+        ],
+        [
+            92864,
+            92873,
+            "ASCW-Golden-Tangsa.ttf"
         ],
         [
             92880,
@@ -3664,6 +5309,11 @@
             "ASCW-Golden-PahawhHmong.ttf"
         ],
         [
+            93760,
+            93850,
+            "ASCW-Golden-Medefaidrin.ttf"
+        ],
+        [
             93952,
             94026,
             "ASCW-Golden-Miao.ttf"
@@ -3679,9 +5329,79 @@
             "ASCW-Golden-Miao.ttf"
         ],
         [
+            94176,
+            94176,
+            "ASCW-Golden-Tangut.ttf"
+        ],
+        [
+            94180,
+            94180,
+            "ASCW-Golden-KhitanSmallScript.ttf"
+        ],
+        [
+            94208,
+            100343,
+            "ASCW-Golden-Tangut.ttf"
+        ],
+        [
+            100352,
+            101119,
+            "ASCW-Golden-Tangut.ttf"
+        ],
+        [
+            101120,
+            101589,
+            "ASCW-Golden-KhitanSmallScript.ttf"
+        ],
+        [
+            101632,
+            101640,
+            "ASCW-Golden-Tangut.ttf"
+        ],
+        [
             110960,
             111355,
             "ASCW-Golden-Nushu.ttf"
+        ],
+        [
+            113664,
+            113770,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
+            113776,
+            113788,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
+            113792,
+            113800,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
+            113808,
+            113817,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
+            113820,
+            113827,
+            "ASCW-Golden-Duployan.ttf"
+        ],
+        [
+            120832,
+            121483,
+            "ASCW-Golden-SignWriting.ttf"
+        ],
+        [
+            121499,
+            121503,
+            "ASCW-Golden-SignWriting.ttf"
+        ],
+        [
+            121505,
+            121519,
+            "ASCW-Golden-SignWriting.ttf"
         ],
         [
             122624,
@@ -3712,6 +5432,31 @@
             122918,
             122922,
             "ASCW-Golden-Glagolitic.ttf"
+        ],
+        [
+            123136,
+            123180,
+            "ASCW-Golden-NyiakengPuachueHmong.ttf"
+        ],
+        [
+            123184,
+            123197,
+            "ASCW-Golden-NyiakengPuachueHmong.ttf"
+        ],
+        [
+            123200,
+            123209,
+            "ASCW-Golden-NyiakengPuachueHmong.ttf"
+        ],
+        [
+            123214,
+            123215,
+            "ASCW-Golden-NyiakengPuachueHmong.ttf"
+        ],
+        [
+            123536,
+            123566,
+            "ASCW-Golden-Toto.ttf"
         ],
         [
             123584,
@@ -3772,6 +5517,11 @@
             128636,
             128639,
             "ASCW-Golden-Mono.ttf"
+        ],
+        [
+            128723,
+            128724,
+            "ASCW-Golden-Tangut.ttf"
         ],
         [
             131105,
@@ -10967,13 +12717,13 @@
         },
         "ccp": {
             "script": "Cakm",
-            "face": null,
-            "missing": 67
+            "face": "ASCW-Golden-Chakma.ttf",
+            "missing": 0
         },
         "ccp-IN": {
             "script": "Cakm",
-            "face": null,
-            "missing": 67
+            "face": "ASCW-Golden-Chakma.ttf",
+            "missing": 0
         },
         "ce": {
             "script": "Cyrl",
@@ -11312,8 +13062,8 @@
         },
         "en-Dsrt": {
             "script": "Dsrt",
-            "face": null,
-            "missing": 40
+            "face": "ASCW-Golden-Deseret.ttf",
+            "missing": 0
         },
         "en-EE": {
             "script": "Latn",
@@ -11712,8 +13462,8 @@
         },
         "en-Shaw": {
             "script": "Shaw",
-            "face": null,
-            "missing": 48
+            "face": "ASCW-Golden-Shavian.ttf",
+            "missing": 0
         },
         "en-TC": {
             "script": "Latn",
@@ -12477,13 +14227,13 @@
         },
         "hnj": {
             "script": "Hmnp",
-            "face": null,
-            "missing": 66
+            "face": "ASCW-Golden-NyiakengPuachueHmong.ttf",
+            "missing": 0
         },
         "hnj-Hmnp": {
             "script": "Hmnp",
-            "face": null,
-            "missing": 66
+            "face": "ASCW-Golden-NyiakengPuachueHmong.ttf",
+            "missing": 0
         },
         "hr": {
             "script": "Latn",
@@ -12538,7 +14288,7 @@
         "ii": {
             "script": "Yiii",
             "face": "ASCW-Golden-Yi.ttf",
-            "missing": 57
+            "missing": 55
         },
         "io": {
             "script": "Latn",
@@ -12583,7 +14333,7 @@
         "ja": {
             "script": "Jpan",
             "face": "ASCW-Golden-Japanese.ttf",
-            "missing": 10
+            "missing": 8
         },
         "jbo": {
             "script": "Latn",
@@ -12733,17 +14483,17 @@
         "ko": {
             "script": "Kore",
             "face": "ASCW-Golden-Korean.ttf",
-            "missing": 10
+            "missing": 8
         },
         "ko-CN": {
             "script": "Kore",
             "face": "ASCW-Golden-Korean.ttf",
-            "missing": 10
+            "missing": 8
         },
         "ko-KP": {
             "script": "Kore",
             "face": "ASCW-Golden-Korean.ttf",
-            "missing": 10
+            "missing": 8
         },
         "kok": {
             "script": "Deva",
@@ -13062,13 +14812,13 @@
         },
         "mn-Mong": {
             "script": "Mong",
-            "face": null,
-            "missing": 45
+            "face": "ASCW-Golden-Mongolian.ttf",
+            "missing": 0
         },
         "mn-Mong-MN": {
             "script": "Mong",
-            "face": null,
-            "missing": 45
+            "face": "ASCW-Golden-Mongolian.ttf",
+            "missing": 0
         },
         "mni": {
             "script": "Beng",
@@ -13142,13 +14892,13 @@
         },
         "mww": {
             "script": "Hmnp",
-            "face": null,
-            "missing": 10
+            "face": "ASCW-Golden-NyiakengPuachueHmong.ttf",
+            "missing": 0
         },
         "mww-Hmnp": {
             "script": "Hmnp",
-            "face": null,
-            "missing": 10
+            "face": "ASCW-Golden-NyiakengPuachueHmong.ttf",
+            "missing": 0
         },
         "my": {
             "script": "Mymr",
@@ -13507,18 +15257,18 @@
         },
         "rhg": {
             "script": "Rohg",
-            "face": null,
-            "missing": 39
+            "face": "ASCW-Golden-HanifiRohingya.ttf",
+            "missing": 0
         },
         "rhg-Rohg": {
             "script": "Rohg",
-            "face": null,
-            "missing": 39
+            "face": "ASCW-Golden-HanifiRohingya.ttf",
+            "missing": 0
         },
         "rhg-Rohg-BD": {
             "script": "Rohg",
-            "face": null,
-            "missing": 39
+            "face": "ASCW-Golden-HanifiRohingya.ttf",
+            "missing": 0
         },
         "rif": {
             "script": "Latn",
@@ -13922,8 +15672,8 @@
         },
         "suz-Sunu": {
             "script": "Sunu",
-            "face": null,
-            "missing": 34
+            "face": "ASCW-Golden-Sunuwar.ttf",
+            "missing": 0
         },
         "sv": {
             "script": "Latn",
@@ -14283,27 +16033,27 @@
         "yue": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "yue-Hans": {
             "script": "Hans",
             "face": "ASCW-Golden-ChineseSimplified.ttf",
-            "missing": 57
+            "missing": 55
         },
         "yue-Hant": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "yue-Hant-CN": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "yue-Hant-MO": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "za": {
             "script": "Latn",
@@ -14348,22 +16098,22 @@
         "zh-Hant": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "zh-Hant-HK": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "zh-Hant-MO": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "zh-Hant-MY": {
             "script": "Hant",
             "face": "ASCW-Golden-ChineseTraditional.ttf",
-            "missing": 59
+            "missing": 57
         },
         "zh-Latn": {
             "script": "Latn",
