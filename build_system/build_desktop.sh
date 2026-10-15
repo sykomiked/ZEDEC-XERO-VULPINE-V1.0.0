@@ -4,7 +4,7 @@
 #
 # build_desktop.sh — build the ZXV desktop apps, test them, and package them.
 #
-#   macOS    ZXV.app: the native shell (macos/ZXVApp.m, AppKit + WKWebView)
+#   macOS    ZXV.app: the native shell (macos/ZXVApp.m, AppKit + the zui desktop)
 #            and the engine (kernel/arch/hosted), both universal (Intel +
 #            Apple Silicon), the window, the first-run model fetcher and its
 #            manifest; in a .dmg and a .app.zip. Ad-hoc signed; Developer ID signing and notarisation only when
@@ -227,7 +227,7 @@ sh "$MACOS/build_macos_shell.sh" "$APP/Contents/MacOS/ZXV"
 SHELL_RC=$?
 set -e
 case "$SHELL_RC" in
-    0) EXEC=ZXV; UIEL=false; MAC_KIND="native app (Dock, menus, WKWebView window)" ;;
+    0) EXEC=ZXV; UIEL=false; MAC_KIND="native app (Dock, menus, zui desktop window on Metal)" ;;
     3) EXEC=zxv-engine; UIEL=true; MAC_KIND="engine only (opens the default browser)" ;;
     *) echo "the native shell failed to compile" >&2; exit 1 ;;
 esac

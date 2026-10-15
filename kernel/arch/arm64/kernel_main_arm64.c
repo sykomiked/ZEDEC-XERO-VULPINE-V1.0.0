@@ -107,6 +107,7 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
 /* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
+extern uint64_t arm64_timer_get_uptime_ms(void);
 extern bool     virtio_input_probe(void);
 extern void     virtio_input_poll(void);
 extern void     virtio_input_get(int32_t *x, int32_t *y, uint32_t *buttons);
@@ -375,7 +376,7 @@ static const signed char g_sin64[64] = {
  0,10,20,29,38,47,56,63,71,77,83,88,92,96,98,100,100,100,98,96,92,88,83,77,71,63,56,47,38,29,20,10,
  0,-10,-20,-29,-38,-47,-56,-63,-71,-77,-83,-88,-92,-96,-98,-100,-100,-100,-98,-96,-92,-88,-83,-77,-71,-63,-56,-47,-38,-29,-20,-10};
 static int g_holo = 1;                 /* holographic present on/off */
-static int g_holo_k = 10;              /* shift: bigger = subtler (10 ~= 12%, visible) */
+static int g_holo_k = 13;              /* shift: bigger = subtler (13 ~= 1.5%: the palette reads true) */
 static uint32_t g_holo_phase = 0;
 
 /* ---- UEFI GOP framebuffer (bare-metal boot via BOOTAA64.EFI) ----
@@ -3137,7 +3138,7 @@ void kernel_event_cycle_run(void) {
         if (!reentrant) {
             virtio_bus_poll();   /* drive every registered class driver's poll (input, ...) */
             int32_t key;
-            while ((key = virtio_input_pop_key()) > 0) zxv_shell_key(&g_shell, (int32_t)key);
+            while ((key = virtio_input_pop_key()) >= 0) zxv_shell_key(&g_shell, (int32_t)key);
             /* Latch fast taps EVERY cycle from the driver's exact press counter, not the
              * every-6th-cycle button level (which misses sub-60ms clicks). */
             static uint32_t g_pending_click = 0;
@@ -3152,11 +3153,12 @@ void kernel_event_cycle_run(void) {
                 virtio_input_get(&cx, &cy, &btn);
                 /* Surface any tap that happened since the last frame as a click edge,
                  * even if the button level already returned to 0 between samples. */
-                if (g_pending_click) { btn |= 1u; g_pending_click = 0; }
+                if (g_pending_click) { if (!(btn & 1u)) btn |= ZXV_SHELL_BTN_TAP; g_pending_click = 0; }
                 /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
                  * and space planes clear the whole screen themselves, so rendering the
                  * 6-layer prism there is a full-screen pass thrown away. Skip it. */
                 if (g_shell.view == 0) pb_render_frame(&prism_break);
+                zxv_shell_set_clock_ms((uint32_t)arm64_timer_get_uptime_ms());
                 zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
                 zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
                 __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");

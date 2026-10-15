@@ -4,22 +4,33 @@
  *
  * A small AppKit program. It starts the swarm engine (Contents/MacOS/
  * zxv-engine, built from kernel/arch/hosted/zxv_host.c) as a child process
- * and shows the engine's window in a WKWebView. It has a Dock icon and a
- * menu bar, and posts macOS notifications. It is a companion: it asks for
+ * and shows the ZXV desktop in its window, drawn by zui in this process
+ * (kernel/arch/hosted/zxv_desktop.h). It has a Dock icon and a menu bar,
+ * and posts macOS notifications. It is a companion: it asks for
  * no admin rights, installs nothing outside its own data folders, does not
  * start at login, and the engine's compute is capped by swarm_governor.
  *
  *   ENGINE.   Started with --no-window --port 0 --exit-with-parent and a
  *             fresh 256-bit token (SecRandomCopyBytes) in ZXV_TOKEN. The
  *             engine prints "ZXV-URL: http://127.0.0.1:<port>/#token=<t>";
- *             the shell checks the token is its own and loads that URL. The
- *             engine's stdin is a pipe the shell holds, so if the shell dies
- *             the engine sees EOF and stops: it can never outlive the app.
- *   WEBVIEW.  Non-persistent data store (nothing written to disk). Only the
- *             engine's own origin may load inside it; any other link opens
- *             in the user's default browser. The page can post a
- *             notification with window.zxvNative.notify(title, body);
- *             messages from any other origin are ignored.
+ *             the shell checks the token is its own and takes that line as
+ *             the sign the engine is up. The engine's stdin is a pipe the
+ *             shell holds, so if the shell dies the engine sees EOF and
+ *             stops: it can never outlive the app.
+ *   WINDOW.   The native ZXV desktop (zxv_desktop.c): the shared desktop
+ *             chrome (kernel/src/zui/zui_desk.h), its launcher rail and the
+ *             built-in apps' native screens (kernel/src/zui/views) in their
+ *             own windows, drawn by zui as vector shapes and ASCW Golden
+ *             text (Contents/Resources/Fonts) on the Metal present layer
+ *             (kernel/arch/hosted/zui_present_metal.m). No browser: the Mac
+ *             app does not load kernel/arch/hosted/zxv_ui.html, which the
+ *             engine still serves on 127.0.0.1 for browsers on Linux and
+ *             Windows. A 60 Hz timer on the main thread runs one desktop
+ *             step (input, windows, paint, present). The apps' models talk
+ *             to zxvd over the control socket (SOCKET); the bar's status
+ *             says whether zxvd answers, and carries the shell's own news
+ *             ("Starting the swarm…") while there is some. Closing the
+ *             window quits. The fields use the system clipboard.
  *   MODELS.   Chosen in this order: the file picked with Model > Choose
  *             Model File, the first *.gguf in ~/Library/Application Support/
  *             ZXV/models, the first *.gguf bundled in Contents/Resources/
@@ -31,10 +42,11 @@
  *             given --rpc ~/Library/Application Support/ZXV/run/zxvd.sock:
  *             its JSON-RPC control socket (docs/ZXVD.md), mode 0600 in a
  *             0700 folder, same-user peers only. The shell uses it through
- *             zxv_rpc_client.c, off the main thread: quitting asks
- *             zxvd.shutdown first (closing stdin stays the fallback), and the
- *             Dock badge shows the unread count from notes.list. The window
- *             is unchanged and still served on 127.0.0.1 with the token.
+ *             zxv_rpc_client.c: quitting asks zxvd.shutdown first (closing
+ *             stdin stays the fallback) and the Dock badge shows the unread
+ *             count from notes.list, both off the main thread; the desktop's
+ *             app models call it on the main thread, each call bounded by a
+ *             timeout (zxv_desktop.h HD3).
  *   BOOKS.    zxvd also gets --books ~/Library/Application Support/ZXV/
  *             books.zxvb: the owner's books, saved as a hash-chained file
  *             and reloaded at every start (docs/ZXVD.md, "The books file").
@@ -46,7 +58,9 @@
 #import <Cocoa/Cocoa.h>
 #import <Security/Security.h>
 #import <UserNotifications/UserNotifications.h>
-#import <WebKit/WebKit.h>
+#include <string.h>
+#include "zui_present_host.h"
+#include "zxv_desktop.h"
 #include "zxv_rpc_client.h"
 #if __has_include(<UniformTypeIdentifiers/UniformTypeIdentifiers.h>)
 #    import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -55,11 +69,37 @@
 static NSString *const kModelPathKey = @"ZXVModelPath";
 static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 
-@interface ZXVApp : NSObject <NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate,
-                              WKUIDelegate, WKScriptMessageHandler,
-                              UNUserNotificationCenterDelegate>
-@property(strong) NSWindow *window;
-@property(strong) WKWebView *web;
+/* The desktop's fields use the system clipboard (zxv_desktop_cfg_t). */
+static bool clip_set(void *ctx, const char *s, uint32_t n)
+{
+    (void) ctx;
+    NSString *str = [[NSString alloc] initWithBytes:s length:n encoding:NSUTF8StringEncoding];
+    if (!str) return false;
+    NSPasteboard *pb = NSPasteboard.generalPasteboard;
+    [pb clearContents];
+    return [pb setString:str forType:NSPasteboardTypeString];
+}
+
+static uint32_t clip_get(void *ctx, char *out, uint32_t cap)
+{
+    (void) ctx;
+    NSString *str = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
+    const char *u = str.UTF8String;
+    if (!u || !cap) return 0;
+    size_t n = strlen(u);
+    if (n > cap) {
+        n = cap;
+        while (n > 0 && ((unsigned char) u[n] & 0xC0) == 0x80) n--; /* whole characters */
+    }
+    memcpy(out, u, n);
+    return (uint32_t) n;
+}
+
+@interface ZXVApp : NSObject <NSApplicationDelegate, UNUserNotificationCenterDelegate>
+@property(strong) NSWindow *window;   /* the desktop's (its Metal present layer opens it) */
+@property(assign) zxv_desktop_t *desk; /* NULL until the window opens */
+@property(strong) NSTimer *frameTimer; /* one desktop step per tick, 60 Hz */
+@property(strong) NSTextField *fallbackText; /* no Metal: the plain window's words */
 @property(strong) NSTask *engine;
 @property(strong) NSPipe *engineIn;
 @property(strong) NSMutableData *engineOut;
@@ -72,7 +112,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 @property(copy) NSString *supportDir, *modelsDir, *logsDir;
 @property(strong) NSMenuItem *fetchItem;
 @property(copy) NSString *rpcPath;          /* nil: the engine has no control socket */
-@property(strong) dispatch_queue_t rpcQueue; /* the socket is blocking: never the main thread */
+@property(strong) dispatch_queue_t rpcQueue; /* the shell's own socket calls, off the main thread */
 @property(strong) NSTimer *notesTimer;
 @end
 
@@ -86,9 +126,13 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     [self makeFolders];
     self.rpcQueue = dispatch_queue_create("zxv.rpc", DISPATCH_QUEUE_SERIAL);
     [self buildMenus];
-    [self buildWindow];
     if (@available(macOS 10.14, *)) UNUserNotificationCenter.currentNotificationCenter.delegate = self;
-    [self startEngine];
+    /* After launching has finished and [NSApp run] is looping: the present
+     * layer then sees NSApp running and leaves launching to AppKit. */
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [self buildWindow];
+      [self startEngine];
+    });
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t) (1.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
                      [self offerModelIfNone];
@@ -133,7 +177,9 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     appItem.submenu = app;
     [bar addItem:appItem];
 
-    /* Edit: without it, copy and paste do not work inside the web view */
+    /* Edit: for the system panels (the model file chooser). In the desktop
+     * the zui fields take these keys themselves: its view answers no copy:,
+     * so AppKit disables these items there and the keys reach the view. */
     NSMenuItem *editItem = [[NSMenuItem alloc] init];
     NSMenu *edit = [[NSMenu alloc] initWithTitle:@"Edit"];
     [edit addItem:[self item:@"Undo" action:NSSelectorFromString(@"undo:") key:@"z"]];
@@ -148,7 +194,7 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 
     NSMenuItem *viewItem = [[NSMenuItem alloc] init];
     NSMenu *view = [[NSMenu alloc] initWithTitle:@"View"];
-    [view addItem:[self item:@"Reload" action:@selector(reloadWindow:) key:@"r"]];
+    [view addItem:[self item:@"Reconnect" action:@selector(reconnect:) key:@""]];
     [view addItem:[self item:@"Restart Engine" action:@selector(restartEngine:) key:@""]];
     viewItem.submenu = view;
     [bar addItem:viewItem];
@@ -167,9 +213,11 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 
     NSMenuItem *winItem = [[NSMenuItem alloc] init];
     NSMenu *win = [[NSMenu alloc] initWithTitle:@"Window"];
-    [win addItem:[self item:@"Minimize" action:@selector(performMiniaturize:) key:@"m"]];
+    /* no Cmd-M or Cmd-W here: inside the desktop they minimise and close
+     * the app window in front (zui_wm.h WM5), not the whole desktop */
+    [win addItem:[self item:@"Minimize" action:@selector(performMiniaturize:) key:@""]];
     [win addItem:[self item:@"Zoom" action:@selector(performZoom:) key:@""]];
-    [win addItem:[self item:@"Close" action:@selector(performClose:) key:@"w"]];
+    [win addItem:[self item:@"Close" action:@selector(performClose:) key:@""]];
     winItem.submenu = win;
     [bar addItem:winItem];
     NSApp.windowsMenu = win;
@@ -189,56 +237,105 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
 
 - (void)buildWindow
 {
-    WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
-    cfg.websiteDataStore = WKWebsiteDataStore.nonPersistentDataStore;
-    WKUserContentController *ucc = [[WKUserContentController alloc] init];
-    [ucc addScriptMessageHandler:self name:@"zxv"];
-    NSString *bridge = @"window.zxvNative={notify:function(t,b){try{window.webkit.messageHandlers."
-                       @"zxv.postMessage({type:'notify',title:String(t),body:String(b||'')})}"
-                       @"catch(e){}}};";
-    [ucc addUserScript:[[WKUserScript alloc]
-                             initWithSource:bridge
-                              injectionTime:WKUserScriptInjectionTimeAtDocumentStart
-                           forMainFrameOnly:YES]];
-    cfg.userContentController = ucc;
-
-    NSRect frame = NSMakeRect(0, 0, 1180, 780);
-    self.window = [[NSWindow alloc]
-        initWithContentRect:frame
-                  styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                            NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
-                    backing:NSBackingStoreBuffered
-                      defer:NO];
-    self.window.title = @"ZXV";
+    NSString *fonts = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"Fonts"];
+    NSString *font = [fonts stringByAppendingPathComponent:@"ASCW-Golden-Latin2.ttf"];
+    NSString *mono = [fonts stringByAppendingPathComponent:@"ASCW-Golden-Mono.ttf"];
+    zxv_desktop_cfg_t cfg;
+    memset(&cfg, 0, sizeof cfg);
+    cfg.backend = "metal";
+    cfg.rpc = ""; /* zxvd's socket is set once the engine is started */
+    cfg.font = font.fileSystemRepresentation;
+    if ([NSFileManager.defaultManager fileExistsAtPath:mono]) cfg.mono = mono.fileSystemRepresentation;
+    cfg.title = "ZXV";
+    cfg.w_pt = 1180;
+    cfg.h_pt = 780;
+    cfg.clip_set = clip_set;
+    cfg.clip_get = clip_get;
+    const char *why = NULL;
+    self.desk = zxv_desktop_open(&cfg, &why);
+    if (!self.desk) {
+        NSLog(@"ZXV: the desktop did not open (%s)", why ? why : "unknown");
+        [self buildFallbackWindow];
+        return;
+    }
+    self.window = (__bridge NSWindow *) zui_present_metal_window(zxv_desktop_present(self.desk));
     self.window.minSize = NSMakeSize(640, 480);
-    self.window.delegate = self;
-    self.window.releasedWhenClosed = NO; /* ARC owns it */
-    self.web = [[WKWebView alloc] initWithFrame:frame configuration:cfg];
-    self.web.navigationDelegate = self;
-    self.web.UIDelegate = self;
-    self.window.contentView = self.web;
-    [self.window center];
     self.window.frameAutosaveName = @"ZXVMainWindow"; /* restores the last frame, if any */
     [self showMessage:@"Starting the swarm…" detail:@""];
-    [self.window makeKeyAndOrderFront:nil];
+    self.frameTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 60.0
+                                                       target:self
+                                                     selector:@selector(frame:)
+                                                     userInfo:nil
+                                                      repeats:YES];
+    [self frame:nil];
+}
+
+/* Without Metal (some virtual machines have none) the desktop cannot draw:
+ * a plain window says so and offers the engine's own web window in the
+ * default browser. The engine runs either way; closing this window quits. */
+- (void)buildFallbackWindow
+{
+    NSWindow *w = [[NSWindow alloc]
+        initWithContentRect:NSMakeRect(0, 0, 520, 200)
+                  styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                            NSWindowStyleMaskMiniaturizable
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    w.title = @"ZXV";
+    w.releasedWhenClosed = NO; /* ARC owns it */
+    w.backgroundColor = [NSColor colorWithSRGBRed:0x00 / 255.0
+                                            green:0x29 / 255.0
+                                             blue:0x11 / 255.0
+                                            alpha:1.0];
+    NSTextField *t = [NSTextField
+        wrappingLabelWithString:@"This Mac cannot draw the ZXV desktop: Metal is not available. "
+                                @"The swarm is running; its window can open in your browser."];
+    t.textColor = [NSColor colorWithSRGBRed:0xD8 / 255.0 green:0xF5 / 255.0 blue:0xE1 / 255.0 alpha:1.0];
+    t.frame = NSMakeRect(24, 72, 472, 104);
+    NSButton *b = [NSButton buttonWithTitle:@"Open in Browser" target:self action:@selector(openInBrowser:)];
+    b.frame = NSMakeRect(20, 20, 180, 32);
+    [w.contentView addSubview:t];
+    [w.contentView addSubview:b];
+    [w center];
+    self.fallbackText = t;
+    self.window = w;
+    [w makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 }
 
+- (void)openInBrowser:(id)sender
+{
+    (void) sender;
+    if (!self.port || !self.token) return;
+    NSString *s = [NSString
+        stringWithFormat:@"http://127.0.0.1:%ld/#token=%@", (long) self.port, self.token];
+    NSURL *u = [NSURL URLWithString:s];
+    if (u) [NSWorkspace.sharedWorkspace openURL:u];
+}
+
+/* One desktop step: input, windows, paint, present (zxv_desktop.h HD1). */
+- (void)frame:(NSTimer *)timer
+{
+    (void) timer;
+    if (!self.desk) return;
+    int rc = zxv_desktop_step(self.desk, 0);
+    if (rc == 1) return;
+    if (rc < 0) { /* the window or the GPU went away: nothing left to draw on */
+        [self.frameTimer invalidate];
+        self.frameTimer = nil;
+    }
+    if (!self.quitting) [NSApp terminate:nil]; /* closing the window quits */
+}
+
+/* The shell's news, in the desktop's status line (the bar has one short
+ * line; the longer words go to the log). An empty title clears it. */
 - (void)showMessage:(NSString *)title detail:(NSString *)detail
 {
-    NSString *(^esc)(NSString *) = ^NSString *(NSString *s) {
-      s = [s stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"];
-      s = [s stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"];
-      return [s stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"];
-    };
-    NSString *html = [NSString
-        stringWithFormat:@"<!doctype html><meta charset=utf-8><body style=\"margin:0;"
-                         @"background:#0e1116;color:#e6edf3;font:15px -apple-system,sans-serif;"
-                         @"display:flex;align-items:center;justify-content:center;height:100vh\">"
-                         @"<div style=\"max-width:520px;text-align:center\"><h2 style=\"font-"
-                         @"weight:500\">%@</h2><p style=\"color:#8b949e\">%@</p></div>",
-                         esc(title), esc(detail)];
-    [self.web loadHTMLString:html baseURL:nil];
+    if (detail.length) NSLog(@"ZXV: %@ %@", title, detail);
+    if (self.desk) zxv_desktop_note(self.desk, title.length ? title.UTF8String : NULL);
+    if (self.fallbackText && title.length)
+        self.fallbackText.stringValue = detail.length ? [NSString stringWithFormat:@"%@. %@", title, detail]
+                                                      : title;
 }
 
 /* --------------------------------------------------------------- engine */
@@ -354,6 +451,8 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         return;
     }
     self.engine = t;
+    /* the desktop's models use the new socket (it answers once zxvd is up) */
+    if (self.desk) zxv_desktop_set_rpc(self.desk, self.rpcPath.fileSystemRepresentation);
 }
 
 - (void)engineSaid:(NSData *)d
@@ -369,7 +468,8 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
             u.port.integerValue <= 0)
             continue; /* not our engine's line: never load it */
         self.port = u.port.integerValue;
-        [self.web loadRequest:[NSURLRequest requestWithURL:u.URL]];
+        [self showMessage:@"" detail:@""]; /* the status says whether zxvd answers */
+        if (self.desk) zxv_desktop_set_rpc(self.desk, self.rpcPath.fileSystemRepresentation);
         [self startNotesBadge];
         return;
     }
@@ -395,13 +495,12 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         return;
     }
     if (task.terminationStatus == 0 && task.terminationReason == NSTaskTerminationReasonExit) {
-        [NSApp terminate:nil]; /* the window's own Quit button */
+        [NSApp terminate:nil]; /* the engine was asked to stop (zxvd.shutdown) */
         return;
     }
     [self notify:@"ZXV stopped" body:@"The swarm engine stopped unexpectedly. View > Restart Engine starts it again."];
-    [self showMessage:@"The swarm engine stopped"
-               detail:@"Choose View > Restart Engine to start it again. Details are in "
-                      @"~/Library/Logs/ZXV/engine.log."];
+    [self showMessage:@"The swarm engine stopped: View > Restart Engine"
+               detail:@"Details are in ~/Library/Logs/ZXV/engine.log."];
 }
 
 /* Stop the engine politely: zxvd is asked over its socket first; closing
@@ -474,14 +573,11 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     }
 }
 
-- (void)reloadWindow:(id)sender
+/* Check zxvd's socket again now, instead of at the next two-second probe. */
+- (void)reconnect:(id)sender
 {
     (void) sender;
-    if (self.port) {
-        NSString *s = [NSString
-            stringWithFormat:@"http://127.0.0.1:%ld/#token=%@", (long) self.port, self.token];
-        [self.web loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:s]]];
-    }
+    if (self.desk) zxv_desktop_set_rpc(self.desk, self.rpcPath.fileSystemRepresentation);
 }
 
 /* ---------------------------------------------------------------- quit */
@@ -502,97 +598,15 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
     return YES; /* closing the window stops the swarm: nothing runs unseen */
 }
 
-/* ------------------------------------------------------------ web view */
-
-- (BOOL)isEngineURL:(NSURL *)u
+- (void)applicationWillTerminate:(NSNotification *)note
 {
-    return self.port && [u.scheme isEqualToString:@"http"] && [u.host isEqualToString:@"127.0.0.1"] &&
-           u.port.integerValue == self.port;
-}
-
-- (void)webView:(WKWebView *)webView
-    decidePolicyForNavigationAction:(WKNavigationAction *)action
-                    decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
-{
-    (void) webView;
-    NSURL *u = action.request.URL;
-    if ([self isEngineURL:u] || [u.absoluteString isEqualToString:@"about:blank"]) {
-        decisionHandler(WKNavigationActionPolicyAllow);
-        return;
-    }
-    if (action.navigationType == WKNavigationTypeLinkActivated &&
-        ([u.scheme isEqualToString:@"https"] || [u.scheme isEqualToString:@"http"]))
-        [NSWorkspace.sharedWorkspace openURL:u];
-    decisionHandler(WKNavigationActionPolicyCancel);
-}
-
-- (WKWebView *)webView:(WKWebView *)webView
-    createWebViewWithConfiguration:(WKWebViewConfiguration *)configuration
-               forNavigationAction:(WKNavigationAction *)action
-                    windowFeatures:(WKWindowFeatures *)features
-{
-    (void) webView;
-    (void) configuration;
-    (void) features;
-    NSURL *u = action.request.URL;
-    if ([u.scheme isEqualToString:@"https"] || [u.scheme isEqualToString:@"http"])
-        [NSWorkspace.sharedWorkspace openURL:u];
-    return nil; /* never a second web view */
-}
-
-- (void)webView:(WKWebView *)webView
-    runJavaScriptAlertPanelWithMessage:(NSString *)message
-                      initiatedByFrame:(WKFrameInfo *)frame
-                     completionHandler:(void (^)(void))completionHandler
-{
-    (void) webView;
-    (void) frame;
-    NSAlert *a = [[NSAlert alloc] init];
-    a.messageText = message;
-    [a beginSheetModalForWindow:self.window
-              completionHandler:^(NSModalResponse r) {
-                (void) r;
-                completionHandler();
-              }];
-}
-
-/* The staple apps' Import buttons (an <input type=file>): the files the
- * owner picks are read by the page and written into the ZXV folder. */
-- (void)webView:(WKWebView *)webView
-    runOpenPanelWithParameters:(WKOpenPanelParameters *)parameters
-              initiatedByFrame:(WKFrameInfo *)frame
-             completionHandler:(void (^)(NSArray<NSURL *> *URLs))completionHandler
-{
-    (void) webView;
-    (void) frame;
-    NSOpenPanel *p = [NSOpenPanel openPanel];
-    p.canChooseFiles = YES;
-    p.canChooseDirectories = NO;
-    p.allowsMultipleSelection = parameters.allowsMultipleSelection;
-    [p beginSheetModalForWindow:self.window
-              completionHandler:^(NSModalResponse r) {
-                completionHandler(r == NSModalResponseOK ? p.URLs : nil);
-              }];
-}
-
-- (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView
-{
-    (void) webView;
-    [self reloadWindow:nil];
-}
-
-- (void)userContentController:(WKUserContentController *)ucc
-      didReceiveScriptMessage:(WKScriptMessage *)msg
-{
-    (void) ucc;
-    WKSecurityOrigin *o = msg.frameInfo.securityOrigin;
-    if (!self.port || ![o.protocol isEqualToString:@"http"] || ![o.host isEqualToString:@"127.0.0.1"] ||
-        o.port != self.port)
-        return; /* only the engine's own page may post notifications */
-    if (![msg.body isKindOfClass:NSDictionary.class]) return;
-    NSDictionary *b = msg.body;
-    if ([b[@"type"] isEqual:@"notify"] && [b[@"title"] isKindOfClass:NSString.class])
-        [self notify:b[@"title"] body:[b[@"body"] isKindOfClass:NSString.class] ? b[@"body"] : @""];
+    (void) note;
+    [self.frameTimer invalidate];
+    self.frameTimer = nil;
+    self.window = nil;
+    zxv_desktop_t *d = self.desk;
+    self.desk = NULL;
+    zxv_desktop_close(d); /* closes the window too */
 }
 
 /* -------------------------------------------------------- notifications */

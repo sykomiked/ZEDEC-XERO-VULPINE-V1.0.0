@@ -385,6 +385,15 @@ KERNEL_SRCS = \
     kernel/src/zxvfs/zxvfs_tri.c \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
+    kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/zui/zui_desk.c \
+    kernel/src/zui/zui_wm.c \
+    kernel/src/zui/zui_canvas.c \
+    kernel/src/zui/zui_progress.c \
+    kernel/src/zui/zui_motion.c \
+    kernel/src/zui/zui_input.c \
+    kernel/src/zui/zui_keymap.c \
+    kernel/src/zui/zui_layout.c \
     kernel/src/cellular_multikernel/cellular_multikernel.c \
     kernel/src/net/jdr_piratenet.c \
     kernel/src/synthesis/synthesis_engine.c \

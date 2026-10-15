@@ -155,7 +155,7 @@ struct SettingsView: View {
             } else {
                 HStack {
                     ForEach(store.currenciesEnabled, id: \.self) { c in
-                        Text(c).font(.system(.body, design: .monospaced))
+                        Text(c).font(Theme.mono(ZUIToken.body))
                             .padding(.horizontal, 12).padding(.vertical, 6)
                             .overlay(Capsule().strokeBorder(Theme.border))
                     }
@@ -204,7 +204,7 @@ struct SettingsView: View {
                         Text("The code holds that phone's key. Show it only to that phone; it is not shown again.")
                             .font(.caption).foregroundStyle(Theme.muted)
                         Text("Or paste the link on the phone:").font(.caption).foregroundStyle(Theme.muted)
-                        Text(pr.link).font(.system(size: 10, design: .monospaced)).textSelection(.enabled).lineLimit(5)
+                        Text(pr.link).font(Theme.mono(10)).textSelection(.enabled).lineLimit(5)
                         Button("Done") { pairing = nil }.buttonStyle(.borderedProminent)
                     }
                 }

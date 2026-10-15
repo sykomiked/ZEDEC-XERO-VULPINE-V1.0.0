@@ -2,12 +2,18 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zxv_shell.h — the ZEDEC pqOS desktop shell: the consumer graphical face.
  *
- * A self-contained, integer-only, STATEFUL compositor. It draws the desktop —
- * menu bar + ZEDEC wordmark, a dock of native .zxvc programs, a live terminal,
- * the Chiglet and Vino panels, a taskbar and cursor — and it RESPONDS: left-
- * clicks hit-test the dock/taskbar to launch/focus apps, and keyboard keycodes
- * feed a working command line. Renders into a linear XRGB8888 framebuffer via
- * the vbe primitives (ramfb on QEMU / UEFI GOP on hardware). No libc, no float.
+ * A self-contained, integer-only, STATEFUL desktop. Every pixel goes through
+ * zui (kernel/src/zui), the same toolkit as the hosted desktop window, so the
+ * bare-metal OS has the one ZXV look: the #002911 ground, carved panels,
+ * light green text, one gold accent, ASCW Golden text (zui_tokens.h). It
+ * draws zui_desk's top bar and launcher, zui_wm windows (Terminal, Chiglet,
+ * Vino and the other native programs, each live on its lattice space), the
+ * strip of open apps and the pointer, and the Spaces screens (the 13-node
+ * lattice and each space). It RESPONDS: the pointer opens, focuses, moves and
+ * resizes windows and presses buttons that call the real subsystems; keys go
+ * through zui_kbd with any zui_keymap layout (the "keymap" command switches)
+ * into a working command line. Renders into a linear XRGB8888 framebuffer
+ * (ramfb on QEMU / UEFI GOP on hardware). No libc, no float.
  */
 #ifndef ZXV_SHELL_H
 #define ZXV_SHELL_H
@@ -82,6 +88,7 @@ typedef struct {
     int32_t  sview_count;
     int32_t  subsel;                                  /* selected sub-space 0..5, -1 none */
     int32_t  act_hot;                                 /* last action pressed (highlight)  */
+    int32_t  prev_cx, prev_cy;                        /* last pointer position            */
 } zxv_shell_state_t;
 
 /* push-in transition length (frames): a depth sweep far->near when entering a space */
@@ -90,8 +97,22 @@ typedef struct {
 /* Bring the shell up (welcome banner in the terminal, no app focused). */
 void zxv_shell_init(zxv_shell_state_t *st);
 
-/* Feed one keyboard key-down (a Linux evdev keycode) to the command line. */
+/* Feed one keyboard change: a Linux evdev keycode, with ZXV_SHELL_KEY_UP
+ * set for a release and ZXV_SHELL_KEY_REPEAT for an auto-repeat (a bare code
+ * is a press). Releases matter: they end Shift, AltGr and the Cmd-Tab
+ * switcher. The keys go through zui_kbd and the current zui_keymap layout. */
+#define ZXV_SHELL_KEY_UP     0x8000
+#define ZXV_SHELL_KEY_REPEAT 0x4000
+/* buttons: a press and release that both landed between two frames */
+#define ZXV_SHELL_BTN_TAP 0x100u
 void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode);
+
+/* The system face the shell draws with (ASCW Golden Latin II, linked into
+ * the image by zxv_shell_font.c). */
+/* Optional: the platform's monotonic clock, called before each frame. */
+void zxv_shell_set_clock_ms(uint32_t ms);
+const uint8_t *zxv_shell_font_data(void);
+uint32_t zxv_shell_font_size(void);
 
 /* Process pointer input (hit-test a left-click edge) then render one frame.
  * `buttons` bit0 = left. `cx/cy` is the cursor; `tick` drives the caret blink. */
