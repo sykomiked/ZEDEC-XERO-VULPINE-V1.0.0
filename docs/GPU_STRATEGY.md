@@ -71,6 +71,67 @@ kernels are naive (one thread loops over a whole row). Section 4 is the plan.
 `make -C kernel test-metal` passes 30/30 on the GPU, including the resident
 passes with forced saturation.
 
+### Where these numbers ran, and what bare metal would change
+
+Every number above is `zt_bench` as an ordinary native macOS process on the
+M3 Max (Apple's own Metal driver, no virtual machine, no emulator, and no ZXV
+OS underneath). The ZXV bare-metal images were not involved; today they boot
+only in QEMU and do not run models on a GPU.
+
+The owner asked for a bare-metal estimate from the hardware itself
+(2026-10-15). The arithmetic, for Qwen2.5-1.5B Q4_K_M on the M3 Max:
+
+| Quantity | Value | Source |
+|---|---|---|
+| Weights read for one generated token | ~1.01 GB (980 MB of layer and output weights, ~29 MB of Q16 KV cache at 500 positions; the embedding is one row) | the GGUF's tensor table |
+| Memory bandwidth (M3 Max, 40-core GPU) | ~400 GB/s, shared by CPU and GPU | Apple's spec |
+| **Floor per token, one stream** | 1.01 GB / 400 GB/s = **~2.5 ms, so ~400 tokens/s at most** | arithmetic |
+| Measured, `--gpu-resident` | 26 ms a token (38 tokens/s): ~10% of the bandwidth | table above |
+| Measured, CPU (NEON) | 17 ms a token (60 tokens/s) | table above |
+| macOS's own share (command buffer commit and wait, ~0.1 ms a pass; scheduling) | under ~0.5 ms a token, a few percent | inferred from the pass count and Metal's usual commit latency |
+| Compute for prompt reading | ~3.1 billion integer multiply-adds per token; at the several trillion integer operations a second the 40-core GPU can sustain, a ceiling in the low thousands of tokens/s (measured 289) | arithmetic, inferred GPU rate |
+
+So removing the operating system would buy a few percent. The other ~90% of
+the gap between 38 and ~400 tokens/s is our own kernels: 957 launches a
+token, one thread looping over a whole row for norms and softmax, and weight
+decoding byte by byte. A well-tuned pass usually reaches 50-75% of the
+bandwidth, which would put **one stream at roughly 200-300 tokens/s** on this
+machine, bare metal or not (inferred, not measured; R9).
+
+**The owner's freight-packet design applied to this pass.** His long message
+(2026-10-14) describes the CPU packing a uniform, pointer-free grid of jobs
+into one contiguous block, coupling packets into trains, double buffering so
+transfer and compute overlap, and probing the hardware to size packets
+("gauge"). It also names the limit itself: work that reads fresh data once
+with little arithmetic per byte stays bound by the wire speed. Mapped onto
+the forward pass:
+
+| Freight idea | In the pass |
+|---|---|
+| One packet, one hand-off | Done: the whole pass is one command buffer, and weights and KV are read in place, zero-copy (unified memory has no PCIe hop) |
+| Coupling cars into a train | Fuse launches (957 a token toward ~150), and batch several swarm agents' tokens into one pass |
+| Double-buffered ring | Encode agent B's pass while agent A's runs; keep the residual stream and logits on the GPU across tokens; sample on the GPU |
+| Gauge profiler | Probe bandwidth, threadgroup width and cache tiles at start-up and pick tile sizes from them |
+| The wire-speed limit | One stream decoding one token is exactly that case (each weight byte used for about two operations), so its ceiling is the ~400 tokens/s above |
+
+Batching is where the train pays most: B agents' tokens share one read of
+the weights, so the floor per pass stays ~2.5 ms while it carries B tokens.
+Eight agents in one train would have an aggregate ceiling near the compute
+limit, in the low thousands of tokens/s (inferred). Prompt reading already
+shows the effect: 289 tokens/s against 38 for one-at-a-time generation.
+
+Token denominations (TOKEN_DENOMINATIONS.md) are how the swarm counts and
+settles tokens, not how fast a model makes them: a 144-face super token is
+144 model tokens. Their speed gain is on the bookkeeping side (a million
+tokens settle as 17 pieces at RACING instead of a million), and the
+long message's BPE-to-Zeckendorf lookup costs one table read per token, so
+neither slows the pass.
+
+For other hardware the same floor applies: a GPU with ~1 TB/s of VRAM
+bandwidth has a one-stream ceiling near ~1,000 tokens/s for this model, and
+on a discrete card only ~6 KB of hidden state and (until sampling moves to
+the GPU) ~0.6 MB of logits cross PCIe per token, once the weights are loaded.
+
 ## 3. How the whole pass works
 
 1. The CPU looks up the token rows (embedding) and the RoPE angles for the
@@ -94,15 +155,17 @@ adapter, a hidden-state tap, a distributed model or weights converted to
 ## 4. Next steps, in order
 
 1. Done: bit-exact on the M3 Max (table above).
-2. Fewer launches: fuse norm + quantise, bias into the product, the six
-   attention steps into two; one threadgroup per row with simd reductions
-   instead of one thread per row for norms and softmax.
+2. Fewer launches (coupling the train): fuse norm + quantise, bias into the
+   product, the six attention steps into two; one threadgroup per row with
+   simd reductions instead of one thread per row for norms and softmax.
 3. Faster products for one token (the kernels still decode weights byte by
    byte).
 4. Keep the residual stream and logits on the GPU across tokens; sample on the
    GPU (greedy and top-k are integer).
-5. Vulkan backend for the same op list (Linux, Windows, Android), then CUDA
+5. Batch several agents' tokens into one pass (the freight train), and a
+   start-up gauge probe that sizes tiles from the measured bandwidth.
+6. Vulkan backend for the same op list (Linux, Windows, Android), then CUDA
    for NVIDIA servers.
-6. Wire `vblock` (blocks in VRAM) and `cotier` tier 2 to a real backend.
-7. Q5_0 and Q8_0-mixed files on the GPU (Qwen2.5-0.5B's Q4_K_M uses them, so
+7. Wire `vblock` (blocks in VRAM) and `cotier` tier 2 to a real backend.
+8. Q5_0 and Q8_0-mixed files on the GPU (Qwen2.5-0.5B's Q4_K_M uses them, so
    its passes run on the CPU today).
