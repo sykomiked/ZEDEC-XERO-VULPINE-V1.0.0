@@ -74,6 +74,7 @@ static void ram(uint64_t *total, uint64_t *avail)
 #endif
 }
 
+#if !defined(_WIN32) && !defined(__APPLE__)
 /* n bytes of src into out, cut to fit, terminated */
 static void put(char *out, size_t cap, const char *src, size_t n)
 {
@@ -81,6 +82,7 @@ static void put(char *out, size_t cap, const char *src, size_t n)
     memcpy(out, src, n);
     out[n] = 0;
 }
+#endif
 
 /* The processor's name, as the OS gives it ("" when it gives none). */
 static void cpu_name(char *out, size_t cap)
