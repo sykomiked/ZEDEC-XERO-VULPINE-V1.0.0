@@ -29,3 +29,10 @@ SPDX-License-Identifier = "Apache-2.0"
 path = ["docs/release/swarm_model_manifest.json", "tools/tiamat/tiamat_swarm.json"]
 SPDX-FileCopyrightText = "2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
 SPDX-License-Identifier = "Apache-2.0"
+
+# The 144 L1 app icons (SVG cannot carry a header before its XML root here).
+[[annotations]]
+path = "zxv-brand/app-icons/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
+SPDX-License-Identifier = "Apache-2.0"
