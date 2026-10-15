@@ -636,7 +636,7 @@ void zxvd_rpc_books_close(void)
 
 /* ===================== swarm earnings (zxvd_rpc.h E1-E4) ===================== */
 
-static char EARN_CCY[9] = "VFV"; /* E1 */
+static char EARN_CCY[9] = "SWC"; /* E1: a private unit, never VFV (E6) */
 static uint64_t EARN_RATE = 1;   /* minor units per SWC */
 static uint32_t EARN_SRC, EARN_OWNER;
 static bool EARN_ACCTS;    /* both accounts are open */
@@ -647,11 +647,22 @@ static bool EARN_BASED;    /* E5: this run's first sync set EARN_BASE */
 static uint64_t EARN_BASE; /* E5: the SWC held at this run's first sync */
 static uint64_t EARN_POSTS, EARN_SYNCS;
 static uint64_t EARN_REF; /* the last "swarm earnings N" reference number used */
+static uint64_t EARN_REVERSED; /* E6: VFV taken back from an old own-device mirror */
+static uint64_t EARN_REV_REF;  /* the last "vfv reversal N" reference used */
+
+/* E6: own-device work never earns vouchers, so the mirror refuses VFV in
+ * any letter case. */
+static bool earn_is_vfv(const char *ccy)
+{
+    return (ccy[0] | 0x20) == 'v' && (ccy[1] | 0x20) == 'f' && (ccy[2] | 0x20) == 'v' &&
+           ccy[3] == 0;
+}
 
 int zxvd_rpc_earnings_set(const char *ccy, uint64_t rate)
 {
     size_t n = strlen(ccy);
-    if (CTX || n < 3 || n >= sizeof EARN_CCY || rate == 0 || rate > (uint64_t) ZXV_AMOUNT_MAX)
+    if (CTX || n < 3 || n >= sizeof EARN_CCY || rate == 0 || rate > (uint64_t) ZXV_AMOUNT_MAX ||
+        earn_is_vfv(ccy))
         return -1;
     memcpy(EARN_CCY, ccy, n + 1);
     EARN_RATE = rate;
@@ -700,9 +711,35 @@ static int32_t own_ccy(const char *code)
     return st == ZXV_E_CURRENCY ? bk_unit(code, 2) : st;
 }
 
+/* Post with a numbered reference "<prefix> N" (defined below). */
+static int32_t post_numbered(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
+                             const char *prefix, uint64_t *counter);
+
+/* E6: books written before the rule carry an own-device mirror in VFV.
+ * Its balance goes back to the market account in one posting; the old
+ * entries stay in the hash-chained file, so the history is kept. */
+static int earn_reverse_vfv(void)
+{
+    uint32_t src, own;
+    EARN_REVERSED = 0;
+    EARN_REV_REF = 0;
+    if (!find_account("swarm market", "VFV", ZXV_ACCT_ISSUER, &src) ||
+        !find_account("owner: swarm earnings", "VFV", ZXV_ACCT_HOLDER, &own))
+        return 0;
+    int64_t held = equity(own);
+    if (held <= 0) return 0;
+    if (post_numbered(own, src, held, "VFV", "vfv reversal", &EARN_REV_REF) != ZXV_OK) return -1;
+    EARN_REVERSED = (uint64_t) held;
+    return 0;
+}
+
 static int earn_open(void)
 {
-    int32_t st = own_ccy(EARN_CCY);
+    if (earn_reverse_vfv() != 0) return -1;
+    int32_t st = bk_ccy(EARN_CCY);
+    /* E6: an ISO 4217 currency is money; the mirror takes a private unit */
+    if (st == ZXV_OK) return -1;
+    st = st == ZXV_E_CURRENCY ? bk_unit(EARN_CCY, 2) : st;
     EARN_ACCTS = false;
     EARN_HELD = 0;
     EARN_CARRY = 0;
@@ -3136,9 +3173,10 @@ static void m_earnings(call_t *c)
         zxvd_buf_raw(c->res, ",\"source_account\":null,\"owner_account\":null", 43);
     zxvd_buf_printf(c->res,
                     ",\"balance_minor\":\"%lld\",\"postings\":\"%llu\",\"cycles\":\"%llu\","
-                    "\"resumed\":%s}",
+                    "\"resumed\":%s,\"vfv_reversed_minor\":\"%llu\"}",
                     (long long) EARN_HELD, (unsigned long long) EARN_POSTS,
-                    (unsigned long long) EARN_SYNCS, EARN_RESUMED ? "true" : "false");
+                    (unsigned long long) EARN_SYNCS, EARN_RESUMED ? "true" : "false",
+                    (unsigned long long) EARN_REVERSED);
 }
 
 static void m_mesh(call_t *c)

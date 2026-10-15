@@ -57,10 +57,10 @@
  *       features.get lists the switches and features.set flips one for this
  *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
  *
- * SWARM EARNINGS (the owner's books mirror the swarm's money)
- *   E1  At start the books get one currency for earnings, VFV by default
- *       (--earnings-ccy): an ISO 4217 code is enabled from the table, any
- *       other code is registered as a private unit with 2 minor units. The
+ * SWARM EARNINGS (the owner's books mirror the swarm's internal credit)
+ *   E1  At start the books get one private unit for the mirror, SWC by
+ *       default (--earnings-ccy): it is registered as a private unit with 2
+ *       minor units; VFV and ISO 4217 currencies are refused (E6). The
  *       first settled cycle opens two accounts in it: "swarm market"
  *       (issuer) and "owner: swarm earnings" (holder).
  *   E2  After every settled market cycle the host calls
@@ -80,6 +80,16 @@
  *       then as its base, and later syncs follow the change from it
  *       (balance = carried + (held - base) * rate, never below zero). The
  *       swarm itself starts fresh each run; the books do not.
+ *   E6  OWN-DEVICE WORK NEVER EARNS. The models the mirror counts run on the
+ *       owner's own machine, so the mirror is a score of internal swarm
+ *       credit, never Vino Floating Vouchers and never money: VFV (any case)
+ *       is refused by zxvd_rpc_earnings_set, and an ISO 4217 code makes the
+ *       books refuse to open. VFV is issued only for verified work done for
+ *       other people over the network (pay_farm). Books written before this
+ *       rule may hold a VFV mirror: when they open, its whole balance goes
+ *       back from "owner: swarm earnings" to "swarm market" in one posting
+ *       "vfv reversal N"; the old entries stay in the hash-chained
+ *       file. swarm.earnings reports the amount as vfv_reversed_minor.
  *
  * THE BOOKS FILE (--books PATH; zxvd --desktop saves by default)
  *   F1  Without a path the books live in memory, as before. With one, every

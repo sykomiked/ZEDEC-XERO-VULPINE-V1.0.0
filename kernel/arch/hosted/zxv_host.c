@@ -1020,7 +1020,8 @@ static void close_cycle(void)
     if (settle_sync(&S.spine, &S.m, S.tick) != SETTLE_OK)
         fprintf(stderr, "zxv: ledger halted (%d): market stopped\n", (int) S.spine.why);
 #if defined(ZXVD)
-    /* zxvd_rpc.h E2: the owner's books follow what the swarm's models hold */
+    /* zxvd_rpc.h E2, E6: the owner's books follow what the swarm's models
+     * hold, in a private unit; own-device work never earns VFV */
     uint64_t held = 0;
     for (uint32_t i = 0; i < S.m.n; i++) held += S.m.t[i].cap[SWARM_CAP_FINANCIAL];
     if (zxvd_rpc_earnings_sync(held) != 0) fprintf(stderr, "zxvd: earnings posting refused\n");
@@ -2891,7 +2892,7 @@ int main(int argc, char **argv)
     char screen_buf[520];
     const char *places_path = NULL; /* zxv_place.h; "-" keeps them in memory */
     char places_buf[520];
-    const char *earn_ccy = "VFV";
+    const char *earn_ccy = "SWC";   /* zxvd_rpc.h E1, E6 */
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
     bool desktop = false, phone_link = false;
@@ -3030,7 +3031,8 @@ int main(int argc, char **argv)
                    "  --places FILE       keep saved places and location permissions in\n"
                    "                      FILE (default with --desktop: \"places.zxpl\"\n"
                    "                      beside the books; \"-\" keeps them in memory)\n"
-                   "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
+                   "  --earnings-ccy CODE private unit for the swarm's own-device credit\n"
+                   "                      (default SWC; never VFV or an ISO 4217 currency)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --enable LIST       turn on features, comma-separated or \"all\"\n"
                    "                      (all are off by default; features.get lists them)\n"
@@ -3297,8 +3299,8 @@ int main(int argc, char **argv)
         return 2;
     }
     if (zxvd_rpc_earnings_set(earn_ccy, earn_rate) != 0) {
-        fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters and --earnings-rate "
-                        "a whole number from 1\n");
+        fprintf(stderr, "zxvd: --earnings-ccy needs 3..8 characters other than VFV (own-device "
+                        "work never earns vouchers) and --earnings-rate a whole number from 1\n");
         return 2;
     }
     if (zxvd_groups_register() != 0) {

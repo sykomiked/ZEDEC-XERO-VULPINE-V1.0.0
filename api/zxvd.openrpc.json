@@ -1252,7 +1252,7 @@
     },
     {
       "name": "swarm.earnings",
-      "summary": "The swarm's earnings in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E5). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle. With a books file (--books), accounts brought back at start keep their balance: the run's first cycle is the base and later cycles post only the change (E5).",
+      "summary": "The swarm's own-device credit in the owner's books (docs/ZXVD.md, zxvd_rpc.h E1-E6). Own-device work never earns VFV: the mirror is a private unit, SWC by default, and VFV or an ISO 4217 currency is refused (E6). After every settled market cycle the owner's account is set to the Financial capital (SWC) the owner's models hold, times rate_minor, by one balanced posting from or to the swarm market account. The accounts are null until the first settled cycle. With a books file (--books), accounts brought back at start keep their balance: the run's first cycle is the base and later cycles post only the change (E5). Books holding an older VFV mirror have its balance posted back to the market account at start as 'vfv reversal N' (E6).",
       "params": [],
       "result": {
         "name": "earnings",
@@ -1261,7 +1261,7 @@
           "properties": {
             "currency": {
               "type": "string",
-              "description": "Earnings currency (default VFV, a private unit with 2 minor units; --earnings-ccy)"
+              "description": "Private unit of the mirror (default SWC, 2 minor units; --earnings-ccy); never VFV or an ISO 4217 currency (E6)"
             },
             "rate_minor": {
               "type": "string",
@@ -1300,6 +1300,11 @@
             "resumed": {
               "type": "boolean",
               "description": "The accounts came back from the books file (E5)"
+            },
+            "vfv_reversed_minor": {
+              "type": "string",
+              "pattern": "^-?[0-9]+$",
+              "description": "VFV taken back from an older own-device mirror when the books opened (E6); usually 0"
             }
           }
         }
