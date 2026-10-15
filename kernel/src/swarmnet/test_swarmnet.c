@@ -1,11 +1,15 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_swarmnet.c — the parts of swarmnet that need no network: gateway URLs,
- * HTTP heads, manifest.txt, the blank-drive rule, the writer that commits the
+ * HTTP heads, the baked table, the blank-drive rule, the writer that commits the
  * partition table last, and the whole fetch of a swarm disc from an in-memory
  * bucket (built with the Kubo-checked test builder) onto a fake drive, with
- * every way the bucket can lie. The network path itself is proven under QEMU
+ * every way the bucket can lie; and the seal, its flush hooks and verdict. The
+ * network path itself is proven under QEMU
  * (build_system/test_swarm_fetch.sh). */
+#define _POSIX_C_SOURCE 200809L
+#include <sys/wait.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -134,53 +138,20 @@ static void test_head(void)
     CHECK(head("HTTP/1.1 200 OK\r\nX: y\rz\r\n\r\n", &h) == -1);
 }
 
-/* ---- 2. manifest.txt ---- */
-#define SHA_A "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
-#define CID_A "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354"
-
-static void test_manifest(void)
+/* ---- 2. the baked table ---- */
+static void test_table(void)
 {
-    sn_entry_t e;
-    uint32_t line;
-    char t[2048];
-    snprintf(t, sizeof t,
-             "# zxv-bucket 1\ncore x86_64 1 - 546308096 " SHA_A " " CID_A
-             " 00_base/zxv-x86_64-disc1-core.img\r\n"
-             "layer all - - 611 " SHA_A " " CID_A " 03_layers/L1.json\n"
-             "cartridge all - - 5000 " SHA_A " " CID_A " 02_cartridges/MEGAROM.TVL\n"
-             "swarm all 2 REASON 1138753536 " SHA_A " " CID_A
-             " 01_swarm/zxv-swarm-disc2-reason.img\n");
-    CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 2, "REASON", &e, &line) == 0 && e.disc == 2 &&
-          e.bytes == 1138753536u && e.sha[0] == 0x00 && e.sha[31] == 0xff &&
-          strcmp(e.cid, CID_A) == 0 && strcmp(e.path, "01_swarm/zxv-swarm-disc2-reason.img") == 0);
-    CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 3, "REASON", &e, &line) != 0);
-    CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 2, "VISION", &e, &line) != 0);
-    static const struct {
-        const char *line, *why;
-    } bad[] = {
-        {"blob all 2 R 1 " SHA_A " " CID_A " a/b\n", "unknown kind"},
-        {"swarm all 2 R 1 " SHA_A " " CID_A "\n", "a swarm line needs 8 fields"},
-        {"swarm all 2 R 1 " SHA_A " " CID_A " a/b x\n", "extra fields"},
-        {"swarm all 2x R 1 " SHA_A " " CID_A " a/b\n", "disc is not a number"},
-        {"swarm x86_64 2 R 1 " SHA_A " " CID_A " a/b\n", "a swarm disc must be for arch all"},
-        {"swarm all 2 R 0 " SHA_A " " CID_A " a/b\n", "bytes is not a size up to 1.8 GB"},
-        {"swarm all 2 R 1800000001 " SHA_A " " CID_A " a/b\n", "bytes is not a size up to 1.8 GB"},
-        {"swarm all 2 R 1k " SHA_A " " CID_A " a/b\n", "bytes is not a size"},
-        {"swarm all 2 R 1 00 " CID_A " a/b\n", "sha256 is not 64 lower-case hex digits"},
-        {"swarm all 2 R 1 " SHA_A "" CID_A " a/b x\n", "sha256 is not 64 lower-case hex digits"},
-    };
-    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
-        const char *why =
-            sn_manifest_find(bad[i].line, (uint32_t) strlen(bad[i].line), 2, "R", &e, &line);
-        int ok = why && strcmp(why, bad[i].why) == 0;
-        if (!ok) printf("  manifest case %u: %s\n", i, why ? why : "(accepted)");
-        CHECK(ok);
-    }
-    char up[sizeof SHA_A];
-    strcpy(up, SHA_A);
-    up[0] = 'A';
-    snprintf(t, sizeof t, "swarm all 2 R 1 %s " CID_A " a/b\n", up);
-    CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 2, "R", &e, &line) != 0);
+    static const sn_baked_t t[] = {
+        {2u, "REASON", 5u, {0}, {0}}, {3u, "VISION", 6u, {0}, {0}}, {4u, "REASONX", 7u, {0}, {0}}};
+    CHECK(sn_baked_find(t, 3, 2, "REASON") == &t[0]);
+    CHECK(sn_baked_find(t, 3, 3, "VISION") == &t[1]);
+    CHECK(sn_baked_find(t, 3, 4, "REASONX") == &t[2]);
+    CHECK(sn_baked_find(t, 3, 3, "REASON") == 0); /* disc and group must both match */
+    CHECK(sn_baked_find(t, 3, 2, "REASONX") == 0);
+    CHECK(sn_baked_find(t, 3, 4, "REASON") == 0); /* a prefix is not the group */
+    CHECK(sn_baked_find(t, 3, 2, "REASO") == 0);
+    CHECK(sn_baked_find(t, 2, 4, "REASONX") == 0); /* only the first n rows */
+    CHECK(sn_baked_find(t, 0, 2, "REASON") == 0);
 }
 
 /* ---- 3. blank drives and the writer ---- */
@@ -225,15 +196,14 @@ static void test_writer(void)
     CHECK(sn_writer_put(&w, img, sizeof img) == 0);
     sha[5] ^= 1;
     CHECK(sn_writer_commit(&w, sha, &why) != 0 &&
-          strcmp(why, "sha256 differs from the manifest") == 0);
+          strcmp(why, "sha256 differs from the table") == 0);
     sha[5] ^= 1;
     CHECK(zero(d1.d, SN_HOLD_SECTORS * 512u) && sn_drive_blank(&d1.b, sizeof img, sector));
     /* short */
     drive(&d1, "sata1", DRIVE_SECTORS);
     sn_writer_init(&w, &d1.b, sizeof img);
     CHECK(sn_writer_put(&w, img, sizeof img - 1) == 0);
-    CHECK(sn_writer_commit(&w, sha, &why) != 0 &&
-          strcmp(why, "size differs from the manifest") == 0);
+    CHECK(sn_writer_commit(&w, sha, &why) != 0 && strcmp(why, "size differs from the table") == 0);
     CHECK(zero(d1.d, SN_HOLD_SECTORS * 512u));
     /* long: refused at the byte that overruns */
     drive(&d1, "sata1", DRIVE_SECTORS);
@@ -255,13 +225,13 @@ static void test_writer(void)
           memcmp(d1.d, img, 1000) == 0 && zero(d1.d + 1000, 24));
 }
 
-/* ---- 4. the fetch, from an in-memory bucket ---- */
+/* ---- 4. the fetch, by the CID in the kernel's table ---- */
 static tb_store_t store;
 static uint8_t image[1600000];
 static uint32_t img_len = 1100000;
 static uint32_t zero_leaves; /* full zero leaves the source was asked for */
 static uint8_t isha[32];
-static ipfsn_cid_t root;
+static sn_baked_t row; /* the kernel's table: one swarm disc */
 static hw_models_t models;
 static hw_registry_t reg;
 static sn_fetch_t fetch;
@@ -298,33 +268,24 @@ static int get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, ui
     return rc;
 }
 
-/* A bucket: manifest.txt and 01_swarm_test/zxv-swarm-disc2-test.img, with
- * the manifest line given (NULL for the true one). */
-static void bucket(const char *line_override, int image_cid_wrong)
+/* The image in the block store and its row in the kernel's table; with
+ * cid_wrong the row holds another file's CID, with sha_wrong a SHA-256 off
+ * by one bit. */
+static void table_row(int cid_wrong, int sha_wrong)
 {
-    char man[1024], cs[IPFSN_CID_STR_MAX], hex[65];
-    ipfsn_cid_t icid, mcid, scid, other;
-    uint64_t its, mts, sts;
+    ipfsn_cid_t icid, other;
+    uint64_t its;
     tb_free(&store);
     tb_init(&store);
     tb_file(&store, image, img_len, &icid, &its);
     tb_file(&store, (const uint8_t *) "x", 1, &other, 0);
-    for (int i = 0; i < 32; i++) sprintf(hex + 2 * i, "%02x", isha[i]);
-    ipfsn_cid_to_string(image_cid_wrong ? &other : &icid, cs, sizeof cs);
-    if (line_override)
-        snprintf(man, sizeof man, "%s", line_override);
-    else
-        snprintf(
-            man, sizeof man,
-            "# zxv-bucket 1\nswarm all 2 TEST %u %s %s 01_swarm_test/zxv-swarm-disc2-test.img\n",
-            (unsigned) img_len, hex, cs);
-    tb_file(&store, (const uint8_t *) man, (uint32_t) strlen(man), &mcid, &mts);
-    tb_ent_t sub[1], top[2];
-    tb_ent(&sub[0], "zxv-swarm-disc2-test.img", &icid, its);
-    tb_dir(&store, sub, 1, &scid, &sts);
-    tb_ent(&top[0], "manifest.txt", &mcid, mts);
-    tb_ent(&top[1], "01_swarm_test", &scid, sts);
-    tb_dir(&store, top, 2, &root, 0);
+    memset(&row, 0, sizeof row);
+    row.disc = 2;
+    strcpy(row.group, "TEST");
+    row.bytes = img_len;
+    memcpy(row.sha, isha, 32);
+    if (sha_wrong) row.sha[0] ^= 1;
+    CHECK(ipfsn_cid_encode(cid_wrong ? &other : &icid, row.cid, sizeof row.cid) == 36);
 }
 
 /* Steps until the fetch is done, the clock jumping over each wait. */
@@ -341,7 +302,6 @@ static uint32_t steps(uint32_t max)
 static void want_disc2(void)
 {
     memset(&models, 0, sizeof models);
-    ipfsn_cid_to_string(&root, models.cid, sizeof models.cid);
     models.nwant = 2;
     models.want[0] = (hw_swarm_want_t){2, "TEST", "zxv-swarm-disc2-test.img", 0};
     models.want[1] = (hw_swarm_want_t){3, "ATTACHED", "x.img", 1};
@@ -354,6 +314,8 @@ static void fresh_fetch(void)
     fetch.get = get;
     fetch.get_ctx = &store;
     fetch.clk.ms = fake_ms;
+    fetch.table = &row;
+    fetch.ntable = 1;
     sn_fetch_begin(&fetch);
     nlog = 0;
 }
@@ -384,7 +346,7 @@ static void test_fetch(void)
     hw_reg_blk(&reg, &small.b);
     hw_reg_blk(&reg, &d2.b);
 
-    bucket(0, 0);
+    table_row(0, 0);
     zero_leaves = 0;
     CHECK(run() == 1);
     CHECK(zero_leaves == 1); /* the second zero leaf came from the cache */
@@ -392,7 +354,7 @@ static void test_fetch(void)
     CHECK(has("[SWARM_FETCH] disc 2 [##--------] 20% (262144 of 1100000 bytes, "));
     CHECK(has(" KB/s)"));
     CHECK(has("[SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on sata2: 1100000 bytes, sha256 matches the "
-              "manifest; committed"));
+              "table; committed"));
     CHECK(!has("ATTACHED"));
     CHECK(memcmp(d2.d, image, img_len) == 0);
     if (failures) dump();
@@ -404,66 +366,46 @@ static void test_fetch(void)
     memset(&models, 0, sizeof models);
     (void) full;
 
-    static const struct {
-        const char *what;
-        const char *line;
-        int cid_wrong, tamper;
-        const char *log;
-    } bad[] = {
-        {"a block changed in transit", 0, 0, 1,
-         "every gateway sent a block that does not match its CID; nothing committed"},
-        {"the manifest's CID is another file", 0, 1, 0,
-         "the bucket's directory and manifest.txt disagree on its CID"},
-        {"no line for the disc", "core x86_64 1 - 5 " SHA_A " " CID_A " a/b\n", 0, 0,
-         "manifest.txt: the bucket has no such swarm disc"},
-        {"a malformed line", "swarm all 2 TEST 5\n", 0, 0, "manifest.txt: a swarm line needs 8"},
-        {"a path that is not in the bucket",
-         "swarm all 2 TEST 1100000 " SHA_A " " CID_A " 01_swarm_test/other.img\n", 0, 0,
-         "the bucket has no file at manifest.txt's path"},
-    };
-    for (unsigned i = 0; i < sizeof bad / sizeof bad[0]; i++) {
-        drive(&d2, "sata2", DRIVE_SECTORS);
-        bucket(bad[i].line, bad[i].cid_wrong);
-        tamper_leaf = bad[i].tamper;
-        uint32_t n = run();
-        tamper_leaf = 0;
-        int ok = n == 0 && has(bad[i].log) && has("[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_TEST") &&
-                 zero(d2.d, SN_HOLD_SECTORS * 512u);
-        if (!ok) {
-            printf("  fetch case %u (%s)\n", i, bad[i].what);
-            dump();
-        }
-        CHECK(ok);
-    }
-    /* the manifest's SHA-256 is wrong: written, never committed */
-    {
-        char line[512], cs[IPFSN_CID_STR_MAX];
-        ipfsn_cid_t icid;
-        uint64_t ts;
-        tb_file(&store, image, img_len, &icid, &ts);
-        ipfsn_cid_to_string(&icid, cs, sizeof cs);
-        snprintf(line, sizeof line,
-                 "swarm all 2 TEST 1100000 " SHA_A " %s 01_swarm_test/zxv-swarm-disc2-test.img\n",
-                 cs);
-        drive(&d2, "sata2", DRIVE_SECTORS);
-        bucket(line, 0);
-        CHECK(run() == 0 && has("nothing committed: sha256 differs from the manifest"));
-        CHECK(zero(d2.d, SN_HOLD_SECTORS * 512u) &&
-              memcmp(d2.d + SN_HOLD_SECTORS * 512u, image + SN_HOLD_SECTORS * 512u, 4096) == 0);
-    }
-    /* the bucket CID itself is not a CID */
+    /* a block changed in transit: never committed */
     drive(&d2, "sata2", DRIVE_SECTORS);
-    bucket(0, 0);
-    memset(&models, 0, sizeof models);
-    strcpy(models.cid, "bnotacid");
-    models.nwant = 1;
-    models.want[0] = (hw_swarm_want_t){2, "TEST", "x.img", 0};
+    table_row(0, 0);
+    tamper_leaf = 1;
+    CHECK(run() == 0 && has("[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_TEST: every gateway sent a block "
+                            "that does not match its CID; nothing committed"));
+    tamper_leaf = 0;
+    CHECK(zero(d2.d, SN_HOLD_SECTORS * 512u));
+    /* the table's CID is another file's: what it names is fetched, and its
+     * size and SHA-256 are not the table's, so nothing is committed */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    table_row(1, 0);
+    CHECK(run() == 0 && has("[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_TEST") &&
+          has("nothing committed: size differs from the table"));
+    CHECK(zero(d2.d, SN_HOLD_SECTORS * 512u));
+    /* the table's SHA-256 is wrong: written, never committed */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    table_row(0, 1);
+    CHECK(run() == 0 && has("nothing committed: sha256 differs from the table"));
+    CHECK(zero(d2.d, SN_HOLD_SECTORS * 512u) &&
+          memcmp(d2.d + SN_HOLD_SECTORS * 512u, image + SN_HOLD_SECTORS * 512u, 4096) == 0);
+    /* a disc the table does not list: nothing is fetched */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    table_row(0, 0);
+    want_disc2();
+    models.want[0] = (hw_swarm_want_t){2, "OTHER", "x.img", 0};
     fresh_fetch();
-    CHECK(steps(100) == 0 && has("the bucket CID does not parse"));
+    n_gets = 0;
+    CHECK(steps(100) == 0 && n_gets == 0 &&
+          has("[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_OTHER: not in the table this kernel was built "
+              "with; attach it by hand"));
+    /* a CID in the table that does not decode */
+    row.cid[0] = 0x07;
+    want_disc2();
+    fresh_fetch();
+    CHECK(steps(100) == 0 && has("its CID in this kernel's table does not decode"));
     /* a drive the system uses is skipped even if blank */
     drive(&d2, "sata2", DRIVE_SECTORS);
+    table_row(0, 0);
     memset(&models, 0, sizeof models);
-    ipfsn_cid_to_string(&root, models.cid, sizeof models.cid);
     models.nwant = 1;
     models.want[0] = (hw_swarm_want_t){2, "TEST", "x.img", 0};
     models.nvol = 1;
@@ -487,13 +429,16 @@ static void test_elastic(void)
     img_len = 1100000;
     sha256(image, img_len, isha);
     drive(&d2, "sata2", DRIVE_SECTORS);
-    bucket(0, 0);
+    table_row(0, 0);
     want_disc2();
     fresh_fetch();
     down_calls = 3;
     uint64_t t0 = fms;
-    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.next_try == fms + 1000);
     uint32_t g = n_gets;
+    /* finding the disc asks nobody: its CID is in the table */
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.phase == 2 && n_gets == g);
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.next_try == fms + 1000);
+    g = n_gets;
     CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && n_gets == g); /* asks nobody while waiting */
     CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
     CHECK(has("  [SWARM_FETCH] disc 2: waiting for peers (no gateway served the next block); "
@@ -513,7 +458,7 @@ static void test_elastic(void)
     CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.phase == 2 && fetch.wr.got == 0);
     CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.wr.got == SN_STEP_BYTES);
     CHECK(steps(1000) == 1 && fresh_seen == 1 && fetch.fresh == 0);
-    CHECK(pb_gets == 3); /* the bucket root, 01_swarm_test, the image's root */
+    CHECK(pb_gets == 1); /* the image's root, straight from the table's CID */
 
     /* longer outages: the wait doubles to a minute and stays there */
     drive(&d2, "sata2", DRIVE_SECTORS);
@@ -527,7 +472,7 @@ static void test_elastic(void)
     img_len = 1600000;
     sha256(image, img_len, isha);
     drive(&d2, "sata2", DRIVE_SECTORS);
-    bucket(0, 0);
+    table_row(0, 0);
     want_disc2();
     fresh_fetch();
     served = 0;
@@ -560,7 +505,7 @@ static void test_elastic(void)
     d2.d[SN_HOLD_SECTORS * 512u + 5000] ^= 1;
     fresh_fetch();
     CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
-    CHECK(has("nothing committed") == 0 && has("sha256 differs from the manifest") &&
+    CHECK(has("nothing committed") == 0 && has("sha256 differs from the table") &&
           has("the resumed part was not the image; downloading it again from the start"));
     /* ... and in the held head's copy */
     memcpy(d2.d, keep, sizeof keep);
@@ -721,9 +666,46 @@ static int wiped(void)
            slink.clk.ms == seal_ms;
 }
 
+/* flush hooks: each records the bus as it found it, and the order it ran in */
+static uint16_t flush_cmd[2];
+static int flush_rc[2], flush_order[2], nflush;
+
+static int flush_hook(void *ctx)
+{
+    int i = (int) (uintptr_t) ctx;
+    flush_cmd[i] = cmd_reg;
+    flush_order[nflush++ % 2] = i;
+    return flush_rc[i];
+}
+
+static int other_hook(void *ctx)
+{
+    (void) ctx;
+    return 0;
+}
+
 static void test_seal(void)
 {
-    CHECK(!sn_sealed());
+    CHECK(!sn_sealed() && sn_seal_verdict(0) == LPRES_STATE_NEITHER);
+    /* registration: bounded, named, no repeats */
+    CHECK(sn_seal_on(0, 0, "agora") == -1);
+    CHECK(sn_seal_on(flush_hook, 0, 0) == -1 && sn_seal_on(flush_hook, 0, "") == -1);
+    CHECK(sn_seal_on(flush_hook, 0, "abcdefghijklmnopqrstuvw") == 0);
+    CHECK(sn_seal_on(flush_hook, (void *) 1, "abcdefghijklmnopqrstuvwx") == -1);
+    CHECK(sn_seal_on(flush_hook, 0, "again") == -1);
+    CHECK(sn_seal_on(flush_hook, (void *) 1, "kin-collective") == 0);
+    for (uintptr_t i = 2; i + 1 < SN_SEAL_HOOK_MAX; i++)
+        CHECK(sn_seal_on(other_hook, (void *) i, "pad") == 0);
+    /* the bound, in a child, so the parent keeps one free place for the
+     * after-the-seal check below */
+    pid_t kid = fork();
+    if (kid == 0)
+        _exit(sn_seal_on(other_hook, (void *) 98, "last") == 0 &&
+                      sn_seal_on(other_hook, (void *) 99, "one-too-many") == -1
+                  ? 0
+                  : 1);
+    int st = -1;
+    CHECK(kid > 0 && waitpid(kid, &st, 0) == kid && WIFEXITED(st) && WEXITSTATUS(st) == 0);
     /* POWERDOWN_NIC: the exact receipt, after the bus is cut and read back */
     phy_result = 0;
     keys = 0;
@@ -732,18 +714,32 @@ static void test_seal(void)
     CHECK(has("  [SEAL_NIC] eth0 (00:03.0): PHY powered down; PCI Bus Master and Memory Space "
               "cleared and read back"));
     CHECK(
-        nlog == 6 &&
-        strcmp(logs[2], "[SEAL] Swarm Discs 2..3 successfully hydrated and verified.") == 0 &&
-        strcmp(logs[3],
+        nlog == 13 &&
+        strcmp(logs[9], "[SEAL] Swarm Discs 2..3 successfully hydrated and verified.") == 0 &&
+        strcmp(logs[10],
                "[SEAL] Master CID: bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354") ==
             0 &&
-        strcmp(logs[4], "[SEAL] Network hydration channel severed: NIC bus mastering disabled.") ==
+        strcmp(logs[11], "[SEAL] Network hydration channel severed: NIC bus mastering disabled.") ==
             0 &&
-        strcmp(logs[5], "[SEAL] Operating system is now immutable and air-gapped.") == 0);
-    CHECK(strstr(logs[1],
+        strcmp(logs[12], "[SEAL] Operating system is now immutable and air-gapped.") == 0);
+    CHECK(strstr(logs[8],
                  "  [SEAL_WIPE] hydration code: 4096 bytes overwritten with INT3, read back") ==
-          logs[1]);
-    CHECK(wiped() && sn_sealed());
+          logs[8]);
+    CHECK(wiped() && sn_sealed() && sn_seal_verdict(0) == LPRES_STATE_TRUE);
+    /* the hooks ran first, in order, with the bus still mastering */
+    CHECK(strcmp(logs[0], "  [SEAL_FLUSH] abcdefghijklmnopqrstuvw: drained") == 0 &&
+          strcmp(logs[1], "  [SEAL_FLUSH] kin-collective: drained") == 0 &&
+          strncmp(logs[7], "  [SEAL_NIC] ", 13) == 0);
+    CHECK(nflush == 2 && flush_order[0] == 0 && flush_order[1] == 1 && flush_cmd[0] == 7 &&
+          flush_cmd[1] == 7);
+    CHECK(sn_seal_on(other_hook, (void *) 98, "late") == -1);
+    /* a hook that does not drain is said, and the seal goes on */
+    flush_rc[1] = -1;
+    CHECK(seal(HW_SEAL_POWERDOWN_NIC, 1) == HW_SEAL_POWERDOWN_NIC && (cmd_reg & 6) == 0);
+    CHECK(
+        has("  [SEAL_FLUSH_FAIL] kin-collective: did not drain; its buffers go with the network") &&
+        has("[SEAL] Operating system is now immutable and air-gapped."));
+    flush_rc[1] = 0;
     if (failures) dump();
 
     /* a part whose PHY the driver leaves alone: said so */
@@ -782,6 +778,7 @@ static void test_seal(void)
     CHECK(has("  [SEAL_FAIL] eth0 (00:03.0): PCI Bus Master or Memory Space did not clear; "
               "the network is NOT severed"));
     CHECK(!has("[SEAL] Swarm Discs") && !has("[SEAL] Operating system") && wiped());
+    CHECK(sn_seal_verdict(0) == LPRES_STATE_FALSE);
     cmd_locked = 0;
     CHECK(seal(HW_SEAL_POWERDOWN_NIC, 0) == -1 &&
           has("  [SEAL_FAIL] eth0: not a PCI device; the network is NOT severed") &&
@@ -792,7 +789,7 @@ int main(void)
 {
     test_url();
     test_head();
-    test_manifest();
+    test_table();
     test_writer();
     test_fetch();
     test_elastic();

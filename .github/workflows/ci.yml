@@ -397,6 +397,11 @@ jobs:
       - name: Release layers check
         if: ${{ matrix.arch == 'x86_64' }}
         run: python3 build_system/test_layers.py
+      # The table the kernel bakes (build_system/mk_table.py, docs/BUCKET.md):
+      # L0 and each swarm disc by CID, and the numbering rule.
+      - name: Baked table check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_mk_table.py
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

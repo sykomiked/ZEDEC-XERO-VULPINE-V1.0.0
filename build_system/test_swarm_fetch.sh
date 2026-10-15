@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # test_swarm_fetch.sh — prove the bare-metal network fetch of a swarm disc.
 #
-#   bash build_system/baremetal_images.sh x86_64
 #   bash build_system/test_swarm_fetch.sh [seconds]
 #
-# Builds small golden discs as test_golden_disc.sh does (a 3 MiB core model,
-# a 2 MiB swarm model in group "test"), lays them out as a bucket with
-# mk_bucket.py --blocks, serves the blocks from a local gateway on the host
+# Builds the release leaves first, small (docs/BUCKET.md): the swarm disc (a
+# 2 MiB model in group "test"), then the x86_64 kernel with that disc's CID
+# baked in (baremetal_images.sh with ZXV_SWARM_DISCS, mk_table.py), then the
+# core disc (a 3 MiB core model); lays them out as a bucket with mk_bucket.py
+# --blocks, serves the blocks from a local gateway on the host
 # (zxv_test_gateway.py; the guest sees it as 10.0.2.2), and rebuilds the core
 # disc so its /ZXV/UPSTREAM.CID names that bucket and gateway. Then boots the
 # core disc under UEFI with a blank 400 MiB AHCI drive (sparse) and no swarm disc:
 #
 #   1. network up, honest gateway: [NET] link up, DHCP lease, [SWARM_FETCH],
-#      [SWARM_FETCHED] (sha256 matches the manifest; committed), then the disc
+#      [SWARM_FETCHED] (sha256 matches the table; committed), then the disc
 #      is indexed again: [SWARM_MOUNTED] ZXV_SWARM_TEST. Then the seal, with
 #      no "seal" line (PROMPT_USER) and nobody at the console: the question,
 #      no answer in 30 s, the NIC powered down and read back, the hydration
@@ -88,15 +89,18 @@ golden(){ # $1 target, $2 upstream file
     GOLDEN_UPSTREAM="$2" GOLDEN_OFFLINE=1 bash build_system/mk_golden_disc.sh "$1"
 }
 
+# Leaves first: the swarm disc, then a kernel that carries its CID.
+golden swarm build_system/zxv_upstream.cid
+ZXV_SWARM_DISCS="$SWARM" bash build_system/baremetal_images.sh "$ARCH"
+grep -q "^#define ZXV_TABLE_SWARM_N 1u" build/include/manifest_hashes.h
 # The bucket: the swarm disc and a first core disc (the bucket's own core disc
 # cannot name the bucket that holds it; mk_bucket.py says why).
-golden swarm build_system/zxv_upstream.cid
 golden "$ARCH" build_system/zxv_upstream.cid
 cp "$IMG" "$SWARM" "$T/discs/"
 python3 build_system/mk_bucket.py --discs "$T/discs" --prefix "$PREFIX" --out "$T/bucket" \
   --blocks "$T/blocks"
 ROOT=$(cat "$T/bucket.cid")
-grep -q "^swarm all 2 TEST " "$T/bucket/manifest.txt"
+grep -q "^swarm all 2 TEST " "$T"/bucket/b*.install
 
 # The core disc under test names that bucket and the local gateway.
 printf 'cid %s\ngateway http://10.0.2.2:%s\n' "$ROOT" "$PORT" > "$T/upstream"

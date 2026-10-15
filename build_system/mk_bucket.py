@@ -10,63 +10,57 @@
     python3 build_system/mk_bucket.py --self-test
 
 Stages the discs mk_golden_disc.sh built into a directory that `ipfs add -r
---cid-version=1` would turn into the bucket, writes its manifest.json and
-prints the root CID that add would give, computed here the way Kubo does it
-(256 KiB raw leaves, balanced DAG, plain UnixFS directories). It adds nothing
-to any IPFS node and publishes nothing; uploading is the owner's call.
+--cid-version=1` would turn into the bucket, every file named by its own CID,
+writes the installer file and prints the origin CID (the root) that add would
+give, computed here the way Kubo does it under the pinned parameters of
+docs/BUCKET.md (256 KiB chunks, raw leaves, balanced DAG of 174 links,
+sha2-256, plain UnixFS directories). It adds nothing to any IPFS node and
+publishes nothing; uploading is the owner's call.
+
+The release is built leaves first and named the same way (docs/BUCKET.md):
+each file is named <its CID>.<ext>, the installer file lists them all and is
+named by its own CID, and the root directory, whose links carry those names
+and CIDs, is the origin CID, computed last. One CID installs everything.
 
 The bucket:
-    manifest.json                 what is in it (below)
-    manifest.txt                  the same, one line per stage, for the kernel
-    00_base/zxv-<arch>-disc1-core.img        one per architecture built
-    00_base/ARCHITECTURE.md       with --architecture: the distribution section
+    <cid>.install                 the installer file (below)
+    00_base/<cid>.img             a core disc (disc 1), one per architecture
+    00_base/<cid>.md              with --architecture: the distribution section
                                   of that file (between the zxv:distribution
                                   start and end markers), so the bucket says
                                   what it is
-    01_swarm/zxv-swarm-disc<n>-<group>.img   every swarm disc, one directory
-    02_cartridges/<file>          when --cartridge given
-    03_layers/L0.json ... L2.json with --layers: the layer manifests
-                                  (mk_layers.py, docs/LAYERS.md), each named by
-                                  its own CID and naming its parent's
+    01_swarm/<cid>.img            every swarm disc
+    02_cartridges/<cid>.<ext>     when --cartridge given
+    03_layers/<cid>.json          with --layers: the layer manifests L0 to L2
+                                  (mk_layers.py, docs/LAYERS.md), each naming
+                                  its parent's CID
 
 The numbering is fixed for the whole release, so a directory keeps its name
 whether or not the ones before it are present: 04_overlays (L4, community
-overlays), 05_alexandria (L3, the Library of Alexandria) and 06_tiamat (the
-Tiamat cells, part of L2) are laid out by the threads that build them and
-added beside these; this tool does not write them.
+overlays), 05_alexandria (L3, the Library of Alexandria), 06_tiamat (the
+Tiamat cells, part of L2), 07_matrix (the 144-layer matrix), 08_vectors (its
+vector plane) and 09_source (the source bundle) are laid out by the threads
+that build them and added beside these; this tool does not write them.
 
 Every disc is at most 1,800,000,000 bytes. Only the core disc is specific to
 an architecture; the swarm discs are the same for all of them.
 
-manifest.json (keys sorted, one stage per disc or file):
-    {"format": "zxv-bucket 1",
-     "max_disc_bytes": 1800000000,
-     "post_install_action": "SEAL_AIRGAP",
-     "allowed_modes": ["POWERDOWN_NIC", "LOCAL_MESH_ONLY", "PROMPT_USER"],
-     "upstream": {"cid": "<bafy...>", "ipns": "<k51...>" | null,
-                  "gateways": ["http://...", ...], "seal": "<mode>"},
-     "stages": [{"dir": "00_base", "file": "zxv-x86_64-disc1-core.img",
-                 "kind": "core", "arch": "x86_64", "disc": 1,
-                 "bytes": N, "sha256": "<hex>", "cid": "<bafy...>"},
-                {"dir": "01_swarm", ..., "kind": "swarm",
-                 "arch": "all", "disc": 2, "group": "REASON", ...},
-                {"dir": "02_cartridges", ..., "kind": "cartridge",
-                 "arch": "all", ...},
-                {"dir": "03_layers", "file": "L1.json", "kind": "layer",
-                 "arch": "all", "layer": 1, ...}]}
-manifest.txt carries the same stages for the bare-metal fetcher
-(kernel/src/swarmnet), which has no JSON parser:
-    <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<file>
-After the kernel commits swarm discs it fetched, it seals the network
-(post_install_action): "seal" is the mode the core discs carry (their
-UPSTREAM.CID "seal" line, PROMPT_USER when absent), one of allowed_modes.
-"upstream" is build_system/zxv_upstream.cid, the bucket the core discs name.
-It is not this bucket's root: a core disc inside the bucket cannot carry the
-CID of the bucket that holds it. Updates reach users through the IPNS name.
+The installer file (ASCII; tools/zxv-get reads it):
+    # zxv-install 1
+    max_disc_bytes 1800000000
+    seal <POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER>
+    gateway <url>                       (the upstream file's, any number)
+    <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
+kind is core, layer, swarm, cartridge or doc, in that order: the core discs,
+the layers they stand on, the swarm discs, the rest. "seal" is the mode the
+core discs carry (their UPSTREAM.CID "seal" line, PROMPT_USER when absent).
+The upstream file (build_system/zxv_upstream.cid) is the trusted list the
+core discs carry: where to fetch from. It is not this bucket's root, and a
+core disc never needs it: the swarm discs it installs are baked into its
+kernel by CID (build_system/mk_table.py).
 
-tools/zxv-get fetches a bucket like this one and checks each disc against
-manifest.json. --blocks DIR also writes every block of the bucket to
-DIR/<cid> (a local block store, for tests and offline gateways).
+--blocks DIR also writes every block of the bucket to DIR/<cid> (a local
+block store, for tests and offline gateways).
 """
 
 import argparse
@@ -81,7 +75,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from zxv_publish_update import cid_bin, cid_str, file_dag, varint  # noqa: E402
 
-FORMAT = "zxv-bucket 1"
+FORMAT = "zxv-install 1"
 MAX_DISC = 1800000000
 ARCHS = ("x86_64", "arm64", "riscv64")
 CID_RE = re.compile(r"b[a-z2-7]{20,120}")
@@ -219,6 +213,17 @@ def place(src, dst):
         shutil.copyfile(src, dst)
 
 
+def ours(out):
+    """Is out a bucket this tool made: one <cid>.install at its root whose
+    first line is the header?"""
+    try:
+        inst = [n for n in os.listdir(out) if n.endswith(".install")]
+        return len(inst) == 1 and open(os.path.join(out, inst[0]), encoding="ascii").readline() \
+            == "# %s\n" % FORMAT
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
 def build(a):
     up = read_upstream(a.upstream)
     cores, swarm = find_discs(a.discs, a.prefix)
@@ -226,12 +231,7 @@ def build(a):
     layers = find_layers(a.layers) if a.layers else []
     out = a.out
     if os.path.lexists(out):
-        mf = os.path.join(out, "manifest.json")
-        try:
-            ours = json.load(open(mf)).get("format") == FORMAT
-        except (OSError, ValueError, AttributeError):
-            ours = False
-        if not ours:
+        if not ours(out):
             die("%s exists and is not a bucket this tool made; remove it yourself" % out)
         shutil.rmtree(out)
     os.makedirs(out)
@@ -239,43 +239,55 @@ def build(a):
     stages = []
 
     def add(d, src, **kw):
+        """Place src as d/<its CID>.<ext>: every file is named by its own CID."""
         size = os.path.getsize(src)
         if size > a.max_bytes:
             die("%s is %d bytes, over the %d-byte disc limit" % (src, size, a.max_bytes))
+        cb, _, n, sha = file_dag(src)
+        ext = os.path.splitext(src)[1].lower().lstrip(".")
+        if not re.fullmatch(r"[a-z0-9]{1,8}", ext):
+            die("%s: its extension is not 1-8 letters or digits" % src)
+        name = "%s.%s" % (cid_str(cb), ext)
         os.makedirs(os.path.join(out, d), exist_ok=True)
-        dst = os.path.join(out, d, os.path.basename(src))
+        dst = os.path.join(out, d, name)
         if os.path.exists(dst):
-            die("two files named %s in %s" % (os.path.basename(src), d))
+            die("%s and another file in %s have the same bytes" % (src, d))
         place(src, dst)
-        cb, _, n, sha = file_dag(dst)
-        st = {"dir": d, "file": os.path.basename(src), "bytes": n, "sha256": sha, "cid": cid_str(cb)}
+        st = {"dir": d, "file": name, "from": os.path.basename(src), "bytes": n, "sha256": sha,
+              "cid": cid_str(cb)}
         st.update(kw)
         stages.append(st)
 
     for arch, p in cores:
         add("00_base", p, kind="core", arch=arch, disc=1)
-    if arch_doc:
-        with open(os.path.join(out, "00_base", "ARCHITECTURE.md"), "w", encoding="utf-8") as f:
-            f.write(arch_doc)
+    for n, p in layers:
+        add("03_layers", p, kind="layer", arch="all", layer=n)
     for n, g, p in swarm:
         add("01_swarm", p, kind="swarm", arch="all", disc=n, group=g.upper())
     for p in a.cartridge or []:
         if not os.path.isfile(p):
             die("cartridge %s not found" % p)
         add("02_cartridges", p, kind="cartridge", arch="all")
-    for n, p in layers:
-        add("03_layers", p, kind="layer", arch="all", layer=n)
+    if arch_doc:
+        doc = os.path.join(out, "ARCHITECTURE.md")
+        with open(doc, "w", encoding="utf-8") as f:
+            f.write(arch_doc)
+        add("00_base", doc, kind="doc", arch="all")
+        os.remove(doc)
 
-    man = {"format": FORMAT, "max_disc_bytes": a.max_bytes, "upstream": up, "stages": stages,
-           "post_install_action": "SEAL_AIRGAP", "allowed_modes": list(SEAL_MODES)}
-    with open(os.path.join(out, "manifest.json"), "w", encoding="ascii") as f:
-        json.dump(man, f, indent=1, sort_keys=True)
-        f.write("\n")
-    with open(os.path.join(out, "manifest.txt"), "w", encoding="ascii") as f:
-        for st in stages:
-            f.write("%s %s %s %s %d %s %s %s/%s\n" % (
-                st["kind"], st["arch"], st.get("disc", "-"), st.get("group", "-"), st["bytes"],
-                st["sha256"], st["cid"], st["dir"], st["file"]))
+    # The installer file: everything above, in install order, by CID; named
+    # by its own CID. It is the last file made; only the root is after it.
+    text = "# %s\nmax_disc_bytes %d\nseal %s\n" % (FORMAT, a.max_bytes, up["seal"])
+    text += "".join("gateway %s\n" % g for g in up["gateways"])
+    for st in stages:
+        text += "%s %s %s %s %d %s %s %s/%s\n" % (
+            st["kind"], st["arch"], st.get("disc", "-"), st.get("group", "-"), st["bytes"],
+            st["sha256"], st["cid"], st["dir"], st["file"])
+    tmp = os.path.join(out, "installer.tmp")
+    with open(tmp, "w", encoding="ascii") as f:
+        f.write(text)
+    inst = cid_str(file_dag(tmp)[0]) + ".install"
+    os.replace(tmp, os.path.join(out, inst))
 
     sink = None
     if a.blocks:
@@ -290,8 +302,10 @@ def build(a):
     with open(out.rstrip("/") + ".cid", "w", encoding="ascii") as f:
         f.write(root + "\n")
     for st in stages:
-        print("  %-18s %-36s %11d  %s" % (st["dir"], st["file"], st["bytes"], st["cid"]))
-    print("bucket %s: root %s (also in %s.cid)" % (out, root, out.rstrip("/")))
+        print("  %-14s %-9s %-36s %11d  %s" % (st["dir"], st["kind"], st["from"], st["bytes"],
+                                               st["file"]))
+    print("  %-14s %-9s %-36s %11d  %s" % (".", "installer", "", len(text), inst))
+    print("bucket %s: origin %s (also in %s.cid)" % (out, root, out.rstrip("/")))
     print("the core discs name upstream cid %s%s" %
           (up["cid"], ", ipns " + up["ipns"] if up["ipns"] else ""))
     print("nothing was added to IPFS or published")

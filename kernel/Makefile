@@ -2090,7 +2090,7 @@ test-layers:
 # blank-drive rule, the commit-last writer, a whole fetch from an in-memory
 # bucket, and the post-hydration seal against a fake NIC. The network half runs under QEMU in build_system/test_swarm_fetch.sh.
 test-swarmnet:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/ipfs_node src/swarmnet/test_swarmnet.c src/swarmnet/sn_fetch.c src/swarmnet/sn_proto.c src/swarmnet/sn_seal.c src/hwdrv/hwdrv_core.c src/ipfs_node/ipfsn_dir.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarmnet && $(ZXV_TMP)/test_swarmnet > $(ZXV_TMP)/test_swarmnet.log 2>&1 && echo "[PASS] test_swarmnet ($$(tail -1 $(ZXV_TMP)/test_swarmnet.log))" || { tail -40 $(ZXV_TMP)/test_swarmnet.log; echo "[FAIL] test_swarmnet"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/ipfs_node -Isrc/event_space src/swarmnet/test_swarmnet.c src/swarmnet/sn_fetch.c src/swarmnet/sn_proto.c src/swarmnet/sn_seal.c src/hwdrv/hwdrv_core.c src/ipfs_node/ipfsn_dir.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarmnet && $(ZXV_TMP)/test_swarmnet > $(ZXV_TMP)/test_swarmnet.log 2>&1 && echo "[PASS] test_swarmnet ($$(tail -1 $(ZXV_TMP)/test_swarmnet.log))" || { tail -40 $(ZXV_TMP)/test_swarmnet.log; echo "[FAIL] test_swarmnet"; exit 1; }
 
 .PHONY: test-blockdev test-hwdrv test-x86-extable
 # The x86_64 #GP handler's exception-fixup lookup (fault-safe RDMSR/WRMSR).

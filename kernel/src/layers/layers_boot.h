@@ -7,7 +7,9 @@
  * /ZXV on its ESP: LAYER0.JSN (L0, the hardware envelope), LAYER1.JSN (L1,
  * the core boot engine) and LAYER2.JSN (L2, the swarm). The check, after
  * hw_models_index has read the discs:
- *   1. the three parse (layers.h), L1 names the CID of L0 and L2 that of L1;
+ *   1. the three parse (layers.h); L0 is the one in the table this kernel
+ *      was built with (its CID baked in, docs/BUCKET.md); L1 names the CID
+ *      of L0 and L2 that of L1;
  *   2. L0 lists a UEFI machine for this architecture with 4096-byte pages and
  *      512-byte sectors, what this kernel is built for;
  *   3. /EFI/BOOT/<boot file> on the ESP has the size and SHA-256 L1 gives it
@@ -45,10 +47,11 @@ typedef struct zxv_layers_boot {
     uint32_t refused;                              /* models refused */
 } zxv_layers_boot_t;
 
-/* arch: "x86_64" or "arm64"; efi: its boot file, "BOOTX64.EFI". Returns
- * b->verdict. */
+/* arch: "x86_64" or "arm64"; efi: its boot file, "BOOTX64.EFI"; l0: the CID
+ * of L0 in the table this kernel was built with (ZXV_TABLE_L0_CID_BIN,
+ * build_system/mk_table.py). Returns b->verdict. */
 int zxv_layers_boot(zxv_layers_boot_t *b, hw_models_t *s, const hw_plat_t *p, const char *arch,
-                    const char *efi);
+                    const char *efi, const uint8_t l0[ZXV_LAYER_CID_BYTES]);
 
 /* After the post-hydration seal: flag every node SEALED, and AIRGAPPED when
  * the NIC was powered down. */

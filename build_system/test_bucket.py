@@ -9,7 +9,7 @@ Makes small stand-in discs (two core discs, one deep enough for a two-level
 DAG, two swarm discs and a cartridge), lays them out with mk_bucket.py,
 serves the bucket's blocks from a local trustless gateway on 127.0.0.1 and
 downloads with zxv-get. Then checks that every way the bucket, the gateway or
-the manifest can lie is refused, that a refused disc leaves no finished
+the installer file can lie is refused, that a refused disc leaves no finished
 file, and that zxv-get waits out a gateway that is down and resumes from a
 .part it re-hashes.
 Needs no network and no IPFS node.
@@ -17,7 +17,8 @@ Needs no network and no IPFS node.
 
 import hashlib
 import http.server
-import json
+import importlib.machinery
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -29,9 +30,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from mk_bucket import read_upstream, tree_cid  # noqa: E402
-from zxv_publish_update import cid_str  # noqa: E402
+from zxv_publish_update import cid_str, file_dag  # noqa: E402
 
 GET = os.path.join(ROOT, "tools", "zxv-get")
+ZXV_GET = importlib.util.module_from_spec(
+    importlib.util.spec_from_loader("zxv_get", importlib.machinery.SourceFileLoader("zxv_get", GET)))
+ZXV_GET.__spec__.loader.exec_module(ZXV_GET)
 MK = os.path.join(HERE, "mk_bucket.py")
 CID = "bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354"
 
@@ -119,6 +123,21 @@ def layers(t, out):
     return out
 
 
+def named(path, ext=None):
+    """<the file's CID>.<ext>, ext defaulting to path's own."""
+    ext = ext or os.path.splitext(path)[1].lstrip(".").lower()
+    return "%s.%s" % (cid_str(file_dag(path)[0]), ext)
+
+
+def installer(bucket):
+    """(name, text, stages) of the bucket's installer file, read by zxv-get's
+    own parser."""
+    n = [x for x in os.listdir(bucket) if x.endswith(".install")]
+    check(len(n) == 1, "one installer file in %s: %r" % (bucket, n))
+    text = open(os.path.join(bucket, n[0]), encoding="ascii").read()
+    return n[0], text, ZXV_GET.parse_installer(text)
+
+
 def load_blocks(d):
     Store.blocks = {n: open(os.path.join(d, n), "rb").read() for n in os.listdir(d)}
 
@@ -169,29 +188,31 @@ def main():
         rc, out = run(*mk, "--blocks", blocks)
         check(rc == 0 and "nothing was added to IPFS or published" in out, "mk_bucket: " + out)
         root = open(bucket + ".cid").read().strip()
-        man = json.load(open(os.path.join(bucket, "manifest.json")))
-        layout = [(s["dir"], s["file"], s["kind"], s["arch"], s.get("disc"), s.get("group"))
-                  for s in man["stages"]]
+        name = {n: named(os.path.join(discs, n)) for n in files}
+        name["MEGAROM.TVL"] = named(cart, "tvl")
+        iname, text, man = installer(bucket)
+        layout = [(s["dir"], s["file"], s["kind"], s["arch"], s["disc"], s["group"]) for s in man]
         check(layout == [
-            ("00_base", "zxv-x86_64-disc1-core.img", "core", "x86_64", 1, None),
-            ("00_base", "zxv-arm64-disc1-core.img", "core", "arm64", 1, None),
-            ("01_swarm", "zxv-swarm-disc2-reason.img", "swarm", "all", 2, "REASON"),
-            ("01_swarm", "zxv-swarm-disc3-vision.img", "swarm", "all", 3, "VISION"),
-            ("02_cartridges", "MEGAROM.TVL", "cartridge", "all", None, None)], "layout %r" % layout)
-        check(man["upstream"] == {"cid": CID, "ipns": None, "gateways": ["http://10.0.2.2:8080"],
-                                  "seal": "PROMPT_USER"} and man["max_disc_bytes"] == 1800000000 and
-              man["post_install_action"] == "SEAL_AIRGAP" and
-              man["allowed_modes"] == ["POWERDOWN_NIC", "LOCAL_MESH_ONLY", "PROMPT_USER"],
-              "manifest upstream and cap")
-        s0 = man["stages"][1]
-        check(s0["bytes"] == len(files[s0["file"]]) and
-              s0["sha256"] == hashlib.sha256(files[s0["file"]]).hexdigest(), "manifest size and sha256")
-        txt = open(os.path.join(bucket, "manifest.txt")).read().splitlines()
-        sw = man["stages"][2]
-        check(len(txt) == 5 and txt[2] == "swarm all 2 REASON %d %s %s 01_swarm/"
-              "zxv-swarm-disc2-reason.img" % (sw["bytes"], sw["sha256"], sw["cid"]) and
-              txt[0].startswith("core x86_64 1 - ") and txt[4].startswith("cartridge all - - "),
-              "manifest.txt for the kernel: %r" % txt)
+            ("00_base", name["zxv-x86_64-disc1-core.img"], "core", "x86_64", 1, None),
+            ("00_base", name["zxv-arm64-disc1-core.img"], "core", "arm64", 1, None),
+            ("01_swarm", name["zxv-swarm-disc2-reason.img"], "swarm", "all", 2, "REASON"),
+            ("01_swarm", name["zxv-swarm-disc3-vision.img"], "swarm", "all", 3, "VISION"),
+            ("02_cartridges", name["MEGAROM.TVL"], "cartridge", "all", None, None)],
+            "layout %r" % layout)
+        check(sorted(os.listdir(bucket)) == sorted(["00_base", "01_swarm", "02_cartridges", iname]),
+              "the root holds the directories and the installer file only")
+        check(iname == named(os.path.join(bucket, iname), "install"),
+              "the installer file is named by its own CID")
+        check(text.splitlines()[:4] == ["# zxv-install 1", "max_disc_bytes 1800000000",
+                                        "seal PROMPT_USER", "gateway http://10.0.2.2:8080"],
+              "installer head: %r" % text.splitlines()[:4])
+        s0 = man[1]
+        arm = files["zxv-arm64-disc1-core.img"]
+        check(s0["bytes"] == len(arm) and s0["sha256"] == hashlib.sha256(arm).hexdigest() and
+              s0["file"] == s0["cid"] + ".img", "size, sha256 and the name is the CID")
+        sw = man[2]
+        check(text.splitlines()[6] == "swarm all 2 REASON %d %s %s 01_swarm/%s.img" % (
+            sw["bytes"], sw["sha256"], sw["cid"], sw["cid"]), "a swarm line: %r" % text)
         check(root == cid_str(tree_cid(bucket)[0]) and root in os.listdir(blocks), "root CID and blocks")
         rc, out = run(*mk)
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "same discs, same root CID")
@@ -200,8 +221,10 @@ def main():
         open(arch, "w").write("# doc\nbefore\n<!-- zxv:distribution:start -->\n### 5.4 Distribution\n"
                               "split discs\n<!-- zxv:distribution:end -->\nafter\n")
         rc, out = run(*mk, "--architecture", arch)
-        got = open(os.path.join(bucket, "00_base", "ARCHITECTURE.md")).read() if rc == 0 else ""
-        check(rc == 0 and got.endswith("-->\n### 5.4 Distribution\nsplit discs\n") and
+        docs = [s for s in installer(bucket)[2] if s["kind"] == "doc"] if rc == 0 else []
+        got = open(os.path.join(bucket, "00_base", docs[0]["file"])).read() if docs else ""
+        check(rc == 0 and len(docs) == 1 and docs[0]["file"].endswith(".md") and
+              got.endswith("-->\n### 5.4 Distribution\nsplit discs\n") and
               "before" not in got and "after" not in got and "SPDX-License-Identifier" in got and
               open(bucket + ".cid").read().strip() != root, "the distribution section: " + out)
         open(arch, "w").write("# doc\n<!-- zxv:distribution:end -->\n<!-- zxv:distribution:start -->\n")
@@ -211,23 +234,23 @@ def main():
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "and without it, the same root")
         lay = layers(t, os.path.join(t, "layers"))
         rc, out = run(*mk, "--layers", lay, "--blocks", blocks)
-        lman = json.load(open(os.path.join(bucket, "manifest.json"))) if rc == 0 else {"stages": []}
-        tail = [(s["dir"], s["file"], s["kind"], s["arch"], s.get("layer"))
-                for s in lman["stages"][5:]]
-        check(rc == 0 and tail == [("03_layers", "L%d.json" % n, "layer", "all", n)
-                                   for n in range(3)], "03_layers: %r %s" % (tail, out))
-        ltxt = open(os.path.join(bucket, "manifest.txt")).read().splitlines() if rc == 0 else []
-        check(len(ltxt) == 8 and ltxt[6].startswith("layer all - - ") and
-              ltxt[6].endswith(" 03_layers/L1.json"), "manifest.txt layer lines: %r" % ltxt)
+        lman = installer(bucket)[2] if rc == 0 else []
+        mid = [(s["dir"], s["file"], s["kind"]) for s in lman[2:5]]
+        check(rc == 0 and mid == [("03_layers", named(os.path.join(lay, "L%d.json" % n)), "layer")
+                                  for n in range(3)], "03_layers after the cores: %r %s" % (mid, out))
+        check(rc == 0 and lman[2]["cid"] == open(os.path.join(lay, "L0.cid")).read().strip(),
+              "a layer's file CID is its layer CID")
         lroot = open(bucket + ".cid").read().strip()
         check(lroot != root, "the layers change the root")
         lget = os.path.join(t, "lget")
         Store.blocks = {n: open(os.path.join(blocks, n), "rb").read() for n in os.listdir(blocks)}
-        rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--cid", lroot, "--quiet", "--upstream", up,
+        l1 = named(os.path.join(lay, "L1.json"))
+        rc, out = run(GET, "--no-ipfs", "--gateway", gw, lroot, "--quiet", "--upstream", up,
                       "--arch", "x86_64", "--out", lget)
-        check(rc == 0 and "ok     03_layers/L2.json" in out and
-              open(os.path.join(lget, "L1.json"), "rb").read() ==
-              open(os.path.join(lay, "L1.json"), "rb").read(), "zxv-get takes the layers: " + out)
+        check(rc == 0 and "ok     03_layers/%s" % l1 in out and
+              open(os.path.join(lget, l1), "rb").read() ==
+              open(os.path.join(lay, "L1.json"), "rb").read(),
+              "zxv-get takes the origin CID and the layers: " + out)
         os.rename(os.path.join(lay, "L1.json"), os.path.join(lay, "L1.x"))
         rc, out = run(*mk, "--layers", lay)
         check(rc == 1 and "L2.json without the layers below it" in out, "a layer gap: " + out)
@@ -244,62 +267,104 @@ def main():
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "back to the plain bucket")
         load_blocks(blocks)
 
+        # the standalone verifier: every name in the bucket is its CID
+        vfy = os.path.join(ROOT, "tools", "zxv-verify.sh")
+        r = subprocess.run(["sh", vfy, os.path.join(bucket, iname)], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        check(r.returncode == 0 and r.stdout.count("ok    ") == 6 and
+              r.stdout.endswith("all names are their CIDs\n"), "zxv-verify.sh: " + r.stdout)
+        vis = os.path.join(bucket, "01_swarm", name["zxv-swarm-disc3-vision.img"])
+        keep = open(vis, "rb").read()
+        os.remove(vis)  # a hard link to the disc: write a copy, not through it
+        open(vis, "wb").write(keep[:1000] + bytes([keep[1000] ^ 1]) + keep[1001:])
+        r = subprocess.run(["sh", vfy, vis, os.path.join(bucket, iname)], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        check(r.returncode == 1 and r.stdout.startswith("FALSE %s: its CID is b" % vis) and
+              "FALSE %s: sha256 differs" % vis in r.stdout, "a flipped bit makes the name false: "
+              + r.stdout)
+        os.remove(vis)
+        open(vis, "wb").write(keep[:-1])  # cut short: said as the size, before the hash
+        r = subprocess.run(["sh", vfy, os.path.join(bucket, iname)], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        check(r.returncode == 1 and "FALSE %s: not %d bytes" % (vis, len(keep)) in r.stdout,
+              "a short file is said to be short: " + r.stdout)
+        os.remove(vis)
+        open(vis, "wb").write(keep)
+        # the C helper agrees with mk_bucket's DAG, also deep: 16-byte chunks, 3 links
+        helper = os.path.join(t, "zxv-cid-small")
+        r = subprocess.run(["cc", "-std=c99", "-O2", "-Wall", "-Wextra", "-Werror", "-DCHUNK=16u",
+                            "-DLINKS=3u", "-o", helper, os.path.join(ROOT, "tools", "zxv-cid.c")])
+        check(r.returncode == 0, "zxv-cid.c builds")
+        import zxv_publish_update as zpu
+        sizes = [0, 1, 16, 17, 48, 49, 144, 145, 432, 433, 1296, 1297, 5000]
+        paths = []
+        for n in sizes:
+            paths.append(os.path.join(t, "deep%d" % n))
+            open(paths[-1], "wb").write(data(n, n + 7))
+        out = subprocess.run([helper] + paths, stdout=subprocess.PIPE, text=True).stdout.split("\n")
+        saved = zpu.CHUNK, zpu.LINKS
+        zpu.CHUNK, zpu.LINKS = 16, 3
+        want = [cid_str(file_dag(p)[0]) for p in paths]
+        zpu.CHUNK, zpu.LINKS = saved
+        check([o.split()[0] for o in out if o] == want, "zxv-cid.c = file_dag at depth: %r" % out)
+
         get = [GET, "--no-ipfs", "--gateway", gw, "--cid", root, "--quiet", "--upstream", up]
         dl = os.path.join(t, "get")
         rc, out = run(*get, "--arch", "arm64", "--out", dl)
-        want = ["zxv-arm64-disc1-core.img", "zxv-swarm-disc2-reason.img",
-                "zxv-swarm-disc3-vision.img", "MEGAROM.TVL"]
+        order = ["zxv-arm64-disc1-core.img", "zxv-swarm-disc2-reason.img",
+                 "zxv-swarm-disc3-vision.img", "MEGAROM.TVL"]
+        want = [name[n] for n in order]
         check(rc == 0 and sorted(os.listdir(dl)) == sorted(want), "zxv-get arm64: " + out)
-        for n in want[:3]:
-            check(open(os.path.join(dl, n), "rb").read() == files[n], "downloaded %s intact" % n)
-        check("ok     00_base/zxv-arm64-disc1-core.img %d bytes, sha256 matches"
-              % len(files[want[0]]) in out, "ok line: " + out)
+        for n in order[:3]:
+            check(open(os.path.join(dl, name[n]), "rb").read() == files[n], "downloaded %s intact" % n)
+        check("ok     00_base/%s %d bytes, sha256 matches" % (want[0], len(arm)) in out,
+              "ok line: " + out)
+        check("install: %s (named by its own CID)" % iname in out, "the installer named: " + out)
         check(all(p.endswith("?format=raw") for p in Store.seen), "only raw blocks requested")
-        check(out.index("arm64-disc1") < out.index("disc2-reason") < out.index("disc3-vision")
-              < out.index("MEGAROM"), "core first, swarm in disc order, cartridge last")
+        check(out.index(want[0]) < out.index(want[1]) < out.index(want[2]) < out.index(want[3]),
+              "core first, swarm in disc order, cartridge last")
         rc, out = run(*get, "--arch", "arm64", "--out", dl)
         check(rc == 0 and out.count("  have   ") == 4, "a second run keeps verified discs: " + out)
         with open(os.path.join(dl, want[1]), "r+b") as f:
             f.seek(1000)
             f.write(b"\xff")
         rc, out = run(*get, "--arch", "arm64", "--out", dl)
-        check(rc == 0 and out.count("  have   ") == 3 and "ok     01_swarm/zxv-swarm-disc2" in out and
-              open(os.path.join(dl, want[1]), "rb").read() == files[want[1]],
+        check(rc == 0 and out.count("  have   ") == 3 and "ok     01_swarm/" + want[1] in out and
+              open(os.path.join(dl, want[1]), "rb").read() == files[order[1]],
               "a changed local disc of the right size is fetched again: " + out)
 
         rc, out = run(*get, "--arch", "x86_64", "--core-only", "--out", os.path.join(t, "x86"))
-        check(rc == 0 and os.listdir(os.path.join(t, "x86")) == ["zxv-x86_64-disc1-core.img"],
+        check(rc == 0 and os.listdir(os.path.join(t, "x86")) == [name["zxv-x86_64-disc1-core.img"]],
               "--core-only: " + out)
         rc, out = run(*get, "--arch", "riscv64", "--out", os.path.join(t, "rv"))
         check(rc == 1 and "no core disc for riscv64 (it has: arm64 x86_64)" in out, "riscv64: " + out)
         rc, out = run(*get, "--list")
-        check(rc == 0 and "zxv-swarm-disc3-vision.img" in out and "x86_64" in out, "--list: " + out)
+        check(rc == 0 and want[2] in out and "x86_64" in out, "--list: " + out)
         rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--upstream", up, "--list", "--patience", "0")
         check(rc == 1 and CID in out, "the baked CID is the default bucket: " + out)
 
         # the gateway changes one byte of one block of the vision disc
         refused = os.path.join(t, "refused")
-        vision = man["stages"][3]["cid"]
+        vision = man[3]["cid"]
         Store.tamper = {vision}
         rc, out = run(*get, "--arch", "arm64", "--out", refused)
         check(rc == 1 and ("block %s: %s sent a block that does not match its CID" % (vision, gw)) in out,
               "tampered block: " + out)
-        check("zxv-swarm-disc3-vision.img" not in os.listdir(refused) and
-              "kept   01_swarm/zxv-swarm-disc3-vision.img.part" in out,
+        check(want[2] not in os.listdir(refused) and "kept   01_swarm/%s.part" % want[2] in out,
               "a refused disc leaves no finished file, only its verified part: " + out)
         Store.tamper = set()
         rc, out = run(*get, "--arch", "x86_64", "--out", refused)
-        check(rc == 0 and "resume 01_swarm/zxv-swarm-disc3-vision.img at" in out and
-              open(os.path.join(refused, "zxv-swarm-disc3-vision.img"), "rb").read() ==
-              files["zxv-swarm-disc3-vision.img"],
+        check(rc == 0 and "resume 01_swarm/%s at" % want[2] in out and
+              open(os.path.join(refused, want[2]), "rb").read() == files[order[2]],
               "a later run fetches what was refused, resuming from its part: " + out)
 
         # elastic: a gateway that is down for a while is waited for, 1 s then 2 s
+        x86 = name["zxv-x86_64-disc1-core.img"]
         Store.down = 2
         rc, out = run(*get, "--arch", "x86_64", "--core-only", "--out", os.path.join(t, "late"))
         check(rc == 0 and "waiting for peers" in out and "retry 1 in 1 s" in out and
               "retry 2 in 2 s" in out and "retry 3" not in out and
-              "ok     00_base/zxv-x86_64-disc1-core.img" in out, "a late gateway: " + out)
+              "ok     00_base/" + x86 in out, "a late gateway: " + out)
         Store.down = 1000
         rc, out = run(*get, "--arch", "x86_64", "--core-only", "--out", os.path.join(t, "late2"),
                       "--patience", "3")
@@ -308,39 +373,36 @@ def main():
         # resume: most of a two-level disc is already in its .part
         res = os.path.join(t, "resume")
         os.makedirs(res)
-        arm = files["zxv-arm64-disc1-core.img"]
-        part = os.path.join(res, "zxv-arm64-disc1-core.img.part")
+        part = os.path.join(res, want[0] + ".part")
         open(part, "wb").write(arm[:170 * 262144 + 1000])
         Store.seen = []
         rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
-        check(rc == 0 and "resume 00_base/zxv-arm64-disc1-core.img at %d of %d bytes"
-              % (170 * 262144 + 1000, len(arm)) in out and
-              open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read() == arm and
+        check(rc == 0 and "resume 00_base/%s at %d of %d bytes" % (want[0], 170 * 262144 + 1000,
+                                                                     len(arm)) in out and
+              open(os.path.join(res, want[0]), "rb").read() == arm and
               not os.path.exists(part), "resumed from a .part: " + out)
-        check(len(Store.seen) <= 12, "a resume asks only for the rest (%d requests)"
+        check(len(Store.seen) <= 14, "a resume asks only for the rest (%d requests)"
               % len(Store.seen))
         # a .part that is not the image's start: fetched again from the start
         bent = bytearray(arm[:300000])
         bent[1000] ^= 1
-        os.remove(os.path.join(res, "zxv-arm64-disc1-core.img"))
+        os.remove(os.path.join(res, want[0]))
         open(part, "wb").write(bent)
         rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
-        check(rc == 0 and "again  00_base/zxv-arm64-disc1-core.img: the kept part was not the "
-              "image" in out and open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read()
-              == arm, "a bad .part is refetched: " + out)
+        check(rc == 0 and "again  00_base/%s: the kept part was not the image" % want[0] in out and
+              open(os.path.join(res, want[0]), "rb").read() == arm, "a bad .part is refetched: " + out)
         # a .part longer than the disc is dropped
-        os.remove(os.path.join(res, "zxv-arm64-disc1-core.img"))
+        os.remove(os.path.join(res, want[0]))
         open(part, "wb").write(arm + b"x")
         rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
-        check(rc == 0 and "  resume " not in out and
-              open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read() == arm,
+        check(rc == 0 and "  resume " not in out and open(os.path.join(res, want[0]), "rb").read() == arm,
               "an overlong .part is dropped: " + out)
 
         # fallback: a dead gateway and a lying one, then a good one
         fb = [GET, "--no-ipfs", "--gateway", "http://127.0.0.1:1", "--gateway", bad, "--gateway", gw,
               "--cid", root, "--quiet", "--upstream", up, "--core-only", "--arch", "arm64"]
         rc, out = run(*fb, "--out", os.path.join(t, "fb"))
-        check(rc == 0 and "ok     00_base/zxv-arm64-disc1-core.img" in out, "gateway fallback: " + out)
+        check(rc == 0 and "ok     00_base/" + want[0] in out, "gateway fallback: " + out)
         rc, out = run(*fb[:6], "--cid", root, "--quiet", "--upstream", up, "--list",
                       "--patience", "0")
         check(rc == 1 and "127.0.0.1:1" in out and "does not match its CID" in out,
@@ -349,43 +411,66 @@ def main():
         check(out.count("http://10.0.2.2:8080, then https://trustless-gateway.link") == 1,
               "the upstream file's gateways come first: " + out)
 
-        # manifests that lie, in buckets whose blocks are all genuine
-        def lie(field, value, i=2):
-            m = json.loads(json.dumps(man))
-            m["stages"][i][field] = value
-            open(os.path.join(bucket, "manifest.json"), "w").write(json.dumps(m))
+        # installer files that lie, in buckets whose blocks are all genuine
+        def lie(new_text, rename=None, extra=None):
+            """Replace the installer file (named by its new CID unless rename
+            gives a name), optionally add one more file; return zxv-get's run."""
+            for n in os.listdir(bucket):
+                if n.endswith(".install"):
+                    os.remove(os.path.join(bucket, n))
+            p = os.path.join(bucket, "x.tmp")
+            open(p, "w").write(new_text)
+            os.rename(p, os.path.join(bucket, rename or named(p, "install")))
+            if extra:
+                open(os.path.join(bucket, extra), "w").write(text)
             sink = {}
             r = cid_str(tree_cid(bucket, lambda cb, b: sink.__setitem__(cid_str(cb), b))[0])
             Store.blocks.update(sink)
-            return run(GET, "--no-ipfs", "--gateway", gw, "--cid", r, "--quiet", "--upstream", up,
-                       "--arch", "arm64", "--out", os.path.join(t, "lie-" + field))
+            rr = run(GET, "--no-ipfs", "--gateway", gw, "--cid", r, "--quiet", "--upstream", up,
+                     "--arch", "arm64", "--out", os.path.join(t, "lie%d" % len(sink)))
+            if extra:
+                os.remove(os.path.join(bucket, extra))
+            return rr
 
-        reason = man["stages"][2]
-        rc, out = lie("sha256", "0" * 64)
-        check(rc == 1 and "01_swarm/zxv-swarm-disc2-reason.img: sha256 differs" in out,
-              "wrong sha256: " + out)
-        rc, out = lie("bytes", reason["bytes"] - 1)
-        check(rc == 1 and "longer than manifest.json's" in out, "short size: " + out)
-        rc, out = lie("bytes", reason["bytes"] + 1)
-        check(rc == 1 and "bytes, manifest.json says" in out, "long size: " + out)
-        rc, out = lie("cid", man["stages"][3]["cid"])
-        check(rc == 1 and "the bucket's directory gives CID" in out, "wrong cid: " + out)
-        rc, out = lie("file", "../../etc/passwd")
-        check(rc == 1 and "bad stage" in out, "path outside the bucket: " + out)
-        rc, out = lie("arch", "x86_64")
-        check(rc == 1 and "bad stage" in out, "a swarm disc tied to an arch: " + out)
-        rc, out = lie("bytes", 1800000001)
-        check(rc == 1 and "bad stage" in out, "a disc over 1.8 GB: " + out)
-        m = dict(man, format="zxv-bucket 2")
-        open(os.path.join(bucket, "manifest.json"), "w").write(json.dumps(m))
-        sink = {}
-        r = cid_str(tree_cid(bucket, lambda cb, b: sink.__setitem__(cid_str(cb), b))[0])
-        Store.blocks.update(sink)
-        rc, out = run(*get[:5], r, "--upstream", up, "--list")
-        check(rc == 1 and "is not a 'zxv-bucket 1' manifest" in out, "unknown format: " + out)
+        lines = text.splitlines(True)
+        rline = lines[6].split()
+
+        def swap(i, v):
+            f = list(rline)
+            f[i] = v
+            return "".join(lines[:6] + [" ".join(f) + "\n"] + lines[7:])
+
+        rc, out = lie(swap(5, "0" * 64))
+        check(rc == 1 and "01_swarm/%s: sha256 differs" % want[1] in out, "wrong sha256: " + out)
+        rc, out = lie(swap(4, str(int(rline[4]) - 1)))
+        check(rc == 1 and "longer than the installer file's" in out, "short size: " + out)
+        rc, out = lie(swap(4, str(int(rline[4]) + 1)))
+        check(rc == 1 and "bytes, the installer file says" in out, "long size: " + out)
+        rc, out = lie(swap(6, man[3]["cid"]))
+        check(rc == 1 and "is not a stage named by its CID" in out, "a CID that is not the name: " + out)
+        # a file whose name is not its CID: the directory link says so
+        rpath = os.path.join(bucket, "01_swarm", want[1])
+        os.remove(rpath)
+        shutil.copyfile(os.path.join(discs, "zxv-swarm-disc3-vision.img"), rpath)
+        rc, out = lie(text)
+        check(rc == 1 and "01_swarm/%s: the bucket's directory gives CID %s" % (want[1], man[3]["cid"])
+              in out, "a file under another file's name: " + out)
+        os.remove(rpath)
+        shutil.copyfile(os.path.join(discs, "zxv-swarm-disc2-reason.img"), rpath)
+        rc, out = lie(swap(7, "../../etc/" + rline[6] + ".img"))
+        check(rc == 1 and "is not a stage named by its CID" in out, "path outside the bucket: " + out)
+        rc, out = lie(swap(1, "x86_64"))
+        check(rc == 1 and "is not a stage named by its CID" in out, "a swarm disc tied to an arch: " + out)
+        rc, out = lie(swap(4, "1800000001"))
+        check(rc == 1 and "is not a stage named by its CID" in out, "a disc over 1.8 GB: " + out)
+        rc, out = lie(text.replace("# zxv-install 1", "# zxv-install 2"))
+        check(rc == 1 and "does not start with '# zxv-install 1'" in out, "unknown format: " + out)
+        rc, out = lie(text, rename="b" + "a" * 58 + ".install")
+        check(rc == 1 and "is not named by its CID" in out, "an installer not named by its CID: " + out)
+        rc, out = lie(text, extra="baaaa" + "b" * 54 + ".install")
+        check(rc == 1 and "holds 2 <cid>.install files, not one" in out, "two installers: " + out)
 
         # mk_bucket refuses what the bucket must not hold
-        open(os.path.join(bucket, "manifest.json"), "w").write(json.dumps(man))
         other = os.path.join(t, "other")
         os.makedirs(other)
         rc, out = run(MK, "--discs", discs, "--out", other, "--upstream", up)

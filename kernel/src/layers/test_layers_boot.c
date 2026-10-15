@@ -161,6 +161,7 @@ typedef struct {
     const char *layer[3]; /* the bytes of LAYER0..2.JSN, NULL for none */
     uint32_t layer_len[3];
     int no_efi, short_efi, loop_efi, no_core, layer1_dir;
+    int foreign_l0;   /* the kernel's table lists another L0 */
     uint8_t efi_flip; /* xor into the EFI's 100th byte on disc */
 } disc_t;
 
@@ -291,6 +292,7 @@ static fake_plat_t fp;
 static hw_registry_t reg;
 static hw_models_t s;
 static zxv_layers_boot_t lb;
+static uint8_t l0[ZXV_LAYER_CID_BYTES]; /* the L0 in the kernel's table: the disc's by default */
 
 /* Build the disc, index it, run the check. */
 static int run(const disc_t *d)
@@ -305,7 +307,12 @@ static int run(const disc_t *d)
         abort();
     }
     fp.nlog = 0;
-    return zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI");
+    zxv_layer_t g;
+    const char *why;
+    if (zxv_layer_parse(d->l0, (uint32_t) strlen(d->l0), &g, &why) != 0) abort();
+    memcpy(l0, g.cid, sizeof l0);
+    if (d->foreign_l0) l0[ZXV_LAYER_CID_BYTES - 1] ^= 1;
+    return zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI", l0);
 }
 
 static int has(const char *t)
@@ -347,8 +354,9 @@ static void test_good(void)
     zxv_layer_cid_text(lb.node[2].parent_cid, t);
     CHECK(!strcmp(t, cid1));
     CHECK(memcmp(lb.node[1].parent_cid, lb.node[0].layer_cid, ZXV_LAYER_CID_BYTES) == 0);
+    CHECK(lb.node[0].flags == (ZXV_LAYER_VERIFIED | ZXV_LAYER_BAKED));
     for (int i = 0; i < 3; i++)
-        CHECK(lb.node[i].depth == i && lb.node[i].flags == ZXV_LAYER_VERIFIED &&
+        CHECK(lb.node[i].depth == i && (lb.node[i].flags & ZXV_LAYER_VERIFIED) &&
               lb.node[i].sector_start == ESP0 && lb.node[i].sector_count == ESP1 - ESP0 + 1);
     /* checked, not hashed: the models still wait for first use */
     CHECK(s.m[0].verdict == HW_N && s.m[1].verdict == HW_N);
@@ -357,10 +365,12 @@ static void test_good(void)
     zxv_layers_sealed(&lb, 0);
     CHECK(lb.node[2].flags == (ZXV_LAYER_VERIFIED | ZXV_LAYER_SEALED));
     zxv_layers_sealed(&lb, 1);
-    CHECK(lb.node[0].flags == (ZXV_LAYER_VERIFIED | ZXV_LAYER_SEALED | ZXV_LAYER_AIRGAPPED));
+    CHECK(lb.node[0].flags ==
+          (ZXV_LAYER_VERIFIED | ZXV_LAYER_BAKED | ZXV_LAYER_SEALED | ZXV_LAYER_AIRGAPPED));
+    CHECK(lb.node[1].flags == (ZXV_LAYER_VERIFIED | ZXV_LAYER_SEALED | ZXV_LAYER_AIRGAPPED));
     /* a second run over the same index agrees */
     fp.nlog = 0;
-    CHECK(zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI") == ZXV_LAYERS_OK);
+    CHECK(zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI", l0) == ZXV_LAYERS_OK);
 }
 
 static void test_none(void)
@@ -387,8 +397,15 @@ static void test_lineage(void)
 
     /* again over the same index: the models are refused already, and stay so */
     fp.nlog = 0;
-    CHECK(zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI") == ZXV_LAYERS_FAIL &&
+    CHECK(zxv_layers_boot(&lb, &s, &fp.plat, "x86_64", "BOOTX64.EFI", l0) == ZXV_LAYERS_FAIL &&
           lb.refused == 0 && !fake_log_has(&fp, "[MODEL_BAD]"));
+
+    /* a well-formed chain on another L0 than the kernel's table lists */
+    good(&d);
+    d.foreign_l0 = 1;
+    CHECK(run(&d) == ZXV_LAYERS_FAIL && all_refused());
+    CHECK(has("  [LAYERS_FAIL] LAYER0.JSN: is not the L0 this kernel's table lists"));
+    CHECK(lb.node[0].flags == 0);
 
     good(&d);
     d.layer[0] = 0;
@@ -554,7 +571,7 @@ static void test_models(void)
     CHECK(has("  [MODEL_BAD] qwen-core (esp:MDL000.GGU) differs from the model its layer lists"));
     CHECK(has("  [LAYERS_FAIL] L0 -> L1 -> L2 lineage holds, but 1 model differs from its layer "
               "and 0 listed in L1 are missing"));
-    CHECK(lb.node[0].flags == 0); /* not VERIFIED */
+    CHECK(lb.node[0].flags == ZXV_LAYER_BAKED); /* not VERIFIED */
 
     /* ... or its first byte */
     strcpy(oc, o_core);
