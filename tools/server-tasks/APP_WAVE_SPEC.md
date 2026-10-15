@@ -49,6 +49,15 @@ An app passes only when it is really built and tested, not only present:
 - the model calls only daemon methods that `api/zxvd.openrpc.json` lists. Never invent one (`sys.settings`, `term.history`, `<app>.<anything>`). A missing method goes in your report.
 Run `bash kernel/src/apps/test_zxapp.sh` after every change, read its errors, and fix them until it ends with `[PASS]`. Never hand back a branch that has not passed it.
 
+## The verdict and the repair loop
+The machine builds the waves itself. `python3 tools/apps/app_gate.py --app <id> --verdict` runs the gate and both test scripts twice and gives the app one of four values (the kernel's paraconsistent states, `kernel/src/lpres`):
+- **T** fits and functions: every check passes and both runs of its tests ran clean. Accepted.
+- **F** a clear failure: a check fails, or its tests fail. Repaired: fix exactly what the verdict lists, then ask again.
+- **B** the witnesses contradict each other: its tests pass while a link it makes does not resolve (a `use`, a daemon method, a logic file, its model), or two runs of the same tests disagree. Held for a person; never passed by a machine.
+- **N** nothing usable: no manifest, nothing provided, or its tests never ran. Requeued with more context.
+
+`python3 tools/apps/wave_loop.py --waves 1-11 --runner '<builder command>'` drives this: the builder command gets `{task}`, `{context}` (a file with the last verdict and, after N, the matrix line, the manifests of the parts it may use and what to read again), `{id}` and `{attempt}`. T is committed (with the two regenerated docs) and the next app starts from it; F runs the builder again on its own work; N starts it again from a clean tree; B is saved under `build/wave_loop/held/` and the loop goes on. An app still F or N after four attempts is saved as unfinished and taken up again on the next run. `build/wave_loop/report.md` lists what is held for a person and what is unfinished; bring back the held ones only. The loop never pushes.
+
 ## Done means all of these pass, in this order
 python3 tools/apps/lang_coverage.py && python3 tools/apps/concepts.py
                                         (regenerate first: every new app changes docs/APP_LANGUAGE_COVERAGE.md
@@ -59,6 +68,7 @@ python3 tools/apps/app_gate.py --app <id> --since <the base commit you branched 
                                          20 lines of code, or tests with too few CHECKs; an empty answer
                                          from the model fails here, never passes)
 bash kernel/src/apps/test_apps.sh
+python3 tools/apps/app_gate.py --app <id> --verdict   (says T; B means stop and report, never work around it)
 tools/apps/build_wasm_blocks.sh --check
 python3 build_system/relicense_apache.py --check
 Report back: the branch name, the commit, each test's last line, the app's reuse line, every idea you listed as missing from an earlier layer, and anything you could not do.

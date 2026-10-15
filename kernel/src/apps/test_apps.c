@@ -3290,6 +3290,7 @@ int main(void)
         int before = checks;
         APPS_TESTS[i]->run();
         CHECK(checks > before + 1, "%s: its model test checks something", APPS_TESTS[i]->id);
+        printf("  ran model %s\n", APPS_TESTS[i]->id); /* app_gate.py --verdict reads it */
     }
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);

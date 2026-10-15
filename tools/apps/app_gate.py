@@ -41,6 +41,14 @@ unless it has:
   * its own tests: tests/<id>_zxapp.inc with at least one CHECK per entry it
     provides and a wave_same, and tests/<id>_apps.inc with at least two
     CHECKs.
+
+--verdict (with --app or --since) also runs the two test scripts --runs
+times and gives each app one of four values, as kernel/src/lpres encodes
+them, each with what the repair loop (tools/apps/wave_loop.py) does next:
+T fits and functions (accept), F a clear failure (repair), B the witnesses
+contradict each other: its tests pass while a link it makes does not
+resolve, or two runs of the same tests differ (hold for a person), N
+nothing usable (requeue with more context). See verdicts() below.
 """
 import argparse
 import json
@@ -210,21 +218,9 @@ def added_apps(ref):
     return [os.path.basename(x)[:-6] for x in out.stdout.split()]
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--app", action="append", default=[], help="an app the change must deliver")
-    ap.add_argument("--since", help="the change since this ref must add an app")
-    a = ap.parse_args()
+def gate_errors(want):
+    """Every error the gate finds, the apps in want held to delivered() too."""
     errors = []
-    want = list(a.app)
-    if a.since:
-        got = added_apps(a.since)
-        if got is None:
-            errors.append(f"--since {a.since}: not a ref git knows")
-        elif not got:
-            errors.append(f"nothing delivered: no app manifest added since {a.since}")
-        else:
-            want += [x for x in got if x not in want]
     for app_id in want:
         errors += delivered(app_id)
 
@@ -307,9 +303,140 @@ def main():
             if full not in claimed:
                 errors.append(f"kernel/src/apps/tests/{f}: belongs to no app with a slot "
                               "(name it <id>_zxapp.inc or <id>_apps.inc)")
+    return errors
+
+
+# The verdict (--verdict): four values, encoded as kernel/src/lpres is
+# (NEITHER 0, TRUE 1, FALSE 2, BOTH 3). Each is what happens next, not a
+# connective: the gate decides it from two witnesses, and never folds them
+# by a truth table.
+#   fits:      the gate's own checks above, for this app.
+#   functions: the app's two test files run (test_zxapp.sh, test_apps.sh),
+#              RUNS times; a run says TRUE when both its tests ran with no
+#              failure, FALSE when a failure names the app, NEITHER when
+#              they never ran (the build broke elsewhere, or no tests).
+# T  fits and functions                         -> accept
+# F  a clear failure                            -> repair: try again
+# B  the witnesses contradict each other: the
+#    tests pass where a link does not resolve,
+#    or two runs of the same tests differ       -> hold for a person
+# N  nothing usable                             -> requeue with more context
+VERDICT = {"N": 0, "T": 1, "F": 2, "B": 3}
+ACTION = {"T": "accept", "F": "repair", "B": "hold", "N": "requeue"}
+SUITES = (("test_zxapp.sh", "ran app "), ("test_apps.sh", "ran model "))
+# A link that must resolve: what an app reaches (a block or app it uses, a
+# daemon method, a logic file, its model). The tests can pass while one of
+# these is broken only when they do not exercise it: that is BOTH.
+LINK = ("uses ", "which zxvd does not have", "logic file", "does not exist")
+
+
+def names(line, app_id):
+    """Whether an error or a test's failure line names this app."""
+    e = re.escape(app_id)
+    return bool(re.search(r"apps/%s\.zxapp\b|tests/%s_(zxapp|apps)\.inc\b|(^|[/\s\"])%s_model\.[ch]\b|"
+                          r"blocks/%s/|(\)|:\d+)\s+%s(:|\s+registers)" % (e, e, e, e, e), line))
+
+
+def run_suite(script):
+    p = subprocess.run(["sh", os.path.join(APPS, script)], cwd=ROOT, capture_output=True, text=True)
+    return p.returncode, p.stdout + p.stderr
+
+
+def functions(app_id, outs):
+    """One run's witness for one app: (state, why)."""
+    states, why = [], []
+    for (script, mark), (rc, out) in zip(SUITES, outs):
+        bad = [x.strip() for x in out.splitlines()
+               if ("FAIL" in x or "error:" in x) and not x.startswith("app_gate:") and names(x, app_id)]
+        if bad:
+            states.append("F")
+            why += [f"{script}: {x}" for x in bad[:8]]
+        elif rc == 3:
+            states.append("N")
+            why.append(f"{script}: the build broke before any test ran (not in this app's files)")
+        elif re.search(r"^\s*%s%s$" % (re.escape(mark), re.escape(app_id)), out, re.M):
+            states.append("T")
+        else:
+            states.append("N")
+            why.append(f"{script}: this app's test never ran")
+    if "F" in states:
+        return "F", why
+    return ("T" if states == ["T", "T"] else "N"), why
+
+
+def verdicts(want, errors, runs):
+    """Each app's verdict: {id: {verdict, action, fits, functions}}."""
+    outs = [[run_suite(s) for s, _ in SUITES] for _ in range(runs)]
+    res = {}
+    for app_id in want:
+        mine = [e for e in errors if names(e, app_id)]
+        path = os.path.join(APPS, f"{app_id}.zxapp")
+        m = manifest(path) if os.path.exists(path) else None
+        r = {"fits": mine, "functions": []}
+        if m is None or not m["provides"]:
+            v = "N"
+            r["functions"].append("nothing usable: " + ("no manifest" if m is None else "it provides nothing"))
+        else:
+            seen = [functions(app_id, o) for o in outs]
+            for i, (st, why) in enumerate(seen):
+                r["functions"] += [f"run {i + 1}: {x}" for x in why]
+            fn = {st for st, _ in seen}
+            if len(fn) > 1:
+                v = "B"
+                r["functions"].append("the same tests gave " + ", ".join(st for st, _ in seen) +
+                                      " on " + str(runs) + " runs")
+            else:
+                fn = fn.pop()
+                link = [e for e in mine if any(k in e for k in LINK)]
+                if not mine:
+                    v = fn
+                elif fn == "T" and link:
+                    v = "B"
+                    r["functions"].append("its tests pass, yet a link it makes does not resolve")
+                else:
+                    v = "F"
+        r["verdict"], r["action"] = v, ACTION[v]
+        res[app_id] = r
+    return res
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--app", action="append", default=[], help="an app the change must deliver")
+    ap.add_argument("--since", help="the change since this ref must add an app")
+    ap.add_argument("--verdict", action="store_true",
+                    help="run the tests too and give each app T, F, B or N (and its action)")
+    ap.add_argument("--runs", type=int, default=2, help="--verdict: runs of the tests to compare")
+    ap.add_argument("--json", help="--verdict: write the verdicts here as JSON")
+    a = ap.parse_args()
+    errors, want = [], list(a.app)
+    if a.since:
+        got = added_apps(a.since)
+        if got is None:
+            errors.append(f"--since {a.since}: not a ref git knows")
+        elif not got:
+            errors.append(f"nothing delivered: no app manifest added since {a.since}")
+        else:
+            want += [x for x in got if x not in want]
+    errors += gate_errors(want)
     for e in errors:
         print("app_gate:", e, file=sys.stderr)
-    return 1 if errors else 0
+    if not a.verdict:
+        return 1 if errors else 0
+    if not want:
+        print("app_gate: --verdict needs --app or --since", file=sys.stderr)
+        return 2
+    res = verdicts(want, errors, max(1, a.runs))
+    for app_id, r in res.items():
+        print(f"verdict {app_id} {r['verdict']} {r['action']}")
+        for x in r["fits"]:
+            print(f"  fits: {x}")
+        for x in r["functions"]:
+            print(f"  functions: {x}")
+    if a.json:
+        with open(a.json, "w", encoding="utf-8") as f:
+            json.dump({"apps": res, "encoding": VERDICT}, f, indent=1)
+    return 0 if all(r["verdict"] == "T" for r in res.values()) else 1
 
 
 if __name__ == "__main__":
