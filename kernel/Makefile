@@ -377,6 +377,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
+	$(MAKE) --no-print-directory test-handoff
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
@@ -1537,6 +1538,11 @@ test-lpres-hex:
 .PHONY: test-pmm
 test-pmm:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/pmm src/pmm/test_pmm.c src/pmm/pmm.c -o $(ZXV_TMP)/test_pmm && $(ZXV_TMP)/test_pmm > $(ZXV_TMP)/test_pmm.log 2>&1 && echo "[PASS] test_pmm ($$(tail -1 $(ZXV_TMP)/test_pmm.log))" || { cat $(ZXV_TMP)/test_pmm.log; echo "[FAIL] test_pmm"; exit 1; }
+
+# Boot handoff v2 (arch/zxv_handoff.h): seal/accept, region merging, EFI clock.
+.PHONY: test-handoff
+test-handoff:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/test_zxv_handoff.c -o $(ZXV_TMP)/test_handoff && $(ZXV_TMP)/test_handoff > $(ZXV_TMP)/test_handoff.log 2>&1 && echo "[PASS] test_handoff ($$(tail -1 $(ZXV_TMP)/test_handoff.log))" || { cat $(ZXV_TMP)/test_handoff.log; echo "[FAIL] test_handoff"; exit 1; }
 
 .PHONY: test-fwadapt
 test-fwadapt:

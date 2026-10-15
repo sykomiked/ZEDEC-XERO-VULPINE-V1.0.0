@@ -201,7 +201,12 @@ static void em_putn(const u8 *s, u32 n)
     }
 }
 
-/* Returns 0 when the disc has no model manifest, else the number checked. */
+/* Models the last efi_check_models call found bad (missing, wrong size or
+ * hash, unreadable manifest line). */
+static int em_last_bad;
+
+/* Returns 0 when the disc has no model manifest, -1 when the check could
+ * not run, else the number checked (em_last_bad of them bad). */
 static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *allocate_pool,
                             void *free_pool)
 {
@@ -212,6 +217,7 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     em_guid(&li_guid, 0x5B1B31A1, 0x9562, 0x11d2, 0x8E, 0x3F, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B);
     em_guid(&sfs_guid, 0x964E5B22, 0x6459, 0x11d2, 0x8E, 0x39, 0x00, 0xA0, 0xC9, 0x69, 0x72, 0x3B);
 
+    em_last_bad = 0;
     EM_LOADED_IMAGE *li = 0;
     EM_SFS *sfs = 0;
     EM_FILE *root = 0, *mf = 0;
@@ -304,6 +310,7 @@ static int efi_check_models(EFI_HANDLE image, void *handle_protocol, void *alloc
     FreePool(buf);
     FreePool(man);
     root->Close(root);
+    em_last_bad = bad;
     if (n == 0) {
         uputs("[MODELS_FAIL] MODELS.SHA lists no models\n");
         return -1;

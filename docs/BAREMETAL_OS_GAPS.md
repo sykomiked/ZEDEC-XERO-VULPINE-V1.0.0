@@ -57,10 +57,10 @@ with the evidence.
 | # | Gap | Status | Size | Report |
 |---|---|---|---|---|
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
-| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | missing | S | boot_storage #2-3, kernel_core #1 |
-| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free` | missing | M | kernel_core #2, #13 |
+| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **x86_64 done in this PR** (handoff v2); arm64 stub and boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
+| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); map feed and heap missing | M | kernel_core #2, #13 |
 | 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64, missing x86 | M | kernel_core #3 |
-| 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | partial | S | kernel_core #5-6 |
+| 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
 | 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | missing | L | kernel_core #4, #9 |
 | 7 | Syscall ABI 1.1: handles, pointer+length I/O, verdict register, correct error codes | partial | M | kernel_core #8 |
 | 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | live hole | S | userland_apps #5 |
@@ -163,11 +163,21 @@ languages. The design that gets there with the least new code:
 Each wave ends in a serial marker the CI QEMU job checks.
 
 **Wave 1, foundation (this PR starts it).**
-- Done here: the disk-format hazard (#1).
-- Next: handoff v2 with stub hardening and power-off (#2, #15); `lpres_kjoin`
-  and `lpres_hex` linked into both images; the four-state frame allocator and
-  heap (#3); process slot reuse and the fault-halt fix (#5); syscall error
-  codes; loader hardening (#8).
+- Done here: the disk-format hazard (#1); the four-state frame allocator
+  (`kernel/src/pmm`) under the arm64 user pool, with page freeing, slot reuse
+  and the fault-halt fix (#3, #5; 25 launches in QEMU where 15 used to fail);
+  syscall error codes; `lpres_kjoin`; x86_64 handoff v2 (#2,
+  `kernel/arch/zxv_handoff.h`): memory map, RSDP, SMBIOS 3, firmware clock,
+  the kernel's full window and the disc model verdict, sealed and checked.
+  The stub refuses to boot (returns to firmware) when the window covers
+  runtime or reserved memory, and boots with ACPI held when it covers ACPI
+  memory. CI's UEFI boot now requires `[HANDOFF_OK]`.
+- Found doing it: the x86 kernel's fixed window (1 MB to ~91 MB, mostly BSS:
+  vino 39 MB, tl 23 MB, ramdisk 16 MB, DMA 8 MB) covers OVMF's ACPI NVS at
+  8 MB, so today's kernel overwrites firmware ACPI memory even under QEMU.
+- Next: move those buffers onto frames from the handoff map (#3); arm64 stub
+  parity; power-off (#15); `lpres_hex` linked into both images; loader
+  hardening (#8, with the Security thread).
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),
 the x86 process runtime (#6), ABI 1.1 with verdicts (#7), loading apps from

@@ -20,6 +20,9 @@ IMG=${2:-dist/discs/zxv-${ARCH}-uefi.img}
 SECS=${3:-60}
 shift $(( $# < 3 ? $# : 3 ))
 LOG="uefi_boot_${ARCH}.log"
+# x86_64 discs boot through the stub's handoff v2 (memory map, ACPI, clock,
+# kernel window); the kernel must have accepted it, not merely booted.
+[ "$ARCH" = x86_64 ] && set -- "$@" "[HANDOFF_OK]"
 FAULT_RE='\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
 
 firmware(){ for f in "$@"; do [ -f "$f" ] && { echo "$f"; return; }; done; }
