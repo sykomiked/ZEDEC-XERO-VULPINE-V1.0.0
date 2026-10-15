@@ -462,9 +462,18 @@ mirror coset. Alternating polarity is that sign-parity flip.
   next star (233, 377, 610, 987 at phi^12 = 89 + 144 phi) extends it with
   no new rule. All 145 positions are distinct.
 - **The fill follows the alternating current** of the tensor engine
-  (`zt.h` T12): sealing is the positive half-cycle, outermost first, in to
-  the core; fetching and building are the negative half-cycle, core first,
-  then the anchors star by star, then each star's bands.
+  (`zt.h` T12), as two half-cycles that meet at the core. The negative half
+  runs core out and is the build and fetch order: the core, then star by
+  star its anchors and then its bands (0 1 2 3, 5 8 13 21, 4 6 7 9 ... 20,
+  34 55 89 144, 22 ... 143). Every layer comes after its whole lineage, so
+  every CID a glue node names exists before it; the packer seals the glue
+  in this order. The positive half runs outermost in, the same order
+  reversed: the sweep that checks each layer and gathers its state into
+  the anchor it hangs from, and the anchors into the core, where the root
+  closes. A hash chain cannot be sealed outer-in (a glue node names its
+  ancestors' CIDs), so the inward half checks and gathers, it does not
+  hash. `alx_mx_fill` and `alx_mx_gather` give the two orders; the fold
+  record (below) carries the gathered counts per anchor.
 
 `docs/spec/ZECKENDORF_ANCESTORS.tsv` writes the lineage rule out, one row
 per layer (anchor, pattern, lineage). `pack_matrix.py --ancestors-table`
@@ -486,7 +495,7 @@ fold to be STABILIZED with the same root.
 
 `alx_mx_pos` computes a layer's position in the kernel. The packer writes
 the same table as `SPINE.tsv` (layer, F index, anchor, pattern, state, the
-eight coordinates as p:q), and `test_alx_matrix` checks the two agree for
+layer's step in the fill, the eight coordinates as p:q), and `test_alx_matrix` checks the two agree for
 every layer, that every position is distinct, that every anchor sits on an
 even corner, and that every branch satisfies the recursion; it also checks
 Zeckendorf's uniqueness for every number below 377 and that the kernel's

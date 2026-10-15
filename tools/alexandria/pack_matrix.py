@@ -87,10 +87,17 @@ def fold_once(args, m, rep):
     closure = all(l in m["booklets_of"] and bk < m["booklets_of"][l] and at < m["atoms_of"][(l, bk)]
                   for r in m["refs_of"].values() for l, bk, at in r)
     t = [k for k in range(LAYERS) if k not in m["scaffold"]]
+    # the positive half-cycle: outermost in, each layer's state gathered
+    # into the anchor it hangs from, anchors into the core
+    gathered = {a: {"T": 0, "N": 0} for a in FIB}
+    for k in reversed(fill_order()):
+        a = k if k in FIB else zeck(k)[0]
+        gathered[a]["N" if k in m["scaffold"] else "T"] += 1
     n_ok = all(k not in m["layers"] for k in m["scaffold"])
     stable = st["root"] == m["root"] and closure and n_ok
     st = {"folds": st["folds"] + 1, "root": m["root"], "previous_root": st["root"],
           "closure": closure, "T": len(t), "N": len(m["scaffold"]), "scaffold_empty": n_ok,
+          "gathered": {str(a): v for a, v in sorted(gathered.items())},
           "stable": stable}
     with open(args.fold_state, "w") as f:
         json.dump(st, f, indent=1, sort_keys=True)
@@ -147,6 +154,18 @@ def lineage(n):
 STAR = [[0, 1, 2, 3], [5, 8, 13, 21], [34, 55, 89, 144]]
 STAR_SCALE = [(1, 0), (2, 3), (13, 21)]
 TETRA = [(1, 1, 1), (1, -1, -1), (-1, 1, -1), (-1, -1, 1)]
+
+
+def fill_order():
+    """the negative half-cycle, core out (build and fetch): the core, then
+    star by star its anchors and then its bands; every layer after its whole
+    lineage. The positive half-cycle (check and gather) is its reverse."""
+    out, lo = [], 0
+    for grp in STAR:
+        out += [a for a in grp if a not in out]
+        out += [k for k in range(lo + 1, grp[-1]) if k not in FIB]
+        lo = grp[-1]
+    return out
 
 
 def zphi_mul(x, y):
@@ -599,7 +618,7 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
     # glue nodes, now that every chunk has its place
     fcid = {p: cid_raw(data[p]) for p in refs}
     m["anchor_branch_edges"] = m["cross_lineage_edges"] = 0
-    for k in range(LAYERS):  # rising: the anchor and the pattern below are sealed first
+    for k in fill_order():  # core out: the anchor and the pattern are sealed first
         ps = sorted((p for p in refs if where[p] == k), key=lambda p: fcid[p])
         # two files with the same bytes are one file
         uniq, idx = [], {}
@@ -701,11 +720,12 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         # the frame: each layer's state, anchor, pattern and position, so
         # the kernel's own rule (alx_mx_pos) can be checked against this one
         with open(os.path.join(write, "SPINE.tsv"), "w") as f:
+            step = {k: i for i, k in enumerate(fill_order())}
             for k in range(LAYERS):
                 a, mm = zeck(k) if k not in FIB else (anchor_below(k) if k else 0, 0)
-                f.write("%d\t%s\t%d\t%d\t%s\t%s\n" % (
+                f.write("%d\t%s\t%d\t%d\t%s\t%d\t%s\n" % (
                     k, "F%d" % FIB[k] if k in FIB else "-", a, mm, "T" if root_rows[k][2] else "N",
-                    " ".join("%d:%d" % pq for pq in position(k))))
+                    step[k], " ".join("%d:%d" % pq for pq in position(k))))
         with open(os.path.join(write, "FILES.tsv"), "w") as f:
             for p in sorted(refs):
                 f.write("%s\t%d\t%d\t%s\n" % (p, where[p], tiers[p], cid_str(fcid[p])))

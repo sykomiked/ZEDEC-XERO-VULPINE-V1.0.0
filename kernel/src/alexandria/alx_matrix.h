@@ -121,6 +121,17 @@ bool alx_mx_draws(uint32_t k, uint32_t l);
  * three star tetrahedra at scales 1, phi^4 and phi^8; a branch F(k) + M
  * sits at vertex(F(k)) - pos(M) / phi, exact in Z[phi]. */
 int alx_mx_pos(uint32_t k, int64_t out[16]);
+/* The two half-cycles. alx_mx_fill(i) is the layer at step i of the
+ * negative half, core out: the build and fetch order (the core; then star
+ * by star, its anchors and then its bands), in which every layer comes
+ * after its whole lineage, so CIDs are computed in it. alx_mx_gather(i) is
+ * the positive half, outermost in, the same order reversed: the sweep that
+ * checks each layer and gathers its state into the anchors, closing at the
+ * core. A hash chain cannot be sealed outer-in, since a glue node names
+ * its ancestors' CIDs; the inward half checks, it does not hash. Both
+ * return ALX_MX_LAYERS past the end. */
+uint32_t alx_mx_fill(uint32_t i);
+uint32_t alx_mx_gather(uint32_t i);
 
 /* a glue node's form; counts out. Every ref's layer is below 145 and its
  * atom index is checked when the booklet is opened, not here. */

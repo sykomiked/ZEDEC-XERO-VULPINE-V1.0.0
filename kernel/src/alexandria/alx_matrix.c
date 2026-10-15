@@ -225,6 +225,28 @@ int alx_mx_pos(uint32_t k, int64_t out[16])
     return ALX_OK;
 }
 
+uint32_t alx_mx_fill(uint32_t i)
+{
+    /* core out: the core, then each star's anchors followed by the branch
+     * layers below that star's last anchor and above the star before */
+    if (i >= ALX_MX_LAYERS) return ALX_MX_LAYERS;
+    uint32_t step = 0, lo = 0;
+    for (uint32_t g = 0; g < 3u; g++) {
+        for (uint32_t c = 0; c < 4u; c++, step++)
+            if (step == i) return FIBS[g * 4u + c];
+        uint32_t hi = FIBS[g * 4u + 3u];
+        for (uint32_t k = lo + 1u; k < hi; k++)
+            if (alx_mx_anchor(k) < 0 && step++ == i) return k;
+        lo = hi;
+    }
+    return ALX_MX_LAYERS;
+}
+
+uint32_t alx_mx_gather(uint32_t i)
+{
+    return i < ALX_MX_LAYERS ? alx_mx_fill(ALX_MX_LAYERS - 1u - i) : ALX_MX_LAYERS;
+}
+
 int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *files,
                    uint32_t *edges, uint32_t *refs)
 {

@@ -502,11 +502,11 @@ static void test_spine(const char *dir, const char *repo)
         if (!f) continue;
         char line[1024];
         if (!fgets(line, sizeof line, f)) break;
-        unsigned lk, la, lm;
+        unsigned lk, la, lm, ls;
         char fl[8], st[4];
         int at = 0;
-        if (sscanf(line, "%u\t%7s\t%u\t%u\t%3s\t%n", &lk, fl, &la, &lm, st, &at) != 5) break;
-        int ok = lk == k && la == a && lm == m;
+        if (sscanf(line, "%u\t%7s\t%u\t%u\t%3s\t%u\t%n", &lk, fl, &la, &lm, st, &ls, &at) != 6) break;
+        int ok = lk == k && la == a && lm == m && ls < ALX_MX_LAYERS && alx_mx_fill(ls) == k;
         const char *c = line + at;
         for (uint32_t j = 0; j < 16 && ok; j += 2) {
             long long p, q;
@@ -521,6 +521,27 @@ static void test_spine(const char *dir, const char *repo)
     }
     if (f) fclose(f);
     CHECK(rows == ALX_MX_LAYERS, "SPINE.tsv has every layer (%u)", rows);
+
+    /* the two half-cycles: the fill (core out) is a permutation with every
+     * layer after its whole lineage, starting at the core and taking each
+     * star's anchors before its bands; the gather is its reverse */
+    uint32_t step[ALX_MX_LAYERS];
+    uint8_t seen[ALX_MX_LAYERS] = {0};
+    for (uint32_t i = 0; i < ALX_MX_LAYERS; i++) {
+        uint32_t k = alx_mx_fill(i);
+        CHECK(k < ALX_MX_LAYERS && !seen[k], "fill step %u is a new layer (%u)", i, k);
+        if (k >= ALX_MX_LAYERS) return;
+        seen[k] = 1;
+        step[k] = i;
+        CHECK(alx_mx_gather(ALX_MX_LAYERS - 1u - i) == k, "the gather reverses step %u", i);
+    }
+    CHECK(alx_mx_fill(0) == 0 && alx_mx_gather(ALX_MX_LAYERS - 1u) == 0, "both half-cycles meet at the core");
+    CHECK(alx_mx_fill(ALX_MX_LAYERS) == ALX_MX_LAYERS && alx_mx_gather(ALX_MX_LAYERS) == ALX_MX_LAYERS,
+          "past the end");
+    CHECK(alx_mx_fill(4) == 5 && alx_mx_fill(8) == 4, "star 1's anchors come before its bands");
+    for (uint32_t k = 0; k < ALX_MX_LAYERS; k++)
+        for (uint32_t l = 0; l < ALX_MX_LAYERS; l++)
+            if (alx_mx_draws(k, l)) CHECK(step[l] < step[k], "layer %u is filled after %u", k, l);
 
     /* the glue: hung from its anchor and its pattern, refs in the lineage */
     uint32_t hung = 0, refs_checked = 0, scaffold = 0;
