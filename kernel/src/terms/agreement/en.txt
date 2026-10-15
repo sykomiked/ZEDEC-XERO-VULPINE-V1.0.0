@@ -1,29 +1,204 @@
 ZXV End-User Agreement
 
-Placeholder 0.1. This is not the agreement and is not in force.
+Version 1.0, 15 October 2026
+Licensor: SCENIC BYPASS CONSULTING, LLC, Arizona, United States
+Creator: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States
+deal@zedec.ai
 
 THE SHORT VERSION
 
-- The final agreement is being reviewed by counsel and will replace this text before release.
-- Until then, the ZXV software is licensed under the Apache License 2.0, and nothing on this screen changes that licence.
-- Each person on a device sees the agreement at their first sign-in and agrees for themselves.
+This summary helps you read the agreement. It is not a substitute for it.
 
-1. WHAT THIS SCREEN IS FOR
+- The ZXV source code is open source under the Apache License 2.0. Nothing here takes away any right that licence gives you.
+- This agreement covers the ready-to-run ZXV system we distribute and the online services we run for it.
+- ZXV runs on your own device. Your files, prompts and AI conversations stay on your device unless you choose to share or publish them.
+- AI output can be wrong. Treat it as a suggestion. Money, health, safety and power-grid actions always need a person to approve them.
+- Anything you publish to a peer-to-peer network may be copied by others and may be impossible to delete.
+- We give no warranty beyond what your local law requires, and we limit our liability as far as your local law allows. See sections 12 and 13.
+- Your local consumer and data rights always apply. Nothing here removes them. See section 14.
+- If we disagree, we first try to sort it out together. Consumers can always go to their local courts. See section 16.
+- Each person on a device agrees for themselves. You can read this agreement again at any time from Settings.
 
-1.1 This screen shows the ZXV End-User Agreement before your first sign-in. It records the version you accepted, its fingerprint and the time, on this device only.
+1. WHO WE ARE AND WHAT THIS COVERS
 
-1.2 If you decline, nothing about you is recorded.
+1.1 "We", "us" and "our" mean SCENIC BYPASS CONSULTING, LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. "You" means the person agreeing on this screen.
 
-2. NO WARRANTY [KEY]
+1.2 This agreement covers the "Distribution": the ZXV operating system image, installers and disc images we publish, the apps bundled with them, and the update and network services we operate for them ("Services").
 
-2.1 This is a development build. It is provided "as is", without warranty of any kind, as the Apache License 2.0 says.
+1.3 The ZXV source code is licensed under the Apache License, Version 2.0 (the "Apache Licence"). This agreement does not restrict, add conditions to or take away any right the Apache Licence gives you over that code. If any part of this agreement conflicts with the Apache Licence for the code it covers, the Apache Licence wins.
 
-3. YOUR LOCAL RIGHTS [KEY]
+1.4 Hardware designs are licensed separately under the ZXV Hardware License. This agreement does not cover hardware designs.
 
-3.1 Nothing here takes away any right that the law where you live gives you and that cannot be waived.
+1.5 AI models and other third-party components bundled with the Distribution come under their own licences, which are listed under Settings, About, Licences, and in the LICENSES folder of the Distribution. Those licences apply to those components exactly as their authors wrote them. We do not change them and cannot grant you more than they allow.
 
-4. CONTACT
+1.6 Nothing in this agreement is legal, financial, medical or other professional advice.
 
-4.1 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States, deal@zedec.ai.
+1.7 ZXV was created by 36N9 GENETICS LLC, a California limited liability company, PO Box 6, Calpine, CA 96124-0006, United States (the "Creator"), which owns the copyright in it. We license the Distribution and operate the Services under rights the Creator has granted to us. The Creator keeps its copyright, and its copyright and attribution notices, including the NOTICE file required by the Apache Licence, stay with the code and the Distribution. The Creator is not a party to this agreement and takes on no obligation to you under it. Where your local law allows, sections 12 and 13 protect the Creator as they protect us.
 
-End of placeholder.
+2. HOW YOU AGREE
+
+2.1 You agree by selecting "I agree" on this screen after the whole agreement has been shown to you. Nothing is pre-selected for you. You can decline. If you decline, the Distribution does not start an account for you and keeps no record about you.
+
+2.2 Every person who uses the Distribution on a device agrees for themselves on their first sign-in. A device keeps a record of which version each person accepted, with a fingerprint (cryptographic hash) of the exact text and the time. That record stays on the device.
+
+2.3 If you are under the age at which you can make a binding contract where you live, a parent or guardian must read and agree to this agreement for you and is responsible for your use.
+
+2.4 If you agree on behalf of an organisation, you confirm you are authorised to do so, and "you" includes that organisation.
+
+2.5 You can read this agreement again at any time under Settings, About, Agreement, and save or print a copy.
+
+3. YOUR RIGHT TO USE THE DISTRIBUTION
+
+3.1 We give you a worldwide, non-exclusive right to install and use the Distribution on devices you own or control, for any lawful purpose, personal or commercial, subject to this agreement and the licences named in section 1.
+
+3.2 You may copy and share the Distribution under the Apache Licence and the component licences. If you change it, your changed build is yours and not ours: do not present it as an official ZXV release (see section 11).
+
+3.3 The Distribution may be offered free or sold, by us or by resellers. If you paid for it, the seller's statutory obligations to you, including consumer guarantees under your local law, apply in addition to this agreement.
+
+4. USING IT FAIRLY
+
+4.1 You agree not to use the Distribution or the Services to:
+(a) break the law that applies to you, or help someone else do so;
+(b) harm, threaten, harass, defraud, exploit or spy on any person, or abuse children in any way;
+(c) develop, make or deploy weapons, or direct military operations, except for rescue, disaster relief, logistics, mapping and the defence of a state against external armed attack within international humanitarian law;
+(d) attack, overload or break into any system, network or device you are not authorised to test;
+(e) send commercial, encrypted or settlement traffic over amateur radio bands, or otherwise breach radio licence conditions;
+(f) infringe anyone's intellectual property, privacy or personality rights;
+(g) break export-control or sanctions law that applies to you.
+
+4.2 The Distribution is designed to respect ecological limits. Energy, water and material budgets set by the operator of a site are enforced as limits and are not for sale.
+
+5. AI OUTPUT IS ADVISORY
+
+5.1 The Distribution runs AI models on your device. AI output can be incomplete, out of date, biased or simply wrong, even when it sounds confident. It is generated by a machine, not written by a person, and it is not professional advice.
+
+5.2 AI suggestions are held until you accept them. You decide whether to act on them, and you are responsible for what you do with them.
+
+5.3 Where your local law requires AI-generated content to be labelled, keep the labels the Distribution attaches.
+
+6. FINANCE, HEALTH, SAFETY AND CRITICAL SYSTEMS
+
+6.1 Some features touch money, health, physical safety or infrastructure such as power grids. In those areas the Distribution only advises and prepares actions. A person you authorise must review and approve each action before it takes effect.
+
+6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, insurer or investment adviser. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.
+
+6.3 Payment and settlement features do not charge interest. Raffle features are offered only where the operator has confirmed they are lawful, are switched off by default where local rules forbid games of chance, and include age checks, limits and self-exclusion.
+
+6.4 Do not use the Distribution as the only safeguard for a decision that could cause death, serious injury, environmental damage or serious financial loss.
+
+7. YOUR DATA AND PRIVACY
+
+7.1 The Distribution is local-first. Your files, prompts, AI conversations and keys are stored and processed on your device. We do not receive them unless you choose to send them to us.
+
+7.2 The update service learns your device's network address and the version it asks for, which we use only to deliver updates and keep the service secure.
+
+7.3 When you use network features such as shared spaces, peer-to-peer storage or messaging, what you share goes to the people and devices you share it with. Content published to a peer-to-peer network can be copied and kept by others, and we may be unable to remove it.
+
+7.4 If we ever process your personal data, we do so under our privacy notice and the data-protection law that applies to you, including your rights to access, correct, delete and move your data and to complain to your data-protection authority. Write to deal@zedec.ai.
+
+8. YOUR CONTENT
+
+8.1 What you create with the Distribution is yours. We claim no ownership of it and no right to use it.
+
+8.2 Depending on your local law, AI-generated material may not be protected by copyright, and similar output may be generated for others.
+
+9. UPDATES
+
+9.1 Updates are signed by us. You choose when to install them, except that security fixes may be installed automatically if you turn that on.
+
+9.2 We do not promise to keep providing updates or Services for any fixed period, except where your local law requires it for digital content you paid for.
+
+10. THIRD-PARTY COMPONENTS AND MODELS
+
+10.1 Bundled models and components remain the property of their authors and come under their own licences (section 1.5). Some model licences include their own use restrictions. You must follow them.
+
+10.2 We are not responsible for third-party services you connect to the Distribution.
+
+11. NAMES AND LOGOS
+
+11.1 ZEDEC, ZEDEC XERO VULPINE, ZXV, VOVINA SHAKINA, the fox logo and the other names and logos shown at start-up are trademarks of their owners. The Apache Licence does not grant trademark rights, and neither does this agreement.
+
+11.2 You may say truthfully that your build is based on ZXV. You may not present a changed build as an official release or use the logos in a way that suggests we endorse it.
+
+12. NO WARRANTY [KEY]
+
+12.1 To the extent your local law allows, the Distribution and the Services are provided "as is" and "as available", without any warranty or condition, express or implied, including of merchantability, satisfactory quality, fitness for a particular purpose, accuracy or non-infringement.
+
+12.2 We do not promise that the Distribution will be error-free or uninterrupted, or that AI output will be correct.
+
+12.3 This section does not exclude any guarantee, warranty or right that your local law says cannot be excluded. Where it cannot be excluded but can be limited, it is limited to the extent the law allows.
+
+13. LIMITS ON LIABILITY [KEY]
+
+13.1 To the extent your local law allows, we are not liable for any indirect, incidental, special, consequential or punitive loss, or for loss of profits, revenue, data or goodwill, arising from the Distribution or the Services.
+
+13.2 To the extent your local law allows, our total liability to you for all claims about the Distribution and the Services is limited to the greater of (a) the amount you paid us for the Distribution in the twelve months before the claim arose and (b) fifty US dollars.
+
+13.3 Nothing in this agreement limits or excludes liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, for gross negligence or wilful misconduct, or for any other liability that cannot be limited or excluded by law.
+
+13.4 Where the Distribution is free and is provided to you under the Apache Licence, the warranty disclaimer and liability limits of that licence also apply.
+
+14. YOUR MANDATORY LOCAL RIGHTS [KEY]
+
+14.1 If you are a consumer, you keep every right and remedy that the consumer-protection, data-protection and contract law of the country where you live gives you and that cannot be waived by agreement. Nothing in this agreement takes those rights away, and if any term here conflicts with them, they win.
+
+14.2 For example, and without limiting 14.1:
+(a) in the European Union and the European Economic Area, the rules on unfair contract terms and on the conformity of digital content and services;
+(b) in the United Kingdom, the Consumer Rights Act 2015 and related law;
+(c) in India, the Consumer Protection Act 2019 and the Digital Personal Data Protection Act 2023;
+(d) in the People's Republic of China, the Civil Code rules on standard terms, the Law on the Protection of Consumer Rights and Interests and the Personal Information Protection Law;
+(e) in Australia, the Australian Consumer Law guarantees;
+(f) in Brazil, the Consumer Defence Code and the General Data Protection Law;
+(g) and the equivalent laws of every other country, including every country of Africa, Asia, Latin America, the Caribbean and the Pacific.
+
+14.3 Where a law, or a set of principles that governs you, such as Islamic commercial law, makes a term of this agreement unenforceable or impermissible for you, that term does not apply to you to that extent, and section 18 applies.
+
+15. ENDING THIS AGREEMENT
+
+15.1 You may stop using the Distribution at any time.
+
+15.2 We may suspend your access to the Services, but not to the copy of the Distribution already on your device, if you seriously or repeatedly break section 4, after telling you why where it is lawful and safe to do so.
+
+15.3 Sections 1.3, 8, 11 to 14, 16 to 20 continue after this agreement ends.
+
+16. DISPUTES [KEY]
+
+16.1 Talk to us first. Write to deal@zedec.ai with your name, how to reach you and what is wrong. We will try in good faith to resolve it within 60 days. Either side may propose mediation.
+
+16.2 If you are a consumer, you may bring a claim in the courts of the place where you live, under the law that protects you there, or in any small-claims court that has jurisdiction. Nothing in this agreement requires a consumer to arbitrate or stops a consumer from taking part in a collective action that their local law allows.
+
+16.3 If you are not a consumer, any dispute that is not resolved under 16.1 will be finally resolved by arbitration under the UNCITRAL Arbitration Rules, by one arbitrator, seated in Singapore, in English, with the Secretary-General of the Permanent Court of Arbitration as appointing authority. The award is final and may be enforced in any country that is party to the 1958 New York Convention on the Recognition and Enforcement of Foreign Arbitral Awards. Either side may ask a court for urgent interim relief. Where you ask, the arbitrator may apply rules consistent with Islamic commercial law to the extent the parties agree in writing.
+
+16.4 A consumer may also choose to use the arbitration in 16.3. If a consumer does, we will pay the arbitration fees beyond the amount the consumer would have paid to file in their local court.
+
+17. GOVERNING LAW
+
+17.1 This agreement is governed by the laws of the State of California, United States, without regard to its conflict-of-law rules, except that:
+(a) if you are a consumer, the mandatory protections of the law of the country where you live also apply (section 14);
+(b) the United Nations Convention on Contracts for the International Sale of Goods does not apply.
+
+18. IF A TERM IS INVALID
+
+18.1 If a court, arbitrator or authority with jurisdiction decides that any part of this agreement is invalid, unenforceable or unfair where you are, that part is changed to the minimum extent needed to make it valid there, or removed if it cannot be changed, and the rest of the agreement stays in force.
+
+18.2 If we do not enforce a term at once, we have not given up our right to enforce it later.
+
+19. CHANGES
+
+19.1 If we change this agreement, the new version gets a new version number and fingerprint. We will show it to you at your next sign-in and tell you what changed in a short summary.
+
+19.2 If you do not accept a new version, you may keep using the version of the Distribution you already have under the terms you accepted, but we may not be able to provide newer updates or Services to you.
+
+20. LANGUAGE AND GENERAL TERMS
+
+20.1 This agreement is written in English. We provide translations so that you can read it in your language. If a translation and the English differ, the English version applies, except where (a) your local law requires the version in your language to apply, or (b) you are a consumer and the difference is to your disadvantage, in which case the meaning more favourable to you applies.
+
+20.2 This agreement, together with the Apache Licence, the component licences and, for hardware, the ZXV Hardware License, is the whole agreement between you and us about the Distribution.
+
+20.3 We may transfer this agreement to a business that takes over the Distribution, provided your rights under it are not reduced. You may transfer it to anyone you give the Distribution to, if they agree to it.
+
+20.4 Contact: SCENIC BYPASS CONSULTING, LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.
+
+20.5 Support for the Distribution and the Services, including help requests, bug reports and support tickets, is provided by SCENIC BYPASS CONSULTING, LLC. Send them to the support contact shown under Settings, About, Support. The Creator does not provide support for the Distribution.
+
+End of agreement.
