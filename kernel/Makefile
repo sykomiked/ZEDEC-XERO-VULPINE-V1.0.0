@@ -390,6 +390,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
+	$(MAKE) --no-print-directory test-pce
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
@@ -1624,6 +1625,19 @@ test-paradox:
 test-recover:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/recover/test_recover.c src/recover/recover.c src/recover/recover_pq.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c -o $(ZXV_TMP)/test_recover && $(ZXV_TMP)/test_recover > $(ZXV_TMP)/test_recover.log 2>&1 && echo "[PASS] test_recover ($$(tail -1 $(ZXV_TMP)/test_recover.log))" || { cat $(ZXV_TMP)/test_recover.log; echo "[FAIL] test_recover"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/recover/recover.c -o $(ZXV_TMP)/recover_free.o || { echo "[FAIL] recover freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/recover_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/recover_free.o; echo "[FAIL] recover freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] recover freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
+
+# The paraconsistent decision engines (src/pce/pce.h): probability, tactics,
+# strategy and financial analysis, and their block entry table. ASan/UBSan tests,
+# then a freestanding build (aarch64 -mgeneral-regs-only and i386, no libc, no
+# memcpy, -Wdouble-promotion) whose only external symbols are the engines' own
+# and those of lpres, lpres_hex, paradox, rational and sha256.
+PCE_SRCS := src/pce/pce.c src/pce/pce_prob.c src/pce/pce_tac.c src/pce/pce_strat.c src/pce/pce_fin.c src/pce/pce_entry.c
+.PHONY: test-pce
+test-pce:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/pce/test_pce.c src/pce/test_pce_tac.c src/pce/test_pce_strat.c src/pce/test_pce_fin.c src/pce/test_pce_golden.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pce && $(ZXV_TMP)/test_pce > $(ZXV_TMP)/test_pce.log 2>&1 && echo "[PASS] test_pce ($$(tail -1 $(ZXV_TMP)/test_pce.log))" || { cat $(ZXV_TMP)/test_pce.log; echo "[FAIL] test_pce"; exit 1; }
+	@for f in $(PCE_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pce_free.o || { echo "[FAIL] pce freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pce_free.o | grep -vE ' (pce_|lpx_|lpres_|pdx_|rat_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/pce_free.o; echo "[FAIL] pce freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pce freestanding (aarch64 -mgeneral-regs-only, i386; only pce_/lpx_/lpres_/pdx_/rat_/sha256_ external)"
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/apps/test_zxapp_pce.c src/apps/zxapp.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_zxapp_pce && $(ZXV_TMP)/test_zxapp_pce src > $(ZXV_TMP)/test_zxapp_pce.log 2>&1 && echo "[PASS] pce blocks ($$(tail -1 $(ZXV_TMP)/test_zxapp_pce.log))" || { cat $(ZXV_TMP)/test_zxapp_pce.log; echo "[FAIL] pce blocks"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/apps/zxapp_pce.c -o $(ZXV_TMP)/zxapp_pce_free.o || { echo "[FAIL] zxapp_pce freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/zxapp_pce_free.o | grep -vE ' (pce_|zxapp_)' | grep -q .; then nm -u $(ZXV_TMP)/zxapp_pce_free.o; echo "[FAIL] zxapp_pce freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] zxapp_pce freestanding (only pce_/zxapp_ external)"
 
 # The contradiction-tolerant ledger and four-valued agents (src/paradox/pdx_ledger.h,
 # pdx_agent.h, roadmap 6.6b P1.1-P1.4 and P2.2; docs/PARACONSISTENT_LEDGER.md):

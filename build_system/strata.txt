@@ -162,6 +162,7 @@ situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
 recover                          logic      # refuse / roll back / isolate with signed RepairProofs over paradox (gap B5)
 tripartite_fs                    logic      # its CID-checked self-heal runs through recover (S4); no module includes it
+pce                              logic      # paraconsistent decision engines: probability, tactics, strategy, finance analytics
 spatial                          logic      # exact geometry, four-valued sensor fusion, advisory fleet plans (#83 S.1/S.2/S.4)
 
 # ---- S5 AI runtime and swarm
