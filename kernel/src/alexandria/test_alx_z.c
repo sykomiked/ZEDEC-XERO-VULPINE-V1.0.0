@@ -16,7 +16,7 @@ static int checks, fails;
         checks++;                                                                                  \
         if (!(c)) {                                                                                \
             fails++;                                                                               \
-            printf("[FAIL] " __VA_ARGS__);                                                        \
+            printf("[FAIL] " __VA_ARGS__);                                                         \
             printf("\n");                                                                          \
         }                                                                                          \
     } while (0)
@@ -39,12 +39,16 @@ static int rules(const uint8_t *z, uint32_t zn, uint32_t n)
     uint32_t ip = 0, op = 0;
     for (;;) {
         uint32_t t = z[ip++], lit = t >> 4, b;
-        if (lit == 15) do lit += b = z[ip++]; while (b == 255);
+        if (lit == 15) do
+                lit += b = z[ip++];
+            while (b == 255);
         ip += lit, op += lit;
         if (ip == zn) return op == n && (n <= 12 || lit >= 5); /* ends in >= 5 literals */
         uint32_t ml = t & 15;
         ip += 2;
-        if (ml == 15) do ml += b = z[ip++]; while (b == 255);
+        if (ml == 15) do
+                ml += b = z[ip++];
+            while (b == 255);
         if (op + 12 > n) return 0; /* the last match starts 12 or more bytes before the end */
         op += ml + 4;
         if (op + 5 > n) return 0;
@@ -62,7 +66,8 @@ static void trip(const uint8_t *in, uint32_t n, const char *what)
     static uint8_t D[ALX_Z_MAXPLAIN + 8192];
     uint32_t z3 = alx_z_lz4(in, n, D, sizeof D, work);
     CHECK(z3 == z && !memcmp(B, D, z), "%s: the same bytes give the same block", what);
-    if (z > 1) CHECK(alx_z_lz4(in, n, D, z - 1, work) == 0, "%s: too small an output is refused", what);
+    if (z > 1)
+        CHECK(alx_z_lz4(in, n, D, z - 1, work) == 0, "%s: too small an output is refused", what);
     if (n) CHECK(alx_z_unlz4(B, z, C, n - 1) < 0, "%s: too small a buffer is refused", what);
 }
 
@@ -81,7 +86,8 @@ int main(int argc, char **argv)
     trip(A, ALX_Z_MAXPLAIN, "1 MiB of noise");
     trip(A, 70000, "noise past the window");
     /* text with repeats farther apart than the window: matches never reach past 65535 */
-    for (uint32_t i = 0; i < 300000; i++) A[i] = (uint8_t) ("int x = f(a, b);\n"[i % 17] + (i / 100000));
+    for (uint32_t i = 0; i < 300000; i++)
+        A[i] = (uint8_t) ("int x = f(a, b);\n"[i % 17] + (i / 100000));
     trip(A, 300000, "text over three windows");
     for (uint32_t k = 0; k < 200; k++) { /* random sizes and mixtures */
         uint32_t n = rnd(&s) % 5000, alpha = 1 + rnd(&s) % 8;
@@ -92,7 +98,8 @@ int main(int argc, char **argv)
     }
     /* a block written by hand: 5 literals "abcde", then a match of 10 at offset 5,
      * then 5 literals: "abcdeabcdeabcdevwxyz" */
-    static const uint8_t hand[] = {0x56, 'a', 'b', 'c', 'd', 'e', 5, 0, 0x50, 'v', 'w', 'x', 'y', 'z'};
+    static const uint8_t hand[] = {0x56, 'a',  'b', 'c', 'd', 'e', 5,
+                                   0,    0x50, 'v', 'w', 'x', 'y', 'z'};
     CHECK(alx_z_unlz4(hand, 14, C, 64) == 20, "a hand-made block decodes");
     CHECK(!memcmp(C, "abcdeabcdeabcde", 15) && !memcmp(C + 15, "vwxyz", 5), "to the right bytes");
     /* refusals */
@@ -110,7 +117,8 @@ int main(int argc, char **argv)
     /* ALXZ: a compressible booklet is wrapped, an incompressible one stored bare */
     for (uint32_t i = 0; i < 100000; i++) A[i] = (uint8_t) ("ALXB booklet text "[i % 18]);
     uint32_t m = alx_z_store(A, 100000, B, sizeof B, work);
-    CHECK(m > ALX_Z_HEAD && m < 100000 && alx_z_is(B, m) && alx_z_plain_len(B, m) == 100000, "wrapped");
+    CHECK(m > ALX_Z_HEAD && m < 100000 && alx_z_is(B, m) && alx_z_plain_len(B, m) == 100000,
+          "wrapped");
     CHECK(alx_z_open(B, m, C, 100000) == 100000 && !memcmp(A, C, 100000), "opened");
     uint8_t h[32];
     sha256(A, 100000, h);
@@ -122,7 +130,7 @@ int main(int argc, char **argv)
     CHECK(r == ALX_E_HASH || r == ALX_E_FORM, "a changed payload: %d", r);
     B[ALX_Z_HEAD + 3] ^= 1;
     for (uint32_t i = 0; i < ALX_Z_HEAD; i++) { /* every header byte matters */
-        if (i >= 20 && i < 52) continue;      /* the digest: a hash failure, checked below */
+        if (i >= 20 && i < 52) continue;        /* the digest: a hash failure, checked below */
         B[i] ^= 0x40;
         CHECK(alx_z_open(B, m, C, 200000) == ALX_E_FORM || !alx_z_is(B, m), "header byte %u", i);
         B[i] ^= 0x40;
@@ -134,14 +142,17 @@ int main(int argc, char **argv)
     for (uint32_t i = 0; i < 4096; i++) A[i] = (uint8_t) rnd(&s);
     m = alx_z_store(A, 4096, B, sizeof B, work);
     CHECK(m == 4096 && !memcmp(A, B, 4096) && !alx_z_is(B, m), "noise is stored bare");
-    CHECK(alx_z_store(A, 4096, B, 4096 + ALX_Z_HEAD - 1, work) == 0, "store needs room for a header");
+    CHECK(alx_z_store(A, 4096, B, 4096 + ALX_Z_HEAD - 1, work) == 0,
+          "store needs room for a header");
     /* a fixed answer: this input must give exactly these bytes on every
      * platform, or CIDs over compressed booklets would differ between nodes */
     {
         uint64_t k = 42;
         for (uint32_t i = 0; i < 200000; i++)
-            A[i] = (uint8_t) (i % 3000 < 1500 ? (uint32_t) (uint8_t) "static int f(void) { return 0; }\n"[i % 34]
-                                               : 'a' + rnd(&k) % 23u);
+            A[i] =
+                (uint8_t) (i % 3000 < 1500
+                               ? (uint32_t) (uint8_t) "static int f(void) { return 0; }\n"[i % 34]
+                               : 'a' + rnd(&k) % 23u);
         uint32_t z = alx_z_lz4(A, 200000, B, sizeof B, work);
         uint8_t d[32];
         sha256(B, z, d);
@@ -168,8 +179,9 @@ int main(int argc, char **argv)
             packed += alx_z_lz4(A, n, B, sizeof B, work);
         }
         if (d) closedir(d);
-        if (raw) printf("alx_z: %llu bytes of %s to %llu (%.1f%%)\n", (unsigned long long) raw, argv[1],
-                        (unsigned long long) packed, 100.0 * (double) packed / (double) raw);
+        if (raw)
+            printf("alx_z: %llu bytes of %s to %llu (%.1f%%)\n", (unsigned long long) raw, argv[1],
+                   (unsigned long long) packed, 100.0 * (double) packed / (double) raw);
     }
     printf("%d checks, %d failures\n", checks, fails);
     return fails != 0;

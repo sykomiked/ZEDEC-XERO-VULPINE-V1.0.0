@@ -492,8 +492,8 @@ static void test_packed(void)
         printf(" B=%u %.1f%%", BEAM[bi], 100.0 * hier_hits[bi] / hier_tot);
     printf("\n");
     /* measured at dim 512: 96.2%; a drop below 90% is a regression */
-    CHECK(h10 * 10u >= pairs * 9u, "x.h is in x.c's top 10 for at least 90%% of pairs (%u of %u)", h10,
-          pairs);
+    CHECK(h10 * 10u >= pairs * 9u, "x.h is in x.c's top 10 for at least 90%% of pairs (%u of %u)",
+          h10, pairs);
     for (uint32_t i = 0; i < LEAVES && i < 4096; i++) free(LEAFBUF[i]);
     free(root);
 }

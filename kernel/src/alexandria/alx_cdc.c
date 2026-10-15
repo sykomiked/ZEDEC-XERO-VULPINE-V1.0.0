@@ -35,7 +35,7 @@ int alx_cdc_make(alx_cdc_tier_t *t, uint32_t min, uint32_t avg, uint32_t max)
     t->avg = avg;
     t->max = max;
     t->hard = (uint32_t) ((1ull << 32) / ((uint64_t) avg * 4u)); /* avg < 2^20: never 0 */
-    t->easy = (uint32_t) ((1ull << 34) / avg);                    /* avg > 64: below 2^28 */
+    t->easy = (uint32_t) ((1ull << 34) / avg);                   /* avg > 64: below 2^28 */
     return 0;
 }
 

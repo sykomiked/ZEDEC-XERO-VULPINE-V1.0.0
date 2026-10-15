@@ -91,8 +91,7 @@ int alx_lat_resolve(const uint8_t *root, uint32_t root_len, const uint8_t *root_
     /* down the fan-out tree, one digit of the booklet number per level */
     for (uint32_t d = depth; d-- > 0;) {
         if ((r = get(fetch, ctx, cid, &b, &len, h)) != ALX_OK) return r;
-        if (alx_node_check(b, len, &lv, &n, &under) != ALX_OK || lv != d)
-            return ALX_E_FORM;
+        if (alx_node_check(b, len, &lv, &n, &under) != ALX_OK || lv != d) return ALX_E_FORM;
         if (kind == ALX_LAT_LAYER) { /* the layer is its top node */
             h->bytes = b;
             h->len = len;
@@ -148,8 +147,8 @@ int alx_img_open(alx_img_t *im, const uint8_t *b, uint64_t len)
     for (uint32_t i = 0; i < n; i++) {
         const uint8_t *e = b + 64u + (uint64_t) i * ALX_IMG_ENTRY;
         uint64_t start = (uint64_t) alx_be32(e + 36) * ALX_IMG_SECTOR, l = alx_be32(e + 40);
-        if (alx_be32(e + 44) || (i && cmp36(e - ALX_IMG_ENTRY, e) >= 0) || start < at ||
-            l > len || start > len - l)
+        if (alx_be32(e + 44) || (i && cmp36(e - ALX_IMG_ENTRY, e) >= 0) || start < at || l > len ||
+            start > len - l)
             return ALX_E_FORM;
         at = start + l;
     }
@@ -177,8 +176,10 @@ const uint8_t *alx_img_fetch(void *ctx, const uint8_t cid[36], uint32_t *len)
             *len = alx_be32(e + 40);
             return im->b + (uint64_t) alx_be32(e + 36) * ALX_IMG_SECTOR;
         }
-        if (c < 0) lo = mid + 1u;
-        else hi = mid;
+        if (c < 0)
+            lo = mid + 1u;
+        else
+            hi = mid;
     }
     return 0;
 }

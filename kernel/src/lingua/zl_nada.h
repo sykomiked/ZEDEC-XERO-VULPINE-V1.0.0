@@ -29,18 +29,18 @@ enum {
 };
 /* prayatna, the effort */
 enum {
-    ZL_ALPAPRANA = 0,      /* unvoiced, unaspirated */
-    ZL_MAHAPRANA = 1,      /* unvoiced, aspirated */
-    ZL_GHOSA = 2,          /* voiced, unaspirated */
-    ZL_GHOSA_MAHAPRANA = 3,/* voiced, aspirated */
-    ZL_ANUNASIKA = 4,      /* nasal */
-    ZL_ANTAHSTHA = 5,      /* semivowel: y r l v */
-    ZL_USMAN = 6,          /* unvoiced sibilant: ś ṣ s */
-    ZL_USMAN_GHOSA = 7     /* voiced breath: h */
+    ZL_ALPAPRANA = 0,       /* unvoiced, unaspirated */
+    ZL_MAHAPRANA = 1,       /* unvoiced, aspirated */
+    ZL_GHOSA = 2,           /* voiced, unaspirated */
+    ZL_GHOSA_MAHAPRANA = 3, /* voiced, aspirated */
+    ZL_ANUNASIKA = 4,       /* nasal */
+    ZL_ANTAHSTHA = 5,       /* semivowel: y r l v */
+    ZL_USMAN = 6,           /* unvoiced sibilant: ś ṣ s */
+    ZL_USMAN_GHOSA = 7      /* voiced breath: h */
 };
 
 typedef struct {
-    const char *iast; /* the consonant, e.g. "kh" */
+    const char *iast;                 /* the consonant, e.g. "kh" */
     uint32_t sthana, prayatna, digit; /* digit: its Kaṭapayādi digit */
 } zl_varna_t;
 

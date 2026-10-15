@@ -43,21 +43,21 @@ enum {
 
 /* operand codes in a kāraka slot */
 enum {
-    ZL_K_NONE = 0,  /* the role is absent */
-    ZL_K_S1 = 1,    /* the top of the stack */
-    ZL_K_S2 = 2,    /* the second */
-    ZL_K_S3 = 3,    /* the third */
-    ZL_K_SN = 4,    /* stack cells, how many depends on the operands */
-    ZL_K_TOP = 5,   /* the new top of the stack (a result) */
-    ZL_K_CONST = 6, /* the instruction's constant */
-    ZL_K_SLOT = 7,  /* a named slot */
-    ZL_K_ARRAY = 8, /* an array cell */
-    ZL_K_ADDR = 9,  /* a cell through an address */
-    ZL_K_FRAME = 10,/* a frame cell */
-    ZL_K_CODE = 11, /* a place in the program */
-    ZL_K_IN = 12,   /* the input */
-    ZL_K_OUT = 13,  /* the output */
-    ZL_K_HEAP = 14, /* a pair, vector or string */
+    ZL_K_NONE = 0,    /* the role is absent */
+    ZL_K_S1 = 1,      /* the top of the stack */
+    ZL_K_S2 = 2,      /* the second */
+    ZL_K_S3 = 3,      /* the third */
+    ZL_K_SN = 4,      /* stack cells, how many depends on the operands */
+    ZL_K_TOP = 5,     /* the new top of the stack (a result) */
+    ZL_K_CONST = 6,   /* the instruction's constant */
+    ZL_K_SLOT = 7,    /* a named slot */
+    ZL_K_ARRAY = 8,   /* an array cell */
+    ZL_K_ADDR = 9,    /* a cell through an address */
+    ZL_K_FRAME = 10,  /* a frame cell */
+    ZL_K_CODE = 11,   /* a place in the program */
+    ZL_K_IN = 12,     /* the input */
+    ZL_K_OUT = 13,    /* the output */
+    ZL_K_HEAP = 14,   /* a pair, vector or string */
     ZL_K_HANDLER = 15 /* an exception handler */
 };
 
@@ -81,12 +81,12 @@ uint64_t zl_sutra_cell(uint32_t op, uint32_t lpres);
 int32_t zl_sutra_op(uint64_t cell);
 
 /* names, for documents and tools (IAST, ASCII-safe where noted) */
-const char *zl_sutra_root(uint32_t op);     /* the root, e.g. "grah" */
-const char *zl_sutra_gloss(uint32_t op);    /* its sense, e.g. "take" */
-const char *zl_sutra_upasarga(uint32_t u);  /* "pra", ...; "" for 0 */
-const char *zl_sutra_pratyaya(uint32_t p);  /* the variant's name; "" for 0 */
-char zl_sutra_kchar(uint32_t code);         /* one letter per operand code */
-uint32_t zl_sutra_count(void);              /* the number of operations */
+const char *zl_sutra_root(uint32_t op);    /* the root, e.g. "grah" */
+const char *zl_sutra_gloss(uint32_t op);   /* its sense, e.g. "take" */
+const char *zl_sutra_upasarga(uint32_t u); /* "pra", ...; "" for 0 */
+const char *zl_sutra_pratyaya(uint32_t p); /* the variant's name; "" for 0 */
+char zl_sutra_kchar(uint32_t code);        /* one letter per operand code */
+uint32_t zl_sutra_count(void);             /* the number of operations */
 
 /* Pooling evidence (lpres's rule, lpres_add_evidence): a state with support
  * from either side and refutation from either side. With the lpres codes

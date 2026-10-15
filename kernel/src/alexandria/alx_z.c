@@ -6,18 +6,18 @@
 #include "alx_int.h"
 #include "../robin_debanks/sha256.h"
 
-#define MINMATCH  4u
-#define LASTLIT   5u      /* the last 5 bytes are always literals */
-#define MFLIMIT   12u     /* the last match starts at least 12 bytes before the end */
-#define MAXOFF    65535u
-#define HBITS     16u
-#define DEPTH     64u     /* candidates tried per position */
-#define WIN       65536u
+#define MINMATCH 4u
+#define LASTLIT  5u  /* the last 5 bytes are always literals */
+#define MFLIMIT  12u /* the last match starts at least 12 bytes before the end */
+#define MAXOFF   65535u
+#define HBITS    16u
+#define DEPTH    64u /* candidates tried per position */
+#define WIN      65536u
 
 static uint32_t hash4(const uint8_t *p)
 {
-    uint32_t v = (uint32_t) p[0] | (uint32_t) p[1] << 8 | (uint32_t) p[2] << 16 |
-                 (uint32_t) p[3] << 24;
+    uint32_t v =
+        (uint32_t) p[0] | (uint32_t) p[1] << 8 | (uint32_t) p[2] << 16 | (uint32_t) p[3] << 24;
     return (v * 2654435761u) >> (32u - HBITS);
 }
 
@@ -28,7 +28,7 @@ uint32_t alx_z_bound(uint32_t n)
 
 typedef struct {
     const uint8_t *in;
-    uint32_t n, ins;  /* every position below ins is in the chains */
+    uint32_t n, ins; /* every position below ins is in the chains */
     int32_t *head, *chain;
 } hc_t;
 
@@ -75,8 +75,10 @@ typedef struct {
 
 static void put(wr_t *w, uint8_t b)
 {
-    if (w->at < w->cap) w->out[w->at++] = b;
-    else w->full = true;
+    if (w->at < w->cap)
+        w->out[w->at++] = b;
+    else
+        w->full = true;
 }
 
 static void put_len(wr_t *w, uint32_t l)
@@ -172,7 +174,9 @@ uint32_t alx_z_store(const uint8_t *b, uint32_t len, uint8_t *out, uint32_t cap,
 {
     if (!b || !out || !work || len > ALX_Z_MAXPLAIN || cap < len + ALX_Z_HEAD) return 0;
     /* an ALXZ block only when it is smaller than the booklet */
-    uint32_t z = len > ALX_Z_HEAD + 1u ? alx_z_lz4(b, len, out + ALX_Z_HEAD, len - ALX_Z_HEAD - 1u, work) : 0;
+    uint32_t z = len > ALX_Z_HEAD + 1u
+                     ? alx_z_lz4(b, len, out + ALX_Z_HEAD, len - ALX_Z_HEAD - 1u, work)
+                     : 0;
     if (!z) {
         for (uint32_t i = 0; i < len; i++) out[i] = b[i];
         return len;

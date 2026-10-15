@@ -22,7 +22,7 @@ static unsigned checks, fails;
         checks++;                                                                                  \
         if (!(c)) {                                                                                \
             fails++;                                                                               \
-            printf("[FAIL] " __VA_ARGS__);                                                        \
+            printf("[FAIL] " __VA_ARGS__);                                                         \
             printf("\n");                                                                          \
         }                                                                                          \
     } while (0)
@@ -125,12 +125,14 @@ static void test_words(void)
     /* the documented layout: 0x30, layer, booklet + 1, atom + 1 */
     CHECK(alx_lat_atom(7, 0, 0) == 0x3007000001000001ull, "word layout: %016llx",
           (unsigned long long) alx_lat_atom(7, 0, 0));
-    CHECK(alx_lat_layer(144) == 0x3090000000000000ull && alx_lat_booklet(0, 0) == 0x3000000001000000ull,
+    CHECK(alx_lat_layer(144) == 0x3090000000000000ull &&
+              alx_lat_booklet(0, 0) == 0x3000000001000000ull,
           "layer and booklet words");
     CHECK(alx_lat_layer(145) == 0 && alx_lat_booklet(1, ALX_LAT_MAXIDX + 1u) == 0 &&
               alx_lat_atom(1, 0, ALX_LAT_MAXIDX + 1u) == 0,
           "indexes out of range have no word");
-    CHECK(alx_lat_parse(0x1002000100000001ull, 0, 0, 0) == ALX_E_DOMAIN, "a code word is not a matrix word");
+    CHECK(alx_lat_parse(0x1002000100000001ull, 0, 0, 0) == ALX_E_DOMAIN,
+          "a code word is not a matrix word");
     CHECK(alx_lat_parse(0x3091000000000000ull, 0, 0, 0) == ALX_E_FORM, "layer 145");
     CHECK(alx_lat_parse(0x3001000000000001ull, 0, 0, 0) == ALX_E_FORM, "an atom without a booklet");
     CHECK(alx_lat_parse(0x3001FFFFFF000000ull, 0, 0, 0) == ALX_E_FORM &&
@@ -174,7 +176,8 @@ int main(int argc, char **argv)
     uint32_t layers = 0, booklets = 0, atoms = 0, empty = 0;
     for (uint32_t k = 0; k < ALX_MX_LAYERS; k++) {
         alx_lat_hit_t a, b;
-        int ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_layer(k), dir_fetch, 0, S1, sizeof S1, &a);
+        int ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_layer(k), dir_fetch, 0, S1,
+                                 sizeof S1, &a);
         int rb = alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_layer(k), alx_img_fetch, &im, S2,
                                  sizeof S2, &b);
         alx_mx_layer_t l;
@@ -188,10 +191,12 @@ int main(int argc, char **argv)
               "layer %u: the same tree root", k);
         layers++;
         for (uint32_t i = 0; i < l.booklets; i++) {
-            ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(k, i), dir_fetch, 0, S1, sizeof S1, &a);
+            ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(k, i), dir_fetch, 0, S1,
+                                 sizeof S1, &a);
             rb = alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_booklet(k, i), alx_img_fetch, &im, S2,
                                  sizeof S2, &b);
-            CHECK(ra == ALX_OK && rb == ALX_OK && same_hit(&a, &b), "booklet %u.%u: %d %d", k, i, ra, rb);
+            CHECK(ra == ALX_OK && rb == ALX_OK && same_hit(&a, &b), "booklet %u.%u: %d %d", k, i,
+                  ra, rb);
             if (ra != ALX_OK || rb != ALX_OK) continue;
             booklets++;
             uint32_t lay, na;
@@ -203,11 +208,13 @@ int main(int argc, char **argv)
                 uint32_t j = pick[pi];
                 if (pi && j < na && j == pick[pi - 1]) continue;
                 alx_lat_hit_t x, y;
-                ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_atom(k, i, j), dir_fetch, 0, S1, sizeof S1, &x);
+                ra = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_atom(k, i, j), dir_fetch, 0, S1,
+                                     sizeof S1, &x);
                 rb = alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_atom(k, i, j), alx_img_fetch, &im,
                                      S2, sizeof S2, &y);
                 if (j == na) { /* one past the last atom does not exist */
-                    CHECK(ra == ALX_E_NAME && rb == ALX_E_NAME, "atom %u.%u.%u past the end", k, i, j);
+                    CHECK(ra == ALX_E_NAME && rb == ALX_E_NAME, "atom %u.%u.%u past the end", k, i,
+                          j);
                     break;
                 }
                 uint8_t h[32];
@@ -218,8 +225,8 @@ int main(int argc, char **argv)
             }
         }
         alx_lat_hit_t x;
-        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(k, l.booklets), dir_fetch, 0, S1,
-                              sizeof S1, &x) == ALX_E_NAME,
+        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(k, l.booklets), dir_fetch, 0,
+                              S1, sizeof S1, &x) == ALX_E_NAME,
               "layer %u: no booklet past the end", k);
 
         /* the glue's refs are words: a file is its refs' atoms, in order */
@@ -251,8 +258,8 @@ int main(int argc, char **argv)
         alx_mx_layer_t l;
         alx_mx_layer(ROOT, 0, &l);
         alx_lat_hit_t good, bad;
-        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(0, 0), dir_fetch, 0, S1, sizeof S1,
-                              &good) == ALX_OK,
+        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_booklet(0, 0), dir_fetch, 0, S1,
+                              sizeof S1, &good) == ALX_OK,
               "booklet 000");
         /* the stored block the tree names: find it in the image and flip one byte */
         alx_lat_hit_t top;
@@ -264,25 +271,27 @@ int main(int argc, char **argv)
         if (blk) {
             uint8_t *m = (uint8_t *) blk + bn / 2u;
             *m ^= 0x10;
-            int r = alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_booklet(0, 0), alx_img_fetch, &im, S2,
-                                    sizeof S2, &bad);
-            CHECK(r == ALX_E_HASH && !memcmp(bad.cid, child, 36), "a damaged block is named: %d", r);
+            int r = alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_booklet(0, 0), alx_img_fetch, &im,
+                                    S2, sizeof S2, &bad);
+            CHECK(r == ALX_E_HASH && !memcmp(bad.cid, child, 36), "a damaged block is named: %d",
+                  r);
             CHECK(alx_lat_resolve(iroot, irn, ROOTCID, alx_lat_booklet(0, 0), dir_fetch, 0, S2,
                                   sizeof S2, &bad) == ALX_OK &&
                       same_hit(&bad, &good),
                   "fetched again by its CID, it is whole");
             *m ^= 0x10;
         }
-        int r = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_atom(0, 0, 0), none_fetch, 0, S1, sizeof S1, &bad);
+        int r = alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_atom(0, 0, 0), none_fetch, 0, S1,
+                                sizeof S1, &bad);
         CHECK(r == ALX_E_NAME && !memcmp(bad.cid, l.root, 36), "a missing block is named: %d", r);
         uint8_t other[36];
         memcpy(other, ROOTCID, 36);
         other[35] ^= 1;
-        CHECK(alx_lat_resolve(ROOT, ROOTN, other, alx_lat_layer(0), dir_fetch, 0, S1, sizeof S1, &bad) ==
-                  ALX_E_HASH,
+        CHECK(alx_lat_resolve(ROOT, ROOTN, other, alx_lat_layer(0), dir_fetch, 0, S1, sizeof S1,
+                              &bad) == ALX_E_HASH,
               "another root CID");
-        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_layer(0), dir_fetch, 0, S1, sizeof S1, 0) ==
-                      ALX_E_FORM &&
+        CHECK(alx_lat_resolve(ROOT, ROOTN, ROOTCID, alx_lat_layer(0), dir_fetch, 0, S1, sizeof S1,
+                              0) == ALX_E_FORM &&
                   alx_lat_resolve(ROOT, ROOTN, ROOTCID, 0x1002000100000001ull, dir_fetch, 0, S1,
                                   sizeof S1, &bad) == ALX_E_DOMAIN,
               "refusals");
@@ -304,15 +313,17 @@ int main(int argc, char **argv)
             memcpy(img + 64, save, 48);
         }
         const uint8_t *e = img + 64u + (uint64_t) (im.n - 1u) * ALX_IMG_ENTRY;
-        uint64_t end = ((uint64_t) e[36] << 24 | (uint64_t) e[37] << 16 | (uint64_t) e[38] << 8 | e[39]) *
-                           ALX_IMG_SECTOR +
-                       ((uint64_t) e[40] << 24 | (uint64_t) e[41] << 16 | (uint64_t) e[42] << 8 | e[43]);
+        uint64_t end =
+            ((uint64_t) e[36] << 24 | (uint64_t) e[37] << 16 | (uint64_t) e[38] << 8 | e[39]) *
+                ALX_IMG_SECTOR +
+            ((uint64_t) e[40] << 24 | (uint64_t) e[41] << 16 | (uint64_t) e[42] << 8 | e[43]);
         CHECK(alx_img_open(&j, img, end) == ALX_OK && alx_img_open(&j, img, end - 1u) == ALX_E_FORM,
               "a block past the end");
         CHECK(alx_img_open(&j, img, in) == ALX_OK, "the image is whole again");
     }
-    printf("lattice: %u layers (%u empty), %u booklets, %u atoms sampled: block store and image agree\n", layers,
-           empty, booklets, atoms);
+    printf("lattice: %u layers (%u empty), %u booklets, %u atoms sampled: block store and image "
+           "agree\n",
+           layers, empty, booklets, atoms);
     for (uint32_t i = 0; i < CACHE; i++) free(C[i].b);
     free(ROOT);
     free(img);

@@ -11,15 +11,14 @@ bool alx_mldsa_verify(void *ctx, const uint8_t pk[ALX_IDX_PK], const uint8_t *ms
                       const uint8_t sig[ALX_IDX_SIG])
 {
     (void) ctx;
-    return pq_mldsa65_verify(pk, msg, len, (const uint8_t *) ALX_IDX_CTX,
-                             sizeof ALX_IDX_CTX - 1u, sig);
+    return pq_mldsa65_verify(pk, msg, len, (const uint8_t *) ALX_IDX_CTX, sizeof ALX_IDX_CTX - 1u,
+                             sig);
 }
 
 void alx_mldsa_sign(const uint8_t sk[ALX_MLDSA_SK], const uint8_t *msg, uint32_t len,
                     const uint8_t rnd[32], uint8_t sig[ALX_IDX_SIG])
 {
-    pq_mldsa65_sign(sk, msg, len, (const uint8_t *) ALX_IDX_CTX, sizeof ALX_IDX_CTX - 1u, rnd,
-                    sig);
+    pq_mldsa65_sign(sk, msg, len, (const uint8_t *) ALX_IDX_CTX, sizeof ALX_IDX_CTX - 1u, rnd, sig);
 }
 
 void alx_mldsa_keypair(const uint8_t seed[32], uint8_t pk[ALX_IDX_PK], uint8_t sk[ALX_MLDSA_SK])

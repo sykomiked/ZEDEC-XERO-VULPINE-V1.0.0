@@ -93,7 +93,7 @@ EDIT(c_count_up, b[11]++)
 EDIT(c_count_zero, memset(b + 8, 0, 4))
 EDIT(c_short, *n -= ALX_IDX_ENTRY; b[11]--) /* the last entry gone */
 EDIT(c_order, uint8_t t[ALX_IDX_ENTRY]; memcpy(t, ent(b, 0), ALX_IDX_ENTRY);
-      memcpy(ent(b, 0), ent(b, 1), ALX_IDX_ENTRY); memcpy(ent(b, 1), t, ALX_IDX_ENTRY))
+     memcpy(ent(b, 0), ent(b, 1), ALX_IDX_ENTRY); memcpy(ent(b, 1), t, ALX_IDX_ENTRY))
 EDIT(c_dup, memcpy(ent(b, 1), ent(b, 0), ALX_IDX_ENTRY))
 EDIT(c_domain, ent(b, 0)[0] = 0x20)
 EDIT(c_ext, ent(b, 0)[5] = 1)
@@ -110,8 +110,9 @@ EDIT(c_container_zero, memset(ent(b, 0) + 56, 0, 36))
 EDIT(c_container_prefix, ent(b, 0)[57] = 0x71)
 EDIT(c_rsv92, ent(b, 0)[95] = 1)
 EDIT(c_lba, ent(b, 0)[47] = 9) /* a sector number is the disc builder's to give */
-EDIT(c_not_in_library, put64(ent(b, (*n - ALX_IDX_HEAD - 32u) / ALX_IDX_ENTRY - 1u),
-                             get64(ent(b, (*n - ALX_IDX_HEAD - 32u) / ALX_IDX_ENTRY - 1u)) + 0x100000000ull))
+EDIT(c_not_in_library,
+     put64(ent(b, (*n - ALX_IDX_HEAD - 32u) / ALX_IDX_ENTRY - 1u),
+           get64(ent(b, (*n - ALX_IDX_HEAD - 32u) / ALX_IDX_ENTRY - 1u)) + 0x100000000ull))
 
 static void test_core(void)
 {
@@ -247,7 +248,7 @@ static uint64_t dw(uint32_t domain, uint32_t place, uint32_t item, uint32_t sub)
 
 static int mount(const uint8_t *b, uint32_t n, int nkeys)
 {
-    return alx_carto_mount(&C, b, n, (const uint8_t (*)[ALX_IDX_PK]) PK, (uint32_t) nkeys,
+    return alx_carto_mount(&C, b, n, (const uint8_t(*)[ALX_IDX_PK]) PK, (uint32_t) nkeys,
                            alx_mldsa_verify, 0);
 }
 
@@ -358,7 +359,7 @@ static void test_overlays(void)
     }
     CHECK(mount(IDX, IN, 1) == ALX_E_FORM, "a core is not an overlay");
     CHECK(mount(OV[0], OVN[0] - 1, 1) == ALX_E_FORM, "one byte short");
-    CHECK(alx_carto_mount(&C, OV[0], OVN[0], (const uint8_t (*)[ALX_IDX_PK]) PK, 1, 0, 0) ==
+    CHECK(alx_carto_mount(&C, OV[0], OVN[0], (const uint8_t(*)[ALX_IDX_PK]) PK, 1, 0, 0) ==
               ALX_E_FORM,
           "no signature check");
     CHECK(alx_carto_mount(&C, OV[0], OVN[0], 0, 0, alx_mldsa_verify, 0) == ALX_E_TRUST,
@@ -383,7 +384,7 @@ static void test_overlays(void)
     alx_carto_t none;
     memset(&none, 0, sizeof none);
     CHECK(mount(OV[0], OVN[0], 1) == ALX_OK, "remount");
-    CHECK(alx_carto_mount(&none, OV[0], OVN[0], (const uint8_t (*)[ALX_IDX_PK]) PK, 1,
+    CHECK(alx_carto_mount(&none, OV[0], OVN[0], (const uint8_t(*)[ALX_IDX_PK]) PK, 1,
                           alx_mldsa_verify, 0) == ALX_E_FORM,
           "no core, no overlays");
 }

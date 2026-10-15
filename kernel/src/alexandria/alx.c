@@ -297,8 +297,8 @@ int alx_pipeline(const alx_t *t, const uint32_t *slots, uint32_t n, uint32_t *at
 
 const char *alx_status_name(int s)
 {
-    static const char *const N[] = {"OK",      "FORM",    "HASH",  "NAME", "SLOT",
-                                    "RETIRED", "DOCK",    "LIMIT", "LANG", "SYNTAX",
-                                    "LINEAGE", "OVERLAY", "DOMAIN", "BOTH", "TRUST", "SIGN"};
+    static const char *const N[] = {"OK",     "FORM",  "HASH",  "NAME",   "SLOT",    "RETIRED",
+                                    "DOCK",   "LIMIT", "LANG",  "SYNTAX", "LINEAGE", "OVERLAY",
+                                    "DOMAIN", "BOTH",  "TRUST", "SIGN"};
     return s <= 0 && s >= -15 ? N[-s] : "?";
 }
