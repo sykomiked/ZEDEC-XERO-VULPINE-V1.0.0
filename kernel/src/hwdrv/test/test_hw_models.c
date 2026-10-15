@@ -682,7 +682,7 @@ static void test_upstream(void)
     CHECK(!fake_log_has(&fp, "ipns"));
     CHECK(s.nwant == 2 && s.want[0].disc == 2 && strcmp(s.want[1].group, "VISION") == 0);
     CHECK(fake_log_has(&fp, "[SWARM_MISSING] disc 3 ZXV_SWARM_VISION (zxv-swarm-disc3-vision.img)"
-                            ": attach it, or zxvd fetches it from the upstream bucket"));
+                            ": attach it, or fetch it from the upstream bucket (zxv-get)"));
     CHECK(!fake_log_has(&fp, "ZXV_SWARM_REASON (zxv"));
     CHECK(!fake_log_has(&fp, "[SWARM_COMPLETE]"));
     CHECK(fake_log_has(&fp, "[MODELS_INDEXED] 2 listed"));
@@ -697,7 +697,7 @@ static void test_upstream(void)
     CHECK(index_up(0, LST, 0) == 2);
     CHECK(s.cid[0] == 0 && !fake_log_has(&fp, "[UPSTREAM]"));
     CHECK(fake_log_has(&fp, "(zxv-swarm-disc3-vision.img): attach it"));
-    CHECK(!fake_log_has(&fp, "zxvd"));
+    CHECK(!fake_log_has(&fp, "zxv-get"));
     /* neither file: nothing is expected, nothing reported */
     CHECK(index_up(0, 0, 0) == 2);
     CHECK(s.nwant == 0 && !fake_log_has(&fp, "[SWARM_MISSING]"));
@@ -726,7 +726,7 @@ static void test_upstream(void)
         int ok = n == 2 && fake_log_has(&fp, up[i].log) && s.cid[0] == 0 && s.ipns[0] == 0 &&
                  !fake_log_has(&fp, "[UPSTREAM]") &&
                  fake_log_has(&fp, "(zxv-swarm-disc3-vision.img): attach it") &&
-                 !fake_log_has(&fp, "zxvd");
+                 !fake_log_has(&fp, "zxv-get");
         if (!ok) printf("  upstream case %u: %s\n", i, up[i].text);
         CHECK(ok);
     }

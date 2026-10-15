@@ -30,7 +30,7 @@ same check in the `uefi-disc` job.
 
 ## Golden discs: models and assets on the discs
 
-The golden discs carry everything, so nothing is downloaded: the AI models in
+The golden discs carry everything the OS needs offline: the AI models in
 `build_system/golden.models` (Qwen2.5-1.5B-Instruct and Qwen2.5-0.5B-Instruct,
 Q4_K_M, both Apache-2.0) and the asset folders in `build_system/golden.contents`
 (licences, music, and fonts, boot sounds, brand and app icons once those land
@@ -87,6 +87,64 @@ minutes per arch with small test files as the models, one on a core disc and
 one on a swarm disc: intact, they must verify; with one byte changed on a
 disc, it must be caught. CI runs it in the `uefi-disc` job. The Golden disc
 workflow builds the real discs and boots them with 4 GB and with 8 GB of RAM.
+
+### The bucket, and downloading the discs
+
+All the discs together make one release bucket, an IPFS directory. Disc 1 is
+the only one tied to an architecture; the swarm discs stack on top of any of
+them, so a person downloads one core disc and all the swarm discs:
+
+```
+manifest.json                       every disc: arch, size, SHA-256, CID
+00_base/zxv-x86_64-disc1-core.img   one core disc per architecture
+00_base/zxv-arm64-disc1-core.img
+01_swarm_reason/zxv-swarm-disc2-reason.img
+02_swarm_<group>/...                one directory per swarm disc, in disc order
+NN_cartridges/...                   after the swarm discs, when there are any
+```
+
+`python3 build_system/mk_bucket.py` lays out the discs in `dist/discs` as
+`build/bucket` and prints the root CID that `ipfs add -r --cid-version=1`
+would give it, computed the way Kubo does (checked against Kubo 0.32.1 by
+`mk_bucket.py --self-test`). It adds nothing to IPFS and publishes nothing;
+uploading is the owner's call.
+
+To download, with nothing but Python 3:
+
+```bash
+git clone https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0.git
+ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get                 # this machine's core disc + all swarm discs
+ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get --arch arm64    # another architecture
+ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get --list          # what the bucket holds
+```
+
+`zxv-get` uses a local IPFS node if one runs (`ipfs cat`), else a public
+gateway one raw block at a time, hashing every block against its CID, so a
+gateway cannot change a byte. Then it checks each disc against
+`manifest.json` (size and SHA-256) and against the CID the bucket's
+directory gives it, and deletes any disc that fails. Discs already present
+with the right SHA-256 are kept. The script also works on its own, without
+the clone: pass the bucket with `--cid`.
+
+Which bucket. `build_system/zxv_upstream.cid` holds the master bucket's CID,
+and each core disc carries it as `/ZXV/UPSTREAM.CID`, together with
+`/ZXV/SWARM.LST`, the swarm discs it expects. A CID never changes, so a new
+release is a new CID, and a core disc cannot carry the CID of the bucket
+that holds it. Updates therefore follow an IPNS name the owner signs (an
+`ipns k51...` line in that file, once the owner makes the key); `zxv-get`
+resolves it through a local node and otherwise falls back to the CID. At
+boot the x86_64 kernel prints `[UPSTREAM] bucket <cid>`, then
+`[SWARM_MISSING] disc 3 ZXV_SWARM_VISION (zxv-swarm-disc3-vision.img): attach
+it, or fetch it from the upstream bucket (zxv-get)` for each expected disc not
+attached, or `[SWARM_COMPLETE]`. Fetching the missing discs from inside the
+OS needs the bare-metal network stack and user-space zxvd
+([gaps 23 and 18](BAREMETAL_OS_GAPS.md)); until then they come from
+`zxv-get` on any computer.
+
+`python3 build_system/test_bucket.py` builds a small bucket, serves it from a
+local gateway and downloads it, then checks that a changed block, a manifest
+that lies about a size, SHA-256, CID, path or architecture, and a disc over
+1.8 GB are all refused.
 
 The kernel does not yet run the discs' models on bare metal: it checks them,
 and runs its built-in swarm and tensor self-check (`[AI_OK]`). A riscv64 core

@@ -1,0 +1,471 @@
+#!/usr/bin/env python3
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+"""zxv-get - download the ZXV golden discs for your machine from the bucket.
+
+    tools/zxv-get                      core disc for this machine + every swarm disc
+    tools/zxv-get --arch arm64         another architecture's core disc
+    tools/zxv-get --list               what the bucket holds, download nothing
+    tools/zxv-get --core-only          only the core disc (it boots alone)
+
+Disc 1, the core disc, is the only one tied to an architecture (x86_64,
+arm64, riscv64); the swarm discs 2..N are the same for all and stack on top
+of it. Each is at most 1.8 GB.
+
+Where from. The bucket is the CID in build_system/zxv_upstream.cid (the one
+the core discs carry), or --cid. If that file names an IPNS key (or --ipns
+is given) and a local IPFS node is running, the newest bucket is resolved
+through it; a public gateway cannot prove an IPNS answer here, so without a
+node the CID is used and that is said.
+
+How. With a local node (`ipfs` on PATH and its daemon or repo usable, or
+--ipfs), files come through `ipfs cat`, which checks every block. Otherwise
+from a gateway (--gateway, default https://trustless-gateway.link), one raw
+block at a time: each block is hashed and must match its CID before it is
+used, so the gateway cannot change a byte. Either way every disc is then
+checked against manifest.json (size and SHA-256) and against the CID the
+bucket's directory gives it. A disc already present with the right SHA-256
+is kept, not fetched again. A failed disc is deleted, never left behind.
+
+Needs only Python 3.8+. Writes into --out (default ./zxv-discs).
+"""
+
+import argparse
+import concurrent.futures
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import urllib.request
+
+B32 = "abcdefghijklmnopqrstuvwxyz234567"
+RAW, DAG_PB = 0x55, 0x70
+FORMAT = "zxv-bucket 1"
+CID_RE = re.compile(r"b[a-z2-7]{20,120}")
+IPNS_RE = re.compile(r"k[0-9a-z]{20,120}")
+NAME_RE = re.compile(r"[A-Za-z0-9._+-]{1,200}")
+ARCHS = ("x86_64", "arm64", "riscv64")
+
+
+class Fail(Exception):
+    pass
+
+
+# ---- CIDs, dag-pb, UnixFS ----------------------------------------------------
+
+
+def b32decode(s):
+    acc, bits, out = 0, 0, bytearray()
+    for ch in s:
+        i = B32.find(ch)
+        if i < 0:
+            raise Fail("'%s' is not base32" % s)
+        acc = (acc << 5) | i
+        bits += 5
+        if bits >= 8:
+            bits -= 8
+            out.append((acc >> bits) & 0xFF)
+    return bytes(out)
+
+
+def b32encode(b):
+    acc, bits, out = 0, 0, []
+    for x in b:
+        acc = (acc << 8) | x
+        bits += 8
+        while bits >= 5:
+            bits -= 5
+            out.append(B32[(acc >> bits) & 31])
+    if bits:
+        out.append(B32[(acc << (5 - bits)) & 31])
+    return "b" + "".join(out)
+
+
+def uvarint(b, i):
+    v, shift = 0, 0
+    while True:
+        if i >= len(b) or shift > 63:
+            raise Fail("truncated varint")
+        x = b[i]
+        i += 1
+        v |= (x & 0x7F) << shift
+        if not x & 0x80:
+            return v, i
+        shift += 7
+
+
+def parse_cid(cb):
+    """Binary CIDv1 -> (codec, sha256 digest). Only sha2-256 is accepted."""
+    ver, i = uvarint(cb, 0)
+    codec, i = uvarint(cb, i)
+    mh, i = uvarint(cb, i)
+    ln, i = uvarint(cb, i)
+    if ver != 1 or codec not in (RAW, DAG_PB) or mh != 0x12 or ln != 32 or len(cb) != i + 32:
+        raise Fail("unsupported CID (want CIDv1, raw or dag-pb, sha2-256)")
+    return codec, cb[i:]
+
+
+def cid_text(cb):
+    return b32encode(cb)
+
+
+def cid_bin(s):
+    if not CID_RE.fullmatch(s):
+        raise Fail("'%s' is not a base32 CIDv1" % s)
+    cb = b32decode(s[1:])
+    parse_cid(cb)
+    return cb
+
+
+def fields(b):
+    """Protobuf fields of b: [(number, value)], value bytes or int."""
+    out, i = [], 0
+    while i < len(b):
+        key, i = uvarint(b, i)
+        num, wt = key >> 3, key & 7
+        if wt == 0:
+            v, i = uvarint(b, i)
+        elif wt == 2:
+            n, i = uvarint(b, i)
+            if i + n > len(b):
+                raise Fail("truncated protobuf field")
+            v, i = b[i:i + n], i + n
+        else:
+            raise Fail("unexpected protobuf wire type %d" % wt)
+        out.append((num, v))
+    return out
+
+
+def pb_node(block):
+    """dag-pb block -> (links [(name, cid_bin)], unixfs type, inline data)."""
+    links, data = [], b""
+    for num, v in fields(block):
+        if num == 2:
+            h, name = None, ""
+            for n2, v2 in fields(v):
+                if n2 == 1:
+                    h = bytes(v2)
+                elif n2 == 2:
+                    name = bytes(v2).decode("utf-8")
+            if h is None:
+                raise Fail("dag-pb link without a hash")
+            links.append((name, h))
+        elif num == 1:
+            data = bytes(v)
+    typ, inline = None, b""
+    for num, v in fields(data):
+        if num == 1:
+            typ = v
+        elif num == 2:
+            inline = bytes(v)
+    return links, typ, inline
+
+
+# ---- sources -----------------------------------------------------------------
+
+
+class Gateway:
+    def __init__(self, url, jobs):
+        self.url = url.rstrip("/")
+        self.jobs = jobs
+
+    def block(self, cb):
+        """The block for cb, refused unless its SHA-256 matches the CID."""
+        _, digest = parse_cid(cb)
+        req = urllib.request.Request("%s/ipfs/%s?format=raw" % (self.url, cid_text(cb)),
+                                     headers={"Accept": "application/vnd.ipld.raw"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = r.read(4 * 1024 * 1024 + 1)
+        except OSError as e:
+            raise Fail("gateway: %s: %s" % (cid_text(cb), e))
+        if hashlib.sha256(data).digest() != digest:
+            raise Fail("gateway sent a block that does not match its CID %s" % cid_text(cb))
+        return data
+
+    def lookup(self, root, path):
+        cb = root
+        for part in path:
+            links, typ, _ = pb_node(self.dir_block(cb))
+            hit = [h for n, h in links if n == part]
+            if len(hit) != 1:
+                raise Fail("'%s' is not in the bucket" % "/".join(path))
+            cb = hit[0]
+        return cb
+
+    def dir_block(self, cb):
+        codec, _ = parse_cid(cb)
+        if codec != DAG_PB:
+            raise Fail("%s is a file, not a directory" % cid_text(cb))
+        block = self.block(cb)
+        _, typ, _ = pb_node(block)
+        if typ == 5:
+            raise Fail("HAMT-sharded directories are not supported (the bucket is small)")
+        if typ != 1:
+            raise Fail("%s is not a UnixFS directory" % cid_text(cb))
+        return block
+
+    def write(self, cb, out, sink):
+        """Stream the file under cb into out, in order, fetching a node's
+        children in parallel."""
+        codec, _ = parse_cid(cb)
+        data = self.block(cb)
+        self._emit(codec, data, out, sink)
+
+    def _emit(self, codec, data, out, sink):
+        if codec == RAW:
+            out.write(data)
+            sink(len(data))
+            return
+        links, typ, inline = pb_node(data)
+        if typ not in (0, 2):
+            raise Fail("not a UnixFS file node")
+        if inline:
+            out.write(inline)
+            sink(len(inline))
+        kids = [h for _, h in links]
+        with concurrent.futures.ThreadPoolExecutor(self.jobs) as ex:
+            for h, blk in zip(kids, ex.map(self.block, kids)):
+                self._emit(parse_cid(h)[0], blk, out, sink)
+
+    def read(self, cb, cap):
+        buf = bytearray()
+
+        class Out:
+            def write(self, b):
+                if len(buf) + len(b) > cap:
+                    raise Fail("%s is larger than %d bytes" % (cid_text(cb), cap))
+                buf.extend(b)
+
+        self.write(cb, Out(), lambda n: None)
+        return bytes(buf)
+
+
+class Node:
+    """A local IPFS node: it verifies every block itself."""
+
+    def __init__(self, exe):
+        self.exe = exe
+
+    def run(self, *args, **kw):
+        try:
+            return subprocess.run([self.exe] + list(args), check=True, **kw)
+        except (OSError, subprocess.CalledProcessError) as e:
+            raise Fail("ipfs %s: %s" % (" ".join(args), e))
+
+    def lookup(self, root, path):
+        p = "/ipfs/%s/%s" % (cid_text(root), "/".join(path))
+        r = self.run("resolve", p, stdout=subprocess.PIPE, text=True)
+        return cid_bin(r.stdout.strip().rsplit("/", 1)[-1])
+
+    def write(self, cb, out, sink):
+        p = subprocess.Popen([self.exe, "cat", "/ipfs/" + cid_text(cb)], stdout=subprocess.PIPE)
+        while True:
+            chunk = p.stdout.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            sink(len(chunk))
+        if p.wait() != 0:
+            raise Fail("ipfs cat %s failed" % cid_text(cb))
+
+    def read(self, cb, cap):
+        out = self.run("cat", "/ipfs/" + cid_text(cb), stdout=subprocess.PIPE).stdout
+        if len(out) > cap:
+            raise Fail("%s is larger than %d bytes" % (cid_text(cb), cap))
+        return out
+
+    def resolve(self, name):
+        r = self.run("name", "resolve", "/ipns/" + name, stdout=subprocess.PIPE, text=True)
+        return r.stdout.strip().rsplit("/", 1)[-1]
+
+
+# ---- the bucket --------------------------------------------------------------
+
+
+def machine_arch():
+    m = platform.machine().lower()
+    return {"x86_64": "x86_64", "amd64": "x86_64", "arm64": "arm64", "aarch64": "arm64",
+            "riscv64": "riscv64"}.get(m)
+
+
+def read_upstream(path):
+    up = {"cid": None, "ipns": None}
+    if not os.path.isfile(path):
+        return up
+    for raw in open(path, encoding="ascii"):
+        f = raw.split("#", 1)[0].split()
+        if len(f) == 2 and f[0] in up:
+            up[f[0]] = f[1]
+    return up
+
+
+def check_manifest(m):
+    if not isinstance(m, dict) or m.get("format") != FORMAT:
+        raise Fail("manifest.json is not a '%s' manifest" % FORMAT)
+    cap = m.get("max_disc_bytes")
+    st = m.get("stages")
+    if not isinstance(cap, int) or not isinstance(st, list) or not st:
+        raise Fail("manifest.json has no stages")
+    for s in st:
+        ok = (isinstance(s, dict) and isinstance(s.get("dir"), str) and NAME_RE.fullmatch(s["dir"])
+              and isinstance(s.get("file"), str) and NAME_RE.fullmatch(s["file"])
+              and s["file"] not in (".", "..") and s["dir"] not in (".", "..")
+              and s.get("kind") in ("core", "swarm", "cartridge")
+              and (s.get("arch") in ARCHS if s.get("kind") == "core" else s.get("arch") == "all")
+              and isinstance(s.get("bytes"), int) and 0 <= s["bytes"] <= cap
+              and isinstance(s.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", s["sha256"])
+              and isinstance(s.get("cid"), str) and CID_RE.fullmatch(s["cid"]))
+        if not ok:
+            raise Fail("manifest.json: bad stage %r" % (s,))
+    return st
+
+
+def pick(stages, arch, core_only):
+    cores = [s for s in stages if s["kind"] == "core"]
+    mine = [s for s in cores if s["arch"] == arch]
+    if not mine:
+        have = " ".join(sorted(s["arch"] for s in cores)) or "none"
+        raise Fail("this bucket has no core disc for %s (it has: %s)" % (arch, have))
+    if core_only:
+        return mine[:1]
+    rest = [s for s in stages if s["kind"] != "core"]
+    rest.sort(key=lambda s: (s["kind"] != "swarm", s.get("disc", 0), s["dir"], s["file"]))
+    return mine[:1] + rest
+
+
+def sha_of(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def fetch(src, root, s, outdir, quiet):
+    dst = os.path.join(outdir, s["file"])
+    label = "%s/%s" % (s["dir"], s["file"])
+    if os.path.isfile(dst) and os.path.getsize(dst) == s["bytes"] and sha_of(dst) == s["sha256"]:
+        print("  have   %s (sha256 matches)" % label)
+        return
+    cb = src.lookup(root, [s["dir"], s["file"]])
+    if cid_text(cb) != s["cid"]:
+        raise Fail("%s: the bucket's directory gives CID %s, manifest.json says %s"
+                   % (label, cid_text(cb), s["cid"]))
+    part = dst + ".part"
+    h, got = hashlib.sha256(), [0]
+
+    class Hashing:
+        def __init__(self, f):
+            self.f = f
+
+        def write(self, b):
+            if got[0] + len(b) > s["bytes"]:
+                raise Fail("%s: longer than manifest.json's %d bytes" % (label, s["bytes"]))
+            h.update(b)
+            self.f.write(b)
+
+    def progress(n):
+        got[0] += n
+        if not quiet and sys.stderr.isatty():
+            sys.stderr.write("\r  fetch  %s %d%%" % (label, got[0] * 100 // max(s["bytes"], 1)))
+
+    try:
+        with open(part, "wb") as f:
+            src.write(cb, Hashing(f), progress)
+        if not quiet and sys.stderr.isatty():
+            sys.stderr.write("\n")
+        if got[0] != s["bytes"]:
+            raise Fail("%s: %d bytes, manifest.json says %d" % (label, got[0], s["bytes"]))
+        if h.hexdigest() != s["sha256"]:
+            raise Fail("%s: sha256 differs from manifest.json" % label)
+        os.replace(part, dst)
+    except BaseException:
+        if os.path.exists(part):
+            os.remove(part)
+        raise
+    print("  ok     %s %d bytes, sha256 matches" % (label, s["bytes"]))
+
+
+def main():
+    here = os.path.dirname(os.path.abspath(__file__))
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog="\n".join(__doc__.split("\n")[2:]))
+    ap.add_argument("--arch", choices=ARCHS, help="core disc to fetch (default: this machine)")
+    ap.add_argument("--cid", help="bucket root CID (default: build_system/zxv_upstream.cid)")
+    ap.add_argument("--ipns", help="IPNS name to resolve through a local node")
+    ap.add_argument("--upstream", default=os.path.join(here, "..", "build_system", "zxv_upstream.cid"))
+    ap.add_argument("--gateway", default="https://trustless-gateway.link")
+    ap.add_argument("--ipfs", nargs="?", const="ipfs", metavar="EXE",
+                    help="use a local IPFS node (default when `ipfs` works)")
+    ap.add_argument("--no-ipfs", action="store_true", help="use the gateway even if a node exists")
+    ap.add_argument("--jobs", type=int, default=8, help="parallel block fetches from a gateway")
+    ap.add_argument("--out", default="zxv-discs")
+    ap.add_argument("--core-only", action="store_true")
+    ap.add_argument("--list", action="store_true")
+    ap.add_argument("--quiet", action="store_true")
+    a = ap.parse_args()
+    try:
+        up = read_upstream(a.upstream)
+        node = None
+        exe = a.ipfs or (None if a.no_ipfs else shutil.which("ipfs"))
+        if exe:
+            try:
+                subprocess.run([exe, "id"], check=True, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=30)
+                node = Node(exe)
+            except (OSError, subprocess.SubprocessError):
+                if a.ipfs:
+                    raise Fail("the IPFS node '%s' is not usable (is its daemon running?)" % exe)
+        ipns = a.ipns or (None if a.cid else up["ipns"])
+        if ipns and not IPNS_RE.fullmatch(ipns):
+            raise Fail("'%s' is not an IPNS name (k51...)" % ipns)
+        root = a.cid
+        if ipns and node:
+            root = node.resolve(ipns)
+            print("bucket: ipns %s -> %s (resolved by the local node)" % (ipns, root))
+        else:
+            if ipns:
+                print("bucket: no local IPFS node to resolve ipns %s safely; using the CID" % ipns)
+            root = root or up["cid"]
+            if not root:
+                raise Fail("no bucket: pass --cid, or run from a checkout with "
+                           "build_system/zxv_upstream.cid")
+            print("bucket: %s" % root)
+        rb = cid_bin(root)
+        src = node or Gateway(a.gateway, max(1, a.jobs))
+        print("from:   %s" % ("the local IPFS node" if node else a.gateway + " (every block checked)"))
+        man = src.read(src.lookup(rb, ["manifest.json"]), 1 << 20)
+        try:
+            stages = check_manifest(json.loads(man.decode("utf-8")))
+        except ValueError:
+            raise Fail("manifest.json is not JSON")
+        if a.list:
+            for s in stages:
+                print("  %-18s %-36s %-8s %11d" % (s["dir"], s["file"], s["arch"], s["bytes"]))
+            return 0
+        arch = a.arch or machine_arch()
+        if not arch:
+            raise Fail("cannot tell this machine's architecture (%s); pass --arch" % platform.machine())
+        todo = pick(stages, arch, a.core_only)
+        os.makedirs(a.out, exist_ok=True)
+        print("arch:   %s, %d disc(s) into %s" % (arch, len(todo), a.out))
+        for s in todo:
+            fetch(src, rb, s, a.out, a.quiet)
+    except Fail as e:
+        print("zxv-get: %s" % e, file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+    print("done: write disc 1 to a USB stick or boot it in a VM; attach the swarm discs, or let")
+    print("the OS fetch them later (docs/BAREMETAL.md, Golden discs)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

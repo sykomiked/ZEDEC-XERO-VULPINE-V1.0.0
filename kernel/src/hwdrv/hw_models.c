@@ -468,7 +468,7 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
         hw_line_s(&m, s->want[w].group);
         hw_line_s(&m, " (");
         hw_line_s(&m, s->want[w].image);
-        hw_line_s(&m, s->cid[0] ? "): attach it, or zxvd fetches it from the upstream bucket"
+        hw_line_s(&m, s->cid[0] ? "): attach it, or fetch it from the upstream bucket (zxv-get)"
                                 : "): attach it");
         p->log(m.b);
     }
