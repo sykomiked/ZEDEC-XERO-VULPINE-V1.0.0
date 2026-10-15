@@ -72,7 +72,7 @@ static uint32_t class_of(const uint8_t *s)
 
 bool alx_language_ok(uint32_t l)
 {
-    return (l >= 1 && l <= 99) || (l >= 101 && l <= 120);
+    return (l >= 1 && l <= 99) || (l >= 101 && l <= 199);
 }
 
 static const uint8_t *book_rec(const alx_t *t, uint32_t i)

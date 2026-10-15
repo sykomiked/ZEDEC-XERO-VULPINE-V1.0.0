@@ -9,8 +9,8 @@
 
 int alx_grid_build(alx_grid_t *g, const alx_t *t)
 {
+    if (g) g->t = 0; /* a failed build leaves nothing to resolve against */
     if (!g || !t || !t->tbl) return ALX_E_FORM;
-    g->t = 0;
     for (uint32_t i = 0; i < 900; i++) g->count[i] = 0;
     /* count per place, then the start of each place's run */
     for (uint32_t s = 1; s <= t->slots; s++) {
@@ -57,7 +57,7 @@ int alx_grid_word(const alx_t *t, uint32_t slot, uint32_t format, uint32_t langu
 
 int alx_grid_resolve(const alx_grid_t *g, uint64_t word, alx_grid_hit_t *h)
 {
-    if (!g || !g->t || !h) return ALX_E_FORM;
+    if (!g || !g->t || !g->t->tbl || !h) return ALX_E_FORM;
     uint32_t domain = (uint32_t) (word >> 56), place = (uint32_t) (word >> 40) & 0xFFFFu,
              item = (uint32_t) (word >> 32) & 0xFFu, ext = (uint32_t) (word >> 16) & 0xFFFFu,
              format = (uint32_t) (word >> 8) & 0xFFu, language = (uint32_t) word & 0xFFu;
