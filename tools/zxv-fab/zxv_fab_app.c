@@ -10,7 +10,7 @@
  *
  *   zxv-fab pack-app MANIFEST OUT --pk PK --sk SK [--root DIR] [--blocks DIR]...
  *           [--prev FORM] [--form FILE] [--store DIR] [--tsv FILE] [--layer N]
- *           [--window N]
+ *           [--window N] [--api ZXVD-OPENRPC]
  *   zxv-fab unpack-app RECIPE OUTDIR --store STORE [--trust PK]... [--tsv FILE]
  *           [--layer N] [--check "ENTRY NAME=V[:V...],... = ANSWER"]...
  *
@@ -30,7 +30,9 @@
  * version, manifest CID, recipe CID, layer; the row for an id and version
  * is replaced when the manifest is the same and refused when it differs.
  * --layer N checks the matrix rule (F7), taking each part's layer from the
- * --tsv rows.
+ * --tsv rows. The app's view and model C (and the model's header) must have
+ * no floating point, and every zxvd method they call (zxm_begin) must be in
+ * the zxvd spec (--api, default <root>/../../api/zxvd.openrpc.json).
  *
  * unpack-app checks the recipe, fetches and checks every block, rebuilds
  * the form, and runs the gate with this tool's runtimes (KRON, Eve, Sutra,
@@ -359,6 +361,87 @@ static const char *c_float(const char *s, uint32_t n, uint32_t *line)
     return 0;
 }
 
+/* ---- the zxvd methods an app's C calls ---------------------------------------------- */
+
+static const char *API = 0; /* --api, else <root>/../../api/zxvd.openrpc.json */
+static char *SPEC;
+static uint32_t SPEC_N;
+
+/* a method is in the spec when the spec names it: "name": "<method>" */
+static bool in_spec(const char *m, uint32_t ml)
+{
+    if (!SPEC) {
+        char path[4096];
+        if (API)
+            snprintf(path, sizeof path, "%s", API);
+        else if (snprintf(path, sizeof path, "%s/../../api/zxvd.openrpc.json", ROOT) >=
+                 (int) sizeof path)
+            die("path too long");
+        FILE *f = fopen(path, "rb");
+        if (!f) {
+            fprintf(stderr,
+                    "zxv-fab: an app calls zxvd, and the zxvd spec %s cannot be read; give --api\n",
+                    path);
+            exit(1);
+        }
+        fclose(f);
+        SPEC = (char *) read_file(path, &SPEC_N, MAX_FILE);
+    }
+    for (uint32_t i = 0; i + ml + 10u <= SPEC_N; i++)
+        if (!memcmp(SPEC + i, "\"name\": \"", 9) && !memcmp(SPEC + i + 9, m, ml) &&
+            SPEC[i + 9 + ml] == '"')
+            return true;
+    return false;
+}
+
+/* Every zxm_begin(link, "<method>") must name a method in the zxvd spec,
+ * so a check that reaches zxvd resolves; all that do not are listed. */
+static void methods_in_spec(const char *field, const char *path, const char *text, uint32_t n)
+{
+    /* comments become spaces; strings and character constants stay */
+    char *s = malloc(n ? n : 1u);
+    if (!s) die("out of memory");
+    memcpy(s, text, n);
+    for (uint32_t i = 0; i < n;) {
+        if (s[i] == '"' || s[i] == '\'') {
+            char q = s[i++];
+            while (i < n && s[i] != q && s[i] != '\n') i += s[i] == '\\' ? 2u : 1u;
+            i++;
+        } else if (s[i] == '/' && i + 1 < n && s[i + 1] == '/') {
+            while (i < n && s[i] != '\n') s[i++] = ' ';
+        } else if (s[i] == '/' && i + 1 < n && s[i + 1] == '*') {
+            for (; i < n && !(s[i] == '*' && i + 1 < n && s[i + 1] == '/'); i++)
+                if (s[i] != '\n') s[i] = ' ';
+            for (uint32_t e = i + 2u; i < n && i < e; i++) s[i] = ' ';
+        } else {
+            i++;
+        }
+    }
+    uint32_t missing = 0;
+    for (uint32_t i = 0; i + 10u < n; i++) {
+        if (memcmp(s + i, "zxm_begin", 9) != 0 || (i && ident_ch(s[i - 1])) || ident_ch(s[i + 9]))
+            continue;
+        uint32_t k = i + 9;
+        while (k < n && s[k] != ',' && s[k] != ')' && s[k] != ';') k++;
+        if (k >= n || s[k] != ',') continue; /* the declaration, or a method held in a variable */
+        k++;
+        while (k < n && (s[k] == ' ' || s[k] == '\t' || s[k] == '\n')) k++;
+        if (k >= n || s[k] != '"') continue;
+        uint32_t b = ++k;
+        while (k < n && s[k] != '"' && s[k] != '\n') k++;
+        if (k >= n || s[k] != '"' || k == b) continue;
+        if (!in_spec(s + b, k - b)) {
+            fprintf(
+                stderr,
+                "zxv-fab: the %s %s calls zxvd method %.*s, which the zxvd spec does not have\n",
+                field, path, (int) (k - b), s + b);
+            missing++;
+        }
+    }
+    free(s);
+    if (missing) exit(1);
+}
+
 /* F8 on the sender's side: an app's view and model are C built into the
  * image, not carried by the recipe, so they are checked here, before
  * anything is signed (the runtimes refuse floats in logic, R11). */
@@ -377,6 +460,7 @@ static void no_floats(const char *field, const char *path)
                 field, path, (unsigned) line, f);
         exit(1);
     }
+    methods_in_spec(field, path, (const char *) b, n);
     free(b);
     /* a model's header goes with it */
     uint32_t pl = (uint32_t) strlen(full);
@@ -658,6 +742,8 @@ int cmd_pack_app(int argc, char **argv)
             skp = argv[++i];
         else if (!strcmp(argv[i], "--root") && i + 1 < argc)
             ROOT = argv[++i];
+        else if (!strcmp(argv[i], "--api") && i + 1 < argc)
+            API = argv[++i];
         else if (!strcmp(argv[i], "--blocks") && i + 1 < argc && ndirs < MAX_DIRS)
             dirs[ndirs++] = argv[++i];
         else if (!strcmp(argv[i], "--prev") && i + 1 < argc)
@@ -679,7 +765,8 @@ int cmd_pack_app(int argc, char **argv)
     }
     if (np != 2 || !pkp || !skp)
         die("usage: pack-app MANIFEST OUT --pk PK --sk SK [--root DIR] [--blocks DIR]... "
-            "[--prev FORM] [--form FILE] [--store DIR] [--tsv FILE] [--layer N] [--window N]");
+            "[--prev FORM] [--form FILE] [--store DIR] [--tsv FILE] [--layer N] [--window N] "
+            "[--api ZXVD-OPENRPC]");
     if (layer != APPFAB_NO_LAYER && !tsv) die("--layer needs --tsv (the parts' layers)");
     for (uint32_t i = 0; i < ndirs; i++) scan_dir(dirs[i]);
     if (tsv) tsv_read(tsv);

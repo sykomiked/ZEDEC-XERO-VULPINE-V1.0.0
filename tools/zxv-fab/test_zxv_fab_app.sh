@@ -151,6 +151,18 @@ for c in '/* 1.5 double */ int x;' '// float 2.0' 'const char *s = "3.25 float";
 done
 printf 'double h;\n' > "$D/f/m/good.h"
 [ "$(fl good 'int x;')" = 1 ] && grep -q "header" "$D/err" || no "a float in the model's header"; ok
+# every zxvd method the C calls is in the zxvd spec
+API="$SRC/../../api/zxvd.openrpc.json"
+[ "$(fl good 'int f(zxm_link_t *l) { zxm_begin(l, "swarm.state"); return 0; }')" = 1 ] && grep -q "give --api" "$D/err" || no "a zxvd call with no spec to check it"; ok
+rm -f "$D/f/m/good.h"
+K0=$K; K="$K --api $API"
+[ "$(fl good 'int f(zxm_link_t *l) { zxm_begin(l, "swarm.state"); return 0; }')" = 0 ] || no "a method in the spec: $(cat "$D/err")"; ok
+[ "$(fl bad 'int f(zxm_link_t *l) { zxm_begin(l, "swarm.state"); zxm_begin(l,
+    "place.teleport"); zxm_begin(l, "screen.melt"); return 0; }')" = 1 ] || no "methods not in the spec"; ok
+grep -q "calls zxvd method place.teleport" "$D/err" && grep -q "calls zxvd method screen.melt" "$D/err" || no "every missing method is named: $(cat "$D/err")"; ok
+grep -q "swarm.state" "$D/err" && no "a method in the spec reported missing"; ok
+[ "$(fl good 'void zxm_begin(zxm_link_t *l, const char *method); /* zxm_begin(l, "x.y") */')" = 0 ] || no "a declaration is not a call"; ok
+K=$K0
 # the runtimes refuse floats in logic (R11): Eve has no float type, and Z-Wasm
 # refuses an f32 module that loads as i32
 sed 's/^cents = 0 .. 100000000$/cents = float/' "$SRC/apps/blocks/fee_check/fee_ok.eve" > "$D/f/m/e.eve"

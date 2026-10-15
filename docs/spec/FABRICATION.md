@@ -375,6 +375,11 @@ stopped in two places:
 
 A generated app that "passes its tests with floats" cannot reach a recipe.
 
+**zxvd calls are specified.** Every zxvd method that an app's view or model
+calls (`zxm_begin(link, "<method>")`) must be in `api/zxvd.openrpc.json`
+(or the file given with `--api`). Otherwise `pack-app` names each missing
+method and signs nothing.
+
 **The matrix.** `appfab_fit_layered` (and `pack-app --layer`) enforce the
 Zeckendorf lineage rule, the same rule as the matrix's `alx_mx_draws` and
 pack_matrix `lineage()`, checked against the golden table
