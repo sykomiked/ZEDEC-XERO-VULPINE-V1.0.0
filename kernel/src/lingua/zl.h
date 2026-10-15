@@ -303,6 +303,19 @@ int zl_pack(const zl_prog_t *p, char *out, size_t cap, size_t *out_len);
 int zl_unpack(const char *src, size_t len, zl_prog_t *p, zl_diag_t *d);
 const char *zl_op_name(int op); /* "PUSH"; "?" when out of range */
 
+/* Projections (zl_proj.c, docs/spec/ALPHABET.md): write a verified program
+ * out as source for another target. The numbers are Alexandria language
+ * numbers: Forth 3, C 101, x86-64 assembly 121. C and x86-64 run on zxp_rt
+ * and match zl_run exactly (output, fuel, trap and trapping instruction);
+ * Forth matches its output and whether it ends or stops. An instruction a
+ * target does not take is refused (ZL_E_UNSUPPORTED), and so are list
+ * programs (62-bit words). `name` is the C or assembly function name. */
+enum { ZL_PROJ_FORTH = 3, ZL_PROJ_C = 101, ZL_PROJ_X86_64 = 121 };
+int zl_project(int target, const zl_prog_t *p, const char *name, char *out, size_t cap,
+               size_t *out_len, zl_diag_t *d);
+/* Whether a target takes an instruction. */
+int zl_project_op(int target, int op);
+
 /* Optional record of every number the program printed, in order, so the
  * same algorithm written in different languages can be compared by value
  * even when their print formats differ. */

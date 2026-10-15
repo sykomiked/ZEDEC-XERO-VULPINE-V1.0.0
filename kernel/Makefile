@@ -392,6 +392,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-lingua
 	$(MAKE) --no-print-directory test-lingua-ref
+	$(MAKE) --no-print-directory test-lingua-proj
 	$(MAKE) --no-print-directory test-babel
 	$(MAKE) --no-print-directory test-alexandria
 	$(MAKE) --no-print-directory test-policy
@@ -1813,6 +1814,18 @@ test-lingua:
 	@sh src/lingua/check_catalogue.sh
 test-lingua-ref:
 	@sh src/lingua/ref_check.sh
+
+# Projections out of the IR (zl_proj.c, docs/spec/ALPHABET.md): C and x86-64
+# run on zxp_rt and must match zl_run exactly; Forth must print the same
+# under Lingua's Forth front-end and under gforth when it is installed.
+.PHONY: test-lingua-proj
+LINGUA_PROJ_N ?= 600
+test-lingua-proj:
+	@rm -rf $(ZXV_TMP)/proj && mkdir -p $(ZXV_TMP)/proj/forth
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/test_zl_proj.c $(LINGUA_SRC) -o $(ZXV_TMP)/test_zl_proj && $(ZXV_TMP)/test_zl_proj src/lingua/golden $(ZXV_TMP)/proj $(LINGUA_PROJ_N) 1 src/lingua/alphabet.tsv > $(ZXV_TMP)/test_zl_proj.log 2>&1 && echo "[PASS] test_zl_proj ($$(tail -1 $(ZXV_TMP)/test_zl_proj.log))" || { cat $(ZXV_TMP)/test_zl_proj.log; echo "[FAIL] test_zl_proj"; exit 1; }
+	@gcc -std=c11 -O0 -Wall -Wextra -Werror -Wno-unused-label -Isrc/lingua -I$(ZXV_TMP)/proj src/lingua/zxp_driver.c src/lingua/zxp_rt.c $(ZXV_TMP)/proj/cases_c.c $(ZXV_TMP)/proj/cases_x86.s $(ZXV_TMP)/proj/cases_data.c -o $(ZXV_TMP)/proj/zxp_driver && $(ZXV_TMP)/proj/zxp_driver > $(ZXV_TMP)/zxp_driver.log 2>&1 && echo "[PASS] C and x86-64 projections match zl_run ($$(tail -1 $(ZXV_TMP)/zxp_driver.log))" || { cat $(ZXV_TMP)/zxp_driver.log; echo "[FAIL] zxp_driver"; exit 1; }
+	@sh src/lingua/proj_gforth.sh $(ZXV_TMP)/proj
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c src/lingua/zxp_rt.c -o $(ZXV_TMP)/zxp_rt_a64.o && gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c src/lingua/zxp_rt.c -o $(ZXV_TMP)/zxp_rt_x64.o && ! nm -u $(ZXV_TMP)/zxp_rt_a64.o $(ZXV_TMP)/zxp_rt_x64.o | grep ' U ' && echo "[PASS] zxp_rt freestanding (aarch64-none-elf, x86_64)" || { echo "[FAIL] zxp_rt is not freestanding"; exit 1; }
 
 # Babel (src/babel, docs/BABEL.md): the bridges between languages and systems.
 # bv.c is the Babel value every runtime meets in, with one canonical encoding;
