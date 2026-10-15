@@ -133,6 +133,19 @@ treadle	check next_run start=480,480 period=60,60 now=481,1440 = both
 treadle	check budget_ok cost=0,999999999,10,10,-1 left=0,999999999,-1,0,0 = true,true,false,true,false
 treadle	check budget_ok cost=10,1000000000 left=0,0 = both
 treadle	check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
+vintner	check sale_value bottles=0,1,12,999999999 price=0,1500,2499,999999999 = 0,1500,29988,999999998000000001
+vintner	check sale_value bottles=1,1000000000 price=1,1 = both
+vintner	check sale_value bottles=1,1 price=1,1000000000 = both
+vintner	check flow_gap before=1000000,750000,600000,100,0 after=750000,600000,598500,90,0 loss=250000,150000,1500,5,1 = 0,0,0,5,-1
+vintner	check probe_tenths raw=-880 = -550
+vintner	check probe_tenths raw=2000 = 1250
+vintner	check probe_tenths raw=0 = 0
+vintner	check probe_tenths raw=-1 = -1
+vintner	check probe_tenths raw=200 = 125
+vintner	check probe_tenths raw=2001 = both
+vintner	check probe_tenths raw=-881 = both
+vintner	check lot_ok lot=1,999999999,1000000000,7,7 vintage=2024,9999,2024,10000,2024 stage=1,4,1,1,10 bottles=0,999999999,0,0,0 volume=0,999999999999,0,0,0 = true,true,false,false,false
+vintner	check coffer.balance before=0,100 moved=2499,-100 = 2499,0
 wake	check count level=0,3,5,2 bar=3 = 2
 wake	check count level=0,3 bar=1,2 = both
 warren	check change_ok owner=1,1,1,1,1,0,0,1 regulated=0,0,1,1,1,0,1,1 approved=0,0,0,1,0,1,1,0 enable=1,0,1,1,0,1,1,0 = true,true,false,true,true,false,false,true

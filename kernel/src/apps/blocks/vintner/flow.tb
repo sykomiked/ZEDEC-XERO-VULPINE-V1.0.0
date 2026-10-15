@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! Volume through one stage of the cellar (vintner_model.h VN2), in
+! Trebago: what came in (before) minus what went on (after) minus what
+! was lost on the way, in millilitres, one stage per row, exact. 0 is a
+! stage that conserves its volume; anything else is unaccounted for. A
+! result past 64 bits is refused, never wrapped.
+trebago gap
+  in  before(n), after(n), loss(n)
+  out gap(n)
+  gap(i) = before(i) - after(i) - loss(i)
+end

@@ -122,3 +122,7 @@
 85	num.warren_backoff	590.34	warren.backoff	base
 86	logic.warren_change_ok	490.41	warren.change_ok	base
 87	logic.warren_record_ok	490.42	warren.record_ok	base
+88	num.vintner_flow_gap	590.35	vintner.flow_gap	base
+89	logic.vintner_lot_ok	490.43	vintner.lot_ok	base
+90	num.vintner_probe_tenths	590.36	vintner.probe_tenths	base
+91	num.vintner_sale_value	590.37	vintner.sale_value	base

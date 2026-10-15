@@ -93,7 +93,11 @@
 #define ALX_SLOT_NUM_WARREN_BACKOFF              85u /* 590.34 warren.backoff */
 #define ALX_SLOT_LOGIC_WARREN_CHANGE_OK          86u /* 490.41 warren.change_ok */
 #define ALX_SLOT_LOGIC_WARREN_RECORD_OK          87u /* 490.42 warren.record_ok */
-#define ALX_SLOT__COUNT 87u
+#define ALX_SLOT_NUM_VINTNER_FLOW_GAP            88u /* 590.35 vintner.flow_gap */
+#define ALX_SLOT_LOGIC_VINTNER_LOT_OK            89u /* 490.43 vintner.lot_ok */
+#define ALX_SLOT_NUM_VINTNER_PROBE_TENTHS        90u /* 590.36 vintner.probe_tenths */
+#define ALX_SLOT_NUM_VINTNER_SALE_VALUE          91u /* 590.37 vintner.sale_value */
+#define ALX_SLOT__COUNT 91u
 /* clang-format on */
 
 #endif

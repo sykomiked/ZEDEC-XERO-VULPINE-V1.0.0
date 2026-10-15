@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Vintner files a lot in MYRA (vintner_model.h VN4): its lot number,
+; its vintage (the harvest year), its stage (1 harvest, 2 must, 3 barrel,
+; 4 bottled), the bottles filled and the volume it holds now, in ml.
+^ZXVINTNER(lot:i9) = vintage:i4! ^ stage:i1! ^ bottles:i9! ^ volume:i12!

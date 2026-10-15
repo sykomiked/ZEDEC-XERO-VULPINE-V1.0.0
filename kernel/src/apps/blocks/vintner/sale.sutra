@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a sale is worth, in Sutra: bottles * price, the price per bottle in
+# integer minor units of the books' currency (cents for USD). Bottles and
+# price fit 9(9), so a larger or a negative one is a size error: refused,
+# never cut short. sale.cpp says the same in C++ (as WebAssembly), which
+# answers to 64 bits: past nine digits the two disagree and it is held.
+record vintner-sale
+  bottles: 9(9)
+  price: 9(9)
+  worth: 9(18)
+procedure
+  compute worth = bottles * price
+  answer worth
