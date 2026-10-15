@@ -751,6 +751,50 @@ static void test_geez(void)
     CHECK(strcmp(DOC, "1") == 0, "geez: digits pass");
 }
 
+static void test_signs(void)
+{
+    const zui_ime_engine_t *xsux = zui_ime_for_script("Xsux");
+    setup(xsux);
+    feed_chars("ka2 ");
+    CHECK(strcmp(DOC, "\U0001218D") == 0, "signs: ka2 is a cuneiform sign (%s)", DOC);
+    reset_app();
+    feed_chars("a ");
+    CHECK(strcmp(DOC, "\U00012000") == 0, "signs: a (%s)", DOC);
+    setup(zui_ime_for_script("Egyp"));
+    feed_chars("a001 ");
+    CHECK(strcmp(DOC, "\U00013000") == 0, "signs: Gardiner A001 (%s)", DOC);
+    setup(zui_ime_for_script("Linb"));
+    feed_chars("a ");
+    CHECK(strcmp(DOC, "\U00010000") == 0, "signs: Linear B a (%s)", DOC);
+    reset_app();
+    feed_chars("b008 ");
+    CHECK(strcmp(DOC, "\U00010000") == 0, "signs: Linear B by Bennett's number (%s)", DOC);
+    setup(zui_ime_for_script("Goth"));
+    feed_chars("ahsa ");
+    CHECK(strcmp(DOC, "\U00010330") == 0, "signs: Gothic ahsa (%s)", DOC);
+    setup(zui_ime_for_script("Runr"));
+    feed_chars("fehu ");
+    CHECK(strcmp(DOC, "\u16A0") == 0, "signs: a rune by one of its names (%s)", DOC);
+    reset_app();
+    feed_chars("feoh ");
+    CHECK(strcmp(DOC, "\u16A0") == 0, "signs: a rune by another (%s)", DOC);
+    setup(zui_ime_for_script("Copt"));
+    feed_chars("alfa");
+    CHECK(IME.ncand >= 2, "signs: Coptic small and capital alfa");
+    CHECK(!zui_ime_for_script("Latn") && !zui_ime_for_script(0), "signs: none for Latin");
+    CHECK(zui_ime_for_locale("akk") == xsux && zui_ime_for_locale("sux") == xsux &&
+              zui_ime_for_locale("egy") == zui_ime_for_script("Egyp") &&
+              zui_ime_for_locale("arc-Nbat") == zui_ime_for_script("Nbat") &&
+              zui_ime_for_locale("arc") == zui_ime_for_script("Armi") &&
+              zui_ime_for_locale("gmy") == zui_ime_for_script("Linb") &&
+              zui_ime_for_locale("got") == zui_ime_for_script("Goth"),
+          "signs: the historical locales");
+    CHECK(zui_ime_for_locale("gez") == &zui_ime_geez &&
+              zui_ime_for_locale("lzh") == &zui_ime_pinyin_hant && !zui_ime_for_locale("la") &&
+              !zui_ime_for_locale("sa"),
+          "for locale: Ge'ez, Classical Chinese; Latin and Sanskrit type directly");
+}
+
 static void test_for_locale(void)
 {
     CHECK(zui_ime_for_locale("zh-Hans") == &zui_ime_pinyin &&
@@ -782,6 +826,7 @@ int main(void)
     test_kana();
     test_hangul();
     test_geez();
+    test_signs();
     test_for_locale();
     printf("%s test_zui_ime: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;

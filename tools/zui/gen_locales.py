@@ -53,19 +53,33 @@ NOUNS = ["item", "character", "token", "percent"]
 CATS = ["zero", "one", "two", "few", "many", "other"]
 REVIEW = {"source": "ZUI_REVIEW_SOURCE", "unreviewed": "ZUI_REVIEW_MACHINE",
           "reviewed": "ZUI_REVIEW_NATIVE"}
+# Scripts written right to left, for a locale CLDR has no layout for.
+RTL_SCRIPTS = {"Arab", "Hebr", "Syrc", "Thaa", "Nkoo", "Adlm", "Rohg", "Mand", "Samr", "Armi",
+               "Phnx", "Nbat", "Palm", "Hatr", "Elym", "Prti", "Phli", "Phlp", "Avst", "Sarb",
+               "Narb", "Mani", "Chrs", "Khar", "Lydi", "Mero", "Merc", "Sogd", "Sogo", "Hung",
+               "Orkh", "Cprt", "Yezi", "Mend"}
+# Plural rules for languages CLDR gives none, so their counts can agree with
+# the number. Not CLDR data: Latin's singular, Sanskrit's singular and dual.
+PLURALS = {"la": {"pluralRule-count-one": "n = 1 @integer 1",
+                  "pluralRule-count-other": " @integer 0, 2~16, 100, 1000"},
+           "sa": {"pluralRule-count-one": "n = 1 @integer 1",
+                  "pluralRule-count-two": "n = 2 @integer 2",
+                  "pluralRule-count-other": " @integer 0, 3~17, 100, 1000"}}
 
 # Choices CLDR does not make for us. The list separator joins the parts of a
 # spoken announcement (clauses, not an enumeration), so it is the script's
 # comma rather than CLDR's list pattern where those differ.
 LIST_SEP = {"zh-Hans": "，", "zh-Hant": "，", "yue": "，", "ja": "、", "th": " ",
-            "my": "၊ ", "nqo": "߸ "}
+            "my": "၊ ", "nqo": "߸ ", "lzh": "，"}
 ARABIC_COMMA_SCRIPTS = {"Arab", "Thaa"}
 ETHIOPIC_COMMA = "፣ "
 # Own names where CLDR has none or this project already shipped another.
-NAMES = {"id": "Bahasa Indonesia", "dv": "ދިވެހިބަސް", "iu": "ᐃᓄᒃᑎᑐᑦ"}
+NAMES = {"id": "Bahasa Indonesia", "dv": "ދިވެހިބަސް", "iu": "ᐃᓄᒃᑎᑐᑦ", "la": "Lingua Latina",
+         "grc": "Ἀρχαία Ἑλληνική", "ang": "Ænglisc", "lzh": "文言", "ota": "لسان عثمانی",
+         "pi": "Pāli", "cu": "Церковнословѣнскїй"}
 # Legacy and macro-language tags that name a locale here.
 ALIASES = [("iw", "he"), ("in", "id"), ("tl", "fil"), ("no", "nb"), ("mo", "ro"),
-           ("sh", "sr"), ("ji", "")]
+           ("sh", "sr"), ("ji", ""), ("syc", "syr")]
 
 
 def fetch(cldr):
@@ -179,8 +193,9 @@ def main():
             if line.startswith("#") or not line.strip():
                 continue
             cols = line.rstrip("\n").split("\t")
+            cols += [""] * (7 - len(cols))
             langs.append({"tag": cols[0], "english": cols[1], "script": cols[2],
-                          "group": cols[3]})
+                          "group": cols[3], "data": cols[5], "ui": cols[6] or "full"})
 
     plurals = load(cldr, "cldr-core", "supplemental", "plurals.json")["supplemental"][
         "plurals-type-cardinal"]
@@ -198,13 +213,28 @@ def main():
     rows, words_c, samples = [], [], []
     en_words = None
 
+    def main_file(pkg, name, chain):
+        """The first locale of chain with this CLDR file, and the file."""
+        for t in chain:
+            path = os.path.join(cldr, pkg, "main", t, name)
+            if os.path.exists(path):
+                return t, load(cldr, pkg, "main", t, name)["main"][t]
+        raise SystemExit(f"{chain[0]}: no {pkg} {name}")
+
     for L in langs:
         tag = L["tag"]
         base = tag.split("-")[0]
-        sub = likely.get(tag) or likely[base]
-        region = sub.split("-")[-1]
-        # plural rule
-        pr = plurals.get(tag) or plurals.get(base) or {"pluralRule-count-other": ""}
+        script_only = L["ui"] == "script"
+        if L["ui"] not in ("full", "script"):
+            raise SystemExit(f"{tag}: ui is 'script' or empty")
+        chain = [t for t in (tag, L["data"], "und") if t]
+        sub = likely.get(tag) or likely.get(base) or likely.get(L["data"] or "und")
+        region = sub.split("-")[-1] if re.fullmatch(r"[A-Z]{2}|\d{3}", sub.split("-")[-1]) else "001"
+        # plural rule (the English rule for English words)
+        pr = (plurals["en"] if script_only else
+              PLURALS.get(tag) or plurals.get(tag) or plurals.get(base) or
+              plurals.get(L["data"]) or plurals.get(L["data"].split("-")[0]) or
+              {"pluralRule-count-other": ""})
         key = json.dumps({k: v.split("@")[0].strip() for k, v in pr.items()}, sort_keys=True)
         ids = [r[0] for r in rules]
         if len(pr) == 1:
@@ -214,14 +244,16 @@ def main():
         else:
             rules.append((key, pr))
             rid = len(rules) - 1
-        for k, v in pr.items():
+        for k, v in pr.items() if not script_only else ():
             cat = k.split("-")[-1]
             for n in integer_samples(v):
                 samples.append((tag, n, cat))
         # numbers
-        num = load(cldr, "cldr-numbers-full", "main", tag, "numbers.json")["main"][tag]["numbers"]
+        num = main_file("cldr-numbers-full", "numbers.json", chain)[1]["numbers"]
         dflt = num["defaultNumberingSystem"]
         native = num["otherNumberingSystems"].get("native", dflt)
+        if numsystems[native]["_type"] != "numeric":  # Ge'ez numerals are not positional
+            native = dflt
         pat = num[f"decimalFormats-numberSystem-{dflt}"]["standard"].split(";")[0]
         ip = pat.split(".")[0]
         groups = ip.split(",")
@@ -238,17 +270,17 @@ def main():
         # calendar and dates
         cal = "gregorian"
         pref = calpref.get(region, calpref["001"])
-        for c in (pref.split() if isinstance(pref, str) else pref):
+        for c in ((pref.split() if isinstance(pref, str) else pref) if not script_only else []):
             if c in ("gregorian", "persian", "buddhist"):
                 cal = c
                 break
-        greg = load(cldr, "cldr-dates-full", "main", tag, "ca-gregorian.json")["main"][tag][
-            "dates"]["calendars"]["gregorian"]
+        dtag, greg = main_file("cldr-dates-full", "ca-gregorian.json", chain)
+        greg = greg["dates"]["calendars"]["gregorian"]
         if cal == "gregorian":
             dcal = greg
         else:
             pkg = f"cldr-cal-{cal}-full"
-            dcal = load(cldr, pkg, "main", tag, f"ca-{cal}.json")["main"][tag]["dates"][
+            dcal = load(cldr, pkg, "main", dtag, f"ca-{cal}.json")["main"][dtag]["dates"][
                 "calendars"][cal]
         def pattern(p):
             return p["_value"] if isinstance(p, dict) else p
@@ -263,15 +295,22 @@ def main():
         except FileNotFoundError:
             names = {}
         name = NAMES.get(tag) or names.get(tag) or names.get(base)
+        if script_only and not NAMES.get(tag):
+            name = L["english"]  # the words are English, so is the name
         if tag == "zh-Hans":
             name = "简体中文"
         elif tag == "zh-Hant":
             name = "繁體中文"
         if not name:
             raise SystemExit(f"{tag}: no name")
-        layout = load(cldr, "cldr-misc-full", "main", tag, "layout.json")["main"][tag]["layout"]
-        rtl = layout["orientation"]["characterOrder"] == "right-to-left"
-        if tag in LIST_SEP:
+        if os.path.exists(os.path.join(cldr, "cldr-misc-full", "main", tag, "layout.json")):
+            layout = load(cldr, "cldr-misc-full", "main", tag, "layout.json")["main"][tag]["layout"]
+            rtl = layout["orientation"]["characterOrder"] == "right-to-left"
+        else:
+            rtl = L["script"] in RTL_SCRIPTS
+        if script_only:
+            sep = ", "
+        elif tag in LIST_SEP:
             sep = LIST_SEP[tag]
         elif L["script"] in ARABIC_COMMA_SCRIPTS:
             sep = "، "
@@ -281,6 +320,14 @@ def main():
             sep = ", "
         first = days[week["firstDay"].get(region, week["firstDay"]["001"])]
         # words
+        if script_only:
+            if os.path.exists(os.path.join(LOC_DIR, "words", f"{tag}.json")):
+                raise SystemExit(f"{tag}: has words, so its ui is not 'script'")
+            rows.append(dict(tag=tag, name=name, rtl=rtl, rule=rid, first=days[week["firstDay"].get(
+                region, week["firstDay"]["001"])], cal=cal, g1=g1, g2=g2, ming=ming, nums=nums,
+                date=date, time=time, am=am, pm=pm, sep=sep, cid="en", script=L["script"],
+                region=region, review="ZUI_REVIEW_UNTRANSLATED"))
+            continue
         with open(os.path.join(LOC_DIR, "words", f"{tag}.json"), encoding="utf-8") as f:
             w = json.load(f)
         if list(w["words"]) != WORD_KEYS:

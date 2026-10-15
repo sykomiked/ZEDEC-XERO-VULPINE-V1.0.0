@@ -2,7 +2,9 @@
 # locale	zui layout id	xkeyboard-config source (only for layouts made from it)	name
 # Layouts with no source column are zui's own (zui_keymap.c) or made by an earlier line.
 # Chinese, Cantonese, Japanese, Korean, Amharic and Tigrinya type Latin letters;
-# their input method (zui_ime_for_locale) composes the script from them.
+# their input method (zui_ime_for_locale) composes the script from them. So do
+# the historical scripts with no layout of their own (cuneiform, hieroglyphs,
+# Linear B, Gothic, ...): their input method picks signs by Unicode name.
 # A row whose locale is - only makes a layout (the Ethiopic one, for people who
 # type Ge'ez consonants directly).
 en	us	
@@ -110,3 +112,23 @@ iu	ca-ike	ca(ike)
 se	no-smi	no(smi)
 ht	us-intl	
 -	et	et
+la	latn-hist	
+ang	latn-hist	
+pi	latn-hist	
+sga	latn-hist	
+goh	latn-hist	
+enm	latn-hist	
+fro	latn-hist	
+pro	latn-hist	
+non	latn-hist	
+grc	gr-polytonic	gr(polytonic)
+hbo	il-biblical	il(biblical)
+syr	sy-syc	sy(syc)
+cu	ru-chu	ru(chu)	Church Slavonic
+pgl	ie-ogam	ie(ogam)
+sa	in-hi	
+ota	ir	
+xcl	am	
+oge	ge	
+xct	cn-tib	
+lzh	us	

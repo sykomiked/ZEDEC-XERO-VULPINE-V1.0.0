@@ -189,6 +189,8 @@ bool zui_ime_table_text(zui_ime_t *ime, uint32_t cp);
 void zui_ime_table_commit(zui_ime_t *ime);
 void zui_ime_table_cancel(zui_ime_t *ime);
 void zui_ime_table_select(zui_ime_t *ime, uint32_t i);
+/* Looks the letters typed so far up again, after an engine changed them. */
+void zui_ime_table_refresh(zui_ime_t *ime);
 
 /* ---- M6: the input methods of languages (zui_ime_lang.c) ------------------------ */
 /* Pinyin and Jyutping: the table engine over single Han characters from the
@@ -214,6 +216,17 @@ extern const zui_ime_engine_t zui_ime_hangul;
  * the wa form (lWa is ሏ); a vowel alone gives the አ row, ` then a vowel the
  * ዐ row, and `s `h `S give ሠ ኀ ፀ. : is ፡, :: is ።, , is ፣ and ; is ፤. */
 extern const zui_ime_engine_t zui_ime_geez;
+/* M7 Historical scripts with no layout of their own (cuneiform, Egyptian and
+ * Anatolian hieroglyphs, Linear A and B, Old Persian, Ugaritic, Phoenician,
+ * the Aramaic scripts, Gothic, runes, Coptic, Glagolitic, Brahmi, ... 50
+ * scripts, tools/zui/gen_ime_signs.py) are typed by their Unicode sign
+ * names, without the script's prefix: letters and digits, so digits are
+ * part of the name (ka2, a001, b008) and a candidate is chosen with Space,
+ * the arrows or Enter on the list. A catalogue number alone is a key too
+ * (Linear B a or b008), as is each name of a runic letter (fehu, feoh, f).
+ * zui_ime_for_script gives the engine of an ISO 15924 script, or NULL;
+ * zui_ime_for_locale gives it for the locales written in those scripts. */
+const zui_ime_engine_t *zui_ime_for_script(const char *script);
 /* The input method a locale types with (whole tag, then its language), or 0
  * when its keyboard layout types it directly. */
 const zui_ime_engine_t *zui_ime_for_locale(const char *tag);

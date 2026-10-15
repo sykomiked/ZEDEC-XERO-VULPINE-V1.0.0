@@ -1,10 +1,12 @@
 # Spoken languages in the user space
 
 ZXV's user space aims to speak as many human languages as it has programming
-languages. The first step is 104 languages in 37 scripts. They were picked
-by number of speakers and by script coverage, including languages of the
-Global South and Indigenous languages. This page lists each one and what
-works in it today.
+languages. It has 183 locales: 104 living languages in 37 scripts, picked by
+number of speakers and by script coverage (including languages of the
+Global South and Indigenous languages), and 79 ancient and historical
+languages, from Latin, Sanskrit and Classical Chinese to Akkadian cuneiform,
+Egyptian hieroglyphs and Linear B. This page lists each one and what works
+in it today.
 
 ## What a language needs
 
@@ -40,6 +42,9 @@ should start.
 
 **Voice** is English only for now (`zui_voicectl`), so it is not repeated in
 the table.
+
+The living languages are in the first table; the ancient and historical
+languages have [their own section](#ancient-and-historical-languages).
 
 | Tag | Language | Script | Direction | ASCW Golden face | Keyboard | Shaping |
 |---|---|---|---|---|---|---|
@@ -149,7 +154,7 @@ the table.
 | ht | Haitian Creole | Latn | LTR | Golden Latin II | `nv` | none needed |
 
 The keyboard column is the layout `zui_keymap_for_locale` picks
-(`tools/zui/locales/KEYBOARDS.tsv`). 70 of the layouts are generated from
+(`tools/zui/locales/KEYBOARDS.tsv`). 75 of the layouts are generated from
 xkeyboard-config by `tools/zui/gen_keymaps.py`: InScript for the Indic
 scripts, the national layouts, and the community layouts for Cherokee,
 Inuktitut, N'Ko, Tifinagh, Māori, Hawaiian, Northern Sami, Yoruba, Hausa,
@@ -158,6 +163,131 @@ Xhosa, Navajo, Haitian Creole) or `us` have no national layout of their own
 in xkeyboard-config; `us-intl` reaches most of their letters through dead
 keys. A layout keeps at most eight dead keys, so a few rare ones on the
 Czech, Slovak, Hungarian and similar layouts type nothing yet.
+
+## Ancient and historical languages
+
+79 locales are for languages no one speaks natively today. They come in two
+kinds:
+
+- **Translated (9).** Latin, Ancient Greek, Sanskrit, Pali, Church Slavonic,
+  Old English, Classical Chinese, Ottoman Turkish and Classical Syriac have a
+  vocabulary for modern things (the Vatican's Latin lexicon, the Wikipedias
+  written in these languages, liturgical use), so the screen reader's words
+  are translated. Like every translation here they are machine-made and
+  unreviewed (`ZUI_REVIEW_MACHINE`) until a scholar of the language checks
+  them.
+- **Display and input only (70).** For Akkadian, Sumerian, Egyptian,
+  Mycenaean Greek and the rest there is no vocabulary for a user interface,
+  so nothing was invented. These locales give the script its ASCW Golden
+  face, its direction and a way to type it, and the screen reader's words
+  stay English. `zui_locale_review()` reports `ZUI_REVIEW_UNTRANSLATED` and
+  settings should say "script only" next to them.
+
+Where CLDR has no data for a language (it has Latin, Sanskrit, Pali, Church
+Slavonic, Ge'ez, Syriac and Coptic), its numbers and dates come from the
+`data` column of `LANGUAGES.tsv` (Greek for Ancient Greek, Traditional
+Chinese for Classical Chinese, CLDR's root locale for the script-only ones).
+Latin and Sanskrit get plural rules CLDR does not have (Sanskrit's dual), so
+counts agree with the number. A tag with a script subtag (`arc-Nbat`,
+`cu-Glag`, `sa-Sidd`) is its own locale.
+
+**Typing.** Latin, Old English, Pali, Old Norse and the medieval Latin-script
+languages use `latn-hist`: AltGr gives æ þ ð ƿ ȝ ſ œ ǫ ę, and dead keys
+give the macron (AltGr -), dot below (AltGr ;), dot above (AltGr =) and
+acute (AltGr '). Ancient Greek, Biblical Hebrew, Syriac, Church Slavonic and
+Ogham use their xkeyboard-config layouts. Fifty scripts with no layout of
+their own are typed by their Unicode sign names (`zui_ime.h` M7,
+`tools/zui/gen_ime_signs.py`): `ka2` gives the cuneiform sign KA2, `a001` the
+hieroglyph A1 of Gardiner's list, `a` or `b008` the Linear B syllable A,
+`fehu` the rune ᚠ.
+
+**Not covered.** Old Uyghur has no ASCW face yet (no OFL font could be
+fetched). Tangut and Khitan have faces but no input method: their signs
+have numbers, not names, in Unicode. Maya hieroglyphs, Linear Elamite, the
+Indus script and Rongorongo are not in Unicode, so nothing can show them
+yet.
+
+| Tag | Language | Script | Direction | ASCW Golden face | Keyboard | Shaping | Reader words |
+|---|---|---|---|---|---|---|---|
+| la | Latin | Latn | LTR | Golden Latin II | `latn-hist` | none needed | translated, unreviewed |
+| grc | Ancient Greek | Grek | LTR | Golden Greek | `gr-polytonic` | none needed | translated, unreviewed |
+| sa | Sanskrit | Deva | LTR | Golden Devanagari | `in-hi` | done | translated, unreviewed |
+| pi | Pali | Latn | LTR | Golden Latin II | `latn-hist` | none needed | translated, unreviewed |
+| cu | Church Slavonic | Cyrl | LTR | Golden Cyrillic | `ru-chu` | none needed | translated, unreviewed |
+| ang | Old English | Latn | LTR | Golden Latin II | `latn-hist` | none needed | translated, unreviewed |
+| lzh | Classical Chinese | Hant | LTR | Golden Chinese Traditional | `us` + Pinyin (`zui_ime_pinyin_hant`) | none needed | translated, unreviewed |
+| ota | Ottoman Turkish | Arab | RTL | Golden Arabic | `ir` | done (joining) | translated, unreviewed |
+| syr | Syriac | Syrc | RTL | Golden Syriac | `sy-syc` | done (joining) | translated, unreviewed |
+| gez | Geez | Ethi | LTR | Golden Ethiopic | `us` + Ge'ez syllables (`zui_ime_geez`) | none needed | display and input only (words in English) |
+| cop | Coptic | Copt | LTR | Golden Coptic | `us` + sign names (`signs-copt`) | none needed | display and input only (words in English) |
+| hbo | Biblical Hebrew | Hebr | RTL | Golden Hebrew | `il-biblical` | none needed | display and input only (words in English) |
+| arc | Imperial Aramaic | Armi | RTL | Golden Aramaic | `us` + sign names (`signs-armi`) | none needed | display and input only (words in English) |
+| arc-Nbat | Nabataean Aramaic | Nbat | RTL | Golden Nabataean | `us` + sign names (`signs-nbat`) | none needed | display and input only (words in English) |
+| arc-Palm | Palmyrene Aramaic | Palm | RTL | Golden Palmyrene | `us` + sign names (`signs-palm`) | none needed | display and input only (words in English) |
+| arc-Hatr | Hatran Aramaic | Hatr | RTL | Golden Hatran | `us` + sign names (`signs-hatr`) | none needed | display and input only (words in English) |
+| arc-Elym | Elymaic Aramaic | Elym | RTL | Golden Elymaic | `us` + sign names (`signs-elym`) | none needed | display and input only (words in English) |
+| myz | Classical Mandaic | Mand | RTL | Golden Mandaic | `us` + sign names (`signs-mand`) | done (joining) | display and input only (words in English) |
+| akk | Akkadian | Xsux | LTR | Golden Cuneiform | `us` + sign names (`signs-xsux`) | none needed | display and input only (words in English) |
+| sux | Sumerian | Xsux | LTR | Golden Cuneiform | `us` + sign names (`signs-xsux`) | none needed | display and input only (words in English) |
+| hit | Hittite | Xsux | LTR | Golden Cuneiform | `us` + sign names (`signs-xsux`) | none needed | display and input only (words in English) |
+| elx | Elamite | Xsux | LTR | Golden Cuneiform | `us` + sign names (`signs-xsux`) | none needed | display and input only (words in English) |
+| xur | Urartian | Xsux | LTR | Golden Cuneiform | `us` + sign names (`signs-xsux`) | none needed | display and input only (words in English) |
+| egy | Ancient Egyptian | Egyp | LTR | Golden Egyptian Hieroglyphs | `us` + sign names (`signs-egyp`) | none needed | display and input only (words in English) |
+| peo | Old Persian | Xpeo | LTR | Golden Old Persian | `us` + sign names (`signs-xpeo`) | none needed | display and input only (words in English) |
+| uga | Ugaritic | Ugar | LTR | Golden Ugaritic | `us` + sign names (`signs-ugar`) | none needed | display and input only (words in English) |
+| phn | Phoenician | Phnx | RTL | Golden Phoenician | `us` + sign names (`signs-phnx`) | none needed | display and input only (words in English) |
+| gmy | Mycenaean Greek | Linb | LTR | Golden Linear B | `us` + sign names (`signs-linb`) | none needed | display and input only (words in English) |
+| lab | Linear A | Lina | LTR | Golden Linear A | `us` + sign names (`signs-lina`) | none needed | display and input only (words in English) |
+| grc-Cprt | Arcadocypriot Greek | Cprt | RTL | Golden Cypriot | `us` + sign names (`signs-cprt`) | none needed | display and input only (words in English) |
+| und-Cpmn | Cypro-Minoan | Cpmn | LTR | Golden Cypro Minoan | `us` + sign names (`signs-cpmn`) | none needed | display and input only (words in English) |
+| ett | Etruscan | Ital | LTR | Golden Old Italic | `us` + sign names (`signs-ital`) | none needed | display and input only (words in English) |
+| osc | Oscan | Ital | LTR | Golden Old Italic | `us` + sign names (`signs-ital`) | none needed | display and input only (words in English) |
+| xum | Umbrian | Ital | LTR | Golden Old Italic | `us` + sign names (`signs-ital`) | none needed | display and input only (words in English) |
+| xlc | Lycian | Lyci | LTR | Golden Lycian | `us` + sign names (`signs-lyci`) | none needed | display and input only (words in English) |
+| xld | Lydian | Lydi | RTL | Golden Lydian | `us` + sign names (`signs-lydi`) | none needed | display and input only (words in English) |
+| xcr | Carian | Cari | LTR | Golden Carian | `us` + sign names (`signs-cari`) | none needed | display and input only (words in English) |
+| hlu | Hieroglyphic Luwian | Hluw | LTR | Golden Anatolian Hieroglyphs | `us` + sign names (`signs-hluw`) | none needed | display and input only (words in English) |
+| xmr | Meroitic | Mero | RTL | Golden Meroitic | `us` + sign names (`signs-mero`) | none needed | display and input only (words in English) |
+| onw | Old Nubian | Copt | LTR | Golden Coptic | `us` + sign names (`signs-copt`) | none needed | display and input only (words in English) |
+| otk | Old Turkic | Orkh | RTL | Golden Old Turkic | `us` + sign names (`signs-orkh`) | none needed | display and input only (words in English) |
+| sog | Sogdian | Sogd | RTL | Golden Sogdian | `us` + sign names (`signs-sogd`) | done (joining) | display and input only (words in English) |
+| sog-Sogo | Old Sogdian | Sogo | RTL | Golden Old Sogdian | `us` + sign names (`signs-sogo`) | done (joining) | display and input only (words in English) |
+| xpr | Parthian | Prti | RTL | Golden Inscriptional Parthian | `us` + sign names (`signs-prti`) | none needed | display and input only (words in English) |
+| pal | Middle Persian | Phli | RTL | Golden Inscriptional Pahlavi | `us` + sign names (`signs-phli`) | none needed | display and input only (words in English) |
+| pal-Phlp | Psalter Pahlavi | Phlp | RTL | Golden Psalter Pahlavi | `us` + sign names (`signs-phlp`) | done (joining) | display and input only (words in English) |
+| xmn | Manichaean Middle Persian | Mani | RTL | Golden Manichaean | `us` + sign names (`signs-mani`) | done (joining) | display and input only (words in English) |
+| ae | Avestan | Avst | RTL | Golden Avestan | `us` + sign names (`signs-avst`) | none needed | display and input only (words in English) |
+| xco | Chorasmian | Chrs | RTL | Golden Chorasmian | `us` + sign names (`signs-chrs`) | done (joining) | display and input only (words in English) |
+| xsa | Sabaean | Sarb | RTL | Golden Old South Arabian | `us` + sign names (`signs-sarb`) | none needed | display and input only (words in English) |
+| xna | Ancient North Arabian | Narb | RTL | Golden Old North Arabian | `us` + sign names (`signs-narb`) | none needed | display and input only (words in English) |
+| smp | Samaritan Hebrew | Samr | RTL | Golden Samaritan | `us` + sign names (`signs-samr`) | none needed | display and input only (words in English) |
+| pra | Prakrit | Brah | LTR | Golden Brahmi | `us` + sign names (`signs-brah`) | reordering not yet | display and input only (words in English) |
+| pgd | Gandhari | Khar | RTL | Golden Kharoshthi | `us` + sign names (`signs-khar`) | reordering not yet | display and input only (words in English) |
+| sa-Sidd | Sanskrit (Siddham) | Sidd | LTR | Golden Siddham | `us` + sign names (`signs-sidd`) | reordering not yet | display and input only (words in English) |
+| sa-Shrd | Sanskrit (Sharada) | Shrd | LTR | Golden Sharada | `us` + sign names (`signs-shrd`) | reordering not yet | display and input only (words in English) |
+| sa-Gran | Sanskrit (Grantha) | Gran | LTR | Golden Grantha | `us` + sign names (`signs-gran`) | reordering not yet | display and input only (words in English) |
+| kaw | Old Javanese | Kawi | LTR | Golden Kawi | `us` + sign names (`signs-kawi`) | reordering not yet | display and input only (words in English) |
+| xct | Classical Tibetan | Tibt | LTR | Golden Tibetan | `cn-tib` | none needed | display and input only (words in English) |
+| xzh | Zhang-Zhung | Marc | LTR | Golden Marchen | `us` + sign names (`signs-marc`) | reordering not yet | display and input only (words in English) |
+| cmg | Classical Mongolian | Mong | LTR | Golden Mongolian | `us` + sign names (`signs-mong`) | done (joining) | display and input only (words in English) |
+| txg | Tangut | Tang | LTR | Golden Tangut | `us` | none needed | display and input only (words in English) |
+| zkt | Khitan | Kits | LTR | Golden Khitan Small Script | `us` | none needed | display and input only (words in English) |
+| ohu | Old Hungarian | Hung | RTL | Golden Old Hungarian | `us` + sign names (`signs-hung`) | none needed | display and input only (words in English) |
+| oge | Old Georgian | Geor | LTR | Golden Georgian | `ge` | none needed | display and input only (words in English) |
+| xcl | Classical Armenian | Armn | LTR | Golden Armenian | `am` | none needed | display and input only (words in English) |
+| xag | Caucasian Albanian | Aghb | LTR | Golden Caucasian Albanian | `us` + sign names (`signs-aghb`) | none needed | display and input only (words in English) |
+| kv-Perm | Old Permic | Perm | LTR | Golden Old Permic | `us` + sign names (`signs-perm`) | none needed | display and input only (words in English) |
+| sq-Elba | Albanian (Elbasan) | Elba | LTR | Golden Elbasan | `us` + sign names (`signs-elba`) | none needed | display and input only (words in English) |
+| sq-Vith | Albanian (Vithkuqi) | Vith | LTR | Golden Vithkuqi | `us` + sign names (`signs-vith`) | none needed | display and input only (words in English) |
+| cu-Glag | Church Slavonic (Glagolitic) | Glag | LTR | Golden Glagolitic | `us` + sign names (`signs-glag`) | none needed | display and input only (words in English) |
+| got | Gothic | Goth | LTR | Golden Gothic | `us` + sign names (`signs-goth`) | none needed | display and input only (words in English) |
+| non | Old Norse | Runr | LTR | Golden Runic | `latn-hist` + sign names (`signs-runr`) | none needed | display and input only (words in English) |
+| pgl | Primitive Irish | Ogam | LTR | Golden Ogham | `ie-ogam` | none needed | display and input only (words in English) |
+| sga | Old Irish | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
+| goh | Old High German | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
+| enm | Middle English | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
+| fro | Old French | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
+| pro | Old Occitan | Latn | LTR | Golden Latin II | `latn-hist` | none needed | display and input only (words in English) |
 
 ## Gaps, in the order they will be closed
 
@@ -187,7 +317,10 @@ Czech, Slovak, Hungarian and similar layouts type nothing yet.
 
 ## Adding or fixing a language
 
-1. Add a line to `tools/zui/locales/LANGUAGES.tsv`.
+1. Add a line to `tools/zui/locales/LANGUAGES.tsv`. For a language CLDR
+   lacks, name a CLDR locale in the `data` column; for one with no
+   vocabulary for a user interface, write `script` in the `ui` column and
+   skip step 2.
 2. Copy `tools/zui/locales/words/en.json` to `<tag>.json` and translate it.
    The `counts` need the language's CLDR plural categories.
 3. Run `python3 tools/zui/gen_locales.py`. It reads CLDR 48.2.0 (downloaded

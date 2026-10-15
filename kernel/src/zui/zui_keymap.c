@@ -243,6 +243,25 @@ static const char L_NV[] = "keyboard nv Navajo\n"
                            "altgr+shift D03 Ę -- -- -- -- Į Ǫ\n"
                            "altgr+shift C01 Ą -- -- -- -- -- -- -- Ł -- ’\n";
 
+static const char L_LATN_HIST[] =
+    "keyboard latn-hist Latin (historical)\n"
+    "deadkey hmacron ¯ aā eē iī oō uū yȳ æǣ AĀ EĒ IĪ OŌ UŪ YȲ ÆǢ\n"
+    "deadkey hdotbelow ̣ tṭ dḍ nṇ lḷ mṃ rṛ sṣ hḥ TṬ DḌ NṆ LḶ MṂ RṚ SṢ HḤ\n"
+    "deadkey hdotabove ˙ nṅ cċ gġ NṄ CĊ GĠ\n"
+    "base  E00 ` 1 2 3 4 5 6 7 8 9 0 - =\n"
+    "base  D01 q w e r t y u i o p [ ] \\\n"
+    "base  C01 a s d f g h j k l ; '\n"
+    "base  B01 z x c v b n m , . /\n"
+    "shift E00 ~ ! @ # $ % ^ & * ( ) _ +\n"
+    "shift D01 Q W E R T Y U I O P { } |\n"
+    "shift C01 A S D F G H J K L : \"\n"
+    "shift B01 Z X C V B N M < > ?\n"
+    "altgr E00 -- -- -- -- -- -- -- -- -- -- -- dead:hmacron dead:hdotabove\n"
+    "altgr D01 -- ƿ ę -- þ -- -- -- ǫ\n"
+    "altgr C01 æ ſ ð -- ȝ -- -- œ -- dead:hdotbelow dead:acute\n"
+    "altgr+shift D01 -- Ƿ Ę -- Þ -- -- -- Ǫ\n"
+    "altgr+shift C01 Æ -- Ð -- Ȝ -- -- Œ\n";
+
 static const char L_UK[] = "keyboard uk English (UK)\n"
                            "base  E00 ` 1 2 3 4 5 6 7 8 9 0 - =\n"
                            "base  D01 q w e r t y u i o p [ ]\n"
@@ -430,12 +449,24 @@ static const char L_AR[] = "keyboard ar Arabic\n"
 static const struct {
     const char *id;
     const char *text;
-} BUILTIN[] = {{"us", L_US},         {"uk", L_UK},           {"us-intl", L_USINTL},
-               {"de", L_DE},         {"fr", L_FR},           {"es", L_ES},
-               {"it", L_IT},         {"pt-br", L_PTBR},      {"se", L_SE},
-               {"dvorak", L_DVORAK}, {"colemak", L_COLEMAK}, {"ru", L_RU},
-               {"gr", L_GR},         {"he", L_HE},           {"ar", L_AR},
-               {"nv", L_NV},         ZUI_KEYMAP_XKB_LAYOUTS};
+} BUILTIN[] = {{"us", L_US},
+               {"uk", L_UK},
+               {"us-intl", L_USINTL},
+               {"de", L_DE},
+               {"fr", L_FR},
+               {"es", L_ES},
+               {"it", L_IT},
+               {"pt-br", L_PTBR},
+               {"se", L_SE},
+               {"dvorak", L_DVORAK},
+               {"colemak", L_COLEMAK},
+               {"ru", L_RU},
+               {"gr", L_GR},
+               {"he", L_HE},
+               {"ar", L_AR},
+               {"nv", L_NV},
+               {"latn-hist", L_LATN_HIST},
+               ZUI_KEYMAP_XKB_LAYOUTS};
 #define BUILTIN_N (sizeof BUILTIN / sizeof BUILTIN[0])
 
 uint32_t zui_keymap_builtin_count(void)

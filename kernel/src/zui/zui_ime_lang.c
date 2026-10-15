@@ -712,6 +712,37 @@ const zui_ime_engine_t zui_ime_geez = {
     "geez", "Ge'ez syllables (SERA)", 0, geez_reset, geez_key, geez_text, geez_commit, geez_reset,
     0};
 
+/* ---- historical scripts: the table engine over sign names ------------------------ */
+
+static bool signs_key(zui_ime_t *ime, uint16_t key, uint8_t mods)
+{
+    return zui_ime_table_key(ime, key, mods);
+}
+
+/* letters and digits spell the name; Space chooses */
+static bool signs_text(zui_ime_t *ime, uint32_t cp)
+{
+    zui_ime_table_t *t = &ime->st.table;
+    if ((cp >= 'a' && cp <= 'z') || (cp >= '0' && cp <= '9' && t->n)) {
+        if (t->n < sizeof t->in - 1) {
+            t->in[t->n++] = (char) cp;
+            zui_ime_table_refresh(ime);
+        }
+        return true;
+    }
+    if (cp >= 'A' && cp <= 'Z') return signs_text(ime, cp - 'A' + 'a');
+    return zui_ime_table_text(ime, cp);
+}
+
+#include "zui_ime_signs.inc"
+
+const zui_ime_engine_t *zui_ime_for_script(const char *script)
+{
+    for (uint32_t i = 0; script && i < sizeof SCRIPT_SIGNS / sizeof SCRIPT_SIGNS[0]; i++)
+        if (sequal(SCRIPT_SIGNS[i].script, script)) return SCRIPT_SIGNS[i].eng;
+    return 0;
+}
+
 /* ---- which input method a language uses ------------------------------------------- */
 
 static const struct {
@@ -729,6 +760,8 @@ static const struct {
     {"ko", &zui_ime_hangul},
     {"am", &zui_ime_geez},
     {"ti", &zui_ime_geez},
+    {"gez", &zui_ime_geez},
+    {"lzh", &zui_ime_pinyin_hant},
 };
 
 static char low(char c)
@@ -753,5 +786,8 @@ const zui_ime_engine_t *zui_ime_for_locale(const char *tag)
     for (uint32_t pass = 0; pass < 2; pass++)
         for (uint32_t i = 0; i < sizeof LOCALE_IME / sizeof LOCALE_IME[0]; i++)
             if (tag_is(LOCALE_IME[i].tag, tag, pass ? lang : n)) return LOCALE_IME[i].eng;
+    for (uint32_t pass = 0; pass < 2; pass++)
+        for (uint32_t i = 0; i < sizeof LOCALE_SIGNS / sizeof LOCALE_SIGNS[0]; i++)
+            if (tag_is(LOCALE_SIGNS[i].tag, tag, pass ? lang : n)) return LOCALE_SIGNS[i].eng;
     return 0;
 }

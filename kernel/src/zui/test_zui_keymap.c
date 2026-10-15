@@ -27,12 +27,14 @@ enum {
     K_2 = 3,
     K_6 = 7,
     K_MINUS = 12,
+    K_EQUAL = 13,
     K_BKSP = 14,
     K_TAB = 15,
     K_Q = 16,
     K_W = 17,
     K_E = 18,
     K_R = 19,
+    K_T = 20,
     K_Y = 21,
     K_U = 22,
     K_I = 23,
@@ -319,7 +321,7 @@ static void test_builtins(void)
 {
     static zui_keymap_t k;
     uint32_t n = zui_keymap_builtin_count();
-    CHECK(n == 86, "86 built-in layouts (%u)", n);
+    CHECK(n == 92, "92 built-in layouts (%u)", n);
     for (uint32_t i = 0; i < n; i++) {
         uint32_t line = 0;
         const char *t = zui_keymap_builtin_text(i);
@@ -343,15 +345,22 @@ static void test_builtins(void)
                   zui_keymap_builtin_id(i));
     /* every locale of zui_locale types with a built-in layout */
     static const char *const LOCALES[] = {
-        "en", "es",  "fr",  "de", "pt",      "it",      "ru",  "uk", "pl", "ar",  "he",  "fa",
-        "ur", "hi",  "bn",  "ta", "zh-Hans", "zh-Hant", "ja",  "ko", "th", "vi",  "tr",  "id",
-        "sw", "am",  "yo",  "ha", "el",      "nl",      "mr",  "te", "gu", "kn",  "ml",  "pa",
-        "or", "as",  "ne",  "si", "sd",      "ps",      "sat", "dv", "ms", "fil", "jv",  "su",
-        "my", "km",  "lo",  "mn", "bo",      "yue",     "kk",  "uz", "ky", "tg",  "tk",  "az",
-        "ka", "hy",  "ckb", "ug", "ro",      "cs",      "hu",  "sv", "bg", "sr",  "hr",  "sk",
-        "da", "fi",  "nb",  "lt", "be",      "ca",      "cy",  "ga", "zu", "xh",  "ig",  "so",
-        "om", "ti",  "rw",  "mg", "sn",      "wo",      "ln",  "af", "ff", "nqo", "zgh", "qu",
-        "gn", "chr", "nv",  "mi", "haw",     "iu",      "se",  "ht"};
+        "en", "es", "fr", "de", "pt", "it", "ru", "uk", "pl", "ar", "he", "fa", "ur", "hi", "bn",
+        "ta", "zh-Hans", "zh-Hant", "ja", "ko", "th", "vi", "tr", "id", "sw", "am", "yo", "ha",
+        "el", "nl", "mr", "te", "gu", "kn", "ml", "pa", "or", "as", "ne", "si", "sd", "ps", "sat",
+        "dv", "ms", "fil", "jv", "su", "my", "km", "lo", "mn", "bo", "yue", "kk", "uz", "ky", "tg",
+        "tk", "az", "ka", "hy", "ckb", "ug", "ro", "cs", "hu", "sv", "bg", "sr", "hr", "sk", "da",
+        "fi", "nb", "lt", "be", "ca", "cy", "ga", "zu", "xh", "ig", "so", "om", "ti", "rw", "mg",
+        "sn", "wo", "ln", "af", "ff", "nqo", "zgh", "qu", "gn", "chr", "nv", "mi", "haw", "iu",
+        "se", "ht",
+        /* ancient and historical */
+        "la", "grc", "sa", "pi", "cu", "ang", "lzh", "ota", "syr", "gez", "cop", "hbo", "arc",
+        "arc-Nbat", "arc-Palm", "arc-Hatr", "arc-Elym", "myz", "akk", "sux", "hit", "elx", "xur",
+        "egy", "peo", "uga", "phn", "gmy", "lab", "grc-Cprt", "und-Cpmn", "ett", "osc", "xum",
+        "xlc", "xld", "xcr", "hlu", "xmr", "onw", "otk", "sog", "sog-Sogo", "xpr", "pal",
+        "pal-Phlp", "xmn", "ae", "xco", "xsa", "xna", "smp", "pra", "pgd", "sa-Sidd", "sa-Shrd",
+        "sa-Gran", "kaw", "xct", "xzh", "cmg", "txg", "zkt", "ohu", "oge", "xcl", "xag", "kv-Perm",
+        "sq-Elba", "sq-Vith", "cu-Glag", "got", "non", "pgl", "sga", "goh", "enm", "fro", "pro"};
     for (uint32_t i = 0; i < sizeof LOCALES / sizeof LOCALES[0]; i++)
         CHECK(zui_keymap_load(&k, zui_keymap_for_locale(LOCALES[i])), "%s types with %s",
               LOCALES[i], zui_keymap_for_locale(LOCALES[i]));
@@ -404,6 +413,37 @@ static void test_builtins(void)
     CHECK(!strcmp(zui_keymap_for_locale("nv"), "nv") &&
               !strcmp(zui_keymap_for_locale("am"), "us") && zui_keymap_load(&k, "et"),
           "Navajo has its layout; Amharic types Latin letters for its input method");
+
+    /* historical Latin: ash, thorn, eth; macron, dot below, dot above and acute */
+    zui_keymap_load(&KM, "latn-hist");
+    zui_kbd_init(&KB, &KM);
+    reset_log();
+    tap_altgr(K_A);
+    tap_altgr(K_T);
+    tap_altgr(K_D);
+    tap_altgr(K_MINUS);
+    tap(K_A);
+    tap_altgr(K_SEMI);
+    tap(K_N);
+    tap_altgr(K_EQUAL);
+    tap(K_N);
+    tap_altgr(K_APOS);
+    tap(K_O);
+    CHECK(strcmp(TYPED, "æþðāṇṅó") == 0, "historical Latin (%s)", TYPED);
+    CHECK(!strcmp(zui_keymap_for_locale("la"), "latn-hist") &&
+              !strcmp(zui_keymap_for_locale("ang"), "latn-hist") &&
+              !strcmp(zui_keymap_for_locale("grc"), "gr-polytonic") &&
+              !strcmp(zui_keymap_for_locale("hbo"), "il-biblical") &&
+              !strcmp(zui_keymap_for_locale("syr"), "sy-syc") &&
+              !strcmp(zui_keymap_for_locale("cu"), "ru-chu") &&
+              !strcmp(zui_keymap_for_locale("pgl"), "ie-ogam") &&
+              !strcmp(zui_keymap_for_locale("akk"), "us"),
+          "historical layouts; cuneiform types Latin letters for its input method");
+    CHECK(cp_at("ie-ogam", ZUI_KP(ZUI_KP_ROW_C, 1), false, false) == 0x1690 && /* ᚐ */
+              cp_at("sy-syc", ZUI_KP(ZUI_KP_ROW_D, 1), false, false) >= 0x0700 &&
+              cp_at("sy-syc", ZUI_KP(ZUI_KP_ROW_D, 1), false, false) <= 0x074F &&
+              cp_at("ru-chu", ZUI_KP(ZUI_KP_ROW_D, 1), false, false) >= 0x0400,
+          "Ogham, Syriac and Church Slavonic letters");
 
     int32_t E = ZUI_KP_ROW_E, D = ZUI_KP_ROW_D, C = ZUI_KP_ROW_C, B = ZUI_KP_ROW_B;
     CHECK(cp_at("us", ZUI_KP(D, 1), false, false) == 'q' &&
