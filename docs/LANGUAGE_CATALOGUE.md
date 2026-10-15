@@ -13,7 +13,8 @@ validates it: every path it names exists, and the languages it marks as
 running are exactly the ones the Lingua front-ends ship.
 
 Thousands of programming languages have been published. The catalogue starts
-with the 104 that carry the most code or the most influence and takes any
+with the 104 that carry the most code or the most influence, adds ZXV's own
+three (LEXIS, TECTON and AXION) for 107, and takes any
 other as one more line. A language is never marked as working before a test
 proves it.
 
