@@ -18,18 +18,19 @@
 # size; pack_matrix --icons fails when one is missing or too big.
 # anchor: "F<i>" when the layer number is the Fibonacci number F(i), else
 # "-". The twelve Fibonacci layers (0 1 2 3 5 8 13 21 34 55 89 144) are the
-# prime dimensional layers, the matrix's load-bearing spine: they are
-# sealed before every other layer, their booklets name chunks only in
-# anchors, each one's glue names the glue of the anchor below it, and
-# every other layer's glue names the nearest anchor below it
-# (docs/spec/MATRIX.md section 9). pack_matrix checks the column against
-# the rule.
+# prime dimensional layers, the matrix's spine and the corners of its frame
+# of three star tetrahedra. Every other layer N splits one way only as
+# F(k) + M (Zeckendorf): it hangs from anchor F(k), repeats the pattern of
+# layer M and draws chunks only from that lineage. A layer with no content
+# is an N scaffold position, never filled with anything faked
+# (docs/spec/MATRIX.md sections 9 and 10). pack_matrix checks the column
+# against the rule.
 0	core	Core	-	alloc mm sched syscall gdt idt pic timer pci acpi ata blockdev bios bringup el0_userspace loader modbind lpres oseq event_space event_sched event_transport e8 edp_risk surplus trispace pqsec mlkem tls robin_debanks clock keyboard mouse display vbe virtio fs vfs zxvfs fat32 tripartite_fs ubh alexandria lingua tensor zui appkit apps cellular_multikernel hwdrv net /kernel/arch /kernel/boot /kernel/include /kernel/compat /kernel/third_party /kernel/experimental /kernel/userapp /kernel/freestanding.c /kernel/linker.ld /kernel/linker_arm64.ld /kernel/grub.cfg /kernel/lpres_core.c /kernel/rmag_core.c /kernel/telemetry_core.c /kernel/Makefile pmm bootattest	F0
 1	The Banker	System core	zxv-brand/app-icons/svg/l1/001-burrow.svg	apps/burrow_model.c apps/burrow_model.h	F1
 2	Hollow	System core	zxv-brand/app-icons/svg/l1/002-hollow.svg	desktop theme dual_space launch icon /macos /gui /subsystems/gui /ZXV-Desktop.command	F3
 3	Threshold	System core	zxv-brand/app-icons/svg/l1/003-threshold.svg	ident identity cred kycwrap	F4
 4	Keystone	System core	zxv-brand/app-icons/svg/l1/004-keystone.svg	license terms bootfeat /LICENSES /LICENSE /LICENSE-HARDWARE.md /NOTICE /COMMERCIAL_USE.md /CLA.md /REUSE.toml	-
-5	Scent	System core	zxv-brand/app-icons/svg/l1/005-scent.svg	-	F5
+5	Scent	System core	zxv-brand/app-icons/svg/l1/005-scent.svg	apps/scent.zxapp apps/scent_model.c apps/scent_model.h apps/blocks/scent	F5
 6	Tideturn	System core	zxv-brand/app-icons/svg/l1/006-tideturn.svg	update evolve	-
 7	Satchel	System core	zxv-brand/app-icons/svg/l1/007-satchel.svg	zxpkg deploy /packages /install /build_system /scripts /Makefile /build.sh	-
 8	Gatehouse	System core	zxv-brand/app-icons/svg/l1/008-gatehouse.svg	privacy policy onepolicy ascent panopticon treaty legal_engine /governance /subsystems/governance	F6
@@ -79,7 +80,7 @@
 52	Fireglow	Media and creative	zxv-brand/app-icons/svg/l1/052-fireglow.svg	-	-
 53	Gesso	Media and creative	zxv-brand/app-icons/svg/l1/053-gesso.svg	art_studio	-
 54	Burin	Media and creative	zxv-brand/app-icons/svg/l1/054-burin.svg	-	-
-55	Birdsong	Media and creative	zxv-brand/app-icons/svg/l1/055-birdsong.svg	-	F10
+55	Birdsong	Media and creative	zxv-brand/app-icons/svg/l1/055-birdsong.svg	apps/birdsong.zxapp apps/birdsong_model.c apps/birdsong_model.h apps/blocks/birdsong	F10
 56	Cutwater	Media and creative	zxv-brand/app-icons/svg/l1/056-cutwater.svg	-	-
 57	Fiddlehead	Media and creative	zxv-brand/app-icons/svg/l1/057-fiddlehead.svg	audiogenomics_pro /audiogenomics /subsystems/audiogenomics	-
 58	Pinhole	Media and creative	zxv-brand/app-icons/svg/l1/058-pinhole.svg	-	-
@@ -113,10 +114,10 @@
 86	Meadow	Places, spaces and life	zxv-brand/app-icons/svg/l1/086-meadow.svg	social_spaces interspace	-
 87	Belvedere	Places, spaces and life	zxv-brand/app-icons/svg/l1/087-belvedere.svg	sovereign_node	-
 88	Weatherglass	Places, spaces and life	zxv-brand/app-icons/svg/l1/088-weatherglass.svg	-	-
-89	Wellspring	Places, spaces and life	zxv-brand/app-icons/svg/l1/089-wellspring.svg	-	F11
+89	Wellspring	Places, spaces and life	zxv-brand/app-icons/svg/l1/089-wellspring.svg	apps/wellspring.zxapp apps/wellspring_model.c apps/wellspring_model.h apps/blocks/wellspring	F11
 90	Caravan	Places, spaces and life	zxv-brand/app-icons/svg/l1/090-caravan.svg	freight logistics porter_house	-
 91	Vintner	Places, spaces and life	zxv-brand/app-icons/svg/l1/091-vintner.svg	vino vino_stores jroute jringress	-
-92	Hearth	Places, spaces and life	zxv-brand/app-icons/svg/l1/092-hearth.svg	-	-
+92	Kettle	Places, spaces and life	zxv-brand/app-icons/svg/l1/092-hearth.svg	-	-
 93	Understory	Places, spaces and life	zxv-brand/app-icons/svg/l1/093-understory.svg	-	-
 94	Homestead	Places, spaces and life	zxv-brand/app-icons/svg/l1/094-homestead.svg	-	-
 95	Bonfire	Places, spaces and life	zxv-brand/app-icons/svg/l1/095-bonfire.svg	-	-
@@ -168,4 +169,4 @@
 141	Conch	Access, language and safety	zxv-brand/app-icons/svg/l1/141-conch.svg	-	-
 142	Shepherd	Access, language and safety	zxv-brand/app-icons/svg/l1/142-shepherd.svg	ministry	-
 143	Watchfire	Access, language and safety	zxv-brand/app-icons/svg/l1/143-watchfire.svg	-	-
-144	Stillwater	Access, language and safety	zxv-brand/app-icons/svg/l1/144-stillwater.svg	-	F12
+144	Stillwater	Access, language and safety	zxv-brand/app-icons/svg/l1/144-stillwater.svg	apps/stillwater.zxapp apps/stillwater_model.c apps/stillwater_model.h apps/stillwater_rules.h apps/blocks/stillwater	F12

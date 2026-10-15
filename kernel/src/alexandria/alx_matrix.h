@@ -21,32 +21,42 @@
  *   child but the last holds exactly 256^level booklets, so booklet k sits
  *   at digit (k >> 8*level) & 255 on each level: no search, depth
  *   log256(booklets).
- * ALXG glue, one per layer: the files that live in the layer, what each is
- *   made of, and how the files bind each other
- *   header: "ALXG", 2, 0, u16 layer, u32 files, u32 edges, u32 refs, the
- *     glue CID (36) of the anchor the layer hangs from, u16 that anchor's
- *     layer, 6 zero (the core hangs from nothing: 38 zero)
+ * ALXG glue, version 3, one per layer, empty layers too: the files that
+ *   live in the layer, what each is made of, how the files bind each other,
+ *   and where the layer sits on the spine
+ *   header: "ALXG", 3, state (lpres: 0 N, an empty scaffold layer that
+ *     carries nothing; 1 T, it holds content), u16 layer, u32 files,
+ *     u32 edges, u32 refs, the glue CID (36) of the anchor the layer hangs
+ *     from (zero for the core), u16 that anchor, u16 the pattern layer M of
+ *     a branch layer F(k) + M (0 for an anchor), 4 zero
  *   files, 48 bytes each, CIDs strictly rising: the file's CID (36; raw
  *     sha2-256 of all its bytes), u32 first ref, u32 refs, u32 zero
  *   edges, 16 bytes each, rising by (from, to layer, to file): u32 from
  *     file, u16 to layer, u16 type, u32 to file (in that layer's glue),
- *     u16 weight (1..65535), u16 zero
+ *     u16 weight (1..65535), u16 zero; an anchor's edges reach anchors only
  *   refs, 12 bytes each, the file's chunks in order: u16 layer, u16 zero,
  *     u32 booklet (in that layer), u32 atom (in that booklet). A chunk is
- *     stored once in the whole matrix, so a ref may name another layer.
+ *     stored once in the whole matrix, in the deepest layer of the lineage
+ *     of every layer using it, so a ref names the layer itself or one it
+ *     may draw on (alx_mx_draws). A T layer with no files holds only chunks
+ *     its descendants share.
+ *   for a branch layer, the pattern layer's glue CID (36)
  * ALXM root:
- *   header: "ALXM", 1, 0, u16 layers (145), u32 fan-out (256), 52 zero
- *   per layer, 112 bytes: tree root CID (36; zero for an empty layer),
- *     glue CID (36), icon CID (36; zero when none), u32 booklets
+ *   header: "ALXM", 2, 0, u16 layers (145), u32 fan-out (256), 52 zero
+ *   per layer, 112 bytes: tree root CID (36; zero when the layer holds no
+ *     booklets), glue CID (36; every layer has one), icon CID (36; zero
+ *     when none), u32 booklets
  *   then the SHA-256 of all of the above
  *
- * Anchors: the twelve layers whose numbers are Fibonacci numbers (0 1 2 3
- * 5 8 13 21 34 55 89 144) are the prime dimensional layers, the spine. The
- * packer seals them before every other layer, so an anchor's refs name only
- * anchors; an anchor's glue keeps no edge into another layer's files unless
- * that layer is an anchor; and every glue node names the glue of the
- * nearest non-empty anchor below its layer, so changing an anchor changes
- * every layer that hangs from it.
+ * The spine and the frame (docs/spec/MATRIX.md sections 9 and 10): the
+ * twelve layers whose numbers are Fibonacci numbers (0 1 2 3 5 8 13 21 34
+ * 55 89 144) are the anchors, the prime dimensional layers. Every other
+ * layer N is a branch, split one way only (Zeckendorf) as N = F(k) + M:
+ * it hangs from anchor F(k) and repeats the pattern of layer M. A layer
+ * draws chunks only from itself and its lineage: an anchor from the
+ * anchors below it, a branch from the anchors up to F(k), M and M's
+ * lineage. Each layer has a position on three nested star tetrahedra in
+ * doubled E8 coordinates over Z[phi] (alx_mx_pos).
  *
  * Every CID here is CIDv1 raw sha2-256 of the named bytes. Nothing in a
  * node is code: a resolved atom is checked bytes handed to its caller.
@@ -101,6 +111,28 @@ void alx_mx_layer(const uint8_t *b, uint32_t k, alx_mx_layer_t *l);
  * else -1; and the anchor below layer k (0 for k <= 1) */
 int alx_mx_anchor(uint32_t k);
 uint32_t alx_mx_anchor_below(uint32_t k);
+/* a layer's split: for an anchor, the anchor below it and pattern 0; for
+ * a branch, the largest Fibonacci number at most k and the rest */
+void alx_mx_split(uint32_t k, uint32_t *anchor, uint32_t *pattern);
+/* whether layer k may draw chunks from layer l (l in k's lineage) */
+bool alx_mx_draws(uint32_t k, uint32_t l);
+/* layer k's position: eight doubled E8 coordinates, each p + q phi as
+ * out[2j], out[2j+1]. Anchors sit on the front corners of three star
+ * tetrahedra at scales 1, phi^4 and phi^8, the front alternating by star
+ * (+ even sign parity, -, +: Seal I); a branch F(k) + M
+ * sits at vertex(F(k)) - pos(M) / phi, exact in Z[phi]. */
+int alx_mx_pos(uint32_t k, int64_t out[16]);
+/* The two half-cycles. alx_mx_fill(i) is the layer at step i of the
+ * negative half, core out: the build and fetch order (the core; then star
+ * by star, its anchors and then its bands), in which every layer comes
+ * after its whole lineage, so CIDs are computed in it. alx_mx_gather(i) is
+ * the positive half, outermost in, the same order reversed: the sweep that
+ * checks each layer and gathers its state into the anchors, closing at the
+ * core. A hash chain cannot be sealed outer-in, since a glue node names
+ * its ancestors' CIDs; the inward half checks, it does not hash. Both
+ * return ALX_MX_LAYERS past the end. */
+uint32_t alx_mx_fill(uint32_t i);
+uint32_t alx_mx_gather(uint32_t i);
 
 /* a glue node's form; counts out. Every ref's layer is below 145 and its
  * atom index is checked when the booklet is opened, not here. */
@@ -109,6 +141,10 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
 /* the glue CID of the anchor a checked glue node hangs from (0 for the
  * core) and that anchor's layer */
 const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer);
+/* its pattern layer's glue CID (0 for an anchor) and that layer */
+const uint8_t *alx_glue_pattern(const uint8_t *b, uint32_t len, uint32_t *layer);
+/* its state: 0 N (empty scaffold), 1 T (holds content) */
+int alx_glue_state(const uint8_t *b);
 /* the file with this CID, or -1 */
 int32_t alx_glue_find(const uint8_t *b, const uint8_t cid[36]);
 /* file f's chunks: how many, and ref i of them */
