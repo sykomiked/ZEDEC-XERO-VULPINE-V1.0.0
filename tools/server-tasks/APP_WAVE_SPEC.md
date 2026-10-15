@@ -54,6 +54,10 @@ python3 tools/apps/lang_coverage.py && python3 tools/apps/concepts.py
                                         (regenerate first: every new app changes docs/APP_LANGUAGE_COVERAGE.md
                                          and docs/APP_BLOCKS.md; commit both with the app)
 bash kernel/src/apps/test_zxapp.sh      (ends [PASS]; its --check steps fail on a stale doc)
+python3 tools/apps/app_gate.py --app <id> --since <the base commit you branched from>
+                                        (fails when the app is not delivered: no manifest, a model under
+                                         20 lines of code, or tests with too few CHECKs; an empty answer
+                                         from the model fails here, never passes)
 bash kernel/src/apps/test_apps.sh
 tools/apps/build_wasm_blocks.sh --check
 python3 build_system/relicense_apache.py --check

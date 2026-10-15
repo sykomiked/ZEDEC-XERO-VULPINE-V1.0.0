@@ -21,10 +21,26 @@ For every app manifest with a slot (kernel/src/apps/*.zxapp) it fails when:
     does not list: an app reaches only methods that exist;
 and for every app and block, when a file in its blocks/<id>/ folder is used
 by no logic line (a .wasm's source beside it counts as used).
+
+An app that is not there passes all of that, so a build that wrote nothing
+would pass too. --app ID (repeatable) names the apps a change must deliver,
+and --since REF requires the change since REF to add at least one app
+manifest and gates every app it adds the same way. Each such app fails
+unless it has:
+  * kernel/src/apps/<id>.zxapp with a slot, version 1.0.0, a model and at
+    least one provides line, every provides line backed by logic (or a
+    re-export of a composed entry);
+  * a model of real code: apps/<id>_model.c and .h, the .c with at least
+    MODEL_LINES lines of code;
+  * its own tests: tests/<id>_zxapp.inc with at least one CHECK per entry it
+    provides and a wave_same, and tests/<id>_apps.inc with at least two
+    CHECKs.
 """
+import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -33,6 +49,7 @@ APPS = os.path.join(SRC, "apps")
 SPEC = os.path.join(ROOT, "api", "zxvd.openrpc.json")
 TESTS = os.path.join(APPS, "tests")
 WASM_SRC = (".cpp", ".cc", ".rs", ".zig", ".c")
+MODEL_LINES = 20
 
 
 def manifest(path):
@@ -62,8 +79,97 @@ def manifest(path):
     return m
 
 
-def main():
+def code_lines(path):
+    """Lines that are neither blank nor only a comment."""
+    n, block = 0, False
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            s = line.strip()
+            if block:
+                if "*/" in s:
+                    block = False
+                    s = s.split("*/", 1)[1].strip()
+                else:
+                    continue
+            if s.startswith("/*"):
+                if "*/" not in s:
+                    block = True
+                continue
+            if s and not s.startswith("//"):
+                n += 1
+    return n
+
+
+def delivered(app_id):
+    """--app: the app is really there, with code and its own tests."""
     errors = []
+    rel = f"kernel/src/apps/{app_id}.zxapp"
+    path = os.path.join(APPS, f"{app_id}.zxapp")
+    if not os.path.exists(path):
+        return [f"{rel}: not there; the app was not delivered"]
+    m = manifest(path)
+    if not m["slot"]:
+        errors.append(f"{rel}: no slot")
+    if not re.search(r"^version\s+1\.0\.0\s*$", open(path, encoding="utf-8").read(), re.M):
+        errors.append(f"{rel}: no version 1.0.0")
+    if not m["provides"]:
+        errors.append(f"{rel}: provides nothing")
+    for e in m["provides"]:
+        if "." not in e and not m["entries"].get(e):
+            errors.append(f"{rel}: provides {e} with no logic line")
+    model = os.path.join(APPS, f"{app_id}_model.c")
+    if m["model"] != f"apps/{app_id}_model.c" or not os.path.exists(model):
+        errors.append(f"{rel}: no model apps/{app_id}_model.c")
+    elif not os.path.exists(model[:-2] + ".h"):
+        errors.append(f"{rel}: no model header apps/{app_id}_model.h")
+    elif code_lines(model) < MODEL_LINES:
+        errors.append(f"{rel}: apps/{app_id}_model.c has {code_lines(model)} lines of code, "
+                      f"fewer than {MODEL_LINES}: not a model")
+    zt = os.path.join(TESTS, f"{app_id}_zxapp.inc")
+    at = os.path.join(TESTS, f"{app_id}_apps.inc")
+    if not os.path.exists(zt):
+        errors.append(f"{rel}: no tests/{app_id}_zxapp.inc")
+    else:
+        text = open(zt, encoding="utf-8").read()
+        n = len(re.findall(r"\bCHECK\(", text))
+        if n < max(1, len(m["provides"])):
+            errors.append(f"{rel}: tests/{app_id}_zxapp.inc has {n} CHECKs for "
+                          f"{len(m['provides'])} entries")
+        if "wave_same(" not in text:
+            errors.append(f"{rel}: tests/{app_id}_zxapp.inc never checks rows (wave_same)")
+    if not os.path.exists(at):
+        errors.append(f"{rel}: no tests/{app_id}_apps.inc")
+    elif len(re.findall(r"\bCHECK\(", open(at, encoding="utf-8").read())) < 2:
+        errors.append(f"{rel}: tests/{app_id}_apps.inc has fewer than 2 CHECKs")
+    return errors
+
+
+def added_apps(ref):
+    out = subprocess.run(["git", "-C", ROOT, "diff", "--name-only", "--diff-filter=A", ref, "HEAD",
+                          "--", "kernel/src/apps/*.zxapp"], capture_output=True, text=True)
+    if out.returncode:
+        return None
+    return [os.path.basename(x)[:-6] for x in out.stdout.split()]
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--app", action="append", default=[], help="an app the change must deliver")
+    ap.add_argument("--since", help="the change since this ref must add an app")
+    a = ap.parse_args()
+    errors = []
+    want = list(a.app)
+    if a.since:
+        got = added_apps(a.since)
+        if got is None:
+            errors.append(f"--since {a.since}: not a ref git knows")
+        elif not got:
+            errors.append(f"nothing delivered: no app manifest added since {a.since}")
+        else:
+            want += [x for x in got if x not in want]
+    for app_id in want:
+        errors += delivered(app_id)
+
     methods = {x["name"] for x in json.load(open(SPEC, encoding="utf-8"))["methods"]}
     test_apps_sh = open(os.path.join(APPS, "test_apps.sh"), encoding="utf-8").read()
     test_apps_c = open(os.path.join(APPS, "test_apps.c"), encoding="utf-8").read()
