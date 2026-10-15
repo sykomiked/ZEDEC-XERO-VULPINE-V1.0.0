@@ -24,8 +24,9 @@
  *         MISSING  not in the tree.
  *   D3  NEEDS.  Each device lists the components its spec requires.
  *       dp_assess() counts them by state, so the gap matrix
- *       (docs/DEVICE_COMPAT_MATRIX.md, printed by tools/devprof_matrix.c) is
- *       generated from the same table the OS reads and cannot drift from it.
+ *       (docs/DEVICE_COMPAT_MATRIX.md, printed by `make -C kernel
+ *       device-matrix` from src/devprof/devprof_matrix.c) is generated
+ *       from the same table the OS reads and cannot drift from it.
  *   D4  SELECTION.  dp_find() looks a device up by its slug ("hearth",
  *       "signet"); dp_find_model() by the DMI/device-tree model string a
  *       board reports. A device with no match runs as a generic machine:
