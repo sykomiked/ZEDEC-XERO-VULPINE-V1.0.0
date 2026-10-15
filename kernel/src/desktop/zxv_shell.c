@@ -61,8 +61,17 @@ uint32_t zxv_shell_field_ty(void)
     return g_fty;
 }
 
-/* shell-owned working instances for the stateful spaces */
-static vino_ledger_t g_vino;
+/* shell-owned working instances for the stateful spaces. The vino ledger is
+ * 40 MB: a kernel built with ZXV_BOOT_TAKE takes it from firmware-usable
+ * memory (zxv_boot_take, the arch's bootmem) instead of BSS, and the VINO
+ * space reports it absent when there is none. */
+#ifdef ZXV_BOOT_TAKE
+void *zxv_boot_take(uint64_t bytes, const char *what);
+static vino_ledger_t *g_vino;
+#else
+static vino_ledger_t g_vino_store;
+static vino_ledger_t *g_vino = &g_vino_store;
+#endif
 static con_commons_t g_concord;
 static con_match_t g_cm[CON_MAX_PEOPLE];
 static uint32_t g_cn;
@@ -77,10 +86,15 @@ static void spaces_boot(void)
 {
     if (g_spaces_ready) return;
     g_spaces_ready = 1;
-    vino_init(&g_vino, 846u);
-    vino_create_account(&g_vino, "TREASURY", "Vino Treasury");
-    vino_create_account(&g_vino, "VULPINE", "Vulpine");
-    (void) vino_issue(&g_vino, "TREASURY", ASSET_CBDC, 1000u, "genesis");
+#ifdef ZXV_BOOT_TAKE
+    g_vino = zxv_boot_take(sizeof *g_vino, "the shell's vino ledger");
+#endif
+    if (g_vino) {
+        vino_init(g_vino, 846u);
+        vino_create_account(g_vino, "TREASURY", "Vino Treasury");
+        vino_create_account(g_vino, "VULPINE", "Vulpine");
+        (void) vino_issue(g_vino, "TREASURY", ASSET_CBDC, 1000u, "genesis");
+    }
     con_init(&g_concord);
     {
         surplus_real_t x[CON_DIM], y[CON_DIM];
@@ -661,7 +675,7 @@ static void space_enter(zxv_shell_state_t *st, int s)
         sview_push(st, ln);
         {
             uint64_t b = 0;
-            vino_get_balance(&g_vino, "TREASURY", CAP_FINANCIAL, &b);
+            if (g_vino) vino_get_balance(g_vino, "TREASURY", CAP_FINANCIAL, &b);
             kv_int(ln, "Treasury cap", (long) b);
         }
         sview_push(st, ln);
@@ -831,16 +845,18 @@ static void space_action(zxv_shell_state_t *st, int s, int a)
     char ln[SHELL_LINE_LEN];
     switch (s) {
     case 1: /* VINO */
-        if (a == 0) {
-            int r = vino_transfer(&g_vino, "TREASURY", "VULPINE", 1u, CAP_FINANCIAL,
+        if (!g_vino) {
+            kv_str(ln, "VINO", "NO LEDGER MEMORY");
+        } else if (a == 0) {
+            int r = vino_transfer(g_vino, "TREASURY", "VULPINE", 1u, CAP_FINANCIAL,
                                   RAIL_VINO_NATIVE, "send");
             kv_int(ln, "Send RC", r);
         } else if (a == 1) {
-            int r = vino_issue(&g_vino, "TREASURY", ASSET_CBDC, 10u, "issue");
+            int r = vino_issue(g_vino, "TREASURY", ASSET_CBDC, 10u, "issue");
             kv_int(ln, "Issue RC", r);
         } else {
             uint64_t b = 0;
-            vino_get_balance(&g_vino, "TREASURY", CAP_FINANCIAL, &b);
+            vino_get_balance(g_vino, "TREASURY", CAP_FINANCIAL, &b);
             kv_int(ln, "Cap bal", (long) b);
         }
         sview_push(st, ln);
@@ -1115,7 +1131,7 @@ static void node_paint(void *ctx, zui_surface_t *s, zui_rect_t c, uint32_t tick)
     uint32_t j;
     if (n == 1) { /* Vino: the treasury's live balance */
         uint64_t bal = 0;
-        vino_get_balance(&g_vino, "TREASURY", CAP_FINANCIAL, &bal);
+        if (g_vino) vino_get_balance(g_vino, "TREASURY", CAP_FINANCIAL, &bal);
         j = 0;
         put_dec(v, &j, (long) bal);
         v[j] = 0;

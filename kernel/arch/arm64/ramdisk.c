@@ -18,20 +18,27 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "bootmem_arm64.h"
+
 /* 16MB RAM disk — enough for a small FAT32 filesystem */
 #define RAMDISK_SIZE_SECTORS 32768  /* 16MB / 512 bytes */
-static uint8_t ramdisk_data[RAMDISK_SIZE_SECTORS * 512]
-    __attribute__((aligned(4096)));
+/* Firmware-usable memory past the kernel (bootmem_arm64.c), taken on first
+ * use rather than held in BSS; until it exists the disk is absent. */
+static uint8_t *ramdisk_data;
 
-static bool ramdisk_present = true;
+static bool ramdisk_store(void)
+{
+    if (!ramdisk_data)
+        ramdisk_data = bootmem_arm64_take((uint64_t) RAMDISK_SIZE_SECTORS * 512u, "the RAM disk");
+    return ramdisk_data != 0;
+}
 
 void ramdisk_init(void) {
-    /* RAM disk is always present */
-    ramdisk_present = true;
+    (void) ramdisk_store();
 }
 
 bool ramdisk_is_present(void) {
-    return ramdisk_present;
+    return ramdisk_store();
 }
 
 uint32_t ramdisk_total_sectors(void) {
@@ -39,14 +46,14 @@ uint32_t ramdisk_total_sectors(void) {
 }
 
 int ramdisk_read_sector(uint32_t lba, uint8_t *buffer) {
-    if (lba >= RAMDISK_SIZE_SECTORS) return -1;
+    if (lba >= RAMDISK_SIZE_SECTORS || !ramdisk_store()) return -1;
     for (uint32_t i = 0; i < 512; i++)
         buffer[i] = ramdisk_data[lba * 512 + i];
     return 0;
 }
 
 int ramdisk_write_sector(uint32_t lba, const uint8_t *buffer) {
-    if (lba >= RAMDISK_SIZE_SECTORS) return -1;
+    if (lba >= RAMDISK_SIZE_SECTORS || !ramdisk_store()) return -1;
     for (uint32_t i = 0; i < 512; i++)
         ramdisk_data[lba * 512 + i] = buffer[i];
     return 0;
@@ -54,12 +61,14 @@ int ramdisk_write_sector(uint32_t lba, const uint8_t *buffer) {
 
 /* Get a direct pointer to the RAM disk data (for FAT32 BPB parsing) */
 uint8_t *ramdisk_get_buffer(void) {
+    (void) ramdisk_store();
     return ramdisk_data;
 }
 
 /* Format the RAM disk with a minimal FAT32 filesystem.
  * Writes a valid BPB and an empty root directory so fat32_mount succeeds. */
 void ramdisk_format_fat32(void) {
+    if (!ramdisk_store()) return;
     /* Zero the entire disk first */
     for (uint32_t i = 0; i < RAMDISK_SIZE_SECTORS * 512; i++)
         ramdisk_data[i] = 0;

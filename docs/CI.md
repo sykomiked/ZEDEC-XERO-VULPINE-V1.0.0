@@ -35,6 +35,7 @@ merged, and every night on `main`.
    | `.github/workflows/ci.yml` or `ci_changes.sh` itself | every job |
    | other workflows (`sdk*.yml`, `zxvd.yml`, `codeql.yml`) | quick-checks only |
    | `release.yml` (manual only; builds the draft release, see `docs/release/README.md`) | quick-checks only |
+   | `verify-boot.yml` (manual only; builds the disc and checks every boot marker, see `docs/VERIFY_BOOT.md`) | quick-checks only |
 
    Nightly and manual runs (`workflow_dispatch`) always run every job.
 

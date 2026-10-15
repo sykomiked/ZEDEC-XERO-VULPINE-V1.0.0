@@ -63,7 +63,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -MMD -MP \
          -DKERNEL_SIM_DEVICES=$(KERNEL_SIM_DEVICES) \
          -DENABLE_EL0_USERSPACE=1 -DENABLE_TICK_IRQ=1 \
-         -DENABLE_EVENT_LOOP=1 \
+         -DENABLE_EVENT_LOOP=1 -DZXV_BOOT_TAKE \
          $(CFLAGS_EXTRA) \
          -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
          -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
@@ -209,6 +209,7 @@ ARM64_ARCH_OBJS = \
     $(OBJDIR)/kernel/arch/arm64/el0_userspace.o \
     $(OBJDIR)/kernel/arch/arm64/user_procs.o \
     $(OBJDIR)/kernel/arch/arm64/ramdisk.o \
+    $(OBJDIR)/kernel/arch/arm64/bootmem_arm64.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_blk.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_net.o \
     $(OBJDIR)/kernel/arch/arm64/virtio_input.o \

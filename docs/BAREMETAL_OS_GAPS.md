@@ -58,7 +58,7 @@ with the evidence.
 |---|---|---|---|---|
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
 | 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **done in this PR** for x86_64 and arm64 (handoff v2); boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
-| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); x86 big buffers now on map memory (**this PR**); heap missing | M | kernel_core #2, #13 |
+| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); big buffers on map memory on both arches (**this PR**; arm64 window 232 MB to 57 MB); heap missing | M | kernel_core #2, #13 |
 | 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64; partial x86 (own PML4 per process, one 512 GB user slot, stack guard page; no VMAs) | M | kernel_core #3 |
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
 | 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | **done** (IDT + LAPIC, PIT-calibrated LAPIC timer, preemptive round robin, FXSAVE per process, x86 ELF64 loader, a ring-3 fault ends only its process; CI requires `[SCHED_OK]`); IOAPIC routing, XSAVE/AVX state, SMP next | L | kernel_core #4, #9 |
@@ -192,10 +192,19 @@ Each wave ends in a serial marker the CI QEMU job checks.
   through `zsp_verify2` (signature, arch, key-id) and the signed caps field
   is the grant (an unknown bit refuses the package); ZSP1 is verified but
   unbound, so it runs at least privilege; a bare ELF has no author and is
-  refused unless the kernel is built with `ZXV_DEV_UNSIGNED`. The seeded
+  refused (G7). The seeded
   hello.zsp is ZSP1 until the owner re-signs it as ZSP2 (the root key is
   not in the repo).
-- Next: arm64's 232 MB BSS window onto map memory; power-off (#15);
+- arm64 big buffers on map memory: the two vino ledgers, the triple ledger,
+  the PRISM and scanout buffers, the RAM disk and the console machines
+  (175 MB) come from `bootmem_arm64.c`, so the fixed window is now
+  0x40080000-0x43BB0000. Evidence is the handoff v2 map, else a device tree
+  in the entry x0 (`zxb_from_fdt`). QEMU `-kernel` with an ELF passes
+  neither, so that path (NEITHER) uses the window the old BSS already
+  claimed and says so in its `[BOOTMEM]` line; it claims nothing new.
+  Shared sources take their state through `zxv_boot_take` when built with
+  `ZXV_BOOT_TAKE`.
+- Next: power-off (#15);
   `lpres_hex` linked into both images; an app rollback floor.
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),
