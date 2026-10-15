@@ -51,6 +51,10 @@ The pasted barrel and reserve-engine C were treated as a sketch, like the router
 - The lot search is bounded at 256 lots, and an asset without enough free lots is skipped rather than half-filled.
 - The skim rate stays 0.08889% (8889 / 10,000,000), as the user confirmed on 2026-10-15; the 0.008889% in the design note was a slip. The skim multiply is not re-implemented here. The existing assurance fee (`pay_assure_fee`) already multiplies in 128 bits, so it cannot overflow.
 
+### Floating vouchers are a separate thing
+
+Vino floating vouchers ([`kernel/src/vfloat`](../kernel/src/vfloat/vfloat.h), [design](VINO_FLOATING_VOUCHERS.md)) are not VINO. The router never routes, burns or delivers them. A voucher is a short-lived credit between two peers for software capacity. It comes into being only under a letter of marque from the bounty board, the main VFV issuance path. It promises nothing physical.
+
 ## The hierarchy (R3)
 
 `jr_accept_allotment(request, verified_zone)` tries candidates in this order:

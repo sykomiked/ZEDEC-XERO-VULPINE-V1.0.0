@@ -2105,6 +2105,13 @@ test-jringress:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/jringress/test_jringress.c src/jringress/jringress.c src/jroute/jroute.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_jringress && $(ZXV_TMP)/test_jringress > $(ZXV_TMP)/test_jringress.log 2>&1 && echo "[PASS] test_jringress ($$(tail -1 $(ZXV_TMP)/test_jringress.log))" || { tail -40 $(ZXV_TMP)/test_jringress.log; echo "[FAIL] test_jringress"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/jringress/jringress.c -o $(ZXV_TMP)/jringress_free.o || { echo "[FAIL] jringress freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/jringress_free.o | grep -vE ' (sha256|jr_)' | grep -q .; then nm -u $(ZXV_TMP)/jringress_free.o; echo "[FAIL] jringress freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] jringress freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 and jr_ external)"
 
+# Vino floating vouchers (src/vfloat): short-lived ML-DSA-87 signed credits between two peers, issued only under a letter of marque.
+.PHONY: test-vfloat
+test-vfloat:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/vfloat/test_vfloat.c src/vfloat/vfloat.c src/vinea/vna_id.c src/vinea/vna_common.c src/vinea/vna_cid.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_vfloat && $(ZXV_TMP)/test_vfloat > $(ZXV_TMP)/test_vfloat.log 2>&1 && echo "[PASS] test_vfloat ($$(tail -1 $(ZXV_TMP)/test_vfloat.log))" || { tail -40 $(ZXV_TMP)/test_vfloat.log; echo "[FAIL] test_vfloat"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/vfloat/test_vf_prize.c src/vfloat/vf_prize.c src/vfloat/vfloat.c src/vinea/vna_id.c src/vinea/vna_common.c src/vinea/vna_cid.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_vf_prize && $(ZXV_TMP)/test_vf_prize > $(ZXV_TMP)/test_vf_prize.log 2>&1 && echo "[PASS] test_vf_prize ($$(tail -1 $(ZXV_TMP)/test_vf_prize.log))" || { tail -40 $(ZXV_TMP)/test_vf_prize.log; echo "[FAIL] test_vf_prize"; exit 1; }
+	@for f in vfloat vf_prize; do clang --target=aarch64-none-elf -ffreestanding -mgeneral-regs-only -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -c src/vfloat/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (vna_|vf_)' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: libc symbol"; exit 1; fi; done; echo "[PASS] vfloat freestanding (aarch64 -mgeneral-regs-only; only vna_ and vf_ external)"
+
 # Vino <-> V-Bill swap (src/vswap): exact reserve-ratio swaps, perpetual lock tiers, realised-dividend split; off per jurisdiction.
 .PHONY: test-vswap
 test-vswap:
@@ -2197,6 +2204,7 @@ test-econ:
 	$(MAKE) --no-print-directory test-svault
 	$(MAKE) --no-print-directory test-jroute
 	$(MAKE) --no-print-directory test-jringress
+	$(MAKE) --no-print-directory test-vfloat
 	$(MAKE) --no-print-directory test-vswap
 	$(MAKE) --no-print-directory test-sicily
 	$(MAKE) --no-print-directory test-recovery
