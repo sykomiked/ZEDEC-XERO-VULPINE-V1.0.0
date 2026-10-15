@@ -280,6 +280,7 @@ CONVENTIONAL                         ZXV
 | Event log: `[EVT]` lines, oseq events, ML-DSA-65 head signature; `zxv-events` verifies it | 🔒 | `tools/zxv-events`, `make test-zxv-events`; `arm64_session_check.py` verifies a real boot's log |
 | arm64 boot hands the console to the chiglet governor; disk read, screen blit, cell reload and quarantine, network pulse handlers | 🔒 | `kernel/arch/arm64/kernel_main_arm64.c`; `arm64_session_check.py` drives it in QEMU |
 | Organ routing with a witness; `swarm.organ` in zxvd | 🔒 | `kernel/src/chiglet/chg_organ.{h,c}` |
+| The chiglet on screen: a click-through layer above the windows where it swims to what it can help with, fades through other windows, waits at the glass, opens only on a tap, offers only what the companion gate passed; Accept, Not now (snooze), Pin, Away; reduced motion and transparency honoured | 🔒 | `kernel/src/zui/zui_swim.{h,c}` SW1-SW9; the shell's call site is with the native GUI work |
 | Held acts at every layer; organ and acts in app manifests | 🔒 | `intent` I7, `chg_vocab`, `zxapp` K1-K3 |
 | `model_exec` running a model on bare metal | 📋 | The arm64 kernel loads no weights, so every coordinate is refused today; the coordinate-to-cell map is agreed with the swarm model lineup |
 | A model on bare metal emitting the calls | 📋 | Today the calls come from the person or from a session relaying a model's output as `chiglet <call>` lines; models load from the disc once PCI and the disc v2 layout land (section 18) |
