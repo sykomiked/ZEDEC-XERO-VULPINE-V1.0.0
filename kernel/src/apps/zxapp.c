@@ -1527,8 +1527,11 @@ int zxapp_check(zxapp_t *a, zxapp_host_t *h)
         if (c.both) {
             if (lp != ZXAPP_BOTH)
                 return check_fail(a, K, &c,
-                                  langs > 1u ? "the languages agree, the line says both"
-                                             : "one language ran, it cannot disagree with itself");
+                                  rc != ZXAPP_OK && rc != ZXAPP_E_CONFLICT
+                                      ? "refused (every language), the line says both"
+                                  : langs > 1u
+                                      ? "the languages agree, the line says both"
+                                      : "one language ran, it cannot disagree with itself");
             ran++;
             continue;
         }

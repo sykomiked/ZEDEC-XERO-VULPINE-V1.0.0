@@ -76,13 +76,15 @@ MODEL_LINES = 20
 
 def manifest(path):
     m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": [],
-         "name": "", "use_refs": {}}
+         "name": "", "use_refs": {}, "checks": [], "agree": set()}
     inline = False
     with open(path, encoding="utf-8") as f:
         for line in f:
             if inline:
                 inline = line.strip() != "."
                 continue
+            if line.startswith("# agree: ") and len(line.split()) >= 3:
+                m["agree"].add(line.split()[2])
             w = line.split("#", 1)[0].split()
             if not w:
                 continue
@@ -99,6 +101,8 @@ def manifest(path):
                 m["use_refs"][w[1]] = REF_RE.findall(line.split("#", 1)[1]) if "#" in line else []
             elif w[0] == "name" and len(w) >= 2:
                 m["name"] = " ".join(w[1:])
+            elif w[0] == "check" and len(w) >= 3:
+                m["checks"].append((w[1], w[-1] == "both" and w[-2] == "="))
             elif w[0] == "logic" and len(w) >= 4:
                 m["entries"][w[2]] = m["entries"].get(w[2], 0) + 1
                 inline = w[3] == "<<"
@@ -335,6 +339,47 @@ def added_apps(ref):
     return [os.path.basename(x)[:-6] for x in out.stdout.split()]
 
 
+def cid_of(path):
+    """A file's CIDv1 (raw, sha2-256), as a "cid:" logic path names it."""
+    import base64
+    import hashlib
+    d = bytes([1, 0x55, 0x12, 0x20]) + hashlib.sha256(open(path, "rb").read()).digest()
+    return "b" + base64.b32encode(d).decode().lower().rstrip("=")
+
+
+def tree_cids():
+    out = {}
+    for d, _, fs in os.walk(os.path.join(APPS, "blocks")):
+        for f in fs:
+            out.setdefault(cid_of(os.path.join(d, f)), os.path.join(d, f))
+    return out
+
+
+def check_proofs(mans):
+    """K1: an app proves each entry it provides with a check line, and an entry it runs in
+    two languages or more with a "= both" line too (where they disagree), unless a
+    "# agree: <entry> <why>" line says why no input can make them differ."""
+    errors = []
+    langs = {}
+    for _, m in mans:
+        for e, n in m["entries"].items():
+            langs[f"{m['id']}.{e}"] = n
+    for p, m in mans:
+        if not m["slot"]:
+            continue  # blocks are proved by the apps that use them
+        rel = os.path.relpath(p, ROOT)
+        checked = {e for e, _ in m["checks"]}
+        both = {e for e, b in m["checks"] if b}
+        for e in m["provides"]:
+            n = m["entries"].get(e, langs.get(e, 1))
+            if e not in checked:
+                errors.append(f"{rel}: {e} has no check line (check {e} <input>=<v>,... = <answer>)")
+            elif n > 1 and e not in both and e not in m["agree"]:
+                errors.append(f"{rel}: {e} runs in {n} languages and no check shows them disagree "
+                              f"(check {e} ... = both), nor says why they cannot (# agree: {e} <why>)")
+    return errors
+
+
 def gate_errors(want):
     """Every error the gate finds, the apps in want held to delivered() too."""
     errors = []
@@ -350,12 +395,20 @@ def gate_errors(want):
     files += [os.path.join(blocks, f) for f in sorted(os.listdir(blocks)) if f.endswith(".zxblock")]
     errors += check_layers([(p, manifest(p)) for p in files])
     errors += check_slots([(p, manifest(p)) for p in files])
+    errors += check_proofs([(p, manifest(p)) for p in files])
+    cids = None
     claimed = set()
     for p in files:
         rel = os.path.relpath(p, ROOT)
         m = manifest(p)
         used = set()
         for path in m["logic"]:
+            if path.startswith("cid:"):  # C3: named by content: the tree file with that hash
+                cids = tree_cids() if cids is None else cids
+                if path[4:] not in cids:
+                    errors.append(f"{rel}: logic file {path} names no file under blocks/")
+                    continue
+                path = os.path.relpath(cids[path[4:]], SRC)
             full = os.path.join(SRC, path)
             if not os.path.exists(full):
                 errors.append(f"{rel}: logic file {path} does not exist")

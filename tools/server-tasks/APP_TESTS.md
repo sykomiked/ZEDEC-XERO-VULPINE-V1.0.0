@@ -56,7 +56,13 @@ model  apps/kitling_model.c
 provides doubled num x
 logic    kron    doubled apps/blocks/kitling/doubled.kron
 logic    sutra   doubled apps/blocks/kitling/doubled.sutra
+
+# Its own proof (zxapp.h K1): zxapp_check runs these on the device
+check doubled x=0,1,2,999999999 = 0,2,4,1999999998
+check doubled x=1,1000000000 = both
 ```
+
+The two `check` lines are the app's proof that travels with it: the gate refuses an app with an entry no check line names, and an entry in two languages needs a `= both` line (inputs that make them disagree) or a `# agree: <entry> <why>` line saying why no input can. A check passes when every row matches and the join is TRUE (NEITHER when one language ran); `= both` passes only on BOTH.
 
 `kernel/src/apps/blocks/kitling/doubled.kron` (KRON works elementwise; a 1-element argument does not broadcast, so test with two rows or more):
 

@@ -64,3 +64,11 @@ logic    eve schedule_ok apps/blocks/stillwater/schedule.eve
 
 provides record_ok truth schedule mode days opens closes allowed
 logic    myra record_ok apps/blocks/stillwater/schedule.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check quiet_now opens=1320,1320,1320,420,600,600 closes=420,420,420,1320,600,600 now=1320,419,420,900,0,1439 = true,true,false,true,true,true
+check quiet_now opens=1320,1320 closes=420,420 now=0,-1 = both
+check let_through quiet=1,1,1,0,1,1 allowed=0,1,0,0,0,0 gap=-1,-1,180,-1,181,-1 emergency=0,0,0,0,0,1 = false,true,true,true,false,true
+check let_through quiet=1,1 allowed=0,0 gap=-1,1000000000 emergency=0,0 = both
+check schedule_ok mode=0,2,3,0 days=0,127,1,128 opens=0,1439,0,0 closes=1439,0,0,0 = true,true,false,false
+check record_ok schedule=999,1 mode=9,0 days=999,1 opens=9999,0 closes=9999,10000 allowed=999,1 = true,false

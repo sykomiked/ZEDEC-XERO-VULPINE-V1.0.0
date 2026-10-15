@@ -52,3 +52,15 @@ logic    eve rec_ok apps/blocks/birdsong/limits.eve
 
 provides memo_ok truth memo rate channels frames mtime
 logic    myra memo_ok apps/blocks/birdsong/memo.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check gain sample=0,32767,-32768,-1 level=10000 = 0,32767,-32768,-1
+check gain sample=1,-1 level=1 = 0,-1
+check gain sample=32767,-32768 level=1000000 = 32767,-32768
+check gain sample=100,32768 level=10000 = both
+check gain sample=100,-200 level=-10000 = both
+check clip_ms samples=0,8,441 rate=8000 = 0,1,441/8
+check clip_ms samples=-441 rate=44100 = -10
+check rec_ok rate=7999,8000,48000,48001,16000,16000 channels=1,1,2,2,0,3 frames=0,0,480000,0,10,10 = false,true,true,false,false,false
+check rec_ok rate=16000,16000 channels=1,1 frames=-1,480001 = false,false
+check memo_ok memo=999999999,1 rate=99999,8000 channels=9,1 frames=999999999,0 mtime=999999999999,1000000000000 = true,false

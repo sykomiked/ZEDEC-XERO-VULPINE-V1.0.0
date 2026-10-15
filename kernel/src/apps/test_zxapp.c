@@ -1981,6 +1981,8 @@ static void app_tests_run(const zxapp_t *w0, int nw0)
             CHECK(zxapp_registry_add(&C, a) == ZXAPP_OK, "%s registers as a block: %s", t->id,
                   C.err);
             if (rc != t->loaded || rc < 0) continue;
+            CHECK(a->ncheck > 0 && zxapp_check(a, &H) == (int) a->ncheck,
+                  "%s: its %u check lines pass (K1): %s", t->id, a->ncheck, a->err);
             int before = checks;
             t->run(a);
             CHECK(checks > before + 1, "%s: its test checks something", t->id);
@@ -2058,6 +2060,8 @@ static void test_wave0(void)
         int got = wave_app(&APP[i], buf[i], sizeof buf[i], apps[i].path);
         CHECK(got == apps[i].loaded, "%s: %d of %d entries load: %s", apps[i].path, got,
               apps[i].loaded, APP[i].err);
+        CHECK(APP[i].ncheck > 0 && zxapp_check(&APP[i], &H) == (int) APP[i].ncheck,
+              "%s: its %u check lines pass (K1): %s", apps[i].id, APP[i].ncheck, APP[i].err);
         CHECK(!strcmp(APP[i].id, apps[i].id) && APP[i].slot == apps[i].slot &&
                   APP[i].layer == ZXAPP_LAYER_L1 && APP[i].budget > 0 && APP[i].nneeds > 0 &&
                   APP[i].icon[0],
@@ -3010,6 +3014,9 @@ static void test_checks(void)
         {"check half x=3 = 2", "answered 3/2, the line says 2"},
         {"check half x=3 = both", "one language ran, it cannot disagree with itself"},
         {"check pos x=5 = true,false", "answered a different number of rows"},
+        {"check doubled x=9223372036854775807 = 1", "refused (every language)"},
+        {"check doubled x=9223372036854775807 = both",
+         "refused (every language), the line says both"},
     };
     for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
         int k = snprintf(t, sizeof t, "%s%s\n", CHECKED, bad[i][0]);
