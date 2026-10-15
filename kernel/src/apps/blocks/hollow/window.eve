@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a window may be (hollow_rules.h HR5): at least 160 pixels wide and
+# 100 high, at most 16384 either way, and at least 32 pixels of it shown on
+# the screen across and down (the shown entry works those out), so a window
+# can always be reached and dragged back.
+eve hollow
+window_width = 160 .. 16384
+window_height = 100 .. 16384
+on_screen = 32 .. 16384
+
+window {
+  width: window_width
+  height: window_height
+  across: on_screen
+  down: on_screen
+}

@@ -1,0 +1,2 @@
+cols:(0|1&windows)+(0|1&windows-1)+(0|1&windows-4)+(0|1&windows-9)+(0|1&windows-16)+(0|1&windows-25)+(0|1&windows-36)+0|1&windows-49
+-_(0-windows)%1|cols

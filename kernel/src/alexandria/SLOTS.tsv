@@ -96,3 +96,9 @@
 59	logic.threshold_rights_ok	490.26	threshold.rights_ok	base
 60	logic.threshold_seat_ok	490.27	threshold.seat_ok	base
 61	logic.threshold_skip_ok	490.28	threshold.skip_ok	base
+62	logic.hollow_dock_ok	490.29	hollow.dock_ok	base
+63	num.hollow_shown	590.23	hollow.shown	base
+64	num.hollow_tile_cell	590.24	hollow.tile_cell	base
+65	num.hollow_tile_cols	590.25	hollow.tile_cols	base
+66	num.hollow_tile_rows	590.26	hollow.tile_rows	base
+67	logic.hollow_window_ok	490.30	hollow.window_ok	base

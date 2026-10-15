@@ -54,6 +54,19 @@ gatehouse	check holders held=1,0,1,1 = 3
 gatehouse	check holders held=0,0 = 0
 gatehouse	check holders held=1,2 = both
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
+hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
+hollow	check tile_cols windows=4,65 = both
+hollow	check tile_cols windows=4,-1 = both
+hollow	check tile_rows windows=0,1,2,3,5,7,10,64 = 0,1,1,2,2,3,3,8
+hollow	check tile_rows windows=4,65 = both
+hollow	check tile_cell span=1920,1080,0,16384 parts=3,2,1,64 = 640,540,0,256
+hollow	check tile_cell span=1920,16385 parts=2,2 = both
+hollow	check shown pos=0,-100,1900,2000,-500,100 size=800,300,800,100,300,0 span=1920,1920,1920,1920,1920,1920 = 800,200,20,0,0,0
+hollow	check shown pos=0,0 size=800,-1 span=1920,1920 = both
+hollow	check shown pos=0,100000 size=10,10 span=1920,1920 = both
+hollow	check window_ok width=160,159,16384,16385,800,800 height=100,100,16384,600,99,600 across=32,800,32,800,800,31 down=32,600,32,600,600,600 = true,false,true,false,false,false
+hollow	check window_ok width=800 height=600,600 across=800,800 down=600,600 = both
+hollow	check dock_ok place=99,1,-99,100 app=999,5,1,1 pinned=9,1,1,1 added=999999999999,1000,1000000000000,0 = true,true,false,false
 keepsake	check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
 keepsake	check removed snapshots=1000000000 keep=1 = both
 keepsake	check keep_ok keep=0,1,4294967295 = false,true,true

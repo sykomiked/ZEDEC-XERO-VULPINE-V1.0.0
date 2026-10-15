@@ -67,7 +67,13 @@
 #define ALX_SLOT_LOGIC_THRESHOLD_RIGHTS_OK       59u /* 490.26 threshold.rights_ok */
 #define ALX_SLOT_LOGIC_THRESHOLD_SEAT_OK         60u /* 490.27 threshold.seat_ok */
 #define ALX_SLOT_LOGIC_THRESHOLD_SKIP_OK         61u /* 490.28 threshold.skip_ok */
-#define ALX_SLOT__COUNT 61u
+#define ALX_SLOT_LOGIC_HOLLOW_DOCK_OK            62u /* 490.29 hollow.dock_ok */
+#define ALX_SLOT_NUM_HOLLOW_SHOWN                63u /* 590.23 hollow.shown */
+#define ALX_SLOT_NUM_HOLLOW_TILE_CELL            64u /* 590.24 hollow.tile_cell */
+#define ALX_SLOT_NUM_HOLLOW_TILE_COLS            65u /* 590.25 hollow.tile_cols */
+#define ALX_SLOT_NUM_HOLLOW_TILE_ROWS            66u /* 590.26 hollow.tile_rows */
+#define ALX_SLOT_LOGIC_HOLLOW_WINDOW_OK          67u /* 490.30 hollow.window_ok */
+#define ALX_SLOT__COUNT 67u
 /* clang-format on */
 
 #endif
