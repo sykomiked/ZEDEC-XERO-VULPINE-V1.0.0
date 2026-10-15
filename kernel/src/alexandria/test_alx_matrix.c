@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "alx_cdc.h"
+#include "alx_z.h"
 #include "alx_matrix.h"
 #include "../robin_debanks/sha256.h"
 
@@ -52,6 +53,9 @@ static uint8_t *slurp(const char *path, uint32_t *n)
     fclose(f);
     return b;
 }
+
+static uint32_t ZBOOK;
+static uint64_t ZSTORED, ZPLAIN;
 
 static uint8_t *block(const uint8_t cid[36], uint32_t *n)
 {
@@ -155,8 +159,7 @@ static void test_cdc(void)
         uint32_t again = cuts(b, sizeof b, T, at2, 8192);
         CHECK(again == n && !memcmp(at, at2, n * sizeof at[0]), "tier %u is deterministic", t);
     }
-    /* a made tier of the built-in sizes is the built-in tier: the threshold
-     * rule is the mask rule for powers of two, so no stored CID moves */
+    /* a made tier of the built-in sizes is the built-in tier */
     for (uint32_t t = 0; t < 3; t++) {
         const alx_cdc_tier_t *T = alx_cdc_tier(t);
         alx_cdc_tier_t mk;
@@ -167,8 +170,11 @@ static void test_cdc(void)
     for (uint32_t i = 0; i < 64; i++) { /* the mask form, over random hashes */
         uint64_t s = 0x243F6A8885A308D3ull + i, h = (uint64_t) rnd(&s) << 32;
         h |= rnd(&s);
+        /* for powers of two the threshold rule is the mask rule */
         for (uint32_t t = 0; t < 3; t++) {
-            const alx_cdc_tier_t *T = alx_cdc_tier(t);
+            alx_cdc_tier_t P;
+            const alx_cdc_tier_t *T = &P;
+            alx_cdc_make(&P, 1u << (10 + 3 * t), 1u << (12 + 3 * t), 1u << (14 + 3 * t));
             uint32_t k = 2u;
             for (uint32_t a = T->avg; a > 1u; a >>= 1) k++;
             uint64_t hard = ~0ull << (64 - k), easy = ~0ull << (64 - (k - 4u));
@@ -235,12 +241,25 @@ static uint8_t *booklet_at(uint32_t k, uint32_t i, uint32_t *n)
         cid = c;
     }
     uint8_t *b = block(cid, &len);
-    uint32_t lay, atoms;
-    CHECK(alx_bk2_check(b, len, &lay, &atoms) == ALX_OK && lay == k, "layer %u booklet %u", k, i);
     uint8_t h[36];
     h[0] = 1, h[1] = 0x55, h[2] = 0x12, h[3] = 0x20;
     sha256(b, len, h + 4);
     CHECK(!memcmp(h, cid, 36), "booklet %u.%u has the CID its node names", k, i);
+    /* a compressed booklet: open it, and its bytes are the ones its plain CID names */
+    if (alx_z_is(b, len)) {
+        uint32_t pl = alx_z_plain_len(b, len);
+        uint8_t *p = malloc(pl ? pl : 1u);
+        int32_t r = alx_z_open(b, len, p, pl);
+        CHECK(r == (int32_t) pl && pl > len, "booklet %u.%u opens (%d)", k, i, r);
+        ZBOOK++, ZSTORED += len, ZPLAIN += pl;
+        free(b);
+        b = p;
+        len = pl;
+    } else {
+        ZSTORED += len, ZPLAIN += len;
+    }
+    uint32_t lay, atoms;
+    CHECK(alx_bk2_check(b, len, &lay, &atoms) == ALX_OK && lay == k, "layer %u booklet %u", k, i);
     BOOK[k][i] = b;
     BOOKN[k][i] = len;
     *n = len;
@@ -445,6 +464,11 @@ int main(int argc, char **argv)
     test_layout();
     test_files(argv[2]);
     test_refusals();
+    /* the packer stores booklets compressed (--zpack): every one is read back above */
+    CHECK(ZBOOK > 0 && ZSTORED < ZPLAIN, "booklets are stored compressed");
+    printf("matrix: %u booklets compressed; booklets stored in %llu of %llu bytes (%.1f%%)\n", ZBOOK,
+           (unsigned long long) ZSTORED, (unsigned long long) ZPLAIN,
+           ZPLAIN ? 100.0 * (double) ZSTORED / (double) ZPLAIN : 0.0);
     printf("%u checks, %u failures\n", checks, fails);
     return fails != 0;
 }

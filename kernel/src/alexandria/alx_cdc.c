@@ -4,10 +4,14 @@
 #include "alx_cdc.h"
 
 /* top k bits set */
-/* thresholds 2^(32 - k): the top k bits zero, the masks of the first tiers */
+/* Text (hot and warm) is cut at Fibonacci sizes, the measured knee
+ * (docs/spec/MATRIX.md section 2): 31% fewer CIDs than 1K/4K/16K and
+ * 4K/16K/64K for 4% fewer bytes shipped per update. Thresholds are
+ * alx_cdc_make's: 2^32 / (4 avg) and 2^34 / avg. Cold stays a power of two
+ * (threshold 2^(32 - k): the top k bits zero). */
 static const alx_cdc_tier_t TIERS[3] = {
-    {1u << 10, 1u << 12, 1u << 14, 1u << 18, 1u << 22},
-    {1u << 12, 1u << 14, 1u << 16, 1u << 16, 1u << 20},
+    {4181u, 6765u, 17711u, 158720u, 2539522u},
+    {4181u, 6765u, 17711u, 158720u, 2539522u},
     {1u << 16, 1u << 18, ALX_CDC_MAXLEN, 1u << 12, 1u << 16}, /* fits a booklet */
 };
 

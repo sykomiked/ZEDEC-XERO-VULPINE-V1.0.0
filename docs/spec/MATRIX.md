@@ -56,9 +56,14 @@ stored once in the whole matrix. Each file gets one of three tiers:
 
 | Tier | For | Min / average / max | Chunks | Mean chunk | Compresses to |
 |---|---|---|---|---|---|
-| hot | code up to 256 KiB | 1 / 4 / 16 KiB | 6769 | 3.7 KiB | 34.4% |
-| warm | text, tables, documents | 4 / 16 / 64 KiB | 398 | 7.2 KiB | 34.6% |
+| hot | code up to 256 KiB | 4181 / 6765 / 17711 bytes | 6769 | 3.7 KiB | 34.4% |
+| warm | text, tables, documents | 4181 / 6765 / 17711 bytes | 398 | 7.2 KiB | 34.6% |
 | cold | generated bulk; content already dense (over 7.2 bits per byte) | 64 / 256 / 1024 KiB | 28 | 223 KiB | 28.4% |
+
+Hot and warm now cut at the Fibonacci knee measured below. They are still
+two tiers because they get different booklet sizes. The chunk counts and
+means in this table are from the earlier 1/4/16 KiB and 4/16/64 KiB cut. With
+the Fibonacci tiers the tree is 4948 chunks.
 
 "Compresses to" is the size zlib gets each chunk to, a measure of how dense
 the content is. Every chunk fits one raw block with its booklet's header, so
@@ -133,10 +138,22 @@ What the numbers say:
   hash of the plain bytes, so deduplication is unchanged; the booklet's own
   CID would be over its stored, compressed bytes.
 
-Not yet changed: the tiers above are still the ones the packer uses, since
-the Mac build is measuring its own Fibonacci tiers and the winner is sealed
-from this code. A compressor in the kernel (integer, freestanding) does not
-exist yet; the booklet format would need a flag for a compressed body.
+Adopted: hot and warm text cut at 4181 / 6765 / 17711. The Mac build
+measured Fibonacci tiers on its own (3.4% fewer chunks, the same reuse) and
+seals with this cutter. Cold stays at 64 / 256 / 1024 KiB: only 28 chunks
+are cold, too few to tune.
+
+**The booklet compressor (`alx_z.c`).** It writes the LZ4 block format, so
+any standard LZ4 decoder reads it; a reference LZ4 library decoded every
+block it made. The encoder is its own (a hash-chain search, one step of lazy
+matching, integers only, no allocation), so the same booklet gives the same
+stored bytes, and the same CID, on every platform. A fixed-answer test pins
+the output bytes. On this tree, 486 booklets (35.1 MB) are stored in
+12.4 MB, 35.3%. For comparison on the same files: the reference LZ4 at its
+strongest setting lands within about 1.5 points of this encoder. zlib gets
+about 26.8%, a quarter smaller again, because it adds entropy coding, which
+the LZ4 format does not have. That is the next gain on offer if storage
+matters more than decoding speed.
 
 ## 3. Scaling: the fan-out tree
 
@@ -226,6 +243,13 @@ byte layouts):
   the whole matrix.
 - **ALXM root:** 145 entries (tree, glue, icon, booklet count) and a
   SHA-256.
+- **ALXZ stored booklet:** a booklet compressed (`alx_z.h`): codec (1, the
+  LZ4 block format), the plain length, the payload length, and the plain
+  booklet's CID, then the payload. Its own CID, the one tree nodes name, is
+  over the stored bytes. Opening it decodes the payload and checks it
+  against the plain CID. A booklet that would not shrink is stored bare, as
+  its ALXB bytes, so a stored block is never larger than its booklet. Chunk
+  CIDs are always over plain bytes, so deduplication is the same either way.
 
 Nothing in any node is code. A resolved chunk is checked bytes handed to its
 caller, and running anything still goes through a verified slot and zxapp's

@@ -274,6 +274,29 @@ def booklet(layer, tier, atoms):
     return bytes(out)
 
 
+class Zpack:
+    """booklets stored through the zpack helper (alx_z.c), so the stored
+    bytes are exactly the kernel's: an ALXZ block, or the booklet bare"""
+
+    def __init__(self, path):
+        self.p = subprocess.Popen([path], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    def store(self, b):
+        self.p.stdin.write(struct.pack(">I", len(b)) + b)
+        self.p.stdin.flush()
+        hd = self.p.stdout.read(4)
+        if len(hd) != 4:
+            fail("zpack stopped")
+        n = struct.unpack(">I", hd)[0]
+        out = self.p.stdout.read(n)
+        if len(out) != n or (out[:4] != b"ALXZ" and out != b):
+            fail("zpack answered badly")
+        return out
+
+
+ZP = None
+
+
 def tree(layer, cids):
     """fan-out nodes over the booklets; returns (root CID, [node bytes], depth)"""
     nodes, level, cur, under = [], 0, list(cids), [1] * len(cids)
@@ -307,7 +330,7 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
     stored = {}   # chunk CID -> (layer, booklet, atom)
     refs = {}     # file -> [(layer, booklet, atom)]
     m = {"layers": {}, "chunks": 0, "chunk_bytes": 0, "refs": 0, "ref_bytes": 0,
-         "booklets": 0, "nodes": 0, "by_tier": {t: {"chunks": 0, "bytes": 0, "z": 0}
+         "booklets": 0, "nodes": 0, "plain_booklet_bytes": 0, "stored_booklet_bytes": 0, "by_tier": {t: {"chunks": 0, "bytes": 0, "z": 0}
                                                  for t in TIER_NAME.values()}}
     root_rows, blocks = [], {}
     for k in range(LAYERS):
@@ -380,6 +403,10 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         bcids = []
         for t, atoms in books:
             b = booklet(k, t, atoms)
+            m["plain_booklet_bytes"] += len(b)
+            if ZP:
+                b = ZP.store(b)
+            m["stored_booklet_bytes"] += len(b)
             c = cid_raw(b)
             bcids.append(c)
             blocks[c] = b
@@ -650,6 +677,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cut", required=True)
     ap.add_argument("--out-dir")
+    ap.add_argument("--zpack", help="the zpack helper: store booklets compressed (alx_z.h)")
     ap.add_argument("--icons")
     ap.add_argument("--report")
     ap.add_argument("--baseline")
@@ -662,6 +690,9 @@ def main():
                     help="also end booklets where the content says (measured: more "
                     "booklets survive an edit, but bound files share fewer)")
     args = ap.parse_args()
+    global ZP
+    if args.zpack:
+        ZP = Zpack(args.zpack)
     lay = layers()
     files = corpus(ROOT)
     edges = glue_edges(ROOT, files)
@@ -682,6 +713,8 @@ def main():
         "ref_bytes": m["ref_bytes"],
         "dedup_ratio": round(m["ref_bytes"] / m["chunk_bytes"], 4),
         "booklets": m["booklets"], "tree_nodes": m["nodes"],
+        "booklet_bytes": m["plain_booklet_bytes"], "stored_booklet_bytes": m["stored_booklet_bytes"],
+        "compressed": bool(ZP),
         "glue_nodes": len(m["layers"]), "icons": m["icons"],
         "cids": m["chunks"] + m["booklets"] + m["nodes"] + len(m["layers"]) + m["icons"] + 1,
         "max_depth": max(v["depth"] for v in m["layers"].values()),
@@ -744,7 +777,7 @@ def main():
         owhere, _ = homes(old, lay, oedges)
         om = pack(args, lay, args.baseline, old, oedges, owhere, args.order, None)
         def books(mm):
-            return {c: len(b) for c, b in mm["blocks"].items() if b[:4] == b"ALXB"}
+            return {c: len(b) for c, b in mm["blocks"].items() if b[:4] in (b"ALXB", b"ALXZ")}
         nb, ob = books(m), books(om)
         same_layers = sum(1 for k in m["layers"] if k in om["layers"] and
                           m["root_bytes"][64 + 112 * k:64 + 112 * k + 36] ==
@@ -764,8 +797,11 @@ def main():
     if args.report:
         with open(args.report, "w") as f:
             f.write(s + "\n")
-    print("[PASS] matrix (%d files, %d layers, %d chunks, %d booklets, %d CIDs, root %s)" % (
-        rep["files"], rep["layers_used"], rep["chunks"], rep["booklets"], rep["cids"], rep["root"]))
+    print("[PASS] matrix (%d files, %d layers, %d chunks, %d booklets, %d CIDs, booklets stored in "
+          "%.1f%% of %d bytes, root %s)" % (
+        rep["files"], rep["layers_used"], rep["chunks"], rep["booklets"], rep["cids"],
+        100.0 * rep["stored_booklet_bytes"] / max(1, rep["booklet_bytes"]), rep["booklet_bytes"],
+        rep["root"]))
 
 
 if __name__ == "__main__":

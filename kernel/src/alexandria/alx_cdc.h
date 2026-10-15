@@ -17,10 +17,12 @@
  * tools/alexandria/cdc_cut.c and this file cut identically, which the
  * tests check.
  *
- * Three tiers, by how the content is used:
- *   HOT   code, read often, deduplicated finely   1 KiB / 4 KiB / 16 KiB
- *   WARM  text, tables and documents              4 KiB / 16 KiB / 64 KiB
- *   COLD  bulk and already-dense data            64 KiB / 256 KiB / 1 MiB - 128
+ * Three tiers, by how the content is used (min / average / max):
+ *   HOT   code, read often               4181 / 6765 / 17711 bytes
+ *   WARM  text, tables and documents     4181 / 6765 / 17711 bytes
+ *   COLD  bulk and already-dense data    64 KiB / 256 KiB / 1 MiB - 128
+ * Hot and warm cut alike, at Fibonacci sizes, the measured knee; they keep
+ * separate tiers because the packer gives them different booklet sizes.
  * Every chunk fits one raw block (1 MiB) with a booklet's header and one
  * directory entry, so even a chunk of the maximum size has a booklet.
  * alx_cdc_make builds any other tier (for example Fibonacci sizes) under
