@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "zxv_model_host.h"
+#include "zt_choose.h"
 #include "zt_model.h"
 #include "test_model_fixture.h"
 #include "test_lora_fixture.h"
@@ -117,13 +118,23 @@ int main(int argc, char **argv)
     free(work);
     char err[200] = "";
 
+    /* the machine, as a swarm planner sees it before loading */
+    zt_host_t host;
+    char hl[512];
+    zt_choose_host(&host, true);
+    zt_host_line(&host, hl, sizeof hl);
+    printf("[INFO] host: %s\n", hl);
+    CHECK(host.ncpu >= 1 && host.n_sets >= 1 && !strcmp(host.sets[host.n_sets - 1], "c") &&
+              !strncmp(hl, "cpus=", 5),
+          "the host probe lists the CPUs, kernel sets (C reference last) and GPUs");
+
     /* the CPU's replies */
     setenv("ZT_GPU", "cpu", 1);
     zxv_zt_base_t *cb = NULL;
     zxv_zt_agent_t *ca = NULL, *cl = NULL;
     reply_t ref, ref_lora, single;
     CHECK(zxv_zt_base_load(&cb, &mg, err, sizeof err) == 0 &&
-              !strncmp(zxv_zt_base_gpu(cb), "cpu", 3),
+              strstr(zxv_zt_base_choice(cb), " gpu=none "),
           "ZT_GPU=cpu: the base runs on the CPU (%s)", cb ? zxv_zt_base_gpu(cb) : err);
     CHECK(zxv_zt_agent_new(&ca, cb, NULL, 0, err, sizeof err) == 0, "CPU agent");
     agent_reply(ca, &tok, ids, n, &ref);
@@ -136,14 +147,83 @@ int main(int argc, char **argv)
     zxv_zt_agent_free(cl);
     CHECK(zxv_zt_base_free(cb) == 0, "CPU base freed");
 
-    /* the same on the GPU, if there is one */
+    /* the measured choice: every engine timed, the fastest exact ones kept */
     unsetenv("ZT_GPU");
+    zxv_zt_base_t *mb = NULL;
+    zxv_zt_agent_t *ma = NULL;
+    reply_t mr;
+    char rec[1536] = "", head[256] = "", api[24] = "", cpu[48] = "";
+    CHECK(zxv_zt_base_load(&mb, &mg, err, sizeof err) == 0 && mb, "base loaded, engines measured");
+    if (!mb) return 1;
+    snprintf(rec, sizeof rec, "%s", zxv_zt_base_choice(mb));
+    printf("[INFO] choice: %s\n", rec);
+    const char *bar = strstr(rec, " | ");
+    CHECK(!strncmp(rec, "zt-choice/1 cpu=", 16) && bar && strstr(bar, "cpu:"),
+          "the record names the choice, then every engine it measured");
+    /* the CPU engine chosen is the one measured fastest at one-token steps */
+    {
+        char want[64];
+        unsigned long long best = ~0ull, mine = ~0ull;
+        if (sscanf(rec + 12, "cpu=%47s", want) == 1)
+            for (const char *q = bar; q && (q = strstr(q, "cpu:")) != NULL; q += 4) {
+                char tag[64];
+                unsigned long long pu, su;
+                if (sscanf(q + 4, "%63s prompt %llu us/token, step %llu us", tag, &pu, &su) != 3)
+                    continue;
+                if (su < best) best = su;
+                if (!strcmp(tag, want)) mine = su;
+            }
+        CHECK(mine != ~0ull && mine <= best,
+              "the CPU engine chosen (%s, %llu us a step) is the fastest measured (%llu us)", want,
+              mine, best);
+    }
+    CHECK(zxv_zt_agent_new(&ma, mb, NULL, 0, err, sizeof err) == 0, "agent on the chosen engine");
+    agent_reply(ma, &tok, ids, n, &mr);
+    CHECK(same(&mr, &ref), "the measured choice replies exactly as the CPU does (%s)",
+          zxv_zt_base_gpu(mb));
+    zxv_zt_agent_free(ma);
+    CHECK(zxv_zt_base_free(mb) == 0, "base freed");
+    /* the choice's head ("cpu=SET/T gpu=..."), and a GPU that measured exact */
+    const char *mo = strstr(rec, " model=");
+    if (mo && mo > rec + 12) snprintf(head, sizeof head, "%.*s", (int) (mo - rec - 12), rec + 12);
+    sscanf(rec + 12, "cpu=%47s", cpu);
+    for (const char *q = bar; q && (q = strstr(q, "gpu:")) != NULL; q += 4) {
+        char a[24];
+        if (sscanf(q + 4, "%23[a-z] prompt", a) == 1 &&
+            strstr(q, " prompt ") == q + 4 + strlen(a)) {
+            snprintf(api, sizeof api, "%s", a);
+            break;
+        }
+    }
+
+    /* the record replays: the same choice, not measured again */
+    setenv("ZT_CHOICE", head, 1);
+    CHECK(zxv_zt_base_load(&mb, &mg, err, sizeof err) == 0 && mb, "base loaded from ZT_CHOICE");
+    if (!mb) return 1;
+    CHECK(!strncmp(zxv_zt_base_choice(mb), rec, (size_t) (mo ? mo - rec : 0)) &&
+              strstr(zxv_zt_base_choice(mb), "replayed"),
+          "ZT_CHOICE=\"%s\" rebuilds that choice without measuring", head);
+    CHECK(zxv_zt_agent_new(&ma, mb, NULL, 0, err, sizeof err) == 0, "agent on the replayed engine");
+    agent_reply(ma, &tok, ids, n, &mr);
+    CHECK(same(&mr, &ref), "the replayed choice replies exactly as the CPU does");
+    zxv_zt_agent_free(ma);
+    zxv_zt_base_free(mb);
+
+    /* every pass on the GPU that measured exact (whether or not it won) */
+    bool on_gpu = api[0] != 0;
+    char dev[192] = "no GPU";
+    if (!on_gpu) {
+        unsetenv("ZT_CHOICE");
+        printf("[INFO] no GPU ran the model exactly here: the GPU-only checks are skipped\n");
+    } else {
+        char forced[128];
+        snprintf(forced, sizeof forced, "cpu=%s gpu=%s:0-max", cpu, api);
+        setenv("ZT_CHOICE", forced, 1);
+    }
     zxv_zt_base_t *gb = NULL;
     CHECK(zxv_zt_base_load(&gb, &mg, err, sizeof err) == 0 && gb, "base loaded (%s)", err);
     if (!gb) return 1;
-    char dev[192];
     snprintf(dev, sizeof dev, "%s", zxv_zt_base_gpu(gb)); /* the base's copy goes with it */
-    bool on_gpu = strncmp(dev, "cpu", 3) != 0;
     printf("[INFO] device: %s\n", dev);
     zxv_zt_agent_t *ag[MAX_PLAN] = {0};
     bool all = true;
@@ -198,13 +278,15 @@ int main(int argc, char **argv)
     /* the single slot (zxv_zt_generate_n) */
     single.n = zxv_zt_generate_n(&mg, &tok, ids, n, N_GEN, single.text, sizeof single.text, err,
                                  sizeof err);
-    CHECK(same(&single, &ref) && !strcmp(zxv_zt_gpu(), dev),
-          "the single slot replies the same, on the same device (%s)", zxv_zt_gpu());
+    CHECK(same(&single, &ref) && (!on_gpu || !strcmp(zxv_zt_gpu(), dev)),
+          "the single slot replies the same%s (%s)", on_gpu ? ", on the same device" : "",
+          zxv_zt_gpu());
     zxv_zt_release();
     CHECK(zxv_zt_gpu()[0] == 0, "released: no device");
 
+    unsetenv("ZT_CHOICE");
     const char *req = getenv("ZXV_GPU_REQUIRE");
-    if (req && !strcmp(req, "1")) CHECK(on_gpu, "a GPU was used (ZXV_GPU_REQUIRE=1)");
+    if (req && !strcmp(req, "1")) CHECK(on_gpu, "a GPU ran the model exactly (ZXV_GPU_REQUIRE=1)");
     free(tar);
     free(file);
     free(lfile);

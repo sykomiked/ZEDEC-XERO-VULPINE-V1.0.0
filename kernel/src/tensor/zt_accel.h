@@ -41,6 +41,12 @@ typedef struct zt_accel zt_accel_t;
 /* The first GPU found (or the one ZT_GPU names), or null with err saying
  * why when errcap > 0 (no GPU, no driver, ZT_GPU=cpu, or none built in). */
 zt_accel_t *zt_accel_open(char *err, uint32_t errcap);
+/* The backend named api ("metal", "cuda", "hip", "vulkan"), whatever ZT_GPU
+ * says; null with err as above. zt_choose.h opens each in turn to measure. */
+zt_accel_t *zt_accel_open_api(const char *api, char *err, uint32_t errcap);
+/* The backends built in, in the default order; returns how many (at most
+ * cap written). */
+uint32_t zt_accel_apis(const char **out, uint32_t cap);
 void zt_accel_free(zt_accel_t *a);
 
 /* "metal", "cuda", "hip" or "vulkan". */
@@ -54,11 +60,17 @@ int zt_accel_map(zt_accel_t *a, const void *base, uint64_t len);
  * success. Each backend holds at most 16 regions, weights included. */
 int zt_accel_map_state(zt_accel_t *a, void *base, uint64_t len);
 
-/* Decline products of fewer than n tokens (default 0: run every one). */
+/* The GPU takes products and whole passes of lo..hi tokens and leaves the
+ * rest to the CPU kernels (default 0..UINT32_MAX: all). zt_choose.h sets
+ * this from what it measured, e.g. prompts on the GPU and one-token steps
+ * on the CPU when that is faster. May change between passes. */
+void zt_accel_set_tokens(zt_accel_t *a, uint32_t lo, uint32_t hi);
+/* zt_accel_set_tokens(a, n, UINT32_MAX). */
 void zt_accel_set_min_tokens(zt_accel_t *a, uint32_t n);
 
 /* out = base with the matrix products on the GPU; resident: the whole
- * forward pass too (needs the state mapped with zt_accel_map_state). */
+ * forward pass too (needs the state mapped with zt_accel_map_state). Call
+ * once per zt_accel_t: out's hooks point into it. */
 void zt_accel_kern(zt_accel_t *a, zt_kern_t *out, const zt_kern_t *base, bool resident);
 
 /* Alignment and length granule for zt_accel_map_state memory (65536: every

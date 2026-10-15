@@ -38,10 +38,24 @@ Three levels, and nothing in between:
 
 ## In the app
 
-The app (zxv-host and zxvd) runs every model on the GPU when there is one:
-`zt_accel_open` tries Metal on a Mac, else CUDA, HIP and Vulkan, and the CPU
-rows above are the fallback (`kernel/arch/hosted/zxv_zt_glue.c`, G7). Each
-build gets what its platform can load:
+The app (zxv-host and zxvd) picks what runs each model by measuring, not by
+device name (`kernel/src/tensor/zt_choose.h`, used by
+`kernel/arch/hosted/zxv_zt_glue.c` G7). When a model loads, it is timed on
+every CPU kernel set above that this CPU has (each with its thread pool, and
+the fastest at half the threads) and on every GPU backend that opens and
+takes the weights. Every engine must return the same logits, bit for bit, or
+it is refused. The fastest CPU engine at one-token steps runs the model, and
+the fastest GPU takes prompts, steps or both wherever it measured faster.
+Each choice is one line (`zxv_zt_choice`, `ZT_CHOICE_LOG=FILE`) that
+`ZT_CHOICE` replays. `zt_choose_host` reports cores, memory, kernel sets and
+GPUs for a swarm planner before anything loads.
+
+So "GPU first" means the GPU wins wherever it is faster, and the CPU takes
+the rest. On the M3 Max measurements so far (GPU_STRATEGY.md), that would
+put prompts on Metal and one-token steps on NEON; this has not been run on
+the Mac yet.
+
+Each build gets what its platform can load:
 
 | Build | GPU backends in it |
 |---|---|

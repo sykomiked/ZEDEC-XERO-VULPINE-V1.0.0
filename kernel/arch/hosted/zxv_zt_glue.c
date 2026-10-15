@@ -17,19 +17,19 @@
  *      <|endoftext|>; the stop token is not written.
  *   G4 LIMITS. One sequence at a time (the host is single-threaded), a
  *      context of at most 2048 tokens. No sampling settings are exposed yet.
- *   G7 GPU FIRST. Each loaded model (the slot's, and each G6 base) opens
- *      the GPU this machine has (zt_accel.h: Metal on a Mac, else CUDA,
- *      HIP or Vulkan), puts the weights on it and runs the whole forward
- *      pass there, prompt and generation alike; the KV caches are shared
- *      with it in place. Every backend gives the C reference's bits, so
- *      replies are the same with or without a GPU. With no GPU (or
- *      ZT_GPU=cpu) the model runs on zt_simd_default() (zt_simd.h): the best
- *      SIMD kernels this CPU has with the rows split over a thread pool,
- *      the same bits again (test_zt_simd); ZT_KERN and ZT_THREADS override
- *      that choice. A pass the GPU cannot take (a LoRA agent's, or more
- *      agents than the GPU can share caches with) runs its products on the
- *      GPU and the rest on the CPU. zxv_zt_gpu and zxv_zt_base_gpu say
- *      which device runs a model.
+ *   G7 MEASURED CHOICE. Each loaded model (the slot's, and each G6 base)
+ *      is timed on every engine this machine has (zt_choose.h: each CPU
+ *      kernel set with its threads, and each GPU backend: Metal, CUDA, HIP,
+ *      Vulkan) and runs on the fastest exact ones: the GPU takes prompts,
+ *      one-token steps or both where it measured faster, the CPU the rest.
+ *      Every engine gives the C reference's bits (an engine that differs
+ *      is refused), so replies are the same whatever runs them. The KV
+ *      caches are shared with the chosen GPU in place. A pass the GPU
+ *      cannot take (a LoRA agent's, or more agents than the GPU can share
+ *      caches with) runs its products on the GPU and the rest on the CPU.
+ *      zxv_zt_gpu / zxv_zt_base_gpu say what runs a model, and
+ *      zxv_zt_choice / zxv_zt_base_choice give the measured record
+ *      (ZT_CHOICE replays one, ZT_CHOICE_LOG appends each to a file).
  *   G6 SWARM.  Several models at once (zxv_model_host.h M6): each base is
  *      loaded once (zxv_zt_base_load) and any number of agents run on it
  *      (zxv_zt_agent_new), each with its own KV cache and its own LoRA
@@ -50,6 +50,7 @@
 
 #include "zxv_model_host.h"
 #include "zt_accel.h"
+#include "zt_choose.h"
 #include "zt_model.h"
 #include "zt_simd.h"
 
@@ -58,11 +59,9 @@
 #define GLUE_MAX_NEW 256u
 #define GLUE_POOL    15u /* KV caches a base shares with its GPU (16 regions less the weights) */
 
-/* ---- G7: the GPU behind one loaded model ---- */
+/* ---- G7: the engine chosen for one loaded model ---- */
 typedef struct {
-    zt_accel_t *acc; /* null: the CPU */
-    zt_kern_t k;
-    char info[192]; /* "metal: Apple M3 Max", or "cpu (why)" */
+    zt_engine_t *eng; /* null: not loaded, or out of memory (zt_simd_default) */
 } gpu_t;
 
 /* Memory a GPU may share in place: aligned and rounded to
@@ -89,34 +88,25 @@ static void amem_free(void *p)
     if (p) free(((void **) p)[-1]);
 }
 
-/* m runs on the GPU when there is one that takes g's weights, else on the
- * CPU's SIMD kernels. */
-static void gpu_open(gpu_t *u, zt_model_t *m, const zt_gguf_t *g)
+/* time m on this machine's engines with the state s (on mem, len bytes)
+ * and keep the fastest exact ones (zt_choose.h) */
+static void gpu_open(gpu_t *u, zt_model_t *m, const zt_gguf_t *g, zt_model_state_t *s, void *mem,
+                     uint64_t len)
 {
-    char why[160] = "";
-    memset(u, 0, sizeof *u);
-    m->kern = zt_simd_default(); /* same output bits as the C reference */
-    u->acc = zt_accel_open(why, sizeof why);
-    if (u->acc && zt_accel_map(u->acc, g->buf, g->size)) {
-        snprintf(why, sizeof why, "%s: the weights do not fit on %s", zt_accel_api(u->acc),
-                 zt_accel_name(u->acc));
-        zt_accel_free(u->acc);
-        u->acc = NULL;
-    }
-    if (!u->acc) {
-        snprintf(u->info, sizeof u->info, "cpu (%s)", why[0] ? why : "no GPU");
-        return;
-    }
-    zt_accel_kern(u->acc, &u->k, m->kern, true);
-    m->kern = &u->k;
-    snprintf(u->info, sizeof u->info, "%s: %s", zt_accel_api(u->acc), zt_accel_name(u->acc));
+    zt_choose_in_t in = {g->buf, g->size, s, mem, len};
+    u->eng = zt_choose(m, &in);
 }
 
 /* before the memory it shares is freed */
 static void gpu_close(gpu_t *u)
 {
-    zt_accel_free(u->acc);
-    memset(u, 0, sizeof *u);
+    zt_engine_free(u->eng);
+    u->eng = NULL;
+}
+
+static const char *gpu_info(const gpu_t *u)
+{
+    return u->eng ? zt_engine_device(u->eng) : "";
 }
 
 static struct {
@@ -159,7 +149,12 @@ void zxv_zt_release(void)
 
 const char *zxv_zt_gpu(void)
 {
-    return G.gpu.info;
+    return gpu_info(&G.gpu);
+}
+
+const char *zxv_zt_choice(void)
+{
+    return zt_engine_record(G.gpu.eng);
 }
 
 static void set_err(char *err, size_t cap, const char *fmt, const char *a, int b)
@@ -198,7 +193,7 @@ static int32_t ensure_loaded(const zt_gguf_t *g, char *err, size_t err_cap)
         zxv_zt_release();
         return r;
     }
-    gpu_open(&G.gpu, &G.m, g);
+    G.m.kern = zt_simd_default(); /* until zt_choose picks */
     uint32_t n_ctx = G.m.cfg.n_ctx_train;
     if (n_ctx == 0 || n_ctx > GLUE_CTX) n_ctx = GLUE_CTX;
     uint64_t sb = zt_model_state_bytes(&G.m, n_ctx, GLUE_BATCH, ZT_KV_Q16);
@@ -208,9 +203,7 @@ static int32_t ensure_loaded(const zt_gguf_t *g, char *err, size_t err_cap)
         zxv_zt_release();
         return -1;
     }
-    /* whole passes on the GPU need the cache shared; without it each pass
-     * runs its products there and the rest on the CPU */
-    if (G.gpu.acc) (void) zt_accel_map_state(G.gpu.acc, G.state_mem, amem_round(sb));
+    gpu_open(&G.gpu, &G.m, g, &G.s, G.state_mem, amem_round(sb));
     G.g = g;
     G.buf = g->buf;
     G.n_ctx = n_ctx;
@@ -401,8 +394,8 @@ static void *state_take(zxv_zt_base_t *b, uint64_t sb, int32_t *pool)
             return b->pool[i].mem;
         }
     void *mem = amem_alloc(amem_round(sb));
-    if (mem && b->gpu.acc && b->n_pool < GLUE_POOL &&
-        zt_accel_map_state(b->gpu.acc, mem, amem_round(sb)) == 0) {
+    zt_accel_t *acc = zt_engine_accel(b->gpu.eng);
+    if (mem && acc && b->n_pool < GLUE_POOL && zt_accel_map_state(acc, mem, amem_round(sb)) == 0) {
         b->pool[b->n_pool].mem = mem;
         b->pool[b->n_pool].busy = true;
         *pool = (int32_t) b->n_pool++;
@@ -420,13 +413,18 @@ static void state_give(zxv_zt_base_t *b, void *mem, int32_t pool)
 
 const char *zxv_zt_base_gpu(const zxv_zt_base_t *b)
 {
-    return b ? b->gpu.info : "";
+    return b ? gpu_info(&b->gpu) : "";
+}
+
+const char *zxv_zt_base_choice(const zxv_zt_base_t *b)
+{
+    return b ? zt_engine_record(b->gpu.eng) : "";
 }
 
 void zxv_zt_base_gpu_work(const zxv_zt_base_t *b, uint64_t *passes, uint64_t *products)
 {
     zt_accel_stats_t st;
-    zt_accel_stats(b ? b->gpu.acc : NULL, &st);
+    zt_accel_stats(b ? zt_engine_accel(b->gpu.eng) : NULL, &st);
     if (passes) *passes = st.passes;
     if (products) *products = st.products;
 }
@@ -462,9 +460,24 @@ int32_t zxv_zt_base_load(zxv_zt_base_t **out, const zt_gguf_t *g, char *err, siz
         free(b);
         return r;
     }
-    gpu_open(&b->gpu, &b->m, g);
+    b->m.kern = zt_simd_default(); /* until zt_choose picks */
     b->n_ctx = b->m.cfg.n_ctx_train;
     if (b->n_ctx == 0 || b->n_ctx > GLUE_CTX) b->n_ctx = GLUE_CTX;
+    /* the first agent's cache, made now: the measurement runs on it, and
+     * the chosen GPU keeps it shared */
+    uint64_t sb = zt_model_state_bytes(&b->m, b->n_ctx, GLUE_BATCH, ZT_KV_Q16);
+    zt_model_state_t s0;
+    void *mem = sb ? amem_alloc(amem_round(sb)) : NULL;
+    if (!mem || zt_model_state_init(&s0, &b->m, b->n_ctx, GLUE_BATCH, ZT_KV_Q16, mem, sb) != 0) {
+        amem_free(mem);
+        free(b->arena);
+        free(b);
+        set_err(err, err_cap, "%s (error %d)", "could not set up the KV cache", -1);
+        return -1;
+    }
+    gpu_open(&b->gpu, &b->m, g, &s0, mem, amem_round(sb));
+    b->pool[0].mem = mem;
+    b->n_pool = 1;
     *out = b;
     return 0;
 }
