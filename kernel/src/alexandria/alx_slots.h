@@ -60,7 +60,10 @@
 #define ALX_SLOT_NUM_FLINT_CELLS                 52u /* 590.20 flint.cells */
 #define ALX_SLOT_LOGIC_FLINT_HISTORY_OK          53u /* 490.22 flint.history_ok */
 #define ALX_SLOT_LOGIC_FLINT_SCROLL_OK           54u /* 490.23 flint.scroll_ok */
-#define ALX_SLOT__COUNT 54u
+#define ALX_SLOT_NUM_GATEHOUSE_HOLDERS           55u /* 590.21 gatehouse.holders */
+#define ALX_SLOT_NUM_GATEHOUSE_USE_ALLOWED       56u /* 590.22 gatehouse.use_allowed */
+#define ALX_SLOT_LOGIC_GATEHOUSE_USE_OK          57u /* 490.24 gatehouse.use_ok */
+#define ALX_SLOT__COUNT 57u
 /* clang-format on */
 
 #endif

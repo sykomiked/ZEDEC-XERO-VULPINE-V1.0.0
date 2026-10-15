@@ -89,3 +89,6 @@
 52	num.flint_cells	590.20	flint.cells	base
 53	logic.flint_history_ok	490.22	flint.history_ok	base
 54	logic.flint_scroll_ok	490.23	flint.scroll_ok	base
+55	num.gatehouse_holders	590.21	gatehouse.holders	base
+56	num.gatehouse_use_allowed	590.22	gatehouse.use_allowed	base
+57	logic.gatehouse_use_ok	490.24	gatehouse.use_ok	base
