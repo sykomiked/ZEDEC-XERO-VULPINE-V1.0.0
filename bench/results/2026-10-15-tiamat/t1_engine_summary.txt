@@ -1,0 +1,3 @@
+Spinewyrm: accuracy 0.575, false certainty 0.370, answered 200/200
+Kindlewyrm: accuracy 0.240, false certainty 0.010, answered 200/200
+Vouchwyvern: accuracy 0.270, false certainty 0.190, answered 200/200

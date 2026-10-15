@@ -1,0 +1,39 @@
+{
+  "test": "T1 engine baseline (untuned cell, prompted)",
+  "cell": "Vouchwyvern",
+  "model": "/tmp/claude-0/models/smollm2-1.7b-instruct-q4_k_m.gguf",
+  "n": 200,
+  "answered": 200,
+  "accuracy": 0.27,
+  "false_certainty_rate": 0.19,
+  "confusion_truth_by_answer": {
+    "TRUE": {
+      "TRUE": 2,
+      "FALSE": 9,
+      "BOTH": 7,
+      "NEITHER": 32
+    },
+    "FALSE": {
+      "TRUE": 0,
+      "FALSE": 9,
+      "BOTH": 5,
+      "NEITHER": 36
+    },
+    "BOTH": {
+      "TRUE": 0,
+      "FALSE": 15,
+      "BOTH": 5,
+      "NEITHER": 30
+    },
+    "NEITHER": {
+      "TRUE": 1,
+      "FALSE": 3,
+      "BOTH": 8,
+      "NEITHER": 38
+    }
+  },
+  "marks_for_the_heads": {
+    "accuracy": ">= 0.85",
+    "false_certainty_rate": "<= 0.05"
+  }
+}
