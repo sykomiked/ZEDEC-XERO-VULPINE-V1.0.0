@@ -33,6 +33,8 @@
  *   topic(epoch)    = SHAKE256(label || rendezvous key || epoch)
  * The topic is keyed by a secret, not by the public key, so a node that
  * knows someone's public key still cannot tell which topic is theirs.
+ * Every "label" is length-prefixed as in ident's id_shake: the hash input is
+ * one length byte, the label (cut at 64 bytes), then the parts.
  *
  * PERSONAL STATE IS A SET OF RECEIPTS, NOT A TOTAL
  * ------------------------------------------------

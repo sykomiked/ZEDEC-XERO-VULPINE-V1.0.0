@@ -122,4 +122,4 @@ To end a session early, add a revocation for the grant or the session key. Spend
 make -C kernel test-passport
 ```
 
-The test has 168 checks and runs in under a second, including one MATRIX root. The target also builds `pp_core.c`, `pp_state.c` and `pp_cafe.c` freestanding for aarch64 and i386 and checks that they call nothing outside ident, pqsec, keccak, aead and ipfs_node.
+The test has 371 checks and runs in a few seconds, including one MATRIX root. The target also builds `pp_core.c`, `pp_state.c` and `pp_cafe.c` freestanding for aarch64 and i386 and checks that they call nothing outside ident, pqsec, keccak, aead and ipfs_node.

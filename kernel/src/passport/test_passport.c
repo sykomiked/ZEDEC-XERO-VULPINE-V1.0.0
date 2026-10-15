@@ -190,15 +190,18 @@ static void test_kat(void)
     CHECK(pp_shake(h2, 32, "abc", 0, 0, 0, 0, in + 4, 7) && memcmp(h1, h2, 32) == 0,
           "only the third part");
     memset(h2, 0x5A, 32);
-    CHECK(!pp_shake(h2, 32, "abc", in, 300, in, 200, in, 9) && !pp_sha3(h2, "abc", in, 509, 0, 0, 0, 0),
+    CHECK(!pp_shake(h2, 32, "abc", in, 300, in, 200, in, 9) &&
+              !pp_sha3(h2, "abc", in, 509, 0, 0, 0, 0),
           "inputs over PP_HASH_IN are refused");
-    CHECK(pp_shake(h2, 32, "abc", in, 300, in, 200, in, 8) && pp_sha3(h2, "abc", in, 508, 0, 0, 0, 0),
+    CHECK(pp_shake(h2, 32, "abc", in, 300, in, 200, in, 8) &&
+              pp_sha3(h2, "abc", in, 508, 0, 0, 0, 0),
           "exactly PP_HASH_IN is accepted");
 
     /* byte helpers */
     uint8_t x[8] = {1, 2, 3, 4, 5, 6, 7, 8}, y[8] = {1, 2, 3, 4, 5, 6, 7, 9};
     CHECK(!pp_ct_eq(x, y, 8) && pp_ct_eq(x, y, 7), "pp_ct_eq looks at every byte");
-    CHECK(pp_mcmp(x, y, 8) == -1 && pp_mcmp(y, x, 8) == 1 && pp_mcmp(x, y, 7) == 0, "pp_mcmp order");
+    CHECK(pp_mcmp(x, y, 8) == -1 && pp_mcmp(y, x, 8) == 1 && pp_mcmp(x, y, 7) == 0,
+          "pp_mcmp order");
     uint8_t z[4] = {0, 0, 0, 1};
     CHECK(!pp_is_zero(z, 4) && pp_is_zero(z, 3), "pp_is_zero looks at every byte");
     uint8_t g[6] = {9, 9, 9, 9, 9, 9};
@@ -235,7 +238,8 @@ static void test_kat(void)
     pp_spend_t sp2;
     pp_spend_decode(e, &sp2);
     pp_spend_encode(&sp2, back_e);
-    CHECK(memcmp(e, back_e, sizeof e) == 0 && memcmp(&sp, &sp2, sizeof sp) == 0, "decode inverts encode");
+    CHECK(memcmp(e, back_e, sizeof e) == 0 && memcmp(&sp, &sp2, sizeof sp) == 0,
+          "decode inverts encode");
     pp_earn_t er = earn(5, 0x0A0B);
     uint8_t ee[PP_EARN_BYTES];
     pp_earn_enc(&er, ee);
@@ -965,11 +969,12 @@ static void test_args(void)
     pp_store_t st0 = S.st.s;
     pp_state_t t;
     CHECK(pp_state_init(0, pa.root.did, &st0) == PP_ERR_ARG &&
-              pp_state_init(&t, 0, &st0) == PP_ERR_ARG && pp_state_init(&t, pa.root.did, 0) == PP_ERR_ARG,
+              pp_state_init(&t, 0, &st0) == PP_ERR_ARG &&
+              pp_state_init(&t, pa.root.did, 0) == PP_ERR_ARG,
           "state_init args");
-    void **slots[] = {(void **) &st0.earn,       (void **) &st0.earn_st, (void **) &st0.spend,
+    void **slots[] = {(void **) &st0.earn,       (void **) &st0.earn_st,     (void **) &st0.spend,
                       (void **) &st0.spend_st,   (void **) &st0.spend_order, (void **) &st0.grant,
-                      (void **) &st0.grant_used, (void **) &st0.revoke,  (void **) &st0.dev};
+                      (void **) &st0.grant_used, (void **) &st0.revoke,      (void **) &st0.dev};
     uint32_t refused = 0;
     for (uint32_t i = 0; i < 9; i++) {
         void *keep = *slots[i];
@@ -986,7 +991,8 @@ static void test_args(void)
     pp_grant_rec_t g = {{1}, {1}, {1}, PP_RIGHT_VIEW, 0, 1, 2};
     pp_revoke_t r = {{1}, 0};
     id_cred_ref_t d = {{1}, {1}};
-    CHECK(pp_state_add_earn(0, &e, &a) == PP_ERR_ARG && pp_state_add_earn(&S.st, 0, &a) == PP_ERR_ARG &&
+    CHECK(pp_state_add_earn(0, &e, &a) == PP_ERR_ARG &&
+              pp_state_add_earn(&S.st, 0, &a) == PP_ERR_ARG &&
               pp_state_add_spend(0, &sp, &a) == PP_ERR_ARG &&
               pp_state_add_spend(&S.st, 0, &a) == PP_ERR_ARG &&
               pp_state_add_grant(0, &g, &a) == PP_ERR_ARG &&
@@ -1036,9 +1042,11 @@ static void test_args(void)
               pp_state_add_device(&S.st, &d0, 0) == PP_ERR_ARG,
           "a revocation and a device need a key");
     box_init(&S, pa.root.did, 1);
-    CHECK(pp_state_add_earn(&S.st, &e, 0) == PP_OK && pp_state_add_earn(&S.st, &(pp_earn_t){{2}, {0}, 1, 0}, 0) == PP_ERR_FULL &&
+    CHECK(pp_state_add_earn(&S.st, &e, 0) == PP_OK &&
+              pp_state_add_earn(&S.st, &(pp_earn_t){{2}, {0}, 1, 0}, 0) == PP_ERR_FULL &&
               pp_state_add_spend(&S.st, &sp, 0) == PP_OK &&
-              pp_state_add_grant(&S.st, &g, 0) == PP_OK && pp_state_add_revoke(&S.st, &r, 0) == PP_OK &&
+              pp_state_add_grant(&S.st, &g, 0) == PP_OK &&
+              pp_state_add_revoke(&S.st, &r, 0) == PP_OK &&
               pp_state_add_device(&S.st, &d, 0) == PP_OK,
           "one of each fits a store of one");
     pp_spend_t sp2 = sp;
@@ -1055,7 +1063,8 @@ static void test_args(void)
               pp_state_add_device(&S.st, &d2, 0) == PP_ERR_FULL,
           "a second one of each is FULL");
     r.last_seq = 0;
-    CHECK(pp_state_add_revoke(&S.st, &r, &a) == PP_OK && a == 0, "a full store still lowers nothing new");
+    CHECK(pp_state_add_revoke(&S.st, &r, &a) == PP_OK && a == 0,
+          "a full store still lowers nothing new");
 
     CHECK(pp_state_replay(0) == PP_ERR_ARG, "replay args");
     uint8_t payee[32] = {0};
@@ -1121,16 +1130,18 @@ static void test_args(void)
               pp_voucher_sign(phone.sk, seed, &sp, 0, 0) == PP_ERR_ARG,
           "voucher_sign args");
     CHECK(!pp_voucher_verify(0, seed, &sp, sig) && !pp_voucher_verify(phone.pk, 0, &sp, sig) &&
-              !pp_voucher_verify(phone.pk, seed, 0, sig) && !pp_voucher_verify(phone.pk, seed, &sp, 0),
+              !pp_voucher_verify(phone.pk, seed, 0, sig) &&
+              !pp_voucher_verify(phone.pk, seed, &sp, 0),
           "voucher_verify args");
-    CHECK(pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, phone.pk, 0, sig) == PP_ERR_ARG &&
-              pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &sp, 0) ==
-                  PP_ERR_ARG &&
-              pp_verify_device_spend(0, &status, &cert_phone, phone.pk, &sp, sig) == PP_ERR_ARG &&
-              pp_verify_device_spend(&pa.root.pk, 0, &cert_phone, phone.pk, &sp, sig) == PP_ERR_ARG &&
-              pp_verify_device_spend(&pa.root.pk, &status, 0, phone.pk, &sp, sig) == PP_ERR_ARG &&
-              pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, 0, &sp, sig) == PP_ERR_ARG,
-          "verify_device_spend args");
+    CHECK(
+        pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, phone.pk, 0, sig) == PP_ERR_ARG &&
+            pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &sp, 0) ==
+                PP_ERR_ARG &&
+            pp_verify_device_spend(0, &status, &cert_phone, phone.pk, &sp, sig) == PP_ERR_ARG &&
+            pp_verify_device_spend(&pa.root.pk, 0, &cert_phone, phone.pk, &sp, sig) == PP_ERR_ARG &&
+            pp_verify_device_spend(&pa.root.pk, &status, 0, phone.pk, &sp, sig) == PP_ERR_ARG &&
+            pp_verify_device_spend(&pa.root.pk, &status, &cert_phone, 0, &sp, sig) == PP_ERR_ARG,
+        "verify_device_spend args");
 
     static pp_cafe_t c;
     static uint8_t req[PP_REQUEST_MAX];
@@ -1188,14 +1199,14 @@ static void test_args(void)
               pp_report_open(&pa, &gg, blob, 60, 0, 10, &S.st, &a) == PP_ERR_ARG &&
               pp_report_open(&pa, &gg, blob, 60, work, 10, 0, &a) == PP_ERR_ARG,
           "report_open args");
-    CHECK(pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, 0, phone.pk, &sp, sig, 1) ==
-                  PP_ERR_ARG &&
-              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, 0, &sp, sig, 1) ==
-                  PP_ERR_ARG &&
-              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, phone.pk, 0, sig,
+    CHECK(pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, 0, phone.pk, &sp, sig,
+                               1) == PP_ERR_ARG &&
+              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, 0, &sp, sig,
                                    1) == PP_ERR_ARG &&
-              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, phone.pk, &sp, 0,
-                                   1) == PP_ERR_ARG,
+              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, phone.pk, 0,
+                                   sig, 1) == PP_ERR_ARG &&
+              pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &gg, phone.pk, &sp,
+                                   0, 1) == PP_ERR_ARG,
           "verify_cafe_spend args");
 }
 
@@ -1248,7 +1259,8 @@ static void test_seed_edges(void)
           "the lowest padding bit must be zero too");
     enc34(b, t);
     snprintf(t2, sizeof t2, "%.20sU%s", t, t + 20);
-    CHECK(pp_seed_from_text(t2, 56, seed) == PP_ERR_FORMAT, "an invalid character inside is refused");
+    CHECK(pp_seed_from_text(t2, 56, seed) == PP_ERR_FORMAT,
+          "an invalid character inside is refused");
     snprintf(t2, sizeof t2, "%.20s -%s", t, t + 20);
     CHECK(pp_seed_from_text(t2, 57, back) == PP_OK && memcmp(back, b, 32) == 0,
           "spaces and dashes anywhere are skipped");
@@ -1397,9 +1409,9 @@ static void test_state_edges(void)
     fill3(&S);
     bool sorted = true;
     for (uint32_t i = 0; i < 3; i++)
-        sorted = sorted && S.st.s.earn[i].receipt[0] == i + 1 && S.st.s.spend[i].signer[0] == i + 1 &&
-                 S.st.s.grant[i].grant[0] == i + 1 && S.st.s.revoke[i].key[0] == i + 1 &&
-                 S.st.s.dev[i].cred_id[0] == i + 1;
+        sorted = sorted && S.st.s.earn[i].receipt[0] == i + 1 &&
+                 S.st.s.spend[i].signer[0] == i + 1 && S.st.s.grant[i].grant[0] == i + 1 &&
+                 S.st.s.revoke[i].key[0] == i + 1 && S.st.s.dev[i].cred_id[0] == i + 1;
     CHECK(sorted, "entries added out of order are kept sorted in every set");
     CHECK(pp_state_encoded_size(&S.st) == 60 + 3 * (80 + 96 + 76 + 24 + 32),
           "encoded size: header plus every entry");
@@ -1423,9 +1435,11 @@ static void test_state_edges(void)
               work[983] == 0x43,
           "revocation and device entries at their offsets");
     box_init(&E, pa.root.did, CAP);
-    CHECK(pp_state_merge_encoded(&E.st, work, n, &add) == PP_OK && add == 15 && same_sets(&E.st, &S.st),
+    CHECK(pp_state_merge_encoded(&E.st, work, n, &add) == PP_OK && add == 15 &&
+              same_sets(&E.st, &S.st),
           "a merge restores every field of every entry");
-    CHECK(pp_state_merge_encoded(&E.st, work, n, &add) == PP_OK && add == 0 && same_sets(&E.st, &S.st),
+    CHECK(pp_state_merge_encoded(&E.st, work, n, &add) == PP_OK && add == 0 &&
+              same_sets(&E.st, &S.st),
           "merging again adds nothing");
 
     /* exactly full, one short, set by set */
@@ -1563,10 +1577,11 @@ static void test_state_edges(void)
     CHECK(state_of(&E.st, &q[0]) == PP_ST_HELD && state_of(&E.st, &q[1]) == PP_ST_HELD &&
               state_of(&E.st, &q[2]) == PP_ST_HELD && E.st.bal.held == 9,
           "three spends on one slot are held; the largest (listed first) is kept back");
-    CHECK(state_of(&E.st, &q[3]) == PP_ST_SETTLED && state_of(&E.st, &q[4]) == PP_ST_SETTLED &&
-              state_of(&E.st, &q[5]) == PP_ST_SETTLED && E.st.bal.settled == 12 &&
-              E.st.bal.available == 79,
-          "the same signer's next sequence and another signer's same sequence are not equivocations");
+    CHECK(
+        state_of(&E.st, &q[3]) == PP_ST_SETTLED && state_of(&E.st, &q[4]) == PP_ST_SETTLED &&
+            state_of(&E.st, &q[5]) == PP_ST_SETTLED && E.st.bal.settled == 12 &&
+            E.st.bal.available == 79,
+        "the same signer's next sequence and another signer's same sequence are not equivocations");
 
     /* funding order */
     pp_spend_t f1[2] = {mk_spend(1, 1, 5, 6), mk_spend(2, 1, 3, 6)};
@@ -1639,6 +1654,22 @@ static void test_state_edges(void)
               state_of(&E.st, &w[2]) == PP_ST_SETTLED && state_of(&E.st, &w[3]) == PP_ST_REFUSED &&
               E.st.s.grant_used[0] == 5 && E.st.bal.refused == 1,
           "a grant's window includes both ends; its cap is exact; replay twice agrees");
+    pp_spend_t wo[2] = {mk_spend(4, 5, 5, 1), mk_spend(4, 6, 6, 1)};
+    memset(wo[0].grant, 1, 16);
+    memset(wo[1].grant, 1, 16);
+    wo[0].t_ms = g.issued_ms - 1;
+    wo[1].t_ms = g.expires_ms + 1;
+    box_init(&S, pa.root.did, CAP);
+    pp_state_add_earn(&S.st, &big100, 0);
+    g.cap = 50;
+    pp_state_add_grant(&S.st, &g, 0);
+    g.cap = 5;
+    pp_state_add_spend(&S.st, &wo[0], 0);
+    pp_state_add_spend(&S.st, &wo[1], 0);
+    pp_state_replay(&S.st);
+    CHECK(state_of(&S.st, &wo[0]) == PP_ST_REFUSED && state_of(&S.st, &wo[1]) == PP_ST_REFUSED &&
+              S.st.bal.refused == 2,
+          "one millisecond outside the window is refused, with cap to spare");
     pp_grant_rec_t g2 = g;
     g2.cap = 6;
     pp_state_add_grant(&E.st, &g2, 0);
@@ -1658,7 +1689,8 @@ static void test_state_edges(void)
     CHECK(pp_state_replay(&E.st) == PP_OK && state_of(&E.st, &ov[0]) == PP_ST_REFUSED,
           "the first grant's cap holds");
     pp_state_add_spend(&E.st, &ov[1], 0);
-    CHECK(pp_state_replay(&E.st) == PP_ERR_OVERFLOW, "spends over a grant cap overflow the refused total");
+    CHECK(pp_state_replay(&E.st) == PP_ERR_OVERFLOW,
+          "spends over a grant cap overflow the refused total");
 
     /* new spends */
     pp_spend_t sx, s9[1] = {mk_spend(2, 9, 7, 1)};
@@ -1689,8 +1721,8 @@ static void test_state_edges(void)
 }
 
 /* ---- capsule, fetch and device-chain edges ---- */
-static int big_fetch(void *ctx, const uint8_t lookup[32], uint32_t index, uint8_t *buf, uint32_t cap,
-                     uint32_t *len)
+static int big_fetch(void *ctx, const uint8_t lookup[32], uint32_t index, uint8_t *buf,
+                     uint32_t cap, uint32_t *len)
 {
     (void) ctx;
     (void) lookup;
@@ -1746,13 +1778,13 @@ static void test_capsule_edges(void)
     pp_capsule_publish(&pa, &host, &A.st, 30000, blob, sizeof blob);
     pp_capsule_publish(&pa, &host, &S.st, 30000, blob, sizeof blob);
     box_init(&S, pa.root.did, CAP);
-    CHECK(pp_capsule_fetch(&pb, &host, 30000, blob, sizeof blob, work, sizeof work, &S.st, &m, &k) ==
-                  PP_OK &&
+    CHECK(pp_capsule_fetch(&pb, &host, 30000, blob, sizeof blob, work, sizeof work, &S.st, &m,
+                           &k) == PP_OK &&
               m == 2 && k == 0,
           "every capsule under the topic is merged");
     box_init(&S, pa.root.did, 1);
-    CHECK(pp_capsule_fetch(&pb, &host, 30000, blob, sizeof blob, work, sizeof work, &S.st, &m, &k) ==
-                  PP_ERR_FULL,
+    CHECK(pp_capsule_fetch(&pb, &host, 30000, blob, sizeof blob, work, sizeof work, &S.st, &m,
+                           &k) == PP_ERR_FULL,
           "a store too small stops the fetch");
     box_init(&S, pa.root.did, CAP);
     CHECK(pp_capsule_fetch(&pb, &host, 30000, blob, sizeof blob, work, 10, &S.st, &m, &k) ==
@@ -1836,8 +1868,8 @@ static void test_cafe_edges(void)
     uint32_t len, len2, n, env_len, add;
     memset(r, 0x33, 32);
     memset(payee, 0xEE, 32);
-    CHECK(pp_cafe_begin(&cafe2, r, PP_RIGHT_VIEW | PP_RIGHT_SPEND, 7, 1000, req, sizeof req, &len) ==
-              PP_OK,
+    CHECK(pp_cafe_begin(&cafe2, r, PP_RIGHT_VIEW | PP_RIGHT_SPEND, 7, 1000, req, sizeof req,
+                        &len) == PP_OK,
           "a second café session");
     CHECK(pp_cafe_begin(&cafe2, r, PP_RIGHT_VIEW | PP_RIGHT_SPEND, 7, 1000, req2, len - 1, &len2) ==
                   PP_ERR_SIZE &&
@@ -1892,7 +1924,8 @@ static void test_cafe_edges(void)
     req2[1984] ^= 0xFF;
     refp(req2, 1983, fp);
     refused += pp_request_parse(req2, 1983, fp, &bad) == PP_ERR_FORMAT;
-    CHECK(refused == 6, "no rights, unknown rights, no duration, wrong key length, a bad key, short");
+    CHECK(refused == 6,
+          "no rights, unknown rights, no duration, wrong key length, a bad key, short");
     refp(req2, len, fp);
     CHECK(pp_request_parse(req2, len, fp, &bad) == PP_OK, "the restored request parses");
 
@@ -1953,7 +1986,8 @@ static void test_cafe_edges(void)
               memcmp(env + 8, g.grant, 16) == 0 && pp_get32(env + 28) == 32 + vn,
           "envelope layout");
     CHECK(pp_envelope_seal(&pa, &g, &q, view, vn, r, blob, env_len - 1, &n) == PP_ERR_SIZE &&
-              pp_envelope_seal(&pa, &g, &q, view, vn, r, blob, env_len, &n) == PP_OK && n == env_len,
+              pp_envelope_seal(&pa, &g, &q, view, vn, r, blob, env_len, &n) == PP_OK &&
+              n == env_len,
           "the envelope fits exactly");
     uint32_t mm = 0;
     gx = g;
@@ -2041,13 +2075,16 @@ static void test_cafe_edges(void)
               pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g, cafe2.sig_pk,
                                    &s2, sig2, now + 1000) == PP_OK,
           "a peer accepts a spend of the cap at both ends of the window");
+    CHECK(pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g, cafe2.sig_pk, &s1,
+                               sig1, now) == PP_OK,
+          "a voucher stamped at the grant's first moment");
     CHECK(pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g, cafe2.sig_pk, &s2,
                                sig2, now - 1) == PP_ERR_EXPIRED,
           "not before the window");
     pp_spend_t st_ = s1;
     st_.t_ms = now - 1;
-    uint32_t ex = pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g, cafe2.sig_pk,
-                                       &st_, sig1, now) == PP_ERR_EXPIRED;
+    uint32_t ex = pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g,
+                                       cafe2.sig_pk, &st_, sig1, now) == PP_ERR_EXPIRED;
     st_.t_ms = now + 1001;
     ex += pp_verify_cafe_spend(&pa.root.pk, &status, &cert_phone, phone.pk, &g, cafe2.sig_pk, &st_,
                                sig1, now) == PP_ERR_EXPIRED;
@@ -2142,7 +2179,8 @@ static void test_cafe_edges(void)
           "no room for the spends: nothing changes");
     box_init(&S, pa.root.did, CAP);
     S.st.s.grant_cap = 0;
-    CHECK(pp_report_open(&pa, &g, rb, rl, work, 192, &S.st, &add) == PP_ERR_FULL && S.st.n_spend == 0,
+    CHECK(pp_report_open(&pa, &g, rb, rl, work, 192, &S.st, &add) == PP_ERR_FULL &&
+              S.st.n_spend == 0,
           "no room for the grant: nothing changes");
     box_init(&S, pa.root.did, CAP);
     S.st.s.spend_cap = 2;
