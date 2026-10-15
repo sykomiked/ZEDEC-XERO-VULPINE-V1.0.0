@@ -18,7 +18,11 @@
  * (dotimes / do), list construction and the list built-ins, a recursive
  * walk of a quoted list, and printing of numbers, lists and booleans.
  *
- * Usage: gen_lisp lisp|scm <seed>   (writes the program to stdout) */
+ * Modes: lisp and cl (Common Lisp: the same program, with case for if),
+ * scm and rkt (Racket: #lang racket, add1/sub1, brackets, no
+ * floor-quotient, and bare top-level values that racket prints itself).
+ *
+ * Usage: gen_lisp lisp|cl|scm|rkt <seed>   (writes the program to stdout) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -89,7 +93,7 @@ typedef struct {
 
 static node_t pool[NODES];
 static int npool, overflowed;
-static int scm;
+static int scm, rkt, cl, bare; /* rkt implies scm; bare: a top-level Racket value */
 
 static long long val[SLOTS];
 static int nslots;
@@ -442,6 +446,18 @@ static void pint(int n)
     case E_FR:
     case E_MAX:
     case E_MIN:
+        if (rkt && p->k == E_FQ) { /* racket has no floor-quotient: (a - a mod b) / b */
+            printf("(quotient (- ");
+            pint(p->a);
+            printf(" (modulo ");
+            pint(p->a);
+            printf(" ");
+            pint(p->b);
+            printf(")) ");
+            pint(p->b);
+            printf(")");
+            return;
+        }
         printf("(%s ", (scm ? sop : lop)[p->k - E_ADD]);
         pint(p->a);
         printf(" ");
@@ -453,6 +469,8 @@ static void pint(int n)
     case E_DEC:
         if (p->k == E_ABS)
             printf("(abs ");
+        else if (rkt)
+            printf("(%s ", p->k == E_INC ? "add1" : "sub1");
         else if (scm)
             printf("(%s ", p->k == E_INC ? "+ 1" : "+ -1");
         else
@@ -461,6 +479,16 @@ static void pint(int n)
         printf(")");
         return;
     case E_IF:
+        if (cl) { /* Common Lisp: a case on the test's 1 or 0 */
+            printf("(case (if ");
+            ptest(p->a);
+            printf(" 1 0) (1 ");
+            pint(p->b);
+            printf(") (otherwise ");
+            pint(p->c);
+            printf("))");
+            return;
+        }
         printf("(if ");
         ptest(p->a);
         printf(" ");
@@ -470,15 +498,18 @@ static void pint(int n)
         printf(")");
         return;
     case E_LET:
-        printf("(let ((%s ", sname[p->a]);
+        printf(rkt ? "(let ([%s " : "(let ((%s ", sname[p->a]);
         pint(p->b);
-        printf(")) ");
+        printf(rkt ? "]) " : ")) ");
         pint(p->c);
         printf(")");
         return;
     case E_LOOP: {
         const char *i = sname[p->a], *acc = sname[p->b], *lp = sname[p->a + 2];
-        if (scm)
+        if (rkt)
+            printf("(let %s ([%s 0] [%s 0]) (if (< %s %lld) (%s (add1 %s) (+ %s ", lp, i, acc, i,
+                   p->v, lp, i, acc);
+        else if (scm)
             printf("(let %s ((%s 0) (%s 0)) (if (< %s %lld) (%s (+ %s 1) (+ %s ", lp, i, acc, i,
                    p->v, lp, i, acc);
         else
@@ -556,23 +587,27 @@ static void plist(int n)
 
 static void out_open(void)
 {
-    printf(scm ? "(display " : "(print ");
+    printf(rkt ? (bare ? "" : "(displayln ") : scm ? "(display " : "(print ");
 }
 
 static void out_close(void)
 {
-    printf(scm ? ") (newline)\n" : ")\n");
+    printf(rkt ? (bare ? "\n" : ")\n") : scm ? ") (newline)\n" : ")\n");
 }
 
 int main(int argc, char **argv)
 {
-    if (argc != 3 || (strcmp(argv[1], "lisp") && strcmp(argv[1], "scm"))) {
-        fprintf(stderr, "usage: gen_lisp lisp|scm <seed>\n");
+    if (argc != 3 || (strcmp(argv[1], "lisp") && strcmp(argv[1], "scm") && strcmp(argv[1], "cl") &&
+                      strcmp(argv[1], "rkt"))) {
+        fprintf(stderr, "usage: gen_lisp lisp|cl|scm|rkt <seed>\n");
         return 2;
     }
-    scm = argv[1][0] == 's';
+    rkt = !strcmp(argv[1], "rkt");
+    cl = !strcmp(argv[1], "cl");
+    scm = argv[1][0] == 's' || rkt;
     rng = 0x9e3779b97f4a7c15ull ^ ((unsigned long long) strtoul(argv[2], 0, 10) * 2654435761ull);
     for (int i = 0; i < 4; i++) rnd(1);
+    if (rkt) printf("#lang racket\n");
     printf(";;; generated program, seed %s\n", argv[2]);
     for (int i = 0; i < NL; i++) data[i] = (long long) rnd(41) - 20;
     printf(scm ? "(define data '(" : "(defvar *data* '(");
@@ -678,6 +713,7 @@ int main(int argc, char **argv)
             printf(scm ? "(display %d) (newline)\n" : "(print %d)\n", st);
             continue;
         }
+        bare = rkt && (st & 1) == 0 && kind != 3; /* racket prints a bare value itself */
         switch (kind) {
         case 0:
         case 1:
@@ -696,7 +732,7 @@ int main(int argc, char **argv)
             printf(" ");
             out_open();
             pint(e);
-            printf(scm ? ") (newline))\n" : "))\n");
+            printf(scm && !rkt ? ") (newline))\n" : "))\n");
             break;
         case 4:
             if (scm)
@@ -719,6 +755,7 @@ int main(int argc, char **argv)
         }
         npool = mark; /* statements are printed; their trees are no longer needed */
     }
+    bare = rkt;
     out_open();
     printf(scm ? "(list g0 g1 g2)" : "(list *g0* *g1* *g2*)");
     out_close();

@@ -56,7 +56,7 @@
 1983	Objective-C	object	catalogue	-	-
 1983	Occam	concurrent	catalogue	-	-
 1983	ABAP	business	catalogue	-	-
-1984	Common Lisp	list	catalogue	-	-
+1984	Common Lisp	list	run	Braidwyrm	kernel/src/lingua/zl_commonlisp.c, kernel/src/lingua/zl_lisp.c
 1984	MATLAB	numeric	catalogue	-	-
 1984	Verilog	hardware	catalogue	-	-
 1985	Eiffel	object	catalogue	-	-
@@ -83,7 +83,7 @@
 1995	Ruby	scripting	host	-	sdk/ruby
 1995	PHP	scripting	host	-	sdk/php
 1995	Delphi	algol	catalogue	-	Pascal dialect
-1995	Racket	list	catalogue	-	-
+1995	Racket	list	run	Dialectwyrm	kernel/src/lingua/zl_racket.c, kernel/src/lingua/zl_lisp.c
 1996	OCaml	functional	catalogue	-	-
 2000	C#	object	host	-	sdk/dotnet
 2003	Scala	functional	catalogue	-	-

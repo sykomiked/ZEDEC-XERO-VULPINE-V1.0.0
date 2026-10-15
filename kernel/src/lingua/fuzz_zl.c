@@ -83,6 +83,13 @@ static const char *const seeds[] = {
     "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
     "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
     "-2 7 / 7)\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun k (n) (case n (0 'z) ((1 2) 'low) "
+    "(otherwise 'hi)))\n(print (list (k 0) (k 2) (k 9))) (print (first (rest *l*)))\n"
+    "(setf *l* (cddr *l*)) (format t \"~a ~d~%\" *l* (length *l*))\n",
+    "#lang racket\n;;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) "
+    "acc (f (sub1 n) (cons n acc))))\n(f 4 empty) (length l) (assv 2 (cddr l))\n"
+    "(let loop ([x 1]) (if (> x 9) x (loop (* x 2))))\n(printf \"~a ~s ~v~n\" (first l) 'q "
+    "(rest l))\n(define (w n) (when (> n 0) (displayln n) (w (- n 1))))\n(w 2) (cons? null)\n",
 };
 
 static const char *const dict[] = {
