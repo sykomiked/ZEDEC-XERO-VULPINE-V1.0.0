@@ -770,7 +770,7 @@ def space_checks(c):
 
 
 def power_checks(c, generates):
-    """power.* (zxvd_power.h W1-W8): the ledger, the companion as an agent
+    """power.* (zxvd_power.h W1-W9): the ledger, thermal.read, the companion as an agent
     under zxvd's own app, and an energy budget that makes it wait."""
     st = c.ok('power.status')
     check(st['host'] in ('linux', 'macos', 'windows') and st['device'] in ('desktop', 'laptop') and
@@ -782,6 +782,16 @@ def power_checks(c, generates):
     check(len(me) == 1 and me[0]['parent'] is None, 'power.top: zxvd is an app (%s)' % me)
     r = c.call('power.top', {'kind': 'apps'})
     check(r.get('error', {}).get('code') == -32602, 'power.top: an unknown kind is refused')
+    # thermal.read (zxvd_power.h W9): this machine's real sensors, or NEITHER
+    # with the reason; never a made-up number
+    th = c.ok('thermal.read')
+    accepted = [x for x in th['readings'] if x['state'] == 'true']
+    check(th['state'] in ('true', 'false', 'both', 'neither') and
+          set(th['classes']) == {'cpu', 'gpu', 'case', 'other'} and
+          all(isinstance(x['mdeg'], int) and -50000 <= x['mdeg'] <= 150000 for x in accepted) and
+          all(x['mdeg'] is None and x['reason'] for x in th['readings'] if x['state'] == 'false') and
+          (th['state'] != 'neither' or (not th['readings'] and th['reason'])),
+          'thermal.read: %s, %d readings (%s)' % (th['state'], len(th['readings']), th['reason']))
     r = c.call('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0})
     check(r.get('error', {}).get('code') == -32012, 'power.budget: off until switched on')
     c.ok('features.set', {'feature': 'power', 'on': True})
@@ -1063,7 +1073,7 @@ def main(binary, gguf=None):
                 'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
                 'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
-                'power.top', 'power.budget', 'pspace.create', 'pspace.find', 'pspace.join',
+                'power.top', 'power.budget', 'thermal.read', 'pspace.create', 'pspace.find', 'pspace.join',
                 'pspace.leave', 'pspace.post', 'pspace.events', 'pspace.members', 'pspace.list',
                 'hall.load', 'hall.play', 'hall.pause', 'hall.seek', 'hall.status'}
         if not WINDOWS:

@@ -410,7 +410,8 @@ static const char *const CAPS[] = {
     "backup",                      /* backups and versions (backup.*) */
     "journal",                     /* zxvd's event history (journal.*, log.tail) */
     "screen.time",                 /* screen time and its limits (screen.*) */
-    "sys.read",                    /* the machine's facts (sys.*) */
+    "sys.read",                    /* the machine's facts (sys.*; power.status too, R3) */
+    "power.read",                  /* energy and heat (power.status, power.top, thermal.read) */
     "search",                      /* the Hoard's index (search.*) */
     "swarm",                       /* the local swarm (swarm.*) */
     "ai.ask",                      /* the swarm's answers (swarm.ask) */

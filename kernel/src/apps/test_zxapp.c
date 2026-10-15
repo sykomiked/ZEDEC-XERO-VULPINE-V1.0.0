@@ -1770,6 +1770,17 @@ static void test_registry_fields(void)
     CHECK(!zxapp_cap_known(NULL) && !zxapp_cap_known("") && !zxapp_cap_known("fs") &&
               !zxapp_cap_known("fs.reads") && !zxapp_cap_known("Net"),
           "near misses");
+    /* R3: the power and heat capability, beside sys.read */
+    CHECK(zxapp_cap_known("power.read") && zxapp_cap_known("sys.read") &&
+              !zxapp_cap_known("power") && !zxapp_cap_known("power.write") &&
+              !zxapp_cap_known("thermal.read"),
+          "power.read is a capability; thermal.read is a method, not one");
+    bool listed = false;
+    for (uint32_t i = 0; i < nc; i++) listed |= !strcmp(caps[i], "power.read");
+    CHECK(listed, "zxapp_caps lists power.read");
+    CHECK(parse("zxapp 1\nid brz\nneeds power.read\nneeds sys.read\n") == ZXAPP_OK &&
+              zxapp_needs(&A, "power.read", NULL),
+          "an app may ask for power.read: %s", A.err);
 }
 
 /* ---- wave 0: the built-in apps' own manifests, read from disk ----------------

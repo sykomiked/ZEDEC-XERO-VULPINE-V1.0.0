@@ -16278,6 +16278,232 @@
       }
     },
     {
+      "name": "thermal.read",
+      "summary": "This machine's temperature sensors, read afresh on each call (zxv_thermal_host.h T1-T7): Linux hwmon and thermal zones; macOS HID temperature services (Apple silicon) or SMC keys (Intel). Each reading is classed cpu, gpu, case (board, chassis, chipset) or other, in integer millidegrees C with its source, driver, label and path. A value that is not a strict integer or lies outside -50..+150 C is refused per reading (state false, mdeg null). state is the four-valued knowledge join over the readings: neither (no sensor: readings empty, reason says why; never a made-up number), true, false or both. Always on (feature \"power\"); answers whether or not power tracking runs. Apps ask for it with the power.read capability.",
+      "params": [],
+      "result": {
+        "name": "thermal",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "both",
+                "neither"
+              ]
+            },
+            "host": {
+              "type": "string",
+              "enum": [
+                "linux",
+                "macos",
+                "windows",
+                "other"
+              ],
+              "description": "which reader answered"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "why there is no reading; null otherwise"
+            },
+            "classes": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "gpu": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "case": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                },
+                "other": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "true",
+                        "false",
+                        "both",
+                        "neither"
+                      ]
+                    },
+                    "n": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "accepted readings"
+                    },
+                    "max_mdeg": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "the highest accepted reading; null when n is 0"
+                    }
+                  }
+                }
+              }
+            },
+            "readings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "class": {
+                    "type": "string",
+                    "enum": [
+                      "cpu",
+                      "gpu",
+                      "case",
+                      "other"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false"
+                    ],
+                    "description": "true: accepted; false: refused (reason says why, mdeg is null)"
+                  },
+                  "mdeg": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": -50000,
+                    "maximum": 150000,
+                    "description": "millidegrees Celsius"
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "hwmon",
+                      "thermal_zone",
+                      "iohid",
+                      "smc"
+                    ]
+                  },
+                  "driver": {
+                    "type": "string",
+                    "description": "hwmon device name or thermal zone type; '' when the device gives none"
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "the sensor's own label; '' when none or not printable ASCII"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "where it was read, e.g. /sys/class/hwmon/hwmon3/temp1_input"
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      null,
+                      "out of range",
+                      "not an integer",
+                      "too long",
+                      "unreadable"
+                    ]
+                  }
+                }
+              }
+            },
+            "rejected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "readings past the 128 kept"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
       "name": "irc.status",
       "summary": "The IRC gateway (docs/IRC_GATEWAY.md): whether the feature is on and zxvd listens on 127.0.0.1 over TLS 1.3, the port, the connected clients, the gateway password (PASS), the self-signed certificate's SHA-256 fingerprint and file (pin it in the IRC client), who signs relayed messages (the node identity while the mesh runs, else the gateway's own ML-DSA-87 key) and the bridge. Always on (feature \"irc\", off by default, not regulated).",
       "params": [],

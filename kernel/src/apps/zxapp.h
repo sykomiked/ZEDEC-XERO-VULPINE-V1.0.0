@@ -171,7 +171,13 @@
  *      fs.read, fs.write, ...). An unknown name refuses the manifest; it
  *      is never ignored. The scope is one word ("space:home"); the same
  *      cap and scope twice is refused. What is declared is only one
- *      witness: the loader joins it with what the code uses.
+ *      witness: the loader joins it with what the code uses. "power.read"
+ *      covers zxvd's power.status, power.top and thermal.read (energy per
+ *      app, the battery and the machine's temperatures): an app that shows
+ *      power or heat names it. "sys.read" (sys.*) still covers power.status
+ *      for the apps written before power.read existed; that overlap is for
+ *      compatibility only, and power.top and thermal.read are power.read's
+ *      alone.
  *   R4 These belong to apps: a block may not carry slot, layer, icon,
  *      budget or needs (the app that uses it declares them). Each of slot,
  *      layer, icon and budget appears at most once.

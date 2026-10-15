@@ -179,9 +179,11 @@ case "${1:-srcs}" in
         # Argon2id (id_argon2.c) is added with ident in build_zxvd.sh
         echo arch/hosted/zxvd_seats.c
         echo src/seats/seats.c
-        # power.*: the energy ledger and this machine's readers (docs/POWER.md)
+        # power.* and thermal.read: the energy ledger and this machine's
+        # readers (docs/POWER.md)
         echo arch/hosted/zxvd_power.c
         echo arch/hosted/zxv_power_host.c
+        echo arch/hosted/zxv_thermal_host.c
         echo src/power/power_ledger.c
         # irc.*: the IRC gateway (docs/IRC_GATEWAY.md), its protocol engine
         # and the repo's TLS 1.3 server and verifier (x25519, aead and hkdf
