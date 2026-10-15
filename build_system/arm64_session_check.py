@@ -11,7 +11,10 @@ commands into the EL0 shell over the serial line and checks each reply.
           seeded on it; `write` persists a file; `run hello.zsp` verifies
           the Ed25519 signature, loads the ELF off the disk and runs it at
           EL0 in its own address space, where its privileged SYS_EXEC is
-          denied; `run` refuses a file that is not a signed package.
+          denied; the chiglet governor reads the disk through its ABI gate,
+          holds the chiglet's cell quarantine and reload until their exact
+          digests are accepted, and refuses bad calls; `run` refuses a file
+          that is not a signed package.
   (between boots one byte of hello.zsp's signed payload is flipped on the
    disk image, as a tampered download would be)
   boot 2  the disk mounts without reformatting; the file written in boot 1
@@ -100,6 +103,40 @@ class Boot:
             f.write(self.out)
 
 
+def governor_checks(b):
+    """The chiglet governor (kernel/src/chiglet/chg_abi.h): the console takes
+    typed ABI calls; a change from the chiglet is held until the person
+    accepts its exact digest; bad calls are refused."""
+    b.expect(b'[OK] chiglet governor' in b.out and b'[CHIGLET] the console' in b.out,
+             'boot armed the chiglet governor and handed it the console')
+    r = b.cmd('abi storage_dma_read 0 2', b'storage_dma_read (you)')
+    b.expect(b'read 2 sector(s) at lba 0, sha256 ' in r and b'(you) ran' in r,
+             'the person\'s storage_dma_read ran through the gate')
+    r = b.cmd('chiglet storage_dma_read 0 9', b'storage_dma_read (chiglet)')
+    b.expect(b'(chiglet) refused' in r, 'an out-of-bounds call from the chiglet is refused')
+    r = b.cmd('chiglet cell_quarantine 1', b'held: to run it')
+    m = re.search(rb'accept (\d+) ([0-9a-f]{16})', r)
+    b.expect(m is not None and b'(chiglet) held' in r,
+             'a change from the chiglet is held with its digest')
+    if m is None:
+        return
+    r = b.cmd('accept %s 0000000000000000' % m.group(1).decode(), b'[chiglet]')
+    b.expect(b'the digest does not match' in r, 'a wrong digest runs nothing')
+    r = b.cmd('held', b'digest')
+    b.expect(m.group(2) in r, '`held` lists the waiting call')
+    r = b.cmd('accept %s %s' % (m.group(1).decode(), m.group(2).decode()), b'cell_quarantine (you)')
+    b.expect(b'cell_quarantine (you) ran' in r, 'the accepted quarantine ran')
+    r = b.cmd('chiglet cell_reload 1', b'held: to run it')
+    m = re.search(rb'accept (\d+) ([0-9a-f]{16})', r)
+    b.expect(m is not None, 'a cell reload from the chiglet is held')
+    if m is None:
+        return
+    r = b.cmd('accept %s %s' % (m.group(1).decode(), m.group(2).decode()), b'cell_reload (you)')
+    b.expect(b'cell_reload (you) ran' in r, 'the quarantined cell reloaded as a new incarnation')
+    r = b.cmd('held', b'held')
+    b.expect(b'nothing is held' in r, 'nothing is left held')
+
+
 def main():
     os.makedirs(WORK, exist_ok=True)
     with open(DISK, 'wb') as f:
@@ -115,6 +152,7 @@ def main():
     b.expect(b'signature verified' in r, '`run hello.zsp` verified the Ed25519 signature')
     b.expect(MARK in r, 'the signed ELF loaded off the disk and ran at EL0')
     b.expect(b'correctly DENIED' in r, "the EL0 program's privileged SYS_EXEC was denied")
+    governor_checks(b)
     b.cmd('write plain.elf not-a-package', b'(persisted)')
     r = b.cmd('run plain.elf', b'refusing')
     b.expect(b'NOT A SIGNED PACKAGE' in r and MARK not in r,
