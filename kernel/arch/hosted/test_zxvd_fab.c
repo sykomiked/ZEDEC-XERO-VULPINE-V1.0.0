@@ -513,6 +513,20 @@ static void test_send_params(void)
            err(ZXVD_E_PARAMS, "\\\"window\\\" must be at least 8"));
     rpc(call("fab.send", "{\"target\":\"%s\",\"out\":\"%s\",\"window\":8}", t, path("w8.fab")));
     CHECK(is_ok(), "B7: window 8 is the least: %.200s", OUT.p);
+    /* the most ops a target can need: one byte, then 8 from the block, again and again */
+    static uint8_t dense[90000];
+    for (uint32_t i = 0; i < 10000; i++) {
+        dense[9 * i] = rb();
+        memcpy(dense + 9 * i + 1, b1 + ((i * 37u) % (B1 / 8u - 2u)) * 8u, 8); /* indexed windows */
+    }
+    wfile("dense", dense, sizeof dense);
+    rpc(call("fab.send",
+             "{\"target\":\"%s\",\"out\":\"%s\",\"window\":8,\"blocks\":[{\"cid\":\"%s\"}]}",
+             path("dense"), path("dense.fab"), c1));
+    CHECK(is_ok() && num("ops") > 15000, "B7: a target of many short matches: %.200s", OUT.p);
+    rpc(call("fab.receive", "{\"recipe\":\"%s\",\"out\":\"%s\"}", path("dense.fab"),
+             path("dense.out")));
+    CHECK(is_ok() && same("dense.out", dense, sizeof dense), "B8: and back: %.200s", OUT.p);
     EXPECT(call("fab.send", "{\"target\":\"%s\",\"out\":\"rel\"}", t),
            err(ZXVD_E_PARAMS, "\\\"out\\\" must be an absolute path"));
     EXPECT(call("fab.send", "{\"out\":\"%s\"}", o),

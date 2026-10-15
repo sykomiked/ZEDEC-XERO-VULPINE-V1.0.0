@@ -305,8 +305,8 @@ What the numbers say and do not say:
 - Its row in the Alexandria matrix. Layers there are keyed by app: layer
   N is L1 system app N in APP_CATALOG_407 order, layer 0 is the core
   (`/mnt/project-files/alexandria/MATRIX.md`). The engine's home is layer
-  126, Toolchest, beside manufacturing and the SDK, once the Alexandria
-  thread adds it to MATRIX.tsv. The user's original proposal of bands
+  126, Toolchest, beside manufacturing and the SDK (MATRIX.tsv, Alexandria
+  head 088365a0); zxvd_fab.c goes with kernel/arch in the core. The user's original proposal of bands
   (001-024, storage resolution 025-072, fabrication 073-096, sovereign
   execution with the seal 097-144, entry at "layer 080") is recorded here
   as a proposal only. It is not the shipped mapping, where layer 80 is

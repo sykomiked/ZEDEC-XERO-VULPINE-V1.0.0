@@ -299,3 +299,27 @@ Bugs the tests found and deliberately do not encode (to be fixed separately):
 - sdk_bridge_lang.c: ops put the op code in `fields[0]`, where the header puts the result code.
 - sdk_bridge.c:435: `sb_create_context` always returns NULL, so `sb_lang_create_context` always fails.
 - polyglot_matrix.c:144: route ids >= 2^31 come back negative; 0xFFFFFFFF equals the -1 error.
+
+## File fabrication: fab, fab_send, zxvd_fab
+
+Full runs of `mutate.py --config tests/harness/mutator/targets.json --only
+<name> --phase after --jobs 4`. The engine tests (`kernel/src/fab/test_fab.c`,
+`make -C kernel test-fab`) build with ASan/UBSan in the mutation command
+too, so a mutant that reads or writes out of bounds fails. `zxvd_fab` runs
+`kernel/arch/hosted/test_zxvd_fab.sh` (the `fab.*` methods behind the RPC
+layer). Only `zxvd_fab` is in the CI gate (own_job, `zxvd.yml`); the two
+engine targets take about 40 minutes on 4 cores, too long for the shared
+mutation-subset shards, so they are measured here.
+
+| target | first run | after | killed | survived | why the survivors survive |
+|---|---|---|---|---|---|
+| src/fab/fab.c | 77.5% | 92.0% | 808 | 70 | array sizes in parameter declarations and key buffers, magic arrays one byte longer, a shift of 8 vs 7/9 on bytes already masked, defensive re-checks of lengths `fab_recipe_parse`/`fab_plan_parse` already proved, the `forget` loop bound, a RESYNC check the plan rules already enforce |
+| src/fab/fab_send.c | 73.5% | 94.5% | 451 | 26 | the hash multiplier and table bounds (any value finds the same runs), probe loop `<=` (the next slot is empty), key and nonce buffer sizes, the `if (diff_len)` guard (copying 0 bytes is the same) |
+| arch/hosted/zxvd_fab.c | 54.9% | 57.4% | 432 + 3 timeouts | 323 | Windows-only file helpers and drive-letter paths (not compiled on Linux), allocation failures and wipes of buffers freed next, buffer sizes, returns after a reader already failed the call, the frame buffer's first size and growth factor, a blocks list longer than one request line can carry |
+
+Bug found by this round: `fab.send`, `fab.stream.*` and `zxv-fab pack`
+sized the ops buffer at `tlen / 8 + 16`, but a target of one-byte
+literals between 8-byte matches needs about `tlen / 4.5` ops, so such a
+send was refused with SPACE. Both now use `tlen / 4 + 16`; the tests send
+and rebuild a 90,000-byte target of 20,000 ops through zxvd and the tool
+(both fail with the old bound).
