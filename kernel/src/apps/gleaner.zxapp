@@ -1,0 +1,92 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Gleaner, datasets: a dataset is a CSV file in the Hoard (files.list,
+# search.query, files.read) with a label, a source and a date column. It
+# splits the rows into a training and a test set by row index, counts the
+# labels of each class, filters rows over their columns, writes the two
+# sets back into the Hoard (files.write), names a selection by its CID
+# (web4.cid) and publishes it to this node's blockstore (aipi.put).
+#
+# A row with personal data (its pii column 1, or every row of a dataset
+# with no pii column) never leaves the Hoard without the owner's consent:
+# writing into the Hoard and naming a selection keep it inside; a put to
+# the blockstore is leaving, and the model refuses it until the owner says
+# yes to that selection (gleaner_consent), then seals the block (private).
+#
+# 5 later layers lean on this one, so its general rules are concepts with
+# Gleaner as owner (CONCEPTS.tsv): which rows are held out for testing, a
+# row against a filter over its columns, and whether personal data may
+# leave. The count of rows per class is Witness's count by kind, used as
+# it is. Coffer, which the task names, is not used: Gleaner moves no money
+# and holds no balance, and none of Coffer's three rules applies to a
+# dataset. Talisman, which the task also names, is not built yet.
+#
+# Witness pairs are of one kind: the task's split pairs C++ (WebAssembly,
+# numbers only) with KRON, so holdout is a number (1 test, 0 train). The
+# consent rule is an "or" across two fields, which Eve cannot say (it holds
+# each field in its own range), so Sutra and KRON witness it.
+#
+# Size limits: 8000 bytes is zxvd's own limit for one block put by hex
+# (ZXVD_AIPI_HEX_MAX), the narrowest of the methods Gleaner calls; the
+# task names no number.
+#
+# Kept in C, since no runnable language owns it: reading the CSV text into
+# rows (the classes and sources tables, the dates) and writing the sets.
+#
+# Planned languages: Python (scripting, ai) and Go (concurrency, messaging)
+# own no entry here, and LANGUAGE_FIT.tsv already gives both a runtime
+# (python, go), so no pending line.
+zxapp 1
+id     gleaner
+name   Gleaner
+version 1.0.0
+slot   71
+layer  L1
+matrix 71
+icon   icons/l1/071-gleaner.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  search
+needs  net
+model  apps/gleaner_model.c
+use    witness 1   # @num.witness_kind_count
+
+# Does a row go to the test set (GR1): 1 test, 0 train, by row index, every
+# row once. C++ (as WebAssembly) and KRON; a row or share outside the
+# domain is refused by C++ (a trap) and answered by KRON: held.
+provides holdout num row share
+logic    wasm holdout apps/blocks/gleaner/holdout.wasm
+logic    kron holdout apps/blocks/gleaner/holdout.kron
+
+# A row against a filter over its label, source and date (GR2), a K query
+# in KRON.
+provides row_match truth label source date lab src from to
+logic    kron row_match apps/blocks/gleaner/match.kron
+
+# A dataset's size inside Gleaner's limits (GR3), in Eve.
+provides dataset_ok truth rows cols bytes
+logic    eve dataset_ok apps/blocks/gleaner/dataset.eve
+
+# A row makes a ^ZXGLEAN record (GR4), in MYRA.
+provides row_ok truth row label source date pii
+logic    myra row_ok apps/blocks/gleaner/row.myra
+
+# Personal data leaves the Hoard only with the owner's consent (GR5).
+# Sutra and KRON; a negative count is refused by Sutra (its picture) and
+# answered by KRON: held.
+provides leave_ok truth personal consent
+logic    sutra leave_ok apps/blocks/gleaner/leave.sutra
+logic    kron  leave_ok apps/blocks/gleaner/leave.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check holdout row=0,4,5,9,7,0,999999999 share=2000,2000,2000,2000,0,10000,10000 = 0,1,0,1,0,1,1
+check holdout row=4,-1 share=2000,2000 = both
+check row_match label=1,2,2,1,1,1,1,1 source=0,0,0,3,0,0,0,3 date=20260101,20260505,20260505,20260505,20251231,20261231,20270101,20260505 lab=1,-1,1,1,1,1,1,1 src=-1,-1,-1,0,-1,-1,-1,3 from=20260101,20260101,20260101,20260101,20260101,20260101,20260101,20260101 to=20261231,20261231,20261231,20261231,20261231,20261231,20261231,20261231 = true,true,false,false,false,true,false,true
+check dataset_ok rows=1,1000,0,1001,10,10,10,10 cols=3,32,3,3,2,33,3,3 bytes=1,8000,10,10,10,10,0,8001 = true,true,false,false,false,false,false,false
+check row_ok row=0,999,1000,5,5 label=0,63,1,1,1 source=0,99,1,1,1 date=20260101,99999999,1,100000000,1 pii=0,1,0,0,10 = true,true,false,false,false
+check leave_ok personal=0,0,3,3,1000,3 consent=0,1,0,1,1,2 = true,true,false,true,true,false
+check leave_ok personal=1,-1 consent=1,1 = both
+check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+check witness.kind_count kind=1,2 want=1,1 = both

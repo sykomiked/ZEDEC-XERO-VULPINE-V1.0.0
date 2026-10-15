@@ -1,0 +1,16 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How far an input has come toward its threshold, in hundredths of a
+! percent, held at 10000, in Trebago (talisman_rules.h TL1). Trebago is
+! exact and has no floor, so the floor is counted: of the steps k = 1 to
+! 10000, those with k * need <= 10000 * have, each counted as
+! min(1, max(0, 10000 * have - k * need + 1)), which is 1 or 0 for
+! integers. That is min(10000, floor(10000 * have / need)) for any need
+! above 0. Trebago takes every integer, where Sutra refuses a need of 0, a
+! negative, or one past 9(9): there the two disagree and it is held.
+trebago reach
+  in  have(n), need(n)
+  out reach(n)
+  reach(i) = sum(k = 1:10000, min(1, max(0, 10000 * have(i) - k * need(i) + 1)))
+end

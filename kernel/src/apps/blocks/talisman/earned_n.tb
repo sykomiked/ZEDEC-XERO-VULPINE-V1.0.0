@@ -1,0 +1,17 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! The next tier earned as a number to count with (talisman_rules.h TL3),
+! in Trebago: 1 when every margin (what an input has minus what the tier
+! needs) is at least 0, credibility and bond at most 18 digits and uptime
+! at most 10000 basis points, else 0. For integers min(1, max(0, m + 1))
+! is 1 exactly when m >= 0, and min(1, max(0, top - m + 1)) exactly when
+! m <= top. earned_n.kron reads any margin at or above 0 as met: an
+! uptime margin past 10000 is held.
+trebago earned
+  in  cred(n), bond(n), uptime(n)
+  out earned(n)
+  earned(i) = min(1, max(0, cred(i) + 1)) * min(1, max(0, 999999999999999999 - cred(i) + 1)) &
+            * min(1, max(0, bond(i) + 1)) * min(1, max(0, 999999999999999999 - bond(i) + 1)) &
+            * min(1, max(0, uptime(i) + 1)) * min(1, max(0, 10000 - uptime(i) + 1))
+end

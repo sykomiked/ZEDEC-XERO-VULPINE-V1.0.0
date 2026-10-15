@@ -78,7 +78,22 @@
 #define ALX_SLOT_NUM_SIGNPOST_NAME_FAULT         70u /* 590.28 signpost.name_fault */
 #define ALX_SLOT_LOGIC_SIGNPOST_NAME_OK          71u /* 490.32 signpost.name_ok */
 #define ALX_SLOT_NUM_SIGNPOST_TTL_LEFT           72u /* 590.29 signpost.ttl_left */
-#define ALX_SLOT__COUNT 72u
+#define ALX_SLOT_LOGIC_TALISMAN_EARNED           73u /* 490.33 talisman.earned */
+#define ALX_SLOT_NUM_TALISMAN_EARNED_N           74u /* 590.30 talisman.earned_n */
+#define ALX_SLOT_NUM_TALISMAN_REACH_X100         75u /* 590.31 talisman.reach_x100 */
+#define ALX_SLOT_LOGIC_TREADLE_BUDGET_OK         76u /* 490.34 treadle.budget_ok */
+#define ALX_SLOT_NUM_TREADLE_NEXT_RUN            77u /* 590.32 treadle.next_run */
+#define ALX_SLOT_LOGIC_TREADLE_TASK_OK           78u /* 490.35 treadle.task_ok */
+#define ALX_SLOT_LOGIC_GLEANER_DATASET_OK        79u /* 490.36 gleaner.dataset_ok */
+#define ALX_SLOT_NUM_GLEANER_HOLDOUT             80u /* 590.33 gleaner.holdout */
+#define ALX_SLOT_LOGIC_GLEANER_LEAVE_OK          81u /* 490.37 gleaner.leave_ok */
+#define ALX_SLOT_LOGIC_GLEANER_ROW_MATCH         82u /* 490.38 gleaner.row_match */
+#define ALX_SLOT_LOGIC_GLEANER_ROW_OK            83u /* 490.39 gleaner.row_ok */
+#define ALX_SLOT_LOGIC_WARREN_APPROVAL_OK        84u /* 490.40 warren.approval_ok */
+#define ALX_SLOT_NUM_WARREN_BACKOFF              85u /* 590.34 warren.backoff */
+#define ALX_SLOT_LOGIC_WARREN_CHANGE_OK          86u /* 490.41 warren.change_ok */
+#define ALX_SLOT_LOGIC_WARREN_RECORD_OK          87u /* 490.42 warren.record_ok */
+#define ALX_SLOT__COUNT 87u
 /* clang-format on */
 
 #endif

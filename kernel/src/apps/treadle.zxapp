@@ -1,0 +1,76 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Treadle, automation: layer 24 of the matrix. It runs a task on a
+# schedule (every period minutes from a start minute of the day) or on an
+# event (a kind of notice), within the owner's limits: a daily cap of swarm
+# tokens the owner sets, and the swarm's own tokens per cycle
+# (swarm.state). A task is the owner's request to the swarm, run with
+# swarm.ask; its answer is held (zxm.h M3) until the owner accepts or
+# rejects it, and the swarm's own suggestions for new tasks are held the
+# same way. Nothing runs without the owner's approval: a task added is held
+# until the owner approves it, and a task the swarm suggests is never added
+# by the suggestion itself.
+#
+# zxvd has no scheduler method and no notification method, and none is
+# invented: the schedule and the owner's cap are held in the model
+# (treadle_model.c), which runs the due tasks when the front end ticks it,
+# and the notify capability is declared for the notice a held answer will
+# give once zxvd has a method for it.
+#
+# The task names this layer Automation; kernel/src/alexandria/MATRIX.tsv
+# files layer 24 as "Terminal, console and monitors". The task is followed
+# (its name, Treadle, matches the layer), and the difference is reported.
+#
+# An anchor of the matrix: its layer leans on no other layer's code yet,
+# and nothing earlier fits. stillwater.quiet_now says whether a minute is
+# inside a window, never when a period next falls; shepherd.left counts
+# minutes left of an allowance, never tokens against a cap; the swarm
+# share and limits are of one cycle's tokens. The next run and the budget
+# are general patterns a later layer takes with "use treadle 1", so each
+# is a concept with Treadle as its owner (CONCEPTS.tsv).
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly. Eve answers truths only (zxapp_eve.c EV2) and checks each field
+# against its own range, so the budget is given as two fields, the cost
+# and what is left after it (the model works out left = cap - spent -
+# cost), and Eve and KRON witness it as a truth.
+zxapp 1
+id     treadle
+name   Treadle
+version 1.0.0
+slot   24
+layer  L1
+matrix 24
+icon   icons/l1/024-treadle.svg
+budget 233
+needs  notify
+needs  swarm
+model  apps/treadle_model.c
+
+# A task's next run (TR1), minutes from today's midnight (1440 and past is
+# tomorrow's first run). Sutra, KRON and C++ (as WebAssembly); a minute
+# past the day is refused by C++ (a trap) and answered by Sutra and KRON:
+# held.
+provides next_run num start period now
+logic    sutra next_run apps/blocks/treadle/next_run.sutra
+logic    kron  next_run apps/blocks/treadle/next_run.kron
+logic    wasm  next_run apps/blocks/treadle/next_run.wasm
+
+# A run within the owner's budget (TR2): Eve holds the cost and what is
+# left after it to nine digits each, KRON reads the floors only; a value
+# past nine digits passes KRON and fails Eve, so it is held.
+provides budget_ok truth cost left
+logic    eve  budget_ok apps/blocks/treadle/budget.eve
+logic    kron budget_ok apps/blocks/treadle/budget.kron
+
+# A task makes a ^ZXTREADLE record (TR3), in MYRA.
+provides task_ok truth task kind start period cost approved
+logic    myra task_ok apps/blocks/treadle/task.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check next_run start=0,0,480,480,480,1439,1439,600,0 period=1,1440,60,60,60,1,1440,1000,7 now=0,1439,0,481,1439,1439,0,601,1434 = 0,1440,480,540,1920,1439,1439,2040,1435
+check next_run start=480,480 period=60,60 now=481,1440 = both
+check budget_ok cost=0,999999999,10,10,-1 left=0,999999999,-1,0,0 = true,true,false,true,false
+check budget_ok cost=10,1000000000 left=0,0 = both
+check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
