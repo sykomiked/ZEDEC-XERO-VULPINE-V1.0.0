@@ -61,7 +61,7 @@ The classes, and the namespace that belongs to each:
 | 600 | fin, prob, strat | money, chance and decisions |
 | 700 | wire | wire formats and protocols |
 | 800 | text | text and languages |
-| 900 | time, swarm | time and coordination |
+| 900 | time, swarm, cell | time, coordination and the swarm's cells |
 
 The scheme is decimal and hierarchical, like a library's shelf marks, but it
 is our own scheme with our own name. It is not a library classification
@@ -113,7 +113,7 @@ no allocation, and its only outside call is `sha256()`.
   anything uses them.
 - `alx_target` gives a language's offset and length in its booklet.
 
-`make test-alexandria` runs 1301 checks. They include reading every
+`make test-alexandria` runs 91053 checks. They include reading every
 language's logic back out of the real booklets byte for byte, and changing
 each byte of the index in turn to confirm the change is caught.
 
@@ -247,7 +247,8 @@ the code or the docs.
 ## 8. Build order
 
 1. **Built** (`make test-alexandria`): the index, booklets, references and
-   lineage, TECTON and AXION.
+   lineage, TECTON and AXION, and the 64-bit grid words with their radix
+   resolver and layer lineage (docs/spec/GRID_CHAIN.md).
 2. **Slots for every block.** These are added as blocks land, with
    `--assign BLOCK NAMESPACE SECTION`. The apps thread's CONCEPTS.tsv stays
    the source of meanings; the shorthand is the handle.

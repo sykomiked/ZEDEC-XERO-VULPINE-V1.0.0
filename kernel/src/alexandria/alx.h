@@ -71,7 +71,8 @@ enum {
     ALX_E_LANG = -8,     /* the block has no logic in that language             */
     ALX_E_SYNTAX = -9,   /* TECTON or AXION text that does not parse            */
     ALX_E_LINEAGE = -10, /* an addendum whose parent is not in the active lineage */
-    ALX_E_OVERLAY = -11  /* an addendum in the lineage that is not mounted here  */
+    ALX_E_OVERLAY = -11, /* an addendum in the lineage that is not mounted here  */
+    ALX_E_DOMAIN = -12   /* a grid word in a domain that holds nothing yet       */
 };
 
 enum { ALX_NUM = 1, ALX_TRUTH = 2 };
@@ -201,6 +202,72 @@ int alx_axion_parse(const char *s, uint32_t n, alx_axion_t *p, uint32_t *at);
  * `present` is clear. */
 int alx_axion_run(const alx_axion_t *p, const int64_t *readings, uint32_t nreadings,
                   uint64_t present);
+
+/* ---- the grid: 64-bit coordinate words (alx_grid.c) ----
+ *
+ * A grid word names one stored thing by number, for code that dispatches
+ * on a fixed-width key. It is a key into the sealed index, never an
+ * address and never code: resolving it gives where verified bytes lie in a
+ * booklet, and running them still goes through zxapp's checked call.
+ *   bits 63..56  domain    ALX_G_CODE 0x10 (the only one that resolves);
+ *                          0x20 data, 0x50 sensor streams, 0x60
+ *                          embeddings, 0x70 attestations are reserved
+ *   bits 55..40  place     100..999 ("512")
+ *   bits 39..32  item      1..99 ("01")
+ *   bits 31..16  extension 0 for the sealed base; else an addendum
+ *   bits 15..8   format    ALX_G_LOGIC 0 or ALX_G_MANIFEST 1
+ *   bits 7..0    language  1..120 for logic; 0 for the manifest
+ * docs/spec/GRID_CHAIN.md. */
+enum {
+    ALX_G_CODE = 0x10,
+    ALX_G_DATA = 0x20,
+    ALX_G_SENSOR = 0x50,
+    ALX_G_EMBED = 0x60,
+    ALX_G_ATTEST = 0x70
+};
+enum { ALX_G_LOGIC = 0, ALX_G_MANIFEST = 1 };
+
+/* The radix table: place, then item, to slot. Built once from an open
+ * index; it points at t, which must outlive it. */
+typedef struct {
+    const alx_t *t;
+    uint16_t first[900]; /* place - 100: first position in order */
+    uint8_t count[900];  /* how many entries share that place */
+    uint16_t order[ALX_MAX];
+} alx_grid_t;
+
+typedef struct {
+    uint32_t slot, language, format;
+    uint32_t booklet;  /* index into the booklets */
+    uint32_t off, len; /* the bytes inside that booklet */
+} alx_grid_hit_t;
+
+int alx_grid_build(alx_grid_t *g, const alx_t *t);
+/* The word for a slot's logic in one language, or its manifest. */
+int alx_grid_word(const alx_t *t, uint32_t slot, uint32_t format, uint32_t language,
+                  uint64_t *word);
+/* ALX_OK and *h, or: FORM (a field out of range), DOMAIN, OVERLAY (an
+ * extension: addenda are not mounted), NAME (no entry at that place),
+ * RETIRED, LANG. */
+int alx_grid_resolve(const alx_grid_t *g, uint64_t word, alx_grid_hit_t *h);
+
+/* ---- layer lineage (alx_grid.c) ----
+ *
+ * The release is stacked in layers, each named by the CID of its manifest
+ * and each manifest naming its parent's CID: L0 hardware spec, L1 Disc 1
+ * core, L2 swarm discs, L3 the library, L4 community overlays (an overlay
+ * may sit on another overlay). A chain is given root first. Each manifest
+ * is at most 1 MiB, so its CID is the CIDv1 raw sha2-256 of its bytes. */
+typedef struct {
+    uint8_t level; /* 0..4 */
+    const uint8_t *manifest;
+    uint32_t len;
+    uint8_t parent[36]; /* the parent CID the manifest names; zero at L0 */
+} alx_layer_t;
+
+/* ALX_OK with the top layer's CID in leaf (may be NULL), or LINEAGE or FORM
+ * with *at set to the first layer that fails. */
+int alx_lineage(const alx_layer_t *l, uint32_t n, uint8_t leaf[36], uint32_t *at);
 
 const char *alx_status_name(int s);
 

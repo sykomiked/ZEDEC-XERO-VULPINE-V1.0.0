@@ -36,7 +36,8 @@ SLOTS = os.path.join(SRC, "alexandria", "SLOTS.tsv")
 HDR = os.path.join(SRC, "alexandria", "alx_slots.h")
 LANGS_DEF = os.path.join(SRC, "lingua", "zl_langs.def")
 CLASS_OF = {"mem": 1, "crypto": 2, "drv": 3, "logic": 4, "num": 5, "fin": 6, "prob": 6,
-            "strat": 6, "wire": 7, "text": 8, "time": 9, "swarm": 9}
+            "strat": 6, "wire": 7, "text": 8, "time": 9, "swarm": 9,
+            "cell": 9}
 # Language numbers: 1..99 are Lingua's own numbers (zl_langs.def); 101..120
 # the other runtimes, in zxapp's order. Never renumbered.
 OTHER = ["c", "sutra", "eve", "kron", "trebago", "myra", "cpp", "rust", "go", "swift", "kotlin",

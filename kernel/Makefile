@@ -1831,7 +1831,7 @@ test-babel:
 # slots for the verified blocks. The script checks SLOTS.tsv against every
 # registered block and writes the table; test_alx reads it back.
 .PHONY: test-alexandria
-ALX_SRC := src/alexandria/alx.c src/alexandria/alx_ref.c src/alexandria/alx_tecton.c src/alexandria/alx_axion.c
+ALX_SRC := src/alexandria/alx.c src/alexandria/alx_ref.c src/alexandria/alx_tecton.c src/alexandria/alx_axion.c src/alexandria/alx_grid.c
 test-alexandria:
 	@rm -rf $(ZXV_TMP)/alexandria && python3 ../tools/alexandria/build_index.py --check --out-dir $(ZXV_TMP)/alexandria > $(ZXV_TMP)/alx_index.log 2>&1 && echo "[PASS] alexandria index ($$(tail -1 $(ZXV_TMP)/alx_index.log))" || { cat $(ZXV_TMP)/alx_index.log; echo "[FAIL] alexandria index"; exit 1; }
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx && $(ZXV_TMP)/test_alx $(ZXV_TMP)/alexandria src > $(ZXV_TMP)/test_alx.log 2>&1 && echo "[PASS] test_alx ($$(tail -1 $(ZXV_TMP)/test_alx.log))" || { cat $(ZXV_TMP)/test_alx.log; echo "[FAIL] test_alx"; exit 1; }

@@ -59,8 +59,9 @@ static uint32_t class_of(const uint8_t *s)
     static const struct {
         const char *ns;
         uint8_t cls;
-    } NS[] = {{"mem", 1},  {"crypto", 2}, {"drv", 3},  {"logic", 4}, {"num", 5},  {"fin", 6},
-              {"prob", 6}, {"strat", 6},  {"wire", 7}, {"text", 8},  {"time", 9}, {"swarm", 9}};
+    } NS[] = {{"mem", 1},  {"crypto", 2}, {"drv", 3},   {"logic", 4}, {"num", 5},
+              {"fin", 6},  {"prob", 6},   {"strat", 6}, {"wire", 7},  {"text", 8},
+              {"time", 9}, {"swarm", 9},  {"cell", 9}};
     for (uint32_t i = 0; i < sizeof NS / sizeof NS[0]; i++) {
         uint32_t k = 0;
         while (NS[i].ns[k] && s[k] == (uint8_t) NS[i].ns[k]) k++;
@@ -296,7 +297,8 @@ int alx_pipeline(const alx_t *t, const uint32_t *slots, uint32_t n, uint32_t *at
 
 const char *alx_status_name(int s)
 {
-    static const char *const N[] = {"OK",   "FORM",  "HASH", "NAME",   "SLOT",    "RETIRED",
-                                    "DOCK", "LIMIT", "LANG", "SYNTAX", "LINEAGE", "OVERLAY"};
-    return s <= 0 && s >= -11 ? N[-s] : "?";
+    static const char *const N[] = {"OK",      "FORM",    "HASH",  "NAME", "SLOT",
+                                    "RETIRED", "DOCK",    "LIMIT", "LANG", "SYNTAX",
+                                    "LINEAGE", "OVERLAY", "DOMAIN"};
+    return s <= 0 && s >= -12 ? N[-s] : "?";
 }

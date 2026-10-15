@@ -672,6 +672,237 @@ EDIT(e_ret_moff, retire4(b, n); slot(b, 4)[107] = 64)
 EDIT(e_ret_mlen, retire4(b, n); slot(b, 4)[111] = 1)
 EDIT(e_ret_hash, retire4(b, n); slot(b, 4)[143] = 1)
 
+/* ---- the grid ---- */
+
+static alx_grid_t G;
+
+static uint64_t gw(uint32_t domain, uint32_t place, uint32_t item, uint32_t ext, uint32_t format,
+                   uint32_t lang)
+{
+    return (uint64_t) domain << 56 | (uint64_t) place << 40 | (uint64_t) item << 32 |
+           (uint64_t) ext << 16 | (uint64_t) format << 8 | lang;
+}
+
+static int gr(const alx_grid_t *g, uint64_t w)
+{
+    alx_grid_hit_t h;
+    return alx_grid_resolve(g, w, &h);
+}
+
+EDIT(e_cell, memset(slot(b, 2) + 16, 0, 32); memcpy(slot(b, 2) + 16, "cell.spinewyrm", 14))
+EDIT(e_cells, memset(slot(b, 2) + 16, 0, 32); memcpy(slot(b, 2) + 16, "cells.spinewyrm", 15))
+EDIT(e_cell_class, memset(slot(b, 1) + 16, 0, 32); memcpy(slot(b, 1) + 16, "cell.gcd", 8))
+EDIT(e_swap_items, slot(b, 2)[95] = 2; slot(b, 3)[95] = 1)
+
+static void test_grid(void)
+{
+    CHECK(open_copy(e_cell) == ALX_OK, "cell. is a class-900 namespace");
+    CHECK(open_copy(e_cells) == ALX_E_FORM, "cells. is not a namespace");
+    CHECK(open_copy(e_cell_class) == ALX_E_FORM, "cell. is not in class 500");
+    CHECK(alx_grid_build(&G, &X) == ALX_OK, "the radix table builds");
+    uint64_t w = 0;
+    CHECK(alx_grid_word(&X, ALX_SLOT_NUM_GCD, ALX_G_LOGIC, 1, &w) == ALX_OK &&
+              w == 0x1002000100000001ull,
+          "gcd in FORTRAN is 0x1002000100000001, not %016llx", (unsigned long long) w);
+    CHECK(alx_grid_word(&X, ALX_SLOT_NUM_GCD, ALX_G_MANIFEST, 0, &w) == ALX_OK &&
+              w == 0x1002000100000100ull,
+          "gcd's manifest word");
+    CHECK(alx_grid_word(&X, ALX_SLOT_SWARM_WITHIN_LIMITS, ALX_G_LOGIC, 103, &w) == ALX_OK &&
+              w == 0x1003A40100000067ull,
+          "932.01 in eve");
+
+    /* every slot and language: word to bytes, the same bytes the index gives */
+    unsigned words = 0;
+    for (uint32_t s = 1; s <= X.slots; s++) {
+        alx_entry_t e;
+        alx_get(&X, s, &e);
+        for (uint32_t l = 0; l <= 120; l++) {
+            uint32_t format = l ? ALX_G_LOGIC : ALX_G_MANIFEST, off, len;
+            int want = l ? alx_target(&X, s, l, &off, &len) : ALX_OK;
+            if (!l) off = e.manifest_off, len = e.manifest_len;
+            int got = alx_grid_word(&X, s, format, l, &w);
+            if (l && !(l <= 99 || l >= 101)) want = ALX_E_LANG;
+            CHECK(got == want, "slot %u language %u: word %d, index %d", s, l, got, want);
+            if (got) continue;
+            words++;
+            alx_grid_hit_t h;
+            CHECK(alx_grid_resolve(&G, w, &h) == ALX_OK && h.slot == s && h.language == l &&
+                      h.format == format && h.booklet == e.booklet && h.off == off && h.len == len,
+                  "slot %u language %u resolves to its own bytes", s, l);
+        }
+    }
+    CHECK(words == X.slots + X.targets, "one word per manifest and per language (%u)", words);
+
+    /* every place and item: exactly the slots answer */
+    unsigned hits = 0;
+    for (uint32_t p = 100; p <= 999; p++)
+        for (uint32_t i = 1; i <= 99; i++) {
+            alx_grid_hit_t h;
+            int s = alx_grid_resolve(&G, gw(ALX_G_CODE, p, i, 0, ALX_G_MANIFEST, 0), &h);
+            if (s == ALX_OK) {
+                alx_entry_t e;
+                alx_get(&X, h.slot, &e);
+                CHECK(e.place == p && e.item == i, "%u.%02u gives slot %u", p, i, h.slot);
+                hits++;
+            } else
+                CHECK(s == ALX_E_NAME, "%u.%02u: %d", p, i, s);
+        }
+    CHECK(hits == X.slots, "every slot found once by place (%u)", hits);
+
+    /* refusals */
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 2)) == ALX_OK, "BASIC gcd");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 4)) == ALX_E_LANG, "no gcd in language 4");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 101)) == ALX_E_LANG, "no gcd in c");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 2, 0, 1, 0)) == ALX_E_NAME, "nothing at 512.02");
+    CHECK(gr(&G, gw(ALX_G_CODE, 513, 1, 0, 1, 0)) == ALX_E_NAME, "nothing at 513.01");
+    CHECK(gr(&G, gw(ALX_G_CODE, 931, 3, 0, 1, 0)) == ALX_E_NAME, "nothing at 931.03");
+    CHECK(gr(&G, gw(ALX_G_CODE, 999, 99, 0, 1, 0)) == ALX_E_NAME, "nothing at 999.99");
+    CHECK(gr(&G, gw(ALX_G_CODE, 100, 1, 0, 1, 0)) == ALX_E_NAME, "nothing at 100.01");
+    static const uint32_t reserved[] = {ALX_G_DATA, ALX_G_SENSOR, ALX_G_EMBED, ALX_G_ATTEST};
+    for (uint32_t i = 0; i < 4; i++)
+        CHECK(gr(&G, gw(reserved[i], 512, 1, 0, 0, 1)) == ALX_E_DOMAIN, "domain %x is reserved",
+              reserved[i]);
+    static const uint32_t bad[] = {0x00, 0x0F, 0x11, 0x1F, 0x21, 0x30, 0x40, 0x4F,
+                                   0x51, 0x5F, 0x61, 0x6F, 0x71, 0x80, 0xFF};
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++)
+        CHECK(gr(&G, gw(bad[i], 512, 1, 0, 0, 1)) == ALX_E_FORM, "domain %x is no domain", bad[i]);
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 1, 0, 1)) == ALX_E_OVERLAY, "an addendum is not mounted");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0xFFFF, 1, 0)) == ALX_E_OVERLAY, "extension 0xFFFF");
+    CHECK(gr(&G, gw(ALX_G_SENSOR, 512, 1, 1, 0, 1)) == ALX_E_DOMAIN, "domain before extension");
+    CHECK(gr(&G, gw(ALX_G_SENSOR, 99, 1, 0, 0, 1)) == ALX_E_FORM, "form before domain");
+    CHECK(gr(&G, gw(ALX_G_CODE, 99, 1, 0, 1, 0)) == ALX_E_FORM, "place 99");
+    CHECK(gr(&G, gw(ALX_G_CODE, 1000, 1, 0, 1, 0)) == ALX_E_FORM, "place 1000");
+    CHECK(gr(&G, gw(ALX_G_CODE, 0xFFFF, 1, 0, 1, 0)) == ALX_E_FORM, "place 0xFFFF");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 0, 0, 1, 0)) == ALX_E_FORM, "item 0");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 100, 0, 1, 0)) == ALX_E_FORM, "item 100");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 2, 1)) == ALX_E_FORM, "format 2");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0xFF, 0)) == ALX_E_FORM, "format 0xFF");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 1, 1)) == ALX_E_FORM, "a manifest has no language");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 0)) == ALX_E_FORM, "logic needs a language");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 100)) == ALX_E_FORM, "language 100");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 121)) == ALX_E_FORM, "language 121");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 255)) == ALX_E_FORM, "language 255");
+    alx_grid_hit_t h;
+    CHECK(alx_grid_resolve(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 1), 0) == ALX_E_FORM, "no hit");
+    CHECK(alx_grid_resolve(0, 0x1002000100000001ull, &h) == ALX_E_FORM, "no table");
+    alx_grid_t g0;
+    g0.t = 0;
+    CHECK(alx_grid_resolve(&g0, 0x1002000100000001ull, &h) == ALX_E_FORM, "an unbuilt table");
+    CHECK(alx_grid_build(0, &X) == ALX_E_FORM && alx_grid_build(&g0, 0) == ALX_E_FORM,
+          "build without a table or index");
+    alx_t closed = {0};
+    CHECK(alx_grid_build(&g0, &closed) == ALX_E_FORM && g0.t == 0, "build on a closed index");
+
+    CHECK(alx_grid_word(&X, 0, ALX_G_LOGIC, 1, &w) == ALX_E_SLOT, "slot 0");
+    CHECK(alx_grid_word(&X, X.slots + 1, ALX_G_LOGIC, 1, &w) == ALX_E_SLOT, "slot past the end");
+    CHECK(alx_grid_word(&X, 1, 2, 1, &w) == ALX_E_FORM, "word with format 2");
+    CHECK(alx_grid_word(&X, 1, ALX_G_MANIFEST, 1, &w) == ALX_E_LANG,
+          "a manifest word with a language");
+    CHECK(alx_grid_word(&X, 1, ALX_G_LOGIC, 0, &w) == ALX_E_LANG, "a logic word without one");
+    CHECK(alx_grid_word(&X, 1, ALX_G_LOGIC, 1, 0) == ALX_E_LIMIT, "nowhere to write");
+
+    /* items out of order in the index still resolve by item */
+    alx_t t2;
+    uint32_t n = TN;
+    static alx_grid_t G2;
+    memcpy(M, T, TN);
+    e_swap_items(M, &n);
+    rehash(M, n);
+    CHECK(alx_open(&t2, M, n) == ALX_OK && alx_grid_build(&G2, &t2) == ALX_OK, "swapped items");
+    CHECK(alx_grid_resolve(&G2, gw(ALX_G_CODE, 931, 1, 0, 1, 0), &h) == ALX_OK && h.slot == 3 &&
+              alx_grid_resolve(&G2, gw(ALX_G_CODE, 931, 2, 0, 1, 0), &h) == ALX_OK && h.slot == 2,
+          "931.01 is slot 3 and 931.02 slot 2");
+
+    /* a retired slot keeps its place and refuses */
+    n = TN;
+    memcpy(M, T, TN);
+    retire4(M, &n);
+    rehash(M, n);
+    CHECK(alx_open(&t2, M, n) == ALX_OK && alx_grid_build(&G2, &t2) == ALX_OK, "retired copy");
+    CHECK(gr(&G2, gw(ALX_G_CODE, 932, 1, 0, 1, 0)) == ALX_E_RETIRED &&
+              gr(&G2, gw(ALX_G_CODE, 932, 1, 0, 0, 103)) == ALX_E_RETIRED,
+          "932.01 is retired");
+    CHECK(alx_grid_word(&t2, 4, ALX_G_MANIFEST, 0, &w) == ALX_E_RETIRED, "no word for it");
+    CHECK(gr(&G2, gw(ALX_G_CODE, 931, 2, 0, 0, 104)) == ALX_OK, "its neighbours still resolve");
+}
+
+/* ---- layer lineage ---- */
+
+static void cid_of(const uint8_t *m, uint32_t n, uint8_t out[36])
+{
+    out[0] = 0x01, out[1] = 0x55, out[2] = 0x12, out[3] = 0x20;
+    sha256(m, n, out + 4);
+}
+
+static void test_lineage(void)
+{
+    static uint8_t man[64][16];
+    static alx_layer_t L[65];
+    uint8_t leaf[36], want[36];
+    uint32_t at;
+    for (uint32_t i = 0; i < 64; i++) {
+        memset(man[i], 0, 16);
+        snprintf((char *) man[i], 16, "layer %u", i);
+        L[i].level = (uint8_t) (i < 4 ? i : 4);
+        L[i].manifest = man[i];
+        L[i].len = 16;
+        if (i)
+            cid_of(man[i - 1], 16, L[i].parent);
+        else
+            memset(L[i].parent, 0, 36);
+    }
+    for (uint32_t n = 1; n <= 64; n++) {
+        memset(leaf, 0xAA, 36);
+        cid_of(man[n - 1], 16, want);
+        CHECK(alx_lineage(L, n, leaf, &at) == ALX_OK && memcmp(leaf, want, 36) == 0 && at == n - 1,
+              "a chain of %u layers", n);
+    }
+    CHECK(alx_lineage(L, 5, 0, 0) == ALX_OK, "no leaf or position wanted");
+    static alx_layer_t big;
+    memset(&big, 0, sizeof big);
+    big.manifest = M;
+    big.len = ALX_BOOK_MAX;
+    CHECK(alx_lineage(&big, 1, 0, 0) == ALX_OK, "a 1 MiB root");
+    L[5].level = 3;
+    CHECK(alx_lineage(L, 6, leaf, &at) == ALX_E_FORM && at == 5, "L3 over an L4");
+    L[5].level = 4;
+    CHECK(alx_lineage(L, 65, leaf, &at) == ALX_E_FORM && at == 0, "65 layers");
+    CHECK(alx_lineage(L, 0, leaf, &at) == ALX_E_FORM, "no layers");
+    CHECK(alx_lineage(0, 1, leaf, &at) == ALX_E_FORM, "no array");
+
+    static alx_layer_t C[5];
+#define LCASE(edit, n, st, pos, what)                                                              \
+    do {                                                                                           \
+        memcpy(C, L, sizeof C);                                                                    \
+        edit;                                                                                      \
+        memset(leaf, 0xAA, 36);                                                                    \
+        int s_ = alx_lineage(C, n, leaf, &at);                                                     \
+        CHECK(s_ == (st) && at == (pos) && leaf[0] == 0xAA, "%s: %d at %u", what, s_, at);         \
+    } while (0)
+    LCASE(C[0].level = 1, 5, ALX_E_FORM, 0, "a root above L0");
+    LCASE(C[0].parent[35] = 1, 5, ALX_E_LINEAGE, 0, "a root with a parent");
+    LCASE(C[0].parent[0] = 1, 1, ALX_E_LINEAGE, 0, "a root with a parent's first byte");
+    LCASE(C[2].level = 3, 5, ALX_E_FORM, 2, "L1 to L3");
+    LCASE(C[2].level = 1, 5, ALX_E_FORM, 2, "L1 twice");
+    LCASE(C[1].level = 0, 5, ALX_E_FORM, 1, "L0 twice");
+    LCASE(C[4].level = 5, 5, ALX_E_FORM, 4, "L5");
+    LCASE(C[3].parent[35] ^= 1, 5, ALX_E_LINEAGE, 3, "the wrong parent");
+    LCASE(C[3].parent[4] ^= 0x80, 5, ALX_E_LINEAGE, 3, "the wrong parent digest");
+    LCASE(C[3].parent[1] = 0x70, 5, ALX_E_LINEAGE, 3, "a dag-pb parent");
+    LCASE(C[3].parent[0] = 0, 5, ALX_E_LINEAGE, 3, "a parent's first byte");
+    LCASE(C[3].manifest = 0, 5, ALX_E_FORM, 3, "no manifest");
+    LCASE(C[3].len = 0, 5, ALX_E_FORM, 3, "an empty manifest");
+    LCASE(C[3].len = ALX_BOOK_MAX + 1, 5, ALX_E_FORM, 3, "a manifest over 1 MiB");
+    LCASE(man[2][15] = 1, 5, ALX_E_LINEAGE, 3, "a changed manifest breaks its child");
+    man[2][15] = 0;
+    man[4][15] = 1;
+    cid_of(man[4], 16, want);
+    CHECK(alx_lineage(L, 5, leaf, &at) == ALX_OK && memcmp(leaf, want, 36) == 0,
+          "a changed top layer gives a new leaf");
+    man[4][15] = 0;
+#undef LCASE
+}
+
 static void test_refusals(void)
 {
     static const struct {
@@ -805,7 +1036,8 @@ static void test_refusals(void)
           "an empty index");
     CHECK(strcmp(alx_status_name(ALX_E_DOCK), "DOCK") == 0 &&
               strcmp(alx_status_name(ALX_E_OVERLAY), "OVERLAY") == 0 &&
-              strcmp(alx_status_name(-12), "?") == 0 && strcmp(alx_status_name(5), "?") == 0,
+              strcmp(alx_status_name(ALX_E_DOMAIN), "DOMAIN") == 0 &&
+              strcmp(alx_status_name(-13), "?") == 0 && strcmp(alx_status_name(5), "?") == 0,
           "status names");
 }
 
@@ -825,6 +1057,8 @@ int main(int argc, char **argv)
     test_tecton();
     test_axion();
     test_refusals();
+    test_grid();
+    test_lineage();
     printf("%u checks, %u failures\n", checks, fails);
     return fails ? 1 : 0;
 }
