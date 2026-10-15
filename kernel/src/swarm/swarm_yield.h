@@ -42,18 +42,22 @@
  *                            last close with zero volume (a day with no
  *                            trades). The last SWARM_YIELD_BARS candles are
  *                            kept.
- *   Y8  POOL WEIGHTS.        Yield can decide how an EXISTING pool is shared
- *                            (the assurance fee's 15% node bounties, later
- *                            the 25% V-Bill dividend: pay_assure.h B1), by
- *                            each model's verified work, fed to the pool's
- *                            own capped split (pay_commons_split, no
+ *   Y8  POOL WEIGHTS.        Yield can decide how an EXISTING pool is shared:
+ *                            the assurance fee's 15% node bounties
+ *                            (pay_assure.h B1), as pay for verified service,
+ *                            by each model's verified work, fed to the
+ *                            pool's own capped split (pay_commons_split, no
  *                            monopoly). It never mints, never sets a
  *                            voucher's rate, and adds nothing that time or a
  *                            balance grows (no usury). Under the budget's
  *                            fixed allotments, verified work = yield x
  *                            tokens spent, so the more each token buys, the
  *                            larger the share. Off by default: every model
- *                            weighs 1, an even split.
+ *                            weighs 1, an even split. Using it for the V-Bill
+ *                            dividend or any holder-facing return is NOT
+ *                            supported: a voucher paying a yield tied to a
+ *                            market-like chart reads as a security, so that
+ *                            waits for counsel (docs/TOKEN_YIELD.md).
  *
  * Per-token ACCURACY of the engine itself (how close each token's prediction
  * is to an exact float64 reference) is measured by bench/tensor, not here;

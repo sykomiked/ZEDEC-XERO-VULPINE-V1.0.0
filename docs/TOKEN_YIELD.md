@@ -87,30 +87,40 @@ a day with no trades. `swarm_yield_chart_t` keeps the last 144 candles
 (F(12)), newest first through `swarm_yield_chart_bar`. Drawing them is the
 UI's job; the data is all here.
 
-## Tied to Vino vouchers through pools that already exist (Y8)
+## Tied to Vino vouchers only as pay for service (Y8)
 
 The owner also asked whether token yield could set the yield on Vino
-floating vouchers. Letting it set a voucher's rate directly would pay out
-value no fee or attested capacity backs, which breaks backed-only minting
-(`mint.h` M4-M6) and comes close to interest (no usury). So the link works
-through money that already exists:
+floating vouchers. That is not built, for two reasons:
 
-- The assurance fee's 15% node-bounty pool (and, once V-Bills exist, the 25%
-  V-Bill dividend pool, `pay_assure.h` B1) can be shared by each model's
-  verified work: `swarm_yield_weights(SWARM_YIELD_LINK_WORK, ...)` gives the
-  weights, and the pool's own capped split (`pay_commons_split`, no
-  monopoly) shares it. Under the budget's fixed allotments, verified work is
-  yield times tokens spent, so the more each token buys, the bigger the
-  share.
+- **Backing.** A voucher rate set by yield would pay out value no fee or
+  attested capacity backs, which breaks backed-only minting (`mint.h`
+  M4-M6) and comes close to interest (no usury).
+- **Securities risk.** Vino floating vouchers are framed as store credit.
+  A voucher whose holders earn a return tied to a chart that looks like a
+  stock or bond yield reads as an investment contract under *Howey* (money
+  or value in, a common pool, profit expected from others' work). It is the
+  same investment-marketing risk that kept auction bidding out of the
+  developer kit, and the closed-loop framing review
+  (`zxv-legal/VINO_CLOSED_LOOP_FRAMING_REVIEW.md`, section 2.2) already flags
+  the V-Bill dividend for it.
+
+What is built is the narrower link: the assurance fee's 15% node-bounty pool
+can be shared by each model's verified work. That is pay to the nodes and
+models that did the work, for service rendered, not a return to anyone
+holding vouchers.
+
+- `swarm_yield_weights(SWARM_YIELD_LINK_WORK, ...)` gives the weights, and the
+  pool's own capped split (`pay_commons_split`, no monopoly) shares it. Under
+  the budget's fixed allotments, verified work is yield times tokens spent,
+  so the more each token buys, the bigger the share.
 - It never mints and never sets a voucher's rate. Every unit paid out came
   in as a fee.
 - **Off by default** (`SWARM_YIELD_LINK_OFF`): every model weighs 1, an even
   split. Nothing pays out the node-bounty pool yet, so for now the link is a
   hook, checked end to end against `pay_commons_split` in `test-yield`.
-
-Financial use stays advisory, and a fee-funded payout tied to performance
-may be regulated in some jurisdictions; it needs the same legal review as the
-rest of the economy before real money moves.
+- Turning it on, and any use for the V-Bill dividend or other holder-facing
+  return, waits for counsel. The chart is a measurement of the swarm's work;
+  it should never be marketed as an investment return.
 
 ## What yield is not
 
