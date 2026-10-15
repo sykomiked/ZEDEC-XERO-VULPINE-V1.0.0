@@ -123,6 +123,7 @@ its own; a failure anywhere is logged and the boot goes on.
 | `test_aml_ops` | every operator, conversions, control flow, references, packages, method-local objects, notifications, budgets |
 | `test_aml_regions` | each address space on a fake chipset: memory, ports, PCI (bridges and `_BBN`), EC with a query and a dead EC, CMOS, index and bank fields, Load() from a region |
 | `test_aml_pm` | RSDP/XSDT/RSDT discovery and bad checksums, FADT parsing, `_INI` rules, batteries (`_BIX` and `_BIF`), lid, thermal zones, `_PSS`/`_PCT`/`_PPC`/`_CPC`, backlight, S3/S5 register writes, hardware-reduced sleep, power button, GPEs, EC queries, the report lines |
+| `test_aml_core` | the interpreter core against exact values: every fixture method in 64-bit and 32-bit tables, a missing name in every operand of every operator, stale and chained references, shrinking strings and packages, buffer fields across byte and 64-bit edges, field and buffer bounds, every prefix of a table and of each method body (exact-size copies, so ASan sees one byte too far), the table skip and resync rules, the declaration pass, Load() from regions and buffers, heap sizes and leaks, log lines |
 | `test_aml_hostile` | hand-assembled hostile byte code (endless loops, recursion, 4 GB buffers and packages, 400-deep expressions, 300-deep packages, truncated lengths, bad names, unknown opcodes, duplicate names), a small arena, and a deterministic mutation fuzz of every fixture (300 rounds per fixture in CI; `AML_FUZZ_ITERS` and `AML_FUZZ_SEED` run more) |
 
 The fixtures are ASL in `kernel/src/acpi/test/fixtures/`, compiled once with
@@ -145,7 +146,20 @@ present:
 
 **Mutation** (`tests/harness/mutator/mutate.py --config
 tests/harness/mutator/targets.json --only aml_core`): the interpreter core
-against all four host tests (`kernel/src/acpi/test/mut_aml.sh`).
+against all five host tests (`kernel/src/acpi/test/mut_aml.sh`); the targets
+`aml_region`, `aml_dev` and `acpi_pm` run the same command against the other
+three files. `aml_core` scores 88.2% (3381 killed + 37 timeouts of 3876 valid
+mutants, 365 that do not compile) with `test_aml_core` (4869 checks), up from
+54.2% with the other four tests alone. Most of the 458 survivors are
+equivalent: heap size-class bounds and the 4 MB request cap that no arena
+reaches, the magnitude of compare() results (only the sign is used), initial
+values every path overwrites, log text that is never printed (`hex` < 0),
+`!r` guards in front of a call that fails the same way, slot and buffer
+bounds one past the last index that is ever used, and allocation failures
+in `aml_init` (it refuses arenas below 64 KB, more than it needs). The other
+three files are first measurements and have not had their own pass yet:
+`aml_region` 52.8% (538 + 11 of 1040), `aml_dev` 64.4% (423 of 657),
+`acpi_pm` 58.9% (581 of 987).
 
 ## Not done yet
 
