@@ -1225,8 +1225,14 @@ void kernel_main_arm64(void) {
     /* Run initial system audit */
     ev_audit_result_t init_audit = ev_audit_check_system(&ev_seq, &ev_audit);
     boot_msg("  [INITIALIZED] 4 event domains (storage/network/display/input)");
-    boot_msg("  [AUDIT] Initial system audit: PASS");
-    (void)init_audit;
+    /* Print the verdict the audit returned; this line used to read PASS
+     * whatever ev_audit_check_system said. */
+    if (init_audit == EV_AUDIT_PASS)
+        boot_msg("  [AUDIT] Initial system audit: PASS");
+    else if (init_audit == EV_AUDIT_WARN)
+        boot_msg("  [AUDIT] Initial system audit: WARN (a domain left RUNNING or degraded)");
+    else
+        boot_msg("  [FAIL] Initial system audit: FAIL or QUARANTINE");
 
     /* Emit a pilot event to verify the pipeline works end-to-end */
     ev_envelope_t pilot_env;
@@ -2339,10 +2345,28 @@ void kernel_main_arm64(void) {
         static uint8_t a_pub[32], b_pub[32], ss_a[32], ss_b[32];
         x25519_public(a_pub, a_priv);
         x25519_public(b_pub, b_priv);
+        /* RFC 7748 s6.1's expected values: agreement alone would also pass a
+         * broken ladder that is wrong the same way on both sides. */
+        static const uint8_t a_pub_want[32] = {0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54,
+                                               0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e, 0xf7, 0x5a,
+                                               0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4,
+                                               0xeb, 0xa4, 0xa9, 0x8e, 0xaa, 0x9b, 0x4e, 0x6a};
+        static const uint8_t ss_want[32] = {0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1,
+                                            0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35, 0x0f, 0x25,
+                                            0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33,
+                                            0x76, 0xf0, 0x9b, 0x3c, 0x1e, 0x16, 0x17, 0x42};
         bool ok = x25519_shared(ss_a, a_priv, b_pub) &&
                   x25519_shared(ss_b, b_priv, a_pub);
         if (ok) { for (int i = 0; i < 32; i++) if (ss_a[i] != ss_b[i]) { ok = false; break; } }
-        if (ok) boot_msg("  [OK] X25519 agreement: both sides derived one secret");
+        if (ok) {
+            for (int i = 0; i < 32; i++)
+                if (a_pub[i] != a_pub_want[i] || ss_a[i] != ss_want[i]) {
+                    ok = false;
+                    break;
+                }
+        }
+        if (ok)
+            boot_msg("  [OK] X25519 agreement: RFC 7748 public key and shared secret");
         else    boot_msg("  [FAIL] X25519 KAT mismatch -- transport key agreement is BROKEN");
     }
 
@@ -2578,7 +2602,7 @@ void kernel_main_arm64(void) {
         if (agree)
             boot_msg("  [VERIFIED] ML-KEM-768 round trip: both parties derived the same secret");
         else
-            boot_msg("  [WARNING] ML-KEM-768 shared secrets DISAGREE — PQ path unsound");
+            boot_msg("  [FAIL] ML-KEM-768 shared secrets DISAGREE — PQ path unsound");
     }
 
     /* Phase 17c-tri: Tri-Space artifact triad — ZXV's native module format.
