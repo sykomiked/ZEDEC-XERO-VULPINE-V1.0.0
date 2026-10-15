@@ -256,7 +256,8 @@ lpres_state_t appfab_function(appfab_t *w, zxapp_host_t *h, const appfab_check_t
         int rc = C->entry ? zxapp_call_witnessed(&w->app, h, C->entry, C->args, C->nargs, out,
                                                  ZXAPP_WITNESS_MAX, &got, &lp)
                           : ZXAPP_E_ARG;
-        bool both = rc == ZXAPP_E_CONFLICT || (rc == ZXAPP_OK && lp == ZXAPP_BOTH);
+        /* zxapp_call_witnessed answers OK only when its witnesses agree */
+        bool both = rc == ZXAPP_E_CONFLICT;
         if (C->want_both)
             s = both ? LPRES_STATE_TRUE : LPRES_STATE_FALSE;
         else if (both)

@@ -266,6 +266,20 @@ static void test_sources(void)
                   LPRES_STATE_FALSE &&
               strstr(W.why, "not read from a part"),
           "a cid: source the recipe lacks: %s", W.why);
+    /* every entry is held to it, not only the first */
+    snprintf(m, sizeof m,
+             "zxapp 1\nid calc\nprovides own num a b\nlogic eve own <<\nadd\n.\n"
+             "logic kron own apps/x.kron\n");
+    CHECK(appfab_fit(&W, (const uint8_t *) m, (uint32_t) strlen(m), P, 2, &H) ==
+                  LPRES_STATE_FALSE &&
+              strstr(W.why, "not read from a part"),
+          "a disk path in the second entry: %s", W.why);
+    snprintf(m, sizeof m,
+             "zxapp 1\nid calc\nprovides own num a b\nprovides two num a b\n"
+             "logic eve own <<\nadd\n.\nlogic eve two <<\nadd\n.\n");
+    CHECK(appfab_fit(&W, (const uint8_t *) m, (uint32_t) strlen(m), P, 2, &H) == LPRES_STATE_TRUE,
+          "a provides met by the second entry: %s", W.why);
+    appfab_unload(&W, &H);
     snprintf(m, sizeof m, "zxapp 1\nid calc\nprovides own num a b\nlogic kron own apps/x.kron\n");
     CHECK(appfab_fit(&W, (const uint8_t *) m, (uint32_t) strlen(m), P, 2, &H) ==
                   LPRES_STATE_FALSE &&

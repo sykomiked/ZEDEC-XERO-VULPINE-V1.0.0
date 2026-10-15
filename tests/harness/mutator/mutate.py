@@ -259,8 +259,9 @@ def copy_tree(dst):
     os.makedirs(dst, exist_ok=True)
     # sdk/libzxv: the zxvd_rpc target links libzxv, built from kernel/ in place;
     # the aipi kit and its Z-Wasm / Z-Contract libraries: the zxvd_aipi target;
-    # build_system: build checks (verify_strata) are mutation targets too
-    for d in ("kernel", "tests", "build_system", os.path.join("sdk", "libzxv"), os.path.join("sdk", "kits", "aipi"),
+    # build_system: build checks (verify_strata) are mutation targets too;
+    # docs/spec: golden tables a test reads (appfab: ZECKENDORF_ANCESTORS.tsv)
+    for d in ("kernel", "tests", "build_system", os.path.join("docs", "spec"), os.path.join("sdk", "libzxv"), os.path.join("sdk", "kits", "aipi"),
               os.path.join("sdk", "kits", "z-wasm"), os.path.join("sdk", "kits", "z-contract")):
         s = os.path.join(ROOT, d)
         if os.path.isdir(s) and not os.path.exists(os.path.join(dst, d)):
