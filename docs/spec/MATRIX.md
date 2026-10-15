@@ -204,4 +204,11 @@ table, and that inserting one byte keeps all but the first few cut points.
   classification stays an index axis (the grid word and the core index,
   CARTOGRAPHY.md), and the matrix places the blocks' files by app.
 - **The vector plane:** embeddings in grid domain 0x60, with a summary
-  vector per node. This is the next piece.
+  vector per node. Built: see VECTORS.md.
+- **Proposed, not built: an Enochian booklet.** The user suggested the
+  sixteenth-century Enochian language material as a test case for the
+  matrix: a small, closed language whose words, letters and their
+  correspondences could be packed and linked like any other layer content.
+  The source texts are public domain. The Enochian font stays excluded until
+  it is licensed (fonts rule). It waits for a decision on which layer it
+  belongs to.

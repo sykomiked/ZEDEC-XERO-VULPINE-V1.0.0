@@ -252,7 +252,8 @@ the code or the docs.
    core index (ALEXANDRIA.IDX) and cartographers' signed overlays, built
    with `zxv-index` (docs/spec/CARTOGRAPHY.md); and the 144-layer
    matrix, one layer per system app, chunked, packed by its glue and
-   checked file by file (docs/spec/MATRIX.md).
+   checked file by file (docs/spec/MATRIX.md); and the vector plane beside
+   it, every vector naming its file and model (docs/spec/VECTORS.md).
 2. **Slots for every block.** These are added as blocks land, with
    `--assign BLOCK NAMESPACE SECTION`. The apps thread's CONCEPTS.tsv stays
    the source of meanings; the shorthand is the handle.

@@ -433,6 +433,7 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         blocks[gc] = g
         rc, _, nb = root_rows[k]
         root_rows[k] = (rc, gc, nb)
+        m.setdefault("glue_of", {})[k] = (gc, uniq)
         m["layers"][k]["glue_bytes"] = len(g)
         m["layers"][k]["edges"] = len(es)
     icons = {}
@@ -465,6 +466,116 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
             for p in sorted(refs):
                 f.write("%s\t%d\t%d\t%s\n" % (p, where[p], tiers[p], cid_str(fcid[p])))
     return m
+
+
+
+
+def vec_rows(args, root_dir, paths):
+    """path -> (scale, row bytes), and the model's CID"""
+    if args.vectors:  # embeddings a Tiamat cell computed, in vec_shape's format
+        lines = open(args.vectors, encoding="utf-8").read().splitlines()
+    else:
+        lines = subprocess.run([args.shape, str(args.vectorize)], check=True, capture_output=True,
+                               input="".join(os.path.join(root_dir, p) + "\n" for p in paths)
+                               .encode()).stdout.decode().splitlines()
+    head = lines[0].split("\t")
+    if head[0] != "model" or len(head[1]) != 72:
+        fail("vectors: the first line must name the model's CID")
+    model = bytes.fromhex(head[1])
+    rl = args.vectorize // 32 * 34
+    out = {}
+    for line in lines[1:]:
+        path, sc, row = line.split("\t")
+        row = bytes.fromhex(row)
+        if len(row) != rl or any(row[i:i + 2] != b"\x00\x3c" for i in range(0, rl, 34)):
+            fail("vectors: %s: a row is %d blocks of 00 3c and 32 int8" % (path, rl // 34))
+        out[os.path.relpath(path, root_dir) if os.path.isabs(path) else path] = (int(sc), row)
+    return out, model
+
+
+def to_i8(b):
+    return b - 256 if b > 127 else b
+
+
+def vec_summary(rows, scales, nb):
+    """alx_vec_summary, exactly"""
+    dim = nb * 32
+    sums = []
+    for j in range(dim):
+        o = (j // 32) * 34 + 2 + j % 32
+        sums.append(sum(to_i8(r[o]) * sc for r, sc in zip(rows, scales)))
+    m = max(abs(x) for x in sums)
+    out = bytearray()
+    for k in range(nb):
+        out += b"\x00\x3c"
+        for j in range(k * 32, k * 32 + 32):
+            # truncate toward zero, as C does
+            q = 0 if not m else abs(sums[j]) * 127 // m * (1 if sums[j] >= 0 else -1)
+            out.append(q & 0xFF)
+    n = len(rows)
+    scale = min((m + 127 * n // 2) // (127 * n), 0xFFFFFFFF) if m and n else 0
+    return bytes(out), scale
+
+
+def vec_node(kind, layer, model, source, recs, rows, nb):
+    """recs: [(target CID, word, scale)], rows: [row bytes]"""
+    n = len(recs)
+    srow, sscale = vec_summary(rows, [r[2] for r in recs], nb)
+    b = bytearray(struct.pack(">4sBBHIHH", b"ALXV", 1, kind, layer, n, nb * 32, 0))
+    b += model + source + struct.pack(">I", sscale) + bytes(36)
+    for c, w, sc in recs:
+        b += c + struct.pack(">QI", w, sc)
+    b += bytes(-len(b) % 64)
+    for r in rows:
+        b += r
+    b += srow
+    if len(b) > BOOK_MAX:
+        fail("a vector node is over one block")
+    return bytes(b), srow, sscale
+
+
+def vectorize(args, m, root_dir, write):
+    nb = args.vectorize // 32
+    paths = sorted({p for k, (gc, uniq) in m["glue_of"].items() for p in uniq})
+    vecs, model = vec_rows(args, root_dir, paths)
+    tops, blocks = [], {}
+    for k in sorted(m["glue_of"]):
+        gc, uniq = m["glue_of"][k]
+        leaves = []
+        rl = nb * 34  # rows a leaf holds: n records, n + 1 rows, one block
+        per = (BOOK_MAX - 128 - 64 - rl) // (48 + rl)
+        for i in range(0, len(uniq), per):
+            part = uniq[i:i + per]
+            if any(p not in vecs for p in part):
+                fail("vectors: no row for %s" % next(p for p in part if p not in vecs))
+            recs = [(cid_raw(open(os.path.join(root_dir, p), "rb").read()), 0, vecs[p][0])
+                    for p in part]
+            b, srow, ssc = vec_node(0, k, model, gc, recs, [vecs[p][1] for p in part], nb)
+            blocks[cid_raw(b)] = b
+            leaves.append((cid_raw(b), srow, ssc))
+        while len(leaves) > 1:  # a summary over this layer's leaves, 256 at a time
+            nxt = []
+            for i in range(0, len(leaves), FAN):
+                part = leaves[i:i + FAN]
+                b, srow, ssc = vec_node(1, k, model, bytes(36), [(c, 0, sc) for c, _, sc in part],
+                                        [r for _, r, _ in part], nb)
+                blocks[cid_raw(b)] = b
+                nxt.append((cid_raw(b), srow, ssc))
+            leaves = nxt
+        tops.append(leaves[0])
+    # the summary over all layers: one row per layer, in layer order
+    b, _, _ = vec_node(1, LAYERS, model, bytes(36), [(c, 0, sc) for c, _, sc in tops],
+                       [r for _, r, _ in tops], nb)
+    top = cid_raw(b)
+    blocks[top] = b
+    if write:
+        for c, bb in blocks.items():
+            with open(os.path.join(write, "blocks", cid_str(c)), "wb") as f:
+                f.write(bb)
+        with open(os.path.join(write, "VECTORS"), "w") as f:
+            f.write(cid_str(top) + "\n")
+    return {"vector_nodes": len(blocks), "vector_root": cid_str(top), "dim": args.vectorize,
+            "model": cid_str(model), "vector_bytes": sum(len(x) for x in blocks.values())}
 
 
 def locality(m, edges, where):
@@ -543,6 +654,10 @@ def main():
     ap.add_argument("--report")
     ap.add_argument("--baseline")
     ap.add_argument("--order", choices=("glue", "path"), default="glue")
+    ap.add_argument("--vectorize", type=int, metavar="DIM",
+                    help="also write the vector plane (docs/spec/VECTORS.md)")
+    ap.add_argument("--shape", help="the vec_shape helper (the shape embedding)")
+    ap.add_argument("--vectors", help="embeddings a Tiamat cell computed, in vec_shape's format")
     ap.add_argument("--content-cuts", dest="booklet_cuts", action="store_true",
                     help="also end booklets where the content says (measured: more "
                     "booklets survive an edit, but bound files share fewer)")
@@ -553,6 +668,13 @@ def main():
     where, pulled = homes(files, lay, edges)
     m = pack(args, lay, ROOT, files, edges, where, args.order, args.out_dir)
     loc = locality(m, edges, where)
+    vrep = None
+    if args.vectorize:
+        if args.vectorize < 32 or args.vectorize > 4096 or args.vectorize & (args.vectorize - 1):
+            fail("--vectorize: a power of two from 32 to 4096")
+        if not args.shape and not args.vectors:
+            fail("--vectorize needs --shape or --vectors")
+        vrep = vectorize(args, m, ROOT, args.out_dir)
     rep = {
         "files": len(files), "bytes": sum(os.path.getsize(os.path.join(ROOT, p)) for p in files),
         "edges": len(edges), "layers_used": len(m["layers"]), "root": m["root"],
@@ -574,6 +696,8 @@ def main():
                           "glue_bytes": v["glue_bytes"], "edges": v["edges"]}
                       for k, v in sorted(m["layers"].items())},
     }
+    if vrep:
+        rep["vectors"] = vrep
     t, u, _ = fixed_dedup(ROOT, files, 4096)
     rep["fixed_4k_dedup_ratio"] = round(t / u, 4)
     if args.baseline:
