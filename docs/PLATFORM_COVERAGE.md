@@ -33,8 +33,8 @@ Three levels, and nothing in between:
 | x86-64 AVX-512 | `avx512` | Tested | same run |
 | x86-64 AVX-512 VNNI | `avx512vnni` | Tested | same run |
 | AArch64 NEON (Apple M-series, Linux and Android ARM) | `neon` (`zt_simd_neon.c`) | Tested on Apple M3 Max; emulated for Linux ARM | M3 Max: Qwen2.5-1.5B through `zt_bench` natively (17 ms a token, [GPU_STRATEGY.md](GPU_STRATEGY.md)); `test_zt_simd`, `test_zt_lora` and `test_zt_vision` under `qemu-aarch64` in `make -C kernel verify-all` |
-| AArch64 SVE / SVE2 (Graviton 3/4, Neoverse V, recent phones) | SVE | Untested | Kernel set in progress, to be checked under qemu at several vector lengths |
-| RISC-V RVV 1.0 | RVV | Untested | Kernel set in progress, to be checked under qemu at several vector lengths |
+| AArch64 SVE / SVE2 (Graviton 3/4, Neoverse V, A64FX, recent phones) | `sve` (`zt_simd_sve.c`, base SVE; Linux, GCC 13+ or clang 18+) | Emulated | `test_zt_simd` under `qemu-aarch64 -cpu max` at 128, 256, 384, 512, 1024 and 2048-bit vectors: 53/53 each; with SVE off the set is not offered. No SVE hardware has run it |
+| RISC-V RVV 1.0 | `rvv` (`zt_simd_rvv.c`, built with `-march=rv64gcv`; Linux) | Emulated | `test_zt_simd` under `qemu-riscv64` at VLEN 128, 256 and 1024: 34/34 each; with V off the C reference is used. No RISC-V hardware has run it |
 
 ## What would move a row
 
