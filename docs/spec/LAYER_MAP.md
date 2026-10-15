@@ -146,7 +146,7 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 123 | Gait | Developer tools | none yet | 0 |  |
 | 124 | Graft | Developer tools | none yet | 0 |  |
 | 125 | Whetstone | Developer tools | `nlb` `dualtrack` | 4 |  |
-| 126 | Toolchest | Developer tools | `sdk` `mfg` `/sdk` `/tools` `/kernel/tools` `/api` `/bindings` | 2092 | `orbital_compat` |
+| 126 | Toolchest | Developer tools | `sdk` `mfg` `fab` `/sdk` `/tools` `/kernel/tools` `/api` `/bindings` | 2092 | `orbital_compat` |
 | 127 | Colonnade | Developer tools | `sutra` `legacy` `apps/cobol` `apps/fortran` `apps/python` `apps/rust` `apps/sutra` `apps/assembly` `apps/telecom` `apps/blocks` | 69 |  |
 | 128 | Mockingbird | Developer tools | `hwemu` `emu` | 117 | `fwadapt` `shimmer` `tolvovina` |
 | 129 | Gauntlet | Developer tools | `bombsquad` `/tests` `/fuzz` `/kernel/tests` `/bench` `/proofs` `/.github` | 5154 | `gematria` `hdcm` `hypercube` `iphase` `orbital_elevator` `quantum` `rce` `rur` |
