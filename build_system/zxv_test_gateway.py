@@ -73,8 +73,9 @@ def main():
             if not path.startswith("/ipfs/") or q != "format=raw" or not cid.isalnum() or \
                     not cid.isascii():
                 return self.reply(404)
-            f = os.path.realpath(os.path.join(root, cid))
-            if os.path.dirname(f) != root or not os.path.isfile(f):
+            # the path is built from the store's own listing, never from the request
+            f = next((os.path.join(root, n) for n in os.listdir(root) if n == cid), None)
+            if f is None or not os.path.isfile(f):
                 return self.reply(404)
             if down():
                 return self.reply(503)

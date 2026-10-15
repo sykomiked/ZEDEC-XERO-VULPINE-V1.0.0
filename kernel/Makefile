@@ -1971,13 +1971,17 @@ test-metal:
 # NVRTC needed, nothing at build time); SKIP with none, unless ZT_CUDA_REQUIRE=1.
 ZT_CUDA_SRCS = src/tensor/zt_cuda.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c src/tensor/zt_simd_rvv.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
 .PHONY: test-cuda test-cuda-offline
+# The device-mode compiler for the CUDA and HIP offline tests: the newest
+# clang++ on PATH, since sm_90 and gfx1100 need clang 15 or later.
+GPU_CLANGXX ?= $(firstword $(foreach v,20 19 18 17 16 15,$(shell command -v clang++-$(v) 2>/dev/null)) clang++)
+
 test-cuda-offline:
 	@mkdir -p $(ZXV_TMP)
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_cuda.c $(ZT_CUDA_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_cuda && \
 	$(ZXV_TMP)/test_zt_cuda --source > $(ZXV_TMP)/zt_cuda_gen.cu && echo "[PASS] zt_cuda builds with no CUDA toolkit" || { echo "[FAIL] zt_cuda build"; exit 1; }
-	@if echo 'int main(){}' | clang++ -x cuda --cuda-device-only --cuda-gpu-arch=sm_86 -nocudainc -nocudalib -S - -o /dev/null 2>/dev/null; then \
+	@if echo 'int main(){}' | $(GPU_CLANGXX) -x cuda --cuda-device-only --cuda-gpu-arch=sm_86 -nocudainc -nocudalib -S - -o /dev/null 2>/dev/null; then \
 	  cat src/tensor/test_zt_cuda_ptx.h $(ZXV_TMP)/zt_cuda_gen.cu > $(ZXV_TMP)/zt_cuda_ptx.cu && \
-	  for a in sm_75 sm_86 sm_90; do clang++ -x cuda --cuda-device-only --cuda-gpu-arch=$$a -nocudainc -nocudalib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_cuda_ptx.cu -o $(ZXV_TMP)/zt_cuda_$$a.ptx || { echo "[FAIL] zt_cuda kernels to PTX ($$a)"; exit 1; }; \
+	  for a in sm_75 sm_86 sm_90; do $(GPU_CLANGXX) -x cuda --cuda-device-only --cuda-gpu-arch=$$a -nocudainc -nocudalib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_cuda_ptx.cu -o $(ZXV_TMP)/zt_cuda_$$a.ptx || { echo "[FAIL] zt_cuda kernels to PTX ($$a)"; exit 1; }; \
 	    test "$$(grep -c '^.visible .entry' $(ZXV_TMP)/zt_cuda_$$a.ptx)" = 21 || { echo "[FAIL] zt_cuda: 21 kernels expected in $$a PTX"; exit 1; }; done && \
 	  echo "[PASS] zt_cuda kernels compile to PTX (sm_75, sm_86, sm_90: 21 kernels each)"; \
 	else echo "[SKIP] zt_cuda PTX (clang without the NVPTX target)"; fi
@@ -2004,11 +2008,11 @@ test-hip-offline:
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip && \
 	$(ZXV_TMP)/test_zt_hip --source > $(ZXV_TMP)/zt_hip_gen.hip && echo "[PASS] zt_hip builds with no ROCm (gcc)" || { echo "[FAIL] zt_hip build (gcc)"; exit 1; }
 	@if command -v clang >/dev/null; then clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip_clang && echo "[PASS] zt_hip builds with no ROCm (clang)" || { echo "[FAIL] zt_hip build (clang)"; exit 1; }; else echo "[SKIP] zt_hip clang build (no clang)"; fi
-	@if echo 'int main(){}' | clang++ -x hip --cuda-device-only --offload-arch=gfx90a -nogpuinc -nogpulib -S - -o /dev/null 2>/dev/null; then \
+	@if echo 'int main(){}' | $(GPU_CLANGXX) -x hip --cuda-device-only --offload-arch=gfx90a -nogpuinc -nogpulib -S - -o /dev/null 2>/dev/null; then \
 	  cat src/tensor/test_zt_hip_amdgpu.h $(ZXV_TMP)/zt_hip_gen.hip > $(ZXV_TMP)/zt_hip_amdgpu.hip && \
-	  for a in $(ZT_HIP_ARCHS); do clang++ -x hip --cuda-device-only --offload-arch=$$a -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_$$a.s || { echo "[FAIL] zt_hip kernels for $$a"; exit 1; }; \
+	  for a in $(ZT_HIP_ARCHS); do $(GPU_CLANGXX) -x hip --cuda-device-only --offload-arch=$$a -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_$$a.s || { echo "[FAIL] zt_hip kernels for $$a"; exit 1; }; \
 	    test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_$$a.s)" = 21 || { echo "[FAIL] zt_hip: 21 kernels expected for $$a"; exit 1; }; done && \
-	  clang++ -x hip --cuda-device-only --offload-arch=gfx1100 -mwavefrontsize64 -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_gfx1100_w64.s && \
+	  $(GPU_CLANGXX) -x hip --cuda-device-only --offload-arch=gfx1100 -mwavefrontsize64 -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_gfx1100_w64.s && \
 	  test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 && \
 	  test "$$(grep -c 'amdhsa_wavefront_size32 1' $(ZXV_TMP)/zt_hip_gfx1030.s)" = 21 && \
 	  test "$$(grep -c 'amdhsa_wavefront_size32 0' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 || { echo "[FAIL] zt_hip: RDNA kernels in wave32 and wave64"; exit 1; }; \
