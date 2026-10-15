@@ -36,8 +36,10 @@ CC_FUZZ   ?= clang
 REPLAY_SAN    ?= -fsanitize=address,undefined -fno-sanitize-recover=all
 # -Wno-maybe-uninitialized: gcc flags the exact-size empty copies (malloc(0)) the
 # harnesses make on purpose; it is a false positive there. clang has no such
-# warning (and would reject the unknown option under -Werror).
-REPLAY_WNO ?= $(if $(findstring clang,$(notdir $(CC_REPLAY))),,-Wno-maybe-uninitialized)
+# warning (and would reject the unknown option under -Werror). Ask the compiler,
+# not its name: on macOS `gcc` is clang.
+REPLAY_IS_CLANG := $(shell $(CC_REPLAY) --version 2>/dev/null | grep -qi clang && echo yes)
+REPLAY_WNO ?= $(if $(REPLAY_IS_CLANG),,-Wno-maybe-uninitialized)
 REPLAY_CFLAGS ?= -std=c11 -O1 -g -Wall -Wextra -Werror $(REPLAY_WNO) -D_DEFAULT_SOURCE \
                  $(REPLAY_SAN)
 IGNORELIST    := $(abspath sanitizer-ignorelist.txt)

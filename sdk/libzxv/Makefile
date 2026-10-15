@@ -68,7 +68,9 @@ RUN    ?=
 HOSTCC ?= $(if $(EXE),cc,$(CC))
 TESTLIBS ?= $(PTHREAD)
 PICFLAG ?= -fPIC
-FORTIFY ?= -D_FORTIFY_SOURCE=2
+# Not with sanitizers: they replace the checked libc calls, and Apple clang
+# predefines _FORTIFY_SOURCE=0 under -fsanitize=address.
+FORTIFY ?= $(if $(SAN),,-D_FORTIFY_SOURCE=2)
 
 ifneq ($(SANITIZE),)
   # shift-base: the vendored ref10 Ed25519 left-shifts negative limbs, which

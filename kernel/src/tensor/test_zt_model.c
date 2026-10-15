@@ -17,7 +17,7 @@
  *       -o /tmp/test_zt_model && /tmp/test_zt_model
  * Add -fsanitize=address,undefined and pass "fuzz" for the long fuzz run.
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -471,11 +471,13 @@ static void leech_classes(zt_leech_work_t *w, const zt_fx x[24], int64_t s)
         int64_t q, r;
         floordiv(x[i], (int32_t) s, &q, &r);
         int64_t t = 4 * q;
-        r *= 4;
-        while (r >= s) {
-            t++;
-            r -= s;
-        }
+        r *= 4; /* r < 4s: at most three steps, unrolled so no compiler turns
+                 * the loop into a 64-bit division helper on 32-bit targets */
+        for (uint32_t j = 0; j < 3; j++)
+            if (r >= s) {
+                t++;
+                r -= s;
+            }
         if (t > LEECH_CLAMP || (t == LEECH_CLAMP && r > 0)) {
             t = LEECH_CLAMP;
             r = 0;
