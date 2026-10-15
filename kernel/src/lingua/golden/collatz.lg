@@ -1,0 +1,26 @@
+; The same three algorithms as collatz.f, collatz.bas and collatz.fs
+
+to steps :n
+local "s
+make "s 0
+while [:n <> 1] [
+    ifelse 0 = remainder :n 2 [make "n :n / 2] [make "n 3 * :n + 1]
+    make "s :s + 1
+]
+output :s
+end
+
+to gcd :a :b
+if :b = 0 [output :a]
+output gcd :b remainder :a :b
+end
+
+to fib :f :g :k
+if :k = 0 [stop]
+print :f
+fib :g :f + :g :k - 1
+end
+
+for [n 1 12] [(print :n steps :n)]
+(print "GCD gcd 1071 462)
+fib 0 1 15

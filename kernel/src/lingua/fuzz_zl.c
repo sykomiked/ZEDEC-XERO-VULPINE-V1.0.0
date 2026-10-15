@@ -9,7 +9,10 @@
  * the same IR, and a randomly damaged pack is refused or still verifies.
  * Run under ASan + UBSan.
  *
- * Usage: fuzz_zl [iterations] [seed] */
+ * Usage: fuzz_zl [iterations] [seed] [golden-dir]
+ * Every program in golden-dir (except .out files) joins the built-in seeds,
+ * so a new front-end's goldens are fuzzed without editing this file. */
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +41,48 @@ static const char *const seeds[] = {
     "; 10 F .\n"
     ": W BEGIN DUP WHILE DUP . 1- REPEAT DROP ; 4 W .\" done\" 42 EMIT\n: U 0 BEGIN 1+ DUP 5 = "
     "UNTIL ; U . 5 ?DUP . .\n",
+    "{$mode iso}\nprogram fz(input, output);\nconst k = -3; t = true;\nvar i, n: integer; b: "
+    "boolean; a: array[-2..4] of integer;\nprocedure p(x: integer; var y: integer);\nvar w: "
+    "array[0..2] of integer;\n  procedure q; begin y := y + x; w[1] := y end;\nbegin q; q; "
+    "writeln(y:4, w[1] mod 5) end;\nfunction f(m: integer): integer;\nbegin if m <= 0 then f "
+    ":= 1 else f := m * f(m - 1) end;\nbegin\n  read(n); for i := -2 to 4 do a[i] := sqr(i) "
+    "div 2;\n  i := 0; repeat i := succ(i) until (i > 3) or odd(i * k);\n  while n > 0 do begin "
+    "p(n, a[n]); n := n - 2 end;\n  case abs(k) of 1, 2: b := t; 3: b := not t and (n < 0) "
+    "end;\n  if b then writeln('yes', f(5):6, -maxint div 7) else write(ord(b), pred(i));\n  "
+    "(* done *) writeln(a[4], true:3, 'end':2)\nend.\n",
+    "begin comment fuzz seed; integer i, s; Boolean b; integer array a[0:4];\n"
+    "  integer procedure f(x, y); value x; integer x, y;\n"
+    "    f := if x > 0 then x * y + f(x - 1, y) else 0;\n"
+    "  procedure p(n); value n; integer n;\n"
+    "  begin integer array c[1:n]; c[n] := n; s := s + c[n] end;\n"
+    "  for i := 0 step 1 until 4, 7 while i > 9 do a[i] := i ^ 2 % 3 - 1;\n"
+    "  b := !(s = 0) | a[1] <= 2 -> s != 3 == true; ininteger(0, s);\n"
+    "  L: if b & s < 10 then begin s := s + f(2, i); goto L end else p(3);\n"
+    "  outinteger(1, s); outstring(1, \"ok\\n\")\n"
+    "end\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun f (n acc) (if (zerop n) acc "
+    "(f (1- n) (cons n acc))))\n"
+    "(print (f 4 nil)) (print (length *l*)) (print (assoc 2 (cddr *l*)))\n(let ((a 1) b) (setq b "
+    "(+ a 2)) (prin1 (list a b)))\n"
+    "(dotimes (i 3) (princ i)) (terpri)\n(labels ((g (x) (if (> x 9) x (g (* x 2))))) (print (g "
+    "1)))\n"
+    "(cond ((evenp 3) (print 'e)) (t (print (mod -7 3)))) (when (equal '(1) (list 1)) (print "
+    "t))\n",
+    ";;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) acc (f (- n "
+    "1) (cons n acc))))\n"
+    "(display (f 4 '())) (newline) (display (length l)) (write (assv 2 (cddr l)))\n(let* ((a 1) "
+    "(b (+ a 2))) (set! a b) (display (list a b)))\n"
+    "(do ((i 0 (+ i 1))) ((= i 3)) (display i)) (newline)\n(let loop ((x 1)) (if (> x 9) "
+    "(display x) (loop (* x 2))))\n"
+    "(cond ((even? 3) (display 'e)) (else (display (modulo -7 3)))) (if (equal? '(1) (list 1)) "
+    "(display #t))\n",
+    "; fuzz seed\nto f :n\nif :n < 2 [output 1]\noutput :n * f :n - 1\nend\n"
+    "to g :l\nlocal \"k\nmake \"k 0\nwhile [not emptyp :l] [make \"k :k + first :l make \"l bf "
+    ":l]\noutput :k\nend\n"
+    "make \"x [1 [2 a] -3]\nrepeat 3 [type repcount (print f 3 (sum 1 2 3) -(count :x))]\n"
+    "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
+    "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
+    "-2 7 / 7)\n",
 };
 
 static const char *const dict[] = {
@@ -181,13 +226,44 @@ static size_t mutate(size_t n)
     return n;
 }
 
+enum { NPOOL = 512 };
+static const char *pool[NPOOL];
+static size_t npool;
+
+static void add_golden(const char *dir)
+{
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        fprintf(stderr, "fuzz_zl: cannot open %s\n", dir);
+        exit(2);
+    }
+    for (struct dirent *e; npool < NPOOL && (e = readdir(dp)) != 0;) {
+        size_t l = strlen(e->d_name);
+        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out"))) continue;
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+        FILE *f = fopen(path, "rb");
+        if (!f) continue;
+        char *t = calloc(1, sizeof buf / 2 + 1);
+        size_t n = t ? fread(t, 1, sizeof buf / 2, f) : 0;
+        fclose(f);
+        if (n && n < sizeof buf / 2)
+            pool[npool++] = t;
+        else
+            free(t);
+    }
+    closedir(dp);
+}
+
 int main(int argc, char **argv)
 {
     long iters = argc > 1 ? atol(argv[1]) : 20000;
     rng = argc > 2 ? strtoull(argv[2], 0, 10) * 0x9E3779B97F4A7C15ull + 1 : 1;
     long accepted = 0, twin_ok = 0, ran_ok = 0, trapped = 0;
+    for (size_t i = 0; i < sizeof seeds / sizeof seeds[0]; i++) pool[npool++] = seeds[i];
+    if (argc > 3) add_golden(argv[3]);
     for (long it = 0; it < iters; it++) {
-        const char *seed = seeds[rnd(3)];
+        const char *seed = pool[rnd((uint32_t) npool)];
         size_t n = strlen(seed);
         memcpy(buf, seed, n);
         if (rnd(8) == 0) { /* sometimes pure noise */
@@ -220,7 +296,7 @@ int main(int argc, char **argv)
             s = zl_run(&p1, &run);
             if (s == ZL_OK)
                 ran_ok++;
-            else if (s <= -2620 && s >= -2629)
+            else if (s <= -2620 && s >= -2631)
                 trapped++;
             else
                 die("run returned a non-trap status", lang, n);

@@ -1,0 +1,163 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The 144-layer matrix (docs/spec/MATRIX.md). Layer 0 is the core, which
+# boots first (booklet 000, the unified alphabet, is its first booklet);
+# layer N is L1 system app N, in the order of the app catalogue
+# (zxv-ui/APP_CATALOG_407.csv, owned by the Built-in apps thread), with its
+# icon. One line per layer, tab-separated:
+#   layer  app  group  icon  homes
+# homes: paths whose files live in this layer ("-" for none yet): under
+# kernel/src, or from the top of the repository when they start with "/"
+# (so the host app, boot, SDK, tools and tests have homes too: the matrix
+# holds every tracked file). The longest matching path wins. A module no
+# home names lives where the glue pulls it hardest (pack_matrix.py), else
+# in the core. docs/ and the files at the top of the repository that no
+# home names live in layer 130, the developer documentation.
+# icon: the app's L1 icon, vector (SVG), so every one fits a block at any
+# size; pack_matrix --icons fails when one is missing or too big.
+0	core	Core	-	alloc mm sched syscall gdt idt pic timer pci acpi ata blockdev bios bringup el0_userspace loader modbind lpres oseq event_space event_sched event_transport e8 edp_risk surplus trispace pqsec mlkem tls robin_debanks clock keyboard mouse display vbe virtio fs vfs zxvfs fat32 tripartite_fs ubh alexandria lingua tensor zui appkit apps cellular_multikernel hwdrv net /kernel/arch /kernel/boot /kernel/include /kernel/compat /kernel/third_party /kernel/experimental /kernel/userapp /kernel/freestanding.c /kernel/linker.ld /kernel/linker_arm64.ld /kernel/grub.cfg /kernel/lpres_core.c /kernel/rmag_core.c /kernel/telemetry_core.c /kernel/Makefile
+1	Burrow	System core	zxv-brand/app-icons/svg/l1/001-burrow.svg	apps/burrow_model.c apps/burrow_model.h
+2	Hollow	System core	zxv-brand/app-icons/svg/l1/002-hollow.svg	desktop theme dual_space launch icon /macos /gui /subsystems/gui /ZXV-Desktop.command
+3	Threshold	System core	zxv-brand/app-icons/svg/l1/003-threshold.svg	ident identity cred
+4	Keystone	System core	zxv-brand/app-icons/svg/l1/004-keystone.svg	license terms bootfeat /LICENSES /LICENSE /LICENSE-HARDWARE.md /NOTICE /COMMERCIAL_USE.md /CLA.md /REUSE.toml
+5	Scent	System core	zxv-brand/app-icons/svg/l1/005-scent.svg	-
+6	Tideturn	System core	zxv-brand/app-icons/svg/l1/006-tideturn.svg	update evolve
+7	Satchel	System core	zxv-brand/app-icons/svg/l1/007-satchel.svg	zxpkg deploy /packages /install /build_system /scripts /Makefile /build.sh
+8	Gatehouse	System core	zxv-brand/app-icons/svg/l1/008-gatehouse.svg	privacy policy onepolicy ascent panopticon treaty legal_engine /governance /subsystems/governance
+9	Lockbox	System core	zxv-brand/app-icons/svg/l1/009-lockbox.svg	hwkey svault pungent /security /subsystems/security /SECURITY.md
+10	Keepsake	System core	zxv-brand/app-icons/svg/l1/010-keepsake.svg	-
+11	Lifeboat	System core	zxv-brand/app-icons/svg/l1/011-lifeboat.svg	macgyver recon
+12	Ferry	System core	zxv-brand/app-icons/svg/l1/012-ferry.svg	immigration
+13	Flint	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/013-flint.svg	pterm subterm
+14	Wake	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/014-wake.svg	situation chronicle
+15	Tidewatch	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/015-tidewatch.svg	zstats telemetry apps/dharma_monitor.c
+16	Sounding	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/016-sounding.svg	wyverneye
+17	Almanac	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/017-almanac.svg	hardware /hardware
+18	Witness	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/018-witness.svg	peer_audit invproof provenance dispute
+19	Cellar	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/019-cellar.svg	megarom /megarom_corpus
+20	Warren	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/020-warren.svg	-
+21	Brazier	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/021-brazier.svg	power
+22	Spindle	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/022-spindle.svg	apps/spindle_model.c apps/spindle_model.h
+23	Lodestone	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/023-lodestone.svg	aipi
+24	Treadle	Terminal, console and monitors	zxv-brand/app-icons/svg/l1/024-treadle.svg	-
+25	Ramble	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/025-ramble.svg	web4 browser intent
+26	Rookery	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/026-rookery.svg	outbox
+27	Commons	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/027-commons.svg	concord
+28	Halloo	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/028-halloo.svg	call
+29	Trellis	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/029-trellis.svg	mesh_net devmesh denconnect constellation vinea /mobile
+30	Hedgerow	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/030-hedgerow.svg	wyrmgate battering_ram
+31	Pollen	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/031-pollen.svg	lattice bootlegger
+32	Cove	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/032-cove.svg	qnet plnp ehop
+33	Seedbank	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/033-seedbank.svg	ipfs ipfs_node
+34	Signpost	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/034-signpost.svg	decent
+35	Aerie	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/035-aerie.svg	wifi bluetooth harmonic
+36	Gazette	Network, mesh and Web4	zxv-brand/app-icons/svg/l1/036-gazette.svg	stream
+37	Quillon	Writing and office	zxv-brand/app-icons/svg/l1/037-quillon.svg	apps/quillon_model.c apps/quillon_model.h xedit
+38	Margins	Writing and office	zxv-brand/app-icons/svg/l1/038-margins.svg	apps/notes_app.c qnote
+39	Folio	Writing and office	zxv-brand/app-icons/svg/l1/039-folio.svg	-
+40	Furrow	Writing and office	zxv-brand/app-icons/svg/l1/040-furrow.svg	-
+41	Footlight	Writing and office	zxv-brand/app-icons/svg/l1/041-footlight.svg	-
+42	Broadsheet	Writing and office	zxv-brand/app-icons/svg/l1/042-broadsheet.svg	-
+43	Solstice	Writing and office	zxv-brand/app-icons/svg/l1/043-solstice.svg	-
+44	Kindred	Writing and office	zxv-brand/app-icons/svg/l1/044-kindred.svg	-
+45	Bowline	Writing and office	zxv-brand/app-icons/svg/l1/045-bowline.svg	-
+46	Wordhoard	Writing and office	zxv-brand/app-icons/svg/l1/046-wordhoard.svg	-
+47	Sealwax	Writing and office	zxv-brand/app-icons/svg/l1/047-sealwax.svg	-
+48	Bramble	Writing and office	zxv-brand/app-icons/svg/l1/048-bramble.svg	-
+49	Glint	Media and creative	zxv-brand/app-icons/svg/l1/049-glint.svg	apps/glint_model.c apps/glint_model.h
+50	Warble	Media and creative	zxv-brand/app-icons/svg/l1/050-warble.svg	audio /assets/music
+51	Kinetoscope	Media and creative	zxv-brand/app-icons/svg/l1/051-kinetoscope.svg	video codec
+52	Fireglow	Media and creative	zxv-brand/app-icons/svg/l1/052-fireglow.svg	-
+53	Gesso	Media and creative	zxv-brand/app-icons/svg/l1/053-gesso.svg	art_studio
+54	Burin	Media and creative	zxv-brand/app-icons/svg/l1/054-burin.svg	-
+55	Birdsong	Media and creative	zxv-brand/app-icons/svg/l1/055-birdsong.svg	-
+56	Cutwater	Media and creative	zxv-brand/app-icons/svg/l1/056-cutwater.svg	-
+57	Fiddlehead	Media and creative	zxv-brand/app-icons/svg/l1/057-fiddlehead.svg	audiogenomics_pro /audiogenomics /subsystems/audiogenomics
+58	Pinhole	Media and creative	zxv-brand/app-icons/svg/l1/058-pinhole.svg	-
+59	Bellows	Media and creative	zxv-brand/app-icons/svg/l1/059-bellows.svg	synthesis
+60	Relief	Media and creative	zxv-brand/app-icons/svg/l1/060-relief.svg	holographic holodeck spatial fractal
+61	Murmuration	AI and the swarm	zxv-brand/app-icons/svg/l1/061-murmuration.svg	swarm apps/murmuration_model.c apps/murmuration_model.h apps/murmuration.zxapp
+62	Kitling	AI and the swarm	zxv-brand/app-icons/svg/l1/062-kitling.svg	chiglet
+63	Sieve	AI and the swarm	zxv-brand/app-icons/svg/l1/063-sieve.svg	predictive
+64	Granary	AI and the swarm	zxv-brand/app-icons/svg/l1/064-granary.svg	ai_layer
+65	Hatchery	AI and the swarm	zxv-brand/app-icons/svg/l1/065-hatchery.svg	-
+66	Temper	AI and the swarm	zxv-brand/app-icons/svg/l1/066-temper.svg	-
+67	Lore	AI and the swarm	zxv-brand/app-icons/svg/l1/067-lore.svg	-
+68	Parley	AI and the swarm	zxv-brand/app-icons/svg/l1/068-parley.svg	i18n xlate babel
+69	Quarry	AI and the swarm	zxv-brand/app-icons/svg/l1/069-quarry.svg	-
+70	Retort	AI and the swarm	zxv-brand/app-icons/svg/l1/070-retort.svg	engine qsim /physics_sim /subsystems/physics_sim
+71	Gleaner	AI and the swarm	zxv-brand/app-icons/svg/l1/071-gleaner.svg	refinery
+72	Assay	AI and the swarm	zxv-brand/app-icons/svg/l1/072-assay.svg	reputation
+73	Coffer	Money and the economy	zxv-brand/app-icons/svg/l1/073-coffer.svg	pay acct crypto_wallet finance apps/assurance_app.c apps/fee_check.zxapp cbank mint
+74	Gavel	Money and the economy	zxv-brand/app-icons/svg/l1/074-gavel.svg	vauction vbond vderiv apps/derivatives_app.c
+75	Crown	Money and the economy	zxv-brand/app-icons/svg/l1/075-crown.svg	crown community_chest
+76	Talisman	Money and the economy	zxv-brand/app-icons/svg/l1/076-talisman.svg	cards cardnet sicily /cards
+77	Trickle	Money and the economy	zxv-brand/app-icons/svg/l1/077-trickle.svg	royalty
+78	Tallystick	Money and the economy	zxv-brand/app-icons/svg/l1/078-tallystick.svg	settle iso20022
+79	Fairground	Money and the economy	zxv-brand/app-icons/svg/l1/079-fairground.svg	market capmkt finance_markets financial_fabric zenny
+80	Ninefold	Money and the economy	zxv-brand/app-icons/svg/l1/080-ninefold.svg	zcapital abacus
+81	Heirloom	Money and the economy	zxv-brand/app-icons/svg/l1/081-heirloom.svg	estate
+82	Larder	Money and the economy	zxv-brand/app-icons/svg/l1/082-larder.svg	-
+83	Reckoner	Money and the economy	zxv-brand/app-icons/svg/l1/083-reckoner.svg	count_house juris
+84	Forage	Money and the economy	zxv-brand/app-icons/svg/l1/084-forage.svg	grants provider quest
+85	Waymark	Places, spaces and life	zxv-brand/app-icons/svg/l1/085-waymark.svg	-
+86	Meadow	Places, spaces and life	zxv-brand/app-icons/svg/l1/086-meadow.svg	social_spaces interspace
+87	Belvedere	Places, spaces and life	zxv-brand/app-icons/svg/l1/087-belvedere.svg	sovereign_node
+88	Weatherglass	Places, spaces and life	zxv-brand/app-icons/svg/l1/088-weatherglass.svg	-
+89	Wellspring	Places, spaces and life	zxv-brand/app-icons/svg/l1/089-wellspring.svg	-
+90	Caravan	Places, spaces and life	zxv-brand/app-icons/svg/l1/090-caravan.svg	freight logistics porter_house
+91	Vintner	Places, spaces and life	zxv-brand/app-icons/svg/l1/091-vintner.svg	vino vino_stores
+92	Hearth	Places, spaces and life	zxv-brand/app-icons/svg/l1/092-hearth.svg	-
+93	Understory	Places, spaces and life	zxv-brand/app-icons/svg/l1/093-understory.svg	-
+94	Homestead	Places, spaces and life	zxv-brand/app-icons/svg/l1/094-homestead.svg	-
+95	Bonfire	Places, spaces and life	zxv-brand/app-icons/svg/l1/095-bonfire.svg	-
+96	Hamlet	Places, spaces and life	zxv-brand/app-icons/svg/l1/096-hamlet.svg	social
+97	Den	Learning, play and family	zxv-brand/app-icons/svg/l1/097-den.svg	games pirate_apps pirate_fleet /gamedrive_run
+98	Sapling	Learning, play and family	zxv-brand/app-icons/svg/l1/098-sapling.svg	-
+99	Typewright	Learning, play and family	zxv-brand/app-icons/svg/l1/099-typewright.svg	-
+100	Primer	Learning, play and family	zxv-brand/app-icons/svg/l1/100-primer.svg	-
+101	Orrery	Learning, play and family	zxv-brand/app-icons/svg/l1/101-orrery.svg	-
+102	Fieldguide	Learning, play and family	zxv-brand/app-icons/svg/l1/102-fieldguide.svg	-
+103	Cubby	Learning, play and family	zxv-brand/app-icons/svg/l1/103-cubby.svg	-
+104	Riddle	Learning, play and family	zxv-brand/app-icons/svg/l1/104-riddle.svg	-
+105	Patience	Learning, play and family	zxv-brand/app-icons/svg/l1/105-patience.svg	-
+106	Nutshell	Learning, play and family	zxv-brand/app-icons/svg/l1/106-nutshell.svg	-
+107	Gnomon	Learning, play and family	zxv-brand/app-icons/svg/l1/107-gnomon.svg	-
+108	Talewind	Learning, play and family	zxv-brand/app-icons/svg/l1/108-talewind.svg	-
+109	Tally	Desk utilities	zxv-brand/app-icons/svg/l1/109-tally.svg	rational
+110	Sundial	Desk utilities	zxv-brand/app-icons/svg/l1/110-sundial.svg	timesvc apps/clock_app.c
+111	Glimpse	Desk utilities	zxv-brand/app-icons/svg/l1/111-glimpse.svg	-
+112	Hamper	Desk utilities	zxv-brand/app-icons/svg/l1/112-hamper.svg	-
+113	Typecase	Desk utilities	zxv-brand/app-icons/svg/l1/113-typecase.svg	font /assets/fonts
+114	Runebook	Desk utilities	zxv-brand/app-icons/svg/l1/114-runebook.svg	-
+115	Platen	Desk utilities	zxv-brand/app-icons/svg/l1/115-platen.svg	-
+116	Dyer	Desk utilities	zxv-brand/app-icons/svg/l1/116-dyer.svg	-
+117	Spyglass	Desk utilities	zxv-brand/app-icons/svg/l1/117-spyglass.svg	-
+118	Burr	Desk utilities	zxv-brand/app-icons/svg/l1/118-burr.svg	-
+119	Magpie	Desk utilities	zxv-brand/app-icons/svg/l1/119-magpie.svg	-
+120	Gridmark	Desk utilities	zxv-brand/app-icons/svg/l1/120-gridmark.svg	-
+121	Joinery	Developer tools	zxv-brand/app-icons/svg/l1/121-joinery.svg	sdk_bridge
+122	Pawprint	Developer tools	zxv-brand/app-icons/svg/l1/122-pawprint.svg	-
+123	Gait	Developer tools	zxv-brand/app-icons/svg/l1/123-gait.svg	-
+124	Graft	Developer tools	zxv-brand/app-icons/svg/l1/124-graft.svg	-
+125	Whetstone	Developer tools	zxv-brand/app-icons/svg/l1/125-whetstone.svg	nlb dualtrack
+126	Toolchest	Developer tools	zxv-brand/app-icons/svg/l1/126-toolchest.svg	sdk mfg /sdk /tools /kernel/tools /api /bindings
+127	Colonnade	Developer tools	zxv-brand/app-icons/svg/l1/127-colonnade.svg	sutra legacy apps/cobol apps/fortran apps/python apps/rust apps/sutra apps/assembly apps/telecom apps/blocks
+128	Mockingbird	Developer tools	zxv-brand/app-icons/svg/l1/128-mockingbird.svg	hwemu emu
+129	Gauntlet	Developer tools	zxv-brand/app-icons/svg/l1/129-gauntlet.svg	bombsquad /tests /fuzz /kernel/tests /bench /proofs /.github
+130	Scriptorium	Developer tools	zxv-brand/app-icons/svg/l1/130-scriptorium.svg	-
+131	Trestle	Developer tools	zxv-brand/app-icons/svg/l1/131-trestle.svg	-
+132	Twelvefold	Developer tools	zxv-brand/app-icons/svg/l1/132-twelvefold.svg	paradox axiom_matrix superpos
+133	Nightjar	Access, language and safety	zxv-brand/app-icons/svg/l1/133-nightjar.svg	speech
+134	Hark	Access, language and safety	zxv-brand/app-icons/svg/l1/134-hark.svg	-
+135	Ticker	Access, language and safety	zxv-brand/app-icons/svg/l1/135-ticker.svg	-
+136	Pivot	Access, language and safety	zxv-brand/app-icons/svg/l1/136-pivot.svg	-
+137	Glyphwright	Access, language and safety	zxv-brand/app-icons/svg/l1/137-glyphwright.svg	-
+138	Tint	Access, language and safety	zxv-brand/app-icons/svg/l1/138-tint.svg	-
+139	Lamplight	Access, language and safety	zxv-brand/app-icons/svg/l1/139-lamplight.svg	voice
+140	Steady	Access, language and safety	zxv-brand/app-icons/svg/l1/140-steady.svg	-
+141	Conch	Access, language and safety	zxv-brand/app-icons/svg/l1/141-conch.svg	-
+142	Shepherd	Access, language and safety	zxv-brand/app-icons/svg/l1/142-shepherd.svg	ministry
+143	Watchfire	Access, language and safety	zxv-brand/app-icons/svg/l1/143-watchfire.svg	-
+144	Stillwater	Access, language and safety	zxv-brand/app-icons/svg/l1/144-stillwater.svg	-

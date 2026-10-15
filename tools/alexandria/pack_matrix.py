@@ -1,0 +1,845 @@
+#!/usr/bin/env python3
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+"""pack_matrix.py — pack the repository into the 144-layer matrix and measure it
+(docs/spec/MATRIX.md, kernel/src/alexandria/alx_matrix.h).
+
+    pack_matrix.py --cut CDC_CUT [--out-dir DIR] [--icons DIR] [--report FILE]
+                   [--baseline DIR] [--order glue|path]
+
+Every tracked file of the repository goes to one layer: the layer whose
+home in MATRIX.tsv names it (longest path wins), docs/ and unnamed files at
+the top to layer 130, and a module no home names to the layer its glue pulls
+hardest, else the core. Files are cut into chunks by alx_cdc (through the CDC_CUT helper, so
+the cuts are the kernel's own), each chunk stored once in the whole matrix.
+Within a layer, files are laid out in glue order (each next file the one
+bound most strongly to those already laid) and their new chunks filled into
+booklets of their tier. --order path lays them out by path instead, to
+measure what the glue buys.
+
+--out-dir writes every node as blocks/<CID> and the root as MATRIX.ROOT.
+--baseline DIR cuts an older checkout the same way and reports how much of
+today's bytes it already held. --report writes the measurements as JSON.
+Same input, same bytes out.
+"""
+import argparse
+import base64
+import collections
+import hashlib
+import json
+import math
+import os
+import re
+import struct
+import subprocess
+import sys
+import zlib
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MATRIX_TSV = os.path.join(ROOT, "kernel", "src", "alexandria", "MATRIX.tsv")
+LAYERS = 145
+FAN = 256
+BOOK_MAX = 1 << 20
+# booklet targets by tier: small dense booklets for hot code, large for bulk
+BOOK_TARGET = {0: 64 << 10, 1: 256 << 10, 2: BOOK_MAX}
+TIER_NAME = {0: "hot", 1: "warm", 2: "cold"}
+CODE_EXT = {"c", "h", "s", "S", "inc", "zxblock", "zxapp", "f", "f90", "bas", "fs", "pas", "cob",
+            "cpy", "alg", "scm", "lisp", "lsp", "kron", "sutra", "eve", "myra", "trebago", "zlir",
+            "logo", "pli", "zxv", "rs", "py", "sh", "ld", "m", "mm", "cpp", "cc", "hpp", "swift",
+            "kt", "java", "js", "ts", "go", "adb", "ads", "cbl"}
+HOT_MAX = 256 << 10  # code bigger than this is generated bulk: cold
+DENSE = 7.2          # bits per byte at or above which content is already dense: cold
+W = {"same": 8, "logic": 6, "include": 4, "test": 2}
+TYPE = {"include": 1, "test": 2, "logic": 3, "same": 4}
+# booklet 000, the unified alphabet: the core's first booklet, whatever the
+# files' tiers, so it is the first thing the matrix gives after boot
+BOOKLET_000 = ["kernel/src/lingua/alphabet.tsv", "kernel/src/lingua/zl.h",
+               "kernel/src/lingua/zxp_rt.h", "kernel/src/lingua/zxp_rt.c",
+               "kernel/src/lingua/zl_proj.c"]
+
+
+def fail(msg):
+    sys.exit("pack_matrix: " + msg)
+
+
+def cid_raw(b):
+    return b"\x01\x55\x12\x20" + hashlib.sha256(b).digest()
+
+
+def cid_str(c):
+    return "b" + base64.b32encode(c).decode().lower().rstrip("=")
+
+
+def layers():
+    out = {}
+    for n, line in enumerate(open(MATRIX_TSV, encoding="utf-8"), 1):
+        if line.startswith("#") or not line.strip():
+            continue
+        f = line.rstrip("\n").split("\t")
+        if len(f) != 5 or not f[0].isdigit():
+            fail("MATRIX.tsv:%d: want five fields" % n)
+        k = int(f[0])
+        if k in out or k >= LAYERS:
+            fail("MATRIX.tsv:%d: layer %d" % (n, k))
+        out[k] = {"app": f[1], "group": f[2], "icon": None if f[3] == "-" else f[3],
+                  "homes": [] if f[4] == "-" else f[4].split()}
+    if sorted(out) != list(range(LAYERS)):
+        fail("MATRIX.tsv must list layers 0..144 once each")
+    return out
+
+
+def corpus(root):
+    """every tracked file of the repository: the whole system"""
+    if os.path.isdir(os.path.join(root, ".git")) or os.path.isfile(os.path.join(root, ".git")):
+        names = subprocess.run(["git", "-C", root, "ls-files", "-z"],
+                               check=True, capture_output=True).stdout.decode().split("\0")
+    else:  # an exported tree
+        names = []
+        for d, ds, fs in os.walk(root):
+            ds[:] = [x for x in ds if x != ".git"]
+            names += [os.path.relpath(os.path.join(d, f), root) for f in fs]
+    files = []
+    for p in sorted(n for n in names if n):
+        full = os.path.join(root, p)
+        if os.path.isfile(full) and not os.path.islink(full):
+            files.append(p)
+    return files
+
+
+def entropy(b):
+    if not b:
+        return 0.0
+    n = len(b)
+    return -sum(c / n * math.log2(c / n) for c in collections.Counter(b).values())
+
+
+def tier_of(path, data):
+    ext = path.rsplit(".", 1)[-1] if "." in os.path.basename(path) else ""
+    if entropy(data[:1 << 20]) >= DENSE:
+        return 2
+    if ext in CODE_EXT:
+        return 0 if len(data) <= HOT_MAX else 2
+    return 1 if len(data) <= HOT_MAX * 4 else 2
+
+
+INC_RE = re.compile(rb'^\s*#\s*include\s+"([^"]+)"', re.M)
+LOGIC_RE = re.compile(r"^logic\s+\S+\s+\S+\s+(\S+)", re.M)
+
+
+def glue_edges(root, files):
+    """(from, to, kind) between corpus files: who uses whom"""
+    have = set(files)
+    by_base = collections.defaultdict(list)
+    for p in files:
+        by_base[os.path.basename(p)].append(p)
+    edges = set()
+    for p in files:
+        d = os.path.dirname(p)
+        base = os.path.basename(p)
+        stem, _, ext = base.rpartition(".")
+        if ext in ("c", "h", "inc", "S", "s"):
+            for m in INC_RE.finditer(open(os.path.join(root, p), "rb").read()):
+                name = m.group(1).decode("utf-8", "replace")
+                cand = os.path.normpath(os.path.join(d, name))
+                if cand not in have:
+                    cand = os.path.normpath(os.path.join("kernel/include", name))
+                if cand not in have:  # -I paths: the one file of that name
+                    hits = by_base.get(os.path.basename(name), [])
+                    cand = hits[0] if len(hits) == 1 else None
+                if cand and cand != p:
+                    edges.add((p, cand, "include"))
+            if ext == "c" and os.path.join(d, stem + ".h") in have:
+                edges.add((p, os.path.join(d, stem + ".h"), "same"))
+                edges.add((os.path.join(d, stem + ".h"), p, "same"))
+            if ext == "c" and stem.startswith("test_"):
+                under = os.path.join(d, stem[5:] + ".c")
+                if under in have:
+                    edges.add((p, under, "test"))
+        if ext in ("zxblock", "zxapp"):
+            for m in LOGIC_RE.finditer(open(os.path.join(root, p), encoding="utf-8",
+                                                  errors="replace").read()):
+                t = os.path.normpath(os.path.join("kernel/src", m.group(1)))
+                if t in have:
+                    edges.add((p, t, "logic"))
+    return sorted(edges)
+
+
+def home_path(h):
+    """a MATRIX.tsv home: under kernel/src, or from the top when it starts with /"""
+    return h[1:] if h.startswith("/") else os.path.join("kernel/src", h)
+
+
+def homes(files, lay, edges):
+    """file -> layer"""
+    rules = sorted(((home_path(h), k) for k, v in lay.items() for h in v["homes"]),
+                   key=lambda r: -len(r[0]))
+    where, loose = {}, collections.defaultdict(list)
+    for p in files:
+        if p.startswith("docs/"):
+            where[p] = 130
+            continue
+        for h, k in rules:
+            if p == h or p.startswith(h + "/"):
+                where[p] = k
+                break
+        else:
+            if "/" not in p:  # a file at the top of the repository
+                where[p] = 130
+                continue
+            mod = (p.split("/")[2] if p.count("/") >= 3 else p) if p.startswith("kernel/src/") \
+                else p.split("/")[0]
+            loose[mod].append(p)
+    # a module no home names goes where its glue pulls hardest; repeat so a
+    # module bound only to another loose module follows it
+    for _ in range(8):
+        moved = False
+        for mod in sorted(loose):
+            if loose[mod][0] in where:
+                continue
+            pull = collections.Counter()
+            mine = set(loose[mod])
+            for a, b, kind in edges:
+                if a in mine and b not in mine and b in where:
+                    pull[where[b]] += W[kind]
+                elif b in mine and a not in mine and a in where:
+                    pull[where[a]] += W[kind]
+            # the core's pull is everyone's (it is shared plumbing), so an
+            # app layer that pulls at all wins it
+            apps = {k: v for k, v in pull.items() if k}
+            if apps:
+                best = max(sorted(apps), key=lambda k: apps[k])
+                for p in loose[mod]:
+                    where[p] = best
+                moved = True
+        if not moved:
+            break
+    pulled = {m: where.get(v[0]) for m, v in loose.items()}
+    for mod, ps in loose.items():
+        for p in ps:
+            where.setdefault(p, 0)
+    return where, pulled
+
+
+def cut_all(cut_bin, root, files, tiers):
+    lines = "".join("%d %s\n" % (tiers[p], os.path.join(root, p)) for p in files)
+    out = subprocess.run([cut_bin], input=lines.encode(), check=True, capture_output=True).stdout
+    lens = {}
+    for line, p in zip(out.decode().splitlines(), files):
+        path, _, l = line.partition("\t")
+        if path != os.path.join(root, p):
+            fail("cdc_cut answered out of order")
+        lens[p] = [int(x) for x in l.split(",")] if l else []
+    return lens
+
+
+def chunks_of(root, p, lens):
+    data = open(os.path.join(root, p), "rb").read()
+    at, out = 0, []
+    for l in lens:
+        out.append(data[at:at + l])
+        at += l
+    if at != len(data):
+        fail("%s: cuts do not cover the file" % p)
+    return data, out
+
+
+def glue_order(ps, adj):
+    """lay files out so that each next one is the one bound most strongly to
+    those already laid (greedy, deterministic)"""
+    left = set(ps)
+    order = []
+    score = collections.Counter()
+    while left:
+        cand = [p for p in left if score[p] > 0]
+        if cand:
+            p = max(sorted(cand), key=lambda q: score[q])
+        else:  # a new cluster: the most bound file left
+            p = max(sorted(left), key=lambda q: sum(w for r, w in adj[q].items() if r in left))
+        left.discard(p)
+        order.append(p)
+        for r, w in adj[p].items():
+            if r in left:
+                score[r] += w
+    return order
+
+
+def booklet(layer, tier, atoms):
+    n = len(atoms)
+    d = 64 + 48 * n
+    at = (d + 63) & ~63
+    dirb, body, offs = bytearray(), bytearray(), []
+    for a in atoms:
+        offs.append(at)
+        dirb += cid_raw(a) + struct.pack(">III", at, len(a), 0)
+        at = (at + len(a) + 63) & ~63
+    total = offs[-1] + len(atoms[-1])
+    out = bytearray(struct.pack(">4sBBHII", b"ALXB", 2, tier, layer, n, total)) + bytes(48)
+    out += dirb
+    out += bytes(offs[0] - len(out))
+    for i, a in enumerate(atoms):
+        out += a
+        if i + 1 < n:
+            out += bytes(offs[i + 1] - len(out))
+    assert len(out) == total <= BOOK_MAX
+    return bytes(out)
+
+
+class Zpack:
+    """booklets stored through the zpack helper (alx_z.c), so the stored
+    bytes are exactly the kernel's: an ALXZ block, or the booklet bare"""
+
+    def __init__(self, path):
+        self.p = subprocess.Popen([path], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    def store(self, b):
+        self.p.stdin.write(struct.pack(">I", len(b)) + b)
+        self.p.stdin.flush()
+        hd = self.p.stdout.read(4)
+        if len(hd) != 4:
+            fail("zpack stopped")
+        n = struct.unpack(">I", hd)[0]
+        out = self.p.stdout.read(n)
+        if len(out) != n or (out[:4] != b"ALXZ" and out != b):
+            fail("zpack answered badly")
+        return out
+
+
+ZP = None
+
+
+def tree(layer, cids):
+    """fan-out nodes over the booklets; returns (root CID, [node bytes], depth)"""
+    nodes, level, cur, under = [], 0, list(cids), [1] * len(cids)
+    while True:
+        nxt, nunder = [], []
+        for i in range(0, len(cur), FAN):
+            kids = cur[i:i + FAN]
+            u = sum(under[i:i + FAN])
+            b = struct.pack(">4sBBHIIQ", b"ALXN", 1, level, layer, len(kids), 0, u) + bytes(40)
+            b += b"".join(kids)
+            nodes.append(b)
+            nxt.append(cid_raw(b))
+            nunder.append(u)
+        level += 1
+        if len(nxt) == 1:
+            return nxt[0], nodes, level
+        cur, under = nxt, nunder
+
+
+def pack(args, lay, root_dir, files, edges, where, order_kind, write):
+    tiers, data, lens = {}, {}, None
+    for p in files:
+        data[p] = open(os.path.join(root_dir, p), "rb").read()
+        tiers[p] = tier_of(p, data[p])
+    lens = cut_all(args.cut, root_dir, files, tiers)
+    adj = collections.defaultdict(collections.Counter)
+    for a, b, kind in edges:
+        if where[a] == where[b]:
+            adj[a][b] += W[kind]
+            adj[b][a] += W[kind]
+    stored = {}   # chunk CID -> (layer, booklet, atom)
+    refs = {}     # file -> [(layer, booklet, atom)]
+    m = {"layers": {}, "chunks": 0, "chunk_bytes": 0, "refs": 0, "ref_bytes": 0,
+         "booklets": 0, "nodes": 0, "plain_booklet_bytes": 0, "stored_booklet_bytes": 0, "by_tier": {t: {"chunks": 0, "bytes": 0, "z": 0}
+                                                 for t in TIER_NAME.values()}}
+    root_rows, blocks = [None] * LAYERS, {}
+    order = list(range(LAYERS))
+    pre000 = None
+    if getattr(args, "seal_order", "up") == "down":
+        # sealing downward: booklet 000 is the first block sealed, before layer
+        # 144, so every layer may name its chunks and none names an unsealed one
+        if any(where.get(p, 0) != 0 for p in BOOKLET_000):
+            fail("booklet 000's files must all be in the core")
+        pre000 = []
+        for p in [q for q in BOOKLET_000 if q in where]:
+            for c in chunks_of(root_dir, p, lens[p])[1]:
+                cid = cid_raw(c)
+                if cid not in stored:
+                    pre000.append(c)
+                    stored[cid] = (0, 0, len(pre000) - 1)
+                    m["chunks"] += 1
+                    m["chunk_bytes"] += len(c)
+                    bt = m["by_tier"][TIER_NAME[tiers[p]]]
+                    bt["chunks"] += 1
+                    bt["bytes"] += len(c)
+                    bt["z"] += len(zlib.compress(c, 6))
+        order = list(range(LAYERS - 1, 0, -1)) + [0]
+    for k in order:
+        ps = [p for p in files if where[p] == k]
+        if not ps:
+            root_rows[k] = (bytes(36), bytes(36), 0)
+            continue
+        laid = glue_order(ps, adj) if order_kind == "glue" else sorted(ps)
+        books = []  # (tier, [atoms])
+        open_book = {}
+        first = []
+        if k == 0:
+            if any(where.get(p, 0) != 0 for p in BOOKLET_000):
+                fail("booklet 000's files must all be in the core")
+            first = [p for p in BOOKLET_000 if p in where]  # an older tree has fewer
+            laid = first + [p for p in laid if p not in first]
+            if first:
+                books.append((0, pre000 if pre000 is not None else []))
+        for p in laid:
+            t = tiers[p]
+            if p in first:  # all into booklet 000
+                for c in chunks_of(root_dir, p, lens[p])[1]:
+                    cid = cid_raw(c)
+                    if cid not in stored and pre000 is None:
+                        books[0][1].append(c)
+                        stored[cid] = (0, 0, len(books[0][1]) - 1)
+                        m["chunks"] += 1
+                        m["chunk_bytes"] += len(c)
+                        bt = m["by_tier"][TIER_NAME[t]]
+                        bt["chunks"] += 1
+                        bt["bytes"] += len(c)
+                        bt["z"] += len(zlib.compress(c, 6))
+                    m["refs"] += 1
+                    m["ref_bytes"] += len(c)
+                    refs.setdefault(p, []).append(stored[cid])
+                continue
+            data_p, cs = chunks_of(root_dir, p, lens[p])
+            r = []
+            for c in cs:
+                cid = cid_raw(c)
+                m["refs"] += 1
+                m["ref_bytes"] += len(c)
+                if cid in stored:
+                    r.append(stored[cid])
+                    continue
+                cur = open_book.get(t)
+                size = 0 if cur is None else 64 + 48 * (len(books[cur][1]) + 1) + \
+                    sum((len(a) + 63) & ~63 for a in books[cur][1]) + len(c) + 64
+                if cur is None or size > BOOK_TARGET[t]:
+                    books.append((t, []))
+                    cur = open_book[t] = len(books) - 1
+                books[cur][1].append(c)
+                stored[cid] = (k, cur, len(books[cur][1]) - 1)
+                # booklets end where the content says too: past a quarter of
+                # the target, after a chunk whose CID's last byte is below 32
+                # (one in eight). An edit then moves only the booklets
+                # around it, not every booklet after it.
+                if args.booklet_cuts and size >= BOOK_TARGET[t] // 4 and cid[-1] < 32:
+                    del open_book[t]
+                r.append(stored[cid])
+                bt = m["by_tier"][TIER_NAME[t]]
+                bt["chunks"] += 1
+                bt["bytes"] += len(c)
+                bt["z"] += len(zlib.compress(c, 6))
+                m["chunks"] += 1
+                m["chunk_bytes"] += len(c)
+            if not cs:  # an empty file is one empty ref to nothing: skip it
+                continue
+            refs[p] = r
+        bcids = []
+        for t, atoms in books:
+            b = booklet(k, t, atoms)
+            m["plain_booklet_bytes"] += len(b)
+            if ZP:
+                b = ZP.store(b)
+            m["stored_booklet_bytes"] += len(b)
+            c = cid_raw(b)
+            bcids.append(c)
+            blocks[c] = b
+        rc, nodes, depth = tree(k, bcids)
+        for b in nodes:
+            blocks[cid_raw(b)] = b
+        root_rows[k] = (rc, None, len(bcids))
+        m["booklets"] += len(bcids)
+        m["nodes"] += len(nodes)
+        m["layers"][k] = {"files": len(ps), "bytes": sum(len(data[p]) for p in ps),
+                          "booklets": len(bcids), "depth": depth, "laid": laid}
+    # glue nodes, now that every chunk has its place
+    fcid = {p: cid_raw(data[p]) for p in refs}
+    for k in range(LAYERS):
+        if k not in m["layers"]:
+            continue
+        ps = sorted((p for p in refs if where[p] == k), key=lambda p: fcid[p])
+        # two files with the same bytes are one file
+        uniq, idx = [], {}
+        for p in ps:
+            if fcid[p] not in idx:
+                idx[fcid[p]] = len(uniq)
+                uniq.append(p)
+        index = {p: idx[fcid[p]] for p in ps}
+        es = {}
+        for a, b, kind in edges:
+            if where[a] == k and a in index and b in refs:
+                to_l = where[b]
+                to = index[b] if to_l == k else None
+                if to_l != k:
+                    others = sorted({fcid[q] for q in refs if where[q] == to_l})
+                    to = others.index(fcid[b])
+                key = (index[a], to_l, to)
+                if to_l == k and to == index[a]:
+                    continue
+                w, ty = es.get(key, (0, TYPE[kind]))
+                es[key] = (min(w + W[kind], 65535), max(ty, TYPE[kind]))
+        fr, eb, rb, nref = bytearray(), bytearray(), bytearray(), 0
+        for p in uniq:
+            fr += fcid[p] + struct.pack(">III", nref, len(refs[p]), 0)
+            for l, bk, at in refs[p]:
+                rb += struct.pack(">HHII", l, 0, bk, at)
+            nref += len(refs[p])
+        for (a, to_l, to), (w, ty) in sorted(es.items()):
+            eb += struct.pack(">IHHIHH", a, to_l, ty, to, w, 0)
+        g = struct.pack(">4sBBHIII", b"ALXG", 1, 0, k, len(uniq), len(es), nref) + bytes(44)
+        g += fr + eb + rb
+        if len(g) > BOOK_MAX:
+            fail("layer %d: glue is %d bytes, over one block" % (k, len(g)))
+        gc = cid_raw(g)
+        blocks[gc] = g
+        rc, _, nb = root_rows[k]
+        root_rows[k] = (rc, gc, nb)
+        m.setdefault("glue_of", {})[k] = (gc, uniq)
+        m["layers"][k]["glue_bytes"] = len(g)
+        m["layers"][k]["edges"] = len(es)
+    icons = {}
+    for k in range(1, LAYERS):
+        ic = lay[k]["icon"]
+        if args.icons and ic:
+            path = os.path.join(args.icons, os.path.basename(ic))
+            if not os.path.isfile(path):
+                fail("layer %d: no icon %s" % (k, path))
+            if os.path.getsize(path) > BOOK_MAX:
+                fail("layer %d: icon %s is over 1 MiB (one block)" % (k, path))
+            b = open(path, "rb").read()
+            icons[k] = cid_raw(b)
+            blocks[icons[k]] = b
+    root = bytearray(struct.pack(">4sBBHI", b"ALXM", 1, 0, LAYERS, FAN)) + bytes(52)
+    for k, (rc, gc, nb) in enumerate(root_rows):
+        root += rc + gc + icons.get(k, bytes(36)) + struct.pack(">I", nb)
+    root += hashlib.sha256(root).digest()
+    m["root"] = cid_str(cid_raw(bytes(root)))
+    m["icons"] = len(icons)
+    m["blocks"] = blocks
+    m["root_bytes"] = bytes(root)
+    m["refs_of"] = refs
+    m["tiers"] = tiers
+    if write:
+        os.makedirs(os.path.join(write, "blocks"), exist_ok=True)
+        for c, b in sorted(blocks.items()):
+            with open(os.path.join(write, "blocks", cid_str(c)), "wb") as f:
+                f.write(b)
+        with open(os.path.join(write, "MATRIX.ROOT"), "wb") as f:
+            f.write(root)
+        with open(os.path.join(write, "FILES.tsv"), "w") as f:
+            for p in sorted(refs):
+                f.write("%s\t%d\t%d\t%s\n" % (p, where[p], tiers[p], cid_str(fcid[p])))
+    return m
+
+
+
+
+def vec_rows(args, root_dir, paths):
+    """path -> (scale, row bytes), and the model's CID"""
+    if args.vectors:  # embeddings a Tiamat cell computed, in vec_shape's format
+        lines = open(args.vectors, encoding="utf-8").read().splitlines()
+    else:
+        lines = subprocess.run([args.shape, str(args.vectorize)], check=True, capture_output=True,
+                               input="".join(os.path.join(root_dir, p) + "\n" for p in paths)
+                               .encode()).stdout.decode().splitlines()
+    head = lines[0].split("\t")
+    if head[0] != "model" or len(head[1]) != 72:
+        fail("vectors: the first line must name the model's CID")
+    model = bytes.fromhex(head[1])
+    rl = args.vectorize // 32 * 34
+    out = {}
+    for line in lines[1:]:
+        path, sc, row = line.split("\t")
+        row = bytes.fromhex(row)
+        if len(row) != rl or any(row[i:i + 2] != b"\x00\x3c" for i in range(0, rl, 34)):
+            fail("vectors: %s: a row is %d blocks of 00 3c and 32 int8" % (path, rl // 34))
+        out[os.path.relpath(path, root_dir) if os.path.isabs(path) else path] = (int(sc), row)
+    return out, model
+
+
+def to_i8(b):
+    return b - 256 if b > 127 else b
+
+
+def vec_summary(rows, scales, nb):
+    """alx_vec_summary, exactly"""
+    dim = nb * 32
+    sums = []
+    for j in range(dim):
+        o = (j // 32) * 34 + 2 + j % 32
+        sums.append(sum(to_i8(r[o]) * sc for r, sc in zip(rows, scales)))
+    m = max(abs(x) for x in sums)
+    out = bytearray()
+    for k in range(nb):
+        out += b"\x00\x3c"
+        for j in range(k * 32, k * 32 + 32):
+            # truncate toward zero, as C does
+            q = 0 if not m else abs(sums[j]) * 127 // m * (1 if sums[j] >= 0 else -1)
+            out.append(q & 0xFF)
+    n = len(rows)
+    scale = min((m + 127 * n // 2) // (127 * n), 0xFFFFFFFF) if m and n else 0
+    return bytes(out), scale
+
+
+def vec_node(kind, layer, model, source, recs, rows, nb):
+    """recs: [(target CID, word, scale)], rows: [row bytes]"""
+    n = len(recs)
+    srow, sscale = vec_summary(rows, [r[2] for r in recs], nb)
+    b = bytearray(struct.pack(">4sBBHIHH", b"ALXV", 1, kind, layer, n, nb * 32, 0))
+    b += model + source + struct.pack(">I", sscale) + bytes(36)
+    for c, w, sc in recs:
+        b += c + struct.pack(">QI", w, sc)
+    b += bytes(-len(b) % 64)
+    for r in rows:
+        b += r
+    b += srow
+    if len(b) > BOOK_MAX:
+        fail("a vector node is over one block")
+    return bytes(b), srow, sscale
+
+
+def vectorize(args, m, root_dir, write):
+    nb = args.vectorize // 32
+    paths = sorted({p for k, (gc, uniq) in m["glue_of"].items() for p in uniq})
+    vecs, model = vec_rows(args, root_dir, paths)
+    tops, blocks = [], {}
+    for k in sorted(m["glue_of"]):
+        gc, uniq = m["glue_of"][k]
+        leaves = []
+        rl = nb * 34  # rows a leaf holds: n records, n + 1 rows, one block
+        per = (BOOK_MAX - 128 - 64 - rl) // (48 + rl)
+        for i in range(0, len(uniq), per):
+            part = uniq[i:i + per]
+            if any(p not in vecs for p in part):
+                fail("vectors: no row for %s" % next(p for p in part if p not in vecs))
+            recs = [(cid_raw(open(os.path.join(root_dir, p), "rb").read()), 0, vecs[p][0])
+                    for p in part]
+            b, srow, ssc = vec_node(0, k, model, gc, recs, [vecs[p][1] for p in part], nb)
+            blocks[cid_raw(b)] = b
+            leaves.append((cid_raw(b), srow, ssc))
+        while len(leaves) > 1:  # a summary over this layer's leaves, 256 at a time
+            nxt = []
+            for i in range(0, len(leaves), FAN):
+                part = leaves[i:i + FAN]
+                b, srow, ssc = vec_node(1, k, model, bytes(36), [(c, 0, sc) for c, _, sc in part],
+                                        [r for _, r, _ in part], nb)
+                blocks[cid_raw(b)] = b
+                nxt.append((cid_raw(b), srow, ssc))
+            leaves = nxt
+        tops.append(leaves[0])
+    # the summary over all layers: one row per layer, in layer order
+    b, _, _ = vec_node(1, LAYERS, model, bytes(36), [(c, 0, sc) for c, _, sc in tops],
+                       [r for _, r, _ in tops], nb)
+    top = cid_raw(b)
+    blocks[top] = b
+    if write:
+        for c, bb in blocks.items():
+            with open(os.path.join(write, "blocks", cid_str(c)), "wb") as f:
+                f.write(bb)
+        with open(os.path.join(write, "VECTORS"), "w") as f:
+            f.write(cid_str(top) + "\n")
+    return {"vector_nodes": len(blocks), "vector_root": cid_str(top), "dim": args.vectorize,
+            "model": cid_str(model), "vector_bytes": sum(len(x) for x in blocks.values())}
+
+
+def locality(m, edges, where):
+    """same-layer edge weight whose two files share a booklet, and the
+    booklets a file needs with its whole include closure"""
+    refs = m["refs_of"]
+    bset = {p: {(l, b) for l, b, _ in r} for p, r in refs.items()}
+    tot = hit = 0
+    out = collections.defaultdict(set)
+    for a, b, kind in edges:
+        if a in refs and b in refs and where[a] == where[b]:
+            tot += W[kind]
+            hit += W[kind] if bset[a] & bset[b] else 0
+        if kind == "include" and a in refs and b in refs:
+            out[a].add(b)
+    need = []
+    for p in sorted(refs):
+        if not p.endswith(".c") or where[p] == 130:
+            continue
+        seen, stack = {p}, [p]
+        while stack:
+            q = stack.pop()
+            for r in out[q]:
+                if r not in seen:
+                    seen.add(r)
+                    stack.append(r)
+        need.append(len(set().union(*(bset[q] for q in seen))))
+    need.sort()
+    # prefetch: with a file, fetch the booklets of the files it binds most
+    # strongly (up to four booklets); how much of its direct includes'
+    # booklets is then already in hand
+    adjw = collections.defaultdict(collections.Counter)
+    for a, b, kind in edges:
+        if a in refs and b in refs and where[a] == where[b]:
+            adjw[a][b] += W[kind]
+    own_cov = pre_cov = tot_cov = 0
+    for p in sorted(refs):
+        if not p.endswith(".c") or not out[p]:
+            continue
+        want = set().union(*(bset[q] for q in out[p] if where[q] == where[p])) - bset[p]
+        if not want:
+            continue
+        got = set()
+        for q, _ in sorted(adjw[p].items(), key=lambda x: (-x[1], x[0])):
+            for bk in [x[:2] for x in refs[q]]:
+                if len(got) < 4 and bk not in bset[p]:
+                    got.add(bk)
+        tot_cov += len(want)
+        pre_cov += len(want & got)
+    return {"prefetch4_covers_includes": round(pre_cov / tot_cov, 4) if tot_cov else None,
+            "prefetch_include_booklets": tot_cov,
+            "edge_weight_same_booklet": round(hit / tot, 4) if tot else None,
+            "closure_booklets_mean": round(sum(need) / len(need), 2),
+            "closure_booklets_median": need[len(need) // 2], "closure_files": len(need)}
+
+
+def fixed_dedup(root_dir, files, size):
+    seen, tot, uniq = set(), 0, 0
+    for p in files:
+        d = open(os.path.join(root_dir, p), "rb").read()
+        for i in range(0, len(d), size):
+            c = d[i:i + size]
+            h = hashlib.sha256(c).digest()
+            tot += len(c)
+            if h not in seen:
+                seen.add(h)
+                uniq += len(c)
+    return tot, uniq, seen
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cut", required=True)
+    ap.add_argument("--out-dir")
+    ap.add_argument("--zpack", help="the zpack helper: store booklets compressed (alx_z.h)")
+    ap.add_argument("--icons")
+    ap.add_argument("--report")
+    ap.add_argument("--baseline")
+    ap.add_argument("--order", choices=("glue", "path"), default="glue")
+    ap.add_argument("--seal-order", choices=("up", "down"), default="up",
+                    help="down: booklet 000 first, then layers 144 to 1, then the core, so "
+                         "every chunk ref names a layer sealed earlier")
+    ap.add_argument("--vectorize", type=int, metavar="DIM",
+                    help="also write the vector plane (docs/spec/VECTORS.md)")
+    ap.add_argument("--shape", help="the vec_shape helper (the shape embedding)")
+    ap.add_argument("--vectors", help="embeddings a Tiamat cell computed, in vec_shape's format")
+    ap.add_argument("--content-cuts", dest="booklet_cuts", action="store_true",
+                    help="also end booklets where the content says (measured: more "
+                    "booklets survive an edit, but bound files share fewer)")
+    args = ap.parse_args()
+    global ZP
+    if args.zpack:
+        ZP = Zpack(args.zpack)
+    lay = layers()
+    files = corpus(ROOT)
+    edges = glue_edges(ROOT, files)
+    where, pulled = homes(files, lay, edges)
+    m = pack(args, lay, ROOT, files, edges, where, args.order, args.out_dir)
+    loc = locality(m, edges, where)
+    vrep = None
+    if args.vectorize:
+        if args.vectorize < 32 or args.vectorize > 4096 or args.vectorize & (args.vectorize - 1):
+            fail("--vectorize: a power of two from 32 to 4096")
+        if not args.shape and not args.vectors:
+            fail("--vectorize needs --shape or --vectors")
+        vrep = vectorize(args, m, ROOT, args.out_dir)
+    rep = {
+        "files": len(files), "bytes": sum(os.path.getsize(os.path.join(ROOT, p)) for p in files),
+        "edges": len(edges), "layers_used": len(m["layers"]), "root": m["root"],
+        "chunks": m["chunks"], "chunk_bytes": m["chunk_bytes"], "refs": m["refs"],
+        "ref_bytes": m["ref_bytes"],
+        "dedup_ratio": round(m["ref_bytes"] / m["chunk_bytes"], 4),
+        "booklets": m["booklets"], "tree_nodes": m["nodes"],
+        "booklet_bytes": m["plain_booklet_bytes"], "stored_booklet_bytes": m["stored_booklet_bytes"],
+        "compressed": bool(ZP),
+        "glue_nodes": len(m["layers"]), "icons": m["icons"],
+        "cids": m["chunks"] + m["booklets"] + m["nodes"] + len(m["layers"]) + m["icons"] + 1,
+        "max_depth": max(v["depth"] for v in m["layers"].values()),
+        "by_tier": {t: {"chunks": v["chunks"], "bytes": v["bytes"],
+                        "mean_chunk": v["bytes"] // v["chunks"] if v["chunks"] else 0,
+                        "density": round(v["z"] / v["bytes"], 3) if v["bytes"] else None}
+                    for t, v in m["by_tier"].items()},
+        "locality": loc, "order": args.order,
+        "pulled_by_glue": {k: v for k, v in sorted(pulled.items())},
+        "per_layer": {k: {"app": lay[k]["app"], "files": v["files"], "bytes": v["bytes"],
+                          "booklets": v["booklets"], "depth": v["depth"],
+                          "glue_bytes": v["glue_bytes"], "edges": v["edges"]}
+                      for k, v in sorted(m["layers"].items())},
+    }
+    if vrep:
+        rep["vectors"] = vrep
+    t, u, _ = fixed_dedup(ROOT, files, 4096)
+    rep["fixed_4k_dedup_ratio"] = round(t / u, 4)
+    if args.baseline:
+        old = corpus(args.baseline)
+        ot = {p: tier_of(p, open(os.path.join(args.baseline, p), "rb").read()) for p in old}
+        ol = cut_all(args.cut, args.baseline, old, ot)
+        have = set()
+        for p in old:
+            for c in chunks_of(args.baseline, p, ol[p])[1]:
+                have.add(hashlib.sha256(c).digest())
+        lens = cut_all(args.cut, ROOT, files, m["tiers"])
+        kept = today = 0
+        for p in files:
+            for c in chunks_of(ROOT, p, lens[p])[1]:
+                today += len(c)
+                if hashlib.sha256(c).digest() in have:
+                    kept += len(c)
+        _, _, fold = fixed_dedup(args.baseline, old, 4096)
+        fk = 0
+        for p in files:
+            d = open(os.path.join(ROOT, p), "rb").read()
+            for i in range(0, len(d), 4096):
+                if hashlib.sha256(d[i:i + 4096]).digest() in fold:
+                    fk += len(d[i:i + 4096])
+        # files at the same path whose bytes changed: what an edit costs
+        oldset = set(old)
+        ch_tot = ch_cdc = ch_fix = nch = 0
+        for p in files:
+            if p not in oldset:
+                continue
+            d = open(os.path.join(ROOT, p), "rb").read()
+            if d == open(os.path.join(args.baseline, p), "rb").read():
+                continue
+            nch += 1
+            ch_tot += len(d)
+            for c in chunks_of(ROOT, p, lens[p])[1]:
+                if hashlib.sha256(c).digest() in have:
+                    ch_cdc += len(c)
+            for i in range(0, len(d), 4096):
+                if hashlib.sha256(d[i:i + 4096]).digest() in fold:
+                    ch_fix += len(d[i:i + 4096])
+        # pack the older tree the same way: which of today's nodes it holds
+        oedges = glue_edges(args.baseline, old)
+        owhere, _ = homes(old, lay, oedges)
+        om = pack(args, lay, args.baseline, old, oedges, owhere, args.order, None)
+        def books(mm):
+            return {c: len(b) for c, b in mm["blocks"].items() if b[:4] in (b"ALXB", b"ALXZ")}
+        nb, ob = books(m), books(om)
+        same_layers = sum(1 for k in m["layers"] if k in om["layers"] and
+                          m["root_bytes"][64 + 112 * k:64 + 112 * k + 36] ==
+                          om["root_bytes"][64 + 112 * k:64 + 112 * k + 36])
+        rep["baseline_matrix"] = {
+            "booklets_reused": round(sum(1 for c in nb if c in ob) / len(nb), 4),
+            "booklet_bytes_reused": round(sum(v for c, v in nb.items() if c in ob) /
+                                          sum(nb.values()), 4),
+            "layers_with_the_same_tree": same_layers, "layers": len(m["layers"])}
+        rep["baseline"] = {"files": len(old), "bytes_already_held": round(kept / today, 4),
+                           "fixed_4k_bytes_already_held": round(fk / today, 4),
+                           "changed_files": nch, "changed_bytes": ch_tot,
+                           "changed_bytes_reused": round(ch_cdc / ch_tot, 4) if ch_tot else None,
+                           "changed_bytes_reused_fixed_4k":
+                               round(ch_fix / ch_tot, 4) if ch_tot else None}
+    s = json.dumps(rep, indent=1, sort_keys=True)
+    if args.report:
+        with open(args.report, "w") as f:
+            f.write(s + "\n")
+    print("[PASS] matrix (%d files, %d layers, %d chunks, %d booklets, %d CIDs, booklets stored in "
+          "%.1f%% of %d bytes, root %s)" % (
+        rep["files"], rep["layers_used"], rep["chunks"], rep["booklets"], rep["cids"],
+        100.0 * rep["stored_booklet_bytes"] / max(1, rep["booklet_bytes"]), rep["booklet_bytes"],
+        rep["root"]))
+
+
+if __name__ == "__main__":
+    main()
