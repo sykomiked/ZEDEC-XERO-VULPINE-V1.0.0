@@ -53,6 +53,9 @@ python3 "$R/tools/apps/app_gate.py"
 python3 "$R/tools/apps/concepts.py" --check
 # the apps as one graph: what each unlocks, the build order, the weighted completion
 python3 "$R/tools/apps/app_graph.py" --check
+# the data packs: every source's licence class fits its pack, and packs build the same every time
+python3 "$R/tools/apps/datapacks/datapack.py" check
+python3 "$R/tools/apps/datapacks/test_datapack.py"
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
 L="$R/kernel/src/lingua"
 "$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L"/zl_*.c \

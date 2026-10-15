@@ -5,3 +5,4 @@ What it does: word lists kept in the Hoard (`files.read`, `search.query`), the l
 Logic: headword index and prefix lookup in myra; "did you mean" edit distance over code points in C++ wasm; synonym order by shared senses in kron.
 needs: fs.read, search, ai.ask.
 Planned (no runtime yet): AWK, TeX, PostScript.
+Data (docs/DATAPACKS.md): the core pack `wordhoard-core.tar` (Open English WordNet 2024, CC BY 4.0, plus the Open Multilingual Wordnet lexicons whose own licence is TRUE) installs into the Hoard; Wiktionary (CC BY-SA) is the separate optional pack `wordhoard-optional.tar`. Read whichever is installed; show `ATTRIBUTION.txt`; never mix share-alike text into the app's code.
