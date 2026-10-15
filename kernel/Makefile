@@ -395,6 +395,7 @@ verify-all: test
 	@echo "=== hosted app: API guard, budget gate, Vinea UDP host, end-to-end API, model slot, peers, updates, notifications ==="; \
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
+	$(MAKE) --no-print-directory test-dnx
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
@@ -1597,6 +1598,12 @@ test-settle:
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# Duplex digital DNA (src/dnx/dnx.h): strands read start to finish and finish
+# to start, both reads verified and joined in lpres; reversible codon programs.
+.PHONY: test-dnx
+test-dnx:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/dnx src/dnx/test_dnx.c src/dnx/dnx.c src/lpres/lpres.c -o $(ZXV_TMP)/test_dnx && $(ZXV_TMP)/test_dnx > $(ZXV_TMP)/test_dnx.log 2>&1 && echo "[PASS] test_dnx ($$(tail -1 $(ZXV_TMP)/test_dnx.log))" || { cat $(ZXV_TMP)/test_dnx.log; echo "[FAIL] test_dnx"; exit 1; }
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
