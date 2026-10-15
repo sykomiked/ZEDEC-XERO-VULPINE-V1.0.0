@@ -194,7 +194,7 @@ Each name below was checked for commercial use. Re-check the exact checkpoint yo
 ## 6. Known gaps
 
 - `zx_speech_mac.m` has never run on a Mac.
-- There is no Linux or Windows STT/TTS engine adapter yet. Whisper on `zt_model` needs the encoder-decoder graph; `speech_logmel` is ready for it.
+- There is no Linux or Windows STT/TTS engine adapter yet. Whisper's encoder-decoder graph is built on the tensor engine in `kernel/src/tensor/zt_whisper.c` (tested by `test_zt_whisper.c` from `kernel/Makefile`, timed in `bench/results/2026-10-12-whisper-base`), but it is not yet wired into `kernel/src/speech`.
 - There is no streaming (partial) transcription. Utterances are transcribed when they end.
 - Long posts over `XLATE_TEXT_MAX` (4 KB) are not split into chunks, and translations over 1 KB are not cached.
 - The marker label is English until the i18n catalog carries `xlate.marker.machine_translated`.

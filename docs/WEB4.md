@@ -16,9 +16,10 @@ them and uses each one for what it does well:
 | **Web 3** (Ethereum-style chains, content addressing) | Public, verifiable, final records. Ownership. Data addressed by hash | Chain tokens, ownership proofs, final settlement, CIDs |
 | **Web 4** (this layer) | Agent-to-agent work with post-quantum identity, on any link, offline first | Agent messages and streams, discovery, VFV payments, consent |
 
-Status: built 2026-10-09 in `kernel/src/web4/` and not yet in
-`kernel/Makefile`. It is tested by three host programs (see
-[Tests](#tests)). Every Web 2 and Web 3 encoding below is checked against
+Status: built 2026-10-09 in `kernel/src/web4/`. `kernel/Makefile` builds and
+runs its three host test programs (see [Tests](#tests)), and zxvd serves an
+envelope feed on `web4_agent` as `web4.*` (`kernel/arch/hosted/zxvd_web4.c`,
+[ZXVD.md](ZXVD.md)). Every Web 2 and Web 3 encoding below is checked against
 published vectors. It has **not** been run against a live OIDC provider, an
 Ethereum node, a Mastodon server or a Bluesky PDS. The
 [Honest limits](#honest-limits) section explains what that means.

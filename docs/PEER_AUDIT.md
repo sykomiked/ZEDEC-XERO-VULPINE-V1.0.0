@@ -4,7 +4,7 @@ Module: `kernel/src/peer_audit/` (`peer_audit.h`, `pa_runtime.h`). Test:
 `kernel/src/peer_audit/test_peer_audit.c`, run by `make -C kernel verify-all` (plain and under
 ASan+UBSan), with a freestanding aarch64/i386 build check (no libc, no 64-bit division helpers).
 
-This is verification logic. It is not yet joined to the network transport (see "Not wired yet").
+This is verification logic. The desktop app runs layer 1: settle's audit hook in `kernel/arch/hosted/zxv_host.c` calls `pa_emit_record` on every posting. It is not yet joined to the network transport (see "Not wired yet").
 
 ## Why two layers
 
@@ -156,9 +156,9 @@ What it does not stop:
 
 ## Not wired yet
 
-- **Transport.** Records, votes, canaries and evidence are not yet carried between machines. Hooks
-  needed: on each outbound ledger or budget transition in the app, call `pa_emit_record` instead of
-  signing directly. Ship the record over vinea (a new `vinea/v2/...` message type) to the
+- **Transport.** Records, votes, canaries and evidence are not yet carried between machines. The
+  app already calls `pa_emit_record` for each ledger posting (settle's audit hook in
+  `kernel/arch/hosted/zxv_host.c`); budget transitions are not yet audited this way. Still needed: ship the record over vinea (a new `vinea/v2/...` message type) to the
   committee from `pa_committee`. Collect `pa_vote` replies and apply with `pa_runtime_apply` on
   ACCEPT. Gossip `pa_evidence_t` objects.
 - **Revoke wiring.** The host's `pa_revoke_fn` should call `porter_house_close_port` for the
