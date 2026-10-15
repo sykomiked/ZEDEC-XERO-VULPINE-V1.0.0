@@ -1958,6 +1958,7 @@ static void app_tests_run(const zxapp_t *w0, int nw0)
             int before = checks;
             t->run(a);
             CHECK(checks > before + 1, "%s: its test checks something", t->id);
+            printf("  ran app %s\n", t->id); /* app_gate.py --verdict reads it */
             zxapp_unload(a, &H);
             ok[i] = true;
         }
