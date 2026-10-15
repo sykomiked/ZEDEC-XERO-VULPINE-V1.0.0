@@ -133,6 +133,51 @@ int main(void)
     snprintf(req, sizeof req, "GET /api/state HTTP/1.1\r\nHost: 127.0.0.1:8722\r\n\r\n%s", tok);
     CHECK(zxv_guard_check(&g, req, true) == ZXV_GUARD_NO_TOKEN, "token in body ignored");
 
+    /* G6: the web root serves only plain relative paths of known types */
+    {
+        char o[ZXV_WEB_PATH_MAX];
+#define WEB(p) zxv_web_path(p, strlen(p), o, sizeof o)
+        CHECK(WEB("") == 10 && !strcmp(o, "index.html"), "the root is its index");
+        CHECK(WEB("session/") == 18 && !strcmp(o, "session/index.html"), "a folder is its index");
+        CHECK(WEB("boot.js") == 7 && !strcmp(o, "boot.js"), "a file at the top");
+        CHECK(WEB("session/zxv_passport.wasm") > 0 && !strcmp(o, "session/zxv_passport.wasm"),
+              "a file in a folder");
+        CHECK(WEB("brand/36n9-gold.zxvg") > 0, "a logo");
+        CHECK(WEB("../etc/passwd") < 0 && o[0] == 0, "no parent folder");
+        CHECK(WEB("session/../../x.js") < 0, "no parent folder inside");
+        CHECK(WEB("./boot.js") < 0 && WEB(".hidden.js") < 0 && WEB("a/.git/x.js") < 0,
+              "no dot segments or hidden files");
+        CHECK(WEB("a//b.js") < 0 && WEB("/boot.js") < 0, "no empty segments");
+        CHECK(WEB("%2e%2e/x.js") < 0 && WEB("a\\b.js") < 0 && WEB("c:x.js") < 0,
+              "no escapes, backslashes or drives");
+        CHECK(WEB("boot.json?x") < 0 && WEB("a b.js") < 0, "no query or space");
+        CHECK(WEB("secret.txt") < 0 && WEB("zxvd") < 0 && WEB("x.html.bak") < 0,
+              "unknown types refused");
+        CHECK(WEB("a/.js") < 0, "an extension alone is a hidden name");
+        CHECK(WEB("a/b/c/d/e/f/g/h.js") > 0, "eight segments pass");
+        CHECK(WEB("a/b/c/d/e/f/g/h/i.js") < 0, "nine segments refused");
+        CHECK(WEB("a/b/c/d/e/f/g/h/") < 0, "an index past the depth refused");
+        char longp[ZXV_WEB_PATH_MAX + 8];
+        memset(longp, 'a', sizeof longp);
+        memcpy(longp + ZXV_WEB_PATH_MAX - 3, ".js", 4); /* 192 bytes */
+        CHECK(zxv_web_path(longp, strlen(longp), o, sizeof o) < 0, "192 bytes: too long");
+        memcpy(longp + ZXV_WEB_PATH_MAX - 4, ".js", 4); /* 191 bytes */
+        CHECK(zxv_web_path(longp, strlen(longp), o, sizeof o) == (int) ZXV_WEB_PATH_MAX - 1,
+              "191 bytes fit");
+        CHECK(zxv_web_path("boot.js", 7, o, 7) < 0 && zxv_web_path("boot.js", 7, o, 8) == 7,
+              "the caller's buffer bounds the path");
+        CHECK(zxv_web_path(NULL, 1, o, sizeof o) < 0 && zxv_web_path("x.js", 4, NULL, 9) < 0,
+              "null arguments refused");
+#undef WEB
+        CHECK(!strcmp(zxv_web_type("a.wasm"), "application/wasm") &&
+                  !strcmp(zxv_web_type("index.html"), "text/html; charset=utf-8") &&
+                  !strcmp(zxv_web_type("boot.json"), "application/json") &&
+                  !strcmp(zxv_web_type("session/fox.svg"), "image/svg+xml"),
+              "types by extension");
+        CHECK(!zxv_web_type("a.htm") && !zxv_web_type("wasm") && !zxv_web_type(NULL),
+              "no type, no file");
+    }
+
     if (fails) {
         printf("test_zxv_http_guard: %d failure(s)\n", fails);
         return 1;

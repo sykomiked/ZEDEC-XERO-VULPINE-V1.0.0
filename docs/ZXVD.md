@@ -47,6 +47,15 @@ browser, and a second launch opens the running one's window.
 zxvd opens no window; the loopback HTML window is still served on a free
 port with its token, printed on the `ZXV-URL:` line.
 
+`--web-root DIR` also serves the browser surface (`web/boot`, `web/session`,
+put together by `tools/web/build_web_root.sh DIR`) at `/web/`, and prints
+its link with the token on a `ZXV-WEB:` line: the boot screen, then the
+passport login, the spaces and the companion, all through the same guarded
+`/api/rpc`. Only plain relative paths of known file types under DIR are
+served (`zxv_http_guard.h` G6). `tests/browser/test_browser.sh` drives it end
+to end in headless Chromium. `swarm.state`'s `companion.answered_by_model`
+says whether the model wrote the last answer, which the page shows beside it.
+
 ## The socket
 
 - JSON-RPC 2.0, one request per line, one response per line.

@@ -328,6 +328,29 @@ static void test_buf(void)
     zxvd_buf_json_str(&b, "a\"b\\c\n\x1f"
                           "d\x7f");
     CHECK(b.p && !strcmp(b.p, "\"a\\\"b\\\\c\\u000a\\u001fd\x7f\""), "json_str escapes: %s", b.p);
+    {
+        /* JSON is UTF-8: well-formed sequences pass, every other byte is U+FFFD */
+        static const struct {
+            const char *in, *out;
+        } U[] = {
+            {"\xc3\xa9\xe2\x82\xac\xf0\x9f\xa6\x8a", "\"\xc3\xa9\xe2\x82\xac\xf0\x9f\xa6\x8a\""},
+            {"a\x94z", "\"a\xef\xbf\xbdz\""},               /* a lone continuation byte */
+            {"\xe2\x82", "\"\xef\xbf\xbd\xef\xbf\xbd\""},   /* cut at the end */
+            {"\xe2\x82x", "\"\xef\xbf\xbd\xef\xbf\xbdx\""}, /* cut before ASCII */
+            {"\xc0\xaf", "\"\xef\xbf\xbd\xef\xbf\xbd\""},   /* overlong '/' */
+            {"\xe0\x80\xaf", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""}, /* overlong */
+            {"\xed\xa0\x80", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""}, /* a surrogate */
+            {"\xf4\x90\x80\x80", "\"\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\xef\xbf\xbd\""},
+            {"\xf4\x8f\xbf\xbf", "\"\xf4\x8f\xbf\xbf\""}, /* U+10FFFF */
+            {"\xff\"", "\"\xef\xbf\xbd\\\"\""},
+        };
+        for (size_t i = 0; i < sizeof U / sizeof U[0]; i++) {
+            zxvd_buf_t u = {0};
+            zxvd_buf_json_str(&u, U[i].in);
+            CHECK(u.p && !strcmp(u.p, U[i].out), "json_str UTF-8 case %zu", i);
+            free(u.p);
+        }
+    }
     size_t before = b.len;
     zxvd_buf_printf(&b, "%d-%s", -42, "x");
     CHECK(b.len == before + 5 && !strcmp(b.p + before, "-42-x"), "printf appends");
