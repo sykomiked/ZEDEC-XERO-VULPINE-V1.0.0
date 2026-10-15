@@ -27,13 +27,14 @@ Code: `kernel/src/acpi/`. Platform glue for x86_64:
 `kernel_main_x86_64.c` calls `acpi_x86_boot` right after the class drivers,
 before `[BOOT_OK]`:
 
-1. **RSDP.** The UEFI stub (`efi_stub.c`) looks for the ACPI 2.0 GUID
-   (`8868e871-e4f1-11d3-bc22-0080c7c3c181`), then the 1.0 GUID
-   (`eb9d2d30-2d88-11d3-9a16-0090273fc14d`), in the firmware's configuration
-   table, and leaves the address in the handoff record at 0x80000 (the same
-   page as the GOP record, `reserved[0..2]` of `zxv_x86_bootinfo_t`, with its
-   own magic and check word). The record is published even when there is no
-   GOP. Without it the kernel falls back to the BIOS-area scan.
+1. **RSDP.** The UEFI stub records the RSDP from the firmware's
+   configuration table (ACPI 2.0 GUID first, then 1.0) in the handoff v2
+   record (`kernel/arch/zxv_handoff.h`). The kernel uses it only when the
+   record is accepted. If the record is damaged, or says the kernel window
+   overwrote the ACPI tables or ACPI NVS memory, ACPI is held: no AML runs,
+   so there is no sleep or power button on that boot, and the boot logs an
+   `[ACPI HELD]` line. A direct `-kernel` boot (no record) falls back to the
+   BIOS-area scan.
 2. **Tables.** XSDT when the RSDP is revision 2 or later and its extended
    checksum is good, else RSDT. A table with a bad checksum is skipped.
 3. **Namespace.** The DSDT (`X_DSDT` first), then every SSDT and PSDT. Errors
