@@ -25,11 +25,15 @@
 #include "zl_int.h"
 
 static const char *const OPN[ZL_OP__COUNT] = {
-    "HALT", "PUSH", "LOAD", "STORE", "LOADX", "STOREX", "ADD", "SUB",   "MUL",    "DIVT",
-    "MODT", "DIVF", "MODF", "DIVX",  "POW",   "NEG",    "ABS", "SGN",   "MIN",    "MAX",
-    "EQ",   "NE",   "LT",   "LE",    "GT",    "GE",     "AND", "OR",    "XOR",    "INVERT",
-    "NOT",  "DUP",  "DROP", "SWAP",  "OVER",  "ROT",    "JMP", "JZ",    "JNZ",    "CALL",
-    "RET",  "OUTI", "OUTS", "OUTC",  "NL",    "TAB",    "IN",  "LOADA", "STOREA", "TRAP"};
+    "HALT",   "PUSH",   "LOAD",  "STORE", "LOADX",  "STOREX",  "ADD",   "SUB",   "MUL",    "DIVT",
+    "MODT",   "DIVF",   "MODF",  "DIVX",  "POW",    "NEG",     "ABS",   "SGN",   "MIN",    "MAX",
+    "EQ",     "NE",     "LT",    "LE",    "GT",     "GE",      "AND",   "OR",    "XOR",    "INVERT",
+    "NOT",    "DUP",    "DROP",  "SWAP",  "OVER",   "ROT",     "JMP",   "JZ",    "JNZ",    "CALL",
+    "RET",    "OUTI",   "OUTS",  "OUTC",  "NL",     "TAB",     "IN",    "LOADA", "STOREA", "TRAP",
+    "ENTER",  "LEAVE",  "LINK",  "LOADF", "STOREF", "ADDRF",   "BOUND", "CONS",  "CAR",    "CDR",
+    "SETCAR", "SETCDR", "ISA",   "OUTV",  "VNEW",   "VLEN",    "VREF",  "VSET",  "SCAT",   "SSUB",
+    "SCMP",   "SCONV",  "CALLI", "JMPI",  "CATCH",  "UNCATCH", "THROW", "RANGE", "INEOF",  "SHL",
+    "SHR",    "WRAP",   "OUTD"};
 
 const char *zl_op_name(int op)
 {

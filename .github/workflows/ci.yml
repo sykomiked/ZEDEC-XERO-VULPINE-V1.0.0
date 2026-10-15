@@ -151,7 +151,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth fp-compiler sbcl guile-3.0 ucblogo
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh

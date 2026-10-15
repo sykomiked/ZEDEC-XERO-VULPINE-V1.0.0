@@ -240,13 +240,17 @@ typedef enum {
     ZXAPP_LANG_DART,
     ZXAPP_LANG_RUBY,
     ZXAPP_LANG_PHP,
-    ZXAPP_LANG_WASM,      /* anything that compiles to WebAssembly (Z-Wasm) */
-    ZXAPP_LANG_WIRE,      /* W: a circuit of other entries, wired (zxwire.h) */
-    ZXAPP_LANG_FORTRAN77, /* the legacy languages, through Lingua (zxapp_lingua.c) */
-    ZXAPP_LANG_BASIC,
-    ZXAPP_LANG_FORTH,
+    ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
+    ZXAPP_LANG_WIRE, /* W: a circuit of other entries, wired (zxwire.h) */
     ZXAPP_LANG_ZLIR, /* a Lingua program precompiled to IR text (zl_pack) */
+/* Every Lingua language (zxapp_lingua.c), in zl_langs.def order. */
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) ZXAPP_LANG_ZL_##id,
+#include "../lingua/zl_langs.def"
+#undef ZL_LANG_X
     ZXAPP_LANG_COUNT,
+    ZXAPP_LANG_FORTRAN77 = ZXAPP_LANG_ZL_FORTRAN, /* the names apps used first */
+    ZXAPP_LANG_BASIC = ZXAPP_LANG_ZL_BASIC,
+    ZXAPP_LANG_FORTH = ZXAPP_LANG_ZL_FORTH,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
 
@@ -360,7 +364,7 @@ typedef struct zxapp {
     uint64_t budget;                 /* R2: tokens per cycle; 0 = none given */
     zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */
     uint32_t nneeds;
-    uint32_t npending;       /* P1: "pending" lines (a best-fit language still waiting) */
+    uint32_t npending; /* P1: "pending" lines (a best-fit language still waiting) */
     zxapp_chiglet_t chiglet[ZXAPP_CHIGLETS]; /* K1 */
     uint32_t nchiglet;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */

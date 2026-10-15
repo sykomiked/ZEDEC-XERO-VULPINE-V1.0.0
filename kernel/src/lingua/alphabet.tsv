@@ -1,0 +1,89 @@
+# alphabet.tsv — booklet 000: every Lingua IR instruction, in opcode order,
+# with its family in the alphabet (docs/spec/ALPHABET.md), its stack effect
+# (cells popped and pushed with valid operands; * when it depends on the
+# operands or the heap) and the projections that take it (c C, f Forth,
+# x x86-64; - none yet). test_zl_proj checks every row against the IR.
+# op	family	pops	pushes	targets	meaning
+HALT	stop	0	0	cfx	stop with OK
+PUSH	permute	0	1	cfx	K: a constant
+LOAD	state	0	1	cfx	read a slot
+STORE	state	1	0	cfx	write a slot
+LOADX	state	1	1	cfx	read an array cell, index checked
+STOREX	state	2	0	cfx	write an array cell, index checked
+ADD	arith	2	1	cfx	checked add
+SUB	arith	2	1	cfx	checked subtract
+MUL	arith	2	1	cfx	checked multiply
+DIVT	arith	2	1	cfx	truncating divide
+MODT	arith	2	1	cfx	truncating remainder
+DIVF	arith	2	1	cfx	floored divide
+MODF	arith	2	1	cfx	floored remainder
+DIVX	arith	2	1	cfx	exact divide: a remainder traps
+POW	arith	2	1	cx	checked power
+NEG	arith	1	1	cfx	checked negate
+ABS	arith	1	1	cfx	checked magnitude
+SGN	arith	1	1	cfx	sign
+MIN	arith	2	1	cfx	least
+MAX	arith	2	1	cfx	greatest
+EQ	compare	2	1	cfx	1 or 0
+NE	compare	2	1	cfx	1 or 0
+LT	compare	2	1	cfx	1 or 0
+LE	compare	2	1	cfx	1 or 0
+GT	compare	2	1	cfx	1 or 0
+GE	compare	2	1	cfx	1 or 0
+AND	compare	2	1	cfx	bitwise and
+OR	compare	2	1	cfx	bitwise or
+XOR	compare	2	1	cfx	bitwise exclusive or
+INVERT	compare	1	1	cfx	bitwise not
+NOT	compare	1	1	cfx	logical not: 0 to 1, else 0
+DUP	permute	1	2	cfx	W: duplicate
+DROP	permute	1	0	cfx	K: discard
+SWAP	permute	2	2	cfx	C: exchange
+OVER	permute	2	3	cfx	copy the second
+ROT	permute	3	3	cfx	rotate three
+JMP	recur	0	0	cfx	jump; a backward jump is recurrence, bounded by fuel
+JZ	branch	1	0	cfx	two-way branch on zero
+JNZ	branch	1	0	cfx	two-way branch on not zero
+CALL	compose	0	0	cfx	B: compose by calling, return depth checked
+RET	compose	*	*	cfx	return from a call
+OUTI	effect	1	0	cfx	print an integer
+OUTS	effect	0	0	cfx	print a string
+OUTC	effect	1	0	cfx	print a byte, 0..255 checked
+NL	effect	0	0	cfx	new line
+TAB	effect	0	0	cx	advance to the next zone
+IN	effect	0	1	cx	read the next input
+LOADA	state	1	1	cfx	read through an address, checked
+STOREA	state	2	0	cfx	write through an address, checked
+TRAP	stop	0	0	cfx	stop with a status
+ENTER	resource	*	*	-	acquire a frame, released by LEAVE
+LEAVE	resource	*	*	-	release the frame
+LINK	resource	*	*	-	an enclosing frame's handle
+LOADF	state	*	*	-	read a frame cell
+STOREF	state	*	*	-	write a frame cell
+ADDRF	state	*	*	-	a frame cell's address
+BOUND	state	*	*	-	check an index against a length
+CONS	data	*	*	-	make a pair
+CAR	data	*	*	-	a pair's first
+CDR	data	*	*	-	a pair's second
+SETCAR	data	*	*	-	set a pair's first
+SETCDR	data	*	*	-	set a pair's second
+ISA	data	*	*	-	test a value's kind
+OUTV	effect	*	*	-	print a value
+VNEW	data	*	*	-	make a vector
+VLEN	data	*	*	-	a vector's or string's length
+VREF	data	*	*	-	read a vector cell or string byte, checked
+VSET	data	*	*	-	write a vector cell, checked
+SCAT	data	*	*	-	join two strings
+SSUB	data	*	*	-	part of a string, checked
+SCMP	data	*	*	-	compare two strings
+SCONV	data	*	*	-	number to string and back
+CALLI	compose	*	*	-	apply a procedure value
+JMPI	compose	*	*	-	tail call through a procedure value
+CATCH	resource	*	*	-	acquire a handler, released by UNCATCH or a throw
+UNCATCH	resource	*	*	-	release the newest handler
+THROW	resource	*	*	-	unwind to the newest handler
+RANGE	arith	1	1	cx	check a value's range
+INEOF	effect	0	1	cx	1 when the input is spent
+SHL	arith	2	1	cx	checked shift left
+SHR	arith	2	1	cx	floor shift right
+WRAP	arith	1	1	cx	wrap to a word width
+OUTD	effect	1	0	cx	print a fixed-point number

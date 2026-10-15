@@ -1,0 +1,12 @@
+  move disk 3 from 1 to 3
+  move disk 3 from 3 to 2
+  move disk 3 from 2 to 1
+  move disk 3 from 1 to 3
+hanoi 5: 31 moves
+ackermann(2, 3) = 9
+ackermann(3, 3) = 61
+  -5   9   0  14   5  -4  10   1
+sorted in 5 passes: min -5 mid 1 max 14
+  -5  -4   0   1   5   9  10  14
+sum 30 = 30
+        544  -122

@@ -1,4 +1,4 @@
-# What each of the 104 Lingua languages (kernel/src/lingua/catalogue.tsv) is
+# What each of the 108 Lingua languages (kernel/src/lingua/catalogue.tsv) is
 # best at, and which kinds of app feature it owns. One language per line,
 # tab-separated:
 #   language  runtime  owns  best_at
@@ -114,3 +114,7 @@ Zig	-	machine	explicit systems code (as wasm)
 WebAssembly	wasm	sandbox	sandboxed, fuel-metered logic from any compiled language
 Gleam	-	messaging,types	typed fault-tolerant services
 Mojo	-	numeric,ai	numeric kernels for models
+LEXIS	-	search,text	names, places and languages resolved to library slots
+TECTON	-	dataflow	a plan of blocks, source to sink, checked before it runs
+AXION	-	rules,proof	loop-free truth checks over readings
+Lingua IR	-	machine	the shared form every Lingua front-end compiles to

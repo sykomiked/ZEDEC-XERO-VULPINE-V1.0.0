@@ -8,9 +8,9 @@
  *   zxlang ir    <file>               list the IR
  *   zxlang pack  <file>               print the precompiled program (zlir)
  *
- * The language comes from the extension: .f .for .f77 (FORTRAN), .bas
- * (BASIC), .fs .fth .4th (Forth); a .zlir file is a precompiled program
- * and takes run, ir and pack. Add "--twin" before the file to accept
+ * The language comes from the extension (zl_langs.def lists them all,
+ * e.g. .f for FORTRAN, .bas for BASIC, .fs for Forth); a .zlir file is a
+ * precompiled program and takes run, ir and pack. Add "--twin" before the file to accept
  * only the twin spelling. Exit status: 0 ok, 1 compile refusal, 2 run-time
  * trap, 3 usage or I/O error. */
 #include <stdio.h>
@@ -26,22 +26,34 @@ static zl_prog_t prog, prog2;
 static zl_run_t run;
 static char src[1 << 20], out[1 << 20], twin[1 << 20];
 
+/* The language whose extension list (zl_langs.def) holds path's extension. */
 static int lang_of(const char *path)
 {
+    static const struct {
+        int lang;
+        const char *ext;
+    } langs[] = {
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) {ZL_LANG_##id, ext},
+#include "zl_langs.def"
+#undef ZL_LANG_X
+    };
     const char *dot = strrchr(path, '.');
     if (!dot) return 0;
-    if (!strcmp(dot, ".f") || !strcmp(dot, ".for") || !strcmp(dot, ".f77") || !strcmp(dot, ".F"))
-        return ZL_LANG_FORTRAN;
-    if (!strcmp(dot, ".bas") || !strcmp(dot, ".BAS")) return ZL_LANG_BASIC;
-    if (!strcmp(dot, ".fs") || !strcmp(dot, ".fth") || !strcmp(dot, ".4th")) return ZL_LANG_FORTH;
     if (!strcmp(dot, ".zlir")) return ZLIR;
+    size_t n = strlen(dot);
+    for (size_t i = 0; i < sizeof langs / sizeof langs[0]; i++)
+        for (const char *e = langs[i].ext; *e;) {
+            size_t k = strcspn(e, " ");
+            if (k == n && !strncmp(e, dot, n)) return langs[i].lang;
+            e += k + (e[k] == ' ');
+        }
     return 0;
 }
 
 static int usage(void)
 {
-    fprintf(stderr,
-            "usage: zxlang run|twin|check|ir|pack [--twin] <file.f|.bas|.fs|.zlir> [input ...]\n");
+    fprintf(stderr, "usage: zxlang run|twin|check|ir|pack [--twin] "
+                    "<file.f|.bas|.fs|... (see zl_langs.def)|.zlir> [input ...]\n");
     return 3;
 }
 

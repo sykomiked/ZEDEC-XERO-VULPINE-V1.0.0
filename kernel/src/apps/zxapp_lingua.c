@@ -2,7 +2,9 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zxapp_lingua.c — legacy-language app logic (zxapp.h A2) through Lingua.
  *
- * An entry is a whole program in FORTRAN 77, Minimal BASIC or Forth, or the
+ * An entry is a whole program in any Lingua language (zl_langs.def: FORTRAN 77,
+ * Minimal BASIC, Forth, Pascal, ALGOL 60, LISP, Scheme, Logo and the rest; a
+ * language whose front-end is not built yet refuses at load), or the
  * same program precompiled to Lingua IR ("zlir", from `zxlang pack`). It is
  * compiled once, when the app loads, and every call runs the compiled IR,
  * so a precompiled entry never needs a front-end at all.
@@ -32,7 +34,8 @@ typedef struct {
     uint64_t fuel;
 } lctx_t;
 
-static lctx_t CTX[4]; /* one set per process: the last registration's fuel applies */
+static lctx_t CTX[ZXAPP_LANG_COUNT -
+                  ZXAPP_LANG_ZLIR]; /* one set per process: the last registration's fuel applies */
 
 static void say(char *err, uint32_t cap, const char *a, const char *b, uint32_t line)
 {
@@ -168,16 +171,17 @@ static void l_unload(void *ctx, void *compiled)
 
 int zxapp_lingua_register(zxapp_host_t *h, uint64_t fuel)
 {
-    static const struct {
-        zxapp_lang_t lang;
-        int zl;
-    } L[4] = {{ZXAPP_LANG_FORTRAN77, ZL_LANG_FORTRAN},
-              {ZXAPP_LANG_BASIC, ZL_LANG_BASIC},
-              {ZXAPP_LANG_FORTH, ZL_LANG_FORTH},
-              {ZXAPP_LANG_ZLIR, 0}};
-    for (int i = 0; i < 4; i++) {
-        CTX[i] = (lctx_t){L[i].lang, L[i].zl, fuel};
-        zxapp_runtime_t rt = {L[i].lang, &CTX[i], l_load, l_call, l_unload};
+    static const int ZL[] = {
+        0, /* ZXAPP_LANG_ZLIR: precompiled, no front-end */
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) ZL_LANG_##id,
+#include "../lingua/zl_langs.def"
+#undef ZL_LANG_X
+    };
+    _Static_assert(sizeof ZL / sizeof ZL[0] == sizeof CTX / sizeof CTX[0], "one per runtime");
+    for (uint32_t i = 0; i < sizeof ZL / sizeof ZL[0]; i++) {
+        zxapp_lang_t lang = (zxapp_lang_t) (ZXAPP_LANG_ZLIR + (int) i);
+        CTX[i] = (lctx_t){lang, ZL[i], fuel};
+        zxapp_runtime_t rt = {lang, &CTX[i], l_load, l_call, l_unload};
         int s = zxapp_host_register(h, &rt);
         if (s != ZXAPP_OK) return s;
     }
