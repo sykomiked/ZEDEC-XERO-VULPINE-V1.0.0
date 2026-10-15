@@ -125,9 +125,15 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
   folders and the audio device, attach it with `zui_launch_theme_attach(..., zui_ls_shell(ls), ...)` and call
   `zui_ls_pump` once a frame. Icons are read from disk the first time an app opens (`zxl_icon_file`:
   `001-burrow.png`, `l2/145-dragon-archivist.png`, ...; an app a person made: `<name>.png`), so a redrawn icon
-  shows on the next launch and no picture is built into the system. Test: `kernel/src/zui/test_zui_launch_shell.c`
+  shows on the next launch and no picture is built into the system. Vectors first: given a vector drawer
+  (`zui_vec_draw_simple` from the toolkit's ZXVG renderer, through a three-line adapter), every icon and logo is
+  looked for first as `.zxvg` beside its PNG (`001-burrow.zxvg`, `logos/ascw-gold.zxvg`, built with
+  `tools/zxvg/svg2zxvg.py` from `zxv-brand/app-icons/svg/` and `zxv-brand/vector/gold/`) and drawn live at the
+  window's own size, exactly as drawn (each file carries its plate and palette); the PNG is only the fallback
+  for a missing or malformed vector. Test: `kernel/src/zui/test_zui_launch_shell.c`
   (a whole launch: files read, gold icon for a system app, own colours for a person's app, five ticks as five
-  tiles light, the end the moment the app is ready, sound reaching the audio device, mute, missing files).
+  tiles light, the end the moment the app is ready, sound reaching the audio device, mute, missing files,
+  vectors before PNGs and the fallback when a vector is malformed).
 - `tools/launch/launch_sounds.py`: synthesises each app's three cues from scratch (no samples), deterministic.
 - `tools/launch/launch_mock.py`: renders the mockup videos with their sounds placed where the events happen.
 - `tools/launch/launch_catalogue.py`: `table` regenerates `zxl_apps.inc` from the app list; `render --new` renders every
@@ -144,5 +150,8 @@ python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   
 
 1. The native desktop session (the toolkit and window switcher work) creates its `zui_launch_shell` at login,
    points it at the installed icons and logos folders, and calls `zui_ls_load_logos` while the desktop comes up
-   (the five gold logos are large files: about four seconds to read the first time).
+   (the five gold logos are large files: about four seconds to read the first time as PNG; as ZXVG they are
+   read at once). It sets `cfg.vec` to an adapter over `zui_vec_draw_simple` with a static `zui_vec_work_t`
+   once the toolkit's renderer is on main, and the installer puts the 407 icons' and five logos' `.zxvg`
+   beside the PNGs.
 2. Hand-make more apps' sounds where the generated phrase is not enough.

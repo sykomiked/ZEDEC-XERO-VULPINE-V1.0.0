@@ -7,6 +7,28 @@
 static const char *const LOGO_FILE[ZUI_LT_LOGOS] = {
     "36n9-gold.png", "acoto-gold.png", "ascw-gold.png", "smic-gold.png", "cis-gold.png"};
 
+/* LS6: the same path ending .zxvg instead of .png */
+static int vec_path(char *out, uint32_t cap, const char *png)
+{
+    uint32_t n = 0;
+    while (png[n]) n++;
+    if (n < 4 || n + 2 >= cap) return -1;
+    for (uint32_t i = 0; i + 4 < n; i++) out[i] = png[i];
+    static const char EXT[] = ".zxvg";
+    for (uint32_t i = 0; i < 6; i++) out[n - 4 + i] = EXT[i];
+    return 0;
+}
+
+/* LS6: read path's .zxvg into buf; its length, or 0 when there is none */
+static uint32_t load_vec(zui_launch_shell_t *ls, const char *png, uint8_t *buf, uint32_t cap)
+{
+    const zui_ls_config_t *c = &ls->cfg;
+    char path[ZUI_LS_PATH];
+    if (!c->vec || !c->read || !buf || !cap || vec_path(path, sizeof path, png)) return 0;
+    int32_t n = c->read(c->read_ctx, path, buf, cap);
+    return n > 0 ? (uint32_t) n : 0;
+}
+
 static void zero(void *p, uint32_t n)
 {
     uint8_t *b = p;
@@ -70,6 +92,20 @@ static int load(zui_launch_shell_t *ls, const char *path, zui_image_t *img, uint
     return zui_image_load(img, px, m, m, c->file, (uint32_t) n, key, c->work, c->work_cap) ? -1 : 0;
 }
 
+/* the app's picture: its vector if it has one, else its PNG */
+static void load_icon(zui_launch_shell_t *ls, zui_ls_icon_t *e)
+{
+    char path[ZUI_LS_PATH];
+    e->state = ZUI_LS_MISSING;
+    if (zui_ls_icon_path(ls->cfg.icons_dir, e->app, path, sizeof path)) return;
+    if (!e->no_vec && (e->vec_len = load_vec(ls, path, e->vec, sizeof e->vec)) != 0) {
+        e->state = ZUI_LS_VECTOR;
+        return;
+    }
+    if (!load(ls, path, &e->img, e->px, ZUI_LS_ICON_PX, ZUI_IMG_KEY_GROUND))
+        e->state = ZUI_LS_LOADED;
+}
+
 static zui_ls_icon_t *icon_for(zui_launch_shell_t *ls, const char *app)
 {
     zui_ls_icon_t *hit = 0, *old = &ls->icon[0];
@@ -85,11 +121,8 @@ static zui_ls_icon_t *icon_for(zui_launch_shell_t *ls, const char *app)
     for (; app[i] && i + 1 < sizeof e->app; i++) e->app[i] = app[i];
     e->app[i] = 0;
     e->age = ++ls->age;
-    char path[ZUI_LS_PATH];
-    e->state = ZUI_LS_MISSING;
-    if (!zui_ls_icon_path(ls->cfg.icons_dir, app, path, sizeof path) &&
-        !load(ls, path, &e->img, e->px, ZUI_LS_ICON_PX, ZUI_IMG_KEY_GROUND))
-        e->state = ZUI_LS_LOADED;
+    e->no_vec = 0;
+    load_icon(ls, e);
     return e;
 }
 
@@ -101,11 +134,20 @@ static void draw_icon(void *ctx, const char *app, zxl_icon_ink_t ink, zui_surfac
     if (!app) return;
     zui_ls_icon_t *e = icon_for(ls, app);
     e->age = ++ls->age;
-    if (e->state != ZUI_LS_LOADED) return; /* LS5 */
     if (lit > 256u) lit = 256u;
+    uint32_t tint = ink == ZXL_ICON_PALETTE ? ZXL_GOLD_RGB : ZUI_IMG_NO_KEY;
+    if (e->state == ZUI_LS_VECTOR) { /* LS6: drawn live, at this box's size, as drawn */
+        const zui_ls_config_t *c = &ls->cfg;
+        uint32_t at = lit < 256u ? 36u * (256u - lit) / 256u : 0u;
+        if (lit > at) at = lit;
+        if (c->vec(c->vec_ctx, s, e->vec, e->vec_len, box, at, 0) >= 0) return;
+        e->no_vec = 1; /* malformed: its PNG from now on */
+        load_icon(ls, e);
+    }
+    if (e->state != ZUI_LS_LOADED) return; /* LS5 */
     /* LS2: the faint engraving, then the icon itself as it lights */
     if (lit < 256u) zui_image_draw(s, &e->img, box, 36u * (256u - lit) / 256u, ZXL_GOLD_RGB);
-    zui_image_draw(s, &e->img, box, lit, ink == ZXL_ICON_PALETTE ? ZXL_GOLD_RGB : ZUI_IMG_NO_KEY);
+    zui_image_draw(s, &e->img, box, lit, tint);
 }
 
 static void draw_logo(void *ctx, uint32_t which, zui_surface_t *s, zui_rect_t box, uint32_t lit)
@@ -113,8 +155,17 @@ static void draw_logo(void *ctx, uint32_t which, zui_surface_t *s, zui_rect_t bo
     zui_launch_shell_t *ls = ctx;
     if (which >= ZUI_LT_LOGOS) return;
     if (ls->logo_state[which] == ZUI_LS_EMPTY) zui_ls_load_logos(ls);
-    if (ls->logo_state[which] != ZUI_LS_LOADED) return;
     if (lit > 256u) lit = 256u;
+    if (ls->logo_state[which] == ZUI_LS_VECTOR) { /* LS6 */
+        const zui_ls_config_t *c = &ls->cfg;
+        if (c->vec(c->vec_ctx, s, ls->logo_vec[which], ls->logo_vec_len[which], box,
+                   46u + 210u * lit / 256u, 0) >= 0)
+            return;
+        ls->logo_no_vec[which] = 1; /* malformed: its PNG from now on */
+        ls->logo_state[which] = ZUI_LS_EMPTY;
+        zui_ls_load_logos(ls);
+    }
+    if (ls->logo_state[which] != ZUI_LS_LOADED) return;
     zui_image_draw(s, &ls->logo[which], box, 46u + 210u * lit / 256u, ZUI_IMG_NO_KEY);
 }
 
@@ -155,14 +206,24 @@ uint32_t zui_ls_load_logos(zui_launch_shell_t *ls)
     uint32_t got = 0;
     if (!ls) return 0;
     for (uint32_t i = 0; i < ZUI_LT_LOGOS; i++) {
-        if (ls->logo_state[i] == ZUI_LS_LOADED) {
+        if (ls->logo_state[i] == ZUI_LS_LOADED || ls->logo_state[i] == ZUI_LS_VECTOR) {
             got++;
             continue;
         }
         char path[ZUI_LS_PATH];
         ls->logo_state[i] = ZUI_LS_MISSING;
-        if (!join(path, sizeof path, ls->cfg.logos_dir, LOGO_FILE[i]) &&
-            !load(ls, path, &ls->logo[i], ls->logo_px[i], ZUI_LS_LOGO_PX, ZUI_IMG_NO_KEY)) {
+        if (join(path, sizeof path, ls->cfg.logos_dir, LOGO_FILE[i])) continue;
+        uint32_t room = ls->cfg.vec_store_cap - ls->vec_used, n;
+        if (!ls->logo_no_vec[i] && ls->cfg.vec_store && ls->vec_used < ls->cfg.vec_store_cap &&
+            (n = load_vec(ls, path, ls->cfg.vec_store + ls->vec_used, room)) != 0) {
+            ls->logo_vec[i] = ls->cfg.vec_store + ls->vec_used;
+            ls->logo_vec_len[i] = n;
+            ls->vec_used += n;
+            ls->logo_state[i] = ZUI_LS_VECTOR;
+            got++;
+            continue;
+        }
+        if (!load(ls, path, &ls->logo[i], ls->logo_px[i], ZUI_LS_LOGO_PX, ZUI_IMG_NO_KEY)) {
             ls->logo_state[i] = ZUI_LS_LOADED;
             got++;
         }

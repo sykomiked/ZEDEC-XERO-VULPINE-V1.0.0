@@ -28,11 +28,24 @@
  *       fed to the audio device as it has room, so each begin, tick and end
  *       sounds when the real load reaches it. No audio device: the cues are
  *       still mixed (zui_ls_render) and nothing is lost.
+ *   LS6 VECTORS FIRST. All graphics are native vector (the owner,
+ *       2026-10-14). With a vector drawer in the config (zui_vec_draw_simple
+ *       through a three-line adapter), each icon and logo is looked for first
+ *       as ZXVG beside its PNG, the same name ending .zxvg (001-burrow.zxvg,
+ *       l2/145-dragon-archivist.zxvg, logos/ascw-gold.zxvg), kept as bytes
+ *       and drawn live every frame at the box's own size, sharp at any
+ *       scale: faint until its part lights, then in full. A vector is drawn
+ *       exactly as it was made, never tinted: each file carries its own
+ *       plate and the palette (gold on ZXV green for the base apps, their
+ *       own colours on gold above them; tools/zxvg/lint_icons.py holds the
+ *       407 to it), and an app a person made keeps its own. The PNG is
+ *       used only when there is no vector drawer, no .zxvg, or the .zxvg is
+ *       malformed (then that picture falls back for good).
  *   LS5 MISSING FILES. An icon or logo that cannot be read leaves its place
  *       empty (the screen still runs, the sounds still play); it is tried
  *       again when the app next opens.
  *
- * Integer only, no allocation: the session owns the struct (about 1.7 MiB)
+ * Integer only, no allocation: the session owns the struct (about 1.8 MiB)
  * and the two buffers named in the config. */
 #ifndef ZXV_ZUI_LAUNCH_SHELL_H
 #define ZXV_ZUI_LAUNCH_SHELL_H
@@ -45,14 +58,22 @@
 #include "zui_launch_theme.h"
 #include "zxl_synth.h"
 
-#define ZUI_LS_ICON_PX 256 /* icons are kept fitted inside this       */
-#define ZUI_LS_LOGO_PX 160 /* and logos inside this                    */
-#define ZUI_LS_ICONS   4   /* icons kept: the apps opened most lately  */
-#define ZUI_LS_PATH    256
+#define ZUI_LS_ICON_PX  256 /* icons are kept fitted inside this       */
+#define ZUI_LS_LOGO_PX  160 /* and logos inside this                    */
+#define ZUI_LS_ICONS    4   /* icons kept: the apps opened most lately  */
+#define ZUI_LS_PATH     256
+#define ZUI_LS_VEC_ICON 16384 /* room for one icon's ZXVG (the 407 are under 5 KB) */
 
 /* Read the whole file at `path` into buf (at most cap bytes). Returns its
  * length, or a negative number when it cannot be read or is larger. */
 typedef int32_t (*zui_ls_read_fn)(void *ctx, const char *path, uint8_t *buf, uint32_t cap);
+
+/* LS6: draw ZXVG bytes d[0..n) fitted into box (aspect kept, centred) at
+ * strength 0..256, every paint held to tint's RGB when tint is not 0.
+ * Returns 0, or -1 when the bytes are malformed. zui_vec_draw_simple with
+ * its zui_vec_work_t as ctx. */
+typedef int (*zui_ls_vec_fn)(void *ctx, zui_surface_t *s, const uint8_t *d, uint32_t n,
+                             zui_rect_t box, uint32_t strength, uint32_t tint);
 
 typedef struct {
     zui_ls_read_fn read;
@@ -64,16 +85,23 @@ typedef struct {
     uint32_t file_cap;
     uint8_t *work; /* zui_image_load's scratch (zui_image_work_size) */
     uint32_t work_cap;
+    zui_ls_vec_fn vec; /* LS6; NULL = PNG only                         */
+    void *vec_ctx;
+    uint8_t *vec_store; /* room for the five logos' ZXVG (about 0.5 MB)  */
+    uint32_t vec_store_cap;
 } zui_ls_config_t;
 
-enum { ZUI_LS_EMPTY = 0, ZUI_LS_LOADED, ZUI_LS_MISSING };
+enum { ZUI_LS_EMPTY = 0, ZUI_LS_LOADED, ZUI_LS_MISSING, ZUI_LS_VECTOR };
 
 typedef struct {
     char app[ZUI_WM_NAME_MAX];
     uint8_t state;
     uint32_t age;
     zui_image_t img;
+    uint8_t no_vec; /* its .zxvg was malformed: PNG from now on */
     uint32_t px[ZUI_LS_ICON_PX * ZUI_LS_ICON_PX];
+    uint32_t vec_len;
+    uint8_t vec[ZUI_LS_VEC_ICON];
 } zui_ls_icon_t;
 
 typedef struct {
@@ -85,6 +113,10 @@ typedef struct {
     zui_image_t logo[ZUI_LT_LOGOS];
     uint8_t logo_state[ZUI_LT_LOGOS];
     uint32_t logo_px[ZUI_LT_LOGOS][ZUI_LS_LOGO_PX * ZUI_LS_LOGO_PX];
+    const uint8_t *logo_vec[ZUI_LT_LOGOS];
+    uint32_t logo_vec_len[ZUI_LT_LOGOS];
+    uint8_t logo_no_vec[ZUI_LT_LOGOS];
+    uint32_t vec_used; /* of cfg.vec_store */
     int16_t pcm[ZXL_SYN_BLOCK * 2];
     uint32_t frames_out; /* frames handed to the audio device so far */
 } zui_launch_shell_t;
@@ -106,8 +138,8 @@ uint32_t zui_ls_pump(zui_launch_shell_t *ls);
  * cues still sounding. */
 uint32_t zui_ls_render(zui_launch_shell_t *ls, int16_t *lr, uint32_t frames);
 
-/* LS1: the icon file for app, joined to dir, into out. Returns 0, or -1
- * when it does not fit. */
+/* LS1: the icon file for app (its PNG), joined to dir, into out. Returns 0,
+ * or -1 when it does not fit. */
 int zui_ls_icon_path(const char *dir, const char *app, char *out, uint32_t cap);
 
 #endif /* ZXV_ZUI_LAUNCH_SHELL_H */

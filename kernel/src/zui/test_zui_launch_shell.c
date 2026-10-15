@@ -127,11 +127,48 @@ static void w_logo(void *ctx, uint32_t which, zui_surface_t *s, zui_rect_t box, 
     REAL.logo(ctx, which, s, box, lit);
 }
 
+/* ---- a stand-in vector drawer (LS6) ------------------------------------------
+ * "VEC" + three colour bytes: fills the box's middle with that colour (or the
+ * tint), at the strength given. "BAD": malformed. */
+static uint8_t VSTORE[1 << 12];
+static int vec_on, vec_calls, vec_bad_calls;
+static uint32_t vec_last_tint, vec_last_strength;
+static int fake_vec(void *ctx, zui_surface_t *s, const uint8_t *d, uint32_t n, zui_rect_t box,
+                    uint32_t strength, uint32_t tint)
+{
+    (void) ctx;
+    vec_calls++;
+    if (n < 6 || memcmp(d, "VEC", 3)) {
+        vec_bad_calls++;
+        return -1;
+    }
+    if (box.x == icon_box.x && box.y == icon_box.y && box.w == icon_box.w) {
+        vec_last_tint = tint;
+        if (strength > vec_last_strength) vec_last_strength = strength;
+    }
+    uint32_t rgb = tint ? tint & 0xFFFFFFu : (uint32_t) d[3] << 16 | (uint32_t) d[4] << 8 | d[5];
+    if (strength >= 128)
+        zui_fill(s, (zui_rect_t){box.x + box.w / 4, box.y + box.h / 4, box.w / 2, box.h / 2}, rgb);
+    return 0;
+}
+
 static void setup(audio_device_t *dev, const zxl_prefs_t *prefs)
 {
     make_disk();
-    zui_ls_config_t cfg = {fs_read,        0,    "icons",    "logos", dev, FILEBUF,
-                           sizeof FILEBUF, WORK, sizeof WORK};
+    zui_ls_config_t cfg = {fs_read,
+                           0,
+                           "icons",
+                           "logos",
+                           dev,
+                           FILEBUF,
+                           sizeof FILEBUF,
+                           WORK,
+                           sizeof WORK,
+                           vec_on ? fake_vec : 0,
+                           0,
+                           VSTORE,
+                           sizeof VSTORE};
+    vec_calls = vec_bad_calls = 0;
     zui_ls_init(&LS, &cfg);
     REAL = zui_ls_shell(&LS);
     zui_lt_shell_t watched = REAL;
@@ -305,6 +342,61 @@ static void test_audio_device(void)
     CHECK(audio_stream_available(&DEV, LS.stream) == 0 && LS.player.age == 0, "muted: not a sound");
 }
 
+static void test_vectors_first(void)
+{
+    static const uint8_t RED[6] = {'V', 'E', 'C', 0xD0, 0x20, 0x20};
+    static const uint8_t GOLD[6] = {'V', 'E', 'C', 0xF2, 0xC2, 0x30};
+    static const uint8_t BAD[6] = {'B', 'A', 'D', 0, 0, 0};
+    vec_on = 1;
+    setup(0, 0);
+    put_file("icons/001-burrow.zxvg", GOLD, 6);
+    put_file("icons/mytool.zxvg", RED, 6);
+    put_file("logos/ascw-gold.zxvg", RED, 6);
+    put_file("logos/cis-gold.zxvg", BAD, 6);
+    vec_last_strength = 0;
+    uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
+    frame(id, 0, 0);
+    CHECK(reads_of("icons/001-burrow.zxvg") == 1 && reads_of("icons/001-burrow.png") == 0,
+          "LS6: the vector is read, not the PNG");
+    CHECK(reads_of("logos/ascw-gold.zxvg") == 1 && reads_of("logos/ascw-gold.png") == 0,
+          "LS6: a logo's vector is read, not its PNG");
+    CHECK(reads_of("logos/36n9-gold.png") == 1, "a logo with no vector: its PNG");
+    CHECK(reads_of("logos/cis-gold.zxvg") == 1 && reads_of("logos/cis-gold.png") == 1,
+          "LS6: a malformed vector falls back to its PNG");
+    CHECK(vec_bad_calls == 1, "and is not tried again (%d)", vec_bad_calls);
+    CHECK(vec_last_strength > 0 && vec_last_strength < 128 && vec_last_tint == 0,
+          "LS6: unlit, faint, as drawn (%u)", vec_last_strength);
+    int calls = vec_calls;
+    frame(id, 256, 1);
+    frame(id, 0, 2);
+    CHECK(vec_calls > calls, "LS6: drawn live every frame");
+    uint32_t gold = near(ZXL_GOLD_RGB, 40), red = near(0xD02020u, 30);
+    CHECK(gold > 20 && red == 0 && vec_last_tint == 0 && vec_last_strength == 256,
+          "LS6: a system app's vector, lit, in its own gold (%u gold, %u red)", gold, red);
+    CHECK(reads_of("icons/001-burrow.zxvg") == 1, "kept, not read again");
+    zui_wm_close(&WM, id);
+
+    id = zui_launch_theme_open(&LT, "My Tool", "My Tool", "", false, false, 0);
+    frame(id, 256, 3);
+    frame(id, 0, 4);
+    gold = near(ZXL_GOLD_RGB, 40), red = near(0xD02020u, 30);
+    CHECK(red > 20 && gold == 0 && vec_last_tint == 0,
+          "LS2: a person's vector keeps its own colours (%u red, %u gold)", red, gold);
+    zui_wm_close(&WM, id);
+
+    put_file("icons/l2/145-dragon-archivist.zxvg", BAD, 6);
+    id = zui_launch_theme_open(&LT, "Cartulary", "Cartulary", "", true, false, 0);
+    frame(id, 256, 5);
+    frame(id, 0, 6);
+    CHECK(reads_of("icons/l2/145-dragon-archivist.png") == 1,
+          "LS6: a malformed icon vector falls back to its PNG");
+    calls = vec_bad_calls;
+    frame(id, 0, 7);
+    CHECK(vec_bad_calls == calls, "and its vector is not tried again");
+    CHECK(near(ZXL_GOLD_RGB, 40) > 20, "its PNG drawn in gold");
+    vec_on = 0;
+}
+
 int main(void)
 {
     zui_surface_init(&S, PX, W, H, W);
@@ -313,6 +405,7 @@ int main(void)
     test_missing_files();
     test_icon_cache();
     test_audio_device();
+    test_vectors_first();
     printf("test_zui_launch_shell: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }
