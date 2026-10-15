@@ -91,14 +91,14 @@
 #include "zui_emote.h"
 #include "speech_tidy.h"
 
-#define ZUI_CV_TEXT    4096u /* bytes of one utterance (a status, a section), with the NUL */
-#define ZUI_CV_CHUNK   240u  /* CV5: bytes of one spoken chunk                             */
-#define ZUI_CV_SMALL   96u   /* bytes of a name, a reason, a title                         */
-#define ZUI_CV_LANG    16u
-#define ZUI_CV_SAME_MS 60000u      /* CV3 */
-#define ZUI_CV_RISE_MS 180u        /* CV9: = ZUI_MOTION_MS                                       */
-#define ZUI_CV_HOLD_MS 2500u       /* CV9 */
-#define ZUI_CV_UNKNOWN 0xFFFFFFFFu /* a count or share that was not given                  */
+#define ZUI_CV_TEXT         4096u /* bytes of one utterance (a status, a section), with the NUL */
+#define ZUI_CV_CHUNK        240u  /* CV5: bytes of one spoken chunk                             */
+#define ZUI_CV_SMALL        96u   /* bytes of a name, a reason, a title                         */
+#define ZUI_CV_LANG         16u
+#define ZUI_CV_SAME_MS      60000u /* CV3 */
+#define ZUI_CV_RISE_MS      180u   /* CV9: = ZUI_MOTION_MS                                       */
+#define ZUI_CV_HOLD_MS      2500u  /* CV9 */
+#define ZUI_CV_UNKNOWN      0xFFFFFFFFu /* a count or share that was not given                  */
 #define ZUI_CV_CALL_IDLE_MS 120000u     /* CV11: a quiet call closes                          */
 
 /* CV4: the facts a status is made from. Start from zui_cv_facts_init (every
@@ -125,12 +125,12 @@ typedef struct {
     const char *running_one, *running_many, *running_none;
     const char *finished_one, *finished_many;
     const char *budget;
-    const char *same;      /* CV3 */
-    const char *no_voice;  /* CV8: %s is the language */
-    const char *not_found; /* zui_cv_hear: %s is the section asked for */
-    const char *reading;   /* zui_cv_read with a title: %s */
-    const char *nothing;   /* a read of empty text */
-    const speech_tidy_words_t *say; /* CV10: NULL is English */
+    const char *same;                  /* CV3 */
+    const char *no_voice;              /* CV8: %s is the language */
+    const char *not_found;             /* zui_cv_hear: %s is the section asked for */
+    const char *reading;               /* zui_cv_read with a title: %s */
+    const char *nothing;               /* a read of empty text */
+    const speech_tidy_words_t *say;    /* CV10: NULL is English */
     const char *call_hello, *call_bye; /* CV11: "I am here.", "Bye for now." */
     const char *call_end, *call_you;   /* CV11: "End", "You: %s"          */
     const char *visiting;              /* CV11: "%s is visiting."          */
@@ -191,8 +191,8 @@ typedef struct {
     /* the utterance */
     zui_cv_kind_t kind;
     char text[ZUI_CV_TEXT];
-    uint32_t len, pos;         /* pos: where the next chunk starts          */
-    char exact[ZUI_CV_TEXT];   /* CV10: the last read as it was written     */
+    uint32_t len, pos;       /* pos: where the next chunk starts          */
+    char exact[ZUI_CV_TEXT]; /* CV10: the last read as it was written     */
     uint32_t exact_len;
     bool verbatim;             /* CV10: read every character, untidied */
     uint32_t cur_start;        /* CV5: where the chunk being said started   */

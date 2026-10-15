@@ -299,7 +299,7 @@ static void test_chunks(void)
     /* the chunks cover the text in order, whatever max is */
     const char *para = "First one. Second, longer sentence that goes on! Third? Fourth.";
     for (uint32_t mx = 4; mx < 70; mx += 3) {
-        uint32_t L = (uint32_t) strlen(para), at = 0, got = 0, k = 0;
+        uint32_t L = (uint32_t) strlen(para), at = 0, k = 0;
         char joined[128] = {0};
         while (k++ < 100) {
             uint32_t st = at;
@@ -307,7 +307,6 @@ static void test_chunks(void)
             if (en <= st) break;
             CHECK(en - st <= mx, "chunk within max %u", mx);
             strncat(joined, para + st, en - st);
-            got += en - st;
             at = en;
         }
         uint32_t nonspace = 0, jn = 0;
