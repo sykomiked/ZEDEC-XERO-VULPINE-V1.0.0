@@ -92,3 +92,7 @@
 55	num.gatehouse_holders	590.21	gatehouse.holders	base
 56	num.gatehouse_use_allowed	590.22	gatehouse.use_allowed	base
 57	logic.gatehouse_use_ok	490.24	gatehouse.use_ok	base
+58	logic.threshold_phrase_ok	490.25	threshold.phrase_ok	base
+59	logic.threshold_rights_ok	490.26	threshold.rights_ok	base
+60	logic.threshold_seat_ok	490.27	threshold.seat_ok	base
+61	logic.threshold_skip_ok	490.28	threshold.skip_ok	base

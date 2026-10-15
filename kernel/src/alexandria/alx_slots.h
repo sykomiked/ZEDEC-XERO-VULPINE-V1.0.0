@@ -63,7 +63,11 @@
 #define ALX_SLOT_NUM_GATEHOUSE_HOLDERS           55u /* 590.21 gatehouse.holders */
 #define ALX_SLOT_NUM_GATEHOUSE_USE_ALLOWED       56u /* 590.22 gatehouse.use_allowed */
 #define ALX_SLOT_LOGIC_GATEHOUSE_USE_OK          57u /* 490.24 gatehouse.use_ok */
-#define ALX_SLOT__COUNT 57u
+#define ALX_SLOT_LOGIC_THRESHOLD_PHRASE_OK       58u /* 490.25 threshold.phrase_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_RIGHTS_OK       59u /* 490.26 threshold.rights_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_SEAT_OK         60u /* 490.27 threshold.seat_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_SKIP_OK         61u /* 490.28 threshold.skip_ok */
+#define ALX_SLOT__COUNT 61u
 /* clang-format on */
 
 #endif
