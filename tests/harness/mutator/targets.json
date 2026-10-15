@@ -273,6 +273,15 @@
      "after": "sh tests/host/b2/run.sh panopticon_vpn"},
     {"name": "aml_core", "target": "kernel/src/acpi/aml_core.c",
      "before": null, "before_note": "new module: the ACPI AML interpreter core (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "aml_region", "target": "kernel/src/acpi/aml_region.c",
+     "before": null, "before_note": "new module: AML operation regions, fields and the embedded controller (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "aml_dev", "target": "kernel/src/acpi/aml_dev.c",
+     "before": null, "before_note": "new module: AML device walk, _INI/_REG and the typed helpers (docs/ACPI.md)",
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "acpi_pm", "target": "kernel/src/acpi/acpi_pm.c",
+     "before": null, "before_note": "new module: ACPI power management over the AML interpreter (docs/ACPI.md)",
      "after": "bash kernel/src/acpi/test/mut_aml.sh"}
   ],
   "ci": {
