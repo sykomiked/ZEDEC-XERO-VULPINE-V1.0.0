@@ -385,7 +385,22 @@ uint32_t zui_vc_collect(zui_voicectl_t *vc)
             if (ui->w[id].kind == ZUI_W_LIST) add_rows(vc, ui, id);
         }
     }
-    if (vc->wm) {
+    if (vc->wm && vc->wm->use_dock) { /* VC8 */
+        const zui_dock_t *d = &vc->wm->dock;
+        zui_rect_t seal = zui_dock_keepout(d);
+        add(vc, ZUI_VC_T_DOCK, -1, -1, seal, "Apps");
+        if (zui_dock_is_open(d)) {
+            zui_dock_slot_t s[ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS];
+            uint32_t n = zui_dock_slots(d, s, ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS);
+            int32_t h = d->icon / 2 + ZUI_DOCK_PAD;
+            for (uint32_t i = 0; i < n; i++)
+                add(vc, ZUI_VC_T_DOCK, s[i].item, (int32_t) i,
+                    (zui_rect_t){s[i].cx - h, s[i].cy - h, 2 * h, 2 * h}, d->item[s[i].item].title);
+        } else {
+            for (uint32_t i = 0; i < d->nitem; i++)
+                add(vc, ZUI_VC_T_DOCK, (int32_t) i, -1, seal, d->item[i].title);
+        }
+    } else if (vc->wm) {
         uint32_t ids[ZUI_WM_MAX];
         uint32_t n = zui_wm_strip(vc->wm, ids, ZUI_WM_MAX);
         for (uint32_t i = 0; i < n; i++) {
@@ -401,6 +416,23 @@ static void number_all(zui_voicectl_t *vc)
 {
     vc->n_pick = vc->nt;
     for (uint32_t i = 0; i < vc->nt; i++) vc->pick[i] = (uint16_t) i;
+}
+
+/* VC8: open the dock so its slots can be numbered where they are. */
+static void dock_show(zui_voicectl_t *vc)
+{
+    if (!vc->wm || !vc->wm->use_dock || zui_dock_is_open(&vc->wm->dock)) return;
+    zui_dock_bloom(&vc->wm->dock, true, true);
+    vc->dock_shown = true;
+}
+
+/* The numbers went: close the dock if they opened it. */
+static void overlay_off(zui_voicectl_t *vc)
+{
+    vc->overlay = ZUI_VC_NONE;
+    if (!vc->dock_shown) return;
+    vc->dock_shown = false;
+    if (vc->wm && zui_dock_is_open(&vc->wm->dock)) zui_dock_bloom(&vc->wm->dock, false, false);
 }
 
 const zui_vc_target_t *zui_vc_numbered(const zui_voicectl_t *vc, uint32_t n)
@@ -446,13 +478,20 @@ static zui_vc_result_t activate(zui_voicectl_t *vc, const zui_vc_target_t *t)
     zui_vc_action_t a;
     blank(&a, ZUI_VC_ACT_ACTIVATE);
     a.target = *t;
-    a.widget = t->kind == ZUI_VC_T_STRIP ? ZUI_NONE : t->id;
+    bool dock = t->kind == ZUI_VC_T_DOCK;
+    a.widget = t->kind == ZUI_VC_T_STRIP || dock ? ZUI_NONE : t->id;
     a.window = t->kind == ZUI_VC_T_STRIP ? (uint32_t) t->id : 0;
+    if (dock && vc->wm && t->id >= 0 && (uint32_t) t->id < vc->wm->dock.nitem)
+        a.window = vc->wm->dock.item[t->id].win;
     a.x = t->r.x + t->r.w / 2;
     a.y = t->r.y + t->r.h / 2;
     zui_vc_result_t r = act(vc, &a);
-    if (vc->overlay == ZUI_VC_PICK) vc->overlay = ZUI_VC_NONE;
+    if (vc->overlay == ZUI_VC_PICK) overlay_off(vc);
     if (vc->overlay == ZUI_VC_NUMBERS) { /* VC3: count again after the action */
+        if (vc->dock_shown) {
+            vc->dock_shown = false;
+            dock_show(vc); /* VC8: chosen from the dock: it stays numbered */
+        }
         zui_vc_collect(vc);
         number_all(vc);
     }
@@ -465,7 +504,7 @@ static zui_vc_result_t click_at(zui_voicectl_t *vc, zui_rect_t c)
     blank(&a, ZUI_VC_ACT_CLICK_AT);
     a.x = c.x + c.w / 2;
     a.y = c.y + c.h / 2;
-    vc->overlay = ZUI_VC_NONE;
+    overlay_off(vc);
     return act(vc, &a);
 }
 
@@ -509,6 +548,12 @@ static zui_vc_result_t click_name(zui_voicectl_t *vc, const char *q)
     }
     if (!n) return ZUI_VC_NO_MATCH;
     if (n == 1) return activate(vc, &vc->t[hit[0]]);
+    for (uint32_t i = 0; i < n; i++) /* VC8: dock apps are numbered on their slots */
+        if (vc->t[hit[i]].kind == ZUI_VC_T_DOCK && vc->t[hit[i]].row < 0 && vc->wm &&
+            !zui_dock_is_open(&vc->wm->dock)) {
+            dock_show(vc);
+            return click_name(vc, q);
+        }
     for (uint32_t i = 0; i < n; i++) vc->pick[i] = hit[i];
     vc->n_pick = n;
     vc->overlay = ZUI_VC_PICK;
@@ -582,17 +627,31 @@ static zui_vc_result_t open_app(zui_voicectl_t *vc, const char *q)
 {
     zui_vc_action_t a;
     blank(&a, ZUI_VC_ACT_OPEN_APP);
-    if (vc->n_apps) {
-        int best = 0;
-        for (uint32_t i = 0; i < vc->n_apps; i++) {
-            int l = vc->apps[i] ? level(vc->apps[i], q) : 0;
-            if (l > best) {
-                best = l;
-                a.app = (int32_t) i;
-            }
+    int best = 0;
+    for (uint32_t i = 0; i < vc->n_apps; i++) {
+        int l = vc->apps[i] ? level(vc->apps[i], q) : 0;
+        if (l > best) {
+            best = l;
+            a.app = (int32_t) i;
         }
-        if (a.app < 0) return ZUI_VC_NO_MATCH;
+    }
+    const zui_dock_item_t *it = 0;
+    for (uint32_t i = 0; vc->wm && vc->wm->use_dock && i < vc->wm->dock.nitem; i++) {
+        const zui_dock_item_t *d = &vc->wm->dock.item[i]; /* VC8: the dock's apps */
+        int l = level(d->app, q), l2 = level(d->title, q);
+        if (l2 > l) l = l2;
+        if (l > best) {
+            best = l;
+            it = d;
+        }
+    }
+    if (it) {
+        a.app = -1;
+        scopy(a.text, sizeof a.text, it->app);
+    } else if (a.app >= 0) {
         scopy(a.text, sizeof a.text, vc->apps[a.app]);
+    } else if (vc->n_apps) {
+        return ZUI_VC_NO_MATCH;
     } else {
         scopy(a.text, sizeof a.text, vc->arg_raw);
     }
@@ -671,6 +730,7 @@ static zui_vc_result_t run(zui_voicectl_t *vc, zui_vc_cmd_t c)
         if (c == ZUI_VC_CMD_TAP_NUMBER && vc->overlay == ZUI_VC_NONE) return ZUI_VC_UNKNOWN;
         return number(vc, n, c == ZUI_VC_CMD_TAP_NUMBER);
     case ZUI_VC_CMD_SHOW_NUMBERS:
+        dock_show(vc);
         zui_vc_collect(vc);
         number_all(vc);
         vc->overlay = ZUI_VC_NUMBERS;
@@ -689,7 +749,7 @@ static zui_vc_result_t run(zui_voicectl_t *vc, zui_vc_cmd_t c)
                     (vc->overlay == ZUI_VC_NUMBERS || vc->overlay == ZUI_VC_PICK)) ||
                    (c == ZUI_VC_CMD_CANCEL && vc->overlay != ZUI_VC_NONE);
         if (was) {
-            vc->overlay = ZUI_VC_NONE;
+            overlay_off(vc);
             return ZUI_VC_SHOWN;
         }
         if (c == ZUI_VC_CMD_CANCEL) return click_name(vc, vc->norm); /* a Cancel button */
@@ -701,7 +761,7 @@ static zui_vc_result_t run(zui_voicectl_t *vc, zui_vc_cmd_t c)
     case ZUI_VC_CMD_BACK: {
         zui_vc_action_t a;
         blank(&a, ZUI_VC_ACT_BACK);
-        if (vc->overlay == ZUI_VC_PICK) vc->overlay = ZUI_VC_NONE;
+        if (vc->overlay == ZUI_VC_PICK) overlay_off(vc);
         return act(vc, &a);
     }
     case ZUI_VC_CMD_OPEN:
@@ -806,6 +866,12 @@ bool zui_vc_apply(zui_voicectl_t *vc, const zui_vc_action_t *a)
     case ZUI_VC_ACT_ACTIVATE: {
         const zui_vc_target_t *t = &a->target;
         if (t->kind == ZUI_VC_T_STRIP) return vc->wm && click(vc, a->x, a->y, false);
+        if (t->kind == ZUI_VC_T_DOCK) { /* VC8 */
+            if (!vc->wm || !vc->wm->use_dock) return false;
+            if (t->id >= 0) return zui_wm_dock_pick(vc->wm, (uint32_t) t->id);
+            zui_dock_bloom(&vc->wm->dock, !zui_dock_is_open(&vc->wm->dock), true);
+            return true;
+        }
         zui_widget_t *w = vc->ui ? zui_w(vc->ui, t->id) : 0;
         if (!w) return false;
         if (t->kind == ZUI_VC_T_ROW) return vc->ui && click(vc, a->x, a->y, true);
@@ -860,7 +926,9 @@ bool zui_vc_apply(zui_voicectl_t *vc, const zui_vc_action_t *a)
         if (!vc->ui || !zui_w(vc->ui, a->widget)) return false;
         zui_field_select(vc->ui, a->widget, a->start, a->end);
         return true;
-    default: /* OPEN_APP: the launcher's (on_act) */
+    case ZUI_VC_ACT_OPEN_APP: /* the launcher's (on_act); VC8: with the dock, the wm's */
+        return vc->wm && vc->wm->use_dock && zui_wm_launch(vc->wm, a->text, 0) != 0;
+    default:
         return false;
     }
 }

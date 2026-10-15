@@ -16,23 +16,31 @@ CFLAGS ?= -O2
 WARN   := -std=c11 -Wall -Wextra -Werror
 LOGIC  := $(K)/src/lpres/lpres_hex.c $(K)/src/lpres/lpres.c $(K)/src/robin_debanks/sha256.c
 CORE   := zxsh_core.c $(LOGIC)
+HOST   := zxsh_host.c zxsh_line.c zxsh_mux.c
+HDRS   := zxsh_core.h zxsh_line.h zxsh_mux.h
+SAN    := -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all
 
 all: $(OUT)/zxsh
 
-$(OUT)/zxsh: zxsh_host.c $(CORE) zxsh_core.h
+$(OUT)/zxsh: $(HOST) $(CORE) $(HDRS)
 	@mkdir -p $(OUT)
-	$(CC) $(WARN) $(CFLAGS) $(INC) zxsh_host.c $(CORE) -o $@
+	$(CC) $(WARN) $(CFLAGS) $(INC) $(HOST) $(CORE) -o $@
 
 $(OUT)/test_zxsh: test_zxsh.c $(CORE) zxsh_core.h
 	@mkdir -p $(OUT)
-	$(CC) $(WARN) -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all $(INC) test_zxsh.c $(CORE) -o $@
+	$(CC) $(WARN) $(SAN) $(INC) test_zxsh.c $(CORE) -o $@
 
-$(OUT)/zxsh_asan: zxsh_host.c $(CORE) zxsh_core.h
+$(OUT)/test_mux: test_mux.c zxsh_mux.c $(CORE) $(HDRS)
 	@mkdir -p $(OUT)
-	$(CC) $(WARN) -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all $(INC) zxsh_host.c $(CORE) -o $@
+	$(CC) $(WARN) $(SAN) $(INC) test_mux.c zxsh_mux.c $(CORE) -o $@
 
-test: $(OUT)/test_zxsh $(OUT)/zxsh_asan
+$(OUT)/zxsh_asan: $(HOST) $(CORE) $(HDRS)
+	@mkdir -p $(OUT)
+	$(CC) $(WARN) $(SAN) $(INC) $(HOST) $(CORE) -o $@
+
+test: $(OUT)/test_zxsh $(OUT)/test_mux $(OUT)/zxsh_asan
 	$(OUT)/test_zxsh
+	$(OUT)/test_mux
 	sh ./test_zxsh.sh $(OUT)/zxsh_asan
 
 clean:

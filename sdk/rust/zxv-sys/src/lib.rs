@@ -72,3 +72,9 @@ pub const ZXV_PDX_SRC_SEED: u64 = u64::MAX;
 pub const fn ZXV_PDX_PROPOSAL_BYTES(n: u32) -> u32 {
     12 + 32 * n
 }
+/// Play-lane vouchers and the spend meter (ABI 1.6).
+pub const ZXV_CAP_VINO: u64 = 1 << 15;
+/// Every capability bit as of ABI 1.6.
+pub const ZXV_CAP_ALL_1_6: u64 = (1 << 16) - 1;
+/// Largest vino amount, backing step or daily cap (2^59).
+pub const ZXV_VINO_AMOUNT_MAX: u64 = 1 << 59;

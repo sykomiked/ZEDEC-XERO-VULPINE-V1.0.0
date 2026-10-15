@@ -22,6 +22,7 @@ build_system/adversarial_audit.allow, one "<check> <key>  # reason" per
 line; an allowed FAIL is reported as WARN. A line that no longer matches
 anything is itself reported, so the list can only shrink.
 """
+import fnmatch
 import json
 import os
 import re
@@ -144,11 +145,17 @@ BUILD_FILES = re.compile(
 
 def check_orphan_tests(files, rep):
     corpus = "\n".join(text(f) for f in files if BUILD_FILES.search(f))
+    # A recipe may build a whole directory of tests, e.g. kernel/Makefile's
+    # $(wildcard src/hwdrv/test/test_*.c); such globs are relative to the
+    # build file, so match them against the path's tail.
+    globs = re.findall(r"\$\(wildcard\s+([^)\s]*test_\*[^)\s]*)\)", corpus)
     for f in files:
         if not f.endswith(".c") or VENDORED.search(f):
             continue
         base = os.path.basename(f)[:-2]
         if not base.startswith("test_"):
+            continue
+        if any(fnmatch.fnmatch(f, "*" + g) for g in globs):
             continue
         if not re.search(r"\b%s\b" % re.escape(base), corpus):
             rep.add("orphan-tests", "FAIL", f,

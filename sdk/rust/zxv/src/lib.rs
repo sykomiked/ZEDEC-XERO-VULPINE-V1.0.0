@@ -16,7 +16,10 @@
 //!   that work on any executor;
 //! * ABI 1.5 adds eight groups, each its own module: [`treaty`], [`aipi`]
 //!   (CIDs and AIPI records), [`coin`], [`fee`], [`vhub`], [`freight`],
-//!   [`web4`] and [`paradox`]. [`features2`] reports which are built.
+//!   [`web4`] and [`paradox`]. [`features2`] reports which are built;
+//! * ABI 1.6 adds [`vino`] (Vino Embed): a play-lane sandbox of vouchers,
+//!   payment requests, wallet receipts verified offline, and a daily
+//!   spend meter.
 //!
 //! ```no_run
 //! use zxv::{AccountKind, Caps, Context, Ledger};
@@ -90,6 +93,7 @@ mod swarm;
 pub mod treaty;
 mod truth;
 pub mod vhub;
+pub mod vino;
 pub mod web4;
 mod wire;
 
@@ -137,6 +141,7 @@ pub use paradox::{
 };
 pub use treaty::{Treaty, TreatyResult};
 pub use vhub::VHub;
+pub use vino::{PaymentRequest, SpendMeter, VinoPlay};
 pub use web4::{ConsentLog, ConsentToken, W4Agent, W4Directory, W4Manifest};
 
 /// The raw bindings, for anything this crate does not wrap.
@@ -222,7 +227,8 @@ pub fn features() -> Features {
     Features(m)
 }
 
-/// ABI 1.5 feature groups live in the loaded library (`zxv_features2`). A
+/// ABI 1.5 and later feature groups live in the loaded library
+/// (`zxv_features2`). A
 /// group that is not built returns `ZXV_E_NOTIMPL` from every call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Features2(u32);
@@ -244,6 +250,9 @@ impl Features2 {
     pub const WEB4: Features2 = Features2(sys::ZXV_FEAT2_WEB4);
     /// The paradox engine ([`paradox`]).
     pub const PARADOX: Features2 = Features2(sys::ZXV_FEAT2_PARADOX);
+    /// Vino Embed: play lane, payment requests, receipts ([`vino`], ABI
+    /// 1.6).
+    pub const VINO: Features2 = Features2(sys::ZXV_FEAT2_VINO);
 
     /// The raw mask.
     pub fn bits(self) -> u32 {
@@ -264,17 +273,17 @@ pub fn features2() -> Features2 {
     Features2(m)
 }
 
-/// Checks once that the loaded library speaks ABI 1.x with x >= 5.
+/// Checks once that the loaded library speaks ABI 1.x with x >= 6.
 pub(crate) fn ensure_compatible() -> Result<()> {
     static CHECK: OnceLock<Result<()>> = OnceLock::new();
     CHECK
         .get_or_init(|| {
             let (major, minor, _) = version();
-            if major != sys::ZXV_ABI_VERSION_MAJOR || minor < 5 {
+            if major != sys::ZXV_ABI_VERSION_MAJOR || minor < 6 {
                 return Err(Error::with_detail(
                     sys::ZXV_E_INTERNAL,
                     format!(
-                        "libzxv ABI {major}.{minor} is not compatible with this SDK (needs 1.5+)"
+                        "libzxv ABI {major}.{minor} is not compatible with this SDK (needs 1.6+)"
                     ),
                 ));
             }

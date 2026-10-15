@@ -80,6 +80,11 @@ deleted test.
     now 150/166 (90.4%), and the remaining survivors are equivalent.
   * This is the first target in `build_system/adversarial_targets.json`.
 
+Rerun on 2026-10-15: `kernel/src/seats/test_seats.c` had become an orphan. It
+did not build under `-Werror` (a 16-byte name buffer), and it now runs in
+`test-orphans` with 41 checks. The orphan check also learned to read
+`$(wildcard dir/test_*.c)` recipes, which had flagged the hwdrv tests wrongly.
+
 ## 3. New harnesses
 
 All of them are in `fuzz/Makefile`, so `make -C fuzz replay` (run by verify-all) replays
@@ -109,32 +114,46 @@ The static stage still lists 78 headers with byte-input entry points no harness 
 (bluetooth, browser, font, holographic, evolve, the emulators' ROM loaders and others). They
 are next in line, most exposed first.
 
-## 4. Handed on: design findings that need a decision
+## 4. Design findings (fixed 2026-10-15)
 
-1. **No caller authentication in the money modules.** `vswap_swap_in`/`swap_out`/`lock`,
-   `vauc_bid` and `svault_buy` take two accounts per party and never check that one owner
-   holds both, nor who is calling. So a victim's Vino can be swapped or bid with the
-   proceeds sent elsewhere. There are no production callers yet. An owner-equality check
-   is drafted, but it changes `test_svault`'s fixtures, and real caller authentication
-   belongs in the layer above (zxvd).
-2. **Predictable e2e ids** (`"VSWAP-<seq>"`, `"VAUC-<seq>"`). Any ledger poster can take a
-   future id first and force a partial dividend, and the next dividend then pays batch-1
-   holders twice (10 holders sharing 1000 ended at 130 × 7 and 30 × 3). Deriving the id
-   from the seed hash fixes it, but some tests rely on the predictable id.
-3. **Mesh id squatting** (`call/call_mesh.c`). The first key seen for a member id is
-   pinned, and nothing ties the id to the key. A signed LEAVE for an id that has not joined
-   yet locks the real member out, and the same version can be signed twice with different
-   content.
-4. **cardnet:** `cn8583_to_auth_req` ignores field 3, so a 0200 refund maps to a purchase.
-   **devmesh:** `dm_money_t` amounts have no upper cap, and a MONEY_ANSWER is accepted from
-   any paired peer, so any paired device can cancel a request.
-5. **paradox:** `pdx_review` trusts `d->flags`/`d->kind`, which nothing binds to the DRAFT
-   record, so clearing `PDX_DRAFT_MONEY` after `pdx_draft` lets a money draft pass by
-   consensus. **zenny:** an old custodian attestation for the same quantity is accepted
-   again after a rebalance (X to Y and back to X); should a fresh attestation bind to the
-   version hash?
-6. **svault:** anyone who can post to the ledger can deposit into vault cash, which breaks
-   S6 permanently. `svault_sweep` moves reserve funds without checking the solvency floor.
+The owner asked for these to be fixed with the safest defaults. Each fix has
+regression tests reproducing the attack, and the fuzz harnesses now assert the
+new rule.
+
+1. **Owner binding in the money modules (fixed).** `vswap` swap_in/swap_out/lock,
+   `vauc_bid` and `svault_buy` refuse a party whose two accounts have different owners
+   (`VSWAP_ERR_AUTH`, `VAUC_ERR_AUTH`, `SVAULT_ERR_AUTH`). Authenticating the caller
+   stays with the layer above (zxvd).
+2. **Predictable e2e ids (fixed).** The ids are now `"VSWAP-"`/`"VAUC-"` plus 12 bytes of
+   SHA-256(seed || 'E' || seq) in hex. A pre-posted old-style id no longer forces a
+   partial dividend. The ids are only as unguessable as the seed: a zero or NULL seed
+   still gives guessable ids, so deployments must set one.
+3. **Mesh id squatting (fixed).** A member id is now the first 4 bytes of
+   SHA-256("ZX-CALL-MESH-ID" || pubkey) (`call_mesh_id_of`), and a message whose id
+   does not match its key is refused. The same version signed twice with different
+   content marks the member equivocated and dead (`CALL_ERR_CONFLICT`). A genuine
+   LEAVE that overtakes its JOIN still leaves a tombstone, to keep order independence;
+   only the id's own key can sign it. Limits: the id is 32 bits, so grinding about 2^32
+   keys hits a chosen id; groups that need more should check keys against their invite
+   list. A peer detects equivocation only once it has seen both messages.
+4. **cardnet field 3 (fixed).** `cn8583_to_auth_req` reads the processing code and
+   accepts only a purchase (type 00, default or credit account); refunds, cash,
+   cashback and unknown codes are refused with `CN8583_ERR_PROC`. Refunds keep going
+   through `cn_refund`. **devmesh (fixed):** amounts above `DM_MONEY_AMOUNT_MAX`
+   (2^62 - 1, equal to capmkt's cap) are refused on encode and decode, and a
+   MONEY_ANSWER is accepted only from the peer the request was sent to.
+5. **paradox (fixed):** `pdx_draft` records a hash binding the draft's kind, reason and
+   flags, and `pdx_review` refuses a draft that does not match a DRAFT record in a
+   verified log, so clearing `PDX_DRAFT_MONEY` no longer helps. **zenny (fixed):** the
+   custodian attestation digest (tag `zxv/zenny/att/2.`) now includes the chip's
+   current version hash, so an attestation from an earlier version is refused after
+   X to Y and back to X.
+6. **svault (fixed).** S6 counts only svault's own cash and V-Bills, so an outside
+   deposit can no longer break it, and outside cash is never spent. `svault_sweep`
+   refuses (`SVAULT_ERR_FLOOR`) a sweep that would leave the reserve below the floor
+   set with `svault_set_floor`. The floor is off unless a caller sets it, because
+   `test_qnote`'s fixture sweeps from an under-backed reserve. zxvd sets it to 1/1 at
+   par.
 
 ## 5. Tooling findings (CI owner)
 

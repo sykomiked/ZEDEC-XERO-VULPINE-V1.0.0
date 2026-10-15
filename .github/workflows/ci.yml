@@ -47,6 +47,7 @@ jobs:
       dotnet: ${{ steps.changes.outputs.dotnet }}
       mac: ${{ steps.changes.outputs.mac }}
       proofs: ${{ steps.changes.outputs.proofs }}
+      zxvd: ${{ steps.changes.outputs.zxvd }}
       heavy: ${{ steps.changes.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
@@ -89,6 +90,10 @@ jobs:
         # kernel inputs must match the sdk*.yml path filters, so an SDK
         # workflow neither misses a change nor starts on unrelated modules.
         run: python3 build_system/sdk_kernel_deps.py --check
+      - name: zxvd's error codes are one registry
+        # build_system/check_zxvd_errors.py: every ZXVD_E_* in range, unique,
+        # and listed in zxvd_rpc.h X4, docs/ZXVD.md and the OpenRPC spec.
+        run: python3 build_system/check_zxvd_errors.py
       - name: The mutation config parses and is consistent
         # A merge that keeps both sides of a targets.json entry used to pass
         # every fast job and then fail all three mutation shards on a ready
@@ -127,7 +132,7 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user
+          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
@@ -135,10 +140,27 @@ jobs:
       - name: Run host tests
         env:
           ZXV_REQUIRE_COBOL: "1"
+          ZXV_REQUIRE_LINGUA_REF: "1"
           ZXV_REQUIRE_SWTPM: "1"
         run: |
           cd kernel
           make verify-all
+
+  # zxvd's unit tests (every kernel/arch/hosted/test_zxvd_*.sh), the app and
+  # zui tests, then the daemon built and driven end to end. zxvd.yml runs the
+  # same per platform and sanitizer; this copy is what puts zxvd under
+  # ci-gate. One script, so the two cannot list different tests.
+  zxvd:
+    needs: quick-checks
+    if: ${{ !cancelled() && needs.quick-checks.outputs.zxvd == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: zxvd unit tests and end to end (kernel/arch/hosted/zxvd_checks.sh)
+        env:
+          CC: gcc
+        run: sh kernel/arch/hosted/zxvd_checks.sh "$RUNNER_TEMP/zxvd-checks"
 
   # QEMU boots of the two shipping targets (Apple Silicon/ARM PCs and x86_64
   # PCs) on every push. Each arch is its own step and every step runs even
@@ -171,6 +193,12 @@ jobs:
         # passes only if the serial log reached [BOOT_OK] without a fault
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+      # The same kernel, used: two boots on one blank disk, commands typed
+      # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
+      # userspace, P-TERM, files that survive a reboot, and signed-only run
+      # (a tampered package and an unsigned file are both refused).
+      - name: ARM64 user session (EL0 shell, persistence, signed-only run)
+        run: python3 build_system/arm64_session_check.py kernel_arm64.elf "$RUNNER_TEMP"
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -230,6 +258,11 @@ jobs:
           name: kernel-riscv64
           path: kernel_riscv.elf
           if-no-files-found: error
+      - name: RISC-V 64-bit refuses a failed boot check
+        # Roadmap 2.14: each injected boot-check failure must stop the boot
+        # before [BOOT_OK]. Runs after the upload, and rebuilds the normal image.
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh riscv64 build_system/Makefile.riscv 20
       - name: Build RISC-V 32-bit
         if: ${{ !cancelled() }}
         run: |
@@ -263,6 +296,9 @@ jobs:
         with:
           name: kernel-riscv32
           path: kernel_riscv32.elf
+      - name: RISC-V 32-bit refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: ZXV_RV32_SBI="$RUNNER_TEMP/opensbi-fw/fw_dynamic.bin" build_system/test_boot_fail_closed.sh riscv32 build_system/Makefile.riscv32 20
       - name: Build ARM32
         if: ${{ !cancelled() }}
         run: |
@@ -278,6 +314,9 @@ jobs:
           name: kernel-arm32
           path: zedec_xero_arm32.elf
           if-no-files-found: error
+      - name: ARM32 refuses a failed boot check
+        if: ${{ !cancelled() }}
+        run: build_system/test_boot_fail_closed.sh arm32 build_system/Makefile.arm32 20
       - run: ccache -s
 
   uefi-disc:
@@ -734,7 +773,7 @@ jobs:
   # of holding it for GitHub's six-hour default.
   ci-gate:
     name: ci-gate
-    needs: [ quick-checks, host-tests, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
+    needs: [ quick-checks, host-tests, zxvd, boot, boot-extra, uefi-disc, macos-app, dotnet-sdk, proofs, kat-cross, mutation-subset, sanitize-asan-ubsan, sanitize-integer, sanitize-msan, fuzz-smoke, coverage ]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -744,6 +783,7 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           KERNEL: ${{ needs.quick-checks.outputs.kernel }}
           HEAVY: ${{ needs.quick-checks.outputs.heavy }}
+          ZXVD: ${{ needs.quick-checks.outputs.zxvd }}
           DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
         run: |
           python3 - <<'PY'
@@ -755,6 +795,7 @@ jobs:
           needs = json.loads(os.environ["NEEDS"])
           kernel = os.environ.get("KERNEL") == "true"
           heavy = os.environ.get("HEAVY") == "true"
+          zxvd = os.environ.get("ZXVD") == "true"
           slow = ["boot-extra", "uefi-disc", "kat-cross", "mutation-subset",
                   "sanitize-integer", "sanitize-msan", "fuzz-smoke", "coverage"]
           fast = ["host-tests", "boot", "sanitize-asan-ubsan"]
@@ -771,6 +812,8 @@ jobs:
               for job in must:
                   if needs[job]["result"] != "success":
                       bad.append(f"{job}: {needs[job]['result']} but this change needs it")
+          if zxvd and needs["zxvd"]["result"] != "success":
+              bad.append(f"zxvd: {needs['zxvd']['result']} but this change needs it")
           if not heavy:
               print("fast tier only: this run cannot satisfy the merge gate")
           if bad:

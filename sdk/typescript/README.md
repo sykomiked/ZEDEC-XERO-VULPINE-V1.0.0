@@ -32,7 +32,7 @@ The addon finds the library in the order of SDK_DESIGN.md §1: the
 `libraryPath` you pass, `ZXV_LIBRARY_PATH`, the bundled copy (the
 repository build `../libzxv/build` when run from this tree, otherwise `lib/`
 of the published package, staged by `npm pack`), then the system loader. A library whose ABI major is not 1, or whose minor
-is below 5, is refused (the SDK calls the ABI 1.5 groups, the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
+is below 6, is refused (the SDK calls the ABI 1.6 vino group, the ABI 1.5 groups, the `zxv_hw_*` functions added in ABI 1.4, the `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
 
 In a published package, `import '@zedec/zxv'` resolves to the Node entry
 (`node` condition) or the browser entry (`browser` condition, wasm only, no
@@ -443,6 +443,97 @@ to the owner, and `ownerOk` is the caller's own assertion. The engine
 detects only what the caller's checks look at. It never replies to or acts
 against a sender.
 
+## Vino Embed (ABI 1.6)
+
+ABI 1.6 adds one group, `vino`. It lets an app or game take part in Vino
+without ever holding anyone's value or keys. The group is reported as
+`zxv.has('VINO')` (`Feature2.VINO`, 0x100). It adds one capability,
+`Cap.VINO`, and `Cap.ALL_1_6` covers every bit as of 1.6 (`Cap.ALL_1_5`
+does not include VINO). It has two lanes, and they never meet:
+
+- **PLAY** (`VinoPlay`): a sandbox inside the app, held in process memory.
+  It has its own play units, issuers, holders and vouchers. **Play units
+  are not money.** No call takes a play handle together with anything live,
+  so a play unit can never be converted into live value, redeemed for it or
+  moved into it.
+- **LIVE**: real Vino stays in the user's own ZXV wallet. The app builds a
+  `PaymentRequest` and the user approves it in their wallet. The wallet
+  signs a `Receipt` with its ML-DSA-87 key, and the app checks that receipt
+  offline. The app never sees a balance, a key or a custody account.
+
+How the play lane works. A voucher is one coin with a Fibonacci face (1, 2,
+3, 5, 8, ...). It sits on exactly one rail at a time, `VinoRail.BEARER` (a
+note in hand) or `VinoRail.GHOST` (its twin on the play ledger). A transfer
+must name the active rail, so a voucher can never be spent twice. An issuer
+may only issue while its play backing is at least 1.8x what it has
+outstanding (`10 * backing >= 18 * outstanding`, in exact integers).
+**Redeeming** a voucher returns it to its issuer and retires it, and
+**nothing is paid out**. No call turns a voucher into backing, play units or
+anything else. There is no interest, yield or return of any kind.
+
+Each new status has its own error class:
+
+| Status | Class |
+|---|---|
+| `E_RAIL` (-46) | `WrongRailError`: not the voucher's active rail |
+| `E_COVERAGE` (-47) | `CoverageError`: the issuer would fall below 1.8x |
+| `E_LANE` (-48) | `WrongLaneError` (usage): the lane is not PLAY or LIVE |
+| `E_EXPIRED` (-49) | `RequestExpiredError`: the request expired, or was approved outside its window |
+| `E_CHANCE` (-50) | `PaidChanceRefusedError`: a LIVE request for a paid chance outcome (loot box, paid draw) |
+
+A play-lane shop: the issuer backs, issues a voucher to a player, the player
+spends it, and the holder redeems it.
+
+```ts
+using play = VinoPlay.create(ctx.rootCapability({ caps: Cap.VINO }));
+const shop = play.openIssuer(1);                       // owner ids are yours to choose
+const ada = play.openHolder(2);
+const ben = play.openHolder(3);
+play.back(shop, 18n);                                  // play backing: covers 10 outstanding at 1.8x
+const v = play.issue(shop, ada, 8n, VinoRail.BEARER);  // a face-8 voucher (bigint id)
+play.transfer(v, ada, ben, VinoRail.BEARER);           // Ada spends it on its active rail
+play.redeem(v, ben);                                   // back to the shop: retired, nothing paid out
+play.voucher(v).state;                                 // VinoVoucherState.REDEEMED
+play.vouchers(shop);                                   // active voucher ids: []
+```
+
+A live payment request, a wallet receipt and an offline check:
+
+```ts
+const request = new PaymentRequest({
+  lane: VinoLane.LIVE,
+  merchant: shopId,                                    // 32 bytes, e.g. SHA-256 of the shop's key
+  nonce: crypto.getRandomValues(new Uint8Array(16)),
+  amount: 1250n,                                       // VFV minor units, exact
+  createdAt: 1700000000n, expiresAt: 1700000600n,      // seconds of your clock
+  memo: 'Sword of Dawn',                               // 0..64 printable ASCII
+});
+const { bytes, id } = request.encode(zxv);            // 160 bytes for the wallet; id = SHA-256(bytes)
+
+// In the user's wallet (never the app). The key is a SecretKey: off the JS heap, not copied or kept.
+const receipt = Receipt.sign(walletCap, bytes, wallet.secretKey, wallet.publicKey, 1700000100n);
+
+// Back in the app: offline, with no capability needed.
+receipt.verify(zxv, 1700000200n);                      // throws VerificationFailedError / RequestExpiredError
+PaymentRequest.decode(zxv, bytes).request.memo;        // 'Sword of Dawn'
+```
+
+`examples/vino.ts` runs both (`node dist/examples/vino.js`). A deployment
+can also count what one device approves per day with
+`SpendMeter.create(cap, dailyCap)`. `admit(day, amount)` returns what is
+left and throws `LimitExceededError` past the cap. `tryAdmit` returns
+`{ admitted, left }` instead. The meter is a counter, not a legal check,
+and makes no exemption claim.
+
+Limits. Play units are lost when the sandbox closes. The live half here is
+the app's half only: the wallet posts the payment on its own ledger.
+ML-DSA-87 is the reference implementation, not FIPS 140-3 validated.
+Minting live Vino, pegs, any fiat on-ramp or off-ramp, V-Bill auctions,
+V-Bonds and every operator action are not in this ABI, by design. Whether a
+given deployment of Vino is store credit, a prepaid access product or
+something else is a legal question pending counsel, and nothing in this SDK
+decides it. The raffle is a separate module, not a payment request.
+
 ## API overview
 
 | Area | API |
@@ -467,6 +558,7 @@ against a sender.
 | Coin / token | `zxv.coins.face/rung/split/splitCount`; `zxv.tokens.holding/value/canonical/compress/fuse/split/encodeCodes/decodeCodes`; `TokenWallet.create(cap)`: `mint`, `spend`, `transferTo`, `setOctane` |
 | Fee | `zxv.fees.assure/assureWithCarry/split/policyDefault` |
 | V-Bill hub | `VHub.create(cap)`: `addCurrency`, `setPeg`, `openAccount`, `issue`, `addLimit`, `quote`, `swap`, `balance`, `check` |
+| Vino Embed | `VinoPlay.create(cap)`: `openIssuer`, `openHolder`, `back`, `unback`, `issue`, `transfer`, `setRail`, `redeem`, `voucher`, `account`, `vouchers`, `check`; `PaymentRequest` (`encode`, `decode`); `Receipt.sign` (wallet) / `verify` (app); `zxv.vino.receiptMessage/verifyReceipt`; `SpendMeter.create(cap, dailyCap)`: `admit`, `tryAdmit` |
 | Freight | `zxv.freight.header/encode/decode/split/members/join/encodeOps/expand/opsWriter/generate` |
 | Web 4 | `W4Agent.create(cap)`: `card`, `seal`, `reply`, `issueConsent`, `signManifest`; `zxv.web4.verifyCard/actionDigest/manifest/decodeManifest/directory/consentLog/verifyEnvelope` |
 | Paradox | `zxv.paradox.signature/kindOfTag/action/verifyRepair`; `ParadoxBook.create(cap)`: `classify`, `registryAdd`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `graphPass`, logs; `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph` |
@@ -517,7 +609,7 @@ that `sdk/libzxv/Makefile` lists (read with `make -s print-config`, which
 only prints) into `build/wasm/`, links `wasm/zxv.wasm` as a WASI reactor,
 and never writes into `sdk/libzxv`. The compiler is `python3 -m ziglang cc
 -target wasm32-wasi` or `$ZXV_WASM_CC` (e.g. wasi-sdk's clang). The full
-engine is included (a 3.8 MB module with the ABI 1.5 groups); `ZXV_WASM_NO_TENSOR=1` leaves it out.
+engine is included (a 3.8 MB module with the ABI 1.5 and 1.6 groups); `ZXV_WASM_NO_TENSOR=1` leaves it out.
 This SDK adds one C file, `wasm/zxv_wasm_shim.c`: single-threaded pthread
 mutex stubs, `arc4random_buf` over WASI `random_get`, a
 `zxvjs_generate` that forwards tokens to JavaScript, and

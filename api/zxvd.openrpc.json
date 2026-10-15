@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32100 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*) and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -16209,7 +16209,7 @@
     },
     {
       "name": "power.budget",
-      "summary": "Sets an energy budget per rolling window for the device, an app (by executable name; added if not seen yet) or an agent (by its id; must have been noted). window_ms 0 clears it. When a window is spent the agent's next model call waits (\"Energy budget reached\"); a strict budget with nothing measured holds it. Nothing buys past a budget. Feature \"power\" (off by default, not regulated). Error -32100 for an unknown agent.",
+      "summary": "Sets an energy budget per rolling window for the device, an app (by executable name; added if not seen yet) or an agent (by its id; must have been noted). window_ms 0 clears it. When a window is spent the agent's next model call waits (\"Energy budget reached\"); a strict budget with nothing measured holds it. Nothing buys past a budget. Feature \"power\" (off by default, not regulated). Error -32095 for an unknown agent.",
       "params": [
         {
           "name": "target",
@@ -16276,6 +16276,321 @@
           }
         }
       }
+    },
+    {
+      "name": "irc.status",
+      "summary": "The IRC gateway (docs/IRC_GATEWAY.md): whether the feature is on and zxvd listens on 127.0.0.1 over TLS 1.3, the port, the connected clients, the gateway password (PASS), the self-signed certificate's SHA-256 fingerprint and file (pin it in the IRC client), who signs relayed messages (the node identity while the mesh runs, else the gateway's own ML-DSA-87 key) and the bridge. Always on (feature \"irc\", off by default, not regulated).",
+      "params": [],
+      "result": {
+        "name": "gateway",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "listening": {
+              "type": "boolean"
+            },
+            "available": {
+              "type": "boolean",
+              "description": "present (false) only when the gateway is not available in this zxvd"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "clients": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "password": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "cert_sha256": {
+              "type": "string",
+              "description": "AB:CD:... (32 bytes)"
+            },
+            "cert_file": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "irc-cert.pem beside the socket; null when the gateway keeps its files in memory"
+            },
+            "signer": {
+              "type": "string",
+              "enum": [
+                "node",
+                "gateway"
+              ]
+            },
+            "signer_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA3-256 of the signer's ML-DSA-87 public key"
+            },
+            "delivered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "refused": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bridge": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "null when no bridge runs",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "connecting",
+                    "tls",
+                    "registering",
+                    "joined",
+                    "failed"
+                  ]
+                },
+                "host": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "integer"
+                },
+                "remote": {
+                  "type": "string"
+                },
+                "local": {
+                  "type": "string"
+                },
+                "nick": {
+                  "type": "string"
+                },
+                "sent": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "received": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "dropped": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "queued": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "irc.record",
+      "summary": "One of the newest 256 messages the gateway relayed, by the msgid IRC clients see in the msgid tag: the signed record \"zxv-irc/1\\n\" target \"\\n\" nick \"\\n\" truth \"\\n\" ms \"\\n\" text, its ML-DSA-87 signature (FIPS 204, context \"zxv/irc/v1/msg\") and the public key, all hex. msgid is the first 16 bytes of SHA3-256(record || signature). The signature says this gateway relayed the message from that nick at that time, not who typed it. Always on. Error -32096 for an unknown msgid.",
+      "params": [
+        {
+          "name": "msgid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "msgid": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "nick": {
+              "type": "string"
+            },
+            "truth": {
+              "type": "string",
+              "enum": [
+                "T",
+                "F",
+                "B",
+                "N"
+              ],
+              "description": "what the sender claims (Belnap), never that the text is true"
+            },
+            "ms": {
+              "type": "string",
+              "description": "wall clock, ms since 1970, decimal"
+            },
+            "text": {
+              "type": "string"
+            },
+            "signer_id": {
+              "type": "string"
+            },
+            "context": {
+              "type": "string",
+              "const": "zxv/irc/v1/msg"
+            },
+            "public_key": {
+              "type": "string",
+              "description": "hex, 2592 bytes"
+            },
+            "signature": {
+              "type": "string",
+              "description": "hex, 4627 bytes"
+            },
+            "record": {
+              "type": "string",
+              "description": "hex, the signed bytes"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "irc.bridge",
+      "summary": "Links one local channel to one channel on a public IRC network over TLS, the network's certificate verified against the built-in roots (a network whose certificate does not validate is refused). Local lines go out as \"<nick> [T] text\", at most one per 2 s (32 queued, overflow dropped and counted); remote lines come in as \"nick|bridge\" with their stated tag, signed by this node. Only CTCP ACTION crosses. #swarm cannot be bridged. Never saved: it ends when zxvd stops or with on false. Feature \"irc\" (off by default). Error -32096 with the reason.",
+      "params": [
+        {
+          "name": "on",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          },
+          "description": "true starts (or replaces) the bridge, false ends it"
+        },
+        {
+          "name": "host",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "on true: the network's host name"
+        },
+        {
+          "name": "port",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 6697
+          }
+        },
+        {
+          "name": "remote",
+          "schema": {
+            "type": "string",
+            "pattern": "^#"
+          },
+          "description": "on true: the channel on the network"
+        },
+        {
+          "name": "local",
+          "schema": {
+            "type": "string",
+            "pattern": "^#"
+          },
+          "description": "on true: a channel here not in use; it becomes reserved for the agent bridge"
+        },
+        {
+          "name": "nick",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "description": "on true: the bridge's nick on the network"
+        },
+        {
+          "name": "password",
+          "schema": {
+            "type": "string",
+            "maxLength": 79
+          },
+          "description": "the network's server password (PASS), if it has one; never shown"
+        }
+      ],
+      "result": {
+        "name": "bridge",
+        "schema": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "null when no bridge runs",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "connecting",
+                "tls",
+                "registering",
+                "joined",
+                "failed"
+              ]
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "remote": {
+              "type": "string"
+            },
+            "local": {
+              "type": "string"
+            },
+            "nick": {
+              "type": "string"
+            },
+            "sent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "received": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "queued": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
     },
     {
       "name": "files.root",
@@ -18776,6 +19091,3616 @@
               "description": "false when no model is installed and a stand-in answered"
             },
             "draft": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.create",
+      "summary": "Make a public space (a room, or a watch hall) and host it on this node. Its CID names its signed genesis; visitors who have the CID find a host in the DHT (W2, vna_space.h P1-P2). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "kind",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "room",
+              "hall"
+            ]
+          }
+        },
+        {
+          "name": "gov",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "quorum"
+            ],
+            "description": "owner: only the creator steers playback (vertical); quorum: any member (horizontal)"
+          }
+        },
+        {
+          "name": "quorum_pct",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 51
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48
+          }
+        },
+        {
+          "name": "topic",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{0,24}$",
+            "description": "directory topic; empty = unlisted"
+          }
+        }
+      ],
+      "result": {
+        "name": "space",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.find",
+      "summary": "List spaces under a directory topic. The first call starts a search; call again until done (W5). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "topic",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,24}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "search",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "topic": {
+              "type": "string"
+            },
+            "done": {
+              "type": "boolean"
+            },
+            "found": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cid": {
+                    "type": "string",
+                    "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+                    "pattern": "^b[a-z2-7]+$",
+                    "maxLength": 79
+                  },
+                  "members": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "host": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 48
+                  },
+                  "topic": {
+                    "type": "string",
+                    "maxLength": 24
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "room",
+                      "hall"
+                    ]
+                  },
+                  "gov": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "quorum"
+                    ]
+                  },
+                  "quorum_pct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "creator": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.join",
+      "summary": "Join the space a CID names: look its hosts up in the DHT, then join through one. Returns at once; pspace.list shows the phase. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "joining",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "searching",
+                "joining",
+                "in",
+                "not_found"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.leave",
+      "summary": "Say goodbye to the space's members and stop hosting it. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "left",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "left": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.post",
+      "summary": "Post text to a space this node is in: a signed event every member receives once. There is no delete or ban (vna_space.h P5). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      ],
+      "result": {
+        "name": "posted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string",
+              "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+              "pattern": "^b[a-z2-7]+$",
+              "maxLength": 79
+            },
+            "posted": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.events",
+      "summary": "The events applied after index `since`, oldest first (the last 32 at most): posts and playback changes. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "since",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minimum": 0,
+            "pattern": "^[0-9]+$",
+            "default": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "events",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "hall"
+                    ]
+                  },
+                  "lamport": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "author": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "stop",
+                      "pause",
+                      "play"
+                    ]
+                  },
+                  "pos_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "rate_q16": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "pass as since next time"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.members",
+      "summary": "The members this node knows in a space, with their addresses; count includes this node. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "members",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "members": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "addr": {
+                    "type": "string"
+                  },
+                  "last_seen_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "pspace.list",
+      "summary": "The spaces this node is in or joining, each with its genesis and (for a hall) its playback state. Always on (feature \"pspace\").",
+      "params": [],
+      "result": {
+        "name": "spaces",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "spaces": {
+              "type": "array",
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cid": {
+                    "type": "string",
+                    "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+                    "pattern": "^b[a-z2-7]+$",
+                    "maxLength": 79
+                  },
+                  "phase": {
+                    "type": "string",
+                    "enum": [
+                      "searching",
+                      "joining",
+                      "in",
+                      "not_found"
+                    ]
+                  },
+                  "members": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "hall": {
+                    "type": "object",
+                    "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+                    "properties": {
+                      "set": {
+                        "type": "boolean"
+                      },
+                      "state": {
+                        "type": "string",
+                        "enum": [
+                          "stop",
+                          "pause",
+                          "play"
+                        ]
+                      },
+                      "media": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "pos_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "base_pos_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "at_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "rate_q16": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 262144,
+                        "description": "speed, 65536 = normal"
+                      },
+                      "now_ms": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "may_control": {
+                        "type": "boolean"
+                      },
+                      "author": {
+                        "type": "string",
+                        "description": "a NodeID, 64 hex digits",
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    }
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 48
+                  },
+                  "topic": {
+                    "type": "string",
+                    "maxLength": 24
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "room",
+                      "hall"
+                    ]
+                  },
+                  "gov": {
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "quorum"
+                    ]
+                  },
+                  "quorum_pct": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  "created_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "creator": {
+                    "type": "string",
+                    "description": "a NodeID, 64 hex digits",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.load",
+      "summary": "Load media into a watch hall, stopped at pos_ms (default 0). Owner halls: the creator only. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "media",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "the media's CID as text, passed to every viewer unchanged"
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.play",
+      "summary": "Play from pos_ms (default: where every viewer is now) at rate_q16 (65536 = normal, up to 4x). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        },
+        {
+          "name": "rate_q16",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 262144,
+            "default": 65536
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.pause",
+      "summary": "Pause at pos_ms (default: where every viewer is now). Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.seek",
+      "summary": "Move to pos_ms, keeping the state and the rate. Feature \"pspace\" (off by default, not regulated).",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        },
+        {
+          "name": "pos_ms",
+          "required": true,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "position in ms (integer or decimal string)",
+            "minimum": 0,
+            "pattern": "^[0-9]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "hall.status",
+      "summary": "The hall's playback state and the position every viewer computes now. Always on (feature \"pspace\").",
+      "params": [
+        {
+          "name": "cid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "description": "a space CID: base32 CIDv1, raw sha2-256 ('b...', docs/SPACES.md)",
+            "pattern": "^b[a-z2-7]+$",
+            "maxLength": 79
+          }
+        }
+      ],
+      "result": {
+        "name": "hall",
+        "schema": {
+          "type": "object",
+          "description": "the watch hall's playback state; pos_ms is the position every viewer computes at now_ms (docs/SPACES.md)",
+          "properties": {
+            "set": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "pause",
+                "play"
+              ]
+            },
+            "media": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "base_pos_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "at_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "rate_q16": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 262144,
+              "description": "speed, 65536 = normal"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "may_control": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string",
+              "description": "a NodeID, 64 hex digits",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "viewers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "members this node knows, itself included"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.post",
+      "summary": "Sign and keep a post, or a reply (reply_to), public or to a group you are in (group). ML-DSA-65 over the record id (social_post.h P5); written to people.zxvp before it answers (zxvd_people.h H2).",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "1-1024 bytes of UTF-8, no NUL"
+          }
+        },
+        {
+          "name": "reply_to",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "the post or reply this answers; a reply to a group post goes to that group"
+          }
+        },
+        {
+          "name": "group",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "a group id: the record id of its GROUP_CREATE"
+          }
+        }
+      ],
+      "result": {
+        "name": "posted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            },
+            "lamport": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "post",
+                "reply"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.feed",
+      "summary": "Posts and replies ranked by the Interaction Surplus Framework (social_feed.h F1-F5): what each adds over the posts above it, with bounded freshness. Reactions and replies are counted for display only, never used to rank. Group posts only for members.",
+      "params": [
+        {
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "default": 20
+          }
+        }
+      ],
+      "result": {
+        "name": "feed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "me": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            },
+            "held": {
+              "type": "integer"
+            },
+            "candidates": {
+              "type": "integer"
+            },
+            "diversity": {
+              "type": "integer",
+              "description": "mean pairwise 1 - cos^2 of the picks, Q16"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "32 bytes as lower-case hex (a record id or NodeID)"
+                  },
+                  "author": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "32 bytes as lower-case hex (a record id or NodeID)"
+                  },
+                  "mine": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "post",
+                      "reply"
+                    ]
+                  },
+                  "parent": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                        "description": "32 bytes as lower-case hex (a record id or NodeID)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "group": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$",
+                        "description": "a group id: the record id of its GROUP_CREATE"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "lamport": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "wall_ms": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "the author's clock: a hint only"
+                  },
+                  "reactions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "reaction": {
+                          "type": "string"
+                        },
+                        "count": {
+                          "type": "integer"
+                        },
+                        "mine": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  },
+                  "replies": {
+                    "type": "integer"
+                  },
+                  "score": {
+                    "type": "integer",
+                    "description": "surplus + fresh + rep, Q16"
+                  },
+                  "surplus": {
+                    "type": "integer",
+                    "description": "ISF surplus over the posts ranked above, Q16"
+                  },
+                  "fresh": {
+                    "type": "integer"
+                  },
+                  "rep": {
+                    "type": "integer",
+                    "description": "0: no reputation source is wired"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.groups",
+      "summary": "Every group whose GROUP_CREATE record is held, with the roster derived from the held records (social_group.h G2-G3).",
+      "params": [],
+      "result": {
+        "name": "groups",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "a group id: the record id of its GROUP_CREATE"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "group",
+                      "syndicate"
+                    ]
+                  },
+                  "open": {
+                    "type": "boolean"
+                  },
+                  "owner": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "32 bytes as lower-case hex (a record id or NodeID)"
+                  },
+                  "members": {
+                    "type": "integer"
+                  },
+                  "my_role": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "observer",
+                      "member",
+                      "admin",
+                      "owner"
+                    ]
+                  },
+                  "invited": {
+                    "type": "boolean"
+                  },
+                  "applied": {
+                    "type": "integer"
+                  },
+                  "ignored": {
+                    "type": "integer"
+                  },
+                  "charter": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.group_create",
+      "summary": "Found a group (GROUP_CREATE); you are its owner.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "open",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true,
+            "description": "true: anyone may join; false: invitation only"
+          }
+        }
+      ],
+      "result": {
+        "name": "created",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "group": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "a group id: the record id of its GROUP_CREATE"
+            },
+            "open": {
+              "type": "boolean"
+            },
+            "my_role": {
+              "type": "string",
+              "const": "owner"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.join",
+      "summary": "Join a held group (GROUP_JOIN). Refused when already a member, or invite only without an invitation.",
+      "params": [
+        {
+          "name": "group",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "a group id: the record id of its GROUP_CREATE"
+          }
+        }
+      ],
+      "result": {
+        "name": "membership",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "a group id: the record id of its GROUP_CREATE"
+            },
+            "my_role": {
+              "type": "string"
+            },
+            "members": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.leave",
+      "summary": "Leave a group (GROUP_LEAVE). The owner cannot leave.",
+      "params": [
+        {
+          "name": "group",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "a group id: the record id of its GROUP_CREATE"
+          }
+        }
+      ],
+      "result": {
+        "name": "membership",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            },
+            "group": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "a group id: the record id of its GROUP_CREATE"
+            },
+            "my_role": {
+              "type": "string"
+            },
+            "members": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.react",
+      "summary": "React to a held post or reply (REACTION: 1-32 bytes, an emoji or a word).",
+      "params": [
+        {
+          "name": "post",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "32 bytes as lower-case hex (a record id or NodeID)"
+          }
+        },
+        {
+          "name": "reaction",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        }
+      ],
+      "result": {
+        "name": "reacted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.export",
+      "summary": "A held record, encoded (social_post.h P3) with its author's public key, for another node's social.import. There is no gossip transport in zxvd yet (H4).",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "32 bytes as lower-case hex (a record id or NodeID)"
+          }
+        }
+      ],
+      "result": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bytes": {
+              "type": "integer"
+            },
+            "hex": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2})+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "social.import",
+      "summary": "Take a record from another node: it must decode strictly, carry its key and verify (sp_decode). Posts, replies, reactions and group records only.",
+      "params": [
+        {
+          "name": "hex",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})+$",
+            "maxLength": 13338
+          }
+        }
+      ],
+      "result": {
+        "name": "imported",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "32 bytes as lower-case hex (a record id or NodeID)"
+            },
+            "added": {
+              "type": "boolean",
+              "description": "false when the record was already held"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "call.start",
+      "summary": "Place a call (call_session.h): signalling only. peer is the other node's member id, or \"loopback\" to ring this zxvd's own loopback line. Media (capture, codecs, RTP) is the host's job and is not wired (H5).",
+      "params": [
+        {
+          "name": "peer",
+          "required": true,
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4294967295
+              },
+              {
+                "type": "string",
+                "const": "loopback"
+              }
+            ]
+          }
+        },
+        {
+          "name": "media",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "audio",
+              "video"
+            ],
+            "default": "audio"
+          }
+        }
+      ],
+      "result": {
+        "name": "line",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "line": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "loopback": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "outgoing",
+                "ringing_out",
+                "incoming",
+                "connecting",
+                "connected",
+                "held",
+                "ended"
+              ]
+            },
+            "peer": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "outgoing": {
+              "type": "boolean"
+            },
+            "call_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "media": {
+              "type": "string",
+              "enum": [
+                "audio",
+                "audio+video"
+              ]
+            },
+            "audio_pt": {
+              "type": "integer"
+            },
+            "video_pt": {
+              "type": "integer"
+            },
+            "end_reason": {
+              "type": "string",
+              "enum": [
+                "none",
+                "local_hangup",
+                "remote_hangup",
+                "rejected",
+                "no_answer",
+                "no_response",
+                "ice_failed",
+                "timeout",
+                "busy",
+                "incompatible",
+                "cancelled"
+              ]
+            },
+            "missed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "call.accept",
+      "summary": "Answer the call ringing on a line.",
+      "params": [
+        {
+          "name": "line",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4,
+            "description": "0-3, or 4 for the loopback line"
+          }
+        }
+      ],
+      "result": {
+        "name": "line",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "line": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "loopback": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "outgoing",
+                "ringing_out",
+                "incoming",
+                "connecting",
+                "connected",
+                "held",
+                "ended"
+              ]
+            },
+            "peer": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "outgoing": {
+              "type": "boolean"
+            },
+            "call_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "media": {
+              "type": "string",
+              "enum": [
+                "audio",
+                "audio+video"
+              ]
+            },
+            "audio_pt": {
+              "type": "integer"
+            },
+            "video_pt": {
+              "type": "integer"
+            },
+            "end_reason": {
+              "type": "string",
+              "enum": [
+                "none",
+                "local_hangup",
+                "remote_hangup",
+                "rejected",
+                "no_answer",
+                "no_response",
+                "ice_failed",
+                "timeout",
+                "busy",
+                "incompatible",
+                "cancelled"
+              ]
+            },
+            "missed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "call.hangup",
+      "summary": "End the call on a line; a ringing incoming call is rejected.",
+      "params": [
+        {
+          "name": "line",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4,
+            "description": "0-3, or 4 for the loopback line"
+          }
+        }
+      ],
+      "result": {
+        "name": "line",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "line": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "loopback": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "outgoing",
+                "ringing_out",
+                "incoming",
+                "connecting",
+                "connected",
+                "held",
+                "ended"
+              ]
+            },
+            "peer": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            "outgoing": {
+              "type": "boolean"
+            },
+            "call_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            "media": {
+              "type": "string",
+              "enum": [
+                "audio",
+                "audio+video"
+              ]
+            },
+            "audio_pt": {
+              "type": "integer"
+            },
+            "video_pt": {
+              "type": "integer"
+            },
+            "end_reason": {
+              "type": "string",
+              "enum": [
+                "none",
+                "local_hangup",
+                "remote_hangup",
+                "rejected",
+                "no_answer",
+                "no_response",
+                "ice_failed",
+                "timeout",
+                "busy",
+                "incompatible",
+                "cancelled"
+              ]
+            },
+            "missed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "call.status",
+      "summary": "This node's member id, the loopback id, the outbox size and every line.",
+      "params": [],
+      "result": {
+        "name": "calls",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "self_id": {
+              "type": "integer"
+            },
+            "loopback_id": {
+              "type": "integer"
+            },
+            "media": {
+              "type": "string"
+            },
+            "outbox": {
+              "type": "integer"
+            },
+            "dropped": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "lines": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "line": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  "loopback": {
+                    "type": "boolean"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "idle",
+                      "outgoing",
+                      "ringing_out",
+                      "incoming",
+                      "connecting",
+                      "connected",
+                      "held",
+                      "ended"
+                    ]
+                  },
+                  "peer": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295
+                  },
+                  "outgoing": {
+                    "type": "boolean"
+                  },
+                  "call_id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{16}$"
+                  },
+                  "media": {
+                    "type": "string",
+                    "enum": [
+                      "audio",
+                      "audio+video"
+                    ]
+                  },
+                  "audio_pt": {
+                    "type": "integer"
+                  },
+                  "video_pt": {
+                    "type": "integer"
+                  },
+                  "end_reason": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "local_hangup",
+                      "remote_hangup",
+                      "rejected",
+                      "no_answer",
+                      "no_response",
+                      "ice_failed",
+                      "timeout",
+                      "busy",
+                      "incompatible",
+                      "cancelled"
+                    ]
+                  },
+                  "missed": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "call.signal",
+      "summary": "The signalling carrier for another node: delivers its messages (in) and drains this node's outbox (out). Messages are not encrypted here; carry them inside an encrypted session.",
+      "params": [
+        {
+          "name": "in",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "pattern": "^([0-9a-fA-F]{2})+$"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "signal",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "delivered": {
+              "type": "integer"
+            },
+            "rejected": {
+              "type": "integer"
+            },
+            "out": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "xlate.detect",
+      "summary": "Which language is this text in? On-device language identification (xlate_langid.h), integers only.",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        }
+      ],
+      "result": {
+        "name": "language",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "language": {
+              "type": "string",
+              "description": "BCP 47, or \"und\""
+            },
+            "name": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "letters": {
+              "type": "integer"
+            },
+            "reliable": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "xlate.translate",
+      "summary": "Translate with the local model (the swarm.ask path: model slot and budget gate) through the Qwen2.5 ChatML template; control tokens in the text are defused. Error -32031 when no model can generate: nothing is invented. Same-language text comes back as the original.",
+      "params": [
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        {
+          "name": "to",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$",
+            "minLength": 2,
+            "maxLength": 15,
+            "description": "a BCP 47 language tag such as \"es\" or \"pt-BR\""
+          }
+        },
+        {
+          "name": "from",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "a language tag, or \"auto\" (default)"
+          }
+        }
+      ],
+      "result": {
+        "name": "translation",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "translated": {
+              "type": "boolean"
+            },
+            "machine": {
+              "type": "boolean",
+              "description": "a machine translation: say so in the interface"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "detected": {
+              "type": "boolean"
+            },
+            "unsure": {
+              "type": "boolean"
+            },
+            "cached": {
+              "type": "boolean"
+            },
+            "marker": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "xlate.languages",
+      "summary": "The languages xlate.detect knows.",
+      "params": [],
+      "result": {
+        "name": "languages",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer"
+            },
+            "languages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tag": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.status",
+      "summary": "This device in the owner's device mesh (devmesh.h): identity, roster, the pairing waiting for a SAS check, recent events, frames waiting for a carrier (none is wired to the socket, H7).",
+      "params": [],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "joined": {
+              "type": "boolean"
+            },
+            "mesh_id": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-fA-F]{32}$",
+                  "description": "a device id: 16 bytes as hex"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "self": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$",
+              "description": "a device id: 16 bytes as hex"
+            },
+            "name": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "home",
+                "thin",
+                "standalone"
+              ]
+            },
+            "admin": {
+              "type": "boolean"
+            },
+            "level": {
+              "type": "string",
+              "const": "high"
+            },
+            "roster_version": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "devices": {
+              "type": "integer"
+            },
+            "inviting": {
+              "type": "boolean"
+            },
+            "joining": {
+              "type": "boolean"
+            },
+            "pairing": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "device": {
+                      "type": "string",
+                      "pattern": "^[0-9a-fA-F]{32}$",
+                      "description": "a device id: 16 bytes as hex"
+                    },
+                    "sas": {
+                      "type": "string",
+                      "pattern": "^[0-9]{6}$"
+                    }
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "frames_waiting": {
+              "type": "integer"
+            },
+            "frames_dropped": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "carrier": {
+              "type": "string"
+            },
+            "saved": {
+              "type": "boolean"
+            },
+            "save_error": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.invite",
+      "summary": "Invite a device (creating the mesh on the first invitation): a QR payload (RFC 4648 base32) and a 10-character short code, valid ten minutes.",
+      "params": [
+        {
+          "name": "role",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "thin",
+              "standalone",
+              "home"
+            ],
+            "default": "thin"
+          }
+        },
+        {
+          "name": "held",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true,
+            "description": "a device the owner carries: may confirm money actions"
+          }
+        },
+        {
+          "name": "admin",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        {
+          "name": "addr",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "a transport address hint for the QR code"
+          }
+        }
+      ],
+      "result": {
+        "name": "invitation",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "qr": {
+              "type": "string",
+              "pattern": "^[A-Z2-7]+$"
+            },
+            "qr_bytes": {
+              "type": "integer"
+            },
+            "code": {
+              "type": "string",
+              "pattern": "^[0-9A-Z]{5}-[0-9A-Z]{5}$"
+            },
+            "expires_in_ms": {
+              "type": "integer"
+            },
+            "created_mesh": {
+              "type": "boolean"
+            },
+            "mesh_id": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{32}$",
+              "description": "a device id: 16 bytes as hex"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.join",
+      "summary": "Start pairing with an invitation: exactly one of qr (the base32 payload) and code. Then compare the six digits on both screens (devmesh.status pairing) and call devmesh.confirm_sas.",
+      "params": [
+        {
+          "name": "qr",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^[A-Za-z2-7]+$"
+          }
+        },
+        {
+          "name": "code",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 31
+          }
+        }
+      ],
+      "result": {
+        "name": "pairing",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pairing": {
+              "type": "boolean"
+            },
+            "frames_waiting": {
+              "type": "integer"
+            },
+            "next": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.confirm_sas",
+      "summary": "Say whether the six-digit code matches the other screen. A match on the inviter adds the device to the signed roster; a mismatch abandons the pairing.",
+      "params": [
+        {
+          "name": "device",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{32}$",
+            "description": "a device id: 16 bytes as hex"
+          }
+        },
+        {
+          "name": "match",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "confirmed",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "confirmed": {
+              "type": "boolean"
+            },
+            "in_roster": {
+              "type": "boolean"
+            },
+            "devices": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.revoke",
+      "summary": "Revoke a device (admin only): a tombstone in the next signed roster; it can never come back.",
+      "params": [
+        {
+          "name": "device",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{32}$",
+            "description": "a device id: 16 bytes as hex"
+          }
+        }
+      ],
+      "result": {
+        "name": "revoked",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "revoked": {
+              "type": "boolean"
+            },
+            "roster_version": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "devmesh.devices",
+      "summary": "The signed roster: every device, active or revoked.",
+      "params": [],
+      "result": {
+        "name": "roster",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "roster_version": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "devices": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[0-9a-fA-F]{32}$",
+                    "description": "a device id: 16 bytes as hex"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  },
+                  "admin": {
+                    "type": "boolean"
+                  },
+                  "held": {
+                    "type": "boolean"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "revoked"
+                    ]
+                  },
+                  "self": {
+                    "type": "boolean"
+                  },
+                  "up": {
+                    "type": "boolean"
+                  },
+                  "since": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ui.get",
+      "summary": "Interface settings. simple_mode (R3.1): the apps hide keys, ciphers, rational weights, hashes and advanced panels and show one-tap Ask and Pay. Off by default.",
+      "params": [],
+      "result": {
+        "name": "ui",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "simple_mode": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ui.set",
+      "summary": "Change simple_mode; saved in people.zxvp. It changes only what the interfaces show: no check, key, limit or confirmation (H8).",
+      "params": [
+        {
+          "name": "simple_mode",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "ui",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "simple_mode": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "freight.pack",
+      "summary": "Erasure-code bytes into one freight (kernel/src/freight): 168 UBH-168 smart packets of 21 bytes, rows 0..k-1 the data and the rest Cauchy Reed-Solomon parity over GF(2^8), so ANY k of the 168 packets rebuild it. The 64-byte header carries the payload SHA-256 and travels separately. Holographic recovery here means erasure coding, nothing more.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": true,
+          "description": "the payload, at most 3360 bytes (k = 168 x 20)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 6720
+          }
+        },
+        {
+          "name": "k",
+          "required": false,
+          "description": "data rows (default: the fewest that hold the payload, so the most parity)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          }
+        },
+        {
+          "name": "freight_id",
+          "required": false,
+          "description": "64-bit id (default: the first 8 bytes, little-endian, of the payload SHA-256)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "freight",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "payload_len": {
+              "type": "integer"
+            },
+            "rows": {
+              "type": "integer",
+              "const": 168
+            },
+            "header_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{128}$"
+            },
+            "packets_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7056}$",
+              "description": "168 packets: byte 0 the row index, 1..20 payload"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "freight.unpack",
+      "summary": "Rebuild a freight from any k of its packets (any order; duplicates and unknown rows ignored) and check the payload SHA-256. Fewer than k distinct rows, a corrupted row or a malformed header is -32012.",
+      "params": [
+        {
+          "name": "header_hex",
+          "required": true,
+          "description": "the 64-byte freight header",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 128,
+            "maxLength": 128
+          }
+        },
+        {
+          "name": "packets_hex",
+          "required": true,
+          "description": "whole 21-byte packets, concatenated",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        }
+      ],
+      "result": {
+        "name": "payload",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "flags": {
+              "type": "integer"
+            },
+            "payload_len": {
+              "type": "integer"
+            },
+            "packets_received": {
+              "type": "integer"
+            },
+            "data_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "harmonic.encode",
+      "summary": "Pack one UBH-168 harmonic wire frame (kernel/src/harmonic/zt_harmonic_wire.h W1-W3): a tag octet (100 x sync + 10 x shell + trunk) and five 32-bit words in fixed little/big/little/big/little byte order, S+ rail in W0, W2, W4 and S- rail in W1, W3. Line coding: the pattern is public and carries no secret.",
+      "params": [
+        {
+          "name": "trunk",
+          "required": true,
+          "description": "trunk 0..8 (111..999 Hz) or 9 (1111 Hz, expansion)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          }
+        },
+        {
+          "name": "shell",
+          "required": false,
+          "description": "shell depth (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9
+          }
+        },
+        {
+          "name": "sync",
+          "required": false,
+          "description": "sync flag (default false)",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "s_plus",
+          "required": true,
+          "description": "the S+ (I) rail: three words, signed Q16.16 or raw 32-bit",
+          "schema": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 4294967295
+            }
+          }
+        },
+        {
+          "name": "s_minus",
+          "required": true,
+          "description": "the S- (Q) rail: two words",
+          "schema": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 4294967295
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "frame",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "integer"
+            },
+            "trunk": {
+              "type": "integer"
+            },
+            "trunk_hz": {
+              "type": "integer"
+            },
+            "frame_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{42}$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "harmonic.decode",
+      "summary": "Unpack a 21-octet frame and resolve it with the stateless correlation resolver (W5): UNKNOWN (all zero), NEUTRAL (idle pilot or a silent rail), TRUE, FALSE or GLUT. A stateless resolver never returns PARADOX (W7).",
+      "params": [
+        {
+          "name": "frame_hex",
+          "required": true,
+          "description": "the frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 42,
+            "maxLength": 42
+          }
+        },
+        {
+          "name": "threshold_q16",
+          "required": false,
+          "description": "correlation threshold, Q16.16 (default 4096, the endian mux's 1/16)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "rails",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "integer"
+            },
+            "trunk": {
+              "type": "integer"
+            },
+            "shell": {
+              "type": "integer"
+            },
+            "sync": {
+              "type": "boolean"
+            },
+            "axis_trunk": {
+              "type": "boolean"
+            },
+            "trunk_hz": {
+              "type": "integer"
+            },
+            "s_plus": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "s_minus": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "idle": {
+              "type": "boolean"
+            },
+            "correlation_q16": {
+              "type": "integer"
+            },
+            "truth": {
+              "type": "string",
+              "enum": [
+                "UNKNOWN",
+                "TRUE",
+                "FALSE",
+                "NEUTRAL",
+                "GLUT"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stream.plan",
+      "summary": "Cut recorded media units into segments with the live cutter's rule (kernel/src/stream stream_vod_plan): a segment closes before the first keyframe at least target_us after its start, or before any unit once max_us have passed or max_bytes would be exceeded. Units are contiguous from offset 0.",
+      "params": [
+        {
+          "name": "units",
+          "required": true,
+          "description": "at most 120 units, each [len, pts_us, keyframe]; pts_us must not go backwards",
+          "schema": {
+            "type": "array",
+            "maxItems": 120,
+            "items": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "target_us",
+          "required": true,
+          "description": "target segment duration",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "max_us",
+          "required": true,
+          "description": "longest segment, >= target_us",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "max_bytes",
+          "required": false,
+          "description": "largest segment (default 215040, 64 freights at k = 168)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "tail_us",
+          "required": false,
+          "description": "duration of the last unit (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "plan",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "segments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "first_unit": {
+                    "type": "integer"
+                  },
+                  "nunits": {
+                    "type": "integer"
+                  },
+                  "offset": {
+                    "type": "integer"
+                  },
+                  "len": {
+                    "type": "integer"
+                  },
+                  "t_start_us": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "dur_us": {
+                    "type": "integer"
+                  },
+                  "key_start": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "stream.segment",
+      "summary": "Describe one swarm-stream segment (kernel/src/stream stream_manifest_build): its IPFS CIDv1 (raw, sha2-256), the freight id derived from it and the SHA-256 of each freight that carries it. The signed manifest itself needs a signing key and is not produced here.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": true,
+          "description": "the segment bytes",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        },
+        {
+          "name": "k",
+          "required": false,
+          "description": "data rows per freight (default 168)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168
+          }
+        },
+        {
+          "name": "stream_id",
+          "required": false,
+          "description": "stream id (default 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "seq",
+          "required": false,
+          "description": "segment number (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        }
+      ],
+      "result": {
+        "name": "segment",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string"
+            },
+            "stream_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "k": {
+              "type": "integer"
+            },
+            "data_len": {
+              "type": "integer"
+            },
+            "nfreights": {
+              "type": "integer"
+            },
+            "freight_id": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "freight_sha256": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.bands",
+      "summary": "The Endian Hopping band plan (kernel/src/ehop/ehop.h): the FM, AM and PM ranges, priority, largest frame and target latency of each band.",
+      "params": [],
+      "result": {
+        "name": "bands",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bands": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "band": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "fm_min": {
+                    "type": "integer"
+                  },
+                  "fm_max": {
+                    "type": "integer"
+                  },
+                  "am_mask": {
+                    "type": "integer"
+                  },
+                  "pm_modes": {
+                    "type": "integer"
+                  },
+                  "priority": {
+                    "type": "integer"
+                  },
+                  "max_frame": {
+                    "type": "integer"
+                  },
+                  "latency_ms": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.seal",
+      "summary": "Seal one frame on an Endian Hopping channel: the keyed byte-order schedule, then ChaCha20-Poly1305. Confidentiality and integrity come from the AEAD alone. zxvd keeps no channel state: the caller owns the nonce discipline and must never seal two plaintexts with the same key, channel, configuration, sender and seq.",
+      "params": [
+        {
+          "name": "key_hex",
+          "required": true,
+          "description": "the 32-byte channel secret (a pairwise ML-KEM shared secret, or a private network key)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "band",
+          "required": true,
+          "description": "the band (ehop.bands)",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "control",
+              "settle",
+              "media",
+              "chat",
+              "bulk"
+            ]
+          }
+        },
+        {
+          "name": "chan_id",
+          "required": true,
+          "description": "channel id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "key epoch",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "width",
+          "required": false,
+          "description": "word width in bytes (default 4)",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        {
+          "name": "am_mask",
+          "required": false,
+          "description": "AM: allowed reordering depths, a subset of the band's (default: all the band allows)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "pm_mode",
+          "required": false,
+          "description": "PM: 0 static, 1 per epoch, 2 per frame (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        {
+          "name": "fm_rate",
+          "required": false,
+          "description": "FM: mean words per flip, inside the band (default the band's fm_min)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        {
+          "name": "fm_hop",
+          "required": false,
+          "description": "FM hop deviation, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_phase",
+          "required": false,
+          "description": "PM base phase, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_step",
+          "required": false,
+          "description": "PM step, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "sender",
+          "required": true,
+          "description": "this sealer's sender id, unique on the channel",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "seq",
+          "required": true,
+          "description": "sequence number, never reused; 2^64 - 1 is refused",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "plaintext_hex",
+          "required": true,
+          "description": "at most 2048 bytes, and within the band's largest frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 4096
+          }
+        }
+      ],
+      "result": {
+        "name": "frame",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "band": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "integer"
+            },
+            "sender": {
+              "type": "integer"
+            },
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "frame_len": {
+              "type": "integer"
+            },
+            "frame_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "ehop.open",
+      "summary": "Open one frame: format, epoch, channel tag and AEAD are checked and the schedule is undone. A frame for another key, configuration or epoch, or a changed byte, is -32012. zxvd keeps no replay window: the caller tracks (sender, seq).",
+      "params": [
+        {
+          "name": "key_hex",
+          "required": true,
+          "description": "the 32-byte channel secret (a pairwise ML-KEM shared secret, or a private network key)",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "band",
+          "required": true,
+          "description": "the band (ehop.bands)",
+          "schema": {
+            "type": "string",
+            "enum": [
+              "control",
+              "settle",
+              "media",
+              "chat",
+              "bulk"
+            ]
+          }
+        },
+        {
+          "name": "chan_id",
+          "required": true,
+          "description": "channel id",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "epoch",
+          "required": true,
+          "description": "key epoch",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          }
+        },
+        {
+          "name": "width",
+          "required": false,
+          "description": "word width in bytes (default 4)",
+          "schema": {
+            "type": "integer",
+            "enum": [
+              2,
+              4,
+              8
+            ]
+          }
+        },
+        {
+          "name": "am_mask",
+          "required": false,
+          "description": "AM: allowed reordering depths, a subset of the band's (default: all the band allows)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          }
+        },
+        {
+          "name": "pm_mode",
+          "required": false,
+          "description": "PM: 0 static, 1 per epoch, 2 per frame (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2
+          }
+        },
+        {
+          "name": "fm_rate",
+          "required": false,
+          "description": "FM: mean words per flip, inside the band (default the band's fm_min)",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        },
+        {
+          "name": "fm_hop",
+          "required": false,
+          "description": "FM hop deviation, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_phase",
+          "required": false,
+          "description": "PM base phase, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "pm_step",
+          "required": false,
+          "description": "PM step, below fm_rate (default 0)",
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4095
+          }
+        },
+        {
+          "name": "frame_hex",
+          "required": true,
+          "description": "the frame",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 4192
+          }
+        }
+      ],
+      "result": {
+        "name": "plaintext",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "band": {
+              "type": "string"
+            },
+            "sender": {
+              "type": "integer"
+            },
+            "seq": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "plaintext_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]*$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.cid",
+      "summary": "Content addressing (kernel/src/web4 on kernel/src/ipfs_node): the CIDv1 (raw, sha2-256) of bytes, or the forms of a given CID: its string, its ipfs:// URI and the 32-byte digest an EVM contract can store (null unless sha2-256). Give exactly one of data_hex and cid.",
+      "params": [
+        {
+          "name": "data_hex",
+          "required": false,
+          "description": "content to address",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "maxLength": 16384
+          }
+        },
+        {
+          "name": "cid",
+          "required": false,
+          "description": "a CID or an ipfs:// URI",
+          "schema": {
+            "type": "string",
+            "maxLength": 147
+          }
+        }
+      ],
+      "result": {
+        "name": "cid",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cid": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer"
+            },
+            "codec": {
+              "type": "integer"
+            },
+            "bytes32_hex": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.agent_card",
+      "summary": "Make a self-bound Web 4 agent card (kernel/src/web4/web4_agent.h A1-A3) from a 32-byte key seed: the ML-DSA-65 key pair, agent_id = SHA3-256(public key), and the binding signed deterministically. zxvd wipes the secret key before it answers and keeps nothing; the seed is the agent's secret.",
+      "params": [
+        {
+          "name": "seed_hex",
+          "required": true,
+          "description": "the agent's 32-byte key seed",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "description": "1 to 31 of a-z 0-9 - _ .",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "bound_ms",
+          "required": false,
+          "description": "binding time in ms (default 0)",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "card",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "bound_ms": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "self_bound": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA3-256 of the ML-DSA-65 public key"
+            },
+            "peer_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "equal to agent_id: the card is self-bound"
+            },
+            "pk_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{3904}$",
+              "description": "ML-DSA-65 public key (1952 bytes)"
+            },
+            "bind_sig_hex": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{6618}$",
+              "description": "ML-DSA-65 signature (3309 bytes) over the binding, context web4/v1/agent-bind"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "web4.card_verify",
+      "summary": "Verify a self-bound agent card: agent_id is the key's SHA3-256 and the binding signature verifies. A card that does not verify is a result with valid false and the reason, not an error.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "description": "the card's name",
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z0-9._-]{1,31}$"
+          }
+        },
+        {
+          "name": "bound_ms",
+          "required": true,
+          "description": "the card's binding time",
+          "schema": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]{1,20}$"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pk_hex",
+          "required": true,
+          "description": "ML-DSA-65 public key",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 3904,
+            "maxLength": 3904
+          }
+        },
+        {
+          "name": "bind_sig_hex",
+          "required": true,
+          "description": "the binding signature",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 6618,
+            "maxLength": 6618
+          }
+        },
+        {
+          "name": "agent_id",
+          "required": false,
+          "description": "an agent_id to check against the key",
+          "schema": {
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2})*$",
+            "minLength": 64,
+            "maxLength": 64
+          }
+        }
+      ],
+      "result": {
+        "name": "verdict",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "valid": {
+              "type": "boolean"
+            },
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "reason": {
               "type": "string"
             }
           }

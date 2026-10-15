@@ -1,6 +1,6 @@
 {
   "name": "@zedec/zxv",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "TypeScript SDK for the ZXV platform core (libzxv): exact rationals, four-valued logic, capabilities, budgets, phase ticks, UBH-168 frames, swarm economy, post-quantum crypto and a deterministic integer inference engine. Node-API addon for servers, WebAssembly for browsers.",
   "license": "Apache-2.0",
   "author": "Michael Laurence Curzi and 36N9 Genetics, LLC",
@@ -44,7 +44,7 @@
     "build:ts": "tsc -p tsconfig.json",
     "build": "npm run build:native && npm run build:wasm && npm run build:ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build:ts && node --test --test-concurrency=1 dist/test/vectors.test.js dist/test/engine.test.js dist/test/platform.test.js dist/test/hexagram.test.js dist/test/hardware.test.js dist/test/abi15.test.js dist/test/browser.test.js",
+    "test": "npm run build:ts && node --test --test-concurrency=1 dist/test/vectors.test.js dist/test/engine.test.js dist/test/platform.test.js dist/test/hexagram.test.js dist/test/hardware.test.js dist/test/abi15.test.js dist/test/abi16.test.js dist/test/browser.test.js",
     "example": "node dist/examples/quickstart.js",
     "prepack": "npm run build:ts && node scripts/prepack.mjs"
   },

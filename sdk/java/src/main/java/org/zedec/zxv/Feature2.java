@@ -3,7 +3,7 @@
 package org.zedec.zxv;
 
 /**
- * The ABI 1.5 feature groups ({@code ZXV_FEAT2_*}), reported through a second
+ * The feature groups added from ABI 1.5 on ({@code ZXV_FEAT2_*}), reported through a second
  * mask because the 32 bits of {@link Feature} are nearly used up. A group that
  * is not built into the loaded library refuses every call with
  * {@link NotImplementedException}; {@link Zxv#features2()} says which are live.
@@ -24,7 +24,12 @@ public enum Feature2 {
     /** Web 4 agents: manifests, directory, consent, envelopes ({@link org.zedec.zxv.web4}). */
     WEB4(0x00000040),
     /** The paradox engine ({@link org.zedec.zxv.paradox}). */
-    PARADOX(0x00000080);
+    PARADOX(0x00000080),
+    /**
+     * Vino Embed (ABI 1.6): the play lane, payment requests, receipts and the daily spend meter
+     * ({@link org.zedec.zxv.vino}).
+     */
+    VINO(0x00000100);
 
     private final int bit;
 
@@ -32,7 +37,11 @@ public enum Feature2 {
         this.bit = bit;
     }
 
-    /** The {@code ZXV_FEAT2_*} bit. */
+    /**
+     * The {@code ZXV_FEAT2_*} bit.
+     *
+     * @return the single bit of this group in the {@code zxv_features2} mask
+     */
     public int bit() {
         return bit;
     }

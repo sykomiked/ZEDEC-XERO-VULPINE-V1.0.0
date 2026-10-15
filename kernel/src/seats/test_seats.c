@@ -73,7 +73,7 @@ int main(void)
     CHECK(seat_add(&r, &env, owner, "", SEAT_PERSON, SEAT_LOCK_NONE, 0, 0, &k) == SEAT_ERR_NAME,
           "and not empty");
     for (int i = 0; i < 30; i++) {
-        char nm[16];
+        char nm[24];
         snprintf(nm, sizeof nm, "person %d", i);
         if (seat_add(&r, &env, owner, nm, SEAT_PERSON, SEAT_LOCK_NONE, 0, 0, &k) != SEAT_OK) {
             CHECK(0, "many people");

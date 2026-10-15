@@ -71,6 +71,10 @@ vna_status_t vna_node_init(vna_node_t *n, const vna_identity_t *idn, const vna_n
     n->aipi = 0;
     n->aipi_ctx = 0;
     n->aipi_in = n->aipi_refused = n->aipi_out = 0;
+    n->space = 0;
+    n->space_ctx = 0;
+    n->space_store_cap = 0;
+    n->space_in = n->space_refused = n->space_out = 0;
     n->spool = 0;
     n->xform = 0;
     n->joined = false;
@@ -244,11 +248,26 @@ static vna_status_t store_put(vna_node_t *n, const uint8_t *bytes, uint32_t len,
     slot->len = (uint16_t) len;
     slot->key = r->key;
     slot->publisher = r->publisher;
+    slot->rtype = r->rtype;
     slot->created = r->created;
     slot->expires = r->expires;
     slot->republish_at = n->cfg.republish_ms ? now + n->cfg.republish_ms : UINT64_MAX;
     slot->used = true;
     return VNA_OK;
+}
+
+/* Live records of this type; a refresh of one already held does not count. */
+static uint32_t records_of_type(const vna_node_t *n, uint8_t rtype, const vna_rec_t *r,
+                                uint64_t now)
+{
+    uint32_t c = 0;
+    for (uint32_t i = 0; i < n->store_cap; i++) {
+        const vna_store_slot_t *s = &n->store[i];
+        if (!s->used || s->expires <= now || s->rtype != rtype) continue;
+        if (vna_id_eq(&s->key, &r->key) && vna_id_eq(&s->publisher, &r->publisher)) return 0;
+        c++;
+    }
+    return c;
 }
 
 static uint32_t records_from(const vna_node_t *n, const vna_id_t *pub)
@@ -376,6 +395,7 @@ int32_t vna_node_publish(vna_node_t *n, const uint8_t *rec, uint32_t len, uint64
     vna_status_t st = vna_rec_verify(&n->v, rec, len, now, n->cfg.ts_window_ms, &n->rec);
     if (st != VNA_OK) return st;
     if (!vna_id_eq(&n->rec.publisher, &n->idn->id)) return VNA_ERR_BINDING;
+    if (n->rec.rtype == VNA_REC_SPACE_EV) return VNA_ERR_DENIED; /* gossiped, never stored */
     vna_id_t key = n->rec.key;
     (void) store_put(n, rec, len, now); /* we hold our own record too */
     return lookup_start(n, &key, VNA_LK_FIND_NODE, true, rec, len, now, ob);
@@ -847,6 +867,60 @@ static void handle_aipi(vna_node_t *n, const vna_msg_t *m, uint64_t now, vna_out
         n->aipi_refused++;
 }
 
+/* ---- public spaces ---- */
+void vna_node_set_space_handler(vna_node_t *n, vna_space_fn fn, void *ctx)
+{
+    if (!n) return;
+    n->space = fn;
+    n->space_ctx = fn ? ctx : 0;
+}
+
+void vna_node_space_store(vna_node_t *n, uint32_t cap)
+{
+    if (n) n->space_store_cap = cap;
+}
+
+vna_status_t vna_node_send_space_at(vna_node_t *n, const vna_id_t *dst, const uint8_t *addr,
+                                    uint32_t addr_len, uint8_t kind, const vna_id_t *space,
+                                    const uint8_t *data, uint32_t len, uint64_t now,
+                                    vna_outbox_t *ob)
+{
+    vna_b_space_t *b = &n->space_out_b;
+    if (!n || !dst || !space || kind < VNA_SPACE_M_JOIN || kind > VNA_SPACE_M_EVENT ||
+        len > VNA_SPACE_MSG_DATA_MAX || (len && !data) || vna_id_is_zero(dst) ||
+        vna_id_eq(dst, &n->idn->id))
+        return VNA_ERR_ARG;
+    const vna_contact_t *c = vna_rt_find(&n->rt, dst);
+    if (c) { /* a known contact: its verified address wins */
+        addr = c->addr;
+        addr_len = c->addr_len;
+    }
+    if (!addr || addr_len == 0 || addr_len > VNA_ADDR_MAX) return VNA_ERR_ARG;
+    b->kind = kind;
+    b->space = *space;
+    b->len = (uint16_t) len;
+    if (len) vna_copy(b->data, data, len);
+    vna_status_t st = send_msg(n, dst, addr, addr_len, VNA_MSG_SPACE, 0, new_rpc(n),
+                               &vna_b_space_schema, b, now, ob);
+    if (st == VNA_OK) n->space_out++;
+    return st;
+}
+
+static void handle_space(vna_node_t *n, const vna_msg_t *m, const uint8_t *addr, uint32_t alen,
+                         uint64_t now, vna_outbox_t *ob)
+{
+    vna_b_space_t *b = &n->space_in_b;
+    if (!n->space || vna_schema_unpack(&vna_b_space_schema, m->body, m->body_len, b, 0) < 0 ||
+        b->kind < VNA_SPACE_M_JOIN) {
+        n->space_refused++;
+        return;
+    }
+    if (n->space(n->space_ctx, &m->src, addr, alen, b, now, ob) == VNA_OK)
+        n->space_in++;
+    else
+        n->space_refused++;
+}
+
 /* ---- receive ---- */
 static bool is_response_type(const vna_msg_t *m)
 {
@@ -971,12 +1045,17 @@ static void handle_store(vna_node_t *n, const vna_msg_t *m, const uint8_t *addr,
     vna_b_ack_t ack;
     ack.status = 1;
     vna_b_rec_t *b = &n->brec;
-    if (eff_degree(n) >= VNA_DEG_STORE &&
+    uint8_t deg = eff_degree(n);
+    if ((deg >= VNA_DEG_STORE || (deg >= VNA_DEG_ROUTE && n->space_store_cap)) &&
         vna_schema_unpack(&vna_b_rec_schema, m->body, m->body_len, b, 0) >= 0 &&
         vna_rec_verify(&n->v, b->rec, b->len, now, n->cfg.ts_window_ms, &n->rec) == VNA_OK &&
-        n->rec.expires - now <= n->cfg.rec_max_ttl_ms) {
+        n->rec.expires - now <= n->cfg.rec_max_ttl_ms && n->rec.rtype != VNA_REC_SPACE_EV) {
         bool quota;
-        if (n->agr)
+        if (deg < VNA_DEG_STORE) /* only public-space records: their own cap */
+            quota = n->rec.rtype == VNA_REC_SPACE &&
+                    records_of_type(n, VNA_REC_SPACE, &n->rec, now) < n->space_store_cap &&
+                    records_from(n, &n->rec.publisher) < n->cfg.max_records_per_peer;
+        else if (n->agr)
             quota = vna_agree_check(n->agr, n->usage, &m->src, trust_of(n, &m->src), VNA_RES_RECORD,
                                     0, 1, 0, now, true) == VNA_OK;
         else
@@ -1048,6 +1127,9 @@ vna_status_t vna_node_handle(vna_node_t *n, const uint8_t *buf, uint32_t len, co
     }
     case VNA_MSG_PUNCH:
         handle_punch(n, m, addr, addr_len, now, ob);
+        return VNA_OK;
+    case VNA_MSG_SPACE:
+        handle_space(n, m, addr, addr_len, now, ob);
         return VNA_OK;
     case VNA_MSG_AIPI:
         handle_aipi(n, m, now, ob);

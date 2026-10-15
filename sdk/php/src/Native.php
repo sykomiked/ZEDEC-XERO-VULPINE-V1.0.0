@@ -11,13 +11,18 @@ use FFI;
 use FFI\CData;
 use Zedec\Zxv\Exception\BudgetExhaustedException;
 use Zedec\Zxv\Exception\CapabilityDeniedException;
+use Zedec\Zxv\Exception\ChanceRefusedException;
 use Zedec\Zxv\Exception\ConsentRequiredException;
+use Zedec\Zxv\Exception\CoverageException;
+use Zedec\Zxv\Exception\ExpiredException;
 use Zedec\Zxv\Exception\FloatRejectedException;
 use Zedec\Zxv\Exception\InsufficientFundsException;
+use Zedec\Zxv\Exception\LaneException;
 use Zedec\Zxv\Exception\NotImplementedException;
 use Zedec\Zxv\Exception\OwnerApprovalRequiredException;
 use Zedec\Zxv\Exception\TreatyException;
 use Zedec\Zxv\Exception\VerificationFailedException;
+use Zedec\Zxv\Exception\WrongRailException;
 use Zedec\Zxv\Exception\ZxvFatalError;
 use Zedec\Zxv\Exception\ZxvRefusedException;
 use Zedec\Zxv\Exception\ZxvSystemException;
@@ -33,6 +38,7 @@ final class Native
     private static ?FFI $ffi = null;
     private static ?string $path = null;
     private static bool $has15 = false;
+    private static bool $has16 = false;
 
     /** 2^64 = 1844674407 * 10^10 + 3709551616 (for uint64 text). */
     private const U64_HI = 1844674407;
@@ -83,20 +89,28 @@ final class Native
         $candidates[] = PHP_OS_FAMILY === "Darwin" ? "libzxv.dylib" : (PHP_OS_FAMILY === "Windows" ? "zxv.dll" : "libzxv.so");
         $header = (string) file_get_contents(__DIR__ . "/zxv.h");
         $header15 = $header . "\n" . (string) file_get_contents(__DIR__ . "/zxv15.h");
+        $header16 = $header15 . "\n" . (string) file_get_contents(__DIR__ . "/zxv16.h");
         $errors = [];
         foreach ($candidates as $c) {
-            // ABI 1.5 first; a 1.4 library lacks those symbols, so fall back
-            // to the 1.4 declarations and refuse 1.5 calls (ZXV_E_NOTIMPL).
+            // ABI 1.6 first; an older library lacks those symbols, so fall
+            // back to the 1.5, then the 1.4 declarations, and refuse the
+            // newer calls (ZXV_E_NOTIMPL).
             $has15 = true;
+            $has16 = true;
             try {
-                $ffi = FFI::cdef($header15, $c);
+                $ffi = FFI::cdef($header16, $c);
             } catch (FFI\Exception) {
-                $has15 = false;
+                $has16 = false;
                 try {
-                    $ffi = FFI::cdef($header, $c);
-                } catch (FFI\Exception $e) {
-                    $errors[] = $c . ": " . $e->getMessage();
-                    continue;
+                    $ffi = FFI::cdef($header15, $c);
+                } catch (FFI\Exception) {
+                    $has15 = false;
+                    try {
+                        $ffi = FFI::cdef($header, $c);
+                    } catch (FFI\Exception $e) {
+                        $errors[] = $c . ": " . $e->getMessage();
+                        continue;
+                    }
                 }
             }
             $maj = $ffi->new("uint32_t");
@@ -109,6 +123,7 @@ final class Native
             self::$ffi = $ffi;
             self::$path = $c;
             self::$has15 = $has15;
+            self::$has16 = $has16;
             return $c;
         }
         throw new ZxvSystemException(Status::E_IO, "libzxv not found (" . implode("; ", $errors) . ")");
@@ -144,6 +159,26 @@ final class Native
         return $f;
     }
 
+    /** Whether the loaded library has the ABI 1.6 functions (vino). */
+    public static function has16(): bool
+    {
+        self::ffi();
+        return self::$has16;
+    }
+
+    /**
+     * The FFI instance for an ABI 1.6 call.
+     * @throws NotImplementedException (ZXV_E_NOTIMPL) on a library older than 1.6
+     */
+    public static function ffi16(): FFI
+    {
+        $f = self::ffi();
+        if (!self::$has16) {
+            throw new NotImplementedException(Status::E_NOTIMPL, "the loaded libzxv predates ABI 1.6");
+        }
+        return $f;
+    }
+
     /** The calling thread's last error detail (R7). */
     public static function lastError(): string
     {
@@ -161,6 +196,7 @@ final class Native
             Status::CLASS_USAGE => match ($status) {
                 Status::E_FLOAT => new FloatRejectedException($detail),
                 Status::E_TREATY => new TreatyException($status, $detail),
+                Status::E_LANE => new LaneException($status, $detail),
                 default => new ZxvUsageException($status, $detail),
             },
             Status::CLASS_REFUSED => match ($status) {
@@ -171,6 +207,10 @@ final class Native
                 Status::E_NOTIMPL => new NotImplementedException($status, $detail),
                 Status::E_CONSENT => new ConsentRequiredException($status, $detail),
                 Status::E_PARADOX_OWNER => new OwnerApprovalRequiredException($status, $detail),
+                Status::E_RAIL => new WrongRailException($status, $detail),
+                Status::E_COVERAGE => new CoverageException($status, $detail),
+                Status::E_EXPIRED => new ExpiredException($status, $detail),
+                Status::E_CHANCE => new ChanceRefusedException($status, $detail),
                 default => new ZxvRefusedException($status, $detail),
             },
             Status::CLASS_FATAL => new ZxvFatalError($status, $detail),

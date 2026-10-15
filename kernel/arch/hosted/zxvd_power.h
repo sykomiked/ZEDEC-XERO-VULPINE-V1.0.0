@@ -38,7 +38,7 @@
  *       strict = false}: sets the target's budget (pw_budget_set) and
  *       answers {ok: true}. An app not seen yet is added; an agent must have
  *       been noted.
- *   W8  Errors: ZXVD_E_POWER (-32100) when power is not open or the target
+ *   W8  Errors: ZXVD_E_POWER (-32095) when power is not open or the target
  *       is unknown; bad parameters are ZXVD_E_PARAMS.
  * Integers only.
  */
@@ -48,7 +48,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define ZXVD_E_POWER (-32100) /* W8 */
+#define ZXVD_E_POWER (-32095) /* W8; in -32099..-32001 (zxvd_rpc.h X4) */
 
 /* W2: root NULL or "" reads this machine; a directory reads a Linux-style
  * fixture under it (tests). 0, or -1 when the host could not be read. */

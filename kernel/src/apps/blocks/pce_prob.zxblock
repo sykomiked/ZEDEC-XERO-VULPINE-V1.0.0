@@ -1,0 +1,31 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# pce_prob, a block: four-valued probability from the paraconsistent
+# decision engines (docs/PARACONSISTENT_ENGINES.md). A belief is a mass over
+# TRUE, FALSE, BOTH and NEITHER given as four counts in that order, so
+# conflict and ignorance are kept apart instead of averaged away.
+zxblock 1
+id       pce_prob
+name     Paraconsistent probability
+version  1.0.0
+# Two independent sources joined on the knowledge order: TRUE from one and
+# FALSE from the other lands on BOTH. Answers the joined mass, T F B N.
+provides join num a b
+logic    c join <<
+prob.join
+.
+# A mass decided against thresholds th = decide_num decide_den
+# conflict_num conflict_den: BOTH when the mass on BOTH reaches the
+# conflict threshold, else TRUE or FALSE when that side reaches the decide
+# threshold, NEITHER otherwise.
+provides verdict truth m th
+logic    c verdict <<
+prob.verdict
+.
+# Exact Bayes: prior weights, likelihoods over den. Evidence every
+# hypothesis calls impossible is refused, never divided by zero.
+provides bayes num prior like den
+logic    c bayes <<
+prob.bayes
+.

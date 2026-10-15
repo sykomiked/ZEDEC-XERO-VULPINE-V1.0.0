@@ -16,6 +16,8 @@
  *   kron      numbers and array views (exact)       sdk/pillars/apl-kron
  *   trebago   heavier exact numeric kernels         sdk/pillars/fortran-trebago
  *   myra      records, indexes and search           sdk/pillars/mumps-myra
+ *   fortran77, basic, forth   legacy programs, as written  kernel/src/lingua
+ *   zlir      any of those, precompiled to Lingua IR    kernel/src/lingua
  *   c         the view and the model                 kernel/src/zui/views, kernel/src/apps
  *
  * Modern languages are first class too, each through its libzxv SDK (the
@@ -120,6 +122,10 @@
  *      covers code only when it is all in the manifest, so a pinned block
  *      must carry its own logic inline ("<<") and pin its own uses too.
  *
+ * Apps are wired together like a circuit, too: a "logic wire" entry names
+ * other entries as parts and wires their inputs (W1 to W6 in zxwire.h; the
+ * hook is zxapp_wiring_t below). The Circuit board (zxboard.h) edits them.
+ *
  * Apps hand work to each other by what they can do, not by name.
  *
  *   I1 AN INTENT says an app can do something with a kind of content:
@@ -182,7 +188,12 @@ typedef enum {
     ZXAPP_LANG_DART,
     ZXAPP_LANG_RUBY,
     ZXAPP_LANG_PHP,
-    ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
+    ZXAPP_LANG_WASM,      /* anything that compiles to WebAssembly (Z-Wasm) */
+    ZXAPP_LANG_WIRE,      /* W: a circuit of other entries, wired (zxwire.h) */
+    ZXAPP_LANG_FORTRAN77, /* the legacy languages, through Lingua (zxapp_lingua.c) */
+    ZXAPP_LANG_BASIC,
+    ZXAPP_LANG_FORTH,
+    ZXAPP_LANG_ZLIR, /* a Lingua program precompiled to IR text (zl_pack) */
     ZXAPP_LANG_COUNT,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
@@ -293,7 +304,25 @@ typedef struct {
     void (*unload)(void *ctx, void *compiled);
 } zxapp_runtime_t;
 
+struct zxapp_host;
+
+/* W1: circuits ("logic wire", zxwire.h). A circuit calls other entries of
+ * its app, so it is not a runtime: zxwire_register sets this hook, and
+ * zxapp_load and the calls hand "wire" entries to it. NULL: circuits
+ * stay unloaded, like any language with no runtime. */
 typedef struct {
+    void *ctx;
+    /* Check the circuit at load: its parts exist and have contracts. */
+    int (*check)(void *ctx, zxapp_t *a, const zxapp_logic_t *L);
+    /* Run it. *lp is its parts' join: TRUE when every part was witnessed,
+     * NEITHER when any ran unwitnessed; ZXAPP_E_CONFLICT (a part held, or
+     * a wire that carries the wrong kind) when it is BOTH. */
+    int (*run)(void *ctx, zxapp_t *a, struct zxapp_host *h, const zxapp_logic_t *L,
+               const zxapp_arg_t *args, uint32_t nargs, zxapp_num_t *out, uint32_t cap,
+               uint32_t *n_out, int32_t *lp);
+} zxapp_wiring_t;
+
+typedef struct zxapp_host {
     zxapp_runtime_t rt[ZXAPP_RUNTIMES];
     uint32_t n;
     /* Reads a path into buf; returns its length or < 0. */
@@ -303,7 +332,8 @@ typedef struct {
      * 0..256 (zxm_link_progress's scale), for the launch screen. */
     void (*progress)(void *ctx, uint32_t done256);
     void *progress_ctx;
-    char file_buf[64u * 1024u]; /* one source at a time, for load() */
+    const zxapp_wiring_t *wiring; /* W1: NULL = no circuits */
+    char file_buf[64u * 1024u];   /* one source at a time, for load() */
 } zxapp_host_t;
 
 const char *zxapp_lang_name(zxapp_lang_t l); /* "kron"; "?" when unknown */

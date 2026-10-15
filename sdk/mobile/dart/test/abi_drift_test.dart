@@ -1,8 +1,9 @@
 // Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 // SPDX-License-Identifier: Apache-2.0
 
-// The declarations in lib/src/bindings.dart (hand-written) and
-// lib/src/bindings15.dart (ABI 1.5, generated then checked here) must match
+// The declarations in lib/src/bindings.dart (hand-written),
+// lib/src/bindings15.dart (ABI 1.5, generated then checked here) and
+// lib/src/bindings16.dart (ABI 1.6 vino) must match
 // zxv_api.h exactly (guides/writing-a-binding.md, "ABI drift"): a wrong
 // width or a missing pointer would corrupt memory instead of failing.
 import 'dart:io';
@@ -106,7 +107,7 @@ Set<String> _check(String file, Map<String, String> protos) {
 void main() {
   final header = File('../../libzxv/include/zxv_api.h').readAsStringSync();
 
-  test('every bindings.dart and bindings15.dart declaration matches zxv_api.h', () {
+  test('every bindings.dart, bindings15.dart and bindings16.dart declaration matches zxv_api.h', () {
     final protos = <String, String>{};
     for (final m in RegExp(r'ZXV_API\s+([^;(]+?)\s*\b(zxv_\w+)\s*\(([^)]*)\)\s*;').allMatches(header)) {
       protos[m[2]!] = '${ffiType(m[1]!)} Function(${_params(m[3]!)})';
@@ -115,13 +116,21 @@ void main() {
 
     final base = _check('lib/src/bindings.dart', protos);
     final v15 = _check('lib/src/bindings15.dart', protos);
+    final v16 = _check('lib/src/bindings16.dart', protos);
     expect(base.length, greaterThan(70));
     expect(base.intersection(v15), isEmpty, reason: 'a function is bound once');
-    // Every ABI 1.5 function (zxv_features2 onward) and ML-DSA-87 is bound.
+    expect(base.union(v15).intersection(v16), isEmpty, reason: 'a function is bound once');
+    final fnRe = RegExp(r'ZXV_API\s+[^;(]+?\s*\b(zxv_\w+)\s*\(');
+    // Every ABI 1.5 function (zxv_features2 up to the vino group) and ML-DSA-87 is bound.
     final from = header.indexOf('ZXV_API int32_t zxv_features2(');
-    final abi15 = {
-      for (final m in RegExp(r'ZXV_API\s+[^;(]+?\s*\b(zxv_\w+)\s*\(').allMatches(header.substring(from))) m[1]!,
-    };
+    final vinoAt = header.indexOf('/* ===== vino (ABI 1.6)');
+    final vinoEnd = header.indexOf('/* ===== end vino ===== */');
+    expect(vinoAt, greaterThan(from));
+    final abi15 = {for (final m in fnRe.allMatches(header.substring(from, vinoAt))) m[1]!};
+    // Every ABI 1.6 vino function is bound, and only those.
+    final abi16 = {for (final m in fnRe.allMatches(header.substring(vinoAt, vinoEnd))) m[1]!};
+    expect(abi16.length, 21);
+    expect(v16, abi16);
     expect(abi15.length, greaterThan(190));
     expect(abi15.difference(v15), isEmpty, reason: 'unbound ABI 1.5 functions');
     for (final f in ['keygen', 'keygen_seed', 'sign', 'sign_deterministic', 'verify']) {

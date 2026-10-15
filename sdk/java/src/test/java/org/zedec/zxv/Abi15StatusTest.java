@@ -66,7 +66,10 @@ class Abi15StatusTest {
         assertEquals(1L << 12, Permission.AIPI.bit());
         assertEquals(1L << 13, Permission.MINT.bit());
         assertEquals(1L << 14, Permission.PARADOX.bit());
-        assertEquals((1L << 15) - 1, Permission.mask(Permission.all()));
+        // ZXV_CAP_ALL_1_5 is kept as a named mask; all() grew to ZXV_CAP_ALL_1_6 in ABI 1.6.
+        assertEquals((1L << 15) - 1, Permission.ALL_1_5);
+        assertEquals(Permission.ALL_1_5, Permission.mask(Permission.all1_5()));
+        assertEquals((1L << 16) - 1, Permission.mask(Permission.all()));
         try (ZxvContext ctx = ZxvContext.create(); Capability cap = V15.root(ctx)) {
             assertEquals(Permission.all(), cap.permissions(), "a 1.5 library keeps the new bits");
         }

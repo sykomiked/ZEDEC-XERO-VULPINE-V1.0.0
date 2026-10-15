@@ -75,5 +75,7 @@ uint32_t zxvi_feat2_vhub(void);
 uint32_t zxvi_feat2_freight(void);
 uint32_t zxvi_feat2_web4(void);
 uint32_t zxvi_feat2_paradox(void);
+/* ABI 1.6. */
+uint32_t zxvi_feat2_vino(void);
 
 #endif /* ZXV_INTERNAL_H */

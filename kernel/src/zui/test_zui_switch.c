@@ -661,6 +661,7 @@ static bool w_event(void *ctx, const zui_event_t *e, zui_rect_t c)
 static void test_wm(void)
 {
     zui_wm_init(&WM, SW_W, SW_H, false);
+    zui_wm_use_dock(&WM, false); /* the strip, behind its switch */
     zui_wm_client_t cl = {0, w_event, 0, 0};
     uint32_t a = zui_wm_open(&WM, "burrow", "Burrow", 0, &cl);
     uint32_t b = zui_wm_open(&WM, "glint", "Glint", 0, &cl);
@@ -720,6 +721,94 @@ static void test_wm(void)
     act.verb = ZUI_SW_ACT_ACTIVATE;
     wm_events = 0;
     CHECK(zui_switch_apply(&SW, &act) && wm_events == 2, "point click: down and up to the app");
+}
+
+/* SW1, SW2, SW8 with the dock (zui_wm.h WM9, the default) */
+static void test_dock(void)
+{
+    zui_wm_init(&WM, SW_W, SW_H, false);
+    zui_wm_client_t cl = {0, w_event, 0, 0};
+    uint32_t a = zui_wm_open(&WM, "burrow", "Burrow", 0, &cl);
+    uint32_t b = zui_wm_open(&WM, "glint", "Glint", 0, &cl);
+    zui_wm_progress(&WM, a, 256);
+    zui_wm_progress(&WM, b, 256);
+    zui_wm_tick(&WM, ZUI_WM_OPEN_MS);
+    zui_dock_pin(&WM.dock, "atlas", "Atlas");
+    zui_sw_config_t c;
+    zui_sw_config_default(&c);
+    c.mode = ZUI_SW_STEP;
+    c.menu = false;
+    zui_switch_init(&SW, &c);
+    zui_switch_attach(&SW, 0, 0, 0, &WM);
+    zui_switch_start(&SW);
+    zui_rect_t k = zui_dock_keepout(&WM.dock);
+    CHECK(SW.ng == 3 && SW.g[1].n == 1 && SW.t[2].kind == ZUI_SW_T_DOCK && SW.t[2].id == -1 &&
+              SW.t[2].r.x == k.x && SW.t[2].r.y == k.y && SW.t[2].r.w == k.w,
+          "windows, the dock's seal, point (%u)", SW.ng);
+    nxt();
+    sel(); /* the seal: a group of one */
+    CHECK(zui_dock_is_open(&WM.dock) && WM.dock.kbd, "choosing the seal opens the dock");
+    CHECK(SW.ng == 5 && SW.state == ZUI_SW_GROUP && SW.group == 2 && SW.g[2].n == 2 &&
+              SW.g[3].n == 1,
+          "the scan goes on over its rings, each a group (%u, %u)", SW.ng, SW.group);
+    zui_dock_slot_t ds;
+    zui_dock_slot(&WM.dock, 0, &ds);
+    int32_t h = WM.dock.icon / 2 + ZUI_DOCK_PAD;
+    CHECK(SW.t[3].kind == ZUI_SW_T_DOCK && SW.t[3].id == ds.item && SW.t[3].r.x == ds.cx - h &&
+              SW.t[3].r.w == 2 * h,
+          "a slot's item and box");
+    sel();
+    sel(); /* ring 0, the first slot: glint, in front */
+    CHECK(zui_wm_get(&WM, b)->minimised && !zui_dock_is_open(&WM.dock),
+          "choosing the app in front minimises it; the dock closes");
+    nxt();
+    sel(); /* the seal again */
+    CHECK(SW.group == 2, "on the rings");
+    nxt();
+    sel(); /* ring 1: atlas alone */
+    uint32_t f = zui_wm_front(&WM);
+    CHECK(f && f != a && f != b && !strcmp(zui_wm_get(&WM, f)->app, "atlas"),
+          "choosing a pinned app launches it");
+    /* a window chosen while the dock is open closes it first */
+    zui_dock_bloom(&WM.dock, true, true);
+    zui_sw_action_t act;
+    memset(&act, 0, sizeof act);
+    act.target.kind = ZUI_SW_T_WINDOW;
+    act.target.id = (int32_t) a;
+    CHECK(zui_switch_apply(&SW, &act) && !zui_dock_is_open(&WM.dock) && zui_wm_front(&WM) == a,
+          "a window: the dock closes, the window comes forward");
+    zui_dock_bloom(&WM.dock, true, true);
+    act.target.kind = ZUI_SW_T_POINT;
+    zui_dock_slot(&WM.dock, 0, &ds);
+    act.x = ds.cx;
+    act.y = ds.cy;
+    CHECK(zui_switch_apply(&SW, &act) && !zui_dock_is_open(&WM.dock),
+          "a point on a dock slot presses it there");
+    /* scrolling a slot turns its ring */
+    char nm[8];
+    for (int i = 0; i < 14; i++) {
+        snprintf(nm, sizeof nm, "p%d", i);
+        zui_dock_pin(&WM.dock, nm, 0);
+    }
+    for (int i = 0; i < 4; i++) zui_wm_open(&WM, "more", 0, 0, 0);
+    zui_dock_bloom(&WM.dock, true, true);
+    zui_switch_start(&SW);
+    const zui_sw_group_t *last = &SW.g[SW.ng - 2u];
+    act.target = SW.t[last->first];
+    act.verb = ZUI_SW_ACT_SCROLL_DOWN;
+    const zui_dock_ring_t *r2 = &WM.dock.ring[2];
+    CHECK(act.target.kind == ZUI_SW_T_DOCK && r2->n > r2->cap && zui_switch_apply(&SW, &act) &&
+              r2->rot == 1,
+          "scroll on a turning ring's slot turns it");
+    act.target = SW.t[SW.g[2].first];
+    CHECK(!zui_switch_apply(&SW, &act), "a ring that does not turn");
+    act.target.id = -1;
+    CHECK(!zui_switch_apply(&SW, &act), "the seal does not scroll");
+    act.verb = ZUI_SW_ACT_BACK;
+    CHECK(zui_switch_apply(&SW, &act) && !zui_dock_is_open(&WM.dock), "back closes the dock");
+    zui_switch_attach(&SW, 0, 0, 0, 0);
+    act.verb = ZUI_SW_ACT_ACTIVATE;
+    CHECK(!zui_switch_apply(&SW, &act), "a dock target with no wm");
 }
 
 /* ---- SW9 drawing ------------------------------------------------------------------- */
@@ -847,6 +936,7 @@ int main(void)
     test_point();
     test_menu_open();
     test_wm();
+    test_dock();
     test_draw();
     printf("%s test_zui_switch: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);

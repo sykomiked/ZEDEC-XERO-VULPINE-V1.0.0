@@ -319,7 +319,7 @@ static void test_builtins(void)
 {
     static zui_keymap_t k;
     uint32_t n = zui_keymap_builtin_count();
-    CHECK(n == 15, "fifteen built-in layouts (%u)", n);
+    CHECK(n == 85, "85 built-in layouts (%u)", n);
     for (uint32_t i = 0; i < n; i++) {
         uint32_t line = 0;
         const char *t = zui_keymap_builtin_text(i);
@@ -328,12 +328,63 @@ static void test_builtins(void)
         CHECK(strcmp(k.id, zui_keymap_builtin_id(i)) == 0, "built-in %s id matches",
               zui_keymap_builtin_id(i));
         CHECK(k.name[0] != 0, "built-in %s has a name", k.id);
-        CHECK(k.key[ZUI_KP(ZUI_KP_ROW_C, 1)][0] != 0 && k.key[ZUI_KP_SPACE][0] == ' ',
-              "built-in %s has a home row and a space", k.id);
+        uint32_t home = 0; /* Amharic's home row starts at C02: C01 is a vowel key */
+        for (int32_t c = 1; c <= 11; c++) home += k.key[ZUI_KP(ZUI_KP_ROW_C, c)][0] != 0;
+        CHECK(home >= 9 && k.key[ZUI_KP_SPACE][0] == ' ', "built-in %s has a home row and a space",
+              k.id);
         CHECK(zui_keymap_load(&k, zui_keymap_builtin_id(i)), "load %s by id",
               zui_keymap_builtin_id(i));
     }
     CHECK(zui_keymap_builtin_id(n) == 0 && zui_keymap_builtin_text(n) == 0, "past the end");
+    /* ids are unique */
+    for (uint32_t i = 0; i < n; i++)
+        for (uint32_t j = i + 1; j < n; j++)
+            CHECK(strcmp(zui_keymap_builtin_id(i), zui_keymap_builtin_id(j)) != 0, "id %s twice",
+                  zui_keymap_builtin_id(i));
+    /* every locale of zui_locale types with a built-in layout */
+    static const char *const LOCALES[] = {
+        "en", "es",  "fr",  "de", "pt",      "it",      "ru",  "uk", "pl", "ar",  "he",  "fa",
+        "ur", "hi",  "bn",  "ta", "zh-Hans", "zh-Hant", "ja",  "ko", "th", "vi",  "tr",  "id",
+        "sw", "am",  "yo",  "ha", "el",      "nl",      "mr",  "te", "gu", "kn",  "ml",  "pa",
+        "or", "as",  "ne",  "si", "sd",      "ps",      "sat", "dv", "ms", "fil", "jv",  "su",
+        "my", "km",  "lo",  "mn", "bo",      "yue",     "kk",  "uz", "ky", "tg",  "tk",  "az",
+        "ka", "hy",  "ckb", "ug", "ro",      "cs",      "hu",  "sv", "bg", "sr",  "hr",  "sk",
+        "da", "fi",  "nb",  "lt", "be",      "ca",      "cy",  "ga", "zu", "xh",  "ig",  "so",
+        "om", "ti",  "rw",  "mg", "sn",      "wo",      "ln",  "af", "ff", "nqo", "zgh", "qu",
+        "gn", "chr", "nv",  "mi", "haw",     "iu",      "se",  "ht"};
+    for (uint32_t i = 0; i < sizeof LOCALES / sizeof LOCALES[0]; i++)
+        CHECK(zui_keymap_load(&k, zui_keymap_for_locale(LOCALES[i])), "%s types with %s",
+              LOCALES[i], zui_keymap_for_locale(LOCALES[i]));
+    CHECK(!strcmp(zui_keymap_for_locale("pt-BR"), "pt-br") &&
+              !strcmp(zui_keymap_for_locale("UK_ua"), "ua") &&
+              !strcmp(zui_keymap_for_locale("zh-Hant-TW"), "us") &&
+              !strcmp(zui_keymap_for_locale("xx"), "us") &&
+              !strcmp(zui_keymap_for_locale(""), "us"),
+          "locale fallbacks");
+    {
+        int32_t D_ = ZUI_KP_ROW_D, C_ = ZUI_KP_ROW_C;
+        /* a key of each generated script types its letter */
+        CHECK(cp_at("ua", ZUI_KP(D_, 1), false, false) == 0x0439 &&              /* й */
+                  cp_at("ua", ZUI_KP(D_, 13), false, false) == 0x0491 &&         /* ґ */
+                  cp_at("in-hi", ZUI_KP(C_, 8), false, false) == 0x0915 &&       /* क */
+                  cp_at("th", ZUI_KP(D_, 1), false, false) == 0x0E46 &&          /* ๆ */
+                  cp_at("ge", ZUI_KP(C_, 1), false, false) == 0x10D0 &&          /* ა */
+                  cp_at("cn-tib", ZUI_KP(C_, 2), false, false) == 0x0F66 &&      /* ས */
+                  cp_at("mv", ZUI_KP(C_, 2), false, false) == 0x0790 &&          /* ސ */
+                  cp_at("gn", ZUI_KP(D_, 1), false, false) == 0x07CA &&          /* ߊ */
+                  cp_at("us-chr", ZUI_KP(C_, 1), false, false) == 0x13A0 &&      /* Ꭰ */
+                  cp_at("ca-ike", ZUI_KP(D_, 2), false, false) == 0x1403 &&      /* ᐃ */
+                  cp_at("ma-tifinagh", ZUI_KP(D_, 1), false, false) == 0x2D30 && /* ⴰ */
+                  cp_at("ng-yoruba", ZUI_KP(D_, 1), false, false) == 0x1EB9,     /* ẹ */
+              "letters of the generated layouts");
+        /* a generated dead key composes: Vietnamese dot below + a */
+        static zui_keymap_t v;
+        CHECK(zui_keymap_load(&v, "vn"), "load vn");
+        int32_t d = -1;
+        for (uint32_t i = 0; i < v.ndead; i++)
+            if (!strcmp(v.dead[i].name, "belowdot")) d = (int32_t) i;
+        CHECK(d >= 0 && zui_keymap_combine(&v, (uint32_t) d, 'a') == 0x1EA1, "vn: dot below + a");
+    }
 
     int32_t E = ZUI_KP_ROW_E, D = ZUI_KP_ROW_D, C = ZUI_KP_ROW_C, B = ZUI_KP_ROW_B;
     CHECK(cp_at("us", ZUI_KP(D, 1), false, false) == 'q' &&

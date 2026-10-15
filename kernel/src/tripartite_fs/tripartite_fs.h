@@ -37,8 +37,18 @@
  *   - No settlement: tf_purchase_access (the old code edited identity
  *     balances directly, outside the financial fabric).
  *   - No chain bridge (tf_bridge_file), no policy engine (tf_enforce_policy).
- *   - No replication, no encryption, no healing: tf_self_heal_file cannot
- *     restore content without a replica, so it refuses.
+ *   - No replication, no encryption, no healing by itself: tf_self_heal_file
+ *     cannot restore content without a replica, so it refuses.
+ *
+ * RECOVERY (recover.h, gap B5). With a recovery framework attached
+ * (tf_attach_recovery), recovery goes through it: tf_self_heal_file's
+ * refusal becomes a signed REFUSE; tf_checkpoint_file keeps a caller-made
+ * shadow copy of a file's bytes (only bytes that match the CID);
+ * tf_recover_file rolls the caller's payload back to that checkpoint, or,
+ * when no checkpoint matches the CID, isolates the file. The hard
+ * invariant is "the bytes hash to the file's CID": a payload is never
+ * patched, only restored from a checkpoint the caller made, and an
+ * isolated file never verifies or loads again.
  *   - tf_share_on_mesh records a route ID in the index; nothing is sent.
  *
  * The subsystem pointers passed to tf_init are stored opaquely and are not
@@ -61,6 +71,7 @@
 #include "lpres.h"
 #include "m5_types.h"
 #include "surplus.h"
+#include "../recover/recover.h"
 
 /* ===== Constants ===== */
 
@@ -82,6 +93,8 @@
 #define TF_EFULL     (-2) /* table full */
 #define TF_EMISMATCH (-3) /* content does not match its CID / digest */
 #define TF_ENOTSUP   (-4) /* capability not implemented: nothing happened */
+#define TF_EISOLATED (-5) /* the file was isolated by the recovery framework */
+#define TF_EHALTED   (-6) /* the recovery framework is halted (full or unsigned) */
 
 /* ===== Tripartite File Types (mirrors holographic) ===== */
 
@@ -160,6 +173,7 @@ typedef struct tf_file_entry {
     /* Lifecycle */
     bool active;
     bool verified; /* set only by tf_verify_file_content() */
+    bool isolated; /* set only by tf_recover_file(): sticky */
 } tf_file_entry_t;
 
 /* ===== Tripartite Pair ===== */
@@ -294,6 +308,10 @@ typedef struct tripartite_fs {
         surplus_real_t min_global_coverage;
     } config;
 
+    /* Recovery framework (tf_attach_recovery); NULL: none */
+    rcv_t *recover;
+    rcv_proof_t *recover_proof; /* the latest RecoveryProof */
+
     bool initialized;
 } tripartite_fs_t;
 
@@ -321,7 +339,8 @@ int32_t tf_create_file(tripartite_fs_t *fs, const char *name, tf_type_t type,
 
 /* Hash payload and compare with the file's CID (and size). On a match the
  * file becomes verified (lpres TRUE) and 0 is returned; otherwise it becomes
- * unverified (lpres FALSE) and TF_EMISMATCH is returned. */
+ * unverified (lpres FALSE) and TF_EMISMATCH is returned. An isolated file
+ * never verifies (TF_EISOLATED). */
 int32_t tf_verify_file_content(tripartite_fs_t *fs, uint32_t file_id, const uint8_t *payload,
                                uint32_t payload_len);
 
@@ -399,8 +418,30 @@ int32_t tf_enforce_policy(tripartite_fs_t *fs, uint32_t file_id, uint32_t policy
 int32_t tf_self_audit_file(tripartite_fs_t *fs, uint32_t file_id);
 int32_t tf_self_audit_system(tripartite_fs_t *fs);
 /* No replica exists to restore from: 0 if the file already audits clean,
- * TF_ENOTSUP otherwise. */
+ * TF_ENOTSUP otherwise. With a framework attached the refusal is a signed
+ * REFUSE in fs->recover_proof (TF_EHALTED if it could not be recorded). */
 int32_t tf_self_heal_file(tripartite_fs_t *fs, uint32_t file_id);
+
+/* ===== Recovery (recover.h) ===== */
+
+/* Attach a recovery framework and the proof it fills. Its shadow, if any,
+ * holds checkpoints of one payload length. TF_EINVAL for NULLs. */
+int32_t tf_attach_recovery(tripartite_fs_t *fs, rcv_t *rc, rcv_proof_t *proof);
+/* Checkpoint payload into the framework's shadow: only bytes that hash to
+ * the file's CID (else TF_EMISMATCH, nothing written). TF_ENOTSUP without
+ * a framework or when the shadow refuses (no shadow, wrong length, halted);
+ * TF_EISOLATED for an isolated file. */
+int32_t tf_checkpoint_file(tripartite_fs_t *fs, uint32_t file_id, const uint8_t *payload,
+                           uint32_t payload_len);
+/* Recover the caller's copy of a file's bytes (rcv_recover, hard invariant:
+ * the bytes hash to the CID). Bytes that already match: nothing is
+ * patched, they verify, 0. Bytes that do not: rolled back to a checkpoint
+ * that matches (then verified, 0) or, without one, the file is isolated
+ * (TF_EISOLATED, for good). TF_EHALTED when the framework is full, halted
+ * or the signer failed; TF_ENOTSUP without a framework. Every outcome but
+ * TF_EINVAL / TF_ENOTSUP leaves a RecoveryProof in fs->recover_proof. */
+int32_t tf_recover_file(tripartite_fs_t *fs, uint32_t file_id, uint8_t *payload,
+                        uint32_t payload_len);
 
 /* ===== Health & Attestation ===== */
 

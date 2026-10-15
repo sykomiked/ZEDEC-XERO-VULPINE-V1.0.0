@@ -130,6 +130,7 @@ typedef struct m5_router {
     uint32_t packets_dropped;
     uint32_t adapter_sends;
     uint32_t adapter_recvs;
+    uint32_t ham_refused; /* frames the amateur-radio gate refused (ham_gate.h) */
 } m5_router_t;
 
 void m5_router_init(m5_router_t *r, m5_address_t *local);
@@ -170,5 +171,9 @@ void m5_addr_from_frequency(m5_address_t *maa, uint32_t freq_hz, m5_proto_t modu
 
 /* Protocol name strings */
 const char *m5_proto_name(m5_proto_t proto);
+
+/* Amateur bands: only one cleartext, signed AHAM frame may be sent on them
+ * (ham_gate.h); m5_router_send and m5_router_broadcast enforce it. */
+bool m5_proto_is_amateur(m5_proto_t proto);
 
 #endif

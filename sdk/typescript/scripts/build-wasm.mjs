@@ -75,6 +75,8 @@ const units = [
   ...['zxv_api', 'zxv_core', 'zxv_econ', 'zxv_crypto', 'zxv_tensor', 'zxv_evm', 'zxv_hex', 'zxv_hw',
     // ABI 1.5
     'zxv_abi15', 'zxv_treaty', 'zxv_aipi', 'zxv_coin', 'zxv_fee', 'zxv_vhub', 'zxv_freight', 'zxv_web4', 'zxv_paradox',
+    // ABI 1.6
+    'zxv_vino',
   ].map((n) => ({
     src: join(lib, 'src', `${n}.c`), flags: ['-fvisibility=hidden', '-DZXV_BUILD_SHARED', '-Wall', '-Wno-unused-function'],
   })),

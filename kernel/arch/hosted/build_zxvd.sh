@@ -5,7 +5,9 @@
 # build_zxvd.sh OUTDIR — build zxvd: the hosted swarm (the same sources as
 # zxv-host, from app_sources.sh) with -DZXVD, its JSON-RPC socket
 # (zxvd_rpc.c) and the web4 JSON tokenizer, linked against libzxv's shared
-# library through its frozen C ABI (sdk/libzxv/include/zxv_api.h).
+# library through its frozen C ABI (sdk/libzxv/include/zxv_api.h). The module
+# methods (zxvd_rpc_modules.c: freight, harmonic, stream, ehop, web4) add
+# their kernel sources below; Linux, macOS and Windows link the same list.
 #
 # libzxv is linked as a shared library on purpose: it is built from kernel
 # sources with its own flags (TEST_HOST number types, hidden visibility), so
@@ -67,6 +69,7 @@ python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
 set --
 for d in $(sh "$HERE/app_sources.sh" incs); do set -- "$@" "-I$K/$d"; done
 set -- "$@" "-I$K/src/web4" "-I$R/sdk/libzxv/include"
+for d in freight harmonic stream ehop; do set -- "$@" "-I$K/src/$d"; done
 for f in $(sh "$HERE/app_sources.sh" srcs); do set -- "$@" "$K/$f"; done
 DEFS="-DZXVD $OSDEFS"
 if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
@@ -115,10 +118,15 @@ if [ -z "$EXE" ] && [ "${ZXVD_PLAY:-1}" != 0 ]; then
     set -- "$@" "-I$R/sdk/playground/include"
     DEFS="$DEFS -DZXV_HAVE_PLAY"
 fi
-# 4. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
+# 5. method groups behind feature switches (zxvd_ext.h): netting, cards, ...
 for d in $(sh "$HERE/app_sources.sh" groupincs); do set -- "$@" "-I$K/$d"; done
 for f in $(sh "$HERE/app_sources.sh" groups); do set -- "$@" "$K/$f"; done
 set -- "$@" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxvd_phone.c" "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/zxv_ui.c"
+# the module methods (app_sources.sh modules): each source not already on
+# the line (srcs and the method groups link several of them) is added once
+for f in $(sh "$HERE/app_sources.sh" modules); do
+    case " $* " in *" $K/$f "*) ;; *) set -- "$@" "$K/$f" ;; esac
+done
 # the owner's social chat (zxvd_chat.h): signed records, store, ISF feed
 set -- "$@" "$HERE/zxvd_chat.c" "$K/src/reputation/reputation.c"
 for f in social_post social_store social_feed social_bucket social_group social_sign_mldsa; do
@@ -132,6 +140,20 @@ set -- "$@" "-I$K/src/ident" "$HERE/zxvd_pay.c" "$K/src/ident/id_passkey.c" "$K/
 for f in pq_matrix pq_hqc5 pq_slh256s; do set -- "$@" "$K/src/pqsec/$f.c"; done
 for f in "$K"/src/pqsec/slhdsa/[a-z]*.c; do set -- "$@" "$f"; done
 for f in mlkem768 mlkem_encode mlkem_sample mlkem_ntt mlkem_kpe; do set -- "$@" "$K/src/mlkem/$f.c"; done
+# 6. The people features (zxvd_people.c: social, calls, translation, the
+# device mesh, simple mode): kernel libraries compiled here. Not in the
+# Windows build yet (ZXVD_PEOPLE=0 leaves them out anywhere). The chat,
+# payments and method groups above already link part of what they need
+# (social, reputation, pq_matrix, ML-KEM-768, ...): a file is added once.
+if [ -z "$EXE" ] && [ "${ZXVD_PEOPLE:-1}" != 0 ]; then
+    for d in $(sh "$HERE/app_sources.sh" people_incs); do set -- "$@" "-I$K/$d"; done
+    for f in $(sh "$HERE/app_sources.sh" people); do
+        dup=0
+        for a in "$@"; do [ "$a" = "$K/$f" ] && { dup=1; break; }; done
+        [ "$dup" = 1 ] || set -- "$@" "$K/$f"
+    done
+    DEFS="$DEFS -DZXV_HAVE_PEOPLE"
+fi
 # shellcheck disable=SC2086 # CC may carry flags ("xcrun clang -arch arm64")
 $CC -std=c11 -O2 -Wall -Wextra -Werror $SAN $DEFS "$@" $AIPI_LIBS $PLAY_LIBS -L"$OUT" -lzxv ${RP:+"$RP"} -lm $OSLIBS \
     -o "$OUT/zxvd$EXE"

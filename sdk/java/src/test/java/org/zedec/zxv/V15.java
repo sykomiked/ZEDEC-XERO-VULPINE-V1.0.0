@@ -67,7 +67,7 @@ final class V15 {
     static synchronized int code(String name) {
         if (codes == null) {
             codes = new HashMap<>();
-            for (String t : new String[] {"status", "status_abi15"}) {
+            for (String t : new String[] {"status", "status_abi15", "status_abi16"}) {
                 for (Object e : l(Vectors.root().get(t))) {
                     Map<String, Object> s = m(e);
                     codes.put((String) s.get("name"), i(s.get("code")));

@@ -437,6 +437,121 @@ r = book.destructive(kind: :destructive, tag: 0x23, state: "X" * 16, checkpoint:
 book.verify_log(:ops)
 ```
 
+## Vino Embed (ABI 1.6)
+
+`Zxv::Vino` is what an app or game needs to take part in Vino without ever
+holding anyone's value or keys. It has two lanes that never meet:
+
+- **PLAY** (`Vino::PlaySandbox`): a sandbox inside your app with its own
+  play units, issuers, holders and vouchers, in process memory only. Play
+  units are not money and are lost when the sandbox closes. No call takes a
+  play sandbox and anything live, so a play unit can never be converted to,
+  redeemed for, or moved into live value.
+- **LIVE** (`Vino::PaymentRequest`, `Vino::Receipt`): real Vino stays in
+  the user's own ZXV wallet. Your app builds a payment request, the user
+  approves it in their wallet, which signs a receipt, and your app checks
+  the receipt offline. Your app never sees a balance, a key or a custody
+  account.
+
+Concepts:
+
+- **Vouchers.** A voucher is one coin with a Fibonacci face (1, 2, 3, 5,
+  8, ...), held by one holder on exactly one active rail: `:bearer` (a note
+  in the holder's hand) or `:ghost` (its twin on the play ledger). Spending
+  names the active rail, so a voucher can never be spent twice
+  (`WrongRailError`, `ZXV_E_RAIL`). `set_rail` switches rails and moves
+  nothing.
+- **Coverage.** An issuer may only issue, or withdraw backing, while
+  `10 * backing >= 18 * outstanding` (1.8x, exact integers); otherwise
+  `CoverageError` (`ZXV_E_COVERAGE`) and nothing changes.
+- **Redeeming** returns a voucher to its issuer and retires it. Nothing is
+  paid out to anyone. There is no call that turns a voucher into backing or
+  play units, and no interest, yield or return of any kind.
+- **Payment requests** are plain immutable values. `encode` gives the
+  canonical 160 bytes, `id` their SHA-256 (32 bytes), `PaymentRequest.decode`
+  reads them back. A LIVE request marked `FLAG_CHANCE` (a paid chance
+  outcome such as a loot box) is refused (`ChanceRefusedError`,
+  `ZXV_E_CHANCE`); the raffle is a separate module, not a payment request.
+  A lane other than `:play`/`:live` is a `LaneError` (`ZXV_E_LANE`).
+- **Receipts** are the wallet's ML-DSA-87 signature over 88 bytes
+  (`Receipt.message`). `Receipt#verify!(now:)` is pure and offline: it
+  raises `VerificationFailedError` for a wrong signature and `ExpiredError`
+  (`ZXV_E_EXPIRED`) for an expired request or an approval outside its
+  window; `valid?(now:)` answers true/false instead. `Receipt.sign` is the
+  wallet's half (it needs `:crypto_sign` and a `SecretKey`, which it uses
+  once and does not keep); an app never holds a wallet key.
+- **Daily cap.** `Vino::SpendMeter` counts what one device approved per day
+  and refuses an amount that would pass the cap (`DailyCapExceededError`,
+  `ZXV_E_LIMIT`, with `#left`). It is a counter, not a legal check.
+- **Capabilities.** The sandbox and the meter need the new `:vino` bit
+  (`1 << 15`). `:all_1_5` does not include it: ask for
+  `root_capability(:all_1_6)` (`Capability::ALL_1_6`) or add `:vino`.
+  `Zxv.feature?(:vino)` (feature bit `0x100`) says whether the library has
+  the group. Requests, receipt messages and verification need no capability.
+- **Statuses.** `ZXV_E_RAIL`, `E_COVERAGE`, `E_EXPIRED` and `E_CHANCE` are
+  refusals (`WrongRailError`, `CoverageError`, `ExpiredError`,
+  `ChanceRefusedError`, all `ZxvRefusedError`); `ZXV_E_LANE` is a usage
+  error (`LaneError < ZxvUsageError`). Amounts, ids and times are exact
+  `Integer`s; floats are refused.
+
+A play-lane shop: the shop backs its vouchers with play units, issues one
+to a player, the player spends it at a friend, who redeems it.
+
+```ruby
+require "zxv"
+
+Zxv::Context.open do |ctx|
+  cap = ctx.root_capability(:all_1_6)
+  play = Zxv::Vino::PlaySandbox.new(cap)
+  shop = play.open_issuer(700)
+  player = play.open_holder(801)
+  friend = play.open_holder(802)
+
+  play.back(shop, 100)                          # play units: not money
+  id = play.issue(issuer: shop, holder: player, face: 34, rail: :bearer)
+  play.transfer(id, from: player, to: friend, rail: :bearer)   # spend on its active rail
+  play.redeem(id, holder: friend)               # retired; nothing is paid out
+  play.voucher(id).state                        # => :redeemed
+  play.account(shop).faces                      # => 0 outstanding
+  play.check!
+  play.close
+end
+```
+
+A live payment request, the wallet's receipt, and the app's offline check.
+The wallet half is shown only to make the example run; in a real
+deployment it happens in the user's wallet, never in your app.
+
+```ruby
+require "zxv"
+
+Zxv::Context.open do |ctx|
+  now = 1_700_000_000
+  request = Zxv::Vino::PaymentRequest.new(
+    lane: :live, merchant: Zxv::Hashes.sha3_256("shop key"), nonce: Zxv.random_bytes(16),
+    amount: 1_500, created_at: now, expires_at: now + 600, memo: "Sword of Dawn"
+  )
+  bytes = request.encode                        # 160 bytes, sent to the wallet
+
+  # --- in the user's wallet (not the app) ---
+  wallet_cap = ctx.root_capability(:crypto_sign)
+  wallet = Zxv::MlDsa87.new(wallet_cap).generate
+  receipt = Zxv::Vino::Receipt.sign(wallet_cap, request: bytes, wallet_secret_key: wallet.secret_key,
+                                                wallet_public_key: wallet.public_key, approved_at: now + 30)
+  wallet.close
+
+  # --- back in the app: offline, no capability ---
+  got = Zxv::Vino::Receipt.new(request: bytes, wallet_public_key: receipt.wallet_public_key,
+                               approved_at: receipt.approved_at, signature: receipt.signature)
+  got.verify!(now: now + 60)                    # raises unless genuine and in time
+  got.request_id == request.id                  # => true
+  got.valid?(now: now + 601)                    # => false (expired)
+
+  meter = Zxv::Vino::SpendMeter.new(ctx.root_capability(:vino), daily_cap: 10_000)
+  meter.admit(day: now / 86_400, amount: request.amount)   # => 8500 left today
+end
+```
+
 ## API overview
 
 | Ruby | Wraps | Main methods |
@@ -470,6 +585,7 @@ book.verify_log(:ops)
 | `Zxv::Freight` | `zxv_freight_*` | `Header.for_payload`, `encode`, `decode`, `split`, `Join`, `Ops.encode`, `Ops.expand`, `Ops::Writer`, `Ops.generate` |
 | `Zxv::Web4` | `zxv_w4_*` | `Agent#card`, `seal`, `reply`, `issue_consent`; `verify_card`, `action_digest`, `Directory`, `Manifest`, `ConsentLog#check!`, `Envelope` |
 | `Zxv::Paradox` | `zxv_paradox_*` | `classify`, `action`; `Book#classify`, `registry_add`, `constructive`, `destructive`, `neutral`, `special`, `draft`, `review`, `pass`, `log_records`, `verify_log`; `Policy`, `Hold`, `Graph` |
+| `Zxv::Vino` (ABI 1.6) | `zxv_vino_*` | `PlaySandbox#open_issuer`, `open_holder`, `back`, `unback`, `issue`, `transfer`, `set_rail`, `redeem`, `voucher`, `account`, `vouchers`, `check!`; `PaymentRequest#encode`, `id`, `.decode`, `.id_of`; `Receipt.message`, `.sign`, `#verify!`, `#valid?`; `SpendMeter#admit` |
 | `Zxv::StateChannel` | `zxv_evm_*` | `encode_state`, `ledger_state` (for `sdk/solidity/ZxvStateChannel.sol`) |
 | `Zxv::Future` | host threads | `value`, `wait`, `done?`, `cancel` |
 
@@ -541,6 +657,14 @@ fatal path).
   job. The paradox engine classifies by the tag and evidence you give it and
   writes logs; it decides nothing for the owner, and money or device
   policies are only ever proposed.
+- **Vino Embed is the app's half only.** Play units are not money, are
+  worth nothing and are lost on close; no play-lane call reaches live value.
+  Approving a payment happens in the user's wallet (zxvd), which posts it on
+  its own ledger. The spend meter is a counter, not a legal check, and makes
+  no exemption claim. Receipts use the reference ML-DSA-87 implementation,
+  not a FIPS 140-3 validated module. Whether a given deployment of Vino is
+  store credit, a prepaid access product or something else is a legal
+  question pending counsel; nothing in this SDK decides it.
 - **Web4 agent keys** live in libzxv memory inside the `Agent` handle and
   are wiped when it is closed (or its context closes); the SDK never returns
   or logs them. A `seed:` passed as a String is copied to a native buffer

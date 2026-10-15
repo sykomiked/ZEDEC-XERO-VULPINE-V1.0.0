@@ -5,8 +5,9 @@ description: >-
   Dart and Flutter SDK for libzxv: exact rationals, four-valued logic, the
   ABI 1.3 hexagram tag and quarantine log, capability-checked ledger,
   budgets, Ed25519 and ML-DSA-87, and the ABI 1.5 groups (treaty, AIPI,
-  coin, fee, V-Bill hub, freight, Web 4, paradox), over dart:ffi.
-version: 1.5.0
+  coin, fee, V-Bill hub, freight, Web 4, paradox), and ABI 1.6 Vino Embed
+  (play-lane vouchers, payment requests, receipts, daily meter), over dart:ffi.
+version: 1.6.0
 publish_to: none
 
 environment:

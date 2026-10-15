@@ -165,7 +165,13 @@ async def test_async_stream_keeps_the_loop_free(engine: Tuple[zxv.Model, bytes],
         async with s.stream_async(prompt, GenerateOptions.greedy(64)) as stream:
             async for _ in stream:
                 break  # early exit stops the worker
-        assert stream.result is None or stream.result.stop is StopReason.CALLBACK
+        # Leaving the block joins the worker. It was either stopped by the
+        # cancel (CALLBACK) or, on a fast machine, had already produced all
+        # 64 tokens before the break reached it (MAX_TOKENS, n_generated 64).
+        assert stream._thread is not None and not stream._thread.is_alive()
+        r = stream.result
+        assert r is None or r.stop is StopReason.CALLBACK or (
+            r.stop is StopReason.MAX_TOKENS and r.n_generated == 64)
     stop.set()
     await t
     assert ticks > 0

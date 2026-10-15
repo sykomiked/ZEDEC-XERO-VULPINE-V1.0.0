@@ -37,7 +37,9 @@
  *      chips * kappa == T: the claim is the deposit, never more. The minter
  *      signs every mint; a BILATERAL chip is also signed by its co-minter
  *      (a different signer). Every COMMODITY leg carries its custodian's
- *      attestation over zenny_att_digest(chip id, leg). The MARGIN rule bit
+ *      attestation over zenny_att_digest(chip id, head, leg), where head
+ *      is the chip's current version hash (32 zero bytes at mint), so an
+ *      attestation is good for one version only. The MARGIN rule bit
  *      is refused (ZENNY_ERR_LEVERAGE) and so is the CREDIT bit
  *      (ZENNY_ERR_CREDIT): neither is implemented here.
  *   Z3 WORM. Every version (mint, rebalance, decompression) is appended to
@@ -54,7 +56,10 @@
  *      ZENNY_ERR_IMMUTABLE. New qty / weights at new prices pass every Z1/Z2
  *      check, and T_new / kappa must equal the chips outstanding
  *      (ZENNY_ERR_CLAIM): a rebalance never changes the claim. Commodity
- *      legs need fresh attestations over their new quantities.
+ *      legs need fresh attestations over their new quantities, bound to
+ *      the current version hash: after X -> Y -> X the attestation that
+ *      backed the first X is refused (ZENNY_ERR_ATTEST), even for the same
+ *      quantity.
  *   Z5 DECOMPRESS. c chips out of N (tap-to-pay): leg i pays out
  *      out_i = qty_i * c / N, exact for every leg or refused. c > N is
  *      ZENNY_ERR_FUNDS (overdraft fails closed). The disposal is valued at
@@ -271,8 +276,12 @@ void zenny_mint_digest(const zenny_req_t *r, uint8_t out[32]);
 /* Z4: what a rebalance is signed over (binds the current version hash). */
 zenny_status_t zenny_rebalance_digest(const zenny_t *z, uint32_t slot, const zenny_req_t *r,
                                       uint8_t out[32]);
-/* Z2: what a custodian attests for one leg of one chip. */
-void zenny_att_digest(const uint8_t chip_id[32], const zenny_leg_t *leg, uint8_t out[32]);
+/* Z2/Z4: what a custodian attests for one leg of one chip at one version:
+ * SHA-256 of "zxv/zenny/att/2." || chip id || head || kind || custodian ||
+ * asset || qty (little-endian u64s). head is the hash of the version the
+ * mint or rebalance follows (32 zero bytes for a mint). */
+void zenny_att_digest(const uint8_t chip_id[32], const uint8_t head[32], const zenny_leg_t *leg,
+                      uint8_t out[32]);
 
 zenny_status_t zenny_mint(zenny_t *z, const zenny_req_t *r, uint32_t *slot);
 zenny_status_t zenny_rebalance(zenny_t *z, uint32_t slot, const zenny_req_t *r);

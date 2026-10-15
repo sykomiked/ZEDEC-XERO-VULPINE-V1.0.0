@@ -325,16 +325,17 @@ public final class Native {
     public static final MethodHandle evm_ledger_state = fn("zxv_evm_ledger_state", I, A, A, L, A, A, A, I, A, L, A, A);
 
     static {
-        // The version gate of SDK_DESIGN section 1: same major, minor >= 5 (the _cap forms of
+        // The version gate of SDK_DESIGN section 1: same major, minor >= 6 (the _cap forms of
         // ABI 1.2, the hexagram tag of ABI 1.3, the hardware emulation of ABI 1.4, and the
-        // ABI 1.5 groups and capability bits: a 1.4 library refuses Permission.all()).
+        // ABI 1.5 groups and capability bits, and since 1.6 the vino group and ZXV_CAP_VINO:
+        // a 1.5 library refuses Permission.all()).
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
             MemorySegment ma = arena.allocate(JAVA_INT), mi = arena.allocate(JAVA_INT), pa = arena.allocate(JAVA_INT);
             int st = (int) version.invokeExact(ma, mi, pa);
             int major = ma.get(JAVA_INT, 0), minor = mi.get(JAVA_INT, 0);
-            if (st != 0 || major != 1 || minor < 5) {
+            if (st != 0 || major != 1 || minor < 6) {
                 throw new UnsatisfiedLinkError("libzxv at " + NativeLoader.loadedFrom() + " reports ABI "
-                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 5");
+                        + major + "." + minor + "; this SDK needs ABI 1.x with x >= 6");
             }
         } catch (UnsatisfiedLinkError e) {
             throw e;

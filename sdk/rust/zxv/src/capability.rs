@@ -53,7 +53,8 @@ impl Caps {
     pub const HW_RECONF: Caps = Caps(sys::ZXV_CAP_HW_RECONF);
     /// Every bit of ABI 1.1 (`ZXV_CAP_ALL`, which keeps this value
     /// forever). It does not include the 1.4 and 1.5 bits; use
-    /// [`ALL_1_4`](Self::ALL_1_4) or [`ALL_1_5`](Self::ALL_1_5) for those.
+    /// [`ALL_1_4`](Self::ALL_1_4), [`ALL_1_5`](Self::ALL_1_5) or
+    /// [`ALL_1_6`](Self::ALL_1_6) for those.
     pub const ALL: Caps = Caps(sys::ZXV_CAP_ALL);
     /// Every bit as of ABI 1.4 (`ZXV_CAP_ALL_1_4`).
     pub const ALL_1_4: Caps = Caps(sys::ZXV_CAP_ALL_1_4);
@@ -65,6 +66,11 @@ impl Caps {
     pub const PARADOX: Caps = Caps(sys::ZXV_CAP_PARADOX);
     /// Every bit as of ABI 1.5 (`ZXV_CAP_ALL_1_5`).
     pub const ALL_1_5: Caps = Caps(sys::ZXV_CAP_ALL_1_5);
+    /// Play-lane sandboxes and the daily spend meter of
+    /// [`vino`](crate::vino) (ABI 1.6).
+    pub const VINO: Caps = Caps(sys::ZXV_CAP_VINO);
+    /// Every bit as of ABI 1.6 (`ZXV_CAP_ALL_1_6`).
+    pub const ALL_1_6: Caps = Caps(sys::ZXV_CAP_ALL_1_6);
 
     /// The raw bit mask.
     pub const fn bits(self) -> u64 {
@@ -98,7 +104,7 @@ impl BitAnd for Caps {
 
 impl fmt::Debug for Caps {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const NAMES: [&str; 15] = [
+        const NAMES: [&str; 16] = [
             "LEDGER_READ",
             "LEDGER_POST",
             "CRYPTO_SIGN",
@@ -114,6 +120,7 @@ impl fmt::Debug for Caps {
             "AIPI",
             "MINT",
             "PARADOX",
+            "VINO",
         ];
         let names: Vec<&str> = NAMES
             .iter()

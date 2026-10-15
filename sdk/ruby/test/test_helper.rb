@@ -25,6 +25,11 @@ module ZxvTest
     Zxv::Context.open { |ctx| yield ctx, ctx.root_capability(:all_1_5) }
   end
 
+  # ABI 1.6: a context with a root capability holding every 1.6 bit.
+  def with_context16
+    Zxv::Context.open { |ctx| yield ctx, ctx.root_capability(:all_1_6) }
+  end
+
   # Run the block. For "ZXV_OK" return its value; otherwise assert it
   # raises a ZXV error whose status name is +name+ and return the error.
   def expect_status(name, &block)

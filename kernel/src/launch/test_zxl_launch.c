@@ -52,7 +52,7 @@ static void test_themes(void)
           "media group has water behind it");
 
     /* every app on the list has its own entry, in list order */
-    CHECK(zxl_curated_count() == ZXL_APPS, "all 144 apps have their own entry");
+    CHECK(zxl_curated_count() == ZXL_APPS, "all 407 apps have their own entry");
     CHECK(zxl_curated(ZXL_APPS) == 0, "past the end is NULL");
     static const struct {
         uint32_t at;
@@ -69,7 +69,7 @@ static void test_themes(void)
     for (uint32_t i = 0; i < ZXL_APPS; i++) {
         const zxl_theme_t *a = zxl_curated(i), *g = zxl_group_theme(a->group);
         CHECK(g != 0, "each app is in a real group");
-        CHECK(a->group == 1 + i / 12, "twelve apps a group, in order");
+        if (i < ZXL_TIER1) CHECK(a->group == 1 + i / 12, "tier 1: twelve apps a group, in order");
         CHECK(g && a->timbre == g->timbre && a->ambient == g->ambient,
               "an app sounds and moves like its group");
         CHECK(a->reveal == ZXL_REVEAL_VAULT, "every app opens with the boot's vault");
@@ -83,12 +83,18 @@ static void test_themes(void)
             if (a->key == b->key && a->octave == b->octave && a->timbre == b->timbre &&
                 a->motif == b->motif)
                 CHECK(0, "no two apps share a sound sequence");
-            if (a->group == b->group && a->key == b->key && a->octave == b->octave)
-                CHECK(0, "no two apps in a group share a scale");
+            if (j < ZXL_TIER1 && a->group == b->group && a->key == b->key && a->octave == b->octave)
+                CHECK(0, "no two tier-1 apps in a group share a scale");
             if (strcmp(a->app, b->app) == 0) CHECK(0, "names are unique");
         }
     }
     CHECK(in_e == 1, "only the swarm is in the boot's key");
+    CHECK(strcmp(zxl_curated(ZXL_TIER1)->app, "Cartulary") == 0, "tier 2 follows tier 1");
+    CHECK(strcmp(zxl_curated(ZXL_APPS - 1)->app, "Chorale") == 0, "the catalogue ends on app 407");
+    uint32_t per[ZXL_GROUPS + 1] = {0};
+    for (uint32_t i = 0; i < ZXL_APPS; i++) per[zxl_curated(i)->group]++;
+    for (uint32_t g = 1; g <= ZXL_GROUPS; g++)
+        CHECK(per[g] >= 12, "every family has its twelve and more");
     CHECK(zxl_theme_for("burrow", 1) == zxl_group_theme(1), "names are case-sensitive");
     CHECK(zxl_theme_for("Burrowx", 6) == zxl_group_theme(6), "no prefix match");
     CHECK(zxl_theme_for("Burro", 6) == zxl_group_theme(6), "no short match");
@@ -422,6 +428,28 @@ static void test_sound_policy(void)
     CHECK(ev[0].gain_q8 == 48, "ducking scales with volume");
 }
 
+/* every app in the catalogue knows its icon file; nothing else does */
+static void test_icon_files(void)
+{
+    uint32_t named = 0, tier = 0;
+    for (uint32_t i = 0; i < zxl_curated_count(); i++) {
+        const char *f = zxl_icon_file(zxl_curated(i)->app);
+        if (!f) continue;
+        named++;
+        size_t n = strlen(f);
+        if (n > 4 && !strcmp(f + n - 4, ".png") && f[0] != '/' && !strstr(f, "..")) tier++;
+    }
+    CHECK(named == ZXL_APPS, "all 407 apps have an icon file");
+    CHECK(tier == ZXL_APPS, "each a .png inside the icons folder");
+    CHECK(!strcmp(zxl_icon_file("Burrow"), "001-burrow.png"), "Burrow's is 001-burrow.png");
+    CHECK(!strcmp(zxl_icon_file("Cartulary"), "l2/145-dragon-archivist.png"),
+          "a tier-2 app's is in l2/");
+    CHECK(!strcmp(zxl_icon_file("Chorale"), zxl_icon_file("Chorale")) &&
+              strncmp(zxl_icon_file("Chorale"), "l3/407-", 7) == 0,
+          "the last app's is in l3/");
+    CHECK(zxl_icon_file("My Tool") == 0 && zxl_icon_file(0) == 0, "an app a person made: none");
+}
+
 static void test_pick(void)
 {
     CHECK(zxl_theme_pick("Burrow") == zxl_theme_for("Burrow", 1), "pick a curated sequence");
@@ -449,9 +477,87 @@ static void test_pick(void)
     CHECK(ZXL_TILES == 5 && ZXL_TILES <= ZXL_MAX_PARTS, "five tiles, as the boot");
 }
 
+/* the drawing decides when a tile lights (zui's launch screen) */
+static void test_screen_lit(void)
+{
+    zxl_launch_t l;
+    zxl_event_t ev[16];
+    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    zxl_launch_init(&l, t, 5, 0, 0);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_BEGIN, "begin first");
+    CHECK(zxl_launch_lit(&l, 4) == 0, "an outer tile lights");
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 4 &&
+              ev[0].step == 0 && ev[0].note == zxl_tick_note(t, 0),
+          "first lit plays the first step");
+    CHECK(zxl_launch_lit(&l, 4) == -1, "a tile lights once");
+    CHECK(zxl_launch_lit(&l, 5) == -1, "no sixth tile");
+    CHECK(zxl_launch_lit(0, 0) == -1, "NULL launch");
+    CHECK(zxl_launch_lit(&l, 0) == 0 && zxl_launch_lit(&l, 1) == 0 && zxl_launch_lit(&l, 3) == 0,
+          "the rest of the outer tiles");
+    CHECK(drain(&l, ev, 16) == 3 && ev[0].step == 1 && ev[1].step == 2 && ev[2].step == 3,
+          "each lit tile the next step");
+    CHECK(zxl_launch_lit(&l, 2) == 0, "the centre lights");
+    CHECK(drain(&l, ev, 16) == 2, "the centre's tick, then the mark");
+    CHECK(ev[0].kind == ZXL_EV_TICK && ev[0].part == 2 && ev[0].step == ZXL_TOP_STEP,
+          "the centre plays the top step");
+    CHECK(ev[1].kind == ZXL_EV_LIGHT && !ev[1].audible, "the mark lights silently");
+    CHECK(zxl_launch_lit(&l, 0) == -1, "nothing lights after gathering");
+    CHECK(drain(&l, ev, 16) == 0, "no END before the app is ready");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_END && ev[0].audible, "ready: END");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0, "END once");
+
+    /* a window off screen while it gathered: finish lights the rest silently */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_lit(&l, 0);
+    drain(&l, ev, 16);
+    zxl_launch_finish(&l);
+    int n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_LIGHT && ev[1].kind == ZXL_EV_END,
+          "no burst of ticks, just the mark and the end");
+    CHECK(l.lit == 0x1Fu && l.phase == ZXL_PH_OPEN, "every tile lit, open");
+    zxl_launch_finish(0);
+
+    /* finish straight after BEGIN, and mixing progress with lit tiles */
+    zxl_launch_init(&l, t, 3, 0, 0);
+    zxl_launch_finish(&l);
+    n = drain(&l, ev, 16);
+    CHECK(n == 3 && ev[0].kind == ZXL_EV_BEGIN && ev[1].kind == ZXL_EV_LIGHT &&
+              ev[2].kind == ZXL_EV_END,
+          "finish at once: begin, mark, end");
+    zxl_launch_init(&l, t, 3, 0, 0);
+    drain(&l, ev, 16);
+    zxl_launch_lit(&l, 0);
+    zxl_launch_part(&l, 2, 256);
+    zxl_launch_part(&l, 1, 256);
+    n = drain(&l, ev, 16);
+    CHECK(n == 4 && ev[0].step == 0 && ev[1].step == 1 && ev[2].step == ZXL_TOP_STEP &&
+              ev[3].kind == ZXL_EV_LIGHT,
+          "lit tiles and real progress share the steps");
+    zxl_launch_rest(&l, 256);
+    CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_END, "and the rest ends it");
+
+    /* a warm launch is already open */
+    zxl_launch_init(&l, t, 5, 0, 1);
+    drain(&l, ev, 16);
+    CHECK(zxl_launch_lit(&l, 0) == -1, "warm: nothing to light");
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0, "warm: END already played");
+
+    /* the mute setting reaches lit ticks too */
+    zxl_prefs_t p = zxl_prefs_default();
+    p.sounds = 0;
+    zxl_launch_init(&l, t, 1, &p, 0);
+    drain(&l, ev, 16);
+    zxl_launch_lit(&l, 0);
+    CHECK(drain(&l, ev, 16) == 2 && !ev[0].audible && ev[0].gain_q8 == 0, "muted tick");
+}
+
 int main(void)
 {
     test_themes();
+    test_icon_files();
     test_notes();
     test_prefs();
     test_sequence();
@@ -460,6 +566,7 @@ int main(void)
     test_warm();
     test_sound_policy();
     test_pick();
+    test_screen_lit();
     printf("test_zxl_launch: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

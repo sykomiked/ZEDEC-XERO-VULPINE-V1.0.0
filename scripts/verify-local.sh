@@ -97,8 +97,8 @@ if [ -z "$BASE" ]; then
     BASE=$(git merge-base origin/main HEAD 2>/dev/null || true)
 fi
 # Uncommitted and untracked files count too (WORKTREE=1).
-eval "$(EVENT=push WORKTREE=1 build_system/ci_changes.sh "${BASE:-}" | grep -E '^(kernel|mac|dotnet|proofs)=')"
-[ "$FORCE" = 1 ] && kernel=true
+eval "$(EVENT=push WORKTREE=1 build_system/ci_changes.sh "${BASE:-}" | grep -E '^(kernel|mac|dotnet|proofs|zxvd)=')"
+[ "$FORCE" = 1 ] && kernel=true zxvd=true
 echo "base: ${BASE:-<none: everything>}   code changed: $kernel"
 
 # ---- runner ---------------------------------------------------------------
@@ -232,6 +232,12 @@ fi
 step "Apache-2.0 headers (quick-checks)" license
 step "clang-format on changed lines (quick-checks)" lint
 step "workflow draft tiers (quick-checks)" python3 build_system/check_workflow_tiers.py
+step "SDK path filters match libzxv's inputs (quick-checks)" python3 build_system/sdk_kernel_deps.py --check
+step "zxvd error codes are one registry (quick-checks)" python3 build_system/check_zxvd_errors.py
+step "mutation config (quick-checks)" python3 tests/harness/mutator/mutate.py --config tests/harness/mutator/targets.json --check-config
+if [ "$zxvd" = true ]; then
+    step "zxvd unit tests and end to end (zxvd)" sh kernel/arch/hosted/zxvd_checks.sh "$TMP/zxvd"
+else skip "zxvd" "nothing zxvd links or drives changed since $BASE"; fi
 
 if [ "$kernel" != true ]; then
     skip "host tests and everything below" "no code changed since $BASE; --force runs them"

@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# number_classics, a block: classic integer routines in the languages they
+# were first written in, ready for any app ("use number_classics 1") with
+# no knowledge of those languages needed. Each entry is the same algorithm
+# in FORTRAN 77, BASIC and Forth, plus the FORTRAN compiled ahead of time
+# to Lingua IR (gcd.zlir, from `zxlang pack gcd.f`), so the app needs no
+# compiler to run it. A witnessed call runs all four and holds the answer
+# when they disagree.
+zxblock 1
+id       number_classics
+name     Number classics
+version  1.0.0
+author   36N9 Genetics
+# The greatest common divisor of a and b (Euclid), never negative.
+provides gcd num a b
+logic    fortran77 gcd apps/blocks/number_classics/gcd.f
+logic    basic     gcd apps/blocks/number_classics/gcd.bas
+logic    forth     gcd apps/blocks/number_classics/gcd.fs
+logic    zlir      gcd apps/blocks/number_classics/gcd.zlir

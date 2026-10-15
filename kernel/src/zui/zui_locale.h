@@ -9,14 +9,24 @@
  * day periods, first day of the week, cardinal plural rules). The screen
  * reader's words are this project's translations.
  *
- *   L1 LOCALES. en es fr de pt it ru uk pl ar he fa ur hi bn ta zh-Hans
- *      zh-Hant ja ko th vi tr id sw am yo ha el nl. zui_locale_find takes a
- *      BCP 47 tag (any case, "-" or "_") and falls back step by step:
- *      pt-BR -> pt -> en, zh-TW / zh-HK / zh-MO -> zh-Hant, zh / zh-CN /
- *      zh-SG -> zh-Hans, the legacy iw -> he and in -> id; anything unknown
- *      is en. It never returns NULL.
- *   L2 DIRECTION. ar, he, fa and ur are right-to-left; the rest left-to-right.
- *      Use it as zui_bidi's paragraph direction for the interface.
+ *   L1 LOCALES. 104 of them (tools/zui/locales/LANGUAGES.tsv): en es fr de
+ *      pt it ru uk pl ar he fa ur hi bn ta zh-Hans zh-Hant ja ko th vi tr id
+ *      sw am yo ha el nl; South Asia mr te gu kn ml pa or as ne si sd ps sat
+ *      dv; Southeast and East Asia ms fil jv su my km lo mn bo yue; Central
+ *      Asia and the Caucasus kk uz ky tg tk az ka hy ckb ug; Europe ro cs hu
+ *      sv bg sr hr sk da fi nb lt be ca cy ga; Africa zu xh ig so om ti rw mg
+ *      sn wo ln af ff nqo zgh; Indigenous languages of the Americas, the
+ *      Pacific and the Arctic qu gn chr nv mi haw iu se; and ht. They are
+ *      written in 37 scripts. zui_locale_find takes a BCP 47 tag (any case,
+ *      "-" or "_") and falls back step by step: pt-BR -> pt -> en, zh-TW /
+ *      zh-HK / zh-MO -> zh-Hant, zh / zh-CN / zh-SG -> zh-Hans, the legacy
+ *      iw -> he, in -> id, tl -> fil, no -> nb, mo -> ro, sh -> sr; anything
+ *      unknown is en. It never returns NULL. zui_locale_script gives the
+ *      ISO 15924 script the locale is written in ("Latn", "Deva", "Hant"),
+ *      which picks its ASCW Golden face (ascw_face_chain).
+ *   L2 DIRECTION. ar he fa ur sd ps dv ckb ug nqo are right-to-left (CLDR
+ *      layout); the rest left-to-right. Use it as zui_bidi's paragraph
+ *      direction for the interface.
  *   L3 PLURALS. zui_locale_plural gives the CLDR cardinal category (zero,
  *      one, two, few, many, other) of an integer (the rules with v = 0 and
  *      e = 0; a negative number takes its absolute value's category).
@@ -38,28 +48,25 @@
  *      periods of the day). zui_locale_civil gives the Gregorian date.
  *   L6 WEEK. zui_locale_first_day: 0 Sunday .. 6 Saturday, from the locale's
  *      most likely region (en -> US, ar -> EG, fa -> IR, zh-Hans -> CN, ...).
- *   L7 THE READER'S WORDS. zui_locale_word gives one of the screen reader's
- *      words (zui_reader.c's English: "button", "selected", "no next
- *      heading", ...) in the locale; zui_locale_count says a count with the
- *      right plural form ("3 элемента", "5 элементов"); zui_locale_position
- *      says "k of n"; zui_locale_heading "heading level n". A word a locale
- *      lacks comes from its parent, then en.
- *   L8 PHRASING AN ANNOUNCEMENT. zui_locale_phrase turns an utterance the
- *      reader built in English into the locale: it is read as parts
- *      separated by ", " (the reader's own joiner); each part that is one of
- *      the reader's words or patterns ("3 of 12", "5 items", "heading level
- *      2", "about 40 tokens", "from X", "shortcut ...", "Error: ...",
- *      "verbosity high") is translated with L7, numbers are written with L4,
- *      and everything else (names, labels, the text people typed) is kept
- *      as it is. Parts are joined with the locale's list separator ("، " in
- *      Arabic script, "、" in Japanese, "，" in Chinese, a space in Thai).
- *   L9 A SPEECH SHIM. zui_locale_voice_t sits between zui_reader and its
- *      speech: pass zui_locale_speak as the reader's zui_speak_fn and the
- *      shim as its ctx; it phrases each utterance (L8) and hands it on to
- *      the next zui_speak_fn (zui_reader_voice_speak, with the voice's lang
- *      set to zui_locale_tag). Stop requests (empty text) pass through.
- *   L10 Integer only, no allocation, deterministic; every output is cut at a
- *      whole UTF-8 character and NUL-terminated when cap > 0.
+ *   L7 THE READER'S WORDS. Every locale but en has machine-made words
+ *      (zui_locale_review gives ZUI_REVIEW_MACHINE) until a native speaker
+ *      reviews its file in tools/zui/locales/words and marks it reviewed;
+ *      settings should say so next to the language.  zui_locale_word gives one of the screen
+ * reader's words (zui_reader.c's English: "button", "selected", "no next heading", ...) in the
+ * locale; zui_locale_count says a count with the right plural form ("3 элемента", "5 элементов");
+ * zui_locale_position says "k of n"; zui_locale_heading "heading level n". A word a locale lacks
+ * comes from its parent, then en. L8 PHRASING AN ANNOUNCEMENT. zui_locale_phrase turns an utterance
+ * the reader built in English into the locale: it is read as parts separated by ", " (the reader's
+ * own joiner); each part that is one of the reader's words or patterns ("3 of 12", "5 items",
+ * "heading level 2", "about 40 tokens", "from X", "shortcut ...", "Error: ...", "verbosity high")
+ * is translated with L7, numbers are written with L4, and everything else (names, labels, the text
+ * people typed) is kept as it is. Parts are joined with the locale's list separator ("، " in Arabic
+ * script, "、" in Japanese, "，" in Chinese, a space in Thai). L9 A SPEECH SHIM. zui_locale_voice_t
+ * sits between zui_reader and its speech: pass zui_locale_speak as the reader's zui_speak_fn and
+ * the shim as its ctx; it phrases each utterance (L8) and hands it on to the next zui_speak_fn
+ * (zui_reader_voice_speak, with the voice's lang set to zui_locale_tag). Stop requests (empty text)
+ * pass through. L10 Integer only, no allocation, deterministic; every output is cut at a whole
+ * UTF-8 character and NUL-terminated when cap > 0.
  */
 #ifndef ZXV_ZUI_LOCALE_H
 #define ZXV_ZUI_LOCALE_H
@@ -81,6 +88,13 @@ typedef enum {
     ZUI_PLURAL_OTHER,
     ZUI_PLURAL_COUNT
 } zui_plural_t;
+
+/* L7: who wrote a locale's reader words */
+typedef enum {
+    ZUI_REVIEW_SOURCE = 0, /* the source language (en)                        */
+    ZUI_REVIEW_MACHINE,    /* machine-made, not yet checked by a native speaker */
+    ZUI_REVIEW_NATIVE      /* reviewed by a native speaker                    */
+} zui_review_t;
 
 /* L4 */
 typedef enum { ZUI_DIGITS_DEFAULT = 0, ZUI_DIGITS_NATIVE, ZUI_DIGITS_LATIN } zui_digits_t;
@@ -171,6 +185,8 @@ const zui_locale_t *zui_locale_at(uint32_t i); /* 0 .. zui_locale_count_all()-1,
 uint32_t zui_locale_count_all(void);
 const char *zui_locale_tag(const zui_locale_t *loc);  /* "pt", "zh-Hant", ... */
 const char *zui_locale_name(const zui_locale_t *loc); /* its own name: "Deutsch" */
+const char *zui_locale_script(const zui_locale_t *loc); /* ISO 15924: "Latn" */
+zui_review_t zui_locale_review(const zui_locale_t *loc);
 /* L2: true when the locale is written right to left. */
 bool zui_locale_rtl(const zui_locale_t *loc);
 

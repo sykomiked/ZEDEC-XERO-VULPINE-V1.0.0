@@ -749,6 +749,55 @@ static void test_money(void)
     pump();
     CHECK(g_node[HOME].money_answers == 2 && g_node[HOME].money_status == DM_ERR_PERM,
           "declined action is not executable");
+    /* only the addressee answers: another held, paired device (the tablet)
+     * cannot decline (cancel) or approve an action sent to the phone */
+    make_money(&a, HOME, 321, 0x66);
+    CHECK(dm_money_ask(hm, ID(PHONE), &a, g_now) == DM_OK, "home asks the phone again");
+    pump();
+    dm_mesh_t *tb = &g_mesh[TABLET];
+    memcpy(&tb->money_pending, &a, sizeof a);
+    memcpy(tb->money_pending_from, ID(HOME), DM_ID_BYTES);
+    tb->money_pending_used = 1;
+    CHECK(dm_money_answer(tb, false, g_now) == DM_OK, "tablet sends a signed decline");
+    pump();
+    CHECK(g_node[HOME].money_answers == 2 && hm->money_asked_used,
+          "decline from a non-addressee: dropped, request still pending");
+    tb->money_pending_used = 1;
+    CHECK(dm_money_answer(tb, true, g_now) == DM_OK, "tablet sends a signed approval");
+    pump();
+    CHECK(g_node[HOME].money_answers == 2 && hm->money_asked_used,
+          "approval from a non-addressee: dropped, request still pending");
+    CHECK(dm_money_answer(ph, true, g_now) == DM_OK, "the phone approves");
+    pump();
+    CHECK(g_node[HOME].money_answers == 3 && g_node[HOME].money_status == DM_OK &&
+              !hm->money_asked_used,
+          "the addressee's answer is the one accepted");
+    /* amount cap: DM_MONEY_AMOUNT_MAX accepted, one more refused everywhere */
+    {
+        uint8_t w[DM_MONEY_WIRE];
+        dm_money_t back;
+        make_money(&a, PHONE, DM_MONEY_AMOUNT_MAX, 0x67);
+        CHECK(dm_money_encode(&a, w, sizeof w) == (int32_t) DM_MONEY_WIRE &&
+                  dm_money_decode(&back, w, sizeof w) == DM_OK &&
+                  back.amount == DM_MONEY_AMOUNT_MAX,
+              "amount at the cap: encodes and decodes");
+        CHECK(dm_money_confirm_local(ph, &a, true, g_now, &c) == DM_OK &&
+                  dm_money_verify(hm, &a, &c, g_now) == DM_OK,
+              "amount at the cap: confirmable");
+        /* patch the wire amount (big-endian, after id, kind, rail, currency) */
+        uint64_t big = DM_MONEY_AMOUNT_MAX + 1u;
+        for (int i = 0; i < 8; i++)
+            w[DM_ID_BYTES + 7u + (uint32_t) i] = (uint8_t) (big >> (56 - 8 * i));
+        CHECK(dm_money_decode(&back, w, sizeof w) == DM_ERR_FORMAT,
+              "amount above the cap: decode refuses");
+        make_money(&a, PHONE, DM_MONEY_AMOUNT_MAX + 1u, 0x68);
+        CHECK(dm_money_encode(&a, w, sizeof w) < 0, "amount above the cap: encode refuses");
+        CHECK(dm_money_confirm_local(ph, &a, true, g_now, &c) == DM_ERR_FORMAT,
+              "amount above the cap: confirm refuses");
+        a.amount = UINT64_MAX;
+        CHECK(dm_money_ask(hm, ID(PHONE), &a, g_now) == DM_ERR_FORMAT,
+              "amount UINT64_MAX: ask refuses");
+    }
     /* phone-originated wallet request */
     make_money(&a, PHONE, 4200, 0x44);
     uint32_t rid;

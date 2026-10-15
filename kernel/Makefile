@@ -242,6 +242,10 @@ ZXV_TMP ?= /tmp
 # and the trust store (see src/tls/trust.h).
 TLS_VERIFY_SRCS := src/tls/sha512.c src/tls/digest.c src/tls/bn.c src/tls/ecdsa.c src/tls/rsa.c \
 	src/tls/x509.c src/tls/trust.c
+# The server side, for zxvd's IRC gateway: P-256 signing, a self-signed
+# certificate, the TLS 1.3 server (src/tls/server.h) and the client it reuses.
+TLS_SERVER_SRCS := src/tls/server.c src/tls/handshake.c src/tls/record.c src/tls/aead.c \
+	src/tls/hkdf.c src/tls/x25519.c src/tls/selfsigned.c src/tls/ecdsa_sign.c
 
 .PHONY: test-tls-verify
 test-tls-verify:
@@ -250,7 +254,10 @@ test-tls-verify:
 	@echo "=== X.509 chains: real web PKI chains + OpenSSL-made known-bad chains ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_trust.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_trust && $(ZXV_TMP)/test_trust > $(ZXV_TMP)/test_trust.log 2>&1 && echo "[PASS] test_trust ($$(grep "checks," $(ZXV_TMP)/test_trust.log))" || { grep -v "^\[PASS\]" $(ZXV_TMP)/test_trust.log | tail -40; echo "[FAIL] test_trust"; exit 1; }
 	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_trust.c $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_trust_asan && $(ZXV_TMP)/test_trust_asan > $(ZXV_TMP)/test_trust_asan.log 2>&1 && echo "[PASS] test_trust ASan/UBSan" || { tail -40 $(ZXV_TMP)/test_trust_asan.log; echo "[FAIL] test_trust ASan/UBSan"; exit 1; }
-	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TLS_VERIFY_SRCS) src/tls/handshake.c; do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/modbind -Isrc/tls -c $$f -o $(ZXV_TMP)/tls_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/tls_free.o | grep -E " (mem(cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/tls_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] TLS verifier builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
+	@echo "=== TLS signing (RFC 6979 P-256), self-signed certificates, the TLS 1.3 server (zxvd's IRC gateway) ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tls src/tls/test_ecdsa_sign.c src/tls/ecdsa.c src/tls/ecdsa_sign.c src/tls/bn.c src/tls/hkdf.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_ecdsa_sign && $(ZXV_TMP)/test_ecdsa_sign > $(ZXV_TMP)/test_ecdsa_sign.log 2>&1 && echo "[PASS] test_ecdsa_sign ($$(grep "checks," $(ZXV_TMP)/test_ecdsa_sign.log))" || { tail -40 $(ZXV_TMP)/test_ecdsa_sign.log; echo "[FAIL] test_ecdsa_sign"; exit 1; }
+	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -D_GNU_SOURCE -Iinclude -Isrc/modbind -Isrc/tls -Isrc/robin_debanks src/tls/test_tls_server.c $(TLS_SERVER_SRCS) $(TLS_VERIFY_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_tls_server && $(ZXV_TMP)/test_tls_server > $(ZXV_TMP)/test_tls_server.log 2>&1 && echo "[PASS] test_tls_server ASan/UBSan ($$(grep "checks," $(ZXV_TMP)/test_tls_server.log))" || { tail -40 $(ZXV_TMP)/test_tls_server.log; echo "[FAIL] test_tls_server"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TLS_VERIFY_SRCS) src/tls/handshake.c src/tls/ecdsa_sign.c src/tls/selfsigned.c src/tls/server.c; do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/modbind -Isrc/tls -c $$f -o $(ZXV_TMP)/tls_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/tls_free.o | grep -E " (mem(cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/tls_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] TLS verifier, signer and server build freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
 
 # Wall-clock time: SNTP, combining servers, and time zones (see
 # src/timesvc/timesvc.h). TLS needs the time to check certificate expiry.
@@ -263,6 +270,16 @@ test-timesvc:
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_tz.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_tz && $(ZXV_TMP)/test_tz > $(ZXV_TMP)/test_tz.log 2>&1 && echo "[PASS] test_tz ($$(tail -1 $(ZXV_TMP)/test_tz.log))" || { tail -40 $(ZXV_TMP)/test_tz.log; echo "[FAIL] test_tz"; exit 1; }
 	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_tz.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_tz_asan && $(ZXV_TMP)/test_tz_asan > $(ZXV_TMP)/test_tz_asan.log 2>&1 && gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Isrc/timesvc src/timesvc/test_timesvc.c $(TIMESVC_SRCS) -o $(ZXV_TMP)/test_timesvc_asan && $(ZXV_TMP)/test_timesvc_asan > $(ZXV_TMP)/test_timesvc_asan.log 2>&1 && echo "[PASS] test_tz + test_timesvc ASan/UBSan" || { tail -20 $(ZXV_TMP)/test_tz_asan.log $(ZXV_TMP)/test_timesvc_asan.log; echo "[FAIL] timesvc ASan/UBSan"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(TIMESVC_SRCS); do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Isrc/timesvc -c $$f -o $(ZXV_TMP)/timesvc_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/timesvc_free.o | grep -E " (mem(cpy|set|cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/timesvc_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] timesvc builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
+# Crash records kept on disk across a reboot, and boot modes (normal, safe,
+# recovery); see src/crash/crash.h and src/crash/bootctl.h.
+CRASH_SRCS := src/crash/crash.c src/crash/bootctl.c
+
+.PHONY: test-crash
+test-crash:
+	@echo "=== Crash log: sealed records, torn writes, backtrace bounds, safe/recovery boot modes ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/crash/test_crash.c $(CRASH_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_crash && $(ZXV_TMP)/test_crash > $(ZXV_TMP)/test_crash.log 2>&1 && echo "[PASS] test_crash ($$(tail -1 $(ZXV_TMP)/test_crash.log))" || { grep -v "^\[PASS\]" $(ZXV_TMP)/test_crash.log | tail -40; echo "[FAIL] test_crash"; exit 1; }
+	gcc -std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/crash/test_crash.c $(CRASH_SRCS) src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_crash_asan && $(ZXV_TMP)/test_crash_asan > $(ZXV_TMP)/test_crash_asan.log 2>&1 && echo "[PASS] test_crash ASan/UBSan" || { tail -20 $(ZXV_TMP)/test_crash_asan.log; echo "[FAIL] test_crash ASan/UBSan"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-unknown-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; [ $$t = armv7a-none-eabi ] && fl=-mfloat-abi=soft; [ $$t = riscv32-unknown-elf ] && fl=-march=rv32imac; for f in $(CRASH_SRCS); do clang --target=$$t -ffreestanding -fno-builtin $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/modbind -c $$f -o $(ZXV_TMP)/crash_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/crash_free.o | grep -E " (mem(cmp|move|chr)|str[a-z]+|malloc|calloc|realloc|free|printf|puts|abort|__[a-z0-9_]+)\$$" | grep -q .; then nm -u $(ZXV_TMP)/crash_free.o; echo "[FAIL] $$f pulls in libc or a compiler helper ($$t)"; exit 1; fi; done; done; echo "[PASS] crash log builds freestanding (aarch64, i386, armv7a, rv32): no libc, no compiler helpers"
 
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
@@ -273,6 +290,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-crash
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -297,6 +315,10 @@ verify-all: test
 	@if grep -l "zt_dist" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_dist*.c (hosted only)"; exit 1; fi
 	@echo "=== tensor: the Metal kernels' integer arithmetic (zt_metal_math.h) as C, and the whole-matrix hook == the C reference ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_metal_math.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_metal_math && /tmp/test_zt_metal_math > /tmp/test_zt_metal_math.log 2>&1 && echo "[PASS] test_zt_metal_math ($$(tail -1 /tmp/test_zt_metal_math.log))" || { cat /tmp/test_zt_metal_math.log; echo "[FAIL] test_zt_metal_math"; exit 1; }
+	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu && /tmp/test_zt_gpu > /tmp/test_zt_gpu.log 2>&1 && echo "[PASS] test_zt_gpu ($$(tail -1 /tmp/test_zt_gpu.log))" || { cat /tmp/test_zt_gpu.log; echo "[FAIL] test_zt_gpu"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu_asan && /tmp/test_zt_gpu_asan > /tmp/test_zt_gpu_asan.log 2>&1 && echo "[PASS] test_zt_gpu ASan/UBSan" || { cat /tmp/test_zt_gpu_asan.log; echo "[FAIL] test_zt_gpu ASan/UBSan"; exit 1; }
+	@if grep -l "zt_gpu" ../build_system/Makefile.* ../packages/Makefile 2>/dev/null | grep -q .; then echo "[FAIL] a kernel image or package lists zt_gpu.c (hosted only)"; exit 1; fi
 	@echo "=== tensor: image encoder (T23 zt_nn, T24 zt_vision) vs float64, every kernel set, arm64, freestanding ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision && /tmp/test_zt_vision > /tmp/test_zt_vision.log 2>&1 && echo "[PASS] test_zt_vision ($$(tail -1 /tmp/test_zt_vision.log))" || { cat /tmp/test_zt_vision.log; echo "[FAIL] test_zt_vision"; exit 1; }
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DZT_TEST_SIMD -Isrc/tensor src/tensor/test_zt_vision.c src/tensor/zt_vision.c src/tensor/zt_nn.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lm -lpthread -o /tmp/test_zt_vision_asan && /tmp/test_zt_vision_asan > /tmp/test_zt_vision_asan.log 2>&1 && echo "[PASS] test_zt_vision ASan/UBSan" || { cat /tmp/test_zt_vision_asan.log; echo "[FAIL] test_zt_vision ASan/UBSan"; exit 1; }
@@ -375,8 +397,12 @@ verify-all: test
 	$(MAKE) --no-print-directory test-allotment
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-recover
+	$(MAKE) --no-print-directory test-pce
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
+	$(MAKE) --no-print-directory test-pmm
+	$(MAKE) --no-print-directory test-handoff
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
@@ -387,10 +413,13 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-retail
+	$(MAKE) --no-print-directory test-airc
 	$(MAKE) --no-print-directory test-adapters
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
 	$(MAKE) --no-print-directory test-treaty-cobol
+	$(MAKE) --no-print-directory test-lingua
+	$(MAKE) --no-print-directory test-lingua-ref
 	$(MAKE) --no-print-directory test-policy
 	$(MAKE) --no-print-directory test-policy-cobol
 	$(MAKE) --no-print-directory test-terms
@@ -419,13 +448,17 @@ verify-all: test
 	@echo "=== stream: swarm streaming (signed manifests, freight rows, scheduler, simulator vs client-server) ==="; \
 	gcc -std=c11 -Wall -Wextra -Werror -O2 -Isrc/stream -Isrc/freight -Isrc/robin_debanks -Isrc/ipfs_node -Isrc/modbind -Iinclude src/stream/test_stream.c src/stream/stream_seg.c src/stream/stream_swarm.c src/stream/stream_sim.c src/freight/freight.c src/robin_debanks/sha256.c src/ipfs_node/ipfsn_multiformats.c -o /tmp/test_stream && /tmp/test_stream > /tmp/test_stream.log 2>&1 && echo "[PASS] test_stream" || { tail -40 /tmp/test_stream.log; echo "[FAIL] test_stream"; exit 1; }
 	@echo "=== call: RTP over UBH-168, jitter buffer, congestion control, FEC, group mesh, ICE, sessions ==="; \
-	gcc -std=c11 -Wall -Wextra -Werror -O2 -Isrc/call src/call/test_call.c src/call/call_rtp.c src/call/call_jitter.c src/call/call_cc.c src/call/call_fec.c src/call/call_mesh.c src/call/call_ice.c src/call/call_session.c -o /tmp/test_call && /tmp/test_call > /tmp/test_call.log 2>&1 && echo "[PASS] test_call" || { tail -40 /tmp/test_call.log; echo "[FAIL] test_call"; exit 1; }
+	gcc -std=c11 -Wall -Wextra -Werror -O2 -Isrc/call src/call/test_call.c src/call/call_rtp.c src/call/call_jitter.c src/call/call_cc.c src/call/call_fec.c src/call/call_mesh.c src/call/call_ice.c src/call/call_session.c src/robin_debanks/sha256.c -o /tmp/test_call && /tmp/test_call > /tmp/test_call.log 2>&1 && echo "[PASS] test_call" || { tail -40 /tmp/test_call.log; echo "[FAIL] test_call"; exit 1; }
 	@echo "=== vinea: P2P overlay (PQ identity, Kademlia, LAN discovery, offline spool, sessions, agreements, economy) ===";
 	$(MAKE) --no-print-directory test-vinea
+	@echo "=== vinea spaces: CID-anchored public spaces, peer hosting, synced watch hall ===";
+	$(MAKE) --no-print-directory test-vinea-space
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
 	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
 	$(MAKE) --no-print-directory test-aipi-vna
+	@echo "=== protocol twins: ap_log audit chain, AFTP (signed listings, consented offers, multi-source gets), AHAM amateur-radio gate ===";
+	$(MAKE) --no-print-directory test-aproto
 	@echo "=== power: energy per app and per agent, battery, budgets, RAPL, host and phone readers ===";
 	$(MAKE) --no-print-directory test-power
 	@echo "=== evolve: capabilities, forks, lineage DAG, conformance, profiles ==="; \
@@ -496,6 +529,8 @@ verify-all: test
 	done
 	@gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/robin_debanks -Isrc/porter_house -Isrc/edp_risk -Isrc/surplus src/robin_debanks/test_robin_debanks.c src/robin_debanks/robin_debanks.c src/robin_debanks/aes256_gcm.c src/robin_debanks/sha256.c src/porter_house/porter_house.c src/edp_risk/edp_risk.c src/surplus/surplus.c -o /tmp/test_robin_debanks -lm && /tmp/test_robin_debanks > /tmp/test_robin_debanks.log 2>&1 && echo "[PASS] test_robin_debanks" || { cat /tmp/test_robin_debanks.log; echo "[FAIL] test_robin_debanks"; exit 1; }
 	@gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/robin_debanks src/robin_debanks/crypto_validate.c src/robin_debanks/aes256_gcm.c src/robin_debanks/sha256.c -o /tmp/test_crypto_validate && /tmp/test_crypto_validate > /tmp/test_crypto_validate.log 2>&1 && echo "[PASS] test_crypto_validate" || { cat /tmp/test_crypto_validate.log; echo "[FAIL] test_crypto_validate"; exit 1; }
+	@echo "=== SDK: app_template.c, the SDK's starting point, compiles (Makefile.app's host test; not linked, m5_api.h has no implementation yet) ==="
+	@gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/sdk -Isrc/rational -c src/sdk/app_template.c -o /tmp/test_sdk_app_template.o && echo "[PASS] sdk app_template compiles" || { echo "[FAIL] sdk app_template"; exit 1; }
 	@gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/sephirot -Isrc/rmag src/sephirot/test_sephirot.c src/sephirot/sephirot.c src/rmag/rmag_core.c -o /tmp/test_sephirot -lm && /tmp/test_sephirot > /tmp/test_sephirot.log 2>&1 && echo "[PASS] test_sephirot" || { cat /tmp/test_sephirot.log; echo "[FAIL] test_sephirot"; exit 1; }
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/rmag -Isrc/event_space src/rmag/test_rmag_budget.c src/rmag/rmag.c -o /tmp/test_rmag_budget && /tmp/test_rmag_budget > /tmp/test_rmag_budget.log 2>&1 && echo "[PASS] test_rmag_budget" || { cat /tmp/test_rmag_budget.log; echo "[FAIL] test_rmag_budget"; exit 1; }
 	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/rmag -Isrc/event_space src/rmag/test_rmag_div.c src/rmag/rmag_core.c src/rmag/rmag.c -o /tmp/test_rmag_div -lm && /tmp/test_rmag_div > /tmp/test_rmag_div.log 2>&1 && echo "[PASS] test_rmag_div" || { cat /tmp/test_rmag_div.log; echo "[FAIL] test_rmag_div"; exit 1; }
@@ -568,7 +603,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind src/plnp/test_plnp.c src/plnp/plnp.c src/mlkem/keccak.c src/robin_debanks/sha256.c src/tls/hkdf.c -o /tmp/test_plnp && /tmp/test_plnp > /tmp/test_plnp.log 2>&1 && echo "[PASS] test_plnp" || { tail -20 /tmp/test_plnp.log; echo "[FAIL] test_plnp"; exit 1; }
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/mlkem -Isrc/pqsec -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/trispace src/bootlegger/test_bootlegger.c src/bootlegger/bootlegger.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c -o /tmp/test_bootlegger && /tmp/test_bootlegger > /tmp/test_bootlegger.log 2>&1 && echo "[PASS] test_bootlegger" || { tail -20 /tmp/test_bootlegger.log; echo "[FAIL] test_bootlegger"; exit 1; }
 	@echo "=== tripartite_fs: CIDv1 sha2-256 content IDs, verification hashes the bytes ==="; \
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/modbind -Isrc/lpres -Isrc/surplus -Isrc/event_space src/tripartite_fs/test_tripartite_fs.c src/tripartite_fs/tripartite_fs.c src/holographic/holo.c src/phase_coord/phase_coordinator.c src/lpres/lpres.c src/robin_debanks/sha256.c -o /tmp/test_tripartite_fs && /tmp/test_tripartite_fs > /tmp/test_tripartite_fs.log 2>&1 && echo "[PASS] test_tripartite_fs" || { tail -20 /tmp/test_tripartite_fs.log; echo "[FAIL] test_tripartite_fs"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc -Isrc/modbind -Isrc/lpres -Isrc/surplus -Isrc/event_space src/tripartite_fs/test_tripartite_fs.c src/tripartite_fs/tripartite_fs.c src/recover/recover.c src/paradox/paradox.c src/lpres/lpres_hex.c src/holographic/holo.c src/phase_coord/phase_coordinator.c src/lpres/lpres.c src/robin_debanks/sha256.c -o /tmp/test_tripartite_fs && /tmp/test_tripartite_fs > /tmp/test_tripartite_fs.log 2>&1 && echo "[PASS] test_tripartite_fs" || { tail -20 /tmp/test_tripartite_fs.log; echo "[FAIL] test_tripartite_fs"; exit 1; }
 	@echo "=== financial_fabric: form -> rail table (555/777/888), inalienable forms refused (Q32.32) ==="; \
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc -Isrc/modbind -Isrc/bridge -Isrc/constellation -Isrc/count_house -Isrc/edp_risk -Isrc/event_space -Isrc/finance -Isrc/finance_markets -Isrc/hardware -Isrc/identity -Isrc/interspace -Isrc/ipfs -Isrc/lpres -Isrc/mesh_net -Isrc/mesh_token -Isrc/net -Isrc/onepolicy -Isrc/orbital_compat -Isrc/orbital_elevator -Isrc/orbital_fabric -Isrc/porter_house -Isrc/predictive -Isrc/rational -Isrc/sdk -Isrc/surplus -Isrc/update -Isrc/vena -Isrc/vino -Isrc/yantra -Isrc/zcapital src/financial_fabric/test_financial_fabric.c src/financial_fabric/financial_fabric.c src/lpres/lpres.c -o /tmp/test_financial_fabric && /tmp/test_financial_fabric > /tmp/test_financial_fabric.log 2>&1 && echo "[PASS] test_financial_fabric" || { tail -20 /tmp/test_financial_fabric.log; echo "[FAIL] test_financial_fabric"; exit 1; }
 	@echo "=== economy tests on the Q32.32 TARGET type (same tests, no TEST_HOST) ==="; \
@@ -914,6 +949,11 @@ verify-all: test
 		src/launch/test_zxl_launch.c src/launch/zxl_launch.c \
 		-o /tmp/test_zxl_launch && \
 		/tmp/test_zxl_launch && echo "[PASS] test_zxl_launch" || { echo "[FAIL] test_zxl_launch"; exit 1; }; \
+	echo "=== App launch sounds, made live (every app's begin, ticks and end in integers) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/launch \
+		src/launch/test_zxl_synth.c src/launch/zxl_synth.c src/launch/zxl_launch.c \
+		-o /tmp/test_zxl_synth -lm && \
+		/tmp/test_zxl_synth && echo "[PASS] test_zxl_synth" || { echo "[FAIL] test_zxl_synth"; exit 1; }; \
 	echo "=== Desktop shimmer field (event-driven, deterministic) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/shimmer \
 		src/shimmer/test_shimmer.c src/shimmer/shimmer.c \
@@ -1189,7 +1229,7 @@ verify-all: test
 	echo "=== zui: native renderer core (layout, shapes, text, depth effects) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm \
 		src/zui/test_zui.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_depth.c \
-		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
+		src/zui/zui_logic.c src/zui/zui_space.c src/zui/zui_chiglet.c src/zui/zui_emote.c src/zui/zui_progress.c src/zui/zui_login.c src/zui/zui_pxl.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/font/truetype.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c \
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
@@ -1199,14 +1239,41 @@ verify-all: test
 		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_widget && \
 		/tmp/test_zui_widget && echo "[PASS] test_zui_widget" || { echo "[FAIL] test_zui_widget"; exit 1; }; \
-	echo "=== zui: windows, the strip of open apps, the switcher ==="; \
+	echo "=== zui: windows, the strip or the astrolabe dock, the switcher ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
-		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/test_zui_wm.c src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_wm && \
 		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
+	echo "=== zui: every app's launch screen, live in its window (icon, five logos, its sounds) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		src/zui/test_zui_launch_theme.c src/zui/zui_launch_theme.c src/launch/zxl_launch.c \
+		src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_launch_theme && \
+		/tmp/test_zui_launch_theme && echo "[PASS] test_zui_launch_theme" || { echo "[FAIL] test_zui_launch_theme"; exit 1; }; \
+	echo "=== zui: PNG pictures (every format, fitted, drawn; damaged files under ASan+UBSan) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_image.c src/zui/zui_image.c src/zui/zui_canvas.c src/zui/zui_layout.c src/font/truetype.c \
+		-o /tmp/test_zui_image && \
+		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_zui_image && echo "[PASS] test_zui_image" || { echo "[FAIL] test_zui_image"; exit 1; }; \
+	echo "=== zui: a whole launch for real (icon and logos from disk, sounds to the audio device) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		-Isrc/audio -Isrc/edp_risk -Isrc/surplus -Isrc/crit168 \
+		src/zui/test_zui_launch_shell.c src/zui/zui_launch_shell.c src/zui/zui_launch_theme.c src/zui/zui_image.c \
+		src/launch/zxl_launch.c src/launch/zxl_synth.c src/audio/audio.c src/edp_risk/edp_risk.c src/surplus/surplus.c \
+		src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c \
+		src/font/truetype.c -o /tmp/test_zui_launch_shell -lm && \
+		/tmp/test_zui_launch_shell && echo "[PASS] test_zui_launch_shell" || { echo "[FAIL] test_zui_launch_shell"; exit 1; }; \
 	echo "=== zui: accessibility, input, notices, privacy, clipboard, share, capture, lock, display ==="; \
 	CC=gcc sh src/zui/test_zui_toolkit.sh || { echo "[FAIL] test_zui_toolkit"; exit 1; }; \
+	echo "=== seats: people on one device, login after boot ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/ident -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/trispace \
+		src/seats/test_seats.c src/seats/seats.c src/ident/id_argon2.c src/ident/id_core.c $(PQM_SRCS) $(PQSIG_SRCS) \
+		src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c \
+		src/tls/x25519.c src/tls/aead.c src/robin_debanks/sha256.c src/ipfs_node/ipfsn_multiformats.c src/tensor/zt.c \
+		-o /tmp/test_seats && \
+		/tmp/test_seats && echo "[PASS] test_seats" || { echo "[FAIL] test_seats"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/font \
 		src/font/test_font.c src/font/font.c src/font/script.c src/font/truetype.c \
@@ -1563,6 +1630,15 @@ test-lpres-hex:
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
+.PHONY: test-pmm
+test-pmm:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/pmm src/pmm/test_pmm.c src/pmm/pmm.c -o $(ZXV_TMP)/test_pmm && $(ZXV_TMP)/test_pmm > $(ZXV_TMP)/test_pmm.log 2>&1 && echo "[PASS] test_pmm ($$(tail -1 $(ZXV_TMP)/test_pmm.log))" || { cat $(ZXV_TMP)/test_pmm.log; echo "[FAIL] test_pmm"; exit 1; }
+
+# Boot handoff v2 (arch/zxv_handoff.h): seal/accept, region merging, EFI clock.
+.PHONY: test-handoff
+test-handoff:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/test_zxv_handoff.c -o $(ZXV_TMP)/test_handoff && $(ZXV_TMP)/test_handoff > $(ZXV_TMP)/test_handoff.log 2>&1 && echo "[PASS] test_handoff ($$(tail -1 $(ZXV_TMP)/test_handoff.log))" || { cat $(ZXV_TMP)/test_handoff.log; echo "[FAIL] test_handoff"; exit 1; }
+
 .PHONY: test-fwadapt
 test-fwadapt:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/fwadapt/test_fwadapt.c src/fwadapt/fwadapt.c src/hwemu/hwp.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_fwadapt && $(ZXV_TMP)/test_fwadapt > $(ZXV_TMP)/test_fwadapt.log 2>&1 && echo "[PASS] test_fwadapt ($$(tail -1 $(ZXV_TMP)/test_fwadapt.log))" || { cat $(ZXV_TMP)/test_fwadapt.log; echo "[FAIL] test_fwadapt"; exit 1; }
@@ -1580,13 +1656,37 @@ test-paradox:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_paradox.c src/paradox/paradox.c src/paradox/paradox_graph.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_paradox && $(ZXV_TMP)/test_paradox > $(ZXV_TMP)/test_paradox.log 2>&1 && echo "[PASS] test_paradox ($$(tail -1 $(ZXV_TMP)/test_paradox.log))" || { cat $(ZXV_TMP)/test_paradox.log; echo "[FAIL] test_paradox"; exit 1; }
 	@for f in src/paradox/paradox.c src/paradox/paradox_graph.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/paradox_free.o || { echo "[FAIL] paradox freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/paradox_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/paradox_free.o; echo "[FAIL] paradox freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] paradox freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
 
+# The recovery framework (src/recover/recover.h, gap B5, roadmap P3.2): refuse /
+# roll back / isolate, each with a signed RecoveryProof around paradox's
+# RepairProof. ASan/UBSan tests (ML-DSA-87 included), then a freestanding
+# build of the crypto-free policy file (aarch64 -mgeneral-regs-only and
+# i386, no libc, -Wdouble-promotion) whose only external symbols are lpx_*,
+# pdx_* and sha256*.
+.PHONY: test-recover
+test-recover:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/recover/test_recover.c src/recover/recover.c src/recover/recover_pq.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c -o $(ZXV_TMP)/test_recover && $(ZXV_TMP)/test_recover > $(ZXV_TMP)/test_recover.log 2>&1 && echo "[PASS] test_recover ($$(tail -1 $(ZXV_TMP)/test_recover.log))" || { cat $(ZXV_TMP)/test_recover.log; echo "[FAIL] test_recover"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/recover/recover.c -o $(ZXV_TMP)/recover_free.o || { echo "[FAIL] recover freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/recover_free.o | grep -vE ' (lpx_|pdx_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/recover_free.o; echo "[FAIL] recover freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] recover freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256_ external)"
+
+# The paraconsistent decision engines (src/pce/pce.h): probability, tactics,
+# strategy and financial analysis, and their block entry table. ASan/UBSan tests,
+# then a freestanding build (aarch64 -mgeneral-regs-only and i386, no libc, no
+# memcpy, -Wdouble-promotion) whose only external symbols are the engines' own
+# and those of lpres, lpres_hex, paradox, rational and sha256.
+PCE_SRCS := src/pce/pce.c src/pce/pce_prob.c src/pce/pce_tac.c src/pce/pce_strat.c src/pce/pce_fin.c src/pce/pce_entry.c
+.PHONY: test-pce
+test-pce:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/pce/test_pce.c src/pce/test_pce_tac.c src/pce/test_pce_strat.c src/pce/test_pce_fin.c src/pce/test_pce_golden.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pce && $(ZXV_TMP)/test_pce > $(ZXV_TMP)/test_pce.log 2>&1 && echo "[PASS] test_pce ($$(tail -1 $(ZXV_TMP)/test_pce.log))" || { cat $(ZXV_TMP)/test_pce.log; echo "[FAIL] test_pce"; exit 1; }
+	@for f in $(PCE_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pce_free.o || { echo "[FAIL] pce freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pce_free.o | grep -vE ' (pce_|lpx_|lpres_|pdx_|rat_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/pce_free.o; echo "[FAIL] pce freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pce freestanding (aarch64 -mgeneral-regs-only, i386; only pce_/lpx_/lpres_/pdx_/rat_/sha256_ external)"
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/apps/test_zxapp_pce.c src/apps/zxapp.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_zxapp_pce && $(ZXV_TMP)/test_zxapp_pce src > $(ZXV_TMP)/test_zxapp_pce.log 2>&1 && echo "[PASS] pce blocks ($$(tail -1 $(ZXV_TMP)/test_zxapp_pce.log))" || { cat $(ZXV_TMP)/test_zxapp_pce.log; echo "[FAIL] pce blocks"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/apps/zxapp_pce.c -o $(ZXV_TMP)/zxapp_pce_free.o || { echo "[FAIL] zxapp_pce freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/zxapp_pce_free.o | grep -vE ' (pce_|zxapp_)' | grep -q .; then nm -u $(ZXV_TMP)/zxapp_pce_free.o; echo "[FAIL] zxapp_pce freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] zxapp_pce freestanding (only pce_/zxapp_ external)"
+
 # The contradiction-tolerant ledger and four-valued agents (src/paradox/pdx_ledger.h,
 # pdx_agent.h, roadmap 6.6b P1.1-P1.4 and P2.2; docs/PARACONSISTENT_LEDGER.md):
 # ASan/UBSan tests, then the same freestanding build check as test-paradox.
 .PHONY: test-pdx-ledger
 test-pdx-ledger:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres src/paradox/test_pdx_ledger.c src/paradox/pdx_ledger.c src/paradox/pdx_agent.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pdx_ledger && $(ZXV_TMP)/test_pdx_ledger > $(ZXV_TMP)/test_pdx_ledger.log 2>&1 && echo "[PASS] test_pdx_ledger ($$(tail -1 $(ZXV_TMP)/test_pdx_ledger.log))" || { cat $(ZXV_TMP)/test_pdx_ledger.log; echo "[FAIL] test_pdx_ledger"; exit 1; }
-	@for f in src/paradox/pdx_ledger.c src/paradox/pdx_agent.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -c $$f -o $(ZXV_TMP)/pdx_ledger_free.o || { echo "[FAIL] pdx-ledger freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pdx_ledger_free.o | grep -vE ' (lpx_|pdx_|sha256)' | grep -q .; then nm -u $(ZXV_TMP)/pdx_ledger_free.o; echo "[FAIL] pdx-ledger freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pdx-ledger freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256 external)"
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_pdx_ledger.c src/paradox/pdx_ledger.c src/paradox/pdx_agent.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pdx_ledger && $(ZXV_TMP)/test_pdx_ledger > $(ZXV_TMP)/test_pdx_ledger.log 2>&1 && echo "[PASS] test_pdx_ledger ($$(tail -1 $(ZXV_TMP)/test_pdx_ledger.log))" || { cat $(ZXV_TMP)/test_pdx_ledger.log; echo "[FAIL] test_pdx_ledger"; exit 1; }
+	@for f in src/paradox/pdx_ledger.c src/paradox/pdx_agent.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pdx_ledger_free.o || { echo "[FAIL] pdx-ledger freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pdx_ledger_free.o | grep -vE ' (lpx_|pdx_|sha256)' | grep -q .; then nm -u $(ZXV_TMP)/pdx_ledger_free.o; echo "[FAIL] pdx-ledger freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pdx-ledger freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256 external)"
 
 # Grammar-constrained decoding (src/tensor/zt_gram.h) and the paraconsistent
 # evidence head (src/tensor/zt_evh.h, roadmap 6.6b P2.1, with paradox.h's
@@ -1623,7 +1723,7 @@ test-hwemu:
 .PHONY: test-metal
 test-metal:
 	@if [ "$$(uname -s)" != Darwin ]; then echo "[SKIP] test_zt_metal (macOS only)"; exit 0; fi; \
-	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
+	clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -fno-objc-arc -Isrc/tensor src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -framework Metal -framework Foundation -lpthread -o $(ZXV_TMP)/test_zt_metal && \
 	$(ZXV_TMP)/test_zt_metal > $(ZXV_TMP)/test_zt_metal.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_metal.log || true; echo "[PASS] test_zt_metal ($$(tail -1 $(ZXV_TMP)/test_zt_metal.log))"; } || { cat $(ZXV_TMP)/test_zt_metal.log; echo "[FAIL] test_zt_metal"; exit 1; }
 
 .PHONY: hwe-vectors
@@ -1749,17 +1849,29 @@ endif
 # The libzxv facade (src/engine/zxv_engine.h): compress, route, decompress.
 .PHONY: test-vinea
 test-vinea:
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_econ.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_wire.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_econ.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
+
+# Vinea spaces (src/vinea/vna_space.h): CID-anchored public spaces and the synced watch hall.
+.PHONY: test-vinea-space
+test-vinea-space:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea_space.c $(VINEA_SRCS) src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
 
 # AIPI (src/aipi/aipi.h): content-addressed functions over the IPFS node and Vinea.
 AIPI_DEPS := src/aipi/aipi.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/lpres/lpres_hex.c src/lpres/lpres.c
 AIPI_INC  := -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus
 # AIPI over Vinea (src/aipi/aipi_vna.h): calls, claims and payment notices as signed Vinea messages.
-VINEA_SRCS := $(filter-out src/vinea/test_vinea.c,$(sort $(wildcard src/vinea/*.c))) src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/zcapital/zcapital.c
+VINEA_SRCS := $(filter-out src/vinea/test_%.c,$(sort $(wildcard src/vinea/*.c))) src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/zcapital/zcapital.c
 
 .PHONY: test-aipi-vna
 test-aipi-vna:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk src/aipi/test_aipi_vna.c src/aipi/aipi_vna.c $(AIPI_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aipi_vna -lm && $(ZXV_TMP)/test_aipi_vna > $(ZXV_TMP)/test_aipi_vna.log 2>&1 && echo "[PASS] test_aipi_vna ($$(tail -1 $(ZXV_TMP)/test_aipi_vna.log))" || { cat $(ZXV_TMP)/test_aipi_vna.log; echo "[FAIL] test_aipi_vna"; exit 1; }
+
+# Protocol twins (src/aproto, docs/P2P_PROTOCOL_TWINS.md): the ap_log audit chain and AFTP, the FTP twin.
+APROTO_DEPS := src/aproto/ap_log.c src/aproto/aftp.c src/aproto/aham.c src/net/m5route.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c
+
+.PHONY: test-aproto
+test-aproto:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk -Isrc/net -Isrc/crit168 src/aproto/test_aftp.c $(APROTO_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aftp -lm && $(ZXV_TMP)/test_aftp > $(ZXV_TMP)/test_aftp.log 2>&1 && echo "[PASS] test_aftp ($$(tail -1 $(ZXV_TMP)/test_aftp.log))" || { cat $(ZXV_TMP)/test_aftp.log; echo "[FAIL] test_aftp"; exit 1; }
 
 .PHONY: test-aipi
 test-aipi:
@@ -1815,6 +1927,30 @@ test-treaty-cobol:
 	( cd $$d && ./TRTYDEMO > demo.txt; ./treaty_parity demo.txt > parity.log ) && \
 	echo "[PASS] CALL 'ZXV_ENGINE' from GnuCOBOL ($$(tail -1 $$d/parity.log))" || { cat $$d/cobc.log $$d/build.log $$d/demo.txt $$d/parity.log 2>/dev/null; echo "[FAIL] COBOL treaty parity"; exit 1; }; \
 	rm -rf $$d
+
+# Lingua (src/lingua): one shared IR and one checked runtime for every
+# language ZXV runs; front-ends for FORTRAN 77, Minimal BASIC and Forth, each
+# with its canonical AI twin (see docs/LANGUAGE_CATALOGUE.md). The front-ends
+# and runtime are freestanding (no libc symbols at all). test-lingua-ref
+# compares golden and randomly generated programs with gfortran and gforth.
+LINGUA_SRC := src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c
+LINGUA_FUZZ ?= 20000
+
+.PHONY: test-lingua test-lingua-ref test-lingua-mut
+test-lingua-mut:
+	@sh src/lingua/mut_check.sh
+test-lingua:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/test_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/test_zl && $(ZXV_TMP)/test_zl src/lingua/golden > $(ZXV_TMP)/test_zl.log 2>&1 && echo "[PASS] test_zl ($$(tail -1 $(ZXV_TMP)/test_zl.log))" || { cat $(ZXV_TMP)/test_zl.log; echo "[FAIL] test_zl"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl && $(ZXV_TMP)/fuzz_zl $(LINGUA_FUZZ) 1 > $(ZXV_TMP)/fuzz_zl.log 2>&1 && echo "[PASS] fuzz_zl ($$(tail -1 $(ZXV_TMP)/fuzz_zl.log))" || { cat $(ZXV_TMP)/fuzz_zl.log; echo "[FAIL] fuzz_zl"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl_san && $(ZXV_TMP)/fuzz_zl_san 5000 2 > $(ZXV_TMP)/fuzz_zl_san.log 2>&1 && echo "[PASS] fuzz_zl under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zl_san.log))" || { cat $(ZXV_TMP)/fuzz_zl_san.log; echo "[FAIL] fuzz_zl_san"; exit 1; }
+	@for f in $(LINGUA_SRC); do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U zl_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] lingua freestanding (aarch64-none-elf, x86_64: no symbols outside the module)"
+	@sh src/lingua/check_catalogue.sh
+test-lingua-ref:
+	@sh src/lingua/ref_check.sh
 
 # Policy engine (src/policy): a deterministic policy evaluation engine that
 # enforces machine-verifiable transactional constraints, bilateral treaty rules
@@ -1976,6 +2112,16 @@ test-econ:
 	$(MAKE) --no-print-directory test-fxepoch
 # ==== end economy modules ====
 
+# ==== AIRC: agent relay chat over the post-quantum mesh (src/airc, docs/AIRC.md) ====
+# Signed posts, content-addressed boards, quorum-gated jumbo frames and
+# adaptive zero-trust over cred. Freestanding on four targets: no libc but
+# mem*, no 64-bit divide helper.
+AIRC_SRCS = src/airc/airc.c src/cred/cred.c src/sicily/sicily.c src/lpres/lpres_hex.c src/lpres/lpres.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+.PHONY: test-airc
+test-airc:
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ECON_INC) -c src/airc/airc.c -o $(ZXV_TMP)/airc_free.o || { echo "[FAIL] airc.c freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/airc_free.o | grep -vE ' U (memcpy|__aeabi_memcpy[48]?|sha3_256|lpx_action|pqm_mldsa87_(sign|verify)|cred_[a-z_]+|pay_udiv64)$$' | grep -q .; then nm -u $(ZXV_TMP)/airc_free.o; echo "[FAIL] airc.c: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] airc freestanding (aarch64, i386, armv7a, rv32)"
+	@gcc $(ECON_FLAGS) $(ECON_INC) src/airc/test_airc.c $(AIRC_SRCS) $(ECON_LEDGER) -o $(ZXV_TMP)/test_airc -lm 2>$(ZXV_TMP)/test_airc.build && $(ZXV_TMP)/test_airc > $(ZXV_TMP)/test_airc.log 2>&1 && echo "[PASS] test_airc ($$(tail -2 $(ZXV_TMP)/test_airc.log | head -1))" || { cat $(ZXV_TMP)/test_airc.build; tail -40 $(ZXV_TMP)/test_airc.log; echo "[FAIL] test_airc"; exit 1; }
+
 # ==== retail infrastructure: keys sealed by the security chip, offline outbox ====
 # hwkey (src/hwkey): ML-DSA-87 seeds sealed to a TPM / Secure Enclave P-256 key.
 # outbox (src/outbox): offline grants, signed queued payments, once-only settlement.
@@ -1985,6 +2131,8 @@ test-econ:
 RETAIL_INC = $(ECON_INC) -Isrc/edp_risk -Isrc/trispace
 RETAIL_PQ = src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
 .PHONY: test-retail test-hwkey test-outbox test-hwkey-host
+# Prerequisites only: the test-retail recipe (boot attestation, compliance,
+# edge, bearers, people) lives in mk/retail.mk, included below.
 test-retail: test-hwkey test-outbox test-hwkey-host
 test-hwkey:
 	@for t in aarch64-none-elf i386-none-elf; do for f in src/hwkey/hwkey.c src/hwkey/hwkey_soft.c src/outbox/outbox.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RETAIL_INC) -c $$f -o $(ZXV_TMP)/retail_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/retail_free.o | grep -vE ' (shake256|hwk_wipe|pqm_mldsa87_(keygen|sign|verify)|pay_[a-z0-9_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/retail_free.o; echo "[FAIL] $$f: libc or 64-bit division helper ($$t)"; exit 1; fi; done; done; echo "[PASS] hwkey and outbox freestanding (aarch64 and i386: no libc, no helpers)"
@@ -2007,8 +2155,8 @@ test-hwkey-host:
 	ZXV_TPM=mssim:127.0.0.1:$$pa $$d/t --require-hw $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
 	ZXV_TPM=mssim:127.0.0.1:$$pb $$d/t --require-hw --foreign $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
 	kill $$(cat $$d/tpma.pid) $$(cat $$d/tpmb.pid) 2>/dev/null; \
-	grep -q "reopened the key sealed by the previous run" $$d/tpm.log && grep -q "sealed on another chip was refused" $$d/tpm.log || ok=0; \
-	if [ $$ok = 1 ]; then echo "[PASS] test_hwkey_host on a TPM 2.0 simulator (seal, reopen in a new process, refused by another TPM, offline outbox)"; rm -rf $$d; else cat $$d/tpm.log; echo "[FAIL] test_hwkey_host on swtpm"; exit 1; fi
+	grep -q "reopened the key sealed by the previous run" $$d/tpm.log && grep -q "sealed on another chip was refused" $$d/tpm.log && grep -q "refused by the chip counter" $$d/tpm.log || ok=0; \
+	if [ $$ok = 1 ]; then echo "[PASS] test_hwkey_host on a TPM 2.0 simulator (seal, reopen in a new process, refused by another TPM, offline outbox, restored backup refused by the NV counter)"; rm -rf $$d; else cat $$d/tpm.log; echo "[FAIL] test_hwkey_host on swtpm"; exit 1; fi
 # ==== end retail infrastructure ====
 # ==== research tracks (roadmap 6.6d: Q quantum, S spatial, F manufacturing) ====
 # Each module: ASan/UBSan host tests, then a freestanding build (aarch64
@@ -2044,12 +2192,43 @@ test-mfg:
 	gcc $(RESEARCH_FLAGS) src/mfg/test_mfg.c src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c -o $(ZXV_TMP)/test_mfg -lm && $(ZXV_TMP)/test_mfg > $(ZXV_TMP)/test_mfg.log 2>&1 && echo "[PASS] test_mfg ($$(tail -1 $(ZXV_TMP)/test_mfg.log))" || { tail -40 $(ZXV_TMP)/test_mfg.log; echo "[FAIL] test_mfg"; exit 1; }
 	@$(call research_free,src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c,mfg_,mfg)
 
+# Quantum-gap products (classical, exact; no quantum speedup claims). Design notes:
+# docs/QUBO_WORKBENCH.md, docs/CIRCUIT_EQUIVALENCE.md, docs/EXACT_RISK.md, docs/GRIDLOCK_RESOLUTION.md.
+.PHONY: test-qubo
+test-qubo:
+	gcc $(RESEARCH_FLAGS) src/qubo/test_qubo.c src/qubo/qubo.c -o $(ZXV_TMP)/test_qubo -lm && $(ZXV_TMP)/test_qubo > $(ZXV_TMP)/test_qubo.log 2>&1 && echo "[PASS] test_qubo ($$(tail -1 $(ZXV_TMP)/test_qubo.log))" || { tail -40 $(ZXV_TMP)/test_qubo.log; echo "[FAIL] test_qubo"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/qubo/bench_qubo.c src/qubo/qubo.c -o $(ZXV_TMP)/bench_qubo && echo "[PASS] bench_qubo builds"
+	@$(call research_free,src/qubo/qubo.c,qubo_,qubo)
+
+.PHONY: test-qeq
+test-qeq:
+	gcc $(RESEARCH_FLAGS) src/qeq/test_qeq.c src/qeq/qeq.c src/qsim/qsim.c -o $(ZXV_TMP)/test_qeq -lm && $(ZXV_TMP)/test_qeq > $(ZXV_TMP)/test_qeq.log 2>&1 && echo "[PASS] test_qeq ($$(tail -1 $(ZXV_TMP)/test_qeq.log))" || { tail -40 $(ZXV_TMP)/test_qeq.log; echo "[FAIL] test_qeq"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/qeq/bench_qeq.c src/qeq/qeq.c src/qsim/qsim.c -o $(ZXV_TMP)/bench_qeq -lm && echo "[PASS] bench_qeq builds"
+	@$(call research_free,src/qeq/qeq.c,(qeq_|qs_),qeq)
+
+.PHONY: test-xrisk
+test-xrisk:
+	gcc $(RESEARCH_FLAGS) src/xrisk/test_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/test_xrisk -lm && $(ZXV_TMP)/test_xrisk > $(ZXV_TMP)/test_xrisk.log 2>&1 && echo "[PASS] test_xrisk ($$(tail -1 $(ZXV_TMP)/test_xrisk.log))" || { tail -40 $(ZXV_TMP)/test_xrisk.log; echo "[FAIL] test_xrisk"; exit 1; }
+	gcc $(RESEARCH_FLAGS) -DXRISK_SOFT_DIV src/xrisk/test_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/test_xrisk_sd -lm && $(ZXV_TMP)/test_xrisk_sd > $(ZXV_TMP)/test_xrisk_sd.log 2>&1 && echo "[PASS] test_xrisk soft-div ($$(tail -1 $(ZXV_TMP)/test_xrisk_sd.log))" || { tail -40 $(ZXV_TMP)/test_xrisk_sd.log; echo "[FAIL] test_xrisk soft-div"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/xrisk/bench_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/bench_xrisk -lm && echo "[PASS] bench_xrisk builds"
+	@$(call research_free,src/xrisk/xrisk.c,xrisk_,xrisk)
+
+.PHONY: test-gridlock
+test-gridlock:
+	gcc $(RESEARCH_FLAGS) src/gridlock/test_gridlock.c src/gridlock/gridlock.c -o $(ZXV_TMP)/test_gridlock -lm && $(ZXV_TMP)/test_gridlock > $(ZXV_TMP)/test_gridlock.log 2>&1 && echo "[PASS] test_gridlock ($$(tail -1 $(ZXV_TMP)/test_gridlock.log))" || { tail -40 $(ZXV_TMP)/test_gridlock.log; echo "[FAIL] test_gridlock"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/gridlock/bench_gridlock.c src/gridlock/gridlock.c -o $(ZXV_TMP)/bench_gridlock && echo "[PASS] bench_gridlock builds"
+	@$(call research_free,src/gridlock/gridlock.c,gl_,gridlock)
+
 .PHONY: test-research
 test-research:
 	$(MAKE) --no-print-directory test-qsim
 	$(MAKE) --no-print-directory test-qnet
 	$(MAKE) --no-print-directory test-spatial
 	$(MAKE) --no-print-directory test-mfg
+	$(MAKE) --no-print-directory test-qubo
+	$(MAKE) --no-print-directory test-qeq
+	$(MAKE) --no-print-directory test-xrisk
+	$(MAKE) --no-print-directory test-gridlock
 # ==== end research tracks ====
 
 # Host tests that no target used to build (docs/AUDIT_REPORT.md): the holographic
@@ -2064,12 +2243,20 @@ NEWMOD_TEST_INC := -Isrc/edp_risk -Isrc/predictive -Isrc/situation -Isrc/finance
 NEWMOD_TEST_SRCS := src/surplus/surplus.c src/edp_risk/edp_risk.c src/predictive/predictive_model.c src/situation/situation_model.c src/finance/triple_ledger.c src/finance/financial.c src/finance/rails.c src/finance/crypto_bridge.c src/identity/identity.c src/quantum/quantum_device.c src/hardware/rtl_device.c src/net/jdr_piratenet.c src/synthesis/synthesis_engine.c src/crypto_wallet/crypto_wallet.c src/nlb/nlb.c src/pterm/pterm.c src/pterm/pterm_commands.c src/xedit/xedit.c src/lattice/lattice.c src/pungent/pungent.c src/ascent/ascent.c src/plnp/plnp.c src/smap/smap.c src/decent/decent.c src/recon/recon.c src/hdcm/hdcm.c src/gematria/gematria.c src/dualtrack/dualtrack.c src/superpos/superpos.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/mlkem/mlkem768.c src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c src/event_space/event_envelope.c
 
 .PHONY: test-orphans
+# test_seats: the seats module with ident's Argon2id and the PQ code id_core.c
+# links against (the same groups as arch/hosted/test_zxvd_seats.sh).
+SEATS_TEST_SRCS = src/seats/seats.c src/ident/id_argon2.c src/ident/id_core.c src/robin_debanks/sha256.c src/tls/x25519.c \
+	$(addprefix src/pqsec/,pq_mldsa65.c pq_mldsa87.c pq_mlkem1024.c pq_matrix.c pq_hqc5.c pq_slh256s.c) \
+	$(addprefix src/pqsec/mldsa/,ntt.c packing.c poly.c polyvec.c reduce.c rounding.c sign.c symmetric-shake.c fips202.c) \
+	$(addprefix src/pqsec/slhdsa/,sha3_api.c sha3_f1600.c slh_dsa.c slh_shake.c) \
+	$(addprefix src/mlkem/,keccak.c mlkem768.c mlkem_encode.c mlkem_sample.c mlkem_ntt.c mlkem_kpe.c)
 test-orphans:
 	$(ORPHAN_CC) -Isrc/holographic ../tests/test_holo.c src/holographic/holo.c src/phase_coord/phase_coordinator.c -o $(ZXV_TMP)/test_holo && $(ZXV_TMP)/test_holo > $(ZXV_TMP)/test_holo.log 2>&1 && echo "[PASS] test_holo ($$(tail -1 $(ZXV_TMP)/test_holo.log))" || { cat $(ZXV_TMP)/test_holo.log; echo "[FAIL] test_holo"; exit 1; }
 	$(ORPHAN_CC) -Wno-misleading-indentation $(APPS_TEST_INC) -Isrc/zab ../tests/test_apps.c ../tests/test_apps_stubs.c src/apps/apps.c src/apps/vfs_stub.c ../gui/gui.c src/vbe/vbe.c src/vino/vino.c src/vena/vena.c src/net/m5route.c src/rmag/rmag_core.c src/lpres/lpres_core.c src/choice/choice_core.c src/zab/zab.c src/zab/zab_exec.c -o $(ZXV_TMP)/test_apps && $(ZXV_TMP)/test_apps > $(ZXV_TMP)/test_apps.log 2>&1 && echo "[PASS] test_apps ($$(tail -1 $(ZXV_TMP)/test_apps.log))" || { cat $(ZXV_TMP)/test_apps.log; echo "[FAIL] test_apps"; exit 1; }
 	$(ORPHAN_CC) $(NEWMOD_TEST_INC) ../tests/test_new_modules.c $(NEWMOD_TEST_SRCS) -o $(ZXV_TMP)/test_new_modules -lm && $(ZXV_TMP)/test_new_modules > $(ZXV_TMP)/test_new_modules.log 2>&1 && echo "[PASS] test_new_modules ($$(tail -1 $(ZXV_TMP)/test_new_modules.log))" || { tail -30 $(ZXV_TMP)/test_new_modules.log; echo "[FAIL] test_new_modules"; exit 1; }
 	$(ORPHAN_CC) -Isrc/emu src/emu/test_nes.c src/emu/nes.c src/emu/cpu6502.c -o $(ZXV_TMP)/test_nes && $(ZXV_TMP)/test_nes > $(ZXV_TMP)/test_nes.log 2>&1 && echo "[PASS] test_nes ($$(tail -1 $(ZXV_TMP)/test_nes.log))" || { cat $(ZXV_TMP)/test_nes.log; echo "[FAIL] test_nes"; exit 1; }
 	$(ORPHAN_CC) $(APPS_TEST_INC) -include ../tests/notes_app_shim.h src/apps/test_notes.c src/apps/notes_app.c src/apps/vfs_stub.c src/oseq/oseq_core.c -o $(ZXV_TMP)/test_notes && $(ZXV_TMP)/test_notes > $(ZXV_TMP)/test_notes.log 2>&1 && echo "[PASS] test_notes ($$(grep -c '^PASS' $(ZXV_TMP)/test_notes.log) checks)" || { cat $(ZXV_TMP)/test_notes.log; echo "[FAIL] test_notes"; exit 1; }
+	$(ORPHAN_CC) -Isrc/seats -Isrc/ident -Isrc/pqsec -Isrc/lpres -Isrc/surplus -Isrc/edp_risk -Isrc/robin_debanks -Isrc/mlkem -Isrc/modbind -Isrc/e8 -Isrc/event_space -Isrc/tls src/seats/test_seats.c $(SEATS_TEST_SRCS) -o $(ZXV_TMP)/test_seats && $(ZXV_TMP)/test_seats > $(ZXV_TMP)/test_seats.log 2>&1 && echo "[PASS] test_seats ($$(tail -1 $(ZXV_TMP)/test_seats.log))" || { cat $(ZXV_TMP)/test_seats.log; echo "[FAIL] test_seats"; exit 1; }
 
 # ==== adapters: accounting, jurisdiction plug-ins, AI intent, privacy ====
 ADAPT_LPRES = src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
@@ -2102,3 +2289,5 @@ test-adapters:
 	$(MAKE) --no-print-directory test-intent
 	$(MAKE) --no-print-directory test-privacy
 # ==== end adapters ====
+# Retail track and people features: targets live in kernel/mk/.
+include mk/retail.mk

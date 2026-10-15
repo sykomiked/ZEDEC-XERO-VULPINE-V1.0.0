@@ -42,6 +42,8 @@
  *   F10 A7: vauc_cancel is refused (STATE) only out of order, or after a
  *       settlement posting already issued V-Bills (an escrow compliance hold
  *       op makes settlement postings fail)
+ *   F11 A5 owner binding: a bid whose fiat and V-Bill accounts have
+ *       different ledger owners is VAUC_ERR_AUTH; a bid that locked had one
  *   R   a refused op (other than a resumable settle / cancel) changes no
  *       balance and no auction state
  *   D   determinism */
@@ -381,12 +383,23 @@ static void run(const uint8_t *data, size_t size)
         case 7: { /* BID */
             uint8_t w = fz_u8(&in);
             uint32_t f = (w & 0xC0u) == 0xC0u ? pick(&in) : g_acc[A_BF0 + (w & 3u)];
-            uint32_t v = (w & 0x30u) == 0x30u ? pick(&in) : g_acc[A_BV0 + ((w >> 2) & 3u)];
+            /* mostly the same bidder's V-Bill account (w & 0x04 clear) */
+            uint32_t v = (w & 0x30u) == 0x30u
+                             ? pick(&in)
+                             : g_acc[A_BV0 + ((w & 0x04u) ? (w >> 2) & 3u : w & 3u)];
             uint64_t qty = (w & 0x08u) ? amt(&in) : fz_u8(&in) % 60u + 1u;
             uint64_t lim = (w & 0x08u) ? amt(&in) : g_A.cfg.p_min + fz_u8(&in) % 70u;
             uint32_t idx = 0xFFFFu;
             uint64_t f0 = f < g_L.n_accounts ? g_L.acct[f].debit : 0;
             st = vauc_bid(&g_A, f, v, qty, lim, now, &idx);
+            {
+                /* owner binding: AUTH only for live accounts of different
+                 * owners; a bid that locked had one owner on both sides */
+                const pay_account_t *fa = pay_ledger_account(&g_L, f),
+                                    *va = pay_ledger_account(&g_L, v);
+                bool differ = fa && va && fa->owner != va->owner;
+                if ((st == VAUC_ERR_AUTH && !differ) || (st == VAUC_OK && differ)) abort();
+            }
             if (st == VAUC_OK) {
                 if (g_b.a.state != VAUC_OPEN || idx != g_b.a.n_bids) abort();
                 const vauc_bid_t *b = &g_A.bid[idx];
