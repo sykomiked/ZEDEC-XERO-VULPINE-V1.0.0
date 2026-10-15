@@ -19,6 +19,8 @@
 #   make -C bench zt_tts            text-to-speech driver (OuteTTS + WavTokenizer, T26;
 #                                   bench/results/2026-10-12-outetts/REPORT.md)
 #   make -C bench zt_tts_arm64      the same, cross-built for aarch64 (run under qemu-aarch64)
+#   make -C bench zt_enc            encoder-cell driver (BERT, ELECTRA; zt_bert; compared with
+#                                   tensor/compare/ref_bert.py, bench/results/2026-10-15-tiamat/encoders)
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -64,7 +66,7 @@ NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 zt_enc smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -124,6 +126,12 @@ $(OUT)/zt_tts_arm64: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h)
 zt_tts: $(OUT)/zt_tts
 zt_tts_arm64: $(OUT)/zt_tts_arm64
 zt_golden: $(OUT)/zt_golden
+
+ENC_SRCS := $(TENSOR_SRCS) $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_bert.c
+$(OUT)/zt_enc: tensor/zt_enc.c $(ENC_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_enc.c $(ENC_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
+zt_enc: $(OUT)/zt_enc
 
 # Offline: the legacy golden check, and zt_bench on the tokenizer-only test GGUF
 # (from kernel/src/tensor's fixture), which must be refused cleanly (exit 4)
