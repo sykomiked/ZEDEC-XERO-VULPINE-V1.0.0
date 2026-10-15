@@ -2654,7 +2654,7 @@ static void test_murmuration(void)
     /* the books open: earnings arrive (zxvd_rpc.h E1-E4) */
     CHECK(zxvd_rpc_books_open() == 0 && zxvd_rpc_earnings_sync(1000) == 0, "books");
     CHECK(murm_refresh(&M) == ZXM_OK && M.have_earnings && M.earn_code == 0 &&
-              !strcmp(M.earn.currency, "VFV") && M.earn.rate_minor == 1 &&
+              !strcmp(M.earn.currency, "SWC") && M.earn.rate_minor == 1 &&
               M.earn.balance_minor == 1000 && M.earn.postings == 1 && M.earn.cycles == 1 &&
               !M.earn.resumed && M.refreshes == 2,
           "earnings: %s", LINK.err);

@@ -2493,7 +2493,7 @@ What it does: posts every change in the swarm market's Financial capital to a pa
 Main entry points: settle_init, settle_join, settle_sync, settle_levy, settle_set_audit, settle_reconciled; type settle_spine_t.
 Tests: src/settle/test_settle.c under ASan/UBSan, 89 passed, via test-settle in verify-all.
 Used by: kernel/arch/hosted/zxv_host.c, which is built into both the desktop app (zxv-host) and zxvd (app_sources.sh srcs). It calls settle_init when the swarm is built, settle_join per model, and settle_levy then settle_sync every market cycle; a halted spine stops the market. Not in either kernel image.
-Gaps: the spine's ledger lives in memory and is rebuilt with the swarm; the owner's saved books only get a mirror "swarm earnings" posting ([ZXVD.md](ZXVD.md#swarm-earnings-in-your-books)). What spends the reserve, dividend and regenerative buckets is outside this module.
+Gaps: the spine's ledger lives in memory and is rebuilt with the swarm; the owner's saved books only get a mirror "swarm earnings" posting ([ZXVD.md](ZXVD.md#swarm-credit-in-your-books)). What spends the reserve, dividend and regenerative buckets is outside this module.
 
 ### shimmer — desktop background shimmer effect
 Status: WORKING (tested in verify-all)

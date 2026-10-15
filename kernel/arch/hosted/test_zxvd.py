@@ -1001,10 +1001,19 @@ def main(binary, gguf=None):
     out = subprocess.run([binary, '--rpc', bad, '--earnings-rate', '0'], capture_output=True,
                          text=True, timeout=10)
     check(out.returncode == 2 and '--earnings-rate' in out.stderr, 'refuses earnings rate 0')
-    out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', 'vfv'], capture_output=True,
-                         text=True, timeout=20)
-    check(out.returncode == 1 and 'earnings currency' in out.stderr and not os.path.exists(bad),
-          'refuses an earnings currency libzxv does not accept, leaving no socket')
+    for code in ('VFV', 'vfv'):
+        out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', code], capture_output=True,
+                             text=True, timeout=10)
+        check(out.returncode == 2 and 'never earns vouchers' in out.stderr and
+              not os.path.exists(bad),
+              'refuses %s for own-device credit (zxvd_rpc.h E6), leaving no socket' % code)
+    for code in ('swc', 'USD'):
+        out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', code], capture_output=True,
+                             text=True, timeout=20)
+        check(out.returncode == 1 and 'earnings currency' in out.stderr and
+              not os.path.exists(bad),
+              'refuses %s when the books open (libzxv code rule, or money), leaving no socket'
+              % code)
 
     home = tempfile.mkdtemp(prefix='zxvd-test-')
     models = os.path.join(home, 'models')
@@ -1097,17 +1106,18 @@ def main(binary, gguf=None):
               (s1['ledger_audited'], transfers, s1['audit']))
         # ---- the swarm's earnings in the owner's books (zxvd_rpc.h E1-E4) ----
         ea = c.ok('swarm.earnings')
-        check(ea['currency'] == 'VFV' and ea['rate_minor'] == '1' and
+        check(ea['currency'] == 'SWC' and ea['rate_minor'] == '1' and
+              ea['vfv_reversed_minor'] == '0' and
               int(ea['cycles']) >= 1 and int(ea['postings']) >= 1 and
               int(ea['balance_minor']) > 0,
-              'swarm.earnings: settled cycles post into the owner\'s books in VFV (%s)' % ea)
+              'swarm.earnings: settled cycles post own-device credit in SWC, never VFV (%s)' % ea)
         ob = c.ok('ledger.balance', {'account': ea['owner_account']})
         oj = c.ok('ledger.entries', {'account': ea['owner_account']})['entries']
         check(int(ob['equity_minor']) > 0 and
               sum(int(e['signed_minor']) for e in oj) == int(ob['equity_minor']) and
               all(e['counterparty'] == ea['source_account'] for e in oj) and
               [e['reference'] for e in oj][:2] == ['swarm earnings 1', 'swarm earnings 2'][:len(oj)],
-              'the owner\'s VFV journal is the market\'s postings (%d entries)' % len(oj))
+              'the owner\'s SWC journal is the market\'s postings (%d entries)' % len(oj))
         # ---- AIPI on Z-Wasm (zxvd_aipi.h Z1-Z4); not in the Windows build yet ----
         if WINDOWS:
             r = c.call('aipi.status')
@@ -1240,9 +1250,10 @@ def main(binary, gguf=None):
               'ledger.entries: alice\'s journal')
         acc = c.ok('ledger.accounts')['accounts']
         usd = [a for a in acc if a['currency'] == 'USD']
-        vfv = [a for a in acc if a['currency'] == 'VFV']
+        swc = [a for a in acc if a['currency'] == 'SWC']
         check([a['name'] for a in usd] == ['bank', 'alice', 'bob'] and usd[0]['kind'] == 'issuer' and
-              [(a['name'], a['kind']) for a in vfv] ==
+              not [a for a in acc if a['currency'] == 'VFV'] and
+              [(a['name'], a['kind']) for a in swc] ==
               [('swarm market', 'issuer'), ('owner: swarm earnings', 'holder')],
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')

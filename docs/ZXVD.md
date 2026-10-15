@@ -396,27 +396,36 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
 `search.*`, `print.*`, `scan.*`, `backup.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
-## Swarm earnings in your books
+## Swarm credit in your books
 
-After every settled market cycle, zxvd posts the swarm's earnings into the
-owner's libzxv books, so they show up in a currency next to everything else.
+After every settled market cycle, zxvd mirrors the swarm credit (SWC) your own
+models hold into your libzxv books, so you can see it next to everything else.
 
-- The currency is VFV by default. `--earnings-ccy CODE` picks another: an ISO
-  4217 code (USD, NGN, ...) is enabled from the table, and any other code is
-  registered as a private unit with 2 minor units, as VFV is.
-- The first settled cycle opens two accounts in that currency: **swarm
-  market** (issuer) and **owner: swarm earnings** (holder).
-- Each cycle, the owner's balance is set to the swarm credit (SWC) that the
-  owner's models hold, times `--earnings-rate` (minor units per SWC, default
-  1, so 1 SWC shows as VFV 0.01). One balanced posting does it, referenced
-  `swarm earnings N`: market to owner when the holdings grew, owner to market
-  when they fell. The 0.08889% assurance fee shows as a fall; node bounties
-  coming back show as a rise. The fee buckets belong to no model and are not
-  counted.
-- The rate is a bookkeeping rate the owner sets, not a market price. No
-  exchange rate between SWC and VFV is published anywhere yet.
-- `swarm.earnings` reports it; `ledger.balance` and `ledger.entries` on the
-  owner account show the postings like any others.
+Your own models run on your own machine, and work done on your own devices
+never earns Vino Floating Vouchers. So this mirror is a score in a private
+unit, never VFV and never money. VFV is issued only for verified work your
+node does for other people over the network.
+
+- The unit is SWC by default. `--earnings-ccy CODE` picks another private unit
+  (3 to 8 characters, registered with 2 minor units). VFV, in any letter
+  case, is refused at start, and an ISO 4217 currency (USD, NGN, ...) makes
+  the books refuse to open.
+- The first settled cycle opens two accounts in that unit: **swarm market**
+  (issuer) and **owner: swarm earnings** (holder).
+- Each cycle, the owner's balance is set to the SWC the owner's models hold,
+  times `--earnings-rate` (minor units per SWC, default 1). One balanced
+  posting does it, referenced `swarm earnings N`: market to owner when the
+  holdings grew, owner to market when they fell. The 0.08889% assurance fee
+  shows as a fall; node bounties coming back show as a rise. The fee buckets
+  belong to no model and are not counted.
+- Books saved by an older zxvd may hold this mirror in VFV. When they open,
+  its whole balance goes back from **owner: swarm earnings** to **swarm
+  market** in one posting, `vfv reversal N`. The old entries stay in the
+  books file, so the history is kept.
+- `swarm.earnings` reports the unit, the rate, the balance and
+  `vfv_reversed_minor` (the VFV taken back at this start, usually 0);
+  `ledger.balance` and `ledger.entries` on the owner account show the
+  postings like any others.
 
 ## The books file
 
