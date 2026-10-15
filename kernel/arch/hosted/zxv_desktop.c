@@ -987,8 +987,8 @@ static bool handle(zxv_desktop_t *d, const zui_event_t *e)
         return true;
     }
     if (d->desk.library) { /* HD6: the library has the area and the keyboard */
-        bool key = (e->type == ZUI_EV_KEY_DOWN || e->type == ZUI_EV_TEXT) &&
-                   !(e->mods & ZUI_MOD_CMD);
+        bool key =
+            (e->type == ZUI_EV_KEY_DOWN || e->type == ZUI_EV_TEXT) && !(e->mods & ZUI_MOD_CMD);
         bool inside = ptr && in_rect(zui_desk_area(&d->desk), e->x, e->y);
         if (key || inside || e->type == ZUI_EV_PTR_UP) {
             bool lused = zui_applib_event(&d->lib, e);

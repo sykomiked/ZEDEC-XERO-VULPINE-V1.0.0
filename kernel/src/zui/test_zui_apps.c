@@ -89,8 +89,8 @@ static void good(void)
     for (uint32_t i = 0; i < 407; i++) {
         zui_apps_get(&a, i, &app);
         if (app.number != i + 1 || !app.name[0] || !app.icon || app.icon_len < 16 ||
-            zui_zxvg_check(app.icon, app.icon_len) != 0 ||
-            (app.layer == 1) != (i < 144) || (app.layer == 3) != (i >= 271)) {
+            zui_zxvg_check(app.icon, app.icon_len) != 0 || (app.layer == 1) != (i < 144) ||
+            (app.layer == 3) != (i >= 271)) {
             CHECK(0, "app %u is malformed", i + 1);
             break;
         }
@@ -127,8 +127,10 @@ static void good(void)
         for (int x = 0; x < 96; x++) {
             bool inbox = x >= 16 && x < 80 && y >= 16 && y < 80;
             if (px[y * 96 + x] != ZUI_VOID) {
-                if (inbox) inked++;
-                else outside++;
+                if (inbox)
+                    inked++;
+                else
+                    outside++;
             }
         }
     CHECK(inked > 200 && outside == 0, "ink %u inside, %u outside", inked, outside);

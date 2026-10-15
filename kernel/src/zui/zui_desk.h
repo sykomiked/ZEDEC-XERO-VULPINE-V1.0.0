@@ -45,8 +45,8 @@
 #define ZUI_DESK_STATUS  96u
 
 typedef struct {
-    const char *name; /* shown under the tile and in the strip  */
-    const char *mark; /* one or two letters drawn in the tile   */
+    const char *name;    /* shown under the tile and in the strip  */
+    const char *mark;    /* one or two letters drawn in the tile   */
     const uint8_t *icon; /* its ZXVG icon (zui_desk_icon), or null */
     uint32_t icon_len;
 } zui_desk_app_t;
@@ -104,7 +104,7 @@ zui_rect_t zui_desk_bar(const zui_desk_t *d);
 zui_rect_t zui_desk_rail(const zui_desk_t *d);
 zui_rect_t zui_desk_area(const zui_desk_t *d); /* where the windows live */
 zui_rect_t zui_desk_tile(const zui_desk_t *d, uint32_t i);
-zui_rect_t zui_desk_apps_tile(const zui_desk_t *d); /* D2: the first slot */
+zui_rect_t zui_desk_apps_tile(const zui_desk_t *d);           /* D2: the first slot */
 zui_rect_t zui_desk_switch(const zui_desk_t *d, bool spaces); /* one half of the D1 switch */
 
 /* D2: open `app`'s window, or bring it to the front when it has one. The

@@ -297,8 +297,8 @@ static void tile_name(zui_desk_t *d, zui_surface_t *s, zui_rect_t t, const char 
     int32_t max = r.w - zui_desk_pt(d, ZUI_S2);
     int32_t w = zui_text_width(d->f.caption, n);
     int32_t x = w > max ? zui_desk_pt(d, ZUI_S1) : (r.w - w) / 2;
-    zui_text_fit(s, d->f.caption, x, t.y + t.h + zui_desk_pt(d, 14), max, hot ? ZUI_TEXT : ZUI_MUTED,
-                 n);
+    zui_text_fit(s, d->f.caption, x, t.y + t.h + zui_desk_pt(d, 14), max,
+                 hot ? ZUI_TEXT : ZUI_MUTED, n);
 }
 
 /* D2: the Apps tile, nine carved squares (gold while the library is open) */
@@ -317,8 +317,8 @@ static void apps_tile(zui_desk_t *d, zui_surface_t *s)
     int32_t cell = t.w / 7, gap = (t.w - 3 * cell) / 4;
     uint32_t ink = d->library ? ZUI_GOLD : ZUI_TEXT_2;
     for (int32_t k = 0; k < 9; k++) {
-        zui_rect_t c = {t.x + gap + (k % 3) * (cell + gap),
-                        t.y + gap + (k / 3) * (cell + gap), cell, cell};
+        zui_rect_t c = {t.x + gap + (k % 3) * (cell + gap), t.y + gap + (k / 3) * (cell + gap),
+                        cell, cell};
         zui_fill_rrect(s, c, cell / 4, ink, 255);
     }
     tile_name(d, s, t, "Apps", hot);

@@ -110,14 +110,17 @@ static void geometry(void)
     zui_rect_t tc = zui_applib_tile(&L, c);
     CHECK(t0.w == 112 && t0.h == 120 && t1.x == t0.x + 120 && t1.y == t0.y, "a row");
     CHECK(tc.x == t0.x && tc.y == t0.y + 128, "the next row");
-    CHECK(t0.y == g.y && t0.x >= g.x && t0.x - g.x == g.x + g.w - (zui_applib_tile(&L, c - 1).x + 112),
+    CHECK(t0.y == g.y && t0.x >= g.x &&
+              t0.x - g.x == g.x + g.w - (zui_applib_tile(&L, c - 1).x + 112),
           "the grid is centred");
-    zui_rect_t f = zui_applib_field(&L), s0 = zui_applib_segment(&L, 0), s3 = zui_applib_segment(&L, 3);
+    zui_rect_t f = zui_applib_field(&L), s0 = zui_applib_segment(&L, 0),
+               s3 = zui_applib_segment(&L, 3);
     CHECK(f.x + f.w == W - 32 && f.w == 280 && s0.x == 32 && s3.x + s3.w < f.x, "header layout");
     CHECK(zui_applib_segment(&L, 9).x == s3.x, "a layer past 3 is the last segment");
     CHECK(g.y > f.y + f.h, "the grid starts under the header");
     int32_t rows = (int32_t) ((407 + c - 1) / c);
-    CHECK(zui_applib_max_scroll(&L) == rows * 128 - 8 - g.h, "max scroll %d", zui_applib_max_scroll(&L));
+    CHECK(zui_applib_max_scroll(&L) == rows * 128 - 8 - g.h, "max scroll %d",
+          zui_applib_max_scroll(&L));
     /* 2x */
     zui_applib_place(&L, (zui_rect_t){0, 0, 2 * W, 2 * H}, 512u);
     CHECK(zui_applib_tile(&L, 0).w == 224 && zui_applib_columns(&L) == c, "2x keeps the columns");

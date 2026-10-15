@@ -83,8 +83,7 @@ void zui_applib_cache_init(zui_applib_cache_t *c, uint32_t *px, uint32_t slots, 
 }
 
 void zui_applib_init(zui_applib_t *l, const zui_apps_t *apps, zui_vec_work_t *work,
-                     zui_applib_cache_t *cache, const zui_applib_faces_t *faces,
-                     uint32_t scale_q8)
+                     zui_applib_cache_t *cache, const zui_applib_faces_t *faces, uint32_t scale_q8)
 {
     uint8_t *p = (uint8_t *) l;
     for (uint32_t i = 0; i < sizeof *l; i++) p[i] = 0;
@@ -284,20 +283,37 @@ static bool key(zui_applib_t *l, const zui_event_t *e)
     case ZUI_KEY_ENTER:
         choose(l, f);
         return true;
-    case ZUI_KEY_LEFT: f -= 1; break;
-    case ZUI_KEY_RIGHT: f += 1; break;
-    case ZUI_KEY_UP: f -= (int32_t) c; break;
-    case ZUI_KEY_DOWN: f += (int32_t) c; break;
-    case ZUI_KEY_PAGE_UP: f -= page; break;
-    case ZUI_KEY_PAGE_DOWN: f += page; break;
-    case ZUI_KEY_HOME: f = 0; break;
-    case ZUI_KEY_END: f = n - 1; break;
+    case ZUI_KEY_LEFT:
+        f -= 1;
+        break;
+    case ZUI_KEY_RIGHT:
+        f += 1;
+        break;
+    case ZUI_KEY_UP:
+        f -= (int32_t) c;
+        break;
+    case ZUI_KEY_DOWN:
+        f += (int32_t) c;
+        break;
+    case ZUI_KEY_PAGE_UP:
+        f -= page;
+        break;
+    case ZUI_KEY_PAGE_DOWN:
+        f += page;
+        break;
+    case ZUI_KEY_HOME:
+        f = 0;
+        break;
+    case ZUI_KEY_END:
+        f = n - 1;
+        break;
     case ZUI_KEY_TAB: {
         uint32_t next = (l->layer + ((e->mods & ZUI_MOD_SHIFT) ? 3u : 1u)) % 4u;
         zui_applib_set_layer(l, next);
         return true;
     }
-    default: return false;
+    default:
+        return false;
     }
     if (!n) return true;
     if (f < 0) f = 0;
@@ -363,8 +379,7 @@ bool zui_applib_event(zui_applib_t *l, const zui_event_t *e)
         if (e->button != ZUI_BTN_LEFT) return false;
         bool used = l->press >= 0 || l->press_seg >= 0 || l->press_clear;
         if (l->press >= 0 && tile_at(l, e->x, e->y) == l->press) choose(l, l->press);
-        if (l->press_seg >= 0 &&
-            in(zui_applib_segment(l, (uint32_t) l->press_seg), e->x, e->y))
+        if (l->press_seg >= 0 && in(zui_applib_segment(l, (uint32_t) l->press_seg), e->x, e->y))
             zui_applib_set_layer(l, (uint32_t) l->press_seg);
         if (l->press_clear) {
             l->qlen = 0;
@@ -376,8 +391,11 @@ bool zui_applib_event(zui_applib_t *l, const zui_event_t *e)
         return used || in(l->box, e->x, e->y);
     }
     case ZUI_EV_RESIZE:
-    case ZUI_EV_SCALE: clamp_scroll(l); return false;
-    default: return false;
+    case ZUI_EV_SCALE:
+        clamp_scroll(l);
+        return false;
+    default:
+        return false;
     }
 }
 
@@ -508,8 +526,9 @@ static void header(zui_applib_t *l, zui_surface_t *s)
         int32_t b = base_mid(l->f.body, f);
         if (l->qlen) {
             int32_t end_x = zui_text_fit(s, l->f.body, tr.x, b, tr.w, ZUI_TEXT, l->query);
-            zui_fill(s, (zui_rect_t){end_x + P(l, 1), f.y + P(l, ZUI_S2), P(l, 2) > 0 ? P(l, 2) : 1,
-                                     f.h - P(l, ZUI_S4)},
+            zui_fill(s,
+                     (zui_rect_t){end_x + P(l, 1), f.y + P(l, ZUI_S2), P(l, 2) > 0 ? P(l, 2) : 1,
+                                  f.h - P(l, ZUI_S4)},
                      ZUI_GOLD); /* the caret: typing always lands here */
         } else {
             char ph[40], *pq = ph, *pe = ph + sizeof ph;
@@ -673,8 +692,8 @@ static int32_t section(zui_surface_t *s, const zui_applib_faces_t *f, uint32_t q
     return y + pt(q8, ZUI_S4);
 }
 
-void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces_t *f,
-                     uint32_t q8, const zui_app_t *app, bool built, zui_rect_t box)
+void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces_t *f, uint32_t q8,
+                     const zui_app_t *app, bool built, zui_rect_t box)
 {
     zui_rect_t keep = s->clip;
     set_clip(s, meet(box, keep));

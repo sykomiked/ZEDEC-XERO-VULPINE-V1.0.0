@@ -146,7 +146,8 @@ static void rail(void)
 
     /* D2: the Apps tile */
     zui_rect_t at = zui_desk_apps_tile(&D);
-    CHECK(ptr(ZUI_EV_PTR_MOVE, mid_x(at), mid_y(at)) && D.hover == ZUI_DESK_APPS_TILE, "hover Apps");
+    CHECK(ptr(ZUI_EV_PTR_MOVE, mid_x(at), mid_y(at)) && D.hover == ZUI_DESK_APPS_TILE,
+          "hover Apps");
     ptr(ZUI_EV_PTR_DOWN, mid_x(at), mid_y(at));
     CHECK(D.press == ZUI_DESK_APPS_TILE && D.act == ZUI_DESK_NONE, "press Apps");
     ptr(ZUI_EV_PTR_UP, mid_x(at), mid_y(at));

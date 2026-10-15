@@ -70,7 +70,7 @@ typedef struct {
     uint32_t qlen;
     uint16_t shown[ZUI_APPS_MAX]; /* catalogue indices that match */
     uint32_t nshown;
-    int32_t scroll; /* pixels from the top of the grid */
+    int32_t scroll;              /* pixels from the top of the grid */
     int32_t hover, focus, press; /* positions in shown[], -1 none */
     int32_t press_seg;           /* layer switch pressed, -1 none */
     bool press_clear;
@@ -79,8 +79,7 @@ typedef struct {
 } zui_applib_t;
 
 void zui_applib_init(zui_applib_t *l, const zui_apps_t *apps, zui_vec_work_t *work,
-                     zui_applib_cache_t *cache, const zui_applib_faces_t *faces,
-                     uint32_t scale_q8);
+                     zui_applib_cache_t *cache, const zui_applib_faces_t *faces, uint32_t scale_q8);
 void zui_applib_place(zui_applib_t *l, zui_rect_t box, uint32_t scale_q8);
 void zui_applib_set_layer(zui_applib_t *l, uint32_t layer);
 void zui_applib_set_query(zui_applib_t *l, const char *q);
