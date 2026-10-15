@@ -1,0 +1,2621 @@
+{
+  "schema": "zxv.tiamat.swarm_model_large_manifest/1",
+  "generated": "2026-10-15",
+  "brand": "Tiamat Productive Agency AI",
+  "scope": "Large peers for the Sovereign Anchor and Swarm Agora tiers (docs/spec/GOSSIP_TOPOLOGY.md). Not on the disc, not in the first root's weights; called by peers through zxvd.",
+  "rules": "Apache-2.0 checkpoints, checked on the card; bases checked on their own cards; SafeTensors, GGUF or ONNX only. zero_float_verified is false for every row until the integer engine passes parity tests at that exact quantisation.",
+  "attribution": "Every model carries its developer and source URL; every creator is credited.",
+  "conflicts_for_the_owner": [
+    "MIT: the list excludes MIT models (Whisper, DeepSeek), but the project's allow list admits MIT, BSD and CC0 as well as Apache-2.0. Five admitted rows here are Apache-2.0 checkpoints on MIT bases (marked mit_base). Kept and flagged; the owner decides.",
+    "Training data: two rerankers learned from MS MARCO (non-commercial research terms on the data) and the Hermes fine-tune from GPT-4 output. The weights' licences allow commercial use; the data's terms are recorded in data_notes for the owner."
+  ],
+  "models": [
+    {
+      "model_id": "Qwen/Qwen3-32B",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "32B",
+      "capabilities": [
+        "ui_dialogue",
+        "tool_routing",
+        "structured_extraction",
+        "decision_calibration",
+        "legal_extraction",
+        "anomaly_reasoning",
+        "scientific",
+        "creative_writing",
+        "translation",
+        "tabular",
+        "code_review"
+      ],
+      "architecture": "Qwen3ForCausalLM",
+      "engine": "zt (qwen3)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "9216db5781bf21249d130ec9da846c4624c16137",
+      "source_url": "https://huggingface.co/Qwen/Qwen3-32B/tree/9216db5781bf21249d130ec9da846c4624c16137",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00017.safetensors",
+          "size": 3957109648,
+          "sha256": "52562b2ff97b61764260273e71bf5b4cf8a66f569399398f26dec0300fcf1316",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00001-of-00017.safetensors"
+        },
+        {
+          "path": "model-00002-of-00017.safetensors",
+          "size": 3900791760,
+          "sha256": "e26764b2c6878e3fb7198895fa833ec62838d84a19665e6abfbae43c6daf02b3",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00002-of-00017.safetensors"
+        },
+        {
+          "path": "model-00003-of-00017.safetensors",
+          "size": 3900791760,
+          "sha256": "6c5ba7bed9c52bc121e75cbe8a7be46936d0006cc80f42a6d5886ed40b4c2a62",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00003-of-00017.safetensors"
+        },
+        {
+          "path": "model-00004-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "f736f6ac4d8c30866107fb1185a05b3c3cfce9717720082f466fa44e691bcec8",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00004-of-00017.safetensors"
+        },
+        {
+          "path": "model-00005-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "a52ed375c083209c54d42ac510afeb1fbb5af4f193be2dc7d103f665a0f212d3",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00005-of-00017.safetensors"
+        },
+        {
+          "path": "model-00006-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "37fae28990b0e4a70228549d040c0393e87bee3820d59e58e47844974d8dff5b",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00006-of-00017.safetensors"
+        },
+        {
+          "path": "model-00007-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "37776006aeaba29eca8bc73b2b963fe3477e1c2e3f6a27cb9527be75b905e1bf",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00007-of-00017.safetensors"
+        },
+        {
+          "path": "model-00008-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "73e74e9129674fe330948005075d70ab4fa0b92b68fb220c5a693f9cea553730",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00008-of-00017.safetensors"
+        },
+        {
+          "path": "model-00009-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "a044b3602a01bd8ea62ff51badf9cc038ab1d73d97399480e6a55b4c86fa7fa6",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00009-of-00017.safetensors"
+        },
+        {
+          "path": "model-00010-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "9966612ba7ecfc2cd2e592fb95224b86d743271ff88e172cc272a4b26382aa75",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00010-of-00017.safetensors"
+        },
+        {
+          "path": "model-00011-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "e2a058a0ac7d4b992b731c29221ecfb4b76b8a48d9004d0e8a62ba44f699845c",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00011-of-00017.safetensors"
+        },
+        {
+          "path": "model-00012-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "58a1aa89093fea07325f787072a468e3482a470ff4b7fe5ead5f749683907c40",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00012-of-00017.safetensors"
+        },
+        {
+          "path": "model-00013-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "35f3381bab31a23370c37d922290aeecdf603418336058fb86fe42d8f51ac40c",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00013-of-00017.safetensors"
+        },
+        {
+          "path": "model-00014-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "8713b062ddc178acf5917610b7f4b64eede833b2ea4aa37bd562dcf2f3a3339d",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00014-of-00017.safetensors"
+        },
+        {
+          "path": "model-00015-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "bec439d23931821a236d8f62fa79deecf5551bd25602278aa2ae0ce432b378cf",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00015-of-00017.safetensors"
+        },
+        {
+          "path": "model-00016-of-00017.safetensors",
+          "size": 3900791800,
+          "sha256": "e569139fadd61fe7c8f9eb1c976d9a627cae48c57ddf228cfbd0593c59c64ff7",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00016-of-00017.safetensors"
+        },
+        {
+          "path": "model-00017-of-00017.safetensors",
+          "size": 3055341992,
+          "sha256": "1f47c318fcd7797c0f85b4233cb754438b10e795b8bc874889090c416a94bd38",
+          "url": "https://huggingface.co/Qwen/Qwen3-32B/resolve/9216db5781bf21249d130ec9da846c4624c16137/model-00017-of-00017.safetensors"
+        }
+      ],
+      "source_bytes": 65524328560,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": "Replaces Qwen2.5-72B-Instruct in every slot the owner gave it.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-32B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-32B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "32B",
+      "capabilities": [
+        "ui_dialogue",
+        "structured_extraction"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/tree/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00017.safetensors",
+          "size": 3916539832,
+          "sha256": "fa006a0382517a4e9a8781d8e7d3405cd6bdd1b9100fb344d73f925b7da9341c",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00001-of-00017.safetensors"
+        },
+        {
+          "path": "model-00002-of-00017.safetensors",
+          "size": 3900847496,
+          "sha256": "0d7f28a4ba7135c2c8365016170cfa25723f65ec41e32ec9a3c81746e4395615",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00002-of-00017.safetensors"
+        },
+        {
+          "path": "model-00003-of-00017.safetensors",
+          "size": 3900847480,
+          "sha256": "8f4b7b811a7ecf117c179ac9413b7a746f2fc0707a41ae4b2efd0282e73bed85",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00003-of-00017.safetensors"
+        },
+        {
+          "path": "model-00004-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "de8ab9cb81e6798031d2cf9ef6d15a0034b77fceeba3d4e011647943c8b99afb",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00004-of-00017.safetensors"
+        },
+        {
+          "path": "model-00005-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "fa86494f0074cc36c610aa54e7bde03edefc57a9be7636216277bd5ed8b8bfda",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00005-of-00017.safetensors"
+        },
+        {
+          "path": "model-00006-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "c8fa152bd8a23bab2c0cfca43ff9f586bccd82b1cb67f2f84231f31d0f3cab47",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00006-of-00017.safetensors"
+        },
+        {
+          "path": "model-00007-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "5e33e16319d18d1e180187d9f858deddbbaf06d950abc88941bf027d1439c7bc",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00007-of-00017.safetensors"
+        },
+        {
+          "path": "model-00008-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "8561b86737884397772bb990b38c0efe896f66ed27815ca207ddc8ec7965ffe4",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00008-of-00017.safetensors"
+        },
+        {
+          "path": "model-00009-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "47f562bf77d986b53c5390b01a30a77576c3eed69191b484cf88b53bb64bce19",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00009-of-00017.safetensors"
+        },
+        {
+          "path": "model-00010-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "359450e2c9e261751b5803fcdd1d0a040029a6119a271dd8592d7bb37fa722b5",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00010-of-00017.safetensors"
+        },
+        {
+          "path": "model-00011-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "836f0570f5694ce1d55f505064190e2688926dad4f033384ae519d96faaad670",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00011-of-00017.safetensors"
+        },
+        {
+          "path": "model-00012-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "5307431e385a177375a5aa887eb1c546f3413dd2e2269c291672f11f752842b4",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00012-of-00017.safetensors"
+        },
+        {
+          "path": "model-00013-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "9b2657db02572dd4370186b35c0e0fa70218d7e2ec1190e4dc4a755c5cbd430e",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00013-of-00017.safetensors"
+        },
+        {
+          "path": "model-00014-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "b5f1f8af3b6bbf734790985590752fb815dd69566cf05ee578d70af74ace1d4c",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00014-of-00017.safetensors"
+        },
+        {
+          "path": "model-00015-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "8cdfcbf8913e10056c981db2db817f92c8601998deb9eabcae14fade98d76c14",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00015-of-00017.safetensors"
+        },
+        {
+          "path": "model-00016-of-00017.safetensors",
+          "size": 3900847544,
+          "sha256": "977b3d2ca7f97dc3b518ed5087ddc43ccf7afb371190828f2334d7e4c81224ee",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00016-of-00017.safetensors"
+        },
+        {
+          "path": "model-00017-of-00017.safetensors",
+          "size": 3098588976,
+          "sha256": "2853695483f9c61a8bd8b109025b3c591214a0362992fa844537f09acc81bd03",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-32B-Instruct/resolve/5ede1c97bbab6ce5cda5812749b4c0bdf79b18dd/model-00017-of-00017.safetensors"
+        }
+      ],
+      "source_bytes": 65527841856,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": "Same family as the disc trunks; a second large dialogue peer.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen3-14B",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen3-14B-Base",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "14B",
+      "capabilities": [
+        "tool_routing",
+        "structured_extraction",
+        "reranking"
+      ],
+      "architecture": "Qwen3ForCausalLM",
+      "engine": "zt (qwen3)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "40c069824f4251a91eefaf281ebe4c544efd3e18",
+      "source_url": "https://huggingface.co/Qwen/Qwen3-14B/tree/40c069824f4251a91eefaf281ebe4c544efd3e18",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00008.safetensors",
+          "size": 3841788544,
+          "sha256": "e942bdbdf08857d16a8fef7d1dae9fceabeb4e84def6043485fe2f6f085dab0e",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00001-of-00008.safetensors"
+        },
+        {
+          "path": "model-00002-of-00008.safetensors",
+          "size": 3963750816,
+          "sha256": "f7c9c6eee628f5ad831d2d1d292e120505e5fcadeb38f88b4d3c4cb86306ccf9",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00002-of-00008.safetensors"
+        },
+        {
+          "path": "model-00003-of-00008.safetensors",
+          "size": 3963750880,
+          "sha256": "dfb8c5df9404b41ad6ae74e8b6b367135f017b4467b884cf71b17c71954f18a9",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00003-of-00008.safetensors"
+        },
+        {
+          "path": "model-00004-of-00008.safetensors",
+          "size": 3963750880,
+          "sha256": "eab286fec759e3e59ab228621aefa0fef14ed56039e06f959e67257d5af7604d",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00004-of-00008.safetensors"
+        },
+        {
+          "path": "model-00005-of-00008.safetensors",
+          "size": 3963750880,
+          "sha256": "97f0dc2992e59da95c466eff6f4fd0c8335843bbc36ed5c913a6f5150748c0e6",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00005-of-00008.safetensors"
+        },
+        {
+          "path": "model-00006-of-00008.safetensors",
+          "size": 3963750880,
+          "sha256": "9e8e76a013cd5e253865b792991e0b410f869b136b3c500079b531b09198e99e",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00006-of-00008.safetensors"
+        },
+        {
+          "path": "model-00007-of-00008.safetensors",
+          "size": 3963750880,
+          "sha256": "0aee70ee6e91dc00d818804fb47f124d13ee4ad5b4a64553e09dbf9391cd5750",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00007-of-00008.safetensors"
+        },
+        {
+          "path": "model-00008-of-00008.safetensors",
+          "size": 1912371880,
+          "sha256": "0d6b92296e326d39bbbaeb32c3ec454ac606da843d4c8ffa8edf010b62b8c9e0",
+          "url": "https://huggingface.co/Qwen/Qwen3-14B/resolve/40c069824f4251a91eefaf281ebe4c544efd3e18/model-00008-of-00008.safetensors"
+        }
+      ],
+      "source_bytes": 29536665640,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-14B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-14B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "14B",
+      "capabilities": [
+        "tool_routing",
+        "structured_extraction",
+        "translation",
+        "tabular",
+        "anomaly_reasoning",
+        "moderation",
+        "scientific",
+        "legal_extraction",
+        "nli_triples",
+        "reranking"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/tree/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00008.safetensors",
+          "size": 3885154816,
+          "sha256": "b477be7572f0ab3ae3cbba38d508cc33e70600b2045669c4ad848051c3432094",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00001-of-00008.safetensors"
+        },
+        {
+          "path": "model-00002-of-00008.safetensors",
+          "size": 3995327992,
+          "sha256": "eb356aacae443e30f52712b1e98fadf206976365e2f5ee886321b0bb38c7cea8",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00002-of-00008.safetensors"
+        },
+        {
+          "path": "model-00003-of-00008.safetensors",
+          "size": 3995328080,
+          "sha256": "cee9dbdf738ce61adb21c70ad5c5585747caaab6457c9ffc3bfa20d73127c2c6",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00003-of-00008.safetensors"
+        },
+        {
+          "path": "model-00004-of-00008.safetensors",
+          "size": 3995338432,
+          "sha256": "b1201a6edcac8ef96a37040524fe37a5a84e446513ed40491e764a37302385fa",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00004-of-00008.safetensors"
+        },
+        {
+          "path": "model-00005-of-00008.safetensors",
+          "size": 3979624824,
+          "sha256": "fbbda3cdee31895d0c57d617449af5579d219df34f3d63f7a23acbfe7fb0a647",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00005-of-00008.safetensors"
+        },
+        {
+          "path": "model-00006-of-00008.safetensors",
+          "size": 3995328080,
+          "sha256": "f7ac652aa101717c97cfeccf5109985cca5b04529b57d3f4d2ec7a802266296b",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00006-of-00008.safetensors"
+        },
+        {
+          "path": "model-00007-of-00008.safetensors",
+          "size": 3995328080,
+          "sha256": "e9115e615b575acb6e8b3a06524b32cbf7f680f07517125e4334f62c3f4acb0d",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00007-of-00008.safetensors"
+        },
+        {
+          "path": "model-00008-of-00008.safetensors",
+          "size": 1698703696,
+          "sha256": "a77f603d8368749c19d3ac9cf2a300e476edcc794ea41af8e473ee12935eadb8",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct/resolve/cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8/model-00008-of-00008.safetensors"
+        }
+      ],
+      "source_bytes": 29540134000,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-7B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "7B",
+      "capabilities": [
+        "audio_captioning",
+        "tts_planning"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/tree/a09a35458c702b33eeacc393d103063234e8bc28",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 3945441440,
+          "sha256": "a1333e6293854747c481288ea83b348226af178dd565c49b6f9495ba1966aba7",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00001-of-00004.safetensors"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 3864726352,
+          "sha256": "f5d25a2772cb825164a2a2c0fb6d51a87e282abf21e4dd75bc5cfb3cd0ea6185",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00002-of-00004.safetensors"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 3864726424,
+          "sha256": "8efdec4c1bc12317ae1a38dc42b595ce777738a64deea3fcb8a0a91381bcdfd5",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00003-of-00004.safetensors"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 3556377672,
+          "sha256": "1a72d403cdf0c1ec3cb7f289f17b394a01e64394c2e9b3c0f94dbce3faf879bd",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/model-00004-of-00004.safetensors"
+        }
+      ],
+      "source_bytes": 15231271888,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": "Already in the small roster as Heraldwyvern (pack_workstation).",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+      "developer": "Mistral AI",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "mistralai/Mistral-Small-3.1-24B-Base-2503",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "24B",
+      "capabilities": [
+        "ui_dialogue",
+        "vision"
+      ],
+      "architecture": "Mistral3ForConditionalGeneration",
+      "engine": "server runtime (Mistral3, vision)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "68faf511d618ef198fef186659617cfd2eb8e33a",
+      "source_url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/tree/68faf511d618ef198fef186659617cfd2eb8e33a",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00010.safetensors",
+          "size": 4883550696,
+          "sha256": "4d735fce2330e13fa96c0ad839fbf703481ab05680593ad32b9219be30c9ff92",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00001-of-00010.safetensors"
+        },
+        {
+          "path": "model-00002-of-00010.safetensors",
+          "size": 4781593336,
+          "sha256": "99c38a089b14a0fca228899132eb8db54ea551bdc96b639267d5177e4a172776",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00002-of-00010.safetensors"
+        },
+        {
+          "path": "model-00003-of-00010.safetensors",
+          "size": 4886472224,
+          "sha256": "4917b19a128315c56c8ff3cdf531d9a88371314098c2698e28ac03a6d8c77813",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00003-of-00010.safetensors"
+        },
+        {
+          "path": "model-00004-of-00010.safetensors",
+          "size": 4781593376,
+          "sha256": "acc83eeee5e993095ca9ad7518bf29f511b9e13b6b57d4f53580e9b8b6c084fe",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00004-of-00010.safetensors"
+        },
+        {
+          "path": "model-00005-of-00010.safetensors",
+          "size": 4781593368,
+          "sha256": "5d81e8c278b8af82f96a69f36ce71e743a70aa8fe28d3118bd8d24dae5001b62",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00005-of-00010.safetensors"
+        },
+        {
+          "path": "model-00006-of-00010.safetensors",
+          "size": 4886472248,
+          "sha256": "8ca257e4f5ee8446536562de3e0b7e1e2614d23b22311bf29bb88385218ba1d9",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00006-of-00010.safetensors"
+        },
+        {
+          "path": "model-00007-of-00010.safetensors",
+          "size": 4781593376,
+          "sha256": "f880e9065a25eac3e4986d9b4d45ae0225fe59e093731ad633fded7e91ce058f",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00007-of-00010.safetensors"
+        },
+        {
+          "path": "model-00008-of-00010.safetensors",
+          "size": 4781593368,
+          "sha256": "3bc98dc787b471919b469862a9c67f39f9ab2a407e641614da858cd35cb65823",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00008-of-00010.safetensors"
+        },
+        {
+          "path": "model-00009-of-00010.safetensors",
+          "size": 4886472248,
+          "sha256": "b1ad95f53916db9384b80f3a233fb524d3085136b9065fd39a1fdf4f1749c401",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00009-of-00010.safetensors"
+        },
+        {
+          "path": "model-00010-of-00010.safetensors",
+          "size": 4571866320,
+          "sha256": "97a62f323631157567b35651d7f835baaf290e5fc17c92bb888023cdb43218d1",
+          "url": "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503/resolve/68faf511d618ef198fef186659617cfd2eb8e33a/model-00010-of-00010.safetensors"
+        }
+      ],
+      "source_bytes": 48022800560,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "The owner's id ended -2501, which does not exist; the 3.1 release is -2503 (Apache-2.0, vision encoder included). Its tokenizer is Tekken, not one zt reads.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "mistralai/Mixtral-8x7B-Instruct-v0.1",
+      "developer": "Mistral AI",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "mistralai/Mixtral-8x7B-v0.1",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "47B (MoE, 13B active)",
+      "capabilities": [
+        "ui_dialogue",
+        "tool_routing"
+      ],
+      "architecture": "MixtralForCausalLM",
+      "engine": "server runtime (Mixtral MoE)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "eba92302a2861cdc0098cc54bc9f17cb2c47eb61",
+      "source_url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/tree/eba92302a2861cdc0098cc54bc9f17cb2c47eb61",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00019.safetensors",
+          "size": 4892809584,
+          "sha256": "54669c5aec29fe5e4edd8098f7b564a137ba36be22ad25a194cd93f2bb54c940",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00001-of-00019.safetensors"
+        },
+        {
+          "path": "model-00002-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "29e15364d8ab1d6ee229233381f295e9ff96237efed04750591f7da52ab6cc0e",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00002-of-00019.safetensors"
+        },
+        {
+          "path": "model-00003-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "d0b63fca793cc29421cc5a46851992975cbe083aaded1b2f31113a45a0c90954",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00003-of-00019.safetensors"
+        },
+        {
+          "path": "model-00004-of-00019.safetensors",
+          "size": 4899035200,
+          "sha256": "67e0596920fe543415c0191e867a9a7de942a2924d6277cd98c8c5b34e11e436",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00004-of-00019.safetensors"
+        },
+        {
+          "path": "model-00005-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "e330eabd70b467ddcbd8d3d6b2b9c3eba66655b0ed9f84e19f270da3623dc455",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00005-of-00019.safetensors"
+        },
+        {
+          "path": "model-00006-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "048fa5347877b6d04eccf69765d23e5561cc9820dd4d0e5ba2df0100204dfb04",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00006-of-00019.safetensors"
+        },
+        {
+          "path": "model-00007-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "83bfed6169c1f5b0ae854fb3311b576d06209ee5af45d7d46bcbc25098a4d02b",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00007-of-00019.safetensors"
+        },
+        {
+          "path": "model-00008-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "af316ad784027edba47bf0959c821682c931c9c901d3d755038b358d9c7a28c0",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00008-of-00019.safetensors"
+        },
+        {
+          "path": "model-00009-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "5882e4366c63048a0ad36ef6d90194a2fabdb42a2140be79c8e0ec2e8ac2ccc5",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00009-of-00019.safetensors"
+        },
+        {
+          "path": "model-00010-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "77813d1dbee63419226ac15e4b8f28d075c3f7921cc664090236c491667eaf29",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00010-of-00019.safetensors"
+        },
+        {
+          "path": "model-00011-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "ff24540d9967fe43c0c17cadaea7f2a34d080a2f9e58b913038b9bfd0bf8ca49",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00011-of-00019.safetensors"
+        },
+        {
+          "path": "model-00012-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "48bc12845676eab1adb3cfce7037a7ecd664a0d5f5deaf93c7362a5bb5173298",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00012-of-00019.safetensors"
+        },
+        {
+          "path": "model-00013-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "e56a2e7eda699bf4ec1433bd07d7cb86488420813e66463d2e2296d7accebc5c",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00013-of-00019.safetensors"
+        },
+        {
+          "path": "model-00014-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "da627f6a3c8fdc6e35b9918d2aa53704d4044191fcc86c7c0b1ac57f00e707f7",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00014-of-00019.safetensors"
+        },
+        {
+          "path": "model-00015-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "61e0f22bff93a68e114dbc3d75c1dd1e6687d554dba0cfdf1743950aa04ff1cf",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00015-of-00019.safetensors"
+        },
+        {
+          "path": "model-00016-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "76466bfc2312f11559480981f212e4cca6e98096bf8df0fd90cce1f0f4709a9c",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00016-of-00019.safetensors"
+        },
+        {
+          "path": "model-00017-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "570af3b802bedc0d54d0481d124f63d449dda40a4294a82a39f8dc3704057a5c",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00017-of-00019.safetensors"
+        },
+        {
+          "path": "model-00018-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "4c603b65cbd5ddadcd5ece8add68b9d47f98f7264dbb0a5313172c78491e0329",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00018-of-00019.safetensors"
+        },
+        {
+          "path": "model-00019-of-00019.safetensors",
+          "size": 4221679088,
+          "sha256": "272f33c76bcacf6cfced497dc0579e107de3874b9f93126f5e69b5b1ae7e72a0",
+          "url": "https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1/resolve/eba92302a2861cdc0098cc54bc9f17cb2c47eb61/model-00019-of-00019.safetensors"
+        }
+      ],
+      "source_bytes": 93405713504,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "The base of the Hermes fine-tune below; listed so the trunk is pinned too.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO",
+      "developer": "Nous Research",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "mistralai/Mixtral-8x7B-v0.1",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "47B (MoE, 13B active)",
+      "capabilities": [
+        "ui_dialogue",
+        "tool_routing",
+        "creative_writing"
+      ],
+      "architecture": "MixtralForCausalLM",
+      "engine": "server runtime (Mixtral MoE)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "286ae6737d048ad1d965c2e830864df02db50f2f",
+      "source_url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/tree/286ae6737d048ad1d965c2e830864df02db50f2f",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00019.safetensors",
+          "size": 4892825968,
+          "sha256": "105a4c236d853e1ec891881ad40307a107bf7e242a46b3447ce7933325ac12c4",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00001-of-00019.safetensors"
+        },
+        {
+          "path": "model-00002-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "5ff4e593b1bd79bfa16afd63ce4c2fb276daf7e60f649310565d1a226ed54991",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00002-of-00019.safetensors"
+        },
+        {
+          "path": "model-00003-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "e4a72f38fbb3a687d784cf58ad0651df533b66abaac2f66043f5ac86d1de7b76",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00003-of-00019.safetensors"
+        },
+        {
+          "path": "model-00004-of-00019.safetensors",
+          "size": 4899035200,
+          "sha256": "fbc42ec64341d9f047082afc7e10fbe69390b1c280daf82ac4932339c19c9189",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00004-of-00019.safetensors"
+        },
+        {
+          "path": "model-00005-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "b21738e095891d59435effb3883026f9f78cf06d80ec4b00929ab58cdcf848a9",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00005-of-00019.safetensors"
+        },
+        {
+          "path": "model-00006-of-00019.safetensors",
+          "size": 4983004016,
+          "sha256": "4cc3ae70967bb605aa8244a458e0192fc34322058e54f6e67b54af26785ea4d6",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00006-of-00019.safetensors"
+        },
+        {
+          "path": "model-00007-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "be1eb4a29aa7696a6ea81b9db3dbba9595327a2a8a04beee0ae9b633ff30295e",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00007-of-00019.safetensors"
+        },
+        {
+          "path": "model-00008-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "586021d1c354ca87c074ab14ae40cde139492866957843d5e6f3a24b483e2560",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00008-of-00019.safetensors"
+        },
+        {
+          "path": "model-00009-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "ab7870aef2e3a4c39f63ac4776fa9e23767b2413bc54b4415df13614051bdae5",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00009-of-00019.safetensors"
+        },
+        {
+          "path": "model-00010-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "70f20c091e654ab4a23c199c93df7cabfda95477ce9ea087ec854d6538385bf8",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00010-of-00019.safetensors"
+        },
+        {
+          "path": "model-00011-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "69824506496b6501b14d52abe5eab107666d9c46c29b43179b72658d79b94e8b",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00011-of-00019.safetensors"
+        },
+        {
+          "path": "model-00012-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "20a693ce6edadbf9bb7e6a9004b4b2f73a5297782d02ea979fc393411e84b5e0",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00012-of-00019.safetensors"
+        },
+        {
+          "path": "model-00013-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "c3c4864bf282eb372a9961ea2984ff98cf0788924ac0be5d86b4fe999d606891",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00013-of-00019.safetensors"
+        },
+        {
+          "path": "model-00014-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "e0f539949b52b16359b562b164dc060b036c7b0008ae3b55e627bf8ea556d08a",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00014-of-00019.safetensors"
+        },
+        {
+          "path": "model-00015-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "6ca3aeef62bfbf6bcf361ac5c4d24c20cb40e11732ce1e062afc516de24ab022",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00015-of-00019.safetensors"
+        },
+        {
+          "path": "model-00016-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "c8c5108eab19ed6d0bf91a90ed67390b1819f50867ac37307383e3b8355b1741",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00016-of-00019.safetensors"
+        },
+        {
+          "path": "model-00017-of-00019.safetensors",
+          "size": 4899035248,
+          "sha256": "c0f173a570f218a5fd9d8cdbcc118eff2c46f7f0ed09144c2a40f7a69d7b7902",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00017-of-00019.safetensors"
+        },
+        {
+          "path": "model-00018-of-00019.safetensors",
+          "size": 4983004072,
+          "sha256": "2771eb6ab71ddd338194c2f31ed5c0c7c2a17d73cca020706d9a3ecca00c60c3",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00018-of-00019.safetensors"
+        },
+        {
+          "path": "model-00019-of-00019.safetensors",
+          "size": 4221695472,
+          "sha256": "b47f7d3057713ee4b99add514f699f15ccc2ae36021f0ab740db0262d8d34d35",
+          "url": "https://huggingface.co/NousResearch/Nous-Hermes-2-Mixtral-8x7B-DPO/resolve/286ae6737d048ad1d965c2e830864df02db50f2f/model-00019-of-00019.safetensors"
+        }
+      ],
+      "source_bytes": 93405746272,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": "Fine-tuned on OpenHermes-2.5, which is largely text generated by GPT-4; the weights' licence is Apache-2.0, but the data's origin is recorded here for the owner.",
+      "verified": true
+    },
+    {
+      "model_id": "allenai/OLMo-2-1124-13B-Instruct",
+      "developer": "Allen Institute for AI (AI2)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "allenai/OLMo-2-1124-13B-Instruct-RLVR2",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "13B",
+      "capabilities": [
+        "code_generation",
+        "math",
+        "structured_extraction",
+        "tabular",
+        "anomaly_reasoning",
+        "scientific",
+        "legal_extraction",
+        "decision_calibration"
+      ],
+      "architecture": "Olmo2ForCausalLM",
+      "engine": "server runtime (OLMo 2)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "3a5c85baefbb1896a54d56fe2e76c0395627ddf4",
+      "source_url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/tree/3a5c85baefbb1896a54d56fe2e76c0395627ddf4",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00006.safetensors",
+          "size": 4991475672,
+          "sha256": "884503480a474aaabf839123612eef8aa28f2d50d08a49bb7a62d0d756dd0377",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00001-of-00006.safetensors"
+        },
+        {
+          "path": "model-00002-of-00006.safetensors",
+          "size": 4970587952,
+          "sha256": "23c10fee35770c0f44166e20991fa4a3da88044652ce0cdedb03426426328b8a",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00002-of-00006.safetensors"
+        },
+        {
+          "path": "model-00003-of-00006.safetensors",
+          "size": 4881438320,
+          "sha256": "5e83f0d2467257172182fb701ee113e6a70f676160d60a5c2ee4e6d612d849a0",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00003-of-00006.safetensors"
+        },
+        {
+          "path": "model-00004-of-00006.safetensors",
+          "size": 4933887952,
+          "sha256": "212f64c1a9b9ade4870af03182a6b05a1662398537a256e7bd38ad2302780c3f",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00004-of-00006.safetensors"
+        },
+        {
+          "path": "model-00005-of-00006.safetensors",
+          "size": 4933887952,
+          "sha256": "25e5a2a15836560a08a7c0292372394a8f4106e34cab2929cd59b26655fb9945",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00005-of-00006.safetensors"
+        },
+        {
+          "path": "model-00006-of-00006.safetensors",
+          "size": 2721170744,
+          "sha256": "a0eb7fa0197f3f85a16832928cb9428912198cd65af3dd3a5e79ecc3c206ee90",
+          "url": "https://huggingface.co/allenai/OLMo-2-1124-13B-Instruct/resolve/3a5c85baefbb1896a54d56fe2e76c0395627ddf4/model-00006-of-00006.safetensors"
+        }
+      ],
+      "source_bytes": 27432448592,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Fully open data and training code.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "mistralai/Mistral-7B-Instruct-v0.3",
+      "developer": "Mistral AI",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "mistralai/Mistral-7B-v0.3",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "7B",
+      "capabilities": [
+        "code_generation",
+        "code_review",
+        "tool_routing",
+        "math",
+        "nli_scoring",
+        "structured_extraction",
+        "tabular",
+        "legal_extraction",
+        "decision_calibration"
+      ],
+      "architecture": "MistralForCausalLM",
+      "engine": "needs SentencePiece tokenizer (engine task E5)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "c170c708c41dac9275d15a8fff4eca08d52bab71",
+      "source_url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/tree/c170c708c41dac9275d15a8fff4eca08d52bab71",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00003.safetensors",
+          "size": 4949453792,
+          "sha256": "ce6fb6f6f4d0183f4813cbf4ece24109da629a08d4210da46f77e1d8b0bd5c19",
+          "url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/resolve/c170c708c41dac9275d15a8fff4eca08d52bab71/model-00001-of-00003.safetensors"
+        },
+        {
+          "path": "model-00002-of-00003.safetensors",
+          "size": 4999819336,
+          "sha256": "8c0e72f148366b6a3709e002a98706a33d31aec8515090c856c95b2044f92ae0",
+          "url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/resolve/c170c708c41dac9275d15a8fff4eca08d52bab71/model-00002-of-00003.safetensors"
+        },
+        {
+          "path": "model-00003-of-00003.safetensors",
+          "size": 4546807800,
+          "sha256": "905dd405363e43d95779c1c1155a2dbfd36155914ae95dbd934e12e490cfb4ca",
+          "url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/resolve/c170c708c41dac9275d15a8fff4eca08d52bab71/model-00003-of-00003.safetensors"
+        }
+      ],
+      "source_bytes": 14496080928,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Llama-shaped, but its tokenizer is SentencePiece; zt runs it after E5.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-Coder-32B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "32B",
+      "capabilities": [
+        "code_generation",
+        "code_review",
+        "sql"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "381fc969f78efac66bc87ff7ddeadb7e73c218a7",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/tree/381fc969f78efac66bc87ff7ddeadb7e73c218a7",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00014.safetensors",
+          "size": 4891730992,
+          "sha256": "5746929d771eb06ba0105671a2018dca3c648d4664ca5a5ce2077df82fabad92",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00001-of-00014.safetensors"
+        },
+        {
+          "path": "model-00002-of-00014.safetensors",
+          "size": 4876059352,
+          "sha256": "12aaad653a85d7212a9cc7722937fff7b2bd060ab8522399b4a74d2bf736df8d",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00002-of-00014.safetensors"
+        },
+        {
+          "path": "model-00003-of-00014.safetensors",
+          "size": 4876059384,
+          "sha256": "9bac433064b2c29f3e2a891539993b74b7a1da5b0a78c900b2e22fc20fe66059",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00003-of-00014.safetensors"
+        },
+        {
+          "path": "model-00004-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "4e859e864a61c45dc2e38650359540e5f35f09d4a6993ef66d7274760e7d1905",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00004-of-00014.safetensors"
+        },
+        {
+          "path": "model-00005-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "57000579cf2e87cd575333288c25588a45816fc406ace74a52efed1e7bc910d5",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00005-of-00014.safetensors"
+        },
+        {
+          "path": "model-00006-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "72dd80465092fad2665c9705332efa99c20b9fb22ad1944e7fe7429a222ede42",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00006-of-00014.safetensors"
+        },
+        {
+          "path": "model-00007-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "b91130f8049d3446221000a1d44cdf7bd344f01a2b5843f9bb81ac8193beeae8",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00007-of-00014.safetensors"
+        },
+        {
+          "path": "model-00008-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "522db6c67390557f2964a4a0094a463a067c91992be164b6e141aa1267a225e5",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00008-of-00014.safetensors"
+        },
+        {
+          "path": "model-00009-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "7c03b072b4aad4da68016b75b78c6eb3ea6b35e18ac0dae4906146603fa32e23",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00009-of-00014.safetensors"
+        },
+        {
+          "path": "model-00010-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "c5ee9a4665ae7d5c9e6d37f77d93c47244a80ee41284060efde69d223472a87a",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00010-of-00014.safetensors"
+        },
+        {
+          "path": "model-00011-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "49f60205e190369145352de972e3510bcfeef6b5a26041573032edbe132c1e06",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00011-of-00014.safetensors"
+        },
+        {
+          "path": "model-00012-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "9a53a0d4a02dcb5f036da4fcd50e408107144ff4c4b09357cf1829be2ef382f9",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00012-of-00014.safetensors"
+        },
+        {
+          "path": "model-00013-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "8b26127defc68bff2e0744ae9afc9c8ab1730fee071e0400b4bfe8f07fadda5b",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00013-of-00014.safetensors"
+        },
+        {
+          "path": "model-00014-of-00014.safetensors",
+          "size": 2123397800,
+          "sha256": "983ebbded19c19264d08845710c9993714d60e17f81c62e1e15c8f174af79847",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-32B-Instruct/resolve/381fc969f78efac66bc87ff7ddeadb7e73c218a7/model-00014-of-00014.safetensors"
+        }
+      ],
+      "source_bytes": 65527841688,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-14B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-Coder-14B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "14B",
+      "capabilities": [
+        "code_generation",
+        "sql"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "aedcc2d42b622764e023cf882b6652e646b95671",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/tree/aedcc2d42b622764e023cf882b6652e646b95671",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00006.safetensors",
+          "size": 4986211280,
+          "sha256": "b14a60aa35c07e58da61cbe6c8b2819e60a043dd98001f14736045c6062e79a0",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00001-of-00006.safetensors"
+        },
+        {
+          "path": "model-00002-of-00006.safetensors",
+          "size": 4954847344,
+          "sha256": "03b8de22c48a523646ac0a38aa36471529e22cdd1238ce43b44bf5014d64098a",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00002-of-00006.safetensors"
+        },
+        {
+          "path": "model-00003-of-00006.safetensors",
+          "size": 4954847392,
+          "sha256": "97587f9d511af15bce6295a15b10c43f504b16fcddf22db9c87356df17ffff3f",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00003-of-00006.safetensors"
+        },
+        {
+          "path": "model-00004-of-00006.safetensors",
+          "size": 4954847392,
+          "sha256": "ed34a72606341f8774d21661ad8ec9e59deffad8c63ceebd2f6db86f163bee7d",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00004-of-00006.safetensors"
+        },
+        {
+          "path": "model-00005-of-00006.safetensors",
+          "size": 4954847392,
+          "sha256": "657a6388cfe547498159dfb6507b9c1ead09a6fbab154c22942bbf963aef4208",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00005-of-00006.safetensors"
+        },
+        {
+          "path": "model-00006-of-00006.safetensors",
+          "size": 4734533160,
+          "sha256": "3dbbc07addfc989662fd6bf88798970b278c98630f88eed5d23256fc99365dae",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct/resolve/aedcc2d42b622764e023cf882b6652e646b95671/model-00006-of-00006.safetensors"
+        }
+      ],
+      "source_bytes": 29540133960,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "ibm-granite/granite-20b-code-instruct-8k",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "ibm-granite/granite-20b-code-base-8k",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "20B",
+      "capabilities": [
+        "code_review"
+      ],
+      "architecture": "GPTBigCodeForCausalLM",
+      "engine": "server runtime (GPTBigCode)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "03d2f3664ed0059eac4d35797b43fb52d551bb5b",
+      "source_url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/tree/03d2f3664ed0059eac4d35797b43fb52d551bb5b",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00009.safetensors",
+          "size": 4952185256,
+          "sha256": "55d1681c37520a4e6009d3b595f9c062aca59fd6df3cd3fa1030837a771a62a2",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00001-of-00009.safetensors"
+        },
+        {
+          "path": "model-00002-of-00009.safetensors",
+          "size": 4930227792,
+          "sha256": "37dea2993966d6a4454c0912c727f54721fbcf180d0fee64a495eb8aefad436a",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00002-of-00009.safetensors"
+        },
+        {
+          "path": "model-00003-of-00009.safetensors",
+          "size": 4927118464,
+          "sha256": "d811f778ac946f8bd6d9b575219567f8f5e16e299517dc750ffda7c0f576a544",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00003-of-00009.safetensors"
+        },
+        {
+          "path": "model-00004-of-00009.safetensors",
+          "size": 4930227864,
+          "sha256": "0013c2cca1844674e87693199bbbcf76d319ac1f4a6240be10468b3030bf2099",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00004-of-00009.safetensors"
+        },
+        {
+          "path": "model-00005-of-00009.safetensors",
+          "size": 4927118464,
+          "sha256": "5838930baf3c8d10fc75d43deb076eff69fef08950eac9a0f07014322a2110cf",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00005-of-00009.safetensors"
+        },
+        {
+          "path": "model-00006-of-00009.safetensors",
+          "size": 4930227864,
+          "sha256": "acbba4bad1fbedb0cafb388c03748a72f3644fdfc7bfcb714e560366a828a78e",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00006-of-00009.safetensors"
+        },
+        {
+          "path": "model-00007-of-00009.safetensors",
+          "size": 4927118464,
+          "sha256": "77c560778bfb84119c7b74cfe755f084ae1734d345c421dd29aae1365fe73d71",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00007-of-00009.safetensors"
+        },
+        {
+          "path": "model-00008-of-00009.safetensors",
+          "size": 4930227864,
+          "sha256": "bfb0611b88a1d48cdbd5e244bd3ea9e4af0dcf63027e43628a62a402a864ca03",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00008-of-00009.safetensors"
+        },
+        {
+          "path": "model-00009-of-00009.safetensors",
+          "size": 679601176,
+          "sha256": "f666a85b0d908ac07f85bbe7503c18cab2762374e6edc3517f0b1953584a8c6a",
+          "url": "https://huggingface.co/ibm-granite/granite-20b-code-instruct-8k/resolve/03d2f3664ed0059eac4d35797b43fb52d551bb5b/model-00009-of-00009.safetensors"
+        }
+      ],
+      "source_bytes": 40134053208,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/QwQ-32B",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-32B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "32B",
+      "capabilities": [
+        "math",
+        "decision_calibration"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "976055f8c83f394f35dbd3ab09a285a984907bd0",
+      "source_url": "https://huggingface.co/Qwen/QwQ-32B/tree/976055f8c83f394f35dbd3ab09a285a984907bd0",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00014.safetensors",
+          "size": 4891730992,
+          "sha256": "004d2070959177a0beeac5c01f4934fb5bb2c12ad36184dc58b5f23ab8f70f3a",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00001-of-00014.safetensors"
+        },
+        {
+          "path": "model-00002-of-00014.safetensors",
+          "size": 4876059352,
+          "sha256": "20bdb326a9dc6cd8b6438584471967995ec4a5e905ed06ef82354c248a389d65",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00002-of-00014.safetensors"
+        },
+        {
+          "path": "model-00003-of-00014.safetensors",
+          "size": 4876059384,
+          "sha256": "85ccdd3199b1fec121c0344b334342d945d4190305875619fea0c3db6da49109",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00003-of-00014.safetensors"
+        },
+        {
+          "path": "model-00004-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "0f105c2f63b39f327844cbb79997cc1cf9b72778d51a26bdd7f170683c3b2a26",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00004-of-00014.safetensors"
+        },
+        {
+          "path": "model-00005-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "47701383600a7476fd83a95d0954f8a08ba61e7e6cbe7d7c9ceae98cac32fac9",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00005-of-00014.safetensors"
+        },
+        {
+          "path": "model-00006-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "1656c1ba7072ef5b615cb927e6c9c67901387effe3dcf6ce6d0347d9af9e4776",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00006-of-00014.safetensors"
+        },
+        {
+          "path": "model-00007-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "12fedbbc4ba346d4400e8ab47b93333f46694b49354266a20ad831086badda48",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00007-of-00014.safetensors"
+        },
+        {
+          "path": "model-00008-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "b8d62faefa13bb43a049a4400f32774097c5567294b5173217c538c02fb0b167",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00008-of-00014.safetensors"
+        },
+        {
+          "path": "model-00009-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "30bdb6ea3dde6992437d078539faeb900001ffc81df85e31cd570b8a8473c299",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00009-of-00014.safetensors"
+        },
+        {
+          "path": "model-00010-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "bc1dde8498e337d943ece97c7e34a9128212c0b2a78e54544db70b180356fe6b",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00010-of-00014.safetensors"
+        },
+        {
+          "path": "model-00011-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "4d02e7eff51f87d899d814e4e626aa0b500c2ed66281338501a6cbd1c0e39948",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00011-of-00014.safetensors"
+        },
+        {
+          "path": "model-00012-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "1509466dac374077451838262cca4d09d79b78cfd390f4ecb24dbee83d4614e3",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00012-of-00014.safetensors"
+        },
+        {
+          "path": "model-00013-of-00014.safetensors",
+          "size": 4876059416,
+          "sha256": "5e43e88f59bcdaedd173d60e76ef428583dac88bc864786e5d7ee9420edbb094",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00013-of-00014.safetensors"
+        },
+        {
+          "path": "model-00014-of-00014.safetensors",
+          "size": 2123397800,
+          "sha256": "a567a635b6c4846070fff9d7b28823d7a332235d854e71d355e0140d2e9dcc2f",
+          "url": "https://huggingface.co/Qwen/QwQ-32B/resolve/976055f8c83f394f35dbd3ab09a285a984907bd0/model-00014-of-00014.safetensors"
+        }
+      ],
+      "source_bytes": 65527841688,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": "Replaces Qwen2.5-Math-72B-Instruct: a reasoning model on the Apache-2.0 Qwen2.5-32B base.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Math-7B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "Qwen/Qwen2.5-Math-7B",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "7B",
+      "capabilities": [
+        "math"
+      ],
+      "architecture": "Qwen2ForCausalLM",
+      "engine": "zt (qwen2)",
+      "zt_runs_today": true,
+      "zero_float_verified": false,
+      "runtime_gated": false,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "ef9926d75ab1d54532f6a30dd5e760355eb9aa4d",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct/tree/ef9926d75ab1d54532f6a30dd5e760355eb9aa4d",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 3945441440,
+          "sha256": "11f73294487dca1614bd7495e2c4e50372f5794f4cd175ce62d9ec2a8e97873a",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct/resolve/ef9926d75ab1d54532f6a30dd5e760355eb9aa4d/model-00001-of-00004.safetensors"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 3864726352,
+          "sha256": "2b992a00b09340ac3f8e54db70509b709e2eef9f601e679682e3a50b496a7b08",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct/resolve/ef9926d75ab1d54532f6a30dd5e760355eb9aa4d/model-00002-of-00004.safetensors"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 3864726424,
+          "sha256": "2460a589b1d606998574e0d84162e94307a15e2eea2aac6f4ea35f0361657660",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct/resolve/ef9926d75ab1d54532f6a30dd5e760355eb9aa4d/model-00003-of-00004.safetensors"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 3556377672,
+          "sha256": "9e7925045deba3bb6ac461f1c2e7eabbe2a189549156dff1ec08b6c750a82bc5",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-Math-7B-Instruct/resolve/ef9926d75ab1d54532f6a30dd5e760355eb9aa4d/model-00004-of-00004.safetensors"
+        }
+      ],
+      "source_bytes": 15231271888,
+      "quant_target": "Q4_K_M",
+      "quant_sha256": null,
+      "quant_status": "built on the server from the pinned sources",
+      "note": "Replaces the Qwen2.5-Math-14B-Instruct the list named, which does not exist.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "cross-encoder/nli-deberta-v3-base",
+      "developer": "Sentence Transformers (cross-encoder)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "microsoft/deberta-v3-base",
+            "license": "mit"
+          }
+        ],
+        "mit_base": "microsoft/deberta-v3-base (MIT)"
+      },
+      "params": "184M",
+      "capabilities": [
+        "nli"
+      ],
+      "architecture": "DebertaV2ForSequenceClassification",
+      "engine": "needs DeBERTa encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
+      "source_url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/tree/6c749ce3425cd33b46d187e45b92bbf96ee12ec7",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 737726552,
+          "sha256": "d8148c6d49e0a7925134294c56326c71fe0ab1dc390e37355e00c7efbb488afa",
+          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/resolve/6c749ce3425cd33b46d187e45b92bbf96ee12ec7/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 738574335,
+          "sha256": "369ebf04fce8206c83b8fd62e9dc860144f10351a7f885ed3076beb17b7c6dda",
+          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-base/resolve/6c749ce3425cd33b46d187e45b92bbf96ee12ec7/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 1476300887,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Feeds lpres: entailment TRUE, contradiction FALSE, neutral NEITHER, strong conflicting signals BOTH.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "cross-encoder/nli-deberta-v3-large",
+      "developer": "Sentence Transformers (cross-encoder)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "microsoft/deberta-v3-large",
+            "license": "mit"
+          }
+        ],
+        "mit_base": "microsoft/deberta-v3-large (MIT)"
+      },
+      "params": "435M",
+      "capabilities": [
+        "nli"
+      ],
+      "architecture": "DebertaV2ForSequenceClassification",
+      "engine": "needs DeBERTa encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "bab4bc7178836f731dcfd18c06ca9def0a137712",
+      "source_url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/tree/bab4bc7178836f731dcfd18c06ca9def0a137712",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1740312740,
+          "sha256": "01cb91b046c0c88c538c06c6d2a8ab8b11f9b9c5f9c2ef0c8e20c4086710063c",
+          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/resolve/bab4bc7178836f731dcfd18c06ca9def0a137712/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 1742010231,
+          "sha256": "522031148bd5696cf67ca4a682ee56090cd5219558f29b62b311ea345e9f0fb7",
+          "url": "https://huggingface.co/cross-encoder/nli-deberta-v3-large/resolve/bab4bc7178836f731dcfd18c06ca9def0a137712/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 3482322971,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Snowflake/snowflake-arctic-embed-l",
+      "developer": "Snowflake",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": "initialised from intfloat/e5-large-unsupervised (MIT), per Snowflake's report"
+      },
+      "params": "335M",
+      "capabilities": [
+        "embeddings",
+        "recommendation"
+      ],
+      "architecture": "BertModel",
+      "engine": "needs BERT encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "d8fb21ca8d905d2832ee8b96c894d3298964346b",
+      "source_url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/tree/d8fb21ca8d905d2832ee8b96c894d3298964346b",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1336413848,
+          "sha256": "46e36bf399c152c51818e1d0423bfe628d79fc9536dbf9d4fcc93078827d6c99",
+          "url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/resolve/d8fb21ca8d905d2832ee8b96c894d3298964346b/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 1336854283,
+          "sha256": "9c6ae4c0108aa2f7fb4cf95776f40bfd7dca7edb6d8c686d6470b6ab105ca559",
+          "url": "https://huggingface.co/Snowflake/snowflake-arctic-embed-l/resolve/d8fb21ca8d905d2832ee8b96c894d3298964346b/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 2673268131,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "nomic-ai/nomic-embed-text-v1.5",
+      "developer": "Nomic AI",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "137M",
+      "capabilities": [
+        "embeddings",
+        "recommendation"
+      ],
+      "architecture": "NomicBertModel",
+      "engine": "needs NomicBERT path (custom code)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "e9b6763023c676ca8431644204f50c2b100d9aab",
+      "source_url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/tree/e9b6763023c676ca8431644204f50c2b100d9aab",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 546938168,
+          "sha256": "9e7d262b1fe5ea350782829496efa831901b77486bbde1cea54a4c822d010d5c",
+          "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 547310275,
+          "sha256": "147d5aa88c2101237358e17796cf3a227cead1ec304ec34b465bb08e9d952965",
+          "url": "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5/resolve/e9b6763023c676ca8431644204f50c2b100d9aab/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 1094248443,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Alibaba-NLP/gte-large-en-v1.5",
+      "developer": "Alibaba (Tongyi Lab, NLP)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "434M",
+      "capabilities": [
+        "embeddings",
+        "recommendation"
+      ],
+      "architecture": "NewModel",
+      "engine": "needs custom 'NewModel' path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "104333d6af6f97649377c2afbde10a7704870c7b",
+      "source_url": "https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5/tree/104333d6af6f97649377c2afbde10a7704870c7b",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 1736585680,
+          "sha256": "fe6e4200b833d5332b7c61859d7f4ff204211b1583d732353efe1b7594176cf2",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5/resolve/104333d6af6f97649377c2afbde10a7704870c7b/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 1745599590,
+          "sha256": "9052c26e0ffaa4f2016f91236d9536b28ec5748100d8f4e5e5881cc59e7cf910",
+          "url": "https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5/resolve/104333d6af6f97649377c2afbde10a7704870c7b/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 3482185270,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "sentence-transformers/all-mpnet-base-v2",
+      "developer": "Sentence Transformers",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": "microsoft/mpnet-base (its card names no licence; MPNet's code is MIT)"
+      },
+      "params": "109M",
+      "capabilities": [
+        "embeddings"
+      ],
+      "architecture": "MPNetForMaskedLM",
+      "engine": "needs MPNet encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "e8c3b32edf5434bc2275fc9bab85f82640a19130",
+      "source_url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/tree/e8c3b32edf5434bc2275fc9bab85f82640a19130",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 437971872,
+          "sha256": "78c0197b6159d92658e319bc1d72e4c73a9a03dd03815e70e555c5ef05615658",
+          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/e8c3b32edf5434bc2275fc9bab85f82640a19130/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 435826548,
+          "sha256": "74187b16d9c946fea252e120cfd7a12c5779d8b8b86838a2e4c56573c47941bd",
+          "url": "https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/e8c3b32edf5434bc2275fc9bab85f82640a19130/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 873798420,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-12-v2",
+      "developer": "Sentence Transformers (cross-encoder)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "microsoft/MiniLM-L12-H384-uncased",
+            "license": "mit"
+          }
+        ],
+        "mit_base": "microsoft/MiniLM-L12-H384-uncased (MIT)"
+      },
+      "params": "33M",
+      "capabilities": [
+        "reranking"
+      ],
+      "architecture": "BertForSequenceClassification",
+      "engine": "needs BERT encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "7b0235231ca2674cb8ca8f022859a6eba2b1c968",
+      "source_url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/tree/7b0235231ca2674cb8ca8f022859a6eba2b1c968",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 133469020,
+          "sha256": "1ed84b90cdf3518f76ec9bb93a16f97887eea7c4e7ee5dfb03cc297e394fbbc3",
+          "url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/resolve/7b0235231ca2674cb8ca8f022859a6eba2b1c968/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 133743863,
+          "sha256": "2ac389ab6abe08dcbddf2c41a69b6a18853e0dca440adbc2abc1adfcee46483f",
+          "url": "https://huggingface.co/cross-encoder/ms-marco-MiniLM-L-12-v2/resolve/7b0235231ca2674cb8ca8f022859a6eba2b1c968/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 267212883,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": "Trained on MS MARCO (non-commercial research terms on the data).",
+      "verified": true
+    },
+    {
+      "model_id": "cross-encoder/ms-marco-electra-base",
+      "developer": "Sentence Transformers (cross-encoder)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "google/electra-base-discriminator",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "110M",
+      "capabilities": [
+        "reranking"
+      ],
+      "architecture": "ElectraForSequenceClassification",
+      "engine": "needs ELECTRA encoder path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "8b9301757513f8a695920c334c3a9f365ebeb357",
+      "source_url": "https://huggingface.co/cross-encoder/ms-marco-electra-base/tree/8b9301757513f8a695920c334c3a9f365ebeb357",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 437960356,
+          "sha256": "d13cb549da5498feba1295402742e50f7e4452f043dffdc38066fdb8fb499a6b",
+          "url": "https://huggingface.co/cross-encoder/ms-marco-electra-base/resolve/8b9301757513f8a695920c334c3a9f365ebeb357/model.safetensors"
+        },
+        {
+          "path": "onnx/model.onnx",
+          "size": 438212375,
+          "sha256": "5e3e674221713a05fe4d651d5258edf8911a99f34821e243146bc0d21e970d68",
+          "url": "https://huggingface.co/cross-encoder/ms-marco-electra-base/resolve/8b9301757513f8a695920c334c3a9f365ebeb357/onnx/model.onnx"
+        }
+      ],
+      "source_bytes": 876172731,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": "Trained on MS MARCO (non-commercial research terms on the data).",
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-VL-32B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "33B",
+      "capabilities": [
+        "vision",
+        "document_ocr"
+      ],
+      "architecture": "Qwen2_5_VLForConditionalGeneration",
+      "engine": "server runtime (Qwen2.5-VL)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "7cfb30d71a1f4f49a57592323337a4a4727301da",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/tree/7cfb30d71a1f4f49a57592323337a4a4727301da",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00018.safetensors",
+          "size": 2755409624,
+          "sha256": "64c2a870b88b235da239b0eee9360810d162c2eaa6c0a6318f33969d3e653e8f",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00001-of-00018.safetensors"
+        },
+        {
+          "path": "model-00002-of-00018.safetensors",
+          "size": 3916519128,
+          "sha256": "d58b007f2a2a3104e243949b5533209087fb71528a801719a7ff87e1c5402a13",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00002-of-00018.safetensors"
+        },
+        {
+          "path": "model-00003-of-00018.safetensors",
+          "size": 3900847488,
+          "sha256": "e4102551d61285941d4c628ef34beeeb2ecb66713b37756c4be31542b03c5546",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00003-of-00018.safetensors"
+        },
+        {
+          "path": "model-00004-of-00018.safetensors",
+          "size": 3900847488,
+          "sha256": "20a6ff2c6b6ea5d7199ea0da7c39787f694d04068a1b5090c56e1b2cd2c8279c",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00004-of-00018.safetensors"
+        },
+        {
+          "path": "model-00005-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "3af4c2e3274e045d9b08bc92dda78b615c2e21aead1159f8193fe6d01b49b62c",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00005-of-00018.safetensors"
+        },
+        {
+          "path": "model-00006-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "8a47aa90e2e685110e9c82b4f468eac4116286c98090a1461275130ac5ac42ea",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00006-of-00018.safetensors"
+        },
+        {
+          "path": "model-00007-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "dcd94eb28bee42e2697dda0497eeafd04a6d10f686d966a18b77ec1b62c95cb9",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00007-of-00018.safetensors"
+        },
+        {
+          "path": "model-00008-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "5ed4aee864b479c6dfcafcfa10d11d511aaf8fefd95618325d03a6662aacf7ae",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00008-of-00018.safetensors"
+        },
+        {
+          "path": "model-00009-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "bd7a7666f7246c3bf5dae7b4709a3032deab6970ccbb3d4de9853e18dccd0a4f",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00009-of-00018.safetensors"
+        },
+        {
+          "path": "model-00010-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "23e22a974e698e049e0abf917747aa270b6f11202a4ef23feffba18534bdbb0d",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00010-of-00018.safetensors"
+        },
+        {
+          "path": "model-00011-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "2d9900a158e75ed10c9d271063283f356c998c9e94792eda2d5cf4eb1fd49bff",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00011-of-00018.safetensors"
+        },
+        {
+          "path": "model-00012-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "7d0005e8ea7c058a1a1c03f9b76937836fcfded52ae41876d2d6f8c0657343a9",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00012-of-00018.safetensors"
+        },
+        {
+          "path": "model-00013-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "792a18eb6999f1d0b9716292a894fe480ee0393d66c71468263b46d795e669ea",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00013-of-00018.safetensors"
+        },
+        {
+          "path": "model-00014-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "d3ef548f5c10161749d6833e8cfa45fb68785617c60b3babeaf6803359cb6640",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00014-of-00018.safetensors"
+        },
+        {
+          "path": "model-00015-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "f99201514697986e5a5408f7f42f0fecc45916385614f6af8eab37a64a0e0e06",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00015-of-00018.safetensors"
+        },
+        {
+          "path": "model-00016-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "e366d738ecd99a3f66d01a7a9bbaf8355cd70a9450c4d58f0f4f9b16159be1e4",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00016-of-00018.safetensors"
+        },
+        {
+          "path": "model-00017-of-00018.safetensors",
+          "size": 3900847536,
+          "sha256": "92e355aac688513437bd1c087a855808e7cb83aea8f31d1ec0f08d31ce3bb29e",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00017-of-00018.safetensors"
+        },
+        {
+          "path": "model-00018-of-00018.safetensors",
+          "size": 3098609680,
+          "sha256": "87d7dddef2c079610e409a4372f29453382c6218687a9e1b9c04ae0359a880c2",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct/resolve/7cfb30d71a1f4f49a57592323337a4a4727301da/model-00018-of-00018.safetensors"
+        }
+      ],
+      "source_bytes": 68283251376,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Replaces Qwen2.5-VL-72B-Instruct (Qwen licence).",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-VL-7B-Instruct",
+      "developer": "Qwen team, Alibaba Cloud",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "8B",
+      "capabilities": [
+        "vision",
+        "document_ocr",
+        "vla_planning"
+      ],
+      "architecture": "Qwen2_5_VLForConditionalGeneration",
+      "engine": "server runtime (Qwen2.5-VL)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "cc594898137f460bfe9f0759e9844b3ce807cfb5",
+      "source_url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/tree/cc594898137f460bfe9f0759e9844b3ce807cfb5",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00005.safetensors",
+          "size": 3900233256,
+          "sha256": "e97b877e47fde53a6c6e77aafb36e58e91ee9d95c4a3eeac6f1b5c0e6a1c986e",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/resolve/cc594898137f460bfe9f0759e9844b3ce807cfb5/model-00001-of-00005.safetensors"
+        },
+        {
+          "path": "model-00002-of-00005.safetensors",
+          "size": 3864726320,
+          "sha256": "a9a300a43b4724eee2abe7c18ceb26768d0ab011eb0cad19d9bfd2476a24d024",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/resolve/cc594898137f460bfe9f0759e9844b3ce807cfb5/model-00002-of-00005.safetensors"
+        },
+        {
+          "path": "model-00003-of-00005.safetensors",
+          "size": 3864726424,
+          "sha256": "111223d173e00bbee81cba1216fad28668df3476706b7fd26f4d5b50f8b3a507",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/resolve/cc594898137f460bfe9f0759e9844b3ce807cfb5/model-00003-of-00005.safetensors"
+        },
+        {
+          "path": "model-00004-of-00005.safetensors",
+          "size": 3864733680,
+          "sha256": "ef47f634fa57d46ee134edcc09f34085a47da1e16c12a2abe0d67118be6d72ed",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/resolve/cc594898137f460bfe9f0759e9844b3ce807cfb5/model-00004-of-00005.safetensors"
+        },
+        {
+          "path": "model-00005-of-00005.safetensors",
+          "size": 1089994880,
+          "sha256": "0c859795ad3a627a9b95bcb762e059d5b768a4a36fdd4affeff269d93fdecc67",
+          "url": "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct/resolve/cc594898137f460bfe9f0759e9844b3ce807cfb5/model-00005-of-00005.safetensors"
+        }
+      ],
+      "source_bytes": 16584414560,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Replaces VL-3B (Qwen Research licence) and VL-14B (no such model).",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "parler-tts/parler-tts-large-v1",
+      "developer": "Hugging Face (Parler-TTS team)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "2.3B",
+      "capabilities": [
+        "tts"
+      ],
+      "architecture": "ParlerTTSForConditionalGeneration",
+      "engine": "server runtime (Parler-TTS)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "50cb4b874c83902f930d7c2e753224c15654f11e",
+      "source_url": "https://huggingface.co/parler-tts/parler-tts-large-v1/tree/50cb4b874c83902f930d7c2e753224c15654f11e",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00002.safetensors",
+          "size": 4984365952,
+          "sha256": "c30d2151a8a9c3343b6998eeec019b46db9d17b84ef234d98ea6723941c2851c",
+          "url": "https://huggingface.co/parler-tts/parler-tts-large-v1/resolve/50cb4b874c83902f930d7c2e753224c15654f11e/model-00001-of-00002.safetensors"
+        },
+        {
+          "path": "model-00002-of-00002.safetensors",
+          "size": 4347810672,
+          "sha256": "413db5baa97486c7447a4060bb2ced9235d1785d51ac981e0880eff2cb044ca5",
+          "url": "https://huggingface.co/parler-tts/parler-tts-large-v1/resolve/50cb4b874c83902f930d7c2e753224c15654f11e/model-00002-of-00002.safetensors"
+        }
+      ],
+      "source_bytes": 9332176624,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "google/madlad400-3b-mt",
+      "developer": "Google",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "3B",
+      "capabilities": [
+        "translation"
+      ],
+      "architecture": "T5ForConditionalGeneration",
+      "engine": "needs T5 path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "fa184c675da0b5c9e1c8694fccd4e12e2d422094",
+      "source_url": "https://huggingface.co/google/madlad400-3b-mt/tree/fa184c675da0b5c9e1c8694fccd4e12e2d422094",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 11761587872,
+          "sha256": "66ff5f8fcaf92291da486fdfbd4d5233cec90e1359348a56e3172c978b3a76d4",
+          "url": "https://huggingface.co/google/madlad400-3b-mt/resolve/fa184c675da0b5c9e1c8694fccd4e12e2d422094/model.safetensors"
+        }
+      ],
+      "source_bytes": 11761587872,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Already in the small roster as Polyglotwyvern (server).",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "ibm-granite/granite-timeseries-ttm-v1",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "1M",
+      "capabilities": [
+        "time_series"
+      ],
+      "architecture": "TinyTimeMixerForPrediction",
+      "engine": "needs TinyTimeMixer path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "f04bebdd4c13475b006ce72672e74c9dc28871dc",
+      "source_url": "https://huggingface.co/ibm-granite/granite-timeseries-ttm-v1/tree/f04bebdd4c13475b006ce72672e74c9dc28871dc",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 3240592,
+          "sha256": "30f8d9be619518e18c4c15c6ee504e491b9624b48e251661cd5f967bce097731",
+          "url": "https://huggingface.co/ibm-granite/granite-timeseries-ttm-v1/resolve/f04bebdd4c13475b006ce72672e74c9dc28871dc/model.safetensors"
+        }
+      ],
+      "source_bytes": 3240592,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "amazon/chronos-t5-large",
+      "developer": "Amazon",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "710M",
+      "capabilities": [
+        "time_series"
+      ],
+      "architecture": "T5ForConditionalGeneration",
+      "engine": "needs T5 path",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "0e46c9c7e2e9f74b53db0617fdfcfe42a413e54a",
+      "source_url": "https://huggingface.co/amazon/chronos-t5-large/tree/0e46c9c7e2e9f74b53db0617fdfcfe42a413e54a",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 2835915592,
+          "sha256": "dad1e592a5ba771788d47fd3868f174eeb07e7ca0c4d6dc5ab77674952f452e1",
+          "url": "https://huggingface.co/amazon/chronos-t5-large/resolve/0e46c9c7e2e9f74b53db0617fdfcfe42a413e54a/model.safetensors"
+        }
+      ],
+      "source_bytes": 2835915592,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": null,
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "ibm-granite/granite-guardian-3.1-8b",
+      "developer": "IBM Granite team",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "8B",
+      "capabilities": [
+        "moderation"
+      ],
+      "architecture": "GraniteForCausalLM",
+      "engine": "server runtime (Granite)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": true,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4",
+      "source_url": "https://huggingface.co/ibm-granite/granite-guardian-3.1-8b/tree/155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4",
+      "weight_files": [
+        {
+          "path": "model-00001-of-00004.safetensors",
+          "size": 4974661520,
+          "sha256": "af18ec61ce881742b8fe73338eb09fa3b92182dc0d1824e9aaa6c8a51111226e",
+          "url": "https://huggingface.co/ibm-granite/granite-guardian-3.1-8b/resolve/155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4/model-00001-of-00004.safetensors"
+        },
+        {
+          "path": "model-00002-of-00004.safetensors",
+          "size": 4991447808,
+          "sha256": "3ccf69a124e34785373adb85f63897d9cfe519ddd2a8073c6555c10eb556e5d3",
+          "url": "https://huggingface.co/ibm-granite/granite-guardian-3.1-8b/resolve/155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4/model-00002-of-00004.safetensors"
+        },
+        {
+          "path": "model-00003-of-00004.safetensors",
+          "size": 4970460032,
+          "sha256": "81ec242b2626ba79549400054fae777eb34fbc25633e187c6aeb5a2662157545",
+          "url": "https://huggingface.co/ibm-granite/granite-guardian-3.1-8b/resolve/155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4/model-00003-of-00004.safetensors"
+        },
+        {
+          "path": "model-00004-of-00004.safetensors",
+          "size": 1405169256,
+          "sha256": "1964d5bf4653703033c20234df6959427cb1307dc4d4992dd417510ad9892e6f",
+          "url": "https://huggingface.co/ibm-granite/granite-guardian-3.1-8b/resolve/155ee0a9223d11a2bc89a23b61d82e1bc2dc92d4/model-00004-of-00004.safetensors"
+        }
+      ],
+      "source_bytes": 16341738616,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Advisory only: it flags risk for a person to judge; it never blocks or acts by itself.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "kandinsky-community/kandinsky-2-1",
+      "developer": "Kandinsky team (Sber AI)",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [],
+        "mit_base": null
+      },
+      "params": "3.3B",
+      "capabilities": [
+        "image_generation"
+      ],
+      "architecture": null,
+      "engine": "server runtime (Kandinsky 2.1)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": false,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "04b366659663bf60deacb96fd3e38f1cb39a3be4",
+      "source_url": "https://huggingface.co/kandinsky-community/kandinsky-2-1/tree/04b366659663bf60deacb96fd3e38f1cb39a3be4",
+      "weight_files": [
+        {
+          "path": "movq/diffusion_pytorch_model.safetensors",
+          "size": 271380362,
+          "sha256": "667319216c14764042b3e7cae7c4d1a309a409a674d413144e9ac65b572c6ea8",
+          "url": "https://huggingface.co/kandinsky-community/kandinsky-2-1/resolve/04b366659663bf60deacb96fd3e38f1cb39a3be4/movq/diffusion_pytorch_model.safetensors"
+        },
+        {
+          "path": "text_encoder/model.safetensors",
+          "size": 2242765066,
+          "sha256": "6fd189d4154f9b69e0c39fc32276b9dd19fe273d865a8f5ae76bfadba69f9e6b",
+          "url": "https://huggingface.co/kandinsky-community/kandinsky-2-1/resolve/04b366659663bf60deacb96fd3e38f1cb39a3be4/text_encoder/model.safetensors"
+        },
+        {
+          "path": "unet/diffusion_pytorch_model.safetensors",
+          "size": 4914727722,
+          "sha256": "6a963e1be76a02b71fce27ad8321b42f707ba8fe9839f1696aeb4f36a48a7604",
+          "url": "https://huggingface.co/kandinsky-community/kandinsky-2-1/resolve/04b366659663bf60deacb96fd3e38f1cb39a3be4/unet/diffusion_pytorch_model.safetensors"
+        }
+      ],
+      "source_bytes": 7428873150,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Needs its prior, kandinsky-community/kandinsky-2-1-prior (Apache-2.0), at run time.",
+      "data_note": null,
+      "verified": true
+    },
+    {
+      "model_id": "enfuse/edgevla-tiny-fmb",
+      "developer": "enfuse",
+      "license": "Apache-2.0",
+      "license_checked": {
+        "card": "apache-2.0",
+        "bases": [
+          {
+            "model_id": "lerobot/smolvla_base",
+            "license": "apache-2.0"
+          },
+          {
+            "model_id": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+            "license": "apache-2.0"
+          }
+        ],
+        "mit_base": null
+      },
+      "params": "164M",
+      "capabilities": [
+        "vla_planning"
+      ],
+      "architecture": null,
+      "engine": "server runtime (SmolVLA/EdgeVLA)",
+      "zt_runs_today": false,
+      "zero_float_verified": false,
+      "runtime_gated": true,
+      "advisory_only": false,
+      "planning_only": true,
+      "placement": "anchor_or_agora",
+      "iso_seed": false,
+      "revision": "3f4b1a3be75b40d4a622cb62b156d25c75a3aa2c",
+      "source_url": "https://huggingface.co/enfuse/edgevla-tiny-fmb/tree/3f4b1a3be75b40d4a622cb62b156d25c75a3aa2c",
+      "weight_files": [
+        {
+          "path": "model.safetensors",
+          "size": 331696216,
+          "sha256": "72ab1b82b2ebf1633037706d0fec4a6864b981055519c4e36fb67e42e3bcd522",
+          "url": "https://huggingface.co/enfuse/edgevla-tiny-fmb/resolve/3f4b1a3be75b40d4a622cb62b156d25c75a3aa2c/model.safetensors"
+        }
+      ],
+      "source_bytes": 331696216,
+      "quant_target": null,
+      "quant_sha256": null,
+      "quant_status": "not quantised: runs under its own runtime",
+      "note": "Planning only: logistics and mapping, human-approved; it drives no actuator.",
+      "data_note": null,
+      "verified": true
+    }
+  ],
+  "excluded": [
+    {
+      "model_id": "Qwen/Qwen2.5-72B-Instruct",
+      "reason_kind": "licence",
+      "reason": "Qwen licence (license: other), not Apache-2.0.",
+      "replacement": "Qwen/Qwen3-32B, Qwen/Qwen2.5-32B-Instruct"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Math-72B-Instruct",
+      "reason_kind": "licence",
+      "reason": "Qwen licence (license: other).",
+      "replacement": "Qwen/QwQ-32B"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Math-14B-Instruct",
+      "reason_kind": "missing",
+      "reason": "No such model on the Hub.",
+      "replacement": "Qwen/Qwen2.5-Math-7B-Instruct"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-VL-72B-Instruct",
+      "reason_kind": "licence",
+      "reason": "Qwen licence (license: other).",
+      "replacement": "Qwen/Qwen2.5-VL-32B-Instruct"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+      "reason_kind": "licence",
+      "reason": "Qwen Research licence (no commercial use).",
+      "replacement": "Qwen/Qwen2.5-VL-7B-Instruct"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-VL-14B-Instruct",
+      "reason_kind": "missing",
+      "reason": "No such model on the Hub.",
+      "replacement": "Qwen/Qwen2.5-VL-7B-Instruct, Qwen/Qwen2.5-VL-32B-Instruct"
+    },
+    {
+      "model_id": "mistralai/Mistral-Small-3.1-24B-Instruct-2501",
+      "reason_kind": "missing",
+      "reason": "No such model; the release is -2503.",
+      "replacement": "mistralai/Mistral-Small-3.1-24B-Instruct-2503"
+    },
+    {
+      "model_id": "microsoft/unispeech-sat-base-plus",
+      "reason_kind": "licence",
+      "reason": "Its card states no licence, and its weights are only a pickle (pytorch_model.bin).",
+      "replacement": null
+    },
+    {
+      "model_id": "openbmb/VoxCPM2",
+      "reason_kind": "format",
+      "reason": "Apache-2.0 (MiniCPM-4 base), but its audio VAE ships only as a pickle (audiovae.pth).",
+      "replacement": null
+    },
+    {
+      "model_id": "SirOswald/prose-humanizer-7b",
+      "reason_kind": "format",
+      "reason": "No weight files published (card only).",
+      "replacement": null
+    },
+    {
+      "model_id": "hexgrad/Kokoro-82M",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle; as in the small roster.",
+      "replacement": "onnx-community/Kokoro-82M-v1.0-ONNX (small roster)"
+    },
+    {
+      "model_id": "eulogik/nanoforecast-500k",
+      "reason_kind": "format",
+      "reason": "Weights only as a pickle; as in the small roster.",
+      "replacement": "amazon/chronos-t5-large"
+    },
+    {
+      "model_id": "kkonathala/powerplant-anomaly-transformer",
+      "reason_kind": "format",
+      "reason": "No weight files published; as in the small roster.",
+      "replacement": null
+    },
+    {
+      "model_id": "mudler/ced-gguf",
+      "reason_kind": "duplicate",
+      "reason": "A packaging of the CED models; as in the small roster.",
+      "replacement": "mispeech/ced-*"
+    }
+  ],
+  "in_the_small_roster": [
+    "utter-project/EuroLLM-1.7B-Instruct",
+    "lakresi/toxic-comment-moderator",
+    "Arrexel/pattern-diffusion",
+    "AuroraAI-Research/AuroraIMG-6M",
+    "Haamipromax/HamAI-Science-1b",
+    "sentence-transformers/all-MiniLM-L6-v2"
+  ],
+  "small_for_the_small_roster_review": [
+    {
+      "model_id": "PaddlePaddle/PP-OCRv6_tiny_rec_onnx",
+      "note": "Apache-2.0; the small roster ships PP-OCRv6 small (ONNX) instead."
+    },
+    {
+      "model_id": "cssupport/t5-small-awesome-text-to-sql",
+      "note": "Apache-2.0 card; a small T5, for the small roster's review."
+    },
+    {
+      "model_id": "neonforestmist/smolgpt-fables",
+      "note": "Apache-2.0 on the Apache-2.0 SmolLM2-1.7B base; for the small roster's review."
+    }
+  ]
+}
