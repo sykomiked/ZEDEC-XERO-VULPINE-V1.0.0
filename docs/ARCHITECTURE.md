@@ -137,44 +137,45 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
-| R24 | **At rest, a fixed point; each user interaction closes one cycle.** With no input the system is a set of deterministic recursive circuits holding a fixed point: same state in, same state out, nothing advances and nothing acts on its own. A user interaction is the one event that breaks that symmetry; it runs exactly one full cycle (input, propagate through the layers, seal a receipt, return to rest), and the receipt is enough to replay it | Swarm clock, suggestions, voice, network upkeep, updates (section 2.1) |
+| R24 | **Idle, it works on itself; a person's interaction takes over; the two feed each other.** With no one present the system recursively finishes its own pending work and feeds itself the next inputs. A user interaction interrupts that loop at once: self-work yields, the system turns to the person's intent, and that cycle ends in a sealed receipt. Then the self-work resumes, carrying what it learned from the person. Idle work stays inside the tokens-per-cycle and nature budgets (R19), is deterministic and replayable, and never takes an outward or irreversible step (money, devices, messages, publishing) without a person approving; suggestions stay held until accepted | Swarm loop, self-tests, indexing, pinning, suggestions, voice (section 2.1) |
 
 ### 2.1 R24 in the code today
 
-R24 (owner, 2026-10-15) is the rule; this is where the code stands against it.
+R24 (owner, 2026-10-15) describes a symbiosis: the system improves itself between visits, and
+people's interactions steer it. The owner's image is a waveform collapsing when observed; that is
+a metaphor only, and nothing here is quantum. This is where the code stands against the rule.
 
 Already follows it:
 
-- **AI suggestions are held until accepted.** App models keep AI help pending until the owner
-  accepts it (`kernel/src/apps/quillon_model.h`); nothing is applied on the model's own say.
-- **The voice speaks only on a tap** and never unprompted (📝 #153, `zui_chgvoice`).
-- **The swarm spends a tokens-per-cycle budget.** A reply runs only inside the companion's
-  allotment for the open market cycle and stops at exactly that many tokens
-  (`zxv_budget_gate`, `swarm_budget`).
-- **Determinism and replay exist for money.** The settlement spine posts every transfer in
-  peer_audit's replayable form, and the same cycles replayed give the same postings
-  (`kernel/src/settle/settle.h` A1, `kernel/src/peer_audit/pa_runtime.h`). Every answer carries a
-  64-state tag and lands in a quarantine log (`zxv_answer_tag`, `lpres`).
-- **The update checker** runs only when asked by default (`zxv_update_host.c`, `interval_s = 0`).
+- **It keeps working when idle.** The desktop app and zxvd advance the swarm on a clock whether or
+  not anyone is present (`step()` in `kernel/arch/hosted/zxv_host.c`): market cycles, evolution
+  (`evolve()`), hardware rescans, Vinea upkeep, the power policy and, while online, a daily
+  update check that installs nothing.
+- **It stays inside its budgets.** Every reply and every market cycle spends only the
+  tokens-per-cycle allotment (`swarm_budget`, `zxv_budget_gate`).
+- **Deterministic and replayable where money and answers are concerned.** The settlement spine
+  posts every transfer in peer_audit's replayable form (`kernel/src/settle/settle.h` A1,
+  `kernel/src/peer_audit/pa_runtime.h`); every answer carries a 64-state tag and lands in a
+  quarantine log (`zxv_answer_tag`, `lpres`).
+- **Nothing outward without a person.** AI suggestions are held until the owner accepts them
+  (`kernel/src/apps/quillon_model.h`); the voice speaks only on a tap (📝 #153); life-safety,
+  clinical, grid and financial actions are advisory and human-approved.
 
 Does not follow it yet:
 
-- **The swarm clock runs on wall time.** The desktop app and zxvd call `step()` on a timer
-  "however busy the window is" (`kernel/arch/hosted/zxv_host.c`): market cycles, stand-in agent
-  spending, evolution (`evolve()`) and hardware rescans advance with no user input. Under R24
-  they run only as the propagation step of a user's cycle, and the swarm otherwise holds.
-- **Automatic update checks.** While online, `zxv_update_tick` checks once a day on its own.
-- **Network upkeep.** Vinea refreshes, keepalives every 25 s, LAN discovery, AIPI and public
-  space ticks, the IRC bridge and the people poll all run on timers (`zxv_net_tick`,
-  `zxvd_irc.c`, `zxvd_people_poll`). Answering a peer's request is a protocol duty rather than
-  an autonomous action, but keepalives and refreshes are not tied to a user's cycle.
-- **Power policy** ticks once a second (`zxvd_power_tick`).
-- **No per-interaction receipt.** Money and answers are replayable; a whole interaction
-  (input, every layer it touched, the resulting state) is not sealed as one receipt, so a
-  cycle cannot yet be replayed from its receipt alone.
+- **Self-work does not yield to a person.** The loop serves a request and the clock-driven
+  `step()` in turn; a request is not given priority, and `/api/ask` blocks the single-threaded
+  server while it runs instead of pausing self-work.
+- **The idle work is mostly simulated.** Stand-in agents spend in the market cycle; the real
+  pending work R24 names (self-tests, indexing, seeding and pinning, compaction, adapter
+  evaluations, the backlog of held items) is not queued for idle time.
+- **No sealed receipt per interaction.** Money and answers are replayable, but a whole
+  interaction (input, every layer it touched, the resulting state) is not sealed as one receipt.
+- **What the person teaches is barely carried forward.** Only quest contributions and
+  reputation feed back from interactions into later self-work.
 
-Closing these is a code change for the threads that own the swarm loop, networking and zxvd;
-until then the list above is the honest state.
+Closing these is code work for the threads that own the swarm loop and zxvd; until then the list
+above is the honest state.
 
 ---
 

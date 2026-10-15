@@ -132,17 +132,19 @@ software is published under the Apache License 2.0 so that others can
 learn from it, use it, and carry it forward, just as we carry forward the
 work that came before us.
 
-## 7. Still at rest, alive when touched
+## 7. It works on itself, and works better with you
 
-Left to itself, ZXV is a collection of recursive circuits, each deterministic and each holding
-its fixed point: the same state goes in and the same state comes out, and nothing moves on its
-own. A person interacting with it is the one thing that breaks that symmetry. Each interaction
-closes exactly one complete cycle through the recursion: the input enters, propagates through
-the layers, is sealed in a receipt and the system returns to rest. Because every circuit is
-deterministic, the receipt is enough to replay the cycle and get the same result.
+When no one is using it, ZXV focuses on itself. It finishes whatever it has left to do and feeds
+itself its next inputs: checking itself, tidying and indexing, sharing what it holds, working
+through what it set aside. That recursion breaks the moment a person interacts with it. Like a
+waveform collapsing when it is observed (an image, not physics), its self-work yields at once
+and it turns to what the person wants. That exchange is sealed in a receipt, and then the
+recursion resumes, carrying what it learned from the person.
 
-So the system never acts unprompted. Suggestions wait until they are accepted, the companion's
-voice speaks only when tapped, and the swarm spends only the budget a cycle grants it. The
+So people and the system benefit from each other. The system gets better between visits, and
+each visit steers it. The limits stay the same: idle work spends only the budget each cycle
+grants, stays deterministic so it can be replayed, and never touches money, devices, messages
+or publishing without a person's approval. Suggestions wait until they are accepted. The
 architecture records this as rule R24, with the places the code does not yet follow it.
 
 ## 8. In short
@@ -153,6 +155,6 @@ architecture records this as rule R24, with the places the code does not yet fol
 4. Keep what works. COBOL, Fortran and their peers are carried forward.
 5. Claim only what the code delivers.
 6. Cooperate; no monopolies.
-7. At rest it holds still; each interaction closes one cycle.
+7. Idle, it improves itself; with people, it serves them; each helps the other.
 
 — **Jolly Dragon Roger**, 36N9 GENETICS LLC
