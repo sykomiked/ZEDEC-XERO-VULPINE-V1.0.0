@@ -1,0 +1,158 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The 144-layer matrix (docs/spec/MATRIX.md). Layer 0 is the core, which
+# boots first (booklet 000, the unified alphabet, is its first booklet);
+# layer N is L1 system app N, in the order of the app catalogue
+# (zxv-ui/APP_CATALOG_407.csv, owned by the Built-in apps thread), with its
+# icon. One line per layer, tab-separated:
+#   layer  app  group  icon  homes
+# homes: paths under kernel/src whose files live in this layer ("-" for
+# none yet). The longest matching path wins. A file no home names lives
+# where the glue pulls it hardest (pack_matrix.py), else in the core.
+# docs/ lives in layer 130, the developer documentation.
+0	core	Core	-	alloc mm sched syscall gdt idt pic timer pci acpi ata blockdev bios bringup el0_userspace loader modbind lpres oseq event_space event_sched event_transport e8 edp_risk surplus trispace pqsec mlkem tls robin_debanks clock keyboard mouse display vbe virtio fs vfs zxvfs fat32 tripartite_fs ubh alexandria lingua tensor zui appkit apps cellular_multikernel hwdrv net
+1	Burrow	System core	zxv-brand/app-icons/001-burrow.png	apps/burrow_model.c apps/burrow_model.h
+2	Hollow	System core	zxv-brand/app-icons/002-hollow.png	desktop theme dual_space launch icon
+3	Threshold	System core	zxv-brand/app-icons/003-threshold.png	ident identity cred
+4	Keystone	System core	zxv-brand/app-icons/004-keystone.png	license terms bootfeat
+5	Scent	System core	zxv-brand/app-icons/005-scent.png	-
+6	Tideturn	System core	zxv-brand/app-icons/006-tideturn.png	update evolve
+7	Satchel	System core	zxv-brand/app-icons/007-satchel.png	zxpkg deploy
+8	Gatehouse	System core	zxv-brand/app-icons/008-gatehouse.png	privacy policy onepolicy ascent panopticon treaty legal_engine
+9	Lockbox	System core	zxv-brand/app-icons/009-lockbox.png	hwkey svault pungent
+10	Keepsake	System core	zxv-brand/app-icons/010-keepsake.png	-
+11	Lifeboat	System core	zxv-brand/app-icons/011-lifeboat.png	macgyver recon
+12	Ferry	System core	zxv-brand/app-icons/012-ferry.png	immigration
+13	Flint	Terminal, console and monitors	zxv-brand/app-icons/013-flint.png	pterm subterm
+14	Wake	Terminal, console and monitors	zxv-brand/app-icons/014-wake.png	situation chronicle
+15	Tidewatch	Terminal, console and monitors	zxv-brand/app-icons/015-tidewatch.png	zstats telemetry apps/dharma_monitor.c
+16	Sounding	Terminal, console and monitors	zxv-brand/app-icons/016-sounding.png	wyverneye
+17	Almanac	Terminal, console and monitors	zxv-brand/app-icons/017-almanac.png	hardware
+18	Witness	Terminal, console and monitors	zxv-brand/app-icons/018-witness.png	peer_audit invproof provenance dispute
+19	Cellar	Terminal, console and monitors	zxv-brand/app-icons/019-cellar.png	megarom
+20	Warren	Terminal, console and monitors	zxv-brand/app-icons/020-warren.png	-
+21	Brazier	Terminal, console and monitors	zxv-brand/app-icons/021-brazier.png	power
+22	Spindle	Terminal, console and monitors	zxv-brand/app-icons/022-spindle.png	apps/spindle_model.c apps/spindle_model.h
+23	Lodestone	Terminal, console and monitors	zxv-brand/app-icons/023-lodestone.png	aipi
+24	Treadle	Terminal, console and monitors	zxv-brand/app-icons/024-treadle.png	-
+25	Ramble	Network, mesh and Web4	zxv-brand/app-icons/025-ramble.png	web4 browser intent
+26	Rookery	Network, mesh and Web4	zxv-brand/app-icons/026-rookery.png	outbox
+27	Commons	Network, mesh and Web4	zxv-brand/app-icons/027-commons.png	concord
+28	Halloo	Network, mesh and Web4	zxv-brand/app-icons/028-halloo.png	call
+29	Trellis	Network, mesh and Web4	zxv-brand/app-icons/029-trellis.png	mesh_net devmesh denconnect constellation vinea
+30	Hedgerow	Network, mesh and Web4	zxv-brand/app-icons/030-hedgerow.png	wyrmgate battering_ram
+31	Pollen	Network, mesh and Web4	zxv-brand/app-icons/031-pollen.png	lattice bootlegger
+32	Cove	Network, mesh and Web4	zxv-brand/app-icons/032-cove.png	qnet plnp ehop
+33	Seedbank	Network, mesh and Web4	zxv-brand/app-icons/033-seedbank.png	ipfs ipfs_node
+34	Signpost	Network, mesh and Web4	zxv-brand/app-icons/034-signpost.png	decent
+35	Aerie	Network, mesh and Web4	zxv-brand/app-icons/035-aerie.png	wifi bluetooth harmonic
+36	Gazette	Network, mesh and Web4	zxv-brand/app-icons/036-gazette.png	stream
+37	Quillon	Writing and office	zxv-brand/app-icons/037-quillon.png	apps/quillon_model.c apps/quillon_model.h xedit
+38	Margins	Writing and office	zxv-brand/app-icons/038-margins.png	apps/notes_app.c qnote
+39	Folio	Writing and office	zxv-brand/app-icons/039-folio.png	-
+40	Furrow	Writing and office	zxv-brand/app-icons/040-furrow.png	-
+41	Footlight	Writing and office	zxv-brand/app-icons/041-footlight.png	-
+42	Broadsheet	Writing and office	zxv-brand/app-icons/042-broadsheet.png	-
+43	Solstice	Writing and office	zxv-brand/app-icons/043-solstice.png	-
+44	Kindred	Writing and office	zxv-brand/app-icons/044-kindred.png	-
+45	Bowline	Writing and office	zxv-brand/app-icons/045-bowline.png	-
+46	Wordhoard	Writing and office	zxv-brand/app-icons/046-wordhoard.png	-
+47	Sealwax	Writing and office	zxv-brand/app-icons/047-sealwax.png	-
+48	Bramble	Writing and office	zxv-brand/app-icons/048-bramble.png	-
+49	Glint	Media and creative	zxv-brand/app-icons/049-glint.png	apps/glint_model.c apps/glint_model.h
+50	Warble	Media and creative	zxv-brand/app-icons/050-warble.png	audio
+51	Kinetoscope	Media and creative	zxv-brand/app-icons/051-kinetoscope.png	video codec
+52	Fireglow	Media and creative	zxv-brand/app-icons/052-fireglow.png	-
+53	Gesso	Media and creative	zxv-brand/app-icons/053-gesso.png	art_studio
+54	Burin	Media and creative	zxv-brand/app-icons/054-burin.png	-
+55	Birdsong	Media and creative	zxv-brand/app-icons/055-birdsong.png	-
+56	Cutwater	Media and creative	zxv-brand/app-icons/056-cutwater.png	-
+57	Fiddlehead	Media and creative	zxv-brand/app-icons/057-fiddlehead.png	audiogenomics_pro
+58	Pinhole	Media and creative	zxv-brand/app-icons/058-pinhole.png	-
+59	Bellows	Media and creative	zxv-brand/app-icons/059-bellows.png	synthesis
+60	Relief	Media and creative	zxv-brand/app-icons/060-relief.png	holographic holodeck spatial fractal
+61	Murmuration	AI and the swarm	zxv-brand/app-icons/061-murmuration.png	swarm apps/murmuration_model.c apps/murmuration_model.h apps/murmuration.zxapp
+62	Kitling	AI and the swarm	zxv-brand/app-icons/062-kitling.png	chiglet
+63	Sieve	AI and the swarm	zxv-brand/app-icons/063-sieve.png	predictive
+64	Granary	AI and the swarm	zxv-brand/app-icons/064-granary.png	ai_layer
+65	Hatchery	AI and the swarm	zxv-brand/app-icons/065-hatchery.png	-
+66	Temper	AI and the swarm	zxv-brand/app-icons/066-temper.png	-
+67	Lore	AI and the swarm	zxv-brand/app-icons/067-lore.png	-
+68	Parley	AI and the swarm	zxv-brand/app-icons/068-parley.png	i18n xlate babel
+69	Quarry	AI and the swarm	zxv-brand/app-icons/069-quarry.png	-
+70	Retort	AI and the swarm	zxv-brand/app-icons/070-retort.png	engine qsim
+71	Gleaner	AI and the swarm	zxv-brand/app-icons/071-gleaner.png	refinery
+72	Assay	AI and the swarm	zxv-brand/app-icons/072-assay.png	reputation
+73	Coffer	Money and the economy	zxv-brand/app-icons/073-coffer.png	pay acct crypto_wallet finance apps/assurance_app.c apps/fee_check.zxapp cbank mint
+74	Gavel	Money and the economy	zxv-brand/app-icons/074-gavel.png	vauction vbond vderiv apps/derivatives_app.c
+75	Crown	Money and the economy	zxv-brand/app-icons/075-crown.png	crown community_chest
+76	Talisman	Money and the economy	zxv-brand/app-icons/076-talisman.png	cards cardnet sicily
+77	Trickle	Money and the economy	zxv-brand/app-icons/077-trickle.png	royalty
+78	Tallystick	Money and the economy	zxv-brand/app-icons/078-tallystick.png	settle iso20022
+79	Fairground	Money and the economy	zxv-brand/app-icons/079-fairground.png	market capmkt finance_markets financial_fabric zenny
+80	Ninefold	Money and the economy	zxv-brand/app-icons/080-ninefold.png	zcapital abacus
+81	Heirloom	Money and the economy	zxv-brand/app-icons/081-heirloom.png	estate
+82	Larder	Money and the economy	zxv-brand/app-icons/082-larder.png	-
+83	Reckoner	Money and the economy	zxv-brand/app-icons/083-reckoner.png	count_house juris
+84	Forage	Money and the economy	zxv-brand/app-icons/084-forage.png	grants provider quest
+85	Waymark	Places, spaces and life	zxv-brand/app-icons/085-waymark.png	-
+86	Meadow	Places, spaces and life	zxv-brand/app-icons/086-meadow.png	social_spaces interspace
+87	Belvedere	Places, spaces and life	zxv-brand/app-icons/087-belvedere.png	sovereign_node
+88	Weatherglass	Places, spaces and life	zxv-brand/app-icons/088-weatherglass.png	-
+89	Wellspring	Places, spaces and life	zxv-brand/app-icons/089-wellspring.png	-
+90	Caravan	Places, spaces and life	zxv-brand/app-icons/090-caravan.png	freight logistics porter_house
+91	Vintner	Places, spaces and life	zxv-brand/app-icons/091-vintner.png	vino vino_stores
+92	Hearth	Places, spaces and life	zxv-brand/app-icons/092-hearth.png	-
+93	Understory	Places, spaces and life	zxv-brand/app-icons/093-understory.png	-
+94	Homestead	Places, spaces and life	zxv-brand/app-icons/094-homestead.png	-
+95	Bonfire	Places, spaces and life	zxv-brand/app-icons/095-bonfire.png	-
+96	Hamlet	Places, spaces and life	zxv-brand/app-icons/096-hamlet.png	social
+97	Den	Learning, play and family	zxv-brand/app-icons/097-den.png	games pirate_apps pirate_fleet
+98	Sapling	Learning, play and family	zxv-brand/app-icons/098-sapling.png	-
+99	Typewright	Learning, play and family	zxv-brand/app-icons/099-typewright.png	-
+100	Primer	Learning, play and family	zxv-brand/app-icons/100-primer.png	-
+101	Orrery	Learning, play and family	zxv-brand/app-icons/101-orrery.png	-
+102	Fieldguide	Learning, play and family	zxv-brand/app-icons/102-fieldguide.png	-
+103	Cubby	Learning, play and family	zxv-brand/app-icons/103-cubby.png	-
+104	Riddle	Learning, play and family	zxv-brand/app-icons/104-riddle.png	-
+105	Patience	Learning, play and family	zxv-brand/app-icons/105-patience.png	-
+106	Nutshell	Learning, play and family	zxv-brand/app-icons/106-nutshell.png	-
+107	Gnomon	Learning, play and family	zxv-brand/app-icons/107-gnomon.png	-
+108	Talewind	Learning, play and family	zxv-brand/app-icons/108-talewind.png	-
+109	Tally	Desk utilities	zxv-brand/app-icons/109-tally.png	rational
+110	Sundial	Desk utilities	zxv-brand/app-icons/110-sundial.png	timesvc apps/clock_app.c
+111	Glimpse	Desk utilities	zxv-brand/app-icons/111-glimpse.png	-
+112	Hamper	Desk utilities	zxv-brand/app-icons/112-hamper.png	-
+113	Typecase	Desk utilities	zxv-brand/app-icons/113-typecase.png	font
+114	Runebook	Desk utilities	zxv-brand/app-icons/114-runebook.png	-
+115	Platen	Desk utilities	zxv-brand/app-icons/115-platen.png	-
+116	Dyer	Desk utilities	zxv-brand/app-icons/116-dyer.png	-
+117	Spyglass	Desk utilities	zxv-brand/app-icons/117-spyglass.png	-
+118	Burr	Desk utilities	zxv-brand/app-icons/118-burr.png	-
+119	Magpie	Desk utilities	zxv-brand/app-icons/119-magpie.png	-
+120	Gridmark	Desk utilities	zxv-brand/app-icons/120-gridmark.png	-
+121	Joinery	Developer tools	zxv-brand/app-icons/121-joinery.png	sdk_bridge
+122	Pawprint	Developer tools	zxv-brand/app-icons/122-pawprint.png	-
+123	Gait	Developer tools	zxv-brand/app-icons/123-gait.png	-
+124	Graft	Developer tools	zxv-brand/app-icons/124-graft.png	-
+125	Whetstone	Developer tools	zxv-brand/app-icons/125-whetstone.png	nlb dualtrack
+126	Toolchest	Developer tools	zxv-brand/app-icons/126-toolchest.png	sdk mfg
+127	Colonnade	Developer tools	zxv-brand/app-icons/127-colonnade.png	sutra legacy apps/cobol apps/fortran apps/python apps/rust apps/sutra apps/assembly apps/telecom apps/blocks
+128	Mockingbird	Developer tools	zxv-brand/app-icons/128-mockingbird.png	hwemu emu
+129	Gauntlet	Developer tools	zxv-brand/app-icons/129-gauntlet.png	bombsquad
+130	Scriptorium	Developer tools	zxv-brand/app-icons/130-scriptorium.png	-
+131	Trestle	Developer tools	zxv-brand/app-icons/131-trestle.png	-
+132	Twelvefold	Developer tools	zxv-brand/app-icons/132-twelvefold.png	paradox axiom_matrix superpos
+133	Nightjar	Access, language and safety	zxv-brand/app-icons/133-nightjar.png	speech
+134	Hark	Access, language and safety	zxv-brand/app-icons/134-hark.png	-
+135	Ticker	Access, language and safety	zxv-brand/app-icons/135-ticker.png	-
+136	Pivot	Access, language and safety	zxv-brand/app-icons/136-pivot.png	-
+137	Glyphwright	Access, language and safety	zxv-brand/app-icons/137-glyphwright.png	-
+138	Tint	Access, language and safety	zxv-brand/app-icons/138-tint.png	-
+139	Lamplight	Access, language and safety	zxv-brand/app-icons/139-lamplight.png	voice
+140	Steady	Access, language and safety	zxv-brand/app-icons/140-steady.png	-
+141	Conch	Access, language and safety	zxv-brand/app-icons/141-conch.png	-
+142	Shepherd	Access, language and safety	zxv-brand/app-icons/142-shepherd.png	ministry
+143	Watchfire	Access, language and safety	zxv-brand/app-icons/143-watchfire.png	-
+144	Stillwater	Access, language and safety	zxv-brand/app-icons/144-stillwater.png	-
