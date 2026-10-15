@@ -948,6 +948,82 @@ static void test_translation(void)
     CHECK(rec.controlling == 1);
 }
 
+static void test_signin_gate(void)
+{
+    static char log[4 * TERMS_RECORD_MAX];
+    static char line[TERMS_RECORD_MAX];
+    terms_gate_t g;
+    char seat[33], other[33];
+    const uint8_t id[16] = {0x00, 0x1f, 0xa0, 0xff, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0xbc};
+    const uint8_t id2[16] = {7};
+    const terms_doc_t *B = terms_builtin();
+    size_t n = 0;
+    int k;
+
+    terms_seat_hex(id, seat);
+    terms_seat_hex(id2, other);
+    CHECK(!strcmp(seat, "001fa0ff0102030405060708090a0bbc") && terms_seat_valid(seat));
+    CHECK(terms_gate_check(0, seat, "", 0, B) == TERMS_ERR_ARG);
+    CHECK(terms_gate_check(&g, "bad seat", "", 0, B) == TERMS_ERR_ARG);
+    CHECK(terms_gate_check(&g, seat, 0, 3, B) == TERMS_ERR_ARG);
+
+    /* first sign-in: shown, and accepting before the end is refused */
+    CHECK(terms_gate_check(&g, seat, "", 0, 0) == TERMS_ERR_ARG);
+    CHECK(terms_gate_check(&g, seat, 0, 0, terms_builtin_lang("en")) == 1 &&
+          g.status == TERMS_STATUS_NEEDED);
+    CHECK(g.doc == terms_builtin() && !g.fresh_log);
+    CHECK(terms_reader_init(&R, g.doc, 60, 20) == TERMS_OK);
+    CHECK(terms_gate_accept(&g, &R, 1000, line, sizeof line) == TERMS_ERR_GATE);
+    terms_end(&R);
+    k = terms_gate_accept(&g, &R, 1000, line, sizeof line);
+    CHECK(k > 0 && line[k - 1] == '\n');
+    CHECK(terms_gate_accept(&g, &R, 1000, line, 8) == TERMS_ERR_ARG);
+    memcpy(log + n, line, (size_t) k);
+    n += (size_t) k;
+
+    /* next sign-in: straight in; another person still sees it */
+    CHECK(terms_gate_check(&g, seat, log, n, B) == 0 && g.status == TERMS_STATUS_CURRENT);
+    CHECK(terms_gate_check(&g, other, log, n, B) == 1 && g.status == TERMS_STATUS_NEEDED);
+    {
+        uint8_t tip[TERMS_HASH_LEN];
+        CHECK(terms_log_verify(log, n, tip, 0) == 1 && !memcmp(tip, g.tip, TERMS_HASH_LEN));
+    }
+    /* the second record chains to the first */
+    terms_reader_init(&R, g.doc, 60, 20);
+    terms_end(&R);
+    k = terms_gate_accept(&g, &R, 2000, line, sizeof line);
+    CHECK(k > 0);
+    memcpy(log + n, line, (size_t) k);
+    n += (size_t) k;
+    CHECK(terms_log_verify(log, n, 0, 0) == 2);
+    CHECK(terms_gate_check(&g, other, log, n, B) == 0);
+
+    /* declining writes nothing and leaves the person outside */
+    CHECK(terms_gate_check(&g, seat, "", 0, B) == 1);
+    terms_reader_init(&R, g.doc, 60, 20);
+    terms_end(&R);
+    terms_decline(&R);
+    CHECK(terms_gate_accept(&g, &R, 3000, line, sizeof line) == TERMS_ERR_GATE);
+
+    /* a reader opened on a different text is refused */
+    {
+        terms_doc_t d = mk("Agreement\n1. ONE\nother text\n");
+        terms_reader_init(&R, &d, 60, 20);
+        terms_end(&R);
+        CHECK(terms_gate_accept(&g, &R, 3000, line, sizeof line) == TERMS_ERR_ARG);
+    }
+
+    /* a damaged log is not trusted: shown again, and the record starts a new log */
+    log[10] ^= 1;
+    CHECK(terms_gate_check(&g, seat, log, n, B) == 1 && g.fresh_log && g.bad_line == 1);
+    CHECK(g.status < 0);
+    terms_reader_init(&R, g.doc, 60, 20);
+    terms_end(&R);
+    k = terms_gate_accept(&g, &R, 4000, line, sizeof line);
+    CHECK(k > 0 && terms_log_verify(line, (size_t) k, 0, 0) == 1);
+    CHECK(terms_gate_check(&g, seat, line, (size_t) k, B) == 0);
+}
+
 int main(int argc, char **argv)
 {
     test_utf8();
@@ -978,6 +1054,7 @@ int main(int argc, char **argv)
     test_seat();
     test_log();
     test_translation();
+    test_signin_gate();
     printf("%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
