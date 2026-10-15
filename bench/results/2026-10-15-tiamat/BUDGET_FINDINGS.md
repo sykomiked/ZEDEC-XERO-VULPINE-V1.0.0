@@ -29,3 +29,15 @@ trigger was several stray processes pushing load well above the core count at a
 scan, which the old build would read as "no free cores". That is a likely
 explanation, not a proven one. The 500-question stress job (server J6) is the
 check that matters: every question must be answered.
+
+## Second sighting, by accident (with the whole-reply fix)
+
+A T4 run (`t4_cloud_run2_concurrent/`) started while a stray T2 process from
+a killed run was still running inference in another zxv-host. Every ask was
+refused ("its budget for this cycle is too small for the message"), 0 of 10,
+twice. With two hosts generating at once, the governor sees the other one as
+load and grants each cycle less than a whole reply (prompt plus 256 tokens),
+so a cell waits three cycles and gives up. That fits the stray-process
+explanation above. It also shows the trade-off of the whole-reply fix: under
+heavy load from other programs a cell now says it cannot answer instead of
+showing a reply cut short.
