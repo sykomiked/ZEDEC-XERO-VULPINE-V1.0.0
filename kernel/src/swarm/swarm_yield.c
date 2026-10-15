@@ -165,3 +165,82 @@ int swarm_yield_cmp_rate(const swarm_yield_t *a, uint64_t a_tps_milli, const swa
     /* wa * sa / ta  vs  wb * sb / tb, cross-multiplied */
     return cmp_wide(mul3(wa, a_tps_milli, tb), mul3(wb, b_tps_milli, ta));
 }
+
+/* ---- Y7 ---- */
+
+void swarm_yield_chart_init(swarm_yield_chart_t *c)
+{
+    if (!c) return;
+    for (uint32_t i = 0; i < SWARM_YIELD_BARS; i++) {
+        swarm_yield_bar_t z = {0, 0, 0, 0, 0, 0, 0};
+        c->bars[i] = z;
+    }
+    c->head = 0;
+    c->count = 0;
+    c->epochs = 0;
+    c->last_close = 0;
+    swarm_yield_init(&c->cur);
+    c->open = c->high = c->low = 0;
+}
+
+swarm_status_t swarm_yield_chart_task(swarm_yield_chart_t *c, uint64_t tokens, uint32_t attempts,
+                                      uint32_t r_milli, uint32_t l_milli)
+{
+    if (!c) return SWARM_ERR_ARG;
+    swarm_yield_t one;
+    swarm_yield_init(&one);
+    swarm_status_t st = swarm_yield_task(&one, tokens, attempts, r_milli, l_milli);
+    if (st != SWARM_OK) return st;
+    st = swarm_yield_merge(&c->cur, &one);
+    if (st != SWARM_OK) return st;
+    uint64_t y = swarm_yield_per_k(&one);
+    if (c->cur.tasks == 1) {
+        c->open = c->high = c->low = y;
+    } else {
+        if (y > c->high) c->high = y;
+        if (y < c->low) c->low = y;
+    }
+    return SWARM_OK;
+}
+
+swarm_status_t swarm_yield_chart_close(swarm_yield_chart_t *c)
+{
+    if (!c || c->epochs == UINT64_MAX) return SWARM_ERR_ARG;
+    swarm_yield_bar_t b;
+    if (c->cur.tasks == 0) {
+        b.open = b.high = b.low = b.close = c->last_close;
+    } else {
+        b.open = c->open;
+        b.high = c->high;
+        b.low = c->low;
+        b.close = swarm_yield_per_k(&c->cur);
+    }
+    b.tokens = c->cur.tokens;
+    b.work_milli = c->cur.work_milli;
+    b.tasks = c->cur.tasks;
+    c->bars[c->head] = b;
+    c->head = (c->head + 1u) % SWARM_YIELD_BARS;
+    if (c->count < SWARM_YIELD_BARS) c->count++;
+    c->epochs++;
+    c->last_close = b.close;
+    swarm_yield_init(&c->cur);
+    c->open = c->high = c->low = 0;
+    return SWARM_OK;
+}
+
+bool swarm_yield_chart_bar(const swarm_yield_chart_t *c, uint32_t back, swarm_yield_bar_t *out)
+{
+    if (!c || !out || back >= c->count) return false;
+    *out = c->bars[(c->head + SWARM_YIELD_BARS - 1u - back) % SWARM_YIELD_BARS];
+    return true;
+}
+
+/* ---- Y8 ---- */
+
+bool swarm_yield_weights(swarm_yield_link_t mode, const swarm_yield_t *ys, uint32_t n, uint64_t *w)
+{
+    if (!ys || !w || n == 0) return false;
+    if (mode != SWARM_YIELD_LINK_OFF && mode != SWARM_YIELD_LINK_WORK) return false;
+    for (uint32_t i = 0; i < n; i++) w[i] = mode == SWARM_YIELD_LINK_WORK ? ys[i].work_milli : 1u;
+    return true;
+}

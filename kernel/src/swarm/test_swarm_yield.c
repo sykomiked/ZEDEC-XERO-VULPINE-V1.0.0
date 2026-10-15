@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "swarm_yield.h"
+#ifdef YIELD_WITH_PAY
+#    include "pay_assure.h"
+#endif
 
 static int failures = 0;
 #define CHECK(cond, msg)                                                                           \
@@ -287,6 +290,147 @@ static void test_property(void)
     }
 }
 
+static int bar_is(const swarm_yield_bar_t *b, uint64_t o, uint64_t h, uint64_t l, uint64_t c,
+                  uint64_t tok, uint64_t work, uint64_t tasks)
+{
+    return b->open == o && b->high == h && b->low == l && b->close == c && b->tokens == tok &&
+           b->work_milli == work && b->tasks == tasks;
+}
+
+/* Y7: candles, worked by hand */
+static void test_chart(void)
+{
+    static swarm_yield_chart_t c;
+    swarm_yield_bar_t b;
+    memset(&c, 0x77, sizeof c);
+    swarm_yield_chart_init(&c);
+    CHECK(c.count == 0 && c.epochs == 0 && c.head == 0 && c.last_close == 0, "init");
+    CHECK(c.cur.tokens == 0 && c.open == 0 && c.high == 0 && c.low == 0, "init open epoch");
+    int clear = 1;
+    for (uint32_t i = 0; i < SWARM_YIELD_BARS; i++)
+        clear &= bar_is(&c.bars[i], 0, 0, 0, 0, 0, 0, 0);
+    CHECK(clear, "init clears every candle");
+    CHECK(!swarm_yield_chart_bar(&c, 0, &b), "no candle yet");
+
+    /* epoch 1: yields 5000 (2000/400), 1666 (2000/1200), 0 (fails), 8000 (4000/500) */
+    CHECK(swarm_yield_chart_task(&c, 400, 1, 2000, 1000) == SWARM_OK, "t1");
+    CHECK(swarm_yield_chart_task(&c, 1200, 3, 2000, 1000) == SWARM_OK, "t2");
+    CHECK(swarm_yield_chart_task(&c, 100, 1, 1000, 1000) == SWARM_OK, "t3");
+    CHECK(swarm_yield_chart_task(&c, 500, 1, 4000, 1000) == SWARM_OK, "t4");
+    CHECK(swarm_yield_chart_close(&c) == SWARM_OK, "close 1");
+    CHECK(swarm_yield_chart_bar(&c, 0, &b), "candle 1");
+    /* close: 8000 work over 2200 tokens = 3636 */
+    CHECK(bar_is(&b, 5000, 8000, 0, 3636, 2200, 8000, 4), "candle 1 OHLC and volume");
+    CHECK(c.last_close == 3636 && c.count == 1 && c.epochs == 1, "after close 1");
+    CHECK(c.cur.tasks == 0 && c.open == 0 && c.high == 0 && c.low == 0, "next epoch empty");
+
+    /* epoch 2: nothing: a flat candle at the last close */
+    CHECK(swarm_yield_chart_close(&c) == SWARM_OK, "close 2");
+    CHECK(swarm_yield_chart_bar(&c, 0, &b), "candle 2");
+    CHECK(bar_is(&b, 3636, 3636, 3636, 3636, 0, 0, 0), "flat candle, no volume");
+
+    /* epoch 3: one task, open = high = low = close */
+    CHECK(swarm_yield_chart_task(&c, 300, 1, 3000, 1000) == SWARM_OK, "t5");
+    CHECK(swarm_yield_chart_close(&c) == SWARM_OK, "close 3");
+    CHECK(swarm_yield_chart_bar(&c, 0, &b) && bar_is(&b, 10000, 10000, 10000, 10000, 300, 3000, 1),
+          "one-task candle");
+    CHECK(swarm_yield_chart_bar(&c, 2, &b) && b.close == 3636, "two back is candle 1");
+    CHECK(!swarm_yield_chart_bar(&c, 3, &b), "only three held");
+
+    /* epoch 4: the first task is not the high: open 2000, high 9000, low 2000 */
+    CHECK(swarm_yield_chart_task(&c, 1000, 1, 2000, 1000) == SWARM_OK, "t6");
+    CHECK(swarm_yield_chart_task(&c, 200, 1, 1800, 1000) == SWARM_OK, "t7");
+    CHECK(swarm_yield_chart_close(&c) == SWARM_OK, "close 4");
+    /* close: 3800 over 1200 = 3166 */
+    CHECK(swarm_yield_chart_bar(&c, 0, &b) && bar_is(&b, 2000, 9000, 2000, 3166, 1200, 3800, 2),
+          "high after open");
+
+    /* refusals change nothing */
+    swarm_yield_chart_t before = c;
+    CHECK(swarm_yield_chart_task(&c, 0, 1, 2000, 1000) == SWARM_ERR_ARG, "bad task refused");
+    c.cur.tokens = UINT64_MAX;
+    before = c;
+    CHECK(swarm_yield_chart_task(&c, 1, 1, 2000, 1000) == SWARM_ERR_ARG, "overflow refused");
+    CHECK(memcmp(&c, &before, sizeof c) == 0, "chart unchanged");
+    swarm_yield_init(&c.cur);
+    CHECK(swarm_yield_chart_task(NULL, 1, 1, 2000, 1000) == SWARM_ERR_ARG, "NULL chart");
+    CHECK(swarm_yield_chart_close(NULL) == SWARM_ERR_ARG, "NULL close");
+    CHECK(!swarm_yield_chart_bar(NULL, 0, &b) && !swarm_yield_chart_bar(&c, 0, NULL), "NULL bar");
+    swarm_yield_chart_init(NULL);
+    c.epochs = UINT64_MAX;
+    CHECK(swarm_yield_chart_close(&c) == SWARM_ERR_ARG, "epoch counter full");
+}
+
+/* Y7: the ring keeps the last SWARM_YIELD_BARS candles, newest first */
+static void test_chart_ring(void)
+{
+    static swarm_yield_chart_t c;
+    swarm_yield_bar_t b;
+    swarm_yield_chart_init(&c);
+    for (uint32_t e = 1; e <= SWARM_YIELD_BARS + 6; e++) {
+        CHECK(swarm_yield_chart_task(&c, e, 1, 2000, 1000) == SWARM_OK, "ring task");
+        CHECK(swarm_yield_chart_close(&c) == SWARM_OK, "ring close");
+    }
+    CHECK(c.count == SWARM_YIELD_BARS && c.epochs == SWARM_YIELD_BARS + 6, "ring full");
+    CHECK(swarm_yield_chart_bar(&c, 0, &b) && b.tokens == SWARM_YIELD_BARS + 6, "newest");
+    CHECK(swarm_yield_chart_bar(&c, 1, &b) && b.tokens == SWARM_YIELD_BARS + 5, "one back");
+    CHECK(swarm_yield_chart_bar(&c, SWARM_YIELD_BARS - 1, &b) && b.tokens == 7, "oldest held");
+    CHECK(!swarm_yield_chart_bar(&c, SWARM_YIELD_BARS, &b), "older are gone");
+}
+
+/* Y7: low <= close <= high and low <= open <= high, every candle */
+static void test_chart_property(void)
+{
+    static swarm_yield_chart_t c;
+    swarm_yield_bar_t b;
+    swarm_yield_chart_init(&c);
+    for (int e = 0; e < 2000; e++) {
+        uint32_t n = (uint32_t) (rnd() % 6);
+        uint64_t tok = 0;
+        for (uint32_t i = 0; i < n; i++) {
+            uint64_t t = 1 + rnd() % 100000;
+            if (swarm_yield_chart_task(&c, t, 1 + (uint32_t) (rnd() % 3), (uint32_t) (rnd() % 6000),
+                                       (uint32_t) (rnd() % 1001)) == SWARM_OK)
+                tok += t;
+        }
+        swarm_yield_chart_close(&c);
+        if (!swarm_yield_chart_bar(&c, 0, &b) || b.low > b.close || b.close > b.high ||
+            b.low > b.open || b.open > b.high || b.tokens != tok) {
+            CHECK(0, "candle ordering and volume");
+            break;
+        }
+    }
+}
+
+/* Y8 */
+static void test_weights(void)
+{
+    swarm_yield_t ys[3];
+    uint64_t w[3] = {9, 9, 9};
+    for (int i = 0; i < 3; i++) swarm_yield_init(&ys[i]);
+    swarm_yield_task(&ys[0], 1000, 1, 2000, 1000); /* 2000 work */
+    swarm_yield_task(&ys[1], 1000, 1, 6000, 1000); /* 6000 work */
+    swarm_yield_task(&ys[2], 1000, 1, 1000, 1000); /* fails: 0 */
+    CHECK(swarm_yield_weights(SWARM_YIELD_LINK_OFF, ys, 3, w), "off");
+    CHECK(w[0] == 1 && w[1] == 1 && w[2] == 1, "off: even split");
+    CHECK(swarm_yield_weights(SWARM_YIELD_LINK_WORK, ys, 3, w), "work");
+    CHECK(w[0] == 2000 && w[1] == 6000 && w[2] == 0, "work: verified work");
+    CHECK(!swarm_yield_weights((swarm_yield_link_t) 2, ys, 3, w), "unknown mode");
+    CHECK(!swarm_yield_weights(SWARM_YIELD_LINK_WORK, NULL, 3, w), "NULL yields");
+    CHECK(!swarm_yield_weights(SWARM_YIELD_LINK_WORK, ys, 3, NULL), "NULL weights");
+    CHECK(!swarm_yield_weights(SWARM_YIELD_LINK_WORK, ys, 0, w), "no models");
+#ifdef YIELD_WITH_PAY
+    /* fed to the node-bounty pool's own split: 8000 split 1:3:0, no cap bite */
+    uint64_t out[3] = {0, 0, 0};
+    uint64_t left = pay_commons_split(8000, w, 3, (pay_rat_t){1, 1}, out);
+    CHECK(out[0] == 2000 && out[1] == 6000 && out[2] == 0 && left == 0, "pool split by work");
+    /* the anti-monopoly cap still binds: at most half each */
+    left = pay_commons_split(8000, w, 3, (pay_rat_t){1, 2}, out);
+    CHECK(out[1] <= 4000 && out[0] + out[1] + out[2] + left == 8000, "cap binds, nothing minted");
+    printf("  pool link checked against pay_commons_split\n");
+#endif
+}
+
 int main(void)
 {
     test_empty();
@@ -298,6 +442,10 @@ int main(void)
     test_overflow();
     test_wide();
     test_property();
+    test_chart();
+    test_chart_ring();
+    test_chart_property();
+    test_weights();
     if (failures) {
         printf("test_swarm_yield: %d FAILED\n", failures);
         return 1;

@@ -29,9 +29,31 @@
  *   Y5  EXACT.               Integer arithmetic only, no floating point; the
  *                            products are 128-bit, so nothing rounds before
  *                            the final division, and comparisons are exact.
- *   Y6  MEASUREMENT ONLY.    Yield changes no allotment, price or priority.
- *                            Rewarding it is an economy decision for the owner
- *                            (swarm_budget.h, swarm_market.h), not made here.
+ *   Y6  MEASUREMENT FIRST.   Yield changes no allotment, price or priority
+ *                            by itself. Rewarding it is an economy decision
+ *                            for the owner (swarm_budget.h, swarm_market.h);
+ *                            Y8 is the only link, and it is off by default.
+ *   Y7  THE CHART.           Yield is charted like a market price: each epoch
+ *                            is one candle. Open is the epoch's first task's
+ *                            yield, high and low its best and worst task,
+ *                            close the epoch's overall yield (Y3), volume its
+ *                            tokens. Close always lies between low and high.
+ *                            An epoch with no tasks is a flat candle at the
+ *                            last close with zero volume (a day with no
+ *                            trades). The last SWARM_YIELD_BARS candles are
+ *                            kept.
+ *   Y8  POOL WEIGHTS.        Yield can decide how an EXISTING pool is shared
+ *                            (the assurance fee's 15% node bounties, later
+ *                            the 25% V-Bill dividend: pay_assure.h B1), by
+ *                            each model's verified work, fed to the pool's
+ *                            own capped split (pay_commons_split, no
+ *                            monopoly). It never mints, never sets a
+ *                            voucher's rate, and adds nothing that time or a
+ *                            balance grows (no usury). Under the budget's
+ *                            fixed allotments, verified work = yield x
+ *                            tokens spent, so the more each token buys, the
+ *                            larger the share. Off by default: every model
+ *                            weighs 1, an even split.
  *
  * Per-token ACCURACY of the engine itself (how close each token's prediction
  * is to an exact float64 reference) is measured by bench/tensor, not here;
@@ -88,5 +110,49 @@ int swarm_yield_cmp(const swarm_yield_t *a, const swarm_yield_t *b);
  * the same or more verified work per second than b at b_tps_milli. */
 int swarm_yield_cmp_rate(const swarm_yield_t *a, uint64_t a_tps_milli, const swarm_yield_t *b,
                          uint64_t b_tps_milli);
+
+/* ---- Y7: the chart ---- */
+
+#define SWARM_YIELD_BARS 144u /* F(12) closed epochs kept */
+
+typedef struct {
+    uint64_t open, high, low, close; /* yields, work-milli per 1000 tokens */
+    uint64_t tokens;                 /* volume */
+    uint64_t work_milli;
+    uint64_t tasks;
+} swarm_yield_bar_t;
+
+typedef struct {
+    swarm_yield_bar_t bars[SWARM_YIELD_BARS];
+    uint32_t head;       /* slot the next closed candle goes in */
+    uint32_t count;      /* closed candles held, <= SWARM_YIELD_BARS */
+    uint64_t epochs;     /* candles ever closed */
+    uint64_t last_close; /* the last candle's close */
+    swarm_yield_t cur;   /* the open epoch's totals */
+    uint64_t open, high, low;
+} swarm_yield_chart_t;
+
+void swarm_yield_chart_init(swarm_yield_chart_t *c);
+
+/* Record a task in the open epoch (as swarm_yield_task; nothing changes on
+ * a refusal). */
+swarm_status_t swarm_yield_chart_task(swarm_yield_chart_t *c, uint64_t tokens, uint32_t attempts,
+                                      uint32_t r_milli, uint32_t l_milli);
+
+/* Close the open epoch into a candle and start the next. */
+swarm_status_t swarm_yield_chart_close(swarm_yield_chart_t *c);
+
+/* The candle `back` epochs ago (0 = the latest closed). false if not held. */
+bool swarm_yield_chart_bar(const swarm_yield_chart_t *c, uint32_t back, swarm_yield_bar_t *out);
+
+/* ---- Y8: pool weights ---- */
+
+typedef enum {
+    SWARM_YIELD_LINK_OFF = 0, /* default: every model weighs 1 */
+    SWARM_YIELD_LINK_WORK = 1 /* each model weighs its verified work */
+} swarm_yield_link_t;
+
+/* Write w[0..n) for ys[0..n). false on a NULL, n == 0 or an unknown mode. */
+bool swarm_yield_weights(swarm_yield_link_t mode, const swarm_yield_t *ys, uint32_t n, uint64_t *w);
 
 #endif /* SWARM_YIELD_H */

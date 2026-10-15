@@ -1631,11 +1631,14 @@ test-market:
 # V-Bill hub demo (src/vhub): signed exact-rational pegs, fiat A -> V-Bill -> fiat B
 # as one balanced pay_ledger posting, sovereign rule plug-ins that fail closed.
 # Token yield (src/swarm/swarm_yield.h): verified work per token, counting
-# retries and revisions, and verified work per second. Measurement only.
+# retries and revisions, verified work per second, the yield candle chart and
+# the (off by default) pool-weight link, checked against pay_commons_split.
 .PHONY: test-yield
 test-yield:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_swarm_yield || exit 3; \
 	$(ZXV_TMP)/test_swarm_yield > $(ZXV_TMP)/test_swarm_yield.log 2>&1 && echo "[PASS] test_swarm_yield" || { tail -40 $(ZXV_TMP)/test_swarm_yield.log; echo "[FAIL] test_swarm_yield"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DYIELD_WITH_PAY -Iinclude -Isrc/swarm -Isrc/pay -Isrc/tensor -Isrc/mlkem -Isrc/robin_debanks -Isrc/zcapital -Isrc/surplus src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/pay/pay_*.c src/tensor/zt.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_swarm_yield_pay || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield_pay > $(ZXV_TMP)/test_swarm_yield_pay.log 2>&1 && echo "[PASS] test_swarm_yield (pool link)" || { tail -40 $(ZXV_TMP)/test_swarm_yield_pay.log; echo "[FAIL] test_swarm_yield (pool link)"; exit 1; }
 
 # Token denominations and octane (src/swarm/swarm_denom.h): plain, compressed
 # and super tokens on the Fibonacci ladder, exact wrap/unwrap, budget lockstep.
