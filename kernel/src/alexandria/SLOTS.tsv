@@ -86,3 +86,6 @@
 49	num.coffer_balance	590.18	coffer.balance	base
 50	num.coffer_holdings	590.19	coffer.holdings	base
 51	logic.coffer_transfer_ok	490.21	coffer.transfer_ok	base
+52	num.flint_cells	590.20	flint.cells	base
+53	logic.flint_history_ok	490.22	flint.history_ok	base
+54	logic.flint_scroll_ok	490.23	flint.scroll_ok	base

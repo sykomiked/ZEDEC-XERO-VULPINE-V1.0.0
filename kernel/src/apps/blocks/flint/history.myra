@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Flint files one command in its history, in MYRA: the command's
+; number, when it ran (Unix seconds), its exit status (0 ran, 1 refused, 2
+; misused, 127 no such command, as sh counts them) and the command line's
+; length in bytes. Flint asks whether the numbers fit before it records.
+^ZXFLINT(seq:i9) = stamp:i12! ^ status:i3! ^ bytes:i4!

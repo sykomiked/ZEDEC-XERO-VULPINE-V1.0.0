@@ -57,7 +57,10 @@
 #define ALX_SLOT_NUM_COFFER_BALANCE              49u /* 590.18 coffer.balance */
 #define ALX_SLOT_NUM_COFFER_HOLDINGS             50u /* 590.19 coffer.holdings */
 #define ALX_SLOT_LOGIC_COFFER_TRANSFER_OK        51u /* 490.21 coffer.transfer_ok */
-#define ALX_SLOT__COUNT 51u
+#define ALX_SLOT_NUM_FLINT_CELLS                 52u /* 590.20 flint.cells */
+#define ALX_SLOT_LOGIC_FLINT_HISTORY_OK          53u /* 490.22 flint.history_ok */
+#define ALX_SLOT_LOGIC_FLINT_SCROLL_OK           54u /* 490.23 flint.scroll_ok */
+#define ALX_SLOT__COUNT 54u
 /* clang-format on */
 
 #endif
