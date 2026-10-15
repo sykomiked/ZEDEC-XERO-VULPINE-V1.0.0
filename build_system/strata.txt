@@ -39,8 +39,10 @@ tls/hkdf                         base       # RFC 5869
 tls/x25519                       base       # RFC 7748
 tls/sha512                       base       # SHA-384/512 (FIPS 180-4)
 tls/digest                       base       # SHA-2 dispatch for the signature code
-tls/bn                           base       # Montgomery arithmetic, verification only
+tls/bn                           base       # Montgomery arithmetic (constant time)
 tls/ecdsa                        base       # P-256/P-384 ECDSA verification
+tls/ecdsa_int                    base       # the curve arithmetic ecdsa.c shares with ecdsa_sign.c
+tls/ecdsa_sign                   base       # RFC 6979 P-256 signing (the IRC gateway's certificate key)
 tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verification
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them

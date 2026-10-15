@@ -183,12 +183,20 @@ case "${1:-srcs}" in
         echo arch/hosted/zxvd_power.c
         echo arch/hosted/zxv_power_host.c
         echo src/power/power_ledger.c
+        # irc.*: the IRC gateway (docs/IRC_GATEWAY.md), its protocol engine
+        # and the repo's TLS 1.3 server and verifier (x25519, aead and hkdf
+        # are in srcs; ML-DSA-87, keccak and sha256 too)
+        echo arch/hosted/zxvd_irc.c
+        echo arch/hosted/zxv_irc.c
+        for f in server handshake record selfsigned ecdsa ecdsa_sign bn sha512 digest rsa x509 trust; do
+            echo "src/tls/$f.c"
+        done
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls; do echo "$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction

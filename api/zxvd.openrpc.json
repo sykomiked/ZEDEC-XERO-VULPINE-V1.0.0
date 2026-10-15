@@ -16278,6 +16278,321 @@
       }
     },
     {
+      "name": "irc.status",
+      "summary": "The IRC gateway (docs/IRC_GATEWAY.md): whether the feature is on and zxvd listens on 127.0.0.1 over TLS 1.3, the port, the connected clients, the gateway password (PASS), the self-signed certificate's SHA-256 fingerprint and file (pin it in the IRC client), who signs relayed messages (the node identity while the mesh runs, else the gateway's own ML-DSA-87 key) and the bridge. Always on (feature \"irc\", off by default, not regulated).",
+      "params": [],
+      "result": {
+        "name": "gateway",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "listening": {
+              "type": "boolean"
+            },
+            "available": {
+              "type": "boolean",
+              "description": "present (false) only when the gateway is not available in this zxvd"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "clients": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "password": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            "cert_sha256": {
+              "type": "string",
+              "description": "AB:CD:... (32 bytes)"
+            },
+            "cert_file": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "irc-cert.pem beside the socket; null when the gateway keeps its files in memory"
+            },
+            "signer": {
+              "type": "string",
+              "enum": [
+                "node",
+                "gateway"
+              ]
+            },
+            "signer_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "SHA3-256 of the signer's ML-DSA-87 public key"
+            },
+            "delivered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "refused": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bridge": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "null when no bridge runs",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "connecting",
+                    "tls",
+                    "registering",
+                    "joined",
+                    "failed"
+                  ]
+                },
+                "host": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "integer"
+                },
+                "remote": {
+                  "type": "string"
+                },
+                "local": {
+                  "type": "string"
+                },
+                "nick": {
+                  "type": "string"
+                },
+                "sent": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "received": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "dropped": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "queued": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "irc.record",
+      "summary": "One of the newest 256 messages the gateway relayed, by the msgid IRC clients see in the msgid tag: the signed record \"zxv-irc/1\\n\" target \"\\n\" nick \"\\n\" truth \"\\n\" ms \"\\n\" text, its ML-DSA-87 signature (FIPS 204, context \"zxv/irc/v1/msg\") and the public key, all hex. msgid is the first 16 bytes of SHA3-256(record || signature). The signature says this gateway relayed the message from that nick at that time, not who typed it. Always on. Error -32095 for an unknown msgid.",
+      "params": [
+        {
+          "name": "msgid",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          }
+        }
+      ],
+      "result": {
+        "name": "record",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "msgid": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "nick": {
+              "type": "string"
+            },
+            "truth": {
+              "type": "string",
+              "enum": [
+                "T",
+                "F",
+                "B",
+                "N"
+              ],
+              "description": "what the sender claims (Belnap), never that the text is true"
+            },
+            "ms": {
+              "type": "string",
+              "description": "wall clock, ms since 1970, decimal"
+            },
+            "text": {
+              "type": "string"
+            },
+            "signer_id": {
+              "type": "string"
+            },
+            "context": {
+              "type": "string",
+              "const": "zxv/irc/v1/msg"
+            },
+            "public_key": {
+              "type": "string",
+              "description": "hex, 2592 bytes"
+            },
+            "signature": {
+              "type": "string",
+              "description": "hex, 4627 bytes"
+            },
+            "record": {
+              "type": "string",
+              "description": "hex, the signed bytes"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "irc.bridge",
+      "summary": "Links one local channel to one channel on a public IRC network over TLS, the network's certificate verified against the built-in roots (a network whose certificate does not validate is refused). Local lines go out as \"<nick> [T] text\", at most one per 2 s (32 queued, overflow dropped and counted); remote lines come in as \"nick|bridge\" with their stated tag, signed by this node. Only CTCP ACTION crosses. #swarm cannot be bridged. Never saved: it ends when zxvd stops or with on false. Feature \"irc\" (off by default). Error -32095 with the reason.",
+      "params": [
+        {
+          "name": "on",
+          "schema": {
+            "type": "boolean",
+            "default": false
+          },
+          "description": "true starts (or replaces) the bridge, false ends it"
+        },
+        {
+          "name": "host",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": "on true: the network's host name"
+        },
+        {
+          "name": "port",
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 6697
+          }
+        },
+        {
+          "name": "remote",
+          "schema": {
+            "type": "string",
+            "pattern": "^#"
+          },
+          "description": "on true: the channel on the network"
+        },
+        {
+          "name": "local",
+          "schema": {
+            "type": "string",
+            "pattern": "^#"
+          },
+          "description": "on true: a channel here not in use; it becomes reserved for the agent bridge"
+        },
+        {
+          "name": "nick",
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "description": "on true: the bridge's nick on the network"
+        },
+        {
+          "name": "password",
+          "schema": {
+            "type": "string",
+            "maxLength": 79
+          },
+          "description": "the network's server password (PASS), if it has one; never shown"
+        }
+      ],
+      "result": {
+        "name": "bridge",
+        "schema": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "null when no bridge runs",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "connecting",
+                "tls",
+                "registering",
+                "joined",
+                "failed"
+              ]
+            },
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "remote": {
+              "type": "string"
+            },
+            "local": {
+              "type": "string"
+            },
+            "nick": {
+              "type": "string"
+            },
+            "sent": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "received": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "queued": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
       "name": "files.root",
       "summary": "The ZXV folder behind the Burrow, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
       "params": [],

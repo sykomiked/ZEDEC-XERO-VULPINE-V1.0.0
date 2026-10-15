@@ -53,5 +53,8 @@ void zxvd_seats_set_kdf(uint32_t m_kib, uint32_t t);
 /* power.* (zxvd_power.c, kernel/src/power): feature "power", power.status
  * and power.top always on, power.budget behind the switch (zxvd_power.h) */
 const zxvd_group_t *zxvd_power_group(void);
+/* irc.* (zxvd_irc.c, zxvd_irc.h): feature "irc", the IRC gateway on
+ * 127.0.0.1 over TLS; irc.status and irc.record always on */
+const zxvd_group_t *zxvd_irc_group(void);
 
 #endif
