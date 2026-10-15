@@ -10,12 +10,14 @@
 #include "zxapp.h"
 #include "zxapp_eve.h"
 #include "zxapp_kron.h"
+#include "zxapp_lingua.h"
 #include "zxapp_myra.h"
 #include "zxapp_sutra.h"
 #include "zxapp_trebago.h"
 #include "zxapp_wasm.h"
 #include "zxboard.h"
 #include "zxwire.h"
+#include "../lingua/zl.h"
 #include "wasm_build.h" /* sdk/kits/z-wasm/test: modules without a toolchain */
 
 static int fails, checks;
@@ -71,7 +73,16 @@ static void test_names(void)
                  {"java", ZXAPP_LANG_JAVA},
                  {"dart", ZXAPP_LANG_DART},
                  {"ruby", ZXAPP_LANG_RUBY},
-                 {"php", ZXAPP_LANG_PHP}};
+                 {"php", ZXAPP_LANG_PHP},
+                 {"fortran77", ZXAPP_LANG_FORTRAN77},
+                 {"F77", ZXAPP_LANG_FORTRAN77},
+                 {"Reckonwyrm", ZXAPP_LANG_FORTRAN77},
+                 {"BASIC", ZXAPP_LANG_BASIC},
+                 {"Hatchling", ZXAPP_LANG_BASIC},
+                 {"forth", ZXAPP_LANG_FORTH},
+                 {"Cairndrake", ZXAPP_LANG_FORTH},
+                 {"zlir", ZXAPP_LANG_ZLIR},
+                 {"lingua", ZXAPP_LANG_ZLIR}};
     for (unsigned i = 0; i < sizeof alias / sizeof alias[0]; i++)
         CHECK(zxapp_lang_of(alias[i].n) == alias[i].l, "alias %s", alias[i].n);
     CHECK(zxapp_lang_of("cobolx") == ZXAPP_LANG_UNKNOWN && zxapp_lang_of("") == ZXAPP_LANG_UNKNOWN,
@@ -2116,6 +2127,113 @@ static void test_board(void)
           "settings are up to 8 whole numbers");
 }
 
+/* ---- legacy languages through Lingua (zxapp_lingua.c) ----------------------- */
+
+static void test_lingua(void)
+{
+    zxapp_num_t out[8];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    zxapp_host_init(&H);
+    H.read_file = read_src;
+    CHECK(zxapp_lingua_register(&H, 100000) == ZXAPP_OK && H.n == 4 &&
+              zxapp_host_has(&H, ZXAPP_LANG_FORTRAN77) && zxapp_host_has(&H, ZXAPP_LANG_BASIC) &&
+              zxapp_host_has(&H, ZXAPP_LANG_FORTH) && zxapp_host_has(&H, ZXAPP_LANG_ZLIR),
+          "Lingua registers FORTRAN 77, BASIC, Forth and precompiled IR");
+    CHECK(parse("zxapp 1\nid legacy\n"
+                "provides span num x\n"
+                "logic fortran77 span <<\n"
+                "      INTEGER A, B, C\n"
+                "      READ *, A, B, C\n"
+                "      PRINT *, MAX(A, B, C) - MIN(A, B, C), A + B + C\n"
+                "      END\n.\n"
+                "logic basic span <<\n"
+                "10 INPUT A, B, C\n20 LET H = A\n30 IF B <= H THEN 50\n40 LET H = B\n"
+                "50 IF C <= H THEN 70\n60 LET H = C\n70 LET L = A\n80 IF B >= L THEN 100\n"
+                "90 LET L = B\n100 IF C >= L THEN 120\n110 LET L = C\n"
+                "120 PRINT H - L; A + B + C\n130 END\n.\n"
+                "logic forth span <<\n"
+                "VARIABLE A VARIABLE B VARIABLE C C ! B ! A !\n"
+                "A @ B @ MAX C @ MAX A @ B @ MIN C @ MIN - . A @ B @ + C @ + .\n.\n"
+                "logic forth words <<\n.\" six\"\n.\n"
+                "logic basic halves <<\n10 INPUT A\n20 PRINT A / 2\n30 END\n.\n"
+                "logic forth spin <<\n: S BEGIN 0 UNTIL ; S\n.\n"
+                "logic forth many <<\n1 . 2 . 3 . 4 . 5 . 6 . 7 . 8 . 9 .\n.\n"
+                "logic basic broken <<\n10 PRINT (1\n20 END\n.\n") == ZXAPP_OK &&
+              A.n == 8,
+          "one manifest, three legacy languages: %s", A.err);
+    int loaded = zxapp_load(&A, &H);
+    CHECK(loaded == ZXAPP_E_RUNTIME && strstr(A.err, "broken: line 1"),
+          "a load refusal names the entry and the line: %s", A.err);
+    zxapp_unload(&A, &H);
+    A.n = 7; /* drop the broken one */
+    loaded = zxapp_load(&A, &H);
+    CHECK(loaded == 7, "all seven compile once, at load: %d %s", loaded, A.err);
+    int64_t x[3] = {7, -2, 40};
+    zxapp_arg_t xa = {"x", x, 3};
+    CHECK(zxapp_call_witnessed(&A, &H, "span", &xa, 1, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 2 && out[0].num == 42 && out[0].den == 1 && out[1].num == 45,
+          "L1/L2: FORTRAN, BASIC and Forth agree (TRUE): span 42, sum 45 (lp %d n %u %s)", lp, n,
+          A.err);
+    CHECK(zxapp_call(&A, &H, "words", 0, 0, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "not a number"),
+          "L2: printed words are refused, not skipped: %s", A.err);
+    int64_t odd[1] = {7}, even[1] = {8};
+    zxapp_arg_t oa = {"a", odd, 1}, ea = {"a", even, 1};
+    CHECK(zxapp_call(&A, &H, "halves", &ea, 1, out, 8, &n) == ZXAPP_OK && n == 1 && out[0].num == 4,
+          "BASIC divides exactly");
+    CHECK(zxapp_call(&A, &H, "halves", &oa, 1, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "line 2") && strstr(A.err, "stopped"),
+          "L3: 7 / 2 is a trap naming the line, never 3 or 3.5: %s", A.err);
+    CHECK(zxapp_call(&A, &H, "spin", 0, 0, out, 8, &n) == ZXAPP_E_RUNTIME &&
+              strstr(A.err, "stopped"),
+          "L3: a loop that never ends runs out of fuel: %s", A.err);
+    CHECK(zxapp_call(&A, &H, "many", 0, 0, out, 8, &n) == ZXAPP_E_BUFFER && n == 9,
+          "nine answers do not fit eight");
+    CHECK(zxapp_call(&A, &H, "span", 0, 0, out, 8, &n) == ZXAPP_E_CONTRACT,
+          "B3: the contract is checked before the program runs");
+    zxapp_unload(&A, &H);
+
+    /* the number_classics block, read from disk, composed into an app */
+    if (!SRC_ROOT) return;
+    static char btext[8192], src[16384], pre[65536];
+    static zxapp_t BLK, APP;
+    static zxapp_registry_t REG;
+    int32_t len = read_src(0, "apps/blocks/number_classics.zxblock", btext, sizeof btext);
+    CHECK(len > 0 && zxapp_parse(&BLK, btext, (uint32_t) len) == ZXAPP_OK && BLK.n == 4,
+          "number_classics parses: %s", BLK.err);
+    zxapp_registry_init(&REG);
+    CHECK(zxapp_registry_add(&REG, &BLK) == ZXAPP_OK, "and registers: %s", REG.err);
+    static const char app[] = "zxapp 1\nid calc\nname Calculator\nuse number_classics 1.0.0\n";
+    CHECK(zxapp_parse(&APP, app, sizeof app - 1) == ZXAPP_OK &&
+              zxapp_compose(&APP, &REG) == ZXAPP_OK && APP.n == 4,
+          "an app takes the block with one line, no FORTRAN, BASIC or Forth in it: %s", APP.err);
+    CHECK(zxapp_load(&APP, &H) == 4, "all four implementations load: %s", APP.err);
+    int64_t a[1] = {84}, b[1] = {-36};
+    zxapp_arg_t ga[2] = {{"a", a, 1}, {"b", b, 1}};
+    CHECK(zxapp_call_witnessed(&APP, &H, "number_classics.gcd", ga, 2, out, 8, &n, &lp) ==
+                  ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 1 && out[0].num == 12,
+          "gcd(84, -36) = 12 in all four (TRUE): %s", APP.err);
+    a[0] = INT64_C(-2147483648);
+    b[0] = 1;
+    CHECK(zxapp_call_witnessed(&APP, &H, "number_classics.gcd", ga, 2, out, 8, &n, &lp) ==
+                  ZXAPP_E_CONFLICT &&
+              lp == ZXAPP_BOTH,
+          "|-2^31| overflows 32-bit FORTRAN and BASIC, Forth's 64-bit cell holds it: BOTH, held");
+    zxapp_unload(&APP, &H);
+
+    /* the shipped IR is exactly what gcd.f compiles to today */
+    static zl_prog_t P1, P2;
+    static zl_work_t W;
+    zl_diag_t d;
+    int32_t sl = read_src(0, "apps/blocks/number_classics/gcd.f", src, sizeof src);
+    int32_t pl = read_src(0, "apps/blocks/number_classics/gcd.zlir", pre, sizeof pre);
+    CHECK(sl > 0 && pl > 0 && zl_compile(ZL_LANG_FORTRAN, src, (size_t) sl, &P1, &W, &d) == ZL_OK &&
+              zl_unpack(pre, (size_t) pl, &P2, &d) == ZL_OK && zl_prog_equal(&P1, &P2),
+          "gcd.zlir is gcd.f compiled (rebuild with zxlang pack): %s", d.msg);
+}
+
 int main(int argc, char **argv)
 {
     SRC_ROOT = argc > 1 ? argv[1] : 0;
@@ -2139,6 +2257,7 @@ int main(int argc, char **argv)
     test_fee_check();
     test_wire();
     test_board();
+    test_lingua();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

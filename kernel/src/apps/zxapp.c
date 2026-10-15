@@ -6,26 +6,44 @@
 #include "../robin_debanks/sha256.h"
 
 static const char *const LANG[ZXAPP_LANG_COUNT] = {
-    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",   "swift",
-    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm", "wire"};
+    "c",    "sutra", "eve",    "kron", "trebago",   "myra",   "cpp",        "rust",
+    "go",   "swift", "kotlin", "java", "dotnet",    "python", "typescript", "dart",
+    "ruby", "php",   "wasm",   "wire", "fortran77", "basic",  "forth",      "zlir"};
 
 /* Other names people write for the same languages. */
 static const struct {
     const char *name;
     zxapp_lang_t lang;
 } ALIAS[] = {
-    {"cobol", ZXAPP_LANG_SUTRA},      {"ada", ZXAPP_LANG_EVE},
-    {"apl", ZXAPP_LANG_KRON},         {"k", ZXAPP_LANG_KRON},
-    {"fortran", ZXAPP_LANG_TREBAGO},  {"mumps", ZXAPP_LANG_MYRA},
-    {"m", ZXAPP_LANG_MYRA},           {"c++", ZXAPP_LANG_CPP},
-    {"cxx", ZXAPP_LANG_CPP},          {"golang", ZXAPP_LANG_GO},
-    {"kt", ZXAPP_LANG_KOTLIN},        {"csharp", ZXAPP_LANG_DOTNET},
-    {"c#", ZXAPP_LANG_DOTNET},        {"cs", ZXAPP_LANG_DOTNET},
-    {"fsharp", ZXAPP_LANG_DOTNET},    {"f#", ZXAPP_LANG_DOTNET},
-    {"vb", ZXAPP_LANG_DOTNET},        {"py", ZXAPP_LANG_PYTHON},
-    {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
-    {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
-    {"webassembly", ZXAPP_LANG_WASM}, {"circuit", ZXAPP_LANG_WIRE},
+    {"cobol", ZXAPP_LANG_SUTRA},
+    {"ada", ZXAPP_LANG_EVE},
+    {"apl", ZXAPP_LANG_KRON},
+    {"k", ZXAPP_LANG_KRON},
+    {"fortran", ZXAPP_LANG_TREBAGO},
+    {"mumps", ZXAPP_LANG_MYRA},
+    {"m", ZXAPP_LANG_MYRA},
+    {"c++", ZXAPP_LANG_CPP},
+    {"cxx", ZXAPP_LANG_CPP},
+    {"golang", ZXAPP_LANG_GO},
+    {"kt", ZXAPP_LANG_KOTLIN},
+    {"csharp", ZXAPP_LANG_DOTNET},
+    {"c#", ZXAPP_LANG_DOTNET},
+    {"cs", ZXAPP_LANG_DOTNET},
+    {"fsharp", ZXAPP_LANG_DOTNET},
+    {"f#", ZXAPP_LANG_DOTNET},
+    {"vb", ZXAPP_LANG_DOTNET},
+    {"py", ZXAPP_LANG_PYTHON},
+    {"ts", ZXAPP_LANG_TYPESCRIPT},
+    {"javascript", ZXAPP_LANG_TYPESCRIPT},
+    {"js", ZXAPP_LANG_TYPESCRIPT},
+    {"rb", ZXAPP_LANG_RUBY},
+    {"webassembly", ZXAPP_LANG_WASM},
+    {"circuit", ZXAPP_LANG_WIRE},
+    {"f77", ZXAPP_LANG_FORTRAN77},
+    {"hatchling", ZXAPP_LANG_BASIC},
+    {"cairndrake", ZXAPP_LANG_FORTH},
+    {"lingua", ZXAPP_LANG_ZLIR},
+    {"reckonwyrm", ZXAPP_LANG_FORTRAN77},
 };
 
 static bool seq(const char *a, const char *b)

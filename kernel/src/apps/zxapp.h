@@ -16,6 +16,8 @@
  *   kron      numbers and array views (exact)       sdk/pillars/apl-kron
  *   trebago   heavier exact numeric kernels         sdk/pillars/fortran-trebago
  *   myra      records, indexes and search           sdk/pillars/mumps-myra
+ *   fortran77, basic, forth   legacy programs, as written  kernel/src/lingua
+ *   zlir      any of those, precompiled to Lingua IR    kernel/src/lingua
  *   c         the view and the model                 kernel/src/zui/views, kernel/src/apps
  *
  * Modern languages are first class too, each through its libzxv SDK (the
@@ -186,8 +188,12 @@ typedef enum {
     ZXAPP_LANG_DART,
     ZXAPP_LANG_RUBY,
     ZXAPP_LANG_PHP,
-    ZXAPP_LANG_WASM, /* anything that compiles to WebAssembly (Z-Wasm) */
-    ZXAPP_LANG_WIRE, /* W: a circuit of other entries, wired (zxwire.h) */
+    ZXAPP_LANG_WASM,      /* anything that compiles to WebAssembly (Z-Wasm) */
+    ZXAPP_LANG_WIRE,      /* W: a circuit of other entries, wired (zxwire.h) */
+    ZXAPP_LANG_FORTRAN77, /* the legacy languages, through Lingua (zxapp_lingua.c) */
+    ZXAPP_LANG_BASIC,
+    ZXAPP_LANG_FORTH,
+    ZXAPP_LANG_ZLIR, /* a Lingua program precompiled to IR text (zl_pack) */
     ZXAPP_LANG_COUNT,
     ZXAPP_LANG_UNKNOWN = -1
 } zxapp_lang_t;
