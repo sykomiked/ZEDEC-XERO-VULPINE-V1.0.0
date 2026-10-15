@@ -71,3 +71,8 @@ wellspring	check progress_x100 done=0,75,150,300 goal=150,150,150,150 = 0,5000,1
 wellspring	check progress_x100 done=1,1000000000 goal=150,150 = both
 wellspring	check log_ok day=0,999999,1000000 kind=1,4,1 amount=0,999999999,1 = true,true,false
 wellspring	check log_ok day=20000,20000 kind=1,5 amount=30,30 = both
+witness	check chain_ok seq=1,5,5,9,9,5,999999999999999999 prev=0,1,4,5,5,5,1 last=0,1,5,5,9,5,1 = true,true,false,true,false,false,true
+witness	check chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+witness	check kind_count kind=1,2,2,5,3 want=2 = 2
+witness	check kind_count kind=1,2 want=1,1 = both
+witness	check audit_ok seq=1,999999999999999999,1000000000000000000,-5 prev=0,999999999999999998,0,0 kind=1,5,1,9 stamp=1700000000000,999999999999999,0,1000000000000000 = true,true,false,false

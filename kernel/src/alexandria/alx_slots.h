@@ -48,7 +48,10 @@
 #define ALX_SLOT_LOGIC_STILLWATER_QUIET_NOW      40u /* 490.14 stillwater.quiet_now */
 #define ALX_SLOT_LOGIC_STILLWATER_RECORD_OK      41u /* 490.15 stillwater.record_ok */
 #define ALX_SLOT_LOGIC_STILLWATER_SCHEDULE_OK    42u /* 490.16 stillwater.schedule_ok */
-#define ALX_SLOT__COUNT 42u
+#define ALX_SLOT_LOGIC_WITNESS_AUDIT_OK          43u /* 490.17 witness.audit_ok */
+#define ALX_SLOT_LOGIC_WITNESS_CHAIN_OK          44u /* 490.18 witness.chain_ok */
+#define ALX_SLOT_NUM_WITNESS_KIND_COUNT          45u /* 590.16 witness.kind_count */
+#define ALX_SLOT__COUNT 45u
 /* clang-format on */
 
 #endif

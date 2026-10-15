@@ -28,15 +28,15 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | Laning and Zierler | - | waiting | writing equations the way they are written on paper | formula | - |
 | FLOW-MATIC | - | waiting | English-worded business data processing, the ancestor of COBOL | business | - |
 | IPL | - | waiting | list processing and symbolic search | lists | - |
-| FORTRAN | Reckonwyrm | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 014 Wake (count); 055 Birdsong (clip_ms); 089 Wellspring (week); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
+| FORTRAN | Reckonwyrm | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 014 Wake (count); 018 Witness (kind_count); 055 Birdsong (clip_ms); 089 Wellspring (week); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
 | ALGOL 58 | - | waiting | block-structured algorithms as published | formula | - |
 | LISP | Coilwyrm | lisp | symbolic data, trees and self-describing structures | symbolic, lists | - |
-| COBOL | Sutra | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 089 Wellspring (progress_x100); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block used_share (used_x100); example fee_check (fee, fee_ok) |
+| COBOL | Sutra | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 018 Witness (chain_ok); 089 Wellspring (progress_x100); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block used_share (used_x100); example fee_check (fee, fee_ok) |
 | JOVIAL | - | waiting | embedded real-time control tables | control | - |
 | RPG | - | waiting | report generation from fixed records | report | - |
 | APT | - | waiting | numerical-control tool paths | toolpath | - |
 | ALGOL 60 | Rootwyrm | algol60 | clear, provable algorithms | formula, proof | - |
-| APL | KRON | kron | whole-array arithmetic in one line | arrays, statistics | 001 The Banker (share); 005 Scent (score); 010 Keepsake (removed); 014 Wake (count); 015 Tidewatch (cpu_x100, peak); 017 Almanac (days, hours); 055 Birdsong (gain); 085 Waymark (place_ok); 089 Wellspring (band, progress_x100, safe_ok, week); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block swarm_shares (busiest, cycle_share); block used_share (used_x100); example fee_check (fee, fee_ok) |
+| APL | KRON | kron | whole-array arithmetic in one line | arrays, statistics | 001 The Banker (share); 005 Scent (score); 010 Keepsake (removed); 014 Wake (count); 015 Tidewatch (cpu_x100, peak); 017 Almanac (days, hours); 018 Witness (chain_ok, kind_count); 055 Birdsong (gain); 085 Waymark (place_ok); 089 Wellspring (band, progress_x100, safe_ok, week); 115 Platen (copies_ok, sheets); 142 Shepherd (left); 144 Stillwater (let_through, quiet_now); block swarm_shares (busiest, cycle_share); block used_share (used_x100); example fee_check (fee, fee_ok) |
 | SNOBOL | - | waiting | string pattern matching with backtracking | text, pattern | - |
 | Simula I | - | waiting | discrete-event simulation | simulation | - |
 | CPL | - | waiting | general systems programming, the root of BCPL | formula | - |
@@ -46,7 +46,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | JCL | - | waiting | describing batch jobs and their datasets | jobs | - |
 | System/360 assembler | - | waiting | exact machine-level arithmetic | machine | - |
 | TRAC | - | waiting | macro text processing | text | - |
-| MUMPS | MYRA | myra | sparse records, indexes and search | records, index | 001 The Banker (entry_ok); 049 Glint (item_ok); 055 Birdsong (memo_ok); 089 Wellspring (log_ok); 144 Stillwater (record_ok); example fee_check (record_ok) |
+| MUMPS | MYRA | myra | sparse records, indexes and search | records, index | 001 The Banker (entry_ok); 018 Witness (audit_ok); 049 Glint (item_ok); 055 Birdsong (memo_ok); 089 Wellspring (log_ok); 144 Stillwater (record_ok); example fee_check (record_ok) |
 | BCPL | - | waiting | small typeless systems code | machine | - |
 | Logo | Kiteling | logo | turtle geometry and drawing paths | geometry | - |
 | Simula 67 | - | waiting | simulation with classes | simulation, objects | - |
@@ -54,7 +54,7 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | B | - | waiting | word-level systems code | machine | - |
 | Forth | Cairndrake | forth | tiny stack programs for devices and boot-time checks | stack, control | block number_classics (gcd) |
 | Pascal | Tutordrake | pascal | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
-| C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 005 Scent (view/model); 010 Keepsake (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 022 Spindle (view/model); 037 Quillon (view/model); 049 Glint (view/model); 055 Birdsong (view/model); 061 Murmuration (view/model); 085 Waymark (view/model); 089 Wellspring (view/model); 115 Platen (view/model); 142 Shepherd (view/model); 144 Stillwater (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
+| C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 005 Scent (view/model); 010 Keepsake (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 018 Witness (view/model); 022 Spindle (view/model); 037 Quillon (view/model); 049 Glint (view/model); 055 Birdsong (view/model); 061 Murmuration (view/model); 085 Waymark (view/model); 089 Wellspring (view/model); 115 Platen (view/model); 142 Shepherd (view/model); 144 Stillwater (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
 | Prolog | - | waiting | logic rules and searching for every answer that fits | rules, search | - |
 | Smalltalk | - | waiting | live objects and message passing | objects, view | - |
 | ML | - | waiting | typed functional transforms with inference | types, proof | - |

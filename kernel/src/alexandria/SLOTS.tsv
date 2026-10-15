@@ -77,3 +77,6 @@
 40	logic.stillwater_quiet_now	490.14	stillwater.quiet_now	base
 41	logic.stillwater_record_ok	490.15	stillwater.record_ok	base
 42	logic.stillwater_schedule_ok	490.16	stillwater.schedule_ok	base
+43	logic.witness_audit_ok	490.17	witness.audit_ok	base
+44	logic.witness_chain_ok	490.18	witness.chain_ok	base
+45	num.witness_kind_count	590.16	witness.kind_count	base
