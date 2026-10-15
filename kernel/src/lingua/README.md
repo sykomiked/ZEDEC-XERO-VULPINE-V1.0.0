@@ -24,6 +24,7 @@ caller passes every buffer (`zl_work_t`, `zl_prog_t`, `zl_run_t`).
 | Scheme (R7RS-small core) | `zl_lisp.c` | integers, quoted symbols and lists, `define` (internal too)/`set!`, `let`/`let*`/named `let`, `if`/`cond`/`when`/`unless`/`and`/`or`, `do`, list built-ins (`memq`/`member`/`assq`/`assoc`, `set-car!`), `quotient`/`modulo`/`floor-quotient`..., `display`/`write`/`newline`; unspecified values refused where used; 62-bit | guile | Spiraldrake |
 | Logo (UCBLogo 6.2) | `zl_logo.c` | integers, words and lists; `to`/`end` procedures with dynamic scope (shallow binding), `output`/`stop`, `make`/`local`/`thing`, `repeat`/`repcount`, `for`, `while`/`until`, `if`/`ifelse`, infix and prefix arithmetic and comparisons, `first butfirst last butlast fput lput list sentence item count memberp emptyp`, `print`/`show`/`type`; exact `/`; 62-bit values | ucblogo (under xvfb-run) | Kiteling |
 | Standard ML '97 | `zl_ml.c` | `val`, `fun` with clauses and `and`, `let`, `case`, `if`, `andalso`/`orelse`, integers, booleans and lists with Hindley-Milner type inference, patterns (literals, `::`, lists, tuples of parameters), `div`/`mod` floored and `Int.quot`/`Int.rem`, `abs`, `Int.min`/`Int.max`, `hd tl null length rev @`, structural `=`, `print` of `Int.toString`/`Bool.toString` pieces; MLton's 32-bit `Int` with `Overflow` trapped; self tail calls run as loops | mlton (goldens and `gen_ml.c`, batched) | Proofdrake |
+| Haskell 2010 | `zl_haskell.c` (layout, parser, twin) with the type checker and code generator of `zl_ml.c` (`zl_ml_int.h`) | `main :: IO ()` with `do`, `let`, `if`, `print`/`putStrLn`/`putStr` of literals, `show` and `++`; equations with literal, list (`[]`, `x:xs`, `[a,b]`) and wildcard patterns, guards and `otherwise`, `where`, `let ... in`, `case ... of`, the layout rule or braces, type signatures (`Int`, `Bool`, `()`, lists, type variables, `IO ()`); `Int`, `Bool` and lists with Hindley-Milner inference, `div`/`mod` floored and `quot`/`rem` truncating, `^`, `abs signum negate even odd min max gcd lcm succ pred`, `head tail last init null length reverse ++ !! sum product maximum minimum take drop elem notElem replicate concat and or`, finite ranges, structural `==` and `<` on lists, tuples only as `print`/`show` arguments; 64-bit `Int` (62-bit numbers in a program with lists) with overflow trapped where GHC wraps; arguments evaluated before the call, `let`/`where` values only when first used (a program GHC runs differently stops with a trap instead) | ghc 9.4 (goldens with runghc, `gen_haskell.c` batched) | Purewyrm |
 | OCaml 4.14 | `zl_ml.c` | the same core in OCaml syntax: `let`/`let rec ... and`, `match`/`function` with `when` guards, `/` and `mod` truncating, `min max succ pred abs max_int min_int`, `List.hd tl length rev`, `@`, comparisons on integers and booleans and structural `=`/`<>` on lists, `print_int`/`print_string`/`print_endline`/`Printf.printf` (`%d %i %b %s`); 63-bit integers wrapping as OCaml's do, OCaml's right-to-left evaluation order | ocaml (goldens and `gen_ml.c`) | Variantwyrm |
 
 Anything else in a language is refused with `ZL_E_UNSUPPORTED` and the line
@@ -73,7 +74,10 @@ ucblogo and the generator `gen_logo.c`; ucblogo writes to a window, so it
 runs under `xvfb-run` with its output redirected to a file by `setwrite`.
 `ref_ml.sh` checks ML against MLton and OCaml against the ocaml toplevel
 with the generator `gen_ml.c`; MLton builds the generated ML programs in one
-batch, each wrapped in its own structure.
+batch, each wrapped in its own structure. `ref_haskell.sh` checks Haskell
+against GHC with the generator `gen_haskell.c`: the goldens run under
+runghc and the generated programs are compiled by ghc in one batch, each
+made its own module.
 `mut_check.sh` is the mutation harness target.
 
 ## Adding a language
