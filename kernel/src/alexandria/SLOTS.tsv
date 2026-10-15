@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The Library of Alexandria's shorthand slots (docs/ALEXANDRIA.md).
+#
+# One line per base slot: a slot number, its shorthand, the block entry it
+# names, and its state. Append only: a slot is never renumbered, reused or
+# deleted. A slot whose entry is withdrawn stays, marked "retired", so every
+# program that names it still gets an answer (a refusal), never another
+# block. Slots 1..0xFFFF are the base; 0x10000 and up are community overlays,
+# which are never written here.
+#
+# A shorthand is "<namespace>.<name>", written "@<namespace>.<name>" by
+# people and models: lower case, digits and "_", at most 31 bytes. The
+# namespaces are mem crypto drv logic wire num fin prob strat time swarm text.
+#
+# tools/alexandria/build_index.py --assign appends a line for every block
+# entry that has none; --check fails when one is missing.
+#
+# slot	shorthand	block.entry	state
+1	num.gcd	number_classics.gcd	base
+2	swarm.cycle_share	swarm_shares.cycle_share	base
+3	swarm.busiest	swarm_shares.busiest	base
+4	swarm.within_limits	swarm_shares.within_limits	base
