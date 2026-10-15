@@ -440,7 +440,7 @@ def check_manifest(m):
         ok = (isinstance(s, dict) and isinstance(s.get("dir"), str) and NAME_RE.fullmatch(s["dir"])
               and isinstance(s.get("file"), str) and NAME_RE.fullmatch(s["file"])
               and s["file"] not in (".", "..") and s["dir"] not in (".", "..")
-              and s.get("kind") in ("core", "swarm", "cartridge")
+              and s.get("kind") in ("core", "swarm", "cartridge", "layer")
               and (s.get("arch") in ARCHS if s.get("kind") == "core" else s.get("arch") == "all")
               and isinstance(s.get("bytes"), int) and 0 <= s["bytes"] <= cap
               and isinstance(s.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", s["sha256"])

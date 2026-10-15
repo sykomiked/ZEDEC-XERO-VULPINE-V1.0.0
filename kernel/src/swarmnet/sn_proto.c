@@ -156,7 +156,8 @@ const char *sn_manifest_find(const char *t, uint32_t n, uint32_t disc, const cha
         q = le < end ? le + 1 : end;
         if (!field(&a, ln, &f, &len) || *f == '#') continue;
         if (!same(f, len, "swarm")) {
-            if (!same(f, len, "core") && !same(f, len, "cartridge")) return "unknown kind";
+            if (!same(f, len, "core") && !same(f, len, "cartridge") && !same(f, len, "layer"))
+                return "unknown kind";
             continue;
         }
         const char *fl[7];

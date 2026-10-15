@@ -98,10 +98,16 @@ them, so a person downloads one core disc and all the swarm discs:
 manifest.json                       every disc: arch, size, SHA-256, CID
 00_base/zxv-x86_64-disc1-core.img   one core disc per architecture
 00_base/zxv-arm64-disc1-core.img
-01_swarm_reason/zxv-swarm-disc2-reason.img
-02_swarm_<group>/...                one directory per swarm disc, in disc order
-NN_cartridges/...                   after the swarm discs, when there are any
+01_swarm/zxv-swarm-disc2-reason.img every swarm disc, in one directory
+02_cartridges/...                   when there are any
+03_layers/L0.json L1.json L2.json   the release layers (docs/LAYERS.md)
 ```
+
+The numbers are fixed for the release: 04_overlays (L4), 05_alexandria (L3)
+and 06_tiamat (the Tiamat cells of L2) are laid out by the work that builds
+them. Each layer manifest names its parent's CID, so the layers form one
+chain from the hardware envelope up, and the core disc carries L0 to L2 in
+/ZXV so the kernel checks the chain before `[BOOT_OK]`.
 
 `python3 build_system/mk_bucket.py` lays out the discs in `dist/discs` as
 `build/bucket` and prints the root CID that `ipfs add -r --cid-version=1`
@@ -109,7 +115,7 @@ would give it, computed the way Kubo does (checked against Kubo 0.32.1 by
 `mk_bucket.py --self-test`), with `manifest.json` and the same list as
 `manifest.txt` for the kernel. It adds nothing to IPFS and publishes nothing;
 uploading is the owner's call. `make ipfs-dist` builds the whole release
-twice from clean (kernels, core discs, swarm discs, bucket) and fails unless
+twice from clean (kernels, layers, core discs, swarm discs, bucket) and fails unless
 both passes give the same Disc 1 SHA-256 for every architecture and the same
 root CID; the bucket lands in `build/ipfs-dist/bucket`.
 

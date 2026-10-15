@@ -23,6 +23,9 @@
 #                                     the swarm discs can be fetched from
 #     /ZXV/SWARM.LST                  "<disc> <GROUP> <image>" per swarm disc
 #                                     this core expects
+#     /ZXV/LAYER0.JSN .. LAYER2.JSN   with GOLDEN_LAYERS: the release layers L0
+#                                     to L2 the core stands on, checked by the
+#                                     kernel before [BOOT_OK] (docs/LAYERS.md)
 #   zxv-swarm-disc<N>-<group>.img    architecture: all; N from 2, one per group
 #     GPT, one FAT32 partition of type 5A585653-5741-4D53-9000-000000000001
 #     named ZXV_SWARM_<GROUP>, holding
@@ -360,6 +363,35 @@ printf '%s\t%s\n' "$WORK/UPSTREAM.CID" "ZXV/UPSTREAM.CID" >> "$LIST"
     echo "$n $(tr a-z A-Z <<<"$g") $PREFIX-swarm-disc$n-$g.img"; n=$((n + 1)); done
 } > "$WORK/SWARM.LST"
 printf '%s\t%s\n' "$WORK/SWARM.LST" "ZXV/SWARM.LST" >> "$LIST"
+# The release layers this core disc stands on (docs/LAYERS.md):
+# GOLDEN_LAYERS is the directory `make build-all-layers` wrote. They must form
+# a chain, and L1 must list this disc's boot file and core models exactly, or
+# the kernel would refuse every model at boot; checked here first.
+if [ -n "${GOLDEN_LAYERS:-}" ]; then
+  python3 build_system/mk_layers.py check "$GOLDEN_LAYERS/L0.json" "$GOLDEN_LAYERS/L1.json" \
+    "$GOLDEN_LAYERS/L2.json" > /dev/null || die "$GOLDEN_LAYERS: L0, L1, L2 do not form a chain"
+  python3 - "$GOLDEN_LAYERS/L1.json" "$ARCH" "$EFI" "$WORK/core.sha" <<'PY' ||
+import hashlib, json, os, sys
+l1, arch, efi, core = sys.argv[1:]
+objs = json.load(open(l1))["objects"]
+d = open(efi, "rb").read()
+boot = [(o["name"], o["bytes"], o["sha256"]) for o in objs if o["kind"] == "boot" and o["arch"] == arch]
+if boot != [(os.path.basename(efi), len(d), hashlib.sha256(d).hexdigest())]:
+    sys.exit("L1 does not list this %s boot file %s (%d bytes); rebuild the layers" % (arch, efi, len(d)))
+disc = set()
+if os.path.exists(core):
+    for line in open(core):
+        f = line.split()
+        if f and not f[0].startswith("#"):
+            disc.add((f[2], int(f[1]), f[0]))
+listed = {(o["name"], o["bytes"], o["sha256"]) for o in objs if o["kind"] == "model"}
+if disc != listed:
+    sys.exit("L1's core models differ from this disc's: %s" % sorted(disc ^ listed))
+PY
+    die "$GOLDEN_LAYERS/L1.json is not the layer of this core disc"
+  for i in 0 1 2; do printf '%s\t%s\n' "$GOLDEN_LAYERS/L$i.json" "ZXV/LAYER$i.JSN" >> "$LIST"; done
+  log "layers L0, L1 and L2 on the disc: L2 $(cat "$GOLDEN_LAYERS/L2.cid")"
+fi
 printf '%s\t%s\n' "$EFI" "EFI/BOOT/$EFI" >> "$LIST"
 printf '%s\t%s\n' "$ROM" "MEGAROM.TVL" >> "$LIST"
 log "hashing $(wc -l < "$LIST") files for ZXV/MANIFEST.SHA256"

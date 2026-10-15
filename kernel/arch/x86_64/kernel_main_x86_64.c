@@ -39,9 +39,10 @@
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
-#include "swarmnet/swarmnet.h" /* missing swarm discs over the network */
-#include "x86_irq.h"           /* IDT, LAPIC, timer (gap 6) */
-#include "x86_userspace.h"     /* ring-3 processes and the scheduler (gap 6) */
+#include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
+#include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
+#include "x86_irq.h"            /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"      /* ring-3 processes and the scheduler (gap 6) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -406,6 +407,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
     static hw_models_t models;
+    static zxv_layers_boot_t layers;
     static hw_registry_t hreg;
     const hw_plat_t *hp;
     int models_left;
@@ -423,6 +425,11 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * ESP and the swarm on its own partition. Only the list is read now;
          * the models are hashed in the idle loop below (hw_models.h). */
         models_left = hw_models_index(&models, hp, &hreg) > 0;
+        /* The release's layers: the disc's L0, L1 and L2 must name each
+         * other, and the boot file and the models must be the ones they
+         * list, before BOOT_OK hands the machine over. A model that does
+         * not match is refused, never handed out (layers_boot.h). */
+        (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -504,11 +511,16 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 if (!still && fetch.committed) {
                     sn_seal_io_t io = {x86_key, &hreg, __zxv_hydrate_start,
                                        (uint32_t) (__zxv_hydrate_end - __zxv_hydrate_start)};
-                    (void) sn_seal(&link, &fetch, &models, &io);
+                    int mode = sn_seal(&link, &fetch, &models, &io);
+                    if (mode >= 0) zxv_layers_sealed(&layers, mode == HW_SEAL_POWERDOWN_NIC);
                 }
             }
-            /* a disc committed: mount it, and its models are checked next */
-            if (fetch.fresh) models_left = hw_models_index(&models, hp, &hreg) > 0;
+            /* a disc committed: mount it, check it against its layer, and
+             * its models are hashed next */
+            if (fetch.fresh) {
+                models_left = hw_models_index(&models, hp, &hreg) > 0;
+                (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
+            }
         }
         if (models_left)
             models_left = hw_models_step(&models, hp, 256);

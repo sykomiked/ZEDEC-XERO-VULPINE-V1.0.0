@@ -126,5 +126,5 @@ int sn_seal(sn_link_t *l, sn_fetch_t *f, const hw_models_t *m, const sn_seal_io_
         p->log(s.b);
         p->log("[SEAL] Operating system is now immutable; its network is the local mesh only.");
     }
-    return 0;
+    return mode;
 }

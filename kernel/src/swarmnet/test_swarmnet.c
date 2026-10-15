@@ -146,13 +146,13 @@ static void test_manifest(void)
     snprintf(t, sizeof t,
              "# zxv-bucket 1\ncore x86_64 1 - 546308096 " SHA_A " " CID_A
              " 00_base/zxv-x86_64-disc1-core.img\r\n"
+             "layer all - - 611 " SHA_A " " CID_A " 03_layers/L1.json\n"
+             "cartridge all - - 5000 " SHA_A " " CID_A " 02_cartridges/MEGAROM.TVL\n"
              "swarm all 2 REASON 1138753536 " SHA_A " " CID_A
-             " 01_swarm_reason/zxv-swarm-disc2-reason.img\n"
-             "cartridge all - - 5000 " SHA_A " " CID_A " 03_cartridges/MEGAROM.TVL\n");
+             " 01_swarm/zxv-swarm-disc2-reason.img\n");
     CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 2, "REASON", &e, &line) == 0 && e.disc == 2 &&
           e.bytes == 1138753536u && e.sha[0] == 0x00 && e.sha[31] == 0xff &&
-          strcmp(e.cid, CID_A) == 0 &&
-          strcmp(e.path, "01_swarm_reason/zxv-swarm-disc2-reason.img") == 0);
+          strcmp(e.cid, CID_A) == 0 && strcmp(e.path, "01_swarm/zxv-swarm-disc2-reason.img") == 0);
     CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 3, "REASON", &e, &line) != 0);
     CHECK(sn_manifest_find(t, (uint32_t) strlen(t), 2, "VISION", &e, &line) != 0);
     static const struct {
@@ -727,7 +727,7 @@ static void test_seal(void)
     /* POWERDOWN_NIC: the exact receipt, after the bus is cut and read back */
     phy_result = 0;
     keys = 0;
-    CHECK(seal(HW_SEAL_POWERDOWN_NIC, 1) == 0);
+    CHECK(seal(HW_SEAL_POWERDOWN_NIC, 1) == HW_SEAL_POWERDOWN_NIC);
     CHECK((cmd_reg & 6) == 0 && (cmd_reg & 1) && phy_offs == 1 && snic.link_up == 0);
     CHECK(has("  [SEAL_NIC] eth0 (00:03.0): PHY powered down; PCI Bus Master and Memory Space "
               "cleared and read back"));
@@ -748,13 +748,13 @@ static void test_seal(void)
 
     /* a part whose PHY the driver leaves alone: said so */
     phy_result = 1;
-    CHECK(seal(HW_SEAL_POWERDOWN_NIC, 1) == 0 && (cmd_reg & 6) == 0);
+    CHECK(seal(HW_SEAL_POWERDOWN_NIC, 1) == HW_SEAL_POWERDOWN_NIC && (cmd_reg & 6) == 0);
     CHECK(has(": PHY left as it is (no safe PHY access on this part); PCI Bus Master"));
     CHECK(!has("PHY powered down"));
     phy_result = 0;
 
     /* LOCAL_MESH_ONLY: the NIC stays on the bus, the WAN state goes */
-    CHECK(seal(HW_SEAL_LOCAL_MESH_ONLY, 1) == 0);
+    CHECK(seal(HW_SEAL_LOCAL_MESH_ONLY, 1) == HW_SEAL_LOCAL_MESH_ONLY);
     CHECK(cmd_reg == 7 && phy_offs == 0 && wiped());
     CHECK(has("[SEAL] Network hydration channel severed: WAN routes, DHCP and the fetcher "
               "removed; eth0 kept for the local mesh."));
@@ -763,14 +763,15 @@ static void test_seal(void)
 
     /* PROMPT_USER: m, then p, then nothing for 30 seconds */
     keys = "xxm";
-    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == 0 && cmd_reg == 7);
+    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == HW_SEAL_LOCAL_MESH_ONLY && cmd_reg == 7);
     CHECK(has("press p to power the NIC down") && has("[SEAL] m: keeping the NIC") &&
           has("local mesh only."));
     keys = "P";
-    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == 0 && (cmd_reg & 6) == 0 && has("[SEAL] p: powering"));
+    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == HW_SEAL_POWERDOWN_NIC && (cmd_reg & 6) == 0 &&
+          has("[SEAL] p: powering"));
     keys = 0;
     now_ms = 0;
-    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == 0 && (cmd_reg & 6) == 0);
+    CHECK(seal(HW_SEAL_PROMPT_USER, 1) == HW_SEAL_POWERDOWN_NIC && (cmd_reg & 6) == 0);
     CHECK(has("[SEAL] No answer: powering the NIC down.") && has("air-gapped."));
     CHECK(now_ms >= SN_SEAL_PROMPT_MS && now_ms < SN_SEAL_PROMPT_MS + 200);
 

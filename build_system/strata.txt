@@ -72,6 +72,7 @@ holographic                      kernel
 hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
 idt                              kernel
 keyboard                         kernel
+layers                           kernel     # release layer manifests L0..L4 and their lineage check at boot; reads the ESP through fat32 and hwdrv
 license                          kernel
 mbcomp                           kernel
 mm                               kernel

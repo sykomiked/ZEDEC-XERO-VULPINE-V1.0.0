@@ -363,6 +363,11 @@ jobs:
       - name: Release bucket and download check
         if: ${{ matrix.arch == 'x86_64' }}
         run: python3 build_system/test_bucket.py
+      # The release layers (build_system/mk_layers.py, docs/LAYERS.md): built
+      # as a chain, and every broken chain or other layout refused.
+      - name: Release layers check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_layers.py
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

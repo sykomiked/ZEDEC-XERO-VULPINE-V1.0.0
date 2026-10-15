@@ -99,6 +99,26 @@ def run(*args):
     return r.returncode, r.stdout
 
 
+def layers(t, out):
+    """L0, L1 and L2 over a stand-in boot file and model lists, as
+    `make build-all-layers` builds them."""
+    lk = os.path.join(HERE, "mk_layers.py")
+    efi = os.path.join(t, "BOOTX64.EFI")
+    open(efi, "wb").write(b"efi bytes")
+    sha = hashlib.sha256(b"m").hexdigest()
+    models = os.path.join(t, "models.lst")
+    open(models, "w").write("core.gguf %s 1 u A.GGU\nswarm.gguf %s 1 u B.GGU\n" % (sha, sha))
+    core, swarm = os.path.join(t, "core.lst"), os.path.join(t, "swarm.lst")
+    open(core, "w").write("core.gguf\n")
+    open(swarm, "w").write("reason swarm.gguf\n")
+    steps = [["l0"], ["l1", "--boot", "x86_64=" + efi, "--core", core], ["l2", "--swarm", swarm]]
+    for n, st in enumerate(steps):
+        par = ["--parent", open(os.path.join(out, "L%d.cid" % (n - 1))).read().strip()] if n else []
+        rc, o = run(lk, *st, "--out", out, "--models", models, *par)
+        check(rc == 0, "mk_layers %s: %s" % (st[0], o))
+    return out
+
+
 def load_blocks(d):
     Store.blocks = {n: open(os.path.join(d, n), "rb").read() for n in os.listdir(d)}
 
@@ -155,9 +175,9 @@ def main():
         check(layout == [
             ("00_base", "zxv-x86_64-disc1-core.img", "core", "x86_64", 1, None),
             ("00_base", "zxv-arm64-disc1-core.img", "core", "arm64", 1, None),
-            ("01_swarm_reason", "zxv-swarm-disc2-reason.img", "swarm", "all", 2, "REASON"),
-            ("02_swarm_vision", "zxv-swarm-disc3-vision.img", "swarm", "all", 3, "VISION"),
-            ("03_cartridges", "MEGAROM.TVL", "cartridge", "all", None, None)], "layout %r" % layout)
+            ("01_swarm", "zxv-swarm-disc2-reason.img", "swarm", "all", 2, "REASON"),
+            ("01_swarm", "zxv-swarm-disc3-vision.img", "swarm", "all", 3, "VISION"),
+            ("02_cartridges", "MEGAROM.TVL", "cartridge", "all", None, None)], "layout %r" % layout)
         check(man["upstream"] == {"cid": CID, "ipns": None, "gateways": ["http://10.0.2.2:8080"],
                                   "seal": "PROMPT_USER"} and man["max_disc_bytes"] == 1800000000 and
               man["post_install_action"] == "SEAL_AIRGAP" and
@@ -168,7 +188,7 @@ def main():
               s0["sha256"] == hashlib.sha256(files[s0["file"]]).hexdigest(), "manifest size and sha256")
         txt = open(os.path.join(bucket, "manifest.txt")).read().splitlines()
         sw = man["stages"][2]
-        check(len(txt) == 5 and txt[2] == "swarm all 2 REASON %d %s %s 01_swarm_reason/"
+        check(len(txt) == 5 and txt[2] == "swarm all 2 REASON %d %s %s 01_swarm/"
               "zxv-swarm-disc2-reason.img" % (sw["bytes"], sw["sha256"], sw["cid"]) and
               txt[0].startswith("core x86_64 1 - ") and txt[4].startswith("cartridge all - - "),
               "manifest.txt for the kernel: %r" % txt)
@@ -189,6 +209,39 @@ def main():
         check(rc == 1 and "has no distribution section" in out, "markers out of order: " + out)
         rc, out = run(*mk)
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "and without it, the same root")
+        lay = layers(t, os.path.join(t, "layers"))
+        rc, out = run(*mk, "--layers", lay, "--blocks", blocks)
+        lman = json.load(open(os.path.join(bucket, "manifest.json"))) if rc == 0 else {"stages": []}
+        tail = [(s["dir"], s["file"], s["kind"], s["arch"], s.get("layer"))
+                for s in lman["stages"][5:]]
+        check(rc == 0 and tail == [("03_layers", "L%d.json" % n, "layer", "all", n)
+                                   for n in range(3)], "03_layers: %r %s" % (tail, out))
+        ltxt = open(os.path.join(bucket, "manifest.txt")).read().splitlines() if rc == 0 else []
+        check(len(ltxt) == 8 and ltxt[6].startswith("layer all - - ") and
+              ltxt[6].endswith(" 03_layers/L1.json"), "manifest.txt layer lines: %r" % ltxt)
+        lroot = open(bucket + ".cid").read().strip()
+        check(lroot != root, "the layers change the root")
+        lget = os.path.join(t, "lget")
+        Store.blocks = {n: open(os.path.join(blocks, n), "rb").read() for n in os.listdir(blocks)}
+        rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--cid", lroot, "--quiet", "--upstream", up,
+                      "--arch", "x86_64", "--out", lget)
+        check(rc == 0 and "ok     03_layers/L2.json" in out and
+              open(os.path.join(lget, "L1.json"), "rb").read() ==
+              open(os.path.join(lay, "L1.json"), "rb").read(), "zxv-get takes the layers: " + out)
+        os.rename(os.path.join(lay, "L1.json"), os.path.join(lay, "L1.x"))
+        rc, out = run(*mk, "--layers", lay)
+        check(rc == 1 and "L2.json without the layers below it" in out, "a layer gap: " + out)
+        with open(os.path.join(lay, "L1.json"), "wb") as f:
+            f.write(open(os.path.join(lay, "L1.x"), "rb").read().replace(b'"bytes": 9',
+                                                                         b'"bytes": 8'))
+        rc, out = run(*mk, "--layers", lay)
+        check(rc == 1 and "do not form a chain" in out and "names parent" in out,
+              "a changed L1 breaks the chain: " + out)
+        rc, out = run(*mk, "--layers", os.path.join(t, "discs"))
+        check(rc == 1 and "holds no L0.json" in out, "no layers: " + out)
+        shutil.rmtree(blocks)
+        rc, out = run(*mk, "--blocks", blocks)
+        check(rc == 0 and open(bucket + ".cid").read().strip() == root, "back to the plain bucket")
         load_blocks(blocks)
 
         get = [GET, "--no-ipfs", "--gateway", gw, "--cid", root, "--quiet", "--upstream", up]
@@ -210,7 +263,7 @@ def main():
             f.seek(1000)
             f.write(b"\xff")
         rc, out = run(*get, "--arch", "arm64", "--out", dl)
-        check(rc == 0 and out.count("  have   ") == 3 and "ok     01_swarm_reason" in out and
+        check(rc == 0 and out.count("  have   ") == 3 and "ok     01_swarm/zxv-swarm-disc2" in out and
               open(os.path.join(dl, want[1]), "rb").read() == files[want[1]],
               "a changed local disc of the right size is fetched again: " + out)
 
@@ -220,7 +273,7 @@ def main():
         rc, out = run(*get, "--arch", "riscv64", "--out", os.path.join(t, "rv"))
         check(rc == 1 and "no core disc for riscv64 (it has: arm64 x86_64)" in out, "riscv64: " + out)
         rc, out = run(*get, "--list")
-        check(rc == 0 and "02_swarm_vision" in out and "x86_64" in out, "--list: " + out)
+        check(rc == 0 and "zxv-swarm-disc3-vision.img" in out and "x86_64" in out, "--list: " + out)
         rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--upstream", up, "--list", "--patience", "0")
         check(rc == 1 and CID in out, "the baked CID is the default bucket: " + out)
 
@@ -232,11 +285,11 @@ def main():
         check(rc == 1 and ("block %s: %s sent a block that does not match its CID" % (vision, gw)) in out,
               "tampered block: " + out)
         check("zxv-swarm-disc3-vision.img" not in os.listdir(refused) and
-              "kept   02_swarm_vision/zxv-swarm-disc3-vision.img.part" in out,
+              "kept   01_swarm/zxv-swarm-disc3-vision.img.part" in out,
               "a refused disc leaves no finished file, only its verified part: " + out)
         Store.tamper = set()
         rc, out = run(*get, "--arch", "x86_64", "--out", refused)
-        check(rc == 0 and "resume 02_swarm_vision/zxv-swarm-disc3-vision.img at" in out and
+        check(rc == 0 and "resume 01_swarm/zxv-swarm-disc3-vision.img at" in out and
               open(os.path.join(refused, "zxv-swarm-disc3-vision.img"), "rb").read() ==
               files["zxv-swarm-disc3-vision.img"],
               "a later run fetches what was refused, resuming from its part: " + out)
@@ -309,7 +362,7 @@ def main():
 
         reason = man["stages"][2]
         rc, out = lie("sha256", "0" * 64)
-        check(rc == 1 and "01_swarm_reason/zxv-swarm-disc2-reason.img: sha256 differs" in out,
+        check(rc == 1 and "01_swarm/zxv-swarm-disc2-reason.img: sha256 differs" in out,
               "wrong sha256: " + out)
         rc, out = lie("bytes", reason["bytes"] - 1)
         check(rc == 1 and "longer than manifest.json's" in out, "short size: " + out)

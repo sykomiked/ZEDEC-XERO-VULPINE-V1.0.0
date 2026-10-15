@@ -160,7 +160,7 @@ void sn_http_adapt(sn_http_t *h, int ok);
 /* ---- the bucket's manifest.txt ------------------------------------------------ */
 /* One line per disc or file:
  *   <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<file>
- * kind core|swarm|cartridge, written by build_system/mk_bucket.py. */
+ * kind core|swarm|cartridge|layer, written by build_system/mk_bucket.py. */
 typedef struct sn_entry {
     uint32_t disc;
     char group[17];
@@ -302,7 +302,9 @@ void sn_log_offline(const hw_plat_t *p, const hw_models_t *m);
  *   [SEAL] Network hydration channel severed: NIC bus mastering disabled.
  *   [SEAL] Operating system is now immutable and air-gapped.
  * (LOCAL_MESH_ONLY says what it removed and that the mesh remains.) A step
- * that fails prints [SEAL_FAIL] and no receipt; returns 0 sealed, -1 not. */
+ * that fails prints [SEAL_FAIL] and no receipt. Returns the mode it sealed
+ * with (HW_SEAL_POWERDOWN_NIC or HW_SEAL_LOCAL_MESH_ONLY; PROMPT_USER
+ * resolves to one of them), or -1 when not sealed. */
 #define SN_SEAL_PROMPT_MS 30000u
 
 typedef struct sn_seal_io {

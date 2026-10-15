@@ -196,7 +196,7 @@ LOGF="uefi_boot_${ARCH}.log"
 
 echo "==> boot 7: the gateway drops out for good; d stops the fetch"
 rm -f "$T/blank.img"; truncate -s 400M "$T/blank.img"
-gateway --down-after 6000000
+gateway --down-after 3000000 # of the ~4 MB of distinct blocks the test disc has
 rm -f "$T/keys"; mkfifo "$T/keys"
 : > "$LOGF"
 ( exec 3> "$T/keys"

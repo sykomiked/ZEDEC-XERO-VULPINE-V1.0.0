@@ -94,6 +94,7 @@ typedef struct hw_models {
     uint32_t n;
     hw_models_vol_t vol[HW_MODELS_VOLS];
     uint32_t nvol;     /* vol[0] is used only when a core disc was found */
+    uint8_t core;      /* a core disc was found: vol[0] is its ESP */
     hw_model_cur_t bg; /* the idle-loop check */
     uint32_t ok, bad;
     int reported;
@@ -131,5 +132,11 @@ int hw_models_step(hw_models_t *s, const hw_plat_t *p, uint32_t clusters);
  * it has none yet: first use pays for its own check. HW_F for an unknown
  * name. */
 hw_verdict_t hw_models_require(hw_models_t *s, const hw_plat_t *p, const char *name);
+
+/* Settle model i as FALSE, hashed or not, logging [MODEL_BAD] with
+ * why: a check outside this module (the release layers, kernel/src/layers)
+ * found it is not the model the disc's layers list. A model that
+ * is FALSE already stays so; a TRUE one becomes FALSE. */
+void hw_models_refuse(hw_models_t *s, const hw_plat_t *p, uint32_t i, const char *why);
 
 #endif

@@ -6,6 +6,7 @@
     python3 build_system/mk_bucket.py [--discs dist/discs] [--out build/bucket]
                                       [--cartridge FILE ...] [--blocks DIR]
                                       [--architecture docs/ARCHITECTURE.md]
+                                      [--layers build/layers]
     python3 build_system/mk_bucket.py --self-test
 
 Stages the discs mk_golden_disc.sh built into a directory that `ipfs add -r
@@ -22,9 +23,17 @@ The bucket:
                                   of that file (between the zxv:distribution
                                   start and end markers), so the bucket says
                                   what it is
-    01_swarm_<group>/zxv-swarm-disc2-<group>.img
-    02_swarm_<group>/...          one directory per swarm disc, disc order
-    NN_cartridges/<file>          after the swarm discs, when --cartridge given
+    01_swarm/zxv-swarm-disc<n>-<group>.img   every swarm disc, one directory
+    02_cartridges/<file>          when --cartridge given
+    03_layers/L0.json ... L2.json with --layers: the layer manifests
+                                  (mk_layers.py, docs/LAYERS.md), each named by
+                                  its own CID and naming its parent's
+
+The numbering is fixed for the whole release, so a directory keeps its name
+whether or not the ones before it are present: 04_overlays (L4, community
+overlays), 05_alexandria (L3, the Library of Alexandria) and 06_tiamat (the
+Tiamat cells, part of L2) are laid out by the threads that build them and
+added beside these; this tool does not write them.
 
 Every disc is at most 1,800,000,000 bytes. Only the core disc is specific to
 an architecture; the swarm discs are the same for all of them.
@@ -39,10 +48,12 @@ manifest.json (keys sorted, one stage per disc or file):
      "stages": [{"dir": "00_base", "file": "zxv-x86_64-disc1-core.img",
                  "kind": "core", "arch": "x86_64", "disc": 1,
                  "bytes": N, "sha256": "<hex>", "cid": "<bafy...>"},
-                {"dir": "01_swarm_reason", ..., "kind": "swarm",
+                {"dir": "01_swarm", ..., "kind": "swarm",
                  "arch": "all", "disc": 2, "group": "REASON", ...},
-                {"dir": "03_cartridges", ..., "kind": "cartridge",
-                 "arch": "all", ...}]}
+                {"dir": "02_cartridges", ..., "kind": "cartridge",
+                 "arch": "all", ...},
+                {"dir": "03_layers", "file": "L1.json", "kind": "layer",
+                 "arch": "all", "layer": 1, ...}]}
 manifest.txt carries the same stages for the bare-metal fetcher
 (kernel/src/swarmnet), which has no JSON parser:
     <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<file>
@@ -64,6 +75,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -179,6 +191,26 @@ def distribution_section(path):
             % (os.path.basename(path), body))
 
 
+def find_layers(d):
+    """[(n, path)] of d/L0.json, d/L1.json, ...: from L0 up without a gap,
+    the chain checked by mk_layers.py first."""
+    found = []
+    while os.path.isfile(os.path.join(d, "L%d.json" % len(found))):
+        found.append((len(found), os.path.join(d, "L%d.json" % len(found))))
+    if not found:
+        die("%s holds no L0.json (build_system/mk_layers.py, make build-all-layers)" % d)
+    names = {os.path.basename(p) for _, p in found}
+    extra = sorted(f for f in os.listdir(d) if re.fullmatch(r"L\d+\.json", f) and f not in names)
+    if extra:
+        die("%s: %s without the layers below it" % (d, ", ".join(extra)))
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                     "mk_layers.py"), "check"] +
+                       [p for _, p in found], capture_output=True, text=True)
+    if r.returncode != 0:
+        die("the layers in %s do not form a chain: %s" % (d, r.stderr.strip()))
+    return found
+
+
 def place(src, dst):
     """Hard-link src into the bucket (the discs are large), else copy."""
     try:
@@ -191,6 +223,7 @@ def build(a):
     up = read_upstream(a.upstream)
     cores, swarm = find_discs(a.discs, a.prefix)
     arch_doc = distribution_section(a.architecture) if a.architecture else None
+    layers = find_layers(a.layers) if a.layers else []
     out = a.out
     if os.path.lexists(out):
         mf = os.path.join(out, "manifest.json")
@@ -224,12 +257,14 @@ def build(a):
     if arch_doc:
         with open(os.path.join(out, "00_base", "ARCHITECTURE.md"), "w", encoding="utf-8") as f:
             f.write(arch_doc)
-    for i, (n, g, p) in enumerate(swarm, 1):
-        add("%02d_swarm_%s" % (i, g), p, kind="swarm", arch="all", disc=n, group=g.upper())
+    for n, g, p in swarm:
+        add("01_swarm", p, kind="swarm", arch="all", disc=n, group=g.upper())
     for p in a.cartridge or []:
         if not os.path.isfile(p):
             die("cartridge %s not found" % p)
-        add("%02d_cartridges" % (len(swarm) + 1), p, kind="cartridge", arch="all")
+        add("02_cartridges", p, kind="cartridge", arch="all")
+    for n, p in layers:
+        add("03_layers", p, kind="layer", arch="all", layer=n)
 
     man = {"format": FORMAT, "max_disc_bytes": a.max_bytes, "upstream": up, "stages": stages,
            "post_install_action": "SEAL_AIRGAP", "allowed_modes": list(SEAL_MODES)}
@@ -298,6 +333,7 @@ def main():
     ap.add_argument("--cartridge", action="append")
     ap.add_argument("--blocks")
     ap.add_argument("--architecture")
+    ap.add_argument("--layers")
     ap.add_argument("--max-bytes", type=int, default=MAX_DISC)
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()
