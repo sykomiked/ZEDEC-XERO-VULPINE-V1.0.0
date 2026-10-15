@@ -7,6 +7,7 @@
  * bank, and the rendezvous hook. */
 #ifndef ZT_HTEST_BARE
 #    define _DEFAULT_SOURCE /* MAP_ANONYMOUS under -std=c11 on newer glibc */
+#    define _DARWIN_C_SOURCE /* and on macOS */
 #endif
 #include "zt_htest.h"
 #include "zt_dial_resolve.h"
