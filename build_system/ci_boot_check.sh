@@ -18,6 +18,8 @@
 # partial log happens to contain the marker.
 #
 # Fault markers, one per place a kernel reports a fatal exception:
+#   [BOOT_FAIL]              riscv/arm32 mains: a boot check failed and the
+#                            boot stopped before [BOOT_OK] (roadmap 2.14)
 #   [FAULT]                  arm64 arm64_exceptions.c, riscv kernel_main_riscv.c,
 #                            arm32 kernel_main_arm32.c (arm32_fault_report)
 #   [EL0 FAULT]              arm64 user-mode fault
@@ -32,7 +34,7 @@ MK=${2:?usage: ci_boot_check.sh <name> <makefile> [seconds]}
 SECS=${3:-30}
 shift $(( $# < 3 ? $# : 3 ))
 LOG="boot_${NAME}.log"
-FAULT_RE='\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
+FAULT_RE='\[BOOT_FAIL\]|\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
 
 rc=0
 timeout "$SECS" make -f "$MK" run < /dev/null > "$LOG" 2>&1 || rc=$?

@@ -1658,6 +1658,58 @@ static void test_indic(void)
     static const uint32_t PE[] = {0x0915, 0x094E};
     n = zui_indic_visual(PE, 2, o, NULL, 16);
     CHECK(n == 2 && o[0] == 0x094E, "prishthamatra");
+    /* the other Brahmic scripts: categories from the UCD */
+    CHECK(
+        zui_indic_category(0x0995) == ZUI_INDIC_C && zui_indic_category(0x09BF) == ZUI_INDIC_MPRE &&
+            zui_indic_category(0x09CB) == ZUI_INDIC_M &&
+            zui_indic_category(0x09CD) == ZUI_INDIC_H &&
+            zui_indic_category(0x0B95) == ZUI_INDIC_C &&
+            zui_indic_category(0x0D15) == ZUI_INDIC_C &&
+            zui_indic_category(0x0D9A) == ZUI_INDIC_C &&
+            zui_indic_category(0x0DCA) == ZUI_INDIC_H &&
+            zui_indic_category(0x1000) == ZUI_INDIC_C &&
+            zui_indic_category(0x1031) == ZUI_INDIC_MPRE &&
+            zui_indic_category(0x103C) == ZUI_INDIC_MPRE &&
+            zui_indic_category(0x1039) == ZUI_INDIC_H &&
+            zui_indic_category(0x1780) == ZUI_INDIC_C &&
+            zui_indic_category(0x17C1) == ZUI_INDIC_MPRE &&
+            zui_indic_category(0x17D2) == ZUI_INDIC_H &&
+            zui_indic_category(0x0E01) == ZUI_INDIC_X && zui_indic_category(0x0F40) == ZUI_INDIC_X,
+        "brahmic categories");
+    struct {
+        const char *name;
+        uint32_t in[4], n, out[6], m;
+    } BR[] = {
+        {"bengali ki", {0x0995, 0x09BF}, 2, {0x09BF, 0x0995}, 2},
+        {"bengali ko", {0x0995, 0x09CB}, 2, {0x09C7, 0x0995, 0x09BE}, 3},
+        {"bengali kau", {0x0995, 0x09CC}, 2, {0x09C7, 0x0995, 0x09D7}, 3},
+        {"oriya kai", {0x0B15, 0x0B48}, 2, {0x0B47, 0x0B15, 0x0B56}, 3},
+        {"tamil ko", {0x0B95, 0x0BCA}, 2, {0x0BC6, 0x0B95, 0x0BBE}, 3},
+        {"tamil ke", {0x0B95, 0x0BC6}, 2, {0x0BC6, 0x0B95}, 2},
+        {"malayalam ko", {0x0D15, 0x0D4A}, 2, {0x0D46, 0x0D15, 0x0D3E}, 3},
+        {"sinhala ko", {0x0D9A, 0x0DDC}, 2, {0x0DD9, 0x0D9A, 0x0DCF}, 3},
+        {"sinhala koo", {0x0D9A, 0x0DDD}, 2, {0x0DD9, 0x0D9A, 0x0DCF, 0x0DCA}, 4},
+        {"myanmar ke", {0x1000, 0x1031}, 2, {0x1031, 0x1000}, 2},
+        {"myanmar kra", {0x1000, 0x103C, 0x1031}, 3, {0x1031, 0x103C, 0x1000}, 3},
+        {"khmer ke", {0x1780, 0x17C1}, 2, {0x17C1, 0x1780}, 2},
+        {"khmer koe", {0x1780, 0x17BE}, 2, {0x17C1, 0x1780, 0x17BE}, 3},
+        {"khmer coeng", {0x1780, 0x17D2, 0x1780, 0x17C1}, 4, {0x17C1, 0x1780, 0x17D2, 0x1780}, 4},
+        {"vowel kept", {0x0985, 0x0995, 0x09CB}, 3, {0x0985, 0x09C7, 0x0995, 0x09BE}, 4},
+    };
+    for (uint32_t k = 0; k < sizeof BR / sizeof BR[0]; k++) {
+        n = zui_indic_visual(BR[k].in, BR[k].n, o, m, 16);
+        bool ok = n == BR[k].m;
+        for (uint32_t j = 0; ok && j < n; j++) ok = o[j] == BR[k].out[j];
+        CHECK(ok, "%s", BR[k].name);
+    }
+    static const uint32_t BKO[] = {0x0995, 0x09CB};
+    n = zui_indic_visual(BKO, 2, o, m, 16);
+    CHECK(n == 3 && m[0] == 1 && m[1] == 0 && m[2] == 1, "split vowel map");
+    static const uint32_t BRK2[] = {0x09B0, 0x09CD, 0x0995}, TRK[] = {0x0C30, 0x0C4D, 0x0C15},
+                          TAMRA[] = {0x0BB0, 0x0BCD, 0x0B95};
+    CHECK(zui_indic_syllable(BRK2, 3, 0, &s) == 3 && s.reph && s.base == 2, "bengali reph");
+    CHECK(zui_indic_syllable(TRK, 3, 0, &s) == 3 && s.reph, "telugu reph");
+    CHECK(zui_indic_syllable(TAMRA, 3, 0, &s) == 3 && !s.reph, "tamil has no reph");
     /* syllables agree with grapheme clusters for these words */
     static const uint32_t *const W[] = {HINDI, NAMASTE, KSSI, RKI};
     static const uint32_t WN[] = {6, 6, 4, 4};

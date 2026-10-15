@@ -15,6 +15,8 @@
 #include "zui_chiglet.h"
 #include "zui_emote.h"
 #include "zui_progress.h"
+#include "zui_login.h"
+#include "zui_pxl.h"
 #include "../font/ttf_fixture.inc" /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"     /* ZUI_TTF[]: metrics + a composite */
 
@@ -626,30 +628,430 @@ static void test_progress(void)
     zui_launch_t l = {rec_part,
                       {rec_part, rec_part, rec_part, rec_part, rec_part},
                       {(void *) 7, (void *) 0, (void *) 1, (void *) 2, (void *) 3, (void *) 4},
-                      5};
+                      5,
+                      0};
     seen_calls = 0;
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){0, 0, 0}, 0);
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){0, 0, 0, 0}, 0);
     CHECK(seen_calls == 6 && seen_lit[0] == 0 && seen_lit[2] == 0 && seen_lit[7] == 0,
           "at the start every part and the mark are dim");
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){150, 0, 0}, 0);
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){150, 0, 0, 0},
+                    0);
     CHECK(seen_lit[0] == 256 && seen_lit[4] == 256 && seen_lit[2] == 0,
           "outer parts light first, mirrored");
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){256, 0, 0}, 0);
-    CHECK(seen_lit[2] == 256 && seen_lit[7] == 0, "the centre part lights last; the mark waits");
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){256, 256, 128},
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){256, 0, 0, 0},
                     0);
+    CHECK(seen_lit[2] == 256 && seen_lit[7] == 0, "the centre part lights last; the mark waits");
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 128, 0}, 0);
     CHECK(seen_lit[7] == 256, "then the mark lights");
     uint64_t h1 = fnv(big, 320 * 200);
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){256, 256, 128},
-                    0);
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 128, 0}, 0);
     CHECK(fnv(big, 320 * 200) == h1, "same state, same pixels");
-    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l, (zui_launch_state_t){256, 256, 200},
-                    0);
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 200, 0}, 0);
     CHECK(fnv(big, 320 * 200) != h1, "the top bar moves with the rest of the load");
-    zui_launch_t none = {0, {0}, {0}, 0};
+    zui_launch_t none = {0, {0}, {0}, 0, 0};
     zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &none,
-                    (zui_launch_state_t){256, 256, 256}, 0);
+                    (zui_launch_state_t){256, 256, 256, 0}, 0);
     CHECK(1, "a launch with no parts or painters still draws its bars");
+
+    /* the vault: bolts lock as the top bar fills and throw back as it opens */
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 30, 0}, 0);
+    uint64_t nb = fnv(big, 320 * 200);
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 120, 0}, 0);
+    uint32_t seam = big[(200 / 10) * 320 + 160];
+    CHECK(seam == ZUI_GOLD || seam == ZUI_GOLD_GLOW || seam == ZUI_PANEL,
+          "the first bolt is locked across the seam");
+    zui_launch_draw(&L, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 30, 0}, 0);
+    CHECK(fnv(big, 320 * 200) == nb, "no bolt before the bar reaches it");
+    static uint32_t fpx[320 * 200], bpx[320 * 200], opx[320 * 200];
+    zui_surface_t F, B, O;
+    zui_surface_init(&F, fpx, 320, 200, 320);
+    zui_surface_init(&B, bpx, 320, 200, 320);
+    zui_surface_init(&O, opx, 320, 200, 320);
+    zui_launch_draw(&F, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 256, 32}, 0);
+    uint64_t half_thrown = fnv(fpx, 320 * 200);
+    zui_launch_draw(&F, (zui_rect_t){0, 0, 320, 200}, 256, &l,
+                    (zui_launch_state_t){256, 256, 256, 64}, 0);
+    CHECK(fnv(fpx, 320 * 200) != half_thrown, "the bolts move as they throw back");
+    zui_fill(&B, (zui_rect_t){0, 0, 320, 200}, 0x123456u);
+    zui_vault_draw(&O, (zui_rect_t){0, 0, 320, 200}, 256, &F, &B, 0);
+    CHECK(fnv(opx, 320 * 200) == fnv(fpx, 320 * 200), "closed, the vault is the face itself");
+    zui_vault_draw(&O, (zui_rect_t){0, 0, 320, 200}, 256, &F, &B, 64);
+    CHECK(fnv(opx, 320 * 200) == fnv(fpx, 320 * 200), "the doors hold while the bolts throw");
+    zui_vault_draw(&O, (zui_rect_t){0, 0, 320, 200}, 256, &F, &B, 160);
+    CHECK((opx[100 * 320 + 160] & 0xFFFFFFu) != (fpx[100 * 320 + 160] & 0xFFFFFFu) &&
+              opx[100 * 320 + 160] != ZUI_GOLD,
+          "part-open, the centre shows what is behind");
+    zui_vault_draw(&O, (zui_rect_t){0, 0, 320, 200}, 256, &F, &B, 256);
+    int all = 1;
+    for (int i = 0; i < 320 * 200; i++)
+        if (opx[i] != 0x123456u) {
+            all = 0;
+            break;
+        }
+    CHECK(all, "fully open, only the loaded view remains");
+    zui_vault_draw(&O, (zui_rect_t){0, 0, 320, 200}, 256, &F, 0, 256);
+    CHECK(1, "a missing view is refused, not read");
+}
+
+static void test_foil(void)
+{
+    printf("--- foil: colour / anti-colour depth ---\n");
+    zui_depth_t d;
+    zui_depth_init(&d, ZUI_DEPTH_FOIL, 40);
+    CHECK(d.foil_k > 0 && d.chroma_k > 24, "foil turns the cues up by default");
+    CHECK(zui_foil_px(0x808080u, 0, 256) == 0x808080u &&
+              zui_foil_px(0x808080u, 200, 256) == 0x808080u,
+          "grey never shimmers");
+    uint32_t g0 = zui_foil_px(ZUI_GOLD, 0, 256), g1 = zui_foil_px(ZUI_GOLD, 127, 256);
+    CHECK(g0 != ZUI_GOLD && g1 != ZUI_GOLD && g0 != g1, "gold swings both ways across the cycle");
+    CHECK((g1 & 0xFF) > (ZUI_GOLD & 0xFF), "toward its anti-colour (more blue) at the crest");
+    uint32_t v1 = zui_foil_px(ZUI_VOID, 127, 256);
+    int dv = (int) ((v1 >> 8) & 0xFF) - (int) ((ZUI_VOID >> 8) & 0xFF);
+    int dg = (int) (g1 & 0xFF) - (int) (ZUI_GOLD & 0xFF);
+    CHECK(dv < dg / 3, "the dark ground moves far less than gold");
+    CHECK(zui_foil_px(ZUI_GOLD, 127, 0) == ZUI_GOLD, "strength 0 is identity");
+
+    static uint32_t px[96 * 64], ref[96 * 64];
+    zui_surface_t s;
+    zui_surface_init(&s, px, 96, 64, 96);
+    zui_fill(&s, (zui_rect_t){0, 0, 96, 64}, ZUI_VOID);
+    zui_fill_rrect(&s, (zui_rect_t){16, 12, 64, 40}, 8, ZUI_GOLD, 255u);
+    memcpy(ref, px, sizeof px);
+    zui_foil_rect(&s, &d, (zui_rect_t){16, 12, 64, 40}, 8, 0);
+    CHECK(memcmp(ref, px, sizeof px) == 0, "held at the glass (z 0): untouched");
+    zui_depth_t flat;
+    zui_depth_init(&flat, ZUI_DEPTH_FLAT, 40);
+    zui_foil_rect(&s, &flat, (zui_rect_t){16, 12, 64, 40}, 8, 20);
+    CHECK(memcmp(ref, px, sizeof px) == 0, "other modes: untouched");
+    zui_foil_rect(&s, &d, (zui_rect_t){16, 12, 64, 40}, 8, 20);
+    uint64_t a = fnv(px, 96 * 64);
+    CHECK(memcmp(ref, px, sizeof px) != 0, "a raised thing shimmers");
+    CHECK(px[0] == ZUI_VOID && px[63 * 96 + 95] == ZUI_VOID, "and nothing outside it changes");
+    CHECK(((px[(12 + 20) * 96 + 14] >> 16) & 0xFF) > ((px[(12 + 20) * 96 + 14]) & 0xFF) + 8 &&
+              (px[(12 + 20) * 96 + 14] & 0xFF) < (px[(12 + 20) * 96 + 81] & 0xFF),
+          "warm fringe on the lit edge, cool anti-colour on the far edge");
+    memcpy(px, ref, sizeof px);
+    d.head_x = 120;
+    zui_foil_rect(&s, &d, (zui_rect_t){16, 12, 64, 40}, 8, 20);
+    CHECK(fnv(px, 96 * 64) != a, "tilting the view slides the sheen");
+    memcpy(px, ref, sizeof px);
+    d.head_x = 0;
+    zui_foil_rect(&s, &d, (zui_rect_t){16, 12, 64, 40}, 8, 20);
+    CHECK(fnv(px, 96 * 64) == a, "same view, same pixels");
+    int32_t dx, dy;
+    d.head_x = 200;
+    zui_layer_offset(&d, 40, 0, &dx, &dy);
+    CHECK(dx != 0, "foil moves layers with the head, like parallax");
+    CHECK(zui_chroma_px(&d, 0x808080u, 30) != 0x808080u, "and tints near things warm");
+}
+
+static void test_login(void)
+{
+    printf("--- login after boot ---\n");
+    char ini[3];
+    zui_initials("Ana Maria", ini);
+    CHECK(ini[0] == 'A' && ini[1] == 'M' && !ini[2], "initials from two words");
+    zui_initials("michael", ini);
+    CHECK(ini[0] == 'M' && !ini[1], "one word, upper-cased");
+    zui_initials("  ", ini);
+    CHECK(!ini[0], "nothing to take");
+    zui_initials("j.r. tolkien", ini);
+    CHECK(ini[0] == 'J' && ini[1] == 'R', "punctuation splits words");
+
+    static zui_login_person_t ppl[100];
+    static char names[100][12];
+    for (int i = 0; i < 100; i++) {
+        snprintf(names[i], sizeof names[i], "p%d", i);
+        ppl[i] = (zui_login_person_t){names[i], 0, (uint8_t) (i % 3), i == 99};
+    }
+    static uint32_t px[480 * 320];
+    zui_surface_t s;
+    zui_surface_init(&s, px, 480, 320, 480);
+    zui_rect_t a = {0, 0, 480, 320};
+    zui_login_t l = {0};
+    l.people = ppl;
+    l.n = 100;
+    l.chosen = 1;
+    l.can_add = true; /* p1: passphrase */
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    uint64_t h0 = fnv(px, 480 * 320);
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    CHECK(fnv(px, 480 * 320) == h0,
+          "a hundred people draw, and the same state gives the same pixels");
+    l.typed = 5;
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    uint64_t h5 = fnv(px, 480 * 320);
+    CHECK(h5 != h0, "typing shows dots");
+
+    uint32_t idx = 999;
+    /* the chosen person sits in the middle of the row; their neighbour is one step right */
+    zui_login_hit_t h = ZUI_LOGIN_NOTHING;
+    l.chosen = 50;
+    for (int32_t y = 160; y < 320 && h != ZUI_LOGIN_PERSON; y++)
+        h = zui_login_hit(a, 256, &l, 240, y, &idx);
+    CHECK(h == ZUI_LOGIN_PERSON && idx == 50,
+          "a long row scrolls to keep the chosen person in the middle");
+    int32_t ry = 0;
+    for (int32_t y = 160; y < 320; y++)
+        if (zui_login_hit(a, 256, &l, 240, y, 0) == ZUI_LOGIN_PERSON) {
+            ry = y;
+            break;
+        }
+    CHECK(zui_login_hit(a, 256, &l, 240 + 112, ry + 4, &idx) == ZUI_LOGIN_PERSON && idx == 51,
+          "one step right is the next person");
+    l.chosen = 0;
+    CHECK(zui_login_hit(a, 256, &l, 56, ry + 4, &idx) == ZUI_LOGIN_PERSON && idx == 0,
+          "but it never scrolls past its first person");
+    l.chosen = 1;
+    l.chosen = 99;
+    int32_t addx = -1, lastx = -1;
+    for (int32_t x = 0; x < 480; x++) {
+        zui_login_hit_t t = zui_login_hit(a, 256, &l, x, ry + 4, &idx);
+        if (t == ZUI_LOGIN_ADD && addx < 0) addx = x;
+        if (t == ZUI_LOGIN_PERSON && idx == 99) lastx = x;
+    }
+    CHECK(addx > lastx && lastx > 0 && addx < 480,
+          "at the end of the row the last person, then Add person");
+    l.can_add = false;
+    int any_add = 0;
+    for (int32_t x = 0; x < 480; x++)
+        any_add |= zui_login_hit(a, 256, &l, x, ry + 4, 0) == ZUI_LOGIN_ADD;
+    CHECK(!any_add, "no owner, no Add person");
+    zui_login_person_t few[3] = {{"a", 0, 0, false}, {"b", 0, 0, false}, {"c", 0, 0, false}};
+    zui_login_t lf = {0};
+    lf.people = few;
+    lf.n = 3;
+    lf.chosen = 0;
+    CHECK(zui_login_hit(a, 256, &lf, 240, ry + 4, &idx) == ZUI_LOGIN_PERSON && idx == 1,
+          "a row that fits is centred as a whole");
+
+    /* the lock decides the controls */
+    int found_field = 0, found_enter = 0;
+    l.chosen = 1;
+    l.typed = 0;
+    for (int32_t y = 0; y < 320; y += 2)
+        for (int32_t x = 0; x < 480; x += 2) {
+            zui_login_hit_t t = zui_login_hit(a, 256, &l, x, y, 0);
+            found_field |= t == ZUI_LOGIN_FIELD;
+            found_enter |= t == ZUI_LOGIN_ENTER;
+        }
+    CHECK(found_field && found_enter, "a passphrase seat has a field and an Enter arrow");
+    l.chosen = 0;
+    found_field = found_enter = 0;
+    for (int32_t y = 0; y < 320; y += 2)
+        for (int32_t x = 0; x < 480; x += 2) {
+            zui_login_hit_t t = zui_login_hit(a, 256, &l, x, y, 0);
+            found_field |= t == ZUI_LOGIN_FIELD;
+            found_enter |= t == ZUI_LOGIN_ENTER;
+        }
+    CHECK(!found_field && found_enter, "an open seat has only Enter");
+    l.chosen = 2;
+    found_field = found_enter = 0;
+    for (int32_t y = 0; y < 320; y += 2)
+        for (int32_t x = 0; x < 480; x += 2) {
+            zui_login_hit_t t = zui_login_hit(a, 256, &l, x, y, 0);
+            found_field |= t == ZUI_LOGIN_FIELD;
+            found_enter |= t == ZUI_LOGIN_ENTER;
+        }
+    CHECK(!found_field && !found_enter, "a passkey seat waits for the device's unlock");
+
+    l.chosen = 1;
+    l.wrong = true;
+    l.shake_q8 = 40;
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    uint64_t hs = fnv(px, 480 * 320);
+    l.shake_q8 = 0;
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    CHECK(fnv(px, 480 * 320) != hs, "a wrong try shakes the field");
+    l.n = 0;
+    zui_login_draw(&s, a, 256, &l, 0, 0);
+    CHECK(zui_login_hit(a, 256, &l, 240, 160, 0) == ZUI_LOGIN_NOTHING,
+          "an empty device still draws");
+    zui_login_draw(0, a, 256, &l, 0, 0);
+    CHECK(1, "a null surface is ignored");
+}
+
+static int lum_of(uint32_t c)
+{
+    return (int) ((((c >> 16) & 0xFF) * 77 + ((c >> 8) & 0xFF) * 150 + (c & 0xFF) * 29) >> 8);
+}
+
+static int sat_of(uint32_t c)
+{
+    int r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+    int mx = r > g ? (r > b ? r : b) : (g > b ? g : b),
+        mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    return mx - mn;
+}
+
+static void test_pxl(void)
+{
+    printf("--- pxl: colour/anti-colour x tint/shade per pixel ---\n");
+    const uint32_t c = 0x3C8A5Au;
+    CHECK(zui_pxl_px(c, 0, 0) == c, "a 0, b 0 is identity");
+    CHECK(lum_of(zui_pxl_px(c, 0, 120)) > lum_of(c), "b + tints (lighter)");
+    CHECK(lum_of(zui_pxl_px(c, 0, -120)) < lum_of(c), "b - shades (darker)");
+    CHECK(sat_of(zui_pxl_px(c, 120, 0)) > sat_of(c), "a + leans into its own colour");
+    uint32_t anti = zui_pxl_px(c, -200, 0);
+    CHECK(sat_of(anti) < sat_of(c) && ((anti >> 16) & 0xFF) > ((c >> 16) & 0xFF),
+          "a - leans toward the complement (green loses, red gains)");
+    CHECK(zui_pxl_px(0x808080u, 200, 0) == 0x808080u, "grey has no colour to lean into");
+
+    static zui_pxl_lut_t lut, flat;
+    zui_pxl_build(&lut, 256);
+    zui_pxl_build(&flat, 0);
+    lpx_t T = lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t F = lpx_make(LPX_B_FALSE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t N = lpx_make(LPX_B_NEITHER, LPX_P_NEUTRAL, LPX_PH_MANIFEST);
+    lpx_t B = lpx_make(LPX_B_BOTH, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t X = lpx_make(LPX_B_TRUE, LPX_P_FORBIDDEN, LPX_PH_MANIFEST);
+    int zn = ZUI_PXL_ZBINS - 4, zf = 3, z0 = ZUI_PXL_ZBINS / 2;
+    CHECK(lut.cell[T][zn].a > 0 && lut.cell[T][zn].b > 0, "TRUE near: colour and tint");
+    CHECK(lut.cell[F][zf].a < 0 && lut.cell[F][zf].b < 0, "FALSE far: anti-colour and shade");
+    CHECK(lut.cell[N][z0].a == 0 && lut.cell[N][z0].b == 0 && !lut.cell[N][z0].glut,
+          "NEITHER is held at the glass");
+    CHECK(lut.cell[B][z0].glut && lut.cell[B][z0].a > 0, "BOTH is a glut");
+    int xz = 1;
+    for (int z = 0; z < ZUI_PXL_ZBINS; z++)
+        xz &= lut.cell[X][z].a == 0 && lut.cell[X][z].b == 0 && !lut.cell[X][z].glut;
+    CHECK(xz, "FORBIDDEN stays flat at every depth");
+    int fz = 1;
+    for (int t = 0; t < 64; t++)
+        for (int z = 0; z < ZUI_PXL_ZBINS; z++)
+            fz &= flat.cell[t][z].a == 0 && flat.cell[t][z].b == 0;
+    CHECK(fz, "strength 0 builds the identity table");
+
+    enum { W = 64, H = 48 };
+    static uint32_t px[W * H], ref[W * H];
+    static uint8_t tag[W * H];
+    static int8_t zb[W * H];
+    for (int i = 0; i < W * H; i++) ref[i] = 0x2A6A47u;
+    zui_surface_t s;
+    zui_surface_init(&s, px, W, H, W);
+    zui_plane_t pl;
+    zui_plane_init(&pl, tag, zb, W, H, W);
+    zui_plane_clear(&pl);
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, -181, -181, 0);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "a cleared plane leaves the frame untouched");
+
+    zui_plane_mark(&pl, (zui_rect_t){16, 12, 32, 24}, 4, T, 96);
+    CHECK(tag[0] == N && zb[0] == 0 && tag[24 * W + 32] == T && zb[24 * W + 32] == 96,
+          "mark stamps inside only");
+    CHECK(tag[12 * W + 16] == N, "rounded corner left alone");
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &flat, 0, 0, 0);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "strength 0 with straight-on light is identity");
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, -181, -181, 0);
+    CHECK(px[2 * W + 2] == ref[0], "flat ground away from the card untouched");
+    CHECK(lum_of(px[24 * W + 32]) > lum_of(ref[0]), "the raised card comes forward (tinted)");
+    int lit = lum_of(px[12 * W + 32]), shadow = lum_of(px[35 * W + 32]);
+    CHECK(lit > lum_of(px[24 * W + 32]), "edge facing the light is lit");
+    CHECK(shadow < lit, "far edge is darker than the lit edge");
+    CHECK(lum_of(px[36 * W + 32]) < lum_of(ref[0]), "shadow falls on the ground beyond");
+
+    zui_plane_clear(&pl);
+    zui_plane_mark(&pl, (zui_rect_t){0, 0, W, H}, 0, B, 0);
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 0);
+    CHECK(px[10 * W + 10] != px[10 * W + 11] && px[10 * W + 10] == px[11 * W + 11],
+          "BOTH interleaves colour and anti-colour by pixel");
+    uint32_t a0 = px[10 * W + 10];
+    memcpy(px, ref, sizeof px);
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 32);
+    CHECK(px[10 * W + 11] == a0, "the interleave swaps as the tick moves");
+    memcpy(ref, px, sizeof px);
+    for (int i = 0; i < W * H; i++) px[i] = 0x2A6A47u;
+    zui_pxl_apply(&s, &pl, &lut, 0, 0, 32);
+    CHECK(memcmp(px, ref, sizeof px) == 0, "deterministic");
+    zui_plane_mark(&pl, (zui_rect_t){8, 6, 30, 20}, 3, T, 80);
+    zui_plane_mark(&pl, (zui_rect_t){30, 20, 26, 22}, 0, F, -60);
+    static uint32_t band[W * H];
+    for (int i = 0; i < W * H; i++) px[i] = band[i] = 0x2A6A47u + (uint32_t) (i % 7) * 0x030201u;
+    zui_pxl_apply(&s, &pl, &lut, 181, -181, 16);
+    zui_surface_t sb;
+    zui_surface_init(&sb, band, W, H, W);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 30, H + 9);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, -4, 13);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 13, 30);
+    zui_pxl_apply_rows(&sb, &pl, &lut, 181, -181, 16, 20, 20);
+    CHECK(memcmp(px, band, sizeof px) == 0, "bands in any order give exactly the full frame");
+    zui_pxl_apply(NULL, &pl, &lut, 0, 0, 0);
+    zui_pxl_apply(&s, NULL, &lut, 0, 0, 0);
+    zui_plane_mark(&pl, (zui_rect_t){-50, -50, 400, 400}, 0, T, 500);
+    CHECK(zb[0] == 127 && zb[W * H - 1] == 127, "out-of-range marks clip and clamp");
+
+    /* axis C: round <-> angular */
+    lpx_t RND = lpx_make(LPX_B_TRUE, LPX_P_NEGENTROPIC, LPX_PH_MANIFEST);
+    lpx_t ANG = lpx_make(LPX_B_TRUE, LPX_P_NEUTRAL, LPX_PH_POTENTIAL);
+    lpx_t ENT = lpx_make(LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_MANIFEST);
+    zui_pxl_style_t sr = zui_pxl_style(RND), sa = zui_pxl_style(ANG), sx = zui_pxl_style(X);
+    CHECK(sr.round_q8 == 256 && sr.edge_px == 3, "settled, cooperative things are round");
+    CHECK(sa.round_q8 < sr.round_q8 && sa.edge_px == 1, "unformed things are angular");
+    CHECK(zui_pxl_style(ENT).edge_px == 1, "entropic things are angular");
+    CHECK(sx.round_q8 == 0 && sx.hold_ms == 0, "FORBIDDEN is square and still");
+    CHECK(zui_pxl_radius(RND, 16) == 16 && zui_pxl_radius(ANG, 16) < 16 &&
+              zui_pxl_radius(X, 16) < zui_pxl_radius(ANG, 16) && zui_pxl_radius(RND, 0) == 0,
+          "corner radius follows the tag");
+    /* the bevel: a round card ramps over 3 px, an angular one is a single lip */
+    int32_t ramp[2][5];
+    for (int k = 0; k < 2; k++) {
+        zui_plane_clear(&pl);
+        zui_plane_mark(&pl, (zui_rect_t){16, 12, 32, 24}, 0, k ? ANG : RND, 64);
+        for (int i = 0; i < W * H; i++) px[i] = 0x2A6A47u;
+        zui_pxl_apply(&s, &pl, &lut, 0, -181, 0);
+        uint32_t mid = px[24 * W + 32];
+        for (int d = 0; d < 5; d++) ramp[k][d] = lum_of(px[(12 + d) * W + 32]) - lum_of(mid);
+    }
+    CHECK(ramp[1][0] > 0 && ramp[1][1] == 0, "angular: one crisp lit lip");
+    CHECK(ramp[0][0] > ramp[0][1] && ramp[0][1] > ramp[0][2] && ramp[0][2] > 0 && ramp[0][3] == 0,
+          "round: the lit lip ramps over 3 px");
+    CHECK(ramp[0][0] == ramp[1][0], "both start from the same height");
+
+    /* axis D: duration <-> briefness */
+    lpx_t LAST = RND, BRIEF = lpx_make(LPX_B_TRUE, LPX_P_ENTROPIC, LPX_PH_DISSOLVING);
+    zui_pxl_style_t sl = zui_pxl_style(LAST), sbr = zui_pxl_style(BRIEF);
+    CHECK(!sl.brief && sbr.brief && sl.hold_ms > 4 * sbr.hold_ms,
+          "manifest lasts, dissolving is brief");
+    CHECK(zui_pxl_ease(LAST, 0) == 0 && zui_pxl_ease(BRIEF, 0) == 0, "every effect starts at 0");
+    CHECK(zui_pxl_ease(LAST, 5000) == 256 && zui_pxl_ease(BRIEF, 5000) == 256, "and ends at 256");
+    CHECK(zui_pxl_ease(X, 0) == 256 && zui_pxl_decay(X, 0) == 0, "FORBIDDEN never animates");
+    int mono = 1;
+    for (uint32_t t = 0, prev = 0; t <= 1300; t += 10) {
+        uint32_t v = (uint32_t) zui_pxl_ease(LAST, t);
+        mono &= v >= prev && v <= 256;
+        prev = v;
+    }
+    CHECK(mono, "easing never runs backwards");
+    uint32_t q = (uint32_t) sbr.hold_ms / 4, ql = (uint32_t) sl.hold_ms / 4;
+    CHECK(zui_pxl_ease(BRIEF, q) > 128, "brief snaps: past halfway in the first quarter");
+    CHECK(zui_pxl_ease(LAST, ql) < 64, "lasting settles in slowly");
+    CHECK(zui_pxl_ease(LAST, (uint32_t) sl.hold_ms / 2) >= 120 &&
+              zui_pxl_ease(LAST, (uint32_t) sl.hold_ms / 2) <= 136,
+          "and is halfway at half time");
+    CHECK(zui_pxl_decay(BRIEF, q) + zui_pxl_ease(BRIEF, q) == 256, "decay is what is left");
+    static zui_pxl_lut_t l2;
+    zui_pxl_build(&l2, 256);
+    CHECK(l2.cell[BRIEF][16].tsh < l2.cell[LAST][16].tsh, "brief lustre moves faster");
+
+    /* video: depth from the frame's own brightness */
+    for (int y = 0; y < H; y++)
+        for (int x = 0; x < W; x++) px[y * W + x] = x < W / 2 ? 0x101010u : 0xF0F0F0u;
+    zui_plane_clear(&pl);
+    zui_plane_mark_luma(&pl, &s, (zui_rect_t){8, 8, 48, 32}, LAST, 256);
+    CHECK(zb[20 * W + 50] > 40 && zb[20 * W + 12] < -40 && tag[20 * W + 50] == LAST,
+          "bright parts of a frame come forward, dark parts recede");
+    CHECK(zb[2 * W + 2] == 0 && tag[2 * W + 2] == N, "outside the clip untouched");
+    zui_plane_mark_luma(&pl, &s, (zui_rect_t){8, 8, 48, 32}, LAST, 0);
+    CHECK(zb[20 * W + 50] == 0, "z_k 0 leaves the clip flat");
 }
 
 int main(void)
@@ -664,6 +1066,9 @@ int main(void)
     test_chiglet();
     test_emote();
     test_progress();
+    test_login();
+    test_foil();
+    test_pxl();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }

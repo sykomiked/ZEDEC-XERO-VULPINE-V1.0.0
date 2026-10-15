@@ -10,6 +10,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
 # what zxvd_rpc.c links beyond web4, keccak and sha256 (app_sources.sh rpcdeps)
 RPCDEPS="$(sh "$K/arch/hosted/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive goes last on the link line, after every object (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 RPCINC="$(sh "$K/arch/hosted/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
 R="$(cd "$K/.." && pwd)"
 CC="${CC:-cc}"
@@ -33,5 +36,5 @@ done
 # shellcheck disable=SC2086
 "$CC" -std=c11 -O1 -Wall -Wextra -Werror $I -I"$R/sdk/libzxv/include" \
     "$HERE/test_zxvd_pay.c" "$HERE/zxvd_pay.c" "$HERE/zxvd_rpc.c" $RPCINC $RPCDEPS $S \
-    -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_pay" || exit 3
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_zxvd_pay" || exit 3
 "$T/test_zxvd_pay"

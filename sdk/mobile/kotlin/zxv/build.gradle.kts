@@ -17,7 +17,7 @@ plugins {
 }
 
 group = "org.zedec"
-version = "1.5.0"
+version = "1.6.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -65,6 +65,7 @@ val buildJni by tasks.registering(Exec::class) {
     dependsOn(configureJni)
     inputs.file(rootDir.resolve("jni/zxv_jni.c"))
     inputs.file(rootDir.resolve("jni/zxv_jni15.c"))
+    inputs.file(rootDir.resolve("jni/zxv_jni16.c"))
     inputs.file(rootDir.resolve("jni/zxvj_common.h"))
     inputs.file(sdkRoot.resolve("libzxv/include/zxv_api.h"))
     outputs.file(jniBuild.map { it.file("libzxvjni.$libExt") })
@@ -84,6 +85,7 @@ tasks.test {
     systemProperty("zxv.vectors", sdkRoot.resolve("conformance/vectors.json").path)
     systemProperty("zxv.jniSource", rootDir.resolve("jni/zxv_jni.c").path)
     systemProperty("zxv.jni15Source", rootDir.resolve("jni/zxv_jni15.c").path)
+    systemProperty("zxv.jni16Source", rootDir.resolve("jni/zxv_jni16.c").path)
     testLogging {
         events("failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL

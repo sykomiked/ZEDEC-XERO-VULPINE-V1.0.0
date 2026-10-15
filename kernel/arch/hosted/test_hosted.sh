@@ -29,7 +29,11 @@ fi
 "$T/test_guard"
 
 # the app itself: the same source list build_desktop.sh uses (app_sources.sh)
-python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c"
+python3 "$HERE/gen_ui.py" "$HERE/zxv_ui.html" "$T/zxv_ui.c" \
+    --table-out "$T/ui_table.json" --samples-out "$T/ui_samples.json" --html-out "$T/ui_page.html"
+# the window's words all come from kernel/src/i18n (and its script matches the C module)
+python3 "$HERE/check_ui_i18n.py" "$HERE/zxv_ui.html" "$T/ui_table.json" "$T/ui_samples.json" \
+    "$T/ui_page.html"
 sh "$HERE/app_sources.sh" incs > "$T/incs"
 sh "$HERE/app_sources.sh" srcs > "$T/srcs"
 sh "$HERE/app_sources.sh" vinea > "$T/vinea"
@@ -112,4 +116,4 @@ run_cc "$T/test_peer"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_api.py" "$T/zxv-host" "$T/tiny-test.gguf"
 ASAN_OPTIONS=detect_leaks=0 python3 "$HERE/test_host_net.py" "$T/zxv-host"
-echo "[PASS] hosted app: API guard, forward-pass glue, budget gate, net host, peer host, end-to-end API, model slot, peers, updates, notifications"
+echo "[PASS] hosted app: window strings from i18n, API guard, forward-pass glue, budget gate, net host, peer host, end-to-end API, model slot, peers, updates, notifications"

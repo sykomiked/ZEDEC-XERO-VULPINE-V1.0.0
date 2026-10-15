@@ -27,13 +27,8 @@ typedef struct {
     uint32_t stride; /* pixels per scanline                             */
     uint32_t pixfmt; /* 0 = RGBx, 1 = BGRx                              */
     uint64_t check;  /* magic ^ fb ^ width ^ height ^ stride: rejects stale bytes */
-    /* reserved[0] = ZXV_BOOTINFO_RSDP_MAGIC when [1] holds the ACPI RSDP's
-     * physical address (UEFI configuration table, ACPI 2.0 GUID first, then
-     * 1.0) and [2] = magic ^ [1]. Published even when there is no GOP. */
     uint64_t reserved[3];
 } zxv_x86_bootinfo_t;
-
-#define ZXV_BOOTINFO_RSDP_MAGIC 0x5A58565253445021ULL
 
 /* Returns 1 when a valid record was found, mapped and the screen cleared. */
 int efifb_init(void);

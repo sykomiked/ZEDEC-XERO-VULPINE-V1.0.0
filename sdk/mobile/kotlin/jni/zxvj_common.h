@@ -1,9 +1,9 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0
  *
- * zxvj_common.h - helpers shared by the JNI shim's two files (zxv_jni.c for
- * ABI 1.0-1.3, zxv_jni15.c for the ABI 1.5 groups). The rules at the top of
- * zxv_jni.c apply to both files.
+ * zxvj_common.h - helpers shared by the JNI shim's files (zxv_jni.c for
+ * ABI 1.0-1.3, zxv_jni15.c for the ABI 1.5 groups, zxv_jni16.c for the ABI
+ * 1.6 vino group). The rules at the top of zxv_jni.c apply to all of them.
  */
 #ifndef ZXVJ_COMMON_H
 #define ZXVJ_COMMON_H
@@ -17,7 +17,7 @@
 
 /* Bumped when a native method is added, removed or changes signature; the
  * Kotlin side refuses a shim whose number differs from the one it expects. */
-#define ZXVJ_SHIM_ABI 2
+#define ZXVJ_SHIM_ABI 3
 
 #define H(type, j) ((type *) (intptr_t) (j))
 #define CH(type, j) ((const type *) (intptr_t) (j))

@@ -11,6 +11,7 @@
  *                 specification's sample code does
  * Integer only. */
 #include "acpi_x86.h"
+#include "../zxv_handoff.h"
 
 #include "acpi/acpi_pm.h"
 #include "efifb_con.h"
@@ -256,16 +257,32 @@ int acpi_x86_boot(const hw_plat_t *hp, uint64_t tsc_per_us, void (*log)(const ch
     g_tsc_per_us = tsc_per_us;
     g_log = log;
 
-    /* RSDP: the UEFI configuration table via the handoff record, else the
-     * legacy BIOS area scan. */
+    /* RSDP: from the stub's handoff v2 record (zxv_handoff.h), else the
+     * legacy BIOS area scan (direct -kernel boot). The record also says
+     * whether the kernel window overwrote firmware ACPI memory: lost tables
+     * mean no ACPI at all; lost NVS means no AML runs, since firmware
+     * methods (sleep, _INI, EC, GPEs) read and write NVS. */
     uint64_t rsdp = 0;
-    const char *from = "UEFI configuration table";
+    const char *from = "UEFI handoff v2";
     {
-        const volatile zxv_x86_bootinfo_t *bi =
-            (const volatile zxv_x86_bootinfo_t *) (uintptr_t) ZXV_X86_BOOTINFO_ADDR;
-        if (bi->reserved[0] == ZXV_BOOTINFO_RSDP_MAGIC &&
-            bi->reserved[2] == (ZXV_BOOTINFO_RSDP_MAGIC ^ bi->reserved[1]))
-            rsdp = bi->reserved[1];
+        const zxh_t *h = (const zxh_t *) (uintptr_t) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
+        int v = zxh_accept(h);
+        if (v == 2) {
+            log("[ACPI HELD] handoff record damaged -- ACPI not trusted");
+            return 0;
+        }
+        if (v == 1) {
+            if (h->flags & ZXH_F_ACPI_TABLES_LOST) {
+                log("[ACPI HELD] tables overwritten by the kernel window -- ACPI skipped");
+                return 0;
+            }
+            if (h->flags & ZXH_F_ACPI_NVS_LOST) {
+                log("[ACPI HELD] ACPI NVS overwritten by the kernel window -- AML, sleep and "
+                    "power button held");
+                return 0;
+            }
+            rsdp = h->rsdp;
+        }
     }
     if (!rsdp) {
         rsdp = acpi_find_rsdp_legacy();

@@ -1,0 +1,109 @@
+# Lingua language catalogue. One language per line, tab-separated:
+# year  language  family  tier  twin  where
+# tier: run | pillar | host | next1 | next2 | next3 | catalogue
+#   (see docs/LANGUAGE_CATALOGUE.md). twin is "-" until a front-end exists.
+# check_catalogue.sh validates this file in make test-lingua.
+1949	Short Code	early	catalogue	-	-
+1952	Autocode	early	catalogue	-	-
+1954	Laning and Zierler	early	catalogue	-	-
+1955	FLOW-MATIC	business	catalogue	-	ancestor of COBOL
+1956	IPL	list	catalogue	-	-
+1957	FORTRAN	numeric	run	Reckonwyrm	kernel/src/lingua/zl_fortran.c
+1958	ALGOL 58	algol	catalogue	-	-
+1958	LISP	list	next1	-	-
+1959	COBOL	business	pillar	Sutra	kernel/src/treaty, sdk/pillars/cobol-sutra
+1959	JOVIAL	algol	next3	-	-
+1959	RPG	business	next3	-	-
+1959	APT	domain	catalogue	-	numerical control
+1960	ALGOL 60	algol	next1	-	-
+1962	APL	array	pillar	KRON	sdk/pillars/apl-kron
+1962	SNOBOL	string	next2	-	-
+1962	Simula I	object	catalogue	-	-
+1963	CPL	algol	catalogue	-	-
+1963	JOSS	interactive	catalogue	-	-
+1964	BASIC	interactive	run	Hatchling	kernel/src/lingua/zl_basic.c
+1964	PL/I	business	next2	-	-
+1964	JCL	job control	next3	-	parse tier planned
+1964	System/360 assembler	assembly	catalogue	-	-
+1965	TRAC	string	catalogue	-	-
+1966	MUMPS	database	pillar	MYRA	sdk/pillars/mumps-myra
+1967	BCPL	systems	next2	-	-
+1967	Logo	education	next1	-	-
+1967	Simula 67	object	catalogue	-	-
+1968	ALGOL 68	algol	catalogue	-	-
+1969	B	systems	next2	-	-
+1970	Forth	stack	run	Cairndrake	kernel/src/lingua/zl_forth.c
+1970	Pascal	algol	host	-	bindings/pascal; Lingua front-end next1
+1972	C	systems	host	-	kernel and libzxv are C11
+1972	Prolog	logic	next2	-	-
+1972	Smalltalk	object	catalogue	-	-
+1973	ML	functional	catalogue	-	-
+1974	SQL	database	next3	-	parse tier planned
+1975	Scheme	list	next1	-	-
+1976	S	statistics	catalogue	-	-
+1976	SAS	statistics	catalogue	-	-
+1977	Icon	string	catalogue	-	-
+1977	AWK	text	next3	-	-
+1977	Bourne shell	shell	catalogue	-	-
+1978	Modula-2	algol	next2	-	-
+1978	TeX	typesetting	catalogue	-	-
+1979	REXX	scripting	next3	-	-
+1979	dBase	database	catalogue	-	-
+1979	Natural	business	catalogue	-	-
+1980	Ada	algol	pillar	Eve	sdk/pillars/ada-eve, bindings/ada
+1982	PostScript	stack	catalogue	-	-
+1983	C++	systems	host	-	sdk/cpp
+1983	Objective-C	object	catalogue	-	-
+1983	Occam	concurrent	catalogue	-	-
+1983	ABAP	business	catalogue	-	-
+1984	Common Lisp	list	catalogue	-	-
+1984	MATLAB	numeric	catalogue	-	-
+1984	Verilog	hardware	catalogue	-	-
+1985	Eiffel	object	catalogue	-	-
+1986	Erlang	concurrent	catalogue	-	-
+1986	LabVIEW	dataflow	catalogue	-	-
+1987	Perl	scripting	catalogue	-	-
+1987	VHDL	hardware	catalogue	-	-
+1987	HyperTalk	scripting	catalogue	-	-
+1988	Tcl	scripting	catalogue	-	-
+1988	Oberon	algol	catalogue	-	-
+1988	Mathematica	symbolic	catalogue	-	-
+1989	Bash	shell	catalogue	-	-
+1990	Haskell	functional	catalogue	-	-
+1990	J	array	catalogue	-	array family runs through KRON
+1991	Python	scripting	host	-	sdk/python
+1991	Visual Basic	interactive	catalogue	-	-
+1993	Lua	scripting	next2	-	-
+1993	R	statistics	catalogue	-	-
+1993	K	array	pillar	KRON	sdk/pillars/apl-kron
+1993	IEC 61131-3 Structured Text	industrial	next3	-	-
+1993	Ladder logic	industrial	catalogue	-	-
+1995	Java	object	host	-	sdk/java
+1995	JavaScript	scripting	host	-	sdk/typescript
+1995	Ruby	scripting	host	-	sdk/ruby
+1995	PHP	scripting	host	-	sdk/php
+1995	Delphi	algol	catalogue	-	Pascal dialect
+1995	Racket	list	catalogue	-	-
+1996	OCaml	functional	catalogue	-	-
+2000	C#	object	host	-	sdk/dotnet
+2003	Scala	functional	catalogue	-	-
+2004	Groovy	scripting	catalogue	-	-
+2005	F#	functional	host	-	sdk/dotnet
+2007	Clojure	list	catalogue	-	-
+2008	Nim	systems	catalogue	-	-
+2009	Go	systems	host	-	sdk/go
+2010	Rust	systems	host	-	sdk/rust
+2011	Kotlin	object	catalogue	-	-
+2011	Dart	object	catalogue	-	-
+2011	Elixir	concurrent	catalogue	-	-
+2012	Julia	numeric	catalogue	-	-
+2012	TypeScript	scripting	host	-	sdk/typescript
+2012	Elm	functional	catalogue	-	-
+2014	Swift	object	host	-	sdk/swift
+2014	Solidity	contract	host	-	sdk/solidity
+2014	Crystal	object	catalogue	-	-
+2015	Raku	scripting	catalogue	-	-
+2016	Zig	systems	catalogue	-	-
+2017	WebAssembly	bytecode	host	-	kernel/src/apps/zxapp_wasm.c
+2019	Gleam	functional	catalogue	-	-
+2023	Mojo	numeric	catalogue	-	-

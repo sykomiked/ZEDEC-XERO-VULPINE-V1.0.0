@@ -4,8 +4,8 @@
 // Settings & Jurisdiction Bridge: zxvd.version, update.check and
 // swarm.state.update, notes.list / notes.mark_read, currency.enable,
 // swarm.state's machine budget, jurisdiction.get / jurisdiction.set,
-// zxvd.shutdown, and phone.* for pairing the ZXV Companion phone app
-// (mobile/companion).
+// ui.get / ui.set (simple mode), zxvd.shutdown, and phone.* for pairing
+// the ZXV Companion phone app (mobile/companion).
 import AppKit
 import CoreImage
 import CoreImage.CIFilterBuiltins
@@ -29,11 +29,13 @@ struct SettingsView: View {
     @State private var country = ""
     @State private var bridgeLine: (Bool, String)?
     @State private var bridgeLoaded = false
+    @State private var simpleLine: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             PageHeader(title: "Settings & Jurisdiction Bridge",
                        subtitle: "Updates, notifications, currencies, this Mac's budget, and the rules your books follow.")
+            if store.has("ui.set") { simple }
             HStack(alignment: .top, spacing: 20) {
                 updates
                 notifications
@@ -90,6 +92,17 @@ struct SettingsView: View {
         standard = j.standard
         country = j.country
         bridgeLoaded = true
+    }
+
+    private var simple: some View {
+        Panel(title: "Simple mode") {
+            Toggle("Show only Ask and Pay, the feed, calls, translation and devices", isOn: Binding(
+                get: { store.simpleMode },
+                set: { on in Task { simpleLine = await store.setSimpleMode(on) } }))
+            Text(simpleLine ?? "Simple mode hides keys, hashes, weights and the advanced screens. It changes no check, limit or confirmation: zxvd answers every request the same way.")
+                .font(.callout)
+                .foregroundStyle(simpleLine == nil ? Theme.muted : Theme.warn)
+        }
     }
 
     private var updates: some View {

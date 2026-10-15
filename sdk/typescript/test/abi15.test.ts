@@ -80,8 +80,9 @@ for (const kind of BACKENDS) {
     test('loads ABI 1.5 with every FEAT2 group', async () => {
       zxv = await load(kind);
       assert.ok(zxv.version.minor >= 5);
-      assert.deepEqual(zxv.features2(), ['TREATY', 'AIPI', 'COIN', 'FEE', 'VHUB', 'FREIGHT', 'WEB4', 'PARADOX']);
-      assert.equal(zxv.featureMask2, 0xff);
+      // ABI 1.6 adds VINO (0x100); every 1.5 group is still there.
+      assert.deepEqual(zxv.features2().slice(0, 8), ['TREATY', 'AIPI', 'COIN', 'FEE', 'VHUB', 'FREIGHT', 'WEB4', 'PARADOX']);
+      assert.equal(zxv.featureMask2 & 0xff, 0xff);
       assert.ok(zxv.has('PARADOX') && zxv.has('HEX'));
       for (const s of X.status_abi15 as { code: number; name: string; class: number }[]) {
         assert.equal(zxv.statusName(s.code), s.name);

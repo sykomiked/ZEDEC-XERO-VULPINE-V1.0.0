@@ -12,7 +12,7 @@
  *     src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_econ.c \
  *     src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c \
  *     src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_node.c src/vinea/vna_schema.c \
- *     src/vinea/vna_session.c src/vinea/vna_wire.c \
+ *     src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c \
  *     src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c \
  *     src/mlkem/keccak.c \
  *     src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c \

@@ -93,6 +93,19 @@ pub enum RefusedKind {
     /// `ZXV_E_PARADOX_OWNER`: the change touches money or devices and
     /// needs the owner's approval.
     ParadoxOwner,
+    /// `ZXV_E_RAIL`: a transfer named a rail that is not the voucher's
+    /// active rail, or a rail switch asked for the rail it is already on
+    /// (ABI 1.6).
+    Rail,
+    /// `ZXV_E_COVERAGE`: the issue or withdrawal would take a play issuer
+    /// below 1.8x coverage.
+    Coverage,
+    /// `ZXV_E_EXPIRED`: the payment request expired, or the receipt was
+    /// approved outside the request's window.
+    Expired,
+    /// `ZXV_E_CHANCE`: a LIVE payment request marked as a paid chance
+    /// outcome; live payments never buy a chance outcome.
+    Chance,
     /// Another REFUSED status (added by a newer library).
     Other,
 }
@@ -121,6 +134,10 @@ impl RefusedKind {
             sys::ZXV_E_LIMIT => RefusedKind::Limit,
             sys::ZXV_E_PARADOX_STEP => RefusedKind::ParadoxStep,
             sys::ZXV_E_PARADOX_OWNER => RefusedKind::ParadoxOwner,
+            sys::ZXV_E_RAIL => RefusedKind::Rail,
+            sys::ZXV_E_COVERAGE => RefusedKind::Coverage,
+            sys::ZXV_E_EXPIRED => RefusedKind::Expired,
+            sys::ZXV_E_CHANCE => RefusedKind::Chance,
             _ => RefusedKind::Other,
         }
     }

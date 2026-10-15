@@ -1,0 +1,130 @@
+#!/bin/sh
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# zxv-edge-run [--check | --print] CONF — start headless zxvd for an edge
+# node from its profile config (packages/edge/profiles/*.conf, installed
+# as /etc/zxv-edge/edge.conf). zxv-edge.service runs it.
+#
+#   --check   validate CONF and exit (0 = good)
+#   --print   validate, then print the zxvd command line, one word per line
+#
+# Rules:
+#   1. The config is PARSED, never sourced: only the keys below are read,
+#      each at most once, and every value is checked against a fixed
+#      pattern before it reaches the command line. Anything else is an error.
+#   2. zxvd runs headless: --server (no window; the loopback page stays on
+#      127.0.0.1 only), --notify print (to the journal), the JSON-RPC socket
+#      in the service's runtime directory (0600, so only the service user
+#      and root can drive it).
+#   3. Money stays off by default: --peer-serve is passed only when
+#      PEER_SERVE_PRICE is set to a whole number.
+#   4. zxvd holds one model slot today: the first file of MODELS that exists
+#      is passed as --model, the others are reported, not loaded.
+#
+# Honest limits: THREADS and the memory limits are enforced by systemd
+# (CPUQuota, MemoryMax), not by zxvd, which still sizes its swarm from the
+# cores and memory it sees in /proc. See docs/retail/EDGE_NODES.md.
+set -eu
+
+MODE=run
+case "${1:-}" in
+    --check) MODE=check; shift ;;
+    --print) MODE=print; shift ;;
+esac
+CONF="${1:?usage: zxv-edge-run [--check|--print] CONF}"
+[ -r "$CONF" ] || { echo "zxv-edge-run: cannot read $CONF" >&2; exit 2; }
+
+die() { echo "zxv-edge-run: $CONF: $*" >&2; exit 2; }
+
+PROFILE= ARCH= MEMORY_MAX_MB= MEMORY_HIGH_MB= THREADS= MODELS_DIR= MODELS=
+NET= NET_PORT= PEERS= PEER_SERVE_PRICE= BOOKS=
+SEEN=" "
+n=0
+while IFS= read -r line || [ -n "$line" ]; do
+    n=$((n + 1))
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"
+    [ "$key" != "$line" ] || die "line $n: expected KEY=VALUE"
+    val="${line#*=}"
+    # one pair of surrounding double quotes is allowed; no other quoting
+    case "$val" in \"*\") val="${val#\"}"; val="${val%\"}" ;; esac
+    case "$val" in *[\"\'\`\$\\\;\&\|\<\>\(\)]*) die "line $n: $key has a character that is not allowed" ;; esac
+    case "$SEEN" in *" $key "*) die "line $n: $key given twice" ;; esac
+    SEEN="$SEEN$key "
+    case "$key" in
+        PROFILE) PROFILE="$val" ;;
+        ARCH) ARCH="$val" ;;
+        MEMORY_MAX_MB) MEMORY_MAX_MB="$val" ;;
+        MEMORY_HIGH_MB) MEMORY_HIGH_MB="$val" ;;
+        THREADS) THREADS="$val" ;;
+        MODELS_DIR) MODELS_DIR="$val" ;;
+        MODELS) MODELS="$val" ;;
+        NET) NET="$val" ;;
+        NET_PORT) NET_PORT="$val" ;;
+        PEERS) PEERS="$val" ;;
+        PEER_SERVE_PRICE) PEER_SERVE_PRICE="$val" ;;
+        BOOKS) BOOKS="$val" ;;
+        *) die "line $n: unknown key $key" ;;
+    esac
+done < "$CONF"
+
+is_num() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; [ ${#1} -le 9 ]; }
+in_range() { is_num "$1" && [ "$1" -ge "$2" ] && [ "$1" -le "$3" ]; }
+
+case "$PROFILE" in ''|*[!a-z0-9-]*) die "PROFILE must be lower-case letters, digits or -" ;; esac
+case "$ARCH" in aarch64|x86_64) ;; *) die "ARCH must be aarch64 or x86_64" ;; esac
+in_range "$MEMORY_MAX_MB" 256 1048576 || die "MEMORY_MAX_MB must be 256..1048576"
+in_range "$MEMORY_HIGH_MB" 128 1048576 || die "MEMORY_HIGH_MB must be 128..1048576"
+[ "$MEMORY_HIGH_MB" -lt "$MEMORY_MAX_MB" ] || die "MEMORY_HIGH_MB must be below MEMORY_MAX_MB"
+in_range "$THREADS" 1 256 || die "THREADS must be 1..256"
+case "$MODELS_DIR" in /*) ;; *) die "MODELS_DIR must be an absolute path" ;; esac
+case "$MODELS_DIR" in *' '*|*'/../'*|*'/..'|*[!A-Za-z0-9/._-]*) die "MODELS_DIR has a character or .. that is not allowed" ;; esac
+for m in $MODELS; do
+    case "$m" in *[!A-Za-z0-9._-]*|.*) die "model name $m is not a plain file name" ;; esac
+    case "$m" in *.gguf) ;; *) die "model $m is not a .gguf file" ;; esac
+done
+case "$NET" in off|lan|online) ;; *) die "NET must be off, lan or online" ;; esac
+in_range "$NET_PORT" 1 65535 || die "NET_PORT must be 1..65535"
+for p in $PEERS; do
+    case "$p" in *[!0-9.:]*|:*|*:) die "peer $p must be IP:PORT" ;; esac
+    in_range "${p##*:}" 1 65535 || die "peer $p has a bad port"
+done
+[ -z "$PEER_SERVE_PRICE" ] || is_num "$PEER_SERVE_PRICE" || die "PEER_SERVE_PRICE must be empty (off) or a whole number"
+case "$BOOKS" in state|memory) ;; *) die "BOOKS must be state or memory" ;; esac
+
+[ "$MODE" = check ] && { echo "zxv-edge-run: $CONF ok (profile $PROFILE)"; exit 0; }
+
+BIN="$(cd "$(dirname "$0")" && pwd)"
+RUN="${RUNTIME_DIRECTORY:-${ZXV_EDGE_RUNTIME:-}}"
+STATE="${STATE_DIRECTORY:-${ZXV_EDGE_STATE:-}}"
+[ -n "$RUN" ] || { echo "zxv-edge-run: no RUNTIME_DIRECTORY (run it from zxv-edge.service, or set ZXV_EDGE_RUNTIME)" >&2; exit 2; }
+
+set -- "$BIN/zxvd" --server --notify print --rpc "$RUN/zxvd.sock" --models-dir "$MODELS_DIR"
+if [ "$BOOKS" = state ]; then
+    [ -n "$STATE" ] || { echo "zxv-edge-run: BOOKS=state needs STATE_DIRECTORY (or ZXV_EDGE_STATE)" >&2; exit 2; }
+    set -- "$@" --books "$STATE/books"
+else
+    set -- "$@" --books -
+fi
+loaded=
+for m in $MODELS; do
+    if [ -z "$loaded" ] && [ -f "$MODELS_DIR/$m" ]; then
+        loaded="$m"
+        set -- "$@" --model "$MODELS_DIR/$m"
+    fi
+done
+set -- "$@" --net "$NET" --net-port "$NET_PORT"
+for p in $PEERS; do set -- "$@" --peer "$p"; done
+[ -z "$PEER_SERVE_PRICE" ] || set -- "$@" --peer-serve "$PEER_SERVE_PRICE"
+
+if [ "$MODE" = print ]; then
+    for a in "$@"; do printf '%s\n' "$a"; done
+    exit 0
+fi
+for m in $MODELS; do
+    if [ "$m" = "$loaded" ]; then echo "zxv-edge: loading $m"
+    elif [ -f "$MODELS_DIR/$m" ]; then echo "zxv-edge: $m present, not loaded (zxvd holds one model slot today)"
+    else echo "zxv-edge: $m not found in $MODELS_DIR"; fi
+done
+exec "$@"
