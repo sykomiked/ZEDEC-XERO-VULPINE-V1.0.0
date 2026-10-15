@@ -38,6 +38,7 @@
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -300,7 +301,12 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     /* Interrupts (gap 6): the full IDT, LAPIC and masked PIC/IOAPIC replace
      * the ring-3 self-test's exception-only IDT (x86_irq.c). */
     boot_msg("[BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...");
-    if (x86_irq_boot(handoff_rsdp()) == 0) x86_timer_boot();
+    if (x86_irq_boot(handoff_rsdp()) == 0 && x86_timer_boot() == 0) {
+        /* Processes (gap 6): preemptive round robin over ring-3 processes
+         * with their own page tables; prints [SCHED_OK] (x86_userspace.c). */
+        boot_msg("[BOOT] Ring-3 processes: preemptive scheduler self-test...");
+        x86_sched_selftest();
+    }
 
     cell_fabric_boot_init();
 

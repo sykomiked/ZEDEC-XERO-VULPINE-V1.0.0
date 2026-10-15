@@ -74,7 +74,8 @@ static void gdt_tss_init(void) {
 
 /* Interrupt stack table entry n (1..7) of the one TSS. x86_irq.c uses IST1
  * for hardware interrupts and IST2 for #DF/NMI/#MC. */
-void x86_tss_set_ist(unsigned n, uint64_t stack_top) {
+void x86_tss_set_ist(unsigned n, uint64_t stack_top)
+{
     if (n >= 1 && n <= 7) g_tss.ist[n - 1] = stack_top;
 }
 
@@ -135,6 +136,21 @@ static void make_user_page(uint64_t vaddr) {
     l2[i2] |= 0x4;
     uint64_t *l1 = phys(l2[i2]);
     l1[(vaddr >> 12) & 0x1FF] |= 0x4;                   /* leaf: U/S=1 */
+}
+
+/* Undo make_user_page's leaf U/S bit (the upper levels keep theirs: with
+ * the leaf supervisor-only, ring 3 still cannot reach the page). */
+static void clear_user_page(uint64_t vaddr)
+{
+    uint64_t cr3;
+    __asm__ __volatile__("mov %%cr3, %0" : "=r"(cr3));
+    uint64_t *l4 = (uint64_t *) (cr3 & ~0xFFFULL);
+    uint64_t *l3 = phys(l4[(vaddr >> 39) & 0x1FF]);
+    uint64_t *l2 = phys(l3[(vaddr >> 30) & 0x1FF]);
+    uint64_t e2 = l2[(vaddr >> 21) & 0x1FF];
+    if (e2 & 0x80) return; /* still a 2 MB page: never made user */
+    uint64_t *l1 = phys(e2);
+    l1[(vaddr >> 12) & 0x1FF] &= ~0x4ULL;
 }
 
 /* ================= syscall dispatch (called from the ISR) ================= */
@@ -286,6 +302,12 @@ int x86_ring3_selftest(void) {
                     (uint64_t)(g_user_stack + sizeof g_user_stack));
     g_ring3_active = 0;
     /* returns here after the user's SYS_EXIT */
+    /* The two pages go back to supervisor-only: every process the scheduler
+     * starts later shares this kernel half of the tables, and none of them
+     * may reach the self-test's code or stack. */
+    clear_user_page((uint64_t) g_user_code);
+    clear_user_page((uint64_t) g_user_stack);
+    __asm__ __volatile__("mov %%cr3, %%rax\n\t mov %%rax, %%cr3" : : : "rax");
     return x86_last_exc == 0;   /* 0 = clean ring-3 run, no exception */
 }
 

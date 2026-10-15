@@ -59,9 +59,9 @@ with the evidence.
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
 | 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **x86_64 done in this PR** (handoff v2); arm64 stub and boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
 | 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); map feed and heap missing | M | kernel_core #2, #13 |
-| 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64, missing x86 | M | kernel_core #3 |
+| 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64; partial x86 (own PML4 per process, one 512 GB user slot, stack guard page; no VMAs) | M | kernel_core #3 |
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
-| 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | missing | L | kernel_core #4, #9 |
+| 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | **done** (IDT + LAPIC, PIT-calibrated LAPIC timer, preemptive round robin, FXSAVE per process, x86 ELF64 loader, a ring-3 fault ends only its process; CI requires `[SCHED_OK]`); IOAPIC routing, XSAVE/AVX state, SMP next | L | kernel_core #4, #9 |
 | 7 | Syscall ABI 1.1: handles, pointer+length I/O, verdict register, correct error codes | partial | M | kernel_core #8 |
 | 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | live hole | S | userland_apps #5 |
 | 9 | Root and data filesystems from disk; 64-bit block layer; partition discovery by type | missing | M | boot_storage #5-7, #11 |

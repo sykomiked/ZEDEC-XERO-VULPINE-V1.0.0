@@ -125,6 +125,10 @@ SRCS := \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
     kernel/arch/x86_64/x86_irq.c \
+    kernel/arch/x86_64/x86_sched.c \
+    kernel/arch/x86_64/x86_userspace.c \
+    kernel/src/pmm/pmm.c \
+    kernel/src/lpres/lpres.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
     kernel/src/hwdrv/hwdrv_core.c \
@@ -412,6 +416,7 @@ OBJDIR := build/x86_64
 OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
           $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
           $(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o \
+          $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 # Directories created ONCE at parse time, before any recipe runs, so no two -j
@@ -443,6 +448,23 @@ $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o: kernel/arch/x86_64/ring3_asm.S
 $(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o: kernel/arch/x86_64/x86_trap_asm.S
 	@mkdir -p $(dir $@)
 	$(CC) -ffreestanding -fno-pie -c $< -o $@
+
+# The scheduler self-test's ring-3 program: a static x86-64 ELF64 linked into
+# user space (kernel/userapp/x86_user.ld), then embedded by x86_userbin.S.
+# -fpie keeps every reference RIP-relative (user space is far above 2 GB, out
+# of reach of the small code model's absolute forms); the link itself is a
+# plain ET_EXEC at a fixed address, which is what the loader accepts.
+X86_USER_ELF := $(OBJDIR)/userapp/x86_selftest.elf
+$(X86_USER_ELF): kernel/userapp/x86_selftest.c kernel/userapp/x86_user.ld kernel/include/zxv_syscall_abi.h kernel/include/zxv_syscall_user.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-stack-protector -fpie -mgeneral-regs-only \
+	      -fcf-protection=none -fno-asynchronous-unwind-tables -Ikernel/include \
+	      -nostdlib -static -no-pie -Wl,-T,kernel/userapp/x86_user.ld -Wl,--build-id=none \
+	      -Wl,-z,max-page-size=4096 -Wl,-z,noexecstack -o $@ $<
+
+$(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X86_USER_ELF)
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -DX86_USER_ELF='"$(X86_USER_ELF)"' -c $< -o $@
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
