@@ -23,7 +23,9 @@
  *   log256(booklets).
  * ALXG glue, one per layer: the files that live in the layer, what each is
  *   made of, and how the files bind each other
- *   header: "ALXG", 1, 0, u16 layer, u32 files, u32 edges, u32 refs, 44 zero
+ *   header: "ALXG", 2, 0, u16 layer, u32 files, u32 edges, u32 refs, the
+ *     glue CID (36) of the anchor the layer hangs from, u16 that anchor's
+ *     layer, 6 zero (the core hangs from nothing: 38 zero)
  *   files, 48 bytes each, CIDs strictly rising: the file's CID (36; raw
  *     sha2-256 of all its bytes), u32 first ref, u32 refs, u32 zero
  *   edges, 16 bytes each, rising by (from, to layer, to file): u32 from
@@ -37,6 +39,14 @@
  *   per layer, 112 bytes: tree root CID (36; zero for an empty layer),
  *     glue CID (36), icon CID (36; zero when none), u32 booklets
  *   then the SHA-256 of all of the above
+ *
+ * Anchors: the twelve layers whose numbers are Fibonacci numbers (0 1 2 3
+ * 5 8 13 21 34 55 89 144) are the prime dimensional layers, the spine. The
+ * packer seals them before every other layer, so an anchor's refs name only
+ * anchors; an anchor's glue keeps no edge into another layer's files unless
+ * that layer is an anchor; and every glue node names the glue of the
+ * nearest non-empty anchor below its layer, so changing an anchor changes
+ * every layer that hangs from it.
  *
  * Every CID here is CIDv1 raw sha2-256 of the named bytes. Nothing in a
  * node is code: a resolved atom is checked bytes handed to its caller.
@@ -87,10 +97,18 @@ uint32_t alx_mx_digit(uint64_t k, uint32_t level);
 int alx_mx_check(const uint8_t *b, uint32_t len);
 void alx_mx_layer(const uint8_t *b, uint32_t k, alx_mx_layer_t *l);
 
+/* F's index i when layer k is the Fibonacci number F(i) (1 for layer 1),
+ * else -1; and the anchor below layer k (0 for k <= 1) */
+int alx_mx_anchor(uint32_t k);
+uint32_t alx_mx_anchor_below(uint32_t k);
+
 /* a glue node's form; counts out. Every ref's layer is below 145 and its
  * atom index is checked when the booklet is opened, not here. */
 int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *files,
                    uint32_t *edges, uint32_t *refs);
+/* the glue CID of the anchor a checked glue node hangs from (0 for the
+ * core) and that anchor's layer */
+const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer);
 /* the file with this CID, or -1 */
 int32_t alx_glue_find(const uint8_t *b, const uint8_t cid[36]);
 /* file f's chunks: how many, and ref i of them */
