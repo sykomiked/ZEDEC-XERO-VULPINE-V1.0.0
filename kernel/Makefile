@@ -413,6 +413,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-allotment
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-dnx
+	$(MAKE) --no-print-directory test-icons
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
@@ -2645,3 +2646,9 @@ test-adapters:
 # ==== end adapters ====
 # Retail track and people features: targets live in kernel/mk/.
 include mk/retail.mk
+
+# The 407 app icons (zxv-brand/app-icons/svg): every one present, vector,
+# under 30 KB (tools/brand/check_icons.py).
+.PHONY: test-icons
+test-icons:
+	@python3 ../tools/brand/check_icons.py > $(ZXV_TMP)/check_icons.log 2>&1 && echo "[PASS] $$(tail -1 $(ZXV_TMP)/check_icons.log)" || { cat $(ZXV_TMP)/check_icons.log; echo "[FAIL] test-icons"; exit 1; }
