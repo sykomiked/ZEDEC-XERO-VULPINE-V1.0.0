@@ -28,6 +28,8 @@ Before writing an app, read `docs/APP_BLOCKS.md`. It is generated from `kernel/s
 - Wasm: export only `run`, integers only; build_wasm_blocks.sh sets the memory maximum Z-Wasm requires; test that it loads.
 
 ## Rules
+- **INTEGERS ONLY.** Never write `float`, `double`, `f32`, `f64`, `sqrt` or `fabs` in a model, block or test helper. A fraction is two integers, or `kernel/src/rational`. A percentage is hundredths of a percent (x10000), rounded down by integer division. A square root, a mean or a ratio is computed in integers, or left out. test_zxapp.sh fails on any floating point in an app's model or blocks.
+- Format with the repo's .clang-format. If your clang-format is older than 18, format only the lines you wrote; the reviewer re-formats with 18.1.8.
 - No floats anywhere in kernel code. No other companies' app names in user-visible text. "the Banker" (files), "the Hoard" (storage root).
 - Every new file starts with the two-line Apache-2.0 header (see any file).
 - `clang-format` (repo's .clang-format) on every changed C file.

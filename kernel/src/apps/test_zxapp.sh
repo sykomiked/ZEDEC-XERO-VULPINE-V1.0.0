@@ -26,6 +26,16 @@ make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a >"$T/wasm.log" 2>&1 ||
 "$T/test_zxapp" "$R/kernel/src"
 # the languages the apps use, as docs/APP_LANGUAGE_COVERAGE.md says (LANGUAGE_FIT.tsv)
 python3 "$R/tools/apps/lang_coverage.py" --check
+# integers only: no float or double in an app's model or blocks (comments aside)
+F="$(find "$HERE" -maxdepth 1 -name '*_model.[ch]'; find "$HERE/blocks" -name '*.c' -o -name '*.h' -o -name '*.cpp' -o -name '*.cc' -o -name '*.rs' -o -name '*.zig')"
+# shellcheck disable=SC2086 # F is a list of paths without spaces
+if [ -n "$F" ] && sed -e 's://.*$::' -e 's:/\*.*\*/::g' $F | grep -nwE 'float|double|f32|f64|fabs|sqrt|sqrtf|powf' >/dev/null; then
+    # shellcheck disable=SC2086
+    grep -nwE 'float|double|f32|f64|fabs|sqrt|sqrtf|powf' $F | grep -vE '^[^:]*:[0-9]+:\s*(//|\*|/\*)'
+    echo "[FAIL] floating point in an app's model or blocks: integers only (kernel/src/rational for fractions)"
+    exit 1
+fi
+echo "[PASS] app models and blocks are integer-only"
 # one owner for every shared idea (CONCEPTS.tsv), as docs/APP_BLOCKS.md says
 python3 "$R/tools/apps/concepts.py" --check
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
