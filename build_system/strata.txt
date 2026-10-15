@@ -213,6 +213,7 @@ vinea/vna_econ                   settlement # agreements priced in swarm budgets
 vinea/vna_link                   settlement # includes vna_econ.h
 vino                             settlement
 vino_stores                      settlement
+allotment                        settlement # Crown Allotment: ballots and the endowment on pay_util
 estate                           settlement # estate succession, recovery and faraid shares on pay_util
 grants                           settlement
 sicily                           settlement
