@@ -17,7 +17,9 @@ bound most strongly to those already laid) and their new chunks filled into
 booklets of their tier. --order path lays them out by path instead, to
 measure what the glue buys.
 
---out-dir writes every node as blocks/<CID> and the root as MATRIX.ROOT.
+--out-dir writes every node as blocks/<CID> and the root as <CID>.alxm, the
+07_matrix bucket's layout, plus MATRIX.ROOT, the same root bytes under a
+fixed name for local tools.
 --baseline DIR cuts an older checkout the same way and reports how much of
 today's bytes it already held. --report writes the measurements as JSON.
 Same input, same bytes out.
@@ -525,6 +527,10 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
             with open(os.path.join(write, "blocks", cid_str(c)), "wb") as f:
                 f.write(b)
         with open(os.path.join(write, "MATRIX.ROOT"), "wb") as f:
+            f.write(root)
+        # the bucket's self-named root (07_matrix/<CID>.alxm); MATRIX.ROOT
+        # is the same bytes under a fixed name for local tools
+        with open(os.path.join(write, cid_str(cid_raw(bytes(root))) + ".alxm"), "wb") as f:
             f.write(root)
         with open(os.path.join(write, "FILES.tsv"), "w") as f:
             for p in sorted(refs):
