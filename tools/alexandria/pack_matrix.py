@@ -147,9 +147,10 @@ def lineage(n):
 
 # the star-tetrahedron frame (docs/spec/MATRIX.md section 10): three nested
 # star tetrahedra, four anchors each, at scales 1, phi^4 and phi^8 (phi^n =
-# F(n) phi + F(n-1)); a vertex is the scale times one corner of the + (even
-# sign parity) tetrahedron in doubled E8 coordinates (a, b, c, 1, 1, 1, 1, 1),
-# so every anchor sits on a scaled E8 root. Numbers in Z[phi] are (p, q) for
+# F(n) phi + F(n-1)); a vertex is the scale times one corner (a, b, c, 1, 1,
+# 1, 1, 1) of the star's front tetrahedron in doubled E8 coordinates. The
+# front alternates by star: + (even sign parity, a scaled E8 root) for
+# stars 0 and 2, - (odd parity, E8's mirror coset) for star 1. Numbers in Z[phi] are (p, q) for
 # p + q phi.
 STAR = [[0, 1, 2, 3], [5, 8, 13, 21], [34, 55, 89, 144]]
 STAR_SCALE = [(1, 0), (2, 3), (13, 21)]
@@ -174,7 +175,10 @@ def zphi_mul(x, y):
 
 def vertex(f):
     g = next(i for i, grp in enumerate(STAR) if f in grp)
-    corner = TETRA[STAR[g].index(f)] + (1, 1, 1, 1, 1)
+    # the front tetrahedron alternates by star (+, -, +): star 1's anchors
+    # take the opposite corners, odd sign parity, in E8's mirror coset
+    sgn = -1 if g % 2 else 1
+    corner = tuple(sgn * c for c in TETRA[STAR[g].index(f)]) + (1, 1, 1, 1, 1)
     return [zphi_mul((c, 0), STAR_SCALE[g]) for c in corner]
 
 

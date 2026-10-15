@@ -117,8 +117,9 @@ void alx_mx_split(uint32_t k, uint32_t *anchor, uint32_t *pattern);
 /* whether layer k may draw chunks from layer l (l in k's lineage) */
 bool alx_mx_draws(uint32_t k, uint32_t l);
 /* layer k's position: eight doubled E8 coordinates, each p + q phi as
- * out[2j], out[2j+1]. Anchors sit on the + corners (even sign parity) of
- * three star tetrahedra at scales 1, phi^4 and phi^8; a branch F(k) + M
+ * out[2j], out[2j+1]. Anchors sit on the front corners of three star
+ * tetrahedra at scales 1, phi^4 and phi^8, the front alternating by star
+ * (+ even sign parity, -, +: Seal I); a branch F(k) + M
  * sits at vertex(F(k)) - pos(M) / phi, exact in Z[phi]. */
 int alx_mx_pos(uint32_t k, int64_t out[16]);
 /* The two half-cycles. alx_mx_fill(i) is the layer at step i of the

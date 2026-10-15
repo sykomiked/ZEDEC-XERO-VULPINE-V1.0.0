@@ -447,14 +447,17 @@ two half-cubes; in doubled E8 coordinates (`kernel/src/e8/e8_lattice.h`) the
 even half is E8's 128 half-integer roots and the odd half lies in E8's
 mirror coset. Alternating polarity is that sign-parity flip.
 
-- **The anchors are the corners.** The twelve anchors are the + corners of
-  three nested star tetrahedra, four each: 0, 1, 2, 3 at scale 1; 5, 8, 13,
-  21 at scale phi^4 = 2 + 3 phi; 34, 55, 89, 144 at scale phi^8 = 13 + 21
-  phi. Each star closes on a multiple of 3 (F4 = 3, F8 = 21, F12 = 144):
-  every fourth Fibonacci number is divisible by 3, so the trinary step is
-  the arithmetic's own. A corner is (a, b, c, 1, 1, 1, 1, 1) with abc = 1,
-  times the scale: a scaled root of E8. The opposite corners (the -
-  tetrahedra) are the frame's other half and hold no layer.
+- **The anchors are the corners.** The twelve anchors are the front
+  corners of three nested star tetrahedra, four each: 0, 1, 2, 3 at scale
+  1; 5, 8, 13, 21 at scale phi^4 = 2 + 3 phi; 34, 55, 89, 144 at scale
+  phi^8 = 13 + 21 phi. Each star closes on a multiple of 3 (F4 = 3, F8 =
+  21, F12 = 144): every fourth Fibonacci number is divisible by 3, so the
+  trinary step is the arithmetic's own. The front alternates by star, as
+  Seal I draws it (`/mnt/project-files/zxv-nonlinear/NONLINEAR_SCHEMATICS.md`
+  6.1): + for stars 0 and 2, a corner (a, b, c, 1, 1, 1, 1, 1) with abc =
+  1, times the scale, a scaled root of E8; - for star 1, the opposite
+  corner, odd sign parity, in E8's mirror coset. The four corners behind
+  each star are scaffold: they hold no layer and read N.
 - **The branches are generated.** pos(F(k) + M) = vertex(F(k)) - pos(M) /
   phi. Dividing by phi is exact in Z[phi] ((p + q phi) / phi = (q - p) + p
   phi), and the minus sign turns the pattern over at every level of the

@@ -484,11 +484,12 @@ static void test_spine(const char *dir, const char *repo)
         uint32_t a, m;
         alx_mx_split(k, &a, &m);
         if (alx_mx_anchor(k) >= 0) {
-            /* a corner of the + tetrahedron: an even number of minus signs,
-             * so the vertex over the scale is a doubled E8 root */
-            uint32_t minus = 0;
+            /* a corner of its star's front tetrahedron: + (an even number
+             * of minus signs, a doubled E8 root) for stars 0 and 2, - (odd,
+             * the mirror coset) for star 1 */
+            uint32_t minus = 0, star = k >= 34 ? 2u : k >= 5 ? 1u : 0u;
             for (uint32_t j = 0; j < 8; j++) minus += ZPOS[k][2 * j] < 0 || ZPOS[k][2 * j + 1] < 0;
-            CHECK(minus % 2 == 0, "anchor %u sits on an even corner", k);
+            CHECK(minus % 2 == star % 2, "anchor %u sits on a %s corner", k, star % 2 ? "-" : "+");
         } else {
             /* the recursion, checked from outside: phi (vertex - pos) = pos(M) */
             int64_t v[16];

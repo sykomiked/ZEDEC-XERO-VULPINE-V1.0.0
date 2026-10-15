@@ -195,8 +195,9 @@ bool alx_mx_draws(uint32_t k, uint32_t l)
 }
 
 /* the frame: three star tetrahedra, scales 1, phi^4 = 2 + 3 phi and
- * phi^8 = 13 + 21 phi; a vertex is the scale times a corner of the +
- * tetrahedron in doubled E8 coordinates (a, b, c, 1, 1, 1, 1, 1) */
+ * phi^8 = 13 + 21 phi; a vertex is the scale times a corner (a, b, c, 1, 1,
+ * 1, 1, 1) of the star's front tetrahedron in doubled E8 coordinates, the +
+ * one (even sign parity) for stars 0 and 2, the - one (odd) for star 1 */
 static const int8_t TETRA[4][3] = {{1, 1, 1}, {1, -1, -1}, {-1, 1, -1}, {-1, -1, 1}};
 static const int64_t STAR_SCALE[3][2] = {{1, 0}, {2, 3}, {13, 21}};
 
@@ -209,7 +210,8 @@ int alx_mx_pos(uint32_t k, int64_t out[16])
     while (FIBS[at] != f) at++;
     uint32_t g = at / 4u, i = at % 4u; /* star g, corner i */
     for (uint32_t j = 0; j < 8; j++) {
-        int64_t c = j < 3 ? TETRA[i][j] : 1;
+        /* the front tetrahedron alternates by star: +, -, + */
+        int64_t c = j < 3 ? (g == 1u ? -TETRA[i][j] : TETRA[i][j]) : 1;
         out[2 * j] = c * STAR_SCALE[g][0];
         out[2 * j + 1] = c * STAR_SCALE[g][1];
     }
