@@ -4,7 +4,7 @@
  * (tools/tiamat/TEST_PLAN.md, "First conversation").
  *
  *   H1 CONFIG. A text file, one directive per line ('#' starts a comment):
- *        slot N PATH [SHA256]            a GGUF model for slot N (0..3), and
+ *        slot N PATH [SHA256]            a GGUF model for slot N (0..11), and
  *                                        optionally its pinned SHA-256 (64 hex),
  *                                        which idle time re-checks (zxv_idle.h)
  *        cell NAME SLOT LINEAGE ADAPTER KEYWORD...
@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define ZXV_TIAMAT_SLOTS    4u
+#define ZXV_TIAMAT_SLOTS    12u
 #define ZXV_TIAMAT_CELLS    16u
 #define ZXV_TIAMAT_KEYWORDS 24u
 #define ZXV_TIAMAT_NAME     33u

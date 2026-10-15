@@ -73,10 +73,10 @@ static int parse_line(const char *s, unsigned ln, zxv_tiamat_conf_t *c, char *er
         char num[8];
         uint32_t n;
         if (next_tok(&s, num, sizeof num) != 1 || parse_u32(num, ZXV_TIAMAT_SLOTS - 1, &n) != 0)
-            return fail(err, ecap, ln, "slot takes a number 0..3 and a path");
+            return fail(err, ecap, ln, "slot takes a number 0..11 and a path");
         r = next_tok(&s, c->slot_path[n], sizeof c->slot_path[n]);
         if (r < 0) return fail(err, ecap, ln, "the path is too long or a quote is not closed");
-        if (r == 0) return fail(err, ecap, ln, "slot takes a number 0..3 and a path");
+        if (r == 0) return fail(err, ecap, ln, "slot takes a number 0..11 and a path");
         char sha[ZXV_TIAMAT_PATH];
         r = next_tok(&s, sha, sizeof sha);
         if (r == 1) {

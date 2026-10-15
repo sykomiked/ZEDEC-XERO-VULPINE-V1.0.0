@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Tiamat on the A6000 server
 
-Start here on the server: run the jobs in `TESTS.md` (J0 to J6) in order;
+Start here on the server: run the jobs in `TESTS.md` (J0 to J7) in order;
 they build the app, fetch the models, and run the behaviour tests with
 their raw logs. The integration tasks below (S1 to S9) are what J4 and J5
 call. `../TALK.md` says how to talk to the swarm once it is built.

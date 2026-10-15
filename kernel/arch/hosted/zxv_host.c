@@ -116,6 +116,7 @@ typedef int sock_t;
 #include "zxv_idle.h"    /* R24: the swarm's own work while no one asks */
 #include "zxv_receipt.h" /* R24: one sealed receipt per interaction */
 #include "zxv_tiamat.h"
+_Static_assert(ZXV_TIAMAT_SLOTS <= ZXV_SLOTS, "every Tiamat slot is a model slot");
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"

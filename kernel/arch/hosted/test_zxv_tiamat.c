@@ -68,7 +68,7 @@ int main(int argc, char **argv)
     CHECK(c.cell[1].n_kw == 3 && !strcmp(c.cell[1].kw[1], "python") && c.cell[2].n_kw == 1,
           "keywords are lower-cased; a comment ends the line");
     CHECK(!strcmp(c.log_path, "/tmp/t.log"), "log path");
-    CHECK(parse_err("slot 4 /x\ncell A 0 q -\n", "line 1"), "slot 4 is refused");
+    CHECK(parse_err("slot 12 /x\ncell A 0 q -\n", "line 1"), "slot 12 is refused");
     {
         zxv_tiamat_conf_t p;
         char e[200];

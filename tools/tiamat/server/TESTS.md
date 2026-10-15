@@ -146,3 +146,64 @@ about ten questions, and a later run with a stray host running alongside got
 0 of 10 (`bench/results/2026-10-15-tiamat/BUDGET_FINDINGS.md`). Also run J6
 once more with J2 running at the same time and report how many were
 answered: that measures how the swarm shares a busy machine.
+
+## J7 Assemble the disc swarm and run its gates (owner, 2026-10-15)
+
+After J5 (adapters gated, `golden.models` written). Rebuild the app first
+(J0): this head lets one app hold 12 models (it held 4), enough for every
+text cell on the disc. The assembly follows `tiamat_swarm.json`: cells on
+their trunks with their GGUF adapters, organs with their routing words, a
+witness of another lineage, the reckoner's exact arithmetic.
+
+```sh
+cd $REPO/tools/tiamat
+# cells S3 kept whole and published only as SafeTensors get an F16 GGUF to run from
+python3 - /srv/tiamat/adapters <<'PY' > /srv/tiamat/full_cells.txt
+import json, pathlib, sys
+for r in sorted(pathlib.Path(sys.argv[1]).glob("report_*.json")):
+    for c, e in json.loads(r.read_text())["cells"].items():
+        if e["result"] == "FULL":
+            print(c)
+PY
+while read -r cell; do
+  ls $M/$cell/src/*.gguf >/dev/null 2>&1 && continue          # an upstream GGUF is used as it is
+  python3 /srv/tiamat/llama.cpp/convert_hf_to_gguf.py --outtype f16 \
+    --outfile $M/$cell/$(echo $cell | tr 'A-Z' 'a-z')-f16.gguf $M/$cell/src 2>&1 | tail -2 | tee -a $OUT/j7_convert.log
+done < /srv/tiamat/full_cells.txt
+python3 test_make_swarm_config.py 2>&1 | tee $OUT/j7_selftest.log    # must end [PASS]
+python3 make_swarm_config.py --models $M --adapters /srv/tiamat/adapters \
+  --out $OUT/swarm.conf --report $OUT/assembly.json --log $OUT/swarm_log.jsonl 2>&1 | tee $OUT/j7_assemble.log
+# every organ answers through the assembled swarm
+/srv/tiamat/bin/zxv-host --tiamat $OUT/swarm.conf --ask-file bench/organ_questions.txt --state-dir "" \
+  --notify off --receipts $OUT/j7_receipts.jsonl > $OUT/j7_organs.jsonl 2> $OUT/j7_organs.stderr.txt
+python3 -c "import json; [print(x['lead'], '|', x['witness'], '|', x['verdict'], '|', x['q']) for x in map(json.loads, open('$OUT/j7_organs.jsonl'))]" \
+  | tee $OUT/j7_organs.txt
+# T2 on the assembled swarm, same sets and seed as J2
+python3 bench/run_t2.py --host /srv/tiamat/bin/zxv-host --conf $OUT/swarm.conf --out $OUT/t2_swarm | tee $OUT/t2_swarm_summary.txt
+# S8 bench gate, one tissue at a time
+for base in Qwen/Qwen2.5-1.5B-Instruct Qwen/Qwen2.5-Math-1.5B Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-Coder-0.5B-Instruct; do
+  python3 server/bench_crosswire.py --models $M --adapters /srv/tiamat/adapters --tissue $base \
+    --data /srv/tiamat/tfbn.jsonl --n 400 --out $OUT/s8_$(basename $base).json 2>&1 | tail -3 | tee -a $OUT/s8_bench.log
+done
+# what goes to the Mac for the disc: names, hashes and sizes (the files stay in /srv/tiamat/cache)
+cp /srv/tiamat/golden.models $OUT/offload_golden.models
+```
+
+Pass marks, fixed before the run:
+
+- `assembly.json`: every disc cell the engine runs today is assembled, or
+  left out with its reason; `witness_possible` is true.
+- `j7_organs.txt`: each organ question is led by a cell of that organ, and
+  "17 times 23" is decided by the reckoner (391).
+- T2 on the swarm: the same marks as J2.
+- S8, per tissue (`gate` in each `s8_*.json`): every extracted adapter keeps
+  top-1 agreement at least 0.97 with running separately and accuracy within
+  1 point; otherwise the tissue runs separately and the report says it lost.
+  Upstream LoRAs share the trunk's weights but not its lower layers (they
+  change every layer), so the bench leaves them out.
+
+Known limits, to report rather than hide: the T1 evidence head fails the
+hand-written set (J4), so organs decide with the witness and the reckoner,
+not with a trained head; cells whose engine path is not built (speech,
+vision, encoders, ONNX, SentencePiece) are not in the text swarm
+(`assembly.json` names each one and its missing path).

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
-"""Test extract_adapters.py (S3) on tiny random Qwen2 models, CPU only.
+"""Test extract_adapters.py (S3) and bench_crosswire.py (S8) on tiny random Qwen2 models, CPU only.
 
 Run before J5 (needs torch, transformers and safetensors, as S3 does):
 
@@ -157,6 +157,28 @@ def main():
         want = (ups[key + ".lora_B.weight"] @ ups[key + ".lora_A.weight"]) * (8 / 4)
         check(torch.allclose(ad[name][0] @ ad[name][1], want, atol=1e-5), "an upstream LoRA is scaled by alpha / r")
         check(facts["rank"] == 4 and facts["modules"] == 8, "its rank and module count are reported")
+        # S8 on the same tissue: the extracted adapters cross-wired against running them apart
+        import bench_crosswire as bc
+        bc.CFG["tissues"]["test/tiny"] = ex.CFG["tissues"]["test/tiny"]
+        data = pathlib.Path(tmp) / "tfbn.jsonl"
+        data.write_text("".join(json.dumps({"prompt": p, "base": "TRUE"}) + "\n" for p in ex.DEFAULT_PROMPTS))
+        bout = pathlib.Path(tmp) / "bench.json"
+        sys.argv = ["bench_crosswire.py", "--models", str(root), "--adapters", str(out), "--tissue", "test/tiny",
+                    "--data", str(data), "--n", "16", "--out", str(bout), "--device", "cpu"]
+        bc.main()
+        b = json.loads(bout.read_text())
+        check(b["cells"] == ["Lowrank", "Sharded"], "the bench takes the extracted adapters only")
+        check(all(q["top1_agreement_with_separate"] >= 0.97 and q["passes"] for q in b["quality"].values())
+              and b["gate"] == "cross-wired", "exact low-rank adapters pass the cross-wiring gate")
+        check(b["saving_weight_bytes"] > 0 and b["saving_macs"] > 0, "cross-wiring saves weights and multiply-adds")
+        ex.CFG["tissues"]["test/none"] = {"trunk": "Trunkwyrm", "cells": ["Everywhere"]}
+        bc.CFG["tissues"]["test/none"] = ex.CFG["tissues"]["test/none"]
+        (out / "report_Trunkwyrm.json").write_text(json.dumps({"cells": {"Everywhere": {"result": "FULL"}},
+                                                              "shared_split_layer": None}))
+        sys.argv[sys.argv.index("test/tiny")] = "test/none"
+        bc.main()
+        b = json.loads(bout.read_text())
+        check(b["cells"] == [] and b["gate"] is None, "a tissue with no adapter is reported, not crashed on")
     print(f"[{'PASS' if FAILS == 0 else 'FAIL'}] extract_adapters: {FAILS} failed")
     return 1 if FAILS else 0
 

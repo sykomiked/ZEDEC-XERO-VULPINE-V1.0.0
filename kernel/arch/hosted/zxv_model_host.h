@@ -90,7 +90,7 @@ int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, c
 uint64_t zxv_model_prompt_tokens(void);
 
 /* M6: slot and agent numbers are 0..ZXV_SLOTS-1 and 0..ZXV_AGENTS-1. */
-#define ZXV_SLOTS  4u
+#define ZXV_SLOTS  12u
 #define ZXV_AGENTS 16u
 /* Map and check a model into a slot (replacing it and closing its agents).
  * 0 or -1; zxv_slot_info(slot)->status says why. */
