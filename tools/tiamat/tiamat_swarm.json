@@ -102,6 +102,14 @@
     "signature": "ML-DSA-87 owner signature over the body (kernel/src/companion)",
     "breeding": "on decoded fields only, never on strands; child gets a new seed, an empty journal head, both parent ids, and a new owner signature"
   },
+  "distribution": {
+    "_rule": "Tiamat ships as layered IPFS objects, never as one monolith. Each object is named by its path under its parent's CID, so every layer is addressable on its own and an update changes only the CIDs on the path from the changed leaf up to the root; unchanged branches keep theirs. Shared pieces (a trunk) are stored once and linked from every cell that uses it, so the graph branches and rejoins rather than forming a plain tree.",
+    "bucket": "06_tiamat, beside 05_alexandria (the bucket number is confirmed with ipfs-dist's owner, the Bare-metal thread)",
+    "tree": ["06_tiamat/ (root: this config, the manifest, NOTICE)", "06_tiamat/trunks/<cell>/ (card, weights, evidence_head)", "06_tiamat/organs/<organ>/<cell>/ (card, weights or trunk_link + adapter, evidence_head)", "06_tiamat/species/<profile>/ (links to the organs and cells that profile loads)"],
+    "names": "each cell's Alexandria handle is @swarm.<cell>; the manifest records its handle, parent path and, once packed, its CID",
+    "card": "LICENSE, upstream NOTICE, UPSTREAM.txt (model id, revision, creator, source URL)",
+    "updates": "a new adapter or head is a new leaf CID; the cell, organ, species and root CIDs above it change with it, and the reconfiguration journal records old and new root CIDs"
+  },
   "hobbies": {
     "catalogue": "tools/tiamat/hobbies.txt (144 entries)",
     "per_member": [3, 5],

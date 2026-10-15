@@ -62,7 +62,18 @@
       "credits": [
         "Qwen team, Alibaba Cloud"
       ],
-      "notes": "Already on the golden disc. Trunk for the 1.5B adapters."
+      "notes": "Already on the golden disc. Trunk for the 1.5B adapters.",
+      "ipfs": {
+        "alexandria": "@swarm.spinewyrm",
+        "parent": "06_tiamat/trunks",
+        "path": "06_tiamat/trunks/spinewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
@@ -114,7 +125,18 @@
       "credits": [
         "Qwen team, Alibaba Cloud"
       ],
-      "notes": "Already on the golden disc. Trunk for the 0.5B adapters."
+      "notes": "Already on the golden disc. Trunk for the 0.5B adapters.",
+      "ipfs": {
+        "alexandria": "@swarm.kindlewyrm",
+        "parent": "06_tiamat/trunks",
+        "path": "06_tiamat/trunks/kindlewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
@@ -167,7 +189,18 @@
       "credits": [
         "Qwen team, Alibaba Cloud"
       ],
-      "notes": "Trunk for TIMPS-Coder and pocketsql."
+      "notes": "Trunk for TIMPS-Coder and pocketsql.",
+      "ipfs": {
+        "alexandria": "@swarm.awllindworm",
+        "parent": "06_tiamat/trunks",
+        "path": "06_tiamat/trunks/awllindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "utter-project/EuroLLM-1.7B-Instruct",
@@ -221,7 +254,18 @@
         "UTTER consortium (Unbabel, Instituto Superior Tecnico, University of Edinburgh, Aveni, Sorbonne Universite, Naver Labs Europe, University of Amsterdam), funded by EU Horizon Europe",
         "GGUF conversion by mradermacher"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.parleywyvern",
+        "parent": "06_tiamat/organs/voice_of_tiamat",
+        "path": "06_tiamat/organs/voice_of_tiamat/parleywyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "HuggingFaceTB/SmolLM3-3B",
@@ -275,7 +319,18 @@
       "credits": [
         "Hugging Face (SmolLM / SmolVLM team)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.greetwyvern",
+        "parent": "06_tiamat/organs/voice_of_tiamat",
+        "path": "06_tiamat/organs/voice_of_tiamat/greetwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "arcee-ai/AFM-4.5B",
@@ -322,7 +377,18 @@
       "credits": [
         "Arcee AI"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.hostwyvern",
+        "parent": "06_tiamat/organs/voice_of_tiamat",
+        "path": "06_tiamat/organs/voice_of_tiamat/hostwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Qwen/Qwen2.5-7B-Instruct",
@@ -380,7 +446,18 @@
       "credits": [
         "Qwen team, Alibaba Cloud"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.heraldwyvern",
+        "parent": "06_tiamat/organs/voice_of_tiamat",
+        "path": "06_tiamat/organs/voice_of_tiamat/heraldwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "sandeeprdy1729/TIMPS-Coder-0.5B",
@@ -424,7 +501,19 @@
       "credits": [
         "Sandeep Reddy (TIMPS)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.mendlindworm",
+        "parent": "06_tiamat/organs/smith",
+        "path": "06_tiamat/organs/smith/mendlindworm",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
@@ -477,7 +566,18 @@
       "credits": [
         "Qwen team, Alibaba Cloud"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.codelindworm",
+        "parent": "06_tiamat/organs/smith",
+        "path": "06_tiamat/organs/smith/codelindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "JackKozmo29/codeguard-jev-style-1.5b",
@@ -521,7 +621,19 @@
       "credits": [
         "JackKozmo29"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.wardendrake",
+        "parent": "06_tiamat/organs/warden",
+        "path": "06_tiamat/organs/warden/wardendrake",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "DharaneswarReddy/codereview-agent",
@@ -565,7 +677,19 @@
       "credits": [
         "Dharaneswar Reddy"
       ],
-      "notes": "Base is unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit, a 4-bit copy of Qwen2.5-1.5B-Instruct (Apache-2.0); credit Unsloth too."
+      "notes": "Base is unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit, a 4-bit copy of Qwen2.5-1.5B-Instruct (Apache-2.0); credit Unsloth too.",
+      "ipfs": {
+        "alexandria": "@swarm.reviewdrake",
+        "parent": "06_tiamat/organs/warden",
+        "path": "06_tiamat/organs/warden/reviewdrake",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "vitorallo/securereview-coder-32B-FP8",
@@ -609,7 +733,18 @@
       "credits": [
         "vitorallo (Foil)"
       ],
-      "notes": "Gated: the owner accepts the access terms on Hugging Face before download. Base Qwen2.5-Coder-32B-Instruct is Apache-2.0. Ships its own NOTICE."
+      "notes": "Gated: the owner accepts the access terms on Hugging Face before download. Base Qwen2.5-Coder-32B-Instruct is Apache-2.0. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.bastiondrake",
+        "parent": "06_tiamat/organs/warden",
+        "path": "06_tiamat/organs/warden/bastiondrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "FrontiersMind/Nandi-Mini-150M-Tool-Calling",
@@ -652,7 +787,18 @@
       "credits": [
         "FrontiersMind"
       ],
-      "notes": "Replaces Cactus-Compute/needle2 (pickle only). Pretrained from scratch on 525B tokens; base FrontiersMind/Nandi-Mini-150M is Apache-2.0."
+      "notes": "Replaces Cactus-Compute/needle2 (pickle only). Pretrained from scratch on 525B tokens; base FrontiersMind/Nandi-Mini-150M is Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.toolhatchling",
+        "parent": "06_tiamat/organs/herald",
+        "path": "06_tiamat/organs/herald/toolhatchling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ajvikram/toolcall-2b",
@@ -694,7 +840,18 @@
       "credits": [
         "ajvikram"
       ],
-      "notes": "Base Qwen/Qwen3.5-2B is Apache-2.0."
+      "notes": "Base Qwen/Qwen3.5-2B is Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.toolwyvern",
+        "parent": "06_tiamat/organs/herald",
+        "path": "06_tiamat/organs/herald/toolwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "llmware/slim-ner-tool",
@@ -744,7 +901,18 @@
       "credits": [
         "llmware (AI Bloks)"
       ],
-      "notes": "Card names no base model; the config is a 1.1B llama (TinyLlama shape, Apache-2.0). Confirm with llmware before release."
+      "notes": "Card names no base model; the config is a 1.1B llama (TinyLlama shape, Apache-2.0). Confirm with llmware before release.",
+      "ipfs": {
+        "alexandria": "@swarm.tagwyrmling",
+        "parent": "06_tiamat/organs/scribe",
+        "path": "06_tiamat/organs/scribe/tagwyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "pszemraj/led-base-book-summary",
@@ -784,7 +952,18 @@
       "credits": [
         "Peter Szemraj (pszemraj)"
       ],
-      "notes": "Replaces llmware/slim-summary-tool (CC-BY-SA-4.0). Base allenai/led-base-16384 is Apache-2.0; data kmfoda/booksum is BSD-3-Clause."
+      "notes": "Replaces llmware/slim-summary-tool (CC-BY-SA-4.0). Base allenai/led-base-16384 is Apache-2.0; data kmfoda/booksum is BSD-3-Clause.",
+      "ipfs": {
+        "alexandria": "@swarm.gistwyrm",
+        "parent": "06_tiamat/organs/scribe",
+        "path": "06_tiamat/organs/scribe/gistwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "mithulaartigala/reasoning-summarizer-qwen3.5-0.8b-preview",
@@ -836,7 +1015,18 @@
       "credits": [
         "Mithula Artigala"
       ],
-      "notes": "Base Qwen/Qwen3.5-0.8B-Base and data reasoning-summaries-61k are Apache-2.0."
+      "notes": "Base Qwen/Qwen3.5-0.8B-Base and data reasoning-summaries-61k are Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.briefwyrm",
+        "parent": "06_tiamat/organs/scribe",
+        "path": "06_tiamat/organs/scribe/briefwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Qwen/Qwen2.5-Math-1.5B",
@@ -891,7 +1081,18 @@
         "Qwen team, Alibaba Cloud",
         "GGUF conversion by mradermacher"
       ],
-      "notes": "This exact checkpoint is Apache-2.0. Trunk for the math adapters."
+      "notes": "This exact checkpoint is Apache-2.0. Trunk for the math adapters.",
+      "ipfs": {
+        "alexandria": "@swarm.numberwyrm",
+        "parent": "06_tiamat/organs/reckoner",
+        "path": "06_tiamat/organs/reckoner/numberwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4",
@@ -949,7 +1150,19 @@
       "credits": [
         "zbeeb"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.theoremwyrm",
+        "parent": "06_tiamat/organs/reckoner",
+        "path": "06_tiamat/organs/reckoner/theoremwyrm",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "OpceanAI/Yuuki-RxG-nano",
@@ -992,7 +1205,19 @@
       "credits": [
         "OpceanAI"
       ],
-      "notes": "Base WeiboAI/VibeThinker-1.5B (MIT, itself on Qwen2.5-Math-1.5B); credit Weibo AI too."
+      "notes": "Base WeiboAI/VibeThinker-1.5B (MIT, itself on Qwen2.5-Math-1.5B); credit Weibo AI too.",
+      "ipfs": {
+        "alexandria": "@swarm.puzzlewyrm",
+        "parent": "06_tiamat/organs/reckoner",
+        "path": "06_tiamat/organs/reckoner/puzzlewyrm",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Pankaj8922/bert-small-nli",
@@ -1034,7 +1259,18 @@
       "credits": [
         "Pankaj8922"
       ],
-      "notes": "Base prajjwal1/bert-small is MIT. NLI data descends from SNLI/MultiNLI; see data notes."
+      "notes": "Base prajjwal1/bert-small is MIT. NLI data descends from SNLI/MultiNLI; see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.verdictwyrmling",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/verdictwyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "cross-encoder/nli-deberta-v3-xsmall",
@@ -1076,7 +1312,18 @@
       "credits": [
         "sentence-transformers / cross-encoder (UKP Lab, Nils Reimers, Tom Aarsen)"
       ],
-      "notes": "Base microsoft/deberta-v3-xsmall is MIT. Trained on SNLI and MultiNLI."
+      "notes": "Base microsoft/deberta-v3-xsmall is MIT. Trained on SNLI and MultiNLI.",
+      "ipfs": {
+        "alexandria": "@swarm.weighwyrmling",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/weighwyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "iamjayeshc/ArgParser-v4-Qwen1.5B",
@@ -1129,7 +1376,19 @@
       "credits": [
         "Jayesh C (iamjayeshc)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.debatelindworm",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/debatelindworm",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "heavyhelium/electra-base-logic-fallacy",
@@ -1171,7 +1430,18 @@
       "credits": [
         "heavyhelium"
       ],
-      "notes": "Replaces EliaMengozzi/fallama (Llama 3.1). Base google/electra-base-discriminator is Apache-2.0; data is the LOGIC set (Jin et al. 2022)."
+      "notes": "Replaces EliaMengozzi/fallama (Llama 3.1). Base google/electra-base-discriminator is Apache-2.0; data is the LOGIC set (Jin et al. 2022).",
+      "ipfs": {
+        "alexandria": "@swarm.fallacydrakeling",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/fallacydrakeling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "MidhunKanadan/roberta-large-fallacy-classification",
@@ -1214,7 +1484,18 @@
       "credits": [
         "Midhun Kanadan"
       ],
-      "notes": "Base FacebookAI/roberta-large is MIT."
+      "notes": "Base FacebookAI/roberta-large is MIT.",
+      "ipfs": {
+        "alexandria": "@swarm.sophismdrake",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/sophismdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "sentence-transformers/all-MiniLM-L6-v2",
@@ -1256,7 +1537,18 @@
       "credits": [
         "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft"
       ],
-      "notes": "Base nreimers/MiniLM-L6-H384-uncased is MIT."
+      "notes": "Base nreimers/MiniLM-L6-H384-uncased is MIT.",
+      "ipfs": {
+        "alexandria": "@swarm.indexserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/indexserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "sentence-transformers/all-MiniLM-L12-v2",
@@ -1298,7 +1590,18 @@
       "credits": [
         "sentence-transformers (UKP Lab, Nils Reimers); MiniLM by Microsoft"
       ],
-      "notes": "Base microsoft/MiniLM-L12-H384-uncased is MIT."
+      "notes": "Base microsoft/MiniLM-L12-H384-uncased is MIT.",
+      "ipfs": {
+        "alexandria": "@swarm.shelfserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/shelfserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "dragonkue/multilingual-e5-small-ko",
@@ -1342,7 +1645,18 @@
       "credits": [
         "dragonkue"
       ],
-      "notes": "Base intfloat/multilingual-e5-small is MIT."
+      "notes": "Base intfloat/multilingual-e5-small is MIT.",
+      "ipfs": {
+        "alexandria": "@swarm.bridgeserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/bridgeserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "exp-models/dragonkue-KoEn-E5-Tiny",
@@ -1386,7 +1700,18 @@
       "credits": [
         "dragonkue / exp-models"
       ],
-      "notes": "Built on intfloat/multilingual-e5-small (MIT)."
+      "notes": "Built on intfloat/multilingual-e5-small (MIT).",
+      "ipfs": {
+        "alexandria": "@swarm.twinserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/twinserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "jinaai/jina-reranker-v1-tiny-en",
@@ -1426,7 +1751,18 @@
       "credits": [
         "Jina AI"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.sortserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/sortserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "jinaai/jina-reranker-v1-turbo-en",
@@ -1466,7 +1802,18 @@
       "credits": [
         "Jina AI"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.swiftserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/swiftserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "BAAI/bge-reranker-v2-m3",
@@ -1506,7 +1853,18 @@
       "credits": [
         "BAAI (Beijing Academy of Artificial Intelligence)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.rankserpent",
+        "parent": "06_tiamat/organs/librarian",
+        "path": "06_tiamat/organs/librarian/rankserpent",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "PaddlePaddle/PP-OCRv6_small_det_onnx",
@@ -1555,7 +1913,18 @@
       "credits": [
         "PaddlePaddle team (Baidu)"
       ],
-      "notes": "ONNX release of the roster's PP-OCRv6 (the .pdiparams one was excluded for format)."
+      "notes": "ONNX release of the roster's PP-OCRv6 (the .pdiparams one was excluded for format).",
+      "ipfs": {
+        "alexandria": "@swarm.spotwyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/spotwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "PaddlePaddle/PP-OCRv6_small_rec_onnx",
@@ -1604,7 +1973,18 @@
       "credits": [
         "PaddlePaddle team (Baidu)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.letterwyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/letterwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "tiiuae/Falcon-OCR",
@@ -1645,7 +2025,18 @@
       "credits": [
         "Technology Innovation Institute (TII)"
       ],
-      "notes": "Unlike TII's Falcon LLMs, this card declares plain Apache-2.0."
+      "notes": "Unlike TII's Falcon LLMs, this card declares plain Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.scrollwyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/scrollwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
@@ -1709,7 +2100,18 @@
         "GGUF conversion by ggml-org",
         "GGUF conversion by ggml-org"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.watchwyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/watchwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "HuggingFaceTB/SmolVLM-Instruct",
@@ -1753,7 +2155,18 @@
       "credits": [
         "Hugging Face (SmolLM / SmolVLM team)"
       ],
-      "notes": "Bases SmolLM2-1.7B-Instruct (Apache-2.0) and google/siglip-so400m (Apache-2.0)."
+      "notes": "Bases SmolLM2-1.7B-Instruct (Apache-2.0) and google/siglip-so400m (Apache-2.0).",
+      "ipfs": {
+        "alexandria": "@swarm.sightwyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/sightwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Quazim0t0/Byrne-VLM-131M",
@@ -1793,7 +2206,18 @@
       "credits": [
         "Quazim0t0"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.glimpsewyvern",
+        "parent": "06_tiamat/organs/reader",
+        "path": "06_tiamat/organs/reader/glimpsewyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "allenai/OLMoASR",
@@ -1834,7 +2258,18 @@
       "credits": [
         "Allen Institute for AI (Ai2)"
       ],
-      "notes": "The roster's id allenai/OLMoASR-tiny does not exist; tiny.en lives inside allenai/OLMoASR."
+      "notes": "The roster's id allenai/OLMoASR-tiny does not exist; tiny.en lives inside allenai/OLMoASR.",
+      "ipfs": {
+        "alexandria": "@swarm.listenlindworm",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/listenlindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ibm-granite/granite-4.0-1b-speech",
@@ -1891,7 +2326,18 @@
       "credits": [
         "IBM Granite team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.dictatelindworm",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/dictatelindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ibm-granite/granite-speech-3.3-2b",
@@ -1973,7 +2419,18 @@
       "credits": [
         "IBM Granite team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.hearinglindworm",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/hearinglindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ibm-granite/granite-speech-4.1-2b-plus",
@@ -2026,7 +2483,18 @@
       "credits": [
         "IBM Granite team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.minutelindworm",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/minutelindworm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
@@ -2084,7 +2552,18 @@
       "credits": [
         "hexgrad (Kokoro); ONNX export by onnx-community; architecture StyleTTS 2 by Yinghao Aaron Li et al."
       ],
-      "notes": "Replaces hexgrad/Kokoro-82M, whose weights are only a pickle. Kokoro's card credits CC-BY audio (Koniwa, SIWIS): credited too."
+      "notes": "Replaces hexgrad/Kokoro-82M, whose weights are only a pickle. Kokoro's card credits CC-BY audio (Koniwa, SIWIS): credited too.",
+      "ipfs": {
+        "alexandria": "@swarm.chimedrake",
+        "parent": "06_tiamat/organs/voice",
+        "path": "06_tiamat/organs/voice/chimedrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "KittenML/kitten-tts-nano-0.1",
@@ -2124,7 +2603,18 @@
       "credits": [
         "KittenML"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.purrdrake",
+        "parent": "06_tiamat/organs/voice",
+        "path": "06_tiamat/organs/voice/purrdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "parler-tts/parler-tts-mini-multilingual",
@@ -2172,7 +2662,18 @@
       "credits": [
         "Parler-TTS (Hugging Face)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.choirdrake",
+        "parent": "06_tiamat/organs/voice",
+        "path": "06_tiamat/organs/voice/choirdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "google/madlad400-3b-mt",
@@ -2212,7 +2713,18 @@
       "credits": [
         "Google Research (MADLAD-400 team)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.polyglotwyvern",
+        "parent": "06_tiamat/organs/interpreter",
+        "path": "06_tiamat/organs/interpreter/polyglotwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "amazon/chronos-bolt-tiny",
@@ -2252,7 +2764,18 @@
       "credits": [
         "Amazon Science (Chronos team)"
       ],
-      "notes": "Replaces eulogik/nanoforecast-500k, whose weights are only a pickle."
+      "notes": "Replaces eulogik/nanoforecast-500k, whose weights are only a pickle.",
+      "ipfs": {
+        "alexandria": "@swarm.tidedrakeling",
+        "parent": "06_tiamat/organs/augur",
+        "path": "06_tiamat/organs/augur/tidedrakeling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "amazon/chronos-bolt-mini",
@@ -2292,7 +2815,18 @@
       "credits": [
         "Amazon Science (Chronos team)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.tidedrake",
+        "parent": "06_tiamat/organs/augur",
+        "path": "06_tiamat/organs/augur/tidedrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "autogluon/mitra-classifier",
@@ -2332,7 +2866,18 @@
       "credits": [
         "AutoGluon team (Amazon)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.ledgerdrake",
+        "parent": "06_tiamat/organs/augur",
+        "path": "06_tiamat/organs/augur/ledgerdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "autogluon/mitra-regressor",
@@ -2372,7 +2917,18 @@
       "credits": [
         "AutoGluon team (Amazon)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.gaugedrake",
+        "parent": "06_tiamat/organs/augur",
+        "path": "06_tiamat/organs/augur/gaugedrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "AungMoonLord/bert-log-anomaly-detection",
@@ -2414,7 +2970,18 @@
       "credits": [
         "AungMoonLord"
       ],
-      "notes": "Replaces stetteh/otics-anomaly. Database transaction logs, normal or anomaly. Base bert-base-uncased is Apache-2.0; training data not named: confirm."
+      "notes": "Replaces stetteh/otics-anomaly. Database transaction logs, normal or anomaly. Base bert-base-uncased is Apache-2.0; training data not named: confirm.",
+      "ipfs": {
+        "alexandria": "@swarm.lanterndrake",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/lanterndrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Fazmaj/modernbert-flow-anomaly-classifier",
@@ -2456,7 +3023,18 @@
       "credits": [
         "Fazmaj"
       ],
-      "notes": "Replaces nvidia/Kumo-Anomaly. Base answerdotai/ModernBERT-base is Apache-2.0; training data not named: confirm."
+      "notes": "Replaces nvidia/Kumo-Anomaly. Base answerdotai/ModernBERT-base is Apache-2.0; training data not named: confirm.",
+      "ipfs": {
+        "alexandria": "@swarm.currentdrake",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/currentdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ManasKumar28/mimii-distilhubert-anomaly",
@@ -2498,7 +3076,18 @@
       "credits": [
         "Manas Kumar"
       ],
-      "notes": "Replaces kkonathala/powerplant-anomaly-transformer. Base ntu-spml/distilhubert is Apache-2.0; MIMII audio is CC-BY-SA-4.0 (data notes)."
+      "notes": "Replaces kkonathala/powerplant-anomaly-transformer. Base ntu-spml/distilhubert is Apache-2.0; MIMII audio is CC-BY-SA-4.0 (data notes).",
+      "ipfs": {
+        "alexandria": "@swarm.humdrake",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/humdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "MidlightDDK/pocketsql-0.5b",
@@ -2542,7 +3131,19 @@
       "credits": [
         "MidlightDDK"
       ],
-      "notes": "Training data MidlightDDK/pocketsql-data is CC-BY-SA-4.0; see data notes."
+      "notes": "Training data MidlightDDK/pocketsql-data is CC-BY-SA-4.0; see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.recordlindworm",
+        "parent": "06_tiamat/organs/scribe",
+        "path": "06_tiamat/organs/scribe/recordlindworm",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ibm-granite/granite-guardian-hap-38m",
@@ -2582,7 +3183,18 @@
       "credits": [
         "IBM Granite team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.shieldwyvern",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/shieldwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "lakresi/toxic-comment-moderator",
@@ -2624,7 +3236,18 @@
       "credits": [
         "Lloyd Akresi"
       ],
-      "notes": "Trained on the Jigsaw toxic-comment set (competition terms); see data notes."
+      "notes": "Trained on the Jigsaw toxic-comment set (competition terms); see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.thornwyvern",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/thornwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "navodPeiris/minilm-toxic-spam-classifier",
@@ -2666,7 +3289,18 @@
       "credits": [
         "Navod Peiris"
       ],
-      "notes": "Base nreimers/MiniLMv2 declares no licence on its card (Microsoft MiniLM is MIT upstream). Confirm before shipping."
+      "notes": "Base nreimers/MiniLMv2 declares no licence on its card (Microsoft MiniLM is MIT upstream). Confirm before shipping.",
+      "ipfs": {
+        "alexandria": "@swarm.sievewyvern",
+        "parent": "06_tiamat/organs/sentinel",
+        "path": "06_tiamat/organs/sentinel/sievewyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "mispeech/ced-tiny",
@@ -2706,7 +3340,18 @@
       "credits": [
         "Xiaomi speech team (mispeech; Heinrich Dinkel et al.)"
       ],
-      "notes": "Trained on AudioSet; see data notes."
+      "notes": "Trained on AudioSet; see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.rustlewyrmling",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/rustlewyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "mispeech/ced-mini",
@@ -2746,7 +3391,18 @@
       "credits": [
         "Xiaomi speech team (mispeech)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.murmurwyrmling",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/murmurwyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "mispeech/ced-small",
@@ -2786,7 +3442,18 @@
       "credits": [
         "Xiaomi speech team (mispeech)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.thunderwyrmling",
+        "parent": "06_tiamat/organs/ear",
+        "path": "06_tiamat/organs/ear/thunderwyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "AuroraAI-Research/AuroraIMG-6M",
@@ -2836,7 +3503,18 @@
       "credits": [
         "AuroraAI-Research"
       ],
-      "notes": "Trained on CC12M (web images with their own terms); see data notes."
+      "notes": "Trained on CC12M (web images with their own terms); see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.sketchwyvern",
+        "parent": "06_tiamat/organs/painter",
+        "path": "06_tiamat/organs/painter/sketchwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Arrexel/pattern-diffusion",
@@ -2887,7 +3565,18 @@
       "credits": [
         "Alex Reid (Arrexel)"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.tilewyvern",
+        "parent": "06_tiamat/organs/painter",
+        "path": "06_tiamat/organs/painter/tilewyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "alfredplpl/CommonArt-PoC",
@@ -2928,7 +3617,18 @@
       "credits": [
         "alfredplpl (Yasunori Ozaki)"
       ],
-      "notes": "Trained on CommonCatalog CC-BY images, whose authors are listed with the dataset; we credit the dataset."
+      "notes": "Trained on CommonCatalog CC-BY images, whose authors are listed with the dataset; we credit the dataset.",
+      "ipfs": {
+        "alexandria": "@swarm.muralwyvern",
+        "parent": "06_tiamat/organs/painter",
+        "path": "06_tiamat/organs/painter/muralwyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "lerobot/smolvla_base",
@@ -2981,7 +3681,18 @@
       "credits": [
         "Hugging Face LeRobot team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.gripdrake",
+        "parent": "06_tiamat/organs/hand",
+        "path": "06_tiamat/organs/hand/gripdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "lerobot/smolvla_libero",
@@ -3034,7 +3745,18 @@
       "credits": [
         "Hugging Face LeRobot team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.reachdrake",
+        "parent": "06_tiamat/organs/hand",
+        "path": "06_tiamat/organs/hand/reachdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "lerobot/smolvla_robotwin",
@@ -3087,7 +3809,18 @@
       "credits": [
         "Hugging Face LeRobot team"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.pairdrake",
+        "parent": "06_tiamat/organs/hand",
+        "path": "06_tiamat/organs/hand/pairdrake",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "ThiennNguyen/act_so101_small",
@@ -3138,7 +3871,18 @@
       "credits": [
         "Thien Nguyen"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.armdrakeling",
+        "parent": "06_tiamat/organs/hand",
+        "path": "06_tiamat/organs/hand/armdrakeling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "Haamipromax/HamAI-Science-1b",
@@ -3192,7 +3936,18 @@
         "Haamipromax",
         "GGUF conversion by mradermacher"
       ],
-      "notes": "Base TinyLlama-1.1B-Chat (Apache-2.0); credit the TinyLlama team."
+      "notes": "Base TinyLlama-1.1B-Chat (Apache-2.0); credit the TinyLlama team.",
+      "ipfs": {
+        "alexandria": "@swarm.alembicwyrm",
+        "parent": "06_tiamat/organs/natural_philosopher",
+        "path": "06_tiamat/organs/natural_philosopher/alembicwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "eaddario/MiniCPM5-1B-GGUF",
@@ -3280,7 +4035,18 @@
       "credits": [
         "Ed Addario (GGUF); model by OpenBMB"
       ],
-      "notes": "Base openbmb/MiniCPM5-1B is tagged Apache-2.0."
+      "notes": "Base openbmb/MiniCPM5-1B is tagged Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.starwyrm",
+        "parent": "06_tiamat/organs/natural_philosopher",
+        "path": "06_tiamat/organs/natural_philosopher/starwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "autotrust/JEV-27B-VL",
@@ -3413,7 +4179,18 @@
       "credits": [
         "autotrust"
       ],
-      "notes": null
+      "notes": null,
+      "ipfs": {
+        "alexandria": "@swarm.senatewyrm",
+        "parent": "06_tiamat/organs/council",
+        "path": "06_tiamat/organs/council/senatewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "chinhnc/Quyet-1.0-Tiny",
@@ -3455,7 +4232,18 @@
       "credits": [
         "Chinh Nguyen"
       ],
-      "notes": "Base jhu-clsp/mmBERT-small is MIT. Ships its own NOTICE."
+      "notes": "Base jhu-clsp/mmBERT-small is MIT. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.choicewyrmling",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/choicewyrmling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "chinhnc/Quyet-1.0-Small",
@@ -3497,7 +4285,18 @@
       "credits": [
         "Chinh Nguyen"
       ],
-      "notes": "Base aisingapore/SEA-LION-ModernBERT-300M is MIT. Ships its own NOTICE."
+      "notes": "Base aisingapore/SEA-LION-ModernBERT-300M is MIT. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.choicewyrm",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/choicewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "samratduttaofficial/WaterSheep",
@@ -3539,7 +4338,18 @@
       "credits": [
         "Samrat Dutta"
       ],
-      "notes": "Trained on ~80 datasets with mixed terms (some non-commercial benchmark sets); see data notes. Ships its own NOTICE."
+      "notes": "Trained on ~80 datasets with mixed terms (some non-commercial benchmark sets); see data notes. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.balancewyrm",
+        "parent": "06_tiamat/organs/arbiter",
+        "path": "06_tiamat/organs/arbiter/balancewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "BananaMind/StoryBananaMind-7.5M",
@@ -3579,7 +4389,18 @@
       "credits": [
         "BananaMind"
       ],
-      "notes": "Trained on TinyStories (CDLA-Sharing-1.0); see data notes."
+      "notes": "Trained on TinyStories (CDLA-Sharing-1.0); see data notes.",
+      "ipfs": {
+        "alexandria": "@swarm.fablehatchling",
+        "parent": "06_tiamat/organs/bard",
+        "path": "06_tiamat/organs/bard/fablehatchling",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "VertexAGI/prism-creative-1-mini",
@@ -3622,7 +4443,18 @@
       "credits": [
         "VertexAGI"
       ],
-      "notes": "Base Qwen3-4B-Instruct-2507 (via an MLX 4-bit copy) is Apache-2.0."
+      "notes": "Base Qwen3-4B-Instruct-2507 (via an MLX 4-bit copy) is Apache-2.0.",
+      "ipfs": {
+        "alexandria": "@swarm.fablewyvern",
+        "parent": "06_tiamat/organs/bard",
+        "path": "06_tiamat/organs/bard/fablewyvern",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "sallani/EUAIAct-Qwen2.5-0.5B-Edge",
@@ -3666,7 +4498,19 @@
       "credits": [
         "sallani"
       ],
-      "notes": "Advisory only, never legal advice (project policy). Adapter extracted from the upstream GGUF dequantised; if that loses quality it ships as the upstream GGUF."
+      "notes": "Advisory only, never legal advice (project policy). Adapter extracted from the upstream GGUF dequantised; if that loses quality it ships as the upstream GGUF.",
+      "ipfs": {
+        "alexandria": "@swarm.statutewyrmling",
+        "parent": "06_tiamat/organs/clerk",
+        "path": "06_tiamat/organs/clerk/statutewyrmling",
+        "layers": [
+          "card",
+          "trunk_link",
+          "adapter",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "AlexandruGirlea/precommiteu-models",
@@ -3740,7 +4584,18 @@
       "credits": [
         "Alexandru Girlea"
       ],
-      "notes": "Base Qwen2.5-Coder-7B-Instruct is Apache-2.0. Ships its own NOTICE."
+      "notes": "Base Qwen2.5-Coder-7B-Instruct is Apache-2.0. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.compliancewyrm",
+        "parent": "06_tiamat/organs/clerk",
+        "path": "06_tiamat/organs/clerk/compliancewyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "PrinceRansom7/gemma4-e2b-it-regulatory-obligation-v1",
@@ -3802,7 +4657,18 @@
       "credits": [
         "PrinceRansom7; base Gemma 4 by Google DeepMind"
       ],
-      "notes": "Gemma 4 is released under Apache-2.0 (google/gemma-4-E2B-it card), unlike Gemma 1-3."
+      "notes": "Gemma 4 is released under Apache-2.0 (google/gemma-4-E2B-it card), unlike Gemma 1-3.",
+      "ipfs": {
+        "alexandria": "@swarm.dutywyrm",
+        "parent": "06_tiamat/organs/clerk",
+        "path": "06_tiamat/organs/clerk/dutywyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     },
     {
       "model_id": "zenlm/zen-legal",
@@ -3860,7 +4726,18 @@
       "credits": [
         "zenlm"
       ],
-      "notes": "Base Qwen3-8B is Apache-2.0. Ships its own NOTICE."
+      "notes": "Base Qwen3-8B is Apache-2.0. Ships its own NOTICE.",
+      "ipfs": {
+        "alexandria": "@swarm.covenantwyrm",
+        "parent": "06_tiamat/organs/clerk",
+        "path": "06_tiamat/organs/clerk/covenantwyrm",
+        "layers": [
+          "card",
+          "weights",
+          "evidence_head"
+        ],
+        "cid": null
+      }
     }
   ],
   "excluded": [

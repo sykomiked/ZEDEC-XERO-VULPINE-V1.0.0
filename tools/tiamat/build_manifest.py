@@ -99,6 +99,16 @@ def base_chain(meta):
     return [b] if isinstance(b, str) else list(b or [])
 
 
+def ipfs_node(c):
+    """Where the cell lives in the Tiamat bucket tree (tiamat_swarm.json "distribution").
+    The CID is filled in by ipfs-dist when the tree is packed; never guessed."""
+    branch = "trunks" if c["organ"] == "trunk" else f"organs/{c['organ']}"
+    leaf = c["name"].lower()
+    layers = ["card"] + (["weights"] if not c["trunk"] else ["trunk_link", "adapter"]) + ["evidence_head"]
+    return {"alexandria": f"@swarm.{leaf}", "parent": f"06_tiamat/{branch}",
+            "path": f"06_tiamat/{branch}/{leaf}", "layers": layers, "cid": None}
+
+
 def entry(c, meta, metas):
     src = files_of(meta, c["files"])
     shipped = [pinned(metas[r], r, p) | ({"packaging_credit": cr} if cr else {})
@@ -139,6 +149,7 @@ def entry(c, meta, metas):
         "source_files": src,
         "credits": credits,
         "notes": c["note"],
+        "ipfs": ipfs_node(c),
     }
 
 
