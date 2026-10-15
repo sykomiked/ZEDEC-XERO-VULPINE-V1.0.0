@@ -99,6 +99,8 @@ typedef int sock_t;
 #include "zxv_model_host.h"
 #include "zxv_budget_gate.h"
 #include "zxv_answer_tag.h"
+#include "../../src/chiglet/chg_organ.h" /* swarm.organ */
+#include "../../src/chiglet/chg_vocab.h"
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"
@@ -1881,6 +1883,80 @@ static void rpc_ask(const char *q, zxvd_buf_t *o)
     zxvd_buf_json_str(o, ans);
 }
 
+/* swarm.organ (zxvd_rpc.h, kernel/src/chiglet/chg_organ.h). This build has
+ * one model slot, so every organ's only cell is that model (one lineage):
+ * there is no cell of another lineage to witness it (O3). No evidence head
+ * is fitted to it either (zt_evh.h), so its verdict is NEITHER and the
+ * organ reports "not sure" (O4). The answer comes through answer(), the
+ * same path as swarm.ask (budget gate, answer tag, quarantine), and the
+ * screen shows it held. The cycle's budget gate charges every run, so the
+ * router's own budget (O5) is left unbounded here. */
+static int organ_answer(void *ctx, const chgo_cell_t *cell, const char *prompt, size_t plen,
+                        char *out, size_t cap, lpres_state_t *verdict, uint64_t *tokens)
+{
+    (void) ctx;
+    (void) cell;
+    (void) plen;
+    answer(prompt, out, cap);
+    *verdict = LPRES_STATE_NEITHER;
+    *tokens = ANSWER_REAL ? S.last_gate.charged : 0;
+    return 0;
+}
+
+static int organ_check(void *ctx, const chgo_cell_t *cell, const char *prompt, size_t plen,
+                       const char *ans, size_t alen, lpres_state_t *verdict, uint64_t *tokens)
+{
+    (void) ctx;
+    (void) cell;
+    (void) prompt;
+    (void) plen;
+    (void) ans;
+    (void) alen;
+    *verdict = LPRES_STATE_NEITHER; /* no evidence head to check with */
+    *tokens = 0;
+    return 0;
+}
+
+static const char *lpres_word(lpres_state_t v)
+{
+    switch (v) {
+    case LPRES_STATE_TRUE:
+        return "true";
+    case LPRES_STATE_FALSE:
+        return "false";
+    case LPRES_STATE_BOTH:
+        return "both";
+    default:
+        return "neither";
+    }
+}
+
+static const char *rpc_organ(uint8_t organ, const char *prompt, zxvd_buf_t *o)
+{
+    static chgo_table_t t;
+    chgo_init(&t);
+    for (uint32_t i = 0; i < CHGV_ORGANS; i++)
+        if (chgo_add(&t, (uint8_t) i, 0, 1) != CHGO_OK) return "the organ table is full";
+    char ans[1400];
+    chgo_result_t r;
+    int rc = chgo_ask(&t, organ, prompt, strlen(prompt), UINT64_MAX, organ_answer, organ_check,
+                      NULL, ans, sizeof ans, &r);
+    if (rc != CHGO_OK) return "the organ could not answer";
+    zxvd_buf_raw(o, "{\"organ\":", 9);
+    zxvd_buf_json_str(o, chgv_organ_name(organ));
+    zxvd_buf_raw(o, ",\"answer\":", 10);
+    zxvd_buf_json_str(o, ans);
+    zxvd_buf_printf(o,
+                    ",\"lead\":\"%s\",\"witness\":\"%s\",\"verdict\":\"%s\",\"witnessed\":%s,"
+                    "\"action\":\"%s\",\"tokens\":\"%llu\"}",
+                    lpres_word(r.lead), lpres_word(r.witness), lpres_word(r.verdict),
+                    r.witnessed ? "true" : "false", lpx_action_name(lpx_action(r.tag)),
+                    (unsigned long long) r.tokens);
+    return NULL;
+}
+
+static const zxvd_organ_ops_t ORGAN_OPS = {rpc_organ};
+
 #    if defined(ZXV_HAVE_PLAY)
 /* play.* (zxvd_rpc.h P1-P3) over sdk/playground. */
 static void to_zp(const zxvd_play_file_t *f, uint32_t n, zp_file *z)
@@ -2569,6 +2645,7 @@ int main(int argc, char **argv)
     }
 #if defined(ZXVD)
     zxvd_rpc_set_peer_ops(&PEER_OPS);
+    zxvd_rpc_set_organ_ops(&ORGAN_OPS);
     zxvd_rpc_set_view_ops(&VIEW_OPS);
     zxvd_companion_set_source(rpc_companion);
 #endif

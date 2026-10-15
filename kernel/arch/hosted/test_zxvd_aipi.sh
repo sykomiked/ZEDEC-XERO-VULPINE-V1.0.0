@@ -26,7 +26,7 @@ M="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3
     -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/surplus" -I"$K/src/juris" \
     -I"$R/sdk/libzxv/include" -I"$R/sdk/kits/aipi/include" -I"$R/sdk/kits/aipi/test" \
     -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" \
-    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$K/src/web4/web4_json.c" \
+    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$K/src/chiglet/chg_vocab.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" \
     "$K/src/juris/juris.c" "$K/src/acct/acct.c" "$M" \
     "$A/libaipi_zwasm.a" "$A/libaipi_core.a" "$A/zcontract/libzcontract_wasm.a" \

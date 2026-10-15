@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "zxapp.h"
+#include "../chiglet/chg_vocab.h"
 #include "zxapp_eve.h"
 #include "zxapp_kron.h"
 #include "zxapp_lingua.h"
@@ -1008,6 +1009,76 @@ static void test_apps_as_blocks(void)
     snprintf(m, sizeof m, "zxapp 1\nid pin\nuse dashboard 1 %.71s\n", DASH.cid);
     CHECK(parse_into(&PIN, m) == ZXAPP_OK && zxapp_compose(&PIN, &R) == ZXAPP_E_CONTRACT,
           "the dashboard's own use is not pinned");
+}
+
+/* ---- K: the chiglet --------------------------------------------------------- */
+
+static void test_chiglet_lines(void)
+{
+    CHECK(parse("zxapp 1\nid quillon\nchiglet smith apply_edit,apply_fix\n"
+                "chiglet Warden -  # reads and explains\nchiglet scribe -\n") != ZXAPP_OK,
+          "organ names are exact (Warden)");
+    CHECK(parse("zxapp 1\nid quillon\nchiglet smith apply_edit,apply_fix\n"
+                "chiglet warden -  # reads and explains\nchiglet scribe add_to_backup\n") ==
+              ZXAPP_OK,
+          "three chiglet lines parse: %s", A.err);
+    CHECK(A.nchiglet == 3 && A.chiglet[0].organ == CHGV_O_SMITH && A.chiglet[0].line == 3 &&
+              A.chiglet[1].organ == CHGV_O_WARDEN && A.chiglet[1].acts == 0,
+          "K1 organs, lines and an explain-only organ");
+    CHECK(A.chiglet[0].acts == ((1ull << CHGV_A_APPLY_EDIT) | (1ull << CHGV_A_APPLY_FIX)),
+          "K1 the acts mask");
+    CHECK(zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_APPLY_EDIT), "K2 smith may apply an edit");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_RUN_COMMAND), "K2 but not run a command");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_WARDEN, CHGV_A_APPLY_EDIT), "K2 the warden only explains");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_BARD, CHGV_A_APPLY_EDIT), "K2 an unlisted organ may not");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_ACTS), "K2 act out of range");
+    CHECK(!zxapp_chiglet_may(NULL, CHGV_O_SMITH, 0) && zxapp_chiglet_acts(NULL) == 0, "K2 null");
+    CHECK(zxapp_chiglet_acts(&A) == ((1ull << CHGV_A_APPLY_EDIT) | (1ull << CHGV_A_APPLY_FIX) |
+                                     (1ull << CHGV_A_ADD_TO_BACKUP)),
+          "K2 the union for intent.h G7");
+    CHECK(parse("zxapp 1\nid x\n") == ZXAPP_OK && A.nchiglet == 0 && zxapp_chiglet_acts(&A) == 0,
+          "no chiglet lines: nothing may be proposed");
+    CHECK(parse("zxapp 1\nid x\nchiglet herald import_machine\n") == ZXAPP_OK &&
+              zxapp_chiglet_may(&A, CHGV_O_HERALD, CHGV_A_IMPORT_MACHINE),
+          "the last act");
+    CHECK(parse("zxapp 1\nid x\nchiglet herald enrol_key\n") == ZXAPP_OK && A.chiglet[0].acts == 1u,
+          "act 0 is bit 0");
+
+    static const struct {
+        const char *m, *why;
+        int rc;
+    } bad[] = {
+        {"zxapp 1\nid x\nchiglet smith\n", "chiglet needs", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet\n", "chiglet needs", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith apply_edit apply_fix\n", "chiglet needs", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet blacksmith -\n", "not a Tiamat organ", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith format_disk\n", "not a held act", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith apply_edit,\n", "not a held act", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith ,apply_edit\n", "not a held act", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith apply_edit,,apply_fix\n", "not a held act", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith --\n", "not a held act", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith apply_edit,apply_edit\n", "listed twice", ZXAPP_E_SYNTAX},
+        {"zxapp 1\nid x\nchiglet smith -\nchiglet smith apply_edit\n", "a second chiglet line",
+         ZXAPP_E_SYNTAX},
+        {"zxblock 1\nid b\nversion 1\nchiglet smith -\n", "chiglet lines belong to apps",
+         ZXAPP_E_SYNTAX},
+    };
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        int rc = parse(bad[i].m);
+        CHECK(rc == bad[i].rc && strstr(A.err, bad[i].why) && A.err_line >= 3,
+              "bad chiglet line %u refused (%d, line %u): %s", i, rc, A.err_line, A.err);
+    }
+    {
+        char m[1024];
+        uint32_t n = (uint32_t) snprintf(m, sizeof m, "zxapp 1\nid x\n");
+        for (uint32_t i = 0; i <= ZXAPP_CHIGLETS && n < sizeof m; i++) {
+            int k = snprintf(m + n, sizeof m - n, "chiglet %s -\n", chgv_organ_name(i));
+            n = k < 0 || (uint32_t) k >= sizeof m - n ? (uint32_t) sizeof m - 1 : n + (uint32_t) k;
+        }
+        CHECK(parse(m) == ZXAPP_E_FULL && A.err_line == 3u + ZXAPP_CHIGLETS &&
+                  strstr(A.err, "too many chiglet"),
+              "K1 at most ZXAPP_CHIGLETS lines (%u: %s)", A.err_line, A.err);
+    }
 }
 
 /* ---- I: intents ------------------------------------------------------------- */
@@ -2250,6 +2321,7 @@ int main(int argc, char **argv)
     test_launch();
     test_apps_as_blocks();
     test_intents();
+    test_chiglet_lines();
     test_sutra();
     test_trebago();
     test_myra();

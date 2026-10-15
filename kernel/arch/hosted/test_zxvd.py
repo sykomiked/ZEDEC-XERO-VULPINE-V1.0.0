@@ -1050,8 +1050,8 @@ def main(binary, gguf=None):
 
         c = Client(sock)
         d = c.ok('rpc.discover')
-        want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'model.info',
-                'notes.list', 'notes.mark_read', 'net.command', 'update.check',
+        want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'swarm.organ',
+                'model.info', 'notes.list', 'notes.mark_read', 'net.command', 'update.check',
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
@@ -1147,7 +1147,14 @@ def main(binary, gguf=None):
             check(not mi['loaded'], 'model.info: no model is a normal state')
             a = c.ok('swarm.ask', {'prompt': 'plan(trip) -> verify(costs)'})['answer']
             check('(plan(trip) -> verify(costs))' in a, 'swarm.ask reads shorthand back')
+            o = c.ok('swarm.organ', {'organ': 'smith', 'prompt': 'plan(trip) -> verify(costs)'})
+            check(o['organ'] == 'smith' and '(plan(trip) -> verify(costs))' in o['answer'],
+                  'swarm.organ: the smith answers: %r' % o)
+            check(o['verdict'] == 'neither' and not o['witnessed'] and o['action'] == 'wait',
+                  'swarm.organ: no fitted head, so no verdict and no witness: %r' % o)
             power_checks(c, False)
+        r = c.call('swarm.organ', {'organ': 'blacksmith', 'prompt': 'x'})
+        check(r.get('error', {}).get('code') == -32602, 'swarm.organ with an unknown organ: -32602')
         r = c.call('swarm.ask', {'prompt': 42})
         check(r.get('error', {}).get('code') == -32602, 'swarm.ask with a non-string prompt: -32602')
         r = c.call('net.command', {'command': 'everything'})

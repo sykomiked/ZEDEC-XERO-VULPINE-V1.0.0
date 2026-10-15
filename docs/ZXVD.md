@@ -78,6 +78,7 @@ CI checks it matches what zxvd serves.
 | `zxvd.shutdown` | | `stopping` |
 | `swarm.state` | | the full live state (same as the window's `/api/state`) |
 | `swarm.ask` | `prompt` | `answer` |
+| `swarm.organ` | `organ`, `prompt` | `organ`, `answer`, `lead`, `witness`, `verdict`, `witnessed`, `action`, `tokens` (one Tiamat organ with a witness of another lineage, `kernel/src/chiglet/chg_organ.h`; this build has one model and no fitted evidence head, so the verdict is `neither` and the answer is shown held) |
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
@@ -297,6 +298,7 @@ stats engine refused (the message is its status name, e.g.
 `<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
 -32070 no companion yet
 (`companion.*` before the swarm has an agent),
+-32071 the organ could not answer (`swarm.organ`),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
 -32096 an IRC gateway refusal (the message says why, see "The IRC gateway"

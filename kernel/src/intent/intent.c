@@ -3,6 +3,7 @@
 /* intent.c — the AI intent layer (intent.h I1-I6). */
 #include "intent.h"
 #include "../robin_debanks/sha256.h"
+#include "../chiglet/chg_vocab.h"
 
 static lpx_t tag(uint8_t base)
 {
@@ -118,6 +119,21 @@ static bool parse_memo(rd_t *r, char *memo)
     return r->i == r->n;
 }
 
+/* I7: [a-z0-9._:/-]{1,INTENT_OBJECT_MAX} */
+static bool parse_object(const char *w, size_t wl, char *out)
+{
+    if (wl == 0 || wl > INTENT_OBJECT_MAX) return false;
+    for (size_t i = 0; i < wl; i++) {
+        char c = w[i];
+        bool ok = (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' ||
+                  c == ':' || c == '/' || c == '-';
+        if (!ok) return false;
+        out[i] = c;
+    }
+    out[wl] = '\0';
+    return true;
+}
+
 intent_status_t intent_parse(const intent_cfg_t *cfg, const char *text, size_t len,
                              intent_req_t *out)
 {
@@ -142,6 +158,18 @@ intent_status_t intent_parse(const intent_cfg_t *cfg, const char *text, size_t l
             q.kind = INTENT_REPORT_TAX;
         else
             return INTENT_E_PARSE;
+        *out = q;
+        return INTENT_OK;
+    }
+    if (is(w, wl, "act")) { /* I7 */
+        if (!space(&r) || !word(&r, &w, &wl)) return INTENT_E_PARSE;
+        int a = chgv_act_find(w, wl);
+        if (a < 0) return INTENT_E_PARSE;
+        q.kind = INTENT_ACT;
+        q.act = (uint8_t) a;
+        if (!space(&r) || !word(&r, &w, &wl) || !parse_object(w, wl, q.object))
+            return INTENT_E_PARSE;
+        if (!parse_memo(&r, q.memo)) return INTENT_E_PARSE;
         *out = q;
         return INTENT_OK;
     }
@@ -211,7 +239,7 @@ static void put_le(uint8_t *o, uint64_t v, unsigned n)
 /* I5 */
 static void draft_digest(intent_draft_t *d)
 {
-    uint8_t b[13 + 1 + 8 + 4 + 4 + 4 + 1 + INTENT_MEMO_MAX + 8 + 8];
+    uint8_t b[13 + 1 + 8 + 4 + 4 + 4 + 1 + INTENT_MEMO_MAX + 8 + 8 + 1 + 1 + INTENT_OBJECT_MAX];
     static const char dom[13] = {'z', 'x', 'v', '/', 'i', 'n', 't', 'e', 'n', 't', '/', 'v', '1'};
     size_t o = 0, ml = 0;
     for (unsigned i = 0; i < 13; i++) b[o++] = (uint8_t) dom[i];
@@ -230,6 +258,13 @@ static void draft_digest(intent_draft_t *d)
     o += 8;
     put_le(b + o, d->epoch, 8);
     o += 8;
+    if (d->req.kind == INTENT_ACT) { /* I7: money drafts keep their v1 bytes */
+        size_t ol = 0;
+        while (ol < INTENT_OBJECT_MAX && d->req.object[ol]) ol++;
+        b[o++] = d->req.act;
+        b[o++] = (uint8_t) ol;
+        for (size_t i = 0; i < ol; i++) b[o++] = (uint8_t) d->req.object[i];
+    }
     sha256(b, o, d->digest);
 }
 
@@ -250,6 +285,8 @@ static lpx_t guard(intent_t *x, intent_req_t *q)
 {
     const intent_cfg_t *c = &x->cfg;
     lpx_t acc = tag(LPX_B_TRUE);
+    if (q->kind == INTENT_ACT) /* G7 */
+        return q->act < 64u && (c->acts >> q->act) & 1u ? acc : tag(LPX_B_FALSE);
     if (q->kind == INTENT_INVOICE) {
         if (c->n_own == 0) return tag(LPX_B_FALSE);
         q->to = c->own[0]; /* paid into the owner's first account */
@@ -312,7 +349,7 @@ intent_status_t intent_propose(intent_t *x, const char *text, size_t len, uint64
     if (seq) *seq = n;
     switch (lpx_action(d->tag)) {
     case LPX_ACT_PROCEED:
-        if (q.kind == INTENT_PAY || q.kind == INTENT_INVOICE) {
+        if (q.kind == INTENT_PAY || q.kind == INTENT_INVOICE || q.kind == INTENT_ACT) {
             d->state = INTENT_ST_PROPOSED;
         } else {
             d->state = INTENT_ST_RELEASED; /* I2: read-only, nothing to approve */

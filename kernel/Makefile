@@ -407,6 +407,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-zt-gram
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-companion
+	$(MAKE) --no-print-directory test-chg-organ
 	$(MAKE) --no-print-directory test-zxvc
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
@@ -1649,7 +1650,7 @@ PCE_SRCS := src/pce/pce.c src/pce/pce_prob.c src/pce/pce_tac.c src/pce/pce_strat
 test-pce:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/pce/test_pce.c src/pce/test_pce_tac.c src/pce/test_pce_strat.c src/pce/test_pce_fin.c src/pce/test_pce_golden.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pce && $(ZXV_TMP)/test_pce > $(ZXV_TMP)/test_pce.log 2>&1 && echo "[PASS] test_pce ($$(tail -1 $(ZXV_TMP)/test_pce.log))" || { cat $(ZXV_TMP)/test_pce.log; echo "[FAIL] test_pce"; exit 1; }
 	@for f in $(PCE_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pce_free.o || { echo "[FAIL] pce freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pce_free.o | grep -vE ' (pce_|lpx_|lpres_|pdx_|rat_|sha256_)' | grep -q .; then nm -u $(ZXV_TMP)/pce_free.o; echo "[FAIL] pce freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pce freestanding (aarch64 -mgeneral-regs-only, i386; only pce_/lpx_/lpres_/pdx_/rat_/sha256_ external)"
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/apps/test_zxapp_pce.c src/apps/zxapp.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_zxapp_pce && $(ZXV_TMP)/test_zxapp_pce src > $(ZXV_TMP)/test_zxapp_pce.log 2>&1 && echo "[PASS] pce blocks ($$(tail -1 $(ZXV_TMP)/test_zxapp_pce.log))" || { cat $(ZXV_TMP)/test_zxapp_pce.log; echo "[FAIL] pce blocks"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/apps/test_zxapp_pce.c src/apps/zxapp.c src/chiglet/chg_vocab.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_zxapp_pce && $(ZXV_TMP)/test_zxapp_pce src > $(ZXV_TMP)/test_zxapp_pce.log 2>&1 && echo "[PASS] pce blocks ($$(tail -1 $(ZXV_TMP)/test_zxapp_pce.log))" || { cat $(ZXV_TMP)/test_zxapp_pce.log; echo "[FAIL] pce blocks"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c src/apps/zxapp_pce.c -o $(ZXV_TMP)/zxapp_pce_free.o || { echo "[FAIL] zxapp_pce freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/zxapp_pce_free.o | grep -vE ' (pce_|zxapp_)' | grep -q .; then nm -u $(ZXV_TMP)/zxapp_pce_free.o; echo "[FAIL] zxapp_pce freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] zxapp_pce freestanding (only pce_/zxapp_ external)"
 
 # The contradiction-tolerant ledger and four-valued agents (src/paradox/pdx_ledger.h,
@@ -1684,6 +1685,17 @@ CMP_INC := -Iinclude -Isrc/modbind -Isrc/lpres -Isrc/event_space -Isrc/surplus -
 test-companion:
 	@for mode in -DTEST_HOST -DCMP_Q32; do gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $$mode $(CMP_INC) src/companion/test_companion.c $(CMP_SRCS) -lm -o $(ZXV_TMP)/test_companion 2>$(ZXV_TMP)/test_companion.build || { cat $(ZXV_TMP)/test_companion.build; echo "[FAIL] test_companion build ($$mode)"; exit 1; }; $(ZXV_TMP)/test_companion > $(ZXV_TMP)/test_companion.log 2>&1 && echo "[PASS] test_companion $$mode ($$(tail -1 $(ZXV_TMP)/test_companion.log))" || { cat $(ZXV_TMP)/test_companion.log; echo "[FAIL] test_companion ($$mode)"; exit 1; }; done
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CMP_INC) -c src/companion/companion.c -o $(ZXV_TMP)/companion_free.o || { echo "[FAIL] companion freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/companion_free.o | grep -vE ' (chg_[a-z_]+|lpx_[a-z_]+|pqm_mldsa87_verify|sha256(_init|_update|_final)?|swarm_emotion_(charge|profile)|memcpy)$$' | grep -q .; then nm -u $(ZXV_TMP)/companion_free.o; echo "[FAIL] companion freestanding: unexpected symbol ($$t)"; exit 1; fi; done; echo "[PASS] companion freestanding (aarch64 -mgeneral-regs-only, i386)"
+
+# The chiglet's organ router and act vocabulary (src/chiglet/chg_organ.h O1-O6,
+# chg_vocab.h V1-V3): ASan/UBSan tests, then a freestanding build whose only
+# external symbols are the vocabulary, the four-valued joins and the tag table.
+CHGO_SRCS := src/chiglet/chg_organ.c src/chiglet/chg_vocab.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
+CHGO_INC := -Iinclude -Isrc/modbind -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/chiglet
+.PHONY: test-chg-organ
+test-chg-organ:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $(CHGO_INC) src/chiglet/test_chg_organ.c $(CHGO_SRCS) -o $(ZXV_TMP)/test_chg_organ 2>$(ZXV_TMP)/test_chg_organ.build || { cat $(ZXV_TMP)/test_chg_organ.build; echo "[FAIL] test_chg_organ build"; exit 1; }
+	@$(ZXV_TMP)/test_chg_organ > $(ZXV_TMP)/test_chg_organ.log 2>&1 && echo "[PASS] test_chg_organ ($$(tail -1 $(ZXV_TMP)/test_chg_organ.log))" || { cat $(ZXV_TMP)/test_chg_organ.log; echo "[FAIL] test_chg_organ"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_organ chg_vocab; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CHGO_INC) -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (chgv_[a-z_]+|lpx_[a-z_]+|lpres_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_organ, chg_vocab freestanding (aarch64 -mgeneral-regs-only, i386)"
 
 # The .zxvc model package and converter (src/tensor/zt_zxvc.h, tools/zxvc.c,
 # roadmap 6.6c M.1/M.4): every F16/BF16 pattern and 4M F32 patterns decode to
@@ -2271,7 +2283,7 @@ test-juris:
 # AI intent layer (src/intent): strict grammar, guard, owner approval bound to the draft digest; never writes balances.
 .PHONY: test-intent
 test-intent:
-	gcc $(ECON_FLAGS) $(ECON_INC) src/intent/test_intent.c src/intent/intent.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_intent -lm && $(ZXV_TMP)/test_intent > $(ZXV_TMP)/test_intent.log 2>&1 && echo "[PASS] test_intent ($$(tail -1 $(ZXV_TMP)/test_intent.log))" || { tail -40 $(ZXV_TMP)/test_intent.log; echo "[FAIL] test_intent"; exit 1; }
+	gcc $(ECON_FLAGS) $(ECON_INC) src/intent/test_intent.c src/intent/intent.c src/chiglet/chg_vocab.c $(ADAPT_JURIS) -o $(ZXV_TMP)/test_intent -lm && $(ZXV_TMP)/test_intent > $(ZXV_TMP)/test_intent.log 2>&1 && echo "[PASS] test_intent ($$(tail -1 $(ZXV_TMP)/test_intent.log))" || { tail -40 $(ZXV_TMP)/test_intent.log; echo "[FAIL] test_intent"; exit 1; }
 
 # Privacy layer (src/privacy): exact discrete Laplace, epsilon budget, four-valued access control, selective disclosure.
 .PHONY: test-privacy
