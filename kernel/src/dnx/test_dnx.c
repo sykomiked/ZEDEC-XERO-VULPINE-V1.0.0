@@ -141,11 +141,18 @@ static void test_duplex(void)
     const char *msg = "chiglet DNA reads both ways";
     uint32_t len = (uint32_t) strlen(msg);
     int32_t n = dnx_duplex_encode((const uint8_t *) msg, len, strand, BIG);
-    CHECK(n == (int32_t) DNX_DUPLEX_BASES(len), "duplex size is 2(40+4L)+6");
+    CHECK(n == (int32_t) DNX_DUPLEX_BASES(len), "duplex size is 88 + 8L");
     dnx_metrics_t m;
     dnx_metrics(strand, (uint32_t) n, &m);
     CHECK(m.revcomp_palindrome, "a duplex strand is its own reverse complement");
     CHECK(text_is(strand, 8, false, "ATGGTCCA"), "frame opens with the magic");
+    CHECK(text_is(strand + (n - 8) / 2, 8, false, "GGAATTCC"), "pivot sits in the middle");
+    uint8_t packed[128];
+    CHECK(n % 4 == 0 && dnx_bases_to_bytes(strand, (uint32_t) n, packed, sizeof packed) ==
+                            (int32_t) (22u + 2u * len),
+          "a duplex strand packs into 22 + 2L bytes");
+    dnx_bytes_to_bases(packed, 22u + 2u * len, strand2, BIG);
+    CHECK(memcmp(strand, strand2, (size_t) n) == 0, "and unpacks to the same strand");
 
     dnx_verdict_t v;
     memset(out1, 0, BIG);
@@ -342,7 +349,7 @@ static void test_edges(void)
                   memcmp(out1, msg, 5) == 0,
               "a low bit in any reverse body byte is caught");
     }
-    /* A length field forged so 2(40 + 4 len) + 6 wraps to the real size:
+    /* A length field forged so 88 + 8 len wraps to the real size:
      * len = real + 2^29. The payload cap refuses it before any read. */
     memcpy(strand2, strand, (size_t) n);
     uint32_t forged = 5u + (1u << 29);

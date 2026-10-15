@@ -26,7 +26,9 @@
  * D3  DUPLEX FRAME. One frame F carries a payload:
  *         F = MAGIC(8) | LEN(16) | BODY(4*len) | CRC32(16)      (in bases)
  *     and the strand is
- *         W = F | PIVOT | revcomp(F)       PIVOT = GAATTC (EcoRI site)
+ *         W = F | PIVOT | revcomp(F)       PIVOT = GGAATTCC (holds the EcoRI site)
+ *     W is 88 + 8 * len bases, a multiple of 4, so it packs into exactly
+ *     22 + 2 * len bytes with dnx_bases_to_bytes for storage.
  *     W is its own reverse complement, so the forward reader (index 0 up)
  *     and the reverse reader (index n-1 down, complemented) each see a whole
  *     copy of F. Each read checks magic, length against the strand, pivot
@@ -87,7 +89,7 @@
 #define DNX_MAGIC_BASES 8u
 #define DNX_LEN_BASES   16u /* 32-bit big-endian length */
 #define DNX_CRC_BASES   16u /* CRC-32 (IEEE) of the payload */
-#define DNX_PIVOT_BASES 6u
+#define DNX_PIVOT_BASES 8u
 #define DNX_FRAME_FIXED (DNX_MAGIC_BASES + DNX_LEN_BASES + DNX_CRC_BASES)
 
 /* Bases a duplex strand of a len-byte payload needs. */

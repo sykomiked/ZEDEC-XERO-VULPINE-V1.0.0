@@ -1115,7 +1115,7 @@ Status: WORKING (tested in verify-all)
 What it does: Keeps audiogenomics_pro's binary-to-base mapping (00 A, 01 C, 10 G, 11 T or U) and
 makes every strand readable start to finish and finish to start. Under that mapping the
 complement is a bit flip (b ^ 3), so the reverse read is the forward reader fed the strand
-backwards and complemented. A duplex frame (magic, length, body, CRC-32, GAATTC pivot, then the
+backwards and complemented. A duplex frame (magic, length, body, CRC-32, GGAATTCC pivot, then the
 reverse complement of all of it) is its own reverse complement; each direction verifies on its
 own and the two verdicts are joined with lpres_kjoin, so a one-sided failure or two verified but
 different payloads is BOTH, never resolved by picking one. A strand of whole codons is also a
@@ -1128,7 +1128,7 @@ dnx_prog_run, dnx_prog_run_reverse, dnx_prog_bidi, dnx_codon_amino.
 Tests: src/dnx/test_dnx.c (make -C kernel test-dnx, in verify-all).
 Used by: nothing yet. A chiglet's encoded DNA record (chg_kin, draft #155) is a byte string and
 carries whole in a duplex frame (the test round-trips a record of that size).
-Gaps: not in the arch images or zxvd; no strand storage format beyond one base per byte.
+Gaps: not in the arch images or zxvd. Strands are one base per byte in memory; dnx_bases_to_bytes packs a duplex strand to 22 + 2L bytes for storage.
 
 ### dual_space — paired positive/negative artifact registry
 Status: WORKING (tested in verify-all)

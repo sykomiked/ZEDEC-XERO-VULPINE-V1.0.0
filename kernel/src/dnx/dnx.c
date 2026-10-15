@@ -14,8 +14,11 @@
  * complement (TGGACCAT), so a one-way strand never shows a magic backwards. */
 static const uint8_t DNX_MAGIC[DNX_MAGIC_BASES] = {DNX_A, DNX_T, DNX_G, DNX_G,
                                                    DNX_T, DNX_C, DNX_C, DNX_A};
-/* GAATTC, the EcoRI site: its own reverse complement. */
-static const uint8_t DNX_PIVOT[DNX_PIVOT_BASES] = {DNX_G, DNX_A, DNX_A, DNX_T, DNX_T, DNX_C};
+/* GGAATTCC: the EcoRI site GAATTC with a G-C pair round it, its own reverse
+ * complement, and 8 bases so a whole strand is a multiple of 4 (packs into
+ * bytes exactly). */
+static const uint8_t DNX_PIVOT[DNX_PIVOT_BASES] = {DNX_G, DNX_G, DNX_A, DNX_A,
+                                                   DNX_T, DNX_T, DNX_C, DNX_C};
 
 /* ---- D1 conversion ---- */
 
