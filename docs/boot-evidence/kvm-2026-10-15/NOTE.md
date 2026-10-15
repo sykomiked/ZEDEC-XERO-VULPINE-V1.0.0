@@ -1,0 +1,3 @@
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+x86_64 golden disc from claude/project-thread-2ppu3g-wave1 @ 475b7dee (contains 7d93e2bd), sha256 b795c602fd4dbab436db6a8d55da38693a6b096bb6258ee5abfbe6dc7971caeb, booted 2026-10-15T05:30Z under QEMU 6.2.0 (Ubuntu 1:6.2+dfsg-2ubuntu6.31) with nested KVM (-cpu host -smp 4 -m 4096 -machine q35, OVMF 4M) on a KVM guest, Intel Xeon E5-2699 v4 @ 2.20GHz, host kernel 6.8.0-90: models, handoff v2, storage (/MEGAROM.TVL read), AI self-check, BOOT_OK and heartbeat ticks=1261..8261 all reached; screenshots at 15 s, 60 s and 120 s.
