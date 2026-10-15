@@ -404,6 +404,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-handoff
 	$(MAKE) --no-print-directory test-x86-irq
 	$(MAKE) --no-print-directory test-x86-sched
+	$(MAKE) --no-print-directory test-mmu-window
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
@@ -1624,6 +1625,12 @@ test-x86-irq:
 .PHONY: test-x86-sched
 test-x86-sched:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/x86_64 -Iinclude -Isrc/lpres -Isrc/event_space arch/x86_64/test_x86_sched.c arch/x86_64/x86_sched.c -o $(ZXV_TMP)/test_x86_sched && $(ZXV_TMP)/test_x86_sched > $(ZXV_TMP)/test_x86_sched.log 2>&1 && echo "[PASS] test_x86_sched ($$(tail -1 $(ZXV_TMP)/test_x86_sched.log))" || { cat $(ZXV_TMP)/test_x86_sched.log; echo "[FAIL] test_x86_sched"; exit 1; }
+
+# arm64 page-table windows (arch/arm64/mmu_window.c): the firmware framebuffer
+# mapped wherever AAVMF puts it, the rest of the tables untouched.
+.PHONY: test-mmu-window
+test-mmu-window:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/arm64 arch/arm64/test_mmu_window.c arch/arm64/mmu_window.c -o $(ZXV_TMP)/test_mmu_window && $(ZXV_TMP)/test_mmu_window > $(ZXV_TMP)/test_mmu_window.log 2>&1 && echo "[PASS] test_mmu_window ($$(tail -1 $(ZXV_TMP)/test_mmu_window.log))" || { cat $(ZXV_TMP)/test_mmu_window.log; echo "[FAIL] test_mmu_window"; exit 1; }
 
 .PHONY: test-fwadapt
 test-fwadapt:

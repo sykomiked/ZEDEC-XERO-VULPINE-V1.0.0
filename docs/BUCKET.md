@@ -52,6 +52,13 @@ Consequences:
 - Later updates do not rebuild Disc 1: they come as overlays (L4,
   `04_overlays`), each naming the CID it stands on.
 - Two builds of different bytes can never collide: their names differ.
+- A CID is only as reproducible as the bytes. Disc 1 holds a compiled kernel,
+  so its bytes depend on the compiler: on a6ff88fe the x86_64 core disc
+  (`baremetal_images.sh x86_64`, then `GOLDEN_OFFLINE=1 mk_golden_disc.sh
+  x86_64`) hashed `5cadea4a...db21` in the CI image (`scripts/ci.Dockerfile`,
+  gcc 11.5) and `b760acc6...8d43` on an Ubuntu 22.04 host with gcc 12.3.
+  Build a release in the CI image, so anyone can rebuild it and get the same
+  CIDs.
 
 ## A worked example, three levels
 

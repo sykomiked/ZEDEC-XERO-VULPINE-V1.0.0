@@ -203,6 +203,7 @@ ARM64_ARCH_OBJS = \
     $(OBJDIR)/kernel/arch/arm64/gicv3.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_timer.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_mmu.o \
+    $(OBJDIR)/kernel/arch/arm64/mmu_window.o \
     $(OBJDIR)/kernel/arch/arm64/arm64_exceptions.o \
     $(OBJDIR)/kernel/arch/arm64/boot_evidence.o \
     $(OBJDIR)/kernel/arch/arm64/kernel_main_arm64.o \
