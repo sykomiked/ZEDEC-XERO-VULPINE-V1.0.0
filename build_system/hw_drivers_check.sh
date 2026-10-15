@@ -12,10 +12,12 @@
 #   seconds  QEMU time limit (default 120)
 #
 # Devices (q35 machine, OVMF firmware):
+#   virtio-blk   -device virtio-blk-pci  the boot disk
+#   virtio-scsi  -device virtio-scsi-pci + scsi-hd (the disc again), a KVM cloud's disk
 #   NVMe         -device nvme            the disc image again, read-only copy
 #   AHCI         q35's built-in ICH9 AHCI with the disc as a SATA disk
 #   xHCI         qemu-xhci + usb-kbd + usb-storage (the disc again)
-#   e1000/e1000e/igb  three NICs on QEMU user networking, whose DHCP server answers
+#   e1000/e1000e/igb/virtio-net  four NICs on QEMU user networking, whose DHCP server answers
 #   HD Audio     intel-hda + hda-duplex on a null audio backend
 # Keys are typed into the USB keyboard through the QEMU monitor while the
 # input self-test polls, so the log has to show the typed text.
@@ -43,9 +45,9 @@ esac
 
 # QEMU grew an igb (82576) model in 8.0; older QEMU (Ubuntu 22.04 has 6.2)
 # runs the check with the two e1000-family NICs only.
-IGB=(); NICS=2
+IGB=(); NICS=3
 if qemu-system-x86_64 -device help 2>/dev/null | grep -q '"igb"'; then
-  IGB=(-netdev user,id=n2 -device igb,netdev=n2,mac=52:54:00:5a:58:03); NICS=3
+  IGB=(-netdev user,id=n2 -device igb,netdev=n2,mac=52:54:00:5a:58:03); NICS=4
 fi
 
 disk(){ echo "if=none,id=$1,format=raw,snapshot=on,file=$IMG"; }
@@ -53,6 +55,8 @@ disk(){ echo "if=none,id=$1,format=raw,snapshot=on,file=$IMG"; }
 : > "$LOG"
 timeout "$SECS" qemu-system-x86_64 -machine q35 -m 512M "${FWARGS[@]}" \
   -drive "$(disk boot)" -device virtio-blk-pci,drive=boot,bootindex=0 \
+  -device virtio-scsi-pci,id=vs \
+  -drive "$(disk vsd)"  -device scsi-hd,drive=vsd,bus=vs.0 \
   -drive "$(disk nv)"   -device nvme,drive=nv,serial=ZXVNVME0 \
   -drive "$(disk sata)" -device ide-hd,drive=sata,bus=ide.0 \
   -device qemu-xhci,id=xhci \
@@ -60,6 +64,7 @@ timeout "$SECS" qemu-system-x86_64 -machine q35 -m 512M "${FWARGS[@]}" \
   -drive "$(disk usb)"  -device usb-storage,bus=xhci.0,drive=usb \
   -netdev user,id=n0 -device e1000,netdev=n0,mac=52:54:00:5a:58:01 \
   -netdev user,id=n1 -device e1000e,netdev=n1,mac=52:54:00:5a:58:02 \
+  -netdev user,id=n3 -device virtio-net-pci,netdev=n3,mac=52:54:00:5a:58:04 \
   "${IGB[@]}" \
   -audiodev none,id=snd0 -device intel-hda -device hda-duplex,audiodev=snd0 \
   -display none -serial stdio -monitor "unix:$MON,server,nowait" \
@@ -116,19 +121,22 @@ need '[DRIVER ONLINE] nvme'
 need '[DRIVER ONLINE] ahci'
 need '[DRIVER ONLINE] xhci'
 need '[DRIVER ONLINE] e1000'
-[ "$NICS" -eq 2 ] || need '[DRIVER ONLINE] igb'
+[ "$NICS" -eq 3 ] || need '[DRIVER ONLINE] igb'
+need '[DRIVER ONLINE] vblk'
+need '[DRIVER ONLINE] vscsi'
+need '[DRIVER ONLINE] vnet'
 need '[DRIVER ONLINE] hda'
 # QEMU's NVMe has no Opal: the SED unlock must say so and move on (hw_sed.c).
 need 'not an SED (Security Receive refused), nothing to unlock'
-# Three disks (NVMe, SATA, USB) each read the disc's GPT header.
+# Five disks (virtio-blk, virtio-scsi, NVMe, SATA, USB) each read the disc's GPT header.
 n=$(grep -ac "read LBA 1: GPT header 'EFI PART'" "$LOG")
-[ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks read the GPT header"; fail=1; }
+[ "$n" -ge 5 ] || { echo "::error::only $n of 5 disks read the GPT header"; fail=1; }
 # Every NIC got a DHCP offer from QEMU's user-mode network.
 n=$(grep -ac 'DHCP offer received' "$LOG")
 [ "$n" -ge "$NICS" ] || { echo "::error::only $n of $NICS NICs got a DHCP offer"; fail=1; }
 # ...and every disk mounted the ESP as FAT32 and read the MegaROM file off it.
 n=$(grep -ac '\[STORAGE OK\].*read /MEGAROM.TVL' "$LOG")
-[ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks mounted the ESP and read /MEGAROM.TVL"; fail=1; }
+[ "$n" -ge 5 ] || { echo "::error::only $n of 5 disks mounted the ESP and read /MEGAROM.TVL"; fail=1; }
 need 'output stream DMA position'
 grep -aE '\[SELFTEST OK\].*key press\(es\): ".*z' "$LOG" >/dev/null || { echo "::error::USB keyboard did not deliver the typed keys"; fail=1; }
 if grep -aq '\[DRIVER FAILED\]\|\[SELFTEST FAILED\]\|\[STORAGE FAILED\]' "$LOG"; then

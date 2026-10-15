@@ -42,6 +42,7 @@ extern uint64_t arm64_timer_get_ticks(void);
 
 /* MMU driver */
 extern void arm64_mmu_init(void);
+extern int arm64_mmu_map_window(uint64_t base, uint64_t len); /* mmu_window.h */
 
 /* M5 subsystems (shared with x86) */
 #include "../src/oseq/oseq_core.h"
@@ -389,6 +390,29 @@ static uint32_t g_holo_phase = 0;
  * the composed 1280x720 frame into it (scaled, R/B-swapped for GOP fmt 0). */
 static uint32_t *g_gop_fb = 0;
 static uint32_t  g_gop_w = 0, g_gop_h = 0, g_gop_stride = 0, g_gop_pixfmt = 0;
+static int g_gop_mapped = 0; /* the firmware framebuffer is in the page tables */
+
+/* Map the firmware's framebuffer wherever it is, right after the MMU is up and
+ * before any user table copies the kernel's: AAVMF puts it near the top of
+ * RAM, past 4 GB when there are 4 GB. Refused (and said) when it lies outside
+ * the CPU's PA range or over the kernel image; the kernel then keeps ramfb. */
+static void gop_map(void)
+{
+    volatile zxv_bootinfo_t *bi = (volatile zxv_bootinfo_t *) ZXV_BOOTINFO_ADDR;
+    if (bi->magic != ZXV_BOOTINFO_MAGIC || !bi->fb || !bi->height) return;
+    uint64_t len = (uint64_t) (bi->stride ? bi->stride : bi->width) * bi->height * 4u;
+    int rc = arm64_mmu_map_window(bi->fb, len);
+    uart_puts(rc == 0 ? "  [FB_MAP] firmware framebuffer at "
+                      : "  [FB_MAP_FAIL] firmware framebuffer at ");
+    uart_put_hex(bi->fb);
+    uart_puts(", ");
+    uart_put_dec(len);
+    uart_puts(
+        rc == 0
+            ? " bytes: mapped Normal Non-cacheable, never executable\n"
+            : " bytes: not mapped (outside the PA range, or over the kernel image); using ramfb\n");
+    g_gop_mapped = rc == 0;
+}
 
 /* ---- the FIELD: per-16px-tile phase + depth painted by the shell ----
  * g_fphase[ti] shifts each OBJECT's shimmer in TIME (its own breathing phase, so
@@ -962,6 +986,7 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] MMU/paging...");
     arm64_mmu_init();
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
+    gop_map();
     handoff_report();
     bootmem_arm64_init(g_boot_dtb);
     vino = bootmem_arm64_take(sizeof *vino, "the vino ledger");
@@ -2147,7 +2172,7 @@ void kernel_main_arm64(void) {
          * the scanout). Otherwise the normal QEMU -kernel ramfb path. */
         {
             volatile zxv_bootinfo_t *bi = (volatile zxv_bootinfo_t *)ZXV_BOOTINFO_ADDR;
-            if (bi->magic == ZXV_BOOTINFO_MAGIC && bi->fb) {
+            if (g_gop_mapped && bi->magic == ZXV_BOOTINFO_MAGIC && bi->fb) {
                 g_gop_fb     = (uint32_t *)(uintptr_t)bi->fb;
                 g_gop_w      = bi->width;
                 g_gop_h      = bi->height;

@@ -256,15 +256,13 @@ bool proc_map_page(user_proc_t *proc, uint64_t va, uint64_t pa,
         l1[0] = ((uint64_t)l2) | PTE_TABLE | PTE_VALID;
     }
 
-    /* Keep the KERNEL mapped in this user table (VA 1-4GB = L1[1..3]). Without
+    /* Keep the KERNEL mapped in this user table (every L1 slot past 0: RAM,
+     * the firmware framebuffer). Without
      * this, switching TTBR0 here unmaps the kernel and the next kernel access
      * (e.g. proc_enter_el0 restoring the register context) faults. Idempotent:
      * shares the kernel's own L2 tables, which are EL1-only so EL0 gains nothing. */
-    if (!(l1[1] & PTE_VALID)) {
-        l1[1] = arm64_mmu_kernel_l1(1);
-        l1[2] = arm64_mmu_kernel_l1(2);
-        l1[3] = arm64_mmu_kernel_l1(3);
-    }
+    if (!(l1[1] & PTE_VALID))
+        for (int i = 1; i < 512; i++) l1[i] = arm64_mmu_kernel_l1(i);
 
     /* L2 index: which 2MB block within the first 1GB */
     uint64_t l2_idx = (va >> 21) & 0x1FF;

@@ -429,6 +429,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-handoff
 	$(MAKE) --no-print-directory test-x86-irq
 	$(MAKE) --no-print-directory test-x86-sched
+	$(MAKE) --no-print-directory test-mmu-window
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
@@ -1789,6 +1790,12 @@ test-x86-irq:
 test-x86-sched:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/x86_64 -Iinclude -Isrc/lpres -Isrc/event_space arch/x86_64/test_x86_sched.c arch/x86_64/x86_sched.c -o $(ZXV_TMP)/test_x86_sched && $(ZXV_TMP)/test_x86_sched > $(ZXV_TMP)/test_x86_sched.log 2>&1 && echo "[PASS] test_x86_sched ($$(tail -1 $(ZXV_TMP)/test_x86_sched.log))" || { cat $(ZXV_TMP)/test_x86_sched.log; echo "[FAIL] test_x86_sched"; exit 1; }
 
+# arm64 page-table windows (arch/arm64/mmu_window.c): the firmware framebuffer
+# mapped wherever AAVMF puts it, the rest of the tables untouched.
+.PHONY: test-mmu-window
+test-mmu-window:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/arm64 arch/arm64/test_mmu_window.c arch/arm64/mmu_window.c -o $(ZXV_TMP)/test_mmu_window && $(ZXV_TMP)/test_mmu_window > $(ZXV_TMP)/test_mmu_window.log 2>&1 && echo "[PASS] test_mmu_window ($$(tail -1 $(ZXV_TMP)/test_mmu_window.log))" || { cat $(ZXV_TMP)/test_mmu_window.log; echo "[FAIL] test_mmu_window"; exit 1; }
+
 .PHONY: test-fwadapt
 test-fwadapt:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/fwadapt/test_fwadapt.c src/fwadapt/fwadapt.c src/hwemu/hwp.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_fwadapt && $(ZXV_TMP)/test_fwadapt > $(ZXV_TMP)/test_fwadapt.log 2>&1 && echo "[PASS] test_fwadapt ($$(tail -1 $(ZXV_TMP)/test_fwadapt.log))" || { cat $(ZXV_TMP)/test_fwadapt.log; echo "[FAIL] test_fwadapt"; exit 1; }
@@ -2083,7 +2090,7 @@ test-opal:
 # (layers_boot.c) over a golden disc built in the test.
 test-layers:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind src/layers/test_layers.c src/layers/layers.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers && $(ZXV_TMP)/test_layers > $(ZXV_TMP)/test_layers.log 2>&1 && echo "[PASS] test_layers ($$(tail -1 $(ZXV_TMP)/test_layers.log))" || { tail -40 $(ZXV_TMP)/test_layers.log; echo "[FAIL] test_layers"; exit 1; }
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/virtio/vring.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
 
 .PHONY: test-swarmnet
 # Swarm-disc fetch (src/swarmnet): URL, HTTP head and manifest.txt parsing, the
@@ -2098,7 +2105,8 @@ test-x86-extable:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iarch/x86_64 arch/x86_64/test_x86_extable.c arch/x86_64/x86_extable.c -o $(ZXV_TMP)/test_x86_extable && $(ZXV_TMP)/test_x86_extable > $(ZXV_TMP)/test_x86_extable.log 2>&1 && echo "[PASS] test_x86_extable ($$(tail -1 $(ZXV_TMP)/test_x86_extable.log))" || { cat $(ZXV_TMP)/test_x86_extable.log; echo "[FAIL] test_x86_extable"; exit 1; }
 # Standard class drivers (src/hwdrv) against register-level fake devices. Every
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
-# drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
+# drivers (the virtio ones with src/virtio's ring engine), built with
+# ASan/UBSan. QEMU boot coverage of the same drivers is
 # build_system/hw_drivers_check.sh.
 # arbmbox.c speaks the arbiter protocol, so every driver test links it.
 ARBITER_SRCS = src/arbiter/arb_proto.c src/arbiter/arb_host.c src/arbiter/arb_dev.c
@@ -2106,7 +2114,7 @@ HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwd
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/virtio/vring.c src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 # ACPI: the AML interpreter (src/acpi/aml_*.c) and power management

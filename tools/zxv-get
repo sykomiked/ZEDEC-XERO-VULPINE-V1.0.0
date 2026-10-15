@@ -406,6 +406,9 @@ class Node:
     def block(self, cb):
         return self.run("block", "get", cid_text(cb), stdout=subprocess.PIPE).stdout
 
+    # the same directory check as a gateway's, over the node's own block
+    dir_block = Gateway.dir_block
+
     def read(self, cb, cap):
         out = self.run("cat", "/ipfs/" + cid_text(cb), stdout=subprocess.PIPE).stdout
         if len(out) > cap:
