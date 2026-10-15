@@ -256,7 +256,27 @@ static int token(const char *f, uint32_t len, char *out, uint32_t cap, char lead
     return 1;
 }
 
-/* /ZXV/UPSTREAM.CID: "cid <bafy...>" and optionally "ipns <k51...>". */
+/* A gateway URL: http:// or https://, then printable ASCII with no spaces. */
+static int gateway_url(const char *f, uint32_t len, char *out)
+{
+    const char *h = "http://", *hs = "https://";
+    uint32_t i = 0;
+    while (h[i] && i < len && f[i] == h[i]) i++;
+    if (h[i]) {
+        for (i = 0; hs[i] && i < len && f[i] == hs[i]; i++);
+        if (hs[i]) return 0;
+    }
+    if (len == i || len >= HW_GATEWAY_LEN) return 0;
+    for (i = 0; i < len; i++) {
+        if (f[i] <= ' ' || f[i] > '~') return 0;
+        out[i] = f[i];
+    }
+    out[len] = 0;
+    return 1;
+}
+
+/* /ZXV/UPSTREAM.CID: "cid <bafy...>", optionally "ipns <k51...>", and
+ * "gateway <url>" lines in the order to try them. */
 static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uint32_t *line)
 {
     const char *q = t, *end = t + n;
@@ -281,8 +301,14 @@ static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uin
             if (s->ipns[0]) return "ipns listed twice";
             if (!token(g, glen, s->ipns, sizeof s->ipns, 'k', 1))
                 return "ipns is not a base36 name";
+        } else if (len == 7 && f[0] == 'g' && f[1] == 'a' && f[2] == 't' && f[3] == 'e' &&
+                   f[4] == 'w' && f[5] == 'a' && f[6] == 'y') {
+            if (s->ngateway == HW_GATEWAY_MAX) return "more gateways than the kernel tracks";
+            if (!gateway_url(g, glen, s->gateway[s->ngateway]))
+                return "gateway is not an http:// or https:// URL";
+            s->ngateway++;
         } else {
-            return "unknown key (cid|ipns)";
+            return "unknown key (cid|ipns|gateway)";
         }
     }
     *line = 0;
@@ -348,6 +374,7 @@ static void core_extras(hw_models_t *s, const hw_plat_t *p)
                     : parse_upstream(s, t, (uint32_t) n, &line);
         if (why) {
             s->cid[0] = s->ipns[0] = 0;
+            s->ngateway = 0;
             log_note(p, v, "/ZXV/UPSTREAM.CID", n < 0 ? 0 : line, why);
         }
     }
@@ -458,6 +485,7 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
             const char *a = s->vol[k].part.name + 10, *g = s->want[w].group;
             found = str_eq(a, g);
         }
+        s->want[w].attached = (uint8_t) found;
         if (found) continue;
         missing++;
         hw_line_t m;

@@ -73,10 +73,15 @@ typedef struct hw_model_cur {
 /* A swarm disc the core disc expects (/ZXV/SWARM.LST). */
 #define HW_SWARM_WANT_MAX 16
 typedef struct hw_swarm_want {
-    uint32_t disc;  /* 2, 3, ... */
-    char group[17]; /* REASON: the partition is ZXV_SWARM_REASON */
-    char image[48]; /* zxv-swarm-disc2-reason.img */
+    uint32_t disc;    /* 2, 3, ... */
+    char group[17];   /* REASON: the partition is ZXV_SWARM_REASON */
+    char image[48];   /* zxv-swarm-disc2-reason.img */
+    uint8_t attached; /* set by hw_models_index */
 } hw_swarm_want_t;
+
+/* Gateways the bucket can be fetched through, in the order to try them. */
+#define HW_GATEWAY_MAX 4
+#define HW_GATEWAY_LEN 80
 
 typedef struct hw_models {
     hw_model_t m[HW_MODELS_MAX];
@@ -87,7 +92,9 @@ typedef struct hw_models {
     uint32_t ok, bad;
     int reported;
     /* from the core disc: where the release lives and what it holds */
-    char cid[121], ipns[121]; /* /ZXV/UPSTREAM.CID, "" when absent */
+    char cid[121], ipns[121];                     /* /ZXV/UPSTREAM.CID, "" when absent */
+    char gateway[HW_GATEWAY_MAX][HW_GATEWAY_LEN]; /* its "gateway <url>" lines */
+    uint32_t ngateway;
     hw_swarm_want_t want[HW_SWARM_WANT_MAX];
     uint32_t nwant;
 } hw_models_t;

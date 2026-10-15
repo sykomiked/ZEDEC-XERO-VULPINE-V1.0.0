@@ -345,7 +345,8 @@ while read -r key val rest; do
   case "$key" in
     cid)  [[ "$val" =~ ^b[a-z2-7]{20,120}$ ]] || die "$UPSTREAM: '$val' is not a base32 CIDv1" ;;
     ipns) [[ "$val" =~ ^k[0-9a-z]{20,120}$ ]] || die "$UPSTREAM: '$val' is not an IPNS name (k51...)" ;;
-    *) die "$UPSTREAM: unknown key '$key' (cid|ipns)" ;;
+    gateway) [[ "$val" =~ ^https?://[!-~]+$ && ${#val} -lt 80 ]] || die "$UPSTREAM: '$val' is not an http:// or https:// URL under 80 characters" ;;
+    *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway)" ;;
   esac
 done < <(lines "$UPSTREAM")
 lines "$UPSTREAM" | grep -q '^cid ' || die "$UPSTREAM has no cid line"

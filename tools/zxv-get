@@ -20,9 +20,11 @@ node the CID is used and that is said.
 
 How. With a local node (`ipfs` on PATH and its daemon or repo usable, or
 --ipfs), files come through `ipfs cat`, which checks every block. Otherwise
-from a gateway (--gateway, default https://trustless-gateway.link), one raw
-block at a time: each block is hashed and must match its CID before it is
-used, so the gateway cannot change a byte. Either way every disc is then
+from gateways (--gateway, repeatable; default the upstream file's gateway
+lines, then https://trustless-gateway.link), one raw block at a time: each
+block is hashed and must match its CID before it is used, so no gateway can
+change a byte, and a block one gateway fails to serve is asked of the next.
+If none can, attach the discs by hand. Either way every disc is then
 checked against manifest.json (size and SHA-256) and against the CID the
 bucket's directory gives it. A disc already present with the right SHA-256
 is kept, not fetched again. A failed disc is deleted, never left behind.
@@ -169,23 +171,29 @@ def pb_node(block):
 
 
 class Gateway:
-    def __init__(self, url, jobs):
-        self.url = url.rstrip("/")
+    def __init__(self, urls, jobs):
+        self.urls = [u.rstrip("/") for u in urls]
         self.jobs = jobs
 
     def block(self, cb):
-        """The block for cb, refused unless its SHA-256 matches the CID."""
+        """The block for cb from the first gateway that serves it intact:
+        a block is refused unless its SHA-256 matches the CID, so any
+        gateway serving the same CID will do."""
         _, digest = parse_cid(cb)
-        req = urllib.request.Request("%s/ipfs/%s?format=raw" % (self.url, cid_text(cb)),
-                                     headers={"Accept": "application/vnd.ipld.raw"})
-        try:
-            with urllib.request.urlopen(req, timeout=120) as r:
-                data = r.read(4 * 1024 * 1024 + 1)
-        except OSError as e:
-            raise Fail("gateway: %s: %s" % (cid_text(cb), e))
-        if hashlib.sha256(data).digest() != digest:
-            raise Fail("gateway sent a block that does not match its CID %s" % cid_text(cb))
-        return data
+        why = []
+        for url in self.urls:
+            req = urllib.request.Request("%s/ipfs/%s?format=raw" % (url, cid_text(cb)),
+                                         headers={"Accept": "application/vnd.ipld.raw"})
+            try:
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    data = r.read(4 * 1024 * 1024 + 1)
+            except OSError as e:
+                why.append("%s: %s" % (url, e))
+                continue
+            if hashlib.sha256(data).digest() == digest:
+                return data
+            why.append("%s sent a block that does not match its CID" % url)
+        raise Fail("block %s: %s" % (cid_text(cb), "; ".join(why)))
 
     def lookup(self, root, path):
         cb = root
@@ -294,12 +302,14 @@ def machine_arch():
 
 
 def read_upstream(path):
-    up = {"cid": None, "ipns": None}
+    up = {"cid": None, "ipns": None, "gateways": []}
     if not os.path.isfile(path):
         return up
     for raw in open(path, encoding="ascii"):
         f = raw.split("#", 1)[0].split()
-        if len(f) == 2 and f[0] in up:
+        if len(f) == 2 and f[0] == "gateway" and re.fullmatch(r"https?://[!-~]+", f[1]):
+            up["gateways"].append(f[1])
+        elif len(f) == 2 and f[0] in ("cid", "ipns"):
             up[f[0]] = f[1]
     return up
 
@@ -400,7 +410,9 @@ def main():
     ap.add_argument("--cid", help="bucket root CID (default: build_system/zxv_upstream.cid)")
     ap.add_argument("--ipns", help="IPNS name to resolve through a local node")
     ap.add_argument("--upstream", default=os.path.join(here, "..", "build_system", "zxv_upstream.cid"))
-    ap.add_argument("--gateway", default="https://trustless-gateway.link")
+    ap.add_argument("--gateway", action="append",
+                    help="gateway URL, repeatable, tried in order (default: the upstream "
+                         "file's gateway lines, then https://trustless-gateway.link)")
     ap.add_argument("--ipfs", nargs="?", const="ipfs", metavar="EXE",
                     help="use a local IPFS node (default when `ipfs` works)")
     ap.add_argument("--no-ipfs", action="store_true", help="use the gateway even if a node exists")
@@ -438,8 +450,10 @@ def main():
                            "build_system/zxv_upstream.cid")
             print("bucket: %s" % root)
         rb = cid_bin(root)
-        src = node or Gateway(a.gateway, max(1, a.jobs))
-        print("from:   %s" % ("the local IPFS node" if node else a.gateway + " (every block checked)"))
+        gws = a.gateway or (up["gateways"] + ["https://trustless-gateway.link"])
+        src = node or Gateway(gws, max(1, a.jobs))
+        print("from:   %s" % ("the local IPFS node" if node else
+                              ", then ".join(gws) + " (every block checked)"))
         man = src.read(src.lookup(rb, ["manifest.json"]), 1 << 20)
         try:
             stages = check_manifest(json.loads(man.decode("utf-8")))

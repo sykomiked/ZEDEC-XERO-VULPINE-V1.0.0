@@ -26,7 +26,8 @@ an architecture; the swarm discs are the same for all of them.
 manifest.json (keys sorted, one stage per disc or file):
     {"format": "zxv-bucket 1",
      "max_disc_bytes": 1800000000,
-     "upstream": {"cid": "<bafy...>", "ipns": "<k51...>" | null},
+     "upstream": {"cid": "<bafy...>", "ipns": "<k51...>" | null,
+                  "gateways": ["http://...", ...]},
      "stages": [{"dir": "00_base", "file": "zxv-x86_64-disc1-core.img",
                  "kind": "core", "arch": "x86_64", "disc": 1,
                  "bytes": N, "sha256": "<hex>", "cid": "<bafy...>"},
@@ -59,6 +60,7 @@ MAX_DISC = 1800000000
 ARCHS = ("x86_64", "arm64", "riscv64")
 CID_RE = re.compile(r"b[a-z2-7]{20,120}")
 IPNS_RE = re.compile(r"k[0-9a-z]{20,120}")
+GW_RE = re.compile(r"https?://[!-~]+")
 
 
 def die(msg):
@@ -98,13 +100,19 @@ def tree_cid(path, sink=None):
 
 
 def read_upstream(path):
-    up = {"cid": None, "ipns": None}
+    up = {"cid": None, "ipns": None, "gateways": []}
     for n, raw in enumerate(open(path, encoding="ascii"), 1):
         f = raw.split("#", 1)[0].split()
         if not f:
             continue
-        if len(f) != 2 or f[0] not in up or up[f[0]]:
-            die("%s line %d: want one 'cid <bafy...>' and at most one 'ipns <k51...>'" % (path, n))
+        if len(f) == 2 and f[0] == "gateway":
+            if not GW_RE.fullmatch(f[1]) or len(f[1]) >= 80:
+                die("%s line %d: '%s' is not an http:// or https:// URL" % (path, n, f[1]))
+            up["gateways"].append(f[1])
+            continue
+        if len(f) != 2 or f[0] not in ("cid", "ipns") or up[f[0]]:
+            die("%s line %d: want one 'cid <bafy...>', at most one 'ipns <k51...>' and "
+                "'gateway <url>' lines" % (path, n))
         if not (CID_RE if f[0] == "cid" else IPNS_RE).fullmatch(f[1]):
             die("%s line %d: '%s' is not a valid %s" % (path, n, f[1], f[0]))
         up[f[0]] = f[1]

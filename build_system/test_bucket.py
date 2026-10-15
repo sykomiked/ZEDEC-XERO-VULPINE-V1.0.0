@@ -68,7 +68,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
         b = Store.blocks[cid]
-        if cid in Store.tamper:
+        if cid in Store.tamper or getattr(self, "lies", False):
             b = bytes([b[0] ^ 1]) + b[1:]
         self.send_response(200)
         self.send_header("Content-Type", "application/vnd.ipld.raw")
@@ -78,6 +78,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
+
+
+class Liar(Handler):
+    """A gateway that changes the first byte of every block it serves."""
+    lies = True
 
 
 def run(*args):
@@ -98,6 +103,9 @@ def main():
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     gw = "http://127.0.0.1:%d" % srv.server_address[1]
+    liar = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Liar)
+    threading.Thread(target=liar.serve_forever, daemon=True).start()
+    bad = "http://127.0.0.1:%d" % liar.server_address[1]
     try:
         discs = os.path.join(t, "discs")
         os.makedirs(discs)
@@ -112,7 +120,7 @@ def main():
         cart = os.path.join(t, "MEGAROM.TVL")
         open(cart, "wb").write(data(5000, 5))
         up = os.path.join(t, "upstream.cid")
-        open(up, "w").write("# test\ncid %s\n" % CID)
+        open(up, "w").write("# test\ncid %s\ngateway http://10.0.2.2:8080\n" % CID)
         bucket, blocks = os.path.join(t, "bucket"), os.path.join(t, "blocks")
         mk = [MK, "--discs", discs, "--out", bucket, "--upstream", up, "--cartridge", cart]
 
@@ -128,7 +136,7 @@ def main():
             ("01_swarm_reason", "zxv-swarm-disc2-reason.img", "swarm", "all", 2, "REASON"),
             ("02_swarm_vision", "zxv-swarm-disc3-vision.img", "swarm", "all", 3, "VISION"),
             ("03_cartridges", "MEGAROM.TVL", "cartridge", "all", None, None)], "layout %r" % layout)
-        check(man["upstream"] == {"cid": CID, "ipns": None} and man["max_disc_bytes"] == 1800000000,
+        check(man["upstream"] == {"cid": CID, "ipns": None, "gateways": ["http://10.0.2.2:8080"]} and man["max_disc_bytes"] == 1800000000,
               "manifest upstream and cap")
         s0 = man["stages"][1]
         check(s0["bytes"] == len(files[s0["file"]]) and
@@ -172,16 +180,29 @@ def main():
         check(rc == 1 and CID in out, "the baked CID is the default bucket: " + out)
 
         # the gateway changes one byte of one block of the vision disc
-        bad = os.path.join(t, "bad")
+        refused = os.path.join(t, "refused")
         vision = man["stages"][3]["cid"]
         Store.tamper = {vision}
-        rc, out = run(*get, "--arch", "arm64", "--out", bad)
-        check(rc == 1 and "does not match its CID " + vision in out, "tampered block: " + out)
-        check(not any(n.startswith("zxv-swarm-disc3") for n in os.listdir(bad)),
+        rc, out = run(*get, "--arch", "arm64", "--out", refused)
+        check(rc == 1 and ("block %s: %s sent a block that does not match its CID" % (vision, gw)) in out,
+              "tampered block: " + out)
+        check(not any(n.startswith("zxv-swarm-disc3") for n in os.listdir(refused)),
               "a refused disc leaves no file")
         Store.tamper = set()
-        rc, out = run(*get, "--arch", "x86_64", "--out", bad)
+        rc, out = run(*get, "--arch", "x86_64", "--out", refused)
         check(rc == 0, "a later run fetches what was refused: " + out)
+
+        # fallback: a dead gateway and a lying one, then a good one
+        fb = [GET, "--no-ipfs", "--gateway", "http://127.0.0.1:1", "--gateway", bad, "--gateway", gw,
+              "--cid", root, "--quiet", "--upstream", up, "--core-only", "--arch", "arm64"]
+        rc, out = run(*fb, "--out", os.path.join(t, "fb"))
+        check(rc == 0 and "ok     00_base/zxv-arm64-disc1-core.img" in out, "gateway fallback: " + out)
+        rc, out = run(*fb[:6], "--cid", root, "--quiet", "--upstream", up, "--list")
+        check(rc == 1 and "127.0.0.1:1" in out and "does not match its CID" in out,
+              "every gateway failing names each one: " + out)
+        rc, out = run(GET, "--no-ipfs", "--cid", root, "--upstream", up, "--list")
+        check(out.count("http://10.0.2.2:8080, then https://trustless-gateway.link") == 1,
+              "the upstream file's gateways come first: " + out)
 
         # manifests that lie, in buckets whose blocks are all genuine
         def lie(field, value, i=2):
@@ -235,6 +256,7 @@ def main():
         check(rc == 1 and "want one 'cid" in out, "upstream listed twice: " + out)
     finally:
         srv.shutdown()
+        liar.shutdown()
         shutil.rmtree(t)
     print("test_bucket: %d checks, %d failures" % (checks, failures))
     return 1 if failures else 0

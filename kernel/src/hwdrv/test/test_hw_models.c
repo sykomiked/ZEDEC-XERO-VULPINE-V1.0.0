@@ -681,13 +681,19 @@ static void test_upstream(void)
     CHECK(fake_log_has(&fp, "[UPSTREAM] bucket " CID));
     CHECK(!fake_log_has(&fp, "ipns"));
     CHECK(s.nwant == 2 && s.want[0].disc == 2 && strcmp(s.want[1].group, "VISION") == 0);
+    CHECK(s.want[0].attached == 1 && s.want[1].attached == 0 && s.ngateway == 0);
     CHECK(fake_log_has(&fp, "[SWARM_MISSING] disc 3 ZXV_SWARM_VISION (zxv-swarm-disc3-vision.img)"
                             ": attach it, or fetch it from the upstream bucket (zxv-get)"));
     CHECK(!fake_log_has(&fp, "ZXV_SWARM_REASON (zxv"));
     CHECK(!fake_log_has(&fp, "[SWARM_COMPLETE]"));
     CHECK(fake_log_has(&fp, "[MODELS_INDEXED] 2 listed"));
     /* both attached, and an IPNS name ahead of the CID */
-    CHECK(index_up("ipns " IPNS "\ncid " CID "\n", LST, 1) == 3);
+    CHECK(index_up("ipns " IPNS "\ncid " CID "\ngateway http://10.0.2.2:8080\n"
+                   "gateway https://trustless-gateway.link\n",
+                   LST, 1) == 3);
+    CHECK(s.ngateway == 2 && strcmp(s.gateway[0], "http://10.0.2.2:8080") == 0 &&
+          strcmp(s.gateway[1], "https://trustless-gateway.link") == 0);
+    CHECK(s.want[0].attached && s.want[1].attached);
     CHECK(fake_log_has(&fp, "[UPSTREAM] ipns " IPNS ", fallback bucket " CID));
     CHECK(fake_log_has(&fp, "[SWARM_COMPLETE] all 2 swarm discs the core expects are attached"));
     CHECK(!fake_log_has(&fp, "[SWARM_MISSING]"));
@@ -716,15 +722,23 @@ static void test_upstream(void)
         {"cid " CID "\nipns " IPNS "\nipns " IPNS "\n", "line 3: ipns listed twice"},
         {"cid " CID "\nipns k51_" IPNS "\n", "line 2: ipns is not a base36 name"},
         {"cid " CID "\nipns " CID "\n", "line 2: ipns is not a base36 name"},
-        {"url https://example\n", "line 1: unknown key (cid|ipns)"},
-        {"cids " CID "\n", "line 1: unknown key (cid|ipns)"},
+        {"url https://example\n", "line 1: unknown key (cid|ipns|gateway)"},
+        {"cids " CID "\n", "line 1: unknown key (cid|ipns|gateway)"},
         {"ipns " IPNS "\n", "sata0 /ZXV/UPSTREAM.CID: no cid line"},
+        {"cid " CID "\ngateway ftp://10.0.2.2\n", "line 2: gateway is not an http:// or https://"},
+        {"cid " CID "\ngateway http://\n", "line 2: gateway is not an http:// or https://"},
+        {"cid " CID "\ngateway https\n", "line 2: gateway is not an http:// or https://"},
+        {"cid " CID "\ngateway http://a\x7f\n", "line 2: gateway is not an http:// or https://"},
+        {"cid " CID "\ngateway http://a.b http://c.d\n", "line 2: extra fields"},
+        {"cid " CID "\ngateway http://a\ngateway http://b\ngateway http://c\ngateway "
+         "http://d\ngateway http://e\n",
+         "line 6: more gateways than the kernel tracks"},
         {"# empty\n", "UPSTREAM.CID: no cid line"},
     };
     for (unsigned i = 0; i < sizeof up / sizeof up[0]; i++) {
         uint32_t n = index_up(up[i].text, LST, 0);
         int ok = n == 2 && fake_log_has(&fp, up[i].log) && s.cid[0] == 0 && s.ipns[0] == 0 &&
-                 !fake_log_has(&fp, "[UPSTREAM]") &&
+                 s.ngateway == 0 && !fake_log_has(&fp, "[UPSTREAM]") &&
                  fake_log_has(&fp, "(zxv-swarm-disc3-vision.img): attach it") &&
                  !fake_log_has(&fp, "zxv-get");
         if (!ok) printf("  upstream case %u: %s\n", i, up[i].text);
