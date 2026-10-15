@@ -52,7 +52,7 @@ ZL_LANG_X(DELPHI, 37, "Delphi", "Formwyrm", delphi, ".dpr", "delphi") /* front-e
 ZL_LANG_X(MODULA2, 38, "Modula-2", "Moduledrake", modula2, ".mod", "modula2") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(APT, 39, "APT", "Lathewyrm", apt, ".apt", "apt") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(OBERON, 40, "Oberon", "Faydrake", oberon, ".ob", "oberon") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(CLOJURE, 41, "Clojure", "Stonewyrm", clojure, ".clj", "clojure") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(CLOJURE, 41, "Clojure", "Stonewyrm", clojure, ".clj", "clojure") /* Clojure core subset, integers, a dialect of zl_lisp.c (2007) */
 ZL_LANG_X(IEC_ST, 42, "IEC 61131-3 Structured Text", "Millwyrm", iecst, ".iec", "iec_st") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(JOVIAL, 43, "JOVIAL", "Radarwyrm", jovial, ".jov", "jovial") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(LADDER, 44, "Ladder logic", "Rungdrake", ladder, ".ld", "ladder") /* front-end to build: see LINGUA_SPEC.md */

@@ -89,7 +89,7 @@
 2003	Scala	functional	catalogue	-	-
 2004	Groovy	scripting	catalogue	-	-
 2005	F#	functional	host	-	sdk/dotnet
-2007	Clojure	list	catalogue	-	-
+2007	Clojure	list	run	Stonewyrm	kernel/src/lingua/zl_clojure.c, kernel/src/lingua/zl_lisp.c
 2008	Nim	systems	catalogue	-	-
 2009	Go	systems	host	-	sdk/go
 2010	Rust	systems	host	-	sdk/rust

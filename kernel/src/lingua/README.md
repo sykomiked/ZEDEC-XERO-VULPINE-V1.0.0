@@ -24,6 +24,7 @@ caller passes every buffer (`zl_work_t`, `zl_prog_t`, `zl_run_t`).
 | Scheme (R7RS-small core) | `zl_lisp.c` | integers, quoted symbols and lists, `define` (internal too)/`set!`, `let`/`let*`/named `let`, `if`/`cond`/`when`/`unless`/`and`/`or`, `do`, list built-ins (`memq`/`member`/`assq`/`assoc`, `set-car!`), `quotient`/`modulo`/`floor-quotient`..., `display`/`write`/`newline`; unspecified values refused where used; 62-bit | guile | Spiraldrake |
 | Common Lisp (ANSI) | `zl_commonlisp.c` (calls `zl_lisp.c`) | the LISP subset above, honestly the same core, plus `case` (number and symbol keys, `otherwise`/`t`); `return-from`, `loop`, `ecase` refused; the twin writes lower case, `setf`, `first`/`rest`/`second`/`third` and `otherwise`; 62-bit | sbcl | Braidwyrm |
 | Racket | `zl_racket.c` (calls `zl_lisp.c`) | `#lang racket` or `#lang racket/base`; the Scheme subset above with `[ ]` brackets, `if` always with an else, `add1 sub1 displayln print println printf` (`~a ~s ~v ~n ~% ~~`), `void`, and from `#lang racket` `first rest second third` (which check for a list), `empty? cons? empty`; each top-level value that is not void prints as racket prints it (`'(1 a)`, `'sym`, `#t`); pairs are immutable (`set-car!` refused), no `floor-quotient` family, a top-level `begin` refused; 62-bit | racket | Dialectwyrm |
+| Clojure | `zl_clojure.c` (calls `zl_lisp.c`) | integers, `nil`/`true`/`false` (only `nil` and `false` are false), quoted symbols and lists; `def`/`defn` (a `[params]` vector; each name resolves only to definitions above it), `let` and `loop` with `[name value ...]` vectors, `recur` in tail position, `if`/`if-not`/`when`/`when-not`/`cond` (with `:else`)/`and`/`or`/`do`/`dotimes`, `+ - * / quot rem mod inc dec abs min max`, `= not= == < > <= >=`, the number, sign, parity, `nil?`/`some?`/`true?`/`false?`/`symbol?`/`seq?`/`empty?` tests, `first rest next second cons conj count reverse list` on lists and `nil`, `println print prn pr newline`; refused by name: vectors and maps as values, keywords but `:else`, `fn` and every function as a value, docstrings, multi-arity and variadic `defn`, destructuring, atoms and `set!`, strings as values, lazy sequences (`concat`, `range`, `map`), interop and namespaces; `/` traps on a ratio, and a long traps past 2^62 (Clojure throws only past 2^63); named self calls are real calls (use `recur`) | clojure (1.11) | Stonewyrm |
 | Logo (UCBLogo 6.2) | `zl_logo.c` | integers, words and lists; `to`/`end` procedures with dynamic scope (shallow binding), `output`/`stop`, `make`/`local`/`thing`, `repeat`/`repcount`, `for`, `while`/`until`, `if`/`ifelse`, infix and prefix arithmetic and comparisons, `first butfirst last butlast fput lput list sentence item count memberp emptyp`, `print`/`show`/`type`; exact `/`; 62-bit values | ucblogo (under xvfb-run) | Kiteling |
 
 Anything else in a language is refused with `ZL_E_UNSUPPORTED` and the line
@@ -71,6 +72,9 @@ skips when they are missing unless `ZXV_REQUIRE_LINGUA_REF=1` (set in CI).
 `ref_logo.sh` (sourced by `ref_check.sh`) does the same for Logo with
 ucblogo and the generator `gen_logo.c`; ucblogo writes to a window, so it
 runs under `xvfb-run` with its output redirected to a file by `setwrite`.
+`ref_commonlisp.sh`, `ref_racket.sh` and `ref_clojure.sh` run the Common
+Lisp, Racket and Clojure goldens and 100 programs each from `gen_lisp.c`
+through sbcl, racket and clojure (one JVM per program).
 `mut_check.sh` is the mutation harness target.
 
 ## Adding a language

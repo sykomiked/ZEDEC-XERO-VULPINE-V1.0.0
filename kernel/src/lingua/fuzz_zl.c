@@ -90,6 +90,10 @@ static const char *const seeds[] = {
     "acc (f (sub1 n) (cons n acc))))\n(f 4 empty) (length l) (assv 2 (cddr l))\n"
     "(let loop ([x 1]) (if (> x 9) x (loop (* x 2))))\n(printf \"~a ~s ~v~n\" (first l) 'q "
     "(rest l))\n(define (w n) (when (> n 0) (displayln n) (w (- n 1))))\n(w 2) (cons? null)\n",
+    ";; fuzz seed\n(def l '(3 1 (2 nil) s))\n(defn f [n acc] (if (zero? n) acc (recur (dec n) "
+    "(conj acc n))))\n(println (f 4 nil) (count l) (first (next l)))\n(let [a 1, b (inc a)] "
+    "(prn \"x\" a b))\n(println (loop [x 1] (if (> x 9) x (recur (* x 2)))))\n(println (cond "
+    "(= 1 2) 'a :else (and 1 nil)) (or false 3))\n(dotimes [i 2] (print i \"\")) (newline)\n",
 };
 
 static const char *const dict[] = {
