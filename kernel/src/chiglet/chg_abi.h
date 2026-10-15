@@ -52,8 +52,10 @@
  *      It is a LOOK call: it reads and computes and changes nothing that
  *      persists; what the model answers is data, and anything it asks the
  *      machine to do comes back through chga_submit as a chiglet call. The
- *      kernel's handler resolves and runs the cell; a coordinate with no
- *      model refuses in the handler (A6), it never guesses.
+ *      kernel's handler resolves the word through the Tiamat cell table
+ *      (chg_cells.h C3) and runs the cell; a coordinate with no model, an
+ *      engine path the build lacks or weights not on this machine refuses in
+ *      the handler with that reason (A6), it never guesses.
  *   A8 EVENT CHAIN. Every journal record is folded into a hash chain as
  *      it is committed: head = SHA-256("zxv/chga/event/v1" || head ||
  *      record bytes), with the record encoded by chga_rec_encode
