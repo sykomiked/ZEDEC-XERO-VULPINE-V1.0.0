@@ -22,7 +22,7 @@ proves it.
 
 | Tier | Meaning | Today |
 |---|---|---|
-| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth, ML, OCaml, Prolog |
+| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth, ML, OCaml, Prolog, Haskell |
 | **pillar** | The language's data and records run in one of the five ZXV pillar runtimes, which apps call directly. | COBOL (Sutra), FORTRAN numerics (Trebago), Ada (Eve), APL and K (KRON), MUMPS (MYRA) |
 | **native** | One of ZXV's own three languages for coding by purpose and intent, built and checked in kernel/src/alexandria (docs/ALEXANDRIA.md). Each has a Lingua number and a twin; none compiles to the shared IR yet. | LEXIS (names), TECTON (composition), AXION (truth checks) |
 | **ir** | The shared intermediate representation every Lingua front-end compiles to, and that the projections turn into C, Forth and x86-64. It is counted as a language because programs ship in it (`.zlir`, `logic zlir` in a manifest), but nobody is expected to write it by hand. | Lingua IR |
@@ -134,7 +134,7 @@ provenance.
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
 | 1970s | Forth, ML, Prolog, Modula-2 | | C, Pascal | Scheme, AWK, REXX, SQL | 8 |
 | 1980s | Oberon | Ada | C++ | | 16 |
-| 1990s | OCaml, Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 6 |
+| 1990s | Haskell, OCaml, Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 5 |
 | 2000s | | | C#, F#, Go | | 4 |
 | 2010s on | | | Rust, TypeScript, Swift, Solidity, WebAssembly | | 10 |
 

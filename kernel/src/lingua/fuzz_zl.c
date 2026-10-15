@@ -141,6 +141,11 @@ static const char *const seeds[] = {
     "13;\n"
     "  IF b OR (a[2] < 0) THEN Out.String(\"y\") END; Out.Int(F(5), 5); Out.Char(\"!\"); Out.Ln\n"
     "END Fo.\n",
+    "-- fuzz seed\nf :: Int -> Int -> Int\nf 0 a = a\nf n a\n  | even n = f (n - 1) (a + n `mod` 3)\n"
+    "  | otherwise = f (n - 1) (a - 1)\ng :: [Int] -> Int\ng [] = 0\ng (x:r) = x * 2 + g r\n"
+    "main :: IO ()\nmain = do\n  let l = [3, -4] ++ reverse [1 .. 2]\n  print (f 9 0, g l `div` (-3), l !! 1)\n"
+    "  putStrLn (\"x\" ++ show (case l of { [] -> 0; (y:_) -> quot (-7) y }) ++ show (take 2 l))\n"
+    "  if null l then return () else print (sum l ^ 2, maximum l, elem 3 l)\n  where h = 1\n",
 };
 
 static const char *const dict[] = {

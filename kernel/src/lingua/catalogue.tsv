@@ -69,7 +69,7 @@
 1988	Oberon	algol	run	Faydrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1988	Mathematica	symbolic	catalogue	-	-
 1989	Bash	shell	catalogue	-	-
-1990	Haskell	functional	catalogue	-	-
+1990	Haskell	functional	run	Purewyrm	kernel/src/lingua/zl_haskell.c
 1990	J	array	catalogue	-	array family runs through KRON
 1991	Python	scripting	host	-	sdk/python
 1991	Visual Basic	interactive	catalogue	-	-
