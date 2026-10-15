@@ -18,6 +18,9 @@ make -s -C "$R/sdk/libzxv" CC="$CC" >"$T/lib.log" 2>&1 || { tail -20 "$T/lib.log
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
 INCS="$(sh "$HERE/app_sources.sh" incs | sed "s|^|-I$K/|") $(sh "$HERE/app_sources.sh" rpcincs |
     sed "s|^|-I$K/|") -I$K/src/web4 -I$R/sdk/libzxv/include"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive, built once and reused (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 # what zxvd_rpc.c links (app_sources.sh rpcdeps), the net host and Vinea
 # (app_sources.sh vinea), once each; keccak.c apart (below)
 {
@@ -34,5 +37,5 @@ $CC -std=c11 -O1 -Wall -Wextra $INCS -c "$K/src/mlkem/keccak.c" -o "$T/keccak.o"
 # shellcheck disable=SC2086,SC2046
 $CC -std=c11 -O1 -Wall -Wextra -Werror $INCS "$HERE/test_zxvd_pspace.c" \
     "$HERE/zxvd_pspace.c" "$HERE/zxvd_rpc.c" $(cat "$T/srcs") "$T/keccak.o" \
-    -L"$R/sdk/libzxv/build" -lzxv "$RP" -lpthread -lm -o "$T/test_zxvd_pspace" || exit 3
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lpthread -lm -o "$T/test_zxvd_pspace" || exit 3
 "$T/test_zxvd_pspace"

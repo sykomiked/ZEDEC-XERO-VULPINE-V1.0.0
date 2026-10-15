@@ -36,6 +36,9 @@ $CC $FLAGS -Werror $SAN "$HERE/test_zxv_irc.c" "$HERE/zxv_irc.c" -o "$T/test_zxv
 make -s -C "$R/sdk/libzxv" CC="$CC" >"$T/lib.log" 2>&1 || { tail -20 "$T/lib.log"; exit 3; }
 RPCDEPS="$(sh "$HERE/app_sources.sh" rpcdeps | sed "s|^|$K/|")"
 RPCINC="$(sh "$HERE/app_sources.sh" rpcincs | sed "s|^|-I$K/|")"
+# zxvd_rpc.c falls back to the module methods (zxvd_rpc_modules.c): their
+# archive, built once and reused (zxvd_mod_archive.sh)
+MODA="$(sh "$K/arch/hosted/zxvd_mod_archive.sh")" || exit 3
 INCS="$RPCINC -I$HERE -I$K/src/web4 -I$K/src/tls -I$K/src/pqsec -I$K/src/lpres -I$K/src/robin_debanks
       -I$K/src/mlkem -I$K/include -I$K/src/modbind -I$K/src/e8 -I$K/src/event_space -I$R/sdk/libzxv/include"
 set -- "$HERE/zxvd_rpc.c" $RPCDEPS "$HERE/zxv_http_guard.c" "$K/src/web4/web4_json.c" \
@@ -56,7 +59,7 @@ for f in "$@"; do
 done
 # shellcheck disable=SC2086
 $CC $FLAGS -Werror $SAN $INCS "$HERE/test_zxvd_irc.c" "$HERE/zxvd_irc.c" "$HERE/zxv_irc.c" "$T"/o/*.o \
-    -L"$R/sdk/libzxv/build" -lzxv "-Wl,-rpath,$R/sdk/libzxv/build" -lm -o "$T/test_zxvd_irc" \
+    "$MODA" -L"$R/sdk/libzxv/build" -lzxv "-Wl,-rpath,$R/sdk/libzxv/build" -lm -o "$T/test_zxvd_irc" \
     2>"$T/cc.log" || { grep -v "Assembler messages\|incorrect section attributes" "$T/cc.log" | tail -20; exit 3; }
 ZXV_TMP="$T" "$T/test_zxvd_irc"
 
