@@ -258,8 +258,19 @@ the code or the docs.
    checked file by file (docs/spec/MATRIX.md); and the vector plane beside
    it, every vector naming its file and model (docs/spec/VECTORS.md).
 2. **Slots for every block.** These are added as blocks land, with
-   `--assign BLOCK NAMESPACE SECTION`. The apps thread's CONCEPTS.tsv stays
-   the source of meanings; the shorthand is the handle.
+   `--assign BLOCK NAMESPACE SECTION`, in the same change that adds the
+   block (a slot never names an entry that is not in the tree). The apps
+   thread's CONCEPTS.tsv stays the source of meanings; the shorthand is the
+   handle.
+   - A shared block (`blocks/*.zxblock`) is placed by hand, and its
+     shorthand is the entry's own name: `@num.gcd`.
+   - An app's entries use local words (total, count, score), so an app's
+     shorthand carries the app: `@num.banker_total`.
+   - The build server runs `--assign APP auto auto` for every new app. That
+     puts each entry on the **app shelf** by what it answers: truths in
+     logic 490-499, numbers in num 590-599. The build never fails for want
+     of a librarian. A slot is never moved, so an entry placed there stays
+     there; a concept worth a better place becomes a shared block first.
 3. **The bucket tree.** ipfs-dist packs `05_alexandria` next to Disc 1 and
    the swarm packs.
 4. **Running a plan.** A zxapp entry point that calls a block by slot, and
