@@ -77,6 +77,9 @@ s2 = assign_dna_hobbies.assign("00" * 32, [s1])
 if s1 == s2 or not 3 <= len(s1) <= 5:
     bad.append("hobby assignment is not unique or out of range")
 
+import test_tiamat_dna  # noqa: E402
+test_tiamat_dna.main()
+
 if bad:
     print("\n".join(bad))
     sys.exit(1)
