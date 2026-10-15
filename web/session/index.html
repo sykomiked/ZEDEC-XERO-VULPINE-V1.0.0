@@ -67,6 +67,10 @@
   .seedbox { width: 100%; border: 1px dashed var(--gold); border-radius: 10px; padding: 12px 14px; display: none;
              font-size: 14px; color: var(--text); }
   .seedbox.on { display: block; }
+  .newstep { width: 100%; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .newstep .lead { text-align: center; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+  .field .check input { appearance: auto; accent-color: var(--gold); width: 16px; height: 16px; padding: 0; margin: 0; }
   .seedbox code { display: block; margin-top: 6px; color: var(--gold); letter-spacing: 0.08em; font: inherit;
                   word-break: break-all; user-select: text; -webkit-user-select: text; }
 
@@ -104,13 +108,14 @@
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" id="t-seed" aria-selected="true">Seed</button>
       <button class="tab" role="tab" id="t-pass" aria-selected="false">Passphrase</button>
+      <button class="tab" role="tab" id="t-new" aria-selected="false">New here</button>
     </div>
     <div class="field" id="f-seed">
       <label for="seed">Seed: 11 groups of five</label>
       <textarea id="seed" spellcheck="false" autocomplete="off" autocapitalize="characters"
                 placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"></textarea>
       <div class="row"><span class="hint">O reads as zero, I and L as one; a typo is caught.</span>
-        <button class="link" id="new-seed" type="button">Make a new seed</button></div>
+        <button class="link" id="new-seed" type="button">New here? Make a passport</button></div>
     </div>
     <div class="field" id="f-pass" hidden>
       <label for="handle">Handle</label>
@@ -119,7 +124,23 @@
       <input id="pass" type="password" autocomplete="current-password" maxlength="256">
       <span class="hint">At least 16 characters. Stretching it takes 64 MiB of memory and three passes.</span>
     </div>
-    <div class="seedbox" id="seedbox">Write this seed down and keep it somewhere safe. It is the only way back to this identity.<code id="seed-new-text"></code></div>
+    <div class="field" id="f-new" hidden>
+      <div id="new-make" class="newstep">
+        <p class="lead">Your passport starts as a seed: 32 random bytes made here, by this browser, and never sent anywhere. Whoever has the seed is you, on any device.</p>
+        <button class="btn" id="make" type="button">Make my seed</button>
+      </div>
+      <div id="new-show" class="newstep" hidden>
+        <div class="seedbox on" id="seedbox"><b>Write this down.</b> It is shown only now, and it is the only way back to this identity. Nobody can recover it for you.<code id="seed-new-text"></code></div>
+        <label class="check"><input type="checkbox" id="written-ok"> I have written it down</label>
+        <button class="btn" id="written" type="button" disabled>Continue</button>
+      </div>
+      <div id="new-confirm" class="newstep" hidden>
+        <label for="confirm">Type your seed back, from what you wrote down</label>
+        <textarea id="confirm" spellcheck="false" autocomplete="off" autocapitalize="characters"></textarea>
+        <div class="row"><span class="hint">Groups, spaces and case do not matter.</span>
+          <button class="link" id="remake" type="button">Start over with a new seed</button></div>
+      </div>
+    </div>
     <div class="meter" id="meter"><div class="bar"><i id="bar"></i></div><span class="what" id="what"></span></div>
     <div class="why" id="why" role="status" aria-live="polite"></div>
     <button class="btn" id="enter" type="button" disabled>Enter</button>

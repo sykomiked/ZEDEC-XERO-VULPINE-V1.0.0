@@ -15,6 +15,7 @@
 
 int32_t pw_seed_new(void);
 int32_t pw_seed_text(uint32_t n);
+int32_t pw_seed_confirm(uint32_t n);
 int32_t pw_kdf_memory(void);
 int32_t pw_seed_pass(uint32_t np, uint32_t nh);
 int32_t pw_hydrate(void);
@@ -159,6 +160,34 @@ int main(void)
     CHECK(pw_seed_text(put("hello")) == PP_ERR_FORMAT, "then a bad one refused");
     direct_did(seed, did);
     CHECK(pw_hydrate() > 0 && !strcmp(pw_out(), did), "the first seed is still the one used");
+
+    /* first time: a new seed, shown once, typed back to log in */
+    pw_wipe();
+    CHECK(pw_seed_confirm(put(text)) == PP_ERR_STATE && in_clear(), "nothing to confirm yet");
+    uint8_t seed2[PP_SEED];
+    char text2[PP_SEED_TEXT];
+    for (uint32_t i = 0; i < PP_SEED; i++) seed2[i] = (uint8_t) (0xA5u ^ (i * 7u));
+    memcpy(pw_in(), seed2, PP_SEED);
+    CHECK(pw_seed_new() > 0 && pp_seed_to_text(seed2, text2) == PP_OK && !strcmp(pw_out(), text2),
+          "a seed to create is made and shown");
+    CHECK(pw_seed_confirm(put(text)) == PP_ERR_MISMATCH && in_clear(),
+          "typing back another valid seed is refused");
+    CHECK(pw_hydrate() == PP_ERR_STATE, "a refused confirmation logs nobody in");
+    memcpy(out, text2, sizeof text2);
+    out[3] = out[3] == 'A' ? 'B' : 'A';
+    CHECK(pw_seed_confirm(put(out)) == PP_ERR_CHECKSUM, "a typo in the confirmation is caught");
+    CHECK(pw_seed_confirm(0) == PP_ERR_ARG, "an empty confirmation is refused");
+    direct_did(seed2, did);
+    CHECK(pw_seed_confirm(put(text2)) == PP_OK && in_clear(), "the right seed typed back is taken");
+    CHECK(pw_hydrate() > 0 && !strcmp(pw_out(), did), "created identity %s = passport %s", pw_out(),
+          did);
+    CHECK(pw_seed_text(put(text2)) == PP_OK && pw_hydrate() > 0 && !strcmp(pw_out(), did),
+          "logging in with that seed later gives the same DID");
+    CHECK(pw_seed_confirm(put(text2)) == PP_ERR_STATE, "a confirmed seed is no longer pending");
+    memcpy(pw_in(), seed2, PP_SEED);
+    pw_seed_new();
+    pw_wipe();
+    CHECK(pw_seed_confirm(put(text2)) == PP_ERR_STATE, "a wipe drops the pending seed");
 
     /* wipe */
     CHECK(pw_seed_text(put(text)) == PP_OK, "seed read again");

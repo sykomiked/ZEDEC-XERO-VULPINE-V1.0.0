@@ -14,7 +14,13 @@
  *   pw_in()                  IN: where the page writes its input (PW_IN_MAX)
  *   pw_out()                 OUT: where results are written (NUL-terminated)
  *   pw_seed_new()            IN[0..32) = 32 random bytes from the page's
- *                            CSPRNG -> OUT = the seed as text; its length
+ *                            CSPRNG -> OUT = the seed as text, to show once;
+ *                            its length. The seed is kept as the pending one
+ *                            and is not logged in until it is typed back.
+ *   pw_seed_confirm(n)       IN[0..n) = the pending seed typed back -> the
+ *                            seed; PP_ERR_MISMATCH for another seed (the
+ *                            pending one is kept for another try),
+ *                            PP_ERR_STATE when none is pending
  *   pw_seed_text(n)          IN[0..n) = seed text -> the seed; PP status
  *   pw_kdf_memory()          reserve the 64 MiB Argon2id needs; 0 / -1
  *   pw_seed_pass(np, nh)     IN = passphrase (np bytes) then handle (nh
@@ -47,6 +53,8 @@ static uint8_t IN[PW_IN_MAX];
 static char OUT[PW_OUT_MAX];
 static uint8_t SEED[PP_SEED];
 static int HAVE_SEED;
+static uint8_t PENDING[PP_SEED]; /* made by pw_seed_new, not yet typed back */
+static int HAVE_PENDING;
 static pp_passport_t PASS;
 static uint64_t *KDF_MEM;
 
@@ -113,10 +121,21 @@ EXPORT(pw_in_max) uint32_t pw_in_max(void)
     return PW_IN_MAX;
 }
 
+static void pending_drop(void)
+{
+    wipe(PENDING, sizeof PENDING);
+    HAVE_PENDING = 0;
+}
+
 EXPORT(pw_seed_new) int32_t pw_seed_new(void)
 {
     char text[PP_SEED_TEXT];
     pp_status_t r = pp_seed_to_text(IN, text);
+    if (r == PP_OK) {
+        pending_drop();
+        for (uint32_t i = 0; i < PP_SEED; i++) PENDING[i] = IN[i];
+        HAVE_PENDING = 1;
+    }
     wipe(IN, PP_SEED);
     if (r != PP_OK) return (int32_t) r;
     uint32_t n = 0;
@@ -143,6 +162,37 @@ EXPORT(pw_seed_text) int32_t pw_seed_text(uint32_t n)
     for (uint32_t i = 0; i < PP_SEED; i++) SEED[i] = s[i];
     wipe(s, sizeof s);
     HAVE_SEED = 1;
+    return PP_OK;
+}
+
+EXPORT(pw_seed_confirm) int32_t pw_seed_confirm(uint32_t n)
+{
+    if (n == 0 || n > PW_IN_MAX) {
+        wipe(IN, PW_IN_MAX);
+        return PP_ERR_ARG;
+    }
+    if (!HAVE_PENDING) {
+        wipe(IN, PW_IN_MAX);
+        return PP_ERR_STATE;
+    }
+    uint8_t s[PP_SEED];
+    pp_status_t r = pp_seed_from_text((const char *) IN, n, s);
+    wipe(IN, PW_IN_MAX);
+    if (r != PP_OK) {
+        wipe(s, sizeof s);
+        return (int32_t) r;
+    }
+    uint8_t diff = 0; /* every byte compared, whatever the first difference */
+    for (uint32_t i = 0; i < PP_SEED; i++) diff |= (uint8_t) (s[i] ^ PENDING[i]);
+    if (diff) {
+        wipe(s, sizeof s);
+        return PP_ERR_MISMATCH;
+    }
+    seed_drop();
+    for (uint32_t i = 0; i < PP_SEED; i++) SEED[i] = s[i];
+    wipe(s, sizeof s);
+    HAVE_SEED = 1;
+    pending_drop();
     return PP_OK;
 }
 
@@ -211,6 +261,7 @@ EXPORT(pw_hydrate) int32_t pw_hydrate(void)
 EXPORT(pw_wipe) void pw_wipe(void)
 {
     seed_drop();
+    pending_drop();
     pp_wipe(&PASS);
     wipe(IN, PW_IN_MAX);
     wipe(OUT, PW_OUT_MAX);

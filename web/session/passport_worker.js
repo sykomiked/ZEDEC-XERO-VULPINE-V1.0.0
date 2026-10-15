@@ -10,9 +10,11 @@
 //   {op: 'start', sha256}            load zxv_passport.wasm and check it
 //                                    against the boot manifest's hash
 //   {op: 'seed_new'}                 a fresh seed as text, from this
-//                                    browser's CSPRNG
+//                                    browser's CSPRNG, to show once; it is
+//                                    kept pending until it is typed back
 //   {op: 'login', mode: 'seed', text}
 //   {op: 'login', mode: 'pass', handle, pass}
+//   {op: 'login', mode: 'new', text}  the pending seed typed back
 //   {op: 'wipe'}                     zero the seed, the keys and the scratch
 // Messages out:
 //   {op: 'ready'} | {op: 'step', done, of, label} | {op: 'seed', text}
@@ -79,12 +81,13 @@ function step(done, of, label)
 function login(msg)
 {
     const enc = new TextEncoder();
-    if (msg.mode === 'seed') {
+    if (msg.mode === 'seed' || msg.mode === 'new') {
         const text = enc.encode(String(msg.text || ''));
-        step(0, 2, 'seed');
-        if (!writeIn([ text ])) return {code : -2, where : 'seed'};
-        let r = X.pw_seed_text(text.length);
-        if (r !== 0) return {code : r, where : 'seed'};
+        const where = msg.mode === 'new' ? 'confirm' : 'seed';
+        step(0, 2, where);
+        if (!writeIn([ text ])) return {code : -2, where};
+        let r = msg.mode === 'new' ? X.pw_seed_confirm(text.length) : X.pw_seed_text(text.length);
+        if (r !== 0) return {code : r, where};
         step(1, 2, 'keys');
         r = X.pw_hydrate();
         if (r < 0) return {code : r, where : 'keys'};

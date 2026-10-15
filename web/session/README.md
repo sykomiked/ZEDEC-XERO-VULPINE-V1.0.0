@@ -13,6 +13,7 @@ zxvd --rpc "$HOME/.zxv/run/zxvd.sock" --web-root /tmp/zxv-web
 | step | what happens | where |
 |---|---|---|
 | login | The passport rebuilds the identity from a seed, or from a passphrase and handle, inside the page. Nothing is looked up and nothing is sent. The bar fills as each step really ends. A refused seed or passphrase is named in words. | `passport_worker.js`, `zxv_passport.wasm` (`zxv_passport_wasm.c` on `kernel/src/passport`) |
+| first time | "New here" makes a seed from the browser's `crypto.getRandomValues`, shows it once to write down, then has it typed back. The module keeps it pending, and a seed that is not the one shown is refused. Only then is the identity built, exactly as a typed seed builds it. | `pw_seed_new`, `pw_seed_confirm` |
 | spaces | `spaces.list` from zxvd | `session.js`, zxvd's `/api/rpc` |
 | space | the space's apps; the companion opens in it | `session.js` |
 | companion | `swarm.ask` runs the model zxvd has loaded, under the budget gate and the answer tag. The page says who wrote the answer from zxvd's own record (`swarm.state` `companion.answered_by_model` and the tag). When no model wrote it, the page says so. | `session.js` |

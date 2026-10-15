@@ -119,12 +119,43 @@ async function main()
         // 2. login
         await page.waitForSelector('#v-login.on');
         await page.waitForFunction(() => !document.getElementById('why').textContent, null, {timeout : 5000});
+        // first time: make a seed, write it down, type it back
         await page.click('#new-seed');
-        await page.waitForSelector('#seedbox.on');
+        await page.waitForSelector('#f-new:not([hidden]) #new-make:not([hidden])');
+        await page.click('#make');
+        await page.waitForSelector('#new-show:not([hidden])');
         const fresh = await page.locator('#seed-new-text').textContent();
-        check(/^([0-9A-HJKMNP-TV-Z]{5}-){10}[0-9A-HJKMNP-TV-Z]{5}$/.test(fresh) && fresh !== SEED_TEXT &&
-                  (await page.locator('#seed').inputValue()) === fresh,
-              'a new seed is made in the page, shown to write down and filled in');
+        check(/^([0-9A-HJKMNP-TV-Z]{5}-){10}[0-9A-HJKMNP-TV-Z]{5}$/.test(fresh) && fresh !== SEED_TEXT,
+              'a new seed is made in the page and shown to write down');
+        check(await page.locator('#written').isDisabled(), 'Continue waits until it is written down');
+        await shot(page, '2-create.png');
+        await page.check('#written-ok');
+        await page.click('#written');
+        await page.waitForSelector('#new-confirm:not([hidden])');
+        check((await page.locator('#seed-new-text').textContent()) === '' &&
+                  (await page.locator('#seed').inputValue()) === '',
+              'the seed is gone from the page once it is written down, and filled in nowhere');
+        await page.fill('#confirm', SEED_TEXT); // a valid seed, but not this one
+        await page.click('#enter');
+        await page.waitForFunction(() => document.getElementById('why').textContent.length > 0);
+        const wrongWhy = await page.locator('#why').textContent();
+        check(/not the seed you were shown/.test(wrongWhy) && (await page.getAttribute('body', 'data-did')) === null,
+              `a wrong confirmation is refused: "${wrongWhy}"`);
+        await page.fill('#confirm', fresh.toLowerCase().replace(/-/g, ' '));
+        await page.click('#enter');
+        await page.waitForSelector('#v-spaces.on', {timeout : 60000});
+        const createdDid = await page.getAttribute('body', 'data-did');
+        check(/^did:zxv:[a-z2-7]{52}$/.test(createdDid || ''), `the new passport is made: ${createdDid}`);
+        await page.click('#sign-out');
+        await page.waitForSelector('#v-login.on');
+        await page.fill('#seed', fresh);
+        await page.click('#enter');
+        await page.waitForSelector('#v-spaces.on', {timeout : 60000});
+        check((await page.getAttribute('body', 'data-did')) === createdDid,
+              'logging in later with that seed gives the same DID');
+        await page.click('#sign-out');
+        await page.waitForSelector('#v-login.on');
+
         const typo = SEED_TEXT.slice(0, 3) + (SEED_TEXT[3] === 'A' ? 'B' : 'A') + SEED_TEXT.slice(4);
         await page.fill('#seed', typo);
         await page.click('#enter');
@@ -151,7 +182,7 @@ async function main()
               'signed out: the login is back and empty');
 
         await page.fill('#seed', SEED_TEXT.toLowerCase().replace(/-/g, ' '));
-        await shot(page, '2-login.png');
+        await shot(page, '3-login.png');
         await page.click('#enter');
         await page.waitForSelector('#v-spaces.on', {timeout : 60000});
         check((await page.getAttribute('body', 'data-did')) === DID_SEED,
@@ -164,7 +195,7 @@ async function main()
         check(n === list.length, `the page shows zxvd's ${list.length} space(s)`);
         await page.click('#spaces .tile[data-id="space-home"]');
         await page.waitForSelector('#v-space.on #apps .tile[data-id="app-companion"]');
-        await shot(page, '3-space.png');
+        await shot(page, '4-space.png');
         check((await page.locator('#space-title').textContent()) === 'Home', 'Home is open');
 
         // 4. the companion: a real answer from the model zxvd runs
@@ -174,7 +205,7 @@ async function main()
         await page.fill('#prompt', 'Hello there, what can you do?');
         await page.click('#ask');
         await page.waitForSelector('#answer.on', {timeout : 120000});
-        await shot(page, '4-answer.png');
+        await shot(page, '5-answer.png');
         const text = await page.locator('#answer-text').textContent();
         const byModel = await page.getAttribute('#answer', 'data-model');
         const tokens = Number(await page.getAttribute('#answer', 'data-tokens'));

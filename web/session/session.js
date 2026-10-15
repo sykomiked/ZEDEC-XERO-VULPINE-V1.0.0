@@ -30,11 +30,13 @@ const PP = {
     WEAK : -5,
     KDF : -6,
     CRYPTO : -7,
+    MISMATCH : -16,
     STATE : -18
 };
 
 const STEP_WORDS = {
     seed : 'Reading the seed',
+    confirm : 'Checking the seed you typed back',
     memory : 'Setting aside 64 MiB for the passphrase stretch',
     stretch : 'Stretching the passphrase (Argon2id, 64 MiB, three passes)',
     keys : 'Building your keys (ML-DSA-87 and SLH-DSA)',
@@ -126,6 +128,11 @@ function loginWords(code, where)
 {
     const handle = $('handle').value, pass = $('pass').value;
     switch (code) {
+    case PP.MISMATCH:
+        return 'That is not the seed you were shown. Check what you wrote down and type it again, or start over with a new seed.';
+    case PP.STATE:
+        if (where === 'confirm') return 'There is no new seed to confirm: make one first.';
+        return `The passport stopped (code ${code}).`;
     case PP.CHECKSUM:
         return 'That seed has a typo: its built-in check does not match. Look at each group of five again.';
     case PP.FORMAT:
@@ -142,7 +149,7 @@ function loginWords(code, where)
         if (where === 'stretch' && (!handle || utf8len(handle) > 64))
             return 'Give a handle of 1 to 64 bytes: the name that keeps your passphrase apart from anyone else\'s.';
         if (where === 'stretch' && utf8len(pass) > 256) return 'The passphrase is longer than 256 bytes.';
-        if (where === 'seed') return 'Type your seed first.';
+        if (where === 'seed' || where === 'confirm') return 'Type your seed first.';
         return 'The passport refused that input.';
     default:
         return `The passport stopped (code ${code}).`;
@@ -152,7 +159,23 @@ function loginWords(code, where)
 function canEnter()
 {
     if (mode === 'seed') return $('seed').value.trim().length > 0;
+    if (mode === 'new') return newStage === 'confirm' && $('confirm').value.trim().length > 0;
     return $('handle').value.length > 0 && $('pass').value.length > 0;
+}
+
+// First time: make a seed, show it once, have it typed back (the module
+// keeps it pending until then), then log in exactly as with a typed seed.
+let newStage = 'make';
+function setNewStage(st)
+{
+    newStage = st;
+    $('new-make').hidden = st !== 'make';
+    $('new-show').hidden = st !== 'show';
+    $('new-confirm').hidden = st !== 'confirm';
+    if (st !== 'show') $('seed-new-text').textContent = ''; // shown once, then gone from the page
+    if (st !== 'confirm') $('confirm').value = '';
+    $('enter').hidden = mode === 'new' && st !== 'confirm';
+    $('enter').disabled = !canEnter();
 }
 
 function setMode(m)
@@ -160,11 +183,13 @@ function setMode(m)
     mode = m;
     $('t-seed').setAttribute('aria-selected', String(m === 'seed'));
     $('t-pass').setAttribute('aria-selected', String(m === 'pass'));
+    $('t-new').setAttribute('aria-selected', String(m === 'new'));
     $('f-seed').hidden = m !== 'seed';
     $('f-pass').hidden = m !== 'pass';
-    $('seedbox').classList.remove('on');
+    $('f-new').hidden = m !== 'new';
+    $('meter').classList.remove('on');
     say($('why'), '');
-    $('enter').disabled = !canEnter();
+    setNewStage(m === 'new' && newStage === 'confirm' ? 'confirm' : 'make');
 }
 
 async function enter()
@@ -172,14 +197,15 @@ async function enter()
     $('enter').disabled = true;
     say($('why'), '');
     $('bar').style.width = '0%';
-    const msg = mode === 'seed' ? {op : 'login', mode, text : $('seed').value}
-                                : {op : 'login', mode, handle : $('handle').value, pass : $('pass').value};
+    const msg = mode === 'pass' ? {op : 'login', mode, handle : $('handle').value, pass : $('pass').value}
+                                : {op : 'login', mode, text : $(mode === 'new' ? 'confirm' : 'seed').value};
     try {
         const r = await ask(msg);
         if (r.op === 'did') {
             $('seed').value = '';
             $('pass').value = '';
-            $('seedbox').classList.remove('on');
+            newStage = 'make';
+            $('confirm').value = '';
             did = r.did;
             await openSpaces();
             return;
@@ -195,14 +221,14 @@ async function enter()
 
 async function newSeed()
 {
+    say($('why'), '');
     try {
         const r = await ask({op : 'seed_new'});
         if (r.op !== 'seed') throw new Error(loginWords(r.code, r.where));
-        setMode('seed');
-        $('seed').value = r.text;
+        setNewStage('show');
         $('seed-new-text').textContent = r.text;
-        $('seedbox').classList.add('on');
-        $('enter').disabled = false;
+        $('written').disabled = true;
+        $('written-ok').checked = false;
     } catch (err) {
         say($('why'), `No seed was made: ${err.message}`);
     }
@@ -217,6 +243,7 @@ async function signOut()
     }
     worker.terminate();
     did = '';
+    newStage = 'make';
     delete document.body.dataset.did;
     $('did').textContent = '';
     space = null;
@@ -375,7 +402,23 @@ async function askCompanion()
 
 $('t-seed').addEventListener('click', () => setMode('seed'));
 $('t-pass').addEventListener('click', () => setMode('pass'));
-for (const id of [ 'seed', 'handle', 'pass' ]) $(id).addEventListener('input', () => {
+$('t-new').addEventListener('click', () => setMode('new'));
+$('make').addEventListener('click', newSeed);
+$('remake').addEventListener('click', () => setNewStage('make'));
+$('written-ok').addEventListener('change', () => {
+    $('written').disabled = !$('written-ok').checked;
+});
+$('written').addEventListener('click', () => {
+    setNewStage('confirm');
+    $('confirm').focus();
+});
+$('confirm').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!$('enter').disabled) enter();
+    }
+});
+for (const id of [ 'seed', 'handle', 'pass', 'confirm' ]) $(id).addEventListener('input', () => {
     $('enter').disabled = !canEnter();
     say($('why'), '');
 });
@@ -389,7 +432,7 @@ $('pass').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !$('enter').disabled) enter();
 });
 $('enter').addEventListener('click', enter);
-$('new-seed').addEventListener('click', newSeed);
+$('new-seed').addEventListener('click', () => setMode('new'));
 $('sign-out').addEventListener('click', signOut);
 $('to-spaces').addEventListener('click', openSpaces);
 $('to-space').addEventListener('click', () => space && openSpace(space));
