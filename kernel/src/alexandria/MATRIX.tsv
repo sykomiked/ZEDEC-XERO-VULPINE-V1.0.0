@@ -17,7 +17,7 @@
 # icon: the app's L1 icon, vector (SVG), so every one fits a block at any
 # size; pack_matrix --icons fails when one is missing or too big.
 0	core	Core	-	alloc mm sched syscall gdt idt pic timer pci acpi ata blockdev bios bringup el0_userspace loader modbind lpres oseq event_space event_sched event_transport e8 edp_risk surplus trispace pqsec mlkem tls robin_debanks clock keyboard mouse display vbe virtio fs vfs zxvfs fat32 tripartite_fs ubh alexandria lingua tensor zui appkit apps cellular_multikernel hwdrv net /kernel/arch /kernel/boot /kernel/include /kernel/compat /kernel/third_party /kernel/experimental /kernel/userapp /kernel/freestanding.c /kernel/linker.ld /kernel/linker_arm64.ld /kernel/grub.cfg /kernel/lpres_core.c /kernel/rmag_core.c /kernel/telemetry_core.c /kernel/Makefile pmm bootattest
-1	Burrow	System core	zxv-brand/app-icons/svg/l1/001-burrow.svg	apps/burrow_model.c apps/burrow_model.h
+1	The Banker	System core	zxv-brand/app-icons/svg/l1/001-burrow.svg	apps/burrow_model.c apps/burrow_model.h
 2	Hollow	System core	zxv-brand/app-icons/svg/l1/002-hollow.svg	desktop theme dual_space launch icon /macos /gui /subsystems/gui /ZXV-Desktop.command
 3	Threshold	System core	zxv-brand/app-icons/svg/l1/003-threshold.svg	ident identity cred kycwrap
 4	Keystone	System core	zxv-brand/app-icons/svg/l1/004-keystone.svg	license terms bootfeat /LICENSES /LICENSE /LICENSE-HARDWARE.md /NOTICE /COMMERCIAL_USE.md /CLA.md /REUSE.toml
