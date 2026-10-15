@@ -144,8 +144,15 @@ recursion resumes, carrying what it learned from the person.
 So people and the system benefit from each other. The system gets better between visits, and
 each visit steers it. The limits stay the same: idle work spends only the budget each cycle
 grants, stays deterministic so it can be replayed, and never touches money, devices, messages
-or publishing without a person's approval. Suggestions wait until they are accepted. The
-architecture records this as rule R24, with the places the code does not yet follow it.
+or publishing without a person's approval. Suggestions wait until they are accepted.
+
+The companions have a life of their own here too. When their people are away, chiglets meet on
+the Web 4 layer, their own community, a safe space where they work with each other and
+automate together. They trade what they have concluded, never their people's private data;
+they meet only where both owners have agreed; and they too stay inside their budgets and
+leave anything outward or irreversible to a person.
+
+The architecture records this as rule R24, with the places the code does not yet follow it.
 
 ## 8. In short
 

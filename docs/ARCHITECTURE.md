@@ -137,7 +137,7 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
-| R24 | **Idle, it works on itself; a person's interaction takes over; the two feed each other.** With no one present the system recursively finishes its own pending work and feeds itself the next inputs. A user interaction interrupts that loop at once: self-work yields, the system turns to the person's intent, and that cycle ends in a sealed receipt. Then the self-work resumes, carrying what it learned from the person. Idle work stays inside the tokens-per-cycle and nature budgets (R19), is deterministic and replayable, and never takes an outward or irreversible step (money, devices, messages, publishing) without a person approving; suggestions stay held until accepted | Swarm loop, self-tests, indexing, pinning, suggestions, voice (section 2.1) |
+| R24 | **Idle, it works on itself; a person's interaction takes over; the two feed each other.** With no one present the system recursively finishes its own pending work and feeds itself the next inputs. A user interaction interrupts that loop at once: self-work yields, the system turns to the person's intent, and that cycle ends in a sealed receipt. Then the self-work resumes, carrying what it learned from the person. Idle work stays inside the tokens-per-cycle and nature budgets (R19), is deterministic and replayable, and never takes an outward or irreversible step (money, devices, messages, publishing) without a person approving; suggestions stay held until accepted. Between chiglets, the Web 4 layer is their community: the safe space where they interact and automate with each other while idle, exchanging claims (never their owners' raw data), only under grants both owners signed | Swarm loop, chiglet visits over Web 4, self-tests, indexing, pinning, suggestions, voice (section 2.1) |
 
 ### 2.1 R24 in the code today
 
@@ -174,8 +174,24 @@ Does not follow it yet:
 - **What the person teaches is barely carried forward.** Only quest contributions and
   reputation feed back from interactions into later self-work.
 
-Closing these is code work for the threads that own the swarm loop and zxvd; until then the list
-above is the honest state.
+**The chiglets' community on Web 4.** The owner's addition: idle self-work also happens between
+companions, and the Web 4 layer is where it happens, a safe community space for chiglets to meet
+and automate with each other. The same bounds hold there: they exchange claims, never their
+owners' raw data; only inside a grant both owners signed; within budgets; and nothing outward or
+irreversible happens without a person.
+
+- Built (📝 #155, `chg_kin`): visits run only inside a grant both owners sign (topics, depth, time
+  window, revocable, accepted once); only claims and verdicts with an evidence hash pass, logged
+  in both hash chains; hobby time comes only from idle growth tokens, and hobbies only break ties
+  between equal proposals. Signed boards with trust tiers and an install decision that needs a
+  signed offer, a trusted publisher and an approving review exist in `airc`. Web 4 envelopes and
+  agent identities are in `web4`.
+- Not yet: grants and claims are not carried over Web 4 envelopes on Vinea, `airc` posts have no
+  carrier, there is no zxvd method for visits, and the on-screen visit is not built. #155 is a
+  draft.
+
+Closing these is code work for the threads that own the swarm loop, zxvd, Web 4 and the chiglet
+kin work; until then the lists above are the honest state.
 
 ---
 
