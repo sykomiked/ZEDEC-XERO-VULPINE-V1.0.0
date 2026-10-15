@@ -112,6 +112,7 @@ These rules came from you or were agreed with you. Every module is held to them.
 | R13 | **Holographic coding stays on the device; the wire carries original codes** | Measured: holographic form is lossless but larger |
 | R14 | **No defensive reflection.** Tarpit and isolate; never send traffic anywhere unasked | Network defence |
 | R15 | **Guardians approve with their own signatures and hold no key shares** | Recovery |
+| R16 | **GPU-first, integer-exact.** Model work runs on the GPU wherever one exists, with no per-step round trips to the CPU; every GPU kernel gives the C reference's exact integers | [GPU_STRATEGY.md](GPU_STRATEGY.md); kernel images stay CPU-only (R1) |
 
 ---
 
@@ -264,6 +265,8 @@ Small, pure building blocks that every stratum may use.
 |---|---|---|
 | Integer tensor engine, GGUF reader, tokenizer, RoPE, E8/Leech quantisers | ✅ | |
 | SIMD (NEON, AVX2, AVX-512) + row-parallel thread pool | ✅ | Bit-identical to the plain C path |
+| GPU: matrix products on Apple GPUs (Metal), bit-exact | ✅ | Prompt reading 1.8× on an M3 Max; one round trip per product, so generation stays on the CPU |
+| GPU: the whole forward pass in one command buffer (every layer, then the logits) | 🧩 | Bit-exact on an M3 Max; prompt reading 2.3× the CPU (289 vs 126 tok/s), generation 38 vs 60 tok/s, so decode still needs fused kernels. [GPU_STRATEGY.md](GPU_STRATEGY.md) |
 | Swarm economy: Fibonacci tokens-per-cycle, emotional economy, cooperative market, governor, DNA | ✅ | |
 | Budget gate on prompt and generated tokens | ✅ in the app | One budget token per prompt token and per written token |
 
