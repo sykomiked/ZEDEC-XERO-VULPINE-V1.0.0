@@ -33,6 +33,7 @@ require_relative "zxv/vhub"
 require_relative "zxv/freight"
 require_relative "zxv/web4"
 require_relative "zxv/paradox"
+require_relative "zxv/vino"
 
 # Ruby SDK for ZXV: a thin, idiomatic wrapper of libzxv (zxv_api.h).
 #
@@ -55,11 +56,12 @@ module Zxv
     hw: 0x10000000
   }.freeze
 
-  # ABI 1.5 feature bits (zxv_features2), by name. A group whose bit is
+  # ABI 1.5+ feature bits (zxv_features2), by name (+:vino+ since 1.6). A group whose bit is
   # clear is not built into the loaded library: every call in it raises
   # Zxv::NotImplementedError (ZXV_E_NOTIMPL).
   FEATURES2 = {
-    treaty: 0x01, aipi: 0x02, coin: 0x04, fee: 0x08, vhub: 0x10, freight: 0x20, web4: 0x40, paradox: 0x80
+    treaty: 0x01, aipi: 0x02, coin: 0x04, fee: 0x08, vhub: 0x10, freight: 0x20, web4: 0x40, paradox: 0x80,
+    vino: 0x100
   }.freeze
 
   @fatal_policy = :raise

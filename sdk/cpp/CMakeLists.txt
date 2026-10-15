@@ -11,7 +11,7 @@
 #   3. the in-repo build, ../libzxv/build (the "bundled" copy)
 #   4. the system linker path (find_library(zxv))
 cmake_minimum_required(VERSION 3.20)
-project(zxv_cpp VERSION 1.5.0 LANGUAGES CXX)
+project(zxv_cpp VERSION 1.6.0 LANGUAGES CXX)
 
 option(ZXV_BUILD_TESTS "Build the tests" ${PROJECT_IS_TOP_LEVEL})
 option(ZXV_BUILD_EXAMPLES "Build the examples" ${PROJECT_IS_TOP_LEVEL})
@@ -97,6 +97,11 @@ if(ZXV_BUILD_TESTS)
   target_link_libraries(test_zxv_abi15 PRIVATE zxv::zxv)
   zxv_strict(test_zxv_abi15)
   add_test(NAME test_zxv_abi15 COMMAND test_zxv_abi15 "${CMAKE_CURRENT_SOURCE_DIR}/../conformance")
+  # ABI 1.6 vino group (play lane, payment requests, receipts, meter).
+  add_executable(test_zxv_abi16 tests/test_zxv_abi16.cpp)
+  target_link_libraries(test_zxv_abi16 PRIVATE zxv::zxv)
+  zxv_strict(test_zxv_abi16)
+  add_test(NAME test_zxv_abi16 COMMAND test_zxv_abi16 "${CMAKE_CURRENT_SOURCE_DIR}/../conformance")
 endif()
 
 if(ZXV_BUILD_EXAMPLES)

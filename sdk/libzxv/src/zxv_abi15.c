@@ -7,6 +7,8 @@
 int32_t zxv_features2(uint32_t *out_mask)
 {
     if (!out_mask) return zxvi_fail(ZXV_E_ARG, "out_mask is NULL");
-    *out_mask = zxvi_feat2_treaty() | zxvi_feat2_aipi() | zxvi_feat2_coin() | zxvi_feat2_fee() | zxvi_feat2_vhub() | zxvi_feat2_freight() | zxvi_feat2_web4() | zxvi_feat2_paradox();
+    *out_mask = zxvi_feat2_treaty() | zxvi_feat2_aipi() | zxvi_feat2_coin() | zxvi_feat2_fee() |
+                zxvi_feat2_vhub() | zxvi_feat2_freight() | zxvi_feat2_web4() |
+                zxvi_feat2_paradox() | zxvi_feat2_vino();
     return zxvi_ok();
 }

@@ -67,8 +67,14 @@ public enum CapabilityRights : ulong
     /// <summary>Create paradox books, policies, holds and graphs, and run the paradox operators (<c>ZXV_CAP_PARADOX</c>, ABI 1.5).</summary>
     Paradox = 1UL << 14,
 
-    /// <summary>Every right as of ABI 1.5 (<c>ZXV_CAP_ALL_1_5</c>).</summary>
+    /// <summary>Every right as of ABI 1.5 (<c>ZXV_CAP_ALL_1_5</c>). Kept unchanged: the ABI only adds.</summary>
     AllAbi15 = (1UL << 15) - 1,
+
+    /// <summary>Create and use a Vino play-lane sandbox and a daily spend meter (<c>ZXV_CAP_VINO</c>, ABI 1.6). Not needed to encode payment requests or verify receipts, which are pure.</summary>
+    Vino = 1UL << 15,
+
+    /// <summary>Every right as of ABI 1.6 (<c>ZXV_CAP_ALL_1_6</c>): <see cref="AllAbi15"/> plus <see cref="Vino"/>.</summary>
+    AllAbi16 = (1UL << 16) - 1,
 }
 
 /// <summary>A snapshot of a capability's state.</summary>

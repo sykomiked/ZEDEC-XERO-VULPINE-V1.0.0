@@ -6,7 +6,7 @@
 // Regenerate: cargo build -p zxv-sys --features regenerate
 
 pub const ZXV_ABI_VERSION_MAJOR: u32 = 1;
-pub const ZXV_ABI_VERSION_MINOR: u32 = 5;
+pub const ZXV_ABI_VERSION_MINOR: u32 = 6;
 pub const ZXV_ABI_VERSION_PATCH: u32 = 0;
 pub const ZXV_OK: i32 = 0;
 pub const ZXV_E_ARG: i32 = -1;
@@ -501,6 +501,25 @@ pub const ZXV_PDX_GRAPH_MAX: u32 = 64;
 pub const ZXV_PDX_MAX_DEPS: u32 = 4;
 pub const ZXV_PDX_UPDATES_MAX: u32 = 256;
 pub const ZXV_PDX_TRACE_MAX: u32 = 4096;
+pub const ZXV_FEAT2_VINO: u32 = 256;
+pub const ZXV_E_RAIL: i32 = -46;
+pub const ZXV_E_COVERAGE: i32 = -47;
+pub const ZXV_E_LANE: i32 = -48;
+pub const ZXV_E_EXPIRED: i32 = -49;
+pub const ZXV_E_CHANCE: i32 = -50;
+pub const ZXV_VINO_RAIL_BEARER: i32 = 0;
+pub const ZXV_VINO_RAIL_GHOST: i32 = 1;
+pub const ZXV_VINO_LANE_PLAY: i32 = 1;
+pub const ZXV_VINO_LANE_LIVE: i32 = 2;
+pub const ZXV_VINO_MAX_ACCOUNTS: u32 = 256;
+pub const ZXV_VINO_MAX_VOUCHERS: u32 = 4096;
+pub const ZXV_VINO_V_ACTIVE: i32 = 1;
+pub const ZXV_VINO_V_REDEEMED: i32 = 2;
+pub const ZXV_VINO_REQ_BYTES: u32 = 160;
+pub const ZXV_VINO_MEMO_MAX: u32 = 64;
+pub const ZXV_VINO_RCPT_MSG_BYTES: u32 = 88;
+pub const ZXV_VINO_REQ_CHANCE: u32 = 1;
+pub const ZXV_VINO_REQ_FLAGS_KNOWN: u32 = 1;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct zxv_ctx {
@@ -3836,5 +3855,195 @@ unsafe extern "C" {
         out_total_dir: *mut i32,
         out_escalated: *mut i32,
         out_chain: *mut u8,
+    ) -> i32;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_vino_play {
+    _unused: [u8; 0],
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct zxv_vino_meter {
+    _unused: [u8; 0],
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_create(cap: *const zxv_cap, out: *mut *mut zxv_vino_play) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_destroy(p: *mut zxv_vino_play);
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_open(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        owner: u32,
+        is_issuer: i32,
+        out_account: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_back(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        issuer: u32,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_unback(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        issuer: u32,
+        amount: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_issue(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        issuer: u32,
+        holder: u32,
+        face: u64,
+        rail: i32,
+        out_id: *mut u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_transfer(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        voucher: u64,
+        from: u32,
+        to: u32,
+        rail: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_set_rail(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        voucher: u64,
+        holder: u32,
+        rail: i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_redeem(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        voucher: u64,
+        holder: u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_voucher_info(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        voucher: u64,
+        out_face: *mut u64,
+        out_issuer: *mut u32,
+        out_holder: *mut u32,
+        out_rail: *mut i32,
+        out_state: *mut i32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_account_info(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        account: u32,
+        out_owner: *mut u32,
+        out_is_issuer: *mut i32,
+        out_backing: *mut u64,
+        out_faces: *mut u64,
+        out_count: *mut u32,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_vouchers(
+        cap: *const zxv_cap,
+        p: *mut zxv_vino_play,
+        account: u32,
+        ids: *mut u64,
+        cap_len: usize,
+        out_count: *mut usize,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_play_check(cap: *const zxv_cap, p: *mut zxv_vino_play) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_request_encode(
+        lane: i32,
+        flags: u32,
+        merchant: *const u8,
+        nonce: *const u8,
+        amount: u64,
+        created_at: u64,
+        expires_at: u64,
+        memo: *const ::core::ffi::c_char,
+        out: *mut u8,
+        out_id: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_request_decode(
+        in_: *const u8,
+        out_lane: *mut i32,
+        out_flags: *mut u32,
+        out_merchant: *mut u8,
+        out_nonce: *mut u8,
+        out_amount: *mut u64,
+        out_created_at: *mut u64,
+        out_expires_at: *mut u64,
+        memo: *mut ::core::ffi::c_char,
+        out_id: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_receipt_msg(
+        request_id: *const u8,
+        wallet_pk: *const u8,
+        approved_at: u64,
+        out: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_receipt_sign(
+        cap: *const zxv_cap,
+        request: *const u8,
+        wallet_sk: *const u8,
+        wallet_pk: *const u8,
+        approved_at: u64,
+        sig: *mut u8,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_receipt_verify(
+        request: *const u8,
+        wallet_pk: *const u8,
+        approved_at: u64,
+        sig: *const u8,
+        now: u64,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_meter_create(
+        cap: *const zxv_cap,
+        daily_cap: u64,
+        out: *mut *mut zxv_vino_meter,
+    ) -> i32;
+}
+unsafe extern "C" {
+    pub fn zxv_vino_meter_destroy(m: *mut zxv_vino_meter);
+}
+unsafe extern "C" {
+    pub fn zxv_vino_meter_admit(
+        cap: *const zxv_cap,
+        m: *mut zxv_vino_meter,
+        day: u64,
+        amount: u64,
+        out_left: *mut u64,
     ) -> i32;
 }

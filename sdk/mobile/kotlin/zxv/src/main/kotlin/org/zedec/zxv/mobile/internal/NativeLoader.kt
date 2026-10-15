@@ -97,9 +97,9 @@ internal object NativeLoader {
         val v = IntArray(3)
         val rc = Jni.version(v)
         if (rc != 0) throw UnsatisfiedLinkError("zxv_version failed with status $rc")
-        if (v[0] != 1 || v[1] < 5) {
+        if (v[0] != 1 || v[1] < 6) {
             throw UnsatisfiedLinkError(
-                "need libzxv ABI 1.5 or a later 1.x, found ${v[0]}.${v[1]}.${v[2]} at $loadedFrom",
+                "need libzxv ABI 1.6 or a later 1.x, found ${v[0]}.${v[1]}.${v[2]} at $loadedFrom",
             )
         }
     }

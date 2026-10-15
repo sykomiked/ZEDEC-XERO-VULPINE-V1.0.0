@@ -5,7 +5,9 @@ crypto and a deterministic integer inference engine, over ``libzxv``.
 
 ABI 1.5 groups live in their own modules: :mod:`zxv.treaty`, :mod:`zxv.cid`,
 :mod:`zxv.aipi`, :mod:`zxv.coin`, :mod:`zxv.fee`, :mod:`zxv.vhub`,
-:mod:`zxv.freight`, :mod:`zxv.web4` and :mod:`zxv.paradox`.
+:mod:`zxv.freight`, :mod:`zxv.web4` and :mod:`zxv.paradox`. ABI 1.6 adds
+Vino Embed in :mod:`zxv.vino` (play-lane vouchers, payment requests,
+receipts and the daily spend meter).
 
 Quick start::
 
@@ -29,7 +31,7 @@ import enum
 from typing import Optional, Tuple
 
 from . import _native
-from . import aipi, cid, coin, fee, freight, paradox, treaty, vhub, web4
+from . import aipi, cid, coin, fee, freight, paradox, treaty, vhub, vino, web4
 from .aipi import AipiCall, AipiClaim, AipiFunction, AipiNode, AipiRoute
 from .cid import Cid, CidBase, CidCodec
 from .coin import Octane, TokenHolding, TokenWallet
@@ -39,6 +41,8 @@ from .paradox import (Classification, ParadoxBook, ParadoxGraph, ParadoxHold, Pa
                       ParadoxPolicy, RepairProof)
 from .treaty import Treaty, TreatyFault, TreatyOp, TreatyResult
 from .vhub import VHub
+from .vino import (PaymentRequest, PlayAccount, Receipt, RequestFlag, SpendMeter, VinoLane, VinoPlay,
+                   VinoRail, Voucher, VoucherState)
 from .web4 import W4Agent, W4ConsentLog, W4Directory, W4Manifest
 from ._native import load_library, library_path, set_default_fatal_policy, default_fatal_policy
 from .attest import Attestation, Attestations, Subject
@@ -48,9 +52,10 @@ from .crypto import (Ed25519, Encapsulation, Hashes, KeyPair, MlDsa87, MlKem1024
                      random_bytes)
 from .engine import (AsyncTokenStream, GenerateOptions, GenerationResult, KvType, Model, ModelArch,
                      Session, StopReason, Token, TokenStream)
-from .errors import (BudgetExhaustedError, CapabilityDeniedError, CidMismatchError, ConsentRequiredError,
-                     DenominationError, ErasureError, FatalPolicy, FloatRejectedError, InsufficientFundsError,
-                     LimitRefusedError, OwnerApprovalRequiredError, ParadoxStepLimitError, PegError,
+from .errors import (BudgetExhaustedError, CapabilityDeniedError, ChanceOutcomeError, CidMismatchError,
+                     ConsentRequiredError, CoverageError, DenominationError, ErasureError, FatalPolicy,
+                     FloatRejectedError, InsufficientFundsError, LaneError, LimitRefusedError,
+                     OwnerApprovalRequiredError, ParadoxStepLimitError, PegError, RailError, RequestExpiredError,
                      StatusClass, TreatyError, VerificationFailedError, ZxvError, ZxvFatal, ZxvLibraryError,
                      ZxvNotImplementedError, ZxvRefusedError, ZxvSystemError, ZxvUsageError)
 from .evm import EvmState, StateChannel
@@ -73,7 +78,7 @@ from .swarm import Allotment, EmotionProfile, Grant, Swarm
 from .truth import Truth, UncertainTruthError
 from .wire import FRAME_BYTES, Ubh168Frame, WireTruth, tag_of
 
-__version__ = "1.5.0"
+__version__ = "1.6.0"
 """Version of this Python SDK (tracks the C ABI it wraps)."""
 
 
@@ -116,7 +121,7 @@ class Feature(enum.IntFlag):
 
 
 class Feature2(enum.IntFlag):
-    """ABI 1.5 groups a ``libzxv`` build may provide (``ZXV_FEAT2_*``, from
+    """ABI 1.5 and later groups a ``libzxv`` build may provide (``ZXV_FEAT2_*``, from
     :func:`features2`). A group that is not built raises
     :class:`ZxvNotImplementedError` from every call (rule R9)."""
 
@@ -137,10 +142,13 @@ class Feature2(enum.IntFlag):
     """Agent manifests, directory, consent (:mod:`zxv.web4`)."""
     PARADOX = 0x00000080
     """The paradox engine (:mod:`zxv.paradox`)."""
+    VINO = 0x00000100
+    """Vino Embed (ABI 1.6): play lane, payment requests, receipts and the
+    spend meter (:mod:`zxv.vino`)."""
 
 
 def features2() -> Feature2:
-    """The :class:`Feature2` (ABI 1.5) groups live in the loaded library."""
+    """The :class:`Feature2` (ABI 1.5 and later) groups live in the loaded library."""
     out = _native.ffi.new("uint32_t *")
     _native.check(_native.lib().zxv_features2(out))
     return Feature2(out[0])
@@ -195,7 +203,8 @@ __all__ = [
     "CapabilityDeniedError", "BudgetExhaustedError", "InsufficientFundsError", "VerificationFailedError",
     "ZxvNotImplementedError", "ZxvSystemError", "ZxvLibraryError", "ZxvFatal", "DenominationError",
     "TreatyError", "CidMismatchError", "ConsentRequiredError", "ErasureError", "PegError", "LimitRefusedError",
-    "ParadoxStepLimitError", "OwnerApprovalRequiredError",
+    "ParadoxStepLimitError", "OwnerApprovalRequiredError", "RailError", "CoverageError", "LaneError",
+    "RequestExpiredError", "ChanceOutcomeError",
     # ABI 1.5 group modules and their main types
     "treaty", "cid", "aipi", "coin", "fee", "vhub", "freight", "web4", "paradox",
     "Treaty", "TreatyResult", "TreatyOp", "TreatyFault", "Cid", "CidBase", "CidCodec", "AipiNode",
@@ -203,6 +212,9 @@ __all__ = [
     "FeeAccount", "FeeBucket", "VHub", "FreightHeader", "FreightJoin", "OpsWriter", "W4Agent", "W4Directory",
     "W4Manifest", "W4ConsentLog", "ParadoxBook", "ParadoxPolicy", "ParadoxHold", "ParadoxGraph",
     "Classification", "ParadoxKind", "ParadoxOutcome", "RepairProof",
+    # ABI 1.6 Vino Embed
+    "vino", "VinoPlay", "VinoRail", "VinoLane", "Voucher", "VoucherState", "PlayAccount", "PaymentRequest",
+    "RequestFlag", "Receipt", "SpendMeter",
     # values
     "Rational", "RationalLike", "Truth", "UncertainTruthError",
     # hexagram tags

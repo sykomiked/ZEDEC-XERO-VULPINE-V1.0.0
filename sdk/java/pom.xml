@@ -8,7 +8,7 @@
 
   <groupId>org.zedec</groupId>
   <artifactId>zxv</artifactId>
-  <version>1.5.0</version>
+  <version>1.6.0</version>
   <packaging>jar</packaging>
 
   <name>ZXV SDK for the JVM</name>

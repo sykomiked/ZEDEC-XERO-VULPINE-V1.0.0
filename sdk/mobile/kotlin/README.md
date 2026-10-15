@@ -6,11 +6,12 @@
 A Kotlin SDK for [libzxv](../../libzxv/) that runs on Android. Android has no
 Java FFM API (the [Java SDK](../../java/) needs Java 22 FFM), so this SDK
 reaches libzxv through a small JNI shim, [`jni/zxv_jni.c`](jni/zxv_jni.c) and,
-for the ABI 1.5 groups, [`jni/zxv_jni15.c`](jni/zxv_jni15.c): one
+for the ABI 1.5 groups, [`jni/zxv_jni15.c`](jni/zxv_jni15.c), and for the
+ABI 1.6 vino group, [`jni/zxv_jni16.c`](jni/zxv_jni16.c): one
 mechanical C function per libzxv call, with all policy (capabilities, errors,
 lifetimes) in Kotlin where it is tested.
 
-Package `org.zedec.zxv.mobile`, version 1.5.0, ABI 1.5 or a later 1.x (checked at
+Package `org.zedec.zxv.mobile`, version 1.6.0, ABI 1.6 or a later 1.x (checked at
 load, together with the shim's own ABI).
 
 | Module | What | Built with |
@@ -98,7 +99,7 @@ with `--enable-native-access=ALL-UNNAMED`.
 | Four-valued logic | `Truth.NEITHER/TRUE/FALSE/BOTH`, `and`/`or`/`!`. No `Boolean` without a policy: `toBoolean(onBoth, onNeither)`, `isCertainlyTrue`, `requireTrue()`. |
 | Hexagram (ABI 1.3) | `Hexagram.of(HexBase, HexPolarity, HexPhase)`, `fromTag`, `fromTruth`; `action`, `step`, `advance`, `withState`, `forbid`, `and`/`or`/`!`, `toTruth()`. The base is not numbered like `Truth`; there is no numeric conversion. |
 | Capabilities | `ctx.rootCapability(...)`, `attenuate`, `revoke`, `setAttestation`, `info`, `allows`, `require`. Every gated call passes one (the `*_cap` functions). |
-| Errors | `ZxvUsageException` (+ `FloatRejectedException`, `NotADenominationException` -32, `TreatyException` -33 with `fault` and `offset`), `ZxvRefusedException` (+ `CapabilityDenied`, `BudgetExhausted`, `InsufficientFunds`, `VerificationFailed`, `NotImplemented`, and for ABI 1.5 `CidException` -34, `ConsentException` -35, `ErasureException` -36, `PegException` -37, `LimitException` -38, `StepLimitException` -39, `OwnerApprovalRequiredException` -40), `ZxvSystemException`; each has `status`, `statusName`, `detail`. `ZxvStatus` names every code (-41..-45 are reserved by the ABI and not defined). |
+| Errors | `ZxvUsageException` (+ `FloatRejectedException`, `NotADenominationException` -32, `TreatyException` -33 with `fault` and `offset`), `ZxvRefusedException` (+ `CapabilityDenied`, `BudgetExhausted`, `InsufficientFunds`, `VerificationFailed`, `NotImplemented`, and for ABI 1.5 `CidException` -34, `ConsentException` -35, `ErasureException` -36, `PegException` -37, `LimitException` -38, `StepLimitException` -39, `OwnerApprovalRequiredException` -40, and for ABI 1.6 `RailException` -46, `CoverageException` -47, `ExpiredException` -49, `ChanceException` -50), `ZxvSystemException`; `LaneException` -48 is a `ZxvUsageException`. Each has `status`, `statusName`, `detail`. `ZxvStatus` names every code (-41..-45 and -51..-59 are reserved by the ABI and not defined). |
 | Fail-closed | `ZxvFatalError` is a `kotlin.Error`, outside the `ZxvException` family, so `catch (e: Exception)` does not swallow it. The context is poisoned in C and marked dead in Kotlin; every later call fails. `FatalPolicy.ABORT` ends the process with `Runtime.halt(70)`. |
 | Quarantine log | `QuarantineLog.create(cap, capacity)` (needs `ATTEST`), `append`, `count`, `head`, `record`, `verify`. A full log is REFUSED (`ZXV_E_CAPACITY`): halt the context. |
 | Budgets | `Budgets.create(cap).budget(name, Resource, limit)`; `consume`, `tryConsume`, `release`, `setLimit`, `status`, `onExhausted`, and the coroutine `suspend fun consumeAsync(amount, timeout)`, which waits for a release or a larger limit and is cancelled with its coroutine. |
@@ -158,6 +159,114 @@ is ever made. The cost is one extra expansion per distinct CIDREF.
 
 V-Bonds and derivatives are not part of this SDK.
 
+## Vino Embed (ABI 1.6)
+
+What an app or game needs to take part in Vino **without ever holding
+anyone's value or keys** (`Feature2.VINO`, `Permission.VINO` = bit 15;
+`Permission.ALL_1_5` keeps its value and `Permission.ALL_1_6` adds the new
+bit). Two lanes, which never meet:
+
+- **Play lane** (`PlaySandbox`): a sandbox inside the app with its own play
+  units, issuers, holders and Fibonacci-face vouchers, in process memory
+  only. **Play units are not money**: they come from a faucet, are worth
+  nothing, are lost on `close()`, and no call takes a sandbox and anything
+  live, so they can never become live value.
+- **Live lane**: real Vino stays in the user's own ZXV wallet. The app builds
+  a `PaymentRequest`; the user approves it in their wallet, which signs a
+  receipt (`VinoReceipt.sign`, the wallet's call); the app checks the receipt
+  offline (`VinoReceipt.verify`). The app never sees a balance, a key or a
+  custody account.
+
+| Type | Members | Capability |
+|---|---|---|
+| `PlaySandbox` | `create`, `openIssuer`, `openHolder`, `open`, `back`, `unback`, `issue`, `transfer`, `setRail`, `redeem`, `voucher`, `account`, `vouchers`, `check`, `close`; `Voucher`, `Account` | `VINO` |
+| `PaymentRequest` | constructor (lane, merchant 32 B, nonce 16 B, amount, createdAt, expiresAt, memo, flags), `encode()` (160 bytes), `id()` (SHA-256, 32 bytes), `decode(bytes)`, `idOf(bytes)`, `hasChanceOutcome` | pure |
+| `VinoReceipt` | `message` (88 bytes), `sign` (wallet side), `verify`, `isValid` | `sign`: `CRYPTO_SIGN`; others pure |
+| `SpendMeter` | `create(cap, dailyCap)`, `admit(day, amount)`, `tryAdmit`, `close` | `VINO` |
+| `Vino` | sizes and limits: `REQUEST_BYTES`, `REQUEST_ID_BYTES`, `RECEIPT_MESSAGE_BYTES`, `MEMO_MAX`, `AMOUNT_MAX`, `MAX_ACCOUNTS`, `MAX_VOUCHERS`, `FLAG_CHANCE`, key and signature sizes | |
+| `VinoRail` (`BEARER`, `GHOST`), `VinoLane` (`PLAY`, `LIVE`), `VoucherState` (`ACTIVE`, `REDEEMED`) | enums with `code` and `fromCode` | |
+
+Rules the types carry (the full text is in `zxv_api.h`):
+
+- An issuer may issue only while `10 * backing >= 18 * outstanding` (1.8x
+  coverage, exact integers); an issue or `unback` that would break it is
+  `CoverageException` and changes nothing.
+- A voucher is on exactly one rail, `BEARER` (the note in hand) or `GHOST`
+  (its twin on the play ledger). A transfer must name that rail, else
+  `RailException`, so one coin is never spent on both.
+- `redeem` returns a voucher to its issuer and retires it. **Nothing is paid
+  out**: no call turns a voucher into backing, play units or anything else,
+  and there is no interest, yield or return of any kind.
+- A LIVE request that marks a paid chance outcome (`Vino.FLAG_CHANCE`: loot
+  boxes, paid draws) is refused when encoded (`ChanceException`). The raffle
+  is a separate module, not a payment request.
+- A receipt for an expired request, or approved outside
+  `[createdAt, expiresAt]`, is `ExpiredException`.
+- `SpendMeter` counts what one device approved per day and refuses an amount
+  that would pass the daily cap (`LimitException`; `tryAdmit` returns
+  `Admission(admitted = false, left)` instead). It is a counter, not a legal
+  check, and makes no exemption claim.
+- Amounts, faces, ids and times are uint64 values in a `Long` (bits kept;
+  print with `java.lang.Long.toUnsignedString`); account ids are uint32 in a
+  `Long`. No floating point anywhere.
+- The wallet's secret key is a `SecretKey` passed by address; it is never
+  copied to the heap and `VinoReceipt` keeps no reference to it.
+
+A play-lane shop (an issuer backs, issues a voucher to a player, the player
+spends it at the shop and the shop redeems it):
+
+```kotlin
+ZxvContext.create().use { ctx ->
+    ctx.rootCapability(Permission.VINO).use { cap ->
+        PlaySandbox.create(cap).use { play ->
+            val bank = play.openIssuer(owner = 1)
+            val player = play.openHolder(owner = 100)
+            val shop = play.openHolder(owner = 200)
+            play.back(bank, 18)                                // play units: not money
+            val coin = play.issue(bank, player, 8, VinoRail.BEARER) // 10*18 >= 18*8
+            play.transfer(coin, player, shop, VinoRail.BEARER) // spend on its active rail
+            play.redeem(coin, shop)                            // retired; nothing is paid out
+            check(play.voucher(coin).state == VoucherState.REDEEMED)
+            check(play.account(bank).faces == 0L)              // outstanding back to 0
+        }
+    }
+}
+```
+
+A live payment request, the wallet's receipt, and the app's offline check
+(the wallet half runs in the user's wallet, never in the app; it is here
+only so the example runs):
+
+```kotlin
+val now = 1_700_000_000L
+val request = PaymentRequest(
+    VinoLane.LIVE, merchant = ByteArray(32) { 7 }, nonce = ByteArray(16) { 9 },
+    amount = 1_250, createdAt = now, expiresAt = now + 600, memo = "Sword of Dawn",
+)
+val bytes = request.encode()                     // 160 bytes; request.id() is its SHA-256
+
+// Wallet side (user's wallet, its own capability with CRYPTO_SIGN):
+ZxvContext.create().use { ctx ->
+    ctx.rootCapability(Permission.CRYPTO_SIGN).use { walletCap ->
+        MlDsa87(walletCap).generate().use { wallet ->
+            val sig = VinoReceipt.sign(walletCap, bytes, wallet.secretKey, wallet.publicKey, now + 30)
+
+            // App side: pure and offline, no capability.
+            VinoReceipt.verify(bytes, wallet.publicKey, now + 30, sig, now = now + 60)
+            check(PaymentRequest.decode(bytes) == request)
+        }
+    }
+}
+```
+
+Honest limits: receipts use the reference ML-DSA-87, not a FIPS 140-3
+validated module. The live flow here is the app's half only; approving a
+request and posting the payment happen in the user's wallet (zxvd). Whether a
+given deployment of Vino is store credit, a prepaid access product or
+something else is a legal question pending counsel; nothing in this SDK
+decides it. Minting live Vino, pegs, any fiat on-ramp or off-ramp, V-Bill
+auctions and every operator action are not in the ABI and not here.
+
 ## API overview
 
 | Type | Main members |
@@ -169,6 +278,7 @@ V-Bonds and derivatives are not part of this SDK.
 | `Rational`, `Truth`, `Hexagram` | value types above |
 | `QuarantineLog`, `Budgets`/`Budget`, `Hashes`, `Ed25519`, `MlDsa87`, `SecretKey` | above |
 | ABI 1.5 | see the table above |
+| ABI 1.6 (vino) | `PlaySandbox`, `PaymentRequest`, `VinoReceipt`, `SpendMeter`, `Vino`, `VinoRail`, `VinoLane`, `VoucherState` (see Vino Embed) |
 
 Not bound yet (use the [Java SDK](../../java/) on a desktop JVM, or ask):
 ML-KEM-1024, the inference engine (`Model`, `Session`), phase clock, swarm,
@@ -177,7 +287,7 @@ hardware groups.
 
 ## Tests
 
-`gradle -p sdk/mobile/kotlin :zxv:test` runs 74 tests (JUnit 5) on the host
+`gradle -p sdk/mobile/kotlin :zxv:test` runs 91 tests (JUnit 5) on the host
 JVM against the real libzxv and the JNI shim:
 
 - `vectors.json`: status names and classes, rational ops, parse and format,
@@ -203,8 +313,20 @@ JVM against the real libzxv and the JNI shim:
   op streams and the CIDREF resolver (found, missing, throwing, wrong
   length), Web 4 (agents, cards, directory, digests, manifest, consent,
   envelopes), and the paradox book run in order on one book;
-- shim drift: the Kotlin `external` sets of `Jni` and `Jni15` equal the C
-  files' function sets (202 functions in `zxv_jni15.c`).
+- ABI 1.6 vino (16 tests): the `status_abi16` table and the typed exception
+  for each of -46..-50; `Feature2.VINO`, `Permission.VINO` and the 1.6
+  mask; every request vector (exact bytes and id, refusals by status name,
+  decode round trip) and every decode refusal by changed byte; the receipt
+  (seeded 0x31 wallet key, message, deterministic signature, every check
+  with its flipped byte), plus a hedged `VinoReceipt.sign` and its
+  refusals; the play scenario step by step with the final accounts,
+  voucher lists and vouchers; the meter scenario including what is left on
+  a refusal; voucher lists of 300 ids; use after close; closing the context
+  closes them; a capability without VINO and a revoked one; the halted
+  context; and both README examples;
+- shim drift: the Kotlin `external` sets of `Jni`, `Jni15` and `Jni16` equal
+  the C files' function sets (202 functions in `zxv_jni15.c`), and every
+  `zxv_vino_*` function in `zxv_api.h` is called by `zxv_jni16.c`.
 
 ## Honest limits
 
@@ -217,7 +339,8 @@ JVM against the real libzxv and the JNI shim:
   The ABI 1.5 bindings (`zxv_jni15.c` and the 1.5 Kotlin types) were
   tested on the host JVM only (JDK 21, Linux x86-64); `zxv_jni15.c` was
   also compiled with clang under `-Wall -Wextra -Werror`, but the AAR has
-  not been rebuilt with the NDK since they were added.
+  not been rebuilt with the NDK since they were added. The same holds for
+  the ABI 1.6 vino binding (`zxv_jni16.c`, `Vino.kt`): host JVM only.
 - **libzxv on the NDK.** libzxv's Makefile is not NDK-ready as is: it calls
   `getrandom()` (declared by bionic only from API 28) and links `-lpthread`
   (not shipped by the NDK). `scripts/build-libzxv-android.sh` builds with

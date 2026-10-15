@@ -7,9 +7,11 @@ package org.zedec.zxv;
  * branching on {@link ZxvException#status()}. The numbers are stable: libzxv
  * never renumbers a status, and new ones are only added. An exception's
  * {@link ZxvException#statusClass() class} (USAGE, REFUSED, FATAL, SYSTEM)
- * decides its Java type; the codes added in ABI 1.5 also have their own
+ * decides its Java type; the codes added in ABI 1.5 and 1.6 also have their own
  * subclasses in the group packages (for example
- * {@link org.zedec.zxv.treaty.TreatyException} for {@link #E_TREATY}).
+ * {@link org.zedec.zxv.treaty.TreatyException} for {@link #E_TREATY}, or
+ * {@link org.zedec.zxv.vino.RailException} for {@link #E_RAIL}). Codes -51 to -59 are
+ * reserved for the vino group and are not yet used.
  */
 public final class ZxvStatus {
     private ZxvStatus() {}
@@ -98,4 +100,29 @@ public final class ZxvStatus {
     public static final int E_PARADOX_STEP = -39;
     /** {@code ZXV_E_PARADOX_OWNER}: The action needs the owner's approval (a money or device policy) (ABI 1.5). */
     public static final int E_PARADOX_OWNER = -40;
+    /**
+     * {@code ZXV_E_RAIL}: Not the voucher's active rail (bearer or ghost), or a switch to the rail it is
+     * already on; class REFUSED (ABI 1.6). Thrown as {@link org.zedec.zxv.vino.RailException}.
+     */
+    public static final int E_RAIL = -46;
+    /**
+     * {@code ZXV_E_COVERAGE}: The issue or withdrawal would take a play issuer below 1.8x coverage; class
+     * REFUSED (ABI 1.6). Thrown as {@link org.zedec.zxv.vino.CoverageException}.
+     */
+    public static final int E_COVERAGE = -47;
+    /**
+     * {@code ZXV_E_LANE}: Wrong lane for this call (play versus live), or a lane that is neither; class
+     * USAGE (ABI 1.6). Thrown as {@link org.zedec.zxv.vino.LaneException}.
+     */
+    public static final int E_LANE = -48;
+    /**
+     * {@code ZXV_E_EXPIRED}: The payment request expired, or was approved outside its window; class
+     * REFUSED (ABI 1.6). Thrown as {@link org.zedec.zxv.vino.ExpiredException}.
+     */
+    public static final int E_EXPIRED = -49;
+    /**
+     * {@code ZXV_E_CHANCE}: A live payment request marks a paid chance outcome (a loot box or paid draw),
+     * which is refused; class REFUSED (ABI 1.6). Thrown as {@link org.zedec.zxv.vino.ChanceException}.
+     */
+    public static final int E_CHANCE = -50;
 }
