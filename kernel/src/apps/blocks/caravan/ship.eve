@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a shipment record may say (caravan_rules.h CR5), in Eve: a number
+# from 1, a carrier from 1, a mass and charged weight of 0 to 9 digits of
+# grams, one of the six statuses (0 drafted to 5 returned) and a time in
+# seconds since 1970 of at most 10 digits. ship.myra holds only the digits:
+# a status MYRA fits but no status Caravan knows is held.
+eve caravan
+ship_no = 1 .. 999999
+carrier_no = 1 .. 999
+grams = 0 .. 999999999
+ship_status = 0 .. 5
+seconds = 0 .. 9999999999
+
+shipment {
+  ship: ship_no
+  carrier: carrier_no
+  mass: grams
+  charged: grams
+  status: ship_status
+  stamp: seconds
+}

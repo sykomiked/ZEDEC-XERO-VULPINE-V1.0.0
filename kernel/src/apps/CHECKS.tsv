@@ -31,6 +31,17 @@ brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
 brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
 brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
 brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
+caravan	check charged mass=0,500,500,999999999,0,0,1000 length=0,300,300,0,99999,1,400 width=0,200,200,0,99999,1,300 height=0,100,100,0,100,1,200 divisor=5000,5000,1,1,99999,1,6000 = 0,1200,6000000,999999999,9999900,1,4000
+caravan	check charged mass=500,500 length=300,100000 width=200,200 height=100,100 divisor=5000,5000 = both
+caravan	check charged mass=500,500 length=300,10000 width=200,10000 height=100,1000 divisor=5000,1 = both
+caravan	check girth width=0,200,99999,1 height=0,100,99999,0 = 0,600,399996,2
+caravan	check girth width=200,100000 height=100,100 = both
+caravan	check fits_ok massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10 girthleft=0,499995,0,0,-1,10 = true,true,false,false,false,true
+caravan	check fits_ok massleft=0,0 lengthleft=0,0 girthleft=0,499996 = both
+caravan	check fits_n massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10 girthleft=0,499995,0,0,-1,10 = 1,1,0,0,0,1
+caravan	check fits_n massleft=0,1000000000 lengthleft=0,0 girthleft=0,0 = both
+caravan	check ship_ok ship=1,999999,1000000,1 carrier=1,999,1,1 mass=0,999999999,0,1000000000 charged=0,999999999,0,0 status=0,5,0,0 stamp=0,9999999999,0,0 = true,true,false,false
+caravan	check ship_ok ship=1,1 carrier=1,1 mass=500,500 charged=1200,1200 status=0,7 stamp=1700000000,1700000000 = both
 coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
 coffer	check balance before=1,1000000000000000000 moved=0,0 = both
 coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false

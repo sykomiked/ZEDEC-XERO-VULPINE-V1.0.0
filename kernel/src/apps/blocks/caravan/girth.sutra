@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A parcel's girth in mm, in Sutra (caravan_rules.h CR2): the way round it
+# across its two shorter sides, 2 * (width + height). Each side fits 9(5)
+# mm, so a negative or a wider one is refused. girth.kron says the same in
+# KRON, which answers any side.
+record parcel-girth
+  width: 9(5)
+  height: 9(5)
+  girth: 9(6)
+procedure
+  compute girth = 2 * (width + height)
+  answer girth

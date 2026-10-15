@@ -1,0 +1,111 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Caravan, freight and shipments: layer 90 of the matrix. Parcels with
+# their mass and sides, the carriers the owner keeps with their limits,
+# and shipments addressed to the places zxvd keeps (place.list), all kept
+# as one text file in the Banker (files.read and files.write). zxvd has no
+# shipment, carrier, label or tracking method, and none is invented; it has
+# no notification method either, so the model only composes each notice's
+# text. Which carrier to use is advice, never a choice made for the
+# owner: the owner confirms it (caravan_model.h CM6).
+#
+# 10 later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): a charged weight, a girth, and whether a parcel is
+# inside a carrier's limits, as a truth and as a number. Nothing nearer the
+# core fits: the shared blocks are capacities, shares, days and gcds;
+# Talisman's thresholds_met holds credibility, bond and uptime ranges, not
+# a parcel's. Of the layers the task names, Ninefold (80) is not built yet,
+# and Gatehouse (8) and Assay (72) come after this layer in the build order,
+# so none of them is used; app_gate.py refuses a use that points outward.
+#
+# Route choice (task: "use pce_strat 1"): held, not used. The per-app
+# harness (test_zxapp.c test_apps_each) composes an app from the shared
+# blocks it registers, used_share and swarm_shares, and from other apps;
+# the pce_* blocks run on the C engines of kernel/src/pce, which only
+# test_zxapp_pce.c links, so an app that uses pce_strat never loads there
+# and the gate cannot pass it. The model builds the route question in
+# pce_strat's own contract instead (caravan_route: payoff a row per
+# carrier that fits, nopt, lo, hi, den; pce_entry.c strat_of), ready for
+# pce_strat.leader and pce_strat.decide once the harness registers them,
+# and the owner confirms the carrier (caravan_choose).
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2) and Trebago numbers only
+# (zxapp_trebago.c TB2), so the task's "Eve + Trebago" for the carrier's
+# limits is split as Talisman splits its tier rule: Eve and KRON witness
+# the truth (fits_ok), Trebago and KRON the number (fits_n), and the
+# model's C is the third witness of both (caravan_rules.h). Eve checks each
+# field against its own range alone, so each limit comes as its margin, the
+# limit minus the parcel's measure.
+#
+# Logo (twin Kiteling) owns geometry and the girth is geometry, but it is
+# not used: Lingua's Logo refuses readword and readlist (zl_logo.c), so a
+# Logo program cannot read an entry's arguments (zxapp_lingua.c L1). The
+# girth is Sutra and KRON instead. Planned: Objective-C owns objects and
+# views; Caravan decides nothing of either kind (its view is not built
+# here), so there is no pending line.
+#
+# Defaults taken (caravan_model.h): a volume divisor of 5000 cubic mm per
+# gram (5000 cubic cm per kg) when the owner gives none.
+zxapp 1
+id     caravan
+name   Caravan
+version 1.0.0
+slot   90
+layer  L1
+matrix 90
+icon   icons/l1/090-caravan.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  location
+needs  notify
+model  apps/caravan_model.c
+
+# A parcel's charged weight in grams (CR1): the larger of its mass and
+# ceil(length * width * height / divisor). Trebago counts the ceiling
+# exactly up to 10^12, Sutra holds 9(9) grams and 9(5) mm sides: past
+# them Sutra refuses and Trebago answers, held.
+provides charged num mass length width height divisor
+logic    trebago charged apps/blocks/caravan/charged.tb
+logic    sutra   charged apps/blocks/caravan/charged.sutra
+
+# A parcel's girth in mm (CR2), 2 * (width + height) across its two shorter
+# sides: Sutra holds 9(5) mm sides, KRON answers any, held past them.
+provides girth num width height
+logic    sutra girth apps/blocks/caravan/girth.sutra
+logic    kron  girth apps/blocks/caravan/girth.kron
+
+# Inside a carrier's limits (CR3): every margin at or above 0 and inside
+# its range. Eve declares the ranges, KRON reads any margin at or above 0
+# as inside: a margin past its range is held.
+provides fits_ok truth massleft lengthleft girthleft
+logic    eve  fits_ok apps/blocks/caravan/fits.eve
+logic    kron fits_ok apps/blocks/caravan/fits.kron
+
+# The same rule as a number to count with, 1 or 0 (CR4): Trebago holds the
+# ranges, KRON reads any margin at or above 0 as inside: held past them.
+provides fits_n num massleft lengthleft girthleft
+logic    trebago fits_n apps/blocks/caravan/fits_n.tb
+logic    kron    fits_n apps/blocks/caravan/fits_n.kron
+
+# A shipment fits its record (CR5): MYRA holds the digits, Eve the ranges
+# and the six statuses; a status of 6 to 9 fits MYRA's digit only: held.
+provides ship_ok truth ship carrier mass charged status stamp
+logic    myra ship_ok apps/blocks/caravan/ship.myra
+logic    eve  ship_ok apps/blocks/caravan/ship.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check charged mass=0,500,500,999999999,0,0,1000 length=0,300,300,0,99999,1,400 width=0,200,200,0,99999,1,300 height=0,100,100,0,100,1,200 divisor=5000,5000,1,1,99999,1,6000 = 0,1200,6000000,999999999,9999900,1,4000
+check charged mass=500,500 length=300,100000 width=200,200 height=100,100 divisor=5000,5000 = both
+check charged mass=500,500 length=300,10000 width=200,10000 height=100,1000 divisor=5000,1 = both
+check girth width=0,200,99999,1 height=0,100,99999,0 = 0,600,399996,2
+check girth width=200,100000 height=100,100 = both
+check fits_ok massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10 girthleft=0,499995,0,0,-1,10 = true,true,false,false,false,true
+check fits_ok massleft=0,0 lengthleft=0,0 girthleft=0,499996 = both
+check fits_n massleft=0,999999999,-1,0,0,10 lengthleft=0,99999,0,-1,0,10 girthleft=0,499995,0,0,-1,10 = 1,1,0,0,0,1
+check fits_n massleft=0,1000000000 lengthleft=0,0 girthleft=0,0 = both
+check ship_ok ship=1,999999,1000000,1 carrier=1,999,1,1 mass=0,999999999,0,1000000000 charged=0,999999999,0,0 status=0,5,0,0 stamp=0,9999999999,0,0 = true,true,false,false
+check ship_ok ship=1,1 carrier=1,1 mass=500,500 charged=1200,1200 status=0,7 stamp=1700000000,1700000000 = both

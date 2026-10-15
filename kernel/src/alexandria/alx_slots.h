@@ -101,7 +101,12 @@
 #define ALX_SLOT_LOGIC_SATCHEL_PKG_RECORD_OK     93u /* 490.45 satchel.pkg_record_ok */
 #define ALX_SLOT_NUM_TYPECASE_COVERAGE_X100      94u /* 590.38 typecase.coverage_x100 */
 #define ALX_SLOT_NUM_TYPECASE_FONT_OK            95u /* 590.39 typecase.font_ok */
-#define ALX_SLOT__COUNT 95u
+#define ALX_SLOT_NUM_CARAVAN_CHARGED             96u /* 590.40 caravan.charged */
+#define ALX_SLOT_NUM_CARAVAN_FITS_N              97u /* 590.41 caravan.fits_n */
+#define ALX_SLOT_LOGIC_CARAVAN_FITS_OK           98u /* 490.46 caravan.fits_ok */
+#define ALX_SLOT_NUM_CARAVAN_GIRTH               99u /* 590.42 caravan.girth */
+#define ALX_SLOT_LOGIC_CARAVAN_SHIP_OK           100u /* 490.47 caravan.ship_ok */
+#define ALX_SLOT__COUNT 100u
 /* clang-format on */
 
 #endif

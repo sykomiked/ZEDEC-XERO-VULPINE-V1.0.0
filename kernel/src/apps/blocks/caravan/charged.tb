@@ -1,0 +1,33 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A parcel's charged weight in grams, in Trebago (caravan_rules.h CR1):
+! max(mass, ceil(length * width * height / divisor)), sides in mm and the
+! divisor in cubic mm per gram. Trebago is exact and has no floor, so the
+! ceiling is counted: ceil(v / d) is floor(x / d) with x = v + d - 1, and
+! floor(x / d) is found three decimal digits at a time, each digit the
+! count of k = 1 to 999 with k * step * d <= x, which
+! min(1, max(0, x - k * step * d + 1)) is for integers; what each digit
+! takes is subtracted before the next. Four digits of three hold every
+! answer below 10^12. ok is 1 when mass and the sides are at least 0, the
+! divisor at least 1 and the answer below 10^12, else 0, and the answer is
+! divided by it: anything else is a division by zero, refused. Sutra holds
+! each side to 9(5) and the answer to 9(9): past them the two disagree and
+! the answer is held.
+trebago charged
+  in  mass(n), length(n), width(n), height(n), divisor(n)
+  out charged(n)
+  var x(n), ok(n), a(n), b(n), c(n), d(n)
+  x(i) = length(i) * width(i) * height(i) + divisor(i) - 1
+  ok(i) = min(1, max(0, mass(i) + 1)) * min(1, max(0, length(i) + 1)) &
+        * min(1, max(0, width(i) + 1)) * min(1, max(0, height(i) + 1)) &
+        * min(1, max(0, divisor(i))) * min(1, max(0, 1000000000000 * divisor(i) - x(i)))
+  a(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000000 * divisor(i) + 1)))
+  x(i) = x(i) - a(i) * 1000000000 * divisor(i)
+  b(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000000 * divisor(i) + 1)))
+  x(i) = x(i) - b(i) * 1000000 * divisor(i)
+  c(i) = sum(k = 1:999, min(1, max(0, x(i) - k * 1000 * divisor(i) + 1)))
+  x(i) = x(i) - c(i) * 1000 * divisor(i)
+  d(i) = sum(k = 1:999, min(1, max(0, x(i) - k * divisor(i) + 1)))
+  charged(i) = max(mass(i), 1000000000 * a(i) + 1000000 * b(i) + 1000 * c(i) + d(i)) / ok(i)
+end

@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Caravan files a shipment in MYRA: its number, its carrier's number,
+; its mass and charged weight in grams, its status (caravan_rules.h CR5)
+; and when it last changed, in seconds since 1970. The rules say what the
+; values may mean; this says whether they make a record.
+^ZXCARAVAN(ship:i6) = carrier:i3! ^ mass:i9! ^ charged:i9! ^ status:i1! ^ stamp:i10!

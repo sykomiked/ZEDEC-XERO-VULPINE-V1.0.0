@@ -1,0 +1,20 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Within a carrier's limits (caravan_rules.h CR3), in Eve. Eve checks each
+# field against its own range, so each limit comes as its margin, the
+# carrier's limit minus the parcel's measure: mass in grams (0 to 9 digits),
+# the longest side in mm (0 to 99999) and length plus girth in mm (0 to
+# 499995, the most five sides of 99999 make). A margin below 0 is over the
+# limit; one past its range is no measurement. fits.kron reads any margin
+# at or above 0 as inside: a margin past its range is held.
+eve caravan
+mass_room = 0 .. 999999999
+length_room = 0 .. 99999
+girth_room = 0 .. 499995
+
+carrier_limits {
+  massleft: mass_room
+  lengthleft: length_room
+  girthleft: girth_room
+}

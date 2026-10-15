@@ -1,0 +1,25 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A parcel's charged weight in grams, in Sutra (caravan_rules.h CR1): the
+# larger of its mass and its volume weight, the volume in cubic mm over the
+# divisor in cubic mm per gram, rounded up to the next whole gram (5000 is
+# the usual 5000 cubic cm per kg). mass fits 9(9), each side 9(5) mm and the
+# divisor 9(5), so a negative or a wider one is refused, a divisor of 0 is
+# a division Sutra refuses, and a charged weight past 9(9) does not fit.
+# charged.tb says the same in Trebago.
+record charged-weight
+  mass: 9(9)
+  length: 9(5)
+  width: 9(5)
+  height: 9(5)
+  divisor: 9(5)
+  volume: 9(15)
+  charged: 9(9)
+procedure
+  compute volume = length * width * height
+  compute charged = (volume + divisor - 1) / divisor
+  if charged < mass
+    compute charged = mass
+  end-if
+  answer charged
