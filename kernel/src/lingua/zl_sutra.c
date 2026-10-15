@@ -183,3 +183,30 @@ char zl_sutra_kchar(uint32_t code)
 {
     return code < 16u ? KCHAR[code] : '?';
 }
+
+uint32_t zl_sutra_evidence(uint32_t a, uint32_t b)
+{
+    return (a | b) & 3u;
+}
+
+#define TAG_SHIFT 60
+#define TAG_MASK (3ull << TAG_SHIFT)
+#define RESERVED (0x7FFull << 49 | 3ull << 62)
+
+int32_t zl_sutra_fuse(uint64_t a, uint64_t b, uint64_t out[2])
+{
+    if (!out || (a & RESERVED) || (b & RESERVED)) return -1;
+    uint32_t ta = (uint32_t) (a >> TAG_SHIFT) & 3u, tb = (uint32_t) (b >> TAG_SHIFT) & 3u;
+    if ((a & ~TAG_MASK) == (b & ~TAG_MASK)) {
+        out[0] = (a & ~TAG_MASK) | (uint64_t) zl_sutra_evidence(ta, tb) << TAG_SHIFT;
+        return 1;
+    }
+    if (!ta != !tb) { /* only one side made a claim */
+        out[0] = ta ? a : b;
+        return 1;
+    }
+    uint64_t t = ta ? 3ull << TAG_SHIFT : 0;
+    out[0] = (a & ~TAG_MASK) | t;
+    out[1] = (b & ~TAG_MASK) | t;
+    return 2;
+}
