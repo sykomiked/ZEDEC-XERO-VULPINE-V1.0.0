@@ -84,7 +84,7 @@
 1995	PHP	scripting	host	-	sdk/php
 1995	Delphi	algol	catalogue	-	Pascal dialect
 1995	Racket	list	catalogue	-	-
-1996	OCaml	functional	catalogue	-	-
+1996	OCaml	functional	run	Variantwyrm	kernel/src/lingua/zl_ml.c
 2000	C#	object	host	-	sdk/dotnet
 2003	Scala	functional	catalogue	-	-
 2004	Groovy	scripting	catalogue	-	-

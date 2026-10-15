@@ -24,6 +24,7 @@ caller passes every buffer (`zl_work_t`, `zl_prog_t`, `zl_run_t`).
 | Scheme (R7RS-small core) | `zl_lisp.c` | integers, quoted symbols and lists, `define` (internal too)/`set!`, `let`/`let*`/named `let`, `if`/`cond`/`when`/`unless`/`and`/`or`, `do`, list built-ins (`memq`/`member`/`assq`/`assoc`, `set-car!`), `quotient`/`modulo`/`floor-quotient`..., `display`/`write`/`newline`; unspecified values refused where used; 62-bit | guile | Spiraldrake |
 | Logo (UCBLogo 6.2) | `zl_logo.c` | integers, words and lists; `to`/`end` procedures with dynamic scope (shallow binding), `output`/`stop`, `make`/`local`/`thing`, `repeat`/`repcount`, `for`, `while`/`until`, `if`/`ifelse`, infix and prefix arithmetic and comparisons, `first butfirst last butlast fput lput list sentence item count memberp emptyp`, `print`/`show`/`type`; exact `/`; 62-bit values | ucblogo (under xvfb-run) | Kiteling |
 | Standard ML '97 | `zl_ml.c` | `val`, `fun` with clauses and `and`, `let`, `case`, `if`, `andalso`/`orelse`, integers, booleans and lists with Hindley-Milner type inference, patterns (literals, `::`, lists, tuples of parameters), `div`/`mod` floored and `Int.quot`/`Int.rem`, `abs`, `Int.min`/`Int.max`, `hd tl null length rev @`, structural `=`, `print` of `Int.toString`/`Bool.toString` pieces; MLton's 32-bit `Int` with `Overflow` trapped; self tail calls run as loops | mlton (goldens and `gen_ml.c`, batched) | Proofdrake |
+| OCaml 4.14 | `zl_ml.c` | the same core in OCaml syntax: `let`/`let rec ... and`, `match`/`function` with `when` guards, `/` and `mod` truncating, `min max succ pred abs max_int min_int`, `List.hd tl length rev`, `@`, comparisons on integers and booleans and structural `=`/`<>` on lists, `print_int`/`print_string`/`print_endline`/`Printf.printf` (`%d %i %b %s`); 63-bit integers wrapping as OCaml's do, OCaml's right-to-left evaluation order | ocaml (goldens and `gen_ml.c`) | Variantwyrm |
 
 Anything else in a language is refused with `ZL_E_UNSUPPORTED` and the line
 and column; nothing is guessed.
@@ -70,7 +71,8 @@ skips when they are missing unless `ZXV_REQUIRE_LINGUA_REF=1` (set in CI).
 `ref_logo.sh` (sourced by `ref_check.sh`) does the same for Logo with
 ucblogo and the generator `gen_logo.c`; ucblogo writes to a window, so it
 runs under `xvfb-run` with its output redirected to a file by `setwrite`.
-`ref_ml.sh` checks ML against MLton with the generator `gen_ml.c`; MLton builds the generated ML programs in one
+`ref_ml.sh` checks ML against MLton and OCaml against the ocaml toplevel
+with the generator `gen_ml.c`; MLton builds the generated ML programs in one
 batch, each wrapped in its own structure.
 `mut_check.sh` is the mutation harness target.
 
