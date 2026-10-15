@@ -511,6 +511,8 @@ static void test_send_params(void)
     const char *t = path("target"), *o = path("p.fab");
     EXPECT(call("fab.send", "{\"target\":\"%s\",\"out\":\"%s\",\"window\":7}", t, o),
            err(ZXVD_E_PARAMS, "\\\"window\\\" must be at least 8"));
+    rpc(call("fab.send", "{\"target\":\"%s\",\"out\":\"%s\",\"window\":8}", t, path("w8.fab")));
+    CHECK(is_ok(), "B7: window 8 is the least: %.200s", OUT.p);
     EXPECT(call("fab.send", "{\"target\":\"%s\",\"out\":\"rel\"}", t),
            err(ZXVD_E_PARAMS, "\\\"out\\\" must be an absolute path"));
     EXPECT(call("fab.send", "{\"out\":\"%s\"}", o),
@@ -585,6 +587,14 @@ static void test_receive_refusals(void)
     EXPECT(call("fab.receive", "{\"recipe\":\"%s\",\"out\":\"%s\",\"trust\":[%s]}", path("pub.fab"),
                 o, many),
            err(ZXVD_E_PARAMS, "at most 64 trusted senders"));
+    k = 0;
+    for (int i = 0; i < 64; i++)
+        k += snprintf(many + k, sizeof many - (size_t) k, "%s{\"id\":\"%s\"}", i ? "," : "",
+                      i == 63 ? sid : xid_hex);
+    rpc(call("fab.receive", "{\"recipe\":\"%s\",\"out\":\"%s\",\"trust\":[%s]}", path("pub.fab"), o,
+             many));
+    CHECK(is_ok() && same("r1", tgt, tlen), "B8: 64 trusted, the last one the sender: %.200s",
+          OUT.p);
 
     /* damaged recipes */
     uint32_t n = 0;
