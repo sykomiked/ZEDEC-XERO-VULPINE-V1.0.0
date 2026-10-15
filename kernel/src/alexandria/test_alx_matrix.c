@@ -87,11 +87,12 @@ static void fill(uint8_t *b, uint32_t n, uint64_t seed)
     }
 }
 
-static uint32_t cuts(const uint8_t *b, uint32_t n, uint32_t tier, uint32_t *at, uint32_t cap)
+static uint32_t cuts(const uint8_t *b, uint32_t n, const alx_cdc_tier_t *T, uint32_t *at,
+                     uint32_t cap)
 {
     uint32_t k = 0;
     for (uint32_t o = 0; o < n && k < cap;) {
-        uint32_t c = alx_cdc_cut(b + o, n - o, tier);
+        uint32_t c = alx_cdc_cut_with(b + o, n - o, T);
         if (!c) break;
         o += c;
         at[k++] = o;
@@ -113,10 +114,15 @@ static void test_cdc(void)
     static uint8_t b[4u << 20], c[(4u << 20) + 1];
     static uint32_t at[8192], at2[8192];
     fill(b, sizeof b, 7);
-    for (uint32_t t = 0; t < 3; t++) {
-        const alx_cdc_tier_t *T = alx_cdc_tier(t);
+    /* the three tiers, then tiers of any size: Fibonacci ones included */
+    static const uint32_t FIBT[][3] = {
+        {1597, 2584, 6765}, {987, 4181, 17711}, {4181, 17711, 75025}, {75025, 317811, 832040}};
+    for (uint32_t t = 0; t < 7; t++) {
+        alx_cdc_tier_t mk;
+        const alx_cdc_tier_t *T = t < 3 ? alx_cdc_tier(t) : &mk;
+        if (t >= 3) CHECK(alx_cdc_make(&mk, FIBT[t - 3][0], FIBT[t - 3][1], FIBT[t - 3][2]) == 0, "make %u", t);
         CHECK(T->min < T->avg && T->avg < T->max && T->max <= ALX_BOOK_MAX - 128u, "tier %u", t);
-        uint32_t n = cuts(b, sizeof b, t, at, 8192), prev = 0, small = 0;
+        uint32_t n = cuts(b, sizeof b, T, at, 8192), prev = 0, small = 0;
         CHECK(n > 0 && at[n - 1] == sizeof b, "tier %u covers the buffer", t);
         uint64_t sum = 0;
         for (uint32_t i = 0; i < n; i++) {
@@ -132,21 +138,58 @@ static void test_cdc(void)
         uint64_t mean = sum / n;
         CHECK(mean > T->avg / 2u && mean < T->avg * 2u, "tier %u mean %llu", t,
               (unsigned long long) mean);
-        CHECK(alx_cdc_cut(b, T->min, t) == T->min && alx_cdc_cut(b, T->min - 1u, t) == T->min - 1u,
+        CHECK(alx_cdc_cut_with(b, T->min, T) == T->min &&
+                  alx_cdc_cut_with(b, T->min - 1u, T) == T->min - 1u,
               "tier %u: a short tail is one chunk", t);
-        CHECK(alx_cdc_cut(b, T->min + 1u, t) <= T->min + 1u, "tier %u: never past the end", t);
+        CHECK(alx_cdc_cut_with(b, T->min + 1u, T) <= T->min + 1u, "tier %u: never past the end", t);
         /* one byte inserted at the front moves only the first chunks */
         c[0] = '#';
         memcpy(c + 1, b, sizeof b);
-        uint32_t m = cuts(c, sizeof b + 1u, t, at2, 8192), same = 0, j = 0;
+        uint32_t m = cuts(c, sizeof b + 1u, T, at2, 8192), same = 0, j = 0;
         for (uint32_t i = 0; i < n; i++) {
             while (j < m && at2[j] < at[i] + 1u) j++;
             same += j < m && at2[j] == at[i] + 1u;
         }
         CHECK(same + 3u >= n, "tier %u: after an insert %u of %u cuts stay", t, same, n);
         /* deterministic */
-        uint32_t again = cuts(b, sizeof b, t, at2, 8192);
+        uint32_t again = cuts(b, sizeof b, T, at2, 8192);
         CHECK(again == n && !memcmp(at, at2, n * sizeof at[0]), "tier %u is deterministic", t);
+    }
+    /* a made tier of the built-in sizes is the built-in tier: the threshold
+     * rule is the mask rule for powers of two, so no stored CID moves */
+    for (uint32_t t = 0; t < 3; t++) {
+        const alx_cdc_tier_t *T = alx_cdc_tier(t);
+        alx_cdc_tier_t mk;
+        CHECK(alx_cdc_make(&mk, T->min, T->avg, T->max) == 0 && mk.hard == T->hard &&
+                  mk.easy == T->easy,
+              "tier %u made", t);
+    }
+    for (uint32_t i = 0; i < 64; i++) { /* the mask form, over random hashes */
+        uint64_t s = 0x243F6A8885A308D3ull + i, h = (uint64_t) rnd(&s) << 32;
+        h |= rnd(&s);
+        for (uint32_t t = 0; t < 3; t++) {
+            const alx_cdc_tier_t *T = alx_cdc_tier(t);
+            uint32_t k = 2u;
+            for (uint32_t a = T->avg; a > 1u; a >>= 1) k++;
+            uint64_t hard = ~0ull << (64 - k), easy = ~0ull << (64 - (k - 4u));
+            for (uint32_t z = 0; z < 2; z++) { /* and with the top bits cleared */
+                uint64_t x = z ? h & ~(~0ull << (64 - k)) : h;
+                CHECK(((uint32_t) (x >> 32) < T->hard) == !(x & hard) &&
+                          ((uint32_t) (x >> 32) < T->easy) == !(x & easy),
+                      "tier %u threshold is the mask", t);
+            }
+        }
+    }
+    {
+        alx_cdc_tier_t mk = {1, 2, 3, 4, 5};
+        CHECK(alx_cdc_make(&mk, 63, 100, 200) < 0 && alx_cdc_make(&mk, 100, 100, 200) < 0 &&
+                  alx_cdc_make(&mk, 100, 200, 200) < 0 &&
+                  alx_cdc_make(&mk, 100, 200, ALX_CDC_MAXLEN + 1u) < 0 && alx_cdc_make(0, 64, 65, 66) < 0 &&
+                  mk.min == 1 && mk.easy == 5,
+              "make refuses, and leaves the tier");
+        CHECK(alx_cdc_make(&mk, 64, 65, ALX_CDC_MAXLEN) == 0 && mk.hard > 0 && mk.easy > mk.hard,
+              "make at the bounds");
+        CHECK(alx_cdc_cut_with((const uint8_t *) "x", 1, 0) == 0, "no tier");
     }
     /* a run of one byte never cuts early: the maximum holds */
     static uint8_t z[1u << 20];

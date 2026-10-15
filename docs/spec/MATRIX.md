@@ -85,6 +85,59 @@ gain is across versions. Of the 83 files that changed since 2026-10-12
 blocks keep 25.3%. That is 1.9 times as much of an edited file not sent or
 stored again.
 
+**Golden-ratio sizes, density and compression (measured 2026-10-15).** The
+user asked for chunk size weighted by the golden ratio, balancing size
+against density: too big is inefficient, too small means too many CIDs, and
+compression is critical. `alx_cdc_make` builds a tier of any sizes,
+Fibonacci ones included, under the same rule (the cut compares the top 32
+bits of the hash with a threshold; for powers of two that is exactly the
+mask rule, so the three tiers above cut as before). Every text file
+(hot and warm) was cut with one tier, and the cold tier was kept. The
+comparison is with the tree of 2026-10-12. "Changed reuse" is the share of
+the changed files' bytes already stored. "Update" is what an update from
+that tree ships, in compressed bytes. "Per chunk" is storage with each
+chunk compressed on its own. "Per booklet" is storage with each 64 KiB
+booklet compressed as one. zlib stands in for a compressor here; there is
+none in the kernel yet.
+
+| Min / avg / max | CIDs | Mean chunk | Changed reuse | Update | Per chunk | Per booklet |
+|---|---|---|---|---|---|---|
+| today: hot 1K/4K/16K, warm 4K/16K/64K | 7224 | 4.8 KB | 51.0% | 3.98 MB | 11.58 MB | 9.43 MB |
+| 987 / 1597 / 4181 | 15903 | 2.2 KB | 69.8% | 4.23 MB | 13.01 MB | 9.40 MB |
+| 1597 / 2584 / 6765 | 10438 | 3.3 KB | 63.8% | 4.05 MB | 12.23 MB | 9.41 MB |
+| 2584 / 4181 / 10946 | 7031 | 4.9 KB | 57.3% | 3.92 MB | 11.61 MB | 9.42 MB |
+| **4181 / 6765 / 17711** | 4948 | 7.0 KB | 49.5% | 3.82 MB | 11.11 MB | 9.43 MB |
+| 6765 / 10946 / 28657 | 3700 | 9.4 KB | 38.9% | 3.77 MB | 10.73 MB | 9.42 MB |
+| 10946 / 17711 / 46368 | 3029 | 11.5 KB | 29.1% | 3.74 MB | 10.47 MB | 9.42 MB |
+
+What the numbers say:
+- **The golden ratio between min, average and max changes almost nothing.**
+  The same averages cut with the old 1:4:16 spacing give about 6% more CIDs
+  and about one point more reuse. At an equal number of CIDs the two are
+  within one point of each other. The normalised cut, not the ratio, sets
+  the shape.
+- **Picking the size by density does not help.** Smaller chunks for denser
+  files, or for sparser ones, at Fibonacci sizes around the same centres:
+  every variant landed on the same CIDs-against-reuse curve as one size for
+  all, never above it.
+- **Compression is the largest effect, and it changes which size wins.**
+  Small chunks reuse more raw bytes, but they compress worse, so an update
+  ships more: 4.23 MB at a 1597-byte average against 3.82 MB at 6765. Above
+  6765 the update shrinks by under 2% per step while reuse keeps falling.
+  4181 / 6765 / 17711 is the knee: against today, 31% fewer CIDs, 4% less
+  shipped and stored, and 1.5 points less raw reuse.
+- **Compress the booklet, not the chunk.** One 64 KiB booklet compressed
+  as a whole stores 9.43 MB, 15% less than chunks compressed one by one,
+  and within 4% of compressing the whole tree as one stream (9.05 MB). At
+  that level, chunk size hardly matters for storage. Atom CIDs stay the
+  hash of the plain bytes, so deduplication is unchanged; the booklet's own
+  CID would be over its stored, compressed bytes.
+
+Not yet changed: the tiers above are still the ones the packer uses, since
+the Mac build is measuring its own Fibonacci tiers and the winner is sealed
+from this code. A compressor in the kernel (integer, freestanding) does not
+exist yet; the booklet format would need a flag for a compressed body.
+
 ## 3. Scaling: the fan-out tree
 
 Each layer's booklets hang from a tree of fan-out nodes, 256 children each.
