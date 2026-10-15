@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# golden.core — the models from build_system/golden.models that go on each
+# architecture's core disc (zxv-<arch>-disc1-core.img, in /ZXV/MODELS on its
+# EFI System Partition), one name per line. The others go on the swarm discs
+# (build_system/golden.swarm); every model is on exactly one disc.
+#
+# Keep the core small: it is what firmware reads, and the arm64 loader
+# hashes these models on every boot before it starts the kernel. One model
+# that can answer on its own is enough to start with; the swarm discs follow
+# once the kernel's storage drivers are up.
+
+# 491 MB, Apache-2.0: the smallest model that answers on its own.
+qwen2.5-0.5b-instruct-q4_k_m.gguf

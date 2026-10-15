@@ -385,6 +385,11 @@ jobs:
       # when intact, caught when one byte changes (docs/BAREMETAL.md).
       - name: Golden disc model check (${{ matrix.arch }})
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
+      # The release bucket and tools/zxv-get, offline: a small bucket served
+      # from a local gateway, downloaded, and every kind of lie refused.
+      - name: Release bucket and download check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_bucket.py
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:

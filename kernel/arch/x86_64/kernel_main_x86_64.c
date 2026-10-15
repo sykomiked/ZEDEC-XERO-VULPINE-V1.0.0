@@ -39,9 +39,11 @@
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
 #include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
-#include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
-#include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
-#include "msr_safe.h"         /* fault-safe RDMSR/WRMSR + RAPL helpers */
+#include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
+#include "swarmnet/swarmnet.h" /* missing swarm discs over the network */
+#include "x86_irq.h"           /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"     /* ring-3 processes and the scheduler (gap 6) */
+#include "msr_safe.h"          /* fault-safe RDMSR/WRMSR + RAPL helpers */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -198,6 +200,63 @@ static uint64_t handoff_rsdp(void)
     const zxh_t *h = zxv_handoff();
     if (!h || (h->flags & ZXH_F_ACPI_TABLES_LOST)) return 0;
     return h->rsdp;
+}
+
+/* Milliseconds and the heartbeat for the swarm-disc fetch (swarmnet.h), which
+ * polls instead of halting. */
+static uint64_t g_heartbeat_next;
+
+static uint64_t x86_ms(void *ctx)
+{
+    (void) ctx;
+    return x86_ticks() * 1000u / X86_HZ;
+}
+
+static void x86_heartbeat(void *ctx)
+{
+    (void) ctx;
+    uint64_t now = x86_ticks();
+    if (now < g_heartbeat_next) return;
+    g_heartbeat_next = now + 10u * X86_HZ;
+    uart_puts("[BOOT_OK] heartbeat: ticks=");
+    uart_put_dec(now);
+    uart_puts("\n");
+}
+
+/* A key for the seal's question: the serial console, then any USB keyboard. */
+static int x86_key(void *ctx)
+{
+    hw_registry_t *r = (hw_registry_t *) ctx;
+    int c = uart_try_getc();
+    if (c > 0) return c;
+    for (uint32_t i = 0; i < r->n_input; i++) {
+        hw_key_t ev;
+        while (r->input[i]->poll(r->input[i], &ev))
+            if (ev.pressed && ev.ascii) return ev.ascii;
+    }
+    return 0;
+}
+
+/* linker64.ld: the hydration code the seal overwrites */
+extern uint8_t __zxv_hydrate_start[], __zxv_hydrate_end[];
+
+static int x86_has_rdrand(void)
+{
+    uint32_t a = 1, b, c = 0, d;
+    __asm__ volatile("cpuid" : "+a"(a), "=b"(b), "+c"(c), "=d"(d));
+    return (int) ((c >> 30) & 1u);
+}
+
+/* RDRAND, retried as Intel advises; 0 after ten underflows. */
+static uint32_t x86_rdrand32(void)
+{
+    for (int i = 0; i < 10; i++) {
+        uint32_t v;
+        uint8_t ok;
+        __asm__ volatile("rdrand %0; setc %1" : "=r"(v), "=qm"(ok)::"cc");
+        if (ok) return v;
+    }
+    return 0;
 }
 
 void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
@@ -416,17 +475,24 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     /* Standard class drivers: scan PCI, bind NVMe/AHCI/xHCI/e1000/HDA, then a
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
+    static hw_models_t models;
+    static hw_registry_t hreg;
+    const hw_plat_t *hp;
+    int models_left;
     {
         boot_msg("[BOOT] Hardware: PCI scan and standard class drivers...");
         uint64_t tsc_per_us = 0;
-        const hw_plat_t *hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
-        static hw_registry_t hreg;
+        hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
         hw_probe_all(hp, &hreg);
         uint32_t ok = hw_selftest_all(hp, &hreg);
         /* Every disk: find the EFI system partition, mount it as FAT32 and
          * read the MegaROM the disc carries, so a driver is proven all the
          * way to a file. */
         hw_storage_selftest(hp, &hreg, "MEGAROM.TVL");
+        /* A golden disc lists its AI models in /ZXV/MODELS.SHA, some on the
+         * ESP and the swarm on its own partition. Only the list is read now;
+         * the models are hashed in the idle loop below (hw_models.h). */
+        models_left = hw_models_index(&models, hp, &hreg) > 0;
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -454,18 +520,58 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
 
     boot_evidence_final();
 
+    /* Swarm discs the core disc lists but nobody attached: fetch them onto a
+     * blank drive over the network (swarmnet.h), then index again so they
+     * mount. No link, no lease or no gateway prints the air-gap lines and
+     * the boot carries on with what is attached. */
+    {
+        uint32_t missing = 0;
+        for (uint32_t i = 0; i < models.nwant; i++) missing += !models.want[i].attached;
+        if (missing && models.cid[0]) {
+            static sn_link_t link;
+            static sn_fetch_t fetch;
+            static const sn_clock_t clk = {x86_ms, x86_heartbeat, 0};
+            if (x86_has_rdrand()) {
+                net_set_entropy(x86_rdrand32);
+            } else {
+                uart_puts("  [NET] no RDRAND: DHCP and TCP ids are not unpredictable; every "
+                          "block is still checked against its CID\n");
+            }
+            if (sn_sealed()) {
+                uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
+            } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
+                fetch.p = hp;
+                if (sn_fetch_gateways(&fetch, &link, &models) &&
+                    sn_fetch_missing(&fetch, &models, &hreg))
+                    models_left = hw_models_index(&models, hp, &hreg) > 0;
+                else if (!fetch.nhttp)
+                    uart_puts("  [SWARM_FETCH] no http:// gateway in /ZXV/UPSTREAM.CID\n");
+                /* Every disc there: sever the channel that brought them. */
+                uint32_t still = 0;
+                for (uint32_t i = 0; i < models.nwant; i++) still += !models.want[i].attached;
+                if (!still) {
+                    sn_seal_io_t io = {x86_key, &hreg, __zxv_hydrate_start,
+                                       (uint32_t) (__zxv_hydrate_end - __zxv_hydrate_start)};
+                    (void) sn_seal(&link, &fetch, &models, &io);
+                }
+            } else {
+                sn_log_offline(hp, &models);
+            }
+        }
+    }
+
     /* The LAPIC timer (X86_HZ) wakes each hlt, so the heartbeat counts timer
      * ticks: one line every ten seconds. Counting wake-ups instead (10M of
-     * them) printed once a day at 100 Hz, which read as no timer at all. */
-    uint64_t next = x86_ticks() + 10u * X86_HZ;
+     * them) printed once a day at 100 Hz, which read as no timer at all.
+     * While golden-disc models are unchecked the loop hashes 1 MiB (256
+     * clusters of 4 KiB) per pass instead of halting; the timer keeps
+     * interrupting the reads, so the heartbeat goes on. */
+    if (!g_heartbeat_next) g_heartbeat_next = x86_ticks() + 10u * X86_HZ;
     while (1) {
-        hlt();
-        uint64_t now = x86_ticks();
-        if (now >= next) {
-            next = now + 10u * X86_HZ;
-            uart_puts("[BOOT_OK] heartbeat: ticks=");
-            uart_put_dec(now);
-            uart_puts("\n");
-        }
+        if (models_left)
+            models_left = hw_models_step(&models, hp, 256);
+        else
+            hlt();
+        x86_heartbeat(0);
     }
 }

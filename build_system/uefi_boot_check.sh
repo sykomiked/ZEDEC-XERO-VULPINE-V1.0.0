@@ -18,6 +18,19 @@
 # timeout (qemu_screendump.py over a monitor socket; arm64 gets a ramfb
 # display for it). The serial log stays the evidence; the picture is a
 # courtesy and never fails the check.
+#
+# UEFI_DISK=virtio|ahci|nvme picks how the disc is attached (default virtio).
+# The x86_64 kernel's own storage drivers read AHCI and NVMe, not virtio, so a
+# golden disc, whose models the kernel reads after boot, boots with ahci or
+# nvme. UEFI_MEM sets the guest's RAM (default 512M; golden discs are also
+# booted with 4G and 8G). UEFI_EXTRA="<img> ..." attaches more discs the
+# same way after the boot disc, read-only snapshots too: the swarm discs that
+# go with a golden core disc.
+#
+# UEFI_NET sets the network (default none, -net none): "user" is an e1000 on
+# QEMU's user network, with DHCP and the host reachable as 10.0.2.2; "silent"
+# is an e1000 whose link is up but whose wire leads nowhere (a UDP socket
+# nobody answers), so DHCP gets no reply.
 set -u
 
 ARCH=${1:?usage: uefi_boot_check.sh <arm64|x86_64> [image] [seconds] [marker...]}
@@ -38,11 +51,11 @@ case "$ARCH" in
   x86_64)
     FW=$(firmware "${OVMF:-}" /usr/share/ovmf/OVMF.fd /usr/share/OVMF/OVMF_CODE.fd \
                   /opt/homebrew/share/qemu/edk2-x86_64-code.fd /usr/local/share/qemu/edk2-x86_64-code.fd)
-    QEMU=(qemu-system-x86_64 -machine q35 -m 512M) ;;
+    QEMU=(qemu-system-x86_64 -machine q35 -m "${UEFI_MEM:-512M}") ;;
   arm64)
     FW=$(firmware "${AAVMF:-}" /usr/share/qemu-efi-aarch64/QEMU_EFI.fd /usr/share/AAVMF/AAVMF_CODE.fd \
                   /opt/homebrew/share/qemu/edk2-aarch64-code.fd /usr/local/share/qemu/edk2-aarch64-code.fd)
-    QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a57 -m 512M) ;;
+    QEMU=(qemu-system-aarch64 -M virt,gic-version=3 -cpu cortex-a57 -m "${UEFI_MEM:-512M}") ;;
   *) echo "::error::unknown arch $ARCH (arm64|x86_64)"; exit 2 ;;
 esac
 [ -n "$FW" ] || { echo "::error::$ARCH: no UEFI firmware found (install ovmf / qemu-efi-aarch64)"; exit 1; }
@@ -59,6 +72,33 @@ case "$FW" in
   *) FWARGS=(-bios "$FW") ;;
 esac
 
+# attach <drive id> <image> <index>: the boot disc is index 0
+attach(){
+  DISK+=(-drive "if=none,id=$1,format=raw,snapshot=on,file=$2")
+  local boot=""; [ "$3" = 0 ] && boot=",bootindex=0"
+  case "${UEFI_DISK:-virtio}" in
+    virtio) DISK+=(-device "virtio-blk-pci,drive=$1$boot") ;;
+    ahci)   [ "$3" = 0 ] && DISK+=(-device ich9-ahci,id=zahci)
+            DISK+=(-device "ide-hd,drive=$1,bus=zahci.$3$boot") ;;
+    nvme)   DISK+=(-device "nvme,serial=ZXVDISC$3,drive=$1$boot") ;;
+    *) echo "::error::UEFI_DISK=${UEFI_DISK} (virtio|ahci|nvme)"; exit 2 ;;
+  esac
+}
+DISK=(); attach disc "$IMG" 0; i=1
+for x in ${UEFI_EXTRA:-}; do
+  [ -f "$x" ] || { echo "::error::$ARCH: extra disc $x missing"; exit 1; }
+  [ "$i" -le 5 ] || { echo "::error::at most 5 extra discs (six AHCI ports)"; exit 2; }
+  attach "disc$i" "$x" "$i"; i=$((i + 1))
+done
+
+case "${UEFI_NET:-none}" in
+  none)   NET=(-net none) ;;
+  user)   NET=(-netdev user,id=n0 -device e1000,netdev=n0) ;;
+  silent) p=$(( 20000 + RANDOM % 20000 ))
+          NET=(-netdev "socket,id=n0,udp=127.0.0.1:$p,localaddr=127.0.0.1:$((p + 1))" -device e1000,netdev=n0) ;;
+  *) echo "::error::UEFI_NET=${UEFI_NET} (none|user|silent)"; exit 2 ;;
+esac
+
 MON=(-monitor none); SHOT_PID=
 if [ -n "${UEFI_SCREENSHOT:-}" ]; then
   SOCK="$(mktemp -u)"; MON=(-monitor "unix:$SOCK,server,nowait")
@@ -69,14 +109,13 @@ fi
 
 rc=0
 timeout "$SECS" "${QEMU[@]}" "${FWARGS[@]}" \
-  -drive "if=none,id=disc,format=raw,snapshot=on,file=$IMG" \
-  -device virtio-blk-pci,drive=disc,bootindex=0 \
-  -net none -display none -serial stdio "${MON[@]}" \
+  "${DISK[@]}" \
+  "${NET[@]}" -display none -serial stdio "${MON[@]}" \
   < /dev/null > "$LOG" 2>&1 || rc=$?
 [ -n "$SHOT_PID" ] && { wait "$SHOT_PID" || true; rm -f "$SOCK"; }
 [ -n "${PF:-}" ] && rm -f "$PF"
 cat "$LOG"
-echo "[uefi-boot] $ARCH: QEMU exited $rc after at most ${SECS}s (firmware $FW)"
+echo "[uefi-boot] $ARCH: QEMU exited $rc after at most ${SECS}s (firmware $FW, disc on ${UEFI_DISK:-virtio}, ${UEFI_MEM:-512M} RAM, network ${UEFI_NET:-none})"
 
 fail=0
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then

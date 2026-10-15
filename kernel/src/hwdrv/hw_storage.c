@@ -32,7 +32,17 @@ static uint64_t le64(const uint8_t *b)
     return (uint64_t) le32(b) | ((uint64_t) le32(b + 4) << 32);
 }
 
+/* A swarm disc's model partition (mk_golden_disc.sh, type
+ * 5A585653-5741-4D53-9000-000000000001), in on-disk byte order. */
+const uint8_t HW_GPT_ZXV_SWARM[16] = {0x53, 0x56, 0x58, 0x5A, 0x41, 0x57, 0x53, 0x4D,
+                                      0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
+
 int hw_gpt_find_esp(hw_blk_t *b, hw_part_t *out, uint8_t *scratch)
+{
+    return hw_gpt_find_type(b, ESP_GUID, out, scratch);
+}
+
+int hw_gpt_find_type(hw_blk_t *b, const uint8_t type[16], hw_part_t *out, uint8_t *scratch)
 {
     uint32_t bs = b->block_size;
     if (bs < 512 || bs > 4096 || b->blocks < 3) return HW_GPT_NONE;
@@ -53,7 +63,7 @@ int hw_gpt_find_esp(hw_blk_t *b, hw_part_t *out, uint8_t *scratch)
     uint64_t nblk = (total + bs - 1) / bs;
     if (ent_lba < 2 || ent_lba >= b->blocks || nblk > b->blocks - ent_lba) return HW_GPT_BAD;
 
-    /* One pass: CRC every entry byte, remember the first ESP. */
+    /* One pass: CRC every entry byte, remember the first of the type. */
     uint32_t crc = 0, seen = 0;
     int found = 0;
     for (uint64_t k = 0; k < nblk; k++) {
@@ -61,10 +71,18 @@ int hw_gpt_find_esp(hw_blk_t *b, hw_part_t *out, uint8_t *scratch)
         for (uint32_t e = 0; e < per && seen < nent; e++, seen++) {
             const uint8_t *ent = scratch + e * esz;
             crc = hw_crc32(crc, ent, esz);
-            if (!found && hw_memeq(ent, ESP_GUID, 16)) {
+            if (!found && hw_memeq(ent, type, 16)) {
                 out->index = seen + 1;
                 out->first = le64(ent + 32);
                 out->last = le64(ent + 40);
+                /* the name is 36 UTF-16LE units at offset 56 */
+                uint32_t i = 0;
+                for (; i < 36; i++) {
+                    uint16_t u = (uint16_t) (ent[56 + 2 * i] | ent[57 + 2 * i] << 8);
+                    if (u == 0) break;
+                    out->name[i] = u >= 0x20 && u < 0x7F ? (char) u : '?';
+                }
+                out->name[i] = 0;
                 found = 1;
             }
         }

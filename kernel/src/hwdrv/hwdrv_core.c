@@ -228,6 +228,19 @@ int hw_reg_nic(hw_registry_t *r, hw_nic_t *n)
     return 0;
 }
 
+int hw_nic_power_off(const hw_plat_t *p, hw_nic_t *n)
+{
+    int done = 0;
+    if (!n->on_pci) return -1;
+    if (n->phy_off && n->phy_off(n) == 0) done |= HW_NIC_OFF_PHY;
+    /* The status half of the dword is write-one-to-clear: write it as 0. */
+    uint32_t cmd = p->cfg_read(p->ctx, n->bdf, CFG_CMD) & 0xFFFFu;
+    p->cfg_write(p->ctx, n->bdf, CFG_CMD, cmd & ~(uint32_t) (CMD_MASTER | CMD_MEM));
+    if (p->cfg_read(p->ctx, n->bdf, CFG_CMD) & (CMD_MASTER | CMD_MEM)) return -1;
+    n->link_up = 0;
+    return done | HW_NIC_OFF_PCI;
+}
+
 int hw_reg_input(hw_registry_t *r, hw_input_t *in)
 {
     if (r->n_input >= HW_MAX_INPUT) return -1;
