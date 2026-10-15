@@ -5,7 +5,10 @@
  * the one the CPU gives, bit for bit: the single slot, plain agents (more
  * than the GPU shares caches with, so some run product by product), a LoRA
  * agent, and agents made again on recycled caches. With no GPU the replies
- * still match (both runs are on the CPU) and the device line says why.
+ * still match (both runs are on the CPU) and the device line says why. The
+ * measured choice is kept per device (zt_choose.h) in a directory of its
+ * own here: the next load rebuilds it from there, and a kept choice whose
+ * logits or key no longer match is measured again.
  *
  *   test_zxv_zt_gpu                 the tiny qwen2 fixture and its adapter
  *   test_zxv_zt_gpu MODEL.gguf      a real model with its tokenizer
@@ -16,9 +19,11 @@
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 #    define _POSIX_C_SOURCE 200809L /* setenv */
 #endif
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "zxv_model_host.h"
 #include "zt_choose.h"
@@ -73,6 +78,55 @@ static void agent_reply(zxv_zt_agent_t *a, const zt_tok_t *tok, const int32_t *i
     if (r->n < 0) printf("  (agent: %s)\n", err);
 }
 
+/* ---- the kept choice: ZT_CHOICE_CACHE points at cache_dir ---- */
+static char cache_dir[512];
+
+/* the one choice file in cache_dir; false: none */
+static bool cache_file(char *out, size_t cap)
+{
+    DIR *d = opendir(cache_dir);
+    bool found = false;
+    if (!d) return false;
+    for (struct dirent *de; !found && (de = readdir(d)) != NULL;) {
+        size_t l = strlen(de->d_name);
+        if (!strncmp(de->d_name, "zt-choice-", 10) && l > 4 && !strcmp(de->d_name + l - 4, ".txt"))
+            found = (size_t) snprintf(out, cap, "%s/%s", cache_dir, de->d_name) < cap;
+    }
+    closedir(d);
+    return found;
+}
+
+/* its three lines: the key, the logits' hash, the record */
+static bool cache_lines(char lines[3][2048])
+{
+    char path[1024];
+    FILE *f = cache_file(path, sizeof path) ? fopen(path, "r") : NULL;
+    bool ok = f != NULL;
+    for (int i = 0; ok && i < 3; i++) ok = fgets(lines[i], 2048, f) != NULL;
+    if (f) fclose(f);
+    return ok;
+}
+
+/* line i of the choice file replaced by text */
+static bool cache_set(int i, const char *text)
+{
+    char lines[3][2048], path[1024];
+    if (!cache_lines(lines) || !cache_file(path, sizeof path)) return false;
+    snprintf(lines[i], sizeof lines[i], "%s\n", text);
+    FILE *f = fopen(path, "w");
+    if (!f) return false;
+    for (int j = 0; j < 3; j++) fputs(lines[j], f);
+    return fclose(f) == 0;
+}
+
+static void cache_clear(void)
+{
+    char path[1024];
+    while (cache_file(path, sizeof path) && remove(path) == 0) {
+    }
+    rmdir(cache_dir);
+}
+
 static int same(const reply_t *a, const reply_t *b)
 {
     return a->n >= 0 && a->n == b->n && !strcmp(a->text, b->text);
@@ -125,8 +179,16 @@ int main(int argc, char **argv)
     zt_host_line(&host, hl, sizeof hl);
     printf("[INFO] host: %s\n", hl);
     CHECK(host.ncpu >= 1 && host.n_sets >= 1 && !strcmp(host.sets[host.n_sets - 1], "c") &&
-              !strncmp(hl, "cpus=", 5),
-          "the host probe lists the CPUs, kernel sets (C reference last) and GPUs");
+              !strncmp(hl, "cpu=\"", 5) && strstr(hl, " cpus="),
+          "the host probe names the processor, its CPUs, kernel sets (C reference last) and "
+          "GPUs");
+
+    /* the kept choices go to a directory of this run's own */
+    const char *td = getenv("TMPDIR");
+    snprintf(cache_dir, sizeof cache_dir, "%s/zxv-choice-test-%ld", td && *td ? td : "/tmp",
+             (long) getpid());
+    cache_clear();
+    setenv("ZT_CHOICE_CACHE", cache_dir, 1);
 
     /* the CPU's replies */
     setenv("ZT_GPU", "cpu", 1);
@@ -183,8 +245,41 @@ int main(int argc, char **argv)
           zxv_zt_base_gpu(mb));
     zxv_zt_agent_free(ma);
     CHECK(zxv_zt_base_free(mb) == 0, "base freed");
-    /* the choice's head ("cpu=SET/T gpu=..."), and a GPU that measured exact */
     const char *mo = strstr(rec, " model=");
+    size_t hn = mo ? (size_t) (mo - rec) : 0;
+
+    /* kept: the next load takes the same choice without measuring */
+    char kept[3][2048];
+    CHECK(cache_lines(kept) && !strncmp(kept[2], rec, strlen(rec)),
+          "the choice is kept in %s with the record measured", cache_dir);
+    CHECK(zxv_zt_base_load(&mb, &mg, err, sizeof err) == 0 && mb, "base loaded again");
+    if (!mb) return 1;
+    CHECK(!strncmp(zxv_zt_base_choice(mb), rec, hn) &&
+              strstr(zxv_zt_base_choice(mb), " | cached (measured on first launch): ") &&
+              !strstr(zxv_zt_base_choice(mb), "unavailable (the pass"),
+          "the next load takes the kept choice (%.*s) without measuring", (int) hn, rec);
+    CHECK(zxv_zt_agent_new(&ma, mb, NULL, 0, err, sizeof err) == 0, "agent on the kept choice");
+    agent_reply(ma, &tok, ids, n, &mr);
+    CHECK(same(&mr, &ref), "the kept choice replies exactly as the CPU does");
+    zxv_zt_agent_free(ma);
+    zxv_zt_base_free(mb);
+    /* a kept choice whose logits no longer match is measured again */
+    mb = NULL;
+    CHECK(cache_set(1, "logits=0123456789abcdef") &&
+              zxv_zt_base_load(&mb, &mg, err, sizeof err) == 0 && mb &&
+              !strstr(zxv_zt_base_choice(mb), "cached") && cache_lines(kept) &&
+              strcmp(kept[1], "logits=0123456789abcdef\n") != 0,
+          "a kept choice whose logits differ is measured again and replaced");
+    zxv_zt_base_free(mb);
+    /* and so is one kept under another key */
+    mb = NULL;
+    CHECK(cache_set(0, "zt-choice/1 host=\"another machine\"") &&
+              zxv_zt_base_load(&mb, &mg, err, sizeof err) == 0 && mb &&
+              !strstr(zxv_zt_base_choice(mb), "cached") && cache_lines(kept) &&
+              strstr(kept[0], "another machine") == NULL,
+          "a kept choice for another machine is measured again and replaced");
+    zxv_zt_base_free(mb);
+    /* the choice's head ("cpu=SET/T gpu=..."), and a GPU that measured exact */
     if (mo && mo > rec + 12) snprintf(head, sizeof head, "%.*s", (int) (mo - rec - 12), rec + 12);
     sscanf(rec + 12, "cpu=%47s", cpu);
     for (const char *q = bar; q && (q = strstr(q, "gpu:")) != NULL; q += 4) {
@@ -285,6 +380,7 @@ int main(int argc, char **argv)
     CHECK(zxv_zt_gpu()[0] == 0, "released: no device");
 
     unsetenv("ZT_CHOICE");
+    cache_clear();
     const char *req = getenv("ZXV_GPU_REQUIRE");
     if (req && !strcmp(req, "1")) CHECK(on_gpu, "a GPU ran the model exactly (ZXV_GPU_REQUIRE=1)");
     free(tar);

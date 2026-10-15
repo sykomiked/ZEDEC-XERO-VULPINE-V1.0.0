@@ -32,6 +32,21 @@
  * FILE. ZT_GPU (zt_accel.h), ZT_KERN and ZT_THREADS (zt_simd.h) narrow what
  * is measured.
  *
+ * The measurement runs once per machine and model: the first launch keeps
+ * the choice in a small file, and later loads rebuild it from there
+ * ("cached (measured on first launch): ..." in the record), after one run of
+ * the probe whose logits must be the ones measured then, bit for bit. A
+ * kept choice whose GPU no longer opens, or whose logits differ, is measured
+ * again and replaced. The file's name hashes what the choice depends on:
+ * the processor's name, cores, memory, kernel sets, GPU backends built in,
+ * and the model's shape and a sample of its bytes. The files live in
+ * ZT_CHOICE_CACHE (a directory; off, none or 0 keeps none), else
+ * ~/Library/Caches/zxv/choices on macOS, %LOCALAPPDATA%\zxv\choices on
+ * Windows, $XDG_CACHE_HOME/zxv/choices or ~/.cache/zxv/choices elsewhere,
+ * and none in a browser tab. ZT_CHOICE=measure measures again and replaces
+ * the file; a narrowed measurement (ZT_GPU, ZT_KERN or ZT_THREADS set) and a
+ * ZT_CHOICE replay neither read nor write it.
+ *
  * zt_choose_host is the machine side of the same probe (cores, memory,
  * kernel sets, GPUs), for planners that size a swarm before loading. */
 #ifndef ZT_CHOOSE_H
@@ -47,6 +62,7 @@
 
 /* ---- the machine ---- */
 typedef struct {
+    char cpu[96];            /* the processor's name ("Apple M3 Max"; "": not given) */
     uint32_t ncpu;           /* logical CPUs online */
     uint64_t ram_bytes;      /* physical memory (0: unknown) */
     uint64_t ram_free_bytes; /* available now (0: unknown) */
@@ -60,7 +76,8 @@ typedef struct {
 /* Fill h. open_gpus: open each GPU backend to see whether it works (this
  * compiles its kernels: seconds on some drivers); else n_gpus is 0. */
 void zt_choose_host(zt_host_t *h, bool open_gpus);
-/* h as one line ("cpus=8 ram=128.0GiB free=97.3GiB sets=neon,c gpus=metal: Apple M3 Max"). */
+/* h as one line ("cpu="Apple M3 Max" cpus=16 ram=128.0GiB free=97.3GiB
+ * sets=neon,c gpus=metal: Apple M3 Max"). */
 void zt_host_line(const zt_host_t *h, char *out, size_t cap);
 
 /* ---- one model ---- */

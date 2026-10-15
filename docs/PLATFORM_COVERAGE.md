@@ -46,17 +46,27 @@ device name (`kernel/src/tensor/zt_choose.h`, used by
 every CPU kernel set above that this CPU has (each with its thread pool, and
 the fastest at half the threads) and on every GPU backend that opens and
 takes the weights (Metal on a Mac; CUDA, HIP, Vulkan and WebGPU elsewhere;
-WebGPU alone in an Emscripten build). Every engine must return the same logits, bit for bit, or
-it is refused. The fastest CPU engine at one-token steps runs the model, and
-the fastest GPU takes prompts, steps or both wherever it measured faster.
-Each choice is one line (`zxv_zt_choice`, `ZT_CHOICE_LOG=FILE`) that
-`ZT_CHOICE` replays. `zt_choose_host` reports cores, memory, kernel sets and
-GPUs for a swarm planner before anything loads.
+WebGPU alone in an Emscripten build). Every engine must return the same
+logits, bit for bit, or it is refused. The fastest CPU engine at one-token
+steps runs the model, and the fastest GPU takes prompts, steps or both
+wherever it measured faster. Each choice is one line (`zxv_zt_choice`,
+`ZT_CHOICE_LOG=FILE`) that `ZT_CHOICE` replays. `zt_choose_host` reports the
+processor, cores, memory, kernel sets and GPUs for a swarm planner before
+anything loads.
+
+The probe runs on the first launch only. Its choice is kept in a small file
+per machine and model (`ZT_CHOICE_CACHE`, else the OS's cache directory;
+none in a browser tab), and each later load runs the probe once on the kept
+choice and keeps it only if the logits are the ones measured then, bit for
+bit, and its GPU still opens; otherwise it measures again.
+`ZT_CHOICE=measure` forces a new measurement.
 
 So "GPU first" means the GPU wins wherever it is faster, and the CPU takes
-the rest. On the M3 Max measurements so far (GPU_STRATEGY.md), that would
-put prompts on Metal and one-token steps on NEON; this has not been run on
-the Mac yet.
+the rest. In the app on the M3 Max (GPU_STRATEGY.md), Metal read prompts at
+97.6 tokens/s against the CPU's 87.4 and generated at 48.4 against 63.3,
+which is the split the determiner makes there: prompts on Metal, steps on
+NEON. The probe reads a 64-token prompt, so a GPU that only wins on much
+longer prompts than that is not chosen for them.
 
 Each build gets what its platform can load:
 

@@ -3,7 +3,7 @@
 /* zt_choose.c — zt_choose.h: measure each engine on the model, keep the
  * fastest exact ones. */
 #if !defined(_WIN32) && !defined(__APPLE__) && !defined(_DEFAULT_SOURCE)
-#    define _DEFAULT_SOURCE 1 /* sysconf's _SC_PHYS_PAGES, clock_gettime */
+#    define _DEFAULT_SOURCE 1 /* sysconf's _SC_PHYS_PAGES, clock_gettime, mkdir */
 #endif
 #if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
 #    define _DARWIN_C_SOURCE 1
@@ -17,8 +17,10 @@
 #include "zt_simd.h"
 
 #if defined(_WIN32)
+#    include <direct.h>
 #    include <windows.h>
 #else
+#    include <sys/stat.h>
 #    include <time.h>
 #    include <unistd.h>
 #    if defined(__APPLE__)
@@ -26,7 +28,7 @@
 #    endif
 #endif
 
-#define ZC_PROMPT  16u /* prompt tokens each engine reads */
+#define ZC_PROMPT  64u /* prompt tokens each engine reads (a short chat turn) */
 #define ZC_MAXCAND 12u
 
 static uint64_t now_ns(void)
@@ -72,9 +74,56 @@ static void ram(uint64_t *total, uint64_t *avail)
 #endif
 }
 
+/* n bytes of src into out, cut to fit, terminated */
+static void put(char *out, size_t cap, const char *src, size_t n)
+{
+    if (n >= cap) n = cap - 1;
+    memcpy(out, src, n);
+    out[n] = 0;
+}
+
+/* The processor's name, as the OS gives it ("" when it gives none). */
+static void cpu_name(char *out, size_t cap)
+{
+    out[0] = 0;
+#if defined(_WIN32)
+    const char *v = getenv("PROCESSOR_IDENTIFIER");
+    if (v) snprintf(out, cap, "%s", v);
+#elif defined(__APPLE__)
+    size_t l = cap;
+    if (sysctlbyname("machdep.cpu.brand_string", out, &l, NULL, 0) != 0) out[0] = 0;
+#else
+    /* x86 "model name", then the names ARM, POWER and RISC-V kernels use */
+    static const char *const keys[] = {"model name", "Model",    "cpu",
+                                       "uarch",      "Hardware", "CPU part"};
+    char best[6][96] = {{0}}, line[256];
+    FILE *f = fopen("/proc/cpuinfo", "r");
+    if (!f) return;
+    while (fgets(line, sizeof line, f)) {
+        char *c = strchr(line, ':');
+        if (!c) continue;
+        size_t kl = (size_t) (c - line);
+        while (kl && (line[kl - 1] == ' ' || line[kl - 1] == '\t')) kl--;
+        for (uint32_t i = 0; i < 6; i++)
+            if (!best[i][0] && strlen(keys[i]) == kl && !strncmp(line, keys[i], kl)) {
+                const char *v = c + 1 + strspn(c + 1, " \t");
+                put(best[i], sizeof best[i], v, strcspn(v, "\r\n"));
+            }
+    }
+    fclose(f);
+    for (uint32_t i = 0; i < 6; i++)
+        if (best[i][0]) {
+            put(out, cap, best[i], strlen(best[i]));
+            break;
+        }
+#endif
+    out[strcspn(out, "\"\r\n")] = 0; /* one quoted field of one line */
+}
+
 void zt_choose_host(zt_host_t *h, bool open_gpus)
 {
     memset(h, 0, sizeof *h);
+    cpu_name(h->cpu, sizeof h->cpu);
     h->ncpu = zt_pool_ncpu();
     ram(&h->ram_bytes, &h->ram_free_bytes);
     const zt_kern_t *ks[8];
@@ -102,8 +151,8 @@ void zt_host_line(const zt_host_t *h, char *out, size_t cap)
     size_t l = 0;
     if (!cap) return;
     l += (size_t) snprintf(
-        out, cap, "cpus=%u ram=%llu.%01lluGiB free=%llu.%01lluGiB sets=", (unsigned) h->ncpu,
-        (unsigned long long) (h->ram_bytes >> 30),
+        out, cap, "cpu=\"%s\" cpus=%u ram=%llu.%01lluGiB free=%llu.%01lluGiB sets=", h->cpu,
+        (unsigned) h->ncpu, (unsigned long long) (h->ram_bytes >> 30),
         (unsigned long long) ((h->ram_bytes & ((1ull << 30) - 1)) * 10 >> 30),
         (unsigned long long) (h->ram_free_bytes >> 30),
         (unsigned long long) ((h->ram_free_bytes & ((1ull << 30) - 1)) * 10 >> 30));
@@ -217,6 +266,13 @@ static int parse_choice(const char *v, char *set, size_t setcap, uint32_t *thr, 
     return 0;
 }
 
+static const char *arch_name(const zt_model_t *m)
+{
+    return m->cfg.arch == ZT_ARCH_QWEN2   ? "qwen2"
+           : m->cfg.arch == ZT_ARCH_QWEN3 ? "qwen3"
+                                          : "llama";
+}
+
 static void finish(zt_engine_t *e, zt_model_t *m, const cand_t *cpu, uint32_t lo, uint32_t hi)
 {
     char head[256], range[32];
@@ -226,11 +282,8 @@ static void finish(zt_engine_t *e, zt_model_t *m, const cand_t *cpu, uint32_t lo
         snprintf(range, sizeof range, "%u-%u", (unsigned) lo, (unsigned) hi);
     snprintf(head, sizeof head, "zt-choice/1 cpu=%s/%u gpu=%s%s%s model=%s/%ux%u", cpu->set->name,
              (unsigned) cpu->threads, e->acc ? zt_accel_api(e->acc) : "none", e->acc ? ":" : "",
-             e->acc ? range : "",
-             m->cfg.arch == ZT_ARCH_QWEN2   ? "qwen2"
-             : m->cfg.arch == ZT_ARCH_QWEN3 ? "qwen3"
-                                            : "llama",
-             (unsigned) m->cfg.n_embd, (unsigned) m->cfg.n_layer);
+             e->acc ? range : "", arch_name(m), (unsigned) m->cfg.n_embd,
+             (unsigned) m->cfg.n_layer);
     /* the head in front of the measurements already in record */
     size_t hl = strlen(head), tl = strlen(e->record), sep = tl ? 3 : 0;
     if (hl + sep + tl >= sizeof e->record) tl = sizeof e->record - 1 - hl - sep;
@@ -283,45 +336,249 @@ static zt_accel_t *open_gpu(const char *api, const zt_choose_in_t *in, char *why
     return NULL;
 }
 
-static zt_engine_t *replay(zt_model_t *m, const zt_choose_in_t *in, const char *v)
+/* The engine choice v names ("cpu=SET/T gpu=API:LO-HI", or a whole record),
+ * labelled; unfinished (finish(e, m, c, *lo, *hi) records it). Null when v is
+ * not a choice this machine can run; *gpu_ok false when its GPU did not open
+ * (e then runs on the CPU engine alone). */
+static zt_engine_t *build(zt_model_t *m, const zt_choose_in_t *in, const char *v, const char *label,
+                          cand_t *c, uint32_t *lo, uint32_t *hi, bool *gpu_ok)
 {
     char set[24], api[24];
-    uint32_t thr, lo, hi;
+    uint32_t thr;
+    const zt_kern_t *k = NULL;
+    if (parse_choice(v, set, sizeof set, &thr, api, sizeof api, lo, hi) == 0) k = zt_simd_find(set);
+    if (!k) return NULL; /* not this machine's, or malformed */
     zt_engine_t *e = calloc(1, sizeof *e);
     if (!e) return NULL;
-    const zt_kern_t *k = NULL;
-    if (parse_choice(v, set, sizeof set, &thr, api, sizeof api, &lo, &hi) == 0)
-        k = zt_simd_find(set);
-    cand_t c;
-    if (!k) { /* not this machine's, or malformed: measure instead */
-        free(e);
-        return NULL;
-    }
-    cand_cpu(&c, k, thr ? thr : 1);
-    e->pool = c.pool;
-    e->cpu = c.k;
-    e->k = c.k;
-    snprintf(e->record, sizeof e->record, "replayed ZT_CHOICE");
+    cand_cpu(c, k, thr ? thr : 1);
+    e->pool = c->pool;
+    e->cpu = c->k;
+    e->k = c->k;
+    snprintf(e->record, sizeof e->record, "%s", label);
+    *gpu_ok = true;
     if (strcmp(api, "none")) {
         char why[256];
         zt_accel_t *a = open_gpu(api, in, why, sizeof why);
-        if (a)
-            attach(e, a, lo, hi);
-        else
+        if (a) {
+            attach(e, a, *lo, *hi);
+        } else {
+            *gpu_ok = false;
             add(e->record, sizeof e->record, "; gpu:%s unavailable (%s)", api, why);
+        }
     }
     m->kern = &e->k;
+    return e;
+}
+
+/* ---- the choice kept per device ---- */
+
+static uint64_t fnv(uint64_t h, const void *p, size_t n)
+{
+    const uint8_t *b = p;
+    for (size_t i = 0; i < n; i++) h = (h ^ b[i]) * 0x100000001b3ull;
+    return h;
+}
+#define FNV0 0xcbf29ce484222325ull
+
+/* the directory the choices are kept in; false: keep none */
+static bool cache_dir(char *out, size_t cap)
+{
+    const char *v = getenv("ZT_CHOICE_CACHE");
+    if (v && *v) {
+        if (!strcmp(v, "off") || !strcmp(v, "none") || !strcmp(v, "0")) return false;
+        return (size_t) snprintf(out, cap, "%s", v) < cap;
+    }
+#if defined(__EMSCRIPTEN__)
+    return false; /* a browser tab: nothing outlives the page here */
+#elif defined(_WIN32)
+    const char *b = getenv("LOCALAPPDATA");
+    return b && *b && (size_t) snprintf(out, cap, "%s\\zxv\\choices", b) < cap;
+#elif defined(__APPLE__)
+    const char *b = getenv("HOME");
+    return b && *b && (size_t) snprintf(out, cap, "%s/Library/Caches/zxv/choices", b) < cap;
+#else
+    const char *x = getenv("XDG_CACHE_HOME"), *b = getenv("HOME");
+    if (x && *x) return (size_t) snprintf(out, cap, "%s/zxv/choices", x) < cap;
+    return b && *b && (size_t) snprintf(out, cap, "%s/.cache/zxv/choices", b) < cap;
+#endif
+}
+
+/* mkdir -p p, as far as it goes (a later fopen says whether it went) */
+static void make_dirs(char *p)
+{
+    for (char *q = p + 1;; q++) {
+        if (*q != '/' && *q != '\\' && *q) continue;
+        char c = *q;
+        *q = 0;
+#if defined(_WIN32)
+        _mkdir(p);
+#else
+        mkdir(p, 0700);
+#endif
+        *q = c;
+        if (!c) return;
+    }
+}
+
+/* What the choice depends on, as one line: this machine (processor, cores,
+ * memory, kernel sets, GPU backends built in), the model (shape and a
+ * sample of its bytes) and the probe's length. */
+static void cache_key(const zt_model_t *m, const zt_choose_in_t *in, uint32_t np, char *key,
+                      size_t cap)
+{
+    zt_host_t h;
+    zt_choose_host(&h, false);
+    char sets[96] = "", apis[96] = "";
+    for (uint32_t i = 0; i < h.n_sets; i++) add(sets, sizeof sets, "%s%s", i ? "," : "", h.sets[i]);
+    const char *ap[ZT_CHOOSE_MAX_GPUS];
+    uint32_t na = zt_accel_apis(ap, ZT_CHOOSE_MAX_GPUS);
+    for (uint32_t i = 0; i < na; i++) add(apis, sizeof apis, "%s%s", i ? "," : "", ap[i]);
+    /* 16 slices of 4 KiB spread over the weights (all of them when small) */
+    const uint8_t *w = in->weights;
+    uint64_t wl = in->weights_len, wh = FNV0;
+    if (wl <= 65536u) {
+        wh = fnv(wh, w, (size_t) wl);
+    } else {
+        for (uint64_t i = 0; i < 16u; i++) wh = fnv(wh, w + (wl - 4096u) / 15u * i, 4096u);
+    }
+    snprintf(key, cap,
+             "zt-choice/1 host=\"%s\" cpus=%u ram=%lluGiB sets=%s gpus=%s model=%s/%ux%u/v%u "
+             "probe=%u weights=%llu:%016llx",
+             h.cpu, (unsigned) h.ncpu, (unsigned long long) (h.ram_bytes >> 30), sets,
+             na ? apis : "none", arch_name(m), (unsigned) m->cfg.n_embd, (unsigned) m->cfg.n_layer,
+             (unsigned) m->cfg.n_vocab, (unsigned) np, (unsigned long long) wl,
+             (unsigned long long) wh);
+}
+
+/* The file for key: the key, the probe's logits (FNV-1a), the record. */
+static bool cache_path(const char *key, char *path, size_t cap)
+{
+    char dir[768];
+    if (!cache_dir(dir, sizeof dir)) return false;
+    return (size_t) snprintf(path, cap, "%s/zt-choice-%016llx.txt", dir,
+                             (unsigned long long) fnv(FNV0, key, strlen(key))) < cap;
+}
+
+static bool cache_read(const char *path, const char *key, uint64_t *lh, char *rec, size_t cap)
+{
+    FILE *f = fopen(path, "r");
+    if (!f) return false;
+    char k[640], l[64];
+    bool ok = fgets(k, sizeof k, f) && fgets(l, sizeof l, f) && fgets(rec, (int) cap, f);
+    fclose(f);
+    if (!ok) return false;
+    k[strcspn(k, "\n")] = 0;
+    rec[strcspn(rec, "\n")] = 0;
+    unsigned long long v;
+    if (strcmp(k, key) || sscanf(l, "logits=%16llx", &v) != 1) return false;
+    *lh = v;
+    return true;
+}
+
+/* written whole to a side file, then renamed over the old one */
+static void cache_write(const char *path, const char *key, uint64_t lh, const char *rec)
+{
+    char tmp[1100], dir[1024];
+    if ((size_t) snprintf(tmp, sizeof tmp, "%s.tmp", path) >= sizeof tmp) return;
+    snprintf(dir, sizeof dir, "%s", path);
+    char *slash = strrchr(dir, '/');
+    if (slash) {
+        *slash = 0;
+        make_dirs(dir);
+    }
+    FILE *f = fopen(tmp, "w");
+    if (!f) return;
+    int w = fprintf(f, "%s\nlogits=%016llx\n%s\n", key, (unsigned long long) lh, rec);
+    if (fclose(f) != 0 || w < 0) {
+        remove(tmp);
+        return;
+    }
+#if defined(_WIN32)
+    if (!MoveFileExA(tmp, path, MOVEFILE_REPLACE_EXISTING)) remove(tmp);
+#else
+    if (rename(tmp, path)) remove(tmp);
+#endif
+}
+
+static uint32_t probe_len(const zt_choose_in_t *in)
+{
+    return in->s->n_ctx > ZC_PROMPT + 1 ? ZC_PROMPT : in->s->n_ctx - 1;
+}
+
+/* The kept choice, rebuilt and run once on the probe: kept only when its GPU
+ * opened and its logits are the ones measured then, bit for bit. */
+static zt_engine_t *from_cache(zt_model_t *m, const zt_choose_in_t *in, const char *rec,
+                               uint64_t lh)
+{
+    char label[1536];
+    const char *bar = strstr(rec, " | ");
+    snprintf(label, sizeof label, "cached (measured on first launch): %s", bar ? bar + 3 : "");
+    cand_t c;
+    uint32_t lo, hi, nv = m->cfg.n_vocab, np = probe_len(in);
+    bool gpu_ok = false;
+    zt_engine_t *e = build(m, in, rec, label, &c, &lo, &hi, &gpu_ok);
+    if (!e) return NULL;
+    zt_fx *got = malloc((size_t) nv * 2 * sizeof *got);
+    uint64_t pn, sn;
+    bool ok = gpu_ok && got && !run(m, in->s, &e->k, np, got, got + nv, &pn, &sn) &&
+              fnv(FNV0, got, (size_t) nv * 2 * sizeof *got) == lh;
+    free(got);
+    if (!ok) {
+        zt_engine_free(e);
+        m->kern = zt_simd_default();
+        return NULL;
+    }
     finish(e, m, &c, lo, hi);
     return e;
 }
 
+static zt_engine_t *replay(zt_model_t *m, const zt_choose_in_t *in, const char *v)
+{
+    cand_t c;
+    uint32_t lo, hi;
+    bool gpu_ok;
+    zt_engine_t *e = build(m, in, v, "replayed ZT_CHOICE", &c, &lo, &hi, &gpu_ok);
+    if (e) finish(e, m, &c, lo, hi);
+    return e;
+}
+
+static zt_engine_t *measure(zt_model_t *m, const zt_choose_in_t *in, uint64_t *lh, bool *exact);
+
 zt_engine_t *zt_choose(zt_model_t *m, const zt_choose_in_t *in)
 {
     const char *rv = getenv("ZT_CHOICE");
-    if (rv && *rv) {
+    bool remeasure = rv && !strcmp(rv, "measure");
+    if (rv && *rv && !remeasure) {
         zt_engine_t *e = replay(m, in, rv);
         if (e) return e;
     }
+    /* kept per device unless the measurement is narrowed */
+    static const char *const narrow[] = {"ZT_GPU", "ZT_KERN", "ZT_THREADS"};
+    bool keep = true;
+    for (uint32_t i = 0; i < 3; i++) {
+        const char *v = getenv(narrow[i]);
+        if (v && *v) keep = false;
+    }
+    char key[640], path[1024], rec[1536];
+    uint64_t lh = 0;
+    if (keep) {
+        cache_key(m, in, probe_len(in), key, sizeof key);
+        keep = cache_path(key, path, sizeof path);
+    }
+    if (keep && !remeasure && cache_read(path, key, &lh, rec, sizeof rec)) {
+        zt_engine_t *e = from_cache(m, in, rec, lh);
+        if (e) return e;
+    }
+    bool exact = false;
+    zt_engine_t *e = measure(m, in, &lh, &exact);
+    if (e && keep && exact) cache_write(path, key, lh, e->record);
+    return e;
+}
+
+/* Every engine timed on the probe; *lh the reference logits' FNV-1a, *exact
+ * true when a CPU engine ran (the choice is worth keeping). */
+static zt_engine_t *measure(zt_model_t *m, const zt_choose_in_t *in, uint64_t *lh, bool *exact)
+{
     zt_engine_t *e = calloc(1, sizeof *e);
     uint32_t nv = m->cfg.n_vocab;
     zt_fx *ref = malloc((size_t) nv * 2 * sizeof *ref),
@@ -332,7 +589,7 @@ zt_engine_t *zt_choose(zt_model_t *m, const zt_choose_in_t *in)
         m->kern = zt_simd_default();
         return NULL;
     }
-    uint32_t np = in->s->n_ctx > ZC_PROMPT + 1 ? ZC_PROMPT : in->s->n_ctx - 1;
+    uint32_t np = probe_len(in);
 
     /* the CPU engines: every set (C only when alone), all threads; the
      * fastest set again at half the threads (cores shared by two threads) */
@@ -442,6 +699,8 @@ zt_engine_t *zt_choose(zt_model_t *m, const zt_choose_in_t *in)
                      cs[i].tag, cs[i].why);
     }
 
+    *lh = fnv(FNV0, ref, (size_t) nv * 2 * sizeof *ref);
+    *exact = true;
     cand_t chosen = cs[bc];
     e->pool = cs[bc].pool;
     e->cpu = cs[bc].k;

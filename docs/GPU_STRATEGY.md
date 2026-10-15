@@ -41,7 +41,7 @@ backends are hosted code (the Mac app, bench, servers).
 | Matrix products on an Apple GPU, bit-exact | ✅ merged (#85) | `kernel/src/tensor/zt_metal.m`, `zt_kern_t.mm_full` |
 | The whole forward pass on the GPU: every layer's RMS norm, activation quantiser, products and bias, RoPE, KV store, attention, residual and SiLU, then the output norm and logits, in one command buffer | 🧩 built; bit-exact on the M3 Max; prompt reading 2.3× the CPU, generation not yet faster | `zt_gpu.h`, `zt_gpu.c`, `zt_kern_metal_resident`, `zt_bench --gpu-resident` |
 | The same op list through a C backend | ✅ in CI | `test_zt_gpu` (fixtures, edge cases, saturating runs); `zt_bench --gpu-sim` on a real model |
-| The app's models on whatever this machine runs fastest, measured: the model slot and every swarm base in zxv-host and zxvd are timed on each CPU kernel set (with its threads) and each GPU (Metal, CUDA, HIP, Vulkan, WebGPU); an engine whose logits differ in any bit is refused; the GPU takes prompts, one-token steps or both where it measured faster. One replayable line records each choice | 🧩 built; on lavapipe 17 agents, a LoRA agent and the single slot reply exactly as on the CPU, and the determiner picks the fastest measured engine; not yet run in the app on a real GPU | `zt_choose.h`, `zt_accel.h`, `zxv_zt_glue.c` G7, `test_zxv_zt_gpu` (in `test_hosted.sh` and `test-vk`) |
+| The app's models on whatever this machine runs fastest, measured: the model slot and every swarm base in zxv-host and zxvd are timed on each CPU kernel set (with its threads) and each GPU (Metal, CUDA, HIP, Vulkan, WebGPU); an engine whose logits differ in any bit is refused; the GPU takes prompts, one-token steps or both where it measured faster. One replayable line records each choice, and the choice is kept per machine and model after the first launch, re-checked bit for bit on every load | 🧩 built; on lavapipe 17 agents, a LoRA agent and the single slot reply exactly as on the CPU, the determiner picks the fastest measured engine, and a kept choice is reused, or measured again when its logits or machine differ; not yet run through the determiner on a real GPU | `zt_choose.h`, `zt_accel.h`, `zxv_zt_glue.c` G7, `test_zxv_zt_gpu` (in `test_hosted.sh` and `test-vk`) |
 | Blocks kept in VRAM under their IPFS CIDs | 🧩 data layer only, simulated GPU | [VRAM_BLOCKS.md](VRAM_BLOCKS.md) |
 | Accelerator tier between two integer tiers | 🧩 design and integer tiers; no GPU behind tier 2 yet | [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md) |
 | NVIDIA GPUs (CUDA): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI; not yet run on a GPU (first run: the A6000 test server) | `zt_cuda.c`, `zt_kern_cuda_resident`, `make -C kernel test-cuda`, `zt_bench --gpu*` on Linux |
@@ -194,6 +194,12 @@ The resident pass is the fastest way to read a prompt (2.3× the CPU) and
 beats per-product GPU generation, but generation is still slower than the
 CPU: 957 launches a token, and the norm, softmax and single-token product
 kernels are naive (one thread loops over a whole row). Section 4 is the plan.
+
+In the app itself (zxv-host on the owner's M3 Max, 2026-10-15), Qwen2.5-1.5B
+gave the same tokens in every mode: the resident Metal pass read prompts at
+97.6 tokens/s and generated 48.4; the CPU (8 threads) read 87.4 and generated
+63.3. That is the split the determiner makes from its own probe on that
+machine: prompts on Metal, one-token steps on NEON.
 `make -C kernel test-metal` passes 30/30 on the GPU, including the resident
 passes with forced saturation.
 
