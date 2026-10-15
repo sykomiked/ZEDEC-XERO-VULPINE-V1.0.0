@@ -40,9 +40,12 @@ CLASS_OF = {"mem": 1, "crypto": 2, "drv": 3, "logic": 4, "num": 5, "fin": 6, "pr
             "strat": 6, "wire": 7, "text": 8, "time": 9, "swarm": 9,
             "cell": 9}
 # Language numbers: 1..99 are Lingua's own numbers (zl_langs.def); 101..120
-# the other runtimes, in zxapp's order. Never renumbered.
+# the other runtimes, in zxapp's order when they were numbered; 121 x86-64
+# assembly (a projection target, zl.h); later runtimes from 122 on, in the
+# order they arrive (LATER). Never renumbered.
 OTHER = ["c", "sutra", "eve", "kron", "trebago", "myra", "cpp", "rust", "go", "swift", "kotlin",
          "java", "dotnet", "python", "typescript", "dart", "ruby", "php", "wasm", "zlir"]
+LATER = {"wire": 122}  # wire: a circuit of other entries (zxwire.h)
 BASE_END = 0x10000
 ALIGN = 64
 BOOKLET_MAX = 1 << 20  # one raw IPFS block: the booklet's CID is that block's
@@ -75,6 +78,7 @@ def lang_numbers():
         fail("could not read the Lingua language numbers")
     for k, rt in enumerate(OTHER):
         nums[rt] = 101 + k
+    nums.update(LATER)
     return nums
 
 

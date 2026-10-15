@@ -98,8 +98,11 @@ layers. It returns the top layer's CID, or the first layer that fails:
 FORM for a malformed layer, LINEAGE for a parent that does not match.
 Changing any byte of a lower manifest breaks every layer above it.
 
-The layer manifest format itself belongs to the bucket owner (ipfs-dist).
-The check needs only the manifest bytes and the parent CID it names.
+The layer manifest format itself belongs to the bucket owner (ipfs-dist),
+which writes it into its slot here; the library's blocks sit in the
+`05_alexandria` bucket. The check needs only the manifest bytes and the
+parent CID it names. Once this lands, `alx_lineage` is the one chain
+checker, and the kernel moves over to it.
 
 ## 6. Recording lineage: oseq, not a new chain
 
