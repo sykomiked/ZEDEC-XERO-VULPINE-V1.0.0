@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "zui_palette.h"
 #include "zui_tokens.h"
 #include "zxv_desktop.h"
 
@@ -374,6 +375,47 @@ static void test_library(const char *font)
     CHECK(zxv_desktop_choose(d, 203) == ids[3], "choosing an open card raises it");
     CHECK(zxv_desktop_choose(d, 407) == 0, "no app 408");
     zxv_desktop_close(d);
+
+    /* HD7: the light scheme reaches the desk, the library, a card and Spaces */
+    cfg.scheme = "light";
+    d = zxv_desktop_open(&cfg, NULL);
+    CHECK(d != NULL && zxv_desktop_scheme(d) == ZUI_SCHEME_LIGHT, "opens light");
+    if (d) {
+        const zui_colors_t *lt = zui_scheme_colors(ZUI_SCHEME_LIGHT);
+        k = zxv_desktop_desk(d);
+        steps(d, 2);
+        zui_rect_t a = zui_desk_area(k);
+        CHECK(count(d, a, lt->c[ZUI_C_VOID]) > (uint32_t) (a.w * a.h) / 2 &&
+                  count(d, zui_desk_bar(k), ZUI_PANEL) + count(d, zui_desk_bar(k), ZUI_RAISED) == 0,
+              "the light ground, no dark panel left in the bar");
+        zxv_desktop_launch(d, 1);
+        steps(d, 40);
+        zui_wm_window_t *qw = zui_wm_get(&k->wm, k->win_of[1]);
+        if (qw) {
+            zui_rect_t c = zui_wm_content(&k->wm, qw);
+            c.x += a.x;
+            c.y += a.y;
+            CHECK(count(d, c, ZUI_VOID) + count(d, c, ZUI_PANEL) < (uint32_t) (c.w * c.h) / 20,
+                  "Quillon's view is light too");
+        }
+        click(d, zui_desk_apps_tile(k));
+        zui_rect_t lg = zui_applib_grid(zxv_desktop_library(d));
+        zui_rect_t head = {a.x, a.y, a.w, lg.y - a.y};
+        CHECK(count(d, a, lt->c[ZUI_C_VOID]) > (uint32_t) (a.w * a.h) / 3 &&
+                  count(d, head, ZUI_PANEL) + count(d, head, ZUI_RAISED) == 0,
+              "the library is light (the dark is the icons' own art)");
+        shot(d, "library-light");
+        zxv_desktop_set_scheme(d, ZUI_SCHEME_HIGH_CONTRAST);
+        steps(d, 1);
+        const zui_colors_t *hc = zui_scheme_colors(ZUI_SCHEME_HIGH_CONTRAST);
+        CHECK(count(d, zui_applib_grid(zxv_desktop_library(d)), hc->c[ZUI_C_VOID]) > 1000,
+              "switching scheme repaints the library");
+        click(d, zui_desk_switch(k, true));
+        CHECK(count(d, a, hc->c[ZUI_C_VOID]) > (uint32_t) (a.w * a.h) / 3, "and Spaces");
+        shot(d, "spaces-contrast");
+        zxv_desktop_close(d);
+    }
+    cfg.scheme = NULL;
 
     /* no pack: letter marks, and the tile says why */
     cfg.apps = "/nonexistent/zxv-apps.zxap";

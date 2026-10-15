@@ -34,6 +34,7 @@
 #include "zui_apps.h"
 #include "zui_canvas.h"
 #include "zui_input.h"
+#include "zui_palette.h"
 #include "zui_vec.h"
 
 #define ZUI_APPLIB_QUERY   48u
@@ -47,6 +48,7 @@ typedef enum { ZUI_APPLIB_NONE = 0, ZUI_APPLIB_OPEN, ZUI_APPLIB_CLOSE } zui_appl
 
 typedef struct {
     const zui_text_t *headline, *title, *body, *label, *caption;
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark */
 } zui_applib_faces_t;
 
 /* AL6: n slots of side*side pixels; a slot holds one icon at one size,

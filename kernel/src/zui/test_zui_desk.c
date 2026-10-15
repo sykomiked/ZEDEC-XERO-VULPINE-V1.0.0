@@ -261,6 +261,34 @@ static void icons(void)
     CHECK(PX[(at.y - 1) * W + at.x + at.w / 2] == ZUI_GOLD, "the library open: Apps is ringed");
 }
 
+/* the desk paints by role (zui_palette.h C6): dark is the tokens, light its own */
+static void schemes(void)
+{
+    zui_desk_init(&D, W, H, 256u, false, 0);
+    zui_desk_add(&D, "Vino", "V");
+    zui_surface_t s;
+    zui_surface_init(&s, PX, W, H, W);
+    zui_desk_draw(&D, &s, 0);
+    uint32_t h0 = hash(PX);
+    zui_desk_set_colors(&D, zui_scheme_colors(ZUI_SCHEME_DARK));
+    zui_desk_draw(&D, &s, 0);
+    CHECK(hash(PX) == h0, "the dark set draws the same pixels as none");
+    const zui_colors_t *lt = zui_scheme_colors(ZUI_SCHEME_LIGHT);
+    zui_desk_set_colors(&D, lt);
+    CHECK(D.wm.colors == lt && D.wm.dock.colors == lt, "the windows and dock follow");
+    zui_desk_draw(&D, &s, 0);
+    zui_rect_t a = zui_desk_area(&D), r = zui_desk_rail(&D), at = zui_desk_apps_tile(&D);
+    CHECK(PX[(a.y + 40) * W + a.x + a.w / 2] == lt->c[ZUI_C_VOID], "the light ground");
+    uint32_t dark = 0;
+    for (int32_t y = 0; y < H; y += 3)
+        for (int32_t x = 0; x < r.w; x += 3)
+            dark += PX[y * W + x] == ZUI_VOID || PX[y * W + x] == ZUI_PANEL;
+    CHECK(dark == 0, "no dark token left on the rail (%u)", dark);
+    D.library = true;
+    zui_desk_draw(&D, &s, 0);
+    CHECK(PX[(at.y - 1) * W + at.x + at.w / 2] == lt->c[ZUI_C_GOLD], "the light set's gold ring");
+}
+
 static void status(void)
 {
     zui_desk_init(&D, W, H, 256u, false, 0);
@@ -279,6 +307,7 @@ int main(void)
     rail();
     windows();
     icons();
+    schemes();
     status();
     if (fails) {
         printf("test_zui_desk: %d of %d checks failed\n", fails, checks);

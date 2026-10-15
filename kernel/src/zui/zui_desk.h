@@ -35,6 +35,7 @@
 
 #include "zui_canvas.h"
 #include "zui_input.h"
+#include "zui_palette.h"
 #include "zui_vec.h"
 #include "zui_wm.h"
 
@@ -79,6 +80,7 @@ typedef struct {
     bool spaces;                    /* the switch shows Spaces chosen  */
     bool library;                   /* the Apps tile shows the library open */
     zui_vec_work_t *work;           /* for the icons (zui_desk_use_work) */
+    const zui_colors_t *colors;     /* zui_palette.h C6: the set painted with; NULL dark */
     int32_t hover;                  /* tile under the pointer, -1 none */
     int32_t press;                  /* tile pressed and not yet let go */
     char status[ZUI_DESK_STATUS];
@@ -98,6 +100,8 @@ void zui_desk_status(zui_desk_t *d, const char *text);
 void zui_desk_icon(zui_desk_t *d, uint32_t app, const uint8_t *zxvg, uint32_t len);
 /* The vector renderer's working memory for the icons (null: marks only). */
 void zui_desk_use_work(zui_desk_t *d, zui_vec_work_t *work);
+/* The colour set the desk, its windows and their dock paint with (NULL dark). */
+void zui_desk_set_colors(zui_desk_t *d, const zui_colors_t *colors);
 
 int32_t zui_desk_pt(const zui_desk_t *d, int32_t pt); /* points to pixels */
 zui_rect_t zui_desk_bar(const zui_desk_t *d);

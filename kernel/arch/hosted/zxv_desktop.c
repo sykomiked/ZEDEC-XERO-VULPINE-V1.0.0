@@ -19,6 +19,9 @@
 #include "zui_tokens.h"
 #include "zxv_rpc_client.h"
 
+/* zui_palette.h C6: every colour by role, from the chosen set */
+#define C(role) zui_color(cs, ZUI_C_##role)
+
 #ifndef ZXV_FONT_DIR
 #    define ZXV_FONT_DIR "assets/fonts/ascw-golden"
 #endif
@@ -114,6 +117,8 @@ struct zxv_desktop {
 
     zui_desk_t desk;
     appwin_t *win[APP_N];
+    zui_scheme_t scheme; /* HD7 */
+    const zui_colors_t *colors;
 
     /* HD6: the catalogue, its icons and the library */
     uint8_t *apps_data;
@@ -413,6 +418,31 @@ static void library_init(zxv_desktop_t *d)
     }
 }
 
+/* HD7: one set for the desk, its windows, the library, the cards and Spaces */
+void zxv_desktop_set_scheme(zxv_desktop_t *d, zui_scheme_t scheme)
+{
+    if (!d) return;
+    if ((uint32_t) scheme >= (uint32_t) ZUI_SCHEME_COUNT) scheme = ZUI_SCHEME_DARK;
+    d->scheme = scheme;
+    d->colors = zui_scheme_colors(scheme);
+    zui_desk_set_colors(&d->desk, d->colors);
+    d->lib.f.colors = d->colors;
+    for (uint32_t i = 0; i < APP_N; i++)
+        if (d->win[i]) {
+            zui_ui_set_colors(&d->win[i]->ui, d->colors);
+            if (d->win[i]->pw > 0)
+                zui_damage_all(&d->win[i]->ui.damage, d->win[i]->pw, d->win[i]->ph);
+        }
+    if (d->have_apps) /* the icon cache was drawn on the old ground */
+        zui_applib_cache_init(&d->lib_cache, d->lib_px, d->lib_px ? LIB_SLOTS : 0u, LIB_SIDE);
+    d->dirty = true;
+}
+
+zui_scheme_t zxv_desktop_scheme(const zxv_desktop_t *d)
+{
+    return d ? d->scheme : ZUI_SCHEME_DARK;
+}
+
 zui_applib_t *zxv_desktop_library(zxv_desktop_t *d)
 {
     return d && d->have_apps ? &d->lib : NULL;
@@ -618,6 +648,7 @@ uint32_t zxv_desktop_launch(zxv_desktop_t *d, uint32_t app)
     zui_screen_t sc = {(uint32_t) (r.w > 1 ? r.w : 1), (uint32_t) (r.h > 1 ? r.h : 1), d->scale_q8,
                        d->desk.wm.touch ? ZUI_INPUT_TOUCH : ZUI_INPUT_POINTER};
     zui_ui_init(&aw->ui, &sc, &d->theme);
+    zui_ui_set_colors(&aw->ui, d->colors);
     zui_ui_on(&aw->ui, on_action, aw);
     aw->ui.clip_set = d->clip_set;
     aw->ui.clip_get = d->clip_get;
@@ -851,28 +882,29 @@ static void sign(zui_surface_t *s, uint32_t i, int32_t cx, int32_t cy, int32_t u
 
 static void draw_spaces(zxv_desktop_t *d, zui_surface_t *s)
 {
+    const zui_colors_t *cs = d->colors;
     zui_rect_t a = zui_desk_area(&d->desk);
     zui_unclip(s);
     zui_clip(s, a);
-    zui_fill(s, a, ZUI_VOID);
+    zui_fill(s, a, C(VOID));
     if (d->t_mark.font)
         zui_text(s, &d->t_mark, a.x + px_of(d->scale_q8, ZUI_S5), a.y + px_of(d->scale_q8, 44),
-                 ZUI_TEXT, "Spaces");
+                 C(TEXT), "Spaces");
     int32_t rad = px_of(d->scale_q8, ZUI_R_PANEL);
     for (uint32_t i = 0; i < SPACES; i++) {
         zui_rect_t r = zxv_desktop_space_card(d, i);
         if (!r.w) continue;
         bool on = d->space == i, hot = d->space_press == (int32_t) i;
-        zui_fill_rrect(s, r, rad, hot ? ZUI_RAISED : ZUI_PANEL, 255);
-        zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70);
+        zui_fill_rrect(s, r, rad, hot ? C(RAISED) : C(PANEL), 255);
+        zui_engrave(s, r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 70);
         if (on) {
             int32_t g = px_of(d->scale_q8, 2);
             zui_stroke_rrect(s, (zui_rect_t){r.x - g, r.y - g, r.w + 2 * g, r.h + 2 * g}, rad + g,
-                             g, ZUI_GOLD, 255);
+                             g, C(GOLD), 255);
         }
-        sign(s, i, r.x + r.w / 2, r.y + r.h * 2 / 5, r.h / 6, on ? ZUI_GOLD : ZUI_TEXT_2);
+        sign(s, i, r.x + r.w / 2, r.y + r.h * 2 / 5, r.h / 6, on ? C(GOLD) : C(TEXT_2));
         text_in(s, &d->t_body, (zui_rect_t){r.x + rad, r.y, r.w - 2 * rad, r.h},
-                r.y + r.h - px_of(d->scale_q8, 18), on ? ZUI_TEXT : ZUI_TEXT_2, SPACE_NAME[i]);
+                r.y + r.h - px_of(d->scale_q8, 18), on ? C(TEXT) : C(TEXT_2), SPACE_NAME[i]);
     }
     zui_unclip(s);
 }
@@ -1197,6 +1229,14 @@ zxv_desktop_t *zxv_desktop_open(const zxv_desktop_cfg_t *cfg, const char **why)
     desk_faces(d);
     for (uint32_t i = 0; i < APP_N; i++) zui_desk_add(&d->desk, APPS[i].name, APPS[i].mark);
     library_init(d);
+    {
+        const char *sc = cfg->scheme ? cfg->scheme : getenv("ZXV_SCHEME");
+        zui_scheme_t k = ZUI_SCHEME_DARK;
+        if (sc && !strcmp(sc, "light")) k = ZUI_SCHEME_LIGHT;
+        if (sc && (!strcmp(sc, "high-contrast") || !strcmp(sc, "contrast")))
+            k = ZUI_SCHEME_HIGH_CONTRAST;
+        zxv_desktop_set_scheme(d, k);
+    }
     zxm_link_init(&d->link, rpc_send, d);
     const char *rpc = cfg->rpc ? cfg->rpc : getenv("ZXV_RPC");
     snprintf(d->rpc, sizeof d->rpc, "%s", rpc ? rpc : "");

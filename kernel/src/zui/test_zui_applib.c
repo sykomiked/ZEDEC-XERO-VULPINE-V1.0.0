@@ -345,6 +345,25 @@ static void drawing(void)
     uint32_t hb = hash(PX);
     zui_applib_card(&s, &WK, &L.f, 256u, &app, false, box);
     CHECK(hash(PX) != hb && PX[(ob.y + 2) * W + ob.x + 4] != ZUI_GOLD, "not built: no gold button");
+
+    /* by role (zui_palette.h C6): the dark set is the tokens, light its own */
+    fresh(0);
+    zui_applib_place(&L, (zui_rect_t){100, 50, 900, 600}, 256u);
+    zui_applib_draw(&L, &s);
+    uint32_t hd = hash(PX);
+    L.f.colors = zui_scheme_colors(ZUI_SCHEME_DARK);
+    zui_applib_draw(&L, &s);
+    CHECK(hash(PX) == hd, "the dark set draws the same pixels as none");
+    const zui_colors_t *lt = zui_scheme_colors(ZUI_SCHEME_HIGH_CONTRAST);
+    L.f.colors = lt;
+    zui_applib_draw(&L, &s);
+    CHECK(PX[(50 + 5) * W + 100 + 5] == lt->c[ZUI_C_VOID], "the high-contrast ground");
+    CHECK(PX[(t0.y + t0.h / 2) * W + t0.x] == lt->c[ZUI_C_GOLD], "its gold focus ring");
+    CHECK(PX[(g.y + 4) * W + ix] == lt->c[ZUI_C_MUTED], "its indicator");
+    zui_applib_card(&s, &WK, &L.f, 256u, &app, true, box);
+    CHECK(PX[(ob.y + 2) * W + ob.x + 4] == lt->c[ZUI_C_GOLD] &&
+              PX[(box.y + box.h - 4) * W + box.x + 4] == lt->c[ZUI_C_VOID],
+          "the card paints by role too");
 }
 
 int main(int argc, char **argv)

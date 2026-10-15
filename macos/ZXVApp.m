@@ -248,6 +248,8 @@ static uint32_t clip_get(void *ctx, char *out, uint32_t cap)
     cfg.font = font.fileSystemRepresentation;
     if ([NSFileManager.defaultManager fileExistsAtPath:mono]) cfg.mono = mono.fileSystemRepresentation;
     if ([NSFileManager.defaultManager fileExistsAtPath:apps]) cfg.apps = apps.fileSystemRepresentation;
+    /* the ZXV look is the dark green; the system's Increase contrast asks for more */
+    if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast) cfg.scheme = "high-contrast";
     cfg.title = "ZXV";
     cfg.w_pt = 1180;
     cfg.h_pt = 780;

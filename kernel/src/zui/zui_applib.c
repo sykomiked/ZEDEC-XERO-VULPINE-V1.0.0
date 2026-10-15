@@ -6,6 +6,9 @@
 
 #define SEGS 4u
 
+/* zui_palette.h C6: every colour by role, from the faces' set (NULL dark) */
+#define C(role) zui_color(cs, ZUI_C_##role)
+
 static int32_t pt(uint32_t q8, int32_t v)
 {
     return (int32_t) (((int64_t) v * (int64_t) q8 + 128) >> 8);
@@ -472,10 +475,11 @@ static void icon(zui_applib_t *l, zui_surface_t *s, uint32_t idx, zui_rect_t box
 
 static void header(zui_applib_t *l, zui_surface_t *s)
 {
+    const zui_colors_t *cs = l->f.colors;
     int32_t x = l->box.x + pad(l), y = l->box.y + pad(l);
     zui_rect_t head = {x, y, l->box.w - 2 * pad(l), head_h(l)};
     if (l->f.headline && l->f.headline->font)
-        zui_text(s, l->f.headline, x, base_mid(l->f.headline, head), ZUI_TEXT, "Apps");
+        zui_text(s, l->f.headline, x, base_mid(l->f.headline, head), C(TEXT), "Apps");
     char line[64], *o = line, *end = line + sizeof line;
     uint32_t all = zui_apps_count(l->apps);
     if (l->nshown == all) {
@@ -489,7 +493,7 @@ static void header(zui_applib_t *l, zui_surface_t *s)
     }
     if (l->f.body && l->f.body->font) {
         int32_t w = zui_text_width(l->f.body, line);
-        zui_text(s, l->f.body, head.x + head.w - w, base_mid(l->f.body, head), ZUI_MUTED, line);
+        zui_text(s, l->f.body, head.x + head.w - w, base_mid(l->f.body, head), C(MUTED), line);
     }
 
     /* the layer switch: one carved track, the chosen half raised */
@@ -497,62 +501,63 @@ static void header(zui_applib_t *l, zui_surface_t *s)
     zui_rect_t a = zui_applib_segment(l, 0), z = zui_applib_segment(l, SEGS - 1);
     zui_rect_t track = {a.x, a.y, z.x + z.w - a.x, a.h};
     int32_t rad = P(l, ZUI_R_CONTROL);
-    zui_fill_rrect(s, track, rad, ZUI_PANEL, 255);
-    zui_engrave(s, track, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 40);
+    zui_fill_rrect(s, track, rad, C(PANEL), 255);
+    zui_engrave(s, track, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 40);
     for (uint32_t k = 0; k < SEGS; k++) {
         zui_rect_t r = zui_applib_segment(l, k);
         bool on = l->layer == k;
         if (on) {
             zui_rect_t in2 = {r.x + P(l, 2), r.y + P(l, 2), r.w - P(l, 4), r.h - P(l, 4)};
-            zui_fill_rrect(s, in2, rad - P(l, 2), ZUI_RAISED, 255);
-            zui_stroke_rrect(s, in2, rad - P(l, 2), P(l, 1) > 0 ? P(l, 1) : 1, ZUI_GOLD, 255);
+            zui_fill_rrect(s, in2, rad - P(l, 2), C(RAISED), 255);
+            zui_stroke_rrect(s, in2, rad - P(l, 2), P(l, 1) > 0 ? P(l, 1) : 1, C(GOLD), 255);
         }
         char lab[24], *q = lab, *qe = lab + sizeof lab;
         q = put(q, qe, NAME[k]);
         q = put(q, qe, "  ");
         put_u(q, qe, zui_apps_in_layer(l->apps, k));
-        text_mid(s, l->f.label, r, on ? ZUI_TEXT : ZUI_MUTED, lab);
+        text_mid(s, l->f.label, r, on ? C(TEXT) : C(MUTED), lab);
     }
 
     /* the search field */
     zui_rect_t f = zui_applib_field(l);
-    zui_fill_rrect(s, f, rad, ZUI_PANEL, 255);
-    zui_stroke_rrect(s, f, rad, P(l, 1) > 0 ? P(l, 1) : 1, l->qlen ? ZUI_GOLD : ZUI_EDGE, 255);
+    zui_fill_rrect(s, f, rad, C(PANEL), 255);
+    zui_stroke_rrect(s, f, rad, P(l, 1) > 0 ? P(l, 1) : 1, l->qlen ? C(GOLD) : C(EDGE), 255);
     int32_t g = f.h - P(l, ZUI_S4);
     zui_rect_t mg = {f.x + P(l, ZUI_S2), f.y + (f.h - g) / 2, g, g};
-    magnifier(s, l->work, mg, ZUI_MUTED);
+    magnifier(s, l->work, mg, C(MUTED));
     zui_rect_t tr = {mg.x + g + P(l, ZUI_S2), f.y, f.w - g - P(l, ZUI_S4) - f.h, f.h};
     if (l->f.body && l->f.body->font) {
         int32_t b = base_mid(l->f.body, f);
         if (l->qlen) {
-            int32_t end_x = zui_text_fit(s, l->f.body, tr.x, b, tr.w, ZUI_TEXT, l->query);
+            int32_t end_x = zui_text_fit(s, l->f.body, tr.x, b, tr.w, C(TEXT), l->query);
             zui_fill(s,
                      (zui_rect_t){end_x + P(l, 1), f.y + P(l, ZUI_S2), P(l, 2) > 0 ? P(l, 2) : 1,
                                   f.h - P(l, ZUI_S4)},
-                     ZUI_GOLD); /* the caret: typing always lands here */
+                     C(GOLD)); /* the caret: typing always lands here */
         } else {
             char ph[40], *pq = ph, *pe = ph + sizeof ph;
             pq = put(pq, pe, "Search ");
             pq = put_u(pq, pe, zui_apps_count(l->apps));
             put(pq, pe, " apps");
-            zui_text_fit(s, l->f.body, tr.x, b, tr.w, ZUI_MUTED, ph);
+            zui_text_fit(s, l->f.body, tr.x, b, tr.w, C(MUTED), ph);
         }
     }
     if (l->qlen) { /* the clear button: an x in a ring */
         zui_rect_t cb = zui_applib_clear_btn(l);
         int32_t m = cb.w / 3, t2 = P(l, 2) > 0 ? P(l, 2) : 1;
         for (int32_t i = 0; i <= cb.w - 2 * m; i++) {
-            zui_fill(s, (zui_rect_t){cb.x + m + i, cb.y + m + i, t2, t2}, ZUI_MUTED);
-            zui_fill(s, (zui_rect_t){cb.x + cb.w - m - i - t2, cb.y + m + i, t2, t2}, ZUI_MUTED);
+            zui_fill(s, (zui_rect_t){cb.x + m + i, cb.y + m + i, t2, t2}, C(MUTED));
+            zui_fill(s, (zui_rect_t){cb.x + cb.w - m - i - t2, cb.y + m + i, t2, t2}, C(MUTED));
         }
     }
 }
 
 static void empty(zui_applib_t *l, zui_surface_t *s)
 {
+    const zui_colors_t *cs = l->f.colors;
     zui_rect_t g = zui_applib_grid(l);
     int32_t d = P(l, 64);
-    magnifier(s, l->work, (zui_rect_t){g.x + (g.w - d) / 2, g.y + P(l, 40), d, d}, ZUI_GOLD);
+    magnifier(s, l->work, (zui_rect_t){g.x + (g.w - d) / 2, g.y + P(l, 40), d, d}, C(GOLD));
     char line[96], *o = line, *end = line + sizeof line;
     o = put(o, end, "No app matches \xE2\x80\x9C");
     o = put(o, end, l->query);
@@ -560,16 +565,17 @@ static void empty(zui_applib_t *l, zui_surface_t *s)
     if (l->f.title && l->f.title->font) {
         int32_t w = zui_text_width(l->f.title, line);
         if (w > g.w) w = g.w;
-        zui_text_fit(s, l->f.title, g.x + (g.w - w) / 2, g.y + P(l, 130), g.w, ZUI_TEXT, line);
+        zui_text_fit(s, l->f.title, g.x + (g.w - w) / 2, g.y + P(l, 130), g.w, C(TEXT), line);
     }
     int32_t bw = P(l, 140), bh = P(l, 32);
     zui_rect_t b = {g.x + (g.w - bw) / 2, g.y + P(l, 150), bw, bh};
-    zui_fill_rrect(s, b, P(l, ZUI_R_CONTROL), ZUI_GOLD, 255);
-    text_mid(s, l->f.body, b, ZUI_VOID, "Clear search");
+    zui_fill_rrect(s, b, P(l, ZUI_R_CONTROL), C(GOLD), 255);
+    text_mid(s, l->f.body, b, C(VOID), "Clear search");
 }
 
 static void scroll_indicator(zui_applib_t *l, zui_surface_t *s)
 {
+    const zui_colors_t *cs = l->f.colors;
     int32_t m = zui_applib_max_scroll(l);
     if (m <= 0) return;
     zui_rect_t g = zui_applib_grid(l);
@@ -579,15 +585,16 @@ static void scroll_indicator(zui_applib_t *l, zui_surface_t *s)
     int32_t ty = g.y + (int32_t) ((int64_t) (g.h - th) * l->scroll / m);
     int32_t w = P(l, 4) > 0 ? P(l, 4) : 1;
     int32_t x = l->box.x + l->box.w - pad(l) / 2 - w / 2;
-    zui_fill_rrect(s, (zui_rect_t){x, g.y, w, g.h}, w / 2, ZUI_HAIRLINE, 255);
-    zui_fill_rrect(s, (zui_rect_t){x, ty, w, th}, w / 2, ZUI_MUTED, 255);
+    zui_fill_rrect(s, (zui_rect_t){x, g.y, w, g.h}, w / 2, C(HAIRLINE), 255);
+    zui_fill_rrect(s, (zui_rect_t){x, ty, w, th}, w / 2, C(MUTED), 255);
 }
 
 void zui_applib_draw(zui_applib_t *l, zui_surface_t *s)
 {
+    const zui_colors_t *cs = l->f.colors;
     zui_rect_t keep = s->clip;
     set_clip(s, meet(l->box, keep));
-    zui_fill(s, l->box, ZUI_VOID);
+    zui_fill(s, l->box, C(VOID));
     header(l, s);
     if (!l->nshown) {
         empty(l, s);
@@ -606,8 +613,8 @@ void zui_applib_draw(zui_applib_t *l, zui_surface_t *s)
         if (t.y >= g.y + g.h) break;
         bool hot = (int32_t) pos == l->hover, foc = (int32_t) pos == l->focus;
         if (hot || foc) {
-            zui_fill_rrect(s, t, rad, ZUI_PANEL, 255);
-            zui_stroke_rrect(s, t, rad, ring, foc ? ZUI_GOLD : ZUI_EDGE, 255);
+            zui_fill_rrect(s, t, rad, C(PANEL), 255);
+            zui_stroke_rrect(s, t, rad, ring, foc ? C(GOLD) : C(EDGE), 255);
         }
         zui_rect_t ib = {t.x + (t.w - is) / 2, t.y + P(l, ZUI_S3), is, is};
         zui_app_t app;
@@ -615,12 +622,12 @@ void zui_applib_draw(zui_applib_t *l, zui_surface_t *s)
         if (hot || foc) /* on the raised tile: drawn, not copied from the cache */
             zui_app_icon(s, l->work, &app, ib, 0);
         else
-            icon(l, s, l->shown[pos], ib, ZUI_VOID);
+            icon(l, s, l->shown[pos], ib, C(VOID));
         zui_rect_t nb = {t.x + P(l, ZUI_S1), ib.y + is + P(l, ZUI_S2), t.w - P(l, ZUI_S2),
                          P(l, 20)};
-        text_mid(s, l->f.label, nb, hot || foc ? ZUI_TEXT : ZUI_TEXT_2, app.name);
+        text_mid(s, l->f.label, nb, hot || foc ? C(TEXT) : C(TEXT_2), app.name);
         zui_rect_t lb = {nb.x, nb.y + nb.h, nb.w, P(l, 16)};
-        text_mid(s, l->f.caption, lb, ZUI_MUTED, app.category);
+        text_mid(s, l->f.caption, lb, C(MUTED), app.category);
     }
     s->clip = meet(l->box, keep);
     scroll_indicator(l, s);
@@ -683,21 +690,23 @@ zui_rect_t zui_applib_card_open(uint32_t q8, bool built, zui_rect_t box)
 static int32_t section(zui_surface_t *s, const zui_applib_faces_t *f, uint32_t q8, int32_t x,
                        int32_t y, int32_t w, const char *title, const char *body)
 {
+    const zui_colors_t *cs = f->colors;
     if (!body || !body[0]) return y;
     if (f->caption && f->caption->font) {
-        zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), ZUI_GOLD, title);
+        zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), title);
         y += zui_text_ascent(f->caption) - zui_text_descent(f->caption) + pt(q8, ZUI_S1);
     }
-    y = wrap(s, f->body, x, y, w, ZUI_TEXT_2, body, q8);
+    y = wrap(s, f->body, x, y, w, C(TEXT_2), body, q8);
     return y + pt(q8, ZUI_S4);
 }
 
 void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces_t *f, uint32_t q8,
                      const zui_app_t *app, bool built, zui_rect_t box)
 {
+    const zui_colors_t *cs = f->colors;
     zui_rect_t keep = s->clip;
     set_clip(s, meet(box, keep));
-    zui_fill(s, box, ZUI_VOID);
+    zui_fill(s, box, C(VOID));
     int32_t m = pt(q8, ZUI_S5), is = pt(q8, 96);
     zui_rect_t ib = {box.x + m, box.y + m, is, is};
     zui_app_icon(s, w, app, ib, 0);
@@ -705,7 +714,7 @@ void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces
     zui_rect_t ob = zui_applib_card_open(q8, built, box);
     int32_t tw = box.x + box.w - m - tx;
     if (f->headline && f->headline->font)
-        zui_text_fit(s, f->headline, tx, ib.y + zui_text_ascent(f->headline), tw, ZUI_TEXT,
+        zui_text_fit(s, f->headline, tx, ib.y + zui_text_ascent(f->headline), tw, C(TEXT),
                      app->name);
     char meta[96], *o = meta, *end = meta + sizeof meta;
     o = put(o, end, "Layer ");
@@ -716,28 +725,28 @@ void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces
     put_u(o, end, app->number);
     int32_t y = ib.y + pt(q8, 40);
     if (f->body && f->body->font)
-        zui_text_fit(s, f->body, tx, y + zui_text_ascent(f->body), tw, ZUI_MUTED, meta);
+        zui_text_fit(s, f->body, tx, y + zui_text_ascent(f->body), tw, C(MUTED), meta);
     y = status_y(q8, box);
     /* the status: gold Open when there is a window, else said plainly */
     int32_t rad = pt(q8, ZUI_R_CONTROL);
     if (built) {
-        zui_fill_rrect(s, ob, rad, ZUI_GOLD, 255);
-        text_mid(s, f->body, ob, ZUI_VOID, "Open");
+        zui_fill_rrect(s, ob, rad, C(GOLD), 255);
+        text_mid(s, f->body, ob, C(VOID), "Open");
     } else if (f->label && f->label->font) {
         const char *ns = "Not built yet";
         int32_t pw = zui_text_width(f->label, ns) + pt(q8, ZUI_S4);
         zui_rect_t pill = {tx, y + pt(q8, 4), pw, pt(q8, 24)};
-        zui_stroke_rrect(s, pill, pill.h / 2, pt(q8, 1) > 0 ? pt(q8, 1) : 1, ZUI_EDGE, 255);
-        text_mid(s, f->label, pill, ZUI_MUTED, ns);
+        zui_stroke_rrect(s, pill, pill.h / 2, pt(q8, 1) > 0 ? pt(q8, 1) : 1, C(EDGE), 255);
+        text_mid(s, f->label, pill, C(MUTED), ns);
     }
     y = ib.y + is + pt(q8, ZUI_S5);
     int32_t x = box.x + m, cw = box.w - 2 * m;
-    zui_hline(s, x, y - pt(q8, ZUI_S3), cw, 1, ZUI_HAIRLINE);
+    zui_hline(s, x, y - pt(q8, ZUI_S3), cw, 1, C(HAIRLINE));
     y = section(s, f, q8, x, y, cw, "What it does", app->does);
     y = section(s, f, q8, x, y, cw, "Built from", app->built_from);
     if (app->pillars && app->pillars[0]) { /* one line per language */
         if (f->caption && f->caption->font) {
-            zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), ZUI_GOLD, "Languages");
+            zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), "Languages");
             y += zui_text_ascent(f->caption) - zui_text_descent(f->caption) + pt(q8, ZUI_S1);
         }
         const char *p = app->pillars;
@@ -748,7 +757,7 @@ void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces
             while (*p && *p != ';' && k + 1 < sizeof part) part[k++] = *p++;
             part[k] = 0;
             if (*p == ';') p++;
-            if (k) y = wrap(s, f->body, x, y, cw, ZUI_TEXT_2, part, q8);
+            if (k) y = wrap(s, f->body, x, y, cw, C(TEXT_2), part, q8);
         }
         y += pt(q8, ZUI_S4);
     }
