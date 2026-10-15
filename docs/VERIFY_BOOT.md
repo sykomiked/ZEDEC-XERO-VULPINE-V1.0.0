@@ -111,6 +111,13 @@ timestamp, volume serial and partition GUID is fixed. So:
 
   A locally built disc is listed in `dist/discs/SHA256SUMS`.
 
+## See past boots
+
+[docs/boot-evidence/](boot-evidence/) keeps one curated set for each
+milestone: serial logs, screenshots of the boot sequence, the commit and the
+markers that passed. Every run of the Verify boot workflow also keeps its
+full logs and screenshots as artifacts.
+
 ## Run it in CI instead
 
 The same check runs on GitHub with no setup. In the repository, open
