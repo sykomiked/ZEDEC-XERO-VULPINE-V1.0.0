@@ -25,6 +25,12 @@ birdsong	check clip_ms samples=-441 rate=44100 = -10
 birdsong	check rec_ok rate=7999,8000,48000,48001,16000,16000 channels=1,1,2,2,0,3 frames=0,0,480000,0,10,10 = false,true,true,false,false,false
 birdsong	check rec_ok rate=16000,16000 channels=1,1 frames=-1,480001 = false,false
 birdsong	check memo_ok memo=999999999,1 rate=99999,8000 channels=9,1 frames=999999999,0 mtime=999999999999,1000000000000 = true,false
+brazier	check minutes_left charge=0,1000,999999999,90000 draw=1000,1000,1,14090 = 0,60,59999999940,383
+brazier	check minutes_left charge=1,1000000000 draw=1,1 = both
+brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
+brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
+brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
+brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
 keepsake	check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
 keepsake	check removed snapshots=1000000000 keep=1 = both

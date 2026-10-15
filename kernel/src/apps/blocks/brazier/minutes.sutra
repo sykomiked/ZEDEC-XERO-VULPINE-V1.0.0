@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whole minutes a battery lasts at its present draw, in Sutra: charge in
+# milliwatt-hours over draw in milliwatts, times 60, never rounded up
+# (brazier_model.c brazier_minutes_left). Both fit 9(9): a larger or a
+# negative one is refused, and a draw of 0 is a division Sutra refuses.
+record minutes-left
+  charge: 9(9)
+  draw: 9(9)
+  minutes: 9(11)
+procedure
+  compute minutes = charge * 60 / draw
+  answer minutes

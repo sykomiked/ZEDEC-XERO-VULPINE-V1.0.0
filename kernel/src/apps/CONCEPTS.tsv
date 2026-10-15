@@ -29,6 +29,7 @@ let_notice_through	stillwater.let_through	let_through,breakthrough,notice_throug
 chain_intact	witness.chain_ok	chain_ok,chain_intact,chain_link,linked,link_ok	one link of a chain of integer indexes: an entry is linked when its prev index equals the index of the entry before it (last; 0 for the first) and its own index is past last; a chain is intact when every entry is linked; an index negative or past 18 digits is held (Sutra's 9(18) refuses, KRON answers)
 count_by_kind	witness.kind_count	kind_count,count_by_kind,count_of_kind,kind_total,tally_kind	how many entries of a vector of kinds equal one kind (want, one value for the whole vector), exact; two wants are held (Trebago refuses, KRON sums them)
 audit_record	witness.audit_ok	audit_ok,audit_record,audit_entry_ok	an audit record entry fits ^ZXWIT: seq and prev at most 18 digits, kind 1 digit, stamp (ms since 1970) at most 15 digits, sign aside
+minutes_at_draw	brazier.minutes_left	minutes_left,minutes_to_empty,time_to_empty,runtime_minutes	whole minutes a store of energy lasts at a steady draw: floor(60 * charge / draw), charge in milliwatt-hours and draw in milliwatts (any unit-hour over the same unit); refused when draw is 0 or negative, charge is negative, or either passes 999999999 (Sutra's 9(9))
 #
 # The assurance fee (8889 per ten million) has no block yet; fee_check's fee is
 # an example rate, a local word. When a block owns the assurance fee, it goes

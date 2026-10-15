@@ -51,7 +51,10 @@
 #define ALX_SLOT_LOGIC_WITNESS_AUDIT_OK          43u /* 490.17 witness.audit_ok */
 #define ALX_SLOT_LOGIC_WITNESS_CHAIN_OK          44u /* 490.18 witness.chain_ok */
 #define ALX_SLOT_NUM_WITNESS_KIND_COUNT          45u /* 590.16 witness.kind_count */
-#define ALX_SLOT__COUNT 45u
+#define ALX_SLOT_LOGIC_BRAZIER_HEAT_OK           46u /* 490.19 brazier.heat_ok */
+#define ALX_SLOT_LOGIC_BRAZIER_HEAT_SAFE         47u /* 490.20 brazier.heat_safe */
+#define ALX_SLOT_NUM_BRAZIER_MINUTES_LEFT        48u /* 590.17 brazier.minutes_left */
+#define ALX_SLOT__COUNT 48u
 /* clang-format on */
 
 #endif
