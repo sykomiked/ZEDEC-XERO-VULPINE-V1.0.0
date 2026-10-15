@@ -63,7 +63,11 @@ habits.
   re-seeds the record at birth. Agents spawned by the agency carry their
   parent's id, so the family tree is a hash chain. The genes are the ones
   `zui_chiglet` draws, so a visiting chiglet looks like itself on any
-  screen.
+  screen. A person names their chiglet once (`chg_name`). The name gives
+  the seed and leans temperament, warmth and pace, and `chgk_dna_birth_named`
+  stores those leaned genes in the hashed record, so the personality is
+  fixed by the id. A named birth never re-seeds on a clash, and the name and
+  its salt never travel.
 - **Hobbies.** Each member gets 3 to 5 hobbies out of a catalogue of 144,
   picked by its DNA id, and no two members of one agency share a set.
   Hobbies keep deviation constructive without drift:

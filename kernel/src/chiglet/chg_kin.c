@@ -91,14 +91,27 @@ uint32_t chgk_dna_encode(const chgk_dna_t *d, uint8_t *out, uint32_t cap)
     kcpy(out + at, d->parent, 32), at += 32;
     put(out, &at, d->seed, 8);
     kcpy(out + at, d->genes, CHGK_GENES), at += CHGK_GENES;
+    out[at++] = d->named;
     put(out, &at, d->generation, 4);
     return at;
 }
 
-static void dna_finish(chgk_dna_t *d)
+/* The genes a name may lean; every other gene is the seed's. */
+static bool name_leans(uint32_t gene)
 {
-    swarm_dna_t g = swarm_dna_from_seed(d->seed);
-    kcpy(d->genes, g.gene, CHGK_GENES);
+    return gene == SWARM_GENE_TEMPERAMENT || gene == SWARM_GENE_WARMTH || gene == SWARM_GENE_PACE;
+}
+
+static bool genes_fit_seed(const uint8_t genes[CHGK_GENES], uint64_t seed, bool named)
+{
+    swarm_dna_t g = swarm_dna_from_seed(seed);
+    for (uint32_t i = 0; i < CHGK_GENES; i++)
+        if (genes[i] != g.gene[i] && !(named && name_leans(i))) return false;
+    return true;
+}
+
+static void dna_hash(chgk_dna_t *d)
+{
     uint8_t buf[CHGK_DNA_ENC];
     uint32_t n = chgk_dna_encode(d, buf, sizeof(buf));
     sha3_256(buf, n, d->id);
@@ -122,9 +135,34 @@ chgk_status_t chgk_dna_birth(chgk_registry_t *r, const uint8_t owner[32], const 
     for (uint32_t tries = 0;; tries++) {
         if (tries > 1000000u) return CHGK_ERR_FULL;
         d.seed = seed + tries;
-        dna_finish(&d);
+        swarm_dna_t g = swarm_dna_from_seed(d.seed);
+        kcpy(d.genes, g.gene, CHGK_GENES);
+        dna_hash(&d);
         if (!r || !reg_has(r, d.id)) break;
     }
+    if (r) kcpy(r->id[r->n++], d.id, 32);
+    kcpy(out, &d, sizeof(d));
+    return CHGK_OK;
+}
+
+chgk_status_t chgk_dna_birth_named(chgk_registry_t *r, const uint8_t owner[32],
+                                   const uint8_t species[32], const uint8_t lineage[32],
+                                   uint64_t name_seed, const uint8_t genes[CHGK_GENES],
+                                   chgk_dna_t *out)
+{
+    if (!owner || !species || !lineage || !genes || !out) return CHGK_ERR_ARG;
+    if (!genes_fit_seed(genes, name_seed, true)) return CHGK_ERR_ARG;
+    if (r && r->n >= CHGK_REG_MAX) return CHGK_ERR_FULL;
+    chgk_dna_t d;
+    kzero(&d, sizeof(d));
+    kcpy(d.owner, owner, 32);
+    kcpy(d.species, species, 32);
+    kcpy(d.lineage, lineage, 32);
+    d.seed = name_seed;
+    kcpy(d.genes, genes, CHGK_GENES);
+    d.named = 1;
+    dna_hash(&d);
+    if (r && reg_has(r, d.id)) return CHGK_ERR_DUP; /* never re-seed a name */
     if (r) kcpy(r->id[r->n++], d.id, 32);
     kcpy(out, &d, sizeof(d));
     return CHGK_OK;
@@ -144,10 +182,13 @@ chgk_status_t chgk_dna_decode(const uint8_t *in, uint32_t len, chgk_dna_t *d)
     kcpy(t.parent, in + at, 32), at += 32;
     t.seed = get(in, &at, 8);
     kcpy(t.genes, in + at, CHGK_GENES), at += CHGK_GENES;
+    t.named = in[at++];
     t.generation = (uint32_t) get(in, &at, 4);
-    /* the genes are not free: they are what the seed grows */
-    swarm_dna_t g = swarm_dna_from_seed(t.seed);
-    if (!keq(g.gene, t.genes, CHGK_GENES)) return CHGK_ERR_PARSE;
+    if (t.named > 1) return CHGK_ERR_PARSE;
+    /* the genes are not free: they are what the seed grows (a name leans
+     * three of them), and a named chiglet is born to a person */
+    if (!genes_fit_seed(t.genes, t.seed, t.named == 1)) return CHGK_ERR_PARSE;
+    if (t.named && !kzero_p(t.parent, 32)) return CHGK_ERR_PARSE;
     if (kzero_p(t.parent, 32) != (t.generation == 0)) return CHGK_ERR_PARSE;
     sha3_256(in, len, t.id);
     kcpy(d, &t, sizeof(t));
