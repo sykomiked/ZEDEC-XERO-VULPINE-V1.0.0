@@ -378,12 +378,18 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
 
     boot_evidence_final();
 
-    uint64_t cycle = 0;
+    /* The LAPIC timer (X86_HZ) wakes each hlt, so the heartbeat counts timer
+     * ticks: one line every ten seconds. Counting wake-ups instead (10M of
+     * them) printed once a day at 100 Hz, which read as no timer at all. */
+    uint64_t next = x86_ticks() + 10u * X86_HZ;
     while (1) {
-        if (++cycle >= 10000000) {
-            cycle = 0;
-            boot_msg("[BOOT_OK] heartbeat: cycle=10M");
-        }
         hlt();
+        uint64_t now = x86_ticks();
+        if (now >= next) {
+            next = now + 10u * X86_HZ;
+            uart_puts("[BOOT_OK] heartbeat: ticks=");
+            uart_put_dec(now);
+            uart_puts("\n");
+        }
     }
 }
