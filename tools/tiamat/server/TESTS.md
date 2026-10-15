@@ -90,14 +90,42 @@ gated cell with its sources (S1), then turn the same-base fine-tunes into
 adapters (S3). S3's report is T3's extraction gate: top-1 agreement at least
 0.97 and KL at most 0.05 per cell.
 
+Rerun after the first J5 (2026-10-15 12:11): S1 now also fetches a sharded
+checkpoint's index and an upstream LoRA's `adapter_config.json`
+(Theoremwyrm and Reviewdrake failed without them), and S3 reports each cell
+and goes on: ADAPTER (extracted, passes the gate), UPSTREAM_ADAPTER (already
+a LoRA on the tissue's base, copied as it is), FULL (ships whole) or ERROR
+(with the reason). One report per tissue, named for its trunk:
+`report_Spinewyrm.json`, `report_Numberwyrm.json`, `report_Kindlewyrm.json`,
+`report_Awllindworm.json`.
+
 ```sh
 cd $REPO/tools/tiamat/server
+python3 test_extract_adapters.py 2>&1 | tee $OUT/s3_selftest.log       # must end [PASS]
 python3 fetch_pinned.py --dest $M --placement disc disc_gated --source 2>&1 | tee $OUT/s1_fetch.log
 for base in Qwen/Qwen2.5-1.5B-Instruct Qwen/Qwen2.5-Math-1.5B Qwen/Qwen2.5-0.5B-Instruct Qwen/Qwen2.5-Coder-0.5B-Instruct; do
-  python3 extract_adapters.py --models $M --out /srv/tiamat/adapters --tissue $base 2>&1 | tee -a $OUT/s3_adapters.log
+  python3 extract_adapters.py --models $M --out /srv/tiamat/adapters --tissue $base 2>&1 | grep -v torch_dtype | tee -a $OUT/s3_adapters.log
 done
-cp /srv/tiamat/adapters/*.json $OUT/ 2>/dev/null
+cp /srv/tiamat/adapters/report_*.json $OUT/
 ```
+
+Then the disc's adapter files and their hashes (S9): each adapter converted
+to the engine's GGUF LoRA with llama.cpp (pinned at tag b6500, commit
+a7a98e0f; a build tool only, nothing of it ships), written with its SHA-256
+and size into `golden.models`:
+
+```sh
+git clone --depth 1 --branch b6500 https://github.com/ggml-org/llama.cpp /srv/tiamat/llama.cpp
+git -C /srv/tiamat/llama.cpp rev-parse HEAD        # must print a7a98e0fffed794396b3fbad4dcdbbc184963645
+pip install -e /srv/tiamat/llama.cpp/gguf-py
+LLAMA_CPP=/srv/tiamat/llama.cpp $REPO/tools/tiamat/server/build_disc_models.sh /srv/tiamat 2>&1 | tee $OUT/s9_build.log
+cp /srv/tiamat/golden.models $OUT/golden.models
+grep -- '-lora-f16.gguf' /srv/tiamat/golden.models | tee $OUT/adapters_golden.txt
+```
+
+`adapters_golden.txt` is one line per disc adapter: file, SHA-256, size.
+Those are the numbers the disc's golden list needs; a cell with no line
+ships whole in a pack.
 
 T3's task-set comparison (each tuned cell against its upstream model on that
 cell's own tasks, plus a 100-question canary) needs per-cell task sets that

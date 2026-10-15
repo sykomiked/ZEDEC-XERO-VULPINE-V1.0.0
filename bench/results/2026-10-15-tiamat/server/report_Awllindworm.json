@@ -1,0 +1,19 @@
+{
+  "tissue": "Qwen/Qwen2.5-Coder-0.5B-Instruct",
+  "trunk": "Awllindworm",
+  "cells": {
+    "Mendlindworm": {
+      "embedding_delta_norm": 0.0,
+      "result": "FULL"
+    },
+    "Recordlindworm": {
+      "embedding_delta_norm": 4.4405460357666016e-06,
+      "result": "ADAPTER",
+      "split_layer": 3,
+      "rank": 16,
+      "top1_agree": 0.9711191335740073,
+      "kl": 0.008645627687984426
+    }
+  },
+  "shared_split_layer": 3
+}
