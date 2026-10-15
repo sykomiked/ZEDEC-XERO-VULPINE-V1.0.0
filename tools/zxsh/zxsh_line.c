@@ -41,15 +41,23 @@ int zline_history_count(void)
 
 /* --------------------------------------------------------------- output */
 
+/* Through stdio, flushed at once: this is the user's own terminal, and
+ * history lines come from a file under $HOME. */
 static void put(const char *s, size_t n)
 {
     while (n) {
-        ssize_t w = write(1, s, n);
-        if (w < 0 && errno == EINTR) continue;
-        if (w <= 0) return;
+        size_t w = fwrite(s, 1, n, stdout);
+        if (w == 0) {
+            if (ferror(stdout) && errno == EINTR) {
+                clearerr(stdout);
+                continue;
+            }
+            break;
+        }
         s += w;
-        n -= (size_t) w;
+        n -= w;
     }
+    fflush(stdout);
 }
 
 static void puts_(const char *s)

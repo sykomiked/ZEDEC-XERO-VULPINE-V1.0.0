@@ -985,26 +985,30 @@ static char *slurp(const char *path)
     return b;
 }
 
-/* H8: a line zxsh cannot read goes to bash (or sh), which says so. */
-static bool compat_shell(char *path, size_t n)
+/* H8: a line zxsh cannot read goes to bash (or sh), which says so. Only the
+ * name is returned: execvp finds it on PATH again, so no PATH entry is copied
+ * into the command line (or from there into a sub-terminal or zxvd request). */
+static const char *compat_shell(void)
 {
-    if (!g_compat) return false;
-    return on_path("bash", path, n) || on_path("sh", path, n);
+    char path[4096];
+    if (!g_compat) return NULL;
+    if (on_path("bash", path, sizeof path)) return "bash";
+    if (on_path("sh", path, sizeof path)) return "sh";
+    return NULL;
 }
 
 static zxsh_status_t run_compat(zxsh_t *sh, const char *text, bool is_file, char *const *args,
                                 int nargs)
 {
-    char path[4096];
-    if (!compat_shell(path, sizeof path)) {
+    const char *shell = compat_shell();
+    if (!shell) {
         fprintf(stderr, "zxsh: %s\n", sh->why);
         return ZXSH_SYNTAX;
     }
-    fprintf(stderr, "zxsh: %s handled this (%s)\n",
-            strrchr(path, '/') ? strrchr(path, '/') + 1 : path, sh->why);
+    fprintf(stderr, "zxsh: %s handled this (%s)\n", shell, sh->why);
     zxsh_stage_t s;
     memset(&s, 0, sizeof s);
-    s.argv[s.argc++] = path;
+    s.argv[s.argc++] = (char *) shell;
     if (!is_file) s.argv[s.argc++] = (char *) "-c";
     s.argv[s.argc++] = (char *) text;
     for (int i = 0; i < nargs && s.argc < (int) ZXSH_MAX_ARGS - 1; i++) s.argv[s.argc++] = args[i];
