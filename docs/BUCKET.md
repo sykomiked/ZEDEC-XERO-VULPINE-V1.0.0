@@ -128,12 +128,15 @@ SHA-256, no libraries) and compares the CID it prints with the name. For an
 installer file it also checks that each listed file is beside it in the
 bucket, with the listed size and SHA-256 and a name that is its CID. It
 prints `FALSE <file>: its CID is <cid>` for a name that is not true and exits
-1.
+1. A tree line is checked against the root itself: `mk_bucket.py` writes the
+root block beside the bucket as `<bucket>.root.pb`, `zxv-cid --links` hashes
+it (it must be the origin in `<bucket>.cid`) and lists its links, and the
+tree's name must link to the tree's CID.
 
 ## The installer file
 
 ASCII, one item per line, in install order (core discs, layers, swarm discs,
-cartridges, documents):
+cartridges, documents, then trees):
 
 ```
 # zxv-install 1
@@ -141,7 +144,28 @@ max_disc_bytes 1800000000
 seal <POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER>
 gateway <url>                                   (any number: where to fetch)
 <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
+tree all - - <tsize> - <cid> <name>                 (with mk_bucket.py --tree)
 ```
+
+A **tree** line names a directory or file at the root that another tool
+built and `mk_bucket.py --tree DIR` links in by CID, as it is: the matrix,
+its vector plane, the source bundle, the browser boot and its files. Its
+size is the DAG's total size and it has no SHA-256 (`-`, allowed only for a
+tree): each of its blocks is checked against its CID as it is fetched. Its
+blocks are never re-chunked: a matrix booklet is one raw block of up to
+1 MiB named by its raw CID, which the 256 KiB chunks of the pinned add
+parameters would change. So with trees, `ipfs add -r` of the bucket folder
+is not the origin; the origin is the root `mk_bucket.py` computes over the
+bucket's own children and the tree links, and `--blocks` holds every block of
+both. `zxv-get` fetches a tree after everything else: the root's link of
+that name must be the listed CID, then each block is checked as it comes.
+Links named `@NNN` inside the matrix (a layer's links to the layers it is
+built from) are not followed: those layers are fetched at their own place.
+
+`--tree DIR` reads `DIR/links.json` (`{"name": ["<cid>", <tsize>]}`) and
+`DIR/blocks.car` (a CAR v1). It refuses a name that is not plain or that a
+bucket folder uses, and an entry any of whose blocks is missing from the CAR
+or does not match its CID, before it touches the bucket.
 
 `zxv-get` refuses a root with no `<cid>.install` or more than one, an
 installer not named by its CID, and a line whose file name is not its CID.
@@ -165,7 +189,11 @@ whether or not the ones before it are present:
 | `09_source` | the source bundle | the release work |
 
 Folders 04 to 09 follow the same rule: every file named by its CID, each
-root listed in the installer file.
+root listed in the installer file. They come in as trees (`--tree`), and so
+do the browser boot (`index.html`, `boot.js`, `zxv_boot.wasm`, `brand/`,
+`boot.json`), `GREETING.txt`, `MANIFEST.tsv`, the scripted installers
+(`install.sh`, `install.ps1`) and `10_vm` (the Disc 1 launchers for a VM),
+each linked at the root by its name and listed as a tree line.
 
 ## Not built yet
 
