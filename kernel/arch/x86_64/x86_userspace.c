@@ -24,6 +24,7 @@
  */
 #include "x86_userspace.h"
 #include "../zxv_handoff.h"
+#include "bootmem_x86.h"
 #include "efifb_con.h"
 #include "uart_16550.h"
 #include "../../src/syscall/syscall.h"
@@ -108,60 +109,22 @@ static void copy_frame(x86_frame_t *dst, const x86_frame_t *src)
 }
 
 /* ---- the frame pool ------------------------------------------------------- */
-#define POOL_MAX_FRAMES 512u          /* at most 2 MB from the map */
-#define FALLBACK_FRAMES 128u          /* 512 KB when there is no map */
-#define IDENTITY_LIMIT  0x40000000ULL /* boot maps the low 1 GB */
+/* User frames come from bootmem_x86 (firmware-usable memory past the kernel,
+ * from the handoff map or the Multiboot map), the same source as the
+ * kernel's large buffers, so the two can never hand out the same page. */
+#define POOL_MAX_FRAMES 512u /* 2 MB */
 
 static pmm_t g_upmm;
 static uint8_t g_upmm_bits[PMM_BITS_BYTES(POOL_MAX_FRAMES)];
-static uint8_t g_fallback_pool[FALLBACK_FRAMES * PMM_FRAME] __attribute__((aligned(4096)));
 static uint32_t g_frames_fenced;
-static int g_pool_ready, g_pool_from_map;
-
-extern char __stack_top[];
-
-/* The largest usable range of the handoff map that lies wholly above the
- * kernel (image, BSS and its stack) and below the identity limit. 0 when
- * there is no accepted handoff. */
-static uint64_t pool_from_handoff(uint32_t *nframes)
-{
-    const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
-    if (zxh_accept(h) != 1) return 0;
-    uint64_t floor = (uint64_t) (uintptr_t) __stack_top;
-    if (h->kernel_hi > floor) floor = h->kernel_hi;
-    floor = (floor + PMM_FRAME - 1) & ~(uint64_t) (PMM_FRAME - 1);
-    uint64_t best = 0, best_n = 0;
-    for (uint32_t i = 0; i < h->n_mem; i++) {
-        const zxh_mem_t *m = &h->mem[i];
-        if (m->kind != ZXH_MEM_USABLE) continue;
-        uint64_t lo = m->base, hi = m->base + m->pages * PMM_FRAME;
-        if (lo < floor) lo = floor;
-        if (hi > IDENTITY_LIMIT) hi = IDENTITY_LIMIT;
-        if (hi <= lo) continue;
-        uint64_t n = (hi - lo) / PMM_FRAME;
-        if (n > best_n) {
-            best = lo;
-            best_n = n;
-        }
-    }
-    if (best_n > POOL_MAX_FRAMES) best_n = POOL_MAX_FRAMES;
-    *nframes = (uint32_t) best_n;
-    return best_n ? best : 0;
-}
+static int g_pool_ready;
 
 static void pool_init(void)
 {
     if (g_pool_ready) return;
-    uint32_t n = 0;
-    uint64_t base = pool_from_handoff(&n);
-    if (base && n >= 64u) {
-        g_pool_from_map = 1;
-    } else {
-        base = (uint64_t) (uintptr_t) g_fallback_pool;
-        n = FALLBACK_FRAMES;
-        g_pool_from_map = 0;
-    }
-    pmm_init(&g_upmm, base, n, g_upmm_bits);
+    void *base = bootmem_x86_take((uint64_t) POOL_MAX_FRAMES * PMM_FRAME, "the process frame pool");
+    if (!base) return; /* no memory evidence: no processes, said by bootmem */
+    if (pmm_init(&g_upmm, (uint64_t) (uintptr_t) base, POOL_MAX_FRAMES, g_upmm_bits) != 0) return;
     g_pool_ready = 1;
 }
 
@@ -631,14 +594,17 @@ int x86_sched_selftest(void)
     }
     cpu_setup();
     pool_init();
+    if (!g_pool_ready) {
+        uart_puts("  [PROC] no frame pool: scheduler self-test skipped\n");
+        return -1;
+    }
     proc_sched_init(&g_sched);
     uint32_t free0 = proc_user_pages_free();
     uart_puts("  [PROC] frame pool ");
     uart_put_dec(g_upmm.nframes);
     uart_puts(" frames at 0x");
     uart_put_hex(g_upmm.base);
-    uart_puts(g_pool_from_map ? " (usable RAM from the handoff memory map)"
-                              : " (static pool: no handoff map)");
+    uart_puts(" (firmware-usable memory past the kernel)");
     uart_puts(g_nx ? ", NX on\n" : ", no NX\n");
 
     /* Spinners burn 15 ticks of TSC time each, checking their xmm registers

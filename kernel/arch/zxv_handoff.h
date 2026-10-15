@@ -6,7 +6,7 @@
  * ExitBootServices and threw it away; the kernel received a framebuffer and
  * nothing else. This record carries what a kernel needs to own a real
  * machine: the memory map (compacted), the ACPI and SMBIOS table pointers,
- * the firmware clock, the kernel's full extent (image + BSS), and two
+ * the firmware clock, the kernel's full extent (image, BSS, boot stack), and two
  * verdicts the stub reached while firmware still existed.
  *
  * It sits in the stub's handoff page right after the 64-byte framebuffer
@@ -77,7 +77,7 @@ typedef struct {
     uint64_t rsdp;                 /* ACPI 2.0+ RSDP (or 1.0 when only that exists); 0 = none */
     uint64_t smbios3;              /* SMBIOS 3 entry point; 0 = none */
     int64_t efi_time;              /* UTC seconds since 1970 from GetTime; 0 = no clock */
-    uint64_t kernel_lo, kernel_hi; /* the window the kernel image + BSS occupy */
+    uint64_t kernel_lo, kernel_hi; /* the window the kernel image, BSS and boot stack occupy */
     uint8_t window;                /* verdict, see above */
     uint8_t models;                /* verdict, see above */
     uint8_t flags;                 /* ZXH_F_* */
