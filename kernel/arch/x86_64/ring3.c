@@ -11,6 +11,7 @@
 #include "../../src/syscall/syscall.h"
 #include <stdint.h>
 #include "ring3.h"
+#include "x86_irq.h" /* x86_irq_idt_live: the interrupt layer's IDT */
 
 extern void uart_puts(const char *s);
 
@@ -114,8 +115,12 @@ int x86_idt_ready(void)
 {
     struct desc_ptr cur = {0, 0};
     __asm__ __volatile__("sidt %0" : "=m"(cur));
-    return cur.base == (uint64_t) g_idt && cur.limit == sizeof g_idt - 1 &&
-           (g_idt[13].type_attr & 0x80) != 0;
+    if (cur.base == (uint64_t) g_idt && cur.limit == sizeof g_idt - 1 &&
+        (g_idt[13].type_attr & 0x80) != 0)
+        return 1;
+    /* Once the interrupt layer (x86_irq.c) has loaded its own IDT, its trap
+     * dispatcher recovers #GP through the same table. */
+    return x86_irq_idt_live();
 }
 
 /* ================= User-page U/S mapping ================= */

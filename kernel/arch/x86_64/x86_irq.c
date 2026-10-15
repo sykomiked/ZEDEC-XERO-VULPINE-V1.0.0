@@ -121,6 +121,14 @@ static void idt_init(void)
     __asm__ __volatile__("lidt %0" : : "m"(ip));
 }
 
+int x86_irq_idt_live(void)
+{
+    struct desc_ptr cur = {0, 0};
+    __asm__ __volatile__("sidt %0" : "=m"(cur));
+    return cur.base == (uint64_t) (uintptr_t) g_idt && cur.limit == sizeof g_idt - 1 &&
+           (g_idt[13].type_attr & 0x80) != 0;
+}
+
 /* ---- legacy 8259 PIC ------------------------------------------------------ */
 /* Remap to 0x20/0x28 before masking: masked lines still raise a spurious
  * IRQ 7 or 15, and at the power-on mapping (0x08-0x0F) that would read as a

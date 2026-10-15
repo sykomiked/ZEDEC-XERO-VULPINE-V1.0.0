@@ -84,6 +84,10 @@ const x86_irq_info_t *x86_irq_info(void);
 /* Timer interrupts taken since x86_timer_start. */
 uint64_t x86_ticks(void);
 
+/* 1 when the IDTR points at this layer's IDT (read back with SIDT), whose
+ * #GP gate recovers registered instructions (msr_safe.h). */
+int x86_irq_idt_live(void);
+
 /* C entry from every trap stub (x86_trap_asm.S). */
 void x86_trap(x86_frame_t *f);
 
