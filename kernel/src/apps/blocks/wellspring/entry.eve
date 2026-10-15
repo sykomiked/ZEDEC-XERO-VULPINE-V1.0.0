@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a log entry may say (wellspring_model.h): a day since 1970 that fits
+# six digits, one of the four kinds, and an amount of 0 to 999999999.
+eve wellspring
+log_day = 0 .. 999999
+log_kind = 1 .. 4
+log_amount = 0 .. 999999999
+
+log_entry {
+  day: log_day
+  kind: log_kind
+  amount: log_amount
+}

@@ -17,4 +17,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: camera, fs.read, fs.write, sys.read, net, ledger.read, ledger.post.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending MATLAB colour`; `pending ML edited_mark`; `pending ALGOL_60 licence_sale`.
-Planned (no runtime yet): MATLAB, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/stereoscope/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): MATLAB, ML.

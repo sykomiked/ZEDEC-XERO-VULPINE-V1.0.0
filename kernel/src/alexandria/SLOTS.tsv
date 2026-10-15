@@ -64,3 +64,16 @@
 27	num.tidewatch_peak	590.09	tidewatch.peak	base
 28	num.wake_count	590.10	wake.count	base
 29	logic.waymark_place_ok	490.08	waymark.place_ok	base
+30	num.birdsong_clip_ms	590.11	birdsong.clip_ms	base
+31	num.birdsong_gain	590.12	birdsong.gain	base
+32	logic.birdsong_memo_ok	490.09	birdsong.memo_ok	base
+33	logic.birdsong_rec_ok	490.10	birdsong.rec_ok	base
+34	num.wellspring_band	590.13	wellspring.band	base
+35	logic.wellspring_log_ok	490.11	wellspring.log_ok	base
+36	num.wellspring_progress_x100	590.14	wellspring.progress_x100	base
+37	logic.wellspring_safe_ok	490.12	wellspring.safe_ok	base
+38	num.wellspring_week	590.15	wellspring.week	base
+39	logic.stillwater_let_through	490.13	stillwater.let_through	base
+40	logic.stillwater_quiet_now	490.14	stillwater.quiet_now	base
+41	logic.stillwater_record_ok	490.15	stillwater.record_ok	base
+42	logic.stillwater_schedule_ok	490.16	stillwater.schedule_ok	base

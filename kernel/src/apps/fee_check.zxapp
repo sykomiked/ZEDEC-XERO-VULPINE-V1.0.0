@@ -8,6 +8,7 @@
 # fits its M record is MYRA. Amounts and fees are in cents.
 zxapp 1
 id     fee_check
+matrix 73
 name   Fee Check
 
 provides fee num amount rate

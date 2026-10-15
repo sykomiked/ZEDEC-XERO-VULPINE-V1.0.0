@@ -198,6 +198,162 @@ static bool cid_ok(const char *w, uint32_t n)
     return true;
 }
 
+/* C3: "cid:" and a CIDv1 of raw bytes under SHA-256, in lowercase base32
+ * ("b" and 58 letters): 36 bytes, 0x01 0x55 0x12 0x20 and the digest, the
+ * 2 bits past them zero. */
+static bool cid_path(const char *p)
+{
+    static const char B32[] = "abcdefghijklmnopqrstuvwxyz234567";
+    uint8_t out[36];
+    uint32_t acc = 0, bits = 0, k = 0, i = 0;
+    if (!word_is(p, 5, "cid:b")) return false;
+    for (i = 5; p[i]; i++) {
+        uint32_t v = 0;
+        while (v < 32u && B32[v] != p[i]) v++;
+        if (v == 32u || i >= 63u) return false;
+        acc = (acc << 5) | v;
+        bits += 5u;
+        if (bits >= 8u) {
+            bits -= 8u;
+            out[k++] = (uint8_t) (acc >> bits);
+            acc &= (1u << bits) - 1u;
+        }
+    }
+    return i == 63u && k == 36u && acc == 0 && out[0] == 0x01 && out[1] == 0x55 && out[2] == 0x12 &&
+           out[3] == 0x20;
+}
+
+/* ---- K: check lines -------------------------------------------------------- */
+
+typedef struct {
+    char entry[ZXAPP_ENTRY_MAX];
+    char name[ZXAPP_INPUTS][ZXAPP_ID_MAX];
+    int64_t v[ZXAPP_INPUTS][ZXAPP_CHECK_VALS];
+    uint32_t nv[ZXAPP_INPUTS], nin;
+    zxapp_num_t ans[ZXAPP_CHECK_VALS];
+    uint32_t nans;
+    bool both;
+} check_t;
+
+/* A whole number in [INT64_MIN, INT64_MAX], an optional '-' first. */
+static bool whole_at(const char *p, uint32_t n, int64_t *v)
+{
+    uint32_t i = n && p[0] == '-';
+    uint64_t lim = i ? (uint64_t) INT64_MAX + 1u : (uint64_t) INT64_MAX, m = 0;
+    if (i >= n) return false;
+    for (; i < n; i++) {
+        if (p[i] < '0' || p[i] > '9') return false;
+        uint64_t d = (uint64_t) (p[i] - '0');
+        if (m > (lim - d) / 10u) return false;
+        m = m * 10u + d;
+    }
+    *v = p[0] != '-' ? (int64_t) m : m == lim ? INT64_MIN : -(int64_t) m;
+    return true;
+}
+
+static uint64_t gcd64(uint64_t x, uint64_t y)
+{
+    while (y) {
+        uint64_t t = x % y;
+        x = y;
+        y = t;
+    }
+    return x;
+}
+
+/* One answer row: a whole number, "n/d" (kept reduced, as runtimes answer),
+ * or a truth. */
+static bool answer_at(const char *p, uint32_t n, zxapp_num_t *o)
+{
+    if (word_is(p, n, "true") || word_is(p, n, "false") || word_is(p, n, "neither")) {
+        *o = (zxapp_num_t){p[0] == 't' ? ZXAPP_TRUE : p[0] == 'f' ? ZXAPP_FALSE : ZXAPP_NEITHER, 0};
+        return true;
+    }
+    uint32_t s = 0;
+    while (s < n && p[s] != '/') s++;
+    int64_t num, den = 1;
+    if (!whole_at(p, s, &num) || (s < n && (!whole_at(p + s + 1u, n - s - 1u, &den) || den < 1)))
+        return false;
+    if (num == INT64_MIN) return false; /* no exact fraction has it as a reduced numerator */
+    int64_t g = (int64_t) gcd64((uint64_t) (num < 0 ? -num : num), (uint64_t) den);
+    *o = (zxapp_num_t){g > 1 ? num / g : num, g > 1 ? den / g : den};
+    return true;
+}
+
+/* K1: "check <entry> <input>=<v>,... = <answer>" into *c, or the reason
+ * it does not parse in *why. p..n is the line after "check". */
+static bool check_parse(const char *p, uint32_t n, check_t *c, const char **why)
+{
+    uint32_t i = 0, tok = 0;
+    bool answer = false, done = false;
+    c->nin = c->nans = 0;
+    c->both = false;
+    c->entry[0] = 0;
+    for (;;) {
+        while (i < n && space(p[i])) i++;
+        if (i >= n || p[i] == '#') break;
+        uint32_t b = i;
+        while (i < n && !space(p[i])) i++;
+        const char *w = p + b;
+        uint32_t wl = i - b;
+        if (done) {
+            *why = "check: one answer after \"=\" (no spaces inside it)";
+            return false;
+        }
+        if (!tok++) {
+            if (!dotted(w, wl) || !word_copy(c->entry, sizeof c->entry, w, wl)) {
+                *why = "check: the entry must be a name (a composed one has dots)";
+                return false;
+            }
+            continue;
+        }
+        if (answer) {
+            if (word_is(w, wl, "both")) {
+                c->both = done = true;
+                continue;
+            }
+            for (uint32_t s = 0, e = 0; s <= wl; s = e + 1u) {
+                for (e = s; e < wl && w[e] != ','; e++) {
+                }
+                if (c->nans >= ZXAPP_CHECK_VALS || !answer_at(w + s, e - s, &c->ans[c->nans++])) {
+                    *why = "check: the answer is whole numbers, n/d, true, false or neither, "
+                           "comma-separated, or both (at most 16)";
+                    return false;
+                }
+            }
+            done = true;
+            continue;
+        }
+        if (word_is(w, wl, "=")) {
+            answer = true;
+            continue;
+        }
+        uint32_t q = 0;
+        while (q < wl && w[q] != '=') q++;
+        if (q == wl || !ident(w, q) || c->nin >= ZXAPP_INPUTS ||
+            !word_copy(c->name[c->nin], ZXAPP_ID_MAX, w, q)) {
+            *why = "check: each input is <name>=<value>[,<value>...] (at most 8)";
+            return false;
+        }
+        uint32_t k = c->nin++;
+        c->nv[k] = 0;
+        for (uint32_t s = q + 1u, e = s; s <= wl; s = e + 1u) {
+            for (e = s; e < wl && w[e] != ','; e++) {
+            }
+            if (c->nv[k] >= ZXAPP_CHECK_VALS || !whole_at(w + s, e - s, &c->v[k][c->nv[k]++])) {
+                *why = "check: an input's values are whole numbers, comma-separated "
+                       "(at most 16)";
+                return false;
+            }
+        }
+    }
+    if (!done) {
+        *why = "check needs: check <entry> <input>=<v>[,<v>...] ... = <answer>";
+        return false;
+    }
+    return true;
+}
+
 /* "1", "1.2" or "1.2.3" (missing parts are 0); "=" first when allowed
  * marks an exact version. */
 static bool parse_ver(const char *w, uint32_t n, uint16_t ver[3], bool *exact, bool allow_eq)
@@ -477,6 +633,28 @@ static bool whole(const char *w, uint32_t n, uint64_t max, uint64_t *out)
     return true;
 }
 
+/* M1: "matrix <n>", 0 to 144 in one to three digits; never wraps. */
+static int parse_matrix(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
+                        uint32_t k)
+{
+    if (a->matrix != ZXAPP_MATRIX_NONE) {
+        put_err(a, line, "a second matrix line", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    uint32_t v = 0;
+    bool ok = k == 2 && wl[1] >= 1u && wl[1] <= 3u;
+    for (uint32_t i = 0; ok && i < wl[1]; i++) {
+        ok = w[1][i] >= '0' && w[1][i] <= '9';
+        v = v * 10u + (uint32_t) (w[1][i] - '0');
+    }
+    if (!ok || v > ZXAPP_MATRIX_TOP) {
+        put_err(a, line, "a matrix layer is a number from 0 (the core) to 144", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    a->matrix = (uint8_t) v;
+    return ZXAPP_OK;
+}
+
 /* P1: "pending <language> <entry>". The language is a fit-table name with
  * spaces as _ (letters, digits and + # - . _), checked against the table by
  * tools/apps/lang_coverage.py; the entry is the one a runnable language
@@ -604,7 +782,7 @@ static int parse_registry(zxapp_t *a, uint32_t line, const char *const w[4], con
     return ZXAPP_OK;
 }
 
-/* K1: chiglet <organ> <acts> */
+/* H1: chiglet <organ> <acts> */
 static int parse_chiglet(zxapp_t *a, uint32_t line, const char *const w[4], const uint32_t wl[4],
                          uint32_t k)
 {
@@ -682,6 +860,7 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         put_err(a, 0, "no manifest text", 0);
         return ZXAPP_E_ARG;
     }
+    a->matrix = ZXAPP_MATRIX_NONE;
     zxapp_cid(text, len, a->cid);
     rd_t r = {text, len, 0, 0};
     const char *p;
@@ -803,8 +982,28 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
+        if (word_is(w[0], wl[0], "check")) {
+            check_t c;
+            const char *why = 0;
+            if (!check_parse(w[0] + 5, (uint32_t) (n - (uint32_t) (w[0] + 5 - p)), &c, &why)) {
+                put_err(a, r.line, why, 0);
+                return ZXAPP_E_SYNTAX;
+            }
+            if (a->ncheck >= ZXAPP_CHECKS) {
+                put_err(a, r.line, "too many check lines", 0);
+                return ZXAPP_E_FULL;
+            }
+            a->check[a->ncheck++] =
+                (zxapp_check_t){w[0] + 5, (uint32_t) (n - (uint32_t) (w[0] + 5 - p)), r.line};
+            continue;
+        }
         if (word_is(w[0], wl[0], "pending")) {
             int rc = parse_pending(a, r.line, w, wl, k);
+            if (rc != ZXAPP_OK) return rc;
+            continue;
+        }
+        if (word_is(w[0], wl[0], "matrix")) {
+            int rc = parse_matrix(a, r.line, w, wl, k);
             if (rc != ZXAPP_OK) return rc;
             continue;
         }
@@ -827,7 +1026,8 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
         }
         put_err(a, r.line,
                 "an unknown directive (id, name, author, view, model, launch, logic, version, "
-                "provides, use, intent, pending, slot, layer, icon, budget, needs, chiglet)",
+                "provides, use, intent, pending, check, matrix, slot, layer, icon, budget, needs, "
+                "chiglet)",
                 0);
         return ZXAPP_E_SYNTAX;
     }
@@ -837,6 +1037,11 @@ int zxapp_parse(zxapp_t *a, const char *text, uint32_t len)
     }
     if (!a->id[0]) {
         put_err(a, 0, "the manifest has no id", 0);
+        return ZXAPP_E_SYNTAX;
+    }
+    if (a->matrix != ZXAPP_MATRIX_NONE && zxapp_slot_layer(a->slot) == ZXAPP_LAYER_L1 &&
+        a->matrix != a->slot) {
+        put_err(a, 0, "an L1 app sits on its own matrix layer: matrix must equal slot", 0);
         return ZXAPP_E_SYNTAX;
     }
     return ZXAPP_OK;
@@ -1246,11 +1451,12 @@ static void ver_text(char *d, const zxapp_use_t *u)
     d[n] = 0;
 }
 
-/* C3: a pin covers the code only when the code is in the manifest. */
+/* C3: a pin covers the code only when the code is in the manifest, or
+ * named by its content (cid_path). */
 static bool sealed(const zxapp_t *b)
 {
     for (uint32_t i = 0; i < b->n; i++)
-        if (!b->logic[i].origin && !b->logic[i].src) return false;
+        if (!b->logic[i].origin && !b->logic[i].src && !cid_path(b->logic[i].path)) return false;
     for (uint32_t i = 0; i < b->nuse; i++)
         if (!b->use[i].cid[0]) return false;
     return true;
@@ -1356,6 +1562,112 @@ int zxapp_compose(zxapp_t *a, const zxapp_registry_t *r)
     }
     a->resolved = true;
     return ZXAPP_OK;
+}
+
+/* ---- K: running the check lines --------------------------------------------- */
+
+static void err_num(zxapp_t *a, zxapp_num_t x)
+{
+    static const char *const TRUTH[4] = {"neither", "true", "false", "both"};
+    if (x.den == 0) {
+        err_add(a, x.num >= 0 && x.num <= 3 ? TRUTH[x.num] : "?");
+        return;
+    }
+    char t[48];
+    uint32_t k = 0;
+    for (int part = 0; part < 2; part++) {
+        int64_t v = part ? x.den : x.num;
+        uint64_t m = v < 0 ? 0u - (uint64_t) v : (uint64_t) v;
+        char d[24];
+        uint32_t j = 0;
+        do {
+            d[j++] = (char) ('0' + m % 10u);
+            m /= 10u;
+        } while (m);
+        if (v < 0) t[k++] = '-';
+        while (j) t[k++] = d[--j];
+        if (part || x.den == 1) break;
+        t[k++] = '/';
+    }
+    t[k] = 0;
+    err_add(a, t);
+}
+
+static int check_fail(zxapp_t *a, const zxapp_check_t *K, const check_t *c, const char *m)
+{
+    put_err(a, K->line, "check ", c->entry);
+    err_add(a, ": ");
+    err_add(a, m);
+    return ZXAPP_E_CHECK;
+}
+
+int zxapp_check(zxapp_t *a, zxapp_host_t *h)
+{
+    int ran = 0;
+    if (!a || !h) return ZXAPP_E_ARG;
+    for (uint32_t i = 0; i < a->ncheck; i++) {
+        const zxapp_check_t *K = &a->check[i];
+        check_t c;
+        const char *why = 0;
+        if (!check_parse(K->text, K->len, &c, &why)) { /* parsed once already */
+            put_err(a, K->line, why, 0);
+            return ZXAPP_E_SYNTAX;
+        }
+        if (!zxapp_find(a, c.entry)) {
+            put_err(a, K->line, "check: no entry ", c.entry);
+            return ZXAPP_E_NAME;
+        }
+        uint32_t langs = 0;
+        bool circuit = false;
+        for (uint32_t j = 0; j < a->n; j++)
+            if (runnable(&a->logic[j], h, c.entry)) {
+                langs++;
+                circuit |= wired(h, &a->logic[j]);
+            }
+        if (!langs) continue; /* A2: no runtime here for it */
+        zxapp_arg_t args[ZXAPP_INPUTS];
+        for (uint32_t k = 0; k < c.nin; k++) args[k] = (zxapp_arg_t){c.name[k], c.v[k], c.nv[k]};
+        zxapp_num_t out[ZXAPP_CHECK_VALS];
+        uint32_t n = 0;
+        int32_t lp = ZXAPP_NEITHER;
+        int rc = zxapp_call_witnessed(a, h, c.entry, args, c.nin, out, ZXAPP_CHECK_VALS, &n, &lp);
+        if (rc == ZXAPP_E_CONTRACT || rc == ZXAPP_E_ARG) {
+            a->err_line = K->line; /* a->err says which input */
+            return rc;
+        }
+        if (c.both) {
+            if (lp != ZXAPP_BOTH)
+                return check_fail(a, K, &c,
+                                  rc != ZXAPP_OK && rc != ZXAPP_E_CONFLICT
+                                      ? "refused (every language), the line says both"
+                                  : langs > 1u
+                                      ? "the languages agree, the line says both"
+                                      : "one language ran, it cannot disagree with itself");
+            ran++;
+            continue;
+        }
+        if (rc == ZXAPP_E_BUFFER) return check_fail(a, K, &c, "answered more rows than written");
+        if (rc == ZXAPP_E_CONFLICT) return check_fail(a, K, &c, "the languages disagree (BOTH)");
+        if (rc != ZXAPP_OK) return check_fail(a, K, &c, "refused (every language)");
+        if (langs > 1u ? lp != ZXAPP_TRUE
+                       : !(lp == ZXAPP_NEITHER || (circuit && lp == ZXAPP_TRUE))) {
+            check_fail(a, K, &c, "the join is ");
+            err_num(a, (zxapp_num_t){lp, 0});
+            err_add(a, langs > 1u ? ", two languages or more say true" : ", one says neither");
+            return ZXAPP_E_CHECK;
+        }
+        if (n != c.nans) return check_fail(a, K, &c, "answered a different number of rows");
+        for (uint32_t k = 0; k < n; k++)
+            if (out[k].num != c.ans[k].num || out[k].den != c.ans[k].den) {
+                check_fail(a, K, &c, "answered ");
+                err_num(a, out[k]);
+                err_add(a, ", the line says ");
+                err_num(a, c.ans[k]);
+                return ZXAPP_E_CHECK;
+            }
+        ran++;
+    }
+    return ran;
 }
 
 void zxapp_cid(const char *text, uint32_t len, char out[ZXAPP_CID_MAX])

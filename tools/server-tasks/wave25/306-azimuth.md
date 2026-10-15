@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `accessible_ok` (a route has no step, grad
 BOTH test: beacons put you in corridor B and the map match in corridor C: the position is BOTH and directions widen to cover both instead of misleading. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, sys.read, notify.
-Planned (no runtime yet): Prolog, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/azimuth/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog.
 Pending: `pending Prolog floors` (search); `pending Logo position` (geometry).

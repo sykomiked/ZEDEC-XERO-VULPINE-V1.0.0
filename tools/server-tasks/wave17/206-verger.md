@@ -9,4 +9,5 @@ BOTH test: member 12 has one phone number in one roll and another in a second: t
 Giving is the giver's own act; the app never moves money by itself.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, ledger.read, ledger.post, peers, notify.
-Planned (no runtime yet): Python, Pascal, Swift.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/verger/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python, Swift.

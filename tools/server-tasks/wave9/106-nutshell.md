@@ -4,4 +4,5 @@ Matrix: layer 106, build position 103 of 130 (`../MATRIX_ORDER.tsv`). Its layer 
 What it does: decks kept in the Banker (`files.read`, `files.write`).
 Logic (critical): next box and due day (Leitner: up on right, back to 1 on wrong) in basic + kron witnessed; due counts in kron; decks and reviews in myra.
 needs: fs.read, fs.write.
-Planned (no runtime yet): Mojo, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/nutshell/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Mojo.

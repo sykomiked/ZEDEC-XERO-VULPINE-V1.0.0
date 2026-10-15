@@ -9,5 +9,6 @@ BOTH test: ticket 5512 is valid on the box-office list and cancelled on the prom
 Capacity limits are a safety ceiling the venue sets.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: net, peers, fs.read, fs.write, notify.
-Planned (no runtime yet): LISP, Zig.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/portcullis/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Zig.
 Pending: `pending LISP guests` (lists); Zig (machine): no entry here is an obvious fit; put `pending Zig <entry>` on the one closest to machine and name it in your report.

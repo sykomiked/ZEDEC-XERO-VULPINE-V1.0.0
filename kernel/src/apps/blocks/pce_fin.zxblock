@@ -9,6 +9,7 @@ zxblock 1
 id       pce_fin
 name     Paraconsistent finance analytics
 version  1.0.0
+matrix 0
 # Exact net present value of cash flows cf at each analyst's rate
 # rate_num/rate_den, one answer per rate.
 provides npv num cf rate_num rate_den

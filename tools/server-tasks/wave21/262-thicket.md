@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): auditor A passes an update and audi
 Safety: Never install anything in tests; the signed decision is the owner's.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: net, peers, sys.read, journal, backup, notify.
-Planned (no runtime yet): SAS, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/thicket/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): SAS, ML.

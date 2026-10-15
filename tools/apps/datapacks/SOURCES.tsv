@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Data packs for the apps that need outside data (docs/DATAPACKS.md). One row per
+# source. A pack is a release asset, never committed: datapack.py fetches a source
+# only with --approved and builds packs only under build/.
+#
+# pack: core (every source TRUE: commercial use with attribution) or optional (every
+# source BOTH: share-alike, shipped apart from the Apache-2.0 code). A FALSE source
+# (non-commercial, no derivatives) is never listed; an unknown licence is NEITHER and
+# refused. kind: file (one download), sparql (a Wikidata query, one per split), lmf
+# (a wordnet archive whose lexicons are classed one by one, by their own licence),
+# live (an endpoint the app reads over TLS itself; the pack carries its terms only).
+#
+# app	slot	pack	id	kind	licence	url	attribution
+weatherglass	88	core	met_locationforecast	live	CC-BY-4.0	https://api.met.no/weatherapi/locationforecast/2.0/compact?lat={lat}&lon={lon}	Weather data from the Norwegian Meteorological Institute (MET Norway), CC BY 4.0
+weatherglass	88	core	nws_alerts	live	LicenseRef-US-Government-PD	https://api.weather.gov/alerts/active?point={lat},{lon}	Alerts from the U.S. National Weather Service (public domain); official warnings always take precedence
+wordhoard	46	core	oewn_2024	file	CC-BY-4.0	https://en-word.net/static/english-wordnet-2024.xml.gz	Open English WordNet 2024 (McCrae et al.), CC BY 4.0
+wordhoard	46	core	omw_1_4	lmf	per-lexicon	https://github.com/omwn/omw-data/releases/download/v1.4/omw-1.4.tar.xz	Open Multilingual Wordnet 1.4 (Bond and Foster); each wordnet under its own licence, listed in LICENSES/
+wordhoard	46	optional	wiktextract_en	file	CC-BY-SA-4.0	https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl	Wiktionary (English), extracted by Wiktextract (kaikki.org), CC BY-SA 4.0
+fieldguide	102	core	gbif_backbone	file	CC-BY-4.0	https://hosted-datasets.gbif.org/datasets/backbone/current/backbone.zip	GBIF Backbone Taxonomy, GBIF Secretariat, CC BY 4.0 (doi:10.15468/39omei)
+fieldguide	102	core	wikidata_taxa	sparql	CC0-1.0	https://query.wikidata.org/sparql	Wikidata (CC0): species with a GBIF ID and an English common name
+fieldguide	102	optional	wikipedia_en_nopic	file	CC-BY-SA-4.0	https://download.kiwix.org/zim/wikipedia/wikipedia_en_all_nopic_2026-06.zim	Wikipedia (English, no pictures), Kiwix ZIM 2026-06, CC BY-SA 4.0

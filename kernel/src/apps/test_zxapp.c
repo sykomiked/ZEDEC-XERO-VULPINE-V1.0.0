@@ -1070,12 +1070,12 @@ static void test_chiglet_lines(void)
           "K1 organs, lines and an explain-only organ");
     CHECK(A.chiglet[0].acts == ((1ull << CHGV_A_APPLY_EDIT) | (1ull << CHGV_A_APPLY_FIX)),
           "K1 the acts mask");
-    CHECK(zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_APPLY_EDIT), "K2 smith may apply an edit");
-    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_RUN_COMMAND), "K2 but not run a command");
-    CHECK(!zxapp_chiglet_may(&A, CHGV_O_WARDEN, CHGV_A_APPLY_EDIT), "K2 the warden only explains");
-    CHECK(!zxapp_chiglet_may(&A, CHGV_O_BARD, CHGV_A_APPLY_EDIT), "K2 an unlisted organ may not");
-    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_ACTS), "K2 act out of range");
-    CHECK(!zxapp_chiglet_may(NULL, CHGV_O_SMITH, 0) && zxapp_chiglet_acts(NULL) == 0, "K2 null");
+    CHECK(zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_APPLY_EDIT), "H2 smith may apply an edit");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_A_RUN_COMMAND), "H2 but not run a command");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_WARDEN, CHGV_A_APPLY_EDIT), "H2 the warden only explains");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_BARD, CHGV_A_APPLY_EDIT), "H2 an unlisted organ may not");
+    CHECK(!zxapp_chiglet_may(&A, CHGV_O_SMITH, CHGV_ACTS), "H2 act out of range");
+    CHECK(!zxapp_chiglet_may(NULL, CHGV_O_SMITH, 0) && zxapp_chiglet_acts(NULL) == 0, "H2 null");
     CHECK(zxapp_chiglet_acts(&A) == ((1ull << CHGV_A_APPLY_EDIT) | (1ull << CHGV_A_APPLY_FIX) |
                                      (1ull << CHGV_A_ADD_TO_BACKUP)),
           "K2 the union for intent.h G7");
@@ -1692,6 +1692,7 @@ static void test_fee_check(void)
 {
     static char manifest[8192];
     static zxapp_t FEE;
+    int fails0 = fails;
     zxapp_host_init(&H);
     H.read_file = read_src;
     zxapp_sutra_register(&H);
@@ -1746,6 +1747,8 @@ static void test_fee_check(void)
     CHECK(zxapp_call_witnessed(&FEE, &H, "fee", bad_order, 2, out, 8, &n, &lp) == ZXAPP_E_CONTRACT,
           "B3: the contract is checked before any of the languages runs");
     zxapp_unload(&FEE, &H);
+    /* app_gate.py --verdict reads it: its inline tests ran, and none failed */
+    if (SRC_ROOT && fails == fails0) printf("  ran app fee_check\n");
 }
 
 /* R1-R4: slot, layer, icon, budget and needs */
@@ -2052,9 +2055,12 @@ static void app_tests_run(const zxapp_t *w0, int nw0)
             CHECK(zxapp_registry_add(&C, a) == ZXAPP_OK, "%s registers as a block: %s", t->id,
                   C.err);
             if (rc != t->loaded || rc < 0) continue;
+            CHECK(a->ncheck > 0 && zxapp_check(a, &H) == (int) a->ncheck,
+                  "%s: its %u check lines pass (K1): %s", t->id, a->ncheck, a->err);
             int before = checks;
             t->run(a);
             CHECK(checks > before + 1, "%s: its test checks something", t->id);
+            printf("  ran app %s\n", t->id); /* app_gate.py --verdict reads it */
             zxapp_unload(a, &H);
             ok[i] = true;
         }
@@ -2076,6 +2082,7 @@ static void test_wave0(void)
               zxapp_eve_register(&H) == ZXAPP_OK && zxapp_trebago_register(&H) == ZXAPP_OK &&
               zxapp_myra_register(&H) == ZXAPP_OK && zxapp_wasm_register(&H, &WW, 0) == ZXAPP_OK,
           "wave 0: every runtime the apps name registers");
+    int fails0 = fails;
     zxapp_registry_init(&WREG);
     int32_t len = read_src(0, "apps/blocks/used_share.zxblock", buf[15], sizeof buf[15]);
     CHECK(len > 0 && zxapp_parse(&USED, buf[15], (uint32_t) len) == ZXAPP_OK &&
@@ -2128,6 +2135,8 @@ static void test_wave0(void)
         int got = wave_app(&APP[i], buf[i], sizeof buf[i], apps[i].path);
         CHECK(got == apps[i].loaded, "%s: %d of %d entries load: %s", apps[i].path, got,
               apps[i].loaded, APP[i].err);
+        CHECK(APP[i].ncheck > 0 && zxapp_check(&APP[i], &H) == (int) APP[i].ncheck,
+              "%s: its %u check lines pass (K1): %s", apps[i].id, APP[i].ncheck, APP[i].err);
         CHECK(!strcmp(APP[i].id, apps[i].id) && APP[i].slot == apps[i].slot &&
                   APP[i].layer == ZXAPP_LAYER_L1 && APP[i].budget > 0 && APP[i].nneeds > 0 &&
                   APP[i].icon[0],
@@ -2395,6 +2404,9 @@ static void test_wave0(void)
               "Glint: a media item fits ^ZXGLINT (MYRA)");
     }
     for (int i = 0; i < NAPPS; i++) zxapp_unload(&APP[i], &H);
+    /* app_gate.py --verdict reads it: the wave 0 apps' inline tests above ran, none
+     * failed (one failure credits none of them: a failure line names its own app) */
+    for (int i = 0; i < NAPPS && fails == fails0; i++) printf("  ran app %s\n", apps[i].id);
     app_tests_run(APP, NAPPS);
     zxapp_wasm_close(&WW);
 }
@@ -3027,6 +3039,181 @@ static void test_lingua(void)
           "gcd.zlir is gcd.f compiled (rebuild with zxlang pack): %s", d.msg);
 }
 
+/* ---- K: check lines, and C3 for sources named by content ------------------ */
+
+static const char CHECKED[] = "zxapp 1\nid kit\n"
+                              "provides doubled num x\n"
+                              "logic kron doubled <<\n2*x\n.\n"
+                              "logic sutra doubled <<\nrecord d\n  x: 9(9)\n  y: 9(10)\n"
+                              "procedure\n  compute y = x * 2\n  answer y\n.\n"
+                              "provides half num x\n"
+                              "logic kron half <<\nx%2\n.\n"
+                              "provides pos truth x\n"
+                              "logic kron pos <<\nx>0\n.\n"
+                              "logic eve pos <<\neve p\nv = 1 .. 9\nr {\n  x: v\n}\n.\n"
+                              "check doubled x=1,2 = 2,4   # a comment\n"
+                              "check doubled x=1,1000000000 = both\n"
+                              "check half x=1,4 = 1/2,2\n"
+                              "check half x=-3,0 = -6/4,0\n"
+                              "check pos x=-1,3 = false,true\n";
+
+static int check_err(const char *line, const char *want)
+{
+    static char t[512];
+    snprintf(t, sizeof t, "zxapp 1\nid k\n%s\n", line);
+    int rc = zxapp_parse(&A, t, (uint32_t) strlen(t));
+    if (rc == ZXAPP_OK || !strstr(A.err, want) || A.err_line != 3) {
+        printf("    %s: rc %d err %s line %u\n", line, rc, A.err, A.err_line);
+        return 0;
+    }
+    return 1;
+}
+
+/* M1: the matrix line, 0..144, never wrapped; an L1 app sits on its slot */
+static void test_matrix(void)
+{
+    CHECK(parse("zxapp 1\nid m\n") == ZXAPP_OK && A.matrix == ZXAPP_MATRIX_NONE,
+          "no matrix line: none given");
+    CHECK(parse("zxblock 1\nid m\nmatrix 0\n") == ZXAPP_OK && A.matrix == 0,
+          "a block in the core: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nslot 89\nlayer L1\nmatrix 89\n") == ZXAPP_OK && A.matrix == 89,
+          "an L1 app on its own layer: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nmatrix 144\nslot 144\n") == ZXAPP_OK && A.matrix == 144,
+          "the outermost layer, matrix before slot: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nslot 200\nmatrix 13\n") == ZXAPP_OK && A.matrix == 13,
+          "an L2 app names any layer: %s", A.err);
+    CHECK(parse("zxapp 1\nid m\nmatrix 007\n") == ZXAPP_OK && A.matrix == 7, "leading zeros");
+    static const char *bad[] = {
+        "matrix 145", "matrix 300", "matrix 256", "matrix 1000", "matrix -1",
+        "matrix 4a",  "matrix",     "matrix 1 2", "matrix 0144",
+    };
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        char t[128];
+        snprintf(t, sizeof t, "zxapp 1\nid m\n%s\n", bad[i]);
+        CHECK(parse(t) == ZXAPP_E_SYNTAX && A.err_line == 3 &&
+                  strstr(A.err, "a matrix layer is a number from 0 (the core) to 144"),
+              "%s is refused, never wrapped: %s", bad[i], A.err);
+    }
+    CHECK(parse("zxapp 1\nid m\nmatrix 1\nmatrix 1\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "a second matrix line") && A.err_line == 4,
+          "a second matrix line");
+    CHECK(parse("zxapp 1\nid m\nslot 89\nmatrix 88\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "matrix must equal slot"),
+          "an L1 app off its own layer");
+}
+
+static void test_checks(void)
+{
+    static zxapp_t K, BLK, USER;
+    static zxapp_registry_t KR;
+    zxapp_host_init(&H);
+    CHECK(zxapp_kron_register(&H) == ZXAPP_OK && zxapp_sutra_register(&H) == ZXAPP_OK,
+          "check lines: kron and sutra (no eve, so pos runs in one language)");
+    CHECK(zxapp_parse(&K, CHECKED, (uint32_t) strlen(CHECKED)) == ZXAPP_OK && K.ncheck == 5 &&
+              K.check[0].line == 30 && K.check[4].line == 34,
+          "five check lines parse: %s", K.err);
+    CHECK(zxapp_load(&K, &H) == 4, "four entries load: %s", K.err);
+    CHECK(zxapp_check(&K, &H) == 5, "every check holds: %s (line %u)", K.err, K.err_line);
+
+    /* K2: each way a check fails, named by its line */
+    static char t[2048];
+    const char *bad[][2] = {
+        {"check doubled x=1,2 = 2,5", "answered 4, the line says 5"},
+        {"check doubled x=1,2 = both", "the languages agree, the line says both"},
+        {"check doubled x=1,1000000000 = 2,2000000000", "the languages disagree (BOTH)"},
+        {"check doubled x=1,2 = 2", "answered a different number of rows"},
+        {"check half x=3 = 2", "answered 3/2, the line says 2"},
+        {"check half x=3 = both", "one language ran, it cannot disagree with itself"},
+        {"check pos x=5 = true,false", "answered a different number of rows"},
+        {"check doubled x=9223372036854775807 = 1", "refused (every language)"},
+        {"check doubled x=9223372036854775807 = both",
+         "refused (every language), the line says both"},
+    };
+    for (uint32_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        int k = snprintf(t, sizeof t, "%s%s\n", CHECKED, bad[i][0]);
+        static zxapp_t B;
+        CHECK(k > 0 && zxapp_parse(&B, t, (uint32_t) k) == ZXAPP_OK && zxapp_load(&B, &H) == 4,
+              "%s parses", bad[i][0]);
+        CHECK(zxapp_check(&B, &H) == ZXAPP_E_CHECK && strstr(B.err, bad[i][1]) && B.err_line == 35,
+              "%s: %s (line %u)", bad[i][0], B.err, B.err_line);
+        zxapp_unload(&B, &H);
+    }
+    snprintf(t, sizeof t, "%scheck nope x=1 = 1\n", CHECKED);
+    static zxapp_t B2_;
+    CHECK(zxapp_parse(&B2_, t, (uint32_t) strlen(t)) == ZXAPP_OK && zxapp_load(&B2_, &H) == 4 &&
+              zxapp_check(&B2_, &H) == ZXAPP_E_NAME && B2_.err_line == 35,
+          "an entry the app does not have");
+    zxapp_unload(&B2_, &H);
+    snprintf(t, sizeof t, "%scheck doubled y=1 = 2\n", CHECKED);
+    CHECK(zxapp_parse(&B2_, t, (uint32_t) strlen(t)) == ZXAPP_OK && zxapp_load(&B2_, &H) == 4 &&
+              zxapp_check(&B2_, &H) == ZXAPP_E_CONTRACT && B2_.err_line == 35,
+          "inputs the contract refuses: %s", B2_.err);
+    zxapp_unload(&B2_, &H);
+    zxapp_unload(&K, &H);
+
+    /* K1: what does not parse */
+    CHECK(check_err("check", "check needs"), "nothing at all");
+    CHECK(check_err("check e x=1", "check needs"), "no answer");
+    CHECK(check_err("check e x=1 =", "check needs"), "an empty answer");
+    CHECK(check_err("check 9e x=1 = 1", "the entry must be a name"), "a bad entry");
+    CHECK(check_err("check e x=a = 1", "an input's values"), "a value that is not a number");
+    CHECK(check_err("check e x=1,,2 = 1", "an input's values"), "an empty value");
+    CHECK(check_err("check e x=9223372036854775808 = 1", "an input's values"), "past int64");
+    CHECK(check_err("check e x = 1", "each input is"), "an input with no value");
+    CHECK(check_err("check e 1x=1 = 1", "each input is"), "a bad input name");
+    CHECK(check_err("check e x=1 = 1 2", "one answer"), "two answers");
+    CHECK(check_err("check e x=1 = maybe", "the answer is"), "an unknown truth");
+    CHECK(check_err("check e x=1 = 1/0", "the answer is"), "a zero denominator");
+    CHECK(check_err("check e x=1 = -9223372036854775808", "the answer is"), "INT64_MIN answered");
+    CHECK(check_err("check e x=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 = 1", "an input's values"),
+          "more than ZXAPP_CHECK_VALS values");
+    CHECK(check_err("check e a=1 b=1 c=1 d=1 e=1 f=1 g=1 h=1 i=1 = 1", "each input is"),
+          "more than ZXAPP_INPUTS inputs");
+    {
+        char many[4096];
+        uint32_t k = (uint32_t) snprintf(many, sizeof many, "zxapp 1\nid k\n");
+        for (uint32_t i = 0; i <= ZXAPP_CHECKS; i++)
+            k += (uint32_t) snprintf(many + k, sizeof many - k, "check e x=1 = 1\n");
+        CHECK(zxapp_parse(&A, many, k) == ZXAPP_E_FULL && strstr(A.err, "too many check"),
+              "more than ZXAPP_CHECKS lines");
+    }
+    CHECK(parse("zxapp 1\nid k\ncheck e = -9223372036854775807,true,neither,4/6\n") == ZXAPP_OK &&
+              A.ncheck == 1,
+          "no inputs, and every kind of answer row");
+    CHECK(parse("zxapp 1\nid k\ncheck e x=-9223372036854775808 = 1\n") == ZXAPP_OK,
+          "INT64_MIN as an input");
+
+    /* C3: a source named by its content id counts as in the manifest */
+    static const char *CIDS[][2] = {
+        {"bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu4", "a raw sha2-256 CIDv1"},
+        {"bafybeiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu4", "dag-pb is not raw"},
+        {"bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu", "one letter short"},
+        {"bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu4a", "one letter long"},
+        {"bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu5", "stray bits at the end"},
+        {"Bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu4", "upper case"},
+        {"bafkreiddfhh5pogt4oxgvznzmwggisdhj6fjvh74bzu3ydwgwg6ec7jyu1", "1 is not base32"},
+    };
+    for (uint32_t i = 0; i < sizeof CIDS / sizeof CIDS[0]; i++) {
+        static char btext[512], utext[512];
+        int bl = snprintf(btext, sizeof btext,
+                          "zxblock 1\nid dbl\nversion 1.0.0\nprovides d num x\n"
+                          "logic kron d cid:%s\n",
+                          CIDS[i][0]);
+        char cid[ZXAPP_CID_MAX];
+        zxapp_cid(btext, (uint32_t) bl, cid);
+        int ul = snprintf(utext, sizeof utext, "zxapp 1\nid user\nuse dbl 1 %s\n", cid);
+        zxapp_registry_init(&KR);
+        CHECK(zxapp_parse(&BLK, btext, (uint32_t) bl) == ZXAPP_OK &&
+                  zxapp_registry_add(&KR, &BLK) == ZXAPP_OK &&
+                  zxapp_parse(&USER, utext, (uint32_t) ul) == ZXAPP_OK,
+              "%s: parses", CIDS[i][1]);
+        int rc = zxapp_compose(&USER, &KR);
+        CHECK(i == 0 ? rc == ZXAPP_OK && USER.n == 1
+                     : rc == ZXAPP_E_CONTRACT && strstr(USER.err, "not all in its manifest"),
+              "%s: %d %s", CIDS[i][1], rc, USER.err);
+    }
+}
+
 int main(int argc, char **argv)
 {
     SRC_ROOT = argc > 1 ? argv[1] : 0;
@@ -3054,6 +3241,8 @@ int main(int argc, char **argv)
     test_wire();
     test_board();
     test_lingua();
+    test_checks();
+    test_matrix();
     printf("%s test_zxapp: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;
 }

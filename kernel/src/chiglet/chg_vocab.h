@@ -8,7 +8,7 @@
  * checks, and anything that would change the machine is a held act the
  * person accepts or rejects. Three places must agree on the names: the
  * intent layer (an "act <verb> <object>" proposal, intent.h I7), app
- * manifests (a "chiglet <organ> <acts>" line, zxapp.h K1) and the organ
+ * manifests (a "chiglet <organ> <acts>" line, zxapp.h H1) and the organ
  * router (chg_organ.h). This table is that one source.
  *
  *   V1 ORGANS. The 20 organs of tools/tiamat/tiamat_swarm.json, in its

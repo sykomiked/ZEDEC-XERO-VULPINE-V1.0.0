@@ -18,6 +18,10 @@
 #include <unistd.h>
 
 #include "zxvd_rpc.h"
+#include "zxvd_ext.h"
+#include "zxvd_fab.h"
+#include "zxvd_groups.h"
+#include "zxm_open.h"
 #include "zxv_files.h"
 #include "burrow_model.h"
 #include "glint_model.h"
@@ -3004,6 +3008,232 @@ static void test_murmuration(void)
     zxvd_rpc_books_close();
 }
 
+/* ---------------- opening an app from its recipe (zxm_open.h) ---------------- */
+
+/* what the launch screen would be told */
+typedef struct {
+    uint32_t n;
+    uint32_t phase[24], done[24], total[24];
+} screen_t;
+
+static void on_load(void *ctx, uint32_t phase, uint32_t done, uint32_t total)
+{
+    screen_t *s = ctx;
+    if (s->n < 24) s->phase[s->n] = phase, s->done[s->n] = done, s->total[s->n] = total;
+    s->n++;
+}
+
+static bool write_file(const char *path, const uint8_t *p, uint32_t n)
+{
+    FILE *f = fopen(path, "wb");
+    if (!f) return false;
+    bool ok = fwrite(p, 1, n, f) == n;
+    return fclose(f) == 0 && ok;
+}
+
+static bool same_file(const char *path, const uint8_t *p, uint32_t n)
+{
+    static uint8_t got[16384];
+    FILE *f = fopen(path, "rb");
+    if (!f) return false;
+    size_t k = fread(got, 1, sizeof got, f);
+    fclose(f);
+    return k == n && !memcmp(got, p, n);
+}
+
+/* fab.put one file; its CID into cid */
+static bool put_block(const char *path, char *cid, uint32_t cap)
+{
+    zxm_begin(&LINK, "fab.put");
+    zxm_p_str(&LINK, "path", path);
+    return zxm_call(&LINK) == ZXM_OK && zxm_get_str(&LINK, LINK.result, "cid", cid, cap) == ZXM_OK;
+}
+
+static void test_open(const char *root)
+{
+    static uint8_t a[5000], b[5000], app[10000];
+    char pa[300], pb[300], pt[300], rec[300], out[300], ca[96], cb[96], blocks[300];
+    for (uint32_t i = 0; i < 5000; i++) {
+        a[i] = (uint8_t) (i * 7u + 3u);
+        b[i] = (uint8_t) (i * 13u + 5u);
+    }
+    memcpy(app, a, 5000);
+    memcpy(app + 5000, b, 5000);
+    snprintf(pa, sizeof pa, "%s/blk-a", root);
+    snprintf(pb, sizeof pb, "%s/blk-b", root);
+    snprintf(pt, sizeof pt, "%s/app.bin", root);
+    snprintf(rec, sizeof rec, "%s/app.fab", root);
+    snprintf(out, sizeof out, "%s/app.out", root);
+    char dir[300];
+    snprintf(dir, sizeof dir, "%s/fab", root);
+    CHECK(write_file(pa, a, 5000) && write_file(pb, b, 5000) && write_file(pt, app, 10000),
+          "open: the app and its two blocks on disk");
+    CHECK(zxvd_rpc_add_group(zxvd_fab_group()) == 0 && zxvd_rpc_enable("fab") == 0 &&
+              zxvd_fab_open(dir) == 0,
+          "open: fabrication on and its store open");
+    CHECK(put_block(pa, ca, sizeof ca) && put_block(pb, cb, sizeof cb),
+          "open: blocks in the store: %s", LINK.err);
+    snprintf(blocks, sizeof blocks, "[{\"cid\":\"%s\"},{\"cid\":\"%s\"}]", ca, cb);
+    char params[1200];
+    int pn = snprintf(params, sizeof params, "{\"target\":\"%s\",\"out\":\"%s\",\"blocks\":%s}", pt,
+                      rec, blocks);
+    zxm_begin(&LINK, "fab.send");
+    zxm_p_raw(&LINK, params, (uint32_t) pn);
+    CHECK(zxm_call(&LINK) == ZXM_OK, "open: the app's public recipe is made: %s", LINK.err);
+    char sender[80] = "";
+    zxm_begin(&LINK, "fab.status");
+    CHECK(zxm_call(&LINK) == ZXM_OK &&
+              zxm_get_str(&LINK, LINK.result, "sign_id", sender, sizeof sender) == ZXM_OK,
+          "open: this zxvd's signing id: %s", sender);
+
+    /* O1, O2: every answer reaches the screen, and only "done" ends it */
+    static zxm_open_t O;
+    screen_t s = {0};
+    CHECK(zxm_open_start(&O, &LINK, rec, out, 0, 0, false, 1, on_load, &s) == ZXM_OK &&
+              O.state == ZXM_OPEN_RUNNING && O.len == 10000 && O.cid[0],
+          "O1: started: %s", O.why);
+    uint32_t total = O.total;
+    CHECK(total >= 2 && s.n == 1 && s.phase[0] == ZXM_OPEN_FETCH && s.done[0] == 0 &&
+              s.total[0] == total,
+          "O1: the screen starts at 0 of %u blocks", total);
+    uint32_t pumps = 0;
+    while (zxm_open_pump(&O) == ZXM_OPEN_RUNNING && pumps < 64) pumps++;
+    CHECK(O.state == ZXM_OPEN_FINISHED && pumps == total,
+          "O2: one block a step, then built (%u): %s", pumps, O.why);
+    bool rising = true;
+    for (uint32_t i = 1; i < s.n && i < 24; i++)
+        if (s.done[i] < s.done[i - 1] || s.total[i] != total) rising = false;
+    CHECK(rising && s.n == total + 2 && s.phase[total] == ZXM_OPEN_FETCH &&
+              s.done[total] == total && s.phase[total + 1] == ZXM_OPEN_DONE,
+          "O2: the screen gets each verified block, then DONE once (%u calls)", s.n);
+    for (uint32_t i = 0; i + 1 < s.n && i < 24; i++)
+        CHECK(s.phase[i] == ZXM_OPEN_FETCH && s.done[i] == i, "O2: call %u is FETCH %u", i, i);
+    CHECK(same_file(out, app, 10000), "O2: the app is written out, byte for byte");
+    CHECK(zxm_open_pump(&O) == ZXM_OPEN_FINISHED && s.n == total + 2, "O2: a finished open stays");
+
+    /* the default step takes every block at once */
+    screen_t s2 = {0};
+    snprintf(out, sizeof out, "%s/app2.out", root);
+    CHECK(zxm_open_start(&O, &LINK, rec, out, 0, 0, false, 0, on_load, &s2) == ZXM_OK &&
+              O.step == ZXM_OPEN_STEP,
+          "O1: default step");
+    zxm_open_pump(&O);
+    zxm_open_pump(&O);
+    CHECK(O.state == ZXM_OPEN_FINISHED && s2.n == 3 && s2.done[1] == total &&
+              s2.phase[2] == ZXM_OPEN_DONE && same_file(out, app, 10000),
+          "O2: all blocks in one step, then built");
+
+    /* trust: the sender on the list opens; another is refused by zxvd */
+    const char *ok_list[1] = {sender};
+    const char *other[1] = {"0000000000000000000000000000000000000000000000000000000000000000"};
+    screen_t s3 = {0};
+    snprintf(out, sizeof out, "%s/app3.out", root);
+    CHECK(zxm_open_start(&O, &LINK, rec, out, ok_list, 1, false, 0, on_load, &s3) == ZXM_OK,
+          "O1: the sender on the trust list: %s", O.why);
+    CHECK(zxm_open_cancel(&O) == ZXM_OK && O.state == ZXM_OPEN_STOPPED && O.job &&
+              s3.phase[s3.n - 1] == ZXM_OPEN_FAILED && !same_file(out, app, 10000),
+          "O4: cancel: FAILED told, nothing written");
+    CHECK(zxm_open_cancel(&O) == ZXM_E_STATE, "O4: twice is refused");
+    zxm_begin(&LINK, "fab.status");
+    CHECK(zxm_call(&LINK) == ZXM_OK && strstr(LINK.resp, "\"receives\":[]"),
+          "O4: zxvd holds no job after a cancel");
+    screen_t s4 = {0};
+    CHECK(zxm_open_start(&O, &LINK, rec, out, other, 1, false, 0, on_load, &s4) == ZXM_E_REMOTE &&
+              O.state == ZXM_OPEN_STOPPED && s4.n == 1 && s4.phase[0] == ZXM_OPEN_FAILED &&
+              strstr(O.why, "the app could not be opened: "),
+          "O3: a sender not on the list is refused, the screen told: %s", O.why);
+    CHECK(zxm_open_pump(&O) == ZXM_OPEN_STOPPED && s4.n == 1, "O3: a stopped open stays");
+
+    /* bad arguments ask nothing */
+    screen_t s5 = {0};
+    const char *bad[1] = {"xyz"};
+    CHECK(zxm_open_start(&O, &LINK, "", out, 0, 0, false, 0, on_load, &s5) == ZXM_E_ARG &&
+              zxm_open_start(&O, &LINK, rec, out, bad, 1, false, 0, on_load, &s5) == ZXM_E_ARG &&
+              zxm_open_start(&O, &LINK, rec, out, 0, 1, false, 0, on_load, &s5) == ZXM_E_ARG &&
+              zxm_open_start(&O, &LINK, rec, out, 0, 0, false, ZXM_OPEN_STEP_MAX + 1, on_load,
+                             &s5) == ZXM_E_ARG &&
+              s5.n == 0,
+          "O1: bad arguments are refused before anything is asked");
+
+    /* a missing recipe: zxvd's own words */
+    snprintf(pt, sizeof pt, "%s/none.fab", root);
+    CHECK(zxm_open_start(&O, &LINK, pt, out, 0, 0, false, 0, on_load, &s5) == ZXM_E_REMOTE &&
+              s5.n == 1 && s5.phase[0] == ZXM_OPEN_FAILED && O.why[0],
+          "O3: no recipe: %s", O.why);
+
+    /* O3 on made-up answers: backwards, past the total, a changed total, another target */
+    static const struct {
+        const char *step, *what;
+    } BAD[] = {
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"fetch\",\"blocks_done\":"
+         "0,"
+         "\"blocks_total\":2}}",
+         "counts went back"},
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"fetch\",\"blocks_done\":"
+         "3,"
+         "\"blocks_total\":2}}",
+         "a broken answer"},
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"fetch\",\"blocks_done\":"
+         "2,"
+         "\"blocks_total\":3}}",
+         "changed"},
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"done\",\"blocks_done\":"
+         "2,"
+         "\"blocks_total\":2,\"cid\":\"bafkother\",\"len\":10}}",
+         "not the app the recipe named"},
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":8,\"phase\":\"fetch\",\"blocks_done\":"
+         "1,"
+         "\"blocks_total\":2}}",
+         "a broken answer"},
+        {"{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"wait\",\"blocks_done\":"
+         "1,"
+         "\"blocks_total\":2}}",
+         "an unknown phase"},
+    };
+    for (uint32_t k = 0; k < sizeof BAD / sizeof BAD[0]; k++) {
+        screen_t sb = {0};
+        CANNED =
+            "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"cid\":\"bafkapp\",\"len\":10,"
+            "\"mode\":\"public\",\"blocks_done\":0,\"blocks_total\":2}}";
+        CHECK(zxm_open_start(&O, &FAKE, "r.fab", "o", 0, 0, false, 0, on_load, &sb) == ZXM_OK,
+              "made-up start");
+        CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"phase\":\"fetch\","
+                 "\"blocks_done\":1,\"blocks_total\":2}}";
+        CHECK(zxm_open_pump(&O) == ZXM_OPEN_RUNNING && O.done == 1, "made-up first step");
+        CANNED = BAD[k].step;
+        CHECK(zxm_open_pump(&O) == ZXM_OPEN_STOPPED && strstr(O.why, BAD[k].what) &&
+                  sb.phase[sb.n - 1] == ZXM_OPEN_FAILED && sb.done[sb.n - 1] == O.done &&
+                  O.done == (k == 3 ? 2u : 1u),
+              "O3: %s: FAILED, the screen where the work stopped (%s)", BAD[k].what, O.why);
+    }
+    /* a lost answer asks zxvd to drop the job; an error answer does not (zxvd ended it) */
+    screen_t sl = {0};
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"cid\":\"bafkapp\",\"len\":10,"
+             "\"blocks_done\":0,\"blocks_total\":2}}";
+    zxm_open_start(&O, &FAKE, "r.fab", "o", 0, 0, false, 0, on_load, &sl);
+    CANNED = NULL;
+    CHECK(zxm_open_pump(&O) == ZXM_OPEN_STOPPED && strstr(last_req, "fab.receive.cancel") &&
+              strstr(O.why, "could not be reached"),
+          "O3: no answer: the job is dropped (%s)", last_req);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"cid\":\"bafkapp\",\"len\":10,"
+             "\"blocks_done\":0,\"blocks_total\":2}}";
+    zxm_open_start(&O, &FAKE, "r.fab", "o", 0, 0, false, 0, on_load, &sl);
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32085,\"message\":\"BLOCK: a block "
+        "is missing\"}}";
+    CHECK(zxm_open_pump(&O) == ZXM_OPEN_STOPPED && strstr(last_req, "fab.receive.step") &&
+              strstr(O.why, "BLOCK: a block is missing"),
+          "O3: an error answer in zxvd's words, no cancel sent (%s)", O.why);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job\":9,\"cid\":\"bafkapp\",\"len\":10,"
+             "\"blocks_done\":1,\"blocks_total\":2}}";
+    screen_t sx = {0};
+    CHECK(zxm_open_start(&O, &FAKE, "r.fab", "o", 0, 0, false, 0, on_load, &sx) == ZXM_E_PROTOCOL &&
+              strstr(last_req, "fab.receive.cancel") && sx.phase[0] == ZXM_OPEN_FAILED,
+          "O3: a start that claims blocks already done is refused and dropped");
+    CANNED = NULL;
+    zxvd_fab_close();
+}
+
 /* ---- one model test file per app: kernel/src/apps/tests/<id>_apps.inc ------------
  * An app's model test sits in its own file:
  *
@@ -3044,21 +3274,40 @@ int main(void)
     zxm_link_init(&LINK, inproc, NULL);
     test_zxm();
     test_zxm_ai();
-    test_burrow(root);
-    test_quillon();
-    test_spindle();
-    test_spaces();
-    test_utilities();
-    test_scent();
-    test_platen();
-    test_keepsake();
-    test_shepherd();
-    test_waymark();
-    test_murmuration();
+    /* the wave 0 models are tested inline; each test credits the apps whose
+     * models it drives, and app_gate.py --verdict reads "ran model <id>" only
+     * for an app none of whose tests failed */
+    static const char *const W0[] = {"banker",   "glint",     "quillon", "spindle",    "almanac",
+                                     "sounding", "tidewatch", "wake",    "scent",      "platen",
+                                     "keepsake", "shepherd",  "waymark", "murmuration"};
+    enum { NW0 = sizeof W0 / sizeof W0[0] };
+    bool w0bad[NW0] = {false};
+    static const struct {
+        void (*run)(void);
+        void (*run_root)(const char *);
+        const char *apps; /* the W0 apps it drives, by index letters a.. */
+    } T0[] = {
+        {0, test_burrow, "ab"},  {test_quillon, 0, "c"},      {test_spindle, 0, "d"},
+        {test_spaces, 0, "abc"}, {test_utilities, 0, "efgh"}, {test_scent, 0, "i"},
+        {test_platen, 0, "j"},   {test_keepsake, 0, "k"},     {test_shepherd, 0, "l"},
+        {test_waymark, 0, "m"},  {test_murmuration, 0, "n"},
+    };
+    for (uint32_t t = 0; t < sizeof T0 / sizeof T0[0]; t++) {
+        int before = fails;
+        if (T0[t].run)
+            T0[t].run();
+        else
+            T0[t].run_root(root);
+        for (const char *c = T0[t].apps; *c && fails > before; c++) w0bad[*c - 'a'] = true;
+    }
+    for (uint32_t i = 0; i < NW0; i++)
+        if (!w0bad[i]) printf("  ran model %s\n", W0[i]);
+    test_open(root);
     for (uint32_t i = 0; APPS_TESTS[i]; i++) {
         int before = checks;
         APPS_TESTS[i]->run();
         CHECK(checks > before + 1, "%s: its model test checks something", APPS_TESTS[i]->id);
+        printf("  ran model %s\n", APPS_TESTS[i]->id); /* app_gate.py --verdict reads it */
     }
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);

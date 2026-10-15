@@ -9,5 +9,6 @@ BOTH test: report 1 says trail 6 is open and report 2 says it is blocked by a fa
 Life-safety: advisory; rescue handoffs are a person's call; never replaces emergency services.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, peers, net, fs.read, fs.write, notify.
-Planned (no runtime yet): Prolog, Simula 67, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/sightline/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog, Simula 67.
 Pending: `pending Prolog trails` (search); `pending Simula_67 terrain_fire` (simulation); `pending Logo terrain_fire` (geometry).

@@ -120,7 +120,13 @@
  *      SHA-256 of its text. "use <block> <version> <cid>" pins that exact
  *      content: a different manifest under the same id is refused. A pin
  *      covers code only when it is all in the manifest, so a pinned block
- *      must carry its own logic inline ("<<") and pin its own uses too.
+ *      must carry its own logic inline ("<<") and pin its own uses too,
+ *      or name it by content: a logic path "cid:<CIDv1>" (raw codec,
+ *      SHA-256, lowercase base32: "b" and 58 letters, "bafkrei...") is
+ *      covered by the pin, since that name is the hash of the source. The
+ *      host's read_file serves such a path only from parts it has checked
+ *      against their CIDs (the fabricator, kernel/src/fab); in the
+ *      authoring tree sources stay as paths.
  *
  * Apps are wired together like a circuit, too: a "logic wire" entry names
  * other entries as parts and wires their inputs (W1 to W6 in zxwire.h; the
@@ -179,7 +185,7 @@
  * Every app is a place where the chiglet works with its person
  * (zxv-docs/CHIGLET_LAYER_MAP.md). The manifest says how.
  *
- *   K1 A CHIGLET LINE names a Tiamat organ the app asks and the held acts
+ *   H1 A CHIGLET LINE names a Tiamat organ the app asks and the held acts
  *      that organ may propose here: "chiglet <organ> <acts>". The organ is
  *      one of chiglet/chg_vocab.h V1 (smith, warden, scribe ...); <acts> is
  *      "-" (the organ only reads and explains) or a comma list of V2 acts
@@ -187,12 +193,41 @@
  *      item or an act listed twice are refused. One line per organ, up to
  *      ZXAPP_CHIGLETS; a block has no person in front of it, so chiglet
  *      lines belong to apps.
- *   K2 WHAT IT MAY. zxapp_chiglet_may says whether an organ may propose an
+ *   H2 WHAT IT MAY. zxapp_chiglet_may says whether an organ may propose an
  *      act in this app; zxapp_chiglet_acts is the union over its lines, the
  *      mask the app hands the intent layer (intent.h G7). Anything not
  *      listed cannot even be proposed.
- *   K3 STILL HELD. A listed act is only a proposal the person accepts or
+ *   H3 STILL HELD. A listed act is only a proposal the person accepts or
  *      rejects (intent.h I4); listing it grants nothing.
+ *
+ * Every manifest may name its place in the 144-layer matrix
+ * (docs/spec/MATRIX.md), so the fabricator can hold each part to its
+ * Zeckendorf ancestors:
+ *
+ *   M1 "matrix <n>": the matrix layer the manifest's code belongs to, 0
+ *      (the core: the shared blocks) to 144, at most once, in one to three
+ *      digits. A number past 144 is refused, never wrapped (300 is not 44).
+ *      Blocks may carry it (the one registry line they may). An L1 app with
+ *      a slot sits on its own layer: its matrix must equal its slot.
+ *      ZXAPP_MATRIX_NONE when the manifest names none.
+ *
+ * A manifest carries its own proof that it works, so a copy of it built
+ * anywhere (by the wave loop, or the fabricator from verified blocks) can
+ * be judged by the same lines.
+ *
+ *   K1 "check <entry> <input>=<v>[,<v>...] ... = <answer>": called with
+ *      those inputs (in the contract's order, B3; a single value is shared
+ *      by every row), the entry answers this. The answer is the rows,
+ *      comma-separated: whole numbers, exact fractions "n/d", or the
+ *      truths true, false and neither; or the one word "both", which says
+ *      the languages must disagree on these inputs (A5: held). Values are
+ *      integers; up to ZXAPP_CHECK_VALS per input and answer, up to
+ *      ZXAPP_CHECKS lines. The entry may be a composed one ("used.x").
+ *   K2 zxapp_check runs every check witnessed (zxapp_call_witnessed): the
+ *      rows must be the answer and the join must be TRUE when two or more
+ *      languages ran it, NEITHER when one did (TRUE too when that one is a
+ *      circuit whose parts were witnessed, W1); "both" passes only on
+ *      BOTH. A check whose entry has no runtime here is skipped (A2).
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -218,7 +253,11 @@
 #define ZXAPP_CAP_MAX     24u
 #define ZXAPP_SCOPE_MAX   48u
 #define ZXAPP_SLOTS       407u
-#define ZXAPP_CHIGLETS    8u /* K1 */
+#define ZXAPP_MATRIX_TOP  144u /* M1: the outermost matrix layer */
+#define ZXAPP_MATRIX_NONE 255u /* M1: no matrix line */
+#define ZXAPP_CHECKS      32u  /* K1: check lines in one manifest */
+#define ZXAPP_CHECK_VALS  16u  /* K1: values in one input or answer */
+#define ZXAPP_CHIGLETS    8u   /* H1 */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
@@ -264,7 +303,8 @@ enum {
     ZXAPP_E_ARG = -6,
     ZXAPP_E_BUFFER = -7,   /* the result has more elements than fit           */
     ZXAPP_E_CONFLICT = -8, /* A5: the witnesses disagree; hold, do not act */
-    ZXAPP_E_CONTRACT = -9  /* B3: arguments or answer break the entry's contract */
+    ZXAPP_E_CONTRACT = -9, /* B3: arguments or answer break the entry's contract */
+    ZXAPP_E_CHECK = -10    /* K2: a check line's entry did not answer what it says */
 };
 
 /* A number (den > 0), or a truth: den = 0 and num is one of these
@@ -317,6 +357,14 @@ typedef struct {
     uint32_t line;
 } zxapp_need_t;
 
+/* K1: "check ..." as written: the manifest's own text (A4), read again by
+ * zxapp_check. */
+typedef struct {
+    const char *text;
+    uint32_t len;
+    uint32_t line;
+} zxapp_check_t;
+
 /* R1: an app's layer; ZXAPP_LAYER_NONE when the manifest names none. */
 enum { ZXAPP_LAYER_NONE = 0, ZXAPP_LAYER_L1 = 1, ZXAPP_LAYER_L2 = 2, ZXAPP_LAYER_L3 = 3 };
 
@@ -333,7 +381,7 @@ typedef struct {
     const struct zxapp *origin;      /* C2: the manifest that wrote it; NULL = this one */
 } zxapp_logic_t;
 
-/* K1: "chiglet <organ> <acts>" */
+/* H1: "chiglet <organ> <acts>" */
 typedef struct {
     uint8_t organ; /* CHGV_O_* */
     uint64_t acts; /* bit i: act i (CHGV_A_*) */
@@ -360,12 +408,15 @@ typedef struct zxapp {
     uint32_t nintent;
     uint16_t slot;                   /* R1: 1..ZXAPP_SLOTS; 0 = none given */
     uint8_t layer;                   /* R1: ZXAPP_LAYER_* */
+    uint8_t matrix;                  /* M1: 0..144; ZXAPP_MATRIX_NONE = none given */
     char icon[ZXAPP_PATH_MAX];       /* R2: "" = none given */
     uint64_t budget;                 /* R2: tokens per cycle; 0 = none given */
     zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */
     uint32_t nneeds;
+    zxapp_check_t check[ZXAPP_CHECKS]; /* K1 */
+    uint32_t ncheck;
     uint32_t npending; /* P1: "pending" lines (a best-fit language still waiting) */
-    zxapp_chiglet_t chiglet[ZXAPP_CHIGLETS]; /* K1 */
+    zxapp_chiglet_t chiglet[ZXAPP_CHIGLETS]; /* H1 */
     uint32_t nchiglet;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     bool resolved;           /* zxapp_compose succeeded (C1) */
@@ -497,6 +548,13 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
  * values (numbers in lowest terms, as every runtime returns them), else
  * ZXAPP_BOTH. */
 int32_t zxapp_witness(const zxapp_num_t *x, uint32_t nx, const zxapp_num_t *y, uint32_t ny);
+
+/* K2: run every check line of a loaded (and composed) app. Returns how
+ * many ran (those whose entry has no runtime here are skipped), or
+ * ZXAPP_E_CHECK for the first that failed, ZXAPP_E_NAME for an entry the
+ * app does not have, ZXAPP_E_CONTRACT for inputs its contract refuses;
+ * a->err and a->err_line say which line and what came back. */
+int zxapp_check(zxapp_t *a, zxapp_host_t *h);
 
 /* ---- R: registry fields ------------------------------------------------------ */
 

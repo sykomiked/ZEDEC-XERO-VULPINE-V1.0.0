@@ -265,7 +265,7 @@ slot,app,language,runtime,owns,feature,role,status
 045,Bowline,C,c,view,view and model,primary,runs
 045,Bowline,MUMPS,myra,records,records,primary,runs
 045,Bowline,APL,kron,arrays,arrays,primary,runs
-045,Bowline,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+045,Bowline,LISP,lisp,lists,lists,primary,runs
 045,Bowline,TRAC,-,text,text,primary,planned: needs Lingua front-end
 045,Bowline,TeX,-,typesetting,typesetting,primary,planned: needs Lingua front-end
 046,Wordhoard,C,c,view,view and model,primary,runs
@@ -317,7 +317,7 @@ slot,app,language,runtime,owns,feature,role,status
 054,Burin,APL,kron,arrays,arrays,primary,runs
 054,Burin,FORTRAN,trebago,numeric,exact numerics,primary,runs
 054,Burin,APT,-,toolpath,tool paths,primary,planned: needs Lingua front-end
-054,Burin,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+054,Burin,Logo,logo,geometry,geometry,primary,runs
 054,Burin,LabVIEW,-,signal,signals,primary,planned: needs Lingua front-end
 055,Birdsong,C,c,view,view and model,primary,runs
 055,Birdsong,APL,kron,arrays,arrays,primary,runs
@@ -516,33 +516,33 @@ slot,app,language,runtime,owns,feature,role,status
 085,Waymark,FORTRAN,trebago,numeric,exact numerics,primary,runs
 085,Waymark,APL,kron,arrays,arrays,primary,runs
 085,Waymark,Ada,eve,limits,limits,primary,runs
-085,Waymark,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+085,Waymark,Logo,logo,geometry,geometry,primary,runs
 086,Meadow,C,c,view,view and model,primary,runs
 086,Meadow,MUMPS,myra,records,records,primary,runs
 086,Meadow,FORTRAN,trebago,numeric,exact numerics,primary,runs
-086,Meadow,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+086,Meadow,Logo,logo,geometry,geometry,primary,runs
 086,Meadow,C#,dotnet,objects,domain objects,primary,"planned: SDK host only, no in-app runtime yet"
 087,Belvedere,C,c,view,view and model,primary,runs
 087,Belvedere,MUMPS,myra,records,records,primary,runs
 087,Belvedere,FORTRAN,trebago,numeric,exact numerics,primary,runs
 087,Belvedere,TypeScript,typescript,view,view and model,primary,"planned: SDK host only, no in-app runtime yet"
-087,Belvedere,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+087,Belvedere,Logo,logo,geometry,geometry,primary,runs
 087,Belvedere,Java,java,objects,domain objects,primary,"planned: SDK host only, no in-app runtime yet"
 088,Weatherglass,C,c,view,view and model,primary,runs
 088,Weatherglass,MUMPS,myra,records,records,primary,runs
 088,Weatherglass,FORTRAN,trebago,numeric,exact numerics,primary,runs
-088,Weatherglass,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+088,Weatherglass,Logo,logo,geometry,geometry,primary,runs
 088,Weatherglass,Kotlin,kotlin,objects,domain objects,primary,"planned: SDK host only, no in-app runtime yet"
 089,Wellspring,C,c,view,view and model,primary,runs
 089,Wellspring,MUMPS,myra,records,records,primary,runs
 089,Wellspring,FORTRAN,trebago,numeric,exact numerics,primary,runs
 089,Wellspring,Rust,rust,safety,safety rules,primary,runs (compiled to wasm)
 089,Wellspring,Ada,eve,safety,safety rules,witness,runs
-089,Wellspring,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+089,Wellspring,Logo,logo,geometry,geometry,primary,runs
 090,Caravan,C,c,view,view and model,primary,runs
 090,Caravan,MUMPS,myra,records,records,primary,runs
 090,Caravan,FORTRAN,trebago,numeric,exact numerics,primary,runs
-090,Caravan,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+090,Caravan,Logo,logo,geometry,geometry,primary,runs
 090,Caravan,Objective-C,-,objects,domain objects,primary,planned: needs Lingua front-end
 091,Vintner,C,c,view,view and model,primary,runs
 091,Vintner,MUMPS,myra,records,records,primary,runs
@@ -550,12 +550,12 @@ slot,app,language,runtime,owns,feature,role,status
 091,Vintner,COBOL,sutra,money,money and ledgers,primary,runs
 091,Vintner,C++,cpp,money,money and ledgers,witness,runs (compiled to wasm)
 091,Vintner,Forth,forth,stack,small interpreters,primary,runs
-092,Hearth,C,c,view,view and model,primary,runs
-092,Hearth,MUMPS,myra,records,records,primary,runs
-092,Hearth,FORTRAN,trebago,numeric,exact numerics,primary,runs
-092,Hearth,ALGOL 58,-,formula,formulas,primary,planned: needs Lingua front-end
-092,Hearth,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
-092,Hearth,Pascal,-,structure,structure,primary,planned: needs Lingua front-end
+092,Kettle,C,c,view,view and model,primary,runs
+092,Kettle,MUMPS,myra,records,records,primary,runs
+092,Kettle,FORTRAN,trebago,numeric,exact numerics,primary,runs
+092,Kettle,ALGOL 58,-,formula,formulas,primary,planned: needs Lingua front-end
+092,Kettle,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
+092,Kettle,Pascal,pascal,structure,structure,primary,runs
 093,Understory,C,c,view,view and model,primary,runs
 093,Understory,MUMPS,myra,records,records,primary,runs
 093,Understory,FORTRAN,trebago,numeric,exact numerics,primary,runs
@@ -568,11 +568,11 @@ slot,app,language,runtime,owns,feature,role,status
 094,Homestead,FORTRAN,trebago,numeric,exact numerics,primary,runs
 094,Homestead,IEC 61131-3 Structured Text,-,control,machine control,primary,planned: needs Lingua front-end
 094,Homestead,Zig,-,machine,low-level system,primary,planned: needs Lingua front-end
-094,Homestead,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+094,Homestead,Logo,logo,geometry,geometry,primary,runs
 095,Bonfire,C,c,view,view and model,primary,runs
 095,Bonfire,MUMPS,myra,records,records,primary,runs
 095,Bonfire,FORTRAN,trebago,numeric,exact numerics,primary,runs
-095,Bonfire,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+095,Bonfire,Logo,logo,geometry,geometry,primary,runs
 095,Bonfire,Smalltalk,-,objects,domain objects,primary,planned: needs Lingua front-end
 096,Hamlet,C,c,view,view and model,primary,runs
 096,Hamlet,MUMPS,myra,records,records,primary,runs
@@ -585,19 +585,19 @@ slot,app,language,runtime,owns,feature,role,status
 097,Den,APL,kron,arrays,arrays,primary,runs
 097,Den,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
 097,Den,BASIC,basic,stepwise,step-by-step teaching,primary,runs
-097,Den,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+097,Den,Logo,logo,geometry,geometry,primary,runs
 098,Sapling,C,c,view,view and model,primary,runs
 098,Sapling,MUMPS,myra,records,records,primary,runs
 098,Sapling,APL,kron,arrays,arrays,primary,runs
 098,Sapling,BASIC,basic,stepwise,step-by-step teaching,primary,runs
 098,Sapling,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-098,Sapling,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+098,Sapling,Logo,logo,geometry,geometry,primary,runs
 099,Typewright,C,c,view,view and model,primary,runs
 099,Typewright,MUMPS,myra,records,records,primary,runs
 099,Typewright,APL,kron,arrays,arrays,primary,runs
-099,Typewright,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+099,Typewright,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 099,Typewright,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
-099,Typewright,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+099,Typewright,Logo,logo,geometry,geometry,primary,runs
 100,Primer,C,c,view,view and model,primary,runs
 100,Primer,COBOL,sutra,money,money and ledgers,primary,runs
 100,Primer,FORTRAN,trebago,numeric,exact numerics,primary,runs
@@ -612,17 +612,17 @@ slot,app,language,runtime,owns,feature,role,status
 101,Orrery,APL,kron,arrays,arrays,primary,runs
 101,Orrery,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
 101,Orrery,Simula I,-,simulation,simulation,primary,planned: needs Lingua front-end
-101,Orrery,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+101,Orrery,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 102,Fieldguide,C,c,view,view and model,primary,runs
 102,Fieldguide,MUMPS,myra,records,records,primary,runs
 102,Fieldguide,APL,kron,arrays,arrays,primary,runs
 102,Fieldguide,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
 102,Fieldguide,BASIC,basic,stepwise,step-by-step teaching,primary,runs
-102,Fieldguide,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+102,Fieldguide,Logo,logo,geometry,geometry,primary,runs
 103,Cubby,C,c,view,view and model,primary,runs
 103,Cubby,MUMPS,myra,records,records,primary,runs
 103,Cubby,APL,kron,arrays,arrays,primary,runs
-103,Cubby,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+103,Cubby,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 103,Cubby,Rust,rust,safety,safety rules,primary,runs (compiled to wasm)
 103,Cubby,Ada,eve,safety,safety rules,witness,runs
 104,Riddle,C,c,view,view and model,primary,runs
@@ -635,31 +635,31 @@ slot,app,language,runtime,owns,feature,role,status
 105,Patience,MUMPS,myra,records,records,primary,runs
 105,Patience,APL,kron,arrays,arrays,primary,runs
 105,Patience,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-105,Patience,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
-105,Patience,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+105,Patience,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
+105,Patience,Logo,logo,geometry,geometry,primary,runs
 106,Nutshell,C,c,view,view and model,primary,runs
 106,Nutshell,MUMPS,myra,records,records,primary,runs
 106,Nutshell,APL,kron,arrays,arrays,primary,runs
 106,Nutshell,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
 106,Nutshell,BASIC,basic,stepwise,step-by-step teaching,primary,runs
-106,Nutshell,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+106,Nutshell,Logo,logo,geometry,geometry,primary,runs
 107,Gnomon,C,c,view,view and model,primary,runs
 107,Gnomon,MUMPS,myra,records,records,primary,runs
 107,Gnomon,APL,kron,arrays,arrays,primary,runs
 107,Gnomon,F#,dotnet,numeric,exact numerics,primary,"planned: SDK host only, no in-app runtime yet"
 107,Gnomon,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-107,Gnomon,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+107,Gnomon,Logo,logo,geometry,geometry,primary,runs
 108,Talewind,C,c,view,view and model,primary,runs
 108,Talewind,MUMPS,myra,records,records,primary,runs
 108,Talewind,APL,kron,arrays,arrays,primary,runs
 108,Talewind,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
-108,Talewind,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
-108,Talewind,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+108,Talewind,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
+108,Talewind,Logo,logo,geometry,geometry,primary,runs
 109,Tally,C,c,view,view and model,primary,runs
 109,Tally,FORTRAN,trebago,numeric,exact numerics,primary,runs
 109,Tally,COBOL,sutra,money,money and ledgers,primary,runs
 109,Tally,APL,kron,arrays,arrays,primary,runs
-109,Tally,ALGOL 60,-,formula,formulas,primary,planned: needs Lingua front-end
+109,Tally,ALGOL 60,algol60,formula,formulas,primary,runs
 109,Tally,TRAC,-,text,text,primary,planned: needs Lingua front-end
 110,Sundial,C,c,view,view and model,primary,runs
 110,Sundial,FORTRAN,trebago,numeric,exact numerics,primary,runs
@@ -688,7 +688,7 @@ slot,app,language,runtime,owns,feature,role,status
 114,Runebook,C,c,view,view and model,primary,runs
 114,Runebook,FORTRAN,trebago,numeric,exact numerics,primary,runs
 114,Runebook,APL,kron,arrays,arrays,primary,runs
-114,Runebook,Scheme,-,symbolic,symbolic reasoning,primary,planned: needs Lingua front-end
+114,Runebook,Scheme,scheme,symbolic,symbolic reasoning,primary,runs
 114,Runebook,CPL,-,formula,formulas,primary,planned: needs Lingua front-end
 114,Runebook,Icon,-,text,text,primary,planned: needs Lingua front-end
 115,Platen,C,c,view,view and model,primary,runs
@@ -723,7 +723,7 @@ slot,app,language,runtime,owns,feature,role,status
 120,Gridmark,FORTRAN,trebago,numeric,exact numerics,primary,runs
 120,Gridmark,APL,kron,arrays,arrays,primary,runs
 120,Gridmark,OCaml,-,parse,parsing,primary,planned: needs Lingua front-end
-120,Gridmark,ALGOL 60,-,formula,formulas,primary,planned: needs Lingua front-end
+120,Gridmark,ALGOL 60,algol60,formula,formulas,primary,runs
 120,Gridmark,AWK,-,text,text,primary,planned: needs Lingua front-end
 121,Joinery,C,c,view,view and model,primary,runs
 121,Joinery,COBOL,sutra,money,money and ledgers,primary,runs
@@ -906,7 +906,7 @@ slot,app,language,runtime,owns,feature,role,status
 145,Cartulary,Ada,eve,limits,retention limits,primary,runs
 145,Cartulary,APL,kron,arrays,index grid,primary,runs
 145,Cartulary,MUMPS,myra,records,record hierarchy,primary,runs
-145,Cartulary,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+145,Cartulary,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 145,Cartulary,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 145,Cartulary,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
 146,Swage,C,c,view,view and model,primary,runs
@@ -917,14 +917,14 @@ slot,app,language,runtime,owns,feature,role,status
 146,Swage,MUMPS,myra,records,package tree,primary,runs
 146,Swage,BCPL,-,machine,low-level system,primary,planned: needs Lingua front-end
 146,Swage,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-146,Swage,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+146,Swage,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 147,Binnacle,C,c,view,view and model,primary,runs
 147,Binnacle,COBOL,sutra,money,voyage log,primary,runs
 147,Binnacle,FORTRAN,trebago,numeric,fix calculation,primary,runs
 147,Binnacle,Ada,eve,limits,safe-heading bounds,primary,runs
 147,Binnacle,APL,kron,arrays,bearing arrays,primary,runs
 147,Binnacle,MUMPS,myra,records,waypoint tree,primary,runs
-147,Binnacle,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+147,Binnacle,Logo,logo,geometry,geometry,primary,runs
 147,Binnacle,Prolog,-,search,search,primary,planned: needs Lingua front-end
 148,Poultice,C,c,view,view and model,primary,runs
 148,Poultice,COBOL,sutra,money,care costs,primary,runs
@@ -984,7 +984,7 @@ slot,app,language,runtime,owns,feature,role,status
 154,Chainman,MUMPS,myra,records,land hierarchy,primary,runs
 154,Chainman,Haskell,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
 154,Chainman,ML,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
-154,Chainman,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+154,Chainman,Logo,logo,geometry,geometry,primary,runs
 155,Alembic,C,c,view,view and model,primary,runs
 155,Alembic,COBOL,sutra,money,reagent stock,primary,runs
 155,Alembic,FORTRAN,trebago,numeric,reaction math,primary,runs
@@ -1068,7 +1068,7 @@ slot,app,language,runtime,owns,feature,role,status
 164,Handfast,Ada,eve,limits,clause limits,primary,runs
 164,Handfast,APL,kron,arrays,party matrix,primary,runs
 164,Handfast,MUMPS,myra,records,clause tree,primary,runs
-164,Handfast,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+164,Handfast,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 164,Handfast,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 164,Handfast,Eiffel,-,contracts,contracts,primary,planned: needs Lingua front-end
 164,Handfast,Solidity,-,contracts,contracts,witness,planned: needs Lingua front-end
@@ -1104,7 +1104,7 @@ slot,app,language,runtime,owns,feature,role,status
 168,Bindery,APL,kron,arrays,catalogue grid,primary,runs
 168,Bindery,MUMPS,myra,records,shelf hierarchy,primary,runs
 168,Bindery,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-168,Bindery,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+168,Bindery,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 169,Hornbook,C,c,view,view and model,primary,runs
 169,Hornbook,COBOL,sutra,money,enrolment records,primary,runs
 169,Hornbook,FORTRAN,trebago,numeric,score statistics,primary,runs
@@ -1127,7 +1127,7 @@ slot,app,language,runtime,owns,feature,role,status
 171,Mercer,Ada,eve,limits,credit limits,primary,runs
 171,Mercer,APL,kron,arrays,stock grid,primary,runs
 171,Mercer,MUMPS,myra,records,product tree,primary,runs
-171,Mercer,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+171,Mercer,LISP,lisp,lists,lists,primary,runs
 172,Escapement,C,c,view,view and model,primary,runs
 172,Escapement,COBOL,sutra,money,timesheets,primary,runs
 172,Escapement,FORTRAN,trebago,numeric,drift correction,primary,runs
@@ -1184,7 +1184,7 @@ slot,app,language,runtime,owns,feature,role,status
 178,Assize,MUMPS,myra,records,case tree,primary,runs
 178,Assize,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
 178,Assize,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-178,Assize,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+178,Assize,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 179,Cupel,C,c,view,view and model,primary,runs
 179,Cupel,COBOL,sutra,money,run records,primary,runs
 179,Cupel,FORTRAN,trebago,numeric,simulation core,primary,runs
@@ -1301,7 +1301,7 @@ slot,app,language,runtime,owns,feature,role,status
 192,Coppice,Ada,eve,limits,felling limits,primary,runs
 192,Coppice,APL,kron,arrays,stand grid,primary,runs
 192,Coppice,MUMPS,myra,records,tree inventory,primary,runs
-192,Coppice,Scheme,-,symbolic,symbolic reasoning,primary,planned: needs Lingua front-end
+192,Coppice,Scheme,scheme,symbolic,symbolic reasoning,primary,runs
 192,Coppice,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
 192,Coppice,Modula-2,-,structure,structure,primary,planned: needs Lingua front-end
 193,Glazier,C,c,view,view and model,primary,runs
@@ -1310,7 +1310,7 @@ slot,app,language,runtime,owns,feature,role,status
 193,Glazier,Ada,eve,limits,disclosure rules,primary,runs
 193,Glazier,APL,kron,arrays,budget grid,primary,runs
 193,Glazier,MUMPS,myra,records,agency tree,primary,runs
-193,Glazier,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+193,Glazier,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 193,Glazier,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 193,Glazier,TeX,-,typesetting,typesetting,primary,planned: needs Lingua front-end
 194,Icehouse,C,c,view,view and model,primary,runs
@@ -1365,7 +1365,7 @@ slot,app,language,runtime,owns,feature,role,status
 200,Linkman,MUMPS,myra,records,topology tree,primary,runs
 200,Linkman,Gleam,-,messaging,messaging,primary,planned: needs Lingua front-end
 200,Linkman,Prolog,-,search,search,primary,planned: needs Lingua front-end
-200,Linkman,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+200,Linkman,Logo,logo,geometry,geometry,primary,runs
 201,Gearwright,C,c,view,view and model,primary,runs
 201,Gearwright,COBOL,sutra,money,production records,primary,runs
 201,Gearwright,FORTRAN,trebago,numeric,kinematics,primary,runs
@@ -1390,7 +1390,7 @@ slot,app,language,runtime,owns,feature,role,status
 203,Tiler,APL,kron,arrays,tile grid,primary,runs
 203,Tiler,MUMPS,myra,records,dashboard tree,primary,runs
 203,Tiler,SAS,-,report,reports,primary,planned: needs Lingua front-end
-203,Tiler,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+203,Tiler,Logo,logo,geometry,geometry,primary,runs
 203,Tiler,Visual Basic,dotnet,view,view and model,primary,"planned: SDK host only, no in-app runtime yet"
 204,Topiary,C,c,view,view and model,primary,runs
 204,Topiary,COBOL,sutra,money,habit streaks,primary,runs
@@ -1400,7 +1400,7 @@ slot,app,language,runtime,owns,feature,role,status
 204,Topiary,MUMPS,myra,records,goal tree,primary,runs
 204,Topiary,IPL,-,lists,lists,primary,planned: needs Lingua front-end
 204,Topiary,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
-204,Topiary,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+204,Topiary,Logo,logo,geometry,geometry,primary,runs
 205,Lampwright,C,c,view,view and model,primary,runs
 205,Lampwright,COBOL,sutra,money,energy use,primary,runs
 205,Lampwright,FORTRAN,trebago,numeric,colour math,primary,runs
@@ -1417,7 +1417,7 @@ slot,app,language,runtime,owns,feature,role,status
 206,Verger,APL,kron,arrays,rota grid,primary,runs
 206,Verger,MUMPS,myra,records,member tree,primary,runs
 206,Verger,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-206,Verger,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+206,Verger,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 206,Verger,Swift,swift,objects,domain objects,primary,"planned: SDK host only, no in-app runtime yet"
 207,Fellowcraft,C,c,view,view and model,primary,runs
 207,Fellowcraft,COBOL,sutra,money,comparison ledger,primary,runs
@@ -1474,7 +1474,7 @@ slot,app,language,runtime,owns,feature,role,status
 213,Shingle,APL,kron,arrays,slot table of 407,primary,runs
 213,Shingle,MUMPS,myra,records,manifest records,primary,runs
 213,Shingle,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-213,Shingle,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+213,Shingle,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 213,Shingle,TeX,-,typesetting,typesetting,primary,planned: needs Lingua front-end
 214,Updraft,C,c,view,view and model,primary,runs
 214,Updraft,COBOL,sutra,money,message log,primary,runs
@@ -1516,7 +1516,7 @@ slot,app,language,runtime,owns,feature,role,status
 218,Gust,APL,kron,arrays,forecast grid,primary,runs
 218,Gust,MUMPS,myra,records,family tree,primary,runs
 218,Gust,Simula I,-,simulation,simulation,primary,planned: needs Lingua front-end
-218,Gust,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+218,Gust,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 219,Scree,C,c,view,view and model,primary,runs
 219,Scree,COBOL,sutra,money,score records,primary,runs
 219,Scree,FORTRAN,trebago,numeric,difficulty curve,primary,runs
@@ -1542,7 +1542,7 @@ slot,app,language,runtime,owns,feature,role,status
 221,Watershed,APL,kron,arrays,contribution grid,primary,runs
 221,Watershed,MUMPS,myra,records,member tree,primary,runs
 221,Watershed,Gleam,-,messaging,messaging,primary,planned: needs Lingua front-end
-221,Watershed,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+221,Watershed,LISP,lisp,lists,lists,primary,runs
 221,Watershed,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
 222,Windbreak,C,c,view,view and model,primary,runs
 222,Windbreak,COBOL,sutra,money,rule-firing log,primary,runs
@@ -1590,7 +1590,7 @@ slot,app,language,runtime,owns,feature,role,status
 227,Cirque,Ada,eve,limits,code limits,primary,runs
 227,Cirque,APL,kron,arrays,dimension grid,primary,runs
 227,Cirque,MUMPS,myra,records,building element tree,primary,runs
-227,Cirque,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+227,Cirque,Logo,logo,geometry,geometry,primary,runs
 227,Cirque,Julia,-,matrix,matrices and images,primary,planned: needs Lingua front-end
 227,Cirque,Bash,-,jobs,jobs,primary,planned: needs Lingua front-end
 228,Rapids,C,c,view,view and model,primary,runs
@@ -1659,7 +1659,7 @@ slot,app,language,runtime,owns,feature,role,status
 235,Copse,APL,kron,arrays,cut grid,primary,runs
 235,Copse,MUMPS,myra,records,assembly tree,primary,runs
 235,Copse,APT,-,toolpath,tool paths,primary,planned: needs Lingua front-end
-235,Copse,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+235,Copse,LISP,lisp,lists,lists,primary,runs
 235,Copse,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
 236,Levin,C,c,view,view and model,primary,runs
 236,Levin,COBOL,sutra,money,permit records,primary,runs
@@ -1720,7 +1720,7 @@ slot,app,language,runtime,owns,feature,role,status
 242,Silt,Ada,eve,limits,retention limits,primary,runs
 242,Silt,APL,kron,arrays,filing grid,primary,runs
 242,Silt,MUMPS,myra,records,case file tree,primary,runs
-242,Silt,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+242,Silt,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 242,Silt,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 243,Varve,C,c,view,view and model,primary,runs
 243,Varve,COBOL,sutra,money,archive catalogue,primary,runs
@@ -1747,7 +1747,7 @@ slot,app,language,runtime,owns,feature,role,status
 245,Fulgurite,APL,kron,arrays,reproducibility diff grid,primary,runs
 245,Fulgurite,MUMPS,myra,records,bill-of-materials tree,primary,runs
 245,Fulgurite,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-245,Fulgurite,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+245,Fulgurite,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 245,Fulgurite,Bash,-,jobs,jobs,primary,planned: needs Lingua front-end
 246,Lode,C,c,view,view and model,primary,runs
 246,Lode,COBOL,sutra,money,valuation records,primary,runs
@@ -1790,7 +1790,7 @@ slot,app,language,runtime,owns,feature,role,status
 250,Plumbline,APL,kron,arrays,rule matrix,primary,runs
 250,Plumbline,MUMPS,myra,records,jurisdiction records,primary,runs
 250,Plumbline,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
-250,Plumbline,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+250,Plumbline,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 250,Plumbline,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 251,Swell,C,c,view,view and model,primary,runs
 251,Swell,COBOL,sutra,money,player roster,primary,runs
@@ -1880,7 +1880,7 @@ slot,app,language,runtime,owns,feature,role,status
 261,Rainshadow,MUMPS,myra,records,event tree,primary,runs
 261,Rainshadow,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
 261,Rainshadow,Simula I,-,simulation,simulation,primary,planned: needs Lingua front-end
-261,Rainshadow,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+261,Rainshadow,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 262,Thicket,C,c,view,view and model,primary,runs
 262,Thicket,COBOL,sutra,money,proposal ledger,primary,runs
 262,Thicket,FORTRAN,trebago,numeric,test score arithmetic,primary,runs
@@ -1889,7 +1889,7 @@ slot,app,language,runtime,owns,feature,role,status
 262,Thicket,MUMPS,myra,records,fork tree,primary,runs
 262,Thicket,SAS,-,report,reports,primary,planned: needs Lingua front-end
 262,Thicket,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-262,Thicket,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+262,Thicket,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 263,Grotto,C,c,view,view and model,primary,runs
 263,Grotto,COBOL,sutra,money,access records,primary,runs
 263,Grotto,FORTRAN,trebago,numeric,key derivation,primary,runs
@@ -1977,7 +1977,7 @@ slot,app,language,runtime,owns,feature,role,status
 273,Relume,APL,kron,arrays,service dependency grid,primary,runs
 273,Relume,MUMPS,myra,records,record hierarchy,primary,runs
 273,Relume,Elixir,-,faults,fault handling,primary,planned: needs Lingua front-end
-273,Relume,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+273,Relume,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 273,Relume,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 274,Vigil,C,c,view,view and model,primary,runs
 274,Vigil,COBOL,sutra,money,incident billing,primary,runs
@@ -2000,7 +2000,7 @@ slot,app,language,runtime,owns,feature,role,status
 276,Albedo,APL,kron,arrays,claim matrix,primary,runs
 276,Albedo,MUMPS,myra,records,citation tree,primary,runs
 276,Albedo,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-276,Albedo,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+276,Albedo,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 276,Albedo,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
 277,Aureole,C,c,view,view and model,primary,runs
 277,Aureole,COBOL,sutra,money,municipal budget,primary,runs
@@ -2048,7 +2048,7 @@ slot,app,language,runtime,owns,feature,role,status
 282,Cupola,Ada,eve,limits,retention limits,primary,runs
 282,Cupola,APL,kron,arrays,copy integrity grid,primary,runs
 282,Cupola,MUMPS,myra,records,archive hierarchy,primary,runs
-282,Cupola,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+282,Cupola,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 282,Cupola,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 282,Cupola,Go,go,messaging,messaging,primary,"planned: SDK host only, no in-app runtime yet"
 283,Gibbous,C,c,view,view and model,primary,runs
@@ -2096,7 +2096,7 @@ slot,app,language,runtime,owns,feature,role,status
 288,Lambent,Ada,eve,limits,weekly load limits,primary,runs
 288,Lambent,APL,kron,arrays,skill matrix,primary,runs
 288,Lambent,MUMPS,myra,records,life milestone tree,primary,runs
-288,Lambent,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+288,Lambent,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 288,Lambent,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
 288,Lambent,IPL,-,lists,lists,primary,planned: needs Lingua front-end
 289,Rampart,C,c,view,view and model,primary,runs
@@ -2107,7 +2107,7 @@ slot,app,language,runtime,owns,feature,role,status
 289,Rampart,MUMPS,myra,records,org asset hierarchy,primary,runs
 289,Rampart,RPG,-,report,reports,primary,planned: needs Lingua front-end
 289,Rampart,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-289,Rampart,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+289,Rampart,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 290,Kerf,C,c,view,view and model,primary,runs
 290,Kerf,COBOL,sutra,money,job costing,primary,runs
 290,Kerf,FORTRAN,trebago,numeric,tolerance calculations,primary,runs
@@ -2123,7 +2123,7 @@ slot,app,language,runtime,owns,feature,role,status
 291,Meridian,MUMPS,myra,records,crew and vessel records,primary,runs
 291,Meridian,Prolog,-,search,search,primary,planned: needs Lingua front-end
 291,Meridian,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
-291,Meridian,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+291,Meridian,Logo,logo,geometry,geometry,primary,runs
 292,Solarium,C,c,view,view and model,primary,runs
 292,Solarium,COBOL,sutra,money,seed and produce accounts,primary,runs
 292,Solarium,FORTRAN,trebago,numeric,evapotranspiration model,primary,runs
@@ -2172,7 +2172,7 @@ slot,app,language,runtime,owns,feature,role,status
 297,Armature,APL,kron,arrays,result matrix,primary,runs
 297,Armature,MUMPS,myra,records,design revision tree,primary,runs
 297,Armature,SNOBOL,-,text,text,primary,planned: needs Lingua front-end
-297,Armature,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+297,Armature,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 297,Armature,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 298,Sightline,C,c,view,view and model,primary,runs
 298,Sightline,COBOL,sutra,money,permit fees,primary,runs
@@ -2182,7 +2182,7 @@ slot,app,language,runtime,owns,feature,role,status
 298,Sightline,MUMPS,myra,records,visitor records,primary,runs
 298,Sightline,Prolog,-,search,search,primary,planned: needs Lingua front-end
 298,Sightline,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
-298,Sightline,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+298,Sightline,Logo,logo,geometry,geometry,primary,runs
 299,Ephemeris,C,c,view,view and model,primary,runs
 299,Ephemeris,COBOL,sutra,money,equipment ledger,primary,runs
 299,Ephemeris,FORTRAN,trebago,numeric,orbital mechanics,primary,runs
@@ -2190,7 +2190,7 @@ slot,app,language,runtime,owns,feature,role,status
 299,Ephemeris,APL,kron,arrays,sky coordinate arrays,primary,runs
 299,Ephemeris,MUMPS,myra,records,observation catalogue,primary,runs
 299,Ephemeris,Simula I,-,simulation,simulation,primary,planned: needs Lingua front-end
-299,Ephemeris,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+299,Ephemeris,Logo,logo,geometry,geometry,primary,runs
 299,Ephemeris,Oberon,-,structure,structure,primary,planned: needs Lingua front-end
 300,Lumen,C,c,view,view and model,primary,runs
 300,Lumen,COBOL,sutra,money,clinic billing,primary,runs
@@ -2206,7 +2206,7 @@ slot,app,language,runtime,owns,feature,role,status
 301,Elevation,MUMPS,myra,records,building element tree,primary,runs
 301,Elevation,Julia,-,matrix,matrices and images,primary,planned: needs Lingua front-end
 301,Elevation,JCL,-,jobs,jobs,primary,planned: needs Lingua front-end
-301,Elevation,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+301,Elevation,Logo,logo,geometry,geometry,primary,runs
 302,Transit,C,c,view,view and model,primary,runs
 302,Transit,COBOL,sutra,money,delivery invoices,primary,runs
 302,Transit,FORTRAN,trebago,numeric,route optimisation,primary,runs
@@ -2214,7 +2214,7 @@ slot,app,language,runtime,owns,feature,role,status
 302,Transit,APL,kron,arrays,route grid,primary,runs
 302,Transit,MUMPS,myra,records,consignment hierarchy,primary,runs
 302,Transit,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-302,Transit,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+302,Transit,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 302,Transit,Prolog,-,search,search,primary,planned: needs Lingua front-end
 303,Syzygy,C,c,view,view and model,primary,runs
 303,Syzygy,COBOL,sutra,money,contract payments,primary,runs
@@ -2251,7 +2251,7 @@ slot,app,language,runtime,owns,feature,role,status
 306,Azimuth,APL,kron,arrays,floor grid,primary,runs
 306,Azimuth,MUMPS,myra,records,building and floor tree,primary,runs
 306,Azimuth,Prolog,-,search,search,primary,planned: needs Lingua front-end
-306,Azimuth,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+306,Azimuth,Logo,logo,geometry,geometry,primary,runs
 307,Bitting,C,c,view,view and model,primary,runs
 307,Bitting,COBOL,sutra,money,key deposits,primary,runs
 307,Bitting,FORTRAN,trebago,numeric,access pattern scoring,primary,runs
@@ -2374,7 +2374,7 @@ slot,app,language,runtime,owns,feature,role,status
 321,Diadem,APL,kron,arrays,ballot arrays,primary,runs
 321,Diadem,MUMPS,myra,records,voter roll tree,primary,runs
 321,Diadem,Prolog,-,rules,rules,primary,planned: needs Lingua front-end
-321,Diadem,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+321,Diadem,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 321,Diadem,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 322,Archivolt,C,c,view,view and model,primary,runs
 322,Archivolt,COBOL,sutra,money,COBOL record mapping,primary,runs
@@ -2390,7 +2390,7 @@ slot,app,language,runtime,owns,feature,role,status
 323,Spire,Ada,eve,limits,extraction limits,primary,runs
 323,Spire,APL,kron,arrays,drill grid,primary,runs
 323,Spire,MUMPS,myra,records,claim hierarchy,primary,runs
-323,Spire,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+323,Spire,Logo,logo,geometry,geometry,primary,runs
 324,Druse,C,c,view,view and model,primary,runs
 324,Druse,COBOL,sutra,money,storage fees,primary,runs
 324,Druse,FORTRAN,trebago,numeric,media decay model,primary,runs
@@ -2437,7 +2437,7 @@ slot,app,language,runtime,owns,feature,role,status
 329,Caustic,APL,kron,arrays,reef plot grid,primary,runs
 329,Caustic,MUMPS,myra,records,species tree,primary,runs
 329,Caustic,Elixir,-,faults,fault handling,primary,planned: needs Lingua front-end
-329,Caustic,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+329,Caustic,Logo,logo,geometry,geometry,primary,runs
 330,Sunfleck,C,c,view,view and model,primary,runs
 330,Sunfleck,COBOL,sutra,money,credit sales,primary,runs
 330,Sunfleck,FORTRAN,trebago,numeric,biomass growth model,primary,runs
@@ -2455,7 +2455,7 @@ slot,app,language,runtime,owns,feature,role,status
 331,Rotunda,MUMPS,myra,records,facility tree,primary,runs
 331,Rotunda,K,kron,query,queries,primary,runs
 331,Rotunda,Gleam,-,messaging,messaging,primary,planned: needs Lingua front-end
-331,Rotunda,Scheme,-,symbolic,symbolic reasoning,primary,planned: needs Lingua front-end
+331,Rotunda,Scheme,scheme,symbolic,symbolic reasoning,primary,runs
 332,Atrium,C,c,view,view and model,primary,runs
 332,Atrium,COBOL,sutra,money,guest folios,primary,runs
 332,Atrium,FORTRAN,trebago,numeric,occupancy forecasts,primary,runs
@@ -2496,7 +2496,7 @@ slot,app,language,runtime,owns,feature,role,status
 336,Portcullis,Ada,eve,limits,capacity limits,primary,runs
 336,Portcullis,APL,kron,arrays,entry grid,primary,runs
 336,Portcullis,MUMPS,myra,records,guest hierarchy,primary,runs
-336,Portcullis,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+336,Portcullis,LISP,lisp,lists,lists,primary,runs
 336,Portcullis,Zig,-,machine,low-level system,primary,planned: needs Lingua front-end
 336,Portcullis,WebAssembly,wasm,sandbox,sandboxing,primary,runs
 337,Apse,C,c,view,view and model,primary,runs
@@ -2515,7 +2515,7 @@ slot,app,language,runtime,owns,feature,role,status
 338,Corbel,MUMPS,myra,records,artefact hierarchy,primary,runs
 338,Corbel,Mojo,-,ai,AI,primary,planned: needs Lingua front-end
 338,Corbel,LabVIEW,-,signal,signals,primary,planned: needs Lingua front-end
-338,Corbel,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+338,Corbel,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 339,Athenaeum,C,c,view,view and model,primary,runs
 339,Athenaeum,COBOL,sutra,money,lending fees and fines,primary,runs
 339,Athenaeum,FORTRAN,trebago,numeric,demand forecasts,primary,runs
@@ -2542,7 +2542,7 @@ slot,app,language,runtime,owns,feature,role,status
 341,Vernier,MUMPS,myra,records,provenance tree,primary,runs
 341,Vernier,RPG,-,report,reports,primary,planned: needs Lingua front-end
 341,Vernier,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-341,Vernier,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+341,Vernier,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 342,Dulcimer,C,c,view,view and model,primary,runs
 342,Dulcimer,COBOL,sutra,money,workshop orders,primary,runs
 342,Dulcimer,FORTRAN,trebago,numeric,alloy mix,primary,runs
@@ -2567,7 +2567,7 @@ slot,app,language,runtime,owns,feature,role,status
 344,Portolan,Ada,eve,limits,no-fly zone limits,primary,runs
 344,Portolan,APL,kron,arrays,elevation grids,primary,runs
 344,Portolan,MUMPS,myra,records,place hierarchy,primary,runs
-344,Portolan,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+344,Portolan,Logo,logo,geometry,geometry,primary,runs
 344,Portolan,MATLAB,-,matrix,matrices and images,primary,planned: needs Lingua front-end
 344,Portolan,Ladder logic,-,control,machine control,primary,planned: needs Lingua front-end
 345,Caravel,C,c,view,view and model,primary,runs
@@ -2595,7 +2595,7 @@ slot,app,language,runtime,owns,feature,role,status
 347,Sampler,MUMPS,myra,records,provenance tree,primary,runs
 347,Sampler,Objective-C,-,objects,domain objects,primary,planned: needs Lingua front-end
 347,Sampler,SAS,-,report,reports,primary,planned: needs Lingua front-end
-347,Sampler,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+347,Sampler,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 347,Sampler,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 348,Theorbo,C,c,view,view and model,primary,runs
 348,Theorbo,COBOL,sutra,money,royalty splits,primary,runs
@@ -2623,7 +2623,7 @@ slot,app,language,runtime,owns,feature,role,status
 350,Stereoscope,MUMPS,myra,records,shoot album tree,primary,runs
 350,Stereoscope,MATLAB,-,matrix,matrices and images,primary,planned: needs Lingua front-end
 350,Stereoscope,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-350,Stereoscope,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+350,Stereoscope,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 351,Athanor,C,c,view,view and model,primary,runs
 351,Athanor,COBOL,sutra,money,batch costing,primary,runs
 351,Athanor,FORTRAN,trebago,numeric,reaction kinetics,primary,runs
@@ -2688,7 +2688,7 @@ slot,app,language,runtime,owns,feature,role,status
 358,Crowsnest,Ada,eve,limits,privacy masking limits,primary,runs
 358,Crowsnest,APL,kron,arrays,frame arrays,primary,runs
 358,Crowsnest,MUMPS,myra,records,site tree,primary,runs
-358,Crowsnest,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+358,Crowsnest,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 358,Crowsnest,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 358,Crowsnest,JOVIAL,-,control,machine control,primary,planned: needs Lingua front-end
 359,Capstan,C,c,view,view and model,primary,runs
@@ -2729,7 +2729,7 @@ slot,app,language,runtime,owns,feature,role,status
 363,Linen,APL,kron,arrays,field grid,primary,runs
 363,Linen,MUMPS,myra,records,plot tree,primary,runs
 363,Linen,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-363,Linen,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+363,Linen,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 364,Fanfare,C,c,view,view and model,primary,runs
 364,Fanfare,COBOL,sutra,money,credit ledger,primary,runs
 364,Fanfare,FORTRAN,trebago,numeric,reputation scoring,primary,runs
@@ -2750,7 +2750,7 @@ slot,app,language,runtime,owns,feature,role,status
 366,Spinnaker,APL,kron,arrays,airspace grid,primary,runs
 366,Spinnaker,MUMPS,myra,records,airframe tree,primary,runs
 366,Spinnaker,IEC 61131-3 Structured Text,-,control,machine control,primary,planned: needs Lingua front-end
-366,Spinnaker,LISP,-,lists,lists,primary,planned: needs Lingua front-end
+366,Spinnaker,LISP,lisp,lists,lists,primary,runs
 366,Spinnaker,Prolog,-,search,search,primary,planned: needs Lingua front-end
 367,Argonaut,C,c,view,view and model,primary,runs
 367,Argonaut,COBOL,sutra,money,savings ledger,primary,runs
@@ -2808,7 +2808,7 @@ slot,app,language,runtime,owns,feature,role,status
 373,Paisley,APL,kron,arrays,pattern arrays,primary,runs
 373,Paisley,MUMPS,myra,records,design version tree,primary,runs
 373,Paisley,APT,-,toolpath,tool paths,primary,planned: needs Lingua front-end
-373,Paisley,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+373,Paisley,Logo,logo,geometry,geometry,primary,runs
 373,Paisley,SNOBOL,-,text,text,primary,planned: needs Lingua front-end
 374,Calliope,C,c,view,view and model,primary,runs
 374,Calliope,COBOL,sutra,money,allowance credits,primary,runs
@@ -2817,7 +2817,7 @@ slot,app,language,runtime,owns,feature,role,status
 374,Calliope,APL,kron,arrays,story grid,primary,runs
 374,Calliope,MUMPS,myra,records,family tree,primary,runs
 374,Calliope,Python,python,ai,AI,primary,"planned: SDK host only, no in-app runtime yet"
-374,Calliope,Pascal,-,stepwise,step-by-step teaching,primary,planned: needs Lingua front-end
+374,Calliope,Pascal,pascal,stepwise,step-by-step teaching,primary,runs
 375,Bulwark,C,c,view,view and model,primary,runs
 375,Bulwark,COBOL,sutra,money,asset register,primary,runs
 375,Bulwark,FORTRAN,trebago,numeric,risk scoring,primary,runs
@@ -2929,7 +2929,7 @@ slot,app,language,runtime,owns,feature,role,status
 387,Commonweal,MUMPS,myra,records,holdings tree,primary,runs
 387,Commonweal,Erlang,-,messaging,messaging,primary,planned: needs Lingua front-end
 387,Commonweal,Prolog,-,search,search,primary,planned: needs Lingua front-end
-387,Commonweal,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+387,Commonweal,Logo,logo,geometry,geometry,primary,runs
 388,Patchwork,C,c,view,view and model,primary,runs
 388,Patchwork,COBOL,sutra,money,archive storage costs,primary,runs
 388,Patchwork,FORTRAN,trebago,numeric,date estimation,primary,runs
@@ -2961,7 +2961,7 @@ slot,app,language,runtime,owns,feature,role,status
 391,Planisphere,APL,kron,arrays,machine inventory,primary,runs
 391,Planisphere,MUMPS,myra,records,configuration tree,primary,runs
 391,Planisphere,Crystal,-,machine,low-level system,primary,planned: needs Lingua front-end
-391,Planisphere,ALGOL 60,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
+391,Planisphere,ALGOL 60,algol60,proof,proofs of correctness,primary,runs
 391,Planisphere,Haskell,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
 392,Consort,C,c,view,view and model,primary,runs
 392,Consort,COBOL,sutra,money,contribution ledger,primary,runs
@@ -3007,7 +3007,7 @@ slot,app,language,runtime,owns,feature,role,status
 396,Macrame,MUMPS,myra,records,node tree,primary,runs
 396,Macrame,Erlang,-,messaging,messaging,primary,planned: needs Lingua front-end
 396,Macrame,Prolog,-,search,search,primary,planned: needs Lingua front-end
-396,Macrame,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+396,Macrame,Logo,logo,geometry,geometry,primary,runs
 397,Descant,C,c,view,view and model,primary,runs
 397,Descant,COBOL,sutra,money,credential records,primary,runs
 397,Descant,FORTRAN,trebago,numeric,mastery estimates,primary,runs
@@ -3016,7 +3016,7 @@ slot,app,language,runtime,owns,feature,role,status
 397,Descant,MUMPS,myra,records,learning tree,primary,runs
 397,Descant,BASIC,basic,stepwise,step-by-step teaching,primary,runs
 397,Descant,ML,-,proof,proofs of correctness,primary,planned: needs Lingua front-end
-397,Descant,ALGOL 60,-,proof,proofs of correctness,witness,planned: needs Lingua front-end
+397,Descant,ALGOL 60,algol60,proof,proofs of correctness,witness,runs
 398,Orlop,C,c,view,view and model,primary,runs
 398,Orlop,COBOL,sutra,money,record schemas,primary,runs
 398,Orlop,FORTRAN,trebago,numeric,query statistics,primary,runs
@@ -3052,7 +3052,7 @@ slot,app,language,runtime,owns,feature,role,status
 401,Bearing,MUMPS,myra,records,itinerary tree,primary,runs
 401,Bearing,Prolog,-,search,search,primary,planned: needs Lingua front-end
 401,Bearing,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
-401,Bearing,Logo,-,geometry,geometry,primary,planned: needs Lingua front-end
+401,Bearing,Logo,logo,geometry,geometry,primary,runs
 402,Heliostat,C,c,view,view and model,primary,runs
 402,Heliostat,COBOL,sutra,money,energy credits,primary,runs
 402,Heliostat,FORTRAN,trebago,numeric,irradiance model,primary,runs

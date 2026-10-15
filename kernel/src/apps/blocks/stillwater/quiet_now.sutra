@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A minute inside a daily window that may cross midnight, in Sutra. Minutes
+# of the day are 0..1439. The window opens at `opens` and runs up to, not
+# including, `closes`; when it opens after it closes it crosses midnight and
+# covers opens..1439 and 0..closes-1; opening and closing at the same minute
+# is the whole day. This is the rule zxvd keeps for an app's hours
+# (zxv_screen.c), so a quiet window and a screen-time window mean the same
+# thing. A minute outside the day is in no window. A value past 9(4), or a
+# negative one, does not fit: refused.
+record quiet-now
+  opens: 9(4)
+  closes: 9(4)
+  now: 9(4)
+procedure
+  if opens > 1439 or closes > 1439 or now > 1439
+    answer 0 = 1
+  end-if
+  if opens = closes
+    answer 0 = 0
+  end-if
+  if opens < closes
+    answer now >= opens and now < closes
+  end-if
+  answer now >= opens or now < closes

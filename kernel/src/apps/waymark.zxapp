@@ -9,6 +9,7 @@ name   Waymark
 version 1.0.0
 slot   85
 layer  L1
+matrix 85
 icon   icons/l1/085-waymark.svg
 budget 233
 needs  location
@@ -18,3 +19,7 @@ model  apps/waymark_model.c
 provides place_ok truth lat lon
 logic    eve  place_ok apps/blocks/waymark/place.eve
 logic    kron place_ok apps/blocks/waymark/place.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check place_ok lat=90000000,-90000000,90000001,0 lon=180000000,-180000000,0,-180000001 = true,true,false,false
+check place_ok lat=0,0 lon=0 = both

@@ -9,5 +9,6 @@ BOTH test: the stair meets clause 4 (rise) and breaks clause 9 (headroom): the d
 Advisory; a qualified engineer and the building authority approve.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, print, notify.
-Planned (no runtime yet): Julia, JCL, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/elevation/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Julia, JCL.
 Pending: `pending Julia structure` (matrix); JCL (jobs): no entry here is an obvious fit; put `pending JCL <entry>` on the one closest to jobs and name it in your report; `pending Logo structure` (geometry).

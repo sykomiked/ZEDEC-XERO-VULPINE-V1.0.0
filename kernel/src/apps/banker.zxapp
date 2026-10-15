@@ -13,6 +13,7 @@ name   The Banker
 version 1.0.0
 slot   1
 layer  L1
+matrix 1
 icon   icons/l1/001-banker.svg
 budget 233
 needs  fs.read
@@ -30,3 +31,10 @@ logic    trebago total apps/blocks/banker/total.tb
 
 provides entry_ok truth folder seq size mtime
 logic    myra entry_ok apps/blocks/banker/entry.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check share size=0,5,10 total=10 = 0,5000,10000
+check share size=11 total=10 = both
+check total size=1,2,3 = 6
+check entry_ok folder=3 seq=1,2 size=999999999999999999,12 mtime=1760000000,0 = true,true
+check entry_ok folder=3 seq=1 size=12 mtime=1000000000000 = false

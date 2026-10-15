@@ -16,4 +16,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, backup, journal, print.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Objective-C provenance`; `pending SAS catalogue`; `pending ALGOL_60 loan_ok`; `pending Haskell insured`.
-Planned (no runtime yet): Objective-C, SAS, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/sampler/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Objective-C, SAS, Haskell.

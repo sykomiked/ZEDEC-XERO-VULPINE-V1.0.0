@@ -9,5 +9,6 @@ BOTH test: diver 1 records 40 percent bleaching on plot 6 and diver 2 15 percent
 Dive limits are advisory; divers follow their training and tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, location, ledger.read.
-Planned (no runtime yet): Elixir, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/caustic/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Elixir.
 Pending: Elixir (faults): no entry here is an obvious fit; put `pending Elixir <entry>` on the one closest to faults and name it in your report; `pending Logo heat_stress` (geometry).

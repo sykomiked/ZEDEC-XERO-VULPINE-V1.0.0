@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Let this notice through, in Sutra. A Watchfire emergency always goes
+# through. Otherwise a notice goes through when it is not quiet, when its
+# sender is on the allow list, or when the same caller called before within
+# 3 minutes: gap is the seconds since that earlier call, -1 when there was
+# none. quiet, allowed and emergency are one-digit flags (above 0: yes); a
+# negative flag, or a gap past s9(9), does not fit: refused.
+record let-through
+  quiet: 9
+  allowed: 9
+  gap: s9(9)
+  emergency: 9
+procedure
+  if emergency > 0
+    answer 0 = 0
+  end-if
+  answer quiet < 1 or allowed > 0 or gap >= 0 and gap <= 180

@@ -17,12 +17,12 @@ FLOW-MATIC	-	business	English-worded business data processing, the ancestor of C
 IPL	-	lists	list processing and symbolic search
 FORTRAN	trebago	numeric,statistics	exact heavy numeric kernels: sums, scans, rationals
 ALGOL 58	-	formula	block-structured algorithms as published
-LISP	-	symbolic,lists	symbolic data, trees and self-describing structures
+LISP	lisp	symbolic,lists	symbolic data, trees and self-describing structures
 COBOL	sutra	money,business	ledgers, money and fixed-size business records, refusing on overflow
 JOVIAL	-	control	embedded real-time control tables
 RPG	-	report	report generation from fixed records
 APT	-	toolpath	numerical-control tool paths
-ALGOL 60	-	formula,proof	clear, provable algorithms
+ALGOL 60	algol60	formula,proof	clear, provable algorithms
 APL	kron	arrays,statistics	whole-array arithmetic in one line
 SNOBOL	-	text,pattern	string pattern matching with backtracking
 Simula I	-	simulation	discrete-event simulation
@@ -35,18 +35,18 @@ System/360 assembler	-	machine	exact machine-level arithmetic
 TRAC	-	text	macro text processing
 MUMPS	myra	records,index	sparse records, indexes and search
 BCPL	-	machine	small typeless systems code
-Logo	-	geometry	turtle geometry and drawing paths
+Logo	logo	geometry	turtle geometry and drawing paths
 Simula 67	-	simulation,objects	simulation with classes
 ALGOL 68	-	formula	strongly typed expression-rich algorithms
 B	-	machine	word-level systems code
 Forth	forth	stack,control	tiny stack programs for devices and boot-time checks
-Pascal	-	stepwise,structure	structured, strongly typed teaching-grade procedures
+Pascal	pascal	stepwise,structure	structured, strongly typed teaching-grade procedures
 C	c	view,model,machine	the screen, the model and the zxvd link
 Prolog	-	rules,search	logic rules and searching for every answer that fits
 Smalltalk	-	objects,view	live objects and message passing
 ML	-	types,proof	typed functional transforms with inference
 SQL	-	query	querying tables by what you want, not how
-Scheme	-	symbolic	small, exact functional code
+Scheme	scheme	symbolic	small, exact functional code
 S	-	statistics	interactive statistics
 SAS	-	statistics,report	statistical reports over records
 Icon	-	text,pattern	goal-directed string scanning
@@ -114,7 +114,7 @@ Zig	-	machine	explicit systems code (as wasm)
 WebAssembly	wasm	sandbox	sandboxed, fuel-metered logic from any compiled language
 Gleam	-	messaging,types	typed fault-tolerant services
 Mojo	-	numeric,ai	numeric kernels for models
-LEXIS	-	search,text	names, places and languages resolved to library slots
-TECTON	-	dataflow	a plan of blocks, source to sink, checked before it runs
-AXION	-	rules,proof	loop-free truth checks over readings
-Lingua IR	-	machine	the shared form every Lingua front-end compiles to
+LEXIS	-	names,lookup	resolving names and shorthand to verified blocks (runs in kernel/src/alexandria, not yet as an app runtime)
+TECTON	-	composition	composing verified blocks into plans (runs in kernel/src/alexandria, not yet as an app runtime)
+AXION	-	truth,proof	loop-free truth checks (runs in kernel/src/alexandria, not yet as an app runtime)
+Lingua IR	zlir	precompiled	the precompiled form of any Lingua program (an entry counts for the language it was written in)

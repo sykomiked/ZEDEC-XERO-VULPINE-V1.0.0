@@ -5,4 +5,5 @@ What it does: the public face of your space (`spaces.create`, `spaces.get`, `spa
 Logic (critical): "may this file go on the cloud top" (a copy into a more open kind needs the owner's confirmation) in eve + myra witnessed; page byte totals exact in trebago; published items and their CIDs in myra (CIDs come from the daemon only).
 Nothing is published without the owner's confirmation.
 needs: fs.read, fs.write, peers, net.
-Planned (no runtime yet): TypeScript, Logo, Java.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/belvedere/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): TypeScript, Java.

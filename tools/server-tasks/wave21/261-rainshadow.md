@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): model A gives first contact at 14:0
 Safety: Never says looking at the Sun is safe outside totality.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: location, sys.read, fs.write, camera.
-Planned (no runtime yet): Mojo, Simula I, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/rainshadow/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Mojo, Simula I.

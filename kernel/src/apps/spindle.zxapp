@@ -9,6 +9,7 @@ name   Spindle
 version 1.0.0
 slot   22
 layer  L1
+matrix 22
 icon   icons/l1/022-spindle.svg
 budget 233
 needs  sys.read
@@ -18,3 +19,6 @@ model  apps/spindle_model.c
 
 provides call_ok truth params reply
 logic    eve call_ok apps/blocks/spindle/params.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check call_ok params=0,4096,4097,10 reply=0,8192,0,8193 = true,true,false,false

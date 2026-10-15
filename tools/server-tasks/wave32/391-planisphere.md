@@ -16,4 +16,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: sys.read, fs.read, fs.write, journal, backup, net, peers, notify.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Crystal inventory`; `pending ALGOL_60 step_ok`; `pending Haskell capacity`.
-Planned (no runtime yet): Crystal, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/planisphere/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Crystal, Haskell.

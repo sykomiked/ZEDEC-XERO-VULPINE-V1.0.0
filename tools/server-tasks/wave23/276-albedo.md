@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `claim_state` (each credible source's verd
 BOTH test: source 4 (credible) confirms claim 20 and source 9 (credible) refutes it: the claim is BOTH, labelled disputed, never forced true or false. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: search, fs.read, net, journal.
-Planned (no runtime yet): ML, ALGOL 60, Prolog.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/albedo/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ML, Prolog.
 Pending: `pending ML publish_ok` (proof); `pending ALGOL_60 publish_ok` (proof); `pending Prolog publish_ok` (rules).

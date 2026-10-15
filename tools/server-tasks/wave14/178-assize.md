@@ -9,4 +9,5 @@ BOTH test: witness 1 places the event at site A and witness 2 at site B for one 
 Rulings are the arbiter's (a person's); the app never decides a case.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, journal, notify.
-Planned (no runtime yet): Prolog, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/assize/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog, ML.

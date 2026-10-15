@@ -124,7 +124,7 @@ Apps with no fitting daemon method: none; every app has existing methods for its
 089 wellspring C,MUMPS,FORTRAN,Rust,Ada
 090 caravan C,MUMPS,FORTRAN,COBOL,Ada
 091 vintner C,MUMPS,FORTRAN,COBOL,C++,Forth
-092 hearth C,MUMPS,FORTRAN,Ada
+092 kettle C,MUMPS,FORTRAN,Ada
 093 understory C,MUMPS,FORTRAN,COBOL,C++,Ada,J
 094 homestead C,MUMPS,FORTRAN,Ada,Forth
 095 bonfire C,MUMPS,FORTRAN,Ada
@@ -150,7 +150,7 @@ deviations from APP_LANGUAGES_407.csv (added witnesses; nothing dropped):
 087 belvedere: added Ada (eve) for the publish rule
 088 weatherglass: added Ada (eve) for warnings and APL (kron) as the conversion witness
 090 caravan: added COBOL (sutra) and Ada (eve) as witnesses
-092 hearth: added Ada (eve) for the allergen rule
+092 kettle: added Ada (eve) for the allergen rule
 094 homestead: added Ada (eve) and Forth for the device rule
 095 bonfire: added Ada (eve) for the join rule
 096 hamlet: added Ada (eve) for the visibility rule

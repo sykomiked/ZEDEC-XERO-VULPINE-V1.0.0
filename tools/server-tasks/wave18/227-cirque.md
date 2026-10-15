@@ -15,4 +15,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): designer A draws a wall at 4200 mm 
 Safety: Load figures and code checks are advisory; a qualified person signs the drawings.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: fs.read, fs.write, print.
-Planned (no runtime yet): Logo, Julia, Bash.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/cirque/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Julia, Bash.

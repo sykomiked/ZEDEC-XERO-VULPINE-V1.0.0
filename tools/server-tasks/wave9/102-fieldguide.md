@@ -5,4 +5,6 @@ What it does: articles in a Hoard folder found by `search.query` (`search.refres
 Logic (critical): "show a caution" (any matched species marked toxic or dangerous) in kron + myra witnessed; identification key, one question at a time, in basic; match ranking in kron; article index in myra.
 Never says a plant or fungus is safe to eat.
 needs: fs.read, search.
-Planned (no runtime yet): Python, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/fieldguide/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.
+Data (docs/DATAPACKS.md): the core pack `fieldguide-core.tar` (GBIF Backbone Taxonomy, CC BY 4.0; Wikidata species with English names, CC0) installs into the Hoard; Wikipedia ZIM (CC BY-SA) is the separate optional pack. No source in the table marks species toxic: the caution needs one before it can say anything (report it), and the app never says a plant or fungus is safe to eat.

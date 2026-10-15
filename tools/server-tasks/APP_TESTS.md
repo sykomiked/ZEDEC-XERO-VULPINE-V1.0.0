@@ -33,49 +33,132 @@ makes two languages disagree (`ZXAPP_BOTH`) when an entry runs in two;
 each file must check something, and a file in `tests/` that matches no app
 is refused.
 
-## A worked pair (shape only: these two apps are not real)
+## A whole app that passes (a sample, verified)
 
-`kitling.zxapp` provides `doubled num x` in KRON (`2*x`) and Sutra
-(`compute y = x * 2` into `y: 9(9)`). `gatehouse.zxapp` says `use kitling 1`,
-re-exports `provides kitling.doubled num x`, and adds its own `plus_one`.
+These seven files are a complete app on which `app_gate.py --app kitling --verdict` says **T**. They were checked on the base that carries this page, and the BOTH check was proved to fail when its input fits Sutra's picture. This is a sample of the shape, not the Kitling task: your app's entries, languages and model come from its own task file. Copy the shape: every file, every include, every signature.
 
-`tests/kitling_zxapp.inc`:
+`kernel/src/apps/kitling.zxapp`:
+
+```
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+zxapp 1
+id     kitling
+name   Kitling
+version 1.0.0
+slot   62
+layer  L1
+icon   icons/l1/062-kitling.svg
+budget 89
+needs  fs.read
+model  apps/kitling_model.c
+
+provides doubled num x
+logic    kron    doubled apps/blocks/kitling/doubled.kron
+logic    sutra   doubled apps/blocks/kitling/doubled.sutra
+
+# Its own proof (zxapp.h K1): zxapp_check runs these on the device
+check doubled x=0,1,2,999999999 = 0,2,4,1999999998
+check doubled x=1,1000000000 = both
+```
+
+The two `check` lines are the app's proof that travels with it: the gate refuses an app with an entry no check line names, and an entry in two languages needs a `= both` line (inputs that make them disagree) or a `# agree: <entry> <why>` line saying why no input can. A check passes when every row matches and the join is TRUE (NEITHER when one language ran); `= both` passes only on BOTH.
+
+`kernel/src/apps/blocks/kitling/doubled.kron` (KRON works elementwise; a 1-element argument does not broadcast, so test with two rows or more):
+
+```
+2*x
+```
+
+`kernel/src/apps/blocks/kitling/doubled.sutra` (Sutra runs once per row; a value past its picture is refused):
+
+```
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Twice x, in Sutra: x fits 9(9), so a larger x is a size error, refused.
+record doubler
+  x: 9(9)
+  y: 9(10)
+procedure
+  compute y = x * 2
+  answer y
+```
+
+`kernel/src/apps/kitling_model.h` and `kitling_model.c` (integers only; every parameter used; no POSIX calls):
+
+```c
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+#ifndef KITLING_MODEL_H
+#define KITLING_MODEL_H
+#include <stdint.h>
+int64_t kitling_twice(int64_t x);
+int64_t kitling_sum_twice(const int64_t *x, uint32_t n);
+#endif
+```
+
+```c
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+#include "kitling_model.h"
+
+int64_t kitling_twice(int64_t x)
+{
+    if (x > INT64_MAX / 2) return -1;
+    if (x < INT64_MIN / 2) return -1;
+    int64_t y = x;
+    y += x;
+    return y;
+}
+
+int64_t kitling_sum_twice(const int64_t *x, uint32_t n)
+{
+    int64_t s = 0;
+    if (!x) return -1;
+    for (uint32_t i = 0; i < n; i++) {
+        int64_t t = kitling_twice(x[i]);
+        if (t < 0 && x[i] >= 0) return -1;
+        if (s > INT64_MAX - t) return -1;
+        s += t;
+    }
+    if (s < 0) return -1;
+    return s;
+}
+```
+
+`kernel/src/apps/tests/kitling_zxapp.inc` (no includes: the harness has them; `app` is the loaded app):
 
 ```c
 APP_TEST(kitling, 2, 62)
 {
     static int64_t x[WAVE_ROWS], want[WAVE_ROWS];
     for (uint32_t i = 0; i < WAVE_ROWS; i++) {
-        x[i] = wrand(0, 499999999);
-        want[i] = x[i] * 2;
+        x[i] = wrand(0, 999999999);
+        want[i] = 2 * x[i];
     }
     zxapp_arg_t xa = {"x", x, WAVE_ROWS};
-    CHECK(wave_same(app, "doubled", &xa, 1, want, WAVE_ROWS, false), "Kitling: KRON = Sutra = C");
-    int64_t big[1] = {999999999};
-    zxapp_arg_t ba = {"x", big, 1};
+    CHECK(wave_same(app, "doubled", &xa, 1, want, WAVE_ROWS, false), "Kitling: KRON = Sutra");
+    static const int64_t big[2] = {1, 1000000000}; /* past Sutra's 9(9) */
+    zxapp_arg_t ba = {"x", big, 2};
     CHECK(wave_lp(app, "doubled", &ba, 1) == ZXAPP_BOTH, "Kitling: Sutra refuses, KRON answers: BOTH");
 }
 ```
 
-`tests/gatehouse_zxapp.inc` (Gatehouse loads its one line plus the two it uses):
-
-```c
-APP_TEST(gatehouse, 3, 8)
-{
-    int64_t x[3] = {0, 1, 41}, d[3] = {0, 2, 82}, p[3] = {1, 2, 42};
-    zxapp_arg_t xa = {"x", x, 3};
-    CHECK(wave_same(app, "kitling.doubled", &xa, 1, d, 3, false), "Gatehouse: Kitling's entry, used");
-    CHECK(wave_same(app, "plus_one", &xa, 1, p, 3, false), "Gatehouse: its own entry");
-}
-```
-
-`tests/kitling_apps.inc`:
+`kernel/src/apps/tests/kitling_apps.inc` (includes only the model's header):
 
 ```c
 #include "kitling_model.h"
 APPS_TEST(kitling)
 {
+    int64_t x[3] = {1, 2, 3};
     CHECK(kitling_twice(2) == 4, "kitling: twice 2");
-    CHECK(kitling_twice(0) == 0, "kitling: twice 0");
+    CHECK(kitling_sum_twice(x, 3) == 12, "kitling: sum of twice");
 }
 ```
+
+The entry's slot (`@num.kitling_doubled`) is given by `build_index.py --assign kitling auto auto --out-hdr`; the wave loop does that for you.
+
+## How the C is compiled
+
+`cc -std=c11 -Wall -Wextra -Werror`, so a warning fails the build. Every parameter is used (or `(void) p;`), every function is declared in a header before it is used, no `strdup` or other POSIX calls, no `printf` in a model (print `int64_t` in a test with `%lld` and a `(long long)` cast), no `float` or `double`. A `_zxapp.inc` test cannot include `zxm.h`; only the model's own test (`_apps.inc`) reaches the daemon, through `LINK`. Use only the functions and struct members its headers declare: `zxm.h` is the whole daemon API (there is no `zxm_init`, `zxm_destroy` or `zxm_get_i32`), and a struct has only the members its header gives it.

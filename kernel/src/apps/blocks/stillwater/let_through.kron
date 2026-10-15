@@ -1,0 +1,1 @@
+(emergency>0)|(quiet<1)|(allowed>0)|(gap>-1)&gap<181

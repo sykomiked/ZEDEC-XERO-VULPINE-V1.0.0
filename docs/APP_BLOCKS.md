@@ -28,6 +28,12 @@ writing an app: what is listed here already exists.
 | net_present_value | `pce_fin.npv` | npv, net_present_value | net present value of integer cash flows at a rational rate |
 | bayes_update | `pce_prob.bayes` | bayes, posterior | a Bayesian update in integers |
 | bargaining_zone | `pce_strat.zopa` | zopa, bargaining_zone | whether a seller's minimum and a buyer's maximum overlap |
+| pcm_gain | `birdsong.gain` | gain, pcm_gain, gain_clip, saturating_gain, sample_gain | a 16-bit sample scaled by a level in hundredths of a percent (10000 is unity): floor(sample * level / 10000), the floor toward minus infinity, then held inside -32768..32767 (saturating, never wrapped); level is one value for the whole buffer; a sample outside 16 bits or a level outside 0..1000000 is refused as -32769 |
+| samples_to_ms | `birdsong.clip_ms` | clip_ms, samples_to_ms, duration_ms, length_ms | how long a count of samples of one channel lasts at a rate in hertz, in milliseconds: samples * 1000 / rate as an exact reduced rational, never rounded; a rate of 0 is refused, and so is a product that does not fit int64 |
+| reading_in_range | `wellspring.band` | band, range_band, reading_band, in_range | where a reading falls against a range lo..hi, both ends inside: -1 below lo, 0 inside, 1 above hi; refused when lo is above hi (Rust traps, KRON answers: held) |
+| goal_progress | `wellspring.progress_x100` | progress_x100, goal_x100, goal_progress, progress_bp | progress toward a goal in hundredths of a percent: floor(10000 * done / goal), past 10000 when the goal is beaten; a goal of 0 refused, done or goal negative or past 999999999 held (Sutra's 9(9)) |
+| minute_in_daily_window | `stillwater.quiet_now` | quiet_now, in_window, window_now, minute_in_window | a minute of the day (0..1439) inside a daily window: opens <= now < closes; opens after closes crosses midnight (now >= opens or now < closes); opens equal to closes is the whole day; a minute outside 0..1439 is in no window (zxv_screen.c keeps the same rule for an app's hours) |
+| let_notice_through | `stillwater.let_through` | let_through, breakthrough, notice_through | whether a notice goes through a quiet time: a Watchfire emergency (emergency > 0) always, whatever else is said; otherwise when not quiet (quiet < 1), the sender is allowed (allowed > 0), or the same caller called before within 180 seconds (0 <= gap <= 180; gap -1: no earlier call) |
 | send_content | `zxvd:fab.send` | send, send_file, share_file, upload, transmit | send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h |
 | receive_content | `zxvd:fab.receive` | receive, receive_file, fetch_file, download, install, install_app, app_install | receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption) |
 | stream_content | `zxvd:fab.stream.open` | stream, stream_open, stream_frame, stream_checkpoint | a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint) |
@@ -40,6 +46,7 @@ Reuse is blocks used against new entries written, used / (used + new).
 |---|---|---|---|---|---|
 | almanac 1.0.0 | 17 | L1 | used_share 1 | `days num seconds`: wasm, kron<br>`hours num seconds`: wasm, kron | 1 used, 2 new: 33% |
 | banker 1.0.0 | 1 | L1 | - | `share num size total`: kron, wasm<br>`total num size`: trebago<br>`entry_ok truth folder seq size mtime`: myra | 0 used, 3 new: 0% |
+| birdsong 1.0.0 | 55 | L1 | - | `gain num sample level`: kron, wasm<br>`clip_ms num samples rate`: trebago<br>`rec_ok truth rate channels frames`: eve<br>`memo_ok truth memo rate channels frames mtime`: myra | 0 used, 4 new: 0% |
 | fee_check  | - | example | - | `fee num amount rate`: sutra, kron<br>`fee_ok truth amount fee`: sutra, kron, eve<br>`total num amount fee`: trebago<br>`record_ok truth batch seq amount fee`: myra | 0 used, 4 new: 0% |
 | glint 1.0.0 | 49 | L1 | - | `item_ok truth folder seq kind size`: myra | 0 used, 1 new: 0% |
 | keepsake 1.0.0 | 10 | L1 | - | `removed num snapshots keep`: sutra, kron<br>`keep_ok truth keep`: eve | 0 used, 2 new: 0% |
@@ -50,9 +57,11 @@ Reuse is blocks used against new entries written, used / (used + new).
 | shepherd 1.0.0 | 142 | L1 | - | `left num minutes extra used`: sutra, kron<br>`limit_ok truth minutes from to`: eve<br>`week num minutes`: trebago | 0 used, 3 new: 0% |
 | sounding 1.0.0 | 16 | L1 | - | `rate num now was dt`: wasm, sutra | 0 used, 1 new: 0% |
 | spindle 1.0.0 | 22 | L1 | - | `call_ok truth params reply`: eve | 0 used, 1 new: 0% |
+| stillwater 1.0.0 | 144 | L1 | - | `quiet_now truth opens closes now`: sutra, kron<br>`let_through truth quiet allowed gap emergency`: sutra, kron<br>`schedule_ok truth mode days opens closes`: eve<br>`record_ok truth schedule mode days opens closes allowed`: myra | 0 used, 4 new: 0% |
 | tidewatch 1.0.0 | 15 | L1 | used_share 1 | `cpu_x100 num cpu ms`: sutra, kron<br>`peak num share`: kron | 1 used, 2 new: 33% |
 | wake 1.0.0 | 14 | L1 | - | `count num level bar`: kron, trebago | 0 used, 1 new: 0% |
 | waymark 1.0.0 | 85 | L1 | - | `place_ok truth lat lon`: eve, kron | 0 used, 1 new: 0% |
+| wellspring 1.0.0 | 89 | L1 | - | `band num reading lo hi`: wasm, kron<br>`safe_ok truth bpm sleep water`: eve, kron<br>`week num amount`: trebago, kron<br>`progress_x100 num done goal`: kron, sutra<br>`log_ok truth day kind amount`: myra, eve | 0 used, 5 new: 0% |
 | number_classics 1.0.0 | - | block | - | `gcd num a b`: fortran77, basic, forth, zlir | 0 used, 1 new: 0% |
 | pce_fin 1.0.0 | - | block | - | `npv num cf rate_num rate_den`: c<br>`npv_sign truth cf rate_num rate_den`: c | 0 used, 2 new: 0% |
 | pce_prob 1.0.0 | - | block | - | `join num a b`: c<br>`verdict truth m th`: c<br>`bayes num prior like den`: c | 0 used, 3 new: 0% |
