@@ -13,8 +13,8 @@
  *
  * zt_model.c uses the C reference below unless the model carries a zt_kern_t
  * (zt_model_t.kern). Kernel images never set one: the SIMD and thread code
- * (zt_simd.c, zt_simd_x86.c, zt_simd_neon.c) is for hosted builds only and
- * is not linked into them. Freestanding: integer C11, no libc. */
+ * (zt_simd.c, zt_simd_x86.c, zt_simd_sve.c, zt_simd_neon.c, zt_simd_rvv.c) is
+ * for hosted builds only and is not linked into them. Freestanding: integer C11, no libc. */
 #ifndef ZT_KERN_H
 #define ZT_KERN_H
 
