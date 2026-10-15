@@ -17,12 +17,13 @@
  *      no link, no NIC or no lease:
  *             [NET] Link down or no DHCP response.
  *             [SWARM] Falling back to local storage scan: Attach Disc N USB / drive.
- *   3. HTTP   HTTP/1.1 GET /ipfs/<cid>?format=raw to each http:// gateway in
- *             UPSTREAM.CID order, one raw block per request, keep-alive.
- *             Every block is hashed against the CID asked for before use, so
- *             a gateway cannot change a byte; a block one gateway cannot serve
- *             intact is asked of the next. https:// gateways are skipped
- *             (no TLS in this path yet) and said so.
+ *   3. HTTP   HTTP/1.1 GET /ipfs/<cid>?format=raw, one raw block per request,
+ *             keep-alive, from the http:// gateways of UPSTREAM.CID: the one
+ *             that last served a block first, then the others in turn. Every
+ *             block is hashed against the CID asked for before use, so a
+ *             gateway cannot change a byte; one that sends a block that does
+ *             not match is not asked again this boot. https:// gateways are
+ *             skipped (no TLS in this path yet) and said so.
  *   4. find   manifest.txt from the bucket root (mk_bucket.py), the line for
  *             the disc, and the disc's CID through the bucket's directories,
  *             which must equal the manifest's.
@@ -34,6 +35,27 @@
  *             A failed or partial download therefore never looks like a disc.
  *                                       [SWARM_FETCH] ... %, [SWARM_FETCHED]
  *                                       or [SWARM_FETCH_FAIL] ...; nothing committed
+ *
+ * ELASTIC. Fetching is slow and links drop, so the fetch is built to wait:
+ *   - in steps: sn_fetch_step does at most SN_STEP_BYTES of one disc and
+ *     returns, so the kernel boots into the core and the discs fill from its
+ *     idle loop; each disc is mounted (and its models checked) as it commits.
+ *   - resumable: a drive with room for SN_JOURNAL_SECTORS past the image
+ *     keeps a resume record in its last sector (disc CID, bytes, how many are
+ *     safely written; refreshed every SN_JOURNAL_EVERY) and the held head in
+ *     the 34 sectors before it. After a reboot or a dropped link the bytes on
+ *     the drive are read back and hashed (never trusted from the record), and
+ *     the download goes on from there; ipfsn_cat_from fetches only the nodes
+ *     on the path to that offset. A resumed disc whose SHA-256 then differs is
+ *     downloaded once more from the start.
+ *   - patient: a step no gateway can serve waits SN_BACKOFF_MS, doubling to
+ *     SN_BACKOFF_MAX_MS, then tries again, with no total deadline; each
+ *     gateway's response timeout starts at SN_STALL_MS, doubles after a
+ *     timeout up to SN_STALL_MAX_MS and eases back after a success.
+ *                                       [SWARM_FETCH] disc N: waiting for peers ...
+ *   - honest: progress is the bytes hashed so far, as a bar with the rate.
+ *   - optional: sn_fetch_stop (the kernel's d key) stops it at any point;
+ *     what is on the drive stays there for the next boot.
  *
  * The fetcher runs in the kernel's idle context for now; it moves to a ring-3
  * process when user programs have network and disk system calls (gaps 7, 17).
@@ -50,17 +72,25 @@
 #include "../hwdrv/hw_models.h"
 #include "../ipfs_node/ipfs_node.h"
 
-#define SN_DHCP_TRIES   3u
-#define SN_DHCP_MS      5000u
-#define SN_ARP_MS       2000u
-#define SN_CONNECT_MS   5000u
-#define SN_STALL_MS     30000u /* no byte of a response for this long: give up on it */
-#define SN_TICK_MS      200u   /* TCP retransmit pacing */
-#define SN_HOLD_SECTORS 34u    /* protective MBR + GPT header + 32 sectors of entries */
-#define SN_STAGE_BYTES  65536u
-#define SN_MANIFEST_MAX 16384u
-#define SN_HOST_MAX     64u
-#define SN_CACHE_MAX    262144u /* one full raw leaf (mk_bucket's chunk size) */
+#define SN_DHCP_TRIES      3u
+#define SN_DHCP_MS         5000u
+#define SN_ARP_MS          2000u
+#define SN_CONNECT_MS      5000u
+#define SN_STALL_MS        10000u  /* first response timeout per gateway (adaptive)    */
+#define SN_STALL_MAX_MS    160000u /* ... doubled after each timeout up to this        */
+#define SN_TICK_MS         200u    /* TCP retransmit pacing */
+#define SN_HOLD_SECTORS    34u     /* protective MBR + GPT header + 32 sectors of entries */
+#define SN_STAGE_BYTES     65536u
+#define SN_MANIFEST_MAX    16384u
+#define SN_HOST_MAX        64u
+#define SN_CACHE_MAX       262144u /* one full raw leaf (mk_bucket's chunk size) */
+#define SN_NODE_CACHE      4u      /* dag-pb nodes kept: the path from a root to a leaf */
+#define SN_STEP_BYTES      (1u << 20)
+#define SN_REREAD_BYTES    (8u << 20) /* drive bytes re-hashed per step on a resume */
+#define SN_JOURNAL_SECTORS (SN_HOLD_SECTORS + 1u)
+#define SN_JOURNAL_EVERY   (1u << 20)
+#define SN_BACKOFF_MS      1000u
+#define SN_BACKOFF_MAX_MS  60000u
 
 /* Time and the idle hook (the heartbeat) the long loops call. */
 typedef struct sn_clock {
@@ -111,7 +141,10 @@ typedef struct sn_http {
     uint16_t port;
     uint8_t ip[4];
     uint8_t resolved;
-    int32_t sock; /* -1 when not connected */
+    int32_t sock;      /* -1 when not connected */
+    uint32_t stall_ms; /* this gateway's response timeout now; 0 = SN_STALL_MS */
+    uint8_t bad;       /* sent a block that did not match its CID: not asked again */
+    uint8_t timed_out; /* the last request failed by the timeout */
     uint8_t head[2048];
 } sn_http_t;
 
@@ -119,6 +152,10 @@ typedef struct sn_http {
  * negative with *why set. A failed request closes the connection. */
 int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint32_t *len,
                 const char **why);
+/* After a request: a timeout (h->timed_out) doubles this gateway's patience
+ * up to SN_STALL_MAX_MS; an answer (ok) eases it a quarter of the way back
+ * toward SN_STALL_MS; any other failure leaves it. */
+void sn_http_adapt(sn_http_t *h, int ok);
 
 /* ---- the bucket's manifest.txt ------------------------------------------------ */
 /* One line per disc or file:
@@ -151,18 +188,33 @@ typedef struct sn_writer {
     uint64_t written; /* bytes on the drive past the held head */
     uint32_t fill;    /* bytes in stage */
     sha256_ctx_t sha;
-    int err; /* sticky: a write failed or the image ran long */
+    int err;       /* sticky: a write failed or the image ran long */
+    uint64_t jlba; /* the resume record's sector; 0 = no record on this drive */
+    const char *jcid;
     void (*progress)(void *ctx, uint64_t got, uint64_t want);
     void *progress_ctx;
+    uint8_t jsec[512];
     uint8_t hold[SN_HOLD_SECTORS * 512u];
     uint8_t stage[SN_STAGE_BYTES];
 } sn_writer_t;
 
 void sn_writer_init(sn_writer_t *w, hw_blk_t *b, uint64_t want);
+/* Keep a resume record for the image `cid` (a string that outlives the
+ * writer) when the drive has SN_JOURNAL_SECTORS past it and the image is
+ * longer than the held head. 1 = kept. Call after init, before any put. */
+int sn_writer_journal(sn_writer_t *w, const char *cid);
+/* The resume record on b: 1 when there is a valid one, with its fields. */
+int sn_journal_read(hw_blk_t *b, uint8_t *sector, char cid[121], uint64_t *want, uint64_t *durable);
+/* Resume: hash what the drive holds of the first `durable` bytes, at most
+ * `max` bytes per call (start from a fresh init and journal). 1 = done (the
+ * writer then stands at `durable`), 0 = call again, -1 = a read failed or
+ * `durable` is not a point the record could have named. */
+int sn_writer_reread(sn_writer_t *w, uint64_t durable, uint32_t max);
 /* ipfsn_write_fn: takes the image in order. */
 int sn_writer_put(void *ctx, const uint8_t *data, uint32_t len);
-/* Flush, compare size and SHA-256, and only then write the held head.
- * 0 = committed; otherwise *why says what failed and the head is not written. */
+/* Flush, compare size and SHA-256, and only then write the held head; the
+ * resume record is cleared either way. 0 = committed; otherwise *why says
+ * what failed and the head is not written. */
 int sn_writer_commit(sn_writer_t *w, const uint8_t sha[32], const char **why);
 
 /* ---- the fetch ------------------------------------------------------------- */
@@ -173,8 +225,28 @@ typedef struct sn_fetch {
     ipfsn_get_fn get; /* block source: gateways, or a test's */
     void *get_ctx;
     const hw_plat_t *p;
+    sn_clock_t clk;
     uint32_t pct; /* last progress decile logged */
     sn_entry_t e;
+    /* the step machine (sn_fetch_step) */
+    uint32_t cur;   /* the want being worked */
+    uint8_t phase;  /* 0 find, 1 re-read, 2 stream */
+    uint8_t paused; /* the step's byte budget ran out */
+    uint8_t restarted, stopped, fresh;
+    uint8_t done[HW_SWARM_WANT_MAX]; /* committed or failed this boot */
+    uint32_t committed;
+    uint32_t tries;    /* failed attempts in a row */
+    uint64_t next_try; /* no request before this (clock ms) */
+    uint64_t durable;  /* resume point read from the drive's record */
+    uint64_t budget;   /* bytes the current step may still take */
+    uint64_t t0, got0; /* this session's start, for the rate */
+    uint32_t g0;       /* the gateway asked first */
+    ipfsn_cid_t disc;
+    char jcid[121];
+    ipfsn_cid_t node_cid[SN_NODE_CACHE];
+    uint32_t node_len[SN_NODE_CACHE];
+    uint32_t node_next;
+    uint8_t node[SN_NODE_CACHE][IPFSN_NODE_MAX];
     ipfsn_walk_t walk;
     sn_writer_t wr;
     /* The last block fetched, kept so a run of identical leaves (the zero
@@ -195,9 +267,16 @@ uint32_t sn_fetch_gateways(sn_fetch_t *f, sn_link_t *l, const hw_models_t *m);
 /* ipfsn_get_fn over the gateways, in order, each block verified. */
 int sn_gateway_get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len);
 
-/* Fetch every swarm disc m expects and lacks onto blank drives of r, in disc
- * order. Returns how many were committed. m must have been indexed. */
-uint32_t sn_fetch_missing(sn_fetch_t *f, hw_models_t *m, hw_registry_t *r);
+/* Start fetching every swarm disc m expects and lacks onto blank drives of r
+ * (m indexed; f->p, f->get, f->clk set). Then call sn_fetch_step until it
+ * returns 0: each call does a bounded piece of one disc (or nothing, while
+ * waiting out a backoff). f->fresh is 1 after a step that committed a disc,
+ * so the caller can index again and mount it; f->committed counts them. */
+void sn_fetch_begin(sn_fetch_t *f);
+int sn_fetch_step(sn_fetch_t *f, hw_models_t *m, hw_registry_t *r);
+/* Stop at the user's word: says which disc to attach by hand, and that what
+ * is on the drive resumes on a later boot. sn_fetch_step then returns 0. */
+void sn_fetch_stop(sn_fetch_t *f, const hw_models_t *m);
 
 /* The air-gap lines, for the first expected disc that is missing. */
 void sn_log_offline(const hw_plat_t *p, const hw_models_t *m);

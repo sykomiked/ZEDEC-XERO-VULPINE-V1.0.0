@@ -525,6 +525,70 @@ static void test_walk(void)
           "cat over a corrupted block fails with HASH");
 }
 
+/* ipfsn_cat_from: the suffix from any offset, fetching only the path to it. */
+typedef struct {
+    ipfsn_bs_t *bs;
+    uint32_t gets;
+} count_src_t;
+
+static int count_src(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len)
+{
+    count_src_t *c = (count_src_t *) ctx;
+    c->gets++;
+    return ipfsn_bs_source(c->bs, cid, buf, cap, len);
+}
+
+static uint8_t g_full[484417], g_tail[484417];
+
+static void test_cat_from(void)
+{
+    static const struct {
+        uint32_t seed;
+        uint64_t n;
+        uint32_t chunk;
+    } cases[] = {{11, 200, 64}, {8, 2785, 16}, {10, 484417, 16}, {12, 100, 0}};
+    char msg[120];
+    for (uint32_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        ipfsn_cid_t root;
+        uint64_t n = cases[i].n, size = 0;
+        uint32_t ch = cases[i].chunk ? cases[i].chunk : 262144;
+        host_init(&g_a, g_store_a, g_scratch_a, g_net_a, 0);
+        bs_sink_t s = {&g_a.bs, IPFSN_VIS_PUBLIC};
+        build(cases[i].seed, n, cases[i].chunk, bs_sink, &s, &root, 0);
+        g_walk.leaf = g_leaf;
+        g_walk.leaf_cap = sizeof g_leaf;
+        hash_out_t o;
+        memset(&o, 0, sizeof o);
+        o.copy = g_full;
+        o.cap = sizeof g_full;
+        count_src_t all = {&g_a.bs, 0};
+        CHECK(ipfsn_cat(&g_walk, &root, count_src, &all, hash_out, &o, &size) == IPFSN_OK &&
+                  o.n == n,
+              "cat_from: the whole file first");
+        const uint64_t skips[] = {0, 1, ch - 1, ch, ch + 1, n / 2, n - 1, n, n + 5};
+        for (uint32_t k = 0; k < sizeof skips / sizeof skips[0]; k++) {
+            uint64_t sk = skips[k], want = sk < n ? n - sk : 0;
+            hash_out_t t;
+            memset(&t, 0, sizeof t);
+            t.copy = g_tail;
+            t.cap = sizeof g_tail;
+            count_src_t c = {&g_a.bs, 0};
+            size = 0;
+            int r = ipfsn_cat_from(&g_walk, &root, sk, count_src, &c, hash_out, &t, &size);
+            snprintf(msg, sizeof msg, "cat_from n=%llu skip=%llu: exactly the suffix",
+                     (unsigned long long) n, (unsigned long long) sk);
+            CHECK(r == IPFSN_OK && size == n && t.n == want &&
+                      (!want || memcmp(g_tail, g_full + sk, want) == 0),
+                  msg);
+            if (sk + 1 >= n && all.gets > 8) {
+                snprintf(msg, sizeof msg, "cat_from skip=%llu fetches the path only (%u of %u)",
+                         (unsigned long long) sk, c.gets, all.gets);
+                CHECK(c.gets <= 6, msg);
+            }
+        }
+    }
+}
+
 /* ---- 3. Blockstore --------------------------------------------------------------- */
 
 static void test_blockstore(void)
@@ -1338,6 +1402,7 @@ int main(void)
     test_known_cids();
     test_unixfs();
     test_walk();
+    test_cat_from();
     test_blockstore();
     test_private();
     test_car();

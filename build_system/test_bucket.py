@@ -9,7 +9,9 @@ Makes small stand-in discs (two core discs, one deep enough for a two-level
 DAG, two swarm discs and a cartridge), lays them out with mk_bucket.py,
 serves the bucket's blocks from a local trustless gateway on 127.0.0.1 and
 downloads with zxv-get. Then checks that every way the bucket, the gateway or
-the manifest can lie is refused, and that a refused disc leaves no file.
+the manifest can lie is refused, that a refused disc leaves no finished
+file, and that zxv-get waits out a gateway that is down and resumes from a
+.part it re-hashes.
 Needs no network and no IPFS node.
 """
 
@@ -56,6 +58,7 @@ class Store:
     blocks = {}
     tamper = set()
     seen = []
+    down = 0  # answer 503 to this many more requests
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -63,6 +66,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path, _, q = self.path.partition("?")
         cid = path[len("/ipfs/"):]
         Store.seen.append(self.path)
+        if Store.down > 0:
+            Store.down -= 1
+            self.send_response(503)
+            self.end_headers()
+            return
         if not path.startswith("/ipfs/") or q != "format=raw" or cid not in Store.blocks:
             self.send_response(404)
             self.end_headers()
@@ -213,7 +221,7 @@ def main():
         check(rc == 1 and "no core disc for riscv64 (it has: arm64 x86_64)" in out, "riscv64: " + out)
         rc, out = run(*get, "--list")
         check(rc == 0 and "02_swarm_vision" in out and "x86_64" in out, "--list: " + out)
-        rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--upstream", up, "--list")
+        rc, out = run(GET, "--no-ipfs", "--gateway", gw, "--upstream", up, "--list", "--patience", "0")
         check(rc == 1 and CID in out, "the baked CID is the default bucket: " + out)
 
         # the gateway changes one byte of one block of the vision disc
@@ -223,21 +231,68 @@ def main():
         rc, out = run(*get, "--arch", "arm64", "--out", refused)
         check(rc == 1 and ("block %s: %s sent a block that does not match its CID" % (vision, gw)) in out,
               "tampered block: " + out)
-        check(not any(n.startswith("zxv-swarm-disc3") for n in os.listdir(refused)),
-              "a refused disc leaves no file")
+        check("zxv-swarm-disc3-vision.img" not in os.listdir(refused) and
+              "kept   02_swarm_vision/zxv-swarm-disc3-vision.img.part" in out,
+              "a refused disc leaves no finished file, only its verified part: " + out)
         Store.tamper = set()
         rc, out = run(*get, "--arch", "x86_64", "--out", refused)
-        check(rc == 0, "a later run fetches what was refused: " + out)
+        check(rc == 0 and "resume 02_swarm_vision/zxv-swarm-disc3-vision.img at" in out and
+              open(os.path.join(refused, "zxv-swarm-disc3-vision.img"), "rb").read() ==
+              files["zxv-swarm-disc3-vision.img"],
+              "a later run fetches what was refused, resuming from its part: " + out)
+
+        # elastic: a gateway that is down for a while is waited for, 1 s then 2 s
+        Store.down = 2
+        rc, out = run(*get, "--arch", "x86_64", "--core-only", "--out", os.path.join(t, "late"))
+        check(rc == 0 and "waiting for peers" in out and "retry 1 in 1 s" in out and
+              "retry 2 in 2 s" in out and "retry 3" not in out and
+              "ok     00_base/zxv-x86_64-disc1-core.img" in out, "a late gateway: " + out)
+        Store.down = 1000
+        rc, out = run(*get, "--arch", "x86_64", "--core-only", "--out", os.path.join(t, "late2"),
+                      "--patience", "3")
+        check(rc == 1 and "gave up after waiting 3 s, --patience" in out, "--patience: " + out)
+        Store.down = 0
+        # resume: most of a two-level disc is already in its .part
+        res = os.path.join(t, "resume")
+        os.makedirs(res)
+        arm = files["zxv-arm64-disc1-core.img"]
+        part = os.path.join(res, "zxv-arm64-disc1-core.img.part")
+        open(part, "wb").write(arm[:170 * 262144 + 1000])
+        Store.seen = []
+        rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
+        check(rc == 0 and "resume 00_base/zxv-arm64-disc1-core.img at %d of %d bytes"
+              % (170 * 262144 + 1000, len(arm)) in out and
+              open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read() == arm and
+              not os.path.exists(part), "resumed from a .part: " + out)
+        check(len(Store.seen) <= 12, "a resume asks only for the rest (%d requests)"
+              % len(Store.seen))
+        # a .part that is not the image's start: fetched again from the start
+        bent = bytearray(arm[:300000])
+        bent[1000] ^= 1
+        os.remove(os.path.join(res, "zxv-arm64-disc1-core.img"))
+        open(part, "wb").write(bent)
+        rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
+        check(rc == 0 and "again  00_base/zxv-arm64-disc1-core.img: the kept part was not the "
+              "image" in out and open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read()
+              == arm, "a bad .part is refetched: " + out)
+        # a .part longer than the disc is dropped
+        os.remove(os.path.join(res, "zxv-arm64-disc1-core.img"))
+        open(part, "wb").write(arm + b"x")
+        rc, out = run(*get, "--arch", "arm64", "--core-only", "--out", res)
+        check(rc == 0 and "  resume " not in out and
+              open(os.path.join(res, "zxv-arm64-disc1-core.img"), "rb").read() == arm,
+              "an overlong .part is dropped: " + out)
 
         # fallback: a dead gateway and a lying one, then a good one
         fb = [GET, "--no-ipfs", "--gateway", "http://127.0.0.1:1", "--gateway", bad, "--gateway", gw,
               "--cid", root, "--quiet", "--upstream", up, "--core-only", "--arch", "arm64"]
         rc, out = run(*fb, "--out", os.path.join(t, "fb"))
         check(rc == 0 and "ok     00_base/zxv-arm64-disc1-core.img" in out, "gateway fallback: " + out)
-        rc, out = run(*fb[:6], "--cid", root, "--quiet", "--upstream", up, "--list")
+        rc, out = run(*fb[:6], "--cid", root, "--quiet", "--upstream", up, "--list",
+                      "--patience", "0")
         check(rc == 1 and "127.0.0.1:1" in out and "does not match its CID" in out,
               "every gateway failing names each one: " + out)
-        rc, out = run(GET, "--no-ipfs", "--cid", root, "--upstream", up, "--list")
+        rc, out = run(GET, "--no-ipfs", "--cid", root, "--upstream", up, "--list", "--patience", "0")
         check(out.count("http://10.0.2.2:8080, then https://trustless-gateway.link") == 1,
               "the upstream file's gateways come first: " + out)
 

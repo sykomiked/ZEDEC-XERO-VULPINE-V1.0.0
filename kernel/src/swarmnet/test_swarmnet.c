@@ -42,7 +42,7 @@ static void dump(void)
 static hw_plat_t plat = {.log = log_line};
 
 /* ---- a drive in memory ---- */
-#define DRIVE_SECTORS 4096u /* 2 MiB */
+#define DRIVE_SECTORS 8192u /* 4 MiB */
 typedef struct {
     hw_blk_t b;
     uint8_t d[DRIVE_SECTORS * 512u];
@@ -257,7 +257,8 @@ static void test_writer(void)
 
 /* ---- 4. the fetch, from an in-memory bucket ---- */
 static tb_store_t store;
-static uint8_t image[1100000];
+static uint8_t image[1600000];
+static uint32_t img_len = 1100000;
 static uint32_t zero_leaves; /* full zero leaves the source was asked for */
 static uint8_t isha[32];
 static ipfsn_cid_t root;
@@ -265,11 +266,33 @@ static hw_models_t models;
 static hw_registry_t reg;
 static sn_fetch_t fetch;
 static int tamper_leaf;
+static uint64_t fms;         /* the fake clock, ms */
+static int down_calls;       /* the source fails this many more requests */
+static int serve_limit = -1; /* full leaves the source serves before failing (-1: all) */
+static uint32_t served;      /* full raw leaves served */
+static uint32_t gets, pb_gets;
+static uint32_t fresh_seen; /* steps that said a disc had just committed */
+
+static uint64_t fake_ms(void *ctx)
+{
+    (void) ctx;
+    return fms;
+}
 
 /* tb_get, optionally changing one byte of the image's raw leaves */
 static int get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len)
 {
+    gets++;
+    fms += 10; /* every request takes a while: the rate shows */
+    if (down_calls > 0) {
+        down_calls--;
+        return IPFSN_ERR_TRANSPORT;
+    }
+    if (serve_limit >= 0 && cid->codec == 0x55 && (int) served >= serve_limit)
+        return IPFSN_ERR_TRANSPORT;
     int rc = tb_get(ctx, cid, buf, cap, len);
+    if (rc == IPFSN_OK && cid->codec == 0x55 && *len == 262144u) served++;
+    if (cid->codec == 0x70) pb_gets++;
     if (rc == IPFSN_OK && *len == 262144u && zero(buf, 262144u)) zero_leaves++;
     if (rc == IPFSN_OK && tamper_leaf && cid->codec == 0x55 && *len == 262144u) buf[100] ^= 1;
     return rc;
@@ -284,7 +307,7 @@ static void bucket(const char *line_override, int image_cid_wrong)
     uint64_t its, mts, sts;
     tb_free(&store);
     tb_init(&store);
-    tb_file(&store, image, sizeof image, &icid, &its);
+    tb_file(&store, image, img_len, &icid, &its);
     tb_file(&store, (const uint8_t *) "x", 1, &other, 0);
     for (int i = 0; i < 32; i++) sprintf(hex + 2 * i, "%02x", isha[i]);
     ipfsn_cid_to_string(image_cid_wrong ? &other : &icid, cs, sizeof cs);
@@ -294,7 +317,7 @@ static void bucket(const char *line_override, int image_cid_wrong)
         snprintf(
             man, sizeof man,
             "# zxv-bucket 1\nswarm all 2 TEST %u %s %s 01_swarm_test/zxv-swarm-disc2-test.img\n",
-            (unsigned) sizeof image, hex, cs);
+            (unsigned) img_len, hex, cs);
     tb_file(&store, (const uint8_t *) man, (uint32_t) strlen(man), &mcid, &mts);
     tb_ent_t sub[1], top[2];
     tb_ent(&sub[0], "zxv-swarm-disc2-test.img", &icid, its);
@@ -304,29 +327,53 @@ static void bucket(const char *line_override, int image_cid_wrong)
     tb_dir(&store, top, 2, &root, 0);
 }
 
-static uint32_t run(void)
+/* Steps until the fetch is done, the clock jumping over each wait. */
+static uint32_t steps(uint32_t max)
+{
+    uint32_t n = 0;
+    while (n++ < max && sn_fetch_step(&fetch, &models, &reg)) {
+        fresh_seen += fetch.fresh;
+        if (fms < fetch.next_try) fms = fetch.next_try;
+    }
+    return fetch.committed;
+}
+
+static void want_disc2(void)
 {
     memset(&models, 0, sizeof models);
     ipfsn_cid_to_string(&root, models.cid, sizeof models.cid);
     models.nwant = 2;
     models.want[0] = (hw_swarm_want_t){2, "TEST", "zxv-swarm-disc2-test.img", 0};
     models.want[1] = (hw_swarm_want_t){3, "ATTACHED", "x.img", 1};
+}
+
+static void fresh_fetch(void)
+{
     memset(&fetch, 0, sizeof fetch);
     fetch.p = &plat;
     fetch.get = get;
     fetch.get_ctx = &store;
+    fetch.clk.ms = fake_ms;
+    sn_fetch_begin(&fetch);
     nlog = 0;
-    return sn_fetch_missing(&fetch, &models, &reg);
+}
+
+static uint32_t run(void)
+{
+    want_disc2();
+    fresh_fetch();
+    return steps(100000);
 }
 
 static void test_fetch(void)
 {
     static drive_t used, full, small;
+    img_len = 1100000;
     for (uint32_t i = 0; i < sizeof image; i++) image[i] = (uint8_t) (i * 13 + (i >> 11));
     memset(image + 262144, 0, 2 * 262144); /* leaves 1 and 2: identical padding */
     image[510] = 0x55;                     /* a disc image starts with its protective MBR */
     image[511] = 0xAA;
-    sha256(image, sizeof image, isha);
+    sha256(image, img_len, isha);
     drive(&used, "sata0", DRIVE_SECTORS); /* not blank: an MBR */
     used.d[510] = 0x55;
     used.d[511] = 0xAA;
@@ -342,11 +389,12 @@ static void test_fetch(void)
     CHECK(run() == 1);
     CHECK(zero_leaves == 1); /* the second zero leaf came from the cache */
     CHECK(has("[SWARM_FETCH] disc 2 ZXV_SWARM_TEST -> sata2"));
-    CHECK(has("[SWARM_FETCH] disc 2: 20% (262144 of 1100000 bytes)"));
+    CHECK(has("[SWARM_FETCH] disc 2 [##--------] 20% (262144 of 1100000 bytes, "));
+    CHECK(has(" KB/s)"));
     CHECK(has("[SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on sata2: 1100000 bytes, sha256 matches the "
               "manifest; committed"));
     CHECK(!has("ATTACHED"));
-    CHECK(memcmp(d2.d, image, sizeof image) == 0);
+    CHECK(memcmp(d2.d, image, img_len) == 0);
     if (failures) dump();
 
     /* the drive now holds a disc: a second run finds no blank drive */
@@ -362,7 +410,8 @@ static void test_fetch(void)
         int cid_wrong, tamper;
         const char *log;
     } bad[] = {
-        {"a block changed in transit", 0, 0, 1, "the download failed; nothing committed"},
+        {"a block changed in transit", 0, 0, 1,
+         "every gateway sent a block that does not match its CID; nothing committed"},
         {"the manifest's CID is another file", 0, 1, 0,
          "the bucket's directory and manifest.txt disagree on its CID"},
         {"no line for the disc", "core x86_64 1 - 5 " SHA_A " " CID_A " a/b\n", 0, 0,
@@ -391,7 +440,7 @@ static void test_fetch(void)
         char line[512], cs[IPFSN_CID_STR_MAX];
         ipfsn_cid_t icid;
         uint64_t ts;
-        tb_file(&store, image, sizeof image, &icid, &ts);
+        tb_file(&store, image, img_len, &icid, &ts);
         ipfsn_cid_to_string(&icid, cs, sizeof cs);
         snprintf(line, sizeof line,
                  "swarm all 2 TEST 1100000 " SHA_A " %s 01_swarm_test/zxv-swarm-disc2-test.img\n",
@@ -409,11 +458,8 @@ static void test_fetch(void)
     strcpy(models.cid, "bnotacid");
     models.nwant = 1;
     models.want[0] = (hw_swarm_want_t){2, "TEST", "x.img", 0};
-    fetch.get = get;
-    fetch.get_ctx = &store;
-    fetch.p = &plat;
-    nlog = 0;
-    CHECK(sn_fetch_missing(&fetch, &models, &reg) == 0 && has("the bucket CID does not parse"));
+    fresh_fetch();
+    CHECK(steps(100) == 0 && has("the bucket CID does not parse"));
     /* a drive the system uses is skipped even if blank */
     drive(&d2, "sata2", DRIVE_SECTORS);
     memset(&models, 0, sizeof models);
@@ -422,8 +468,183 @@ static void test_fetch(void)
     models.want[0] = (hw_swarm_want_t){2, "TEST", "x.img", 0};
     models.nvol = 1;
     models.vol[0].disk = &d2.b;
-    nlog = 0;
-    CHECK(sn_fetch_missing(&fetch, &models, &reg) == 0 && has("no blank drive"));
+    fresh_fetch();
+    CHECK(steps(100) == 0 && has("no blank drive"));
+    tb_free(&store);
+}
+
+/* ---- 4b. elastic: waits, resumes, stops ---- */
+static void test_elastic(void)
+{
+    static drive_t exact;
+    static uint8_t sector[512];
+    char cid[121];
+    uint64_t want, durable;
+    memset(&reg, 0, sizeof reg);
+    hw_reg_blk(&reg, &d2.b);
+
+    /* no gateway answers three times: 1, 2, 4 s apart, then it does */
+    img_len = 1100000;
+    sha256(image, img_len, isha);
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    bucket(0, 0);
+    want_disc2();
+    fresh_fetch();
+    down_calls = 3;
+    uint64_t t0 = fms;
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.next_try == fms + 1000);
+    uint32_t g = gets;
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && gets == g); /* asks nobody while waiting */
+    CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
+    CHECK(has("  [SWARM_FETCH] disc 2: waiting for peers (no gateway served the next block); "
+              "retry 1 in 1 s; 0 bytes so far"));
+    CHECK(has("retry 2 in 2 s") && has("retry 3 in 4 s") && !has("retry 4"));
+    CHECK(fms - t0 >= 7000 && fetch.tries == 0);
+    CHECK(!sn_journal_read(&d2.b, sector, cid, &want, &durable)); /* cleared on commit */
+    if (failures) dump();
+
+    /* one step takes about SN_STEP_BYTES, then hands back; the directory and
+     * file nodes are fetched once, not once per step */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    want_disc2();
+    fresh_fetch();
+    pb_gets = 0;
+    fresh_seen = 0;
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.phase == 2 && fetch.wr.got == 0);
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 1 && fetch.wr.got == SN_STEP_BYTES);
+    CHECK(steps(1000) == 1 && fresh_seen == 1 && fetch.fresh == 0);
+    CHECK(pb_gets == 3); /* the bucket root, 01_swarm_test, the image's root */
+
+    /* longer outages: the wait doubles to a minute and stays there */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    want_disc2();
+    fresh_fetch();
+    down_calls = 9;
+    CHECK(steps(1000) == 1 && has("retry 6 in 32 s") && has("retry 7 in 60 s") &&
+          has("retry 9 in 60 s") && !has("in 64 s"));
+
+    /* a download cut off after 5 leaves, then a reboot: it resumes */
+    img_len = 1600000;
+    sha256(image, img_len, isha);
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    bucket(0, 0);
+    want_disc2();
+    fresh_fetch();
+    served = 0;
+    serve_limit = 5;
+    CHECK(steps(40) == 0 && has("waiting for peers"));
+    sn_fetch_stop(&fetch, &models);
+    CHECK(has("[SWARM] Hydration stopped at your request: Attach Disc 2 USB / drive."));
+    CHECK(has("  [SWARM] 1065984 bytes of disc 2 stay on sata2 and resume on a later boot with a "
+              "network"));
+    CHECK(sn_fetch_step(&fetch, &models, &reg) == 0); /* stopped stays stopped */
+    CHECK(zero(d2.d, SN_HOLD_SECTORS * 512u) && sn_drive_blank(&d2.b, img_len, sector));
+    CHECK(sn_journal_read(&d2.b, sector, cid, &want, &durable) && want == 1600000 &&
+          durable == 1065984);
+    static uint8_t keep[DRIVE_SECTORS * 512u];
+    memcpy(keep, d2.d, sizeof keep);
+    serve_limit = -1;
+    served = 0;
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
+    CHECK(has("  [SWARM_FETCH] disc 2 ZXV_SWARM_TEST: resuming on sata2 at 1065984 of 1600000 "
+              "bytes; re-reading them first"));
+    CHECK(has("  [SWARM_FETCH] disc 2 ZXV_SWARM_TEST: 1065984 bytes re-read from sata2 and "
+              "hashed; continuing from there"));
+    CHECK(served == 2); /* leaves 4 and 5 (6 is short), nothing before them */
+    CHECK(!sn_journal_read(&d2.b, sector, cid, &want, &durable));
+    if (failures) dump();
+
+    /* the same, but the kept part was changed while the machine was off */
+    memcpy(d2.d, keep, sizeof keep);
+    d2.d[SN_HOLD_SECTORS * 512u + 5000] ^= 1;
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0);
+    CHECK(has("nothing committed") == 0 && has("sha256 differs from the manifest") &&
+          has("the resumed part was not the image; downloading it again from the start"));
+    /* ... and in the held head's copy */
+    memcpy(d2.d, keep, sizeof keep);
+    d2.d[(DRIVE_SECTORS - 2u) * 512u + 7] ^= 1;
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0 &&
+          has("downloading it again from the start"));
+    /* cut off after the first leaf: the record holds just the head */
+    drive(&d2, "sata2", DRIVE_SECTORS);
+    fresh_fetch();
+    served = 0;
+    serve_limit = 1;
+    CHECK(steps(40) == 0 && sn_journal_read(&d2.b, sector, cid, &want, &durable) &&
+          durable == SN_HOLD_SECTORS * 512u);
+    serve_limit = -1;
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && memcmp(d2.d, image, img_len) == 0 &&
+          has("resuming on sata2 at 17408 of 1600000 bytes"));
+    /* two blank drives: the one with another disc's record is left for it */
+    {
+        static drive_t other;
+        drive(&other, "sata1", DRIVE_SECTORS);
+        memcpy(other.d + (DRIVE_SECTORS - 1u) * 512u, keep + (DRIVE_SECTORS - 1u) * 512u, 512);
+        memcpy(other.d + (DRIVE_SECTORS - 1u) * 512u + 24, "bafkreiother", 12);
+        sha256(other.d + (DRIVE_SECTORS - 1u) * 512u, 480,
+               other.d + (DRIVE_SECTORS - 1u) * 512u + 480);
+        CHECK(sn_journal_read(&other.b, sector, cid, &want, &durable));
+        drive(&d2, "sata2", DRIVE_SECTORS);
+        memset(&reg, 0, sizeof reg);
+        hw_reg_blk(&reg, &other.b);
+        hw_reg_blk(&reg, &d2.b);
+        fresh_fetch();
+        CHECK(steps(1000) == 1 && has("[SWARM_FETCH] disc 2 ZXV_SWARM_TEST -> sata2"));
+        memset(&reg, 0, sizeof reg);
+        hw_reg_blk(&reg, &d2.b);
+    }
+    /* a record that names another image is not resumed; the drive is reused */
+    memcpy(d2.d, keep, sizeof keep);
+    d2.d[(DRIVE_SECTORS - 1u) * 512u + 30] ^= 1; /* the CID, so the record's sum fails too */
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && has("[SWARM_FETCH] disc 2 ZXV_SWARM_TEST -> sata2") &&
+          !has("resuming"));
+    /* a record whose point is not one a writer leaves is refused */
+    memcpy(d2.d, keep, sizeof keep);
+    {
+        static sn_writer_t w;
+        sn_writer_init(&w, &d2.b, img_len);
+        CHECK(sn_writer_journal(&w, "x") == 1);
+        CHECK(sn_writer_reread(&w, 1065985, 1u << 30) == -1 &&
+              sn_writer_reread(&w, 17407, 1u << 30) == -1 &&
+              sn_writer_reread(&w, img_len + 1, 1u << 30) == -1);
+        CHECK(sn_writer_reread(&w, 1065984, 65536) == 0 && w.got < 1065984);
+        CHECK(sn_writer_reread(&w, 1065984, 1u << 30) == 1 && w.got == 1065984 &&
+              w.written == 1048576);
+    }
+    /* a drive with no room past the image keeps no record */
+    drive(&exact, "sata3", (1600000 + 511) / 512);
+    memset(&reg, 0, sizeof reg);
+    hw_reg_blk(&reg, &exact.b);
+    fresh_fetch();
+    CHECK(steps(1000) == 1 && has("no room on the drive for a resume record; an interrupted "
+                                  "download starts again"));
+    CHECK(memcmp(exact.d, image, img_len) == 0);
+
+    /* the response timeout adapts */
+    {
+        static sn_http_t h;
+        memset(&h, 0, sizeof h);
+        h.timed_out = 1;
+        sn_http_adapt(&h, 0);
+        CHECK(h.stall_ms == 2 * SN_STALL_MS);
+        for (int i = 0; i < 10; i++) sn_http_adapt(&h, 0);
+        CHECK(h.stall_ms == SN_STALL_MAX_MS);
+        sn_http_adapt(&h, 1);
+        CHECK(h.stall_ms == SN_STALL_MAX_MS - (SN_STALL_MAX_MS - SN_STALL_MS) / 4u);
+        h.timed_out = 0;
+        uint32_t t = h.stall_ms;
+        sn_http_adapt(&h, 0); /* refused, not slow: patience unchanged */
+        CHECK(h.stall_ms == t);
+        for (int i = 0; i < 100; i++) sn_http_adapt(&h, 1);
+        CHECK(h.stall_ms >= SN_STALL_MS && h.stall_ms < SN_STALL_MS + 8);
+    }
+    img_len = 1100000;
+    sha256(image, img_len, isha);
     tb_free(&store);
 }
 
@@ -573,6 +794,7 @@ int main(void)
     test_manifest();
     test_writer();
     test_fetch();
+    test_elastic();
     test_seal();
     printf("test_swarmnet: %d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;
