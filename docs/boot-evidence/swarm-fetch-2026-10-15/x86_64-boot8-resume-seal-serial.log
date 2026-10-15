@@ -1,0 +1,217 @@
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU HARDDISK QM00013 " from PciRoot(0x0)/Pci(0x2,0x0)/Sata(0x0,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU HARDDISK QM00013 " from PciRoot(0x0)/Pci(0x2,0x0)/Sata(0x0,0xFFFF,0x0)
+
+>>> ZXV-EFI-STUB [x86_64]: efi_main under UEFI <<<
+GOP fb=2147483648 res=1280x800 stride=1280
+reserve 0x100000 status=9223372036854775822 (319600 bytes image, 8314880 bytes with BSS)
+  window overlaps EFI type 10 at 0
+[HANDOFF_HELD] kernel window covers ACPI memory: booting, ACPI held
+ExitBootServices status=0
+GOP handoff record published @0x80000
+handoff v2 published: 25 memory regions
+kernel copied; _entry32=1069104
+>>> handing off (long->PM32) <<<
+
+ZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [x86-64]
+Edition: ZEDEC XERO VULPINE (ZXV)
+==================================================
+
+[E0001] [BOOT] Long mode entered; x86-64 kernel main
+[E0002] [BOOT] Initializing COM1 serial console
+[E0003]   [DRIVER ONLINE] 16550A COM1 at 0x3F8
+[E0004]   [DRIVER ONLINE] UEFI GOP text console (serial mirrored on screen)
+  memory: 25 regions, usable 505 MiB, loader 0 MiB, firmware runtime 3348 KiB
+  kernel window 0x0000000000100000-0x00000000008EE000 free but covering ACPI memory (held)
+  ACPI NVS overwritten by the kernel window: sleep and AML held
+  ACPI RSDP 0x000000001F77E014, no SMBIOS 3
+  firmware clock 1792068773 s since 1970 UTC
+  disc models: not checked by the loader
+[E0005] [HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window
+[BOOTMEM] 5 usable ranges past the kernel from the handoff v2 map, 497 MiB
+[E0006] [BOOT] Ring-3 user-mode bring-up (GDT/TSS/IDT + int 0x80 syscall)...
+  [OK] GDT+TSS (ring-3 segments), IDT (int 0x80 syscall gate), PIC masked
+[E0007]   [.] entering ring 3...
+U[E0008]   [DRIVER ONLINE] ring-3 ran on the SHARED ABI: WRITE(2), ABI_VERSION(12), EXIT(1)
+[E0009]   [VERIFIED] syscall args: all 3 registers (rdi/rsi/rdx) reached the kernel
+[E0010]   [ABI] x86_64 provides 06 of 12 ABI calls (rest ENOSYS, not stubbed)
+[E0011] [BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...
+  [IRQ] IDT 256 vectors (IST stacks for IRQs and #DF/NMI/#MC), 8259 PIC remapped+masked
+  [IRQ] LAPIC xAPIC at 0x00000000FEE00000, id 0, base from the ACPI MADT, 1 CPU(s) listed
+  [IRQ] IOAPIC at 0x00000000FEC00000: 24 lines masked (routing: TODO)
+  [TIMER] LAPIC timer 64352 kHz (bus/16, PIT-calibrated), periodic 100 Hz, count 643520, TSC 2864 MHz; 5 ticks taken
+[E0012] [BOOT] Ring-3 processes: preemptive scheduler self-test...
+  [PROC] frame pool 512 frames at 0x0000000000900000 (firmware-usable memory past the kernel), NX on
+  [PROC] 8 ring-3 processes from one static ELF64 (5144 bytes), own PML4 each; user output follows
+  [PROC] pid 5 'fault-pf' ended: #PF page fault in ring 3 at rip 0x00007F80000100C2 addr 0x0000000000100000 err 0x0000000000000007; only this process ends
+  [PROC] pid 6 'fault-gp' ended: #GP general protection in ring 3 at rip 0x00007F80000100A2 err 0x0000000000000000; only this process ends
+  [PROC] pid 7 'fault-ud' ended: #UD invalid opcode in ring 3 at rip 0x00007F800001008D err 0x0000000000000000; only this process ends
+  [PROC] pid 8 'fault-de' ended: #DE divide error in ring 3 at rip 0x00007F8000010077 err 0x0000000000000000; only this process ends
+yzyzyzyssyyyy
+  [PROC] pid 1 yield: exited 0, 19 syscalls, preempted 0x (as expected)
+  [PROC] pid 2 spin-a: exited 0, 4 syscalls, preempted 4x (as expected)
+  [PROC] pid 3 spin-b: exited 0, 4 syscalls, preempted 4x (as expected)
+  [PROC] pid 4 sleep: exited 0, 9 syscalls, preempted 0x (as expected)
+  [PROC] pid 5 fault-pf: ended by vector 14, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 6 fault-gp: ended by vector 13, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 7 fault-ud: ended by vector 6, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 8 fault-de: ended by vector 0, 2 syscalls, preempted 0x (as expected)
+  [PROC] 8 timer preemptions, 23 context switches, 44 syscalls, 4 user faults contained, 16 ticks; frames 512/512 free after
+[SCHED_OK] x86_64 preemptive scheduler: ring-3 processes, FXSAVE, per-process page tables, user faults end only their process
+[E0013] [BOOT] Cellular Multikernel (CELL-001): fabric discovery and admission...
+[E0014]   [INITIALIZED] 3 x86-64 cells active (coord, k1k6, io) with phase routes
+[E0015]   [FAULT CONTAINED] x86_64-io fail-stopped; routes revoked; fabric survives
+[E0016]   [RECOVERED] x86_64-io re-admitted with incarnation=2 and new routes
+[E0017] [BOOT] M5 core: phase/rmag/lpres/iphase/choice/oseq...
+[E0018]   [OK] M5 core online
+[E0019] [BOOT] Economy core: ledger/instruments/rails/bridge/identity/quantum...
+[E0020]   [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo
+[BOOT] Declaration graph: modules declare provides/requires...
+  declarations collected=39 registered=39 refused=0
+  coupling: 36 declared edge(s) over 39 module(s); carrier up
+         module phases (DERIVED from the DRC layer, none typed): L0=17 L1=4 L2=2 L3=3 L4=3 L5=7 L6=3  -- 7 of 13 phases populated
+         dphase  interf permille   edges
+              0            1000      18
+              1            942      2
+              2            784      4
+              3            560      4
+              4            322      2
+              5            125      3
+              6            14      3
+         weakest: 'pirate_apps' requires 'ipfs_ready' <- 'ipfs'  L0->L6  P=14/1000
+         weakest: 'vino' requires 'rmag_ready' <- 'rmag'  L0->L6  P=14/1000
+         weakest: 'vino_stores' requires 'edp_risk_ready' <- 'edp_risk'  L0->L6  P=14/1000
+         threshold sweep -- NOT APPLIED, this is only what each cut would cost:
+           cut at P>14 would drop 3 of 36 edge(s)
+           cut at P>125 would drop 6 of 36 edge(s)
+           cut at P>322 would drop 8 of 36 edge(s)
+           cut at P>560 would drop 12 of 36 edge(s)
+           cut at P>784 would drop 16 of 36 edge(s)
+           cut at P>942 would drop 18 of 36 edge(s)
+           cut at P>1000 would drop 36 of 36 edge(s)
+  [OK] GATE modbind_verify_graph: acyclic, fully provided, contracts agree
+         S+ ready=39  S0 held=0  of 39 declared
+         bring-up: ran=13 failed=0 held=0 declared-only=26
+  [OK] every bring-up that RAN succeeded or held on absent hardware (declared-only modules ran nothing)
+         S- carrier test: line down -> S+ ready=16 (the 16 modules that require nothing); line up -> S+ ready=39
+  [OK] carrier is load-bearing: no carrier, no circuit, and raising it restores the graph exactly
+         S- withdraw test: capability 'sha256_ready' chosen from the live graph -- 7 module(s) require it
+         coupling: phase provided=0 required=2  power factor=784/1000  real power=784/1000 (carrier up)
+         S- withdrew: S+ ready 39 -> 28, un-readied=11
+         S- held: 'alloc' is now S0 -- WITHDRAWN: its provider is in S-
+         S- restored: S+ ready 28 -> 39, regained=11
+  [OK] S-: withdrawal un-readied every requirer and restore returned all of them
+[FEAT] Platform layer (phase-tick ordered)...
+  [OK] deploy: class=embedded cells=2 concurrency=1
+  [OK] theme: ACCENT=0xFF6600 (customisable)
+  [OK] icon: 'terminal' ops=4 (procedural)
+  [OK] font: registered face #0, Latin resolves
+  [OK] bridge: web2/web3/web4 classify OK
+  [OK] update: decentralised, opt-in (0 pending by default)
+  [OK] mage: hat framework up (self-test on own assets allowed)
+  [OK] reality: sigil circuit ticked (reactions=2)
+[FEAT] platform layer up: 8/8 subsystems self-checked
+[FEAT] TOL VOVINA UPAAH LOT — the geometry engine orients the graphics...
+  [OK] tvl_geom: icosahedral frame exact — 12/20/30 dirs, 120 rotations, Z[phi] projection
+  [OK] tvl_raster: 7/7 — exact int64 coverage, Q16.16 planes, Z-order texels via zo_encode2
+  [OK] tvl_stereo: S+ protrudes / S0 zero-parallax / S- recedes; split+merge lossless
+  [OK] tvl_rom: TVUL container validates; RAM requirement derived from content (no ram_bytes field), malformed images refused
+  [OK] megarom: 'TOL VOVINA UPAAH LOT' registered as MR_KIND_GAME cartridge, slot 1 (container embedded; identical bytes staged on ESP as MEGAROM.TVL)
+[FEAT] TOL VOVINA UPAAH LOT: 4/4 modules self-checked
+[FEAT] Economy foundation (One Policy + pillars)...
+  [OK] onepolicy: Symbiotic Maxim active (fair term admitted, usury voided)
+  [OK] zcapital: nine capital forms; Crown capital inalienable (no price on a language)
+  [OK] crown: the Sicilian Crown issued a sovereign credential (issues no money)
+  [OK] ministry: the Illumaheart treasury measures value (tribute 11%, issues no papers)
+  [OK] ipfs: content-addressed spine up (your hash is your key)
+[FEAT] economy foundation up: 5/5 self-checked
+[E0021] [BOOT] Hardware: PCI scan and standard class drivers...
+  [DRIVER ONLINE] ahci 00:02.0 8086:2922 ICH9 AHCI 1.0 6 ports; sata0 QEMU HARDDISK 135168 x 512 B; sata1 QEMU HARDDISK 819200 x 512 B
+  [DRIVER ONLINE] e1000 00:03.0 8086:100e 82540EM 52:54:00:12:34:56 link up as eth0
+  [DRIVER HELD] ahci 00:1f.2 8086:2922 ICH9 AHCI 1.0 6 ports; no disks
+  [OK] class drivers: 7 PCI functions, 2 bound, 0 failed, 1 held, 4 without a class driver
+  [SELFTEST OK] sata0 read LBA 1: GPT header 'EFI PART'; 135168 blocks of 512
+  [SELFTEST OK] sata1 read LBA 1: no GPT header; 819200 blocks of 512
+  [SELFTEST OK] eth0 DHCP offer received; mac 52:54:00:12:34:56; offered 10.0.2.15 by 10.0.2.2
+  [STORAGE OK] sata0 ESP (GPT partition 1, LBA 2048..133119) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [STORAGE NONE] sata1 no GPT
+  [UPSTREAM] bucket bafybeibwgfqhtchdehdypfxemzhikq3scmzfl64zqg37ufmjifjxbyc244
+  [SWARM_MISSING] disc 2 ZXV_SWARM_TEST (zxv-sftest-swarm-disc2-test.img): attach it, or fetch it from the upstream bucket (zxv-get)
+  [MODELS_INDEXED] 1 listed (1 on the boot partition, 0 on 0 swarm discs); each is verified when first used
+  [LAYERS] none on the core disc (/ZXV/LAYER0.JSN to LAYER2.JSN)
+  [OK] hardware self-tests passed: 3 (TSC 2798 ticks/us)
+[AI_OK] swarm+tensor selfcheck 0x90553e54
+[E0022] 
+[BOOT] ZEDEC pqOS [x86-64] — All systems online.
+[E0023] [BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready
+
+[E0024] [BOOT] Entering event cycle...
+
+
+[BOOT] Evidence measurement: 0000000000000016000000000000003900000000000000640000000000000000800000000000000C50000000000000012000000000000005500000000000000AC000000000000006700000000000000D1000000000000003800000000000000CE000000000000007D00000000000000D3000000000000006200000000000000A80000000000000000F00000000000000A000000000000000F9000000000000001E0000000000000044000000000000001A00000000000000130000000000000038000000000000004C000000000000003600000000000000005000000000000003D00000000000000A60000000000000000C000000000000008100000000000000F5
+[BOOT] Evidence count: 24 messages recorded
+  [NET] no RDRAND: DHCP and TCP ids are not unpredictable; every block is still checked against its CID
+  [NET] eth0 = eth0, link up, MAC 52:54:00:12:34:56
+  [NET] DHCP discover, attempt 1 of 3
+[BOOT_OK] heartbeat: ticks=236
+  [NET] DHCP lease 10.0.2.15 mask 255.255.255.0 gateway 10.0.2.2 dns 10.0.2.3
+[SWARM] The core is up; the swarm discs fill in the background. Press d at any time to attach them by hand instead.
+  [SWARM_FETCH] disc 2 ZXV_SWARM_TEST: resuming on sata1 at 3163136 of 316669952 bytes; re-reading them first
+  [SWARM_FETCH] disc 2 ZXV_SWARM_TEST: 3163136 bytes re-read from sata1 and hashed; continuing from there
+  [MODEL_OK] test-core.gguf 3145728 bytes, sha256 matches
+  [MODELS_OK] 1 verified
+  [SWARM_FETCH] disc 2 [#---------] 10% (31719424 of 316669952 bytes, 9746 KB/s)
+  [SWARM_FETCH] disc 2 [##--------] 20% (63438848 of 316669952 bytes, 10630 KB/s)
+  [SWARM_FETCH] disc 2 [###-------] 30% (95158272 of 316669952 bytes, 11030 KB/s)
+[BOOT_OK] heartbeat: ticks=1239
+  [SWARM_FETCH] disc 2 [####------] 40% (126877696 of 316669952 bytes, 11594 KB/s)
+  [SWARM_FETCH] disc 2 [#####-----] 50% (158334976 of 316669952 bytes, 11468 KB/s)
+  [SWARM_FETCH] disc 2 [######----] 60% (190054400 of 316669952 bytes, 11423 KB/s)
+  [SWARM_FETCH] disc 2 [#######---] 70% (221773824 of 316669952 bytes, 11677 KB/s)
+[BOOT_OK] heartbeat: ticks=2247
+  [SWARM_FETCH] disc 2 [########--] 80% (253493248 of 316669952 bytes, 11697 KB/s)
+  [SWARM_FETCH] disc 2 [#########-] 90% (285212672 of 316669952 bytes, 11771 KB/s)
+  [SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on sata1: 316669952 bytes, sha256 matches the table; committed
+  [SWARM_MOUNTED] ZXV_SWARM_TEST on sata1: 1 model
+  [UPSTREAM] bucket bafybeibwgfqhtchdehdypfxemzhikq3scmzfl64zqg37ufmjifjxbyc244
+  [SWARM_COMPLETE] all 1 swarm disc the core expects is attached
+  [MODELS_INDEXED] 2 listed (1 on the boot partition, 1 on 1 swarm disc); each is verified when first used
+  [LAYERS] none on the core disc (/ZXV/LAYER0.JSN to LAYER2.JSN)
+[SEAL] Swarm discs hydrated. Seal the network: press p to power the NIC down (air-gapped), or m to keep it for the local mesh only.
+[SEAL] No answer in 30 seconds powers the NIC down.
+[BOOT_OK] heartbeat: ticks=3247
+[BOOT_OK] heartbeat: ticks=4247
+[BOOT_OK] heartbeat: ticks=5247
+[SEAL] No answer: powering the NIC down.
+  [SEAL_NIC] eth0 (00:03.0): PHY powered down; PCI Bus Master and Memory Space cleared and read back
+  [SEAL_WIPE] hydration code: 20480 bytes overwritten with INT3, read back; fetch buffers and network state: 2845352 bytes zeroed
+[SEAL] Swarm Discs 2..2 successfully hydrated and verified.
+[SEAL] Master CID: bafybeibwgfqhtchdehdypfxemzhikq3scmzfl64zqg37ufmjifjxbyc244
+[SEAL] Network hydration channel severed: NIC bus mastering disabled.
+[SEAL] Operating system is now immutable and air-gapped.
+  [MODEL_OK] test-core.gguf 3145728 bytes, sha256 matches
+  [MODEL_OK] test-swarm.gguf 2097152 bytes, sha256 matches
+  [MODELS_OK] 2 verified
+[BOOT_OK] heartbeat: ticks=6247
+[BOOT_OK] heartbeat: ticks=7247
+[BOOT_OK] heartbeat: ticks=8247
+[BOOT_OK] heartbeat: ticks=9247
+[BOOT_OK] heartbeat: ticks=10247
+[BOOT_OK] heartbeat: ticks=11247
+[BOOT_OK] heartbeat: ticks=12247
+[BOOT_OK] heartbeat: ticks=13247
+[BOOT_OK] heartbeat: ticks=14247
+[BOOT_OK] heartbeat: ticks=15247
+[BOOT_OK] heartbeat: ticks=16247
+[BOOT_OK] heartbeat: ticks=17247
+[BOOT_OK] heartbeat: ticks=18247
+[BOOT_OK] heartbeat: ticks=19247
+[BOOT_OK] heartbeat: ticks=20247
+[BOOT_OK] heartbeat: ticks=21247
+[BOOT_OK] heartbeat: ticks=22247
+[BOOT_OK] heartbeat: ticks=23247
+[BOOT_OK] heartbeat: ticks=24247
+[BOOT_OK] heartbeat: ticks=25247
+[BOOT_OK] heartbeat: ticks=26247
+[BOOT_OK] heartbeat: ticks=27247
+[BOOT_OK] heartbeat: ticks=28247
+qemu-system-x86_64: terminating on signal 15 from pid 31115 (timeout)

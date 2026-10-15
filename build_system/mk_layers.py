@@ -168,6 +168,23 @@ def models(listing):
     return out
 
 
+def machines(path):
+    """The L0 objects: one machine per line of path (layer0.machines)."""
+    objs = []
+    for f in lines(path):
+        if len(f) != 6 or f[0] not in ARCHS or f[1] != "UEFI" or \
+                not re.fullmatch(r"0x[0-9a-f]+", f[2]) or not all(x.isdigit() for x in f[3:]):
+            die("%s: bad machine line %r" % (path, " ".join(f)))
+        objs.append({"kind": "machine", "arch": f[0], "firmware": f[1], "link_address": f[2],
+                     "page_bytes": int(f[3]), "sector_bytes": int(f[4]), "min_ram_mib": int(f[5])})
+    return objs
+
+
+def l0_bytes(path):
+    """L0's manifest bytes for the machines of path: its CID is layer_cid of these."""
+    return render(0, None, "exact", machines(path))
+
+
 def write(a, depth, objects, compat="exact"):
     if depth and not (a.parent and re.fullmatch(r"b[a-z2-7]{20,120}", a.parent)):
         die("L%d needs --parent with the CID of L%d" % (depth, depth - 1))
@@ -215,17 +232,9 @@ def main():
     if a.step != "l0" and a.paths:
         die("unexpected arguments %s" % a.paths)
     if a.step == "l0":
-        objs = []
-        for f in lines(a.machines):
-            if len(f) != 6 or f[0] not in ARCHS or f[1] != "UEFI" or \
-                    not re.fullmatch(r"0x[0-9a-f]+", f[2]) or not all(x.isdigit() for x in f[3:]):
-                die("%s: bad machine line %r" % (a.machines, " ".join(f)))
-            objs.append({"kind": "machine", "arch": f[0], "firmware": f[1], "link_address": f[2],
-                         "page_bytes": int(f[3]), "sector_bytes": int(f[4]),
-                         "min_ram_mib": int(f[5])})
         if a.parent:
             die("L0 has no parent")
-        write(a, 0, objs)
+        write(a, 0, machines(a.machines))
     elif a.step == "l1":
         if not a.boot:
             die("l1 needs --boot ARCH=FILE for each architecture")

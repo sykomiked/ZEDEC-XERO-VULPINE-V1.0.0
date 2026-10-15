@@ -175,16 +175,16 @@ int sn_writer_commit(sn_writer_t *w, const uint8_t sha[32], const char **why)
     uint8_t got[32];
     const char *bad = 0;
     if (w->err)
-        bad = w->got > w->want - 1 ? "longer than the manifest says or a drive write failed"
+        bad = w->got > w->want - 1 ? "longer than the table says or a drive write failed"
                                    : "a drive write failed";
     else if (flush(w) != 0)
         bad = "a drive write failed";
     else if (w->got != w->want)
-        bad = "size differs from the manifest";
+        bad = "size differs from the table";
     if (!bad) {
         sha256_final(&w->sha, got);
         for (int i = 0; i < 32; i++)
-            if (got[i] != sha[i]) bad = "sha256 differs from the manifest";
+            if (got[i] != sha[i]) bad = "sha256 differs from the table";
     }
     if (w->jlba) { /* resume nothing from here: what failed is not kept */
         hw_memset(w->jsec, 0, 512);
@@ -261,28 +261,6 @@ static int in_use(const hw_models_t *m, const hw_blk_t *b)
     for (uint32_t i = 0; i < m->nvol; i++)
         if (m->vol[i].disk == b) return 1;
     return 0;
-}
-
-/* ipfsn_write_fn into the manifest buffer. */
-typedef struct {
-    char *b;
-    uint32_t n, cap;
-} sn_mem_t;
-
-static int mem_put(void *ctx, const uint8_t *data, uint32_t len)
-{
-    sn_mem_t *o = (sn_mem_t *) ctx;
-    if (len > o->cap - o->n) return -1;
-    hw_memcpy(o->b + o->n, data, len);
-    o->n += len;
-    return 0;
-}
-
-static uint32_t slen(const char *s)
-{
-    uint32_t n = 0;
-    while (s[n]) n++;
-    return n;
 }
 
 static int same(const char *a, const char *b)
@@ -392,41 +370,19 @@ static int wait(sn_fetch_t *f, const hw_swarm_want_t *w)
     return 1;
 }
 
-/* Phase 0: the manifest line, the disc's CID through the directories, a
- * drive. Then on to the re-read (a resume) or the stream. */
+/* Phase 0: the disc's row in the baked table, a drive. Then on to the
+ * re-read (a resume) or the stream. */
 static int find(sn_fetch_t *f, hw_models_t *m, hw_registry_t *r, const hw_swarm_want_t *w)
 {
-    ipfsn_cid_t root;
-    ipfsn_dirent_t ent;
-    uint32_t line;
-    uint64_t size = 0;
-    const char *detail;
-    if (ipfsn_cid_parse(m->cid, slen(m->cid), &root) != IPFSN_OK)
-        return fail(f, w, ": the bucket CID does not parse", 0);
-
-    /* manifest.txt, through the bucket's root directory: every block verified */
-    int rc = ipfsn_dir_resolve(&root, cached_get, f, "manifest.txt", 12, f->dirbuf,
-                               sizeof f->dirbuf, &ent);
-    if (rc == IPFSN_ERR_TRANSPORT) return wait(f, w);
-    if (rc != IPFSN_OK)
-        return fail(f, w, ": the bucket has no manifest.txt this kernel can reach", 0);
-    sn_mem_t mo = {f->manifest, 0, SN_MANIFEST_MAX};
-    rc = ipfsn_cat(&f->walk, &ent.cid, cached_get, f, mem_put, &mo, &size);
-    if (rc == IPFSN_ERR_TRANSPORT) return wait(f, w);
-    if (rc != IPFSN_OK)
-        return fail(f, w, ": manifest.txt could not be read (unreachable, or over 16 KiB)", 0);
-    detail = sn_manifest_find(f->manifest, mo.n, w->disc, w->group, &f->e, &line);
-    if (detail) return fail(f, w, ": manifest.txt: ", detail);
-
-    /* the disc's CID through the directories must be the manifest's */
-    if (ipfsn_cid_parse(f->e.cid, slen(f->e.cid), &f->disc) != IPFSN_OK)
-        return fail(f, w, ": manifest.txt gives a CID that does not parse", 0);
-    rc = ipfsn_dir_resolve(&root, cached_get, f, f->e.path, slen(f->e.path), f->dirbuf,
-                           sizeof f->dirbuf, &ent);
-    if (rc == IPFSN_ERR_TRANSPORT) return wait(f, w);
-    if (rc != IPFSN_OK) return fail(f, w, ": the bucket has no file at manifest.txt's path", 0);
-    if (!ipfsn_cid_equal(&ent.cid, &f->disc))
-        return fail(f, w, ": the bucket's directory and manifest.txt disagree on its CID", 0);
+    const sn_baked_t *t = sn_baked_find(f->table, f->ntable, w->disc, w->group);
+    if (!t)
+        return fail(f, w, ": not in the table this kernel was built with; attach it by hand", 0);
+    if (ipfsn_cid_decode_exact(t->cid, sizeof t->cid, &f->disc) != IPFSN_OK ||
+        ipfsn_cid_to_string(&f->disc, f->e.cid, sizeof f->e.cid) <= 0)
+        return fail(f, w, ": its CID in this kernel's table does not decode", 0);
+    f->e.disc = t->disc;
+    f->e.bytes = t->bytes;
+    hw_memcpy(f->e.sha, t->sha, sizeof f->e.sha);
 
     /* a blank drive large enough, not one the system already uses */
     int resume;
@@ -542,7 +498,7 @@ static int stream(sn_fetch_t *f, const hw_swarm_want_t *w)
     hw_line_s(&s, f->wr.b->name);
     hw_line_s(&s, ": ");
     hw_line_u(&s, f->e.bytes);
-    hw_line_s(&s, " bytes, sha256 matches the manifest; committed");
+    hw_line_s(&s, " bytes, sha256 matches the table; committed");
     f->p->log(s.b);
     f->done[f->cur] = 1;
     f->committed++;

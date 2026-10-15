@@ -585,3 +585,17 @@ ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
 CFLAGS += -I$(ZXV_GENDIR)
+
+# The table this kernel bakes into .rodata (build_system/mk_table.py,
+# docs/BUCKET.md): L0's CID, and the CID, size and SHA-256 of every swarm disc
+# in ZXV_SWARM_DISCS (their images, built before the kernel: the release is
+# built leaves first). Empty ZXV_SWARM_DISCS gives a kernel that fetches no
+# swarm disc and asks for them to be attached. Written at parse time like the
+# phase table, and only when its bytes change.
+ZXV_SWARM_DISCS ?=
+ZXV_TABLE_HDR   := build/include/manifest_hashes.h
+ZXV_TABLE_RUN   := $(shell python3 $(CURDIR)/build_system/mk_table.py --out $(CURDIR)/$(ZXV_TABLE_HDR) $(ZXV_SWARM_DISCS) > $(CURDIR)/$(ZXV_GENDIR)/table.txt 2>&1; echo $$?)
+ifneq ($(ZXV_TABLE_RUN),0)
+$(error build_system/mk_table.py failed: $(shell cat $(CURDIR)/$(ZXV_GENDIR)/table.txt))
+endif
+CFLAGS += -I$(dir $(ZXV_TABLE_HDR))

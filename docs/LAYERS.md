@@ -83,9 +83,11 @@ the core disc when `GOLDEN_LAYERS` names their directory, and refuses them if
 L1 does not list the boot file it is putting on the disc. L3 and L4 take
 `--dir` and are built by the threads that own those trees.
 
-`make ipfs-dist` builds in this order: kernels and EFI files, L0, L1, L2, the
-discs (the core disc carries L0 to L2), then the bucket with the manifests in
-`03_layers/`.
+`make ipfs-dist` builds leaves first (docs/BUCKET.md): the swarm discs, the
+kernels and EFI files with L0's CID and the swarm discs' CIDs baked in
+(`build_system/mk_table.py`), L0, L1, L2, the core discs (each carries L0 to
+L2), then the bucket with the manifests in `03_layers/`, each named by its
+CID.
 
 ## The check at boot
 
@@ -93,7 +95,9 @@ discs (the core disc carries L0 to L2), then the bucket with the manifests in
 and before the AI self-check and `[BOOT_OK]`, and again whenever a fetched
 swarm disc mounts:
 
-1. `/ZXV/LAYER0.JSN` to `LAYER2.JSN` parse, and L1 names L0's CID, L2 names
+1. `/ZXV/LAYER0.JSN` to `LAYER2.JSN` parse; L0 is the L0 whose CID the
+   kernel was built with (`ZXV_TABLE_L0_CID_BIN`: L0 holds nothing built from
+   a kernel, so the kernel can carry its CID); L1 names L0's CID, L2 names
    L1's.
 2. L0 lists a UEFI machine for this architecture with 4096-byte pages and
    512-byte sectors.
@@ -118,12 +122,15 @@ shows one line per layer and the verdict:
 ```
 
 or `[LAYERS_FAIL] <what failed>`, or `[LAYERS] none on the core disc` for a
-disc built without layers (the boot goes on as before).
+disc built without layers. That last case is lenient by choice: the boot goes
+on as before, with the models checked against `MODELS.SHA` alone, so discs
+cut before the layers still boot.
 
 The kernel keeps what it checked as a table of `struct zxv_layer_node`
 (`kernel/include/layer_manifest.h`): depth, the layer's CID, its parent's CID,
 the partition it was read from and flags. `ZXV_LAYER_VERIFIED` is set when
-the check passes; `ZXV_LAYER_SEALED` and `ZXV_LAYER_AIRGAPPED` when the
+the check passes and `ZXV_LAYER_BAKED` on L0 once it is the kernel's;
+`ZXV_LAYER_SEALED` and `ZXV_LAYER_AIRGAPPED` when the
 post-hydration seal severs the network (`AIRGAPPED` only when the NIC was
 powered down); `ZXV_LAYER_OVERLAY` and `ZXV_LAYER_COMPAT` are for L4 and
 evo_comm layers, which the boot does not read yet.

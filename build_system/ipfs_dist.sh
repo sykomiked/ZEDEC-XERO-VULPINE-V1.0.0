@@ -4,19 +4,21 @@
 #   make ipfs-dist [ARCHS="x86_64 arm64"] [ARCH_DOC=docs/ARCHITECTURE.md]
 #   bash build_system/ipfs_dist.sh [arch ...]
 #
-# Each pass removes the release discs (dist/discs/zxv-*), clean-builds the
-# kernel and EFI loader for every arch (baremetal_images.sh), builds the
-# release layers L0, L1 and L2 on them (make build-all-layers, docs/LAYERS.md),
-# builds the core disc per arch carrying those layers and the swarm discs
-# (mk_golden_disc.sh), and lays them out as the bucket with mk_bucket.py, the
-# layers in 03_layers and the architecture document's distribution section
-# copied in as 00_base/ARCHITECTURE.md. The run fails unless both
+# Each pass is built leaves first (docs/BUCKET.md): it removes the release
+# discs (dist/discs/zxv-*), builds the swarm discs (mk_golden_disc.sh swarm),
+# clean-builds the kernel and EFI loader for every arch with the swarm discs'
+# CIDs and L0's baked in (baremetal_images.sh, ZXV_SWARM_DISCS, mk_table.py),
+# builds the release layers L0, L1 and L2 on them (make build-all-layers,
+# docs/LAYERS.md), the core disc per arch carrying those layers, and lays
+# everything out as the bucket with mk_bucket.py: every file named by its own
+# CID, the installer file last, the root (the origin CID) after it. The
+# architecture document's distribution section rides along in 00_base. The run fails unless both
 # passes give the same SHA-256 for every Disc 1 and the same root CID: a
 # release whose CID depends on when it was built cannot be checked by anyone
 # else. The second pass's bucket is the result:
 #
 #   build/ipfs-dist/bucket/         the directory to add and pin
-#   build/ipfs-dist/bucket.cid      its root CID, as `ipfs add -r --cid-version=1` gives
+#   build/ipfs-dist/bucket.cid      its root, the origin CID, as `ipfs add -r --cid-version=1` gives
 #   build/ipfs-dist/layers/         L0..L2 .json and .cid (also in the bucket, 03_layers)
 #   build/ipfs-dist/pass{1,2}.sums  "sha256 file" per core disc, then "root <cid>"
 #
@@ -45,12 +47,14 @@ for pass in 1 2; do
   log "pass $pass: clean build"
   rm -f dist/discs/zxv-*-disc1-core.img dist/discs/zxv-*-disc1-core.sizes \
         dist/discs/zxv-swarm-disc*.img dist/discs/zxv-swarm-disc*.sizes
-  bash build_system/baremetal_images.sh "${ARCHS[@]}"
+  # leaves first: the swarm discs, then the kernels that carry their CIDs
+  bash build_system/mk_golden_disc.sh swarm
+  ZXV_SWARM_DISCS="$(echo dist/discs/zxv-swarm-disc*.img)" \
+    bash build_system/baremetal_images.sh "${ARCHS[@]}"
   make -s build-all-layers ARCHS="${ARCHS[*]}" LAYERS="$OUT/layers$pass"
   for a in "${ARCHS[@]}"; do
     GOLDEN_LAYERS="$OUT/layers$pass" bash build_system/mk_golden_disc.sh "$a"
   done
-  bash build_system/mk_golden_disc.sh swarm
   python3 build_system/mk_bucket.py --discs dist/discs --out "$OUT/pass$pass" \
     --architecture "$DOC" --layers "$OUT/layers$pass"
   { for a in "${ARCHS[@]}"; do

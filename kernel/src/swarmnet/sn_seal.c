@@ -8,10 +8,40 @@
 #include "swarmnet.h"
 
 static int g_sealed;
+static lpres_state_t g_verdict = LPRES_STATE_NEITHER;
+
+static struct {
+    int (*fn)(void *ctx);
+    void *ctx;
+    char name[SN_SEAL_NAME_MAX + 1u];
+} g_hook[SN_SEAL_HOOK_MAX];
+static uint32_t g_nhook;
 
 int sn_sealed(void)
 {
     return g_sealed;
+}
+
+lpres_state_t sn_seal_verdict(void *ctx)
+{
+    (void) ctx;
+    return g_verdict;
+}
+
+int sn_seal_on(int (*fn)(void *ctx), void *ctx, const char *name)
+{
+    uint32_t n = 0;
+    if (!fn || !name || g_sealed || g_nhook >= SN_SEAL_HOOK_MAX) return -1;
+    while (name[n] && n <= SN_SEAL_NAME_MAX) n++;
+    if (n == 0 || n > SN_SEAL_NAME_MAX) return -1;
+    for (uint32_t i = 0; i < g_nhook; i++)
+        if (g_hook[i].fn == fn && g_hook[i].ctx == ctx) return -1;
+    g_hook[g_nhook].fn = fn;
+    g_hook[g_nhook].ctx = ctx;
+    hw_memcpy(g_hook[g_nhook].name, name, n);
+    g_hook[g_nhook].name[n] = 0;
+    g_nhook++;
+    return 0;
 }
 
 static void say(const hw_plat_t *p, const char *a, const char *b)
@@ -54,6 +84,16 @@ int sn_seal(sn_link_t *l, sn_fetch_t *f, const hw_models_t *m, const sn_seal_io_
     hw_nic_t *nic = l->nic;
     hw_line_t s;
     uint8_t mode = m->seal == HW_SEAL_PROMPT_USER ? ask(l, io) : m->seal;
+
+    /* 0. the flush hooks, while the network is still up */
+    for (uint32_t i = 0; i < g_nhook; i++) {
+        int rc = g_hook[i].fn(g_hook[i].ctx);
+        hw_line_init(&s);
+        hw_line_s(&s, rc ? "  [SEAL_FLUSH_FAIL] " : "  [SEAL_FLUSH] ");
+        hw_line_s(&s, g_hook[i].name);
+        hw_line_s(&s, rc ? ": did not drain; its buffers go with the network" : ": drained");
+        p->log(s.b);
+    }
 
     /* 1. the NIC: off the bus, or kept for the mesh */
     int off = 0;
@@ -102,6 +142,7 @@ int sn_seal(sn_link_t *l, sn_fetch_t *f, const hw_models_t *m, const sn_seal_io_
     hw_line_u(&s, held);
     hw_line_s(&s, " bytes zeroed");
     p->log(s.b);
+    g_verdict = off < 0 || bad ? LPRES_STATE_FALSE : LPRES_STATE_TRUE;
     if (off < 0 || bad) return -1;
 
     /* 3. the receipt */

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """zxv-get - download the ZXV golden discs for your machine from the bucket.
 
-    tools/zxv-get                      core disc for this machine + every swarm disc
+    tools/zxv-get [ORIGIN_CID]         core disc for this machine + everything else
     tools/zxv-get --arch arm64         another architecture's core disc
     tools/zxv-get --list               what the bucket holds, download nothing
     tools/zxv-get --core-only          only the core disc (it boots alone)
@@ -12,8 +12,15 @@ Disc 1, the core disc, is the only one tied to an architecture (x86_64,
 arm64, riscv64); the swarm discs 2..N are the same for all and stack on top
 of it. Each is at most 1.8 GB.
 
-Where from. The bucket is the CID in build_system/zxv_upstream.cid (the one
-the core discs carry), or --cid. If that file names an IPNS key (or --ipns
+What. One CID installs everything: the origin CID, the root of the release
+bucket, computed last because the release is built leaves first
+(docs/BUCKET.md). Its root holds exactly one <cid>.install, the installer
+file, named by its own CID; it lists every disc, layer and file in install
+order by kind, CID, size and SHA-256, and each of those is named <cid>.<ext>
+too. A name that is not its file's CID is refused, so a name is a check.
+
+Where from. The origin CID given, else --cid, else the CID in
+build_system/zxv_upstream.cid (the trusted list the core discs carry). If that file names an IPNS key (or --ipns
 is given) and a local IPFS node is running, the newest bucket is resolved
 through it; a public gateway cannot prove an IPNS answer here, so without a
 node the CID is used and that is said.
@@ -25,9 +32,9 @@ lines, then https://trustless-gateway.link), one raw block at a time: each
 block is hashed and must match its CID before it is used, so no gateway can
 change a byte. The gateway that served last is asked first, then the others
 in turn; one that sends a block that does not match is not asked again. If
-none can, attach the discs by hand. Either way every disc is then checked
-against manifest.json (size and SHA-256) and against the CID the bucket's
-directory gives it. A disc already present with the right SHA-256 is kept,
+none can, attach the discs by hand. Either way every file is then checked
+against the installer file (size and SHA-256) and against the CID the
+bucket's directory gives it, which must also be its name. A disc already present with the right SHA-256 is kept,
 not fetched again.
 
 Elastic. Fetching can be slow, so it waits rather than gives up: when no
@@ -61,7 +68,7 @@ import urllib.request
 
 B32 = "abcdefghijklmnopqrstuvwxyz234567"
 RAW, DAG_PB = 0x55, 0x70
-FORMAT = "zxv-bucket 1"
+FORMAT = "zxv-install 1"
 CID_RE = re.compile(r"b[a-z2-7]{20,120}")
 IPNS_RE = re.compile(r"k[0-9a-z]{20,120}")
 NAME_RE = re.compile(r"[A-Za-z0-9._+-]{1,200}")
@@ -429,25 +436,60 @@ def read_upstream(path):
     return up
 
 
-def check_manifest(m):
-    if not isinstance(m, dict) or m.get("format") != FORMAT:
-        raise Fail("manifest.json is not a '%s' manifest" % FORMAT)
-    cap = m.get("max_disc_bytes")
-    st = m.get("stages")
-    if not isinstance(cap, int) or not isinstance(st, list) or not st:
-        raise Fail("manifest.json has no stages")
-    for s in st:
-        ok = (isinstance(s, dict) and isinstance(s.get("dir"), str) and NAME_RE.fullmatch(s["dir"])
-              and isinstance(s.get("file"), str) and NAME_RE.fullmatch(s["file"])
-              and s["file"] not in (".", "..") and s["dir"] not in (".", "..")
-              and s.get("kind") in ("core", "swarm", "cartridge", "layer")
-              and (s.get("arch") in ARCHS if s.get("kind") == "core" else s.get("arch") == "all")
-              and isinstance(s.get("bytes"), int) and 0 <= s["bytes"] <= cap
-              and isinstance(s.get("sha256"), str) and re.fullmatch(r"[0-9a-f]{64}", s["sha256"])
-              and isinstance(s.get("cid"), str) and CID_RE.fullmatch(s["cid"]))
+KINDS = ("core", "layer", "swarm", "cartridge", "doc")
+
+
+def parse_installer(text):
+    """The stages of an installer file (docs/BUCKET.md): after the header
+    "# zxv-install 1", lines "max_disc_bytes N", "seal MODE", "gateway URL",
+    then one stage per line,
+        <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
+    each file named by its own CID."""
+    lines = text.split("\n")
+    if lines[0] != "# " + FORMAT:
+        raise Fail("the installer file does not start with '# %s'" % FORMAT)
+    cap, stages = None, []
+    for n, raw in enumerate(lines[1:], 2):
+        f = raw.split()
+        if not f or raw.startswith("#"):
+            continue
+        if f[0] == "max_disc_bytes" and len(f) == 2 and f[1].isdigit():
+            cap = int(f[1])
+            continue
+        if f[0] in ("seal", "gateway") and len(f) == 2:
+            continue
+        ok = len(f) == 8 and f[0] in KINDS and cap is not None
+        if ok:
+            kind, arch, disc, group, size, sha, cid, path = f
+            d, _, name = path.partition("/")
+            stem, dot, ext = name.partition(".")
+            ok = ((arch in ARCHS if kind == "core" else arch == "all")
+                  and (disc.isdigit() if kind in ("core", "swarm") else disc == "-")
+                  and (re.fullmatch(r"[A-Z0-9]{1,16}", group) if kind == "swarm" else group == "-")
+                  and size.isdigit() and int(size) <= cap and re.fullmatch(r"[0-9a-f]{64}", sha)
+                  and CID_RE.fullmatch(cid) and NAME_RE.fullmatch(d) and d not in (".", "..")
+                  and stem == cid and dot and re.fullmatch(r"[a-z0-9]{1,8}", ext))
         if not ok:
-            raise Fail("manifest.json: bad stage %r" % (s,))
-    return st
+            raise Fail("installer file line %d is not a stage named by its CID: %r" % (n, raw))
+        stages.append({"kind": kind, "arch": arch, "disc": int(disc) if disc.isdigit() else None,
+                       "group": group if group != "-" else None, "bytes": int(size),
+                       "sha256": sha, "cid": cid, "dir": d, "file": name})
+    if not stages:
+        raise Fail("the installer file lists nothing")
+    return stages
+
+
+def find_installer(src, root):
+    """(cid_bin, name) of the one <cid>.install at the root, whose name must
+    be its CID."""
+    links, _, _ = pb_node(src.dir_block(root))
+    hits = [(n, h) for n, h in links if re.fullmatch(r"b[a-z2-7]{20,120}\.install", n)]
+    if len(hits) != 1:
+        raise Fail("the root %s holds %d <cid>.install files, not one" % (cid_text(root), len(hits)))
+    name, cb = hits[0]
+    if cid_text(cb) + ".install" != name:
+        raise Fail("%s is not named by its CID %s" % (name, cid_text(cb)))
+    return cb, name
 
 
 def pick(stages, arch, core_only):
@@ -459,7 +501,7 @@ def pick(stages, arch, core_only):
     if core_only:
         return mine[:1]
     rest = [s for s in stages if s["kind"] != "core"]
-    rest.sort(key=lambda s: (s["kind"] != "swarm", s.get("disc", 0), s["dir"], s["file"]))
+    rest.sort(key=lambda s: (KINDS.index(s["kind"]), s["disc"] or 0, s["dir"], s["file"]))
     return mine[:1] + rest
 
 
@@ -486,7 +528,7 @@ def fetch(src, root, s, outdir, quiet, again=False):
         return
     cb = src.lookup(root, [s["dir"], s["file"]])
     if cid_text(cb) != s["cid"]:
-        raise Fail("%s: the bucket's directory gives CID %s, manifest.json says %s"
+        raise Fail("%s: the bucket's directory gives CID %s, the installer file says %s"
                    % (label, cid_text(cb), s["cid"]))
     part = dst + ".part"
     h, got = hashlib.sha256(), [0]
@@ -512,7 +554,7 @@ def fetch(src, root, s, outdir, quiet, again=False):
 
         def write(self, b):
             if got[0] + len(b) > s["bytes"]:
-                raise Bad("%s: longer than manifest.json's %d bytes" % (label, s["bytes"]))
+                raise Bad("%s: longer than the installer file's %d bytes" % (label, s["bytes"]))
             h.update(b)
             self.f.write(b)
 
@@ -530,14 +572,14 @@ def fetch(src, root, s, outdir, quiet, again=False):
         if tty:
             sys.stderr.write("\n")
         if got[0] != s["bytes"]:
-            raise Bad("%s: %d bytes, manifest.json says %d" % (label, got[0], s["bytes"]))
+            raise Bad("%s: %d bytes, the installer file says %d" % (label, got[0], s["bytes"]))
         if h.hexdigest() != s["sha256"]:
             os.remove(part)
             if resumed and not again:
                 print("  again  %s: the kept part was not the image; fetching it from the start"
                       % label)
                 return fetch(src, root, s, outdir, quiet, again=True)
-            raise Bad("%s: sha256 differs from manifest.json" % label)
+            raise Bad("%s: sha256 differs from the installer file" % label)
         os.replace(part, dst)
     except Bad:
         if os.path.exists(part):
@@ -560,6 +602,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
                                  epilog="\n".join(__doc__.split("\n")[2:]))
+    ap.add_argument("origin", nargs="?", help="the origin CID (default: --cid, then the upstream file)")
     ap.add_argument("--arch", choices=ARCHS, help="core disc to fetch (default: this machine)")
     ap.add_argument("--cid", help="bucket root CID (default: build_system/zxv_upstream.cid)")
     ap.add_argument("--ipns", help="IPNS name to resolve through a local node")
@@ -590,6 +633,7 @@ def main():
             except (OSError, subprocess.SubprocessError):
                 if a.ipfs:
                     raise Fail("the IPFS node '%s' is not usable (is its daemon running?)" % exe)
+        a.cid = a.origin or a.cid
         ipns = a.ipns or (None if a.cid else up["ipns"])
         if ipns and not IPNS_RE.fullmatch(ipns):
             raise Fail("'%s' is not an IPNS name (k51...)" % ipns)
@@ -610,11 +654,13 @@ def main():
         src = node or Gateway(gws, max(1, a.jobs), a.patience)
         print("from:   %s" % ("the local IPFS node" if node else
                               ", then ".join(gws) + " (every block checked)"))
-        man = src.read(src.lookup(rb, ["manifest.json"]), 1 << 20)
+        icb, iname = find_installer(src, rb)
         try:
-            stages = check_manifest(json.loads(man.decode("utf-8")))
-        except ValueError:
-            raise Fail("manifest.json is not JSON")
+            text = src.read(icb, 1 << 20).decode("ascii")
+        except UnicodeDecodeError:
+            raise Fail("%s is not ASCII text" % iname)
+        stages = parse_installer(text)
+        print("install: %s (named by its own CID)" % iname)
         if a.list:
             for s in stages:
                 print("  %-18s %-36s %-8s %11d" % (s["dir"], s["file"], s["arch"], s["bytes"]))

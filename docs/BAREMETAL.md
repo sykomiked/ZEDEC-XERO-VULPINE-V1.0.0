@@ -95,46 +95,51 @@ the only one tied to an architecture; the swarm discs stack on top of any of
 them, so a person downloads one core disc and all the swarm discs:
 
 ```
-manifest.json                       every disc: arch, size, SHA-256, CID
-00_base/zxv-x86_64-disc1-core.img   one core disc per architecture
-00_base/zxv-arm64-disc1-core.img
-01_swarm/zxv-swarm-disc2-reason.img every swarm disc, in one directory
-02_cartridges/...                   when there are any
-03_layers/L0.json L1.json L2.json   the release layers (docs/LAYERS.md)
+<cid>.install          the installer file: every file below, by CID, size and SHA-256
+00_base/<cid>.img      one core disc (disc 1) per architecture
+01_swarm/<cid>.img     every swarm disc, in one directory
+02_cartridges/<cid>.*  when there are any
+03_layers/<cid>.json   the release layers L0 to L2 (docs/LAYERS.md)
 ```
 
-The numbers are fixed for the release: 04_overlays (L4), 05_alexandria (L3)
-and 06_tiamat (the Tiamat cells of L2) are laid out by the work that builds
-them. Each layer manifest names its parent's CID, so the layers form one
-chain from the hardware envelope up, and the core disc carries L0 to L2 in
-/ZXV so the kernel checks the chain before `[BOOT_OK]`.
+Every file is named by its own CID, and the root of the bucket is the
+origin CID: the one CID a person needs to install everything. The release is
+built leaves first so that this works: the swarm discs, then the kernels with
+their CIDs baked in, then the layers and core discs, then the installer file,
+then the root. `docs/BUCKET.md` is the spec, with the pinned add parameters
+and a worked example. The numbers are fixed for the release: 04_overlays
+(L4), 05_alexandria (L3), 06_tiamat (the Tiamat cells of L2), 07_matrix,
+08_vectors and 09_source are laid out by the work that builds them.
 
 `python3 build_system/mk_bucket.py` lays out the discs in `dist/discs` as
-`build/bucket` and prints the root CID that `ipfs add -r --cid-version=1`
+`build/bucket` and prints the origin CID that `ipfs add -r --cid-version=1`
 would give it, computed the way Kubo does (checked against Kubo 0.32.1 by
-`mk_bucket.py --self-test`), with `manifest.json` and the same list as
-`manifest.txt` for the kernel. It adds nothing to IPFS and publishes nothing;
+`mk_bucket.py --self-test`). It adds nothing to IPFS and publishes nothing;
 uploading is the owner's call. `make ipfs-dist` builds the whole release
-twice from clean (kernels, layers, core discs, swarm discs, bucket) and fails unless
-both passes give the same Disc 1 SHA-256 for every architecture and the same
-root CID; the bucket lands in `build/ipfs-dist/bucket`.
+twice from clean, leaves first, and fails unless both passes give the same
+Disc 1 SHA-256 for every architecture and the same origin CID; the bucket
+lands in `build/ipfs-dist/bucket`. `tools/zxv-verify.sh FILE...` checks that
+a file's name is its CID with no IPFS node (a POSIX sh script and the one-file
+C helper `tools/zxv-cid.c`); given a `<cid>.install`, it checks every file
+the installer lists too.
 
 To download, with nothing but Python 3:
 
 ```bash
 git clone https://github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0.git
-ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get                 # this machine's core disc + all swarm discs
+ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get ORIGIN_CID      # this machine's core disc + everything else
 ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get --arch arm64    # another architecture
 ZEDEC-XERO-VULPINE-V1.0.0/tools/zxv-get --list          # what the bucket holds
 ```
 
 `zxv-get` uses a local IPFS node if one runs (`ipfs cat`), else a public
 gateway one raw block at a time, hashing every block against its CID, so a
-gateway cannot change a byte. Then it checks each disc against
-`manifest.json` (size and SHA-256) and against the CID the bucket's
-directory gives it, and deletes any disc that fails. Discs already present
-with the right SHA-256 are kept. The script also works on its own, without
-the clone: pass the bucket with `--cid`.
+gateway cannot change a byte. It reads the one `<cid>.install` at the
+origin's root (refused unless its name is its CID), then checks each file
+against it (size and SHA-256) and against the CID the bucket's directory
+gives it, which must also be its name, and deletes any file that fails.
+Files already present with the right SHA-256 are kept. The script also works
+on its own, without the clone.
 
 It is patient, because fetching can be slow. When no gateway serves a block
 it prints `waiting for peers` and tries again after 1 s, 2 s, 4 s, up to a
@@ -146,11 +151,12 @@ or a lying gateway leaves the verified part as `<disc>.part`; the next run
 hashes it again and fetches only the rest. Progress is a bar with the real
 rate.
 
-Which bucket. `build_system/zxv_upstream.cid` holds the master bucket's CID,
-and each core disc carries it as `/ZXV/UPSTREAM.CID`, together with
-`/ZXV/SWARM.LST`, the swarm discs it expects. A CID never changes, so a new
-release is a new CID, and a core disc cannot carry the CID of the bucket
-that holds it. Updates therefore follow an IPNS name the owner signs (an
+Which bucket. `build_system/zxv_upstream.cid` is the trusted list: the
+master bucket's CID and the gateways that serve it. Each core disc carries it
+as `/ZXV/UPSTREAM.CID`, together with `/ZXV/SWARM.LST`, the swarm discs it
+expects. A CID never changes, so a new release is a new CID, and a core disc
+cannot carry the CID of the bucket that holds it; it does not need to, since
+its kernel carries the CIDs of the swarm discs it installs. Updates therefore follow an IPNS name the owner signs (an
 `ipns k51...` line in that file, once the owner makes the key); `zxv-get`
 resolves it through a local node and otherwise falls back to the CID. At
 boot the x86_64 kernel prints `[UPSTREAM] bucket <cid>`, then
@@ -160,21 +166,22 @@ attached, or `[SWARM_COMPLETE]`.
 
 ### Fetching the swarm discs from the bare-metal kernel
 
-When an expected disc is missing, the core disc names a bucket and a blank
+When an expected disc is missing, the core disc names gateways and a blank
 drive is attached, the x86_64 kernel fetches the disc itself
 (`kernel/src/swarmnet`, entirely ZXV code: the e1000/igb/r8169 drivers, the
 kernel's ARP/IPv4/UDP/DHCP/DNS/TCP stack and the ipfs_node block walker).
 It takes the first NIC with link up (`[NET] eth0 = ..., link up`), asks DHCP
 three times, 5 s each (`[NET] DHCP lease ...`), then asks each `http://`
 gateway in `UPSTREAM.CID` for one raw block at a time, hashing every block
-against its CID. It reads `manifest.txt` from the bucket, checks that the
-bucket's directory gives the disc the manifest's CID, and streams the image
-onto a blank drive (no MBR signature, no GPT header, 512-byte sectors, large
+against its CID. Which CID is not read from the network: the swarm discs are
+built before the kernel, so their CIDs, sizes and SHA-256s are compiled into
+it (`build_system/mk_table.py`, `build/include/manifest_hashes.h`), and the
+kernel asks for exactly those. It streams the image onto a blank drive (no MBR signature, no GPT header, 512-byte sectors, large
 enough) with a rolling SHA-256. The first 34 sectors, the partition table,
 are held back and written last, only when size and SHA-256 match the
-manifest, so an interrupted or altered download never looks like a disc:
+table, so an interrupted or altered download never looks like a disc:
 `[SWARM_FETCHED] disc 2 ZXV_SWARM_REASON on sata1: ... bytes, sha256 matches
-the manifest; committed`, or `[SWARM_FETCH_FAIL] ...; nothing committed`.
+the table; committed`, or `[SWARM_FETCH_FAIL] ...; nothing committed`.
 The disc is then indexed and mounted like an attached one, and its models
 are checked.
 
@@ -234,6 +241,18 @@ Then the receipt:
 
 A step that fails prints `[SEAL_FAIL]` and no receipt.
 
+Work that must finish while the network is still up registers a flush hook
+with `sn_seal_on(fn, ctx, name)` (`kernel/src/swarmnet/swarmnet.h`, at most
+8): the Chiglet/Agora kin-collective buffers drain and close there. The seal
+calls every hook first, in order, and logs `[SEAL_FLUSH] <name>: drained`,
+or `[SEAL_FLUSH_FAIL] <name>: ...` and seals anyway, since a peer's buffer
+never keeps the network open; hooks close network buffers only, never local
+tasks or disks. `sn_seal_verdict(ctx)` gives the seal as an `lpres_state_t`
+(NEITHER before any seal, TRUE after a seal that printed its receipt, FALSE
+after `[SEAL_FAIL]`), for code that must not run on an open network; it
+fits `zxvd_fab_set_seal` as it is. The hosted daemon `zxvd` has no
+bare-metal seal of its own.
+
 `build_system/test_swarm_fetch.sh` proves all of it under QEMU: it builds
 small discs and a bucket, serves the bucket from a gateway on the host
 (`build_system/zxv_test_gateway.py`, which the guest reaches as
@@ -257,9 +276,11 @@ UEFI_DISK=ahci UEFI_NET=user UEFI_EXTRA=build/blank.img \
 ```
 
 `python3 build_system/test_bucket.py` builds a small bucket, serves it from a
-local gateway and downloads it, then checks that a changed block, a manifest
-that lies about a size, SHA-256, CID, path or architecture, and a disc over
-1.8 GB are all refused, and that zxv-get waits out a gateway that is down,
+local gateway and downloads it from its origin CID, then checks that a
+changed block, an installer file that lies about a size, SHA-256, CID, path
+or architecture, a file or installer not named by its CID, and a disc over
+1.8 GB are all refused, that `zxv-verify.sh` passes the bucket and catches a
+flipped bit, that `zxv-cid.c` builds the same DAG as mk_bucket at any depth, and that zxv-get waits out a gateway that is down,
 resumes from a `.part`, and fetches a `.part` that is not the image's start
 again.
 

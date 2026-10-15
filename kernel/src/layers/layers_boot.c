@@ -23,6 +23,13 @@ static int same_sha(const uint8_t *a, const uint8_t *b)
     return d == 0;
 }
 
+static int same_cid(const uint8_t *a, const uint8_t *b)
+{
+    uint8_t d = 0;
+    for (uint32_t i = 0; i < ZXV_LAYER_CID_BYTES; i++) d |= (uint8_t) (a[i] ^ b[i]);
+    return d == 0;
+}
+
 /* Back to the ESP's root, then into each directory of path[0..n). */
 static int cd(fat32_state_t *fs, const char *const *path, uint32_t n)
 {
@@ -97,7 +104,7 @@ static int refuse_all(zxv_layers_boot_t *b, hw_models_t *s, const hw_plat_t *p, 
 }
 
 int zxv_layers_boot(zxv_layers_boot_t *b, hw_models_t *s, const hw_plat_t *p, const char *arch,
-                    const char *efi)
+                    const char *efi, const uint8_t l0[ZXV_LAYER_CID_BYTES])
 {
     static char text[ZXV_LAYERS_BOOT_N][ZXV_LAYERS_BOOT_BYTES];
     static const char *const ZXV[] = {"ZXV"}, *const BOOT[] = {"EFI", "BOOT"};
@@ -152,6 +159,9 @@ int zxv_layers_boot(zxv_layers_boot_t *b, hw_models_t *s, const hw_plat_t *p, co
         nd->sector_count = v->part.last - v->part.first + 1u;
         b->n++;
     }
+    if (!same_cid(L[0].cid, l0))
+        return refuse_all(b, s, p, FILES[0], ": is not the L0 this kernel's table lists");
+    b->node[0].flags |= ZXV_LAYER_BAKED;
     uint32_t at = 0;
     if (zxv_layer_chain(chain, ZXV_LAYERS_BOOT_N, 0, 0, &at, &why) != 0)
         return refuse_all(b, s, p, FILES[at], ": names a parent that is not the layer below");

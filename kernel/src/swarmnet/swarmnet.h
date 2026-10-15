@@ -24,14 +24,18 @@
  *             gateway cannot change a byte; one that sends a block that does
  *             not match is not asked again this boot. https:// gateways are
  *             skipped (no TLS in this path yet) and said so.
- *   4. find   manifest.txt from the bucket root (mk_bucket.py), the line for
- *             the disc, and the disc's CID through the bucket's directories,
- *             which must equal the manifest's.
+ *   4. find   the disc in the table this kernel was built with: its CID,
+ *             size and SHA-256 are in the kernel's .rodata (sn_baked_t,
+ *             build/include/manifest_hashes.h, build_system/mk_table.py), put
+ *             there because the swarm discs are built before the kernel
+ *             (docs/BUCKET.md). The disc is fetched by that CID alone: no
+ *             bucket directory, file name or manifest is consulted, so
+ *             nothing a gateway serves can change which disc is installed.
  *   5. write  onto a drive that is blank (no MBR signature, no GPT header),
  *             512-byte sectors and large enough. The image streams to the
  *             drive with a rolling SHA-256; its first 34 sectors (protective
  *             MBR, GPT header and partition entries) are held in memory and
- *             written last, only when size and SHA-256 match the manifest.
+ *             written last, only when size and SHA-256 match the table.
  *             A failed or partial download therefore never looks like a disc.
  *                                       [SWARM_FETCH] ... %, [SWARM_FETCHED]
  *                                       or [SWARM_FETCH_FAIL] ...; nothing committed
@@ -71,6 +75,7 @@
 #include "../net/net.h"
 #include "../hwdrv/hw_models.h"
 #include "../ipfs_node/ipfs_node.h"
+#include "../lpres/lpres.h"
 
 #define SN_DHCP_TRIES      3u
 #define SN_DHCP_MS         5000u
@@ -81,7 +86,6 @@
 #define SN_TICK_MS         200u    /* TCP retransmit pacing */
 #define SN_HOLD_SECTORS    34u     /* protective MBR + GPT header + 32 sectors of entries */
 #define SN_STAGE_BYTES     65536u
-#define SN_MANIFEST_MAX    16384u
 #define SN_HOST_MAX        64u
 #define SN_CACHE_MAX       262144u /* one full raw leaf (mk_bucket's chunk size) */
 #define SN_NODE_CACHE      4u      /* dag-pb nodes kept: the path from a root to a leaf */
@@ -157,23 +161,26 @@ int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint
  * toward SN_STALL_MS; any other failure leaves it. */
 void sn_http_adapt(sn_http_t *h, int ok);
 
-/* ---- the bucket's manifest.txt ------------------------------------------------ */
-/* One line per disc or file:
- *   <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<file>
- * kind core|swarm|cartridge|layer, written by build_system/mk_bucket.py. */
+/* ---- the baked table -------------------------------------------------------- */
+/* A swarm disc this kernel installs: one row of ZXV_TABLE_SWARM. */
+typedef struct sn_baked {
+    uint32_t disc;   /* 2, 3, ... */
+    char group[17];  /* the partition is ZXV_SWARM_<group> */
+    uint64_t bytes;  /* image size */
+    uint8_t sha[32]; /* image SHA-256 */
+    uint8_t cid[36]; /* CIDv1 sha2-256 of the image's UnixFS DAG */
+} sn_baked_t;
+
+/* The disc being fetched, from its table row. */
 typedef struct sn_entry {
     uint32_t disc;
-    char group[17];
     uint64_t bytes;
     uint8_t sha[32];
-    char cid[121];
-    char path[128];
+    char cid[121]; /* text, for the resume record and the log */
 } sn_entry_t;
 
-/* Find the swarm line for disc `disc`, group `group`. 0 = found; else a
- * reason, and *line the line it concerns (0 for the whole file). */
-const char *sn_manifest_find(const char *t, uint32_t n, uint32_t disc, const char *group,
-                             sn_entry_t *e, uint32_t *line);
+/* The row of t[0..n) for disc `disc`, group `group`, or 0. */
+const sn_baked_t *sn_baked_find(const sn_baked_t *t, uint32_t n, uint32_t disc, const char *group);
 
 /* ---- writing a disc --------------------------------------------------------- */
 /* 1 when b can take an image of `bytes`: 512-byte sectors, large enough, and
@@ -225,6 +232,8 @@ typedef struct sn_fetch {
     ipfsn_get_fn get; /* block source: gateways, or a test's */
     void *get_ctx;
     const hw_plat_t *p;
+    const sn_baked_t *table; /* the swarm discs this kernel installs */
+    uint32_t ntable;
     sn_clock_t clk;
     uint32_t pct; /* last progress decile logged */
     sn_entry_t e;
@@ -255,8 +264,6 @@ typedef struct sn_fetch {
     ipfsn_cid_t last_cid;
     uint32_t last_len; /* 0 = nothing cached */
     uint8_t last[SN_CACHE_MAX];
-    uint8_t dirbuf[IPFSN_NODE_MAX];
-    char manifest[SN_MANIFEST_MAX];
     uint8_t leaf[IPFSN_BLOCK_MAX];
 } sn_fetch_t;
 
@@ -268,7 +275,7 @@ uint32_t sn_fetch_gateways(sn_fetch_t *f, sn_link_t *l, const hw_models_t *m);
 int sn_gateway_get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len);
 
 /* Start fetching every swarm disc m expects and lacks onto blank drives of r
- * (m indexed; f->p, f->get, f->clk set). Then call sn_fetch_step until it
+ * (m indexed; f->p, f->get, f->clk, f->table set). Then call sn_fetch_step until it
  * returns 0: each call does a bounded piece of one disc (or nothing, while
  * waiting out a backoff). f->fresh is 1 after a step that committed a disc,
  * so the caller can index again and mount it; f->committed counts them. */
@@ -316,5 +323,31 @@ typedef struct sn_seal_io {
 
 int sn_seal(sn_link_t *l, sn_fetch_t *f, const hw_models_t *m, const sn_seal_io_t *io);
 int sn_sealed(void);
+
+/* Flush hooks: work that must finish while the network is still up, such as
+ * the Chiglet/Agora kin-collective buffers draining and closing
+ * (docs/STATE_ISOLATION.md S6). sn_seal calls every hook, in the order they
+ * were registered, before it touches the NIC, and logs
+ *   "  [SEAL_FLUSH] <name>: drained"
+ * or, when the hook returns nonzero,
+ *   "  [SEAL_FLUSH_FAIL] <name>: did not drain; its buffers go with the network"
+ * and seals anyway: a peer's buffer never keeps the network open. Hooks touch
+ * only network buffers; local tasks and disks are not theirs to close.
+ * sn_seal_on returns 0, or -1 for a null fn, an empty name or one longer than
+ * SN_SEAL_NAME_MAX, the same fn and ctx twice, SN_SEAL_HOOK_MAX hooks already,
+ * or a call after the seal. */
+#define SN_SEAL_HOOK_MAX 8u
+#define SN_SEAL_NAME_MAX 23u
+
+int sn_seal_on(int (*fn)(void *ctx), void *ctx, const char *name);
+
+/* The seal as a verdict, for callers that must not run on an open network
+ * (zxvd_fab_set_seal takes it as is: zxvd_fab_set_seal(sn_seal_verdict, 0)).
+ *   LPRES_STATE_NEITHER  no seal attempted yet
+ *   LPRES_STATE_TRUE     the last seal completed and printed its receipt
+ *   LPRES_STATE_FALSE    the last seal failed ([SEAL_FAIL]); the network may
+ *                        still be reachable
+ * ctx is unused. */
+lpres_state_t sn_seal_verdict(void *ctx);
 
 #endif

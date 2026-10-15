@@ -41,6 +41,7 @@
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
 #include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
+#include "manifest_hashes.h"    /* L0 and the swarm discs this kernel was built after */
 #include "x86_irq.h"            /* IDT, LAPIC, timer (gap 6) */
 #include "x86_userspace.h"      /* ring-3 processes and the scheduler (gap 6) */
 
@@ -408,6 +409,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * is logged and skipped; it never stops the boot. */
     static hw_models_t models;
     static zxv_layers_boot_t layers;
+    static const uint8_t l0_cid[ZXV_LAYER_CID_BYTES] = ZXV_TABLE_L0_CID_BIN;
     static hw_registry_t hreg;
     const hw_plat_t *hp;
     int models_left;
@@ -429,7 +431,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * other, and the boot file and the models must be the ones they
          * list, before BOOT_OK hands the machine over. A model that does
          * not match is refused, never handed out (layers_boot.h). */
-        (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
+        (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI", l0_cid);
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -454,11 +456,14 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     /* Swarm discs the core disc lists but nobody attached: fetch them onto a
      * blank drive over the network (swarmnet.h). The core is up already, so
      * the fetch runs in steps from the idle loop below, each disc mounted as
-     * it commits; d stops it for discs attached by hand. No link, no lease
+     * it commits; d stops it for discs attached by hand. Each disc is fetched
+     * by the CID in the table this kernel was built with (manifest_hashes.h),
+     * never by what a gateway or bucket says. No link, no lease
      * or no gateway prints the air-gap lines and the boot carries on with
      * what is attached. */
     static sn_link_t link;
     static sn_fetch_t fetch;
+    static const sn_baked_t baked[] = ZXV_TABLE_SWARM; /* the swarm discs, by CID */
     static const sn_clock_t clk = {x86_ms, x86_heartbeat, 0};
     int hydrating = 0;
     {
@@ -475,6 +480,8 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
                 fetch.p = hp;
+                fetch.table = baked;
+                fetch.ntable = ZXV_TABLE_SWARM_N;
                 if (sn_fetch_gateways(&fetch, &link, &models)) {
                     sn_fetch_begin(&fetch);
                     hydrating = 1;
@@ -519,7 +526,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
              * its models are hashed next */
             if (fetch.fresh) {
                 models_left = hw_models_index(&models, hp, &hreg) > 0;
-                (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
+                (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI", l0_cid);
             }
         }
         if (models_left)

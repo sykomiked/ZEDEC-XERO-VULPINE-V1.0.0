@@ -20,6 +20,7 @@
 #define ZXV_LAYER_AIRGAPPED 0x04u /* ... by powering the NIC down */
 #define ZXV_LAYER_OVERLAY   0x08u /* L4: a community overlay */
 #define ZXV_LAYER_COMPAT    0x10u /* stands on a parent admitted under evo_comm */
+#define ZXV_LAYER_BAKED     0x20u /* L0, and the one this kernel's baked table lists */
 
 struct zxv_layer_node {
     uint8_t depth;
