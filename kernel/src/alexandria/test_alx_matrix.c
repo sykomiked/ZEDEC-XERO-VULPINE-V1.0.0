@@ -126,14 +126,13 @@ static void test_cdc(void)
         const alx_cdc_tier_t *T = t < 3 ? alx_cdc_tier(t) : &mk;
         if (t >= 3) CHECK(alx_cdc_make(&mk, FIBT[t - 3][0], FIBT[t - 3][1], FIBT[t - 3][2]) == 0, "make %u", t);
         CHECK(T->min < T->avg && T->avg < T->max && T->max <= ALX_BOOK_MAX - 128u, "tier %u", t);
-        uint32_t n = cuts(b, sizeof b, T, at, 8192), prev = 0, small = 0;
+        uint32_t n = cuts(b, sizeof b, T, at, 8192), prev = 0;
         CHECK(n > 0 && at[n - 1] == sizeof b, "tier %u covers the buffer", t);
         uint64_t sum = 0;
         for (uint32_t i = 0; i < n; i++) {
             uint32_t l = at[i] - prev;
             if (i + 1 < n) {
                 CHECK(l > T->min && l <= T->max, "tier %u chunk %u is %u", t, i, l);
-                small += l < T->avg;
             }
             sum += l;
             prev = at[i];

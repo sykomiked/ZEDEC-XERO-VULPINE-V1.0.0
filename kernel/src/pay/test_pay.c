@@ -1076,8 +1076,8 @@ static void test_parse_fuzz(void)
     const char *hostile[] = {
         "<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY a \"b\">]><Document/>",
         "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><!-- c --></Document>",
-        "<Document "
-        "xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><![CDATA[x]]></Document>",
+        ("<Document "
+         "xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"><![CDATA[x]]></Document>"),
         "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\">&#65;</Document>",
         "<a:Document xmlns:a=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\"/>",
         "",
@@ -1089,10 +1089,10 @@ static void test_parse_fuzz(void)
         CHECK(pay_iso_parse_pacs008(hostile[i], (uint32_t) strlen(hostile[i]), &in8) < 0);
     /* deep nesting */
     static char deep[8192];
-    int p = sprintf(deep, "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\">");
-    for (int i = 0; i < 100; i++) p += sprintf(deep + p, "<A>");
-    for (int i = 0; i < 100; i++) p += sprintf(deep + p, "</A>");
-    p += sprintf(deep + p, "</Document>");
+    int p = snprintf(deep, sizeof deep, "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\">");
+    for (int i = 0; i < 100; i++) p += snprintf(deep + p, sizeof deep - (size_t) p, "<A>");
+    for (int i = 0; i < 100; i++) p += snprintf(deep + p, sizeof deep - (size_t) p, "</A>");
+    p += snprintf(deep + p, sizeof deep - (size_t) p, "</Document>");
     CHECK(pay_iso_parse_pacs008(deep, (uint32_t) p, &in8) < 0);
 
     /* mutation fuzzing */

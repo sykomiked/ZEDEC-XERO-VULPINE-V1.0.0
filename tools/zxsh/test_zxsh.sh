@@ -7,7 +7,8 @@
 set -u
 Z=${1:?usage: test_zxsh.sh path/to/zxsh}
 case $Z in /*) ;; *) Z=$(pwd)/$Z ;; esac
-T=$(mktemp -d "${TMPDIR:-/tmp}/zxsh-test.XXXXXX")
+# physical path: on macOS $TMPDIR sits under /var, a symlink to /private/var
+T=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/zxsh-test.XXXXXX")" && pwd -P)
 trap 'rm -rf "$T"' EXIT
 export ZXSH_HOME="$T/home"
 cd "$T" || exit 1

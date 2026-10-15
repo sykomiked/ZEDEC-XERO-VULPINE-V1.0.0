@@ -10,7 +10,7 @@ printf 'radar sweep 2\n' > "$t/files/b.txt"
 head -c 1048577 /dev/zero > "$t/big.bin"
 "$bin" keygen "$t/pk" "$t/sk" 0101010101010101010101010101010101010101010101010101010101010101 || fail keygen
 [ "$(wc -c < "$t/pk")" -eq 1952 ] && [ "$(wc -c < "$t/sk")" -eq 4032 ] || fail "key sizes"
-[ "$(stat -c %a "$t/sk")" = 600 ] || fail "the secret key is readable by others"
+[ "$(stat -c %a "$t/sk" 2>/dev/null || stat -f %Lp "$t/sk")" = 600 ] || fail "the secret key is readable by others"
 "$bin" scan "$t/files" 520 sensor > "$t/map.tsv" || fail scan
 grep -q '^0x5002080100000000	b' "$t/map.tsv" && grep -q '^0x5002080200000000	b' "$t/map.tsv" || fail "scan words: $(cat "$t/map.tsv")"
 cid=$("$bin" build "$t/map.tsv" 520 "$core" "$t/pk" "$t/sk" "$t/w.idx") || fail build
