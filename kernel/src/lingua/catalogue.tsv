@@ -1,6 +1,6 @@
 # Lingua language catalogue. One language per line, tab-separated:
 # year  language  family  tier  twin  where
-# tier: run | pillar | host | next1 | next2 | next3 | catalogue
+# tier: run | pillar | native | ir | host | next1 | next2 | next3 | catalogue
 #   (see docs/LANGUAGE_CATALOGUE.md). twin is "-" until a front-end exists.
 # check_catalogue.sh validates this file in make test-lingua.
 1949	Short Code	early	catalogue	-	-
@@ -10,12 +10,12 @@
 1956	IPL	list	catalogue	-	-
 1957	FORTRAN	numeric	run	Reckonwyrm	kernel/src/lingua/zl_fortran.c
 1958	ALGOL 58	algol	catalogue	-	-
-1958	LISP	list	next1	-	-
+1958	LISP	list	run	Coilwyrm	kernel/src/lingua/zl_lisp.c
 1959	COBOL	business	pillar	Sutra	kernel/src/treaty, sdk/pillars/cobol-sutra
 1959	JOVIAL	algol	next3	-	-
 1959	RPG	business	next3	-	-
 1959	APT	domain	catalogue	-	numerical control
-1960	ALGOL 60	algol	next1	-	-
+1960	ALGOL 60	algol	run	Rootwyrm	kernel/src/lingua/zl_algol.c
 1962	APL	array	pillar	KRON	sdk/pillars/apl-kron
 1962	SNOBOL	string	next2	-	-
 1962	Simula I	object	catalogue	-	-
@@ -28,18 +28,18 @@
 1965	TRAC	string	catalogue	-	-
 1966	MUMPS	database	pillar	MYRA	sdk/pillars/mumps-myra
 1967	BCPL	systems	next2	-	-
-1967	Logo	education	next1	-	-
+1967	Logo	education	run	Kiteling	kernel/src/lingua/zl_logo.c
 1967	Simula 67	object	catalogue	-	-
 1968	ALGOL 68	algol	catalogue	-	-
 1969	B	systems	next2	-	-
 1970	Forth	stack	run	Cairndrake	kernel/src/lingua/zl_forth.c
-1970	Pascal	algol	host	-	bindings/pascal; Lingua front-end next1
+1970	Pascal	algol	run	Tutordrake	bindings/pascal; kernel/src/lingua/zl_pascal.c
 1972	C	systems	host	-	kernel and libzxv are C11
 1972	Prolog	logic	next2	-	-
 1972	Smalltalk	object	catalogue	-	-
 1973	ML	functional	catalogue	-	-
 1974	SQL	database	next3	-	parse tier planned
-1975	Scheme	list	next1	-	-
+1975	Scheme	list	run	Spiraldrake	kernel/src/lingua/zl_lisp.c
 1976	S	statistics	catalogue	-	-
 1976	SAS	statistics	catalogue	-	-
 1977	Icon	string	catalogue	-	-
@@ -107,3 +107,7 @@
 2017	WebAssembly	bytecode	host	-	kernel/src/apps/zxapp_wasm.c
 2019	Gleam	functional	catalogue	-	-
 2023	Mojo	numeric	catalogue	-	-
+2026	LEXIS	intent	native	Lexwyrm	kernel/src/alexandria/alx_ref.c
+2026	TECTON	intent	native	Tectondrake	kernel/src/alexandria/alx_tecton.c
+2026	AXION	intent	native	Axiomdrake	kernel/src/alexandria/alx_axion.c
+2026	Lingua IR	intermediate	ir	-	kernel/src/lingua/zl.h

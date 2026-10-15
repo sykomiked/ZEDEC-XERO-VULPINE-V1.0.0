@@ -271,6 +271,9 @@ capctl                           adapters   # capital-control profiles (jurisdic
 kycwrap                          adapters   # minimal-disclosure KYC wrapper (off by default)
 taxhook                          adapters   # VAT/GST/sales-tax hooks (off by default)
 lingua                           adapters   # shared language IR + FORTRAN/BASIC/Forth front-ends and AI twins; freestanding
+alexandria                       adapters   # the library, matrix and vector plane: content-addressed blocks over lingua; freestanding
+babel/bv                         adapters
+babel/bv_syntax                  adapters
 policy                           adapters   # policy engine + contract DSL; lowers into treaty, uses lpres
 
 # ---- S8 above the strata: products, apps and people features

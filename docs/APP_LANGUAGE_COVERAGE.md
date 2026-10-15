@@ -16,9 +16,9 @@ paraconsistent witness (`zxapp_call_witnessed`): when they disagree the
 answer is BOTH and the app holds it. A language's AI twin is its canonical
 spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 
-- **In use by an app:** 11 of 104
-- **Can run, no app uses it yet:** 15
-- **Waiting for a front-end (Lingua):** 78
+- **In use by an app:** 11 of 108
+- **Can run, no app uses it yet:** 21
+- **Waiting for a front-end (Lingua):** 76
 - **Promised by a pending line in an app:** 1 languages, 1 app places
 
 | Language | AI twin | Runs as | Best at | Owns | Apps |
@@ -30,12 +30,12 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | IPL | - | waiting | list processing and symbolic search | lists | - |
 | FORTRAN | Reckonwyrm | trebago | exact heavy numeric kernels: sums, scans, rationals | numeric, statistics | 001 The Banker (total); 005 Scent (score); 014 Wake (count); 142 Shepherd (week); block number_classics (gcd); example fee_check (total) |
 | ALGOL 58 | - | waiting | block-structured algorithms as published | formula | - |
-| LISP | - | waiting | symbolic data, trees and self-describing structures | symbolic, lists | - |
+| LISP | Coilwyrm | lisp | symbolic data, trees and self-describing structures | symbolic, lists | - |
 | COBOL | Sutra | sutra | ledgers, money and fixed-size business records, refusing on overflow | money, business | 010 Keepsake (removed); 015 Tidewatch (cpu_x100); 016 Sounding (rate); 115 Platen (copies_ok, sheets); 142 Shepherd (left); block used_share (used_x100); example fee_check (fee, fee_ok) |
 | JOVIAL | - | waiting | embedded real-time control tables | control | - |
 | RPG | - | waiting | report generation from fixed records | report | - |
 | APT | - | waiting | numerical-control tool paths | toolpath | - |
-| ALGOL 60 | - | waiting | clear, provable algorithms | formula, proof | - |
+| ALGOL 60 | Rootwyrm | algol60 | clear, provable algorithms | formula, proof | - |
 | APL | KRON | kron | whole-array arithmetic in one line | arrays, statistics | 001 The Banker (share); 005 Scent (score); 010 Keepsake (removed); 014 Wake (count); 015 Tidewatch (cpu_x100, peak); 017 Almanac (days, hours); 085 Waymark (place_ok); 115 Platen (copies_ok, sheets); 142 Shepherd (left); block swarm_shares (busiest, cycle_share); block used_share (used_x100); example fee_check (fee, fee_ok) |
 | SNOBOL | - | waiting | string pattern matching with backtracking | text, pattern | - |
 | Simula I | - | waiting | discrete-event simulation | simulation | - |
@@ -48,18 +48,18 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | TRAC | - | waiting | macro text processing | text | - |
 | MUMPS | MYRA | myra | sparse records, indexes and search | records, index | 001 The Banker (entry_ok); 049 Glint (item_ok); example fee_check (record_ok) |
 | BCPL | - | waiting | small typeless systems code | machine | - |
-| Logo | - | waiting | turtle geometry and drawing paths | geometry | - |
+| Logo | Kiteling | logo | turtle geometry and drawing paths | geometry | - |
 | Simula 67 | - | waiting | simulation with classes | simulation, objects | - |
 | ALGOL 68 | - | waiting | strongly typed expression-rich algorithms | formula | - |
 | B | - | waiting | word-level systems code | machine | - |
 | Forth | Cairndrake | forth | tiny stack programs for devices and boot-time checks | stack, control | block number_classics (gcd) |
-| Pascal | - | waiting | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
+| Pascal | Tutordrake | pascal | structured, strongly typed teaching-grade procedures | stepwise, structure | - |
 | C | - | c | the screen, the model and the zxvd link | view, model, machine | 001 The Banker (view/model); 005 Scent (view/model); 010 Keepsake (view/model); 014 Wake (view/model); 015 Tidewatch (view/model); 016 Sounding (view/model); 017 Almanac (view/model); 022 Spindle (view/model); 037 Quillon (view/model); 049 Glint (view/model); 061 Murmuration (view/model); 085 Waymark (view/model); 115 Platen (view/model); 142 Shepherd (view/model); block pce_fin (npv, npv_sign); block pce_prob (bayes, join, verdict); block pce_strat (decide, leader, zopa) |
 | Prolog | - | waiting | logic rules and searching for every answer that fits | rules, search | - |
 | Smalltalk | - | waiting | live objects and message passing | objects, view | - |
 | ML | - | waiting | typed functional transforms with inference | types, proof | - |
 | SQL | - | waiting | querying tables by what you want, not how | query | - |
-| Scheme | - | waiting | small, exact functional code | symbolic | - |
+| Scheme | Spiraldrake | scheme | small, exact functional code | symbolic | - |
 | S | - | waiting | interactive statistics | statistics | - |
 | SAS | - | waiting | statistical reports over records | statistics, report | - |
 | Icon | - | waiting | goal-directed string scanning | text, pattern | - |
@@ -127,6 +127,10 @@ spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.
 | WebAssembly | - | wasm | sandboxed, fuel-metered logic from any compiled language | sandbox | 001 The Banker (share); 016 Sounding (rate); 017 Almanac (days, hours) |
 | Gleam | - | waiting | typed fault-tolerant services | messaging, types | - |
 | Mojo | - | waiting | numeric kernels for models | numeric, ai | - |
+| LEXIS | Lexwyrm | waiting | resolving names and shorthand to verified blocks (runs in kernel/src/alexandria, not yet as an app runtime) | names, lookup | - |
+| TECTON | Tectondrake | waiting | composing verified blocks into plans (runs in kernel/src/alexandria, not yet as an app runtime) | composition | - |
+| AXION | Axiomdrake | waiting | loop-free truth checks (runs in kernel/src/alexandria, not yet as an app runtime) | truth, proof | - |
+| Lingua IR | - | zlir | the precompiled form of any Lingua program (an entry counts for the language it was written in) | precompiled | - |
 
 ## Pending: apps waiting on a language
 

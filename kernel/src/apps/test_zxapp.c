@@ -82,9 +82,35 @@ static void test_names(void)
                  {"forth", ZXAPP_LANG_FORTH},
                  {"Cairndrake", ZXAPP_LANG_FORTH},
                  {"zlir", ZXAPP_LANG_ZLIR},
-                 {"lingua", ZXAPP_LANG_ZLIR}};
+                 {"lingua", ZXAPP_LANG_ZLIR},
+                 {"pascal", ZXAPP_LANG_ZL_PASCAL},
+                 {"Tutordrake", ZXAPP_LANG_ZL_PASCAL},
+                 {"algol60", ZXAPP_LANG_ZL_ALGOL60},
+                 {"ALGOL 60", ZXAPP_LANG_ZL_ALGOL60},
+                 {"algol", ZXAPP_LANG_ZL_ALGOL60},
+                 {"scheme", ZXAPP_LANG_ZL_SCHEME},
+                 {"Spiraldrake", ZXAPP_LANG_ZL_SCHEME},
+                 {"lisp", ZXAPP_LANG_ZL_LISP},
+                 {"Kiteling", ZXAPP_LANG_ZL_LOGO},
+                 {"commonlisp", ZXAPP_LANG_ZL_COMMONLISP},
+                 {"Common Lisp", ZXAPP_LANG_ZL_COMMONLISP},
+                 {"Braidwyrm", ZXAPP_LANG_ZL_COMMONLISP},
+                 {"iec_st", ZXAPP_LANG_ZL_IEC_ST},
+                 {"Objective-C", ZXAPP_LANG_ZL_OBJC},
+                 {"verilog", ZXAPP_LANG_ZL_VERILOG}};
     for (unsigned i = 0; i < sizeof alias / sizeof alias[0]; i++)
         CHECK(zxapp_lang_of(alias[i].n) == alias[i].l, "alias %s", alias[i].n);
+    CHECK(strcmp(zxapp_lang_name(ZXAPP_LANG_FORTRAN77), "fortran77") == 0 &&
+              strcmp(zxapp_lang_name(ZXAPP_LANG_ZL_ALGOL60), "algol60") == 0 &&
+              strcmp(zxapp_lang_name(ZXAPP_LANG_ZL_IEC_ST), "iec_st") == 0 &&
+              strcmp(zxapp_lang_name(ZXAPP_LANG_ZL_VERILOG), "verilog") == 0,
+          "Lingua languages are named by zl_langs.def's runtime field");
+    CHECK(zxapp_lang_of("fortran") == ZXAPP_LANG_TREBAGO &&
+              zxapp_lang_of("FORTRAN") == ZXAPP_LANG_TREBAGO,
+          "FORTRAN stays the Trebago pillar; Lingua's is fortran77");
+    CHECK(zxapp_lang_of("Mojo") == ZXAPP_LANG_ZL_MOJO &&
+              zxapp_lang_of("Forgewyrm") == ZXAPP_LANG_ZL_MOJO,
+          "every Lingua language, by id and by twin");
     CHECK(zxapp_lang_of("cobolx") == ZXAPP_LANG_UNKNOWN && zxapp_lang_of("") == ZXAPP_LANG_UNKNOWN,
           "near misses are unknown");
     CHECK(ZXAPP_RUNTIMES >= (uint32_t) ZXAPP_LANG_COUNT, "a runtime for every language fits");
@@ -2805,10 +2831,12 @@ static void test_lingua(void)
     int32_t lp = -1;
     zxapp_host_init(&H);
     H.read_file = read_src;
-    CHECK(zxapp_lingua_register(&H, 100000) == ZXAPP_OK && H.n == 4 &&
+    CHECK(zxapp_lingua_register(&H, 100000) == ZXAPP_OK &&
+              H.n == (uint32_t) (ZXAPP_LANG_COUNT - ZXAPP_LANG_ZLIR) &&
               zxapp_host_has(&H, ZXAPP_LANG_FORTRAN77) && zxapp_host_has(&H, ZXAPP_LANG_BASIC) &&
-              zxapp_host_has(&H, ZXAPP_LANG_FORTH) && zxapp_host_has(&H, ZXAPP_LANG_ZLIR),
-          "Lingua registers FORTRAN 77, BASIC, Forth and precompiled IR");
+              zxapp_host_has(&H, ZXAPP_LANG_FORTH) && zxapp_host_has(&H, ZXAPP_LANG_ZLIR) &&
+              zxapp_host_has(&H, ZXAPP_LANG_ZL_PASCAL) && zxapp_host_has(&H, ZXAPP_LANG_ZL_VERILOG),
+          "Lingua registers precompiled IR and every language in zl_langs.def");
     CHECK(parse("zxapp 1\nid legacy\n"
                 "provides span num x\n"
                 "logic fortran77 span <<\n"
@@ -2861,6 +2889,32 @@ static void test_lingua(void)
           "nine answers do not fit eight");
     CHECK(zxapp_call(&A, &H, "span", 0, 0, out, 8, &n) == ZXAPP_E_CONTRACT,
           "B3: the contract is checked before the program runs");
+    zxapp_unload(&A, &H);
+
+    /* every newer front-end is reachable the same way; a placeholder says so */
+    CHECK(parse("zxapp 1\nid legacy2\n"
+                "provides span num x\n"
+                "logic fortran77 span <<\n"
+                "      INTEGER A, B, C\n"
+                "      READ *, A, B, C\n"
+                "      PRINT *, MAX(A, B, C) - MIN(A, B, C), A + B + C\n"
+                "      END\n.\n"
+                "logic Tutordrake span <<\n"
+                "program span;\nvar a, b, c, h, l: integer;\nbegin\n"
+                "  read(a, b, c);\n  h := a; if b > h then h := b; if c > h then h := c;\n"
+                "  l := a; if b < l then l := b; if c < l then l := c;\n"
+                "  writeln(h - l, ' ', a + b + c)\nend.\n.\n") == ZXAPP_OK &&
+              A.n == 2,
+          "FORTRAN and Pascal (by its twin's name) in one manifest: %s", A.err);
+    CHECK(zxapp_load(&A, &H) == 2, "both compile: %s", A.err);
+    CHECK(zxapp_call_witnessed(&A, &H, "span", &xa, 1, out, 8, &n, &lp) == ZXAPP_OK &&
+              lp == ZXAPP_TRUE && n == 2 && out[0].num == 42 && out[1].num == 45,
+          "FORTRAN and Pascal agree (TRUE): %s", A.err);
+    zxapp_unload(&A, &H);
+    CHECK(parse("zxapp 1\nid later\nprovides f num x\nlogic mojo f <<\nfn main(): pass\n.\n") ==
+                  ZXAPP_OK &&
+              zxapp_load(&A, &H) == ZXAPP_E_RUNTIME && strstr(A.err, "not built yet"),
+          "a language whose front-end is not built refuses at load, by name: %s", A.err);
     zxapp_unload(&A, &H);
 
     /* the number_classics block, read from disk, composed into an app */

@@ -421,6 +421,9 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-lingua
 	$(MAKE) --no-print-directory test-lingua-ref
+	$(MAKE) --no-print-directory test-lingua-proj
+	$(MAKE) --no-print-directory test-babel
+	$(MAKE) --no-print-directory test-alexandria
 	$(MAKE) --no-print-directory test-policy
 	$(MAKE) --no-print-directory test-policy-cobol
 	$(MAKE) --no-print-directory test-terms
@@ -1921,7 +1924,7 @@ test-treaty-cobol:
 # with its canonical AI twin (see docs/LANGUAGE_CATALOGUE.md). The front-ends
 # and runtime are freestanding (no libc symbols at all). test-lingua-ref
 # compares golden and randomly generated programs with gfortran and gforth.
-LINGUA_SRC := src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c
+LINGUA_SRC := $(sort $(wildcard src/lingua/zl_*.c))
 LINGUA_FUZZ ?= 20000
 
 .PHONY: test-lingua test-lingua-ref test-lingua-mut
@@ -1929,8 +1932,8 @@ test-lingua-mut:
 	@sh src/lingua/mut_check.sh
 test-lingua:
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/test_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/test_zl && $(ZXV_TMP)/test_zl src/lingua/golden > $(ZXV_TMP)/test_zl.log 2>&1 && echo "[PASS] test_zl ($$(tail -1 $(ZXV_TMP)/test_zl.log))" || { cat $(ZXV_TMP)/test_zl.log; echo "[FAIL] test_zl"; exit 1; }
-	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl && $(ZXV_TMP)/fuzz_zl $(LINGUA_FUZZ) 1 > $(ZXV_TMP)/fuzz_zl.log 2>&1 && echo "[PASS] fuzz_zl ($$(tail -1 $(ZXV_TMP)/fuzz_zl.log))" || { cat $(ZXV_TMP)/fuzz_zl.log; echo "[FAIL] fuzz_zl"; exit 1; }
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl_san && $(ZXV_TMP)/fuzz_zl_san 5000 2 > $(ZXV_TMP)/fuzz_zl_san.log 2>&1 && echo "[PASS] fuzz_zl under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zl_san.log))" || { cat $(ZXV_TMP)/fuzz_zl_san.log; echo "[FAIL] fuzz_zl_san"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl && $(ZXV_TMP)/fuzz_zl $(LINGUA_FUZZ) 1 src/lingua/golden > $(ZXV_TMP)/fuzz_zl.log 2>&1 && echo "[PASS] fuzz_zl ($$(tail -1 $(ZXV_TMP)/fuzz_zl.log))" || { cat $(ZXV_TMP)/fuzz_zl.log; echo "[FAIL] fuzz_zl"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/fuzz_zl.c $(LINGUA_SRC) -o $(ZXV_TMP)/fuzz_zl_san && $(ZXV_TMP)/fuzz_zl_san 5000 2 src/lingua/golden > $(ZXV_TMP)/fuzz_zl_san.log 2>&1 && echo "[PASS] fuzz_zl under ASan/UBSan ($$(tail -1 $(ZXV_TMP)/fuzz_zl_san.log))" || { cat $(ZXV_TMP)/fuzz_zl_san.log; echo "[FAIL] fuzz_zl_san"; exit 1; }
 	@for f in $(LINGUA_SRC); do \
 	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
 	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
@@ -1939,6 +1942,53 @@ test-lingua:
 	@sh src/lingua/check_catalogue.sh
 test-lingua-ref:
 	@sh src/lingua/ref_check.sh
+
+# Projections out of the IR (zl_proj.c, docs/spec/ALPHABET.md): C and x86-64
+# run on zxp_rt and must match zl_run exactly; Forth must print the same
+# under Lingua's Forth front-end and under gforth when it is installed.
+.PHONY: test-lingua-proj
+LINGUA_PROJ_N ?= 600
+test-lingua-proj:
+	@rm -rf $(ZXV_TMP)/proj && mkdir -p $(ZXV_TMP)/proj/forth
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/lingua src/lingua/test_zl_proj.c $(LINGUA_SRC) -o $(ZXV_TMP)/test_zl_proj && $(ZXV_TMP)/test_zl_proj src/lingua/golden $(ZXV_TMP)/proj $(LINGUA_PROJ_N) 1 src/lingua/alphabet.tsv > $(ZXV_TMP)/test_zl_proj.log 2>&1 && echo "[PASS] test_zl_proj ($$(tail -1 $(ZXV_TMP)/test_zl_proj.log))" || { cat $(ZXV_TMP)/test_zl_proj.log; echo "[FAIL] test_zl_proj"; exit 1; }
+	@gcc -std=c11 -O0 -Wall -Wextra -Werror -Wno-unused-label -Isrc/lingua -I$(ZXV_TMP)/proj src/lingua/zxp_driver.c src/lingua/zxp_rt.c $(ZXV_TMP)/proj/cases_c.c $(ZXV_TMP)/proj/cases_x86.s $(ZXV_TMP)/proj/cases_data.c -o $(ZXV_TMP)/proj/zxp_driver && $(ZXV_TMP)/proj/zxp_driver > $(ZXV_TMP)/zxp_driver.log 2>&1 && echo "[PASS] C and x86-64 projections match zl_run ($$(tail -1 $(ZXV_TMP)/zxp_driver.log))" || { cat $(ZXV_TMP)/zxp_driver.log; echo "[FAIL] zxp_driver"; exit 1; }
+	@sh src/lingua/proj_gforth.sh $(ZXV_TMP)/proj
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c src/lingua/zxp_rt.c -o $(ZXV_TMP)/zxp_rt_a64.o && gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/lingua -c src/lingua/zxp_rt.c -o $(ZXV_TMP)/zxp_rt_x64.o && ! nm -u $(ZXV_TMP)/zxp_rt_a64.o $(ZXV_TMP)/zxp_rt_x64.o | grep ' U ' && echo "[PASS] zxp_rt freestanding (aarch64-none-elf, x86_64)" || { echo "[FAIL] zxp_rt is not freestanding"; exit 1; }
+
+# Babel (src/babel, docs/BABEL.md): the bridges between languages and systems.
+# bv.c is the Babel value every runtime meets in, with one canonical encoding;
+# bv_syntax.c reads what LISP, Scheme, Logo and the numeric languages print.
+.PHONY: test-babel
+test-babel:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/babel src/babel/test_bv.c src/babel/bv.c -o $(ZXV_TMP)/test_bv && $(ZXV_TMP)/test_bv > $(ZXV_TMP)/test_bv.log 2>&1 && echo "[PASS] test_bv ($$(tail -1 $(ZXV_TMP)/test_bv.log))" || { cat $(ZXV_TMP)/test_bv.log; echo "[FAIL] test_bv"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/babel src/babel/test_bv_syntax.c src/babel/bv_syntax.c src/babel/bv.c -o $(ZXV_TMP)/test_bv_syntax && $(ZXV_TMP)/test_bv_syntax src/lingua/golden > $(ZXV_TMP)/test_bv_syntax.log 2>&1 && echo "[PASS] test_bv_syntax ($$(tail -1 $(ZXV_TMP)/test_bv_syntax.log))" || { cat $(ZXV_TMP)/test_bv_syntax.log; echo "[FAIL] test_bv_syntax"; exit 1; }
+	@for f in src/babel/bv.c src/babel/bv_syntax.c; do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/babel -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/babel -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U bv_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] babel freestanding (aarch64-none-elf, x86_64: no outside symbols)"
+
+# The Library of Alexandria (src/alexandria, docs/ALEXANDRIA.md): shorthand
+# slots for the verified blocks. The script checks SLOTS.tsv against every
+# registered block and writes the table; test_alx reads it back.
+.PHONY: test-alexandria
+ALX_SRC := src/alexandria/alx.c src/alexandria/alx_ref.c src/alexandria/alx_tecton.c src/alexandria/alx_axion.c src/alexandria/alx_grid.c src/alexandria/alx_carto.c src/alexandria/alx_cdc.c src/alexandria/alx_matrix.c src/alexandria/alx_vec.c src/alexandria/alx_z.c src/alexandria/alx_lattice.c
+test-alexandria:
+	@rm -rf $(ZXV_TMP)/alexandria && python3 ../tools/alexandria/build_index.py --check --out-dir $(ZXV_TMP)/alexandria > $(ZXV_TMP)/alx_index.log 2>&1 && echo "[PASS] alexandria index ($$(tail -1 $(ZXV_TMP)/alx_index.log))" || { cat $(ZXV_TMP)/alx_index.log; echo "[FAIL] alexandria index"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx && $(ZXV_TMP)/test_alx $(ZXV_TMP)/alexandria src > $(ZXV_TMP)/test_alx.log 2>&1 && echo "[PASS] test_alx ($$(tail -1 $(ZXV_TMP)/test_alx.log))" || { cat $(ZXV_TMP)/test_alx.log; echo "[FAIL] test_alx"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/edp_risk src/alexandria/test_alx_carto.c $(ALX_SRC) src/alexandria/alx_carto_mldsa.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/[a-z]*.c)) -o $(ZXV_TMP)/test_alx_carto && $(ZXV_TMP)/test_alx_carto $(ZXV_TMP)/alexandria > $(ZXV_TMP)/test_alx_carto.log 2>&1 && echo "[PASS] test_alx_carto ($$(tail -1 $(ZXV_TMP)/test_alx_carto.log))" || { cat $(ZXV_TMP)/test_alx_carto.log; echo "[FAIL] test_alx_carto"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/edp_risk ../tools/zxv-index/zxv_index.c $(ALX_SRC) src/alexandria/alx_carto_mldsa.c src/robin_debanks/sha256.c src/mlkem/keccak.c src/pqsec/pq_mldsa65.c $(sort $(wildcard src/pqsec/mldsa/[a-z]*.c)) -o $(ZXV_TMP)/zxv-index && sh ../tools/zxv-index/test_zxv_index.sh $(ZXV_TMP)/zxv-index $(ZXV_TMP)/zxv-index.t bafkreienk5x4q2elst75vr5hhv4bziwhleyd5632ikgnp2ddzli4uv6pgi
+	@gcc -std=c11 -O2 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx_z.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx_z && $(ZXV_TMP)/test_alx_z src/alexandria > $(ZXV_TMP)/test_alx_z.log 2>&1 && echo "[PASS] test_alx_z ($$(tail -1 $(ZXV_TMP)/test_alx_z.log); $$(grep "^alx_z:" $(ZXV_TMP)/test_alx_z.log | tail -1))" || { tail -40 $(ZXV_TMP)/test_alx_z.log; echo "[FAIL] test_alx_z"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/alexandria ../tools/alexandria/cdc_cut.c src/alexandria/alx_cdc.c -o $(ZXV_TMP)/cdc_cut && gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/alexandria ../tools/alexandria/vec_shape.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/vec_shape && gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude -Isrc/alexandria ../tools/alexandria/zpack.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/zpack && rm -rf $(ZXV_TMP)/matrix && python3 ../tools/alexandria/pack_matrix.py --cut $(ZXV_TMP)/cdc_cut --zpack $(ZXV_TMP)/zpack --vectorize 512 --shape $(ZXV_TMP)/vec_shape --out-dir $(ZXV_TMP)/matrix > $(ZXV_TMP)/alx_matrix.log 2>&1 && echo "$$(tail -1 $(ZXV_TMP)/alx_matrix.log)" || { cat $(ZXV_TMP)/alx_matrix.log; echo "[FAIL] pack_matrix"; exit 1; }
+	@gcc -std=c11 -O2 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx_matrix.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx_matrix && $(ZXV_TMP)/test_alx_matrix $(ZXV_TMP)/matrix .. > $(ZXV_TMP)/test_alx_matrix.log 2>&1 && grep "booklets compressed" $(ZXV_TMP)/test_alx_matrix.log && echo "[PASS] test_alx_matrix ($$(tail -1 $(ZXV_TMP)/test_alx_matrix.log))" || { grep -v "^matrix:" $(ZXV_TMP)/test_alx_matrix.log | tail -40; echo "[FAIL] test_alx_matrix"; exit 1; }
+	@python3 ../tools/alexandria/mkimage.py $(ZXV_TMP)/matrix $(ZXV_TMP)/matrix.alxi > $(ZXV_TMP)/alx_image.log && gcc -std=c11 -O2 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx_lattice.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx_lattice && $(ZXV_TMP)/test_alx_lattice $(ZXV_TMP)/matrix $(ZXV_TMP)/matrix.alxi > $(ZXV_TMP)/test_alx_lattice.log 2>&1 && grep "^lattice:" $(ZXV_TMP)/test_alx_lattice.log && echo "[PASS] test_alx_lattice ($$(tail -1 $(ZXV_TMP)/test_alx_lattice.log))" || { tail -40 $(ZXV_TMP)/test_alx_lattice.log; echo "[FAIL] test_alx_lattice"; exit 1; }
+	@for f in src/alexandria/alx_lattice.c src/alexandria/alx_matrix.c src/alexandria/alx_z.c; do clang --target=wasm32 -ffreestanding -nostdlib -std=c11 -O2 -Wall -Werror -Wextra -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_wasm.o || exit 1; if nm -u $(ZXV_TMP)/$$(basename $$f .c)_wasm.o | grep -v " U sha256$$" | grep -v " U alx_" | grep -q .; then nm -u $(ZXV_TMP)/$$(basename $$f .c)_wasm.o; echo "[FAIL] $$f pulls in libc or a helper for wasm32"; exit 1; fi; done; echo "[PASS] the lattice resolver builds for wasm32 (only sha256 and alx_ outside)"
+	@gcc -std=c11 -O2 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/alexandria -Isrc/tensor src/alexandria/test_alx_vec.c src/alexandria/alx_vec_zt.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -lpthread -lm -o $(ZXV_TMP)/test_alx_vec && $(ZXV_TMP)/test_alx_vec $(ZXV_TMP)/matrix > $(ZXV_TMP)/test_alx_vec.log 2>&1 && grep "^vector" $(ZXV_TMP)/test_alx_vec.log && echo "[PASS] test_alx_vec ($$(tail -1 $(ZXV_TMP)/test_alx_vec.log))" || { grep -v "^\[PASS\]" $(ZXV_TMP)/test_alx_vec.log | tail -40; echo "[FAIL] test_alx_vec"; exit 1; }
+	@for f in $(ALX_SRC); do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U sha256$$' | grep -v ' U alx_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] alexandria freestanding (aarch64-none-elf, x86_64: only sha256 outside)"
 
 # Policy engine (src/policy): a deterministic policy evaluation engine that
 # enforces machine-verifiable transactional constraints, bilateral treaty rules

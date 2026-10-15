@@ -5,45 +5,42 @@
 
 #include "../robin_debanks/sha256.h"
 
-static const char *const LANG[ZXAPP_LANG_COUNT] = {
-    "c",    "sutra", "eve",    "kron", "trebago",   "myra",   "cpp",        "rust",
-    "go",   "swift", "kotlin", "java", "dotnet",    "python", "typescript", "dart",
-    "ruby", "php",   "wasm",   "wire", "fortran77", "basic",  "forth",      "zlir"};
+/* The native, SDK and wasm runtimes; the Lingua languages follow ZLIR. */
+static const char *const LANG[ZXAPP_LANG_ZL_FORTRAN] = {
+    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",   "swift",
+    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm", "wire", "zlir"};
+
+/* Each Lingua language: the name an app writes (zl_langs.def's runtime
+ * field), and its catalogue name and its twin's name, accepted too. */
+static const struct {
+    const char *rt, *name, *twin;
+} ZL[] = {
+#define ZL_LANG_X(id, n, name, twin, fe, ext, rt) {rt, name, twin},
+#include "../lingua/zl_langs.def"
+#undef ZL_LANG_X
+};
+_Static_assert(sizeof ZL / sizeof ZL[0] == ZXAPP_LANG_COUNT - ZXAPP_LANG_ZL_FORTRAN,
+               "one Lingua name per Lingua runtime");
 
 /* Other names people write for the same languages. */
 static const struct {
     const char *name;
     zxapp_lang_t lang;
 } ALIAS[] = {
-    {"cobol", ZXAPP_LANG_SUTRA},
-    {"ada", ZXAPP_LANG_EVE},
-    {"apl", ZXAPP_LANG_KRON},
-    {"k", ZXAPP_LANG_KRON},
-    {"fortran", ZXAPP_LANG_TREBAGO},
-    {"mumps", ZXAPP_LANG_MYRA},
-    {"m", ZXAPP_LANG_MYRA},
-    {"c++", ZXAPP_LANG_CPP},
-    {"cxx", ZXAPP_LANG_CPP},
-    {"golang", ZXAPP_LANG_GO},
-    {"kt", ZXAPP_LANG_KOTLIN},
-    {"csharp", ZXAPP_LANG_DOTNET},
-    {"c#", ZXAPP_LANG_DOTNET},
-    {"cs", ZXAPP_LANG_DOTNET},
-    {"fsharp", ZXAPP_LANG_DOTNET},
-    {"f#", ZXAPP_LANG_DOTNET},
-    {"vb", ZXAPP_LANG_DOTNET},
-    {"py", ZXAPP_LANG_PYTHON},
-    {"ts", ZXAPP_LANG_TYPESCRIPT},
-    {"javascript", ZXAPP_LANG_TYPESCRIPT},
-    {"js", ZXAPP_LANG_TYPESCRIPT},
-    {"rb", ZXAPP_LANG_RUBY},
-    {"webassembly", ZXAPP_LANG_WASM},
+    {"cobol", ZXAPP_LANG_SUTRA},      {"ada", ZXAPP_LANG_EVE},
+    {"apl", ZXAPP_LANG_KRON},         {"k", ZXAPP_LANG_KRON},
+    {"fortran", ZXAPP_LANG_TREBAGO},  {"mumps", ZXAPP_LANG_MYRA},
+    {"m", ZXAPP_LANG_MYRA},           {"c++", ZXAPP_LANG_CPP},
+    {"cxx", ZXAPP_LANG_CPP},          {"golang", ZXAPP_LANG_GO},
+    {"kt", ZXAPP_LANG_KOTLIN},        {"csharp", ZXAPP_LANG_DOTNET},
+    {"c#", ZXAPP_LANG_DOTNET},        {"cs", ZXAPP_LANG_DOTNET},
+    {"fsharp", ZXAPP_LANG_DOTNET},    {"f#", ZXAPP_LANG_DOTNET},
+    {"vb", ZXAPP_LANG_DOTNET},        {"py", ZXAPP_LANG_PYTHON},
+    {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
+    {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
+    {"webassembly", ZXAPP_LANG_WASM}, {"f77", ZXAPP_LANG_FORTRAN77},
     {"circuit", ZXAPP_LANG_WIRE},
-    {"f77", ZXAPP_LANG_FORTRAN77},
-    {"hatchling", ZXAPP_LANG_BASIC},
-    {"cairndrake", ZXAPP_LANG_FORTH},
-    {"lingua", ZXAPP_LANG_ZLIR},
-    {"reckonwyrm", ZXAPP_LANG_FORTRAN77},
+    {"lingua", ZXAPP_LANG_ZLIR},      {"algol", ZXAPP_LANG_ZL_ALGOL60},
 };
 
 static bool seq(const char *a, const char *b)
@@ -78,15 +75,21 @@ static void put_err(zxapp_t *a, uint32_t line, const char *m1, const char *m2)
 
 const char *zxapp_lang_name(zxapp_lang_t l)
 {
-    return l >= 0 && l < ZXAPP_LANG_COUNT ? LANG[l] : "?";
+    if (l < 0 || l >= ZXAPP_LANG_COUNT) return "?";
+    return l < ZXAPP_LANG_ZL_FORTRAN ? LANG[l] : ZL[l - ZXAPP_LANG_ZL_FORTRAN].rt;
 }
 
+/* Runtime names first, then the aliases (so "fortran" stays Trebago), then
+ * each Lingua language's catalogue name and its twin's name. */
 zxapp_lang_t zxapp_lang_of(const char *name)
 {
     for (int i = 0; i < ZXAPP_LANG_COUNT; i++)
-        if (seq_ci(name, LANG[i])) return (zxapp_lang_t) i;
+        if (seq_ci(name, zxapp_lang_name((zxapp_lang_t) i))) return (zxapp_lang_t) i;
     for (uint32_t i = 0; i < sizeof ALIAS / sizeof ALIAS[0]; i++)
         if (seq_ci(name, ALIAS[i].name)) return ALIAS[i].lang;
+    for (uint32_t i = 0; i < sizeof ZL / sizeof ZL[0]; i++)
+        if (seq_ci(name, ZL[i].name) || seq_ci(name, ZL[i].twin))
+            return (zxapp_lang_t) (ZXAPP_LANG_ZL_FORTRAN + (int) i);
     return ZXAPP_LANG_UNKNOWN;
 }
 
