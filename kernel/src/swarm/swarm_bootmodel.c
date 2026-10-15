@@ -15,6 +15,13 @@ static zt_model_t g_model;
 static zt_tok_t g_tok;
 static zt_model_state_t g_state;
 static char g_line[512];
+/* Kept from the last run that answered, for swarm_bootmodel_ask. */
+static void *g_work;
+static uint64_t g_work_bytes;
+static int g_ready;
+static char g_name[64];
+static uint32_t g_name_len;
+static uint8_t g_ask_prompt[sizeof(SWARM_BOOTMODEL_PROMPT) + SWARM_BOOTMODEL_ASK_MAX];
 
 /* ---- line building ---- */
 
@@ -153,6 +160,7 @@ int32_t swarm_bootmodel_run(const swarm_bootmodel_in_t *in, swarm_bootmodel_out_
     for (uint32_t i = 0; i < (uint32_t) sizeof *res; i++) r[i] = 0;
     res->digest = ZT_BOOT_FNV_INIT;
     res->verdict = LPRES_STATE_NEITHER;
+    g_ready = 0;
 
     /* 1. regions */
     uint64_t ma = (uint64_t) (uintptr_t) in->model, sa = (uint64_t) (uintptr_t) in->scratch;
@@ -239,6 +247,10 @@ int32_t swarm_bootmodel_run(const swarm_bootmodel_in_t *in, swarm_bootmodel_out_
     uint64_t sb =
         zt_model_state_bytes(&g_model, SWARM_BOOTMODEL_N_CTX, SWARM_BOOTMODEL_N_BATCH, ZT_KV_Q16);
     uint64_t wb = zt_model_gen_work_bytes(&g_model, &g_tok, plen, SWARM_BOOTMODEL_MAX_TOKENS);
+    /* Room for swarm_bootmodel_ask's longest question as well. */
+    uint64_t wq =
+        zt_model_gen_work_bytes(&g_model, &g_tok, sizeof g_ask_prompt, SWARM_BOOTMODEL_MAX_TOKENS);
+    if (wq > wb) wb = wq;
     res->need_bytes = align64(ab) + align64(tb) + align64(sb) + align64(wb);
     void *smem = sb ? bump_take(&b, sb) : 0;
     void *work = wb ? bump_take(&b, wb) : 0;
@@ -280,6 +292,11 @@ int32_t swarm_bootmodel_run(const swarm_bootmodel_in_t *in, swarm_bootmodel_out_
     put_s(&l, ")");
     line_emit(&l, out);
     res->step = SWARM_BM_OK;
+    g_work = work;
+    g_work_bytes = wb;
+    g_name_len = in->name_len < sizeof g_name ? in->name_len : (uint32_t) sizeof g_name;
+    for (uint32_t i = 0; i < g_name_len; i++) g_name[i] = in->name[i];
+    g_ready = 1;
     return SWARM_BM_OK;
 }
 
@@ -290,4 +307,68 @@ void swarm_bootmodel_none(const char *why, void (*out)(const char *))
     put_s(&l, why);
     put_s(&l, "; the AI is not running");
     line_emit(&l, out);
+}
+
+int32_t swarm_bootmodel_ask(const char *q, uint32_t q_len, swarm_bootmodel_out_t *res,
+                            void (*out)(const char *))
+{
+    static swarm_bootmodel_out_t own;
+    if (!res) res = &own;
+    uint8_t *r = (uint8_t *) res;
+    for (uint32_t i = 0; i < (uint32_t) sizeof *res; i++) r[i] = 0;
+    res->digest = ZT_BOOT_FNV_INIT;
+    if (!g_ready) {
+        swarm_bootmodel_none("no model has answered on this boot", out);
+        res->step = SWARM_BM_EMODEL;
+        return res->step;
+    }
+    swarm_bootmodel_in_t in;
+    in.name = g_name;
+    in.name_len = g_name_len;
+    if (!q || q_len == 0 || q_len > SWARM_BOOTMODEL_ASK_MAX)
+        return fault(res, &in, SWARM_BM_EGEN, 0,
+                     "refused the question: empty or longer than 200 bytes", out);
+
+    /* The question is the user's text, never markup: a "<|" in it would be
+     * read as a special token, so the template is parsed for specials and
+     * the question's "<" bytes become "(" first. */
+    uint32_t n = 0;
+    const char *h = SWARM_BOOTMODEL_HEAD, *t = SWARM_BOOTMODEL_TAIL;
+    while (*h) g_ask_prompt[n++] = (uint8_t) *h++;
+    for (uint32_t i = 0; i < q_len; i++) {
+        uint8_t c = (uint8_t) q[i];
+        g_ask_prompt[n++] = c == '<' ? (uint8_t) '(' : c;
+    }
+    while (*t) g_ask_prompt[n++] = (uint8_t) *t++;
+
+    zt_model_state_seek(&g_state, 0);
+    gen_ctx_t gc = {res};
+    zt_gen_params_t gp;
+    uint8_t *p = (uint8_t *) &gp;
+    for (uint32_t i = 0; i < (uint32_t) sizeof gp; i++) p[i] = 0;
+    gp.sampler = 0;
+    gp.max_tokens = SWARM_BOOTMODEL_MAX_TOKENS;
+    gp.parse_special = true;
+    gp.on_token = on_token;
+    gp.ctx = &gc;
+    zt_gen_result_t gr;
+    int32_t e = zt_model_generate(&g_model, &g_state, &g_tok, g_ask_prompt, n, &gp, g_work,
+                                  g_work_bytes, &gr);
+    if (e) return fault(res, &in, SWARM_BM_EGEN, e, "generation failed", out);
+    res->n_prompt = gr.n_prompt;
+    res->n_gen = gr.n_gen;
+    res->verdict = LPRES_STATE_TRUE;
+    line_t l = line_start();
+    put_s(&l, "[AI_ANSWER] \"");
+    put_n(&l, res->text, res->text_len);
+    put_s(&l, "\" (");
+    put_u(&l, res->n_prompt);
+    put_s(&l, " prompt + ");
+    put_u(&l, res->n_gen);
+    put_s(&l, " tokens, digest ");
+    put_hex32(&l, res->digest);
+    put_s(&l, ")");
+    line_emit(&l, out);
+    res->step = SWARM_BM_OK;
+    return SWARM_BM_OK;
 }

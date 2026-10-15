@@ -39,13 +39,17 @@
 
 #include <stdint.h>
 
-#define SWARM_BOOTMODEL_PROMPT                                                                     \
+#define SWARM_BOOTMODEL_HEAD                                                                       \
     "<|im_start|>system\nYou are the ZXV swarm, running on bare metal.<|im_end|>\n"                \
-    "<|im_start|>user\nSay hello in one short sentence.<|im_end|>\n<|im_start|>assistant\n"
+    "<|im_start|>user\n"
+#define SWARM_BOOTMODEL_QUESTION   "Say hello in one short sentence."
+#define SWARM_BOOTMODEL_TAIL       "<|im_end|>\n<|im_start|>assistant\n"
+#define SWARM_BOOTMODEL_PROMPT     SWARM_BOOTMODEL_HEAD SWARM_BOOTMODEL_QUESTION SWARM_BOOTMODEL_TAIL
 #define SWARM_BOOTMODEL_MAX_TOKENS 16u
-#define SWARM_BOOTMODEL_N_CTX      256u
+#define SWARM_BOOTMODEL_N_CTX      512u
 #define SWARM_BOOTMODEL_N_BATCH    16u
 #define SWARM_BOOTMODEL_TEXT_MAX   160u
+#define SWARM_BOOTMODEL_ASK_MAX    200u /* bytes of a question to swarm_bootmodel_ask */
 
 /* Steps, reported in swarm_bootmodel_out_t.step (0 = answered). */
 enum {
@@ -91,5 +95,19 @@ int32_t swarm_bootmodel_run(const swarm_bootmodel_in_t *in, swarm_bootmodel_out_
 /* Prints "[AI_NO_MODEL] <why>; the AI is not running" for a boot with no
  * model handed over (why: static text). */
 void swarm_bootmodel_none(const char *why, void (*out)(const char *));
+
+/* ASKING IT.  After a run that answered, the model, tokenizer, KV cache and
+ * enough generation work for a question of SWARM_BOOTMODEL_ASK_MAX bytes
+ * stay in the scratch. swarm_bootmodel_ask puts the question in the same
+ * chat template as the boot prompt (system line, then the question as the
+ * user's turn), empties the KV cache and answers greedily, at most
+ * SWARM_BOOTMODEL_MAX_TOKENS tokens:
+ *   [AI_ANSWER] "<text>" (<p> prompt + <g> tokens, digest 0x<8 hex>)
+ * or [AI_NO_MODEL] (no run answered) or [AI_FAULT] (empty, too long, or the
+ * engine failed). Who may ask is the caller's rule (the console asks for a
+ * passport login first). Returns SWARM_BM_OK or the failing step; res may
+ * be NULL. */
+int32_t swarm_bootmodel_ask(const char *q, uint32_t q_len, swarm_bootmodel_out_t *res,
+                            void (*out)(const char *));
 
 #endif /* SWARM_BOOTMODEL_H */

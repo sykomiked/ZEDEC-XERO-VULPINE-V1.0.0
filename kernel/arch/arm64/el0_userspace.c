@@ -1150,6 +1150,8 @@ void proc_handle_svc(proc_scheduler_t *ps, uint64_t syscall_num,
                 }
                 kbuf[len] = '\0';
                 kernel_shell_exec(kbuf);
+                /* The line may hold a passport seed ("login ..."): wipe it. */
+                for (uint64_t i = 0; i <= len; i++) ((volatile char *) kbuf)[i] = 0;
                 ctx->x[0] = 0;
             }
             return;

@@ -88,7 +88,7 @@ CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
          -Ikernel/src/oseq -Ikernel/src/rmag -Ikernel/src/lpres \
          -Ikernel/src/iphase -Ikernel/src/choice -Ikernel/src/phase_coord \
          -Ikernel/src/crit168 -Ikernel/include/freestanding_stubs \
-         -Ikernel/src/net \
+         -Ikernel/src/net -Ikernel/src/passport -Ikernel/src/ident -Ikernel/src/tls -Ikernel/src/ipfs_node \
          -Ikernel/src/count_house -Ikernel/src/porter_house \
          -Ikernel/src/event_sched \
          -Ikernel/src/mesh_token \
@@ -498,6 +498,24 @@ KERNEL_SRCS = \
     kernel/src/pqsec/mldsa/rounding.c \
     kernel/src/pqsec/mldsa/sign.c \
     kernel/src/pqsec/mldsa/symmetric-shake.c \
+    kernel/src/pqsec/pq_slhdsa.c \
+    kernel/src/pqsec/slhdsa/sha3_api.c \
+    kernel/src/pqsec/slhdsa/sha3_f1600.c \
+    kernel/src/pqsec/slhdsa/slh_dsa.c \
+    kernel/src/pqsec/slhdsa/slh_shake.c \
+    kernel/src/pqsec/pq_matrix.c \
+    kernel/src/pqsec/pq_mlkem1024.c \
+    kernel/src/pqsec/pq_mldsa87.c \
+    kernel/src/pqsec/pq_hqc5.c \
+    kernel/src/pqsec/pq_slh256s.c \
+    kernel/src/ident/id_argon2.c \
+    kernel/src/ident/id_core.c \
+    kernel/src/ident/id_passkey.c \
+    kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/passport/pp_core.c \
+    kernel/src/passport/pp_state.c \
+    kernel/src/passport/pp_cafe.c \
+    kernel/src/passport/pp_console.c \
     kernel/src/browser/browser.c \
     kernel/src/choice/choice.c \
     kernel/src/clock/event_clock.c \

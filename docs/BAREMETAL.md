@@ -91,6 +91,43 @@ it must verify, be handed over and answer with the token digest
 must be caught and the kernel must say `[AI_NO_MODEL]`. CI runs it in the
 `uefi-disc` job.
 
+### Log in and ask (arm64 console)
+
+After boot the EL0 shell (`P-TERM/EL0`, prompt `> `) takes a passport login
+and questions for the boot model:
+
+```
+> login <seed text>        [LOGIN_OK] did:zxv:...      (or [LOGIN_FAIL] <why>)
+> whoami                   [WHOAMI] did:zxv:...        (or nobody)
+> ask <question>           [AI_ANSWER] "<text>" (<p> prompt + <g> tokens, digest 0x...)
+> logout                   [LOGOUT] did:zxv:...
+> create                   [NEW_SEED] <seed text>      (first time: write it down)
+> confirm <seed text>      [CREATED] did:zxv:..., [LOGIN_OK] did:zxv:...
+```
+
+A first-time person makes a passport from nothing, with no server: `create`
+takes 32 bytes from the CPU's random source (RNDR; a CPU without one refuses
+rather than make a weak seed), shows the seed text once, and nobody is logged
+in until `confirm` types back that same seed.
+
+`login` rebuilds the whole identity from the seed text at the matrix level
+(`kernel/src/passport/pp_console.h`, ML-DSA-87 + SLH-DSA-256s); the shell
+echoes typed seeds (`login`, `confirm`) as `*`, and both the shell's and the kernel's copies of the
+line are wiped after it runs. `ask` is refused with `[AI_REFUSED]` until
+someone is logged in, takes up to 200 bytes, and treats a `<` in the question
+as text, never as a chat-template token (`swarm_bootmodel_ask`). Passphrase
+login is not offered here: Argon2id needs a 64 MiB work area the kernel does
+not set aside.
+
+`build_system/golden_login_check.sh` boots the tiny-model disc and types the
+whole session over the serial line: refused before login, a one-character
+typo refused by the checksum, logged in as the DID the host's
+`test_pp_console` builds from the same seed, the boot question answered with
+the digest `test_swarm_bootmodel` pins, logged out and refused again, then a new passport created, a
+wrong confirmation refused and the right one logged in, with no typed seed
+in the log (QEMU `-cpu max`, for RNDR). CI runs it in the `uefi-disc` job. x86_64 has no
+console input yet, so its disc answers at boot but takes no login.
+
 Measured 2026-10-12: 1,632,632,832 bytes raw (1.63 GB) on both arches,
 1,569,507,209 bytes gzipped (x86_64). The models are 1,608,720,768 bytes of
 that. The kernel runs the 0.5B boot model at boot (above); the 1.5B is checked

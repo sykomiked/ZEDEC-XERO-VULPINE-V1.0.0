@@ -1664,16 +1664,24 @@ test-pdx-ledger:
 # The portable passport (src/passport/passport.h, docs/PASSPORT.md): log in
 # from any device with no server. ASan/UBSan tests, then a freestanding
 # build that may only call the modules it builds on.
-PASSPORT_SRCS := src/passport/pp_core.c src/passport/pp_state.c src/passport/pp_cafe.c
+PASSPORT_SRCS := src/passport/pp_core.c src/passport/pp_state.c src/passport/pp_cafe.c \
+	src/passport/pp_console.c
 PASSPORT_DEPS := src/ident/id_argon2.c src/ident/id_core.c src/ident/id_passkey.c \
 	src/robin_debanks/sha256.c src/tls/x25519.c src/tls/aead.c src/ipfs_node/ipfsn_multiformats.c \
 	src/tensor/zt.c $(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c \
 	src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c
 PASSPORT_INC := -Iinclude -Isrc/passport -Isrc/ident -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus \
 	-Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/trispace -Isrc/tls
+# The console login (pp_console.h): its own target, because
+# build_system/golden_login_check.sh runs it in the baremetal image (gcc
+# only) for the seed and DID the disc must reproduce.
+.PHONY: test-pp-console
+test-pp-console:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(PASSPORT_INC) src/passport/test_pp_console.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_pp_console && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_pp_console > $(ZXV_TMP)/test_pp_console.log 2>&1 && echo "[PASS] test_pp_console ($$(grep -c '\[PASS\]' $(ZXV_TMP)/test_pp_console.log) checks: console login, whoami, logout; first-time create and confirm; a typo is refused)" || { cat $(ZXV_TMP)/test_pp_console.log; echo "[FAIL] test_pp_console"; exit 1; }
 .PHONY: test-passport
 test-passport:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(PASSPORT_INC) src/passport/test_passport.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_passport && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_passport > $(ZXV_TMP)/test_passport.log 2>&1 && echo "[PASS] test_passport ($$(tail -1 $(ZXV_TMP)/test_passport.log))" || { cat $(ZXV_TMP)/test_passport.log; echo "[FAIL] test_passport"; exit 1; }
+	$(MAKE) --no-print-directory test-pp-console
 	@for f in $(PASSPORT_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/passport_free.o || { echo "[FAIL] passport freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/passport_free.o | grep -vE ' (pp_|id_|pq_|pqm_|sha3_256|shake256|aead_|ipfsn_)' | grep -q .; then nm -u $(ZXV_TMP)/passport_free.o; echo "[FAIL] passport freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] passport freestanding (aarch64 -mgeneral-regs-only, i386; only ident, pqsec, keccak, aead, ipfs_node external)"
 
 # Grammar-constrained decoding (src/tensor/zt_gram.h) and the paraconsistent
