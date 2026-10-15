@@ -329,6 +329,47 @@ static void test_wrap_property(void)
     }
 }
 
+/* The image carries the build-time SHA-256 next to the text; a text that no
+ * longer matches it is never shown or recorded. */
+static void test_fingerprint(const terms_doc_t *d)
+{
+    static char copy[1 << 20];
+    terms_doc_t bad, ref_bad, plain;
+    terms_record_t rec;
+    uint8_t h[TERMS_HASH_LEN];
+    CHECK(d->sha256 != 0);
+    terms_hash(d, h);
+    CHECK(d->sha256 && memcmp(h, d->sha256, TERMS_HASH_LEN) == 0);
+    CHECK(terms_doc_check(d) == TERMS_OK);
+    CHECK(terms_doc_check(0) == TERMS_ERR_ARG);
+    CHECK(d->len < sizeof copy);
+    memcpy(copy, d->text, d->len);
+    copy[d->len / 2] ^= 0x01; /* one bit, mid-text */
+    bad = *d;
+    bad.text = copy;
+    CHECK(terms_doc_check(&bad) == TERMS_ERR_TEXT);
+    CHECK(terms_reader_init(&R, &bad, 40, 12) == TERMS_ERR_TEXT);
+    CHECK(R.nlines == 0 && R.doc == 0);
+    plain = bad; /* a text built without a fingerprint is not checked */
+    plain.sha256 = 0;
+    CHECK(terms_doc_check(&plain) == TERMS_OK);
+    ref_bad = *d; /* a translation whose English reference is damaged */
+    ref_bad.sha256 = 0;
+    ref_bad.reference = &bad;
+    CHECK(terms_doc_check(&ref_bad) == TERMS_ERR_TEXT);
+    CHECK(terms_reader_init(&R, &ref_bad, 40, 12) == TERMS_ERR_TEXT);
+    /* damaged after the reader opened it: accept refuses */
+    CHECK(terms_reader_init(&R, d, 40, 12) == TERMS_OK);
+    terms_end(&R);
+    CHECK(terms_can_accept(&R));
+    R.doc = &bad;
+    CHECK(terms_accept(&R, "seat-1", 1, 0, &rec) == TERMS_ERR_TEXT);
+    R.doc = d;
+    CHECK(terms_accept(&R, "seat-1", 1, 0, &rec) == TERMS_OK);
+    CHECK(memcmp(rec.shown, d->sha256, TERMS_HASH_LEN) == 0);
+    copy[d->len / 2] ^= 0x01;
+}
+
 static void test_builtin(const char *path)
 {
     const terms_doc_t *d = terms_builtin();
@@ -359,7 +400,13 @@ static void test_builtin(const char *path)
         CHECK(n == d->len && memcmp(buf, d->text, n) == 0);
         if (n != d->len || memcmp(buf, d->text, n))
             printf("  terms_text.c is stale: run tools/terms/embed_terms.py\n");
+        { /* the fingerprint in the image is the file's own SHA-256 */
+            uint8_t h[TERMS_HASH_LEN];
+            sha256((const uint8_t *) buf, n, h);
+            CHECK(d->sha256 && memcmp(h, d->sha256, TERMS_HASH_LEN) == 0);
+        }
     }
+    test_fingerprint(d);
 }
 
 static void test_measure(void)

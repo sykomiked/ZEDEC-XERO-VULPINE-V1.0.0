@@ -8,6 +8,7 @@
 
 #include "zui_terms.h"
 #include "zui_tokens.h"
+#include "zui_srgb_lut.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                                                              \
@@ -97,7 +98,9 @@ static void test_open_and_look(void)
     CHECK(open_() == TERMS_OK, "open");
     CHECK(zui_terms_result(&T) == ZUI_TERMS_OPEN, "starts open");
     CHECK(!terms_can_accept(&R), "agree disabled at first");
-    CHECK(L->card.w <= zui_px(&SC, ZUI_TERMS_MAX_PT), "card no wider than max");
+    CHECK(L->card.w <= zui_px(&SC, ZUI_TERMS_MAX_PT + ZUI_TERMS_LIST_PT) + L->pad,
+          "card no wider than max");
+    CHECK(L->text.w <= zui_px(&SC, ZUI_TERMS_MAX_PT), "text column no wider than max");
     CHECK(L->card.x > 0 && L->card.x + L->card.w < W, "card centred inside");
     CHECK(L->agree.h >= zui_px(&SC, ZUI_TOUCH_MIN), "agree is a full touch target");
     CHECK(L->decline.x + L->decline.w <= L->agree.x, "decline left of agree");
@@ -143,7 +146,9 @@ static void test_agree_gate(void)
     CHECK(zui_terms_result(&T) == ZUI_TERMS_OPEN, "agree before the end does nothing");
     CHECK(T.focus == ZUI_TERMS_FOCUS_AGREE, "a press moves focus to the button");
     key(ZUI_KEY_TAB, 0);
-    CHECK(T.focus == ZUI_TERMS_FOCUS_TEXT, "tab wraps to the text");
+    CHECK(T.focus == ZUI_TERMS_FOCUS_CONTENTS, "tab wraps to the contents");
+    key(ZUI_KEY_TAB, 0);
+    CHECK(T.focus == ZUI_TERMS_FOCUS_TEXT, "then the text");
     /* Tab to agree, Enter: still nothing */
     key(ZUI_KEY_TAB, 0);
     key(ZUI_KEY_TAB, 0);
@@ -163,6 +168,7 @@ static void test_agree_gate(void)
     ptr(ZUI_EV_PTR_DOWN, L->agree.x + 2, L->agree.y + 2);
     ptr(ZUI_EV_PTR_UP, L->card.x + 2, L->card.y + 2);
     CHECK(zui_terms_result(&T) == ZUI_TERMS_OPEN, "press must go down and up on the button");
+    key(ZUI_KEY_TAB, 0);
     key(ZUI_KEY_TAB, 0);
     CHECK(T.focus == ZUI_TERMS_FOCUS_TEXT, "focus back on the text");
     key(ZUI_KEY_TAB, 0);
@@ -300,6 +306,218 @@ static void test_resize(void)
           "open in a tiny area refused");
 }
 
+/* ---- T6 contents ---- */
+
+/* Row of entry `e` in the list, scrolling the list with the wheel if needed. */
+static int32_t row_of(uint32_t e)
+{
+    const zui_terms_layout_t *L = &T.lay;
+    uint32_t vis = (uint32_t) (L->contents.h / L->entry_h), guard;
+    if (e == 0) return 0;
+    for (guard = 0; guard < 100; guard++) {
+        if (e - 1 >= T.list_top && e - 1 < T.list_top + vis - 1) return (int32_t) (e - T.list_top);
+        zui_event_t w = ev(ZUI_EV_SCROLL);
+        w.x = L->contents.x + 4;
+        w.y = L->contents.y + L->contents.h / 2;
+        w.dy = e - 1 < T.list_top ? -10 : 10;
+        zui_terms_event(&T, &w);
+    }
+    return -1;
+}
+
+static zui_rect_t row_rect(int32_t row)
+{
+    zui_rect_t r = {T.lay.contents.x, T.lay.contents.y + row * T.lay.entry_h, T.lay.contents.w,
+                    T.lay.entry_h};
+    return r;
+}
+
+static void test_contents_wide(void)
+{
+    const zui_terms_layout_t *L = &T.lay;
+    uint32_t n, k, key12 = 0, e;
+    int32_t row;
+    open_();
+    n = zui_terms_entries(&T);
+    CHECK(n == (uint32_t) R.nsections + 1 && n >= 21, "one entry per section plus the summary: %u",
+          n);
+    CHECK(L->toggle.w == 0, "wide: no contents button");
+    CHECK(L->contents.w > 0 && L->contents.x + L->contents.w < L->text.x, "list beside the text");
+    CHECK(L->contents.y == L->text.y, "list level with the text");
+    CHECK(zui_terms_current(&T) == 0, "starts in the short version");
+    draw();
+    CHECK(at(L->contents.x + L->contents.w - 4, L->contents.y + 2) == ZUI_RAISED,
+          "current entry lit: %06x", at(L->contents.x + L->contents.w - 4, L->contents.y + 2));
+
+    for (k = 0; k < R.nsections; k++)
+        if (R.section_no[k] == 12) key12 = k + 1;
+    CHECK(key12 && R.section_key[key12 - 1], "section 12 is a [KEY] section");
+    row = row_of(key12);
+    CHECK(row > 0, "section 12 reachable in the list");
+    draw();
+    {
+        zui_rect_t r = row_rect(row);
+        CHECK(at(r.x + 1, r.y + r.h / 2) == ZUI_GOLD, "gold bar on a [KEY] entry: %06x",
+              at(r.x + 1, r.y + r.h / 2));
+        click(r);
+    }
+    CHECK(R.top == R.section_line[key12 - 1], "click jumps to the section: %u", R.top);
+    CHECK(zui_terms_current(&T) == key12, "the jumped-to section is current");
+    CHECK(T.focus == ZUI_TERMS_FOCUS_CONTENTS, "focus stays in the list on a wide screen");
+    CHECK(!terms_can_accept(&R), "a jump into the middle does not unlock I agree");
+    CHECK(zui_terms_result(&T) == ZUI_TERMS_OPEN, "still open");
+
+    /* the pinned summary stays at row 0 after the list scrolls */
+    CHECK(row_of(n - 1) > 0, "last entry reachable");
+    CHECK(T.list_top > 0 || (uint32_t) (L->contents.h / L->entry_h) >= n, "list scrolled");
+    draw();
+    click(row_rect(0));
+    CHECK(R.top == 0, "pinned entry goes back to the short version");
+
+    /* keyboard: Up/Down/Home/End/Enter in the list */
+    T.focus = ZUI_TERMS_FOCUS_TEXT;
+    key(ZUI_KEY_TAB, ZUI_MOD_SHIFT);
+    CHECK(T.focus == ZUI_TERMS_FOCUS_CONTENTS, "shift-tab from the text reaches the list");
+    key(ZUI_KEY_DOWN, 0);
+    key(ZUI_KEY_DOWN, 0);
+    CHECK(T.list_sel == 2, "down moves the selection: %u", T.list_sel);
+    key(ZUI_KEY_UP, 0);
+    CHECK(T.list_sel == 1, "up");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(R.top == R.section_line[0], "enter jumps to section 1");
+    key(ZUI_KEY_END, 0);
+    CHECK(T.list_sel == n - 1, "end selects the last entry");
+    e = T.list_sel;
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(zui_terms_current(&T) == e || R.top == R.nlines - R.rows, "enter on the last section");
+    CHECK(terms_can_accept(&R), "the last section shows the end");
+    CHECK(R.via == TERMS_VIA_SECTION, "the end was reached by the section list");
+    key(ZUI_KEY_HOME, 0);
+    CHECK(T.list_sel == 0, "home selects the summary");
+    CHECK(!key(ZUI_KEY_ESCAPE, 0), "escape does nothing on a wide screen");
+}
+
+static void test_contents_narrow(void)
+{
+    zui_screen_t sc = SC;
+    zui_rect_t a = {0, 0, 390, 720};
+    const zui_terms_layout_t *L = &T.lay;
+    uint32_t key13 = 0, k;
+    int32_t row;
+    open_();
+    sc.px_w = 390;
+    sc.px_h = 720;
+    CHECK(zui_terms_resize(&T, &sc, a) == TERMS_OK, "phone size");
+    CHECK(L->toggle.w > 0 && L->toggle.h >= zui_px(&sc, ZUI_TOUCH_MIN),
+          "contents button, full target");
+    CHECK(L->toggle.y + L->toggle.h <= L->text.y, "button above the text");
+    CHECK(L->contents.x == L->text.x && L->contents.y == L->text.y, "list opens over the text");
+    click(L->toggle);
+    CHECK(T.list_open && T.focus == ZUI_TERMS_FOCUS_CONTENTS, "button opens the list");
+    zui_surface_init(&S, PX, 390, 720, W);
+    draw();
+    for (k = 0; k < R.nsections; k++)
+        if (R.section_no[k] == 13) key13 = k + 1;
+    row = row_of(key13);
+    CHECK(row > 0, "section 13 in the list");
+    click(row_rect(row));
+    CHECK(!T.list_open, "choosing closes the list");
+    CHECK(T.focus == ZUI_TERMS_FOCUS_TEXT, "and returns to the text");
+    CHECK(zui_terms_current(&T) == key13, "at section 13");
+    /* keyboard: Enter on the button opens, Escape closes */
+    T.focus = ZUI_TERMS_FOCUS_CONTENTS;
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(T.list_open && T.list_sel == key13, "enter opens at the current section");
+    key(ZUI_KEY_ESCAPE, 0);
+    CHECK(!T.list_open, "escape closes");
+    key(ZUI_KEY_ENTER, 0);
+    key(ZUI_KEY_TAB, 0);
+    CHECK(!T.list_open && T.focus == ZUI_TERMS_FOCUS_TEXT, "tabbing away closes the list");
+    /* the text drag does nothing while the list covers it */
+    click(L->toggle);
+    {
+        uint32_t top = R.top;
+        zui_event_t b = ev(ZUI_EV_PTR_DOWN), m = ev(ZUI_EV_PTR_MOVE), u = ev(ZUI_EV_PTR_UP);
+        b.x = m.x = u.x = L->text.x + L->text.w / 2;
+        b.y = L->text.y + L->text.h - 5;
+        m.y = u.y = 0;
+        zui_terms_event(&T, &b);
+        zui_terms_event(&T, &m);
+        zui_terms_event(&T, &u);
+        CHECK(R.top == top, "no drag under the open list");
+    }
+    draw();
+    zui_surface_init(&S, PX, W, H, W);
+    /* back to wide: the list sits beside the text again */
+    CHECK(zui_terms_resize(&T, &SC, full()) == TERMS_OK && !T.list_open && L->toggle.w == 0,
+          "wide again");
+}
+
+/* ---- T7 contrast (WCAG 2.1 relative luminance, integer) ---- */
+
+static uint64_t lum(uint32_t c)
+{
+    return 2126u * zui_srgb_to_lin[(c >> 16) & 255] + 7152u * zui_srgb_to_lin[(c >> 8) & 255] +
+           722u * zui_srgb_to_lin[c & 255];
+}
+
+static uint32_t contrast_x100(uint32_t a, uint32_t b)
+{
+    uint64_t la = lum(a), lb = lum(b), off = 2047500u; /* 0.05 of 4095 x 10000 */
+    if (la < lb) {
+        uint64_t x = la;
+        la = lb;
+        lb = x;
+    }
+    return (uint32_t) (((la + off) * 100u) / (lb + off));
+}
+
+static void test_contrast(void)
+{
+    static const struct {
+        uint32_t fg, bg, min;
+        const char *what;
+    } P[] = {
+        {ZUI_TEXT_2, ZUI_PANEL, 450, "body text"},
+        {ZUI_TEXT, ZUI_PANEL, 450, "headings, [KEY] lines, Decline label"},
+        {ZUI_MUTED, ZUI_PANEL, 450, "hint: read to the end"},
+        {ZUI_OK, ZUI_PANEL, 450, "hint: you've reached the end"},
+        {ZUI_MUTED, ZUI_VOID, 450, "muted text on the ground"},
+        {ZUI_VOID, ZUI_GOLD, 450, "I agree label"},
+        {ZUI_MUTED, ZUI_RAISED, 450, "disabled I agree label"},
+        {ZUI_TEXT, ZUI_RAISED, 450, "current contents entry"},
+        {ZUI_GOLD, ZUI_PANEL, 450, "the short version entry"},
+        {ZUI_GOLD, ZUI_RAISED, 450, "the short version entry, current"},
+        {ZUI_TEXT_2, ZUI_PANEL, 450, "contents entries"},
+        {ZUI_FAINT, ZUI_PANEL, 300, "Decline and Contents outlines"},
+        {ZUI_MUTED, ZUI_HAIRLINE, 300, "scroll thumb on its track"},
+        {ZUI_GOLD_GLOW, ZUI_PANEL, 300, "focus ring"},
+        {ZUI_GOLD, ZUI_PANEL, 300, "[KEY] bar"},
+    };
+    uint32_t i;
+    for (i = 0; i < sizeof P / sizeof P[0]; i++) {
+        uint32_t c = contrast_x100(P[i].fg, P[i].bg);
+        CHECK(c >= P[i].min, "%s: %u.%02u:1 < %u.%02u:1", P[i].what, c / 100, c % 100,
+              P[i].min / 100, P[i].min % 100);
+    }
+    CHECK(contrast_x100(0xFFFFFF, 0x000000) == 2100, "white on black is 21:1: %u",
+          contrast_x100(0xFFFFFF, 0x000000));
+    /* the hint and buttons are drawn in these colours */
+    open_();
+    draw();
+    {
+        const zui_terms_layout_t *L = &T.lay;
+        uint32_t x, y, faint = 0;
+        for (x = (uint32_t) L->decline.x; x < (uint32_t) (L->decline.x + L->decline.w); x++)
+            if (at((int32_t) x, L->decline.y) == ZUI_FAINT) faint++;
+        CHECK(faint > 0, "Decline outline drawn in ZUI_FAINT");
+        for (y = 0, x = 0; y < (uint32_t) L->agree.h && !x; y++)
+            for (int32_t xx = L->agree.x; xx < L->agree.x + L->agree.w; xx++)
+                if (at(xx, L->agree.y + (int32_t) y) == ZUI_MUTED) x = 1;
+        CHECK(x, "disabled I agree label in ZUI_MUTED");
+    }
+}
+
 static void test_args(void)
 {
     CHECK(zui_terms_open(NULL, &R, terms_builtin(), &txt, &SC, full()) == TERMS_ERR_ARG, "null t");
@@ -333,6 +551,9 @@ int main(int argc, char **argv)
     test_scroll_routes();
     test_spoke();
     test_resize();
+    test_contents_wide();
+    test_contents_narrow();
+    test_contrast();
     test_args();
     printf("%s test_zui_terms: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);

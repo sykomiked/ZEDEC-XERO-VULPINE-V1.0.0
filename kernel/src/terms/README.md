@@ -40,17 +40,48 @@ and port must share.
   measured correctly; a measure callback gives exact pixel widths.
 - The agreement can be read again later under Settings, About, Agreement.
 
+## The screen
+
+`src/zui/zui_terms.c` draws the card. A contents list sits beside the text
+on a wide screen, and behind a "Contents" button on a phone. Its first entry,
+the short version, is pinned, and the `[KEY]` sections carry a gold bar. A
+person can jump straight to the clauses that limit liability or decide
+disputes, and the end still has to be shown before "I agree" works. Every
+text colour on the card is at least 4.5:1 against its background (WCAG 2.1
+AA), and the control outlines are at least 3:1. `test_zui_terms` checks each
+pair.
+
 ## The text
 
 `agreement/en.txt` is embedded into `terms_text.c` by
 `tools/terms/embed_terms.py`. The fingerprint recorded is plain SHA-256 of
-the file, so `sha256sum agreement/en.txt` gives the same value. `make
-test-terms` fails if `terms_text.c` no longer matches the file.
+the file, so `sha256sum agreement/en.txt` gives the same value. The generator
+also writes that SHA-256 into the image beside the text (`terms_doc_t.sha256`).
+`terms_reader_init*` and `terms_accept` recompute it and refuse with
+`TERMS_ERR_TEXT` if they differ: a damaged image never shows or records a text
+other than the one that was built. `make test-terms` fails if `terms_text.c`
+no longer matches the file, or its embedded fingerprint no longer matches the
+file's SHA-256.
 
 `agreement/en.txt` is the ZXV End-User Agreement 1.0, approved by the owner
 on 2026-10-14. Counsel review in the release markets is still recommended
 before the first public release; a changed text gets a new version number and
 fingerprint, and everyone sees it again at their next sign-in.
+
+## Clauses the product backs in code
+
+- §2.2, the acceptance record: the per-seat, hash-chained log above, with the
+  build-time fingerprint check.
+- §4.1(e), no commercial, encrypted or settlement traffic over amateur radio
+  bands: the network rule is that an amateur-radio link carries only
+  cleartext, signed messages (docs/ARCHITECTURE.md, radio row; US 47 CFR
+  97.113 and the per-jurisdiction radio table). Choosing an amateur-radio
+  transport (AX.25, APRS, JS8, VARA on ham frequencies) switches the link to
+  cleartext signed-only mode. Encryption and settlement traffic are refused
+  there, not silently sent. Today the AX.25/APRS code (`src/net/dtmf.c`) only
+  encodes frames and is not connected to the encrypted mesh or the
+  settlement paths. The transport switch that enforces cleartext signed-only
+  mode is being built with the protocol twins (AFTP and the radio adapters).
 
 Translations are added as `agreement/<lang>.txt`, each pointing at the English
 reference; a language whose local law makes it govern is marked controlling

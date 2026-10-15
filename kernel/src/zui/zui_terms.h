@@ -33,6 +33,20 @@
  *      the result is ACCEPTED and the shell calls terms_accept and appends
  *      the record. "Decline" gives DECLINED and records nothing.
  *   T5 RESIZE keeps the place and the read state (terms_reader_resize).
+ *   T6 CONTENTS. A list of the sections sits beside the text on a wide
+ *      screen, and behind a "Contents" button on a narrow one. Its first
+ *      entry, the short version (the summary at the top), is pinned and never
+ *      scrolls away; [KEY] sections carry the same gold bar as their text;
+ *      the section being read is lit. Choosing an entry jumps there
+ *      (TERMS_VIA_SECTION) so a person can go straight to the clauses that
+ *      limit liability or decide disputes. The read gate is unchanged: the
+ *      end still has to be shown before "I agree" works.
+ *   T7 CONTRAST. Every text colour on the card is at least 4.5:1 against
+ *      what it is drawn on (WCAG 2.1 AA, 1.4.3), and the outlines a person
+ *      needs to find a control (Decline, the scroll thumb) at least 3:1
+ *      (1.4.11). The disabled "I agree" label is held to 4.5:1 as well,
+ *      though WCAG exempts disabled controls. test_zui_terms checks each
+ *      pair.
  *
  * Integer only, no allocation; the caller owns the reader (it is large, so
  * keep it static) and the fonts. */
@@ -47,20 +61,27 @@
 #include "zui_layout.h"
 #include "../terms/terms.h"
 
-#define ZUI_TERMS_MAX_PT 720 /* widest card, points */
+#define ZUI_TERMS_MAX_PT  720 /* widest text column, points */
+#define ZUI_TERMS_LIST_PT 272 /* contents column beside it, points */
+#define ZUI_TERMS_WIDE_PT 880 /* a card this wide (points) shows the list beside the text */
 
 typedef enum { ZUI_TERMS_OPEN = 0, ZUI_TERMS_ACCEPTED, ZUI_TERMS_DECLINED } zui_terms_result_t;
 
 typedef enum {
     ZUI_TERMS_FOCUS_TEXT = 0,
     ZUI_TERMS_FOCUS_DECLINE,
-    ZUI_TERMS_FOCUS_AGREE
+    ZUI_TERMS_FOCUS_AGREE,
+    ZUI_TERMS_FOCUS_CONTENTS
 } zui_terms_focus_t;
 
-/* Where things are (device pixels). */
+/* Where things are (device pixels). Tab order: contents, text, Decline,
+ * I agree. */
 typedef struct {
     zui_rect_t card, text, bar, hint, decline, agree;
+    zui_rect_t contents; /* the section list (wide), or where it opens (narrow) */
+    zui_rect_t toggle;   /* narrow only: the "Contents" button; w == 0 when wide */
     int32_t line_h, pad;
+    int32_t entry_h; /* one contents row */
 } zui_terms_layout_t;
 
 typedef struct {
@@ -73,8 +94,13 @@ typedef struct {
     zui_terms_focus_t focus;
     int32_t wheel_px; /* wheel pixels not yet a whole line */
     int32_t drag_y;   /* last touch/pointer y while dragging the text */
-    int8_t pressed;   /* button under a pointer press: 0 none, 1 decline, 2 agree */
+    int8_t pressed;   /* under a pointer press: 0 none, 1 decline, 2 agree, 3 contents */
     bool dragging;
+    bool list_open;      /* narrow: the contents list shows instead of the text */
+    int16_t entry_down;  /* contents entry under a pointer press, -1 none */
+    uint16_t list_top;   /* first scrolled entry, below the pinned one */
+    uint16_t list_sel;   /* keyboard selection in the contents list */
+    const char *summary; /* label of the pinned first entry; the shell may translate it */
 } zui_terms_t;
 
 /* Lay out in `area` for `screen` and start reading `doc`. Returns
@@ -85,6 +111,12 @@ int zui_terms_open(zui_terms_t *t, terms_reader_t *r, const terms_doc_t *doc,
 int zui_terms_resize(zui_terms_t *t, const zui_screen_t *screen, zui_rect_t area);
 /* T3, T4. Returns true when the event was used. */
 bool zui_terms_event(zui_terms_t *t, const zui_event_t *e);
+/* T6: entries in the contents list (the pinned summary plus one per
+ * numbered section), and the one holding the top visible line. */
+uint32_t zui_terms_entries(const zui_terms_t *t);
+uint32_t zui_terms_current(const zui_terms_t *t);
+/* T6: jump to entry `i` (0 = the short version) as a section-list read. */
+int zui_terms_go(zui_terms_t *t, uint32_t i);
 /* T3: a screen reader has spoken up to byte `off` of the text. */
 void zui_terms_spoke(zui_terms_t *t, uint32_t off);
 void zui_terms_draw(zui_surface_t *s, const zui_terms_t *t);
