@@ -241,7 +241,7 @@ CONVENTIONAL                         ZXV
    with the model off).
 2. **Calls, not register writes.** The chiglet's output is a typed call from a fixed table
    (`kernel/src/chiglet/chg_abi.h` A1): `storage_dma_read`, `framebuffer_blit`, `cell_reload`,
-   `network_pulse`, `cell_quarantine`, appended to, never renumbered. A grammar-constrained model
+   `network_pulse`, `cell_quarantine`, `model_exec`, appended to, never renumbered. A grammar-constrained model
    emits the same text form a person types.
 3. **Every call is gated (A3).** In bounds, granted to the chiglet, and the kernel rulebook's
    verdict, joined with `lpres_conjoin`, so only TRUE authorises. FALSE refuses. A look (read the
@@ -257,13 +257,31 @@ CONVENTIONAL                         ZXV
    plus a witness of another lineage, `swarm.organ`), anything that would change the machine is
    a held act (`intent` "act" verbs, `chg_vocab`), and apps declare which organ serves them and
    which acts they may raise (`zxapp` "chiglet" lines).
+7. **A model is named, not jumped to (A7).** The "EXEC @coordinate <event>" of the
+   InterPlanetary BIOS design is the typed call `model_exec <coord> <event>`: the coordinate is a
+   Grid Chain word in domain 0x60 (models), a key the kernel resolves to a model cell, never an
+   address; the event is the ordinal of its input in this boot's log. It is a look: what the model
+   answers is data, and anything it asks the machine to do comes back as a gated call. A
+   coordinate with no loaded model is refused with the reason, never guessed. This runs after
+   the UEFI firmware has handed over, not in place of it.
+8. **Every call is on the record (A8).** Each journal record is folded into a SHA-256 hash
+   chain as it is committed and printed as an `[EVT]` line; on arm64 each is also an `oseq`
+   event (schema `chga.call`, parent the record before it). The console command `events` signs
+   the head with ML-DSA-65. `tools/zxv-events` reads a serial log, recomputes every head itself
+   and verifies the signature, so a changed, removed, repeated or reordered record fails at its
+   line. The signing key is made per boot (from RNDR, or marked weak on a CPU without it): it
+   shows the log is whole, not which device wrote it, until a device key exists. Replay is
+   claimed only where it holds: the integer `zt` engine, weights pinned by content ID, the same
+   inputs.
 
 | Part | Status | Where |
 |---|---|---|
-| Verified ABI gate: five typed calls, grants, rulebook, lpres, held calls with digests, bounded journal | 🔒 | `kernel/src/chiglet/chg_abi.{h,c}`, 208 tests, `make test-chg-organ` |
+| Verified ABI gate: six typed calls, grants, rulebook, lpres, held calls with digests, bounded journal, hash-chained records | 🔒 | `kernel/src/chiglet/chg_abi.{h,c}`, 253 tests, `make test-chg-organ` |
+| Event log: `[EVT]` lines, oseq events, ML-DSA-65 head signature; `zxv-events` verifies it | 🔒 | `tools/zxv-events`, `make test-zxv-events`; `arm64_session_check.py` verifies a real boot's log |
 | arm64 boot hands the console to the chiglet governor; disk read, screen blit, cell reload and quarantine, network pulse handlers | 🔒 | `kernel/arch/arm64/kernel_main_arm64.c`; `arm64_session_check.py` drives it in QEMU |
 | Organ routing with a witness; `swarm.organ` in zxvd | 🔒 | `kernel/src/chiglet/chg_organ.{h,c}` |
 | Held acts at every layer; organ and acts in app manifests | 🔒 | `intent` I7, `chg_vocab`, `zxapp` K1-K3 |
+| `model_exec` running a model on bare metal | 📋 | The arm64 kernel loads no weights, so every coordinate is refused today; the coordinate-to-cell map is agreed with the swarm model lineup |
 | A model on bare metal emitting the calls | 📋 | Today the calls come from the person or from a session relaying a model's output as `chiglet <call>` lines; models load from the disc once PCI and the disc v2 layout land (section 18) |
 | x86_64 governor | 📋 | The x86_64 image has no user processes or console session yet (section 4.3) |
 
