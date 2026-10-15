@@ -11,7 +11,7 @@
  *                 specification's sample code does
  * Integer only. */
 #include "acpi_x86.h"
-#include "../zxv_handoff.h"
+#include "bootmem_x86.h"
 
 #include "acpi/acpi_pm.h"
 #include "efifb_con.h"
@@ -242,7 +242,6 @@ static void log_kv(const char *k, uint64_t v)
 
 /* ---- boot -------------------------------------------------------------------- */
 #define AML_ARENA (3u << 20)
-static uint8_t g_arena[AML_ARENA] __attribute__((aligned(16)));
 static aml_ctx_t g_aml;
 static acpi_state_t g_st;
 
@@ -265,13 +264,8 @@ int acpi_x86_boot(const hw_plat_t *hp, uint64_t tsc_per_us, void (*log)(const ch
     uint64_t rsdp = 0;
     const char *from = "UEFI handoff v2";
     {
-        const zxh_t *h = (const zxh_t *) (uintptr_t) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
-        int v = zxh_accept(h);
-        if (v == 2) {
-            log("[ACPI HELD] handoff record damaged -- ACPI not trusted");
-            return 0;
-        }
-        if (v == 1) {
+        const zxh_t *h = zxv_handoff(); /* NULL: direct boot, or a damaged record */
+        if (h) {
             if (h->flags & ZXH_F_ACPI_TABLES_LOST) {
                 log("[ACPI HELD] tables overwritten by the kernel window -- ACPI skipped");
                 return 0;
@@ -326,7 +320,14 @@ int acpi_x86_boot(const hw_plat_t *hp, uint64_t tsc_per_us, void (*log)(const ch
     g_ap.timer_100ns = x_timer;
     g_ap.global_lock = x_glock;
     g_ap.log = x_log;
-    if (aml_init(&g_aml, &g_ap, g_arena, AML_ARENA)) {
+    /* The interpreter's arena comes from firmware-usable memory, not BSS, so
+     * it never widens the kernel window over firmware ACPI memory. */
+    uint8_t *arena = bootmem_x86_take(AML_ARENA, "the AML arena");
+    if (!arena) {
+        log("[ACPI] no memory for the AML arena -- ACPI skipped");
+        return 0;
+    }
+    if (aml_init(&g_aml, &g_ap, arena, AML_ARENA)) {
         log("[ACPI] AML arena too small -- ACPI skipped");
         return 0;
     }
