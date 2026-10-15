@@ -1,6 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_chiglet.c — the companion's form from its genes. See zui_chiglet.h. */
+#include <stdbool.h>
 #include "zui_chiglet.h"
 #include "zui_tokens.h"
 #include "holo.h"
@@ -88,8 +89,13 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int3
     /* mouth: verbosity sets width; speaking opens it */
     int32_t mw = r / 4 + (int32_t) ((uint32_t) r / 2u * (g[G_VERBOSE] % 5u) / 4u);
     int32_t mh = c->mood == ZUI_CHG_SPEAKING ? r / 5 + 1 : 2;
+    bool open = c->mood == ZUI_CHG_SPEAKING;
+    if (c->mouth) { /* the speech level: 2 px closed .. r / 4 + 2 wide open */
+        mh = 2 + (int32_t) (((uint32_t) r / 4u) * c->mouth / 255u);
+        open = mh > 3;
+    }
     zui_rect_t mouth = {cx - mw / 2, cy + r / 4, mw, mh};
-    zui_fill_rrect(s, mouth, mh / 2, c->mood == ZUI_CHG_SPEAKING ? ZUI_VOID : ZUI_TEXT_2, 255u);
+    zui_fill_rrect(s, mouth, mh / 2, open ? ZUI_VOID : ZUI_TEXT_2, 255u);
 
     /* chest emblem: specialty, one of four marks in the accent colour */
     int32_t ey2 = cy + r / 2 + r / 8, k = r / 8 + 1;
