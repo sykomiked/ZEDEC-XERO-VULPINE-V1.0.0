@@ -29,12 +29,30 @@
 #include "pce.h"
 
 static nes_t     g_nes;   /* the NES machine (mapper 0) for iNES images  */
-static snes_t    g_snes;  /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
-static gb_t      g_gb;    /* the Game Boy machine for .gb/.gbc            */
-static gba_t     g_gba;   /* the Game Boy Advance machine for .gba        */
-static genesis_t g_gen;   /* the Sega Genesis machine for .md/.bin/.gen   */
-static pce_t     g_pce;   /* the PC Engine machine for .pce               */
-static uint8_t g_full_img[GBA_ROM_CAP];   /* full-ROM buffer (largest console cap) */
+/* The larger machines and the full-ROM buffer, about 29 MB together. */
+typedef struct {
+    snes_t snes;                   /* the SNES machine (LoROM/HiROM) for .sfc/.smc */
+    gb_t gb;                       /* the Game Boy machine for .gb/.gbc            */
+    gba_t gba;                     /* the Game Boy Advance machine for .gba        */
+    genesis_t gen;                 /* the Sega Genesis machine for .md/.bin/.gen   */
+    pce_t pce;                     /* the PC Engine machine for .pce               */
+    uint8_t full_img[GBA_ROM_CAP]; /* full-ROM buffer (largest console cap) */
+} gr_machines_t;
+/* A kernel built with ZXV_BOOT_TAKE takes them from firmware-usable memory
+ * (zxv_boot_take, the arch's bootmem) on the first ROM, not from BSS. */
+#ifdef ZXV_BOOT_TAKE
+void *zxv_boot_take(uint64_t bytes, const char *what);
+static gr_machines_t *g_m;
+#else
+static gr_machines_t g_m_store;
+static gr_machines_t *g_m = &g_m_store;
+#endif
+#define g_snes     (g_m->snes)
+#define g_gb       (g_m->gb)
+#define g_gba      (g_m->gba)
+#define g_gen      (g_m->gen)
+#define g_pce      (g_m->pce)
+#define g_full_img (g_m->full_img)
 
 static uint8_t g_raw[65536];      /* raw ROM bytes as read from the device   */
 static uint8_t g_mem[65536];      /* per-core address space (rebuilt each run) */
@@ -131,6 +149,10 @@ static int core_runs(uint32_t insn, uint16_t permille){
 
 int game_runner_run(block_device_t *dev, game_run_t *out){
     for (unsigned i = 0; i < sizeof *out; i++) ((uint8_t*)out)[i] = 0;
+#ifdef ZXV_BOOT_TAKE
+    if (!g_m) g_m = zxv_boot_take(sizeof *g_m, "the console machines");
+#endif
+    if (!g_m) return 0;
     /* Reset FIRST so the report describes THIS ROM, not the boot's history. */
     zxv_cover_reset();
     zxv_cover_mark(COV_GAME_RUNNER_RUN);

@@ -16,6 +16,80 @@ static int fails;
         }                                                                                          \
     } while (0)
 
+/* A minimal flattened device tree, big-endian, written the way dtc lays it
+ * out: header, reserve map, struct block, strings. */
+static uint8_t g_fdt[1024];
+static uint32_t g_fs; /* struct cursor */
+static void be32(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t) (v >> 24);
+    p[1] = (uint8_t) (v >> 16);
+    p[2] = (uint8_t) (v >> 8);
+    p[3] = (uint8_t) v;
+}
+static void ftok(uint32_t t)
+{
+    be32(g_fdt + g_fs, t);
+    g_fs += 4;
+}
+static void fnode(const char *n)
+{
+    ftok(1);
+    uint32_t l = (uint32_t) strlen(n) + 1;
+    memcpy(g_fdt + g_fs, n, l);
+    g_fs += (l + 3u) & ~3u;
+}
+static void fprop(uint32_t nameoff, const uint32_t *cells, uint32_t ncells)
+{
+    ftok(3);
+    ftok(ncells * 4u);
+    ftok(nameoff);
+    for (uint32_t i = 0; i < ncells; i++) ftok(cells[i]);
+}
+/* strings: "#address-cells\0#size-cells\0reg\0" -> offsets 0, 15, 27 */
+static uint32_t build_fdt(int bad_magic)
+{
+    memset(g_fdt, 0, sizeof g_fdt);
+    const uint32_t off_rsv = 40, off_s = 72; /* one entry + terminator */
+    be32(g_fdt + off_rsv + 0, 0);            /* reserve 0x48000000 + 0x1000 */
+    be32(g_fdt + off_rsv + 4, 0x48000000u);
+    be32(g_fdt + off_rsv + 8, 0);
+    be32(g_fdt + off_rsv + 12, 0x1000u); /* then a zero terminator entry */
+    g_fs = off_s;
+    const uint32_t two = 2, mem[4] = {0, 0x40000000u, 0, 0x10000000u};
+    const uint32_t other[4] = {0, 0x80000000u, 0, 0x1000000u};
+    fnode("");
+    fprop(0, &two, 1);
+    fprop(15, &two, 1);
+    fnode("memory@40000000");
+    fprop(27, mem, 4);
+    ftok(2);
+    fnode("memoryx"); /* not a memory node */
+    fprop(27, other, 4);
+    ftok(2);
+    fnode("soc");
+    fnode("memory@80000000"); /* depth 2: not top-level */
+    fprop(27, other, 4);
+    ftok(2);
+    ftok(2);
+    ftok(2);
+    ftok(9);
+    uint32_t sz_s = g_fs - off_s, off_str = g_fs;
+    const char str[] = "#address-cells\0#size-cells\0reg";
+    memcpy(g_fdt + off_str, str, sizeof str);
+    uint32_t total = off_str + (uint32_t) sizeof str;
+    be32(g_fdt + 0, bad_magic ? 0xd00dfeefu : 0xd00dfeedu);
+    be32(g_fdt + 4, total);
+    be32(g_fdt + 8, off_s);
+    be32(g_fdt + 12, off_str);
+    be32(g_fdt + 16, off_rsv);
+    be32(g_fdt + 20, 17);
+    be32(g_fdt + 24, 16);
+    be32(g_fdt + 32, (uint32_t) sizeof str);
+    be32(g_fdt + 36, sz_s);
+    return total;
+}
+
 int main(void)
 {
     static zxh_t h;
@@ -150,6 +224,26 @@ int main(void)
         CHECK(zxh_window_of_map(map, sizeof map, 40, 0x100000, 0x901000, 1, &fl, &wt, &wb) == 2);
         CHECK(wt == 5 && wb == 0x900000); /* runtime beats the earlier ACPI hit */
         CHECK(zxh_window_of_map(map, sizeof map, 16, 0, 1, 1, &fl, &wt, &wb) == 2); /* bad dsz */
+    }
+
+    /* Device tree memory (the arm64 direct boot's evidence). */
+    {
+        zxb_t b;
+        uint32_t total = build_fdt(0);
+        memset(&b, 0, sizeof b);
+        CHECK(zxb_from_fdt(&b, g_fdt, sizeof g_fdt, 0x43000000, 0x100000000ULL) == 2);
+        CHECK(b.r[0].lo == 0x43000000 && b.r[0].hi == 0x48000000);
+        CHECK(b.r[1].lo == 0x48001000 && b.r[1].hi == 0x50000000); /* reserve cut out */
+        memset(&b, 0, sizeof b);
+        CHECK(zxb_from_fdt(&b, g_fdt, total - 1, 0, ~0ULL) == 0); /* claims more than allowed */
+        build_fdt(1);
+        CHECK(zxb_from_fdt(&b, g_fdt, sizeof g_fdt, 0, ~0ULL) == 0 && b.n == 0);
+        build_fdt(0);
+        be32(g_fdt + 36, 0xFFFFFFF0u); /* struct size past the end */
+        CHECK(zxb_from_fdt(&b, g_fdt, sizeof g_fdt, 0, ~0ULL) == 0 && b.n == 0);
+        build_fdt(0);
+        g_fdt[72 + 3] = 7; /* unknown first token */
+        CHECK(zxb_from_fdt(&b, g_fdt, sizeof g_fdt, 0, ~0ULL) == 0 && b.n == 0);
     }
 
     printf("%s zxv_handoff\n", fails ? "FAILED" : "ok");

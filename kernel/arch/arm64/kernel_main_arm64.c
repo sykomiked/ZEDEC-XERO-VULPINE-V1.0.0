@@ -107,6 +107,7 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
 #include "../zxv_handoff.h"          /* handoff v2: memory map, ACPI, clock     */
+#include "bootmem_arm64.h"           /* early memory from the firmware map      */
 /* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
 extern bool     virtio_input_probe(void);
 extern void     virtio_input_poll(void);
@@ -339,7 +340,9 @@ void kernel_main_arm64(void);
  * =================================================================== */
 static phase_tick_t tick;
 static dlp_projector_t projector;
-static vino_ledger_t vino;
+/* The largest state lives in firmware-usable memory past the kernel
+ * (bootmem_arm64.c), taken in kernel_main_arm64 before first use. */
+static vino_ledger_t *vino;
 static porter_house_t porter_house;
 static mesh_token_t mesh_token;
 static community_chest_t community_chest;
@@ -347,7 +350,7 @@ static ai_engine_t ai_engine;
 static mesh_net_t mesh_net;
 static immigration_t immigration;
 static robin_vault_t robin_vault;
-static prism_break_t prism_break;
+static prism_break_t *prism_break;
 static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives redraw */
 
 /* ---- double buffering ----
@@ -358,7 +361,7 @@ static vbe_state_t *g_desktop_vbe = 0;   /* bound once ramfb is live; drives red
  * With it, the display only ever holds finished frames. */
 #define ZXV_FB_W ZXV_DISPLAY_MAX_W
 #define ZXV_FB_H ZXV_DISPLAY_MAX_H
-static uint32_t g_scanout[ZXV_FB_W * ZXV_FB_H] __attribute__((aligned(64)));
+static uint32_t *g_scanout; /* ZXV_FB_W x ZXV_FB_H, from bootmem */
 /* The negotiated display mode. Every consumer reads THIS instead of a literal,
  * so one desktop adapts to whatever screen it is given. */
 static zxv_display_t g_disp;
@@ -857,20 +860,29 @@ static void cell_fabric_boot_init(void) {
     }
 }
 
-void kernel_main(void) {
+/* The entry x0 (boot.s): QEMU -kernel's device tree, or anything. */
+static uint64_t g_boot_dtb;
+
+void kernel_main(uint64_t dtb)
+{
+    g_boot_dtb = dtb;
     kernel_main_arm64();
+}
+
+/* No evidence of memory for state the kernel cannot run without: say which,
+ * and stop before anything uses it. */
+static void boot_refused(const char *what)
+{
+    uart_puts("[BOOT_REFUSED] no firmware-usable memory for ");
+    uart_puts(what);
+    uart_puts("\n");
+    for (;;) __asm__ __volatile__("msr daifset, #0xf\n wfi");
 }
 
 /* Handoff v2 (zxv_handoff.h), as on x86_64: the EFI stub's record sits right
  * after the GOP record. Accepted, damaged (never trusted) or absent (the
- * QEMU -kernel path, where nothing changes). */
-static const zxh_t *g_handoff;
-
-const zxh_t *zxv_handoff(void)
-{
-    return g_handoff;
-}
-
+ * QEMU -kernel path, where the device tree describes RAM instead).
+ * bootmem_arm64_init keeps the accepted record (zxv_handoff()). */
 static void handoff_report(void)
 {
     const zxh_t *h = (const zxh_t *) (uintptr_t) (ZXV_BOOTINFO_ADDR + ZXH_OFFSET);
@@ -883,7 +895,6 @@ static void handoff_report(void)
         boot_msg("[HANDOFF_BAD] handoff record damaged: ignored");
         return;
     }
-    g_handoff = h;
     zxh_report(h, uart_puts, uart_put_dec, uart_put_hex);
     boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
@@ -936,6 +947,11 @@ void kernel_main_arm64(void) {
     arm64_mmu_init();
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
     handoff_report();
+    bootmem_arm64_init(g_boot_dtb);
+    vino = bootmem_arm64_take(sizeof *vino, "the vino ledger");
+    prism_break = bootmem_arm64_take(sizeof *prism_break, "the PRISM frame buffers");
+    g_scanout = bootmem_arm64_take((uint64_t) ZXV_FB_W * ZXV_FB_H * 4u, "the scanout buffer");
+    if (!vino || !prism_break || !g_scanout) boot_refused("the ledger and display buffers");
 
     /* Phase 3: GIC + Timer */
     boot_msg("[BOOT] GIC interrupt controller (version probed from GICD_PIDR2)...");
@@ -986,11 +1002,12 @@ void kernel_main_arm64(void) {
 
     /* Phase 7: Triple Ledger */
     boot_msg("[BOOT] Nine-capital triple ledger system...");
-    static triple_ledger_t tl;
-    triple_ledger_init(&tl);
-    triple_ledger_create_account(&tl, 1, CAP_FINANCIAL, "Genesis:Financial");
-    triple_ledger_create_account(&tl, 1, CAP_HUMAN, "Genesis:Human");
-    triple_ledger_create_account(&tl, 1, CAP_ECOLOGICAL, "Genesis:Ecological");
+    triple_ledger_t *tl = bootmem_arm64_take(sizeof *tl, "the triple ledger");
+    if (!tl) boot_refused("the triple ledger");
+    triple_ledger_init(tl);
+    triple_ledger_create_account(tl, 1, CAP_FINANCIAL, "Genesis:Financial");
+    triple_ledger_create_account(tl, 1, CAP_HUMAN, "Genesis:Human");
+    triple_ledger_create_account(tl, 1, CAP_ECOLOGICAL, "Genesis:Ecological");
     boot_msg("  [REGISTERED] 9 capital types + floating vouchers + conventional compat");
 
     /* Phase 8: Financial Instruments */
@@ -1067,9 +1084,9 @@ void kernel_main_arm64(void) {
 
     /* Phase 15: Vino Bank */
     boot_msg("[BOOT] Vino decentralized bank node...");
-    vino_init(&vino, 1);
-    vino_create_account(&vino, "ZEDEC:node:arm64:0001", "Genesis Account");
-    vino_set_validator(&vino, true, 1000000);
+    vino_init(vino, 1);
+    vino_create_account(vino, "ZEDEC:node:arm64:0001", "Genesis Account");
+    vino_set_validator(vino, true, 1000000);
     boot_msg("  [INITIALIZED] Triple ledger + nine capital + ISO 20022");
 
     /* Phase 15b: Count House & Stash Buckets -- fractal-reserve
@@ -1132,7 +1149,7 @@ void kernel_main_arm64(void) {
      * Revenue split: developer 70-85%, platform 15-24%, 36N9 20%. */
     boot_msg("[BOOT] Community Chest P2P app store + Vino Floating Vouchers...");
     cc_init(&community_chest, 1, "ZEDEC:community-chest:arm64:0001");
-    cc_link_vino(&community_chest, &vino);
+    cc_link_vino(&community_chest, vino);
     boot_msg("  [REGISTERED] P2P marketplace + Vino voucher clearing (dev 70-85% / platform 15-24% / 36N9 20%)");
 
     /* Phase 15f: AI Integration & Remote Compute — native ZXV AI
@@ -1198,7 +1215,7 @@ void kernel_main_arm64(void) {
     /* Phase 16: Vena Runtime */
     boot_msg("[BOOT] Vena application runtime...");
     static vena_runtime_t vena;
-    vena_init(&vena, &vino);
+    vena_init(&vena, vino);
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
     boot_msg("  [INITIALIZED] M5 Axiomatic app loader + 31 languages");
 
@@ -2092,7 +2109,7 @@ void kernel_main_arm64(void) {
      * touch ripples (expanding wavefronts), chromatic aberration, and
      * vignette. All integer math, no GPU required. */
     boot_msg("[BOOT] Prism Break holographic touchscreen shader...");
-    pb_init(&prism_break, ZXV_FB_W, ZXV_FB_H); /* max scanout; width is 16-aligned (no shear) */
+    pb_init(prism_break, ZXV_FB_W, ZXV_FB_H); /* max scanout; width is 16-aligned (no shear) */
     boot_msg("  [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)");
 
     /* Phase 17b+: bind a REAL display. Render one frame, then hand its linear
@@ -2100,9 +2117,9 @@ void kernel_main_arm64(void) {
      * device exists on arm64/x86_64/riscv 'virt'. Requires -device ramfb; if it
      * is absent, ramfb_init fails and we stay on the serial console (honest). */
     boot_msg("[BOOT] ramfb display scanout (fw_cfg)...");
-    pb_render_frame(&prism_break);
+    pb_render_frame(prism_break);
     {
-        uint32_t *fb = pb_get_framebuffer(&prism_break);   /* the BACK buffer */
+        uint32_t *fb = pb_get_framebuffer(prism_break); /* the BACK buffer */
         /* UEFI boot? If the EFI stub published a GOP handoff record, adopt the
          * firmware's linear framebuffer and DON'T touch ramfb (the firmware owns
          * the scanout). Otherwise the normal QEMU -kernel ramfb path. */
@@ -2134,7 +2151,8 @@ void kernel_main_arm64(void) {
             /* Derive tile geometry from the panel that actually negotiated --
              * this is what stops a fixed 80x45 from indexing past the array. */
             (void)zxv_shell_set_field_geometry(g_disp.w, g_disp.h);
-            zxv_shell_frame(&g_shell, &g_vbe, (int)(g_disp.w/2 - 8), (int)(g_disp.h/2), 0, prism_break.frames_rendered, g_fphase, g_fdepth);
+            zxv_shell_frame(&g_shell, &g_vbe, (int) (g_disp.w / 2 - 8), (int) (g_disp.h / 2), 0,
+                            prism_break->frames_rendered, g_fphase, g_fdepth);
             /* Boot INTO the Dimensional Desktop: the 13 lattice spaces as the
              * 0d-13d ladder (13d = the universal container / MegaROM), laid out by
              * the golden angle. This is the live boot image on ramfb. */
@@ -3280,9 +3298,10 @@ void kernel_event_cycle_run(void) {
                 /* Only the base desktop (view 0) shows the prism wallpaper; the lattice
                  * and space planes clear the whole screen themselves, so rendering the
                  * 6-layer prism there is a full-screen pass thrown away. Skip it. */
-                if (g_shell.view == 0) pb_render_frame(&prism_break);
-                zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break.frames_rendered, g_fphase, g_fdepth);
-                zxv_present(pb_get_framebuffer(&prism_break));   /* show a COMPLETE frame */
+                if (g_shell.view == 0) pb_render_frame(prism_break);
+                zxv_shell_frame(&g_shell, g_desktop_vbe, cx, cy, btn, prism_break->frames_rendered,
+                                g_fphase, g_fdepth);
+                zxv_present(pb_get_framebuffer(prism_break)); /* show a COMPLETE frame */
                 __asm__ __volatile__("msr daif, %0" :: "r"(daif) : "memory");
             }
             g_desktop_busy = 0;
@@ -3297,8 +3316,8 @@ void kernel_event_cycle_run(void) {
         uart_puts("\n");
     }
 
-    if (g_event_cycle % 1000 == 0 && vino.is_validator) {
-        vino_propose_block(&vino);
+    if (g_event_cycle % 1000 == 0 && vino->is_validator) {
+        vino_propose_block(vino);
     }
 
     /* Mirror event time into the classic scheduler registry so
@@ -3405,13 +3424,13 @@ void kernel_stats_report(void) {
     uart_put_dec((uint64_t)robin_vault.total_unlocked);
     uart_puts("\r\n");
 
-    pb_update_coverage(&prism_break);
+    pb_update_coverage(prism_break);
     uart_puts("prism-break: frames=");
-    uart_put_dec((uint64_t)prism_break.frames_rendered);
+    uart_put_dec((uint64_t) prism_break->frames_rendered);
     uart_puts(" ripples=");
-    uart_put_dec((uint64_t)prism_break.num_ripples);
+    uart_put_dec((uint64_t) prism_break->num_ripples);
     uart_puts(" touches=");
-    uart_put_dec((uint64_t)prism_break.touches_processed);
+    uart_put_dec((uint64_t) prism_break->touches_processed);
     uart_puts("\r\n");
 
     uart_puts("event-space: enqueued=");
