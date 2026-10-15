@@ -1355,7 +1355,7 @@ static void home_screen(ctx_t *c)
 }
 
 /* ---- the Chiglet: companion pop-up and Web4 ------------------------------ */
-static const zui_chiglet_t MY_CHG = {{0, 5, 3, 1, 6, 2, 3, 1}, 3, ZUI_CHG_SPEAKING};
+static const zui_chiglet_t MY_CHG = {{0, 5, 3, 1, 6, 2, 3, 1}, 610, ZUI_CHG_SPEAKING};
 
 static void chiglet_at(ctx_t *c, const zui_chiglet_t *k, int32_t cx, int32_t cy, int32_t r_pt,
                        uint32_t tick)
@@ -1463,9 +1463,9 @@ static void web4_screen(ctx_t *c)
 
     /* peers' Chiglets on the right, each on its own person's device */
     static const peer_chg_t P[3] = {
-        {"Seed library (park workspace)", "Moss", {{1, 2, 2, 2, 3, 1, 1, 0}, 2, ZUI_CHG_DECIDED}},
-        {"A. Ramos (Grant team)", "Pip", {{2, 6, 1, 0, 2, 3, 4, 2}, 1, ZUI_CHG_SPEAKING}},
-        {"Mesh radio club", "Static", {{4, 1, 3, 2, 0, 3, 2, 3}, 4, ZUI_CHG_UNCERTAIN}},
+        {"Seed library (park workspace)", "Moss", {{1, 2, 2, 2, 3, 1, 1, 0}, 89, ZUI_CHG_DECIDED}},
+        {"A. Ramos (Grant team)", "Pip", {{2, 6, 1, 0, 2, 3, 4, 2}, 13, ZUI_CHG_SPEAKING}},
+        {"Mesh radio club", "Static", {{4, 1, 3, 2, 0, 3, 2, 3}, 4181, ZUI_CHG_UNCERTAIN}},
     };
     int32_t rx = x0 + W - PT(c, 90);
     for (int i = 0; i < 3; i++) {

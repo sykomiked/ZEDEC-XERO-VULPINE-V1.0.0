@@ -26,6 +26,14 @@ static void disc(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t r
 static const int16_t SIN16[16] = {0, 392,  724,  946,  1024,  946,  724,  392,
                                   0, -392, -724, -946, -1024, -946, -724, -392};
 
+uint32_t zui_chiglet_rings(uint32_t together)
+{
+    static const uint32_t AT[4] = {13u, 89u, 610u, 4181u};
+    uint32_t n = 0;
+    while (n < 4u && together >= AT[n]) n++;
+    return n;
+}
+
 void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
                       uint32_t tick)
 {
@@ -33,8 +41,8 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int3
     const uint8_t *g = c->genes;
     uint32_t accent = zui_chiglet_accent(c);
 
-    /* halo: one ring per evolution step, up to four */
-    uint32_t rings = c->generation > 4u ? 4u : c->generation;
+    /* halo: the rings its time with its person has earned */
+    uint32_t rings = zui_chiglet_rings(c->together);
     for (uint32_t i = 0; i < rings; i++) {
         int32_t rr = r + r / 4 + (int32_t) i * (r / 6 + 2);
         zui_rect_t b = {cx - rr, cy - rr, 2 * rr, 2 * rr};

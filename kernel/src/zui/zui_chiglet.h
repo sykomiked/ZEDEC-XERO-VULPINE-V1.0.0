@@ -4,22 +4,30 @@
  *
  * Every person's Chiglet carries 8 genes (swarm/swarm_dna.h: home emotion,
  * temperament, curiosity, caution, warmth, pace, verbosity, specialty) and a
- * generation count that the evolution ratchet (swarm_evolve.h V1) raises as
- * it improves with its person. zui_chiglet_draw() turns exactly those bytes
- * into the companion's on-screen form, so its look is not a costume picked
- * from a menu: it IS its genome, and it changes when the genome does.
+ * count of the interactions it has shared with its person. zui_chiglet_draw()
+ * turns exactly those into the companion's on-screen form, so its look is not
+ * a costume picked from a menu: it IS its genome, grown by its time with you.
+ *
+ * The icon evolves with interaction, never with capability. `together` is
+ * the lifetime count of what the person and the chiglet did together: the
+ * bond's observed actions and accepted suggestions (chg_bond: observed +
+ * accepted) and the visits the owner allowed that ended well (chg_kin). It
+ * is never filled from the evolution ratchet's generation (swarm_evolve.h
+ * V1), a model's size or tier, or any score of how capable the chiglet is: a
+ * smarter model does not look grander, a well-loved one does.
  *
  *   temperament -> body roundness        curiosity  -> antennae (0..3)
  *   caution     -> shield ring weight    warmth     -> warm/cool body tint
  *   pace        -> orbiting motes        verbosity  -> mouth width
  *   home emotion-> accent colour         specialty  -> chest emblem
- *   generation  -> halo rings (one per evolution step shown, up to 4)
+ *   together    -> halo rings: one each at 13, 89, 610 and 4181 shared
+ *                  interactions (Fibonacci, so each ring takes longer)
  *
  * The mood drawn on its face is the Chiglet runtime's honest state: DECIDED
  * (steady eyes), UNCERTAIN (one eye narrowed, the "not sure" face the runtime
  * returns when its evidence is not independent enough), SPEAKING (open mouth).
  *
- * Deterministic: same genes, generation, mood and tick -> same pixels.
+ * Deterministic: same genes, together, mood and tick -> same pixels.
  */
 #ifndef ZXV_ZUI_CHIGLET_H
 #define ZXV_ZUI_CHIGLET_H
@@ -31,13 +39,16 @@ typedef enum { ZUI_CHG_DECIDED = 0, ZUI_CHG_UNCERTAIN, ZUI_CHG_SPEAKING } zui_ch
 
 typedef struct {
     uint8_t genes[8];
-    uint32_t generation;
+    uint32_t together; /* shared interactions, never capability (above) */
     zui_chg_mood_t mood;
 } zui_chiglet_t;
 
 /* Draw centred at (cx, cy), body radius r pixels. tick animates the motes. */
 void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
                       uint32_t tick);
+
+/* The halo rings `together` interactions earn: 0..4. */
+uint32_t zui_chiglet_rings(uint32_t together);
 
 /* The accent colour its home-emotion gene selects (for its speech bubble). */
 uint32_t zui_chiglet_accent(const zui_chiglet_t *c);
