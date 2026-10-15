@@ -186,6 +186,16 @@ const char *zl_lang_name(int lang)
         return "BASIC";
     case ZL_LANG_FORTH:
         return "Forth";
+    case ZL_LANG_PASCAL:
+        return "Pascal";
+    case ZL_LANG_ALGOL60:
+        return "ALGOL 60";
+    case ZL_LANG_LISP:
+        return "LISP";
+    case ZL_LANG_SCHEME:
+        return "Scheme";
+    case ZL_LANG_LOGO:
+        return "Logo";
     default:
         return "unknown";
     }
@@ -200,6 +210,16 @@ const char *zl_twin_name(int lang)
         return "Hatchling";
     case ZL_LANG_FORTH:
         return "Cairndrake";
+    case ZL_LANG_PASCAL:
+        return "Tutordrake";
+    case ZL_LANG_ALGOL60:
+        return "Rootwyrm";
+    case ZL_LANG_LISP:
+        return "Coilwyrm";
+    case ZL_LANG_SCHEME:
+        return "Spiraldrake";
+    case ZL_LANG_LOGO:
+        return "Kiteling";
     default:
         return "unknown";
     }
@@ -1129,6 +1149,15 @@ static int dispatch(int lang, const char *src, size_t len, zl_cc_t *c, zl_out_t 
         return zl_basic_compile(src, len, c, tw, fe);
     case ZL_LANG_FORTH:
         return zl_forth_compile(src, len, c, tw, fe);
+    case ZL_LANG_PASCAL:
+        return zl_pascal_compile(src, len, c, tw, fe);
+    case ZL_LANG_ALGOL60:
+        return zl_algol_compile(src, len, c, tw, fe);
+    case ZL_LANG_LISP:
+    case ZL_LANG_SCHEME:
+        return zl_lisp_compile(src, len, c, tw, fe);
+    case ZL_LANG_LOGO:
+        return zl_logo_compile(src, len, c, tw, fe);
     default:
         return zl_fail(c, ZL_E_ARG, "unknown language");
     }

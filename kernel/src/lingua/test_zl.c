@@ -1312,12 +1312,22 @@ static void test_api(void)
     CHECK(strcmp(zl_lang_name(ZL_LANG_FORTRAN), "FORTRAN") == 0 &&
               strcmp(zl_lang_name(ZL_LANG_BASIC), "BASIC") == 0 &&
               strcmp(zl_lang_name(ZL_LANG_FORTH | ZL_TWIN), "Forth") == 0 &&
+              strcmp(zl_lang_name(ZL_LANG_PASCAL), "Pascal") == 0 &&
+              strcmp(zl_lang_name(ZL_LANG_ALGOL60), "ALGOL 60") == 0 &&
+              strcmp(zl_lang_name(ZL_LANG_LISP), "LISP") == 0 &&
+              strcmp(zl_lang_name(ZL_LANG_SCHEME), "Scheme") == 0 &&
+              strcmp(zl_lang_name(ZL_LANG_LOGO), "Logo") == 0 &&
               strcmp(zl_lang_name(0), "unknown") == 0,
           "language names");
     CHECK(strcmp(zl_twin_name(ZL_LANG_FORTRAN), "Reckonwyrm") == 0 &&
               strcmp(zl_twin_name(ZL_LANG_BASIC), "Hatchling") == 0 &&
               strcmp(zl_twin_name(ZL_LANG_FORTH), "Cairndrake") == 0 &&
-              strcmp(zl_twin_name(7), "unknown") == 0,
+              strcmp(zl_twin_name(ZL_LANG_PASCAL), "Tutordrake") == 0 &&
+              strcmp(zl_twin_name(ZL_LANG_ALGOL60), "Rootwyrm") == 0 &&
+              strcmp(zl_twin_name(ZL_LANG_LISP), "Coilwyrm") == 0 &&
+              strcmp(zl_twin_name(ZL_LANG_SCHEME), "Spiraldrake") == 0 &&
+              strcmp(zl_twin_name(ZL_LANG_LOGO | ZL_TWIN), "Kiteling") == 0 &&
+              strcmp(zl_twin_name(ZL_LANG__COUNT), "unknown") == 0,
           "twin names");
     int st[] = {ZL_OK,        ZL_E_ARG,       ZL_E_SYNTAX, ZL_E_UNSUPPORTED, ZL_E_NONCANON,
                 ZL_E_LIMIT,   ZL_E_UNDEFINED, ZL_E_VERIFY, ZL_E_OVERFLOW,    ZL_E_DIVZERO,
@@ -1362,6 +1372,11 @@ static void test_api(void)
               "Forth nesting limit");
     }
 }
+
+#include "test_zl_pascal.inc"
+#include "test_zl_algol.inc"
+#include "test_zl_lisp.inc"
+#include "test_zl_logo.inc"
 
 /* ------------------------------------------------------------ golden files */
 
@@ -2245,6 +2260,10 @@ int main(int argc, char **argv)
     test_basic();
     test_fortran();
     test_forth();
+    test_pascal();
+    test_algol();
+    test_lisp();
+    test_logo();
     test_api();
     test_pack();
     test_frames();

@@ -84,6 +84,11 @@ int zl_wordeq(const char *a, size_t n, const char *w);
 int zl_fortran_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
 int zl_basic_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
 int zl_forth_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
+int zl_pascal_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
+int zl_algol_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
+/* LISP and Scheme share a reader; c->p->lang says which dialect. */
+int zl_lisp_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
+int zl_logo_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw, void *work);
 
 #define ZL_STATIC_ASSERT(cond, name) typedef char zl_static_##name[(cond) ? 1 : -1]
 

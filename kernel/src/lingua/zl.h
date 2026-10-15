@@ -74,7 +74,12 @@ typedef enum {
     ZL_LANG_FORTRAN = 1, /* FORTRAN 77 fixed form, INTEGER subset (1957 lineage) */
     ZL_LANG_BASIC = 2,   /* ECMA-55 Minimal BASIC, integer subset (1964 lineage) */
     ZL_LANG_FORTH = 3,   /* Forth-2012 core subset (1970 lineage) */
-    ZL_LANG__COUNT = 4
+    ZL_LANG_PASCAL = 4,  /* ISO 7185 Pascal, integer subset (1970) */
+    ZL_LANG_ALGOL60 = 5, /* Revised Report ALGOL 60, integer subset (1960) */
+    ZL_LANG_LISP = 6,    /* Common Lisp core subset (1958 lineage) */
+    ZL_LANG_SCHEME = 7,  /* R7RS small core subset (1975 lineage) */
+    ZL_LANG_LOGO = 8,    /* UCBLogo core subset, integers (1967 lineage) */
+    ZL_LANG__COUNT = 9
 } zl_lang_t;
 
 /* A twin is selected by OR-ing this flag into the language. */

@@ -34,14 +34,19 @@ static int lang_of(const char *path)
         return ZL_LANG_FORTRAN;
     if (!strcmp(dot, ".bas") || !strcmp(dot, ".BAS")) return ZL_LANG_BASIC;
     if (!strcmp(dot, ".fs") || !strcmp(dot, ".fth") || !strcmp(dot, ".4th")) return ZL_LANG_FORTH;
+    if (!strcmp(dot, ".pas") || !strcmp(dot, ".p")) return ZL_LANG_PASCAL;
+    if (!strcmp(dot, ".alg") || !strcmp(dot, ".a60")) return ZL_LANG_ALGOL60;
+    if (!strcmp(dot, ".lisp") || !strcmp(dot, ".lsp") || !strcmp(dot, ".cl")) return ZL_LANG_LISP;
+    if (!strcmp(dot, ".scm") || !strcmp(dot, ".ss")) return ZL_LANG_SCHEME;
+    if (!strcmp(dot, ".lg") || !strcmp(dot, ".logo")) return ZL_LANG_LOGO;
     if (!strcmp(dot, ".zlir")) return ZLIR;
     return 0;
 }
 
 static int usage(void)
 {
-    fprintf(stderr,
-            "usage: zxlang run|twin|check|ir|pack [--twin] <file.f|.bas|.fs|.zlir> [input ...]\n");
+    fprintf(stderr, "usage: zxlang run|twin|check|ir|pack [--twin] "
+                    "<file.f|.bas|.fs|.pas|.alg|.lisp|.scm|.lg|.zlir> [input ...]\n");
     return 3;
 }
 

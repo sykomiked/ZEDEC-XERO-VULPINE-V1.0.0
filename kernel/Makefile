@@ -1793,7 +1793,7 @@ test-treaty-cobol:
 # with its canonical AI twin (see docs/LANGUAGE_CATALOGUE.md). The front-ends
 # and runtime are freestanding (no libc symbols at all). test-lingua-ref
 # compares golden and randomly generated programs with gfortran and gforth.
-LINGUA_SRC := src/lingua/zl_ir.c src/lingua/zl_basic.c src/lingua/zl_fortran.c src/lingua/zl_forth.c src/lingua/zl_pack.c
+LINGUA_SRC := $(sort $(wildcard src/lingua/zl_*.c))
 LINGUA_FUZZ ?= 20000
 
 .PHONY: test-lingua test-lingua-ref test-lingua-mut

@@ -187,7 +187,7 @@ int main(int argc, char **argv)
     rng = argc > 2 ? strtoull(argv[2], 0, 10) * 0x9E3779B97F4A7C15ull + 1 : 1;
     long accepted = 0, twin_ok = 0, ran_ok = 0, trapped = 0;
     for (long it = 0; it < iters; it++) {
-        const char *seed = seeds[rnd(3)];
+        const char *seed = seeds[rnd(sizeof seeds / sizeof seeds[0])];
         size_t n = strlen(seed);
         memcpy(buf, seed, n);
         if (rnd(8) == 0) { /* sometimes pure noise */
