@@ -293,6 +293,7 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32012 the method's feature is off (zxvd_ext.h X4)
  *        -32013 spaces   -32014 files   -32015 not for a phone
  *        -32016 play     -32017 module methods (zxvd_rpc_modules.h)
+ *        -32018 backup   -32019 screen time   -32021 places   -32022 devices
  *        -32020 payments (zxvd_pay.h)   -32030 people   -32031 no model
  *        -32040 cards    -32041 passkeys
  *        -32050 vault, swap, auctions, Zenny, stats (zxvd_econ.c)
@@ -360,7 +361,7 @@ int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint
 int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
                         const char *ref, uint64_t *entry);
 
-/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+/* files.* (zxv_files.h F1-F6): the Hoard (the ZXV folder) behind the Banker, Quillon
  * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
  */
 #define ZXVD_E_FILES (-32014)

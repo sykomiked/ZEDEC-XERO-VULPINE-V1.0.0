@@ -24,3 +24,13 @@ make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a >"$T/wasm.log" 2>&1 ||
     "$R/sdk/pillars/cobol-sutra/build/libzsutra.a" "$R/sdk/pillars/fortran-trebago/build/libztrebago.a" "$R/sdk/pillars/mumps-myra/build/libzmyra.a" -L"$R/sdk/libzxv/build" -lzxv -Wl,-rpath,"$R/sdk/libzxv/build" -lpthread \
     -o "$T/test_zxapp" || exit 3
 "$T/test_zxapp" "$R/kernel/src"
+# the languages the apps use, as docs/APP_LANGUAGE_COVERAGE.md says (LANGUAGE_FIT.tsv)
+python3 "$R/tools/apps/lang_coverage.py" --check
+# every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
+L="$R/kernel/src/lingua"
+"$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L/zl_ir.c" "$L/zl_basic.c" "$L/zl_fortran.c" \
+    "$L/zl_forth.c" "$L/zl_pack.c" -o "$T/zxlang" || exit 3
+find "$HERE/blocks" -name '*.f' -o -name '*.bas' -o -name '*.fs' | sort | while read -r f; do
+    "$T/zxlang" check --twin "$f" >/dev/null || { echo "[FAIL] $f is not in its twin's canonical form (zxlang twin)"; exit 1; }
+done
+echo "[PASS] Lingua blocks are in twin form"

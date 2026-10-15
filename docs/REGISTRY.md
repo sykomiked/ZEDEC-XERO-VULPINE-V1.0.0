@@ -6,9 +6,9 @@ where its results may go, and how its icon looks.
 
 | Slots | Count | Layer | Holds | Icon on the #002911 ground |
 |---|---|---|---|---|
-| 1–144 | 144 | **L1 Foundation** | The 144 apps on the existing app list (`kernel/src/launch/zxl_apps.inc`, Burrow … Stillwater, in 12 groups of 12) | Gold, one colour |
+| 1–144 | 144 | **L1 Foundation** | The 144 apps on the existing app list (`kernel/src/launch/zxl_apps.inc`, Banker … Stillwater, in 12 groups of 12) | Gold, one colour |
 | 145–271 | 127 | **L2 Concourse** | Compound tools: circuits, buses, verification streams, swarm and peer pipelines | Gold, one colour |
-| 272–407 | 136 | **L3 Apparatus** | Language and legacy hosts: COBOL, Fortran, Ada, APL and MUMPS (the SDK pillars), the Rosetta Shell's dialect front-ends | Its own colours, inside a gold border |
+| 272–407 | 136 | **L3 Apparatus** | Apps built from L2 apps (`use` in their manifests); where one runs code written for another system, it does so as a host inside the Cage | Its own colours, inside a gold border |
 
 That is 144 + 127 + 136 = 407 slots. `#002911` is already the dark
 theme's ground in the native UI (`kernel/src/zui/zui_palette.c`), and gold
@@ -63,9 +63,12 @@ with blockchain rollups is not mistaken for it.
 **Contradictions.** If two L2 results disagree (BOTH), nothing settles.
 The Arbitration Desk's rules or the user decide, as in `docs/PIT_BOSS.md`.
 
-## 3. L3 Apparatus (272–407): foreign and legacy hosts
+## 3. L3 Apparatus (272–407): apps built from L2
 
-L3 runs code written for other worlds in its own terms:
+An L3 app is composed from L2 apps, as an L2 app is from L1 blocks: its
+manifest names them with `use`, and every language each part runs in comes
+with it (`docs/APP_LANGUAGE_COVERAGE.md`). Where an L3 app runs code
+written for another system, it hosts that code in its own terms:
 - COBOL `PICTURE` clauses and COMP-3 packed decimal, read as exact decimal
   values, never as binary floats;
 - Fortran numerics;

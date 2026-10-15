@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How the Banker files an entry of a folder in the Hoard, in MYRA: its
+; position, size in bytes and modification time (Unix seconds). The Banker
+; asks whether the numbers fit before it shows them.
+^ZXHOARD(folder:i9, seq:i9) = size:i18! ^ mtime:i12!

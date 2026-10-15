@@ -1,6 +1,6 @@
 # The Registrar: files as holdings in a verified store
 
-The Registrar is the second layer of Burrow, ZXV's files app. Burrow stays
+The Registrar is the second layer of the Banker, ZXV's files app. The Banker stays
 as it is: the same folders and files, the same view. The Registrar adds, under
 and beside that view, the custody record every file gets. It treats each
 store (the home folder, or a space) as a registry and each file as a
@@ -8,7 +8,7 @@ store (the home folder, or a space) as a registry and each file as a
 and a provenance record. Every operation on holdings behaves like a
 transaction: it completes and verifies, or it leaves nothing behind.
 
-It extends the files layer that Burrow (the current files app) already uses,
+It extends the files layer that the Banker (the current files app) already uses,
 `kernel/arch/hosted/zxv_files.h`. That layer already guarantees:
 - one root folder and no links out of it (F1–F3);
 - whole-file writes through a staging file and a rename (F4);
@@ -17,7 +17,7 @@ It extends the files layer that Burrow (the current files app) already uses,
 
 Status: design, not built. Section 6 gives the build order.
 
-## 1. What the Registrar adds to Burrow
+## 1. What the Registrar adds to the Banker
 
 | The Registrar shows | Where it comes from | New? |
 |---|---|---|
@@ -111,7 +111,7 @@ system call.
 | 2 | Admission and audit: SHA-256 per holding, the four states | A file edited outside the Registrar shows FALSE; a never-admitted file shows NEITHER |
 | 3 | Multi-file transactions with staging, commit entry and restart recovery | Killing the process at each step leaves either the old state or the new one, never a mix (tested by fault injection at every step) |
 | 4 | BOTH and reconcile: replicas and concurrent writes held side by side | Two conflicting writes leave both versions and a BOTH state, nothing lost |
-| 5 | The Registrar layer in Burrow: a details panel (exact size, hash, provenance, state, current readers and writers) and state marks on Burrow's existing view, which otherwise stays as it is | The panel matches `journal verify` on the same store |
+| 5 | The Registrar layer in the Banker: a details panel (exact size, hash, provenance, state, current readers and writers) and state marks on the Banker's existing view, which otherwise stays as it is | The panel matches `journal verify` on the same store |
 | 6 | Canvas source nodes with typed ports; shell verbs through the Rosetta Shell | Dragging a COBOL record file gives a record-typed port |
 
 ## 7. Limits

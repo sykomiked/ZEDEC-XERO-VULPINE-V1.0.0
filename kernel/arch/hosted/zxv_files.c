@@ -829,7 +829,7 @@ const char *zxf_strerror(int code)
     case ZXF_OK:
         return "ok";
     case ZXF_E_PATH:
-        return "not a valid name or path in the ZXV folder";
+        return "not a valid name or path in the Hoard";
     case ZXF_E_NOTFOUND:
         return "no such file or folder";
     case ZXF_E_EXISTS:
@@ -843,7 +843,7 @@ const char *zxf_strerror(int code)
     case ZXF_E_TOOBIG:
         return "too large";
     case ZXF_E_ROOT:
-        return "the ZXV folder cannot be found or made";
+        return "the Hoard cannot be found or made";
     case ZXF_E_BINARY:
         return "not text (not UTF-8)";
     case ZXF_E_STAGE:

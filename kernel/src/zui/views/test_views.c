@@ -270,7 +270,7 @@ static void check_ground(const char *who)
     CHECK((PX[0] & 0xFFFFFFu) == ZUI_VOID, "%s: the corner is the ground, %06x", who, PX[0]);
 }
 
-/* ---------------- Burrow ---------------- */
+/* ---------------- The Banker ---------------- */
 
 static burrow_t B;
 static burrow_view_t BV;

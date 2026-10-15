@@ -3,7 +3,7 @@
 A complete operating system ships the tools to see and run the machine, not
 only apps to work in. This page lists every utility ZXV needs, measured
 against what macOS and common Linux desktops ship, with the name each one has
-in ZXV and what it is built on. The everyday apps (Burrow, Quillon, Glint,
+in ZXV and what it is built on. The everyday apps (the Banker, Quillon, Glint,
 Spindle, Murmuration) are in [STAPLE_APPS.md](STAPLE_APPS.md).
 
 Every utility follows the staple apps' pattern: a toolkit-neutral model in
@@ -16,11 +16,11 @@ needed before release.
 
 | Utility | Does | Like | zxvd | Model |
 |---|---|---|---|---|
-| **Almanac** | About this machine: system, CPUs, memory, uptime, the volume holding the ZXV folder, zxvd's own use; AI explains it in plain words | About This Mac, System Information, `neofetch` | `sys.info`, `sys.disk` | `almanac_model.h` |
+| **Almanac** | About this machine: system, CPUs, memory, uptime, the volume holding the Hoard, zxvd's own use; AI explains it in plain words | About This Mac, System Information, `neofetch` | `sys.info`, `sys.disk` | `almanac_model.h` |
 | **Tidewatch** | Activity monitor: zxvd's CPU share and memory, the machine's memory and load, as a two-minute history to graph | Activity Monitor, `top`, GNOME System Monitor | `sys.info` sampled | `tidewatch_model.h` |
 | **Wake** | Event console: follows zxvd's events (refusals as warnings, changes as info), filters by level and text, says how many it missed; history reaches back across restarts a page at a time, and a check shows whether the journal was changed; AI explains the warnings | Console, `journalctl`, Event Viewer | `log.tail`, `journal.query`, `journal.verify` | `wake_model.h` |
 | **Sounding** | Network monitor: interfaces, addresses, live bytes a second, zxvd's request traffic | Network Utility, `nload`, `ip -s link` | `sys.net` | `sounding_model.h` |
-| **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or Burrow); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
+| **Scent** | Search: finds files in a space by name and by the words inside them as the owner types, best first with the text around each hit, opens each in the right app (Quillon, Glint or the Banker); AI can suggest a sharper search, run only when accepted | Spotlight, GNOME Search, `locate`, `grep -r` | `search.query`, `search.refresh` | `scent_model.h` |
 | **Platen** | Printers and scanners on the local network: adds a printer by its address and shows its state, what it takes and why it stopped; prints a file of the space and follows or cancels the job; scans pages from the glass or the feeder into a folder; AI explains a printer's trouble in plain words | Printers & Scanners, CUPS, SANE | `print.status`, `print.submit`, `print.job`, `print.cancel`, `scan.status`, `scan.start` | `platen_model.h` |
 | **Keepsake** | Backups with versions: backs a space up to a folder on another disk, lists the backups, shows every version a file has had, checks that a backup reads back whole, brings a file or folder back as a new item (never over what is there), lets old backups go; AI explains a failed check | Time Machine, Déjà Dup, `restic` | `backup.run`, `backup.list`, `backup.versions`, `backup.verify`, `backup.restore`, `backup.prune` | `keepsake_model.h` |
 | **Shepherd** | Family and screen time: minutes per app each day of the week, limits a guardian sets (minutes a day, the hours an app may be used, more time for today), locked with a passphrase; the desktop reports the app in front once a minute and says when time runs out; AI suggests a fair plan, changed only by the guardian | Screen Time, Family Safety, Digital Wellbeing | `screen.tick`, `screen.check`, `screen.status`, `screen.set_limit`, `screen.clear_limit`, `screen.grant`, `screen.lock` | `shepherd_model.h` |
@@ -38,12 +38,12 @@ happened (a method, an outcome, how long it took), never parameters or
 content.
 
 Scent's index (`kernel/arch/hosted/zxv_search.h`) walks a space through the
-same rules as Burrow, so it never sees hidden files, the Trash or links. It
+same rules as the Banker, so it never sees hidden files, the Trash or links. It
 keeps each file's words and their prefixes (from 2 to 24 bytes, so "harv"
 finds "harvest"), reads again only the files whose size or time changed, and
 holds up to 20,000 files per space and the first 1 MiB of each text file.
 Each space has its own index, and four are kept at once. A file elsewhere on
-the disk is not searched: the ZXV folder is the one place apps see.
+the disk is not searched: the Hoard is the one place apps see.
 
 Platen speaks IPP Everywhere to printers and eSCL to scanners
 (`kernel/src/print`, `kernel/arch/hosted/zxv_print_host.h`), the driverless
@@ -111,10 +111,10 @@ In build order, highest first. "Built on" names what exists today.
 
 | Utility | Does | Like | Built on |
 |---|---|---|---|
-| **Keystone** | Settings: displays, sound, keyboard, language, accessibility, network, sharing, the ZXV folder, model choice, budgets | System Settings, GNOME Settings | `theme`, `display`, `audio`, `keyboard`, `i18n`, `wifi`, `bluetooth` modules; needs a `settings.*` store in zxvd |
+| **Keystone** | Settings: displays, sound, keyboard, language, accessibility, network, sharing, the Hoard, model choice, budgets | System Settings, GNOME Settings | `theme`, `display`, `audio`, `keyboard`, `i18n`, `wifi`, `bluetooth` modules; needs a `settings.*` store in zxvd |
 | **Tidewatch, part 2** | Every process on the machine and the swarm's agents, with quit and priority | Activity Monitor's process list, `htop` | `swarm.state`; host process listing (`/proc`, libproc, Toolhelp) |
 | **Sounding, part 2** | Peers and mesh links, PQ sessions, per-peer traffic, firewall view | Little Snitch view, `nethogs`, `ss` | `net.peers`, `mesh.books`, `mesh_net` |
-| **Cellar** | Disk utility: volumes, space by folder and space, Trash size, check and repair the ZXV folder, disc images | Disk Utility, GNOME Disks, `ncdu` | `sys.disk`, `files.*`, `zxvfs`, `blockdev` |
+| **Cellar** | Disk utility: volumes, space by folder and space, Trash size, check and repair the Hoard, disc images | Disk Utility, GNOME Disks, `ncdu` | `sys.disk`, `files.*`, `zxvfs`, `blockdev` |
 | **Keepsake, part 2** | Encrypted backups (with Lockbox's keys), to a peer or IPFS, on a schedule (with Treadle) | Time Machine to a network disk | `ipfs_node`, `svault`, `event_sched` |
 | **Witness** | Audit log: signed record of what changed, who approved it, held crossings, AI actions accepted | Console's audit view, `auditd` | `chronicle`, `provenance`, `peer_audit` |
 | **Gatehouse** | Permissions and privacy: which app may use files, camera, microphone, network, which capabilities each holds | Privacy & Security, Flatpak permissions | `zxv_cap` capabilities, `onepolicy` |

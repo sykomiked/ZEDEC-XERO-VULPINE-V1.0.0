@@ -30,17 +30,17 @@
 #endif
 
 #include "zxvd_rpc.h"
-#include "zxvd_ext.h" /* method groups and feature switches */
-#include "sha256.h"    /* the books file's hash chain */
-#include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
-#include "web4_util.h" /* hex */
-#include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
+#include "zxvd_ext.h"         /* method groups and feature switches */
+#include "sha256.h"           /* the books file's hash chain */
+#include "web4_web2.h"        /* the bounded RFC 8259 tokenizer */
+#include "web4_util.h"        /* hex */
+#include "zxv_api.h"          /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
 #include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
-#include "zxv_files.h"        /* files.*: the ZXV folder */
+#include "zxv_files.h"        /* files.*: the Hoard (the ZXV folder) */
 #include "zxv_spaces.h"       /* spaces.*: who may see and change each place */
 #include "zxv_sysinfo.h"      /* sys.*: the machine and zxvd, for the system utilities */
 #include "zxvd_log.h"         /* log.tail and the RPC traffic counts */
-#include "zxv_search.h"       /* search.*: Scent's index of the ZXV folder */
+#include "zxv_search.h"       /* search.*: Scent's index of the Hoard */
 #include "zxv_print_host.h"   /* print.*, scan.*: Platen's printers and scanners */
 #include "zxv_keepsake.h"     /* backup.*: Keepsake's backups and versions */
 #include "zxv_journal.h"      /* journal.*: Wake's history across restarts */
@@ -189,7 +189,7 @@ static void books_close(void)
 #define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
 #define LIT(b, s)                                                                                  \
     zxvd_buf_raw((b), "" s, sizeof("" s) - 1) /* a string literal only: anything else fails */
-#define BF_MAX_LINE 1024u                 /* a record is far smaller; longer is damage */
+#define BF_MAX_LINE 1024u                     /* a record is far smaller; longer is damage */
 
 static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
 static int BF = -1;         /* the open file */
@@ -3299,32 +3299,6 @@ static const method_t METHODS[] = {
     {"play.catalogue", m_play_catalogue, PH_READ},
     {"play.run", m_play_run, PH_NO},
     {"play.draft", m_play_draft, PH_NO},
-    /* people (zxvd_people.c): the control socket only */
-    {"social.post", m_people, PH_NO},
-    {"social.feed", m_people, PH_NO},
-    {"social.groups", m_people, PH_NO},
-    {"social.group_create", m_people, PH_NO},
-    {"social.join", m_people, PH_NO},
-    {"social.leave", m_people, PH_NO},
-    {"social.react", m_people, PH_NO},
-    {"social.export", m_people, PH_NO},
-    {"social.import", m_people, PH_NO},
-    {"call.start", m_people, PH_NO},
-    {"call.accept", m_people, PH_NO},
-    {"call.hangup", m_people, PH_NO},
-    {"call.status", m_people, PH_NO},
-    {"call.signal", m_people, PH_NO},
-    {"xlate.detect", m_people, PH_NO},
-    {"xlate.translate", m_people, PH_NO},
-    {"xlate.languages", m_people, PH_NO},
-    {"devmesh.status", m_people, PH_NO},
-    {"devmesh.invite", m_people, PH_NO},
-    {"devmesh.join", m_people, PH_NO},
-    {"devmesh.confirm_sas", m_people, PH_NO},
-    {"devmesh.revoke", m_people, PH_NO},
-    {"devmesh.devices", m_people, PH_NO},
-    {"ui.get", m_people, PH_NO},
-    {"ui.set", m_people, PH_NO},
     {"sys.info", m_sys_info, PH_NO},
     {"sys.disk", m_sys_disk, PH_NO},
     {"sys.net", m_sys_net, PH_NO},
@@ -3361,6 +3335,32 @@ static const method_t METHODS[] = {
     {"backup.verify", m_backup_verify, PH_NO},
     {"backup.restore", m_backup_restore, PH_NO},
     {"backup.prune", m_backup_prune, PH_NO},
+    /* people (zxvd_people.c): the control socket only */
+    {"social.post", m_people, PH_NO},
+    {"social.feed", m_people, PH_NO},
+    {"social.groups", m_people, PH_NO},
+    {"social.group_create", m_people, PH_NO},
+    {"social.join", m_people, PH_NO},
+    {"social.leave", m_people, PH_NO},
+    {"social.react", m_people, PH_NO},
+    {"social.export", m_people, PH_NO},
+    {"social.import", m_people, PH_NO},
+    {"call.start", m_people, PH_NO},
+    {"call.accept", m_people, PH_NO},
+    {"call.hangup", m_people, PH_NO},
+    {"call.status", m_people, PH_NO},
+    {"call.signal", m_people, PH_NO},
+    {"xlate.detect", m_people, PH_NO},
+    {"xlate.translate", m_people, PH_NO},
+    {"xlate.languages", m_people, PH_NO},
+    {"devmesh.status", m_people, PH_NO},
+    {"devmesh.invite", m_people, PH_NO},
+    {"devmesh.join", m_people, PH_NO},
+    {"devmesh.confirm_sas", m_people, PH_NO},
+    {"devmesh.revoke", m_people, PH_NO},
+    {"devmesh.devices", m_people, PH_NO},
+    {"ui.get", m_people, PH_NO},
+    {"ui.set", m_people, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 

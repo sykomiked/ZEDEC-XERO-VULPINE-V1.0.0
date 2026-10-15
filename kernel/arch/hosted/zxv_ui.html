@@ -806,7 +806,7 @@ function show(app){
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 $('dock').setAttribute('aria-label',T('UI_DOCK_APPS'));
 
-/* ----- Burrow (files) ----- */
+/* ----- The Banker (files in the Hoard) ----- */
 const F={dir:'',entries:[],
   crumbs(el,dir,go){el.innerHTML='';const parts=dir?dir.split('/'):[];const a=document.createElement('a');a.textContent=parts[0]==='.Trash'?T('UI_FILES_TRASH'):T('UI_FILES_ROOT');a.onclick=()=>go(parts[0]==='.Trash'?'.Trash':'');el.appendChild(a);
     let acc=parts[0]==='.Trash'?'.Trash':'';for(const p of parts[0]==='.Trash'?parts.slice(1):parts){acc=join(acc,p);const s=document.createElement('span');s.textContent='›';el.appendChild(s);const x=document.createElement('a');x.textContent=p;const to=acc;x.onclick=()=>go(to);el.appendChild(x)}},

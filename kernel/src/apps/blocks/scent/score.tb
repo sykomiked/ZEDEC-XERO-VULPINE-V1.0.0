@@ -1,0 +1,11 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How well a file matches a search, in Trebago, as zxv_search.c scores it:
+! for each word, 1000 when it is in the file's name, else 100 when it is in
+! the folder's, plus how often it is in the text (at most 99).
+trebago score
+  in  name(n), folder(n), count(n)
+  out score
+  score = sum(i, 1000 * name(i) + 100 * folder(i) * (1 - name(i)) + min(99, count(i)))
+end

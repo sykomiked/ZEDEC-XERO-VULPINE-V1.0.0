@@ -4,7 +4,7 @@
  * methods (docs/SYSTEM_UTILITIES.md).
  *
  *   S1 WHAT BURROW SEES. The index walks the space in use through zxv_files
- *      (F1-F3), so it holds exactly the files Burrow lists: hidden names,
+ *      (F1-F3), so it holds exactly the files the Banker lists: hidden names,
  *      the Trash and links are left out. Each space has its own index.
  *   S2 INCREMENTAL. A refresh re-reads only the files whose size or time
  *      changed since the last one, and drops the files that are gone.

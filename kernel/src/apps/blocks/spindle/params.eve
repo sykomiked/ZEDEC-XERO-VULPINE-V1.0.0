@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How much a console call may carry: its params up to 4 KiB, a reply kept
+# up to 8 KiB (spindle_model.h).
+eve spindle
+call_bytes = 0 .. 8192
+
+call_limits {
+  params: call_bytes 0 .. 4096
+  reply: call_bytes
+}

@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which.",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which. -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -16594,7 +16594,7 @@
     },
     {
       "name": "files.root",
-      "summary": "The ZXV folder behind the Burrow, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
+      "summary": "The Hoard (the ZXV folder) behind the Banker, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
       "params": [],
       "result": {
         "name": "root",
@@ -16628,7 +16628,7 @@
           "required": false,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16686,7 +16686,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16733,7 +16733,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16815,7 +16815,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16893,7 +16893,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16929,7 +16929,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16938,7 +16938,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16974,7 +16974,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -19092,6 +19092,2365 @@
             },
             "draft": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.info",
+      "summary": "The machine and zxvd itself, read only (zxv_sysinfo.h; Almanac and Tidewatch). Unknown facts are 0, '' or null, never guessed.",
+      "params": [],
+      "result": {
+        "name": "info",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "time_ms": {
+              "type": "integer",
+              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
+            },
+            "os": {
+              "type": "string",
+              "enum": [
+                "macos",
+                "linux",
+                "windows",
+                "other"
+              ]
+            },
+            "os_version": {
+              "type": "string"
+            },
+            "arch": {
+              "type": "string"
+            },
+            "host": {
+              "type": "string"
+            },
+            "cpus": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "mem_total": {
+              "type": "integer",
+              "description": "bytes"
+            },
+            "mem_avail": {
+              "type": "integer",
+              "description": "bytes the system can give without swapping"
+            },
+            "uptime_s": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "load": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "integer"
+              },
+              "description": "1, 5 and 15 minute load averages x100 (no floats); null on Windows"
+            },
+            "zxvd": {
+              "type": "object",
+              "properties": {
+                "pid": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cpu_user_us": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "cpu_sys_us": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rss_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "max_rss_bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.disk",
+      "summary": "The volume holding the Hoard: total, free and what this user may still write, in bytes (Cellar).",
+      "params": [],
+      "result": {
+        "name": "disk",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "free": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "avail": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "sys.net",
+      "summary": "Network interfaces with their addresses and byte counts, and zxvd's own RPC traffic (Sounding). supported is false where the platform listing is not wired yet (Windows).",
+      "params": [],
+      "result": {
+        "name": "net",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "time_ms": {
+              "type": "integer",
+              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
+            },
+            "supported": {
+              "type": "boolean"
+            },
+            "interfaces": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "up": {
+                    "type": "boolean"
+                  },
+                  "loopback": {
+                    "type": "boolean"
+                  },
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "rx_bytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "tx_bytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "rx_packets": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "tx_packets": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            },
+            "rpc": {
+              "type": "object",
+              "properties": {
+                "requests": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "errors": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_in": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes_out": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "busy_us": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "log.tail",
+      "summary": "zxvd's recent events, oldest first (zxvd_log.h; the Wake console): refusals as warnings, changes as info, never parameters or content. Pass next back as since to read on; dropped counts events the ring no longer holds.",
+      "params": [
+        {
+          "name": "since",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256,
+            "default": 100
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "default": "info",
+            "description": "the lowest level returned"
+          }
+        }
+      ],
+      "result": {
+        "name": "tail",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "time_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warn",
+                      "error"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "dropped": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "journal.query",
+      "summary": "zxvd's events kept on disk across restarts (zxv_journal.h; Wake's history), newest first, filtered by time, level, source and text, a page at a time: pass the oldest seq shown as before to read on. With no journal (zxvd started without --journal), on is false and entries is empty. Read only.",
+      "params": [
+        {
+          "name": "since_ms",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events at or after this time (ms since 1970); 0 or absent: no bound"
+          }
+        },
+        {
+          "name": "until_ms",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events at or before this time; 0 or absent: no bound"
+          }
+        },
+        {
+          "name": "before",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "only events with a seq below this; 0 or absent: from the newest"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ],
+            "default": "info",
+            "description": "the lowest level returned"
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 15,
+            "description": "exactly this source; '' or absent: any"
+          }
+        },
+        {
+          "name": "text",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 63,
+            "description": "in the source or the text, ASCII case ignored"
+          }
+        }
+      ],
+      "result": {
+        "name": "page",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean"
+            },
+            "entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "warn",
+                      "error"
+                    ]
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "more": {
+              "type": "boolean",
+              "description": "older events also match"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "journal.verify",
+      "summary": "Recompute the journal's hash chain from the oldest kept segment on (zxv_journal.h J7) and report the first break: a line changed or removed, or a segment missing or out of order. Read only.",
+      "params": [],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean",
+              "description": "false: zxvd keeps no journal"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "segments": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "segments read before any break"
+            },
+            "entries": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "lines read before any break"
+            },
+            "first_seq": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "last_seq": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "0 unless ok"
+            },
+            "broken_at": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the seq where the chain breaks; 0 when ok"
+            },
+            "why": {
+              "type": "string",
+              "description": "'' when ok"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.tick",
+      "summary": "The desktop's once-a-minute report of the app in front while someone is using the machine (zxv_screen.h SC1): counts a minute for it unless one was counted under 45 seconds ago, and answers whether it may still be used (SC5). Time past a limit is still counted.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
+          }
+        }
+      ],
+      "result": {
+        "name": "answer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "allowed": {
+              "type": "boolean"
+            },
+            "used": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the app's minutes today"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "all apps' minutes today"
+            },
+            "left": {
+              "type": "integer",
+              "minimum": -1,
+              "description": "minutes left today; -1: no limit"
+            },
+            "why": {
+              "type": "string",
+              "description": "why not, in plain words; '' when allowed"
+            },
+            "counted": {
+              "type": "boolean",
+              "description": "this tick counted a minute (SC1)"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.check",
+      "summary": "Whether an app may be used now and how many minutes it has left today (SC5), without counting. Read only.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
+          }
+        }
+      ],
+      "result": {
+        "name": "answer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "allowed": {
+              "type": "boolean"
+            },
+            "used": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the app's minutes today"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "all apps' minutes today"
+            },
+            "left": {
+              "type": "integer",
+              "minimum": -1,
+              "description": "minutes left today; -1: no limit"
+            },
+            "why": {
+              "type": "string",
+              "description": "why not, in plain words; '' when allowed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.status",
+      "summary": "Shepherd's view: whether the limits are locked, every limit, and the minutes used per app on the newest days. Read only.",
+      "params": [
+        {
+          "name": "days",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 31,
+            "default": 7
+          }
+        }
+      ],
+      "result": {
+        "name": "status",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "locked": {
+              "type": "boolean"
+            },
+            "reset": {
+              "type": "boolean",
+              "description": "the screen-time file was damaged when zxvd started, was moved aside, and screen time started empty (SC6)"
+            },
+            "wait_s": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "seconds until a passphrase is tried again after five wrong ones"
+            },
+            "today": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "YYYYMMDD, local"
+            },
+            "limits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "minutes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 1440,
+                    "description": "a day; null: no daily cap"
+                  },
+                  "from": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1439
+                  },
+                  "to": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1439,
+                    "description": "the hours it may be used, minutes after midnight; equal: any time; from after to wraps past midnight"
+                  },
+                  "extra": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "minutes granted for today"
+                  }
+                }
+              }
+            },
+            "days": {
+              "type": "array",
+              "description": "newest first",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "apps": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "app": {
+                          "type": "string"
+                        },
+                        "minutes": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.set_limit",
+      "summary": "Set an app's limit, or all apps' together with '*' (SC2): minutes a day (absent: no daily cap) and the hours it may be used.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
+          }
+        },
+        {
+          "name": "minutes",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1440
+          }
+        },
+        {
+          "name": "from",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1439,
+            "default": 0,
+            "description": "minutes after midnight"
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1439,
+            "default": 0,
+            "description": "minutes after midnight; equal to from: any time"
+          }
+        },
+        {
+          "name": "passphrase",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
+          }
+        }
+      ],
+      "result": {
+        "name": "set",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "set": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.clear_limit",
+      "summary": "Remove an app's limit, or the all-apps limit with '*'.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
+          }
+        },
+        {
+          "name": "passphrase",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
+          }
+        }
+      ],
+      "result": {
+        "name": "cleared",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "cleared": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.grant",
+      "summary": "More minutes for today on an app's limit, or on '*' (SC4); they lapse at midnight.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
+          }
+        },
+        {
+          "name": "minutes",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1440
+          }
+        },
+        {
+          "name": "passphrase",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
+          }
+        }
+      ],
+      "result": {
+        "name": "granted",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "left": {
+              "type": "integer",
+              "minimum": -1,
+              "description": "the app's minutes left today; absent for '*'"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "screen.lock",
+      "summary": "Lock the limits with a passphrase, change it, or unlock with ''. Kept only as a salted, iterated SHA-256 (SC3); never logged.",
+      "params": [
+        {
+          "name": "passphrase",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "the new passphrase, at least 4 bytes; '' unlocks"
+          }
+        },
+        {
+          "name": "old",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "the current passphrase, while locked"
+          }
+        }
+      ],
+      "result": {
+        "name": "lock",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "locked": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.here",
+      "summary": "Where this machine is, as last set (zxv_place.h P1); only known is present when it is not known. Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "stale": {
+              "type": "boolean",
+              "description": "set more than ten minutes ago"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.set_here",
+      "summary": "Set the location: from a bridge to the system's location service, or typed by the owner. Never written to disk.",
+      "params": [
+        {
+          "name": "lat",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -90000000,
+            "maximum": 90000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "lon",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -180000000,
+            "maximum": 180000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "accuracy_m",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "default": 50
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 15,
+            "default": "owner"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "stale": {
+              "type": "boolean",
+              "description": "set more than ten minutes ago"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.forget_here",
+      "summary": "Forget the location.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "known": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.ask",
+      "summary": "An app asks for the location (P2): answer allowed (with the location), pending (the owner has not answered; the ask is listed), never, or unknown (allowed, but no location is set). A once answer is used up.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "answer": {
+              "type": "string",
+              "enum": [
+                "allowed",
+                "pending",
+                "never",
+                "unknown"
+              ]
+            },
+            "lat": {
+              "type": "integer"
+            },
+            "lon": {
+              "type": "integer"
+            },
+            "accuracy_m": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "source": {
+              "type": "string"
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.permit",
+      "summary": "The owner's answer for an app: ask (again), once, always or never.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "mode",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "once",
+              "always",
+              "never"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "ask",
+                "once",
+                "always",
+                "never"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.apps",
+      "summary": "Every app that asked or was answered, with its answer and whether an ask waits. Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "apps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "ask",
+                      "once",
+                      "always",
+                      "never"
+                    ]
+                  },
+                  "pending": {
+                    "type": "boolean"
+                  },
+                  "asked": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.list",
+      "summary": "The places kept, with metres from here when the location is known (P4). Read only.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reset": {
+              "type": "boolean",
+              "description": "the places file was damaged when zxvd started and was moved aside (P5)"
+            },
+            "places": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "lat": {
+                    "type": "integer"
+                  },
+                  "lon": {
+                    "type": "integer"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "distance_m": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.add",
+      "summary": "Keep a place (P3).",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "unique, ignoring ASCII case; no tabs or line breaks"
+          }
+        },
+        {
+          "name": "lat",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -90000000,
+            "maximum": 90000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "lon",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": -180000000,
+            "maximum": 180000000,
+            "description": "millionths of a degree"
+          }
+        },
+        {
+          "name": "note",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 255
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "added": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "place.remove",
+      "summary": "Let a place go; the name matches ignoring ASCII case.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "unique, ignoring ASCII case; no tabs or line breaks"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "removed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "search.refresh",
+      "summary": "Bring the space's search index up to date (zxv_search.h; the Scent app): only files whose size or time changed are read again. Read only: no file is changed.",
+      "params": [
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
+            "maxLength": 48
+          }
+        }
+      ],
+      "result": {
+        "name": "stats",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "text_files": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files whose words are indexed (UTF-8 with no NUL byte; the first 1 MiB)"
+            },
+            "added": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "changed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "left_out": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files past 20000, or folders more than 32 deep"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "search.query",
+      "summary": "Find files by name and by the words in them (zxv_search.h S3-S5): every word of q must be in the file's name, its folders' names or its text; a word matches any word it starts (up to 24 bytes). Name matches rank first. Read only.",
+      "params": [
+        {
+          "name": "q",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "1 to 8 words; ASCII case is ignored"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        },
+        {
+          "name": "refresh",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": true,
+            "description": "bring the index up to date first (search.refresh); false searches the index as it is"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
+            "maxLength": 48
+          }
+        }
+      ],
+      "result": {
+        "name": "hits",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "hits": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mtime": {
+                    "type": "integer",
+                    "description": "seconds since 1970"
+                  },
+                  "in_name": {
+                    "type": "boolean",
+                    "description": "every word is in the file's own name"
+                  },
+                  "score": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "1000 for each word in the name, 100 in a folder's name, plus how often it occurs in the text (at most 99 a word)"
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "description": "the text around the first place a word starts, control characters as spaces; '' when no word is in the text"
+                  }
+                }
+              }
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "every hit, of which the best max are listed"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.status",
+      "summary": "A printer's state and what it takes (IPP Get-Printer-Attributes; the Platen app). Read only.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        }
+      ],
+      "result": {
+        "name": "printer",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "info": {
+              "type": "string"
+            },
+            "make": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "printing",
+                "stopped",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "printer-state-reasons, comma separated"
+            },
+            "accepting": {
+              "type": "boolean"
+            },
+            "color": {
+              "type": "boolean"
+            },
+            "queued": {
+              "type": "integer",
+              "description": "-1 when not given"
+            },
+            "copies_max": {
+              "type": "integer",
+              "description": "0 when not given"
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "media": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "media_default": {
+              "type": "string"
+            },
+            "sides": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.submit",
+      "summary": "Print a file from the Hoard (IPP Print-Job). Its format comes from its extension and must be one the printer takes; ZXV does not convert documents yet (zxv_print_host.h N5). Logged.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "copies",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 999,
+            "description": "0 or absent: the printer's default"
+          }
+        },
+        {
+          "name": "sides",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "one-sided",
+              "two-sided-long-edge",
+              "two-sided-short-edge"
+            ]
+          }
+        },
+        {
+          "name": "color",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "color",
+              "monochrome"
+            ]
+          }
+        },
+        {
+          "name": "media",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 63,
+            "description": "a media keyword, e.g. iso_a4_210x297mm"
+          }
+        },
+        {
+          "name": "job_name",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 127,
+            "description": "the file's name when absent"
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.job",
+      "summary": "A print job's state (IPP Get-Job-Attributes). Read only.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "print.cancel",
+      "summary": "Cancel a print job (IPP Cancel-Job). Logged.",
+      "params": [
+        {
+          "name": "uri",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
+          }
+        },
+        {
+          "name": "job_id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      ],
+      "result": {
+        "name": "job",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job_id": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "held",
+                "printing",
+                "stopped",
+                "canceled",
+                "aborted",
+                "completed",
+                "unknown"
+              ]
+            },
+            "reasons": {
+              "type": "string",
+              "description": "job-state-reasons, comma separated"
+            },
+            "message": {
+              "type": "string"
+            },
+            "pages": {
+              "type": "integer",
+              "description": "pages printed; -1 when the printer does not say"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "scan.status",
+      "summary": "A scanner's capabilities and state (eSCL ScannerCapabilities and ScannerStatus). Read only.",
+      "params": [
+        {
+          "name": "url",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
+          }
+        }
+      ],
+      "result": {
+        "name": "scanner",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "make": {
+              "type": "string"
+            },
+            "platen": {
+              "type": "boolean"
+            },
+            "feeder": {
+              "type": "boolean"
+            },
+            "resolutions": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "color_modes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "formats": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "max_width": {
+              "type": "integer",
+              "description": "1/300 inch; 0 when not given"
+            },
+            "max_height": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "description": "Idle, Processing, Testing, Stopped or Down"
+            },
+            "adf_state": {
+              "type": "string"
+            },
+            "jobs": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "scan.start",
+      "summary": "Scan and save each page in a folder of the Hoard as 'Scan N.<ext>' (the first free N; eSCL ScanJobs and NextDocument). Needs the write right on the space. Pages saved before a failure are kept, and the error says how many. Logged.",
+      "params": [
+        {
+          "name": "url",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 511,
+            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
+          }
+        },
+        {
+          "name": "folder",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "'' (the top) when absent"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "source",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "platen",
+              "feeder"
+            ],
+            "default": "platen"
+          }
+        },
+        {
+          "name": "color",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "color",
+              "gray",
+              "bw"
+            ],
+            "default": "color"
+          }
+        },
+        {
+          "name": "dpi",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 75,
+            "maximum": 1200,
+            "default": 300
+          }
+        },
+        {
+          "name": "format",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "application/pdf",
+              "image/png"
+            ],
+            "default": "image/jpeg"
+          }
+        }
+      ],
+      "result": {
+        "name": "scan",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pages": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "saved": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.run",
+      "summary": "Back up the space in use to dest as a new snapshot (Keepsake). Files whose size and time match the last snapshot are not read again; new copies are read back and checked before the snapshot is written (K2-K4). Needs the view right. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "full",
+          "required": false,
+          "schema": {
+            "type": "boolean",
+            "default": false,
+            "description": "read every file again and replace any kept copy that no longer matches"
+          }
+        }
+      ],
+      "result": {
+        "name": "run",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshot": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "time": {
+              "type": "integer",
+              "description": "seconds since 1970"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "new_files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "new_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "files gone or too deep to back up"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.list",
+      "summary": "The space's snapshots at dest, newest first. Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          }
+        }
+      ],
+      "result": {
+        "name": "snapshots",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "snapshot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time": {
+                    "type": "integer"
+                  },
+                  "files": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "damaged": {
+                    "type": "boolean",
+                    "description": "its last line does not read; run backup.verify"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.versions",
+      "summary": "The distinct contents a file has had across the space's snapshots, newest first, each with the newest snapshot holding it (at most 100). Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "versions",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "versions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "snapshot": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "time": {
+                    "type": "integer"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "mtime": {
+                    "type": "integer"
+                  },
+                  "hash": {
+                    "type": "string",
+                    "description": "SHA-256, hex"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.verify",
+      "summary": "Read back every copy a snapshot names and check its hash and size (K4): a backup is tested when ok is true. Read only.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "snapshot",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0,
+            "description": "0 or absent: the newest"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "check",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshot": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bad": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "missing": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "first_bad": {
+              "type": "string",
+              "description": "the first file with a bad or missing copy, '' when ok"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.restore",
+      "summary": "Bring a file or folder back from a snapshot as a new item: at 'to', else at its old path when free, else beside it as 'name (restored).ext' (K5). Every copy is checked before anything is written. Needs the write right on the space. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "snapshot",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0,
+            "description": "0 or absent: the newest"
+          }
+        },
+        {
+          "name": "path",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "a file or folder; '' or absent: everything, into 'Keepsake N'"
+          }
+        },
+        {
+          "name": "to",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "where it lands; must not exist"
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "restored",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "backup.prune",
+      "summary": "Keep the newest 'keep' snapshots of the space and remove the rest, then the copies no snapshot of any space names (K7). Refused, removing nothing, while any snapshot is damaged. Needs the write right on the space. Logged.",
+      "params": [
+        {
+          "name": "dest",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+          }
+        },
+        {
+          "name": "keep",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100000
+          }
+        },
+        {
+          "name": "space",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 48,
+            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
+          }
+        }
+      ],
+      "result": {
+        "name": "pruned",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "space": {
+              "type": "string"
+            },
+            "snapshots_removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "objects_removed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "freed": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "bytes"
             }
           }
         }
@@ -21582,2365 +23941,6 @@
           "properties": {
             "simple_mode": {
               "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "sys.info",
-      "summary": "The machine and zxvd itself, read only (zxv_sysinfo.h; Almanac and Tidewatch). Unknown facts are 0, '' or null, never guessed.",
-      "params": [],
-      "result": {
-        "name": "info",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "time_ms": {
-              "type": "integer",
-              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
-            },
-            "os": {
-              "type": "string",
-              "enum": [
-                "macos",
-                "linux",
-                "windows",
-                "other"
-              ]
-            },
-            "os_version": {
-              "type": "string"
-            },
-            "arch": {
-              "type": "string"
-            },
-            "host": {
-              "type": "string"
-            },
-            "cpus": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "mem_total": {
-              "type": "integer",
-              "description": "bytes"
-            },
-            "mem_avail": {
-              "type": "integer",
-              "description": "bytes the system can give without swapping"
-            },
-            "uptime_s": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "load": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "type": "integer"
-              },
-              "description": "1, 5 and 15 minute load averages x100 (no floats); null on Windows"
-            },
-            "zxvd": {
-              "type": "object",
-              "properties": {
-                "pid": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "cpu_user_us": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "cpu_sys_us": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "rss_bytes": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "max_rss_bytes": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "sys.disk",
-      "summary": "The volume holding the ZXV folder: total, free and what this user may still write, in bytes (Cellar).",
-      "params": [],
-      "result": {
-        "name": "disk",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "path": {
-              "type": "string"
-            },
-            "total": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "free": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "avail": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "sys.net",
-      "summary": "Network interfaces with their addresses and byte counts, and zxvd's own RPC traffic (Sounding). supported is false where the platform listing is not wired yet (Windows).",
-      "params": [],
-      "result": {
-        "name": "net",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "time_ms": {
-              "type": "integer",
-              "description": "zxvd's wall clock when read, ms since 1970, for rates between two reads"
-            },
-            "supported": {
-              "type": "boolean"
-            },
-            "interfaces": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "up": {
-                    "type": "boolean"
-                  },
-                  "loopback": {
-                    "type": "boolean"
-                  },
-                  "addresses": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "rx_bytes": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0
-                  },
-                  "tx_bytes": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0
-                  },
-                  "rx_packets": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0
-                  },
-                  "tx_packets": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0
-                  }
-                }
-              }
-            },
-            "rpc": {
-              "type": "object",
-              "properties": {
-                "requests": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "errors": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "bytes_in": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "bytes_out": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "busy_us": {
-                  "type": "integer",
-                  "minimum": 0
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "log.tail",
-      "summary": "zxvd's recent events, oldest first (zxvd_log.h; the Wake console): refusals as warnings, changes as info, never parameters or content. Pass next back as since to read on; dropped counts events the ring no longer holds.",
-      "params": [
-        {
-          "name": "since",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "default": 0
-          }
-        },
-        {
-          "name": "max",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 256,
-            "default": 100
-          }
-        },
-        {
-          "name": "level",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "info",
-              "warn",
-              "error"
-            ],
-            "default": "info",
-            "description": "the lowest level returned"
-          }
-        }
-      ],
-      "result": {
-        "name": "tail",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "entries": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "seq": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "time_ms": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "level": {
-                    "type": "string",
-                    "enum": [
-                      "info",
-                      "warn",
-                      "error"
-                    ]
-                  },
-                  "source": {
-                    "type": "string"
-                  },
-                  "text": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "next": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "dropped": {
-              "type": "integer",
-              "minimum": 0
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "journal.query",
-      "summary": "zxvd's events kept on disk across restarts (zxv_journal.h; Wake's history), newest first, filtered by time, level, source and text, a page at a time: pass the oldest seq shown as before to read on. With no journal (zxvd started without --journal), on is false and entries is empty. Read only.",
-      "params": [
-        {
-          "name": "since_ms",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "only events at or after this time (ms since 1970); 0 or absent: no bound"
-          }
-        },
-        {
-          "name": "until_ms",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "only events at or before this time; 0 or absent: no bound"
-          }
-        },
-        {
-          "name": "before",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "only events with a seq below this; 0 or absent: from the newest"
-          }
-        },
-        {
-          "name": "max",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 500,
-            "default": 100
-          }
-        },
-        {
-          "name": "level",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "info",
-              "warn",
-              "error"
-            ],
-            "default": "info",
-            "description": "the lowest level returned"
-          }
-        },
-        {
-          "name": "source",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 15,
-            "description": "exactly this source; '' or absent: any"
-          }
-        },
-        {
-          "name": "text",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 63,
-            "description": "in the source or the text, ASCII case ignored"
-          }
-        }
-      ],
-      "result": {
-        "name": "page",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "on": {
-              "type": "boolean"
-            },
-            "entries": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "seq": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "time_ms": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "level": {
-                    "type": "string",
-                    "enum": [
-                      "info",
-                      "warn",
-                      "error"
-                    ]
-                  },
-                  "source": {
-                    "type": "string"
-                  },
-                  "text": {
-                    "type": "string"
-                  }
-                }
-              }
-            },
-            "more": {
-              "type": "boolean",
-              "description": "older events also match"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "journal.verify",
-      "summary": "Recompute the journal's hash chain from the oldest kept segment on (zxv_journal.h J7) and report the first break: a line changed or removed, or a segment missing or out of order. Read only.",
-      "params": [],
-      "result": {
-        "name": "check",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "on": {
-              "type": "boolean",
-              "description": "false: zxvd keeps no journal"
-            },
-            "ok": {
-              "type": "boolean"
-            },
-            "segments": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "segments read before any break"
-            },
-            "entries": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "lines read before any break"
-            },
-            "first_seq": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "last_seq": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "0 unless ok"
-            },
-            "broken_at": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "the seq where the chain breaks; 0 when ok"
-            },
-            "why": {
-              "type": "string",
-              "description": "'' when ok"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.tick",
-      "summary": "The desktop's once-a-minute report of the app in front while someone is using the machine (zxv_screen.h SC1): counts a minute for it unless one was counted under 45 seconds ago, and answers whether it may still be used (SC5). Time past a limit is still counted.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
-          }
-        }
-      ],
-      "result": {
-        "name": "answer",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "allowed": {
-              "type": "boolean"
-            },
-            "used": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "the app's minutes today"
-            },
-            "total": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "all apps' minutes today"
-            },
-            "left": {
-              "type": "integer",
-              "minimum": -1,
-              "description": "minutes left today; -1: no limit"
-            },
-            "why": {
-              "type": "string",
-              "description": "why not, in plain words; '' when allowed"
-            },
-            "counted": {
-              "type": "boolean",
-              "description": "this tick counted a minute (SC1)"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.check",
-      "summary": "Whether an app may be used now and how many minutes it has left today (SC5), without counting. Read only.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
-          }
-        }
-      ],
-      "result": {
-        "name": "answer",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "allowed": {
-              "type": "boolean"
-            },
-            "used": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "the app's minutes today"
-            },
-            "total": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "all apps' minutes today"
-            },
-            "left": {
-              "type": "integer",
-              "minimum": -1,
-              "description": "minutes left today; -1: no limit"
-            },
-            "why": {
-              "type": "string",
-              "description": "why not, in plain words; '' when allowed"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.status",
-      "summary": "Shepherd's view: whether the limits are locked, every limit, and the minutes used per app on the newest days. Read only.",
-      "params": [
-        {
-          "name": "days",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 31,
-            "default": 7
-          }
-        }
-      ],
-      "result": {
-        "name": "status",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "locked": {
-              "type": "boolean"
-            },
-            "reset": {
-              "type": "boolean",
-              "description": "the screen-time file was damaged when zxvd started, was moved aside, and screen time started empty (SC6)"
-            },
-            "wait_s": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "seconds until a passphrase is tried again after five wrong ones"
-            },
-            "today": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "YYYYMMDD, local"
-            },
-            "limits": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "app": {
-                    "type": "string"
-                  },
-                  "minutes": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0,
-                    "maximum": 1440,
-                    "description": "a day; null: no daily cap"
-                  },
-                  "from": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 1439
-                  },
-                  "to": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 1439,
-                    "description": "the hours it may be used, minutes after midnight; equal: any time; from after to wraps past midnight"
-                  },
-                  "extra": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "minutes granted for today"
-                  }
-                }
-              }
-            },
-            "days": {
-              "type": "array",
-              "description": "newest first",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "date": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "total": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "apps": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "app": {
-                          "type": "string"
-                        },
-                        "minutes": {
-                          "type": "integer",
-                          "minimum": 0
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.set_limit",
-      "summary": "Set an app's limit, or all apps' together with '*' (SC2): minutes a day (absent: no daily cap) and the hours it may be used.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
-          }
-        },
-        {
-          "name": "minutes",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1440
-          }
-        },
-        {
-          "name": "from",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1439,
-            "default": 0,
-            "description": "minutes after midnight"
-          }
-        },
-        {
-          "name": "to",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 1439,
-            "default": 0,
-            "description": "minutes after midnight; equal to from: any time"
-          }
-        },
-        {
-          "name": "passphrase",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
-          }
-        }
-      ],
-      "result": {
-        "name": "set",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "set": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.clear_limit",
-      "summary": "Remove an app's limit, or the all-apps limit with '*'.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
-          }
-        },
-        {
-          "name": "passphrase",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
-          }
-        }
-      ],
-      "result": {
-        "name": "cleared",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "cleared": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.grant",
-      "summary": "More minutes for today on an app's limit, or on '*' (SC4); they lapse at midnight.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces); '*' means all apps together where a limit is meant"
-          }
-        },
-        {
-          "name": "minutes",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1440
-          }
-        },
-        {
-          "name": "passphrase",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "the guardian's passphrase, needed while the limits are locked (zxv_screen.h SC3)"
-          }
-        }
-      ],
-      "result": {
-        "name": "granted",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "left": {
-              "type": "integer",
-              "minimum": -1,
-              "description": "the app's minutes left today; absent for '*'"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "screen.lock",
-      "summary": "Lock the limits with a passphrase, change it, or unlock with ''. Kept only as a salted, iterated SHA-256 (SC3); never logged.",
-      "params": [
-        {
-          "name": "passphrase",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "the new passphrase, at least 4 bytes; '' unlocks"
-          }
-        },
-        {
-          "name": "old",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 128,
-            "description": "the current passphrase, while locked"
-          }
-        }
-      ],
-      "result": {
-        "name": "lock",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "locked": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.here",
-      "summary": "Where this machine is, as last set (zxv_place.h P1); only known is present when it is not known. Read only.",
-      "params": [],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "known": {
-              "type": "boolean"
-            },
-            "lat": {
-              "type": "integer"
-            },
-            "lon": {
-              "type": "integer"
-            },
-            "accuracy_m": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000000
-            },
-            "source": {
-              "type": "string"
-            },
-            "time": {
-              "type": "integer",
-              "description": "seconds since 1970"
-            },
-            "stale": {
-              "type": "boolean",
-              "description": "set more than ten minutes ago"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.set_here",
-      "summary": "Set the location: from a bridge to the system's location service, or typed by the owner. Never written to disk.",
-      "params": [
-        {
-          "name": "lat",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": -90000000,
-            "maximum": 90000000,
-            "description": "millionths of a degree"
-          }
-        },
-        {
-          "name": "lon",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": -180000000,
-            "maximum": 180000000,
-            "description": "millionths of a degree"
-          }
-        },
-        {
-          "name": "accuracy_m",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 1000000,
-            "default": 50
-          }
-        },
-        {
-          "name": "source",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 15,
-            "default": "owner"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "known": {
-              "type": "boolean"
-            },
-            "lat": {
-              "type": "integer"
-            },
-            "lon": {
-              "type": "integer"
-            },
-            "accuracy_m": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000000
-            },
-            "source": {
-              "type": "string"
-            },
-            "time": {
-              "type": "integer",
-              "description": "seconds since 1970"
-            },
-            "stale": {
-              "type": "boolean",
-              "description": "set more than ten minutes ago"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.forget_here",
-      "summary": "Forget the location.",
-      "params": [],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "known": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.ask",
-      "summary": "An app asks for the location (P2): answer allowed (with the location), pending (the owner has not answered; the ask is listed), never, or unknown (allowed, but no location is set). A once answer is used up.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces)"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "answer": {
-              "type": "string",
-              "enum": [
-                "allowed",
-                "pending",
-                "never",
-                "unknown"
-              ]
-            },
-            "lat": {
-              "type": "integer"
-            },
-            "lon": {
-              "type": "integer"
-            },
-            "accuracy_m": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000000
-            },
-            "source": {
-              "type": "string"
-            },
-            "time": {
-              "type": "integer",
-              "description": "seconds since 1970"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.permit",
-      "summary": "The owner's answer for an app: ask (again), once, always or never.",
-      "params": [
-        {
-          "name": "app",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 31,
-            "description": "the app's name (printable ASCII, no spaces)"
-          }
-        },
-        {
-          "name": "mode",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "ask",
-              "once",
-              "always",
-              "never"
-            ]
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "app": {
-              "type": "string"
-            },
-            "mode": {
-              "type": "string",
-              "enum": [
-                "ask",
-                "once",
-                "always",
-                "never"
-              ]
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.apps",
-      "summary": "Every app that asked or was answered, with its answer and whether an ask waits. Read only.",
-      "params": [],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "apps": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "app": {
-                    "type": "string"
-                  },
-                  "mode": {
-                    "type": "string",
-                    "enum": [
-                      "ask",
-                      "once",
-                      "always",
-                      "never"
-                    ]
-                  },
-                  "pending": {
-                    "type": "boolean"
-                  },
-                  "asked": {
-                    "type": "integer"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.list",
-      "summary": "The places kept, with metres from here when the location is known (P4). Read only.",
-      "params": [],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "reset": {
-              "type": "boolean",
-              "description": "the places file was damaged when zxvd started and was moved aside (P5)"
-            },
-            "places": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "lat": {
-                    "type": "integer"
-                  },
-                  "lon": {
-                    "type": "integer"
-                  },
-                  "note": {
-                    "type": "string"
-                  },
-                  "distance_m": {
-                    "type": [
-                      "integer",
-                      "null"
-                    ],
-                    "minimum": 0
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.add",
-      "summary": "Keep a place (P3).",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 63,
-            "description": "unique, ignoring ASCII case; no tabs or line breaks"
-          }
-        },
-        {
-          "name": "lat",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": -90000000,
-            "maximum": 90000000,
-            "description": "millionths of a degree"
-          }
-        },
-        {
-          "name": "lon",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": -180000000,
-            "maximum": 180000000,
-            "description": "millionths of a degree"
-          }
-        },
-        {
-          "name": "note",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 255
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "added": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "place.remove",
-      "summary": "Let a place go; the name matches ignoring ASCII case.",
-      "params": [
-        {
-          "name": "name",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 63,
-            "description": "unique, ignoring ASCII case; no tabs or line breaks"
-          }
-        }
-      ],
-      "result": {
-        "name": "result",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "removed": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "search.refresh",
-      "summary": "Bring the space's search index up to date (zxv_search.h; the Scent app): only files whose size or time changed are read again. Read only: no file is changed.",
-      "params": [
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
-            "maxLength": 48
-          }
-        }
-      ],
-      "result": {
-        "name": "stats",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "files": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "text_files": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "files whose words are indexed (UTF-8 with no NUL byte; the first 1 MiB)"
-            },
-            "added": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "changed": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "removed": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "left_out": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "files past 20000, or folders more than 32 deep"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "search.query",
-      "summary": "Find files by name and by the words in them (zxv_search.h S3-S5): every word of q must be in the file's name, its folders' names or its text; a word matches any word it starts (up to 24 bytes). Name matches rank first. Read only.",
-      "params": [
-        {
-          "name": "q",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 256,
-            "description": "1 to 8 words; ASCII case is ignored"
-          }
-        },
-        {
-          "name": "max",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 20
-          }
-        },
-        {
-          "name": "refresh",
-          "required": false,
-          "schema": {
-            "type": "boolean",
-            "default": true,
-            "description": "bring the index up to date first (search.refresh); false searches the index as it is"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "description": "the space to search (spaces.list): 'home' when absent; needs the view right (zxv_spaces.h S1). Each space has its own index.",
-            "maxLength": 48
-          }
-        }
-      ],
-      "result": {
-        "name": "hits",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "hits": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "path": {
-                    "type": "string"
-                  },
-                  "size": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "mtime": {
-                    "type": "integer",
-                    "description": "seconds since 1970"
-                  },
-                  "in_name": {
-                    "type": "boolean",
-                    "description": "every word is in the file's own name"
-                  },
-                  "score": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "description": "1000 for each word in the name, 100 in a folder's name, plus how often it occurs in the text (at most 99 a word)"
-                  },
-                  "snippet": {
-                    "type": "string",
-                    "maxLength": 120,
-                    "description": "the text around the first place a word starts, control characters as spaces; '' when no word is in the text"
-                  }
-                }
-              }
-            },
-            "total": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "every hit, of which the best max are listed"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "print.status",
-      "summary": "A printer's state and what it takes (IPP Get-Printer-Attributes; the Platen app). Read only.",
-      "params": [
-        {
-          "name": "uri",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
-          }
-        }
-      ],
-      "result": {
-        "name": "printer",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "info": {
-              "type": "string"
-            },
-            "make": {
-              "type": "string"
-            },
-            "location": {
-              "type": "string"
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "idle",
-                "printing",
-                "stopped",
-                "unknown"
-              ]
-            },
-            "reasons": {
-              "type": "string",
-              "description": "printer-state-reasons, comma separated"
-            },
-            "accepting": {
-              "type": "boolean"
-            },
-            "color": {
-              "type": "boolean"
-            },
-            "queued": {
-              "type": "integer",
-              "description": "-1 when not given"
-            },
-            "copies_max": {
-              "type": "integer",
-              "description": "0 when not given"
-            },
-            "formats": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "media": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "media_default": {
-              "type": "string"
-            },
-            "sides": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "print.submit",
-      "summary": "Print a file from the ZXV folder (IPP Print-Job). Its format comes from its extension and must be one the printer takes; ZXV does not convert documents yet (zxv_print_host.h N5). Logged.",
-      "params": [
-        {
-          "name": "uri",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
-          }
-        },
-        {
-          "name": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
-          }
-        },
-        {
-          "name": "copies",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 999,
-            "description": "0 or absent: the printer's default"
-          }
-        },
-        {
-          "name": "sides",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "one-sided",
-              "two-sided-long-edge",
-              "two-sided-short-edge"
-            ]
-          }
-        },
-        {
-          "name": "color",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "color",
-              "monochrome"
-            ]
-          }
-        },
-        {
-          "name": "media",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 63,
-            "description": "a media keyword, e.g. iso_a4_210x297mm"
-          }
-        },
-        {
-          "name": "job_name",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 127,
-            "description": "the file's name when absent"
-          }
-        }
-      ],
-      "result": {
-        "name": "job",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "job_id": {
-              "type": "integer"
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "pending",
-                "held",
-                "printing",
-                "stopped",
-                "canceled",
-                "aborted",
-                "completed",
-                "unknown"
-              ]
-            },
-            "reasons": {
-              "type": "string",
-              "description": "job-state-reasons, comma separated"
-            },
-            "message": {
-              "type": "string"
-            },
-            "pages": {
-              "type": "integer",
-              "description": "pages printed; -1 when the printer does not say"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "print.job",
-      "summary": "A print job's state (IPP Get-Job-Attributes). Read only.",
-      "params": [
-        {
-          "name": "uri",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
-          }
-        },
-        {
-          "name": "job_id",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 2147483647
-          }
-        }
-      ],
-      "result": {
-        "name": "job",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "job_id": {
-              "type": "integer"
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "pending",
-                "held",
-                "printing",
-                "stopped",
-                "canceled",
-                "aborted",
-                "completed",
-                "unknown"
-              ]
-            },
-            "reasons": {
-              "type": "string",
-              "description": "job-state-reasons, comma separated"
-            },
-            "message": {
-              "type": "string"
-            },
-            "pages": {
-              "type": "integer",
-              "description": "pages printed; -1 when the printer does not say"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "print.cancel",
-      "summary": "Cancel a print job (IPP Cancel-Job). Logged.",
-      "params": [
-        {
-          "name": "uri",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the printer: ipp://host[:631]/path or http://host[:port]/path on the local network (zxv_print_host.h N1, N2); ipps is not supported yet"
-          }
-        },
-        {
-          "name": "job_id",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 2147483647
-          }
-        }
-      ],
-      "result": {
-        "name": "job",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "job_id": {
-              "type": "integer"
-            },
-            "state": {
-              "type": "string",
-              "enum": [
-                "pending",
-                "held",
-                "printing",
-                "stopped",
-                "canceled",
-                "aborted",
-                "completed",
-                "unknown"
-              ]
-            },
-            "reasons": {
-              "type": "string",
-              "description": "job-state-reasons, comma separated"
-            },
-            "message": {
-              "type": "string"
-            },
-            "pages": {
-              "type": "integer",
-              "description": "pages printed; -1 when the printer does not say"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "scan.status",
-      "summary": "A scanner's capabilities and state (eSCL ScannerCapabilities and ScannerStatus). Read only.",
-      "params": [
-        {
-          "name": "url",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
-          }
-        }
-      ],
-      "result": {
-        "name": "scanner",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "make": {
-              "type": "string"
-            },
-            "platen": {
-              "type": "boolean"
-            },
-            "feeder": {
-              "type": "boolean"
-            },
-            "resolutions": {
-              "type": "array",
-              "items": {
-                "type": "integer"
-              }
-            },
-            "color_modes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "formats": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "max_width": {
-              "type": "integer",
-              "description": "1/300 inch; 0 when not given"
-            },
-            "max_height": {
-              "type": "integer"
-            },
-            "state": {
-              "type": "string",
-              "description": "Idle, Processing, Testing, Stopped or Down"
-            },
-            "adf_state": {
-              "type": "string"
-            },
-            "jobs": {
-              "type": "integer"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "scan.start",
-      "summary": "Scan and save each page in a folder of the ZXV folder as 'Scan N.<ext>' (the first free N; eSCL ScanJobs and NextDocument). Needs the write right on the space. Pages saved before a failure are kept, and the error says how many. Logged.",
-      "params": [
-        {
-          "name": "url",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 511,
-            "description": "the scanner's eSCL root: http://host[:port]/eSCL on the local network"
-          }
-        },
-        {
-          "name": "folder",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "'' (the top) when absent"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space the file or folder is in: 'home' when absent (zxv_spaces.h S1)"
-          }
-        },
-        {
-          "name": "source",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "platen",
-              "feeder"
-            ],
-            "default": "platen"
-          }
-        },
-        {
-          "name": "color",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "color",
-              "gray",
-              "bw"
-            ],
-            "default": "color"
-          }
-        },
-        {
-          "name": "dpi",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 75,
-            "maximum": 1200,
-            "default": 300
-          }
-        },
-        {
-          "name": "format",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "enum": [
-              "image/jpeg",
-              "application/pdf",
-              "image/png"
-            ],
-            "default": "image/jpeg"
-          }
-        }
-      ],
-      "result": {
-        "name": "scan",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "pages": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 50
-            },
-            "saved": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.run",
-      "summary": "Back up the space in use to dest as a new snapshot (Keepsake). Files whose size and time match the last snapshot are not read again; new copies are read back and checked before the snapshot is written (K2-K4). Needs the view right. Logged.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        },
-        {
-          "name": "full",
-          "required": false,
-          "schema": {
-            "type": "boolean",
-            "default": false,
-            "description": "read every file again and replace any kept copy that no longer matches"
-          }
-        }
-      ],
-      "result": {
-        "name": "run",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "snapshot": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "time": {
-              "type": "integer",
-              "description": "seconds since 1970"
-            },
-            "files": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "bytes": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "new_files": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "new_bytes": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "skipped": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "files gone or too deep to back up"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.list",
-      "summary": "The space's snapshots at dest, newest first. Read only.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        },
-        {
-          "name": "max",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100,
-            "default": 50
-          }
-        }
-      ],
-      "result": {
-        "name": "snapshots",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "total": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "snapshots": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "snapshot": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "time": {
-                    "type": "integer"
-                  },
-                  "files": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "bytes": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "damaged": {
-                    "type": "boolean",
-                    "description": "its last line does not read; run backup.verify"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.versions",
-      "summary": "The distinct contents a file has had across the space's snapshots, newest first, each with the newest snapshot holding it (at most 100). Read only.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "path",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        }
-      ],
-      "result": {
-        "name": "versions",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "versions": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "snapshot": {
-                    "type": "integer",
-                    "minimum": 1
-                  },
-                  "time": {
-                    "type": "integer"
-                  },
-                  "size": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "mtime": {
-                    "type": "integer"
-                  },
-                  "hash": {
-                    "type": "string",
-                    "description": "SHA-256, hex"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.verify",
-      "summary": "Read back every copy a snapshot names and check its hash and size (K4): a backup is tested when ok is true. Read only.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "snapshot",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100000,
-            "default": 0,
-            "description": "0 or absent: the newest"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        }
-      ],
-      "result": {
-        "name": "check",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "snapshot": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "files": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "bytes": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "bad": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "missing": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "ok": {
-              "type": "boolean"
-            },
-            "first_bad": {
-              "type": "string",
-              "description": "the first file with a bad or missing copy, '' when ok"
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.restore",
-      "summary": "Bring a file or folder back from a snapshot as a new item: at 'to', else at its old path when free, else beside it as 'name (restored).ext' (K5). Every copy is checked before anything is written. Needs the write right on the space. Logged.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "snapshot",
-          "required": false,
-          "schema": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100000,
-            "default": 0,
-            "description": "0 or absent: the newest"
-          }
-        },
-        {
-          "name": "path",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "a file or folder; '' or absent: everything, into 'Keepsake N'"
-          }
-        },
-        {
-          "name": "to",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "where it lands; must not exist"
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        }
-      ],
-      "result": {
-        "name": "restored",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            },
-            "files": {
-              "type": "integer",
-              "minimum": 1
-            }
-          }
-        }
-      },
-      "paramStructure": "by-name"
-    },
-    {
-      "name": "backup.prune",
-      "summary": "Keep the newest 'keep' snapshots of the space and remove the rest, then the copies no snapshot of any space names (K7). Refused, removing nothing, while any snapshot is damaged. Needs the write right on the space. Logged.",
-      "params": [
-        {
-          "name": "dest",
-          "required": true,
-          "schema": {
-            "type": "string",
-            "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
-          }
-        },
-        {
-          "name": "keep",
-          "required": true,
-          "schema": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 100000
-          }
-        },
-        {
-          "name": "space",
-          "required": false,
-          "schema": {
-            "type": "string",
-            "maxLength": 48,
-            "description": "the space backed up or restored into: 'home' when absent (zxv_spaces.h S1)"
-          }
-        }
-      ],
-      "result": {
-        "name": "pruned",
-        "schema": {
-          "type": "object",
-          "properties": {
-            "space": {
-              "type": "string"
-            },
-            "snapshots_removed": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "objects_removed": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "freed": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "bytes"
             }
           }
         }

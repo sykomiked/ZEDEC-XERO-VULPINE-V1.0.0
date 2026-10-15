@@ -1,6 +1,6 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* test_apps.c — the app models (zxm.h, Burrow, Quillon, Glint, Spindle,
+/* test_apps.c — the app models (zxm.h, the Banker, Quillon, Glint, Spindle,
  * Murmuration) against zxvd's real dispatcher in this process: files.* runs
  * on a scratch ZXV folder, swarm.ask is a stub that returns a set answer and
  * swarm.state and model.info return set JSON. A second transport hands zxm
@@ -338,7 +338,7 @@ static void test_zxm_ai(void)
     CHECK(zxm_ai_ask(&big, &A, 0, "abc", "x", 1, &h) == ZXM_E_TOOBIG, "a reply too large");
 }
 
-/* ---------------- Burrow and Glint ---------------- */
+/* ---------------- The Banker and Glint ---------------- */
 
 static burrow_t B;
 static glint_t G;
@@ -687,7 +687,7 @@ static void test_spindle(void)
     CHECK(spindle_call(&S, "files.list", "{\"path\":\"..\"}") == ZXM_E_REMOTE, "refused");
     e = spindle_entry(&S, 0);
     CHECK(e->rc == ZXM_E_REMOTE && e->err_code == ZXVD_E_FILES &&
-              !strcmp(e->reply, "not a valid name or path in the ZXV folder"),
+              !strcmp(e->reply, "not a valid name or path in the Hoard"),
           "a refusal is kept: %s", e->reply);
     CHECK(spindle_call(&S, "no.such", "") == ZXM_E_REMOTE &&
               spindle_entry(&S, 0)->err_code == -32601,
@@ -1232,7 +1232,7 @@ static void test_scent(void)
     scent_folder(b, f, 0);
     scent_hit_t top = {.path = "x.bin"};
     scent_folder(&top, f, sizeof f);
-    CHECK(!f[0] && scent_opener(&top) == SCENT_OPEN_BURROW, "the top; others in Burrow");
+    CHECK(!f[0] && scent_opener(&top) == SCENT_OPEN_BURROW, "the top; others in the Banker");
     CHECK(scent_selected(&SC) == NULL && scent_select(&SC, 1) == ZXM_OK &&
               scent_selected(&SC) == &SC.hit[1] && scent_select(&SC, 2) == ZXM_E_ARG &&
               scent_select(&SC, -2) == ZXM_E_ARG && scent_select(&SC, -1) == ZXM_OK &&

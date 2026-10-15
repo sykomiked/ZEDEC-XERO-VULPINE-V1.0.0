@@ -1,0 +1,10 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether the copies asked for are ones the printer takes: 1 up to its
+# copies-supported limit (most), as IPP reports it (src/print/ipp.c).
+record copies-ok
+  copies: s9(9)
+  most: s9(9)
+procedure
+  answer copies >= 1 and copies <= most

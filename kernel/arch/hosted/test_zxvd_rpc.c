@@ -77,18 +77,6 @@ static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
     "\"devmesh.join\",\"devmesh.confirm_sas\",\"devmesh.revoke\",\"devmesh.devices\","             \
     "\"ui.get\",\"ui.set\""
 
-/* zxvd's own names after the people methods: the utilities, Wake, Shepherd,
- * Waymark, Scent, Platen and Keepsake */
-#define ZXVD_MINE_TAIL                                                                             \
-    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
-    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
-    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
-    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
-    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","         \
-    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","              \
-    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","     \
-    "\"backup.prune\","
-
 /* remove a scratch tree without a shell (no links followed) */
 static int rm_one(const char *p, const struct stat *st, int flag, struct FTW *f)
 {
@@ -552,7 +540,17 @@ static void test_host_methods(void)
            "\"spaces.create\",\"spaces.join\",\"spaces.set_members\",\"spaces.set_cid\","
            "\"spaces.propose\",\"spaces.vote\",\"phone.link\",\"phone.pair\","
            "\"phone.list\",\"phone.revoke\","
-           "\"play.catalogue\",\"play.run\",\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL
+           "\"play.catalogue\",\"play.run\",\"play.draft\","
+           "\"sys.info\",\"sys.disk\",\"sys.net\","
+           "\"log.tail\",\"journal.query\",\"journal.verify\",\"screen.tick\",\"screen.check\","
+           "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
+           "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
+           "\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\",\"place.add\","
+           "\"place.remove\",\"search.refresh\",\"search.query\","
+           "\"print.status\",\"print.submit\","
+           "\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\",\"backup.run\","
+           "\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","
+           "\"backup.prune\"," PEOPLE_M ","
            /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
            MODS "]"
            "}"));
@@ -593,6 +591,17 @@ static void test_host_methods(void)
 
 /* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
 
+/* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
+ * Waymark, Scent, Platen and Keepsake */
+#define ZXVD_MINE_TAIL                                                                             \
+    "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
+    "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
+    "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
+    "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
+    "\"place.add\",\"place.remove\",\"search.refresh\",\"search.query\",\"print.status\","         \
+    "\"print.submit\",\"print.job\",\"print.cancel\",\"scan.status\",\"scan.start\","              \
+    "\"backup.run\",\"backup.list\",\"backup.versions\",\"backup.verify\",\"backup.restore\","     \
+    "\"backup.prune\","
 #define FERR(id, msg) ERR(id, "-32014", msg)
 #define SERR(id, msg) ERR(id, "-32013", msg)
 #define SPS(id, kind, name, owner, role, view, write, pub, members, self)                          \
@@ -675,9 +684,9 @@ static void test_spaces_methods(void)
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"attic\",\"name\":\"x\"}"),
            ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"a\\nb\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
 
     /* files in a space stay in it */
     EXPECT(REQ("3", "files.write",
@@ -694,7 +703,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("3", "files.read", ",\"params\":{\"path\":\"plan.txt\"}"),
            FERR("3", "no such file or folder"));
     EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\".spaces/studio-a/x\",\"text\":\"\"}"),
-           FERR("3", "not a valid name or path in the ZXV folder"));
+           FERR("3", "not a valid name or path in the Hoard"));
     EXPECT(REQ("3", "files.trash", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
            OK("3", "{\"trashed\":\".Trash/plan.txt\",\"removed\":false}"));
     EXPECT(REQ("3", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
@@ -718,7 +727,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"me\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"owner\"}"),
@@ -726,7 +735,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"home\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "files.list", ",\"params\":{\"space\":\"crew\"}"),
            OK("4", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("4", "files.write", ",\"params\":{\"space\":\"crew\",\"path\":\"a\",\"text\":\"\"}"),
@@ -1139,7 +1148,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"../x\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
-           FERR("6", "not a valid name or path in the ZXV folder"));
+           FERR("6", "not a valid name or path in the Hoard"));
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"nope\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
@@ -3005,7 +3014,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x."
               "echo\",\"x.need\",\"x.fail\",\"x.quiet\","
               "\"zxvd.version\"]}"),
@@ -3039,7 +3048,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\"]}") &&
               has(REQ("7", "x.need", ""), "method not found"),
           "X1: the count is the new one: %s", OUT.p);
@@ -3052,7 +3061,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\"]}"),
           "X1: a refused add leaves the tables as they were: %s", OUT.p);
 
@@ -3076,7 +3085,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.echo\",\"x.num\",\"x.json\","
               "\"x.echo\",\"x.zok\",\"x.books\","
               "\"y.one\",\"y.two\"]}"),
@@ -3093,7 +3102,7 @@ static void test_ext(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"x.num\",\"x.json\",\"x.echo\","
               "\"x.zok\",\"x.books\",\"y.one\","
               "\"y.two\"]}"),
@@ -3160,8 +3169,7 @@ static void test_ext(void)
           "X7: the accounts are the books' own");
     zxvd_rpc_books_close();
     zxvd_rpc_clear_methods();
-    CHECK(has(REQ("13", "rpc.discover", ""),
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS "]}") &&
+    CHECK(has(REQ("13", "rpc.discover", ""), "\"backup.prune\"," PEOPLE_M "," MODS "]}") &&
               has(REQ("13", "x.num", ""), "method not found") &&
               has(REQ("13", "y.two", ""), "method not found"),
           "X1: clear takes every table out");
@@ -3590,7 +3598,7 @@ static void test_groups(void)
               "\"spaces.list\",\"spaces.get\",\"spaces.create\",\"spaces.join\",\"spaces.set_"
               "members\",\"spaces.set_cid\",\"spaces.propose\",\"spaces.vote\",\"phone.link\","
               "\"phone.pair\",\"phone.list\",\"phone.revoke\",\"play.catalogue\",\"play.run\","
-              "\"play.draft\"," PEOPLE_M "," ZXVD_MINE_TAIL MODS ","
+              "\"play.draft\"," ZXVD_MINE_TAIL PEOPLE_M "," MODS ","
               "\"ga.echo\",\"ga.hex\",\"ga.list\","
               "\"ga.status\",\"ga.fails\",\"gb.status\",\"gd.one\"]}"),
           "X2: discover lists group methods after the core, on or off");
@@ -3850,7 +3858,7 @@ static void test_files_methods(void)
     EXPECT(REQ("1", "files.root", ""), want);
     EXPECT(REQ("2", "files.list", ""), OK("2", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":\"..\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":7}"),
            ERR("2", "-32602", "\\\"path\\\" must be a string of at most 1024 bytes"));
     /* write, read back, stat */
@@ -3996,9 +4004,8 @@ static void test_files_methods(void)
     char bad[260];
     snprintf(bad, sizeof bad, "%s/b.bin", root);
     CHECK(zxf_set_root(bad) == ZXF_E_ROOT, "a file is no root");
-    EXPECT(REQ("14", "files.root", ""), FERR("14", "the ZXV folder cannot be found or made"));
-    EXPECT(REQ("14", "files.empty_trash", ""),
-           FERR("14", "the ZXV folder cannot be found or made"));
+    EXPECT(REQ("14", "files.root", ""), FERR("14", "the Hoard cannot be found or made"));
+    EXPECT(REQ("14", "files.empty_trash", ""), FERR("14", "the Hoard cannot be found or made"));
     CHECK(zxf_set_root(root) == 0, "root back");
     CHECK(rm_tree(root) == 0, "cleanup");
 }
@@ -4918,9 +4925,9 @@ static void test_backup(void)
     unlink(p);
     snprintf(p, sizeof p, "%s/Notes", root);
     CHECK(zks_run(root, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
-              !strcmp(err, "the destination is inside the ZXV folder") &&
+              !strcmp(err, "the destination is inside the Hoard") &&
               zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
-          "inside the ZXV folder: %s", err);
+          "inside the Hoard: %s", err);
     snprintf(p, sizeof p, "%s-sibling", root); /* shares a prefix, but is not inside */
     CHECK(mkdir(p, 0700) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_OK &&
               r.files == 5,
@@ -6428,7 +6435,6 @@ int main(void)
     test_aipi_methods();
     test_files_methods();
     test_spaces_methods();
-    test_people_methods();
     test_sys_and_log();
     test_sys_shapes();
     test_search();
@@ -6437,6 +6443,7 @@ int main(void)
     test_journal();
     test_screen();
     test_place();
+    test_people_methods();
     test_books_closed();
     test_books();
     test_earnings();

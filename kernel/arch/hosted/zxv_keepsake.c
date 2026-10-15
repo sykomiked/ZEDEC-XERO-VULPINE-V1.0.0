@@ -303,7 +303,7 @@ static int open_store(const char *dest, bool create, store_t *s, char *err, size
         return say(err, cap, ZKS_E_IO, "could not read the folders' full paths");
     size_t rl = strlen(fr);
     if (!strncmp(fd, fr, rl) && (fd[rl] == 0 || fd[rl] == SEP[0]))
-        return say(err, cap, ZKS_E_DEST, "the destination is inside the ZXV folder");
+        return say(err, cap, ZKS_E_DEST, "the destination is inside the Hoard");
     memset(s, 0, sizeof *s);
     snprintf(s->space, sizeof s->space, "%s", zxf_space());
     size_t dl = strlen(dest);
@@ -802,7 +802,7 @@ int zks_run(const char *dest, bool full, zks_run_t *r, int *zxf, char *err, size
     if (rc) {
         os_unlink(tmp);
         r->snapshot = 0;
-        if (rc == ZKS_E_FILE) return say(err, cap, rc, "the ZXV folder: %s", zxf_strerror(*zxf));
+        if (rc == ZKS_E_FILE) return say(err, cap, rc, "the Hoard: %s", zxf_strerror(*zxf));
         if (rc == ZKS_E_FULL)
             return say(err, cap, rc, "more than %u files in this space", ZKS_FILES_MAX);
         if (rc == ZKS_E_DAMAGED)
@@ -1087,7 +1087,7 @@ int zks_restore(const char *dest, uint32_t snapshot, const char *path, const cha
     }
     for (uint32_t i = 0; i < n; i++) free(v[i].rest);
     free(v);
-    if (rc == ZKS_E_FILE) return say(err, cap, rc, "the ZXV folder: %s", zxf_strerror(*zxf));
+    if (rc == ZKS_E_FILE) return say(err, cap, rc, "the Hoard: %s", zxf_strerror(*zxf));
     if (rc && !err[0]) return say(err, cap, rc, "could not read a kept copy");
     return rc;
 }

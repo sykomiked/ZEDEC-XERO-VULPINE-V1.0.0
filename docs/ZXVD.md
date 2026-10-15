@@ -13,7 +13,7 @@
 | Signed update checks, notifications | `zxv_update_host.c`, `zx_notify` | `update.check`, `notes.*` |
 | Owner's books: currencies, accounts, exact postings, invariants | **libzxv** through its frozen C ABI | `currency.*`, `ledger.*` |
 | AIPI: functions by CID, run in the Z-Wasm sandbox under their contract (offline node) | `kernel/src/aipi`, `sdk/kits/aipi`, `zxvd_aipi.c` | `aipi.*` |
-| The ZXV folder behind the built-in apps (Burrow, Quillon, Glint; [STAPLE_APPS.md](STAPLE_APPS.md)) | `zxv_files.c` | `files.*`, and the window's `POST /api/rpc` |
+| The Hoard behind the built-in apps (the Banker, Quillon, Glint; [STAPLE_APPS.md](STAPLE_APPS.md)) | `zxv_files.c` | `files.*`, and the window's `POST /api/rpc` |
 | Spaces: home, offices, teams, cloud top, parks, with rights per role, held crossings and member votes ([STAPLE_APPS.md](STAPLE_APPS.md#spaces)) | `zxv_spaces.c` | `spaces.*`, `files.cross`, the `space` parameter of `files.*` |
 | The machine and zxvd for the system utilities (Almanac, Tidewatch, Sounding; [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)), read only | `zxv_sysinfo.c` | `sys.info`, `sys.disk`, `sys.net` |
 | Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
@@ -316,13 +316,12 @@ unknown (see "Power" below),
 see "Public spaces and the watch hall" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
-refused or failed (the message says why), -32030 a people method
-(`social.*`, `call.*`, `xlate.*`, `devmesh.*`, `ui.*`) refused (the message
-says why), -32031 `xlate.translate` with no local model that can generate
-(nothing is invented), -32022 a printer or scanner refused or out of reach
-(`print.*`, `scan.*`), -32018 a backup refused (`backup.*`), -32019 a
-screen-time refusal (`screen.*`), -32021 a place refused (`place.*`); each
-message says why. -32000 a
+refused or failed (the message says why), -32022 a printer or scanner
+refused or out of reach (`print.*`, `scan.*`), -32018 a backup refused
+(`backup.*`), -32019 a screen-time refusal (`screen.*`), -32021 a place
+refused (`place.*`), -32030 a people method (`social.*`, `call.*`,
+`xlate.*`, `devmesh.*`, `ui.*`) refused, -32031 `xlate.translate` with no
+local model that can generate (nothing is invented); each message says why. -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are

@@ -1,0 +1,116 @@
+# What each of the 104 Lingua languages (kernel/src/lingua/catalogue.tsv) is
+# best at, and which kinds of app feature it owns. One language per line,
+# tab-separated:
+#   language  runtime  owns  best_at
+# language: exactly as the catalogue names it.
+# runtime:  the zxapp language a manifest names ("logic <runtime> ..."), or
+#           "-" while there is no front-end. A language with "-" owns its
+#           features on paper only: no manifest may claim it until its
+#           runtime lands (tools/apps/lang_coverage.py checks this).
+# owns:     comma-separated feature kinds (see the "kinds" list in
+#           tools/apps/lang_coverage.py). Two languages may own the same kind;
+#           that is how a critical answer gets its second witness.
+Short Code	-	formula	evaluating one algebraic formula, the earliest interpreted maths
+Autocode	-	formula	compact numeric formulas for small machines
+Laning and Zierler	-	formula	writing equations the way they are written on paper
+FLOW-MATIC	-	business	English-worded business data processing, the ancestor of COBOL
+IPL	-	lists	list processing and symbolic search
+FORTRAN	trebago	numeric,statistics	exact heavy numeric kernels: sums, scans, rationals
+ALGOL 58	-	formula	block-structured algorithms as published
+LISP	-	symbolic,lists	symbolic data, trees and self-describing structures
+COBOL	sutra	money,business	ledgers, money and fixed-size business records, refusing on overflow
+JOVIAL	-	control	embedded real-time control tables
+RPG	-	report	report generation from fixed records
+APT	-	toolpath	numerical-control tool paths
+ALGOL 60	-	formula,proof	clear, provable algorithms
+APL	kron	arrays,statistics	whole-array arithmetic in one line
+SNOBOL	-	text,pattern	string pattern matching with backtracking
+Simula I	-	simulation	discrete-event simulation
+CPL	-	formula	general systems programming, the root of BCPL
+JOSS	-	formula	interactive calculation at a desk
+BASIC	basic	stepwise	plain step-by-step procedures anyone can read
+PL/I	-	business,numeric	mixed business and scientific records
+JCL	-	jobs	describing batch jobs and their datasets
+System/360 assembler	-	machine	exact machine-level arithmetic
+TRAC	-	text	macro text processing
+MUMPS	myra	records,index	sparse records, indexes and search
+BCPL	-	machine	small typeless systems code
+Logo	-	geometry	turtle geometry and drawing paths
+Simula 67	-	simulation,objects	simulation with classes
+ALGOL 68	-	formula	strongly typed expression-rich algorithms
+B	-	machine	word-level systems code
+Forth	forth	stack,control	tiny stack programs for devices and boot-time checks
+Pascal	-	stepwise,structure	structured, strongly typed teaching-grade procedures
+C	c	view,model,machine	the screen, the model and the zxvd link
+Prolog	-	rules,search	logic rules and searching for every answer that fits
+Smalltalk	-	objects,view	live objects and message passing
+ML	-	types,proof	typed functional transforms with inference
+SQL	-	query	querying tables by what you want, not how
+Scheme	-	symbolic	small, exact functional code
+S	-	statistics	interactive statistics
+SAS	-	statistics,report	statistical reports over records
+Icon	-	text,pattern	goal-directed string scanning
+AWK	-	text,report	line-and-field text reports
+Bourne shell	-	jobs	wiring programs together
+Modula-2	-	structure,machine	modular systems code with clear interfaces
+TeX	-	typesetting	exact typesetting of text and maths
+REXX	-	scripting	readable glue scripts
+dBase	-	records,query	small desktop databases
+Natural	-	business,query	business queries over records
+Ada	eve	limits,safety	safety limits, contracts and policy that must hold
+PostScript	-	layout	exact page description and drawing
+C++	cpp	numeric,objects	fast typed libraries (through libzxv, or as wasm)
+Objective-C	-	objects,view	message-based objects
+Occam	-	concurrency	channels and parallel processes
+ABAP	-	business	enterprise business tables
+Common Lisp	-	symbolic	large symbolic programs
+MATLAB	-	matrix	matrix numerics
+Verilog	-	circuit	describing and checking digital circuits
+Eiffel	-	contracts	design by contract
+Erlang	-	messaging,faults	fault-tolerant messaging that keeps running
+LabVIEW	-	dataflow,signal	instrument dataflow
+Perl	-	text,pattern	text munging and regular expressions
+VHDL	-	circuit	strongly typed hardware description
+HyperTalk	-	scripting,view	card-based scripting for people
+Tcl	-	scripting	embeddable command scripts
+Oberon	-	structure	small, whole systems
+Mathematica	-	symbolic,formula	symbolic maths
+Bash	-	jobs	shell jobs and pipelines
+Haskell	-	types,proof	pure functions and types that rule out bugs
+J	kron	arrays	array tacit programming (runs through KRON)
+Python	python	scripting,ai	readable glue and model pipelines (through libzxv)
+Visual Basic	dotnet	view,scripting	forms and simple automation (through .NET)
+Lua	-	scripting	small embedded scripting
+R	-	statistics	statistics and plots
+K	kron	arrays,query	terse array queries over columns
+IEC 61131-3 Structured Text	-	control	industrial control logic
+Ladder logic	-	control	relay-style control drawn as rungs
+Java	java	objects,business	portable typed services (through libzxv)
+JavaScript	typescript	view,scripting	interactive pages and scripting
+Ruby	ruby	scripting	expressive glue
+PHP	php	report	templated pages and reports
+Delphi	-	view,structure	forms over strong types
+Racket	-	symbolic,parse	making small languages
+OCaml	-	types,parse	compilers and typed transforms
+C#	dotnet	objects,view	typed applications (through .NET)
+Scala	-	types,dataflow	typed data pipelines
+Groovy	-	scripting	build and glue scripts
+F#	dotnet	types,numeric	typed numeric and data code (through .NET)
+Clojure	-	symbolic,dataflow	immutable data transforms
+Nim	-	machine	compact fast native code
+Go	go	concurrency,messaging	networked services with simple concurrency
+Rust	rust	machine,safety	memory-safe parsing and systems code (or as wasm)
+Kotlin	kotlin	objects	concise typed apps
+Dart	dart	view	reactive interfaces
+Elixir	-	messaging,faults	fault-tolerant message flows
+Julia	-	numeric,matrix	numeric and scientific code
+TypeScript	typescript	view,types	typed interactive scripting
+Elm	-	view,types	interfaces with no runtime errors
+Swift	swift	view,objects	native apps on Apple hardware
+Solidity	-	contracts	contract rules (reference only; ZXV settles in Sutra)
+Crystal	-	machine	typed native code with light syntax
+Raku	-	parse,text	grammars and text
+Zig	-	machine	explicit systems code (as wasm)
+WebAssembly	wasm	sandbox	sandboxed, fuel-metered logic from any compiled language
+Gleam	-	messaging,types	typed fault-tolerant services
+Mojo	-	numeric,ai	numeric kernels for models

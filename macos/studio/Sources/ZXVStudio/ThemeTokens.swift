@@ -10,13 +10,13 @@ enum ZUIToken {
     static let panel = Color(red: 0x04 / 255, green: 0x33 / 255, blue: 0x1A / 255) // ZUI_PANEL #04331A
     static let raised = Color(red: 0x0B / 255, green: 0x40 / 255, blue: 0x26 / 255) // ZUI_RAISED #0B4026
     static let hairline = Color(red: 0x15 / 255, green: 0x50 / 255, blue: 0x2F / 255) // ZUI_HAIRLINE #15502F
-    static let edge = Color(red: 0x2A / 255, green: 0x6A / 255, blue: 0x47 / 255) // ZUI_EDGE #2A6A47
+    static let edge = Color(red: 0x56 / 255, green: 0x8D / 255, blue: 0x6E / 255) // ZUI_EDGE #568D6E
     static let engraveHi = Color(red: 0xCF / 255, green: 0xE8 / 255, blue: 0xD8 / 255) // ZUI_ENGRAVE_HI #CFE8D8
     static let engraveLo = Color(red: 0x00 / 255, green: 0x1A / 255, blue: 0x0B / 255) // ZUI_ENGRAVE_LO #001A0B
     static let text = Color(red: 0xD8 / 255, green: 0xF5 / 255, blue: 0xE1 / 255) // ZUI_TEXT #D8F5E1
     static let text2 = Color(red: 0xB2 / 255, green: 0xE0 / 255, blue: 0xC2 / 255) // ZUI_TEXT_2 #B2E0C2
     static let muted = Color(red: 0x84 / 255, green: 0xB7 / 255, blue: 0x95 / 255) // ZUI_MUTED #84B795
-    static let faint = Color(red: 0x5E / 255, green: 0x8F / 255, blue: 0x72 / 255) // ZUI_FAINT #5E8F72
+    static let faint = Color(red: 0x6E / 255, green: 0x9C / 255, blue: 0x80 / 255) // ZUI_FAINT #6E9C80
     static let gold = Color(red: 0xF2 / 255, green: 0xC2 / 255, blue: 0x30 / 255) // ZUI_GOLD #F2C230
     static let goldHi = Color(red: 0xFF / 255, green: 0xD2 / 255, blue: 0x4D / 255) // ZUI_GOLD_HI #FFD24D
     static let goldGlow = Color(red: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255) // ZUI_GOLD_GLOW #FFE38A

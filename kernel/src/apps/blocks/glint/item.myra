@@ -1,0 +1,6 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Glint files a media item it has shown, in MYRA: its place in the
+; folder, its kind (burrow_model.h BURROW_K_*) and its size in bytes.
+^ZXGLINT(folder:i9, seq:i9) = kind:i3! ^ size:i18!
