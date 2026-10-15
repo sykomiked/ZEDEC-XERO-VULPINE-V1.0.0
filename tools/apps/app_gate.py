@@ -17,6 +17,12 @@ For every app manifest with a slot (kernel/src/apps/*.zxapp) it fails when:
     when any entry runs in two languages or more, tests a disagreement
     (ZXAPP_BOTH);
   * a file in kernel/src/apps/tests/ belongs to no app;
+  * it uses a block from a layer no nearer the core than its own (the grid
+    is built inside out: the shared blocks are the core, then the L1 apps
+    in matrix order, tools/server-tasks/MATRIX_ORDER.tsv, with the wave 0
+    apps already built, then L2 and L3 in wave order); an app may use only
+    the core's blocks and apps built before it, never one built after it
+    or itself;
   * the model calls a daemon method (zxm_begin) that api/zxvd.openrpc.json
     does not list: an app reaches only methods that exist;
 and for every app and block, when a file in its blocks/<id>/ folder is used
@@ -53,7 +59,7 @@ MODEL_LINES = 20
 
 
 def manifest(path):
-    m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}}
+    m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": []}
     inline = False
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -71,12 +77,64 @@ def manifest(path):
                 m["model"] = w[1]
             elif w[0] == "provides" and len(w) >= 3:
                 m["provides"].append(w[1])
+            elif w[0] == "use" and len(w) >= 3:
+                m["uses"].append(w[1])
             elif w[0] == "logic" and len(w) >= 4:
                 m["entries"][w[2]] = m["entries"].get(w[2], 0) + 1
                 inline = w[3] == "<<"
                 if not inline:
                     m["logic"].append(w[3])
     return m
+
+
+TASKS = os.path.join(ROOT, "tools", "server-tasks")
+
+
+def build_rank(mans):
+    """Each manifest's place from the core outward: (layer, position). The shared
+    blocks and the examples are the core (0, 0); an L1 app is (1, its place in
+    MATRIX_ORDER.tsv), (1, 0) when it was built before the order (wave 0); an L2
+    or L3 app is (2 or 3, its wave * 1000 + its place in that wave)."""
+    order = {}
+    path = os.path.join(TASKS, "MATRIX_ORDER.tsv")
+    if os.path.exists(path):
+        for line in open(path, encoding="utf-8"):
+            c = line.rstrip("\n").split("\t")
+            if line.startswith("#") or c[0] == "position" or len(c) < 4:
+                continue
+            order[int(c[2], 10)] = int(c[0], 10)
+    waves = {}
+    if os.path.isdir(TASKS):
+        for d in os.listdir(TASKS):
+            if re.fullmatch(r"wave\d+", d) and os.path.isdir(os.path.join(TASKS, d)):
+                for i, f in enumerate(sorted(os.listdir(os.path.join(TASKS, d)))):
+                    if re.match(r"\d{3}-", f):
+                        waves[int(f[:3], 10)] = int(d[4:], 10) * 1000 + i + 1
+    rank = {}
+    for p, m in mans:
+        if p.endswith(".zxblock") or not m["slot"]:
+            rank[m["id"]] = (0, 0)
+        elif m["slot"] <= 144:
+            rank[m["id"]] = (1, order.get(m["slot"], 0))
+        else:
+            rank[m["id"]] = (2 if m["slot"] <= 271 else 3, waves.get(m["slot"], 0))
+    return rank
+
+
+def check_layers(mans):
+    """The grid is built inside out: a use reaches only nearer the core."""
+    errors, rank = [], build_rank(mans)
+    for p, m in mans:
+        rel = os.path.relpath(p, ROOT)
+        for u in m["uses"]:
+            if u not in rank:
+                errors.append(f"{rel}: uses {u}, which no manifest provides")
+            elif rank[u] >= rank[m["id"]]:
+                errors.append(f"{rel}: uses {u}, which is no nearer the core (layer {rank[u][0]}, "
+                              f"place {rank[u][1]}) than {m['id']} (layer {rank[m['id']][0]}, place "
+                              f"{rank[m['id']][1]}); build it here and register it, or wait for "
+                              "the layer that owns it")
+    return errors
 
 
 def code_lines(path):
@@ -177,6 +235,7 @@ def main():
     files = [os.path.join(APPS, f) for f in sorted(os.listdir(APPS)) if f.endswith(".zxapp")]
     blocks = os.path.join(APPS, "blocks")
     files += [os.path.join(blocks, f) for f in sorted(os.listdir(blocks)) if f.endswith(".zxblock")]
+    errors += check_layers([(p, manifest(p)) for p in files])
     claimed = set()
     for p in files:
         rel = os.path.relpath(p, ROOT)
