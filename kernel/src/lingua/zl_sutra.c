@@ -115,14 +115,14 @@ uint32_t zl_sutra_count(void)
 uint64_t zl_sutra_pack(const zl_sutra_t *s)
 {
     if (!s || s->dhatu > 0xFFFu || s->upasarga > ZL_SUTRA_UPASARGAS || s->pratyaya > 0xFFu ||
-        s->sandhi > 0x7FFu || s->belnap > 3u || s->svara > 3u)
+        s->sandhi > 0x7FFu || s->lpres > 3u || s->svara > 3u)
         return 0;
     uint64_t c = (uint64_t) s->dhatu | (uint64_t) s->upasarga << 12 | (uint64_t) s->pratyaya << 17;
     for (uint32_t r = 0; r < 6; r++) {
         if (s->karaka[r] > 15u) return 0;
         c |= (uint64_t) s->karaka[r] << (25u + 4u * r);
     }
-    return c | (uint64_t) s->sandhi << 49 | (uint64_t) s->belnap << 60 | (uint64_t) s->svara << 62;
+    return c | (uint64_t) s->sandhi << 49 | (uint64_t) s->lpres << 60 | (uint64_t) s->svara << 62;
 }
 
 void zl_sutra_unpack(uint64_t c, zl_sutra_t *s)
@@ -132,14 +132,14 @@ void zl_sutra_unpack(uint64_t c, zl_sutra_t *s)
     s->pratyaya = (uint32_t) (c >> 17) & 0xFFu;
     for (uint32_t r = 0; r < 6; r++) s->karaka[r] = (uint8_t) ((c >> (25u + 4u * r)) & 0xFu);
     s->sandhi = (uint32_t) (c >> 49) & 0x7FFu;
-    s->belnap = (uint32_t) (c >> 60) & 3u;
+    s->lpres = (uint32_t) (c >> 60) & 3u;
     s->svara = (uint32_t) (c >> 62) & 3u;
 }
 
-uint64_t zl_sutra_cell(uint32_t op, uint32_t belnap)
+uint64_t zl_sutra_cell(uint32_t op, uint32_t lpres)
 {
-    if (op >= NOPS || belnap > 3u) return 0;
-    zl_sutra_t s = {OPS[op].root + 1u, OPS[op].upasarga, OPS[op].pratyaya, 0, belnap, 0, {0}};
+    if (op >= NOPS || lpres > 3u) return 0;
+    zl_sutra_t s = {OPS[op].root + 1u, OPS[op].upasarga, OPS[op].pratyaya, 0, lpres, 0, {0}};
     for (uint32_t r = 0; r < 6; r++) s.karaka[r] = OPS[op].karaka[r];
     return zl_sutra_pack(&s);
 }

@@ -12,6 +12,7 @@
 #include <string.h>
 #include "zl.h"
 #include "zl_sutra.h"
+#include "zl_kpy.h"
 
 static unsigned checks, fails;
 #define CHECK(c, ...)                                                                              \
@@ -73,7 +74,7 @@ int main(int argc, char **argv)
             uint64_t c = zl_sutra_cell(op, b);
             zl_sutra_t s;
             zl_sutra_unpack(c, &s);
-            CHECK(c && zl_sutra_op(c) == (int32_t) op && s.belnap == b, "%s cell %u", NAME[op], b);
+            CHECK(c && zl_sutra_op(c) == (int32_t) op && s.lpres == b, "%s cell %u", NAME[op], b);
             for (uint32_t q = 0; q < op; q++)
                 CHECK(zl_sutra_cell(q, b) != c, "%s and %s share a cell", NAME[op], NAME[q]);
         }
@@ -98,13 +99,13 @@ int main(int argc, char **argv)
         s.upasarga = (uint32_t) (r >> 40) % 23u;
         s.pratyaya = (uint32_t) (r >> 8) & 0xFFu;
         s.sandhi = (uint32_t) (r >> 50) & 0x7FFu;
-        s.belnap = (uint32_t) (r >> 33) & 3u;
+        s.lpres = (uint32_t) (r >> 33) & 3u;
         s.svara = (uint32_t) (r >> 61) & 3u;
         for (uint32_t k = 0; k < 6; k++) s.karaka[k] = (uint8_t) ((r >> (4 * k)) & 15u);
         uint64_t c = zl_sutra_pack(&s);
         zl_sutra_unpack(c, &t);
         CHECK(!memcmp(&s.karaka, &t.karaka, 6) && s.dhatu == t.dhatu && s.upasarga == t.upasarga &&
-                  s.pratyaya == t.pratyaya && s.sandhi == t.sandhi && s.belnap == t.belnap &&
+                  s.pratyaya == t.pratyaya && s.sandhi == t.sandhi && s.lpres == t.lpres &&
                   s.svara == t.svara && zl_sutra_pack(&t) == c,
               "pack round trip %u", i);
         if (fails) break;
@@ -152,17 +153,19 @@ int main(int argc, char **argv)
 
     if (argc > 2) { /* the table for ALPHABET.md */
         FILE *f = fopen(argv[2], "w");
-        fprintf(f, "| Op | Family | Root | Sense | Upasarga | Pratyaya | Kāraka | Cell (N) |\n");
-        fprintf(f, "|---|---|---|---|---|---|---|---|\n");
+        fprintf(f, "| Op | Family | Root | Sense | Kaṭapayādi | Upasarga | Pratyaya | Kāraka | Cell (N) |\n");
+        fprintf(f, "|---|---|---|---|---|---|---|---|---|\n");
         for (uint32_t op = 0; op < ZL_OP__COUNT; op++) {
             zl_sutra_t s;
             uint64_t c = zl_sutra_cell(op, 0);
             zl_sutra_unpack(c, &s);
+            uint64_t kv = 0;
+            zl_kpy_value(zl_sutra_root(op), &kv);
             char k[7];
             for (uint32_t i = 0; i < 6; i++) k[i] = zl_sutra_kchar(s.karaka[i]);
             k[6] = 0;
-            fprintf(f, "| %s | %s | √%s | %s | %s | %s | `%s` | `%016llx` |\n", NAME[op], FAMILY[op],
-                    zl_sutra_root(op), zl_sutra_gloss(op), *zl_sutra_upasarga(s.upasarga) ? zl_sutra_upasarga(s.upasarga) : "",
+            fprintf(f, "| %s | %s | √%s | %s | %llu | %s | %s | `%s` | `%016llx` |\n", NAME[op], FAMILY[op],
+                    zl_sutra_root(op), zl_sutra_gloss(op), (unsigned long long) kv, *zl_sutra_upasarga(s.upasarga) ? zl_sutra_upasarga(s.upasarga) : "",
                     zl_sutra_pratyaya(s.pratyaya), k, (unsigned long long) c);
         }
         fclose(f);

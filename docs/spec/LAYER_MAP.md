@@ -8,7 +8,7 @@ This page writes out the mapping `tools/alexandria/pack_matrix.py` applies. The 
 ## Rules, in order
 
 1. **The corpus is every tracked file of the repository** (`git ls-files`): the kernel, the host app and daemon, boot, the SDK, tools, tests, assets and documents.
-2. **Booklet 000** is the first booklet of layer 0 and the first thing read after boot. It holds, in this order: `kernel/src/lingua/alphabet.tsv`, `kernel/src/lingua/zl.h`, `kernel/src/lingua/zxp_rt.h`, `kernel/src/lingua/zxp_rt.c`, `kernel/src/lingua/zl_proj.c`, `kernel/src/lingua/zl_sutra.h`, `kernel/src/lingua/zl_sutra.c`. The packer refuses a tree where any of them is outside layer 0.
+2. **Booklet 000** is the first booklet of layer 0 and the first thing read after boot. It holds, in this order: `kernel/src/lingua/alphabet.tsv`, `kernel/src/lingua/zl.h`, `kernel/src/lingua/zxp_rt.h`, `kernel/src/lingua/zxp_rt.c`, `kernel/src/lingua/zl_proj.c`, `kernel/src/lingua/zl_sutra.h`, `kernel/src/lingua/zl_sutra.c`, `kernel/src/lingua/zl_kpy.h`, `kernel/src/lingua/zl_kpy.c`. The packer refuses a tree where any of them is outside layer 0.
 3. **Layer N, for N from 1 to 144, is L1 system app N**, in the order of `zxv-ui/APP_CATALOG_407.csv`, with that app's vector icon.
 4. **A file goes to the layer whose home matches it.** A home is a path under `kernel/src`, or from the top of the repository when it starts with `/`; the longest match wins.
 5. **`docs/`, and files at the top of the repository that no home names, go to layer 130**, the developer documentation.
@@ -20,7 +20,7 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 
 | Layer | App | Group | Homes | Files | Pulled in |
 |---|---|---|---|---|---|
-| 0 | core | Core | `alloc` `mm` `sched` `syscall` `gdt` `idt` `pic` `timer` `pci` `acpi` `ata` `blockdev` `bios` `bringup` `el0_userspace` `loader` `modbind` `lpres` `oseq` `event_space` `event_sched` `event_transport` `e8` `edp_risk` `surplus` `trispace` `pqsec` `mlkem` `tls` `robin_debanks` `clock` `keyboard` `mouse` `display` `vbe` `virtio` `fs` `vfs` `zxvfs` `fat32` `tripartite_fs` `ubh` `alexandria` `lingua` `tensor` `zui` `appkit` `apps` `cellular_multikernel` `hwdrv` `net` `/kernel/arch` `/kernel/boot` `/kernel/include` `/kernel/compat` `/kernel/third_party` `/kernel/experimental` `/kernel/userapp` `/kernel/freestanding.c` `/kernel/linker.ld` `/kernel/linker_arm64.ld` `/kernel/grub.cfg` `/kernel/lpres_core.c` `/kernel/rmag_core.c` `/kernel/telemetry_core.c` `/kernel/Makefile` | 1230 | `cotier` `curzi` `epu` `fusion` `kernel` `mbcomp` |
+| 0 | core | Core | `alloc` `mm` `sched` `syscall` `gdt` `idt` `pic` `timer` `pci` `acpi` `ata` `blockdev` `bios` `bringup` `el0_userspace` `loader` `modbind` `lpres` `oseq` `event_space` `event_sched` `event_transport` `e8` `edp_risk` `surplus` `trispace` `pqsec` `mlkem` `tls` `robin_debanks` `clock` `keyboard` `mouse` `display` `vbe` `virtio` `fs` `vfs` `zxvfs` `fat32` `tripartite_fs` `ubh` `alexandria` `lingua` `tensor` `zui` `appkit` `apps` `cellular_multikernel` `hwdrv` `net` `/kernel/arch` `/kernel/boot` `/kernel/include` `/kernel/compat` `/kernel/third_party` `/kernel/experimental` `/kernel/userapp` `/kernel/freestanding.c` `/kernel/linker.ld` `/kernel/linker_arm64.ld` `/kernel/grub.cfg` `/kernel/lpres_core.c` `/kernel/rmag_core.c` `/kernel/telemetry_core.c` `/kernel/Makefile` | 1233 | `cotier` `curzi` `epu` `fusion` `kernel` `mbcomp` |
 | 1 | Burrow | System core | `apps/burrow_model.c` `apps/burrow_model.h` | 2 |  |
 | 2 | Hollow | System core | `desktop` `theme` `dual_space` `launch` `icon` `/macos` `/gui` `/subsystems/gui` `/ZXV-Desktop.command` | 72 | `init` `prism_break` |
 | 3 | Threshold | System core | `ident` `identity` `cred` | 18 | `seats` |
@@ -166,4 +166,4 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 143 | Watchfire | Access, language and safety | none yet | 0 |  |
 | 144 | Stillwater | Access, language and safety | none yet | 0 |  |
 
-10465 files in 81 layers that hold content; 64 layers are empty until their apps' code lands.
+10468 files in 81 layers that hold content; 64 layers are empty until their apps' code lands.

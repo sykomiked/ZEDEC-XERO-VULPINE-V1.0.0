@@ -25,7 +25,7 @@ has:
 | a composite with its own CID | an app that uses blocks and exports entries (C1), with provenance for every part (C2) |
 | run anywhere, check the result | AIPI function and call CIDs (docs/AIPI.md) |
 | shipping values and programs between runtimes | the Babel wire format (docs/BABEL_WIRE.md) |
-| Belnap gates | lpres (kernel/src/lpres), whose tables AXION uses exactly |
+| four-valued gates (N, T, F, B) | lpres (kernel/src/lpres), whose tables AXION uses exactly. They are min and max on the chain F < N < B < T, not Belnap's lattice: a contradiction plus a gap never gives T |
 
 What is new is `kernel/src/alexandria`: the index, the booklets and three
 small languages over them.

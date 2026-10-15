@@ -8,7 +8,9 @@
  *   upasarga   one of the 22 Pāṇinian prefixes, directing the root
  *   pratyaya   the suffix: which variant (slot or frame, floor or truncate)
  *   kāraka     the six roles and where each operand comes from
- *   belnap     the four-valued evidence tag (lpres: N, T, F, B)
+ *   lpres      the four-valued evidence tag (N, T, F, B, encoded as lpres_state_t;
+ *              lpres combines them on the chain F < N < B < T, not by
+ *              Belnap's lattice)
  * The view is a naming of the IR, one cell per operation and one operation
  * per cell (tested both ways). It adds no operation and changes no
  * semantics: what an operation does is still exactly what zl_run does.
@@ -20,7 +22,7 @@
  *   bits 17..24  pratyaya   (8)   the variant (zl_sutra_pratyaya)
  *   bits 25..48  kāraka     (24)  six 4-bit operand codes, role r at 25 + 4r
  *   bits 49..59  sandhi     (11)  how two cells join; 0 (reserved) for now
- *   bits 60..61  belnap     (2)   lpres state: 0 N, 1 T, 2 F, 3 B
+ *   bits 60..61  lpres      (2)   lpres state: 0 N, 1 T, 2 F, 3 B
  *   bits 62..63  svara      (2)   0 (reserved) for now
  *
  * Freestanding C11: integers only, no allocation. */
@@ -62,7 +64,7 @@ enum {
 #define ZL_SUTRA_UPASARGAS 22u
 
 typedef struct {
-    uint32_t dhatu, upasarga, pratyaya, sandhi, belnap, svara;
+    uint32_t dhatu, upasarga, pratyaya, sandhi, lpres, svara;
     uint8_t karaka[6];
 } zl_sutra_t;
 
@@ -72,10 +74,10 @@ void zl_sutra_unpack(uint64_t cell, zl_sutra_t *s);
 
 /* The canonical cell of IR operation op with an evidence tag (0..3), or 0
  * for an unknown op. */
-uint64_t zl_sutra_cell(uint32_t op, uint32_t belnap);
+uint64_t zl_sutra_cell(uint32_t op, uint32_t lpres);
 /* The IR operation a cell names, or -1: the dhātu, upasarga, pratyaya and
  * kāraka must be exactly one operation's; sandhi and svara must be 0. The
- * belnap tag is carried, not part of the operation. */
+ * lpres tag is carried, not part of the operation. */
 int32_t zl_sutra_op(uint64_t cell);
 
 /* names, for documents and tools (IAST, ASCII-safe where noted) */
