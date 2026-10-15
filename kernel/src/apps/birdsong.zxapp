@@ -1,0 +1,54 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Birdsong, voice memos and audio editing: layer 55 of the matrix, the
+# anchor of its Fibonacci layer. Memos are 16-bit PCM WAV files in the
+# Hoard, written and read through zxvd's files.write and files.read
+# (birdsong_model.c). zxvd has no method that records from the microphone,
+# so the view captures the samples and hands them to the model; "mic" is
+# the capability that capture asks for.
+#
+# Every entry is a general pattern later layers reuse with "use birdsong 1":
+#   gain     a saturating scale of 16-bit samples: floor(sample * level /
+#            10000), the floor toward minus infinity, held in -32768..32767.
+#            level is one value (10000 = unity, hundredths of a percent).
+#            KRON and C++ (as WebAssembly) are witnessed: the C++ refuses a
+#            sample outside 16 bits or a level outside 0..1000000 with
+#            -32769 (below every sample), where KRON still answers; the two
+#            then disagree, and the answer is held (BOTH).
+#   clip_ms  how long samples of one channel last at a rate, in ms:
+#            samples * 1000 / rate as an exact reduced rational (Trebago has
+#            no floor, so nothing is rounded); a rate of 0 is refused.
+#   rec_ok   the recording limits as a range record (Eve checks only that
+#            each field fits its declared range): rate 8000..48000 Hz,
+#            channels 1..2, frames 0..480000.
+#   memo_ok  a memo's index record in MYRA (^ZXBIRDSONG).
+# Planned languages: LabVIEW owns signal work (gain), Mojo numeric kernels
+# (clip_ms); MATLAB owns matrix work and no entry here is a matrix.
+zxapp 1
+id     birdsong
+name   Birdsong
+version 1.0.0
+slot   55
+layer  L1
+icon   icons/l1/055-birdsong.svg
+budget 233
+needs  mic
+needs  fs.read
+needs  fs.write
+model  apps/birdsong_model.c
+
+provides gain num sample level
+logic    kron gain apps/blocks/birdsong/gain.kron
+logic    wasm gain apps/blocks/birdsong/gain.wasm
+pending  LabVIEW gain
+
+provides clip_ms num samples rate
+logic    trebago clip_ms apps/blocks/birdsong/clip_ms.tb
+pending  Mojo clip_ms
+
+provides rec_ok truth rate channels frames
+logic    eve rec_ok apps/blocks/birdsong/limits.eve
+
+provides memo_ok truth memo rate channels frames mtime
+logic    myra memo_ok apps/blocks/birdsong/memo.myra

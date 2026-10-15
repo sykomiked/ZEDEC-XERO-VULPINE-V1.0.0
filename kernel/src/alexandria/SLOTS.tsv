@@ -64,3 +64,7 @@
 27	num.tidewatch_peak	590.09	tidewatch.peak	base
 28	num.wake_count	590.10	wake.count	base
 29	logic.waymark_place_ok	490.08	waymark.place_ok	base
+30	num.birdsong_clip_ms	590.11	birdsong.clip_ms	base
+31	num.birdsong_gain	590.12	birdsong.gain	base
+32	logic.birdsong_memo_ok	490.09	birdsong.memo_ok	base
+33	logic.birdsong_rec_ok	490.10	birdsong.rec_ok	base

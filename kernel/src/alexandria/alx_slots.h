@@ -35,7 +35,11 @@
 #define ALX_SLOT_NUM_TIDEWATCH_PEAK              27u /* 590.09 tidewatch.peak */
 #define ALX_SLOT_NUM_WAKE_COUNT                  28u /* 590.10 wake.count */
 #define ALX_SLOT_LOGIC_WAYMARK_PLACE_OK          29u /* 490.08 waymark.place_ok */
-#define ALX_SLOT__COUNT 29u
+#define ALX_SLOT_NUM_BIRDSONG_CLIP_MS            30u /* 590.11 birdsong.clip_ms */
+#define ALX_SLOT_NUM_BIRDSONG_GAIN               31u /* 590.12 birdsong.gain */
+#define ALX_SLOT_LOGIC_BIRDSONG_MEMO_OK          32u /* 490.09 birdsong.memo_ok */
+#define ALX_SLOT_LOGIC_BIRDSONG_REC_OK           33u /* 490.10 birdsong.rec_ok */
+#define ALX_SLOT__COUNT 33u
 /* clang-format on */
 
 #endif

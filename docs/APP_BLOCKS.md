@@ -28,6 +28,8 @@ writing an app: what is listed here already exists.
 | net_present_value | `pce_fin.npv` | npv, net_present_value | net present value of integer cash flows at a rational rate |
 | bayes_update | `pce_prob.bayes` | bayes, posterior | a Bayesian update in integers |
 | bargaining_zone | `pce_strat.zopa` | zopa, bargaining_zone | whether a seller's minimum and a buyer's maximum overlap |
+| pcm_gain | `birdsong.gain` | gain, pcm_gain, gain_clip, saturating_gain, sample_gain | a 16-bit sample scaled by a level in hundredths of a percent (10000 is unity): floor(sample * level / 10000), the floor toward minus infinity, then held inside -32768..32767 (saturating, never wrapped); level is one value for the whole buffer; a sample outside 16 bits or a level outside 0..1000000 is refused as -32769 |
+| samples_to_ms | `birdsong.clip_ms` | clip_ms, samples_to_ms, duration_ms, length_ms | how long a count of samples of one channel lasts at a rate in hertz, in milliseconds: samples * 1000 / rate as an exact reduced rational, never rounded; a rate of 0 is refused, and so is a product that does not fit int64 |
 | send_content | `zxvd:fab.send` | send, send_file, share_file, upload, transmit | send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h |
 | receive_content | `zxvd:fab.receive` | receive, receive_file, fetch_file, download, install, install_app, app_install | receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption) |
 | stream_content | `zxvd:fab.stream.open` | stream, stream_open, stream_frame, stream_checkpoint | a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint) |
@@ -40,6 +42,7 @@ Reuse is blocks used against new entries written, used / (used + new).
 |---|---|---|---|---|---|
 | almanac 1.0.0 | 17 | L1 | used_share 1 | `days num seconds`: wasm, kron<br>`hours num seconds`: wasm, kron | 1 used, 2 new: 33% |
 | banker 1.0.0 | 1 | L1 | - | `share num size total`: kron, wasm<br>`total num size`: trebago<br>`entry_ok truth folder seq size mtime`: myra | 0 used, 3 new: 0% |
+| birdsong 1.0.0 | 55 | L1 | - | `gain num sample level`: kron, wasm<br>`clip_ms num samples rate`: trebago<br>`rec_ok truth rate channels frames`: eve<br>`memo_ok truth memo rate channels frames mtime`: myra | 0 used, 4 new: 0% |
 | fee_check  | - | example | - | `fee num amount rate`: sutra, kron<br>`fee_ok truth amount fee`: sutra, kron, eve<br>`total num amount fee`: trebago<br>`record_ok truth batch seq amount fee`: myra | 0 used, 4 new: 0% |
 | glint 1.0.0 | 49 | L1 | - | `item_ok truth folder seq kind size`: myra | 0 used, 1 new: 0% |
 | keepsake 1.0.0 | 10 | L1 | - | `removed num snapshots keep`: sutra, kron<br>`keep_ok truth keep`: eve | 0 used, 2 new: 0% |

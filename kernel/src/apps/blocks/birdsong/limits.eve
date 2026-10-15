@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a Birdsong recording may be (birdsong_model.h): a sample rate from
+# 8000 to 48000 Hz, one or two channels, and up to 480000 frames (ten
+# seconds at 48000 Hz, a minute at 8000 Hz). Eve checks that each value
+# fits its range; rules computed from several values stay in the model.
+eve birdsong
+sample_rate = 8000 .. 48000
+channel_count = 1 .. 2
+frame_count = 0 .. 480000
+
+recording {
+  rate: sample_rate
+  channels: channel_count
+  frames: frame_count
+}

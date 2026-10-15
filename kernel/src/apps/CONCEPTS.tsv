@@ -20,6 +20,8 @@ swarm_within_limits	swarm_shares.within_limits	within_limits	a swarm share and i
 net_present_value	pce_fin.npv	npv,net_present_value	net present value of integer cash flows at a rational rate
 bayes_update	pce_prob.bayes	bayes,posterior	a Bayesian update in integers
 bargaining_zone	pce_strat.zopa	zopa,bargaining_zone	whether a seller's minimum and a buyer's maximum overlap
+pcm_gain	birdsong.gain	gain,pcm_gain,gain_clip,saturating_gain,sample_gain	a 16-bit sample scaled by a level in hundredths of a percent (10000 is unity): floor(sample * level / 10000), the floor toward minus infinity, then held inside -32768..32767 (saturating, never wrapped); level is one value for the whole buffer; a sample outside 16 bits or a level outside 0..1000000 is refused as -32769
+samples_to_ms	birdsong.clip_ms	clip_ms,samples_to_ms,duration_ms,length_ms	how long a count of samples of one channel lasts at a rate in hertz, in milliseconds: samples * 1000 / rate as an exact reduced rational, never rounded; a rate of 0 is refused, and so is a product that does not fit int64
 #
 # The assurance fee (8889 per ten million) has no block yet; fee_check's fee is
 # an example rate, a local word. When a block owns the assurance fee, it goes
