@@ -57,6 +57,7 @@ blockdev                         kernel
 bluetooth                        kernel
 cellular_multikernel             kernel
 choice                           kernel
+climate                          kernel     # thermal modes, climate shell, start interlock, integer dew point
 clock                            kernel
 codec                            kernel
 crash                            kernel     # crash records on disk and boot modes (safe, recovery)
@@ -173,6 +174,7 @@ spatial                          logic      # exact geometry, four-valued sensor
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
 chiglet                          ai
+climate/climate_ct               ai         # the climate controller's caps and headroom as ct_budget metrics (includes ct_budget.h)
 cotier                           ai
 epu                              ai
 harmonic                         ai         # the harmonic carrier reads tensor residuals and swarm budgets

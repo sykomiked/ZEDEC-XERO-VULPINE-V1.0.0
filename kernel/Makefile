@@ -411,6 +411,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-devprof
 	$(MAKE) --no-print-directory test-arbiter
 	$(MAKE) --no-print-directory test-stripe
+	$(MAKE) --no-print-directory test-climate
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1600,6 +1601,14 @@ test-settle:
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# Thermal modes and the climate shell controller (src/climate): briefcase modes and
+# scram, the server start interlock and door rule, handheld charging, the integer
+# dew point, and the ct_budget feed (climate_ct).
+.PHONY: test-climate
+test-climate:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/climate -Isrc/cotier -Isrc/tensor src/climate/test_climate.c src/climate/climate.c src/climate/climate_ct.c src/cotier/ct_budget.c src/tensor/zt.c src/tensor/zt_isf.c -lm -o $(ZXV_TMP)/test_climate && $(ZXV_TMP)/test_climate > $(ZXV_TMP)/test_climate.log 2>&1 && echo "[PASS] test_climate ($$(tail -1 $(ZXV_TMP)/test_climate.log))" || { cat $(ZXV_TMP)/test_climate.log; echo "[FAIL] test_climate"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in src/climate/climate.c src/climate/climate_ct.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/climate -Isrc/cotier -Isrc/tensor -c $$f -o $(ZXV_TMP)/climate_free.o || { echo "[FAIL] climate freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/climate_free.o | grep -q .; then nm -u $(ZXV_TMP)/climate_free.o; echo "[FAIL] climate freestanding: external symbols in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] climate freestanding (aarch64, x86_64, riscv64: no libc)"
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
