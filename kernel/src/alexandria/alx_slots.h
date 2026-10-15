@@ -89,7 +89,11 @@
 #define ALX_SLOT_LOGIC_GLEANER_LEAVE_OK          81u /* 490.37 gleaner.leave_ok */
 #define ALX_SLOT_LOGIC_GLEANER_ROW_MATCH         82u /* 490.38 gleaner.row_match */
 #define ALX_SLOT_LOGIC_GLEANER_ROW_OK            83u /* 490.39 gleaner.row_ok */
-#define ALX_SLOT__COUNT 83u
+#define ALX_SLOT_LOGIC_WARREN_APPROVAL_OK        84u /* 490.40 warren.approval_ok */
+#define ALX_SLOT_NUM_WARREN_BACKOFF              85u /* 590.34 warren.backoff */
+#define ALX_SLOT_LOGIC_WARREN_CHANGE_OK          86u /* 490.41 warren.change_ok */
+#define ALX_SLOT_LOGIC_WARREN_RECORD_OK          87u /* 490.42 warren.record_ok */
+#define ALX_SLOT__COUNT 87u
 /* clang-format on */
 
 #endif

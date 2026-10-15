@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The owner's word for a regulated engine turned on (warren_rules.h WR3):
+# the one record that fits is the owner's own session (1) with the owner's
+# approval (1). Anything else, a flag that is no flag among it, does not
+# fit: never turned on.
+eve warren
+owner_session = 1 .. 1
+owner_approved = 1 .. 1
+
+regulated_on {
+  owner: owner_session
+  approved: owner_approved
+}

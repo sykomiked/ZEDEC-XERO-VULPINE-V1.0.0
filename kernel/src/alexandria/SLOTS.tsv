@@ -118,3 +118,7 @@
 81	logic.gleaner_leave_ok	490.37	gleaner.leave_ok	base
 82	logic.gleaner_row_match	490.38	gleaner.row_match	base
 83	logic.gleaner_row_ok	490.39	gleaner.row_ok	base
+84	logic.warren_approval_ok	490.40	warren.approval_ok	base
+85	num.warren_backoff	590.34	warren.backoff	base
+86	logic.warren_change_ok	490.41	warren.change_ok	base
+87	logic.warren_record_ok	490.42	warren.record_ok	base

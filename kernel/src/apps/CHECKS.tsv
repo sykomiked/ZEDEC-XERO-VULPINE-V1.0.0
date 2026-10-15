@@ -135,6 +135,17 @@ treadle	check budget_ok cost=10,1000000000 left=0,0 = both
 treadle	check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
 wake	check count level=0,3,5,2 bar=3 = 2
 wake	check count level=0,3 bar=1,2 = both
+warren	check change_ok owner=1,1,1,1,1,0,0,1 regulated=0,0,1,1,1,0,1,1 approved=0,0,0,1,0,1,1,0 enable=1,0,1,1,0,1,1,0 = true,true,false,true,true,false,false,true
+warren	check change_ok owner=1,2 regulated=0,0 approved=0,0 enable=1,1 = both
+warren	check change_ok owner=1,1 regulated=1,1 approved=1,-1 enable=1,1 = both
+warren	check approval_ok owner=1,1,0,0 approved=1,0,1,0 = true,false,false,false
+warren	check approval_ok owner=1,1 approved=1,2 = both
+warren	check backoff tries=8 base=2 most=60 = 2,4,8,16,32,60,60,60
+warren	check backoff tries=1 base=3600 most=86400 = 3600
+warren	check backoff tries=8 base=0 most=60 = both
+warren	check backoff tries=4 base=2 most=86401 = both
+warren	check record_ok engine=0,99,100,1 enabled=1,9,1,10 regulated=0,9,0,1 restarts=0,999,0,1 changed=1700000000000,999999999999999,1,1 = true,true,false,false
+warren	check banker.share size=0,14090000,7045000 total=14090000 = 0,10000,5000
 waymark	check place_ok lat=90000000,-90000000,90000001,0 lon=180000000,-180000000,0,-180000001 = true,true,false,false
 waymark	check place_ok lat=0,0 lon=0 = both
 wellspring	check band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
