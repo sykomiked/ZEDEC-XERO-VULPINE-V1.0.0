@@ -1,0 +1,12 @@
+# Dockerfile.bios — the tools for mk_bios_stage.sh. GRUB's i386-pc modules
+# (grub-pc-bin) exist only for x86 hosts, so this image is linux/amd64 even on
+# an arm64 build machine (Docker runs it under emulation; it only packs files).
+#
+#   docker build --platform linux/amd64 -f build_system/Dockerfile.bios -t zxv-bios .
+#   docker run --rm --platform linux/amd64 -v "$PWD:/src" -w /src zxv-bios \
+#     bash build_system/mk_bios_stage.sh dist/discs/zxv-x86_64-disc1-core.img
+FROM --platform=linux/amd64 ubuntu:22.04
+RUN set -eux; apt-get update; \
+    apt-get install -y --no-install-recommends grub-pc-bin grub-common gdisk python3 tar; \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /src
