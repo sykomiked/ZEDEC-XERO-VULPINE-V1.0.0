@@ -1,0 +1,14 @@
+div and mod:          -3          3          1          1         -1
+precedence:          14         20         -5          3
+functions:          10        144         11        -11          1 2147483647
+odd:  true true  false
+widths:    42   -427   padcu   truefal true
+  9  4  1  0  1  4  9
+nested for:         140
+repeat:        2187
+while:           8
+zero odd two odd zero odd two 
+short circuit:  truefalse
+dangling else binds inside
+comparisons:  truefalse truefalsefalse true true
+limits:  2147483647-2147483647

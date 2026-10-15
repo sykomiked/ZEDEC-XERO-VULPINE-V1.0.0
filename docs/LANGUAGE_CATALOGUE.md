@@ -13,8 +13,9 @@ validates it: every path it names exists, and the languages it marks as
 running are exactly the ones the Lingua front-ends ship.
 
 Thousands of programming languages have been published. The catalogue starts
-with the 104 that carry the most code or the most influence and takes any
-other as one more line. A language is never marked as working before a test
+with the 104 that carry the most code or the most influence, adds ZXV's own
+three (LEXIS, TECTON and AXION) and the Lingua IR itself for 108, and takes
+any other as one more line. A language is never marked as working before a test
 proves it.
 
 ## What "compatible" means
@@ -23,6 +24,8 @@ proves it.
 |---|---|---|
 | **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth |
 | **pillar** | The language's data and records run in one of the five ZXV pillar runtimes, which apps call directly. | COBOL (Sutra), FORTRAN numerics (Trebago), Ada (Eve), APL and K (KRON), MUMPS (MYRA) |
+| **native** | One of ZXV's own three languages for coding by purpose and intent, built and checked in kernel/src/alexandria (docs/ALEXANDRIA.md). Each has a Lingua number and a twin; none compiles to the shared IR yet. | LEXIS (names), TECTON (composition), AXION (truth checks) |
+| **ir** | The shared intermediate representation every Lingua front-end compiles to, and that the projections turn into C, Forth and x86-64. It is counted as a language because programs ship in it (`.zlir`, `logic zlir` in a manifest), but nobody is expected to write it by hand. | Lingua IR |
 | **host** | Code in the language runs on its own toolchain and calls ZXV through the C ABI or an SDK. | C, C++, C#, F#, Go, Java, JavaScript, Pascal, PHP, Python, Ruby, Rust, Solidity, Swift, TypeScript, WebAssembly |
 | **next1, next2, next3** | Queued for a Lingua front-end, in that order. | 18 more, plus a Lingua front-end for Pascal, listed below |
 | **catalogue** | Recorded with its year and family. No claim of compatibility. | The rest |
@@ -96,8 +99,12 @@ the language, and every app uses it by name.
 - **Writing a block.** A block names each entry's inputs and answer
   (`provides gcd num a b`) and binds it to programs in one or more
   languages (`logic fortran77 gcd ...`, `logic basic ...`, `logic forth ...`).
-  The arguments are the program's input (FORTRAN `READ *`, BASIC `INPUT`, the
-  Forth stack) and the answer is every number it prints.
+  Every Lingua language is accepted by its runtime name from
+  `kernel/src/lingua/zl_langs.def` (`pascal`, `algol60`, `scheme`, `logo` ...),
+  its catalogue name or its twin's name (`Tutordrake`); one whose front-end is
+  not built yet refuses at load, by name. The arguments are the program's
+  input (FORTRAN `READ *`, BASIC `INPUT`, Pascal `read`, the Forth stack) and
+  the answer is every number it prints.
 - **Precompiled.** `zxlang pack prog.f` writes the program already compiled,
   as Lingua IR text (`.zlir`). An app that ships it as `logic zlir ...`
   needs no compiler on the device. The text carries a digest and is

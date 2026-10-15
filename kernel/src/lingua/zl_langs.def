@@ -1,0 +1,97 @@
+/* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+/* zl_langs.def — every Lingua language, one line each, in id order:
+ *   ZL_LANG_X(id, number, name, twin, front-end, extensions, runtime)
+ * id: ZL_LANG_<id>; number: stable (it is written into .zlir files), dense
+ * from 1; name: exactly as catalogue.tsv names it; twin: the dragon name of
+ * its AI twin; front-end: zl_<front-end>.c defines
+ * zl_<front-end>_compile (LISP and Scheme share one); extensions: what
+ * zxlang accepts, space-separated; runtime: the name an app manifest writes
+ * (zxapp.h), the id in lower case except FORTRAN 77, whose "fortran" is the
+ * Trebago pillar's. A front-end that is still a placeholder
+ * refuses every program with ZL_E_UNSUPPORTED. Include with ZL_LANG_X
+ * defined; this file undefines nothing. */
+ZL_LANG_X(FORTRAN, 1, "FORTRAN", "Reckonwyrm", fortran, ".f .for .f77 .F", "fortran77") /* FORTRAN 77 fixed form, INTEGER subset (1957 lineage) */
+ZL_LANG_X(BASIC, 2, "BASIC", "Hatchling", basic, ".bas .BAS", "basic") /* ECMA-55 Minimal BASIC, integer subset (1964 lineage) */
+ZL_LANG_X(FORTH, 3, "Forth", "Cairndrake", forth, ".fs .fth .4th", "forth") /* Forth-2012 core subset (1970 lineage) */
+ZL_LANG_X(PASCAL, 4, "Pascal", "Tutordrake", pascal, ".pas .p", "pascal") /* ISO 7185 Pascal, integer subset (1970) */
+ZL_LANG_X(ALGOL60, 5, "ALGOL 60", "Rootwyrm", algol, ".alg .a60", "algol60") /* Revised Report ALGOL 60, integer subset (1960) */
+ZL_LANG_X(LISP, 6, "LISP", "Coilwyrm", lisp, ".lisp .lsp", "lisp") /* LISP core subset in Common Lisp spelling (1958 lineage) */
+ZL_LANG_X(SCHEME, 7, "Scheme", "Spiraldrake", lisp, ".scm .ss", "scheme") /* R7RS small core subset (1975 lineage) */
+ZL_LANG_X(LOGO, 8, "Logo", "Kiteling", logo, ".lg .logo", "logo") /* UCBLogo core subset, integers (1967 lineage) */
+ZL_LANG_X(MOJO, 9, "Mojo", "Forgewyrm", mojo, ".mojo", "mojo") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(PROLOG, 10, "Prolog", "Riddlewyrm", prolog, ".pro .prolog", "prolog") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(TEX, 11, "TeX", "Typedrake", tex, ".tex", "tex") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(HASKELL, 12, "Haskell", "Purewyrm", haskell, ".hs", "haskell") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ELIXIR, 14, "Elixir", "Flaskwyrm", elixir, ".ex .exs", "elixir") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ERLANG, 15, "Erlang", "Switchwyrm", erlang, ".erl", "erlang") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LABVIEW, 16, "LabVIEW", "Wiredrake", labview, ".vit", "labview") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(EIFFEL, 17, "Eiffel", "Pactwyrm", eiffel, ".e", "eiffel") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(GLEAM, 18, "Gleam", "Sheenwyrm", gleam, ".gleam", "gleam") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SIMULA67, 19, "Simula 67", "Classwyrm", simula67, ".sim", "simula67") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SOLIDITY, 20, "Solidity", "Chainwyrm", solidity, ".sol", "solidity") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SIMULA1, 21, "Simula I", "Eventdrake", simula1, ".sim1", "simula1") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(BASH, 22, "Bash", "Shellwyrm", bash, ".bash", "bash") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(BOURNE, 23, "Bourne shell", "Brookdrake", bourne, ".sh", "bourne") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(JCL, 24, "JCL", "Jobwyrm", jcl, ".jcl", "jcl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(JULIA, 25, "Julia", "Tallydrake", julia, ".jl", "julia") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(OCAML, 26, "OCaml", "Variantwyrm", ocaml, ".ml", "ocaml") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(OCCAM, 27, "Occam", "Razorwyrm", occam, ".occ", "occam") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(MATLAB, 28, "MATLAB", "Matrixdrake", matlab, ".m", "matlab") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(POSTSCRIPT, 29, "PostScript", "Pagewyrm", postscript, ".ps", "postscript") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(RACKET, 30, "Racket", "Dialectwyrm", racket, ".rkt", "racket") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(RAKU, 31, "Raku", "Kilnwyrm", raku, ".raku", "raku") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(AWK, 32, "AWK", "Fielddrake", awk, ".awk", "awk") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ICON, 33, "Icon", "Goaldrake", icon, ".icn", "icon") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(PERL, 34, "Perl", "Gluewyrm", perl, ".pl", "perl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SNOBOL, 35, "SNOBOL", "Patternwyrm", snobol, ".sno", "snobol") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(TRAC, 36, "TRAC", "Macrodrake", trac, ".trac", "trac") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(DELPHI, 37, "Delphi", "Formwyrm", delphi, ".dpr", "delphi") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(MODULA2, 38, "Modula-2", "Moduledrake", modula2, ".mod", "modula2") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(APT, 39, "APT", "Lathewyrm", apt, ".apt", "apt") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(OBERON, 40, "Oberon", "Faydrake", oberon, ".ob", "oberon") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(CLOJURE, 41, "Clojure", "Stonewyrm", clojure, ".clj", "clojure") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(IEC_ST, 42, "IEC 61131-3 Structured Text", "Millwyrm", iecst, ".iec", "iec_st") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(JOVIAL, 43, "JOVIAL", "Radarwyrm", jovial, ".jov", "jovial") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LADDER, 44, "Ladder logic", "Rungdrake", ladder, ".ld", "ladder") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(IPL, 45, "IPL", "Listwyrm", ipl, ".ipl", "ipl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(RPG, 46, "RPG", "Reportdrake", rpg, ".rpg", "rpg") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SAS, 47, "SAS", "Surveydrake", sas, ".sas", "sas") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SCALA, 48, "Scala", "Stairwyrm", scala, ".scala", "scala") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(B, 49, "B", "Wordwyrm", b, ".b", "b") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(BCPL, 50, "BCPL", "Bootdrake", bcpl, ".bcpl", "bcpl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(CRYSTAL, 51, "Crystal", "Gemdrake", crystal, ".cr", "crystal") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(NATURAL, 52, "Natural", "Plainwyrm", natural, ".nsp", "natural") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(NIM, 53, "Nim", "Nimbledrake", nim, ".nim", "nim") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(OBJC, 54, "Objective-C", "Messagewyrm", objc, ".objc", "objc") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SQL, 55, "SQL", "Querywyrm", sql, ".sql", "sql") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SMALLTALK, 56, "Smalltalk", "Talkdrake", smalltalk, ".st", "smalltalk") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(S360, 57, "System/360 assembler", "Ironwyrm", s360, ".s360", "s360") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ZIG, 58, "Zig", "Anvilwyrm", zig, ".zig", "zig") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(DBASE, 59, "dBase", "Tablewyrm", dbase, ".prg", "dbase") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(COMMONLISP, 60, "Common Lisp", "Braidwyrm", commonlisp, ".cl", "commonlisp") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ELM, 61, "Elm", "Leafdrake", elm, ".elm", "elm") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(GROOVY, 62, "Groovy", "Groovedrake", groovy, ".groovy", "groovy") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(HYPERTALK, 63, "HyperTalk", "Carddrake", hypertalk, ".ht", "hypertalk") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LUA, 64, "Lua", "Moonwyrm", lua, ".lua", "lua") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(MATHEMATICA, 65, "Mathematica", "Symbolwyrm", mathematica, ".wl", "mathematica") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(REXX, 66, "REXX", "Kingdrake", rexx, ".rexx", "rexx") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(TCL, 67, "Tcl", "Ticklewyrm", tcl, ".tcl", "tcl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ALGOL58, 68, "ALGOL 58", "Seedwyrm", algol58, ".a58", "algol58") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ALGOL68, 69, "ALGOL 68", "Latticewyrm", algol68, ".a68", "algol68") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(AUTOCODE, 70, "Autocode", "Emberwyrm", autocode, ".ac", "autocode") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(CPL, 71, "CPL", "Elderdrake", cpl, ".cpl", "cpl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(JOSS, 72, "JOSS", "Deskdrake", joss, ".joss", "joss") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LZ, 73, "Laning and Zierler", "Equationwyrm", lz, ".lz", "lz") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ABAP, 74, "ABAP", "Bookwyrm", abap, ".abap", "abap") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(FLOWMATIC, 75, "FLOW-MATIC", "Flowdrake", flowmatic, ".flm", "flowmatic") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(PLI, 76, "PL/I", "Unionwyrm", pli, ".pli", "pli") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(R, 77, "R", "Samplewyrm", r, ".r", "r") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(S, 78, "S", "Plotdrake", s, ".q", "s") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(SHORTCODE, 79, "Short Code", "Dawnwyrm", shortcode, ".shc", "shortcode") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(VHDL, 80, "VHDL", "Siliconwyrm", vhdl, ".vhd", "vhdl") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(VERILOG, 81, "Verilog", "Signaldrake", verilog, ".v", "verilog") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LEXIS, 82, "LEXIS", "Lexwyrm", lexis, ".lexis", "lexis") /* ZXV's own: resolves names to blocks (kernel/src/alexandria/alx_ref.c); no IR front-end yet */
+ZL_LANG_X(TECTON, 83, "TECTON", "Tectondrake", tecton, ".tecton", "tecton") /* ZXV's own: composes blocks (kernel/src/alexandria/alx_tecton.c); no IR front-end yet */
+ZL_LANG_X(AXION, 84, "AXION", "Axiomdrake", axion, ".axion", "axion") /* ZXV's own: loop-free truth checks (kernel/src/alexandria/alx_axion.c); no IR front-end yet */
