@@ -27,7 +27,7 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
            -fno-stack-protector -fno-pie -no-pie -fno-builtin \
            -ffunction-sections -fdata-sections -fcf-protection=none -mgeneral-regs-only \
            -Werror=double-promotion -Werror=float-conversion \
-           -MMD -MP \
+           -MMD -MP -DZXV_RAMDISK_PROVIDED \
            -Dmemset=fs_memset -Dmemcpy=fs_memcpy -Dstrlen=fs_strlen \
            -Dstrcmp=fs_strcmp -Dstrcpy=fs_strcpy \
            -Dmalloc=fs_malloc -Dcalloc=fs_calloc -Dmemcmp=fs_memcmp \
@@ -126,8 +126,14 @@ SRCS := \
     kernel/arch/x86_64/efifb_con.c \
     kernel/arch/x86_64/boot_evidence.c \
     kernel/arch/x86_64/ring3.c \
+    kernel/arch/x86_64/x86_irq.c \
+    kernel/arch/x86_64/x86_sched.c \
+    kernel/arch/x86_64/x86_userspace.c \
+    kernel/src/pmm/pmm.c \
+    kernel/src/lpres/lpres.c \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
+    kernel/arch/x86_64/bootmem_x86.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \
@@ -423,6 +429,8 @@ SRCS := \
 OBJDIR := build/x86_64
 OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
           $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
+          $(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o \
+          $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 # Directories created ONCE at parse time, before any recipe runs, so no two -j
@@ -450,6 +458,27 @@ $(OBJDIR)/kernel/arch/x86_64/boot.o: kernel/arch/x86_64/boot.asm
 $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o: kernel/arch/x86_64/ring3_asm.S
 	@mkdir -p $(dir $@)
 	$(CC) -ffreestanding -fno-pie -c $< -o $@
+
+$(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o: kernel/arch/x86_64/x86_trap_asm.S
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -c $< -o $@
+
+# The scheduler self-test's ring-3 program: a static x86-64 ELF64 linked into
+# user space (kernel/userapp/x86_user.ld), then embedded by x86_userbin.S.
+# -fpie keeps every reference RIP-relative (user space is far above 2 GB, out
+# of reach of the small code model's absolute forms); the link itself is a
+# plain ET_EXEC at a fixed address, which is what the loader accepts.
+X86_USER_ELF := $(OBJDIR)/userapp/x86_selftest.elf
+$(X86_USER_ELF): kernel/userapp/x86_selftest.c kernel/userapp/x86_user.ld kernel/include/zxv_syscall_abi.h kernel/include/zxv_syscall_user.h
+	@mkdir -p $(dir $@)
+	$(CC) -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-stack-protector -fpie -mgeneral-regs-only \
+	      -fcf-protection=none -fno-asynchronous-unwind-tables -Ikernel/include \
+	      -nostdlib -static -no-pie -Wl,-T,kernel/userapp/x86_user.ld -Wl,--build-id=none \
+	      -Wl,-z,max-page-size=4096 -Wl,-z,noexecstack -o $@ $<
+
+$(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X86_USER_ELF)
+	@mkdir -p $(dir $@)
+	$(CC) -ffreestanding -fno-pie -DX86_USER_ELF='"$(X86_USER_ELF)"' -c $< -o $@
 
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -508,10 +537,11 @@ EFI_STUB_CFLAGS = -O2 -ffreestanding -fpie -fvisibility=hidden \
 $(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/efi_models.h kernel/arch/zxv_handoff.h \
                 kernel/arch/x86_64/efi_header.S kernel/arch/x86_64/efi_trampoline.S kernel/arch/x86_64/efi_kernel_blob.S \
                 build_system/efi_stub.ld
-	@# The stub reserves the kernel's whole window, image AND BSS, so it needs
-	@# __kernel_end; the flat .bin ends where the BSS begins.
-	@KEND=$$(nm kernel_x86_64.elf | awk '/ __kernel_end$$/{print "0x"$$1}'); \
-	 test -n "$$KEND" || { echo "  [EFI][x64] ERROR: __kernel_end not found in kernel_x86_64.elf"; exit 1; }; \
+	@# The stub reserves the kernel's whole window: image, BSS AND the boot
+	@# stack linker64.ld places after __kernel_end, so it needs __stack_top;
+	@# the flat .bin ends where the BSS begins.
+	@KEND=$$(nm kernel_x86_64.elf | awk '/ __stack_top$$/{print "0x"$$1}'); \
+	 test -n "$$KEND" || { echo "  [EFI][x64] ERROR: __stack_top not found in kernel_x86_64.elf"; exit 1; }; \
 	 echo "  [EFI][x64] kernel window 0x100000 .. $$KEND"; \
 	 $(CC) $(EFI_STUB_CFLAGS) -DZXV_KERNEL_END=$${KEND}ULL -c -o kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_stub.c
 	$(CC) -c -o kernel/arch/x86_64/efi_header.o kernel/arch/x86_64/efi_header.S

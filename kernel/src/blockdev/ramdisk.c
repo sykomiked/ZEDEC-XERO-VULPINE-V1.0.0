@@ -40,8 +40,25 @@
 #define ZXV_RAMDISK_SECTORS  32768u
 #define ZXV_SECTOR           ((uint32_t)BLOCKDEV_SECTOR_SIZE)  /* 512 */
 
+#ifdef ZXV_RAMDISK_PROVIDED
+/* The arch supplies the 16 MB store from its firmware memory map (x86_64:
+ * bootmem_x86.c), so it is not a fixed BSS window over firmware memory.
+ * NULL from the arch = no store: the disk is absent, never half-present. */
+extern uint8_t *zxv_ramdisk_backing(uint32_t bytes);
+static uint8_t *zxv_ramdisk_data;
+static uint8_t *zxv_ramdisk_store(void)
+{
+    if (!zxv_ramdisk_data) zxv_ramdisk_data = zxv_ramdisk_backing(ZXV_RAMDISK_SECTORS * 512u);
+    return zxv_ramdisk_data;
+}
+#else
 static uint8_t zxv_ramdisk_data[ZXV_RAMDISK_SECTORS * 512u]
     __attribute__((aligned(4096)));
+static uint8_t *zxv_ramdisk_store(void)
+{
+    return zxv_ramdisk_data;
+}
+#endif
 
 void zxv_ramdisk_init(void) {
     /* Backing store is a static array; nothing to allocate. Idempotent. */
@@ -50,7 +67,7 @@ void zxv_ramdisk_init(void) {
 bool zxv_ramdisk_is_present(void) {
     /* Read real state: the buffer must have a non-NULL address. A linker that
      * dropped .bss, or a store the map does not cover, is not "present". */
-    return zxv_ramdisk_data != (uint8_t *)0;
+    return zxv_ramdisk_store() != (uint8_t *) 0;
 }
 
 uint32_t zxv_ramdisk_total_sectors(void) {
@@ -58,7 +75,7 @@ uint32_t zxv_ramdisk_total_sectors(void) {
 }
 
 int zxv_ramdisk_read_sector(uint32_t lba, uint8_t *buffer) {
-    if (lba >= ZXV_RAMDISK_SECTORS) return -1;
+    if (lba >= ZXV_RAMDISK_SECTORS || !zxv_ramdisk_store()) return -1;
     uint32_t base = lba * ZXV_SECTOR;           /* 32-bit, no divide */
     for (uint32_t i = 0; i < ZXV_SECTOR; i++)
         buffer[i] = zxv_ramdisk_data[base + i];
@@ -66,7 +83,7 @@ int zxv_ramdisk_read_sector(uint32_t lba, uint8_t *buffer) {
 }
 
 int zxv_ramdisk_write_sector(uint32_t lba, const uint8_t *buffer) {
-    if (lba >= ZXV_RAMDISK_SECTORS) return -1;
+    if (lba >= ZXV_RAMDISK_SECTORS || !zxv_ramdisk_store()) return -1;
     uint32_t base = lba * ZXV_SECTOR;
     for (uint32_t i = 0; i < ZXV_SECTOR; i++)
         zxv_ramdisk_data[base + i] = buffer[i];
@@ -78,11 +95,12 @@ int zxv_ramdisk_write_sector(uint32_t lba, const uint8_t *buffer) {
 }
 
 uint8_t *zxv_ramdisk_get_buffer(void) {
-    return zxv_ramdisk_data;
+    return zxv_ramdisk_store();
 }
 
 void zxv_ramdisk_format_fat32(void) {
     uint32_t i;
+    if (!zxv_ramdisk_store()) return;
     for (i = 0; i < ZXV_RAMDISK_SECTORS * 512u; i++)
         zxv_ramdisk_data[i] = 0;
 

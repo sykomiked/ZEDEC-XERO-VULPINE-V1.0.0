@@ -57,13 +57,13 @@ with the evidence.
 | # | Gap | Status | Size | Report |
 |---|---|---|---|---|
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
-| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **x86_64 done in this PR** (handoff v2); arm64 stub and boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
-| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); map feed and heap missing | M | kernel_core #2, #13 |
-| 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64, missing x86 | M | kernel_core #3 |
+| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **done in this PR** for x86_64 and arm64 (handoff v2); boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
+| 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); x86 big buffers now on map memory (**this PR**); heap missing | M | kernel_core #2, #13 |
+| 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64; partial x86 (own PML4 per process, one 512 GB user slot, stack guard page; no VMAs) | M | kernel_core #3 |
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
-| 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | missing | L | kernel_core #4, #9 |
+| 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | **done** (IDT + LAPIC, PIT-calibrated LAPIC timer, preemptive round robin, FXSAVE per process, x86 ELF64 loader, a ring-3 fault ends only its process; CI requires `[SCHED_OK]`); IOAPIC routing, XSAVE/AVX state, SMP next | L | kernel_core #4, #9 |
 | 7 | Syscall ABI 1.1: handles, pointer+length I/O, verdict register, correct error codes | partial | M | kernel_core #8 |
-| 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | live hole | S | userland_apps #5 |
+| 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | **fixed in this PR** (arm64): ZSP2 via `zsp_verify2`, caps from the signed header, ZSP1 at least privilege, unsigned refused outside dev builds; the rollback floor for apps and Immigration visas per tier remain | S | userland_apps #5 |
 | 9 | Root and data filesystems from disk; 64-bit block layer; partition discovery by type | missing | M | boot_storage #5-7, #11 |
 | 10 | Golden disc v2 layout: ESP, boot control, signed system image, raw models partition, data | partial (one FAT32 partition) | M | boot_storage #8, D3 |
 | 11 | Service manager on bare metal | missing | M | boot_storage #9 |
@@ -175,9 +175,28 @@ Each wave ends in a serial marker the CI QEMU job checks.
 - Found doing it: the x86 kernel's fixed window (1 MB to ~91 MB, mostly BSS:
   vino 39 MB, tl 23 MB, ramdisk 16 MB, DMA 8 MB) covers OVMF's ACPI NVS at
   8 MB, so today's kernel overwrites firmware ACPI memory even under QEMU.
-- Next: move those buffers onto frames from the handoff map (#3); arm64 stub
-  parity; power-off (#15); `lpres_hex` linked into both images; loader
-  hardening (#8, with the Security thread).
+- Fixed after that: those buffers now come from firmware-usable memory past
+  the kernel (`kernel/arch/zxv_bootmem.h`, `bootmem_x86.c`), fed by the
+  handoff map or, on a direct boot, the Multiboot map. The fixed window
+  shrank from about 91 MB to under 5 MB, the stub's reservation now succeeds,
+  and nothing overlaps ACPI. The window also counts the boot stack now (it
+  sat after `__kernel_end`, outside what the stub reserved), and the
+  Multiboot magic reaches the kernel (boot.asm used to clobber it).
+- arm64 handoff v2: the same record from BOOTAA64.EFI. The window is checked
+  against the final map (the stub cannot reserve it, AAVMF loads the stub
+  there), plus two checks the map cannot make: the staged kernel and
+  trampoline must lie outside the window, and the handoff page must not
+  hold the stub. CI's UEFI boot requires `[HANDOFF_OK]` on both arches.
+
+- Loader hardening (#8): `run` now trusts what the package proves. ZSP2 goes
+  through `zsp_verify2` (signature, arch, key-id) and the signed caps field
+  is the grant (an unknown bit refuses the package); ZSP1 is verified but
+  unbound, so it runs at least privilege; a bare ELF has no author and is
+  refused unless the kernel is built with `ZXV_DEV_UNSIGNED`. The seeded
+  hello.zsp is ZSP1 until the owner re-signs it as ZSP2 (the root key is
+  not in the repo).
+- Next: arm64's 232 MB BSS window onto map memory; power-off (#15);
+  `lpres_hex` linked into both images; an app rollback floor.
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),
 the x86 process runtime (#6), ABI 1.1 with verdicts (#7), loading apps from

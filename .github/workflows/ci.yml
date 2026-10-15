@@ -230,7 +230,9 @@ jobs:
           make -j"$(nproc)" -f build_system/Makefile.x86_64 all
       - name: Run x86_64 in QEMU
         if: ${{ !cancelled() }}
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]"
+        # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
+        # user fault ending only its own process (x86_userspace.c).
+        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

@@ -405,6 +405,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
 	$(MAKE) --no-print-directory test-handoff
+	$(MAKE) --no-print-directory test-x86-irq
+	$(MAKE) --no-print-directory test-x86-sched
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
@@ -1623,6 +1625,18 @@ test-pmm:
 .PHONY: test-handoff
 test-handoff:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/test_zxv_handoff.c -o $(ZXV_TMP)/test_handoff && $(ZXV_TMP)/test_handoff > $(ZXV_TMP)/test_handoff.log 2>&1 && echo "[PASS] test_handoff ($$(tail -1 $(ZXV_TMP)/test_handoff.log))" || { cat $(ZXV_TMP)/test_handoff.log; echo "[FAIL] test_handoff"; exit 1; }
+
+# x86_64 interrupt layer (arch/x86_64/x86_irq.h): LAPIC timer calibration
+# arithmetic and the MADT walk.
+.PHONY: test-x86-irq
+test-x86-irq:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all arch/x86_64/test_x86_irq.c -o $(ZXV_TMP)/test_x86_irq && $(ZXV_TMP)/test_x86_irq > $(ZXV_TMP)/test_x86_irq.log 2>&1 && echo "[PASS] test_x86_irq ($$(tail -1 $(ZXV_TMP)/test_x86_irq.log))" || { cat $(ZXV_TMP)/test_x86_irq.log; echo "[FAIL] test_x86_irq"; exit 1; }
+
+# x86_64 process scheduler logic (arch/x86_64/x86_sched.c): slot reuse, round
+# robin, quantum expiry, sleep and wake, exit verdicts.
+.PHONY: test-x86-sched
+test-x86-sched:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iarch/x86_64 -Iinclude -Isrc/lpres -Isrc/event_space arch/x86_64/test_x86_sched.c arch/x86_64/x86_sched.c -o $(ZXV_TMP)/test_x86_sched && $(ZXV_TMP)/test_x86_sched > $(ZXV_TMP)/test_x86_sched.log 2>&1 && echo "[PASS] test_x86_sched ($$(tail -1 $(ZXV_TMP)/test_x86_sched.log))" || { cat $(ZXV_TMP)/test_x86_sched.log; echo "[FAIL] test_x86_sched"; exit 1; }
 
 .PHONY: test-fwadapt
 test-fwadapt:
