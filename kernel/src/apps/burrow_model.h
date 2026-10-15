@@ -1,6 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* burrow_model.h — Burrow, the file manager, as a model (zxm.h): one folder
+/* burrow_model.h — the Banker, the file manager (its files keep the old
+ * name, burrow_), as a model (zxm.h): one folder
  * of the ZXV folder at a time (zxvd's files.*, zxv_files.h F1-F6), the
  * selection, the Trash, and its AI actions. No drawing, no allocation. */
 #ifndef BURROW_MODEL_H

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # test_apps.sh — build libzxv (incrementally) and run test_apps.c: the app
-# models (Burrow, Quillon, Glint, Spindle, Murmuration, the utilities, Scent,
+# models (the Banker, Quillon, Glint, Spindle, Murmuration, the utilities, Scent,
 # Platen, Keepsake, Wake, Shepherd, Waymark) against zxvd's dispatcher in
 # process. Exits 3 when only the build failed.
 set -eu

@@ -6,7 +6,7 @@ where its results may go, and how its icon looks.
 
 | Slots | Count | Layer | Holds | Icon on the #002911 ground |
 |---|---|---|---|---|
-| 1–144 | 144 | **L1 Foundation** | The 144 apps on the existing app list (`kernel/src/launch/zxl_apps.inc`, Burrow … Stillwater, in 12 groups of 12) | Gold, one colour |
+| 1–144 | 144 | **L1 Foundation** | The 144 apps on the existing app list (`kernel/src/launch/zxl_apps.inc`, Banker … Stillwater, in 12 groups of 12) | Gold, one colour |
 | 145–271 | 127 | **L2 Concourse** | Compound tools: circuits, buses, verification streams, swarm and peer pipelines | Gold, one colour |
 | 272–407 | 136 | **L3 Apparatus** | Language and legacy hosts: COBOL, Fortran, Ada, APL and MUMPS (the SDK pillars), the Rosetta Shell's dialect front-ends | Its own colours, inside a gold border |
 

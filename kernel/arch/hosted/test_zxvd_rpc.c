@@ -667,9 +667,9 @@ static void test_spaces_methods(void)
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"attic\",\"name\":\"x\"}"),
            ERR("2", "-32602", "\\\"kind\\\" must be office, team, cloudtop or park"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"a\\nb\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "spaces.create", ",\"params\":{\"kind\":\"team\",\"name\":\"\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
 
     /* files in a space stay in it */
     EXPECT(REQ("3", "files.write",
@@ -686,7 +686,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("3", "files.read", ",\"params\":{\"path\":\"plan.txt\"}"),
            FERR("3", "no such file or folder"));
     EXPECT(REQ("3", "files.write", ",\"params\":{\"path\":\".spaces/studio-a/x\",\"text\":\"\"}"),
-           FERR("3", "not a valid name or path in the ZXV folder"));
+           FERR("3", "not a valid name or path in the Hoard"));
     EXPECT(REQ("3", "files.trash", ",\"params\":{\"space\":\"studio-a\",\"path\":\"plan.txt\"}"),
            OK("3", "{\"trashed\":\".Trash/plan.txt\",\"removed\":false}"));
     EXPECT(REQ("3", "files.list", ",\"params\":{\"path\":\".Trash\"}"),
@@ -710,7 +710,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"me\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"x\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"owner\"}"),
@@ -718,7 +718,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("4", "spaces.join",
                ",\"params\":{\"id\":\"home\",\"kind\":\"team\",\"name\":\"X\",\"owner\":\"bob\","
                "\"role\":\"member\"}"),
-           FERR("4", "not a valid name or path in the ZXV folder"));
+           FERR("4", "not a valid name or path in the Hoard"));
     EXPECT(REQ("4", "files.list", ",\"params\":{\"space\":\"crew\"}"),
            OK("4", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("4", "files.write", ",\"params\":{\"space\":\"crew\",\"path\":\"a\",\"text\":\"\"}"),
@@ -1131,7 +1131,7 @@ static void test_spaces_methods(void)
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"../x\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
-           FERR("6", "not a valid name or path in the ZXV folder"));
+           FERR("6", "not a valid name or path in the Hoard"));
     EXPECT(REQ("6", "files.cross",
                ",\"params\":{\"from_space\":\"lab\",\"path\":\"nope\",\"to_space\":"
                "\"home\",\"to\":\"x\"}"),
@@ -3746,7 +3746,7 @@ static void test_files_methods(void)
     EXPECT(REQ("1", "files.root", ""), want);
     EXPECT(REQ("2", "files.list", ""), OK("2", "{\"path\":\"\",\"entries\":[]}"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":\"..\"}"),
-           FERR("2", "not a valid name or path in the ZXV folder"));
+           FERR("2", "not a valid name or path in the Hoard"));
     EXPECT(REQ("2", "files.list", ",\"params\":{\"path\":7}"),
            ERR("2", "-32602", "\\\"path\\\" must be a string of at most 1024 bytes"));
     /* write, read back, stat */
@@ -3892,9 +3892,8 @@ static void test_files_methods(void)
     char bad[260];
     snprintf(bad, sizeof bad, "%s/b.bin", root);
     CHECK(zxf_set_root(bad) == ZXF_E_ROOT, "a file is no root");
-    EXPECT(REQ("14", "files.root", ""), FERR("14", "the ZXV folder cannot be found or made"));
-    EXPECT(REQ("14", "files.empty_trash", ""),
-           FERR("14", "the ZXV folder cannot be found or made"));
+    EXPECT(REQ("14", "files.root", ""), FERR("14", "the Hoard cannot be found or made"));
+    EXPECT(REQ("14", "files.empty_trash", ""), FERR("14", "the Hoard cannot be found or made"));
     CHECK(zxf_set_root(root) == 0, "root back");
     CHECK(rm_tree(root) == 0, "cleanup");
 }
@@ -4814,9 +4813,9 @@ static void test_backup(void)
     unlink(p);
     snprintf(p, sizeof p, "%s/Notes", root);
     CHECK(zks_run(root, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST &&
-              !strcmp(err, "the destination is inside the ZXV folder") &&
+              !strcmp(err, "the destination is inside the Hoard") &&
               zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_E_DEST,
-          "inside the ZXV folder: %s", err);
+          "inside the Hoard: %s", err);
     snprintf(p, sizeof p, "%s-sibling", root); /* shares a prefix, but is not inside */
     CHECK(mkdir(p, 0700) == 0 && zks_run(p, false, &r, &zxf, err, sizeof err) == ZKS_OK &&
               r.files == 5,

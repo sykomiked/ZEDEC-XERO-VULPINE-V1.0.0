@@ -10,7 +10,7 @@ It is an OS feature: an app maker picks a sound sequence and gives an icon, and 
 icons are held to the palette (gold #F2C230 on #002911); an app a person makes may colour its icon however it likes.
 
 Status: approved by the owner (11:00Z); all 144 apps on the list have their own entry and sound sequence. Six have
-hand-made sounds (Burrow, Flint, Murmuration, Coffer, Cutwater, Commons); the other 138 are built from one recipe.
+hand-made sounds (Banker, Flint, Murmuration, Coffer, Cutwater, Commons); the other 138 are built from one recipe.
 The owner approved the look (10:53Z) and asked for the boot's five logos on the tiles, which this version does. The logic
 (`kernel/src/launch/zxl_launch.{h,c}`) is built and tested; drawing plugs into the window manager's `launch_draw` hook
 (Native app toolkit, PR #110) once that lands.
@@ -56,7 +56,7 @@ people make that pick no sequence.
 
 ## Making an app
 
-An app's manifest names its sound sequence with `launch <name>`: any listed app's name (`Burrow`, `Warble`, ...) or a
+An app's manifest names its sound sequence with `launch <name>`: any listed app's name (`Banker`, `Warble`, ...) or a
 group default (`group1` to `group12`). Leave it out and the app
 gets its group's. The app's icon goes to the top centre on its own. `zxl_theme_pick(name)` resolves the name and
 `zxl_icon_ink(system_app)` says whether the icon is recoloured to the palette (system apps) or drawn as made.
@@ -80,7 +80,7 @@ The six apps with their own themes:
 
 | App | Begin | Middle (per tile) | End | Behind the tiles |
 |---|---|---|---|---|
-| Burrow (Files) | A knock on wood, marimba D A D | Marimba up D pentatonic | The earth giving way, a warm D chord | Tunnel arches breathing |
+| Banker (Files) | A knock on wood, marimba D A D | Marimba up D pentatonic | The earth giving way, a warm D chord | Tunnel arches breathing |
 | Flint (Terminal) | Flint struck on steel, a spark ping | Keystrokes that play notes | A tube warming, a thunk, an A chord | Sparks rising |
 | Murmuration (Swarm) | A flutter of wings, breathy flute | A chirp per agent waking | The flock lifting off, an E chord | A flock wheeling |
 | Coffer (Wallet) | A key turning the tumblers, a bell | A coin per tile | The latch, bells, coins settling | Gold dust drifting |

@@ -16279,7 +16279,7 @@
     },
     {
       "name": "files.root",
-      "summary": "The ZXV folder behind the Burrow, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
+      "summary": "The Hoard (the Hoard) behind the Banker, Quillon and Glint apps (F1): ZXV_FILES_ROOT, else ~/Documents/ZXV (%USERPROFILE%\\Documents\\ZXV on Windows), made 0700 when missing.",
       "params": [],
       "result": {
         "name": "root",
@@ -16313,7 +16313,7 @@
           "required": false,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16371,7 +16371,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16418,7 +16418,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16500,7 +16500,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16578,7 +16578,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16614,7 +16614,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16623,7 +16623,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -16659,7 +16659,7 @@
           "required": true,
           "schema": {
             "type": "string",
-            "description": "a path inside the ZXV folder: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
+            "description": "a path inside the Hoard: segments joined by '/', no leading '.' except '.Trash' first, no '..', '\\\\', ':' or control characters; '' is the folder itself (kernel/arch/hosted/zxv_files.h F2)",
             "maxLength": 1024
           }
         },
@@ -18872,7 +18872,7 @@
     },
     {
       "name": "sys.disk",
-      "summary": "The volume holding the ZXV folder: total, free and what this user may still write, in bytes (Cellar).",
+      "summary": "The volume holding the Hoard: total, free and what this user may still write, in bytes (Cellar).",
       "params": [],
       "result": {
         "name": "disk",
@@ -20311,7 +20311,7 @@
     },
     {
       "name": "print.submit",
-      "summary": "Print a file from the ZXV folder (IPP Print-Job). Its format comes from its extension and must be one the printer takes; ZXV does not convert documents yet (zxv_print_host.h N5). Logged.",
+      "summary": "Print a file from the Hoard (IPP Print-Job). Its format comes from its extension and must be one the printer takes; ZXV does not convert documents yet (zxv_print_host.h N5). Logged.",
       "params": [
         {
           "name": "uri",
@@ -20618,7 +20618,7 @@
     },
     {
       "name": "scan.start",
-      "summary": "Scan and save each page in a folder of the ZXV folder as 'Scan N.<ext>' (the first free N; eSCL ScanJobs and NextDocument). Needs the write right on the space. Pages saved before a failure are kept, and the error says how many. Logged.",
+      "summary": "Scan and save each page in a folder of the Hoard as 'Scan N.<ext>' (the first free N; eSCL ScanJobs and NextDocument). Needs the write right on the space. Pages saved before a failure are kept, and the error says how many. Logged.",
       "params": [
         {
           "name": "url",
@@ -20727,7 +20727,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {
@@ -20801,7 +20801,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {
@@ -20878,7 +20878,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {
@@ -20948,7 +20948,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {
@@ -21022,7 +21022,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {
@@ -21094,7 +21094,7 @@
           "schema": {
             "type": "string",
             "maxLength": 1024,
-            "description": "the backup's destination: an existing folder's absolute path, not inside the ZXV folder (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
+            "description": "the backup's destination: an existing folder's absolute path, not inside the Hoard (zxv_keepsake.h K1); everything goes under '<dest>/ZXV Keepsake'"
           }
         },
         {

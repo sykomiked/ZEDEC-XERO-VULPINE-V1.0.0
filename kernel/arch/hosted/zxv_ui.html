@@ -258,7 +258,7 @@ a.go{color:var(--accent);cursor:pointer;text-decoration:underline}
 <nav id="dock" aria-label="Apps">
   <div class="grp">Apps</div>
   <button data-app="swarm"><i>◉</i>Murmuration</button>
-  <button data-app="files"><i>🗂</i>Burrow</button>
+  <button data-app="files"><i>🗂</i>The Banker</button>
   <button data-app="text"><i>✎</i>Quillon</button>
   <button data-app="photos"><i>▣</i>Glint</button>
   <div class="grp">Toolbox</div>
@@ -553,7 +553,7 @@ function show(app){
 }
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 
-/* ----- Burrow (files) ----- */
+/* ----- The Banker (files in the Hoard) ----- */
 const F={dir:'',entries:[],
   crumbs(el,dir,go){el.innerHTML='';const parts=dir?dir.split('/'):[];const a=document.createElement('a');a.textContent=parts[0]==='.Trash'?'Trash':'ZXV';a.onclick=()=>go(parts[0]==='.Trash'?'.Trash':'');el.appendChild(a);
     let acc=parts[0]==='.Trash'?'.Trash':'';for(const p of parts[0]==='.Trash'?parts.slice(1):parts){acc=join(acc,p);const s=document.createElement('span');s.textContent='›';el.appendChild(s);const x=document.createElement('a');x.textContent=p;const to=acc;x.onclick=()=>go(to);el.appendChild(x)}},
@@ -579,7 +579,7 @@ const F={dir:'',entries:[],
   async rename(p,name){const n=await ask('Rename',null,name,'Rename');if(!n||n===name)return;
     try{await rpc('files.rename',{from:p,to:join(parent(p),n)});F.load()}catch(e){status($('fstat'),e.message,true)}},
   async trash(p){try{await rpc('files.trash',{path:p});F.load()}catch(e){status($('fstat'),e.message,true)}},
-  async restore(p,name){const to=await ask('Put back','Where it goes, as a path in the ZXV folder.',name,'Put back');if(!to)return;
+  async restore(p,name){const to=await ask('Put back','Where it goes, as a path in the Hoard.',name,'Put back');if(!to)return;
     try{await rpc('files.rename',{from:p,to});F.load()}catch(e){status($('fstat'),e.message,true)}},
   async remove(p,name){if(!await confirmBox('Delete for good?',`“${name}” will be removed from this computer. This cannot be undone.`,'Delete'))return;
     try{await rpc('files.trash',{path:p});F.load()}catch(e){status($('fstat'),e.message,true)}},
@@ -610,7 +610,7 @@ const T={path:null,saved:'',preview:false,
     try{const t=await readAll(p,false);T.path=p;T.saved=t;$('ed').value=t;T.mark()}
     catch(e){status($('tstat'),`${base(p)}: ${e.message}`,true)}},
   async save(as){let p=T.path;
-    if(!p||as){const n=await ask(as?'Save as':'Save','A path in the ZXV folder, for example Notes/idea.md.',p||'Untitled.txt','Save');if(!n)return false;p=n}
+    if(!p||as){const n=await ask(as?'Save as':'Save','A path in the Hoard, for example Notes/idea.md.',p||'Untitled.txt','Save');if(!n)return false;p=n}
     const v=$('ed').value;status($('tstat'),'Saving…');
     try{await writeText(p,v,false);T.path=p;T.saved=v;T.mark();status($('tstat'),`Saved ZXV/${p}`);return true}
     catch(e){status($('tstat'),e.message,true);return false}},
@@ -650,7 +650,7 @@ const P={dir:'',items:[],urls:new Map(),idx:-1,
       for(const e of dirs){const t=P.tile('📁',e.name);t.onclick=()=>P.load(join(P.dir,e.name));g.appendChild(t)}
       P.items.forEach((e,i)=>{const k=kindOf(e.name);const t=P.tile(k==='image'?'🖼':k==='audio'?'♪':'▶',e.name);t.onclick=()=>P.view(i);g.appendChild(t);
         if(k==='image'&&e.size<=8*1048576)P.thumb(join(P.dir,e.name),t.firstChild)});
-      status($('pstat'),P.items.length?`${P.items.length} photo${P.items.length===1?'':'s'} and media files`:'No photos or media here. Import some, or drop them on Burrow.')}
+      status($('pstat'),P.items.length?`${P.items.length} photo${P.items.length===1?'':'s'} and media files`:'No photos or media here. Import some, or drop them on the Banker.')}
     catch(e){$('pgrid').innerHTML='';status($('pstat'),e.message,true)}},
   tile(ic,name){const t=document.createElement('div');t.className='tile';t.innerHTML=`<div class="th">${ic}</div><div class="cap"></div>`;t.lastChild.textContent=name;t.title=name;return t},
   async blobUrl(p){if(P.urls.has(p))return P.urls.get(p);const parts=await readAll(p,true);

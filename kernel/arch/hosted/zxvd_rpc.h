@@ -346,7 +346,7 @@ int32_t zxvd_books_account(const char *name, const char *ccy, int32_t kind, uint
 int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *ccy,
                         const char *ref, uint64_t *entry);
 
-/* files.* (zxv_files.h F1-F6): the ZXV folder behind the Burrow, Quillon
+/* files.* (zxv_files.h F1-F6): the Hoard (the ZXV folder) behind the Banker, Quillon
  * and Glint apps (docs/STAPLE_APPS.md). A refusal is error ZXVD_E_FILES with zxf_strerror's text.
  */
 #define ZXVD_E_FILES (-32014)
