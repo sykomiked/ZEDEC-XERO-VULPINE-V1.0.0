@@ -113,6 +113,8 @@ typedef int sock_t;
 #include "zxv_model_host.h"
 #include "zxv_budget_gate.h"
 #include "zxv_answer_tag.h"
+#include "zxv_idle.h"    /* R24: the swarm's own work while no one asks */
+#include "zxv_receipt.h" /* R24: one sealed receipt per interaction */
 #include "zxv_tiamat.h"
 #include "sha256.h"
 #include "zxv_net_host.h"
@@ -646,6 +648,16 @@ static struct {
     zxn_note_t notes[NOTE_SLOTS];
 } S;
 
+/* R24 (docs/ARCHITECTURE.md): while no one asks, the swarm checks itself
+ * (zxv_idle.h); a request is served first, between two idle slices, and ends
+ * in one sealed receipt (zxv_receipt.h). */
+static zxv_idle_t IDLE;
+static zxv_receipt_chain_t RCH;
+static FILE *RECEIPTS;                  /* NULL: no receipts (no state dir) */
+static uint64_t ASK_TOKENS;             /* what the current interaction was charged */
+static const zxv_tiamat_trace_t *TRACE; /* the current interaction's Tiamat trace */
+static void idle_queue(bool pins);
+
 static uint64_t rnd(void)
 { /* xorshift64*, stand-in dynamics only */
     S.rng ^= S.rng >> 12;
@@ -996,6 +1008,9 @@ static void step(void)
         if (due & (1u << 10)) market_cycle(); /* 11th harmonic: reflex */
         if (due & 1u) {                       /* fundamental: growth */
             S.fundamentals++;
+            /* R24: an idle swarm keeps checking itself; the pinned model
+             * files are hashed again every 144 fundamentals (about 26 min) */
+            if (!zxv_idle_queued(&IDLE)) idle_queue(S.fundamentals % 144u == 0);
             evolve();
             uint32_t old = S.gov.num_levels;
             scan_hardware();
@@ -1013,6 +1028,7 @@ static void step(void)
 /* ===================== the companion (stand-in) ===================== */
 
 /* The budget gate around one generation (zxv_model_host.h M5). */
+
 /* Set by tiamat_ask: a cell runs only when the open cycle can pay for a
  * whole reply (prompt + ZXV_MODEL_MAX_NEW), never a reply cut short by the
  * allotment (B2), so the checks judge complete answers and the same question
@@ -1037,6 +1053,7 @@ static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
     int32_t r = zxv_budget_gate_ex(&S.b, companion, zxv_model_prompt_tokens(), ZXV_MODEL_MAX_NEW,
                                    gen, gctx, &S.last_gate);
     S.have_gate = true;
+    ASK_TOKENS += S.last_gate.charged;
 #if defined(ZXVD)
     /* W3: the call's CPU time (the engine's worker threads included) */
     zxvd_power_note_agent(companion, "companion", zxvd_power_cpu_ns() - cpu0, 0);
@@ -1102,6 +1119,93 @@ static int tiamat_ask(void *ctx, uint32_t cell, const char *prompt, char *out, s
     return m == 1 ? 1 : 0;
 }
 
+/* R24 I1: queue the self-checks: the join and reckoner self-test, and with
+ * pins, each pinned model file's SHA-256. */
+static void idle_queue(bool pins)
+{
+    if (zxv_idle_add_selftest(&IDLE, 0) != 0) return; /* full: the queue is busy enough */
+    if (!pins || !TIAMAT) return;
+    for (uint32_t i = 0; i < ZXV_TIAMAT_SLOTS; i++)
+        if (TIAMAT->slot_sha[i][0] &&
+            zxv_idle_add_pin(&IDLE, TIAMAT->slot_path[i], TIAMAT->slot_sha[i], i) != 0)
+            return;
+}
+
+/* R24 I4: one idle slice, paid by a stand-in agent (never the companion,
+ * agent 0, whose tokens are the person's). Nothing runs when none can pay. */
+static void idle_tick(void)
+{
+    uint64_t cost = zxv_idle_cost(&IDLE);
+    if (!cost || !S.b.cycle_open) return;
+    for (uint32_t i = 1; i < S.num_agents; i++) {
+        if (swarm_budget_remaining(&S.b, S.agent[i].id) < cost) continue;
+        uint64_t g = 0;
+        if (swarm_budget_consume(&S.b, S.agent[i].id, cost, &g) != SWARM_OK || g < cost) return;
+        zxv_idle_outcome_t o;
+        if (zxv_idle_slice(&IDLE, &o) == 1 && o.result == ZXV_IDLE_FAIL) {
+            /* I5: a failed self-check is told, never acted on (I6) */
+            char what[200];
+            if (o.kind == ZXV_IDLE_PIN)
+                snprintf(what, sizeof what, "Model slot %u: %s", (unsigned) o.tag, o.why);
+            else
+                snprintf(what, sizeof what, "Self-test: %s", o.why);
+            fprintf(stderr, "zxv-host: idle check failed: %s\n", what);
+            zxn_task_finished(&S.bus, "self-check", ++S.task_seq, false, "A self-check failed",
+                              what, "chat");
+        }
+        return;
+    }
+}
+
+#if defined(ZXVD)
+/* zxv_receipt.h E3 under zxvd: the owner's ML-DSA-65 chat key signs */
+static int receipt_sign(void *ctx, const uint8_t hash[32], char *sig, size_t cap, char signer[65])
+{
+    (void) ctx;
+    static uint8_t raw[ZXVD_CHAT_SIG_LEN];
+    uint8_t id[32];
+    if (cap < 2u * ZXVD_CHAT_SIG_LEN + 1u || zxvd_chat_sign_digest(hash, raw, id, NULL) != 0)
+        return 0;
+    static const char D[] = "0123456789abcdef";
+    for (size_t i = 0; i < ZXVD_CHAT_SIG_LEN; i++) {
+        sig[2 * i] = D[raw[i] >> 4];
+        sig[2 * i + 1] = D[raw[i] & 15];
+    }
+    sig[2 * ZXVD_CHAT_SIG_LEN] = 0;
+    for (size_t i = 0; i < 32; i++) {
+        signer[2 * i] = D[id[i] >> 4];
+        signer[2 * i + 1] = D[id[i] & 15];
+    }
+    signer[64] = 0;
+    return 1;
+}
+#endif
+
+/* R24: seal one interaction (zxv_receipt.h). Under zxvd the receipt is signed
+ * when the chat key is open; otherwise (zxv-host, or zxvd before the chat
+ * opens) the chain alone seals it. */
+static void seal_receipt(const char *kind, const char *q, const char *shown, const char *paused)
+{
+    if (!RECEIPTS) return;
+    const zxv_tiamat_trace_t *t = TRACE;
+    zxv_receipt_t r = {
+        kind,
+        q,
+        shown,
+        t && TIAMAT ? TIAMAT->cell[t->lead].name : "",
+        t && TIAMAT && t->witness >= 0 && !t->witness_skipped ? TIAMAT->cell[t->witness].name : "",
+        t ? zxv_tiamat_tv_name(t->tv) : "",
+        S.b.cycle,
+        ASK_TOKENS,
+        paused};
+    int rc = -1;
+#if defined(ZXVD)
+    rc = zxv_receipt_seal(&RCH, &r, receipt_sign, NULL, RECEIPTS, NULL);
+#endif
+    if (rc != 0 && zxv_receipt_seal(&RCH, &r, NULL, NULL, RECEIPTS, NULL) != 0)
+        fprintf(stderr, "zxv-host: the receipt could not be written\n");
+}
+
 /* Open --tiamat's slots and one agent per cell. 0, or -1 with the reason
  * on stderr. */
 static int tiamat_open(const char *path)
@@ -1130,6 +1234,7 @@ static int tiamat_open(const char *path)
                 zxv_slot_info(k->slot)->name);
     }
     TIAMAT = &conf;
+    idle_queue(true);
     return 0;
 }
 
@@ -1149,6 +1254,9 @@ static int tiamat_batch(const char *path, bool check)
         while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
         if (!n || line[0] == '#') continue;
         int shown = 0;
+        char paused[64];
+        zxv_idle_describe(&IDLE, paused, sizeof paused);
+        ASK_TOKENS = 0;
         if (check) {
             char *tab = strchr(line, '\t');
             if (!tab) {
@@ -1161,6 +1269,9 @@ static int tiamat_batch(const char *path, bool check)
             zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, line, &t, out, sizeof out, &shown);
         }
         zxv_tiamat_log(TIAMAT->log_path, line, TIAMAT, &t);
+        TRACE = &t;
+        seal_receipt(check ? "check" : "ask", line, out, paused);
+        TRACE = NULL;
         zxv_tiamat_write(stdout, line, TIAMAT, &t, out);
         fflush(stdout);
     }
@@ -1174,6 +1285,7 @@ static void tiamat_answer(const char *q, char *out, size_t cap)
     static zxv_tiamat_trace_t t; /* large; answers run one at a time */
     int shown = 0;
     int tv = zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, q, &t, out, cap, &shown);
+    TRACE = &t;
     LAST_ANSWER_MODEL = t.lead_rc == 1;
     if (zxv_tiamat_log(TIAMAT->log_path, q, TIAMAT, &t) != 0)
         fprintf(stderr, "zxv-host: could not write the Tiamat log %s\n", TIAMAT->log_path);
@@ -1183,7 +1295,22 @@ static void tiamat_answer(const char *q, char *out, size_t cap)
     note_task(t.lead_rc == 1, sum);
 }
 
+static void answer_inner(const char *q, char *out, size_t cap);
+
+/* One interaction: idle work is already paused (it runs only between
+ * requests, R24 I3); answer, then seal the receipt. */
 static void answer(const char *q, char *out, size_t cap)
+{
+    char paused[64];
+    zxv_idle_describe(&IDLE, paused, sizeof paused);
+    ASK_TOKENS = 0;
+    TRACE = NULL;
+    answer_inner(q, out, cap);
+    seal_receipt("ask", q, out, paused);
+    TRACE = NULL;
+}
+
+static void answer_inner(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
     ANSWER_REAL = false;
@@ -2529,6 +2656,7 @@ int main(int argc, char **argv)
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
     const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
+    const char *receipts = NULL; /* R24: --receipts, else the state folder's */
     const char *tiamat = NULL, *ask_once = NULL, *ask_file = NULL, *check_file = NULL;
     bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
@@ -2574,6 +2702,8 @@ int main(int argc, char **argv)
             ask_file = argv[++i];
         else if (!strcmp(argv[i], "--check-file") && i + 1 < argc)
             check_file = argv[++i];
+        else if (!strcmp(argv[i], "--receipts") && i + 1 < argc)
+            receipts = argv[++i];
         else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
             fonts_dir = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
@@ -2689,6 +2819,8 @@ int main(int argc, char **argv)
                    "  --ask QUESTION      answer once on stdout and exit\n"
                    "  --ask-file FILE     with --tiamat: answer each line, JSON lines out\n"
                    "  --check-file FILE   with --tiamat: check QUESTION<TAB>ANSWER lines\n"
+                   "  --receipts FILE     one sealed receipt per answer (zxv_receipt.h);\n"
+                   "                      default receipts.jsonl in the state folder\n"
                    "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
@@ -2788,6 +2920,23 @@ int main(int argc, char **argv)
         if (zxv_net_set_state_dir(S.net, state_dir) != 0) {
             fprintf(stderr, "zxv-host: --state-dir path too long\n");
             return 2;
+        }
+        /* R24: the receipts chain resumes where it ended; a chain that does
+         * not verify is not written to */
+        char rpath[1100];
+        if (!receipts && state_dir[0]) {
+            snprintf(rpath, sizeof rpath, "%s/receipts.jsonl", state_dir);
+            receipts = rpath;
+        }
+        zxv_idle_init(&IDLE);
+        zxv_receipt_init(&RCH);
+        if (receipts && receipts[0]) {
+            char err[200];
+            if (zxv_receipt_resume(receipts, &RCH, err, sizeof err) != 0) {
+                fprintf(stderr, "zxv-host: %s: %s; no receipts this run\n", receipts, err);
+            } else if (!(RECEIPTS = fopen(receipts, "ab"))) {
+                fprintf(stderr, "zxv-host: cannot write %s; no receipts this run\n", receipts);
+            }
         }
     }
     zxv_net_set_lan_discovery(S.net, lan_discovery, 0);
@@ -3142,6 +3291,9 @@ int main(int argc, char **argv)
         uint64_t now = pal_now_ms();
         if (now > next_step + 1000u) next_step = now;
         for (; now >= next_step; next_step += STEP_MS) step();
+        /* R24 I3: self-work only when nothing is waiting; a request that
+         * arrives is served on the next pass, before the next slice */
+        if (r == 0) idle_tick();
     }
     CLOSESOCK(ls);
 #if defined(ZXVD)
@@ -3161,6 +3313,8 @@ int main(int argc, char **argv)
     zxvd_people_close();
 #    endif
 #endif
+    zxv_idle_clear(&IDLE);
+    if (RECEIPTS) fclose(RECEIPTS);
     zxv_peer_free(S.peer);
     zxv_net_free(S.net);
     zxv_update_free();

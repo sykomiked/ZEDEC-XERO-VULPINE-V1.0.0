@@ -77,6 +77,16 @@ static int parse_line(const char *s, unsigned ln, zxv_tiamat_conf_t *c, char *er
         r = next_tok(&s, c->slot_path[n], sizeof c->slot_path[n]);
         if (r < 0) return fail(err, ecap, ln, "the path is too long or a quote is not closed");
         if (r == 0) return fail(err, ecap, ln, "slot takes a number 0..3 and a path");
+        char sha[ZXV_TIAMAT_PATH];
+        r = next_tok(&s, sha, sizeof sha);
+        if (r == 1) {
+            size_t k = 0;
+            while (sha[k] && isxdigit((unsigned char) sha[k])) k++;
+            if (k != 64 || sha[k]) return fail(err, ecap, ln, "a slot's SHA-256 is 64 hex digits");
+            memcpy(c->slot_sha[n], sha, 65);
+        } else if (r < 0) {
+            return fail(err, ecap, ln, "a slot's SHA-256 is 64 hex digits");
+        }
     } else if (!strcmp(word, "log")) {
         if (next_tok(&s, c->log_path, sizeof c->log_path) != 1)
             return fail(err, ecap, ln, "log takes a path");

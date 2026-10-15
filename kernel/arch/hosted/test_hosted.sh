@@ -87,6 +87,14 @@ args "$T/tiamat"
 run_cc "$T/test_tiamat"
 "$T/test_tiamat" "$T"
 
+# R24: idle self-work in slices and one sealed receipt per interaction
+printf '%s\n' arch/hosted/test_zxv_idle.c arch/hosted/zxv_idle.c arch/hosted/zxv_receipt.c \
+    arch/hosted/zxv_tiamat.c src/robin_debanks/sha256.c > "$T/idle"
+args "$T/idle"
+run_cc "$T/test_idle"
+mkdir -p "$T/idle_dir"
+"$T/test_idle" "$T/idle_dir"
+
 # the swarm budget governs generation (zxv_budget_gate.h)
 printf '%s\n' arch/hosted/test_zxv_budget_gate.c arch/hosted/zxv_budget_gate.c \
     src/swarm/swarm_budget.c > "$T/gate"

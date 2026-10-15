@@ -4,7 +4,9 @@
  * (tools/tiamat/TEST_PLAN.md, "First conversation").
  *
  *   H1 CONFIG. A text file, one directive per line ('#' starts a comment):
- *        slot N PATH                     a GGUF model for slot N (0..3)
+ *        slot N PATH [SHA256]            a GGUF model for slot N (0..3), and
+ *                                        optionally its pinned SHA-256 (64 hex),
+ *                                        which idle time re-checks (zxv_idle.h)
  *        cell NAME SLOT LINEAGE ADAPTER KEYWORD...
  *                                        a cell: its dragon name, the slot it
  *                                        runs on, its lineage (cells of one
@@ -66,6 +68,7 @@ typedef struct {
 
 typedef struct {
     char slot_path[ZXV_TIAMAT_SLOTS][ZXV_TIAMAT_PATH]; /* "" = unused */
+    char slot_sha[ZXV_TIAMAT_SLOTS][65];               /* "" = not pinned */
     zxv_tiamat_cell_t cell[ZXV_TIAMAT_CELLS];
     uint32_t n_cells;
     char log_path[ZXV_TIAMAT_PATH]; /* "" = no log */

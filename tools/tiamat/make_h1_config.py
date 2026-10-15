@@ -68,7 +68,7 @@ def main():
     models_dir = pathlib.Path(a.models_dir).expanduser().resolve()
     by_name = {m["dragon_name"]: m for m in json.load(open(a.manifest))["models"]}
 
-    slots, cells, found = [], [], set()
+    slots, pins, cells, found = [], [], [], set()
     for name, lineage, kws in H1:
         if name in FALLBACK and FALLBACK[name] in found:
             continue
@@ -88,6 +88,7 @@ def main():
                 print(f"  -  {name}: no slot left (4 at most)", file=sys.stderr)
                 continue
             slots.append(str(p))
+            pins.append(f["sha256"] or "")
         cells.append((name, slots.index(str(p)), lineage, kws, m))
         found.add(name)
         print(f"  ok {name} ({m['model_id']}, {m['developer']}) <- {p.name}", file=sys.stderr)
@@ -100,7 +101,9 @@ def main():
     log = pathlib.Path(a.log).expanduser().resolve() if a.log else out.with_name("tiamat_log.jsonl")
     lines = ["# Tiamat harness H1 (kernel/arch/hosted/zxv_tiamat.h); written by",
              "# tools/tiamat/make_h1_config.py from docs/release/swarm_model_manifest.json"]
-    lines += [f"slot {i} {quote(s)}" for i, s in enumerate(slots)]
+    # each slot carries the manifest's pinned SHA-256, which the app re-checks
+    # while idle (zxv_idle.h, R24)
+    lines += [f"slot {i} {quote(s)} {h}".rstrip() for i, (s, h) in enumerate(zip(slots, pins))]
     for name, slot, lineage, kws, m in cells:
         lines.append(f"# {name}: {m['model_id']} by {m['developer']} ({m['license']})")
         lines.append(" ".join([f"cell {name} {slot} {lineage} -"] + kws))

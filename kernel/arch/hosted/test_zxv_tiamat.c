@@ -69,6 +69,22 @@ int main(int argc, char **argv)
           "keywords are lower-cased; a comment ends the line");
     CHECK(!strcmp(c.log_path, "/tmp/t.log"), "log path");
     CHECK(parse_err("slot 4 /x\ncell A 0 q -\n", "line 1"), "slot 4 is refused");
+    {
+        zxv_tiamat_conf_t p;
+        char e[200];
+        const char *h = "0123456789abcdef0123456789ABCDEF0123456789abcdef0123456789abcdef";
+        char txt[300];
+        snprintf(txt, sizeof txt, "slot 0 /x %s\nslot 1 /y\ncell A 0 q -\n", h);
+        CHECK(zxv_tiamat_parse(txt, &p, e, sizeof e) == 0 && !strcmp(p.slot_sha[0], h) &&
+                  p.slot_sha[1][0] == 0,
+              "a slot may carry its pinned SHA-256");
+    }
+    CHECK(parse_err("slot 0 /x abc\ncell A 0 q -\n", "64 hex"), "a short SHA-256 is refused");
+    CHECK(parse_err(
+              "slot 0 /x "
+              "g123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\ncell A 0 q -\n",
+              "64 hex"),
+          "a SHA-256 with a non-hex digit is refused");
     CHECK(parse_err("slot 0 /x\ncell A 1 q -\n", "slot 1, which has no model"),
           "a cell on an empty slot is refused");
     CHECK(parse_err("slot 0 /x\n", "no cells"), "no cells is refused");
@@ -77,7 +93,13 @@ int main(int argc, char **argv)
     CHECK(parse_err("slot 0 \"/x\n", "quote"), "an open quote is refused");
     CHECK(parse_err("slot 0 /x\ncell A 0 q - abcdefghijklmnopqrstuvwxyz\n", "23 bytes"),
           "a keyword longer than 23 bytes is refused");
-    CHECK(parse_err("slot 0 /x extra\ncell A 0 q -\n", "extra words"), "extra words are refused");
+    CHECK(parse_err("slot 0 /x "
+                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef extra\n"
+                    "cell A 0 q -\n",
+                    "extra words"),
+          "extra words are refused");
+    CHECK(parse_err("cell A 0 q - x\nlog /l extra\nslot 0 /x\n", "extra words"),
+          "extra words after log are refused");
 
     printf("H2 route\n");
     int w = 9;

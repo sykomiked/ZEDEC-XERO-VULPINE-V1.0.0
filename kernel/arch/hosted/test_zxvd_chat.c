@@ -11,6 +11,8 @@
 
 #include "zxvd_chat.h"
 #include "zxvd_rpc.h"
+#include "sha256.h"
+#include "social_sign_mldsa.h"
 
 static int fails, checks;
 #define CHECK(c, ...)                                                                              \
@@ -80,7 +82,22 @@ static long file_size(const char *path)
 static void test_memory(void)
 {
     CHECK(has("chat.me", NULL, "\"method not found\""), "no chat before it opens: %s", OUT.p);
+    {
+        static uint8_t d[32] = {1, 2, 3}, sig[ZXVD_CHAT_SIG_LEN], id[32], pk[ZXVD_CHAT_PK_LEN];
+        CHECK(zxvd_chat_sign_digest(d, sig, id, pk) == -1,
+              "R24: no receipt signature before it opens");
+    }
     CHECK(zxvd_chat_open(NULL) == 0, "C3: in memory");
+    {
+        static uint8_t d[32] = {1, 2, 3}, sig[ZXVD_CHAT_SIG_LEN], id[32], pk[ZXVD_CHAT_PK_LEN],
+                       want[32];
+        CHECK(zxvd_chat_sign_digest(d, sig, id, pk) == 0 && sp_mldsa_verify(NULL, pk, d, sig),
+              "R24: a receipt digest signed with the chat key verifies");
+        sha256(pk, sizeof pk, want);
+        CHECK(!memcmp(id, want, 32), "R24: the signer id is the SHA-256 of the public key");
+        d[0] ^= 1;
+        CHECK(!sp_mldsa_verify(NULL, pk, d, sig), "R24: the signature does not fit another digest");
+    }
     CHECK(has("chat.me", NULL, "\"saved\":false,\"records\":0,\"following\":[]"), "C3: %s", OUT.p);
     char me[65];
     CHECK(field("node_id", me, sizeof me) && strlen(me) == 64, "C1: a 64-hex NodeID");
