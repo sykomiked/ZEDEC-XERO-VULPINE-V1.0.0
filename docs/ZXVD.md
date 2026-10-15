@@ -15,6 +15,14 @@
 | AIPI: functions by CID, run in the Z-Wasm sandbox under their contract (offline node) | `kernel/src/aipi`, `sdk/kits/aipi`, `zxvd_aipi.c` | `aipi.*` |
 | The ZXV folder behind the built-in apps (Burrow, Quillon, Glint; [STAPLE_APPS.md](STAPLE_APPS.md)) | `zxv_files.c` | `files.*`, and the window's `POST /api/rpc` |
 | Spaces: home, offices, teams, cloud top, parks, with rights per role, held crossings and member votes ([STAPLE_APPS.md](STAPLE_APPS.md#spaces)) | `zxv_spaces.c` | `spaces.*`, `files.cross`, the `space` parameter of `files.*` |
+| The machine and zxvd for the system utilities (Almanac, Tidewatch, Sounding; [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)), read only | `zxv_sysinfo.c` | `sys.info`, `sys.disk`, `sys.net` |
+| Recent events for the Wake console: refusals and changes, never parameters | `zxvd_log.c` | `log.tail` |
+| The same events kept on disk across restarts, hash-chained so a change shows (`--journal DIR`) | `zxv_journal.c` | `journal.query`, `journal.verify` |
+| Location, saved places and per-app location permission for the Waymark app (`--places FILE`) | `zxv_place.c` | `place.*` |
+| Screen time for the Shepherd app: minutes per app per day and a guardian's limits (`--screen FILE`) | `zxv_screen.c` | `screen.*` |
+| Search for the Scent app: an index per space of file names and the words in UTF-8 files, kept up to date incrementally, read only | `zxv_search.c` | `search.query`, `search.refresh` |
+| Printing and scanning for the Platen app: IPP Everywhere and eSCL to devices on the local network only | `zxv_print_host.c`, `kernel/src/print` | `print.*`, `scan.*` |
+| Backups with versions for the Keepsake app: content-addressed copies and checked snapshots in a folder the owner picks | `zxv_keepsake.c` | `backup.*` |
 | JSON tokenizer | `kernel/src/web4/web4_json.c` | parses every request |
 | Freight packets, harmonic wire frames, stream segments, Endian Hopping frames, Web 4 CIDs and agent cards (pure codecs, no state) | `kernel/src/freight`, `harmonic`, `stream`, `ehop`, `web4` via `zxvd_rpc_modules.c` | `freight.*`, `harmonic.*`, `stream.*`, `ehop.*`, `web4.*` |
 
@@ -311,7 +319,10 @@ see "Public spaces and the watch hall" below),
 refused or failed (the message says why), -32030 a people method
 (`social.*`, `call.*`, `xlate.*`, `devmesh.*`, `ui.*`) refused (the message
 says why), -32031 `xlate.translate` with no local model that can generate
-(nothing is invented), -32000 a
+(nothing is invented), -32022 a printer or scanner refused or out of reach
+(`print.*`, `scan.*`), -32018 a backup refused (`backup.*`), -32019 a
+screen-time refusal (`screen.*`), -32021 a place refused (`place.*`); each
+message says why. -32000 a
 libzxv status, with
 `error.data` = `{"status": -6, "name": "ZXV_E_FUNDS", "class": "REFUSED"}`
 (classes USAGE, REFUSED, FATAL, SYSTEM as in `zxv_api.h`). Capabilities are
@@ -381,8 +392,10 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 `notes.mark_read`. A phone paired with `allow_post` may also call
 `net.command`, `peer.ask`, `currency.enable`, `ledger.open_account` and
 `ledger.post`. `zxvd.shutdown`, `peer.serve`, `jurisdiction.set`, `aipi.put`,
-`aipi.publish`, `aipi.execute`, `phone.*` and the people methods (`social.*`,
-`call.*`, `xlate.*`, `devmesh.*`, `ui.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
+`aipi.publish`, `aipi.execute`, `phone.*`, the people methods (`social.*`,
+`call.*`, `xlate.*`, `devmesh.*`, `ui.*`), and the system utilities and
+apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
+`search.*`, `print.*`, `scan.*`, `backup.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
 ## Swarm earnings in your books
 
@@ -418,6 +431,19 @@ owner's libzxv books, so they show up in a currency next to everything else.
 | Windows | `%LOCALAPPDATA%\ZXV\books.zxvb` |
 
 `--books -` keeps the books in memory, as plain `zxvd --rpc` does.
+
+`--journal DIR` keeps zxvd's events on disk for Wake's history
+([SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)). `zxvd --desktop` and the Mac
+app keep it in a `journal` folder beside the books file; `--journal -` turns
+it off. If the folder cannot be made or written, zxvd says so and runs
+without it.
+
+`--screen FILE` keeps Shepherd's screen time and limits
+([SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md)). `zxvd --desktop` and the Mac
+app keep `screen.zxst` beside the books file; without it, or with
+`--screen -`, screen time lives in memory and is gone when zxvd stops.
+`--places FILE` does the same for Waymark's saved places and location
+answers (`places.zxpl`); the location itself is never written.
 
 - Every change (a currency, a private unit, an account, a posting) is one
   line in an append-only file, mode 0600. Each line is a SHA-256 hash and a

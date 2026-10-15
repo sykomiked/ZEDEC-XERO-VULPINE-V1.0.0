@@ -164,9 +164,9 @@ on each call, so a hidden button in the interface is never the only guard.
 Every app has a ZXV name, not another company's product name. A trademark
 search is still needed before release; the names below were chosen to avoid
 the obvious clashes. Planned names for apps not built yet: Margins (notes),
-Coffer (wallet and books), Waymark (Web4 viewer), Commons (chat), Tidewatch
-(activity monitor), Keystone (settings), Witness (audit log), Lodestone
-(inspector), Satchel (packager).
+Coffer (wallet and books), Waymark (Web4 viewer), Commons (chat). The system
+utilities' names (Almanac, Tidewatch, Wake, Sounding, Keystone, Witness and
+the rest) are in [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md).
 
 ## Coming next
 
@@ -180,6 +180,6 @@ In the order they will be built (the plan in the "Built-in apps and toolbox" thr
 | Everyone | Web4 viewer | `kernel/src/browser`, `kernel/src/web4` |
 | Everyone | Chat | Commons chat (PR #78) |
 | Everyone | Image and voice generation | the Images and voice work (PR #93) |
-| Power users | Activity monitor, Settings, Audit log | `swarm.state`, `net.*`, `update.*`, `notes.list`, the quarantine log |
+| Power users | Settings, Audit log and the other system utilities | see [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md), where Almanac, Tidewatch, Wake and Sounding are built |
 | Developers | Inspector, Packager | `rpc.discover`, `model.info`, `net.peers`; AIPI for signed bundles |
 | Developers | Playground | owned by the language examples and templates work |

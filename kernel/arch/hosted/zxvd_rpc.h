@@ -300,6 +300,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32070 companion   -32080 seats   -32090 Web4 feed
  *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
+ *        -32018 backups   -32019 screen time   -32021 places
+ *        -32022 printers and scanners (zxv_print_host.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -365,6 +367,20 @@ int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *
 /* spaces.* and the "space" parameter of files.* (zxv_spaces.h): a missing
  * space, or a role that may not do what was asked. */
 #define ZXVD_E_SPACE (-32013)
+/* print.* and scan.* (zxv_print_host.h): the printer or scanner could not
+ * be reached, refused, or does not take the file; the message says which. */
+#define ZXVD_E_DEVICE (-32022)
+/* backup.* (zxv_keepsake.h): the destination is not usable, a snapshot or a
+ * kept copy is missing or damaged, or there was no room; the message says
+ * which. A refusal by the ZXV folder itself is ZXVD_E_FILES. */
+#define ZXVD_E_BACKUP (-32018)
+/* screen.* (zxv_screen.h): the guardian's passphrase is wrong or missing,
+ * too many wrong tries, no such limit, no room, or the file could not be
+ * written; the message says which. */
+#define ZXVD_E_SCREEN (-32019)
+/* place.* (zxv_place.h): no such place, a name taken, no room, or the file
+ * could not be written; the message says which. */
+#define ZXVD_E_PLACE (-32021)
 
 /* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
  * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and

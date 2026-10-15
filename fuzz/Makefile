@@ -220,7 +220,7 @@ LIBZXV_SAN := $(abspath $(OUT))/libzxv-san/libzxv.a
 INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(S)/robin_debanks -I$(S)/mlkem -I$(K)/include \
                      -I$(S)/modbind -I$(S)/e8 -I$(S)/event_space -I$(S)/surplus -I$(S)/lpres -I$(S)/juris \
                      -I$(S)/freight -I$(S)/harmonic -I$(S)/stream -I$(S)/ehop -I$(S)/ipfs_node -I$(S)/pqsec \
-                     -I$(S)/edp_risk -I$(K)/../sdk/libzxv/include
+                     -I$(S)/edp_risk -I$(S)/print -I$(K)/../sdk/libzxv/include
 # zxvd_rpc.c's own dependencies and the module methods it falls back to, from
 # the one list the tests and the daemon build read (app_sources.sh rpcdeps,
 # modules)

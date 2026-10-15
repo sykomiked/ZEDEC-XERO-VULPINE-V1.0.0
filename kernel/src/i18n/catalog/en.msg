@@ -496,3 +496,5 @@ UI_PP_ONLY_THIS|-|source|Only this device.
 UI_PP_INVITE_CODE|-|source|On the other device, enter this code (valid {0} minutes):
 UI_PP_QR_PAYLOAD|-|source|QR payload
 UI_PP_JOINING|-|source|Joining…
+UI_SCREEN_LEFT|-|source|Minutes left today for this app: {0}
+UI_SCREEN_BLOCKED|-|source|Shepherd: {0}

@@ -365,6 +365,7 @@ body.simple .adv{display:none!important}
   <button data-app="playground" class="adv"><i>▷</i><span data-i18n="UI_TAB_PLAY"></span></button>
 </nav>
 <div class="views">
+<div class="note" id="shepherd" hidden></div>
 <div class="view" id="v-swarm">
 <div class="note" data-i18n="UI_PREVIEW_NOTE"></div>
 <div class="note" id="langnote" hidden></div>
@@ -1034,6 +1035,20 @@ async function hDevices(){const [s,d]=await Promise.all([rpc('devmesh.status'),r
 $('dinv').onclick=async()=>{try{const r=await rpc('devmesh.invite');$('dcode').innerHTML=`<div class="small">${esc(T('UI_PP_INVITE_CODE',fmt(Math.round(r.expires_in_ms/60000))))}</div><div class="big">${esc(r.code)}</div><div class="small adv">${esc(T('UI_PP_QR_PAYLOAD'))}</div><div class="mono adv">${esc(r.qr)}</div>`}catch(e){status($('dout'),e.message,1)}hDevices()};
 $('djoin').onsubmit=async e=>{e.preventDefault();const code=$('djcode').value.trim().toUpperCase();if(!code)return;
   try{const r=await rpc('devmesh.join',code.length>11?{qr:code}:{code});status($('dout'),r.next||T('UI_PP_JOINING'))}catch(err){status($('dout'),err.message,1)}hDevices()};
+/* ----- screen time for Shepherd (zxv_screen.h SC1): once a minute, the app
+   in front, while someone is using the window ----- */
+const APP_NAME={swarm:'murmuration',files:'burrow',text:'quillon',photos:'glint',console:'spindle'};
+let lastActive=Date.now();
+['mousemove','keydown','pointerdown','wheel'].forEach(e=>addEventListener(e,()=>{lastActive=Date.now()},{passive:true}));
+async function screenTick(){
+  if(document.hidden||Date.now()-lastActive>60000)return;
+  try{const a=await rpc('screen.tick',{app:APP_NAME[current]||current});
+    const n=$('shepherd');
+    n.hidden=a.allowed&&!(a.left>=0&&a.left<=5);
+    n.textContent=a.allowed?T('UI_SCREEN_LEFT',fmt(a.left)):T('UI_SCREEN_BLOCKED',a.why)}
+  catch(e){}
+}
+setInterval(screenTick,60000);
 
 let startApp='swarm';try{startApp=sessionStorage.getItem('zxv-app')||'swarm'}catch(e){}
 show(document.getElementById('v-'+startApp)&&!PEOPLE_APPS.includes(startApp)?startApp:'swarm');

@@ -92,7 +92,7 @@ static long num(const char *r, const char *key)
 static void test_dispatch(void)
 {
     const char *r = call("rpc.discover", NULL);
-    CHECK(strstr(r, "\"ui.get\",\"ui.set\",\"freight.pack\",\"freight.unpack\",\"harmonic.encode\","
+    CHECK(strstr(r, "\"backup.restore\",\"backup.prune\",\"freight.pack\",\"freight.unpack\",\"harmonic.encode\","
                     "\"harmonic.decode\",\"stream.plan\",\"stream.segment\",\"ehop.bands\","
                     "\"ehop.seal\",\"ehop.open\",\"web4.cid\",\"web4.agent_card\","
                     "\"web4.card_verify\"]}") != NULL,

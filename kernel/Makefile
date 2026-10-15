@@ -402,6 +402,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
+	$(MAKE) --no-print-directory test-print
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
@@ -1653,6 +1654,12 @@ test-allotment:
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# Platen's printer and scanner codecs (src/print/ipp.h, escl.h): IPP requests
+# byte by byte, printer and scanner replies, every truncation refused.
+.PHONY: test-print
+test-print:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/print src/print/test_print.c src/print/ipp.c src/print/escl.c -o $(ZXV_TMP)/test_print && $(ZXV_TMP)/test_print > $(ZXV_TMP)/test_print.log 2>&1 && echo "[PASS] test_print ($$(tail -1 $(ZXV_TMP)/test_print.log))" || { cat $(ZXV_TMP)/test_print.log; echo "[FAIL] test_print"; exit 1; }
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.

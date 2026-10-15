@@ -25,6 +25,34 @@
 #include "quillon_model.h"
 #include "spindle_model.h"
 #include "swarm_emotion.h"
+#include "almanac_model.h"
+#include "sounding_model.h"
+#include "tidewatch_model.h"
+#include "wake_model.h"
+#include "scent_model.h"
+#include "platen_model.h"
+#include "keepsake_model.h"
+#include "shepherd_model.h"
+#include "waymark_model.h"
+#include "zxv_print_host.h"
+#include "test_fake_device.h"
+#include "zxvd_log.h"
+#include "zxv_journal.h"
+#include "zxv_screen.h"
+#include "zxv_place.h"
+#include "sha256.h"
+
+/* Appends to b at *k, never past cap - 1: *k stops at the end when the text
+ * does not fit. */
+static void catf(char *b, size_t cap, int *k, const char *fmt, ...)
+{
+    if (*k < 0 || (size_t) *k + 1u >= cap) return;
+    va_list ap;
+    va_start(ap, fmt);
+    int r = vsnprintf(b + *k, cap - (size_t) *k, fmt, ap);
+    va_end(ap);
+    if (r > 0) *k = (size_t) r < cap - (size_t) *k ? *k + r : (int) cap - 1;
+}
 
 /* Appends to b at *o, never past cap - 1: *o stops at the end when the
  * text does not fit. */
@@ -861,6 +889,1491 @@ static void test_spaces(void)
     fb->link = real;
 }
 
+/* ---------------- the system utilities ---------------- */
+
+static almanac_t AL;
+static wake_t WK;
+static tidewatch_t TW;
+static sounding_t SD;
+
+#define SYS_INFO(t, cpu)                                                                           \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":" t ",\"os\":\"linux\","               \
+    "\"os_version\":\"6.1\",\"arch\":\"arm64\",\"host\":\"h\",\"cpus\":4,\"mem_total\":"           \
+    "8000000000,\"mem_avail\":2000000000,\"uptime_s\":90061,\"load\":[125,50,5],\"zxvd\":"         \
+    "{\"pid\":7,\"cpu_user_us\":" cpu ",\"cpu_sys_us\":0,\"rss_bytes\":1000,\"max_rss_bytes\":"    \
+    "2000}}}"
+
+static void test_utilities(void)
+{
+    char t[64];
+
+    /* Almanac over the real dispatcher */
+    almanac_init(&AL, &LINK);
+    CHECK(almanac_mem_used_x100(&AL) == -1 && almanac_disk_used_x100(&AL) == -1, "nothing yet");
+    CHECK(almanac_ai(&AL, ALMANAC_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain yet");
+    CHECK(almanac_refresh(&AL) == ZXM_OK && AL.have && AL.cpus > 0 && AL.os[0] &&
+              AL.pid == (uint64_t) getpid() && AL.disk_known && AL.disk_total > 0,
+          "almanac: %s", LINK.err);
+    CHECK(almanac_disk_used_x100(&AL) >= 0 && almanac_disk_used_x100(&AL) <= 10000, "disk share");
+    almanac_uptime_text(90061, t, sizeof t);
+    CHECK(!strcmp(t, "1 day, 1 hour"), "%s", t);
+    almanac_uptime_text(7260, t, sizeof t);
+    CHECK(!strcmp(t, "2 hours, 1 minute"), "%s", t);
+    almanac_uptime_text(59, t, sizeof t);
+    CHECK(!strcmp(t, "0 minutes"), "%s", t);
+    almanac_bytes_text(1, t, sizeof t);
+    CHECK(!strcmp(t, "1 byte"), "%s", t);
+    almanac_bytes_text(999, t, sizeof t);
+    CHECK(!strcmp(t, "999 bytes"), "%s", t);
+    almanac_bytes_text(1500000000, t, sizeof t);
+    CHECK(!strcmp(t, "1.5 GB"), "%s", t);
+    almanac_bytes_text(2000000000000, t, sizeof t);
+    CHECK(!strcmp(t, "2 TB"), "%s", t);
+    almanac_bytes_text(64000000000, t, sizeof t);
+    CHECK(!strcmp(t, "64 GB"), "%s", t);
+    almanac_bytes_text(UINT64_MAX, t, sizeof t);
+    CHECK(!strcmp(t, "18 EB"), "%s", t);
+    almanac_bytes_text(5, t, 0); /* no room: nothing written */
+    asked = 0;
+    CHECK(almanac_ai(&AL, ALMANAC_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              AL.held.state == ZXM_HELD_PENDING && strstr(last_prompt, "Memory: ") &&
+              strstr(last_prompt, "free for ZXV"),
+          "explain: %s", last_prompt);
+    CHECK(almanac_ai_accept(&AL) == ZXM_OK && almanac_ai_reject(&AL) == ZXM_E_STATE, "accept");
+    CHECK(almanac_ai(&AL, 1) == ZXM_E_ARG && almanac_ai(&AL, -1) == ZXM_E_ARG, "actions");
+    /* canned: load known, a disk zxvd cannot read, a damaged reply keeps the old facts */
+    almanac_init(&AL, &FAKE);
+    CANNED = SYS_INFO("1", "0");
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && !AL.have, "sys.disk reply is not a disk");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":1,\"os\":\"linux\"}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && !AL.have, "short reply");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"error\":{\"code\":-32012,\"message\":\"no\"}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_REMOTE && !AL.have, "refused");
+    CANNED = NULL;
+    almanac_init(&AL, &LINK);
+    CHECK(almanac_refresh(&AL) == ZXM_OK, "again");
+    almanac_t keep = AL;
+    AL.link = &FAKE;
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"load\":7}}";
+    CHECK(almanac_refresh(&AL) == ZXM_E_PROTOCOL && AL.pid == keep.pid && AL.have, "kept");
+    CANNED = NULL;
+
+    /* Tidewatch: canned samples give exact shares */
+    tidewatch_init(&TW, &FAKE);
+    CHECK(!tidewatch_latest(&TW) && !tidewatch_at(&TW, 0) && tidewatch_peak_cpu_x100(&TW) == 0,
+          "empty");
+    CANNED = SYS_INFO("1000", "0");
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == -1 &&
+              tidewatch_latest(&TW)->mem_used_x100 == 7500 &&
+              tidewatch_latest(&TW)->load1_x100 == 125 && TW.cpus == 4,
+          "first sample: cpu %d mem %d", tidewatch_latest(&TW)->zxvd_cpu_x100,
+          tidewatch_latest(&TW)->mem_used_x100);
+    CANNED = SYS_INFO("2000", "250000"); /* 0.25 s of CPU in 1 s */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == 2500,
+          "25%%: %d", tidewatch_latest(&TW)->zxvd_cpu_x100);
+    CANNED = SYS_INFO("2000", "300000"); /* no time passed: no share */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == -1, "dt 0");
+    CANNED = SYS_INFO("2500", "1300000"); /* 1 s of CPU in 0.5 s: two CPUs' worth */
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_latest(&TW)->zxvd_cpu_x100 == 20000 &&
+              tidewatch_peak_cpu_x100(&TW) == 20000 && tidewatch_count(&TW) == 4,
+          "200%%: %d", tidewatch_latest(&TW)->zxvd_cpu_x100);
+    for (int i = 0; i < 130; i++) {
+        CANNED = SYS_INFO("3000", "0");
+        CHECK(tidewatch_sample(&TW) == ZXM_OK, "sample %d", i);
+    }
+    CHECK(tidewatch_count(&TW) == TIDEWATCH_SAMPLES && tidewatch_peak_cpu_x100(&TW) == 0 &&
+              tidewatch_at(&TW, TIDEWATCH_SAMPLES) == NULL,
+          "the ring keeps the newest");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{}}";
+    CHECK(tidewatch_sample(&TW) == ZXM_E_PROTOCOL && tidewatch_count(&TW) == TIDEWATCH_SAMPLES,
+          "a damaged reply adds nothing");
+    CANNED = NULL;
+    tidewatch_init(&TW, &LINK);
+    CHECK(tidewatch_sample(&TW) == ZXM_OK && tidewatch_sample(&TW) == ZXM_OK &&
+              tidewatch_latest(&TW)->zxvd_rss > 0,
+          "live: %s", LINK.err);
+
+    /* Wake follows the daemon's own log */
+    zxvd_log_reset();
+    wake_init(&WK, &LINK);
+    uint32_t added;
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0 && wake_count(&WK) == 0, "quiet");
+    CHECK(wake_ai(&WK, WAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain");
+    CHECK(raw_call("spaces.get", "{\"space\":\"nowhere\"}") == ZXM_E_REMOTE, "a refusal");
+    CHECK(raw_call("spaces.create", "{\"kind\":\"office\",\"name\":\"Wake Test\"}") == ZXM_OK,
+          "a change");
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 2 && WK.next == 2, "two: %u", added);
+    /* Wake's own log.tail calls are quiet, so following does not feed itself */
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0, "no echo");
+    CHECK(wake_event(&WK, 0)->level == WAKE_WARN &&
+              strstr(wake_event(&WK, 0)->text, "spaces.get refused") &&
+              wake_event(&WK, 1)->level == WAKE_INFO && !wake_event(&WK, 2),
+          "events");
+    CHECK(wake_filter(&WK, WAKE_WARN, "") == ZXM_OK && wake_count(&WK) == 1, "warnings only");
+    CHECK(wake_filter(&WK, WAKE_INFO, "CREATE") == ZXM_OK && wake_count(&WK) == 1 &&
+              strstr(wake_event(&WK, 0)->text, "spaces.create"),
+          "find, case ignored");
+    CHECK(wake_filter(&WK, WAKE_INFO, "RPC") == ZXM_OK && wake_count(&WK) == 2, "by source");
+    CHECK(wake_filter(&WK, WAKE_ERROR + 1, "") == ZXM_E_ARG &&
+              wake_filter(&WK, WAKE_INFO,
+                          "0123456789012345678901234567890123456789012345678901234567890123") ==
+                  ZXM_E_ARG,
+          "bad filter");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK, "all");
+    asked = 0;
+    CHECK(wake_ai(&WK, WAKE_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, "rpc: spaces.get refused") && !strstr(last_prompt, "create"),
+          "explain warnings: %s", last_prompt);
+    CHECK(wake_ai_reject(&WK) == ZXM_OK && wake_ai_accept(&WK) == ZXM_E_STATE, "reject");
+    CHECK(wake_ai(&WK, 3) == ZXM_E_ARG, "action");
+    wake_pause(&WK, true);
+    zxvd_log(ZXVD_LOG_ERROR, "net", "link down");
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 0, "paused");
+    wake_pause(&WK, false);
+    /* the AI question was logged too (swarm.ask is not a poll) */
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 2 &&
+              strstr(wake_event(&WK, 2)->text, "swarm.ask done") &&
+              wake_event(&WK, 3)->level == WAKE_ERROR && !strcmp(wake_event(&WK, 3)->source, "net"),
+          "resumed: %u", added);
+    wake_clear(&WK);
+    CHECK(wake_count(&WK) == 0 && WK.next == 4, "cleared, still following");
+    /* more than one read's worth, and more than the daemon keeps */
+    for (int i = 0; i < 700; i++) zxvd_log(ZXVD_LOG_INFO, "test", "e%d", i);
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 512 && WK.missed == 188 &&
+              WK.n == WAKE_KEEP && !strcmp(wake_event(&WK, 0)->text, "e188") &&
+              !strcmp(wake_event(&WK, 511)->text, "e699"),
+          "added %u missed %llu first %s", added, (unsigned long long) WK.missed,
+          wake_event(&WK, 0) ? wake_event(&WK, 0)->text : "-");
+    for (int i = 0; i < 10; i++) zxvd_log(ZXVD_LOG_INFO, "test", "f%d", i);
+    CHECK(wake_follow(&WK, &added) == ZXM_OK && added == 10 && WK.n == WAKE_KEEP &&
+              !strcmp(wake_event(&WK, 0)->text, "e198") &&
+              !strcmp(wake_event(&WK, 511)->text, "f9"),
+          "the model's ring");
+    wake_init(&WK, &FAKE);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[{\"seq\":1,\"time_ms\":1,"
+             "\"level\":\"loud\",\"source\":\"x\",\"text\":\"y\"}],\"next\":1,\"dropped\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "bad level");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[{\"seq\":5,\"time_ms\":1,"
+             "\"level\":\"info\",\"source\":\"x\",\"text\":\"y\"}],\"next\":4,\"dropped\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "seq past next");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"entries\":[],\"next\":0}}";
+    CHECK(wake_follow(&WK, &added) == ZXM_E_PROTOCOL, "no dropped");
+    /* history from the journal, a page at a time */
+#define JQ(entries, more)                                                                          \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"entries\":[" entries                 \
+    "],\"more\":" more "}}"
+#define JE(seq, lv)                                                                                \
+    "{\"seq\":" seq ",\"time_ms\":7,\"level\":\"" lv "\",\"source\":\"rpc\",\"text\":\"t\"}"
+    CHECK(wake_history_older(&WK) == ZXM_E_ARG, "no page yet");
+    CHECK(wake_history(&WK, 5, 4) == ZXM_E_ARG, "since after until");
+    CANNED = JQ(JE("9", "info") "," JE("8", "warn"), "true");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK && wake_history(&WK, 0, 0) == ZXM_OK &&
+              WK.hist.on && WK.hist.n == 2 && WK.hist.more && WK.hist.page == 1 &&
+              WK.hist.ev[1].level == WAKE_WARN &&
+              strstr(last_req, "\"method\":\"journal.query\","
+                               "\"params\":{\"max\":100,\"level\":\"info\"}}"),
+          "the newest page: %s", last_req);
+    CANNED = JQ(JE("3", "warn"), "false");
+    CHECK(wake_history_older(&WK) == ZXM_OK && WK.hist.n == 1 && !WK.hist.more &&
+              WK.hist.page == 2 && WK.hist.ev[0].seq == 3 && strstr(last_req, "\"before\":8,"),
+          "older: %s", last_req);
+    CHECK(wake_history_older(&WK) == ZXM_E_ARG, "nothing older");
+    CANNED = JQ(JE("2", "error"), "false");
+    CHECK(wake_filter(&WK, WAKE_ERROR, "Gone") == ZXM_OK && wake_history(&WK, 10, 20) == ZXM_OK &&
+              strstr(last_req, "\"params\":{\"since_ms\":10,\"until_ms\":20,\"max\":100,\"level\":"
+                               "\"error\",\"text\":\"Gone\"}"),
+          "the filter and window go along: %s", last_req);
+    CANNED = JQ(JE("2", "warn"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL && WK.hist.page == 0 && WK.hist.n == 0,
+          "below the filter");
+    CHECK(wake_filter(&WK, WAKE_INFO, "") == ZXM_OK, "all again");
+    CANNED = JQ(JE("4", "info") "," JE("4", "info"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "not newest first");
+    CANNED = JQ(JE("9", "info"), "true");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK, "a page");
+    CANNED = JQ(JE("9", "info"), "false");
+    CHECK(wake_history_older(&WK) == ZXM_E_PROTOCOL && WK.hist.page == 1 && WK.hist.n == 1 &&
+              WK.hist.more,
+          "not older than the page: the page stays");
+    CANNED = JQ(JE("1", "loud"), "false");
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "a bad level");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"entries\":[]}}";
+    CHECK(wake_history(&WK, 0, 0) == ZXM_E_PROTOCOL, "no more");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":false,\"entries\":[],"
+             "\"more\":true}}";
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK && !WK.hist.on && !WK.hist.more &&
+              wake_history_older(&WK) == ZXM_E_ARG,
+          "no journal");
+    /* the check */
+#define JV(on, ok, broken, why)                                                                    \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":" on ",\"ok\":" ok ",\"segments\":3,"       \
+    "\"entries\":40,\"first_seq\":1,\"last_seq\":40,\"broken_at\":" broken ",\"why\":\"" why       \
+    "\"}}"
+    CANNED = JV("true", "true", "0", "");
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.done && WK.check.ok && WK.check.segments == 3 &&
+              WK.check.last_seq == 40 && strstr(last_req, "\"method\":\"journal.verify\""),
+          "checked");
+    CANNED = JV("true", "false", "12", "line 12 was changed or is missing");
+    CHECK(wake_check(&WK) == ZXM_OK && !WK.check.ok && WK.check.broken_at == 12 &&
+              !strcmp(WK.check.why, "line 12 was changed or is missing"),
+          "a break");
+    CANNED = JV("false", "false", "0", "");
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.done && !WK.check.on, "no journal to check");
+    CANNED = JV("true", "true", "3", "");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL && !WK.check.done, "ok with a break");
+    CANNED = JV("true", "true", "0", "x");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "ok with a reason");
+    CANNED = JV("true", "false", "3", "");
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "a break without a reason");
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true,\"ok\":true,\"segments\":"
+        "4294967296,\"entries\":0,\"first_seq\":0,\"last_seq\":0,\"broken_at\":0,\"why\":\"\"}}";
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "too many segments");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"on\":true}}";
+    CHECK(wake_check(&WK) == ZXM_E_PROTOCOL, "a short reply");
+    CANNED = NULL;
+    /* live, against a journal on disk */
+    char jdir[256];
+    snprintf(jdir, sizeof jdir, "%s/zxv-wake-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(jdir) != NULL && zjr_open(jdir) == 0, "a journal");
+    wake_init(&WK, &LINK);
+    for (int i = 0; i < 150; i++)
+        zxvd_log(i % 50 ? ZXVD_LOG_INFO : ZXVD_LOG_WARN, "test", "j%d", i);
+    CHECK(wake_history(&WK, 0, 0) == ZXM_OK && WK.hist.on && WK.hist.n == WAKE_PAGE &&
+              WK.hist.more && !strcmp(WK.hist.ev[0].text, "j149"),
+          "live newest: %s", WK.link->err);
+    CHECK(wake_history_older(&WK) == ZXM_OK && WK.hist.n == 51 && !WK.hist.more &&
+              !strcmp(WK.hist.ev[50].text, "opened"),
+          "live older: %u", WK.hist.n);
+    CHECK(wake_filter(&WK, WAKE_WARN, "j1") == ZXM_OK && wake_history(&WK, 0, 0) == ZXM_OK &&
+              WK.hist.n == 1 && !strcmp(WK.hist.ev[0].text, "j100"),
+          "live filtered: %u", WK.hist.n);
+    CHECK(wake_check(&WK) == ZXM_OK && WK.check.on && WK.check.ok && WK.check.entries == 151,
+          "live check: %llu", (unsigned long long) WK.check.entries);
+    zjr_close();
+    CHECK(rm_tree(jdir) == 0, "journal cleanup");
+
+    /* Sounding: canned counters give exact rates */
+    sounding_init(&SD, &FAKE);
+#define NET(t, rx, tx, req)                                                                        \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":" t ",\"supported\":true,"             \
+    "\"interfaces\":[{\"name\":\"lo\",\"up\":true,\"loopback\":true,\"addresses\":[\"127.0.0.1\"]" \
+    ","                                                                                            \
+    "\"rx_bytes\":" rx ",\"tx_bytes\":" tx ",\"rx_packets\":1,\"tx_packets\":1},{\"name\":"        \
+    "\"en0\",\"up\":true,\"loopback\":false,\"addresses\":[\"10.0.0.2\",\"fe80::1\"],"             \
+    "\"rx_bytes\":" rx ",\"tx_bytes\":" tx ",\"rx_packets\":1,\"tx_packets\":1},{\"name\":"        \
+    "\"tun0\",\"up\":false,\"loopback\":false,\"addresses\":[],\"rx_bytes\":null,"                 \
+    "\"tx_bytes\":null,\"rx_packets\":null,\"tx_packets\":null}],\"rpc\":{\"requests\":" req       \
+    ",\"errors\":1,\"bytes_in\":10,\"bytes_out\":20,\"busy_us\":5}}}"
+    CANNED = NET("1000", "100", "50", "10");
+    CHECK(sounding_refresh(&SD) == ZXM_OK && SD.n == 3 && SD.supported &&
+              sounding_find(&SD, "en0")->naddr == 2 && sounding_find(&SD, "en0")->rx_rate == -1 &&
+              !sounding_find(&SD, "tun0")->counters && SD.rpc_rate == -1 &&
+              sounding_history(&SD, 0)->rx_rate == -1 && !sounding_find(&SD, "wlan9"),
+          "first read");
+    CANNED = NET("3000", "4100", "2050", "30");
+    CHECK(sounding_refresh(&SD) == ZXM_OK && sounding_find(&SD, "en0")->rx_rate == 2000 &&
+              sounding_find(&SD, "en0")->tx_rate == 1000 && SD.rpc_rate == 10 &&
+              sounding_history(&SD, 1)->rx_rate == 2000 &&
+              sounding_history(&SD, 1)->tx_rate == 1000 && sounding_history_len(&SD) == 2 &&
+              !sounding_history(&SD, 2),
+          "2000 B/s in, loopback left out of the total: %lld",
+          (long long) sounding_history(&SD, 1)->rx_rate);
+    CANNED = NET("4000", "10", "10", "31"); /* counters reset */
+    CHECK(sounding_refresh(&SD) == ZXM_OK && sounding_find(&SD, "en0")->rx_rate == -1 &&
+              sounding_history(&SD, 2)->rx_rate == -1 && SD.rpc_rate == 1,
+          "a reset gives no rate");
+    for (int i = 0; i < 130; i++) {
+        CANNED = NET("4000", "10", "10", "31");
+        CHECK(sounding_refresh(&SD) == ZXM_OK, "read %d", i);
+    }
+    CHECK(sounding_history_len(&SD) == SOUNDING_SAMPLES, "history ring");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time_ms\":1,\"supported\":true,"
+             "\"interfaces\":[{\"name\":\"x\"}],\"rpc\":{\"requests\":1,\"errors\":0,"
+             "\"bytes_in\":0,\"bytes_out\":0}}}";
+    CHECK(sounding_refresh(&SD) == ZXM_E_PROTOCOL && SD.n == 3, "damaged: kept");
+    CANNED = NULL;
+#undef NET
+    sounding_init(&SD, &LINK);
+    CHECK(sounding_refresh(&SD) == ZXM_OK && SD.rpc_requests > 0, "live: %s", LINK.err);
+#if defined(__linux__) || defined(__APPLE__)
+    CHECK(SD.supported && SD.n >= 1, "interfaces listed");
+#endif
+}
+
+static scent_t SC;
+
+static void test_scent(void)
+{
+    uint64_t size;
+    CHECK(zxf_mkdir("scent") == 0, "folder");
+    CHECK(zxf_write("scent/ledger notes.md", (const uint8_t *) "quincunx orchard\nrows", 21,
+                    ZXF_W_REPLACE, false, &size) == 0 &&
+              zxf_write("scent/quincunx.png", (const uint8_t *) "\x89PNG\0\0", 6, ZXF_W_REPLACE,
+                        false, &size) == 0,
+          "files");
+    scent_init(&SC, &LINK);
+    int before = sent;
+    CHECK(scent_search(&SC, "  \t") == ZXM_OK && SC.n == 0 && sent == before, "blank: not asked");
+    CHECK(scent_search(&SC, "quincunx") == ZXM_OK && SC.n == 2 && SC.total == 2 && SC.sel == -1,
+          "found: %u %s", SC.n, LINK.err);
+    const scent_hit_t *a = &SC.hit[0], *b = &SC.hit[1];
+    CHECK(!strcmp(a->path, "scent/quincunx.png") && a->in_name && a->score == 1000 &&
+              a->size == 6 && !a->snippet[0] && scent_opener(a) == SCENT_OPEN_GLINT,
+          "the picture first: %s %u", a->path, a->score);
+    CHECK(!strcmp(b->path, "scent/ledger notes.md") && !b->in_name && b->score == 1 &&
+              !strcmp(b->snippet, "quincunx orchard rows") && scent_opener(b) == SCENT_OPEN_QUILLON,
+          "then the note: %s [%s]", b->path, b->snippet);
+    char f[16];
+    scent_folder(b, f, sizeof f);
+    CHECK(!strcmp(f, "scent"), "its folder: %s", f);
+    scent_folder(b, f, 3);
+    CHECK(!strcmp(f, "sc"), "cut: %s", f);
+    scent_folder(b, f, 0);
+    scent_hit_t top = {.path = "x.bin"};
+    scent_folder(&top, f, sizeof f);
+    CHECK(!f[0] && scent_opener(&top) == SCENT_OPEN_BURROW, "the top; others in Burrow");
+    CHECK(scent_selected(&SC) == NULL && scent_select(&SC, 1) == ZXM_OK &&
+              scent_selected(&SC) == &SC.hit[1] && scent_select(&SC, 2) == ZXM_E_ARG &&
+              scent_select(&SC, -2) == ZXM_E_ARG && scent_select(&SC, -1) == ZXM_OK &&
+              scent_selected(&SC) == NULL,
+          "selection");
+    uint32_t files = 0;
+    CHECK(scent_reindex(&SC, &files) == ZXM_OK && files >= 2, "reindex: %u", files);
+    CHECK(scent_reindex(&SC, NULL) == ZXM_OK, "reindex, count not wanted");
+    CHECK(strstr(LINK.req, "\"method\":\"search.refresh\"") && !strstr(LINK.req, "space"), "home");
+    CHECK(scent_search(&SC, "quincunx orchard") == ZXM_OK && SC.n == 1 && SC.hit[0].score == 2,
+          "both words");
+    /* spaces */
+    CHECK(scent_set_space(&SC, "studio") == ZXM_OK && SC.n == 0 &&
+              scent_search(&SC, "quincunx") == ZXM_OK && SC.total == 0 &&
+              strstr(LINK.req, "\"space\":\"studio\""),
+          "another space: %s", LINK.req);
+    CHECK(scent_reindex(&SC, &files) == ZXM_OK && strstr(LINK.req, "\"space\":\"studio\""),
+          "reindex there");
+    CHECK(scent_set_space(&SC, "nowhere") == ZXM_OK &&
+              scent_search(&SC, "quincunx") == ZXM_E_REMOTE && LINK.err_code == -32013 &&
+              scent_reindex(&SC, &files) == ZXM_E_REMOTE,
+          "no such space");
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(scent_set_space(&SC, longid) == ZXM_E_ARG && !strcmp(SC.space, "nowhere"), "id too long");
+    CHECK(scent_set_space(&SC, "home") == ZXM_OK && !SC.space[0] &&
+              scent_set_space(&SC, NULL) == ZXM_OK && !SC.space[0],
+          "home");
+    static char longq[SCENT_QUERY + 2];
+    memset(longq, 'q', SCENT_QUERY + 1);
+    CHECK(scent_search(&SC, longq) == ZXM_E_ARG && scent_search(&SC, NULL) == ZXM_E_ARG,
+          "too long");
+    CHECK(scent_search(&SC, "-- ;") == ZXM_E_REMOTE && LINK.err_code == -32602, "no words");
+
+    /* replies that do not add up keep the old hits */
+    CHECK(scent_search(&SC, "quincunx") == ZXM_OK && SC.n == 2, "again");
+    scent_t F;
+    scent_init(&F, &FAKE);
+    F = SC;
+    F.link = &FAKE;
+    const char *bad[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":{},\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[1],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[],\"total\":4294967296}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":4294967296,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":1,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":-1,"
+        "\"mtime\":2,\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a\",\"size\":1,"
+        "\"mtime\":\"x\",\"in_name\":true,\"score\":3,\"snippet\":\"\"}],\"total\":1}}",
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        CANNED = bad[i];
+        CHECK(scent_search(&F, "x") == ZXM_E_PROTOCOL && F.n == 2 && F.total == 2 &&
+                  !strcmp(F.hit[0].path, "scent/quincunx.png"),
+              "bad reply %zu kept the hits", i);
+    }
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"hits\":[{\"path\":\"a/b.txt\",\"size\":7,"
+        "\"mtime\":-5,\"in_name\":false,\"score\":12,\"snippet\":\"s\"}],\"total\":9}}";
+    F.sel = 0;
+    CHECK(scent_search(&F, "x") == ZXM_OK && F.n == 1 && F.total == 9 && F.sel == -1 &&
+              !strcmp(F.hit[0].path, "a/b.txt") && F.hit[0].size == 7 && F.hit[0].mtime == -5 &&
+              !F.hit[0].in_name && F.hit[0].score == 12 && !strcmp(F.hit[0].snippet, "s") &&
+              strstr(last_req, "\"q\":\"x\",\"max\":50"),
+          "a made-up reply: %s", last_req);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":4294967296}}";
+    CHECK(scent_reindex(&F, &files) == ZXM_E_PROTOCOL, "too many files");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":4294967295}}";
+    CHECK(scent_reindex(&F, &files) == ZXM_OK && files == 4294967295u, "the most files");
+    CANNED = NULL;
+    CHECK(scent_search(&F, "x") == ZXM_E_TRANSPORT && F.n == 1, "no daemon");
+
+    /* AI: a sharper search, run only when accepted */
+    scent_t E;
+    scent_init(&E, &LINK);
+    CHECK(scent_ai(&E, SCENT_AI_SHARPEN) == ZXM_E_STATE, "nothing searched");
+    CHECK(scent_ai(&SC, -1) == ZXM_E_ARG && scent_ai(&SC, SCENT_AI_COUNT) == ZXM_E_ARG, "range");
+    CHECK(scent_ai_accept(&SC) == ZXM_E_STATE, "nothing held");
+    ANSWER = "quincunx orchard\nor try rows";
+    asked = 0;
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && SC.held.state == ZXM_HELD_PENDING &&
+              asked == 1 && SC.n == 2 &&
+              strstr(last_prompt, "Search: quincunx\nFound 2. Names of the best:\n"
+                                  "scent/quincunx.png\nscent/ledger notes.md\n") &&
+              strstr(last_prompt, "one better search"),
+          "held: %s", last_prompt);
+    CHECK(scent_ai_accept(&SC) == ZXM_OK && SC.held.state == ZXM_HELD_ACCEPTED &&
+              !strcmp(SC.query, "quincunx orchard") && SC.n == 1,
+          "accepted: searched [%s] %u", SC.query, SC.n);
+    ANSWER = "nothing useful";
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && scent_ai_reject(&SC) == ZXM_OK &&
+              SC.held.state == ZXM_HELD_REJECTED && !strcmp(SC.query, "quincunx orchard"),
+          "rejected: nothing searched");
+    /* a long answer: cut to a query on a whole character */
+    static char longans[400];
+    memset(longans, 'w', sizeof longans - 1);
+    longans[SCENT_QUERY - 1] = (char) 0xc3;
+    longans[SCENT_QUERY] = (char) 0xa9;
+    ANSWER = longans;
+    CHECK(scent_ai(&SC, SCENT_AI_SHARPEN) == ZXM_OK && scent_ai_accept(&SC) == ZXM_OK &&
+              strlen(SC.query) == SCENT_QUERY - 1,
+          "cut answer: %zu", strlen(SC.query));
+    ANSWER = "ok";
+}
+
+/* ---------------- Platen ---------------- */
+
+static platen_t PL;
+
+static void test_platen(void)
+{
+    uint64_t size;
+    char uri[96], bad[96], scanner[96], half[96];
+    CHECK(fake_start(), "the fake printer and scanner");
+    zph_set_timeout_ms(3000);
+    snprintf(uri, sizeof uri, "ipp://127.0.0.1:%d/ipp/print", FAKE_PORT);
+    snprintf(bad, sizeof bad, "ipp://127.0.0.1:%d/ipp/garbage", FAKE_PORT);
+    snprintf(scanner, sizeof scanner, "http://127.0.0.1:%d/eSCL", FAKE_PORT);
+    snprintf(half, sizeof half, "http://127.0.0.1:%d/half", FAKE_PORT);
+    CHECK(zxf_mkdir("platen") == 0 && zxf_mkdir("platen/scans") == 0 &&
+              zxf_write("platen/letter.pdf", (const uint8_t *) "%PDF-1.4 x", 10, ZXF_W_REPLACE,
+                        false, &size) == 0 &&
+              zxf_write("platen/photo.png", (const uint8_t *) "\x89PNG", 4, ZXF_W_REPLACE, false,
+                        &size) == 0,
+          "files");
+    platen_init(&PL, &LINK);
+
+    /* formats */
+    CHECK(!strcmp(platen_format_of("a.PDF"), "application/pdf") &&
+              !strcmp(platen_format_of("b.jpeg"), "image/jpeg") &&
+              !strcmp(platen_format_of("c.txt"), "text/plain") && !platen_format_of("d") &&
+              !platen_format_of("e.pdfx") && !platen_format_of("f.pd") &&
+              !platen_format_of("g.pdf/h") && !strcmp(platen_format_of("x.y.urf"), "image/urf"),
+          "formats");
+
+    /* printers */
+    CHECK(platen_add_printer(&PL, NULL) == ZXM_E_ARG && platen_add_printer(&PL, "") == ZXM_E_ARG,
+          "no address");
+    static char longuri[PLATEN_URI + 2];
+    memset(longuri, 'u', PLATEN_URI + 1);
+    CHECK(platen_add_printer(&PL, longuri) == ZXM_E_ARG, "address too long");
+    CHECK(platen_add_printer(&PL, bad) == ZXM_E_REMOTE && LINK.err_code == -32022 &&
+              PL.nprinters == 0,
+          "a printer that does not answer is not added: %d", LINK.err_code);
+    CHECK(platen_add_printer(&PL, "ipp://8.8.8.8/ipp/print") == ZXM_E_REMOTE && PL.nprinters == 0,
+          "not local");
+    CHECK(platen_add_printer(&PL, uri) == ZXM_OK && PL.nprinters == 1, "added: %s", LINK.err);
+    const platen_printer_t *pr = &PL.printer[0];
+    CHECK(pr->known && !strcmp(pr->name, "Fake") && !strcmp(pr->make, "Fake Printer 1") &&
+              !strcmp(pr->state, "idle") && !strcmp(pr->reasons, "none") && pr->accepting &&
+              pr->color && pr->nformats == 2 && !strcmp(pr->formats[0], "application/pdf") &&
+              !strcmp(pr->formats[1], "image/jpeg") && pr->nsides == 1 &&
+              !strcmp(pr->sides[0], "one-sided"),
+          "what it is: %s %s %s %u", pr->name, pr->state, pr->reasons, pr->nformats);
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE && PL.nprinters == 1, "already there");
+    CHECK(platen_takes(&PL, 0, "platen/letter.pdf") && platen_takes(&PL, 0, "x.JPG") &&
+              !platen_takes(&PL, 0, "platen/photo.png") && !platen_takes(&PL, 0, "noext") &&
+              !platen_takes(&PL, 1, "a.pdf"),
+          "what it takes");
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_OK && pr->known &&
+              platen_refresh_printer(&PL, 1) == ZXM_E_ARG,
+          "refresh");
+
+    /* printing */
+    int before = sent;
+    CHECK(platen_print(&PL, 1, "platen/letter.pdf", NULL) == ZXM_E_ARG &&
+              platen_print(&PL, 0, NULL, NULL) == ZXM_E_ARG &&
+              platen_print(&PL, 0, "", NULL) == ZXM_E_ARG && sent == before,
+          "nothing to print: not asked");
+    CHECK(platen_print(&PL, 0, "platen/photo.png", NULL) == ZXM_E_REMOTE &&
+              LINK.err_code == -32022 && PL.njobs == 0,
+          "a format it does not take");
+    CHECK(platen_print(&PL, 0, "platen/none.pdf", NULL) == ZXM_E_REMOTE && PL.njobs == 0,
+          "no such file");
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK && PL.njobs == 1, "printed: %s",
+          LINK.err);
+    const platen_job_t *j = &PL.job[0];
+    CHECK(j->id == 77 && j->printer == 0 && !strcmp(j->state, "pending") && j->pages == -1 &&
+              !strcmp(j->path, "platen/letter.pdf") && !platen_job_done(j),
+          "the job: %d %s %d", j->id, j->state, j->pages);
+    CHECK(strstr(fake_get("/fake/last"), "fmt=application/pdf") &&
+              strstr(fake_get("/fake/last"), "doc=10:%PDF-1.4"),
+          "what the printer got: %s", fake_get("/fake/last"));
+    platen_opts_t o = {.copies = 2, .sides = "one-sided", .mono = true};
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &o) == ZXM_OK && PL.njobs == 2 &&
+              strstr(LINK.req, "\"copies\":2") && strstr(LINK.req, "\"sides\":\"one-sided\"") &&
+              strstr(LINK.req, "\"color\":\"monochrome\""),
+          "options: %s", LINK.req);
+    CHECK(strstr(fake_get("/fake/last"), "copies=2 sides=one-sided"), "options reached it: %s",
+          fake_get("/fake/last"));
+    platen_opts_t none = {0};
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &none) == ZXM_OK && PL.njobs == 3 &&
+              !strstr(LINK.req, "copies") && !strstr(LINK.req, "sides") &&
+              !strstr(LINK.req, "color"),
+          "defaults: %s", LINK.req);
+    o.sides = "both";
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", &o) == ZXM_E_REMOTE &&
+              LINK.err_code == -32602 && PL.njobs == 3,
+          "bad sides");
+    /* cancel one, then follow the rest */
+    CHECK(platen_cancel(&PL, 3) == ZXM_E_ARG, "no such job");
+    CHECK(platen_cancel(&PL, 1) == ZXM_OK && !strcmp(PL.job[1].state, "canceled") &&
+              platen_job_done(&PL.job[1]) && platen_cancel(&PL, 1) == ZXM_E_STATE,
+          "canceled: %s", PL.job[1].state);
+    before = sent;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before + 2 &&
+              !strcmp(PL.job[0].state, "completed") && PL.job[0].pages == 2 &&
+              !strcmp(PL.job[2].state, "completed") && !strcmp(PL.job[1].state, "canceled"),
+          "followed: %s %d, %d asked", PL.job[0].state, PL.job[0].pages, sent - before);
+    before = sent;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before, "nothing left to follow");
+    platen_job_t aborted = {.state = "aborted"}, held = {.state = "held"};
+    CHECK(platen_job_done(&aborted) && !platen_job_done(&held), "done states");
+    /* a job the printer does not know: follow reports it but goes on */
+    CHECK(platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK &&
+              platen_print(&PL, 0, "platen/letter.pdf", NULL) == ZXM_OK && PL.njobs == 5,
+          "two more");
+    PL.job[3].id = 5;
+    CHECK(platen_follow(&PL) == ZXM_E_REMOTE && !strcmp(PL.job[3].state, "pending") &&
+              !strcmp(PL.job[4].state, "completed"),
+          "one unknown, the other followed: %s", PL.job[4].state);
+    /* a long path is cut on a whole character */
+    static char longpath[400];
+    memset(longpath, 'p', 300);
+    memcpy(longpath + 300, ".pdf", 5);
+    longpath[254] = (char) 0xc3;
+    longpath[255] = (char) 0xa9;
+    PL.njobs = 0;
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":9,\"state\":\"pending\","
+             "\"reasons\":\"none\",\"message\":\"\",\"pages\":-1}}";
+    PL.link = &FAKE;
+    CHECK(platen_print(&PL, 0, longpath, NULL) == ZXM_OK && strlen(PL.job[0].path) == 254 &&
+              PL.job[0].pages == -1,
+          "cut path: %zu", strlen(PL.job[0].path));
+    /* the list keeps the newest */
+    for (int i = 0; i < (int) PLATEN_JOBS + 2; i++) {
+        CANNED = i % 2 ? "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":11,\"state\":"
+                         "\"pending\",\"reasons\":\"\",\"message\":\"\",\"pages\":0}}"
+                       : "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":10,\"state\":"
+                         "\"pending\",\"reasons\":\"\",\"message\":\"\",\"pages\":0}}";
+        platen_print(&PL, 0, "a.pdf", NULL);
+    }
+    CHECK(PL.njobs == PLATEN_JOBS && PL.job[PLATEN_JOBS - 1].id == 11 && PL.job[0].id == 10 &&
+              PL.job[1].id == 11,
+          "full: %u, last %d", PL.njobs, PL.job[PLATEN_JOBS - 1].id);
+    /* replies that do not add up change nothing */
+    const char *badjob[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"state\":\"pending\",\"message\":\"\","
+        "\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":2147483648,\"state\":\"pending\","
+        "\"message\":\"\",\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"message\":\"\",\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"pages\":0}"
+        "}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\","
+        "\"pages\":-2}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":1,\"state\":\"pending\",\"message\":"
+        "\"\","
+        "\"pages\":2147483648}}",
+    };
+    for (size_t i = 0; i < sizeof badjob / sizeof *badjob; i++) {
+        CANNED = badjob[i];
+        CHECK(platen_print(&PL, 0, "a.pdf", NULL) == ZXM_E_PROTOCOL && PL.njobs == PLATEN_JOBS &&
+                  PL.job[PLATEN_JOBS - 1].id == 11,
+              "bad job reply %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"job_id\":2147483647,\"state\":"
+             "\"processing\",\"reasons\":\"\",\"message\":\"m\",\"pages\":2147483647}}";
+    CHECK(platen_cancel(&PL, 0) == ZXM_OK && PL.job[0].id == INT32_MAX &&
+              PL.job[0].pages == INT32_MAX && !strcmp(PL.job[0].message, "m"),
+          "the largest job");
+    CANNED = NULL;
+    CHECK(platen_cancel(&PL, 1) == ZXM_E_TRANSPORT && PL.job[1].id == 11, "no daemon");
+    const char *badstatus[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"idle\",\"reasons\":"
+        "\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"state\":\"idle\",\"reasons\":"
+        "\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"reasons\":\"\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"accepting\":true,\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"color\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"formats\":[],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[1],\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":{},\"sides\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"\",\"make\":\"\",\"state\":\"idle\","
+        "\"reasons\":\"\",\"accepting\":true,\"color\":true,\"formats\":[\""
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"],\"sides\":[]}}",
+    };
+    for (size_t i = 0; i < sizeof badstatus / sizeof *badstatus; i++) {
+        CANNED = badstatus[i];
+        PL.printer[0].known = true;
+        CHECK(platen_refresh_printer(&PL, 0) == ZXM_E_PROTOCOL && !PL.printer[0].known &&
+                  !strcmp(PL.printer[0].name, "Fake") && PL.printer[0].nformats == 2,
+              "bad status %zu kept what was known", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"name\":\"N\",\"make\":\"M\",\"state\":"
+             "\"stopped\",\"reasons\":\"media-empty-error\",\"accepting\":false,\"color\":false,"
+             "\"formats\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"application/octet-stream\","
+             "\"i\"],\"sides\":[]}}";
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_OK && pr->known && !pr->accepting && !pr->color &&
+              pr->nformats == PLATEN_WORDS && pr->nsides == 0 && !strcmp(pr->state, "stopped") &&
+              platen_takes(&PL, 0, "any.txt") && !platen_takes(&PL, 0, "noext"),
+          "eight formats kept; anything goes: %u", pr->nformats);
+    CANNED = NULL;
+    CHECK(platen_refresh_printer(&PL, 0) == ZXM_E_TRANSPORT && !pr->known, "gone quiet");
+    CHECK(platen_add_printer(&PL, "ipp://x/y") == ZXM_E_TRANSPORT && PL.nprinters == 1,
+          "not added when quiet");
+    PL.link = &LINK;
+
+    /* AI explains a printer's trouble */
+    CHECK(platen_ai(&PL, -1, 0) == ZXM_E_ARG && platen_ai(&PL, PLATEN_AI_COUNT, 0) == ZXM_E_ARG &&
+              platen_ai(&PL, PLATEN_AI_EXPLAIN, 1) == ZXM_E_ARG,
+          "range");
+    ANSWER = "The paper tray is empty. Add paper.";
+    asked = 0;
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK && asked == 1 &&
+              PL.held.state == ZXM_HELD_PENDING &&
+              strstr(last_prompt, "Printer: N (M)\nState: stopped\nReasons: media-empty-error\n") &&
+              strstr(last_prompt, "plain words"),
+          "held: %s", last_prompt);
+    CHECK(platen_ai_accept(&PL) == ZXM_OK && PL.held.state == ZXM_HELD_ACCEPTED, "read");
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK && platen_ai_reject(&PL) == ZXM_OK &&
+              PL.held.state == ZXM_HELD_REJECTED,
+          "dismissed");
+    ANSWER = "ok";
+    PL.printer[0].reasons[0] = 0;
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_E_STATE, "nothing wrong (empty)");
+    memcpy(PL.printer[0].reasons, "none", 5);
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_E_STATE, "nothing wrong (none)");
+    memset(PL.printer[0].name, 'n', sizeof PL.printer[0].name - 1);
+    memset(PL.printer[0].make, 'm', sizeof PL.printer[0].make - 1);
+    memset(PL.printer[0].reasons, 'r', sizeof PL.printer[0].reasons - 1);
+    CHECK(platen_ai(&PL, PLATEN_AI_EXPLAIN, 0) == ZXM_OK, "long fields fit: %s", LINK.err);
+
+    /* removing a printer leaves its jobs, pointing nowhere */
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE, "still there");
+    PL.njobs = 3;
+    PL.job[0].printer = 0;
+    PL.job[1].printer = 1;
+    PL.job[2].printer = PLATEN_DEVICES;
+    memcpy(PL.job[0].state, "pending", 8);
+    PL.nprinters = 2;
+    memcpy(PL.printer[1].uri, "ipp://y", 8);
+    CHECK(platen_remove_printer(&PL, 2) == ZXM_E_ARG && platen_remove_printer(&PL, 0) == ZXM_OK &&
+              PL.nprinters == 1 && !strcmp(PL.printer[0].uri, "ipp://y") &&
+              PL.job[0].printer == PLATEN_DEVICES && PL.job[1].printer == 0 &&
+              PL.job[2].printer == PLATEN_DEVICES,
+          "removed: %u %u %u", PL.job[0].printer, PL.job[1].printer, PL.job[2].printer);
+    CHECK(platen_cancel(&PL, 0) == ZXM_E_STATE, "its printer is gone");
+    before = sent;
+    PL.njobs = 1;
+    CHECK(platen_follow(&PL) == ZXM_OK && sent == before, "not followed");
+    /* a full list */
+    PL.nprinters = PLATEN_DEVICES;
+    for (uint32_t i = 0; i < PLATEN_DEVICES; i++) snprintf(PL.printer[i].uri, 16, "ipp://p%u", i);
+    CHECK(platen_add_printer(&PL, uri) == ZXM_E_STATE && PL.nprinters == PLATEN_DEVICES, "full");
+    CHECK(platen_remove_printer(&PL, PLATEN_DEVICES - 1) == ZXM_OK &&
+              PL.nprinters == PLATEN_DEVICES - 1,
+          "the last removed");
+
+    /* scanners */
+    CHECK(platen_add_scanner(&PL, NULL) == ZXM_E_ARG && platen_add_scanner(&PL, "") == ZXM_E_ARG &&
+              platen_add_scanner(&PL, longuri) == ZXM_E_ARG,
+          "no scanner address");
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_OK && PL.nscanners == 1, "scanner: %s", LINK.err);
+    const platen_scanner_t *sc = &PL.scanner[0];
+    CHECK(sc->known && !strcmp(sc->make, "Fake Scanner") && !strcmp(sc->state, "Idle") &&
+              sc->platen && !sc->feeder && sc->ndpi == 2 && sc->dpi[0] == 300 &&
+              sc->dpi[1] == 600 && !strcmp(sc->url, scanner),
+          "what it is: %s %s %u", sc->make, sc->state, sc->ndpi);
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_E_STATE, "already there");
+    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_ARG, "no such scanner");
+    CHECK(platen_set_space(&PL, "nowhere") == ZXM_OK &&
+              platen_scan(&PL, 0, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32013,
+          "no such space");
+    CHECK(platen_set_space(&PL, "home") == ZXM_OK && !PL.space[0], "home");
+    platen_scan_t ss = {.dpi = 600};
+    CHECK(platen_scan(&PL, 0, "platen/scans", &ss) == ZXM_OK && PL.nsaved == 2 &&
+              !strcmp(PL.saved[0], "platen/scans/Scan 1.jpg") &&
+              !strcmp(PL.saved[1], "platen/scans/Scan 2.jpg"),
+          "scanned: %u %s", PL.nsaved, PL.saved[0]);
+    CHECK(strstr(fake_get("/fake/last"), "dpi=600< src=Platen"), "what the scanner got: %s",
+          fake_get("/fake/last"));
+    zxf_entry_t fe;
+    CHECK(zxf_stat("platen/scans/Scan 2.jpg", &fe) == 0 && fe.size == 10, "saved");
+    ss = (platen_scan_t){.feeder = true, .color = "gray", .format = "image/jpeg"};
+    CHECK(platen_scan(&PL, 0, NULL, &ss) == ZXM_OK && PL.nsaved == 2 &&
+              !strcmp(PL.saved[0], "Scan 1.jpg") && strstr(LINK.req, "\"source\":\"feeder\"") &&
+              strstr(LINK.req, "\"color\":\"gray\"") && !strstr(LINK.req, "folder"),
+          "feeder, at the top: %s", PL.saved[0]);
+    CHECK(strstr(fake_get("/fake/last"), "dpi=300< src=Feeder"), "defaults: %s",
+          fake_get("/fake/last"));
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_OK && !strstr(LINK.req, "folder") &&
+              !strstr(LINK.req, "source") && !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "no settings: %s", PL.saved[0]);
+    ss = (platen_scan_t){.dpi = 50};
+    CHECK(platen_scan(&PL, 0, "", &ss) == ZXM_E_REMOTE && LINK.err_code == -32602 &&
+              !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "bad dpi");
+    PL.nscanners = 2;
+    memcpy(PL.scanner[1].url, half, strlen(half) + 1);
+    CHECK(platen_scan(&PL, 1, "platen/scans", NULL) == ZXM_E_REMOTE && LINK.err_code == -32022 &&
+              strstr(LINK.err, "(1 page saved)") && !strcmp(PL.saved[0], "Scan 3.jpg"),
+          "half a scan: %s", LINK.err);
+    CHECK(platen_remove_scanner(&PL, 2) == ZXM_E_ARG && platen_remove_scanner(&PL, 0) == ZXM_OK &&
+              PL.nscanners == 1 && !strcmp(PL.scanner[0].url, half),
+          "removed");
+    PL.nscanners = PLATEN_DEVICES;
+    for (uint32_t i = 0; i < PLATEN_DEVICES; i++) snprintf(PL.scanner[i].url, 16, "http://s%u", i);
+    CHECK(platen_add_scanner(&PL, scanner) == ZXM_E_STATE, "full");
+    PL.nscanners = 0;
+    CHECK(platen_add_scanner(&PL, half) == ZXM_E_REMOTE && PL.nscanners == 0, "not a scanner");
+
+    /* made-up scanner replies */
+    PL.link = &FAKE;
+    const char *badscan[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"state\":\"Idle\",\"platen\":true,"
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"platen\":true,"
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\","
+        "\"feeder\":false,\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"resolutions\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[0]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[100001]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "true,"
+        "\"feeder\":false,\"resolutions\":[\"x\"]}}",
+    };
+    for (size_t i = 0; i < sizeof badscan / sizeof *badscan; i++) {
+        CANNED = badscan[i];
+        CHECK(platen_add_scanner(&PL, "http://s/eSCL") == ZXM_E_PROTOCOL && PL.nscanners == 0,
+              "bad scanner %zu", i);
+    }
+    CANNED =
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"make\":\"\",\"state\":\"Idle\",\"platen\":"
+        "false,\"feeder\":true,\"resolutions\":[1,2,3,4,5,6,7,8,100000]}}";
+    CHECK(platen_add_scanner(&PL, "http://s/eSCL") == ZXM_OK && PL.nscanners == 1 &&
+              PL.scanner[0].ndpi == 8 && PL.scanner[0].dpi[7] == 8 && PL.scanner[0].feeder,
+          "eight resolutions kept");
+    const char *badsaved[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"pages\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"saved\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"saved\":[\"a\",2]}}",
+    };
+    for (size_t i = 0; i < sizeof badsaved / sizeof *badsaved; i++) {
+        CANNED = badsaved[i];
+        CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_PROTOCOL && !strcmp(PL.saved[0], "Scan 3.jpg"),
+              "bad saved %zu", i);
+    }
+    static char many[PLATEN_PAGES * 6 + 200];
+    int k = snprintf(many, sizeof many, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"saved\":[");
+    for (uint32_t i = 0; i <= PLATEN_PAGES; i++)
+        catf(many, sizeof many, &k, "%s\"p\"", i ? "," : "");
+    snprintf(many + k, sizeof many - (size_t) k, "]}}");
+    CANNED = many;
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_PROTOCOL && PL.nsaved == 2, "too many pages");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"pages\":0,\"saved\":[]}}";
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_OK && PL.nsaved == 0, "nothing scanned");
+    CANNED = NULL;
+    CHECK(platen_scan(&PL, 0, "", NULL) == ZXM_E_TRANSPORT &&
+              platen_add_scanner(&PL, "http://t") == ZXM_E_TRANSPORT && PL.nscanners == 1,
+          "no daemon");
+    PL.link = &LINK;
+
+    /* spaces */
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(platen_set_space(&PL, longid) == ZXM_E_ARG && platen_set_space(&PL, "studio") == ZXM_OK &&
+              !strcmp(PL.space, "studio") && platen_set_space(&PL, NULL) == ZXM_OK && !PL.space[0],
+          "space");
+    zph_set_timeout_ms(0);
+    fake_stop();
+}
+
+/* ---------------- Keepsake ---------------- */
+
+static shepherd_t SH;
+
+static void test_shepherd(void)
+{
+    /* live, against zxvd's screen time in memory */
+    CHECK(zsc_open(NULL) == 0, "screen time in memory");
+    shepherd_init(&SH, &LINK);
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && !SH.locked && !SH.reset && SH.nlim == 0 &&
+              SH.ndays == 0 && SH.today == zsc_today() && shepherd_today_total(&SH) == 0,
+          "empty: %s", LINK.err);
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_E_STATE, "no week yet");
+    CHECK(raw_call("screen.tick", "{\"app\":\"quillon\"}") == ZXM_OK, "a minute");
+    CHECK(shepherd_set_limit(&SH, NULL, "quillon", 30, 8 * 60, 21 * 60) == ZXM_OK && SH.nlim == 1 &&
+              shepherd_limit(&SH, "quillon")->minutes == 30 &&
+              shepherd_limit(&SH, "quillon")->from == 480 &&
+              shepherd_limit(&SH, "quillon")->to == 1260 && SH.ndays == 1 &&
+              shepherd_week(&SH, "quillon") == 1 && shepherd_today_total(&SH) == 1 &&
+              !shepherd_limit(&SH, "glint") && shepherd_week(&SH, "glint") == 0,
+          "a limit: %s", LINK.err);
+    CHECK(shepherd_set_limit(&SH, NULL, SHEPHERD_ALL, -1, 0, 0) == ZXM_OK &&
+              shepherd_limit(&SH, "*")->minutes == -1 && SH.nlim == 2,
+          "all apps, no cap");
+    CHECK(shepherd_grant(&SH, NULL, "quillon", 15) == ZXM_OK &&
+              shepherd_limit(&SH, "quillon")->extra == 15,
+          "more time");
+    CHECK(shepherd_lock(&SH, NULL, "open sesame") == ZXM_OK && SH.locked, "locked");
+    CHECK(shepherd_grant(&SH, "wrong", "quillon", 5) == ZXM_E_REMOTE &&
+              LINK.err_code == ZXVD_E_SCREEN &&
+              !strcmp(LINK.err, "the guardian's passphrase is wrong") &&
+              shepherd_limit(&SH, "quillon")->extra == 15,
+          "a wrong passphrase: %s", LINK.err);
+    CHECK(shepherd_clear_limit(&SH, NULL, "*") == ZXM_E_REMOTE && SH.nlim == 2, "no passphrase");
+    CHECK(shepherd_clear_limit(&SH, "open sesame", "*") == ZXM_OK && SH.nlim == 1, "cleared");
+    CHECK(shepherd_lock(&SH, "open sesame", "") == ZXM_OK && !SH.locked, "unlocked");
+    CHECK(shepherd_set_limit(&SH, NULL, "", 1, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "abcdefghijklmnopqrstuvwxyz123456", 1, 0, 0) ==
+                  ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", -2, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1441, 0, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 1440, 0) == ZXM_E_ARG &&
+              shepherd_set_limit(&SH, NULL, "a", 1, 0, 1440) == ZXM_E_ARG &&
+              shepherd_clear_limit(&SH, NULL, NULL) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 0) == ZXM_E_ARG &&
+              shepherd_grant(&SH, NULL, "a", 1441) == ZXM_E_ARG,
+          "refused before sending");
+    static char longpass[SHEPHERD_PASS + 2];
+    memset(longpass, 'p', SHEPHERD_PASS + 1);
+    CHECK(shepherd_lock(&SH, NULL, longpass) == ZXM_E_ARG, "too long a passphrase");
+    asked = 0;
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, ": 1 in all, quillon 1\n") &&
+              strstr(last_prompt, "Limit quillon: 30 minutes a day, hours 480-1260") &&
+              strstr(last_prompt, "change nothing"),
+          "a plan: %s", last_prompt);
+    CHECK(shepherd_ai_accept(&SH) == ZXM_OK && shepherd_ai_reject(&SH) == ZXM_E_STATE &&
+              shepherd_ai(&SH, SHEPHERD_AI_COUNT) == ZXM_E_ARG && shepherd_ai(&SH, -1) == ZXM_E_ARG,
+          "held, then read");
+    CHECK(shepherd_ai(&SH, SHEPHERD_AI_PLAN) == ZXM_OK && shepherd_ai_reject(&SH) == ZXM_OK,
+          "rejected");
+    zsc_close();
+
+    /* made up replies */
+    shepherd_init(&SH, &FAKE);
+#define SST(lim, days)                                                                             \
+    "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":true,\"wait_s\":12,"     \
+    "\"today\":20261012,\"limits\":[" lim "],\"days\":[" days "]}}"
+#define SLIM             "{\"app\":\"glint\",\"minutes\":null,\"from\":0,\"to\":5,\"extra\":0}"
+#define SDAY(d, t, apps) "{\"date\":" d ",\"total\":" t ",\"apps\":[" apps "]}"
+#define SAPP(a, m)       "{\"app\":\"" a "\",\"minutes\":" m "}"
+    CANNED = SST(SLIM, SDAY("20261012", "3", SAPP("glint", "2") "," SAPP("burrow", "1")) "," SDAY(
+                           "20261011", "4", SAPP("glint", "4")));
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && SH.locked && SH.reset && SH.wait_s == 12 &&
+              SH.ndays == 2 && shepherd_week(&SH, "glint") == 6 &&
+              shepherd_limit(&SH, "glint")->minutes == -1 &&
+              shepherd_limit(&SH, "glint")->to == 5 && shepherd_today_total(&SH) == 3 &&
+              strstr(last_req, "\"method\":\"screen.status\",\"params\":{\"days\":7}}"),
+          "parsed: %s", last_req);
+    CANNED = SST("", SDAY("20261011", "4", SAPP("glint", "4")));
+    CHECK(shepherd_refresh(&SH) == ZXM_OK && shepherd_today_total(&SH) == 0, "nothing yet today");
+    const char *bad[] = {
+        SST(SLIM, SDAY("20261013", "1", SAPP("a", "1"))), /* after today */
+        SST(SLIM, SDAY("20261010", "1", SAPP("a", "1")) "," SDAY("20261011", "1", SAPP("a", "1"))),
+        SST(SLIM, SDAY("20261012", "2", SAPP("a", "1"))), /* total */
+        SST(SLIM, SDAY("20261012", "1", SAPP("", "1"))),
+        SST(SLIM, SDAY("20261012", "1441", SAPP("a", "1441"))),
+        SST("{\"app\":\"g\",\"minutes\":1441,\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":1440,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":0,\"to\":1440,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":1441}", ""),
+        SST("{\"app\":\"\",\"minutes\":1,\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"from\":0,\"to\":0,\"extra\":0}", ""),
+        SST("{\"app\":\"g\",\"minutes\":\"x\",\"from\":0,\"to\":0,\"extra\":0}", ""),
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"today\":1,\"limits\":{},\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":"
+        "3601,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"reset\":true,\"locked\":1,\"wait_s\":0,"
+        "\"today\":1,\"limits\":[],\"days\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"locked\":true,\"reset\":false,\"wait_s\":0,"
+        "\"limits\":[],\"days\":[]}}",
+        SST(SLIM,
+            SDAY("20261012", "1", SAPP("a", "1")) "," SDAY("20261011", "1", SAPP("a", "1")) "," SDAY(
+                "20261010", "1",
+                SAPP(
+                    "a",
+                    "1")) "," SDAY("20261009", "1",
+                                   SAPP(
+                                       "a",
+                                       "1")) "," SDAY("20261008", "1",
+                                                      SAPP(
+                                                          "a",
+                                                          "1")) "," SDAY("20261007", "1",
+                                                                         SAPP(
+                                                                             "a",
+                                                                             "1")) "," SDAY("202610"
+                                                                                            "06",
+                                                                                            "1",
+                                                                                            SAPP(
+                                                                                                "a",
+                                                                                                "1")) "," SDAY("20261005",
+                                                                                                               "1",
+                                                                                                               SAPP(
+                                                                                                                   "a",
+                                                                                                                   "1"))),
+        SST(SLIM, "{\"date\":20261012,\"total\":0,\"apps\":{}}"),
+    };
+    for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) {
+        CANNED = bad[i];
+        CHECK(shepherd_refresh(&SH) == ZXM_E_PROTOCOL && SH.ndays == 1 && SH.nlim == 0 &&
+                  SH.locked && SH.reset,
+              "bad reply %zu: the view stays", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"app\":\"a\",\"set\":true}}";
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_PROTOCOL &&
+              strstr(last_req, "\"method\":\"screen.status\""),
+          "a change refreshes");
+    CANNED = NULL;
+    CHECK(shepherd_set_limit(&SH, "pw", "a", 10, 60, 120) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"a\",\"minutes\":10,\"from\":60,\"to\":120,"
+                               "\"passphrase\":\"pw\"}"),
+          "set_limit: %s", last_req);
+    CHECK(shepherd_set_limit(&SH, "", "a", -1, 0, 0) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"a\"}"),
+          "no cap, any time, no passphrase: %s", last_req);
+    CHECK(shepherd_clear_limit(&SH, "pw", "a") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"method\":\"screen.clear_limit\",\"params\":{\"app\":\"a\","
+                               "\"passphrase\":\"pw\"}"),
+          "clear: %s", last_req);
+    CHECK(shepherd_grant(&SH, "pw", "a", 7) == ZXM_E_TRANSPORT &&
+              strstr(last_req,
+                     "\"method\":\"screen.grant\",\"params\":{\"app\":\"a\",\"minutes\":7,"
+                     "\"passphrase\":\"pw\"}"),
+          "grant: %s", last_req);
+    CHECK(shepherd_lock(&SH, "old", "new pass") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"method\":\"screen.lock\",\"params\":{\"passphrase\":\"new pass\","
+                               "\"old\":\"old\"}"),
+          "lock: %s", last_req);
+    CHECK(shepherd_lock(&SH, NULL, NULL) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"passphrase\":\"\"}"),
+          "unlock: %s", last_req);
+}
+
+static waymark_t WM;
+
+static void test_waymark(void)
+{
+    CHECK(zpl_open(NULL) == 0, "places in memory");
+    waymark_init(&WM, &LINK);
+    CHECK(waymark_refresh(&WM) == ZXM_OK && !WM.here.known && WM.nplaces == 0 && WM.napps == 0 &&
+              !WM.reset,
+          "empty: %s", LINK.err);
+    CHECK(waymark_add_here(&WM, "Home", "") == ZXM_E_STATE, "no location to keep");
+    CHECK(waymark_ai(&WM, WAYMARK_AI_PLAN) == ZXM_E_STATE, "no places to plan");
+    CHECK(waymark_add(&WM, "Far", -33868800, 151209300, "Sydney") == ZXM_OK &&
+              waymark_add(&WM, "Near", 51500000, -120000, NULL) == ZXM_OK && WM.nplaces == 2 &&
+              WM.place[0].distance_m == -1 && !strcmp(WM.place[0].name, "Far"),
+          "kept, in order while here is unknown: %s", LINK.err);
+    CHECK(waymark_set_here(&WM, 51507400, -127800, 25) == ZXM_OK && WM.here.known &&
+              !WM.here.stale && WM.here.accuracy_m == 25 && !strcmp(WM.here.source, "owner") &&
+              WM.here.lat == 51507400 && WM.here.lon == -127800,
+          "here: %s", LINK.err);
+    CHECK(!strcmp(WM.place[0].name, "Near") && WM.place[0].distance_m < 2000 &&
+              WM.place[1].distance_m > 10000000,
+          "nearest first: %lld", (long long) WM.place[0].distance_m);
+    CHECK(waymark_add_here(&WM, "Office", "desk by the window") == ZXM_OK &&
+              waymark_find(&WM, "Office")->distance_m == 0 && !strcmp(WM.place[0].name, "Office"),
+          "kept here");
+    CHECK(waymark_add(&WM, "office", 0, 0, "") == ZXM_E_REMOTE && LINK.err_code == ZXVD_E_PLACE &&
+              WM.nplaces == 3,
+          "a name taken: %s", LINK.err);
+    CHECK(waymark_remove(&WM, "Far") == ZXM_OK && WM.nplaces == 2 && !waymark_find(&WM, "Far") &&
+              !waymark_find(&WM, NULL),
+          "removed");
+    CHECK(raw_call("place.ask", "{\"app\":\"glint\"}") == ZXM_OK &&
+              waymark_refresh(&WM) == ZXM_OK && WM.npending == 1 && WM.app[0].pending &&
+              WM.app[0].mode == WAYMARK_ASK,
+          "an ask waits");
+    CHECK(waymark_permit(&WM, "glint", WAYMARK_ALWAYS) == ZXM_OK && WM.npending == 0 &&
+              WM.app[0].mode == WAYMARK_ALWAYS,
+          "answered");
+    CHECK(waymark_forget_here(&WM) == ZXM_OK && !WM.here.known && WM.place[0].distance_m == -1,
+          "forgotten");
+    CHECK(
+        waymark_set_here(&WM, 90000001, 0, 5) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, -180000001, 5) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, 0, 0) == ZXM_E_ARG &&
+            waymark_set_here(&WM, 0, 0, 1000001) == ZXM_E_ARG &&
+            waymark_add(&WM, "", 0, 0, "") == ZXM_E_ARG &&
+            waymark_add(&WM, NULL, 0, 0, "") == ZXM_E_ARG && waymark_remove(&WM, "") == ZXM_E_ARG &&
+            waymark_permit(&WM, "glint", 4) == ZXM_E_ARG && waymark_permit(&WM, "", 0) == ZXM_E_ARG,
+        "refused before sending");
+    asked = 0;
+    CHECK(waymark_ai(&WM, WAYMARK_AI_PLAN) == ZXM_OK && asked == 1 &&
+              strstr(last_prompt, "Office: desk by the window\n") &&
+              strstr(last_prompt, "Do not invent places"),
+          "plan: %s", last_prompt);
+    CHECK(waymark_ai_reject(&WM) == ZXM_OK && waymark_ai_accept(&WM) == ZXM_E_STATE &&
+              waymark_ai(&WM, 1) == ZXM_E_ARG,
+          "held");
+    CHECK(waymark_set_here(&WM, 51507400, -127800, 25) == ZXM_OK && waymark_ai(&WM, 0) == ZXM_OK &&
+              strstr(last_prompt, "Office, 0 m away: desk by the window\n") &&
+              waymark_ai_accept(&WM) == ZXM_OK,
+          "with distances: %s", last_prompt);
+    zpl_close();
+
+    /* made up replies: each of the three reads */
+    waymark_init(&WM, &FAKE);
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"known\":true,\"lat\":1,\"lon\":2,"
+             "\"accuracy_m\":0,\"source\":\"x\",\"time\":1,\"stale\":false}}";
+    CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL && !WM.here.known, "accuracy 0");
+    const char *heres[] = {
+        "{\"known\":true,\"lat\":90000001,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":180000001,\"accuracy_m\":1,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1000001,\"source\":\"x\",\"time\":1,"
+        "\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"\",\"time\":1,\"stale\":"
+        "false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"stale\":false}",
+        "{\"known\":true,\"lat\":1,\"lon\":2,\"accuracy_m\":1,\"source\":\"x\",\"time\":1}",
+        "{\"lat\":1}",
+    };
+    for (size_t i = 0; i < sizeof heres / sizeof *heres; i++) {
+        static char canned[512];
+        snprintf(canned, sizeof canned, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":%s}", heres[i]);
+        CANNED = canned;
+        CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL, "bad here %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"known\":false}}";
+    CHECK(waymark_refresh(&WM) == ZXM_E_PROTOCOL && strstr(last_req, "\"method\":\"place.list\""),
+          "a list that is not one");
+    CANNED = NULL;
+    CHECK(waymark_set_here(&WM, -5, -6, 7) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"lat\":-5,\"lon\":-6,\"accuracy_m\":7}"),
+          "negative numbers: %s", last_req);
+    CHECK(waymark_add(&WM, "A", -90000000, 180000000, "n") == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"name\":\"A\",\"lat\":-90000000,\"lon\":180000000,"
+                               "\"note\":\"n\"}"),
+          "add: %s", last_req);
+    CHECK(waymark_permit(&WM, "g", WAYMARK_NEVER) == ZXM_E_TRANSPORT &&
+              strstr(last_req, "\"params\":{\"app\":\"g\",\"mode\":\"never\"}"),
+          "permit: %s", last_req);
+}
+
+static keepsake_t KS;
+
+static void test_keepsake(void)
+{
+    char dest[256];
+    snprintf(dest, sizeof dest, "%s/zxv-keep-XXXXXX", getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp");
+    CHECK(mkdtemp(dest) != NULL, "a destination");
+    uint64_t size;
+    CHECK(zxf_mkdir("keep") == 0 && zxf_write("keep/plan.txt", (const uint8_t *) "first", 5,
+                                              ZXF_W_REPLACE, false, &size) == 0,
+          "files");
+    keepsake_init(&KS, &LINK);
+    int before = sent;
+    CHECK(keepsake_backup(&KS, false) == ZXM_E_STATE && keepsake_refresh(&KS) == ZXM_E_STATE &&
+              keepsake_versions(&KS, "a") == ZXM_E_STATE && keepsake_check(&KS, 0) == ZXM_E_STATE &&
+              keepsake_restore(&KS, 0, "a", NULL) == ZXM_E_STATE &&
+              keepsake_prune(&KS, 1) == ZXM_E_STATE && sent == before,
+          "no destination yet: nothing asked");
+    static char longd[KEEPSAKE_DEST + 2];
+    memset(longd, 'd', KEEPSAKE_DEST + 1);
+    CHECK(keepsake_set_dest(&KS, NULL) == ZXM_E_ARG && keepsake_set_dest(&KS, "") == ZXM_E_ARG &&
+              keepsake_set_dest(&KS, longd) == ZXM_E_ARG && !KS.dest[0],
+          "bad destinations");
+    CHECK(keepsake_set_dest(&KS, "relative") == ZXM_OK &&
+              keepsake_backup(&KS, false) == ZXM_E_REMOTE && LINK.err_code == -32018,
+          "zxvd refuses a relative one");
+    CHECK(keepsake_set_dest(&KS, dest) == ZXM_OK, "set");
+    CHECK(keepsake_refresh(&KS) == ZXM_OK && KS.nsnaps == 0 && KS.total == 0, "none yet");
+    CHECK(!keepsake_tested(&KS), "not tested");
+
+    /* back up, change, back up */
+    CHECK(keepsake_backup(&KS, false) == ZXM_OK && KS.last.snapshot == 1 && KS.last.files >= 2 &&
+              KS.last.new_files >= 1 && KS.last.new_files <= KS.last.files && KS.nsnaps == 1 &&
+              KS.total == 1 && KS.snap[0].id == 1 && !KS.snap[0].damaged &&
+              KS.snap[0].time == KS.last.time,
+          "first: %u files %s", KS.last.files, LINK.err);
+    uint32_t files = KS.last.files;
+    CHECK(!keepsake_tested(&KS), "not checked yet");
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && KS.check.done && KS.check.snapshot == 1 &&
+              KS.check.files == files && KS.check.bad == 0 && KS.check.missing == 0 &&
+              !KS.check.first_bad[0] && keepsake_tested(&KS),
+          "checked");
+    CHECK(keepsake_ai(&KS, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing to explain");
+    CHECK(zxf_write("keep/plan.txt", (const uint8_t *) "second!", 7, ZXF_W_REPLACE, false, &size) ==
+                  0 &&
+              keepsake_backup(&KS, false) == ZXM_OK && KS.last.snapshot == 2 &&
+              KS.last.new_files == 1 && KS.nsnaps == 2 && KS.snap[0].id == 2 &&
+              KS.snap[1].id == 1 && !KS.check.done && !keepsake_tested(&KS),
+          "second: %u new", KS.last.new_files);
+    /* a damaged copy: a plain backup trusts it, a full one repairs it */
+    char hex[65], obj[600];
+    uint8_t h[32];
+    sha256((const uint8_t *) "second!", 7, h);
+    for (int i = 0; i < 32; i++) snprintf(hex + 2 * i, 3, "%02x", h[i]);
+    snprintf(obj, sizeof obj, "%s/ZXV Keepsake/objects/%.2s/%s", dest, hex, hex);
+    FILE *of = fopen(obj, "wb");
+    CHECK(of && fwrite("SECOND!", 1, 7, of) == 7 && fclose(of) == 0, "damage a copy");
+    CHECK(keepsake_backup(&KS, false) == ZXM_OK && KS.last.new_files == 0 &&
+              strstr(LINK.req, "\"max\":50"),
+          "third, then listed: %s", LINK.req);
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && KS.check.bad == 1 &&
+              !strcmp(KS.check.first_bad, "keep/plan.txt") && !keepsake_tested(&KS),
+          "the check finds it: %s", KS.check.first_bad);
+    CHECK(keepsake_backup(&KS, true) == ZXM_OK && KS.last.snapshot == 4 && KS.last.new_files == 1,
+          "full repairs it: %u", KS.last.new_files);
+    CHECK(keepsake_check(&KS, 1) == ZXM_OK && KS.check.snapshot == 1 && !keepsake_tested(&KS) &&
+              strstr(LINK.req, "\"snapshot\":1"),
+          "an older one checked is not the newest");
+    CHECK(keepsake_check(&KS, 0) == ZXM_OK && !strstr(LINK.req, "snapshot") && keepsake_tested(&KS),
+          "the newest");
+
+    /* versions */
+    CHECK(keepsake_versions(&KS, NULL) == ZXM_E_ARG && keepsake_versions(&KS, "") == ZXM_E_ARG,
+          "no path");
+    CHECK(keepsake_versions(&KS, "keep/plan.txt") == ZXM_OK && KS.nvers == 2 &&
+              KS.ver[0].snapshot == 4 && KS.ver[0].size == 7 && KS.ver[1].snapshot == 1 &&
+              KS.ver[1].size == 5 && strlen(KS.ver[0].hash) == 64 &&
+              !strcmp(KS.vpath, "keep/plan.txt"),
+          "two versions: %u", KS.nvers);
+
+    /* restore the first words beside the file */
+    CHECK(keepsake_restore(&KS, 1, "keep/plan.txt", NULL) == ZXM_OK &&
+              !strcmp(KS.landed, "keep/plan (restored).txt") && KS.restored == 1 &&
+              strstr(LINK.req, "\"snapshot\":1") && !strstr(LINK.req, "\"to\""),
+          "restored: %s", KS.landed);
+    char got[16];
+    uint32_t gn;
+    CHECK(zxf_read("keep/plan (restored).txt", 0, (uint8_t *) got, sizeof got, false, &gn, &size) ==
+                  0 &&
+              gn == 5 && !memcmp(got, "first", 5),
+          "the first words");
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2") == ZXM_OK && !strcmp(KS.landed, "keep2") &&
+              strstr(LINK.req, "\"to\":\"keep2\"") && !strstr(LINK.req, "snapshot"),
+          "a folder somewhere new: %s", KS.landed);
+    CHECK(keepsake_restore(&KS, 0, "keep", "keep2") == ZXM_E_REMOTE && LINK.err_code == -32014 &&
+              !strcmp(KS.landed, "keep2"),
+          "never over it");
+    CHECK(keepsake_restore(&KS, 0, "nope.txt", NULL) == ZXM_E_REMOTE && LINK.err_code == -32018,
+          "not backed up");
+    static char longp[KEEPSAKE_PATH + 2];
+    memset(longp, 'p', KEEPSAKE_PATH + 1);
+    CHECK(keepsake_restore(&KS, 0, longp, NULL) == ZXM_E_ARG &&
+              keepsake_restore(&KS, 0, "a", longp) == ZXM_E_ARG &&
+              keepsake_versions(&KS, longp) == ZXM_E_ARG,
+          "too long");
+    CHECK(keepsake_restore(&KS, 0, NULL, NULL) == ZXM_OK && !strcmp(KS.landed, "Keepsake 4") &&
+              KS.restored >= files && !strstr(LINK.req, "path"),
+          "everything: %s %u", KS.landed, KS.restored);
+
+    /* prune */
+    CHECK(keepsake_prune(&KS, 0) == ZXM_E_ARG, "keep none");
+    CHECK(keepsake_prune(&KS, 1) == ZXM_OK && KS.pruned_snaps == 3 && KS.nsnaps == 1 &&
+              KS.snap[0].id == 4 && KS.total == 1,
+          "pruned: %u, %u objects", KS.pruned_snaps, KS.pruned_objects);
+
+    /* spaces and destinations forget what was listed */
+    CHECK(keepsake_set_space(&KS, "studio") == ZXM_OK && KS.nsnaps == 0 && !KS.check.done &&
+              !KS.vpath[0] && keepsake_refresh(&KS) == ZXM_OK && KS.total == 0 &&
+              keepsake_set_space(&KS, "nowhere") == ZXM_OK &&
+              keepsake_refresh(&KS) == ZXM_E_REMOTE && LINK.err_code == -32013,
+          "another space: %d", LINK.err_code);
+    static char longid[64];
+    memset(longid, 'a', 49);
+    CHECK(keepsake_set_space(&KS, longid) == ZXM_E_ARG && !strcmp(KS.space, "nowhere"),
+          "id too long");
+    CHECK(keepsake_set_space(&KS, "home") == ZXM_OK && !KS.space[0] &&
+              keepsake_set_space(&KS, NULL) == ZXM_OK && keepsake_refresh(&KS) == ZXM_OK &&
+              KS.nsnaps == 1,
+          "home");
+
+    /* made-up replies */
+    keepsake_t F;
+    keepsake_init(&F, &FAKE);
+    keepsake_set_dest(&F, "/d");
+    const char *badlist[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0,\"snapshots\":{}}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":4294967296,\"snapshots\":[]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":0,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[1]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"time\":1,"
+        "\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"bytes\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"damaged\":false}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":1,"
+        "\"time\":1,\"files\":1,\"bytes\":1}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":1,\"snapshots\":[{\"snapshot\":"
+        "4294967296,"
+        "\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}]}}",
+    };
+    F.nsnaps = 1;
+    F.snap[0].id = 9;
+    for (size_t i = 0; i < sizeof badlist / sizeof *badlist; i++) {
+        CANNED = badlist[i];
+        CHECK(keepsake_refresh(&F) == ZXM_E_PROTOCOL && F.nsnaps == 1 && F.snap[0].id == 9,
+              "bad list %zu", i);
+    }
+    static char many[KEEPSAKE_SNAPS * 80 + 200];
+    int m = snprintf(many, sizeof many,
+                     "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"total\":99,\"snapshots\":[");
+    for (uint32_t i = 0; i <= KEEPSAKE_SNAPS; i++)
+        catf(many, sizeof many, &m,
+             "%s{\"snapshot\":%u,\"time\":1,\"files\":1,\"bytes\":1,\"damaged\":false}",
+             i ? "," : "", i + 1);
+    snprintf(many + m, sizeof many - (size_t) m, "]}}");
+    CANNED = many;
+    CHECK(keepsake_refresh(&F) == ZXM_E_PROTOCOL && F.nsnaps == 1, "too many");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"total\":7,\"snapshots\":[{\"snapshot\":"
+             "4294967295,\"time\":-2,\"files\":4294967295,\"bytes\":18446744073709551615,"
+             "\"damaged\":true}]}}";
+    CHECK(keepsake_refresh(&F) == ZXM_OK && F.nsnaps == 1 && F.total == 7 &&
+              F.snap[0].id == 4294967295u && F.snap[0].time == -2 && F.snap[0].damaged &&
+              F.snap[0].bytes == 18446744073709551615ull,
+          "the largest");
+    const char *badrun[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"time\":1,\"files\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":0,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"new_files\":0,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":0,\"skipped\":0,\"bytes\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":2,\"skipped\":0,\"bytes\":1,\"new_bytes\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"time\":1,\"files\":1,"
+        "\"new_files\":1,\"skipped\":0,\"bytes\":1,\"new_bytes\":2}}",
+    };
+    F.last.snapshot = 5;
+    for (size_t i = 0; i < sizeof badrun / sizeof *badrun; i++) {
+        CANNED = badrun[i];
+        CHECK(keepsake_backup(&F, false) == ZXM_E_PROTOCOL && F.last.snapshot == 5, "bad run %zu",
+              i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":6,\"time\":1,\"files\":2,"
+             "\"new_files\":2,\"skipped\":3,\"bytes\":9,\"new_bytes\":9}}";
+    F.check.done = true;
+    CHECK(keepsake_backup(&F, false) == ZXM_E_PROTOCOL && F.last.snapshot == 6 &&
+              F.last.skipped == 3 && F.last.new_bytes == 9 && !F.check.done,
+          "made, but the list after it does not parse");
+    const char *badver[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[1]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"size\":1,\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"time\":1,\"size\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"size\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"mtime\":1,\"hash\":\"ab\"}]}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"versions\":[{\"snapshot\":1,\"time\":1,"
+        "\"size\":1,\"hash\":\"ab\"}]}}",
+    };
+    F.nvers = 0;
+    for (size_t i = 0; i < sizeof badver / sizeof *badver; i++) {
+        CANNED = badver[i];
+        CHECK(keepsake_versions(&F, "a") == ZXM_E_PROTOCOL && F.nvers == 0 && !F.vpath[0],
+              "bad versions %zu", i);
+    }
+    static char vmany[KEEPSAKE_VERS * 160 + 200];
+    m = snprintf(vmany, sizeof vmany, "{\"jsonrpc\":\"2.0\",\"id\":%%u,\"result\":{\"versions\":[");
+    for (uint32_t i = 0; i < KEEPSAKE_VERS + 3; i++)
+        catf(vmany, sizeof vmany, &m,
+             "%s{\"snapshot\":%u,\"time\":1,\"size\":2,\"mtime\":-3,\"hash\":\"%064u\"}",
+             i ? "," : "", i + 1, i);
+    snprintf(vmany + m, sizeof vmany - (size_t) m, "]}}");
+    CANNED = vmany;
+    CHECK(keepsake_versions(&F, "a") == ZXM_OK && F.nvers == KEEPSAKE_VERS &&
+              F.ver[KEEPSAKE_VERS - 1].snapshot == KEEPSAKE_VERS && F.ver[0].mtime == -3 &&
+              !strcmp(F.vpath, "a"),
+          "the first fifty kept: %u", F.nvers);
+    const char *badcheck[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":1,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":3,"
+        "\"missing\":0,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":1,"
+        "\"missing\":2,\"bytes\":1,\"ok\":false,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"bytes\":1,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"ok\":true,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"first_bad\":\"\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":1,\"files\":2,\"bad\":0,"
+        "\"missing\":0,\"bytes\":1,\"ok\":true}}",
+    };
+    F.check.done = false;
+    for (size_t i = 0; i < sizeof badcheck / sizeof *badcheck; i++) {
+        CANNED = badcheck[i];
+        CHECK(keepsake_check(&F, 0) == ZXM_E_PROTOCOL && !F.check.done, "bad check %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":4,\"files\":3,\"bad\":1,"
+             "\"missing\":2,\"bytes\":10,\"ok\":false,\"first_bad\":\"Notes/a.txt\"}}";
+    F.nsnaps = 1;
+    F.snap[0].id = 4;
+    CHECK(keepsake_check(&F, 4) == ZXM_OK && F.check.done && F.check.bad == 1 &&
+              F.check.missing == 2 && F.check.bytes == 10 &&
+              !strcmp(F.check.first_bad, "Notes/a.txt") && !keepsake_tested(&F),
+          "a failed check");
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshot\":4,\"files\":3,\"bad\":0,"
+             "\"missing\":0,\"bytes\":10,\"ok\":true,\"first_bad\":\"\"}}";
+    keepsake_check_t keepc = F.check;
+    CHECK(keepsake_check(&F, 4) == ZXM_OK && keepsake_tested(&F), "a good one");
+    F.nsnaps = 0;
+    CHECK(!keepsake_tested(&F), "nothing listed: not tested");
+    F.nsnaps = 1;
+    F.check = keepc;
+    const char *badrestore[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"files\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"\",\"files\":1}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"x\"}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"to\":\"x\",\"files\":0}}",
+    };
+    F.landed[0] = 0;
+    for (size_t i = 0; i < sizeof badrestore / sizeof *badrestore; i++) {
+        CANNED = badrestore[i];
+        CHECK(keepsake_restore(&F, 0, "a", NULL) == ZXM_E_PROTOCOL && !F.landed[0],
+              "bad restore %zu", i);
+    }
+    const char *badprune[] = {
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"objects_removed\":0,\"freed\":0}}",
+        "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,\"freed\":0}}",
+        ("{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":0,"
+         "\"objects_removed\":0}}"),
+    };
+    F.pruned_snaps = 77;
+    for (size_t i = 0; i < sizeof badprune / sizeof *badprune; i++) {
+        CANNED = badprune[i];
+        CHECK(keepsake_prune(&F, 1) == ZXM_E_PROTOCOL && F.pruned_snaps == 77, "bad prune %zu", i);
+    }
+    CANNED = "{\"jsonrpc\":\"2.0\",\"id\":%u,\"result\":{\"snapshots_removed\":2,"
+             "\"objects_removed\":3,\"freed\":18446744073709551615}}";
+    CHECK(keepsake_prune(&F, 1) == ZXM_E_PROTOCOL && F.pruned_snaps == 2 && F.pruned_objects == 3 &&
+              F.freed == 18446744073709551615ull,
+          "pruned, the list after it does not parse");
+    CANNED = NULL;
+    CHECK(keepsake_refresh(&F) == ZXM_E_TRANSPORT &&
+              keepsake_backup(&F, false) == ZXM_E_TRANSPORT &&
+              keepsake_versions(&F, "a") == ZXM_E_TRANSPORT &&
+              keepsake_check(&F, 0) == ZXM_E_TRANSPORT &&
+              keepsake_restore(&F, 0, "a", NULL) == ZXM_E_TRANSPORT &&
+              keepsake_prune(&F, 1) == ZXM_E_TRANSPORT,
+          "no daemon");
+
+    /* AI explains a failed check */
+    F.link = &LINK;
+    CHECK(keepsake_ai(&F, -1) == ZXM_E_ARG && keepsake_ai(&F, KEEPSAKE_AI_COUNT) == ZXM_E_ARG,
+          "range");
+    ANSWER = "Two copies are gone; run a full backup.";
+    asked = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK && asked == 1 &&
+              F.held.state == ZXM_HELD_PENDING &&
+              strstr(last_prompt, "Backup 4 was checked: 3 files, 1 read back wrong, 2 missing.\n"
+                                  "First problem: Notes/a.txt\n") &&
+              strstr(last_prompt, "full backup"),
+          "held: %s", last_prompt);
+    CHECK(keepsake_ai_accept(&F) == ZXM_OK && F.held.state == ZXM_HELD_ACCEPTED, "read");
+    F.check.bad = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK && keepsake_ai_reject(&F) == ZXM_OK &&
+              F.held.state == ZXM_HELD_REJECTED,
+          "only missing: still explained, then dismissed");
+    F.check.missing = 0;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "nothing wrong");
+    F.check.missing = 1;
+    F.check.done = false;
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_E_STATE, "no check yet");
+    F.check.done = true;
+    memset(F.check.first_bad, 'f', sizeof F.check.first_bad - 1);
+    CHECK(keepsake_ai(&F, KEEPSAKE_AI_EXPLAIN) == ZXM_OK, "a long path fits");
+    ANSWER = "ok";
+    CHECK(rm_tree(dest) == 0, "cleanup");
+}
+
 /* ---------------- Murmuration ---------------- */
 
 #define E_NEUTRAL "\xf0\x9f\x98\x90" /* U+1F610 */
@@ -1507,6 +3020,12 @@ int main(void)
     test_quillon();
     test_spindle();
     test_spaces();
+    test_utilities();
+    test_scent();
+    test_platen();
+    test_keepsake();
+    test_shepherd();
+    test_waymark();
     test_murmuration();
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);

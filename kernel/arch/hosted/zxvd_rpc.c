@@ -38,7 +38,15 @@
 #include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
 #include "zxv_files.h"        /* files.*: the ZXV folder */
 #include "zxv_spaces.h"       /* spaces.*: who may see and change each place */
-#include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
+#include "zxv_sysinfo.h"    /* sys.*: the machine and zxvd, for the system utilities */
+#include "zxvd_log.h"       /* log.tail and the RPC traffic counts */
+#include "zxv_search.h"     /* search.*: Scent's index of the ZXV folder */
+#include "zxv_print_host.h" /* print.*, scan.*: Platen's printers and scanners */
+#include "zxv_keepsake.h"   /* backup.*: Keepsake's backups and versions */
+#include "zxv_journal.h"    /* journal.*: Wake's history across restarts */
+#include "zxv_screen.h"     /* screen.*: Shepherd's screen time */
+#include "zxv_place.h"      /* place.*: Waymark's location and places */
+#include "juris.h"          /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -180,7 +188,7 @@ static void books_close(void)
 
 #define BF_MAGIC "{\"op\":\"books\",\"v\":1}"
 #define LIT(b, s)                                                                                  \
-    zxvd_buf_raw((b), (s), sizeof(s) - 1) /* a string literal, no count to get wrong */
+    zxvd_buf_raw((b), "" s, sizeof("" s) - 1) /* a string literal only: anything else fails */
 #define BF_MAX_LINE 1024u                 /* a record is far smaller; longer is damage */
 
 static char BF_PATH[1024];  /* "" = the books live in memory only (F1) */
@@ -1902,6 +1910,879 @@ static void m_spaces_vote(call_t *c)
     decision_reply(c, (uint32_t) id, d, &s);
 }
 
+/* ----- sys.* and log.* (docs/SYSTEM_UTILITIES.md): read only ----- */
+
+static void m_sys_info(call_t *c)
+{
+    zsi_host_t h;
+    zsi_self_t me;
+    zsi_host(&h);
+    zsi_self(&me);
+    zxvd_buf_printf(c->res, "{\"time_ms\":%llu,\"os\":", (unsigned long long) zxvd_now_ms());
+    zxvd_buf_json_str(c->res, h.os);
+    LIT(c->res, ",\"os_version\":");
+    zxvd_buf_json_str(c->res, h.os_version);
+    LIT(c->res, ",\"arch\":");
+    zxvd_buf_json_str(c->res, h.arch);
+    LIT(c->res, ",\"host\":");
+    zxvd_buf_json_str(c->res, h.host);
+    zxvd_buf_printf(
+        c->res, ",\"cpus\":%u,\"mem_total\":%llu,\"mem_avail\":%llu,\"uptime_s\":%llu,\"load\":",
+        (unsigned) h.cpus, (unsigned long long) h.mem_total, (unsigned long long) h.mem_avail,
+        (unsigned long long) h.uptime_s);
+    if (h.load_x100[0] < 0)
+        LIT(c->res, "null");
+    else /* x100, so no floats: 1.25 is 125 */
+        zxvd_buf_printf(c->res, "[%d,%d,%d]", (int) h.load_x100[0], (int) h.load_x100[1],
+                        (int) h.load_x100[2]);
+    zxvd_buf_printf(c->res,
+                    ",\"zxvd\":{\"pid\":%llu,\"cpu_user_us\":%llu,\"cpu_sys_us\":%llu,"
+                    "\"rss_bytes\":%llu,\"max_rss_bytes\":%llu}}",
+                    (unsigned long long) me.pid, (unsigned long long) me.cpu_user_us,
+                    (unsigned long long) me.cpu_sys_us, (unsigned long long) me.rss_bytes,
+                    (unsigned long long) me.max_rss_bytes);
+}
+
+static void m_sys_disk(call_t *c)
+{
+    zsi_disk_t d;
+    char root[4096];
+    if (!files_done(c, zxf_root(root, sizeof root))) return;
+    if (zsi_disk(root, &d) != 0) return fail(c, ZXVD_E_FILES, "the volume could not be read");
+    LIT(c->res, "{\"path\":");
+    zxvd_buf_json_str(c->res, root);
+    zxvd_buf_printf(c->res, ",\"total\":%llu,\"free\":%llu,\"avail\":%llu}",
+                    (unsigned long long) d.total, (unsigned long long) d.free,
+                    (unsigned long long) d.avail);
+}
+
+static void m_sys_net(call_t *c)
+{
+    static zsi_if_t ifs[32];
+    uint32_t n;
+    zxvd_traffic_t t;
+    bool ok = zsi_interfaces(ifs, sizeof ifs / sizeof *ifs, &n) == 0;
+    zxvd_buf_printf(c->res, "{\"time_ms\":%llu,\"supported\":%s,\"interfaces\":[",
+                    (unsigned long long) zxvd_now_ms(), ok ? "true" : "false");
+    for (uint32_t i = 0; i < n; i++) {
+        const zsi_if_t *f = &ifs[i];
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"name\":");
+        zxvd_buf_json_str(c->res, f->name);
+        zxvd_buf_printf(c->res, ",\"up\":%s,\"loopback\":%s,\"addresses\":[",
+                        f->up ? "true" : "false", f->loopback ? "true" : "false");
+        for (uint32_t a = 0; a < f->naddr; a++) {
+            if (a) LIT(c->res, ",");
+            zxvd_buf_json_str(c->res, f->addr[a]);
+        }
+        if (f->counters)
+            zxvd_buf_printf(c->res,
+                            "],\"rx_bytes\":%llu,\"tx_bytes\":%llu,\"rx_packets\":%llu,"
+                            "\"tx_packets\":%llu}",
+                            (unsigned long long) f->rx_bytes, (unsigned long long) f->tx_bytes,
+                            (unsigned long long) f->rx_packets, (unsigned long long) f->tx_packets);
+        else
+            LIT(c->res, "],\"rx_bytes\":null,\"tx_bytes\":null,\"rx_packets\":null,"
+                        "\"tx_packets\":null}");
+    }
+    zxvd_traffic_get(&t);
+    zxvd_buf_printf(c->res,
+                    "],\"rpc\":{\"requests\":%llu,\"errors\":%llu,\"bytes_in\":%llu,"
+                    "\"bytes_out\":%llu,\"busy_us\":%llu}}",
+                    (unsigned long long) t.requests, (unsigned long long) t.errors,
+                    (unsigned long long) t.bytes_in, (unsigned long long) t.bytes_out,
+                    (unsigned long long) t.busy_us);
+}
+
+#define LOG_TAIL_MAX 256u
+static void m_log_tail(call_t *c)
+{
+    static zxvd_log_entry_t e[LOG_TAIL_MAX];
+    uint64_t since, max, dropped;
+    char lv[8];
+    if (!p_opt_u64(c, "since", 0, &since) || !p_opt_u64(c, "max", 100, &max) ||
+        !p_str(c, "level", lv, sizeof lv, false))
+        return;
+    if (max < 1 || max > LOG_TAIL_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", LOG_TAIL_MAX);
+    zxvd_log_level_t min = ZXVD_LOG_INFO;
+    if (!strcmp(lv, "warn"))
+        min = ZXVD_LOG_WARN;
+    else if (!strcmp(lv, "error"))
+        min = ZXVD_LOG_ERROR;
+    else if (lv[0] && strcmp(lv, "info"))
+        return fail(c, E_PARAMS, "\"level\" must be info, warn or error");
+    uint32_t n = zxvd_log_tail(since, (uint32_t) max, min, e, &dropped);
+    LIT(c->res, "{\"entries\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(
+            c->res, "%s{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":", i ? "," : "",
+            (unsigned long long) e[i].seq, (unsigned long long) e[i].unix_ms,
+            zxvd_log_level_name((zxvd_log_level_t) e[i].level));
+        zxvd_buf_json_str(c->res, e[i].source);
+        LIT(c->res, ",\"text\":");
+        zxvd_buf_json_str(c->res, e[i].text);
+        LIT(c->res, "}");
+    }
+    /* "next": pass it back as since; the last event read, or last held when
+     * the level filter skipped the rest */
+    uint64_t next = n ? e[n - 1].seq : since;
+    if (n < max) next = zxvd_log_last() > since ? zxvd_log_last() : since;
+    zxvd_buf_printf(c->res, "],\"next\":%llu,\"dropped\":%llu}", (unsigned long long) next,
+                    (unsigned long long) dropped);
+}
+
+/* ----- journal.* (zxv_journal.h): Wake's history ----- */
+
+#define JOURNAL_MAX 500u
+
+static bool p_level(call_t *c, uint8_t *min)
+{
+    char lv[8];
+    if (!p_str(c, "level", lv, sizeof lv, false)) return false;
+    *min = ZXVD_LOG_INFO;
+    if (!strcmp(lv, "warn"))
+        *min = ZXVD_LOG_WARN;
+    else if (!strcmp(lv, "error"))
+        *min = ZXVD_LOG_ERROR;
+    else if (lv[0] && strcmp(lv, "info")) {
+        fail(c, E_PARAMS, "\"level\" must be info, warn or error");
+        return false;
+    }
+    return true;
+}
+
+static void m_journal_query(call_t *c)
+{
+    static zjr_entry_t e[JOURNAL_MAX];
+    char source[16], text[ZJR_FIND_MAX + 1];
+    uint64_t since, until, before, max;
+    zjr_query_t q;
+    uint32_t n = 0;
+    bool more = false;
+    if (!p_opt_u64(c, "since_ms", 0, &since) || !p_opt_u64(c, "until_ms", 0, &until) ||
+        !p_opt_u64(c, "before", 0, &before) || !p_opt_u64(c, "max", 100, &max) ||
+        !p_level(c, &q.min_level) || !p_str(c, "source", source, sizeof source, false) ||
+        !p_str(c, "text", text, sizeof text, false))
+        return;
+    if (max < 1 || max > JOURNAL_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", JOURNAL_MAX);
+    q.since_ms = since;
+    q.until_ms = until;
+    q.before = before;
+    q.source = source;
+    q.text = text;
+    bool on = zjr_query(&q, e, (uint32_t) max, &n, &more) == 0;
+    zxvd_buf_printf(c->res, "{\"on\":%s,\"entries\":[", on ? "true" : "false");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(c->res, "%s{\"seq\":%llu,\"time_ms\":%llu,\"level\":\"%s\",\"source\":",
+                        i ? "," : "", (unsigned long long) e[i].seq, (unsigned long long) e[i].ms,
+                        zxvd_log_level_name((zxvd_log_level_t) e[i].level));
+        zxvd_buf_json_str(c->res, e[i].source);
+        LIT(c->res, ",\"text\":");
+        zxvd_buf_json_str(c->res, e[i].text);
+        LIT(c->res, "}");
+    }
+    zxvd_buf_printf(c->res, "],\"more\":%s}", more ? "true" : "false");
+}
+
+static void m_journal_verify(call_t *c)
+{
+    zjr_verify_t v;
+    bool on = zjr_verify(&v) == 0;
+    zxvd_buf_printf(c->res,
+                    "{\"on\":%s,\"ok\":%s,\"segments\":%u,\"entries\":%llu,\"first_seq\":%llu,"
+                    "\"last_seq\":%llu,\"broken_at\":%llu,\"why\":",
+                    on ? "true" : "false", v.ok ? "true" : "false", v.segments,
+                    (unsigned long long) v.entries, (unsigned long long) v.first_seq,
+                    (unsigned long long) v.last_seq, (unsigned long long) v.broken_at);
+    zxvd_buf_json_str(c->res, v.why);
+    LIT(c->res, "}");
+}
+
+static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
+{
+    zxvd_buf_printf(b,
+                    "\"files\":%u,\"text_files\":%u,\"added\":%u,\"changed\":%u,\"removed\":%u,"
+                    "\"left_out\":%u",
+                    st->files, st->text_files, st->added, st->changed, st->removed, st->left_out);
+}
+
+static void m_search_refresh(call_t *c)
+{
+    zsr_stats_t st;
+    if (!use_space(c, ZXS_VIEW) || !files_done(c, zsr_refresh(&st))) return;
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+    LIT(c->res, ",");
+    stats_json(c->res, &st);
+    LIT(c->res, "}");
+}
+
+static void m_search_query(call_t *c)
+{
+    static zsr_hit_t hits[ZSR_HITS_MAX];
+    char q[ZSR_QUERY_MAX + 1];
+    uint64_t max;
+    bool refresh;
+    uint32_t n, total;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "q", q, sizeof q, true) ||
+        !p_opt_u64(c, "max", 20, &max) || !p_bool(c, "refresh", true, &refresh))
+        return;
+    if (max < 1 || max > ZSR_HITS_MAX)
+        return fail(c, E_PARAMS, "\"max\" must be 1 to %u", ZSR_HITS_MAX);
+    if (refresh && !files_done(c, zsr_refresh(NULL))) return;
+    if (zsr_query(q, hits, (uint32_t) max, &n, &total) != 0)
+        return fail(c, E_PARAMS, "\"q\" needs 1 to %u words", ZSR_TERMS_MAX);
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+    LIT(c->res, ",\"hits\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"path\":");
+        zxvd_buf_json_str(c->res, hits[i].path);
+        zxvd_buf_printf(c->res,
+                        ",\"size\":%llu,\"mtime\":%lld,\"in_name\":%s,\"score\":%u,\"snippet\":",
+                        (unsigned long long) hits[i].size, (long long) hits[i].mtime,
+                        hits[i].in_name ? "true" : "false", hits[i].score);
+        zxvd_buf_json_str(c->res, hits[i].snippet);
+        LIT(c->res, "}");
+    }
+    zxvd_buf_printf(c->res, "],\"total\":%u}", total);
+}
+
+static bool device_done(call_t *c, int rc, const char *why)
+{
+    if (rc == ZPH_OK) return true;
+    fail(c, ZXVD_E_DEVICE, "%s", why);
+    return false;
+}
+
+static void words_json(zxvd_buf_t *b, const char *key, char (*w)[IPP_WORD], uint32_t n)
+{
+    zxvd_buf_printf(b, ",\"%s\":[", key);
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(b, ",");
+        zxvd_buf_json_str(b, w[i]);
+    }
+    LIT(b, "]");
+}
+
+static void m_print_status(call_t *c)
+{
+    static ipp_printer_t p;
+    char uri[ZPH_URI_MAX], why[ZPH_ERR];
+    if (!p_str(c, "uri", uri, sizeof uri, true) ||
+        !device_done(c, zph_printer(uri, &p, why, sizeof why), why))
+        return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, p.name);
+    LIT(c->res, ",\"info\":");
+    zxvd_buf_json_str(c->res, p.info);
+    LIT(c->res, ",\"make\":");
+    zxvd_buf_json_str(c->res, p.make);
+    LIT(c->res, ",\"location\":");
+    zxvd_buf_json_str(c->res, p.where);
+    zxvd_buf_printf(c->res, ",\"state\":\"%s\",\"reasons\":", ipp_printer_state_name(p.state));
+    zxvd_buf_json_str(c->res, p.reasons);
+    zxvd_buf_printf(c->res, ",\"accepting\":%s,\"color\":%s,\"queued\":%d,\"copies_max\":%d",
+                    p.accepting ? "true" : "false", p.color ? "true" : "false", (int) p.queued,
+                    (int) p.copies_max);
+    words_json(c->res, "formats", p.formats, p.nformats);
+    words_json(c->res, "media", p.media, p.nmedia);
+    LIT(c->res, ",\"media_default\":");
+    zxvd_buf_json_str(c->res, p.media_default);
+    words_json(c->res, "sides", p.sides, p.nsides);
+    LIT(c->res, "}");
+}
+
+static void job_json(zxvd_buf_t *b, const ipp_job_t *j)
+{
+    zxvd_buf_printf(b, "{\"job_id\":%d,\"state\":\"%s\",\"reasons\":", (int) j->id,
+                    ipp_job_state_name(j->state));
+    zxvd_buf_json_str(b, j->reasons);
+    LIT(b, ",\"message\":");
+    zxvd_buf_json_str(b, j->message);
+    zxvd_buf_printf(b, ",\"pages\":%d}", (int) j->pages);
+}
+
+static void m_print_submit(call_t *c)
+{
+    char uri[ZPH_URI_MAX], path[ZXF_PATH_MAX + 1], why[ZPH_ERR];
+    char name[128], sides[32], color[16], media[64];
+    uint64_t copies;
+    ipp_job_t j;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "uri", uri, sizeof uri, true) ||
+        !p_path(c, "path", path, true) || !p_opt_u64(c, "copies", 0, &copies) ||
+        !p_str(c, "job_name", name, sizeof name, false) ||
+        !p_str(c, "sides", sides, sizeof sides, false) ||
+        !p_str(c, "color", color, sizeof color, false) ||
+        !p_str(c, "media", media, sizeof media, false))
+        return;
+    if (copies > 999) return fail(c, E_PARAMS, "\"copies\" must be 1 to 999");
+    if (color[0] && strcmp(color, "color") && strcmp(color, "monochrome"))
+        return fail(c, E_PARAMS, "\"color\" must be color or monochrome");
+    if (sides[0] && strcmp(sides, "one-sided") && strcmp(sides, "two-sided-long-edge") &&
+        strcmp(sides, "two-sided-short-edge"))
+        return fail(c, E_PARAMS,
+                    "\"sides\" must be one-sided, two-sided-long-edge or two-sided-short-edge");
+    ipp_job_opts_t o = {name,
+                        NULL,
+                        (int32_t) copies,
+                        sides[0] ? sides : NULL,
+                        color[0] ? color : NULL,
+                        media[0] ? media : NULL};
+    if (!device_done(c, zph_print(uri, path, &o, &j, why, sizeof why), why)) return;
+    job_json(c->res, &j);
+}
+
+static void job_call(call_t *c, bool cancel)
+{
+    char uri[ZPH_URI_MAX], why[ZPH_ERR];
+    uint64_t id;
+    ipp_job_t j;
+    if (!p_str(c, "uri", uri, sizeof uri, true) || !p_opt_u64(c, "job_id", 0, &id)) return;
+    if (id < 1 || id > INT32_MAX) return fail(c, E_PARAMS, "\"job_id\" must be 1 to 2147483647");
+    if (!device_done(c, zph_job(uri, (int32_t) id, cancel, &j, why, sizeof why), why)) return;
+    job_json(c->res, &j);
+}
+
+static void m_print_job(call_t *c)
+{
+    job_call(c, false);
+}
+
+static void m_print_cancel(call_t *c)
+{
+    job_call(c, true);
+}
+
+static void escl_words(zxvd_buf_t *b, const char *key, char (*w)[ESCL_WORD], uint32_t n)
+{
+    zxvd_buf_printf(b, ",\"%s\":[", key);
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(b, ",");
+        zxvd_buf_json_str(b, w[i]);
+    }
+    LIT(b, "]");
+}
+
+static void m_scan_status(call_t *c)
+{
+    static escl_caps_t k;
+    escl_status_t s;
+    char url[ZPH_URI_MAX], why[ZPH_ERR];
+    if (!p_str(c, "url", url, sizeof url, true) ||
+        !device_done(c, zph_scanner(url, &k, &s, why, sizeof why), why))
+        return;
+    LIT(c->res, "{\"make\":");
+    zxvd_buf_json_str(c->res, k.make);
+    zxvd_buf_printf(c->res, ",\"platen\":%s,\"feeder\":%s,\"resolutions\":[",
+                    k.platen ? "true" : "false", k.feeder ? "true" : "false");
+    for (uint32_t i = 0; i < k.ndpi; i++) zxvd_buf_printf(c->res, "%s%u", i ? "," : "", k.dpi[i]);
+    LIT(c->res, "]");
+    escl_words(c->res, "color_modes", k.colors, k.ncolors);
+    escl_words(c->res, "formats", k.formats, k.nformats);
+    zxvd_buf_printf(c->res, ",\"max_width\":%u,\"max_height\":%u,\"state\":", k.max_width,
+                    k.max_height);
+    zxvd_buf_json_str(c->res, s.state);
+    LIT(c->res, ",\"adf_state\":");
+    zxvd_buf_json_str(c->res, s.adf_state);
+    zxvd_buf_printf(c->res, ",\"jobs\":%u}", s.jobs);
+}
+
+static void m_scan_start(call_t *c)
+{
+    static char saved[ZPH_PAGES_MAX][ZXF_PATH_MAX + 1];
+    char url[ZPH_URI_MAX], folder[ZXF_PATH_MAX + 1], why[ZPH_ERR];
+    char src[16], color[16], format[32];
+    uint64_t dpi;
+    uint32_t pages;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "url", url, sizeof url, true) ||
+        !p_path(c, "folder", folder, false) || !p_str(c, "source", src, sizeof src, false) ||
+        !p_str(c, "color", color, sizeof color, false) || !p_opt_u64(c, "dpi", 300, &dpi) ||
+        !p_str(c, "format", format, sizeof format, false))
+        return;
+    escl_settings_t s = {
+        ESCL_SRC_PLATEN, ESCL_COLOR_RGB, (uint32_t) dpi, 0, 0, format[0] ? format : "image/jpeg"};
+    if (!strcmp(src, "feeder"))
+        s.source = ESCL_SRC_FEEDER;
+    else if (src[0] && strcmp(src, "platen"))
+        return fail(c, E_PARAMS, "\"source\" must be platen or feeder");
+    if (!strcmp(color, "gray"))
+        s.color = ESCL_COLOR_GRAY;
+    else if (!strcmp(color, "bw"))
+        s.color = ESCL_COLOR_BW;
+    else if (color[0] && strcmp(color, "color"))
+        return fail(c, E_PARAMS, "\"color\" must be color, gray or bw");
+    if (dpi < 75 || dpi > 1200) return fail(c, E_PARAMS, "\"dpi\" must be 75 to 1200");
+    if (strcmp(s.format, "image/jpeg") && strcmp(s.format, "application/pdf") &&
+        strcmp(s.format, "image/png"))
+        return fail(c, E_PARAMS, "\"format\" must be image/jpeg, application/pdf or image/png");
+    int rc = zph_scan(url, &s, folder, saved, ZPH_PAGES_MAX, &pages, why, sizeof why);
+    if (rc != ZPH_OK) {
+        if (pages) /* say what was kept */
+            return fail(c, ZXVD_E_DEVICE, "%s (%u page%s saved)", why, pages,
+                        pages == 1 ? "" : "s");
+        return fail(c, ZXVD_E_DEVICE, "%s", why);
+    }
+    zxvd_buf_printf(c->res, "{\"pages\":%u,\"saved\":[", pages);
+    for (uint32_t i = 0; i < pages; i++) {
+        if (i) LIT(c->res, ",");
+        zxvd_buf_json_str(c->res, saved[i]);
+    }
+    LIT(c->res, "]}");
+}
+
+/* ----- backup.* (zxv_keepsake.h): Keepsake ----- */
+
+static bool backup_done(call_t *c, int rc, int zxf, const char *why)
+{
+    if (rc == ZKS_OK) return true;
+    if (rc == ZKS_E_FILE)
+        fail(c, ZXVD_E_FILES, "%s", zxf_strerror(zxf));
+    else
+        fail(c, ZXVD_E_BACKUP, "%s", why);
+    return false;
+}
+
+static void space_head(call_t *c)
+{
+    LIT(c->res, "{\"space\":");
+    zxvd_buf_json_str(c->res, zxf_space());
+}
+
+static void m_backup_run(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    zks_run_t r;
+    int zxf;
+    bool full;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_bool(c, "full", false, &full))
+        return;
+    int rc = zks_run(dest, full, &r, &zxf, why, sizeof why);
+    if (!backup_done(c, rc, zxf, why)) return;
+    space_head(c);
+    zxvd_buf_printf(c->res,
+                    ",\"snapshot\":%u,\"time\":%lld,\"files\":%u,\"bytes\":%llu,\"new_files\":%u,"
+                    "\"new_bytes\":%llu,\"skipped\":%u}",
+                    r.snapshot, (long long) r.time, r.files, (unsigned long long) r.bytes,
+                    r.new_files, (unsigned long long) r.new_bytes, r.skipped);
+}
+
+static void m_backup_list(call_t *c)
+{
+    static zks_snap_t v[100];
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint64_t max;
+    uint32_t n, total;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_opt_u64(c, "max", 50, &max))
+        return;
+    if (max < 1 || max > 100) return fail(c, E_PARAMS, "\"max\" must be 1 to 100");
+    if (!backup_done(c, zks_list(dest, v, (uint32_t) max, &n, &total, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res, ",\"total\":%u,\"snapshots\":[", total);
+    for (uint32_t i = 0; i < n; i++)
+        zxvd_buf_printf(
+            c->res, "%s{\"snapshot\":%u,\"time\":%lld,\"files\":%u,\"bytes\":%llu,\"damaged\":%s}",
+            i ? "," : "", v[i].id, (long long) v[i].time, v[i].files,
+            (unsigned long long) v[i].bytes, v[i].damaged ? "true" : "false");
+    LIT(c->res, "]}");
+}
+
+static void m_backup_versions(call_t *c)
+{
+    static zks_version_t v[100];
+    char dest[ZKS_DEST_MAX + 1], path[ZXF_PATH_MAX + 1], why[ZKS_ERR];
+    uint32_t n;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_path(c, "path", path, true) ||
+        !backup_done(c, zks_versions(dest, path, v, 100, &n, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    LIT(c->res, ",\"versions\":[");
+    for (uint32_t i = 0; i < n; i++)
+        zxvd_buf_printf(
+            c->res,
+            "%s{\"snapshot\":%u,\"time\":%lld,\"size\":%llu,\"mtime\":%lld,\"hash\":\"%s\"}",
+            i ? "," : "", v[i].snapshot, (long long) v[i].time, (unsigned long long) v[i].size,
+            (long long) v[i].mtime, v[i].hash);
+    LIT(c->res, "]}");
+}
+
+/* "snapshot": absent or 0 = the newest */
+static bool p_snapshot(call_t *c, uint32_t *id)
+{
+    uint64_t v;
+    if (!p_opt_u64(c, "snapshot", 0, &v)) return false;
+    if (v > ZKS_SNAPS_MAX) {
+        fail(c, E_PARAMS, "\"snapshot\" must be 1 to %u (0 or absent: the newest)", ZKS_SNAPS_MAX);
+        return false;
+    }
+    *id = (uint32_t) v;
+    return true;
+}
+
+static void m_backup_verify(call_t *c)
+{
+    static zks_verify_t v;
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint32_t id;
+    if (!use_space(c, ZXS_VIEW) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_snapshot(c, &id) || !backup_done(c, zks_verify(dest, id, &v, why, sizeof why), 0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res,
+                    ",\"snapshot\":%u,\"files\":%u,\"bytes\":%llu,\"bad\":%u,\"missing\":%u,"
+                    "\"ok\":%s,\"first_bad\":",
+                    v.snapshot, v.files, (unsigned long long) v.bytes, v.bad, v.missing,
+                    v.bad || v.missing ? "false" : "true");
+    zxvd_buf_json_str(c->res, v.first_bad);
+    LIT(c->res, "}");
+}
+
+static void m_backup_restore(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], path[ZXF_PATH_MAX + 1], to[ZXF_PATH_MAX + 1];
+    char landed[ZXF_PATH_MAX + 1], why[ZKS_ERR];
+    uint32_t id, files;
+    int zxf;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_snapshot(c, &id) || !p_path(c, "path", path, false) || !p_path(c, "to", to, false))
+        return;
+    int rc = zks_restore(dest, id, path, to, landed, &files, &zxf, why, sizeof why);
+    if (!backup_done(c, rc, zxf, why)) return;
+    space_head(c);
+    LIT(c->res, ",\"to\":");
+    zxvd_buf_json_str(c->res, landed);
+    zxvd_buf_printf(c->res, ",\"files\":%u}", files);
+}
+
+static void m_backup_prune(call_t *c)
+{
+    char dest[ZKS_DEST_MAX + 1], why[ZKS_ERR];
+    uint64_t keep, freed;
+    uint32_t snaps, objects;
+    if (!use_space(c, ZXS_WRITE) || !p_str(c, "dest", dest, sizeof dest, true) ||
+        !p_opt_u64(c, "keep", 0, &keep))
+        return;
+    if (keep < 1 || keep > ZKS_SNAPS_MAX)
+        return fail(c, E_PARAMS, "\"keep\" must be 1 to %u", ZKS_SNAPS_MAX);
+    if (!backup_done(c, zks_prune(dest, (uint32_t) keep, &snaps, &objects, &freed, why, sizeof why),
+                     0, why))
+        return;
+    space_head(c);
+    zxvd_buf_printf(c->res, ",\"snapshots_removed\":%u,\"objects_removed\":%u,\"freed\":%llu}",
+                    snaps, objects, (unsigned long long) freed);
+}
+
+/* ----- screen.* (zxv_screen.h): Shepherd ----- */
+
+static bool screen_done(call_t *c, int rc)
+{
+    if (rc == 0) return true;
+    fail(c, rc == ZSC_E_ARG ? E_PARAMS : ZXVD_E_SCREEN, "%s", zsc_strerror(rc));
+    return false;
+}
+
+static void answer_json(call_t *c, const char *app, const zsc_answer_t *a, bool tick)
+{
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (tick) zxvd_buf_printf(c->res, ",\"counted\":%s", a->counted ? "true" : "false");
+    zxvd_buf_printf(c->res, ",\"allowed\":%s,\"used\":%u,\"total\":%u,\"left\":%d,\"why\":",
+                    a->allowed ? "true" : "false", a->used, a->total, (int) a->left);
+    zxvd_buf_json_str(c->res, a->why);
+    LIT(c->res, "}");
+}
+
+static void m_screen_tick(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1];
+    zsc_answer_t a;
+    if (!p_str(c, "app", app, sizeof app, true) || !screen_done(c, zsc_tick(app, &a))) return;
+    answer_json(c, app, &a, true);
+}
+
+static void m_screen_check(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1];
+    zsc_answer_t a;
+    if (!p_str(c, "app", app, sizeof app, true) || !screen_done(c, zsc_check(app, &a))) return;
+    answer_json(c, app, &a, false);
+}
+
+static void m_screen_status(call_t *c)
+{
+    uint64_t days;
+    if (!p_opt_u64(c, "days", 7, &days)) return;
+    if (days < 1 || days > ZSC_DAYS) return fail(c, E_PARAMS, "\"days\" must be 1 to %u", ZSC_DAYS);
+    uint32_t today = zsc_today();
+    zxvd_buf_printf(c->res, "{\"locked\":%s,\"reset\":%s,\"wait_s\":%lld,\"today\":%u,\"limits\":[",
+                    zsc_locked() ? "true" : "false", zsc_was_reset() ? "true" : "false",
+                    (long long) zsc_wait(), today);
+    for (uint32_t i = 0; i < zsc_limit_count(); i++) {
+        const zsc_limit_t *l = zsc_limit(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, l->app);
+        if (l->minutes < 0)
+            LIT(c->res, ",\"minutes\":null");
+        else
+            zxvd_buf_printf(c->res, ",\"minutes\":%d", (int) l->minutes);
+        zxvd_buf_printf(c->res, ",\"from\":%u,\"to\":%u,\"extra\":%u}", (unsigned) l->from,
+                        (unsigned) l->to, l->extra_date == today ? l->extra : 0u);
+    }
+    LIT(c->res, "],\"days\":[");
+    for (uint32_t d = 0; d < zsc_day_count() && d < days; d++) {
+        const zsc_day_t *y = zsc_day(d);
+        zxvd_buf_printf(c->res, "%s{\"date\":%u,\"total\":%u,\"apps\":[", d ? "," : "", y->date,
+                        y->total);
+        for (uint32_t i = 0; i < y->n; i++) {
+            if (i) LIT(c->res, ",");
+            LIT(c->res, "{\"app\":");
+            zxvd_buf_json_str(c->res, y->a[i].app);
+            zxvd_buf_printf(c->res, ",\"minutes\":%u}", y->a[i].minutes);
+        }
+        LIT(c->res, "]}");
+    }
+    LIT(c->res, "]}");
+}
+
+static bool p_pass(call_t *c, const char *key, char *out)
+{
+    return p_str(c, key, out, ZSC_PASS_MAX + 1, false);
+}
+
+static bool p_minute(call_t *c, const char *key, uint16_t *v)
+{
+    uint64_t x;
+    if (!p_opt_u64(c, key, 0, &x)) return false;
+    if (x > 1439) {
+        fail(c, E_PARAMS, "\"%s\" must be 0 to 1439 (minutes after midnight)", key);
+        return false;
+    }
+    *v = (uint16_t) x;
+    return true;
+}
+
+static void m_screen_set_limit(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    uint64_t minutes;
+    uint16_t from, to;
+    bool capped = param(c, "minutes") >= 0;
+    if (!p_str(c, "app", app, sizeof app, true) || !p_opt_u64(c, "minutes", 0, &minutes) ||
+        !p_minute(c, "from", &from) || !p_minute(c, "to", &to) || !p_pass(c, "passphrase", pass))
+        return;
+    if (minutes > 1440) return fail(c, E_PARAMS, "\"minutes\" must be 0 to 1440");
+    if (!screen_done(c, zsc_set_limit(pass, app, capped ? (int32_t) minutes : -1, from, to)))
+        return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    LIT(c->res, ",\"set\":true}");
+}
+
+static void m_screen_clear_limit(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, true) || !p_pass(c, "passphrase", pass) ||
+        !screen_done(c, zsc_clear_limit(pass, app)))
+        return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    LIT(c->res, ",\"cleared\":true}");
+}
+
+static void m_screen_grant(call_t *c)
+{
+    char app[ZSC_APP_MAX + 1], pass[ZSC_PASS_MAX + 1];
+    uint64_t minutes;
+    if (!p_str(c, "app", app, sizeof app, true) || !p_opt_u64(c, "minutes", 0, &minutes) ||
+        !p_pass(c, "passphrase", pass))
+        return;
+    if (minutes < 1 || minutes > 1440) return fail(c, E_PARAMS, "\"minutes\" must be 1 to 1440");
+    if (!screen_done(c, zsc_grant(pass, app, (uint32_t) minutes))) return;
+    zsc_answer_t a;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (strcmp(app, ZSC_ALL) && zsc_check(app, &a) == 0)
+        zxvd_buf_printf(c->res, ",\"left\":%d}", (int) a.left);
+    else
+        LIT(c->res, "}");
+}
+
+static void m_screen_lock(call_t *c)
+{
+    char pass[ZSC_PASS_MAX + 1], old[ZSC_PASS_MAX + 1];
+    if (!p_str(c, "passphrase", pass, sizeof pass, true) || !p_pass(c, "old", old)) return;
+    if (pass[0] && strlen(pass) < ZSC_PASS_MIN)
+        return fail(c, E_PARAMS, "\"passphrase\" must be at least %u bytes, or \"\" to unlock",
+                    ZSC_PASS_MIN);
+    if (!screen_done(c, zsc_lock(old, pass))) return;
+    zxvd_buf_printf(c->res, "{\"locked\":%s}", zsc_locked() ? "true" : "false");
+}
+
+/* ----- place.* (zxv_place.h): Waymark ----- */
+
+static bool place_done(call_t *c, int rc)
+{
+    if (rc == 0) return true;
+    fail(c, rc == ZPL_E_ARG ? E_PARAMS : ZXVD_E_PLACE, "%s", zpl_strerror(rc));
+    return false;
+}
+
+static void here_json(zxvd_buf_t *b, const zpl_here_t *h)
+{
+    zxvd_buf_printf(b, "\"lat\":%ld,\"lon\":%ld,\"accuracy_m\":%u,\"source\":", (long) h->at.lat,
+                    (long) h->at.lon, h->accuracy_m);
+    zxvd_buf_json_str(b, h->source);
+    zxvd_buf_printf(b, ",\"time\":%lld", (long long) h->time);
+}
+
+static void m_place_here(call_t *c)
+{
+    const zpl_here_t *h = zpl_here();
+    if (!h->known) {
+        LIT(c->res, "{\"known\":false}");
+        return;
+    }
+    LIT(c->res, "{\"known\":true,");
+    here_json(c->res, h);
+    zxvd_buf_printf(c->res, ",\"stale\":%s}", zpl_stale() ? "true" : "false");
+}
+
+static bool p_point(call_t *c, zpl_point_t *at)
+{
+    int64_t lat, lon;
+    if (!p_i64(c, "lat", &lat) || !p_i64(c, "lon", &lon)) return false;
+    if (lat < -ZPL_LAT_MAX || lat > ZPL_LAT_MAX || lon < -ZPL_LON_MAX || lon > ZPL_LON_MAX) {
+        fail(c, E_PARAMS,
+             "\"lat\" and \"lon\" are millionths of a degree: lat within 90, lon "
+             "within 180 degrees");
+        return false;
+    }
+    at->lat = (int32_t) lat;
+    at->lon = (int32_t) lon;
+    return true;
+}
+
+static void m_place_set_here(call_t *c)
+{
+    zpl_point_t at;
+    uint64_t acc;
+    char src[ZPL_SRC_MAX + 1];
+    if (!p_point(c, &at) || !p_opt_u64(c, "accuracy_m", 50, &acc) ||
+        !p_str(c, "source", src, sizeof src, false))
+        return;
+    if (acc < 1 || acc > 1000000) return fail(c, E_PARAMS, "\"accuracy_m\" must be 1 to 1000000");
+    if (!place_done(c, zpl_set_here(at, (uint32_t) acc, src[0] ? src : "owner"))) return;
+    m_place_here(c);
+}
+
+static void m_place_forget_here(call_t *c)
+{
+    zpl_forget_here();
+    LIT(c->res, "{\"known\":false}");
+}
+
+static void m_place_ask(call_t *c)
+{
+    char app[ZPL_APP_MAX + 1];
+    zpl_here_t h;
+    if (!p_str(c, "app", app, sizeof app, true)) return;
+    int rc = zpl_ask(app, &h);
+    if (rc == ZPL_E_ARG || rc == ZPL_E_FULL) {
+        place_done(c, rc);
+        return;
+    }
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    if (rc == 0) {
+        LIT(c->res, ",\"answer\":\"allowed\",");
+        here_json(c->res, &h);
+        LIT(c->res, "}");
+        return;
+    }
+    zxvd_buf_printf(c->res, ",\"answer\":\"%s\"}",
+                    rc == ZPL_E_PENDING  ? "pending"
+                    : rc == ZPL_E_DENIED ? "never"
+                                         : "unknown");
+}
+
+static void m_place_permit(call_t *c)
+{
+    char app[ZPL_APP_MAX + 1], mode[8];
+    if (!p_str(c, "app", app, sizeof app, true) || !p_str(c, "mode", mode, sizeof mode, true))
+        return;
+    int m = zpl_mode_parse(mode);
+    if (m < 0) return fail(c, E_PARAMS, "\"mode\" must be ask, once, always or never");
+    if (!place_done(c, zpl_permit(app, (zpl_mode_t) m))) return;
+    LIT(c->res, "{\"app\":");
+    zxvd_buf_json_str(c->res, app);
+    zxvd_buf_printf(c->res, ",\"mode\":\"%s\"}", zpl_mode_name((zpl_mode_t) m));
+}
+
+static void m_place_apps(call_t *c)
+{
+    LIT(c->res, "{\"apps\":[");
+    for (uint32_t i = 0; i < zpl_app_count(); i++) {
+        const zpl_app_t *a = zpl_app(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"app\":");
+        zxvd_buf_json_str(c->res, a->app);
+        zxvd_buf_printf(c->res, ",\"mode\":\"%s\",\"pending\":%s,\"asked\":%lld}",
+                        zpl_mode_name((zpl_mode_t) a->mode), a->pending ? "true" : "false",
+                        (long long) a->asked);
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_place_list(call_t *c)
+{
+    const zpl_here_t *h = zpl_here();
+    zxvd_buf_printf(c->res, "{\"reset\":%s,\"places\":[", zpl_was_reset() ? "true" : "false");
+    for (uint32_t i = 0; i < zpl_count(); i++) {
+        const zpl_place_t *p = zpl_place(i);
+        if (i) LIT(c->res, ",");
+        LIT(c->res, "{\"name\":");
+        zxvd_buf_json_str(c->res, p->name);
+        zxvd_buf_printf(c->res, ",\"lat\":%ld,\"lon\":%ld,\"note\":", (long) p->at.lat,
+                        (long) p->at.lon);
+        zxvd_buf_json_str(c->res, p->note);
+        if (h->known)
+            zxvd_buf_printf(c->res, ",\"distance_m\":%llu}",
+                            (unsigned long long) zpl_distance_m(h->at, p->at));
+        else
+            LIT(c->res, ",\"distance_m\":null}");
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_place_add(call_t *c)
+{
+    char name[ZPL_NAME_MAX + 1], note[ZPL_NOTE_MAX + 1];
+    zpl_point_t at;
+    if (!p_str(c, "name", name, sizeof name, true) || !p_point(c, &at) ||
+        !p_str(c, "note", note, sizeof note, false) || !place_done(c, zpl_add(name, at, note)))
+        return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, name);
+    LIT(c->res, ",\"added\":true}");
+}
+
+static void m_place_remove(call_t *c)
+{
+    char name[ZPL_NAME_MAX + 1];
+    if (!p_str(c, "name", name, sizeof name, true) || !place_done(c, zpl_remove(name))) return;
+    LIT(c->res, "{\"name\":");
+    zxvd_buf_json_str(c->res, name);
+    LIT(c->res, ",\"removed\":true}");
+}
+
 /* ----- phone.* (zxvd_phone.h) ----- */
 static const zxvd_phone_ops_t *PHONE;
 
@@ -2444,6 +3325,42 @@ static const method_t METHODS[] = {
     {"devmesh.devices", m_people, PH_NO},
     {"ui.get", m_people, PH_NO},
     {"ui.set", m_people, PH_NO},
+    {"sys.info", m_sys_info, PH_NO},
+    {"sys.disk", m_sys_disk, PH_NO},
+    {"sys.net", m_sys_net, PH_NO},
+    {"log.tail", m_log_tail, PH_NO},
+    {"journal.query", m_journal_query, PH_NO},
+    {"journal.verify", m_journal_verify, PH_NO},
+    {"screen.tick", m_screen_tick, PH_NO},
+    {"screen.check", m_screen_check, PH_NO},
+    {"screen.status", m_screen_status, PH_NO},
+    {"screen.set_limit", m_screen_set_limit, PH_NO},
+    {"screen.clear_limit", m_screen_clear_limit, PH_NO},
+    {"screen.grant", m_screen_grant, PH_NO},
+    {"screen.lock", m_screen_lock, PH_NO},
+    {"place.here", m_place_here, PH_NO},
+    {"place.set_here", m_place_set_here, PH_NO},
+    {"place.forget_here", m_place_forget_here, PH_NO},
+    {"place.ask", m_place_ask, PH_NO},
+    {"place.permit", m_place_permit, PH_NO},
+    {"place.apps", m_place_apps, PH_NO},
+    {"place.list", m_place_list, PH_NO},
+    {"place.add", m_place_add, PH_NO},
+    {"place.remove", m_place_remove, PH_NO},
+    {"search.refresh", m_search_refresh, PH_NO},
+    {"search.query", m_search_query, PH_NO},
+    {"print.status", m_print_status, PH_NO},
+    {"print.submit", m_print_submit, PH_NO},
+    {"print.job", m_print_job, PH_NO},
+    {"print.cancel", m_print_cancel, PH_NO},
+    {"scan.status", m_scan_status, PH_NO},
+    {"scan.start", m_scan_start, PH_NO},
+    {"backup.run", m_backup_run, PH_NO},
+    {"backup.list", m_backup_list, PH_NO},
+    {"backup.versions", m_backup_versions, PH_NO},
+    {"backup.verify", m_backup_verify, PH_NO},
+    {"backup.restore", m_backup_restore, PH_NO},
+    {"backup.prune", m_backup_prune, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2749,9 +3666,17 @@ static void put_id(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32_t 
     }
 }
 
+/* the outcome of the request being answered, for the log (zxvd_log.h L2:
+ * the method and the error, never the parameters) */
+static int LAST_ERR;
+static char LAST_MSG[96];
+static const char *LAST_METHOD;
+
 static void put_error(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32_t id, int code,
                       const char *msg, int32_t zst)
 {
+    LAST_ERR = code;
+    snprintf(LAST_MSG, sizeof LAST_MSG, "%s", msg);
     zxvd_buf_raw(out, "{\"jsonrpc\":\"2.0\",\"id\":", 22);
     put_id(out, js, t, id);
     zxvd_buf_printf(out, ",\"error\":{\"code\":%d,\"message\":", code);
@@ -2764,6 +3689,28 @@ static void put_error(zxvd_buf_t *out, const char *js, const w4_jtok_t *t, int32
         zxvd_buf_printf(out, ",\"class\":\"%s\"}", k >= 0 && k <= 4 ? CLASS[k] : "SYSTEM");
     }
     zxvd_buf_raw(out, "}}", 2);
+}
+
+static bool handle_line(const char *line, size_t len, zxvd_buf_t *out);
+
+/* Polled read-only methods stay out of the log, or a window open on them
+ * would push every other event out of the ring. */
+static bool quiet(const char *m)
+{
+    static const char *const Q[] = {
+        "rpc.discover",    "zxvd.version",     "swarm.state",   "model.info",     "notes.list",
+        "net.peers",       "net.offers",       "player.card",   "peer.status",    "ledger.balance",
+        "ledger.accounts", "ledger.entries",   "ledger.check",  "swarm.earnings", "mesh.books",
+        "books.file",      "jurisdiction.get", "aipi.get",      "aipi.status",    "files.root",
+        "files.list",      "files.stat",       "files.read",    "spaces.list",    "spaces.get",
+        "sys.info",        "sys.disk",         "sys.net",       "log.tail",       "update.check",
+        "search.query",    "search.refresh",   "print.status",  "print.job",      "scan.status",
+        "backup.list",     "backup.versions",  "backup.verify", "journal.query",  "journal.verify",
+        "screen.tick",     "screen.check",     "screen.status", "place.here",     "place.ask",
+        "place.apps",      "place.list"};
+    for (size_t i = 0; i < sizeof Q / sizeof *Q; i++)
+        if (!strcmp(m, Q[i])) return true;
+    return false;
 }
 
 /* where the request being handled came from: 0 the control socket, else a
@@ -2779,6 +3726,22 @@ bool zxvd_rpc_handle_phone_line(const char *line, size_t len, zxvd_buf_t *out, b
 }
 
 bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
+{
+    uint64_t t0 = zxvd_mono_us();
+    LAST_ERR = 0;
+    LAST_METHOD = NULL;
+    bool reply = handle_line(line, len, out);
+    uint64_t us = zxvd_mono_us() - t0;
+    zxvd_traffic_add(len, reply ? out->len : 0, LAST_ERR != 0, us);
+    const char *m = LAST_METHOD ? LAST_METHOD : "(no method)";
+    if (LAST_ERR)
+        zxvd_log(ZXVD_LOG_WARN, "rpc", "%s refused (%d): %s", m, LAST_ERR, LAST_MSG);
+    else if (LAST_METHOD && !quiet(m))
+        zxvd_log(ZXVD_LOG_INFO, "rpc", "%s done in %llu ms", m, (unsigned long long) (us / 1000u));
+    return reply;
+}
+
+static bool handle_line(const char *line, size_t len, zxvd_buf_t *out)
 {
     static w4_jtok_t t[MAX_TOK];
     out->len = 0;
@@ -2828,9 +3791,13 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
     for (size_t i = 0; i < N_METHODS; i++)
         if (w4_json_str_eq(line, &t[m], METHODS[i].name)) fn = &METHODS[i];
     void (*ext)(call_t *) = NULL;
+    const char *ext_name = NULL;
     for (uint32_t i = 0; !fn && !ext && i < N_EXT; i++)
         for (uint32_t j = 0; !ext && j < EXT[i].n; j++)
-            if (w4_json_str_eq(line, &t[m], EXT[i].m[j].name)) ext = EXT[i].m[j].fn;
+            if (w4_json_str_eq(line, &t[m], EXT[i].m[j].name)) {
+                ext = EXT[i].m[j].fn;
+                ext_name = EXT[i].m[j].name;
+            }
     const zxvd_group_method_t *gm = NULL;
     const zxvd_group_t *grp = NULL;
     for (uint32_t g = 0; !fn && !ext && !gm && g < N_GROUPS; g++)
@@ -2845,6 +3812,7 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
+    LAST_METHOD = fn ? fn->name : gm ? gm->name : ext_name;
     /* host tables and method groups carry no phone rule: control socket only (A2) */
     uint8_t ph = fn ? fn->phone : PH_NO;
     if (ORIGIN && (ph == PH_NO || (ph == PH_POST && ORIGIN != PH_POST))) {

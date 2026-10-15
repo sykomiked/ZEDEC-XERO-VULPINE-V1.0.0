@@ -89,6 +89,10 @@ CODE = {
     'social.group_create', 'call.status', 'call.accept', 'call.hangup', 'call.start',
     'xlate.languages', 'xlate.detect', 'xlate.translate', 'devmesh.status', 'devmesh.devices',
     'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.invite', 'devmesh.join',
+    # screen time for Shepherd (zxv_screen.h SC1): the note's id, the events
+    # that count as use, the method and the app ids it records
+    'shepherd', 'mousemove', 'pointerdown', 'wheel', 'screen.tick', 'murmuration', 'burrow',
+    'quillon', 'glint', 'spindle',
 }
 
 VISIBLE_ATTRS = {'title', 'placeholder', 'alt', 'label', 'aria-label', 'aria-description', 'value'}

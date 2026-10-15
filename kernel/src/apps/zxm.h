@@ -90,6 +90,7 @@ void zxm_begin(zxm_link_t *l, const char *method);
 void zxm_p_str(zxm_link_t *l, const char *key, const char *val);
 void zxm_p_strn(zxm_link_t *l, const char *key, const char *val, uint32_t n);
 void zxm_p_u64(zxm_link_t *l, const char *key, uint64_t v);
+void zxm_p_i64(zxm_link_t *l, const char *key, int64_t v);
 void zxm_p_bool(zxm_link_t *l, const char *key, bool v);
 /* params given as a ready JSON object (Spindle), instead of zxm_p_* */
 void zxm_p_raw(zxm_link_t *l, const char *json_obj, uint32_t n);
@@ -141,5 +142,9 @@ typedef struct {
  * `input` as fits; the answer goes into `held` as PENDING with its cost. */
 int zxm_ai_ask(zxm_link_t *l, const zxm_ai_action_t *act, int32_t idx, const char *instruction,
                const char *input, uint32_t input_len, zxm_held_t *held);
+/* The owner's word on a pending answer: accept marks it read (it changes
+ * nothing by itself), reject drops it. ZXM_E_STATE when none is pending. */
+int zxm_held_accept(zxm_held_t *held);
+int zxm_held_reject(zxm_held_t *held);
 
 #endif
