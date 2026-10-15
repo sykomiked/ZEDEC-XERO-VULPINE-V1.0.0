@@ -1,6 +1,6 @@
 # Wave 23 task: Relume (slot 273), Disaster recovery
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (010 keepsake); wave 2 (011 lifeboat); wave 12 (145 cartulary); wave 21 (253 fell); wave 22 (266 thaw).
+Depends on: wave 0 (010 keepsake), wave 4 (011 lifeboat), wave 12 (145 cartulary), wave 21 (253 fell), wave 22 (266 thaw).
 Manifest: `slot 273`, `layer L3`, `icon icons/l3/273-relume.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: brings a business or household back after a disaster: restores files, books and services in the right order from signed backups (`backup.list`, `backup.verify`, `backup.restore`), checking the books (`ledger.check`) and the journal (`journal.verify`).
 Uses: `use thaw 1` (Thaw's rebuild plan and checks); `use cartulary 1` (version prune truth, retention days); `use fell 1` (team room and casualty records, for people to rally); `use keepsake 1` (`keepsake.keep_ok`, `keepsake.removed`); `use lifeboat 1` ("safe to start normally", next repair step, "restore fits"). Call these composed entries; do not re-implement them.

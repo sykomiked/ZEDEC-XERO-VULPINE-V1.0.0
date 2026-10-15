@@ -1,6 +1,6 @@
 # Wave 19 task: Levin (slot 236), Home wiring planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (021 brazier); wave 7 (094 homestead); wave 9 (109 tally); wave 10 (128 mockingbird).
+Depends on: wave 1 (109 tally), wave 3 (128 mockingbird), wave 5 (021 brazier), wave 9 (094 homestead).
 Manifest: `slot 236`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/236-levin.svg`, `budget 233`, model `apps/levin_model.{h,c}`, blocks under kernel/src/apps/blocks/levin/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Plans home wiring: circuits, load calculations, test runs and safety checks, kept in the Hoard (`files.read`, `files.write`); the machine's own draw from `power.status`. Meter and clamp readings have no method: use only existing methods; list what's missing in your report.
 Uses: `use homestead 1` ("command allowed" and energy totals); `use brazier 1` (temperature limits); `use mockingbird 1` (boot self-check (every stage's code 0 in order), reused for a test run's steps); `use tally 1` (rational arithmetic). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

@@ -1,6 +1,6 @@
 # Wave 12 task: Pannier (slot 150), Store-and-forward carrier
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 2 (026 rookery, 029 trellis, 031 pollen), wave 7 (090 caravan).
+Depends on: wave 2 (029 trellis, 090 caravan), wave 5 (026 rookery, 031 pollen).
 Manifest: `slot 150`, `layer L2`, `icon icons/l2/150-pannier.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: carries messages and data parcels store-and-forward between peers (`net.peers`, `peer.status`), cut into freights that survive lost packets (`freight.pack`, `freight.unpack`), with the queue in the Hoard (`files.read`, `files.write`). zxvd has no method for a store-and-forward relay queue in the daemon: use only existing methods; list what's missing in your report.
 Uses: `use rookery 1` ("may this be sent", size limits, folder and thread index); `use trellis 1` (peers per state, peer record); `use pollen 1` ("fits on the receiver", chunk plan); `use caravan 1` (shipment records, the tracking pattern for a parcel). Call these composed entries; do not re-implement them.

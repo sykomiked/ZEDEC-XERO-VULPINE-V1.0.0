@@ -1,6 +1,6 @@
 # Wave 18 task: Spindrift (slot 223), Interactive story publishing
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (039 folio, 033 seedbank); wave 4 (053 gesso, 056 cutwater); wave 8 (108 talewind).
+Depends on: wave 3 (033 seedbank, 053 gesso), wave 7 (039 folio), wave 8 (056 cutwater), wave 10 (108 talewind).
 Manifest: `slot 223`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/223-spindrift.svg`, `budget 233`, model `apps/spindrift_model.{h,c}`, blocks under kernel/src/apps/blocks/spindrift/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Writes, illustrates and publishes interactive stories: stories and art in the Hoard (`files.read`, `files.write`), AI-drafted passages from `swarm.ask` held for the author, published to IPFS (`aipi.put`, `web4.cid`) and recorded on the author's space (`spaces.get`, `spaces.set_cid`), printed with `print.submit`.
 Uses: `use talewind 1` ("choice shown" and the story graph); `use folio 1` (page fit); `use gesso 1` (pixel operations over rows); `use seedbank 1` (CID check and size limits); `use cutwater 1` ("edit list valid" for clips in a story). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

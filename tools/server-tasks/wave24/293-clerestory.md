@@ -1,6 +1,6 @@
 # Wave 24 task: Clerestory (slot 293), Research project
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (037 quillon); wave 5 (069 quarry); wave 12 (151 lectern); wave 13 (168 bindery); wave 19 (233 stratum).
+Depends on: wave 0 (037 quillon), wave 8 (069 quarry), wave 12 (151 lectern), wave 13 (168 bindery), wave 19 (233 stratum).
 Manifest: `slot 293`, `layer L3`, `icon icons/l3/293-clerestory.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: supports a research project end to end: reading lists, notes, citations, drafts and supervisor feedback in the Hoard (`files.read`, `files.write`, `search.query`), grant spending kept as a Hoard file.
 Uses: `use lectern 1` (cards from highlights, citation register); `use stratum 1` (source agreement and conflict); `use bindery 1` ("may lend" for library copies); `use quarry 1` ("this claim has a source"); `use quillon 1` (`quillon.size_ok`). Call these composed entries; do not re-implement them.

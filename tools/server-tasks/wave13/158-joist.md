@@ -1,6 +1,6 @@
 # Wave 13 task: Joist (slot 158), Construction planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (040 furrow, 045 bowline), wave 5 (060 relief), wave 9 (109 tally).
+Depends on: wave 1 (109 tally), wave 3 (060 relief), wave 7 (040 furrow, 045 bowline).
 Manifest: `slot 158`, `layer L2`, `icon icons/l2/158-joist.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: plans construction projects: structure models, materials, costs and task schedules, kept in the Hoard (`files.read`, `files.write`).
 Uses: `use furrow 1` (sums, money cells); `use bowline 1` (next due, overdue); `use relief 1` (vertex transform, mesh volume, mesh limits); `use tally 1` (rationals, unit factors). Call these composed entries; do not re-implement them.

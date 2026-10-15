@@ -16,6 +16,13 @@ differs, or when:
   * two manifests provide the same name and it is neither a concept nor a
     local word (register it, with one owner, or list it as local);
   * a name is claimed by two concepts, or by a concept and the local list.
+
+Each app's reuse figure is printed and written into the table: the blocks
+it uses (each `use` line, an earlier app or a shared block) against the new
+entries it writes itself (its `provides` lines, re-exports of a composed
+entry not counted), as used / (used + new) in whole per cent. Apps are
+built in matrix order (tools/server-tasks/MATRIX_ORDER.tsv) so that later
+ones find more to use.
 """
 import argparse
 import os
@@ -115,6 +122,13 @@ def build():
     return concepts, mans, errors
 
 
+def reuse(m):
+    """(blocks used, new entries written, whole per cent used)."""
+    used = len(m["uses"])
+    new = sum(1 for n, _, _ in m["provides"] if "." not in n)
+    return used, new, (used * 100 // (used + new)) if used + new else 0
+
+
 def render(concepts, mans):
     out = [
         "<!--",
@@ -140,15 +154,18 @@ def render(concepts, mans):
     for c in concepts:
         out.append(f"| {c['concept']} | `{c['owner']}` | {', '.join(c['names'])} | {c['meaning']} |")
     out += ["", "## Apps and blocks", "",
-            "| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) |",
-            "|---|---|---|---|---|"]
+            "Reuse is blocks used against new entries written, used / (used + new).",
+            "",
+            "| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) | Reuse |",
+            "|---|---|---|---|---|---|"]
     for m in mans:
         prov = "<br>".join(
             f"`{n} {k}{(' ' + ' '.join(a)) if a else ''}`: {', '.join(m['langs'].get(n, ['(composed)']))}"
             for n, k, a in m["provides"]) or "-"
         kind = "block" if m["file"].endswith(".zxblock") else (m["layer"] or "example")
+        u, n, pc = reuse(m)
         out.append(f"| {m['id']} {m['version']} | {m['slot'] or '-'} | {kind} | "
-                   f"{', '.join(m['uses']) or '-'} | {prov} |")
+                   f"{', '.join(m['uses']) or '-'} | {prov} | {u} used, {n} new: {pc}% |")
     return "\n".join(out) + "\n"
 
 
@@ -169,6 +186,10 @@ def main():
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(text)
     print(f"wrote {os.path.relpath(OUT, ROOT)}")
+    for m in mans:
+        if m["slot"]:
+            u, n, pc = reuse(m)
+            print(f"reuse {m['id']}: used {u}, new {n}, {pc}%")
     return 1 if errors else 0
 
 

@@ -1,6 +1,6 @@
 # Wave 18 task: Tarn (slot 224), Breathing and calm
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 4 (055 birdsong); wave 7 (089 wellspring); wave 9 (110 sundial); wave 11 (144 stillwater).
+Depends on: wave 6 (110 sundial), wave 8 (055 birdsong, 089 wellspring), wave 11 (144 stillwater).
 Manifest: `slot 224`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/224-tarn.svg`, `budget 233`, model `apps/tarn_model.{h,c}`, blocks under kernel/src/apps/blocks/tarn/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Guides breathing and focus sessions and logs calm and sleep over time (advice only): sessions and logs in the Hoard (`files.read`, `files.write`), quiet windows and notices (`notes.list`, `screen.status`), the clock from `sys.info`. Readings from a heart-rate or sleep sensor have no method: use only existing methods; list what's missing in your report.
 Uses: `use stillwater 1` ("in a quiet window now"); `use wellspring 1` ("outside a safe range" and weekly totals); `use sundial 1` (local time and minutes until the next alarm); `use birdsong 1` (gain and clip for the guide sounds). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

@@ -1,6 +1,6 @@
 # Wave 17 task: Lampwright (slot 205), Lighting scenes
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 5 (060 relief), wave 7 (094 homestead), wave 9 (116 dyer), wave 11 (138 tint).
+Depends on: wave 3 (060 relief), wave 9 (094 homestead), wave 10 (116 dyer), wave 11 (138 tint).
 Manifest: `slot 205`, `layer L2`, `icon icons/l2/205-lampwright.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: sets ambient lighting and display scenes across rooms and screens with colour care, reading `ui.get`, `sys.info` and `power.status`. zxvd has no method for lighting device control, display colour set: use only existing methods; list what's missing in your report.
 Uses: `use relief 1` (vertex transform to place lights in the room model); `use homestead 1` ("command allowed", energy totals); `use dyer 1` (RGB to HSL, contrast); `use tint 1` (flash guard, intensity limits, filter matrix). Call these composed entries; do not re-implement them.

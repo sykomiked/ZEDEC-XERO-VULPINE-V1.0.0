@@ -1,6 +1,6 @@
 # Wave 23 task: Gibbous (slot 283), Body clock
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (089 wellspring); wave 12 (148 poultice); wave 14 (172 escapement); wave 16 (198 taper); wave 18 (224 tarn).
+Depends on: wave 8 (089 wellspring), wave 12 (148 poultice), wave 14 (172 escapement), wave 16 (198 taper), wave 18 (224 tarn).
 Manifest: `slot 283`, `layer L3`, `icon icons/l3/283-gibbous.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: tracks sleep, light exposure and body clock, suggesting gentle routines for better rest (advice only), from the Hoard (`files.read`, `files.write`), `screen.status` and `sys.info`. zxvd has no method for wearable and light sensor readings: use only existing methods; list what's missing in your report.
 Uses: `use taper 1` ("may wake now", sleep midpoint); `use tarn 1` (breathing sessions, calm log); `use poultice 1` (care plan doses, if one is kept); `use escapement 1` (clock offset); `use wellspring 1` ("outside a safe range", weekly totals). Call these composed entries; do not re-implement them.

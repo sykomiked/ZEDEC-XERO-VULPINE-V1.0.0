@@ -1,6 +1,6 @@
 # Wave 14 task: Caliper (slot 177), Measurement and tolerance
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (040 furrow), wave 5 (060 relief), wave 8 (107 gnomon), wave 9 (109 tally).
+Depends on: wave 1 (109 tally), wave 3 (060 relief), wave 7 (040 furrow), wave 9 (107 gnomon).
 Manifest: `slot 177`, `layer L2`, `icon icons/l2/177-caliper.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: measures parts and structures and checks them against design tolerances with exact integer maths, records in the Hoard (`files.read`, `files.write`). zxvd has no method for instrument readings input: use only existing methods; list what's missing in your report.
 Uses: `use furrow 1` (sums); `use relief 1` (vertex transform, mesh volume); `use gnomon 1` (twice the area, squared side lengths); `use tally 1` (rationals, unit factors). Call these composed entries; do not re-implement them.

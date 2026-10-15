@@ -1,0 +1,7 @@
+# Wave 3 task: Relief (slot 60), 3D modelling and the depth effect
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 60, build position 26 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Kitling (layer 62, wave 1, an earlier wave: `use kitling 1`); Trellis (layer 29, wave 2, an earlier wave: `use trellis 1`); Coffer (layer 73, wave 4, a later wave (a cycle): `use coffer 1`). Take every idea those layers own from them (`use` the built ones and call `<id>.<entry>`; for one not built yet, list the entry in your report and do not write it here). 2 other layers lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: models as files in the Hoard (`files.read`, `files.write`).
+Logic (critical): vertex transform (rotate, scale, project in fixed point) in C++ wasm + kron witnessed; depth effect layer offsets in kron; mesh volume (signed tetrahedra) exact in trebago; mesh limits (vertices, faces) in eve; model record in myra.
+needs: fs.read, fs.write.
+Planned (no runtime yet): Julia, Mojo, Simula 67.

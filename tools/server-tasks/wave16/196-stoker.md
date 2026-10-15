@@ -1,6 +1,6 @@
 # Wave 16 task: Stoker (slot 196), Model runner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (021 brazier), wave 5 (064 granary, 070 retort, 066 temper, 065 hatchery).
+Depends on: wave 1 (070 retort), wave 5 (021 brazier), wave 6 (064 granary), wave 8 (065 hatchery, 066 temper).
 Manifest: `slot 196`, `layer L2`, `icon icons/l2/196-stoker.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: runs models on the fastest hardware present, GPU first: picks the backend, places weights in video memory, checks each model's signature and licence (`model.info`), and reports speed per watt (`power.status`, `power.top`, `sys.info`, `swarm.state`). zxvd has no method for GPU and backend enumeration, video-memory placement: use only existing methods; list what's missing in your report.
 Uses: `use granary 1` ("licence allows this use", "fits on disk", memory need); `use retort 1` (latency min and max, run limits, energy per answer); `use temper 1` (octane grade, budget record); `use brazier 1` (temperature limits); `use hatchery 1` (agent limits). Call these composed entries; do not re-implement them.

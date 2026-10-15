@@ -1,6 +1,6 @@
 # Wave 32 task: Piccolo (slot 385), Pollinator gardens
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 12 (149 dibber); wave 15 (185 skep, 192 coppice); wave 19 (230 fen); wave 8 (102 fieldguide).
+Depends on: wave 9 (102 fieldguide), wave 12 (149 dibber), wave 15 (185 skep, 192 coppice), wave 19 (230 fen).
 Manifest: `slot 385`, `layer L3`, `version 1.0.0`, `icon icons/l3/385-piccolo.svg`, `budget 233`, model `apps/piccolo_model.{h,c}`, blocks under kernel/src/apps/blocks/piccolo/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Plans pollinator-friendly gardens and tracks bees, birds and blooms with neighbours: beds and sightings in the Hoard (`files.read`, `files.write`, `search.query`), places (`place.here`, `place.list`), the neighbours' circle (`social.post`, `social.feed`).
 Uses: `use dibber 1` (water per bed and the bed grid); `use skep 1` (task placement and the grant ledger); `use fen 1` ("may share this specimen's location"); `use coppice 1` ("felling allowed"); `use fieldguide 1` ("show a caution"). Call these composed entries; do not re-implement them.

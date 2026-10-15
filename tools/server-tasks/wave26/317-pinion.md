@@ -1,6 +1,6 @@
 # Wave 26 task: Pinion (slot 317), Factory maintenance
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (015 tidewatch); wave 1 (024 treadle); wave 12 (152 ratchet); wave 14 (172 escapement); wave 16 (201 gearwright).
+Depends on: wave 0 (015 tidewatch), wave 6 (024 treadle), wave 12 (152 ratchet), wave 14 (172 escapement), wave 16 (201 gearwright).
 Manifest: `slot 317`, `layer L3`, `icon icons/l3/317-pinion.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: automates and maintains factory equipment: machine states, predictive maintenance, spare parts and downtime (`sys.info`, `files.read`, `files.write`). zxvd has no method for machine sensor readings and control: use only existing methods; list what's missing in your report.
 Uses: `use ratchet 1` ("fault", wear, next repair step); `use gearwright 1` ("motion allowed", end position); `use escapement 1` ("job may run"); `use treadle 1` (next run time, task record); `use tidewatch 1` (`tidewatch.cpu_x100`, `tidewatch.peak`). Call these composed entries; do not re-implement them.

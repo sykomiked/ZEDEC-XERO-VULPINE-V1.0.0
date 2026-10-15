@@ -1,6 +1,6 @@
 # Wave 23 task: Volute (slot 280), Fish farm
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (091 vintner); wave 14 (179 cupel, 172 escapement); wave 15 (187 creel, 190 shipwright).
+Depends on: wave 1 (091 vintner), wave 14 (172 escapement, 179 cupel), wave 15 (187 creel, 190 shipwright).
 Manifest: `slot 280`, `layer L3`, `icon icons/l3/280-volute.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs a fish or shellfish farm: water readings, feeding schedules, stock health and harvest sales (`files.read`, `files.write`, `ledger.entries`, `ledger.post`, `ledger.hold`, `place.here`). zxvd has no method for water probe readings: use only existing methods; list what's missing in your report.
 Uses: `use creel 1` (quota left, catch sales); `use shipwright 1` ("warn this district", water level ahead); `use cupel 1` (integer step, precision bounds); `use escapement 1` (clock offset, "job may run" for feeding times); `use vintner 1` (volume through the stages conserved, sale value). Call these composed entries; do not re-implement them.

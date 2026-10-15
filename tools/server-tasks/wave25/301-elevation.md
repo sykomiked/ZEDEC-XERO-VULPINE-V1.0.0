@@ -1,6 +1,6 @@
 # Wave 25 task: Elevation (slot 301), Building design
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 5 (060 relief); wave 13 (158 joist); wave 14 (177 caliper); wave 15 (184 trowel); wave 18 (227 cirque).
+Depends on: wave 3 (060 relief), wave 13 (158 joist), wave 14 (177 caliper), wave 15 (184 trowel), wave 18 (227 cirque).
 Manifest: `slot 301`, `layer L3`, `icon icons/l3/301-elevation.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: designs buildings from sketch to construction drawings, with structure checks, materials and cost (`files.read`, `files.write`, `print.submit`).
 Uses: `use cirque 1` (building drawings, measurements); `use joist 1` (bill of quantities, "within the safety margin"); `use caliper 1` ("within tolerance"); `use trowel 1` ("safety check overdue"); `use relief 1` (vertex transform, mesh volume). Call these composed entries; do not re-implement them.

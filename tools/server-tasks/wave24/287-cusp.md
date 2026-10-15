@@ -1,6 +1,6 @@
 # Wave 24 task: Cusp (slot 287), Livestock
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 3 (044 kindred); wave 12 (148 poultice); wave 14 (170 sheaf); wave 19 (234 neap); wave 21 (255 glebe).
+Depends on: wave 7 (044 kindred), wave 12 (148 poultice), wave 14 (170 sheaf), wave 19 (234 neap), wave 21 (255 glebe).
 Manifest: `slot 287`, `layer L3`, `icon icons/l3/287-cusp.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: manages livestock: herd records, breeding, grazing rotation, vet visits and sales (`ledger.entries`, `ledger.post`, `net.offers`, `files.read`, `files.write`, `place.list`).
 Uses: `use sheaf 1` (farm accounts, "application allowed"); `use glebe 1` (field plans); `use poultice 1` ("dose within the declared limit" for animal treatments); `use neap 1` ("entry may post"); `use kindred 1` (contact index for buyers and vets). Call these composed entries; do not re-implement them.

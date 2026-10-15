@@ -1,6 +1,6 @@
 # Wave 28 task: Insolation (slot 335), Energy co-op
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 1 (021 brazier); wave 7 (093 understory); wave 19 (239 isobar, 236 levin, 234 neap).
+Depends on: wave 5 (021 brazier), wave 8 (093 understory), wave 19 (234 neap, 236 levin, 239 isobar).
 Manifest: `slot 335`, `layer L3`, `icon icons/l3/335-insolation.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs a community wind and solar co-op: generation, storage, shares, mutual-aid grants and grid exports (`power.status`, `ledger.entries`, `ledger.post`, `ledger.hold`, `devmesh.devices`). zxvd has no method for turbine, inverter and meter readings: use only existing methods; list what's missing in your report.
 Uses: `use isobar 1` (station readings); `use levin 1` (circuit loads); `use neap 1` ("entry may post"); `use understory 1` (energy cost, "over budget"); `use brazier 1` (battery x100). Call these composed entries; do not re-implement them.

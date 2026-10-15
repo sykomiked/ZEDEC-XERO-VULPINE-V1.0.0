@@ -1,6 +1,6 @@
 # Wave 27 task: Equant (slot 320), Arbitration
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 10 (132 twelvefold); wave 13 (164 handfast); wave 14 (178 assize); wave 19 (240 isthmus); wave 20 (250 plumbline).
+Depends on: wave 4 (132 twelvefold), wave 13 (164 handfast), wave 14 (178 assize), wave 19 (240 isthmus), wave 20 (250 plumbline).
 Manifest: `slot 320`, `layer L3`, `icon icons/l3/320-equant.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: arbitrates disputes: claims, evidence, hearings, rulings and enforcement under a published rulebook (`files.read`, `files.write`, `journal.query`, `web4.verify`, `pspace.post`, `ledger.hold`).
 Uses: `use assize 1` ("filing accepted", days left, evidence matrix); `use isthmus 1` (case room); `use handfast 1` (obligations); `use twelvefold 1` ("conclusion follows"); `use plumbline 1` (policy rules). Call these composed entries; do not re-implement them.

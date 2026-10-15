@@ -31,26 +31,28 @@ writing an app: what is listed here already exists.
 
 ## Apps and blocks
 
-| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) |
-|---|---|---|---|---|
-| almanac 1.0.0 | 17 | L1 | used_share 1 | `days num seconds`: wasm, kron<br>`hours num seconds`: wasm, kron |
-| banker 1.0.0 | 1 | L1 | - | `share num size total`: kron, wasm<br>`total num size`: trebago<br>`entry_ok truth folder seq size mtime`: myra |
-| fee_check  | - | example | - | `fee num amount rate`: sutra, kron<br>`fee_ok truth amount fee`: sutra, kron, eve<br>`total num amount fee`: trebago<br>`record_ok truth batch seq amount fee`: myra |
-| glint 1.0.0 | 49 | L1 | - | `item_ok truth folder seq kind size`: myra |
-| keepsake 1.0.0 | 10 | L1 | - | `removed num snapshots keep`: sutra, kron<br>`keep_ok truth keep`: eve |
-| murmuration 1.0.0 | 61 | L1 | swarm_shares 1 | `swarm_shares.cycle_share num t`: (composed)<br>`swarm_shares.busiest num t`: (composed)<br>`swarm_shares.within_limits truth share intensity`: (composed) |
-| platen 1.0.0 | 115 | L1 | - | `sheets num pages sides copies`: sutra, kron<br>`copies_ok truth copies most`: sutra, kron |
-| quillon 1.0.0 | 37 | L1 | - | `size_ok truth bytes`: eve |
-| scent 1.0.0 | 5 | L1 | - | `score num name folder count`: kron, trebago |
-| shepherd 1.0.0 | 142 | L1 | - | `left num minutes extra used`: sutra, kron<br>`limit_ok truth minutes from to`: eve<br>`week num minutes`: trebago |
-| sounding 1.0.0 | 16 | L1 | - | `rate num now was dt`: wasm, sutra |
-| spindle 1.0.0 | 22 | L1 | - | `call_ok truth params reply`: eve |
-| tidewatch 1.0.0 | 15 | L1 | used_share 1 | `cpu_x100 num cpu ms`: sutra, kron<br>`peak num share`: kron |
-| wake 1.0.0 | 14 | L1 | - | `count num level bar`: kron, trebago |
-| waymark 1.0.0 | 85 | L1 | - | `place_ok truth lat lon`: eve, kron |
-| number_classics 1.0.0 | - | block | - | `gcd num a b`: fortran77, basic, forth, zlir |
-| pce_fin 1.0.0 | - | block | - | `npv num cf rate_num rate_den`: c<br>`npv_sign truth cf rate_num rate_den`: c |
-| pce_prob 1.0.0 | - | block | - | `join num a b`: c<br>`verdict truth m th`: c<br>`bayes num prior like den`: c |
-| pce_strat 1.0.0 | - | block | - | `decide truth payoff nopt lo hi den`: c<br>`leader num payoff nopt lo hi den`: c<br>`zopa truth seller_min buyer_max`: c |
-| swarm_shares 1.0.0 | - | block | - | `cycle_share num t`: kron<br>`busiest num t`: kron<br>`within_limits truth share intensity`: eve |
-| used_share 1.0.0 | - | block | - | `used_x100 num total left`: sutra, kron |
+Reuse is blocks used against new entries written, used / (used + new).
+
+| Manifest | Slot | Layer | Uses | Provides (entry kind inputs: languages) | Reuse |
+|---|---|---|---|---|---|
+| almanac 1.0.0 | 17 | L1 | used_share 1 | `days num seconds`: wasm, kron<br>`hours num seconds`: wasm, kron | 1 used, 2 new: 33% |
+| banker 1.0.0 | 1 | L1 | - | `share num size total`: kron, wasm<br>`total num size`: trebago<br>`entry_ok truth folder seq size mtime`: myra | 0 used, 3 new: 0% |
+| fee_check  | - | example | - | `fee num amount rate`: sutra, kron<br>`fee_ok truth amount fee`: sutra, kron, eve<br>`total num amount fee`: trebago<br>`record_ok truth batch seq amount fee`: myra | 0 used, 4 new: 0% |
+| glint 1.0.0 | 49 | L1 | - | `item_ok truth folder seq kind size`: myra | 0 used, 1 new: 0% |
+| keepsake 1.0.0 | 10 | L1 | - | `removed num snapshots keep`: sutra, kron<br>`keep_ok truth keep`: eve | 0 used, 2 new: 0% |
+| murmuration 1.0.0 | 61 | L1 | swarm_shares 1 | `swarm_shares.cycle_share num t`: (composed)<br>`swarm_shares.busiest num t`: (composed)<br>`swarm_shares.within_limits truth share intensity`: (composed) | 1 used, 0 new: 100% |
+| platen 1.0.0 | 115 | L1 | - | `sheets num pages sides copies`: sutra, kron<br>`copies_ok truth copies most`: sutra, kron | 0 used, 2 new: 0% |
+| quillon 1.0.0 | 37 | L1 | - | `size_ok truth bytes`: eve | 0 used, 1 new: 0% |
+| scent 1.0.0 | 5 | L1 | - | `score num name folder count`: kron, trebago | 0 used, 1 new: 0% |
+| shepherd 1.0.0 | 142 | L1 | - | `left num minutes extra used`: sutra, kron<br>`limit_ok truth minutes from to`: eve<br>`week num minutes`: trebago | 0 used, 3 new: 0% |
+| sounding 1.0.0 | 16 | L1 | - | `rate num now was dt`: wasm, sutra | 0 used, 1 new: 0% |
+| spindle 1.0.0 | 22 | L1 | - | `call_ok truth params reply`: eve | 0 used, 1 new: 0% |
+| tidewatch 1.0.0 | 15 | L1 | used_share 1 | `cpu_x100 num cpu ms`: sutra, kron<br>`peak num share`: kron | 1 used, 2 new: 33% |
+| wake 1.0.0 | 14 | L1 | - | `count num level bar`: kron, trebago | 0 used, 1 new: 0% |
+| waymark 1.0.0 | 85 | L1 | - | `place_ok truth lat lon`: eve, kron | 0 used, 1 new: 0% |
+| number_classics 1.0.0 | - | block | - | `gcd num a b`: fortran77, basic, forth, zlir | 0 used, 1 new: 0% |
+| pce_fin 1.0.0 | - | block | - | `npv num cf rate_num rate_den`: c<br>`npv_sign truth cf rate_num rate_den`: c | 0 used, 2 new: 0% |
+| pce_prob 1.0.0 | - | block | - | `join num a b`: c<br>`verdict truth m th`: c<br>`bayes num prior like den`: c | 0 used, 3 new: 0% |
+| pce_strat 1.0.0 | - | block | - | `decide truth payoff nopt lo hi den`: c<br>`leader num payoff nopt lo hi den`: c<br>`zopa truth seller_min buyer_max`: c | 0 used, 3 new: 0% |
+| swarm_shares 1.0.0 | - | block | - | `cycle_share num t`: kron<br>`busiest num t`: kron<br>`within_limits truth share intensity`: eve | 0 used, 3 new: 0% |
+| used_share 1.0.0 | - | block | - | `used_x100 num total left`: sutra, kron | 0 used, 1 new: 0% |

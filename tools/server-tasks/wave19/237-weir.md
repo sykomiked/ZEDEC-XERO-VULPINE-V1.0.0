@@ -1,6 +1,6 @@
 # Wave 19 task: Weir (slot 237), Household water
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (014 wake, merged); wave 7 (093 understory, 094 homestead); wave 9 (109 tally).
+Depends on: wave 0 (014 wake), wave 1 (109 tally), wave 8 (093 understory), wave 9 (094 homestead).
 Manifest: `slot 237`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/237-weir.svg`, `budget 233`, model `apps/weir_model.{h,c}`, blocks under kernel/src/apps/blocks/weir/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Maps household water: pipes, valves, flow, budgets and leak alerts, kept in the Hoard (`files.read`, `files.write`), event history (`journal.query`, `log.tail`). Water meters and valve actuators have no method (as Understory and Homestead): use only existing methods; list what's missing in your report.
 Uses: `use understory 1` ("over budget" and rolling totals); `use homestead 1` ("command allowed" for a valve); `use wake 1` (`count` by level); `use tally 1` (rational arithmetic). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

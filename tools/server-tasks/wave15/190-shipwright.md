@@ -1,6 +1,6 @@
 # Wave 15 task: Shipwright (slot 190), Flood watch
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (014 wake), wave 7 (088 weatherglass, 093 understory), wave 11 (143 watchfire).
+Depends on: wave 0 (014 wake), wave 8 (088 weatherglass, 093 understory), wave 11 (143 watchfire).
 Manifest: `slot 190`, `layer L2`, `icon icons/l2/190-shipwright.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: forecasts tides, floods and surges for districts (`place.here`, `place.list`) and sends alerts to people in harm's way (`pspace.post`) once a person approves, with history from `journal.query`. zxvd has no method for gauge and tide readings: use only existing methods; list what's missing in your report.
 Uses: `use wake 1` (`wake.count`); `use weatherglass 1` (warnings, readings); `use understory 1` (rolling-window totals); `use watchfire 1` (contact records, the cancel window). Call these composed entries; do not re-implement them.

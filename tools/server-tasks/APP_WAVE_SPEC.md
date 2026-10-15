@@ -1,6 +1,6 @@
 # App wave spec (for the server's coding model)
 
-Read this whole file before any task in `wave1/`. Each task builds one built-in app of the ZXV OS. Work on a branch of `sykomiked/ZEDEC-XERO-VULPINE-V1.0.0` cut from `claude/project-thread-cqt3z5-wave0` (head a3415301 or later; wave 0 merged with main 4b9e2ae4), named `server/wave1-<slot>-<id>`. Never push to `main` or to that branch. Never open a PR. Commit locally and hand the branch back for review.
+Read this whole file before any task. Each task builds one built-in app of the ZXV OS. Work on a branch of `sykomiked/ZEDEC-XERO-VULPINE-V1.0.0` cut from `claude/project-thread-cqt3z5-wave0` (its latest head), named `server/waveN-<slot>-<id>` for the task's wave N. Never push to `main` or to that branch. Never open a PR. Commit locally and hand the branch back for review.
 
 ## What an app is
 1. **Model** `kernel/src/apps/<id>_model.{h,c}`: C11, the zxm.h pattern. Copy the shape of `almanac_model.{h,c}` (read-only facts) or `keepsake_model.{h,c}` (actions). No floats, no allocation, every string bounded, zxvd reached only through `zxm_link_t`.
@@ -19,6 +19,9 @@ Read this whole file before any task in `wave1/`. Each task builds one built-in 
 
 ## One owner for every shared idea
 Before writing an app, read `docs/APP_BLOCKS.md`. It is generated from `kernel/src/apps/CONCEPTS.tsv` and every merged manifest, and lists each shared concept with its one owner, plus every app and block with what it provides. If your app needs an idea listed there (a share of a capacity, days from seconds, a gcd, a swarm share...), `use` its owner and call `<owner>.<entry>`. Never write it again under any name. If your app defines a new idea another app will plausibly need, add a row to CONCEPTS.tsv naming your app as the owner, with the names that mean it and an exact meaning (formula, rounding, refusals). Then run `python3 tools/apps/concepts.py`. `concepts.py --check` (run by test_zxapp.sh) fails when a manifest provides a name a concept owns, or when two manifests provide the same name that is neither a concept nor a listed local word. Fix it by using the owner or renaming your entry, never by adding the name to the local list to get past the check. Your report lists every concept you used and every one you added.
+
+## Build in matrix order
+The L1 apps are the matrix's layers 1 to 144 (layer = slot; layer 0 is the core). `MATRIX_ORDER.tsv` lists the unbuilt ones in build order, measured from which layer's code already uses which (the matrix glue, `alexandria/LAYER_ORDER.tsv` in the project files), and waves 1 to 11 follow it: an app comes after every layer its code leans on, and the most leaned-on come first. Work the waves in number order, and inside a wave in the file's order. Each task's `Matrix:` line names the layers this app leans on and says which are built. Take every idea those layers own from them: `use <id> 1` and call `<id>.<entry>`. When the layer that should own an idea is not built yet, do not write the idea here; list it in your report as missing from that layer. A new idea that more than one app will need goes in the lowest layer that needs it (the earliest in `MATRIX_ORDER.tsv`), registered in CONCEPTS.tsv with that app as owner. An idea every layer needs (a share, a day count, a checksum) is a shared block under `blocks/` (a `.zxblock`), owned there. `python3 tools/apps/concepts.py` prints each app's reuse line (`reuse <id>: used U, new N, P%`: blocks used against new entries written); put yours in your report. A later app with a low figure has to say why nothing earlier fitted.
 
 ## Language gotchas (learned in wave 0)
 - KRON evaluates right to left; `_` floor, `%` divide, `|` max, `&` min. A 1-element argument does not stretch to a vector: write `+/x` to make it a scalar. `floor` is a reserved name. Truths cannot be summed: count with `+/0|1&1+a-b`.
@@ -51,4 +54,4 @@ bash kernel/src/apps/test_zxapp.sh      (ends [PASS]; its --check steps fail on 
 bash kernel/src/apps/test_apps.sh
 tools/apps/build_wasm_blocks.sh --check
 python3 build_system/relicense_apache.py --check
-Report back: the branch name, the commit, each test's last line, and anything you could not do.
+Report back: the branch name, the commit, each test's last line, the app's reuse line, every idea you listed as missing from an earlier layer, and anything you could not do.

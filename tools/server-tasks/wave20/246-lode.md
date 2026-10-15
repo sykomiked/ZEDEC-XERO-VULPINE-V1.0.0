@@ -1,6 +1,6 @@
 # Wave 20 task: Lode (slot 246), Valuables register
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (018 witness); wave 4 (058 pinhole); wave 5 (060 relief); wave 6 (073 coffer).
+Depends on: wave 1 (018 witness), wave 3 (060 relief), wave 4 (073 coffer), wave 8 (058 pinhole).
 Manifest: `slot 246`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/246-lode.svg`, `budget 233`, model `apps/lode_model.{h,c}`, blocks under kernel/src/apps/blocks/lode/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Appraises and registers precious items with photos, provenance and value records: photos and records in the Hoard (`files.read`, `files.write`, room from `sys.disk`), the trail (`journal.query`), values in the books (`ledger.accounts`, `ledger.balance`, `ledger.post`).
 Uses: `use pinhole 1` ("photo fits" and device ready); `use witness 1` ("chain intact"); `use coffer 1` (balance and "transfer allowed"); `use relief 1` (vertex transform and depth effect offsets). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

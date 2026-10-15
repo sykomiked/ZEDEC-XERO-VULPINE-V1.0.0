@@ -1,6 +1,6 @@
 # Wave 12 task: Alembic (slot 155), Lab notebook
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (038 margins, 040 furrow), wave 5 (070 retort), wave 9 (109 tally).
+Depends on: wave 1 (070 retort, 109 tally), wave 5 (038 margins), wave 7 (040 furrow).
 Manifest: `slot 155`, `layer L2`, `icon icons/l2/155-alembic.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: logs experiments, recipes and results as a lab notebook in the Hoard (`files.read`, `files.write`, `search.query`) with exact integer calculations.
 Uses: `use margins 1` (note size limits, tag index); `use furrow 1` (column and row sums); `use retort 1` (score totals per run, run record); `use tally 1` (rational add, subtract, multiply, divide; unit factors). Call these composed entries; do not re-implement them.

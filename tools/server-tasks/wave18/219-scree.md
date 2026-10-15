@@ -1,6 +1,6 @@
 # Wave 18 task: Scree (slot 219), Adaptive puzzles
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 8 (104 riddle, 107 gnomon, 098 sapling, 103 cubby, 105 patience).
+Depends on: wave 9 (098 sapling, 103 cubby, 104 riddle, 105 patience, 107 gnomon).
 Manifest: `slot 219`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/219-scree.svg`, `budget 233`, model `apps/scree_model.{h,c}`, blocks under kernel/src/apps/blocks/scree/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Builds and plays logic and maths puzzles that adapt to a learner's level; puzzles and progress in the Hoard (`files.read`, `files.write`), hints from `swarm.ask` held until the learner asks, time from `screen.check`.
 Uses: `use riddle 1` ("solved" and the daily pick); `use gnomon 1` (shoelace area and reduced fractions); `use sapling 1` ("lesson unlocked" and progress x100); `use cubby 1` ("may this child open this now"); `use patience 1` ("legal move" and the seeded deal). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

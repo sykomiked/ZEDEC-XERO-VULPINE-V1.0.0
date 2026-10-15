@@ -1,6 +1,6 @@
 # Wave 14 task: Warding (slot 173), Keys for doors, devices and accounts
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (008 gatehouse, 009 lockbox), wave 2 (003 threshold), wave 7 (094 homestead).
+Depends on: wave 1 (003 threshold, 008 gatehouse), wave 4 (009 lockbox), wave 9 (094 homestead).
 Manifest: `slot 173`, `layer L2`, `icon icons/l2/173-warding.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: issues and revokes keys for doors, devices and accounts from one place (`passkeys.list`, `passkeys.revoke`, `devmesh.devices`, `devmesh.revoke`, `seats.list`). zxvd has no method for door lock control (as Homestead reports): use only existing methods; list what's missing in your report.
 Uses: `use threshold 1` (role rights, seat record); `use gatehouse 1` ("is this use allowed"); `use lockbox 1` (key expiry days left, limits); `use homestead 1` ("command allowed": locks need the owner). Call these composed entries; do not re-implement them.

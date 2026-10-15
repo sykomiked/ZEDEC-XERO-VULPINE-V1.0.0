@@ -1,6 +1,6 @@
 # Wave 12 task: Pavise (slot 153), Security perimeter
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (008 gatehouse, 009 lockbox, 018 witness), wave 2 (030 hedgerow).
+Depends on: wave 1 (008 gatehouse, 018 witness), wave 2 (030 hedgerow), wave 4 (009 lockbox).
 Manifest: `slot 153`, `layer L2`, `icon icons/l2/153-pavise.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: one security perimeter combining firewall paths, app permissions and keys into a single policy, read from `features.get`, `sys.net`, `net.peers`, `devmesh.devices`, `passkeys.list`, with its history from `journal.query` and `journal.verify`. zxvd has no method for firewall rule write, capability grant write: use only existing methods; list what's missing in your report.
 Uses: `use gatehouse 1` ("is this use allowed", apps per capability); `use lockbox 1` (key expiry days left, limits); `use witness 1` (entry record, chain intact); `use hedgerow 1` ("is this path reachable", address class, rule record). Call these composed entries; do not re-implement them.

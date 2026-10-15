@@ -1,6 +1,6 @@
 # Wave 28 task: Apse (slot 337), Faith community
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 6 (073 coffer); wave 7 (095 bonfire); wave 14 (172 escapement); wave 18 (224 tarn, 223 spindrift).
+Depends on: wave 4 (073 coffer), wave 9 (095 bonfire), wave 14 (172 escapement), wave 18 (223 spindrift, 224 tarn).
 Manifest: `slot 337`, `layer L3`, `icon icons/l3/337-apse.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: supports faith and spiritual communities: services, readings, member care, giving and quiet reflection (`files.read`, `files.write`, `ledger.entries`, `social.groups`, `pspace.post`).
 Uses: `use tarn 1` (breathing and calm sessions); `use spindrift 1` (story publishing, for readings); `use escapement 1` (shift matrix for rotas); `use bonfire 1` ("may this guest join"); `use coffer 1` (balance per account). Call these composed entries; do not re-implement them.

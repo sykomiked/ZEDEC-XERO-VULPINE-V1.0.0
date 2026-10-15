@@ -1,6 +1,6 @@
 # Wave 29 task: Athanor (slot 351), Process runs
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 12 (155 alembic); wave 14 (174 damper, 179 cupel); wave 20 (249 bourn).
+Depends on: wave 12 (155 alembic), wave 14 (174 damper, 179 cupel), wave 20 (249 bourn).
 Manifest: `slot 351`, `layer L3`, `version 1.0.0`, `icon icons/l3/351-athanor.svg`, `budget 233`, model `apps/athanor_model.{h,c}`, blocks under kernel/src/apps/blocks/athanor/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Plans and runs chemistry or brewing processes: recipes, batch records and hazard checks in the Hoard (`files.read`, `files.write`, `search.query`), heat and power readings (`sys.info`, `power.status`), alarms (`log.tail`, `journal.query`). Process sensors have no method: use only existing methods; list what's missing in your report.
 Uses: `use alembic 1` (amount of substance, reagent stock, "step allowed"); `use bourn 1` (strength from gravities, duty due); `use damper 1` ("raise the alarm" and temperature rise); `use cupel 1` (the leapfrog step and precision bounds). Call these composed entries; do not re-implement them.

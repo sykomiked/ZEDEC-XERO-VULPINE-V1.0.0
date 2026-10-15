@@ -1,6 +1,6 @@
 # Wave 12 task: Lectern (slot 151), Study reader
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (042 broadsheet, 038 margins), wave 5 (069 quarry), wave 8 (106 nutshell), wave 9 (117 spyglass).
+Depends on: wave 5 (038 margins), wave 7 (042 broadsheet), wave 8 (069 quarry), wave 9 (106 nutshell), wave 10 (117 spyglass).
 Manifest: `slot 151`, `layer L2`, `icon icons/l2/151-lectern.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: reads documents from the Hoard (`files.read`, `files.write`, `search.query`) with annotations, citations and flashcards drawn straight from what you highlight.
 Uses: `use broadsheet 1` ("well formed", zoom to fit, annotation record); `use quarry 1` ("this claim has a source", citation record); `use margins 1` (note size limits, tag index); `use nutshell 1` (next box and due day for a card); `use spyglass 1` (source rectangle for zoom on a passage). Call these composed entries; do not re-implement them.

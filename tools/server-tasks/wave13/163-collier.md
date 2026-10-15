@@ -1,6 +1,6 @@
 # Wave 13 task: Collier (slot 163), Data extraction
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (005 scent), wave 3 (040 furrow), wave 5 (069 quarry, 071 gleaner), wave 9 (119 magpie).
+Depends on: wave 0 (005 scent), wave 1 (071 gleaner), wave 7 (040 furrow), wave 8 (069 quarry), wave 10 (119 magpie).
 Manifest: `slot 163`, `layer L2`, `icon icons/l2/163-collier.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: digs through datasets and files in the Hoard (`search.query`, `files.list`, `files.read`, `files.write`) to extract, clean and label the useful records.
 Uses: `use scent 1` (`scent.score`); `use furrow 1` (column sums); `use quarry 1` (sources per topic, citation record); `use gleaner 1` (train and test split, label counts, row filters, size limits); `use magpie 1` ("keep this copy": concealed or private is never kept). Call these composed entries; do not re-implement them.

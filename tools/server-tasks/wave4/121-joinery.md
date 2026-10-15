@@ -1,0 +1,8 @@
+# Wave 4 task: Joinery (slot 121), Code editor
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 121, build position 43 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Toolchest (layer 126, wave 1, an earlier wave: `use toolchest 1`); Coffer (layer 73, wave 4, an earlier wave: `use coffer 1`); Fairground (layer 79, wave 2, an earlier wave: `use fairground 1`); Trellis (layer 29, wave 2, an earlier wave: `use trellis 1`). Take every idea those layers own from them (`use` the built ones and call `<id>.<entry>`; for one not built yet, list the entry in your report and do not write it here). 1 other layer lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: edit code in the Hoard (`files.read`, `files.write` begin/add/end, `files.rename`), find in files (`search.query`, `search.refresh`), run a Playground template (`play.run`), suggestions from `swarm.ask` held until the person accepts them.
+Logic (critical): line and column to byte offset and back (UTF-8 widths as integer vectors) in kron + trebago witnessed; buffer limits (file at most 16 MiB, line at most 65536 bytes, undo at most 1024 steps) in eve; undo record (step, offset, removed length, inserted length) in myra.
+COBOL owns no decision in an editor; it is left out. Parsing source text stays C (its best-fit languages have no runtime yet); say so in the manifest.
+needs: fs.read, fs.write, search, ai.ask.
+Planned (no runtime yet): Racket, Haskell, Bourne shell.

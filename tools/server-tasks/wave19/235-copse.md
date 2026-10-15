@@ -1,6 +1,6 @@
 # Wave 19 task: Copse (slot 235), Woodworking planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (045 bowline); wave 5 (060 relief); wave 8 (107 gnomon); wave 9 (109 tally).
+Depends on: wave 1 (109 tally), wave 3 (060 relief), wave 7 (045 bowline), wave 9 (107 gnomon).
 Manifest: `slot 235`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/235-copse.svg`, `budget 233`, model `apps/copse_model.{h,c}`, blocks under kernel/src/apps/blocks/copse/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Plans woodworking: designs, cut lists, joints, materials and cost, kept in the Hoard (`files.read`, `files.write`) and printed (`print.submit`).
 Uses: `use relief 1` (vertex transform and mesh volume); `use tally 1` (rational arithmetic and currency amounts); `use gnomon 1` (area and reduced fractions); `use bowline 1` (next due and "overdue" for build steps). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

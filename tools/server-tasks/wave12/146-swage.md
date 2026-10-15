@@ -1,6 +1,6 @@
 # Wave 12 task: Swage (slot 146), Package forge
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (007 satchel), wave 10 (124 graft, 125 whetstone, 127 colonnade).
+Depends on: wave 3 (007 satchel, 127 colonnade), wave 6 (125 whetstone), wave 10 (124 graft).
 Manifest: `slot 146`, `layer L2`, `icon icons/l2/146-swage.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: shapes source in the Hoard (`files.list`, `files.read`, `files.write`) into a signed, tested, installable package in one pass, reading the machine's facts from `sys.info`. zxvd has no method for build/test run, package sign and install (the same gaps Satchel and Whetstone report): use only existing methods; list what's missing in your report.
 Uses: `use satchel 1` (package size and file-count limits, exact total size, per-file share, package record); `use graft 1` (history intact, commit record); `use whetstone 1` (overall verdict in `lpres_conjoin` order, passed/failed/held counts); `use colonnade 1` (verdict across witnessed runs, fuel left). Call these composed entries; do not re-implement them.

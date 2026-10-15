@@ -1,5 +1,6 @@
 # Wave 11 task: Conch (slot 141), Hearing devices and sound alerts
 Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 141, build position 128 of 130 (`../MATRIX_ORDER.tsv`). Its layer leans on no other layer's code yet. Report the reuse line `concepts.py` prints for this app.
 What it does: pair hearing devices, balance and mono, show sound alerts as a screen flash; alerts from `notes.list`. zxvd has no audio-device method: use only existing methods; list what's missing in your report.
 Logic (critical): output level within the cap (per-band gain at most +30 dB in tenths, total at most the owner's cap) in eve + kron witnessed; balance limits (-100..100) in eve; alert mapping (sound kind, flash, vibrate) in myra.
 Advisory only: not a clinical fitting; level caps are a safety ceiling the owner sets.
