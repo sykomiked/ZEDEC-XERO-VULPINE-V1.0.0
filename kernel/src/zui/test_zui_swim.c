@@ -525,6 +525,284 @@ static void test_words(void)
     zui_motion_reset();
 }
 
+/* exact edges of SW7, the work area too small to hold it, entries, guards */
+static void test_exact(void)
+{
+    zui_motion_reset();
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, true); /* CUT: it is simply there */
+    cmp_decision_t d = dec(CMP_PROCEED);
+    int32_t e = 2 * (int32_t) ZUI_SWIM_R, g = ZUI_SWIM_GAP;
+    struct {
+        zui_rect_t t;
+        int32_t x, y;
+        const char *what;
+    } C[] = {
+        {{100, 300, W - 100 - g - 2 * e, 50}, W - e, 300 + e, "right, exactly room"},
+        {{g + 2 * e, 300, W - g - 2 * e - 1, 50}, e, 300 + e, "left, exactly room"},
+        {{g + 2 * e - 1, 300, W - g - 2 * e + 1, 50}, W - e, 300 - g - e, "above: no room left"},
+        {{0, g + 2 * e, W, 50}, W - e, e, "above, exactly room"},
+        {{0, g + 2 * e - 1, W, 50}, W - e, g + 2 * e - 1 + e, "inside: no room above"},
+    };
+    for (unsigned i = 0; i < sizeof C / sizeof C[0]; i++) {
+        fresh(&A);
+        CHECK(zui_swim_offer(&A, C[i].t, &d, DIG, "x"), "offered %s", C[i].what);
+        zui_swim_tick(&A, 1016);
+        CHECK(px(&A) == C[i].x && py(&A) == C[i].y, "SW7 %s: (%d %d) want (%d %d)", C[i].what,
+              px(&A), py(&A), C[i].x, C[i].y);
+    }
+    /* a work area narrower than the chiglet: it sits at the area's centre */
+    zui_swim_init(&A, (zui_rect_t){10, 20, 2 * e - 1, 2 * e - 2}, &LOOK);
+    zui_swim_tick(&A, 1000);
+    zui_swim_offer(&A, (zui_rect_t){10, 20, 5, 5}, &d, DIG, "x");
+    zui_swim_tick(&A, 1016);
+    CHECK(px(&A) == 10 + (2 * e - 1) / 2 && py(&A) == 20 + (2 * e - 2) / 2,
+          "SW7 a tiny work area: the centre (%d %d)", px(&A), py(&A));
+    zui_swim_init(&A, (zui_rect_t){10, 20, 2 * e, 2 * e}, &LOOK);
+    zui_swim_tick(&A, 1000);
+    zui_swim_offer(&A, (zui_rect_t){10, 20, 5, 5}, &d, DIG, "x");
+    zui_swim_tick(&A, 1016);
+    CHECK(px(&A) == 10 + e && py(&A) == 20 + e, "SW7 a work area just its size (%d %d)", px(&A),
+          py(&A));
+    zui_motion_reset();
+    /* entries: the left edge, and a tie goes to the left, then the top */
+    struct {
+        zui_rect_t t;
+        bool on_x;
+        int32_t at;
+        const char *what;
+    } E[] = {
+        {{30, 250, 20, 20}, true, -e, "the left edge"},
+        {{W - 50 - g - 2 * e - 20, 250, 20, 20}, true, W + e, "the right edge"},
+        {{340, 100 - e, 20, 20}, false, -e, "the top edge"},
+        {{340, H - 200 - e, 20, 20}, false, H + e, "the bottom edge"},
+    };
+    for (unsigned i = 0; i < sizeof E / sizeof E[0]; i++) {
+        fresh(&A);
+        zui_swim_offer(&A, E[i].t, &d, DIG, "x");
+        int32_t x = px(&A), y = py(&A);
+        CHECK(E[i].on_x ? x == E[i].at : y == E[i].at, "SW5 from %s (%d %d)", E[i].what, x, y);
+    }
+    /* the work area moves: a waiting chiglet goes to its new place */
+    arrive(&A, (zui_rect_t){150, 100, 50, 100}, "x");
+    zui_swim_set_work(&A, (zui_rect_t){0, 0, 400, 300});
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, true);
+    zui_swim_tick(&A, 3000);
+    CHECK(px(&A) == 150 + 50 + g + e && py(&A) == 100 + e, "a new work area keeps its place");
+    zui_swim_set_work(&A, (zui_rect_t){0, 0, 300, 300});
+    zui_swim_tick(&A, 3016);
+    CHECK(px(&A) == 150 - g - e, "a narrower work area moves it to the left (%d)", px(&A));
+    zui_swim_pin(&A, true);
+    run(&A, 3016, 6000);
+    zui_swim_set_work(&A, (zui_rect_t){0, 0, 500, 400});
+    zui_swim_tick(&A, 6016);
+    CHECK(px(&A) == 500 - e - g && py(&A) == 400 - e - g, "pinned, it follows the corner (%d %d)",
+          px(&A), py(&A));
+    fresh(&B);
+    zui_swim_set_work(&B, (zui_rect_t){0, 0, 500, 400});
+    zui_swim_tick(&B, 1016);
+    CHECK(zui_swim_state(&B) == ZUI_SWIM_HIDDEN && px(&B) == 0,
+          "hidden, a new work area moves nothing");
+    zui_motion_reset();
+    /* windows: past ZUI_SWIM_WINDOWS are not taken, NULL is none */
+    static zui_rect_t many[ZUI_SWIM_WINDOWS + 1];
+    for (unsigned i = 0; i < ZUI_SWIM_WINDOWS; i++) many[i] = (zui_rect_t){0, 0, 1, 1};
+    many[ZUI_SWIM_WINDOWS] = (zui_rect_t){0, 0, W, 140}; /* the path, not the target */
+    fresh(&A);
+    zui_swim_set_windows(&A, many, ZUI_SWIM_WINDOWS + 1);
+    zui_swim_offer(&A, (zui_rect_t){100, 100, 100, 100}, &d, DIG, "x");
+    run(&A, 1000, 1500);
+    CHECK(zui_swim_depth(&A) == 0 && zui_swim_alpha(&A) == 255,
+          "SW6 a window past the limit is not swum through");
+    zui_swim_set_windows(&A, many + 1, ZUI_SWIM_WINDOWS);
+    zui_swim_tick(&A, 1516);
+    CHECK(zui_swim_depth(&A) == -ZUI_SWIM_DEPTH_PX, "SW6 the 32nd window is");
+    zui_swim_set_windows(&A, NULL, 5);
+    zui_swim_tick(&A, 1532);
+    CHECK(zui_swim_depth(&A) == 0, "SW6 no windows given, none");
+    /* NULL is safe everywhere */
+    zui_swim_init(NULL, WORK, &LOOK);
+    zui_swim_set_look(NULL, &LOOK);
+    zui_swim_set_work(NULL, WORK);
+    zui_swim_set_windows(NULL, many, 2);
+    zui_swim_withdraw(NULL);
+    zui_swim_tick(NULL, 5);
+    zui_swim_pin(NULL, true);
+    zui_swim_away(NULL, true);
+    zui_swim_draw(NULL, NULL, NULL, NULL, 0);
+    char buf[8];
+    CHECK(!zui_swim_offer(NULL, WORK, &d, DIG, "x") && !zui_swim_hit(NULL, 0, 0) &&
+              zui_swim_tap(NULL, 0, 0, NULL) == ZUI_SWIM_NONE &&
+              zui_swim_open(NULL) == ZUI_SWIM_NONE && zui_swim_state(NULL) == ZUI_SWIM_HIDDEN &&
+              zui_swim_alpha(NULL) == 0 && zui_swim_depth(NULL) == 0 &&
+              zui_swim_extent(NULL).w == 0 && zui_swim_bubble(NULL).w == 0 &&
+              zui_swim_button(NULL, 0).w == 0 && zui_swim_describe(NULL, buf, sizeof buf) == 0 &&
+              buf[0] == 0,
+          "NULL is refused, never touched");
+    fresh(&A);
+    zui_swim_init(&A, WORK, NULL);
+    zui_swim_set_look(&A, NULL);
+    CHECK(A.look.mood == 0 && A.look.genes[0] == 0, "no look given, the empty look");
+    zui_swim_set_look(&A, &LOOK);
+    CHECK(memcmp(&A.look, &LOOK, sizeof LOOK) == 0, "a look given is taken");
+}
+
+static uint64_t fnv(uint64_t h, int64_t v)
+{
+    for (int i = 0; i < 8; i++) {
+        h ^= (uint8_t) (v >> (8 * i));
+        h *= 1099511628211ull;
+    }
+    return h;
+}
+
+/* SW8: the same calls give the same positions, alphas and pixels, frame by
+ * frame. The digests pin today's motion and drawing exactly: a change to
+ * either must change them here on purpose. */
+static void test_golden(void)
+{
+    zui_motion_reset();
+    cmp_decision_t d = dec(CMP_ASK);
+    zui_rect_t wins[2] = {{250, 150, 300, 250}, {600, 400, 150, 150}};
+    uint64_t h = 1469598103934665603ull;
+    fresh(&A);
+    zui_swim_set_windows(&A, wins, 2);
+    zui_swim_offer(&A, (zui_rect_t){620, 420, 60, 60}, &d, DIG, "x"); /* in from the bottom */
+    for (uint32_t t = 1000; t < 1000 + ZUI_SWIM_TRAVEL_MS + ZUI_SWIM_BOB_MS; t += 7) {
+        zui_swim_tick(&A, t);
+        h = fnv(h, A.x);
+        h = fnv(h, A.y);
+        h = fnv(h, zui_swim_alpha(&A));
+        h = fnv(h, zui_swim_depth(&A));
+        h = fnv(h, zui_swim_state(&A));
+    }
+    /* a second offer far away: the swim crosses the first window */
+    zui_swim_offer(&A, (zui_rect_t){20, 20, 40, 40}, &d, DIG, "x");
+    for (uint32_t t = 6400; t < 6400 + ZUI_SWIM_TRAVEL_MS + 200; t += 5) {
+        zui_swim_tick(&A, t);
+        h = fnv(h, A.x);
+        h = fnv(h, A.y);
+        h = fnv(h, zui_swim_alpha(&A));
+        h = fnv(h, zui_swim_depth(&A));
+    }
+    /* leaving */
+    zui_swim_withdraw(&A);
+    for (uint32_t t = 8000; t < 8300; t += 3) {
+        zui_swim_tick(&A, t);
+        h = fnv(h, zui_swim_alpha(&A));
+        h = fnv(h, zui_swim_state(&A));
+    }
+    printf("  motion digest %016llx\n", (unsigned long long) h);
+    CHECK(h == 0xaf1233b5deab0522ull, "SW8 the motion digest is unchanged");
+    /* pixels: mid-swim through the glass with depth, waiting, open, pinned */
+    zui_surface_t s;
+    zui_surface_init(&s, PX, W, H, W);
+    zui_depth_t dp;
+    zui_depth_init(&dp, ZUI_DEPTH_PARALLAX, 40);
+    dp.head_x = 200;
+    uint64_t p = 1469598103934665603ull;
+    fresh(&A);
+    zui_swim_set_windows(&A, wins, 2);
+    zui_swim_offer(&A, (zui_rect_t){620, 420, 60, 60}, &d, DIG, "x");
+    uint32_t stops[4] = {1300, 1700, 2500, 5000};
+    for (int k = 0; k < 4; k++) {
+        run(&A, k ? stops[k - 1] : 1000, stops[k]);
+        if (k == 3) zui_swim_open(&A);
+        ground(PX);
+        zui_swim_draw(&A, &s, NULL, &dp, k & 1 ? 1 : -1);
+        for (int i = 0; i < W * H; i++) p = fnv(p, PX[i]);
+    }
+    zui_swim_pin(&A, true);
+    run(&A, 5000, 7000);
+    zui_swim_offer(&A, (zui_rect_t){100, 100, 60, 60}, &d, DIG, "x");
+    ground(PX);
+    zui_swim_draw(&A, &s, NULL, NULL, 0);
+    for (int i = 0; i < W * H; i++) p = fnv(p, PX[i]);
+    printf("  pixel digest %016llx\n", (unsigned long long) p);
+    CHECK(p == 0x03740105c70eb6a4ull, "SW8 the pixel digest is unchanged");
+    zui_motion_reset();
+}
+
+/* the bubble's place, the extent's exact union, the buttons, describe's bounds */
+static void test_layout(void)
+{
+    zui_motion_reset();
+    zui_motion_set_flag(ZUI_PREF_REDUCE_MOTION, true);
+    int32_t e = 2 * (int32_t) ZUI_SWIM_R, bw = ZUI_SWIM_BUBBLE_W, bh = ZUI_SWIM_BUBBLE_H;
+    /* waiting at (cx, cy) = (400 + 50 + 8 + 48, 300 + 48): the bubble goes left of the body */
+    arrive(&A, (zui_rect_t){400, 300, 50, 50}, "x");
+    int32_t cx = px(&A), cy = py(&A);
+    zui_swim_open(&A);
+    zui_rect_t b = zui_swim_bubble(&A);
+    CHECK(b.x == cx - e - bw && b.y == cy - bh / 2 && b.w == bw && b.h == bh,
+          "the bubble sits left of the body (%d %d %d %d)", b.x, b.y, b.w, b.h);
+    zui_rect_t x = zui_swim_extent(&A);
+    CHECK(x.x == b.x && x.y == cy - ZUI_SWIM_BOX / 2 && x.w == cx + ZUI_SWIM_BOX / 2 - b.x &&
+              x.h == ZUI_SWIM_BOX,
+          "SW1 the extent is exactly body and bubble (%d %d %d %d)", x.x, x.y, x.w, x.h);
+    int32_t btw = (bw - 2 * 8 - 2 * 6) / 3;
+    for (uint32_t i = 0; i < 3; i++) {
+        zui_rect_t r = zui_swim_button(&A, i);
+        CHECK(r.x == b.x + 8 + (int32_t) i * (btw + 6) && r.y == b.y + bh - 8 - ZUI_SWIM_BUTTON_H &&
+                  r.w == btw && r.h == ZUI_SWIM_BUTTON_H,
+              "button %u in its place", i);
+    }
+    CHECK(zui_swim_button(&A, 3).w == 0, "there are three buttons");
+    /* near the left edge: right of the body; near the top: kept inside */
+    arrive(&A, (zui_rect_t){10, 0, 40, 30}, "x");
+    cx = px(&A);
+    zui_swim_open(&A);
+    b = zui_swim_bubble(&A);
+    CHECK(b.x == cx + e && b.y == 0, "by the left edge, right of the body, inside the top (%d %d)",
+          b.x, b.y);
+    x = zui_swim_extent(&A);
+    CHECK(x.x == cx - ZUI_SWIM_BOX / 2 && x.y == py(&A) - ZUI_SWIM_BOX / 2 &&
+              x.w == b.x + bw - x.x && x.h == ZUI_SWIM_BOX,
+          "SW1 the extent reaches the bubble's far edge (%d %d %d %d)", x.x, x.y, x.w, x.h);
+    /* a work area narrower than body and bubble: the bubble is kept inside it */
+    zui_swim_init(&A, (zui_rect_t){0, 0, 300, 400}, &LOOK);
+    zui_swim_tick(&A, 1000);
+    cmp_decision_t d = dec(CMP_PROCEED);
+    zui_swim_offer(&A, (zui_rect_t){100, 100, 40, 40}, &d, DIG, "x");
+    zui_swim_tick(&A, 1016);
+    zui_swim_open(&A);
+    b = zui_swim_bubble(&A);
+    CHECK(b.x == 300 - bw, "the bubble stops at the right edge (%d)", b.x);
+    zui_swim_init(&A, (zui_rect_t){50, 0, 200, 400}, &LOOK);
+    zui_swim_tick(&A, 1000);
+    zui_swim_offer(&A, (zui_rect_t){60, 100, 20, 20}, &d, DIG, "x");
+    zui_swim_tick(&A, 1016);
+    zui_swim_open(&A);
+    CHECK(zui_swim_bubble(&A).x == 50, "wider than the work area, it starts at its left edge");
+    /* waiting: the extent is the body box alone */
+    arrive(&A, (zui_rect_t){400, 300, 50, 50}, "x");
+    x = zui_swim_extent(&A);
+    CHECK(x.x == px(&A) - ZUI_SWIM_BOX / 2 && x.y == py(&A) - ZUI_SWIM_BOX / 2 &&
+              x.w == ZUI_SWIM_BOX && x.h == ZUI_SWIM_BOX,
+          "SW1 waiting, the extent is the body box");
+    /* describe: the length it needs, cut to the buffer, always terminated */
+    static const char want[] = "Your chiglet has a suggestion. Open it to read it.";
+    char buf[64];
+    memset(buf, 'z', sizeof buf);
+    size_t n = zui_swim_describe(&A, buf, 10);
+    CHECK(n == sizeof want - 1 && memcmp(buf, want, 9) == 0 && buf[9] == 0 && buf[10] == 'z',
+          "SW9 cut to the buffer, its full length returned (%zu)", n);
+    memset(buf, 'z', sizeof buf);
+    n = zui_swim_describe(&A, buf, sizeof want);
+    CHECK(n == sizeof want - 1 && strcmp(buf, want) == 0, "SW9 exactly room");
+    memset(buf, 'z', sizeof buf);
+    CHECK(zui_swim_describe(&A, buf, 1) == sizeof want - 1 && buf[0] == 0 && buf[1] == 'z',
+          "SW9 one byte: only the terminator");
+    CHECK(zui_swim_describe(&A, NULL, 0) == sizeof want - 1, "SW9 no buffer: the length");
+    CHECK(zui_swim_describe(&A, NULL, 5) == 0, "SW9 a size with no buffer is refused");
+    memset(buf, 'z', sizeof buf);
+    zui_swim_describe(&A, buf, 0);
+    CHECK(buf[0] == 'z', "SW9 a zero-size buffer is not written");
+    fresh(&B);
+    zui_swim_describe(&B, buf, sizeof buf);
+    CHECK(strcmp(buf, "Your chiglet has nothing to suggest.") == 0, "SW9 nothing, not pinned");
+    zui_motion_reset();
+}
+
 int main(void)
 {
     test_refusals();
@@ -536,6 +814,9 @@ int main(void)
     test_pin_away();
     test_draw();
     test_words();
+    test_exact();
+    test_golden();
+    test_layout();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }
