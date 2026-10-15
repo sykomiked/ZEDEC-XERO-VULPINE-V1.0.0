@@ -19,10 +19,18 @@
 #include "zui_tokens.h"
 #include "zxv_rpc_client.h"
 
+/* zui_palette.h C6: every colour by role, from the chosen set */
+#define C(role) zui_color(cs, ZUI_C_##role)
+
 #ifndef ZXV_FONT_DIR
 #    define ZXV_FONT_DIR "assets/fonts/ascw-golden"
 #endif
 
+#ifndef ZXV_APPS_DIR
+#    define ZXV_APPS_DIR "assets/icons/apps"
+#endif
+
+#define APPS_PACK "zxv-apps.zxap"
 #define FONT_MAIN "ASCW-Golden-Latin2.ttf"
 #define FONT_MONO "ASCW-Golden-Mono.ttf"
 
@@ -32,12 +40,16 @@
 #define GLINT_BUF        (4u << 20)
 #define EVQ              256u
 #define PATH_CAP         1024u
+#define LIB_SLOTS        64u  /* HD6: icons kept drawn, a screenful */
+#define LIB_SIDE         128u /* 64 pt icons up to 2x */
+#define CARDS            6u
 
 /* the apps on the rail, in order. The file manager is the Banker (its model
  * and view are still called burrow in the code). */
 enum { APP_BURROW, APP_QUILLON, APP_GLINT, APP_SPINDLE, APP_MURMURATION, APP_N };
 static const zui_desk_app_t APPS[APP_N] = {
-    {"Banker", "B"}, {"Quillon", "Q"}, {"Glint", "G"}, {"Spindle", "S"}, {"Murmuration", "M"},
+    {"Banker", "B", NULL, 0},  {"Quillon", "Q", NULL, 0},     {"Glint", "G", NULL, 0},
+    {"Spindle", "S", NULL, 0}, {"Murmuration", "M", NULL, 0},
 };
 
 /* HD4 */
@@ -63,6 +75,14 @@ struct appwin {
         murm_view_t murm;
     } v;
 };
+
+/* HD6: an app's card in a window */
+typedef struct {
+    zxv_desktop_t *d;
+    int32_t app; /* catalogue index */
+    uint32_t id; /* its window, 0 none */
+    uint32_t age;
+} card_t;
 
 /* a file Burrow hands over, opened after the event that asked */
 typedef struct {
@@ -92,11 +112,24 @@ struct zxv_desktop {
     uint8_t *font_data, *mono_data;
     bool have_font, have_mono;
     zui_glyph_cache_t *cache, *cache_mono;
-    zui_text_t t_title, t_body, t_caption, t_mark, t_wm;
+    zui_text_t t_title, t_body, t_caption, t_mark, t_wm, t_label;
     zui_theme_t theme;
 
     zui_desk_t desk;
     appwin_t *win[APP_N];
+    zui_scheme_t scheme; /* HD7 */
+    const zui_colors_t *colors;
+
+    /* HD6: the catalogue, its icons and the library */
+    uint8_t *apps_data;
+    zui_apps_t apps;
+    bool have_apps;
+    zui_vec_work_t *vw;
+    uint32_t *lib_px;
+    zui_applib_cache_t lib_cache;
+    zui_applib_t lib;
+    card_t card[CARDS];
+    uint32_t card_age;
     appwin_t *dead;
     pending_open_t pending;
 
@@ -253,6 +286,7 @@ static void set_faces(zxv_desktop_t *d)
     face(&d->t_body, f, d->cache, px_of(s, ZUI_T_BODY), false);
     face(&d->t_caption, f, d->cache, px_of(s, ZUI_T_CAPTION), false);
     face(&d->t_mark, f, d->cache, px_of(s, ZUI_T_HEADLINE), false);
+    face(&d->t_label, f, d->cache, px_of(s, ZUI_T_LABEL), false);
     /* the window manager's title bars are pixels, not points (zui_wm.h) */
     int32_t wmpx = px_of(s, ZUI_T_BODY);
     if (wmpx > (ZUI_WM_TITLE * 9) / 20) wmpx = (ZUI_WM_TITLE * 9) / 20;
@@ -308,6 +342,115 @@ static void open_fonts(zxv_desktop_t *d, const zxv_desktop_cfg_t *cfg)
             d->have_mono = load_font(mpath, &d->mono, &d->mono_data);
         }
     }
+}
+
+/* ---------------------------------------------------------------- HD6 the catalogue */
+
+static bool load_apps(zxv_desktop_t *d, const char *path)
+{
+    uint32_t n = 0;
+    uint8_t *b = read_file(path, &n);
+    if (!b) return false;
+    if (zui_apps_bind(&d->apps, b, n) != 0) {
+        free(b);
+        return false;
+    }
+    d->apps_data = b;
+    return true;
+}
+
+/* cfg.apps, $ZXV_APPS, the repo's pack, then beside the font (a bundle) */
+static void open_apps(zxv_desktop_t *d, const zxv_desktop_cfg_t *cfg, const char *font)
+{
+    char path[PATH_CAP];
+    const char *e = cfg->apps && cfg->apps[0] ? cfg->apps : getenv("ZXV_APPS");
+    if (e && e[0]) {
+        d->have_apps = load_apps(d, e);
+        return;
+    }
+    const char *dirs[] = {ZXV_APPS_DIR, "assets/icons/apps"};
+    for (uint32_t i = 0; i < 2 && !d->have_apps; i++) {
+        snprintf(path, sizeof path, "%s/%s", dirs[i], APPS_PACK);
+        d->have_apps = load_apps(d, path);
+    }
+    const char *slash = font ? strrchr(font, '/') : NULL;
+    int at = slash ? (int) (slash - font) + 1 : 0;
+    if (!d->have_apps && font) {
+        snprintf(path, sizeof path, "%.*s%s", at, font, APPS_PACK);
+        d->have_apps = load_apps(d, path);
+    }
+    if (!d->have_apps && font) {
+        snprintf(path, sizeof path, "%.*s../Icons/%s", at, font, APPS_PACK);
+        d->have_apps = load_apps(d, path);
+    }
+}
+
+static void lib_faces(zxv_desktop_t *d)
+{
+    d->lib.f.headline = &d->t_mark;
+    d->lib.f.title = &d->t_title;
+    d->lib.f.body = &d->t_body;
+    d->lib.f.label = &d->t_label;
+    d->lib.f.caption = &d->t_caption;
+}
+
+/* the library and the rail's icons, once the desk has its apps */
+static void library_init(zxv_desktop_t *d)
+{
+    if (!d->have_apps) return;
+    d->vw = (zui_vec_work_t *) malloc(sizeof *d->vw);
+    d->lib_px = (uint32_t *) malloc((size_t) LIB_SLOTS * LIB_SIDE * LIB_SIDE * 4u);
+    if (!d->vw) {
+        d->have_apps = false;
+        free(d->lib_px);
+        d->lib_px = NULL;
+        return;
+    }
+    zui_applib_cache_init(&d->lib_cache, d->lib_px, d->lib_px ? LIB_SLOTS : 0u, LIB_SIDE);
+    zui_applib_init(&d->lib, &d->apps, d->vw, &d->lib_cache, NULL, d->scale_q8);
+    lib_faces(d);
+    zui_desk_use_work(&d->desk, d->vw);
+    for (uint32_t i = 0; i < APP_N; i++) {
+        zui_app_t app;
+        int32_t k = zui_apps_find(&d->apps, APPS[i].name);
+        if (k >= 0 && zui_apps_get(&d->apps, (uint32_t) k, &app))
+            zui_desk_icon(&d->desk, i, app.icon, app.icon_len);
+    }
+}
+
+/* HD7: one set for the desk, its windows, the library, the cards and Spaces */
+void zxv_desktop_set_scheme(zxv_desktop_t *d, zui_scheme_t scheme)
+{
+    if (!d) return;
+    if ((uint32_t) scheme >= (uint32_t) ZUI_SCHEME_COUNT) scheme = ZUI_SCHEME_DARK;
+    d->scheme = scheme;
+    d->colors = zui_scheme_colors(scheme);
+    zui_desk_set_colors(&d->desk, d->colors);
+    d->lib.f.colors = d->colors;
+    for (uint32_t i = 0; i < APP_N; i++)
+        if (d->win[i]) {
+            zui_ui_set_colors(&d->win[i]->ui, d->colors);
+            if (d->win[i]->pw > 0)
+                zui_damage_all(&d->win[i]->ui.damage, d->win[i]->pw, d->win[i]->ph);
+        }
+    if (d->have_apps) /* the icon cache was drawn on the old ground */
+        zui_applib_cache_init(&d->lib_cache, d->lib_px, d->lib_px ? LIB_SLOTS : 0u, LIB_SIDE);
+    d->dirty = true;
+}
+
+zui_scheme_t zxv_desktop_scheme(const zxv_desktop_t *d)
+{
+    return d ? d->scheme : ZUI_SCHEME_DARK;
+}
+
+zui_applib_t *zxv_desktop_library(zxv_desktop_t *d)
+{
+    return d && d->have_apps ? &d->lib : NULL;
+}
+
+bool zxv_desktop_library_open(const zxv_desktop_t *d)
+{
+    return d && d->desk.library;
 }
 
 /* ---------------------------------------------------------------- app windows */
@@ -481,6 +624,7 @@ static void load_app(zxv_desktop_t *d, appwin_t *aw)
 uint32_t zxv_desktop_launch(zxv_desktop_t *d, uint32_t app)
 {
     if (!d || app >= APP_N) return 0;
+    d->desk.library = false;
     if (d->spaces) {
         d->spaces = false;
         d->desk.spaces = false;
@@ -504,12 +648,103 @@ uint32_t zxv_desktop_launch(zxv_desktop_t *d, uint32_t app)
     zui_screen_t sc = {(uint32_t) (r.w > 1 ? r.w : 1), (uint32_t) (r.h > 1 ? r.h : 1), d->scale_q8,
                        d->desk.wm.touch ? ZUI_INPUT_TOUCH : ZUI_INPUT_POINTER};
     zui_ui_init(&aw->ui, &sc, &d->theme);
+    zui_ui_set_colors(&aw->ui, d->colors);
     zui_ui_on(&aw->ui, on_action, aw);
     aw->ui.clip_set = d->clip_set;
     aw->ui.clip_get = d->clip_get;
     aw->ui.clip_ctx = d->clip_ctx;
     load_app(d, aw);
     return id;
+}
+
+/* ---------------------------------------------------------------- HD6 cards */
+
+static void card_paint(void *ctx, zui_surface_t *s, zui_rect_t c, uint32_t tick)
+{
+    card_t *k = (card_t *) ctx;
+    zui_app_t app;
+    (void) tick;
+    if (zui_apps_get(&k->d->apps, (uint32_t) k->app, &app))
+        zui_applib_card(s, k->d->vw, &k->d->lib.f, k->d->scale_q8, &app, false, c);
+}
+
+static void card_closed(void *ctx)
+{
+    card_t *k = (card_t *) ctx;
+    k->id = 0;
+    k->d->dirty = true;
+}
+
+static uint32_t open_card(zxv_desktop_t *d, int32_t idx)
+{
+    zui_app_t app;
+    if (!d->have_apps || !zui_apps_get(&d->apps, (uint32_t) idx, &app)) return 0;
+    for (uint32_t i = 0; i < CARDS; i++)
+        if (d->card[i].id && d->card[i].app == idx) {
+            zui_wm_focus(&d->desk.wm, d->card[i].id);
+            return d->card[i].id;
+        }
+    card_t *k = NULL;
+    for (uint32_t i = 0; i < CARDS && !k; i++)
+        if (!d->card[i].id) k = &d->card[i];
+    if (!k) { /* every card is open: the oldest one gives way */
+        k = &d->card[0];
+        for (uint32_t i = 1; i < CARDS; i++)
+            if (d->card[i].age < k->age) k = &d->card[i];
+        zui_wm_close(&d->desk.wm, k->id);
+    }
+    zui_wm_client_t c = {card_paint, NULL, card_closed, k};
+    k->d = d;
+    k->app = idx;
+    k->age = ++d->card_age;
+    k->id = zui_wm_open(&d->desk.wm, app.name, app.name, NULL, &c);
+    if (!k->id) {
+        zxv_desktop_note(d, "Too many windows are open; close one to see that card");
+        return 0;
+    }
+    zui_wm_progress(&d->desk.wm, k->id, 256u);
+    /* a card with only what it does needs no room for the other sections */
+    bool more = app.built_from[0] || app.pillars[0] || app.paraconsistent[0];
+    zui_rect_t a = zui_desk_area(&d->desk);
+    int32_t w = px_of(d->scale_q8, 520), h = px_of(d->scale_q8, more ? 600 : 300);
+    if (w > a.w) w = a.w;
+    if (h > a.h) h = a.h;
+    zui_wm_move(&d->desk.wm, k->id, (zui_rect_t){a.x + (a.w - w) / 2, a.y + (a.h - h) / 2, w, h});
+    d->dirty = true;
+    return k->id;
+}
+
+/* catalogue app i: its window when it is on the rail, else its card */
+uint32_t zxv_desktop_choose(zxv_desktop_t *d, uint32_t i)
+{
+    zui_app_t app;
+    if (!d || !d->have_apps || !zui_apps_get(&d->apps, i, &app)) return 0;
+    d->desk.library = false;
+    for (uint32_t r = 0; r < APP_N; r++)
+        if (!strcmp(APPS[r].name, app.name)) return zxv_desktop_launch(d, r);
+    return open_card(d, (int32_t) i);
+}
+
+static void library_show(zxv_desktop_t *d, bool on)
+{
+    if (on && !d->have_apps) {
+        zxv_desktop_note(d, "The app catalogue is missing (assets/icons/apps/zxv-apps.zxap)");
+        on = false;
+    }
+    if (on) {
+        d->spaces = d->desk.spaces = false;
+        zui_applib_set_query(&d->lib, ""); /* each visit starts fresh, at the top */
+    }
+    d->desk.library = on;
+    d->dirty = true;
+}
+
+/* what the library asked for after an event */
+static void library_act(zxv_desktop_t *d)
+{
+    if (d->lib.act == ZUI_APPLIB_CLOSE) library_show(d, false);
+    if (d->lib.act == ZUI_APPLIB_OPEN && d->lib.act_app >= 0)
+        zxv_desktop_choose(d, (uint32_t) d->lib.act_app);
 }
 
 /* Burrow's Open: text to Quillon, pictures, sound and video to Glint. */
@@ -647,28 +882,29 @@ static void sign(zui_surface_t *s, uint32_t i, int32_t cx, int32_t cy, int32_t u
 
 static void draw_spaces(zxv_desktop_t *d, zui_surface_t *s)
 {
+    const zui_colors_t *cs = d->colors;
     zui_rect_t a = zui_desk_area(&d->desk);
     zui_unclip(s);
     zui_clip(s, a);
-    zui_fill(s, a, ZUI_VOID);
+    zui_fill(s, a, C(VOID));
     if (d->t_mark.font)
         zui_text(s, &d->t_mark, a.x + px_of(d->scale_q8, ZUI_S5), a.y + px_of(d->scale_q8, 44),
-                 ZUI_TEXT, "Spaces");
+                 C(TEXT), "Spaces");
     int32_t rad = px_of(d->scale_q8, ZUI_R_PANEL);
     for (uint32_t i = 0; i < SPACES; i++) {
         zui_rect_t r = zxv_desktop_space_card(d, i);
         if (!r.w) continue;
         bool on = d->space == i, hot = d->space_press == (int32_t) i;
-        zui_fill_rrect(s, r, rad, hot ? ZUI_RAISED : ZUI_PANEL, 255);
-        zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 70);
+        zui_fill_rrect(s, r, rad, hot ? C(RAISED) : C(PANEL), 255);
+        zui_engrave(s, r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 70);
         if (on) {
             int32_t g = px_of(d->scale_q8, 2);
             zui_stroke_rrect(s, (zui_rect_t){r.x - g, r.y - g, r.w + 2 * g, r.h + 2 * g}, rad + g,
-                             g, ZUI_GOLD, 255);
+                             g, C(GOLD), 255);
         }
-        sign(s, i, r.x + r.w / 2, r.y + r.h * 2 / 5, r.h / 6, on ? ZUI_GOLD : ZUI_TEXT_2);
+        sign(s, i, r.x + r.w / 2, r.y + r.h * 2 / 5, r.h / 6, on ? C(GOLD) : C(TEXT_2));
         text_in(s, &d->t_body, (zui_rect_t){r.x + rad, r.y, r.w - 2 * rad, r.h},
-                r.y + r.h - px_of(d->scale_q8, 18), on ? ZUI_TEXT : ZUI_TEXT_2, SPACE_NAME[i]);
+                r.y + r.h - px_of(d->scale_q8, 18), on ? C(TEXT) : C(TEXT_2), SPACE_NAME[i]);
     }
     zui_unclip(s);
 }
@@ -782,6 +1018,17 @@ static bool handle(zxv_desktop_t *d, const zui_event_t *e)
         spaces_event(d, e);
         return true;
     }
+    if (d->desk.library) { /* HD6: the library has the area and the keyboard */
+        bool key =
+            (e->type == ZUI_EV_KEY_DOWN || e->type == ZUI_EV_TEXT) && !(e->mods & ZUI_MOD_CMD);
+        bool inside = ptr && in_rect(zui_desk_area(&d->desk), e->x, e->y);
+        if (key || inside || e->type == ZUI_EV_PTR_UP) {
+            bool lused = zui_applib_event(&d->lib, e);
+            if (lused || !move) d->dirty = true;
+            library_act(d);
+            if (key || inside) return true;
+        }
+    }
     int32_t hover = d->desk.hover;
     bool used = zui_desk_event(&d->desk, e);
     /* a move redraws only when something under it changed */
@@ -790,7 +1037,11 @@ static bool handle(zxv_desktop_t *d, const zui_event_t *e)
     case ZUI_DESK_LAUNCH:
         if (d->desk.act_app >= 0) zxv_desktop_launch(d, (uint32_t) d->desk.act_app);
         break;
+    case ZUI_DESK_LIBRARY:
+        library_show(d, !d->desk.library);
+        break;
     case ZUI_DESK_SPACES:
+        d->desk.library = false;
         d->spaces = d->desk.spaces = true;
         d->space_press = -1;
         break;
@@ -858,6 +1109,10 @@ int zxv_desktop_step(zxv_desktop_t *d, uint32_t wait_ms)
     d->tick++;
     zui_desk_draw(&d->desk, &d->surf, d->now);
     if (d->spaces) draw_spaces(d, &d->surf);
+    if (d->desk.library) {
+        zui_applib_place(&d->lib, zui_desk_area(&d->desk), d->scale_q8);
+        zui_applib_draw(&d->lib, &d->surf);
+    }
     if (!d->headless) {
         zui_damage_t dmg;
         zui_damage_clear(&dmg);
@@ -929,6 +1184,12 @@ zxv_desktop_t *zxv_desktop_open(const zxv_desktop_cfg_t *cfg, const char **why)
     }
     zui_glyph_cache_init(d->cache);
     open_fonts(d, cfg);
+    {
+        const char *fp = pick_font(cfg);
+        char fpath[PATH_CAP];
+        snprintf(fpath, sizeof fpath, "%s/%s", ZXV_FONT_DIR, FONT_MAIN);
+        open_apps(d, cfg, fp ? fp : fpath);
+    }
     if (d->have_mono) {
         d->cache_mono = (zui_glyph_cache_t *) malloc(sizeof *d->cache_mono);
         if (d->cache_mono)
@@ -967,6 +1228,15 @@ zxv_desktop_t *zxv_desktop_open(const zxv_desktop_cfg_t *cfg, const char **why)
     zui_desk_init(&d->desk, d->w, d->h, d->scale_q8, false, &f);
     desk_faces(d);
     for (uint32_t i = 0; i < APP_N; i++) zui_desk_add(&d->desk, APPS[i].name, APPS[i].mark);
+    library_init(d);
+    {
+        const char *sc = cfg->scheme ? cfg->scheme : getenv("ZXV_SCHEME");
+        zui_scheme_t k = ZUI_SCHEME_DARK;
+        if (sc && !strcmp(sc, "light")) k = ZUI_SCHEME_LIGHT;
+        if (sc && (!strcmp(sc, "high-contrast") || !strcmp(sc, "contrast")))
+            k = ZUI_SCHEME_HIGH_CONTRAST;
+        zxv_desktop_set_scheme(d, k);
+    }
     zxm_link_init(&d->link, rpc_send, d);
     const char *rpc = cfg->rpc ? cfg->rpc : getenv("ZXV_RPC");
     snprintf(d->rpc, sizeof d->rpc, "%s", rpc ? rpc : "");
@@ -997,5 +1267,8 @@ void zxv_desktop_close(zxv_desktop_t *d)
     free(d->cache);
     free(d->cache_mono);
     free(d->glint_buf);
+    free(d->apps_data);
+    free(d->vw);
+    free(d->lib_px);
     free(d);
 }
