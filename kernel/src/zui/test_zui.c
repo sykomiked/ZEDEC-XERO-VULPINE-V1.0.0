@@ -416,7 +416,7 @@ static uint64_t draw_chg(const zui_chiglet_t *c, uint32_t tick)
 
 static void test_chiglet(void)
 {
-    zui_chiglet_t a = {{1, 2, 3, 4, 5, 6, 7, 8}, 1, ZUI_CHG_DECIDED};
+    zui_chiglet_t a = {{1, 2, 3, 4, 5, 6, 7, 8}, 1, ZUI_CHG_DECIDED, 0};
     zui_chiglet_t b = a;
     CHECK(draw_chg(&a, 3) == draw_chg(&b, 3), "same genes, same companion");
     uint64_t base = draw_chg(&a, 3);
@@ -435,6 +435,18 @@ static void test_chiglet(void)
     b = a;
     b.mood = ZUI_CHG_SPEAKING;
     CHECK(draw_chg(&b, 3) != base, "speaking opens its mouth");
+    uint64_t speaking = draw_chg(&b, 3);
+    b.mouth = 1;
+    uint64_t shut = draw_chg(&b, 3);
+    CHECK(shut != speaking, "mouth 1: shut while speaking");
+    b.mouth = 255;
+    uint64_t wide = draw_chg(&b, 3);
+    CHECK(wide != shut && wide != speaking, "mouth 255: wide open");
+    b.mouth = 128;
+    CHECK(draw_chg(&b, 3) != wide && draw_chg(&b, 3) != shut, "mouth follows its level");
+    b = a;
+    b.mouth = 255;
+    CHECK(draw_chg(&b, 3) != base, "the level opens it in any mood");
     CHECK(draw_chg(&a, 4) != base, "motes move with the tick");
     zui_surface_t s;
     zui_surface_init(&s, buf, 64, 64, 64);

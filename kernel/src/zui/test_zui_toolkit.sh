@@ -44,6 +44,7 @@ run test_zui_switch "" $Z/test_zui_switch.c $Z/zui_switch.c $M
 run test_zui_voicectl "" $Z/test_zui_voicectl.c $Z/zui_voicectl.c $M
 run test_zui_caption "" $Z/test_zui_caption.c $Z/zui_caption.c $Z/zui_motion.c $Z/zui_palette.c $Z/zui_canvas.c $Z/zui_layout.c $Z/zui_input.c src/font/truetype.c
 run test_zui_motion "" $Z/test_zui_motion.c $Z/zui_motion.c
+run test_zui_chgvoice "-Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm" $Z/test_zui_chgvoice.c $Z/zui_chgvoice.c $Z/zui_chiglet.c $Z/zui_emote.c $Z/zui_motion.c $Z/zui_palette.c $DRAW src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
 run test_zui_bidi "" $Z/test_zui_bidi.c $Z/zui_bidi.c
 run test_zui_shape "" $Z/test_zui_shape.c $Z/zui_shape.c $Z/zui_bidi.c
 run test_zui_locale "" $Z/test_zui_locale.c $Z/zui_locale.c $Z/zui_bidi.c $Z/zui_reader.c $UI
