@@ -961,8 +961,49 @@ static void test_special(void)
     pdx_special(&fr, &c2, sig2, subj, &L, &rec);
     CHECK(rec == 1, "a second frontier record");
     pdx_draft(&fr, 1, PDX_KIND_CONSTRUCTIVE, 3, PDX_DRAFT_MONEY, &d, &L);
+    CHECK(L.rec[L.n - 1].op == PDX_OP_DRAFT && memcmp(L.rec[L.n - 1].b, d.sig, 32),
+          "the draft record commits to the whole draft, not just the signature");
     CHECK(pdx_review(&reg, &fr, &d, false, true, &L) == PDX_OUT_PROPOSAL_FOR_OWNER && reg.n == 1,
           "a money draft: consensus is not enough");
+    {
+        pdx_draft_t m = d;
+        m.flags = 0; /* clear PDX_DRAFT_MONEY after pdx_draft */
+        CHECK(pdx_review(&reg, &fr, &m, false, true, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "a money flag cleared after the draft is refused, not passed by consensus");
+        CHECK(pdx_review(&reg, &fr, &m, true, true, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "the altered draft is refused even with the owner");
+        m = d;
+        m.flags = PDX_DRAFT_DEVICE;
+        CHECK(pdx_review(&reg, &fr, &m, true, false, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "flags swapped after the draft are refused");
+        m = d;
+        m.kind = PDX_KIND_DESTRUCTIVE;
+        CHECK(pdx_review(&reg, &fr, &m, true, false, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "a kind changed after the draft is refused");
+        m = d;
+        m.reason = 4;
+        CHECK(pdx_review(&reg, &fr, &m, true, false, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "a reason changed after the draft is refused");
+        pdx_rec_t os[8];
+        pdx_log_t other;
+        pdx_log_init(&other, os, 8);
+        CHECK(pdx_review(&reg, &fr, &d, true, false, &other) == PDX_OUT_REFUSED && reg.n == 1,
+              "a review in a log without the draft record is refused");
+        uint32_t li = L.n - 1;
+        while (L.rec[li].op != PDX_OP_DRAFT) li--;
+        L.rec[li].b[0] ^= 1;
+        CHECK(pdx_review(&reg, &fr, &d, true, false, &L) == PDX_OUT_REFUSED && reg.n == 1,
+              "an edited draft record refuses the review");
+        L.rec[li].b[0] ^= 1;
+        CHECK(pdx_review(&reg, &fr, &d, false, true, &L) == PDX_OUT_PROPOSAL_FOR_OWNER &&
+                  reg.n == 1,
+              "the money draft as recorded still needs the owner");
+        /* a second, honest draft of the same record without the flag is its own record */
+        pdx_draft_t n0;
+        pdx_draft(&fr, 1, PDX_KIND_CONSTRUCTIVE, 3, 0, &n0, &L);
+        CHECK(!memcmp(n0.sig, d.sig, 32) && n0.flags == 0 && pdx_log_verify(&L),
+              "a re-draft is a new logged record, not an edit of the old one");
+    }
     CHECK(pdx_review(&reg, &fr, &d, true, false, &L) == PDX_OUT_ACCEPTED && reg.n == 2 &&
               reg.ent[1].flags == PDX_DRAFT_MONEY && reg.ent[1].src == 1,
           "the owner approves it");
@@ -1043,9 +1084,14 @@ static void test_special(void)
     pdx_log_init(&lf, r1, 0);
     CHECK(pdx_draft(&fr, 0, PDX_KIND_NEUTRAL, 0, 0, &d, &lf) == PDX_OUT_LOG_FULL,
           "a draft needs its record");
-    pdx_draft(&fr, 0, PDX_KIND_NEUTRAL, 0, 0, &d, &L);
-    CHECK(pdx_review(&reg, &fr, &d, true, true, &lf) == PDX_OUT_LOG_FULL,
-          "a review needs its record");
+    {
+        pdx_rec_t r3[1];
+        pdx_log_t l3;
+        pdx_log_init(&l3, r3, 1);
+        CHECK(pdx_draft(&fr, 0, PDX_KIND_NEUTRAL, 0, 0, &d, &l3) == PDX_OUT_RECORDED &&
+                  pdx_review(&reg, &fr, &d, true, true, &l3) == PDX_OUT_LOG_FULL,
+              "a review needs its record");
+    }
     CHECK(pdx_special(0, &c2, sig, subj, &L, 0) == PDX_OUT_REFUSED &&
               pdx_special(&fr, 0, sig, subj, &L, 0) == PDX_OUT_REFUSED &&
               pdx_special(&fr, &c2, 0, subj, &L, 0) == PDX_OUT_REFUSED &&

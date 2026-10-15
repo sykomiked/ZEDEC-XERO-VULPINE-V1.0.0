@@ -170,6 +170,18 @@ static const pay_journal_t *last(void)
     return &L.journal[(L.seq - 1) % PAY_JOURNAL_MAX];
 }
 
+/* the module's e2e at sequence sq: "VSWAP-" || hex(SHA-256(seed || E || sq)[0..12)) */
+static void e2e_at(uint64_t sq, char out[40])
+{
+    uint8_t in[41], h[32];
+    memcpy(in, C.seed, 32);
+    in[32] = 'E';
+    for (int i = 0; i < 8; i++) in[33 + i] = (uint8_t) (sq >> (8 * i));
+    sha256(in, sizeof in, h);
+    memcpy(out, "VSWAP-", 6);
+    for (int i = 0; i < 12; i++) snprintf(out + 6 + 2 * i, 3, "%02x", h[i]);
+}
+
 static void test_init(void)
 {
     vswap_cfg_t d;
@@ -471,7 +483,7 @@ static void test_exact(void)
           "buying with more Vino than held: funds");
     CHECK(vswap_swap_in(&S, uv[0], ub[0], 999999, 3, &q) == VSWAP_OK, "all of it is fine");
 
-    /* identifiers: SHA-256(seed || tag || seq), e2e VSWAP-<seq> */
+    /* identifiers: SHA-256(seed || tag || seq), e2e VSWAP-<hex of the E hash> */
     uint8_t in[41], want[32];
     char uetr[PAY_UETR_LEN + 1], e2e[40];
     memcpy(in, C.seed, 32);
@@ -483,9 +495,10 @@ static void test_exact(void)
     in[32] = 'U';
     sha256(in, sizeof in, want);
     pay_uetr_from_random(want, uetr);
-    snprintf(e2e, sizeof e2e, "VSWAP-%llu", (unsigned long long) sq);
-    CHECK(!strcmp(last()->uetr, uetr) && !strcmp(last()->e2e, e2e),
-          "UETR from SHA-256(seed || U || seq); e2e VSWAP-<seq>; failed posts use a seq");
+    e2e_at(sq, e2e);
+    CHECK(!strcmp(last()->uetr, uetr) && !strcmp(last()->e2e, e2e) && strlen(e2e) == 30,
+          "UETR from SHA-256(seed || U || seq); e2e from SHA-256(seed || E || seq); failed posts "
+          "use a seq");
     CHECK(S.seq == 5 && S.posted == 3, "five attempts reached the ledger, three posted");
 }
 
@@ -979,14 +992,14 @@ static void test_batches(void)
     /* a later batch refused: the first stands and is reported */
     fund(pool, 1000);
     char e2e[40];
-    snprintf(e2e, sizeof e2e, "VSWAP-%llu", (unsigned long long) S.seq + 1);
+    e2e_at(S.seq + 1, e2e);
     raw(uv[0], 1, 0, viss, 0, 1, e2e); /* takes the second batch's e2e */
     CHECK(vswap_dividend(&S, pool, h, 10, false, 2, paid, &d) == VSWAP_ERR_PARTIAL &&
               d.postings == 1 && paid[0] == 18 && paid[6] == 127 && paid[7] == 0 && paid[9] == 0 &&
               d.paid == 18 + 36 + 55 + 73 + 91 + 109 + 127 && bal(pool) == 1000 - d.paid && inv(),
           "partial: batch one paid and reported, the rest still in the pool");
     /* the first posting refused: nothing at all */
-    snprintf(e2e, sizeof e2e, "VSWAP-%llu", (unsigned long long) S.seq);
+    e2e_at(S.seq, e2e);
     raw(uv[0], 1, 0, viss, 0, 1, e2e);
     uint64_t pb = bal(pool);
     CHECK(vswap_dividend(&S, pool, h, 10, false, 3, paid, &d) == VSWAP_ERR_LEDGER &&
@@ -997,7 +1010,7 @@ static void test_batches(void)
     div_setup();
     S.pos[0].reinvest = true;
     fund(pool, 100);
-    snprintf(e2e, sizeof e2e, "VSWAP-%llu", (unsigned long long) S.seq);
+    e2e_at(S.seq, e2e);
     raw(uv[0], 1, 0, viss, 0, 1, e2e);
     vswap_holder_t two[2] = {{ub[0], uv[0]}, {ub[1], uv[1]}};
     CHECK(vswap_dividend(&S, pool, two, 2, false, 4, NULL, &d) == VSWAP_ERR_LEDGER &&
@@ -1007,6 +1020,54 @@ static void test_batches(void)
     pay_ledger_set_flags(&L, reserve, PAY_ACCT_FROZEN); /* irrelevant to an inflow */
     CHECK(vswap_dividend(&S, pool, two, 2, false, 5, NULL, &d) == VSWAP_OK && d.postings == 2,
           "and the retry pays");
+}
+
+/* audit 2026-10-12 4.2: a ledger poster pre-posts the next e2e ids. With
+ * VSWAP-<seq> that forced a partial dividend, and the next dividend paid
+ * batch one twice. The ids are now unguessable without the seed. */
+static void test_e2e_squat(void)
+{
+    setup();
+    vswap_holder_t h[10];
+    uint64_t paid[10];
+    for (int i = 0; i < 10; i++) {
+        uint32_t b = open_acct(vbl, 300 + (uint32_t) i, 0);
+        vbi(b, 1); /* ten equal holders */
+        h[i] = (vswap_holder_t){b, uv[i % NU]};
+    }
+    char e2e[40];
+    for (uint64_t k = 0; k < 4; k++) {
+        snprintf(e2e, sizeof e2e, "VSWAP-%llu", (unsigned long long) (S.seq + k));
+        CHECK(raw(uv[0], 1, 0, viss, 0, 1, e2e) == PAY_OK, "the old-style id is free to take");
+    }
+    vswap_div_t d;
+    for (int round = 0; round < 2; round++) {
+        fund(pool, 1000);
+        CHECK(vswap_dividend(&S, pool, h, 10, false, 1 + (uint64_t) round, paid, &d) == VSWAP_OK &&
+                  d.postings == 2 && d.paid == 1000 && bal(pool) == 0 && inv(),
+              "squatted VSWAP-<seq> ids no longer force a partial dividend");
+        bool even = true;
+        for (int i = 0; i < 10; i++) even = even && paid[i] == 100;
+        CHECK(even, "each of ten equal holders gets exactly 100: nobody paid twice");
+    }
+}
+
+/* audit 2026-10-12 4.1: a party's two accounts must share an owner */
+static void test_owner_binding(void)
+{
+    setup();
+    vswap_quote_t q;
+    vbi(ub[0], 10);
+    uint64_t seq = L.seq;
+    CHECK(vswap_swap_in(&S, uv[0], ub[1], 10, 1, &q) == VSWAP_ERR_AUTH && L.seq == seq,
+          "swap in: Vino of one owner, V-Bills to another, refused");
+    CHECK(vswap_swap_out(&S, ub[0], uv[1], 5, 1, &q) == VSWAP_ERR_AUTH && L.seq == seq,
+          "swap out: V-Bills of one owner, proceeds to another, refused");
+    CHECK(vswap_lock(&S, ub[0], uv[1], 1, 5, false, 1, NULL) == VSWAP_ERR_AUTH && L.seq == seq,
+          "lock: dividends paid to another owner's Vino account, refused");
+    CHECK(vswap_swap_in(&S, uv[1], ub[1], 10, 1, &q) == VSWAP_OK &&
+              vswap_lock(&S, ub[0], uv[0], 1, 5, false, 1, NULL) == VSWAP_OK && inv(),
+          "the same owner on both sides is accepted");
 }
 
 /* boundaries and details the other tests do not reach */
@@ -1113,6 +1174,8 @@ int main(void)
     test_reinvest();
     test_batches();
     test_edges();
+    test_e2e_squat();
+    test_owner_binding();
     printf("PASS %d FAIL %d\n", pass, fail);
     return fail ? 1 : 0;
 }

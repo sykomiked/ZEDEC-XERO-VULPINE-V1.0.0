@@ -187,7 +187,8 @@ DEF_fuzz_tok := -DTEST_HOST
 DIR_fuzz_call := parsers
 INC_fuzz_call := -I$(S)/call
 SRC_fuzz_call := $(S)/call/call_rtp.c $(S)/call/call_cc.c $(S)/call/call_fec.c $(S)/call/call_mesh.c \
-                 $(S)/call/call_ice.c $(S)/call/call_session.c $(S)/call/call_jitter.c
+                 $(S)/call/call_ice.c $(S)/call/call_session.c $(S)/call/call_jitter.c \
+                 $(S)/robin_debanks/sha256.c
 DEF_fuzz_call := -DTEST_HOST
 
 DIR_fuzz_cardnet := parsers

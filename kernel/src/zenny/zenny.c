@@ -96,12 +96,14 @@ zenny_status_t zenny_rebalance_digest(const zenny_t *z, uint32_t slot, const zen
     return ZENNY_OK;
 }
 
-void zenny_att_digest(const uint8_t chip_id[32], const zenny_leg_t *leg, uint8_t out[32])
+void zenny_att_digest(const uint8_t chip_id[32], const uint8_t head[32], const zenny_leg_t *leg,
+                      uint8_t out[32])
 {
     sha256_ctx_t c;
     sha256_init(&c);
-    htag(&c, "zxv/zenny/att/1.");
+    htag(&c, "zxv/zenny/att/2.");
     sha256_update(&c, chip_id, 32);
+    sha256_update(&c, head, 32);
     h64(&c, leg->kind);
     h64(&c, leg->custodian);
     h64(&c, leg->asset);
@@ -182,9 +184,10 @@ static bool signed_by(const zenny_t *z, uint32_t who, zenny_purpose_t p, const u
     return z->verify(z->vctx, who, m, ZENNY_SIG_MSG, sig, len);
 }
 
-/* minter, co-minter (BILATERAL) and every COMMODITY custodian */
+/* minter, co-minter (BILATERAL) and every COMMODITY custodian; head is the
+ * chip's current version hash (32 zero bytes for a mint) */
 static zenny_status_t authorise(const zenny_t *z, const zenny_req_t *r, zenny_purpose_t p,
-                                const uint8_t d[32], const uint8_t id[32])
+                                const uint8_t d[32], const uint8_t id[32], const uint8_t head[32])
 {
     if (!signed_by(z, r->minter, p, d, r->sig_minter, r->sig_minter_len)) return ZENNY_ERR_SIG;
     if ((r->rules & ZENNY_RULE_BILATERAL) &&
@@ -193,7 +196,7 @@ static zenny_status_t authorise(const zenny_t *z, const zenny_req_t *r, zenny_pu
     for (uint32_t i = 0; i < r->n_legs; i++) {
         if (r->leg[i].kind != ZENNY_COMMODITY) continue;
         uint8_t a[32];
-        zenny_att_digest(id, &r->leg[i], a);
+        zenny_att_digest(id, head, &r->leg[i], a);
         if (!signed_by(z, r->leg[i].custodian, ZENNY_SIG_ATTEST, a, r->att[i], r->att_len[i]))
             return ZENNY_ERR_ATTEST;
     }
@@ -235,7 +238,8 @@ zenny_status_t zenny_mint(zenny_t *z, const zenny_req_t *r, uint32_t *slot)
     uint8_t id[32];
     zenny_mint_digest(r, id);
     if (zenny_find(z, id, 0)) return ZENNY_ERR_DUP;
-    st = authorise(z, r, ZENNY_SIG_MINT, id, id);
+    static const uint8_t genesis[32] = {0};
+    st = authorise(z, r, ZENNY_SIG_MINT, id, id, genesis);
     if (st) return st;
     uint32_t s = 0;
     while (s < ZENNY_MAX_CHIPS && z->chip[s].used) s++;
@@ -276,7 +280,7 @@ zenny_status_t zenny_rebalance(zenny_t *z, uint32_t slot, const zenny_req_t *r)
     if (chips != cur->chips) return ZENNY_ERR_CLAIM;
     uint8_t d[32];
     zenny_rebalance_digest(z, slot, r, d);
-    st = authorise(z, r, ZENNY_SIG_REBALANCE, d, ch->id);
+    st = authorise(z, r, ZENNY_SIG_REBALANCE, d, ch->id, cur->hash);
     if (st) return st;
     zenny_version_t v;
     from_req(&v, r, ZENNY_OP_REBALANCE, chips);

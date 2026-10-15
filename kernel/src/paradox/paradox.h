@@ -332,10 +332,14 @@ pdx_out_t pdx_special(pdx_log_t *frontier, const pdx_class_t *c, const uint8_t s
                       const uint8_t subject[PDX_HASH], pdx_log_t *log, uint32_t *rec_out);
 /* A draft classification for frontier record `rec`: RECORDED, or REFUSED
  * for an unknown record or a kind that is not constructive, destructive or
- * neutral. Record: aux = rec, a = the record's hash, b = sig. */
+ * neutral. Record: kind, aux = rec, a = the record's hash, b = SHA-256 of
+ * "zxv/pdx-draft/v1" || rec || rec hash || sig || kind || reason || flags. */
 pdx_out_t pdx_draft(const pdx_log_t *frontier, uint32_t rec, uint8_t kind, uint8_t reason,
                     uint8_t flags, pdx_draft_t *d, pdx_log_t *log);
-/* Review: the draft must still match its frontier record. Money/device
+/* Review: the draft must still match its frontier record, and log (which
+ * must verify) must hold the DRAFT record that commits to every field of
+ * it, so kind, reason and flags cannot change after pdx_draft (a cleared
+ * PDX_DRAFT_MONEY is REFUSED, not passed by consensus). Money/device
  * drafts need owner_ok; others owner_ok or consensus_ok. Without approval
  * -> PROPOSAL_FOR_OWNER. Accepted -> a new registry entry (src = rec), ACCEPTED; a
  * signature already in the registry -> REFUSED (entries are never edited). */

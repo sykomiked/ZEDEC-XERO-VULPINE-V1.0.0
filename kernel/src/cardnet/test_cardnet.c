@@ -717,6 +717,39 @@ static void test_iso8583(void)
     CHECK(cn_authorize(&g_iss, &back, g_sig, &ai) == CN_OK);
     CHECK(g_iss.auths[ai].state == CN_AUTH_APPROVED);
 
+    /* field 3: only a purchase maps to an auth request; a 0200 refund, cash,
+     * cashback or unknown code is refused, never read as a purchase */
+    {
+        static cn8583_msg_t pm;
+        static const char *const refused[] = {"200000", "000020", "010000", "090000",
+                                              "310000", "990000", "001000", "003020"};
+        cn_auth_req_t pr;
+        CHECK(cn8583_from_auth_req(&pm, 200, &r, g_sig) == CN8583_OK);
+        CHECK(cn8583_to_auth_req(&pm, 2026, &pr) == CN8583_OK);
+        CHECK(cn8583_set(&pm, 3, "003000", 6) == CN8583_OK); /* purchase, credit account */
+        CHECK(cn8583_to_auth_req(&pm, 2026, &pr) == CN8583_OK && pr.amount_minor == r.amount_minor);
+        uint32_t bad = 0;
+        for (uint32_t i = 0; i < sizeof(refused) / sizeof(refused[0]); i++) {
+            CHECK(cn8583_set(&pm, 3, refused[i], 6) == CN8583_OK);
+            if (cn8583_to_auth_req(&pm, 2026, &pr) != CN8583_ERR_PROC) bad++;
+        }
+        CHECK(bad == 0);
+        /* a 0200 without field 3 is refused as missing */
+        CHECK(cn8583_init(&pm, 200) == CN8583_OK);
+        cn8583_set(&pm, 2, r.pan, CN_PAN_LEN);
+        cn8583_set_num(&pm, 4, 1);
+        cn8583_set_num(&pm, 7, 1009130203ull);
+        cn8583_set_num(&pm, 11, 1);
+        cn8583_set(&pm, 41, r.terminal_id, CN_TID_LEN);
+        cn8583_set(&pm, 42, r.merchant_id, CN_MID_LEN);
+        cn8583_set_num(&pm, 49, 555);
+        CHECK(cn8583_to_auth_req(&pm, 2026, &pr) == CN8583_ERR_MISSING);
+        CHECK(cn8583_set_num(&pm, 3, 200000) == CN8583_OK); /* 20 = refund */
+        CHECK(cn8583_to_auth_req(&pm, 2026, &pr) == CN8583_ERR_PROC);
+        CHECK(cn8583_set_num(&pm, 3, 0) == CN8583_OK);
+        CHECK(cn8583_to_auth_req(&pm, 2026, &pr) == CN8583_OK);
+    }
+
     /* response 0110 */
     CHECK(cn8583_response_for(&m, 110, &g_iss.auths[ai]) == CN8583_OK);
     CHECK(cn8583_check_mandatory(&m) == CN8583_OK);
