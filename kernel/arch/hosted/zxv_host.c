@@ -119,6 +119,7 @@ typedef int sock_t;
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
+#    include "zxvd_irc.h"       /* irc.*: the IRC gateway on 127.0.0.1 over TLS */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -1792,6 +1793,30 @@ static void rpc_state(zxvd_buf_t *o)
     free(b.p);
 }
 
+/* irc.* (zxvd_irc.h G6): the swarm's answer and the base of its 64-state
+ * tag, N when no model answered (the tag attests how the computation went,
+ * never that the answer is true) */
+static void irc_ask(const char *q, char *out, size_t cap, char *truth)
+{
+    answer(q, out, cap);
+    *truth = 'N';
+    /* a model answer always sets the tag; B[] is LPX_B_FALSE..LPX_B_TRUE */
+    if (LAST_ANSWER_MODEL && S.have_tag) {
+        static const char B[4] = {'F', 'N', 'B', 'T'};
+        *truth = B[lpx_base(S.last_tag) & 3u];
+    }
+}
+
+/* irc.* (zxvd_irc.h G5): sign with the node identity while the mesh runs */
+static bool irc_node(const uint8_t **pk, const uint8_t **sk)
+{
+    const vna_identity_t *id = zxv_net_identity(S.net);
+    if (!id) return false;
+    *pk = id->pk;
+    *sk = id->sk;
+    return true;
+}
+
 static void rpc_ask(const char *q, zxvd_buf_t *o)
 {
     char ans[1400];
@@ -2226,7 +2251,7 @@ int main(int argc, char **argv)
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
     bool desktop = false, phone_link = false;
-    int phone_port = ZXVD_PHONE_PORT;
+    int phone_port = ZXVD_PHONE_PORT, irc_port = ZXVD_IRC_PORT;
     const char *phone_bind = NULL;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
@@ -2317,6 +2342,13 @@ int main(int argc, char **argv)
             }
         } else if (!strcmp(argv[i], "--phone-bind") && i + 1 < argc)
             phone_bind = argv[++i];
+        else if (!strcmp(argv[i], "--irc-port") && i + 1 < argc) {
+            irc_port = atoi(argv[++i]);
+            if (irc_port < 0 || irc_port > 65535) {
+                fprintf(stderr, "zxvd: --irc-port takes 0..65535\n");
+                return 2;
+            }
+        }
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -2342,6 +2374,8 @@ int main(int argc, char **argv)
                    "                      on; phone.pair makes a pairing link)\n"
                    "  --phone-port N      its TCP port (default 47410; 0 = any free port)\n"
                    "  --phone-bind IP     its private IPv4 address (default all)\n"
+                   "  --irc-port N        the IRC gateway's TLS port on 127.0.0.1 while\n"
+                   "                      the irc feature is on (default 6697; 0 = any)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -2614,6 +2648,12 @@ int main(int argc, char **argv)
             zxvd_rpc_groups_reset();
             return 1;
         }
+        /* irc.* (zxvd_irc.h G4): its key, certificate and password beside
+         * the socket too; without them zxvd still runs, irc.status says so */
+        zxvd_irc_set_ask(irc_ask);
+        zxvd_irc_set_node(irc_node);
+        if (zxvd_irc_open(pdir, (uint16_t) irc_port) != 0)
+            fprintf(stderr, "zxvd: the IRC gateway is unavailable\n");
     }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
@@ -2682,6 +2722,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
+    zxvd_irc_service(NULL, pal_now_ms()); /* --enable irc: listen before saying so */
+    if (zxvd_irc_port())
+        printf("ZXVD-IRC: TLS 127.0.0.1:%u (password and certificate: irc.status)\n",
+               (unsigned) zxvd_irc_port());
     printf("ZXVD-RPC: %s\n", rpc_path);
     if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
@@ -2719,6 +2763,8 @@ int main(int argc, char **argv)
         if (rfd > maxfd) maxfd = rfd;
         int phfd = zxvd_phone_fds(&rd);
         if (phfd > maxfd) maxfd = phfd;
+        int ifd = zxvd_irc_fds(&rd);
+        if (ifd > maxfd) maxfd = ifd;
 #endif
         struct timeval tv = {0, STEP_MS * 1000};
         int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
@@ -2755,6 +2801,7 @@ int main(int argc, char **argv)
         mesh_books_sync();
         zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
         if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
+        if (r >= 0) zxvd_irc_service(&rd, pal_now_ms()); /* listens while "irc" is on */
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -2771,6 +2818,7 @@ int main(int argc, char **argv)
     zxvd_pay_close();
     zxvd_chat_close();
     zxvd_phone_close();
+    zxvd_irc_close();
     zxvd_rpc_close();
     zxvd_rpc_groups_reset();
 #    if defined(ZXV_HAVE_AIPI)

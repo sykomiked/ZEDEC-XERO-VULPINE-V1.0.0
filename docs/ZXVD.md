@@ -268,6 +268,9 @@ CI checks it matches what zxvd serves.
 | `phone.pair` | `name`, `allow_post`? | `phone_id`, `name`, `allow_post`, `host`, `port`, `link` |
 | `phone.list` | | `on`, `port`, `phones` |
 | `phone.revoke` | `phone_id` | `revoked`, `closed` |
+| `irc.status` (read-only) | | `on`, `listening`, `port`, `clients`, `password`, `cert_sha256`, `cert_file`, `signer`, `signer_id`, `delivered`, `refused`, `bridge` |
+| `irc.record` (read-only) | `msgid` | `msgid`, `target`, `nick`, `truth`, `ms`, `text`, `signer_id`, `context`, `public_key`, `signature`, `record` |
+| `irc.bridge` | `on`, `host`, `port`?, `remote`, `local`, `nick`, `password`? | the bridge (or null) |
 
 Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method,
 -32602 bad params, -32603 internal, -32010 a peer request refused or failed
@@ -284,6 +287,8 @@ refused (the message says why), -32050 an economy engine refused (the message is
 "Bonds, derivatives, grants and estates" below),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
+-32095 an IRC gateway refusal (the message says why, see "The IRC gateway"
+below),
 -32080 a seat refused (the message is `<SEAT_ERR_*>: why`, see "Seats"
 below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
@@ -977,6 +982,25 @@ Honest limits:
   encrypted. A `web4.verify` request line holds about 6000 envelope bytes
   with a `pk`, so a large envelope with a consent token is checked by `id`.
 
+## The IRC gateway
+
+`irc.*` (`kernel/arch/hosted/zxvd_irc.c`, rules G1-G8 in `zxvd_irc.h`; the
+protocol engine is `zxv_irc.c`, rules E1-E9 in `zxv_irc.h`) lets any IRC
+client talk to the swarm. The feature `irc` starts off; while it is on,
+zxvd listens on 127.0.0.1 only (`--irc-port N`, default 6697), over TLS 1.3
+only, with a self-signed certificate the client pins. Every message carries
+its Belnap tag (`[T] `, `[F] `, `[B] `, `[N] `) and is signed with
+ML-DSA-87 at the gateway; `#swarm` asks the swarm. It never carries money,
+keys or Player Card actions. Bridging one channel to a public network is
+`irc.bridge`, off until called. The design, what the tag and signature do
+and do not mean, and the threat model are in
+[docs/IRC_GATEWAY.md](IRC_GATEWAY.md).
+
+```sh
+zxvd --rpc ~/.zxv/zxvd.sock --enable irc   # prints ZXVD-IRC: TLS 127.0.0.1:6697
+irc.status {}                              # password, cert_file (irc-cert.pem), cert_sha256
+```
+
 ## Tests
 
 `kernel/arch/hosted/test_zxvd_rpc.sh` runs the RPC layer alone against a
@@ -1023,6 +1047,11 @@ runs it on Windows against the packaged zxvd.exe, and on Linux against the
 installed .deb.
 `kernel/arch/hosted/test_zxvd_phone.py ZXVD` drives the phone link with its
 own Python X25519 and ChaCha20-Poly1305 (checked against the RFC vectors).
+`kernel/arch/hosted/test_zxvd_irc.sh` runs the IRC engine with no network,
+then `irc.*` behind the RPC layer over real sockets with the repo's TLS
+client pinned to the gateway (every signed record checked with ML-DSA-87,
+the bridge against the gateway itself), and `test_zxvd_irc.py ZXVD` drives
+a real zxvd with OpenSSL as the client.
 
 ## Honest limits
 
@@ -1056,6 +1085,10 @@ own Python X25519 and ChaCha20-Poly1305 (checked against the RFC vectors).
   memory on sandbox ledgers, not in the owner's books; see their section.
 - The Web4 envelope feed signs and holds envelopes but delivers none, and
   lives in memory; see its section.
+- The IRC gateway is a door on this machine, not a network: 16 clients, no
+  channel operators or modes, no history, and its signatures say what the
+  gateway relayed, not who typed it. Not on Windows yet. See
+  docs/IRC_GATEWAY.md.
 - Windows and Linux use the browser window (`zxvd --desktop`); only macOS
   has a native shell.
 - The Mac app's engine is zxvd (libzxv.dylib in `Contents/Frameworks`). The

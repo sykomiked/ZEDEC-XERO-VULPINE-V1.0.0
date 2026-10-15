@@ -95,6 +95,11 @@ jobs:
         env:
           CC: ${{ matrix.cc }}
         run: sh kernel/arch/hosted/test_zxvd_web4.sh
+      - name: IRC gateway unit tests (engine, TLS 1.3 server, ML-DSA-87 records, bridge)
+        env:
+          CC: ${{ matrix.cc }}
+          OPENSSL: '0'
+        run: sh kernel/arch/hosted/test_zxvd_irc.sh
       - name: The ZXV folder behind the built-in apps (zxv_files.c)
         run: |
           ${{ matrix.cc }} -std=c11 -O1 -Wall -Wextra -Werror ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }} \
@@ -145,6 +150,8 @@ jobs:
         run: python3 kernel/arch/hosted/test_staple_apps.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: Phone link (pairing, encrypted frames, phone permissions, revoke)
         run: python3 kernel/arch/hosted/test_zxvd_phone.py "$RUNNER_TEMP/zxvd/zxvd"
+      - name: IRC gateway through OpenSSL (pinned certificate, the swarm, the switch)
+        run: python3 kernel/arch/hosted/test_zxvd_irc.py "$RUNNER_TEMP/zxvd/zxvd"
       - name: End to end, with the tokenizer test model
         run: |
           ${{ matrix.cc }} -std=c11 -Wall -Wextra -Werror -Ikernel/src/tensor \
