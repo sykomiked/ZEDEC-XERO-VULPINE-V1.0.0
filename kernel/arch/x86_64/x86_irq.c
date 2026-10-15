@@ -166,8 +166,7 @@ static int sum_ok(const uint8_t *p, uint32_t len)
 static const uint8_t *acpi_find(uint64_t rsdp, const char *sig, uint32_t *len_out)
 {
     const uint8_t *r = phys_ptr(rsdp, 36);
-    if (!r || r[0] != 'R' || r[1] != 'S' || r[2] != 'D' || r[3] != ' ' || !sum_ok(r, 20))
-        return 0;
+    if (!r || r[0] != 'R' || r[1] != 'S' || r[2] != 'D' || r[3] != ' ' || !sum_ok(r, 20)) return 0;
     uint64_t root;
     uint32_t esz;
     if (r[15] >= 2 && sum_ok(r, 36) && (x86_rd32le(r + 24) | x86_rd32le(r + 28))) {
@@ -329,6 +328,72 @@ int x86_irq_init(uint64_t rsdp)
     return 0;
 }
 
+/* ---- LAPIC timer ---------------------------------------------------------- */
+static inline uint64_t rdtsc(void)
+{
+    uint32_t lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t) hi << 32) | lo;
+}
+
+static volatile uint64_t g_ticks;
+
+uint64_t x86_ticks(void)
+{
+    return g_ticks;
+}
+
+#define CAL_WINDOW_US 10000u /* PIT channel 2: 11932 ticks of 1.193182 MHz */
+
+/* Count LAPIC timer decrements (divide by 16) and TSC cycles over one PIT
+ * gate, the way hwplat_x86 calibrates its delay. 0 when the PIT never
+ * answers (some boards gate it off). */
+static uint64_t calibrate(uint64_t *tsc_out)
+{
+    lapic_wr(LAPIC_TMR_DIV, 0x3); /* divide by 16 */
+    lapic_wr(LAPIC_LVT_TMR, LVT_MASKED | X86_VEC_TIMER);
+
+    uint8_t g = inb(0x61);
+    outb(0x61, (uint8_t) ((g & ~0x02) | 0x01)); /* gate on, speaker off */
+    outb(0x43, 0xB0);                           /* channel 2, mode 0, binary */
+    outb(0x42, 11932 & 0xFF);
+    outb(0x42, 11932 >> 8);
+    g = inb(0x61);
+    outb(0x61, (uint8_t) (g & ~0x01)); /* gate low: hold the count */
+
+    lapic_wr(LAPIC_TMR_INI, 0xFFFFFFFFu);
+    uint64_t t0 = rdtsc();
+    outb(0x61, (uint8_t) (g | 0x01)); /* gate high: count starts */
+    uint32_t guard = 0;
+    while (!(inb(0x61) & 0x20)) {
+        if (++guard > 50000000u) {
+            lapic_wr(LAPIC_TMR_INI, 0);
+            return 0;
+        }
+    }
+    uint64_t t1 = rdtsc();
+    uint32_t cur = lapic_rd(LAPIC_TMR_CUR);
+    lapic_wr(LAPIC_TMR_INI, 0);
+    *tsc_out = t1 - t0;
+    return 0xFFFFFFFFull - cur;
+}
+
+int x86_timer_start(void)
+{
+    uint64_t tsc = 0;
+    uint64_t counted = calibrate(&tsc);
+    uint32_t count = x86_lapic_period_count(counted, CAL_WINDOW_US, 1000000u / X86_HZ);
+    if (count == 0) return -1; /* TODO: HPET or ACPI PM timer when there is no PIT */
+    g_info.timer_count = count;
+    g_info.lapic_hz = x86_rate_hz(counted, CAL_WINDOW_US);
+    g_info.tsc_per_tick = x86_rate_hz(tsc, CAL_WINDOW_US) / X86_HZ;
+    g_ticks = 0;
+    lapic_wr(LAPIC_TMR_DIV, 0x3);
+    lapic_wr(LAPIC_LVT_TMR, LVT_PERIODIC | X86_VEC_TIMER);
+    lapic_wr(LAPIC_TMR_INI, count);
+    return 0;
+}
+
 /* ---- the trap dispatcher -------------------------------------------------- */
 static uint64_t g_spurious, g_apic_errors, g_unexpected;
 
@@ -377,6 +442,10 @@ void x86_trap(x86_frame_t *f)
         lapic_eoi();
         return;
     }
+    if (v == X86_VEC_TIMER) { /* acknowledge first: a switch below may not return here */
+        g_ticks++;
+        lapic_eoi();
+    }
 
     if (f->cs & 3u) { /* from ring 3: the process runtime owns it */
         if (x86_user_trap) {
@@ -387,6 +456,10 @@ void x86_trap(x86_frame_t *f)
     }
 
     if (v < 32u) kernel_fault(f);
+    if (v == X86_VEC_TIMER) { /* a tick in ring 0: idle loop or kernel code */
+        if (x86_sched_kernel_tick) x86_sched_kernel_tick();
+        return;
+    }
     if (v == X86_VEC_SYSCALL) { /* int 0x80 from ring 0 is a bug, not a call */
         f->rax = (uint64_t) (int64_t) ZXV_ENOSYS;
         return;
@@ -402,7 +475,8 @@ int x86_irq_boot(uint64_t rsdp)
         uart_puts("  [IRQ] no usable local APIC: interrupts stay off\n");
         return -1;
     }
-    uart_puts("  [IRQ] IDT 256 vectors (IST stacks for IRQs and #DF/NMI/#MC), 8259 PIC remapped+masked\n");
+    uart_puts("  [IRQ] IDT 256 vectors (IST stacks for IRQs and #DF/NMI/#MC), 8259 PIC "
+              "remapped+masked\n");
     if (g_info.x2apic) {
         uart_puts("  [IRQ] LAPIC x2APIC mode, id ");
         uart_put_dec(g_info.lapic_id);
@@ -412,7 +486,8 @@ int x86_irq_boot(uint64_t rsdp)
         uart_puts(", id ");
         uart_put_dec(g_info.lapic_id);
     }
-    uart_puts(g_info.from_madt ? ", base from the ACPI MADT" : ", base from IA32_APIC_BASE (no MADT)");
+    uart_puts(g_info.from_madt ? ", base from the ACPI MADT"
+                               : ", base from IA32_APIC_BASE (no MADT)");
     if (g_info.madt_cpus) {
         uart_puts(", ");
         uart_put_dec(g_info.madt_cpus);
@@ -429,4 +504,30 @@ int x86_irq_boot(uint64_t rsdp)
         uart_puts("not described: left as firmware set it\n");
     }
     return 0;
+}
+
+int x86_timer_boot(void)
+{
+    if (x86_timer_start() != 0) {
+        uart_puts("  [TIMER] no PIT to calibrate against: LAPIC timer not started\n");
+        return -1;
+    }
+    /* Interrupts on from here: every vector has a handler and every IRQ runs
+     * on IST1. Wait for a few real ticks, bounded by the TSC. */
+    __asm__ __volatile__("sti");
+    uint64_t t0 = rdtsc(), limit = g_info.tsc_per_tick * 50u;
+    while (g_ticks < 5u && rdtsc() - t0 < limit) __asm__ __volatile__("hlt");
+    uint64_t seen = g_ticks;
+    uart_puts("  [TIMER] LAPIC timer ");
+    uart_put_dec(g_info.lapic_hz / 1000u);
+    uart_puts(" kHz (bus/16, PIT-calibrated), periodic ");
+    uart_put_dec(X86_HZ);
+    uart_puts(" Hz, count ");
+    uart_put_dec(g_info.timer_count);
+    uart_puts(", TSC ");
+    uart_put_dec(g_info.tsc_per_tick * X86_HZ / 1000000u);
+    uart_puts(" MHz; ");
+    uart_put_dec(seen);
+    uart_puts(seen >= 5u ? " ticks taken\n" : " ticks taken (expected 5)\n");
+    return seen >= 5u ? 0 : -1;
 }

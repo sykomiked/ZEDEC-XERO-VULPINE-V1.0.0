@@ -300,7 +300,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
     /* Interrupts (gap 6): the full IDT, LAPIC and masked PIC/IOAPIC replace
      * the ring-3 self-test's exception-only IDT (x86_irq.c). */
     boot_msg("[BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...");
-    x86_irq_boot(handoff_rsdp());
+    if (x86_irq_boot(handoff_rsdp()) == 0) x86_timer_boot();
 
     cell_fabric_boot_init();
 

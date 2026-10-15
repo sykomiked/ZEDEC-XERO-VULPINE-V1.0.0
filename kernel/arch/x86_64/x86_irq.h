@@ -28,11 +28,11 @@
 
 /* Vectors. 0x20-0x2F stay the masked legacy PIC's; the APIC's own vectors sit
  * above them. 0x80 is the shared-ABI syscall gate (ring3.c used it first). */
-#define X86_VEC_PIC_BASE  0x20u
-#define X86_VEC_TIMER     0x40u
-#define X86_VEC_SYSCALL   0x80u
-#define X86_VEC_APIC_ERR  0xFEu
-#define X86_VEC_SPURIOUS  0xFFu
+#define X86_VEC_PIC_BASE 0x20u
+#define X86_VEC_TIMER    0x40u
+#define X86_VEC_SYSCALL  0x80u
+#define X86_VEC_APIC_ERR 0xFEu
+#define X86_VEC_SPURIOUS 0xFFu
 
 #define X86_HZ 100u /* scheduler tick */
 
@@ -51,9 +51,9 @@ typedef char x86_frame_size_ok[(sizeof(x86_frame_t) == 22u * 8u) ? 1 : -1];
 
 /* What the interrupt layer found, for the boot log and the self-test. */
 typedef struct {
-    uint64_t lapic_base;   /* physical; 0 in x2APIC mode means "MSRs" */
-    uint64_t ioapic_base;  /* 0 when the MADT named none */
-    uint32_t x2apic;       /* 1 when the LAPIC runs in x2APIC mode */
+    uint64_t lapic_base;  /* physical; 0 in x2APIC mode means "MSRs" */
+    uint64_t ioapic_base; /* 0 when the MADT named none */
+    uint32_t x2apic;      /* 1 when the LAPIC runs in x2APIC mode */
     uint32_t lapic_id;
     uint32_t madt_cpus;    /* enabled processors the MADT lists (0 = no MADT) */
     uint32_t ioapic_pins;  /* redirection entries masked */
@@ -74,6 +74,10 @@ int x86_irq_boot(uint64_t rsdp);
 /* Calibrate and start the periodic LAPIC timer at X86_HZ. Interrupts stay
  * as they were. Returns 0, or -1 when calibration failed (no PIT). */
 int x86_timer_start(void);
+
+/* x86_timer_start, then interrupts ON and a check that ticks arrive, with
+ * the boot log line. Returns 0 when at least 5 ticks were taken. */
+int x86_timer_boot(void);
 
 const x86_irq_info_t *x86_irq_info(void);
 
@@ -122,11 +126,11 @@ static inline uint64_t x86_rate_hz(uint64_t counted, uint32_t window_us)
 
 /* What the MADT says. */
 typedef struct {
-    uint64_t lapic_base;    /* 32-bit field, or the type-5 64-bit override */
-    uint64_t ioapic_base;   /* the first IOAPIC (type 1); 0 = none */
+    uint64_t lapic_base;  /* 32-bit field, or the type-5 64-bit override */
+    uint64_t ioapic_base; /* the first IOAPIC (type 1); 0 = none */
     uint32_t ioapic_gsi;
-    uint32_t cpus;          /* enabled (or online-capable) LAPIC entries, types 0 and 9 */
-    uint32_t bad;           /* 1 when an entry ran past the table */
+    uint32_t cpus; /* enabled (or online-capable) LAPIC entries, types 0 and 9 */
+    uint32_t bad;  /* 1 when an entry ran past the table */
 } x86_madt_t;
 
 static inline uint32_t x86_rd32le(const uint8_t *p)
