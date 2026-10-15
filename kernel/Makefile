@@ -1831,13 +1831,15 @@ test-babel:
 # slots for the verified blocks. The script checks SLOTS.tsv against every
 # registered block and writes the table; test_alx reads it back.
 .PHONY: test-alexandria
+ALX_SRC := src/alexandria/alx.c src/alexandria/alx_ref.c src/alexandria/alx_tecton.c src/alexandria/alx_axion.c
 test-alexandria:
-	@python3 ../tools/alexandria/build_index.py --check --out-tbl $(ZXV_TMP)/ALEXANDRIA.TBL > $(ZXV_TMP)/alx_index.log 2>&1 && echo "[PASS] alexandria index ($$(tail -1 $(ZXV_TMP)/alx_index.log))" || { cat $(ZXV_TMP)/alx_index.log; echo "[FAIL] alexandria index"; exit 1; }
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/alexandria src/alexandria/test_alx.c src/alexandria/alx.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_alx && $(ZXV_TMP)/test_alx $(ZXV_TMP)/ALEXANDRIA.TBL > $(ZXV_TMP)/test_alx.log 2>&1 && echo "[PASS] test_alx ($$(tail -1 $(ZXV_TMP)/test_alx.log))" || { cat $(ZXV_TMP)/test_alx.log; echo "[FAIL] test_alx"; exit 1; }
-	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -c src/alexandria/alx.c -o $(ZXV_TMP)/alx_a64.o && \
-	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -c src/alexandria/alx.c -o $(ZXV_TMP)/alx_x64.o && \
-	  if nm -u $(ZXV_TMP)/alx_a64.o $(ZXV_TMP)/alx_x64.o | grep ' U ' | grep -v ' U sha256$$'; then echo "[FAIL] alx.c is not freestanding"; exit 1; fi; \
-	  echo "[PASS] alexandria freestanding (aarch64-none-elf, x86_64: only sha256 outside)"
+	@rm -rf $(ZXV_TMP)/alexandria && python3 ../tools/alexandria/build_index.py --check --out-dir $(ZXV_TMP)/alexandria > $(ZXV_TMP)/alx_index.log 2>&1 && echo "[PASS] alexandria index ($$(tail -1 $(ZXV_TMP)/alx_index.log))" || { cat $(ZXV_TMP)/alx_index.log; echo "[FAIL] alexandria index"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Iinclude -Isrc/alexandria src/alexandria/test_alx.c $(ALX_SRC) src/robin_debanks/sha256.c src/lpres/lpres.c -o $(ZXV_TMP)/test_alx && $(ZXV_TMP)/test_alx $(ZXV_TMP)/alexandria src > $(ZXV_TMP)/test_alx.log 2>&1 && echo "[PASS] test_alx ($$(tail -1 $(ZXV_TMP)/test_alx.log))" || { cat $(ZXV_TMP)/test_alx.log; echo "[FAIL] test_alx"; exit 1; }
+	@for f in $(ALX_SRC); do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U sha256$$' | grep -v ' U alx_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] alexandria freestanding (aarch64-none-elf, x86_64: only sha256 outside)"
 
 # Policy engine (src/policy): a deterministic policy evaluation engine that
 # enforces machine-verifiable transactional constraints, bilateral treaty rules

@@ -1,24 +1,37 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# The Library of Alexandria's shorthand slots (docs/ALEXANDRIA.md).
+# The Library of Alexandria's slots (docs/ALEXANDRIA.md).
 #
-# One line per base slot: a slot number, its shorthand, the block entry it
-# names, and its state. Append only: a slot is never renumbered, reused or
-# deleted. A slot whose entry is withdrawn stays, marked "retired", so every
-# program that names it still gets an answer (a refusal), never another
-# block. Slots 1..0xFFFF are the base; 0x10000 and up are community overlays,
-# which are never written here.
+# One line per base slot: its number, its shorthand, its place in the
+# Alexandria classification, the block entry it names, and its state.
+# Append only: a slot is never renumbered, reused or deleted. A slot whose
+# entry is withdrawn stays, marked "retired", so every program that names it
+# gets a refusal, never another block. Slots 1..0xFFFF are the base;
+# community addenda are never written here.
 #
-# A shorthand is "<namespace>.<name>", written "@<namespace>.<name>" by
-# people and models: lower case, digits and "_", at most 31 bytes. The
-# namespaces are mem crypto drv logic wire num fin prob strat time swarm text.
+# A shorthand is "<namespace>.<name>", written "@<namespace>.<name>": lower
+# case, digits and "_", at most 31 bytes. A place is "CCC.II": a class
+# (hundreds), division (tens) and section (units), then a two-digit item.
+# The namespace fixes the class:
+#   100 mem      memory and allocation
+#   200 crypto   cryptography and integrity
+#   300 drv      devices and buses
+#   400 logic    logic and evidence
+#   500 num      numbers and arithmetic
+#   600 fin prob strat   money, chance and decisions
+#   700 wire     wire formats and protocols
+#   800 text     text and languages
+#   900 time swarm       time and coordination
+# Every slot in one division (the first two digits) is packed into that
+# division's booklet.
 #
-# tools/alexandria/build_index.py --assign appends a line for every block
-# entry that has none; --check fails when one is missing.
+# tools/alexandria/build_index.py --assign BLOCK NAMESPACE SECTION appends
+# a line for every entry of BLOCK that has none; --check fails when one is
+# missing.
 #
-# slot	shorthand	block.entry	state
-1	num.gcd	number_classics.gcd	base
-2	swarm.cycle_share	swarm_shares.cycle_share	base
-3	swarm.busiest	swarm_shares.busiest	base
-4	swarm.within_limits	swarm_shares.within_limits	base
+# slot	shorthand	place	block.entry	state
+1	num.gcd	512.01	number_classics.gcd	base
+2	swarm.cycle_share	931.01	swarm_shares.cycle_share	base
+3	swarm.busiest	931.02	swarm_shares.busiest	base
+4	swarm.within_limits	932.01	swarm_shares.within_limits	base

@@ -1,76 +1,139 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
-/* alx.c — the Library of Alexandria's index (alx.h). */
-#include "alx.h"
+/* alx.c — the Library of Alexandria's index and booklets (alx.h). */
+#include "alx_int.h"
 #include "../robin_debanks/sha256.h"
 
-static uint32_t be32(const uint8_t *p)
+uint32_t alx_be32(const uint8_t *p)
 {
     return (uint32_t) p[0] << 24 | (uint32_t) p[1] << 16 | (uint32_t) p[2] << 8 | p[3];
 }
 
-static uint16_t be16(const uint8_t *p)
+uint16_t alx_be16(const uint8_t *p)
 {
     return (uint16_t) (p[0] << 8 | p[1]);
 }
 
-static bool zero(const uint8_t *p, uint32_t n)
+bool alx_zero(const uint8_t *p, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
         if (p[i]) return false;
     return true;
 }
 
-static bool word(char c)
-{
-    return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
-}
-
-/* A NUL-padded "a.b" field of cap bytes: its length, or 0 when malformed.
- * dots: the most dots allowed after the first (block.entry may nest). */
-static uint32_t name_field(const uint8_t *p, uint32_t cap, bool more_dots)
-{
-    uint32_t n = 0;
-    while (n < cap && p[n]) n++;
-    if (n == 0 || n == cap || !zero(p + n, cap - n)) return 0;
-    if (!(p[0] >= 'a' && p[0] <= 'z')) return 0;
-    uint32_t dots = 0;
-    for (uint32_t i = 0; i < n; i++) {
-        if (p[i] == '.') {
-            if (i == 0 || i + 1 == n || p[i - 1] == '.') return 0;
-            dots++;
-        } else if (!word((char) p[i])) {
-            return 0;
-        }
-    }
-    return dots == 1 || (more_dots && dots > 1) ? n : 0;
-}
-
-static bool same_bytes(const uint8_t *a, const uint8_t *b, uint32_t n)
+bool alx_same(const uint8_t *a, const uint8_t *b, uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
         if (a[i] != b[i]) return false;
     return true;
 }
 
-static int check_entry(const uint8_t *p, uint32_t slot)
+static bool word(uint8_t c)
 {
-    if (be32(p) != slot) return ALX_E_FORM;
+    return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/* A NUL-padded "a.b" field of cap bytes: its length, or 0 when malformed.
+ * more: more than one dot allowed (block.entry may nest). */
+static uint32_t name_field(const uint8_t *p, uint32_t cap, bool more)
+{
+    uint32_t n = 0;
+    while (n < cap && p[n]) n++;
+    if (n == 0 || n == cap || !alx_zero(p + n, cap - n)) return 0;
+    if (!(p[0] >= 'a' && p[0] <= 'z')) return 0;
+    uint32_t dots = 0;
+    for (uint32_t i = 0; i < n; i++) {
+        if (p[i] == '.') {
+            if (i + 1 == n || p[i - 1] == '.') return 0;
+            dots++;
+        } else if (!word(p[i])) {
+            return 0;
+        }
+    }
+    return dots == 1 || (more && dots > 1) ? n : 0;
+}
+
+/* The class a shorthand's namespace belongs to (1..9), or 0. */
+static uint32_t class_of(const uint8_t *s)
+{
+    static const struct {
+        const char *ns;
+        uint8_t cls;
+    } NS[] = {{"mem", 1},  {"crypto", 2}, {"drv", 3},  {"logic", 4}, {"num", 5},  {"fin", 6},
+              {"prob", 6}, {"strat", 6},  {"wire", 7}, {"text", 8},  {"time", 9}, {"swarm", 9}};
+    for (uint32_t i = 0; i < sizeof NS / sizeof NS[0]; i++) {
+        uint32_t k = 0;
+        while (NS[i].ns[k] && s[k] == (uint8_t) NS[i].ns[k]) k++;
+        if (!NS[i].ns[k] && s[k] == '.') return NS[i].cls;
+    }
+    return 0;
+}
+
+bool alx_language_ok(uint32_t l)
+{
+    return (l >= 1 && l <= 99) || (l >= 101 && l <= 120);
+}
+
+static const uint8_t *book_rec(const alx_t *t, uint32_t i)
+{
+    return t->tbl + ALX_HEAD + i * ALX_BOOK;
+}
+
+const uint8_t *alx_slot_rec(const alx_t *t, uint32_t slot)
+{
+    return t->tbl + ALX_HEAD + t->books * ALX_BOOK + (slot - 1u) * ALX_SLOTREC;
+}
+
+static const uint8_t *target_rec(const alx_t *t, uint32_t i)
+{
+    return t->tbl + ALX_HEAD + t->books * ALX_BOOK + t->slots * ALX_SLOTREC + i * ALX_TARGET;
+}
+
+static bool in_booklet(uint32_t off, uint32_t len, uint32_t booklen)
+{
+    return off >= ALX_ALIGN && off % ALX_ALIGN == 0 && len > 0 && off < booklen &&
+           len <= booklen - off;
+}
+
+/* One slot record; *next is the first target the next live slot must claim. */
+static int check_slot(const alx_t *t, uint32_t slot, uint32_t *next)
+{
+    const uint8_t *p = alx_slot_rec(t, slot);
+    if (alx_be32(p) != slot) return ALX_E_FORM;
     uint8_t kind = p[4], inputs = p[5], flags = p[6], langs = p[7];
     if (flags & ~(ALX_F_RETIRED | ALX_F_WITNESSED)) return ALX_E_FORM;
-    if (!zero(p + 14, 2)) return ALX_E_FORM;
+    if (!alx_zero(p + 14, 2) || !alx_zero(p + 98, 2)) return ALX_E_FORM;
     if (!name_field(p + 16, 32, false) || !name_field(p + 48, 44, true)) return ALX_E_FORM;
-    const uint8_t *cid = p + 92;
+    uint32_t place = alx_be16(p + 92), item = alx_be16(p + 94);
+    uint32_t cls = class_of(p + 16);
+    if (place < 100 || place > 999 || item < 1 || item > 99 || place / 100 != cls)
+        return ALX_E_FORM;
+    uint32_t bk = alx_be16(p + 96), first = alx_be32(p + 100);
+    uint32_t moff = alx_be32(p + 104), mlen = alx_be32(p + 108);
     if (flags & ALX_F_RETIRED) {
-        /* a retired slot keeps its names and nothing else */
-        if (flags != ALX_F_RETIRED || kind || inputs || langs || !zero(p + 8, 6) || !zero(cid, 36))
+        /* a retired slot keeps its number, names and place, and nothing else */
+        if (flags != ALX_F_RETIRED || kind || inputs || langs || !alx_zero(p + 8, 6) ||
+            bk != 0xFFFFu || first || moff || mlen || !alx_zero(p + 112, 32))
             return ALX_E_FORM;
         return ALX_OK;
     }
     if (kind != ALX_NUM && kind != ALX_TRUTH) return ALX_E_FORM;
     if (inputs > 15 || langs == 0) return ALX_E_FORM;
     if (((flags & ALX_F_WITNESSED) != 0) != (langs >= 2)) return ALX_E_FORM;
-    if (cid[0] != 0x01 || cid[1] != 0x55 || cid[2] != 0x12 || cid[3] != 0x20) return ALX_E_FORM;
+    if (bk >= t->books || alx_be16(book_rec(t, bk)) != place / 10u * 10u) return ALX_E_FORM;
+    uint32_t booklen = alx_be32(book_rec(t, bk) + 4);
+    if (!in_booklet(moff, mlen, booklen)) return ALX_E_FORM;
+    if (first != *next || langs > t->targets - first) return ALX_E_FORM;
+    uint32_t prev = 0;
+    for (uint32_t i = first; i < first + langs; i++) {
+        const uint8_t *q = target_rec(t, i);
+        uint32_t lang = alx_be16(q + 4);
+        if (alx_be32(q) != slot || !alx_language_ok(lang) || lang <= prev || !alx_zero(q + 6, 2) ||
+            !in_booklet(alx_be32(q + 8), alx_be32(q + 12), booklen))
+            return ALX_E_FORM;
+        prev = lang;
+    }
+    *next = first + langs;
     return ALX_OK;
 }
 
@@ -78,79 +141,114 @@ int alx_open(alx_t *t, const uint8_t *tbl, uint32_t len)
 {
     if (!t) return ALX_E_FORM;
     t->tbl = 0;
-    t->count = 0;
+    t->slots = t->books = t->targets = t->nroots = 0;
+    t->roots = 0;
     if (!tbl || len < ALX_HEAD + 32u) return ALX_E_FORM;
     if (tbl[0] != 'A' || tbl[1] != 'L' || tbl[2] != 'X' || tbl[3] != 'T') return ALX_E_FORM;
-    if (tbl[4] != 1 || !zero(tbl + 5, 3) || !zero(tbl + 20, 12)) return ALX_E_FORM;
-    uint32_t count = be32(tbl + 8);
-    if (be32(tbl + 12) != ALX_ENTRY || be32(tbl + 16) != ALX_BASE_END) return ALX_E_FORM;
-    if (count > ALX_MAX || len != ALX_HEAD + count * ALX_ENTRY + 32u) return ALX_E_FORM;
+    if (tbl[4] != 1 || !alx_zero(tbl + 5, 3) || !alx_zero(tbl + 24, 8)) return ALX_E_FORM;
+    uint32_t slots = alx_be32(tbl + 8), books = alx_be32(tbl + 12), targets = alx_be32(tbl + 16);
+    if (alx_be32(tbl + 20) != ALX_BASE_END) return ALX_E_FORM;
+    if (slots > ALX_MAX || books > ALX_MAX_BOOKS || targets > ALX_MAX * 15u) return ALX_E_FORM;
+    if (len != ALX_HEAD + books * ALX_BOOK + slots * ALX_SLOTREC + targets * ALX_TARGET + 32u)
+        return ALX_E_FORM;
     uint8_t h[SHA256_DIGEST_LEN];
     sha256(tbl, len - 32u, h);
-    if (!same_bytes(h, tbl + len - 32u, 32)) return ALX_E_HASH;
-    for (uint32_t i = 0; i < count; i++) {
-        const uint8_t *p = tbl + ALX_HEAD + i * ALX_ENTRY;
-        int s = check_entry(p, i + 1u);
-        if (s) return s;
-        for (uint32_t j = 0; j < i; j++) { /* shorthands and targets are distinct */
-            const uint8_t *q = tbl + ALX_HEAD + j * ALX_ENTRY;
-            if (same_bytes(p + 16, q + 16, 32) || same_bytes(p + 48, q + 48, 44)) return ALX_E_FORM;
+    if (!alx_same(h, tbl + len - 32u, 32)) return ALX_E_HASH;
+    alx_t c = {tbl, slots, books, targets, 0, 0};
+    for (uint32_t i = 0; i < books; i++) {
+        const uint8_t *b = book_rec(&c, i);
+        uint32_t div = alx_be16(b), blen = alx_be32(b + 4);
+        if (div < 100 || div > 990 || div % 10 || (i && div <= alx_be16(book_rec(&c, i - 1u))))
+            return ALX_E_FORM;
+        if (blen < ALX_ALIGN || blen > ALX_BOOK_MAX || blen % ALX_ALIGN) return ALX_E_FORM;
+        if (!alx_zero(b + 2, 2) || !alx_zero(b + 8, 4)) return ALX_E_FORM;
+        if (b[12] != 0x01 || b[13] != 0x55 || b[14] != 0x12 || b[15] != 0x20) return ALX_E_FORM;
+    }
+    uint32_t next = 0;
+    for (uint32_t s = 1; s <= slots; s++) {
+        int r = check_slot(&c, s, &next);
+        if (r) return r;
+        const uint8_t *p = alx_slot_rec(&c, s);
+        for (uint32_t j = 1; j < s; j++) { /* names and places are distinct */
+            const uint8_t *q = alx_slot_rec(&c, j);
+            if (alx_same(p + 16, q + 16, 32) || alx_same(p + 48, q + 48, 44) ||
+                alx_same(p + 92, q + 92, 4))
+                return ALX_E_FORM;
         }
     }
-    t->tbl = tbl;
-    t->count = count;
+    if (next != targets) return ALX_E_FORM;
+    *t = c;
     return ALX_OK;
 }
 
 int alx_get(const alx_t *t, uint32_t slot, alx_entry_t *e)
 {
-    if (!t || !t->tbl || !e || slot == 0 || slot > t->count) return ALX_E_SLOT;
-    const uint8_t *p = t->tbl + ALX_HEAD + (slot - 1u) * ALX_ENTRY;
+    if (!t || !t->tbl || !e || slot == 0 || slot > t->slots) return ALX_E_SLOT;
+    const uint8_t *p = alx_slot_rec(t, slot);
     e->slot = slot;
     e->kind = p[4];
     e->inputs = p[5];
     e->flags = p[6];
     e->languages = p[7];
-    e->major = be16(p + 8);
-    e->minor = be16(p + 10);
-    e->patch = be16(p + 12);
+    e->major = alx_be16(p + 8);
+    e->minor = alx_be16(p + 10);
+    e->patch = alx_be16(p + 12);
+    e->place = alx_be16(p + 92);
+    e->item = alx_be16(p + 94);
+    e->booklet = alx_be16(p + 96);
+    e->first_target = alx_be32(p + 100);
+    e->manifest_off = alx_be32(p + 104);
+    e->manifest_len = alx_be32(p + 108);
+    for (uint32_t i = 0; i < 32; i++) e->content[i] = p[112 + i];
     for (uint32_t i = 0; i < 32; i++) e->shorthand[i] = (char) p[16 + i];
     e->shorthand[32] = 0;
     for (uint32_t i = 0; i < 44; i++) e->target[i] = (char) p[48 + i];
     e->target[44] = 0;
-    for (uint32_t i = 0; i < 36; i++) e->cid[i] = p[92 + i];
     return ALX_OK;
 }
 
-static int hexd(char c)
+int alx_booklet(const alx_t *t, uint32_t index, alx_booklet_t *b)
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
+    if (!t || !t->tbl || !b || index >= t->books) return ALX_E_SLOT;
+    const uint8_t *p = book_rec(t, index);
+    b->division = alx_be16(p);
+    b->length = alx_be32(p + 4);
+    for (uint32_t i = 0; i < 36; i++) b->cid[i] = p[12 + i];
+    return ALX_OK;
 }
 
-int32_t alx_find(const alx_t *t, const char *s, uint32_t n)
+int alx_target(const alx_t *t, uint32_t slot, uint32_t language, uint32_t *off, uint32_t *len)
 {
-    if (!t || !t->tbl || (!s && n)) return ALX_E_NAME;
-    if (n >= 3 && s[0] == '@' && s[1] == 'S' && s[2] == ':') {
-        /* "@S:" and exactly four upper-case hex digits */
-        if (n != 7) return ALX_E_NAME;
-        uint32_t v = 0;
-        for (uint32_t i = 3; i < 7; i++) {
-            int d = hexd(s[i]);
-            if (d < 0) return ALX_E_NAME;
-            v = v * 16u + (uint32_t) d;
+    alx_entry_t e;
+    int s = alx_get(t, slot, &e);
+    if (s) return s;
+    if (e.flags & ALX_F_RETIRED) return ALX_E_RETIRED;
+    for (uint32_t i = e.first_target; i < e.first_target + e.languages; i++) {
+        const uint8_t *q = target_rec(t, i);
+        if (alx_be16(q + 4) == language) {
+            if (off) *off = alx_be32(q + 8);
+            if (len) *len = alx_be32(q + 12);
+            return ALX_OK;
         }
-        if (v == 0 || v > t->count) return ALX_E_SLOT;
-        return (int32_t) v;
     }
-    if (n && s[0] == '@') s++, n--;
-    if (n == 0 || n > 31) return ALX_E_NAME;
-    for (uint32_t i = 0; i < t->count; i++) {
-        const uint8_t *p = t->tbl + ALX_HEAD + i * ALX_ENTRY + 16;
-        if (p[n] == 0 && same_bytes(p, (const uint8_t *) s, n)) return (int32_t) (i + 1u);
-    }
-    return ALX_E_NAME;
+    return ALX_E_LANG;
+}
+
+int alx_booklet_check(const alx_t *t, uint32_t index, const uint8_t *b, uint32_t len)
+{
+    alx_booklet_t bk;
+    int s = alx_booklet(t, index, &bk);
+    if (s) return s;
+    if (!b || len != bk.length) return ALX_E_FORM;
+    uint8_t h[SHA256_DIGEST_LEN];
+    sha256(b, len, h);
+    if (!alx_same(h, bk.cid + 4, 32)) return ALX_E_HASH;
+    /* the header the index relies on: "ALXB", version 1, the division, the
+     * length, zero padding */
+    if (b[0] != 'A' || b[1] != 'L' || b[2] != 'X' || b[3] != 'B' || b[4] != 1 || b[5] != 0 ||
+        alx_be16(b + 6) != bk.division || alx_be32(b + 12) != len || !alx_zero(b + 16, 48))
+        return ALX_E_FORM;
+    return ALX_OK;
 }
 
 int32_t alx_shorthand(const alx_t *t, uint32_t slot, char *out, uint32_t cap)
@@ -198,24 +296,7 @@ int alx_pipeline(const alx_t *t, const uint32_t *slots, uint32_t n, uint32_t *at
 
 const char *alx_status_name(int s)
 {
-    switch (s) {
-    case ALX_OK:
-        return "OK";
-    case ALX_E_FORM:
-        return "FORM";
-    case ALX_E_HASH:
-        return "HASH";
-    case ALX_E_NAME:
-        return "NAME";
-    case ALX_E_SLOT:
-        return "SLOT";
-    case ALX_E_RETIRED:
-        return "RETIRED";
-    case ALX_E_DOCK:
-        return "DOCK";
-    case ALX_E_LIMIT:
-        return "LIMIT";
-    default:
-        return "?";
-    }
+    static const char *const N[] = {"OK",   "FORM",  "HASH", "NAME",   "SLOT",    "RETIRED",
+                                    "DOCK", "LIMIT", "LANG", "SYNTAX", "LINEAGE", "OVERLAY"};
+    return s <= 0 && s >= -11 ? N[-s] : "?";
 }

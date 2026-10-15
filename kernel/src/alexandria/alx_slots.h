@@ -6,10 +6,10 @@
 #define ZXV_ALX_SLOTS_H
 
 /* clang-format off */
-#define ALX_SLOT_NUM_GCD                         1u /* number_classics.gcd */
-#define ALX_SLOT_SWARM_CYCLE_SHARE               2u /* swarm_shares.cycle_share */
-#define ALX_SLOT_SWARM_BUSIEST                   3u /* swarm_shares.busiest */
-#define ALX_SLOT_SWARM_WITHIN_LIMITS             4u /* swarm_shares.within_limits */
+#define ALX_SLOT_NUM_GCD                         1u /* 512.01 number_classics.gcd */
+#define ALX_SLOT_SWARM_CYCLE_SHARE               2u /* 931.01 swarm_shares.cycle_share */
+#define ALX_SLOT_SWARM_BUSIEST                   3u /* 931.02 swarm_shares.busiest */
+#define ALX_SLOT_SWARM_WITHIN_LIMITS             4u /* 932.01 swarm_shares.within_limits */
 #define ALX_SLOT__COUNT 4u
 /* clang-format on */
 
