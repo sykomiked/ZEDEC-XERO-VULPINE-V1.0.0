@@ -35,6 +35,8 @@ RUNTIME_ALIAS = {
     "fsharp": "dotnet", "f#": "dotnet", "js": "typescript", "javascript": "typescript",
     "ts": "typescript", "golang": "go", "py": "python", "kt": "kotlin",
     "fortran77": "trebago",  # Lingua's FORTRAN front-end runs the same language
+    "f77": "trebago", "reckonwyrm": "trebago",  # AI twins name their legacy language
+    "hatchling": "basic", "cairndrake": "forth",
 }
 # a .wasm entry's language is its source's
 WASM_SOURCE = {".cpp": "C++", ".cc": "C++", ".rs": "Rust", ".zig": "Zig", ".c": "C"}
@@ -94,14 +96,20 @@ def read_manifests():
 def build():
     fit = read_fit()
     errors = []
+    twin = {}  # a language's AI twin (catalogue.tsv), "-" when it has none yet
     if os.path.exists(CATALOGUE):
         cat = []
         with open(CATALOGUE, encoding="utf-8") as f:
             for line in f:
                 if not line.startswith("#") and line.strip():
-                    cat.append(line.split("\t")[1])
+                    col = line.rstrip("\n").split("\t")
+                    cat.append(col[1])
+                    if col[4] != "-":
+                        twin[col[1]] = col[4]
         if cat != [r["lang"] for r in fit]:
             errors.append("LANGUAGE_FIT.tsv and lingua/catalogue.tsv list different languages")
+    for r in fit:
+        r["twin"] = twin.get(r["lang"], "-")
     by_runtime = {}
     for r in fit:
         if r["runtime"] != "-":
@@ -171,14 +179,15 @@ def render(fit):
         "actually runs logic in it; one with no front-end yet is listed as waiting,",
         "never claimed. Critical answers run in two languages and are joined by the",
         "paraconsistent witness (`zxapp_call_witnessed`): when they disagree the",
-        "answer is BOTH and the app holds it.",
+        "answer is BOTH and the app holds it. A language's AI twin is its canonical",
+        "spelling (kernel/src/lingua: zl_twin); Lingua blocks are committed in it.",
         "",
         f"- **In use by an app:** {len(used)} of {len(fit)}",
         f"- **Can run, no app uses it yet:** {len(ready)}",
         f"- **Waiting for a front-end (Lingua):** {len(waiting)}",
         "",
-        "| Language | Runs as | Best at | Owns | Apps |",
-        "|---|---|---|---|---|",
+        "| Language | AI twin | Runs as | Best at | Owns | Apps |",
+        "|---|---|---|---|---|---|",
     ]
     for r in fit:
         if r["runtime"] == "-":
@@ -188,7 +197,7 @@ def render(fit):
         else:
             runs = f"{r['runtime']} (SDK)"
         apps = "; ".join(f"{a} ({', '.join(sorted(e))})" for a, e in sorted(r["apps"].items()))
-        out.append(f"| {r['lang']} | {runs} | {r['best']} | {', '.join(r['owns'])} | "
+        out.append(f"| {r['lang']} | {r['twin']} | {runs} | {r['best']} | {', '.join(r['owns'])} | "
                    f"{apps or '-'} |")
     return "\n".join(out) + "\n"
 
