@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Is this use allowed (gatehouse_rules.h GR3), in Eve: the only record that
+# fits is the app asked for the capability (1), the owner granted it (1)
+# and has not revoked it (0). Any other row, a flag that is no flag (GR2)
+# among them, does not fit: not allowed.
+eve gatehouse
+flag_yes = 1 .. 1
+flag_no = 0 .. 0
+
+capability_use {
+  asked: flag_yes
+  granted: flag_yes
+  revoked: flag_no
+}

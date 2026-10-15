@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What one label of a name may measure (signpost_rules.h SP1-SP3): a label
+# of 1 to 63 bytes, a name of 1 to 253 bytes (a trailing dot aside), and no
+# byte that is not allowed where it stands. Eve holds each range alone;
+# that a label is no longer than its name is KRON's half of the witness.
+eve signpost
+label_length = 1 .. 63
+name_length = 1 .. 253
+bad_bytes = 0 .. 0
+
+name_label {
+  label: label_length
+  total: name_length
+  bad: bad_bytes
+}

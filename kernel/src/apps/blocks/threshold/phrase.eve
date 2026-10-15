@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How long a passphrase may be, in bytes of UTF-8: 12 at least, so a lock
+# is worth having, and 256 at most, zxvd's own limit (SEAT_PASS_MAX).
+# Only its length is ever seen here.
+eve threshold
+pass_length = 12 .. 256
+
+passphrase {
+  length: pass_length
+}

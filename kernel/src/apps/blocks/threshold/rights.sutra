@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Who may add, remove or change a seat's lock, in Sutra. role is the acting
+# seat's role and target the role of the seat whose lock changes (1 owner,
+# 2 person, 3 guest); own is 1 when that seat is the actor's own, else 0.
+# An owner may change any lock; a person only their own; a guest never has
+# a lock, so no one gives one a lock and a guest changes none. A role or a
+# flag past 9, or a negative one, does not fit its picture: refused.
+record seat-rights
+  role: 9
+  own: 9
+  target: 9
+procedure
+  if target < 1 or target > 2 or own > 1
+    answer 0 = 1
+  end-if
+  answer role = 1 or role = 2 and own = 1

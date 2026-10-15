@@ -60,7 +60,25 @@
 #define ALX_SLOT_NUM_FLINT_CELLS                 52u /* 590.20 flint.cells */
 #define ALX_SLOT_LOGIC_FLINT_HISTORY_OK          53u /* 490.22 flint.history_ok */
 #define ALX_SLOT_LOGIC_FLINT_SCROLL_OK           54u /* 490.23 flint.scroll_ok */
-#define ALX_SLOT__COUNT 54u
+#define ALX_SLOT_NUM_GATEHOUSE_HOLDERS           55u /* 590.21 gatehouse.holders */
+#define ALX_SLOT_NUM_GATEHOUSE_USE_ALLOWED       56u /* 590.22 gatehouse.use_allowed */
+#define ALX_SLOT_LOGIC_GATEHOUSE_USE_OK          57u /* 490.24 gatehouse.use_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_PHRASE_OK       58u /* 490.25 threshold.phrase_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_RIGHTS_OK       59u /* 490.26 threshold.rights_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_SEAT_OK         60u /* 490.27 threshold.seat_ok */
+#define ALX_SLOT_LOGIC_THRESHOLD_SKIP_OK         61u /* 490.28 threshold.skip_ok */
+#define ALX_SLOT_LOGIC_HOLLOW_DOCK_OK            62u /* 490.29 hollow.dock_ok */
+#define ALX_SLOT_NUM_HOLLOW_SHOWN                63u /* 590.23 hollow.shown */
+#define ALX_SLOT_NUM_HOLLOW_TILE_CELL            64u /* 590.24 hollow.tile_cell */
+#define ALX_SLOT_NUM_HOLLOW_TILE_COLS            65u /* 590.25 hollow.tile_cols */
+#define ALX_SLOT_NUM_HOLLOW_TILE_ROWS            66u /* 590.26 hollow.tile_rows */
+#define ALX_SLOT_LOGIC_HOLLOW_WINDOW_OK          67u /* 490.30 hollow.window_ok */
+#define ALX_SLOT_NUM_SIGNPOST_ADDR_CLASS         68u /* 590.27 signpost.addr_class */
+#define ALX_SLOT_LOGIC_SIGNPOST_CACHE_OK         69u /* 490.31 signpost.cache_ok */
+#define ALX_SLOT_NUM_SIGNPOST_NAME_FAULT         70u /* 590.28 signpost.name_fault */
+#define ALX_SLOT_LOGIC_SIGNPOST_NAME_OK          71u /* 490.32 signpost.name_ok */
+#define ALX_SLOT_NUM_SIGNPOST_TTL_LEFT           72u /* 590.29 signpost.ttl_left */
+#define ALX_SLOT__COUNT 72u
 /* clang-format on */
 
 #endif

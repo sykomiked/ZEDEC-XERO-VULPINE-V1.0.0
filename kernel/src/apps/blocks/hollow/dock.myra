@@ -1,0 +1,7 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Hollow files the dock, in MYRA: each place in the dock's order holds
+; an app (its matrix slot), whether it is pinned, and when it was added
+; (Unix seconds). Hollow asks whether the numbers fit before it keeps them.
+^ZXDOCK(place:i2) = app:i3! ^ pinned:i1! ^ added:i12!
