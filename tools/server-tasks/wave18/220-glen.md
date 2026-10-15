@@ -1,6 +1,6 @@
 # Wave 18 task: Glen (slot 220), Family hub
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (142 shepherd), wave 6 (081 heirloom), wave 7 (043 solstice, 044 kindred).
+Depends on: wave 0 (142 shepherd), wave 6 (043 solstice, 044 kindred), wave 8 (081 heirloom).
 Manifest: `slot 220`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/220-glen.svg`, `budget 233`, model `apps/glen_model.{h,c}`, blocks under kernel/src/apps/blocks/glen/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Runs a family hub: shared calendar and contacts in the Hoard (`files.read`, `files.write`), the family's space and members (`spaces.list`, `spaces.get`), seats (`seats.list`), screen-time rules (`screen.status`, `screen.check`, `screen.set_limit` only after the guardians agree), recovery guardians (`recovery.status`).
 Uses: `use solstice 1` ("two events overlap" and the next date); `use kindred 1` (contact index and likely duplicates); `use shepherd 1` (`left`, `limit_ok`, `week`); `use heirloom 1` ("release due" as k-of-n guardian approval with no waiting period). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

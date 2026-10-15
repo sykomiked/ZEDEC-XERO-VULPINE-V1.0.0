@@ -1,6 +1,6 @@
 # Wave 17 task: Moraine (slot 210), Key escrow
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (008 gatehouse, 018 witness), wave 4 (009 lockbox), wave 6 (081 heirloom).
+Depends on: wave 1 (008 gatehouse, 018 witness), wave 2 (009 lockbox), wave 8 (081 heirloom).
 Manifest: `slot 210`, `layer L2`, `icon icons/l2/210-moraine.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: holds keys in escrow with guardians (`recovery.setup`, `recovery.status`, `recovery.approve`, `recovery.veto`, `recovery.claim`, `recovery.finalize`, `recovery.cancel`), grants time-limited access, and logs every release (`journal.query`).
 Uses: `use lockbox 1` (key limits, expiry); `use gatehouse 1` ("is this use allowed"); `use heirloom 1` ("release due": k approvals, waiting period over, no living veto); `use witness 1` (entry record, chain intact). Call these composed entries; do not re-implement them.

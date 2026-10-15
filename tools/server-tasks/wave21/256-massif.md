@@ -1,6 +1,6 @@
 # Wave 21 task: Massif (slot 256), Distributed integer compute
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (015 tidewatch), wave 1 (070 retort), wave 2 (029 trellis), wave 6 (020 warren), wave 10 (123 gait).
+Depends on: wave 0 (015 tidewatch), wave 1 (029 trellis), wave 4 (070 retort), wave 5 (020 warren), wave 10 (123 gait).
 Manifest: `slot 256`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/256-massif.svg`, `budget 233`, model `apps/massif_model.{h,c}`, blocks under kernel/src/apps/blocks/massif/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Spreads large integer compute jobs across machines and tracks results: functions and data (`aipi.put`, `aipi.get`, `aipi.publish`, `aipi.execute`, `aipi.status`), other nodes (`peer.ask`, `peer.status`, `net.peers`), energy and budgets (`power.budget`, `power.status`, `swarm.state`).
 Uses: `use tidewatch 1` (`cpu_x100` and `peak`); `use warren 1` (energy share per engine); `use trellis 1` (peers per state); `use retort 1` (score totals and run limits); `use gait 1` (share x100 and p50, p95). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

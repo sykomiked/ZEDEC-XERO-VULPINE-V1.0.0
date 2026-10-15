@@ -1,6 +1,6 @@
 # Wave 26 task: Luminaire (slot 308), Building lighting
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 5 (021 brazier), wave 9 (094 homestead), wave 14 (172 escapement), wave 18 (217 wisp), wave 19 (236 levin).
+Depends on: wave 5 (021 brazier), wave 8 (094 homestead), wave 14 (172 escapement), wave 18 (217 wisp), wave 19 (236 levin).
 Manifest: `slot 308`, `layer L3`, `icon icons/l3/308-luminaire.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: controls lighting across a home or building, saving energy with schedules, presence and daylight (`power.status`, `power.budget`, `sys.info`, `files.read`, `files.write`). zxvd has no method for light and presence device control: use only existing methods; list what's missing in your report.
 Uses: `use levin 1` (circuit loads, wiring safety checks); `use wisp 1` (low-power start, for outages); `use escapement 1` ("job may run" for schedules); `use homestead 1` ("command allowed", energy totals); `use brazier 1` (temperature limits). Call these composed entries; do not re-implement them.

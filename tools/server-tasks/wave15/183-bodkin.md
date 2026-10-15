@@ -1,6 +1,6 @@
 # Wave 15 task: Bodkin (slot 183), Sewing patterns
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (109 tally), wave 2 (079 fairground), wave 3 (060 relief), wave 7 (054 burin).
+Depends on: wave 1 (079 fairground), wave 2 (109 tally), wave 3 (060 relief), wave 7 (054 burin).
 Manifest: `slot 183`, `layer L2`, `icon icons/l2/183-bodkin.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: turns body measurements into fitted sewing patterns and cut sheets in the Hoard (`files.read`, `files.write`), printed with `print.submit`.
 Uses: `use burin 1` (curve flattening, path record); `use relief 1` (vertex transform for a piece); `use fairground 1` (the assurance fee, "offer allowed" for an order); `use tally 1` (rationals). Call these composed entries; do not re-implement them.

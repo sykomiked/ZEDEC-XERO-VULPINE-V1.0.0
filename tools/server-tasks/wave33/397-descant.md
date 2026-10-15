@@ -1,6 +1,6 @@
 # Wave 33 task: Descant (slot 397), Learning tree
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 9 (098 sapling), wave 12 (149 dibber, 151 lectern), wave 14 (169 hornbook), wave 17 (209 freshet).
+Depends on: wave 8 (098 sapling), wave 12 (149 dibber, 151 lectern), wave 14 (169 hornbook), wave 17 (209 freshet).
 Manifest: `slot 397`, `layer L3`, `version 1.0.0`, `icon icons/l3/397-descant.svg`, `budget 233`, model `apps/descant_model.{h,c}`, blocks under kernel/src/apps/blocks/descant/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Grows a personal learning tree: goals and lessons in the Hoard (`files.read`, `files.write`, `search.query`), lessons run (`play.catalogue`, `play.run`), credentials signed by a teacher and checked (`web4.verify`).
 Uses: `use hornbook 1` ("age-appropriate" and the next lesson step); `use lectern 1` ("make a card from this highlight"); `use dibber 1` (days to harvest pattern, reused as days to a goal); `use freshet 1` ("within the template's declared limits"); `use sapling 1` ("lesson unlocked" and progress). Call these composed entries; do not re-implement them.

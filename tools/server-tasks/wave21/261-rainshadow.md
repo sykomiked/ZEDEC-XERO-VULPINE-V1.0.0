@@ -1,6 +1,6 @@
 # Wave 21 task: Rainshadow (slot 261), Sky event planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (085 waymark), wave 6 (110 sundial), wave 8 (058 pinhole), wave 9 (101 orrery).
+Depends on: wave 0 (085 waymark), wave 7 (058 pinhole), wave 9 (101 orrery, 110 sundial).
 Manifest: `slot 261`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/261-rainshadow.svg`, `budget 233`, model `apps/rainshadow_model.{h,c}`, blocks under kernel/src/apps/blocks/rainshadow/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Plans sky watching: eclipses and transits, where and when, from the place (`place.here`, `place.ask`) and the clock (`sys.info`); photo plans and room (`files.write`, `sys.disk`).
 Uses: `use orrery 1` (day number and mean longitudes, "above the horizon"); `use sundial 1` (local time); `use waymark 1` (`place_ok`); `use pinhole 1` ("photo fits" and exposure limits). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

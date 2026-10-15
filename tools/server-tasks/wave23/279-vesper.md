@@ -1,6 +1,6 @@
 # Wave 23 task: Vesper (slot 279), Neighbourhood alerts
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 2 (029 trellis), wave 11 (143 watchfire), wave 12 (156 crier), wave 17 (214 updraft), wave 21 (253 fell).
+Depends on: wave 1 (029 trellis), wave 11 (143 watchfire), wave 12 (156 crier), wave 17 (214 updraft), wave 21 (253 fell).
 Manifest: `slot 279`, `layer L3`, `icon icons/l3/279-vesper.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: spreads warnings, check-ins and help requests across nearby households even without internet (`ehop.bands`, `ehop.seal`, `harmonic.encode`, `pspace.post`, `chat.post`, `net.peers`).
 Uses: `use crier 1` ("may broadcast to this channel", notice register); `use updraft 1` (link margin, "transmit allowed"); `use fell 1` (team room, casualty records); `use trellis 1` (peers per state); `use watchfire 1` ("share location with this contact", cancel window). Call these composed entries; do not re-implement them.

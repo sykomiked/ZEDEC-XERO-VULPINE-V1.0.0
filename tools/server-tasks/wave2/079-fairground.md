@@ -1,8 +1,0 @@
-# Wave 2 task: Fairground (slot 79), The cooperative market
-Read ../APP_WAVE_SPEC.md first.
-Matrix: layer 79, build position 21 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on Coffer (layer 73, wave 4, a later wave (a cycle): `use coffer 1`); the core (layer 0: reach it through zxvd methods that exist); Toolchest (layer 126, wave 1, an earlier wave: `use toolchest 1`); Vintner (layer 91, wave 1, an earlier wave: `use vintner 1`); Trellis (layer 29, wave 2, a later wave (a cycle): `use trellis 1`); Commons (layer 27, wave 2, an earlier wave: `use commons 1`). Take every idea those layers own from them (`use` the built ones and call `<id>.<entry>`; for one not built yet, list the entry in your report and do not write it here). 6 other layers lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
-What it does: what the owner shares, wants and sells, settled sales and fees (`net.offers`, `net.command` share/want/sell, `swarm.state` market, `mesh.books`, `peer.status`). Networking is off by default.
-Logic (critical): the 0.08889% assurance fee on a sale in sutra + trebago witnessed (copy blocks/fee_check); "offer allowed" (price and units within the owner's limits) in eve + sutra witnessed; price per unit across offers exact in trebago; offer records as fixed business records in sutra.
-Every sell or want waits for the owner's approval.
-needs: peers, net, ledger.read, notify.
-Planned (no runtime yet): Eiffel, Solidity, SAS.

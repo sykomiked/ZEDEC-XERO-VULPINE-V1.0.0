@@ -1,6 +1,6 @@
 # Wave 17 task: Shingle (slot 213), Slot registry
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (008 gatehouse, 018 witness), wave 3 (007 satchel, 033 seedbank).
+Depends on: wave 1 (008 gatehouse, 018 witness, 033 seedbank), wave 3 (007 satchel).
 Manifest: `slot 213`, `layer L2`, `icon icons/l2/213-shingle.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: registers every program in its slot: checks the signed manifest's slot, layer, capabilities and budget at admission, and publishes and fetches blocks by content id (`aipi.put`, `aipi.get`, `web4.cid`), with admissions on the journal (`journal.query`).
 Uses: `use satchel 1` (package record, limits); `use gatehouse 1` (apps per capability); `use witness 1` (entry record, chain intact); `use seedbank 1` (CID check, size limits, pin record). Call these composed entries; do not re-implement them.

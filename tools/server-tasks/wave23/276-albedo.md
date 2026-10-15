@@ -1,6 +1,6 @@
 # Wave 23 task: Albedo (slot 276), Claim checking
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 5 (036 gazette), wave 8 (069 quarry), wave 15 (181 loupe), wave 19 (233 stratum, 238 billow).
+Depends on: wave 5 (036 gazette), wave 7 (069 quarry), wave 15 (181 loupe), wave 19 (233 stratum, 238 billow).
 Manifest: `slot 276`, `layer L3`, `icon icons/l3/276-albedo.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: checks news claims against sources (`search.query`, `files.read`, `web4.feed`, `web4.verify`), showing which are confirmed, refuted or still disputed between credible witnesses.
 Uses: `use stratum 1` (source agreement and conflict); `use loupe 1` ("evidence admissible", timeline gaps); `use billow 1` (show segments and captions, for quoting a broadcast); `use gazette 1` ("show this item"); `use quarry 1` ("this claim has a source", citation record). Call these composed entries; do not re-implement them.

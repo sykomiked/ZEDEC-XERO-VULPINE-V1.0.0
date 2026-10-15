@@ -18,7 +18,17 @@ make -s -C "$R/sdk/pillars/cobol-sutra" CC="$CC" build/libzsutra.a >"$T/sutra.lo
 make -s -C "$R/sdk/pillars/fortran-trebago" CC="$CC" FORTRAN=0 build/libztrebago.a >"$T/trebago.log" 2>&1 || { tail -20 "$T/trebago.log"; exit 3; }
 make -s -C "$R/sdk/pillars/mumps-myra" CC="$CC" build/libzmyra.a >"$T/myra.log" 2>&1 || { tail -20 "$T/myra.log"; exit 3; }
 make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a >"$T/wasm.log" 2>&1 || { tail -20 "$T/wasm.log"; exit 3; }
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -I"$HERE" -I"$R/kernel/include" -I"$R/kernel/src/modbind" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/pillars/cobol-sutra/include" -I"$R/sdk/pillars/fortran-trebago/include" -I"$R/sdk/pillars/mumps-myra/include" -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" -I"$R/sdk/libzxv/include" \
+# one test file per app (tests/<id>_zxapp.inc): the index that includes them all
+ROWS=""
+: >"$T/app_tests.inc"
+for f in "$HERE"/tests/*_zxapp.inc; do
+    [ -e "$f" ] || continue
+    id="$(basename "$f" _zxapp.inc)"
+    echo "#include \"tests/${id}_zxapp.inc\"" >>"$T/app_tests.inc"
+    ROWS="$ROWS APP_TEST_ROW($id)"
+done
+echo "#define APP_TESTS_ROWS$ROWS" >>"$T/app_tests.inc"
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPP_TESTS_INDEX="\"$T/app_tests.inc\"" -I"$HERE" -I"$R/kernel/include" -I"$R/kernel/src/modbind" -I"$R/sdk/pillars/apl-kron/include" -I"$R/sdk/pillars/ada-eve/include" -I"$R/sdk/pillars/cobol-sutra/include" -I"$R/sdk/pillars/fortran-trebago/include" -I"$R/sdk/pillars/mumps-myra/include" -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" -I"$R/sdk/libzxv/include" \
     "$HERE/test_zxapp.c" "$HERE/zxapp.c" "$HERE/zxwire.c" "$HERE/zxboard.c" "$HERE/zxapp_kron.c" "$HERE/zxapp_eve.c" "$HERE/zxapp_wasm.c" "$HERE/zxapp_sutra.c" "$HERE/zxapp_trebago.c" "$HERE/zxapp_myra.c" "$HERE/zxapp_lingua.c" "$HERE/../lingua/zl_ir.c" "$HERE/../lingua/zl_basic.c" "$HERE/../lingua/zl_fortran.c" "$HERE/../lingua/zl_forth.c" "$HERE/../lingua/zl_pack.c" "$HERE/../robin_debanks/sha256.c" \
     "$R/sdk/pillars/apl-kron/build/libzkron.a" "$R/sdk/pillars/ada-eve/build/libzeve.a" "$R/sdk/kits/z-wasm/build/libzwasm.a" \
     "$R/sdk/pillars/cobol-sutra/build/libzsutra.a" "$R/sdk/pillars/fortran-trebago/build/libztrebago.a" "$R/sdk/pillars/mumps-myra/build/libzmyra.a" -L"$R/sdk/libzxv/build" -lzxv -Wl,-rpath,"$R/sdk/libzxv/build" -lpthread \

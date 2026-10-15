@@ -1,6 +1,6 @@
 # Wave 18 task: Swale (slot 226), Small bakery
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (109 tally), wave 4 (078 tallystick), wave 8 (082 larder, 092 hearth).
+Depends on: wave 2 (109 tally), wave 4 (078 tallystick), wave 8 (082 larder, 092 hearth).
 Manifest: `slot 226`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/226-swale.svg`, `budget 233`, model `apps/swale_model.{h,c}`, blocks under kernel/src/apps/blocks/swale/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Runs a small bakery: recipes and orders in the Hoard (`files.read`, `files.write`), sales and receipts in the books (`ledger.accounts`, `ledger.entries`, `ledger.post`), statements (`iso20022.render`), receipts printed (`print.submit`).
 Uses: `use hearth 1` ("contains an excluded allergen" and scaled quantities); `use tallystick 1` (invoice total, "paid in full", numbering); `use tally 1` (rational arithmetic and currency amounts); `use larder 1` (spent per category and "over budget"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

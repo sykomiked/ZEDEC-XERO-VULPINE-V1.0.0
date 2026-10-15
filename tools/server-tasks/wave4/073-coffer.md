@@ -1,8 +1,0 @@
-# Wave 4 task: Coffer (slot 73), Wallet and books
-Read ../APP_WAVE_SPEC.md first.
-Matrix: layer 73, build position 38 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Colonnade (layer 127, wave 3, an earlier wave: `use colonnade 1`); Seedbank (layer 33, wave 3, an earlier wave: `use seedbank 1`); Tally (layer 109, wave 1, an earlier wave: `use tally 1`); Meadow (layer 86, wave 2, an earlier wave: `use meadow 1`); Gatehouse (layer 8, wave 1, an earlier wave: `use gatehouse 1`). Take every idea those layers own from them (`use` the built ones and call `<id>.<entry>`; for one not built yet, list the entry in your report and do not write it here). 26 other layers lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
-What it does: accounts, balances, entries, transfers and the books check (`ledger.accounts`, `ledger.balance`, `ledger.entries`, `ledger.post`, `ledger.open_account`, `currency.enable`, `ledger.check`).
-Logic (critical): balance per account in minor units, refusing on overflow, in sutra + trebago witnessed; "transfer allowed" (balanced, amount > 0, not below zero, under the owner's per-day cap) in eve + sutra witnessed; holdings total exact in trebago. Copy the fee_check pattern (blocks/fee_check/fee.sutra).
-Every post waits for the owner's confirmation; tests post only to a scratch books file, never real money.
-needs: ledger.read, ledger.post, notify.
-Planned (no runtime yet): SNOBOL, TeX, Eiffel, Solidity.

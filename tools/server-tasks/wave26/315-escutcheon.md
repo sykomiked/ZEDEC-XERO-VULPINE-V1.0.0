@@ -1,6 +1,6 @@
 # Wave 26 task: Escutcheon (slot 315), Mutual-aid insurance
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 6 (081 heirloom), wave 12 (153 pavise), wave 14 (178 assize), wave 15 (181 loupe), wave 19 (234 neap).
+Depends on: wave 8 (081 heirloom), wave 12 (153 pavise), wave 14 (178 assize), wave 15 (181 loupe), wave 19 (234 neap).
 Manifest: `slot 315`, `layer L3`, `icon icons/l3/315-escutcheon.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: insurance for households and co-ops: policies, premiums, claims, evidence and mutual-aid grants (`ledger.accounts`, `ledger.entries`, `ledger.post`, `ledger.hold`, `files.read`, `files.write`, `journal.query`).
 Uses: `use pavise 1` (combined "allow"); `use neap 1` ("entry may post", A = L + E); `use assize 1` ("filing accepted", evidence matrix); `use loupe 1` ("evidence admissible"); `use heirloom 1` (split preview by largest remainder). Call these composed entries; do not re-implement them.

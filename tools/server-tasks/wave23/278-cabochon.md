@@ -1,6 +1,6 @@
 # Wave 23 task: Cabochon (slot 278), Household treasury
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 4 (073 coffer), wave 8 (082 larder), wave 12 (145 cartulary), wave 14 (171 mercer), wave 19 (234 neap).
+Depends on: wave 1 (073 coffer), wave 8 (082 larder), wave 12 (145 cartulary), wave 14 (171 mercer), wave 19 (234 neap).
 Manifest: `slot 278`, `layer L3`, `icon icons/l3/278-cabochon.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: gathers accounts, savings goals, bills and investments into one honest picture of your wealth (`ledger.accounts`, `ledger.balance`, `ledger.entries`, `ledger.holds`).
 Uses: `use neap 1` ("entry may post", A = L + E); `use mercer 1` (stock and sale records for a household shop); `use cartulary 1` (retention days for statements); `use coffer 1` (balance per account, "transfer allowed"); `use larder 1` (spent per category, "over budget"). Call these composed entries; do not re-implement them.

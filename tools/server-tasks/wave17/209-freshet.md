@@ -1,6 +1,6 @@
 # Wave 17 task: Freshet (slot 209), New app project
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (007 satchel), wave 4 (121 joinery), wave 6 (125 whetstone), wave 10 (124 graft).
+Depends on: wave 3 (007 satchel, 121 joinery), wave 10 (124 graft, 125 whetstone).
 Manifest: `slot 209`, `layer L2`, `icon icons/l2/209-freshet.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: hatches a new app project from a template in the Hoard (`files.mkdir`, `files.write`, `files.read`, `files.list`), with signing, version control and a first build ready. zxvd has no method for build run and signing (as Whetstone and Satchel report): use only existing methods; list what's missing in your report.
 Uses: `use satchel 1` (package limits, package record); `use joinery 1` (buffer limits); `use graft 1` (history intact, commit record); `use whetstone 1` (overall verdict, counts). Call these composed entries; do not re-implement them.

@@ -1,6 +1,6 @@
 # Wave 20 task: Swell (slot 251), Ensemble rehearsal
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 2 (029 trellis), wave 5 (050 warble), wave 6 (057 fiddlehead, 110 sundial).
+Depends on: wave 1 (029 trellis), wave 6 (050 warble), wave 7 (057 fiddlehead), wave 9 (110 sundial).
 Manifest: `slot 251`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/251-swell.svg`, `budget 233`, model `apps/swell_model.{h,c}`, blocks under kernel/src/apps/blocks/swell/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Rehearses ensembles: a rehearsal hall (`pspace.create`, `pspace.members`, `hall.load`, `hall.play`, `hall.pause`, `hall.seek`, `hall.status`), players' devices (`devmesh.devices`, `net.peers`), scores and parts in the Hoard (`files.read`, `files.write`), the clock (`sys.info`). Audio in and out has no method (as Fiddlehead): use only existing methods; list what's missing in your report.
 Uses: `use fiddlehead 1` (beat grid and pitch); `use warble 1` (playlist length); `use trellis 1` (peers per state); `use sundial 1` (local time). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

@@ -1,6 +1,6 @@
 # Wave 23 task: Aureole (slot 277), Council
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 1 (018 witness), wave 7 (043 solstice), wave 14 (178 assize), wave 20 (242 silt), wave 22 (271 cairn).
+Depends on: wave 1 (018 witness), wave 6 (043 solstice), wave 14 (178 assize), wave 20 (242 silt), wave 22 (271 cairn).
 Manifest: `slot 277`, `layer L3`, `icon icons/l3/277-aureole.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs a town or co-op council: agendas, motions, minutes, budgets and signed decisions in one public record (`spaces.propose`, `spaces.vote`, `spaces.get`, `journal.query`, `web4.verify`, `files.write`).
 Uses: `use cairn 1` (proposals and votes); `use assize 1` ("filing accepted", days left); `use silt 1` (records office stamping and retention); `use witness 1` (entry record, chain intact); `use solstice 1` (day of week, "two events overlap"). Call these composed entries; do not re-implement them.

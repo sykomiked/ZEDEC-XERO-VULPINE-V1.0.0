@@ -1,6 +1,6 @@
 # Wave 21 task: Caldera (slot 259), Natural hazard watch
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (014 wake), wave 2 (029 trellis), wave 8 (088 weatherglass), wave 11 (143 watchfire).
+Depends on: wave 0 (014 wake), wave 1 (029 trellis), wave 8 (088 weatherglass), wave 11 (143 watchfire).
 Manifest: `slot 259`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/259-caldera.svg`, `budget 233`, model `apps/caldera_model.{h,c}`, blocks under kernel/src/apps/blocks/caldera/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Watches natural hazards and pushes local alerts: events (`journal.query`, `log.tail`), the place (`place.here`), local alerts to the mesh only after a person confirms (`chat.post`, `pspace.post`), neighbours' nodes (`net.peers`, `devmesh.devices`). Hazard sensor feeds have no method: use only existing methods; list what's missing in your report.
 Uses: `use wake 1` (`count` by level); `use weatherglass 1` (warnings); `use watchfire 1` (share-location truth); `use trellis 1` (peers per state). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

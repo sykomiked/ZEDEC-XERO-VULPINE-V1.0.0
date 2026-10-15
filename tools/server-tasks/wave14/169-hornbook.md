@@ -1,6 +1,6 @@
 # Wave 14 task: Hornbook (slot 169), Lessons and progress
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 7 (041 footlight), wave 9 (098 sapling, 099 typewright, 106 nutshell, 107 gnomon).
+Depends on: wave 6 (041 footlight), wave 8 (098 sapling, 099 typewright), wave 9 (106 nutshell, 107 gnomon).
 Manifest: `slot 169`, `layer L2`, `icon icons/l2/169-hornbook.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: builds lessons with diagrams, slides and flashcards in the Hoard (`files.read`, `files.write`), then tracks each learner's progress.
 Uses: `use footlight 1` (slide scale, rehearsal timing, run order); `use sapling 1` ("lesson unlocked", progress, results); `use nutshell 1` (next box and due day); `use gnomon 1` (area and side lengths for diagrams); `use typewright 1` (words per minute, accuracy). Call these composed entries; do not re-implement them.

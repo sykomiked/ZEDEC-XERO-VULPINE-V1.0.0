@@ -1,6 +1,6 @@
 # Wave 21 task: Glebe (slot 255), Harvest planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 2 (079 fairground), wave 7 (040 furrow), wave 8 (088 weatherglass, 093 understory).
+Depends on: wave 1 (079 fairground), wave 6 (040 furrow), wave 8 (088 weatherglass, 093 understory).
 Manifest: `slot 255`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/255-glebe.svg`, `budget 233`, model `apps/glebe_model.{h,c}`, blocks under kernel/src/apps/blocks/glebe/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Plans harvests: fields and the place (`place.here`, `place.list`), crop sales (`net.offers`, `net.command` sell, `ledger.entries`), plans in the Hoard (`files.read`, `files.write`), farm energy (`power.status`). There is no weather source (as Weatherglass): use only existing methods; list what's missing in your report.
 Uses: `use understory 1` ("over budget" and rolling totals); `use weatherglass 1` (conversions and warnings); `use fairground 1` (the 0.08889% fee and "offer allowed"); `use furrow 1` (column sums and money cells). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

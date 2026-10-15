@@ -1,6 +1,6 @@
 # Wave 31 task: Buckram (slot 377), Device hardening
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 1 (006 tideturn), wave 12 (152 ratchet, 153 pavise), wave 17 (214 updraft).
+Depends on: wave 2 (006 tideturn), wave 12 (152 ratchet, 153 pavise), wave 17 (214 updraft).
 Manifest: `slot 377`, `layer L3`, `version 1.0.0`, `icon icons/l3/377-buckram.svg`, `budget 233`, model `apps/buckram_model.{h,c}`, blocks under kernel/src/apps/blocks/buckram/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Hardens devices and edge sensors: firmware checks and update rollouts (`update.check`), the fleet's links (`net.peers`, `devmesh.devices`, `devmesh.revoke`), failure reports (`log.tail`, `journal.query`), machine facts (`sys.info`). Firmware reads from other devices and tamper seals have no method: use only existing methods; list what's missing in your report.
 Uses: `use ratchet 1` ("fault" and wear); `use updraft 1` (link margin and "transmit allowed"); `use pavise 1` ("allow" and the exposure score); `use tideturn 1` (version ordering and "both signatures valid"). Call these composed entries; do not re-implement them.

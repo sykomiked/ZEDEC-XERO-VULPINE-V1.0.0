@@ -1,6 +1,6 @@
 # Wave 14 task: Assize (slot 178), Dispute cases
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (018 witness), wave 4 (132 twelvefold), wave 7 (042 broadsheet, 047 sealwax).
+Depends on: wave 1 (018 witness), wave 3 (132 twelvefold), wave 6 (042 broadsheet, 047 sealwax).
 Manifest: `slot 178`, `layer L2`, `icon icons/l2/178-assize.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: runs dispute cases: filings, evidence, hearings and rulings in the Hoard (`files.read`, `files.write`), all on the signed record (`journal.query`, `journal.verify`).
 Uses: `use witness 1` (entry record, chain intact); `use broadsheet 1` ("well formed", annotation record); `use sealwax 1` ("ready to sign", field record); `use twelvefold 1` ("conclusion follows", assignments per value). Call these composed entries; do not re-implement them.

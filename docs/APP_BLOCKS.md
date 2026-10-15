@@ -28,6 +28,9 @@ writing an app: what is listed here already exists.
 | net_present_value | `pce_fin.npv` | npv, net_present_value | net present value of integer cash flows at a rational rate |
 | bayes_update | `pce_prob.bayes` | bayes, posterior | a Bayesian update in integers |
 | bargaining_zone | `pce_strat.zopa` | zopa, bargaining_zone | whether a seller's minimum and a buyer's maximum overlap |
+| send_content | `zxvd:fab.send` | send, send_file, share_file, upload, transmit | Planned: send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h |
+| receive_content | `zxvd:fab.receive` | receive, receive_file, fetch_file, download, install, install_app, app_install | Planned: receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption) |
+| stream_content | `zxvd:fab.stream.open` | stream, stream_open, stream_frame, stream_checkpoint | Planned: a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint) |
 
 ## Apps and blocks
 

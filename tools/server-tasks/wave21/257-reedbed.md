@@ -1,6 +1,6 @@
 # Wave 21 task: Reedbed (slot 257), Wetland monitoring
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (016 sounding), wave 1 (071 gleaner), wave 8 (093 understory), wave 9 (094 homestead).
+Depends on: wave 0 (016 sounding), wave 2 (071 gleaner), wave 8 (093 understory, 094 homestead).
 Manifest: `slot 257`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/257-reedbed.svg`, `budget 233`, model `apps/reedbed_model.{h,c}`, blocks under kernel/src/apps/blocks/reedbed/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Monitors wetlands and water quality with low-power sensor nodes: sites (`place.list`), records in the Hoard (`files.read`, `files.write`, `search.query`), the dataset published locally (`aipi.put`, `web4.cid`), the link (`sys.net`). Sensor input has no method: use only existing methods; list what's missing in your report.
 Uses: `use understory 1` (rolling totals); `use homestead 1` (device records); `use gleaner 1` (label counts and row filters); `use sounding 1` (`rate`). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

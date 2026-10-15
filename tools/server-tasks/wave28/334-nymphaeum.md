@@ -1,6 +1,6 @@
 # Wave 28 task: Nymphaeum (slot 334), Drinking water tests
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 8 (093 understory), wave 9 (094 homestead), wave 12 (148 poultice, 155 alembic), wave 19 (237 weir).
+Depends on: wave 8 (093 understory, 094 homestead), wave 12 (148 poultice, 155 alembic), wave 19 (237 weir).
 Manifest: `slot 334`, `layer L3`, `icon icons/l3/334-nymphaeum.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: tests household drinking water and filters, warning when quality drops and logging every result (`files.read`, `files.write`, `notes.list`, `journal.query`). zxvd has no method for water test device readings: use only existing methods; list what's missing in your report.
 Uses: `use weir 1` (household water map); `use alembic 1` ("step allowed", result tables); `use poultice 1` (care plan escalation); `use understory 1` (rolling-window totals); `use homestead 1` (devices). Call these composed entries; do not re-implement them.

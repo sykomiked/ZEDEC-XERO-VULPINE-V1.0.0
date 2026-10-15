@@ -1,6 +1,6 @@
 # Wave 25 task: Syzygy (slot 303), Two-party agreements
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (047 sealwax), wave 13 (164 handfast), wave 14 (178 assize), wave 17 (207 fellowcraft), wave 19 (240 isthmus).
+Depends on: wave 6 (047 sealwax), wave 13 (164 handfast), wave 14 (178 assize), wave 17 (207 fellowcraft), wave 19 (240 isthmus).
 Manifest: `slot 303`, `layer L3`, `icon icons/l3/303-syzygy.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: two-party agreements witnessed in two languages: drafting, signing, obligations and disputes held fairly (`files.read`, `files.write`, `journal.query`, `web4.verify`, `pspace.post`).
 Uses: `use handfast 1` ("ready to sign", obligations, payment schedule); `use fellowcraft 1` (twin runs: the clause evaluated twice and compared); `use isthmus 1` (dispute case room); `use assize 1` ("filing accepted", days left); `use sealwax 1` ("ready to sign", amount fields). Call these composed entries; do not re-implement them.

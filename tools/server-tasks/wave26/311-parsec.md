@@ -1,6 +1,6 @@
 # Wave 26 task: Parsec (slot 311), Telescope imaging
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 8 (058 pinhole), wave 9 (101 orrery), wave 13 (160 astrolabe, 167 tintype), wave 14 (179 cupel).
+Depends on: wave 7 (058 pinhole), wave 9 (101 orrery), wave 13 (160 astrolabe, 167 tintype), wave 14 (179 cupel).
 Manifest: `slot 311`, `layer L3`, `icon icons/l3/311-parsec.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: controls a telescope for deep-sky imaging and shares calibrated images with citizen science projects (`place.here`, `sys.info`, `files.write`). zxvd has no method for mount control, and sharing to citizen science projects (none of the parts holds net): use only existing methods; list what's missing in your report.
 Uses: `use astrolabe 1` (next time above the altitude, "session go"); `use tintype 1` (exposure value, "possibly altered"); `use cupel 1` (precision bounds); `use orrery 1` (day number, above the horizon); `use pinhole 1` (device ready, "photo fits"). Call these composed entries; do not re-implement them.

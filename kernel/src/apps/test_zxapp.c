@@ -1856,6 +1856,117 @@ static int64_t c_left(int64_t minutes, int64_t extra, int64_t used) /* zxv_scree
     return used >= cap ? 0 : cap - used;
 }
 
+/* ---- one test file per app: kernel/src/apps/tests/<id>_zxapp.inc --------------
+ * An app's whole test sits in its own file, so it can be read and written
+ * beside the manifest:
+ *
+ *     APP_TEST(<id>, <entries that load>, <slot>)
+ *     {
+ *         ... CHECK(wave_same(app, "<entry>", ...), ...) for each entry ...
+ *     }
+ *
+ * test_zxapp.sh writes the index (APP_TESTS_INDEX) that includes every such
+ * file. Each app is read from apps/<id>.zxapp and composed from the shared
+ * blocks, the wave 0 apps and the apps tested before it (an app waits until
+ * every app it uses has loaded), then loaded and checked like a wave 0 app,
+ * and only then handed to its own test, which must check something. */
+typedef struct {
+    const char *id;
+    int loaded;
+    uint32_t slot;
+    void (*run)(zxapp_t *app);
+} app_test_t;
+#define APP_TEST(id_, loaded_, slot_)                                                              \
+    static void app_test_##id_(zxapp_t *app);                                                      \
+    static const app_test_t APP_TEST_##id_ = {#id_, loaded_, slot_, app_test_##id_};               \
+    static void app_test_##id_(zxapp_t *app)
+#define APP_TEST_ROW(id_) &APP_TEST_##id_,
+#ifdef APP_TESTS_INDEX
+#    include APP_TESTS_INDEX
+#endif
+#ifndef APP_TESTS_ROWS
+#    define APP_TESTS_ROWS
+#endif
+static const app_test_t *const APP_TESTS[] = {APP_TESTS_ROWS 0};
+
+#define APP_TESTS_MAX 400u
+
+/* The part `id` among the wave 0 apps and the per-app apps that loaded. */
+static const zxapp_t *app_part(const zxapp_t *w0, int nw0, const zxapp_t *t, const bool *ok,
+                               uint32_t n, const char *id)
+{
+    for (int i = 0; i < nw0; i++)
+        if (!strcmp(w0[i].id, id)) return &w0[i];
+    for (uint32_t i = 0; i < n; i++)
+        if (ok[i] && !strcmp(t[i].id, id)) return &t[i];
+    return 0;
+}
+
+static void app_tests_run(const zxapp_t *w0, int nw0)
+{
+    static zxapp_t TAPP[APP_TESTS_MAX];
+    static char TBUF[APP_TESTS_MAX][16384];
+    static bool done[APP_TESTS_MAX], ok[APP_TESTS_MAX];
+    static zxapp_registry_t R, C;
+    uint32_t n = 0;
+    while (APP_TESTS[n]) n++;
+    CHECK(n <= APP_TESTS_MAX, "per-app tests: %u, at most %u", n, APP_TESTS_MAX);
+    if (n > APP_TESTS_MAX) return;
+    if (!n) return;
+    CHECK(zxapp_lingua_register(&H, 0) == ZXAPP_OK, "per-app tests: Lingua registers too");
+    for (bool progress = true; progress;) {
+        progress = false;
+        for (uint32_t i = 0; i < n; i++) {
+            if (done[i]) continue;
+            const app_test_t *t = APP_TESTS[i];
+            zxapp_t *a = &TAPP[i];
+            char path[ZXAPP_PATH_MAX];
+            snprintf(path, sizeof path, "apps/%s.zxapp", t->id);
+            int32_t len = read_src(0, path, TBUF[i], sizeof TBUF[i]);
+            int rc = len > 0 ? zxapp_parse(a, TBUF[i], (uint32_t) len) : ZXAPP_E_ARG;
+            if (rc != ZXAPP_OK) {
+                done[i] = progress = true;
+                CHECK(0, "%s: read and parse %s: %d %s", t->id, path, rc, len > 0 ? a->err : "");
+                continue;
+            }
+            R = WREG; /* the shared blocks, then the parts this app uses */
+            bool wait = false;
+            for (uint32_t u = 0; u < a->nuse && !wait; u++) {
+                if (zxapp_registry_find(&R, a->use[u].id, a->use[u].ver, a->use[u].exact)) continue;
+                const zxapp_t *p = app_part(w0, nw0, TAPP, ok, n, a->use[u].id);
+                if (p)
+                    CHECK(zxapp_registry_add(&R, p) == ZXAPP_OK, "%s: part %s registers: %s", t->id,
+                          p->id, R.err);
+                else
+                    wait = true;
+            }
+            if (wait) continue; /* a part is not loaded yet: try again next pass */
+            done[i] = progress = true;
+            rc = zxapp_compose(a, &R);
+            if (rc == ZXAPP_OK) rc = zxapp_load(a, &H);
+            CHECK(rc == t->loaded, "%s: %d of %d entries load: %s", path, rc, t->loaded, a->err);
+            int layer = zxapp_slot_layer(t->slot);
+            char icon[ZXAPP_PATH_MAX];
+            snprintf(icon, sizeof icon, "icons/l%d/%03u-%s.svg", layer, t->slot, t->id);
+            CHECK(!strcmp(a->id, t->id) && a->slot == t->slot && a->layer == layer &&
+                      a->budget > 0 && a->nneeds > 0 && !strcmp(a->icon, icon),
+                  "%s: registry fields (slot %u, layer L%d, icon %s)", t->id, t->slot, layer, icon);
+            zxapp_registry_init(&C); /* C1: every app is a block too */
+            CHECK(zxapp_registry_add(&C, a) == ZXAPP_OK, "%s registers as a block: %s", t->id,
+                  C.err);
+            if (rc != t->loaded || rc < 0) continue;
+            int before = checks;
+            t->run(a);
+            CHECK(checks > before + 1, "%s: its test checks something", t->id);
+            zxapp_unload(a, &H);
+            ok[i] = true;
+        }
+    }
+    for (uint32_t i = 0; i < n; i++)
+        CHECK(done[i], "%s: an app it uses has no test or never loads (%s)", APP_TESTS[i]->id,
+              TAPP[i].nuse ? TAPP[i].use[0].id : "?");
+}
+
 static void test_wave0(void)
 {
     static char buf[16][4096];
@@ -2187,6 +2298,7 @@ static void test_wave0(void)
               "Glint: a media item fits ^ZXGLINT (MYRA)");
     }
     for (int i = 0; i < NAPPS; i++) zxapp_unload(&APP[i], &H);
+    app_tests_run(APP, NAPPS);
     zxapp_wasm_close(&WW);
 }
 

@@ -1,6 +1,6 @@
 # Wave 28 task: Athenaeum (slot 339), Library
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 7 (042 broadsheet), wave 8 (067 lore), wave 12 (145 cartulary), wave 13 (168 bindery), wave 19 (233 stratum).
+Depends on: wave 6 (042 broadsheet), wave 7 (067 lore), wave 12 (145 cartulary), wave 13 (168 bindery), wave 19 (233 stratum).
 Manifest: `slot 339`, `layer L3`, `icon icons/l3/339-athenaeum.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: a community or national library: catalogue, lending, digital collections and reading rooms (`search.query`, `files.read`, `files.write`, `print.submit`).
 Uses: `use bindery 1` ("may lend", loans ledger, demand); `use cartulary 1` (retention days); `use stratum 1` (source agreement); `use lore 1` ("may the AI read this file"); `use broadsheet 1` ("well formed"). Call these composed entries; do not re-implement them.

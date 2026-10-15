@@ -10,7 +10,10 @@ whoever writes the next app (a person or the build server) builds on what
 exists. --check rebuilds it in memory and fails when the committed file
 differs, or when:
 
-  * a concept's owner is not a manifest that provides that entry;
+  * a concept's owner is not a manifest that provides that entry, or, for
+    an owner written zxvd:<method> (a daemon method group every app calls),
+    api/zxvd.openrpc.json lacks the method and the meaning does not start
+    "Planned:";
   * a manifest other than the owner provides a name a concept owns (use
     the owner instead of writing it again);
   * two manifests provide the same name and it is neither a concept nor a
@@ -25,6 +28,7 @@ built in matrix order (tools/server-tasks/MATRIX_ORDER.tsv) so that later
 ones find more to use.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -92,11 +96,19 @@ def build():
     mans = read_manifests()
     by_id = {m["id"]: m for m in mans}
     owner_of = {}
+    spec = json.load(open(os.path.join(ROOT, "api", "zxvd.openrpc.json"), encoding="utf-8"))
+    methods = {x["name"] for x in spec["methods"]}
     for c in concepts:
-        oid, _, entry = c["owner"].partition(".")
-        m = by_id.get(oid)
-        if not m or entry not in [p[0] for p in m["provides"]]:
-            errors.append(f"concept {c['concept']}: owner {c['owner']} provides no such entry")
+        if c["owner"].startswith("zxvd:"):  # a daemon method every app calls, never rewrites
+            oid, entry = "zxvd", c["owner"][5:]
+            if entry not in methods and not c["meaning"].startswith("Planned:"):
+                errors.append(f"concept {c['concept']}: zxvd has no method {entry} "
+                              "(api/zxvd.openrpc.json); mark the meaning \"Planned:\" until it lands")
+        else:
+            oid, _, entry = c["owner"].partition(".")
+            m = by_id.get(oid)
+            if not m or entry not in [p[0] for p in m["provides"]]:
+                errors.append(f"concept {c['concept']}: owner {c['owner']} provides no such entry")
         c["entry"] = entry
         c["oid"] = oid
         for nm in c["names"] + [entry]:
@@ -111,7 +123,10 @@ def build():
             if "." in name:  # a re-export of a composed entry (C1): defined by its part
                 continue
             c = owner_of.get(name)
-            if c and m["id"] != c["oid"]:
+            if c and c["oid"] == "zxvd":
+                errors.append(f"{m['file']}: provides {name}, which concept {c['concept']} owns: "
+                              f"call the daemon method {c['entry']}, never write it in an app")
+            elif c and m["id"] != c["oid"]:
                 errors.append(f"{m['file']}: provides {name}, which concept {c['concept']} owns: "
                               f"use {c['oid']} and call {c['oid']}.{c['entry']}")
             defined.setdefault(name, []).append(m["file"])

@@ -1,6 +1,6 @@
 # Wave 22 task: Thaw (slot 266), Disaster rebuild
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (010 keepsake), wave 4 (009 lockbox, 011 lifeboat, 012 ferry).
+Depends on: wave 0 (010 keepsake), wave 2 (009 lockbox), wave 4 (011 lifeboat, 012 ferry).
 Manifest: `slot 266`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/266-thaw.svg`, `budget 233`, model `apps/thaw_model.{h,c}`, blocks under kernel/src/apps/blocks/thaw/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Rebuilds a whole machine after disaster from backups, keys and settings (kernel/src/recover): backups (`backup.list`, `backup.verify`, `backup.versions`, `backup.restore`), checks (`journal.verify`, `ledger.check`, `sys.disk`), guardians (`recovery.status`, `recovery.claim`), spaces and files (`spaces.list`, `files.cross`), switches (`features.get`).
 Uses: `use lifeboat 1` ("safe to start normally", next repair step, "restore fits"); `use keepsake 1` (`removed` and `keep_ok`); `use ferry 1` (transfer totals and "fits on the target"); `use lockbox 1` (limits and key expiry). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

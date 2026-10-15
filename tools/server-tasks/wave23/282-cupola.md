@@ -1,6 +1,6 @@
 # Wave 23 task: Cupola (slot 282), Long-term preservation
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (010 keepsake), wave 3 (033 seedbank), wave 12 (145 cartulary), wave 13 (168 bindery), wave 22 (267 holm).
+Depends on: wave 0 (010 keepsake), wave 1 (033 seedbank), wave 12 (145 cartulary), wave 13 (168 bindery), wave 22 (267 holm).
 Manifest: `slot 282`, `layer L3`, `icon icons/l3/282-cupola.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: preserves records for decades: checks integrity, migrates old formats and keeps copies on disk, on peers and as content-addressed blocks (`backup.verify`, `backup.versions`, `aipi.put`, `aipi.get`, `web4.cid`, `files.read`, `files.write`).
 Uses: `use holm 1` (hardened offline mode, for a sealed copy); `use cartulary 1` (retention days, version prune truth); `use bindery 1` (catalogue grid, "may lend" for reading copies); `use keepsake 1` (`keepsake.keep_ok`); `use seedbank 1` (CID check, size limits). Call these composed entries; do not re-implement them.

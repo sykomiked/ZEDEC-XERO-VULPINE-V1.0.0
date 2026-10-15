@@ -1,6 +1,6 @@
 # Wave 27 task: Viaduct (slot 327), Cross-currency settlement
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 4 (073 coffer), wave 6 (077 trickle), wave 14 (171 mercer), wave 19 (234 neap), wave 20 (241 shallows).
+Depends on: wave 1 (073 coffer), wave 8 (077 trickle), wave 14 (171 mercer), wave 19 (234 neap), wave 20 (241 shallows).
 Manifest: `slot 327`, `layer L3`, `icon icons/l3/327-viaduct.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: settles payments between currencies, co-ops and networks with fair rates and clear records (`ledger.accounts`, `ledger.post`, `ledger.hold`, `ledger.release`, `netting.open`, `netting.positions`, `netting.close`, `swap.quote`).
 Uses: `use shallows 1` (translated captions, for counterparties' languages); `use neap 1` ("entry may post", A = L + E); `use mercer 1` (sale records); `use trickle 1` (amount due at a tick, "stream allowed"); `use coffer 1` ("transfer allowed"). Call these composed entries; do not re-implement them.

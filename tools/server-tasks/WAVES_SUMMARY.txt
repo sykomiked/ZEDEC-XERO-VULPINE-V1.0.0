@@ -222,60 +222,60 @@ No fitting daemon method for the app's core function (task says use only existin
 Open question (state B): 132 twelvefold "conclusion follows" takes TRUE and BOTH as designated values; the repo defines no entailment, so confirm or set it.
 # slot id languages-used (c is the model/view in every app; twins: forth=cairndrake, basic=hatchling) depends-on-waves [missing daemon methods] = the task says list what's missing
 217 wisp eve,kron,trebago,sutra,myra waves:0,4,5,11 [missing daemon methods]
-218 gust eve,kron,trebago,sutra,myra waves:0,3,8,9 [missing daemon methods]
-219 scree trebago,kron,eve,sutra,myra,hatchling waves:9
-220 glen eve,kron,trebago,myra waves:0,6,7
-221 watershed sutra,trebago,eve,kron,myra waves:2,4,7
-222 windbreak eve,kron,trebago,sutra,myra waves:0,1,4,6 [missing daemon methods]
-223 spindrift eve,kron,trebago,sutra,myra waves:3,7,8,10
-224 tarn trebago,kron,eve,sutra,myra waves:6,8,11 [missing daemon methods]
-225 tributary trebago,kron,eve,sutra,myra waves:0,1,2,4
-226 swale sutra,trebago,eve,myra,kron waves:1,4,8
-227 cirque trebago,kron,eve,sutra,myra waves:3,7,9
-228 rapids eve,kron,trebago,sutra,myra waves:0,4,8,11 [missing daemon methods]
-229 muster eve,kron,trebago,sutra,myra waves:0,1,3 [missing daemon methods]
-230 fen eve,myra,trebago,kron,sutra waves:1,8,9
-231 terroir eve,kron,sutra,trebago,myra waves:1,2,8 [missing daemon methods]
-232 decanter sutra,trebago,eve,kron,myra waves:1,3,4 [missing daemon methods]
-233 stratum trebago,kron,eve,myra waves:3,7,8
-234 neap sutra,eve,trebago,kron,myra waves:2,4,7
-235 copse trebago,kron,eve,sutra,myra waves:1,3,7,9
-236 levin eve,kron,trebago,sutra,myra waves:1,3,5,9 [missing daemon methods]
-237 weir eve,kron,trebago,cairndrake,sutra,myra waves:0,1,8,9 [missing daemon methods]
-238 billow eve,kron,trebago,sutra,myra waves:3,7,8,11 [missing daemon methods]
-239 isobar eve,kron,trebago,myra waves:2,7,8,9 [missing daemon methods]
-240 isthmus eve,kron,sutra,trebago,myra waves:1,2,4,7
-241 shallows eve,kron,trebago,myra waves:2,4,7,11 [missing daemon methods]
-242 silt eve,kron,trebago,sutra,myra waves:0,1,7
-243 varve trebago,kron,eve,myra waves:0,7,8,9
-244 dragoman trebago,kron,eve,sutra,myra waves:1,3,5,6,9 [missing daemon methods]
-245 fulgurite sutra,kron,eve,trebago,myra waves:4,5,6,10 [missing daemon methods]
-246 lode eve,kron,sutra,trebago,myra waves:1,3,4,8
-247 fusee eve,kron,cairndrake,trebago,sutra,myra waves:0,1,4 [missing daemon methods]
-248 sedge eve,kron,trebago,sutra,myra waves:7,8,9,11 [missing daemon methods]
-249 bourn trebago,kron,sutra,eve,myra waves:2,6,7,8 [missing daemon methods]
-250 plumbline eve,kron,trebago,sutra,myra waves:1,3,4,8 [missing daemon methods]
-251 swell trebago,kron,eve,myra waves:2,5,6 [missing daemon methods]
-252 overture eve,kron,trebago,sutra,myra waves:1,2,3,4,11 [missing daemon methods]
+218 gust eve,kron,trebago,sutra,myra waves:0,4,8,9 [missing daemon methods]
+219 scree trebago,kron,eve,sutra,myra,hatchling waves:8,9
+220 glen eve,kron,trebago,myra waves:0,6,8
+221 watershed sutra,trebago,eve,kron,myra waves:1,2,4,6
+222 windbreak eve,kron,trebago,sutra,myra waves:0,1,3,5 [missing daemon methods]
+223 spindrift eve,kron,trebago,sutra,myra waves:1,4,6,7,9
+224 tarn trebago,kron,eve,sutra,myra waves:7,8,9,11 [missing daemon methods]
+225 tributary trebago,kron,eve,sutra,myra waves:0,2,3,4
+226 swale sutra,trebago,eve,myra,kron waves:2,4,8
+227 cirque trebago,kron,eve,sutra,myra waves:3,6,7,9
+228 rapids eve,kron,trebago,sutra,myra waves:0,3,8,11 [missing daemon methods]
+229 muster eve,kron,trebago,sutra,myra waves:0,1,2,3 [missing daemon methods]
+230 fen eve,myra,trebago,kron,sutra waves:2,7,8,9
+231 terroir eve,kron,sutra,trebago,myra waves:1,8 [missing daemon methods]
+232 decanter sutra,trebago,eve,kron,myra waves:1,4 [missing daemon methods]
+233 stratum trebago,kron,eve,myra waves:3,6,7
+234 neap sutra,eve,trebago,kron,myra waves:1,2,4,6
+235 copse trebago,kron,eve,sutra,myra waves:2,3,6,9
+236 levin eve,kron,trebago,sutra,myra waves:2,3,5,8 [missing daemon methods]
+237 weir eve,kron,trebago,cairndrake,sutra,myra waves:0,2,8 [missing daemon methods]
+238 billow eve,kron,trebago,sutra,myra waves:1,7,11 [missing daemon methods]
+239 isobar eve,kron,trebago,myra waves:1,6,8 [missing daemon methods]
+240 isthmus eve,kron,sutra,trebago,myra waves:1,2,3,6
+241 shallows eve,kron,trebago,myra waves:3,4,6,11 [missing daemon methods]
+242 silt eve,kron,trebago,sutra,myra waves:0,1,6
+243 varve trebago,kron,eve,myra waves:0,6,7,9
+244 dragoman trebago,kron,eve,sutra,myra waves:1,3,5,9,10 [missing daemon methods]
+245 fulgurite sutra,kron,eve,trebago,myra waves:3,5,10 [missing daemon methods]
+246 lode eve,kron,sutra,trebago,myra waves:1,3,7
+247 fusee eve,kron,cairndrake,trebago,sutra,myra waves:0,1,2,4 [missing daemon methods]
+248 sedge eve,kron,trebago,sutra,myra waves:6,8,9,11 [missing daemon methods]
+249 bourn trebago,kron,sutra,eve,myra waves:2,5,6,8 [missing daemon methods]
+250 plumbline eve,kron,trebago,sutra,myra waves:1,3,8 [missing daemon methods]
+251 swell trebago,kron,eve,myra waves:1,6,7,9 [missing daemon methods]
+252 overture eve,kron,trebago,sutra,myra waves:3,4,11 [missing daemon methods]
 253 fell trebago,kron,eve,sutra,myra waves:0,2,5,11
-254 plinth eve,kron,trebago,sutra,myra waves:4,5 [missing daemon methods]
-255 glebe eve,kron,sutra,trebago,myra waves:2,7,8 [missing daemon methods]
-256 massif trebago,kron,eve,sutra,myra waves:0,1,2,6,10
-257 reedbed eve,kron,trebago,cairndrake,sutra,myra waves:0,1,8,9 [missing daemon methods]
+254 plinth eve,kron,trebago,sutra,myra waves:2,4,5 [missing daemon methods]
+255 glebe eve,kron,sutra,trebago,myra waves:1,6,8 [missing daemon methods]
+256 massif trebago,kron,eve,sutra,myra waves:0,1,4,5,10
+257 reedbed eve,kron,trebago,cairndrake,sutra,myra waves:0,2,8 [missing daemon methods]
 258 atoll eve,kron,sutra,trebago,myra waves:0,4,8,9
-259 caldera eve,kron,trebago,sutra,myra waves:0,2,8,11 [missing daemon methods]
-260 serac sutra,trebago,eve,kron,myra waves:1,2,3,4
-261 rainshadow eve,kron,trebago,myra waves:0,6,8,9
-262 thicket eve,kron,trebago,sutra,myra waves:1,4,6,10 [missing daemon methods]
-263 grotto eve,kron,trebago,sutra,myra waves:0,1,4,10 [missing daemon methods]
+259 caldera eve,kron,trebago,sutra,myra waves:0,1,8,11 [missing daemon methods]
+260 serac sutra,trebago,eve,kron,myra waves:1,2,3
+261 rainshadow eve,kron,trebago,myra waves:0,7,9
+262 thicket eve,kron,trebago,sutra,myra waves:1,2,4,10 [missing daemon methods]
+263 grotto eve,kron,trebago,sutra,myra waves:0,1,2,9 [missing daemon methods]
 264 meander eve,kron,trebago,myra waves:0,2,7,10,11 [missing daemon methods]
-265 loom eve,kron,sutra,trebago,myra waves:3,4,6,7,11 [missing daemon methods]
-266 thaw eve,kron,sutra,trebago,myra waves:0,4
+265 loom eve,kron,sutra,trebago,myra waves:3,5,6,11 [missing daemon methods]
+266 thaw eve,kron,sutra,trebago,myra waves:0,2,4
 267 holm eve,kron,trebago,sutra,myra waves:1,2,3,5
-268 chrysalis trebago,kron,eve,cpp-wasm,sutra,myra waves:0,1,3,5,6 [missing daemon methods]
-269 col eve,kron,trebago,sutra,myra waves:1,2,4,5 [missing daemon methods]
-270 lagoon sutra,eve,trebago,kron,myra,hatchling waves:0,4,6,9
-271 cairn trebago,kron,eve,myra waves:1,4,7
+268 chrysalis trebago,kron,eve,cpp-wasm,sutra,myra waves:0,1,3,5 [missing daemon methods]
+269 col eve,kron,trebago,sutra,myra waves:1,2,5 [missing daemon methods]
+270 lagoon sutra,eve,trebago,kron,myra,hatchling waves:0,1,8,9
+271 cairn trebago,kron,eve,myra waves:1,3,4,6
 
 # Gaps and decisions (state B = conflict, N = missing)
 N1 `use` needs blocks/<id>.zxblock; no L1 task (waves 1-11) and no wave-0 app except used_share, number_classics, swarm_shares, pce_* publishes one. Default taken in every task: `use <l1 id> 1`, and the L2 branch adds a zxblock that lists only that L1 app's existing logic files (no new logic) when it is missing. Better: have each L1 wave publish its zxblock. ZXAPP_USES is 8; the most any of these tasks uses is 5.
@@ -290,77 +290,77 @@ Check: gen/check.py (every backticked method in api/zxvd.openrpc.json, every nee
 # slot id languages (c is the model/view in every app) depends-on-waves
 # Twins: basic = BASIC as Hatchling, forth = Forth as Cairndrake (logic lines name `hatchling` / `cairndrake`); pillars are COBOL as Sutra, APL as KRON, FORTRAN as Trebago, Ada as Eve, MUMPS as MYRA.
 145 cartulary c,sutra,kron,eve,trebago,myra waves 0,1
-146 swage c,eve,kron,sutra,trebago,myra waves 3,6,10
-147 binnacle c,trebago,kron,eve,sutra,myra waves 0,6,8,9
-148 poultice c,eve,kron,trebago,sutra,myra waves 7,8,11
-149 dibber c,trebago,kron,eve,sutra,myra waves 7,8
-150 pannier c,eve,kron,sutra,trebago,myra waves 2,5
-151 lectern c,eve,kron,sutra,trebago,myra waves 5,7,8,9,10
-152 ratchet c,eve,kron,basic,trebago,sutra,myra waves 0,3,6,9
-153 pavise c,eve,kron,sutra,trebago,myra waves 1,2,4
-154 chainman c,trebago,kron,eve,sutra,myra waves 0,7,8
-155 alembic c,trebago,kron,sutra,eve,myra waves 1,5,7
+146 swage c,eve,kron,sutra,trebago,myra waves 3,10
+147 binnacle c,trebago,kron,eve,sutra,myra waves 0,8,9
+148 poultice c,eve,kron,trebago,sutra,myra waves 6,8,11
+149 dibber c,trebago,kron,eve,sutra,myra waves 6,8
+150 pannier c,eve,kron,sutra,trebago,myra waves 1,5
+151 lectern c,eve,kron,sutra,trebago,myra waves 6,7,9,10
+152 ratchet c,eve,kron,basic,trebago,sutra,myra waves 0,3,5,8
+153 pavise c,eve,kron,sutra,trebago,myra waves 1,2
+154 chainman c,trebago,kron,eve,sutra,myra waves 0,6,7,8
+155 alembic c,trebago,kron,sutra,eve,myra waves 2,4,6
 156 crier c,eve,kron,sutra,trebago,myra waves 2,5,11
-157 luthier c,sutra,trebago,kron,eve,myra waves 5,6,8
-158 joist c,sutra,trebago,kron,eve,myra waves 1,3,7
-159 skillet c,kron,trebago,eve,sutra,myra waves 6,8
-160 astrolabe c,trebago,kron,eve,myra waves 6,8,9
-161 chandler c,sutra,trebago,kron,eve,myra waves 0,2,5,8
-162 heddle c,kron,trebago,sutra,eve,myra waves 0,7,10
-163 collier c,sutra,trebago,eve,kron,myra waves 0,1,7,8,10
-164 handfast c,eve,kron,sutra,trebago,myra waves 1,2,7
-165 compositor c,eve,kron,sutra,trebago waves 3,4,5,10
-166 limner c,kron,trebago,eve,sutra,myra waves 3,6,10
-167 tintype c,trebago,kron,eve,sutra,myra waves 0,3,8,10
-168 bindery c,eve,kron,sutra,trebago,myra waves 0,7
-169 hornbook c,eve,kron,basic,sutra,trebago,myra waves 7,9
-170 sheaf c,sutra,trebago,eve,kron,forth,myra waves 4,7,8
+157 luthier c,sutra,trebago,kron,eve,myra waves 6,7
+158 joist c,sutra,trebago,kron,eve,myra waves 2,3,6
+159 skillet c,kron,trebago,eve,sutra,myra waves 8,9
+160 astrolabe c,trebago,kron,eve,myra waves 7,8,9
+161 chandler c,sutra,trebago,kron,eve,myra waves 0,1,5,8
+162 heddle c,kron,trebago,sutra,eve,myra waves 0,6,7,10
+163 collier c,sutra,trebago,eve,kron,myra waves 0,2,6,7,10
+164 handfast c,eve,kron,sutra,trebago,myra waves 1,2,6
+165 compositor c,eve,kron,sutra,trebago waves 3,5,10
+166 limner c,kron,trebago,eve,sutra,myra waves 4,7,10
+167 tintype c,trebago,kron,eve,sutra,myra waves 0,4,7,9
+168 bindery c,eve,kron,sutra,trebago,myra waves 0,6
+169 hornbook c,eve,kron,basic,sutra,trebago,myra waves 6,8,9
+170 sheaf c,sutra,trebago,eve,kron,forth,myra waves 1,6,8
 171 mercer c,sutra,kron,trebago,eve,myra waves 1,2,4
-172 escapement c,trebago,kron,eve,sutra,myra waves 4,6,7
-173 warding c,eve,kron,sutra,trebago,myra waves 1,4,9
-174 damper c,eve,kron,trebago,myra waves 0,5,9,11
+172 escapement c,trebago,kron,eve,sutra,myra waves 4,5,6,9
+173 warding c,eve,kron,sutra,trebago,myra waves 1,2,3,8
+174 damper c,eve,kron,trebago,myra waves 0,5,8,11
 175 tiller c,eve,kron,trebago,myra waves 0,3,11
-176 verderer c,trebago,kron,eve,myra waves 0,8,9
-177 caliper c,eve,kron,trebago,sutra,myra waves 1,3,7,9
-178 assize c,eve,kron,trebago,sutra,myra waves 1,4,7
-179 cupel c,trebago,kron,eve,myra waves 1,3,7,9
-180 apothecary c,eve,kron,trebago,sutra,myra waves 4,7,8,11
+176 verderer c,trebago,kron,eve,myra waves 0,7,8,9
+177 caliper c,eve,kron,trebago,sutra,myra waves 2,3,6,9
+178 assize c,eve,kron,trebago,sutra,myra waves 1,3,6
+179 cupel c,trebago,kron,eve,myra waves 3,4,6,9
+180 apothecary c,eve,kron,trebago,sutra,myra waves 2,6,8,11
 181 loupe c,eve,kron,sutra,trebago,myra waves 0,1,10
-182 mummer c,trebago,kron,sutra,eve,myra waves 3,5,7,9
+182 mummer c,trebago,kron,sutra,eve,myra waves 4,6,8
 183 bodkin c,trebago,kron,eve,sutra,myra waves 1,2,3,7
-184 trowel c,eve,kron,sutra,trebago,myra waves 4,5,7,9
-185 skep c,sutra,trebago,kron,eve,myra waves 0,2,4,6
-186 kiln c,trebago,kron,eve,sutra,myra waves 0,3,5,6
-187 creel c,sutra,kron,eve,trebago,myra waves 0,4,8
-188 courser c,trebago,kron,eve,myra waves 5,6,8
-189 flue c,kron,trebago,eve,sutra,myra waves 0,3,5,6
+184 trowel c,eve,kron,sutra,trebago,myra waves 4,5,6,8
+185 skep c,sutra,trebago,kron,eve,myra waves 0,1,4,8
+186 kiln c,trebago,kron,eve,sutra,myra waves 0,3,5
+187 creel c,sutra,kron,eve,trebago,myra waves 0,1,8
+188 courser c,trebago,kron,eve,myra waves 6,8,9
+189 flue c,kron,trebago,eve,sutra,myra waves 0,1,5,8
 190 shipwright c,trebago,kron,eve,myra waves 0,8,11
 191 lapidary c,trebago,kron,eve,sutra,myra waves 1,3,7,11
-192 coppice c,sutra,trebago,kron,eve,myra waves 0,1,8
-193 glazier c,sutra,trebago,kron,eve,myra waves 1,2,3,6
-194 icehouse c,eve,kron,trebago,sutra,myra waves 0,3,5,10
+192 coppice c,sutra,trebago,kron,eve,myra waves 0,1,2,8
+193 glazier c,sutra,trebago,kron,eve,myra waves 1,2,8
+194 icehouse c,eve,kron,trebago,sutra,myra waves 0,1,5,9
 195 sexton c,eve,kron,trebago,sutra,myra waves 0,2,4
-196 stoker c,eve,kron,trebago,sutra,myra waves 1,5,6,8
-197 millrace c,eve,kron,trebago,sutra,myra waves 0,1,6
-198 taper c,eve,kron,trebago,myra waves 2,6,8,11
-199 furnace c,sutra,trebago,kron,eve,myra waves 5,8,9
-200 linkman c,eve,kron,trebago,myra waves 0,2,5
-201 gearwright c,trebago,kron,eve,sutra,myra waves 3,6,9,11
-202 stationer c,trebago,kron,eve,sutra,myra waves 0,7
-203 tiler c,trebago,kron,eve,myra waves 0,3,7
-204 topiary c,kron,trebago,eve,myra waves 1,7,8,10
-205 lampwright c,kron,trebago,eve,sutra,myra waves 3,9,10,11
-206 verger c,eve,kron,sutra,trebago,myra waves 6,7,9
-207 fellowcraft c,kron,trebago,eve,sutra,myra waves 1,2,4
-208 cooper c,eve,kron,sutra,trebago,myra waves 2,4,8,10
-209 freshet c,eve,kron,sutra,trebago,myra waves 3,4,6,10
-210 moraine c,eve,kron,sutra,trebago,myra waves 1,4,6
-211 tradewind c,trebago,kron,eve,sutra,myra waves 0,2,5,8
-212 eddy c,sutra,trebago,eve,kron,myra waves 1,4,7,8
+196 stoker c,eve,kron,trebago,sutra,myra waves 4,5,7
+197 millrace c,eve,kron,trebago,sutra,myra waves 0,2,5
+198 taper c,eve,kron,trebago,myra waves 4,8,9,11
+199 furnace c,sutra,trebago,kron,eve,myra waves 5,8
+200 linkman c,eve,kron,trebago,myra waves 0,1,5
+201 gearwright c,trebago,kron,eve,sutra,myra waves 3,5,8,11
+202 stationer c,trebago,kron,eve,sutra,myra waves 0,6,7
+203 tiler c,trebago,kron,eve,myra waves 0,2,6
+204 topiary c,kron,trebago,eve,myra waves 1,6,8,10
+205 lampwright c,kron,trebago,eve,sutra,myra waves 3,8,10,11
+206 verger c,eve,kron,sutra,trebago,myra waves 6,8
+207 fellowcraft c,kron,trebago,eve,sutra,myra waves 1,3,4
+208 cooper c,eve,kron,sutra,trebago,myra waves 1,4,8,10
+209 freshet c,eve,kron,sutra,trebago,myra waves 3,10
+210 moraine c,eve,kron,sutra,trebago,myra waves 1,2,8
+211 tradewind c,trebago,kron,eve,sutra,myra waves 0,1,5,8
+212 eddy c,sutra,trebago,eve,kron,myra waves 1,2,6,8
 213 shingle c,eve,kron,trebago,sutra,myra waves 1,3
-214 updraft c,trebago,kron,eve,myra waves 0,2,5
+214 updraft c,trebago,kron,eve,myra waves 0,1,2,5
 215 headland c,trebago,kron,eve,myra waves 0,11
-216 rill c,eve,kron,trebago,basic,myra waves 2,7,9,10
+216 rill c,eve,kron,trebago,basic,myra waves 4,6,9
 
 Deviations from APP_LANGUAGES_407.csv (runs rows):
 160 astrolabe: dropped sutra (observation log): a log is a record, MYRA's; no money or fixed business record
@@ -432,74 +432,74 @@ Check: python3 l2tools/check.py -> 72 files, 0 problems (every backticked method
 273 relume c,eve,kron,trebago,sutra,myra waves 0,4,12,21,22
 274 vigil c,eve,kron,trebago,sutra,myra waves 0,14,17
 275 tracery c,eve,kron,trebago,sutra,myra waves 8,12,14,15,19
-276 albedo c,eve,kron,trebago,sutra,myra waves 5,8,15,19
-277 aureole c,eve,kron,trebago,sutra,myra waves 1,7,14,20,22
-278 cabochon c,sutra,trebago,eve,kron,myra waves 4,8,12,14,19
-279 vesper c,eve,kron,trebago,sutra,myra waves 2,11,12,17,21
+276 albedo c,eve,kron,trebago,sutra,myra waves 5,7,15,19
+277 aureole c,eve,kron,trebago,sutra,myra waves 1,6,14,20,22
+278 cabochon c,sutra,trebago,eve,kron,myra waves 1,8,12,14,19
+279 vesper c,eve,kron,trebago,sutra,myra waves 1,11,12,17,21
 280 volute c,eve,kron,trebago,sutra,myra waves 1,14,15
-281 lozenge c,eve,kron,trebago,sutra,myra waves 2,14,15,19
-282 cupola c,eve,kron,trebago,sutra,myra waves 0,3,12,13,22
+281 lozenge c,eve,kron,trebago,sutra,myra waves 1,14,15,19
+282 cupola c,eve,kron,trebago,sutra,myra waves 0,1,12,13,22
 283 gibbous c,eve,kron,trebago,sutra,myra waves 8,12,14,16,18
 284 penumbra c,eve,kron,trebago,sutra,myra waves 0,10,12,13,15
 285 annulus c,eve,kron,trebago,sutra,myra waves 8,11,12,14,20
-286 perigee c,eve,kron,trebago,sutra,myra waves 2,12,14,19
-287 cusp c,eve,kron,trebago,sutra,myra waves 7,12,14,19,21
-288 lambent c,eve,kron,trebago,sutra,myra waves 7,9,12,14
+286 perigee c,eve,kron,trebago,sutra,myra waves 1,12,14,19
+287 cusp c,eve,kron,trebago,sutra,myra waves 6,12,14,19,21
+288 lambent c,eve,kron,trebago,sutra,myra waves 6,8,12,14
 289 rampart c,eve,kron,trebago,sutra,myra waves 1,12,14,18
 290 kerf c,eve,kron,trebago,sutra,myra waves 4,12,14,20
 291 meridian c,eve,kron,trebago,sutra,myra waves 0,12,13,19
-292 solarium c,eve,kron,trebago,sutra,myra waves 8,9,12,19
-293 clerestory c,eve,kron,trebago,sutra,myra waves 0,8,12,13,19
-294 parallax c,eve,kron,trebago,sutra,myra waves 3,8,13,15
-295 sanctum c,eve,sutra,trebago,kron,myra waves 4,6,12,14,19
+292 solarium c,eve,kron,trebago,sutra,myra waves 8,12,19
+293 clerestory c,eve,kron,trebago,sutra,myra waves 0,7,12,13,19
+294 parallax c,eve,kron,trebago,sutra,myra waves 3,7,13,15
+295 sanctum c,eve,sutra,trebago,kron,myra waves 2,8,12,14,19
 296 cistern c,eve,kron,trebago,sutra,myra waves 4,12,15,16,19
 297 armature c,eve,kron,trebago,sutra,myra waves 10,12,14,15
 298 sightline c,eve,kron,trebago,sutra,myra waves 0,12,14,19,21
 299 ephemeris c,eve,kron,trebago,sutra,myra waves 9,13,14,16,19
 300 lumen c,eve,kron,trebago,sutra,myra waves 11,12,14,18
 301 elevation c,eve,kron,trebago,sutra,myra waves 3,13,14,15,18
-302 transit c,eve,kron,trebago,sutra,myra waves 2,10,12,19
-303 syzygy c,eve,kron,trebago,sutra,myra waves 7,13,14,17,19
+302 transit c,eve,kron,trebago,sutra,myra waves 1,10,12,19
+303 syzygy c,eve,kron,trebago,sutra,myra waves 6,13,14,17,19
 304 firstlight c,eve,kron,trebago,sutra,basic,myra waves 9,14,17,18
 305 culmen c,eve,kron,trebago,sutra,myra waves 0,12,14,19,22
-306 azimuth c,eve,kron,trebago,sutra,myra waves 0,2,12,17
-307 bitting c,eve,kron,trebago,sutra,myra waves 1,4,12,14,17
-308 luminaire c,eve,kron,trebago,sutra,myra waves 5,9,14,18,19
-309 collet c,eve,kron,trebago,sutra,myra waves 4,6,12,14
-310 cleave c,eve,kron,trebago,sutra,myra waves 6,12,13
-311 parsec c,eve,kron,trebago,sutra,myra waves 8,9,13,14
-312 equinox c,eve,kron,trebago,sutra,myra waves 6,7,12,14,20
-313 illumine c,eve,kron,trebago,sutra,myra waves 2,7,13,18,21
-314 umbra c,eve,kron,trebago,sutra,myra waves 1,13,14,15
-315 escutcheon c,eve,sutra,trebago,kron,myra waves 6,12,14,15,19
-316 quay c,eve,kron,trebago,sutra,myra waves 2,12,13,19,20
-317 pinion c,eve,kron,trebago,sutra,myra waves 0,6,12,14,16
-318 bevel c,eve,kron,trebago,sutra,myra waves 1,7,12,14,20
-319 lunette c,eve,kron,trebago,sutra,myra waves 7,9,13,15,20
-320 equant c,eve,kron,trebago,sutra,myra waves 4,13,14,19,20
-321 diadem c,eve,kron,trebago,sutra,myra waves 1,14,20,22
+306 azimuth c,eve,kron,trebago,sutra,myra waves 0,4,12,17
+307 bitting c,eve,kron,trebago,sutra,myra waves 1,2,12,14,17
+308 luminaire c,eve,kron,trebago,sutra,myra waves 5,8,14,18,19
+309 collet c,eve,kron,trebago,sutra,myra waves 2,8,12,14
+310 cleave c,eve,kron,trebago,sutra,myra waves 10,12,13
+311 parsec c,eve,kron,trebago,sutra,myra waves 7,9,13,14
+312 equinox c,eve,kron,trebago,sutra,myra waves 6,8,12,14,20
+313 illumine c,eve,kron,trebago,sutra,myra waves 2,6,13,18,21
+314 umbra c,eve,kron,trebago,sutra,myra waves 1,3,13,14,15
+315 escutcheon c,eve,sutra,trebago,kron,myra waves 8,12,14,15,19
+316 quay c,eve,kron,trebago,sutra,myra waves 1,12,13,19,20
+317 pinion c,eve,kron,trebago,sutra,myra waves 0,5,12,14,16
+318 bevel c,eve,kron,trebago,sutra,myra waves 1,6,12,14,20
+319 lunette c,eve,kron,trebago,sutra,myra waves 6,8,13,15,20
+320 equant c,eve,kron,trebago,sutra,myra waves 3,13,14,19,20
+321 diadem c,eve,kron,trebago,sutra,myra waves 1,3,14,20,22
 322 archivolt c,eve,kron,trebago,sutra,myra waves 3,13,20,22
 323 spire c,eve,kron,trebago,sutra,myra waves 8,12,13,14,21
-324 druse c,eve,kron,trebago,sutra,myra waves 3,5,12,17,21
-325 arcology c,eve,kron,trebago,sutra,myra waves 9,18,19
+324 druse c,eve,kron,trebago,sutra,myra waves 1,5,12,17,21
+325 arcology c,eve,kron,trebago,sutra,myra waves 8,18,19
 326 pharos c,eve,kron,trebago,sutra,myra waves 5,11,17,19
-327 viaduct c,eve,sutra,trebago,kron,myra waves 4,6,14,19,20
+327 viaduct c,eve,sutra,trebago,kron,myra waves 1,8,14,19,20
 328 tephra c,eve,kron,trebago,sutra,myra waves 0,14,19,21
-329 caustic c,eve,kron,trebago,sutra,myra waves 1,14,15,19,21
+329 caustic c,eve,kron,trebago,sutra,myra waves 2,14,15,19,21
 330 sunfleck c,eve,sutra,trebago,kron,myra waves 8,12,15,19
-331 rotunda c,eve,kron,trebago,sutra,myra waves 7,13,14,18,19
-332 atrium c,eve,kron,trebago,sutra,myra,cpp-wasm waves 9,13,14,18
+331 rotunda c,eve,kron,trebago,sutra,myra waves 6,13,14,18,19
+332 atrium c,eve,kron,trebago,sutra,myra,cpp-wasm waves 8,13,14,18
 333 ravelin c,eve,kron,trebago,sutra,myra waves 2,12,14,19
-334 nymphaeum c,eve,kron,trebago,sutra,myra waves 8,9,12,19
+334 nymphaeum c,eve,kron,trebago,sutra,myra waves 8,12,19
 335 insolation c,eve,kron,trebago,sutra,myra waves 5,8,19
-336 portcullis c,eve,kron,trebago,sutra,myra,rust-wasm waves 2,9,14,20,22
-337 apse c,eve,kron,trebago,sutra,myra waves 4,9,14,18
+336 portcullis c,eve,kron,trebago,sutra,myra,rust-wasm waves 2,8,14,20,22
+337 apse c,eve,kron,trebago,sutra,myra waves 1,8,14,18
 338 corbel c,eve,kron,trebago,sutra,myra waves 0,9,12,19,20
-339 athenaeum c,eve,kron,trebago,sutra,basic,myra waves 7,8,12,13,19
+339 athenaeum c,eve,kron,trebago,sutra,basic,myra waves 6,7,12,13,19
 340 windlass c,eve,kron,trebago,sutra,myra waves 8,12,13,18,19
 341 vernier c,eve,kron,trebago,sutra,myra waves 10,12,13,14,20
 342 dulcimer c,eve,kron,trebago,sutra,myra waves 3,12,14,20
-343 monochord c,eve,kron,trebago,sutra,myra waves 1,12,13,14,19
+343 monochord c,eve,kron,trebago,sutra,myra waves 4,12,13,14,19
 
 Missing daemon methods (task says use only existing methods and list them):
 274 vigil: readings from other machines (as Headland reports)
@@ -544,23 +544,23 @@ Notes and gaps:
 Check: python3 l2tools/check3.py -> 72 files, 0 problems. It checks that every backticked method exists in api/zxvd.openrpc.json and every wave-0 entry in its manifest; that the `use` set equals the catalogue's built_from; that needs names are in zxapp_caps and within the parts' combined needs; that each method family in "What it does" is covered by a declared need; that banned words and product names are absent; and the L3 header and icon. It reported 17 problems before the fixes above.
 # slot id languages-used (c is the model/view in every app; twins: forth=cairndrake, basic=hatchling) depends-on-waves pending(P1) [missing daemon methods] = the task says list what's missing
 344 portolan eve,kron,trebago,sutra,myra waves:0,12,20 pending:Logo:project,MATLAB:elevation,Ladder_logic:no_fly [missing daemon methods]
-345 caravel sutra,eve,trebago,kron,myra waves:2,12,14,19,20 pending:Eiffel:release_ok,Solidity:sale_total
+345 caravel sutra,eve,trebago,kron,myra waves:1,12,14,19,20 pending:Eiffel:release_ok,Solidity:sale_total
 346 chintz eve,kron,trebago,cairndrake,sutra,myra waves:9,12,13,19 pending:Julia:growth,Mojo:traits
 347 sampler eve,kron,sutra,trebago,myra waves:0,12,13,20 pending:Objective-C:provenance,SAS:catalogue,ALGOL_60:loan_ok,Haskell:insured
-348 theorbo sutra,eve,kron,trebago,myra waves:6,13,20 pending:PostScript:score,Simula_I:synth,LabVIEW:mix_level [missing daemon methods]
+348 theorbo sutra,eve,kron,trebago,myra waves:7,13,20 pending:PostScript:score,Simula_I:synth,LabVIEW:mix_level [missing daemon methods]
 349 armillary eve,kron,trebago,sutra,myra waves:3,12,14,16 pending:IEC_61131-3_Structured_Text:drift_ok,Simula_67:calibrate,Scala:sensors [missing daemon methods]
-350 stereoscope eve,kron,sutra,trebago,myra waves:8,12,13,14 pending:MATLAB:colour,ML:edited_mark,ALGOL_60:licence_sale
+350 stereoscope eve,kron,sutra,trebago,myra waves:7,12,13,14 pending:MATLAB:colour,ML:edited_mark,ALGOL_60:licence_sale
 351 athanor eve,kron,sutra,trebago,myra waves:12,14,20 pending:JOSS:kinetics,JCL:schedule,Simula_I:conc [missing daemon methods]
-352 consonance eve,kron,sutra,trebago,myra waves:7,13,14,19,20 pending:Eiffel:binding_ok,Solidity:obligations
+352 consonance eve,kron,sutra,trebago,myra waves:6,13,14,19,20 pending:Eiffel:binding_ok,Solidity:obligations
 353 gauze trebago,eve,kron,sutra,myra waves:11,12,14,18,20 pending:AWK:handover [missing daemon methods]
-354 pianola eve,kron,trebago,sutra,myra waves:4,12,13,19,20 pending:Haskell:contract,ML:ship_ok,Bash:run_jobs [missing daemon methods]
+354 pianola eve,kron,trebago,sutra,myra waves:3,12,13,19,20 pending:Haskell:contract,ML:ship_ok,Bash:run_jobs [missing daemon methods]
 355 damask eve,myra,sutra,trebago,kron waves:8,13,14,18 pending:Laning_and_Zierler:portion [missing daemon methods]
 356 landfall eve,kron,trebago,sutra,myra waves:0,12,14,21 pending:Gleam:overdue,Prolog:turnaround,TeX:waypoints
 357 heartstring eve,kron,trebago,sutra,myra waves:8,12,14,18 pending:Go:updates,IPL:care_tree,Simula_67:smooth
 358 crowsnest eve,kron,trebago,sutra,myra waves:1,12,14,15,17 pending:ALGOL_60:mask_ok,Haskell:escalate,JOVIAL:motion [missing daemon methods]
 359 capstan eve,kron,sutra,trebago,myra waves:8,12,19 pending:Ladder_logic:rotor_ok [missing daemon methods]
-360 carrick sutra,eve,trebago,kron,myra waves:7,13,14,17,19 pending:Eiffel:limit_ok,Solidity:ledger
-361 pyrometer eve,kron,sutra,trebago,myra waves:9,14,16,19 pending:Bourne_shell:inspect_due [missing daemon methods]
+360 carrick sutra,eve,trebago,kron,myra waves:6,13,14,17,19 pending:Eiffel:limit_ok,Solidity:ledger
+361 pyrometer eve,kron,sutra,trebago,myra waves:8,14,16,19 pending:Bourne_shell:inspect_due [missing daemon methods]
 362 shanty eve,kron,trebago,cairndrake,sutra,myra waves:8,13,15,16,19 pending:Elixir:send_alert,Clojure:waves [missing daemon methods]
 363 linen eve,kron,sutra,trebago,myra waves:8,12,14,15,21 pending:ML:credit_ok,ALGOL_60:credits [missing daemon methods]
 364 fanfare eve,kron,trebago,sutra,myra waves:1,12,18,19,22 pending:PHP:report
@@ -570,41 +570,41 @@ Check: python3 l2tools/check3.py -> 72 files, 0 problems. It checks that every b
 368 aubade eve,kron,trebago,sutra,myra waves:8,12,14,16,18 pending:Simula_I:sun_angle,LabVIEW:daylight,Modula-2:rhythm [missing daemon methods]
 369 conclave eve,kron,sutra,trebago,myra waves:1,3,15,16,18 pending:Python:agents,Occam:budget,Simula_67:budget_ok [missing daemon methods]
 370 rondo eve,kron,trebago,sutra,myra waves:8,12,14,16 pending:Erlang:share_ok,Mojo:predict,Perl:notes
-371 ostinato sutra,eve,trebago,kron,myra waves:2,12,14,17,19 pending:Elixir:hazard_ok
-372 tatting eve,kron,trebago,sutra,myra waves:2,12,14,16 pending:JOVIAL:deliver_ok,Gleam:alert,Scala:sensors [missing daemon methods]
+371 ostinato sutra,eve,trebago,kron,myra waves:1,12,14,17,19 pending:Elixir:hazard_ok
+372 tatting eve,kron,trebago,sutra,myra waves:1,12,14,16 pending:JOVIAL:deliver_ok,Gleam:alert,Scala:sensors [missing daemon methods]
 373 paisley eve,kron,trebago,sutra,myra waves:7,13,16,18 pending:APT:toolpath,Logo:symmetry,SNOBOL:versions
 374 calliope eve,kron,trebago,hatchling,sutra,myra waves:9,13,17,18 pending:Python:help_ok,Pascal:steps
-375 bulwark sutra,eve,trebago,kron,myra waves:4,12,14,17 pending:Smalltalk:guardians,Erlang:transfer_ok,Oberon:roles
+375 bulwark sutra,eve,trebago,kron,myra waves:2,12,14,17 pending:Smalltalk:guardians,Erlang:transfer_ok,Oberon:roles
 376 brocade eve,kron,trebago,sutra,myra waves:10,13,14,15 pending:TRAC:labels,Icon:size_ok,TeX:orders
-377 buckram eve,kron,trebago,cairndrake,sutra,myra waves:1,12,17 pending:B:seal,RPG:warranty [missing daemon methods]
+377 buckram eve,kron,trebago,cairndrake,sutra,myra waves:2,12,17 pending:B:seal,RPG:warranty [missing daemon methods]
 378 counterpoint sutra,eve,trebago,kron,myra waves:8,14,17,19 pending:Go:chores,Simula_I:forecast,Delphi:planner
 379 hydrophone eve,kron,trebago,sutra,myra waves:13,14,15,17,21 pending:IPL:species,Prolog:rules,Racket:detect [missing daemon methods]
 380 moire eve,kron,trebago,sutra,myra waves:11,14,17,20 pending:Raku:parse_pref,Ruby:layout,Mojo:contrast [missing daemon methods]
 381 rigging eve,kron,trebago,sutra,myra waves:0,15,16,18,20 pending:Occam:jobs,Elixir:rollback,JCL:deploy_ok
-382 seine eve,kron,trebago,sutra,myra waves:2,14,16,17,18 pending:Gleam:relay,Ladder_logic:battery_ok,Clojure:readings [missing daemon methods]
-383 carapace sutra,eve,trebago,kron,myra waves:2,13,14,15,21 pending:Occam:stocks,PostScript:labels
+382 seine eve,kron,trebago,sutra,myra waves:1,14,16,17,18 pending:Gleam:relay,Ladder_logic:battery_ok,Clojure:readings [missing daemon methods]
+383 carapace sutra,eve,trebago,kron,myra waves:1,13,14,15,21 pending:Occam:stocks,PostScript:labels
 384 hornpipe eve,kron,trebago,sutra,myra waves:8,14,15,21 pending:-
 385 piccolo eve,kron,trebago,sutra,myra waves:9,12,15,19 pending:APT:planting,Simula_67:bloom,Modula-2:species
 386 privateer eve,kron,trebago,sutra,myra waves:2,12,14,15,18 pending:Go:alerts,BCPL:contain_ok
 387 commonweal eve,kron,sutra,trebago,myra waves:1,15,19,21 pending:Erlang:household,Prolog:advisory_ok,Logo:epochs
-388 patchwork eve,kron,trebago,sutra,myra waves:7,12,18,20 pending:Julia:timeline,Gleam:share_out,Python:dates
-389 distaff eve,kron,trebago,sutra,myra waves:4,12,13,17,18 pending:Visual_Basic:site,Haskell:link_ok,ML:bandwidth_ok
+388 patchwork eve,kron,trebago,sutra,myra waves:6,12,18,20 pending:Julia:timeline,Gleam:share_out,Python:dates
+389 distaff eve,kron,trebago,sutra,myra waves:2,12,13,17,18 pending:Visual_Basic:site,Haskell:link_ok,ML:bandwidth_ok
 390 galliard eve,kron,trebago,sutra,myra waves:8,13,15,18 pending:- [missing daemon methods]
 391 planisphere eve,kron,trebago,sutra,myra waves:19,20,21 pending:Crystal:inventory,ALGOL_60:step_ok,Haskell:capacity
-392 consort eve,kron,trebago,sutra,myra waves:7,13,16,18 pending:Go:intro,Prolog:contact_ok,Oberon:network
+392 consort eve,kron,trebago,sutra,myra waves:6,13,16,18 pending:Go:intro,Prolog:contact_ok,Oberon:network
 393 atelier eve,kron,cpp-wasm,sutra,trebago,myra waves:11,17,20,22 pending:OCaml:parse_check,TeX:blocks [missing daemon methods]
 394 quadrant eve,kron,trebago,sutra,myra waves:5,13,16,17,18 pending:Elixir:relay,AWK:report,MATLAB:imagery [missing daemon methods]
 395 manometer trebago,eve,kron,sutra,myra waves:0,12,14,16,19 pending:IEC_61131-3_Structured_Text:interlock,SAS:report,Simula_I:thermal [missing daemon methods]
-396 macrame eve,kron,trebago,sutra,myra waves:2,17,18,19 pending:Erlang:notice,Prolog:cap_ok,Logo:links
-397 descant eve,kron,trebago,hatchling,sutra,myra waves:9,12,14,17 pending:ML:credential_ok,ALGOL_60:mastery
+396 macrame eve,kron,trebago,sutra,myra waves:1,17,18,19 pending:Erlang:notice,Prolog:cap_ok,Logo:links
+397 descant eve,kron,trebago,hatchling,sutra,myra waves:8,12,14,17 pending:ML:credential_ok,ALGOL_60:mastery
 398 orlop eve,kron,sutra,trebago,myra waves:0,12,17,20,22 pending:F#:schema_ok,SQL:query,Julia:stats
-399 topsail eve,kron,trebago,sutra,myra waves:6,15,18,22 pending:Gleam:failover,Elixir:replicas,Nim:capacity
+399 topsail eve,kron,trebago,sutra,myra waves:8,15,18,22 pending:Gleam:failover,Elixir:replicas,Nim:capacity
 400 foghorn eve,kron,trebago,sutra,myra waves:5,12,13,17 pending:JOVIAL:timing_ok,Go:broadcast,LabVIEW:visibility [missing daemon methods]
 401 bearing eve,kron,trebago,sutra,myra waves:0,12,17 pending:Prolog:options,Simula_67:timing,Logo:timetable [missing daemon methods]
 402 heliostat eve,kron,sutra,trebago,myra waves:8,16,18,19 pending:Erlang:credits,Bash:settle_jobs,Tcl:irradiance [missing daemon methods]
-403 seachest sutra,eve,trebago,kron,myra waves:6,12,14,17 pending:Eiffel:access_ok,Solidity:custody
-404 chronometer eve,kron,trebago,sutra,myra waves:7,12,14,18 pending:Haskell:rest_ok,ML:drift,Occam:parallel [missing daemon methods]
-405 wardian eve,kron,trebago,sutra,myra waves:9,12,19 pending:Ladder_logic:climate_ok,Simula_I:growth_sim,Delphi:beds [missing daemon methods]
+403 seachest sutra,eve,trebago,kron,myra waves:8,12,14,17 pending:Eiffel:access_ok,Solidity:custody
+404 chronometer eve,kron,trebago,sutra,myra waves:6,12,14,18 pending:Haskell:rest_ok,ML:drift,Occam:parallel [missing daemon methods]
+405 wardian eve,kron,trebago,sutra,myra waves:8,12,19 pending:Ladder_logic:climate_ok,Simula_I:growth_sim,Delphi:beds [missing daemon methods]
 406 celesta eve,kron,trebago,sutra,myra waves:8,16,19,21 pending:PHP:report,Simula_67:snowpack,Modula-2:party [missing daemon methods]
 407 chorale eve,kron,sutra,trebago,myra waves:1,14,19,22 pending:Prolog:quorum_ok,TeX:decisions
 
