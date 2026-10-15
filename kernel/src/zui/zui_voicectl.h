@@ -42,6 +42,17 @@
  *       is typed, never submitted; and the Accept and Reject of a held AI
  *       answer (zui_widget.h W4) answer only to their exact name or number,
  *       never to a partial match.
+ *   VC8 THE DOCK (zui_wm.h WM9, the default in place of the strip). Its
+ *       seal is a target named "Apps" (choosing it opens or closes the
+ *       dock) and every app on it is a target named by its title: on its
+ *       slot while the dock is open, on the seal while it is closed.
+ *       Choosing one does what pressing its slot does (zui_wm_dock_pick).
+ *       "show numbers", or a name several apps share, opens the dock so its
+ *       slots are numbered where they are; the dock closes again when the
+ *       numbers go. "open <app>" also knows the dock's apps (raising an
+ *       open one, launching a pinned one: zui_wm_launch, also for a name
+ *       from the app list when no on_act launcher is set); "switch to
+ *       <app>" is by window as before.
  *
  * Integer only, no allocation, deterministic.
  */
@@ -107,7 +118,8 @@ typedef enum { ZUI_VC_NONE = 0, ZUI_VC_NUMBERS, ZUI_VC_PICK, ZUI_VC_GRID } zui_v
 typedef enum {
     ZUI_VC_T_WIDGET = 0, /* id: a widget                      */
     ZUI_VC_T_ROW,        /* id: a list, row: its row           */
-    ZUI_VC_T_STRIP       /* id: a window, by its strip slot    */
+    ZUI_VC_T_STRIP,      /* id: a window, by its strip slot    */
+    ZUI_VC_T_DOCK        /* id: a dock item (-1 the seal), row: its slot or -1 */
 } zui_vc_tkind_t;
 
 typedef struct {
@@ -175,7 +187,8 @@ struct zui_voicectl {
     void *act_ctx;
     zui_vc_action_t last;
     uint32_t actions;
-    uint32_t clock; /* ms stamped on the events it sends */
+    uint32_t clock;  /* ms stamped on the events it sends */
+    bool dock_shown; /* VC8: the numbers opened the dock  */
     char raw[ZUI_VC_TEXT], norm[ZUI_VC_TEXT], arg[ZUI_VC_TEXT], arg_raw[ZUI_VC_TEXT];
 };
 

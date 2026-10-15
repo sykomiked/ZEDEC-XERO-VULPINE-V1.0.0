@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- svg2zxvg.py fixture: every supported feature once. Regenerate the C array
+     kernel/src/zui/test_zui_vec_fixture.inc with svg2zxvg.py and its C option,
+         array name ZXVG_FIXTURE. -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 256 256" width="256" height="256">
+  <title>zxvg fixture</title>
+  <desc>Shapes, transforms, gradients, strokes, dashes and named groups.</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE38A"/>
+      <stop offset="0.5" style="stop-color:#F2C230"/>
+      <stop offset="100%" stop-color="#7a5a00" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="gold2" xlink:href="#gold" gradientTransform="rotate(90 .5 .5)"
+                    spreadMethod="reflect"/>
+    <radialGradient id="glow" cx="128" cy="128" r="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="rgb(255,227,138)"/>
+      <stop offset="1" stop-color="#002911" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" fill="#002911"/>
+  <circle cx="128" cy="128" r="96" fill="url(#glow)"/>
+  <g id="chassis" transform="translate(128 128) scale(0.8)">
+    <rect x="-100" y="-100" width="200" height="200" rx="24" ry="24" fill="none"
+          stroke="#2A6A47" stroke-width="6" stroke-dasharray="18 8" stroke-dashoffset="4"/>
+    <polygon points="0,-90 21,-29 85,-28 34,11 53,73 0,36 -53,73 -34,11 -85,-28 -21,-29"
+             fill="url(#gold)" fill-rule="evenodd"/>
+  </g>
+  <g id="core-artifact" opacity="0.85">
+    <path d="M96 150 q16 -24 32 0 t32 0 c0 20 -64 20 -64 0 z
+             M100 180 a28 14 10 1 0 56 0 a28 14 10 0 1 -56 0 Z
+             m 8 -4 h40 v8 h-40 z" fill="url(#gold2)" stroke="#CFE8D8" stroke-width="2"
+          stroke-linejoin="round" stroke-linecap="round"/>
+    <ellipse cx="128" cy="60" rx="30" ry="12" fill="#6FB8FF" fill-opacity="0.6"/>
+  </g>
+  <g id="kinetic-element" transform="rotate(15 200 200)">
+    <polyline points="180,190 200,210 220,190 240,210" fill="none" stroke="#F2C230"
+              stroke-width="5" stroke-linejoin="miter" stroke-linecap="square"/>
+    <line x1="180" y1="225" x2="240" y2="225" stroke="#FF7A93" stroke-width="3"
+          stroke-linecap="butt" stroke-linejoin="bevel"/>
+    <path d="M30 220 S50 190 70 220 T110 220" fill="none" stroke="white" stroke-width="2.5"/>
+  </g>
+</svg>

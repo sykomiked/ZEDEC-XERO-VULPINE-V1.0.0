@@ -10,12 +10,12 @@ name: zxvd
 on:
   push:
     branches: [main, develop]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   pull_request:
     types: [ opened, synchronize, reopened, ready_for_review ]
-    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'api/zxvd.openrpc.json',
+    paths: ['kernel/arch/hosted/**', 'kernel/src/**', 'sdk/libzxv/**', 'sdk/pillars/**', 'tools/zxvg/**', 'api/zxvd.openrpc.json',
             'tools/zxv_two_node_demo.py', 'macos/**', 'build_system/build_desktop.sh', 'build_system/build_signed_app.sh',
             'sdk/kits/aipi/**', 'sdk/kits/z-wasm/**', 'sdk/kits/z-contract/**', '.github/workflows/zxvd.yml']
   workflow_dispatch:
@@ -121,6 +121,12 @@ jobs:
           CC: ${{ matrix.cc }}
           CFLAGS: ${{ matrix.san && '-fsanitize=address,undefined -fno-sanitize-recover=all' || '' }}
         run: sh kernel/src/zui/test_zui_toolkit.sh
+      - name: Vector tools (icon linter, SVG to ZXVG on the test fixture)
+        run: |
+          python3 -m unittest tools/zxvg/test_lint_icons.py
+          python3 tools/zxvg/svg2zxvg.py tools/zxvg/test/fixture.svg /tmp/fixture.zxvg
+          python3 tools/zxvg/svg2zxvg.py kernel/src/zui/brand/fox.svg /tmp/fox.zxvg --c zxv_fox /tmp/fox_zxvg.inc
+          cmp /tmp/fox_zxvg.inc kernel/src/zui/brand/fox_zxvg.inc
       - name: zui present layers (X11 and Vulkan under Xvfb, Direct3D 11 cross-built)
         if: matrix.os == 'ubuntu-24.04' && matrix.cc == 'gcc' && !matrix.san
         run: |
