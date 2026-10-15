@@ -9,7 +9,7 @@
  *      (K2) applies; caps.revoke with forget takes an answer back.
  *   K2 DEFAULT. An app may use a capability its manifest declares, unless
  *      the capability is SENSITIVE (zcp_sensitive: camera, mic, location,
- *      shell, ledger.post, journal.write, caps): those need the owner's
+ *      shell, ledger.post, journal.write, caps, proc.control): those need the owner's
  *      "always" or "once" first. An app that asks for one without an answer
  *      goes on the list of pending asks (one entry per app and capability)
  *      and gets nothing until the owner answers. Checking that the manifest

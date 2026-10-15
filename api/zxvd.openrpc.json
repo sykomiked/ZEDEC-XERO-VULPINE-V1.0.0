@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which. -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why). -32023 a shell job refused: shell.* off, no such job, a bad folder, or no room (zxvd_shell.h). -32024 journal.append: no journal, no audit key, or the disk refused the entry. -32025 a capability answer refused: no room, the answers file could not be written, or no answer to take back (zxv_caps.h).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.*, notify.send, shell.*, caps.*, dns.*, did.*, schedule.*, proc.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which. -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why). -32023 a shell job refused: shell.* off, no such job, a bad folder, or no room (zxvd_shell.h). -32024 journal.append: no journal, no audit key, or the disk refused the entry. -32025 a capability answer refused: no room, the answers file could not be written, or no answer to take back (zxv_caps.h). -32026 a name lookup or DID refused: dns.* off, too many lookups waiting, or a DID that does not decode (zxvd_dns.h). -32027 a schedule refused: no room, the file could not be written, or no such schedule (zxv_sched.h). -32028 a process refused: process control off, a process zxvd does not act on, or one that is gone (zxvd_proc.h).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -20321,6 +20321,824 @@
               "enum": [
                 "never",
                 "default"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "dns.resolve",
+      "summary": "Signpost: a name's addresses from the OS resolver (zxvd_dns.h D1-D4). The lookup runs beside zxvd's loop: state pending means ask again; done gives addrs, failed gives error. An address is answered at once; answers are kept 60 s, failures 15 s (ttl_ms). -32026 while dns.* is off or when 64 lookups are waiting.",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 254,
+            "description": "labels of 1-63 letters, digits, - and _ (no - at a label's ends), 253 bytes at most; one trailing dot allowed; or an IPv4 or IPv6 address"
+          }
+        },
+        {
+          "name": "family",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "any",
+              "ipv4",
+              "ipv6"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "family": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "done",
+                "failed"
+              ]
+            },
+            "addrs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "addr": {
+                    "type": "string"
+                  },
+                  "family": {
+                    "type": "string",
+                    "enum": [
+                      "ipv4",
+                      "ipv6"
+                    ]
+                  }
+                }
+              }
+            },
+            "error": {
+              "type": "string",
+              "enum": [
+                "no such name",
+                "no answer now",
+                "failed"
+              ],
+              "description": "when failed"
+            },
+            "ttl_ms": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "dns.reverse",
+      "summary": "Signpost: the name the resolver has for an address (getnameinfo, a name required), with dns.resolve's states, cache and errors.",
+      "params": [
+        {
+          "name": "addr",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 45,
+            "description": "an IPv4 or IPv6 address"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "done",
+                "failed"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "error": {
+              "type": "string",
+              "enum": [
+                "no such name",
+                "no answer now",
+                "failed"
+              ],
+              "description": "when failed"
+            },
+            "ttl_ms": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "dns.flush",
+      "summary": "Forget every kept name answer (lookups still running are kept).",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "forgot": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "did.parse",
+      "summary": "Read a DID with no network (zxvd_dns.h I1): did:key (Ed25519) gives its key, did:zxv its 32-byte id; any other method answers supported false. -32026 for a malformed DID or a did:key / did:zxv that does not decode exactly.",
+      "params": [
+        {
+          "name": "did",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 516,
+            "pattern": "^did:[a-z0-9]{1,32}:[A-Za-z0-9.\\-_:%]+$"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
+            "supported": {
+              "type": "boolean"
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "ed25519"
+              ]
+            },
+            "key": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "did.match",
+      "summary": "Whether a key belongs to a DID (zxvd_dns.h I2): did:key's own key, or for did:zxv the SHA3-256 of 'ZXV-ident/did' and the key's encoding equals the id. Only the bytes are checked. -32026 for other methods.",
+      "params": [
+        {
+          "name": "did",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 516,
+            "pattern": "^did:[a-z0-9]{1,32}:[A-Za-z0-9.\\-_:%]+$"
+          }
+        },
+        {
+          "name": "key",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 8192,
+            "pattern": "^([0-9a-fA-F]{2})+$",
+            "description": "hex: 32 bytes for Ed25519, the key's encoding (pqm_sig_pk_encode) for did:zxv"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "did": {
+              "type": "string"
+            },
+            "match": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "schedule.add",
+      "summary": "Treadle: register a timer (zxv_sched.h T1-T4): give one of at_ms (once), every_s (with start_ms) or daily (with days). zxvd records each firing (schedule.fired) and, with notify, posts note as a notice in the app's name; it never runs anything. -32027: no room (128 in all, 32 for one app) or the file could not be written.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "description": "printable, no control characters"
+          }
+        },
+        {
+          "name": "note",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 191
+          }
+        },
+        {
+          "name": "notify",
+          "required": false,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "at_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "ms since 1970, after now, at most the end of 9999"
+          }
+        },
+        {
+          "name": "every_s",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 31622400
+          }
+        },
+        {
+          "name": "start_ms",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "with every_s: counted from here (default now)"
+          }
+        },
+        {
+          "name": "daily",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "a minute of the local day"
+          }
+        },
+        {
+          "name": "days",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "sun",
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat"
+              ]
+            },
+            "description": "with daily; default every day"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "app": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "at",
+                "every",
+                "daily"
+              ]
+            },
+            "at_ms": {
+              "type": "integer"
+            },
+            "every_s": {
+              "type": "integer"
+            },
+            "start_ms": {
+              "type": "integer"
+            },
+            "daily": {
+              "type": "string",
+              "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+            },
+            "days": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "sun",
+                  "mon",
+                  "tue",
+                  "wed",
+                  "thu",
+                  "fri",
+                  "sat"
+                ]
+              }
+            },
+            "notify": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            },
+            "next_ms": {
+              "type": "integer"
+            },
+            "last_ms": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fired": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "schedule.list",
+      "summary": "Treadle: the schedules, oldest first; app for one app's.",
+      "params": [
+        {
+          "name": "app",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 31
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "schedules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "app": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "at",
+                      "every",
+                      "daily"
+                    ]
+                  },
+                  "at_ms": {
+                    "type": "integer"
+                  },
+                  "every_s": {
+                    "type": "integer"
+                  },
+                  "start_ms": {
+                    "type": "integer"
+                  },
+                  "daily": {
+                    "type": "string",
+                    "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+                  },
+                  "days": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "sun",
+                        "mon",
+                        "tue",
+                        "wed",
+                        "thu",
+                        "fri",
+                        "sat"
+                      ]
+                    }
+                  },
+                  "notify": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "next_ms": {
+                    "type": "integer"
+                  },
+                  "last_ms": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "fired": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "schedule.cancel",
+      "summary": "Treadle: remove a schedule. -32027 when there is no such schedule.",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer"
+            },
+            "cancelled": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "schedule.fired",
+      "summary": "Treadle: the firings numbered after `after` (the last 256 are kept, numbered from 1 and never reused); next is the number to pass next time. late: more than a minute after it was due; missed: the every-schedule's times skipped; ended: the schedule is gone.",
+      "params": [
+        {
+          "name": "app",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 31
+          }
+        },
+        {
+          "name": "after",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fired": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "seq": {
+                    "type": "integer"
+                  },
+                  "id": {
+                    "type": "integer"
+                  },
+                  "app": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "due_ms": {
+                    "type": "integer"
+                  },
+                  "fired_ms": {
+                    "type": "integer"
+                  },
+                  "late": {
+                    "type": "boolean"
+                  },
+                  "missed": {
+                    "type": "integer"
+                  },
+                  "ended": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "next": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "proc.list",
+      "summary": "Warren: the processes of zxvd's account (all: every account's), at most 2048 (zxvd_proc.h P1), and the restarts under way or done.",
+      "params": [
+        {
+          "name": "all",
+          "required": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "procs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "pid": {
+                    "type": "integer"
+                  },
+                  "ppid": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "user": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "uid": {
+                    "type": "integer"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "running",
+                      "sleeping",
+                      "stopped",
+                      "zombie",
+                      "idle",
+                      "other"
+                    ]
+                  },
+                  "cpu_ms": {
+                    "type": "integer"
+                  },
+                  "rss": {
+                    "type": "integer"
+                  },
+                  "started_ms": {
+                    "type": "integer"
+                  },
+                  "sid": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "session_owner": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "mine": {
+                    "type": "boolean"
+                  },
+                  "job": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            },
+            "count": {
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean"
+            },
+            "control": {
+              "type": "boolean"
+            },
+            "restarts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "restart": {
+                    "type": "integer"
+                  },
+                  "pid": {
+                    "type": "integer"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "stopping",
+                      "started",
+                      "failed"
+                    ]
+                  },
+                  "new_pid": {
+                    "type": "integer"
+                  },
+                  "error": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "proc.signal",
+      "summary": "Warren: send one signal to one of zxvd's account's processes (zxvd_proc.h P2, P4). -32028 while process control is off, and for pid 0 or 1, zxvd, its parent, another account's process or one that is gone.",
+      "params": [
+        {
+          "name": "pid",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "signal",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "term",
+              "kill",
+              "int",
+              "hup",
+              "stop",
+              "cont"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pid": {
+              "type": "integer"
+            },
+            "signal": {
+              "type": "string"
+            },
+            "sent": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "proc.restart",
+      "summary": "Warren: stop a process (SIGTERM, SIGKILL two seconds later) and start the same program with the same arguments in the same folder on its own (zxvd_proc.h P3); answers at once, proc.list's restarts say how it went. -32028 as proc.signal, or when its program, arguments or folder cannot be read.",
+      "params": [
+        {
+          "name": "pid",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "restart": {
+              "type": "integer"
+            },
+            "pid": {
+              "type": "integer"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "stopping"
               ]
             }
           }

@@ -59,7 +59,7 @@ bool zcp_cap_ok(const char *c)
 }
 
 static const char *const SENSITIVE[] = {"camera",      "mic",           "location", "shell",
-                                        "ledger.post", "journal.write", "caps"};
+                                        "ledger.post", "journal.write", "caps",     "proc.control"};
 
 bool zcp_sensitive(const char *cap)
 {

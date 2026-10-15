@@ -79,6 +79,14 @@
  *   manifest capabilities, for Gatehouse; location shares place.permit's
  *   answers. A refusal other than a bad parameter is ZXVD_E_CAPS.
  *
+ * NAMES, TIMERS AND PROCESSES (docs/APP_SERVICES.md)
+ *   dns.* and did.* (zxvd_dns.h D1-D6, I1-I3) for Signpost: a lookup runs
+ *   beside the loop and dns.resolve answers "pending" until it is done.
+ *   schedule.* (zxv_sched.h T1-T5) for Treadle: zxvd records a firing and
+ *   may post a notice, never runs anything; zxvd_rpc_service fires what is
+ *   due. proc.* (zxvd_proc.h P1-P5) for Warren: proc.signal and
+ *   proc.restart stay off until the host turns them on.
+ *
  * SWARM EARNINGS (the owner's books mirror the swarm's money)
  *   E1  At start the books get one currency for earnings, VFV by default
  *       (--earnings-ccy): an ISO 4217 code is enabled from the table, any
@@ -327,6 +335,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32022 printers and scanners (zxv_print_host.h)
  *        -32023 shell jobs (zxvd_shell.h)   -32024 the journal (journal.append)
  *        -32025 capability answers (zxv_caps.h)
+ *        -32026 names and DIDs (zxvd_dns.h)   -32027 schedules (zxv_sched.h)
+ *        -32028 processes (zxvd_proc.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -413,6 +423,10 @@ int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *
 /* caps.*: no room for another answer, the file could not be written, or no
  * answer to take back. */
 #define ZXVD_E_CAPS (-32025)
+/* schedule.*: no room (or the app holds its most), the file could not be
+ * written, or no such schedule. dns.* is ZXVD_E_DNS (-32026, zxvd_dns.h)
+ * and proc.* ZXVD_E_PROC (-32028, zxvd_proc.h). */
+#define ZXVD_E_SCHED (-32027)
 
 /* notify.send (N1-N3): the host posts the notice and returns its number, 0
  * when it was not stored. Unset, notify.send answers -32601. */
@@ -422,6 +436,9 @@ typedef struct {
     uint64_t key;                            /* N2; 0 never collapses */
 } zxvd_notice_t;
 void zxvd_rpc_set_notify(uint32_t (*post)(const zxvd_notice_t *n));
+/* Name lookups, restarts and schedules due (zxvd_dns.h, zxvd_proc.h,
+ * zxv_sched.h T3): zxvd_rpc_service calls it on every turn of the loop. */
+void zxvd_rpc_tick(void);
 
 /* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
  * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and

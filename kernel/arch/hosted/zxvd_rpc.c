@@ -48,6 +48,9 @@
 #include "zxv_place.h"        /* place.*: Waymark's location and places */
 #include "zxv_caps.h"         /* caps.*: Gatehouse's answers for each app */
 #include "zxvd_shell.h"       /* shell.*: programs for the terminal (Flint) */
+#include "zxvd_dns.h"         /* dns.*, did.*: names and addresses (Signpost) */
+#include "zxv_sched.h"        /* schedule.*: timers apps register (Treadle) */
+#include "zxvd_proc.h"        /* proc.*: the machine's processes (Warren) */
 #include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
@@ -2246,7 +2249,7 @@ static void m_caps_list(call_t *c)
     if (!p_str(c, "app", app, sizeof app, false)) return;
     uint32_t n = zcp_list(app, g, ZCP_GRANTS + 64), k = n < ZCP_GRANTS + 64 ? n : ZCP_GRANTS + 64;
     LIT(c->res, "{\"sensitive\":[\"camera\",\"mic\",\"location\",\"shell\",\"ledger.post\","
-                "\"journal.write\",\"caps\"],\"grants\":[");
+                "\"journal.write\",\"caps\",\"proc.control\"],\"grants\":[");
     for (uint32_t i = 0; i < k; i++) {
         if (i) LIT(c->res, ",");
         LIT(c->res, "{\"app\":");
@@ -2297,6 +2300,187 @@ static void m_caps_revoke(call_t *c)
     bool forget = false;
     if (!p_app_cap(c, app, cap) || !p_bool(c, "forget", false, &forget)) return;
     caps_answer(c, app, cap, forget ? ZCP_DEFAULT : ZCP_NEVER);
+}
+
+/* ----- schedule.*: Treadle (zxv_sched.h T1-T5) ----- */
+
+static bool sched_done(call_t *c, int r)
+{
+    if (r == ZSD_OK) return true;
+    fail(c, r == ZSD_E_ARG ? E_PARAMS : ZXVD_E_SCHED, "%s", zsd_strerror(r));
+    return false;
+}
+
+/* T1: a firing with "notify" posts the schedule's notice in its app's name */
+static void sched_fired(void *ctx, const zsd_fired_t *f, const zsd_entry_t *e)
+{
+    (void) ctx;
+    if (!e->notify || !NOTIFY) return;
+    char key[32];
+    snprintf(key, sizeof key, "schedule:%u", f->id);
+    uint64_t k = 0xcbf29ce484222325ull; /* as notify.send's key */
+    for (const char *q = key; *q; q++) k = (k ^ (uint8_t) *q) * 0x100000001b3ull;
+    zxvd_notice_t n = {e->app, e->name, e->note, "", 1, k ? k : 1};
+    NOTIFY(&n);
+}
+
+static const char *const DAY[] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
+
+static void sched_json(zxvd_buf_t *b, const zsd_entry_t *e)
+{
+    zxvd_buf_printf(b, "{\"id\":%u,\"app\":", e->id);
+    zxvd_buf_json_str(b, e->app);
+    LIT(b, ",\"name\":");
+    zxvd_buf_json_str(b, e->name);
+    zxvd_buf_printf(b, ",\"kind\":\"%s\"", zsd_kind_name((zsd_kind_t) e->kind));
+    if (e->kind == ZSD_AT) zxvd_buf_printf(b, ",\"at_ms\":%lld", (long long) e->at_ms);
+    if (e->kind == ZSD_EVERY)
+        zxvd_buf_printf(b, ",\"every_s\":%u,\"start_ms\":%lld", e->every_s, (long long) e->at_ms);
+    if (e->kind == ZSD_DAILY) {
+        zxvd_buf_printf(b, ",\"daily\":\"%02u:%02u\",\"days\":[", e->minute / 60u, e->minute % 60u);
+        for (int d = 0, k = 0; d < 7; d++)
+            if (e->days & (1u << d)) zxvd_buf_printf(b, "%s\"%s\"", k++ ? "," : "", DAY[d]);
+        LIT(b, "]");
+    }
+    zxvd_buf_printf(b, ",\"notify\":%s,\"note\":", e->notify ? "true" : "false");
+    zxvd_buf_json_str(b, e->note);
+    zxvd_buf_printf(b, ",\"next_ms\":%lld,\"last_ms\":", (long long) e->next_ms);
+    if (e->last_ms)
+        zxvd_buf_printf(b, "%lld", (long long) e->last_ms);
+    else
+        LIT(b, "null");
+    zxvd_buf_printf(b, ",\"fired\":%u}", e->fired);
+}
+
+/* "days": an array of sun..sat; absent = every day */
+static bool p_days(call_t *c, uint8_t *mask)
+{
+    zxvd_json_t a;
+    *mask = 0x7f;
+    if (!zxvd_param_json(c, "days", &a)) return true;
+    const w4_jtok_t *t = a.tok;
+    if (t[a.at].type != W4_J_ARR || t[a.at].size < 1 || t[a.at].size > 7) {
+        fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+        return false;
+    }
+    *mask = 0;
+    for (uint32_t i = 0; i < t[a.at].size; i++) {
+        char d[4];
+        int32_t k = w4_json_at(t, a.n, a.at, i);
+        int32_t got = k >= 0 && t[k].type == W4_J_STR ? w4_json_str(a.js, &t[k], d, sizeof d) : -1;
+        int bit = -1;
+        for (int j = 0; got == 3 && j < 7 && bit < 0; j++)
+            if (!strcmp(d, DAY[j])) bit = j;
+        if (bit < 0 || (*mask & (1u << bit))) {
+            fail(c, E_PARAMS, "\"days\" must be 1 to 7 of sun, mon, tue, wed, thu, fri, sat");
+            return false;
+        }
+        *mask |= (uint8_t) (1u << bit);
+    }
+    return true;
+}
+
+static void m_schedule_add(call_t *c)
+{
+    zsd_entry_t e;
+    char daily[8] = "";
+    int64_t at = -1, start = 0;
+    uint32_t every = 0;
+    bool notify = false;
+    memset(&e, 0, sizeof e);
+    if (!p_str(c, "app", e.app, sizeof e.app, true) ||
+        !p_str(c, "name", e.name, sizeof e.name, true) ||
+        !p_str(c, "note", e.note, sizeof e.note, false) || !p_bool(c, "notify", false, &notify) ||
+        !zxvd_param_amount(c, "at_ms", &at, false) ||
+        !zxvd_param_u32(c, "every_s", &every, false) ||
+        !zxvd_param_amount(c, "start_ms", &start, false) ||
+        !p_str(c, "daily", daily, sizeof daily, false) || !p_days(c, &e.days))
+        return;
+    zxvd_json_t j;
+    bool has_at = zxvd_param_json(c, "at_ms", &j), has_every = zxvd_param_json(c, "every_s", &j),
+         has_daily = daily[0] != 0;
+    if (has_at + has_every + has_daily != 1)
+        return fail(c, E_PARAMS, "give one of \"at_ms\", \"every_s\" or \"daily\"");
+    if (zxvd_param_json(c, "start_ms", &j) && !has_every)
+        return fail(c, E_PARAMS, "\"start_ms\" goes with \"every_s\"");
+    if (zxvd_param_json(c, "days", &j) && !has_daily)
+        return fail(c, E_PARAMS, "\"days\" goes with \"daily\"");
+    e.notify = notify;
+    if (has_at) {
+        e.kind = ZSD_AT;
+        e.at_ms = at;
+    } else if (has_every) {
+        e.kind = ZSD_EVERY;
+        e.every_s = every;
+        e.at_ms = start;
+        if (start < 0) return fail(c, E_PARAMS, "\"start_ms\" must not be negative");
+    } else {
+        int m = zsd_minute_parse(daily);
+        if (m < 0) return fail(c, E_PARAMS, "\"daily\" is HH:MM, 00:00 to 23:59");
+        e.kind = ZSD_DAILY;
+        e.minute = (uint16_t) m;
+    }
+    uint32_t id;
+    if (!sched_done(c, zsd_add(&e, &id))) return;
+    sched_json(c->res, &e);
+}
+
+static void m_schedule_list(call_t *c)
+{
+    static zsd_entry_t e[ZSD_ENTRIES];
+    char app[ZSD_APP_MAX + 1];
+    if (!p_str(c, "app", app, sizeof app, false)) return;
+    zsd_tick();
+    uint32_t n = zsd_list(app, e, ZSD_ENTRIES);
+    LIT(c->res, "{\"schedules\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        if (i) LIT(c->res, ",");
+        sched_json(c->res, &e[i]);
+    }
+    LIT(c->res, "]}");
+}
+
+static void m_schedule_cancel(call_t *c)
+{
+    uint32_t id = 0;
+    if (!zxvd_param_u32(c, "id", &id, true)) return;
+    if (!sched_done(c, zsd_cancel(id))) return;
+    zxvd_buf_printf(c->res, "{\"id\":%u,\"cancelled\":true}", id);
+}
+
+static void m_schedule_fired(call_t *c)
+{
+    static zsd_fired_t f[ZSD_FIRED];
+    char app[ZSD_APP_MAX + 1];
+    int64_t after = 0;
+    if (!p_str(c, "app", app, sizeof app, false) || !zxvd_param_amount(c, "after", &after, false))
+        return;
+    if (after < 0) return fail(c, E_PARAMS, "\"after\" must not be negative");
+    zsd_tick();
+    uint64_t next = 0;
+    uint32_t n = zsd_fired(app, (uint64_t) after, f, ZSD_FIRED, &next);
+    LIT(c->res, "{\"fired\":[");
+    for (uint32_t i = 0; i < n; i++) {
+        zxvd_buf_printf(c->res, "%s{\"seq\":%llu,\"id\":%u,\"app\":", i ? "," : "",
+                        (unsigned long long) f[i].seq, f[i].id);
+        zxvd_buf_json_str(c->res, f[i].app);
+        LIT(c->res, ",\"name\":");
+        zxvd_buf_json_str(c->res, f[i].name);
+        zxvd_buf_printf(c->res,
+                        ",\"due_ms\":%lld,\"fired_ms\":%lld,\"late\":%s,\"missed\":%u,"
+                        "\"ended\":%s}",
+                        (long long) f[i].due_ms, (long long) f[i].fired_ms,
+                        f[i].late ? "true" : "false", f[i].missed, f[i].ended ? "true" : "false");
+    }
+    zxvd_buf_printf(c->res, "],\"next\":%llu}", (unsigned long long) next);
+}
+
+void zxvd_rpc_tick(void)
+{
+    zxvd_dns_service();
+    zxvd_proc_service();
+    zsd_set_hook(sched_fired, NULL);
+    zsd_tick(); /* zxv_sched.h T3 */
 }
 
 static void stats_json(zxvd_buf_t *b, const zsr_stats_t *st)
@@ -3515,6 +3699,18 @@ static const method_t METHODS[] = {
     {"caps.check", m_caps_check, PH_NO},
     {"caps.grant", m_caps_grant, PH_NO},
     {"caps.revoke", m_caps_revoke, PH_NO},
+    {"dns.resolve", zxvd_dns_resolve, PH_NO},
+    {"dns.reverse", zxvd_dns_reverse, PH_NO},
+    {"dns.flush", zxvd_dns_flush, PH_NO},
+    {"did.parse", zxvd_did_parse, PH_NO},
+    {"did.match", zxvd_did_match, PH_NO},
+    {"schedule.add", m_schedule_add, PH_NO},
+    {"schedule.list", m_schedule_list, PH_NO},
+    {"schedule.cancel", m_schedule_cancel, PH_NO},
+    {"schedule.fired", m_schedule_fired, PH_NO},
+    {"proc.list", zxvd_proc_list, PH_NO},
+    {"proc.signal", zxvd_proc_signal, PH_NO},
+    {"proc.restart", zxvd_proc_restart, PH_NO},
     {"screen.tick", m_screen_tick, PH_NO},
     {"screen.check", m_screen_check, PH_NO},
     {"screen.status", m_screen_status, PH_NO},
@@ -4252,6 +4448,7 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
     fd_set *s = set;
     if (LS < 0) return;
     zxvd_shell_service(s);
+    zxvd_rpc_tick();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++) {
         client_t *c = &CL[i];
         if (c->fd < 0) continue;
@@ -4284,6 +4481,8 @@ void zxvd_rpc_service(void *set, uint64_t now_ms)
 void zxvd_rpc_close(void)
 {
     zxvd_shell_close();
+    zxvd_dns_close();
+    zxvd_proc_close();
     for (int i = 0; i < ZXVD_RPC_MAX_CLIENTS; i++)
         if (CL[i].fd >= 0) drop(&CL[i]);
     if (LS >= 0) {

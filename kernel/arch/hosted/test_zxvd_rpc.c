@@ -49,6 +49,9 @@
 #include "zxv_place.h"
 #include "zxv_caps.h"
 #include "zxvd_shell.h"
+#include "zxvd_dns.h"
+#include "zxv_sched.h"
+#include "zxvd_proc.h"
 #include "test_fake_device.h"
 #include "web4_web2.h"
 
@@ -548,6 +551,9 @@ static void test_host_methods(void)
            "\"journal.append\",\"notify.send\",\"shell.run\",\"shell.read\",\"shell.write\","
            "\"shell.kill\",\"shell.jobs\",\"caps.list\",\"caps.check\",\"caps.grant\",\"caps."
            "revoke\","
+           "\"dns.resolve\",\"dns.reverse\",\"dns.flush\",\"did.parse\",\"did.match\","
+           "\"schedule.add\",\"schedule.list\",\"schedule.cancel\",\"schedule.fired\","
+           "\"proc.list\",\"proc.signal\",\"proc.restart\","
            "\"screen.tick\",\"screen.check\","
            "\"screen.status\",\"screen.set_limit\",\"screen.clear_limit\",\"screen.grant\","
            "\"screen.lock\",\"place.here\",\"place.set_here\",\"place.forget_here\","
@@ -598,11 +604,14 @@ static void test_host_methods(void)
 /* ---------------- spaces.* and files.* in a space (zxv_spaces.h) ---------------- */
 
 /* rpc.discover's names after play.draft: the utilities, Wake, Shepherd,
- * Waymark, Scent, Platen and Keepsake */
+ * Waymark, Scent, Platen and Keepsake, with the app services between */
 #define ZXVD_MINE_TAIL                                                                             \
     "\"sys.info\",\"sys.disk\",\"sys.net\",\"log.tail\",\"journal.query\",\"journal.verify\","     \
     "\"journal.append\",\"notify.send\",\"shell.run\",\"shell.read\",\"shell.write\",\"shell."     \
     "kill\",\"shell.jobs\",\"caps.list\",\"caps.check\",\"caps.grant\",\"caps.revoke\","           \
+    "\"dns.resolve\",\"dns.reverse\",\"dns.flush\",\"did.parse\",\"did.match\",\"schedule.add\","  \
+    "\"schedule.list\",\"schedule.cancel\",\"schedule.fired\",\"proc.list\",\"proc.signal\","      \
+    "\"proc.restart\","                                                                            \
     "\"screen.tick\",\"screen.check\",\"screen.status\",\"screen.set_limit\","                     \
     "\"screen.clear_limit\",\"screen.grant\",\"screen.lock\",\"place.here\",\"place.set_here\","   \
     "\"place.forget_here\",\"place.ask\",\"place.permit\",\"place.apps\",\"place.list\","          \
@@ -6773,7 +6782,8 @@ static void test_caps(void)
           "bad parameters");
     const char *o = rpc(REQ("1", "caps.list", ",\"params\":{\"app\":\"kiln\"}"));
     CHECK(strstr(o, "\"sensitive\":[\"camera\",\"mic\",\"location\",\"shell\",\"ledger.post\","
-                    "\"journal.write\",\"caps\"],\"grants\":[{\"app\":\"kiln\",\"cap\":\"camera\","
+                    "\"journal.write\",\"caps\",\"proc.control\"],\"grants\":[{\"app\":\"kiln\","
+                    "\"cap\":\"camera\","
                     "\"mode\":\"once\",\"pending\":false,\"asked\":") &&
               strstr(o, "],\"more\":false}") && !strstr(o, "flint"),
           "caps.list for one app: %s", o);
@@ -6997,6 +7007,573 @@ static void test_shell(void)
     zxvd_shell_enable("");
 }
 
+/* ---------------- dns.* and did.* (zxvd_dns.h D1-D6, I1-I3) ---------------- */
+
+/* dns.resolve or dns.reverse until it is no longer pending (its reply) */
+static const char *dns_wait(const char *req)
+{
+    for (int i = 0; i < 8000; i++) {
+        const char *o = rpc(req);
+        if (!strstr(o, "\"state\":\"pending\"")) return o;
+        usleep(5000);
+    }
+    return "";
+}
+
+static void test_dns(void)
+{
+    zxvd_dns_enable(false);
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"),
+           ERR("1", "-32026", "dns.* is off in this zxvd"));
+    CHECK(has(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"127.0.0.1\"}"), "\"code\":-32026") &&
+              has(REQ("1", "dns.flush", ""), "\"code\":-32026"),
+          "D6: off until the host turns it on");
+    zxvd_dns_enable(true);
+
+    /* D1: an address is answered at once, in its usual spelling */
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"10.0.0.1\"}"),
+           OK("1", "{\"name\":\"10.0.0.1\",\"family\":\"any\",\"state\":\"done\",\"addrs\":[{"
+                   "\"addr\":\"10.0.0.1\",\"family\":\"ipv4\"}],\"ttl_ms\":60000}"));
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"0:0::1\",\"family\":\"ipv6\"}"),
+           OK("1", "{\"name\":\"::1\",\"family\":\"ipv6\",\"state\":\"done\",\"addrs\":[{"
+                   "\"addr\":\"::1\",\"family\":\"ipv6\"}],\"ttl_ms\":60000}"));
+    EXPECT(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"10.0.0.1\",\"family\":\"ipv6\"}"),
+           ERR("1", "-32602", "\\\"10.0.0.1\\\" is an IPv4 address"));
+
+    /* D1, D2: a lookup runs beside the loop; the answer is kept */
+    const char *first = rpc(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"LocalHost.\"}"));
+    CHECK(strstr(first, "{\"name\":\"localhost\",\"family\":\"any\",\"state\":\"pending\"}"),
+          "D1, D4: pending at first, the name in lower case without its dot: %s", first);
+    const char *o = dns_wait(
+        REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\",\"family\":\"ipv4\"}"));
+    CHECK(strstr(o, "\"state\":\"done\",\"addrs\":[{\"addr\":\"127.0.0.1\",\"family\":\"ipv4\"}]"),
+          "localhost over IPv4: %s", o);
+    o = dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+    CHECK(strstr(o, "\"state\":\"done\"") && strstr(o, "\"ttl_ms\":") &&
+              (strstr(o, "\"127.0.0.1\"") || strstr(o, "\"::1\"")),
+          "any family: %s", o);
+    o = rpc(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+    CHECK(strstr(o, "\"state\":\"done\""), "D2: kept: asked again, answered at once: %s", o);
+    o = dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"no-such-host.invalid\"}"));
+    CHECK(strstr(o, "\"state\":\"failed\",\"error\":\"") && strstr(o, "\"ttl_ms\":"),
+          "a name that is not there fails: %s", o);
+    o = dns_wait(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"127.0.0.1\"}"));
+    CHECK(strstr(o, "{\"addr\":\"127.0.0.1\",\"state\":\"") &&
+              (strstr(o, "\"state\":\"done\",\"name\":\"") || strstr(o, "\"state\":\"failed\"")),
+          "D3: a name for an address (or why not): %s", o);
+    CHECK(has(REQ("1", "dns.flush", ""), "{\"forgot\":") &&
+              has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"),
+                  "\"state\":\"pending\""),
+          "D2: flush forgets the answers");
+    dns_wait(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"localhost\"}"));
+
+    /* D4: names refused before any lookup */
+    static const char *const BAD[] = {
+        "a..b",  ".a",
+        "-a.b",  "a-.b",
+        "a b",   "a/b",
+        "",      ".",
+        "a.b..", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"};
+    for (size_t i = 0; i < sizeof BAD / sizeof BAD[0]; i++) {
+        char r[300];
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":"
+                 "\"%s\"}}",
+                 BAD[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32602"), "D4: \"%s\" is not a name", BAD[i]);
+    }
+    char longname[300], r[400];
+    memset(longname, 'a', sizeof longname);
+    for (int i = 63; i < 254; i += 64) longname[i] = '.';
+    longname[253] = 0; /* 253 bytes: the most */
+    snprintf(
+        r, sizeof r,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":\"%s\"}}",
+        longname);
+    CHECK(!strstr(rpc(r), "\"code\":-32602"), "253 bytes is a name: %s", OUT.p);
+    longname[253] = 'a';
+    longname[254] = 0;
+    snprintf(
+        r, sizeof r,
+        "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"dns.resolve\",\"params\":{\"name\":\"%s\"}}",
+        longname);
+    CHECK(strstr(rpc(r), "\"code\":-32602"), "254 is not");
+    CHECK(has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"a_b-c.d9\"}"), "\"state\"") &&
+              has(REQ("1", "dns.resolve", ",\"params\":{\"name\":\"x\",\"family\":\"ip4\"}"),
+                  "\"code\":-32602") &&
+              has(REQ("1", "dns.reverse", ",\"params\":{\"addr\":\"localhost\"}"),
+                  "\"code\":-32602") &&
+              has(REQ("1", "dns.resolve", ""), "\"code\":-32602"),
+          "underscores are allowed; a bad family, address or nothing is not");
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    zxvd_dns_close();
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    CHECK(t1.tv_sec - t0.tv_sec < 30, "D5: close waits for the lookups running");
+    CHECK(has(REQ("1", "dns.flush", ""), "{\"forgot\":0}"), "and forgets every answer");
+    zxvd_dns_enable(false);
+
+    /* I1 */
+    EXPECT(
+        REQ("1", "did.parse",
+            ",\"params\":{\"did\":\"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK\"}"),
+        OK("1", "{\"did\":\"did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK\","
+                "\"method\":\"key\",\"supported\":true,\"type\":\"ed25519\",\"key\":"
+                "\"2e6fcce36701dc791488e0d0b1745cc1e33a4c1c9fcc41c63bd343dbbe0970e6\"}"));
+    EXPECT(
+        REQ("1", "did.parse",
+            ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\"}"),
+        OK("1", "{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"method\":\"key\",\"supported\":true,\"type\":\"ed25519\",\"key\":"
+                "\"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f\"}"));
+    EXPECT(REQ("1", "did.parse",
+               ",\"params\":{\"did\":\"did:zxv:"
+               "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\"}"),
+           OK("1", "{\"did\":\"did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\","
+                   "\"method\":\"zxv\",\"supported\":true,\"id\":"
+                   "\"4b65796eafa98b5daf3ada3e1a4c8cfa3dcf2f8805685ef76e69e8dc7198b762\"}"));
+    EXPECT(REQ("1", "did.parse", ",\"params\":{\"did\":\"did:web:example.com:user%20a\"}"),
+           OK("1", "{\"did\":\"did:web:example.com:user%20a\",\"method\":\"web\","
+                   "\"supported\":false}"));
+    static const char *const BADDID[] = {
+        "did:key:z6LSbgC4DpuCf7zxewhFPnYcyBm3YgxjEEovsehvWqZzTm8z",     /* X25519 */
+        "did:key:z16MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c",    /* a spare zero */
+        "did:key:6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c",      /* no multibase */
+        "did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9",      /* short */
+        "did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc90",     /* 0: not base58 */
+        "did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5rb", /* spare bits */
+        "did:zxv:jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5r",  /* short */
+        "did:zxv:JNSXS3VPVGFV3LZ23I7BUTEM7I646L4IAVUF553ONHUNY4MYW5RA", /* upper case */
+        "did:",
+        "did:key",
+        "did::x",
+        "did:Key:x",
+        "did:web:",
+        "did:web:a b",
+        "dad:web:x",
+    };
+    for (size_t i = 0; i < sizeof BADDID / sizeof BADDID[0]; i++) {
+        snprintf(
+            r, sizeof r,
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"did.parse\",\"params\":{\"did\":\"%s\"}}",
+            BADDID[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32026"), "I1: %s refused: %s", BADDID[i], OUT.p);
+    }
+
+    /* I2 */
+    EXPECT(REQ("1", "did.match",
+               ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+               "\"key\":\"000102030405060708090A0B0C0D0E0F101112131415161718191a1b1c1d1e1f\"}"),
+           OK("1", "{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                   "\"match\":true}"));
+    CHECK(
+        has(REQ("1", "did.match",
+                ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"key\":\"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1e\"}"),
+            "\"match\":false}"),
+        "another key: no");
+    const char *pk = "00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc"
+                     "030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff"
+                     "060d141b222930373e454c535a61686f767d848b9299a0a7aeb5";
+    char req[1200];
+    snprintf(req, sizeof req,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"did.match\",\"params\":{\"did\":\"did:zxv:"
+             "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"%s\"}}",
+             pk);
+    CHECK(strstr(rpc(req), "\"match\":true}"), "did:zxv: its key hashes to the id: %s", OUT.p);
+    char *last = strstr(req, "aeb5\"");
+    last[3] = '4';
+    CHECK(strstr(rpc(req), "\"match\":false}"), "one bit off: no: %s", OUT.p);
+    EXPECT(REQ("1", "did.match", ",\"params\":{\"did\":\"did:web:example.com\",\"key\":\"00\"}"),
+           ERR("1", "-32026", "did:web keys cannot be checked here"));
+    CHECK(
+        has(REQ("1", "did.match",
+                ",\"params\":{\"did\":\"did:key:z6MkeTGwHmLmuCmgg4ABYhzWVh6ZX7hTwWt8gguAretUfc9c\","
+                "\"key\":\"0001\"}"),
+            "an Ed25519 \\\"key\\\" is 32 bytes") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"abc\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"zz\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match",
+                    ",\"params\":{\"did\":\"did:zxv:"
+                    "jnsxs3vpvgfv3lz23i7butem7i646l4iavuf553onhuny4myw5ra\",\"key\":\"\"}"),
+                "\"code\":-32602") &&
+            has(REQ("1", "did.match", ",\"params\":{\"key\":\"00\"}"), "\"code\":-32602"),
+        "bad keys");
+}
+
+/* ---------------- schedule.* (zxv_sched.h T1-T5) ---------------- */
+
+static int64_t SCHED_NOW;
+static int64_t sched_clock(void)
+{
+    return SCHED_NOW;
+}
+
+static uint32_t SCHED_NOTES;
+static char SCHED_NOTE[200];
+static uint32_t sched_note(const zxvd_notice_t *n)
+{
+    SCHED_NOTES++;
+    snprintf(SCHED_NOTE, sizeof SCHED_NOTE, "%s|%s|%s|%u", n->app, n->title, n->body,
+             (unsigned) n->pri);
+    return SCHED_NOTES;
+}
+
+static void test_sched(void)
+{
+    char dir[256], path[300], dmg[320], buf[8192], r[600];
+    const char *tmp = getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp";
+    const char *tz = getenv("TZ");
+    char old_tz[64] = "";
+    if (tz) snprintf(old_tz, sizeof old_tz, "%s", tz);
+    setenv("TZ", "UTC", 1);
+    tzset();
+    snprintf(dir, sizeof dir, "%s/zxvd-sched-XXXXXX", tmp);
+    CHECK(mkdtemp(dir) != NULL, "a folder");
+    snprintf(path, sizeof path, "%s/schedule.zxsd", dir);
+    snprintf(dmg, sizeof dmg, "%s.damaged", path);
+    zsd_set_clock(sched_clock);
+    SCHED_NOW = INT64_C(1800000000000); /* Friday 15 January 2027, 08:00 UTC */
+    CHECK(zsd_open(NULL) == 0, "in memory");
+    zxvd_rpc_set_notify(sched_note);
+
+    /* T2 */
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"treadle\",\"name\":\"water\",\"at_ms\":1800000005000,"
+               "\"notify\":true,\"note\":\"the ferns\"}"),
+           OK("1", "{\"id\":1,\"app\":\"treadle\",\"name\":\"water\",\"kind\":\"at\",\"at_ms\":"
+                   "1800000005000,\"notify\":true,\"note\":\"the ferns\",\"next_ms\":1800000005000,"
+                   "\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"treadle\",\"name\":\"tick\",\"every_s\":60}"),
+           OK("1", "{\"id\":2,\"app\":\"treadle\",\"name\":\"tick\",\"kind\":\"every\",\"every_s\":"
+                   "60,\"start_ms\":1800000060000,\"notify\":false,\"note\":\"\",\"next_ms\":"
+                   "1800000060000,\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"kettle\",\"name\":\"tea\",\"daily\":\"07:30\",\"days\":["
+               "\"wed\",\"mon\"]}"),
+           OK("1",
+              "{\"id\":3,\"app\":\"kettle\",\"name\":\"tea\",\"kind\":\"daily\",\"daily\":"
+              "\"07:30\",\"days\":[\"mon\",\"wed\"],\"notify\":false,\"note\":\"\",\"next_ms\":"
+              "1800257400000,\"last_ms\":null,\"fired\":0}"));
+    EXPECT(REQ("1", "schedule.add",
+               ",\"params\":{\"app\":\"kettle\",\"name\":\"late\",\"every_s\":3600,"
+               "\"start_ms\":\"1799999000000\"}"),
+           OK("1", "{\"id\":4,\"app\":\"kettle\",\"name\":\"late\",\"kind\":\"every\",\"every_s\":"
+                   "3600,\"start_ms\":1799999000000,\"notify\":false,\"note\":\"\",\"next_ms\":"
+                   "1800002600000,\"last_ms\":null,\"fired\":0}"));
+    static const char *const BADP[] = {
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":1800000000000}",         /* now: past */
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":253402300800000}",       /* year 10000 */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":59}",                  /* too often */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":31622401}",            /* over a year */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"24:00\"}",             /* no such minute */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"7:30\"}",              /* HH:MM */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[]}", /* no day */
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[\"mon\",\"mon\"]}",
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":[\"monday\"]}",
+        "{\"app\":\"t\",\"name\":\"x\",\"daily\":\"07:30\",\"days\":\"mon\"}",
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"daily\":\"07:30\"}",     /* two kinds */
+        "{\"app\":\"t\",\"name\":\"x\"}",                                        /* no kind */
+        "{\"app\":\"t\",\"name\":\"x\",\"at_ms\":1900000000000,\"start_ms\":1}", /* start alone */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"days\":[\"mon\"]}",      /* days alone */
+        "{\"app\":\"a b\",\"name\":\"x\",\"every_s\":60}",                       /* bad app */
+        "{\"app\":\"t\",\"name\":\"\",\"every_s\":60}",                          /* no name */
+        "{\"app\":\"t\",\"name\":\"a\\tb\",\"every_s\":60}",                     /* a tab */
+        "{\"app\":\"t\",\"name\":\"x\",\"note\":\"a\\nb\",\"every_s\":60}",      /* a line end */
+        "{\"app\":\"t\",\"name\":\"x\",\"every_s\":60,\"start_ms\":-1}",
+    };
+    for (size_t i = 0; i < sizeof BADP / sizeof BADP[0]; i++) {
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"schedule.add\",\"params\":%s}",
+                 BADP[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32602"), "T2: refused: %s: %s", BADP[i], OUT.p);
+    }
+
+    /* T3: firings */
+    EXPECT(REQ("1", "schedule.fired", ""), OK("1", "{\"fired\":[],\"next\":0}"));
+    SCHED_NOW += 5000;
+    zxvd_rpc_tick();
+    EXPECT(REQ("1", "schedule.fired", ",\"params\":{\"app\":\"treadle\"}"),
+           OK("1", "{\"fired\":[{\"seq\":1,\"id\":1,\"app\":\"treadle\",\"name\":\"water\","
+                   "\"due_ms\":1800000005000,\"fired_ms\":1800000005000,\"late\":false,"
+                   "\"missed\":0,\"ended\":true}],\"next\":1}"));
+    CHECK(SCHED_NOTES == 1 && !strcmp(SCHED_NOTE, "treadle|water|the ferns|1"),
+          "T1: a notice in the app's name: %u %s", SCHED_NOTES, SCHED_NOTE);
+    CHECK(!has(REQ("1", "schedule.list", ""), "\"water\""), "an `at` schedule ends when it fires");
+    EXPECT(REQ("1", "schedule.fired", ",\"params\":{\"after\":1}"),
+           OK("1", "{\"fired\":[],\"next\":1}"));
+    SCHED_NOW += 10 * 60000 + 30000; /* 10.5 minutes later: tick was due 9 times */
+    CHECK(strstr(rpc(REQ("1", "schedule.fired", ",\"params\":{\"after\":1}")),
+                 "{\"fired\":[{\"seq\":2,\"id\":2,\"app\":\"treadle\",\"name\":\"tick\","
+                 "\"due_ms\":1800000060000,\"fired_ms\":1800000635000,\"late\":true,"
+                 "\"missed\":9,\"ended\":false}],\"next\":2}"),
+          "T3: missed ones fire once, late, counted: %s", OUT.p);
+    CHECK(has(REQ("1", "schedule.list", ",\"params\":{\"app\":\"treadle\"}"),
+              "\"next_ms\":1800000660000,\"last_ms\":1800000635000,\"fired\":1}"),
+          "and go on from the next time after now: %s", OUT.p);
+    SCHED_NOW = INT64_C(1800257400000); /* Monday 07:30 */
+    zxvd_rpc_tick();
+    CHECK(has(REQ("1", "schedule.list", ",\"params\":{\"app\":\"kettle\"}"),
+              "\"name\":\"tea\",\"kind\":\"daily\",\"daily\":\"07:30\",\"days\":[\"mon\",\"wed\"],"
+              "\"notify\":false,\"note\":\"\",\"next_ms\":1800430200000,"),
+          "daily: Monday's fired, Wednesday's next: %s", OUT.p);
+    CHECK(SCHED_NOTES == 1, "no notice unless asked");
+    uint64_t next = 0;
+    zsd_fired_t fr[8];
+    CHECK(zsd_fired("kettle", 0, fr, 8, &next) == 2 && next == 5 && fr[0].seq < fr[1].seq,
+          "the ring keeps every app's firings in order (%llu)", (unsigned long long) next);
+    CHECK(zsd_fired(NULL, 0, fr, 1, &next) == 1 && next == 1, "a page at a time");
+
+    /* cancel, limits */
+    EXPECT(REQ("1", "schedule.cancel", ",\"params\":{\"id\":2}"),
+           OK("1", "{\"id\":2,\"cancelled\":true}"));
+    EXPECT(REQ("1", "schedule.cancel", ",\"params\":{\"id\":2}"),
+           ERR("1", "-32027", "no such schedule"));
+    for (uint32_t i = 0; i < ZSD_PER_APP; i++) {
+        snprintf(r, sizeof r,
+                 "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"schedule.add\",\"params\":{\"app\":"
+                 "\"busy\",\"name\":\"n%u\",\"every_s\":%u}}",
+                 i, 60 + i);
+        rpc(r);
+    }
+    CHECK(strstr(OUT.p, "\"id\":"), "32 for one app");
+    CHECK(has(REQ("1", "schedule.add",
+                  ",\"params\":{\"app\":\"busy\",\"name\":\"one more\",\"every_s\":60}"),
+              "\"code\":-32027,\"message\":\"no room for another schedule\""),
+          "T4: a 33rd is refused: %s", OUT.p);
+
+    /* T5: the file */
+    CHECK(zsd_open(path) == 0 && !zsd_was_reset(), "a new file");
+    zsd_entry_t e;
+    memset(&e, 0, sizeof e);
+    snprintf(e.app, sizeof e.app, "treadle");
+    snprintf(e.name, sizeof e.name, "caf\xc3\xa9 run");
+    snprintf(e.note, sizeof e.note, "beans");
+    e.kind = ZSD_EVERY;
+    e.every_s = 600;
+    e.notify = true;
+    uint32_t id = 0;
+    CHECK(zsd_add(&e, &id) == 0 && id == 1, "added");
+    struct stat st;
+    CHECK(stat(path, &st) == 0 && (st.st_mode & 0777) == 0600, "0600");
+    SCHED_NOW += 600000;
+    CHECK(zsd_tick() == 1, "fired once");
+    zsd_close();
+    CHECK(zsd_open(path) == 0 && !zsd_was_reset(), "opened again");
+    zsd_entry_t l[4];
+    CHECK(zsd_list(NULL, l, 4) == 1 && !strcmp(l[0].name, "caf\xc3\xa9 run") && l[0].notify &&
+              l[0].fired == 1 && l[0].next_ms == SCHED_NOW + 600000 && !strcmp(l[0].note, "beans"),
+          "the schedule came back");
+    CHECK(zsd_fired(NULL, 0, fr, 8, &next) == 1 && fr[0].seq == 1 && next == 1, "and its firing");
+    SCHED_NOW += 3 * 600000 + 1;
+    CHECK(zsd_tick() == 1 && zsd_fired(NULL, 1, fr, 8, &next) == 1 && fr[0].seq == 2 &&
+              fr[0].missed == 2 && fr[0].late,
+          "numbers go on across runs; while it was off, missed ones count");
+    CHECK(zsd_add(&e, &id) == 0 && id == 2, "ids go on too");
+    FILE *f = fopen(path, "rb");
+    size_t len = f ? fread(buf, 1, sizeof buf - 1, f) : 0;
+    if (f) fclose(f);
+    buf[len] = 0;
+    CHECK(len > 0 && strstr(buf, "zxv-sched 1\nnext\t3\t3\n") &&
+              strstr(buf, "\tcaf\xc3\xa9 run\t") && strstr(buf, "\nend "),
+          "the file: %s", buf);
+    char *x = strstr(buf, "beans");
+    if (x) x[0] = 'B';
+    f = fopen(path, "wb");
+    if (f) {
+        fputs(buf, f);
+        fclose(f);
+    }
+    zsd_close();
+    CHECK(zsd_open(path) == 0 && zsd_was_reset() && bk_exists(dmg) && zsd_list(NULL, l, 4) == 0,
+          "an edited file is moved aside; schedules start empty");
+    zsd_close();
+    CHECK(zsd_open(NULL) == 0, "back to memory");
+    zsd_set_clock(NULL);
+    zxvd_rpc_set_notify(NULL);
+    if (old_tz[0])
+        setenv("TZ", old_tz, 1);
+    else
+        unsetenv("TZ");
+    tzset();
+    CHECK(rm_tree(dir) == 0, "cleanup");
+}
+
+/* ---------------- proc.* (zxvd_proc.h P1-P5) ---------------- */
+
+/* the proc.list entry of `pid` (from its "{"), or NULL */
+static const char *proc_entry(long pid, bool all)
+{
+    static char key[48];
+    rpc(all ? REQ("1", "proc.list", ",\"params\":{\"all\":true}") : REQ("1", "proc.list", ""));
+    snprintf(key, sizeof key, "{\"pid\":%ld,", pid);
+    return strstr(OUT.p, key);
+}
+
+static pid_t spawn_sleep(const char *shell_line)
+{
+    pid_t p = fork();
+    if (p == 0) {
+        if (chdir("/") != 0) _exit(126);
+        if (shell_line)
+            execl("/bin/sh", "sh", "-c", shell_line, (char *) NULL);
+        else
+            execlp("sleep", "sleep", "30", (char *) NULL);
+        _exit(127);
+    }
+    usleep(50000);
+    return p;
+}
+
+/* proc.list until restart `id` is no longer stopping (its "restarts" part) */
+static const char *restart_wait(uint32_t id)
+{
+    char key[48];
+    snprintf(key, sizeof key, "{\"restart\":%u,", id);
+    for (int i = 0; i < 1500; i++) {
+        zxvd_proc_service();
+        rpc(REQ("1", "proc.list", ""));
+        const char *p = strstr(OUT.p, key);
+        if (p && !strstr(p, "\"state\":\"stopping\"")) return p;
+        usleep(10000);
+    }
+    return "";
+}
+
+static void test_proc(void)
+{
+    char r[200];
+    const char *e = proc_entry((long) getpid(), false);
+    CHECK(e && strstr(e, "\"name\":\"test_zxvd_rpc") && strstr(e, "\"mine\":true,\"job\":null}") &&
+              strstr(e, "\"state\":\"running\"") && strstr(e, "\"session_owner\":"),
+          "P1: zxvd's own process: %s", e ? e : OUT.p);
+    CHECK(strstr(OUT.p, "],\"count\":") && strstr(OUT.p, "\"control\":false,\"restarts\":[]}"),
+          "with the count and control off: %.80s", strstr(OUT.p, "],\"count\":"));
+    CHECK(has(REQ("1", "proc.list", ",\"params\":{\"all\":true}"), "{\"pid\":1,"),
+          "all: pid 1 too");
+    pid_t kid = spawn_sleep(NULL);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"code\":-32028,\"message\":\"process control is off in this zxvd\""),
+          "P5: off until the host turns it on: %s", OUT.p);
+    zxvd_proc_enable(true);
+
+    /* P2 */
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"stop\"}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"signal\":\"stop\",\"sent\":true}"), "stop: %s", OUT.p);
+    usleep(50000);
+    e = proc_entry((long) kid, false);
+    CHECK(e && strstr(e, "\"name\":\"sleep\"") && strstr(e, "\"state\":\"stopped\"") &&
+              strstr(e, "\"ppid\":") && strstr(e, "\"mine\":true"),
+          "stopped: %s", e ? e : "");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"cont\"}}",
+             (long) kid);
+    rpc(r);
+    usleep(50000);
+    e = proc_entry((long) kid, false);
+    CHECK(e && strstr(e, "\"state\":\"sleeping\""), "going again: %s", e ? e : "");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld,"
+             "\"signal\":\"usr1\"}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"code\":-32602"), "an unknown signal");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"signal\":\"term\",\"sent\":true}"), "term by default");
+    int st;
+    CHECK(waitpid(kid, &st, 0) == kid && WIFSIGNALED(st) && WTERMSIG(st) == SIGTERM,
+          "it ended by SIGTERM");
+    CHECK(strstr(rpc(r), "\"code\":-32028,\"message\":\"no process"), "P4: then it is gone");
+
+    /* P4 */
+    long refused[] = {0, 1, (long) getpid(), (long) getppid()};
+    for (size_t i = 0; i < 4; i++) {
+        snprintf(
+            r, sizeof r,
+            "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.signal\",\"params\":{\"pid\":%ld}}",
+            refused[i]);
+        CHECK(strstr(rpc(r), "\"code\":-32028") && strstr(OUT.p, "is not one zxvd acts on"),
+              "P4: never %ld", refused[i]);
+    }
+    CHECK(has(REQ("1", "proc.signal", ",\"params\":{}"), "\"code\":-32602"), "a pid is needed");
+
+    /* P1: a shell job's processes name it */
+    zxvd_shell_enable("/bin/sh");
+    uint32_t j = shell_start("{\"line\":\"sleep 30; true\"}");
+    usleep(100000);
+    rpc(REQ("1", "proc.list", ""));
+    char jk[48];
+    snprintf(jk, sizeof jk, "\"name\":\"sleep\"");
+    const char *sp = strstr(OUT.p, jk);
+    char jobv[32];
+    snprintf(jobv, sizeof jobv, "\"job\":%u}", j);
+    CHECK(j && sp && strstr(sp, jobv), "a job's child names the job: %s", sp ? sp : OUT.p);
+    zxvd_shell_close();
+    zxvd_shell_enable("");
+
+    /* P3 */
+    kid = spawn_sleep(NULL);
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.restart\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"restart\":1,") && strstr(OUT.p, "\"state\":\"stopping\"}"),
+          "restart: %s", OUT.p);
+    CHECK(strstr(rpc(r), "\"code\":-32028") && strstr(OUT.p, "is already restarting (1)"),
+          "once at a time: %s", OUT.p);
+    const char *rs = restart_wait(1);
+    long np = 0;
+    const char *npp = strstr(rs, "\"new_pid\":");
+    if (npp) np = strtol(npp + 10, NULL, 10);
+    CHECK(strstr(rs, "\"state\":\"started\"") && np > 0 && np != kid, "started again: %.120s", rs);
+    waitpid(kid, &st, 0);
+    usleep(50000);
+    e = proc_entry(np, false);
+    CHECK(e && strstr(e, "\"name\":\"sleep\"") && strstr(e, "\"mine\":true"),
+          "the same program, on its own: %s", e ? e : "");
+    if (np > 0) kill((pid_t) np, SIGKILL);
+    kid = spawn_sleep("trap '' TERM; while :; do sleep 1; done");
+    snprintf(r, sizeof r,
+             "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"proc.restart\",\"params\":{\"pid\":%ld}}",
+             (long) kid);
+    CHECK(strstr(rpc(r), "\"restart\":2,"), "a process deaf to SIGTERM: %s", OUT.p);
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (int i = 0; i < 400 && waitpid(kid, &st, WNOHANG) == 0; i++) {
+        zxvd_proc_service();
+        usleep(10000);
+    }
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    CHECK(WIFSIGNALED(st) && WTERMSIG(st) == SIGKILL && t1.tv_sec - t0.tv_sec >= 1,
+          "P3: SIGKILL two seconds later");
+    rs = restart_wait(2);
+    npp = strstr(rs, "\"new_pid\":");
+    np = npp ? strtol(npp + 10, NULL, 10) : 0;
+    CHECK(strstr(rs, "\"state\":\"started\""), "then started: %.120s", rs);
+    if (np > 0) {
+        kill((pid_t) -np, SIGKILL); /* its own session and group */
+        kill((pid_t) np, SIGKILL);
+    }
+    CHECK(has(REQ("1", "proc.restart", ",\"params\":{\"pid\":1}"), "is not one zxvd acts on"),
+          "P4: restart refuses as signal does");
+    zxvd_proc_close();
+    CHECK(has(REQ("1", "proc.list", ""), "\"restarts\":[]}"), "close forgets the restarts");
+    zxvd_proc_enable(false);
+}
+
 int main(void)
 {
     signal(SIGPIPE, SIG_IGN); /* as zxv_host.c does: a closed peer is an error return */
@@ -7033,6 +7610,9 @@ int main(void)
     test_notify();
     test_caps();
     test_shell();
+    test_dns();
+    test_sched();
+    test_proc();
     test_socket();
     free(OUT.p);
     if (fails) {

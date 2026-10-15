@@ -418,6 +418,9 @@ static const char *const CAPS[] = {
     "shell",                         /* programs run for the app (shell.*) */
     "journal.write",                 /* signed audit entries (journal.append) */
     "caps",                          /* other apps' capability answers (caps.*) */
+    "schedule",                      /* timers the app registers (schedule.*) */
+    "proc",                          /* the machine's processes, read (proc.list) */
+    "proc.control",                  /* stop and restart them (proc.signal, .restart) */
 };
 
 /* R3b: exact method names first, then a group ("files.") */
@@ -452,6 +455,11 @@ static const struct {
     {"notify.", "notify"},
     {"shell.", "shell"},
     {"caps.", "caps"},
+    {"schedule.", "schedule"},
+    {"proc.signal", "proc.control"},
+    {"proc.restart", "proc.control"},
+    {"proc.", "proc"},
+    {"dns.", "net"},
     {"net.", "net"},
     {"peer.", "peers"},
 };

@@ -68,6 +68,10 @@ void zxvd_shell_service(void *set);
 /* H5: end every job and forget them. */
 void zxvd_shell_close(void);
 
+/* The job whose process group is `pgid` (its first process and what that
+ * started), while zxvd keeps the job; else 0. For proc.list. */
+uint32_t zxvd_shell_job_of(long pgid);
+
 /* the methods (zxvd_rpc.c's table) */
 void zxvd_shell_run(zxvd_call_t *c);
 void zxvd_shell_read(zxvd_call_t *c);

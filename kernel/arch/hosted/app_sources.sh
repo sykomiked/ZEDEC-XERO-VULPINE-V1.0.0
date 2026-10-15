@@ -212,8 +212,9 @@ case "${1:-srcs}" in
         # the utilities (sys.*, log.tail), Scent's index, Platen's printers
         # and scanners with their IPP and eSCL codecs, Keepsake's backups,
         # Wake's journal, Shepherd's screen time, Waymark's places, Gatehouse's
-        # capability answers and the terminal's jobs
-        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place zxv_caps zxvd_shell; do
+        # capability answers, the terminal's jobs, Signpost's names, Treadle's
+        # schedules and Warren's processes
+        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place zxv_caps zxvd_shell zxvd_dns zxv_sched zxvd_proc; do
             echo "arch/hosted/$f.c"
         done
         echo src/print/ipp.c

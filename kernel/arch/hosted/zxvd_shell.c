@@ -101,6 +101,11 @@ void zxvd_shell_service(void *set)
     (void) set;
 }
 void zxvd_shell_close(void) {}
+uint32_t zxvd_shell_job_of(long pgid)
+{
+    (void) pgid;
+    return 0;
+}
 
 static void not_here(zxvd_call_t *c)
 {
@@ -133,6 +138,7 @@ void zxvd_shell_jobs(zxvd_call_t *c)
 typedef struct {
     uint32_t id; /* 0: a free place */
     pid_t pid;   /* 0 once the process has ended and been reaped */
+    pid_t pgid;  /* its process group: the first pid, kept */
     int out, in; /* -1 when closed */
     bool line;   /* a zxsh line (H4) */
     bool done, timed_out, killed;
@@ -340,6 +346,13 @@ static const char *sig_name(int s)
     }
 }
 
+uint32_t zxvd_shell_job_of(long pgid)
+{
+    for (uint32_t i = 0; pgid > 0 && i < ZXVD_SHELL_JOBS; i++)
+        if (J[i].id && (long) J[i].pgid == pgid) return J[i].id;
+    return 0;
+}
+
 /* a place for a new job: a free one, else the finished job that ended first */
 static job_t *place(void)
 {
@@ -465,7 +478,7 @@ void zxvd_shell_run(zxvd_call_t *c)
     fcntl(po[0], F_SETFL, fcntl(po[0], F_GETFL) | O_NONBLOCK);
     fcntl(pi[1], F_SETFL, fcntl(pi[1], F_GETFL) | O_NONBLOCK);
     j->id = id;
-    j->pid = pid;
+    j->pid = j->pgid = pid;
     j->out = po[0];
     j->in = pi[1];
     j->line = have_line;

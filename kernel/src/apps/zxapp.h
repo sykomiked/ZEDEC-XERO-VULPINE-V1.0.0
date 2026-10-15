@@ -175,8 +175,10 @@
  *   R3b Each zxvd method that reaches something a person would want to
  *      guard needs one capability (zxapp_method_cap): log.tail and
  *      journal.query need "journal", journal.append "journal.write",
- *      notify.send "notify", shell.* "shell", caps.* "caps", files.read
- *      "fs.read", and so on. zxapp_gate is a zxm.h gate: an app's link
+ *      notify.send "notify", shell.* "shell", caps.* "caps", schedule.*
+ *      "schedule", proc.list "proc", proc.signal and proc.restart
+ *      "proc.control", dns.* "net", files.read "fs.read", and so on; did.*
+ *      reads only what it is given and needs none. zxapp_gate is a zxm.h gate: an app's link
  *      refuses a method whose capability its manifest does not declare
  *      (the owner's own answers are zxvd's caps.*, checked there).
  *   R4 These belong to apps: a block may not carry slot, layer, icon,

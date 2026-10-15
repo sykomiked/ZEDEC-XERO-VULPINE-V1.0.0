@@ -127,6 +127,9 @@ typedef int sock_t;
 #    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    include "zxv_caps.h"       /* zxvd: which apps may use which capabilities */
 #    include "zxvd_shell.h"     /* zxvd: shell.* jobs for the terminal */
+#    include "zxv_sched.h"      /* zxvd: the apps' schedules */
+#    include "zxvd_dns.h"       /* zxvd: name lookups */
+#    include "zxvd_proc.h"      /* zxvd: process control */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -2362,6 +2365,9 @@ int main(int argc, char **argv)
     char caps_buf[520];
     const char *zxsh_path = NULL; /* zxvd_shell.h H7: shell.* stays off without it */
     char zxsh_buf[1024];
+    const char *sched_path = NULL; /* zxv_sched.h; "-" keeps them in memory */
+    char sched_buf[520];
+    bool proc_control = false; /* zxvd_proc.h P5 */
     const char *earn_ccy = "VFV";
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
@@ -2449,6 +2455,10 @@ int main(int argc, char **argv)
             caps_path = argv[++i];
         else if (!strcmp(argv[i], "--zxsh") && i + 1 < argc)
             zxsh_path = argv[++i];
+        else if (!strcmp(argv[i], "--schedule") && i + 1 < argc)
+            sched_path = argv[++i];
+        else if (!strcmp(argv[i], "--proc-control"))
+            proc_control = true;
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -2500,6 +2510,11 @@ int main(int argc, char **argv)
                    "                      --desktop: \"caps.zxcp\" beside the books)\n"
                    "  --zxsh PATH         run shell.* jobs with this zxsh (default with\n"
                    "                      --desktop: a zxsh beside zxvd; none: shell.* off)\n"
+                   "  --schedule FILE     keep the apps' schedules in FILE (default with\n"
+                   "                      --desktop: \"schedule.zxsd\" beside the books;\n"
+                   "                      \"-\" keeps them in memory)\n"
+                   "  --proc-control      let proc.signal and proc.restart act (on with\n"
+                   "                      --desktop)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --enable LIST       turn on features, comma-separated or \"all\"\n"
@@ -2740,6 +2755,19 @@ int main(int argc, char **argv)
         fprintf(stderr, "zxvd: --zxsh path too long\n");
         return 2;
     }
+    if (desktop && !sched_path &&
+        pal_beside_books(sched_buf, sizeof sched_buf, "schedule.zxsd") == 0)
+        sched_path = sched_buf;
+    if (sched_path && strcmp(sched_path, "-")) {
+        if (zsd_open(sched_path) != 0)
+            fprintf(stderr, "zxvd: cannot write schedules to %s; keeping them in memory\n",
+                    sched_path);
+        else if (zsd_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, schedules start empty\n",
+                    sched_path);
+    }
+    zxvd_dns_enable(true);
+    zxvd_proc_enable(proc_control || desktop);
     zxvd_rpc_set_notify(rpc_notify);
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {
