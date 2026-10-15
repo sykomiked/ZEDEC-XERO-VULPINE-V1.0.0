@@ -282,10 +282,17 @@ table, and that inserting one byte keeps all but the first few cut points.
 
 ## 7. Not built yet
 
-- **The bucket layout:** the matrix goes in the library bucket,
-  `05_alexandria`, beside Disc 1 and the swarm packs (the name replaces the
-  earlier proposal, `06_matrix`). The bucket's layout belongs to the
-  Bare-metal thread's ipfs-dist.
+- **The bucket layout** (agreed with the Bare-metal thread's ipfs-dist,
+  which owns it): the matrix is bucket `07_matrix`, holding the root as
+  `<CID>.alxm` (self-named; `pack_matrix.py --out-dir` writes it, and
+  MATRIX.ROOT is the same bytes for local tools) and every node as
+  `blocks/<CID>`. The library index is `05_alexandria`, the swarm cells
+  `06_tiamat`, and the vector plane `08_vectors`, with its own root CID in
+  the installer file. Disc 1 carries layer 0, booklet 000 included, under
+  `/ZXV/MATRIX/<CID>`, and its baked table holds the matrix root CID.
+  Layers 1 to 144 are fetched as raw blocks when an app needs them; only
+  the installer's local pin store is sector-aligned (ALXI). So any change
+  to layer 0 or to the matrix root needs a new Disc 1.
 - **L2 and L3 layers.** These go on top when those apps exist.
 - **Placement of the class 000 to 900 booklets.** The blocks' Alexandria
   classification stays an index axis (the grid word and the core index,
