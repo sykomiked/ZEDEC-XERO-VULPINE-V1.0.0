@@ -2485,7 +2485,12 @@ test-outbox:
 test-hwkey-host:
 	@d=$$(mktemp -d $(ZXV_TMP)/hwkey_host.XXXXXX) && \
 	SANITIZE=1 CC=gcc sh arch/hosted/hwkey/build_test.sh $$d/t > $$d/build.log 2>&1 || { cat $$d/build.log; echo "[FAIL] test_hwkey_host build"; exit 1; }; \
-	mkdir $$d/soft && ZXV_TPM=/nonexistent $$d/t $$d/soft > $$d/soft.log 2>&1 && $$d/t --soft-only $$d/soft >> $$d/soft.log 2>&1 && \
+	first=; if [ "$$(uname)" = Darwin ]; then \
+	  mkdir $$d/se && $$d/t $$d/se > $$d/se.log 2>&1 && $$d/t $$d/se >> $$d/se.log 2>&1 && \
+	  echo "[PASS] test_hwkey_host Secure Enclave ($$(tail -1 $$d/se.log))" || { cat $$d/se.log; echo "[FAIL] test_hwkey_host Secure Enclave"; exit 1; }; \
+	  first=--soft-only; \
+	fi; \
+	mkdir $$d/soft && ZXV_TPM=/nonexistent $$d/t $$first $$d/soft > $$d/soft.log 2>&1 && $$d/t --soft-only $$d/soft >> $$d/soft.log 2>&1 && \
 	echo "[PASS] test_hwkey_host software fallback ($$(tail -1 $$d/soft.log))" || { cat $$d/soft.log; echo "[FAIL] test_hwkey_host software fallback"; exit 1; }; \
 	if ! command -v swtpm >/dev/null 2>&1; then \
 	  if [ "$(ZXV_REQUIRE_SWTPM)" = 1 ]; then echo "[FAIL] test_hwkey_host: swtpm not installed"; exit 1; fi; \
