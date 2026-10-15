@@ -97,7 +97,11 @@
 #define ALX_SLOT_LOGIC_VINTNER_LOT_OK            89u /* 490.43 vintner.lot_ok */
 #define ALX_SLOT_NUM_VINTNER_PROBE_TENTHS        90u /* 590.36 vintner.probe_tenths */
 #define ALX_SLOT_NUM_VINTNER_SALE_VALUE          91u /* 590.37 vintner.sale_value */
-#define ALX_SLOT__COUNT 91u
+#define ALX_SLOT_LOGIC_SATCHEL_PACKAGE_OK        92u /* 490.44 satchel.package_ok */
+#define ALX_SLOT_LOGIC_SATCHEL_PKG_RECORD_OK     93u /* 490.45 satchel.pkg_record_ok */
+#define ALX_SLOT_NUM_TYPECASE_COVERAGE_X100      94u /* 590.38 typecase.coverage_x100 */
+#define ALX_SLOT_NUM_TYPECASE_FONT_OK            95u /* 590.39 typecase.font_ok */
+#define ALX_SLOT__COUNT 95u
 /* clang-format on */
 
 #endif

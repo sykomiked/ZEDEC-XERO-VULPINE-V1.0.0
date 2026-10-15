@@ -1,0 +1,18 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A script's coverage in hundredths of a percent (typecase_rules.h TR2),
+! in Trebago. Trebago is exact and has no floor, so the floor is counted:
+! of the steps k = 1 to 10000, those with k * total <= 10000 * covered,
+! each counted as min(1, max(0, 10000 * covered - k * total + 1)), which
+! is 1 or 0 for integers; with covered <= total that is
+! floor(10000 * covered / total). The divisor is 1 inside the domain
+! (covered 0..total, total 1..1114112) and 0 outside it, so anything else
+! is a division by zero, refused, where coverage.kron answers: held.
+trebago coverage_x100
+  in  covered(n), total(n)
+  out cover(n)
+  cover(i) = sum(k = 1:10000, min(1, max(0, 10000 * covered(i) - k * total(i) + 1))) &
+           / (min(1, max(0, covered(i) + 1)) * min(1, max(0, total(i) - covered(i) + 1)) &
+           * min(1, max(0, total(i))) * min(1, max(0, 1114113 - total(i))))
+end

@@ -1,0 +1,20 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A font accepted (typecase_rules.h TR1), in Trebago: 1 when the table
+! directory names at most 256 tables, the file is at most 32 MiB
+! (33554432 bytes) and no table ends past the file (offset + length <=
+! size), else 0. For integers min(1, max(0, m)) is 1 exactly when m > 0,
+! so past counts the tables that end past the file. sound is 1 when every
+! offset and length and the size are at least 0, and a division by zero
+! (refused) otherwise: a negative field is no measurement. font.kron reads
+! only the table ends against the file: there the two disagree, held.
+trebago font_ok
+  in  off(n), len(n), size
+  out ok, past, tables, sound
+  past = sum(i, min(1, max(0, off(i) + len(i) - size)))
+  tables = sum(i, 1 + 0 * off(i))
+  sound = sum(i, 1 / (min(1, max(0, off(i) + 1)) * min(1, max(0, len(i) + 1)))) / tables &
+        / min(1, max(0, size + 1))
+  ok = max(0, 1 - past) * min(1, max(0, 257 - tables)) * min(1, max(0, 33554433 - size)) * sound
+end

@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Satchel files one package it built in MYRA (satchel_rules.h SR5):
+; its number, how many files it holds, its bytes in all, whether zxvd
+; signed its recipe (1) or not yet (0), and when (ms since 1970, zxvd's
+; clock).
+^ZXSATCHEL(seq:i9) = files:i2! ^ bytes:i9! ^ signed:i1! ^ stamp:i15!

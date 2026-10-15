@@ -87,6 +87,14 @@ platen	check sheets pages=1 sides=1 copies=10000 = both
 platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false
 platen	check copies_ok copies=1000000000 most=1000000000 = both
 quillon	check size_ok bytes=0,1048576,1048577 = true,true,false
+satchel	check package_ok files=1,64,0,65,1,1,1,1,3 bytes=1,134217728,10,10,0,134217729,2097153,10,600 largest=1,2097152,1,1,1,1,2097153,0,300 = true,true,false,false,false,false,false,false,true
+satchel	check package_ok files=2,2 bytes=100,100 largest=50,200 = both
+satchel	check pkg_record_ok seq=1,999999999,1000000000,5,5 files=3,99,1,100,1 bytes=600,999999999,1,1,1 signed=1,9,0,0,10 stamp=1700000000000,999999999999999,1,1,1 = true,true,false,false,false
+satchel	check banker.total size=100,300,600 = 1000
+satchel	check banker.share size=100,300,600,0 total=1000 = 1000,3000,6000,0
+satchel	check banker.share size=5,11 total=10 = both
+satchel	check witness.kind_count kind=2,2,1,3,2 want=2 = 3
+satchel	check witness.kind_count kind=1,2 want=1,1 = both
 scent	check score name=1,0,0 folder=0,1,0 count=5,200,7 = 1211
 shepherd	check left minutes=60,60,0 extra=0,15,0 used=60,60,0 = 0,15,0
 shepherd	check left minutes=10000 extra=0 used=0 = both
@@ -133,6 +141,14 @@ treadle	check next_run start=480,480 period=60,60 now=481,1440 = both
 treadle	check budget_ok cost=0,999999999,10,10,-1 left=0,999999999,-1,0,0 = true,true,false,true,false
 treadle	check budget_ok cost=10,1000000000 left=0,0 = both
 treadle	check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
+typecase	check font_ok off=12,140,200 len=128,60,0 size=200 = 1
+typecase	check font_ok off=12,140,200 len=128,61,0 size=200 = 0
+typecase	check font_ok off=0 len=33554432 size=33554432 = 1
+typecase	check font_ok off=0,0 len=10,10 size=33554433 = 0
+typecase	check font_ok off=-4,100 len=10,50 size=150 = both
+typecase	check coverage_x100 covered=0,1,2,449,450,20992,1,1114112 total=450,3,3,450,450,20992,1114112,1114112 = 0,3333,6666,9977,10000,10000,0,10000
+typecase	check coverage_x100 covered=1,5 total=1,4 = both
+typecase	check coverage_x100 covered=1,-1 total=1,4 = both
 vintner	check sale_value bottles=0,1,12,999999999 price=0,1500,2499,999999999 = 0,1500,29988,999999998000000001
 vintner	check sale_value bottles=1,1000000000 price=1,1 = both
 vintner	check sale_value bottles=1,1 price=1,1000000000 = both

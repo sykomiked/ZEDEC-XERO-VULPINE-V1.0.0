@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How big a package Satchel builds (satchel_rules.h SR1): 1 to 64 files,
+# 1 to 134217728 bytes in all, and a largest file of 1 to 2097152 bytes,
+# since zxvd's fab.put takes one file of at most 2 MiB as one block. Eve
+# holds each range on its own; that the largest file fits inside the whole
+# is KRON's to say.
+eve satchel
+file_count = 1 .. 64
+package_bytes = 1 .. 134217728
+file_bytes = 1 .. 2097152
+
+bundle {
+  files: file_count
+  bytes: package_bytes
+  largest: file_bytes
+}

@@ -1,0 +1,1 @@
+(files>0)&(files<65)&(bytes>0)&(bytes<134217729)&(largest>0)&(largest<2097153)&largest<bytes+1

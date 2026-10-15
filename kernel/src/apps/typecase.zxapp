@@ -1,0 +1,77 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Typecase, fonts: layer 113 of the matrix. It lists the font files kept
+# in the Hoard (files.list: .ttf and .otf), checks each one's table
+# directory (files.read), reads its family name and its character map,
+# shows which scripts it covers and how much of each, previews the first
+# characters it has of each script, and installs an accepted font by
+# copying it into a folder of the Hoard (files.read, files.write, never
+# over a file that is there). Nothing leaves the device.
+#
+# zxvd has no font registry: no method lists the fonts the system draws
+# with, registers one or says which font a view uses, so "installed"
+# here is a copy in the Hoard's fonts folder, and the model says so. No
+# method is invented.
+#
+# 3 later layers lean on this one (the core, Parley at 68, Keystone at
+# 4), so both entries are general and owned here (CONCEPTS.tsv): whether
+# a font file's tables lie inside it, and how much of a set of code points
+# is covered. Nothing nearer the core fits. Parley, the one layer this
+# layer's code leans on, is built after it, so it is not used.
+# used_share.used_x100 takes what is left, not what is covered;
+# Talisman's reach_x100 holds a value past its threshold at 10000, where a
+# font covering more of a script than the script has is a broken map and
+# must be refused; Wellspring's goal progress answers past 10000 and is
+# built after this layer.
+#
+# Witness pairs are of one kind: KRON and Trebago both answer numbers, so
+# font_ok is 1 or 0. Kept in C, since no runnable language owns it:
+# reading the sfnt header, the name table and the character map (formats
+# 4 and 12) into code point runs, and the copy.
+#
+# Planned languages: Racket (parsing) stands for font_ok, the font's table
+# directory read and checked; TeX (typesetting) for coverage_x100, which
+# scripts the font can set. Groovy (build and glue scripts) owns no entry
+# here, so it is not pending.
+zxapp 1
+id     typecase
+name   Typecase
+version 1.0.0
+slot   113
+layer  L1
+matrix 113
+icon   icons/l1/113-typecase.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/typecase_model.c
+
+# A font accepted (TR1): 1..256 tables, at most 32 MiB, every table inside
+# the file. Critical (it decides what may be installed), so KRON and
+# Trebago witness it, one size for the whole directory. Trebago refuses a
+# negative offset, length or size; KRON reads only the table ends against
+# the file: held.
+provides font_ok num off len size
+logic    kron    font_ok apps/blocks/typecase/font.kron
+logic    trebago font_ok apps/blocks/typecase/font.tb
+pending  Racket font_ok
+
+# A script's coverage x100 (TR2): floor(10000 * covered / total), one row
+# per script. Critical (it is what the user is shown), so KRON and
+# Trebago witness it. Trebago refuses covered past total, a negative, or a
+# total of 0 or past 1114112; KRON answers: held.
+provides coverage_x100 num covered total
+logic    kron    coverage_x100 apps/blocks/typecase/coverage.kron
+logic    trebago coverage_x100 apps/blocks/typecase/coverage.tb
+pending  TeX coverage_x100
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check font_ok off=12,140,200 len=128,60,0 size=200 = 1
+check font_ok off=12,140,200 len=128,61,0 size=200 = 0
+check font_ok off=0 len=33554432 size=33554432 = 1
+check font_ok off=0,0 len=10,10 size=33554433 = 0
+check font_ok off=-4,100 len=10,50 size=150 = both
+check coverage_x100 covered=0,1,2,449,450,20992,1,1114112 total=450,3,3,450,450,20992,1114112,1114112 = 0,3333,6666,9977,10000,10000,0,10000
+check coverage_x100 covered=1,5 total=1,4 = both
+check coverage_x100 covered=1,-1 total=1,4 = both

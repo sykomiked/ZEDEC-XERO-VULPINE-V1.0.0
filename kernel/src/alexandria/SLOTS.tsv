@@ -126,3 +126,7 @@
 89	logic.vintner_lot_ok	490.43	vintner.lot_ok	base
 90	num.vintner_probe_tenths	590.36	vintner.probe_tenths	base
 91	num.vintner_sale_value	590.37	vintner.sale_value	base
+92	logic.satchel_package_ok	490.44	satchel.package_ok	base
+93	logic.satchel_pkg_record_ok	490.45	satchel.pkg_record_ok	base
+94	num.typecase_coverage_x100	590.38	typecase.coverage_x100	base
+95	num.typecase_font_ok	590.39	typecase.font_ok	base

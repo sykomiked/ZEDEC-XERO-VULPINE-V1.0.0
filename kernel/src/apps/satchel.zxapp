@@ -1,0 +1,72 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Satchel, the packager: layer 7 of the matrix. A package is a folder of
+# the Hoard (files.list) packed into one zxpkg bundle (files.read,
+# files.write): an index of its files, then their bytes. Each file goes
+# into zxvd's block store as one block (fab.put); zxvd signs the public
+# recipe that rebuilds the bundle from those blocks (fab.send, ML-DSA-87,
+# no "to": an app install has nothing secret), and installing is
+# receiving that recipe (fab.receive) from a sender on the owner's trust
+# list, only after the owner confirmed it; the installed bundle's index is
+# read back and checked against its length. Absolute paths for fab.* come
+# from files.root. Advisory and owner-confirmed: nothing is installed
+# without the owner's word, and the word is spent by one install.
+#
+# zxvd has no method that compiles or tests a package's sources (the
+# build here packs files, it does not compile them), none that registers
+# an installed app with the desktop or removes one, and none that signs
+# with the owner's own key (fab.send signs with zxvd's fabrication key).
+# None is invented.
+#
+#   package_ok    the package within its limits (SR1): Eve holds 1..64
+#                 files, 1..134217728 bytes and a largest file of
+#                 1..2097152 bytes (fab.put's 2 MiB block), each on its
+#                 own; KRON also holds the largest file inside the whole,
+#                 a relation across fields Eve cannot say: a largest file
+#                 past the whole is held. Shared with Satchel as owner
+#                 (CONCEPTS.tsv package_within_limits).
+#   banker.total  the package's total size, an exact Trebago sum: the
+#                 Banker's, used as it is.
+#   banker.share  each file's share of the package: the share_of_whole
+#                 concept is the Banker's, so it is used, never written
+#                 again. The task's "KRON + Rust (WebAssembly)" for it is
+#                 not taken: the Banker runs it in KRON and C++
+#                 (WebAssembly), and its owner keeps its languages.
+#   witness.kind_count  the files of each kind (manifest, code, image,
+#                 text), Witness's count by kind, used as it is.
+#   pkg_record_ok a package's record, ^ZXSATCHEL, in MYRA (SR5). Shared
+#                 with Satchel as owner (CONCEPTS.tsv package_record).
+zxapp 1
+id     satchel
+name   Satchel
+version 1.0.0
+slot   7
+layer  L1
+matrix 7
+icon   icons/l1/007-satchel.svg
+budget 233
+needs  fs.read
+needs  fs.write
+model  apps/satchel_model.c
+use    witness 1   # @num.witness_kind_count
+use    banker 1    # @num.banker_total @num.banker_share
+
+# The package within its limits (SR1), Eve and KRON.
+provides package_ok truth files bytes largest
+logic    eve  package_ok apps/blocks/satchel/package.eve
+logic    kron package_ok apps/blocks/satchel/package.kron
+
+# A package makes a ^ZXSATCHEL record (SR5), in MYRA.
+provides pkg_record_ok truth seq files bytes signed stamp
+logic    myra pkg_record_ok apps/blocks/satchel/record.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check package_ok files=1,64,0,65,1,1,1,1,3 bytes=1,134217728,10,10,0,134217729,2097153,10,600 largest=1,2097152,1,1,1,1,2097153,0,300 = true,true,false,false,false,false,false,false,true
+check package_ok files=2,2 bytes=100,100 largest=50,200 = both
+check pkg_record_ok seq=1,999999999,1000000000,5,5 files=3,99,1,100,1 bytes=600,999999999,1,1,1 signed=1,9,0,0,10 stamp=1700000000000,999999999999999,1,1,1 = true,true,false,false,false
+check banker.total size=100,300,600 = 1000
+check banker.share size=100,300,600,0 total=1000 = 1000,3000,6000,0
+check banker.share size=5,11 total=10 = both
+check witness.kind_count kind=2,2,1,3,2 want=2 = 3
+check witness.kind_count kind=1,2 want=1,1 = both
