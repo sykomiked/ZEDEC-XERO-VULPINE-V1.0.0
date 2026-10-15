@@ -40,11 +40,12 @@
 #include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
-#include "swarmnet/swarmnet.h" /* missing swarm discs over the network */
-#include "x86_irq.h"           /* IDT, LAPIC, timer (gap 6) */
-#include "x86_userspace.h"     /* ring-3 processes and the scheduler (gap 6) */
-#include "msr_safe.h"          /* fault-safe RDMSR/WRMSR + RAPL helpers */
-#include "mca_x86.h"           /* machine check: banks, #MC, poll */
+#include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
+#include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
+#include "x86_irq.h"            /* IDT, LAPIC, timer (gap 6) */
+#include "x86_userspace.h"      /* ring-3 processes and the scheduler (gap 6) */
+#include "msr_safe.h"           /* fault-safe RDMSR/WRMSR + RAPL helpers */
+#include "mca_x86.h"            /* machine check: banks, #MC, poll */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -477,6 +478,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
     static hw_models_t models;
+    static zxv_layers_boot_t layers;
     static hw_registry_t hreg;
     const hw_plat_t *hp;
     int models_left;
@@ -497,6 +499,11 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
          * ESP and the swarm on its own partition. Only the list is read now;
          * the models are hashed in the idle loop below (hw_models.h). */
         models_left = hw_models_index(&models, hp, &hreg) > 0;
+        /* The release's layers: the disc's L0, L1 and L2 must name each
+         * other, and the boot file and the models must be the ones they
+         * list, before BOOT_OK hands the machine over. A model that does
+         * not match is refused, never handed out (layers_boot.h). */
+        (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
         uart_puts("  [OK] hardware self-tests passed: ");
         uart_put_dec(ok);
         uart_puts(" (TSC ");
@@ -526,16 +533,19 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     boot_evidence_final();
 
     /* Swarm discs the core disc lists but nobody attached: fetch them onto a
-     * blank drive over the network (swarmnet.h), then index again so they
-     * mount. No link, no lease or no gateway prints the air-gap lines and
-     * the boot carries on with what is attached. */
+     * blank drive over the network (swarmnet.h). The core is up already, so
+     * the fetch runs in steps from the idle loop below, each disc mounted as
+     * it commits; d stops it for discs attached by hand. No link, no lease
+     * or no gateway prints the air-gap lines and the boot carries on with
+     * what is attached. */
+    static sn_link_t link;
+    static sn_fetch_t fetch;
+    static const sn_clock_t clk = {x86_ms, x86_heartbeat, 0};
+    int hydrating = 0;
     {
         uint32_t missing = 0;
         for (uint32_t i = 0; i < models.nwant; i++) missing += !models.want[i].attached;
         if (missing && models.cid[0]) {
-            static sn_link_t link;
-            static sn_fetch_t fetch;
-            static const sn_clock_t clk = {x86_ms, x86_heartbeat, 0};
             if (x86_has_rdrand()) {
                 net_set_entropy(x86_rdrand32);
             } else {
@@ -546,18 +556,13 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
                 fetch.p = hp;
-                if (sn_fetch_gateways(&fetch, &link, &models) &&
-                    sn_fetch_missing(&fetch, &models, &hreg))
-                    models_left = hw_models_index(&models, hp, &hreg) > 0;
-                else if (!fetch.nhttp)
+                if (sn_fetch_gateways(&fetch, &link, &models)) {
+                    sn_fetch_begin(&fetch);
+                    hydrating = 1;
+                    uart_puts("[SWARM] The core is up; the swarm discs fill in the background. "
+                              "Press d at any time to attach them by hand instead.\n");
+                } else {
                     uart_puts("  [SWARM_FETCH] no http:// gateway in /ZXV/UPSTREAM.CID\n");
-                /* Every disc there: sever the channel that brought them. */
-                uint32_t still = 0;
-                for (uint32_t i = 0; i < models.nwant; i++) still += !models.want[i].attached;
-                if (!still) {
-                    sn_seal_io_t io = {x86_key, &hreg, __zxv_hydrate_start,
-                                       (uint32_t) (__zxv_hydrate_end - __zxv_hydrate_start)};
-                    (void) sn_seal(&link, &fetch, &models, &io);
                 }
             } else {
                 sn_log_offline(hp, &models);
@@ -569,14 +574,39 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * ticks: one line every ten seconds. Counting wake-ups instead (10M of
      * them) printed once a day at 100 Hz, which read as no timer at all.
      * While golden-disc models are unchecked the loop hashes 1 MiB (256
-     * clusters of 4 KiB) per pass instead of halting; the timer keeps
-     * interrupting the reads, so the heartbeat goes on. */
+     * clusters of 4 KiB) per pass instead of halting, and while discs are
+     * fetched it takes one step of the fetch per pass; the timer keeps
+     * interrupting both, so the heartbeat goes on. */
     if (!g_heartbeat_next) g_heartbeat_next = x86_ticks() + 10u * X86_HZ;
     while (1) {
         x86_mca_poll(); /* corrected errors raise no interrupt */
+        if (hydrating) {
+            int k = x86_key(&hreg);
+            if (k == 'd' || k == 'D') {
+                sn_fetch_stop(&fetch, &models);
+                hydrating = 0;
+            } else if (!sn_fetch_step(&fetch, &models, &hreg)) {
+                hydrating = 0;
+                /* Every disc there: sever the channel that brought them. */
+                uint32_t still = 0;
+                for (uint32_t i = 0; i < models.nwant; i++) still += !models.want[i].attached;
+                if (!still && fetch.committed) {
+                    sn_seal_io_t io = {x86_key, &hreg, __zxv_hydrate_start,
+                                       (uint32_t) (__zxv_hydrate_end - __zxv_hydrate_start)};
+                    int mode = sn_seal(&link, &fetch, &models, &io);
+                    if (mode >= 0) zxv_layers_sealed(&layers, mode == HW_SEAL_POWERDOWN_NIC);
+                }
+            }
+            /* a disc committed: mount it, check it against its layer, and
+             * its models are hashed next */
+            if (fetch.fresh) {
+                models_left = hw_models_index(&models, hp, &hreg) > 0;
+                (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI");
+            }
+        }
         if (models_left)
             models_left = hw_models_step(&models, hp, 256);
-        else
+        else if (!hydrating || x86_ms(0) < fetch.next_try) /* idle, or waiting for peers */
             hlt();
         x86_heartbeat(0);
     }

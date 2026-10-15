@@ -25,7 +25,9 @@
 # nvme. UEFI_MEM sets the guest's RAM (default 512M; golden discs are also
 # booted with 4G and 8G). UEFI_EXTRA="<img> ..." attaches more discs the
 # same way after the boot disc, read-only snapshots too: the swarm discs that
-# go with a golden core disc.
+# go with a golden core disc. UEFI_EXTRA_RW=1 attaches them writable instead,
+# so what the guest writes stays for the next boot. UEFI_STDIN=<file or fifo>
+# is typed at the serial console (default nothing).
 #
 # UEFI_NET sets the network (default none, -net none): "user" is an e1000 on
 # QEMU's user network, with DHCP and the host reachable as 10.0.2.2; "silent"
@@ -74,7 +76,8 @@ esac
 
 # attach <drive id> <image> <index>: the boot disc is index 0
 attach(){
-  DISK+=(-drive "if=none,id=$1,format=raw,snapshot=on,file=$2")
+  local snap=on; [ "$3" != 0 ] && [ "${UEFI_EXTRA_RW:-0}" = 1 ] && snap=off
+  DISK+=(-drive "if=none,id=$1,format=raw,snapshot=$snap,file=$2")
   local boot=""; [ "$3" = 0 ] && boot=",bootindex=0"
   case "${UEFI_DISK:-virtio}" in
     virtio) DISK+=(-device "virtio-blk-pci,drive=$1$boot") ;;
@@ -111,7 +114,7 @@ rc=0
 timeout "$SECS" "${QEMU[@]}" "${FWARGS[@]}" \
   "${DISK[@]}" \
   "${NET[@]}" -display none -serial stdio "${MON[@]}" \
-  < /dev/null > "$LOG" 2>&1 || rc=$?
+  < "${UEFI_STDIN:-/dev/null}" > "$LOG" 2>&1 || rc=$?
 [ -n "$SHOT_PID" ] && { wait "$SHOT_PID" || true; rm -f "$SOCK"; }
 [ -n "${PF:-}" ] && rm -f "$PF"
 cat "$LOG"

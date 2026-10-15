@@ -433,6 +433,7 @@ uint32_t hw_models_index(hw_models_t *s, const hw_plat_t *p, hw_registry_t *r)
         fat32_file_t *f = fat32_find_file(&v->fs, "MODELS.SHA");
         if (!f || f->is_dir) continue;
         core = 1;
+        s->core = 1;
         core_extras(s, p);
         on_esp = load(s, p, 0);
     }
@@ -733,4 +734,12 @@ hw_verdict_t hw_models_require(hw_models_t *s, const hw_plat_t *p, const char *n
     if (start(s, p, &c, i))
         while (!run(s, p, &c, 0xFFFFFFFFu));
     return m->verdict;
+}
+
+void hw_models_refuse(hw_models_t *s, const hw_plat_t *p, uint32_t i, const char *why)
+{
+    if (i >= s->n || s->m[i].verdict == HW_F) return;
+    if (s->m[i].verdict == HW_T) s->ok--;
+    if (s->bg.idx == (int) i) s->bg.idx = -1;
+    finish(s, p, &s->m[i], HW_F, why);
 }

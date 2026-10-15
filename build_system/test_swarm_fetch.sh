@@ -22,14 +22,24 @@
 #        [SEAL] Network hydration channel severed: NIC bus mastering disabled.
 #        [SEAL] Operating system is now immutable and air-gapped.
 #      after which both [MODEL_OK] and [MODELS_OK] 2 verified still come
-#   2. a gateway that changes every image block: [SWARM_FETCH_FAIL] ...
-#      nothing committed; no [SWARM_FETCHED], no [SWARM_MOUNTED], no seal
+#   2. a gateway that changes every image block: it is not asked again, and
+#      [SWARM_FETCH_FAIL] ... nothing committed; no [SWARM_FETCHED], no
+#      [SWARM_MOUNTED], no seal
 #   3. link up, nobody answers DHCP: three attempts, then the air-gap lines
 #      [NET] Link down or no DHCP response.
 #      [SWARM] Falling back to local storage scan: Attach Disc 2 USB / drive.
 #   4. no NIC at all: the same two lines
 #   5. "seal LOCAL_MESH_ONLY" on the core disc: fetched again, and the seal
 #      keeps the NIC for the local mesh and says what it removed
+#
+# Then elastic (swarmnet.h, ELASTIC), on a blank drive the guest may write:
+#   6. the gateway drops out mid-download for 20 s: the fetch waits for peers,
+#      1 s, 2 s, 4 s ... apart, and finishes once it is back, all after
+#      [BOOT_OK], with the progress bar
+#   7. the gateway drops out for good; d at the console stops the fetch and
+#      says what stays on the drive
+#   8. a reboot with the gateway back: the fetch resumes where the drive's
+#      record says, re-reads and hashes what is there, finishes and seals
 #
 # Every boot reaches [BOOT_OK] and [AI_OK]. Publishes nothing: the bucket and
 # the gateway exist only on this machine. Runs in Dockerfile.baremetal.
@@ -135,8 +145,8 @@ grep -aE '\[NET\] eth0 = .*, link up, MAC ' "uefi_boot_${ARCH}.log" > /dev/null 
 echo "==> boot 2: a gateway that changes every image block"
 gateway --tamper-over 65536
 UEFI_NET=user boot \
-  "[SWARM_FETCH] gateway 10.0.2.2: sent a block that does not match its CID" \
-  "[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_TEST: the download failed; nothing committed"
+  "[SWARM_FETCH] gateway 10.0.2.2: sent a block that does not match its CID; not asked again this boot" \
+  "[SWARM_FETCH_FAIL] disc 2 ZXV_SWARM_TEST: every gateway sent a block that does not match its CID; nothing committed"
 never "[SWARM_FETCHED]" "[SWARM_MOUNTED]" "[MODELS_OK] 2" "[SEAL"
 
 echo "==> boot 3: link up, no DHCP answer"
@@ -163,5 +173,54 @@ UEFI_NET=user boot "[SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on " \
   "[MODELS_OK] 2 verified"
 never "[SEAL_NIC]" "air-gapped" "[SEAL_FAIL]" "Seal the network: press"
 
+printf 'cid %s\ngateway http://10.0.2.2:%s\n' "$ROOT" "$PORT" > "$T/upstream"
+golden "$ARCH" "$T/upstream"
+rm -f "$T/blank.img"; truncate -s 400M "$T/blank.img"
+export UEFI_EXTRA_RW=1
+
+echo "==> boot 6: the gateway drops out for 20 s mid-download"
+gateway --down-after 2000000 --down-for 20
+UEFI_NET=user boot \
+  "[SWARM] The core is up; the swarm discs fill in the background. Press d at any time to attach them by hand instead." \
+  "[SWARM_FETCH] disc 2: waiting for peers (no gateway served the next block); retry 1 in 1 s; " \
+  "retry 2 in 2 s; " "retry 3 in 4 s; " \
+  "[SWARM_FETCH] disc 2 [#" " KB/s)" \
+  "[SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on " "[SWARM_MOUNTED] ZXV_SWARM_TEST on " \
+  "[SEAL] Operating system is now immutable and air-gapped."
+never "[SWARM_FETCH_FAIL]" "[SEAL_FAIL]"
+grep -aq "back up" "$T/gateway.log" || { echo "::error::the gateway never came back"; exit 1; }
+LOGF="uefi_boot_${ARCH}.log"
+[ "$(grep -anF '[BOOT_OK]' "$LOGF" | head -1 | cut -d: -f1)" -lt \
+  "$(grep -anF '[SWARM_FETCHED]' "$LOGF" | head -1 | cut -d: -f1)" ] || {
+  echo "::error::the disc was not fetched after the boot finished"; exit 1; }
+
+echo "==> boot 7: the gateway drops out for good; d stops the fetch"
+rm -f "$T/blank.img"; truncate -s 400M "$T/blank.img"
+gateway --down-after 3000000 # of the ~4 MB of distinct blocks the test disc has
+rm -f "$T/keys"; mkfifo "$T/keys"
+: > "$LOGF"
+( exec 3> "$T/keys"
+  for _ in $(seq "$SECS"); do grep -aq "retry 3 in 4 s" "$LOGF" 2>/dev/null && break; sleep 1; done
+  printf d >&3; sleep "$SECS" ) &
+KEYS=$!
+UEFI_STDIN="$T/keys" UEFI_NET=user boot \
+  "[SWARM_FETCH] disc 2: waiting for peers" \
+  "[SWARM] Hydration stopped at your request: Attach Disc 2 USB / drive." \
+  " bytes of disc 2 stay on " " and resume on a later boot with a network"
+kill "$KEYS" 2>/dev/null || true
+never "[SWARM_FETCHED]" "[SEAL"
+KEPT=$(grep -aoE '\[SWARM\] [0-9]+ bytes of disc 2 stay on' "$LOGF" | grep -oE '[0-9]+' | head -1)
+[ "$KEPT" -ge 1048576 ] || { echo "::error::only $KEPT bytes kept"; exit 1; }
+
+echo "==> boot 8: a reboot with the gateway back resumes from the drive"
+gateway
+UEFI_NET=user boot \
+  "[SWARM_FETCH] disc 2 ZXV_SWARM_TEST: resuming on " " at $KEPT of " \
+  "[SWARM_FETCH] disc 2 ZXV_SWARM_TEST: $KEPT bytes re-read from " \
+  "[SWARM_FETCHED] disc 2 ZXV_SWARM_TEST on " "[MODEL_OK] test-swarm.gguf $swarm_bytes bytes" \
+  "[SEAL] Operating system is now immutable and air-gapped."
+never "[SWARM_FETCH_FAIL]" "downloading it again from the start" "[SEAL_FAIL]"
+unset UEFI_EXTRA_RW
+
 rm -rf "$T" "$IMG" "$SWARM" "${IMG%.img}.sizes" "${SWARM%.img}.sizes"
-echo "[swarm-fetch] fetched and committed on a match, sealed (NIC off, or mesh only), nothing committed from a lying gateway, air-gap lines without DHCP or NIC"
+echo "[swarm-fetch] fetched and committed on a match, sealed (NIC off, or mesh only), nothing committed from a lying gateway, air-gap lines without DHCP or NIC; waited out a gateway that dropped, stopped on d, resumed after a reboot"

@@ -98,10 +98,16 @@ them, so a person downloads one core disc and all the swarm discs:
 manifest.json                       every disc: arch, size, SHA-256, CID
 00_base/zxv-x86_64-disc1-core.img   one core disc per architecture
 00_base/zxv-arm64-disc1-core.img
-01_swarm_reason/zxv-swarm-disc2-reason.img
-02_swarm_<group>/...                one directory per swarm disc, in disc order
-NN_cartridges/...                   after the swarm discs, when there are any
+01_swarm/zxv-swarm-disc2-reason.img every swarm disc, in one directory
+02_cartridges/...                   when there are any
+03_layers/L0.json L1.json L2.json   the release layers (docs/LAYERS.md)
 ```
+
+The numbers are fixed for the release: 04_overlays (L4), 05_alexandria (L3)
+and 06_tiamat (the Tiamat cells of L2) are laid out by the work that builds
+them. Each layer manifest names its parent's CID, so the layers form one
+chain from the hardware envelope up, and the core disc carries L0 to L2 in
+/ZXV so the kernel checks the chain before `[BOOT_OK]`.
 
 `python3 build_system/mk_bucket.py` lays out the discs in `dist/discs` as
 `build/bucket` and prints the root CID that `ipfs add -r --cid-version=1`
@@ -109,7 +115,7 @@ would give it, computed the way Kubo does (checked against Kubo 0.32.1 by
 `mk_bucket.py --self-test`), with `manifest.json` and the same list as
 `manifest.txt` for the kernel. It adds nothing to IPFS and publishes nothing;
 uploading is the owner's call. `make ipfs-dist` builds the whole release
-twice from clean (kernels, core discs, swarm discs, bucket) and fails unless
+twice from clean (kernels, layers, core discs, swarm discs, bucket) and fails unless
 both passes give the same Disc 1 SHA-256 for every architecture and the same
 root CID; the bucket lands in `build/ipfs-dist/bucket`.
 
@@ -129,6 +135,16 @@ gateway cannot change a byte. Then it checks each disc against
 directory gives it, and deletes any disc that fails. Discs already present
 with the right SHA-256 are kept. The script also works on its own, without
 the clone: pass the bucket with `--cid`.
+
+It is patient, because fetching can be slow. When no gateway serves a block
+it prints `waiting for peers` and tries again after 1 s, 2 s, 4 s, up to a
+minute apart, with no overall deadline (`--patience SECONDS` sets one). The
+gateway that last answered is asked first, a slow one gets a longer timeout
+(30 s doubling to 4 min, easing back once it answers), and one that sends a
+block that does not match its CID is not asked again. Ctrl-C, a dropped link
+or a lying gateway leaves the verified part as `<disc>.part`; the next run
+hashes it again and fetches only the rest. Progress is a bar with the real
+rate.
 
 Which bucket. `build_system/zxv_upstream.cid` holds the master bucket's CID,
 and each core disc carries it as `/ZXV/UPSTREAM.CID`, together with
@@ -159,8 +175,30 @@ are held back and written last, only when size and SHA-256 match the
 manifest, so an interrupted or altered download never looks like a disc:
 `[SWARM_FETCHED] disc 2 ZXV_SWARM_REASON on sata1: ... bytes, sha256 matches
 the manifest; committed`, or `[SWARM_FETCH_FAIL] ...; nothing committed`.
-The disc is then indexed and mounted like an attached one. With no NIC, no
-link or no lease it prints
+The disc is then indexed and mounted like an attached one, and its models
+are checked.
+
+The fetch is elastic. It runs in steps from the kernel's idle loop after
+`[BOOT_OK]` (`[SWARM] The core is up; the swarm discs fill in the
+background. Press d at any time to attach them by hand instead.`), so the
+core is usable while the discs fill, and each disc is mounted as it commits.
+Progress is the bytes hashed so far: `[SWARM_FETCH] disc 2 [#####-----] 50%
+(... of ... bytes, 812 KB/s)`. When no gateway serves the next block it
+waits for peers, 1 s, 2 s, 4 s, up to a minute between tries, with no total
+deadline; each gateway's timeout starts at 10 s and doubles after a timeout
+(to 160 s), and one that sends a block that does not match its CID is not
+asked again that boot. A drive with 35 sectors to spare past the image keeps
+a resume record in its last sector, refreshed every MiB, and the partition
+table's 34 sectors before it. After a reboot or a dropped link the kernel
+reads back and hashes what the drive holds (the record only says where to
+look; it is never trusted for the content) and fetches only the rest:
+`[SWARM_FETCH] disc 2 ZXV_SWARM_REASON: resuming on sata1 at 104875008 of
+316669952 bytes`. If the finished image then does not match, the disc is
+fetched once more from the start. `d` at the console stops the fetch at any
+point and says which disc to attach by hand; what is on the drive stays for
+a later boot.
+
+With no NIC, no link or no lease it prints
 
 ```
 [NET] Link down or no DHCP response.
@@ -199,11 +237,15 @@ A step that fails prints `[SEAL_FAIL]` and no receipt.
 `build_system/test_swarm_fetch.sh` proves all of it under QEMU: it builds
 small discs and a bucket, serves the bucket from a gateway on the host
 (`build_system/zxv_test_gateway.py`, which the guest reaches as
-`http://10.0.2.2:<port>`), and boots the core disc with a blank drive five
+`http://10.0.2.2:<port>`), and boots the core disc with a blank drive eight
 times: a fetch that commits, mounts, seals and still verifies both models; a
 gateway that alters blocks (nothing committed, no seal); a link with no DHCP
-answer; no NIC; and a `LOCAL_MESH_ONLY` seal. `UEFI_NET=user|silent|none` on
-`uefi_boot_check.sh` picks the network. To try it by hand:
+answer; no NIC; a `LOCAL_MESH_ONLY` seal; a gateway that drops out for 20 s
+mid-download (the fetch waits and finishes); one that drops out for good,
+with `d` typed at the console; and a reboot that resumes from the drive.
+`UEFI_NET=user|silent|none` on `uefi_boot_check.sh` picks the network,
+`UEFI_EXTRA_RW=1` keeps what the guest writes to the extra drives, and
+`UEFI_STDIN` types at the console. To try it by hand:
 
 ```bash
 python3 build_system/mk_bucket.py --discs dist/discs --blocks build/blocks
@@ -217,7 +259,9 @@ UEFI_DISK=ahci UEFI_NET=user UEFI_EXTRA=build/blank.img \
 `python3 build_system/test_bucket.py` builds a small bucket, serves it from a
 local gateway and downloads it, then checks that a changed block, a manifest
 that lies about a size, SHA-256, CID, path or architecture, and a disc over
-1.8 GB are all refused.
+1.8 GB are all refused, and that zxv-get waits out a gateway that is down,
+resumes from a `.part`, and fetches a `.part` that is not the image's start
+again.
 
 The kernel does not yet run the discs' models on bare metal: it checks them,
 and runs its built-in swarm and tensor self-check (`[AI_OK]`). A riscv64 core

@@ -149,6 +149,8 @@ SRCS := \
     kernel/src/hwdrv/nvme.c \
     kernel/src/hwdrv/hw_storage.c \
     kernel/src/hwdrv/hw_models.c \
+    kernel/src/layers/layers.c \
+    kernel/src/layers/layers_boot.c \
     kernel/src/hwdrv/ahci.c \
     kernel/src/hwdrv/xhci.c \
     kernel/src/hwdrv/e1000.c \

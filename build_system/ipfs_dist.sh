@@ -5,16 +5,19 @@
 #   bash build_system/ipfs_dist.sh [arch ...]
 #
 # Each pass removes the release discs (dist/discs/zxv-*), clean-builds the
-# kernel and EFI loader for every arch (baremetal_images.sh), builds the core
-# disc per arch and the swarm discs (mk_golden_disc.sh), and lays them out as
-# the bucket with mk_bucket.py, the architecture document's distribution
-# section copied in as 00_base/ARCHITECTURE.md. The run fails unless both
+# kernel and EFI loader for every arch (baremetal_images.sh), builds the
+# release layers L0, L1 and L2 on them (make build-all-layers, docs/LAYERS.md),
+# builds the core disc per arch carrying those layers and the swarm discs
+# (mk_golden_disc.sh), and lays them out as the bucket with mk_bucket.py, the
+# layers in 03_layers and the architecture document's distribution section
+# copied in as 00_base/ARCHITECTURE.md. The run fails unless both
 # passes give the same SHA-256 for every Disc 1 and the same root CID: a
 # release whose CID depends on when it was built cannot be checked by anyone
 # else. The second pass's bucket is the result:
 #
 #   build/ipfs-dist/bucket/         the directory to add and pin
 #   build/ipfs-dist/bucket.cid      its root CID, as `ipfs add -r --cid-version=1` gives
+#   build/ipfs-dist/layers/         L0..L2 .json and .cid (also in the bucket, 03_layers)
 #   build/ipfs-dist/pass{1,2}.sums  "sha256 file" per core disc, then "root <cid>"
 #
 # Model weights come from ZXV_MODEL_CACHE (dist/models), downloaded once from
@@ -43,12 +46,16 @@ for pass in 1 2; do
   rm -f dist/discs/zxv-*-disc1-core.img dist/discs/zxv-*-disc1-core.sizes \
         dist/discs/zxv-swarm-disc*.img dist/discs/zxv-swarm-disc*.sizes
   bash build_system/baremetal_images.sh "${ARCHS[@]}"
-  for a in "${ARCHS[@]}"; do bash build_system/mk_golden_disc.sh "$a"; done
+  make -s build-all-layers ARCHS="${ARCHS[*]}" LAYERS="$OUT/layers$pass"
+  for a in "${ARCHS[@]}"; do
+    GOLDEN_LAYERS="$OUT/layers$pass" bash build_system/mk_golden_disc.sh "$a"
+  done
   bash build_system/mk_golden_disc.sh swarm
   python3 build_system/mk_bucket.py --discs dist/discs --out "$OUT/pass$pass" \
-    --architecture "$DOC"
+    --architecture "$DOC" --layers "$OUT/layers$pass"
   { for a in "${ARCHS[@]}"; do
       (cd dist/discs && sha256sum "zxv-$a-disc1-core.img"); done
+    echo "layers $(cat "$OUT/layers$pass/L2.cid")"
     echo "root $(cat "$OUT/pass$pass.cid")"
   } > "$OUT/pass$pass.sums"
 done
@@ -57,7 +64,8 @@ if ! cmp -s "$OUT/pass1.sums" "$OUT/pass2.sums"; then
   diff "$OUT/pass1.sums" "$OUT/pass2.sums" || true
   die "the two clean passes differ: the build is not reproducible"
 fi
-rm -rf "$OUT/pass1" "$OUT/pass1.cid"
+rm -rf "$OUT/pass1" "$OUT/pass1.cid" "$OUT/layers1"
+mv "$OUT/layers2" "$OUT/layers"
 mv "$OUT/pass2" "$OUT/bucket"
 mv "$OUT/pass2.cid" "$OUT/bucket.cid"
 cat "$OUT/pass2.sums"

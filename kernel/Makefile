@@ -440,6 +440,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-climate
 	$(MAKE) --no-print-directory test-mca
 	$(MAKE) --no-print-directory test-opal
+	$(MAKE) --no-print-directory test-layers
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -2052,6 +2053,14 @@ OPAL_SRCS = src/opal/opal.c src/opal/opal_arb.c
 test-opal:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/opal src/opal/test_opal.c src/opal/fake_tper.c $(OPAL_SRCS) $(ARBITER_SRCS) -o $(ZXV_TMP)/test_opal && $(ZXV_TMP)/test_opal > $(ZXV_TMP)/test_opal.log 2>&1 && echo "[PASS] test_opal ($$(tail -1 $(ZXV_TMP)/test_opal.log))" || { cat $(ZXV_TMP)/test_opal.log; echo "[FAIL] test_opal"; exit 1; }
 	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(OPAL_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/opal -c $$f -o $(ZXV_TMP)/opal_free.o || { echo "[FAIL] opal freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/opal_free.o | grep -v -e '^ *U opal_' -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/opal_free.o; echo "[FAIL] opal freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] opal freestanding (aarch64, x86_64, riscv64: no libc)"
+.PHONY: test-layers
+# Release layers (src/layers): mk_layers.py's manifests read in their one
+# layout and named by the same CIDs; every other layout refused; lineage
+# L0 -> L4 with the evo_comm admit for L3 and L4 only; and the boot check
+# (layers_boot.c) over a golden disc built in the test.
+test-layers:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind src/layers/test_layers.c src/layers/layers.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers && $(ZXV_TMP)/test_layers > $(ZXV_TMP)/test_layers.log 2>&1 && echo "[PASS] test_layers ($$(tail -1 $(ZXV_TMP)/test_layers.log))" || { tail -40 $(ZXV_TMP)/test_layers.log; echo "[FAIL] test_layers"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/hwdrv src/layers/test_layers_boot.c src/layers/layers_boot.c src/layers/layers.c src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_layers_boot && $(ZXV_TMP)/test_layers_boot > $(ZXV_TMP)/test_layers_boot.log 2>&1 && echo "[PASS] test_layers_boot ($$(tail -1 $(ZXV_TMP)/test_layers_boot.log))" || { tail -40 $(ZXV_TMP)/test_layers_boot.log; echo "[FAIL] test_layers_boot"; exit 1; }
 
 .PHONY: test-swarmnet
 # Swarm-disc fetch (src/swarmnet): URL, HTTP head and manifest.txt parsing, the

@@ -156,7 +156,8 @@ const char *sn_manifest_find(const char *t, uint32_t n, uint32_t disc, const cha
         q = le < end ? le + 1 : end;
         if (!field(&a, ln, &f, &len) || *f == '#') continue;
         if (!same(f, len, "swarm")) {
-            if (!same(f, len, "core") && !same(f, len, "cartridge")) return "unknown kind";
+            if (!same(f, len, "core") && !same(f, len, "cartridge") && !same(f, len, "layer"))
+                return "unknown kind";
             continue;
         }
         const char *fl[7];
@@ -196,4 +197,16 @@ const char *sn_manifest_find(const char *t, uint32_t n, uint32_t disc, const cha
     }
     *line = 0;
     return "the bucket has no such swarm disc";
+}
+
+/* ---- adaptive response timeouts (swarmnet.h) ---- */
+
+void sn_http_adapt(sn_http_t *h, int ok)
+{
+    uint32_t t = h->stall_ms ? h->stall_ms : SN_STALL_MS;
+    if (ok)
+        t -= (t - SN_STALL_MS) / 4u;
+    else if (h->timed_out)
+        t = t * 2u > SN_STALL_MAX_MS ? SN_STALL_MAX_MS : t * 2u;
+    h->stall_ms = t;
 }

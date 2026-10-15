@@ -137,15 +137,18 @@ int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint
         *why = "request too long";
         return -1;
     }
+    uint32_t stall = h->stall_ms ? h->stall_ms : SN_STALL_MS;
     uint32_t sent = 0;
     uint64_t last = now(l);
+    h->timed_out = 0;
     while (sent < n) {
         int32_t k = net_send(&l->net, h->sock, req + sent, n - sent);
         if (k > 0) {
             sent += (uint32_t) k;
             last = now(l);
-        } else if (now(l) - last > SN_STALL_MS) {
+        } else if (now(l) - last > stall) {
             drop(h);
+            h->timed_out = 1;
             *why = "the gateway stopped accepting the request";
             return -1;
         }
@@ -170,7 +173,8 @@ int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint
             continue;
         }
         tcp_state_t st = l->net.sockets[h->sock].tcp_state;
-        if (st != TCP_ESTABLISHED || now(l) - last > SN_STALL_MS) {
+        if (st != TCP_ESTABLISHED || now(l) - last > stall) {
+            h->timed_out = st == TCP_ESTABLISHED;
             drop(h);
             *why = st != TCP_ESTABLISHED ? "the gateway closed the connection"
                                          : "the gateway did not answer";
@@ -209,7 +213,8 @@ int sn_http_get(sn_http_t *h, const char *path, uint8_t *buf, uint32_t cap, uint
             continue;
         }
         tcp_conn_t *c = &l->net.tcp_conns[l->net.sockets[h->sock].tcp_idx];
-        if (c->peer_fin || c->reset || now(l) - last > SN_STALL_MS) {
+        if (c->peer_fin || c->reset || now(l) - last > stall) {
+            h->timed_out = !(c->peer_fin || c->reset);
             drop(h);
             *why = c->peer_fin || c->reset ? "the gateway closed mid-body"
                                            : "the gateway stalled mid-body";
@@ -236,23 +241,36 @@ int sn_gateway_get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap
     n += (uint32_t) k;
     for (uint32_t i = 0; suf[i]; i++) path[n++] = suf[i];
     path[n] = 0;
-    for (uint32_t g = 0; g < f->nhttp; g++) {
-        for (uint32_t t = 0; t < 2; t++) {
-            const char *why = 0;
-            if (sn_http_get(&f->http[g], path, buf, cap, len, &why) == 0) {
-                if (ipfsn_cid_verify(cid, buf, *len) == IPFSN_OK) return IPFSN_OK;
-                why = "sent a block that does not match its CID";
+    /* the gateway that served last first, then the others in turn; one try
+     * each: the step machine waits and comes back (swarmnet.h, ELASTIC) */
+    uint32_t usable = 0;
+    for (uint32_t i = 0; i < f->nhttp; i++) {
+        uint32_t g = (f->g0 + i) % f->nhttp;
+        sn_http_t *h = &f->http[g];
+        if (h->bad) continue;
+        usable++;
+        const char *why = 0;
+        int ok = sn_http_get(h, path, buf, cap, len, &why) == 0;
+        sn_http_adapt(h, ok);
+        if (ok) {
+            if (ipfsn_cid_verify(cid, buf, *len) == IPFSN_OK) {
+                f->g0 = g;
+                return IPFSN_OK;
             }
-            hw_line_t s;
-            hw_line_init(&s);
-            hw_line_s(&s, "  [SWARM_FETCH] gateway ");
-            hw_line_s(&s, f->http[g].host);
-            hw_line_s(&s, ": ");
-            hw_line_s(&s, why);
-            f->p->log(s.b);
+            h->bad = 1;
+            usable--;
+            why = "sent a block that does not match its CID; not asked again this boot";
         }
+        hw_line_t s;
+        hw_line_init(&s);
+        hw_line_s(&s, "  [SWARM_FETCH] gateway ");
+        hw_line_s(&s, h->host);
+        hw_line_s(&s, ": ");
+        hw_line_s(&s, why);
+        f->p->log(s.b);
     }
-    return IPFSN_ERR_TRANSPORT;
+    /* none left that is honest: no wait will help */
+    return usable ? IPFSN_ERR_TRANSPORT : IPFSN_ERR_HASH;
 }
 
 uint32_t sn_fetch_gateways(sn_fetch_t *f, sn_link_t *l, const hw_models_t *m)
@@ -277,5 +295,6 @@ uint32_t sn_fetch_gateways(sn_fetch_t *f, sn_link_t *l, const hw_models_t *m)
     }
     f->get = sn_gateway_get;
     f->get_ctx = f;
+    f->clk = l->clk;
     return f->nhttp;
 }
