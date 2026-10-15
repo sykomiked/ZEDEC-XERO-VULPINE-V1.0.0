@@ -303,11 +303,12 @@ static uint32_t from_b32(const char *s, uint8_t out[36])
 }
 
 /* every file's vector, its layer and its path */
-enum { MAXF = 8192 };
+enum { MAXF = 32768 };
 static const uint8_t *FROW[MAXF], *FCID[MAXF];
 static uint32_t FLAYER[MAXF], NF, NB_;
 static char *FPATH[MAXF];
 static uint32_t LTOP[ALX_MX_LAYERS], LEAVES;
+static uint8_t *LEAFBUF[4096]; /* every leaf stays open until the measurements are done */
 static alx_vec_t FIRSTLEAF[ALX_MX_LAYERS];
 static alx_vec_t TOP;
 
@@ -332,6 +333,8 @@ static void walk(const uint8_t *cid, const uint8_t *want_row, uint32_t want_scal
         return;
     }
     if (!FIRSTLEAF[layer].b) FIRSTLEAF[layer] = v;
+    CHECK(LEAVES < 4096, "leaves");
+    if (LEAVES < 4096) LEAFBUF[LEAVES] = b;
     LEAVES++;
     /* fresh against today's glue; all stale against another model */
     CHECK(!memcmp(v.source, glue_cid, 36), "layer %u's vectors name its glue", layer);
@@ -491,6 +494,7 @@ static void test_packed(void)
     /* measured at dim 512: 96.2%; a drop below 90% is a regression */
     CHECK(h10 * 10u >= pairs * 9u, "x.h is in x.c's top 10 for at least 90%% of pairs (%u of %u)", h10,
           pairs);
+    for (uint32_t i = 0; i < LEAVES && i < 4096; i++) free(LEAFBUF[i]);
     free(root);
 }
 

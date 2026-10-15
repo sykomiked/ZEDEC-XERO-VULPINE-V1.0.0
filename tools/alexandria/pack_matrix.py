@@ -7,10 +7,10 @@
     pack_matrix.py --cut CDC_CUT [--out-dir DIR] [--icons DIR] [--report FILE]
                    [--baseline DIR] [--order glue|path]
 
-Every tracked file under kernel/src and docs goes to one layer: the layer
-whose home in MATRIX.tsv names it (longest path wins), docs/ to layer 130,
-and a module no home names to the layer its glue pulls hardest, else the
-core. Files are cut into chunks by alx_cdc (through the CDC_CUT helper, so
+Every tracked file of the repository goes to one layer: the layer whose
+home in MATRIX.tsv names it (longest path wins), docs/ and unnamed files at
+the top to layer 130, and a module no home names to the layer its glue pulls
+hardest, else the core. Files are cut into chunks by alx_cdc (through the CDC_CUT helper, so
 the cuts are the kernel's own), each chunk stored once in the whole matrix.
 Within a layer, files are laid out in glue order (each next file the one
 bound most strongly to those already laid) and their new chunks filled into
@@ -45,7 +45,8 @@ BOOK_TARGET = {0: 64 << 10, 1: 256 << 10, 2: BOOK_MAX}
 TIER_NAME = {0: "hot", 1: "warm", 2: "cold"}
 CODE_EXT = {"c", "h", "s", "S", "inc", "zxblock", "zxapp", "f", "f90", "bas", "fs", "pas", "cob",
             "cpy", "alg", "scm", "lisp", "lsp", "kron", "sutra", "eve", "myra", "trebago", "zlir",
-            "logo", "pli", "zxv", "rs", "py", "sh", "ld"}
+            "logo", "pli", "zxv", "rs", "py", "sh", "ld", "m", "mm", "cpp", "cc", "hpp", "swift",
+            "kt", "java", "js", "ts", "go", "adb", "ads", "cbl"}
 HOT_MAX = 256 << 10  # code bigger than this is generated bulk: cold
 DENSE = 7.2          # bits per byte at or above which content is already dense: cold
 W = {"same": 8, "logic": 6, "include": 4, "test": 2}
@@ -88,15 +89,15 @@ def layers():
 
 
 def corpus(root):
-    """tracked files under kernel/src and docs, as (path, bytes)"""
+    """every tracked file of the repository: the whole system"""
     if os.path.isdir(os.path.join(root, ".git")) or os.path.isfile(os.path.join(root, ".git")):
-        names = subprocess.run(["git", "-C", root, "ls-files", "-z", "kernel/src", "docs"],
+        names = subprocess.run(["git", "-C", root, "ls-files", "-z"],
                                check=True, capture_output=True).stdout.decode().split("\0")
     else:  # an exported tree
         names = []
-        for top in ("kernel/src", "docs"):
-            for d, _, fs in os.walk(os.path.join(root, top)):
-                names += [os.path.relpath(os.path.join(d, f), root) for f in fs]
+        for d, ds, fs in os.walk(root):
+            ds[:] = [x for x in ds if x != ".git"]
+            names += [os.path.relpath(os.path.join(d, f), root) for f in fs]
     files = []
     for p in sorted(n for n in names if n):
         full = os.path.join(root, p)
@@ -163,9 +164,14 @@ def glue_edges(root, files):
     return sorted(edges)
 
 
+def home_path(h):
+    """a MATRIX.tsv home: under kernel/src, or from the top when it starts with /"""
+    return h[1:] if h.startswith("/") else os.path.join("kernel/src", h)
+
+
 def homes(files, lay, edges):
     """file -> layer"""
-    rules = sorted(((os.path.join("kernel/src", h), k) for k, v in lay.items() for h in v["homes"]),
+    rules = sorted(((home_path(h), k) for k, v in lay.items() for h in v["homes"]),
                    key=lambda r: -len(r[0]))
     where, loose = {}, collections.defaultdict(list)
     for p in files:
@@ -177,7 +183,11 @@ def homes(files, lay, edges):
                 where[p] = k
                 break
         else:
-            mod = p.split("/")[2] if p.count("/") >= 3 else p
+            if "/" not in p:  # a file at the top of the repository
+                where[p] = 130
+                continue
+            mod = (p.split("/")[2] if p.count("/") >= 3 else p) if p.startswith("kernel/src/") \
+                else p.split("/")[0]
             loose[mod].append(p)
     # a module no home names goes where its glue pulls hardest; repeat so a
     # module bound only to another loose module follows it
@@ -489,10 +499,13 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         ic = lay[k]["icon"]
         if args.icons and ic:
             path = os.path.join(args.icons, os.path.basename(ic))
-            if os.path.isfile(path) and os.path.getsize(path) <= BOOK_MAX:
-                b = open(path, "rb").read()
-                icons[k] = cid_raw(b)
-                blocks[icons[k]] = b
+            if not os.path.isfile(path):
+                fail("layer %d: no icon %s" % (k, path))
+            if os.path.getsize(path) > BOOK_MAX:
+                fail("layer %d: icon %s is over 1 MiB (one block)" % (k, path))
+            b = open(path, "rb").read()
+            icons[k] = cid_raw(b)
+            blocks[icons[k]] = b
     root = bytearray(struct.pack(">4sBBHI", b"ALXM", 1, 0, LAYERS, FAN)) + bytes(52)
     for k, (rc, gc, nb) in enumerate(root_rows):
         root += rc + gc + icons.get(k, bytes(36)) + struct.pack(">I", nb)

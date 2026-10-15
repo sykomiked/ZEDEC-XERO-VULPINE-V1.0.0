@@ -93,9 +93,7 @@ int main(int argc, char **argv)
     /* a block written by hand: 5 literals "abcde", then a match of 10 at offset 5,
      * then 5 literals: "abcdeabcdeabcdevwxyz" */
     static const uint8_t hand[] = {0x56, 'a', 'b', 'c', 'd', 'e', 5, 0, 0x50, 'v', 'w', 'x', 'y', 'z'};
-    CHECK(alx_z_unlz4(hand, 14, C, 64) == 20 && !memcmp(C, "abcdeabcdeabcdeabcdevwxyz" + 5, 0) &&
-              !memcmp(C, "abcdeabcdeabcdeavwxyz", 0),
-          "a hand-made block decodes");
+    CHECK(alx_z_unlz4(hand, 14, C, 64) == 20, "a hand-made block decodes");
     CHECK(!memcmp(C, "abcdeabcdeabcde", 15) && !memcmp(C + 15, "vwxyz", 5), "to the right bytes");
     /* refusals */
     static const uint8_t off0[] = {0x14, 'a', 0, 0, 0x50, 'v', 'w', 'x', 'y', 'z'};

@@ -61,6 +61,7 @@ back into a slot and its bytes. It refuses, in this order:
 |---|---|---|
 | 0x10 | code: verified blocks, their logic and manifests | resolves |
 | 0x20 | data: tables and reference sets | reserved |
+| 0x30 | the matrix: a layer, a booklet or a chunk (MATRIX.md section 8) | resolves, by `alx_lat_resolve` |
 | 0x50 | sensor streams: telemetry schemas and recorded readings | reserved |
 | 0x60 | embeddings: language tables and model embeddings | reserved |
 | 0x70 | attestations: signed test, review and build records | reserved |

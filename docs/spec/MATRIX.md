@@ -15,9 +15,13 @@ of twelve, each with its icon. The L2 and L3 app layers go on top of these.
 The code is `kernel/src/alexandria/alx_cdc.c` (chunking),
 `kernel/src/alexandria/alx_matrix.c` (the node formats and the walks),
 `tools/alexandria/pack_matrix.py` (the packer and the measurements) and
-`kernel/src/alexandria/MATRIX.tsv` (which code lives in which layer). Every
-number on this page comes from running the packer on this repository
-(`kernel/src` and `docs`, 2422 files, 34.7 MB) on 2026-10-15.
+`kernel/src/alexandria/MATRIX.tsv` (which code lives in which layer). The
+numbers in sections 1 to 4 come from running the packer on `kernel/src` and
+`docs` (2422 files, 34.7 MB) on 2026-10-15. Since then the matrix holds every
+tracked file of the repository: the kernel, the host app and daemon, boot,
+the SDK, tools, tests, fonts, sounds and documents. That is 10,467 files and
+110 MB, cut into 16,191 chunks in 928 booklets, stored compressed in 40.3%
+of their size (assets such as fonts are already dense).
 
 ## 1. Layers
 
@@ -44,8 +48,10 @@ LAYER_MAP.md writes the whole mapping out layer by layer, with booklet
   it.
 
 The 144 icons are part of the matrix: the root carries each layer's icon
-CID, and the packer stores the icons when given the icon folder (all 144
-were found).
+CID, and the packer stores the icons when given the icon folder. The icons
+are the vector (SVG) L1 set, at most 22 KB each, so every one fits a block
+and renders at any size. The packer fails if one is missing or over 1 MiB,
+instead of leaving its slot empty.
 
 ## 2. Chunks: amount, size and density
 
@@ -262,7 +268,7 @@ matrix (`test_alx_matrix`):
 
 - It walks every tree node down to every booklet and opens each one,
   checking every chunk's CID.
-- It rebuilds every one of the 2422 files from its glue refs, byte for byte
+- It rebuilds every file from its glue refs, byte for byte
   against the repository, cutting each chunk again with the kernel's own
   chunker.
 - It checks that booklet 000 holds the alphabet.
@@ -294,3 +300,71 @@ table, and that inserting one byte keeps all but the first few cut points.
   variable-length field) and renders as many as a structure needs, projected
   to the screen. Each instance is still bounded by its own memory and fuel
   budget. Nothing is built until the script's definition is in hand.
+
+## 8. Lattice geometry: one coordinate, every store
+
+The matrix has one coordinate system, and the runtime, a browser and bare
+metal all use it through the same code (`alx_lattice.h`).
+
+**The coordinate.** Every place in the matrix has a 64-bit grid word in
+domain 0x30 (GRID_CHAIN.md section 3):
+
+| Bits | Field |
+|---|---|
+| 63..56 | 0x30, the matrix |
+| 55..48 | layer, 0 to 144 |
+| 47..24 | booklet + 1 (0 means the layer itself) |
+| 23..0 | atom + 1 (0 means the whole booklet) |
+
+So `0x3090000000000000` is layer 144, `0x3000000001000000` is booklet 000,
+and `0x3007000001000001` is the first chunk of layer 7's first booklet. A
+word's (layer, booklet, atom) is exactly a glue ref, so a file is the list of
+words its glue names. Which files are in which layer is LAYER_MAP.md;
+which word a library slot has is the grid word of GRID_CHAIN.md.
+
+**The binding to the hashes.** The root's CID binds everything under it.
+The root lists each layer's tree CID. Each tree node lists its children's
+CIDs. Each stored booklet is named by the CID of its stored bytes; a
+compressed one carries its plain CID; each chunk inside is named by its own
+CID. Resolving a word walks that chain from the root: the layer's entry, one
+digit of the booklet number per tree level (256 children a level), the
+booklet, then the atom. Every block is checked against the CID that named
+it before anything in it is used, so a word under a given root CID always
+reaches the same bytes, or an error.
+
+**One resolver, three stores.** `alx_lat_resolve` takes the root, the word
+and a fetch function that returns a block for a CID. The store is the only
+thing that changes:
+- The runtime fetches from its block store or from peers by CID.
+- Bare metal reads an ALXI image (`tools/alexandria/mkimage.py`): one file
+  or partition with the root, every block at a 4096-byte sector, and a
+  table in CID order. `alx_img_fetch` finds a block by binary search and
+  returns its sectors.
+- A browser maps the same image into WASM memory and uses the same fetch.
+  The resolver, the matrix code and the codec build for wasm32 with nothing
+  outside them but sha256, which the build checks. No browser host runs
+  them yet.
+
+`test_alx_lattice` resolves every layer, every booklet, and the first,
+middle and last atom of each through both the block store and the image.
+Both give the same CID and bytes. A file rebuilt from its glue words
+matches its CID. The image is deterministic: the same blocks always give
+the same image.
+
+**What a hash gives, and what it does not.** If a bit flips on disk or in
+transit, the block no longer matches its CID. The resolver reports which
+block failed, by CID, and the node can fetch that exact block again from
+another copy (the test damages an image block and then recovers it from the
+block store). A missing block is named the same way. That is detection and
+exact re-fetch. It is not a safety check of what the bytes do: a block that
+matches its CID is exactly the block that was packed, good or bad. Trust in
+the content still comes from who signed and reviewed it (cartography,
+attestations), and the usual checks on code before it runs still apply.
+
+**Growth without rewriting.** A block never changes; a new version is new
+blocks and a new root. Unchanged layers keep their tree CIDs (43 of 81 did
+between 2026-10-12 and 2026-10-15), so a new root shares everything that
+did not change. Additions (overlays, letters of marque, new models) arrive
+as new layers' content or new roots, and an older root still resolves
+exactly as before.
+
