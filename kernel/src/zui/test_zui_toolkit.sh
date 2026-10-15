@@ -47,5 +47,6 @@ run test_zui_motion "" $Z/test_zui_motion.c $Z/zui_motion.c
 run test_zui_bidi "" $Z/test_zui_bidi.c $Z/zui_bidi.c
 run test_zui_shape "" $Z/test_zui_shape.c $Z/zui_shape.c $Z/zui_bidi.c
 run test_zui_locale "" $Z/test_zui_locale.c $Z/zui_locale.c $Z/zui_bidi.c $Z/zui_reader.c $UI
+run test_zui_terms "-Isrc/terms -Isrc/robin_debanks -Isrc/modbind" $Z/test_zui_terms.c $Z/zui_terms.c src/terms/terms.c src/terms/terms_text.c src/robin_debanks/sha256.c $DRAW
 sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out"; echo "[FAIL] test_display_view"; exit 1; }
 tail -1 "$O/display.out"

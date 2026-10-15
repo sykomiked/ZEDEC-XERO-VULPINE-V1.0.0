@@ -5,9 +5,10 @@ it. It does not provide legal advice or decide whether an agreement is
 enforceable anywhere.
 
 Each person on a device sees the ZXV End-User Agreement at their first
-sign-in, after the boot vault opens and before their desktop. The login
-screen (`zui_login`) draws it; this module holds the logic every screen and
-port must share.
+sign-in, after the boot vault opens and before their desktop. The native
+screen is `src/zui/zui_terms.c` (the shell opens it after the seat unlocks;
+`zui_login` knows nothing about it); this module holds the logic every screen
+and port must share.
 
 ## Flow at sign-in
 
