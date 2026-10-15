@@ -406,6 +406,48 @@ static void test_golden(void)
 
 /* ---- generated values and random text --------------------------------------- */
 
+/* the edges a mutation run found untested */
+static void test_edges(void)
+{
+    static const struct {
+        int syn;
+        const char *in, *want;
+    } c[] = {
+        {BV_SYNTAX_NUMBERS, "12 345", "(12 345)"},
+        {BV_SYNTAX_NUMBERS, "1(2", "FORM"},
+        {BV_SYNTAX_NUMBERS, "-9223372036854775808 9223372036854775807",
+         "(-9223372036854775808 9223372036854775807)"},
+        {BV_SYNTAX_LISP, "TT NILX", "(TT NILX)"},
+        {BV_SYNTAX_LISP, "1/9223372036854775807", "(1/9223372036854775807)"},
+        {BV_SYNTAX_LISP, "1/9223372036854775808", "OVERFLOW"},
+        {BV_SYNTAX_LISP, "99999999999999999999/7", "OVERFLOW"},
+        {BV_SYNTAX_LISP, "7/99999999999999999999", "OVERFLOW"},
+        {BV_SYNTAX_LISP, "-9223372036854775808/2", "(-4611686018427387904)"},
+        {BV_SYNTAX_LISP, "1E-5", "DOMAIN"},
+        {BV_SYNTAX_LISP, "1E+5", "DOMAIN"},
+        {BV_SYNTAX_LISP, "1.-5", "(1.-5)"},
+        {BV_SYNTAX_LISP, "1E5X", "(1E5X)"},
+        {BV_SYNTAX_LISP, "1EX", "(1EX)"},
+        {BV_SYNTAX_LISP, "1E", "(1E)"},
+        {BV_SYNTAX_LISP, "E5", "(E5)"},
+        {BV_SYNTAX_SCHEME, "0 -1", "(0 -1)"},
+    };
+    for (size_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        const char *got = again(c[i].syn, c[i].in);
+        CHECK(strcmp(got, c[i].want) == 0, "edge %zu: %s gave %s", i, c[i].in, got);
+    }
+    bv_reset(&A);
+    CHECK(strcmp(wr1(BV_SYNTAX_LISP, bv_int(&A, 0)), "0") == 0, "zero has no sign");
+    static const char *const low[] = {"a", "z", "Ab", "Yz"}, *const up[] = {"A", "Z", "`", "{"};
+    for (size_t i = 0; i < 4; i++) {
+        CHECK(strcmp(wr1(BV_SYNTAX_LISP, bv_symbol(&A, low[i], (uint32_t) strlen(low[i]))),
+                     "DOMAIN") == 0,
+              "LISP refuses lowercase %s", low[i]);
+        CHECK(strcmp(wr1(BV_SYNTAX_LISP, bv_symbol(&A, up[i], 1)), up[i]) == 0, "LISP spells %s",
+              up[i]);
+    }
+}
+
 static uint64_t rng = 0x2545F4914F6CDD1Dull;
 static uint64_t rnd(void)
 {
@@ -512,6 +554,7 @@ int main(int argc, char **argv)
     test_forms();
     test_refusals();
     test_write();
+    test_edges();
     test_golden();
     test_generated(iters);
     printf("%u checks, %u failures\n", checks, fails);

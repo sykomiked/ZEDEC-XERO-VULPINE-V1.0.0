@@ -123,7 +123,7 @@ the Rosetta Shell's command dialects.
 ## 7. Build order
 
 1. The Babel value, its canonical encoding and its tests (built: bv.c).
-2. Lingua adapters (print syntax built: bv_syntax.c) (62-bit values, and each built front-end's print syntax),
+2. Lingua adapters: each built front-end's print syntax (built: bv_syntax.c), then 62-bit values,
    then zxapp entries that take and answer Babel values.
 3. The existing legacy codecs registered as Babel formats; CSV, fixed-width
    records, exact JSON.

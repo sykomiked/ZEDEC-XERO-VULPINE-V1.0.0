@@ -165,7 +165,7 @@ typedef enum {
     ZL_ADDRF, /* a: offset, b: hops: pushes the cell's address for LOADA/STOREA */
     ZL_BOUND, /* a: length: traps BOUNDS unless 0 <= top < a (leaves it) */
     /* lists (Lisp, Scheme, Logo): values of 62-bit programs, see ZL_V_* */
-    ZL_CONS, /* pops cdr, then car; pushes a new pair (cells are never reclaimed) */
+    ZL_CONS, /* pops cdr, then car; pushes a new pair (reclaimed when unreachable: E7) */
     ZL_CAR,  /* a: 1 = the car of the empty list is the empty list (Lisp) */
     ZL_CDR,
     ZL_SETCAR, /* pops the value, then the pair */
@@ -174,7 +174,8 @@ typedef enum {
     ZL_OUTV, /* pops a value and prints it; a: ZL_DIALECT_*, b: 1 = strings in quotes */
     /* E1 strings and E2 vectors (62-bit programs). A string is a literal
      * (ZL_V_STRC + string index) or a block made at run time; a vector is a
-     * block of cells. Blocks are never reclaimed; exhaustion traps HEAP. */
+     * block of cells. Unreachable blocks and pairs are reclaimed (E7);
+     * HEAP traps when what is reachable fills the space. */
     ZL_VNEW,  /* pops n; pushes a vector of n cells, each 0 */
     ZL_VLEN,  /* pops a vector or string; pushes its length (cells or bytes) */
     ZL_VREF,  /* pops index, then a vector or string; pushes the cell or byte (BOUNDS) */
@@ -185,10 +186,25 @@ typedef enum {
     ZL_SCONV, /* a: ZL_SCONV_*: number to decimal string, byte to string, string to number */
     /* E3 procedures as values */
     ZL_CALLI, /* pops a procedure value (ZL_V_CODE + address) and calls it */
+    ZL_JMPI,  /* pops a procedure value and jumps to it: a tail call through a
+                 value (LEAVE first; a static tail call is LEAVE, JMP) */
     /* E4 exceptions */
-    ZL_CATCH,   /* a: handler address: remembers the stack, calls and frames */
+    ZL_CATCH,   /* a: handler address: remembers the stack, calls and frames;
+                   b: 1 = it also catches the run-time traps OVERFLOW, DIVZERO,
+                   INEXACT, BOUNDS, DOMAIN and INPUT, with the status pushed
+                   as the value (the nearest such CATCH, inner ones dropped) */
     ZL_UNCATCH, /* forgets the newest CATCH */
     ZL_THROW,   /* pops a value; unwinds to the newest CATCH, pushes the value, jumps */
+    /* E6 ranges, input's end, shifts and wrapping, fixed-point output (any word size) */
+    ZL_RANGE, /* a: max > 0; b: 0 traps OVERFLOW unless -a <= top <= a, 1 unless
+                 -a-1 <= top <= a (two's complement); leaves the value */
+    ZL_INEOF, /* pushes 1 when the input is exhausted, else 0 */
+    ZL_SHL,   /* pops n (0..63), then x; pushes x * 2^n (OVERFLOW) */
+    ZL_SHR,   /* pops n (0..63), then x; pushes floor(x / 2^n) */
+    ZL_WRAP,  /* a: bits 1..63; b: 0 signed, 1 unsigned: top modulo 2^a into
+                 [-2^(a-1), 2^(a-1)) or [0, 2^a) (OVERFLOW if the word is narrower) */
+    ZL_OUTD,  /* pops x; prints x / 10^(a & 255) with that many decimals,
+                 width a >> 8 (0..64); b: ZL_FMT_* flags (the trace sees x) */
     ZL_OP__COUNT
 } zl_op_t;
 
@@ -319,6 +335,15 @@ typedef struct {
     int64_t heap[2 * ZL_MAX_CELLS]; /* pair k: car heap[2k], cdr heap[2k+1]; k >= 1 */
     int64_t blk[ZL_MAX_BLK]; /* block at o >= 1: blk[o] = length << 2 | kind, then its cells */
     uint32_t hpc[ZL_MAX_CALLS], hsp[ZL_MAX_CALLS], hrp[ZL_MAX_CALLS], hfd[ZL_MAX_CALLS]; /* CATCH */
+    /* E7 reclamation: when the pairs or the blocks are full, a collector
+     * keeps every pair and block reachable from the stack, the slots and
+     * the frames, slides them down in order and rewrites every reference.
+     * It cannot be observed (identity, EQ and printing are unchanged) and
+     * costs no fuel; HEAP traps only when the live data fills the space. */
+    uint32_t gc_fwd_p[ZL_MAX_CELLS];              /* a pair's new index, 0 = dead */
+    uint32_t gc_fwd_b[ZL_MAX_BLK];                /* a block's new offset, 0 = dead */
+    uint32_t gc_stack[ZL_MAX_CELLS + ZL_MAX_BLK]; /* objects whose children wait */
+    uint32_t collections;                         /* set by zl_run */
 } zl_run_t;
 
 /* Run a program that passed zl_verify. Returns ZL_OK on HALT/END/STOP, or

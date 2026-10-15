@@ -384,6 +384,10 @@ static void test_pair_edges(void)
     for (unsigned i = 0; i < BV_MAX_DEPTH - 2u; i++) sh = bv_list(&A, &sh, 1); /* depth 62 */
     int32_t l3 = bv_pair(&A, sh, t1);
     CHECK(l3 >= 0 && bv_list(&A, &l3, 1) == BV_E_LIMIT, "a shallower head keeps the tail's depth");
+    int32_t t63 = bv_list(&A, &sh, 1); /* depth 63, its element 62 deep */
+    int32_t l4 = bv_pair(&A, h, t63);  /* head 63 deep: the list is 64 deep */
+    CHECK(l4 >= 0 && bv_list(&A, &l4, 1) == BV_E_LIMIT,
+          "a head as deep as the tail sets the depth");
 
     /* kids: the new list needs exactly n + 1 */
     bv_reset(&A);

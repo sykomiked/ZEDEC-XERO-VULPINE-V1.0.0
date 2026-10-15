@@ -2280,7 +2280,8 @@ static void test_lists(void)
         size_t n = 0;
         prog_reset(62);
         sym("FOO");
-        for (int op = ZL_ENTER; op < ZL_OP__COUNT; op++) I(op, op == ZL_BOUND, 0);
+        for (int op = ZL_ENTER; op < ZL_OP__COUNT; op++)
+            I(op, op == ZL_BOUND || op == ZL_RANGE ? 1 : op == ZL_WRAP ? 8 : 0, 0);
         I(ZL_PUSH, ZL_V_SYM, 0);
         I(ZL_PUSH, ZL_V_NIL, 0);
         I(ZL_HALT, 0, 0);
@@ -2651,15 +2652,19 @@ static void test_ext(void)
         I(ZL_SCAT, 0, 0);
         I(ZL_DROP, 0, 0);
         I(ZL_JMP, 0, 0);
-        expect_run(ZL_E_HEAP, 0, "made strings fill the block heap");
+        expect_run(ZL_E_FUEL, 0, "dropped strings are reclaimed: the loop runs out of fuel");
+        CHECK(R.collections > 0, "collected %u times", R.collections);
         prog_reset(62);
-        I(ZL_PUSH, 5, 0);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_PUSH, 5, 0); /* 1 */
         I(ZL_SCONV, 0, 0);
-        I(ZL_DROP, 0, 0);
-        I(ZL_JMP, 0, 0);
-        expect_run(ZL_E_HEAP, 0, "number strings fill the block heap");
-        CHECK(R.used == 4 * ((ZL_MAX_BLK - 1) / 2) + 2, "two cells per one-digit string (%llu)",
-              (unsigned long long) R.used);
+        I(ZL_CONS, 0, 0); /* kept: a list of them */
+        I(ZL_JMP, 1, 0);
+        expect_run(ZL_E_HEAP, 0, "a kept list of number strings fills the pair heap first");
+        CHECK(R.used == 1 + 4 * (uint64_t) (ZL_MAX_CELLS - 1) + 3 && R.collections == 1 &&
+                  R.trap_pc == 3,
+              "one pair per string, one collection that frees nothing, HEAP at the CONS (%llu, %u)",
+              (unsigned long long) R.used, R.collections);
     }
     /* ISA on the new kinds */
     {
@@ -2897,7 +2902,8 @@ static void test_ext(void)
         size_t n = 0;
         prog_reset(62);
         sym("FOO");
-        for (int op = ZL_VNEW; op < ZL_OP__COUNT; op++) I(op, op == ZL_CATCH ? 1 : 0, 0);
+        for (int op = ZL_VNEW; op < ZL_OP__COUNT; op++)
+            I(op, op == ZL_CATCH || op == ZL_RANGE ? 1 : op == ZL_WRAP ? 8 : 0, 0);
         I(ZL_PUSH, ZL_V_STRC, 0);
         I(ZL_PUSH, ZL_V_CODE + 2, 0);
         I(ZL_HALT, 0, 0);
@@ -2909,6 +2915,708 @@ static void test_ext(void)
         for (int op = ZL_VNEW; op < ZL_OP__COUNT; op++)
             CHECK(strcmp(zl_op_name(op), "?") != 0, "op %d has a name", op);
     }
+}
+
+/* ------------------------------------------------- E6: ranges, input's end,
+ * shifts and wrapping, fixed-point output, and CATCH that takes traps */
+
+/* push x, run op a b, print: the output and status */
+static int e6_un(int bits, int op, int64_t a, int32_t b, int64_t x)
+{
+    prog_reset(bits);
+    I(ZL_PUSH, x, 0);
+    I(op, a, b);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    return run_p(&P, 0, 0, 0);
+}
+
+static int e6_bin(int bits, int op, int64_t x, int64_t y)
+{
+    prog_reset(bits);
+    I(ZL_PUSH, x, 0);
+    I(ZL_PUSH, y, 0);
+    I(op, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    return run_p(&P, 0, 0, 0);
+}
+
+static void e6_outd(int64_t x, int64_t a, int32_t b, const char *want)
+{
+    int64_t tr[2];
+    zl_trace_t t = {tr, 2, 0};
+    prog_reset(64);
+    I(ZL_PUSH, x, 0);
+    I(ZL_OUTD, a, b);
+    I(ZL_HALT, 0, 0);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = sizeof out;
+    R.trace = &t;
+    int s = zl_run(&P, &R);
+    CHECK(s == ZL_OK && strcmp(out, want) == 0 && t.n == 1 && tr[0] == x,
+          "OUTD %lld a=%lld b=%d: [%s] want [%s]", (long long) x, (long long) a, b, out, want);
+}
+
+static void test_e6(void)
+{
+    zl_diag_t d;
+    /* RANGE: symmetric and two's complement, any word size, the value stays */
+    static const struct {
+        int64_t x, a;
+        int32_t b;
+        int ok;
+    } rg[] = {
+        {999999999, 999999999, 0, 1},
+        {-999999999, 999999999, 0, 1},
+        {1000000000, 999999999, 0, 0},
+        {-1000000000, 999999999, 0, 0},
+        {2147483647, 2147483647, 1, 1},
+        {-2147483648LL, 2147483647, 1, 1},
+        {2147483648LL, 2147483647, 1, 0},
+        {-2147483649LL, 2147483647, 1, 0},
+        {-2147483648LL, 2147483647, 0, 0},
+        {0, 1, 0, 1},
+        {-2, 1, 1, 1},
+        {-3, 1, 1, 0},
+        {-2, 1, 0, 0},
+        {-2, 2, 0, 1},
+        {INT64_MAX, INT64_MAX, 1, 1},
+        {INT64_MIN, INT64_MAX, 1, 1},
+        {INT64_MIN + 1, INT64_MAX, 0, 1},
+        {INT64_MIN, INT64_MAX, 0, 0},
+    };
+    for (unsigned i = 0; i < sizeof rg / sizeof rg[0]; i++) {
+        int s = e6_un(64, ZL_RANGE, rg[i].a, rg[i].b, rg[i].x);
+        char want[32];
+        snprintf(want, sizeof want, "%lld", (long long) rg[i].x);
+        CHECK(rg[i].ok ? s == ZL_OK && strcmp(out, want) == 0 : s == ZL_E_OVERFLOW,
+              "RANGE %lld in %lld/%d: %d [%s]", (long long) rg[i].x, (long long) rg[i].a, rg[i].b,
+              s, out);
+    }
+    CHECK(e6_un(32, ZL_RANGE, 5, 0, 5) == ZL_OK && e6_un(62, ZL_RANGE, 5, 0, 6) == ZL_E_OVERFLOW,
+          "RANGE in 32 and 62 bits");
+    CHECK(e6_un(62, ZL_RANGE, 5, 0, ZL_V_NIL) == ZL_E_DOMAIN, "RANGE of a reference");
+    prog_reset(64);
+    I(ZL_RANGE, 5, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "RANGE on an empty stack");
+
+    /* INEOF */
+    prog_reset(32);
+    I(ZL_INEOF, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_IN, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_INEOF, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_IN, 0, 0);
+    I(ZL_HALT, 0, 0);
+    int64_t one[1] = {42};
+    CHECK(run_p(&P, one, 1, 0) == ZL_E_INPUT && strcmp(out, "0 42 1 ") == 0,
+          "INEOF before and after the last value: [%s]", out);
+    CHECK(run_p(&P, 0, 0, 0) == ZL_E_INPUT && strcmp(out, "1 ") == 0, "INEOF with no input");
+    prog_reset(32);
+    for (int i = 0; i < ZL_MAX_STACK; i++) I(ZL_PUSH, 0, 0);
+    I(ZL_INEOF, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "INEOF on a full stack");
+
+    /* SHL and SHR */
+    static const struct {
+        int bits, op;
+        int64_t x, n;
+        int s;
+        const char *want;
+    } sh[] = {
+        {64, ZL_SHL, 1, 0, ZL_OK, "1"},
+        {64, ZL_SHL, 3, 4, ZL_OK, "48"},
+        {64, ZL_SHL, -3, 4, ZL_OK, "-48"},
+        {64, ZL_SHL, 1, 62, ZL_OK, "4611686018427387904"},
+        {64, ZL_SHL, 1, 63, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHL, -1, 63, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHL, -1, 62, ZL_OK, "-4611686018427387904"},
+        {64, ZL_SHL, 0, 63, ZL_OK, "0"},
+        {64, ZL_SHL, 3, 62, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHL, -2, 62, ZL_OK, "-9223372036854775808"},
+        {64, ZL_SHL, -3, 62, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHL, 2, 62, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHL, 1, 64, ZL_E_DOMAIN, 0},
+        {64, ZL_SHL, 1, -1, ZL_E_DOMAIN, 0},
+        {32, ZL_SHL, 1, 30, ZL_OK, "1073741824"},
+        {32, ZL_SHL, 1, 31, ZL_E_OVERFLOW, 0},
+        {32, ZL_SHL, -1, 31, ZL_OK, "-2147483648"},
+        {62, ZL_SHL, 1, 61, ZL_OK, "2305843009213693952"},
+        {62, ZL_SHL, 1, 62, ZL_E_OVERFLOW, 0},
+        {64, ZL_SHR, 48, 4, ZL_OK, "3"},
+        {64, ZL_SHR, -48, 4, ZL_OK, "-3"},
+        {64, ZL_SHR, -49, 4, ZL_OK, "-4"},
+        {64, ZL_SHR, 7, 1, ZL_OK, "3"},
+        {64, ZL_SHR, -7, 1, ZL_OK, "-4"},
+        {64, ZL_SHR, -1, 63, ZL_OK, "-1"},
+        {64, ZL_SHR, INT64_MAX, 63, ZL_OK, "0"},
+        {64, ZL_SHR, INT64_MIN, 63, ZL_OK, "-1"},
+        {64, ZL_SHR, 5, 0, ZL_OK, "5"},
+        {64, ZL_SHR, 5, 64, ZL_E_DOMAIN, 0},
+        {64, ZL_SHR, 5, -1, ZL_E_DOMAIN, 0},
+    };
+    for (unsigned i = 0; i < sizeof sh / sizeof sh[0]; i++) {
+        int s = e6_bin(sh[i].bits, sh[i].op, sh[i].x, sh[i].n);
+        CHECK(s == sh[i].s && (!sh[i].want || strcmp(out, sh[i].want) == 0),
+              "%s %lld %lld in %d bits: %d [%s]", zl_op_name(sh[i].op), (long long) sh[i].x,
+              (long long) sh[i].n, sh[i].bits, s, out);
+    }
+    CHECK(e6_bin(62, ZL_SHL, ZL_V_NIL, 1) == ZL_E_DOMAIN &&
+              e6_bin(62, ZL_SHR, 1, ZL_V_TRUE) == ZL_E_DOMAIN,
+          "shifts of references");
+    prog_reset(64);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_SHL, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "SHL needs two");
+
+    /* WRAP */
+    static const struct {
+        int bits;
+        int64_t x, a;
+        int32_t b;
+        int s;
+        const char *want;
+    } wr[] = {
+        {64, 255, 8, 0, ZL_OK, "-1"},
+        {64, 128, 8, 0, ZL_OK, "-128"},
+        {64, 127, 8, 0, ZL_OK, "127"},
+        {64, -129, 8, 0, ZL_OK, "127"},
+        {64, -1, 8, 1, ZL_OK, "255"},
+        {64, 256, 8, 1, ZL_OK, "0"},
+        {64, 2147483648LL, 32, 0, ZL_OK, "-2147483648"},
+        {64, -1, 32, 1, ZL_OK, "4294967295"},
+        {32, -1, 32, 1, ZL_E_OVERFLOW, 0},
+        {32, 2147483647, 32, 0, ZL_OK, "2147483647"},
+        {64, INT64_MIN, 63, 0, ZL_OK, "0"},
+        {64, -1, 63, 1, ZL_OK, "9223372036854775807"},
+        {64, INT64_MAX, 63, 0, ZL_OK, "-1"},
+        {64, 3, 1, 0, ZL_OK, "-1"},
+        {64, 2, 1, 0, ZL_OK, "0"},
+        {64, 3, 1, 1, ZL_OK, "1"},
+        {62, -1, 62, 1, ZL_OK, "4611686018427387903"},
+        {62, -1, 63, 1, ZL_E_OVERFLOW, 0},
+        {62, -1, 61, 1, ZL_OK, "2305843009213693951"},
+    };
+    for (unsigned i = 0; i < sizeof wr / sizeof wr[0]; i++) {
+        int s = e6_un(wr[i].bits, ZL_WRAP, wr[i].a, wr[i].b, wr[i].x);
+        CHECK(s == wr[i].s && (!wr[i].want || strcmp(out, wr[i].want) == 0),
+              "WRAP %lld to %lld/%d in %d bits: %d [%s]", (long long) wr[i].x, (long long) wr[i].a,
+              wr[i].b, wr[i].bits, s, out);
+    }
+    CHECK(e6_un(62, ZL_WRAP, 8, 0, ZL_V_FALSE) == ZL_E_DOMAIN, "WRAP of a reference");
+
+    /* OUTD */
+    e6_outd(12345, 2, 0, "123.45");
+    e6_outd(-5, 2, 0, "-0.05");
+    e6_outd(5, 2, ZL_FMT_SIGNSPACE, " 0.05");
+    e6_outd(0, 3, 0, "0.000");
+    e6_outd(7, 0, 0, "7");
+    e6_outd(-7, 0, ZL_FMT_TRAIL, "-7 ");
+    e6_outd(42, 1 | 8 << 8, 0, "     4.2");
+    e6_outd(42, 1 | 3 << 8, 0, "4.2");
+    e6_outd(42, 1 | 2 << 8, 0, "4.2");
+    e6_outd(INT64_MIN, 18, 0, "-9.223372036854775808");
+    e6_outd(INT64_MAX, 18, 0, "9.223372036854775807");
+    e6_outd(1, 18, 0, "0.000000000000000001");
+    e6_outd(100, 2, ZL_FMT_SIGNSPACE | ZL_FMT_TRAIL, " 1.00 ");
+    prog_reset(62);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_OUTD, 2, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_DOMAIN, "", "OUTD of a reference");
+    prog_reset(64);
+    I(ZL_OUTD, 2, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, "", "OUTD on an empty stack");
+    prog_reset(64);
+    I(ZL_PUSH, 123456, 0);
+    I(ZL_OUTD, 2 | 64 << 8, 0);
+    I(ZL_HALT, 0, 0);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = 10;
+    CHECK(zl_run(&P, &R) == ZL_E_OUTPUT, "OUTD past the output");
+    R.out_cap = sizeof out;
+    P.code[1].a = 2 | 10 << 8;
+    CHECK(zl_run(&P, &R) == ZL_OK && strcmp(out, "   1234.56") == 0, "width 10: [%s]", out);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = 8;
+    CHECK(zl_run(&P, &R) == ZL_E_OUTPUT, "the padding fills the output first");
+
+    /* CATCH b = 1 takes recoverable traps, with the status as the value */
+    static const struct {
+        int op;
+        int64_t x, y;
+        int st;
+    } tr[] = {
+        {ZL_DIVT, 1, 0, ZL_E_DIVZERO},
+        {ZL_DIVX, 7, 2, ZL_E_INEXACT},
+        {ZL_ADD, INT64_MAX, 1, ZL_E_OVERFLOW},
+        {ZL_SHL, 1, 99, ZL_E_DOMAIN},
+    };
+    for (unsigned i = 0; i < sizeof tr / sizeof tr[0]; i++) {
+        uint32_t h;
+        prog_reset(64);
+        I(ZL_PUSH, 7, 0); /* under the handler: kept */
+        h = here();
+        I(ZL_CATCH, 0, 1);
+        I(ZL_PUSH, 99, 0); /* above it: dropped */
+        I(ZL_PUSH, tr[i].x, 0);
+        I(ZL_PUSH, tr[i].y, 0);
+        I(tr[i].op, 1, 0);
+        I(ZL_UNCATCH, 0, 0);
+        I(ZL_HALT, 0, 0);
+        patch(h, here());
+        I(ZL_OUTI, 2, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        char want[32];
+        snprintf(want, sizeof want, "%d 7", tr[i].st);
+        expect_run(ZL_OK, want, zl_op_name(tr[i].op));
+        P.code[1].b = 0;
+        expect_run(tr[i].st, 0, "a plain CATCH lets the trap stop the program");
+    }
+    /* BOUNDS and INPUT */
+    prog_reset(64);
+    I(ZL_CATCH, 4, 1);
+    I(ZL_PUSH, 9, 0);
+    I(ZL_BOUND, 3, 0);
+    I(ZL_HALT, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_IN, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_INPUT, "-2623", "BOUNDS is caught; the handler is used up, INPUT then stops");
+    /* the nearest trap-catching handler, past a plain inner one */
+    prog_reset(64);
+    I(ZL_CATCH, 6, 1); /* 0: outer, takes traps */
+    I(ZL_CATCH, 9, 0); /* 1: inner, THROW only */
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_DIVT, 0, 0);
+    I(ZL_HALT, 0, 0);
+    I(ZL_OUTI, 0, 0);  /* 6 */
+    I(ZL_PUSH, 5, 0);  /* 7 */
+    I(ZL_THROW, 0, 0); /* 8: no handler left: the inner one was dropped */
+    I(ZL_HALT, 0, 0);  /* 9 */
+    expect_run(ZL_E_THROW, "-2621", "the outer handler takes the trap and the inner is gone");
+    /* traps that are machine limits are never caught */
+    prog_reset(64);
+    I(ZL_CATCH, 3, 1);
+    I(ZL_JMP, 1, 0);
+    I(ZL_HALT, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_FUEL, "", "FUEL is not caught");
+    prog_reset(64);
+    I(ZL_CATCH, 3, 1);
+    I(ZL_TRAP, ZL_E_DIVZERO, 0);
+    I(ZL_HALT, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "-2621", "a TRAP op is caught like the real thing");
+    P.code[1].a = ZL_E_OUTPUT;
+    expect_run(ZL_E_OUTPUT, "", "OUTPUT is a machine limit");
+    P.code[1].a = ZL_E_STACK;
+    expect_run(ZL_E_STACK, "", "STACK too");
+    P.code[1].a = ZL_E_HEAP;
+    expect_run(ZL_E_HEAP, "", "and HEAP");
+    P.code[1].a = ZL_E_RSTACK;
+    expect_run(ZL_E_RSTACK, "", "and RSTACK");
+    P.code[1].a = ZL_E_INPUT;
+    expect_run(ZL_OK, "-2628", "INPUT is caught");
+    P.code[1].a = ZL_E_DOMAIN;
+    expect_run(ZL_OK, "-2629", "DOMAIN is caught");
+    P.code[1].a = ZL_E_BOUNDS;
+    expect_run(ZL_OK, "-2623", "BOUNDS is caught");
+    P.code[1].a = ZL_E_OVERFLOW;
+    expect_run(ZL_OK, "-2620", "OVERFLOW is caught");
+    P.code[1].a = ZL_E_INEXACT;
+    expect_run(ZL_OK, "-2622", "INEXACT is caught");
+    P.code[1].a = ZL_E_THROW;
+    expect_run(ZL_E_THROW, "", "THROW's own trap is not");
+    P.code[1].a = ZL_E_FUEL;
+    expect_run(ZL_E_FUEL, "", "nor FUEL");
+    /* a trap in a called procedure unwinds its frames */
+    {
+        uint32_t j, f, h;
+        prog_reset(64);
+        j = here();
+        I(ZL_JMP, 0, 0);
+        f = here();
+        I(ZL_ENTER, 2, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_MODT, 0, 0);
+        I(ZL_LEAVE, 0, 0);
+        I(ZL_RET, 0, 0);
+        patch(j, here());
+        h = here();
+        I(ZL_CATCH, 0, 1);
+        I(ZL_LINK, 0, 0);
+        I(ZL_CALL, f, 0);
+        I(ZL_HALT, 0, 0);
+        patch(h, here());
+        I(ZL_OUTI, 2, 0);
+        I(ZL_LINK, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "-2621 0", "a trap inside a procedure: frames unwound");
+    }
+    /* a handler whose sp is the stack's top cannot take a value: STACK stops */
+    prog_reset(64);
+    for (int i = 0; i < ZL_MAX_STACK; i++) I(ZL_PUSH, 0, 0);
+    I(ZL_CATCH, (int64_t) ZL_MAX_STACK + 3, 1);
+    I(ZL_TRAP, ZL_E_DOMAIN, 0);
+    I(ZL_HALT, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_DOMAIN, "", "a full stack at the handler: the trap stands");
+    /* the trap is reported where it happened, when not caught */
+    prog_reset(64);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_DIVT, 0, 0);
+    P.code[2].line = 7;
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_DIVZERO, "", "uncaught");
+    CHECK(R.trap_line == 7 && R.trap_pc == 2, "trap line and pc");
+
+    /* verify */
+    prog_reset(64);
+    I(ZL_RANGE, 0, 0);
+    I(ZL_HALT, 0, 0);
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "RANGE 0");
+    P.code[0].a = 1;
+    P.code[0].b = 2;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "RANGE mode 2");
+    P.code[0].b = -1;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "RANGE mode -1");
+    P.code[0].b = 1;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "RANGE 1, 1");
+    P.code[0].a = -5;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "RANGE -5");
+    P.code[0] = (zl_ins_t){.op = ZL_WRAP, .a = 0};
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "WRAP 0");
+    P.code[0].a = 64;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "WRAP 64");
+    P.code[0].a = 63;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "WRAP 63");
+    P.code[0].a = 1;
+    P.code[0].b = 1;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "WRAP 1 unsigned");
+    P.code[0].b = 2;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "WRAP mode 2");
+    P.code[0].b = -1;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "WRAP mode -1");
+    P.code[0] = (zl_ins_t){.op = ZL_OUTD, .a = 18 | 64 << 8, .b = 3};
+    CHECK(zl_verify(&P, &d) == ZL_OK, "OUTD 18 digits, width 64, both flags");
+    P.code[0].a = 19;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "OUTD 19 digits");
+    P.code[0].a = 65 << 8;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "OUTD width 65");
+    P.code[0].a = -1;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "OUTD negative");
+    P.code[0].a = 0;
+    P.code[0].b = 4;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "OUTD flag 4");
+    P.code[0].b = -1;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "OUTD flag -1");
+    P.code[0] = (zl_ins_t){.op = ZL_CATCH, .a = 1, .b = 2};
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "CATCH mode 2");
+    P.code[0].b = -1;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "CATCH mode -1");
+    P.code[0].b = 1;
+    CHECK(zl_verify(&P, &d) == ZL_OK, "CATCH mode 1");
+    for (int op = ZL_RANGE; op <= ZL_OUTD; op++)
+        for (int bits = 32; bits <= 64; bits += 30) {
+            prog_reset(bits == 92 ? 62 : bits);
+            I(op, op == ZL_RANGE ? 3 : op == ZL_WRAP ? 8 : 0, 0);
+            I(ZL_HALT, 0, 0);
+            CHECK(zl_verify(&P, &d) == ZL_OK, "%s in %d bits", zl_op_name(op), bits);
+        }
+    prog_reset(62);
+    I(ZL_INEOF, 0, 0);
+    I(ZL_SHL, 0, 0);
+    I(ZL_SHR, 0, 0);
+    I(ZL_HALT, 0, 0);
+    CHECK(zl_verify(&P, &d) == ZL_OK, "in 62 bits too");
+    CHECK(strcmp(zl_op_name(ZL_RANGE), "RANGE") == 0 && strcmp(zl_op_name(ZL_OUTD), "OUTD") == 0 &&
+              strcmp(zl_op_name(ZL_INEOF), "INEOF") == 0,
+          "E6 op names");
+}
+
+/* ------------------------------------------------- E7: reclamation */
+
+static void test_gc(void)
+{
+    uint32_t L, W, D;
+    const int64_t N = 4000; /* live pairs; with three dropped per step, 16000 allocations */
+    /* a list kept in a slot survives collections; garbage beside it goes */
+    prog_reset(62);
+    P.nslots = 8;
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_STORE, 0, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_STORE, 1, 0);
+    L = here();
+    I(ZL_LOAD, 1, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_ADD, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_STORE, 1, 0);
+    I(ZL_LOAD, 0, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_STORE, 0, 0);
+    for (int g = 0; g < 3; g++) {
+        I(ZL_PUSH, 7, 0);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_CONS, 0, 0);
+        I(ZL_DROP, 0, 0);
+    }
+    I(ZL_LOAD, 1, 0);
+    I(ZL_PUSH, N, 0);
+    I(ZL_LT, 0, 0);
+    I(ZL_JNZ, L, 0);
+    I(ZL_LOAD, 0, 0); /* an alias: identity must survive the moves */
+    I(ZL_STORE, 2, 0);
+    for (int pass = 0; pass < 2; pass++) { /* garbage again, to move the list twice */
+        I(ZL_PUSH, 0, 0);
+        I(ZL_STORE, 1, 0);
+        uint32_t G = here();
+        I(ZL_PUSH, 1, 0);
+        I(ZL_PUSH, 2, 0);
+        I(ZL_CONS, 0, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_LOAD, 1, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_ADD, 0, 0);
+        I(ZL_DUP, 0, 0);
+        I(ZL_STORE, 1, 0);
+        I(ZL_PUSH, 20000, 0);
+        I(ZL_LT, 0, 0);
+        I(ZL_JNZ, G, 0);
+    }
+    I(ZL_LOAD, 0, 0);
+    I(ZL_LOAD, 2, 0);
+    I(ZL_EQ, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_PUSH, 0, 0); /* sum and length */
+    I(ZL_STORE, 3, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_STORE, 5, 0);
+    I(ZL_LOAD, 0, 0);
+    I(ZL_STORE, 4, 0);
+    W = here();
+    I(ZL_LOAD, 4, 0);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_EQ, 0, 0);
+    D = here();
+    I(ZL_JNZ, 0, 0);
+    I(ZL_LOAD, 3, 0);
+    I(ZL_LOAD, 4, 0);
+    I(ZL_CAR, 0, 0);
+    I(ZL_ADD, 0, 0);
+    I(ZL_STORE, 3, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_ADD, 0, 0);
+    I(ZL_STORE, 5, 0);
+    I(ZL_LOAD, 4, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_STORE, 4, 0);
+    I(ZL_JMP, W, 0);
+    patch(D, here());
+    I(ZL_LOAD, 3, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    char want[64];
+    snprintf(want, sizeof want, "1 %lld %lld", (long long) (N * (N + 1) / 2), (long long) N);
+    expect_run(ZL_OK, want, "a 4000-pair list through collections");
+    CHECK(R.collections >= 3, "it was moved by %u collections", R.collections);
+
+    /* vectors, strings, a cycle and a frame cell */
+    prog_reset(62);
+    P.nslots = 8;
+    sym("abc");
+    sym("def");
+    uint32_t j = here();
+    I(ZL_JMP, 0, 0);
+    uint32_t f = here(); /* f: a frame cell holds a pair through more garbage */
+    I(ZL_ENTER, 1, 0);
+    I(ZL_PUSH, 41, 0);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_STOREF, 0, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_STORE, 1, 0);
+    uint32_t G = here();
+    I(ZL_PUSH, 12345, 0); /* a two-cell string, dropped */
+    I(ZL_SCONV, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_PUSH, 3, 0); /* a four-cell vector, dropped */
+    I(ZL_VNEW, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_LOAD, 1, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_ADD, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_STORE, 1, 0);
+    I(ZL_PUSH, 30000, 0);
+    I(ZL_LT, 0, 0);
+    I(ZL_JNZ, G, 0);
+    I(ZL_LOADF, 0, 0);
+    I(ZL_CAR, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(j, here());
+    I(ZL_PUSH, 3, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_STORE, 5, 0);
+    I(ZL_LOAD, 5, 0); /* v[0] = "abc" ++ "def", a made string */
+    I(ZL_PUSH, 0, 0);
+    I(ZL_PUSH, ZL_V_STRC, 0);
+    I(ZL_PUSH, ZL_V_STRC + 1, 0);
+    I(ZL_SCAT, 0, 0);
+    I(ZL_VSET, 0, 0);
+    I(ZL_LOAD, 5, 0); /* v[1] = (1 . 2) */
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 2, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_VSET, 0, 0);
+    I(ZL_LOAD, 5, 0); /* v[2] = v: a cycle */
+    I(ZL_PUSH, 2, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_VSET, 0, 0);
+    I(ZL_LINK, 0, 0);
+    I(ZL_CALL, f, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_CDR, 0, 0);
+    I(ZL_OUTI, 1, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_PUSH, 2, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_LOAD, 5, 0);
+    I(ZL_EQ, 0, 0);
+    I(ZL_OUTI, 1, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "41 abcdef 2 1", "vectors, strings, a cycle and a frame through collections");
+    CHECK(R.collections >= 2, "blocks collected %u times", R.collections);
+
+    /* a full heap of live pairs: one collection, then HEAP, at the same CONS */
+    prog_reset(62);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_JMP, 1, 0);
+    expect_run(ZL_E_HEAP, 0, "live pairs fill the heap");
+    CHECK(R.collections == 1 && R.trap_pc == 2, "one collection (%u)", R.collections);
+    /* a collection frees what the stack no longer holds, then the retry fits */
+    prog_reset(62);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_CONS, 0, 0); /* (1) */
+    L = here();
+    I(ZL_PUSH, 1, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_CONS, 0, 0); /* (1 1): a new head on the kept tail */
+    I(ZL_CDR, 0, 0);  /* drop the head again: it becomes garbage */
+    I(ZL_JMP, L, 0);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = sizeof out;
+    R.fuel = 6 * 40000;
+    CHECK(zl_run(&P, &R) == ZL_E_FUEL && R.collections >= 1, "a growing list whose tail is kept");
+    /* garbage of one kind does not stop the other */
+    prog_reset(62);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_PUSH, 7, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_JMP, 0, 0);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = sizeof out;
+    R.fuel = 8 * 50000;
+    CHECK(zl_run(&P, &R) == ZL_E_FUEL && R.collections >= 2, "pairs and vectors both collected");
+    /* fuel is the same with or without collections: the retry is free */
+    prog_reset(62);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_CONS, 0, 0);
+    I(ZL_DROP, 0, 0);
+    I(ZL_JMP, 0, 0);
+    memset(&R, 0, sizeof R);
+    R.out = out;
+    R.out_cap = sizeof out;
+    R.fuel = 5 * 20000;
+    CHECK(zl_run(&P, &R) == ZL_E_FUEL && R.used == 5 * 20000 && R.collections == 1,
+          "20000 pairs: one collection, fuel exact (%llu, %u)", (unsigned long long) R.used,
+          R.collections);
+    /* a 32-bit program never holds references: nothing to collect, ever */
+    CHECK(strcmp(zl_op_name(ZL_JMPI), "JMPI") == 0, "JMPI's name");
+    /* JMPI: a tail call through a value runs in constant call depth */
+    prog_reset(62);
+    P.nslots = 4;
+    j = here();
+    I(ZL_JMP, 0, 0);
+    f = here(); /* f(n): n == 0 ? print : f(n - 1), as a tail call */
+    I(ZL_ENTER, 1, 1);
+    I(ZL_LOADF, 0, 0);
+    uint32_t z = here();
+    I(ZL_JZ, 0, 0);
+    I(ZL_LOADF, 0, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_SUB, 0, 0);
+    I(ZL_LINK, 1, 0); /* the static link, taken before LEAVE */
+    I(ZL_SWAP, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_PUSH, ZL_V_CODE + f, 0);
+    I(ZL_JMPI, 0, 0);
+    patch(z, here());
+    I(ZL_LOADF, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_LEAVE, 0, 0);
+    I(ZL_RET, 0, 0);
+    patch(j, here());
+    I(ZL_LINK, 0, 0);
+    I(ZL_PUSH, 100000, 0);
+    I(ZL_CALL, f, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "0", "100000 tail calls through a value, far past the call depth");
+    prog_reset(62);
+    I(ZL_PUSH, 5, 0);
+    I(ZL_JMPI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_DOMAIN, 0, "JMPI to a number");
+    prog_reset(62);
+    I(ZL_JMPI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_E_STACK, 0, "JMPI on an empty stack");
+    prog_reset(64);
+    I(ZL_JMPI, 0, 0);
+    I(ZL_HALT, 0, 0);
+    zl_diag_t d;
+    CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "JMPI only in 62-bit programs");
 }
 
 int main(int argc, char **argv)
@@ -2929,6 +3637,8 @@ int main(int argc, char **argv)
     test_frames();
     test_lists();
     test_ext();
+    test_e6();
+    test_gc();
     test_golden(dir);
     printf("%d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;

@@ -342,6 +342,18 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
         case ZL_CATCH:
             if (i->a < 0 || i->a >= (int64_t) p->ncode)
                 return vfail(d, i->line, "jump target out of range");
+            if (i->b != 0 && i->b != 1) return vfail(d, i->line, "bad catch mode");
+            break;
+        case ZL_RANGE:
+            if (i->a <= 0 || (i->b != 0 && i->b != 1)) return vfail(d, i->line, "bad range");
+            break;
+        case ZL_WRAP:
+            if (i->a < 1 || i->a > 63 || (i->b != 0 && i->b != 1))
+                return vfail(d, i->line, "bad wrap width");
+            break;
+        case ZL_OUTD:
+            if (i->a < 0 || (i->a & 255) > 18 || (i->a >> 8) > 64 || i->b < 0 || i->b > 3)
+                return vfail(d, i->line, "bad decimal format");
             break;
         case ZL_CONS:
         case ZL_CAR:
@@ -359,6 +371,7 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
         case ZL_SCMP:
         case ZL_SCONV:
         case ZL_CALLI:
+        case ZL_JMPI:
             if (p->word_bits != 62)
                 return vfail(d, i->line, "list operation outside a list program");
             if (i->op == ZL_SCONV && (i->a < 0 || i->a >= ZL_SCONV__COUNT))
@@ -668,6 +681,91 @@ static int ipow(int64_t base, int64_t e, int mode, uint32_t bits, int64_t *out)
     return ZL_OK;
 }
 
+/* E7: the collector (zl.h). Roots are the data stack, the slots and the
+ * live frame cells; pairs and vectors hold references, strings do not.
+ * Live objects keep their order, so sliding them down is a forward copy. */
+static uint32_t blk_size(const int64_t *blk, uint32_t o)
+{
+    uint64_t len = (uint64_t) blk[o] >> 2;
+    return 1u + (uint32_t) ((blk[o] & 3) == 1 ? len : (len + 7u) / 8u);
+}
+
+static void gc_mark(zl_run_t *r, int64_t v, uint32_t hp, uint32_t bp, uint32_t *n)
+{
+    if (v > ZL_V_REF && v < ZL_V_REF + (int64_t) hp) {
+        uint32_t k = (uint32_t) (v - ZL_V_REF);
+        if (!r->gc_fwd_p[k]) {
+            r->gc_fwd_p[k] = 1;
+            r->gc_stack[(*n)++] = k;
+        }
+    } else if (v > ZL_V_BLK && v < ZL_V_BLK + (int64_t) bp) {
+        uint32_t o = (uint32_t) (v - ZL_V_BLK);
+        if (!r->gc_fwd_b[o]) {
+            r->gc_fwd_b[o] = 1;
+            if ((r->blk[o] & 3) == 1) r->gc_stack[(*n)++] = o | 0x80000000u;
+        }
+    }
+}
+
+static int64_t gc_move(const zl_run_t *r, int64_t v, uint32_t hp, uint32_t bp)
+{
+    if (v > ZL_V_REF && v < ZL_V_REF + (int64_t) hp) return ZL_V_REF + r->gc_fwd_p[v - ZL_V_REF];
+    if (v > ZL_V_BLK && v < ZL_V_BLK + (int64_t) bp) return ZL_V_BLK + r->gc_fwd_b[v - ZL_V_BLK];
+    return v;
+}
+
+static void gc(zl_run_t *r, const zl_prog_t *p, uint32_t sp, uint32_t ftop, uint32_t *hpp,
+               uint32_t *bpp)
+{
+    uint32_t hp = *hpp, bp = *bpp, n = 0;
+    int64_t *heap = r->heap, *blk = r->blk;
+    r->collections++;
+    for (uint32_t k = 0; k < hp; k++) r->gc_fwd_p[k] = 0;
+    for (uint32_t o = 0; o < bp; o++) r->gc_fwd_b[o] = 0;
+    for (uint32_t i = 0; i < sp; i++) gc_mark(r, r->stack[i], hp, bp, &n);
+    for (uint32_t i = 0; i < p->nslots; i++) gc_mark(r, r->mem[i], hp, bp, &n);
+    for (uint32_t i = 0; i < ftop; i++) gc_mark(r, r->frames[i], hp, bp, &n);
+    while (n) { /* each object is pushed once: n stays within gc_stack */
+        uint32_t e = r->gc_stack[--n];
+        if (e & 0x80000000u) {
+            uint32_t o = e & 0x7fffffffu, len = (uint32_t) (blk[o] >> 2);
+            for (uint32_t i = 1; i <= len; i++) gc_mark(r, blk[o + i], hp, bp, &n);
+        } else {
+            gc_mark(r, heap[2 * e], hp, bp, &n);
+            gc_mark(r, heap[2 * e + 1], hp, bp, &n);
+        }
+    }
+    uint32_t np = 1, nb = 1;
+    for (uint32_t k = 1; k < hp; k++)
+        if (r->gc_fwd_p[k]) r->gc_fwd_p[k] = np++;
+    for (uint32_t o = 1; o < bp; o += blk_size(blk, o))
+        if (r->gc_fwd_b[o]) {
+            r->gc_fwd_b[o] = nb;
+            nb += blk_size(blk, o);
+        }
+    for (uint32_t i = 0; i < sp; i++) r->stack[i] = gc_move(r, r->stack[i], hp, bp);
+    for (uint32_t i = 0; i < p->nslots; i++) r->mem[i] = gc_move(r, r->mem[i], hp, bp);
+    for (uint32_t i = 0; i < ftop; i++) r->frames[i] = gc_move(r, r->frames[i], hp, bp);
+    for (uint32_t k = 1; k < hp; k++)
+        if (r->gc_fwd_p[k]) {
+            uint32_t to = r->gc_fwd_p[k];
+            heap[2 * to] = gc_move(r, heap[2 * k], hp, bp);
+            heap[2 * to + 1] = gc_move(r, heap[2 * k + 1], hp, bp);
+        }
+    for (uint32_t o = 1; o < bp;) {
+        uint32_t size = blk_size(blk, o), to = r->gc_fwd_b[o];
+        if (to) {
+            int vec = (blk[o] & 3) == 1;
+            blk[to] = blk[o];
+            for (uint32_t i = 1; i < size; i++)
+                blk[to + i] = vec ? gc_move(r, blk[o + i], hp, bp) : blk[o + i];
+        }
+        o += size;
+    }
+    *hpp = np;
+    *bpp = nb;
+}
+
 int zl_run(const zl_prog_t *p, zl_run_t *r)
 {
     uint32_t sp = 0, rp = 0, pc = 0;
@@ -683,6 +781,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
     r->used = 0;
     r->trap_line = 0;
     r->trap_pc = 0;
+    r->collections = 0;
     if (r->out_cap) r->out[0] = 0;
     if (r->trace) r->trace->n = 0;
     o.r = r;
@@ -691,6 +790,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
     uint32_t *rs = r->rstack;
     uint32_t fd = 0, ftop = 0, hp = 1; /* frame depth, first free frame cell, next pair */
     uint32_t bp = 1, nh = 0;           /* next free block cell, active CATCHes */
+    uint32_t gc_at = UINT32_MAX;       /* the instruction a collection just ran for */
     int64_t *blk = r->blk;
     vm_heaps_t hs;
     for (uint32_t i = 0; i < p->nslots; i++) mem[i] = 0;
@@ -724,6 +824,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
         }                                                                                          \
     } while (0)
 
+resume:
     for (;;) {
         if (pc >= p->ncode) {
             s = ZL_E_VERIFY;
@@ -1142,10 +1243,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             break;
         case ZL_CONS:
             NEED(2);
-            if (hp >= ZL_MAX_CELLS) {
-                s = ZL_E_HEAP;
-                goto trap;
-            }
+            if (hp >= ZL_MAX_CELLS) goto heapfull;
             heap[2 * hp] = st[sp - 2];
             heap[2 * hp + 1] = st[sp - 1];
             st[sp - 2] = ZL_V_REF + hp++;
@@ -1221,10 +1319,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
                 s = ZL_E_DOMAIN;
                 goto trap;
             }
-            if (x >= (int64_t) (ZL_MAX_BLK - bp)) {
-                s = ZL_E_HEAP;
-                goto trap;
-            }
+            if (x >= (int64_t) (ZL_MAX_BLK - bp)) goto heapfull;
             blk[bp] = x << 2 | 1;
             for (int64_t i = 1; i <= x; i++) blk[bp + i] = 0;
             st[sp - 1] = ZL_V_BLK + bp;
@@ -1309,10 +1404,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
                 n1 = (uint32_t) cnt;
             }
             uint64_t total = (uint64_t) n1 + n2, cells = (total + 7) / 8;
-            if (cells >= (uint64_t) (ZL_MAX_BLK - bp)) {
-                s = ZL_E_HEAP;
-                goto trap;
-            }
+            if (cells >= (uint64_t) (ZL_MAX_BLK - bp)) goto heapfull;
             if (cells) blk[bp + cells] = 0; /* clear the last cell's padding */
             blk[bp] = (int64_t) (total << 2 | 2);
             char *d = (char *) &blk[bp + 1];
@@ -1372,10 +1464,7 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
                 n1 = 1;
             }
             uint32_t cells = (n1 + 7) / 8;
-            if (cells >= ZL_MAX_BLK - bp) {
-                s = ZL_E_HEAP;
-                goto trap;
-            }
+            if (cells >= ZL_MAX_BLK - bp) goto heapfull;
             blk[bp] = (int64_t) n1 << 2 | 2;
             blk[bp + cells] = 0;
             zl_bcopy(&blk[bp + 1], a1, n1);
@@ -1397,12 +1486,21 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             rs[rp++] = next;
             next = (uint32_t) (x - ZL_V_CODE);
             break;
+        case ZL_JMPI:
+            NEED(1);
+            x = st[--sp];
+            if (x < ZL_V_CODE || x >= ZL_V_CODE + (int64_t) p->ncode) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            next = (uint32_t) (x - ZL_V_CODE);
+            break;
         case ZL_CATCH:
             if (nh >= ZL_MAX_CALLS) {
                 s = ZL_E_RSTACK;
                 goto trap;
             }
-            r->hpc[nh] = (uint32_t) in->a;
+            r->hpc[nh] = (uint32_t) in->a | (uint32_t) in->b << 31; /* b: catches traps */
             r->hsp[nh] = sp;
             r->hrp[nh] = rp;
             r->hfd[nh++] = fd;
@@ -1432,15 +1530,127 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             fd = r->hfd[nh];
             ftop = r->fbase[fd] + r->fsize[fd];
             st[sp++] = x; /* sp was at least one higher a moment ago */
-            next = r->hpc[nh];
+            next = r->hpc[nh] & 0x7fffffffu;
             break;
+        case ZL_RANGE:
+            NEED(1);
+            x = st[sp - 1];
+            if (!NUM(x)) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (x > in->a || x < -in->a - in->b) {
+                s = ZL_E_OVERFLOW;
+                goto trap;
+            }
+            break;
+        case ZL_INEOF:
+            ROOM(1);
+            st[sp++] = inpos >= r->nin;
+            break;
+        case ZL_SHL:
+        case ZL_SHR:
+            NEED(2);
+            y = st[--sp];
+            x = st[sp - 1];
+            if (!NUM(x) || !NUM(y) || y < 0 || y > 63) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (in->op == ZL_SHR) {
+                z = x >> y; /* arithmetic: the floor, as gcc and clang define it */
+            } else {
+                if (x && (y > 62 || (x > 0 ? x > (INT64_MAX >> y) : x < (INT64_MIN >> y)))) {
+                    s = ZL_E_OVERFLOW;
+                    goto trap;
+                }
+                z = (int64_t) ((uint64_t) x << y);
+            }
+            CHK(z);
+            st[sp - 1] = z;
+            break;
+        case ZL_WRAP: {
+            NEED(1);
+            x = st[sp - 1];
+            if (!NUM(x)) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            uint64_t m = (uint64_t) 1 << in->a, u = (uint64_t) x & (m - 1u);
+            z = (int64_t) (in->b || u < (m >> 1) ? u : u | ~(m - 1u)); /* sign-extended */
+            CHK(z);
+            st[sp - 1] = z;
+            break;
+        }
+        case ZL_OUTD: {
+            char num[48];
+            size_t k = 0, w = (size_t) (in->a >> 8), sc = (size_t) (in->a & 255);
+            NEED(1);
+            x = st[--sp];
+            if (!NUM(x)) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (r->trace && r->trace->n < r->trace->cap) r->trace->v[r->trace->n++] = x;
+            char dg[24];
+            size_t nd = 0;
+            uint64_t m = x < 0 ? (uint64_t) 0 - (uint64_t) x : (uint64_t) x;
+            do dg[nd++] = (char) ('0' + m % 10u);
+            while ((m /= 10u) != 0);
+            while (nd <= sc) dg[nd++] = '0'; /* at least one digit before the point */
+            if (x < 0)
+                num[k++] = '-';
+            else if (in->b & ZL_FMT_SIGNSPACE)
+                num[k++] = ' ';
+            while (nd) {
+                if (nd == sc) num[k++] = '.';
+                num[k++] = dg[--nd];
+            }
+            if (w > k)
+                for (size_t i = 0; i < w - k; i++)
+                    if ((s = vm_put(&o, " ", 1)) != ZL_OK) goto trap;
+            if ((s = vm_put(&o, num, k)) != ZL_OK) goto trap;
+            if ((in->b & ZL_FMT_TRAIL) && (s = vm_put(&o, " ", 1)) != ZL_OK) goto trap;
+            break;
+        }
         default:
             s = ZL_E_VERIFY;
             goto trap;
         }
         pc = next;
+        gc_at = UINT32_MAX;
+        continue;
+    heapfull:
+        /* E7: collect once, then run the same instruction again; nothing it
+         * read has been changed, and the retry costs no fuel */
+        if (gc_at == pc) {
+            s = ZL_E_HEAP;
+            goto trap;
+        }
+        gc(r, p, sp, ftop, &hp, &bp);
+        gc_at = pc;
+        r->used--;
     }
 trap:
+    /* E4: a CATCH with b = 1 takes the run-time traps a program can recover
+     * from; machine limits (FUEL, STACK, RSTACK, OUTPUT, HEAP) still stop it */
+    if (s == ZL_E_OVERFLOW || s == ZL_E_DIVZERO || s == ZL_E_INEXACT || s == ZL_E_BOUNDS ||
+        s == ZL_E_DOMAIN || s == ZL_E_INPUT) {
+        uint32_t k = nh;
+        while (k && !(r->hpc[k - 1] >> 31)) k--;
+        if (k && r->hsp[k - 1] <= sp && r->hrp[k - 1] <= rp && r->hfd[k - 1] <= fd &&
+            r->hsp[k - 1] < ZL_MAX_STACK) {
+            nh = k - 1;
+            sp = r->hsp[nh];
+            rp = r->hrp[nh];
+            fd = r->hfd[nh];
+            ftop = r->fbase[fd] + r->fsize[fd];
+            st[sp++] = s;
+            pc = r->hpc[nh] & 0x7fffffffu;
+            s = ZL_OK;
+            goto resume;
+        }
+    }
     r->trap_pc = pc;
     r->trap_line = pc < p->ncode ? p->code[pc].line : 0;
     /* a trap in line-less code (a front-end's helper) reports its caller's line */
