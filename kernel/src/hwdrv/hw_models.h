@@ -83,6 +83,11 @@ typedef struct hw_swarm_want {
 #define HW_GATEWAY_MAX 4
 #define HW_GATEWAY_LEN 80
 
+/* Mesh seed peers (Vinea transport addresses: IPv4 + big-endian port, six
+ * bytes) from "peer <ipv4> <port>" lines, in the order listed. */
+#define HW_PEER_MAX      8
+#define HW_PEER_ADDR_LEN 6
+
 /* What the kernel does to the network once swarm discs fetched over it are
  * committed (the post-hydration seal, kernel/src/swarmnet/swarmnet.h). */
 #define HW_SEAL_PROMPT_USER     0 /* ask on the console; no answer: power down */
@@ -102,6 +107,8 @@ typedef struct hw_models {
     char cid[121], ipns[121];                     /* /ZXV/UPSTREAM.CID, "" when absent */
     char gateway[HW_GATEWAY_MAX][HW_GATEWAY_LEN]; /* its "gateway <url>" lines */
     uint32_t ngateway;
+    uint8_t peer[HW_PEER_MAX][HW_PEER_ADDR_LEN]; /* its "peer <ipv4> <port>" lines */
+    uint32_t npeer;
     uint8_t seal;     /* its "seal <mode>" line: HW_SEAL_*, PROMPT_USER when absent */
     uint8_t seal_set; /* the line was present */
     hw_swarm_want_t want[HW_SWARM_WANT_MAX];

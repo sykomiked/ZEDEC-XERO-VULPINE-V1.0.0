@@ -195,7 +195,8 @@ async function boot()
             throw new Error(
                 'this page needs a secure origin (https or localhost) to check the files');
         const logos = LOGOS.map((k) => manifest.logos && manifest.logos[k]).filter(Boolean);
-        const files = [...logos, ...(manifest.system || []) ];
+        const files = [...logos, ...(manifest.font ? [manifest.font] : []),
+                       ...(manifest.system || []) ];
         let total = 0;
         for (const f of files) {
             if (!f.path || !(f.size >= 0))
@@ -218,6 +219,14 @@ async function boot()
             new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
             if (zb.zb_logo_set(i, bytes.length) !== 0)
                 throw new Error(`${entry.path}: not a ZXVG file`);
+        }
+        if (manifest.font) {
+            const bytes = await fetchChecked(manifest.font, onBytes);
+            const p = zb.zb_font_buf(bytes.length);
+            if (!p) throw new Error(`${manifest.font.path}: too large`);
+            new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
+            if (zb.zb_font_set(bytes.length) !== 0)
+                throw new Error(`${manifest.font.path}: not a TrueType font`);
         }
         for (const entry of manifest.system || []) await fetchChecked(entry, onBytes);
         zb.zb_ready();

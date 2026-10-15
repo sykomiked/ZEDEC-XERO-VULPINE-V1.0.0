@@ -21,6 +21,12 @@ static void mem_set(void *d, int c, uint32_t n) {
     for (uint32_t i = 0; i < n; i++) dst[i] = (uint8_t)c;
 }
 
+/* L4 payload per IP fragment: a multiple of 8 that keeps each frame under
+ * the 1500-byte link MTU. A whole UDP datagram may run to NET_UDP_DG_MAX
+ * (PQ-signed records), assembled once then fragmented. */
+#define NET_IP_FRAG_PAYLOAD 1480u
+#define NET_UDP_DG_MAX      (NET_REASM_BYTES + 64u)
+
 static bool next_hop_mac(net_state_t *net, const net_interface_t *iface,
                          const uint8_t *dst, uint8_t *mac_out);
 static uint32_t net_rand(net_state_t *net, const net_interface_t *iface);
@@ -28,6 +34,14 @@ static void ip_tx_raw(net_state_t *net, net_interface_t *iface,
                       const uint8_t *src_ip, const uint8_t *dst_ip,
                       const uint8_t *dst_mac, uint8_t proto,
                       const uint8_t *l4, uint32_t l4len);
+static void ip_tx_frag(net_state_t *net, net_interface_t *iface, const uint8_t *src_ip,
+                       const uint8_t *dst_ip, const uint8_t *dst_mac, uint8_t proto,
+                       const uint8_t *l4, uint32_t l4len);
+static void net_ip_dispatch(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
+                            const uint8_t *payload, uint32_t payload_len);
+static void net_reasm_feed(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
+                           uint8_t ihl, const uint8_t *payload, uint32_t plen, uint32_t off8,
+                           bool mf);
 static int32_t tcp_alloc(net_state_t *net);
 static void tcp_free(net_state_t *net, int32_t idx);
 static net_interface_t *tcp_pick_iface(net_state_t *net);
@@ -404,6 +418,20 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
         }
     }
 
+    /* A fragmented datagram does not reach the transport handlers until it
+     * is whole: feed the reassembler and return. */
+    uint16_t ff = (uint16_t) ((ip->flags_frag >> 8) | (ip->flags_frag << 8));
+    if (ff & (0x2000u | 0x1FFFu)) {
+        net_reasm_feed(net, iface, ip, ihl, payload, payload_len, (uint32_t) (ff & 0x1FFFu),
+                       (ff & 0x2000u) != 0);
+        return;
+    }
+    net_ip_dispatch(net, iface, ip, payload, payload_len);
+}
+
+static void net_ip_dispatch(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
+                            const uint8_t *payload, uint32_t payload_len)
+{
     switch (ip->protocol) {
         case IP_PROTO_ICMP: net_handle_icmp(net, iface, ip, payload, payload_len); break;
         case IP_PROTO_TCP:  net_handle_tcp(net, iface, ip, payload, payload_len); break;
@@ -411,6 +439,71 @@ void net_handle_ip(net_state_t *net, net_interface_t *iface, const uint8_t *data
         case IP_PROTO_M5:   net_handle_tcp(net, iface, ip, payload, payload_len); break; /* M5 uses TCP-like */
         default: break;
     }
+}
+
+/* Reassemble one fragment. Slot key is (src, dst, proto, id); a new key
+ * takes a free slot or evicts the least recently used one. When the last
+ * fragment has been seen and every 8-byte unit is present the completed
+ * payload goes to the normal transport dispatch. */
+static void net_reasm_feed(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
+                           uint8_t ihl, const uint8_t *payload, uint32_t plen, uint32_t off8,
+                           bool mf)
+{
+    net_reasm_t *s = 0, *old = 0;
+    for (uint32_t i = 0; i < NET_REASM_SLOTS; i++) {
+        net_reasm_t *c = &net->reasm[i];
+        if (c->used && c->proto == ip->protocol && c->id == ip->id) {
+            bool same = true;
+            for (int j = 0; j < NET_IP_LEN; j++)
+                if (c->src[j] != ip->src_ip[j] || c->dst[j] != ip->dst_ip[j]) same = false;
+            if (same) {
+                s = c;
+                break;
+            }
+        }
+        if (!old || !c->used || c->stamp < old->stamp) old = c;
+    }
+    if (!s) {
+        if (!old || ihl > sizeof old->hdr) return;
+        s = old;
+        mem_set(s, 0, sizeof(*s));
+        s->proto = ip->protocol;
+        s->id = ip->id;
+        mem_copy(s->src, ip->src_ip, NET_IP_LEN);
+        mem_copy(s->dst, ip->dst_ip, NET_IP_LEN);
+        mem_copy(s->hdr, ip, ihl);
+        s->ihl = ihl;
+        s->used = 1;
+    }
+    s->stamp = ++net->reasm_seq;
+
+    uint32_t off = off8 << 3;
+    if (off + plen > NET_REASM_BYTES || plen == 0) {
+        s->used = 0;
+        return;
+    }
+    mem_copy(s->buf + off, payload, plen);
+    for (uint32_t u = off >> 3; u < (off + plen + 7u) >> 3 && u < NET_REASM_UNITS; u++) {
+        uint8_t bit = (uint8_t) (1u << (u & 7u));
+        if (!(s->map[u >> 3] & bit)) {
+            s->map[u >> 3] |= bit;
+            s->units++;
+        }
+    }
+    if (!mf) s->len = off + plen;
+    if (!s->len) return;
+
+    uint32_t need = (s->len + 7u) >> 3;
+    if (s->units < need) return;
+    uint32_t got = 0;
+    for (uint32_t u = 0; u < need; u++)
+        if (s->map[u >> 3] & (1u << (u & 7u))) got++;
+    if (got < need) return;
+
+    ip_header_t hdr;
+    mem_copy(&hdr, s->hdr, sizeof hdr);
+    s->used = 0;
+    net_ip_dispatch(net, iface, &hdr, s->buf, s->len);
 }
 
 void net_handle_icmp(net_state_t *net, net_interface_t *iface, const ip_header_t *ip,
@@ -563,6 +656,12 @@ void net_handle_udp(net_state_t *net, net_interface_t *iface, const ip_header_t 
                            len - (uint32_t)sizeof(udp_header_t));
             return;
         }
+    }
+
+    if (net->udp_hook && dst_port == net->udp_hook_port) {
+        net->udp_hook(net->udp_hook_ctx, ip->src_ip, src_port, data + sizeof(udp_header_t),
+                      len - (uint32_t) sizeof(udp_header_t));
+        return;
     }
 
     for (uint32_t i = 0; i < net->num_sockets; i++) {
@@ -723,13 +822,24 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
     }
     if (!iface || !iface->tx_callback) return -1;
 
+    /* Resolve the next hop, not the destination: a peer off this subnet is
+     * reached through the gateway, and an ARP request for an off-subnet
+     * address is never answered, so sending to it must wait on the
+     * gateway's MAC, not the peer's. */
+    const uint8_t *hop = s->remote_ip;
+    {
+        bool on_link = true;
+        for (int i = 0; i < NET_IP_LEN; i++)
+            if ((s->remote_ip[i] & iface->netmask[i]) != (iface->ip[i] & iface->netmask[i]))
+                on_link = false;
+        if (!on_link) hop = iface->gateway;
+    }
     uint8_t dst_mac[6];
-    if (!net_arp_lookup(net, s->remote_ip, dst_mac)) {
-        net_arp_request(net, iface, s->remote_ip);
+    if (!net_arp_lookup(net, hop, dst_mac)) {
+        net_arp_request(net, iface, hop);
         return -1;
     }
 
-    uint32_t total;
     if (s->type == SOCK_TCP) {
         /* TCP goes through the real state machine: it decides how much can be
          * sent, keeps the bytes for retransmission and stamps the sequence
@@ -745,27 +855,19 @@ int32_t net_send(net_state_t *net, int32_t sock, const void *data, uint32_t len)
         tcp_mirror(s, c);
         return (int32_t)used;
     } else {
-        total = sizeof(eth_header_t) + sizeof(ip_header_t) + sizeof(udp_header_t) + len;
-        if (total > NET_TX_BUFFER_SIZE) return -1;
-        uint8_t pkt[NET_TX_BUFFER_SIZE];
-        eth_header_t *eth = (eth_header_t *)pkt;
-        ip_header_t *ip = (ip_header_t *)(pkt + sizeof(eth_header_t));
-        udp_header_t *udp = (udp_header_t *)((uint8_t *)ip + sizeof(ip_header_t));
-
-        net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
-        net_build_ip(ip, iface->ip, s->remote_ip, IP_PROTO_UDP,
-                     (uint16_t)(sizeof(ip_header_t) + sizeof(udp_header_t) + len));
-        net_build_udp(udp, s->local_port, s->remote_port,
-                      (uint16_t)(sizeof(udp_header_t) + len));
-        if (data && len > 0)
-            mem_copy(pkt + total - len, data, len);
-        net_udp_finish(udp, iface->ip, s->remote_ip, sizeof(udp_header_t) + len);
-
-        iface->tx_callback(pkt, total);
+        /* UDP — a datagram may exceed the link MTU (a PQ-signed record
+         * does), so it is assembled once and fragmented at the IP layer;
+         * every fragment is a normal-size frame. */
+        static uint8_t dg[NET_UDP_DG_MAX];
+        uint32_t dlen = (uint32_t) sizeof(udp_header_t) + len;
+        if (dlen > sizeof(dg)) return -1;
+        udp_header_t *udp = (udp_header_t *) dg;
+        net_build_udp(udp, s->local_port, s->remote_port, (uint16_t) dlen);
+        if (data && len > 0) mem_copy(dg + sizeof(udp_header_t), data, len);
+        net_udp_finish(udp, iface->ip, s->remote_ip, dlen);
+        ip_tx_frag(net, iface, iface->ip, s->remote_ip, dst_mac, IP_PROTO_UDP, dg, dlen);
     }
 
-    net->tx_packets++;
-    net->tx_bytes += total;
     s->seq_num += len;
     return (int32_t)len;
 }
@@ -792,6 +894,17 @@ int32_t net_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len) {
     s->rx_ready = false;
     s->rx_len = 0;
     return (int32_t)copy_len;
+}
+
+void net_udp_hook(net_state_t *net, uint16_t port,
+                  void (*cb)(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
+                             const uint8_t *data, uint32_t len),
+                  void *ctx)
+{
+    if (!net) return;
+    net->udp_hook_port = port;
+    net->udp_hook = cb;
+    net->udp_hook_ctx = ctx;
 }
 
 int32_t net_close(net_state_t *net, int32_t sock) {
@@ -896,6 +1009,42 @@ static void ip_tx_raw(net_state_t *net, net_interface_t *iface,
     iface->tx_callback(pkt, total);
     net->tx_packets++;
     net->tx_bytes += total;
+}
+
+/* Emit one l4 datagram, fragmenting at the IP layer when it exceeds the
+ * link MTU. Each fragment is a normal-size frame; a datagram the size of a
+ * PQ-signed record becomes a burst of ordinary fragments. */
+static void ip_tx_frag(net_state_t *net, net_interface_t *iface, const uint8_t *src_ip,
+                       const uint8_t *dst_ip, const uint8_t *dst_mac, uint8_t proto,
+                       const uint8_t *l4, uint32_t l4len)
+{
+    if (l4len <= NET_IP_FRAG_PAYLOAD) {
+        ip_tx_raw(net, iface, src_ip, dst_ip, dst_mac, proto, l4, l4len);
+        return;
+    }
+    if (!iface || !iface->tx_callback) return;
+    uint16_t fid = (uint16_t) (net_rand(net, iface) & 0xFFFFu);
+    for (uint32_t at = 0; at < l4len; at += NET_IP_FRAG_PAYLOAD) {
+        uint32_t n = l4len - at;
+        if (n > NET_IP_FRAG_PAYLOAD) n = NET_IP_FRAG_PAYLOAD;
+        uint32_t total = sizeof(eth_header_t) + sizeof(ip_header_t) + n;
+        uint8_t pkt[NET_TX_BUFFER_SIZE];
+        mem_set(pkt, 0, total);
+        eth_header_t *eth = (eth_header_t *) pkt;
+        ip_header_t *ip = (ip_header_t *) (pkt + sizeof(eth_header_t));
+        net_build_eth(eth, dst_mac, iface->mac, ETH_TYPE_IP);
+        net_build_ip(ip, src_ip, dst_ip, proto, (uint16_t) (sizeof(ip_header_t) + n));
+        ip->id = (uint16_t) ((fid >> 8) | (fid << 8));
+        uint16_t ff = (uint16_t) (at >> 3);
+        if (at + n < l4len) ff |= 0x2000u; /* more fragments follow */
+        ip->flags_frag = (uint16_t) ((ff >> 8) | (ff << 8));
+        ip->checksum = 0;
+        ip->checksum = ck_net(net_ip_checksum(ip));
+        mem_copy(pkt + sizeof(eth_header_t) + sizeof(ip_header_t), l4 + at, n);
+        iface->tx_callback(pkt, total);
+        net->tx_packets++;
+        net->tx_bytes += total;
+    }
 }
 
 static void udp_tx_raw(net_state_t *net, net_interface_t *iface,

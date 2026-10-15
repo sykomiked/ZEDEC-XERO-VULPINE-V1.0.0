@@ -41,6 +41,7 @@
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "hwdrv/hw_models.h"  /* golden disc models, checked after boot */
 #include "swarmnet/swarmnet.h"  /* missing swarm discs over the network */
+#include "vna_host.h"           /* the Vinea (Web4) node, over the same link */
 #include "layers/layers_boot.h" /* the release lineage L0 -> L1 -> L2, before BOOT_OK */
 #include "manifest_hashes.h"    /* L0 and the swarm discs this kernel was built after */
 #include "x86_irq.h"            /* IDT, LAPIC, timer (gap 6) */
@@ -544,13 +545,18 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * what is attached. */
     static sn_link_t link;
     static sn_fetch_t fetch;
+    static vna_host_t vna;
     static const sn_baked_t baked[] = ZXV_TABLE_SWARM; /* the swarm discs, by CID */
     static const sn_clock_t clk = {x86_ms, x86_heartbeat, 0};
     int hydrating = 0;
+    uint64_t vna_report_next = 0;
     {
         uint32_t missing = 0;
         for (uint32_t i = 0; i < models.nwant; i++) missing += !models.want[i].attached;
-        if (missing && models.cid[0]) {
+        /* the link comes up for the Web4 node (peer seeds) or for hydration
+         * (missing swarm discs + a bucket to fetch them from); either asks
+         * the NIC for a lease, so one attempt serves both */
+        if (models.npeer || (missing && models.cid[0])) {
             if (x86_has_rdrand()) {
                 net_set_entropy(x86_rdrand32);
             } else {
@@ -560,16 +566,23 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
             if (sn_sealed()) {
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
-                fetch.p = hp;
-                fetch.table = baked;
-                fetch.ntable = ZXV_TABLE_SWARM_N;
-                if (sn_fetch_gateways(&fetch, &link, &models)) {
-                    sn_fetch_begin(&fetch);
-                    hydrating = 1;
-                    uart_puts("[SWARM] The core is up; the swarm discs fill in the background. "
-                              "Press d at any time to attach them by hand instead.\n");
-                } else {
-                    uart_puts("  [SWARM_FETCH] no http:// gateway in /ZXV/UPSTREAM.CID\n");
+                if (models.npeer && vna_host_start(&vna, &link, models.peer, models.npeer,
+                                                   x86_has_rdrand() ? x86_rdrand32 : 0)) {
+                    vna_report_next = x86_ms(0) + 60000u;
+                }
+                if (missing && models.cid[0]) {
+                    fetch.p = hp;
+                    fetch.table = baked;
+                    fetch.ntable = ZXV_TABLE_SWARM_N;
+                    if (sn_fetch_gateways(&fetch, &link, &models)) {
+                        sn_fetch_begin(&fetch);
+                        hydrating = 1;
+                        uart_puts("[SWARM] The core is up; the swarm discs fill in the "
+                                  "background. Press d at any time to attach them by hand "
+                                  "instead.\n");
+                    } else {
+                        uart_puts("  [SWARM_FETCH] no http:// gateway in /ZXV/UPSTREAM.CID\n");
+                    }
                 }
             } else {
                 sn_log_offline(hp, &models);
@@ -602,6 +615,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                                        (uint32_t) (__zxv_hydrate_end - __zxv_hydrate_start)};
                     int mode = sn_seal(&link, &fetch, &models, &io);
                     if (mode >= 0) zxv_layers_sealed(&layers, mode == HW_SEAL_POWERDOWN_NIC);
+                    if (mode == HW_SEAL_POWERDOWN_NIC) vna.up = 0;
                 }
             }
             /* a disc committed: mount it, check it against its layer, and
@@ -609,6 +623,13 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
             if (fetch.fresh) {
                 models_left = hw_models_index(&models, hp, &hreg) > 0;
                 (void) zxv_layers_boot(&layers, &models, hp, "x86_64", "BOOTX64.EFI", l0_cid);
+            }
+        }
+        if (vna.up) {
+            vna_host_pump(&vna, x86_ms(0));
+            if (x86_ms(0) >= vna_report_next) {
+                vna_report_next = x86_ms(0) + 60000u;
+                vna_host_report(&vna);
             }
         }
         if (models_left)

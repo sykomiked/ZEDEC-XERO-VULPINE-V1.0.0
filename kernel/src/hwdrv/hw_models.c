@@ -264,6 +264,34 @@ static int token(const char *f, uint32_t len, char *out, uint32_t cap, char lead
     return 1;
 }
 
+/* A mesh seed: "d.d.d.d" plus a decimal port, as its six-byte Vinea transport
+ * address — four IPv4 octets, then the port big-endian (vna addr_len 6). */
+static int peer_addr(const char *ip, uint32_t iplen, const char *pt, uint32_t ptlen, uint8_t out[6])
+{
+    uint32_t octet = 0, dots = 0, j = 0, port = 0;
+    for (uint32_t i = 0; i <= iplen; i++) {
+        if (i == iplen || ip[i] == '.') {
+            if (j == 0 || octet > 255 || j > 3) return 0;
+            out[dots++] = (uint8_t) octet;
+            octet = 0;
+            j = 0;
+            continue;
+        }
+        if (ip[i] < '0' || ip[i] > '9') return 0;
+        octet = octet * 10 + (uint32_t) (ip[i] - '0');
+        j++;
+    }
+    if (dots != 4 || !ptlen || ptlen > 5) return 0;
+    for (uint32_t i = 0; i < ptlen; i++) {
+        if (pt[i] < '0' || pt[i] > '9') return 0;
+        port = port * 10 + (uint32_t) (pt[i] - '0');
+    }
+    if (!port || port > 65535) return 0;
+    out[4] = (uint8_t) (port >> 8);
+    out[5] = (uint8_t) port;
+    return 1;
+}
+
 /* A gateway URL: http:// or https://, then printable ASCII with no spaces. */
 static int gateway_url(const char *f, uint32_t len, char *out)
 {
@@ -301,6 +329,18 @@ static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uin
         if (!field(&a, le, &g, &glen)) return "a key without a value";
         const char *x;
         uint32_t xlen;
+        if (len == 4 && f[0] == 'p' && f[1] == 'e' && f[2] == 'e' && f[3] == 'r') {
+            /* peer <ipv4> <port> — a mesh seed, stored as its six-byte Vinea
+             * transport address (four IPv4 octets, port big-endian). */
+            if (s->npeer == HW_PEER_MAX) return "more peers than the kernel tracks";
+            if (!field(&a, le, &x, &xlen)) return "peer needs an address and a port";
+            if (!peer_addr(g, glen, x, xlen, s->peer[s->npeer])) return "peer is not <ipv4> <port>";
+            s->npeer++;
+            const char *z;
+            uint32_t zlen;
+            if (field(&a, le, &z, &zlen) && *z != '#') return "extra fields";
+            continue;
+        }
         if (field(&a, le, &x, &xlen) && *x != '#') return "extra fields";
         if (len == 3 && f[0] == 'c' && f[1] == 'i' && f[2] == 'd') {
             if (s->cid[0]) return "cid listed twice";
@@ -324,7 +364,7 @@ static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uin
             s->seal = (uint8_t) m;
             s->seal_set = 1;
         } else {
-            return "unknown key (cid|ipns|gateway|seal)";
+            return "unknown key (cid|ipns|gateway|seal|peer)";
         }
     }
     *line = 0;
@@ -391,6 +431,7 @@ static void core_extras(hw_models_t *s, const hw_plat_t *p)
         if (why) {
             s->cid[0] = s->ipns[0] = 0;
             s->ngateway = 0;
+            s->npeer = 0;
             log_note(p, v, "/ZXV/UPSTREAM.CID", n < 0 ? 0 : line, why);
         }
     }

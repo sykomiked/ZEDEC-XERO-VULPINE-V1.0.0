@@ -54,10 +54,11 @@ trap 'rm -f "$tmp"' EXIT
 # drops the name and producers sections.
 "$CLANG" --target=wasm32 -mcpu=generic -std=c11 -O2 -ffreestanding -nostdlib \
     -Wall -Wextra -Werror \
-    -I"$K/include" -I"$K/src/zui" -I"$K/src/font" -I"$K/src/launch" \
+    -I"$K/include" -I"$K/src/zui" -I"$K/src/font" -I"$K/src/launch" -I"$K/src/emu" \
     -Wl,--no-entry -Wl,--strip-all -Wl,-z,stack-size=1048576 \
     "$R/web/boot/zxv_boot_wasm.c" "$K/src/zui/zui_boot.c" "$K/src/zui/zui_vec.c" \
     "$K/src/zui/zui_progress.c" "$K/src/zui/zui_canvas.c" "$K/src/zui/zui_layout.c" \
+    "$K/src/zui/zui_login.c" "$K/src/zui/zui_depth.c" \
     "$K/src/font/truetype.c" "$K/src/launch/zxl_launch.c" "$K/src/launch/zxl_synth.c" \
     -o "$tmp"
 if [ "$mode" = check ]; then

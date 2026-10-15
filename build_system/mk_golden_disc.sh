@@ -345,13 +345,22 @@ printf '%s\t%s\n' "$WORK/README.TXT" "ZXV/README.TXT" >> "$LIST"
 # ones and fetch them over the network (kernel/src/swarmnet), then seal the
 # network as the "seal" line says.
 while read -r key val rest; do
-  [ -z "${rest:-}" ] || die "$UPSTREAM: '$key $val $rest' has extra fields"
+  case "$key" in
+    peer)
+      # peer <ipv4> <port> — a Vinea seed, so the key itself takes two values
+      read -r port extra <<<"$rest"
+      [ -n "${port:-}" ] && [ -z "${extra:-}" ] || die "$UPSTREAM: 'peer $val $rest' is not <ipv4> <port>"
+      [[ "$val" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || die "$UPSTREAM: peer '$val' is not an IPv4 address"
+      [[ "$port" =~ ^[0-9]{1,5}$ && "$port" -ge 1 && "$port" -le 65535 ]] || die "$UPSTREAM: peer port '$port' is not 1-65535"
+      continue ;;
+    *) [ -z "${rest:-}" ] || die "$UPSTREAM: '$key $val $rest' has extra fields" ;;
+  esac
   case "$key" in
     cid)  [[ "$val" =~ ^b[a-z2-7]{20,120}$ ]] || die "$UPSTREAM: '$val' is not a base32 CIDv1" ;;
     ipns) [[ "$val" =~ ^k[0-9a-z]{20,120}$ ]] || die "$UPSTREAM: '$val' is not an IPNS name (k51...)" ;;
     gateway) [[ "$val" =~ ^https?://[!-~]+$ && ${#val} -lt 80 ]] || die "$UPSTREAM: '$val' is not an http:// or https:// URL under 80 characters" ;;
     seal) [[ "$val" =~ ^(POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER)$ ]] || die "$UPSTREAM: seal '$val' is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER" ;;
-    *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway|seal)" ;;
+    *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway|seal|peer)" ;;
   esac
 done < <(lines "$UPSTREAM")
 lines "$UPSTREAM" | grep -q '^cid ' || die "$UPSTREAM has no cid line"

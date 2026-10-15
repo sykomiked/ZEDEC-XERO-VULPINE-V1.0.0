@@ -47,12 +47,17 @@ def main(argv):
         else:
             print("missing logo: %s (its tile stays empty)" % rel, file=sys.stderr)
     out = {"logos": logos, "system": [entry(root, rel) for rel in rest]}
+    fp = os.path.join(root, "font.ttf")
+    if os.path.exists(fp):
+        # the login screen behind the vault doors reads its names
+        out["font"] = entry(root, "font.ttf")
     if nxt:
         out["next"] = nxt
     with open(os.path.join(root, "boot.json"), "w") as f:
         json.dump(out, f, indent=1)
         f.write("\n")
-    total = sum(e["size"] for e in list(logos.values()) + out["system"])
+    total = sum(e["size"] for e in list(logos.values()) + out["system"] +
+                ([out["font"]] if "font" in out else []))
     print("wrote %s: %d logos, %d system files, %d bytes" % (os.path.join(root, "boot.json"), len(logos), len(out["system"]), total))
     return 0
 

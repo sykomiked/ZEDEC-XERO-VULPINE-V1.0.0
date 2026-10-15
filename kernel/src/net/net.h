@@ -174,6 +174,28 @@ typedef struct socket {
     bool active;
 } socket_t;
 
+/* IPv4 fragment reassembly — one slot per in-flight datagram, bounded. A
+ * PQ-signed record arrives as a burst of normal-size fragments; the slots
+ * hold the payload until every 8-byte unit is present. */
+#define NET_REASM_SLOTS 4u
+#define NET_REASM_BYTES 24576u /* largest l4 payload we hold   */
+#define NET_REASM_UNITS (NET_REASM_BYTES / 8u)
+
+typedef struct {
+    uint8_t src[NET_IP_LEN];
+    uint8_t dst[NET_IP_LEN];
+    uint8_t proto;
+    uint16_t id;     /* identification, wire order      */
+    uint8_t hdr[60]; /* the allocating fragment's header */
+    uint8_t ihl;
+    uint32_t len;   /* total payload once last seen, 0 else */
+    uint32_t units; /* distinct 8-byte units present   */
+    uint32_t stamp; /* LRU stamp                       */
+    uint8_t used;
+    uint8_t map[NET_REASM_UNITS / 8]; /* unit-presence bitmap            */
+    uint8_t buf[NET_REASM_BYTES];
+} net_reasm_t;
+
 typedef struct net_state {
     net_interface_t interfaces[NET_MAX_INTERFACES];
     uint32_t num_interfaces;
@@ -205,6 +227,18 @@ typedef struct net_state {
     bool       tcp_used[NET_MAX_TCP_CONNS];
     net_interface_t *tcp_iface[NET_MAX_TCP_CONNS];  /* where each one lives */
 
+    /* A raw UDP hook: datagrams to this one port go to the callback, not the
+     * socket pool — a service whose datagrams are bigger than the socket
+     * rx_buf (PQ-signed records) takes them whole instead of being dropped. */
+    /* IPv4 fragment reassembly */
+    net_reasm_t reasm[NET_REASM_SLOTS];
+    uint32_t reasm_seq;
+
+    uint16_t udp_hook_port;
+    void (*udp_hook)(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
+                     const uint8_t *data, uint32_t len);
+    void *udp_hook_ctx;
+
     /* Stats */
     uint32_t rx_packets;
     uint32_t tx_packets;
@@ -220,6 +254,15 @@ int32_t net_register_interface(net_state_t *net, const char *name, net_if_type_t
                                 void (*poll_cb)(void));
 void net_poll(net_state_t *net);
 void net_rx_packet(net_state_t *net, net_interface_t *iface, const uint8_t *data, uint32_t len);
+
+/* Hand every UDP datagram to `port` to `cb` instead of the socket pool
+ * (cb == NULL unhooks). The hook sees the payload, the sender and the sender
+ * port; DHCP (port 68) and the DNS client's pending answer keep their
+ * priority over any hook. */
+void net_udp_hook(net_state_t *net, uint16_t port,
+                  void (*cb)(void *ctx, const uint8_t src_ip[NET_IP_LEN], uint16_t src_port,
+                             const uint8_t *data, uint32_t len),
+                  void *ctx);
 
 int32_t net_socket(net_state_t *net, socket_type_t type);
 int32_t net_connect(net_state_t *net, int32_t sock, const uint8_t *ip, uint16_t port);

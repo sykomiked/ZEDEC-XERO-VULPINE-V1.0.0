@@ -331,6 +331,27 @@ SRCS := \
     kernel/src/swarmnet/sn_http.c \
     kernel/src/swarmnet/sn_fetch.c \
     kernel/src/swarmnet/sn_seal.c \
+    kernel/arch/x86_64/vna_host.c \
+    kernel/src/vinea/vna_agree.c \
+    kernel/src/vinea/vna_cid.c \
+    kernel/src/vinea/vna_cmd.c \
+    kernel/src/vinea/vna_common.c \
+    kernel/src/vinea/vna_econ.c \
+    kernel/src/vinea/vna_file.c \
+    kernel/src/vinea/vna_frame.c \
+    kernel/src/vinea/vna_id.c \
+    kernel/src/vinea/vna_kad.c \
+    kernel/src/vinea/vna_lan.c \
+    kernel/src/vinea/vna_link.c \
+    kernel/src/vinea/vna_node.c \
+    kernel/src/vinea/vna_schema.c \
+    kernel/src/vinea/vna_session.c \
+    kernel/src/vinea/vna_space.c \
+    kernel/src/vinea/vna_wire.c \
+    kernel/src/ubh/ubh.c \
+    kernel/src/pqsec/pq_mldsa87.c \
+    kernel/src/pqsec/pq_mlkem1024.c \
+    kernel/src/pqsec/mldsa/fips202.c \
     kernel/src/ipfs_node/ipfsn_dir.c \
     kernel/src/ipfs_node/ipfsn_multiformats.c \
     kernel/src/ipfs_node/ipfsn_unixfs.c \

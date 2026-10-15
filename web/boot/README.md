@@ -11,8 +11,9 @@ sound as the system loads, and it keeps pace with that load.
 |---|---|
 | `index.html` | the page: a canvas on #002911 and a line for saying why, if the boot stops |
 | `boot.js` | streams the sealed files, feeds the real byte count to the boot screen, puts frames on the canvas and sound on the speakers |
-| `zxv_boot.wasm` | `zui_boot` plus the vector renderer, the launch screen and the boot sounds (`tools/web/build_boot_wasm.sh`; `--check` proves it matches its source) |
+| `zxv_boot.wasm` | `zui_boot` plus the vector renderer, the launch screen, the boot sounds and `zui_login`, which the vault doors open onto (`tools/web/build_boot_wasm.sh`; `--check` proves it matches its source) |
 | `zxv_boot_wasm.c` | the wasm's exports |
+| `font.ttf` | ASCW Golden Latin: the login screen behind the doors writes its names with it (`assets/fonts/ascw-golden/ASCW-Golden-Latin.ttf`, sealed into the root) |
 
 ## Building the wasm
 
