@@ -127,7 +127,7 @@ and `build_system/make_release.sh` shipped the superseded CANONICAL.md and ROADM
 
 | # | Gap | Fill | Status |
 |---|---|---|---|
-| 1 | Master doc out of date | Rewrite `docs/ARCHITECTURE.md` as v5.0: rules R1-R23, strata and hardware layers, the four surfaces, build and ship with the golden-disc gaps, per-stratum status, the 2026-10-15 designs with honest labels, order of work, decisions made and open, document map | done |
+| 1 | Master doc out of date | Rewrite `docs/ARCHITECTURE.md` as v5.0: rules R1-R24 (R24 added the same day), strata and hardware layers, the four surfaces, build and ship with the golden-disc gaps, per-stratum status, the 2026-10-15 designs with honest labels, order of work, decisions made and open, document map | done |
 | 2 | 56 modules undocumented | Entries in SYSTEM_REFERENCE Part B; 9 draft-branch modules in Part C; summary table and totals updated | done |
 | 3 | Wrong statements in SYSTEM_REFERENCE | Desktop app links Vinea LAN discovery and the IPFS node; social, call, xlate and devmesh are in zxvd, not "nowhere"; Q5_0/Q5_1 load (test_zt_q5); a real model has run | done |
 | 4 | Sixteen competing architecture files | Superseded pointer at the top of each; README and CONTRIBUTING point at the two masters | done |

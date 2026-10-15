@@ -141,7 +141,64 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
-| R24 | **The chiglet governs through a verified ABI.** Its output is a typed call checked against bounds, its grants, the rulebook and the lpres gate; a change waits for the person's accept of its exact digest; IRQs, page tables and DMA stay deterministic kernel code | `kernel/src/chiglet/chg_abi.h`, the arm64 console (section 3.4) |
+| R24 | **Idle, it works on itself; a person's interaction takes over; the two feed each other.** With no one present the system recursively finishes its own pending work and feeds itself the next inputs. A user interaction interrupts that loop at once: self-work yields, the system turns to the person's intent, and that cycle ends in a sealed receipt. Then the self-work resumes, carrying what it learned from the person. Idle work stays inside the tokens-per-cycle and nature budgets (R19), is deterministic and replayable, and never takes an outward or irreversible step (money, devices, messages, publishing) without a person approving; suggestions stay held until accepted. Between chiglets, the Web 4 layer is their community: the safe space where they interact and automate with each other while idle, exchanging claims (never their owners' raw data), only under grants both owners signed | Swarm loop, chiglet visits over Web 4, self-tests, indexing, pinning, suggestions, voice (section 2.1) |
+| R25 | **The chiglet governs through a verified ABI.** Its output is a typed call checked against bounds, its grants, the rulebook and the lpres gate; a change waits for the person's accept of its exact digest; IRQs, page tables and DMA stay deterministic kernel code | `kernel/src/chiglet/chg_abi.h`, the arm64 console (section 3.4) |
+
+### 2.1 R24 in the code today
+
+R24 (owner, 2026-10-15) describes a symbiosis: the system improves itself between visits, and
+people's interactions steer it. The owner's image is a waveform collapsing when observed; that is
+a metaphor only, and nothing here is quantum. This is where the code stands against the rule.
+
+Already follows it:
+
+- **It keeps working when idle.** The desktop app and zxvd advance the swarm on a clock whether or
+  not anyone is present (`step()` in `kernel/arch/hosted/zxv_host.c`): market cycles, evolution
+  (`evolve()`), hardware rescans, Vinea upkeep, the power policy and, while online, a daily
+  update check that installs nothing.
+- **It stays inside its budgets.** Every reply and every market cycle spends only the
+  tokens-per-cycle allotment (`swarm_budget`, `zxv_budget_gate`).
+- **Deterministic and replayable where money and answers are concerned.** The settlement spine
+  posts every transfer in peer_audit's replayable form (`kernel/src/settle/settle.h` A1,
+  `kernel/src/peer_audit/pa_runtime.h`); every answer carries a 64-state tag and lands in a
+  quarantine log (`zxv_answer_tag`, `lpres`).
+- **Nothing outward without a person.** AI suggestions are held until the owner accepts them
+  (`kernel/src/apps/quillon_model.h`); the voice speaks only on a tap (📝 #153); life-safety,
+  clinical, grid and financial actions are advisory and human-approved.
+
+Does not follow it yet:
+
+- **Self-work yields to a person in the hosted app only.** `zxv_idle` (`kernel/arch/hosted/zxv_idle.h`
+  I1-I6) runs inward self-checks in slices only while no request is waiting, so a request is
+  served first and the check resumes after it; `/api/ask` itself still blocks the
+  single-threaded server while it runs.
+- **The idle work is mostly simulated.** Stand-in agents spend in the market cycle; the real
+  pending work R24 names (self-tests, indexing, seeding and pinning, compaction, adapter
+  evaluations, the backlog of held items) is not queued for idle time.
+- **A sealed receipt per answer, not yet per whole interaction.** `zxv_receipt`
+  (`kernel/arch/hosted/zxv_receipt.h` E1-E4) seals each ask or check as one hash-chained receipt,
+  signed under zxvd; it does not yet record every layer an interaction touched.
+- **What the person teaches is barely carried forward.** Only quest contributions and
+  reputation feed back from interactions into later self-work.
+
+**The chiglets' community on Web 4.** The owner's addition: idle self-work also happens between
+companions, and the Web 4 layer is where it happens, a safe community space for chiglets to meet
+and automate with each other. The same bounds hold there: they exchange claims, never their
+owners' raw data; only inside a grant both owners signed; within budgets; and nothing outward or
+irreversible happens without a person.
+
+- Built (📝 #155, `chg_kin`): visits run only inside a grant both owners sign (topics, depth, time
+  window, revocable, accepted once); only claims and verdicts with an evidence hash pass, logged
+  in both hash chains; hobby time comes only from idle growth tokens, and hobbies only break ties
+  between equal proposals. Signed boards with trust tiers and an install decision that needs a
+  signed offer, a trusted publisher and an approving review exist in `airc`. Web 4 envelopes and
+  agent identities are in `web4`.
+- Not yet: grants and claims are not carried over Web 4 envelopes on Vinea, `airc` posts have no
+  carrier, there is no zxvd method for visits, and the on-screen visit is not built. #155 is a
+  draft.
+
+Closing these is code work for the threads that own the swarm loop, zxvd, Web 4 and the chiglet
+kin work; until then the lists above are the honest state.
 
 ---
 
@@ -388,6 +445,119 @@ after that, each install is maintained by its user and updated through community
 pass the compatibility contract and an audit by owner-chosen auditors (📝 #155, section 15.6).
 Signed content-addressed packages (`update`, `zxpkg`, checked by `provenance`) and app-level A/B
 (`loader/abupdate`) are the mechanisms on arm64 today.
+
+<!-- zxv:distribution:start -->
+### 5.4 Distribution: split discs, the bucket, hydration and the seal
+
+This section is what `make ipfs-dist` copies into the bucket as `00_base/ARCHITECTURE.md`. Each
+claim names the code that makes it true; parts that run only under emulation so far are marked
+**(QEMU only)**.
+
+**Split media.** A release is a set of raw GPT disc images, none over 1,800,000,000 bytes and no
+file on them of 3.8 GiB or more (`build_system/mk_golden_disc.sh` refuses both before writing).
+
+| Disc | Architecture | Holds |
+|---|---|---|
+| Disc 1, `zxv-<arch>-disc1-core.img` | one per architecture (x86_64, arm64) | the EFI loader and kernel, the core models, `/ZXV/UPSTREAM.CID` (the bucket, its gateways, the seal mode) and `/ZXV/SWARM.LST` (the swarm discs it expects) |
+| Discs 2..N, `zxv-swarm-disc<N>-<group>.img` | `all`: weights carry no machine code | one model group each, on a FAT32 partition named `ZXV_SWARM_<GROUP>` |
+
+Disc 1 boots alone. A kernel fix rebuilds only Disc 1; the swarm discs keep their SHA-256 sums.
+riscv64 has no core disc yet: it has no UEFI loader.
+
+**The bucket.** `build_system/mk_bucket.py` lays the discs out as an IPFS directory, offline:
+`manifest.json` and `manifest.txt` (the same stages: kind, arch, disc, group, bytes, SHA-256, CID,
+path), `00_base/`, one `0N_swarm_<group>/` per swarm disc, and cartridges last. It computes the
+root CID exactly as `ipfs add -r --cid-version=1` would (256 KiB raw leaves, balanced DAG, plain
+UnixFS directories; checked byte for byte against Kubo 0.32.1) and adds nothing to any node.
+Uploading and pinning are the owner's step. `make ipfs-dist` builds everything twice from clean
+and fails unless both passes give the same Disc 1 SHA-256 for every architecture and the same
+root CID.
+
+**Hydration: getting Discs 2..N.** Three routes, each ending in the same check against the
+manifest:
+
+1. **Attach them.** The kernel finds every `ZXV_SWARM_*` disc on AHCI or NVMe after boot
+   (`kernel/src/hwdrv/hw_models.c`) and reports each expected disc as `[SWARM_MOUNTED]` or
+   `[SWARM_MISSING]`.
+2. **Download them on another machine.** `tools/zxv-get --arch <arch>` fetches the core disc for
+   one architecture and every swarm disc from a local IPFS node, else the gateways in order,
+   verifying every block against its CID and every disc against the manifest's SHA-256.
+3. **Fetch them from the bare-metal kernel (x86_64; QEMU only so far).** When a listed disc is
+   missing and a blank drive is attached, `kernel/src/swarmnet` brings the network up with ZXV's
+   own code: the hwdrv NIC drivers (e1000 family, igb, r8169), the `kernel/src/net` stack (ARP,
+   IPv4, UDP, DHCP, DNS, TCP) and the `kernel/src/ipfs_node` block walker. No lwIP, no BSD
+   sockets, no external daemon. In order, each with its boot-log marker:
+   - link: the first NIC whose driver reports link up, `[NET] eth0 = ..., link up`;
+   - DHCP: 5 s per attempt, 3 attempts, `[NET] DHCP lease ...`;
+   - HTTP/1.1 `GET /ipfs/<cid>?format=raw` to each `http://` gateway in `UPSTREAM.CID` order, one
+     raw block per request, every block hashed against its CID before use; a block one gateway
+     cannot serve intact is asked of the next (`[SWARM_FETCH] gateway ...: ...`);
+   - `manifest.txt` from the bucket root, the line for the disc, and the disc's CID through the
+     bucket's directories, which must equal the manifest's;
+   - the image streamed onto a blank drive (no MBR signature, no GPT header) with a rolling
+     SHA-256; its first 34 sectors (protective MBR, GPT header, partition entries) are held in
+     memory and written last, only when size and SHA-256 match the manifest, so a failed or
+     partial download never looks like a disc (`[SWARM_FETCHED] ... committed` or
+     `[SWARM_FETCH_FAIL] ...; nothing committed`);
+   - the disc is indexed again and mounts like an attached one.
+
+   With no NIC, no link or no lease the kernel prints, exactly,
+   `[NET] Link down or no DHCP response.` and
+   `[SWARM] Falling back to local storage scan: Attach Disc N USB / drive.`
+   `build_system/test_swarm_fetch.sh` proves each path under QEMU with a local gateway: a fetch
+   that commits and mounts, a gateway that alters blocks (nothing committed), a link with no
+   DHCP answer, and no NIC.
+
+**What the transport is, and is not.** The fetch is plain HTTP to a trustless gateway. It is not
+Bitswap: native Bitswap needs the libp2p handshake (multistream-select, Noise, yamux) as well as
+its protobuf messages, and none of that is written. HTTPS gateways are skipped and logged as
+skipped: the kernel's TLS code (`kernel/src/tls`) is not wired to this client yet. Integrity does
+not depend on the transport: a gateway can withhold a block but cannot change one.
+
+**The seal.** Once every expected disc is attached after a fetch, the kernel severs the channel
+that brought them (`kernel/src/swarmnet/sn_seal.c`), as the `seal` line of `UPSTREAM.CID` says:
+
+| Mode | What happens |
+|---|---|
+| `POWERDOWN_NIC` | the driver stops the MAC and powers the PHY down (MDIC on the 8254x and 82574; PCH parts keep their PHY, and the log says so), then PCI Bus Master and Memory Space are cleared and read back (`hw_nic_power_off`): no DMA, no register access until reset |
+| `LOCAL_MESH_ONLY` | the NIC stays powered; the stack's address, routes, DNS, DHCP lease and connections are wiped |
+| `PROMPT_USER` (default) | asks on the serial console and USB keyboards for `p` or `m`; no answer in 30 s powers the NIC down |
+
+In every mode the fetch buffers and the stack's state are zeroed and the hydration code itself
+(the fetcher, HTTP client, disc writer and block walker, which the linker script places between
+`__zxv_hydrate_start` and `__zxv_hydrate_end`) is overwritten with INT3 and read back, so no code
+path that fetches or writes a disc image is left in the running kernel; a stray call traps. The
+receipt is printed after each step has been checked, so it states only what happened:
+
+```
+[SEAL] Swarm Discs 2..N successfully hydrated and verified.
+[SEAL] Master CID: bafy...
+[SEAL] Network hydration channel severed: NIC bus mastering disabled.
+[SEAL] Operating system is now immutable and air-gapped.
+```
+
+A step that fails prints `[SEAL_FAIL]` and no receipt. Ring-3 programs have no network or disk
+system calls yet (gaps 7 and 17); when they do, the fetcher moves to a ring-3 process and the
+seal revokes those capabilities as well.
+
+**Evidence and the four values.** Each hydration outcome falls under one of `lpres_state_t`'s four
+values (`kernel/src/lpres`), the same four the driver layer reports its verdicts in
+(`hw_verdict_t`); the fetcher's log lines say which in words and do not carry the value yet: TRUE, committed on a SHA-256 match; FALSE, a block or image that does not hash
+to what the manifest says (nothing committed); NEITHER, nothing to judge (no link, no lease, no
+gateway, no blank drive); BOTH, the sources contradict each other (the bucket's directory and
+`manifest.txt` name different CIDs for one disc), which is refused rather than resolved. These
+values combine by the kernel's chain ordering (`lpres_conjoin`, `lpres_disjoin`), not by Belnap's
+bilattice, so BOTH or NEITHER never counts as TRUE. Nothing in the kernel maps natural-language
+inference onto them; that claim in earlier drafts was wrong.
+
+**Updates after the seal.** A sealed system takes no ambient updates. Community overlays (a
+bucket CID mounted read-only beside the base, admitted through `evo_comm` from #155) are not
+built yet; they follow once `evo_comm` is on `main`.
+<!-- zxv:distribution:end -->
+
+> Status: 🔒 the code this section describes (`kernel/src/swarmnet`, `build_system/mk_bucket.py`,
+> `tools/zxv-get`, `make ipfs-dist`) is held on the bare-metal thread's branch and lands in the same
+> merge batch as this section; until then it is not on `main`.
 
 ---
 

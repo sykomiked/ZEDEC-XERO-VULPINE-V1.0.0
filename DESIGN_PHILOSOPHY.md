@@ -165,7 +165,29 @@ it adds something, not because they cannot survive without it.
 The rules that keep this true, and the mechanisms that enforce them, are
 in docs/spec/STATE_ISOLATION.md.
 
-## 8. In short
+## 8. It works on itself, and works better with you
+
+When no one is using it, ZXV focuses on itself. It finishes whatever it has left to do and feeds
+itself its next inputs: checking itself, tidying and indexing, sharing what it holds, working
+through what it set aside. That recursion breaks the moment a person interacts with it. Like a
+waveform collapsing when it is observed (an image, not physics), its self-work yields at once
+and it turns to what the person wants. That exchange is sealed in a receipt, and then the
+recursion resumes, carrying what it learned from the person.
+
+So people and the system benefit from each other. The system gets better between visits, and
+each visit steers it. The limits stay the same: idle work spends only the budget each cycle
+grants, stays deterministic so it can be replayed, and never touches money, devices, messages
+or publishing without a person's approval. Suggestions wait until they are accepted.
+
+The companions have a life of their own here too. When their people are away, chiglets meet on
+the Web 4 layer, their own community, a safe space where they work with each other and
+automate together. They trade what they have concluded, never their people's private data;
+they meet only where both owners have agreed; and they too stay inside their budgets and
+leave anything outward or irreversible to a person.
+
+The architecture records this as rule R24, with the places the code does not yet follow it.
+
+## 9. In short
 
 1. Learn from nature, and stay humble before it.
 2. Code is hardware and hardware is code; emulate efficiently.
@@ -175,5 +197,6 @@ in docs/spec/STATE_ISOLATION.md.
 6. Cooperate; no monopolies.
 7. The Hearth is the floor, the Agora the ceiling; the Agora never takes
    from the Hearth.
+8. Idle, it improves itself; with people, it serves them; each helps the other.
 
 — **Jolly Dragon Roger**, 36N9 GENETICS LLC
