@@ -402,9 +402,18 @@ static int16_t  g_tval[FIELD_CELLS_MAX];   /* per-tile valence,  precomputed per
 static int16_t  g_tdz [FIELD_CELLS_MAX];   /* per-tile depth-z,  precomputed per frame */
 static int      g_depth_k = 36;                /* chromostereopsis strength (0=flat)       */
 
+static void zxv_gop_blit(void);
+
+/* The composed frame is g_disp.w x g_disp.h with pitch g_disp.w (vbe_init_fb
+ * and lattice_dim_render draw at the negotiated width), and so is the scanout
+ * (ramfb_init gets the same geometry). Reading it at the buffers' capacity
+ * (ZXV_FB_W) instead sheared every mode narrower than that into tiles, which
+ * a UEFI GOP at 800x600 showed as three copies of the desktop. */
 static void zxv_present(const uint32_t *back) {
+    const uint32_t W = g_disp.w, H = g_disp.h;
     if (!g_holo) {                                   /* plain copy path */
-        for (uint32_t i = 0; i < ZXV_FB_W * ZXV_FB_H; i++) g_scanout[i] = back[i];
+        for (uint32_t i = 0; i < W * H; i++) g_scanout[i] = back[i];
+        zxv_gop_blit();
         return;
     }
     uint32_t ph = g_holo_phase++;
@@ -421,11 +430,11 @@ static void zxv_present(const uint32_t *back) {
             g_tdz [ti] = (int16_t)(128 - (int32_t)g_fdepth[ti]); /* >0 near, <0 far */
         }
     }
-    for (uint32_t y = 0; y < ZXV_FB_H; y++) {
+    for (uint32_t y = 0; y < H; y++) {
         uint32_t row_ti = (y >> 4) * zxv_shell_field_tx();
-        const uint32_t *br = back + (uint64_t)y * ZXV_FB_W;
-        uint32_t *dr = g_scanout + (uint64_t)y * ZXV_FB_W;
-        for (uint32_t x = 0; x < ZXV_FB_W; x++) {
+        const uint32_t *br = back + (uint64_t) y * W;
+        uint32_t *dr = g_scanout + (uint64_t) y * W;
+        for (uint32_t x = 0; x < W; x++) {
             uint32_t ti = row_ti + (x >> 4);
             int32_t v  = g_tval[ti];                  /* this object's valence  */
             int32_t dz = g_tdz[ti];                   /* this object's depth-z  */
@@ -444,16 +453,22 @@ static void zxv_present(const uint32_t *back) {
             dr[x] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
         }
     }
-    /* Bare-metal UEFI path: also blit the composed frame into the firmware GOP
-     * fb (nearest-neighbour scale to its resolution, R/B swap for GOP fmt 0).
-     * g_gop_fb == 0 on the -kernel path, so this is skipped entirely there. */
-    if (g_gop_fb) {
+    zxv_gop_blit();
+}
+
+/* Bare-metal UEFI path: blit the scanout into the firmware GOP fb
+ * (nearest-neighbour scale to its resolution, R/B swap for GOP fmt 0).
+ * g_gop_fb == 0 on the -kernel path, so this is skipped entirely there. */
+static void zxv_gop_blit(void)
+{
+    const uint32_t W = g_disp.w, H = g_disp.h;
+    if (g_gop_fb && W && H) {
         for (uint32_t gy = 0; gy < g_gop_h; gy++) {
-            uint32_t sy = gy * ZXV_FB_H / g_gop_h;
-            const uint32_t *sr = g_scanout + (uint64_t)sy * ZXV_FB_W;
+            uint32_t sy = gy * H / g_gop_h;
+            const uint32_t *sr = g_scanout + (uint64_t) sy * W;
             uint32_t *dr = g_gop_fb + (uint64_t)gy * g_gop_stride;
             for (uint32_t gx = 0; gx < g_gop_w; gx++) {
-                uint32_t c = sr[gx * ZXV_FB_W / g_gop_w];
+                uint32_t c = sr[gx * W / g_gop_w];
                 if (g_gop_pixfmt == ZXV_PIXFMT_RGB)                 /* swap R<->B */
                     c = (c & 0xFF00FF00u) | ((c >> 16) & 0xFF) | ((c & 0xFF) << 16);
                 dr[gx] = c;
@@ -2142,6 +2157,10 @@ void kernel_main_arm64(void) {
         }
         int rc = g_gop_fb ? 0 : ramfb_init(g_scanout, g_disp.w, g_disp.h);
         if (rc == 0) {
+            /* PRISM draws its layers at the width the shell composes at. */
+            pb_init(prism_break, g_disp.w, g_disp.h);
+            fb = pb_get_framebuffer(prism_break);
+            pb_render_frame(prism_break);
             /* Compose into the back buffer, then present a complete frame. */
             static vbe_state_t g_vbe;
             vbe_init_fb(&g_vbe, g_disp.w, g_disp.h, 32, (uintptr_t)fb);
