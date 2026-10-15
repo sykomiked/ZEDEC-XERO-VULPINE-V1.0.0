@@ -137,6 +137,7 @@ hwkey                            trust      # account keys sealed by the TPM / S
 ident                            trust
 identity                         trust
 seats                            trust      # device accounts and login; hashes passphrases with ident Argon2id
+passport                         trust      # log in from any device: seed -> ident root, receipt sets, capsules, café grants
 immigration                      trust
 ipfs                             trust      # ipfs.h includes update.h (signed update buckets)
 loader                           trust
