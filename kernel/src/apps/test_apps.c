@@ -133,6 +133,13 @@ static int32_t inproc(void *ctx, const char *req, uint32_t len, char *resp, uint
 static const char *CANNED;
 static char last_req[ZXM_REQ_MAX + 1];
 
+static int gate_calls;
+static bool gate_no_log(void *ctx, const char *method)
+{
+    (*(int *) ctx)++;
+    return strcmp(method, "log.tail") != 0;
+}
+
 static int32_t canned(void *ctx, const char *req, uint32_t len, char *resp, uint32_t cap)
 {
     zxm_link_t *l = ctx;
@@ -248,6 +255,24 @@ static void test_zxm(void)
     zxm_begin(&FAKE, "m");
     zxm_p_strn(&FAKE, "s", big, ZXM_REQ_MAX - 60u);
     CHECK(zxm_call(&FAKE) == ZXM_OK && strlen(last_req) <= ZXM_REQ_MAX, "a request at the limit");
+
+    /* the gate (zxapp.h R3b): a method it refuses is never sent */
+    zxm_link_gate(&FAKE, gate_no_log, &gate_calls);
+    last_req[0] = 0;
+    zxm_begin(&FAKE, "log.tail");
+    CHECK(zxm_call(&FAKE) == ZXM_E_DENIED && !last_req[0] && strstr(FAKE.err, "manifest") &&
+              gate_calls == 1,
+          "the gate refuses: %s", FAKE.err);
+    zxm_begin(&FAKE, "sys.info");
+    CHECK(zxm_call(&FAKE) == ZXM_OK && strstr(last_req, "\"sys.info\"") && gate_calls == 2,
+          "and lets the rest through");
+    static char longm[100];
+    memset(longm, 'm', sizeof longm - 1);
+    zxm_begin(&FAKE, longm);
+    CHECK(zxm_call(&FAKE) == ZXM_E_TOOBIG, "no method name that long");
+    zxm_link_gate(&FAKE, NULL, NULL);
+    zxm_begin(&FAKE, "log.tail");
+    CHECK(zxm_call(&FAKE) == ZXM_OK, "no gate: anything goes");
 
     CANNED = NULL;
     zxm_begin(&FAKE, "m");

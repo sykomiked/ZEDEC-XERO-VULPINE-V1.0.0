@@ -78,6 +78,7 @@ typedef enum {
     ZXN_ECONOMY, /* trade or economy event */
     ZXN_UPDATE,  /* update available */
     ZXN_PEER_REQUEST,
+    ZXN_APP, /* an app's own notice (zxvd's notify.send) */
     ZXN_KIND_COUNT
 } zxn_kind_t;
 

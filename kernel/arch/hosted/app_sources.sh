@@ -211,8 +211,9 @@ case "${1:-srcs}" in
         echo src/lpres/lpres.c
         # the utilities (sys.*, log.tail), Scent's index, Platen's printers
         # and scanners with their IPP and eSCL codecs, Keepsake's backups,
-        # Wake's journal, Shepherd's screen time and Waymark's places
-        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place; do
+        # Wake's journal, Shepherd's screen time, Waymark's places, Gatehouse's
+        # capability answers and the terminal's jobs
+        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place zxv_caps zxvd_shell; do
             echo "arch/hosted/$f.c"
         done
         echo src/print/ipp.c

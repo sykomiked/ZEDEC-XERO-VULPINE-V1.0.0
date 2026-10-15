@@ -48,6 +48,7 @@ enum {
     ZXM_E_REMOTE = -4,    /* zxvd answered with an error (see the link) */
     ZXM_E_STATE = -5,     /* the action does not apply in this state */
     ZXM_E_ARG = -6,       /* a bad argument */
+    ZXM_E_DENIED = -7,    /* the link's gate refused the method (zxm_link_gate) */
 };
 
 /* Send `req` (len bytes, no LF) and write the response line (no LF) into
@@ -61,9 +62,15 @@ typedef int32_t (*zxm_send_fn)(void *ctx, const char *req, uint32_t len, char *r
  * remote space, and it follows the real progress of that work. */
 typedef void (*zxm_progress_fn)(void *ctx, uint64_t done, uint64_t total);
 
+/* May this link call `method`? (zxapp.h R3b: zxapp_gate, with the app) */
+typedef bool (*zxm_gate_fn)(void *ctx, const char *method);
+
 typedef struct {
     zxm_send_fn send;
     void *ctx;
+    zxm_gate_fn gate; /* optional (zxm_link_gate) */
+    void *gate_ctx;
+    char method[64];          /* the request being built */
     zxm_progress_fn progress; /* optional (zxm_link_progress) */
     void *progress_ctx;
     uint32_t seq;
@@ -83,6 +90,9 @@ typedef struct {
 void zxm_link_init(zxm_link_t *l, zxm_send_fn send, void *ctx);
 void zxm_link_progress(zxm_link_t *l, zxm_progress_fn fn, void *ctx); /* NULL: none */
 void zxm_progress(zxm_link_t *l, uint64_t done, uint64_t total);      /* report, if set */
+/* A gate every call passes first: a method it refuses is ZXM_E_DENIED and
+ * never sent. NULL: none (the default). */
+void zxm_link_gate(zxm_link_t *l, zxm_gate_fn fn, void *ctx);
 
 /* Building one request: begin, add parameters, call. A parameter that does
  * not fit makes zxm_call return ZXM_E_TOOBIG without sending anything. */

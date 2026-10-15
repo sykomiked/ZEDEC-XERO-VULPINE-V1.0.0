@@ -172,6 +172,13 @@
  *      is never ignored. The scope is one word ("space:home"); the same
  *      cap and scope twice is refused. What is declared is only one
  *      witness: the loader joins it with what the code uses.
+ *   R3b Each zxvd method that reaches something a person would want to
+ *      guard needs one capability (zxapp_method_cap): log.tail and
+ *      journal.query need "journal", journal.append "journal.write",
+ *      notify.send "notify", shell.* "shell", caps.* "caps", files.read
+ *      "fs.read", and so on. zxapp_gate is a zxm.h gate: an app's link
+ *      refuses a method whose capability its manifest does not declare
+ *      (the owner's own answers are zxvd's caps.*, checked there).
  *   R4 These belong to apps: a block may not carry slot, layer, icon,
  *      budget or needs (the app that uses it declares them). Each of slot,
  *      layer, icon and budget appears at most once.
@@ -476,6 +483,11 @@ bool zxapp_cap_known(const char *cap);
 int zxapp_slot_layer(uint32_t slot);
 /* R3: whether the app declared `cap` (any scope when scope is NULL). */
 bool zxapp_needs(const zxapp_t *a, const char *cap, const char *scope);
+/* R3b: the capability zxvd's `method` needs, or NULL when any app may call
+ * it (rpc.discover, zxvd.version, notes.list, ...). */
+const char *zxapp_method_cap(const char *method);
+/* R3b: a zxm_gate_fn (zxm.h): may the app (a const zxapp_t *) call it? */
+bool zxapp_gate(void *app, const char *method);
 
 /* ---- I: intents ------------------------------------------------------------- */
 

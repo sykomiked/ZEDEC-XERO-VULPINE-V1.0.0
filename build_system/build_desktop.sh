@@ -151,6 +151,15 @@ if [ "$ON_MAC" = 1 ]; then
         -output "$WORK/libzxv.dylib"
     strip -x "$WORK/zxvd-mac"
     python3 "$HOSTED/test_zxvd.py" "$WORK/zxvd-$(uname -m | sed 's/aarch64/arm64/')/zxvd"
+    # zxsh beside the engine turns on shell.* for the Flint terminal
+    # (docs/APP_SERVICES.md); without it the app still runs, shell.* off
+    if make -C "$ROOT/tools/zxsh" CC="xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=10.15" \
+        OUT="$WORK/zxsh-mac" "$WORK/zxsh-mac/zxsh" >"$WORK/zxsh-mac.log" 2>&1; then
+        strip -x "$WORK/zxsh-mac/zxsh"
+    else
+        tail -20 "$WORK/zxsh-mac.log"
+        echo "  zxsh did not build: the app's shell.* stays off" >&2
+    fi
 else
     build x86_64-macos  "$WORK/zxv-mac-x86_64"
     build aarch64-macos "$WORK/zxv-mac-arm64"
@@ -217,6 +226,11 @@ if [ -f "$WORK/zxvd-mac" ]; then
     cp "$WORK/zxvd-mac" "$APP/Contents/MacOS/zxv-engine"
     cp "$WORK/libzxv.dylib" "$APP/Contents/Frameworks/libzxv.dylib"
     echo "  engine: zxvd with its control socket (libzxv.dylib in Contents/Frameworks)"
+    if [ -f "$WORK/zxsh-mac/zxsh" ]; then
+        cp "$WORK/zxsh-mac/zxsh" "$APP/Contents/MacOS/zxsh" # found beside the engine (--desktop)
+        chmod 755 "$APP/Contents/MacOS/zxsh"
+        echo "  zxsh beside the engine: shell.* on"
+    fi
 else
     cp "$WORK/zxv-mac" "$APP/Contents/MacOS/zxv-engine"
     echo "  engine: zxv-host (built off a Mac: no control socket)"

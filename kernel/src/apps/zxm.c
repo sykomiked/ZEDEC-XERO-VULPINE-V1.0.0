@@ -19,6 +19,12 @@ void zxm_link_progress(zxm_link_t *l, zxm_progress_fn fn, void *ctx)
     l->progress_ctx = ctx;
 }
 
+void zxm_link_gate(zxm_link_t *l, zxm_gate_fn fn, void *ctx)
+{
+    l->gate = fn;
+    l->gate_ctx = ctx;
+}
+
 void zxm_progress(zxm_link_t *l, uint64_t done, uint64_t total)
 {
     if (l->progress) l->progress(l->progress_ctx, done, total);
@@ -111,6 +117,11 @@ void zxm_begin(zxm_link_t *l, const char *method)
     l->req_len = 0;
     l->req_over = false;
     l->req_first = true;
+    size_t mn = strlen(method);
+    if (mn >= sizeof l->method) l->req_over = true; /* no method name is that long */
+    mn = mn < sizeof l->method ? mn : sizeof l->method - 1;
+    memcpy(l->method, method, mn);
+    l->method[mn] = 0;
     puts_(l, "{\"jsonrpc\":\"2.0\",\"id\":");
     put_u64(l, ++l->seq);
     puts_(l, ",\"method\":\"");
@@ -191,6 +202,8 @@ int zxm_call(zxm_link_t *l)
     l->ntok = 0;
     put(l, "}}", 2);
     if (l->req_over) return local(l, ZXM_E_TOOBIG, "the request is too large");
+    if (l->gate && !l->gate(l->gate_ctx, l->method))
+        return local(l, ZXM_E_DENIED, "this app's manifest does not ask for what that needs");
     l->req[l->req_len] = 0;
     int32_t got = l->send(l->ctx, l->req, l->req_len, l->resp, ZXM_RESP_MAX);
     if (got < 0) return local(l, ZXM_E_TRANSPORT, "no connection to zxvd");

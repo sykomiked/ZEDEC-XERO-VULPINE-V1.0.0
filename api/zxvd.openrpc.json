@@ -3,7 +3,7 @@
   "info": {
     "title": "zxvd JSON-RPC",
     "version": "1.0.0",
-    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which. -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why).",
+    "description": "zxvd-rpc/1: JSON-RPC 2.0, one request per line over a 0600 UNIX socket owned by the same user (kernel/arch/hosted/zxvd_rpc.h). Errors: -32700 parse, -32600 invalid request or batch, -32601 unknown method, -32602 bad params, -32603 internal, -32000 libzxv status: error.data = {status: ZXV_E_* number, name: its symbolic name, class: USAGE|REFUSED|FATAL|SYSTEM}, -32010 peer request refused or failed (message says why), -32012 the method's feature is off (zxvd_ext.h X4: start zxvd with --enable FEATURE or call features.set), -32011 AIPI call refused or failed (message: the AIPI_ERR_* name and what it means), -32020 payment step refused (message says why: netting, passkey or escrow, kernel/arch/hosted/zxvd_pay.h), -32080 seat refused (kernel/arch/hosted/zxvd_seats.c: the message starts with the seats.h status name, e.g. SEAT_ERR_DENIED; a wrong login or a back-off is a result of seats.unlock, not an error), -32070 no companion yet (companion.*: the swarm has no agents). 64-bit integers (entry ids, *_minor results) travel as decimal strings. zxvd refuses to start against libzxv older than ABI 1.3. -32090 Web4 feed operation refused (message says why, kernel/arch/hosted/zxvd_web4.c). -32095 power tracking is not running or the budget target is unknown (power.*, kernel/arch/hosted/zxvd_power.h). -32096 the IRC gateway refused (irc.*; message says why, kernel/arch/hosted/zxvd_irc.h). -32032 a public space or watch hall request refused (pspace.*, hall.*; message says why, kernel/arch/hosted/zxvd_pspace.h). -32014 files.* refused (message: zxf_strerror, kernel/arch/hosted/zxv_files.h). -32013 space refused: no such space, this node's role in it may not do that, or its governance refuses the step (kernel/arch/hosted/zxv_spaces.h S1, S4). Paired phones reach the same methods over the phone link (phone.link or zxvd --phone-link, kernel/arch/hosted/zxvd_phone.h): zxvd.shutdown, peer.serve, jurisdiction.set, aipi.put, aipi.publish, aipi.execute, phone.*, features.set, files.*, spaces.*, play.run, play.draft, the people methods (social.*, call.*, xlate.*, devmesh.*, ui.*), sys.*, log.tail, journal.*, screen.*, place.*, search.*, print.*, scan.*, backup.* and every method group are refused there with -32015, and net.command, peer.ask, currency.enable, ledger.open_account and ledger.post too unless the pairing allows posting. -32016 Playground call refused or failed (message says why, kernel/arch/hosted/zxvd_rpc.h P1-P3). -32030 a people method (social.*, call.*, xlate.*, devmesh.*, ui.*) refused or failed (message says why, kernel/arch/hosted/zxvd_people.h). -32031 xlate.translate: no local model can generate (nothing is invented). -32022 printer or scanner refused or unreachable (print.*, scan.*; kernel/arch/hosted/zxv_print_host.h): the message says why. -32018 backup refused (backup.*; kernel/arch/hosted/zxv_keepsake.h): the destination is not usable, a snapshot or a kept copy is missing or damaged, or there is no such snapshot; the message says which. -32019 screen time refused (screen.*; kernel/arch/hosted/zxv_screen.h): the guardian's passphrase is wrong or missing, too many wrong tries, no such limit, no room, or the file could not be written; the message says which. -32021 place refused (place.*; kernel/arch/hosted/zxv_place.h): no such place, a name taken, no room, or the file could not be written; the message says which. -32017 a module method (freight.*, harmonic.*, stream.*, ehop.*, web4.*) refused well-formed input: too few rows, a hash or AEAD tag that does not verify (message says why; zxvd_rpc_modules.h). Bytes travel as hex strings (*_hex). -32040 a card operation the issuer refused (zxvd_cards). -32041 a passkey ceremony refused (zxvd_ident). -32050 a vault, swap, auction, Zenny or stats engine refused (message: its status name). -32060 a bond, derivative, grant or estate engine refused (message: <STATUS>: why). -32023 a shell job refused: shell.* off, no such job, a bad folder, or no room (zxvd_shell.h). -32024 journal.append: no journal, no audit key, or the disk refused the entry. -32025 a capability answer refused: no room, the answers file could not be written, or no answer to take back (zxv_caps.h).",
     "license": {
       "name": "Apache-2.0"
     }
@@ -19505,6 +19505,25 @@
                   },
                   "text": {
                     "type": "string"
+                  },
+                  "hash": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "this line's SHA-256 chain hash (zxv_journal.h J8)"
+                  },
+                  "prev": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$",
+                    "description": "the hash of the line before it (J8)"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "description": "audit entries only: who approved it (J9)"
+                  },
+                  "sig": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{128}$",
+                    "description": "audit entries only: the Ed25519 signature by the journal's audit key over the entry and its place in the chain (J9)"
                   }
                 }
               }
@@ -19561,6 +19580,748 @@
             "why": {
               "type": "string",
               "description": "'' when ok"
+            },
+            "audit": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "audit entries read"
+            },
+            "sigs_checked": {
+              "type": "boolean",
+              "description": "false: no signer or no audit key yet, so signatures were not checked (J10)"
+            },
+            "key": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "the audit key's Ed25519 public key; null when signatures were not checked"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "journal.append",
+      "summary": "Record a decision with who approved it: a signed audit entry in the journal (zxv_journal.h J9). The entry is signed with Ed25519 by the journal's audit key, over its text, actor and place in the hash chain; journal.verify checks every signature. zxvd records the actor it is given.",
+      "params": [
+        {
+          "name": "actor",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[A-Za-z0-9._@:+-]+$"
+          }
+        },
+        {
+          "name": "text",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "what was approved; printable, no newline"
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "error"
+            ]
+          }
+        }
+      ],
+      "result": {
+        "name": "entry",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "time_ms": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warn",
+                "error"
+              ]
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "audit"
+              ]
+            },
+            "text": {
+              "type": "string"
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "prev": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "actor": {
+              "type": "string"
+            },
+            "sig": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{128}$"
+            },
+            "key": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "the audit key's public key"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "notify.send",
+      "summary": "An app's notice to the person (zxvd_rpc.h N1-N3): it goes on the notification bus as kind \"app\", shows in notes.list and the window, and reaches the OS notifier unless do-not-disturb holds it. A value too long is refused, never cut.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 23
+          }
+        },
+        {
+          "name": "title",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63
+          }
+        },
+        {
+          "name": "body",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 191
+          }
+        },
+        {
+          "name": "action",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 47,
+            "description": "what a click opens"
+          }
+        },
+        {
+          "name": "level",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ]
+          }
+        },
+        {
+          "name": "key",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "notices with the same app and key collapse into one unread notice with a count"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "seq": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the notice's number; 0 when it was not stored"
+            },
+            "stored": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "shell.run",
+      "summary": "Start a job (zxvd_shell.h H1): a zxsh line (run as zxsh -c LINE: pipes, redirects, && and ||, and the four verdicts) or one program with its arguments, no shell. Answers at once; read its output with shell.read. Off unless zxvd was given a zxsh (--zxsh, or the one beside it with --desktop); control socket only.",
+      "params": [
+        {
+          "name": "line",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8000
+          }
+        },
+        {
+          "name": "argv",
+          "required": false,
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 64
+          }
+        },
+        {
+          "name": "cwd",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "description": "the folder it starts in"
+          }
+        },
+        {
+          "name": "timeout_ms",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 86400000,
+            "description": "ended after this long (default 600000): SIGTERM, then SIGKILL two seconds later"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "the job's id from shell.run"
+            },
+            "pid": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "shell.read",
+      "summary": "A job's output after an offset (stdout and stderr in the order written, the last 256 KiB kept) and, once it has ended, its exit and verdict (H2, H4). A finished job read to the end is let go (kept: false).",
+      "params": [
+        {
+          "name": "job",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "the job's id from shell.run"
+          }
+        },
+        {
+          "name": "from",
+          "required": false,
+          "schema": {
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "the byte offset to read from (next of the last read); default 0"
+          }
+        },
+        {
+          "name": "max",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 32768
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "the job's id from shell.run"
+            },
+            "out": {
+              "type": "string",
+              "description": "UTF-8; a byte that is not becomes U+FFFD"
+            },
+            "from": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "a 64-bit count as a decimal string"
+            },
+            "next": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "a 64-bit count as a decimal string"
+            },
+            "dropped": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "description": "a 64-bit count as a decimal string"
+            },
+            "done": {
+              "type": "boolean"
+            },
+            "exit": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "signal": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "SIGTERM",
+                "SIGKILL",
+                "SIGINT",
+                "SIGHUP",
+                "SIGPIPE",
+                "SIGSEGV",
+                "SIGBUS",
+                "SIGILL",
+                "SIGFPE",
+                "SIGABRT",
+                "SIGSYS",
+                "SIGTRAP",
+                "other",
+                null
+              ]
+            },
+            "verdict": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "both",
+                "neither",
+                "forbidden"
+              ]
+            },
+            "timed_out": {
+              "type": "boolean"
+            },
+            "killed": {
+              "type": "boolean"
+            },
+            "kept": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "shell.write",
+      "summary": "Send text to a job's stdin (H3); close ends it. written is less than the text when the pipe is full or the job stopped reading.",
+      "params": [
+        {
+          "name": "job",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "the job's id from shell.run"
+          }
+        },
+        {
+          "name": "text",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 8000
+          }
+        },
+        {
+          "name": "close",
+          "required": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "the job's id from shell.run"
+            },
+            "written": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "closed": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "shell.kill",
+      "summary": "End a running job (SIGTERM to its process group, SIGKILL two seconds later), or let a finished one go unread (H5).",
+      "params": [
+        {
+          "name": "job",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "the job's id from shell.run"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "job": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "the job's id from shell.run"
+            },
+            "was_running": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "shell.jobs",
+      "summary": "The jobs zxvd holds, running or finished and not yet read to the end.",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "on": {
+              "type": "boolean",
+              "description": "false: shell.* is off in this zxvd"
+            },
+            "jobs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "job": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "the job's id from shell.run"
+                  },
+                  "pid": {
+                    "type": "integer"
+                  },
+                  "what": {
+                    "type": "string"
+                  },
+                  "done": {
+                    "type": "boolean"
+                  },
+                  "bytes": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$",
+                    "description": "a 64-bit count as a decimal string"
+                  },
+                  "verdict": {
+                    "type": "string",
+                    "enum": [
+                      "true",
+                      "false",
+                      "both",
+                      "neither",
+                      "forbidden"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "caps.list",
+      "summary": "The owner's answers on which apps may use which capabilities, and the apps waiting for one (zxv_caps.h K1-K4); location's answers are place.permit's.",
+      "params": [
+        {
+          "name": "app",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "sensitive": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "capabilities that need the owner's answer before an app may use them (K2)"
+            },
+            "grants": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app": {
+                    "type": "string"
+                  },
+                  "cap": {
+                    "type": "string"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "once",
+                      "always",
+                      "never"
+                    ]
+                  },
+                  "pending": {
+                    "type": "boolean"
+                  },
+                  "asked": {
+                    "type": "integer",
+                    "description": "seconds since 1970 it last asked; 0 never"
+                  }
+                }
+              }
+            },
+            "more": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "caps.check",
+      "summary": "May this app use this capability now (K2-K3)? A sensitive one with no answer puts the app on the list of pending asks; a once answer is used up; location asks through place.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "cap",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 23,
+            "pattern": "^[a-z0-9][a-z0-9.]*[a-z0-9]$|^[a-z0-9]$",
+            "description": "a manifest capability (zxapp.h R3): net, fs.read, notify, shell, journal.write, caps, location, ..."
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "cap": {
+              "type": "string"
+            },
+            "allowed": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "allowed",
+                "pending",
+                "denied"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "caps.grant",
+      "summary": "The owner allows an app a capability: always (kept in the answers file) or once (the next use only).",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "cap",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 23,
+            "pattern": "^[a-z0-9][a-z0-9.]*[a-z0-9]$|^[a-z0-9]$",
+            "description": "a manifest capability (zxapp.h R3): net, fs.read, notify, shell, journal.write, caps, location, ..."
+          }
+        },
+        {
+          "name": "mode",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "always",
+              "once"
+            ],
+            "description": "default always"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "cap": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "always",
+                "once"
+              ]
+            }
+          }
+        }
+      },
+      "paramStructure": "by-name"
+    },
+    {
+      "name": "caps.revoke",
+      "summary": "The owner refuses an app a capability (never, kept), or with forget takes the answer back so the default applies again.",
+      "params": [
+        {
+          "name": "app",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31,
+            "description": "the app's name (printable ASCII, no spaces)"
+          }
+        },
+        {
+          "name": "cap",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 23,
+            "pattern": "^[a-z0-9][a-z0-9.]*[a-z0-9]$|^[a-z0-9]$",
+            "description": "a manifest capability (zxapp.h R3): net, fs.read, notify, shell, journal.write, caps, location, ..."
+          }
+        },
+        {
+          "name": "forget",
+          "required": false,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "app": {
+              "type": "string"
+            },
+            "cap": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "never",
+                "default"
+              ]
             }
           }
         }

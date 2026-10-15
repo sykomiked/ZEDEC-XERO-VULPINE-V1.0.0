@@ -56,6 +56,28 @@
  *       register their own methods behind feature switches that start off;
  *       features.get lists the switches and features.set flips one for this
  *       run. A method whose feature is off answers ZXVD_E_OFF (-32012).
+ *   M6  The journal's audit entries (journal.append, zxv_journal.h J9) are
+ *       signed with Ed25519 through a second libzxv capability that holds
+ *       CRYPTO_SIGN alone, made when the books open and used for nothing
+ *       else; never on the wire either. Its seed is the journal's
+ *       audit.key file, not a libzxv secret.
+ *
+ * APP NOTICES (notify.send; zxvd_rpc_set_notify)
+ *   N1  An app tells the person something: "app" (its name, 1-23 bytes),
+ *       "title" (1-63), "body" (up to 191), "action" (up to 47: what a click
+ *       opens) and "level" (low, normal (default), high, urgent). A value
+ *       too long is refused (-32602), never cut.
+ *   N2  "key" (up to 64 bytes): notices from the same app with the same key
+ *       collapse into one unread notice with a count (zx_notify.h N2).
+ *   N3  It goes on the notification bus as kind "app" (zx_notify.h), so it
+ *       shows in notes.list and the window's panel, and the OS notifier
+ *       gets it unless do-not-disturb holds it. "seq" is the notice's
+ *       number; "stored": false when the bus had no room (N3 there: urgent
+ *       unread notices are never pushed out by lesser ones).
+ *
+ * CAPABILITY ANSWERS (caps.*; zxv_caps.h K1-K4): which apps may use which
+ *   manifest capabilities, for Gatehouse; location shares place.permit's
+ *   answers. A refusal other than a bad parameter is ZXVD_E_CAPS.
  *
  * SWARM EARNINGS (the owner's books mirror the swarm's money)
  *   E1  At start the books get one currency for earnings, VFV by default
@@ -303,6 +325,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *        -32018 backups   -32019 screen time   -32021 places
  *        -32022 printers and scanners (zxv_print_host.h)
+ *        -32023 shell jobs (zxvd_shell.h)   -32024 the journal (journal.append)
+ *        -32025 capability answers (zxv_caps.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and
@@ -382,6 +406,22 @@ int32_t zxvd_books_post(uint32_t from, uint32_t to, int64_t amount, const char *
 /* place.* (zxv_place.h): no such place, a name taken, no room, or the file
  * could not be written; the message says which. */
 #define ZXVD_E_PLACE (-32021)
+
+/* journal.append: no journal, the audit key could not be made or read, or
+ * the disk refused the line. */
+#define ZXVD_E_JOURNAL (-32024)
+/* caps.*: no room for another answer, the file could not be written, or no
+ * answer to take back. */
+#define ZXVD_E_CAPS (-32025)
+
+/* notify.send (N1-N3): the host posts the notice and returns its number, 0
+ * when it was not stored. Unset, notify.send answers -32601. */
+typedef struct {
+    const char *app, *title, *body, *action; /* body and action may be "" */
+    uint8_t pri;                             /* 0 low, 1 normal, 2 high, 3 urgent */
+    uint64_t key;                            /* N2; 0 never collapses */
+} zxvd_notice_t;
+void zxvd_rpc_set_notify(uint32_t (*post)(const zxvd_notice_t *n));
 
 /* phone.* (zxvd_phone.h): the phone link and pairing the owner's phones,
  * set by zxvd_phone_init. Unset, the methods answer -32601. link, pair and
