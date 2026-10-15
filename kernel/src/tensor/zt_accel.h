@@ -8,12 +8,14 @@
  *   - Metal (zt_metal.h), Apple GPUs, in macOS builds with ZT_HAVE_METAL
  *     (zt_metal.m and the Metal and Foundation frameworks linked);
  *   - CUDA (zt_cuda.h), NVIDIA, then HIP (zt_hip.h), AMD through ROCm, then
- *     Vulkan (zt_vk.h), any Vulkan GPU, in every other build. All three
- *     open their driver at run time, so they cost nothing where there is no
- *     GPU; zt_cuda.c, zt_hip.c and zt_vk.c must be linked.
+ *     Vulkan (zt_vk.h), any Vulkan GPU, then WebGPU (zt_wgpu.h), through a
+ *     native WebGPU library, in every other build. All four open their
+ *     driver at run time, so they cost nothing where there is no GPU;
+ *     zt_cuda.c, zt_hip.c, zt_vk.c and zt_wgpu.c must be linked;
+ *   - WebGPU alone in an Emscripten build (a browser tab).
  *
- * ZT_GPU=metal|cuda|hip|vulkan picks one; ZT_GPU=cpu (or off, or none) asks
- * for none, so the caller stays on the CPU. ZT_CUDA_DEVICE and ZT_HIP_DEVICE
+ * ZT_GPU=metal|cuda|hip|vulkan|webgpu picks one; ZT_GPU=cpu (or off, or
+ * none) asks for none, so the caller stays on the CPU. ZT_CUDA_DEVICE and ZT_HIP_DEVICE
  * pick the GPU by number (default 0); ZT_VK_DEVICE does for Vulkan.
  *
  *     zt_accel_t *a = zt_accel_open(err, sizeof err);   (null: CPU only, err says why)
@@ -41,7 +43,7 @@ typedef struct zt_accel zt_accel_t;
 /* The first GPU found (or the one ZT_GPU names), or null with err saying
  * why when errcap > 0 (no GPU, no driver, ZT_GPU=cpu, or none built in). */
 zt_accel_t *zt_accel_open(char *err, uint32_t errcap);
-/* The backend named api ("metal", "cuda", "hip", "vulkan"), whatever ZT_GPU
+/* The backend named api ("metal", "cuda", "hip", "vulkan", "webgpu"), whatever ZT_GPU
  * says; null with err as above. zt_choose.h opens each in turn to measure. */
 zt_accel_t *zt_accel_open_api(const char *api, char *err, uint32_t errcap);
 /* The backends built in, in the default order; returns how many (at most
@@ -49,7 +51,7 @@ zt_accel_t *zt_accel_open_api(const char *api, char *err, uint32_t errcap);
 uint32_t zt_accel_apis(const char **out, uint32_t cap);
 void zt_accel_free(zt_accel_t *a);
 
-/* "metal", "cuda", "hip" or "vulkan". */
+/* "metal", "cuda", "hip", "vulkan" or "webgpu". */
 const char *zt_accel_api(const zt_accel_t *a);
 /* The GPU's name ("Apple M3 Max", "NVIDIA RTX A6000"). */
 const char *zt_accel_name(const zt_accel_t *a);

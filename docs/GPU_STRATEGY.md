@@ -41,12 +41,13 @@ backends are hosted code (the Mac app, bench, servers).
 | Matrix products on an Apple GPU, bit-exact | ✅ merged (#85) | `kernel/src/tensor/zt_metal.m`, `zt_kern_t.mm_full` |
 | The whole forward pass on the GPU: every layer's RMS norm, activation quantiser, products and bias, RoPE, KV store, attention, residual and SiLU, then the output norm and logits, in one command buffer | 🧩 built; bit-exact on the M3 Max; prompt reading 2.3× the CPU, generation not yet faster | `zt_gpu.h`, `zt_gpu.c`, `zt_kern_metal_resident`, `zt_bench --gpu-resident` |
 | The same op list through a C backend | ✅ in CI | `test_zt_gpu` (fixtures, edge cases, saturating runs); `zt_bench --gpu-sim` on a real model |
-| The app's models on whatever this machine runs fastest, measured: the model slot and every swarm base in zxv-host and zxvd are timed on each CPU kernel set (with its threads) and each GPU (Metal, CUDA, HIP, Vulkan); an engine whose logits differ in any bit is refused; the GPU takes prompts, one-token steps or both where it measured faster. One replayable line records each choice | 🧩 built; on lavapipe 17 agents, a LoRA agent and the single slot reply exactly as on the CPU, and the determiner picks the fastest measured engine; not yet run in the app on a real GPU | `zt_choose.h`, `zt_accel.h`, `zxv_zt_glue.c` G7, `test_zxv_zt_gpu` (in `test_hosted.sh` and `test-vk`) |
+| The app's models on whatever this machine runs fastest, measured: the model slot and every swarm base in zxv-host and zxvd are timed on each CPU kernel set (with its threads) and each GPU (Metal, CUDA, HIP, Vulkan, WebGPU); an engine whose logits differ in any bit is refused; the GPU takes prompts, one-token steps or both where it measured faster. One replayable line records each choice | 🧩 built; on lavapipe 17 agents, a LoRA agent and the single slot reply exactly as on the CPU, and the determiner picks the fastest measured engine; not yet run in the app on a real GPU | `zt_choose.h`, `zt_accel.h`, `zxv_zt_glue.c` G7, `test_zxv_zt_gpu` (in `test_hosted.sh` and `test-vk`) |
 | Blocks kept in VRAM under their IPFS CIDs | 🧩 data layer only, simulated GPU | [VRAM_BLOCKS.md](VRAM_BLOCKS.md) |
 | Accelerator tier between two integer tiers | 🧩 design and integer tiers; no GPU behind tier 2 yet | [COPROCESSOR_TIERS.md](COPROCESSOR_TIERS.md) |
 | NVIDIA GPUs (CUDA): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI; not yet run on a GPU (first run: the A6000 test server) | `zt_cuda.c`, `zt_kern_cuda_resident`, `make -C kernel test-cuda`, `zt_bench --gpu*` on Linux |
 | AMD GPUs under ROCm (HIP): the products and the whole pass, the same kernels | 🧩 built; offline checks in CI (gfx906, gfx90a, gfx1030, gfx1100; wave32 and wave64 emulated); not yet run on an AMD GPU | `zt_hip.c`, `zt_kern_hip_resident`, `make -C kernel test-hip`, `zt_bench --gpu*` (`ZT_GPU=hip`) |
 | Any Vulkan GPU (AMD Radeon, Arm Mali, Qualcomm Adreno, Intel, NVIDIA): the products and the whole pass | 🧩 built; bit-exact on lavapipe (Mesa's Vulkan on the CPU), including real Qwen2.5-1.5B; not yet run on a Vulkan GPU | `zt_vk.comp`, `zt_vk.c`, `zt_kern_vk_resident`, `make -C kernel test-vk`, `zt_bench --gpu*` (`ZT_GPU=vulkan`) |
+| WebGPU: any GPU through a native WebGPU library (wgpu-native, Dawn), and a browser tab, phones included, through Emscripten: the products and the whole pass | 🧩 built; bit-exact through wgpu-native on lavapipe, including real Qwen2.5-1.5B; the browser build bit-exact in Deno's WebGPU on lavapipe; not yet run on a GPU, in a browser or on a phone | `zt_wgpu.wgsl`, `zt_wgpu.c`, `zt_kern_wgpu_resident`, `make -C kernel test-wgpu`, `zt_bench --gpu*` (`ZT_GPU=webgpu`, built with `WGPU_INC`) |
 
 ### NVIDIA (CUDA)
 
@@ -118,6 +119,57 @@ end-user devices need no shader compiler.
   whole pass: 957 dispatches a token, none declined). Lavapipe runs on the
   CPU, so these runs say nothing about speed; no Vulkan speed is claimed until
   it runs on a GPU (R9).
+
+### Browsers and phones (WebGPU)
+
+The same engine in a browser tab, a phone's included, and on any GPU a native
+WebGPU library reaches. `zt_wgpu.wgsl` is `zt_vk.comp`'s build without 64-bit
+integers, line for line: WGSL has no 64-bit integers and no 8- or 16-bit
+storage, so every 64-bit value is a pair of 32-bit words, buffers are 32-bit
+words and byte stores are word atomics, exactly as the Vulkan kernels for
+GPUs without `shaderInt64`. WGSL also lacks a 32 x 32 -> 64 multiply, built
+here from 16-bit halves. Integers only (R1): `test-wgpu` fails on any float
+type or literal in the WGSL.
+
+- **What WebGPU changes.** WebGPU forbids two writable bindings of one buffer
+  in a dispatch, and a buffer bound both read-only and writable, so each
+  distinct buffer an op touches is bound once (read-only, or writable when
+  the kernel writes any argument there) and every argument carries its
+  binding and offset in a uniform block (WebGPU has no push constants).
+  There is no host memory import: the weights are copied to the GPU once,
+  and the model state is mirrored, the bytes a pass reads copied in before
+  it and the KV bytes it writes copied back after it.
+- **Sizes from the adapter.** The products' workgroup and token tile come from
+  the adapter's limits (`maxComputeInvocationsPerWorkgroup`,
+  `maxComputeWorkgroupSizeX`, `maxComputeWorkgroupStorageSize`,
+  `maxStorageBufferBindingSize`): 4 rows x 32 threads x 8 tokens where a
+  binding may reach 1 GiB, 2 x 32 x 4 below that (phones, and WebGPU's
+  default limits), smaller where the limits demand it. Products larger than
+  one binding are split by rows, and weights larger than one buffer
+  (`maxBufferSize`, 256 MiB by default) are held in overlapping buffers with
+  every row inside one. Integer sums are exact, so the sizes never change a
+  bit; `test-wgpu` runs three size sets to show it.
+- **One file, native and browser.** `zt_wgpu.c` uses the standard `webgpu.h`.
+  Natively the library (wgpu-native, Dawn) is opened at run time, so builds
+  need no WebGPU SDK beyond the header; under Emscripten the functions are
+  the browser bindings (`--use-port=emdawnwebgpu`). The two differ only in
+  waiting for the GPU: natively `wgpuDevicePoll` (wgpu-native) or
+  `wgpuInstanceProcessEvents`; in a browser `wgpuInstanceWaitAny`, which
+  needs `-sASYNCIFY` or `-sJSPI` because a page cannot block otherwise.
+- **Checked (2026-10-15, lavapipe).** `make -C kernel test-wgpu` (in
+  `verify-all`; SKIP without the header, library or tools) with wgpu-native
+  (the copy in the pip package `wgpu` 0.32.0) on lavapipe: all 29 of
+  `test_zt_vk.c`'s checks at the sizes the limits gave (2 x 32 x 4), at
+  4 x 32 x 8, and at 1 x 8 x 2 with 4 MiB bindings and the weights in 64 KiB
+  buffers; the app's models (`test_zxv_zt_gpu`, `ZT_GPU=webgpu`) 19/19; naga
+  30.0.1 validates the WGSL at four size sets. On the real Qwen2.5-1.5B
+  Q4_K_M ("Integer math is exact.", 3 tokens), `zt_bench --gpu` and
+  `--gpu-resident` with `ZT_GPU=webgpu` gave the CPU's ids (576, 1172, 1616)
+  and `zt.logits_fnv` (d489964cb01c7b5a); the whole pass: 3 passes of 957
+  dispatches each, none declined. The browser build (emcc 6.0.12, emdawnwebgpu,
+  `-sASYNCIFY`) of `test_zt_wgpu` passed 29/29 in Deno 2.9.7's WebGPU (wgpu,
+  on lavapipe). No browser, phone or GPU has run it yet; lavapipe runs on
+  the CPU, so no WebGPU speed is claimed (R9).
 
 ### What was measured
 
@@ -240,8 +292,10 @@ adapter, a hidden-state tap, a distributed model or weights converted to
    start-up gauge probe that sizes tiles from the measured bandwidth.
 6. CUDA: run `test-cuda` and the bench on the A6000 server. Vulkan: run
    `test-vk` and the bench on a Radeon, a Mali and an Adreno device (both
-   kernel sets). HIP: run `test-hip` and the bench on an AMD GPU. Status per
-   chip: [PLATFORM_COVERAGE.md](PLATFORM_COVERAGE.md).
+   kernel sets). HIP: run `test-hip` and the bench on an AMD GPU. WebGPU:
+   run `test_zt_wgpu`'s browser build in Chrome or Safari on a desktop and on
+   an Android phone and an iPhone. Status per chip:
+   [PLATFORM_COVERAGE.md](PLATFORM_COVERAGE.md).
 7. Wire `vblock` (blocks in VRAM) and `cotier` tier 2 to a real backend.
 8. Q5_0 and Q8_0-mixed files on the GPU (Qwen2.5-0.5B's Q4_K_M uses them, so
    its passes run on the CPU today).

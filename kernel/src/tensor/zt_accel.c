@@ -10,11 +10,16 @@
 #if defined(ZT_HAVE_METAL)
 #    include "zt_metal.h"
 #endif
-#if !defined(__APPLE__)
-#    define ZA_DL 1 /* CUDA, HIP and Vulkan: drivers opened at run time */
+#if defined(__EMSCRIPTEN__)
+#    define ZA_WGPU 1 /* a browser tab: WebGPU only */
+#    include "zt_wgpu.h"
+#elif !defined(__APPLE__)
+#    define ZA_DL   1 /* CUDA, HIP, Vulkan and WebGPU: drivers opened at run time */
+#    define ZA_WGPU 1
 #    include "zt_cuda.h"
 #    include "zt_hip.h"
 #    include "zt_vk.h"
+#    include "zt_wgpu.h"
 #endif
 
 typedef struct {
@@ -41,9 +46,9 @@ struct zt_accel {
      (dst)->wall_ns = (src).wall_ns, (dst)->passes = (src).passes,                                 \
      (dst)->passes_declined = (src).passes_declined, (dst)->pass_ops = (src).pass_ops)
 
-/* One backend's table: P its prefix (zt_metal, zt_cuda, zt_hip, zt_vk), K its
- * zt_kern_ prefix, M its state-sharing map, O an expression opening it with
- * why and cap in scope. */
+/* One backend's table: P its prefix (zt_metal, zt_cuda, zt_hip, zt_vk,
+ * zt_wgpu), K its zt_kern_ prefix, M its state-sharing map, O an expression
+ * opening it with why and cap in scope. */
 #define ZA_BACKEND(tag, api, P, K, M, O)                                                           \
     static void *tag##_open(char *why, uint32_t cap)                                               \
     {                                                                                              \
@@ -100,6 +105,9 @@ ZA_BACKEND(hp, "hip", zt_hip, zt_kern_hip, zt_hip_map_shared,
 ZA_BACKEND(vk, "vulkan", zt_vk, zt_kern_vk, zt_vk_map_shared,
            zt_vk_new(-1, why, cap)) /* ZT_VK_DEVICE picks the GPU */
 #endif
+#if defined(ZA_WGPU)
+ZA_BACKEND(wg, "webgpu", zt_wgpu, zt_kern_wgpu, zt_wgpu_map_shared, zt_wgpu_new(why, cap))
+#endif
 
 /* every backend built in, in the default order */
 static const za_ops_t *const za_all[] = {
@@ -108,6 +116,9 @@ static const za_ops_t *const za_all[] = {
 #endif
 #if defined(ZA_DL)
     &cu_ops, &hp_ops, &vk_ops,
+#endif
+#if defined(ZA_WGPU)
+    &wg_ops,
 #endif
     NULL};
 

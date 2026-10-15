@@ -90,10 +90,10 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
-/* the GPU (zt_accel.h): Metal on macOS; CUDA (NVIDIA), HIP (AMD, ROCm) and
- * Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and Windows. ZT_GPU=cuda,
- * ZT_GPU=hip or ZT_GPU=vulkan picks one; by default CUDA, then HIP, then
- * Vulkan. */
+/* the GPU (zt_accel.h): Metal on macOS; CUDA (NVIDIA), HIP (AMD, ROCm),
+ * Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) and WebGPU (a native WebGPU
+ * library) on Linux and Windows. ZT_GPU=cuda, hip, vulkan or webgpu picks
+ * one; by default CUDA, then HIP, then Vulkan, then WebGPU. */
 #if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_HIP) ||                     \
     defined(ZT_HAVE_VULKAN)
 #    define ZB_GPU 1

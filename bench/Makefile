@@ -40,18 +40,25 @@ TENSOR_SRCS += $(K)/src/tensor/zt_metal.m $(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
 GPU_LIBS := -framework Metal -framework Foundation
 else
-# Linux: CUDA (zt_cuda.h, NVIDIA), HIP (zt_hip.h, AMD through ROCm) and Vulkan
-# (zt_vk.h, any Vulkan GPU). All open their driver at run time, so none needs a
-# GPU SDK to build. Vulkan's kernels are built to SPIR-V by glslangValidator
-# when it is installed; without it zt_vk.c builds as stubs and --gpu says so.
+# Linux: CUDA (zt_cuda.h, NVIDIA), HIP (zt_hip.h, AMD through ROCm), Vulkan
+# (zt_vk.h, any Vulkan GPU) and WebGPU (zt_wgpu.h, a native WebGPU library).
+# All open their driver at run time, so none needs a GPU SDK to build.
+# Vulkan's kernels are built to SPIR-V by glslangValidator when it is
+# installed; without it zt_vk.c builds as stubs and --gpu says so. WebGPU's
+# kernels are WGSL (always generated, sh and sed); zt_wgpu.c needs
+# webgpu.h: WGPU_INC=<dir holding webgpu/webgpu.h> (wgpu-native's or Dawn's
+# include directory), else it builds as stubs. At run time ZT_WGPU_LIB names
+# the library built from that header, and ZT_GPU=webgpu picks it.
 GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c \
-	$(K)/src/tensor/zt_accel.c
+	$(K)/src/tensor/zt_wgpu.c $(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_HIP -DZT_HAVE_VULKAN
 GPU_LIBS := -ldl
 ifneq ($(shell command -v glslangValidator 2>/dev/null),)
 GPU_SPV := $(OUT)/zt_vk_spv.h
 GPU_FLAGS += -DZT_VK_SPV_H='"$(GPU_SPV)"'
 endif
+GPU_WGSL := $(OUT)/zt_wgpu_wgsl.h
+GPU_FLAGS += -DZT_WGPU_WGSL_H='"$(GPU_WGSL)"' $(if $(WGPU_INC),-I$(WGPU_INC))
 endif
 NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
@@ -76,7 +83,10 @@ legacy-bench: $(OUT)/legacy_bench
 $(OUT)/zt_vk_spv.h: $(K)/src/tensor/zt_vk.comp $(K)/src/tensor/gen_zt_vk_spv.sh | $(OUT)
 	sh $(K)/src/tensor/gen_zt_vk_spv.sh $@
 
-$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) $(GPU_SPV) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+$(OUT)/zt_wgpu_wgsl.h: $(K)/src/tensor/zt_wgpu.wgsl $(K)/src/tensor/gen_zt_wgpu_wgsl.sh | $(OUT)
+	sh $(K)/src/tensor/gen_zt_wgpu_wgsl.sh $@
+
+$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) $(GPU_SPV) $(GPU_WGSL) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
 	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) \
 		-lm -lpthread $(GPU_LIBS) -o $@
 

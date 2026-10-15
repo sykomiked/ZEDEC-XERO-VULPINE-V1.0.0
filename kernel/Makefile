@@ -324,6 +324,8 @@ verify-all: test
 	@$(MAKE) --no-print-directory test-hip-offline
 	@echo "=== tensor: the Vulkan backend (zt_vk.c): builds, SPIR-V valid, and bit for bit on any Vulkan device present ==="
 	@$(MAKE) --no-print-directory test-vk
+	@echo "=== tensor: the WebGPU backend (zt_wgpu.c): builds, WGSL integer-only and valid, and bit for bit on any WebGPU adapter present ==="
+	@$(MAKE) --no-print-directory test-wgpu
 	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu && /tmp/test_zt_gpu > /tmp/test_zt_gpu.log 2>&1 && echo "[PASS] test_zt_gpu ($$(tail -1 /tmp/test_zt_gpu.log))" || { cat /tmp/test_zt_gpu.log; echo "[FAIL] test_zt_gpu"; exit 1; }
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu_asan && /tmp/test_zt_gpu_asan > /tmp/test_zt_gpu_asan.log 2>&1 && echo "[PASS] test_zt_gpu ASan/UBSan" || { cat /tmp/test_zt_gpu_asan.log; echo "[FAIL] test_zt_gpu ASan/UBSan"; exit 1; }
@@ -1802,6 +1804,77 @@ test-vk:
 	  unset ZT_VK_FORCE_I32 ZT_VK_NO_IMPORT; \
 	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor -DZT_VK_SPV_H='"$(ZXV_TMP)/zt_vk_spv.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_gpu || { echo "[FAIL] test_zxv_zt_gpu build"; exit 1; }; \
 	  ZT_GPU=vulkan ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_gpu > $(ZXV_TMP)/test_zxv_zt_gpu.log 2>&1 && echo "[PASS] the app's models on Vulkan == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_gpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_gpu.log; echo "[FAIL] test_zxv_zt_gpu on Vulkan"; exit 1; }; \
+	fi
+
+# The WebGPU backend (zt_wgpu.c: zt_wgpu.wgsl through webgpu.h, natively or in
+# a browser). test-wgpu builds zt_wgpu.c without webgpu.h (stubs) with
+# -Werror, turns zt_wgpu.wgsl into its C string, checks the WGSL holds no
+# float type or literal (rule R1), and validates it with naga (when
+# installed: cargo install naga-cli) at four size sets (desktop, phone,
+# one-token tile, the smallest). With emcc (emsdk) it builds zt_wgpu.c and
+# zt_accel.c for the browser (Emscripten's emdawnwebgpu bindings), and with
+# deno (a JavaScript runtime with WebGPU) it links test_zt_wgpu for the
+# browser (-sASYNCIFY) and runs it there. With webgpu.h (WGPU_INC=<dir holding
+# webgpu/webgpu.h>, else the copy in the pip package wgpu: pip install wgpu,
+# which also brings wgpu-native) it builds test_zt_wgpu and, when a WebGPU
+# library finds an adapter (ZT_WGPU_LIB=<libwgpu_native.so>, else the pip
+# package's; a GPU, or lavapipe: Mesa's Vulkan on the CPU), runs it bit for
+# bit against the C reference three times: the sizes the limits give,
+# ZT_WGPU_TILE=4,32,8 (desktop), and ZT_WGPU_TILE=1,8,2 with phone-sized
+# bindings and the weights in 64 KiB buffers; then the app's models on
+# WebGPU (test_zxv_zt_gpu, ZT_GPU=webgpu). SKIP for what is missing, unless
+# ZT_WGPU_REQUIRE=1.
+WGPU_INC ?=
+NAGA ?= naga
+EMCC ?= emcc
+DENO ?= deno
+.PHONY: test-wgpu
+test-wgpu:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -c src/tensor/zt_wgpu.c -o $(ZXV_TMP)/zt_wgpu_stub.o && echo "[PASS] zt_wgpu builds without WebGPU (stubs)" || { echo "[FAIL] zt_wgpu stub build"; exit 1; }
+	@sh src/tensor/gen_zt_wgpu_wgsl.sh $(ZXV_TMP)/zt_wgpu_wgsl.h && echo "[PASS] zt_wgpu.wgsl into a C string" || { echo "[FAIL] gen_zt_wgpu_wgsl.sh"; exit 1; }
+	@if sed -e 's://.*$$::' src/tensor/zt_wgpu.wgsl | grep -nE '\bf(16|32|64)\b|[0-9]\.|\.[0-9]|[0-9]e[+-]?[0-9]|\b[0-9]+[fh]\b|float'; then echo "[FAIL] zt_wgpu.wgsl: a float type or literal (rule R1: integers only)"; exit 1; fi; echo "[PASS] zt_wgpu.wgsl: integers only (no f16/f32 type, no float literal)"
+	@if command -v $(NAGA) >/dev/null; then \
+	  for cfg in "256 4 32 8" "256 2 32 4" "256 4 32 1" "64 1 8 2"; do set -- $$cfg; \
+	    printf 'const ZW_WG: u32 = %su;\nconst ZW_R: u32 = %su;\nconst ZW_L: u32 = %su;\nconst ZW_T: u32 = %su;\n' $$1 $$2 $$3 $$4 > $(ZXV_TMP)/zt_wgpu_check.wgsl; \
+	    cat src/tensor/zt_wgpu.wgsl >> $(ZXV_TMP)/zt_wgpu_check.wgsl; \
+	    $(NAGA) $(ZXV_TMP)/zt_wgpu_check.wgsl > $(ZXV_TMP)/zt_wgpu_naga.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_naga.log; echo "[FAIL] naga: zt_wgpu.wgsl with sizes $$cfg"; exit 1; }; \
+	  done; echo "[PASS] naga $$($(NAGA) --version 2>/dev/null | tail -1): zt_wgpu.wgsl valid at four size sets (WG R L T: 256 4 32 8, 256 2 32 4, 256 4 32 1, 64 1 8 2)"; \
+	else echo "[SKIP] WGSL validation (needs naga: cargo install naga-cli)"; fi
+	@if command -v $(EMCC) >/dev/null; then \
+	  for f in zt_wgpu zt_accel; do $(EMCC) --use-port=emdawnwebgpu -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' -c src/tensor/$$f.c -o $(ZXV_TMP)/$${f}_web.o > $(ZXV_TMP)/zt_wgpu_emcc.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_emcc.log; echo "[FAIL] $$f.c for the browser (emcc, emdawnwebgpu)"; exit 1; }; done; \
+	  echo "[PASS] zt_wgpu.c and zt_accel.c build for the browser (emcc --use-port=emdawnwebgpu, -Werror)"; \
+	  if command -v $(DENO) >/dev/null; then \
+	    $(EMCC) --use-port=emdawnwebgpu -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' -sDEFAULT_TO_CXX -sASYNCIFY=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=2147483648 -sSTACK_SIZE=1048576 -sENVIRONMENT=web -sSINGLE_FILE=1 -sEXIT_RUNTIME=1 src/tensor/test_zt_wgpu.c src/tensor/zt_wgpu.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -o $(ZXV_TMP)/test_zt_wgpu_web.js > $(ZXV_TMP)/zt_wgpu_emcc.log 2>&1 || { cat $(ZXV_TMP)/zt_wgpu_emcc.log; echo "[FAIL] test_zt_wgpu for the browser (emcc link)"; exit 1; }; \
+	    $(DENO) run --unstable-webgpu -A $(ZXV_TMP)/test_zt_wgpu_web.js > $(ZXV_TMP)/test_zt_wgpu_web.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_wgpu_web.log || true; echo "[PASS] test_zt_wgpu built for the browser, run in $$($(DENO) --version | head -1)'s WebGPU ($$(tail -1 $(ZXV_TMP)/test_zt_wgpu_web.log))"; } || { cat $(ZXV_TMP)/test_zt_wgpu_web.log; echo "[FAIL] test_zt_wgpu for the browser, in Deno"; exit 1; }; \
+	  else echo "[SKIP] the browser build's run (needs deno, a JavaScript runtime with WebGPU)"; fi; \
+	else echo "[SKIP] the browser build (needs emcc: emsdk; and deno to run it)"; fi
+	@inc="$(WGPU_INC)"; lib="$${ZT_WGPU_LIB:-}"; \
+	pk=$$(python3 -I -c 'import importlib.util as u; s = u.find_spec("wgpu"); print(s.submodule_search_locations[0] if s else "")' 2>/dev/null); \
+	if [ -n "$$pk" ] && [ -f "$$pk/resources/webgpu.h" ]; then \
+	  if [ -z "$$inc" ]; then mkdir -p $(ZXV_TMP)/wgpu_inc/webgpu && cp "$$pk/resources/webgpu.h" $(ZXV_TMP)/wgpu_inc/webgpu/ && inc=$(ZXV_TMP)/wgpu_inc; fi; \
+	  if [ -z "$$lib" ]; then lib=$$(ls "$$pk"/resources/libwgpu_native*.so 2>/dev/null | head -1); fi; \
+	fi; \
+	if [ -z "$$inc" ] && ! echo '#include <webgpu/webgpu.h>' | gcc -E -x c - >/dev/null 2>&1; then \
+	  echo "[SKIP] test_zt_wgpu (needs webgpu.h: WGPU_INC=<dir holding webgpu/webgpu.h>, or pip install wgpu)"; \
+	  if [ "$${ZT_WGPU_REQUIRE:-0}" = 1 ]; then exit 1; fi; exit 0; fi; \
+	incf=; [ -n "$$inc" ] && incf="-I$$inc"; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor $$incf -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' src/tensor/test_zt_wgpu.c src/tensor/zt_wgpu.c $(ZT_CUDA_SRCS:src/tensor/zt_cuda.c=) -ldl -lpthread -o $(ZXV_TMP)/test_zt_wgpu || { echo "[FAIL] test_zt_wgpu build"; exit 1; }; \
+	echo "[PASS] test_zt_wgpu builds against webgpu.h ($${inc:-system})"; \
+	if [ -n "$$lib" ]; then export ZT_WGPU_LIB="$$lib"; fi; \
+	for run in limits desktop phone; do \
+	  unset ZT_WGPU_TILE ZT_WGPU_MAX_BINDING ZT_WGPU_MAX_BUFFER; want=; \
+	  if [ $$run = desktop ]; then export ZT_WGPU_TILE=4,32,8; want="products 4x32 threads, tile 8"; fi; \
+	  if [ $$run = phone ]; then export ZT_WGPU_TILE=1,8,2 ZT_WGPU_MAX_BINDING=4194304 ZT_WGPU_MAX_BUFFER=65536; want="products 1x8 threads, tile 2, layer workgroup 256, binding 4194304, weights buffer 65536"; fi; \
+	  log=$(ZXV_TMP)/test_zt_wgpu_$$run.log; \
+	  $(ZXV_TMP)/test_zt_wgpu > $$log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $$log || true; echo "[PASS] test_zt_wgpu, sizes $$run ($$(tail -1 $$log))"; } || { cat $$log; echo "[FAIL] test_zt_wgpu, sizes $$run"; exit 1; }; \
+	  if grep -q "^\[SKIP\]" $$log; then break; fi; \
+	  if [ -n "$$want" ] && ! grep -q "$$want" $$log; then echo "[FAIL] test_zt_wgpu, sizes $$run: not the sizes asked for ($$want)"; exit 1; fi; \
+	done; \
+	if ! grep -q "^\[SKIP\]" $(ZXV_TMP)/test_zt_wgpu_limits.log; then \
+	  unset ZT_WGPU_TILE ZT_WGPU_MAX_BINDING ZT_WGPU_MAX_BUFFER; \
+	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor $$incf -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_wgpu || { echo "[FAIL] test_zxv_zt_gpu build (WebGPU)"; exit 1; }; \
+	  ZT_GPU=webgpu ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_wgpu > $(ZXV_TMP)/test_zxv_zt_wgpu.log 2>&1 && echo "[PASS] the app's models on WebGPU == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_wgpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_wgpu.log; echo "[FAIL] test_zxv_zt_gpu on WebGPU"; exit 1; }; \
 	fi
 
 .PHONY: hwe-vectors
