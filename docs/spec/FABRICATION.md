@@ -312,3 +312,84 @@ What the numbers say and do not say:
   as a proposal only. It is not the shipped mapping, where layer 80 is
   Ninefold. Moving to bands would change every layer's meaning, so it is
   the user's decision.
+
+## 10. The program fabricator
+
+An app is fabricated from a recipe and accepted only when it is whole and
+answers as it promises. The gate is `kernel/src/appfab` (rules F1-F7 and
+C1-C3 in `appfab.h`); the tool is `zxv-fab pack-app` and `unpack-app`
+(`tools/zxv-fab/zxv_fab_app.c`); the tests run in `make -C kernel
+test-appfab`, which `verify-all` runs.
+
+**The fabrication form.** `pack-app` turns a manifest into its form:
+
+- every `use` is pinned to the content id of its block's own form;
+- blocks are sealed the same way first, inside out;
+- every source read from a path is written inline (`<<` … `.`). A source
+  that cannot be inline (not text, a line that is `.`, no final newline)
+  is named `cid:<CID>` instead and carried as a part.
+
+The form is the recipe's target. The plan lists the closure (every pinned
+form and every `cid:` source), and an older form (`--prev`) when there is
+one, so a new version sends only its change: a one-word edit of Fee Check
+is a 2-byte diff. The recipe is PUBLIC and signed with no randomness, so
+the same app and parts always give the same bytes. A zxapp content id
+(`sha256:` + hex) and a raw CIDv1 sha2-256 of the same bytes carry one
+digest, so a pin names a part without a second hash.
+
+**The gate.** The verdict is `lpres_conjoin(fit, function)`. The kernel's
+chain order means only TRUE and TRUE accept; a contradiction (BOTH) or a
+gap (NEITHER) holds the app.
+
+- **Fit.**
+  - Every part matches its CID.
+  - Every use is pinned to a part.
+  - Every source comes from a part; nothing is read from the device's disk.
+  - Every entry loads on this host's runtimes (Lingua's rule).
+- **Function.** Each check runs witnessed (`zxapp_call_witnessed`):
+  - TRUE when two languages or more give the expected answer;
+  - NEITHER when only one language ran;
+  - BOTH when the languages disagree;
+  - FALSE when the answer is wrong.
+  - No checks means NEITHER.
+
+`unpack-app` writes the app only on TRUE. It exits 1 on FALSE and 4 when
+held.
+
+**The matrix.** `appfab_fit_layered` (and `pack-app --layer`) enforce the
+Zeckendorf ancestor rule:
+
+- Layer N = F + M, where F is the largest Fibonacci number ≤ N. It may use
+  parts only from anc(N) = {N, F} ∪ anc(M).
+- An anchor (N = F) has {F, 0}, and anc(0) = {0}.
+- Every use, at every depth, is checked against the layer of the part that
+  makes it. A part with no layer is refused.
+- An empty scaffold (no use, no logic, no provides) is a glue node: it
+  fits as NEITHER and is never accepted or filled with stand-in content.
+- The rule is shared with the matrix thread's pack_matrix. Until manifests
+  carry their own layer, the tool takes each part's layer from
+  FABRICATED.tsv.
+
+**FABRICATED.tsv** has one row per fabricated app: id, version, manifest
+CID, recipe CID, layer. The row is replaced when the manifest is the same.
+A different manifest under the same id and version is refused: it needs a
+new version.
+
+**Measured.** Fee Check (five languages) packs from `kernel/src/apps`,
+rebuilds on a clean store, fits with the real Sutra, KRON, Eve, Trebago and
+MYRA runtimes, and is accepted with fee checks that Sutra and KRON both
+answer. Murmuration packs over its sealed `swarm_shares` block and fits.
+Its entries run in one language only, so with checks it is held as
+unwitnessed (NEITHER), as it should be.
+
+**Limits.**
+
+- `view` and `model` name C compiled into the image. They are not carried
+  or checked; a device without that build does not have them.
+- Circuits (`logic wire`) have no runtime in the tool, so they do not fit
+  there yet.
+- Until zxapp accepts `cid:` sources in pinned blocks (C3 sealed rule,
+  Built-in apps thread), a block whose source cannot be inline is refused
+  when pinned.
+- The zxvd `fab.receive.step` check phase, and check lines in manifests,
+  are not built yet. Checks come from `--check` meanwhile.

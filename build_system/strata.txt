@@ -275,6 +275,7 @@ policy                           adapters   # policy engine + contract DSL; lowe
 # ---- S8 above the strata: products, apps and people features
 appkit                           above
 apps                             above
+appfab                           above      # program fabricator gate: fab recipes -> zxapp fit + witnessed checks (FABRICATION.md section 10)
 art_studio                       above
 audiogenomics_pro                above
 bootfeat                         above
