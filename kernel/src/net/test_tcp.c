@@ -402,6 +402,48 @@ int main(void)
               "so it can come from a real entropy source");
     }
 
+    /* ---- the window reopens: the receiver says so ----
+     * A full buffer advertises 0. Once the application reads, a bare ACK
+     * carries the new window, but only once it has grown by a segment (or
+     * half the buffer), so a trickle of small reads sends nothing. */
+    {
+        tcp_conn_t S, R;
+        tcp_init(&S, A_IP, 40100, B_IP, 80, 7000);
+        tcp_init(&R, B_IP, 80, A_IP, 40100, 9000);
+        tcp_listen(&R);
+        uint32_t n1 = tcp_connect(&S, a, sizeof a);
+        uint32_t n2 = wire(&R, a, n1, b, sizeof b);
+        n1 = wire(&S, b, n2, a, sizeof a);
+        wire(&R, a, n1, b, sizeof b);
+        static uint8_t data[TCP_RCV_BUF];
+        for (uint32_t i = 0; i < sizeof data; i++) data[i] = (uint8_t) i;
+        uint32_t sent = 0, last_ack = 0;
+        while (sent < sizeof data) {
+            uint32_t used = 0;
+            n1 = tcp_send(&S, data + sent, (uint32_t) sizeof data - sent, a, sizeof a, &used);
+            if (!n1) break;
+            sent += used;
+            last_ack = wire(&R, a, n1, b, sizeof b);
+            wire(&S, b, last_ack, a, sizeof a);
+        }
+        CHECK(sent == TCP_RCV_BUF && R.rx_len == TCP_RCV_BUF, "the receiver's buffer is full");
+        CHECK(last_ack && be16(b + 14) == 0, "its last ACK advertised a closed window");
+        CHECK(tcp_window_update(&R, b, sizeof b) == 0, "nothing read yet: no update");
+        uint8_t got[TCP_RCV_BUF];
+        CHECK(tcp_read(&R, got, 100) == 100 && tcp_window_update(&R, b, sizeof b) == 0,
+              "100 bytes read: less than a segment, no update (no silly window)");
+        CHECK(tcp_read(&R, got + 100, sizeof got - 100) == TCP_RCV_BUF - 100 &&
+                  memcmp(got, data, sizeof data) == 0,
+              "the rest read, every byte in order");
+        uint32_t w = tcp_window_update(&R, b, sizeof b);
+        CHECK(w == 20 && b[13] == TCPF_ACK && be16(b + 14) == TCP_RCV_BUF &&
+                  tcp_checksum(B_IP, A_IP, b, w) == 0,
+              "a bare ACK announces the whole window open again");
+        CHECK(tcp_window_update(&R, b, sizeof b) == 0, "and is sent once, not on every call");
+        wire(&S, b, w, a, sizeof a);
+        CHECK(S.snd_wnd == TCP_RCV_BUF, "the sender takes the reopened window");
+    }
+
     printf("\n%s: %d failure(s)\n", failures ? "*** FAILED ***" : "ALL PASS", failures);
     return failures ? 1 : 0;
 }
