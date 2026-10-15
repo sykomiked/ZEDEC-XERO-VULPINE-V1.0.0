@@ -77,6 +77,10 @@ CODE = {
     'audio/ogg', 'audio/flac', 'audio/aac', 'video/mp4', 'video/quicktime', 'video/webm',
     # JavaScript
     'bigint', 'string',
+    # screen time (zxv_screen.h SC1): the method, the activity events, the
+    # element, and the app ids zxvd counts time under
+    'screen.tick', 'mousemove', 'pointerdown', 'wheel', 'shepherd', 'murmuration', 'burrow',
+    'quillon', 'glint', 'spindle',
     # the people apps and simple mode (zxvd_people.h): element ids, classes,
     # the methods and the values they send or compare
     'simple', 'simplebox', 'adv', '.ppl', 'home', 'feed', 'calls', 'xlate', 'devices', 'sq', 'sask',
