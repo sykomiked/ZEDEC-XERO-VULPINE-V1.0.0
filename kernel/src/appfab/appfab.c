@@ -74,22 +74,35 @@ static int32_t read_part(void *ctx, const char *path, char *buf, uint32_t cap)
     return (int32_t) w->parts[i].len;
 }
 
-/* F7: anc(n) = {n, F} + anc(n - F), F the largest Fibonacci number <= n;
- * an anchor (n == F) has {F, 0}; anc(0) = {0} */
+/* the anchors: 0 and the Fibonacci numbers */
+static bool anchor(uint32_t m)
+{
+    uint64_t a = 0, b = 1;
+    while (a < m) {
+        uint64_t c = a + b;
+        a = b;
+        b = c;
+    }
+    return a == m;
+}
+
+/* F7: m == n, or m in lin(n). lin(0) is empty; lin(anchor A) is every
+ * anchor below A; lin(F + M) is every anchor <= F, M and lin(M). */
 bool appfab_zeck_may_use(uint32_t n, uint32_t m)
 {
-    for (;;) {
-        if (m == n) return true;
-        if (n == 0) return false;
+    if (m == n) return true;
+    while (n) {
         uint64_t a = 1, b = 2;
         while (b <= n) {
             uint64_t c = a + b;
             a = b;
             b = c;
         }
-        if (m == a) return true;
-        n -= (uint32_t) a; /* an anchor goes to 0: {F, 0} */
+        if (m <= a && anchor(m)) return true;
+        n -= (uint32_t) a;
+        if (m == n) return true;
     }
+    return false;
 }
 
 static lpres_state_t resolve(appfab_t *w, zxapp_t *m, uint32_t depth, uint32_t layer);

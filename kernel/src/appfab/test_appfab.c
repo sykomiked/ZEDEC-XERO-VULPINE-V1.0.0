@@ -574,6 +574,50 @@ static void test_real(void)
     appfab_unload(&W, &H);
 }
 
+/* the matrix's golden table (docs/spec/ZECKENDORF_ANCESTORS.tsv, written by
+ * pack_matrix.py): every cell of layers 0..144 against the rule */
+static void test_golden(void)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/../../docs/spec/ZECKENDORF_ANCESTORS.tsv", ROOT);
+    FILE *f = fopen(path, "r");
+    CHECK(f != NULL, "the golden table: %s", path);
+    if (!f) return;
+    static char line[4096];
+    uint32_t rows = 0, cells = 0, wrong = 0;
+    while (fgets(line, sizeof line, f)) {
+        if (line[0] == '#') continue;
+        char *tab[5], *p = line;
+        uint32_t k = 0;
+        for (; k < 5u && p; k++) {
+            tab[k] = p;
+            p = strchr(p, '\t');
+            if (p) *p++ = 0;
+        }
+        if (k != 5u) {
+            wrong++;
+            continue;
+        }
+        uint32_t n = (uint32_t) strtoul(tab[0], NULL, 10);
+        bool in[145] = {false};
+        for (char *q = strtok(tab[4], " \n"); q; q = strtok(NULL, " \n"))
+            if (*q != '-' && strtoul(q, NULL, 10) <= 144u) in[strtoul(q, NULL, 10)] = true;
+        in[n] = true; /* a layer may always draw on itself */
+        for (uint32_t m = 0; m <= 144u; m++, cells++)
+            if (appfab_zeck_may_use(n, m) != in[m]) {
+                if (wrong < 5u)
+                    printf("  layer %u, part %u: rule %d, table %d\n", (unsigned) n, (unsigned) m,
+                           appfab_zeck_may_use(n, m), in[m]);
+                wrong++;
+            }
+        rows++;
+    }
+    fclose(f);
+    CHECK(rows == 145u && cells == 145u * 145u && wrong == 0,
+          "the rule is the matrix's table: %u rows, %u cells, %u differ", (unsigned) rows,
+          (unsigned) cells, (unsigned) wrong);
+}
+
 /* ---- the matrix: Zeckendorf ancestors and empty scaffolds (F6, F7) ---------- */
 
 static bool in_anc(const uint32_t *anc, uint32_t k, uint32_t m)
@@ -585,20 +629,21 @@ static bool in_anc(const uint32_t *anc, uint32_t k, uint32_t m)
 
 static void test_matrix(void)
 {
-    /* written out by hand from the Zeckendorf sums, not by the rule */
+    /* self and lin(n), written out by hand (the matrix thread's worked
+     * examples for 4, 12, 100 and 143), not by the rule */
     static const struct {
-        uint32_t n, k, anc[12];
+        uint32_t n, k, anc[16];
     } V[] = {
         {0, 1, {0}},
         {1, 2, {1, 0}},
-        {2, 2, {2, 0}},
-        {4, 4, {4, 3, 1, 0}},                             /* 3 + 1 */
-        {5, 2, {5, 0}},                                   /* an anchor */
-        {7, 4, {7, 5, 2, 0}},                             /* 5 + 2 */
-        {12, 6, {12, 8, 4, 3, 1, 0}},                     /* 8 + 3 + 1 */
-        {20, 6, {20, 13, 7, 5, 2, 0}},                    /* 13 + 5 + 2 */
-        {143, 10, {143, 89, 54, 34, 20, 13, 7, 5, 2, 0}}, /* 89 + 34 + 13 + 5 + 2 */
-        {144, 2, {144, 0}},
+        {2, 3, {2, 1, 0}},
+        {4, 5, {4, 3, 2, 1, 0}},            /* 3 + 1 */
+        {5, 5, {5, 3, 2, 1, 0}},            /* an anchor: the anchors below */
+        {7, 6, {7, 5, 3, 2, 1, 0}},         /* 5 + 2 */
+        {12, 8, {12, 8, 5, 4, 3, 2, 1, 0}}, /* 8 + 4, 4 = 3 + 1 */
+        {100, 13, {100, 0, 1, 2, 3, 5, 8, 11, 13, 21, 34, 55, 89}}, /* 89 + 11 */
+        {143, 15, {143, 0, 1, 2, 3, 5, 7, 8, 13, 20, 21, 34, 54, 55, 89}},
+        {144, 12, {144, 89, 55, 34, 21, 13, 8, 5, 3, 2, 1, 0}},
     };
     for (uint32_t v = 0; v < sizeof V / sizeof V[0]; v++)
         for (uint32_t m = 0; m <= 150u; m++)
@@ -619,8 +664,9 @@ static void test_matrix(void)
     CHECK(bad == 0, "the ancestor rule is downward, rooted and closed (%u breaks)", (unsigned) bad);
     CHECK(appfab_zeck_may_use(0xFFFFFFFFu, 0) && !appfab_zeck_may_use(0xFFFFFFFEu, 0xFFFFFFFFu),
           "no overflow at the top of the range");
-    CHECK(appfab_zeck_may_use(2971215073u, 0) && !appfab_zeck_may_use(2971215073u, 1836311903u),
-          "F(47), the largest 32-bit Fibonacci number, is an anchor");
+    CHECK(appfab_zeck_may_use(2971215073u, 1836311903u) &&
+              !appfab_zeck_may_use(2971215073u, 1836311904u),
+          "F(47), the largest 32-bit Fibonacci number, is an anchor over F(46)");
 
     /* layered fits */
     part(0, ADDER);
@@ -634,10 +680,14 @@ static void test_matrix(void)
     CHECK(appfab_fit_layered(&W, (const uint8_t *) APP, len, 8, P, 1, &H) == LPRES_STATE_TRUE,
           "its own layer: %s", W.why);
     appfab_unload(&W, &H);
-    P[0].layer = 5;
+    P[0].layer = 7;
     CHECK(appfab_fit_layered(&W, (const uint8_t *) APP, len, 12, P, 1, &H) == LPRES_STATE_FALSE &&
               strstr(W.why, "Zeckendorf"),
-          "layer 12 cannot reach layer 5: %s", W.why);
+          "layer 12 cannot reach layer 7: %s", W.why);
+    P[0].layer = 5;
+    CHECK(appfab_fit_layered(&W, (const uint8_t *) APP, len, 12, P, 1, &H) == LPRES_STATE_TRUE,
+          "but reaches anchor 5: %s", W.why);
+    appfab_unload(&W, &H);
     P[0].layer = 13;
     CHECK(appfab_fit_layered(&W, (const uint8_t *) APP, len, 12, P, 1, &H) == LPRES_STATE_FALSE,
           "nor a higher layer");
@@ -909,6 +959,7 @@ int main(int argc, char **argv)
     test_sources();
     test_nesting();
     test_matrix();
+    test_golden();
     test_function();
     test_real();
     test_whole_way();

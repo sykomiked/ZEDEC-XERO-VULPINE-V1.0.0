@@ -148,10 +148,10 @@ SSC=$(basename "$SS")
 printf '# id\tversion\tmanifest_cid\trecipe_cid\tlayer\n' > "$L"
 [ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/x.fab" $K --blocks apps/blocks --tsv "$L" --layer 12)" = 1 ] || no "a part with no layer"; ok
 grep -q "no matrix layer" "$D/err" || no "no-layer message"; ok
-printf 'swarm_shares\t1.0.0\t%s\t-\t5\n' "$SSC" >> "$L"
-[ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/x.fab" $K --blocks apps/blocks --tsv "$L" --layer 12)" = 1 ] || no "layer 12 using layer 5"; ok
+printf 'swarm_shares\t1.0.0\t%s\t-\t7\n' "$SSC" >> "$L"
+[ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/x.fab" $K --blocks apps/blocks --tsv "$L" --layer 12)" = 1 ] || no "layer 12 using layer 7"; ok
 grep -q "Zeckendorf" "$D/err" || no "ancestor message"; ok
-sed -i 's/\t5$/\t8/' "$L"
+sed -i 's/\t7$/\t8/' "$L"
 [ "$(rc "$FAB" pack-app apps/murmuration.zxapp "$D/mL.fab" $K --blocks apps/blocks --tsv "$L" --layer 12)" = 0 ] || no "layer 12 using layer 8"; ok
 grep -q "^murmuration	-	bafk.*	12\$" "$L" || no "the row records the layer"; ok
 cd "$D" || exit 1

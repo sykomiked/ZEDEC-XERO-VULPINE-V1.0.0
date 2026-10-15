@@ -33,13 +33,16 @@
  *      The one NEITHER is an empty scaffold: an app with no use, no logic
  *      and no provides is a glue node of the matrix, marked empty, never
  *      accepted and never filled with stand-in content.
- *   F7 ZECKENDORF ANCESTORS (appfab_fit_layered). The matrix layer N = F + M,
- *      F the largest Fibonacci number <= N, may use parts only from
- *      anc(N) = {N, F} + anc(M); an anchor (N == F) has {F, 0} and
- *      anc(0) = {0}. Every use, at every depth, is checked against the
- *      layer of the part that makes it; a part with no layer is refused.
- *      The rule is shared with the matrix (docs/spec/FABRICATION.md,
- *      section 10); appfab_fit is the same gate without layers.
+ *   F7 ZECKENDORF LINEAGE (appfab_fit_layered). The anchors are 0 and the
+ *      Fibonacci numbers (0 1 2 3 5 8 13 21 34 55 89 144 ...). A branch
+ *      N = F + M, F the largest Fibonacci number <= N, has lin(N) = every
+ *      anchor <= F, M and lin(M); an anchor A has every anchor below it;
+ *      lin(0) is empty. Layer N may use parts from N or lin(N) only (the
+ *      matrix's alx_mx_draws and pack_matrix lineage(), one rule with the
+ *      golden table docs/spec/ZECKENDORF_ANCESTORS.tsv). Every use, at
+ *      every depth, is checked against the layer of the part that makes
+ *      it; a part with no layer is refused. appfab_fit is the same gate
+ *      without layers (docs/spec/FABRICATION.md, section 10).
  *
  *   C1 FUNCTION IS WITNESSED. appfab_function runs each check (an entry,
  *      its arguments, the answer it must give) through

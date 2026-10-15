@@ -357,11 +357,17 @@ gap (NEITHER) holds the app.
 held.
 
 **The matrix.** `appfab_fit_layered` (and `pack-app --layer`) enforce the
-Zeckendorf ancestor rule:
+Zeckendorf lineage rule, the same rule as the matrix's `alx_mx_draws` and
+pack_matrix `lineage()`, checked against the golden table
+`docs/spec/ZECKENDORF_ANCESTORS.tsv`:
 
-- Layer N = F + M, where F is the largest Fibonacci number ≤ N. It may use
-  parts only from anc(N) = {N, F} ∪ anc(M).
-- An anchor (N = F) has {F, 0}, and anc(0) = {0}.
+- The anchors are 0 and the Fibonacci numbers (0 1 2 3 5 8 13 21 34 55 89
+  144, and every Fibonacci number beyond).
+- A branch N = F + M, where F is the largest Fibonacci number ≤ N, has
+  lin(N) = every anchor ≤ F, plus M, plus lin(M). An anchor's lineage is
+  every anchor below it, and lin(0) is empty.
+- Layer N may use parts from N itself or lin(N) only. For example,
+  lin(12) = {0, 1, 2, 3, 4, 5, 8}.
 - Every use, at every depth, is checked against the layer of the part that
   makes it. A part with no layer is refused.
 - An empty scaffold (no use, no logic, no provides) is a glue node: it
