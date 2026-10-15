@@ -120,8 +120,12 @@ typedef int sock_t;
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
 #    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
+#    include "zxv_journal.h"    /* zxvd: its events kept across restarts */
+#    include "zxv_screen.h"     /* zxvd: screen time for Shepherd */
+#    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
 #    include "zxvd_irc.h"       /* irc.*: the IRC gateway on 127.0.0.1 over TLS */
+#    include "zxvd_fab.h"       /* fab.*: file fabrication from public blocks */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -440,6 +444,21 @@ static int pal_books_path(char *out, size_t cap)
             *p = '/';
         }
 #    endif
+    return 0;
+}
+
+/* `name` in the folder of the desktop's books file (the journal, screen
+ * time), or -1 when there is no per-user folder. */
+static int pal_beside_books(char *out, size_t cap, const char *name)
+{
+    if (pal_books_path(out, cap) != 0) return -1;
+#    if defined(_WIN32)
+    char *slash = strrchr(out, '\\');
+#    else
+    char *slash = strrchr(out, '/');
+#    endif
+    if (!slash) return -1;
+    snprintf(slash + 1, cap - (size_t) (slash + 1 - out), "%s", name);
     return 0;
 }
 
@@ -2324,6 +2343,12 @@ int main(int argc, char **argv)
     const char *rpc_path = NULL;
     const char *books_path = NULL; /* zxvd_rpc.h F1; "-" keeps them in memory */
     char books_buf[512];
+    const char *journal_path = NULL; /* zxv_journal.h; "-" keeps none */
+    char journal_buf[520];
+    const char *screen_path = NULL; /* zxv_screen.h; "-" keeps it in memory */
+    char screen_buf[520];
+    const char *places_path = NULL; /* zxv_place.h; "-" keeps them in memory */
+    char places_buf[520];
     const char *earn_ccy = "VFV";
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
@@ -2401,6 +2426,12 @@ int main(int argc, char **argv)
             rpc_path = argv[++i];
         else if (!strcmp(argv[i], "--books") && i + 1 < argc)
             books_path = argv[++i];
+        else if (!strcmp(argv[i], "--journal") && i + 1 < argc)
+            journal_path = argv[++i];
+        else if (!strcmp(argv[i], "--screen") && i + 1 < argc)
+            screen_path = argv[++i];
+        else if (!strcmp(argv[i], "--places") && i + 1 < argc)
+            places_path = argv[++i];
         else if (!strcmp(argv[i], "--earnings-ccy") && i + 1 < argc)
             earn_ccy = argv[++i];
         else if (!strcmp(argv[i], "--earnings-rate") && i + 1 < argc)
@@ -2438,6 +2469,15 @@ int main(int argc, char **argv)
                    "  --books PATH        save the owner's books in PATH and reload them\n"
                    "                      at start (default with --desktop: the per-user\n"
                    "                      data folder; \"-\" keeps them in memory)\n"
+                   "  --journal DIR       keep zxvd's events in DIR across restarts\n"
+                   "                      (default with --desktop: \"journal\" beside the\n"
+                   "                      books; \"-\" keeps none)\n"
+                   "  --screen FILE       keep screen time and its limits in FILE\n"
+                   "                      (default with --desktop: \"screen.zxst\" beside\n"
+                   "                      the books; \"-\" keeps it in memory)\n"
+                   "  --places FILE       keep saved places and location permissions in\n"
+                   "                      FILE (default with --desktop: \"places.zxpl\"\n"
+                   "                      beside the books; \"-\" keeps them in memory)\n"
                    "  --earnings-ccy CODE currency the swarm's earnings post in (default VFV)\n"
                    "  --earnings-rate N   its minor units per swarm credit (default 1)\n"
                    "  --enable LIST       turn on features, comma-separated or \"all\"\n"
@@ -2627,6 +2667,33 @@ int main(int argc, char **argv)
         }
         books_path = books_buf;
     }
+    if (desktop && !journal_path &&
+        pal_beside_books(journal_buf, sizeof journal_buf, "journal") == 0)
+        journal_path = journal_buf;
+    if (desktop && !screen_path &&
+        pal_beside_books(screen_buf, sizeof screen_buf, "screen.zxst") == 0)
+        screen_path = screen_buf;
+    if (desktop && !places_path &&
+        pal_beside_books(places_buf, sizeof places_buf, "places.zxpl") == 0)
+        places_path = places_buf;
+    if (journal_path && strcmp(journal_path, "-") && zjr_open(journal_path) != 0)
+        fprintf(stderr, "zxvd: cannot write the journal in %s; going on without it\n",
+                journal_path);
+    if (screen_path && strcmp(screen_path, "-")) {
+        if (zsc_open(screen_path) != 0)
+            fprintf(stderr, "zxvd: cannot write screen time to %s; keeping it in memory\n",
+                    screen_path);
+        else if (zsc_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, screen time starts empty\n",
+                    screen_path);
+    }
+    if (places_path && strcmp(places_path, "-")) {
+        if (zpl_open(places_path) != 0)
+            fprintf(stderr, "zxvd: cannot write places to %s; keeping them in memory\n",
+                    places_path);
+        else if (zpl_was_reset())
+            fprintf(stderr, "zxvd: %s was damaged; moved aside, places start empty\n", places_path);
+    }
     if (books_path && !strcmp(books_path, "-")) books_path = NULL;
     if (zxvd_rpc_books_file(books_path) != 0) {
         fprintf(stderr, "zxvd: --books path too long\n");
@@ -2736,6 +2803,11 @@ int main(int argc, char **argv)
         zxvd_irc_set_node(irc_node);
         if (zxvd_irc_open(pdir, (uint16_t) irc_port) != 0)
             fprintf(stderr, "zxvd: the IRC gateway is unavailable\n");
+        /* fab.* (zxvd_fab.h B2): keys and block store in "fab" beside the
+         * socket; without them zxvd still runs and fab.status says so */
+        char fdir[sizeof pdir + 8];
+        snprintf(fdir, sizeof fdir, "%s/fab", pdir);
+        if (zxvd_fab_open(fdir) != 0) fprintf(stderr, "zxvd: fabrication is unavailable\n");
     }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);

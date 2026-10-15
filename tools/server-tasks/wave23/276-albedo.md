@@ -1,0 +1,12 @@
+# Wave 23 task: Albedo (slot 276), Claim checking
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 5 (036 gazette), wave 7 (069 quarry), wave 15 (181 loupe), wave 19 (233 stratum, 238 billow).
+Manifest: `slot 276`, `layer L3`, `icon icons/l3/276-albedo.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: checks news claims against sources (`search.query`, `files.read`, `web4.feed`, `web4.verify`), showing which are confirmed, refuted or still disputed between credible witnesses.
+Uses: `use stratum 1` (source agreement and conflict); `use loupe 1` ("evidence admissible", timeline gaps); `use billow 1` (show segments and captions, for quoting a broadcast); `use gazette 1` ("show this item"); `use quarry 1` ("this claim has a source", citation record). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `claim_state` (each credible source's verdict on a claim joined with `lpres_disjoin` in C; KRON counts sources per value) with `publish_ok` (a verdict is published only with at least two credible sources named, and a disputed claim says so) in Ada as Eve + APL as KRON witnessed; `credibility` (a source's record of confirmed over total claims x10000) in FORTRAN as Trebago + APL as KRON witnessed; `subscriptions` (source subscriptions in minor units) in COBOL as Sutra; `claims` matrix in APL as KRON; `citations` tree in MUMPS as MYRA.
+BOTH test: source 4 (credible) confirms claim 20 and source 9 (credible) refutes it: the claim is BOTH, labelled disputed, never forced true or false. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: search, fs.read, net, journal.
+Planned (no runtime yet): ML, ALGOL 60, Prolog.
+Pending: `pending ML publish_ok` (proof); `pending ALGOL_60 publish_ok` (proof); `pending Prolog publish_ok` (rules).

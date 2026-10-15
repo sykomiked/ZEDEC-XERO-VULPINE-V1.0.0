@@ -7,13 +7,15 @@ says what each name is, where it lives in the repository, and what is built.
 |---|---|---|---|---|
 | **The Firmament** | The signed catalogue of everything that comes from above: base model weights, adapters, compiled specialists, and the fixed rules (the four-valued lattice, exact arithmetic) | This page, §1 | `build_system/golden.models` (pinned SHA-256 and size of each model), `kernel/arch/efi_models.h` (re-checked at boot), `docs/AI_MODEL.md` | Model pinning built; catalogue not built |
 | **The Pit Boss** | Supervisor: a deterministic rulebook that enforces, and an advisor model that only proposes | `docs/PIT_BOSS.md` | `kernel/src/reputation`, `swarm_budget`, `cotier/ct_budget` | Design |
-| **The Registrar** | Burrow's second layer: custody, provenance and audit of files | `docs/REGISTRAR.md` | `kernel/arch/hosted/zxv_files.h` (Burrow's files layer) | Design |
+| **The Banker** | The file manager: browses the Hoard | `docs/STAPLE_APPS.md` | `kernel/src/apps/burrow_model.c`, `kernel/src/zui/views/burrow.c` (file names keep the old name, Burrow) | Built |
+| **The Registrar** | The Banker's second layer: custody, provenance and audit of files | `docs/REGISTRAR.md` | `kernel/arch/hosted/zxv_files.h` (the Banker's files layer) | Design |
 | **The Tally** | The store's hash-chained journal | `docs/REGISTRAR.md` §2 | The construction of `lpx_qlog` and zxsh's history | Design |
 | **The Cage** | Quarantine and clearance for anything from outside | `docs/CAGE.md` | Immigration, Z-Wasm, `kernel/src/legacy`, AIPI, `cotier` | Design over built parts |
 | **The Desks** | The Cage's per-kind checking stations (Raw Materials, Archives, Protocol, Arbitration, Operations, Registry) | `docs/CAGE.md` §5 | As the Cage | Design |
 | **The Floor** | The 407-slot registry: L1 Foundation (the 144 apps), L2 Concourse, L3 Apparatus | `docs/REGISTRY.md` | `kernel/src/launch/zxl_apps.inc`, `sdk/pillars` | Design |
-| **The Strongbox** | The working store: the user's files, encrypted at rest | This page, §2 | `zxv_files.h` (one root, no links, whole writes, Trash) | Files layer built; encryption at rest not built |
-| **The Hoard** | The cold archive: sealed, immutable snapshots of settled state | This page, §3 | The Tally, Vinea CIDs (`vna_cid.h`) | Design |
+| **The Strongbox** | The files layer that keeps the Hoard, encrypted at rest | This page, §2 | `zxv_files.h` (one root, no links, whole writes, Trash) | Files layer built; encryption at rest not built |
+| **The Hoard** | The owner's storage root: every file the Banker shows and every app works inside (the ZXV folder on disk) | `docs/STAPLE_APPS.md` | `zxv_files.h` (one root, no links, whole writes, Trash) | Built |
+| **The Sealed Hoard** | The Hoard's cold archive: sealed, immutable snapshots of settled state | This page, §3 | The Tally, Vinea CIDs (`vna_cid.h`) | Design |
 | **Trade routes** | Typed one-way channels between ports, desks, stores and peers | `docs/TRADE_ROUTES.md` | Vinea messages, `lpres` state codes | Design |
 | **The Rosetta Shell** | One shell for POSIX, PowerShell and cmd.exe lines, via the CLI-IR | `docs/ROSETTA_SHELL.md` | `tools/zxsh` | Design over built zxsh |
 
@@ -34,28 +36,28 @@ catalogue.
 
 ## 2. The Strongbox
 
-The Strongbox is the files layer under Burrow and the Registrar, with
+The Strongbox is the files layer under the Hoard, the Banker and the Registrar, with
 encryption at rest added. Its key is held by the owner's identity
 (`kernel/src/hwkey`, the chip-sealed account key, where the hardware has
 one). Everything the Registrar says about holdings applies to files in the
 Strongbox.
 
-## 3. The Hoard
+## 3. The Sealed Hoard
 
-The Hoard is for state that is settled and should outlive the software that
-made it.
+The Hoard is the owner's storage root. Its Sealed Hoard is for state that is
+settled and should outlive the software that made it.
 
-- **Sealed.** A snapshot enters the Hoard once, with its hash, its Tally
+- **Sealed.** A snapshot enters the Sealed Hoard once, with its hash, its Tally
   record and a signature. It is never edited. A later version is a new
   snapshot.
 - **Readable in fifty years.** Contents are stored uncompressed or in a
   documented, deterministic encoding. Each snapshot carries a plain-text
   manifest describing its format, so reading it needs no ZXV code.
-- **Leaving the Hoard.** Reading a snapshot back onto the floor goes through
+- **Leaving the Sealed Hoard.** Reading a snapshot back onto the floor goes through
   the Registrar and the Cage like any other intake. Its hash is checked
   against the seal, so a damaged archive shows FALSE instead of being
   trusted.
-- **Copies.** The Hoard can keep replicas on other disks or peers, by CID. A
+- **Copies.** The Sealed Hoard can keep replicas on other disks or peers, by CID. A
   replica that disagrees with the seal is BOTH, and the sealed hash decides.
 
 ## 4. Names and the law

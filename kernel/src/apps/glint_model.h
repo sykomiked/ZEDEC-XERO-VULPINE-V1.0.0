@@ -19,7 +19,7 @@ typedef struct {
 } glint_item_t;
 
 typedef struct {
-    burrow_t *folder; /* the listing comes from a Burrow model */
+    burrow_t *folder; /* the listing comes from a Banker model (burrow_t) */
     glint_item_t item[GLINT_MAX];
     uint32_t n;
     int32_t cur;     /* the item being viewed, or -1 */

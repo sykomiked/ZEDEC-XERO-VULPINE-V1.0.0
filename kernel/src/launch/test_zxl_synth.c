@@ -91,14 +91,14 @@ static uint64_t fnv(uint32_t n)
     return h;
 }
 
-static const char *HAND[6] = {"Burrow", "Flint", "Murmuration", "Coffer", "Cutwater", "Commons"};
+static const char *HAND[6] = {"Banker", "Flint", "Murmuration", "Coffer", "Cutwater", "Commons"};
 
 /* every cue of the six hand-made apps and a spread of the rest: the right
  * length, the reference's level, nothing clipped, never silent at its start */
 static void test_levels(void)
 {
     static const uint32_t KINDS[3] = {ZXL_EV_BEGIN, ZXL_EV_TICK, ZXL_EV_END};
-    static const char *SOME[] = {"Burrow",   "Flint",     "Murmuration", "Coffer",
+    static const char *SOME[] = {"Banker",   "Flint",     "Murmuration", "Coffer",
                                  "Cutwater", "Commons",   "Hollow",      "Keystone",
                                  "Burin",    "Cartulary", "Chorale",     "Satchel"};
     for (uint32_t i = 0; i < sizeof SOME / sizeof SOME[0]; i++) {
@@ -155,12 +155,12 @@ static void test_pitch(void)
             CHECK(0, "%s tick at %.1f Hz: %.3g vs %.3g / %.3g", t->app, f, on, lo, hi);
     }
     CHECK(ok == ZXL_APPS, "every app's tick sounds its own note (%u of %u)", ok, ZXL_APPS);
-    /* Burrow's ticks climb D4 E4 F#4 A4 B4 D5, the centre E5 */
+    /* the Banker's ticks climb D4 E4 F#4 A4 B4 D5, the centre E5 */
     static const double BURROW[7] = {293.66, 329.63, 369.99, 440.0, 493.88, 587.33, 659.26};
     for (uint32_t s = 0; s < 7; s++) {
-        render_cue(zxl_theme_pick("Burrow"), ZXL_EV_TICK, s, 2, 256);
+        render_cue(zxl_theme_pick("Banker"), ZXL_EV_TICK, s, 2, 256);
         double on = power_at(BURROW[s], 9600), off = power_at(BURROW[s] * 1.0595, 9600);
-        CHECK(on > 4 * off, "Burrow's tick %u is its own step", s);
+        CHECK(on > 4 * off, "the Banker's tick %u is its own step", s);
     }
 }
 
@@ -356,6 +356,65 @@ static void test_tiers(void)
     CHECK(d > 300, "the escapement's tock at 60 ms (%d)", d);
 }
 
+/* the OS boot's own: a chime, a coin per tile, the gong */
+static int16_t bbuf[48000 * 7 * 2], bbuf2[48000 * 7 * 2];
+
+static uint32_t render_boot(uint32_t kind, uint32_t part, int16_t *out)
+{
+    const zxl_theme_t *t = zxl_boot_theme();
+    zxl_player_init(&P);
+    zxl_event_t e = ev_of(kind, t, part, part, 256);
+    uint32_t n = zxl_cue_frames(t, kind);
+    zxl_player_play(&P, t, &e);
+    P.prep.on = 0;
+    zxl_player_render(&P, out, n);
+    return n;
+}
+
+static int32_t bpeak(const int16_t *b, uint32_t from, uint32_t to)
+{
+    int32_t m = 0;
+    for (uint32_t i = 2 * from; i < 2 * to; i++) {
+        int32_t v = b[i] < 0 ? -b[i] : b[i];
+        if (v > m) m = v;
+    }
+    return m;
+}
+
+static void test_boot(void)
+{
+    const zxl_theme_t *t = zxl_boot_theme();
+    CHECK(t && t == zxl_boot_theme() && t->key == ZXL_BOOT_KEY && !strcmp(t->app, "ZXV"),
+          "the boot has its own theme, in E");
+    CHECK(zxl_cue_frames(t, ZXL_EV_BEGIN) == 48000u * 32u / 10u &&
+              zxl_cue_frames(t, ZXL_EV_TICK) == 48000u * 45u / 100u &&
+              zxl_cue_frames(t, ZXL_EV_END) == 48000u * 7u,
+          "chime 3.2 s, a coin 0.45 s, the gong 7 s");
+    uint32_t n = render_boot(ZXL_EV_BEGIN, 0, bbuf);
+    CHECK(bpeak(bbuf, 0, 4800) > 1000 && bpeak(bbuf, 48000, 96000) > 300,
+          "the chime strikes at once and is still ringing a second later");
+    CHECK(bpeak(bbuf, n - 480, n) < bpeak(bbuf, 0, 48000) / 8, "and fades out by its end");
+    n = render_boot(ZXL_EV_END, 0, bbuf);
+    CHECK(bpeak(bbuf, 0, 9600) > 2000, "the gong is struck at once (%d)", bpeak(bbuf, 0, 9600));
+    CHECK(bpeak(bbuf, 48000 * 4, 48000 * 5) > 200, "and still sounds four seconds on (%d)",
+          bpeak(bbuf, 48000 * 4, 48000 * 5));
+    CHECK(bpeak(bbuf, n - 480, n) < 200, "and fades away by seven");
+    /* a coin from where its tile sits: the first tile left, the last right */
+    render_boot(ZXL_EV_TICK, 0, bbuf);
+    render_boot(ZXL_EV_TICK, 4, bbuf2);
+    double l0 = 0, r0 = 0, l4 = 0, r4 = 0;
+    for (uint32_t i = 0; i < 4800; i++) {
+        l0 += (double) bbuf[2 * i] * bbuf[2 * i];
+        r0 += (double) bbuf[2 * i + 1] * bbuf[2 * i + 1];
+        l4 += (double) bbuf2[2 * i] * bbuf2[2 * i];
+        r4 += (double) bbuf2[2 * i + 1] * bbuf2[2 * i + 1];
+    }
+    CHECK(l0 > r0 && r4 > l4 && l0 > 0, "each coin rings from its tile's side");
+    render_boot(ZXL_EV_TICK, 0, bbuf2);
+    CHECK(!memcmp(bbuf, bbuf2, 4800 * 4), "the same coin, the same samples");
+    CHECK(zxl_synth_tier(t) == 1, "the boot is no catalogue app");
+}
+
 int main(void)
 {
     test_levels();
@@ -367,6 +426,7 @@ int main(void)
     test_overflow();
     test_prepare();
     test_tiers();
+    test_boot();
     printf("test_zxl_synth: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

@@ -6,7 +6,7 @@ headless with a scratch ZXV folder and drive files.* the way the window does,
 through POST /api/rpc (zxv_host.c) behind the API guard, then check the
 same files on disk.
 
-Fails unless: the page carries the apps (Murmuration, Burrow, Quillon, Glint, Spindle)
+Fails unless: the page carries the apps (Murmuration, the Banker, Quillon, Glint, Spindle)
 and a CSP that lets them show blob: images and media; /api/rpc refuses a
 request without the token and a GET; a text file written in chunks (the
 editor's begin/add/end) comes back whole, in UTF-8, through chunked reads;

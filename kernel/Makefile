@@ -396,8 +396,10 @@ verify-all: test
 	$(MAKE) --no-print-directory test-settle
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
+	$(MAKE) --no-print-directory test-print
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
+	$(MAKE) --no-print-directory test-fab
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
@@ -1251,6 +1253,21 @@ verify-all: test
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_launch_theme && \
 		/tmp/test_zui_launch_theme && echo "[PASS] test_zui_launch_theme" || { echo "[FAIL] test_zui_launch_theme"; exit 1; }; \
+	echo "=== zui: the desktop's app opener, the launch screen following the real load (ASan+UBSan) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		-Isrc/apps -Isrc/web4 -Isrc/mlkem -Isrc/robin_debanks -Isrc/modbind -Isrc/e8 -Isrc/event_space -Isrc/surplus -Isrc/swarm -Isrc/lpres \
+		src/zui/test_zui_apphost.c src/zui/zui_apphost.c src/apps/zxm_open.c src/apps/zxm.c \
+		src/web4/web4_json.c src/web4/web4_util.c src/mlkem/keccak.c src/robin_debanks/sha256.c \
+		src/zui/zui_launch_theme.c src/launch/zxl_launch.c src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c \
+		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_apphost && \
+		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_zui_apphost && echo "[PASS] test_zui_apphost" || { echo "[FAIL] test_zui_apphost"; exit 1; }; \
+	echo "=== zui: the OS boot screen and its sounds at the pace of the real load (every target, the browser too) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		src/zui/test_zui_boot.c src/zui/zui_boot.c src/zui/zui_vec.c src/zui/zui_progress.c src/zui/zui_canvas.c \
+		src/zui/zui_layout.c src/font/truetype.c src/launch/zxl_launch.c src/launch/zxl_synth.c \
+		-o /tmp/test_zui_boot && \
+		/tmp/test_zui_boot && echo "[PASS] test_zui_boot" || { echo "[FAIL] test_zui_boot"; exit 1; }; \
 	echo "=== zui: PNG pictures (every format, fitted, drawn; damaged files under ASan+UBSan) ==="; \
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
 		src/zui/test_zui_image.c src/zui/zui_image.c src/zui/zui_canvas.c src/zui/zui_layout.c src/font/truetype.c \
@@ -1588,6 +1605,16 @@ clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
 	rm -rf iso
 
+# File fabrication (src/fab/fab.h, docs/spec/FABRICATION.md): recipes of public
+# blocks plus a private diff, stream frames and checkpoints, and tools/zxv-fab.
+.PHONY: test-fab
+FAB_INC := -Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8
+FAB_SRC := src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+test-fab:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(FAB_INC) src/fab/test_fab.c $(FAB_SRC) -o $(ZXV_TMP)/test_fab && $(ZXV_TMP)/test_fab > $(ZXV_TMP)/test_fab.log 2>&1 && echo "[PASS] test_fab ($$(tail -1 $(ZXV_TMP)/test_fab.log))" || { cat $(ZXV_TMP)/test_fab.log; echo "[FAIL] test_fab"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do for f in src/fab/fab.c src/fab/fab_send.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) -c $$f -o $(ZXV_TMP)/fab_free.o || { echo "[FAIL] fab freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/fab_free.o | grep -vE ' (fab_[a-z0-9_]+|fab__[a-z0-9_]+|ipfsn_[a-z0-9_]+|sha256(_init|_update|_final)?|aead_(seal|open)|hkdf_(extract|expand)|pqm_ml(dsa87|kem1024)_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/fab_free.o; echo "[FAIL] fab freestanding: libc or helper in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] fab freestanding (aarch64 and i386: no libc)"
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) ../tools/zxv-fab/zxv_fab.c $(FAB_SRC) -o $(ZXV_TMP)/zxv-fab && sh ../tools/zxv-fab/test_zxv_fab.sh $(ZXV_TMP)/zxv-fab $(ZXV_TMP)/zxv-fab-test > $(ZXV_TMP)/test_zxv_fab.log 2>&1 && echo "[PASS] zxv-fab tool ($$(tail -1 $(ZXV_TMP)/test_zxv_fab.log))" || { cat $(ZXV_TMP)/test_zxv_fab.log; echo "[FAIL] zxv-fab tool"; exit 1; }
+
 # The settlement spine (src/settle/settle.h): swarm money reconciled with pay_ledger.
 .PHONY: test-settle
 test-settle:
@@ -1597,6 +1624,12 @@ test-settle:
 .PHONY: test-lpres-hex
 test-lpres-hex:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/lpres/test_lpres_hex.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_lpres_hex && $(ZXV_TMP)/test_lpres_hex > $(ZXV_TMP)/test_lpres_hex.log 2>&1 && echo "[PASS] test_lpres_hex ($$(tail -1 $(ZXV_TMP)/test_lpres_hex.log))" || { cat $(ZXV_TMP)/test_lpres_hex.log; echo "[FAIL] test_lpres_hex"; exit 1; }
+
+# Platen's printer and scanner codecs (src/print/ipp.h, escl.h): IPP requests
+# byte by byte, printer and scanner replies, every truncation refused.
+.PHONY: test-print
+test-print:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/print src/print/test_print.c src/print/ipp.c src/print/escl.c -o $(ZXV_TMP)/test_print && $(ZXV_TMP)/test_print > $(ZXV_TMP)/test_print.log 2>&1 && echo "[PASS] test_print ($$(tail -1 $(ZXV_TMP)/test_print.log))" || { cat $(ZXV_TMP)/test_print.log; echo "[FAIL] test_print"; exit 1; }
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.

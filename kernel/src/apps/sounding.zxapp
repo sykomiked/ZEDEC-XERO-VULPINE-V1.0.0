@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Sounding, the network monitor. A counter's rate is worked out in Rust
+# (as WebAssembly, with checked arithmetic) and in Sutra; a reset counter
+# is -1 in both, and a rate they do not agree on is held.
+zxapp 1
+id     sounding
+name   Sounding
+version 1.0.0
+slot   16
+layer  L1
+icon   icons/l1/016-sounding.svg
+budget 55
+needs  sys.read
+needs  net
+model  apps/sounding_model.c
+
+provides rate num now was dt
+logic    wasm  rate apps/blocks/sounding/rate.wasm
+logic    sutra rate apps/blocks/sounding/rate.sutra

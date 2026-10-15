@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The share in use, in Sutra: COMPUTE truncates toward zero, as the C model
+# does (almanac_model.c used_x100), and a negative share does not fit the
+# unsigned picture, so it is refused.
+record used-share
+  total: 9(18)
+  left: 9(18)
+  used: 9(5)
+procedure
+  compute used = (total - left) * 10000 / total
+  answer used

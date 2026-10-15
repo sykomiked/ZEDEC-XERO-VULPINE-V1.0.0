@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Quillon, the text editor. The editing is C; how big a document may be is
+# Eve. Text work (counting, search and replace) belongs to the text
+# languages (SNOBOL, Icon, AWK, Perl), which have no runtime yet
+# (kernel/src/apps/LANGUAGE_FIT.tsv), so it stays C until they do.
+zxapp 1
+id     quillon
+name   Quillon
+version 1.0.0
+slot   37
+layer  L1
+icon   icons/l1/037-quillon.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  ai.ask
+view   zui/views/quillon.c
+model  apps/quillon_model.c
+
+provides size_ok truth bytes
+logic    eve size_ok apps/blocks/quillon/size.eve

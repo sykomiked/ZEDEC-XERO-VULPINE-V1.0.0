@@ -258,13 +258,13 @@ UI_NOTES_READ|-|source|Mark all read
 UI_NOTES_NONE|-|source|None yet.
 UI_NOTE_COUNT|-|source|{0} ({1})
 UI_NOTE_BODY|-|source|{0} · {1}
-# the staple apps (Burrow, Quillon, Glint, Spindle) and the Playground
+# the staple apps (the Banker, Quillon, Glint, Spindle) and the Playground
 UI_TAB_SWARM|-|source|Swarm
 UI_TAB_PLAY|-|source|Playground
 UI_DOCK_APPS|-|source|Apps
 UI_DOCK_TOOLBOX|-|source|Toolbox
 UI_APP_MURMURATION|-|source|Murmuration
-UI_APP_BURROW|-|source|Burrow
+UI_APP_BURROW|-|source|The Banker
 UI_APP_QUILLON|-|source|Quillon
 UI_APP_GLINT|-|source|Glint
 UI_APP_SPINDLE|-|source|Spindle
@@ -357,7 +357,7 @@ UI_FILES_DELETE_NOW|-|source|Delete now
 UI_FILES_OPEN|-|source|Open
 UI_FILES_RENAME|-|source|Rename
 UI_FILES_MOVE_TRASH|-|source|Move to Trash
-UI_FILES_PUT_BACK_HINT|-|source|Where it goes, as a path in the ZXV folder.
+UI_FILES_PUT_BACK_HINT|-|source|Where it goes, as a path in the Hoard.
 UI_FILES_DELETE_Q|-|source|Delete for good?
 UI_FILES_DELETE_TEXT|-|source|“{0}” will be removed from this computer. This cannot be undone.
 UI_FILES_DELETE|-|source|Delete
@@ -380,13 +380,13 @@ UI_TEXT_DISCARD_Q|-|source|Discard your changes?
 UI_TEXT_DISCARD_TEXT|-|source|“{0}” has changes that are not saved.
 UI_TEXT_OPENING|-|source|Opening…
 UI_TEXT_SAVE_AS_TITLE|-|source|Save as
-UI_TEXT_SAVE_HINT|-|source|A path in the ZXV folder, for example Notes/idea.md.
+UI_TEXT_SAVE_HINT|-|source|A path in the Hoard, for example Notes/idea.md.
 UI_TEXT_SAVING|-|source|Saving…
 UI_TEXT_SAVED|-|source|Saved ZXV/{0}
 UI_TEXT_CODE|-|source|Code
 UI_PHOTOS_ONE|-|source|{0} photo or media file
 UI_PHOTOS_N|-|source|{0} photos and media files
-UI_PHOTOS_NONE|-|source|No photos or media here. Import some, or drop them on Burrow.
+UI_PHOTOS_NONE|-|source|No photos or media here. Import some, or drop them on the Banker.
 UI_CONSOLE_BAD_JSON|-|source|parameters are not valid JSON
 UI_CONSOLE_STOP_Q|-|source|Stop the swarm?
 UI_CONSOLE_STOP_TEXT|-|source|zxvd.shutdown stops the engine; this window will disconnect.

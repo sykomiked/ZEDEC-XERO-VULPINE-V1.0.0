@@ -302,6 +302,18 @@ static NSString *const kAskedModelKey = @"ZXVAskedForModel";
         [args addObjectsFromArray:@[
             @"--books", [self.supportDir stringByAppendingPathComponent:@"books.zxvb"]
         ]];
+        /* Wake's history across restarts (zxv_journal.h) */
+        [args addObjectsFromArray:@[
+            @"--journal", [self.supportDir stringByAppendingPathComponent:@"journal"]
+        ]];
+        /* Shepherd's screen time and limits (zxv_screen.h) */
+        [args addObjectsFromArray:@[
+            @"--screen", [self.supportDir stringByAppendingPathComponent:@"screen.zxst"]
+        ]];
+        /* Waymark's saved places and location permissions (zxv_place.h) */
+        [args addObjectsFromArray:@[
+            @"--places", [self.supportDir stringByAppendingPathComponent:@"places.zxpl"]
+        ]];
     }
     NSString *model = [self currentModel];
     if (model) {

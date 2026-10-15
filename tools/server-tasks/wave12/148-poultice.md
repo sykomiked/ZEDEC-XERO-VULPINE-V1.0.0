@@ -1,0 +1,12 @@
+# Wave 12 task: Poultice (slot 148), Care plan
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 6 (043 solstice, 045 bowline), wave 8 (089 wellspring), wave 11 (143 watchfire).
+Manifest: `slot 148`, `layer L2`, `icon icons/l2/148-poultice.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: a care plan of symptoms, medicines and vitals kept in the Hoard (`files.read`, `files.write`), reminding carers through notices (`notes.list`, `notes.mark_read`) and keeping doses within the limits the plan declares. zxvd has no method for a notice-post method (as Sundial reports), vitals device readings: use only existing methods; list what's missing in your report.
+Uses: `use solstice 1` (next date of a repeating dose, two events overlap); `use bowline 1` (next due, overdue); `use wellspring 1` (outside a safe range, weekly totals, log entries); `use watchfire 1` (medical ID and contact records, never computed). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): "dose within the declared limit" = dose at most the per-dose maximum AND doses in 24 h at most the daily maximum AND time since the last dose at least the minimum interval, in Ada as Eve + APL as KRON + FORTRAN as Trebago witnessed (three witnesses); care costs per item and per month in minor units, refused on overflow, in COBOL as Sutra + FORTRAN as Trebago witnessed; vital trends (7-day min, max, mean floor per vital) in FORTRAN as Trebago; symptom grid (symptom by day counts) in APL as KRON; patient tree in MUMPS as MYRA.
+BOTH test: two carers log heart rate 72 and 128 bpm for the same minute: the reading is BOTH, both are kept, and an escalation notice goes to every carer; neither is dropped.
+Clinical: advisory and human-approved; not a medical device; never changes a dose; the limits come from the person's clinician and are entered by a carer.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: fs.read, fs.write, notify.
+Planned (no runtime yet): Simula I, Modula-2.

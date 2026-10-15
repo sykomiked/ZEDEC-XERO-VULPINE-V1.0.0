@@ -143,6 +143,23 @@ static void test_parse(void)
     CHECK(parse("zxapp 1\nid x\nview\n") == ZXAPP_E_SYNTAX && A.err_line == 3, "missing value");
     CHECK(parse("zxapp 1\nid x\ncolour gold\n") == ZXAPP_E_SYNTAX && A.err_line == 3,
           "unknown directive");
+    CHECK(parse("zxapp 1\nid x\npending Common_Lisp risk\npending C# share\npending Objective-C "
+                "a.b\n") == ZXAPP_OK &&
+              A.npending == 3,
+          "pending lines name a waiting language");
+    CHECK(parse("zxapp 1\nid x\npending Lisp\n") == ZXAPP_E_SYNTAX && A.err_line == 3,
+          "pending needs a language and an entry");
+    CHECK(parse("zxapp 1\nid x\npending Lisp a b\n") == ZXAPP_E_SYNTAX, "pending one entry");
+    CHECK(parse("zxapp 1\nid x\npending Lisp/2 a\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "fit-table name"),
+          "pending language characters");
+    CHECK(parse("zxapp 1\nid x\npending ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef a\n") == ZXAPP_E_SYNTAX,
+          "pending language at most 31 characters");
+    CHECK(parse("zxapp 1\nid x\npending ABCDEFGHIJKLMNOPQRSTUVWXYZabcde a\n") == ZXAPP_OK,
+          "pending language of 31 characters");
+    CHECK(parse("zxapp 1\nid x\npending Lisp 1a\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "entry name"),
+          "pending entry identifier");
     CHECK(parse("zxapp 1\nid x\nlogic brainfork a b\n") == ZXAPP_E_SYNTAX &&
               strstr(A.err, "unknown language"),
           "unknown language");
@@ -1634,6 +1651,657 @@ static void test_fee_check(void)
     zxapp_unload(&FEE, &H);
 }
 
+/* R1-R4: slot, layer, icon, budget and needs */
+static void test_registry_fields(void)
+{
+    CHECK(parse("zxapp 1\nid a\n") == ZXAPP_OK && A.slot == 0 && A.layer == ZXAPP_LAYER_NONE &&
+              !A.icon[0] && A.budget == 0 && A.nneeds == 0,
+          "none given: all empty");
+    CHECK(parse("zxapp 1\nid murmuration\nslot 017   # catalogue number\nlayer L1\n"
+                "icon icons/l1/017-murmuration.svg\nbudget 1500\nneeds net\n"
+                "needs fs.read space:home\nneeds peers\nneeds location\n") == ZXAPP_OK,
+          "full: %s", A.err);
+    CHECK(A.slot == 17 && A.layer == ZXAPP_LAYER_L1 &&
+              !strcmp(A.icon, "icons/l1/017-murmuration.svg") && A.budget == 1500,
+          "values: %u %u %s %llu", A.slot, A.layer, A.icon, (unsigned long long) A.budget);
+    CHECK(A.nneeds == 4 && !strcmp(A.needs[0].cap, "net") && !A.needs[0].scope[0] &&
+              !strcmp(A.needs[1].cap, "fs.read") && !strcmp(A.needs[1].scope, "space:home") &&
+              A.needs[1].line == 8 && !strcmp(A.needs[3].cap, "location"),
+          "needs in order");
+    CHECK(zxapp_needs(&A, "fs.read", NULL) && zxapp_needs(&A, "fs.read", "space:home") &&
+              !zxapp_needs(&A, "fs.read", "") && zxapp_needs(&A, "net", "") &&
+              !zxapp_needs(&A, "fs.write", NULL) && !zxapp_needs(&A, "fs.read", "space:office"),
+          "zxapp_needs");
+    /* the layers' ranges, at their edges */
+    static const struct {
+        uint32_t slot;
+        int layer;
+    } edge[] = {{0, ZXAPP_LAYER_NONE}, {1, ZXAPP_LAYER_L1},    {144, ZXAPP_LAYER_L1},
+                {145, ZXAPP_LAYER_L2}, {271, ZXAPP_LAYER_L2},  {272, ZXAPP_LAYER_L3},
+                {407, ZXAPP_LAYER_L3}, {408, ZXAPP_LAYER_NONE}};
+    for (unsigned i = 0; i < sizeof edge / sizeof edge[0]; i++)
+        CHECK(zxapp_slot_layer(edge[i].slot) == edge[i].layer, "slot %u", edge[i].slot);
+    CHECK(parse("zxapp 1\nid a\nslot 144\nlayer L1\n") == ZXAPP_OK, "144 is L1");
+    CHECK(parse("zxapp 1\nid a\nlayer L2\nslot 145\n") == ZXAPP_OK && A.slot == 145, "145 is L2");
+    CHECK(parse("zxapp 1\nid a\nslot 271\nlayer L2\n") == ZXAPP_OK, "271 is L2");
+    CHECK(parse("zxapp 1\nid a\nslot 272\nlayer L3\n") == ZXAPP_OK, "272 is L3");
+    CHECK(parse("zxapp 1\nid a\nslot 407\nlayer L3\n") == ZXAPP_OK && A.slot == 407, "407 is L3");
+    CHECK(parse("zxapp 1\nid a\nslot 145\nlayer L1\n") == ZXAPP_E_SYNTAX &&
+              strstr(A.err, "outside its layer") && A.err_line == 4,
+          "145 is not L1: %s", A.err);
+    CHECK(parse("zxapp 1\nid a\nlayer L2\nslot 144\n") == ZXAPP_E_SYNTAX, "144 is not L2");
+    CHECK(parse("zxapp 1\nid a\nslot 272\nlayer L2\n") == ZXAPP_E_SYNTAX, "272 is not L2");
+    CHECK(parse("zxapp 1\nid a\nslot 271\nlayer L3\n") == ZXAPP_E_SYNTAX, "271 is not L3");
+    static const char *const bad[] = {
+        "slot 0",          "slot 408",   "slot -1",   "slot 1x",       "slot",
+        "slot 1 2",        "layer L4",   "layer l1",  "layer",         "budget 0",
+        "budget -5",       "budget 1.5", "budget",    "icon",          "icon a b",
+        "needs",           "needs disk", "needs NET", "needs net a b", "needs net sp@ce",
+        "needs fs.read a", /* fine alone: the next line repeats it */
+    };
+    for (unsigned i = 0; i + 1 < sizeof bad / sizeof bad[0]; i++) {
+        char m[160];
+        snprintf(m, sizeof m, "zxapp 1\nid a\n%s\n", bad[i]);
+        CHECK(parse(m) == ZXAPP_E_SYNTAX && A.err_line == 3, "refused: %s (%s)", bad[i], A.err);
+    }
+    CHECK(parse("zxapp 1\nid a\nneeds disk\n") == ZXAPP_E_SYNTAX && strstr(A.err, "disk"),
+          "an unknown capability is named: %s", A.err);
+    CHECK(parse("zxapp 1\nid a\nbudget 9223372036854775807\n") == ZXAPP_OK &&
+              A.budget == UINT64_C(9223372036854775807),
+          "the biggest budget");
+    CHECK(parse("zxapp 1\nid a\nbudget 9223372036854775808\n") == ZXAPP_E_SYNTAX, "one past it");
+    CHECK(parse("zxapp 1\nid a\nbudget 1\n") == ZXAPP_OK && A.budget == 1, "the smallest budget");
+    CHECK(parse("zxapp 1\nid a\nneeds fs.read a\nneeds fs.read a\n") == ZXAPP_E_SYNTAX &&
+              A.err_line == 4 && A.nneeds == 1,
+          "the same need twice");
+    CHECK(parse("zxapp 1\nid a\nneeds fs.read a\nneeds fs.read b\nneeds fs.read\n") == ZXAPP_OK &&
+              A.nneeds == 3,
+          "other scopes are other needs");
+    CHECK(parse("zxapp 1\nid a\nslot 1\nslot 1\n") == ZXAPP_E_SYNTAX && A.err_line == 4,
+          "a second slot");
+    CHECK(parse("zxapp 1\nid a\nlayer L1\nlayer L1\n") == ZXAPP_E_SYNTAX, "a second layer");
+    CHECK(parse("zxapp 1\nid a\nicon x.svg\nicon y.svg\n") == ZXAPP_E_SYNTAX, "a second icon");
+    CHECK(parse("zxapp 1\nid a\nbudget 5\nbudget 5\n") == ZXAPP_E_SYNTAX, "a second budget");
+    char big[ZXAPP_PATH_MAX + 40];
+    memset(big, 0, sizeof big);
+    strcpy(big, "zxapp 1\nid a\nicon ");
+    size_t at = strlen(big);
+    memset(big + at, 'i', ZXAPP_PATH_MAX - 1);
+    big[at + ZXAPP_PATH_MAX - 1] = '\n';
+    CHECK(parse(big) == ZXAPP_OK && strlen(A.icon) == ZXAPP_PATH_MAX - 1, "the longest icon path");
+    big[at + ZXAPP_PATH_MAX - 1] = 'i';
+    big[at + ZXAPP_PATH_MAX] = '\n';
+    CHECK(parse(big) == ZXAPP_E_SYNTAX, "one longer is refused");
+    char many[1024] = "zxapp 1\nid a\n";
+    for (unsigned i = 0; i < ZXAPP_NEEDS; i++) {
+        char l[40];
+        snprintf(l, sizeof l, "needs net s%u\n", i);
+        strcat(many, l);
+    }
+    CHECK(parse(many) == ZXAPP_OK && A.nneeds == ZXAPP_NEEDS, "ZXAPP_NEEDS needs");
+    strcat(many, "needs net over\n");
+    CHECK(parse(many) == ZXAPP_E_FULL, "one more is too many");
+    char scope[ZXAPP_SCOPE_MAX + 40];
+    snprintf(scope, sizeof scope, "zxapp 1\nid a\nneeds net %.*s\n", (int) ZXAPP_SCOPE_MAX - 1,
+             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    CHECK(parse(scope) == ZXAPP_OK && strlen(A.needs[0].scope) == ZXAPP_SCOPE_MAX - 1,
+          "the longest scope");
+    snprintf(scope, sizeof scope, "zxapp 1\nid a\nneeds net %.*s\n", (int) ZXAPP_SCOPE_MAX,
+             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    CHECK(parse(scope) == ZXAPP_E_SYNTAX, "one longer is refused");
+    CHECK(parse("zxapp 1\nid a\nneeds net Az09._:/-\n") == ZXAPP_OK, "every scope character");
+    /* R4: blocks carry none of them */
+    static const char *const in_block[] = {"slot 1", "layer L1", "icon a.svg", "budget 1",
+                                           "needs net"};
+    for (unsigned i = 0; i < sizeof in_block / sizeof in_block[0]; i++) {
+        char m[160];
+        snprintf(m, sizeof m, "zxblock 1\nid b\nversion 1.0.0\n%s\n", in_block[i]);
+        CHECK(parse(m) == ZXAPP_E_SYNTAX && strstr(A.err, "block"), "a block refuses %s",
+              in_block[i]);
+    }
+    /* R3: one table, every name known, none twice */
+    uint32_t nc;
+    const char *const *caps = zxapp_caps(&nc);
+    CHECK(nc >= 10, "the table: %u", nc);
+    for (uint32_t i = 0; i < nc; i++) {
+        CHECK(zxapp_cap_known(caps[i]), "%s known", caps[i]);
+        for (uint32_t j = i + 1; j < nc; j++) CHECK(strcmp(caps[i], caps[j]), "%s twice", caps[i]);
+    }
+    CHECK(!zxapp_cap_known(NULL) && !zxapp_cap_known("") && !zxapp_cap_known("fs") &&
+              !zxapp_cap_known("fs.reads") && !zxapp_cap_known("Net"),
+          "near misses");
+}
+
+/* ---- wave 0: the built-in apps' own manifests, read from disk ----------------
+ * Each app's logic runs in the languages its manifest names, witnessed
+ * (A5), and every row is checked against the C the app or zxvd already
+ * runs (the reference is named beside each). Inputs are swept with a fixed
+ * generator, so a run is the same everywhere. */
+
+#define WAVE_ROWS 64u
+
+static zxapp_registry_t WREG;
+static zxapp_wasm_t WW;
+static uint64_t WSEED = UINT64_C(0x9E3779B97F4A7C15);
+
+static int64_t wrand(int64_t lo, int64_t hi) /* lo..hi inclusive */
+{
+    WSEED = WSEED * UINT64_C(6364136223846793005) + UINT64_C(1442695040888963407);
+    uint64_t span = (uint64_t) (hi - lo) + 1u;
+    return lo + (int64_t) ((WSEED >> 11) % span);
+}
+
+/* Read, compose and load one manifest; the number of entries loaded, or <0. */
+static int wave_app(zxapp_t *a, char *buf, uint32_t cap, const char *path)
+{
+    int32_t len = read_src(0, path, buf, cap);
+    if (len <= 0) return -100;
+    int rc = zxapp_parse(a, buf, (uint32_t) len);
+    if (rc == ZXAPP_OK) rc = zxapp_compose(a, &WREG);
+    if (rc != ZXAPP_OK) return rc;
+    return zxapp_load(a, &H);
+}
+
+/* A witnessed call whose every row must equal want[]; lp must be TRUE. */
+static bool wave_same(zxapp_t *a, const char *entry, const zxapp_arg_t *args, uint32_t nargs,
+                      const int64_t *want, uint32_t rows, bool truth)
+{
+    /* one language alone is unwitnessed (NEITHER); two or more must agree */
+    uint32_t langs = 0;
+    for (uint32_t i = 0; i < a->n; i++) langs += !strcmp(a->logic[i].entry, entry);
+    int32_t want_lp = langs > 1 ? ZXAPP_TRUE : ZXAPP_NEITHER;
+    zxapp_num_t out[WAVE_ROWS];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    int rc = zxapp_call_witnessed(a, &H, entry, args, nargs, out, WAVE_ROWS, &n, &lp);
+    if (rc != ZXAPP_OK || lp != want_lp || n != rows) {
+        printf("    %s: rc %d lp %d n %u (%s)\n", entry, rc, (int) lp, n, a->err);
+        return false;
+    }
+    for (uint32_t i = 0; i < rows; i++)
+        if (out[i].num != want[i] || out[i].den != (truth ? 0 : 1)) {
+            printf("    %s row %u: %lld/%lld, want %lld\n", entry, i, (long long) out[i].num,
+                   (long long) out[i].den, (long long) want[i]);
+            return false;
+        }
+    return true;
+}
+
+static int32_t wave_lp(zxapp_t *a, const char *entry, const zxapp_arg_t *args, uint32_t nargs)
+{
+    zxapp_num_t out[WAVE_ROWS];
+    uint32_t n = 0;
+    int32_t lp = -1;
+    (void) zxapp_call_witnessed(a, &H, entry, args, nargs, out, WAVE_ROWS, &n, &lp);
+    return lp;
+}
+
+static int64_t T_(bool b)
+{
+    return b ? ZXAPP_TRUE : ZXAPP_FALSE;
+}
+
+/* The C references. Each is the rule as the named C runs it. */
+static int64_t c_used_x100(int64_t total, int64_t left) /* almanac_model.c used_x100 */
+{
+    return !total || left > total ? -1 : (total - left) * 10000 / total;
+}
+static int64_t c_rate(int64_t now, int64_t was, int64_t dt) /* sounding_model.c rate */
+{
+    return !dt || now < was ? -1 : (now - was) * 1000 / dt;
+}
+static int64_t c_left(int64_t minutes, int64_t extra, int64_t used) /* zxv_screen.c apply */
+{
+    int64_t cap = minutes + extra;
+    return used >= cap ? 0 : cap - used;
+}
+
+/* ---- one test file per app: kernel/src/apps/tests/<id>_zxapp.inc --------------
+ * An app's whole test sits in its own file, so it can be read and written
+ * beside the manifest:
+ *
+ *     APP_TEST(<id>, <entries that load>, <slot>)
+ *     {
+ *         ... CHECK(wave_same(app, "<entry>", ...), ...) for each entry ...
+ *     }
+ *
+ * test_zxapp.sh writes the index (APP_TESTS_INDEX) that includes every such
+ * file. Each app is read from apps/<id>.zxapp and composed from the shared
+ * blocks, the wave 0 apps and the apps tested before it (an app waits until
+ * every app it uses has loaded), then loaded and checked like a wave 0 app,
+ * and only then handed to its own test, which must check something. */
+typedef struct {
+    const char *id;
+    int loaded;
+    uint32_t slot;
+    void (*run)(zxapp_t *app);
+} app_test_t;
+#define APP_TEST(id_, loaded_, slot_)                                                              \
+    static void app_test_##id_(zxapp_t *app);                                                      \
+    static const app_test_t APP_TEST_##id_ = {#id_, loaded_, slot_, app_test_##id_};               \
+    static void app_test_##id_(zxapp_t *app)
+#define APP_TEST_ROW(id_) &APP_TEST_##id_,
+#ifdef APP_TESTS_INDEX
+#    include APP_TESTS_INDEX
+#endif
+#ifndef APP_TESTS_ROWS
+#    define APP_TESTS_ROWS
+#endif
+static const app_test_t *const APP_TESTS[] = {APP_TESTS_ROWS 0};
+
+#define APP_TESTS_MAX 400u
+
+/* The part `id` among the wave 0 apps and the per-app apps that loaded. */
+static const zxapp_t *app_part(const zxapp_t *w0, int nw0, const zxapp_t *t, const bool *ok,
+                               uint32_t n, const char *id)
+{
+    for (int i = 0; i < nw0; i++)
+        if (!strcmp(w0[i].id, id)) return &w0[i];
+    for (uint32_t i = 0; i < n; i++)
+        if (ok[i] && !strcmp(t[i].id, id)) return &t[i];
+    return 0;
+}
+
+static void app_tests_run(const zxapp_t *w0, int nw0)
+{
+    static zxapp_t TAPP[APP_TESTS_MAX];
+    static char TBUF[APP_TESTS_MAX][16384];
+    static bool done[APP_TESTS_MAX], ok[APP_TESTS_MAX];
+    static zxapp_registry_t R, C;
+    uint32_t n = 0;
+    while (APP_TESTS[n]) n++;
+    CHECK(n <= APP_TESTS_MAX, "per-app tests: %u, at most %u", n, APP_TESTS_MAX);
+    if (n > APP_TESTS_MAX) return;
+    if (!n) return;
+    CHECK(zxapp_lingua_register(&H, 0) == ZXAPP_OK, "per-app tests: Lingua registers too");
+    for (bool progress = true; progress;) {
+        progress = false;
+        for (uint32_t i = 0; i < n; i++) {
+            if (done[i]) continue;
+            const app_test_t *t = APP_TESTS[i];
+            zxapp_t *a = &TAPP[i];
+            char path[ZXAPP_PATH_MAX];
+            snprintf(path, sizeof path, "apps/%s.zxapp", t->id);
+            int32_t len = read_src(0, path, TBUF[i], sizeof TBUF[i]);
+            int rc = len > 0 ? zxapp_parse(a, TBUF[i], (uint32_t) len) : ZXAPP_E_ARG;
+            if (rc != ZXAPP_OK) {
+                done[i] = progress = true;
+                CHECK(0, "%s: read and parse %s: %d %s", t->id, path, rc, len > 0 ? a->err : "");
+                continue;
+            }
+            R = WREG; /* the shared blocks, then the parts this app uses */
+            bool wait = false;
+            for (uint32_t u = 0; u < a->nuse && !wait; u++) {
+                if (zxapp_registry_find(&R, a->use[u].id, a->use[u].ver, a->use[u].exact)) continue;
+                const zxapp_t *p = app_part(w0, nw0, TAPP, ok, n, a->use[u].id);
+                if (p)
+                    CHECK(zxapp_registry_add(&R, p) == ZXAPP_OK, "%s: part %s registers: %s", t->id,
+                          p->id, R.err);
+                else
+                    wait = true;
+            }
+            if (wait) continue; /* a part is not loaded yet: try again next pass */
+            done[i] = progress = true;
+            rc = zxapp_compose(a, &R);
+            if (rc == ZXAPP_OK) rc = zxapp_load(a, &H);
+            CHECK(rc == t->loaded, "%s: %d of %d entries load: %s", path, rc, t->loaded, a->err);
+            int layer = zxapp_slot_layer(t->slot);
+            char icon[ZXAPP_PATH_MAX];
+            snprintf(icon, sizeof icon, "icons/l%d/%03u-%s.svg", layer, t->slot, t->id);
+            CHECK(!strcmp(a->id, t->id) && a->slot == t->slot && a->layer == layer &&
+                      a->budget > 0 && a->nneeds > 0 && !strcmp(a->icon, icon),
+                  "%s: registry fields (slot %u, layer L%d, icon %s)", t->id, t->slot, layer, icon);
+            zxapp_registry_init(&C); /* C1: every app is a block too */
+            CHECK(zxapp_registry_add(&C, a) == ZXAPP_OK, "%s registers as a block: %s", t->id,
+                  C.err);
+            if (rc != t->loaded || rc < 0) continue;
+            int before = checks;
+            t->run(a);
+            CHECK(checks > before + 1, "%s: its test checks something", t->id);
+            zxapp_unload(a, &H);
+            ok[i] = true;
+        }
+    }
+    for (uint32_t i = 0; i < n; i++)
+        CHECK(done[i], "%s: an app it uses has no test or never loads (%s)", APP_TESTS[i]->id,
+              TAPP[i].nuse ? TAPP[i].use[0].id : "?");
+}
+
+static void test_wave0(void)
+{
+    static char buf[16][4096];
+    static zxapp_t APP[16], USED;
+    static int64_t a[WAVE_ROWS], b[WAVE_ROWS], c[WAVE_ROWS], want[WAVE_ROWS];
+    if (!SRC_ROOT) return;
+    zxapp_host_init(&H);
+    H.read_file = read_src;
+    CHECK(zxapp_sutra_register(&H) == ZXAPP_OK && zxapp_kron_register(&H) == ZXAPP_OK &&
+              zxapp_eve_register(&H) == ZXAPP_OK && zxapp_trebago_register(&H) == ZXAPP_OK &&
+              zxapp_myra_register(&H) == ZXAPP_OK && zxapp_wasm_register(&H, &WW, 0) == ZXAPP_OK,
+          "wave 0: every runtime the apps name registers");
+    zxapp_registry_init(&WREG);
+    int32_t len = read_src(0, "apps/blocks/used_share.zxblock", buf[15], sizeof buf[15]);
+    CHECK(len > 0 && zxapp_parse(&USED, buf[15], (uint32_t) len) == ZXAPP_OK &&
+              zxapp_registry_add(&WREG, &USED) == ZXAPP_OK,
+          "the used_share block registers: %s", USED.err);
+    static const struct {
+        const char *path, *id;
+        int loaded;
+        uint32_t slot;
+    } apps[] = {
+        {"apps/banker.zxapp", "banker", 4, 1},
+        {"apps/scent.zxapp", "scent", 2, 5},
+        {"apps/keepsake.zxapp", "keepsake", 3, 10},
+        {"apps/wake.zxapp", "wake", 2, 14},
+        {"apps/tidewatch.zxapp", "tidewatch", 5, 15},
+        {"apps/sounding.zxapp", "sounding", 2, 16},
+        {"apps/almanac.zxapp", "almanac", 6, 17},
+        {"apps/spindle.zxapp", "spindle", 1, 22},
+        {"apps/quillon.zxapp", "quillon", 1, 37},
+        {"apps/glint.zxapp", "glint", 1, 49},
+        {"apps/murmuration.zxapp", "murmuration", 3, 61},
+        {"apps/waymark.zxapp", "waymark", 2, 85},
+        {"apps/platen.zxapp", "platen", 4, 115},
+        {"apps/shepherd.zxapp", "shepherd", 4, 142},
+    };
+    enum {
+        BANKER,
+        SCENT,
+        KEEPSAKE,
+        WAKE,
+        TIDEWATCH,
+        SOUNDING,
+        ALMANAC,
+        SPINDLE,
+        QUILLON,
+        GLINT,
+        MURMURATION,
+        WAYMARK,
+        PLATEN,
+        SHEPHERD,
+        NAPPS
+    };
+    zxapp_t SHARES;
+    static char sbuf[4096];
+    len = read_src(0, "apps/blocks/swarm_shares.zxblock", sbuf, sizeof sbuf);
+    CHECK(len > 0 && zxapp_parse(&SHARES, sbuf, (uint32_t) len) == ZXAPP_OK &&
+              zxapp_registry_add(&WREG, &SHARES) == ZXAPP_OK,
+          "the swarm_shares block registers");
+    for (int i = 0; i < NAPPS; i++) {
+        int got = wave_app(&APP[i], buf[i], sizeof buf[i], apps[i].path);
+        CHECK(got == apps[i].loaded, "%s: %d of %d entries load: %s", apps[i].path, got,
+              apps[i].loaded, APP[i].err);
+        CHECK(!strcmp(APP[i].id, apps[i].id) && APP[i].slot == apps[i].slot &&
+                  APP[i].layer == ZXAPP_LAYER_L1 && APP[i].budget > 0 && APP[i].nneeds > 0 &&
+                  APP[i].icon[0],
+              "%s: registry fields", apps[i].id);
+        char want_icon[ZXAPP_PATH_MAX];
+        snprintf(want_icon, sizeof want_icon, "icons/l1/%03u-%s.svg", apps[i].slot, apps[i].id);
+        CHECK(!strcmp(APP[i].icon, want_icon), "%s: icon %s", apps[i].id, APP[i].icon);
+        /* C1: every L1 app is a block too, so L2 apps can "use" it */
+        static zxapp_registry_t L2REG;
+        if (!i) zxapp_registry_init(&L2REG);
+        CHECK(zxapp_registry_add(&L2REG, &APP[i]) == ZXAPP_OK, "%s registers as a block: %s",
+              apps[i].id, L2REG.err);
+    }
+
+    /* used_share (Almanac and Tidewatch): Sutra and KRON against almanac_model.c */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(1, i < 8 ? 3 : INT64_C(1) << 40); /* small totals reach every edge */
+        b[i] = wrand(0, a[i]);
+        want[i] = c_used_x100(a[i], b[i]);
+    }
+    a[0] = 1, b[0] = 0, want[0] = 10000;
+    a[1] = 1, b[1] = 1, want[1] = 0;
+    a[2] = 3, b[2] = 2, want[2] = 3333;
+    zxapp_arg_t ua[2] = {{"total", a, WAVE_ROWS}, {"left", b, WAVE_ROWS}};
+    CHECK(wave_same(&APP[ALMANAC], "used_share.used_x100", ua, 2, want, WAVE_ROWS, false),
+          "Almanac: memory and disk in use, Sutra = KRON = C");
+    CHECK(wave_same(&APP[TIDEWATCH], "used_share.used_x100", ua, 2, want, WAVE_ROWS, false),
+          "Tidewatch: the same block, the same answers");
+    int64_t t1[1] = {100}, l1[1] = {101};
+    zxapp_arg_t over[2] = {{"total", t1, 1}, {"left", l1, 1}};
+    CHECK(wave_lp(&APP[ALMANAC], "used_share.used_x100", over, 2) == ZXAPP_BOTH,
+          "more left than the total: Sutra refuses, KRON answers: BOTH, held (C says unknown)");
+
+    /* Almanac uptime: C++ (wasm) and KRON against almanac_uptime_text's d and h */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(0, i < 16 ? 200000 : INT64_C(10000000000));
+        want[i] = a[i] / 86400;
+        c[i] = a[i] % 86400 / 3600;
+    }
+    a[0] = 0, want[0] = 0, c[0] = 0;
+    a[1] = 86399, want[1] = 0, c[1] = 23;
+    a[2] = 86400, want[2] = 1, c[2] = 0;
+    a[3] = 3599, want[3] = 0, c[3] = 0;
+    a[4] = 3600, want[4] = 0, c[4] = 1;
+    zxapp_arg_t sa[1] = {{"seconds", a, WAVE_ROWS}};
+    CHECK(wave_same(&APP[ALMANAC], "days", sa, 1, want, WAVE_ROWS, false),
+          "Almanac: days of uptime, C++ = KRON = C");
+    CHECK(wave_same(&APP[ALMANAC], "hours", sa, 1, c, WAVE_ROWS, false),
+          "Almanac: hours past the day, C++ = KRON = C");
+
+    /* Tidewatch: zxvd's CPU share (tidewatch_model.c), and the peak */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(0, INT64_C(1000000000));
+        b[i] = wrand(1, 1000000);
+        want[i] = a[i] * 10 / b[i];
+    }
+    a[0] = 999, b[0] = 1000, want[0] = 9;
+    zxapp_arg_t ca[2] = {{"cpu", a, WAVE_ROWS}, {"ms", b, WAVE_ROWS}};
+    CHECK(wave_same(&APP[TIDEWATCH], "cpu_x100", ca, 2, want, WAVE_ROWS, false),
+          "Tidewatch: CPU share, Sutra = KRON = C");
+    {
+        int64_t pk = 0;
+        for (uint32_t i = 0; i < WAVE_ROWS; i++)
+            if (want[i] > pk) pk = want[i];
+        zxapp_arg_t pa = {"share", want, WAVE_ROWS};
+        zxapp_num_t o[2];
+        uint32_t n = 0;
+        CHECK(zxapp_call(&APP[TIDEWATCH], &H, "peak", &pa, 1, o, 2, &n) == ZXAPP_OK && n == 1 &&
+                  o[0].num == pk,
+              "Tidewatch: the graph's peak (KRON) = C");
+        int64_t none[1] = {-5};
+        zxapp_arg_t na = {"share", none, 1};
+        CHECK(zxapp_call(&APP[TIDEWATCH], &H, "peak", &na, 1, o, 2, &n) == ZXAPP_OK &&
+                  o[0].num == 0,
+              "Tidewatch: no share above 0 gives a peak of 0, as C");
+    }
+
+    /* Sounding: a counter's rate, Rust (wasm) and Sutra against sounding_model.c */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        b[i] = wrand(0, INT64_C(1000000000000));
+        a[i] = i % 7 == 3 ? wrand(0, b[i]) : b[i] + wrand(0, INT64_C(1000000000)); /* resets */
+        c[i] = i % 11 == 5 ? 0 : wrand(1, 100000);
+        want[i] = c_rate(a[i], b[i], c[i]);
+    }
+    a[0] = 5000, b[0] = 0, c[0] = 1000, want[0] = 5000;
+    a[1] = 1, b[1] = 0, c[1] = 1001, want[1] = 0;
+    a[2] = 4, b[2] = 5, c[2] = 10, want[2] = -1;
+    a[3] = 5, b[3] = 5, c[3] = 0, want[3] = -1;
+    zxapp_arg_t ra[3] = {{"now", a, WAVE_ROWS}, {"was", b, WAVE_ROWS}, {"dt", c, WAVE_ROWS}};
+    CHECK(wave_same(&APP[SOUNDING], "rate", ra, 3, want, WAVE_ROWS, false),
+          "Sounding: rates and resets, Rust = Sutra = C");
+
+    /* Wake: events at or above the view's level, KRON and Trebago against wake_filter */
+    for (int round = 0; round < 32; round++) {
+        uint32_t n = (uint32_t) wrand(1, 40);
+        int64_t bar[1] = {wrand(0, 5)}, cnt = 0;
+        for (uint32_t i = 0; i < n; i++) {
+            a[i] = wrand(0, 5);
+            cnt += a[i] >= bar[0];
+        }
+        zxapp_arg_t wa[2] = {{"level", a, n}, {"bar", bar, 1}};
+        CHECK(wave_same(&APP[WAKE], "count", wa, 2, &cnt, 1, false),
+              "Wake: round %d, KRON = Trebago = C", round);
+    }
+
+    /* Keepsake: what a prune removes (zks_prune), and what it may keep */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(0, 50);
+        b[i] = wrand(1, 50);
+        want[i] = a[i] > b[i] ? a[i] - b[i] : 0;
+    }
+    a[0] = 5, b[0] = 5, want[0] = 0;
+    a[1] = 6, b[1] = 5, want[1] = 1;
+    zxapp_arg_t ka[2] = {{"snapshots", a, WAVE_ROWS}, {"keep", b, WAVE_ROWS}};
+    CHECK(wave_same(&APP[KEEPSAKE], "removed", ka, 2, want, WAVE_ROWS, false),
+          "Keepsake: backups a prune removes, Sutra = KRON = C");
+    {
+        int64_t k[3] = {0, 1, 4294967295}, w[3] = {ZXAPP_FALSE, ZXAPP_TRUE, ZXAPP_TRUE};
+        zxapp_arg_t kk = {"keep", k, 3};
+        CHECK(wave_same(&APP[KEEPSAKE], "keep_ok", &kk, 1, w, 3, true),
+              "Keepsake: a prune may never keep none (Eve)");
+    }
+
+    /* Platen: sheets for a job, and copies the printer takes (ipp.c copies-supported) */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(1, 10000);
+        b[i] = wrand(1, 2);
+        c[i] = wrand(1, 99);
+        want[i] = (a[i] + b[i] - 1) / b[i] * c[i];
+    }
+    a[0] = 3, b[0] = 2, c[0] = 1, want[0] = 2;
+    a[1] = 4, b[1] = 2, c[1] = 3, want[1] = 6;
+    a[2] = 1, b[2] = 1, c[2] = 1, want[2] = 1;
+    zxapp_arg_t pa3[3] = {
+        {"pages", a, WAVE_ROWS}, {"sides", b, WAVE_ROWS}, {"copies", c, WAVE_ROWS}};
+    CHECK(wave_same(&APP[PLATEN], "sheets", pa3, 3, want, WAVE_ROWS, false),
+          "Platen: sheets of paper, Sutra = KRON = C");
+    {
+        for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+            a[i] = (int64_t) i * 2 - 8; /* -8 .. 118 */
+            b[i] = i % 3 ? 99 : wrand(1, 999);
+            want[i] = T_(a[i] >= 1 && a[i] <= b[i]);
+        }
+        a[63] = 99, b[63] = 99, want[63] = ZXAPP_TRUE;
+        a[62] = 100, b[62] = 99, want[62] = ZXAPP_FALSE;
+        zxapp_arg_t co[2] = {{"copies", a, WAVE_ROWS}, {"most", b, WAVE_ROWS}};
+        CHECK(wave_same(&APP[PLATEN], "copies_ok", co, 2, want, WAVE_ROWS, true),
+              "Platen: copies the printer takes, Sutra = KRON = C");
+    }
+
+    /* Shepherd: minutes left (zxv_screen.c apply), the limit's rule, the week */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(0, 1440);
+        b[i] = wrand(0, 1440);
+        c[i] = wrand(0, 3000);
+        want[i] = c_left(a[i], b[i], c[i]);
+    }
+    a[0] = 60, b[0] = 0, c[0] = 60, want[0] = 0;
+    a[1] = 60, b[1] = 15, c[1] = 60, want[1] = 15;
+    a[2] = 0, b[2] = 0, c[2] = 0, want[2] = 0;
+    zxapp_arg_t la[3] = {
+        {"minutes", a, WAVE_ROWS}, {"extra", b, WAVE_ROWS}, {"used", c, WAVE_ROWS}};
+    CHECK(wave_same(&APP[SHEPHERD], "left", la, 3, want, WAVE_ROWS, false),
+          "Shepherd: minutes left today, Sutra = KRON = zxvd's rule");
+    {
+        int64_t m[6] = {-2, -1, 0, 1440, 1441, 30}, f[6] = {0, 0, 1439, 0, 0, 1440},
+                t[6] = {0, 1439, 0, 0, 0, 0},
+                w[6] = {ZXAPP_FALSE, ZXAPP_TRUE, ZXAPP_TRUE, ZXAPP_TRUE, ZXAPP_FALSE, ZXAPP_FALSE};
+        zxapp_arg_t ea[3] = {{"minutes", m, 6}, {"from", f, 6}, {"to", t, 6}};
+        CHECK(wave_same(&APP[SHEPHERD], "limit_ok", ea, 3, w, 6, true),
+              "Shepherd: a limit's rule at its edges (Eve, as zxv_screen.c)");
+        int64_t days[7] = {30, 0, 1440, 45, 12, 0, 7}, wk = 1534;
+        zxapp_arg_t da = {"minutes", days, 7};
+        zxapp_num_t o[2];
+        uint32_t n = 0;
+        CHECK(zxapp_call(&APP[SHEPHERD], &H, "week", &da, 1, o, 2, &n) == ZXAPP_OK && n == 1 &&
+                  o[0].num == wk && o[0].den == 1,
+              "Shepherd: the week's minutes (Trebago)");
+    }
+
+    /* Waymark: a place on the globe (zxv_place.c), Eve and KRON */
+    for (uint32_t i = 0; i < WAVE_ROWS; i++) {
+        a[i] = wrand(-100000000, 100000000);
+        b[i] = wrand(-200000000, 200000000);
+    }
+    a[0] = 90000000, b[0] = 180000000;
+    a[1] = -90000000, b[1] = -180000000;
+    a[2] = 90000001, b[2] = 0;
+    a[3] = 0, b[3] = -180000001;
+    for (uint32_t i = 0; i < WAVE_ROWS; i++)
+        want[i] =
+            T_(a[i] >= -90000000 && a[i] <= 90000000 && b[i] >= -180000000 && b[i] <= 180000000);
+    zxapp_arg_t ga[2] = {{"lat", a, WAVE_ROWS}, {"lon", b, WAVE_ROWS}};
+    CHECK(wave_same(&APP[WAYMARK], "place_ok", ga, 2, want, WAVE_ROWS, true),
+          "Waymark: places on the globe, Eve = KRON = C");
+
+    /* Scent: a hit's score, KRON and Trebago against zxv_search.c */
+    for (int round = 0; round < 32; round++) {
+        uint32_t n = (uint32_t) wrand(1, 8);
+        int64_t s = 0;
+        for (uint32_t i = 0; i < n; i++) {
+            a[i] = wrand(0, 1);
+            b[i] = wrand(0, 1);
+            c[i] = wrand(0, 300);
+            s += a[i] ? 1000 : b[i] ? 100 : 0;
+            s += c[i] > 99 ? 99 : c[i];
+        }
+        zxapp_arg_t sc[3] = {{"name", a, n}, {"folder", b, n}, {"count", c, n}};
+        CHECK(wave_same(&APP[SCENT], "score", sc, 3, &s, 1, false),
+              "Scent: round %d, KRON = Trebago = C", round);
+    }
+
+    /* The Banker: entry shares, the folder's total, the entry record */
+    {
+        uint32_t n = 20;
+        int64_t tot = 0;
+        for (uint32_t i = 0; i < n; i++) tot += a[i] = wrand(0, INT64_C(1) << 36);
+        int64_t total[1] = {tot};
+        for (uint32_t i = 0; i < n; i++) want[i] = a[i] * 10000 / tot;
+        zxapp_arg_t sh[2] = {{"size", a, n}, {"total", total, 1}};
+        CHECK(wave_same(&APP[BANKER], "share", sh, 2, want, n, false),
+              "Banker: each entry's share, KRON = C++ = C");
+        int64_t z[2] = {0, 0}, zt[1] = {0}, zw[2] = {0, 0};
+        zxapp_arg_t ze[2] = {{"size", z, 2}, {"total", zt, 1}};
+        CHECK(wave_same(&APP[BANKER], "share", ze, 2, zw, 2, false),
+              "Banker: an empty folder's shares are 0, not a division by zero");
+        int64_t big[1] = {11}, small[1] = {10};
+        zxapp_arg_t bs[2] = {{"size", big, 1}, {"total", small, 1}};
+        CHECK(wave_lp(&APP[BANKER], "share", bs, 2) == ZXAPP_BOTH,
+              "Banker: an entry bigger than its folder: BOTH, held");
+        zxapp_arg_t ta = {"size", a, n};
+        zxapp_num_t o[2];
+        uint32_t k = 0;
+        CHECK(zxapp_call(&APP[BANKER], &H, "total", &ta, 1, o, 2, &k) == ZXAPP_OK && k == 1 &&
+                  o[0].num == tot && o[0].den == 1,
+              "Banker: the folder's total (Trebago)");
+        int64_t f[1] = {3}, sq[2] = {1, 2}, sz[2] = {INT64_C(999999999999999999), 12},
+                mt[2] = {1760000000, 0};
+        zxapp_arg_t ea[4] = {{"folder", f, 1}, {"seq", sq, 2}, {"size", sz, 2}, {"mtime", mt, 2}};
+        int64_t ok2[2] = {ZXAPP_TRUE, ZXAPP_TRUE};
+        CHECK(wave_same(&APP[BANKER], "entry_ok", ea, 4, ok2, 2, true),
+              "Banker: entries fit ^ZXHOARD (MYRA)");
+        int64_t mbad[1] = {INT64_C(1000000000000)};
+        zxapp_arg_t eb[4] = {{"folder", f, 1}, {"seq", sq, 1}, {"size", sz, 1}, {"mtime", mbad, 1}};
+        int64_t no[1] = {ZXAPP_FALSE};
+        CHECK(wave_same(&APP[BANKER], "entry_ok", eb, 4, no, 1, true),
+              "Banker: a 13-digit time does not fit i12");
+    }
+
+    /* Spindle, Quillon, Glint: the limits their models hold to */
+    {
+        int64_t p[4] = {0, 4096, 4097, 10}, r[4] = {0, 8192, 0, 8193},
+                w[4] = {ZXAPP_TRUE, ZXAPP_TRUE, ZXAPP_FALSE, ZXAPP_FALSE};
+        zxapp_arg_t pa2[2] = {{"params", p, 4}, {"reply", r, 4}};
+        CHECK(wave_same(&APP[SPINDLE], "call_ok", pa2, 2, w, 4, true),
+              "Spindle: SPINDLE_PARAMS_MAX and SPINDLE_REPLY_MAX (Eve)");
+        int64_t q[3] = {0, 1048576, 1048577}, qw[3] = {ZXAPP_TRUE, ZXAPP_TRUE, ZXAPP_FALSE};
+        zxapp_arg_t qa = {"bytes", q, 3};
+        CHECK(wave_same(&APP[QUILLON], "size_ok", &qa, 1, qw, 3, true),
+              "Quillon: QUILLON_TEXT_MAX (Eve)");
+        int64_t f[1] = {1}, sq[2] = {1, 2}, k[2] = {3, 1000}, sz[2] = {5, 5},
+                gw[2] = {ZXAPP_TRUE, ZXAPP_FALSE};
+        zxapp_arg_t ia[4] = {{"folder", f, 1}, {"seq", sq, 2}, {"kind", k, 2}, {"size", sz, 2}};
+        CHECK(wave_same(&APP[GLINT], "item_ok", ia, 4, gw, 2, true),
+              "Glint: a media item fits ^ZXGLINT (MYRA)");
+    }
+    for (int i = 0; i < NAPPS; i++) zxapp_unload(&APP[i], &H);
+    app_tests_run(APP, NAPPS);
+    zxapp_wasm_close(&WW);
+}
+
 /* ---- W: circuits ---------------------------------------------------------- */
 
 static zxwire_t WIRE;
@@ -2255,6 +2923,8 @@ int main(int argc, char **argv)
     test_myra();
     test_witness_mixed();
     test_fee_check();
+    test_registry_fields();
+    test_wave0();
     test_wire();
     test_board();
     test_lingua();

@@ -17,7 +17,7 @@ origin and fetch-metadata checks).
 
 | Who | App | What it does | zxvd methods |
 |---|---|---|---|
-| Everyone | **Burrow** (files) | Browse the ZXV folder, make folders and text files, import files (button or drag and drop), rename, move to the Trash, put back, empty the Trash. | `files.*` |
+| Everyone | **The Banker** (files) | Browse the Hoard, make folders and text files, import files (button or drag and drop), rename, move to the Trash, put back, empty the Trash. | `files.*` |
 | Everyone | **Quillon** (text) | Plain text and Markdown, save and save as (⌘S / Ctrl+S), a live Markdown preview, a prose or code font, word, character and line counts. Unsaved work is kept as a draft in the window and restored after a reload. | `files.read`, `files.write` |
 | Everyone | **Glint** (photos and media) | Thumbnails of the images in a folder, a full-size viewer with arrow keys, and playback for audio and video files. | `files.list`, `files.read` |
 | Everyone | **Murmuration** (the swarm) | The live swarm: agents, budget, cycles, ledger, network, updates, notifications and the companion chat (the earlier single-page window). | `swarm.*`, `net.*`, … |
@@ -57,13 +57,13 @@ and calls the actions. The shared rules are in `zxm.h` (M1-M5):
 |---|---|---|---|
 | `burrow_model.h` | folder, entries, selection | open, up, enter, mkdir, new text, rename, trash, put back, empty Trash, import | describe the folder; suggest folders (names only, never moves files) |
 | `quillon_model.h` | one UTF-8 document, path, unsaved flag, counts | new, open, save, save as, replace, set text | summarize, rewrite, continue, proofread |
-| `glint_model.h` | the media in a Burrow folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
+| `glint_model.h` | the media in a Banker folder, the one viewed | view, next, prev, load bytes into the view's buffer | name the album (file names only) |
 | `spindle_model.h` | method list, the last 16 calls | discover, call with JSON params | explain a reply |
 | `murmuration_model.h` | one swarm snapshot (agents, feelings, allotments, witnesses, totals), the model slot, the earnings, the selected agent | refresh, select, find, cycle share, emotion of an emoji | explain the swarm; why this agent is unhappy |
 
-Burrow and Quillon carry the space they work in (`burrow_set_space`, and the
+The Banker and Quillon carry the space they work in (`burrow_set_space`, and the
 `space` argument of `quillon_open` and `quillon_save_as`); Glint follows its
-Burrow folder. `burrow_cross` copies an entry into another space and reports
+Banker folder. `burrow_cross` copies an entry into another space and reports
 a held crossing's ticket for `burrow_cross_confirm`.
 
 ### Murmuration
@@ -97,11 +97,14 @@ model slot and what the swarm has earned in the owner's books. Its model
   accepting it only marks it read and changes nothing in zxvd.
 
 `kernel/src/apps/test_apps.sh` runs the models against zxvd's real dispatcher
-on a scratch ZXV folder.
+on a scratch Hoard.
 
-## The ZXV folder
+## The Hoard
 
-Every app works inside one folder, never outside it (`kernel/arch/hosted/zxv_files.h`):
+The Hoard is the owner's storage root: the one folder the Banker shows and
+every app works inside, never outside it. Its sealed snapshots are kept
+apart, in the Sealed Hoard ([LEXICON.md](LEXICON.md) §3). On disk it is the
+ZXV folder (`kernel/arch/hosted/zxv_files.h`):
 
 - **Where:** `~/Documents/ZXV` on macOS and Linux (`~/ZXV` when there is no
   `~/Documents`), `%USERPROFILE%\Documents\ZXV` on Windows, or the
@@ -164,9 +167,9 @@ on each call, so a hidden button in the interface is never the only guard.
 Every app has a ZXV name, not another company's product name. A trademark
 search is still needed before release; the names below were chosen to avoid
 the obvious clashes. Planned names for apps not built yet: Margins (notes),
-Coffer (wallet and books), Waymark (Web4 viewer), Commons (chat), Tidewatch
-(activity monitor), Keystone (settings), Witness (audit log), Lodestone
-(inspector), Satchel (packager).
+Coffer (wallet and books), Waymark (Web4 viewer), Commons (chat). The system
+utilities' names (Almanac, Tidewatch, Wake, Sounding, Keystone, Witness and
+the rest) are in [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md).
 
 ## Coming next
 
@@ -180,6 +183,6 @@ In the order they will be built (the plan in the "Built-in apps and toolbox" thr
 | Everyone | Web4 viewer | `kernel/src/browser`, `kernel/src/web4` |
 | Everyone | Chat | Commons chat (PR #78) |
 | Everyone | Image and voice generation | the Images and voice work (PR #93) |
-| Power users | Activity monitor, Settings, Audit log | `swarm.state`, `net.*`, `update.*`, `notes.list`, the quarantine log |
+| Power users | Settings, Audit log and the other system utilities | see [SYSTEM_UTILITIES.md](SYSTEM_UTILITIES.md), where Almanac, Tidewatch, Wake and Sounding are built |
 | Developers | Inspector, Packager | `rpc.discover`, `model.info`, `net.peers`; AIPI for signed bundles |
 | Developers | Playground | owned by the language examples and templates work |

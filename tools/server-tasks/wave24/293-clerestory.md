@@ -1,0 +1,12 @@
+# Wave 24 task: Clerestory (slot 293), Research project
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 0 (037 quillon), wave 7 (069 quarry), wave 12 (151 lectern), wave 13 (168 bindery), wave 19 (233 stratum).
+Manifest: `slot 293`, `layer L3`, `icon icons/l3/293-clerestory.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: supports a research project end to end: reading lists, notes, citations, drafts and supervisor feedback in the Hoard (`files.read`, `files.write`, `search.query`), grant spending kept as a Hoard file.
+Uses: `use lectern 1` (cards from highlights, citation register); `use stratum 1` (source agreement and conflict); `use bindery 1` ("may lend" for library copies); `use quarry 1` ("this claim has a source"); `use quillon 1` (`quillon.size_ok`). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `ethics_ok` (data with people in it is used only under an approval on file and within its expiry) in Ada as Eve + APL as KRON witnessed; `stats` (mean floor, median and counts over the study's integer data) in FORTRAN as Trebago + APL as KRON witnessed; `grant_spend` (spend against the grant's lines, minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `literature` matrix in APL as KRON; `chapters` hierarchy in MUMPS as MYRA.
+BOTH test: study 3 finds an effect and study 8 finds none: the finding is BOTH, shown as an open question; neither study is dropped. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: fs.read, fs.write, search.
+Planned (no runtime yet): Mathematica, Natural, Gleam.
+Pending: `pending Mathematica chapters` (symbolic); `pending Natural literature` (query); Gleam (messaging): no entry here is an obvious fit; put `pending Gleam <entry>` on the one closest to messaging and name it in your report.

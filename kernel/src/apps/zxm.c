@@ -143,6 +143,13 @@ void zxm_p_u64(zxm_link_t *l, const char *k, uint64_t v)
     put_u64(l, v);
 }
 
+void zxm_p_i64(zxm_link_t *l, const char *k, int64_t v)
+{
+    key(l, k);
+    if (v < 0) puts_(l, "-");
+    put_u64(l, v < 0 ? 0u - (uint64_t) v : (uint64_t) v);
+}
+
 void zxm_p_bool(zxm_link_t *l, const char *k, bool v)
 {
     key(l, k);
@@ -316,5 +323,21 @@ int zxm_ai_ask(zxm_link_t *l, const zxm_ai_action_t *act, int32_t idx, const cha
         held->cost.tokens = ((uint64_t) il + held->len + 3u) / 4u;
         held->cost.exact = false;
     }
+    return ZXM_OK;
+}
+
+int zxm_held_accept(zxm_held_t *held)
+{
+    if (held->state != ZXM_HELD_PENDING) return ZXM_E_STATE;
+    held->state = ZXM_HELD_ACCEPTED;
+    return ZXM_OK;
+}
+
+int zxm_held_reject(zxm_held_t *held)
+{
+    if (held->state != ZXM_HELD_PENDING) return ZXM_E_STATE;
+    held->state = ZXM_HELD_REJECTED;
+    held->len = 0;
+    held->text[0] = 0;
     return ZXM_OK;
 }

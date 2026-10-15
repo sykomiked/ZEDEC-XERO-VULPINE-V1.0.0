@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Almanac, about this machine. Memory and disk in use come from the
+# used_share block (Sutra and KRON); uptime's days and hours are C++ (as
+# WebAssembly) and KRON, and each is shown only when its two agree.
+zxapp 1
+id     almanac
+name   Almanac
+version 1.0.0
+slot   17
+layer  L1
+icon   icons/l1/017-almanac.svg
+budget 233
+needs  sys.read
+needs  ai.ask
+model  apps/almanac_model.c
+use    used_share 1
+
+provides days num seconds
+logic    wasm days apps/blocks/almanac/uptime_days.wasm
+logic    kron days apps/blocks/almanac/uptime_days.kron
+
+provides hours num seconds
+logic    wasm hours apps/blocks/almanac/uptime_hours.wasm
+logic    kron hours apps/blocks/almanac/uptime_hours.kron

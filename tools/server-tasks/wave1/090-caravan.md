@@ -1,0 +1,7 @@
+# Wave 1 task: Caravan (slot 90), Freight and shipments
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 90, build position 5 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Gatehouse (layer 8, wave 1, built after this one: `use gatehouse 1`); Assay (layer 72, wave 2, built after this one: `use assay 1`); Ninefold (layer 80, wave 1, built before this one: `use ninefold 1`). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. 10 other layers lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: shipments, parcels and addresses (`place.list`, records in the Banker via `files.read`, `files.write`). No shipment or carrier method: use only existing methods; list what's missing in your report.
+Logic (critical): charged weight = max(mass, ceil(L x W x H / divisor)) in trebago + sutra witnessed; "within carrier limits" (mass, length, girth) in eve + trebago witnessed; route choice from `use pce_strat 1` (C, advisory); shipment records in myra.
+needs: fs.read, fs.write, location, notify.
+Planned (no runtime yet): Logo, Objective-C.

@@ -244,6 +244,84 @@ static void test_sound_setting(void)
     zui_launch_theme_attach(0, &WM, &SHELL, 0);
 }
 
+/* LT8: the real load from fabrication drives the screen and the sounds */
+static uint32_t seen_release, seen_gather, launch_draws;
+static void rec_launch(zui_surface_t *s, zui_rect_t area, const zui_wm_window_t *w,
+                       zui_launch_state_t st, uint32_t tick, void *ctx)
+{
+    (void) ctx;
+    launch_draws++;
+    seen_release = st.release;
+    seen_gather = st.gather;
+    zui_launch_draw(s, area, 256, &w->launch, st, tick);
+}
+
+static void test_fab_load(void)
+{
+    reset(0);
+    /* LT7: a theme's launch screen set before attaching still draws */
+    zui_wm_init(&WM, W, H, false);
+    WM.launch_draw = rec_launch;
+    zui_launch_theme_attach(&LT, &WM, &SHELL, 0);
+    uint32_t id = zui_launch_theme_open(&LT, "Burrow", "Burrow", "", true, false, 0);
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, 0, 40) == 0, "LT8: the start's answer");
+    zui_wm_draw(&WM, &S, 0);
+    CHECK(launch_draws > 0 && WM.win[0].progress == 0, "LT8: nothing fetched, nothing moves");
+    uint32_t last = 0;
+    int ok = 1;
+    for (uint32_t b = 4; b < 40; b += 4) {
+        zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, b, 40);
+        zui_wm_draw(&WM, &S, b);
+        uint32_t p = zui_wm_get(&WM, id)->progress, want = b * 256u / 40u / 2u;
+        if (p != want || p < last) ok = 0;
+        last = p;
+    }
+    CHECK(ok, "LT8: the bar is the verified blocks, never ahead (%u)", last);
+    CHECK(count(ZXL_EV_TICK) >= 4 && count(ZXL_EV_END) == 0, "LT8: ticks as the tiles fill (%d)",
+          count(ZXL_EV_TICK));
+    zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, 40, 40);
+    zui_wm_draw(&WM, &S, 50);
+    CHECK(count(ZXL_EV_TICK) == 5 && zui_wm_get(&WM, id)->progress == 192,
+          "LT8: every block in: the fifth tick, the mark lit");
+    CHECK(seen_release == ZUI_BAR_UNKNOWN, "LT8: the bar breathes while the app is built");
+    for (uint32_t t = 51; t < 60; t++) zui_wm_draw(&WM, &S, t);
+    CHECK(count(ZXL_EV_END) == 0, "LT8: building: no end");
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_DONE, 40, 40) == 0, "LT8: done");
+    CHECK(count(ZXL_EV_END) == 1 && played[nplayed - 1].kind == ZXL_EV_END,
+          "LT8: done (the target CID matched): the end plays");
+    CHECK(zui_wm_get(&WM, id)->phase != ZUI_WIN_LAUNCHING, "LT8: the doors open");
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_DONE, 40, 40) == -1 && count(ZXL_EV_END) == 1,
+          "LT8: the end once");
+
+    /* a failed step: never the end, whatever comes after */
+    reset(0);
+    id = zui_launch_theme_open(&LT, "Coffer", 0, 0, true, false, 0);
+    zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, 10, 40);
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_FAILED, 0, 0) == 0, "LT8: a failed step");
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_DONE, 40, 40) == -1, "LT8: failed: done refused");
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_FAILED, 0, 0) == -1, "LT8: failed once");
+    CHECK(zui_wm_get(&WM, id)->progress == 32 && count(ZXL_EV_END) == 0,
+          "LT8: failed: the screen stays where the work stopped, no end");
+
+    /* cancelled while building */
+    reset(0);
+    id = zui_launch_theme_open(&LT, "Coffer", 0, 0, true, false, 0);
+    zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, 40, 40);
+    zui_launch_theme_load(&LT, id, ZUI_LT_FAILED, 0, 0);
+    zui_wm_progress(&WM, id, 256); /* even if something else pushes it */
+    CHECK(count(ZXL_EV_END) == 0, "LT8: a cancelled build never plays the end");
+
+    /* warm: only the end, no blocks taken */
+    reset(0);
+    id = zui_launch_theme_open(&LT, "Coffer", 0, 0, true, true, 0);
+    CHECK(zui_launch_theme_load(&LT, id, ZUI_LT_FETCH, 1, 40) == -1 && nplayed == 1 &&
+              played[0].kind == ZXL_EV_END,
+          "LT8: warm: the end only");
+    CHECK(zui_launch_theme_load(&LT, 999, ZUI_LT_FETCH, 1, 2) == -1 &&
+              zui_launch_theme_load(0, id, ZUI_LT_FETCH, 1, 2) == -1,
+          "LT8: unknown window refused");
+}
+
 int main(void)
 {
     zui_surface_init(&S, PX, W, H, W);
@@ -253,6 +331,7 @@ int main(void)
     test_themes_and_ink();
     test_full_house();
     test_sound_setting();
+    test_fab_load();
     printf("test_zui_launch_theme: %d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

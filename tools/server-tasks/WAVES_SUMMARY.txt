@@ -1,0 +1,619 @@
+# slot id languages-used (c is the model/view in every app; [missing daemon methods] = the task says list what's missing)
+002 hollow kron,cpp-wasm,eve,myra
+003 threshold eve,kron,myra
+011 lifeboat forth,eve,basic,kron,sutra,myra [missing daemon methods]
+020 warren eve,kron,basic,trebago,myra [missing daemon methods]
+025 ramble rust-wasm,kron,eve,sutra,myra [missing daemon methods]
+026 rookery eve,kron,rust-wasm,myra [missing daemon methods]
+027 commons eve,kron,trebago,myra [missing daemon methods]
+028 halloo eve,kron,myra [missing daemon methods]
+029 trellis eve,kron,trebago,myra
+030 hedgerow eve,kron,cpp-wasm,rust-wasm,myra [missing daemon methods]
+031 pollen sutra,kron,trebago,eve,myra
+032 cove eve,kron,sutra,rust-wasm,myra [missing daemon methods]
+033 seedbank rust-wasm,kron,eve,myra [missing daemon methods]
+034 signpost rust-wasm,eve,kron,myra [missing daemon methods]
+035 aerie forth,kron,eve,myra [missing daemon methods]
+036 gazette eve,kron,trebago,myra [missing daemon methods]
+038 margins eve,myra,kron
+039 folio kron,cpp-wasm,sutra,eve,myra
+040 furrow trebago,kron,sutra,myra,eve
+041 footlight kron,cpp-wasm,trebago,basic,myra
+042 broadsheet rust-wasm,eve,kron,myra
+043 solstice fortran77,basic,zlir,kron,cpp-wasm,eve,myra [missing daemon methods]
+044 kindred myra,eve,kron
+045 bowline basic,kron,eve,myra [missing daemon methods]
+046 wordhoard myra,cpp-wasm,kron
+047 sealwax eve,kron,sutra,basic,myra [missing daemon methods]
+048 bramble cpp-wasm,kron,eve,myra
+050 warble rust-wasm,kron,trebago,eve,myra [missing daemon methods]
+051 kinetoscope kron,cpp-wasm,trebago,eve,myra [missing daemon methods]
+052 fireglow trebago,kron,sutra,cpp-wasm,eve,myra [missing daemon methods]
+053 gesso kron,cpp-wasm,trebago,eve,myra
+054 burin cpp-wasm,kron,trebago,eve,myra
+055 birdsong kron,cpp-wasm,trebago,eve,myra [missing daemon methods]
+056 cutwater eve,kron,trebago,myra [missing daemon methods]
+057 fiddlehead trebago,kron,fortran77,zlir,eve,myra [missing daemon methods]
+058 pinhole forth,eve,sutra,kron,trebago,myra [missing daemon methods]
+059 bellows eve,kron,sutra,trebago,myra [missing daemon methods]
+060 relief cpp-wasm,kron,trebago,eve,myra
+062 kitling eve,kron,fortran77,basic,zlir,myra
+063 sieve eve,kron,cpp-wasm,trebago,myra
+064 granary eve,kron,sutra,trebago,myra [missing daemon methods]
+065 hatchery eve,kron,trebago,myra
+066 temper sutra,cpp-wasm,kron,eve,myra
+067 lore eve,kron,myra
+068 parley rust-wasm,kron,eve,myra [missing daemon methods]
+069 quarry eve,kron,trebago,myra [missing daemon methods]
+070 retort trebago,kron,rust-wasm,eve,myra
+071 gleaner kron,cpp-wasm,trebago,eve,myra
+
+distinct runtimes used: 11: basic, cpp-wasm, eve, forth, fortran77, kron, myra, rust-wasm, sutra, trebago, zlir
+(catalogue languages: COBOL, APL/J/K, FORTRAN, MUMPS, Ada, C++, Rust, BASIC, Forth; zlir is precompiled FORTRAN 77)
+
+Not used: SDK-only runtimes (go, python, dotnet, java, typescript, ruby, php, kotlin, dart, swift) have no in-app runtime the zxapp tests can witness; listed per task as Planned where the CSV names them.
+
+Deviations from APP_LANGUAGES_407.csv:
+002 hollow: added beyond the CSV: cpp-wasm, kron
+011 lifeboat: added beyond the CSV: basic, forth, kron, sutra
+020 warren: added beyond the CSV: basic, myra, trebago
+025 ramble: added beyond the CSV: kron, rust-wasm, sutra
+026 rookery: added beyond the CSV: kron, rust-wasm
+027 commons: added beyond the CSV: kron, trebago
+028 halloo: added beyond the CSV: kron
+029 trellis: added beyond the CSV: kron, trebago
+030 hedgerow: added beyond the CSV: cpp-wasm, kron, rust-wasm
+031 pollen: added beyond the CSV: kron, sutra, trebago
+032 cove: added beyond the CSV: kron, rust-wasm, sutra
+033 seedbank: added beyond the CSV: kron, rust-wasm
+034 signpost: added beyond the CSV: kron, rust-wasm
+035 aerie: added beyond the CSV: forth, kron
+036 gazette: dropped COBOL (sutra) + C++ wasm 'money and ledgers': a news reader moves no money and decides no amount
+036 gazette: added beyond the CSV: kron, trebago
+038 margins: added beyond the CSV: eve
+039 folio: added beyond the CSV: eve
+040 furrow: added beyond the CSV: eve, sutra
+041 footlight: added beyond the CSV: basic, cpp-wasm, trebago
+042 broadsheet: added beyond the CSV: eve, rust-wasm
+043 solstice: added beyond the CSV: basic, cpp-wasm, eve, fortran77, zlir
+044 kindred: added beyond the CSV: eve
+045 bowline: added beyond the CSV: basic, eve
+046 wordhoard: added beyond the CSV: cpp-wasm
+047 sealwax: added beyond the CSV: basic, eve, sutra
+048 bramble: added beyond the CSV: cpp-wasm, eve
+050 warble: added beyond the CSV: eve, myra, rust-wasm
+051 kinetoscope: added beyond the CSV: cpp-wasm, eve, myra
+052 fireglow: added beyond the CSV: eve, myra
+053 gesso: added beyond the CSV: cpp-wasm, eve, myra
+054 burin: added beyond the CSV: cpp-wasm, eve, myra
+055 birdsong: added beyond the CSV: cpp-wasm, eve, myra
+056 cutwater: added beyond the CSV: eve, myra
+057 fiddlehead: added beyond the CSV: eve, fortran77, myra, zlir
+058 pinhole: added beyond the CSV: eve, forth, myra, sutra
+059 bellows: added beyond the CSV: eve, myra, sutra
+060 relief: added beyond the CSV: cpp-wasm, eve, myra
+062 kitling: added beyond the CSV: basic, fortran77, myra, zlir
+063 sieve: added beyond the CSV: cpp-wasm, myra, trebago
+064 granary: added beyond the CSV: myra, sutra, trebago
+065 hatchery: added beyond the CSV: myra, trebago
+066 temper: added beyond the CSV: myra
+067 lore: added beyond the CSV: myra
+068 parley: added beyond the CSV: myra, rust-wasm
+069 quarry: added beyond the CSV: trebago
+070 retort: added beyond the CSV: myra, rust-wasm, trebago
+071 gleaner: added beyond the CSV: cpp-wasm, myra, trebago
+
+Apps with no fitting daemon method: none; every app has existing methods for its core. These 26 lack a method for part of what they do (the task says list what's missing):
+011 lifeboat, 020 warren, 025 ramble, 026 rookery, 027 commons, 028 halloo, 030 hedgerow, 032 cove, 033 seedbank, 034 signpost, 035 aerie, 036 gazette, 043 solstice, 045 bowline, 047 sealwax, 050 warble, 051 kinetoscope, 052 fireglow, 055 birdsong, 056 cutwater, 057 fiddlehead, 058 pinhole, 059 bellows, 064 granary, 068 parley, 069 quarry
+072 assay C,APL,Ada,FORTRAN
+073 coffer C,COBOL,FORTRAN,Ada
+074 gavel C,COBOL,FORTRAN,Ada
+075 crown C,COBOL,FORTRAN,Ada
+076 talisman C,COBOL,FORTRAN,Ada
+077 trickle C,COBOL,FORTRAN,Ada
+078 tallystick C,COBOL,FORTRAN,Ada
+079 fairground C,COBOL,FORTRAN,Ada
+080 ninefold C,COBOL,FORTRAN,Ada
+081 heirloom C,COBOL,FORTRAN,Ada
+082 larder C,COBOL,FORTRAN,Ada
+083 reckoner C,COBOL,FORTRAN,Ada
+084 forage C,COBOL,FORTRAN,Ada,MUMPS
+086 meadow C,MUMPS,FORTRAN,Ada
+087 belvedere C,MUMPS,FORTRAN,Ada
+088 weatherglass C,MUMPS,FORTRAN,Ada,APL
+089 wellspring C,MUMPS,FORTRAN,Rust,Ada
+090 caravan C,MUMPS,FORTRAN,COBOL,Ada
+091 vintner C,MUMPS,FORTRAN,COBOL,C++,Forth
+092 hearth C,MUMPS,FORTRAN,Ada
+093 understory C,MUMPS,FORTRAN,COBOL,C++,Ada,J
+094 homestead C,MUMPS,FORTRAN,Ada,Forth
+095 bonfire C,MUMPS,FORTRAN,Ada
+096 hamlet C,MUMPS,FORTRAN,COBOL,C++,Ada
+097 den C,MUMPS,APL,BASIC,Ada
+098 sapling C,MUMPS,APL,BASIC
+099 typewright C,MUMPS,APL,C++
+100 primer C,COBOL,FORTRAN,Ada,APL,MUMPS,BASIC
+101 orrery C,MUMPS,APL,FORTRAN
+102 fieldguide C,MUMPS,APL,BASIC
+103 cubby C,MUMPS,APL,Rust,Ada
+104 riddle C,MUMPS,APL,BASIC
+105 patience C,MUMPS,APL,Ada
+106 nutshell C,MUMPS,APL,BASIC
+107 gnomon C,MUMPS,APL,C++
+108 talewind C,MUMPS,APL,Ada
+
+distinct languages: 11 (APL, Ada, BASIC, C, C++, COBOL, FORTRAN, Forth, J, MUMPS, Rust)
+
+deviations from APP_LANGUAGES_407.csv (added witnesses; nothing dropped):
+072 assay: added FORTRAN (trebago) as the score's witness
+086 meadow: added Ada (eve) for the post rule
+087 belvedere: added Ada (eve) for the publish rule
+088 weatherglass: added Ada (eve) for warnings and APL (kron) as the conversion witness
+090 caravan: added COBOL (sutra) and Ada (eve) as witnesses
+092 hearth: added Ada (eve) for the allergen rule
+094 homestead: added Ada (eve) and Forth for the device rule
+095 bonfire: added Ada (eve) for the join rule
+096 hamlet: added Ada (eve) for the visibility rule
+097 den: added Ada (eve) for the start rule
+099 typewright: added C++ (wasm) as the score witness
+101 orrery: added FORTRAN 77 (Lingua) as the position witness
+105 patience: added Ada (eve) for the move rule
+107 gnomon: added C++ (wasm) as the area witness
+108 talewind: added Ada (eve) for the choice rule
+
+no fitting daemon method (task says use only existing methods, report what's missing):
+075 crown: sortition draw
+077 trickle: standing stream schedule
+080 ninefold: holdings by capital form
+084 forage: bounty board (post, claim)
+088 weatherglass: weather observations and forecast
+089 wellspring: health readings (file store only)
+090 caravan: shipment tracking, carriers
+093 understory: water and land readings
+094 homestead: home device control
+095 bonfire: calendar, RSVP
+109 tally c kron sutra trebago
+110 sundial c eve kron rust trebago
+111 glimpse c kron trebago
+112 hamper c eve kron trebago
+113 typecase c kron trebago
+114 runebook c kron trebago
+116 dyer c kron trebago
+117 spyglass c kron trebago
+118 burr c kron trebago
+119 magpie c eve kron trebago
+120 gridmark c kron trebago
+121 joinery c eve kron myra trebago
+122 pawprint c eve kron myra trebago
+123 gait c eve kron myra sutra trebago
+124 graft c eve kron myra sutra trebago
+125 whetstone c eve kron myra sutra trebago
+126 toolchest c eve kron myra sutra trebago
+127 colonnade c eve kron myra sutra trebago
+128 mockingbird c eve kron myra sutra trebago
+129 gauntlet c eve kron myra sutra trebago
+130 scriptorium c eve kron myra trebago
+131 trestle c eve kron myra trebago
+132 twelvefold c eve kron
+133 nightjar c eve kron myra
+134 hark c eve kron myra
+135 ticker c eve kron myra
+136 pivot c eve kron myra
+137 glyphwright c eve kron myra
+138 tint c eve kron myra
+139 lamplight c eve kron myra
+140 steady c eve kron myra
+141 conch c eve kron myra
+143 watchfire c eve kron myra
+144 stillwater c eve kron myra
+
+Distinct languages used: 7 (c, sutra, eve, kron, trebago, myra, rust as wasm).
+Source: APP_LANGUAGES_407.csv rows with status "runs"; every primary/witness pair witnessed (Sundial: Rust wasm + eve on limits). Planned rows listed per file as "Planned (no runtime yet)".
+
+Deviations from the CSV:
+- Added eve as the second witness on a safety truth: 112 hamper (entry path safe), 119 magpie (keep this copy: concealed/private never kept).
+- Added kron as the second witness on every critical decision in 133-144 (CSV gives only eve + myra there; the spec needs two languages per critical decision).
+- Dropped sutra (no money or fixed-size business record to own): 121 joinery, 122 pawprint, 130 scriptorium, 131 trestle.
+- Not used though runnable in-kernel: cpp (wasm), fortran77, basic, forth; none is in the CSV runs rows for these apps.
+
+No fitting daemon method for the app's core function (task says use only existing methods and report what is missing):
+- none cited at all: 119 magpie (clipboard), 136 pivot (switch/gaze input), 138 tint (display filter), 140 steady (input filter).
+- only peripheral methods: 110 sundial (alarm/timer/zone/notice post), 111 glimpse (display capture), 112 hamper (archive codec), 113 typecase (font registry), 114 runebook (character data), 116 dyer (screen pick), 117 spyglass (capture, a11y settings), 120 gridmark (image decode), 122 pawprint (attach/breakpoints/step), 123 gait (sampling profiler), 124 graft (commit/branch/diff), 125 whetstone (build/test run), 126 toolchest (kit install), 128 mockingbird (emulator), 129 gauntlet (mutation run), 131 trestle (toolkit layout), 133 nightjar (a11y tree, speech), 134 hark (speech-to-text), 135 ticker (speech-to-text), 137 glyphwright (layouts/input methods), 139 lamplight (text-to-speech), 141 conch (audio devices), 144 stillwater (notice filter), 109 tally (exchange rates).
+Open question (state B): 132 twelvefold "conclusion follows" takes TRUE and BOTH as designated values; the repo defines no entailment, so confirm or set it.
+# slot id languages-used (c is the model/view in every app; twins: forth=cairndrake, basic=hatchling) depends-on-waves [missing daemon methods] = the task says list what's missing
+217 wisp eve,kron,trebago,sutra,myra waves:0,4,5,11 [missing daemon methods]
+218 gust eve,kron,trebago,sutra,myra waves:0,4,8,9 [missing daemon methods]
+219 scree trebago,kron,eve,sutra,myra,hatchling waves:8,9
+220 glen eve,kron,trebago,myra waves:0,6,8
+221 watershed sutra,trebago,eve,kron,myra waves:1,2,4,6
+222 windbreak eve,kron,trebago,sutra,myra waves:0,1,3,5 [missing daemon methods]
+223 spindrift eve,kron,trebago,sutra,myra waves:1,4,6,7,9
+224 tarn trebago,kron,eve,sutra,myra waves:7,8,9,11 [missing daemon methods]
+225 tributary trebago,kron,eve,sutra,myra waves:0,2,3,4
+226 swale sutra,trebago,eve,myra,kron waves:2,4,8
+227 cirque trebago,kron,eve,sutra,myra waves:3,6,7,9
+228 rapids eve,kron,trebago,sutra,myra waves:0,3,8,11 [missing daemon methods]
+229 muster eve,kron,trebago,sutra,myra waves:0,1,2,3 [missing daemon methods]
+230 fen eve,myra,trebago,kron,sutra waves:2,7,8,9
+231 terroir eve,kron,sutra,trebago,myra waves:1,8 [missing daemon methods]
+232 decanter sutra,trebago,eve,kron,myra waves:1,4 [missing daemon methods]
+233 stratum trebago,kron,eve,myra waves:3,6,7
+234 neap sutra,eve,trebago,kron,myra waves:1,2,4,6
+235 copse trebago,kron,eve,sutra,myra waves:2,3,6,9
+236 levin eve,kron,trebago,sutra,myra waves:2,3,5,8 [missing daemon methods]
+237 weir eve,kron,trebago,cairndrake,sutra,myra waves:0,2,8 [missing daemon methods]
+238 billow eve,kron,trebago,sutra,myra waves:1,7,11 [missing daemon methods]
+239 isobar eve,kron,trebago,myra waves:1,6,8 [missing daemon methods]
+240 isthmus eve,kron,sutra,trebago,myra waves:1,2,3,6
+241 shallows eve,kron,trebago,myra waves:3,4,6,11 [missing daemon methods]
+242 silt eve,kron,trebago,sutra,myra waves:0,1,6
+243 varve trebago,kron,eve,myra waves:0,6,7,9
+244 dragoman trebago,kron,eve,sutra,myra waves:1,3,5,9,10 [missing daemon methods]
+245 fulgurite sutra,kron,eve,trebago,myra waves:3,5,10 [missing daemon methods]
+246 lode eve,kron,sutra,trebago,myra waves:1,3,7
+247 fusee eve,kron,cairndrake,trebago,sutra,myra waves:0,1,2,4 [missing daemon methods]
+248 sedge eve,kron,trebago,sutra,myra waves:6,8,9,11 [missing daemon methods]
+249 bourn trebago,kron,sutra,eve,myra waves:2,5,6,8 [missing daemon methods]
+250 plumbline eve,kron,trebago,sutra,myra waves:1,3,8 [missing daemon methods]
+251 swell trebago,kron,eve,myra waves:1,6,7,9 [missing daemon methods]
+252 overture eve,kron,trebago,sutra,myra waves:3,4,11 [missing daemon methods]
+253 fell trebago,kron,eve,sutra,myra waves:0,2,5,11
+254 plinth eve,kron,trebago,sutra,myra waves:2,4,5 [missing daemon methods]
+255 glebe eve,kron,sutra,trebago,myra waves:1,6,8 [missing daemon methods]
+256 massif trebago,kron,eve,sutra,myra waves:0,1,4,5,10
+257 reedbed eve,kron,trebago,cairndrake,sutra,myra waves:0,2,8 [missing daemon methods]
+258 atoll eve,kron,sutra,trebago,myra waves:0,4,8,9
+259 caldera eve,kron,trebago,sutra,myra waves:0,1,8,11 [missing daemon methods]
+260 serac sutra,trebago,eve,kron,myra waves:1,2,3
+261 rainshadow eve,kron,trebago,myra waves:0,7,9
+262 thicket eve,kron,trebago,sutra,myra waves:1,2,4,10 [missing daemon methods]
+263 grotto eve,kron,trebago,sutra,myra waves:0,1,2,9 [missing daemon methods]
+264 meander eve,kron,trebago,myra waves:0,2,7,10,11 [missing daemon methods]
+265 loom eve,kron,sutra,trebago,myra waves:3,5,6,11 [missing daemon methods]
+266 thaw eve,kron,sutra,trebago,myra waves:0,2,4
+267 holm eve,kron,trebago,sutra,myra waves:1,2,3,5
+268 chrysalis trebago,kron,eve,cpp-wasm,sutra,myra waves:0,1,3,5 [missing daemon methods]
+269 col eve,kron,trebago,sutra,myra waves:1,2,5 [missing daemon methods]
+270 lagoon sutra,eve,trebago,kron,myra,hatchling waves:0,1,8,9
+271 cairn trebago,kron,eve,myra waves:1,3,4,6
+
+# Gaps and decisions (state B = conflict, N = missing)
+N1 `use` needs blocks/<id>.zxblock; no L1 task (waves 1-11) and no wave-0 app except used_share, number_classics, swarm_shares, pce_* publishes one. Default taken in every task: `use <l1 id> 1`, and the L2 branch adds a zxblock that lists only that L1 app's existing logic files (no new logic) when it is missing. Better: have each L1 wave publish its zxblock. ZXAPP_USES is 8; the most any of these tasks uses is 5.
+N2 L2 icon path not specified in APP_WAVE_SPEC.md; default taken: icons/l2/NNN-<id>.svg.
+N3 Daemon methods missing (named in each task): offline map tiles/outage reports (217), weather source (218, 231, 255), sensor feeds (224, 228, 236, 237, 239, 249, 257, 259), Pit Boss process table, Cage queue, rulebook (222), device inventory, USB authorisation, compatibility report (229), Vino route list, AIRC relay time and storage purchase (232), speech in/out (241), runtime install (244), build run and image signing (245), Secure Boot keys, boot entries, A/B slot select, firmware capsules, microcode, measured-boot log (247), reminder notice post (248), policy rulebook and advisory list (250), audio in/out (251), licence-acceptance record, time-zone and keyboard-layout set (252), block-device list, partition, format, seal key to machine (254), fork and peer-audit list/submit, install reviewed update (262), compartment encryption at rest (263), pen input and stroke recognition (264), Cage run and manifest check (265), guest create/start/pause and the driver machine (268), HTTP gate and DNS (269).
+N4 zxapp_caps has no capability for the policy/jurisdiction console, devices, the installer, boot chain or guest machines; 222, 229, 247, 250, 254, 268 make do with sys.read (+ journal, ledger.read) and the missing methods above. New caps would be needed when those methods land.
+N5 Slot 213 (Shingle) was named as one of these gap-fills but it is not in wave18-22.list; it was not written here.
+B1 docs/CAGE.md says a clearance is the "Belnap conjunction" of checks; CLAUDE.md says lpres_conjoin follows the kernel's chain order, not Belnap. 222 Windbreak is told to use lpres_conjoin and report the conflict.
+B2 APP_LANGUAGES_407.csv gives Sutra (COBOL) non-money "records/log" pillars in several apps. Where there is no money or overflow-refusing count, Sutra was left out and its records went to MYRA, as LANGUAGE_FIT says (220, 233, 239, 241, 243, 251, 261, 264, 271); elsewhere Sutra holds only fixed records with counts or money that refuse on overflow.
+Language naming: pillars are written "COBOL as Sutra", "FORTRAN as Trebago", "Ada as Eve", "APL as KRON", "MUMPS as MYRA"; Forth is "Forth (twin Cairndrake)" (237, 247, 257) and BASIC "BASIC (twin Hatchling)" (219, 270), committed in twin form with `logic cairndrake|hatchling`. No FORTRAN 77 is used in waves 18-22.
+Check: gen/check.py (every backticked method in api/zxvd.openrpc.json, every needs name in zxapp_caps, banned words absent): 55 files, 0 problems; it was shown to fail on an injected bad method, cap and word. "yield" appears only as crop yield (255), not money.
+# slot id languages (c is the model/view in every app) depends-on-waves
+# Twins: basic = BASIC as Hatchling, forth = Forth as Cairndrake (logic lines name `hatchling` / `cairndrake`); pillars are COBOL as Sutra, APL as KRON, FORTRAN as Trebago, Ada as Eve, MUMPS as MYRA.
+145 cartulary c,sutra,kron,eve,trebago,myra waves 0,1
+146 swage c,eve,kron,sutra,trebago,myra waves 3,10
+147 binnacle c,trebago,kron,eve,sutra,myra waves 0,8,9
+148 poultice c,eve,kron,trebago,sutra,myra waves 6,8,11
+149 dibber c,trebago,kron,eve,sutra,myra waves 6,8
+150 pannier c,eve,kron,sutra,trebago,myra waves 1,5
+151 lectern c,eve,kron,sutra,trebago,myra waves 6,7,9,10
+152 ratchet c,eve,kron,basic,trebago,sutra,myra waves 0,3,5,8
+153 pavise c,eve,kron,sutra,trebago,myra waves 1,2
+154 chainman c,trebago,kron,eve,sutra,myra waves 0,6,7,8
+155 alembic c,trebago,kron,sutra,eve,myra waves 2,4,6
+156 crier c,eve,kron,sutra,trebago,myra waves 2,5,11
+157 luthier c,sutra,trebago,kron,eve,myra waves 6,7
+158 joist c,sutra,trebago,kron,eve,myra waves 2,3,6
+159 skillet c,kron,trebago,eve,sutra,myra waves 8,9
+160 astrolabe c,trebago,kron,eve,myra waves 7,8,9
+161 chandler c,sutra,trebago,kron,eve,myra waves 0,1,5,8
+162 heddle c,kron,trebago,sutra,eve,myra waves 0,6,7,10
+163 collier c,sutra,trebago,eve,kron,myra waves 0,2,6,7,10
+164 handfast c,eve,kron,sutra,trebago,myra waves 1,2,6
+165 compositor c,eve,kron,sutra,trebago waves 3,5,10
+166 limner c,kron,trebago,eve,sutra,myra waves 4,7,10
+167 tintype c,trebago,kron,eve,sutra,myra waves 0,4,7,9
+168 bindery c,eve,kron,sutra,trebago,myra waves 0,6
+169 hornbook c,eve,kron,basic,sutra,trebago,myra waves 6,8,9
+170 sheaf c,sutra,trebago,eve,kron,forth,myra waves 1,6,8
+171 mercer c,sutra,kron,trebago,eve,myra waves 1,2,4
+172 escapement c,trebago,kron,eve,sutra,myra waves 4,5,6,9
+173 warding c,eve,kron,sutra,trebago,myra waves 1,2,3,8
+174 damper c,eve,kron,trebago,myra waves 0,5,8,11
+175 tiller c,eve,kron,trebago,myra waves 0,3,11
+176 verderer c,trebago,kron,eve,myra waves 0,7,8,9
+177 caliper c,eve,kron,trebago,sutra,myra waves 2,3,6,9
+178 assize c,eve,kron,trebago,sutra,myra waves 1,3,6
+179 cupel c,trebago,kron,eve,myra waves 3,4,6,9
+180 apothecary c,eve,kron,trebago,sutra,myra waves 2,6,8,11
+181 loupe c,eve,kron,sutra,trebago,myra waves 0,1,10
+182 mummer c,trebago,kron,sutra,eve,myra waves 4,6,8
+183 bodkin c,trebago,kron,eve,sutra,myra waves 1,2,3,7
+184 trowel c,eve,kron,sutra,trebago,myra waves 4,5,6,8
+185 skep c,sutra,trebago,kron,eve,myra waves 0,1,4,8
+186 kiln c,trebago,kron,eve,sutra,myra waves 0,3,5
+187 creel c,sutra,kron,eve,trebago,myra waves 0,1,8
+188 courser c,trebago,kron,eve,myra waves 6,8,9
+189 flue c,kron,trebago,eve,sutra,myra waves 0,1,5,8
+190 shipwright c,trebago,kron,eve,myra waves 0,8,11
+191 lapidary c,trebago,kron,eve,sutra,myra waves 1,3,7,11
+192 coppice c,sutra,trebago,kron,eve,myra waves 0,1,2,8
+193 glazier c,sutra,trebago,kron,eve,myra waves 1,2,8
+194 icehouse c,eve,kron,trebago,sutra,myra waves 0,1,5,9
+195 sexton c,eve,kron,trebago,sutra,myra waves 0,2,4
+196 stoker c,eve,kron,trebago,sutra,myra waves 4,5,7
+197 millrace c,eve,kron,trebago,sutra,myra waves 0,2,5
+198 taper c,eve,kron,trebago,myra waves 4,8,9,11
+199 furnace c,sutra,trebago,kron,eve,myra waves 5,8
+200 linkman c,eve,kron,trebago,myra waves 0,1,5
+201 gearwright c,trebago,kron,eve,sutra,myra waves 3,5,8,11
+202 stationer c,trebago,kron,eve,sutra,myra waves 0,6,7
+203 tiler c,trebago,kron,eve,myra waves 0,2,6
+204 topiary c,kron,trebago,eve,myra waves 1,6,8,10
+205 lampwright c,kron,trebago,eve,sutra,myra waves 3,8,10,11
+206 verger c,eve,kron,sutra,trebago,myra waves 6,8
+207 fellowcraft c,kron,trebago,eve,sutra,myra waves 1,3,4
+208 cooper c,eve,kron,sutra,trebago,myra waves 1,4,8,10
+209 freshet c,eve,kron,sutra,trebago,myra waves 3,10
+210 moraine c,eve,kron,sutra,trebago,myra waves 1,2,8
+211 tradewind c,trebago,kron,eve,sutra,myra waves 0,1,5,8
+212 eddy c,sutra,trebago,eve,kron,myra waves 1,2,6,8
+213 shingle c,eve,kron,trebago,sutra,myra waves 1,3
+214 updraft c,trebago,kron,eve,myra waves 0,1,2,5
+215 headland c,trebago,kron,eve,myra waves 0,11
+216 rill c,eve,kron,trebago,basic,myra waves 4,6,9
+
+Deviations from APP_LANGUAGES_407.csv (runs rows):
+160 astrolabe: dropped sutra (observation log): a log is a record, MYRA's; no money or fixed business record
+174 damper: dropped sutra (incident log): no money or business record; the incident log is MYRA's
+175 tiller: dropped sutra (trip log): a log is a record, MYRA's; no money
+176 verderer: dropped sutra (survey records): no money or business record; records are MYRA's
+179 cupel: dropped sutra (run records): no money or business record; run records are MYRA's
+188 courser: dropped sutra (membership records): memberships are not in what the app does
+190 shipwright: dropped sutra (incident accounts): no money in what the app does
+198 taper: dropped sutra (sleep records): no money or business record; records are MYRA's
+200 linkman: dropped sutra (peer register): no money or business record; the register is MYRA's
+203 tiler: dropped sutra (KPI records): no money or business record
+204 topiary: dropped sutra (habit streaks): no money; a streak is a count, KRON's
+214 updraft: dropped sutra (message log): no money or business record; the log is MYRA's
+215 headland: dropped sutra (alert records): no money or business record; records are MYRA's
+216 rill: dropped sutra (reading log): no money or business record; the log is MYRA's
+
+Missing daemon methods (task says use only existing methods and list them):
+145 cartulary: a retention-hold flag in the daemon (kept as a Hoard file instead)
+146 swage: build/test run, package sign and install (the same gaps Satchel and Whetstone report)
+147 binnacle: star-sight entry from an instrument, chart data
+148 poultice: a notice-post method (as Sundial reports), vitals device readings
+149 dibber: a weather source (as Weatherglass reports), soil sensor readings
+150 pannier: a store-and-forward relay queue in the daemon
+152 ratchet: readings from machines other than this one
+153 pavise: firewall rule write, capability grant write
+154 chainman: a general signing method for a survey record (no daemon method signs an arbitrary file)
+157 luthier: audio capture and playback devices (as Birdsong reports)
+159 skillet: timer and notice post (as Sundial reports)
+160 astrolabe: a weather source (as Weatherglass reports)
+161 chandler: tide predictions source
+162 heddle: loom output
+167 tintype: image decode (as Gridmark reports), display capture (as Glimpse reports)
+172 escapement: a peer clock-offset query
+173 warding: door lock control (as Homestead reports)
+174 damper: home heat and smoke sensor readings, notice post
+175 tiller: any vehicle, drone or machine telemetry and control method
+177 caliper: instrument readings input
+180 apothecary: a clinician approval signature reachable with these needs (the passkeys methods sit with Threshold under sys.read, which none of the parts holds; ask before adding it)
+186 kiln: 3D printer and kiln control
+190 shipwright: gauge and tide readings
+194 icehouse: an archive codec (as Hamper reports)
+196 stoker: GPU and backend enumeration, video-memory placement
+197 millrace: a pipeline routing method
+199 furnace: solar inverter, meter and battery bank readings
+201 gearwright: actuator control and position readings
+205 lampwright: lighting device control, display colour set
+209 freshet: build run and signing (as Whetstone and Satchel report)
+211 tradewind: road network and address geocoding
+215 headland: readings from other machines in the fleet
+216 rill: text-to-speech
+
+Needs beyond the parts' union: 172 escapement adds peers (catalogue: exact time across devices). Every other app's needs are a subset of its parts' needs.
+
+Gaps (state N, for the coordinator):
+1. `use <app> 1` only resolves an app registered with a `version` line (zxapp_registry_add: "a block needs a version"). No L1 manifest in the repo (banker, scent, keepsake, wake, tidewatch, sounding, spindle, glint, murmuration, waymark, platen) has one, and the wave 1-11 task files do not ask for it. Either the L1 waves add `version 1.0.0`, or the L2 workers must stop. Each L2 task says to stop and report.
+2. ZXAPP_LOGIC_MAX is 32 and every witnessed language is its own logic line. An L2 app composing 4-5 L1 apps (each 6-10 lines) plus its own entries will often exceed it (e.g. 196 stoker: granary, retort, temper, brazier, hatchery). Raising the limit or composing only the needed entries is a design decision; the tasks say stop and report.
+3. L1 entry names for waves 1-11 are not fixed by their task files, so the L2 tasks name them by meaning ("Furrow's column sums"); only wave-0 entries are cited exactly (`banker.total`, `scent.score`, ...). Fix names when those waves merge.
+4. The catalogue lists 001 as "Burrow"; its manifest id is `banker` (the Banker), so tasks use `use banker 1`.
+5. Budget: no L2 budget rule found; tasks take 233 (the L1 default) and say so. Icon path icons/l2/NNN-<id>.svg is assumed (REGISTRY: gold, one colour); test_zxapp.c only checks icons/l1.
+6. sutra dropped where the CSV pillar is a log or register with no money or business record (160, 174, 175, 176, 179, 188, 190, 198, 200, 203, 204, 214, 215, 216); MYRA keeps those records.
+7. 207 fellowcraft: the CSV gives KRON "four-valued truth table"; CLAUDE.md forbids re-deriving lpres tables, so the join stays C (`lpres_conjoin`) and KRON only counts values.
+8. 180 apothecary: signed clinician approval has no method within its parts' needs (passkeys.* sit under sys.read via Threshold, not a part). Ask before adding sys.read.
+
+Check: python3 l2tools/check.py -> 72 files, 0 problems (every backticked method in api/zxvd.openrpc.json, every wave-0 entry in its manifest, every needs name in zxapp_caps, needs within the parts' union, banned words and product names absent). The check failed before fixes (needs beyond parts on 152/172/201, "double" on 172), so it can fail.
+# slot id languages (c is the model/view in every app; basic = BASIC as Hatchling, logic line `hatchling`) depends-on-waves
+# Pillars: COBOL as Sutra, APL as KRON, FORTRAN as Trebago, Ada as Eve, MUMPS as MYRA.
+272 barbican c,eve,kron,trebago,sutra,myra waves 2,12,14,15
+273 relume c,eve,kron,trebago,sutra,myra waves 0,4,12,21,22
+274 vigil c,eve,kron,trebago,sutra,myra waves 0,14,17
+275 tracery c,eve,kron,trebago,sutra,myra waves 8,12,14,15,19
+276 albedo c,eve,kron,trebago,sutra,myra waves 5,7,15,19
+277 aureole c,eve,kron,trebago,sutra,myra waves 1,6,14,20,22
+278 cabochon c,sutra,trebago,eve,kron,myra waves 1,8,12,14,19
+279 vesper c,eve,kron,trebago,sutra,myra waves 1,11,12,17,21
+280 volute c,eve,kron,trebago,sutra,myra waves 1,14,15
+281 lozenge c,eve,kron,trebago,sutra,myra waves 1,14,15,19
+282 cupola c,eve,kron,trebago,sutra,myra waves 0,1,12,13,22
+283 gibbous c,eve,kron,trebago,sutra,myra waves 8,12,14,16,18
+284 penumbra c,eve,kron,trebago,sutra,myra waves 0,10,12,13,15
+285 annulus c,eve,kron,trebago,sutra,myra waves 8,11,12,14,20
+286 perigee c,eve,kron,trebago,sutra,myra waves 1,12,14,19
+287 cusp c,eve,kron,trebago,sutra,myra waves 6,12,14,19,21
+288 lambent c,eve,kron,trebago,sutra,myra waves 6,8,12,14
+289 rampart c,eve,kron,trebago,sutra,myra waves 1,12,14,18
+290 kerf c,eve,kron,trebago,sutra,myra waves 4,12,14,20
+291 meridian c,eve,kron,trebago,sutra,myra waves 0,12,13,19
+292 solarium c,eve,kron,trebago,sutra,myra waves 8,12,19
+293 clerestory c,eve,kron,trebago,sutra,myra waves 0,7,12,13,19
+294 parallax c,eve,kron,trebago,sutra,myra waves 3,7,13,15
+295 sanctum c,eve,sutra,trebago,kron,myra waves 2,8,12,14,19
+296 cistern c,eve,kron,trebago,sutra,myra waves 4,12,15,16,19
+297 armature c,eve,kron,trebago,sutra,myra waves 10,12,14,15
+298 sightline c,eve,kron,trebago,sutra,myra waves 0,12,14,19,21
+299 ephemeris c,eve,kron,trebago,sutra,myra waves 9,13,14,16,19
+300 lumen c,eve,kron,trebago,sutra,myra waves 11,12,14,18
+301 elevation c,eve,kron,trebago,sutra,myra waves 3,13,14,15,18
+302 transit c,eve,kron,trebago,sutra,myra waves 1,10,12,19
+303 syzygy c,eve,kron,trebago,sutra,myra waves 6,13,14,17,19
+304 firstlight c,eve,kron,trebago,sutra,basic,myra waves 9,14,17,18
+305 culmen c,eve,kron,trebago,sutra,myra waves 0,12,14,19,22
+306 azimuth c,eve,kron,trebago,sutra,myra waves 0,4,12,17
+307 bitting c,eve,kron,trebago,sutra,myra waves 1,2,12,14,17
+308 luminaire c,eve,kron,trebago,sutra,myra waves 5,8,14,18,19
+309 collet c,eve,kron,trebago,sutra,myra waves 2,8,12,14
+310 cleave c,eve,kron,trebago,sutra,myra waves 10,12,13
+311 parsec c,eve,kron,trebago,sutra,myra waves 7,9,13,14
+312 equinox c,eve,kron,trebago,sutra,myra waves 6,8,12,14,20
+313 illumine c,eve,kron,trebago,sutra,myra waves 2,6,13,18,21
+314 umbra c,eve,kron,trebago,sutra,myra waves 1,3,13,14,15
+315 escutcheon c,eve,sutra,trebago,kron,myra waves 8,12,14,15,19
+316 quay c,eve,kron,trebago,sutra,myra waves 1,12,13,19,20
+317 pinion c,eve,kron,trebago,sutra,myra waves 0,5,12,14,16
+318 bevel c,eve,kron,trebago,sutra,myra waves 1,6,12,14,20
+319 lunette c,eve,kron,trebago,sutra,myra waves 6,8,13,15,20
+320 equant c,eve,kron,trebago,sutra,myra waves 3,13,14,19,20
+321 diadem c,eve,kron,trebago,sutra,myra waves 1,3,14,20,22
+322 archivolt c,eve,kron,trebago,sutra,myra waves 3,13,20,22
+323 spire c,eve,kron,trebago,sutra,myra waves 8,12,13,14,21
+324 druse c,eve,kron,trebago,sutra,myra waves 1,5,12,17,21
+325 arcology c,eve,kron,trebago,sutra,myra waves 8,18,19
+326 pharos c,eve,kron,trebago,sutra,myra waves 5,11,17,19
+327 viaduct c,eve,sutra,trebago,kron,myra waves 1,8,14,19,20
+328 tephra c,eve,kron,trebago,sutra,myra waves 0,14,19,21
+329 caustic c,eve,kron,trebago,sutra,myra waves 2,14,15,19,21
+330 sunfleck c,eve,sutra,trebago,kron,myra waves 8,12,15,19
+331 rotunda c,eve,kron,trebago,sutra,myra waves 6,13,14,18,19
+332 atrium c,eve,kron,trebago,sutra,myra,cpp-wasm waves 8,13,14,18
+333 ravelin c,eve,kron,trebago,sutra,myra waves 2,12,14,19
+334 nymphaeum c,eve,kron,trebago,sutra,myra waves 8,12,19
+335 insolation c,eve,kron,trebago,sutra,myra waves 5,8,19
+336 portcullis c,eve,kron,trebago,sutra,myra,rust-wasm waves 2,8,14,20,22
+337 apse c,eve,kron,trebago,sutra,myra waves 1,8,14,18
+338 corbel c,eve,kron,trebago,sutra,myra waves 0,9,12,19,20
+339 athenaeum c,eve,kron,trebago,sutra,basic,myra waves 6,7,12,13,19
+340 windlass c,eve,kron,trebago,sutra,myra waves 8,12,13,18,19
+341 vernier c,eve,kron,trebago,sutra,myra waves 10,12,13,14,20
+342 dulcimer c,eve,kron,trebago,sutra,myra waves 3,12,14,20
+343 monochord c,eve,kron,trebago,sutra,myra waves 4,12,13,14,19
+
+Missing daemon methods (task says use only existing methods and list them):
+274 vigil: readings from other machines (as Headland reports)
+280 volute: water probe readings
+283 gibbous: wearable and light sensor readings
+284 penumbra: packet capture and trace replay
+285 annulus: a reminder notice post (as Sedge reports)
+286 perigee: drone control and telemetry (as Tiller reports), airspace notices
+290 kerf: machine state readings
+291 meridian: weather and tide sources
+292 solarium: soil and light sensor readings, valve control
+296 cistern: meter, pump and quality sensor readings
+299 ephemeris: weather source
+306 azimuth: beacon readings, indoor maps
+307 bitting: door and vehicle lock control
+308 luminaire: light and presence device control
+311 parsec: mount control, and sharing to citizen science projects (none of the parts holds net)
+317 pinion: machine sensor readings and control
+326 pharos: screen broadcast to other devices
+328 tephra: hazard sensor feeds
+329 caustic: water temperature and quality readings
+333 ravelin: access control, camera and plant sensor feeds
+334 nymphaeum: water test device readings
+335 insolation: turbine, inverter and meter readings
+340 windlass: gas detector readings
+343 monochord: spectrometer readings
+
+Pending lines: 100 named on an entry (kind mapped: proof/contracts/rules/control to the Eve entry; simulation/matrix/signal/geometry to Trebago; report/business to Sutra; query/dataflow/search to KRON; lists/symbolic/objects/structure to MYRA). 61 have no obvious entry (messaging, faults, jobs, ai, view, text, parse, typesetting, scripting, machine, stepwise) and the worker names one and reports it: 272 Nim, 273 Elixir, 274 Go, 274 Python, 279 Erlang, 279 JavaScript, 280 Gleam, 280 Bash, 282 Go, 283 Mojo, 284 Elixir, 285 Erlang, 285 Groovy, 285 Raku, 288 Pascal, 288 Python, 290 Bourne_shell, 293 Gleam, 297 SNOBOL, 301 JCL, 304 Mojo, 305 Python, 307 Go, 307 TRAC, 308 Bash, 310 Elixir, 311 Erlang, 312 Gleam, 313 TeX, 313 Lua, 313 AWK, 317 Bourne_shell, 317 REXX, 317 Mojo, 318 Icon, 319 Perl, 319 TeX, 320 TeX, 320 SNOBOL, 322 OCaml, 322 Python, 324 TRAC, 325 Elixir, 325 JCL, 326 Go, 326 TypeScript, 327 Erlang, 328 JOVIAL, 329 Elixir, 331 Gleam, 332 System/360_assembler, 334 Go, 334 Icon, 335 Erlang, 336 Zig, 337 Bash, 338 Mojo, 338 Pascal, 339 Python, 340 Occam, 342 Bourne_shell.
+
+Deviations from APP_LANGUAGES_407.csv: none dropped or added beyond its runs rows. BASIC (Hatchling) in 304 and 339, a Rust wasm witness in 336 (ticket code parsing) and a C++ wasm witness in 332 (double booking) come from the CSV's runs rows. Sutra holds money or fixed-record counts that refuse on overflow in every app.
+
+Needs: every app's needs is a subset of its parts' combined needs. Methods outside that set were removed and their work kept as Hoard files: 274/281 swarm.state, 277/293/300/313/319/336/338/339 ledger reads, 292 devmesh.devices, 310/317 journal, 311 sharing (listed as missing), 319/341 printing.
+
+Notes and gaps:
+1. A part exports only what it `provides`. My L2 tasks (145-216) and the 217-271 tasks never asked an L2 to re-export the L1 entries it composes, so an L3 app can call an L2 part's own entries only. Every L3 task says to stop and report if it needs an unexported entry. The L1 parts listed in built_from are used directly, as the catalogue gives them.
+2. A `pending` entry name must fit ZXAPP_ID_MAX (32 including NUL) and be dotted at most once. Every entry named here is a short own-entry name.
+3. The capstones 369 Conclave, 387 Commonweal, 391 Planisphere and 393 Atelier are not in wave23-28.list (slots 272-343), so this batch has none of them.
+4. Budget is 233 for every app (no L3 rule found). The icon is icons/l3/NNN-<id>.svg.
+5. The catalogue row for 335 says "wind and sun yield model" and 282 names IPFS. The tasks say "generation" and "content-addressed blocks" (banned word and product rule).
+6. 305 culmen calls `murmuration.swarm_shares.*`, which Murmuration re-exports since a3415301.
+
+Check: python3 l2tools/check3.py -> 72 files, 0 problems. It checks that every backticked method exists in api/zxvd.openrpc.json and every wave-0 entry in its manifest; that the `use` set equals the catalogue's built_from; that needs names are in zxapp_caps and within the parts' combined needs; that each method family in "What it does" is covered by a declared need; that banned words and product names are absent; and the L3 header and icon. It reported 17 problems before the fixes above.
+# slot id languages-used (c is the model/view in every app; twins: forth=cairndrake, basic=hatchling) depends-on-waves pending(P1) [missing daemon methods] = the task says list what's missing
+344 portolan eve,kron,trebago,sutra,myra waves:0,12,20 pending:Logo:project,MATLAB:elevation,Ladder_logic:no_fly [missing daemon methods]
+345 caravel sutra,eve,trebago,kron,myra waves:1,12,14,19,20 pending:Eiffel:release_ok,Solidity:sale_total
+346 chintz eve,kron,trebago,cairndrake,sutra,myra waves:9,12,13,19 pending:Julia:growth,Mojo:traits
+347 sampler eve,kron,sutra,trebago,myra waves:0,12,13,20 pending:Objective-C:provenance,SAS:catalogue,ALGOL_60:loan_ok,Haskell:insured
+348 theorbo sutra,eve,kron,trebago,myra waves:7,13,20 pending:PostScript:score,Simula_I:synth,LabVIEW:mix_level [missing daemon methods]
+349 armillary eve,kron,trebago,sutra,myra waves:3,12,14,16 pending:IEC_61131-3_Structured_Text:drift_ok,Simula_67:calibrate,Scala:sensors [missing daemon methods]
+350 stereoscope eve,kron,sutra,trebago,myra waves:7,12,13,14 pending:MATLAB:colour,ML:edited_mark,ALGOL_60:licence_sale
+351 athanor eve,kron,sutra,trebago,myra waves:12,14,20 pending:JOSS:kinetics,JCL:schedule,Simula_I:conc [missing daemon methods]
+352 consonance eve,kron,sutra,trebago,myra waves:6,13,14,19,20 pending:Eiffel:binding_ok,Solidity:obligations
+353 gauze trebago,eve,kron,sutra,myra waves:11,12,14,18,20 pending:AWK:handover [missing daemon methods]
+354 pianola eve,kron,trebago,sutra,myra waves:3,12,13,19,20 pending:Haskell:contract,ML:ship_ok,Bash:run_jobs [missing daemon methods]
+355 damask eve,myra,sutra,trebago,kron waves:8,13,14,18 pending:Laning_and_Zierler:portion [missing daemon methods]
+356 landfall eve,kron,trebago,sutra,myra waves:0,12,14,21 pending:Gleam:overdue,Prolog:turnaround,TeX:waypoints
+357 heartstring eve,kron,trebago,sutra,myra waves:8,12,14,18 pending:Go:updates,IPL:care_tree,Simula_67:smooth
+358 crowsnest eve,kron,trebago,sutra,myra waves:1,12,14,15,17 pending:ALGOL_60:mask_ok,Haskell:escalate,JOVIAL:motion [missing daemon methods]
+359 capstan eve,kron,sutra,trebago,myra waves:8,12,19 pending:Ladder_logic:rotor_ok [missing daemon methods]
+360 carrick sutra,eve,trebago,kron,myra waves:6,13,14,17,19 pending:Eiffel:limit_ok,Solidity:ledger
+361 pyrometer eve,kron,sutra,trebago,myra waves:8,14,16,19 pending:Bourne_shell:inspect_due [missing daemon methods]
+362 shanty eve,kron,trebago,cairndrake,sutra,myra waves:8,13,15,16,19 pending:Elixir:send_alert,Clojure:waves [missing daemon methods]
+363 linen eve,kron,sutra,trebago,myra waves:8,12,14,15,21 pending:ML:credit_ok,ALGOL_60:credits [missing daemon methods]
+364 fanfare eve,kron,trebago,sutra,myra waves:1,12,18,19,22 pending:PHP:report
+365 veil eve,kron,trebago,sutra,myra waves:1,12,14,21 pending:- [missing daemon methods]
+366 spinnaker eve,kron,trebago,sutra,myra waves:0,12,14,19 pending:IEC_61131-3_Structured_Text:alt_ok,LISP:airframe,Prolog:checklist [missing daemon methods]
+367 argonaut sutra,eve,trebago,kron,myra waves:8,14,17,19,22 pending:-
+368 aubade eve,kron,trebago,sutra,myra waves:8,12,14,16,18 pending:Simula_I:sun_angle,LabVIEW:daylight,Modula-2:rhythm [missing daemon methods]
+369 conclave eve,kron,sutra,trebago,myra waves:1,3,15,16,18 pending:Python:agents,Occam:budget,Simula_67:budget_ok [missing daemon methods]
+370 rondo eve,kron,trebago,sutra,myra waves:8,12,14,16 pending:Erlang:share_ok,Mojo:predict,Perl:notes
+371 ostinato sutra,eve,trebago,kron,myra waves:1,12,14,17,19 pending:Elixir:hazard_ok
+372 tatting eve,kron,trebago,sutra,myra waves:1,12,14,16 pending:JOVIAL:deliver_ok,Gleam:alert,Scala:sensors [missing daemon methods]
+373 paisley eve,kron,trebago,sutra,myra waves:7,13,16,18 pending:APT:toolpath,Logo:symmetry,SNOBOL:versions
+374 calliope eve,kron,trebago,hatchling,sutra,myra waves:9,13,17,18 pending:Python:help_ok,Pascal:steps
+375 bulwark sutra,eve,trebago,kron,myra waves:2,12,14,17 pending:Smalltalk:guardians,Erlang:transfer_ok,Oberon:roles
+376 brocade eve,kron,trebago,sutra,myra waves:10,13,14,15 pending:TRAC:labels,Icon:size_ok,TeX:orders
+377 buckram eve,kron,trebago,cairndrake,sutra,myra waves:2,12,17 pending:B:seal,RPG:warranty [missing daemon methods]
+378 counterpoint sutra,eve,trebago,kron,myra waves:8,14,17,19 pending:Go:chores,Simula_I:forecast,Delphi:planner
+379 hydrophone eve,kron,trebago,sutra,myra waves:13,14,15,17,21 pending:IPL:species,Prolog:rules,Racket:detect [missing daemon methods]
+380 moire eve,kron,trebago,sutra,myra waves:11,14,17,20 pending:Raku:parse_pref,Ruby:layout,Mojo:contrast [missing daemon methods]
+381 rigging eve,kron,trebago,sutra,myra waves:0,15,16,18,20 pending:Occam:jobs,Elixir:rollback,JCL:deploy_ok
+382 seine eve,kron,trebago,sutra,myra waves:1,14,16,17,18 pending:Gleam:relay,Ladder_logic:battery_ok,Clojure:readings [missing daemon methods]
+383 carapace sutra,eve,trebago,kron,myra waves:1,13,14,15,21 pending:Occam:stocks,PostScript:labels
+384 hornpipe eve,kron,trebago,sutra,myra waves:8,14,15,21 pending:-
+385 piccolo eve,kron,trebago,sutra,myra waves:9,12,15,19 pending:APT:planting,Simula_67:bloom,Modula-2:species
+386 privateer eve,kron,trebago,sutra,myra waves:2,12,14,15,18 pending:Go:alerts,BCPL:contain_ok
+387 commonweal eve,kron,sutra,trebago,myra waves:1,15,19,21 pending:Erlang:household,Prolog:advisory_ok,Logo:epochs
+388 patchwork eve,kron,trebago,sutra,myra waves:6,12,18,20 pending:Julia:timeline,Gleam:share_out,Python:dates
+389 distaff eve,kron,trebago,sutra,myra waves:2,12,13,17,18 pending:Visual_Basic:site,Haskell:link_ok,ML:bandwidth_ok
+390 galliard eve,kron,trebago,sutra,myra waves:8,13,15,18 pending:- [missing daemon methods]
+391 planisphere eve,kron,trebago,sutra,myra waves:19,20,21 pending:Crystal:inventory,ALGOL_60:step_ok,Haskell:capacity
+392 consort eve,kron,trebago,sutra,myra waves:6,13,16,18 pending:Go:intro,Prolog:contact_ok,Oberon:network
+393 atelier eve,kron,cpp-wasm,sutra,trebago,myra waves:11,17,20,22 pending:OCaml:parse_check,TeX:blocks [missing daemon methods]
+394 quadrant eve,kron,trebago,sutra,myra waves:5,13,16,17,18 pending:Elixir:relay,AWK:report,MATLAB:imagery [missing daemon methods]
+395 manometer trebago,eve,kron,sutra,myra waves:0,12,14,16,19 pending:IEC_61131-3_Structured_Text:interlock,SAS:report,Simula_I:thermal [missing daemon methods]
+396 macrame eve,kron,trebago,sutra,myra waves:1,17,18,19 pending:Erlang:notice,Prolog:cap_ok,Logo:links
+397 descant eve,kron,trebago,hatchling,sutra,myra waves:8,12,14,17 pending:ML:credential_ok,ALGOL_60:mastery
+398 orlop eve,kron,sutra,trebago,myra waves:0,12,17,20,22 pending:F#:schema_ok,SQL:query,Julia:stats
+399 topsail eve,kron,trebago,sutra,myra waves:8,15,18,22 pending:Gleam:failover,Elixir:replicas,Nim:capacity
+400 foghorn eve,kron,trebago,sutra,myra waves:5,12,13,17 pending:JOVIAL:timing_ok,Go:broadcast,LabVIEW:visibility [missing daemon methods]
+401 bearing eve,kron,trebago,sutra,myra waves:0,12,17 pending:Prolog:options,Simula_67:timing,Logo:timetable [missing daemon methods]
+402 heliostat eve,kron,sutra,trebago,myra waves:8,16,18,19 pending:Erlang:credits,Bash:settle_jobs,Tcl:irradiance [missing daemon methods]
+403 seachest sutra,eve,trebago,kron,myra waves:8,12,14,17 pending:Eiffel:access_ok,Solidity:custody
+404 chronometer eve,kron,trebago,sutra,myra waves:6,12,14,18 pending:Haskell:rest_ok,ML:drift,Occam:parallel [missing daemon methods]
+405 wardian eve,kron,trebago,sutra,myra waves:8,12,19 pending:Ladder_logic:climate_ok,Simula_I:growth_sim,Delphi:beds [missing daemon methods]
+406 celesta eve,kron,trebago,sutra,myra waves:8,16,19,21 pending:PHP:report,Simula_67:snowpack,Modula-2:party [missing daemon methods]
+407 chorale eve,kron,sutra,trebago,myra waves:1,14,19,22 pending:Prolog:quorum_ok,TeX:decisions
+
+# Notes and gaps (state B = conflict, N = missing)
+Applied from the coordinator: parts are used as blocks directly (C1, a3415301); icon icons/l3/NNN-<id>.svg; ZXAPP_LOGIC_MAX 128, ZXAPP_USES 8 (at most 5 used). Every "Planned" language of a slot is a `pending <Language> <entry>` line on one of that app's own new entries (lang_coverage.py refuses a pending line whose entry has no logic in the manifest, so pending never points at a composed entry). Entries are named in each task (`entry`: ...).
+Capstones: 369 Conclave (swarm: accept_ok, budget), 387 Commonweal (read-only economy view, mutual-aid words, never moves money), 391 Planisphere (disc to desktop over Plinth, Fusee, Muster, Overture, Thicket; inherits their missing methods), 393 Atelier (no-code studio over Loom, Shingle, Freshet, Dragoman, Trestle; three-witness publish check with C++ wasm per the CSV's wasm row).
+N1 An L2 part's own entry names are not fixed by its task file (they describe decisions, not entry ids), so "Uses" names each reused decision in words; the coder takes the entry id from the merged L2 manifest. Fixing entry names in the L2 tasks (as the L3 tasks now do) would remove the guesswork.
+N2 L2 parts must carry `version 1.0.0` and provides to be usable (C1). waves 18-22 tasks now say so; check that waves 12-17 tasks do (they do: "A part can be used only if its manifest carries version 1.0.0").
+N3 Missing daemon methods inherited from the parts (sensors and telemetry of every kind, drone/aircraft/vessel/turbine/plant control, camera streams, satellite passes, timetables, Cage run, manifest check, boot chain, installer, devices) are named per task.
+N4 L3 tasks keep the rule that L3 sends to L2 only as a result for checking (docs/REGISTRY.md section 4); no L3 task writes an L1 journal directly: every post goes through the part's own entry and the owner's approval.
+B1 Some pending fits are judgement calls where the catalogue's language kind matches more than one entry (for example Occam concurrency on Conclave `budget`, Logo on Commonweal `epochs`); each is on the closest entry of that kind.
+"yield" appears only as fabric yield (376), never for money. Checker: 64 files, 0 problems (methods, needs, banned words, pending language not running and pending entry has logic); shown to fail on an injected bad method, cap, pending language and pending entry.

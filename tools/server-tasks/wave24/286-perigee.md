@@ -1,0 +1,13 @@
+# Wave 24 task: Perigee (slot 286), Drone deliveries
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 1 (090 caravan), wave 12 (150 pannier, 154 chainman), wave 14 (175 tiller), wave 19 (239 isobar).
+Manifest: `slot 286`, `layer L3`, `icon icons/l3/286-perigee.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: plans drone deliveries and inspections within declared airspace, weather and battery limits, from places (`place.here`, `place.list`) and station data (`devmesh.devices`), with plans in the Hoard (`files.read`, `files.write`). zxvd has no method for drone control and telemetry (as Tiller reports), airspace notices: use only existing methods; list what's missing in your report.
+Uses: `use tiller 1` ("command inside the envelope", "hold safe state"); `use pannier 1` ("send now", delivery receipts); `use chainman 1` (parcel grid, for no-fly parcels); `use isobar 1` (station readings); `use caravan 1` (charged weight, "within carrier limits"). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `flight_ok` (altitude within the declared band AND battery at return at least the reserve AND wind at most the limit AND route outside every no-fly cell) in Ada as Eve + APL as KRON witnessed; `flight_path` (distance and energy along the legs) in FORTRAN as Trebago + APL as KRON witnessed; `delivery_charge` (in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `airspace` grid in APL as KRON; `fleet` records in MUMPS as MYRA.
+BOTH test: notice 1 opens corridor 5 and notice 2 closes it: the corridor is BOTH and the drone holds or reroutes; it never guesses. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Life-safety: a person approves every flight; local drone rules apply; no weapons or defense use beyond logistics and mapping.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: location, sys.read, net, peers, fs.read, fs.write, notify.
+Planned (no runtime yet): Ladder logic, Simula I, Delphi.
+Pending: `pending Ladder_logic flight_ok` (control); `pending Simula_I flight_path` (simulation); `pending Delphi fleet` (structure).

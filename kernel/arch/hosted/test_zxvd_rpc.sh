@@ -21,7 +21,7 @@ cc_() {
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/robin_debanks" \
         -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" \
         -I"$K/src/surplus" -I"$K/src/freight" -I"$K/src/harmonic" -I"$K/src/stream" -I"$K/src/ehop" \
-        -I"$K/src/ipfs_node" -I"$K/src/pqsec" -I"$K/src/lpres" -I"$K/src/edp_risk" -I"$K/src/juris" \
+        -I"$K/src/ipfs_node" -I"$K/src/pqsec" -I"$K/src/lpres" -I"$K/src/edp_risk" -I"$K/src/juris" -I"$K/src/print" \
         -I"$R/sdk/libzxv/include" "$@"
 }
 A="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3

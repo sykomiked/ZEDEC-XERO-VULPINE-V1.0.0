@@ -293,7 +293,7 @@ Small, pure building blocks that every stratum may use.
 | Several models at once, LoRA per agent | 💭 |
 | The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
 | Rosetta Shell: POSIX, PowerShell and cmd.exe lines compiled to one typed CLI-IR on top of zxsh | [ROSETTA_SHELL.md](ROSETTA_SHELL.md), design only |
-| The Registrar: Burrow's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
+| The Registrar: the Banker's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
 | The Cage: quarantine and clearance for anything from outside, with desks per kind of item | [CAGE.md](CAGE.md), design only |
 | The Pit Boss: deterministic rulebook that enforces, advisor model that only proposes | [PIT_BOSS.md](PIT_BOSS.md), design only |
 | The registry: 407 slots in three layers (L1 Foundation = the 144 apps, L2 Concourse, L3 Apparatus) and their crossing rules | [REGISTRY.md](REGISTRY.md), design only |

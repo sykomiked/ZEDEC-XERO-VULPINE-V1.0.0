@@ -1,0 +1,13 @@
+# Wave 23 task: Volute (slot 280), Fish farm
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 1 (091 vintner), wave 14 (172 escapement, 179 cupel), wave 15 (187 creel, 190 shipwright).
+Manifest: `slot 280`, `layer L3`, `icon icons/l3/280-volute.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: runs a fish or shellfish farm: water readings, feeding schedules, stock health and harvest sales (`files.read`, `files.write`, `ledger.entries`, `ledger.post`, `ledger.hold`, `place.here`). zxvd has no method for water probe readings: use only existing methods; list what's missing in your report.
+Uses: `use creel 1` (quota left, catch sales); `use shipwright 1` ("warn this district", water level ahead); `use cupel 1` (integer step, precision bounds); `use escapement 1` (clock offset, "job may run" for feeding times); `use vintner 1` (volume through the stages conserved, sale value). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `stocking_ok` (kilograms of stock per cubic metre at most the declared density) in Ada as Eve + APL as KRON witnessed; `oxygen` (dissolved oxygen trend and growth per day, integer model) in FORTRAN as Trebago + APL as KRON witnessed; `harvest_sales` (kg x price in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `pens` sensor arrays in APL as KRON; `stock_health` records in MUMPS as MYRA.
+BOTH test: probe 1 reads oxygen 7.2 mg/L and probe 2 4.1 mg/L in pen 3: the reading is BOTH and a manual check is asked for before any feed or treatment change. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Advisory; treatments are a vet's or a qualified person's decision.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: fs.read, fs.write, ledger.read, ledger.post, location, notify.
+Planned (no runtime yet): Gleam, Bash.
+Pending: Gleam (messaging): no entry here is an obvious fit; put `pending Gleam <entry>` on the one closest to messaging and name it in your report; Bash (jobs): no entry here is an obvious fit; put `pending Bash <entry>` on the one closest to jobs and name it in your report.

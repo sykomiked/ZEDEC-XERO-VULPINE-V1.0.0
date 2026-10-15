@@ -1,0 +1,11 @@
+# Wave 13 task: Astrolabe (slot 160), Observing planner
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 7 (058 pinhole), wave 8 (088 weatherglass), wave 9 (101 orrery, 110 sundial).
+Manifest: `slot 160`, `layer L2`, `icon icons/l2/160-astrolabe.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: plans observing sessions, logs sightings and predicts sky events from local time (`sys.info`) and place (`place.here`), with photos saved to the Hoard (`files.write`). zxvd has no method for a weather source (as Weatherglass reports): use only existing methods; list what's missing in your report.
+Uses: `use pinhole 1` (device ready, "photo fits", exposure limits, photo record); `use weatherglass 1` (readings); `use orrery 1` (day number, mean longitude, above the horizon); `use sundial 1` (local time for a zone). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): next time an object is above the declared altitude inside the night window (minutes of day) in FORTRAN as Trebago + APL as KRON witnessed; "session go" (cloud at most the limit AND the object up in the window) in Ada as Eve + APL as KRON witnessed; exposure limits (milliseconds per frame, frames per session) in Ada as Eve; star catalogue arrays (objects up tonight, by magnitude and altitude) in APL as KRON; object hierarchy and sightings in MUMPS as MYRA.
+BOTH test: observer 1 records object 77 at magnitude 6 and observer 2 records it not seen: the sighting is BOTH and stays so until three observers agree.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: location, sys.read, camera, fs.write.
+Planned (no runtime yet): Python, Simula I, Modula-2.

@@ -10,7 +10,7 @@ It is an OS feature: an app maker picks a sound sequence and gives an icon, and 
 icons are held to the palette (gold #F2C230 on #002911); an app a person makes may colour its icon however it likes.
 
 Status: approved by the owner (11:00Z); all 407 apps in the catalogue (three tiers) have their own entry and sound sequence. Six have
-hand-made sounds (Burrow, Flint, Murmuration, Coffer, Cutwater, Commons); the other 138 are built from one recipe.
+hand-made sounds (Banker, Flint, Murmuration, Coffer, Cutwater, Commons); the other 138 are built from one recipe.
 The owner approved the look (10:53Z) and asked for the boot's five logos on the tiles, which this version does. The logic
 (`kernel/src/launch/zxl_launch.{h,c}`) is built and tested; drawing plugs into the window manager's `launch_draw` hook
 (Native app toolkit, PR #110) once that lands.
@@ -58,7 +58,7 @@ people make that pick no sequence.
 
 ## Making an app
 
-An app's manifest names its sound sequence with `launch <name>`: any listed app's name (`Burrow`, `Warble`, ...) or a
+An app's manifest names its sound sequence with `launch <name>`: any listed app's name (`Banker`, `Warble`, ...) or a
 group default (`group1` to `group12`). Leave it out and the app
 gets its group's. The app's icon goes to the top centre on its own. `zxl_theme_pick(name)` resolves the name and
 `zxl_icon_ink(system_app)` says whether the icon is recoloured to the palette (system apps) or drawn as made.
@@ -82,7 +82,7 @@ The six apps with their own themes:
 
 | App | Begin | Middle (per tile) | End | Behind the tiles |
 |---|---|---|---|---|
-| Burrow (Files) | A knock on wood, marimba D A D | Marimba up D pentatonic | The earth giving way, a warm D chord | Tunnel arches breathing |
+| Banker (Files) | A knock on wood, marimba D A D | Marimba up D pentatonic | The earth giving way, a warm D chord | Tunnel arches breathing |
 | Flint (Terminal) | Flint struck on steel, a spark ping | Keystrokes that play notes | A tube warming, a thunk, an A chord | Sparks rising |
 | Murmuration (Swarm) | A flutter of wings, breathy flute | A chirp per agent waking | The flock lifting off, an E chord | A flock wheeling |
 | Coffer (Wallet) | A key turning the tumblers, a bell | A coin per tile | The latch, bells, coins settling | Gold dust drifting |
@@ -107,7 +107,20 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
 - `kernel/src/zui/zui_launch_theme.{h,c}`: the live screen. Opens the app's window through the window manager
   (`zui_wm`) with the five logos and the app's icon, plays BEGIN as it opens, a tick as each tile's gold comes up
   (so the sounds move at the speed of the real load), and END when the app reports ready. The shell supplies the
-  pictures and the audio output. Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`).
+  pictures and the audio output. An app built from a recipe loads by fetching its blocks: its opener calls
+  zxvd `fab.receive.start`, then `fab.receive.step` until phase `"done"` (`zxvd_fab.h` B13), and hands each answer
+  to `zui_launch_theme_load`. The verified blocks fill the tiles (the outer pair first, the centre last) and the
+  bar never runs ahead of them; once every block is in, the mark lights and the bar above it breathes while the
+  app is built (no number: the time is not known); only `"done"`, after the target CID matched, opens the doors
+  and plays the end. A failed step or a cancel never does. A warm open plays only the end.
+  Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`); the block mapping is unit-tested in
+  `test_zxl_launch.c` (`zxl_launch_blocks`, `zxl_launch_screen_p`).
+- `kernel/src/zui/zui_apphost.{h,c}`: the desktop session's app opener. Attaches the launch screens to the window
+  manager, opens the app's window on its screen, then drives a `zxm_open_t` (`kernel/src/apps/zxm_open.h`) on
+  the app's recipe one step a frame, each answer passed straight onto `zui_launch_theme_load`. Done tells the
+  desktop where the app was written; a failure tells it why (zxvd's own words) and closes the window; closing a
+  window that is still loading cancels the receive. Test: `kernel/src/zui/test_zui_apphost.c` (in
+  `make verify-all`, ASan+UBSan), against a scripted zxvd.
 - `kernel/src/launch/zxl_synth.{h,c}`: the sounds, made live in integers the moment each cue is called for, from
   the app's theme: the same notes, timbres, pans, echoes and fades as `launch_sounds.py` (the six hand-made apps
   keep their own recipes). Every other app's phrase carries a quiet layer in its tier's material: dry wood
@@ -157,4 +170,7 @@ python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   
    read at once). It sets `cfg.vec` to an adapter over `zui_vec_draw_simple` with a static `zui_vec_work_t`
    once the toolkit's renderer is on main, and the installer puts the 407 icons' and five logos' `.zxvg`
    beside the PNGs.
-2. Hand-make more apps' sounds where the generated phrase is not enough.
+2. The desktop session makes one `zui_apphost_t` with its window manager, its `zui_launch_shell` and its zxvd
+   link, opens apps from their recipes with `zui_ah_open` (warm ones with `zui_ah_open_warm`), calls `zui_ah_pump`
+   once a frame, and shows `done`'s reason when an open fails.
+3. Hand-make more apps' sounds where the generated phrase is not enough.

@@ -193,12 +193,17 @@ case "${1:-srcs}" in
         done
         # pspace.*, hall.*: the net host and Vinea (vna_space) are in srcs
         echo arch/hosted/zxvd_pspace.c
+        # fab.*: file fabrication (docs/spec/FABRICATION.md); its ML-DSA-87,
+        # ML-KEM-1024, aead, hkdf, sha256 and the IPFS CID code are in srcs
+        echo arch/hosted/zxvd_fab.c
+        echo src/fab/fab.c
+        echo src/fab/fab_send.c
         ;;
     groupincs)
         echo src/cardnet
         echo src/ident
         for d in svault vswap vauction zenny zstats; do echo "src/$d"; done
-        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea; do echo "$d"; done
+        for d in src/vbond src/vderiv src/grants src/estate src/web4 src/seats src/power src/tls src/vinea src/fab; do echo "$d"; done
         ;;
     rpcdeps)
         # the owner's files and spaces (zxvd_rpc.h F/S), the jurisdiction
@@ -209,8 +214,19 @@ case "${1:-srcs}" in
         echo src/acct/acct.c
         echo src/lpres/lpres_hex.c
         echo src/lpres/lpres.c
+        # the utilities (sys.*, log.tail), Scent's index, Platen's printers
+        # and scanners with their IPP and eSCL codecs, Keepsake's backups,
+        # Wake's journal, Shepherd's screen time and Waymark's places
+        for f in zxv_sysinfo zxvd_log zxv_search zxv_print_host zxv_keepsake zxv_journal zxv_screen zxv_place; do
+            echo "arch/hosted/$f.c"
+        done
+        echo src/print/ipp.c
+        echo src/print/escl.c
         ;;
-    rpcincs) echo src/juris ;;
+    rpcincs)
+        echo src/juris
+        echo src/print
+        ;;
     modules)
         echo arch/hosted/zxvd_rpc_modules.c
         for f in freight/freight.c freight/freight_ops.c harmonic/zt_harmonic_wire.c \

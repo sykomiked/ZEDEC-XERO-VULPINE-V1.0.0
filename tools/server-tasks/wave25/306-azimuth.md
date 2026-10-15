@@ -1,0 +1,12 @@
+# Wave 25 task: Azimuth (slot 306), Wayfinding
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 0 (085 waymark), wave 4 (133 nightjar), wave 12 (147 binnacle, 154 chainman), wave 17 (211 tradewind).
+Manifest: `slot 306`, `layer L3`, `icon icons/l3/306-azimuth.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: indoor and outdoor wayfinding with step-by-step directions, accessible routes and offline maps (`place.here`, `place.list`, `place.add`, `files.read`). zxvd has no method for beacon readings, indoor maps: use only existing methods; list what's missing in your report.
+Uses: `use tradewind 1` (best order of stops); `use binnacle 1` (fix, bearing and distance); `use chainman 1` (parcel area for site plans); `use waymark 1` (`waymark.place_ok`); `use nightjar 1` ("interrupt now", reading order for spoken directions). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `accessible_ok` (a route has no step, gradient over the declared limit or door narrower than the declared width when the person asks for an accessible route) in Ada as Eve + APL as KRON witnessed; `position` (position from beacon ranges, integer least squares) in FORTRAN as Trebago + APL as KRON witnessed; `venue_licence` (venue licences in minor units) in COBOL as Sutra; `floors` grid in APL as KRON; `buildings` tree in MUMPS as MYRA.
+BOTH test: beacons put you in corridor B and the map match in corridor C: the position is BOTH and directions widen to cover both instead of misleading. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: location, fs.read, sys.read, notify.
+Planned (no runtime yet): Prolog, Logo.
+Pending: `pending Prolog floors` (search); `pending Logo position` (geometry).

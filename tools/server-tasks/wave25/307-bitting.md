@@ -1,0 +1,13 @@
+# Wave 25 task: Bitting (slot 307), Digital keys
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 1 (008 gatehouse), wave 2 (009 lockbox), wave 12 (153 pavise), wave 14 (173 warding), wave 17 (210 moraine).
+Manifest: `slot 307`, `layer L3`, `icon icons/l3/307-bitting.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: issues and revokes digital keys for doors, rooms, vehicles and shared equipment, with a full access history (`passkeys.list`, `passkeys.revoke`, `devmesh.devices`, `devmesh.revoke`, `journal.query`). zxvd has no method for door and vehicle lock control: use only existing methods; list what's missing in your report.
+Uses: `use warding 1` ("key active", key register); `use moraine 1` ("release now" for escrowed keys); `use pavise 1` (combined "allow"); `use lockbox 1` (key expiry); `use gatehouse 1` ("is this use allowed"). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `window_ok` (a key opens only inside its time window) in Ada as Eve + APL as KRON witnessed; `access_pattern` (uses per hour against the holder's usual pattern, integer score) in FORTRAN as Trebago + APL as KRON witnessed; `deposits` (key deposits in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `doors` permission grid in APL as KRON; `holders` tree in MUMPS as MYRA.
+BOTH test: key 22 is revoked on device A and valid on device B: the key is BOTH and the door asks for a second factor. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Doors and vehicles: the app never unlocks by itself; never log key bytes; never copy anything from build_system/keys/.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: sys.read, peers, journal, notify, ledger.read.
+Planned (no runtime yet): Ladder logic, Go, TRAC.
+Pending: `pending Ladder_logic window_ok` (control); Go (messaging): no entry here is an obvious fit; put `pending Go <entry>` on the one closest to messaging and name it in your report; TRAC (text): no entry here is an obvious fit; put `pending TRAC <entry>` on the one closest to text and name it in your report.

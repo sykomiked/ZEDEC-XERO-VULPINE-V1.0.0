@@ -1,0 +1,13 @@
+# Wave 27 task: Equant (slot 320), Arbitration
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 3 (132 twelvefold), wave 13 (164 handfast), wave 14 (178 assize), wave 19 (240 isthmus), wave 20 (250 plumbline).
+Manifest: `slot 320`, `layer L3`, `icon icons/l3/320-equant.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: arbitrates disputes: claims, evidence, hearings, rulings and enforcement under a published rulebook (`files.read`, `files.write`, `journal.query`, `web4.verify`, `pspace.post`, `ledger.hold`).
+Uses: `use assize 1` ("filing accepted", days left, evidence matrix); `use isthmus 1` (case room); `use handfast 1` (obligations); `use twelvefold 1` ("conclusion follows"); `use plumbline 1` (policy rules). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `procedure_ok` (each step inside its deadline under the published rulebook) in Ada as Eve + APL as KRON witnessed; `damages` (proven losses plus interest at the stated rate, reduced rationals) in FORTRAN as Trebago + COBOL as Sutra witnessed; `settlement` (agreed amounts in minor units) in COBOL as Sutra + FORTRAN as Trebago witnessed; `evidence` matrix in APL as KRON; `cases` hierarchy in MUMPS as MYRA.
+BOTH test: witness 1 says the goods arrived damaged and witness 2 intact: the testimony is BOTH and the arbiter weighs it openly; neither is discarded. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Rulings are the arbiter's; settlements move only by the parties' act.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: fs.read, fs.write, journal, peers, net, ledger.read, notify.
+Planned (no runtime yet): Prolog, TeX, SNOBOL.
+Pending: `pending Prolog procedure_ok` (rules); TeX (typesetting): no entry here is an obvious fit; put `pending TeX <entry>` on the one closest to typesetting and name it in your report; SNOBOL (text): no entry here is an obvious fit; put `pending SNOBOL <entry>` on the one closest to text and name it in your report.

@@ -1,0 +1,12 @@
+# Wave 12 task: Pavise (slot 153), Security perimeter
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 1 (008 gatehouse, 018 witness), wave 2 (009 lockbox, 030 hedgerow).
+Manifest: `slot 153`, `layer L2`, `icon icons/l2/153-pavise.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: one security perimeter combining firewall paths, app permissions and keys into a single policy, read from `features.get`, `sys.net`, `net.peers`, `devmesh.devices`, `passkeys.list`, with its history from `journal.query` and `journal.verify`. zxvd has no method for firewall rule write, capability grant write: use only existing methods; list what's missing in your report.
+Uses: `use gatehouse 1` ("is this use allowed", apps per capability); `use lockbox 1` (key expiry days left, limits); `use witness 1` (entry record, chain intact); `use hedgerow 1` ("is this path reachable", address class, rule record). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): "allow" = Gatehouse allows AND Hedgerow's path reachable AND the key valid and not expired AND no policy denies, in Ada as Eve + APL as KRON witnessed, joined with `lpres_conjoin` (C) so BOTH is never TRUE; access ledger (decision number, app, capability) as fixed records numbered without reuse in COBOL as Sutra; exposure score (open paths, keys expiring within 30 days, unsigned apps, each weighted) exact in FORTRAN as Trebago; permission matrix (app by capability) in APL as KRON; declared policy bounds in Ada as Eve; trust tree in MUMPS as MYRA.
+BOTH test: policy A allows app 12 the network and policy B denies it: the access is BOTH and is denied until the owner resolves it.
+Never log or store key bytes. Never copy anything from build_system/keys/.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: sys.read, net, peers, journal, notify.
+Planned (no runtime yet): Prolog.

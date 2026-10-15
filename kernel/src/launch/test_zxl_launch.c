@@ -57,7 +57,7 @@ static void test_themes(void)
     static const struct {
         uint32_t at;
         const char *name;
-    } hand[] = {{0, "Burrow"},    {12, "Flint"},       {26, "Commons"},
+    } hand[] = {{0, "Banker"},    {12, "Flint"},       {26, "Commons"},
                 {55, "Cutwater"}, {60, "Murmuration"}, {72, "Coffer"}};
     for (uint32_t i = 0; i < 6; i++) {
         const zxl_theme_t *t = zxl_curated(hand[i].at);
@@ -95,16 +95,16 @@ static void test_themes(void)
     for (uint32_t i = 0; i < ZXL_APPS; i++) per[zxl_curated(i)->group]++;
     for (uint32_t g = 1; g <= ZXL_GROUPS; g++)
         CHECK(per[g] >= 12, "every family has its twelve and more");
-    CHECK(zxl_theme_for("burrow", 1) == zxl_group_theme(1), "names are case-sensitive");
-    CHECK(zxl_theme_for("Burrowx", 6) == zxl_group_theme(6), "no prefix match");
+    CHECK(zxl_theme_for("banker", 1) == zxl_group_theme(1), "names are case-sensitive");
+    CHECK(zxl_theme_for("Bankerx", 6) == zxl_group_theme(6), "no prefix match");
     CHECK(zxl_theme_for("Burro", 6) == zxl_group_theme(6), "no short match");
     CHECK(zxl_theme_for("", 4) == zxl_group_theme(4), "empty name uses its group");
     const zxl_theme_t *m = zxl_theme_for("Murmuration", 6);
     CHECK(m->key == ZXL_E, "the swarm shares the OS key");
     CHECK(m->reveal == ZXL_REVEAL_VAULT && m->ambient == ZXL_AMB_FLOCK,
           "the swarm: the vault, a flock behind");
-    CHECK(zxl_theme_for("Burrow", 1)->reveal == ZXL_REVEAL_VAULT &&
-              zxl_theme_for("Burrow", 1)->ambient == ZXL_AMB_ARCHES,
+    CHECK(zxl_theme_for("Banker", 1)->reveal == ZXL_REVEAL_VAULT &&
+              zxl_theme_for("Banker", 1)->ambient == ZXL_AMB_ARCHES,
           "vault, own ambient");
     CHECK(zxl_theme_for("Flint", 2)->reveal == ZXL_REVEAL_VAULT &&
               zxl_theme_for("Flint", 2)->ambient == ZXL_AMB_SPARKS,
@@ -129,8 +129,8 @@ static void test_themes(void)
 
 static void test_notes(void)
 {
-    const zxl_theme_t *b = zxl_theme_for("Burrow", 1); /* D4 = MIDI 62 */
-    CHECK(zxl_tick_note(b, 0) == 62, "Burrow step 0 is D4");
+    const zxl_theme_t *b = zxl_theme_for("Banker", 1); /* D4 = MIDI 62 */
+    CHECK(zxl_tick_note(b, 0) == 62, "Banker step 0 is D4");
     CHECK(zxl_tick_note(b, 1) == 64, "step 1 is E4");
     CHECK(zxl_tick_note(b, 2) == 66, "step 2 is F#4");
     CHECK(zxl_tick_note(b, 3) == 69, "step 3 is A4");
@@ -156,7 +156,7 @@ static void test_prefs(void)
     CHECK(!p.system_muted && !p.focus_quiet && !p.screen_reader && !p.reduce_motion,
           "flags off by default");
     CHECK(strcmp(ZXL_SETTING_KEY, "sound.app_launch") == 0, "setting key");
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     CHECK(zxl_effective_reveal(t, &p) == ZXL_REVEAL_VAULT, "theme reveal: the vault");
     CHECK(zxl_effective_reveal(t, 0) == ZXL_REVEAL_VAULT, "NULL prefs keep the theme reveal");
     p.reduce_motion = 1;
@@ -180,7 +180,7 @@ static void test_sequence(void)
     zxl_launch_t l;
     zxl_event_t ev[16];
     int n;
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     CHECK(zxl_launch_init(0, t, 5, 0, 0) == -1, "NULL launch refused");
     CHECK(zxl_launch_init(&l, 0, 5, 0, 0) == -1, "NULL theme refused");
     CHECK(zxl_launch_init(&l, t, 5, 0, 0) == 0, "init");
@@ -441,7 +441,8 @@ static void test_icon_files(void)
     }
     CHECK(named == ZXL_APPS, "all 407 apps have an icon file");
     CHECK(tier == ZXL_APPS, "each a .png inside the icons folder");
-    CHECK(!strcmp(zxl_icon_file("Burrow"), "001-burrow.png"), "Burrow's is 001-burrow.png");
+    CHECK(!strcmp(zxl_icon_file("Banker"), "001-burrow.png"),
+          "the Banker keeps the icon drawn as 001-burrow.png");
     CHECK(!strcmp(zxl_icon_file("Cartulary"), "l2/145-dragon-archivist.png"),
           "a tier-2 app's is in l2/");
     CHECK(!strcmp(zxl_icon_file("Chorale"), zxl_icon_file("Chorale")) &&
@@ -452,8 +453,8 @@ static void test_icon_files(void)
 
 static void test_pick(void)
 {
-    CHECK(zxl_theme_pick("Burrow") == zxl_theme_for("Burrow", 1), "pick a curated sequence");
-    CHECK(zxl_theme_pick("burrow") == zxl_theme_for("Burrow", 1), "pick ignores case");
+    CHECK(zxl_theme_pick("Banker") == zxl_theme_for("Banker", 1), "pick a curated sequence");
+    CHECK(zxl_theme_pick("banker") == zxl_theme_for("Banker", 1), "pick ignores case");
     CHECK(zxl_theme_pick("MURMURATION")->key == ZXL_E, "the swarm's sequence is in E");
     for (uint32_t i = 0; i < zxl_curated_count(); i++)
         CHECK(zxl_theme_pick(zxl_curated(i)->app) == zxl_curated(i),
@@ -468,7 +469,7 @@ static void test_pick(void)
     CHECK(zxl_theme_pick("group123") == 0, "three digits");
     CHECK(zxl_theme_pick("groupA") == 0, "letter for a number");
     CHECK(zxl_theme_pick("Burro") == 0, "prefix of a name");
-    CHECK(zxl_theme_pick("Burrows") == 0, "name plus more");
+    CHECK(zxl_theme_pick("Bankers") == 0, "name plus more");
     CHECK(zxl_theme_pick("") == 0, "empty");
     CHECK(zxl_theme_pick(0) == 0, "NULL");
     CHECK(zxl_icon_ink(1) == ZXL_ICON_PALETTE, "system icons held to the palette");
@@ -482,7 +483,7 @@ static void test_screen_lit(void)
 {
     zxl_launch_t l;
     zxl_event_t ev[16];
-    const zxl_theme_t *t = zxl_theme_for("Burrow", 1);
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
     zxl_launch_init(&l, t, 5, 0, 0);
     CHECK(drain(&l, ev, 16) == 1 && ev[0].kind == ZXL_EV_BEGIN, "begin first");
     CHECK(zxl_launch_lit(&l, 4) == 0, "an outer tile lights");
@@ -554,6 +555,119 @@ static void test_screen_lit(void)
     CHECK(drain(&l, ev, 16) == 2 && !ev[0].audible && ev[0].gain_q8 == 0, "muted tick");
 }
 
+/* the real load from fabrication: verified blocks fill the tiles, the build
+ * breathes, only "done" ends it, a failure never does */
+static void test_fab_blocks(void)
+{
+    zxl_launch_t l;
+    zxl_event_t ev[16];
+    int n;
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
+    zxl_launch_init(&l, t, 5, 0, 0);
+    drain(&l, ev, 16); /* BEGIN */
+    CHECK(zxl_launch_screen_p(&l) == 0, "fab: nothing fetched, the bar at 0");
+
+    /* 30 blocks over 3 levels: the outer pair [0,10), the inner pair
+     * [10,20), the centre [20,30) */
+    CHECK(zxl_launch_blocks(&l, 0, 30) == 0, "fab: the start's answer");
+    CHECK(drain(&l, ev, 16) == 0 && zxl_launch_screen_p(&l) == 0, "fab: 0 of 30: nothing moves");
+    zxl_launch_blocks(&l, 5, 30);
+    CHECK(l.part_p[0] == 128 && l.part_p[4] == 128 && l.part_p[1] == 0 && l.part_p[2] == 0,
+          "fab: half the outer pair's blocks, the outer pair half full, together");
+    CHECK(zxl_launch_screen_p(&l) == 21, "fab: the bar at 5/30 of the gathering (42/2)");
+    CHECK(drain(&l, ev, 16) == 0, "fab: no tile lit yet");
+    zxl_launch_blocks(&l, 10, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 0 && ev[1].part == 4,
+          "fab: the outer pair's blocks in: both outer tiles tick");
+    CHECK(zxl_launch_screen_p(&l) == 42, "fab: the bar at 10/30 (85/2)");
+    zxl_launch_blocks(&l, 3, 30);
+    CHECK(l.part_p[0] == 256 && l.load_p == 85, "fab: counts never move backwards");
+    zxl_launch_blocks(&l, 25, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].part == 1 && ev[1].part == 3 && l.part_p[2] == 128,
+          "fab: the inner pair ticks, the centre half full");
+    CHECK(!(l.lit & 4) && l.phase == ZXL_PH_GATHER && l.rest != ZXL_UNKNOWN,
+          "fab: the centre waits for every block");
+    CHECK(zxl_launch_screen_p(&l) == 106, "fab: the bar at 25/30 (213/2)");
+
+    zxl_launch_blocks(&l, 30, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 2 && ev[0].step == ZXL_TOP_STEP &&
+              ev[1].kind == ZXL_EV_LIGHT,
+          "fab: every block in: the centre's top step, the mark lights");
+    CHECK(l.phase == ZXL_PH_RELEASE && l.rest == ZXL_UNKNOWN,
+          "fab: the build runs for an unknown time");
+    CHECK(zxl_launch_screen_p(&l) == 192, "fab: mark lit, the bar above it breathing");
+    zxl_launch_blocks(&l, 40, 30);
+    CHECK(drain(&l, ev, 16) == 0 && l.phase == ZXL_PH_RELEASE,
+          "fab: blocks alone never end the launch");
+    zxl_launch_finish(&l); /* phase "done" */
+    n = drain(&l, ev, 16);
+    CHECK(n == 1 && ev[0].kind == ZXL_EV_END && zxl_launch_screen_p(&l) == 256,
+          "fab: done: the end, the doors");
+    CHECK(zxl_launch_blocks(&l, 30, 30) == -1, "fab: nothing after the end");
+
+    /* a failed step or a cancel never ends it */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    drain(&l, ev, 16);
+    zxl_launch_blocks(&l, 10, 30);
+    drain(&l, ev, 16);
+    zxl_launch_fail(&l);
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0 && l.phase == ZXL_PH_GATHER, "fab: failed: finish refused");
+    CHECK(zxl_launch_blocks(&l, 30, 30) == -1 && l.part_p[2] == 0,
+          "fab: failed: later answers ignored");
+    CHECK(zxl_launch_screen_p(&l) == 42, "fab: failed: the screen stays where the work stopped");
+    zxl_launch_fail(0); /* no crash */
+
+    /* failing after every block is in, while it builds */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 30, 30);
+    zxl_launch_fail(&l);
+    zxl_launch_finish(&l);
+    drain(&l, ev, 16);
+    CHECK(l.phase == ZXL_PH_RELEASE && zxl_launch_screen_p(&l) == 192,
+          "fab: a failed build never opens");
+
+    /* warm: only the end; no blocks taken */
+    zxl_launch_init(&l, t, 5, 0, 1);
+    CHECK(zxl_launch_blocks(&l, 1, 30) == -1 && zxl_launch_screen_p(&l) == 256,
+          "fab: warm takes no blocks");
+    n = drain(&l, ev, 16);
+    CHECK(n == 1 && ev[0].kind == ZXL_EV_END, "fab: warm plays only the end");
+
+    /* nothing to fetch */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 0, 0);
+    CHECK(l.phase == ZXL_PH_RELEASE && l.rest == ZXL_UNKNOWN && zxl_launch_screen_p(&l) == 192,
+          "fab: 0 blocks: straight to the build");
+
+    /* the screen lit the centre early (its gold came up a little before the
+     * last blocks): the bar still waits for the blocks */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 28, 30);
+    for (uint32_t i = 0; i < 5; i++) zxl_launch_lit(&l, i);
+    CHECK(l.phase == ZXL_PH_RELEASE, "fab: every tile lit on screen");
+    CHECK(zxl_launch_screen_p(&l) == 119, "fab: the bar stays at 28/30 (238/2), not the mark");
+    zxl_launch_blocks(&l, 30, 30);
+    CHECK(zxl_launch_screen_p(&l) == 192, "fab: then the build");
+
+    /* huge counts, odd splits */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 4000000000u, 0xFFFFFFFFu);
+    CHECK(l.part_p[0] == 256 && l.part_p[1] == 256 && l.part_p[2] > 200 && l.part_p[2] < 256,
+          "fab: 4e9 of 2^32-1 blocks without overflow");
+    zxl_launch_init(&l, t, 4, 0, 0);
+    zxl_launch_blocks(&l, 1, 3); /* 2 levels: [0,1), [1,3) */
+    CHECK(l.part_p[0] == 256 && l.part_p[3] == 256 && l.part_p[1] == 0,
+          "fab: an even part count pairs inward too");
+    zxl_launch_init(&l, t, 1, 0, 0);
+    zxl_launch_blocks(&l, 1, 2);
+    CHECK(l.part_p[0] == 128, "fab: one part takes every block");
+    CHECK(zxl_launch_blocks(0, 1, 1) == -1 && zxl_launch_screen_p(0) == 0, "fab: NULL");
+}
+
 int main(void)
 {
     test_themes();
@@ -567,6 +681,7 @@ int main(void)
     test_sound_policy();
     test_pick();
     test_screen_lit();
+    test_fab_blocks();
     printf("test_zxl_launch: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

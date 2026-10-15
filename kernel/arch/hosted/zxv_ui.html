@@ -297,6 +297,7 @@ body.simple .adv{display:none!important}
   <button data-app="console" class="adv"><i>›_</i><span data-i18n="UI_APP_SPINDLE"></span></button>
 </nav>
 <div class="views">
+<div class="note" id="shepherd" hidden></div>
 <div class="view" id="v-swarm">
 <div class="note" data-i18n="UI_PREVIEW_NOTE"></div>
 <div class="note" id="langnote" hidden></div>
@@ -736,7 +737,7 @@ function show(app){
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 $('dock').setAttribute('aria-label',T('UI_DOCK_APPS'));
 
-/* ----- Burrow (files) ----- */
+/* ----- The Banker (files in the Hoard) ----- */
 const F={dir:'',entries:[],
   crumbs(el,dir,go){el.innerHTML='';const parts=dir?dir.split('/'):[];const a=document.createElement('a');a.textContent=parts[0]==='.Trash'?T('UI_FILES_TRASH'):T('UI_FILES_ROOT');a.onclick=()=>go(parts[0]==='.Trash'?'.Trash':'');el.appendChild(a);
     let acc=parts[0]==='.Trash'?'.Trash':'';for(const p of parts[0]==='.Trash'?parts.slice(1):parts){acc=join(acc,p);const s=document.createElement('span');s.textContent='›';el.appendChild(s);const x=document.createElement('a');x.textContent=p;const to=acc;x.onclick=()=>go(to);el.appendChild(x)}},
@@ -867,6 +868,20 @@ $('crun').onclick=async()=>{const m=$('cmeth').value;if(!m)return;let p={};const
   C.log('call',`${m} ${raw||'{}'}`);try{C.log('ok',JSON.stringify(await rpc(m,p),null,2))}catch(e){C.log('error',e.message)}};
 $('cclear').onclick=()=>$('cout').textContent='';
 
+/* ----- screen time for Shepherd (zxv_screen.h SC1): once a minute, the app
+   in front, while someone is using the window ----- */
+const APP_NAME={swarm:'murmuration',files:'burrow',text:'quillon',photos:'glint',console:'spindle'};
+let lastActive=Date.now();
+['mousemove','keydown','pointerdown','wheel'].forEach(e=>addEventListener(e,()=>{lastActive=Date.now()},{passive:true}));
+async function screenTick(){
+  if(document.hidden||Date.now()-lastActive>60000)return;
+  try{const a=await rpc('screen.tick',{app:APP_NAME[current]||current});
+    const n=$('shepherd');
+    n.hidden=a.allowed&&!(a.left>=0&&a.left<=5);
+    n.textContent=a.allowed?`${a.left} minute${a.left===1?'':'s'} left today for this app.`:`Shepherd: ${a.why}.`}
+  catch(e){}
+}
+setInterval(screenTick,60000);
 /* ----- the people apps and simple mode (zxvd_people.h), through /api/rpc:
  * Ask and Pay, Feed, Calls, Translate and Devices. A build without them
  * (zxv-host, or zxvd on Windows) does not answer ui.get, and the People

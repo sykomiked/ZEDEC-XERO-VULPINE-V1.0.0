@@ -21,12 +21,12 @@ make -s -C "$R/sdk/kits/aipi" CC="$CC" OUT="$A" all "$A/zcontract/libzcontract_w
 RP="-Wl,-rpath,$R/sdk/libzxv/build"
 # zxvd_rpc.c falls back to the module methods: link their archive.
 M="$(sh "$HERE/zxvd_mod_archive.sh")" || exit 3
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/aipi" \
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror -I"$HERE" -I"$K/src/web4" -I"$K/src/print" -I"$K/src/aipi" \
     -I"$K/include" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/src/e8" -I"$K/src/lpres" \
     -I"$K/src/event_space" -I"$K/src/modbind" -I"$K/src/surplus" -I"$K/src/juris" \
     -I"$R/sdk/libzxv/include" -I"$R/sdk/kits/aipi/include" -I"$R/sdk/kits/aipi/test" \
     -I"$R/sdk/kits/z-wasm/include" -I"$R/sdk/kits/z-wasm/test" \
-    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$K/src/web4/web4_json.c" \
+    "$HERE/test_zxvd_aipi.c" "$HERE/zxvd_aipi.c" "$HERE/zxvd_rpc.c" "$HERE/zxv_files.c" "$HERE/zxv_spaces.c" "$HERE/zxv_sysinfo.c" "$HERE/zxvd_log.c" "$HERE/zxv_search.c" "$HERE/zxv_print_host.c" "$HERE/zxv_keepsake.c" "$HERE/zxv_journal.c" "$HERE/zxv_screen.c" "$HERE/zxv_place.c" "$K/src/print/ipp.c" "$K/src/print/escl.c" "$K/src/web4/web4_json.c" \
     "$K/src/web4/web4_util.c" "$K/src/mlkem/keccak.c" \
     "$K/src/juris/juris.c" "$K/src/acct/acct.c" "$M" \
     "$A/libaipi_zwasm.a" "$A/libaipi_core.a" "$A/zcontract/libzcontract_wasm.a" \

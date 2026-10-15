@@ -1,0 +1,12 @@
+# Wave 27 task: Rotunda (slot 331), Shared instruments
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 6 (043 solstice), wave 13 (160 astrolabe), wave 14 (172 escapement), wave 18 (227 cirque), wave 19 (234 neap).
+Manifest: `slot 331`, `layer L3`, `icon icons/l3/331-rotunda.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: books shared research instruments and facilities: time slots, training, usage logs and cost sharing (`files.read`, `files.write`, `ledger.entries`, `ledger.post`, `sys.info`).
+Uses: `use astrolabe 1` ("session go" for telescopes); `use escapement 1` (schedule matrix, timesheets); `use cirque 1` (building drawings for facilities); `use solstice 1` ("two events overlap"); `use neap 1` ("entry may post"). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `operator_ok` (a booking only for someone certified on that instrument and not expired) in Ada as Eve + APL as KRON witnessed; `slots` (fit requests into free slots, earliest first, no overlap) in FORTRAN as Trebago + APL as KRON witnessed; `usage_charges` (hours x rate shared by group, largest remainder) in COBOL as Sutra + FORTRAN as Trebago witnessed; `bookings` grid in APL as KRON; `facilities` tree in MUMPS as MYRA.
+BOTH test: groups A and B both claim microscope slot 14:00: the slot is BOTH and shown to the manager; first come does not win silently. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: fs.read, fs.write, ledger.read, ledger.post, sys.read, notify.
+Planned (no runtime yet): Gleam, Scheme.
+Pending: Gleam (messaging): no entry here is an obvious fit; put `pending Gleam <entry>` on the one closest to messaging and name it in your report; `pending Scheme facilities` (symbolic).

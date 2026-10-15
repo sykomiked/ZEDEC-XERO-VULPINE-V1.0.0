@@ -13,7 +13,7 @@
 #             and then never a phrase
 #   motif     one of 12 begin/end phrase shapes; chosen so no two of the 144 apps share key, octave,
 #             timbre and motif
-# The six hand-made apps (Burrow, Flint, Commons, Cutwater, Murmuration, Coffer) keep their entries and
+# The six hand-made apps (Banker, Flint, Commons, Cutwater, Murmuration, Coffer) keep their entries and
 # their own recipes in launch_sounds.py; every other app's three cues come from launch_sounds.generic().
 #
 # render picks up each app's real icon from ZXV_APP_ICONS (NNN-name.png) as icons are imported; --new
@@ -34,10 +34,13 @@ GROUPS = [('D', 4, 'MARIMBA', 'ARCHES'), ('A', 4, 'CHIP', 'SPARKS'), ('Fs', 5, '
           ('G', 5, 'COIN', 'DUST'), ('F', 5, 'PLUCK', 'RINGS'), ('Eb', 4, 'MARIMBA', 'SPARKS'),
           ('Ab', 5, 'GLASS', 'DUST'), ('Db', 4, 'CHIP', 'SPARKS'), ('F', 5, 'GLASS', 'RINGS')]
 # the six hand-made apps: key, octave, timbre, ambient (zxl_launch.c's first entries)
-HAND = {'Burrow': ('D', 4, 'MARIMBA', 'ARCHES'), 'Flint': ('A', 4, 'CHIP', 'SPARKS'),
+HAND = {'Banker': ('D', 4, 'MARIMBA', 'ARCHES'), 'Flint': ('A', 4, 'CHIP', 'SPARKS'),
         'Commons': ('F', 5, 'PLUCK', 'RINGS'), 'Cutwater': ('C', 5, 'STRINGS', 'WATER'),
         'Murmuration': ('E', 5, 'FLUTE', 'FLOCK'), 'Coffer': ('G', 5, 'COIN', 'DUST')}
 MOTIFS = 12
+# Apps renamed since APP_LIST_144.csv was written (owner, 2026-10-14: the file
+# manager is the Banker), so the table carries the name the owner chose.
+RENAMED = {'Burrow': 'Banker'}
 
 
 # Tiers 2 and 3 of the 407-app catalogue sort into the twelve families by what they do (owner 2026-10-14:
@@ -61,6 +64,10 @@ def apps(csv_path):
         if r.get('layer', 'L1') == 'L1': r['g'] = names.index(r[col]) + 1
         elif r[col] in FAMILY_OF: r['g'] = FAMILY_OF[r[col]]
         else: sys.exit(f"launch_catalogue: no family for category {r[col]!r} ({r['app']}); add it to FAMILY")
+    for r in rows:
+        if r['app'] in RENAMED:   # the icon file keeps the name it was drawn under
+            r['icon_file'] = r.get('icon_file') or '%03d-%s.png' % (r['n'], slug(r['app']))
+            r['app'] = RENAMED[r['app']]
     return rows
 
 

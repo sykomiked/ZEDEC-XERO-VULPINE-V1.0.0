@@ -1,0 +1,7 @@
+# Wave 5 task: Rookery (slot 26), Mail
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 26, build position 55 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Coffer (layer 73, wave 1, built before this one: `use coffer 1`); Lockbox (layer 9, wave 2, built before this one: `use lockbox 1`). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. Report the reuse line `concepts.py` prints for this app.
+What it does: letters as signed envelopes to another companion (`web4.post`; held until `web4.consent` when pii is set), read from `web4.feed` and checked with `web4.verify`; drafts and folders in the Hoard (`files.write`, `files.list`). zxvd has no mail transport and no Web4 delivery yet: use only existing methods; list what's missing in your report.
+Logic (critical): "may this be sent" (recipient card verified, size within limit, consent present when pii) in eve + kron witnessed; address field parsing (bounded bytes, one @, label lengths) in Rust wasm; size limits in eve; folder and thread index in myra.
+needs: net, fs.read, fs.write, notify.
+Planned (no runtime yet): Go, Delphi, Elixir.
