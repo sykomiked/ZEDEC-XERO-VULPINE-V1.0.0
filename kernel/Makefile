@@ -2060,8 +2060,8 @@ test-hwkey-host:
 	ZXV_TPM=mssim:127.0.0.1:$$pa $$d/t --require-hw $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
 	ZXV_TPM=mssim:127.0.0.1:$$pb $$d/t --require-hw --foreign $$d/sta >> $$d/tpm.log 2>&1 || ok=0; \
 	kill $$(cat $$d/tpma.pid) $$(cat $$d/tpmb.pid) 2>/dev/null; \
-	grep -q "reopened the key sealed by the previous run" $$d/tpm.log && grep -q "sealed on another chip was refused" $$d/tpm.log || ok=0; \
-	if [ $$ok = 1 ]; then echo "[PASS] test_hwkey_host on a TPM 2.0 simulator (seal, reopen in a new process, refused by another TPM, offline outbox)"; rm -rf $$d; else cat $$d/tpm.log; echo "[FAIL] test_hwkey_host on swtpm"; exit 1; fi
+	grep -q "reopened the key sealed by the previous run" $$d/tpm.log && grep -q "sealed on another chip was refused" $$d/tpm.log && grep -q "refused by the chip counter" $$d/tpm.log || ok=0; \
+	if [ $$ok = 1 ]; then echo "[PASS] test_hwkey_host on a TPM 2.0 simulator (seal, reopen in a new process, refused by another TPM, offline outbox, restored backup refused by the NV counter)"; rm -rf $$d; else cat $$d/tpm.log; echo "[FAIL] test_hwkey_host on swtpm"; exit 1; fi
 # ==== end retail infrastructure ====
 # ==== research tracks (roadmap 6.6d: Q quantum, S spatial, F manufacturing) ====
 # Each module: ASan/UBSan host tests, then a freestanding build (aarch64

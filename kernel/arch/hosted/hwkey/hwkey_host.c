@@ -174,3 +174,16 @@ void hwk_host_close(hwk_host_t *h)
     }
     hwk_wipe(h, sizeof *h);
 }
+
+hwk_status_t hwk_host_ctr(hwk_host_t *h, hwk_ctr_op_t op, const uint8_t id[32], uint64_t *v)
+{
+    if (!h || !id) return HWK_ERR_ARG;
+#if !defined(__APPLE__) && !defined(_WIN32)
+    if (h->impl && h->p.kind == HWK_KIND_TPM)
+        return hwk_tpm_ctr(h->impl, op, id, v) == 0 ? HWK_OK : HWK_ERR_HW;
+#else
+    (void) op;
+    (void) v;
+#endif
+    return HWK_ERR_UNAVAILABLE;
+}
