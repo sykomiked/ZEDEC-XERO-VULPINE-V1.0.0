@@ -4,7 +4,8 @@
 # check_catalogue.sh — validate catalogue.tsv: six fields per line, a year
 # from 1949 to now, a known tier, unique names, a twin exactly for the run
 # and pillar tiers, every path it names present, and the run tier equal to
-# the front-ends Lingua actually ships. Run from kernel/.
+# the front-ends Lingua actually ships
+# (zl_langs.def entries whose zl_<fe>.c is not a placeholder). Run from kernel/.
 set -eu
 cat=src/lingua/catalogue.tsv
 root=..
@@ -32,7 +33,11 @@ while IFS="$tab" read -r year lang family tier twin where extra; do
     done
 done < "$cat"
 run=$(awk -F'\t' '!/^#/ && $4 == "run" { print $2 "=" $5 }' "$cat" | sort | tr '\n' ' ')
-want="BASIC=Hatchling FORTRAN=Reckonwyrm Forth=Cairndrake "
+# A front-end ships once its zl_<fe>.c is no longer the placeholder.
+want=$(sed -n 's/^ZL_LANG_X([A-Z0-9_]*, [0-9]*, "\([^"]*\)", "\([^"]*\)", \([a-z0-9]*\),.*/\3\t\1=\2/p' src/lingua/zl_langs.def |
+    while IFS="$tab" read -r fe pair; do
+        grep -q "front-end is not built yet" "src/lingua/zl_$fe.c" || echo "$pair"
+    done | sort | tr '\n' ' ')
 [ "$run" = "$want" ] || bad "run tier is '$run', front-ends ship '$want'"
 [ "$n" -ge 100 ] || bad "only $n languages"
 if [ "$fail" -ne 0 ]; then echo "[FAIL] lingua catalogue"; exit 1; fi

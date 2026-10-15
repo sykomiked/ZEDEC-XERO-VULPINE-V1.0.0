@@ -1298,7 +1298,7 @@ static void test_api(void)
     CHECK(zl_twin(ZL_LANG_BASIC, "", 0, tw, 10, 0, &work, &d) == ZL_E_ARG, "twin NULL length");
     CHECK(zl_twin(ZL_LANG_BASIC, "", 0, tw, 10, &n, 0, &d) == ZL_E_ARG, "twin NULL work");
     CHECK(zl_twin(ZL_LANG_BASIC, "", 0, tw, 10, &n, &work, 0) == ZL_E_ARG, "twin NULL diag");
-    CHECK(zl_twin(9, "", 0, tw, 10, &n, &work, &d) == ZL_E_ARG, "twin bad language");
+    CHECK(zl_twin(ZL_LANG__COUNT, "", 0, tw, 10, &n, &work, &d) == ZL_E_ARG, "twin bad language");
     CHECK(zl_twin(ZL_LANG_BASIC | ZL_TWIN, "10 END\n", 7, tw, 10, &n, &work, &d) == ZL_OK && n == 7,
           "twin accepts the twin flag");
     CHECK(run_p(0, 0, 0, 0) == ZL_E_ARG, "run NULL program");
@@ -1373,10 +1373,7 @@ static void test_api(void)
     }
 }
 
-#include "test_zl_pascal.inc"
-#include "test_zl_algol.inc"
-#include "test_zl_lisp.inc"
-#include "test_zl_logo.inc"
+#include "test_zl_langs.inc"
 
 /* ------------------------------------------------------------ golden files */
 
@@ -2260,10 +2257,7 @@ int main(int argc, char **argv)
     test_basic();
     test_fortran();
     test_forth();
-    test_pascal();
-    test_algol();
-    test_lisp();
-    test_logo();
+    test_langs();
     test_api();
     test_pack();
     test_frames();
