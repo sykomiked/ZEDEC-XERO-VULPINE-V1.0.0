@@ -255,7 +255,17 @@ jobs:
           java-version: ${{ matrix.jdk }}
           cache: maven
       - run: make -C ../libzxv all fixtures
-      - run: mvn -B clean verify
+      # Fetch plugins and dependencies first, retrying, so a Maven Central
+      # hiccup cannot fail the build; the build itself also retries requests.
+      - name: Fetch Maven dependencies (retried)
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            mvn -B -q -Daether.connector.http.retryHandler.count=5 dependency:go-offline && break
+            [ "$i" = 3 ] && exit 1
+            sleep $((i * 20))
+          done
+      - run: mvn -B -Daether.connector.http.retryHandler.count=5 clean verify
 
   dotnet:
     needs: changes
