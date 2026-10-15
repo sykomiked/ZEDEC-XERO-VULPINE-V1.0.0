@@ -26,6 +26,11 @@ static const op_t OPS[CHGA_OPS] = {
     {.name = "cell_reload", .kind = CHGA_K_CHANGE, .nargs = 1, .hi = {CHGA_CELLS_MAX - 1}},
     {.name = "network_pulse", .kind = CHGA_K_CHANGE},
     {.name = "cell_quarantine", .kind = CHGA_K_CHANGE, .nargs = 1, .hi = {CHGA_CELLS_MAX - 1}},
+    {.name = "model_exec",
+     .kind = CHGA_K_LOOK,
+     .nargs = 2,
+     .lo = {(uint64_t) CHGA_DOMAIN_MODEL << 56, 1},
+     .hi = {((uint64_t) CHGA_DOMAIN_MODEL << 56) | 0x00FFFFFFFFFFFFFFull, UINT64_MAX}},
 };
 
 const char *chga_op_name(uint32_t op)
@@ -98,6 +103,7 @@ int chga_init(chga_session_t *s, uint32_t grants, chga_rule_fn rule, void *rule_
     s->seq = 0;
     for (uint32_t i = 0; i < CHGA_HELD; i++) s->held[i].used = false;
     s->head = s->tail = 0;
+    for (uint32_t i = 0; i < CHGA_DIGEST; i++) s->chain[i] = 0;
     return CHGA_OK;
 }
 
@@ -140,16 +146,56 @@ static bool journal_full(const chga_session_t *s)
     return s->head - s->tail >= CHGA_JOURNAL;
 }
 
-static void commit(chga_session_t *s, uint64_t seq, uint8_t op, uint8_t from, uint8_t outcome,
-                   lpres_state_t v, int32_t rc)
+static const char CHAIN_TAG[] = "zxv/chga/event/v1";
+
+void chga_rec_encode(const chga_rec_t *r, uint8_t out[CHGA_REC_BYTES])
+{
+    size_t n = 0;
+    for (uint32_t k = 0; k < 8; k++) out[n++] = (uint8_t) (r->seq >> (8 * k));
+    out[n++] = r->op;
+    out[n++] = r->from;
+    out[n++] = r->outcome;
+    out[n++] = (uint8_t) r->verdict;
+    for (uint32_t k = 0; k < 4; k++) out[n++] = (uint8_t) ((uint32_t) r->rc >> (8 * k));
+    out[n++] = r->nargs;
+    for (uint32_t i = 0; i < CHGA_ARGS; i++) {
+        uint64_t a = i < r->nargs ? r->arg[i] : 0;
+        for (uint32_t k = 0; k < 8; k++) out[n++] = (uint8_t) (a >> (8 * k));
+    }
+}
+
+void chga_chain_next(const uint8_t prev[CHGA_DIGEST], const chga_rec_t *r, uint8_t out[CHGA_DIGEST])
+{
+    uint8_t b[CHGA_REC_BYTES];
+    chga_rec_encode(r, b);
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, (const uint8_t *) CHAIN_TAG, sizeof CHAIN_TAG - 1);
+    sha256_update(&c, prev, CHGA_DIGEST);
+    sha256_update(&c, b, sizeof b);
+    sha256_final(&c, out);
+}
+
+const uint8_t *chga_chain_head(const chga_session_t *s)
+{
+    return s ? s->chain : 0;
+}
+
+/* A5 commit, A8 chain */
+static void commit(chga_session_t *s, uint64_t seq, const chga_call_t *c, uint8_t from,
+                   uint8_t outcome, lpres_state_t v, int32_t rc)
 {
     chga_rec_t *r = &s->journal[s->head % CHGA_JOURNAL];
     r->seq = seq;
-    r->op = op;
+    r->op = c->op;
     r->from = from;
     r->outcome = outcome;
     r->verdict = v;
     r->rc = rc;
+    r->nargs = c->nargs;
+    for (uint32_t i = 0; i < CHGA_ARGS; i++) r->arg[i] = i < c->nargs ? c->arg[i] : 0;
+    chga_chain_next(s->chain, r, r->head);
+    for (uint32_t i = 0; i < CHGA_DIGEST; i++) s->chain[i] = r->head[i];
     s->head++;
 }
 
@@ -190,7 +236,7 @@ int chga_submit(chga_session_t *s, const chga_call_t *c, uint8_t from, chga_resu
     }
     uint64_t seq = ++s->seq;
     if (v == LPRES_STATE_FALSE) {
-        commit(s, seq, c->op, from, CHGA_REFUSED, v, 0);
+        commit(s, seq, c, from, CHGA_REFUSED, v, 0);
         result(res, seq, CHGA_REFUSED, v, 0);
         return CHGA_OK;
     }
@@ -200,7 +246,7 @@ int chga_submit(chga_session_t *s, const chga_call_t *c, uint8_t from, chga_resu
         h->seq = seq;
         h->call = *c;
         digest_of(seq, c, h->digest);
-        commit(s, seq, c->op, from, CHGA_HELD_CALL, v, 0);
+        commit(s, seq, c, from, CHGA_HELD_CALL, v, 0);
         result(res, seq, CHGA_HELD_CALL, v, 0);
         if (res)
             for (uint32_t k = 0; k < CHGA_DIGEST; k++) res->digest[k] = h->digest[k];
@@ -208,7 +254,7 @@ int chga_submit(chga_session_t *s, const chga_call_t *c, uint8_t from, chga_resu
     }
     int rc = s->run(s->run_ctx, c); /* compute */
     uint8_t out = rc == 0 ? CHGA_RAN : CHGA_FAILED;
-    commit(s, seq, c->op, from, out, v, rc);
+    commit(s, seq, c, from, out, v, rc);
     result(res, seq, out, v, rc);
     return CHGA_OK;
 }
@@ -242,13 +288,13 @@ int chga_accept(chga_session_t *s, uint64_t seq, const uint8_t *digest, size_t d
     chga_call_t c = h->call;
     h->used = false;
     if (v == LPRES_STATE_FALSE) {
-        commit(s, seq, c.op, CHGA_FROM_PERSON, CHGA_REFUSED, v, 0);
+        commit(s, seq, &c, CHGA_FROM_PERSON, CHGA_REFUSED, v, 0);
         result(res, seq, CHGA_REFUSED, v, 0);
         return CHGA_OK;
     }
     int rc = s->run(s->run_ctx, &c);
     uint8_t out = rc == 0 ? CHGA_RAN : CHGA_FAILED;
-    commit(s, seq, c.op, CHGA_FROM_PERSON, out, v, rc);
+    commit(s, seq, &c, CHGA_FROM_PERSON, out, v, rc);
     result(res, seq, out, v, rc);
     return CHGA_OK;
 }
@@ -260,7 +306,7 @@ int chga_refuse(chga_session_t *s, uint64_t seq)
     if (!h) return CHGA_E_NOHELD;
     if (journal_full(s)) return CHGA_E_FULL;
     h->used = false;
-    commit(s, seq, h->call.op, CHGA_FROM_PERSON, CHGA_DROPPED, LPRES_STATE_FALSE, 0);
+    commit(s, seq, &h->call, CHGA_FROM_PERSON, CHGA_DROPPED, LPRES_STATE_FALSE, 0);
     return CHGA_OK;
 }
 

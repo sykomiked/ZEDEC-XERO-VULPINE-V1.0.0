@@ -62,10 +62,11 @@ static chga_call_t call(const char *text)
 static void test_names(void)
 {
     static const char *const names[CHGA_OPS] = {"storage_dma_read", "framebuffer_blit",
-                                                "cell_reload", "network_pulse", "cell_quarantine"};
-    static const int kinds[CHGA_OPS] = {CHGA_K_LOOK, CHGA_K_LOOK, CHGA_K_CHANGE, CHGA_K_CHANGE,
-                                        CHGA_K_CHANGE};
-    static const uint8_t nargs[CHGA_OPS] = {2, 4, 1, 0, 1};
+                                                "cell_reload",      "network_pulse",
+                                                "cell_quarantine",  "model_exec"};
+    static const int kinds[CHGA_OPS] = {CHGA_K_LOOK,   CHGA_K_LOOK,   CHGA_K_CHANGE,
+                                        CHGA_K_CHANGE, CHGA_K_CHANGE, CHGA_K_LOOK};
+    static const uint8_t nargs[CHGA_OPS] = {2, 4, 1, 0, 1, 2};
     for (uint32_t i = 0; i < CHGA_OPS; i++) {
         CHECK(strcmp(chga_op_name(i), names[i]) == 0, "A1 name");
         CHECK(chga_op_find(names[i], strlen(names[i])) == (int) i, "A1 find");
@@ -442,6 +443,196 @@ static void test_journal(void)
     }
 }
 
+/* ---- A7 ---- */
+static void test_model_exec(void)
+{
+    chga_session_t s;
+    kern_t k;
+    chga_result_t r;
+    kern_reset(&k);
+    chga_init(&s, ALL, k_rule, &k, k_run, &k);
+    /* domain 0x60, place 600, item 4, base, format 0, language 0 */
+    const uint64_t coord = 0x6002580400000000ull;
+    chga_call_t c = {CHGA_MODEL_EXEC, 2, {coord, 9, 0, 0}};
+    CHECK(chga_submit(&s, &c, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_RAN &&
+              k.runs[CHGA_MODEL_EXEC] == 1,
+          "A7 a LOOK call: the chiglet runs a model without holding");
+    chga_call_t t;
+    CHECK(chga_parse("model_exec 6918188751797616640 9", 32, &t) == CHGA_OK &&
+              t.op == CHGA_MODEL_EXEC && t.arg[0] == coord && t.arg[1] == 9,
+          "A7 typed as text");
+    /* the domain byte bounds the coordinate: 0x5f.. and 0x61.. refuse */
+    static const uint64_t outside[] = {0x5FFFFFFFFFFFFFFFull, 0x6100000000000000ull, 0, UINT64_MAX,
+                                       0x1002000100000001ull};
+    for (size_t i = 0; i < sizeof outside / sizeof outside[0]; i++) {
+        chga_call_t o = {CHGA_MODEL_EXEC, 2, {outside[i], 9, 0, 0}};
+        CHECK(chga_submit(&s, &o, CHGA_FROM_PERSON, &r) == CHGA_OK && r.outcome == CHGA_REFUSED,
+              "A7 only domain 0x60 is a model coordinate");
+    }
+    static const uint64_t edges[] = {0x6000000000000000ull, 0x60FFFFFFFFFFFFFFull};
+    for (size_t i = 0; i < 2; i++) {
+        chga_call_t o = {CHGA_MODEL_EXEC, 2, {edges[i], 1, 0, 0}};
+        CHECK(chga_submit(&s, &o, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_RAN,
+              "A7 the whole domain");
+    }
+    chga_call_t z = {CHGA_MODEL_EXEC, 2, {coord, 0, 0, 0}};
+    CHECK(chga_submit(&s, &z, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_REFUSED,
+          "A7 event 0 is no event");
+    z.arg[1] = UINT64_MAX;
+    CHECK(chga_submit(&s, &z, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_RAN,
+          "A7 any later event");
+    /* a model with no cell: the handler refuses, the session goes on (A6) */
+    k.rc[CHGA_MODEL_EXEC] = 2;
+    CHECK(chga_submit(&s, &c, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_FAILED &&
+              r.rc == 2,
+          "A7 no model at that coordinate is a failure, not a guess");
+    chga_set_grants(&s, ALL & ~(1u << CHGA_MODEL_EXEC));
+    CHECK(chga_submit(&s, &c, CHGA_FROM_CHIGLET, &r) == CHGA_OK && r.outcome == CHGA_REFUSED,
+          "A7 a grant binds it like any call");
+}
+
+/* ---- A8 ---- */
+static void head_of(const uint8_t prev[32], const chga_rec_t *rec, uint8_t out[32])
+{
+    /* the chain written out independently of chg_abi.c */
+    uint8_t b[CHGA_REC_BYTES];
+    size_t n = 0;
+    for (int i = 0; i < 8; i++) b[n++] = (uint8_t) (rec->seq >> (8 * i));
+    b[n++] = rec->op;
+    b[n++] = rec->from;
+    b[n++] = rec->outcome;
+    b[n++] = (uint8_t) rec->verdict;
+    for (int i = 0; i < 4; i++) b[n++] = (uint8_t) ((uint32_t) rec->rc >> (8 * i));
+    b[n++] = rec->nargs;
+    for (uint32_t a = 0; a < CHGA_ARGS; a++)
+        for (int i = 0; i < 8; i++)
+            b[n++] = (uint8_t) ((a < rec->nargs ? rec->arg[a] : 0) >> (8 * i));
+    sha256_ctx_t c;
+    sha256_init(&c);
+    sha256_update(&c, (const uint8_t *) "zxv/chga/event/v1", 17);
+    sha256_update(&c, prev, 32);
+    sha256_update(&c, b, n);
+    sha256_final(&c, out);
+}
+
+static void test_chain(void)
+{
+    CHECK(CHGA_REC_BYTES == 49, "A8 record size");
+    {
+        /* the byte layout itself, with every byte of seq and the arguments distinct */
+        chga_rec_t v = {.seq = 0x0807060504030201ull,
+                        .op = 5,
+                        .from = 1,
+                        .outcome = 2,
+                        .verdict = LPRES_STATE_BOTH,
+                        .rc = -2,
+                        .nargs = 2,
+                        .arg = {0x1112131415161718ull, 0x2122232425262728ull, 9, 9}};
+        static const uint8_t want[CHGA_REC_BYTES] = {
+            1,    2,    3,    4,    5,    6,    7,    8,    5,    1,    2,    3,
+            0xfe, 0xff, 0xff, 0xff, 2,    0x18, 0x17, 0x16, 0x15, 0x14, 0x13, 0x12,
+            0x11, 0x28, 0x27, 0x26, 0x25, 0x24, 0x23, 0x22, 0x21, 0};
+        uint8_t got[CHGA_REC_BYTES];
+        chga_rec_encode(&v, got);
+        CHECK(memcmp(got, want, sizeof want) == 0, "A8 the record's bytes, little-endian");
+    }
+    chga_session_t s;
+    kern_t k;
+    chga_result_t r, held;
+    chga_rec_t rec;
+    kern_reset(&k);
+    chga_init(&s, ALL, k_rule, &k, k_run, &k);
+    uint8_t zero[32] = {0};
+    CHECK(memcmp(chga_chain_head(&s), zero, 32) == 0 && chga_chain_head(NULL) == NULL,
+          "A8 the chain starts at zero");
+    chga_call_t read = call("storage_dma_read 7 2"), blit = call("framebuffer_blit 1 2 3 4");
+    chga_call_t reload = call("cell_reload 63");
+    k.rc[CHGA_FRAMEBUFFER_BLIT] = -7;
+    chga_submit(&s, &read, CHGA_FROM_CHIGLET, &r);
+    chga_submit(&s, &blit, CHGA_FROM_PERSON, &r);
+    chga_submit(&s, &reload, CHGA_FROM_CHIGLET, &held);
+    chga_accept(&s, held.seq, held.digest, 32, &r);
+    chga_submit(&s, &reload, CHGA_FROM_CHIGLET, &held);
+    chga_refuse(&s, held.seq);
+    uint8_t h[32] = {0};
+    chga_rec_t recs[6];
+    int n = 0;
+    while (chga_pop(&s, &rec)) {
+        uint8_t want[32];
+        head_of(h, &rec, want);
+        CHECK(memcmp(rec.head, want, 32) == 0, "A8 each record carries the head after it");
+        memcpy(h, want, 32);
+        if (n < 6) recs[n] = rec;
+        n++;
+    }
+    CHECK(n == 6 && memcmp(h, chga_chain_head(&s), 32) == 0, "A8 the session head is the last");
+    CHECK(recs[1].nargs == 4 && recs[1].arg[3] == 4 && recs[1].rc == -7 && recs[0].arg[0] == 7 &&
+              recs[0].arg[1] == 2 && recs[0].arg[2] == 0,
+          "A8 the record keeps the call and the handler's code");
+    /* chga_chain_next is the same fold, and every field counts */
+    uint8_t a[32], b[32];
+    chga_chain_next(zero, &recs[0], a);
+    CHECK(memcmp(a, recs[0].head, 32) == 0, "A8 chga_chain_next");
+    chga_rec_t m = recs[1];
+    uint8_t enc0[CHGA_REC_BYTES], enc1[CHGA_REC_BYTES];
+    chga_rec_encode(&m, enc0);
+    for (int f = 0; f < 11; f++) {
+        m = recs[1];
+        switch (f) {
+        case 0:
+            m.seq ^= 1ull << 63;
+            break;
+        case 1:
+            m.op ^= 1;
+            break;
+        case 2:
+            m.from ^= 1;
+            break;
+        case 3:
+            m.outcome ^= 1;
+            break;
+        case 4:
+            m.verdict = LPRES_STATE_BOTH;
+            break;
+        case 5:
+            m.rc ^= INT32_MIN;
+            break;
+        case 6:
+            m.nargs = 3;
+            break;
+        case 7:
+            m.arg[0] ^= 1ull << 63;
+            break;
+        case 8:
+            m.arg[1] ^= 1;
+            break;
+        case 9:
+            m.arg[2] ^= 1ull << 56;
+            break;
+        default:
+            m.arg[3] ^= 1ull << 40;
+            break;
+        }
+        chga_rec_encode(&m, enc1);
+        chga_chain_next(recs[0].head, &m, b);
+        CHECK(memcmp(enc0, enc1, sizeof enc0) != 0 && memcmp(b, recs[1].head, 32) != 0,
+              "A8 every field is in the record");
+    }
+    m = recs[1];
+    m.arg[3] = 99;
+    m.nargs = 3; /* an argument past nargs is not part of the call */
+    chga_rec_t m2 = m;
+    m2.arg[3] = 0;
+    chga_rec_encode(&m, enc0);
+    chga_rec_encode(&m2, enc1);
+    CHECK(memcmp(enc0, enc1, sizeof enc0) == 0, "A8 unused arguments encode as 0");
+    chga_chain_next(zero, &recs[1], b);
+    CHECK(memcmp(b, recs[1].head, 32) != 0, "A8 the previous head counts");
+    /* init restarts the chain */
+    chga_init(&s, ALL, k_rule, &k, k_run, &k);
+    CHECK(memcmp(chga_chain_head(&s), zero, 32) == 0, "A8 init restarts the chain");
+}
+
 /* edges the mutation run found untested */
 static void test_edges(void)
 {
@@ -519,6 +710,8 @@ int main(void)
     test_gate();
     test_hold();
     test_journal();
+    test_model_exec();
+    test_chain();
     test_edges();
     printf("%d/%d checks passed\n", pass, pass + fail);
     return fail ? 1 : 0;

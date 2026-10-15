@@ -12,7 +12,7 @@
  * tables and DMA addressing stay kernel code.
  *
  *   A1 OPS. A fixed table: STORAGE_DMA_READ, FRAMEBUFFER_BLIT, CELL_RELOAD,
- *      NETWORK_PULSE, CELL_QUARANTINE. Each has an exact argument count and
+ *      NETWORK_PULSE, CELL_QUARANTINE, MODEL_EXEC. Each has an exact argument count and
  *      per-argument bounds, and a kind: LOOK (reads the disk or redraws the
  *      person's own screen; changes nothing that persists) or CHANGE
  *      (changes the running machine or reaches outside it). Indexes are
@@ -43,6 +43,25 @@
  *   A6 FAULTS. A handler's failure is recorded in the journal with its
  *      code; it never stops the session. A faulted cell is quarantined by
  *      the fabric's own fault model, not by a panic.
+ *   A7 MODEL_EXEC <coord> <event>. Run the model at a coordinate on one
+ *      input event: "EXEC @coordinate <event>" of the IP-BIOS design. coord
+ *      is a 64-bit Grid Chain word in domain 0x60 (models): domain 8 bits,
+ *      place 16, item 8, extension 16, format 8, language 8, high byte
+ *      first. The word is a key the kernel resolves to a model cell, never
+ *      an address or code. event is the oseq ordinal of the input (>= 1).
+ *      It is a LOOK call: it reads and computes and changes nothing that
+ *      persists; what the model answers is data, and anything it asks the
+ *      machine to do comes back through chga_submit as a chiglet call. The
+ *      kernel's handler resolves and runs the cell; a coordinate with no
+ *      model refuses in the handler (A6), it never guesses.
+ *   A8 EVENT CHAIN. Every journal record is folded into a hash chain as
+ *      it is committed: head = SHA-256("zxv/chga/event/v1" || head ||
+ *      record bytes), with the record encoded by chga_rec_encode
+ *      (CHGA_REC_BYTES, little-endian). Each record keeps the head after it
+ *      (rec.head), so a reader that has the records in order recomputes
+ *      every head and finds any change, removal or reordering. The chain
+ *      starts from 32 zero bytes. It is the same fold as the chronicle's
+ *      (kernel/src/chronicle) over this session's own calls.
  *
  * Freestanding C11: no libc, no allocation, no float.
  */
@@ -54,14 +73,16 @@
 #include <stdint.h>
 #include "../lpres/lpres.h"
 
-#define CHGA_ARGS       4u
-#define CHGA_HELD       8u
-#define CHGA_JOURNAL    32u
-#define CHGA_DIGEST     32u
-#define CHGA_ACCEPT_MIN 8u  /* bytes of the digest the person must give */
-#define CHGA_READ_MAX   8u  /* sectors per STORAGE_DMA_READ */
-#define CHGA_CELLS_MAX  64u /* cell index bound */
-#define CHGA_SCREEN_MAX 16384u
+#define CHGA_ARGS         4u
+#define CHGA_HELD         8u
+#define CHGA_JOURNAL      32u
+#define CHGA_DIGEST       32u
+#define CHGA_ACCEPT_MIN   8u  /* bytes of the digest the person must give */
+#define CHGA_READ_MAX     8u  /* sectors per STORAGE_DMA_READ */
+#define CHGA_CELLS_MAX    64u /* cell index bound */
+#define CHGA_SCREEN_MAX   16384u
+#define CHGA_DOMAIN_MODEL 0x60u /* A7: the Grid Chain domain of models */
+#define CHGA_REC_BYTES    (8u + 1u + 1u + 1u + 1u + 4u + 1u + 8u * CHGA_ARGS) /* A8 */
 
 enum {                            /* A1 */
        CHGA_STORAGE_DMA_READ = 0, /* lba count */
@@ -69,6 +90,7 @@ enum {                            /* A1 */
        CHGA_CELL_RELOAD,          /* cell */
        CHGA_NETWORK_PULSE,        /* (none) */
        CHGA_CELL_QUARANTINE,      /* cell */
+       CHGA_MODEL_EXEC,           /* coord event (A7) */
        CHGA_OPS
 };
 
@@ -117,6 +139,9 @@ typedef struct {
     uint8_t outcome;       /* CHGA_RAN .. CHGA_DROPPED */
     lpres_state_t verdict; /* A3 */
     int32_t rc;            /* the handler's code when it ran */
+    uint8_t nargs;
+    uint64_t arg[CHGA_ARGS];   /* the call's arguments */
+    uint8_t head[CHGA_DIGEST]; /* A8: the chain's head after this record */
 } chga_rec_t;
 
 typedef struct {
@@ -129,6 +154,7 @@ typedef struct {
     chga_held_t held[CHGA_HELD];
     chga_rec_t journal[CHGA_JOURNAL];
     uint32_t head, tail;
+    uint8_t chain[CHGA_DIGEST]; /* A8: the head of the event chain */
 } chga_session_t;
 
 typedef struct {
@@ -163,5 +189,13 @@ int chga_refuse(chga_session_t *s, uint64_t seq);
 const chga_held_t *chga_held(const chga_session_t *s, uint64_t seq);
 /* A5: the oldest journal record; false when the journal is empty */
 bool chga_pop(chga_session_t *s, chga_rec_t *out);
+/* A8: the record's bytes: seq LE8, op, from, outcome, verdict, rc LE4,
+ * nargs, then CHGA_ARGS arguments LE8 (unused ones 0) */
+void chga_rec_encode(const chga_rec_t *r, uint8_t out[CHGA_REC_BYTES]);
+/* A8: the head after a record: SHA-256(tag || prev || record bytes) */
+void chga_chain_next(const uint8_t prev[CHGA_DIGEST], const chga_rec_t *r,
+                     uint8_t out[CHGA_DIGEST]);
+/* A8: the session's current head */
+const uint8_t *chga_chain_head(const chga_session_t *s);
 
 #endif /* ZXV_CHG_ABI_H */

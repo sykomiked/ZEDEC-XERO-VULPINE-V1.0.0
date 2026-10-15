@@ -14,7 +14,10 @@ commands into the EL0 shell over the serial line and checks each reply.
           denied; the chiglet governor reads the disk through its ABI gate,
           holds the chiglet's cell quarantine and reload until their exact
           digests are accepted, and refuses bad calls; `run` refuses a file
-          that is not a signed package.
+          that is not a signed package; model_exec is a typed call that
+          refuses a coordinate with no loaded model; every call is an
+          [EVT] line in a hash chain whose signed head tools/zxv-events
+          verifies.
   (between boots one byte of hello.zsp's signed payload is flipped on the
    disk image, as a tampered download would be)
   boot 2  the disk mounts without reformatting; the file written in boot 1
@@ -135,6 +138,56 @@ def governor_checks(b):
     b.expect(b'cell_reload (you) ran' in r, 'the quarantined cell reloaded as a new incarnation')
     r = b.cmd('held', b'held')
     b.expect(b'nothing is held' in r, 'nothing is left held')
+    event_checks(b)
+
+
+def event_checks(b):
+    """chg_abi.h A7 and A8: model_exec is a typed call that names a model by
+    its domain-0x60 coordinate and its input by an event ordinal; every
+    record is an [EVT] line in a hash chain, and `events` signs the head."""
+    b.expect(b.out.count(b'[EVT] ') >= 3, 'the boot self-check opened the event log')
+    r = b.cmd('abi model_exec 6918188751797616640 999999', b'model_exec (you)')
+    b.expect(b'no event with ordinal 999999' in r and b'(you) failed, gate true, code -6' in r,
+             'model_exec on an event that is not in the log fails with its reason')
+    r = b.cmd('chiglet model_exec 6918188751797616640 1', b'model_exec (chiglet)')
+    b.expect(b'no model is loaded at @6002580400000000' in r and b'code -5' in r,
+             'model_exec at a coordinate with no loaded model refuses, it never guesses')
+    r = b.cmd('chiglet model_exec 5 1', b'model_exec (chiglet)')
+    b.expect(b'(chiglet) refused' in r, 'a coordinate outside the model domain is refused')
+    r = b.cmd('events', b"signed with this boot's key")
+    b.expect(b'[EVT] head ' in r and b'[EVT] key ' in r and b'[EVT] sig ' in r,
+             '`events` prints the head, the key and the signature')
+
+
+def viewer_check(log):
+    """tools/zxv-events reads the boot's serial log and recomputes every
+    head itself, then verifies the signature."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(here)
+    k = os.path.join(root, 'kernel')
+    exe = os.path.join(WORK, 'zxv_events')
+    srcs = [os.path.join(root, 'tools', 'zxv-events', 'zxv_events.c'),
+            os.path.join(k, 'src', 'chiglet', 'chg_abi.c'), os.path.join(k, 'src', 'lpres', 'lpres.c'),
+            os.path.join(k, 'src', 'robin_debanks', 'sha256.c'),
+            os.path.join(k, 'src', 'pqsec', 'pq_mldsa65.c')]
+    mldsa = os.path.join(k, 'src', 'pqsec', 'mldsa')
+    srcs += sorted(os.path.join(mldsa, f) for f in os.listdir(mldsa) if f.endswith('.c'))
+    inc = ['-I' + os.path.join(k, d) for d in ('include', 'src/chiglet', 'src/lpres', 'src/pqsec',
+                                                 'src/robin_debanks', 'src/modbind', 'src/event_space',
+                                                 'src/surplus', 'src/edp_risk')]
+    cc = subprocess.run([os.environ.get('CC', 'cc'), '-std=c11', '-O2'] + inc + srcs + ['-o', exe],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    ok = cc.returncode == 0
+    print('[PASS]' if ok else '[FAIL]', 'zxv_events built')
+    if not ok:
+        failures.append('zxv_events did not build:\n' + cc.stdout.decode(errors='replace')[-800:])
+        return
+    v = subprocess.run([exe, log], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    out = v.stdout.decode(errors='replace')
+    ok = v.returncode == 0 and '1 signature(s) verified' in out
+    print('[PASS]' if ok else '[FAIL]', 'zxv_events verified the kernel\'s event chain and signature')
+    if not ok:
+        failures.append('zxv_events on %s (exit %d):\n%s' % (log, v.returncode, out[-800:]))
 
 
 def main():
@@ -158,6 +211,7 @@ def main():
     b.expect(b'NOT A SIGNED PACKAGE' in r and MARK not in r,
              '`run` refuses a file that is not a signed package')
     b.stop()
+    viewer_check(os.path.join(WORK, 'arm64_session_boot1.log'))
 
     # Tamper with the signed payload of hello.zsp on the disk image. The
     # first copy of the program's banner is hello.zsp (seeded first);

@@ -408,6 +408,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-companion
 	$(MAKE) --no-print-directory test-chg-organ
+	$(MAKE) --no-print-directory test-zxv-events
 	$(MAKE) --no-print-directory test-zxvc
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
@@ -1701,6 +1702,14 @@ test-chg-organ:
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $(CHGO_INC) -Isrc/swarm src/chiglet/test_chg_name.c src/chiglet/chg_name.c src/swarm/swarm_dna.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_chg_name 2>$(ZXV_TMP)/test_chg_name.build || { cat $(ZXV_TMP)/test_chg_name.build; echo "[FAIL] test_chg_name build"; exit 1; }
 	@$(ZXV_TMP)/test_chg_name > $(ZXV_TMP)/test_chg_name.log 2>&1 && echo "[PASS] test_chg_name ($$(tail -1 $(ZXV_TMP)/test_chg_name.log))" || { cat $(ZXV_TMP)/test_chg_name.log; echo "[FAIL] test_chg_name"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_organ chg_vocab chg_abi chg_name; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CHGO_INC) -Isrc/swarm -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (chgv_[a-z_]+|lpx_[a-z_]+|lpres_[a-z_]+|swarm_dna_[a-z_]+|sha256(_[a-z]+)?)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_organ, chg_vocab, chg_abi, chg_name freestanding (aarch64 -mgeneral-regs-only, i386)"
+
+# The chiglet governor's event log viewer (tools/zxv-events, chg_abi.h A8):
+# a two-boot log from a real chg_abi session passes, with its ML-DSA-65 head
+# signature; changed, removed, repeated or reordered records, a spliced boot,
+# a changed key, signature or count each fail at their line.
+.PHONY: test-zxv-events
+test-zxv-events:
+	@sh ../tools/zxv-events/test_zxv_events.sh $(ZXV_TMP) > $(ZXV_TMP)/test_zxv_events.log 2>&1 && echo "[PASS] test_zxv_events ($$(tail -1 $(ZXV_TMP)/test_zxv_events.log))" || { cat $(ZXV_TMP)/test_zxv_events.log; echo "[FAIL] test_zxv_events"; exit 1; }
 
 # The .zxvc model package and converter (src/tensor/zt_zxvc.h, tools/zxvc.c,
 # roadmap 6.6c M.1/M.4): every F16/BF16 pattern and 4M F32 patterns decode to

@@ -500,6 +500,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "oseq.h"
 #include "chiglet.h"
 #include "chg_abi.h"
+#include "pq_security.h" /* ML-DSA-65: the event log's head signature */
 #include "sha256.h"
 #include "hkdf.h"
 #include "aead.h"
@@ -3494,7 +3495,7 @@ void kernel_stats_report(void) {
 }
 
 /* ===================================================================
- * The chiglet governor (src/chiglet/chg_abi.h A1-A6)
+ * The chiglet governor (src/chiglet/chg_abi.h A1-A8)
  *
  * At the end of boot the console belongs to the chiglet session. The
  * chiglet drives the machine through typed ABI calls, never a register:
@@ -3510,6 +3511,8 @@ void kernel_stats_report(void) {
  *   held                  list held calls
  *   accept <seq> <hex>    accept a held call (first 16+ hex of its digest)
  *   refuse <seq>          drop a held call
+ *   events                sign the event log's head (A8); every record is
+ *                         already on the log as an [EVT] line
  * =================================================================== */
 static chga_session_t g_gov;
 static uint8_t g_gov_buf[CHGA_READ_MAX * 512u];
@@ -3554,6 +3557,8 @@ static lpres_state_t gov_rule(void *ctx, const chga_call_t *c)
         return gov_cell(c->arg[0]) ? LPRES_STATE_TRUE : LPRES_STATE_FALSE;
     case CHGA_NETWORK_PULSE:
         return virtio_net_present() ? LPRES_STATE_TRUE : LPRES_STATE_FALSE;
+    case CHGA_MODEL_EXEC: /* A7: resolved in the handler, which refuses what it cannot run */
+        return LPRES_STATE_TRUE;
     default:
         return LPRES_STATE_FALSE;
     }
@@ -3580,6 +3585,35 @@ static int gov_cell_reload(cell_t *cell)
     for (uint32_t i = 0; i < nkeep; i++)
         if (!cell_fabric_add_route(g_cells, &keep[i])) return -4;
     return 0;
+}
+
+/* A8: every journal record is an oseq event of node "chiglet" (schema
+ * chga.call, payload its chain head, parent the record before it), so a
+ * model_exec names its input by an event ordinal this registry holds. */
+static oseq_registry_t g_gov_oseq;
+static int32_t g_gov_node = -1;
+static int32_t g_gov_last = -1;
+static uint64_t g_gov_evts; /* records printed and folded so far */
+
+/* A7: the model at a coordinate on one input event. The coordinate must
+ * name a model this kernel has loaded; the bare-metal kernel loads no
+ * weights (they are never in the image), so every coordinate is refused
+ * with the reason, after the event is checked. */
+static int gov_model_exec(const chga_call_t *c)
+{
+    uint64_t ev = c->arg[1];
+    if (ev > g_gov_oseq.event_count) {
+        uart_puts("  model_exec: no event with ordinal ");
+        uart_put_dec(ev);
+        uart_puts(" in this boot's log\r\n");
+        return -6;
+    }
+    uart_puts("  model_exec: no model is loaded at @");
+    uint8_t w[8];
+    for (uint32_t k = 0; k < 8; k++) w[k] = (uint8_t) (c->arg[0] >> (56 - 8 * k));
+    gov_hex(w, 8);
+    uart_puts(": this kernel loads no weights\r\n");
+    return -5;
 }
 
 /* The handlers: the kernel's own code, run only after the gate. */
@@ -3630,6 +3664,8 @@ static int gov_run(void *ctx, const chga_call_t *c)
         for (uint32_t i = 0; i + 1 < sizeof tag; i++) f[14 + i] = tag[i];
         return virtio_net_tx(f, sizeof f) < 0 ? -1 : 0;
     }
+    case CHGA_MODEL_EXEC:
+        return gov_model_exec(c);
     default:
         return -9;
     }
@@ -3656,11 +3692,39 @@ static const char *gov_verdict(lpres_state_t v)
     }
 }
 
-/* print and drain the journal (A5) */
+/* A8: one record on the serial log, in the form tools/zxv-events reads:
+ * "[EVT] <seq> <record bytes, hex> <head after it, hex>"; then into oseq */
+static void gov_evt(const chga_rec_t *r)
+{
+    uint8_t b[CHGA_REC_BYTES];
+    chga_rec_encode(r, b);
+    uart_puts("[EVT] ");
+    uart_put_dec(r->seq);
+    uart_puts(" ");
+    gov_hex(b, sizeof b);
+    uart_puts(" ");
+    gov_hex(r->head, CHGA_DIGEST);
+    uart_puts("\r\n");
+    g_gov_evts++;
+    if (g_gov_node < 0) return;
+    uint32_t par = (uint32_t) g_gov_last;
+    int32_t e =
+        oseq_register_event(&g_gov_oseq, (uint32_t) g_gov_node, "chga.call", 1, r->head,
+                            CHGA_DIGEST, g_gov_last >= 0 ? &par : 0, g_gov_last >= 0 ? 1 : 0);
+    if (e < 0 || !oseq_commit_event(&g_gov_oseq, (uint32_t) e)) {
+        uart_puts("  [chiglet] the event log is full: later calls are chained but not ordered\r\n");
+        g_gov_node = -1;
+        return;
+    }
+    g_gov_last = e;
+}
+
+/* print and drain the journal (A5, A8) */
 static void gov_drain(void)
 {
     chga_rec_t r;
     while (chga_pop(&g_gov, &r)) {
+        gov_evt(&r);
         uart_puts("  [chiglet] #");
         uart_put_dec(r.seq);
         uart_puts(" ");
@@ -3675,6 +3739,52 @@ static void gov_drain(void)
         }
         uart_puts("\r\n");
     }
+}
+
+/* A8: `events` signs the chain's head with this boot's ML-DSA-65 key:
+ * message = records LE8 || head, context "zxv/chga/head/v1". The key is made
+ * on first use from the CPU's RNDR; a CPU without RNDR gets a key from the
+ * counter and the head, marked weak. Either way it is a key of this boot,
+ * printed beside the signature: it shows the log is whole and in order as
+ * that key saw it, not which device wrote it (a device key is hwkey work). */
+static uint8_t g_evt_pk[PQ_MLDSA65_PK_BYTES], g_evt_sk[PQ_MLDSA65_SK_BYTES];
+static uint8_t g_evt_sig[PQ_MLDSA65_SIG_BYTES];
+static int g_evt_key; /* 0 none, 1 hardware entropy, 2 weak */
+
+static void gov_events(void)
+{
+    static const uint8_t ctx[] = "zxv/chga/head/v1";
+    const uint8_t *head = chga_chain_head(&g_gov);
+    if (!g_evt_key) {
+        uint8_t seed[32];
+        if (arm64_rng_available() && arm64_rng_fill(seed, sizeof seed)) {
+            g_evt_key = 1;
+        } else {
+            uint8_t m[8 + CHGA_DIGEST];
+            uint64_t t = get_cntpct();
+            for (uint32_t k = 0; k < 8; k++) m[k] = (uint8_t) (t >> (8 * k));
+            for (uint32_t k = 0; k < CHGA_DIGEST; k++) m[8 + k] = head[k];
+            sha256(m, sizeof m, seed);
+            g_evt_key = 2;
+        }
+        pq_mldsa65_keygen(seed, g_evt_pk, g_evt_sk);
+        for (uint32_t k = 0; k < sizeof seed; k++) seed[k] = 0;
+    }
+    uint8_t msg[8 + CHGA_DIGEST];
+    for (uint32_t k = 0; k < 8; k++) msg[k] = (uint8_t) (g_gov_evts >> (8 * k));
+    for (uint32_t k = 0; k < CHGA_DIGEST; k++) msg[8 + k] = head[k];
+    pq_mldsa65_sign(g_evt_sk, msg, sizeof msg, ctx, sizeof ctx - 1, 0, g_evt_sig);
+    uart_puts("[EVT] head ");
+    uart_put_dec(g_gov_evts);
+    uart_puts(" ");
+    gov_hex(head, CHGA_DIGEST);
+    uart_puts("\r\n[EVT] key ");
+    gov_hex(g_evt_pk, sizeof g_evt_pk);
+    uart_puts("\r\n[EVT] sig ");
+    gov_hex(g_evt_sig, sizeof g_evt_sig);
+    uart_puts(g_evt_key == 1
+                  ? "\r\n  signed with this boot's key (hardware entropy)\r\n"
+                  : "\r\n  signed with this boot's key (weak: this CPU has no RNDR)\r\n");
 }
 
 static void gov_show_held(const chga_result_t *res)
@@ -3732,7 +3842,8 @@ static bool gov_line(const char *line)
         chga_call_t c;
         if (chga_parse(rest, strlen(rest), &c) != CHGA_OK) {
             uart_puts("abi: storage_dma_read <lba> <n 1-8> | framebuffer_blit <x> <y> <w> <h> "
-                      "| cell_reload <cell> | network_pulse | cell_quarantine <cell>\r\n");
+                      "| cell_reload <cell> | network_pulse | cell_quarantine <cell> "
+                      "| model_exec <coord> <event>\r\n");
             return true;
         }
         rc = chga_submit(&g_gov, &c, from, &res);
@@ -3766,6 +3877,9 @@ static bool gov_line(const char *line)
         }
         rc = chga_refuse(&g_gov, seq);
         res.outcome = CHGA_DROPPED;
+    } else if (strcmp(line, "events") == 0) {
+        gov_events();
+        return true;
     } else if (strcmp(line, "held") == 0) {
         uint32_t n = 0;
         for (uint32_t i = 0; i < CHGA_HELD; i++) {
@@ -3822,9 +3936,14 @@ static void gov_boot(void)
               chga_parse("storage_dma_read 0 9", 20, &c) == CHGA_OK &&
               chga_submit(&g_gov, &c, CHGA_FROM_CHIGLET, &out) == CHGA_OK &&
               out.outcome == CHGA_REFUSED;
+    oseq_registry_init(&g_gov_oseq);
+    g_gov_node = oseq_register_node(&g_gov_oseq, "chiglet", 1);
     chga_rec_t r;
     uint32_t n = 0;
-    while (chga_pop(&g_gov, &r)) n++;
+    while (chga_pop(&g_gov, &r)) {
+        gov_evt(&r); /* the self-check's records open the event log */
+        n++;
+    }
     if (!ok || n != (g_boot_mode != BOOT_MODE_NORMAL ? 2u : 3u)) {
         boot_msg("  [FAIL] chiglet governor: the gate did not hold or refuse as it must");
         return;

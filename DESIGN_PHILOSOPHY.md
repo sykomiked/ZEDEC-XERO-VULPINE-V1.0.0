@@ -132,7 +132,40 @@ software is published under the Apache License 2.0 so that others can
 learn from it, use it, and carry it forward, just as we carry forward the
 work that came before us.
 
-## 7. In short
+## 7. The Hearth and the Agora
+
+Most computing today rests on one state: every person, device and
+institution kept in a continuous, synchronised, central collective. When
+the central link breaks, life stops. Because data must be shared to be
+usable, privacy becomes a luxury. Because a single node can do little on
+its own, it depends entirely on the centre.
+
+ZXV is built around two states instead.
+
+- **The Hearth** is local: the person, the household, the workshop or the
+  field team on their own hardware. It needs nobody's permission to think,
+  compute or make things. It keeps its tools, its models and the knowledge
+  it needs on its own machine, checks them itself, and keeps working if
+  everything else goes dark. This is the right to retreat: a person can
+  always step back into a private sphere that is complete on its own.
+- **The Agora** is collective: the marketplace, the fleet, the scientific
+  federation, the cultural commons. It is a voluntary mesh between peers,
+  not a central platform. Peers deal with each other through mutual service
+  backed by proofs and verified work. Stepping into the Agora means pooling
+  surplus (spare compute, storage, proofs, recipes), never handing over
+  tools. For chiglets the Agora is the **kin collective**, because chiglets
+  are kin; their owners decide whether and where they meet.
+
+The boundary matters most: **the Agora can never consume the Hearth.**
+Going from one to the other is an explicit choice the person makes.
+Contradictions in the collective are kept apart by paraconsistent logic
+and never break the local core. A person takes part in the Agora because
+it adds something, not because they cannot survive without it.
+
+The rules that keep this true, and the mechanisms that enforce them, are
+in docs/spec/STATE_ISOLATION.md.
+
+## 8. In short
 
 1. Learn from nature, and stay humble before it.
 2. Code is hardware and hardware is code; emulate efficiently.
@@ -140,5 +173,7 @@ work that came before us.
 4. Keep what works. COBOL, Fortran and their peers are carried forward.
 5. Claim only what the code delivers.
 6. Cooperate; no monopolies.
+7. The Hearth is the floor, the Agora the ceiling; the Agora never takes
+   from the Hearth.
 
 — **Jolly Dragon Roger**, 36N9 GENETICS LLC
