@@ -1621,6 +1621,7 @@ static void test_fee_check(void)
 {
     static char manifest[8192];
     static zxapp_t FEE;
+    int fails0 = fails;
     zxapp_host_init(&H);
     H.read_file = read_src;
     zxapp_sutra_register(&H);
@@ -1675,6 +1676,8 @@ static void test_fee_check(void)
     CHECK(zxapp_call_witnessed(&FEE, &H, "fee", bad_order, 2, out, 8, &n, &lp) == ZXAPP_E_CONTRACT,
           "B3: the contract is checked before any of the languages runs");
     zxapp_unload(&FEE, &H);
+    /* app_gate.py --verdict reads it: its inline tests ran, and none failed */
+    if (SRC_ROOT && fails == fails0) printf("  ran app fee_check\n");
 }
 
 /* R1-R4: slot, layer, icon, budget and needs */
@@ -2008,6 +2011,7 @@ static void test_wave0(void)
               zxapp_eve_register(&H) == ZXAPP_OK && zxapp_trebago_register(&H) == ZXAPP_OK &&
               zxapp_myra_register(&H) == ZXAPP_OK && zxapp_wasm_register(&H, &WW, 0) == ZXAPP_OK,
           "wave 0: every runtime the apps name registers");
+    int fails0 = fails;
     zxapp_registry_init(&WREG);
     int32_t len = read_src(0, "apps/blocks/used_share.zxblock", buf[15], sizeof buf[15]);
     CHECK(len > 0 && zxapp_parse(&USED, buf[15], (uint32_t) len) == ZXAPP_OK &&
@@ -2329,6 +2333,9 @@ static void test_wave0(void)
               "Glint: a media item fits ^ZXGLINT (MYRA)");
     }
     for (int i = 0; i < NAPPS; i++) zxapp_unload(&APP[i], &H);
+    /* app_gate.py --verdict reads it: the wave 0 apps' inline tests above ran, none
+     * failed (one failure credits none of them: a failure line names its own app) */
+    for (int i = 0; i < NAPPS && fails == fails0; i++) printf("  ran app %s\n", apps[i].id);
     app_tests_run(APP, NAPPS);
     zxapp_wasm_close(&WW);
 }

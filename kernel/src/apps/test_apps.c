@@ -3274,17 +3274,34 @@ int main(void)
     zxm_link_init(&LINK, inproc, NULL);
     test_zxm();
     test_zxm_ai();
-    test_burrow(root);
-    test_quillon();
-    test_spindle();
-    test_spaces();
-    test_utilities();
-    test_scent();
-    test_platen();
-    test_keepsake();
-    test_shepherd();
-    test_waymark();
-    test_murmuration();
+    /* the wave 0 models are tested inline; each test credits the apps whose
+     * models it drives, and app_gate.py --verdict reads "ran model <id>" only
+     * for an app none of whose tests failed */
+    static const char *const W0[] = {"banker",   "glint",     "quillon", "spindle",    "almanac",
+                                     "sounding", "tidewatch", "wake",    "scent",      "platen",
+                                     "keepsake", "shepherd",  "waymark", "murmuration"};
+    enum { NW0 = sizeof W0 / sizeof W0[0] };
+    bool w0bad[NW0] = {false};
+    static const struct {
+        void (*run)(void);
+        void (*run_root)(const char *);
+        const char *apps; /* the W0 apps it drives, by index letters a.. */
+    } T0[] = {
+        {0, test_burrow, "ab"},  {test_quillon, 0, "c"},      {test_spindle, 0, "d"},
+        {test_spaces, 0, "abc"}, {test_utilities, 0, "efgh"}, {test_scent, 0, "i"},
+        {test_platen, 0, "j"},   {test_keepsake, 0, "k"},     {test_shepherd, 0, "l"},
+        {test_waymark, 0, "m"},  {test_murmuration, 0, "n"},
+    };
+    for (uint32_t t = 0; t < sizeof T0 / sizeof T0[0]; t++) {
+        int before = fails;
+        if (T0[t].run)
+            T0[t].run();
+        else
+            T0[t].run_root(root);
+        for (const char *c = T0[t].apps; *c && fails > before; c++) w0bad[*c - 'a'] = true;
+    }
+    for (uint32_t i = 0; i < NW0; i++)
+        if (!w0bad[i]) printf("  ran model %s\n", W0[i]);
     test_open(root);
     for (uint32_t i = 0; APPS_TESTS[i]; i++) {
         int before = checks;

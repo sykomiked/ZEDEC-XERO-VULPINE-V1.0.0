@@ -357,6 +357,20 @@ def delivered(app_id):
     if not os.path.exists(path):
         return [f"{rel}: not there; the app was not delivered"]
     m = manifest(path)
+    zxc = open(os.path.join(APPS, "test_zxapp.c"), encoding="utf-8").read()
+    if f'"apps/{app_id}.zxapp"' in zxc and not os.path.exists(os.path.join(TESTS, f"{app_id}_zxapp.inc")):
+        # built before the per-app test files (wave 0): test_zxapp.c loads and tests it
+        # inline, and test_apps.c its model; the --verdict run witnesses both
+        if not m["provides"]:
+            errors.append(f"{rel}: provides nothing")
+        for e in m["provides"]:
+            if "." not in e and not m["entries"].get(e):
+                errors.append(f"{rel}: provides {e} with no logic line")
+        if m["model"]:
+            hdr = os.path.basename(m["model"])[:-2] + ".h"
+            if f'#include "{hdr}"' not in open(os.path.join(APPS, "test_apps.c"), encoding="utf-8").read():
+                errors.append(f"{rel}: its model {m['model']} is never tested in test_apps.c")
+        return errors
     if not m["slot"]:
         errors.append(f"{rel}: no slot")
     if not re.search(r"^version\s+1\.0\.0\s*$", open(path, encoding="utf-8").read(), re.M):
@@ -617,10 +631,14 @@ def run_suite(script):
     return p.returncode, p.stdout + p.stderr
 
 
-def functions(app_id, outs):
-    """One run's witness for one app: (state, why)."""
+def functions(app_id, outs, has_model=True):
+    """One run's witness for one app: (state, why). A manifest with no model line
+    (a component such as fee_check) has no model test: test_zxapp.sh alone witnesses it."""
     states, why = [], []
     for (script, mark), (rc, out) in zip(SUITES, outs):
+        if not has_model and script == "test_apps.sh":
+            states.append("T")
+            continue
         bad = [x.strip() for x in out.splitlines()
                if ("FAIL" in x or "error:" in x) and not x.startswith("app_gate:") and names(x, app_id)]
         if bad:
@@ -652,7 +670,7 @@ def verdicts(want, errors, runs):
             v = "N"
             r["functions"].append("nothing usable: " + ("no manifest" if m is None else "it provides nothing"))
         else:
-            seen = [functions(app_id, o) for o in outs]
+            seen = [functions(app_id, o, bool(m["model"])) for o in outs]
             for i, (st, why) in enumerate(seen):
                 r["functions"] += [f"run {i + 1}: {x}" for x in why]
             fn = {st for st, _ in seen}
