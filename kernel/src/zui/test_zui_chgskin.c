@@ -314,11 +314,11 @@ static void test_genes(void)
               chest[1] != chest[2] && chest[1] != chest[3] && chest[2] != chest[3],
           "SK3 four emblems");
 
-    /* the halo is the schematic's: more generations, more rings */
+    /* the halo is the schematic's: more time together, more rings */
     zui_chiglet_t g0 = WHO, g4 = WHO;
-    g0.generation = 0;
-    g4.generation = 4;
-    CHECK(draw(a, &g0, &p) != draw(a, &g4, &p), "the halo shows its generation");
+    g0.together = 0;
+    g4.together = 4181; /* all four rings (zui_chiglet_rings) */
+    CHECK(draw(a, &g0, &p) != draw(a, &g4, &p), "the halo shows its time together");
 }
 
 /* ---- SK4: it reacts ------------------------------------------------------ */
