@@ -45,6 +45,11 @@ srcs() {
 
 one() {
     s="$(srcs "$1")" || { echo "unknown test: $1 (one of: $NAMES)" >&2; return 2; }
+    # these read the ELF program headers (link.h, dl_iterate_phdr) to check
+    # their own page permissions; macOS has neither, Linux CI and the server do
+    case "$1" in desktop | panopticon | panopticon_vpn)
+        if [ "$(uname -s)" != Linux ]; then echo "[SKIP] b2 $1: needs ELF program headers (link.h)"; return 0; fi ;;
+    esac
     bin="$TMP/b2_$1"
     # shellcheck disable=SC2086
     if ! $CC $CFLAGS $s -o "$bin" -lm 2> "$bin.build.log"; then
