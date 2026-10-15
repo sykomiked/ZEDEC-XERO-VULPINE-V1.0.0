@@ -113,7 +113,7 @@ no allocation, and its only outside call is `sha256()`.
   anything uses them.
 - `alx_target` gives a language's offset and length in its booklet.
 
-`make test-alexandria` runs 91053 checks. They include reading every
+`make test-alexandria` runs 91240 checks. They include reading every
 language's logic back out of the real booklets byte for byte, and changing
 each byte of the index in turn to confirm the change is caught.
 

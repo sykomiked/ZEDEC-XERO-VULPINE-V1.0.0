@@ -614,7 +614,7 @@ EDIT(e_vrsv, slot(b, 1)[15] = 1)
 EDIT(e_upper, slot(b, 1)[16] = 'N')
 EDIT(e_nodot, slot(b, 1)[19] = '_')
 EDIT(e_twodots, slot(b, 1)[17] = '.')
-EDIT(e_dotend, memcpy(slot(b, 1) + 16, "num.", 5))
+EDIT(e_dotend, memset(slot(b, 1) + 16, 0, 32); memcpy(slot(b, 1) + 16, "num.", 4))
 EDIT(e_dotdot, memcpy(slot(b, 1) + 48, "number..lassics", 15))
 EDIT(e_pad, slot(b, 1)[16 + 31] = 'x')
 EDIT(e_pad_mid, slot(b, 1)[16 + 20] = 'x')
@@ -1041,6 +1041,475 @@ static void test_refusals(void)
           "status names");
 }
 
+/* ---- edges: values at and just past every bound, found by mutation ---- */
+
+static void put16(uint8_t *p, uint32_t v)
+{
+    p[0] = (uint8_t) (v >> 8);
+    p[1] = (uint8_t) v;
+}
+
+static void put32(uint8_t *p, uint32_t v)
+{
+    put16(p, v >> 16);
+    put16(p + 2, v & 0xFFFFu);
+}
+
+static uint32_t get32(const uint8_t *p)
+{
+    return (uint32_t) p[0] << 24 | (uint32_t) p[1] << 16 | (uint32_t) p[2] << 8 | p[3];
+}
+
+/* write a name into a NUL-padded field of cap bytes (no NUL when it fills it) */
+static void name_into(uint8_t *field, uint32_t cap, const char *s)
+{
+    memset(field, 0, cap);
+    memcpy(field, s, strlen(s));
+}
+
+/* gcd's block.entry, "number_classics.gcd", with byte i changed to c */
+#define TCHAR(name, i, c) EDIT(name, slot(b, 1)[48 + (i)] = (c))
+TCHAR(e_tc_z, 1, 'z')
+TCHAR(e_tc_0, 1, '0')
+TCHAR(e_tc_9, 1, '9')
+TCHAR(e_tc_us, 1, '_')
+TCHAR(e_tc_first_a, 0, 'a')
+TCHAR(e_tc_first_z, 0, 'z')
+TCHAR(e_tc_tick, 1, '`')
+TCHAR(e_tc_brace, 1, '{')
+TCHAR(e_tc_slash, 1, '/')
+TCHAR(e_tc_colon, 1, ':')
+TCHAR(e_tc_upper, 1, 'A')
+TCHAR(e_tc_dash, 1, '-')
+TCHAR(e_tc_first_0, 0, '0')
+TCHAR(e_tc_first_us, 0, '_')
+TCHAR(e_tc_first_dot, 0, '.')
+#undef TCHAR
+EDIT(e_s_upper_mid, slot(b, 1)[16 + 4] = 'G')
+EDIT(e_t_nodot, name_into(slot(b, 1) + 48, 44, "number_classicsgcd"))
+EDIT(e_t_dots, name_into(slot(b, 1) + 48, 44, "number.classics.gcd"))
+EDIT(e_t_dotend, name_into(slot(b, 1) + 48, 44, "number_classics.gcd."))
+EDIT(e_s_dots, name_into(slot(b, 1) + 16, 32, "num.g.cd"))
+EDIT(e_s_full, memcpy(slot(b, 1) + 16, "num.gcdxxxxxxxxxxxxxxxxxxxxxxxxx", 32))
+EDIT(e_s_31, name_into(slot(b, 1) + 16, 32, "num.ggggggggggggggggggggggggggg"))
+EDIT(e_t_full, memcpy(slot(b, 1) + 48, "number_classics.gcdxxxxxxxxxxxxxxxxxxxxxxxxx", 44))
+EDIT(e_magic0, b[0] = 'Y')
+EDIT(e_magic1, b[1] = 'Y')
+EDIT(e_magic2, b[2] = 'Y')
+EDIT(e_bcid14, book(b, 0)[14] = 0x13)
+EDIT(e_bcid15, book(b, 0)[15] = 0x21)
+EDIT(e_brsv_1, book(b, 1)[3] = 1)      /* only the booklet loop sees it */
+EDIT(e_blen_odd_1, book(b, 1)[7] |= 1) /* the same, in booklet 930 */
+EDIT(e_inputs15, slot(b, 1)[5] = 15)   /* the most a block takes */
+EDIT(e_item99, slot(b, 1)[95] = 99)    /* 512.99 */
+EDIT(e_moff64, memset(slot(b, 1) + 104, 0, 3); slot(b, 1)[107] = 64) /* right after the header */
+EDIT(e_t_to_end, put32(target(b, 0) + 12, get32(book(b, 0) + 4) - get32(target(b, 0) + 8)))
+EDIT(e_t_past_end, put32(target(b, 0) + 12, get32(book(b, 0) + 4) - get32(target(b, 0) + 8) + 1u))
+EDIT(e_gap, slot(b, 1)[7] = 3) /* gcd's fourth target belongs to nobody */
+/* gcd keeps three languages; cycle_share takes FORTRAN as well (target 3,
+ * pointing at its kron bytes): two languages, witnessed */
+static void two_langs(uint8_t *b, uint32_t *n)
+{
+    (void) n;
+    slot(b, 1)[7] = 3;
+    put32(target(b, 3), 2);
+    put16(target(b, 3) + 4, 1);
+    memcpy(target(b, 3) + 8, target(b, 4) + 8, 8);
+    put32(slot(b, 2) + 100, 3);
+    slot(b, 2)[7] = 2;
+    slot(b, 2)[6] = ALX_F_WITNESSED;
+}
+EDIT(e_two_unwitnessed, two_langs(b, n); slot(b, 2)[6] = 0)
+/* the top division: booklet 990 holding 991.01, 991.02 and 999.01 */
+EDIT(e_top, put16(book(b, 1), 990); put16(slot(b, 2) + 92, 991); put16(slot(b, 3) + 92, 991);
+     put16(slot(b, 4) + 92, 999))
+/* a retired slot is checked by its names and place alone */
+EDIT(e_ret_place100, retire4(b, n); name_into(slot(b, 4) + 16, 32, "mem.x");
+     put16(slot(b, 4) + 92, 100))
+EDIT(e_ret_place999, retire4(b, n); put16(slot(b, 4) + 92, 999); slot(b, 4)[95] = 99)
+EDIT(e_ret_place50, retire4(b, n); name_into(slot(b, 4) + 16, 32, "nun.x");
+     put16(slot(b, 4) + 92, 50))
+EDIT(e_ret_place99, retire4(b, n); name_into(slot(b, 4) + 16, 32, "nun.x");
+     put16(slot(b, 4) + 92, 99))
+
+/* A made-up index: nb booklets (division, length; CIDs unchecked here),
+ * then nslots slots at 500.01, 500.02, ..., 99 to a place, named
+ * num.sN and blk.eN. Each is live in langs languages 1..langs (manifest and
+ * logic all 64 bytes at offset 64) or retired when langs is 0. */
+static uint32_t synth(uint8_t *b, const uint32_t *div, const uint32_t *blen, uint32_t nb,
+                      uint32_t nslots, uint32_t langs)
+{
+    uint32_t targets = nslots * langs;
+    uint32_t n = ALX_HEAD + nb * ALX_BOOK + nslots * ALX_SLOTREC + targets * ALX_TARGET + 32u;
+    memset(b, 0, n);
+    memcpy(b, "ALXT", 4);
+    b[4] = 1;
+    put32(b + 8, nslots);
+    put32(b + 12, nb);
+    put32(b + 16, targets);
+    put32(b + 20, ALX_BASE_END);
+    for (uint32_t i = 0; i < nb; i++) {
+        uint8_t *r = b + ALX_HEAD + i * ALX_BOOK;
+        put16(r, div[i]);
+        put32(r + 4, blen[i]);
+        r[12] = 0x01, r[13] = 0x55, r[14] = 0x12, r[15] = 0x20;
+    }
+    uint8_t *ts = b + ALX_HEAD + nb * ALX_BOOK + nslots * ALX_SLOTREC;
+    for (uint32_t s = 1; s <= nslots; s++) {
+        uint8_t *p = b + ALX_HEAD + nb * ALX_BOOK + (s - 1u) * ALX_SLOTREC;
+        uint32_t place = 500u + (s - 1u) / 99u, item = (s - 1u) % 99u + 1u;
+        put32(p, s);
+        snprintf((char *) p + 16, 32, "num.s%u", s);
+        snprintf((char *) p + 48, 44, "blk.e%u", s);
+        put16(p + 92, place);
+        put16(p + 94, item);
+        if (!langs) {
+            p[6] = ALX_F_RETIRED;
+            put16(p + 96, 0xFFFF);
+            continue;
+        }
+        uint32_t bk = 0;
+        while (bk < nb && div[bk] != place / 10u * 10u) bk++;
+        p[4] = ALX_NUM;
+        p[5] = 1;
+        p[6] = langs >= 2 ? ALX_F_WITNESSED : 0;
+        p[7] = (uint8_t) langs;
+        p[9] = 1;
+        put16(p + 96, bk);
+        put32(p + 100, (s - 1u) * langs);
+        put32(p + 104, 64);
+        put32(p + 108, 64);
+        for (uint32_t l = 0; l < langs; l++) {
+            uint8_t *q = ts + ((s - 1u) * langs + l) * ALX_TARGET;
+            put32(q, s);
+            put16(q + 4, l + 1u);
+            put32(q + 8, 64);
+            put32(q + 12, 64);
+        }
+    }
+    rehash(b, n);
+    return n;
+}
+
+static void test_edges_index(void)
+{
+    static const struct {
+        void (*edit)(uint8_t *, uint32_t *);
+        int st;
+        const char *what;
+    } c[] = {
+        {e_tc_z, ALX_OK, "z in a name"},
+        {e_tc_0, ALX_OK, "0 in a name"},
+        {e_tc_9, ALX_OK, "9 in a name"},
+        {e_tc_us, ALX_OK, "_ in a name"},
+        {e_tc_first_a, ALX_OK, "a name starting with a"},
+        {e_tc_first_z, ALX_OK, "a name starting with z"},
+        {e_tc_tick, ALX_E_FORM, "` (just below a) in a name"},
+        {e_tc_brace, ALX_E_FORM, "{ (just above z) in a name"},
+        {e_tc_slash, ALX_E_FORM, "/ (just below 0) in a name"},
+        {e_tc_colon, ALX_E_FORM, ": (just above 9) in a name"},
+        {e_tc_upper, ALX_E_FORM, "upper case inside a name"},
+        {e_tc_dash, ALX_E_FORM, "- in a name"},
+        {e_tc_first_0, ALX_E_FORM, "a name starting with a digit"},
+        {e_tc_first_us, ALX_E_FORM, "a name starting with _"},
+        {e_tc_first_dot, ALX_E_FORM, "a name starting with a dot"},
+        {e_s_upper_mid, ALX_E_FORM, "upper case inside a shorthand"},
+        {e_t_nodot, ALX_E_FORM, "a block.entry with no dot"},
+        {e_t_dots, ALX_OK, "a block.entry with two dots"},
+        {e_t_dotend, ALX_E_FORM, "a block.entry ending in a dot"},
+        {e_s_dots, ALX_E_FORM, "a shorthand with two dots"},
+        {e_s_full, ALX_E_FORM, "a well-formed shorthand filling all 32 bytes"},
+        {e_s_31, ALX_OK, "a 31-byte shorthand"},
+        {e_t_full, ALX_E_FORM, "a well-formed block.entry filling all 44 bytes"},
+        {e_magic0, ALX_E_FORM, "magic byte 0"},
+        {e_magic1, ALX_E_FORM, "magic byte 1"},
+        {e_magic2, ALX_E_FORM, "magic byte 2"},
+        {e_bcid14, ALX_E_FORM, "booklet CID byte 14"},
+        {e_bcid15, ALX_E_FORM, "booklet CID byte 15"},
+        {e_brsv_1, ALX_E_FORM, "the second booklet's byte 3"},
+        {e_blen_odd_1, ALX_E_FORM, "the second booklet's length"},
+        {e_inputs15, ALX_OK, "15 inputs"},
+        {e_item99, ALX_OK, "item 99"},
+        {e_moff64, ALX_OK, "a manifest at offset 64"},
+        {e_t_to_end, ALX_OK, "a target ending at the booklet's last byte"},
+        {e_t_past_end, ALX_E_FORM, "a target one byte past the booklet"},
+        {e_gap, ALX_E_FORM, "a target nobody claims"},
+        {two_langs, ALX_OK, "two languages, witnessed"},
+        {e_two_unwitnessed, ALX_E_FORM, "two languages, not witnessed"},
+        {e_top, ALX_OK, "booklet 990 and place 999"},
+        {e_ret_place100, ALX_OK, "a retired slot at place 100"},
+        {e_ret_place999, ALX_OK, "a retired slot at 999.99"},
+        {e_ret_place50, ALX_E_FORM, "a retired slot of no namespace at place 50"},
+        {e_ret_place99, ALX_E_FORM, "a retired slot of no namespace at place 99"},
+    };
+    for (size_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        int s = open_copy(c[i].edit);
+        CHECK(s == c[i].st, "%s: %s, got %s", c[i].what, alx_status_name(c[i].st),
+              alx_status_name(s));
+    }
+    alx_t t;
+    uint32_t n = TN;
+    memcpy(M, T, TN);
+    e_s_31(M, &n);
+    rehash(M, n);
+    CHECK(alx_open(&t, M, n) == ALX_OK && find(&t, "@num.ggggggggggggggggggggggggggg") == 1 &&
+              find(&t, "num.ggggggggggggggggggggggggggg") == 1,
+          "a 31-byte shorthand is found");
+
+    /* the bounds of an index, on made-up ones */
+    uint8_t *b = malloc(1u << 21);
+    if (!b) return;
+    static const uint32_t five[] = {500, 510, 520, 530, 540}, len128[] = {128, 128, 128, 128, 128};
+    n = synth(b, five, len128, 5, ALX_MAX, 15);
+    CHECK(alx_open(&t, b, n) == ALX_OK && t.slots == ALX_MAX && t.targets == ALX_MAX * 15u,
+          "4096 slots in 15 languages each");
+    alx_ref_t r;
+    CHECK(find(&t, "@S:000A") == 10 && find(&t, "@S:000F") == 15 && find(&t, "@S:00FF") == 255 &&
+              find(&t, "@S:0ABC") == 0xABC && find(&t, "@S:0FFF") == 4095 &&
+              find(&t, "@S:1000") == 4096,
+          "slots in hexadecimal, A to F");
+    CHECK(find(&t, "@S:1001") == ALX_E_SLOT && find(&t, "@S:000G") == ALX_E_NAME &&
+              find(&t, "@S:00@1") == ALX_E_NAME,
+          "past the last slot, G, @");
+    CHECK(resolve(&t, "@S:000F-015", &r) == ALX_OK && r.slot == 15 && r.language == 15 &&
+              resolve(&t, "@S:000F-016", &r) == ALX_E_LANG,
+          "the fifteenth language");
+    CHECK(find(&t, "@541.37") == 4096 && find(&t, "num.s4096") == 4096, "the last slot by name");
+    static alx_grid_t g;
+    alx_grid_hit_t h;
+    CHECK(alx_grid_build(&g, &t) == ALX_OK &&
+              alx_grid_resolve(&g, gw(ALX_G_CODE, 541, 37, 0, ALX_G_LOGIC, 15), &h) == ALX_OK &&
+              h.slot == 4096 && h.booklet == 4 && h.off == 64 && h.len == 64 &&
+              alx_grid_resolve(&g, gw(ALX_G_CODE, 541, 38, 0, ALX_G_LOGIC, 1), &h) == ALX_E_NAME,
+          "the grid over a full index");
+    n = synth(b, 0, 0, 0, ALX_MAX, 0);
+    CHECK(alx_open(&t, b, n) == ALX_OK, "4096 retired slots");
+    n = synth(b, 0, 0, 0, ALX_MAX + 1u, 0);
+    CHECK(alx_open(&t, b, n) == ALX_E_FORM, "4097 slots");
+    uint32_t div[ALX_MAX_BOOKS], blen[ALX_MAX_BOOKS];
+    for (uint32_t i = 0; i < ALX_MAX_BOOKS; i++) div[i] = 100u + 10u * i, blen[i] = ALX_ALIGN;
+    n = synth(b, div, blen, ALX_MAX_BOOKS, 0, 0);
+    CHECK(alx_open(&t, b, n) == ALX_OK && t.books == 90, "90 booklets, 100 to 990, 64 bytes each");
+    static const uint32_t d500[] = {500}, mib[] = {ALX_BOOK_MAX};
+    n = synth(b, d500, mib, 1, 1, 0);
+    CHECK(alx_open(&t, b, n) == ALX_OK, "a 1 MiB booklet");
+    static const struct {
+        uint32_t nb, div[2];
+        const char *what;
+    } bd[] = {
+        {1, {90, 0}, "division 90"},          {1, {1000, 0}, "division 1000"},
+        {1, {515, 0}, "division 515"},        {2, {500, 500}, "division 500 twice"},
+        {2, {600, 500}, "divisions falling"},
+    };
+    for (size_t i = 0; i < sizeof bd / sizeof bd[0]; i++) {
+        static const uint32_t two[] = {128, 128};
+        n = synth(b, bd[i].div, two, bd[i].nb, 1, 0);
+        CHECK(alx_open(&t, b, n) == ALX_E_FORM, "%s", bd[i].what);
+    }
+    /* an index shorter than its own header is refused before it is read */
+    memcpy(b, "ALXT", 4);
+    uint8_t *tiny = malloc(4);
+    if (tiny) {
+        memcpy(tiny, "ALXT", 4);
+        CHECK(alx_open(&t, tiny, 4) == ALX_E_FORM, "four bytes");
+        free(tiny);
+    }
+    free(b);
+}
+
+/* booklet bytes whose CID the index carries but whose header is wrong */
+static void test_edges_booklet(void)
+{
+    static uint8_t bk[ALX_BOOK_MAX];
+    static const struct {
+        uint32_t at;
+        uint8_t x;
+    } c[] = {{0, 1}, {1, 1}, {2, 1},  {3, 1},     {4, 3},  {5, 1},
+             {6, 1}, {7, 1}, {12, 1}, {15, 0x40}, {16, 1}, {63, 1}};
+    for (size_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        memcpy(bk, B510, B510N);
+        bk[c[i].at] ^= c[i].x;
+        memcpy(M, T, TN);
+        sha256(bk, B510N, book(M, 0) + 16);
+        rehash(M, TN);
+        alx_t t;
+        CHECK(alx_open(&t, M, TN) == ALX_OK && alx_booklet_check(&t, 0, bk, B510N) == ALX_E_FORM,
+              "booklet header byte %u", c[i].at);
+    }
+    memcpy(M, T, TN);
+    sha256(B510, B510N, book(M, 0) + 16);
+    rehash(M, TN);
+    alx_t t;
+    CHECK(alx_open(&t, M, TN) == ALX_OK && alx_booklet_check(&t, 0, B510, B510N) == ALX_OK,
+          "and unchanged it passes");
+    alx_booklet_t b;
+    CHECK(alx_booklet(0, 0, &b) == ALX_E_SLOT, "no index");
+    char out[40];
+    memset(out, 'Z', sizeof out);
+    CHECK(alx_shorthand(&X, 1, out, 8) == 8 && out[8] == 'Z', "nothing written past the 8 asked");
+    char *exact = malloc(8);
+    if (exact) {
+        CHECK(alx_shorthand(&X, 1, exact, 8) == 8 && memcmp(exact, "@num.gcd", 8) == 0,
+              "into exactly 8 bytes");
+        free(exact);
+    }
+    CHECK(strcmp(alx_status_name(ALX_OK), "OK") == 0 &&
+              strcmp(alx_status_name(ALX_E_FORM), "FORM") == 0,
+          "OK and FORM by name");
+}
+
+static void test_edges_refs(void)
+{
+    alx_t t = X;
+    alx_ref_t r;
+    alx_booklet_t b;
+    alx_booklet(&t, 0, &b);
+    char cid[64], s[256];
+    b32(b.cid, 36, cid);
+    static uint8_t roots[1][36];
+    memcpy(roots[0], b.cid, 36);
+    alx_set_roots(&t, (const uint8_t(*)[36]) roots, 1);
+    static const struct {
+        const char *path;
+        int st;
+    } c[] = {
+        {"/512.01.a:001", ALX_E_OVERLAY},    {"/512.01.z:001", ALX_E_OVERLAY},
+        {"/512.01.a0z9:001", ALX_E_OVERLAY}, {"/112.01.a:001", ALX_E_OVERLAY},
+        {"/999.99.z:120", ALX_E_OVERLAY},    {"/012.01.a:001", ALX_E_SYNTAX},
+        {"/51a.01.a:001", ALX_E_SYNTAX},     {"/5a2.01.a:001", ALX_E_SYNTAX},
+        {"/512.a1.a:001", ALX_E_SYNTAX},     {"/512.0a.a:001", ALX_E_SYNTAX},
+        {"/512.00.a:001", ALX_E_SYNTAX},     {"/512.01.`:001", ALX_E_SYNTAX},
+        {"/512.01.{:001", ALX_E_SYNTAX},     {"/512.01.a:0a1", ALX_E_SYNTAX},
+        {"/512.01.a:a01", ALX_E_SYNTAX},     {"/512.01.a:00a", ALX_E_SYNTAX},
+    };
+    for (size_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        snprintf(s, sizeof s, "%s%s", cid, c[i].path);
+        int st = resolve(&t, s, &r);
+        CHECK(st == c[i].st, "%s: %s", c[i].path, alx_status_name(st));
+    }
+    snprintf(s, sizeof s, "%s/512.01.a:001", cid);
+    CHECK(resolve(&t, s, &r) == ALX_E_OVERLAY && strcmp(r.path, "512.01.a") == 0,
+          "the shortest addendum path");
+    /* 128 bytes is the longest reference read; 129 is not looked at */
+    int k = snprintf(s, sizeof s, "%s/512.01.", cid);
+    while (k < 124) s[k++] = 'a';
+    memcpy(s + k, ":001", 5);
+    CHECK(strlen(s) == 128 && resolve(&t, s, &r) == ALX_E_SYNTAX, "128 bytes are read");
+    memmove(s + 125, s + 124, 5);
+    s[124] = 'a';
+    CHECK(strlen(s) == 129 && resolve(&t, s, &r) == ALX_E_NAME, "129 are not");
+    static const char *const name[] = {"@num.gcd-0a1", "@num.gcd-a01", "@num.gcd-00a",
+                                       "@num.gcd:0a1", "512.01-1a1"};
+    for (size_t i = 0; i < sizeof name / sizeof name[0]; i++)
+        CHECK(resolve(&t, name[i], &r) == ALX_E_NAME, "%s is not a language suffix", name[i]);
+    CHECK(alx_resolve(0, "num.gcd", 7, &r) == ALX_E_NAME, "no index");
+    CHECK(alx_resolve(&t, "num.gcd/", 7, &r) == ALX_OK && r.slot == 1 &&
+              alx_find(&t, "num.gcd/", 7) == 1,
+          "nothing past n is read");
+    memset(&r, 0xAA, sizeof r);
+    CHECK(resolve(&t, "@num.gcd", &r) == ALX_OK && r.path[0] == 0 && r.language == 0,
+          "a base reference");
+    int zero = 1;
+    for (uint32_t i = 0; i < sizeof r.parent; i++) zero &= r.parent[i] == 0;
+    CHECK(zero, "has no parent");
+}
+
+/* text in a heap block of exactly n bytes, so reading s[n] is caught */
+static char *exact_copy(const char *s, uint32_t n)
+{
+    char *e = malloc(n ? n : 1u);
+    if (e) memcpy(e, s, n);
+    return e;
+}
+
+static void test_edges_tecton(void)
+{
+    alx_t t = X;
+    alx_booklet_t b;
+    alx_booklet(&t, 0, &b);
+    char cid[64], add[160];
+    b32(b.cid, 36, cid);
+    snprintf(add, sizeof add, "BIND a{SOURCE:%s/512.01.a:001}", cid);
+    const struct {
+        const char *in;
+        int cut; /* bytes left off the end of the text given */
+        int st;
+        uint32_t at;
+    } c[] = {
+        {"BIND a{SOURCE:@num.gcd} ", 1, ALX_OK, 0},
+        {"BIND a{*/ SOURCE:@num.gcd}", 0, ALX_E_SYNTAX, 7},
+        {"BIND a{SOURCE:@num.gcd /* a*b/c */}", 0, ALX_OK, 0},
+        {"BIND a{SOURCE:@num.gcd/* c */}", 0, ALX_OK, 0},
+        {"BIND a{SOURCE:@num.gcd/*", 1, ALX_E_SYNTAX, 14},
+        {"BIND", 1, ALX_E_SYNTAX, 0},
+        {"BINDx", 1, ALX_E_SYNTAX, 4},
+        {"BIND a{SOURCE:@num.gcd}", 17, ALX_E_SYNTAX, 6},
+        {"BIND ab{SOURCE:@num.gcd}", 18, ALX_E_SYNTAX, 6},
+        {"BIND a{SOURCE:@num.gcd}", 1, ALX_E_SYNTAX, 22},
+        {"BIND a{SOURCE:@num.gcd SINKx", 1, ALX_E_SYNTAX, 27},
+        {"BIND a{SOURCE:@num.gcd} /* x */", 1, ALX_E_SYNTAX, 24},
+        {"BIND a{SOURCE:@num.gcd} /* x *", 0, ALX_E_SYNTAX, 24},
+        {"BIND a{SOURCE:@num.gcd}/", 0, ALX_E_SYNTAX, 23},
+        {"BIND a{SOURCE:@num.gcd/", 0, ALX_E_SYNTAX, 14},
+        {"BIND a{SOURCE:@num.gcd", 0, ALX_E_SYNTAX, 22},
+        {"BIND a{SOURCE:@num.gcd PIPE", 0, ALX_E_SYNTAX, 27},
+        {"BIND z{SOURCE:@num.gcd}", 0, ALX_OK, 0},
+        {"BIND az09_.z{SOURCE:@num.gcd}", 0, ALX_OK, 0},
+        {"BIND a9{SOURCE:@num.gcd}", 0, ALX_OK, 0},
+        {"BIND a0{SOURCE:@num.gcd}", 0, ALX_OK, 0},
+        {add, 0, ALX_E_LINEAGE, 14},
+    };
+    for (size_t i = 0; i < sizeof c / sizeof c[0]; i++) {
+        uint32_t n = (uint32_t) strlen(c[i].in) - (uint32_t) c[i].cut, at = 999;
+        alx_plan_t p;
+        int s = alx_tecton(&t, c[i].in, n, &p, &at);
+        CHECK(s == c[i].st && at == c[i].at, "%.*s: %s at %u", (int) n, c[i].in, alx_status_name(s),
+              at);
+        char *e = exact_copy(c[i].in, n);
+        if (!e) continue;
+        at = 999;
+        s = alx_tecton(&t, e, n, &p, &at);
+        CHECK(s == c[i].st && at == c[i].at, "%.*s, exactly: %s at %u", (int) n, c[i].in,
+              alx_status_name(s), at);
+        free(e);
+    }
+    alx_plan_t p;
+    const char *nm = "BIND az09_.z{SOURCE:@num.gcd}";
+    CHECK(alx_tecton(&t, nm, (uint32_t) strlen(nm), &p, 0) == ALX_OK &&
+              strcmp(p.name, "az09_.z") == 0,
+          "a name with a, z, 0, 9, _ and .");
+}
+
+static void test_edges_axion(void)
+{
+    alx_axion_t p;
+    uint32_t at = 999;
+    CHECK(alx_axion_parse("true int 5", 10, &p, &at) == ALX_E_SYNTAX && at == 10,
+          "a truth under an integer is no answer");
+    CHECK(alx_axion_parse("true#", 4, &p, &at) == ALX_OK && alx_axion_run(&p, 0, 0, 0) == 1,
+          "nothing past n is read");
+    static const char *const ok[] = {"true # c", "true #", "in 0 in 0 eq", "true\n#c\n",
+                                     "int -9223372036854775808 int 0 lt"};
+    int64_t r0 = 5;
+    for (size_t i = 0; i < sizeof ok / sizeof ok[0]; i++) {
+        uint32_t n = (uint32_t) strlen(ok[i]);
+        char *e = exact_copy(ok[i], n);
+        if (!e) continue;
+        CHECK(alx_axion_parse(e, n, &p, &at) == ALX_OK && alx_axion_run(&p, &r0, 1, 1) == 1,
+              "%s, exactly", ok[i]);
+        free(e);
+    }
+    /* words cut short at the very end: a prefix of a word is no word */
+    static const char *const bad[] = {"true i", "tru", "true # c\nin"};
+    for (size_t i = 0; i < sizeof bad / sizeof bad[0]; i++) {
+        uint32_t n = (uint32_t) strlen(bad[i]);
+        char *e = exact_copy(bad[i], n);
+        if (!e) continue;
+        CHECK(alx_axion_parse(e, n, &p, &at) == ALX_E_SYNTAX, "%s, exactly", bad[i]);
+        free(e);
+    }
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 3) return 2;
@@ -1059,6 +1528,11 @@ int main(int argc, char **argv)
     test_refusals();
     test_grid();
     test_lineage();
+    test_edges_index();
+    test_edges_booklet();
+    test_edges_refs();
+    test_edges_tecton();
+    test_edges_axion();
     printf("%u checks, %u failures\n", checks, fails);
     return fails ? 1 : 0;
 }
