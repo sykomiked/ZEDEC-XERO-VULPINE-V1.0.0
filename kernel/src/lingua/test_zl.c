@@ -2072,7 +2072,8 @@ static void test_lists(void)
     {
         static const int64_t vals[] = {0,          -7,       ZL_V_NIL,    ZL_V_TRUE,
                                        ZL_V_FALSE, ZL_V_SYM, ZL_V_SYM + 1};
-        static const char *const want[] = {"1000", "1000", "0010", "0000", "0000", "0001", "0001"};
+        static const char *const want[] = {"1000000", "1000000", "0010000", "0000000",
+                                           "0000000", "0001000", "0001000"};
         for (size_t v = 0; v < sizeof vals / sizeof vals[0]; v++) {
             prog_reset(62);
             sym("A");
@@ -2294,6 +2295,622 @@ static void test_lists(void)
     CHECK(strcmp(zl_status_name(ZL_E_HEAP), "list cells exhausted") == 0, "heap status name");
 }
 
+/* ------------------------------------- strings, vectors, procedures, catch */
+
+/* Emit code that pushes a string made at run time: literal i, copied. */
+static void push_made(int i)
+{
+    I(ZL_PUSH, ZL_V_STRC + i, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_PUSH, (int64_t) P.str_len[i], 0);
+    I(ZL_SSUB, 0, 0);
+}
+
+static void test_ext(void)
+{
+    zl_diag_t d;
+    /* literals and made strings print raw or quoted */
+    for (int made = 0; made < 2; made++)
+        for (int q = 0; q < 2; q++) {
+            prog_reset(62);
+            sym("say \"hi\\\" ok");
+            if (made)
+                push_made(0);
+            else
+                I(ZL_PUSH, ZL_V_STRC, 0);
+            I(ZL_OUTV, ZL_DIALECT_SCHEME, q);
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_OK, q ? "\"say \\\"hi\\\\\\\" ok\"" : "say \"hi\\\" ok", "string print");
+        }
+    /* SCAT, SSUB, VLEN, VREF on literal and made strings */
+    prog_reset(62);
+    sym("abc");
+    sym("defgh");
+    I(ZL_PUSH, ZL_V_STRC, 0);
+    I(ZL_PUSH, ZL_V_STRC + 1, 0);
+    I(ZL_SCAT, 0, 0); /* abcdefgh */
+    I(ZL_DUP, 0, 0);
+    I(ZL_VLEN, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 7, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 2, 0);
+    I(ZL_PUSH, 4, 0);
+    I(ZL_SSUB, 0, 0); /* cdef */
+    I(ZL_DUP, 0, 0);
+    I(ZL_OUTV, 0, 0);
+    I(ZL_SCAT, 0, 0); /* abcdefghcdef */
+    I(ZL_DUP, 0, 0);
+    I(ZL_OUTV, 2, 0);
+    I(ZL_VLEN, 0, 0);
+    I(ZL_OUTI, 1, 0);
+    I(ZL_PUSH, ZL_V_STRC, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_OUTI, 1, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "8 104 cdefabcdefghcdef 12 98", "string building");
+    /* the empty string, and a string of exactly 8 and 9 bytes */
+    for (int n = 0; n <= 9; n++) {
+        prog_reset(62);
+        sym("0123456789");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_PUSH, n, 0);
+        I(ZL_SSUB, 0, 0);
+        I(ZL_DUP, 0, 0);
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_SCMP, 0, 0);
+        I(ZL_OUTI, 2, 0);
+        I(ZL_DUP, 0, 0);
+        I(ZL_VLEN, 0, 0);
+        I(ZL_OUTI, 2, 0);
+        I(ZL_OUTV, 1, 1);
+        I(ZL_HALT, 0, 0);
+        char want[32];
+        snprintf(want, sizeof want, "-1 %d \"%.*s\"", n, n, "0123456789");
+        expect_run(ZL_OK, want, "substring lengths");
+    }
+    /* SSUB bounds */
+    {
+        static const int64_t bad[][2] = {{-1, 1}, {0, -1}, {4, 0}, {3, 2}, {0, 4}, {1, 2}};
+        for (size_t k = 0; k < sizeof bad / sizeof bad[0]; k++) {
+            prog_reset(62);
+            sym("abc");
+            I(ZL_PUSH, ZL_V_STRC, 0);
+            I(ZL_PUSH, bad[k][0], 0);
+            I(ZL_PUSH, bad[k][1], 0);
+            I(ZL_SSUB, 0, 0);
+            I(ZL_OUTV, 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(k < 3 || k == 3 || k == 4 ? ZL_E_BOUNDS : ZL_OK, k == 5 ? "bc" : 0,
+                       "substring bounds");
+        }
+        prog_reset(62);
+        sym("abc");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_PUSH, 3, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_SSUB, 0, 0);
+        I(ZL_VLEN, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "0", "an empty substring at the end");
+    }
+    /* SCMP order */
+    {
+        static const char *const pairs[][2] = {{"a", "b"},    {"b", "a"},    {"ab", "ab"},
+                                               {"ab", "abc"}, {"abc", "ab"}, {"", ""},
+                                               {"", "a"},     {"\xff", "a"}};
+        static const int want[] = {-1, 1, 0, -1, 1, 0, -1, 1};
+        for (size_t k = 0; k < sizeof want / sizeof want[0]; k++) {
+            prog_reset(62);
+            sym(pairs[k][0]);
+            sym(pairs[k][1]);
+            I(ZL_PUSH, ZL_V_STRC, 0);
+            I(ZL_PUSH, ZL_V_STRC + 1, 0);
+            I(ZL_SCMP, 0, 0);
+            I(ZL_OUTI, 0, 0);
+            I(ZL_HALT, 0, 0);
+            char w[8];
+            snprintf(w, sizeof w, "%d", want[k]);
+            expect_run(ZL_OK, w, "string compare");
+        }
+    }
+    /* string operations refuse what is not a string */
+    {
+        static const int ops[] = {ZL_SCAT, ZL_SCMP};
+        static const int64_t notstr[] = {5, ZL_V_NIL, ZL_V_TRUE, ZL_V_SYM};
+        for (size_t k = 0; k < 2; k++)
+            for (size_t v = 0; v < 4; v++)
+                for (int side = 0; side < 2; side++) {
+                    prog_reset(62);
+                    sym("x");
+                    I(ZL_PUSH, side ? ZL_V_STRC : notstr[v], 0);
+                    I(ZL_PUSH, side ? notstr[v] : ZL_V_STRC, 0);
+                    I(ops[k], 0, 0);
+                    I(ZL_HALT, 0, 0);
+                    expect_run(ZL_E_DOMAIN, 0, "string op on a non-string");
+                }
+        prog_reset(62);
+        I(ZL_PUSH, 5, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_SSUB, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "substring of a number");
+        prog_reset(62);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_SSUB, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_STACK, 0, "SSUB needs three values");
+        prog_reset(62);
+        sym("x");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_SCAT, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_STACK, 0, "SCAT needs two values");
+    }
+    /* SCONV */
+    {
+        static const struct {
+            int64_t v;
+            const char *want;
+        } fn[] = {{0, "0"},
+                  {-7, "-7"},
+                  {ZL_V_REF - 1, "4611686018427387903"},
+                  {-ZL_V_REF + 1, "-4611686018427387903"}};
+        for (size_t k = 0; k < sizeof fn / sizeof fn[0]; k++) {
+            prog_reset(62);
+            I(ZL_PUSH, fn[k].v, 0);
+            I(ZL_SCONV, ZL_SCONV_FROM_NUMBER, 0);
+            I(ZL_DUP, 0, 0);
+            I(ZL_OUTV, 0, 1);
+            I(ZL_SCONV, ZL_SCONV_TO_NUMBER, 0);
+            I(ZL_OUTI, 0, 0);
+            I(ZL_HALT, 0, 0);
+            char w[64];
+            snprintf(w, sizeof w, "\"%s\"%s", fn[k].want, fn[k].want);
+            expect_run(ZL_OK, w, "number to string and back");
+        }
+        static const struct {
+            const char *s;
+            int status;
+            const char *want;
+        } tn[] = {{"42", ZL_OK, "42"},
+                  {"+42", ZL_OK, "42"},
+                  {"-0", ZL_OK, "0"},
+                  {"007", ZL_OK, "7"},
+                  {"", ZL_E_DOMAIN, 0},
+                  {"-", ZL_E_DOMAIN, 0},
+                  {"+", ZL_E_DOMAIN, 0},
+                  {"4a", ZL_E_DOMAIN, 0},
+                  {" 4", ZL_E_DOMAIN, 0},
+                  {"4 ", ZL_E_DOMAIN, 0},
+                  {"--4", ZL_E_DOMAIN, 0},
+                  {"4611686018427387903", ZL_OK, "4611686018427387903"},
+                  {"4611686018427387904", ZL_E_OVERFLOW, 0},
+                  {"-4611686018427387904", ZL_E_OVERFLOW, 0},
+                  {"99999999999999999999", ZL_E_OVERFLOW, 0},
+                  {"-9223372036854775808", ZL_E_OVERFLOW, 0}};
+        for (size_t k = 0; k < sizeof tn / sizeof tn[0]; k++) {
+            prog_reset(62);
+            sym(tn[k].s);
+            I(ZL_PUSH, ZL_V_STRC, 0);
+            I(ZL_SCONV, ZL_SCONV_TO_NUMBER, 0);
+            I(ZL_OUTI, 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(tn[k].status, tn[k].want, tn[k].s);
+        }
+        for (int64_t b = -1; b <= 256; b += 1) {
+            if (b > 1 && b < 254 && b != 65) continue;
+            prog_reset(62);
+            I(ZL_PUSH, b, 0);
+            I(ZL_SCONV, ZL_SCONV_FROM_BYTE, 0);
+            I(ZL_DUP, 0, 0);
+            I(ZL_VLEN, 0, 0);
+            I(ZL_OUTI, 0, 0);
+            I(ZL_PUSH, 0, 0);
+            I(ZL_VREF, 0, 0);
+            I(ZL_OUTI, 1, 0);
+            I(ZL_HALT, 0, 0);
+            char w[16];
+            snprintf(w, sizeof w, "1 %d", (int) b);
+            expect_run(b >= 0 && b <= 255 ? ZL_OK : ZL_E_DOMAIN, b >= 0 && b <= 255 ? w : 0,
+                       "byte to string");
+        }
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_NIL, 0);
+        I(ZL_SCONV, ZL_SCONV_FROM_NUMBER, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "a reference is not a number");
+        P.code[1].a = ZL_SCONV_TO_NUMBER;
+        expect_run(ZL_E_DOMAIN, 0, "nor a string");
+        P.code[0].op = ZL_NL;
+        expect_run(ZL_E_STACK, 0, "SCONV of nothing");
+    }
+    /* vectors */
+    prog_reset(62);
+    I(ZL_PUSH, 3, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_PUSH, 42, 0);
+    I(ZL_VSET, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 2, 0);
+    push_list(2);
+    I(ZL_VSET, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_OUTV, ZL_DIALECT_SCHEME, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_OUTV, ZL_DIALECT_LOGO, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 1, 0);
+    I(ZL_VREF, 0, 0);
+    I(ZL_OUTI, 2, 0);
+    I(ZL_VLEN, 0, 0);
+    I(ZL_OUTI, 0, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_OUTV, ZL_DIALECT_LISP, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "#(0 42 (1 2)){0 42 [1 2]}42 3#()", "vectors");
+    /* a vector inside a list inside a vector, and strings in both */
+    prog_reset(62);
+    sym("s");
+    I(ZL_PUSH, 1, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_PUSH, ZL_V_STRC, 0);
+    I(ZL_VSET, 0, 0); /* #("s") */
+    I(ZL_PUSH, ZL_V_NIL, 0);
+    I(ZL_CONS, 0, 0); /* (#("s")) */
+    I(ZL_PUSH, 2, 0);
+    I(ZL_VNEW, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_ROT, 0, 0);
+    I(ZL_ROT, 0, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_PUSH, 0, 0);
+    I(ZL_SWAP, 0, 0);
+    I(ZL_VSET, 0, 0);
+    I(ZL_DUP, 0, 0);
+    I(ZL_OUTV, ZL_DIALECT_LISP, 1);
+    I(ZL_OUTV, ZL_DIALECT_LOGO_SHOW, 0);
+    I(ZL_HALT, 0, 0);
+    expect_run(ZL_OK, "#((#(\"s\")) 0){[{s}] 0}", "nesting vectors and lists");
+    /* vector traps */
+    {
+        static const int64_t idx[] = {-1, 3, ZL_V_NIL};
+        for (int op = 0; op < 2; op++)
+            for (size_t k = 0; k < 3; k++) {
+                prog_reset(62);
+                I(ZL_PUSH, 3, 0);
+                I(ZL_VNEW, 0, 0);
+                I(ZL_PUSH, idx[k], 0);
+                if (op) I(ZL_PUSH, 1, 0);
+                I(op ? ZL_VSET : ZL_VREF, 0, 0);
+                I(ZL_HALT, 0, 0);
+                expect_run(ZL_E_BOUNDS, 0, "vector index out of range");
+            }
+        prog_reset(62);
+        sym("abc");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_PUSH, 65, 0);
+        I(ZL_VSET, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "strings are immutable");
+        static const int64_t notvec[] = {7, ZL_V_NIL, ZL_V_TRUE};
+        for (size_t k = 0; k < 3; k++) {
+            prog_reset(62);
+            I(ZL_PUSH, notvec[k], 0);
+            I(ZL_VLEN, 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_E_DOMAIN, 0, "length of a non-vector");
+            prog_reset(62);
+            I(ZL_PUSH, notvec[k], 0);
+            I(ZL_PUSH, 0, 0);
+            I(ZL_VREF, 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_E_DOMAIN, 0, "index into a non-vector");
+        }
+        prog_reset(62);
+        push_list(1);
+        I(ZL_VLEN, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "a pair is not a vector");
+        static const int64_t badn[] = {-1, ZL_V_NIL};
+        for (size_t k = 0; k < 2; k++) {
+            prog_reset(62);
+            I(ZL_PUSH, badn[k], 0);
+            I(ZL_VNEW, 0, 0);
+            I(ZL_HALT, 0, 0);
+            expect_run(ZL_E_DOMAIN, 0, "a vector of a bad size");
+        }
+        prog_reset(62);
+        I(ZL_PUSH, ZL_MAX_BLK - 2, 0);
+        I(ZL_VNEW, 0, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_VNEW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_HEAP, 0, "the block heap fills");
+        CHECK(R.trap_pc == 3, "the second vector does not fit (pc %u)", R.trap_pc);
+        P.code[0].a = ZL_MAX_BLK - 3;
+        expect_run(ZL_OK, 0, "the largest vector that fits, then an empty one");
+        prog_reset(62);
+        sym("abcdefgh");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_DUP, 0, 0);
+        I(ZL_SCAT, 0, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_JMP, 0, 0);
+        expect_run(ZL_E_HEAP, 0, "made strings fill the block heap");
+        prog_reset(62);
+        I(ZL_PUSH, 5, 0);
+        I(ZL_SCONV, 0, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_JMP, 0, 0);
+        expect_run(ZL_E_HEAP, 0, "number strings fill the block heap");
+        CHECK(R.used == 4 * ((ZL_MAX_BLK - 1) / 2) + 2, "two cells per one-digit string (%llu)",
+              (unsigned long long) R.used);
+    }
+    /* ISA on the new kinds */
+    {
+        prog_reset(62);
+        sym("x");
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_PUSH, ZL_V_SYM, 0);
+        I(ZL_PUSH, ZL_V_CODE, 0);
+        I(ZL_PUSH, 0, 0);
+        I(ZL_VNEW, 0, 0);
+        push_made(0);
+        I(ZL_PUSH, 9, 0);
+        for (int v = 0; v < 6; v++) {
+            for (int t = 0; t < ZL_ISA__COUNT; t++) {
+                I(ZL_DUP, 0, 0);
+                I(ZL_ISA, t, 0);
+                I(ZL_OUTI, 0, 0);
+            }
+            I(ZL_DROP, 0, 0);
+            I(ZL_NL, 0, 0);
+        }
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "1000000\n0000100\n0000010\n0000001\n0001000\n0000100\n",
+                   "ISA string, vector, procedure");
+    }
+    /* CALLI */
+    {
+        uint32_t j, f;
+        prog_reset(62);
+        j = here();
+        I(ZL_JMP, 0, 0);
+        f = here();
+        I(ZL_PUSH, 7, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_RET, 0, 0);
+        patch(j, here());
+        I(ZL_PUSH, ZL_V_CODE + f, 0);
+        I(ZL_DUP, 0, 0);
+        I(ZL_CALLI, 0, 0);
+        I(ZL_CALLI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "77", "calling a procedure value");
+        prog_reset(62);
+        I(ZL_PUSH, 5, 0);
+        I(ZL_CALLI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "calling a number");
+        P.code[0].a = ZL_V_NIL;
+        expect_run(ZL_E_DOMAIN, 0, "calling the empty list");
+        P.code[0].op = ZL_NL;
+        expect_run(ZL_E_STACK, 0, "calling nothing");
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_CODE, 0);
+        I(ZL_CALLI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_RSTACK, 0, "endless indirect recursion");
+        prog_reset(62);
+        I(ZL_PUSH, ZL_V_CODE, 0);
+        I(ZL_OUTV, 1, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_DOMAIN, 0, "a procedure has no printed form");
+    }
+    /* CATCH, UNCATCH, THROW */
+    {
+        uint32_t c, h, j, f;
+        /* a throw from two calls and a frame deep, back to the handler */
+        prog_reset(64);
+        j = here();
+        I(ZL_JMP, 0, 0);
+        f = here();
+        I(ZL_ENTER, 1, 1);
+        I(ZL_LOADF, 0, 0);
+        I(ZL_PUSH, 3, 0);
+        I(ZL_GT, 0, 0);
+        c = here();
+        I(ZL_JZ, 0, 0);
+        I(ZL_LOADF, 0, 0);
+        I(ZL_THROW, 0, 0);
+        patch(c, here());
+        I(ZL_LINK, 1, 0);
+        I(ZL_LOADF, 0, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_ADD, 0, 0);
+        I(ZL_CALL, f, 0);
+        I(ZL_LEAVE, 0, 0);
+        I(ZL_RET, 0, 0);
+        patch(j, here());
+        I(ZL_PUSH, 111, 0); /* stays on the stack under the handler */
+        h = here();
+        I(ZL_CATCH, 0, 0);
+        I(ZL_LINK, 0, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_CALL, f, 0);
+        I(ZL_UNCATCH, 0, 0);
+        I(ZL_PUSH, -1, 0);
+        I(ZL_OUTI, 2, 0);
+        patch(h, here());
+        I(ZL_OUTI, 2, 0);
+        I(ZL_OUTI, 2, 0);
+        I(ZL_LINK, 0, 0); /* the frames unwound to the main program's */
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "4 111 0", "throw unwinds calls and frames");
+        /* nested handlers: the inner one catches first; UNCATCH restores the outer */
+        prog_reset(32);
+        I(ZL_CATCH, 9, 0); /* 0: outer */
+        I(ZL_CATCH, 6, 0); /* 1: inner */
+        I(ZL_UNCATCH, 0, 0);
+        I(ZL_PUSH, 2, 0);  /* 3 */
+        I(ZL_THROW, 0, 0); /* goes to the outer handler */
+        I(ZL_HALT, 0, 0);
+        I(ZL_OUTI, 2, 0); /* 6: inner handler */
+        I(ZL_HALT, 0, 0);
+        I(ZL_HALT, 0, 0);
+        I(ZL_PUSH, 100, 0); /* 9: outer handler */
+        I(ZL_ADD, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_OK, "102", "UNCATCH hands over to the outer handler");
+        P.code[2].op = ZL_NL;
+        expect_run(ZL_OK, "\n2 ", "the inner handler catches first");
+        /* traps */
+        prog_reset(64);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_THROW, 0, "an uncaught throw");
+        CHECK(R.trap_pc == 1, "the throw is where it stops (%u)", R.trap_pc);
+        CHECK(strcmp(zl_status_name(ZL_E_THROW), "exception not caught") == 0, "status name");
+        prog_reset(64);
+        I(ZL_CATCH, 0, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_STACK, 0, "THROW of nothing");
+        prog_reset(64);
+        I(ZL_UNCATCH, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_RSTACK, 0, "UNCATCH with no CATCH");
+        prog_reset(64);
+        I(ZL_CATCH, 0, 0);
+        I(ZL_JMP, 0, 0);
+        expect_run(ZL_E_RSTACK, 0, "too many CATCHes");
+        CHECK(R.used == 2 * ZL_MAX_CALLS + 1, "every handler slot is used (%llu)",
+              (unsigned long long) R.used);
+        /* a handler left behind by a returned procedure is refused */
+        prog_reset(64);
+        j = here();
+        I(ZL_JMP, 0, 0);
+        f = here();
+        I(ZL_CATCH, 0, 0);
+        I(ZL_RET, 0, 0);
+        patch(j, here());
+        P.code[f].a = here();
+        I(ZL_CALL, f, 0);
+        I(ZL_PUSH, 5, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_RSTACK, 0, "a stale handler from a returned call");
+        prog_reset(64);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_CATCH, 6, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_STACK, 0, "throw with the stack below the handler's");
+        prog_reset(64);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_CATCH, 7, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_DROP, 0, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_OUTI, 0, 0);
+        I(ZL_HALT, 0, 0);
+        expect_run(ZL_E_RSTACK, 0, "a handler above the stack is refused");
+        prog_reset(64);
+        I(ZL_LINK, 0, 0);
+        I(ZL_ENTER, 0, 0);
+        I(ZL_CATCH, 0, 0);
+        I(ZL_LEAVE, 0, 0);
+        I(ZL_PUSH, 1, 0);
+        I(ZL_THROW, 0, 0);
+        I(ZL_HALT, 0, 0);
+        P.code[2].a = 6;
+        expect_run(ZL_E_RSTACK, 0, "a handler whose frame was left");
+    }
+
+    /* the verifier */
+#define BAD(bits, setup, what)                                                                     \
+    do {                                                                                           \
+        prog_reset(bits);                                                                          \
+        setup;                                                                                     \
+        I(ZL_HALT, 0, 0);                                                                          \
+        CHECK(zl_verify(&P, &d) == ZL_E_VERIFY, "verify rejects %s", what);                        \
+    } while (0)
+#define OK(bits, setup, what)                                                                      \
+    do {                                                                                           \
+        prog_reset(bits);                                                                          \
+        setup;                                                                                     \
+        I(ZL_HALT, 0, 0);                                                                          \
+        CHECK(zl_verify(&P, &d) == ZL_OK, "verify accepts %s: %s", what, d.msg);                   \
+    } while (0)
+    for (int op = ZL_VNEW; op <= ZL_CALLI; op++) {
+        BAD(64, I(op, 0, 0), "a block op in a 64-bit program");
+        BAD(32, I(op, 0, 0), "a block op in a 32-bit program");
+        OK(62, I(op, 0, 0), "a block op in a 62-bit program");
+    }
+    for (int bits = 32; bits <= 64; bits += 30) {
+        OK(bits, (I(ZL_CATCH, 1, 0), I(ZL_UNCATCH, 0, 0), I(ZL_THROW, 0, 0)), "exceptions");
+        OK(bits == 62 ? 64 : bits, (I(ZL_CATCH, 1, 0), I(ZL_THROW, 0, 0)), "exceptions any width");
+    }
+    OK(62, (I(ZL_CATCH, 1, 0), I(ZL_THROW, 0, 0)), "exceptions in 62 bits");
+    BAD(64, I(ZL_CATCH, 2, 0), "a handler past the end");
+    BAD(64, I(ZL_CATCH, -1, 0), "a handler before the start");
+    BAD(62, I(ZL_SCONV, ZL_SCONV__COUNT, 0), "an unknown conversion");
+    BAD(62, I(ZL_SCONV, -1, 0), "a negative conversion");
+    OK(62, I(ZL_SCONV, ZL_SCONV__COUNT - 1, 0), "the last conversion");
+    BAD(62, I(ZL_OUTV, 0, 2), "OUTV quoting 2");
+    BAD(62, I(ZL_OUTV, 0, -1), "OUTV quoting -1");
+    OK(62, I(ZL_OUTV, 0, 1), "OUTV quoting 1");
+    BAD(62, I(ZL_PUSH, ZL_V_STRC, 0), "a string literal with no strings");
+    BAD(62, (sym("a"), I(ZL_PUSH, ZL_V_STRC + 1, 0)), "a string literal past the strings");
+    OK(62, (sym("a"), I(ZL_PUSH, ZL_V_STRC, 0)), "a string literal");
+    BAD(62, I(ZL_PUSH, ZL_V_BLK + 1, 0), "a forged block");
+    BAD(62, I(ZL_PUSH, ZL_V_CODE + 2, 0), "a procedure past the code");
+    OK(62, (I(ZL_PUSH, ZL_V_CODE + 1, 0), I(ZL_NL, 0, 0)), "a procedure inside the code");
+    BAD(62, I(ZL_PUSH, ZL_V_CODE - 1, 0), "a constant just below the procedures");
+#undef BAD
+#undef OK
+    /* the new op names pack and unpack */
+    {
+        size_t n = 0;
+        prog_reset(62);
+        sym("FOO");
+        for (int op = ZL_VNEW; op < ZL_OP__COUNT; op++) I(op, op == ZL_CATCH ? 1 : 0, 0);
+        I(ZL_PUSH, ZL_V_STRC, 0);
+        I(ZL_PUSH, ZL_V_CODE + 2, 0);
+        I(ZL_HALT, 0, 0);
+        CHECK(zl_verify(&P, &d) == ZL_OK, "pack fixture: %s", d.msg);
+        CHECK(zl_pack(&P, pk, sizeof pk, &n) == ZL_OK && strstr(pk, "\nTHROW 0 0 ") &&
+                  strstr(pk, "\nSCONV 0 0 "),
+              "the new ops pack");
+        CHECK(unpack_s(pk) == ZL_OK && zl_prog_equal(&P, &P3), "and unpack unchanged");
+        for (int op = ZL_VNEW; op < ZL_OP__COUNT; op++)
+            CHECK(strcmp(zl_op_name(op), "?") != 0, "op %d has a name", op);
+    }
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "src/lingua/golden";
@@ -2311,6 +2928,7 @@ int main(int argc, char **argv)
     test_pack();
     test_frames();
     test_lists();
+    test_ext();
     test_golden(dir);
     printf("%d checks, %d failures\n", checks, fails);
     return fails ? 1 : 0;

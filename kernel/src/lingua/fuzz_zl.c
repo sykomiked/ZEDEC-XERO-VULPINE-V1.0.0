@@ -289,7 +289,7 @@ int main(int argc, char **argv)
             s = zl_run(&p1, &run);
             if (s == ZL_OK)
                 ran_ok++;
-            else if (s <= -2620 && s >= -2630)
+            else if (s <= -2620 && s >= -2631)
                 trapped++;
             else
                 die("run returned a non-trap status", lang, n);

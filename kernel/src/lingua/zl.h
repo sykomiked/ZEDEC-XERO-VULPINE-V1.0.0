@@ -66,7 +66,8 @@ typedef enum {
     ZL_E_OUTPUT = -2627,  /* output buffer full */
     ZL_E_INPUT = -2628,   /* input list exhausted */
     ZL_E_DOMAIN = -2629,  /* e.g. a zero DO step, a negative power, CAR of a number */
-    ZL_E_HEAP = -2630     /* list cells exhausted (CONS) */
+    ZL_E_HEAP = -2630,    /* list cells or block cells exhausted */
+    ZL_E_THROW = -2631    /* THROW with no CATCH active */
 } zl_status_t;
 
 /* ---- languages ---- */
@@ -94,6 +95,7 @@ const char *zl_status_name(int status);
 #define ZL_MAX_CALLS    1024  /* call (GOSUB / word / procedure) depth */
 #define ZL_MAX_FRAMES   16384 /* procedure frame cells (locals, links) */
 #define ZL_MAX_CELLS    16384 /* list (cons) cells */
+#define ZL_MAX_BLK      65536 /* block cells: vectors and strings made at run time */
 #define ZL_MAX_DEPTH    48    /* expression and control nesting */
 #define ZL_MAX_LINE     512   /* longest source line or statement */
 
@@ -169,7 +171,24 @@ typedef enum {
     ZL_SETCAR, /* pops the value, then the pair */
     ZL_SETCDR,
     ZL_ISA,  /* a: ZL_ISA_*: pushes 1 or 0 */
-    ZL_OUTV, /* pops a value and prints it; a: ZL_DIALECT_* */
+    ZL_OUTV, /* pops a value and prints it; a: ZL_DIALECT_*, b: 1 = strings in quotes */
+    /* E1 strings and E2 vectors (62-bit programs). A string is a literal
+     * (ZL_V_STRC + string index) or a block made at run time; a vector is a
+     * block of cells. Blocks are never reclaimed; exhaustion traps HEAP. */
+    ZL_VNEW,  /* pops n; pushes a vector of n cells, each 0 */
+    ZL_VLEN,  /* pops a vector or string; pushes its length (cells or bytes) */
+    ZL_VREF,  /* pops index, then a vector or string; pushes the cell or byte (BOUNDS) */
+    ZL_VSET,  /* pops value, index, vector; stores (strings are immutable: DOMAIN) */
+    ZL_SCAT,  /* pops b, then a; pushes the string a followed by b */
+    ZL_SSUB,  /* pops count, start, string; pushes bytes [start, start+count) (BOUNDS) */
+    ZL_SCMP,  /* pops b, then a; pushes -1, 0 or 1 comparing the bytes */
+    ZL_SCONV, /* a: ZL_SCONV_*: number to decimal string, byte to string, string to number */
+    /* E3 procedures as values */
+    ZL_CALLI, /* pops a procedure value (ZL_V_CODE + address) and calls it */
+    /* E4 exceptions */
+    ZL_CATCH,   /* a: handler address: remembers the stack, calls and frames */
+    ZL_UNCATCH, /* forgets the newest CATCH */
+    ZL_THROW,   /* pops a value; unwinds to the newest CATCH, pushes the value, jumps */
     ZL_OP__COUNT
 } zl_op_t;
 
@@ -181,7 +200,20 @@ typedef enum {
 #define ZL_V_SYM   (ZL_V_REF + ((int64_t) 1 << 32)) /* + string index: a symbol */
 #define ZL_V_TRUE  (ZL_V_REF + ((int64_t) 1 << 33)) /* T, #t, "true */
 #define ZL_V_FALSE (ZL_V_TRUE + 1)                  /* #f, "false */
-enum { ZL_ISA_NUMBER = 0, ZL_ISA_PAIR, ZL_ISA_NULL, ZL_ISA_SYMBOL, ZL_ISA__COUNT };
+#define ZL_V_STRC  (ZL_V_REF + ((int64_t) 1 << 34)) /* + string index: a string literal */
+#define ZL_V_BLK   (ZL_V_REF + ((int64_t) 1 << 35)) /* + block offset: a vector or string */
+#define ZL_V_CODE  (ZL_V_REF + ((int64_t) 1 << 36)) /* + code address: a procedure */
+enum {
+    ZL_ISA_NUMBER = 0,
+    ZL_ISA_PAIR,
+    ZL_ISA_NULL,
+    ZL_ISA_SYMBOL,
+    ZL_ISA_STRING,
+    ZL_ISA_VECTOR,
+    ZL_ISA_PROC,
+    ZL_ISA__COUNT
+};
+enum { ZL_SCONV_FROM_NUMBER = 0, ZL_SCONV_FROM_BYTE, ZL_SCONV_TO_NUMBER, ZL_SCONV__COUNT };
 enum {
     ZL_DIALECT_LISP = 0,
     ZL_DIALECT_SCHEME,
@@ -284,6 +316,8 @@ typedef struct {
     int64_t frames[ZL_MAX_FRAMES]; /* frame cells: locals and parameters */
     uint32_t fbase[ZL_MAX_CALLS], fstat[ZL_MAX_CALLS], fsize[ZL_MAX_CALLS]; /* per frame */
     int64_t heap[2 * ZL_MAX_CELLS]; /* pair k: car heap[2k], cdr heap[2k+1]; k >= 1 */
+    int64_t blk[ZL_MAX_BLK]; /* block at o >= 1: blk[o] = length << 2 | kind, then its cells */
+    uint32_t hpc[ZL_MAX_CALLS], hsp[ZL_MAX_CALLS], hrp[ZL_MAX_CALLS], hfd[ZL_MAX_CALLS]; /* CATCH */
 } zl_run_t;
 
 /* Run a program that passed zl_verify. Returns ZL_OK on HALT/END/STOP, or

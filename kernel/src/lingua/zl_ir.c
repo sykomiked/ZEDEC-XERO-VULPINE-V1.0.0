@@ -244,6 +244,8 @@ const char *zl_status_name(int s)
         return "argument outside the domain";
     case ZL_E_HEAP:
         return "list cells exhausted";
+    case ZL_E_THROW:
+        return "exception not caught";
     default:
         return "unknown status";
     }
@@ -316,7 +318,9 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
                 return vfail(d, i->line, "constant wider than the word");
             if (p->word_bits == 62 && (i->a <= -ZL_V_REF || i->a >= ZL_V_REF) && i->a != ZL_V_NIL &&
                 i->a != ZL_V_TRUE && i->a != ZL_V_FALSE &&
-                (i->a < ZL_V_SYM || i->a >= ZL_V_SYM + (int64_t) p->nstr))
+                (i->a < ZL_V_SYM || i->a >= ZL_V_SYM + (int64_t) p->nstr) &&
+                (i->a < ZL_V_STRC || i->a >= ZL_V_STRC + (int64_t) p->nstr) &&
+                (i->a < ZL_V_CODE || i->a >= ZL_V_CODE + (int64_t) p->ncode))
                 return vfail(d, i->line, "constant is neither a number nor a known value");
             break;
         case ZL_ENTER:
@@ -335,6 +339,10 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
         case ZL_BOUND:
             if (i->a <= 0) return vfail(d, i->line, "bad bound");
             break;
+        case ZL_CATCH:
+            if (i->a < 0 || i->a >= (int64_t) p->ncode)
+                return vfail(d, i->line, "jump target out of range");
+            break;
         case ZL_CONS:
         case ZL_CAR:
         case ZL_CDR:
@@ -342,8 +350,21 @@ int zl_verify(const zl_prog_t *p, zl_diag_t *d)
         case ZL_SETCDR:
         case ZL_ISA:
         case ZL_OUTV:
+        case ZL_VNEW:
+        case ZL_VLEN:
+        case ZL_VREF:
+        case ZL_VSET:
+        case ZL_SCAT:
+        case ZL_SSUB:
+        case ZL_SCMP:
+        case ZL_SCONV:
+        case ZL_CALLI:
             if (p->word_bits != 62)
                 return vfail(d, i->line, "list operation outside a list program");
+            if (i->op == ZL_SCONV && (i->a < 0 || i->a >= ZL_SCONV__COUNT))
+                return vfail(d, i->line, "bad string conversion");
+            if (i->op == ZL_OUTV && i->b != 0 && i->b != 1)
+                return vfail(d, i->line, "bad print quoting");
             if ((i->op == ZL_CAR || i->op == ZL_CDR) && i->a != 0 && i->a != 1)
                 return vfail(d, i->line, "bad CAR/CDR mode");
             if (i->op == ZL_ISA && (i->a < 0 || i->a >= ZL_ISA__COUNT))
@@ -472,11 +493,47 @@ static int put_cstr(vm_out_t *o, const char *t)
     return vm_put(o, t, n);
 }
 
-/* A value that is not a pair. bare: the empty list at the top of a Logo
- * PRINT, which prints nothing. */
-static int print_atom(vm_out_t *o, const zl_prog_t *p, int64_t v, int dialect, int bare)
+/* The heaps a value may point into. */
+typedef struct {
+    const int64_t *heap, *blk;
+    uint32_t hp, bp;
+} vm_heaps_t;
+
+/* A block's offset when v is a vector (kind 1) or a string (kind 2) made at
+ * run time; 0 otherwise. References are only ever made by the runtime, so
+ * an offset below bp is always a block's start. */
+static uint32_t blk_of(int64_t v, const vm_heaps_t *h, int kind)
+{
+    if (v < ZL_V_BLK || v >= ZL_V_BLK + (int64_t) h->bp) return 0;
+    uint32_t o = (uint32_t) (v - ZL_V_BLK);
+    return (h->blk[o] & 3) == kind ? o : 0;
+}
+
+/* A string's bytes and length, from a literal or a block; 0 if v is not one. */
+static int str_of(int64_t v, const zl_prog_t *p, const vm_heaps_t *h, const char **s, uint32_t *n)
+{
+    if (v >= ZL_V_STRC && v < ZL_V_STRC + (int64_t) p->nstr) {
+        uint32_t i = (uint32_t) (v - ZL_V_STRC);
+        *s = p->str + p->str_off[i];
+        *n = p->str_len[i];
+        return 1;
+    }
+    uint32_t o = blk_of(v, h, 2);
+    if (!o) return 0;
+    *s = (const char *) &h->blk[o + 1];
+    *n = (uint32_t) (h->blk[o] >> 2);
+    return 1;
+}
+
+/* A value that is neither a pair nor a vector. bare: the empty list at the
+ * top of a Logo PRINT, which prints nothing; quote: strings in quotes. */
+static int print_atom(vm_out_t *o, const zl_prog_t *p, const vm_heaps_t *h, int64_t v, int dialect,
+                      int bare, int quote)
 {
     char num[24];
+    const char *sp;
+    uint32_t sn;
+    int s;
     if (v > -ZL_V_REF && v < ZL_V_REF) { /* a printed number joins the trace, as OUTI's do */
         zl_trace_t *t = o->r->trace;
         if (t && t->n < t->cap) t->v[t->n++] = v;
@@ -497,42 +554,77 @@ static int print_atom(vm_out_t *o, const zl_prog_t *p, int64_t v, int dialect, i
         uint32_t i = (uint32_t) (v - ZL_V_SYM);
         return vm_put(o, p->str + p->str_off[i], p->str_len[i]);
     }
-    return ZL_E_DOMAIN; /* a dangling reference cannot be printed */
+    if (str_of(v, p, h, &sp, &sn)) {
+        if (!quote) return vm_put(o, sp, sn);
+        if ((s = vm_put(o, "\"", 1)) != ZL_OK) return s;
+        for (uint32_t i = 0; i < sn; i++) {
+            if ((sp[i] == '"' || sp[i] == '\\') && (s = vm_put(o, "\\", 1)) != ZL_OK) return s;
+            if ((s = vm_put(o, sp + i, 1)) != ZL_OK) return s;
+        }
+        return vm_put(o, "\"", 1);
+    }
+    return ZL_E_DOMAIN; /* a procedure has no printed form */
 }
 
-/* ZL_OUTV: print a value in a dialect's notation. Lists print without
- * recursion: todo holds the rest of each list still open. A Logo PRINT
- * leaves out the outermost brackets; a cycle runs into the output cap. */
-static int print_value(vm_out_t *o, const zl_prog_t *p, const int64_t *heap, uint32_t hp, int64_t v,
-                       int dialect)
+/* ZL_OUTV: print a value in a dialect's notation. Lists and vectors print
+ * without recursion: todo holds, for each one still open, the rest of the
+ * list (i < 0) or the vector and its next index. A Logo PRINT leaves out the
+ * outermost list brackets; a cycle runs into the output cap. */
+static int print_value(vm_out_t *o, const zl_prog_t *p, const vm_heaps_t *h, int64_t v, int dialect,
+                       int quote)
 {
-    int64_t todo[ZL_MAX_STACK];
-    uint32_t depth = 0;
+    struct {
+        int64_t v, i;
+    } todo[ZL_MAX_STACK];
+    uint32_t depth = 0, k;
     int bare = dialect == ZL_DIALECT_LOGO, logo = dialect >= ZL_DIALECT_LOGO, s;
     const char *open = logo ? "[" : "(", *close = logo ? "]" : ")";
+    const char *vopen = logo ? "{" : "#(", *vclose = logo ? "}" : ")";
     for (;;) {
-        uint32_t k = pair_of(v, hp);
-        if (k) {
+        if ((k = pair_of(v, h->hp)) != 0) {
             if (depth >= ZL_MAX_STACK) return ZL_E_DOMAIN;
             if (!(bare && depth == 0) && (s = vm_put(o, open, 1)) != ZL_OK) return s;
-            todo[depth++] = heap[2 * k + 1];
-            v = heap[2 * k];
+            todo[depth].v = h->heap[2 * k + 1];
+            todo[depth++].i = -1;
+            v = h->heap[2 * k];
             continue;
         }
-        if ((s = print_atom(o, p, v, dialect, bare && depth == 0)) != ZL_OK) return s;
+        if ((k = blk_of(v, h, 1)) != 0) {
+            if (depth >= ZL_MAX_STACK) return ZL_E_DOMAIN;
+            if ((s = put_cstr(o, vopen)) != ZL_OK) return s;
+            if (h->blk[k] >> 2) {
+                todo[depth].v = v;
+                todo[depth++].i = 1;
+                v = h->blk[k + 1];
+                continue;
+            }
+            if ((s = put_cstr(o, vclose)) != ZL_OK) return s;
+        } else if ((s = print_atom(o, p, h, v, dialect, bare && depth == 0, quote)) != ZL_OK)
+            return s;
         for (;;) {
             if (!depth) return ZL_OK;
-            int64_t rest = todo[depth - 1];
-            if ((k = pair_of(rest, hp)) != 0) {
+            int64_t rest = todo[depth - 1].v;
+            if (todo[depth - 1].i >= 0) { /* inside a vector */
+                uint32_t b = (uint32_t) (rest - ZL_V_BLK);
+                if (todo[depth - 1].i < h->blk[b] >> 2) {
+                    if ((s = vm_put(o, " ", 1)) != ZL_OK) return s;
+                    v = h->blk[b + 1 + todo[depth - 1].i++];
+                    break;
+                }
+                depth--;
+                if ((s = put_cstr(o, vclose)) != ZL_OK) return s;
+                continue;
+            }
+            if ((k = pair_of(rest, h->hp)) != 0) {
                 if ((s = vm_put(o, " ", 1)) != ZL_OK) return s;
-                todo[depth - 1] = heap[2 * k + 1];
-                v = heap[2 * k];
+                todo[depth - 1].v = h->heap[2 * k + 1];
+                v = h->heap[2 * k];
                 break;
             }
             if (rest != ZL_V_NIL) { /* a dotted pair */
                 if (logo) return ZL_E_DOMAIN;
                 if ((s = vm_put(o, " . ", 3)) != ZL_OK) return s;
-                todo[depth - 1] = ZL_V_NIL;
+                todo[depth - 1].v = ZL_V_NIL;
                 v = rest;
                 break;
             }
@@ -598,6 +690,9 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
     int64_t *st = r->stack, *mem = r->mem, *fr = r->frames, *heap = r->heap;
     uint32_t *rs = r->rstack;
     uint32_t fd = 0, ftop = 0, hp = 1; /* frame depth, first free frame cell, next pair */
+    uint32_t bp = 1, nh = 0;           /* next free block cell, active CATCHes */
+    int64_t *blk = r->blk;
+    vm_heaps_t hs;
     for (uint32_t i = 0; i < p->nslots; i++) mem[i] = 0;
     r->fbase[0] = r->fstat[0] = r->fsize[0] = 0; /* the main program's empty frame */
     if (r->preload) {
@@ -1093,8 +1188,22 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
             case ZL_ISA_NULL:
                 z = x == ZL_V_NIL;
                 break;
-            default:
+            case ZL_ISA_SYMBOL:
                 z = x >= ZL_V_SYM && x < ZL_V_SYM + (int64_t) p->nstr;
+                break;
+            case ZL_ISA_STRING: {
+                const char *sp1;
+                uint32_t sn1;
+                hs = (vm_heaps_t){heap, blk, hp, bp};
+                z = str_of(x, p, &hs, &sp1, &sn1);
+                break;
+            }
+            case ZL_ISA_VECTOR:
+                hs = (vm_heaps_t){heap, blk, hp, bp};
+                z = blk_of(x, &hs, 1) != 0;
+                break;
+            default:
+                z = x >= ZL_V_CODE && x < ZL_V_CODE + (int64_t) p->ncode;
                 break;
             }
             st[sp - 1] = z;
@@ -1102,7 +1211,228 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
         case ZL_OUTV:
             NEED(1);
             x = st[--sp];
-            if ((s = print_value(&o, p, heap, hp, x, (int) in->a)) != ZL_OK) goto trap;
+            hs = (vm_heaps_t){heap, blk, hp, bp};
+            if ((s = print_value(&o, p, &hs, x, (int) in->a, (int) in->b)) != ZL_OK) goto trap;
+            break;
+        case ZL_VNEW:
+            NEED(1);
+            x = st[sp - 1];
+            if (!NUM(x) || x < 0) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (x >= (int64_t) (ZL_MAX_BLK - bp)) {
+                s = ZL_E_HEAP;
+                goto trap;
+            }
+            blk[bp] = x << 2 | 1;
+            for (int64_t i = 1; i <= x; i++) blk[bp + i] = 0;
+            st[sp - 1] = ZL_V_BLK + bp;
+            bp += 1 + (uint32_t) x;
+            break;
+        case ZL_VLEN:
+        case ZL_VREF: {
+            const char *sp1;
+            uint32_t sn1, b;
+            int64_t len;
+            NEED(in->op == ZL_VLEN ? 1 : 2);
+            y = in->op == ZL_VREF ? st[--sp] : 0; /* the index */
+            x = st[sp - 1];
+            hs = (vm_heaps_t){heap, blk, hp, bp};
+            int str = str_of(x, p, &hs, &sp1, &sn1);
+            b = str ? 0 : blk_of(x, &hs, 1);
+            if (!str && !b) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            len = str ? (int64_t) sn1 : blk[b] >> 2;
+            if (in->op == ZL_VLEN) {
+                st[sp - 1] = len;
+                break;
+            }
+            if (!NUM(y) || y < 0 || y >= len) {
+                s = ZL_E_BOUNDS;
+                goto trap;
+            }
+            st[sp - 1] = str ? (int64_t) (unsigned char) sp1[y] : blk[b + 1 + y];
+            break;
+        }
+        case ZL_VSET: {
+            NEED(3);
+            hs = (vm_heaps_t){heap, blk, hp, bp};
+            uint32_t b = blk_of(st[sp - 3], &hs, 1);
+            y = st[sp - 2];
+            if (!b) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (!NUM(y) || y < 0 || y >= blk[b] >> 2) {
+                s = ZL_E_BOUNDS;
+                goto trap;
+            }
+            blk[b + 1 + y] = st[sp - 1];
+            sp -= 3;
+            break;
+        }
+        case ZL_SCAT:
+        case ZL_SSUB:
+        case ZL_SCMP: {
+            const char *a1, *a2 = 0;
+            uint32_t n1, n2 = 0;
+            int64_t from = 0, cnt = 0;
+            uint32_t need = in->op == ZL_SSUB ? 3 : 2;
+            NEED(need);
+            hs = (vm_heaps_t){heap, blk, hp, bp};
+            if (!str_of(st[sp - need], p, &hs, &a1, &n1) ||
+                (in->op != ZL_SSUB && !str_of(st[sp - 1], p, &hs, &a2, &n2))) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (in->op == ZL_SCMP) {
+                uint32_t m = n1 < n2 ? n1 : n2, i = 0;
+                while (i < m && a1[i] == a2[i]) i++;
+                z = i < m ? ((unsigned char) a1[i] < (unsigned char) a2[i] ? -1 : 1)
+                          : (n1 < n2 ? -1 : n1 > n2);
+                st[sp - 2] = z;
+                sp--;
+                break;
+            }
+            if (in->op == ZL_SSUB) {
+                from = st[sp - 2];
+                cnt = st[sp - 1];
+                if (!NUM(from) || !NUM(cnt) || from < 0 || cnt < 0 || from > n1 ||
+                    cnt > (int64_t) n1 - from) {
+                    s = ZL_E_BOUNDS;
+                    goto trap;
+                }
+                a1 += from;
+                n1 = (uint32_t) cnt;
+            }
+            uint64_t total = (uint64_t) n1 + n2, cells = (total + 7) / 8;
+            if (cells >= (uint64_t) (ZL_MAX_BLK - bp)) {
+                s = ZL_E_HEAP;
+                goto trap;
+            }
+            if (cells) blk[bp + cells] = 0; /* clear the last cell's padding */
+            blk[bp] = (int64_t) (total << 2 | 2);
+            char *d = (char *) &blk[bp + 1];
+            zl_bcopy(d, a1, n1);
+            zl_bcopy(d + n1, a2, n2);
+            sp -= need - 1;
+            st[sp - 1] = ZL_V_BLK + bp;
+            bp += 1 + (uint32_t) cells;
+            break;
+        }
+        case ZL_SCONV: {
+            char num[24];
+            const char *a1 = num;
+            uint32_t n1 = 0;
+            NEED(1);
+            x = st[sp - 1];
+            if (in->a == ZL_SCONV_TO_NUMBER) {
+                hs = (vm_heaps_t){heap, blk, hp, bp};
+                if (!str_of(x, p, &hs, &a1, &n1)) {
+                    s = ZL_E_DOMAIN;
+                    goto trap;
+                }
+                uint32_t i = n1 && (a1[0] == '-' || a1[0] == '+');
+                int neg = n1 && a1[0] == '-';
+                if (i == n1) {
+                    s = ZL_E_DOMAIN;
+                    goto trap;
+                }
+                z = 0;
+                for (; i < n1; i++) {
+                    if (a1[i] < '0' || a1[i] > '9') {
+                        s = ZL_E_DOMAIN;
+                        goto trap;
+                    }
+                    if (__builtin_mul_overflow(z, 10, &z) ||
+                        __builtin_add_overflow(z, neg ? -(a1[i] - '0') : a1[i] - '0', &z)) {
+                        s = ZL_E_OVERFLOW;
+                        goto trap;
+                    }
+                }
+                CHK(z);
+                st[sp - 1] = z;
+                break;
+            }
+            if (in->a == ZL_SCONV_FROM_NUMBER) {
+                if (!NUM(x)) {
+                    s = ZL_E_DOMAIN;
+                    goto trap;
+                }
+                n1 = (uint32_t) zl_itoa(x, num);
+            } else {
+                if (x < 0 || x > 255) {
+                    s = ZL_E_DOMAIN;
+                    goto trap;
+                }
+                num[0] = (char) x;
+                n1 = 1;
+            }
+            uint32_t cells = (n1 + 7) / 8;
+            if (cells >= ZL_MAX_BLK - bp) {
+                s = ZL_E_HEAP;
+                goto trap;
+            }
+            blk[bp] = (int64_t) n1 << 2 | 2;
+            blk[bp + cells] = 0;
+            zl_bcopy(&blk[bp + 1], a1, n1);
+            st[sp - 1] = ZL_V_BLK + bp;
+            bp += 1 + cells;
+            break;
+        }
+        case ZL_CALLI:
+            NEED(1);
+            x = st[--sp];
+            if (x < ZL_V_CODE || x >= ZL_V_CODE + (int64_t) p->ncode) {
+                s = ZL_E_DOMAIN;
+                goto trap;
+            }
+            if (rp >= ZL_MAX_CALLS) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            rs[rp++] = next;
+            next = (uint32_t) (x - ZL_V_CODE);
+            break;
+        case ZL_CATCH:
+            if (nh >= ZL_MAX_CALLS) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            r->hpc[nh] = (uint32_t) in->a;
+            r->hsp[nh] = sp;
+            r->hrp[nh] = rp;
+            r->hfd[nh++] = fd;
+            break;
+        case ZL_UNCATCH:
+            if (nh == 0) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            nh--;
+            break;
+        case ZL_THROW:
+            NEED(1);
+            x = st[--sp];
+            if (nh == 0) {
+                s = ZL_E_THROW;
+                goto trap;
+            }
+            nh--;
+            /* a handler whose procedure has returned is a front-end bug */
+            if (r->hsp[nh] > sp || r->hrp[nh] > rp || r->hfd[nh] > fd) {
+                s = ZL_E_RSTACK;
+                goto trap;
+            }
+            sp = r->hsp[nh];
+            rp = r->hrp[nh];
+            fd = r->hfd[nh];
+            ftop = r->fbase[fd] + r->fsize[fd];
+            st[sp++] = x; /* sp was at least one higher a moment ago */
+            next = r->hpc[nh];
             break;
         default:
             s = ZL_E_VERIFY;
