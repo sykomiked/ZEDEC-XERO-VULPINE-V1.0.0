@@ -2,8 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_zl.c — Lingua tests: every IR operation and trap, the verifier, the
  * three front-ends (accepted programs, refusals by name, run-time traps),
- * the twin round trip, golden outputs written by gfortran and gforth, and
- * one algorithm in three languages giving one trace.
+ * the twin round trip, golden outputs written by gfortran, gforth and fpc,
+ * and one algorithm in every language giving one trace.
  *
  * Usage: test_zl [golden-dir]   (default src/lingua/golden, run from kernel/) */
 #include <stdio.h>
@@ -1394,12 +1394,15 @@ static void test_golden(const char *dir)
         int lang;
     } g[] = {{"primes.f", ZL_LANG_FORTRAN},   {"collatz.f", ZL_LANG_FORTRAN},
              {"features.bas", ZL_LANG_BASIC}, {"collatz.bas", ZL_LANG_BASIC},
-             {"features.fs", ZL_LANG_FORTH},  {"collatz.fs", ZL_LANG_FORTH}};
+             {"features.fs", ZL_LANG_FORTH},  {"collatz.fs", ZL_LANG_FORTH},
+             {"primes.pas", ZL_LANG_PASCAL},  {"collatz.pas", ZL_LANG_PASCAL},
+             {"nesting.pas", ZL_LANG_PASCAL}, {"features.pas", ZL_LANG_PASCAL}};
     static char src[1 << 16], want[1 << 16];
     char path[512];
-    int64_t traces[3][64];
-    size_t tn[3] = {0, 0, 0};
-    int ti = 0;
+    enum { NTRACE = 16 };
+    static int64_t traces[NTRACE][64];
+    size_t tn[NTRACE] = {0};
+    int ti = 0, ncollatz = 0;
     for (size_t i = 0; i < sizeof g / sizeof g[0]; i++) {
         snprintf(path, sizeof path, "%s/%s", dir, g[i].name);
         size_t n = slurp(path, src, sizeof src);
@@ -1413,8 +1416,9 @@ static void test_golden(const char *dir)
         CHECK(s == ZL_OK, "%s compiles: %s line %u: %s", g[i].name, zl_status_name(s), d.line,
               d.msg);
         if (s) continue;
-        int is_collatz = strncmp(g[i].name, "collatz", 7) == 0;
-        zl_trace_t t = {traces[ti], 64, 0};
+        int is_collatz = strncmp(g[i].name, "collatz", 7) == 0 && ti < NTRACE;
+        ncollatz += strncmp(g[i].name, "collatz", 7) == 0;
+        zl_trace_t t = {traces[ti < NTRACE ? ti : 0], 64, 0};
         memset(&R, 0, sizeof R);
         R.out = out;
         R.out_cap = sizeof out;
@@ -1426,14 +1430,14 @@ static void test_golden(const char *dir)
         twin_props(g[i].lang, src, n, g[i].name);
         if (is_collatz) tn[ti++] = t.n;
     }
-    /* one algorithm, three languages, one sequence of numbers */
-    CHECK(ti == 3 && tn[0] == 40 && tn[0] == tn[1] && tn[1] == tn[2],
-          "collatz traces have one length (%zu %zu %zu)", tn[0], tn[1], tn[2]);
-    if (ti == 3)
-        for (size_t k = 0; k < tn[0]; k++)
-            CHECK(traces[0][k] == traces[1][k] && traces[1][k] == traces[2][k],
-                  "collatz trace %zu: %lld %lld %lld", k, (long long) traces[0][k],
-                  (long long) traces[1][k], (long long) traces[2][k]);
+    /* one algorithm, every language, one sequence of numbers */
+    CHECK(ti >= 4 && ti == ncollatz, "every collatz golden ran (%d of %d)", ti, ncollatz);
+    for (int j = 0; j < ti; j++) {
+        CHECK(tn[j] == 40, "collatz trace %d has 40 numbers (%zu)", j, tn[j]);
+        for (size_t k = 0; j > 0 && k < tn[0] && k < tn[j]; k++)
+            CHECK(traces[0][k] == traces[j][k], "collatz trace %d, number %zu: %lld, first %lld", j,
+                  k, (long long) traces[j][k], (long long) traces[0][k]);
+    }
 }
 
 /* ------------------------------------------------------------ precompiled */

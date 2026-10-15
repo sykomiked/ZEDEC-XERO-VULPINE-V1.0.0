@@ -18,6 +18,7 @@ caller passes every buffer (`zl_work_t`, `zl_prog_t`, `zl_run_t`).
 | FORTRAN 77 | `zl_fortran.c` | fixed form, `INTEGER`, arrays, `PARAMETER`, `DO`/`DO WHILE`, block and logical and arithmetic `IF`, computed `GO TO`, `PRINT *`/`WRITE (*,*)`/`READ *`, intrinsics `MOD ABS IABS MAX MIN ISIGN`; 32-bit | gfortran | Reckonwyrm |
 | Minimal BASIC (ECMA-55) | `zl_basic.c` | integer values, exact `/`, `INT`, `DIM`, `OPTION BASE`, `FOR`/`NEXT`, `GOSUB`, `ON GOTO`, `READ`/`DATA`/`RESTORE`, `INPUT`, `DEF FN`, print zones; 32-bit | none maintained; goldens reviewed by hand | Hatchling |
 | Forth-2012 core | `zl_forth.c` | definitions, `IF`/`ELSE`, `DO`/`LOOP`/`+LOOP`/`LEAVE`, `BEGIN` loops, `RECURSE`, `VARIABLE`/`CONSTANT`/`CREATE`/`ALLOT`, `."`, floored division, 64-bit cells | gforth | Cairndrake |
+| ISO 7185 Pascal | `zl_pascal.c` | `integer` and `boolean`, `const`, one-dimensional arrays with any bounds, nested procedures and functions with value and `var` parameters and recursion, `if`/`while`/`repeat`/`for`/`case`, `div` and ISO `mod`, short-circuit `and`/`or`, `abs sqr odd succ pred ord maxint`, `write`/`writeln` with field widths, `read`/`readln`; 32-bit as `fpc -Miso` | fpc -Miso (goldens and `gen_pascal.c`) | Tutordrake |
 
 Anything else in a language is refused with `ZL_E_UNSUPPORTED` and the line
 and column; nothing is guessed.

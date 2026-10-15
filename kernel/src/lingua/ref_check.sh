@@ -74,5 +74,5 @@ for f in $G/*; do
     "$d/zxlang" check "$f" > /dev/null || { echo "[FAIL] twin round trip $f"; fail=1; }
 done
 rm -rf "$d"
-[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to gfortran/gforth; twins round-trip)"
+[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to gfortran/gforth/fpc; twins round-trip)"
 exit $fail
