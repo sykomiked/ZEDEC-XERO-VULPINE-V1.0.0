@@ -170,16 +170,20 @@ fans at low speed; the 0.5 kW compressor only starts on hot days. Target:
 
 ### 2.7 Finish and livery
 
-The shells wear the ZXV identity: **forest night `#002911`** with
-**gold** trim and the gold mark on the door. A dark colour in full sun
+The shells wear the standard ZXV design of [../HARDENING.md](../HARDENING.md)
+section 6.5: a clear door behind a **forest night `#002911`** honeycomb
+grille with the backlit **ILLUMAHEART FOUNDATION** emblem at its centre,
+and the walls in the same colour. A dark colour in full sun
 absorbs most of the sunlight that hits it, which would add hundreds of
 watts of solar gain. The finish is therefore a **cool-pigment powder coat**:
 infrared-reflective pigments that show the forest-night colour to the eye
 while reflecting much of the near-infrared half of sunlight. Target total
 solar reflectance ≥ 0.35 at the `#002911` colour [R&D: measure a sample;
 if not reached, outdoor shells get a ventilated sun shield in the same
-colour, which removes most of the solar gain]. Gold trim is anodised
-aluminium (not paint), so it does not chalk in sun or salt.
+colour, which removes most of the solar gain]. The door window is
+double-glazed with the insulation's U-value kept (an insulated glass unit
+with the shield mesh in the laminate), so the clear door does not become
+the shell's cold or hot spot [R&D].
 
 ## 3. Platform
 
