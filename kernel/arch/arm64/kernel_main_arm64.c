@@ -3957,10 +3957,18 @@ void kernel_shell_exec(const char *line) {
         return;
     }
     /* run <name> — load a program from ZXVFS and launch it at EL0.
-     * A `.zsp` package is Ed25519-verified against the compiled-in root
-     * key BEFORE any byte is executed (integrity + authenticity). A raw
-     * `.elf` is still accepted for development but flagged UNSIGNED. The
-     * new process is created READY; the preemptive scheduler dispatches
+     *
+     * What the loader knows decides what the program gets (BAREMETAL_OS_GAPS
+     * gap 8), never the file name:
+     *   ZSP2  signature, arch and key-id checked by zsp_verify2. The signed
+     *         caps field is the release signer's grant: nonzero = exactly
+     *         those CAP_* bits (an unknown bit refuses the package: it claims
+     *         an effect this kernel cannot confine); zero = not declared,
+     *         least privilege.
+     *   ZSP1  signature checked, but version, arch and caps are not bound by
+     *         it (NEITHER): runs at least privilege, and says so.
+     *   ELF   no author at all (FALSE): refused (G7).
+     * The new process is created READY; the preemptive scheduler dispatches
      * it on the next tick, alongside the shell. */
     if (line[0]=='r' && line[1]=='u' && line[2]=='n' && line[3]==' ') {
         if (!g_zxvfs_ready) { uart_puts("run: no persistent disk\r\n"); return; }
@@ -3976,22 +3984,46 @@ void kernel_shell_exec(const char *line) {
 
         const uint8_t *image = filebuf;
         uint32_t image_len = (uint32_t)n;
+        uint32_t caps = CAP_APP_DEFAULT;
 
-        /* Detect a signed package by magic and REQUIRE verification. */
-        bool is_zsp = (n >= ZSP_HEADER_LEN &&
-                       filebuf[0]==ZSP_MAGIC0 && filebuf[1]==ZSP_MAGIC1 &&
-                       filebuf[2]==ZSP_MAGIC2 && filebuf[3]==ZSP_MAGIC3);
-        if (is_zsp) {
-            const uint8_t *payload; uint32_t plen;
-            zsp_result_t vr = zsp_verify(filebuf, (uint32_t)n,
-                                         hello_root_pubkey, &payload, &plen);
+        bool is_zsp = (n >= ZSP_HEADER_LEN && filebuf[0] == ZSP_MAGIC0 &&
+                       filebuf[1] == ZSP_MAGIC1 && filebuf[2] == ZSP_MAGIC2);
+        if (is_zsp && filebuf[3] == ZSP2_MAGIC3) {
+            const uint8_t *payload;
+            uint32_t plen;
+            zsp_meta_t meta;
+            zsp_result_t vr = zsp_verify2(filebuf, (uint32_t) n, hello_root_pubkey, 0,
+                                          ZSP_ARCH_ARM64, &meta, &payload, &plen);
             if (vr != ZSP_OK) {
                 uart_puts("run: SIGNATURE REJECTED — ");
                 uart_puts(zsp_strerror(vr));
                 uart_puts(" — refusing to execute\r\n");
                 return;
             }
-            uart_puts("run: signature verified against root key (Ed25519)\r\n");
+            if (meta.caps & ~CAP_TRUSTED_ALL) {
+                uart_puts("run: REFUSED — signed caps name an effect this kernel cannot "
+                          "confine\r\n");
+                return;
+            }
+            if (meta.caps) caps = meta.caps;
+            uart_puts("run: ZSP2 verified (Ed25519, arch, key-id); caps=");
+            uart_put_hex((uint64_t) caps);
+            uart_puts(meta.caps ? " from the signed header\r\n"
+                                : " (none declared: least privilege)\r\n");
+            image = payload;
+            image_len = plen;
+        } else if (is_zsp && filebuf[3] == ZSP_MAGIC3) {
+            const uint8_t *payload;
+            uint32_t plen;
+            zsp_result_t vr = zsp_verify(filebuf, (uint32_t) n, hello_root_pubkey, &payload, &plen);
+            if (vr != ZSP_OK) {
+                uart_puts("run: SIGNATURE REJECTED — ");
+                uart_puts(zsp_strerror(vr));
+                uart_puts(" — refusing to execute\r\n");
+                return;
+            }
+            uart_puts("run: ZSP1 signature verified; version, arch and caps unbound: least "
+                      "privilege\r\n");
             image = payload;
             image_len = plen;
         } else {
@@ -4004,7 +4036,7 @@ void kernel_shell_exec(const char *line) {
         extern proc_scheduler_t *el0_get_scheduler(void);
         proc_scheduler_t *sch = el0_get_scheduler();
         if (!sch) { uart_puts("run: no EL0 scheduler\r\n"); return; }
-        int32_t pid = proc_create_from_elf(sch, name, image, image_len);
+        int32_t pid = proc_create_from_elf_caps(sch, name, image, image_len, caps);
         if (pid < 0) {
             uart_puts("run: load failed\r\n");
         } else {

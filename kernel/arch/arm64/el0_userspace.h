@@ -201,6 +201,11 @@ int32_t proc_create(proc_scheduler_t *ps, const char *name,
 int32_t proc_create_from_elf(proc_scheduler_t *ps, const char *name,
                              const uint8_t *image, uint32_t len);
 
+/* The same with the capabilities the loader decided (CAP_* bits, at most
+ * CAP_TRUSTED_ALL): proc_create_from_elf passes CAP_APP_DEFAULT. */
+int32_t proc_create_from_elf_caps(proc_scheduler_t *ps, const char *name, const uint8_t *image,
+                                  uint32_t len, uint32_t caps);
+
 /* copy_from_user safety: validate that [va, va+len) is fully mapped and
  * EL0-accessible in `proc`, and (copy_from_user) copy it into a kernel
  * buffer. Any syscall that dereferences a user pointer must gate on

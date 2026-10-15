@@ -63,7 +63,7 @@ with the evidence.
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
 | 6 | x86_64 process runtime: LAPIC timer, scheduler, context switch, x86 ELF, FP save | **done** (IDT + LAPIC, PIT-calibrated LAPIC timer, preemptive round robin, FXSAVE per process, x86 ELF64 loader, a ring-3 fault ends only its process; CI requires `[SCHED_OK]`); IOAPIC routing, XSAVE/AVX state, SMP next | L | kernel_core #4, #9 |
 | 7 | Syscall ABI 1.1: handles, pointer+length I/O, verdict register, correct error codes | partial | M | kernel_core #8 |
-| 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | live hole | S | userland_apps #5 |
+| 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | **fixed in this PR** (arm64): ZSP2 via `zsp_verify2`, caps from the signed header, ZSP1 at least privilege, unsigned refused outside dev builds; the rollback floor for apps and Immigration visas per tier remain | S | userland_apps #5 |
 | 9 | Root and data filesystems from disk; 64-bit block layer; partition discovery by type | missing | M | boot_storage #5-7, #11 |
 | 10 | Golden disc v2 layout: ESP, boot control, signed system image, raw models partition, data | partial (one FAT32 partition) | M | boot_storage #8, D3 |
 | 11 | Service manager on bare metal | missing | M | boot_storage #9 |
@@ -187,9 +187,16 @@ Each wave ends in a serial marker the CI QEMU job checks.
   there), plus two checks the map cannot make: the staged kernel and
   trampoline must lie outside the window, and the handoff page must not
   hold the stub. CI's UEFI boot requires `[HANDOFF_OK]` on both arches.
-  arm64's own 232 MB BSS window is next to move, as x86's was.
-- Next: power-off (#15); `lpres_hex` linked into both images; loader
-  hardening (#8, with the Security thread).
+
+- Loader hardening (#8): `run` now trusts what the package proves. ZSP2 goes
+  through `zsp_verify2` (signature, arch, key-id) and the signed caps field
+  is the grant (an unknown bit refuses the package); ZSP1 is verified but
+  unbound, so it runs at least privilege; a bare ELF has no author and is
+  refused unless the kernel is built with `ZXV_DEV_UNSIGNED`. The seeded
+  hello.zsp is ZSP1 until the owner re-signs it as ZSP2 (the root key is
+  not in the repo).
+- Next: arm64's 232 MB BSS window onto map memory; power-off (#15);
+  `lpres_hex` linked into both images; an app rollback floor.
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),
 the x86 process runtime (#6), ABI 1.1 with verdicts (#7), loading apps from
