@@ -43,6 +43,9 @@
 
 #define ZUI_MTL_RING 512u
 
+extern const zui_present_ops_t zui_present_metal_ops;
+void *zui_present_metal_window(const zui_present_t *p);
+
 /* ---- state --------------------------------------------------------------- */
 
 @class ZuiMetalState;
@@ -668,8 +671,14 @@ static int mtl_open(zui_present_t *p, const char *title, int32_t w_pt, int32_t h
         static BOOL launched;
         [NSApplication sharedApplication];
         if (!launched) {
-            [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-            [NSApp finishLaunching];
+            /* A program that only polls (tools/zui/zui_window.c) launches
+             * NSApp here. An AppKit app that runs [NSApp run] itself
+             * (macos/ZXVApp.m) has already launched it: finishing again
+             * would post its did-finish-launching a second time. */
+            if (![NSApp isRunning]) {
+                [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+                [NSApp finishLaunching];
+            }
             launched = YES;
         }
 
@@ -810,6 +819,13 @@ static uint32_t mtl_now_ms(zui_present_t *p)
 {
     (void) p;
     return ms_of(now_s());
+}
+
+void *zui_present_metal_window(const zui_present_t *p)
+{
+    if (!p || !p->impl || p->ops != &zui_present_metal_ops) return NULL;
+    ZuiMetalState *st = (__bridge ZuiMetalState *) p->impl;
+    return (__bridge void *) st.window;
 }
 
 const zui_present_ops_t zui_present_metal_ops = {

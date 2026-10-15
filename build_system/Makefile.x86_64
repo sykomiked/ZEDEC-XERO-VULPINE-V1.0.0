@@ -183,6 +183,16 @@ SRCS := \
     kernel/src/denconnect/denconnect.c \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
+    kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/zui/zui_desk.c \
+    kernel/src/zui/zui_wm.c \
+    kernel/src/zui/zui_dock.c \
+    kernel/src/zui/zui_canvas.c \
+    kernel/src/zui/zui_progress.c \
+    kernel/src/zui/zui_motion.c \
+    kernel/src/zui/zui_input.c \
+    kernel/src/zui/zui_keymap.c \
+    kernel/src/zui/zui_layout.c \
     kernel/src/dual_space/dual_space.c \
     kernel/src/dualtrack/dualtrack.c \
     kernel/src/edp_risk/edp_risk.c \

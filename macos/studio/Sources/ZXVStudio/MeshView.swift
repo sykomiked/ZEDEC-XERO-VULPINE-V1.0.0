@@ -70,7 +70,7 @@ struct MeshView: View {
             KV(key: "Handshake", value: "ML-KEM-1024 + ML-DSA-87")
             Text("Full NodeID").font(Theme.caption).foregroundStyle(Theme.muted)
             Text((net?.id).flatMap { $0.isEmpty ? nil : $0 } ?? "The NodeID appears when the network is on.")
-                .font(.system(size: 12, design: .monospaced))
+                .font(Theme.mono(12))
                 .textSelection(.enabled)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -136,10 +136,10 @@ struct MeshView: View {
             ForEach(list) { p in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text(p.id).font(.system(size: 11, design: .monospaced)).foregroundStyle(Theme.gold)
+                        Text(p.id).font(Theme.mono(11)).foregroundStyle(Theme.gold)
                             .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                         Spacer()
-                        Text(p.addr.isEmpty ? "\u{2014}" : p.addr).font(.system(size: 12, design: .monospaced))
+                        Text(p.addr.isEmpty ? "\u{2014}" : p.addr).font(Theme.mono(12))
                     }
                     HStack(spacing: 12) {
                         Text("Seen " + (p.lastSeen.map { $0.formatted(date: .omitted, time: .standard) } ?? "\u{2014}"))
@@ -169,7 +169,7 @@ struct MeshView: View {
                     Text(l.result).foregroundStyle(l.ok ? Theme.text : Theme.warn)
                     Spacer()
                 }
-                .font(.system(size: 12, design: .monospaced))
+                .font(Theme.mono(12))
                 .padding(8)
                 .background(Theme.inset, in: RoundedRectangle(cornerRadius: 8))
             }
