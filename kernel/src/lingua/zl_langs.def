@@ -5,7 +5,7 @@
  * id: ZL_LANG_<id>; number: stable (it is written into .zlir files), dense
  * from 1; name: exactly as catalogue.tsv names it; twin: the dragon name of
  * its AI twin; front-end: zl_<front-end>.c defines
- * zl_<front-end>_compile (LISP and Scheme share one); extensions: what
+ * zl_<front-end>_compile (LISP and Scheme share one, ML and OCaml another); extensions: what
  * zxlang accepts, space-separated; runtime: the name an app manifest writes
  * (zxapp.h), the id in lower case except FORTRAN 77, whose "fortran" is the
  * Trebago pillar's. A front-end that is still a placeholder
@@ -23,7 +23,7 @@ ZL_LANG_X(MOJO, 9, "Mojo", "Forgewyrm", mojo, ".mojo", "mojo") /* front-end to b
 ZL_LANG_X(PROLOG, 10, "Prolog", "Riddlewyrm", prolog, ".pro .prolog", "prolog") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(TEX, 11, "TeX", "Typedrake", tex, ".tex", "tex") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(HASKELL, 12, "Haskell", "Purewyrm", haskell, ".hs", "haskell") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(ML, 13, "ML", "Proofdrake", ml, ".sml", "ml") /* Standard ML 97 integer and list subset as MLton runs it (1973 lineage) */
 ZL_LANG_X(ELIXIR, 14, "Elixir", "Flaskwyrm", elixir, ".ex .exs", "elixir") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(ERLANG, 15, "Erlang", "Switchwyrm", erlang, ".erl", "erlang") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(LABVIEW, 16, "LabVIEW", "Wiredrake", labview, ".vit", "labview") /* front-end to build: see LINGUA_SPEC.md */
@@ -36,7 +36,7 @@ ZL_LANG_X(BASH, 22, "Bash", "Shellwyrm", bash, ".bash", "bash") /* front-end to 
 ZL_LANG_X(BOURNE, 23, "Bourne shell", "Brookdrake", bourne, ".sh", "bourne") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(JCL, 24, "JCL", "Jobwyrm", jcl, ".jcl", "jcl") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(JULIA, 25, "Julia", "Tallydrake", julia, ".jl", "julia") /* front-end to build: see LINGUA_SPEC.md */
-ZL_LANG_X(OCAML, 26, "OCaml", "Variantwyrm", ocaml, ".ml", "ocaml") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(OCAML, 26, "OCaml", "Variantwyrm", ml, ".ml", "ocaml") /* OCaml 4.14 integer and list subset, shares zl_ml.c with ML (1996) */
 ZL_LANG_X(OCCAM, 27, "Occam", "Razorwyrm", occam, ".occ", "occam") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(MATLAB, 28, "MATLAB", "Matrixdrake", matlab, ".m", "matlab") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(POSTSCRIPT, 29, "PostScript", "Pagewyrm", postscript, ".ps", "postscript") /* front-end to build: see LINGUA_SPEC.md */
