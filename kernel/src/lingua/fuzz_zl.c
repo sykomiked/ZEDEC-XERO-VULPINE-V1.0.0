@@ -95,6 +95,17 @@ static const char *const seeds[] = {
     "let h x y = match x, y with 0, _ -> min y 2 | a, b when a < b -> max a 7 * b | _ -> -x\n"
     "let () = print_int (h 1 2); print_newline (); if h 0 5 > 1 then print_string \"big\"\n;;\n"
     "print_endline (string_of_int (let q, r = 17 / 5, 17 mod -5 in q * r))\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun k (n) (case n (0 'z) ((1 2) 'low) "
+    "(otherwise 'hi)))\n(print (list (k 0) (k 2) (k 9))) (print (first (rest *l*)))\n"
+    "(setf *l* (cddr *l*)) (format t \"~a ~d~%\" *l* (length *l*))\n",
+    "#lang racket\n;;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) "
+    "acc (f (sub1 n) (cons n acc))))\n(f 4 empty) (length l) (assv 2 (cddr l))\n"
+    "(let loop ([x 1]) (if (> x 9) x (loop (* x 2))))\n(printf \"~a ~s ~v~n\" (first l) 'q "
+    "(rest l))\n(define (w n) (when (> n 0) (displayln n) (w (- n 1))))\n(w 2) (cons? null)\n",
+    ";; fuzz seed\n(def l '(3 1 (2 nil) s))\n(defn f [n acc] (if (zero? n) acc (recur (dec n) "
+    "(conj acc n))))\n(println (f 4 nil) (count l) (first (next l)))\n(let [a 1, b (inc a)] "
+    "(prn \"x\" a b))\n(println (loop [x 1] (if (> x 9) x (recur (* x 2)))))\n(println (cond "
+    "(= 1 2) 'a :else (and 1 nil)) (or false 3))\n(dotimes [i 2] (print i \"\")) (newline)\n",
 };
 
 static const char *const dict[] = {

@@ -18,7 +18,15 @@
  * (dotimes / do), list construction and the list built-ins, a recursive
  * walk of a quoted list, and printing of numbers, lists and booleans.
  *
- * Usage: gen_lisp lisp|scm <seed>   (writes the program to stdout) */
+ * Modes: lisp and cl (Common Lisp: the same program, with case for if),
+ * scm and rkt (Racket: #lang racket, add1/sub1, brackets, no
+ * floor-quotient, and bare top-level values that racket prints itself),
+ * and clj (Clojure: def, defn, let and loop/recur with vectors, inc/dec,
+ * quot/rem/mod, first/rest/count, conj in place of append, and, as
+ * Clojure has no assignment here, statements that print in place of those
+ * that would assign a global).
+ *
+ * Usage: gen_lisp lisp|cl|scm|rkt|clj <seed>   (writes the program to stdout) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -79,6 +87,7 @@ enum {
     L_REV,
     L_APP,
     L_DATA,
+    L_CONJ, /* Clojure: (conj list int) */
 };
 
 typedef struct {
@@ -89,7 +98,7 @@ typedef struct {
 
 static node_t pool[NODES];
 static int npool, overflowed;
-static int scm;
+static int scm, rkt, cl, clj, bare; /* rkt implies scm; bare: a top-level Racket value */
 
 static long long val[SLOTS];
 static int nslots;
@@ -179,6 +188,7 @@ static int gen_list(int d, int fn)
     case 2:
         return mk(L_REV, gen_list(d - 1, fn), 0, 0, 0);
     case 3:
+        if (clj) return mk(L_CONJ, gen_list(d - 1, fn), gen_int(d, fn), 0, 0);
         return mk(L_APP, gen_list(d - 1, fn), gen_list(d - 1, fn), 0, 0);
     default:
         return mk(L_DATA, 0, 0, 0, 0);
@@ -351,6 +361,8 @@ static int eval_list(int n)
         return eval_list(p->a);
     case L_APP:
         return eval_list(p->a) && eval_list(p->b);
+    case L_CONJ:
+        return eval_list(p->a) && eval(p->b, &x) && add_width(x);
     default:
         for (int i = 0; i < NL; i++) add_width(data[i]);
         return 1;
@@ -362,7 +374,7 @@ static int eval_list(int n)
 static const char *gname(int g)
 {
     static char b[NG][8];
-    snprintf(b[g], sizeof b[g], scm ? "g%d" : "*g%d*", g);
+    snprintf(b[g], sizeof b[g], scm || clj ? "g%d" : "*g%d*", g);
     return b[g];
 }
 
@@ -380,6 +392,14 @@ static void ptest(int n)
     node_t *p = &pool[n];
     switch (p->k) {
     case T_NE:
+        if (clj) {
+            printf("(not= ");
+            pint(p->a);
+            printf(" ");
+            pint(p->b);
+            printf(")");
+            return;
+        }
         if (scm) {
             printf("(not (= ");
             pint(p->a);
@@ -401,7 +421,8 @@ static void ptest(int n)
         return;
     case T_EVEN:
     case T_ZERO:
-        printf("(%s ", p->k == T_EVEN ? (scm ? "even?" : "evenp") : (scm ? "zero?" : "zerop"));
+        printf("(%s ", p->k == T_EVEN ? (scm || clj ? "even?" : "evenp")
+                                      : (scm || clj ? "zero?" : "zerop"));
         pint(p->a);
         printf(")");
         return;
@@ -426,6 +447,8 @@ static void pint(int n)
                                       "floor", "mod", "max", "min"};
     static const char *const sop[] = {
         "+", "-", "*", "quotient", "remainder", "floor-quotient", "modulo", "max", "min"};
+    static const char *const jop[] = {"+", "-", "*", "quot", "rem", "", "mod", "max", "min"};
+    const char *const *ops = clj ? jop : scm ? sop : lop;
     switch (p->k) {
     case E_LIT:
         printf("%lld", p->v);
@@ -442,7 +465,19 @@ static void pint(int n)
     case E_FR:
     case E_MAX:
     case E_MIN:
-        printf("(%s ", (scm ? sop : lop)[p->k - E_ADD]);
+        if ((rkt || clj) && p->k == E_FQ) { /* no floor-quotient: (a - a mod b) / b */
+            printf(clj ? "(quot (- " : "(quotient (- ");
+            pint(p->a);
+            printf(clj ? " (mod " : " (modulo ");
+            pint(p->a);
+            printf(" ");
+            pint(p->b);
+            printf(")) ");
+            pint(p->b);
+            printf(")");
+            return;
+        }
+        printf("(%s ", ops[p->k - E_ADD]);
         pint(p->a);
         printf(" ");
         pint(p->b);
@@ -453,6 +488,10 @@ static void pint(int n)
     case E_DEC:
         if (p->k == E_ABS)
             printf("(abs ");
+        else if (clj)
+            printf("(%s ", p->k == E_INC ? "inc" : "dec");
+        else if (rkt)
+            printf("(%s ", p->k == E_INC ? "add1" : "sub1");
         else if (scm)
             printf("(%s ", p->k == E_INC ? "+ 1" : "+ -1");
         else
@@ -461,6 +500,16 @@ static void pint(int n)
         printf(")");
         return;
     case E_IF:
+        if (cl) { /* Common Lisp: a case on the test's 1 or 0 */
+            printf("(case (if ");
+            ptest(p->a);
+            printf(" 1 0) (1 ");
+            pint(p->b);
+            printf(") (otherwise ");
+            pint(p->c);
+            printf("))");
+            return;
+        }
         printf("(if ");
         ptest(p->a);
         printf(" ");
@@ -470,15 +519,25 @@ static void pint(int n)
         printf(")");
         return;
     case E_LET:
-        printf("(let ((%s ", sname[p->a]);
+        printf(clj ? "(let [%s " : rkt ? "(let ([%s " : "(let ((%s ", sname[p->a]);
         pint(p->b);
-        printf(")) ");
+        printf(clj ? "] " : rkt ? "]) " : ")) ");
         pint(p->c);
         printf(")");
         return;
     case E_LOOP: {
         const char *i = sname[p->a], *acc = sname[p->b], *lp = sname[p->a + 2];
-        if (scm)
+        if (clj) {
+            printf("(loop [%s 0 %s 0] (if (< %s %lld) (recur (inc %s) (+ %s ", i, acc, i, p->v, i,
+                   acc);
+            pint(p->c);
+            printf(")) %s))", acc);
+            return;
+        }
+        if (rkt)
+            printf("(let %s ([%s 0] [%s 0]) (if (< %s %lld) (%s (add1 %s) (+ %s ", lp, i, acc, i,
+                   p->v, lp, i, acc);
+        else if (scm)
             printf("(let %s ((%s 0) (%s 0)) (if (< %s %lld) (%s (+ %s 1) (+ %s ", lp, i, acc, i,
                    p->v, lp, i, acc);
         else
@@ -499,16 +558,16 @@ static void pint(int n)
         printf(")");
         return;
     case E_SUM:
-        printf("(sm %s)", scm ? "data" : "*data*");
+        printf("(sm %s)", scm || clj ? "data" : "*data*");
         return;
     case E_NTH:
-        printf("(car ");
-        for (long long i = 0; i < p->v; i++) printf("(cdr ");
-        printf("%s", scm ? "data" : "*data*");
+        printf(clj ? "(first " : "(car ");
+        for (long long i = 0; i < p->v; i++) printf(clj ? "(rest " : "(cdr ");
+        printf("%s", scm || clj ? "data" : "*data*");
         for (long long i = 0; i <= p->v; i++) printf(")");
         return;
     case E_LEN:
-        printf("(length (list ");
+        printf(clj ? "(count (list " : "(length (list ");
         pint(pool[p->a].a);
         printf(" ");
         pint(pool[p->a].b);
@@ -549,43 +608,60 @@ static void plist(int n)
         plist(p->b);
         printf(")");
         return;
+    case L_CONJ:
+        printf("(conj ");
+        plist(p->a);
+        printf(" ");
+        pint(p->b);
+        printf(")");
+        return;
     default:
-        printf("%s", scm ? "data" : "*data*");
+        printf("%s", scm || clj ? "data" : "*data*");
     }
 }
 
 static void out_open(void)
 {
-    printf(scm ? "(display " : "(print ");
+    printf(clj ? "(println " : rkt ? (bare ? "" : "(displayln ") : scm ? "(display " : "(print ");
 }
 
 static void out_close(void)
 {
-    printf(scm ? ") (newline)\n" : ")\n");
+    printf(clj ? ")\n" : rkt ? (bare ? "\n" : ")\n") : scm ? ") (newline)\n" : ")\n");
 }
 
 int main(int argc, char **argv)
 {
-    if (argc != 3 || (strcmp(argv[1], "lisp") && strcmp(argv[1], "scm"))) {
-        fprintf(stderr, "usage: gen_lisp lisp|scm <seed>\n");
+    if (argc != 3 || (strcmp(argv[1], "lisp") && strcmp(argv[1], "scm") && strcmp(argv[1], "cl") &&
+                      strcmp(argv[1], "rkt") && strcmp(argv[1], "clj"))) {
+        fprintf(stderr, "usage: gen_lisp lisp|cl|scm|rkt|clj <seed>\n");
         return 2;
     }
-    scm = argv[1][0] == 's';
+    rkt = !strcmp(argv[1], "rkt");
+    clj = !strcmp(argv[1], "clj");
+    cl = !strcmp(argv[1], "cl");
+    scm = argv[1][0] == 's' || rkt;
     rng = 0x9e3779b97f4a7c15ull ^ ((unsigned long long) strtoul(argv[2], 0, 10) * 2654435761ull);
     for (int i = 0; i < 4; i++) rnd(1);
+    if (rkt) printf("#lang racket\n");
     printf(";;; generated program, seed %s\n", argv[2]);
     for (int i = 0; i < NL; i++) data[i] = (long long) rnd(41) - 20;
-    printf(scm ? "(define data '(" : "(defvar *data* '(");
+    printf(clj ? "(def data '(" : scm ? "(define data '(" : "(defvar *data* '(");
     for (int i = 0; i < NL; i++) printf(i ? " %lld" : "%lld", data[i]);
     printf("))\n");
-    if (scm)
+    if (clj)
+        printf("(defn sm [l] (if (empty? l) 0 (+ (first l) (sm (rest l)))))\n");
+    else if (scm)
         printf("(define (sm l) (if (null? l) 0 (+ (car l) (sm (cdr l)))))\n");
     else
         printf("(defun sm (l) (if (null l) 0 (+ (car l) (sm (cdr l)))))\n");
     for (int g = 0; g < NG; g++) {
         gslot[g] = new_slot("g");
         val[gslot[g]] = (long long) rnd(19) - 9;
-        printf(scm ? "(define %s %lld)\n" : "(defvar %s %lld)\n", gname(g), val[gslot[g]]);
+        printf(clj   ? "(def %s %lld)\n"
+               : scm ? "(define %s %lld)\n"
+                     : "(defvar %s %lld)\n",
+               gname(g), val[gslot[g]]);
     }
     /* functions: each body uses its own parameters and may call earlier functions */
     for (int f = 0; f < NF; f++) {
@@ -614,8 +690,10 @@ int main(int argc, char **argv)
             }
         }
         nfn = f + 1;
-        printf(scm ? "(define (f%d %s %s) " : "(defun f%d (%s %s) ", f, sname[fparam[f][0]],
-               sname[fparam[f][1]]);
+        printf(clj   ? "(defn f%d [%s %s] "
+               : scm ? "(define (f%d %s %s) "
+                     : "(defun f%d (%s %s) ",
+               f, sname[fparam[f][0]], sname[fparam[f][1]]);
         pint(fbody[f]);
         printf(")\n");
     }
@@ -623,6 +701,7 @@ int main(int argc, char **argv)
     for (int st = 0; st < nst; st++) {
         int mark = npool, base = nslots;
         int kind = (int) rnd(7), e = 0, t = 0, g = (int) rnd(NG), k = (int) rnd(5);
+        if (clj && kind == 2) kind = 0; /* no assignment in Clojure: print instead */
         long long saved[NG], x = 0;
         int tv = 0, good = 0;
         for (int i = 0; i < NG; i++) saved[i] = val[gslot[i]];
@@ -659,7 +738,7 @@ int main(int argc, char **argv)
                 for (long long i = 0; i < k && good; i++) {
                     val[e] = i;
                     good = eval(t, &x) && ok(val[gslot[g]] + x);
-                    if (good) val[gslot[g]] += x;
+                    if (good && !clj) val[gslot[g]] += x; /* Clojure prints each value */
                 }
                 break;
             case 5: /* print a list */
@@ -675,9 +754,10 @@ int main(int argc, char **argv)
         if (!good || overflowed) {
             npool = mark;
             for (int i = 0; i < NG; i++) val[gslot[i]] = saved[i];
-            printf(scm ? "(display %d) (newline)\n" : "(print %d)\n", st);
+            printf(clj ? "(println %d)\n" : scm ? "(display %d) (newline)\n" : "(print %d)\n", st);
             continue;
         }
+        bare = rkt && (st & 1) == 0 && kind != 3; /* racket prints a bare value itself */
         switch (kind) {
         case 0:
         case 1:
@@ -696,9 +776,15 @@ int main(int argc, char **argv)
             printf(" ");
             out_open();
             pint(e);
-            printf(scm ? ") (newline))\n" : "))\n");
+            printf(scm && !rkt ? ") (newline))\n" : "))\n");
             break;
         case 4:
+            if (clj) {
+                printf("(dotimes [%s %d] (print ", sname[e], k);
+                pint(t);
+                printf(" \"\")) (newline)\n");
+                break;
+            }
             if (scm)
                 printf("(do ((%s 0 (+ %s 1))) ((= %s %d)) (set! %s (+ %s ", sname[e], sname[e],
                        sname[e], k, gname(g), gname(g));
@@ -719,8 +805,9 @@ int main(int argc, char **argv)
         }
         npool = mark; /* statements are printed; their trees are no longer needed */
     }
+    bare = rkt;
     out_open();
-    printf(scm ? "(list g0 g1 g2)" : "(list *g0* *g1* *g2*)");
+    printf(scm || clj ? "(list g0 g1 g2)" : "(list *g0* *g1* *g2*)");
     out_close();
     return 0;
 }
