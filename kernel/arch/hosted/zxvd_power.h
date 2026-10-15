@@ -32,8 +32,21 @@
  *   W6  power.status: the whole ledger as integer JSON (pw_render_json).
  *       power.top {kind: "app"|"agent"|"all" = "all", lifetime = false,
  *       n: 1..64 = 10}: the consumers by energy, highest first, each
- *       {id, kind, name, parent, uj, mw, source, lifetime_uj, cpu_ns};
- *       parent is null for none, uj and mw are the last settled interval.
+ *       {id, kind, name, parent, uj, mw, source, state, lifetime_uj,
+ *       cpu_ns}; parent is null for none, uj and mw are the last settled
+ *       interval. This is the per-engine view: an app is every process of
+ *       one executable on this machine, an agent is a model engine inside
+ *       zxvd (parent: zxvd's app). The figures come only from measurement
+ *       (power_ledger.h P2-P3): a meter's energy for the interval (RAPL,
+ *       the battery's drain, or macOS's per-process energy, which is
+ *       "metered"), split by CPU and GPU time ("attributed"); idle and
+ *       shared energy stays with the system consumer. state is the
+ *       source's lpres value (pw_source_truth): "true" (metered or
+ *       attributed), "both" (meters disagreed: the larger reading is
+ *       used), "neither" (no meter: nothing measured) or "false" (the
+ *       reading was rejected); uj and mw are null for "neither" and
+ *       "false", never an estimate. lifetime_uj sums the measured
+ *       intervals only.
  *   W7  power.budget {target: "device"|"app"|"agent", app: exe name (target
  *       "app"), agent: id (target "agent"), window_ms (0 clears), max_uj,
  *       strict = false}: sets the target's budget (pw_budget_set) and

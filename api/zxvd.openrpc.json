@@ -16040,7 +16040,7 @@
     },
     {
       "name": "power.status",
-      "summary": "The power ledger as integer JSON (docs/POWER.md): device and host, the last interval's total energy and power and where it came from, the battery, the posture and its token scale, the meters and every consumer (system, apps, agents). Always on (feature \"power\").",
+      "summary": "The power ledger as integer JSON (docs/POWER.md): device and host, the last interval's total energy and power and where it came from, the battery, the posture and its token scale, the meters and every consumer (system, apps, agents). Always on (feature \"power\"). Apps ask for it with the power.read capability (sys.read also covers it, for compatibility).",
       "params": [],
       "result": {
         "name": "ledger",
@@ -16112,7 +16112,7 @@
     },
     {
       "name": "power.top",
-      "summary": "Consumers ranked by energy, highest first (ties: lower id). Idle and shared energy stays with the system consumer. Always on (feature \"power\").",
+      "summary": "Consumers ranked by energy, highest first (ties: lower id): the per-engine view. An app is every process of one executable on this machine; an agent is a model engine inside zxvd (parent: zxvd's app). Figures come only from measurement (docs/POWER.md, 'How a figure is made'): a meter's energy for the interval (RAPL, the battery's drain, or macOS per-process energy: 'metered') split by CPU and GPU time ('attributed'). Idle and shared energy stays with the system consumer. With no meter, state is 'neither' and uj and mw are null, never an estimate. Always on (feature \"power\"); apps ask for it with the power.read capability.",
       "params": [
         {
           "name": "kind",
@@ -16174,14 +16174,20 @@
                 "description": "the app an agent runs under; null for none"
               },
               "uj": {
-                "type": "integer",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "minimum": 0,
-                "description": "microjoules in the last settled interval"
+                "description": "microjoules in the last settled interval; null when state is neither or false"
               },
               "mw": {
-                "type": "integer",
+                "type": [
+                  "integer",
+                  "null"
+                ],
                 "minimum": 0,
-                "description": "its average power in milliwatts"
+                "description": "its average power in milliwatts; null when state is neither or false"
               },
               "source": {
                 "type": "string",
@@ -16193,9 +16199,20 @@
                   "fault"
                 ]
               },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "true",
+                  "false",
+                  "both",
+                  "neither"
+                ],
+                "description": "the source as a four-valued state: true (metered or attributed), both (meters disagreed; the larger reading is used), neither (no meter), false (the reading was rejected)"
+              },
               "lifetime_uj": {
                 "type": "integer",
-                "minimum": 0
+                "minimum": 0,
+                "description": "the measured intervals only"
               },
               "cpu_ns": {
                 "type": "integer",

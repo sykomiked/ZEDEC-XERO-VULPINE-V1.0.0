@@ -158,8 +158,7 @@ static void add_reading(zth_report_t *rep, zth_source_t src, const char *driver,
         rep->dropped++;
         return;
     }
-    zth_reading_t *r = &rep->r[rep->n++];
-    memset(r, 0, sizeof *r);
+    zth_reading_t *r = &rep->r[rep->n++]; /* every field is set below */
     r->src = src;
     copy_text(r->driver, sizeof r->driver, driver);
     copy_text(r->label, sizeof r->label, label);
@@ -182,18 +181,18 @@ static int natural_cmp(const char *a, const char *b)
             size_t na = 0, nb = 0;
             while (a[na] >= '0' && a[na] <= '9') na++;
             while (b[nb] >= '0' && b[nb] <= '9') nb++;
-            if (na != nb) return na < nb ? -1 : 1;
+            if (na != nb) return (int) na - (int) nb;
             int c = strncmp(a, b, na);
             if (c) return c;
             a += na;
             b += nb;
             continue;
         }
-        if (*a != *b) return (unsigned char) *a < (unsigned char) *b ? -1 : 1;
+        if (*a != *b) break;
         a++;
         b++;
     }
-    return *a ? 1 : *b ? -1 : 0;
+    return (unsigned char) *a - (unsigned char) *b;
 }
 
 static int reading_cmp(const void *x, const void *y)
@@ -203,17 +202,11 @@ static int reading_cmp(const void *x, const void *y)
     return c ? c : strcmp(a, b); /* hwmon01 and hwmon1: still one order */
 }
 
-/* T4/T6: sort, then the verdicts and the per-class figures */
+/* T4/T6: sort, then the verdicts and the per-class figures, on a report
+ * zth_read zeroed (NEITHER is 0) */
 static void finish(zth_report_t *rep)
 {
     qsort(rep->r, rep->n, sizeof rep->r[0], reading_cmp);
-    rep->state = LPRES_STATE_NEITHER;
-    for (uint32_t c = 0; c < ZTH_NCLASS; c++) {
-        rep->cls[c].state = LPRES_STATE_NEITHER;
-        rep->cls[c].n = 0;
-        rep->cls[c].max_mdeg = 0;
-    }
-    rep->rejected = 0;
     for (uint32_t i = 0; i < rep->n; i++) {
         const zth_reading_t *r = &rep->r[i];
         zth_class_sum_t *s = &rep->cls[r->cls];
@@ -292,8 +285,7 @@ static void read_value(zth_report_t *rep, zth_source_t src, const char *root, co
 {
     char path[ZTH_ROOT_MAX + ZTH_PATH_MAX], buf[ZTH_VALUE_MAX + 2u];
     if (!full_path(path, sizeof path, root, rel)) return;
-    errno = 0;
-    int n = read_file(path, buf, sizeof buf);
+    int n = read_file(path, buf, sizeof buf); /* fopen sets errno when it fails */
     if (n == -1 && errno == ENOENT) return;
     int32_t v = 0;
     const char *why = NULL;

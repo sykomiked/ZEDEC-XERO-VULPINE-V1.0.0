@@ -780,6 +780,11 @@ def power_checks(c, generates):
     apps = c.ok('power.top', {'kind': 'app', 'n': 64})
     me = [a for a in apps if a['name'].lower().startswith('zxvd')]
     check(len(me) == 1 and me[0]['parent'] is None, 'power.top: zxvd is an app (%s)' % me)
+    # W6: a figure only from a meter; with none, state neither and no number
+    check(all(x['state'] in ('true', 'false', 'both', 'neither') and
+              ((x['uj'] is None and x['mw'] is None) == (x['state'] in ('neither', 'false')))
+              for x in apps), 'power.top: figures only where measured (%s)' %
+          sorted({x['state'] for x in apps}))
     r = c.call('power.top', {'kind': 'apps'})
     check(r.get('error', {}).get('code') == -32602, 'power.top: an unknown kind is refused')
     # thermal.read (zxvd_power.h W9): this machine's real sensors, or NEITHER

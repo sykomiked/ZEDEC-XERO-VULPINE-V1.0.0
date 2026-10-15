@@ -207,6 +207,19 @@ static void test_closed(void)
     CHECK(!zxvd_power_is_open(), "still closed");
     CHECK(zxvd_power_open("/nonexistent/zxvd-power-root") == 0, "a root with nothing to read");
     CHECK(zxvd_power_is_open(), "it opens: nothing measured is not a failure");
+    /* W6: no meter at all: every consumer is NEITHER with no figure, even
+     * after a settled interval with CPU time in it */
+    NOW = 1000;
+    zxvd_power_note_agent(5, "engine", 300000000u, 0);
+    zxvd_power_tick(true);
+    const char *top = rpc(call("power.top", "{\"lifetime\":true}"));
+    CHECK(strstr(top, "\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"uj\":null,"
+                      "\"mw\":null,\"source\":\"none\",\"state\":\"neither\",\"lifetime_uj\":0,") &&
+              strstr(top, "\"name\":\"engine\",\"parent\":1,\"uj\":null,\"mw\":null,\"source\":"
+                          "\"none\",\"state\":\"neither\",\"lifetime_uj\":0,\"cpu_ns\":300000000}") &&
+              !strstr(top, "\"uj\":0") && !strstr(top, "\"state\":\"true\""),
+          "W6: nothing measured is null, never 0: %.600s", top);
+    NOW = 0;
     zxvd_rpc_groups_reset(); /* the group's close */
     CHECK(!zxvd_power_is_open(), "the group's close closes power");
 }
@@ -221,8 +234,8 @@ static void test_ledger(void)
     CHECK(zxvd_power_token_scale() == 1000, "W5: on mains, x1");
     EXPECT(call("power.top", "{\"kind\":\"agent\"}"), ok("[]"));
     EXPECT(call("power.top", "{\"kind\":\"app\"}"),
-           ok("[{\"id\":1,\"kind\":\"app\",\"name\":\"zxvd\",\"parent\":null,\"uj\":0,\"mw\":0,"
-              "\"source\":\"none\",\"lifetime_uj\":0,\"cpu_ns\":0}]"));
+           ok("[{\"id\":1,\"kind\":\"app\",\"name\":\"zxvd\",\"parent\":null,\"uj\":null,\"mw\":null,"
+              "\"source\":\"none\",\"state\":\"neither\",\"lifetime_uj\":0,\"cpu_ns\":0}]"));
     CHECK(zxvd_power_admit(7), "W4: an agent never noted is admitted with no budget set");
 
     /* one second: 20 J on psys; zxvd ran 2 s of CPU, the agent 0.5 s of it */
@@ -233,18 +246,18 @@ static void test_ledger(void)
     zxvd_power_tick(false);
     EXPECT(call("power.top", "{\"kind\":\"agent\"}"),
            ok("[{\"id\":2,\"kind\":\"agent\",\"name\":\"companion\",\"parent\":1,\"uj\":2500000,"
-              "\"mw\":2500,\"source\":\"attributed\",\"lifetime_uj\":2500000,"
+              "\"mw\":2500,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":2500000,"
               "\"cpu_ns\":500000000}]"));
     /* idle and shared energy stays with the system (power_ledger.h P3) */
     EXPECT(call("power.top", "{\"kind\":\"all\",\"n\":2}"),
            ok("[{\"id\":0,\"kind\":\"system\",\"name\":\"system\",\"parent\":null,"
-              "\"uj\":10000000,\"mw\":10000,\"source\":\"attributed\",\"lifetime_uj\":10000000,"
+              "\"uj\":10000000,\"mw\":10000,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":10000000,"
               "\"cpu_ns\":0},{\"id\":1,\"kind\":\"app\",\"name\":\"zxvd\",\"parent\":null,"
-              "\"uj\":7500000,\"mw\":7500,\"source\":\"attributed\",\"lifetime_uj\":7500000,"
+              "\"uj\":7500000,\"mw\":7500,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":7500000,"
               "\"cpu_ns\":2000000000}]"));
     EXPECT(call("power.top", "{\"n\":1}"),
            ok("[{\"id\":0,\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"uj\":10000000,"
-              "\"mw\":10000,\"source\":\"attributed\",\"lifetime_uj\":10000000,\"cpu_ns\":0}]"));
+              "\"mw\":10000,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":10000000,\"cpu_ns\":0}]"));
     const char *st = rpc(call("power.status", "{}"));
     CHECK(!strncmp(st,
                    "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"device\":\"laptop\",\"host\":"
@@ -262,7 +275,7 @@ static void test_ledger(void)
     zxvd_power_tick(false);
     EXPECT(call("power.top", "{\"kind\":\"agent\",\"lifetime\":true}"),
            ok("[{\"id\":2,\"kind\":\"agent\",\"name\":\"companion\",\"parent\":1,\"uj\":2500000,"
-              "\"mw\":2500,\"source\":\"attributed\",\"lifetime_uj\":2500000,"
+              "\"mw\":2500,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":2500000,"
               "\"cpu_ns\":500000000}]"));
 
     /* W7: a 1 uJ budget for the agent; the next second spends it */
@@ -279,7 +292,7 @@ static void test_ledger(void)
     CHECK(!zxvd_power_admit(7), "W4: the spent window makes the agent wait");
     EXPECT(call("power.top", "{\"kind\":\"agent\",\"lifetime\":true}"),
            ok("[{\"id\":2,\"kind\":\"agent\",\"name\":\"companion\",\"parent\":1,\"uj\":2500000,"
-              "\"mw\":2500,\"source\":\"attributed\",\"lifetime_uj\":5000000,"
+              "\"mw\":2500,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":5000000,"
               "\"cpu_ns\":1000000000}]"));
     EXPECT(call("power.budget", "{\"target\":\"agent\",\"agent\":7,\"window_ms\":0,\"max_uj\":0}"),
            ok("{\"ok\":true}"));
@@ -316,9 +329,9 @@ static void test_ledger(void)
            ok("{\"ok\":true}"));
     EXPECT(call("power.top", "{\"kind\":\"app\",\"n\":5}"),
            ok("[{\"id\":1,\"kind\":\"app\",\"name\":\"zxvd\",\"parent\":null,\"uj\":0,\"mw\":0,"
-              "\"source\":\"attributed\",\"lifetime_uj\":24995000,\"cpu_ns\":6000000000},{\"id\":3,"
-              "\"kind\":\"app\",\"name\":\"brand new\",\"parent\":null,\"uj\":0,\"mw\":0,"
-              "\"source\":\"none\",\"lifetime_uj\":0,\"cpu_ns\":0}]"));
+              "\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":24995000,\"cpu_ns\":6000000000},{\"id\":3,"
+              "\"kind\":\"app\",\"name\":\"brand new\",\"parent\":null,\"uj\":null,\"mw\":null,"
+              "\"source\":\"none\",\"state\":\"neither\",\"lifetime_uj\":0,\"cpu_ns\":0}]"));
 
     /* W5: the battery posture scales the tokens */
     NOW = 5000;
@@ -349,17 +362,17 @@ static void test_params(void)
     /* lifetime: the figures add up to everything measured (85 J - 5 J) */
     EXPECT(call("power.top", "{\"kind\":\"\",\"lifetime\":true}"),
            ok("[{\"id\":0,\"kind\":\"system\",\"name\":\"system\",\"parent\":null,\"uj\":0,"
-              "\"mw\":0,\"source\":\"attributed\",\"lifetime_uj\":50000000,\"cpu_ns\":0},"
+              "\"mw\":0,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":50000000,\"cpu_ns\":0},"
               "{\"id\":1,\"kind\":\"app\",\"name\":\"zxvd\",\"parent\":null,\"uj\":0,\"mw\":0,"
-              "\"source\":\"attributed\",\"lifetime_uj\":24995000,\"cpu_ns\":6000000000},"
+              "\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":24995000,\"cpu_ns\":6000000000},"
               "{\"id\":2,\"kind\":\"agent\",\"name\":\"companion\",\"parent\":1,\"uj\":0,"
-              "\"mw\":0,\"source\":\"attributed\",\"lifetime_uj\":5005000,"
+              "\"mw\":0,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":5005000,"
               "\"cpu_ns\":1001000000},{\"id\":3,\"kind\":\"app\",\"name\":\"brand new\","
-              "\"parent\":null,\"uj\":0,\"mw\":0,\"source\":\"attributed\",\"lifetime_uj\":0,"
+              "\"parent\":null,\"uj\":0,\"mw\":0,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":0,"
               "\"cpu_ns\":0}]"));
     EXPECT(call("power.top", "{\"kind\":\"agent\",\"lifetime\":false}"),
            ok("[{\"id\":2,\"kind\":\"agent\",\"name\":\"companion\",\"parent\":1,\"uj\":0,"
-              "\"mw\":0,\"source\":\"attributed\",\"lifetime_uj\":5005000,"
+              "\"mw\":0,\"source\":\"attributed\",\"state\":\"true\",\"lifetime_uj\":5005000,"
               "\"cpu_ns\":1001000000}]"));
     /* n defaults to 10 */
     for (int i = 0; i < 10; i++) {

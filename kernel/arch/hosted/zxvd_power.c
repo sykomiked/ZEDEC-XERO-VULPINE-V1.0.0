@@ -181,12 +181,17 @@ static void m_top(zxvd_call_t *c)
             zxvd_buf_printf(b, ",\"parent\":null");
         else
             zxvd_buf_printf(b, ",\"parent\":%u", (unsigned) p->parent);
-        zxvd_buf_printf(b,
-                        ",\"uj\":%llu,\"mw\":%llu,\"source\":\"%s\",\"lifetime_uj\":%llu,"
-                        "\"cpu_ns\":%llu}",
-                        (unsigned long long) p->last_uj, (unsigned long long) p->last_mw,
-                        pw_source_name(p->last_src), (unsigned long long) p->total_uj,
-                        (unsigned long long) p->total_cpu_ns);
+        /* W6: a figure only from a meter (TRUE, or BOTH: the larger reading);
+         * NEITHER (nothing measured) and FALSE (a rejected reading) are null */
+        lpres_state_t st = (lpres_state_t) pw_source_truth(p->last_src);
+        if (st == LPRES_STATE_TRUE || st == LPRES_STATE_BOTH)
+            zxvd_buf_printf(b, ",\"uj\":%llu,\"mw\":%llu", (unsigned long long) p->last_uj,
+                            (unsigned long long) p->last_mw);
+        else
+            zxvd_buf_printf(b, ",\"uj\":null,\"mw\":null");
+        zxvd_buf_printf(b, ",\"source\":\"%s\",\"state\":\"%s\",\"lifetime_uj\":%llu,\"cpu_ns\":%llu}",
+                        pw_source_name(p->last_src), lpres_state_name(st),
+                        (unsigned long long) p->total_uj, (unsigned long long) p->total_cpu_ns);
     }
     zxvd_buf_raw(b, "]", 1);
 }

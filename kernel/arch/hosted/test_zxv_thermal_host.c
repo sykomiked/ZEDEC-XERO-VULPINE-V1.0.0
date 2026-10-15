@@ -476,6 +476,9 @@ static void test_bounds(void)
           REP.r[7].reason ? REP.r[7].reason : "accepted");
     CHECK(REP.r[8].reason && !strcmp(REP.r[8].reason, "too long"), "33 bytes: %s",
           REP.r[8].reason ? REP.r[8].reason : "accepted");
+    CHECK(REP.r[6].mdeg == 0 && REP.r[7].mdeg == 0 && REP.r[8].mdeg == 0 &&
+              REP.r[8].state == LPRES_STATE_FALSE,
+          "a refused reading keeps no value");
     const char *js = render();
     CHECK(strstr(js, "\"label\":\"Ambient \\\"x\\\" \\\\ y\"") != NULL, "T7: escaped: %.300s", js);
 
@@ -491,16 +494,33 @@ static void test_bounds(void)
     put("sys/class/hwmon/hwmon01/temp1_input", "7000\n");
     put("sys/class/hwmon/hwmon9/temp1_input", "9000\n");
     put("sys/class/hwmon/hwmon9/temp1a_input", "9000\n");
+    put("sys/class/hwmon/hwmon19/temp1_input", "9000\n");
+    put("sys/class/hwmon/hwmon123/temp123456789_input", "9000\n");  /* 9 digits: read */
+    put("sys/class/hwmon/hwmon123/temp1234567890_input", "9000\n"); /* 10: not */
+    put("sys/class/hwmon/hwmon1234567890/temp1_input", "9000\n");   /* 10: not */
+    put("sys/class/hwmon/hwmon123456789/temp1234_input", "");       /* empty: not a number */
+    put("sys/class/thermal/thermal_zone0/temp", "8000\n");
     zth_read(R, &REP);
-    static const char *const WANT[] = {
-        "/sys/class/hwmon/hwmon01/temp1_input", "/sys/class/hwmon/hwmon1/temp1_input",
-        "/sys/class/hwmon/hwmon1/temp02_input", "/sys/class/hwmon/hwmon1/temp2_input",
-        "/sys/class/hwmon/hwmon1/temp3_input",  "/sys/class/hwmon/hwmon1/temp010_input",
-        "/sys/class/hwmon/hwmon1/temp10_input", "/sys/class/hwmon/hwmon9/temp1_input"};
-    CHECK(REP.n == 8, "eight sorted (%u)", (unsigned) REP.n);
-    for (uint32_t i = 0; i < REP.n && i < 8; i++)
+    static const char *const WANT[] = {"/sys/class/hwmon/hwmon01/temp1_input",
+                                       "/sys/class/hwmon/hwmon1/temp1_input",
+                                       "/sys/class/hwmon/hwmon1/temp02_input",
+                                       "/sys/class/hwmon/hwmon1/temp2_input",
+                                       "/sys/class/hwmon/hwmon1/temp3_input",
+                                       "/sys/class/hwmon/hwmon1/temp010_input",
+                                       "/sys/class/hwmon/hwmon1/temp10_input",
+                                       "/sys/class/hwmon/hwmon9/temp1_input",
+                                       "/sys/class/hwmon/hwmon19/temp1_input",
+                                       "/sys/class/hwmon/hwmon123/temp123456789_input",
+                                       "/sys/class/hwmon/hwmon123456789/temp1234_input",
+                                       "/sys/class/thermal/thermal_zone0/temp"};
+    CHECK(REP.n == 12, "twelve sorted (%u)", (unsigned) REP.n);
+    for (uint32_t i = 0; i < REP.n && i < 12; i++)
         CHECK(!strcmp(REP.r[i].path, WANT[i]), "T6: #%u is %s, not %s", (unsigned) i, REP.r[i].path,
               WANT[i]);
+
+    CHECK(REP.n == 12 && REP.r[10].reason && !strcmp(REP.r[10].reason, "not an integer") &&
+              REP.r[9].state == LPRES_STATE_TRUE && REP.r[9].mdeg == 9000,
+          "an empty value file is not an integer; nine digits are a name");
 
     /* T6: at most ZTH_MAX_DEVS devices looked at */
     fresh();

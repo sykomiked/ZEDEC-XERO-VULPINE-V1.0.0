@@ -105,6 +105,25 @@ battery    71.4%  on battery  draining 14.090 W  3 h 2 min left  health 91.0%  3
 posture    balanced (swarm tokens per cycle x 618/1000)
 ```
 
+## Energy per engine (`power.top`)
+
+zxvd's `power.top` is the per-engine view the activity monitor needs. It
+lists the system, each app (every process of one executable) and each agent
+(a model engine inside zxvd, under zxvd's app), ranked by energy. Each row
+has `uj` and `mw` for the last settled interval, `source`, `state`,
+`lifetime_uj` and `cpu_ns`. The figures follow "How a figure is made"
+above: a meter's measured energy, split by CPU and GPU time. Nothing is
+estimated. A row's `state` is `true` for metered or attributed figures,
+`both` when meters disagreed (the larger reading is used), `neither` when
+there was no meter and `false` when the reading was rejected. For `neither`
+and `false`, `uj` and `mw` are null. A desktop PC on mains without RAPL
+access, for example, lists every engine with its CPU time and `neither`.
+
+Limits: only the companion runs a model today, so it is the only agent
+noted. GPU time is not measured yet (`gpu_ns` is 0). A Linux machine
+attributes by CPU time from `/proc`, so processes it may not read are left
+to the system consumer.
+
 ## Temperatures (`thermal.read`)
 
 zxvd's `thermal.read` (in the power group, always on, rules T1-T7 in

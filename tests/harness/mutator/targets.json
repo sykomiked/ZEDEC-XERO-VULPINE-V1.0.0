@@ -151,7 +151,7 @@
     {"name": "zxvd_power", "target": "kernel/arch/hosted/zxvd_power.c",
      "before": null, "before_note": "new module: energy per app and agent, battery posture and energy budgets inside zxvd (power.* methods)",
      "after": "sh kernel/arch/hosted/test_zxvd_power.sh"},
-    {"name": "zxv_thermal_host", "target": "kernel/arch/hosted/zxv_thermal_host.c", "lines": "26-363,536-539,561-659",
+    {"name": "zxv_thermal_host", "target": "kernel/arch/hosted/zxv_thermal_host.c", "lines": "26-355,528-531,553-649",
      "before": null, "before_note": "new module: the hosted temperature reader behind zxvd's thermal.read (Linux hwmon and thermal zones); the lines leave out the macOS readers and the Windows and other-OS branches of zth_read, which are not compiled on Linux",
      "after": "make -C kernel --no-print-directory test-thermal"},
     {"name": "zxvd_pspace", "target": "kernel/arch/hosted/zxvd_pspace.c",

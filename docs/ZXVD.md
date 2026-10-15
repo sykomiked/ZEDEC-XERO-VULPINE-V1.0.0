@@ -972,8 +972,18 @@ ecological limit, not a payment).
   battery, the posture and its token scale, the meters and every consumer.
 - `power.top` (always on): `kind` (`app`, `agent` or `all`), `lifetime`
   and `n` (1..64, default 10): consumers by energy, highest first, each with
-  `id`, `kind`, `name`, `parent`, `uj`, `mw`, `source`, `lifetime_uj` and
-  `cpu_ns`. Idle and shared energy stays with the `system` consumer.
+  `id`, `kind`, `name`, `parent`, `uj`, `mw`, `source`, `state`,
+  `lifetime_uj` and `cpu_ns`. Idle and shared energy stays with the
+  `system` consumer. This is the per-engine view: an `app` is every process
+  of one executable, an `agent` is a model engine inside zxvd (its `parent`
+  is zxvd's app). Figures come only from measurement: a meter's energy for
+  the interval (RAPL, the battery's drain, or macOS per-process energy:
+  `metered`) split by CPU and GPU time (`attributed`). `state` is the
+  source as a four-valued state: `true` (metered or attributed), `both`
+  (meters disagreed; the larger reading is used), `neither` (no meter) or
+  `false` (the reading was rejected). For `neither` and `false`, `uj` and
+  `mw` are null, never an estimate. `lifetime_uj` sums measured intervals
+  only.
 - `power.budget` (switch on): `target` `device`, `app` (with `app`, the
   executable name) or `agent` (with `agent`, its id), `window_ms` (0
   clears), `max_uj` and `strict`. Sets an energy budget per rolling window.
