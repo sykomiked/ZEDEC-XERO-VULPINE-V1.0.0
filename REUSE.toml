@@ -19,6 +19,11 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "See assets/fonts/ascw-golden/FONTLOG.md (Google LLC, The Noto Project Authors, Adobe, The Amiri Project Authors, The Crimson Text Project Authors); ASCW modifications 2026 36N9 Genetics, LLC"
 SPDX-License-Identifier = "OFL-1.1"
 
+[[annotations]]
+path = ["docs/release/swarm_model_manifest.json", "tools/tiamat/tiamat_swarm.json"]
+SPDX-FileCopyrightText = "2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
+SPDX-License-Identifier = "Apache-2.0"
+
 # Mockups rendered by kernel/src/zui/views/test_views.sh (PNG cannot carry a header).
 [[annotations]]
 path = "docs/circuit-board/**"

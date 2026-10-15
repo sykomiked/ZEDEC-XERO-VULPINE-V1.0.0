@@ -1,0 +1,4 @@
+PASS  first answer (warm) = 2.7 (mark <= 20.0 s)
+PASS  resident peak = 3144196096 (mark <= 4000000000 bytes)
+PASS  every question answered = [10, 10] (mark 10 of 10, twice)
+PASS  same answers on the same machine = True (mark all 10 hashes equal)

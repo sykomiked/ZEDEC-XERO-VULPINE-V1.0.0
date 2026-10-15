@@ -11,6 +11,16 @@
  *   zxv-host --model F  use the GGUF model file F
  *   zxv-host --models-dir D   look for *.gguf in D (default: the per-user
  *                       data folder, see docs/MAC_APP.md)
+ *   zxv-host --tiamat F answer with several Tiamat cells at once: a lead, a
+ *                       witness of another lineage and the exact reckoner,
+ *                       joined four-valued (zxv_tiamat.h; F is written by
+ *                       tools/tiamat/make_h1_config.py)
+ *   zxv-host --ask Q    answer Q once on stdout and exit (no window, no port)
+ *   zxv-host --tiamat F --ask-file Q   answer each line of Q, one JSON line
+ *                       each on stdout (the Tiamat trace and what was seen)
+ *   zxv-host --tiamat F --check-file C   each line of C is QUESTION<TAB>ANSWER:
+ *                       check the planted answer (witness or reckoner) and
+ *                       print the same JSON lines (tools/tiamat/bench)
  *   zxv-host --exit-with-parent   stop when stdin closes (the native shell
  *                       holds the other end, so the engine never outlives it)
  *   zxv-host --net lan|online   turn on the Vinea peer network (default OFF:
@@ -62,6 +72,10 @@ typedef SOCKET sock_t;
 #    include <sys/socket.h>
 #    include <sys/select.h>
 #    include <sys/time.h>
+#    include <sys/resource.h>
+#    if defined(__APPLE__)
+#        include <mach/mach.h>
+#    endif
 #    include <netinet/in.h>
 #    include <arpa/inet.h>
 #    include <sys/stat.h>
@@ -104,6 +118,7 @@ typedef int sock_t;
 #include "../../src/chiglet/chg_organ.h" /* swarm.organ */
 #include "../../src/chiglet/chg_vocab.h"
 #include "../../src/chiglet/chg_name.h" /* the chiglet's name, given once */
+#include "zxv_tiamat.h"
 #include "sha256.h"
 #include "zxv_net_host.h"
 #include "zxv_peer_host.h"
@@ -202,25 +217,83 @@ static void pal_memory(uint64_t *total_mb, uint64_t *free_mb)
 #endif
 }
 
-/* Load from other programs, in cores x 1000. */
+/* Load from other programs, in cores x 1000. The system's figure counts
+ * this process too, and its model uses every core while it writes, so this
+ * process's own CPU use is taken off: without that, a few answers in a row
+ * read as a busy machine, the governor sees no free cores and the
+ * companion's budget falls below one answer (found by the Tiamat T2 run,
+ * tools/tiamat/TEST_PLAN.md). */
 static uint32_t pal_other_load_milli(void)
 {
 #if defined(_WIN32)
-    static ULONGLONG last_idle, last_total;
-    FILETIME idle, kern, user;
+    /* system busy time minus this process's, over the same interval */
+    static ULONGLONG last_idle, last_total, last_self;
+    FILETIME idle, kern, user, pc, pe, pk, pu;
     if (!GetSystemTimes(&idle, &kern, &user)) return 0;
+    if (!GetProcessTimes(GetCurrentProcess(), &pc, &pe, &pk, &pu)) return 0;
     ULONGLONG i = ((ULONGLONG) idle.dwHighDateTime << 32) | idle.dwLowDateTime;
     ULONGLONG t = (((ULONGLONG) kern.dwHighDateTime << 32) | kern.dwLowDateTime) +
                   (((ULONGLONG) user.dwHighDateTime << 32) | user.dwLowDateTime);
-    ULONGLONG di = i - last_idle, dt = t - last_total;
+    ULONGLONG me = (((ULONGLONG) pk.dwHighDateTime << 32) | pk.dwLowDateTime) +
+                   (((ULONGLONG) pu.dwHighDateTime << 32) | pu.dwLowDateTime);
+    ULONGLONG di = i - last_idle, dt = t - last_total, dm = me - last_self;
     last_idle = i;
     last_total = t;
-    if (dt == 0) return 0;
-    return (uint32_t) ((dt - di) * 1000ull * pal_cores() / dt);
+    last_self = me;
+    if (dt == 0 || dt <= di) return 0;
+    ULONGLONG busy = dt - di;
+    busy = busy > dm ? busy - dm : 0;
+    return (uint32_t) (busy * 1000ull * pal_cores() / dt);
 #else
-    double l[1];
-    if (getloadavg(l, 1) < 1) return 0;
-    return (uint32_t) (l[0] * 1000.0);
+    /* busy CPU time over the interval since the last call (system-wide, all
+     * cores) less this process's CPU time over the same interval. Not the
+     * load average: it lags by a minute, so a restart right after a busy
+     * run would read the old process's load as someone else's. */
+    static double last_wall = -1.0, last_busy, last_self;
+    static uint32_t last_milli;
+    double busy = 0.0, self, wall, hz = (double) sysconf(_SC_CLK_TCK);
+    struct rusage ru;
+    struct timespec ts;
+    if (hz <= 0.0 || getrusage(RUSAGE_SELF, &ru) != 0 || clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+        return 0;
+#    if defined(__APPLE__)
+    host_cpu_load_info_data_t info;
+    mach_msg_type_number_t n = HOST_CPU_LOAD_INFO_COUNT;
+    if (host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, (host_info_t) &info, &n) !=
+        KERN_SUCCESS)
+        return 0;
+    busy = ((double) info.cpu_ticks[CPU_STATE_USER] + (double) info.cpu_ticks[CPU_STATE_SYSTEM] +
+            (double) info.cpu_ticks[CPU_STATE_NICE]) /
+           hz;
+#    else
+    FILE *f = fopen("/proc/stat", "r");
+    unsigned long long v[8] = {0};
+    if (!f) return 0;
+    int got = fscanf(f, "cpu %llu %llu %llu %llu %llu %llu %llu %llu", &v[0], &v[1], &v[2], &v[3],
+                     &v[4], &v[5], &v[6], &v[7]);
+    fclose(f);
+    if (got < 4) return 0;
+    /* user nice system idle iowait irq softirq steal: busy is all but idle and iowait */
+    busy = (double) (v[0] + v[1] + v[2] + v[5] + v[6] + v[7]) / hz;
+#    endif
+    self = (double) ru.ru_utime.tv_sec + (double) ru.ru_utime.tv_usec / 1e6 +
+           (double) ru.ru_stime.tv_sec + (double) ru.ru_stime.tv_usec / 1e6;
+    wall = (double) ts.tv_sec + (double) ts.tv_nsec / 1e9;
+    if (last_wall < 0.0) { /* the first call: measure over a tenth of a second */
+        last_wall = wall;
+        last_busy = busy;
+        last_self = self;
+        struct timespec nap = {0, 100000000L};
+        nanosleep(&nap, NULL);
+        return pal_other_load_milli();
+    }
+    if (wall - last_wall < 0.05) return last_milli; /* too short to measure */
+    double other = ((busy - last_busy) - (self - last_self)) / (wall - last_wall);
+    last_wall = wall;
+    last_busy = busy;
+    last_self = self;
+    last_milli = other > 0.0 ? (uint32_t) (other * 1000.0) : 0;
+    return last_milli;
 #endif
 }
 
@@ -1044,10 +1117,19 @@ static void step(void)
 /* ===================== the companion (stand-in) ===================== */
 
 /* The budget gate around one generation (zxv_model_host.h M5). */
+/* Set by tiamat_ask: a cell runs only when the open cycle can pay for a
+ * whole reply (prompt + ZXV_MODEL_MAX_NEW), never a reply cut short by the
+ * allotment (B2), so the checks judge complete answers and the same question
+ * gets the same reply whatever the budget held. */
+static bool WHOLE_REPLY;
+
 static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
 {
     (void) rctx;
     uint32_t companion = S.num_agents ? S.agent[0].id : 0;
+    if (WHOLE_REPLY &&
+        swarm_budget_remaining(&S.b, companion) <= zxv_model_prompt_tokens() + ZXV_MODEL_MAX_NEW)
+        return ZXV_GATE_EXHAUSTED; /* gen not called: the caller waits for the next cycle */
 #if defined(ZXVD)
     /* zxvd_power.h W4: a spent energy budget makes the companion wait; the
      * model does not run (gen is never called) */
@@ -1077,6 +1159,134 @@ static void note_task(bool ok, const char *summary)
 static bool LAST_ANSWER_MODEL;
 static bool ANSWER_REAL; /* the last answer() came from the model (zxvd_people's translation) */
 
+/* zxv_tiamat.h: the cells of --tiamat, null when it was not given */
+static zxv_tiamat_conf_t *TIAMAT;
+
+/* Run the swarm until its market cycle turns (the budget refills), for an
+ * ask that came in with the companion's tokens spent. Bounded. */
+static void wait_next_cycle(void)
+{
+    uint64_t c = S.b.cycle;
+    for (uint32_t i = 0; i < 100000u && S.b.cycle == c; i++) step();
+}
+
+/* zxv_tiamat_ask_fn: one cell, inside the budget gate, with the engine's
+ * integrity check (T2 of zxv_answer_tag.h) on its reply. */
+static int tiamat_ask(void *ctx, uint32_t cell, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    WHOLE_REPLY = true;
+    int m = zxv_agent_answer_ex(cell, prompt, run_under_budget, NULL, out, cap);
+    for (int tries = 0; m == ZXV_MODEL_BUDGET_EXHAUSTED && tries < 3; tries++) {
+        wait_next_cycle();
+        m = zxv_agent_answer_ex(cell, prompt, run_under_budget, NULL, out, cap);
+    }
+    WHOLE_REPLY = false;
+    if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
+        snprintf(out, cap, "its budget for this cycle is too small for the message");
+        return 0;
+    }
+#if defined(ZXV_HAVE_ZT_GLUE)
+    zxv_zt_last_verdict(&S.last_verdict);
+    if (m == 1 || S.last_verdict.forward_error) {
+        S.last_tag = zxv_answer_tag(&S.last_verdict, &S.last_reason);
+        S.have_tag = true;
+        if (lpx_forbidden(S.last_tag)) {
+            uint8_t subject[32];
+            sha256((const uint8_t *) out, strlen(out), subject);
+            lpx_qlog_append(&S.qlog, S.last_tag, S.last_reason, S.num_agents ? S.agent[0].id : 0,
+                            subject);
+            snprintf(out, cap, "%s; recorded in the quarantine log",
+                     S.last_reason == ZXV_TAG_R_SATURATED ? "saturated arithmetic in the logits"
+                                                          : "the forward pass failed");
+            return ZXV_TIAMAT_INTEGRITY;
+        }
+    }
+#endif
+    return m == 1 ? 1 : 0;
+}
+
+/* Open --tiamat's slots and one agent per cell. 0, or -1 with the reason
+ * on stderr. */
+static int tiamat_open(const char *path)
+{
+    static zxv_tiamat_conf_t conf;
+    char err[1200];
+    if (zxv_tiamat_load(path, &conf, err, sizeof err) != 0) {
+        fprintf(stderr, "zxv-host: --tiamat %s: %s\n", path, err);
+        return -1;
+    }
+    for (uint32_t s = 0; s < ZXV_TIAMAT_SLOTS; s++) {
+        if (!conf.slot_path[s][0]) continue;
+        if (zxv_slot_open(s, conf.slot_path[s]) != 0 || !zxv_slot_info(s)->can_generate) {
+            fprintf(stderr, "zxv-host: --tiamat slot %u: %s\n", (unsigned) s,
+                    zxv_slot_info(s)->status);
+            return -1;
+        }
+    }
+    for (uint32_t i = 0; i < conf.n_cells; i++) {
+        const zxv_tiamat_cell_t *k = &conf.cell[i];
+        if (zxv_agent_open(i, k->slot, k->adapter, 0, err, sizeof err) != 0) {
+            fprintf(stderr, "zxv-host: --tiamat cell %s: %s\n", k->name, err);
+            return -1;
+        }
+        fprintf(stderr, "zxv-host: Tiamat cell %s (%s lineage) on %s\n", k->name, k->lineage,
+                zxv_slot_info(k->slot)->name);
+    }
+    TIAMAT = &conf;
+    return 0;
+}
+
+/* --ask-file / --check-file: one JSON line per line of the file, models
+ * loaded once. 0, or 1 when the file can't be read. */
+static int tiamat_batch(const char *path, bool check)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        fprintf(stderr, "zxv-host: cannot open %s\n", path);
+        return 1;
+    }
+    static char line[8192], out[16384];
+    static zxv_tiamat_trace_t t;
+    while (fgets(line, sizeof line, f)) {
+        size_t n = strlen(line);
+        while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
+        if (!n || line[0] == '#') continue;
+        int shown = 0;
+        if (check) {
+            char *tab = strchr(line, '\t');
+            if (!tab) {
+                fprintf(stderr, "zxv-host: --check-file line without a tab: %s\n", line);
+                continue;
+            }
+            *tab = 0;
+            zxv_tiamat_check(TIAMAT, tiamat_ask, NULL, line, tab + 1, &t, out, sizeof out, &shown);
+        } else {
+            zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, line, &t, out, sizeof out, &shown);
+        }
+        zxv_tiamat_log(TIAMAT->log_path, line, TIAMAT, &t);
+        zxv_tiamat_write(stdout, line, TIAMAT, &t, out);
+        fflush(stdout);
+    }
+    fclose(f);
+    return 0;
+}
+
+/* answer() with --tiamat */
+static void tiamat_answer(const char *q, char *out, size_t cap)
+{
+    static zxv_tiamat_trace_t t; /* large; answers run one at a time */
+    int shown = 0;
+    int tv = zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, q, &t, out, cap, &shown);
+    LAST_ANSWER_MODEL = t.lead_rc == 1;
+    if (zxv_tiamat_log(TIAMAT->log_path, q, TIAMAT, &t) != 0)
+        fprintf(stderr, "zxv-host: could not write the Tiamat log %s\n", TIAMAT->log_path);
+    char sum[96];
+    snprintf(sum, sizeof sum, "Tiamat: %s, %s", TIAMAT->cell[t.lead].name,
+             shown ? zxv_tiamat_tv_name(tv) : "held");
+    note_task(t.lead_rc == 1, sum);
+}
+
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
@@ -1090,6 +1300,10 @@ static void answer(const char *q, char *out, size_t cap)
                  "The model is stopped: its quarantine log is full (%u withheld answers). "
                  "Restart the app after the log has been reviewed.",
                  (unsigned) S.qlog.n);
+        return;
+    }
+    if (TIAMAT) {
+        tiamat_answer(q, out, cap);
         return;
     }
     int m = zxv_model_answer_ex(q, run_under_budget, NULL, out, cap);
@@ -1863,7 +2077,7 @@ static void handle(sock_t c)
         reply(c, "200 OK", "application/json", b.p, b.len);
         free(b.p);
     } else if (PATH_IS("/api/ask") && !is_get) {
-        char ans[1400];
+        char ans[8192]; /* a code answer and its Tiamat verdict line fit */
         answer(body, ans, sizeof ans);
         reply(c, "200 OK", "text/plain; charset=utf-8", ans, strlen(ans));
     } else if (PATH_IS("/api/quit") && !is_get) {
@@ -2513,6 +2727,7 @@ int main(int argc, char **argv)
     bool server = false, open_window = true, exit_with_parent = false;
     int port = 8722;
     const char *model = NULL, *models_dir = NULL, *fonts_dir = NULL, *state_dir = NULL;
+    const char *tiamat = NULL, *ask_once = NULL, *ask_file = NULL, *check_file = NULL;
     bool lan_discovery = true;
     const char *peers[MAX_PEERS_ARG], *gateway = NULL, *notify = "auto";
     int npeers = 0;
@@ -2549,6 +2764,14 @@ int main(int argc, char **argv)
             model = argv[++i];
         else if (!strcmp(argv[i], "--models-dir") && i + 1 < argc)
             models_dir = argv[++i];
+        else if (!strcmp(argv[i], "--tiamat") && i + 1 < argc)
+            tiamat = argv[++i];
+        else if (!strcmp(argv[i], "--ask") && i + 1 < argc)
+            ask_once = argv[++i];
+        else if (!strcmp(argv[i], "--ask-file") && i + 1 < argc)
+            ask_file = argv[++i];
+        else if (!strcmp(argv[i], "--check-file") && i + 1 < argc)
+            check_file = argv[++i];
         else if (!strcmp(argv[i], "--fonts-dir") && i + 1 < argc)
             fonts_dir = argv[++i];
         else if (!strcmp(argv[i], "--net") && i + 1 < argc) {
@@ -2659,6 +2882,11 @@ int main(int argc, char **argv)
                    "  --port N            port (default 8722; 0 = any free port)\n"
                    "  --model FILE        GGUF model to use\n"
                    "  --models-dir DIR    where to look for *.gguf models\n"
+                   "  --tiamat FILE       answer with the Tiamat cells in FILE (a lead,\n"
+                   "                      a witness and the reckoner; zxv_tiamat.h)\n"
+                   "  --ask QUESTION      answer once on stdout and exit\n"
+                   "  --ask-file FILE     with --tiamat: answer each line, JSON lines out\n"
+                   "  --check-file FILE   with --tiamat: check QUESTION<TAB>ANSWER lines\n"
                    "  --fonts-dir DIR     ASCW Golden fonts for the window\n"
                    "  --exit-with-parent  stop when stdin closes\n"
                    "  --net MODE          off (default), lan or online: the Vinea peer network\n"
@@ -2784,10 +3012,28 @@ int main(int argc, char **argv)
         pal_models_dir(dir, sizeof dir);
         models_dir = dir;
     }
-    if (!model && models_dir[0] && zxv_model_find_in_dir(models_dir, found, sizeof found) == 0)
-        model = found;
-    if (model && zxv_model_open(model) != 0)
-        fprintf(stderr, "zxv-host: %s\n", zxv_model_info()->status);
+    if (tiamat) {
+        /* the cells use the slots; the single slot stays empty */
+        if (tiamat_open(tiamat) != 0) return 1;
+    } else {
+        if (!model && models_dir[0] && zxv_model_find_in_dir(models_dir, found, sizeof found) == 0)
+            model = found;
+        if (model && zxv_model_open(model) != 0)
+            fprintf(stderr, "zxv-host: %s\n", zxv_model_info()->status);
+    }
+    if (ask_file || check_file) {
+        if (!TIAMAT) {
+            fprintf(stderr, "zxv-host: --ask-file and --check-file need --tiamat\n");
+            return 2;
+        }
+        return tiamat_batch(check_file ? check_file : ask_file, check_file != NULL);
+    }
+    if (ask_once) { /* one answer on stdout, then exit */
+        static char reply[16384];
+        answer(ask_once, reply, sizeof reply);
+        printf("%s\n", reply);
+        return 0;
+    }
 
 #if defined(ZXVD)
     if (desktop) {
