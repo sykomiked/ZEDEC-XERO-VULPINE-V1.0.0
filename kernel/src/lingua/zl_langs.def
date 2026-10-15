@@ -92,3 +92,6 @@ ZL_LANG_X(S, 78, "S", "Plotdrake", s, ".q", "s") /* front-end to build: see LING
 ZL_LANG_X(SHORTCODE, 79, "Short Code", "Dawnwyrm", shortcode, ".shc", "shortcode") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(VHDL, 80, "VHDL", "Siliconwyrm", vhdl, ".vhd", "vhdl") /* front-end to build: see LINGUA_SPEC.md */
 ZL_LANG_X(VERILOG, 81, "Verilog", "Signaldrake", verilog, ".v", "verilog") /* front-end to build: see LINGUA_SPEC.md */
+ZL_LANG_X(LEXIS, 82, "LEXIS", "Lexwyrm", lexis, ".lexis", "lexis") /* ZXV's own: resolves names to blocks (kernel/src/alexandria/alx_ref.c); no IR front-end yet */
+ZL_LANG_X(TECTON, 83, "TECTON", "Tectondrake", tecton, ".tecton", "tecton") /* ZXV's own: composes blocks (kernel/src/alexandria/alx_tecton.c); no IR front-end yet */
+ZL_LANG_X(AXION, 84, "AXION", "Axiomdrake", axion, ".axion", "axion") /* ZXV's own: loop-free truth checks (kernel/src/alexandria/alx_axion.c); no IR front-end yet */

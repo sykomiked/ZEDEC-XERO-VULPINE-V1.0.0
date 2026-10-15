@@ -22,7 +22,7 @@ while IFS="$tab" read -r year lang family tier twin where extra; do
     case "$year" in [12][0-9][0-9][0-9]) ;; *) bad "$lang: bad year $year" ;; esac
     [ "$year" -ge 1949 ] && [ "$year" -le 2026 ] || bad "$lang: year $year out of range"
     case "$tier" in
-    run|pillar) [ "$twin" != "-" ] || bad "$lang: tier $tier needs a twin" ;;
+    run|pillar|native) [ "$twin" != "-" ] || bad "$lang: tier $tier needs a twin" ;;
     host|next1|next2|next3|catalogue) [ "$twin" = "-" ] || bad "$lang: tier $tier has a twin" ;;
     *) bad "$lang: unknown tier $tier" ;;
     esac

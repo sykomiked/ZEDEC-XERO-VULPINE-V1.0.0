@@ -23,6 +23,7 @@ proves it.
 |---|---|---|
 | **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth |
 | **pillar** | The language's data and records run in one of the five ZXV pillar runtimes, which apps call directly. | COBOL (Sutra), FORTRAN numerics (Trebago), Ada (Eve), APL and K (KRON), MUMPS (MYRA) |
+| **native** | One of ZXV's own three languages for coding by purpose and intent, built and checked in kernel/src/alexandria (docs/ALEXANDRIA.md). Each has a Lingua number and a twin; none compiles to the shared IR yet. | LEXIS (names), TECTON (composition), AXION (truth checks) |
 | **host** | Code in the language runs on its own toolchain and calls ZXV through the C ABI or an SDK. | C, C++, C#, F#, Go, Java, JavaScript, Pascal, PHP, Python, Ruby, Rust, Solidity, Swift, TypeScript, WebAssembly |
 | **next1, next2, next3** | Queued for a Lingua front-end, in that order. | 18 more, plus a Lingua front-end for Pascal, listed below |
 | **catalogue** | Recorded with its year and family. No claim of compatibility. | The rest |
