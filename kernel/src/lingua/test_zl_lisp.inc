@@ -511,6 +511,8 @@ static void test_lisp_refusals(void)
 {
     static const lref_t lr[] = {
         {"(print 1.5)", ZL_E_UNSUPPORTED, 1},
+        {"(dotimes (i 2)\n  ()\n  (print i))", ZL_E_UNSUPPORTED, 2}, /* () is the tag NIL */
+        {"(dotimes (i 2) nil (print i))", ZL_E_UNSUPPORTED, 1},
         {"(print 1/2)", ZL_E_UNSUPPORTED, 1},
         {"(print 1e3)", ZL_E_UNSUPPORTED, 1},
         {"(print .5)", ZL_E_UNSUPPORTED, 1},

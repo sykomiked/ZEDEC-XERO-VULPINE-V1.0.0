@@ -1328,7 +1328,7 @@ static int loop_body(lw_t *w, int32_t first)
 {
     for (int32_t e = first; e >= 0; e = N(w, e)->next) {
         int k = N(w, e)->kind;
-        if (w->lisp && k != K_LIST && k != K_QUOTE && k != K_STR)
+        if (w->lisp && (k != K_LIST || N(w, e)->kid < 0) && k != K_QUOTE && k != K_STR)
             return lfail(w, e, ZL_E_UNSUPPORTED,
                          "an atom in a loop body is a go tag, which is not in this subset");
         TRY(cx(w, e, X_EFFECT, 0));
