@@ -36,6 +36,9 @@ if [ -n "$F" ] && sed -e 's://.*$::' -e 's:/\*.*\*/::g' $F | grep -nwE 'float|do
     exit 1
 fi
 echo "[PASS] app models and blocks are integer-only"
+# every app is really built and tested: its files exist and are used, test_zxapp.c loads it,
+# test_apps.c tests its model, and the model calls only daemon methods that exist
+python3 "$R/tools/apps/app_gate.py"
 # one owner for every shared idea (CONCEPTS.tsv), as docs/APP_BLOCKS.md says
 python3 "$R/tools/apps/concepts.py" --check
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)

@@ -35,6 +35,14 @@ Before writing an app, read `docs/APP_BLOCKS.md`. It is generated from `kernel/s
 - `clang-format` (repo's .clang-format) on every changed C file.
 - Never copy anything from build_system/keys/.
 
+## The gate (tools/apps/app_gate.py, run by test_zxapp.sh)
+An app passes only when it is really built and tested, not only present:
+- every `logic` file exists, and every file in `blocks/<id>/` is used by a `logic` line. A .wasm counts only when its .cpp or .rs source is beside it and `tools/apps/build_wasm_blocks.sh` built it.
+- `test_zxapp.c` loads the manifest: add `{"apps/<id>.zxapp", "<id>", <entries>, <slot>}` to the apps table in `test_wave0()`. Then add the 64-row sweeps that check every entry against the model's own C function, plus the edge cases and the input that must give BOTH.
+- `test_apps.sh` compiles the model, and `test_apps.c` includes its header and tests it against the real zxvd dispatcher.
+- the model calls only daemon methods that `api/zxvd.openrpc.json` lists. Never invent one (`sys.settings`, `term.history`, `<app>.<anything>`). A missing method goes in your report.
+Run `bash kernel/src/apps/test_zxapp.sh` after every change, read its errors, and fix them until it ends with `[PASS]`. Never hand back a branch that has not passed it.
+
 ## Done means all of these pass, in this order
 python3 tools/apps/lang_coverage.py && python3 tools/apps/concepts.py
                                         (regenerate first: every new app changes docs/APP_LANGUAGE_COVERAGE.md
