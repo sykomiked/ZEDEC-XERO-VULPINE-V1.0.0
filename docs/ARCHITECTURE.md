@@ -26,7 +26,7 @@ callers. The audit behind this version, with its gap list and fill plan, is
 
 1. What ZXV is, and where it stands
 2. The rules every part follows
-3. Two views of one system: value strata and hardware layers
+3. Two views of one system: value strata and hardware layers, and the chiglet that governs both
 4. How ZXV runs: the four surfaces
 5. Building and shipping: images, the golden disc and packages
 6. The loops that join it
@@ -74,6 +74,10 @@ twelve language SDKs.** On it sit a local multi-agent AI (the Tiamat Productive 
 swarm of specialist models that check each other), a post-quantum peer-to-peer network, a
 four-valued (paraconsistent) logic used for every verdict, and an exact, interest-free settlement
 economy with adapters to the outside financial world.
+
+**The chiglet is the system's intelligence and governor, not an app installed on it.** The
+kernel is the deterministic body; the chiglet drives it through typed calls that are checked
+before they run, and anything that would change the machine waits for the person (section 3.4).
 
 ### Where it stands (2026-10-15)
 
@@ -137,6 +141,7 @@ These rules came from the owner or were agreed with the owner. Every module is h
 | R21 | **No settlement over amateur radio.** Ham links carry only cleartext, signed messages | Protocol twins (`aproto`), transport continuum |
 | R22 | **No central OS releases.** Users maintain the OS; forks must keep the compatibility contract; updates are audited by the community | User-evolved OS (section 15.6) |
 | R23 | **Paraconsistent by design, not by convention.** Where two sources disagree the result is BOTH and is held, never resolved by majority or averaged away | Swarm verdicts, ledger, routing, drivers (`fwadapt`) |
+| R24 | **The chiglet governs through a verified ABI.** Its output is a typed call checked against bounds, its grants, the rulebook and the lpres gate; a change waits for the person's accept of its exact digest; IRQs, page tables and DMA stay deterministic kernel code | `kernel/src/chiglet/chg_abi.h`, the arm64 console (section 3.4) |
 
 ---
 
@@ -203,6 +208,65 @@ power, crash (x86), hwkey, i18n, speech, legacy, four of the five pillars, Z-Was
 runtime `zxapp`, every zxvd method group, the live Vinea node and the GPU path. Bringing them to
 bare metal is steps 4 to 11 of section 18.
 
+### 3.4 The chiglet governs: one intelligence over a verified ABI
+
+**The chiglet is the system, not an app on it.** In a conventional stack a model is a heavy
+user-space program at the top of Python, CUDA, shared libraries, libc and a monolithic kernel. In
+ZXV the operating system is the runtime harness for the chiglet: the chiglet is the system's
+intelligence and governor and the way a person meets every layer (L0 to L7), and the kernel is
+the deterministic body it governs. Each chiglet is a companion with its own personality; the
+person decides if and where chiglets meet, and its icon grows with interaction, never with IQ.
+
+```
+CONVENTIONAL                         ZXV
+┌──────────────────────────────┐     ┌──────────────────────────────────────────────┐
+│ LLM / application            │     │ CHIGLET: the system's intelligence, the      │
+├──────────────────────────────┤     │ person's companion, the governor             │
+│ Python / PyTorch / CUDA      │     ├──────────────── verified ABI ────────────────┤
+├──────────────────────────────┤     │ typed calls, each checked: bounds, grants,   │
+│ user-space libraries, libc   │     │ rulebook, lpres gate; changes held for you   │
+├──────────────────────────────┤     ├──────────────────────────────────────────────┤
+│ monolithic kernel            │     │ integer kernel and cell fabric: IRQs, page   │
+├──────────────────────────────┤     │ tables, DMA, drivers, four-valued faults     │
+│ silicon                      │     ├──────────────────────────────────────────────┤
+└──────────────────────────────┘     │ silicon                                      │
+                                     └──────────────────────────────────────────────┘
+```
+
+**How it governs (decided 2026-10-15: governor via a verified ABI).**
+
+1. **The console is the chiglet's.** Boot ends by arming the governor and handing it the
+   console; the arm64 kernel prints `[CHIGLET] the console is the chiglet's session`. The P-TERM
+   commands stay as the chiglet's tools and work with no model loaded (the rulebook still works
+   with the model off).
+2. **Calls, not register writes.** The chiglet's output is a typed call from a fixed table
+   (`kernel/src/chiglet/chg_abi.h` A1): `storage_dma_read`, `framebuffer_blit`, `cell_reload`,
+   `network_pulse`, `cell_quarantine`, appended to, never renumbered. A grammar-constrained model
+   emits the same text form a person types.
+3. **Every call is gated (A3).** In bounds, granted to the chiglet, and the kernel rulebook's
+   verdict, joined with `lpres_conjoin`, so only TRUE authorises. FALSE refuses. A look (read the
+   disk, redraw the person's own screen) runs on TRUE. A change from the chiglet, a "not sure"
+   (NEITHER) or a dispute (BOTH) is held until the person accepts its exact SHA-256 digest, and
+   the gate is checked again at that moment (A4). Safe and recovery boots change nothing.
+4. **The body stays deterministic.** IRQs, page tables, DMA addressing and drivers are kernel
+   code; a handler runs only after the gate, and its result goes into a bounded journal (A5).
+5. **Faults are isolated, not panics.** A faulted cell is quarantined by the cell fabric's own
+   fault model and can be reloaded as a new incarnation with its routes; the same four-valued
+   quarantine the swarm and `pdx_agent` use (A6).
+6. **Above the kernel, the same loop.** Read through zxvd, an organ answers (`chg_organ`, a lead
+   plus a witness of another lineage, `swarm.organ`), anything that would change the machine is
+   a held act (`intent` "act" verbs, `chg_vocab`), and apps declare which organ serves them and
+   which acts they may raise (`zxapp` "chiglet" lines).
+
+| Part | Status | Where |
+|---|---|---|
+| Verified ABI gate: five typed calls, grants, rulebook, lpres, held calls with digests, bounded journal | 🔒 | `kernel/src/chiglet/chg_abi.{h,c}`, 208 tests, `make test-chg-organ` |
+| arm64 boot hands the console to the chiglet governor; disk read, screen blit, cell reload and quarantine, network pulse handlers | 🔒 | `kernel/arch/arm64/kernel_main_arm64.c`; `arm64_session_check.py` drives it in QEMU |
+| Organ routing with a witness; `swarm.organ` in zxvd | 🔒 | `kernel/src/chiglet/chg_organ.{h,c}` |
+| Held acts at every layer; organ and acts in app manifests | 🔒 | `intent` I7, `chg_vocab`, `zxapp` K1-K3 |
+| A model on bare metal emitting the calls | 📋 | Today the calls come from the person or from a session relaying a model's output as `chiglet <call>` lines; models load from the disc once PCI and the disc v2 layout land (section 18) |
+| x86_64 governor | 📋 | The x86_64 image has no user processes or console session yet (section 4.3) |
+
 ---
 
 ## 4. How ZXV runs: the four surfaces
@@ -243,7 +307,7 @@ groups are not in libzxv yet.
 | Image | Status | What it does | What it lacks |
 |---|---|---|---|
 | x86_64 (first physical target) | 🟡 | UEFI boot, handoff v2 (#156), PCI class drivers with self-tests, one ring-3 test, `[AI_OK]` | No timer interrupt, scheduler or user processes; halts in a `hlt` loop |
-| arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
+| arm64 (most complete) | 🟡 | GICv3, timer preemption, EL0 processes, `pmm` (#156), virtio, ZXVFS, signed `.zsp` apps, crash records, framebuffer desktop, network stack; boot hands the console to the chiglet governor (🔒 section 3.4); CI types into its shell across two boots | No handoff in its EFI stub, no PCI (cannot see the golden disc's models), no spawn/wait/kill |
 | riscv64, riscv32, arm32 | 🟡 | Boot to `[BOOT_OK]` under QEMU | No AI self-check, no user processes |
 
 [BAREMETAL.md](BAREMETAL.md) covers building and booting; [BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md)
