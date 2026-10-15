@@ -7,9 +7,10 @@ GGUF that kernel/src/tensor/zt_kokoro.c loads. No torch: pth_read.py.
     python3 -I kokoro2gguf.py DIR out.gguf [voice ...]
 
 DIR holds config.json, kokoro-v1_0.pth and voices/<name>.pt (or <name>.pt).
-Weight norm is folded in; convolutions become [C_out][C_in * K] matrices with
-column c * K + j (zt_nn's im2col order); transposed convolutions are split
-into their stride phases, so each phase is a plain matrix; LSTM biases are
+Weight norm is folded in; convolutions become [C_out][K * C_in] matrices with
+column j * C_in + c (tap-major, kokoro.conv_order 1, so each tap's input row
+is copied whole); transposed convolutions are split into their stride
+phases, so each phase is a plain matrix; LSTM biases are
 summed (b_ih + b_hh). Voices are stored as voice.<name> [510][256].
 Weights stay out of git: this file is the recipe.
 """
@@ -44,8 +45,8 @@ class Out:
         self.w.add_tensor(name, np.ascontiguousarray(np.asarray(arr, F32)))
 
 
-def conv(o, name, w, b=None):  # w [O, C, K] -> [O][C*K]
-    o.t(name + '.weight', w.reshape(w.shape[0], -1))
+def conv(o, name, w, b=None):  # w [O, C, K] -> [O][K*C], column j * C + c
+    o.t(name + '.weight', np.transpose(w, (0, 2, 1)).reshape(w.shape[0], -1))
     if b is not None:
         o.t(name + '.bias', b)
 
@@ -88,16 +89,16 @@ def conv_t_phases(o, name, w, b, stride, pad):
     """ConvTranspose1d weight [C_in, C_out, K] -> stride phases. Output t
     (phase p = t mod stride) uses taps k0 + m * stride (k0 = (p + pad) mod
     stride) on inputs ib - m, ib = (t + pad - k0) / stride. Phase p is the
-    matrix [C_out][C_in * taps], column c * taps + m."""
+    matrix [C_out][taps * C_in], column m * C_in + c."""
     Cin, Cout, K = w.shape
     taps = K // stride
     assert taps * stride == K
     for ph in range(stride):
         k0 = (ph + pad) % stride
-        m = np.zeros((Cout, Cin, taps))
+        m = np.zeros((Cout, taps, Cin))
         for t in range(taps):
-            m[:, :, t] = w[:, :, k0 + t * stride].T
-        o.t('%s.p%d.weight' % (name, ph), m.reshape(Cout, Cin * taps))
+            m[:, t, :] = w[:, :, k0 + t * stride].T
+        o.t('%s.p%d.weight' % (name, ph), m.reshape(Cout, taps * Cin))
     o.t(name + '.bias', b)
 
 
@@ -118,6 +119,7 @@ def main():
     w.add_uint32('kokoro.hidden_dim', cfg['hidden_dim'])
     w.add_uint32('kokoro.max_dur', cfg['max_dur'])
     w.add_uint32('kokoro.sample_rate', 24000)
+    w.add_uint32('kokoro.conv_order', 1)
     sym = [''] * cfg['n_token']
     for k, v in cfg['vocab'].items():
         sym[v] = k

@@ -56,7 +56,7 @@
  *       the weights are held as two 8-bit blocks (zt_nn's float residual);
  *       results are checked against the float64 numpy reference
  *       (tools/kokoro/kokoro_ref.py) and by a speech-to-text round trip,
- *       not against torch. Memory grows with the sentence: about 330 KB per
+ *       not against torch. Memory grows with the sentence: about 400 KB per
  *       frame (40 frames a second) of work; speak a sentence at a time.
  * Freestanding: no libc, no malloc, no floating point. */
 #ifndef ZT_KOKORO_H

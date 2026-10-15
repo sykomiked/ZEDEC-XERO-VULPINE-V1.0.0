@@ -5,7 +5,7 @@
 #include "zt_kern.h"
 #include "zt_tts.h"
 
-#define CHUNK      64u
+#define CHUNK      256u
 #define MAX_COLS   3296u /* 1090 * 3 rounded up to 32 */
 #define HID        512u
 #define STY        128u
@@ -260,7 +260,7 @@ int32_t zt_kokoro_config(const zt_gguf_t *g, zt_kokoro_cfg_t *c, zt_model_err_t 
     c->hidden = (uint32_t) zt_gguf_get_int(g, "kokoro.hidden_dim", 0);
     c->max_dur = (uint32_t) zt_gguf_get_int(g, "kokoro.max_dur", 0);
     if (c->n_token == 0 || c->n_token > 256 || c->style != STY || c->hidden != HID ||
-        c->max_dur == 0 || c->max_dur > 256) {
+        c->max_dur == 0 || c->max_dur > 256 || zt_gguf_get_int(g, "kokoro.conv_order", 0) != 1) {
         set_err(err, ZT_NN_ECONFIG, "unsupported kokoro shape", 0);
         return ZT_NN_ECONFIG;
     }
@@ -450,7 +450,7 @@ typedef struct {
     zt_fx *sty;         /* 2 * 2180 style gains and biases */
     zt_fx *z, *h, *c;   /* LSTM step: 4 * 256, 256, 256 */
     int64_t *s1, *s2;   /* per-channel sums: 2180 */
-    zt_fx *one;         /* unit gains, 2180 */
+    uint32_t *shv;      /* per-channel shifts: 2180 */
     int32_t *dur;       /* max_tok */
     zt_fx *f0, *nn2;    /* 2 * max_frames */
     zt_fx *har;         /* (120 F + 1) * 22 */
@@ -500,7 +500,7 @@ static uint64_t layout(uint32_t T, uint32_t F, uint8_t *base, kwork_t *w)
     KTAKE(w->c, 256 * 4);
     KTAKE(w->s1, 2180 * 8);
     KTAKE(w->s2, 2180 * 8);
-    KTAKE(w->one, 2180 * 4);
+    KTAKE(w->shv, 2180 * 4);
     KTAKE(w->dur, (uint64_t) T * 4);
     KTAKE(w->f0, (uint64_t) 2 * F * 4);
     KTAKE(w->nn2, (uint64_t) 2 * F * 4);
@@ -540,11 +540,14 @@ static uint32_t conv(zt_nn_t *nn, const zt_kk_lin_t *L, const zt_fx *x, uint32_t
         for (uint32_t t = 0; t < B; t++) {
             zt_fx *o = col + (uint64_t) t * CK;
             int64_t s0 = (int64_t) (t0 + t) * stride - pad;
-            for (uint32_t j = 0; j < K; j++) {
+            for (uint32_t j = 0; j < K; j++) { /* column j * C + c */
                 int64_t s = s0 + (int64_t) j * dil;
-                bool in = s >= 0 && s < T;
-                const zt_fx *xr = in ? x + (uint64_t) s * xstride : 0;
-                for (uint32_t c = 0; c < C; c++) o[c * K + j] = in ? xr[c] : 0;
+                zt_fx *oj = o + (uint64_t) j * C;
+                if (s >= 0 && s < T) {
+                    const zt_fx *xr = x + (uint64_t) s * xstride;
+                    for (uint32_t c = 0; c < C; c++) oj[c] = xr[c];
+                } else
+                    for (uint32_t c = 0; c < C; c++) oj[c] = 0;
             }
         }
         zt_nn_linear(nn, &L->w, L->b, col, CK, CK, B, y + (uint64_t) t0 * ystride, ystride);
@@ -594,35 +597,52 @@ static void adain(zt_nn_t *nn, const zt_kk_lin_t *fc, const zt_fx *s, zt_fx *x, 
                   uint32_t C, kwork_t *w)
 {
     style_affine(nn, fc, s, C, w);
-    for (uint32_t c = 0; c < C; c++) w->s1[c] = 0;
-    for (uint64_t t = 0; t < T; t++)
-        for (uint32_t c = 0; c < C; c++) w->s1[c] += x[t * C + c];
+    /* row-major passes (x is [T][C]): mean, largest deviation, the sum of
+     * squares at a shift that keeps it in 64 bits, then the output */
+    int64_t *mean = w->s1;
+    uint64_t *aux = (uint64_t *) w->s2;
+    uint32_t *shv = w->shv;
+    for (uint32_t c = 0; c < C; c++) mean[c] = 0;
+    for (uint64_t t = 0; t < T; t++) {
+        const zt_fx *r = x + t * C;
+        for (uint32_t c = 0; c < C; c++) mean[c] += r[c];
+    }
     for (uint32_t c = 0; c < C; c++) {
-        int64_t mean = round_div(w->s1[c], T);
-        uint32_t amax = 0;
-        for (uint64_t t = 0; t < T; t++) {
-            int64_t d = (int64_t) x[t * C + c] - mean;
-            uint32_t a = (uint32_t) (d < 0 ? -d : d);
-            if (d > UINT32_MAX || -d > UINT32_MAX) a = UINT32_MAX;
-            if (a > amax) amax = a;
-        }
-        uint32_t b = 2 * bitlen64(amax) + bitlen64(T);
-        uint32_t sh = b > 60 ? b - 60 : 0;
-        uint64_t ss = 0;
-        for (uint64_t t = 0; t < T; t++) {
-            int64_t d = (int64_t) x[t * C + c] - mean;
-            ss += (uint64_t) (d * d) >> sh;
-        }
-        uint64_t inv = inv_rms(ss, sh, T, EPS5_Q48);
-        int64_t g1 = w->sty[c], be = w->sty[C + c];
-        for (uint64_t t = 0; t < T; t++) {
-            int64_t d = (int64_t) x[t * C + c] - mean;
-            int64_t v = (d * (int64_t) inv + ((int64_t) 1 << 31)) >> 32; /* Q16 */
-            v = rshr(v * g1, 16) + be;
-            x[t * C + c] = sat32(v);
+        mean[c] = round_div(mean[c], T);
+        aux[c] = 0;
+    }
+    for (uint64_t t = 0; t < T; t++) {
+        const zt_fx *r = x + t * C;
+        for (uint32_t c = 0; c < C; c++) {
+            int64_t d = (int64_t) r[c] - mean[c];
+            uint64_t a = (uint64_t) (d < 0 ? -d : d);
+            if (a > aux[c]) aux[c] = a;
         }
     }
-    (void) nn;
+    for (uint32_t c = 0; c < C; c++) {
+        uint64_t amax = aux[c] > UINT32_MAX ? UINT32_MAX : aux[c];
+        uint32_t b = 2 * bitlen64(amax) + bitlen64(T);
+        shv[c] = b > 60 ? b - 60 : 0;
+        aux[c] = 0;
+    }
+    for (uint64_t t = 0; t < T; t++) {
+        const zt_fx *r = x + t * C;
+        for (uint32_t c = 0; c < C; c++) {
+            int64_t d = (int64_t) r[c] - mean[c];
+            uint64_t a = (uint64_t) (d < 0 ? -d : d);
+            aux[c] += (a * a) >> shv[c];
+        }
+    }
+    for (uint32_t c = 0; c < C; c++) aux[c] = inv_rms(aux[c], shv[c], T, EPS5_Q48);
+    for (uint64_t t = 0; t < T; t++) {
+        zt_fx *r = x + t * C;
+        for (uint32_t c = 0; c < C; c++) {
+            int64_t d = (int64_t) r[c] - mean[c];
+            int64_t v = (d * (int64_t) aux[c] + ((int64_t) 1 << 31)) >> 32; /* Q16 */
+            v = rshr(v * w->sty[c], 16) + w->sty[C + c];
+            r[c] = sat32(v);
+        }
+    }
 }
 
 /* AdaLayerNorm over the channels of each row, in place on x [T][C] */
@@ -767,11 +787,14 @@ static uint32_t conv_t(zt_nn_t *nn, const zt_kk_lin_t *ph, const zt_fx *bias, ui
                 uint32_t t = p + (i0 + b) * stride;
                 int64_t ib = (t + pad - k0) / stride; /* k0 <= p + pad <= t + pad */
                 zt_fx *o = col + (uint64_t) b * cols;
-                for (uint32_t m = 0; m < taps; m++) {
+                for (uint32_t m = 0; m < taps; m++) { /* column m * Cin + c */
                     int64_t i = ib - m;
-                    bool in = i >= 0 && i < T;
-                    for (uint32_t c = 0; c < Cin; c++)
-                        o[c * taps + m] = in ? x[(uint64_t) i * Cin + c] : 0;
+                    zt_fx *om = o + (uint64_t) m * Cin;
+                    if (i >= 0 && i < T) {
+                        const zt_fx *xr = x + (uint64_t) i * Cin;
+                        for (uint32_t c = 0; c < Cin; c++) om[c] = xr[c];
+                    } else
+                        for (uint32_t c = 0; c < Cin; c++) om[c] = 0;
                 }
             }
             /* results land in the col tail, then scatter */
