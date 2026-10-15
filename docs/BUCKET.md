@@ -57,8 +57,9 @@ Consequences:
   (`baremetal_images.sh x86_64`, then `GOLDEN_OFFLINE=1 mk_golden_disc.sh
   x86_64`) hashed `5cadea4a...db21` in the CI image (`scripts/ci.Dockerfile`,
   gcc 11.5) and `b760acc6...8d43` on an Ubuntu 22.04 host with gcc 12.3.
-  Build a release in the CI image, so anyone can rebuild it and get the same
-  CIDs.
+  A second machine (Ubuntu 24.04 with gcc 11.5.0 first on the PATH, as the
+  CI image sets it) got `5cadea4a...db21` again, bit for bit. Build a release
+  in the CI image, so anyone can rebuild it and get the same CIDs.
 
 ## A worked example, three levels
 
