@@ -42,39 +42,28 @@ This follows the repository's rule of **no hollow capabilities**. A spec sheet
 handed to an OEM is a promise the OEM will try to build. It must not promise
 what no part can do.
 
-## Who holds the rights, and who to negotiate with
+## Partnering: who to approach
 
-| Organisation | Holds |
+**36N9 GENETICS LLC** is the root organisation: the originator of the
+concept and the designs, and the party a manufacturer partners with to
+produce any ZXV device (briefcase, servers, Signet, Folio, Courier).
+
+Partnerships with 36N9 GENETICS LLC are made under its **master
+partnership licence**, and a prospective partner approaches through one
+of its two **pre-approved partners**:
+
+| Pre-approved partner | Approach for |
 |---|---|
-| **36N9 GENETICS LLC** | The root organisation: originator of the concept and the designs, and the root of all the terms below |
-| **ILLUMAHEART FOUNDATION** | The **master hardware licence**: production rights for every ZXV device design in this folder and its subfolders (briefcase, servers, Signet, Folio, Courier) |
-| **SCENIC BYPASS CONSULTING LLC** | The **master software licence** for ZXV |
+| **ILLUMAHEART FOUNDATION** | Partnerships through the Foundation, which is also the manufacturer brand: its emblem is the badge at the centre of every device's grille ([HARDENING.md](HARDENING.md) section 6.5), and it receives the royalty under the ZXV Hardware License ([../../LICENSE](../../LICENSE), Section 4) |
+| **SCENIC BYPASS CONSULTING LLC** | Partnerships through Scenic Bypass Consulting |
 
-**To produce any ZXV device, negotiate with the ILLUMAHEART FOUNDATION
-(hardware) and SCENIC BYPASS CONSULTING LLC (software).** The
-ILLUMAHEART FOUNDATION is also the manufacturer brand: its emblem is the
-badge at the centre of every device's grille ([HARDENING.md](HARDENING.md)
-section 6.5).
-
-**For counsel: two documents must be brought in line with this table
-before an OEM agreement is signed.**
-
-1. The ZXV Hardware License 1.1 ([../../LICENSE](../../LICENSE)) defines its
-   "Licensor" (Section 1.1) as 36N9 GENETICS LLC and the ILLUMAHEART
-   FOUNDATION (Section 1.2) as the royalty recipient. The table above has
-   the Foundation holding the master hardware licence. The licence text
-   needs a grant or assignment from 36N9 GENETICS LLC to the Foundation,
-   or an amendment naming who licenses production.
-2. The ZXV software is published under the Apache License 2.0
-   ([../../../LICENSE](../../../LICENSE)), which already lets anyone use, build and
-   sell the software without negotiating. A master software licence held
-   by SCENIC BYPASS CONSULTING LLC therefore governs what Apache 2.0 does
-   not grant (the trademarks, including ZXV and ILLUMAHEART, commercial
-   support and certification, and any terms offered outside Apache 2.0),
-   unless the software's licence is changed for future releases.
-
-Neither change is made by this specification package. It records the
-arrangement; the legal instruments are counsel's.
+A manufacturer does not approach 36N9 GENETICS LLC directly to produce;
+it goes through either pre-approved partner. This sits alongside the
+published licences, which are unchanged: the hardware designs are under
+the ZXV Hardware License 1.1 (Licensor: 36N9 GENETICS LLC) and the software
+under the Apache License 2.0. **For counsel:** the terms of the master
+partnership licence, and how it relates to those two licences, are not
+written in this repository yet.
 
 ## Decisions an OEM cannot make for you
 

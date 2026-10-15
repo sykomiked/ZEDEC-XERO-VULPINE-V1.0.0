@@ -31,12 +31,11 @@ vendor sites could not be opened from the build environment, so every
 part is [CONFIRM] with its source, and must be checked against the live
 datasheet before design freeze.
 
-## Who to negotiate with
+## Who to approach
 
-Production rights for this package follow [../README.md](../README.md)
-("Who holds the rights"): the ILLUMAHEART FOUNDATION holds the master
-hardware licence, SCENIC BYPASS CONSULTING LLC the master software
-licence, and 36N9 GENETICS LLC is the originator and root of the terms.
+To produce this package, partner with 36N9 GENETICS LLC, the originator,
+through one of its two pre-approved partners: the ILLUMAHEART FOUNDATION
+or SCENIC BYPASS CONSULTING LLC ([../README.md](../README.md), "Partnering").
 
 ## Decisions taken in this package
 

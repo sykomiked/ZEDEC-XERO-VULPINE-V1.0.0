@@ -63,12 +63,11 @@ before design freeze. Where two sources disagree the line says so.
    confirmed shipping (October 2026); the 800 Gb/s parts are InfiniBand
    only or still sampling.
 
-## Who to negotiate with
+## Who to approach
 
-Production rights for this package follow [../README.md](../README.md)
-("Who holds the rights"): the ILLUMAHEART FOUNDATION holds the master
-hardware licence, SCENIC BYPASS CONSULTING LLC the master software
-licence, and 36N9 GENETICS LLC is the originator and root of the terms.
+To produce this package, partner with 36N9 GENETICS LLC, the originator,
+through one of its two pre-approved partners: the ILLUMAHEART FOUNDATION
+or SCENIC BYPASS CONSULTING LLC ([../README.md](../README.md), "Partnering").
 
 ## Decisions an OEM cannot make for you
 
