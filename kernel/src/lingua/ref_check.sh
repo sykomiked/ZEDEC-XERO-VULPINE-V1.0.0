@@ -66,6 +66,7 @@ if command -v gforth >/dev/null 2>&1; then
 fi
 # Per-language reference checks: each ref_<lang>.sh adds to ran, diffs, fail.
 for x in src/lingua/ref_*.sh; do
+    case "$x" in */ref_check.sh) continue ;; esac
     [ -f "$x" ] && . "$x"
 done
 for f in $G/*; do

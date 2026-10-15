@@ -38,6 +38,22 @@ static const char *const seeds[] = {
     "; 10 F .\n"
     ": W BEGIN DUP WHILE DUP . 1- REPEAT DROP ; 4 W .\" done\" 42 EMIT\n: U 0 BEGIN 1+ DUP 5 = "
     "UNTIL ; U . 5 ?DUP . .\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun f (n acc) (if (zerop n) acc "
+    "(f (1- n) (cons n acc))))\n"
+    "(print (f 4 nil)) (print (length *l*)) (print (assoc 2 (cddr *l*)))\n(let ((a 1) b) (setq b "
+    "(+ a 2)) (prin1 (list a b)))\n"
+    "(dotimes (i 3) (princ i)) (terpri)\n(labels ((g (x) (if (> x 9) x (g (* x 2))))) (print (g "
+    "1)))\n"
+    "(cond ((evenp 3) (print 'e)) (t (print (mod -7 3)))) (when (equal '(1) (list 1)) (print "
+    "t))\n",
+    ";;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) acc (f (- n "
+    "1) (cons n acc))))\n"
+    "(display (f 4 '())) (newline) (display (length l)) (write (assv 2 (cddr l)))\n(let* ((a 1) "
+    "(b (+ a 2))) (set! a b) (display (list a b)))\n"
+    "(do ((i 0 (+ i 1))) ((= i 3)) (display i)) (newline)\n(let loop ((x 1)) (if (> x 9) "
+    "(display x) (loop (* x 2))))\n"
+    "(cond ((even? 3) (display 'e)) (else (display (modulo -7 3)))) (if (equal? '(1) (list 1)) "
+    "(display #t))\n",
 };
 
 static const char *const dict[] = {
