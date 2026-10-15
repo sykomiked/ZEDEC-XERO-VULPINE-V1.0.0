@@ -87,11 +87,13 @@ static const char text_doc_en[] =
     "\n"
     "6.1 Some features touch money, health, physical safety or infrastructure such as power grids. In those areas the Distribution only advises and prepares actions. A person you authorise must review and approve each action before it takes effect.\n"
     "\n"
-    "6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, insurer or investment adviser. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.\n"
+    "6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, money transmitter, custodian, insurer or investment adviser, and it does not hold your money or assets for you. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.\n"
     "\n"
     "6.3 Payment and settlement features do not charge interest. Raffle features are offered only where the operator has confirmed they are lawful, are switched off by default where local rules forbid games of chance, and include age checks, limits and self-exclusion.\n"
     "\n"
     "6.4 Do not use the Distribution as the only safeguard for a decision that could cause death, serious injury, environmental damage or serious financial loss.\n"
+    "\n"
+    "6.5 Some features let the system, an operator or a community make discretionary allotments, such as patronage grants, surplus disbursements, good-faith stipends or custodial in-kind releases of commodities. Each allotment is a gratuitous, one-way allocation made for mutual aid and public benefit. Accepting one does not turn it into a loan, deposit, wage, investment return or security, and it creates no promise of profit, repayment or further allotments. Commodities held for release are the responsibility of the operator or custodian holding them, not us. A name does not change what the law says something is: where a feature works as a regulated activity in your country, section 6.2 applies, and the feature stays off until an authorised operator runs it.\n"
     "\n"
     "7. YOUR DATA AND PRIVACY\n"
     "\n"
@@ -212,12 +214,12 @@ static const char text_doc_en[] =
     "\n"
     "End of agreement.\n";
 
-/* SHA-256 a3fceb4111bce13594b181fcddd6e0ee6fdece3d83cc455a094584eefcdb060e */
+/* SHA-256 e1e19b058ff1785c38d92241d7340a049d087a357fbe286f0e6df2609bef3626 */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0xa3, 0xfc, 0xeb, 0x41, 0x11, 0xbc, 0xe1, 0x35,
-    0x94, 0xb1, 0x81, 0xfc, 0xdd, 0xd6, 0xe0, 0xee,
-    0x6f, 0xde, 0xce, 0x3d, 0x83, 0xcc, 0x45, 0x5a,
-    0x09, 0x45, 0x84, 0xee, 0xfc, 0xdb, 0x06, 0x0e
+    0xe1, 0xe1, 0x9b, 0x05, 0x8f, 0xf1, 0x78, 0x5c,
+    0x38, 0xd9, 0x22, 0x41, 0xd7, 0x34, 0x0a, 0x04,
+    0x9d, 0x08, 0x7a, 0x35, 0x7f, 0xbe, 0x28, 0x6f,
+    0x0e, 0x6d, 0xf2, 0x60, 0x9b, 0xef, 0x36, 0x26
 };
 
 static const terms_doc_t doc_en = {

@@ -80,11 +80,13 @@ This summary helps you read the agreement. It is not a substitute for it.
 
 6.1 Some features touch money, health, physical safety or infrastructure such as power grids. In those areas the Distribution only advises and prepares actions. A person you authorise must review and approve each action before it takes effect.
 
-6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, insurer or investment adviser. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.
+6.2 The Distribution is not a medical device and does not diagnose or treat anyone. It is not a bank, broker, payment institution, money transmitter, custodian, insurer or investment adviser, and it does not hold your money or assets for you. Where a regulated activity needs a licence, an authorised operator must hold that licence and is responsible for it.
 
 6.3 Payment and settlement features do not charge interest. Raffle features are offered only where the operator has confirmed they are lawful, are switched off by default where local rules forbid games of chance, and include age checks, limits and self-exclusion.
 
 6.4 Do not use the Distribution as the only safeguard for a decision that could cause death, serious injury, environmental damage or serious financial loss.
+
+6.5 Some features let the system, an operator or a community make discretionary allotments, such as patronage grants, surplus disbursements, good-faith stipends or custodial in-kind releases of commodities. Each allotment is a gratuitous, one-way allocation made for mutual aid and public benefit. Accepting one does not turn it into a loan, deposit, wage, investment return or security, and it creates no promise of profit, repayment or further allotments. Commodities held for release are the responsibility of the operator or custodian holding them, not us. A name does not change what the law says something is: where a feature works as a regulated activity in your country, section 6.2 applies, and the feature stays off until an authorised operator runs it.
 
 7. YOUR DATA AND PRIVACY
 
