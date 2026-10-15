@@ -14,6 +14,8 @@
  *   zxv-fab pack TARGET OUT --pk PK --sk SK [--to EK] [--window N] BLOCK...
  *   zxv-fab inspect RECIPE [--dk DK] [--trust PK]...
  *   zxv-fab unpack RECIPE OUT --store STORE [--dk DK] [--trust PK]... [--airgap]
+ *   zxv-fab pack-app MANIFEST OUT --pk PK --sk SK ...   an app (zxv_fab_app.c)
+ *   zxv-fab unpack-app RECIPE OUTDIR --store STORE ...  rebuild and gate an app
  *
  * pack without --to writes a PUBLIC recipe (app installs: nothing secret);
  * with --to it is SEALED to that recipient. unpack writes OUT only after the
@@ -33,13 +35,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "../../kernel/src/fab/fab.h"
+#include "zxv_fab.h"
 
-#define MAX_FILE (1u << 30)
+fab_work_t W;
 
-static fab_work_t W;
-
-static void die(const char *m)
+void die(const char *m)
 {
     fprintf(stderr, "zxv-fab: %s\n", m);
     exit(1);
@@ -79,13 +79,13 @@ static const char *err_name(int rc)
     }
 }
 
-static void fail(const char *what, int rc)
+void fail(const char *what, int rc)
 {
     fprintf(stderr, "zxv-fab: %s: %s (%d)\n", what, err_name(rc), rc);
     exit(2);
 }
 
-static uint8_t *read_file(const char *path, uint32_t *len, uint32_t max)
+uint8_t *read_file(const char *path, uint32_t *len, uint32_t max)
 {
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -105,7 +105,7 @@ static uint8_t *read_file(const char *path, uint32_t *len, uint32_t max)
 }
 
 /* Write to PATH.tmp, then rename: a reader never sees half a file. */
-static void write_file(const char *path, const uint8_t *b, uint32_t len, int mode)
+void write_file(const char *path, const uint8_t *b, uint32_t len, int mode)
 {
     char tmp[4096];
     if (snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int) sizeof tmp) die("path too long");
@@ -155,7 +155,7 @@ static void print_hex(const uint8_t *b, uint32_t n)
     for (uint32_t i = 0; i < n; i++) printf("%02x", b[i]);
 }
 
-static uint8_t *read_key(const char *path, uint32_t want)
+uint8_t *read_key(const char *path, uint32_t want)
 {
     uint32_t n;
     uint8_t *k = read_file(path, &n, want);
@@ -165,7 +165,7 @@ static uint8_t *read_key(const char *path, uint32_t want)
 
 /* ---- store ---------------------------------------------------------------- */
 
-static int store_get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len)
+int store_get(void *ctx, const ipfsn_cid_t *cid, uint8_t *buf, uint32_t cap, uint32_t *len)
 {
     char name[IPFSN_CID_STR_MAX], path[4096];
     if (ipfsn_cid_to_string(cid, name, sizeof name) < 0) return -1;
@@ -498,7 +498,8 @@ static int cmd_unpack(int argc, char **argv)
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        fprintf(stderr, "usage: zxv-fab keygen-sign|keygen-kem|cid|put|pack|inspect|unpack ...\n");
+        fprintf(stderr, "usage: zxv-fab keygen-sign|keygen-kem|cid|put|pack|inspect|unpack|"
+                        "pack-app|unpack-app ...\n");
         return 1;
     }
     W.loaded = -1;
@@ -512,6 +513,8 @@ int main(int argc, char **argv)
     if (!strcmp(c, "pack")) return cmd_pack(argc, argv);
     if (!strcmp(c, "inspect")) return cmd_inspect(argc, argv);
     if (!strcmp(c, "unpack")) return cmd_unpack(argc, argv);
+    if (!strcmp(c, "pack-app")) return cmd_pack_app(argc, argv);
+    if (!strcmp(c, "unpack-app")) return cmd_unpack_app(argc, argv);
     die("unknown command");
     return 1;
 }

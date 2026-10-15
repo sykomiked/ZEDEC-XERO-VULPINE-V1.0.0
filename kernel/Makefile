@@ -425,6 +425,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-pce
 	$(MAKE) --no-print-directory test-print
 	$(MAKE) --no-print-directory test-fab
+	$(MAKE) --no-print-directory test-appfab
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
@@ -1674,7 +1675,20 @@ FAB_SRC := src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c s
 test-fab:
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(FAB_INC) src/fab/test_fab.c $(FAB_SRC) -o $(ZXV_TMP)/test_fab && $(ZXV_TMP)/test_fab > $(ZXV_TMP)/test_fab.log 2>&1 && echo "[PASS] test_fab ($$(tail -1 $(ZXV_TMP)/test_fab.log))" || { cat $(ZXV_TMP)/test_fab.log; echo "[FAIL] test_fab"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do for f in src/fab/fab.c src/fab/fab_send.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) -c $$f -o $(ZXV_TMP)/fab_free.o || { echo "[FAIL] fab freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/fab_free.o | grep -vE ' (fab_[a-z0-9_]+|fab__[a-z0-9_]+|ipfsn_[a-z0-9_]+|sha256(_init|_update|_final)?|aead_(seal|open)|hkdf_(extract|expand)|pqm_ml(dsa87|kem1024)_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/fab_free.o; echo "[FAIL] fab freestanding: libc or helper in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] fab freestanding (aarch64 and i386: no libc)"
-	@gcc -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) ../tools/zxv-fab/zxv_fab.c $(FAB_SRC) -o $(ZXV_TMP)/zxv-fab && sh ../tools/zxv-fab/test_zxv_fab.sh $(ZXV_TMP)/zxv-fab $(ZXV_TMP)/zxv-fab-test > $(ZXV_TMP)/test_zxv_fab.log 2>&1 && echo "[PASS] zxv-fab tool ($$(tail -1 $(ZXV_TMP)/test_zxv_fab.log))" || { cat $(ZXV_TMP)/test_zxv_fab.log; echo "[FAIL] zxv-fab tool"; exit 1; }
+
+# The program fabricator's gate (src/appfab/appfab.h): a fabricated app fits
+# (parts match CIDs, uses pinned to parts, sources from parts, every entry has a
+# runtime) and functions (witnessed checks), joined with lpres. ASan/UBSan, then
+# a freestanding build with only appfab_/zxapp_/ipfsn_/lpres_ external, then
+# the zxv-fab tool (files and apps, with the real app runtimes) end to end.
+.PHONY: test-appfab
+APPFAB_SRCS = src/appfab/appfab.c src/apps/zxapp.c src/apps/zxapp_pce.c $(PCE_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c
+test-appfab:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(FAB_INC) src/appfab/test_appfab.c $(APPFAB_SRCS) $(FAB_SRC) -o $(ZXV_TMP)/test_appfab && $(ZXV_TMP)/test_appfab src > $(ZXV_TMP)/test_appfab.log 2>&1 && echo "[PASS] test_appfab ($$(tail -1 $(ZXV_TMP)/test_appfab.log))" || { cat $(ZXV_TMP)/test_appfab.log; echo "[FAIL] test_appfab"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) -c src/appfab/appfab.c -o $(ZXV_TMP)/appfab_free.o || { echo "[FAIL] appfab freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/appfab_free.o | grep -vE ' (appfab_|zxapp_|ipfsn_|lpres_)' | grep -q .; then nm -u $(ZXV_TMP)/appfab_free.o; echo "[FAIL] appfab freestanding: libc symbol ($$t)"; exit 1; fi; done; echo "[PASS] appfab freestanding (aarch64, i386; only appfab_/zxapp_/ipfsn_/lpres_ external)"
+	@sh ../tools/zxv-fab/build.sh $(ZXV_TMP)/zxv-fab -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all > $(ZXV_TMP)/zxv_fab_build.log 2>&1 || { cat $(ZXV_TMP)/zxv_fab_build.log; echo "[FAIL] zxv-fab build"; exit 1; }
+	@ASAN_OPTIONS=detect_leaks=0 sh ../tools/zxv-fab/test_zxv_fab.sh $(ZXV_TMP)/zxv-fab $(ZXV_TMP)/zxv-fab-test > $(ZXV_TMP)/test_zxv_fab.log 2>&1 && echo "[PASS] zxv-fab tool ($$(tail -1 $(ZXV_TMP)/test_zxv_fab.log))" || { cat $(ZXV_TMP)/test_zxv_fab.log; echo "[FAIL] zxv-fab tool"; exit 1; }
+	@ASAN_OPTIONS=detect_leaks=0 sh ../tools/zxv-fab/test_zxv_fab_app.sh $(ZXV_TMP)/zxv-fab $(ZXV_TMP)/zxv-fab-app-test > $(ZXV_TMP)/test_zxv_fab_app.log 2>&1 && echo "[PASS] zxv-fab apps ($$(tail -1 $(ZXV_TMP)/test_zxv_fab_app.log))" || { cat $(ZXV_TMP)/test_zxv_fab_app.log; echo "[FAIL] zxv-fab apps"; exit 1; }
 
 # The settlement spine (src/settle/settle.h): swarm money reconciled with pay_ledger.
 .PHONY: test-settle

@@ -397,7 +397,8 @@
      "after": "bash kernel/src/acpi/test/mut_aml.sh"},
     {"name": "acpi_pm", "target": "kernel/src/acpi/acpi_pm.c",
      "before": null, "before_note": "new module: ACPI power management over the AML interpreter (docs/ACPI.md)",
-     "after": "bash kernel/src/acpi/test/mut_aml.sh"}
+     "after": "bash kernel/src/acpi/test/mut_aml.sh"},
+    {"name": "appfab", "target": "kernel/src/appfab/appfab.c", "before": null, "before_note": "new module: the program fabricator's gate (fit + witnessed function, docs/spec/FABRICATION.md section 10)", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/appfab/test_appfab.c src/appfab/appfab.c src/apps/zxapp.c src/apps/zxapp_pce.c src/pce/pce.c src/pce/pce_prob.c src/pce/pce_tac.c src/pce/pce_strat.c src/pce/pce_fin.c src/pce/pce_entry.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/rational/rational.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $I $S -o $T/tappfab_m 2>/dev/null || exit 3; } && $T/tappfab_m src > /dev/null 2>&1"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub", "swarm_denom", "swarm_yield", "zxvd_rpc", "zxvd_aipi", "zxvd_cards", "zxvd_ident", "zxvd_econ", "zxvd_instruments", "zxvd_estate", "zxvd_sandbox", "zxvd_companion", "zxvd_web4", "zxvd_seats", "zxvd_power", "zxvd_fab", "zxvd_pspace", "lpres", "oseq", "zphi", "swarm_budget", "swarm_market", "swarm_ledger", "swarm_reserve", "zcapital", "hkdf"],
