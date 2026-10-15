@@ -247,6 +247,32 @@ static void test_start_update(void)
     sign_manifest(sk_a, &u);
     CHECK(cmp_update_manifest(&c, &u, NULL, sig) == CMP_OK, "update by the owner");
     CHECK(c.granted == (CMP_CAP_LEDGER | CMP_CAP_NET), "grants above the new ceiling dropped");
+    /* C.1: once named, the name is permanent; an unnamed companion may gain one */
+    cmp_manifest_t r = u;
+    r.epoch = 3;
+    r.name[CMP_NAME - 1] = 'x';
+    sign_manifest(sk_a, &r);
+    CHECK(cmp_update_manifest(&c, &r, NULL, sig) == CMP_ERR_NAME && c.man.epoch == 2,
+          "a named companion cannot be renamed, even in the last byte");
+    memset(r.name, 0, CMP_NAME);
+    sign_manifest(sk_a, &r);
+    CHECK(cmp_update_manifest(&c, &r, NULL, sig) == CMP_ERR_NAME, "nor have its name removed");
+    {
+        companion_t n;
+        cmp_manifest_t a = m;
+        memset(a.name, 0, CMP_NAME);
+        sign_manifest(sk_a, &a);
+        CHECK(cmp_start(&n, &a, pk_a, sig, logbuf + 512, 256) == CMP_OK, "start unnamed");
+        a.epoch = 2;
+        memcpy(a.name, "Pip", 3);
+        sign_manifest(sk_a, &a);
+        CHECK(cmp_update_manifest(&n, &a, NULL, sig) == CMP_OK && n.man.name[0] == 'P',
+              "an unnamed companion is named once");
+        a.epoch = 3;
+        a.name[0] = 'Q';
+        sign_manifest(sk_a, &a);
+        CHECK(cmp_update_manifest(&n, &a, NULL, sig) == CMP_ERR_NAME, "and that name stays");
+    }
 
     /* Owner handover: the old owner signs a manifest naming the new key. */
     cmp_manifest_t h = u;

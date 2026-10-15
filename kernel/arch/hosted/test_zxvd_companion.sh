@@ -4,9 +4,9 @@
 #
 # test_zxvd_companion.sh — build libzxv (incrementally) and run
 # test_zxvd_companion.c: zxvd_companion.c behind zxvd_rpc.c on the real swarm
-# DNA, emotion and evolution code. The mutation harness's test command for
-# zxvd_companion.c (tests/harness/mutator/targets.json): exits 3 when only the
-# build failed.
+# DNA, emotion and evolution code and the chiglet's name (chg_name.c). The
+# mutation harness's test command for zxvd_companion.c
+# (tests/harness/mutator/targets.json): exits 3 when only the build failed.
 set -eu
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K="$(cd "$HERE/../.." && pwd)"
@@ -33,6 +33,7 @@ for f in swarm_dna swarm_emotion swarm_budget swarm_evolve; do set -- "$@" "$K/s
 # shellcheck disable=SC2086
 $CC -std=c11 -O1 -Wall -Wextra -Werror $INCS "$HERE/test_zxvd_companion.c" "$HERE/zxvd_companion.c" \
     "$HERE/zxvd_rpc.c" $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" "$T/keccak.o" \
-    "$K/src/robin_debanks/sha256.c" "$@" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm \
+    "$K/src/robin_debanks/sha256.c" "$K/src/chiglet/chg_name.c" "$@" -L"$R/sdk/libzxv/build" -lzxv \
+    "$RP" -lm \
     "$MODA" -o "$T/test_zxvd_companion" || exit 3
 "$T/test_zxvd_companion"

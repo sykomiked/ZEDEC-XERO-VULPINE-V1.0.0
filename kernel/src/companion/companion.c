@@ -212,6 +212,15 @@ cmp_status_t cmp_start(companion_t *c, const cmp_manifest_t *m,
     return CMP_OK;
 }
 
+/* C.1: a manifest with no name may gain one; once named, the name stays */
+static bool named_same(const cmp_manifest_t *cur, const cmp_manifest_t *m)
+{
+    bool named = false;
+    for (uint32_t i = 0; i < CMP_NAME; i++)
+        if (cur->name[i] != 0) named = true;
+    return !named || eq((const uint8_t *) cur->name, (const uint8_t *) m->name, CMP_NAME);
+}
+
 cmp_status_t cmp_update_manifest(companion_t *c, const cmp_manifest_t *m,
                                  const uint8_t *new_owner_pk, const uint8_t sig[CMP_SIG_BYTES])
 {
@@ -220,6 +229,7 @@ cmp_status_t cmp_update_manifest(companion_t *c, const cmp_manifest_t *m,
     if (!manifest_ok(m)) return CMP_ERR_FORMAT;
     if (m->epoch <= c->man.epoch) return CMP_ERR_EPOCH;
     if (!eq(m->companion_id, c->man.companion_id, CMP_HASH)) return CMP_ERR_ID;
+    if (!named_same(&c->man, m)) return CMP_ERR_NAME;
     bool new_owner = !eq(m->owner_pk_hash, c->man.owner_pk_hash, CMP_HASH);
     if (new_owner) {
         uint8_t h[CMP_HASH];

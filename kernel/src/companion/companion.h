@@ -16,7 +16,10 @@
  *       "zxv/companion/manifest/v1" || encoding. A companion starts only from
  *       a manifest its owner signed, and every change needs a higher epoch,
  *       the same companion id and the CURRENT owner's signature (so a new
- *       owner key is handed over by the old one).
+ *       owner key is handed over by the old one). The name is set once
+ *       (src/chiglet/chg_name.h): a manifest with no name may gain one, but
+ *       once named the name never changes (CMP_ERR_NAME); a new name means
+ *       a new companion.
  *   C.2 CAPABILITIES. The companion starts with none. A grant is a message
  *       the owner signs (companion id, manifest epoch, a sequence number and
  *       the capability bits); it must fall inside the manifest ceiling and
@@ -132,7 +135,8 @@ typedef enum {
     CMP_ERR_SEQ = -7,     /* grant sequence number is not the next one */
     CMP_ERR_CEILING = -8, /* grant outside the manifest's capability ceiling */
     CMP_ERR_LOG = -9,     /* log full: nothing changed (fail closed) */
-    CMP_ERR_STATE = -10   /* companion not started */
+    CMP_ERR_STATE = -10,  /* companion not started */
+    CMP_ERR_NAME = -11    /* C.1: a named companion's name cannot change */
 } cmp_status_t;
 
 /* ---- the log ---- */
@@ -247,8 +251,8 @@ void cmp_manifest_digest(const cmp_manifest_t *m, uint8_t out[CMP_HASH]);
 cmp_status_t cmp_start(companion_t *c, const cmp_manifest_t *m,
                        const uint8_t owner_pk[CMP_PK_BYTES], const uint8_t sig[CMP_SIG_BYTES],
                        cmp_rec_t *rec, uint32_t cap);
-/* Replace the manifest: higher epoch, same companion id, signed by the
- * current owner. new_owner_pk is the new owner's key when the owner hash
+/* Replace the manifest: higher epoch, same companion id, the same name once
+ * named, signed by the current owner. new_owner_pk is the new owner's key when the owner hash
  * changes (NULL otherwise). Grants beyond the new ceiling are dropped. */
 cmp_status_t cmp_update_manifest(companion_t *c, const cmp_manifest_t *m,
                                  const uint8_t *new_owner_pk, const uint8_t sig[CMP_SIG_BYTES]);

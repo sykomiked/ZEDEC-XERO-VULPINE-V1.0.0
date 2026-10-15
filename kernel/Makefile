@@ -1687,9 +1687,9 @@ test-companion:
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CMP_INC) -c src/companion/companion.c -o $(ZXV_TMP)/companion_free.o || { echo "[FAIL] companion freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/companion_free.o | grep -vE ' (chg_[a-z_]+|lpx_[a-z_]+|pqm_mldsa87_verify|sha256(_init|_update|_final)?|swarm_emotion_(charge|profile)|memcpy)$$' | grep -q .; then nm -u $(ZXV_TMP)/companion_free.o; echo "[FAIL] companion freestanding: unexpected symbol ($$t)"; exit 1; fi; done; echo "[PASS] companion freestanding (aarch64 -mgeneral-regs-only, i386)"
 
 # The chiglet's organ router, act vocabulary and system ABI (src/chiglet/
-# chg_organ.h O1-O6, chg_vocab.h V1-V3, chg_abi.h A1-A6): ASan/UBSan tests,
+# chg_organ.h O1-O6, chg_vocab.h V1-V3, chg_abi.h A1-A6, chg_name.h N1-N7): ASan/UBSan tests,
 # then a freestanding build whose only external symbols are the vocabulary,
-# the four-valued joins, the tag table and SHA-256.
+# the four-valued joins, the tag table, the swarm DNA and SHA-256.
 CHGO_SRCS := src/chiglet/chg_organ.c src/chiglet/chg_vocab.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c
 CHGO_INC := -Iinclude -Isrc/modbind -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/chiglet
 .PHONY: test-chg-organ
@@ -1698,7 +1698,9 @@ test-chg-organ:
 	@$(ZXV_TMP)/test_chg_organ > $(ZXV_TMP)/test_chg_organ.log 2>&1 && echo "[PASS] test_chg_organ ($$(tail -1 $(ZXV_TMP)/test_chg_organ.log))" || { cat $(ZXV_TMP)/test_chg_organ.log; echo "[FAIL] test_chg_organ"; exit 1; }
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $(CHGO_INC) src/chiglet/test_chg_abi.c src/chiglet/chg_abi.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_chg_abi 2>$(ZXV_TMP)/test_chg_abi.build || { cat $(ZXV_TMP)/test_chg_abi.build; echo "[FAIL] test_chg_abi build"; exit 1; }
 	@$(ZXV_TMP)/test_chg_abi > $(ZXV_TMP)/test_chg_abi.log 2>&1 && echo "[PASS] test_chg_abi ($$(tail -1 $(ZXV_TMP)/test_chg_abi.log))" || { cat $(ZXV_TMP)/test_chg_abi.log; echo "[FAIL] test_chg_abi"; exit 1; }
-	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_organ chg_vocab chg_abi; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CHGO_INC) -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (chgv_[a-z_]+|lpx_[a-z_]+|lpres_[a-z_]+|sha256)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_organ, chg_vocab, chg_abi freestanding (aarch64 -mgeneral-regs-only, i386)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $(CHGO_INC) -Isrc/swarm src/chiglet/test_chg_name.c src/chiglet/chg_name.c src/swarm/swarm_dna.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_chg_name 2>$(ZXV_TMP)/test_chg_name.build || { cat $(ZXV_TMP)/test_chg_name.build; echo "[FAIL] test_chg_name build"; exit 1; }
+	@$(ZXV_TMP)/test_chg_name > $(ZXV_TMP)/test_chg_name.log 2>&1 && echo "[PASS] test_chg_name ($$(tail -1 $(ZXV_TMP)/test_chg_name.log))" || { cat $(ZXV_TMP)/test_chg_name.log; echo "[FAIL] test_chg_name"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_organ chg_vocab chg_abi chg_name; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CHGO_INC) -Isrc/swarm -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (chgv_[a-z_]+|lpx_[a-z_]+|lpres_[a-z_]+|swarm_dna_[a-z_]+|sha256(_[a-z]+)?)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_organ, chg_vocab, chg_abi, chg_name freestanding (aarch64 -mgeneral-regs-only, i386)"
 
 # The .zxvc model package and converter (src/tensor/zt_zxvc.h, tools/zxvc.c,
 # roadmap 6.6c M.1/M.4): every F16/BF16 pattern and 4M F32 patterns decode to
