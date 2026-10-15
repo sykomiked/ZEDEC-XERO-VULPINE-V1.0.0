@@ -392,6 +392,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-treaty-cobol
 	$(MAKE) --no-print-directory test-lingua
 	$(MAKE) --no-print-directory test-lingua-ref
+	$(MAKE) --no-print-directory test-babel
 	$(MAKE) --no-print-directory test-policy
 	$(MAKE) --no-print-directory test-policy-cobol
 	$(MAKE) --no-print-directory test-terms
@@ -1811,6 +1812,19 @@ test-lingua:
 	@sh src/lingua/check_catalogue.sh
 test-lingua-ref:
 	@sh src/lingua/ref_check.sh
+
+# Babel (src/babel, docs/BABEL.md): the bridges between languages and systems.
+# bv.c is the Babel value every runtime meets in, with one canonical encoding;
+# bv_syntax.c reads what LISP, Scheme, Logo and the numeric languages print.
+.PHONY: test-babel
+test-babel:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/babel src/babel/test_bv.c src/babel/bv.c -o $(ZXV_TMP)/test_bv && $(ZXV_TMP)/test_bv > $(ZXV_TMP)/test_bv.log 2>&1 && echo "[PASS] test_bv ($$(tail -1 $(ZXV_TMP)/test_bv.log))" || { cat $(ZXV_TMP)/test_bv.log; echo "[FAIL] test_bv"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/babel src/babel/test_bv_syntax.c src/babel/bv_syntax.c src/babel/bv.c -o $(ZXV_TMP)/test_bv_syntax && $(ZXV_TMP)/test_bv_syntax src/lingua/golden > $(ZXV_TMP)/test_bv_syntax.log 2>&1 && echo "[PASS] test_bv_syntax ($$(tail -1 $(ZXV_TMP)/test_bv_syntax.log))" || { cat $(ZXV_TMP)/test_bv_syntax.log; echo "[FAIL] test_bv_syntax"; exit 1; }
+	@for f in src/babel/bv.c src/babel/bv_syntax.c; do \
+	  clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/babel -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_a64.o && \
+	  gcc -ffreestanding -fno-stack-protector -std=c11 -O2 -Wall -Werror -Wextra -Isrc/babel -c $$f -o $(ZXV_TMP)/$$(basename $$f .c)_x64.o || exit 1; \
+	  if nm -u $(ZXV_TMP)/$$(basename $$f .c)_a64.o $(ZXV_TMP)/$$(basename $$f .c)_x64.o | grep ' U ' | grep -v ' U bv_'; then echo "[FAIL] $$f is not freestanding"; exit 1; fi; \
+	done; echo "[PASS] babel freestanding (aarch64-none-elf, x86_64: no outside symbols)"
 
 # Policy engine (src/policy): a deterministic policy evaluation engine that
 # enforces machine-verifiable transactional constraints, bilateral treaty rules
