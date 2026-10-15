@@ -314,7 +314,9 @@ static int cmd_pack(int argc, char **argv)
             die("cannot hash block");
         public_bytes += src[i].len;
     }
-    uint32_t bits = 20, ops_cap = tlen / 8u + 16u, no = 0, dl = 0, pl = 0, rl = 0;
+    /* every match covers at least 8 bytes and has at most one literal before
+     * it, so a target needs fewer than tlen / 4 + 2 ops */
+    uint32_t bits = 20, ops_cap = tlen / 4u + 16u, no = 0, dl = 0, pl = 0, rl = 0;
     if (ops_cap > FAB_MAX_OPS) ops_cap = FAB_MAX_OPS;
     fab_ient_t *table = malloc(sizeof *table << bits);
     uint8_t *ops = malloc((size_t) ops_cap * FAB_OP_REC), *diff = malloc(tlen ? tlen : 1u);

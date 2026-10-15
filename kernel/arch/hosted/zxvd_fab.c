@@ -496,7 +496,9 @@ static bool build(zxvd_call_t *c, const fab_src_t *src, uint32_t nsrc, const uin
         return false;
     }
     const uint32_t bits = 20;
-    uint32_t ops_cap = tlen / 8u + 16u;
+    /* every match covers at least FAB_WINDOW_MIN (8) bytes and has at most
+     * one literal before it, so a target needs fewer than tlen / 4 + 2 ops */
+    uint32_t ops_cap = tlen / 4u + 16u;
     if (ops_cap > FAB_MAX_OPS) ops_cap = FAB_MAX_OPS;
     fab_ient_t *table = malloc(sizeof *table << bits);
     uint8_t *ops = malloc((size_t) ops_cap * FAB_OP_REC);

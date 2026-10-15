@@ -54,6 +54,19 @@ cmp -s "$D/target" "$D/out" || no "public round trip"; ok
 "$FAB" inspect "$D/pub.fab" --trust "$D/a.pk" > /dev/null || no "trust a"; ok
 "$FAB" inspect "$D/pub.fab" --trust "$D/b.pk" > /dev/null 2>&1 && no "trust b accepted"; ok
 
+# the most ops a target can need: one byte, then 8 indexed bytes of b1, 10000 times
+python3 -I -c '
+import sys
+b = open(sys.argv[1], "rb").read()
+out = bytearray()
+for i in range(10000):
+    out += bytes([(i * 131 + 7) % 251]) + b[((i * 37) % (len(b) // 8 - 2)) * 8:][:8]
+open(sys.argv[2], "wb").write(out)' "$D/blocks/b1" "$D/dense" || no "dense target"; ok
+"$FAB" pack "$D/dense" "$D/dense.fab" --pk "$D/a.pk" --sk "$D/a.sk" --window 8 \
+    "$D/blocks/b1" > /dev/null || no "pack many short matches"; ok
+"$FAB" unpack "$D/dense.fab" "$D/dense.out" --store "$D/store" > /dev/null || no "unpack dense"; ok
+cmp -s "$D/dense" "$D/dense.out" || no "dense round trip"; ok
+
 # sealed recipe (private data)
 "$FAB" pack "$D/target" "$D/sec.fab" --pk "$D/a.pk" --sk "$D/a.sk" --to "$D/r.ek" \
     "$D/blocks/b1" "$D/blocks/b2" > /dev/null || no "pack sealed"; ok

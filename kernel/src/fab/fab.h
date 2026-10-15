@@ -359,7 +359,9 @@ typedef struct {
 /* Find runs of target bytes that occur in the sources (windows of `window`
  * bytes, aligned in the sources, extended both ways) and emit ops; the rest
  * becomes diff. Only the last source may be prev, so op block numbers are
- * source indexes. ops_cap is in ops (12 bytes each). 4 <= table_bits <= 24. */
+ * source indexes. ops_cap is in ops (12 bytes each); a target never needs
+ * more than tlen / (window + 1) * 2 + 1 (each match is at least window bytes
+ * with at most one literal before it). 4 <= table_bits <= 24. */
 int fab_build(const fab_src_t *src, uint32_t nsrc, const uint8_t *target, uint32_t tlen,
               uint32_t window, fab_ient_t *table, uint32_t table_bits, uint8_t *ops,
               uint32_t ops_cap, uint32_t *n_ops, uint8_t *diff, uint32_t diff_cap,
