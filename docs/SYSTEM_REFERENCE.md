@@ -77,12 +77,12 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 | Status | Modules |
 |---|---|
-| WORKING (tested in verify-all) | 142 |
+| WORKING (tested in verify-all) | 143 |
 | PARTIAL | 37 |
 | WORKING (test not in verify-all) | 17 |
 | UNUSED/DEAD | 11 |
 | STUB | 3 |
-| **Total** | **210** |
+| **Total** | **211** |
 
 | Module | What it is | Status |
 |---|---|---|
@@ -219,6 +219,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [oseq](#oseq----k1-ordinal-sequencer) | K1 ordinal sequencer | WORKING (tested in verify-all) |
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
+| [passport](#passport----log-in-from-any-device-with-no-server) | log in from any device with no server | WORKING (tested in verify-all) |
 | [pay](#pay----payment-ledger-assurance-fee-iso-20022-equity-treasury-farm) | payment ledger, assurance fee, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
 | [peer_audit](#peer_audit----self-audit-and-peer-audit-for-swarm-transitions) | self-audit and peer audit for swarm transitions | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
@@ -1844,6 +1845,14 @@ What it does: panopticon.c rates watchers/connections and logs; panopticon_vpn.c
 Main entry points: panopticon_init, panopticon_register_watcher, panopticon_rate_friendliness, panopticon_classify, vpn_mesh_init, vpn_connect, vpn_route_packet.
 Tests: none. Used by: nothing includes it. Kernel: yes.
 Gaps: no test; not a VPN.
+
+### passport  —  log in from any device with no server
+Status: WORKING (tested in verify-all)
+What it does: A 32-byte seed (typed as checksummed base32, or stretched from a passphrase with ident's Argon2id) rebuilds ident's root identity and the vault and rendezvous keys on any device. Personal state is five sets (earn receipts, spends, café grants, revocations, devices) merged by set union and replayed into a balance with the paraconsistent ledger's rules (equivocations held, unfundable spends quarantined as BOTH). The state travels as a ChaCha20-Poly1305 capsule named by a raw CID and announced under a secret per-epoch topic. Café mode gives an untrusted machine a short-lived ML-DSA-65 session key approved from the phone, with rights, a cap and an expiry. Design: docs/PASSPORT.md.
+Main entry points: pp_hydrate, pp_seed_from_text, pp_seed_from_passphrase, pp_state_replay, pp_capsule_seal/open/publish/fetch, pp_verify_device_spend, pp_cafe_begin, pp_grant_issue, pp_verify_cafe_spend (passport.h).
+Tests: passport/test_passport.c — passes (make -C kernel test-passport, also builds freestanding for aarch64 and i386).
+Used by: nothing yet; zxvd and the login screen are the next consumers. Hosted only: not in any kernel image.
+Gaps: no mnemonic word list; the host must wipe its own copies at the end of a café session.
 
 ### pay  —  payment ledger, assurance fee, ISO 20022, equity, treasury, farm
 Status: WORKING (tested in verify-all, under ASan+UBSan)
