@@ -494,12 +494,45 @@ static const pdx_rec_t *frontier_rec(const pdx_log_t *f, uint32_t rec)
     return &f->rec[rec];
 }
 
+/* SHA-256 of "zxv/pdx-draft/v1" || rec || rec_hash || sig || kind ||
+ * reason || flags: what a DRAFT record commits to, so a review can tell the
+ * draft it is handed from the one that was recorded. */
+static void draft_bind(uint32_t rec, const uint8_t rec_hash[PDX_HASH], const uint8_t sig[PDX_HASH],
+                       uint8_t kind, uint8_t reason, uint8_t flags, uint8_t out[PDX_HASH])
+{
+    sha256_ctx_t c;
+    sha256_init(&c);
+    h_str(&c, "zxv/pdx-draft/v1");
+    h_u32(&c, rec);
+    sha256_update(&c, rec_hash, PDX_HASH);
+    sha256_update(&c, sig, PDX_HASH);
+    uint8_t f[3] = {kind, reason, flags};
+    sha256_update(&c, f, 3);
+    sha256_final(&c, out);
+}
+
+/* The DRAFT record in log that commits to exactly this draft. */
+static bool draft_recorded(const pdx_log_t *log, const pdx_draft_t *d)
+{
+    uint8_t bind[PDX_HASH];
+    draft_bind(d->rec, d->rec_hash, d->sig, d->kind, d->reason, d->flags, bind);
+    for (uint32_t k = log->n; k > 0; k--) {
+        const pdx_rec_t *x = &log->rec[k - 1];
+        if (x->op == PDX_OP_DRAFT && x->outcome == PDX_OUT_RECORDED && x->aux == d->rec &&
+            x->kind == d->kind && eq32(x->a, d->rec_hash) && eq32(x->b, bind))
+            return true;
+    }
+    return false;
+}
+
 pdx_out_t pdx_draft(const pdx_log_t *frontier, uint32_t rec, uint8_t kind, uint8_t reason,
                     uint8_t flags, pdx_draft_t *d, pdx_log_t *log)
 {
     const pdx_rec_t *r = frontier_rec(frontier, rec);
     if (!r || !d || !log || !registry_kind(kind)) return PDX_OUT_REFUSED;
-    if (!pdx_log_append(log, PDX_OP_DRAFT, kind, r->tag, PDX_OUT_RECORDED, rec, r->hash, r->a))
+    uint8_t bind[PDX_HASH];
+    draft_bind(rec, r->hash, r->a, kind, reason, flags, bind);
+    if (!pdx_log_append(log, PDX_OP_DRAFT, kind, r->tag, PDX_OUT_RECORDED, rec, r->hash, bind))
         return PDX_OUT_LOG_FULL;
     d->rec = rec;
     cp32(d->rec_hash, r->hash);
@@ -515,7 +548,8 @@ pdx_out_t pdx_review(pdx_registry_t *reg, const pdx_log_t *frontier, const pdx_d
 {
     const pdx_rec_t *r = d ? frontier_rec(frontier, d->rec) : 0;
     if (!reg || !r || !log || !registry_kind(d->kind) || !eq32(r->hash, d->rec_hash) ||
-        !eq32(r->a, d->sig) || !pdx_log_verify(frontier))
+        !eq32(r->a, d->sig) || !pdx_log_verify(frontier) || !pdx_log_verify(log) ||
+        !draft_recorded(log, d))
         return PDX_OUT_REFUSED;
     bool needs_owner = (d->flags & (PDX_DRAFT_MONEY | PDX_DRAFT_DEVICE)) != 0;
     pdx_out_t o;

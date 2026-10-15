@@ -10,7 +10,9 @@
  *      field 4 (amount) reads back as exactly the value of its 12 digits;
  *      cn8583_get_vss output re-encodes (cn8583_put_vss) to the same 60/61/63;
  *      cn8583_to_auth_req -> cn8583_from_auth_req -> pack -> unpack ->
- *      to_auth_req gives back the same request (amount exact, no rounding)
+ *      to_auth_req gives back the same request (amount exact, no rounding);
+ *      to_auth_req accepts only a purchase processing code (field 3 TT 00,
+ *      FF 00/30, TT 00) and refuses any other with CN8583_ERR_PROC
  *   1  cn_emv_decode_auth: the decoded request is in range (amount <=
  *      CN_AMOUNT_MAX_MINOR, stan <= 999999, form, PAN network matches the
  *      AID, cryptogram == SHA3(sig)[0..8]); decode accepts only canonical
@@ -108,7 +110,19 @@ static void mode_8583(const uint8_t *p, size_t n)
             if (cn8583_get_vss(&g_m2, &v2) != CN8583_OK || memcmp(&v, &v2, sizeof v) != 0) abort();
         }
         cn_auth_req_t req, back;
-        if ((g_m.mti == 100 || g_m.mti == 200) && cn8583_to_auth_req(&g_m, 2026, &req) == CN8583_OK) {
+        cn8583_rc_t ar = CN8583_ERR_ARG;
+        if (g_m.mti == 100 || g_m.mti == 200) ar = cn8583_to_auth_req(&g_m, 2026, &req);
+        if (ar == CN8583_OK || ar == CN8583_ERR_PROC) {
+            /* field 3 is mandatory, so it is present; only a purchase maps */
+            const char *pc;
+            uint32_t pl;
+            if (cn8583_get(&g_m, 3, &pc, &pl) != CN8583_OK || pl != 6) abort();
+            bool purchase = pc[0] == '0' && pc[1] == '0' &&
+                            ((pc[2] == '0' && pc[3] == '0') || (pc[2] == '3' && pc[3] == '0')) &&
+                            pc[4] == '0' && pc[5] == '0';
+            if (purchase != (ar == CN8583_OK)) abort();
+        }
+        if (ar == CN8583_OK) {
             if (req.amount_minor != amt) abort();
             if (req.stan > 999999u) abort();
             /* re-encode only what the encoder takes (a network PAN, a form) */

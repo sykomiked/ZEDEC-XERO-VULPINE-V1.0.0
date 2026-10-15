@@ -27,7 +27,9 @@
  *            attestation for every COMMODITY leg; MARGIN / CREDIT always
  *            refused; a clean exact request is accepted
  *   Z4       a rebalance needs ALLOW_REBALANCE and signatures over the
- *            current version hash; the claim (chips) never changes
+ *            current version hash; the claim (chips) never changes; a
+ *            custodian attestation replayed from an earlier version (even
+ *            for the same quantity, e.g. after X -> Y -> X) is refused
  *   Z5       decompress: out_i == qty_i*c/N exact, the remainder is
  *            qty_i - out_i, value_i exact at the batch price, fee ==
  *            pay_assure_fee(total) <= total, c <= N, the paid-out part is
@@ -57,7 +59,8 @@ static uint8_t g_att[ZENNY_MAX_LEGS][8], g_sm[8], g_sc[8];
 static uint8_t g_old_att[ZENNY_MAX_CHIPS][ZENNY_MAX_LEGS][8];
 static uint64_t g_old_qty[ZENNY_MAX_CHIPS][ZENNY_MAX_LEGS];
 static bool g_old_ok[ZENNY_MAX_CHIPS][ZENNY_MAX_LEGS];
-unsigned long long g_stale_att_accepted; /* reported, not a property */
+static const uint8_t g_zero[32];
+unsigned long long g_stale_att_refused; /* reported */
 
 static void mksig(uint32_t who, const uint8_t *m, uint32_t n, uint8_t sig[8])
 {
@@ -288,7 +291,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             bool att_ok = true;
             for (uint32_t i = 0; i < r.n_legs && i < ZENNY_MAX_LEGS; i++) {
                 uint8_t d[32];
-                zenny_att_digest(id, &r.leg[i], d);
+                zenny_att_digest(id, g_zero, &r.leg[i], d);
                 sign_digest(r.leg[i].custodian, ZENNY_SIG_ATTEST, d, g_att[i]);
                 if ((sf & 3) == 3 && i == r.n_legs - 1) {
                     g_att[i][5] ^= 0x10;
@@ -388,7 +391,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             bool stale_used = false, att_ok = true;
             for (uint32_t i = 0; i < r.n_legs && i < ZENNY_MAX_LEGS; i++) {
                 uint8_t ad[32];
-                if (ch) zenny_att_digest(ch->id, &r.leg[i], ad);
+                if (ch) zenny_att_digest(ch->id, ch->ver[ch->n_ver - 1].hash, &r.leg[i], ad);
                 sign_digest(r.leg[i].custodian, ZENNY_SIG_ATTEST, ad, g_att[i]);
                 if (ch && (sf & 0x40) && g_old_ok[slot][i]) { /* replay an older attestation */
                     memcpy(g_att[i], g_old_att[slot][i], 8);
@@ -408,15 +411,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             uint64_t chips0 = ch ? ch->ver[ch->n_ver - 1].chips : 0;
             take(slot);
             st = zenny_rebalance(&Z, slot, &r);
+            if (stale_used && st == ZENNY_ERR_ATTEST) g_stale_att_refused++;
             if (st == ZENNY_OK) {
                 if (!(ch->rules & ZENNY_RULE_ALLOW_REBALANCE)) abort();
                 if ((sf & 7) == 7) abort();
                 if ((ch->rules & ZENNY_RULE_BILATERAL) && (sf & 0x38) == 0x38) abort();
                 if (!att_ok) abort();
                 if (zenny_current(&Z, slot)->chips != chips0) abort(); /* Z4 claim */
-                if (stale_used) g_stale_att_accepted++;
+                if (stale_used) abort(); /* Z4: an attestation from an earlier version */
                 for (uint32_t i = 0; i < r.n_legs; i++)
-                    if (r.leg[i].kind == ZENNY_COMMODITY && !stale_used) {
+                    if (r.leg[i].kind == ZENNY_COMMODITY) {
                         memcpy(g_old_att[slot][i], g_att[i], 8);
                         g_old_qty[slot][i] = r.leg[i].qty;
                     }
@@ -579,7 +583,7 @@ __attribute__((destructor)) static void report(void)
         fprintf(stderr, "fuzz_econ_zenny: %llu ops checked\n", g_ops);
         for (int i = 0; i < 8; i++)
             if (g_okc[i]) fprintf(stderr, "  op %d ok %llu\n", i, g_okc[i]);
-        fprintf(stderr, "  stale commodity attestations accepted in rebalance: %llu\n",
-                g_stale_att_accepted);
+        fprintf(stderr, "  stale commodity attestations refused in rebalance: %llu\n",
+                g_stale_att_refused);
     }
 }
