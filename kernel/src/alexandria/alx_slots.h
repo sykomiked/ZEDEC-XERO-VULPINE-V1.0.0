@@ -39,7 +39,12 @@
 #define ALX_SLOT_NUM_BIRDSONG_GAIN               31u /* 590.12 birdsong.gain */
 #define ALX_SLOT_LOGIC_BIRDSONG_MEMO_OK          32u /* 490.09 birdsong.memo_ok */
 #define ALX_SLOT_LOGIC_BIRDSONG_REC_OK           33u /* 490.10 birdsong.rec_ok */
-#define ALX_SLOT__COUNT 33u
+#define ALX_SLOT_NUM_WELLSPRING_BAND             34u /* 590.13 wellspring.band */
+#define ALX_SLOT_LOGIC_WELLSPRING_LOG_OK         35u /* 490.11 wellspring.log_ok */
+#define ALX_SLOT_NUM_WELLSPRING_PROGRESS_X100    36u /* 590.14 wellspring.progress_x100 */
+#define ALX_SLOT_LOGIC_WELLSPRING_SAFE_OK        37u /* 490.12 wellspring.safe_ok */
+#define ALX_SLOT_NUM_WELLSPRING_WEEK             38u /* 590.15 wellspring.week */
+#define ALX_SLOT__COUNT 38u
 /* clang-format on */
 
 #endif

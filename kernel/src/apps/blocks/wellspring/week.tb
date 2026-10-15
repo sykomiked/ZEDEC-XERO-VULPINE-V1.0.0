@@ -1,0 +1,11 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! A week's total of one measure (minutes of activity or sleep, ml of
+! water), in Trebago: an exact sum from the first day on, refused rather
+! than wrapped when a partial sum passes 64 bits.
+trebago week
+  in  amount(n)
+  out week
+  week = sum(i, amount(i))
+end

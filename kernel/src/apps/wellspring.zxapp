@@ -1,0 +1,76 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wellspring, a private health and fitness log: activity minutes, sleep
+# minutes, water ml and resting heart rate, kept as one text file in the
+# Banker (files.read and files.write; zxvd has no health method, and none
+# is invented). Advice only, never a diagnosis: a reading outside its safe
+# range is shown with a note to talk to a clinician.
+#
+# An anchor of the matrix: every entry is a general pattern a later
+# tracking layer can take with "use wellspring 1" (a reading against any
+# range, a day against declared ranges, a week's exact total, progress
+# toward any goal, a log record). Nothing earlier fits: the inner blocks
+# are capacities, shares, days from seconds and gcds; used_share.used_x100
+# refuses done past its total, which a beaten goal is; shepherd.week and
+# banker.total are one language each, and a total shown to the owner is
+# critical here, so it is witnessed.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2) and WebAssembly numbers only
+# (zxapp_wasm.c W2), so the task's "Rust wasm + Eve" is split: Rust and
+# KRON witness the general number (band), Eve and KRON the day's truth
+# (safe_ok), as Waymark pairs Eve and KRON. Trebago is exact but has no
+# floor, so progress is KRON and Sutra; its week total is KRON's witness.
+#
+# Logo (twin Kiteling) is not used: Lingua's Logo refuses readword and
+# readlist (zl_logo.c), so a Logo program cannot read an entry's arguments
+# (zxapp_lingua.c L1), and Wellspring draws no geometry.
+#
+# Defaults taken (wellspring_model.h): resting heart rate 40..100 bpm,
+# sleep 420..540 minutes (7 to 9 hours), water 1500..4000 ml a day; weekly
+# goals of 150 activity minutes, 3360 sleep minutes and 14000 ml of water.
+# The notify capability is declared for the advice notice, but zxvd has no
+# notification method yet, so the model only composes the notice's text.
+zxapp 1
+id     wellspring
+name   Wellspring
+version 1.0.0
+slot   89
+layer  L1
+icon   icons/l1/089-wellspring.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  notify
+model  apps/wellspring_model.c
+
+# Where a reading falls against a range lo..hi: -1 below, 0 inside, 1
+# above; a range with lo above hi is refused (Rust traps, KRON answers:
+# held). Rust (as WebAssembly) and KRON.
+provides band num reading lo hi
+logic    wasm band apps/blocks/wellspring/band.wasm
+logic    kron band apps/blocks/wellspring/band.kron
+
+# A day's resting heart rate, sleep and water all inside their safe
+# ranges. Eve declares the ranges, KRON compares; one input per day.
+provides safe_ok truth bpm sleep water
+logic    eve  safe_ok apps/blocks/wellspring/safe.eve
+logic    kron safe_ok apps/blocks/wellspring/safe.kron
+
+# A week's exact total of one measure: Trebago sums from the first day,
+# KRON from the last; a partial sum past 64 bits is refused, not wrapped.
+provides week num amount
+logic    trebago week apps/blocks/wellspring/week.tb
+logic    kron    week apps/blocks/wellspring/week.kron
+
+# Progress toward a goal, x100 (10000 = met), floored: KRON and Sutra.
+provides progress_x100 num done goal
+logic    kron  progress_x100 apps/blocks/wellspring/progress.kron
+logic    sutra progress_x100 apps/blocks/wellspring/progress.sutra
+
+# A log entry fits its record: MYRA holds the digits, Eve the kinds.
+provides log_ok truth day kind amount
+logic    myra log_ok apps/blocks/wellspring/entry.myra
+logic    eve  log_ok apps/blocks/wellspring/entry.eve

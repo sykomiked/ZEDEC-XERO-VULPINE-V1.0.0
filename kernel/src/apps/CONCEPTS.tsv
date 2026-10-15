@@ -22,6 +22,8 @@ bayes_update	pce_prob.bayes	bayes,posterior	a Bayesian update in integers
 bargaining_zone	pce_strat.zopa	zopa,bargaining_zone	whether a seller's minimum and a buyer's maximum overlap
 pcm_gain	birdsong.gain	gain,pcm_gain,gain_clip,saturating_gain,sample_gain	a 16-bit sample scaled by a level in hundredths of a percent (10000 is unity): floor(sample * level / 10000), the floor toward minus infinity, then held inside -32768..32767 (saturating, never wrapped); level is one value for the whole buffer; a sample outside 16 bits or a level outside 0..1000000 is refused as -32769
 samples_to_ms	birdsong.clip_ms	clip_ms,samples_to_ms,duration_ms,length_ms	how long a count of samples of one channel lasts at a rate in hertz, in milliseconds: samples * 1000 / rate as an exact reduced rational, never rounded; a rate of 0 is refused, and so is a product that does not fit int64
+reading_in_range	wellspring.band	band,range_band,reading_band,in_range	where a reading falls against a range lo..hi, both ends inside: -1 below lo, 0 inside, 1 above hi; refused when lo is above hi (Rust traps, KRON answers: held)
+goal_progress	wellspring.progress_x100	progress_x100,goal_x100,goal_progress,progress_bp	progress toward a goal in hundredths of a percent: floor(10000 * done / goal), past 10000 when the goal is beaten; a goal of 0 refused, done or goal negative or past 999999999 held (Sutra's 9(9))
 #
 # The assurance fee (8889 per ten million) has no block yet; fee_check's fee is
 # an example rate, a local word. When a block owns the assurance fee, it goes
