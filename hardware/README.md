@@ -14,7 +14,11 @@ under the Apache License that covers the ZXV software.
   prototypes for internal evaluation without charge.
 - **Commercial manufacture or sale** needs the Commercial Licence Agreement
   and a royalty of 18% of gross revenue, paid directly to ILLUMAHEART
-  FOUNDATION. Contact deal@zedec.ai.
+  FOUNDATION. Manufacturers partner with 36N9 GENETICS LLC, the root
+  organisation that originated these designs, under its master partnership
+  licence. Approach it only through one of its two pre-approved partners,
+  ILLUMAHEART FOUNDATION or SCENIC BYPASS CONSULTING, LLC, never 36N9
+  GENETICS LLC directly.
 - **No royalty for public infrastructure.** Water, power, health, emergency
   services, transport, communications, education and similar public-good
   projects are exempt once registered (Section 4A).

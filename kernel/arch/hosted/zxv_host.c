@@ -124,9 +124,15 @@ typedef int sock_t;
 #    include "zxvd_groups.h"    /* netting, cards, ...: method groups behind switches */
 #    include "zxvd_companion.h" /* companion.*: the Chiglet's DNA, generation, mood */
 #    include "zxvd_power.h"     /* power.*: energy per app and agent, budgets */
+#    include "zxvd_pspace.h"    /* pspace.*, hall.*: public spaces, the watch hall */
 #    include "zxvd_phone.h"     /* zxvd: the owner's paired phones (--phone-link) */
+#    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
+#    include "zxvd_irc.h"       /* irc.*: the IRC gateway on 127.0.0.1 over TLS */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
+#    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+#        include "zxvd_people.h" /* social.* call.* xlate.* devmesh.* ui.* */
 #    endif
 #    if defined(_WIN32)
 #        include <afunix.h>
@@ -483,6 +489,23 @@ static bool pal_read_link(const char *file, char *url, size_t cap)
     fclose(f);
     if (ok) url[strcspn(url, "\r\n")] = 0;
     return ok && url[0];
+}
+
+/* A running zxvd writes its window link a moment after its socket starts
+ * answering (the link needs the window's port). A second launch in that
+ * moment waits for the link, up to 3 s, instead of reporting an error. */
+static bool pal_wait_link(const char *file, char *url, size_t cap)
+{
+    for (int i = 0; i < 30; i++) {
+        if (pal_read_link(file, url, cap)) return true;
+#    if defined(_WIN32)
+        Sleep(100);
+#    else
+        struct timespec ts = {0, 100L * 1000L * 1000L};
+        nanosleep(&ts, NULL);
+#    endif
+    }
+    return pal_read_link(file, url, cap);
 }
 #endif
 
@@ -954,6 +977,7 @@ static void note_task(bool ok, const char *summary)
 
 /* True when the last answer() came from a real model (not a stand-in). */
 static bool LAST_ANSWER_MODEL;
+static bool ANSWER_REAL; /* the last answer() came from the model (zxvd_people's translation) */
 
 /* zxv_tiamat.h: the cells of --tiamat, null when it was not given */
 static zxv_tiamat_conf_t *TIAMAT;
@@ -1049,6 +1073,7 @@ static void tiamat_answer(const char *q, char *out, size_t cap)
 static void answer(const char *q, char *out, size_t cap)
 {
     swarm_hk_ast_t ast;
+    ANSWER_REAL = false;
     char reading[512];
     char model_note[400];
     S.asks++;
@@ -1092,6 +1117,7 @@ static void answer(const char *q, char *out, size_t cap)
     }
 #endif
     if (m == 1) { /* a real model answered, within the budget */
+        ANSWER_REAL = true;
         char sum[96];
         snprintf(sum, sizeof sum, "%u tokens of the %llu left this cycle",
                  (unsigned) S.last_gate.generated,
@@ -1738,6 +1764,23 @@ static void play_draft(sock_t c, const char *body, size_t len)
 }
 #endif
 
+#if defined(ZXVD)
+/* The window's /api/rpc may not call zxvd.shutdown (it quits through
+ * /api/quit). The same tokenizer and limits as zxvd_rpc_handle_line, so a
+ * request this cannot read is one the dispatcher refuses too. */
+static bool rpc_window_refused(const char *body, size_t len)
+{
+    static w4_jtok_t t[512];
+    char method[64];
+    if (!body || len > UINT32_MAX) return false;
+    int32_t n = w4_json_parse(body, (uint32_t) len, t, 512, 16);
+    if (n <= 0 || t[0].type != W4_J_OBJ) return false;
+    int32_t m = w4_json_get(body, t, n, 0, "method");
+    if (m < 0 || w4_json_str(body, &t[m], method, sizeof method) < 0) return false;
+    return !strcmp(method, "zxvd.shutdown");
+}
+#endif
+
 static void handle(sock_t c)
 {
     static char req[REQ_MAX];
@@ -1849,8 +1892,23 @@ static void handle(sock_t c)
 #if defined(ZXVD)
     } else if (PATH_IS("/api/rpc") && !is_get) {
         /* the window's way to zxvd's methods (the staple apps): one JSON-RPC
-         * request in, its response out, the same as a line on the socket */
+         * request in, its response out, the same as a line on the socket.
+         * The people methods and one-tap Ask and Pay go through
+         * zxvd_people_http's allow-list; zxvd.shutdown is refused here (the
+         * window quits through /api/quit). */
         zxvd_buf_t o = {0};
+        if (rpc_window_refused(body, (size_t) want)) {
+            reply(c, "403 Forbidden", "text/plain", "method not allowed here", 23);
+            return;
+        }
+#    if defined(ZXV_HAVE_PEOPLE)
+        if (zxvd_people_http(body, (size_t) want, &o)) {
+            reply(c, "200 OK", "application/json", o.p ? o.p : "", o.len);
+            free(o.p);
+            return;
+        }
+        o.len = 0;
+#    endif
         if (!zxvd_rpc_handle_line(body, (size_t) want, &o)) zxvd_buf_raw(&o, "{}", 2);
         if (o.oom || !o.p)
             reply(c, "500 Internal Server Error", "text/plain", "out of memory", 13);
@@ -1891,6 +1949,30 @@ static void rpc_state(zxvd_buf_t *o)
     state_json(&b);
     zxvd_buf_raw(o, b.p, b.len);
     free(b.p);
+}
+
+/* irc.* (zxvd_irc.h G6): the swarm's answer and the base of its 64-state
+ * tag, N when no model answered (the tag attests how the computation went,
+ * never that the answer is true) */
+static void irc_ask(const char *q, char *out, size_t cap, char *truth)
+{
+    answer(q, out, cap);
+    *truth = 'N';
+    /* a model answer always sets the tag; B[] is LPX_B_FALSE..LPX_B_TRUE */
+    if (LAST_ANSWER_MODEL && S.have_tag) {
+        static const char B[4] = {'F', 'N', 'B', 'T'};
+        *truth = B[lpx_base(S.last_tag) & 3u];
+    }
+}
+
+/* irc.* (zxvd_irc.h G5): sign with the node identity while the mesh runs */
+static bool irc_node(const uint8_t **pk, const uint8_t **sk)
+{
+    const vna_identity_t *id = zxv_net_identity(S.net);
+    if (!id) return false;
+    *pk = id->pk;
+    *sk = id->sk;
+    return true;
 }
 
 static void rpc_ask(const char *q, zxvd_buf_t *o)
@@ -2011,6 +2093,26 @@ static void rpc_shutdown(void)
 static const zxvd_host_ops_t RPC_OPS = {rpc_state,  rpc_ask,        rpc_model,
                                         rpc_notes,  rpc_notes_read, net_command,
                                         rpc_update, rpc_shutdown,   ZXV_VERSION};
+
+#    if defined(ZXV_HAVE_PEOPLE)
+/* zxvd_people.h H6: one prompt through the same path as swarm.ask (budget
+ * gate, answer tag, quarantine); only a real model answer counts */
+static int people_generate(void *ctx, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    const zxv_model_info_t *mi = zxv_model_info();
+    if (!mi->loaded || !mi->can_generate) {
+        snprintf(out, cap, "%s",
+                 mi->loaded ? "the installed model cannot generate in this build"
+                            : "no model is installed");
+        return ZXVD_GEN_NO_MODEL;
+    }
+    answer(prompt, out, cap);
+    return ANSWER_REAL ? 0 : -2;
+}
+
+static const zxvd_people_host_t PEOPLE_HOST = {people_generate, NULL};
+#    endif
 
 /* ----- peer.* (zxv_peer_host.h) ----- */
 
@@ -2328,7 +2430,7 @@ int main(int argc, char **argv)
     const char *enable_list = NULL; /* zxvd_ext.h X3: every feature starts off */
     uint64_t earn_rate = 1;
     bool desktop = false, phone_link = false;
-    int phone_port = ZXVD_PHONE_PORT;
+    int phone_port = ZXVD_PHONE_PORT, irc_port = ZXVD_IRC_PORT;
     const char *phone_bind = NULL;
     char rpc_buf[512], link_path[560];
     link_path[0] = 0;
@@ -2423,6 +2525,13 @@ int main(int argc, char **argv)
             }
         } else if (!strcmp(argv[i], "--phone-bind") && i + 1 < argc)
             phone_bind = argv[++i];
+        else if (!strcmp(argv[i], "--irc-port") && i + 1 < argc) {
+            irc_port = atoi(argv[++i]);
+            if (irc_port < 0 || irc_port > 65535) {
+                fprintf(stderr, "zxvd: --irc-port takes 0..65535\n");
+                return 2;
+            }
+        }
 #endif
         else if (!strcmp(argv[i], "--version")) {
             printf(PROG " %s\n", ZXV_VERSION);
@@ -2448,6 +2557,8 @@ int main(int argc, char **argv)
                    "                      on; phone.pair makes a pairing link)\n"
                    "  --phone-port N      its TCP port (default 47410; 0 = any free port)\n"
                    "  --phone-bind IP     its private IPv4 address (default all)\n"
+                   "  --irc-port N        the IRC gateway's TLS port on 127.0.0.1 while\n"
+                   "                      the irc feature is on (default 6697; 0 = any)\n"
 #endif
                    "  --server            run headless; open the window remotely "
                    "over SSH\n"
@@ -2616,7 +2727,7 @@ int main(int argc, char **argv)
         snprintf(link_path, sizeof link_path, "%s.url", rpc_path);
         char running[200];
         if (pal_rpc_live(rpc_path)) {
-            if (open_window && pal_read_link(link_path, running, sizeof running)) {
+            if (open_window && pal_wait_link(link_path, running, sizeof running)) {
                 printf("ZXV is already running: opening its window\n");
                 pal_open_window(running);
                 return 0;
@@ -2668,6 +2779,10 @@ int main(int argc, char **argv)
 #    if defined(ZXV_HAVE_PLAY)
     zxvd_rpc_set_play_ops(&PLAY_OPS);
 #    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    /* without it zxvd still runs; the people methods then answer "not available" */
+    zxvd_rpc_set_people_ops(zxvd_people_open(books_path, &PEOPLE_HOST));
+#    endif
     if (zxvd_rpc_open(rpc_path, &RPC_OPS) != 0) {
         zxvd_pay_close();
         zxvd_rpc_groups_reset();
@@ -2708,6 +2823,7 @@ int main(int argc, char **argv)
     /* power.* (zxvd_power.h W2): without it zxvd still runs; power.status
      * and power.top then answer that tracking is not running */
     if (zxvd_power_open(NULL) != 0) fprintf(stderr, "zxvd: power tracking is unavailable\n");
+    zxvd_pspace_bind(S.net); /* zxvd_pspace.h W2: the methods answer while it is on */
     {
         /* the pairings live beside the socket, in the folder zxvd_rpc_open checked */
         char pdir[sizeof rpc_buf];
@@ -2734,6 +2850,12 @@ int main(int argc, char **argv)
             zxvd_rpc_groups_reset();
             return 1;
         }
+        /* irc.* (zxvd_irc.h G4): its key, certificate and password beside
+         * the socket too; without them zxvd still runs, irc.status says so */
+        zxvd_irc_set_ask(irc_ask);
+        zxvd_irc_set_node(irc_node);
+        if (zxvd_irc_open(pdir, (uint16_t) irc_port) != 0)
+            fprintf(stderr, "zxvd: the IRC gateway is unavailable\n");
     }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);
@@ -2802,6 +2924,10 @@ int main(int argc, char **argv)
 #if defined(ZXVD)
     if (zxvd_phone_port())
         printf("ZXVD-PHONE: TCP %u (pair a phone with phone.pair)\n", (unsigned) zxvd_phone_port());
+    zxvd_irc_service(NULL, pal_now_ms()); /* --enable irc: listen before saying so */
+    if (zxvd_irc_port())
+        printf("ZXVD-IRC: TLS 127.0.0.1:%u (password and certificate: irc.status)\n",
+               (unsigned) zxvd_irc_port());
     printf("ZXVD-RPC: %s\n", rpc_path);
     if (link_path[0]) pal_write_link(link_path, url_tok);
 #endif
@@ -2839,6 +2965,8 @@ int main(int argc, char **argv)
         if (rfd > maxfd) maxfd = rfd;
         int phfd = zxvd_phone_fds(&rd);
         if (phfd > maxfd) maxfd = phfd;
+        int ifd = zxvd_irc_fds(&rd);
+        if (ifd > maxfd) maxfd = ifd;
 #endif
         struct timeval tv = {0, STEP_MS * 1000};
         int r = select(maxfd + 1, &rd, NULL, NULL, &tv);
@@ -2872,9 +3000,13 @@ int main(int argc, char **argv)
             zxv_peer_on_readable(S.peer, zxv_net_wall_ms());
 #if defined(ZXVD)
         if (r >= 0) zxvd_rpc_service(&rd, pal_now_ms());
+#    if defined(ZXV_HAVE_PEOPLE)
+        zxvd_people_poll(pal_now_ms());
+#    endif
         mesh_books_sync();
         zxvd_power_tick(false); /* zxvd_power.h W2: at most once a second */
         if (r >= 0) zxvd_phone_service(&rd, pal_now_ms());
+        if (r >= 0) zxvd_irc_service(&rd, pal_now_ms()); /* listens while "irc" is on */
 #endif
         zxv_net_tick(S.net, zxv_net_wall_ms());
         zxv_update_tick((uint64_t) time(NULL),
@@ -2891,11 +3023,16 @@ int main(int argc, char **argv)
     zxvd_pay_close();
     zxvd_chat_close();
     zxvd_phone_close();
+    zxvd_irc_close();
     zxvd_rpc_close();
     zxvd_rpc_groups_reset();
 #    if defined(ZXV_HAVE_AIPI)
     zxvd_rpc_set_aipi_ops(NULL);
     zxvd_aipi_close();
+#    endif
+#    if defined(ZXV_HAVE_PEOPLE)
+    zxvd_rpc_set_people_ops(NULL);
+    zxvd_people_close();
 #    endif
 #endif
     zxv_peer_free(S.peer);

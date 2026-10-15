@@ -3,6 +3,7 @@
  * Author: H.M. Michael-Laurence: Curzi (c)
  */
 #include "m5route.h"
+#include "ham_gate.h"
 
 static __attribute__((unused)) int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
 static int str_cmp(const char *a, const char *b) {
@@ -44,6 +45,7 @@ void m5_router_init(m5_router_t *r, m5_address_t *local) {
     r->packets_dropped = 0;
     r->adapter_sends = 0;
     r->adapter_recvs = 0;
+    r->ham_refused = 0;
 
     for (uint32_t i = 0; i < M5_PROTO_MAX; i++) {
         r->adapters[i].active = false;
@@ -155,6 +157,13 @@ int32_t m5_router_send(m5_router_t *r, const m5_address_t *dest,
         return -1;
     }
 
+    /* P13: on an amateur band only a cleartext, signed AHAM frame leaves. */
+    if (m5_proto_is_amateur(link) && !ham_frame_ok(data, len, 0)) {
+        r->ham_refused++;
+        r->packets_dropped++;
+        return -1;
+    }
+
     bool ok = r->adapters[link].send(dest, data, len, m5_meta);
     if (ok) {
         r->packets_routed++;
@@ -170,6 +179,10 @@ int32_t m5_router_broadcast(m5_router_t *r, const void *data, uint32_t len,
     int32_t sent = 0;
     for (uint32_t i = 0; i < M5_PROTO_MAX; i++) {
         if (r->adapters[i].active && r->adapters[i].send) {
+            if (m5_proto_is_amateur((m5_proto_t) i) && !ham_frame_ok(data, len, 0)) {
+                r->ham_refused++;
+                continue;
+            }
             m5_address_t broadcast;
             mem_set(&broadcast, 0, sizeof(broadcast));
             broadcast.proto = (m5_proto_t)i;
@@ -433,3 +446,8 @@ ZXV_DECLARE(m5route,
     ZXV_PROVIDES(m5_router_ready),
     ZXV_REQUIRES_NONE,
     ZXV_NO_BRINGUP);
+
+bool m5_proto_is_amateur(m5_proto_t proto)
+{
+    return proto == M5_PROTO_HAM_VHF || proto == M5_PROTO_HAM_HF;
+}

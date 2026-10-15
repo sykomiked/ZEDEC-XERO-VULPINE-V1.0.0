@@ -69,6 +69,17 @@ final class Status
     public const E_PARADOX_STEP = -39;
     /** The change needs the owner's approval (OwnerApprovalRequiredException). */
     public const E_PARADOX_OWNER = -40;
+    // ABI 1.6: Vino Embed (-51 .. -59 are reserved for the vino group).
+    /** Not the voucher's active rail, bearer or ghost (WrongRailException). REFUSED. */
+    public const E_RAIL = -46;
+    /** Would take a play issuer below 1.8x coverage (CoverageException). REFUSED. */
+    public const E_COVERAGE = -47;
+    /** Wrong lane for the call, play vs live (LaneException). USAGE. */
+    public const E_LANE = -48;
+    /** The payment request expired, or was approved too late (ExpiredException). REFUSED. */
+    public const E_EXPIRED = -49;
+    /** A paid chance outcome in a live payment request (ChanceRefusedException). REFUSED. */
+    public const E_CHANCE = -50;
 
     public const E_INTERNAL = -99;
 

@@ -5,9 +5,10 @@ it. It does not provide legal advice or decide whether an agreement is
 enforceable anywhere.
 
 Each person on a device sees the ZXV End-User Agreement at their first
-sign-in, after the boot vault opens and before their desktop. The login
-screen (`zui_login`) draws it; this module holds the logic every screen and
-port must share.
+sign-in, after the boot vault opens and before their desktop. The native
+screen is `src/zui/zui_terms.c` (the shell opens it after the seat unlocks;
+`zui_login` knows nothing about it); this module holds the logic every screen
+and port must share.
 
 ## Flow at sign-in
 
@@ -39,15 +40,61 @@ port must share.
   measured correctly; a measure callback gives exact pixel widths.
 - The agreement can be read again later under Settings, About, Agreement.
 
+## The screen
+
+`src/zui/zui_terms.c` draws the card. A contents list sits beside the text
+on a wide screen, and behind a "Contents" button on a phone. Its first entry,
+the short version, is pinned, and the `[KEY]` sections carry a gold bar. A
+person can jump straight to the clauses that limit liability or decide
+disputes, and the end still has to be shown before "I agree" works. Every
+text colour on the card is at least 4.5:1 against its background (WCAG 2.1
+AA), and the control outlines are at least 3:1. `test_zui_terms` checks each
+pair.
+
 ## The text
 
 `agreement/en.txt` is embedded into `terms_text.c` by
 `tools/terms/embed_terms.py`. The fingerprint recorded is plain SHA-256 of
-the file, so `sha256sum agreement/en.txt` gives the same value. `make
-test-terms` fails if `terms_text.c` no longer matches the file.
+the file, so `sha256sum agreement/en.txt` gives the same value. The generator
+also writes that SHA-256 into the image beside the text (`terms_doc_t.sha256`).
+`terms_reader_init*` and `terms_accept` recompute it and refuse with
+`TERMS_ERR_TEXT` if they differ: a damaged image never shows or records a text
+other than the one that was built. `make test-terms` fails if `terms_text.c`
+no longer matches the file, or its embedded fingerprint no longer matches the
+file's SHA-256.
 
-The text in the repository is a placeholder. The draft agreement is under
-owner and counsel review and is not published until the owner approves it.
+`agreement/en.txt` is the ZXV End-User Agreement 1.0, approved by the owner
+on 2026-10-14. Counsel review in the release markets is still recommended
+before the first public release; a changed text gets a new version number and
+fingerprint, and everyone sees it again at their next sign-in.
+
+## Clauses the product backs in code
+
+- §2.2, the acceptance record: the per-seat, hash-chained log above, with the
+  build-time fingerprint check.
+- §4.1(e), no commercial, encrypted or settlement traffic over amateur radio
+  bands: the network rule is that an amateur-radio link carries only
+  cleartext, signed messages (docs/ARCHITECTURE.md, radio row; US 47 CFR
+  97.113 and the per-jurisdiction radio table). Choosing an amateur-radio
+  transport (AX.25, APRS, JS8, VARA on ham frequencies) switches the link to
+  cleartext signed-only mode. Encryption and settlement traffic are refused
+  there, not silently sent. The protocol-twins router (PR #137,
+  `docs/P2P_PROTOCOL_TWINS.md` section 4.3) enforces it: on AX.25/APRS and HF
+  it sends only plain-text signed emergency, priority, welfare or drill
+  messages, and the person cannot change that. Counsel should confirm that
+  an open signature is not "obscuring meaning" under Part 97. The AX.25/APRS
+  encoders on main (`src/net/dtmf.c`) only build frames and are not connected
+  to the encrypted mesh or the settlement paths.
+- §20.5, support: support tickets go to SCENIC BYPASS CONSULTING, LLC, at
+  the contact shown under Settings, About, Support (see `SUPPORT.md`). The
+  address lives on that screen, not in the agreement, so it can change
+  without a new agreement version.
+- §1.7 and §20.6, the root organisation and partner routing: 36N9 GENETICS
+  LLC originated the concept and designs; manufacturers partner with it under
+  its master partnership licence, approaching only through ILLUMAHEART
+  FOUNDATION or SCENIC BYPASS CONSULTING, LLC (README, SUPPORT.md,
+  hardware/README.md say the same).
+
 Translations are added as `agreement/<lang>.txt`, each pointing at the English
 reference; a language whose local law makes it govern is marked controlling
 (`id!=agreement/id.txt`).

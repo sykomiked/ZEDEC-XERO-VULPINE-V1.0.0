@@ -62,7 +62,7 @@
 #include "vna_cmd.h"
 
 #define VNA_NODE_PENDING 64u
-#define VNA_NODE_LOOKUPS 3u
+#define VNA_NODE_LOOKUPS 8u
 #define VNA_NODE_EVENTS  8u
 #define VNA_OUTBOX_MAX   64u
 #define VNA_MSG_WIRE_MAX                                                                           \
@@ -91,6 +91,7 @@ typedef struct {
     uint16_t len;
     vna_id_t key;
     vna_id_t publisher;
+    uint8_t rtype;
     uint64_t created, expires, republish_at;
     bool used;
 } vna_store_slot_t;
@@ -216,6 +217,12 @@ typedef vna_status_t (*vna_rcpt_fn)(void *ctx, const vna_id_t *from, const uint8
 typedef vna_status_t (*vna_aipi_fn)(void *ctx, const vna_id_t *from, const vna_b_aipi_t *b,
                                     uint64_t now, vna_outbox_t *ob);
 
+/* A public-space message (vna_space.h) from `from`, sent from addr, inside a
+ * verified message. The handler may answer at once into ob. */
+typedef vna_status_t (*vna_space_fn)(void *ctx, const vna_id_t *from, const uint8_t *addr,
+                                     uint32_t addr_len, const vna_b_space_t *b, uint64_t now,
+                                     vna_outbox_t *ob);
+
 #define VNA_NODE_REFLEX 8u /* N1: reflexive-address reports kept */
 #define VNA_PUNCH_RATE  8u /* N3: introductions per second, relayed or acted on */
 
@@ -273,6 +280,12 @@ typedef struct {
     void *aipi_ctx;
     vna_b_aipi_t aipi_in_b;
     uint32_t aipi_in, aipi_refused, aipi_out;
+    /* public spaces */
+    vna_space_fn space;
+    void *space_ctx;
+    vna_b_space_t space_in_b, space_out_b;
+    uint32_t space_store_cap; /* SPACE records kept for others at degree ROUTE */
+    uint32_t space_in, space_refused, space_out;
 } vna_node_t;
 
 typedef struct {
@@ -416,6 +429,20 @@ vna_status_t vna_node_send_aipi_at(vna_node_t *n, const vna_id_t *dst, const uin
                                    uint32_t addr_len, uint8_t kind, uint64_t amount,
                                    const uint8_t *data, uint32_t len, uint64_t now,
                                    vna_outbox_t *ob);
+
+/* Public spaces: set the handler (NULL refuses every space message) and
+ * send one message, to addr unless dst is a contact (as vna_node_send_aipi_at). */
+void vna_node_set_space_handler(vna_node_t *n, vna_space_fn fn, void *ctx);
+vna_status_t vna_node_send_space_at(vna_node_t *n, const vna_id_t *dst, const uint8_t *addr,
+                                    uint32_t addr_len, uint8_t kind, const vna_id_t *space,
+                                    const uint8_t *data, uint32_t len, uint64_t now,
+                                    vna_outbox_t *ob);
+/* Keep up to `cap` public-space records (rtype VNA_REC_SPACE) for other
+ * nodes even at degree ROUTE (0: only at degree STORE, as every record).
+ * Spaces live in the DHT only if their members hold each other's records,
+ * so the host turns this on while the owner is in a public space. Every
+ * other record type still needs degree STORE. */
+void vna_node_space_store(vna_node_t *n, uint32_t cap);
 
 /* Records currently held. */
 uint32_t vna_node_store_count(const vna_node_t *n);

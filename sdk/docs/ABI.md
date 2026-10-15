@@ -9,7 +9,7 @@ explains the rules in that header with small examples. If you write a new
 binding, read this page and [SDK_DESIGN.md](SDK_DESIGN.md); if you only use
 an SDK, you can skip it.
 
-ABI version: **1.5.0**. Check it at load time with `zxv_version`.
+ABI version: **1.6.0**. Check it at load time with `zxv_version`.
 
 ## Building it
 

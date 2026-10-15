@@ -62,6 +62,20 @@ abstract class TestCase
     }
 
     /**
+     * ABI 1.6: a context with a root capability holding every 1.6 bit.
+     * @param callable(Context, Capability): void $fn
+     */
+    protected function withContext16(callable $fn): void
+    {
+        $ctx = new Context();
+        try {
+            $fn($ctx, $ctx->rootCapability(Capability::ALL_1_6));
+        } finally {
+            $ctx->close();
+        }
+    }
+
+    /**
      * Run $fn. For "ZXV_OK" return its value; otherwise assert it throws a
      * ZXV error whose status name is $name and return the error.
      */

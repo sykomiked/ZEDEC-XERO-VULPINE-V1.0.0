@@ -476,6 +476,7 @@ static zui_wm_t WM;
 static void test_wm(void)
 {
     zui_wm_init(&WM, W_, H_, false);
+    zui_wm_use_dock(&WM, false); /* the strip, behind its switch */
     uint32_t a = zui_wm_open(&WM, "burrow", "Burrow", 0, 0);
     uint32_t b = zui_wm_open(&WM, "glint", "Glint Photos", 0, 0);
     zui_vc_init(&VC);
@@ -499,6 +500,97 @@ static void test_wm(void)
           "and the last");
     CHECK(zui_vc_hear(&VC, "close window") == ZUI_VC_NO_MATCH, "none left");
     CHECK(zui_vc_hear(&VC, "go back") == ZUI_VC_DONE, "back through the wm");
+}
+
+/* VC8: the dock (the default) */
+static int vlaunched;
+static uint32_t v_launch(zui_wm_t *wm, const char *app, const char *title, void *ctx)
+{
+    (void) ctx;
+    vlaunched++;
+    return zui_wm_open(wm, app, title, 0, 0);
+}
+
+static void test_dock(void)
+{
+    zui_wm_init(&WM, W_, H_, false);
+    uint32_t a = zui_wm_open(&WM, "burrow", "Burrow", 0, 0);
+    uint32_t b = zui_wm_open(&WM, "glint", "Glint Photos", 0, 0);
+    zui_dock_pin(&WM.dock, "atlas", "Atlas");
+    WM.launch_app = v_launch;
+    zui_vc_init(&VC);
+    zui_vc_attach(&VC, 0, 0, 0, &WM);
+    zui_rect_t seal = zui_dock_keepout(&WM.dock);
+    CHECK(zui_vc_collect(&VC) == 4 && VC.t[0].kind == ZUI_VC_T_DOCK && VC.t[0].id == -1 &&
+              !strcmp(VC.t[0].name, "Apps") && !strcmp(VC.t[1].name, "Glint Photos") &&
+              !strcmp(VC.t[3].name, "Atlas") && VC.t[3].r.x == seal.x && VC.t[3].r.w == seal.w,
+          "closed: the seal and every app on it, named by title");
+    CHECK(zui_vc_hear(&VC, "click burrow") == ZUI_VC_DONE && zui_wm_front(&WM) == a,
+          "click an open app by name: it comes forward");
+    CHECK(zui_vc_hear(&VC, "click burrow") == ZUI_VC_DONE && zui_wm_get(&WM, a)->minimised,
+          "the one in front: minimised, as its slot would");
+    zui_wm_focus(&WM, b);
+    CHECK(zui_vc_hear(&VC, "show numbers") == ZUI_VC_SHOWN && zui_dock_is_open(&WM.dock) &&
+              VC.dock_shown,
+          "show numbers opens the dock");
+    zui_dock_slot_t s;
+    zui_dock_slot(&WM.dock, 0, &s);
+    const zui_vc_target_t *t = zui_vc_numbered(&VC, 2);
+    int32_t h = WM.dock.icon / 2 + ZUI_DOCK_PAD;
+    CHECK(VC.n_pick == 4 && t && t->kind == ZUI_VC_T_DOCK && t->row == 0 && t->r.x == s.cx - h &&
+              t->r.y == s.cy - h,
+          "its slots are numbered where they are");
+    CHECK(zui_vc_hear(&VC, "hide numbers") == ZUI_VC_SHOWN && !zui_dock_is_open(&WM.dock) &&
+              !VC.dock_shown,
+          "and it closes with the numbers");
+    zui_vc_hear(&VC, "show numbers");
+    uint32_t n_atlas = 0;
+    for (uint32_t i = 1; i <= VC.n_pick; i++)
+        if (!strcmp(zui_vc_numbered(&VC, i)->name, "Atlas")) n_atlas = i;
+    char say[16];
+    snprintf(say, sizeof say, "tap %u", n_atlas);
+    CHECK(n_atlas && zui_vc_hear(&VC, say) == ZUI_VC_DONE && vlaunched == 1 &&
+              !strcmp(zui_wm_get(&WM, zui_wm_front(&WM))->app, "atlas"),
+          "a pinned app by number: launched");
+    CHECK(VC.overlay == ZUI_VC_NUMBERS && zui_dock_is_open(&WM.dock) && VC.n_pick == 4,
+          "the numbers stay, counted again on the open dock");
+    zui_vc_hear(&VC, "cancel");
+    CHECK(!zui_dock_is_open(&WM.dock), "cancel closes it");
+    CHECK(zui_vc_hear(&VC, "click apps") == ZUI_VC_DONE && zui_dock_is_open(&WM.dock),
+          "click apps opens the dock");
+    CHECK(zui_vc_hear(&VC, "click apps") == ZUI_VC_DONE && !zui_dock_is_open(&WM.dock),
+          "and again closes it");
+    /* open <app> */
+    uint32_t atl = zui_wm_front(&WM);
+    zui_wm_focus(&WM, a);
+    CHECK(zui_vc_hear(&VC, "open atlas") == ZUI_VC_DONE && zui_wm_front(&WM) == atl &&
+              vlaunched == 1,
+          "open: an open app is raised, not launched again");
+    zui_wm_close(&WM, atl);
+    CHECK(zui_vc_hear(&VC, "open atlas") == ZUI_VC_DONE && vlaunched == 2,
+          "open: a pinned app is launched");
+    static const char *const LIST[] = {"Lantern", 0};
+    zui_vc_set_apps(&VC, LIST, 1);
+    CHECK(zui_vc_hear(&VC, "open lantern") == ZUI_VC_DONE && vlaunched == 3 &&
+              !strcmp(zui_wm_get(&WM, zui_wm_front(&WM))->app, "Lantern"),
+          "an app from the list is launched through the wm");
+    CHECK(zui_vc_hear(&VC, "open nothing") == ZUI_VC_NO_MATCH, "no such app");
+    CHECK(zui_vc_hear(&VC, "switch to photos") == ZUI_VC_DONE && zui_wm_front(&WM) == b,
+          "switch to is by window, as before");
+    /* a name several apps share: numbered on the open dock */
+    zui_wm_open(&WM, "glint", "Glint Photos", 0, 0);
+    CHECK(zui_vc_hear(&VC, "click glint") == ZUI_VC_AMBIGUOUS && zui_dock_is_open(&WM.dock) &&
+              VC.n_pick == 2 && zui_vc_numbered(&VC, 1)->row >= 0,
+          "ambiguous: the dock opens and both are numbered on their slots");
+    CHECK(zui_vc_hear(&VC, "1") == ZUI_VC_DONE && !zui_dock_is_open(&WM.dock) &&
+              VC.overlay == ZUI_VC_NONE,
+          "choosing one closes the numbers and the dock");
+    zui_vc_attach(&VC, 0, 0, 0, 0);
+    zui_vc_action_t act;
+    memset(&act, 0, sizeof act);
+    act.kind = ZUI_VC_ACT_ACTIVATE;
+    act.target.kind = ZUI_VC_T_DOCK;
+    CHECK(!zui_vc_apply(&VC, &act), "a dock target with no wm");
 }
 
 static void test_apply_edges(void)
@@ -607,6 +699,7 @@ int main(void)
     test_rest();
     test_typing();
     test_wm();
+    test_dock();
     test_apply_edges();
     test_draw();
     printf("%s test_zui_voicectl: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,

@@ -61,10 +61,12 @@ void main() {
     expect(Permission.PARADOX.bit, 1 << 14);
     expect(Permission.HW_MATRIX.bit, 1 << 10);
     expect(Permission.HW_RECONF.bit, 1 << 11);
-    expect(Permission.mask(Permission.all), (1 << 15) - 1);
+    // ABI 1.6 added VINO (1 << 15); the 1.5 mask keeps its value.
+    expect(Permission.all1_5, (1 << 15) - 1);
+    expect(Permission.mask(Permission.all.difference({Permission.VINO})), Permission.all1_5);
     final ctx = ZxvContext.create();
     addTearDown(ctx.close);
-    expect(root(ctx).info().permissions, Permission.all, reason: 'a 1.5 library keeps the new bits');
+    expect(root(ctx).info().permissions, Permission.all, reason: 'the library keeps the new bits');
   });
 
   test('use after close is refused', () {

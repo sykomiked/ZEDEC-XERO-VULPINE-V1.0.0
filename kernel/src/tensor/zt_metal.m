@@ -10,7 +10,12 @@
  * groups takes ZM_R rows, a simd group one row; lane l of it sums the
  * zt_metal_math.h terms of sub-blocks l, l + 32, ... for each token of its
  * tile (1 when decoding, ZM_T for a prompt batch), then the lanes' exact
- * 64-bit sums are added and rounded once, as zt_kern_round does. */
+ * 64-bit sums are added and rounded once, as zt_kern_round does.
+ *
+ * The whole forward pass (zt_gpu.h, zt_kern_metal_resident): every other
+ * kernel of zt_metal_math.h gets a wrapper, one thread per output; the op
+ * list of zt_gpu.c is encoded into one serial compute encoder (each
+ * dispatch sees the previous ones' writes) and committed once per pass. */
 #import <Foundation/Foundation.h>
 #import <Metal/Metal.h>
 
@@ -19,6 +24,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "zt_gpu.h"
 #include "zt_metal.h"
 
 #if __has_feature(objc_arc)
@@ -37,12 +43,31 @@ static const char k_math[] =
 static const char k_prelude[] = "#include <metal_stdlib>\n"
                                 "using namespace metal;\n"
                                 "typedef long zl;\n"
+                                "typedef ulong zw;\n"
                                 "typedef int zi;\n"
                                 "typedef uint zu;\n"
                                 "typedef short zs;\n"
                                 "typedef uchar zb;\n"
                                 "typedef char zc;\n"
-                                "#define ZM_DEV device\n";
+                                "#define ZM_DEV device\n"
+                                "typedef atomic_uint zm_ctr;\n"
+                                "static inline void zm_count(device zm_ctr *c, uint n)\n"
+                                "{\n"
+                                "    if (n) atomic_fetch_add_explicit(c, n, memory_order_relaxed);\n"
+                                "}\n"
+                                "#define ZK_A uint i, zg_p p, device zb *b0, device zb *b1, "
+                                "device zb *b2, device zb *b3, device zb *b4, device zb *b5, "
+                                "device zm_ctr *ctr\n";
+
+/* one wrapper per zt_gpu.h kernel: thread i of p.u[0] */
+static const char k_wrap[] =
+    "kernel void %s_k(device zb *b0 [[buffer(0)]], device zb *b1 [[buffer(1)]],\n"
+    "    device zb *b2 [[buffer(2)]], device zb *b3 [[buffer(3)]], device zb *b4 [[buffer(4)]],\n"
+    "    device zb *b5 [[buffer(5)]], device zm_ctr *ctr [[buffer(6)]],\n"
+    "    constant zg_p &p [[buffer(7)]], uint i [[thread_position_in_grid]])\n"
+    "{\n"
+    "    if (i < p.u[0]) %s(i, p, b0, b1, b2, b3, b4, b5, ctr);\n"
+    "}\n";
 
 static const char k_kernels[] =
     "\n"
@@ -108,6 +133,7 @@ typedef struct {
     const uint8_t *base;
     uint64_t len;
     id<MTLBuffer> buf;
+    bool nocopy; /* the caller's memory itself (else a copy made at map time) */
 } region_t;
 
 struct zt_metal {
@@ -117,6 +143,8 @@ struct zt_metal {
     region_t reg[ZM_REGIONS];
     uint32_t n_reg;
     id<MTLBuffer> in, out;
+    id<MTLComputePipelineState> zk[ZG_NK]; /* zt_gpu.h kernels (ZG_K_MM uses pso) */
+    id<MTLBuffer> work, cst;               /* zt_gpu.h work and constants */
     char name[128];
     zt_metal_stats_t st;
     uint32_t min_tokens; /* fewer tokens than this: declined (the CPU decodes) */
@@ -153,6 +181,7 @@ zt_metal_t *zt_metal_new(char *err, uint32_t errcap)
         snprintf(mt->name, sizeof mt->name, "%s", [[dev name] UTF8String]);
         mt->q = [dev newCommandQueue];
         size_t n = strlen(k_prelude) + strlen(k_math) + strlen(k_kernels) + 1;
+        for (int k = 0; k < ZG_NK; k++) n += sizeof k_wrap + 2 * strlen(zg_kernel_name[k]);
         char *src = malloc(n);
         if (!mt->q || !src) {
             free(src);
@@ -160,7 +189,9 @@ zt_metal_t *zt_metal_new(char *err, uint32_t errcap)
             say(err, errcap, "out of memory", nil);
             return NULL;
         }
-        snprintf(src, n, "%s%s%s", k_prelude, k_math, k_kernels);
+        size_t at = (size_t) snprintf(src, n, "%s%s%s", k_prelude, k_math, k_kernels);
+        for (int k = 0; k < ZG_NK; k++)
+            at += (size_t) snprintf(src + at, n - at, k_wrap, zg_kernel_name[k], zg_kernel_name[k]);
         NSError *e = nil;
         MTLCompileOptions *opt = [[MTLCompileOptions alloc] init];
         id<MTLLibrary> lib = [dev newLibraryWithSource:[NSString stringWithUTF8String:src]
@@ -189,6 +220,19 @@ zt_metal_t *zt_metal_new(char *err, uint32_t errcap)
                     return NULL;
                 }
             }
+        for (int k = 0; k < ZG_NK; k++) {
+            char fn[64];
+            snprintf(fn, sizeof fn, "%s_k", zg_kernel_name[k]);
+            id<MTLFunction> f = [lib newFunctionWithName:@(fn)];
+            mt->zk[k] = f ? [dev newComputePipelineStateWithFunction:f error:&e] : nil;
+            [f release];
+            if (!mt->zk[k]) {
+                say(err, errcap, "a Metal layer kernel cannot run on this GPU", e);
+                [lib release];
+                zt_metal_free(mt);
+                return NULL;
+            }
+        }
         [lib release];
         return mt;
     }
@@ -200,6 +244,9 @@ void zt_metal_free(zt_metal_t *mt)
     for (uint32_t i = 0; i < mt->n_reg; i++) [mt->reg[i].buf release];
     for (int t = 0; t < 2; t++)
         for (int k = 0; k < 3; k++) [mt->pso[t][k] release];
+    for (int k = 0; k < ZG_NK; k++) [mt->zk[k] release];
+    [mt->work release];
+    [mt->cst release];
     [mt->in release];
     [mt->out release];
     [mt->q release];
@@ -226,8 +273,10 @@ int zt_metal_map(zt_metal_t *mt, const void *base, uint64_t len)
                                   deallocator:nil];
         if (b) mt->st.nocopy++;
     }
+    bool nocopy = b != nil;
     if (!b) b = [mt->dev newBufferWithBytes:base length:len options:MTLResourceStorageModeShared];
     if (!b) return -1;
+    mt->reg[mt->n_reg].nocopy = nocopy;
     mt->reg[mt->n_reg].base = base;
     mt->reg[mt->n_reg].len = len;
     mt->reg[mt->n_reg].buf = b;
@@ -362,7 +411,112 @@ void zt_kern_metal(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt)
 {
     *out = *base;
     out->mm_full = mt ? zt_metal_mm : 0;
+    out->fwd_full = 0;
     out->fctx = mt;
+}
+
+/* ---- the whole forward pass (zt_gpu.h) ---- */
+
+static void *be_work(void *ctx, uint64_t bytes)
+{
+    zt_metal_t *mt = ctx;
+    return grow(mt, &mt->work, bytes) ? NULL : [mt->work contents];
+}
+
+static void *be_cst(void *ctx, uint64_t bytes)
+{
+    zt_metal_t *mt = ctx;
+    return grow(mt, &mt->cst, bytes ? bytes : 4) ? NULL : [mt->cst contents];
+}
+
+static int be_bind(zt_metal_t *mt, id<MTLComputeCommandEncoder> enc, const zg_buf_t *b, int idx)
+{
+    switch (b->kind) {
+    case ZG_B_WORK: [enc setBuffer:mt->work offset:b->off atIndex:idx]; return 0;
+    case ZG_B_CONST: [enc setBuffer:mt->cst offset:b->off atIndex:idx]; return 0;
+    case ZG_B_HOST: {
+        uint64_t off;
+        int ri = find_region(mt, b->host, b->len, &off);
+        if (ri < 0 || (b->inplace && !mt->reg[ri].nocopy)) return 1;
+        [enc setBuffer:mt->reg[ri].buf offset:off atIndex:idx];
+        return 0;
+    }
+    default: [enc setBuffer:mt->work offset:0 atIndex:idx]; return 0; /* unused argument */
+    }
+}
+
+static int be_run(void *ctx, const zg_op_t *ops, uint32_t n, const void *work, const void *cst)
+{
+    zt_metal_t *mt = ctx;
+    (void) work, (void) cst;
+    @autoreleasepool {
+        id<MTLCommandBuffer> cb = [mt->q commandBufferWithUnretainedReferences];
+        id<MTLComputeCommandEncoder> enc =
+            [cb computeCommandEncoderWithDispatchType:MTLDispatchTypeSerial];
+        int bad = 0;
+        for (uint32_t i = 0; i < n && !bad; i++) {
+            const zg_op_t *o = &ops[i];
+            if (!o->u[0]) continue;
+            if (o->k == ZG_K_MM) {
+                int k = o->u[4] == 12 ? 0 : o->u[4] == 14 ? 1 : o->u[4] == 8 ? 2 : -1;
+                uint32_t B = o->u[6], tiled = B > 1, T = tiled ? ZM_T : 1;
+                if (k < 0) {
+                    bad = 1;
+                    break;
+                }
+                zm_p_t p = {o->u[1], o->u[2], o->u[3], B, o->u[5]};
+                [enc setComputePipelineState:mt->pso[tiled][k]];
+                for (int j = 0; j < 5 && !bad; j++) bad = be_bind(mt, enc, &o->b[j], j);
+                [enc setBytes:&p length:sizeof p atIndex:5];
+                [enc dispatchThreadgroups:MTLSizeMake((o->u[1] + ZM_R - 1) / ZM_R, (B + T - 1) / T, 1)
+                    threadsPerThreadgroup:MTLSizeMake(32 * ZM_R, 1, 1)];
+                continue;
+            }
+            if (o->k >= ZG_NK) {
+                bad = 1;
+                break;
+            }
+            id<MTLComputePipelineState> ps = mt->zk[o->k];
+            [enc setComputePipelineState:ps];
+            for (int j = 0; j < 6 && !bad; j++) bad = be_bind(mt, enc, &o->b[j], j);
+            [enc setBuffer:mt->work offset:0 atIndex:6]; /* the saturation counter */
+            [enc setBytes:o->u length:sizeof o->u atIndex:7];
+            NSUInteger tg = ps.maxTotalThreadsPerThreadgroup < 256 ? ps.maxTotalThreadsPerThreadgroup : 256;
+            [enc dispatchThreadgroups:MTLSizeMake((o->u[0] + tg - 1) / tg, 1, 1)
+                threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+        }
+        [enc endEncoding];
+        if (bad) return 1; /* never committed: nothing ran */
+        [cb commit];
+        [cb waitUntilCompleted];
+        if ([cb status] != MTLCommandBufferStatusCompleted) return 1;
+        mt->st.gpu_ns += (uint64_t) (([cb GPUEndTime] - [cb GPUStartTime]) * 1e9);
+    }
+    return 0;
+}
+
+int zt_metal_fwd(void *fctx, const void *m, void *s, uint32_t B, zt_fx *logits, uint32_t first,
+                 uint32_t *n_sat)
+{
+    zt_metal_t *mt = fctx;
+    if (!mt) return 1;
+    uint64_t t0 = now_ns();
+    zg_backend_t be = {mt, be_work, be_cst, be_run};
+    int r = zg_forward(&be, m, s, B, logits, first, n_sat);
+    if (r) {
+        mt->st.passes_declined++;
+        return r;
+    }
+    mt->st.passes++;
+    mt->st.pass_ops += zg_last_ops();
+    mt->st.wall_ns += now_ns() - t0;
+    return 0;
+}
+
+void zt_kern_metal_resident(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt)
+{
+    zt_kern_metal(out, base, mt);
+    out->fwd_full = mt ? zt_metal_fwd : 0;
 }
 
 void zt_metal_set_min_tokens(zt_metal_t *mt, uint32_t n)

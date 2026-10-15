@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package zxv is the Go SDK of the ZXV platform: a cgo binding to libzxv
-// (sdk/libzxv/include/zxv_api.h, ABI 1.5).
+// (sdk/libzxv/include/zxv_api.h, ABI 1.6).
 //
 // The essentials:
 //
@@ -11,7 +11,8 @@
 //     HwProfile, HwMatrix, HwRegion, and the ABI 1.5 handles Treaty,
 //     TreatyResult, AipiNode, TokenWallet, VHub, FreightJoin,
 //     FreightOpsWriter, W4Agent, W4Directory, W4Manifest, W4ConsentLog,
-//     ParadoxBook, ParadoxPolicy, ParadoxHold, ParadoxGraph) have Close(),
+//     ParadoxBook, ParadoxPolicy, ParadoxHold, ParadoxGraph, and the ABI 1.6
+//     handles VinoPlay and VinoMeter) have Close(),
 //     with a
 //     runtime.SetFinalizer backstop. A parent refuses to close while a child
 //     made from it is open, so the C rule "destroy children first" holds.
@@ -25,7 +26,8 @@
 //   - Truth is four-valued and is not a bool.
 //   - Budget waits, phase waits and generation take a context.Context.
 //   - ABI 1.5 groups (treaty, cid/aipi, coin, fee, vhub, freight, web4,
-//     paradox) report through LiveFeatures2; each file of this package
+//     paradox) and the ABI 1.6 Vino Embed group (vino.go: play lane,
+//     payment requests, receipts, daily meter) report through LiveFeatures2; each file of this package
 //     starts with what its group does and its honest limits.
 //
 // Quickstart:
@@ -104,12 +106,12 @@ var (
 )
 
 // checkVersion refuses a library whose major ABI differs or whose minor is
-// below 5 (this package calls ABI 1.5 functions).
+// below 6 (this package calls ABI 1.6 functions).
 func checkVersion() error {
 	versionOnce.Do(func() {
 		major, minor, _ := Version()
-		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 5 {
-			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.5+)", major, minor))
+		if major != C.ZXV_ABI_VERSION_MAJOR || minor < 6 {
+			versionErr = newError(StatusInternal, fmt.Sprintf("libzxv ABI %d.%d is not compatible with this SDK (needs 1.6+)", major, minor))
 		}
 	})
 	return versionErr

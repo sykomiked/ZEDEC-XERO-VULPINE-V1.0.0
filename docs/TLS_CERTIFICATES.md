@@ -73,6 +73,26 @@ python3 kernel/src/tls/gen_trust_roots.py "$(python3 -c 'import certifi;print(ce
 Owners can add their own roots at run time with `tls_trust_add_der()`. Adding
 a self-signed device certificate pins that device.
 
+## The server side
+
+zxvd's IRC gateway ([IRC_GATEWAY.md](IRC_GATEWAY.md)) needed the other end
+of the connection, built from the same code:
+
+- `ecdsa_sign.c`: P-256 signing with RFC 6979 deterministic nonces (HMAC-
+  SHA256 from `hkdf.c`), a constant-time double-and-add-always ladder over
+  the verifier's complete addition formulas (`ecdsa_int.h`), and low-s is not
+  forced (TLS does not ask for it). Secrets are wiped.
+- `selfsigned.c`: a self-signed P-256 certificate for localhost, 127.0.0.1
+  and ::1 (serverAuth, not a CA), and its PEM form for clients to pin.
+- `server.c`: a TLS 1.3 server (rules V1-V5 in `server.h`): one suite
+  (ChaCha20-Poly1305), one group (x25519, no HelloRetryRequest), one
+  signature scheme (ecdsa_secp256r1_sha256), no client certificates, no
+  resumption, no 0-RTT; KeyUpdate and alerts are handled. Anything else in a
+  ClientHello is refused with the alert RFC 8446 names.
+
+A client trusts the gateway by pinning its certificate, exactly as above
+with `tls_trust_add_der()`, or with its SHA-256 fingerprint.
+
 ## Tests
 
 `make -C kernel test-tls-verify` (part of `verify-all`) runs:
@@ -92,8 +112,14 @@ a self-signed device certificate pins that device.
   flipped signature bit, a forbidden scheme, a wrong host, an expired chain,
   an unknown root, a missing intermediate and an unknown time must each be
   refused.
-- A freestanding build of every file for aarch64 and i386, to check that no
-  libc or 64-bit division helper is pulled in.
+- `test_ecdsa_sign`: the RFC 6979 A.2.5 vectors (key, public point, both
+  messages), round trips through the verifier and the refusals.
+- `test_tls_server` (ASan/UBSan): the repo's client against the server with
+  the self-signed certificate pinned and `TLS_VERIFY_REQUIRED`, application
+  data both ways, KeyUpdate, and a hand-built ClientHello for every refusal.
+  OpenSSL against the server runs in `kernel/arch/hosted/test_zxvd_irc.py`.
+- A freestanding build of every file for aarch64, i386, armv7a and rv32, to
+  check that no libc or 64-bit division helper is pulled in.
 
 The fuzz harness `fuzz/parsers/fuzz_x509.c` covers the parser and the chain
 validator.

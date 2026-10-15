@@ -56,7 +56,8 @@ typedef enum {
     VNA_MSG_RCPT = 12,      /* one trade receipt (vna_econ.h), body vna_b_rec_t */
     VNA_MSG_PUNCH = 13,     /* NAT traversal: introduction request / introduction (vna_b_punch_t) */
     VNA_MSG_AIPI = 14,      /* one AIPI call, claim or payment notice (vna_b_aipi_t) */
-    VNA_MSG_TYPE_MAX = 14
+    VNA_MSG_SPACE = 15, /* public spaces: join, welcome, presence, leave, event (vna_b_space_t) */
+    VNA_MSG_TYPE_MAX = 15
 } vna_msg_type_t;
 
 typedef struct {
@@ -151,10 +152,32 @@ typedef struct {
     uint8_t data[VNA_AIPI_DATA_MAX];
 } vna_b_aipi_t;
 
+/* Public spaces (vna_space.h): one space message. `space` is the space id
+ * (the SHA-256 digest inside its CID); data depends on the kind: an EVENT
+ * carries a sealed event record (rtype VNA_REC_SPACE_EV, signed by its
+ * author, so it can be forwarded), a WELCOME the space's genesis block and a
+ * member list; JOIN, PRESENCE and LEAVE carry nothing (the message itself is
+ * signed by the sender). */
+#define VNA_SPACE_MSG_DATA_MAX VNA_REC_MAX
+typedef enum {
+    VNA_SPACE_M_JOIN = 1,
+    VNA_SPACE_M_WELCOME = 2,
+    VNA_SPACE_M_PRESENCE = 3,
+    VNA_SPACE_M_LEAVE = 4,
+    VNA_SPACE_M_EVENT = 5
+} vna_space_msg_kind_t;
+typedef struct {
+    uint8_t kind;
+    vna_id_t space;
+    uint16_t len;
+    uint8_t data[VNA_SPACE_MSG_DATA_MAX];
+} vna_b_space_t;
+
 extern const vna_schema_t vna_msg_schema;
 extern const vna_schema_t vna_b_addr_schema;
 extern const vna_schema_t vna_b_punch_schema;
 extern const vna_schema_t vna_b_aipi_schema;
+extern const vna_schema_t vna_b_space_schema;
 extern const vna_schema_t vna_b_key_schema;
 extern const vna_schema_t vna_b_nodes_schema;
 extern const vna_schema_t vna_b_rec_schema;
@@ -162,7 +185,15 @@ extern const vna_schema_t vna_b_ack_schema;
 extern const vna_schema_t vna_b_hk_schema;
 
 /* ---- signed DHT records ---- */
-typedef enum { VNA_REC_PROVIDER = 1, VNA_REC_AGREEMENT = 2 } vna_rec_type_t;
+/* SPACE: a public space's host or directory entry (vna_space.h, stored in
+ * the DHT); SPACE_EV: an event in a space, signed by its author, carried in
+ * VNA_MSG_SPACE and never stored in the DHT. */
+typedef enum {
+    VNA_REC_PROVIDER = 1,
+    VNA_REC_AGREEMENT = 2,
+    VNA_REC_SPACE = 3,
+    VNA_REC_SPACE_EV = 4
+} vna_rec_type_t;
 typedef enum { VNA_VIS_PUBLIC = 0, VNA_VIS_PRIVATE = 1 } vna_visibility_t;
 
 typedef struct {

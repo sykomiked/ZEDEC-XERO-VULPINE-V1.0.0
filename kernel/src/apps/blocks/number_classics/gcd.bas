@@ -1,0 +1,13 @@
+1 REM Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+2 REM SPDX-License-Identifier: Apache-2.0
+10 REM GREATEST COMMON DIVISOR BY EUCLID
+20 INPUT A, B
+30 LET A = ABS(A)
+40 LET B = ABS(B)
+50 IF B = 0 THEN 100
+60 LET T = A - INT(A / B) * B
+70 LET A = B
+80 LET B = T
+90 GOTO 50
+100 PRINT A
+110 END

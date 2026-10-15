@@ -1,6 +1,6 @@
 /* hello_elf.h — GENERATED from userapp/hello.elf. Do not edit by hand.
- * Rebuild: see userapp/build_hello.sh. The kernel seeds these bytes to
- * ZXVFS as 'hello.elf' on first boot so 'run hello.elf' loads from disk.
+ * Rebuild: see userapp/build_hello.sh. The kernel does not run a bare ELF:
+ * it seeds hello.zsp, the signed package build_signed_app.sh makes from it.
  */
 #ifndef HELLO_ELF_H
 #define HELLO_ELF_H

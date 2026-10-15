@@ -560,6 +560,67 @@ static void test_graphemes(void)
           "extend table");
 }
 
+/* the desktop window's ids (kernel/arch/hosted/zxv_ui.html, gen_ui_strings.c) */
+static void test_ui_window(void)
+{
+    i18n_msg_info_t in;
+    char b[256];
+    const char *s;
+    uint32_t ui = 0;
+    for (uint32_t id = 0; id < I18N_MSG__COUNT; id++) {
+        const char *k = i18n_msg_key((i18n_msgid_t) id);
+        if (strncmp(k, "UI_", 3) != 0) continue;
+        ui++;
+        s = i18n_msg(L("en"), (i18n_msgid_t) id, &in);
+        CHECK(s[0] && in.review == I18N_REVIEW_SOURCE && !in.fallback, "en %s", k);
+        /* English only for now: no catalog carries a UI_ line, so every other
+         * language falls back to English, and says so */
+        for (uint32_t c = 0; c < i18n_catalog_count; c++) {
+            if (strcmp(i18n_cpool + i18n_catalogs[c].tag, "en") == 0) continue;
+            for (uint32_t e = 0; e < i18n_catalogs[c].count; e++)
+                CHECK(i18n_entries[i18n_catalogs[c].start + e].id != id, "%s translated in %s", k,
+                      i18n_cpool + i18n_catalogs[c].tag);
+        }
+        s = i18n_msg(L("de"), (i18n_msgid_t) id, &in);
+        CHECK(in.from == L("en") && in.fallback && in.review == I18N_REVIEW_SOURCE, "de %s", k);
+    }
+    CHECK(ui >= 80, "UI_ ids %u", ui);
+    EQS(i18n_msg_key(I18N_UI_QUIT), "UI_QUIT");
+    CHECK(i18n_msg_id("UI_KV_SAVED") == (int32_t) I18N_UI_KV_SAVED, "key round trip");
+    /* ids made before the window's are unchanged (the core stores ids) */
+    CHECK(I18N_NAV_ASSISTANT == 0 && I18N_ERR_CALL_FAILED < I18N_UI_WINDOW_TITLE, "id order");
+    EQS(i18n_msg(L("en"), I18N_UI_HEADER_TITLE, 0), "ZXV SWARM");
+    EQS(i18n_msg(L("en"), I18N_UI_CONNECTING, 0), "connecting\xE2\x80\xA6");
+    EQS(i18n_msg(L("en"), I18N_UI_VERDICT_CONTESTED, 0), "\xE2\x8A\xA5\xCC\xB8 contested");
+    /* the window's reused ids keep their machine translations, flagged */
+    EQS(i18n_msg(L("de"), I18N_BTN_SEND, &in), "Senden");
+    CHECK(in.review == I18N_REVIEW_MACHINE && !in.fallback, "de Send is machine");
+    /* the window's templates through i18n_format_msg, as the page does them */
+    char n1[32], n2[32];
+    const char *a[2] = {n1, n2};
+    i18n_fmt_int(L("en"), 1234, n1, sizeof n1);
+    i18n_fmt_int(L("en"), 21000, n2, sizeof n2);
+    i18n_format_msg(L("en"), i18n_msg(L("en"), I18N_UI_COMPANION_REMAINING, 0), a, 2, b, sizeof b);
+    EQS(b, "1,234 of 21,000 tokens");
+    i18n_fmt_int(L("en"), 27720, n2, sizeof n2);
+    i18n_format_msg(L("en"), i18n_msg(L("en"), I18N_UI_FUNDAMENTAL_VALUE, 0), a, 2, b, sizeof b);
+    EQS(b, "1,234 (27,720 ticks each)");
+    i18n_fmt_decimal(L("en"), 150, 2, n1, sizeof n1);
+    a[1] = "8";
+    i18n_format_msg(L("en"), i18n_msg(L("en"), I18N_UI_CORES_VALUE, 0), a, 2, b, sizeof b);
+    EQS(b, "1.50 total, 8 granted");
+    /* German numbers in the English fallback text: the locale formats them */
+    i18n_fmt_int(L("de"), 1234, n1, sizeof n1);
+    i18n_fmt_int(L("de"), 21000, n2, sizeof n2);
+    a[1] = n2;
+    i18n_format_msg(L("de"), i18n_msg(L("de"), I18N_UI_COMPANION_REMAINING, 0), a, 2, b, sizeof b);
+    EQS(b, "1.234 of 21.000 tokens");
+    /* Arabic: right to left, so each argument is isolated (FSI .. PDI) */
+    i18n_format_msg(L("ar"), i18n_msg(L("ar"), I18N_UI_WITNESS_BY, 0), a, 1, b, sizeof b);
+    EQS(b, "by \xE2\x81\xA8"
+           "1.234\xE2\x81\xA9");
+}
+
 static void test_needs(void)
 {
     const i18n_range_t *r;
@@ -582,6 +643,7 @@ int main(void)
     test_plural();
     test_messages();
     test_format_msg();
+    test_ui_window();
     test_numbers();
     test_currency();
     test_dates();

@@ -191,8 +191,9 @@ static vswap_status_t post(vswap_t *s, const pay_line_t *ln, uint32_t n, uint8_t
     pay_uetr_from_random(d, r.uetr);
     pay_w w;
     pay_w_init(&w, r.e2e, sizeof r.e2e);
+    derive(s, 'E', d); /* unguessable without the seed */
     pay_w_s(&w, "VSWAP-");
-    pay_w_u64(&w, s->seq);
+    pay_w_hex(&w, d, 12);
     pay_w_finish(&w);
     pay_strlcpy(r.memo, "player card v-bill swap", sizeof r.memo);
     r.tick = tick;
@@ -214,13 +215,15 @@ static pay_line_t line(uint32_t a, uint64_t d, uint64_t c, bool neg)
     return l;
 }
 
-/* a user's pair of accounts for a swap */
+/* a user's pair of accounts for a swap: both must have the same owner.
+ * Authenticating the caller as that owner is the zxvd layer's job. */
 static vswap_status_t party(const vswap_t *s, uint32_t vino, uint32_t vb)
 {
     if (is_lock(s, vb)) return VSWAP_ERR_LOCKED;
-    if (!of(s, vino, s->cfg.vino) || vino == s->cfg.reserve || !of(s, vb, s->cfg.vbill) ||
-        vb == s->cfg.issuer || vb == s->cfg.vault)
+    const pay_account_t *a = of(s, vino, s->cfg.vino), *b = of(s, vb, s->cfg.vbill);
+    if (!a || vino == s->cfg.reserve || !b || vb == s->cfg.issuer || vb == s->cfg.vault)
         return VSWAP_ERR_ARG;
+    if (a->owner != b->owner) return VSWAP_ERR_AUTH;
     return VSWAP_OK;
 }
 

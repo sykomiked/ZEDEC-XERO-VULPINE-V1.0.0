@@ -74,8 +74,37 @@ int main(void)
     printf("total_sectors=%u (%.1f KB disk)\n", (unsigned) ZXVFS_TOTAL_SECTORS,
            ZXVFS_TOTAL_SECTORS * 512 / 1024.0);
 
+    /* blank probe: only an all-zero disk may be auto-formatted */
+    CHECK(zxvfs_mount(&fs, &dev) == -2, "blank disk has no superblock");
+    CHECK(zxvfs_probe_blank(&dev) == 1, "all-zero disk probes blank");
+    {
+        /* a GPT disc: protective MBR signature at 510, "EFI PART" at LBA 1 */
+        g_disk[0][510] = 0x55;
+        g_disk[0][511] = 0xAA;
+        memcpy(g_disk[1], "EFI PART", 8);
+        CHECK(zxvfs_mount(&fs, &dev) == -2, "GPT disc has no ZXVFS superblock");
+        CHECK(zxvfs_probe_blank(&dev) == 0, "GPT disc is not blank: never auto-formatted");
+        memset(g_disk[0], 0, BLOCKDEV_SECTOR_SIZE);
+        memset(g_disk[1], 0, BLOCKDEV_SECTOR_SIZE);
+
+        /* one stray byte deep in the region a format would overwrite */
+        g_disk[ZXVFS_DATA_SECTOR - 1][7] = 1;
+        CHECK(zxvfs_probe_blank(&dev) == 0, "a byte in the last format sector counts");
+        g_disk[ZXVFS_DATA_SECTOR - 1][7] = 0;
+
+        block_device_t tiny = dev;
+        tiny.total_sectors = ZXVFS_DATA_SECTOR - 1;
+        CHECK(zxvfs_probe_blank(&tiny) == 0, "a disk too small for ZXVFS is not offered");
+        block_device_t gone = dev;
+        gone.present = false;
+        CHECK(zxvfs_probe_blank(&gone) == -1, "absent device is unknown");
+        CHECK(zxvfs_probe_blank(NULL) == -1, "NULL device is unknown");
+        CHECK(zxvfs_probe_blank(&dev) == 1, "restored disk probes blank again");
+    }
+
     /* format + mount */
     CHECK(zxvfs_format(&dev) == 0, "format");
+    CHECK(zxvfs_probe_blank(&dev) == 0, "a formatted disk is no longer blank");
     CHECK(zxvfs_mount(&fs, &dev) == 0, "mount");
     CHECK(zxvfs_count(&fs) == 0, "empty after format");
 

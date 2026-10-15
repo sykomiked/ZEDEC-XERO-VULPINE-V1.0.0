@@ -240,6 +240,7 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 | [rce](#rce--si-units-and-dimensional-analysis) | SI units and dimensional analysis | WORKING (tested in verify-all) |
 | [reality](#reality--sigil-circuit-evaluator-over-live-variables) | sigil-circuit evaluator over live variables | WORKING (tested in verify-all) |
 | [recon](#recon--reconstruction-step-labels-over-an-s-map) | reconstruction-step labels over an S-Map | WORKING (test not in verify-all) |
+| [recover](#recover--recovery-framework-refuse-roll-back-isolate-with-signed-proofs) | recovery framework: refuse, roll back, isolate, with signed proofs | WORKING (tested in verify-all) |
 | [refinery](#refinery--intent-text-to-sigil-card-compiler) | intent text to sigil-card compiler | WORKING (tested in verify-all) |
 | [reputation](#reputation--pig-badge-abuse-signal-and-earnable-badges) | "Pig Badge" abuse signal and earnable badges | WORKING (tested in verify-all) |
 | [rmag](#rmag--rational-resource-budgets-rmag-and-resource-tables) | rational resource budgets (RMAG) and resource tables | WORKING (tested in verify-all) |
@@ -307,7 +308,7 @@ What it does: `zxv_host.c` runs the kernel's swarm modules (Fibonacci budget, ma
 Main entry points: `zxv-host` CLI (`--server`, `--port`, `--model`, `--models-dir`, `--exit-with-parent`, `--net`, `--net-port`, `--net-bind`, `--peer`, `--state-dir`, `--no-lan-discovery`, `--notify`, `--update-gateway`); `/api/state`, `/api/ask`, `/api/quit`, `/api/net`, `/api/update`, `/api/notes`, `/api/notes/read`; `zxv_budget_gate`; `zxv_net_*`; `zxv_update_*`; `app_sources.sh` (the one source list); `zxv_model_open/answer/close`; `zxv_zt_generate[_n]`, `zxv_zt_can_run`, `zxv_zt_release`; `zxv_guard_*`.
 Tests: `kernel/arch/hosted/test_hosted.sh` (guard unit test under ASan/UBSan, glue test `test_zxv_zt_glue.c` [16 checks, incl. the verdict], answer tag `test_zxv_answer_tag.c` [12 checks], budget gate `test_zxv_budget_gate.c` [19 checks: budget N, ask for more, exactly N generated, 0 left, refused, refilled next cycle; also on the real engine], two UDP net hosts on 127.0.0.1 `test_zxv_net_host.c` [23 checks: ping, both routing tables, FIND_NODE both ways, OFF/LAN/ONLINE policy], end-to-end socket test `test_host_api.py` twice, and `test_host_net.py` [44 checks: no UDP socket and no update request without the user, two app instances see each other, the Network setting, a sale refused before sharing and refused by a buyer that did not want it, then two compute trades on credit completing on both instances with conserved books and the seller's quest contribution rising while the buyer's does not, a requested update check against a local gateway, the note pushed to a stand-in notify-send]); in verify-all. All pass with gcc 11 and clang 18. `build_system/build_desktop.sh` built macOS x86_64+arm64, Windows and Linux engines with zig 0.13 (pip ziglang) and its end-to-end test passed; no native shell off a Mac.
 Used by: nothing (top-level program). `zx_speech_mac.m` is built by nothing.
-Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` and an update check block the single-threaded server while they run; the Vinea identity and peer cache persist in the per-user folder, LAN multicast discovery (`vna_lan`), basic NAT traversal (reflexive address, hole punching through a shared contact, keepalive) and AIPI over Vinea (`zxv_net_attach_aipi`) are built (zxv_net_host.h U9 to U12), but there is no IPv6, no port mapping (NAT-PMP/PCP/UPnP) or relay, and zxvd does not attach an AIPI context yet; update checks are not wired on Windows (no curl spawn) and nothing is installed; osascript notes show as "Script Editor"; no ipfs_node file exchange, call, social or speech glue; ZXVApp.m and ad-hoc signing never run outside the macOS CI job (releases are not notarised, by decision).
+Gaps: no real model ever run; Q5_0/Q5_1 weights refused; `/api/ask` and an update check block the single-threaded server while they run; the Vinea identity and peer cache persist in the per-user folder, LAN multicast discovery (`vna_lan`), basic NAT traversal (reflexive address, hole punching through a shared contact, keepalive) AIPI over Vinea (`zxv_net_attach_aipi`) and public spaces with the synced watch hall (zxvd `pspace.*`/`hall.*`, docs/SPACES.md; control only, video delivery between viewers not built) are built (zxv_net_host.h U9 to U14), but there is no IPv6, no port mapping (NAT-PMP/PCP/UPnP) or relay, and zxvd does not attach an AIPI context yet; update checks are not wired on Windows (no curl spawn) and nothing is installed; osascript notes show as "Script Editor"; no ipfs_node file exchange, call, social or speech glue; ZXVApp.m and ad-hoc signing never run outside the macOS CI job (releases are not notarised, by decision).
 
 ### Bare-metal kernels  —  the ZXV OS booted on emulated hardware (kernel/arch/*, build_system/Makefile.*)
 Status: WORKING (all five boot to `[BOOT_OK]` under QEMU with no fault marker; CI fails closed on each)
@@ -467,16 +468,16 @@ Gaps: none found in the paths reviewed.
 ### apps  —  built-in shell, editor, network config and other desktop apps
 Status: PARTIAL
 What it does: apps.c holds a working text shell, an editor, a network-config panel, sysmon and a
-few small tools; these are compiled into the kernel. The other app files are not built and do not
-compile: derivatives, treaty, assurance, notes, clock, dharma_monitor and telecom signalling.
-Some demo files in other languages are not built either. sysmon shows invented CPU and memory
-figures.
+few small tools; these are compiled into the kernel. notes_app.c with test_notes.c and vfs_stub.c
+are host-tested by verify-all (test-orphans). The unbuilt app files (derivatives, treaty, assurance,
+wallet, clock, dharma_monitor) moved to kernel/experimental/m5_apps/ (GAP_AUDIT B3); telecom signalling and some demo files in other
+languages are still here and not built. sysmon shows invented CPU and memory figures.
 Main entry points: shell_init, shell_execute, shell_handle_key, shell_render, editor_init,
 editor_load_file, netcfg_refresh.
-Tests: test_notes.c does not compile. ../tests/test_apps.c exists but is not in verify-all. None
-of these tests run in verify-all.
+Tests: ../tests/test_apps.c exists but is not in verify-all. None of these tests run in
+verify-all.
 Used by: boot/kernel_main.c and tests/test_apps.c. apps.c is in Makefile and Makefile.arm64, and
-vfs_stub.c and demo_cross_lang.c are in Makefile.arm64.
+demo_cross_lang.c is in Makefile.arm64.
 Gaps: netcfg_refresh overflowed detail_buf, and editor_load_file overflowed filename (both fixed).
 Gaps: apps.c calls derivatives_init, assurance_init and treaty_init, but nothing compiled defines
 them.
@@ -803,7 +804,8 @@ chg_state_name.
 Tests: src/chiglet/test_chiglet.c in verify-all. It is also linked by about 17 other tests.
 Used by: the arm64 kernel_main, cards, concord, desktop, emu, games, holodeck, pirate_fleet,
 social, voice and wyrmgate.
-Gaps: chiglet_triage.c uses an implicit strtok_r and is not built.
+Gaps: chiglet_triage.c (a host triage tool; implicit strtok_r, never built) moved to
+kernel/experimental/chiglet_triage/ (GAP_AUDIT B3).
 
 ### choice  —  deterministic tie-breaking selection among candidates (K5)
 Status: WORKING (tested in verify-all)
@@ -1163,7 +1165,8 @@ Main entry points: ehop_channel_init, ehop_schedule_init, ehop_apply, ehop_cfg_c
 ehop_frame_* / ehop_net_*.
 Tests: src/ehop/test_ehop.c (verify-all), pass. A local fuzz of frame parsing and the replay window
 found nothing.
-Used by: no #include outside; not in images (host-tested library).
+Used by: zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): ehop.bands, and ehop.seal / ehop.open on a channel given per call
+(stateless: the caller keeps seq and the replay window). The mobile core build. Not in images.
 Gaps: none found in the parser or AEAD use.
 
 ### el0_userspace — EL0 (ARM64 user mode) process scheduler
@@ -1339,7 +1342,7 @@ Main entry points: freight_gf_mul/inv/div, freight_header_init/check/serialize/p
 freight_encode, freight_decode.
 Tests: test_freight, test_stream, test_web4_agent (verify-all), pass. A local fuzz of header parse
 and decode found nothing.
-Used by: stream, web4. Not in images.
+Used by: stream, web4, and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): freight.pack / freight.unpack. Not in images.
 Gaps: none found.
 
 ### fs — tri-space file system (S+, S-, S0 replicas, transactions, snapshots)
@@ -1435,7 +1438,9 @@ zt_geom_router_init, zt_mux_channel_mask, zt_trunk_bank_init/process_pcm, zt_ada
 Tests: 10 tests in verify-all (harmonic_wire 61, adapter_house 60, dial_router 47, trunk_bank 25,
 geom_router 19, endian_mux 14, residual_carrier 14, signal_data 11, residual_tap 8,
 metronome 6), all pass.
-Used by: no includers outside the directory; not in images.
+Used by: zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): harmonic.encode / harmonic.decode (zt_harmonic_wire: the frame,
+its tag and the stateless resolver). The routers, mux, trunk bank and adapters still have no caller
+outside the directory; not in images.
 Gaps: none found.
 
 ### hdcm — "hyperdimensional" cross-language construct matrix
@@ -1493,9 +1498,14 @@ fallback. It formats numbers and plurals, and it includes Enochian transliterati
 lines, mostly generated tables (gen_i18n_tables.py).
 Main entry points: i18n_msg, i18n_locale_find/resolve/default/parent, i18n_format_msg,
 i18n_fmt_int/decimal/currency/date, i18n_grapheme_next, i18n_enochian_render.
-Tests: test_i18n, test_i18n_cov, test_i18n_enochian (verify-all), pass.
-Used by: no #include outside; not in images.
-Gaps: none found.
+Tests: test_i18n, test_i18n_cov, test_i18n_enochian (verify-all), pass; test_i18n checks the
+desktop window's UI_ ids. check_ui_i18n.py (test_hosted.sh, verify-all) checks the window's table.
+Used by: the desktop window (kernel/arch/hosted/zxv_ui.html). At build time gen_ui.py compiles
+kernel/arch/hosted/gen_ui_strings.c with the i18n sources and embeds the string table, CLDR
+number formats and a locale map (checked against i18n_locale_resolve) in the page; the page
+chooses the locale from navigator.language. Not in kernel images.
+Gaps: the window's UI_ ids are English only, so other languages fall back to English (the window
+says so); the SwiftUI studio (macos/studio) does not use the table.
 
 ### icon  —  vector icons for every module
 Status: WORKING (tested in verify-all)
@@ -1738,7 +1748,7 @@ Gaps: no host test in verify-all.
 Status: WORKING (tested in verify-all)
 What it does: Keccak/SHA-3/SHAKE, NTT, sampling, encoding, K-PKE and ML-KEM-768 keygen/encaps/decaps with implicit rejection (now a branch-free select). genomic_codon adds a domain-separation label only, not security.
 Main entry points: mlkem768_keygen, mlkem768_encaps, mlkem768_decaps, kpe_*, sha3_256, sha3_512, shake128_*, shake256.
-Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), test_mlkem_reject (tampered ciphertext gives K_bar = SHAKE256(z||c) for ML-KEM-768 and -1024, plus a valgrind ctgrind run with the secret key marked undefined: no secret-dependent branch in decapsulation on this host's gcc/clang at -O0..-O3), pq tests — pass. `make -C kernel kat-cross` also runs test_mlkem_kat on aarch64, riscv64, armhf, i686 and s390x (big-endian) under qemu-user; `make -C kernel ct-valgrind` runs decaps and encaps under valgrind with the secrets marked undefined and finds no secret-dependent branch or index (not a constant-time proof). SHA-3/SHAKE was wrong on big-endian CPUs (byte view of the lanes); fixed in keccak.c. encode/ntt/sample/kpe/genomic validators also pass but are not in verify-all (lines in group3_verify_lines.mk).
+Tests: keccak_validate, mlkem768_validate, test_mlkem_kat (30 NIST ACVP comparisons), test_mlkem_reject (tampered ciphertext gives K_bar = SHAKE256(z||c) for ML-KEM-768 and -1024, plus a valgrind ctgrind run with the secret key marked undefined: no secret-dependent branch in decapsulation on this host's gcc/clang at -O0..-O3), pq tests — pass. `make -C kernel kat-cross` also runs test_mlkem_kat on aarch64, riscv64, armhf, i686 and s390x (big-endian) under qemu-user; `make -C kernel ct-valgrind` runs decaps and encaps under valgrind with the secrets marked undefined and finds no secret-dependent branch or index (not a constant-time proof). SHA-3/SHAKE was wrong on big-endian CPUs (byte view of the lanes); fixed in keccak.c. The encode/ntt/sample/kpe/genomic validators also run in verify-all.
 Used by: ~17 modules (pay, ident, plnp, cardnet, web4, ...). Kernel: yes. Packaged in packages/libzxv-pqc (static library built from these sources; smoke program in verify-all).
 Gaps: validator files lack SPDX; headers say "All Rights Reserved" beside Apache-2.0.
 
@@ -1996,6 +2006,14 @@ Tests: src/recon/test_recon.c (NEW, 8 checks). A recipe is in group4_verify_line
 Used by: no includes outside the directory. arm64: yes.
 Gaps: Fixed in this audit: all six ops were stubs that succeeded on a corrupt map, and the header claimed "O(1) reconstruction". The module is thin and may be a candidate for merging into smap.
 
+### recover — recovery framework: refuse, roll back, isolate, with signed proofs
+Status: WORKING (tested in verify-all)
+What it does: The designed recovery of audit gap B5 (roadmap P3.2). A fault is answered with exactly one of three actions: REFUSE (nothing changes), ROLL BACK (the state is restored byte for byte from a checkpoint the caller made) or ISOLATE (the component is quarantined for good). Checkpoints go into two A/B shadow slots, the update work's discipline: written to the slot that is not known-good, read back, then promoted; at rollback a slot whose bytes no longer match their SHA-256 is dropped for good and the older slot is used. A rollback is run by the paradox engine's `pdx_destructive`, so the restore, the quarantine record and the RepairProof are paradox's own. Every action produces a RecoveryProof (paradox's `pdx_repair_t` plus action, reason, checkpoint generation and log position), appended to paradox's hash-chained operator log and signed by the caller's signer; `recover_pq` binds ML-DSA-87 with the domain context `zxv-recover-v1`. Hard invariants fail closed: a forbidden tag or a failed conservation check (the framework's invariant and an optional per-case one) ends in a rollback, or in isolation when no intact checkpoint passes the invariant; a broken state is never checkpointed and a broken checkpoint is never restored. A full log or isolation table changes nothing and halts the framework; a failing signer halts it after the safe action. Crypto-free policy file, freestanding (no libc, no allocation, no float).
+Main entry points: recover.h (rcv_init, rcv_shadow_init, rcv_checkpoint, rcv_refuse, rcv_rollback, rcv_isolate, rcv_recover, rcv_proof_verify, rcv_proof_in_log); recover_pq.h (rcv_mldsa87_sign, rcv_mldsa87_verify).
+Tests: test_recover.c (`make -C kernel test-recover`, in verify-all, ASan/UBSan, 156 checks): every action and refusal path with digests recomputed from the documented layouts, the A/B shadow, exact-byte rollback, sticky isolation, full logs and a full isolation table, a failing signer, every proof field tampered, ML-DSA-87 end to end, and 2,000 random faults after which no hard break stays live; plus a freestanding aarch64/i386 build of recover.c. tripartite_fs's test covers the migrated caller.
+Used by: tripartite_fs (tf_self_heal_file's refusal, tf_checkpoint_file, tf_recover_file). arm64: no.
+Gaps: It records and decides recoveries; it detects only what the caller's tag and invariant checks report. A checkpoint is one caller-owned byte region of fixed length; devices, the network and other modules' state are not rolled back. The A/B functions of abupdate (ZXVFS files) and hwr (signed device images) are bound to their formats, so the two-slot discipline is reused, not their code. sdk_bridge and event_space still recover ad hoc and link into kernel images; sdk_bridge's self-heal still sets its attestation to TRUE (an auto-patch).
+
 ### refinery — intent text to sigil-card compiler
 Status: WORKING (tested in verify-all)
 What it does: Takes typed intent in any language, normalises it, and "forges" a deterministic sigil card using the Enochian table (enochian.c). Empty and oversized intents are refused. Presets pack and unpack as bytes.
@@ -2048,7 +2066,8 @@ Gaps: Fixed: create_task silently overwrote slot 0 when full, the name copy was 
 Status: STUB
 What it does: m5_api.h declares an app API (m5_* drawing, input and capital calls) and selfaudit.h declares self-audit hooks. app_template.c and Makefile.app show how an app would be built.
 Main entry points: m5_api.h, selfaudit.h, app_template.c, Makefile.app.
-Tests: none. Makefile.app's `test` target is now an honest compile-only check.
+Tests: verify-all compiles app_template.c with Makefile.app's host `test` flags (compile only,
+not linked). Makefile.app's `test` target is an honest compile-only check.
 Used by: headers are included by apps, app_fabric, compute_fabric, financial_fabric, governance_fabric, identity_fabric and others. Not in arm64 list.
 Gaps: No m5_* function is implemented anywhere, so apps will not link; a status note was added to SDK_README.md. Fixed: the KERNEL_ROOT path in Makefile.app, and the -Werror failure in app_template.c.
 Gaps: m5_api.h and selfaudit.h now open with a STATUS: STUB banner (declarations only, no stable ABI).
@@ -2148,7 +2167,8 @@ Status: WORKING (tested in verify-all)
 What it does: Splits a stream into segments of erasure-coded freights (any k of 256 rows decode). It moves rows in pieces between viewers through advert/request/notice/piece messages, and includes a churn simulator.
 Main entry points: stream_seg.h (stream_manifest_parse), stream_swarm.h (ssw_* message parse/build, scheduler), stream_sim.h.
 Tests: test_stream.c (79 checks, verify-all). Its 5 wire decoders were fuzzed here for 20k iterations each with no crash.
-Used by: linked by viewing/tests. Not in arm64 list.
+Used by: linked by viewing/tests, and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): stream.plan (stream_vod_plan) and
+stream.segment (a segment's CID and freight hashes). Not in arm64 list.
 Gaps: The stream/* files carry a copyright line but no SPDX line.
 
 ### subterm — root terminal with many sub-terminals
@@ -2380,7 +2400,8 @@ Status: WORKING (tested in verify-all)
 What it does: parsers and encoders for HTTP/1.1, JSON, RLP, JWT (alg pinned; "none" rejected), OAuth flows, secp256k1 ECDSA (RFC 6979, complete formulas), Ethereum and Bitcoin address and transaction encoding, CIDs, and ML-DSA-65 signed agent messaging (web4_agent).
 Main entry points: w4_http_parse_request/response, w4_json_get*, JWT/OAuth (web4_jwt.c, web4_oauth.c), secp256k1 sign/verify, w4_btc_p2wpkh, w4_abi_erc20_*, w4_cid_of, w4_agent_create/w4_sign/w4_verify.
 Tests: test_web4_web2, test_web4_web3 and test_web4_agent, all in verify-all, with vectors from gen_web4_vectors.py.
-Used by: host tests only.
+Used by: zxvd (web4_json parses every request) and zxvd (`kernel/arch/hosted/zxvd_rpc_modules.c`, tested by `test_zxvd_rpc_modules.c` and `test_zxvd.py`): web4.cid and
+web4.agent_card / web4.card_verify (self-bound ML-DSA-65 cards).
 Gaps: no network transport. It only builds and parses bytes, and makes no claim of live chain connectivity.
 
 ### wifi — IEEE 802.11 station/AP subsystem (frames, WPA handshake, scan)

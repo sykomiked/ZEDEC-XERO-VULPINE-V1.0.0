@@ -93,6 +93,16 @@
  *      the other side (a SELL is an offer the buyer has not accepted yet; a
  *      BUY is a countersigned copy the seller has not committed). Each
  *      returns how many exist (not just how many fit) and 0 when off.
+ *   U14 SPACES. While the node runs it carries vna_space.h: public spaces
+ *      anchored by a CID and hosted by the devices of whoever is in them,
+ *      and the watch hall's shared playhead. The calls below create, find,
+ *      join, leave and post, and set playback; zxv_net_spaces reads them.
+ *      Host records carry the public address two peers agree on (ONLINE),
+ *      else the LAN address, else a specific bind address. A node holds up
+ *      to SPACE_STORE_BASE (32) other spaces' host and directory records
+ *      for the DHT even when in none (zxv_net_space_store changes it, 0
+ *      turns it off), so a space can be found by its CID. Event records
+ *      (posts, playback) are never stored, only passed between members.
  * HONEST LIMITS: no IPv6; frames up to about 17.6 KB rely on IP
  * fragmentation off the loopback; TCP sessions (zxv_peer_host.h) are not
  * hole-punched. Single-threaded.
@@ -105,6 +115,7 @@
 #include "swarm_budget.h"
 #include "vna_link.h"
 #include "aipi_vna.h"
+#include "vna_space.h"
 
 typedef enum { ZXV_NET_OFF = 0, ZXV_NET_LAN, ZXV_NET_ONLINE } zxv_net_mode_t;
 
@@ -146,6 +157,11 @@ typedef struct {
     bool aipi;
     uint32_t aipi_calls_out, aipi_served, aipi_claims_in, aipi_claims_refused;
     uint64_t aipi_escrow, aipi_budget;
+    /* U14 */
+    uint32_t spaces, spaces_joining; /* in; still looking for a host or waiting on one */
+    uint32_t space_events_in, space_events_out, space_events_refused;
+    uint32_t space_store;   /* SPACE records this node will hold */
+    uint32_t space_records; /* SPACE records it holds now */
 } zxv_net_status_t;
 
 /* A new, stopped (OFF) host; NULL if out of memory. */
@@ -284,5 +300,24 @@ typedef struct {
     int32_t want; /* BUY: the want slot it reserves from; -1 for SELL */
 } zxv_net_pend_info_t;
 uint32_t zxv_net_pending(const zxv_net_t *n, zxv_net_pend_info_t *out, uint32_t cap);
+
+/* U14: spaces. Each returns 0 or a negative vna_status_t; -1 (VNA_ERR_ARG)
+ * also when the node is off. cid: VNA_CID_RAW_LEN binary bytes. */
+int zxv_net_space_create(zxv_net_t *n, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                         const char *name, const char *topic, uint64_t now_ms,
+                         uint8_t cid[VNA_CID_RAW_LEN]);
+int zxv_net_space_join(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint64_t now_ms);
+int zxv_net_space_leave(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint64_t now_ms);
+int zxv_net_space_post(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], const uint8_t *text,
+                       uint32_t len, uint64_t now_ms);
+int zxv_net_hall_set(zxv_net_t *n, const uint8_t cid[VNA_CID_RAW_LEN], uint8_t state,
+                     const uint8_t *media, uint32_t media_len, uint64_t pos_ms, uint32_t rate_q16,
+                     uint64_t now_ms);
+/* Start a directory search; results gather in zxv_net_spaces(n)->found. */
+int zxv_net_space_find(zxv_net_t *n, const char *topic, uint64_t now_ms);
+/* The spaces state (read only), or NULL when off. */
+const vna_spaces_t *zxv_net_spaces(const zxv_net_t *n);
+/* How many other spaces' records to hold for the DHT (kept across restarts). */
+int zxv_net_space_store(zxv_net_t *n, uint32_t cap);
 
 #endif /* ZXV_NET_HOST_H */

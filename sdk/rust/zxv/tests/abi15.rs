@@ -175,7 +175,7 @@ fn statuses_caps_features() {
     let c = ctx.root_capability(1, None, Caps::ALL_1_5).unwrap();
     c.check(Caps::AIPI | Caps::MINT | Caps::PARADOX).unwrap();
     let e = ctx
-        .root_capability(1, None, Caps::from_bits(1 << 15))
+        .root_capability(1, None, Caps::from_bits(1 << 16))
         .unwrap_err();
     assert_eq!(e.status(), sys::ZXV_E_ARG);
 }

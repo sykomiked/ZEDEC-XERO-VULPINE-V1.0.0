@@ -4,7 +4,7 @@
 # ZXV Go SDK
 
 Package `zxv` is a cgo binding to `libzxv`, the stable C ABI of the ZXV
-platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.5).
+platform (`sdk/libzxv/include/zxv_api.h`, ABI 1.6).
 
 ```
 import "github.com/sykomiked/ZEDEC-XERO-VULPINE-V1.0.0/sdk/go/zxv"
@@ -360,6 +360,71 @@ defer pol.Close()
 out, _ := book.Constructive(pol, c.ParadoxClass, []int64{60}, 5) // ParadoxApplied
 ```
 
+## Vino Embed (ABI 1.6)
+
+`vino.go` lets an app or game take part in Vino without ever holding
+anyone's value or keys. Two lanes never meet:
+
+- **PLAY** (`VinoPlay`): a sandbox inside the app with its own play units,
+  issuers, holders and Fibonacci-face vouchers, in process memory only. Play
+  units are not money, cannot be converted into or moved to live value, and
+  are lost on `Close`.
+- **LIVE**: real Vino stays in the user's own ZXV wallet. The app builds a
+  `VinoRequest`; the wallet approves it and signs a receipt
+  (`SignVinoReceipt`, the wallet's call with its own key); the app checks the
+  receipt offline (`VerifyVinoReceipt`). The app never sees a balance, a key
+  or a custody account.
+
+A voucher is active on exactly one rail, `VinoBearer` or `VinoGhost`, and
+can be spent only on that rail (`ErrRail`). An issuer may issue only while
+`10*backing >= 18*outstanding` (`ErrCoverage`). Redeeming retires a voucher
+and pays nothing out; there is no interest, yield or return of any kind.
+`VinoMeter` counts what one device approved per day against a daily cap
+(`ErrLimit`); it is a counter, not a legal check.
+
+New: `CapVino` (play lane and meter; `CapAll16` is every bit), `Feat2Vino`,
+and the statuses `ErrLane` (USAGE), `ErrRail`, `ErrCoverage`, `ErrExpired`,
+`ErrChance` (REFUSED). Requests, ids and receipt messages are value types
+(`VinoRequestRecord` 160 bytes, `VinoRequestID` 32, `VinoReceiptMessage`
+88). Amounts, ids and times are `uint64`. Encoding, decoding, the receipt
+message and verification are pure and need no capability.
+
+Play-lane shop:
+
+```go
+root, _ := ctx.RootCapability(1, nil, zxv.CapVino)
+play, _ := zxv.NewVinoPlay(root)
+defer play.Close()
+issuer, _ := play.Open(100, zxv.VinoIssuer)
+player, _ := play.Open(200, zxv.VinoHolder)
+shop, _ := play.Open(300, zxv.VinoHolder)
+_ = play.Back(issuer, 18)                                   // play faucet: room for faces up to 10
+coin, _ := play.Issue(issuer, player, 8, zxv.VinoBearer)    // a face of 13 would be ErrCoverage
+_ = play.Transfer(coin, player, shop, zxv.VinoBearer)       // the player spends it
+_ = play.Redeem(coin, shop)                                 // retired; nothing is paid out
+ids, _ := play.Vouchers(shop)                               // active vouchers: none left
+```
+
+Live payment request, wallet receipt, offline verify:
+
+```go
+req := zxv.VinoRequest{Lane: zxv.VinoLaneLive, Merchant: merchantID, Nonce: nonce,
+	Amount: 1234567, CreatedAt: now, ExpiresAt: now + 600, Memo: "Sword of Dawn"}
+rec, id, err := req.Encode()           // ErrChance for a paid chance outcome on LIVE
+// ... the wallet (not the app) approves:
+sig, _ := zxv.SignVinoReceipt(walletCap, rec, walletSK, walletPK, approvedAt)
+// ... back in the app, offline:
+err = zxv.VerifyVinoReceipt(rec, walletPK, approvedAt, sig, uint64(time.Now().Unix()))
+// nil, ErrVerificationFailed, or ErrExpired
+```
+
+Both run as `ExampleVinoPlay` and `ExampleVerifyVinoReceipt`. Honest
+limits: the LIVE flow here is only the app's half; the wallet posts the
+payment on its own ledger. ML-DSA-87 is the reference implementation, not
+FIPS 140-3 validated. Whether a deployment of Vino is store credit, a
+prepaid access product or something else is a legal question pending
+counsel; nothing here decides it. The raffle is a separate module.
+
 ## API overview
 
 | Area | Types | Key calls |
@@ -388,6 +453,7 @@ out, _ := book.Constructive(pol, c.ParadoxClass, []int64{60}, 5) // ParadoxAppli
 | V-Bill hub | `VHub`, `VHubQuote`, `VHubSwap` | `VHubPegMessage`, `AddCurrency`, `SetPeg`, `AddLimit`, `Quote`, `Swap`, `Check` |
 | Freight | `FreightHeader`, `FreightJoin`, `FreightOpsWriter` | `NewFreightHeader`, `FreightEncode`, `FreightDecode`, `FreightSplit`, `FreightOpsExpand`, `FreightGenRun` |
 | Web 4 | `W4Agent`, `W4Directory`, `W4Manifest`, `W4ConsentToken`, `W4ConsentLog` | `NewW4Agent`, `VerifyW4Card`, `Sign`, `W4ActionDigest`, `IssueW4Consent`, `Check`, `Seal`, `Reply`, `VerifyW4Envelope` |
+| Vino (1.6) | `VinoPlay`, `VinoMeter`, `VinoRequest`, `VinoRequestRecord`, `VinoRail`, `VinoLane` | `NewVinoPlay`, `Open`, `Back`, `Issue`, `Transfer`, `SetRail`, `Redeem`, `Vouchers`, `Encode`, `DecodeVinoRequest`, `SignVinoReceipt`, `VerifyVinoReceipt`, `Admit` |
 | Paradox | `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `RepairProof` | `Classify`, `Constructive`, `Destructive`, `Neutral`, `Special`, `Draft`, `Review`, `GraphPass`, `LogRecords` |
 
 ## Examples
@@ -419,6 +485,12 @@ refusals included, and covers capability refusals (a cap without AIPI,
 MINT, PARADOX, CRYPTO_SIGN, ATTEST or LEDGER_POST), use after `Close`,
 buffer growth, a failing and a panicking freight resolver, and fail-closed
 handles after `Halt`.
+
+`vino_test.go` replays the ABI 1.6 keys (`status_abi16`, `vino`: requests,
+decode refusals, the fixed-seed receipt and its checks, the play scenario
+with final accounts and vouchers, the meter) exactly, and covers error
+classes, a cap without VINO or CRYPTO_SIGN, use after `Close`, the voucher
+list buffer growth and fail-closed handles after `Halt`.
 
 `hexagram_test.go` checks the `hex` key (ABI 1.3): every tag, the logic, step and
 set tables, the Truth mapping and the quarantine chain.

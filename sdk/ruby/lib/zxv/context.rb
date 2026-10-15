@@ -113,8 +113,9 @@ module Zxv
 
     # A root capability holding +caps+ (default: :all, the ABI 1.1 bits;
     # pass :all_1_4 or add :hw_matrix / :hw_reconf for the hardware group,
-    # and :all_1_5 or add :aipi / :mint / :paradox for the ABI 1.5 groups).
-    # @param caps [Symbol, Array<Symbol>, Integer] e.g. :all, :all_1_5, [:ledger_read, :evm]
+    # :all_1_5 or add :aipi / :mint / :paradox for the ABI 1.5 groups, and
+    # :all_1_6 or add :vino for Vino Embed).
+    # @param caps [Symbol, Array<Symbol>, Integer] e.g. :all, :all_1_6, [:ledger_read, :evm]
     # @param process_id [Integer] recorded in the cap
     # @param identity [String, nil] 21 bytes (168-bit identity), or nil for zeros
     # @return [Capability]
@@ -294,7 +295,8 @@ module Zxv
       hw_reconf: 1 << 11, # ABI 1.4: load hardware images and contracts
       aipi: 1 << 12,      # ABI 1.5: create AIPI nodes, store and publish in them
       mint: 1 << 13,      # ABI 1.5: create token wallets, mint, spend, move tokens
-      paradox: 1 << 14    # ABI 1.5: paradox books, operators and policies
+      paradox: 1 << 14,   # ABI 1.5: paradox books, operators and policies
+      vino: 1 << 15       # ABI 1.6: Vino play-lane sandboxes and the spend meter
     }.freeze
     # ZXV_CAP_ALL: the ten bits of ABI 1.1, a released value that never
     # changes (so +:all+ never silently grows).
@@ -304,6 +306,8 @@ module Zxv
     # ZXV_CAP_ALL_1_5: every bit as of ABI 1.5 (+:all_1_5+), adding :aipi,
     # :mint and :paradox.
     ALL_1_5 = (1 << 15) - 1
+    # ZXV_CAP_ALL_1_6: every bit as of ABI 1.6 (+:all_1_6+), adding :vino.
+    ALL_1_6 = (1 << 16) - 1
 
     # Snapshot of a capability (zxv_cap_info).
     Info = Struct.new(:bits, :names, :process_id, :attestation, :revoked, keyword_init: true)
@@ -314,6 +318,7 @@ module Zxv
       when :all then ALL
       when :all_1_4 then ALL_1_4
       when :all_1_5 then ALL_1_5
+      when :all_1_6 then ALL_1_6
       when Symbol then BITS.fetch(spec) { raise ZxvUsageError.new(Status::E_ARG, "unknown capability #{spec.inspect}") }
       when Array then spec.reduce(0) { |m, s| m | bits(s) }
       else Call.uint64!(spec, "caps")

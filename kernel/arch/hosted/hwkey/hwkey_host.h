@@ -42,10 +42,21 @@ void hwk_host_close(hwk_host_t *h);
 /* The operating system's random generator. Returns 0 on success. */
 int hwk_host_random(void *ctx, uint8_t *out, uint32_t len);
 
+/* Monotonic counters kept by the chip, one per 32-byte id (an outbox grant
+ * id: outbox.h R1-R4). create makes the counter (or finds it) and reports
+ * its value; bump adds one and reports the new value; release deletes it
+ * once its grant is finished. Linux TPM 2.0 only: the Secure Enclave and
+ * the Windows Platform Crypto Provider expose no counter to applications,
+ * and the software fallback has nothing a backup cannot copy, so these
+ * return HWK_ERR_UNAVAILABLE there. */
+typedef enum { HWK_CTR_CREATE, HWK_CTR_READ, HWK_CTR_BUMP, HWK_CTR_RELEASE } hwk_ctr_op_t;
+hwk_status_t hwk_host_ctr(hwk_host_t *h, hwk_ctr_op_t op, const uint8_t id[32], uint64_t *v);
+
 /* Per-platform chip providers (each returns HWK_ERR_UNAVAILABLE where the
  * platform has none). */
 hwk_status_t hwk_tpm_open(hwk_provider_t *p, void **impl, char *why, size_t why_cap);
 void hwk_tpm_close(void *impl);
+int hwk_tpm_ctr(void *impl, hwk_ctr_op_t op, const uint8_t id[32], uint64_t *v);
 hwk_status_t hwk_se_open(hwk_provider_t *p, void **impl, char *why, size_t why_cap);
 void hwk_se_close(void *impl);
 hwk_status_t hwk_win_open(hwk_provider_t *p, void **impl, bool software_ksp, char *why,
