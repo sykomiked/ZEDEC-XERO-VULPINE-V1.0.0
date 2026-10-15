@@ -35,7 +35,7 @@ A word is 64 bits, written high byte first:
 | 39..32 | item | 1..99 ("01") |
 | 31..16 | extension | 0 for the sealed base; any other value names an addendum |
 | 15..8 | format | 0 logic, 1 manifest |
-| 7..0 | language | 1..99 and 101..120 for logic; 0 for a manifest |
+| 7..0 | language | 1..99 and 101..199 for logic; 0 for a manifest |
 
 So gcd in FORTRAN (`@512.01-001`) is `0x1002000100000001`, and gcd's
 manifest is `0x1002000100000100`. The word holds the same place, item and

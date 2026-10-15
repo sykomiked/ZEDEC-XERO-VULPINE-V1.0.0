@@ -1,14 +1,15 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* test_alx.c — the Alexandria index and booklets read back from what the
- * build script wrote (argv[1]: the 05_alexandria directory; argv[2]:
+ * build script wrote from the frozen test slots, SLOTS_TEST.tsv, so it does
+ * not change as the library grows (argv[1]: that 05_alexandria directory; argv[2]:
  * kernel/src), every way an index can be wrong, references, TECTON plans
  * and AXION checks (whose gates must match lpres exactly). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "alx.h"
-#include "alx_slots.h"
+#include "alx_fixture_slots.h" /* the frozen test index (SLOTS_TEST.tsv) */
 #include "../lpres/lpres.h"
 #include "../robin_debanks/sha256.h"
 
@@ -642,7 +643,7 @@ EDIT(e_mlen_past, slot(b, 1)[109] = 0x10)
 EDIT(e_t_slot, target(b, 0)[3] = 2)
 EDIT(e_t_lang0, target(b, 0)[5] = 0)
 EDIT(e_t_lang100, target(b, 0)[5] = 100)
-EDIT(e_t_lang121, target(b, 3)[5] = 121)
+EDIT(e_t_lang200, target(b, 3)[5] = 200)
 EDIT(e_t_order, target(b, 1)[5] = 1)
 EDIT(e_t_rsv, target(b, 0)[7] = 1)
 EDIT(e_t_off, target(b, 0)[11] += 4)
@@ -780,7 +781,7 @@ static void test_grid(void)
     CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 1, 1)) == ALX_E_FORM, "a manifest has no language");
     CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 0)) == ALX_E_FORM, "logic needs a language");
     CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 100)) == ALX_E_FORM, "language 100");
-    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 121)) == ALX_E_FORM, "language 121");
+    CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 200)) == ALX_E_FORM, "language 200");
     CHECK(gr(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 255)) == ALX_E_FORM, "language 255");
     alx_grid_hit_t h;
     CHECK(alx_grid_resolve(&G, gw(ALX_G_CODE, 512, 1, 0, 0, 1), 0) == ALX_E_FORM, "no hit");
@@ -970,7 +971,7 @@ static void test_refusals(void)
         {e_t_slot, "a target for another slot"},
         {e_t_lang0, "language 0"},
         {e_t_lang100, "language 100"},
-        {e_t_lang121, "language 121"},
+        {e_t_lang200, "language 200"},
         {e_t_order, "languages not rising"},
         {e_t_rsv, "target byte 7"},
         {e_t_off, "a target off the grid"},

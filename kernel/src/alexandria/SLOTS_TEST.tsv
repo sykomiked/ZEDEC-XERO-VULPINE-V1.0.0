@@ -1,0 +1,13 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The frozen slot list the Alexandria tests read (test_alx, test_alx_carto,
+# zxv-index). It is the library's first four slots, as SLOTS.tsv had them,
+# so those tests pin exact counts, booklets and CIDs that do not change as
+# the library grows. SLOTS.tsv is the library itself; never add to this file.
+#
+# slot	shorthand	place	block.entry	state
+1	num.gcd	512.01	number_classics.gcd	base
+2	swarm.cycle_share	931.01	swarm_shares.cycle_share	base
+3	swarm.busiest	931.02	swarm_shares.busiest	base
+4	swarm.within_limits	932.01	swarm_shares.within_limits	base
