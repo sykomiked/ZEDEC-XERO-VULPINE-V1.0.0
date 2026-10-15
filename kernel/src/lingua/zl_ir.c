@@ -1443,6 +1443,9 @@ int zl_run(const zl_prog_t *p, zl_run_t *r)
 trap:
     r->trap_pc = pc;
     r->trap_line = pc < p->ncode ? p->code[pc].line : 0;
+    /* a trap in line-less code (a front-end's helper) reports its caller's line */
+    for (uint32_t k = rp; r->trap_line == 0 && k > 0; k--)
+        if (rs[k - 1] >= 1 && rs[k - 1] <= p->ncode) r->trap_line = p->code[rs[k - 1] - 1].line;
     return s;
 #undef NEED
 #undef ROOM

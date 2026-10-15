@@ -1,0 +1,15 @@
+[1 2 3 4 5 6 7 8 9 10]
+55
+[2 4 6 8 10]
+[10 9 8 7 6 5 4 3 2 1]
+[1 4 9 16 25 36]
+[4 5 8 9 15 26 31 35 93 97]
+[10 1 10 4]
+[a b [c d] e]
+[[a b] [[c d] e]]
+[x y]
+true
+false
+true
+[[nested] [list] of [lists]]
+words and [inner lists] print flat

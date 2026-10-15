@@ -28,7 +28,7 @@
 1965	TRAC	string	catalogue	-	-
 1966	MUMPS	database	pillar	MYRA	sdk/pillars/mumps-myra
 1967	BCPL	systems	next2	-	-
-1967	Logo	education	next1	-	-
+1967	Logo	education	run	Kiteling	kernel/src/lingua/zl_logo.c
 1967	Simula 67	object	catalogue	-	-
 1968	ALGOL 68	algol	catalogue	-	-
 1969	B	systems	next2	-	-

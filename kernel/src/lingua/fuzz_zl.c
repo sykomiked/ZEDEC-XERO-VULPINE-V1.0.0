@@ -76,6 +76,13 @@ static const char *const seeds[] = {
     "(display x) (loop (* x 2))))\n"
     "(cond ((even? 3) (display 'e)) (else (display (modulo -7 3)))) (if (equal? '(1) (list 1)) "
     "(display #t))\n",
+    "; fuzz seed\nto f :n\nif :n < 2 [output 1]\noutput :n * f :n - 1\nend\n"
+    "to g :l\nlocal \"k\nmake \"k 0\nwhile [not emptyp :l] [make \"k :k + first :l make \"l bf "
+    ":l]\noutput :k\nend\n"
+    "make \"x [1 [2 a] -3]\nrepeat 3 [type repcount (print f 3 (sum 1 2 3) -(count :x))]\n"
+    "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
+    "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
+    "-2 7 / 7)\n",
 };
 
 static const char *const dict[] = {
