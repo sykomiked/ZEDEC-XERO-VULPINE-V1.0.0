@@ -339,6 +339,18 @@ static void test_library(const char *font)
         c.x += a.x;
         c.y += a.y;
         CHECK(inked(d, c) > 500 && count(d, c, ZUI_GOLD) > 500, "the card has its icon and words");
+        /* the window ends under the last line: words just above the
+         * bottom margin, none in it, so no blank tail */
+        zui_rect_t low = {c.x + 8, c.y + c.h - 24 - 40, c.w - 16, 40};
+        zui_rect_t tail = {c.x + 8, c.y + c.h - 16, c.w - 16, 16};
+        zui_rect_t wk = zui_wm_work(&k->wm);
+        int32_t left = cw->r.x - wk.x, right = wk.x + wk.w - (cw->r.x + cw->r.w);
+        int32_t top = cw->r.y - wk.y, below = wk.y + wk.h - (cw->r.y + cw->r.h);
+        CHECK(left - right <= 1 && right - left <= 1 && top - below <= 1 && below - top <= 1,
+              "the card is centred above the window strip (%d %d, %d %d)", left, right, top, below);
+        CHECK(inked(d, low) > 20 && inked(d, tail) == 0,
+              "the card fits its words (%u ink above the margin, %u in it)", inked(d, low),
+              inked(d, tail));
     }
     shot(d, "card");
 

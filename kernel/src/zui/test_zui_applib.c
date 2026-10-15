@@ -346,6 +346,42 @@ static void drawing(void)
     zui_applib_card(&s, &WK, &L.f, 256u, &app, false, box);
     CHECK(hash(PX) != hb && PX[(ob.y + 2) * W + ob.x + 4] != ZUI_GOLD, "not built: no gold button");
 
+    /* the card's height ends under its last line, with the S5 margin;
+     * measured with the real face, since the sections are text */
+    static uint8_t fdata[4u << 20];
+    static ttf_font_t font;
+    static zui_glyph_cache_t gc;
+    const char *fp[] = {"../assets/fonts/ascw-golden/ASCW-Golden-Latin2.ttf",
+                        "assets/fonts/ascw-golden/ASCW-Golden-Latin2.ttf"};
+    bool have_font = false;
+    for (int i = 0; i < 2 && !have_font; i++) {
+        FILE *ff = fopen(fp[i], "rb");
+        if (!ff) continue;
+        size_t fn = fread(fdata, 1, sizeof fdata, ff);
+        fclose(ff);
+        have_font = ttf_parse(&font, fdata, (uint32_t) fn);
+    }
+    CHECK(have_font, "the ASCW Golden face for the card's text");
+    if (!have_font) return;
+    zui_glyph_cache_init(&gc);
+    zui_text_t body = {&font, &gc, 15, false}, cap = {&font, &gc, 12, false};
+    zui_applib_faces_t keep = L.f;
+    L.f.body = &body;
+    L.f.caption = &cap;
+    int32_t ch = zui_applib_card_height(&L.f, 256u, &app, box.w);
+    zui_rect_t tall = {0, 0, box.w, H};
+    for (uint32_t i = 0; i < W * H; i++) PX[i] = 0;
+    zui_applib_card(&s, &WK, &L.f, 256u, &app, false, tall);
+    int32_t last = -1; /* the lowest row with ink */
+    for (int32_t y = 0; y < H; y++)
+        for (int32_t x = 0; x < box.w; x++)
+            if (PX[y * W + x] != ZUI_VOID) last = y;
+    CHECK(ch > 24 + 96 + 24 && ch < 600 && last < ch && last >= ch - 24 - 28,
+          "the card fits its content (height %d, last ink row %d)", ch, last);
+    CHECK(zui_applib_card_height(&L.f, 256u, &app, 300) > ch,
+          "a narrower card wraps onto more lines");
+    L.f = keep;
+
     /* by role (zui_palette.h C6): the dark set is the tokens, light its own */
     fresh(0);
     zui_applib_place(&L, (zui_rect_t){100, 50, 900, 600}, 256u);

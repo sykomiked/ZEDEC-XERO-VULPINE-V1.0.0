@@ -703,12 +703,19 @@ static uint32_t open_card(zxv_desktop_t *d, int32_t idx)
         return 0;
     }
     zui_wm_progress(&d->desk.wm, k->id, 256u);
-    /* a card with only what it does needs no room for the other sections */
-    bool more = app.built_from[0] || app.pillars[0] || app.paraconsistent[0];
-    zui_rect_t a = zui_desk_area(&d->desk);
-    int32_t w = px_of(d->scale_q8, 520), h = px_of(d->scale_q8, more ? 600 : 300);
+    /* the window ends under the card's last line: title bar and border
+     * (frame minus content) plus what the card needs at that width,
+     * centred in the room above the window strip */
+    zui_rect_t a = zui_wm_work(&d->desk.wm);
+    int32_t w = px_of(d->scale_q8, 520), h = a.h;
     if (w > a.w) w = a.w;
-    if (h > a.h) h = a.h;
+    zui_wm_move(&d->desk.wm, k->id, (zui_rect_t){a.x, a.y, w, h});
+    zui_wm_window_t *win = zui_wm_get(&d->desk.wm, k->id);
+    if (win) {
+        zui_rect_t c = zui_wm_content(&d->desk.wm, win);
+        h = (win->r.h - c.h) + zui_applib_card_height(&d->lib.f, d->scale_q8, &app, c.w);
+        if (h > a.h) h = a.h;
+    }
     zui_wm_move(&d->desk.wm, k->id, (zui_rect_t){a.x + (a.w - w) / 2, a.y + (a.h - h) / 2, w, h});
     d->dirty = true;
     return k->id;

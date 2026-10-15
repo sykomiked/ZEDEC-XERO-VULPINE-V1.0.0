@@ -255,6 +255,8 @@ static void sync_detail(murm_view_t *v)
     } else if (m->refreshes) {
         put_u(t, sizeof t, "The swarm  \xC2\xB7  ", sw->n_total,
               sw->n_total == 1 ? " agent" : " agents");
+    } else { /* say what the empty pane is for until there is a snapshot */
+        zv_cat(t, sizeof t, "The swarm's mood shows here after Refresh", 0);
     }
     zui_set_text(ui, v->who, t);
     t[0] = 0;

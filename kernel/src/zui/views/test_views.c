@@ -622,6 +622,8 @@ static void test_murmuration(const char *src)
     check_ground("murmuration");
     CHECK(zui_w(&UI, MV.agents)->u.list.rows == 0 && text_of(MV.sh.status)[0] == 0,
           "nothing before the first refresh");
+    CHECK(has(text_of(MV.who), "after Refresh"), "the empty pane says what it is for: %s",
+          text_of(MV.who));
     CHECK(zui_w(&UI, MV.refresh)->style == ZUI_BTN_PRIMARY, "U3: Refresh is the gold");
     CHECK(click(MV.refresh) && M.refreshes == 1, "Refresh");
     CHECK(zui_w(&UI, MV.agents)->u.list.rows == 3 && !MV.kron, "three agents, shares in C");
@@ -633,7 +635,8 @@ static void test_murmuration(const char *src)
               MV.shares_lp == ZXAPP_NEITHER,
           "%s", text_of(MV.sh.status));
     CHECK(has(text_of(MV.model), "tiny.gguf"), "model: %s", text_of(MV.model));
-    CHECK(has(text_of(MV.feeling), "Mood") && has(text_of(MV.witness), "Ledger running"),
+    CHECK(has(text_of(MV.feeling), "Mood") && has(text_of(MV.witness), "Ledger running") &&
+              has(text_of(MV.who), "The swarm"),
           "the swarm's line with nothing selected");
 
     /* rows: emoji, name, share, and the witness colour */

@@ -664,7 +664,7 @@ static int32_t wrap(zui_surface_t *s, const zui_text_t *t, int32_t x, int32_t y,
         if (end == i) end = i + (n - i < sizeof line - 1 ? n - i : (uint32_t) sizeof line - 1);
         for (uint32_t q = i; q < end; q++) line[q - i] = str[q];
         line[end - i] = 0;
-        zui_text_fit(s, t, x, y + zui_text_ascent(t), w, ink, line);
+        if (s) zui_text_fit(s, t, x, y + zui_text_ascent(t), w, ink, line);
         y += lh;
         i = end;
     }
@@ -693,11 +693,56 @@ static int32_t section(zui_surface_t *s, const zui_applib_faces_t *f, uint32_t q
     const zui_colors_t *cs = f->colors;
     if (!body || !body[0]) return y;
     if (f->caption && f->caption->font) {
-        zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), title);
+        if (s) zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), title);
         y += zui_text_ascent(f->caption) - zui_text_descent(f->caption) + pt(q8, ZUI_S1);
     }
     y = wrap(s, f->body, x, y, w, C(TEXT_2), body, q8);
     return y + pt(q8, ZUI_S4);
+}
+
+/* The sections under the header, from y; s NULL only measures. Returns
+ * where the last section ends. */
+static int32_t card_sections(zui_surface_t *s, const zui_applib_faces_t *f, uint32_t q8,
+                             const zui_app_t *app, int32_t x, int32_t y, int32_t cw)
+{
+    const zui_colors_t *cs = f->colors;
+    y = section(s, f, q8, x, y, cw, "What it does", app->does);
+    y = section(s, f, q8, x, y, cw, "Built from", app->built_from);
+    if (app->pillars && app->pillars[0]) { /* one line per language */
+        if (f->caption && f->caption->font) {
+            if (s)
+                zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), "Languages");
+            y += zui_text_ascent(f->caption) - zui_text_descent(f->caption) + pt(q8, ZUI_S1);
+        }
+        const char *p = app->pillars;
+        while (*p) {
+            char part[128];
+            uint32_t k = 0;
+            while (*p == ' ') p++;
+            while (*p && *p != ';' && k + 1 < sizeof part) part[k++] = *p++;
+            part[k] = 0;
+            if (*p == ';') p++;
+            if (k) y = wrap(s, f->body, x, y, cw, C(TEXT_2), part, q8);
+        }
+        y += pt(q8, ZUI_S4);
+    }
+    return section(s, f, q8, x, y, cw, "When facts disagree", app->paraconsistent);
+}
+
+/* where the sections start: under the icon, past the rule */
+static int32_t sections_y(uint32_t q8, zui_rect_t box)
+{
+    return box.y + pt(q8, ZUI_S5) + pt(q8, 96) + pt(q8, ZUI_S5);
+}
+
+int32_t zui_applib_card_height(const zui_applib_faces_t *f, uint32_t q8, const zui_app_t *app,
+                               int32_t width)
+{
+    zui_rect_t box = {0, 0, width, 0};
+    int32_t m = pt(q8, ZUI_S5);
+    /* the last section ends with its own S4 gap; the bottom margin is S5 */
+    int32_t end = card_sections(0, f, q8, app, m, sections_y(q8, box), width - 2 * m);
+    return end - pt(q8, ZUI_S4) + m;
 }
 
 void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces_t *f, uint32_t q8,
@@ -739,28 +784,9 @@ void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces
         zui_stroke_rrect(s, pill, pill.h / 2, pt(q8, 1) > 0 ? pt(q8, 1) : 1, C(EDGE), 255);
         text_mid(s, f->label, pill, C(MUTED), ns);
     }
-    y = ib.y + is + pt(q8, ZUI_S5);
+    y = sections_y(q8, box);
     int32_t x = box.x + m, cw = box.w - 2 * m;
     zui_hline(s, x, y - pt(q8, ZUI_S3), cw, 1, C(HAIRLINE));
-    y = section(s, f, q8, x, y, cw, "What it does", app->does);
-    y = section(s, f, q8, x, y, cw, "Built from", app->built_from);
-    if (app->pillars && app->pillars[0]) { /* one line per language */
-        if (f->caption && f->caption->font) {
-            zui_text(s, f->caption, x, y + zui_text_ascent(f->caption), C(GOLD), "Languages");
-            y += zui_text_ascent(f->caption) - zui_text_descent(f->caption) + pt(q8, ZUI_S1);
-        }
-        const char *p = app->pillars;
-        while (*p) {
-            char part[128];
-            uint32_t k = 0;
-            while (*p == ' ') p++;
-            while (*p && *p != ';' && k + 1 < sizeof part) part[k++] = *p++;
-            part[k] = 0;
-            if (*p == ';') p++;
-            if (k) y = wrap(s, f->body, x, y, cw, C(TEXT_2), part, q8);
-        }
-        y += pt(q8, ZUI_S4);
-    }
-    section(s, f, q8, x, y, cw, "When facts disagree", app->paraconsistent);
+    card_sections(s, f, q8, app, x, y, cw);
     s->clip = keep;
 }

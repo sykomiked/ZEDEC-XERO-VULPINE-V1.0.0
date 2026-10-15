@@ -104,6 +104,10 @@ void zui_applib_draw(zui_applib_t *l, zui_surface_t *s);
  * whether the app has a window to open (Ready, with an Open button). */
 void zui_applib_card(zui_surface_t *s, zui_vec_work_t *w, const zui_applib_faces_t *f,
                      uint32_t scale_q8, const zui_app_t *app, bool built, zui_rect_t box);
+/* the height a card of this width needs to show every section, so its
+ * window ends under the last line instead of leaving a blank tail */
+int32_t zui_applib_card_height(const zui_applib_faces_t *f, uint32_t scale_q8, const zui_app_t *app,
+                               int32_t width);
 /* where the card's Open button is (zero size when not built) */
 zui_rect_t zui_applib_card_open(uint32_t scale_q8, bool built, zui_rect_t box);
 
