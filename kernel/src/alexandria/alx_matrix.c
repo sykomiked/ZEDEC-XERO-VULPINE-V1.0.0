@@ -252,10 +252,17 @@ uint32_t alx_mx_gather(uint32_t i)
 int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *files,
                    uint32_t *edges, uint32_t *refs)
 {
-    /* state: lpres N (0, an empty scaffold layer) or T (1, it holds content) */
-    if (!head(b, len, "ALXG", 3) || b[5] > 1 || !alx_zero(b + 60, 4)) return ALX_E_FORM;
+    /* state: lpres N (0, an empty scaffold layer) or T (1, it holds content);
+       byte 60 the layer's verdict as lpres_hex encodes it (F 0, N 1, B 2,
+       T 3): T only on content, never F, and the core (no app, no gate) T
+       exactly when it holds content */
+    if (!head(b, len, "ALXG", 3) || b[5] > 1 || !alx_zero(b + 61, 3)) return ALX_E_FORM;
     uint32_t lay = alx_be16(b + 6), n = alx_be32(b + 8), m = alx_be32(b + 12), r = alx_be32(b + 16);
-    if (lay >= ALX_MX_LAYERS) return ALX_E_FORM;
+    uint8_t v = b[60];
+    if (lay >= ALX_MX_LAYERS || v == ALX_VERDICT_F || v > ALX_VERDICT_T ||
+        (v == ALX_VERDICT_T && b[5] == 0) ||
+        (lay == 0 && v != (b[5] ? ALX_VERDICT_T : ALX_VERDICT_N)))
+        return ALX_E_FORM;
     /* the anchor it hangs from and its pattern layer, exactly as the rule says */
     uint32_t up = alx_be16(b + 56), pat = alx_be16(b + 58), wa, wp;
     alx_mx_split(lay, &wa, &wp);
@@ -307,6 +314,11 @@ int alx_glue_check(const uint8_t *b, uint32_t len, uint32_t *layer, uint32_t *fi
 int alx_glue_state(const uint8_t *b)
 {
     return b[5];
+}
+
+int alx_glue_verdict(const uint8_t *b)
+{
+    return b[60];
 }
 
 const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer)
