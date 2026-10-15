@@ -80,7 +80,7 @@ typedef enum {
 #define ZL_TWIN 0x100
 
 const char *zl_lang_name(int lang); /* "FORTRAN", "BASIC", "Forth" */
-const char *zl_twin_name(int lang); /* "Trebago statements", "Bede", "Quern" */
+const char *zl_twin_name(int lang); /* "Reckonwyrm", "Hatchling", "Cairndrake" */
 const char *zl_status_name(int status);
 
 /* ---- capacities (fixed; a program that needs more is refused) ---- */

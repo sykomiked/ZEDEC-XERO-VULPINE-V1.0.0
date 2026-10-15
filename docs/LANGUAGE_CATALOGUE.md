@@ -58,19 +58,30 @@ writes and reads. The rules are the same for every language.
 5. In twin mode (`zxlang run --twin`) only canonical text is accepted, so an
    agent's output is checked to be exactly what the twin would print.
 
-A twin gets a name when its front-end lands:
+Twins are named after dragons. Each name is one word: what the language
+was made for, joined to a kind of dragon (wyrm, drake, hatchling,
+lindworm), in the spirit of the dragon icon series. Names come from that
+plain vocabulary, never from a dragon in someone else's story or product,
+and each gets a trademark check before release. The pillars keep their own
+names.
 
 | Language | Twin | Why the name |
 |---|---|---|
-| FORTRAN | Trebago statements | Same numeric family as the Trebago pillar |
-| BASIC | Bede | After the scholar who taught counting to beginners |
-| Forth | Quern | A hand mill: two stones, one turning on the other, like the stack |
+| FORTRAN | Reckonwyrm | The eldest, made to reckon formulas; it feeds the Trebago pillar |
+| BASIC | Hatchling | Made for beginners |
+| Forth | Cairndrake | A cairn is a stack of stones, and Forth is a stack |
 | COBOL | Sutra | The existing pillar |
 | Ada | Eve | The existing pillar |
 | APL, K | KRON | The existing pillar |
 | MUMPS | MYRA | The existing pillar |
 
-Until a language is named, its twin is called "&lt;language&gt; twin".
+Proposed for the next front-ends: Pascal, Tutordrake (made for teaching);
+ALGOL 60, Rootwyrm (the root of most later languages); LISP, Coilwyrm
+(lists coil like a serpent); Scheme, Spiraldrake (recursion); Logo,
+Kiteling (the hatchling that draws with a turtle).
+
+The names work everywhere a language name does: `logic hatchling ...` in an
+app manifest is the same as `logic basic ...`.
 
 ## In apps: precompiled building blocks
 

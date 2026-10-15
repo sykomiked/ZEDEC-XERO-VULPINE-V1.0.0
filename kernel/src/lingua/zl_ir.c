@@ -193,11 +193,11 @@ const char *zl_twin_name(int lang)
 {
     switch (lang & ~ZL_TWIN) {
     case ZL_LANG_FORTRAN:
-        return "Trebago statements";
+        return "Reckonwyrm";
     case ZL_LANG_BASIC:
-        return "Bede";
+        return "Hatchling";
     case ZL_LANG_FORTH:
-        return "Quern";
+        return "Cairndrake";
     default:
         return "unknown";
     }

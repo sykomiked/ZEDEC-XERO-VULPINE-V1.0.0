@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zl_forth.c — Forth front-end: a Forth-2012 core subset (the 1970
  * language), with gforth's choices where the standard leaves one open
- * (floored division, 64-bit cells), and its twin "Quern".
+ * (floored division, 64-bit cells), and its twin "Cairndrake".
  *
  * Admitted: decimal numbers; + - * / MOD /MOD NEGATE ABS MIN MAX 1+ 1- 2*
  * 2/; = <> < > 0= 0< 0> 0<> TRUE FALSE; AND OR XOR INVERT; DUP DROP SWAP
@@ -21,7 +21,7 @@
  * fixed cells). Refused by name: floating point, strings in memory, BASE,
  * HEX, EVALUATE, POSTPONE, IMMEDIATE, DOES>, KEY, ACCEPT.
  *
- * Quern (the twin): words and names upper case, one space between
+ * Cairndrake (the twin): words and names upper case, one space between
  * tokens, each colon definition on its own line, a top-level line ends
  * after CR, '\' comments on their own line, '( )' comments with single
  * spaces, ." and .( text kept exactly. Addresses count cells, so CELLS

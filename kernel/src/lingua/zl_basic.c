@@ -1,7 +1,7 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zl_basic.c — BASIC front-end: ECMA-55 Minimal BASIC (1978, the standard
- * form of Dartmouth BASIC, 1964), integer subset, and its twin "Bede".
+ * form of Dartmouth BASIC, 1964), integer subset, and its twin "Hatchling".
  *
  * Admitted: LET (or an implied LET), PRINT with ';' ',' and string
  * literals, IF rel THEN line, GOTO / GO TO, GOSUB / GO SUB, RETURN,
@@ -18,7 +18,7 @@
  * the other real-valued functions, RANDOMIZE. INPUT reads the caller's
  * input list and prints no "?" prompt.
  *
- * Bede (the twin) is the same program in one spelling: upper case, LET
+ * Hatchling (the twin) is the same program in one spelling: upper case, LET
  * always written, GOTO and GOSUB closed up, one space around binary
  * operators and after keywords and separators, minimal parentheses, no
  * unary plus, no "STEP 1", line numbers without leading zeros, REM text

@@ -8,7 +8,7 @@
 1954	Laning and Zierler	early	catalogue	-	-
 1955	FLOW-MATIC	business	catalogue	-	ancestor of COBOL
 1956	IPL	list	catalogue	-	-
-1957	FORTRAN	numeric	run	Trebago statements	kernel/src/lingua/zl_fortran.c
+1957	FORTRAN	numeric	run	Reckonwyrm	kernel/src/lingua/zl_fortran.c
 1958	ALGOL 58	algol	catalogue	-	-
 1958	LISP	list	next1	-	-
 1959	COBOL	business	pillar	Sutra	kernel/src/treaty, sdk/pillars/cobol-sutra
@@ -21,7 +21,7 @@
 1962	Simula I	object	catalogue	-	-
 1963	CPL	algol	catalogue	-	-
 1963	JOSS	interactive	catalogue	-	-
-1964	BASIC	interactive	run	Bede	kernel/src/lingua/zl_basic.c
+1964	BASIC	interactive	run	Hatchling	kernel/src/lingua/zl_basic.c
 1964	PL/I	business	next2	-	-
 1964	JCL	job control	next3	-	parse tier planned
 1964	System/360 assembler	assembly	catalogue	-	-
@@ -32,7 +32,7 @@
 1967	Simula 67	object	catalogue	-	-
 1968	ALGOL 68	algol	catalogue	-	-
 1969	B	systems	next2	-	-
-1970	Forth	stack	run	Quern	kernel/src/lingua/zl_forth.c
+1970	Forth	stack	run	Cairndrake	kernel/src/lingua/zl_forth.c
 1970	Pascal	algol	host	-	bindings/pascal; Lingua front-end next1
 1972	C	systems	host	-	kernel and libzxv are C11
 1972	Prolog	logic	next2	-	-

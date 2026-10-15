@@ -32,7 +32,7 @@ while IFS="$tab" read -r year lang family tier twin where extra; do
     done
 done < "$cat"
 run=$(awk -F'\t' '!/^#/ && $4 == "run" { print $2 "=" $5 }' "$cat" | sort | tr '\n' ' ')
-want="BASIC=Bede FORTRAN=Trebago statements Forth=Quern "
+want="BASIC=Hatchling FORTRAN=Reckonwyrm Forth=Cairndrake "
 [ "$run" = "$want" ] || bad "run tier is '$run', front-ends ship '$want'"
 [ "$n" -ge 100 ] || bad "only $n languages"
 if [ "$fail" -ne 0 ]; then echo "[FAIL] lingua catalogue"; exit 1; fi

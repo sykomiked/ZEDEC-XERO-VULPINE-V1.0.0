@@ -2,7 +2,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zl_fortran.c — FORTRAN front-end: FORTRAN 77 fixed form (the 1957
  * language as ANSI X3.9-1978 fixed it), INTEGER subset, and its twin,
- * "Trebago statements" (the statement layer of the Trebago pillar).
+ * "Reckonwyrm" (it reckons, like the Trebago pillar it feeds).
  *
  * Source form: comment lines start with C, c, * or ! in column 1 (blank
  * lines are comments too); columns 1-5 hold a label, a character other than
@@ -29,7 +29,7 @@
  * constants and intrinsics, SUBROUTINE, FUNCTION, CALL, COMMON,
  * EQUIVALENCE, FORMAT, DATA, implied DO lists, multi-dimensional arrays.
  *
- * Trebago statements (the twin): fixed form, label left-justified in
+ * Reckonwyrm (the twin): fixed form, label left-justified in
  * columns 1-5, statement from column 7, keywords and names upper case, one
  * space around '=' and binary operators, ', ' between list items, the
  * dotted relational forms, character constants in apostrophes, minimal

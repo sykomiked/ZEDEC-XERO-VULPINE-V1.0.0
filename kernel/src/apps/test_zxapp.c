@@ -74,10 +74,11 @@ static void test_names(void)
                  {"php", ZXAPP_LANG_PHP},
                  {"fortran77", ZXAPP_LANG_FORTRAN77},
                  {"F77", ZXAPP_LANG_FORTRAN77},
+                 {"Reckonwyrm", ZXAPP_LANG_FORTRAN77},
                  {"BASIC", ZXAPP_LANG_BASIC},
-                 {"Bede", ZXAPP_LANG_BASIC},
+                 {"Hatchling", ZXAPP_LANG_BASIC},
                  {"forth", ZXAPP_LANG_FORTH},
-                 {"Quern", ZXAPP_LANG_FORTH},
+                 {"Cairndrake", ZXAPP_LANG_FORTH},
                  {"zlir", ZXAPP_LANG_ZLIR},
                  {"lingua", ZXAPP_LANG_ZLIR}};
     for (unsigned i = 0; i < sizeof alias / sizeof alias[0]; i++)

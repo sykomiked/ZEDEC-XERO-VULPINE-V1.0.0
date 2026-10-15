@@ -27,8 +27,8 @@ static const struct {
     {"ts", ZXAPP_LANG_TYPESCRIPT},    {"javascript", ZXAPP_LANG_TYPESCRIPT},
     {"js", ZXAPP_LANG_TYPESCRIPT},    {"rb", ZXAPP_LANG_RUBY},
     {"webassembly", ZXAPP_LANG_WASM}, {"f77", ZXAPP_LANG_FORTRAN77},
-    {"bede", ZXAPP_LANG_BASIC},       {"quern", ZXAPP_LANG_FORTH},
-    {"lingua", ZXAPP_LANG_ZLIR},
+    {"hatchling", ZXAPP_LANG_BASIC},  {"cairndrake", ZXAPP_LANG_FORTH},
+    {"lingua", ZXAPP_LANG_ZLIR},      {"reckonwyrm", ZXAPP_LANG_FORTRAN77},
 };
 
 static bool seq(const char *a, const char *b)
