@@ -208,16 +208,16 @@ static const char text_doc_en[] =
     "\n"
     "20.5 Support for the Distribution and the Services, including help requests, bug reports and support tickets, is provided by SCENIC BYPASS CONSULTING, LLC. Send them to the support contact shown under Settings, About, Support. The Creator does not provide support for the Distribution.\n"
     "\n"
-    "20.6 Manufacturers and other businesses that want to partner on ZXV partner with the Creator under its master partnership licence. They approach the Creator only through one of its two pre-approved partners, ILLUMAHEART FOUNDATION or SCENIC BYPASS CONSULTING, LLC, and never directly. This agreement does not grant any partnership or manufacturing rights.\n"
+    "20.6 Manufacturers and other businesses that want to partner on ZXV partner with the Creator under its master partnership licence. They approach the Creator only through one of its two pre-approved partners, both based in Arizona, United States: ILLUMAHEART FOUNDATION, an Arizona nonprofit corporation, or SCENIC BYPASS CONSULTING, LLC, an Arizona limited liability company. They never approach the Creator directly. This agreement does not grant any partnership or manufacturing rights.\n"
     "\n"
     "End of agreement.\n";
 
-/* SHA-256 195c26707e8c7f585e6c9596920548e24cbc039e35cabb6822a856300760fccc */
+/* SHA-256 a3fceb4111bce13594b181fcddd6e0ee6fdece3d83cc455a094584eefcdb060e */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0x19, 0x5c, 0x26, 0x70, 0x7e, 0x8c, 0x7f, 0x58,
-    0x5e, 0x6c, 0x95, 0x96, 0x92, 0x05, 0x48, 0xe2,
-    0x4c, 0xbc, 0x03, 0x9e, 0x35, 0xca, 0xbb, 0x68,
-    0x22, 0xa8, 0x56, 0x30, 0x07, 0x60, 0xfc, 0xcc
+    0xa3, 0xfc, 0xeb, 0x41, 0x11, 0xbc, 0xe1, 0x35,
+    0x94, 0xb1, 0x81, 0xfc, 0xdd, 0xd6, 0xe0, 0xee,
+    0x6f, 0xde, 0xce, 0x3d, 0x83, 0xcc, 0x45, 0x5a,
+    0x09, 0x45, 0x84, 0xee, 0xfc, 0xdb, 0x06, 0x0e
 };
 
 static const terms_doc_t doc_en = {

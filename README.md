@@ -197,7 +197,7 @@ Credit: **Michael Laurence Curzi & 36N9 GENETICS LLC**, PO Box 6, Calpine, CA 96
 
 The ready-to-run ZXV system is licensed to end users, and supported, by **SCENIC BYPASS CONSULTING, LLC** (Arizona). Support tickets go to SCENIC BYPASS CONSULTING, LLC, not to 36N9 GENETICS LLC: see [SUPPORT.md](SUPPORT.md).
 
-**Partnerships.** 36N9 GENETICS LLC is the root organisation: it originated the concept and the designs, and manufacturers partner with it under its master partnership licence. Prospective partners approach it only through one of its two pre-approved partners, **ILLUMAHEART FOUNDATION** or **SCENIC BYPASS CONSULTING, LLC**, never 36N9 GENETICS LLC directly.
+**Partnerships.** 36N9 GENETICS LLC is the root organisation: it originated the concept and the designs, and manufacturers partner with it under its master partnership licence. Prospective partners approach it only through one of its two pre-approved partners, both based in Arizona, **ILLUMAHEART FOUNDATION** or **SCENIC BYPASS CONSULTING, LLC**, never 36N9 GENETICS LLC directly.
 
 Under section 4(d) of the Apache License, anyone who redistributes this software or a work derived from it must keep the attribution in [`NOTICE`](NOTICE). Vendored third-party code keeps its own licence (see each vendored directory's LICENSE and README.zxv). The software is provided as is, with no warranty of any kind.
 
