@@ -65,6 +65,8 @@ void burrow_view_build(burrow_view_t *v, zui_ui_t *ui, burrow_t *m)
     zui_set_name(ui, v->list, "Files");
     zui_w(ui, v->list)->label[0] = 0;
     zui_set_text(ui, v->list, "This folder is empty");
+    v->none = zui_empty(ui, v->list_pane, ZUI_ICON_FOLDER, "This folder is empty", "New folder");
+    zui_set_size(ui, v->none, ZUI_SIZE_FLEX, 1);
 
     v->detail = zui_panel(ui, s->body, ZUI_COL);
     zui_set_size(ui, v->detail, ZUI_SIZE_FIXED, 320);
@@ -102,6 +104,14 @@ void burrow_view_sync(burrow_view_t *v)
     zui_set_hidden(ui, v->new_dir, trash);
     zui_set_hidden(ui, v->new_text, trash);
     zui_set_text(ui, v->trash_view, trash ? "Files" : "Trash");
+    bool none = b->n == 0; /* W12 */
+    zui_set_hidden(ui, v->list, none);
+    zui_set_hidden(ui, v->none, !none);
+    zui_widget_t *nw = zui_w(ui, v->none);
+    if (nw) {
+        zui_set_text(ui, nw->first, trash ? "The Trash is empty" : "This folder is empty");
+        zui_set_hidden(ui, nw->last, trash); /* New folder, not in the Trash */
+    }
 
     char st[ZUI_LABEL_MAX];
     uint32_t n = zv_u64(st, sizeof st, b->n);
@@ -216,7 +226,7 @@ bool burrow_view_action(burrow_view_t *v, zui_id_t w, zui_action_t a, int32_t ar
     } else if (w == v->empty && a == ZUI_ACT_PRESS) {
         uint32_t removed = 0;
         rc = burrow_empty_trash(b, &removed);
-    } else if (w == v->new_dir && a == ZUI_ACT_PRESS) {
+    } else if ((w == v->new_dir || w == v->none) && a == ZUI_ACT_PRESS) {
         start_naming(v, 1);
         return true;
     } else if (w == v->new_text && a == ZUI_ACT_PRESS) {

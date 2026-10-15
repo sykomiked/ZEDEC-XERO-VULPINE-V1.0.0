@@ -33,8 +33,10 @@
  *      keep the pointer: the bytes are valid only during the call. Without an
  *      auth callback nothing unlocks.
  *   L7 NOTIFICATIONS. Notices that arrive while locked are listed by app;
- *      their text shows only when previews are allowed. They are dropped on
- *      unlock (the apps keep their own).
+ *      their text shows only when previews are allowed: otherwise the
+ *      screen shows one card saying how many there are ("3 notifications",
+ *      zui_lock_summary) and from which apps. They are dropped on unlock
+ *      (the apps keep their own).
  *   L8 EMERGENCY. The Emergency button on the lock screen (or
  *      zui_lock_emergency) calls the emergency hook in any locked state,
  *      during a backoff too, without unlocking anything.
@@ -45,6 +47,15 @@
  *      shows one dot per character and a gold caret (the one gold element);
  *      a failure in the alert colour with the wait left; the ZXV bar while
  *      authenticating. Integer only, deterministic, no allocation.
+ *   L10 A FAILURE IS SEEN. "Wrong password" stays at least ZUI_LOCK_SAY_MS
+ *      after a failure, also once the screen is LOCKED again (a free try
+ *      waits 0 ms, so FAILED lasts one tick); typing is not held up by it.
+ *   L11 WHO DECIDES. The lock never checks a secret itself. A shell joins it
+ *      to its identity service with zui_lock_set_auth: the seats service's
+ *      unlock (seats_unlock on its own branch) is wrapped in a function of
+ *      the zui_lock_auth_fn shape that maps its result to ZUI_AUTH_OK,
+ *      ZUI_AUTH_FAIL or ZUI_AUTH_PENDING (answering later through
+ *      zui_lock_auth_result). Without one nothing unlocks (L6).
  */
 #ifndef ZXV_ZUI_LOCK_H
 #define ZXV_ZUI_LOCK_H
@@ -53,6 +64,7 @@
 #include <stdint.h>
 
 #include "zui_canvas.h"
+#include "zui_palette.h"
 #include "zui_input.h"
 #include "zui_progress.h"
 
@@ -60,6 +72,7 @@
 #define ZUI_LOCK_NOTICES    4u     /* notices listed on the lock screen */
 #define ZUI_LOCK_TYPED_MS   30000u /* typed but not submitted: wiped after this */
 #define ZUI_LOCK_NAME_MAX   48u
+#define ZUI_LOCK_SAY_MS     2000u /* L10: a failure is shown at least this long */
 
 typedef enum {
     ZUI_LOCK_UNLOCKED = 0,
@@ -128,6 +141,9 @@ typedef struct {
     uint32_t nnotice;
     zui_rect_t area; /* where it was last drawn, for pointer hits */
     uint32_t emergencies;
+    const zui_colors_t *colors; /* zui_palette.h C6: the set painted with; NULL dark */
+    uint32_t said_at;           /* L10: when the last failure was said */
+    bool said;
 } zui_lock_t;
 
 void zui_lock_defaults(zui_lock_config_t *cfg);
@@ -135,6 +151,10 @@ void zui_lock_defaults(zui_lock_config_t *cfg);
 void zui_lock_init(zui_lock_t *l, const zui_lock_config_t *cfg, uint32_t now_ms);
 void zui_lock_account(zui_lock_t *l, uint32_t account, const char *name);
 void zui_lock_set_area(zui_lock_t *l, zui_rect_t area);
+/* L11: who decides (NULL: nobody; nothing unlocks). */
+void zui_lock_set_auth(zui_lock_t *l, zui_lock_auth_fn auth, void *ctx);
+/* L10: "Wrong password" is on screen now. */
+bool zui_lock_failure_shown(const zui_lock_t *l);
 
 /* L1..L8. Returns true when the event was the lock's (always, while up). */
 bool zui_lock_event(zui_lock_t *l, const zui_event_t *e);
@@ -153,6 +173,8 @@ const char *zui_lock_state_name(zui_lock_state_t s);
 void zui_lock_notify(zui_lock_t *l, const char *app, const char *text);
 /* What the lock screen shows as notice i's text ("" past the end). */
 const char *zui_lock_notice_text(const zui_lock_t *l, uint32_t i);
+/* L7: "3 notifications" ("1 notification"); returns the length. */
+uint32_t zui_lock_summary(const zui_lock_t *l, char *out, uint32_t cap);
 
 /* L9 */
 void zui_civil(int64_t epoch_s, int32_t tz_min, zui_civil_t *out);

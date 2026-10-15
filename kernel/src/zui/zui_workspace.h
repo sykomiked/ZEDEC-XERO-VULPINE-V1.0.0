@@ -218,5 +218,12 @@ int32_t zui_ws_text_pt(zui_workspace_t *ws, int32_t pt);     /* WS8 */
 int32_t zui_ws_space(zui_workspace_t *ws, int32_t pt);
 int32_t zui_ws_target(zui_workspace_t *ws, int32_t pt, bool touch);
 uint32_t zui_ws_motion_ms(zui_workspace_t *ws, uint32_t ms);
+/* WS4 + WS7 put to work: out gets the colour set in effect (zui_ws_colors;
+ * the high-contrast set while zui_motion's increase_contrast is on), and wm
+ * (may be NULL) paints with it, its dock too, with the strip on the panel's
+ * edge at the panel's size (zui_ws_panel_rect; auto-hide hides it). The
+ * caller passes the same out to zui_ui_set_colors for its views; it must
+ * outlive them. Returns out. */
+const zui_colors_t *zui_ws_apply(zui_workspace_t *ws, zui_wm_t *wm, zui_colors_t *out);
 
 #endif /* ZXV_ZUI_WORKSPACE_H */

@@ -654,6 +654,16 @@ static void test_draw(void)
     zui_lock_notify(&L, "Quillon", "saved");
     zui_lock_notify(&L, "Glint", "paid");
     zui_lock_draw(&L, &S, (zui_rect_t){0, 0, W, H}, 1791813909, 0, 0);
+    char sum[32];
+    zui_lock_summary(&L, sum, sizeof sum);
+    CHECK(!strcmp(sum, "2 notifications") &&
+              at(o.notice[0].x + o.notice[0].w / 2, o.notice[0].y + o.notice[0].h / 2) ==
+                  ZUI_PANEL &&
+              at(o.notice[1].x + o.notice[1].w / 2, o.notice[1].y + o.notice[1].h / 2) == ZUI_VOID,
+          "previews off: one card saying how many (L7)");
+    L.cfg.previews = true;
+    zui_fill(&S, (zui_rect_t){0, 0, W, H}, 0);
+    zui_lock_draw(&L, &S, (zui_rect_t){0, 0, W, H}, 1791813909, 0, 0);
     CHECK(at(o.notice[0].x + o.notice[0].w / 2, o.notice[0].y + o.notice[0].h / 2) == ZUI_PANEL &&
               at(o.notice[1].x + o.notice[1].w / 2, o.notice[1].y + o.notice[1].h / 2) == ZUI_PANEL,
           "two carved notices");
@@ -688,12 +698,82 @@ static void test_draw(void)
     CHECK(outside == 0, "the whole area is the lock's");
 }
 
+/* L11: a stand-in for the seats service; its own result codes are mapped by
+   a thin adapter, as the real one on the seats branch will be */
+enum { SEAT_OK = 10, SEAT_DENIED = 11, SEAT_LATER = 12 };
+static int seat_calls;
+static int seat_unlock_stub(uint32_t uid, const uint8_t *pw, uint32_t n)
+{
+    seat_calls++;
+    if (uid != 7) return SEAT_DENIED;
+    if (n == 4 && !memcmp(pw, "slow", 4)) return SEAT_LATER;
+    return n == 5 && !memcmp(pw, "vixen", 5) ? SEAT_OK : SEAT_DENIED;
+}
+static int seat_adapter(void *ctx, uint32_t account, const uint8_t *secret, uint32_t n)
+{
+    int *tag = ctx;
+    if (*tag != 42) return ZUI_AUTH_FAIL;
+    switch (seat_unlock_stub(account, secret, n)) {
+    case SEAT_OK:
+        return ZUI_AUTH_OK;
+    case SEAT_LATER:
+        return ZUI_AUTH_PENDING;
+    default:
+        return ZUI_AUTH_FAIL;
+    }
+}
+
+static void test_failure_hold_and_adapter(void)
+{
+    zui_lock_config_t c = short_cfg();
+    setup(&c, 0);
+    zui_lock_now(&L);
+    /* L10: a free try goes straight back to LOCKED but the words stay */
+    text("wrong", 100);
+    key(ZUI_KEY_ENTER, 0, 100);
+    CHECK(zui_lock_wait_ms(&L) == 0 && zui_lock_failure_shown(&L), "L10: failure shown");
+    zui_lock_tick(&L, 101);
+    CHECK(L.state == ZUI_LOCK_LOCKED, "L10: free try is locked again at once");
+    CHECK(zui_lock_failure_shown(&L), "L10: 'Wrong password' still shown");
+    zui_lock_tick(&L, 100 + ZUI_LOCK_SAY_MS - 1);
+    CHECK(zui_lock_failure_shown(&L), "L10: shown for 2 s less 1 ms");
+    zui_lock_tick(&L, 100 + ZUI_LOCK_SAY_MS);
+    CHECK(!zui_lock_failure_shown(&L), "L10: gone after %u ms", ZUI_LOCK_SAY_MS);
+    CHECK(ZUI_LOCK_SAY_MS >= 2000, "L10: at least 2 s");
+
+    /* L11: the adapter */
+    static int tag = 42;
+    zui_lock_set_auth(&L, seat_adapter, &tag);
+    CHECK(L.auth == seat_adapter && L.auth_ctx == &tag, "L11: adapter installed");
+    seat_calls = 0;
+    text("fox", 3000);
+    key(ZUI_KEY_ENTER, 0, 3000);
+    CHECK(seat_calls == 1 && L.state == ZUI_LOCK_FAILED, "L11: denied maps to FAIL");
+    zui_lock_tick(&L, 3001);
+    text("slow", 3002);
+    key(ZUI_KEY_ENTER, 0, 3002);
+    CHECK(L.state == ZUI_LOCK_AUTHENTICATING && secret_wiped(), "L11: later maps to PENDING");
+    zui_lock_auth_result(&L, false);
+    zui_lock_tick(&L, 3003 + 30000);
+    CHECK(L.state == ZUI_LOCK_LOCKED, "L11: back to locked");
+    text("vixen", 40000);
+    key(ZUI_KEY_ENTER, 0, 40000);
+    CHECK(seat_calls == 3 && L.state == ZUI_LOCK_UNLOCKED && !zui_lock_failure_shown(&L),
+          "L11: OK unlocks and clears the words");
+    zui_lock_set_auth(&L, NULL, NULL);
+    zui_lock_now(&L);
+    text("vixen", 41000);
+    key(ZUI_KEY_ENTER, 0, 41000);
+    CHECK(L.state == ZUI_LOCK_FAILED && seat_calls == 3, "L11: no adapter never unlocks");
+}
+
 int main(void)
 {
     test_idle();
     test_lock_now_and_grace();
     test_typing_and_auth();
     test_backoff();
+    test_failure_hold_and_adapter();
     test_notices_and_emergency();
     test_dates();
     test_layout();

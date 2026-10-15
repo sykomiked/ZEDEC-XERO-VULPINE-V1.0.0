@@ -13,6 +13,7 @@ typedef struct {
     zv_shell_t sh;
     spindle_t *m;
     zui_id_t methods, method, params, call, history, reply;
+    zui_id_t none; /* W12: the empty state before the first call */
     char method_buf[SPINDLE_METHOD_MAX + 1];
     char params_buf[SPINDLE_PARAMS_MAX + 1];
     int32_t shown; /* history entry in the reply pane, -1 none */

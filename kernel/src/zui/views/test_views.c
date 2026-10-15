@@ -6,7 +6,8 @@
  * Clicks and keys go through zui's event path, so the wiring from a pixel
  * to a model call is what is tested. Murmuration also runs its KRON logic
  * and Eve logic (the swarm_shares block apps/murmuration.zxapp uses) and is checked against its C
- * model on random swarms. Run by test_views.sh. */
+ * model on random swarms. Then the Settings, Terminal and Playground screens
+ * (settings.h, terminal.h, playground.h) on their own. Run by test_views.sh. */
 #define _DEFAULT_SOURCE
 #define _XOPEN_SOURCE 700 /* nftw */
 #define _DARWIN_C_SOURCE
@@ -23,7 +24,12 @@
 #include "circuit.h"
 #include "murmuration.h"
 #include "quillon.h"
+#include "playground.h"
+#include "settings.h"
 #include "spindle.h"
+#include "terminal.h"
+#include "zui_keymap.h"
+#include "zui_motion.h"
 #include "zui_tokens.h"
 #include "zxapp_eve.h"
 #include "zxapp_kron.h"
@@ -326,6 +332,12 @@ static void test_burrow(void)
     shot("burrow");
     CHECK(click(BV.trash) && row_named(&B, "todo.txt") < 0, "Move to Trash");
     CHECK(click(BV.trash_view) && burrow_in_trash(&B) && shown(BV.empty), "the Trash");
+    CHECK(shown(BV.none) == (B.n == 0) && shown(BV.list) == (B.n != 0),
+          "W12: Burrow's empty state stands in for an empty list");
+    if (B.n == 0)
+        CHECK(!strcmp(text_of(zui_w(&UI, BV.none)->first), "The Trash is empty") &&
+                  !shown(zui_w(&UI, BV.none)->last),
+              "W12: the Trash says so, with no New folder");
     CHECK(click(BV.empty) && B.n == 0, "Empty Trash");
     CHECK(click(BV.trash_view) && !burrow_in_trash(&B), "back to files");
 
@@ -446,6 +458,15 @@ static void test_glint(const char *root)
             fclose(f);
         }
     }
+    {
+        static glint_t none;
+        screen(&LAPTOP, glint_act, &GV);
+        glint_view_build(&GV, &UI, &none, GBUF, sizeof GBUF);
+        CHECK(shown(GV.none) && !shown(GV.items) && !shown(GV.pane) &&
+                  zui_w(&UI, GV.none)->kind == ZUI_W_EMPTY,
+              "W12: Glint's empty state");
+        shot("glint-empty");
+    }
     CHECK(burrow_open(&B, "") == ZXM_OK, "reread the folder");
     glint_scan(&G, &B);
     screen(&LAPTOP, glint_act, &GV);
@@ -453,6 +474,7 @@ static void test_glint(const char *root)
     GV.decode = decode;
     check_ground("glint");
     CHECK(G.n == 3 && zui_w(&UI, GV.items)->u.list.rows == 3, "three media items (%u)", G.n);
+    CHECK(!shown(GV.none) && shown(GV.items), "W12: no empty state with items");
     CHECK(zui_w(&UI, GV.prev)->disabled && zui_w(&UI, GV.next)->disabled, "nothing viewed yet");
     glint_view_action(&GV, GV.items, ZUI_ACT_SELECT, 0);
     CHECK(G.cur == 0 && has(text_of(GV.caption), "a.png"), "viewing the first");
@@ -481,6 +503,9 @@ static void test_spindle(void)
     spindle_view_build(&SV, &UI, &S);
     check_ground("spindle");
     CHECK(zui_w(&UI, SV.methods)->u.list.rows == 0, "no methods before discovery");
+    CHECK(shown(SV.none) && !shown(SV.history) && !shown(SV.reply) &&
+              zui_w(&UI, SV.none)->kind == ZUI_W_EMPTY,
+          "W12: the empty state before the first call");
     CHECK(spindle_discover(&S) == ZXM_OK && S.n_methods > 0, "discover");
     spindle_view_sync(&SV);
     CHECK(zui_w(&UI, SV.methods)->u.list.rows == (int32_t) S.n_methods, "the methods are listed");
@@ -492,6 +517,7 @@ static void test_spindle(void)
     type("swarm.state");
     CHECK(click(SV.call) && S.n_hist == 1, "Call");
     CHECK(zui_w(&UI, SV.history)->u.list.rows == 1, "history row");
+    CHECK(!shown(SV.none) && shown(SV.history), "W12: the history replaces the empty state");
     CHECK(has(zui_w(&UI, SV.reply)->u.field.buf, "Companion"), "the reply is shown");
     CHECK(zui_w(&UI, SV.reply)->u.field.readonly, "the reply cannot be edited");
     shot("spindle");
@@ -1025,6 +1051,336 @@ static void test_circuit(void)
     check_ground("circuit on a phone");
 }
 
+/* ---------------- each scheme ---------------- */
+
+/* the screen in dark, light and high contrast, for people (C6) */
+static void shot3(const char *name)
+{
+    if (!SHOTS) return;
+    static const char *const NAME[3] = {"dark", "light", "hc"};
+    const zui_colors_t *was = UI.colors;
+    for (int k = 0; k < 3; k++) {
+        char n[96];
+        snprintf(n, sizeof n, "%s-%s", name, NAME[k]);
+        zui_ui_set_colors(&UI, zui_scheme_colors((zui_scheme_t) k));
+        shot(n);
+    }
+    zui_ui_set_colors(&UI, was);
+    paint();
+}
+
+/* ---------------- Settings ---------------- */
+
+static zui_settings_t SETS;
+static zui_workspace_t WSV;
+static zui_wm_t WMV;
+static settings_view_t STV;
+static char layout_got[32];
+static bool settings_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
+{
+    return settings_view_action(v, w, a, arg);
+}
+static void on_layout(void *ctx, const char *id)
+{
+    (void) ctx;
+    snprintf(layout_got, sizeof layout_got, "%s", id);
+}
+
+static zui_id_t nth_child(zui_id_t parent, int n)
+{
+    zui_id_t c = zui_w(&UI, parent)->first;
+    while (n-- > 0 && c != ZUI_NONE) c = zui_w(&UI, c)->next;
+    return c;
+}
+
+static void test_settings(void)
+{
+    zui_motion_reset();
+    zui_set_init(&SETS);
+    uint8_t seat = zui_set_seat(&SETS, "seat0"), user = zui_set_user(&SETS, "ana");
+    CHECK(zui_ws_init(&WSV, &SETS, (zui_set_view_t){seat, user, 0}) == 0, "a workspace");
+    zui_wm_init(&WMV, 1280, 800, false);
+    screen(&LAPTOP, settings_act, &STV);
+    settings_view_build(&STV, &UI, &WSV, &WMV);
+    STV.on_layout = on_layout;
+    check_ground("settings");
+    CHECK(UI.colors == &STV.colors && WMV.colors == &STV.colors && WMV.use_dock,
+          "ST3: the view and the windows paint with the workspace's set");
+    CHECK(shown(STV.pane[SET_APPEARANCE]) && !shown(STV.pane[SET_ACCESS]) && !shown(STV.back),
+          "ST1: the first section beside the list");
+    shot3("settings-appearance");
+    zui_ws_theme_t t;
+    CHECK(click(nth_child(STV.scheme, 1)), "the Light segment");
+    zui_ws_theme(&WSV, &t);
+    paint();
+    const zui_colors_t *lt = zui_scheme_colors(ZUI_SCHEME_LIGHT);
+    CHECK(t.scheme == ZUI_SCHEME_LIGHT && (PX[0] & 0xFFFFFFu) == lt->c[ZUI_C_VOID],
+          "ST3: light at once (%06x)", PX[0] & 0xFFFFFFu);
+    CHECK(click(nth_child(STV.scheme, 2)), "the High contrast segment");
+    zui_ws_theme(&WSV, &t);
+    CHECK(t.scheme == ZUI_SCHEME_HIGH_CONTRAST &&
+              STV.colors.c[ZUI_C_VOID] == zui_scheme_color(ZUI_SCHEME_HIGH_CONTRAST, ZUI_C_VOID),
+          "high contrast");
+    CHECK(click(nth_child(STV.scheme, 0)), "back to Dark");
+    zui_ws_theme(&WSV, &t);
+    CHECK(t.scheme == ZUI_SCHEME_DARK && (PX[0] & 0xFFFFFFu) == ZUI_VOID, "dark again");
+    zui_focus(&UI, STV.text_size, true);
+    key(ZUI_KEY_RIGHT, 0);
+    zui_ws_theme(&WSV, &t);
+    CHECK(t.text_scale == 110 && zui_slider_value(&UI, STV.text_size) == 110,
+          "the text size slider writes theme.text-scale");
+    CHECK(click(nth_child(STV.density, 2)), "Roomy");
+    zui_ws_theme(&WSV, &t);
+    CHECK(t.density == ZUI_DENSITY_ROOMY, "density");
+
+    settings_view_action(&STV, STV.sections, ZUI_ACT_SELECT, SET_ACCESS);
+    paint();
+    CHECK(shown(STV.pane[SET_ACCESS]) && !shown(STV.pane[SET_APPEARANCE]), "Accessibility");
+    CHECK(click(STV.a11y[0]) && zui_motion_get()->increase_contrast &&
+              STV.colors.c[ZUI_C_TEXT] == zui_scheme_color(ZUI_SCHEME_HIGH_CONTRAST, ZUI_C_TEXT),
+          "ST3: increase contrast paints the high-contrast set");
+    shot("settings-access");
+    CHECK(click(STV.a11y[0]) && !zui_motion_get()->increase_contrast &&
+              STV.colors.c[ZUI_C_VOID] == ZUI_VOID,
+          "and off");
+    CHECK(click(STV.a11y[3]) && zui_motion_get()->flash_alert, "flash for alerts");
+
+    settings_view_action(&STV, STV.sections, ZUI_ACT_SELECT, SET_KEYBOARD);
+    CHECK(shown(STV.layouts) && zui_w(&UI, STV.layouts)->u.list.rows == (int32_t) STV.nlayout &&
+              STV.nlayout == zui_keymap_builtin_count() && zui_w(&UI, STV.layouts)->u.list.sel == 0,
+          "the built-in layouts, us in use");
+    settings_view_action(&STV, STV.layouts, ZUI_ACT_SELECT, 3);
+    char got[32];
+    zui_set_str(&SETS, WSV.view, "keyboard.layout", got, sizeof got);
+    CHECK(!strcmp(got, zui_keymap_builtin_id(3)) && !strcmp(layout_got, got) &&
+              zui_w(&UI, STV.layouts)->u.list.sel == 3,
+          "ST3: a layout is saved and handed to the host (%s)", got);
+    shot("settings-keyboard");
+
+    settings_view_action(&STV, STV.sections, ZUI_ACT_SELECT, SET_PANEL);
+    paint();
+    CHECK(zui_w(&UI, STV.edge)->disabled, "the strip's settings rest while the dock is used");
+    CHECK(click(STV.dock) && !WMV.use_dock && !zui_set_bool(&SETS, WSV.view, "panel.dock") &&
+              !zui_w(&UI, STV.edge)->disabled,
+          "the strip instead of the dock");
+    zui_set_lock(&SETS, ZUI_LAYER_DEVICE, (zui_set_view_t){0, 0, 0}, "panel.position", true);
+    CHECK(click(nth_child(STV.edge, 1)) && shown(STV.sh.error) &&
+              zui_w(&UI, STV.edge)->u.tabs.sel == 0,
+          "ST2: a locked key is refused and the control goes back");
+    zui_set_lock(&SETS, ZUI_LAYER_DEVICE, (zui_set_view_t){0, 0, 0}, "panel.position", false);
+    CHECK(click(nth_child(STV.edge, 1)) && !shown(STV.sh.error), "the Left segment");
+    zui_rect_t sr = zui_wm_strip_rect(&WMV);
+    CHECK(sr.x == 0 && sr.y == 0 && sr.h == 800 && sr.w == ZUI_WM_STRIP,
+          "ST3: the strip moves to the left edge (%d %d %d %d)", sr.x, sr.y, sr.w, sr.h);
+    zui_focus(&UI, STV.size, true);
+    key(ZUI_KEY_RIGHT, 0);
+    CHECK(zui_wm_strip_rect(&WMV).w == ZUI_WM_STRIP + 4, "the size slider, a step of 4");
+    shot("settings-panel");
+
+    settings_view_action(&STV, STV.sections, ZUI_ACT_SELECT, SET_MOTION);
+    paint();
+    CHECK(click(STV.reduce) && zui_motion_get()->reduce_motion && UI.reduce_motion,
+          "reduce motion, for the view too");
+    zui_ws_theme(&WSV, &t);
+    CHECK(t.reduced_motion, "and in the workspace");
+    zui_focus(&UI, STV.crossfade, true);
+    key(ZUI_KEY_HOME, 0);
+    CHECK(zui_motion_get()->crossfade_ms == 0, "a cut instead of a crossfade");
+    shot3("settings-motion");
+    CHECK(unhandled == 0, "every action reached the view (%d not)", unhandled);
+
+    /* V3: a phone */
+    screen(&PHONE, settings_act, &STV);
+    settings_view_build(&STV, &UI, &WSV, 0);
+    paint();
+    CHECK(shown(STV.sections) && !shown(STV.pane[SET_APPEARANCE]), "phone: the list first");
+    settings_view_action(&STV, STV.sections, ZUI_ACT_SELECT, SET_ACCESS);
+    paint();
+    CHECK(!shown(STV.sections) && shown(STV.pane[SET_ACCESS]) && shown(STV.back),
+          "phone: then the section, with Back");
+    shot("settings-phone");
+    CHECK(click(STV.back) && shown(STV.sections), "phone: Back");
+    zui_motion_reset();
+}
+
+/* ---------------- Terminal ---------------- */
+
+static term_view_t TV;
+static int shell_calls;
+static bool term_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
+{
+    return term_view_action(v, w, a, arg);
+}
+static void shell(void *ctx, term_view_t *t, const char *line)
+{
+    (void) ctx;
+    shell_calls++;
+    if (!strcmp(line, "ls")) {
+        term_puts(t, "\x1B[1;34mdocs\x1B[0m  \x1B[32mrun.sh\x1B[0m  notes.txt\r\n");
+    } else if (!strcmp(line, "status")) {
+        term_puts(t, "\x1B[33mwarning\x1B[0m: 2 updates   \x1B[7m ok \x1B[27m\r\n");
+    } else {
+        term_puts(t, "\x1B[31m");
+        term_puts(t, line);
+        term_puts(t, ": not found\x1B[0m\r\n");
+    }
+}
+
+static int32_t find_line(const char *s)
+{
+    char buf[TERM_COLS * 4 + 1];
+    for (uint32_t i = 0; i < term_lines(&TV); i++) {
+        term_line_text(&TV, i, buf, sizeof buf);
+        if (strstr(buf, s)) return (int32_t) i;
+    }
+    return -1;
+}
+
+static void test_terminal(void)
+{
+    screen(&LAPTOP, term_act, &TV);
+    term_view_build(&TV, &UI, shell, 0);
+    check_ground("terminal");
+    CHECK(UI.focus == TV.input && term_lines(&TV) == 1, "the input line has the keyboard");
+    type("ls");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(shell_calls == 1 && TV.in_buf[0] == 0, "T1: Enter hands the line to the shell");
+    int32_t l = find_line("$ ls"), o = find_line("docs  run.sh  notes.txt");
+    CHECK(l >= 0 && o == l + 1, "T1: the line echoed, the output under it (%d %d)", l, o);
+    uint32_t d = term_cell(&TV, (uint32_t) o, 0), r = term_cell(&TV, (uint32_t) o, 6);
+    CHECK(TERM_CP(d) == 'd' && term_role(d) == ZUI_C_INFO && (d & TERM_BOLD),
+          "T2, T3: bold blue is bold INFO");
+    CHECK(TERM_CP(r) == 'r' && term_role(r) == ZUI_C_OK, "T3: green is OK");
+    CHECK(term_role(term_cell(&TV, (uint32_t) o, 14)) == ZUI_C_TEXT, "SGR 0 resets");
+    CHECK(term_role(term_cell(&TV, (uint32_t) l, 0)) == ZUI_C_MUTED, "the prompt is muted");
+    type("status");
+    key(ZUI_KEY_ENTER, 0);
+    o = find_line("warning: 2 updates");
+    CHECK(o >= 0 && term_role(term_cell(&TV, (uint32_t) o, 0)) == ZUI_C_GOLD &&
+              (term_cell(&TV, (uint32_t) o, 22) & TERM_INVERSE),
+          "T3: yellow is gold; inverse is kept");
+    type("frob");
+    key(ZUI_KEY_ENTER, 0);
+    o = find_line("frob: not found");
+    CHECK(o >= 0 && term_role(term_cell(&TV, (uint32_t) o, 0)) == ZUI_C_ALERT, "red is ALERT");
+    shot3("terminal");
+    /* the parser */
+    term_puts(&TV, "abc\rX\n");
+    CHECK(find_line("Xbc") >= 0, "T2: CR returns to the column 0");
+    term_puts(&TV, "\x1B]0;a title\x07visible\r\n");
+    CHECK(find_line("visible") >= 0 && find_line("a title") < 0, "T2: OSC is dropped");
+    term_write(&TV, "\x1B[3", 3);
+    term_write(&TV, "5mM\xC3", 4);
+    term_write(&TV, "\xA9\x1B[0m\r\n", 7);
+    o = find_line("M\xC3\xA9");
+    CHECK(o >= 0 && term_role(term_cell(&TV, (uint32_t) o, 0)) == ZUI_C_GOLD_HI &&
+              TERM_CP(term_cell(&TV, (uint32_t) o, 1)) == 0xE9,
+          "T2: sequences and UTF-8 split across writes");
+    term_puts(&TV, "1\t2\bZ\r\n");
+    o = find_line("1       Z");
+    CHECK(o >= 0, "T2: TAB to column 8, BS back");
+    term_puts(&TV, "gone\x1B[2K\rkept\r\n");
+    CHECK(find_line("gone") < 0 && find_line("kept") >= 0, "T2: erase in line");
+    term_puts(&TV, "\x1B[5;10HQ");
+    uint32_t top = term_lines(&TV) > TERM_ROWS ? term_lines(&TV) - TERM_ROWS : 0;
+    CHECK(TERM_CP(term_cell(&TV, top + 4, 9)) == 'Q', "T2: cursor position on the screen");
+    term_puts(&TV, "\x1B[2A\x1B[3DW");
+    CHECK(TERM_CP(term_cell(&TV, top + 2, 7)) == 'W', "T2: cursor up and back");
+    term_puts(&TV, "\xFF\r\n\x1B[?25lnohide\r\n");
+    CHECK(find_line("nohide") >= 0 && find_line("?25") < 0, "T2: private modes dropped");
+    char wide[200];
+    memset(wide, 'w', 140);
+    wide[140] = 0;
+    term_puts(&TV, "\r\n");
+    term_puts(&TV, wide);
+    o = find_line("wwww");
+    char buf[TERM_COLS * 4 + 1];
+    CHECK(o >= 0 && term_line_text(&TV, (uint32_t) o, buf, sizeof buf) == TERM_COLS &&
+              term_line_text(&TV, (uint32_t) o + 1u, buf, sizeof buf) == 8,
+          "T2: a long line wraps at %u columns", TERM_COLS);
+    for (int i = 0; i < 300; i++) {
+        char n[32];
+        snprintf(n, sizeof n, "\r\nline %d", i);
+        term_puts(&TV, n);
+    }
+    CHECK(term_lines(&TV) == TERM_LINES && TV.dropped > 0 && find_line("line 299") >= 0 &&
+              find_line("line 10 ") < 0,
+          "T4: the scrollback keeps the last %u lines", TERM_LINES);
+    paint();
+    zui_widget_t *sc = zui_w(&UI, TV.scroll);
+    CHECK(sc->u.scroll.offset > 0 && sc->u.scroll.offset + sc->r.h >= sc->u.scroll.content_h - 2,
+          "T4: the newest line in view");
+    CHECK(zui_scroll_track(&UI, TV.scroll).h > 0, "W11: a scroll indicator over the scrollback");
+    CHECK(click(TV.clear) && term_lines(&TV) == 1 && find_line("line") < 0, "Clear");
+    CHECK(unhandled == 0, "every action reached the view (%d not)", unhandled);
+    /* no shell */
+    screen(&LAPTOP, term_act, &TV);
+    term_view_build(&TV, &UI, 0, 0);
+    type("ls");
+    key(ZUI_KEY_ENTER, 0);
+    CHECK(find_line("No shell is connected") >= 0, "T1: no shell, said so");
+}
+
+/* ---------------- Playground ---------------- */
+
+static playground_view_t PV;
+static int evals;
+static bool pg_act(void *v, zui_id_t w, zui_action_t a, int32_t arg)
+{
+    return playground_view_action(v, w, a, arg);
+}
+static int eval(void *ctx, const char *src, uint32_t len, char *out, uint32_t cap,
+                uint32_t *out_len)
+{
+    (void) ctx;
+    evals++;
+    if (strstr(src, "fail")) {
+        int n = snprintf(out, cap, "line 1: boom");
+        *out_len = n > 0 ? (uint32_t) n : 0;
+        return 3;
+    }
+    int n = snprintf(out, cap, "%u bytes: %s", len, src);
+    *out_len = n > 0 ? (uint32_t) n : 0;
+    return 0;
+}
+
+static void test_playground(void)
+{
+    screen(&LAPTOP, pg_act, &PV);
+    playground_view_build(&PV, &UI, eval, 0, "Scheme");
+    check_ground("playground");
+    CHECK(shown(PV.none) && !shown(PV.out) && zui_w(&UI, PV.run)->disabled,
+          "P2: the empty state; nothing to run yet");
+    shot3("playground-empty");
+    CHECK(click(PV.pad), "the pad");
+    type("(+ 1 2)");
+    CHECK(!zui_w(&UI, PV.run)->disabled, "Run once there is a snippet");
+    CHECK(click(PV.run) && evals == 1 && shown(PV.out) && !shown(PV.none),
+          "P1: Run hands the pad to the evaluator");
+    CHECK(!strcmp(PV.out_buf, "7 bytes: (+ 1 2)") && !strcmp(PV.src, "(+ 1 2)") &&
+              has(text_of(PV.sh.status), "Done") && zui_w(&UI, PV.out)->u.field.readonly,
+          "P2, P3: the output beside, the pad as it was");
+    shot3("playground");
+    CHECK(click(PV.pad), "back to the pad");
+    key(ZUI_KEY_ENTER, ZUI_MOD_CMD);
+    CHECK(evals == 2 && PV.runs == 2, "P1: Cmd-Enter runs it");
+    type(" fail");
+    CHECK(click(PV.run) && PV.last_rc == 3 && shown(PV.sh.error) &&
+              !strcmp(PV.out_buf, "line 1: boom") && zui_w(&UI, PV.use)->disabled,
+          "P2: an error, in the error line");
+    CHECK(click(PV.pad), "the pad again");
+    zui_field_select(&UI, PV.pad, 0, (uint32_t) strlen(PV.src));
+    type("ok");
+    CHECK(click(PV.run) && PV.last_rc == 0 && !shown(PV.sh.error), "the error clears");
+    CHECK(click(PV.use) && !strcmp(PV.src, "2 bytes: ok"), "P3: Use output, on a press only");
+    CHECK(click(PV.clear) && PV.src[0] == 0 && zui_w(&UI, PV.run)->disabled, "Clear");
+    CHECK(unhandled == 0, "every action reached the view (%d not)", unhandled);
+    screen(&LAPTOP, pg_act, &PV);
+    playground_view_build(&PV, &UI, 0, 0, "");
+    CHECK(has(text_of(PV.sh.status), "No evaluator") && zui_w(&UI, PV.run)->disabled,
+          "P1: no evaluator, said so");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -1053,6 +1409,9 @@ int main(int argc, char **argv)
     test_murmuration(argv[1]);
     test_autoview();
     test_circuit();
+    test_settings();
+    test_terminal();
+    test_playground();
     free(OUT.p);
     nftw(root, rm_one, 16, FTW_DEPTH | FTW_PHYS);
     printf("%s test_views: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);

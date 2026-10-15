@@ -1,0 +1,42 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+# A notification chime authored as vectors, using every ZXVA layer once. It
+# is also the main fixture of kernel/src/vaudio/test_zxva.c (via
+# kernel/src/vaudio/test/gen_fixtures.py).
+zxvas 1
+channels 2
+duration 300ms
+seed 2024
+
+# a bell: inharmonic modal partials with their own decays
+voice modal t=0 f=880 pan=0.35 env=0:0,4ms:-4dB,290ms:-inf partials=1:0dB:180ms,2.76:-8dB:90ms,5.40:-14dB:50ms,8.93:-20dB:30ms
+# an FM shimmer, index falling
+voice fm t=20ms f=1320 pan=0.7 env=0:0,6ms:-14dB,200ms:-inf ratio=1.4 index=2.5:0.2
+# a plucked string (Karplus-Strong as its modal equivalent)
+voice pluck t=40ms f=330 pan=0.5 env=0:-6dB,250ms:-6dB half=120ms damp=0.25 pos=0.17
+# a gliding partial, phase locked
+partial pan=0.5 locked=1
+  bp 0ms 440Hz -inf 0
+  bp 15ms 445Hz -18dB 0.25
+  bp 120ms 470Hz -24dB 0.5
+  bp 200ms 480Hz -inf 0.75
+# a free partial (phase integrates)
+partial ch=0 pan=1
+  bp 50ms 2.2k -inf
+  bp 60ms 2.2k -26dB
+  bp 180ms 2.1k -inf
+# breath: band noise, shaped over time
+noise t=0 hop=10ms edges=200,800,2k,5k,12k pan=0.5
+  frame -inf -inf -inf -inf
+  frame -40dB -36dB -38dB -44dB
+  frame -44dB -40dB -42dB -48dB
+  frame -50dB -46dB -48dB -54dB
+  frame -inf -inf -inf -inf
+# a click and a noise tick
+grain t=1ms dur=3ms f=3.5k amp=-12dB attack=0.1ms half=0.6ms phase=0.25 pan=0.5
+grain t=150ms dur=12ms f=6k amp=-24dB kind=noise bw=3k attack=1ms half=3ms pan=0.8
+# frame recipes at 48 kHz: tone with mirrored echo, LCG noise, sweep
+fvoice tone rate=48000 start=0 len=4800 gains=268435456,134217728 env=asr:96:960 echo=2:2400:536870912:mirror partials=1760000:6000:48:1073700000,2640000:3000:24:1073600000
+fvoice noise rate=48000 start=480 len=2400 gains=134217728,134217728 env=ad:24:1073500000 seed=12345 mul=1664525 add=1013904223 lp=12000 hp=3000 amp=8192
+fvoice sweep rate=48000 start=7200 len=4800 gains=201326592,201326592 env=halfsine f0=300000 glide=1073790000 amp=9000
+norm peak=1099511627776 target=824633720832
