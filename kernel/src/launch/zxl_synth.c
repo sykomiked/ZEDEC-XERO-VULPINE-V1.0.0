@@ -350,7 +350,7 @@ static int32_t sc(const zxl_cue_t *c, const uint8_t s[7])
     return s[c->step < 7 ? c->step : 6];
 }
 
-static void burrow(zxl_cue_t *c) /* earth and wood: a knock, the tunnel opening */
+static void banker(zxl_cue_t *c) /* earth and wood: a knock, the vault door opening */
 {
     static const uint8_t S[7] = {62, 64, 66, 69, 71, 74, 76};
     if (c->kind == ZXL_EV_BEGIN) {
@@ -563,7 +563,7 @@ typedef struct {
 
 /* clang-format off */
 static const recipe_t HAND[] = {
-    {"Burrow",      burrow,      {1300, 450, 1800}, {{140, 250}, {160, 220}}},
+    {"Banker",      banker,      {1300, 450, 1800}, {{140, 250}, {160, 220}}},
     {"Flint",       flint,       {1000, 250, 1400}, {{ 90, 300}, {110, 200}}},
     {"Murmuration", murmuration, {1500, 350, 1900}, {{200, 250}, {220, 250}}},
     {"Coffer",      coffer,      {1200, 400, 2000}, {{120, 250}, {150, 220}}},

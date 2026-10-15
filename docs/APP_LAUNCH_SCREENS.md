@@ -107,7 +107,14 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
 - `kernel/src/zui/zui_launch_theme.{h,c}`: the live screen. Opens the app's window through the window manager
   (`zui_wm`) with the five logos and the app's icon, plays BEGIN as it opens, a tick as each tile's gold comes up
   (so the sounds move at the speed of the real load), and END when the app reports ready. The shell supplies the
-  pictures and the audio output. Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`).
+  pictures and the audio output. An app built from a recipe loads by fetching its blocks: its opener calls
+  zxvd `fab.receive.start`, then `fab.receive.step` until phase `"done"` (`zxvd_fab.h` B13), and hands each answer
+  to `zui_launch_theme_load`. The verified blocks fill the tiles (the outer pair first, the centre last) and the
+  bar never runs ahead of them; once every block is in, the mark lights and the bar above it breathes while the
+  app is built (no number: the time is not known); only `"done"`, after the target CID matched, opens the doors
+  and plays the end. A failed step or a cancel never does. A warm open plays only the end.
+  Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`); the block mapping is unit-tested in
+  `test_zxl_launch.c` (`zxl_launch_blocks`, `zxl_launch_screen_p`).
 - `kernel/src/launch/zxl_synth.{h,c}`: the sounds, made live in integers the moment each cue is called for, from
   the app's theme: the same notes, timbres, pans, echoes and fades as `launch_sounds.py` (the six hand-made apps
   keep their own recipes). Every other app's phrase carries a quiet layer in its tier's material: dry wood
@@ -157,4 +164,7 @@ python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   
    read at once). It sets `cfg.vec` to an adapter over `zui_vec_draw_simple` with a static `zui_vec_work_t`
    once the toolkit's renderer is on main, and the installer puts the 407 icons' and five logos' `.zxvg`
    beside the PNGs.
-2. Hand-make more apps' sounds where the generated phrase is not enough.
+2. The app host that opens an app from its recipe runs the `fab.receive.start` / `fab.receive.step` loop and
+   feeds each answer to `zui_launch_theme_load` (an error answer or a cancel as `ZUI_LT_FAILED`, then it says
+   why and closes the window).
+3. Hand-make more apps' sounds where the generated phrase is not enough.

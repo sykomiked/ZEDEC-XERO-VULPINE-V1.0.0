@@ -91,14 +91,14 @@ static uint64_t fnv(uint32_t n)
     return h;
 }
 
-static const char *HAND[6] = {"Burrow", "Flint", "Murmuration", "Coffer", "Cutwater", "Commons"};
+static const char *HAND[6] = {"Banker", "Flint", "Murmuration", "Coffer", "Cutwater", "Commons"};
 
 /* every cue of the six hand-made apps and a spread of the rest: the right
  * length, the reference's level, nothing clipped, never silent at its start */
 static void test_levels(void)
 {
     static const uint32_t KINDS[3] = {ZXL_EV_BEGIN, ZXL_EV_TICK, ZXL_EV_END};
-    static const char *SOME[] = {"Burrow",   "Flint",     "Murmuration", "Coffer",
+    static const char *SOME[] = {"Banker",   "Flint",     "Murmuration", "Coffer",
                                  "Cutwater", "Commons",   "Hollow",      "Keystone",
                                  "Burin",    "Cartulary", "Chorale",     "Satchel"};
     for (uint32_t i = 0; i < sizeof SOME / sizeof SOME[0]; i++) {
@@ -155,12 +155,12 @@ static void test_pitch(void)
             CHECK(0, "%s tick at %.1f Hz: %.3g vs %.3g / %.3g", t->app, f, on, lo, hi);
     }
     CHECK(ok == ZXL_APPS, "every app's tick sounds its own note (%u of %u)", ok, ZXL_APPS);
-    /* Burrow's ticks climb D4 E4 F#4 A4 B4 D5, the centre E5 */
+    /* the Banker's ticks climb D4 E4 F#4 A4 B4 D5, the centre E5 */
     static const double BURROW[7] = {293.66, 329.63, 369.99, 440.0, 493.88, 587.33, 659.26};
     for (uint32_t s = 0; s < 7; s++) {
-        render_cue(zxl_theme_pick("Burrow"), ZXL_EV_TICK, s, 2, 256);
+        render_cue(zxl_theme_pick("Banker"), ZXL_EV_TICK, s, 2, 256);
         double on = power_at(BURROW[s], 9600), off = power_at(BURROW[s] * 1.0595, 9600);
-        CHECK(on > 4 * off, "Burrow's tick %u is its own step", s);
+        CHECK(on > 4 * off, "the Banker's tick %u is its own step", s);
     }
 }
 
