@@ -408,6 +408,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
+	$(MAKE) --no-print-directory test-devprof
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1600,6 +1601,15 @@ test-lpres-hex:
 
 # The smart firmware adapter (src/fwadapt/fwadapt.h): driver choice from
 # ACPI / device tree / PCI / USB / probe evidence joined with lpres.
+# Device profiles (src/devprof): the briefcase, server and handheld specs as data, the OS
+# support table and the gap matrix generated from it (docs/DEVICE_COMPAT_MATRIX.md).
+.PHONY: test-devprof device-matrix
+test-devprof:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/devprof src/devprof/test_devprof.c src/devprof/devprof.c -o $(ZXV_TMP)/test_devprof && $(ZXV_TMP)/test_devprof > $(ZXV_TMP)/test_devprof.log 2>&1 && echo "[PASS] test_devprof ($$(tail -1 $(ZXV_TMP)/test_devprof.log))" || { cat $(ZXV_TMP)/test_devprof.log; echo "[FAIL] test_devprof"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra -Isrc/devprof -c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_free.o || { echo "[FAIL] devprof freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/devprof_free.o | grep -q .; then nm -u $(ZXV_TMP)/devprof_free.o; echo "[FAIL] devprof freestanding: external symbols ($$t)"; exit 1; fi; done; echo "[PASS] devprof freestanding (aarch64, x86_64, riscv64: no libc)"
+device-matrix:
+	@gcc -std=c11 -O1 -Wall -Werror -Wextra -Isrc/devprof src/devprof/devprof_matrix.c src/devprof/devprof.c -o $(ZXV_TMP)/devprof_matrix && $(ZXV_TMP)/devprof_matrix
+
 .PHONY: test-pmm
 test-pmm:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/pmm src/pmm/test_pmm.c src/pmm/pmm.c -o $(ZXV_TMP)/test_pmm && $(ZXV_TMP)/test_pmm > $(ZXV_TMP)/test_pmm.log 2>&1 && echo "[PASS] test_pmm ($$(tail -1 $(ZXV_TMP)/test_pmm.log))" || { cat $(ZXV_TMP)/test_pmm.log; echo "[FAIL] test_pmm"; exit 1; }
