@@ -125,6 +125,7 @@ typedef int sock_t;
 #    include "zxv_place.h"      /* zxvd: location and places for Waymark */
 #    include "web4_web2.h"      /* the window's /api/rpc reads the method name */
 #    include "zxvd_irc.h"       /* irc.*: the IRC gateway on 127.0.0.1 over TLS */
+#    include "zxvd_fab.h"       /* fab.*: file fabrication from public blocks */
 #    if defined(ZXV_HAVE_AIPI)
 #        include "zxvd_aipi.h" /* aipi.*: content-addressed functions on Z-Wasm */
 #    endif
@@ -2802,6 +2803,11 @@ int main(int argc, char **argv)
         zxvd_irc_set_node(irc_node);
         if (zxvd_irc_open(pdir, (uint16_t) irc_port) != 0)
             fprintf(stderr, "zxvd: the IRC gateway is unavailable\n");
+        /* fab.* (zxvd_fab.h B2): keys and block store in "fab" beside the
+         * socket; without them zxvd still runs and fab.status says so */
+        char fdir[sizeof pdir + 8];
+        snprintf(fdir, sizeof fdir, "%s/fab", pdir);
+        if (zxvd_fab_open(fdir) != 0) fprintf(stderr, "zxvd: fabrication is unavailable\n");
     }
 #endif
     sock_t ls = socket(AF_INET, SOCK_STREAM, 0);

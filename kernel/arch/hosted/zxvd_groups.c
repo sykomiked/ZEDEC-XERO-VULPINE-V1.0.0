@@ -20,6 +20,7 @@ int zxvd_groups_register(void)
         zxvd_power_group,                         /* zxvd_power.c */
         zxvd_irc_group,                           /* zxvd_irc.c */
         zxvd_pspace_group,                        /* zxvd_pspace.c */
+        zxvd_fab_group,                           /* zxvd_fab.c */
     };
     for (size_t i = 0; i < sizeof ALL / sizeof ALL[0]; i++)
         if (ALL[i] && zxvd_rpc_add_group(ALL[i]()) != 0) return -1;
