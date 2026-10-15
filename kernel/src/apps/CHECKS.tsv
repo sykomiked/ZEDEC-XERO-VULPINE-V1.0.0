@@ -53,6 +53,15 @@ gatehouse	check use_allowed asked=1,1 granted=1,-1 revoked=0,0 = both
 gatehouse	check holders held=1,0,1,1 = 3
 gatehouse	check holders held=0,0 = 0
 gatehouse	check holders held=1,2 = both
+gleaner	check holdout row=0,4,5,9,7,0,999999999 share=2000,2000,2000,2000,0,10000,10000 = 0,1,0,1,0,1,1
+gleaner	check holdout row=4,-1 share=2000,2000 = both
+gleaner	check row_match label=1,2,2,1,1,1,1,1 source=0,0,0,3,0,0,0,3 date=20260101,20260505,20260505,20260505,20251231,20261231,20270101,20260505 lab=1,-1,1,1,1,1,1,1 src=-1,-1,-1,0,-1,-1,-1,3 from=20260101,20260101,20260101,20260101,20260101,20260101,20260101,20260101 to=20261231,20261231,20261231,20261231,20261231,20261231,20261231,20261231 = true,true,false,false,false,true,false,true
+gleaner	check dataset_ok rows=1,1000,0,1001,10,10,10,10 cols=3,32,3,3,2,33,3,3 bytes=1,8000,10,10,10,10,0,8001 = true,true,false,false,false,false,false,false
+gleaner	check row_ok row=0,999,1000,5,5 label=0,63,1,1,1 source=0,99,1,1,1 date=20260101,99999999,1,100000000,1 pii=0,1,0,0,10 = true,true,false,false,false
+gleaner	check leave_ok personal=0,0,3,3,1000,3 consent=0,1,0,1,1,2 = true,true,false,true,true,false
+gleaner	check leave_ok personal=1,-1 consent=1,1 = both
+gleaner	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+gleaner	check witness.kind_count kind=1,2 want=1,1 = both
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
 hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
 hollow	check tile_cols windows=4,65 = both

@@ -113,3 +113,8 @@
 76	logic.treadle_budget_ok	490.34	treadle.budget_ok	base
 77	num.treadle_next_run	590.32	treadle.next_run	base
 78	logic.treadle_task_ok	490.35	treadle.task_ok	base
+79	logic.gleaner_dataset_ok	490.36	gleaner.dataset_ok	base
+80	num.gleaner_holdout	590.33	gleaner.holdout	base
+81	logic.gleaner_leave_ok	490.37	gleaner.leave_ok	base
+82	logic.gleaner_row_match	490.38	gleaner.row_match	base
+83	logic.gleaner_row_ok	490.39	gleaner.row_ok	base

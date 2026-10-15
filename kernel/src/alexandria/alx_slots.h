@@ -84,7 +84,12 @@
 #define ALX_SLOT_LOGIC_TREADLE_BUDGET_OK         76u /* 490.34 treadle.budget_ok */
 #define ALX_SLOT_NUM_TREADLE_NEXT_RUN            77u /* 590.32 treadle.next_run */
 #define ALX_SLOT_LOGIC_TREADLE_TASK_OK           78u /* 490.35 treadle.task_ok */
-#define ALX_SLOT__COUNT 78u
+#define ALX_SLOT_LOGIC_GLEANER_DATASET_OK        79u /* 490.36 gleaner.dataset_ok */
+#define ALX_SLOT_NUM_GLEANER_HOLDOUT             80u /* 590.33 gleaner.holdout */
+#define ALX_SLOT_LOGIC_GLEANER_LEAVE_OK          81u /* 490.37 gleaner.leave_ok */
+#define ALX_SLOT_LOGIC_GLEANER_ROW_MATCH         82u /* 490.38 gleaner.row_match */
+#define ALX_SLOT_LOGIC_GLEANER_ROW_OK            83u /* 490.39 gleaner.row_ok */
+#define ALX_SLOT__COUNT 83u
 /* clang-format on */
 
 #endif

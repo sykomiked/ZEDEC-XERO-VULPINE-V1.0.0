@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Gleaner files one row of a dataset in MYRA (gleaner_rules.h GR4): its
+; index in the file (0 .. 999), its label's class and its source, each an
+; index into the dataset's own table (0 .. 63), its date as YYYYMMDD and
+; whether it holds personal data (1) or not (0). Gleaner asks whether the
+; numbers fit before it keeps them.
+^ZXGLEAN(row:i3) = label:i2! ^ source:i2! ^ date:i8! ^ pii:i1!
