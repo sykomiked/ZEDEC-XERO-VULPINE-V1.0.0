@@ -12,6 +12,13 @@
  * checked without gigabytes of memory. Knobs break it every way the driver
  * must survive. */
 #define _GNU_SOURCE /* MAP_32BIT */
+/* Apple arm64 reserves the whole low 4 GB of a process (__PAGEZERO), so the
+ * checks that need a buffer below 4 GB cannot run there; Linux runs them. */
+#if defined(__APPLE__) && defined(__aarch64__)
+#define NO_LOW_MEMORY 1
+#else
+#define NO_LOW_MEMORY 0
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1122,6 +1129,10 @@ static void test_alloc_paths(void)
     /* no S64A: works with every DMA buffer below 4 GB; refuses as soon as
      * one is above. Calls: 1 HBA state, 2 bounce, 3 port state, 4 command
      * list, 5 FIS area, 6 command table (1 and 3 are never DMA targets). */
+#if NO_LOW_MEMORY
+    printf("SKIP no-S64A DMA checks: this host maps nothing below 4 GB\n");
+    return;
+#endif
     g_low = (uint8_t *) mmap(0, 1u << 20, PROT_READ | PROT_WRITE,
                              MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
     CHECK(g_low != MAP_FAILED);
@@ -1254,9 +1265,14 @@ static void test_probe_and_selftest(void)
     add_disk(f, 0, 102400, 512, 1);
     /* hw_probe_all scans by itself and BAR5 is a 32-bit BAR there: move the
      * register window below 4 GB (8 KB aligned, as its size requires). */
+#if NO_LOW_MEMORY
+    uint8_t *low = (uint8_t *) MAP_FAILED; /* the probe-all half needs a 32-bit BAR address */
+    printf("SKIP probe-all with a 32-bit BAR: this host maps nothing below 4 GB\n");
+#else
     uint8_t *low = (uint8_t *) mmap(0, 0x4000, PROT_READ | PROT_WRITE,
                                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
     CHECK(low != MAP_FAILED);
+#endif
     hw_registry_t r;
     memset(&r, 0, sizeof r);
     if (low != MAP_FAILED) {
