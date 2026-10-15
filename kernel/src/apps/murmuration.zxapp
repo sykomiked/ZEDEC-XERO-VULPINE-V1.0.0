@@ -8,6 +8,7 @@
 zxapp 1
 id     murmuration
 name   Murmuration
+version 1.0.0
 slot   61
 layer  L1
 icon   icons/l1/061-murmuration.svg
@@ -16,3 +17,7 @@ needs  swarm
 view   zui/views/murmuration.c
 model  apps/murmuration_model.c
 use    swarm_shares 1
+# what it exports, so apps built from it can use the shares too (C1)
+provides swarm_shares.cycle_share num t
+provides swarm_shares.busiest num t
+provides swarm_shares.within_limits truth share intensity

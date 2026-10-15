@@ -7,6 +7,7 @@
 zxapp 1
 id     platen
 name   Platen
+version 1.0.0
 slot   115
 layer  L1
 icon   icons/l1/115-platen.svg

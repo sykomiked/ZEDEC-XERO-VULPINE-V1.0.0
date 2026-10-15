@@ -6,6 +6,7 @@
 zxapp 1
 id     glint
 name   Glint
+version 1.0.0
 slot   49
 layer  L1
 icon   icons/l1/049-glint.svg

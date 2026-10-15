@@ -7,6 +7,7 @@
 zxapp 1
 id     almanac
 name   Almanac
+version 1.0.0
 slot   17
 layer  L1
 icon   icons/l1/017-almanac.svg

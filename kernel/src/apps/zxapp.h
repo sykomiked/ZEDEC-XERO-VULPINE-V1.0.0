@@ -182,7 +182,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define ZXAPP_LOGIC_MAX   32u
+#define ZXAPP_LOGIC_MAX   128u
 #define ZXAPP_ID_MAX      32u
 #define ZXAPP_PATH_MAX    128u
 #define ZXAPP_ERR_MAX     160u

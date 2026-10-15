@@ -10,6 +10,7 @@
 zxapp 1
 id     banker
 name   The Banker
+version 1.0.0
 slot   1
 layer  L1
 icon   icons/l1/001-banker.svg

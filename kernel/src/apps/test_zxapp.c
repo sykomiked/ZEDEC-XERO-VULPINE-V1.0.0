@@ -1927,6 +1927,11 @@ static void test_wave0(void)
         char want_icon[ZXAPP_PATH_MAX];
         snprintf(want_icon, sizeof want_icon, "icons/l1/%03u-%s.svg", apps[i].slot, apps[i].id);
         CHECK(!strcmp(APP[i].icon, want_icon), "%s: icon %s", apps[i].id, APP[i].icon);
+        /* C1: every L1 app is a block too, so L2 apps can "use" it */
+        static zxapp_registry_t L2REG;
+        if (!i) zxapp_registry_init(&L2REG);
+        CHECK(zxapp_registry_add(&L2REG, &APP[i]) == ZXAPP_OK, "%s registers as a block: %s",
+              apps[i].id, L2REG.err);
     }
 
     /* used_share (Almanac and Tidewatch): Sutra and KRON against almanac_model.c */

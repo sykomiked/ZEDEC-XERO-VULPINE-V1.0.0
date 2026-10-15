@@ -6,6 +6,7 @@
 zxapp 1
 id     spindle
 name   Spindle
+version 1.0.0
 slot   22
 layer  L1
 icon   icons/l1/022-spindle.svg

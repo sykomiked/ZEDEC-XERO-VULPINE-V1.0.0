@@ -8,6 +8,7 @@
 zxapp 1
 id     quillon
 name   Quillon
+version 1.0.0
 slot   37
 layer  L1
 icon   icons/l1/037-quillon.svg
