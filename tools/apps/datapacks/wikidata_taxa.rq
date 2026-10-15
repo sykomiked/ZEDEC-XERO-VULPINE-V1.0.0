@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Fieldguide's Wikidata source (CC0): species (P105 = Q7432) with a GBIF ID (P846),
+# a scientific name (P225) and an English common name (P1843). The whole set is too
+# slow for one query, so datapack.py runs it once per first digit of the GBIF ID
+# ({digit}, 1 to 9) and sorts the rows, so the pack is the same whatever order the
+# service answers in.
+SELECT ?item ?gbif ?name ?common WHERE {
+  ?item wdt:P846 ?gbif ;
+        wdt:P105 wd:Q7432 ;
+        wdt:P225 ?name ;
+        wdt:P1843 ?common .
+  FILTER(LANG(?common) = "en")
+  FILTER(STRSTARTS(?gbif, "{digit}"))
+}

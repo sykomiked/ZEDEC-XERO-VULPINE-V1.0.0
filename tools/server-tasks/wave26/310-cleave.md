@@ -1,6 +1,6 @@
 # Wave 26 task: Cleave (slot 310), Stress testing
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 10 (129 gauntlet, 125 whetstone); wave 12 (146 swage); wave 13 (165 compositor).
+Depends on: wave 10 (125 whetstone, 129 gauntlet), wave 12 (146 swage), wave 13 (165 compositor).
 Manifest: `slot 310`, `layer L3`, `icon icons/l3/310-cleave.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: stress tests apps and systems by breaking them on purpose and recording how and where they fail (`play.run` on scratch state, `sys.info`, `files.write`).
 Uses: `use swage 1` ("may ship", release ledger); `use compositor 1` ("outputs agree", job records); `use gauntlet 1` (mutation score, "counts add up"); `use whetstone 1` (overall verdict, counts). Call these composed entries; do not re-implement them.

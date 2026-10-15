@@ -1,6 +1,6 @@
 # Wave 31 task: Calliope (slot 374), Children's story studio
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 13 (166 limner); wave 17 (216 rill); wave 18 (223 spindrift, 220 glen); wave 8 (103 cubby).
+Depends on: wave 9 (103 cubby), wave 13 (166 limner), wave 17 (216 rill), wave 18 (220 glen, 223 spindrift).
 Manifest: `slot 374`, `layer L3`, `version 1.0.0`, `icon icons/l3/374-calliope.svg`, `budget 233`, model `apps/calliope_model.{h,c}`, blocks under kernel/src/apps/blocks/calliope/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Children create illustrated stories and games with a gentle AI helper in a safe, parent-guided space: stories in the Hoard (`files.read`, `files.write`), helper suggestions from `swarm.ask` (held for the child and parent), time from `screen.check` and `screen.status`, the family's seats (`seats.list`).
 Uses: `use spindrift 1` ("may publish" and the branch matrix); `use rill 1` ("age-appropriate", reading level, word help); `use limner 1` (nearest palette colour and "may this AI stroke be applied"); `use glen 1` ("this child rule takes effect"); `use cubby 1` ("may this child open this now"). Call these composed entries; do not re-implement them.
@@ -19,4 +19,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, ai.ask, screen.time, sys.read.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Python help_ok`; `pending Pascal steps`.
-Planned (no runtime yet): Python, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/calliope/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

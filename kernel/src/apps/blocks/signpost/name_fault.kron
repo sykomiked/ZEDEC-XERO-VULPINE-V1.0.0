@@ -1,0 +1,6 @@
+fl:(0|1&1-label)|0|1&label-63
+ft:(0|1&label-total)|0|1&total-253
+fb:0|1&bad
+rb:3*fb
+rt:rb+ft*2-rb
+rt+fl*1-rt

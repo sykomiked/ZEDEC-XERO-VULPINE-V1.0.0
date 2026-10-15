@@ -3,7 +3,7 @@
 /* zui_chgskin.h — the Chiglet's base schematic, and skins drawn on it.
  *
  * Every Chiglet has the same base schematic: a body of radius r at a centre,
- * its generation halo and its pace motes (zui_chiglet.h), and a pose that says
+ * its halo of time together and its pace motes (zui_chiglet.h), and a pose that says
  * what it is doing right now: its feeling as a face (zui_emote.h), how far its
  * mouth is open while it talks, where it is looking, and whether it is
  * blinking. A skin is the look drawn over that schematic. The person picks

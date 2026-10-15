@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# layer0.machines — layer L0 of the release, the hardware envelope: one line
+# per machine the core discs boot on. build_system/mk_layers.py l0 turns it
+# into the L0 manifest; every layer above names L0's CID through its parent,
+# so changing a line here changes the CID of every layer.
+#
+#   arch  firmware  link_address  page_bytes  sector_bytes  min_ram_mib
+#
+# link_address is the kernel's link base (kernel/arch/x86_64/linker64.ld,
+# kernel/arch/arm64/linker.ld); page and sector sizes are what the kernels
+# and the golden-disc tools assume; min_ram_mib is the RAM the boot checks
+# give the guest (build_system/uefi_boot_check.sh, UEFI_MEM default).
+
+x86_64 UEFI 0x100000 4096 512 512
+arm64 UEFI 0x40080000 4096 512 512

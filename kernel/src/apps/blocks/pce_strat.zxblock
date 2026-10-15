@@ -11,6 +11,7 @@ zxblock 1
 id       pce_strat
 name     Paraconsistent strategy
 version  1.0.0
+matrix 0
 # TRUE when all three rules pick the same option, BOTH when they split,
 # NEITHER when no option is allowed.
 provides decide truth payoff nopt lo hi den

@@ -86,6 +86,7 @@ CI checks it matches what zxvd serves.
 | `zxvd.shutdown` | | `stopping` |
 | `swarm.state` | | the full live state (same as the window's `/api/state`) |
 | `swarm.ask` | `prompt` | `answer` |
+| `swarm.organ` | `organ`, `prompt` | `organ`, `answer`, `lead`, `witness`, `verdict`, `witnessed`, `action`, `tokens` (one Tiamat organ with a witness of another lineage, `kernel/src/chiglet/chg_organ.h`; this build has one model and no fitted evidence head, so the verdict is `neither` and the answer is shown held) |
 | `model.info` | | `loaded`, `can_generate`, `name`, `arch`, `n_layers`, `n_vocab`, `status` |
 | `notes.list` / `notes.mark_read` | | notes / `marked` |
 | `net.command` | `command` | `result` |
@@ -259,6 +260,9 @@ CI checks it matches what zxvd serves.
 | `companion.dna` | | `agent_id`, `seed`, `genes` (8 by name), `traits` (`home`, `*_permille`, `specialty`, `specialty_name`), `parent_a`, `parent_b`, `founder`, `generation` |
 | `companion.generation` | | `agent_id`, `generation`, `seed`, `steps`, `growths`, `last_step` |
 | `companion.mood` | | `agent_id`, `feeling`, `home`, `at_home`, `swarm_mood` (each feeling: `emotion`, `emoji`, `codepoint`, `intensity`, `charge`, `valence`) |
+| `companion.name` | | `named`, `name` (null until named) |
+| `companion.name_preview` | `name` | `name`, `seed`, `genes`, `traits` (as `companion.dna`), `confirm` (64 hex) |
+| `companion.name_confirm` | `name`, `confirm` | `named`, `name` |
 | `web4.open` | `name`?, `seed`?, `now`? | `open`, `new`, `agent_id`, `name`, `pk`, `envelopes`, `held`, `max_envelopes`, `max_held`, `in_memory` |
 | `web4.post` | `kind`, `to`, `tool`?, `payload`?, `req_id`?, `chunk`?, `final`?, `pii`?, `amount_minor`?, `now`? | the entry (`id`, `kind`, `status`, `from`, `to`, `tool`, `req_id`, `chunk`, `final`, `payload`, `pii`, `amount_minor`, `seq`, `ts`, `consent`, `answers`, `grant`, `bytes`) |
 | `web4.consent` | `id`, `grant`, `expires_in`?, `now`? | `envelope`, `consent` (both entries) |
@@ -305,6 +309,10 @@ stats engine refused (the message is its status name, e.g.
 `<STATUS>: why`, see "Bonds, derivatives, grants and estates" below),
 -32070 no companion yet
 (`companion.*` before the swarm has an agent),
+-32071 the organ could not answer (`swarm.organ`),
+-32072 the chiglet's name was refused, is already given, cannot be kept, or
+naming is not available here (`companion.name*`; the message starts with
+the `chg_name.h` code, e.g. `CHGN_E_RESERVED`, then why),
 -32090 a Web4 feed operation refused (the message says why, see "The Web4
 envelope feed" below),
 -32096 an IRC gateway refusal (the message says why, see "The IRC gateway"
@@ -314,6 +322,8 @@ below), -32095 power tracking is not running or a budget's target is
 unknown (see "Power" below),
 -32032 a public space or watch hall request refused (the message says why,
 see "Public spaces and the watch hall" below),
+-32085 a file fabrication step refused (the message is `<status>: why`,
+see "File fabrication" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
 refused or failed (the message says why), -32022 a printer or scanner
@@ -396,27 +406,36 @@ What a phone may call: everything read-only, plus `swarm.ask` and
 apps' methods (`sys.*`, `log.tail`, `journal.*`, `screen.*`, `place.*`,
 `search.*`, `print.*`, `scan.*`, `backup.*`) are never served to a phone. Refusals are -32015, and a phone must send an `id`.
 
-## Swarm earnings in your books
+## Swarm credit in your books
 
-After every settled market cycle, zxvd posts the swarm's earnings into the
-owner's libzxv books, so they show up in a currency next to everything else.
+After every settled market cycle, zxvd mirrors the swarm credit (SWC) your own
+models hold into your libzxv books, so you can see it next to everything else.
 
-- The currency is VFV by default. `--earnings-ccy CODE` picks another: an ISO
-  4217 code (USD, NGN, ...) is enabled from the table, and any other code is
-  registered as a private unit with 2 minor units, as VFV is.
-- The first settled cycle opens two accounts in that currency: **swarm
-  market** (issuer) and **owner: swarm earnings** (holder).
-- Each cycle, the owner's balance is set to the swarm credit (SWC) that the
-  owner's models hold, times `--earnings-rate` (minor units per SWC, default
-  1, so 1 SWC shows as VFV 0.01). One balanced posting does it, referenced
-  `swarm earnings N`: market to owner when the holdings grew, owner to market
-  when they fell. The 0.08889% assurance fee shows as a fall; node bounties
-  coming back show as a rise. The fee buckets belong to no model and are not
-  counted.
-- The rate is a bookkeeping rate the owner sets, not a market price. No
-  exchange rate between SWC and VFV is published anywhere yet.
-- `swarm.earnings` reports it; `ledger.balance` and `ledger.entries` on the
-  owner account show the postings like any others.
+Your own models run on your own machine, and work done on your own devices
+never earns Vino Floating Vouchers. So this mirror is a score in a private
+unit, never VFV and never money. VFV is issued only for verified work your
+node does for other people over the network.
+
+- The unit is SWC by default. `--earnings-ccy CODE` picks another private unit
+  (3 to 8 characters, registered with 2 minor units). VFV, in any letter
+  case, is refused at start, and an ISO 4217 currency (USD, NGN, ...) makes
+  the books refuse to open.
+- The first settled cycle opens two accounts in that unit: **swarm market**
+  (issuer) and **owner: swarm earnings** (holder).
+- Each cycle, the owner's balance is set to the SWC the owner's models hold,
+  times `--earnings-rate` (minor units per SWC, default 1). One balanced
+  posting does it, referenced `swarm earnings N`: market to owner when the
+  holdings grew, owner to market when they fell. The 0.08889% assurance fee
+  shows as a fall; node bounties coming back show as a rise. The fee buckets
+  belong to no model and are not counted.
+- Books saved by an older zxvd may hold this mirror in VFV. When they open,
+  its whole balance goes back from **owner: swarm earnings** to **swarm
+  market** in one posting, `vfv reversal N`. The old entries stay in the
+  books file, so the history is kept.
+- `swarm.earnings` reports the unit, the rate, the balance and
+  `vfv_reversed_minor` (the VFV taken back at this start, usually 0);
+  `ledger.balance` and `ledger.entries` on the owner account show the
+  postings like any others.
 
 ## The books file
 
@@ -915,7 +934,7 @@ Honest limits:
 
 The person's Chiglet companion is the swarm's agent 0, the one seat on
 level 0 (`kernel/src/swarm/swarm_evolve.h` V4). `companion.*`
-(`kernel/arch/hosted/zxvd_companion.c`, rules H1-H6 in `zxvd_companion.h`)
+(`kernel/arch/hosted/zxvd_companion.c`, rules H1-H11 in `zxvd_companion.h`)
 reads it from the live swarm: a fresh snapshot per call, nothing cached.
 The group sits behind the feature `companion`, which is not regulated, and
 every method answers with the switch off: they read and move no money.
@@ -935,6 +954,29 @@ every method answers with the switch off: they read and move no money.
 - `companion.generation`: the generation, and how it got there in this run:
   `steps` (times it evolved), `growths` (GROWTH harmonics seen) and
   `last_step` (the fundamental of the last step, 0 for none).
+
+**Naming the chiglet** (`kernel/src/chiglet/chg_name.h` N1-N7). The first
+thing a person does with their chiglet is name it. From then on it answers
+to that name, the name never changes, and the personality is grown from it.
+
+- `companion.name_preview {name}` shows what the name would give, keeping
+  nothing: the seed (the first 8 bytes of SHA-256 over a tag, the person's
+  32-byte salt and the name, so the same name for two people is two
+  chiglets), the genes and traits as `companion.dna` shows them (the seed's
+  DNA with warmth, temperament and pace leaned by the name's sound: soft
+  letters warm, hard letters lively, short names quick), and `confirm`.
+- `companion.name_confirm {name, confirm}` names it with that digest, so the
+  person confirms exactly what they saw. The record goes to `chiglet_name`
+  in the state folder (0600, written then renamed) before the companion
+  takes the name's personality; after a restart it is the same chiglet.
+  Once named, preview and confirm answer `CHGN_E_LOCKED`: a new name means
+  a new chiglet, never a rename. A damaged record is never overwritten.
+- Names are 1 to 32 bytes of UTF-8 starting with a letter (any script);
+  system words and other companies' assistant and character names are
+  reserved. The companion manifest refuses a rename too
+  (`kernel/src/companion/companion.h` C.1, `CMP_ERR_NAME`).
+- Voice routing ("Chiglet, ..." in the voice work) should answer to the
+  given name instead: `chgn_addressed` (N6) is the check.
 
 **How the companion evolves (new wiring).** Before this, the GROWTH harmonic
 bred levels 1 and up only and the companion's DNA never changed. Now, on
@@ -993,6 +1035,52 @@ running in this zxvd or the budget's target is unknown.
 Limits: the stand-in agents (levels 1 and up) run no model, so only the
 companion is noted. GPU time is not measured yet (`gpu_ns` is 0). Budgets
 and the ledger are in memory and start again at each start.
+
+## File fabrication: send, receive and stream
+
+`fab.*` (`kernel/arch/hosted/zxvd_fab.c`, rules B1-B13 in `zxvd_fab.h`)
+is the one block method apps use to send, receive and stream files: a
+signed recipe names public blocks by CID plus a private diff, and the
+receiver rebuilds the file and checks it against the target CID
+(`docs/spec/FABRICATION.md`). The group sits behind the feature `fab`,
+which is not regulated. zxvd keeps its keys and block store in `fab`
+beside the socket: `blocks/` (files named by CID, the layout `zxv-fab put`
+writes) and the owner-only seeds of its ML-DSA-87 and ML-KEM-1024 keys,
+which no method returns. Paths in parameters are absolute; outputs are
+written owner-only and only after the CID check passes.
+
+- `fab.status`, `fab.keys` (always on): whether fabrication is open, the
+  key ids, whether an air-gap seal check is registered, the open streams
+  and receive jobs;
+  the public keys (give `kem_ek` to a sender, `sign_id` to a trust list).
+- `fab.put` `path`: copy a file into the store as a block.
+- `fab.send` `target`, `out`, `blocks` (`[{cid}]`), `to` (a recipient's
+  `kem_ek`), `window`: write the recipe; public without `to` (app
+  installs), sealed with it. Unused blocks stay as decoys.
+- `fab.receive` `recipe`, `out`, `trust` (`[{id}]`), `airgap`: check, open,
+  fetch every block from the store, rebuild and write.
+- `fab.receive.start` (the same parameters), `fab.receive.step` `job`,
+  `blocks` (default 16), `fab.receive.cancel` `job`: the same receive in
+  steps, for loading screens whose bars may only move as fast as the work.
+  Each step answers the blocks and bytes verified against their CIDs so
+  far (phase `fetch`); the step after the last block seals, rebuilds,
+  checks the target CID and writes (phase `done`). zxvd sends nothing
+  unasked, so the screen pulls a step per frame it draws. At most 4 jobs.
+- Streams: `fab.stream.start` / `.send` / `.sign` on the sending end,
+  `fab.stream.open` / `.frame` / `.checkpoint` on the receiving end,
+  `fab.stream.close` on either; at most 4 at once. A repeated frame is
+  REPLAY; one built on a frame this end lacks is RESYNC, and the next frame
+  that does not need it continues the stream.
+
+`airgap: true` fetches and checks every block first, then rebuilds only
+when the seal check registered with `zxvd_fab_set_seal` answers TRUE; with
+none registered it is refused. Error -32085 carries the engine's status
+and why (`KEY: it is not sealed to this zxvd's key`).
+
+Limits: files are read whole into memory, at most 256 MiB; the block store
+is a folder, not yet the IPFS node's blockstore; `blocks` and `trust`
+travel inside one request line (16 KiB), so a recipe names about 200
+blocks through this method.
 
 ## Public spaces and the watch hall
 
@@ -1126,6 +1214,13 @@ the harness's test for `zxvd_seats.c`.
 ledger, read from a Linux-style `/sys` and `/proc` fixture with a test clock
 (exact replies, the agent under zxvd's app, budgets that make it wait, the
 battery posture's token scale); it is the harness's test for `zxvd_power.c`.
+`test_zxvd_fab.sh` runs `fab.*` behind the RPC layer on the real
+fabrication engine in a temporary folder (keys kept across opens, public
+and sealed files, the trust list, the air-gap seal in all four states,
+damaged blocks, recipes and frames, both ends of a stream with REPLAY,
+RESYNC, checkpoints and frames that grow, receive jobs step by step with
+their exact counts); it is the harness's test for
+`zxvd_fab.c`.
 `test_zxvd_pspace.sh` runs `pspace.*` and `hall.*` behind the RPC layer
 on two real net hosts on 127.0.0.1 (the switch, every parameter rule, a
 hall made on one host and joined by CID from the other, the owner's

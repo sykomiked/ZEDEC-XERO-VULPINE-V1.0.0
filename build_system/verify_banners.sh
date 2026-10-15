@@ -65,6 +65,7 @@ case "$ELF" in
   *arm64*)
     check x25519  "X25519 key agreement (RFC 7748)"
     check chg_    "Chiglet inference runtime"
+    check chga_   "Chiglet governor (verified ABI)"
     check oseq_   "causal ordering / happens-before"
     check mlkem   "post-quantum key establishment (ML-KEM-768)"
     # REMOVED, not silenced: aes256_gcm.c has 0 text symbols in the ELF, so

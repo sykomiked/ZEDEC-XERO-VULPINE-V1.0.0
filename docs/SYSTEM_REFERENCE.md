@@ -81,12 +81,12 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 | Status | Modules |
 |---|---|
-| WORKING (tested in verify-all) | 200 |
+| WORKING (tested in verify-all) | 203 |
 | PARTIAL | 37 |
 | WORKING (test not in verify-all) | 17 |
 | UNUSED/DEAD | 11 |
 | STUB | 3 |
-| **Total** | **268** |
+| **Total** | **271** |
 
 Nine more modules are on draft pull requests and listed in Part C, not counted here.
 
@@ -158,6 +158,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [dharma](#dharma--dharma-scheduler-family-dharma-karma-chakra-tantra-naga_raja-upaah-) | Dharma scheduler family (dharma, karma, chakra, tantra, naga_raja, upaah, ...) | WORKING (test not in verify-all) |
 | [display](#display--display-mode-negotiation-and-ui-scaling) | display mode negotiation and UI scaling | WORKING (tested in verify-all) |
 | [dispute](#dispute--three-level-dispute-funnel-proofs-staked-blind-jury-with-appeals-jurisdiction-gateway) | three-level dispute funnel: proofs, staked blind jury with appeals, jurisdiction gateway | WORKING (tested in verify-all) |
+| [dnx](#dnx----duplex-digital-dna-strands-that-read-both-ways) | duplex digital DNA: strands that read both ways | WORKING (tested in verify-all) |
 | [dual_space](#dual_space--paired-positivenegative-artifact-registry) | paired positive/negative artifact registry | WORKING (tested in verify-all) |
 | [dualtrack](#dualtrack--dual-track-design-vs-evidence-gate-pipeline) | dual-track (design vs. evidence) gate pipeline | PARTIAL |
 | [e8](#e8--e8-lattice--icosian-ring-over-zphi) | E8 lattice / icosian ring over Z[phi] | WORKING (tested in verify-all) |
@@ -172,6 +173,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [event_space](#event_space--event-envelopes-sequencer-self-audit-self-healing) | event envelopes, sequencer, self-audit, self-healing | WORKING (tested in verify-all) |
 | [event_transport](#event_transport--channels-that-carry-event-envelopes-between-nodes) | channels that carry event envelopes between nodes | STUB |
 | [evolve](#evolve--content-addressed-evolution-protocol-capabilities-lineage-trust-updates) | content-addressed evolution protocol (capabilities, lineage, trust, updates) | WORKING (tested in verify-all) |
+| [fab](#fab--file-fabrication-from-public-blocks-plus-a-private-diff) | file fabrication from public blocks plus a private diff | WORKING (tested in verify-all) |
 | [fat32](#fat32--read-only-fat32-driver) | read-only FAT32 driver | WORKING (test not in verify-all) |
 | [finance](#finance--triple-ledger-payment-rails-bridge-records-derivatives-assurance-treaty-assets) | triple ledger, payment rails, bridge records, derivatives, assurance, treaty assets | PARTIAL |
 | [finance_markets](#finance_markets--instrument-tracker-and-position-valuation) | instrument tracker and position valuation | WORKING (tested in verify-all) |
@@ -252,6 +254,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
 | [paradox](#paradox--paradox-engine-paraconsistent-ledger-and-belnap-agents) | paradox engine, paraconsistent ledger and Belnap agents | WORKING (tested in verify-all) |
+| [passport](#passport----log-in-from-any-device-with-no-server) | log in from any device with no server | WORKING (tested in verify-all) |
 | [pay](#pay----payment-ledger-assurance-fee-iso-20022-equity-treasury-farm) | payment ledger, assurance fee, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
 | [pce](#pce--paraconsistent-decision-engines-probability-tactics-strategy-finance) | paraconsistent decision engines: probability, tactics, strategy, finance | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
@@ -1251,6 +1254,26 @@ Tests: test_dispute.c (309 checks, ASan/UBSan), target test-dispute, in verify-a
 Used by: no caller outside its tests. (The dsp_ prefix in zui/views/display.c is an unrelated display module.)
 Gaps: there is no real VRF in the tree; the test uses a SHA-256 stand-in that is not a VRF, and production needs one such as ECVRF (RFC 9381). Votes are binary below level 3. Juror bribery is made costly, not prevented. Not connected to the market escrow or to cred_fail by any caller. Needs legal review per jurisdiction. No doc of its own (rules are in dispute.h).
 
+### dnx  —  duplex digital DNA: strands that read both ways
+Status: WORKING (tested in verify-all)
+What it does: Keeps audiogenomics_pro's binary-to-base mapping (00 A, 01 C, 10 G, 11 T or U) and
+makes every strand readable start to finish and finish to start. Under that mapping the
+complement is a bit flip (b ^ 3), so the reverse read is the forward reader fed the strand
+backwards and complemented. A duplex frame (magic, length, body, CRC-32, GGAATTCC pivot, then the
+reverse complement of all of it) is its own reverse complement; each direction verifies on its
+own and the two verdicts are joined with lpres_kjoin, so a one-sided failure or two verified but
+different payloads is BOTH, never resolved by picking one. A strand of whole codons is also a
+reversible program over four 32-bit registers: each codon and its reverse complement are an op
+and its exact inverse, so running the strand backwards undoes it. Integer only. Also gives base
+metrics (counts, GC permille, longest run, start and stop codons, palindrome test) and the
+standard genetic code letters.
+Main entry points: dnx_bytes_to_bases, dnx_duplex_encode, dnx_duplex_decode, dnx_metrics,
+dnx_prog_run, dnx_prog_run_reverse, dnx_prog_bidi, dnx_codon_amino.
+Tests: src/dnx/test_dnx.c (make -C kernel test-dnx, in verify-all).
+Used by: nothing yet. A chiglet's encoded DNA record (chg_kin, draft #155) is a byte string and
+carries whole in a duplex frame (the test round-trips a record of that size).
+Gaps: not in the arch images or zxvd. Strands are one base per byte in memory; dnx_bases_to_bytes packs a duplex strand to 22 + 2L bytes for storage.
+
 ### dual_space — paired positive/negative artifact registry
 Status: WORKING (tested in verify-all)
 What it does: This registers "pairs" of artifacts, such as a program and its inverse, with
@@ -1413,6 +1436,23 @@ Tests: src/evolve/test_evolve.c (verify-all), pass. A local 200k-iteration decod
 nothing.
 Used by: no includers; not in images.
 Gaps: none found.
+
+### fab — file fabrication from public blocks plus a private diff
+Status: WORKING (tested in verify-all)
+What it does: A recipe names public blocks by CID, the byte ranges to copy from them and a diff of
+the bytes found nowhere public; the receiver verifies every block against its CID, rebuilds the file
+in RAM and releases it only if its UnixFS CID equals the target. PUBLIC recipes (app installs) are
+signed with ML-DSA-87; SEALED ones are also encrypted to one recipient (ML-KEM-1024, HKDF,
+ChaCha20-Poly1305). The diff key is derived only after an air-gap seal callback answers TRUE. Streams
+use the same plans as AEAD frames that may copy from the previous frame, with signed checkpoints that
+expose frames forged by another key holder. Spec: docs/spec/FABRICATION.md.
+Main entry points: fab_recipe_parse/check, fab_open_plan, fab_hydrate, fab_assemble, fab_build,
+fab_plan_write, fab_recipe_seal, fab_frame_seal/apply, fab_checkpoint_sign/verify.
+Tests: src/fab/test_fab.c (make test-fab, run by verify-all, ASan/UBSan), freestanding builds for
+aarch64 and i386 with no libc, and tools/zxv-fab/test_zxv_fab.sh for the zxv-fab tool.
+Used by: tools/zxv-fab (pack, inspect, unpack), tools/zxv-fab/fab_bench.c. Not in images yet.
+Gaps: no zxvd methods yet; the kernel's seal callback is not wired to the network stack; placement in
+the 144 installation layers pending with the Lingua thread.
 
 ### fat32 — read-only FAT32 driver
 Status: WORKING (has a test, not in verify-all)
@@ -2123,6 +2163,14 @@ Tests: test_paradox.c (256 checks) in test-paradox and test_pdx_ledger.c (284 ch
 Used by: pce (its log), recover (kernel/src/recover), libzxv's paradox group (sdk/libzxv/src/zxv_paradox.c builds paradox.c and paradox_graph.c), and tensor's test_zt_evh. pdx_ledger and pdx_agent have no caller outside test_pdx_ledger. Not in any kernel image or zxvd.
 Gaps: it detects only what its checks look at; signing logs and RepairProofs is the caller's job; a full log halts. Ledger finality depends on the caller's horizon protocol and identical configuration on every node. zxv_api.h still marks the paradox ABI group "reserved until it reaches main". See [PARADOX_ENGINE.md](PARADOX_ENGINE.md) and [PARACONSISTENT_LEDGER.md](PARACONSISTENT_LEDGER.md).
 
+### passport  —  log in from any device with no server
+Status: WORKING (tested in verify-all)
+What it does: A 32-byte seed (typed as checksummed base32, or stretched from a passphrase with ident's Argon2id) rebuilds ident's root identity and the vault and rendezvous keys on any device. Personal state is five sets (earn receipts, spends, café grants, revocations, devices) merged by set union and replayed into a balance with the paraconsistent ledger's rules (equivocations held, unfundable spends quarantined as BOTH). The state travels as a ChaCha20-Poly1305 capsule named by a raw CID and announced under a secret per-epoch topic. Café mode gives an untrusted machine a short-lived ML-DSA-65 session key approved from the phone, with rights, a cap and an expiry. Design: docs/PASSPORT.md.
+Main entry points: pp_hydrate, pp_seed_from_text, pp_seed_from_passphrase, pp_state_replay, pp_capsule_seal/open/publish/fetch, pp_verify_device_spend, pp_cafe_begin, pp_grant_issue, pp_verify_cafe_spend (passport.h).
+Tests: passport/test_passport.c — passes (make -C kernel test-passport, also builds freestanding for aarch64 and i386).
+Used by: nothing yet; zxvd and the login screen are the next consumers. Hosted only: not in any kernel image.
+Gaps: no mnemonic word list; the host must wipe its own copies at the end of a café session.
+
 ### pay  —  payment ledger, assurance fee, ISO 20022, equity, treasury, farm
 Status: WORKING (tested in verify-all, under ASan+UBSan)
 What it does: Exact-integer three-rail ledger with all-or-nothing postings, hash-chained provenance, idempotency and replay protection, no interest; the 0.08889% assurance fee (pay_assure.h: floor(g·8889/10^7), per-account sub-unit carry, exact 50/25/15/10 split into reserve floor / V-Bill dividend pool / infrastructure-node bounties / regenerative capital; it replaced the φ% tithe 2026-10-10) checked against a Python reference; strict ISO 20022 builders and parsers checked against the official XSDs; share equity, group treasuries, role/IBAN checks and gateways as callbacks only (no SWIFT connection, stated).
@@ -2493,7 +2541,7 @@ What it does: posts every change in the swarm market's Financial capital to a pa
 Main entry points: settle_init, settle_join, settle_sync, settle_levy, settle_set_audit, settle_reconciled; type settle_spine_t.
 Tests: src/settle/test_settle.c under ASan/UBSan, 89 passed, via test-settle in verify-all.
 Used by: kernel/arch/hosted/zxv_host.c, which is built into both the desktop app (zxv-host) and zxvd (app_sources.sh srcs). It calls settle_init when the swarm is built, settle_join per model, and settle_levy then settle_sync every market cycle; a halted spine stops the market. Not in either kernel image.
-Gaps: the spine's ledger lives in memory and is rebuilt with the swarm; the owner's saved books only get a mirror "swarm earnings" posting ([ZXVD.md](ZXVD.md#swarm-earnings-in-your-books)). What spends the reserve, dividend and regenerative buckets is outside this module.
+Gaps: the spine's ledger lives in memory and is rebuilt with the swarm; the owner's saved books only get a mirror "swarm earnings" posting ([ZXVD.md](ZXVD.md#swarm-credit-in-your-books)). What spends the reserve, dividend and regenerative buckets is outside this module.
 
 ### shimmer — desktop background shimmer effect
 Status: WORKING (tested in verify-all)
@@ -2659,11 +2707,19 @@ Gaps: none for floating point: telemetry values are zxv_cq16_t and the magnitude
 
 ### tensor — integer tensor engine, GGUF loader, tokenizer, RoPE, transformer model
 Status: WORKING (tested in verify-all)
-What it does: zt.c is the Q-format integer tensor core (matmul, softmax and so on, using zt_udiv64). zt_gguf parses GGUF model files (external input) with bounds checks. zt_tok is a BPE tokenizer with a Unicode table. zt_rope implements RoPE from integer tables. zt_model is a llama-style forward pass. zt_lattice, zt_coil, zt_isf and zt_holo are extra operators. zt_kern.h holds the forward pass's matrix-vector kernels as one portable C reference; hosted builds (app, bench, tests) can switch a model to zt_simd.h's AVX2, AVX-512 or NEON kernels plus a row-parallel pthread pool (`m.kern = zt_simd_default()`), which give the same bits. zt_simd*.c is hosted only: no kernel image or package links it.
+What it does: zt.c is the Q-format integer tensor core (matmul, softmax and so on, using zt_udiv64). zt_gguf parses GGUF model files (external input) with bounds checks. zt_tok is a BPE tokenizer with a Unicode table. zt_rope implements RoPE from integer tables. zt_model is a llama-style forward pass. zt_lattice, zt_coil, zt_isf and zt_holo are extra operators. zt_kern.h holds the forward pass's matrix-vector kernels as one portable C reference; hosted builds (app, bench, tests) can switch a model to zt_simd.h's AVX2, AVX-512, SVE, NEON or RISC-V vector (RVV 1.0) kernels plus a row-parallel pthread pool (`m.kern = zt_simd_default()`), which give the same bits. zt_simd*.c is hosted only: no kernel image or package links it.
 Main entry points: zt.h (zt_matvec, zt_rmsnorm, zt_softmax, zt_udiv64...), zt_gguf_open/zt_gguf_find_tensor/zt_gguf_dequant, zt_tok_load/encode/decode, zt_rope_init/apply, zt_model_load/eval/generate.
 Tests: test_zt, test_zt_gguf, test_zt_q5 (Q5_0/Q5_1, 87 checks, bit-exact against golden values from gen_q5_fixture.py, a pure-Python transcription of ggml's dequantize_row_q5_0/q5_1), test_zt_tok, test_zt_lattice, test_zt_rope, test_zt_model, test_zt_audit (41), test_zt_e8 (269) and test_zt_simd (every SIMD kernel set and the thread pool against the C reference on random and edge-case rows and on whole forward passes of the fixture models, bit for bit; also under ASan/UBSan, and NEON cross-compiled and run under qemu-aarch64), all in verify-all. Other fixtures come from gen_*.py using the reference gguf-py.
 Used by: host tests, swarm (an include), and the arm64 and x86_64 kernel images (all non-test zt*.c). `zt_boot.c` is a known-answer self-test at boot (exact Q8 matvec, RMSNorm, RoPE, softmax, SiLU, exp; hash 0xfbc3385a, same on host and bare metal); it is not a trained model running in the kernel. Also packaged as the standalone static library packages/libzxv-tensor (built from these sources; smoke program in verify-all).
-Gaps: CodeQL multiply-overflow items in test_zt_model.c:333-339 and test_zt_lattice.c:409 are fixed (widened). There is no fuzz test on the GGUF parser; it was reviewed by hand and looked bounds-checked. Speed: measured only with synthetic random weights (bench/tensor/make_synth_model.py) on a shared x86 sandbox, never on a real model or on Apple hardware; NEON is verified for correctness under qemu, not timed. No SDOT/I8MM or RISC-V vector path (the activations are 16-bit; see zt_simd_neon.c).
+Gaps: CodeQL multiply-overflow items in test_zt_model.c:333-339 and test_zt_lattice.c:409 are fixed (widened). There is no fuzz test on the GGUF parser; it was reviewed by hand and looked bounds-checked. Speed: measured only with synthetic random weights (bench/tensor/make_synth_model.py) on a shared x86 sandbox, never on a real model or on Apple hardware; NEON, SVE (128- to 2048-bit vectors) and RVV (VLEN 128 to 1024, zt_simd_rvv.c built with -march=rv64gcv) are verified for correctness under qemu, not timed. No SDOT/I8MM path (the activations are 16-bit; see zt_simd_neon.c).
+
+### terms — first-boot end-user agreement gate
+Status: WORKING (tested in verify-all)
+What it does: holds the logic every screen shares for showing the ZXV End-User Agreement at a person's first sign-in. It lays the embedded text out for reading (character cells or pixels with a font measure callback), tracks scroll, page, section jumps and screen-reader progress, and only allows "I agree" once the end has been shown. An acceptance is a per-seat, hash-chained record, and the log status says whether a seat has accepted the current version. The text is agreement/en.txt embedded by tools/terms/embed_terms.py with its SHA-256; a mismatch refuses to show or record the text.
+Main entry points: terms_reader_init/_ex, terms_reader_resize, terms_scroll, terms_page, terms_goto_section, terms_reader_spoke, terms_view, terms_can_accept, terms_accept, terms_decline, terms_record_format/parse, terms_log_verify, terms_log_status.
+Tests: src/terms/test_terms.c under ASan/UBSan, 446 passed, plus a freestanding x86_64 build check, via test-terms in verify-all. src/zui/test_zui_terms.c (132 checks, in verify-all through test_zui_toolkit.sh) tests the screen.
+Used by: src/zui/zui_terms.c (the native screen). Nothing else calls it: no shell opens the screen and nothing writes the acceptance log on a device.
+Gaps: English text only; the README recommends counsel review before the first public release. Login, lock and per-seat terms on screen on bare metal are missing ([BAREMETAL_OS_GAPS.md](BAREMETAL_OS_GAPS.md), row 13). Flow and clauses backed in code: [kernel/src/terms/README.md](../kernel/src/terms/README.md).
 
 ### terms — first-boot end-user agreement gate
 Status: WORKING (tested in verify-all)

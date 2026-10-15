@@ -10,6 +10,7 @@ name   Scent
 version 1.0.0
 slot   5
 layer  L1
+matrix 5
 icon   icons/l1/005-scent.svg
 budget 233
 needs  search
@@ -20,3 +21,7 @@ model  apps/scent_model.c
 provides score num name folder count
 logic    kron    score apps/blocks/scent/score.kron
 logic    trebago score apps/blocks/scent/score.tb
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check score name=1,0,0 folder=0,1,0 count=5,200,7 = 1211
+# agree: score KRON and Trebago take the same inputs and refuse the same overflow (past int64), so no input makes them differ

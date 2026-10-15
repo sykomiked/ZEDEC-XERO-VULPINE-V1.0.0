@@ -113,6 +113,10 @@ void zxv_shell_key(zxv_shell_state_t *st, int32_t keycode);
 void zxv_shell_set_clock_ms(uint32_t ms);
 const uint8_t *zxv_shell_font_data(void);
 uint32_t zxv_shell_font_size(void);
+/* The app catalogue and its 407 vector icons (zui_apps' ZXAP pack, linked
+ * into the image by zxv_shell_apps.c). */
+const uint8_t *zxv_shell_apps_data(void);
+uint32_t zxv_shell_apps_size(void);
 
 /* Process pointer input (hit-test a left-click edge) then render one frame.
  * `buttons` bit0 = left. `cx/cy` is the cursor; `tick` drives the caret blink. */

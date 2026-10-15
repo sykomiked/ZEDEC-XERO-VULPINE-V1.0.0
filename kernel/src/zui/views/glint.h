@@ -18,6 +18,7 @@ typedef struct {
     zv_shell_t sh;
     glint_t *m;
     zui_id_t items, stage, prev, next, load, caption;
+    zui_id_t pane, none; /* the viewer column; W12: the empty state */
     uint8_t *buf; /* the caller's buffer for loaded bytes */
     uint32_t cap, len;
     bool loaded;

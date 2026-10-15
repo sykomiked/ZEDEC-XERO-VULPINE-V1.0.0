@@ -3,6 +3,7 @@
 /* zui_workspace.c — saved workspaces, the panel, shortcuts and themes on
  * the settings store (zui_workspace.h WS1..WS9). */
 #include "zui_workspace.h"
+#include "zui_motion.h"
 #include "zui_tokens.h"
 
 /* ---- small helpers (no libc) ------------------------------------------- */
@@ -926,4 +927,19 @@ int32_t zui_ws_target(zui_workspace_t *ws, int32_t pt, bool touch)
 uint32_t zui_ws_motion_ms(zui_workspace_t *ws, uint32_t ms)
 {
     return rd(ws, "theme.reduced-motion") ? 0u : ms;
+}
+
+const zui_colors_t *zui_ws_apply(zui_workspace_t *ws, zui_wm_t *wm, zui_colors_t *out)
+{
+    zui_ws_colors(ws, out);
+    if (zui_motion_scheme(ZUI_SCHEME_DARK) == ZUI_SCHEME_HIGH_CONTRAST)
+        *out = *zui_scheme_colors(ZUI_SCHEME_HIGH_CONTRAST); /* MO6 */
+    if (wm) {
+        zui_rect_t p = zui_ws_panel_rect(ws, wm->w, wm->h);
+        bool side = p.h == wm->h && p.w < wm->w;
+        wm->colors = out;
+        wm->dock.colors = out;
+        zui_wm_strip_place(wm, (int) rd(ws, "panel.position"), side ? p.w : p.h);
+    }
+    return out;
 }

@@ -9,6 +9,7 @@ zxblock 1
 id       pce_prob
 name     Paraconsistent probability
 version  1.0.0
+matrix 0
 # Two independent sources joined on the knowledge order: TRUE from one and
 # FALSE from the other lands on BOTH. Answers the joined mass, T F B N.
 provides join num a b

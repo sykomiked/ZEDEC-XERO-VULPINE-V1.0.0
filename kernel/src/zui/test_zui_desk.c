@@ -92,6 +92,9 @@ static void geometry(void)
     CHECK(t0.w == ZUI_DESK_TILE_PT && t0.h == ZUI_DESK_TILE_PT, "tile size");
     CHECK(inside(rail, t0) && inside(rail, t1), "tiles live in the rail");
     CHECK(t1.y > t0.y + t0.h, "tiles stack with a gap for the name");
+    zui_rect_t at = zui_desk_apps_tile(&D);
+    CHECK(at.x == t0.x && at.w == t0.w && t0.y - at.y == t1.y - t0.y && at.y > rail.y,
+          "D2 Apps is the first slot, the apps follow");
     CHECK(mid_x(t0) == rail.w / 2, "tiles are centred in the rail");
     zui_rect_t home = zui_desk_switch(&D, false), sp = zui_desk_switch(&D, true);
     CHECK(home.x + home.w == sp.x && home.w == sp.w, "the switch is two halves");
@@ -140,6 +143,21 @@ static void rail(void)
     CHECK(D.act == ZUI_DESK_NONE && D.act_app == -1, "sliding off cancels");
     ptr(ZUI_EV_PTR_MOVE, mid_x(t0), mid_y(t0));
     CHECK(D.act == ZUI_DESK_NONE, "each event resets the act");
+
+    /* D2: the Apps tile */
+    zui_rect_t at = zui_desk_apps_tile(&D);
+    CHECK(ptr(ZUI_EV_PTR_MOVE, mid_x(at), mid_y(at)) && D.hover == ZUI_DESK_APPS_TILE,
+          "hover Apps");
+    ptr(ZUI_EV_PTR_DOWN, mid_x(at), mid_y(at));
+    CHECK(D.press == ZUI_DESK_APPS_TILE && D.act == ZUI_DESK_NONE, "press Apps");
+    ptr(ZUI_EV_PTR_UP, mid_x(at), mid_y(at));
+    CHECK(D.act == ZUI_DESK_LIBRARY && D.act_app == -1, "release Apps opens the library");
+    ptr(ZUI_EV_PTR_DOWN, mid_x(at), mid_y(at));
+    ptr(ZUI_EV_PTR_UP, mid_x(t0), mid_y(t0));
+    CHECK(D.act == ZUI_DESK_NONE, "sliding off Apps cancels");
+    ptr(ZUI_EV_PTR_DOWN, mid_x(t0), mid_y(t0));
+    ptr(ZUI_EV_PTR_UP, mid_x(at), mid_y(at));
+    CHECK(D.act == ZUI_DESK_NONE, "sliding from a tile onto Apps cancels");
 
     zui_rect_t sp = zui_desk_switch(&D, true), home = zui_desk_switch(&D, false);
     CHECK(ptr(ZUI_EV_PTR_DOWN, mid_x(sp), mid_y(sp)) && D.act == ZUI_DESK_SPACES, "D1 Spaces");
@@ -203,6 +221,74 @@ static void windows(void)
     CHECK(a2 != 0 && D.win_of[0] == a2, "it opens again after close");
 }
 
+/* D2: a tile draws its vector icon when it has one and the renderer has work */
+static zui_vec_work_t VW;
+#include "test_zui_vec_fixture.inc" /* ZXVG_FIXTURE[] */
+#define SQUARE ZXVG_FIXTURE
+static void icons(void)
+{
+    zui_desk_init(&D, W, H, 256u, false, 0);
+    zui_desk_add(&D, "Vino", "V");
+    zui_surface_t s;
+    zui_surface_init(&s, PX, W, H, W);
+    zui_desk_draw(&D, &s, 0);
+    uint32_t h0 = hash(PX);
+    zui_desk_icon(&D, 0, SQUARE, sizeof SQUARE);
+    CHECK(D.app[0].icon == SQUARE && D.app[0].icon_len == sizeof SQUARE, "the icon is kept");
+    zui_desk_draw(&D, &s, 0);
+    CHECK(hash(PX) == h0, "no work: the mark is drawn, not the icon");
+    zui_desk_use_work(&D, &VW);
+    zui_desk_draw(&D, &s, 0);
+    CHECK(hash(PX) != h0, "with work: the icon is drawn");
+    zui_rect_t t = zui_desk_tile(&D, 0);
+    uint32_t inked = 0;
+    for (int32_t y = t.y + 6; y < t.y + t.h - 6; y++)
+        for (int32_t x = t.x + 6; x < t.x + t.w - 6; x++)
+            if (PX[y * W + x] != ZUI_VOID && PX[y * W + x] != ZUI_RAISED) inked++;
+    CHECK(inked > 100, "the icon fills its tile (%u)", inked);
+    static const uint8_t broken[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    zui_desk_icon(&D, 0, broken, sizeof broken);
+    CHECK(D.app[0].icon == 0 && D.app[0].icon_len == 0, "a broken icon is refused");
+    zui_desk_icon(&D, 0, SQUARE, 0);
+    CHECK(D.app[0].icon == 0, "an empty icon is refused");
+    zui_desk_icon(&D, 9, SQUARE, sizeof SQUARE);
+    CHECK(D.napps == 1, "no such app");
+    zui_desk_draw(&D, &s, 0);
+    CHECK(hash(PX) == h0, "back to the mark");
+    D.library = true;
+    zui_desk_draw(&D, &s, 0);
+    zui_rect_t at = zui_desk_apps_tile(&D);
+    CHECK(PX[(at.y - 1) * W + at.x + at.w / 2] == ZUI_GOLD, "the library open: Apps is ringed");
+}
+
+/* the desk paints by role (zui_palette.h C6): dark is the tokens, light its own */
+static void schemes(void)
+{
+    zui_desk_init(&D, W, H, 256u, false, 0);
+    zui_desk_add(&D, "Vino", "V");
+    zui_surface_t s;
+    zui_surface_init(&s, PX, W, H, W);
+    zui_desk_draw(&D, &s, 0);
+    uint32_t h0 = hash(PX);
+    zui_desk_set_colors(&D, zui_scheme_colors(ZUI_SCHEME_DARK));
+    zui_desk_draw(&D, &s, 0);
+    CHECK(hash(PX) == h0, "the dark set draws the same pixels as none");
+    const zui_colors_t *lt = zui_scheme_colors(ZUI_SCHEME_LIGHT);
+    zui_desk_set_colors(&D, lt);
+    CHECK(D.wm.colors == lt && D.wm.dock.colors == lt, "the windows and dock follow");
+    zui_desk_draw(&D, &s, 0);
+    zui_rect_t a = zui_desk_area(&D), r = zui_desk_rail(&D), at = zui_desk_apps_tile(&D);
+    CHECK(PX[(a.y + 40) * W + a.x + a.w / 2] == lt->c[ZUI_C_VOID], "the light ground");
+    uint32_t dark = 0;
+    for (int32_t y = 0; y < H; y += 3)
+        for (int32_t x = 0; x < r.w; x += 3)
+            dark += PX[y * W + x] == ZUI_VOID || PX[y * W + x] == ZUI_PANEL;
+    CHECK(dark == 0, "no dark token left on the rail (%u)", dark);
+    D.library = true;
+    zui_desk_draw(&D, &s, 0);
+    CHECK(PX[(at.y - 1) * W + at.x + at.w / 2] == lt->c[ZUI_C_GOLD], "the light set's gold ring");
+}
+
 static void status(void)
 {
     zui_desk_init(&D, W, H, 256u, false, 0);
@@ -220,6 +306,8 @@ int main(void)
     geometry();
     rail();
     windows();
+    icons();
+    schemes();
     status();
     if (fails) {
         printf("test_zui_desk: %d of %d checks failed\n", fails, checks);

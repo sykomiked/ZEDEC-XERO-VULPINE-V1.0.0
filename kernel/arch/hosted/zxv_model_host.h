@@ -90,7 +90,7 @@ int zxv_model_answer_ex(const char *prompt, zxv_gen_runner_fn run, void *rctx, c
 uint64_t zxv_model_prompt_tokens(void);
 
 /* M6: slot and agent numbers are 0..ZXV_SLOTS-1 and 0..ZXV_AGENTS-1. */
-#define ZXV_SLOTS  4u
+#define ZXV_SLOTS  12u
 #define ZXV_AGENTS 16u
 /* Map and check a model into a slot (replacing it and closing its agents).
  * 0 or -1; zxv_slot_info(slot)->status says why. */
@@ -135,6 +135,12 @@ void zxv_zt_last_verdict(zxv_zt_verdict_t *out);
 int zxv_zt_can_run(const zt_gguf_t *g);
 /* Free the loaded weights and KV cache (the slot calls it on close). */
 void zxv_zt_release(void);
+/* What runs the loaded model (zxv_zt_glue.c G7, zt_choose.h), measured:
+ * "metal: Apple M3 Max (prompts and steps)", "vulkan: ... (prompts);
+ * avx512vnni/8 (steps)", "neon/8", ...; "" before a model is loaded. */
+const char *zxv_zt_gpu(void);
+/* The measured record behind that choice (one line; ZT_CHOICE replays it). */
+const char *zxv_zt_choice(void);
 
 /* G6 (M6): a base loaded once, agents with their own KV cache and adapter. */
 typedef struct zxv_zt_base zxv_zt_base_t;
@@ -143,6 +149,12 @@ typedef struct zxv_zt_agent zxv_zt_agent_t;
 int32_t zxv_zt_base_load(zxv_zt_base_t **out, const zt_gguf_t *g, char *err, size_t err_cap);
 /* Free a base; -1 (and nothing freed) while agents still run on it. */
 int32_t zxv_zt_base_free(zxv_zt_base_t *b);
+/* As zxv_zt_gpu and zxv_zt_choice, for a base. */
+const char *zxv_zt_base_gpu(const zxv_zt_base_t *b);
+const char *zxv_zt_base_choice(const zxv_zt_base_t *b);
+/* Whole forward passes and matrix products b's GPU has run so far (0 and 0
+ * on the CPU). */
+void zxv_zt_base_gpu_work(const zxv_zt_base_t *b, uint64_t *passes, uint64_t *products);
 /* An agent on b with the LoRA adapter in lora (null: none) at scale_q16. The
  * adapter is copied: lora need not outlive the call. 0 or negative. */
 int32_t zxv_zt_agent_new(zxv_zt_agent_t **out, zxv_zt_base_t *b, const zt_gguf_t *lora,

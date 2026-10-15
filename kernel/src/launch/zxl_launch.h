@@ -202,9 +202,12 @@ typedef struct {
     uint32_t part_p[ZXL_MAX_PARTS]; /* each part's real progress 0..256       */
     uint32_t lit;                   /* bit i: part i lit                      */
     uint32_t nlit;
-    uint32_t rest; /* release progress 0..256 or ZXL_UNKNOWN */
-    uint8_t phase; /* zxl_phase_t                            */
-    uint8_t warm;  /* opened already loaded: END only        */
+    uint32_t rest;   /* release progress 0..256 or ZXL_UNKNOWN */
+    uint8_t phase;   /* zxl_phase_t                            */
+    uint8_t warm;    /* opened already loaded: END only        */
+    uint8_t failed;  /* the load failed or was cancelled: never END */
+    uint8_t fed;     /* fed by zxl_launch_blocks                     */
+    uint32_t load_p; /* blocks verified, 0..256 of all              */
     zxl_event_t q[ZXL_QUEUE];
     uint32_t qh, qn;
 } zxl_launch_t;
@@ -237,6 +240,33 @@ int zxl_launch_lit(zxl_launch_t *l, uint32_t part);
  * was not on screen while it gathered), the mark lights if it has not, and
  * END follows. Nothing happens once END has been queued. */
 void zxl_launch_finish(zxl_launch_t *l);
+
+/* ---- real load from fabrication (FABRICATION.md, PROGRESS) -----------------
+ * An app built from a recipe loads by fetching and verifying its blocks
+ * (zxvd fab.receive.start, then fab.receive.step until phase "done"; zxvd_fab.h
+ * B13). The blocks are the gathering: they are shared out over the tiles in
+ * the order the bar lights them (the outer pair first, the centre last; a
+ * pair fills together, as the bar runs in from both ends), so a tile is full
+ * exactly when its share of blocks has matched its CIDs. Once every block is
+ * in, the build runs for an unknown time: the rest is ZXL_UNKNOWN and the
+ * bar breathes. Only phase "done" (the target CID matched, the app written
+ * out) may finish the launch. */
+
+/* A fab.receive.step answer in phase "fetch": blocks_done of blocks_total
+ * verified. Counts only ever move the tiles forward; total 0 is an app with
+ * nothing to fetch (every tile full). Returns 0, or -1 when the launch is
+ * warm, over or failed (nothing changes). */
+int zxl_launch_blocks(zxl_launch_t *l, uint32_t blocks_done, uint32_t blocks_total);
+
+/* A step failed or the job was cancelled: the launch never ends (no END, and
+ * zxl_launch_finish is refused from now on). */
+void zxl_launch_fail(zxl_launch_t *l);
+
+/* Where the window's launch screen stands, as zui_wm_progress takes it:
+ * the gathering 0..128 (the mean of the tiles), 192 once every tile is lit
+ * (the mark lit; more with a known rest, up to 255), 256 only once the
+ * launch has ended. */
+uint32_t zxl_launch_screen_p(const zxl_launch_t *l);
 
 /* Take the next event; returns 1 and fills *ev, or 0 when none is waiting. */
 int zxl_launch_next(zxl_launch_t *l, zxl_event_t *ev);

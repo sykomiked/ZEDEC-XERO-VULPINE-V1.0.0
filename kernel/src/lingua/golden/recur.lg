@@ -1,0 +1,51 @@
+; Recursion: factorial, Ackermann, Towers of Hanoi and mutual recursion
+
+to fact :n
+if :n < 2 [output 1]
+output :n * fact :n - 1
+end
+
+to ack :m :n
+if :m = 0 [output :n + 1]
+if :n = 0 [output ack :m - 1 1]
+output ack :m - 1 ack :m :n - 1
+end
+
+to hanoi :n :from :to :via
+if :n = 0 [stop]
+hanoi :n - 1 :from :via :to
+(print "move :n :from "to :to)
+hanoi :n - 1 :via :to :from
+end
+
+to evenp :n
+if :n = 0 [output "true]
+output oddp :n - 1
+end
+
+to oddp :n
+if :n = 0 [output "false]
+output evenp :n - 1
+end
+
+to depth :n
+if :n = 0 [output 0]
+output 1 + depth :n - 1
+end
+
+to countdown :n
+if :n < 0 [stop]
+type :n
+countdown :n - 1
+end
+
+for [i 0 10] [(print :i fact :i)]
+print fact 15
+print ack 2 3
+print ack 3 3
+hanoi 3 "a "c "b
+print evenp 10
+print oddp 7
+print depth 200
+countdown 9
+print []

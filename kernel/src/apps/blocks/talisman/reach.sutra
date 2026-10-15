@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How far an input has come toward its threshold, in hundredths of a
+# percent, never rounded up and held at 10000 (the threshold met), in Sutra
+# (talisman_rules.h TL1): min(10000, floor(10000 * have / need)). have and
+# need fit 9(9), so a negative or a larger one is refused, and a need of 0
+# is a division Sutra refuses. reach.tb says the same in Trebago.
+record tier-reach
+  have: 9(9)
+  need: 9(9)
+  reach: 9(13)
+procedure
+  compute reach = have * 10000 / need
+  if reach > 10000
+    answer 10000
+  end-if
+  answer reach

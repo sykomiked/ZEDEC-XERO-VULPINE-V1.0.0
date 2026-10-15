@@ -532,6 +532,62 @@ def econ_checks(c):
     c.ok('features.set', {'feature': 'estate', 'enabled': False})
 
 
+NAMED = {}  # the chiglet name_checks gave, checked again after a restart
+
+
+def name_checks(c, env):
+    """companion.name, companion.name_preview, companion.name_confirm (zxvd_companion.h
+    H7-H11): named once, kept in the state folder, the personality grown from the name."""
+    check(c.ok('companion.name') == {'named': False, 'name': None}, 'companion.name: not named yet')
+    r = c.call('companion.name_preview', {'name': 'Mega Man'})
+    check(r.get('error', {}).get('code') == -32072 and
+          r['error']['message'].startswith('CHGN_E_RESERVED:'),
+          'companion.name_preview refuses a reserved name (%s)' % r)
+    p = c.ok('companion.name_preview', {'name': 'Lumi'})
+    check(p['name'] == 'Lumi' and p['seed'].isdigit() and len(p['confirm']) == 64 and
+          len(p['genes']) == 8 and 'home' in p['traits'],
+          'companion.name_preview shows the personality and a confirm digest (%s)' % p)
+    check(c.ok('companion.name')['named'] is False, 'a preview keeps nothing')
+    other = c.ok('companion.name_preview', {'name': 'Pip'})
+    r = c.call('companion.name_confirm', {'name': 'Lumi', 'confirm': other['confirm']})
+    check(r.get('error', {}).get('code') == -32072 and
+          r['error']['message'].startswith('CHGN_E_DIGEST:'),
+          'companion.name_confirm needs the digest of the name shown (%s)' % r)
+    n = c.ok('companion.name_confirm', {'name': 'Lumi', 'confirm': p['confirm']})
+    check(n == {'named': True, 'name': 'Lumi'}, 'companion.name_confirm names it (%s)' % n)
+    d = c.ok('companion.dna')
+    check(d['seed'] == p['seed'] and d['genes'] == p['genes'] and d['agent_id'] == 1,
+          'the companion has the name\'s personality (%s)' % d)
+    for name in ('Lumi', 'Pip'):
+        r = c.call('companion.name_preview', {'name': name})
+        check(r.get('error', {}).get('code') == -32072 and
+              r['error']['message'].startswith('CHGN_E_LOCKED:'),
+              'once named, no previews (%s)' % r)
+    r = c.call('companion.name_confirm', {'name': 'Pip', 'confirm': other['confirm']})
+    check(r.get('error', {}).get('code') == -32072 and
+          r['error']['message'].startswith('CHGN_E_LOCKED:'),
+          'the name can never change (%s)' % r)
+    # the host's state folder (zxv_host.c pal_state_dir): XDG on Linux, the app folder on macOS
+    if sys.platform == 'darwin':
+        rec = os.path.join(env['HOME'], 'Library', 'Application Support', 'ZXV', 'net', 'chiglet_name')
+    else:
+        rec = os.path.join(env['XDG_DATA_HOME'], 'zxv', 'net', 'chiglet_name')
+    check(os.path.isfile(rec) and os.path.getsize(rec) == 79 and open(rec, 'rb').read(4) == b'ZXCN',
+          'the name is kept in the state folder (%s)' % rec)
+    if not WINDOWS:
+        check(stat.S_IMODE(os.stat(rec).st_mode) == 0o600, 'the name record is 0600')
+    NAMED.update(name='Lumi', seed=p['seed'], genes=p['genes'])
+
+
+def name_after_restart(c):
+    """The same chiglet after a restart: its name and its personality."""
+    check(c.ok('companion.name') == {'named': True, 'name': NAMED.get('name')},
+          'the chiglet answers to its name after a restart')
+    d = c.ok('companion.dna')
+    check(d['seed'] == NAMED.get('seed') and d['genes'] == NAMED.get('genes'),
+          'and has the same personality (%s)' % d)
+
+
 def companion_checks(c):
     """companion.dna, companion.generation, companion.mood (zxvd_companion.h H1-H6)."""
     fs = {f['name']: f for f in c.ok('features.get')['features']}
@@ -1001,10 +1057,19 @@ def main(binary, gguf=None):
     out = subprocess.run([binary, '--rpc', bad, '--earnings-rate', '0'], capture_output=True,
                          text=True, timeout=10)
     check(out.returncode == 2 and '--earnings-rate' in out.stderr, 'refuses earnings rate 0')
-    out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', 'vfv'], capture_output=True,
-                         text=True, timeout=20)
-    check(out.returncode == 1 and 'earnings currency' in out.stderr and not os.path.exists(bad),
-          'refuses an earnings currency libzxv does not accept, leaving no socket')
+    for code in ('VFV', 'vfv'):
+        out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', code], capture_output=True,
+                             text=True, timeout=10)
+        check(out.returncode == 2 and 'never earns vouchers' in out.stderr and
+              not os.path.exists(bad),
+              'refuses %s for own-device credit (zxvd_rpc.h E6), leaving no socket' % code)
+    for code in ('swc', 'USD'):
+        out = subprocess.run([binary, '--rpc', bad, '--earnings-ccy', code], capture_output=True,
+                             text=True, timeout=20)
+        check(out.returncode == 1 and 'earnings currency' in out.stderr and
+              not os.path.exists(bad),
+              'refuses %s when the books open (libzxv code rule, or money), leaving no socket'
+              % code)
 
     home = tempfile.mkdtemp(prefix='zxvd-test-')
     models = os.path.join(home, 'models')
@@ -1050,8 +1115,8 @@ def main(binary, gguf=None):
 
         c = Client(sock)
         d = c.ok('rpc.discover')
-        want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'model.info',
-                'notes.list', 'notes.mark_read', 'net.command', 'update.check',
+        want = {'zxvd.version', 'zxvd.shutdown', 'swarm.state', 'swarm.ask', 'swarm.organ',
+                'model.info', 'notes.list', 'notes.mark_read', 'net.command', 'update.check',
                 'currency.enable', 'ledger.open_account', 'ledger.post', 'ledger.balance',
                 'ledger.accounts', 'ledger.entries', 'ledger.check', 'swarm.earnings',
                 'mesh.books', 'books.file', 'net.peers', 'net.offers', 'player.card',
@@ -1061,6 +1126,7 @@ def main(binary, gguf=None):
                 'netting.positions', 'netting.list', 'netting.drop', 'passkey.register',
                 'passkey.verify', 'ledger.hold', 'ledger.release', 'ledger.refund',
                 'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
+                'companion.name', 'companion.name_preview', 'companion.name_confirm',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
                 'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
                 'power.top', 'power.budget', 'pspace.create', 'pspace.find', 'pspace.join',
@@ -1097,17 +1163,18 @@ def main(binary, gguf=None):
               (s1['ledger_audited'], transfers, s1['audit']))
         # ---- the swarm's earnings in the owner's books (zxvd_rpc.h E1-E4) ----
         ea = c.ok('swarm.earnings')
-        check(ea['currency'] == 'VFV' and ea['rate_minor'] == '1' and
+        check(ea['currency'] == 'SWC' and ea['rate_minor'] == '1' and
+              ea['vfv_reversed_minor'] == '0' and
               int(ea['cycles']) >= 1 and int(ea['postings']) >= 1 and
               int(ea['balance_minor']) > 0,
-              'swarm.earnings: settled cycles post into the owner\'s books in VFV (%s)' % ea)
+              'swarm.earnings: settled cycles post own-device credit in SWC, never VFV (%s)' % ea)
         ob = c.ok('ledger.balance', {'account': ea['owner_account']})
         oj = c.ok('ledger.entries', {'account': ea['owner_account']})['entries']
         check(int(ob['equity_minor']) > 0 and
               sum(int(e['signed_minor']) for e in oj) == int(ob['equity_minor']) and
               all(e['counterparty'] == ea['source_account'] for e in oj) and
               [e['reference'] for e in oj][:2] == ['swarm earnings 1', 'swarm earnings 2'][:len(oj)],
-              'the owner\'s VFV journal is the market\'s postings (%d entries)' % len(oj))
+              'the owner\'s SWC journal is the market\'s postings (%d entries)' % len(oj))
         # ---- AIPI on Z-Wasm (zxvd_aipi.h Z1-Z4); not in the Windows build yet ----
         if WINDOWS:
             r = c.call('aipi.status')
@@ -1125,6 +1192,7 @@ def main(binary, gguf=None):
             people_checks(c, binary, models, env, gguf)
         econ_checks(c)
         companion_checks(c)
+        name_checks(c, env)
         web4_checks(c)
         space_checks(c)
         mi = c.ok('model.info')
@@ -1147,7 +1215,14 @@ def main(binary, gguf=None):
             check(not mi['loaded'], 'model.info: no model is a normal state')
             a = c.ok('swarm.ask', {'prompt': 'plan(trip) -> verify(costs)'})['answer']
             check('(plan(trip) -> verify(costs))' in a, 'swarm.ask reads shorthand back')
+            o = c.ok('swarm.organ', {'organ': 'smith', 'prompt': 'plan(trip) -> verify(costs)'})
+            check(o['organ'] == 'smith' and '(plan(trip) -> verify(costs))' in o['answer'],
+                  'swarm.organ: the smith answers: %r' % o)
+            check(o['verdict'] == 'neither' and not o['witnessed'] and o['action'] == 'wait',
+                  'swarm.organ: no fitted head, so no verdict and no witness: %r' % o)
             power_checks(c, False)
+        r = c.call('swarm.organ', {'organ': 'blacksmith', 'prompt': 'x'})
+        check(r.get('error', {}).get('code') == -32602, 'swarm.organ with an unknown organ: -32602')
         r = c.call('swarm.ask', {'prompt': 42})
         check(r.get('error', {}).get('code') == -32602, 'swarm.ask with a non-string prompt: -32602')
         r = c.call('net.command', {'command': 'everything'})
@@ -1240,9 +1315,10 @@ def main(binary, gguf=None):
               'ledger.entries: alice\'s journal')
         acc = c.ok('ledger.accounts')['accounts']
         usd = [a for a in acc if a['currency'] == 'USD']
-        vfv = [a for a in acc if a['currency'] == 'VFV']
+        swc = [a for a in acc if a['currency'] == 'SWC']
         check([a['name'] for a in usd] == ['bank', 'alice', 'bob'] and usd[0]['kind'] == 'issuer' and
-              [(a['name'], a['kind']) for a in vfv] ==
+              not [a for a in acc if a['currency'] == 'VFV'] and
+              [(a['name'], a['kind']) for a in swc] ==
               [('swarm market', 'issuer'), ('owner: swarm earnings', 'holder')],
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')
@@ -1329,6 +1405,7 @@ def main(binary, gguf=None):
 
         p4, c4 = run_with_books()
         try:
+            name_after_restart(c4)
             bf = c4.ok('books.file')
             check(bf['saved'] is True and bf['writable'] is True and int(bf['records']) >= 2,
                   'books.file: saved, writable (%s)' % bf)

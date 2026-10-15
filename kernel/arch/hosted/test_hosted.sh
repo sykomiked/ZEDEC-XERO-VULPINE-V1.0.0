@@ -62,16 +62,40 @@ run_cc "$T/zxv-host"
 
 # the forward-pass glue against the tensor engine's reference chain
 if [ -n "$DEFS" ]; then
-    set -- "$HERE/test_zxv_zt_glue.c" "$HERE/zxv_zt_glue.c"
+    # zt_zxvc.c checks a .zxvc package's digest: SHA-256 links with the engine
+    set -- "$HERE/test_zxv_zt_glue.c" "$HERE/zxv_zt_glue.c" "$K/src/robin_debanks/sha256.c"
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
-    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" "$@" -o "$T/test_glue"
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" -o "$T/test_glue"
     "$T/test_glue"
     # several models at once: slots, agents, a LoRA adapter per agent (M6, G6)
-    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c"
+    set -- "$HERE/test_zxv_swarm_slots.c" "$HERE/zxv_model_host.c" "$HERE/zxv_zt_glue.c" \
+        "$K/src/robin_debanks/sha256.c"
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
-    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" -lpthread \
         -o "$T/test_swarm_slots"
     "$T/test_swarm_slots" "$T"
+    # the models on the GPU this machine has (G7: Metal on a Mac; CUDA, HIP
+    # or Vulkan elsewhere), every reply equal to the CPU's; with no GPU both
+    # runs are on the CPU and the test says so
+    set -- "$HERE/test_zxv_zt_gpu.c" "$HERE/zxv_zt_glue.c" "$K/src/robin_debanks/sha256.c"
+    for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
+    GPUF="-ldl"
+    case "$("$CC" -dumpmachine 2>/dev/null)" in
+        *darwin*|*apple*)
+            set -- "$@" "$K/src/tensor/zt_metal.m"
+            GPUF="-DZT_HAVE_METAL -framework Metal -framework Foundation" ;;
+        *)
+            if command -v glslangValidator >/dev/null 2>&1 &&
+                echo '#include <vulkan/vulkan.h>' | "$CC" -E -x c - >/dev/null 2>&1; then
+                sh "$K/src/tensor/gen_zt_vk_spv.sh" "$T/zt_vk_spv.h"
+                GPUF="$GPUF -DZT_VK_SPV_H=\"$T/zt_vk_spv.h\""
+            fi ;;
+    esac
+    # shellcheck disable=SC2086 # GPUF is a list of flags
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" -I"$K/include" -I"$K/src/modbind" "$@" $GPUF -lpthread \
+        -o "$T/test_zt_gpu"
+    "$T/test_zt_gpu" > "$T/test_zt_gpu.log" 2>&1 || { cat "$T/test_zt_gpu.log"; exit 1; }
+    echo "[PASS] app models on the GPU == the CPU ($(tail -1 "$T/test_zt_gpu.log"))"
 fi
 
 # the 64-state tag on one answer (zxv_answer_tag.h)
@@ -81,11 +105,26 @@ args "$T/tag"
 run_cc "$T/test_tag"
 "$T/test_tag"
 
+# talking to several Tiamat cells at once (zxv_tiamat.h, harness H1)
+printf '%s\n' arch/hosted/test_zxv_tiamat.c arch/hosted/zxv_tiamat.c > "$T/tiamat"
+args "$T/tiamat"
+run_cc "$T/test_tiamat"
+"$T/test_tiamat" "$T"
+
+# R24: idle self-work in slices and one sealed receipt per interaction
+printf '%s\n' arch/hosted/test_zxv_idle.c arch/hosted/zxv_idle.c arch/hosted/zxv_receipt.c \
+    arch/hosted/zxv_tiamat.c src/robin_debanks/sha256.c > "$T/idle"
+args "$T/idle"
+run_cc "$T/test_idle"
+mkdir -p "$T/idle_dir"
+"$T/test_idle" "$T/idle_dir"
+
 # the swarm budget governs generation (zxv_budget_gate.h)
 printf '%s\n' arch/hosted/test_zxv_budget_gate.c arch/hosted/zxv_budget_gate.c \
     src/swarm/swarm_budget.c > "$T/gate"
 if [ -n "$DEFS" ]; then
     echo arch/hosted/zxv_zt_glue.c >> "$T/gate"
+    echo src/robin_debanks/sha256.c >> "$T/gate"
     (cd "$K" && for f in src/tensor/zt*.c; do echo "$f"; done) >> "$T/gate"
 fi
 args "$T/gate"

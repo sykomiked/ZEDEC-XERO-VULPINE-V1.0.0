@@ -1,0 +1,93 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Warren, services: layer 20 of the matrix. zxvd's engines are its
+# services: each feature switch (features.get) with whether it is on and
+# whether it is regulated, turned on or off by the owner (features.set; a
+# restart is off then on, retried with back-off when the "on" fails), the
+# energy each consumer drew and its share of the whole (power.top,
+# power.status), the daemon itself (zxvd.version, sys.info) and its recent
+# events (log.tail). Advisory and owner-confirmed: no switch changes
+# outside the owner's session, and a regulated engine is never turned on
+# without the owner's approval (warren_rules.h WR2, WR3).
+#
+# zxvd has no method that lists or controls host background processes
+# outside it, no energy per engine (power.top ranks the system, apps and
+# agents), no restart (off then on here), no method that says whose
+# session this is (the view tells the model, as Gatehouse's grants) and no
+# notification method (the model composes the notice). None is invented.
+#
+#   change_ok    may this switch change now (WR2). The task asks for Eve and
+#                KRON; Eve checks each field against its own range only
+#                (zxapp_eve.c EV2), and this rule relates fields ("a
+#                regulated engine turned on needs approval": an or across
+#                fields), so Sutra and KRON witness it, as Stillwater's
+#                let_through and Threshold's rights_ok. A flag of 2 is no
+#                flag to Sutra and a yes to KRON: held.
+#   approval_ok  the owner's word for a regulated engine turned on (WR3), a
+#                record Eve can declare: owner session 1 and approval 1,
+#                Eve and KRON witnessed (the task's Eve + KRON pair); a flag
+#                of 2 fits KRON's yes and not Eve's record: held.
+#   backoff      the wait before each restart attempt (WR4): min(most,
+#                base * 2^(k - 1)) for k = 1..tries, BASIC (as its twin
+#                Hatchling) and KRON; BASIC refuses tries past 32, base
+#                past 3600 or most past 86400 seconds, KRON answers: held.
+#   banker.share each consumer's share of the energy drawn: the
+#                share_of_whole concept is banker's (CONCEPTS.tsv), so it
+#                is used, never written again. The task's "KRON + Trebago"
+#                for it is not taken: banker runs it in KRON and C++
+#                (WebAssembly), and its owner keeps its languages.
+#   record_ok    an engine's service record, ^ZXWARREN, in MYRA (WR5).
+#
+# Planned languages: JCL owns jobs, and stands for the restart's retries
+# (backoff). IPL owns list processing and symbolic search: no entry here
+# is either, so it is not pending.
+zxapp 1
+id     warren
+name   Warren
+version 1.0.0
+slot   20
+layer  L1
+matrix 20
+icon   icons/l1/020-warren.svg
+budget 233
+needs  sys.read
+needs  journal
+needs  notify
+model  apps/warren_model.c
+use    banker 1   # @num.banker_share
+
+# May this switch change now (WR2), Sutra and KRON.
+provides change_ok truth owner regulated approved enable
+logic    sutra change_ok apps/blocks/warren/change.sutra
+logic    kron  change_ok apps/blocks/warren/change.kron
+
+# The owner's approval for a regulated engine turned on (WR3), Eve and KRON.
+provides approval_ok truth owner approved
+logic    eve  approval_ok apps/blocks/warren/approval.eve
+logic    kron approval_ok apps/blocks/warren/approval.kron
+
+# A restart's back-off, one wait per attempt (WR4). BASIC, written in its
+# twin Hatchling's canonical form (zxlang twin); the line names the runtime
+# "basic", since the Alexandria index numbers runtimes, not twins.
+provides backoff num tries base most
+logic    basic backoff apps/blocks/warren/backoff.bas
+logic    kron  backoff apps/blocks/warren/backoff.kron
+pending  JCL backoff
+
+# An engine's service record (WR5), in MYRA.
+provides record_ok truth engine enabled regulated restarts changed
+logic    myra record_ok apps/blocks/warren/service.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check change_ok owner=1,1,1,1,1,0,0,1 regulated=0,0,1,1,1,0,1,1 approved=0,0,0,1,0,1,1,0 enable=1,0,1,1,0,1,1,0 = true,true,false,true,true,false,false,true
+check change_ok owner=1,2 regulated=0,0 approved=0,0 enable=1,1 = both
+check change_ok owner=1,1 regulated=1,1 approved=1,-1 enable=1,1 = both
+check approval_ok owner=1,1,0,0 approved=1,0,1,0 = true,false,false,false
+check approval_ok owner=1,1 approved=1,2 = both
+check backoff tries=8 base=2 most=60 = 2,4,8,16,32,60,60,60
+check backoff tries=1 base=3600 most=86400 = 3600
+check backoff tries=8 base=0 most=60 = both
+check backoff tries=4 base=2 most=86401 = both
+check record_ok engine=0,99,100,1 enabled=1,9,1,10 regulated=0,9,0,1 restarts=0,999,0,1 changed=1700000000000,999999999999999,1,1 = true,true,false,false
+check banker.share size=0,14090000,7045000 total=14090000 = 0,10000,5000

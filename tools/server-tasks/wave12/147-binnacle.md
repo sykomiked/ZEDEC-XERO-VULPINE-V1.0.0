@@ -1,6 +1,6 @@
 # Wave 12 task: Binnacle (slot 147), Offline navigation
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (085 waymark), wave 7 (088 weatherglass), wave 8 (101 orrery), wave 9 (110 sundial).
+Depends on: wave 0 (085 waymark), wave 8 (088 weatherglass), wave 9 (101 orrery, 110 sundial).
 Manifest: `slot 147`, `layer L2`, `icon icons/l2/147-binnacle.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: position, heading and routes worked out offline from star sights, the clock (`sys.info`) and saved places (`place.here`, `place.list`, `place.add`), with no outside service. zxvd has no method for star-sight entry from an instrument, chart data: use only existing methods; list what's missing in your report.
 Uses: `use waymark 1` (`waymark.place_ok` on every fix and waypoint); `use weatherglass 1` (unit conversion and wind warnings for the leg); `use orrery 1` (day number and mean longitude, above the horizon, for a sight); `use sundial 1` (local time for a zone). Call these composed entries; do not re-implement them.
@@ -9,4 +9,5 @@ BOTH test: a star fix and a clock fix 1000 m apart with a 500 m tolerance: the p
 Advisory navigation aid, not a certified navigation system; a person steers and keeps official charts.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, sys.read, notify.
-Planned (no runtime yet): Logo, Prolog.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/binnacle/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog.

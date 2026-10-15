@@ -12,6 +12,7 @@ zxblock 1
 id       number_classics
 name     Number classics
 version  1.0.0
+matrix 0
 author   36N9 Genetics
 # The greatest common divisor of a and b (Euclid), never negative.
 provides gcd num a b

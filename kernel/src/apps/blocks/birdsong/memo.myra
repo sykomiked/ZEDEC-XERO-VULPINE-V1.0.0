@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Birdsong files a voice memo it keeps in the Hoard, in MYRA: the
+; memo's number, its sample rate in hertz, its channels, its length in
+; frames and when it was saved (Unix seconds). Birdsong asks whether the
+; numbers fit before it lists them.
+^ZXBIRDSONG(memo:i9) = rate:i5! ^ channels:i1! ^ frames:i9! ^ mtime:i12!

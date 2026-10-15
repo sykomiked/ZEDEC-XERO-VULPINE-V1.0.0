@@ -1,0 +1,54 @@
+(* The same three algorithms as collatz.f, collatz.bas and collatz.pas:
+   Collatz steps for 1..12, Euclid's GCD, Fibonacci numbers. *)
+MODULE Collatz;
+IMPORT Out;
+VAR
+  n, f1, f2, t, i: INTEGER;
+
+PROCEDURE CollatzSteps(k: INTEGER): INTEGER;
+VAR
+  s: INTEGER;
+BEGIN
+  s := 0;
+  WHILE k # 1 DO
+    IF ODD(k) THEN
+      k := 3 * k + 1
+    ELSE
+      k := k DIV 2
+    END;
+    INC(s)
+  END
+  RETURN s
+END CollatzSteps;
+
+PROCEDURE Gcd(x, y: INTEGER): INTEGER;
+VAR
+  r: INTEGER;
+BEGIN
+  IF y = 0 THEN
+    r := x
+  ELSE
+    r := Gcd(y, x MOD y) (* recursion *)
+  END
+  RETURN r
+END Gcd;
+
+BEGIN
+  FOR n := 1 TO 12 DO
+    Out.Int(n, 4);
+    Out.Int(CollatzSteps(n), 4);
+    Out.Ln
+  END;
+  Out.String("GCD ");
+  Out.Int(Gcd(1071, 462), 0);
+  Out.Ln;
+  f1 := 0;
+  f2 := 1;
+  FOR i := 1 TO 15 DO
+    Out.Int(f1, 0);
+    Out.Ln;
+    t := f1 + f2;
+    f1 := f2;
+    f2 := t
+  END
+END Collatz.

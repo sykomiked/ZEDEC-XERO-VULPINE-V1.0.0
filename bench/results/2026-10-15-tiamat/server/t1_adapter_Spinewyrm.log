@@ -1,0 +1,104 @@
+`torch_dtype` is deprecated! Use `dtype` instead!
+trainable params: 18,464,768 || all params: 1,562,179,072 || trainable%: 1.1820
+epoch 0 step 0 loss 11.4528
+epoch 0 step 50 loss 0.0768
+epoch 0 step 100 loss 0.0056
+epoch 0 step 150 loss 0.0006
+epoch 0 step 200 loss 0.0133
+epoch 0 step 250 loss 0.0004
+epoch 0 step 300 loss 0.0024
+epoch 0 step 350 loss 0.0003
+epoch 0 step 400 loss 0.0003
+epoch 0 step 450 loss 0.0002
+epoch 0 step 500 loss 0.0087
+epoch 0 step 550 loss 0.0001
+epoch 0 step 600 loss 0.0001
+epoch 0 step 650 loss 0.0001
+epoch 0 step 700 loss 0.0009
+epoch 0 step 750 loss 0.0003
+epoch 0 step 800 loss 0.0004
+epoch 0 step 850 loss 0.0001
+epoch 0 step 900 loss 0.0407
+epoch 0 step 950 loss 0.0002
+epoch 0 step 1000 loss 0.0001
+epoch 0 step 1050 loss 0.0002
+epoch 0 step 1100 loss 0.0059
+epoch 0 step 1150 loss 0.0002
+epoch 0 step 1200 loss 0.0001
+{
+  "model": "/srv/tiamat/models/Spinewyrm/src",
+  "n_train": 20000,
+  "n_test": 4000,
+  "accuracy": 0.99825,
+  "false_certainty_rate": 0.0015,
+  "confusion_rows_truth_cols_pred": [
+    "FALSE",
+    "NEITHER",
+    "BOTH",
+    "TRUE"
+  ],
+  "confusion": [
+    [
+      1996,
+      1,
+      0,
+      3
+    ],
+    [
+      3,
+      1997,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "extra_test": {
+    "n": 200,
+    "accuracy": 0.765,
+    "false_certainty_rate": 0.28,
+    "confusion_rows_truth_cols_pred": [
+      "FALSE",
+      "NEITHER",
+      "BOTH",
+      "TRUE"
+    ],
+    "confusion": [
+      [
+        41,
+        8,
+        0,
+        1
+      ],
+      [
+        0,
+        50,
+        0,
+        0
+      ],
+      [
+        14,
+        6,
+        16,
+        14
+      ],
+      [
+        0,
+        4,
+        0,
+        46
+      ]
+    ],
+    "file": "/srv/tiamat/tests/2026-10-15/t1_handset.jsonl"
+  }
+}

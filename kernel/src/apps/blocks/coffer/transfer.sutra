@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Whether a transfer is allowed, in Sutra: an amount of 1 to 2^53 - 1
+# minor units, after (the paying balance after it) and room (the per-day
+# cap left after it) not below zero, gap (out minus in) zero. Every field
+# is s9(18): a value past 18 digits is refused. transfer.eve says the same
+# in Eve; the app posts only when both say TRUE.
+record coffer-transfer
+  amount: s9(18)
+  after: s9(18)
+  room: s9(18)
+  gap: s9(18)
+procedure
+  answer amount >= 1 and amount <= 9007199254740991 and after >= 0 and room >= 0 and gap = 0

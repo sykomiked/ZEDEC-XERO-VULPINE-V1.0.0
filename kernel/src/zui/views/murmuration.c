@@ -69,8 +69,9 @@ static void face(zui_ui_t *ui, zui_id_t w, zui_surface_t *s, zui_rect_t r, void 
     const murm_swarm_t *sw = &v->m->sw;
     const murm_agent_t *a = agent(v, v->m->sel);
     int32_t rad = zui_px(&ui->screen, ZUI_R_PANEL);
-    zui_fill_rrect(s, r, rad, ZUI_PANEL, 255);
-    zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 40);
+    zui_fill_rrect(s, r, rad, zui_ui_color(ui, ZUI_C_PANEL), 255);
+    zui_engrave(s, r, rad, zui_ui_color(ui, ZUI_C_ENGRAVE_LO), zui_ui_color(ui, ZUI_C_ENGRAVE_HI),
+                40);
     if (!v->m->refreshes) return;
     swarm_feeling_t f = a ? feeling_of(a->codepoint, a->intensity)
                           : feeling_of(sw->mood_codepoint, sw->mood_intensity);
@@ -254,6 +255,8 @@ static void sync_detail(murm_view_t *v)
     } else if (m->refreshes) {
         put_u(t, sizeof t, "The swarm  \xC2\xB7  ", sw->n_total,
               sw->n_total == 1 ? " agent" : " agents");
+    } else { /* say what the empty pane is for until there is a snapshot */
+        zv_cat(t, sizeof t, "The swarm's mood shows here after Refresh", 0);
     }
     zui_set_text(ui, v->who, t);
     t[0] = 0;

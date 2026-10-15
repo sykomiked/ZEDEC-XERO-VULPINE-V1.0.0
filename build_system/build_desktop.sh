@@ -129,8 +129,9 @@ build() {   # target output [libs...]
 step "Compiling the engine"
 if [ "$ON_MAC" = 1 ]; then
     echo "  macOS universal (Apple clang)"
-    xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=10.15 "${CFLAGS[@]}" \
-        "${SRCS[@]}" -o "$WORK/zxv-mac"
+    # the GPU behind the models (zxv_zt_glue.c G7): Metal, both slices
+    xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=10.15 "${CFLAGS[@]}" -DZT_HAVE_METAL \
+        "${SRCS[@]}" "$TENSOR/zt_metal.m" -framework Metal -framework Foundation -o "$WORK/zxv-mac"
     strip -x "$WORK/zxv-mac"
     MAC_ARCHS="universal (Intel + Apple Silicon)"
     # The app's engine is zxvd: the same swarm plus its JSON-RPC control
@@ -235,6 +236,9 @@ sed -e "s/@VERSION@/$VERSION/g" -e "s/@EXECUTABLE@/$EXEC/g" -e "s/@UIELEMENT@/$U
     "$MACOS/Info.plist.in" > "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 put_fonts "$APP/Contents/Resources/Fonts"
+# the app library's catalogue and its 407 vector icons (zxv_desktop.h HD6)
+mkdir -p "$APP/Contents/Resources/Icons"
+cp "$ROOT/assets/icons/apps/zxv-apps.zxap" "$APP/Contents/Resources/Icons/"
 cp "$MACOS/models.manifest" "$APP/Contents/Resources/models.manifest"
 cp "$MACOS/zxv-model-fetch.sh" "$APP/Contents/Resources/zxv-model-fetch.sh"
 chmod 755 "$APP/Contents/Resources/zxv-model-fetch.sh"

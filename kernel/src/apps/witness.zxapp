@@ -1,0 +1,62 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Witness, the audit log: a record of what changed through zxvd, which
+# crossings it refused and held, which AI actions ran and what failed,
+# gathered from zxvd's journal (journal.query, kept across restarts) or,
+# with no journal, from its recent events (log.tail), stamped with zxvd's
+# clock (sys.info). Witness links every entry to the one before it and
+# checks that chain itself, asks zxvd to recompute the journal's hash
+# chain (journal.verify), and joins the two witnesses (lpres_kjoin): a
+# disagreement is held, never resolved by picking one. Read only.
+#
+# 7 later layers lean on this one, so its entries are general and owned
+# here (CONCEPTS.tsv): one link of any chain of indexes, a count of one
+# kind in any vector of kinds, and an audit record's fit. Nothing earlier
+# fits: the inner blocks are capacities, shares, days from seconds and
+# gcds; Murmuration's swarm shares (layer 61) weigh agents' tokens in a
+# cycle, not a record's entries; Coffer and Seedbank, which the task names,
+# are not built yet.
+#
+# zxvd's events carry no actor and no signature of their own, and zxvd has
+# no method to append a signed audit entry or to say who approved a
+# change, so Witness records what zxvd logged and seals it with the
+# journal's hash chain; nothing is invented.
+zxapp 1
+id     witness
+name   Witness
+version 1.0.0
+slot   18
+layer  L1
+matrix 18
+icon   icons/l1/018-witness.svg
+budget 233
+needs  journal
+needs  sys.read
+model  apps/witness_model.c
+
+# One link of the chain: an entry's prev index equals the index of the
+# entry before it (last; 0 for the first) and its own index is past it.
+# Critical (it says whether the record is whole), so witnessed over integer
+# vectors: KRON and Sutra. Sutra holds an index to 9(18) and refuses a
+# negative one; KRON answers: held.
+provides chain_ok truth seq prev last
+logic    kron  chain_ok apps/blocks/witness/chain.kron
+logic    sutra chain_ok apps/blocks/witness/chain.sutra
+
+# How many entries are of one kind (one want for the whole vector):
+# critical (the counts shown), so KRON and Trebago, exact.
+provides kind_count num kind want
+logic    kron    kind_count apps/blocks/witness/count.kron
+logic    trebago kind_count apps/blocks/witness/count.tb
+
+# An entry fits its record: index, prev, kind and stamp, in MYRA.
+provides audit_ok truth seq prev kind stamp
+logic    myra audit_ok apps/blocks/witness/entry.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check chain_ok seq=1,5,5,9,9,5,999999999999999999 prev=0,1,4,5,5,5,1 last=0,1,5,5,9,5,1 = true,true,false,true,false,false,true
+check chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+check kind_count kind=1,2,2,5,3 want=2 = 2
+check kind_count kind=1,2 want=1,1 = both
+check audit_ok seq=1,999999999999999999,1000000000000000000,-5 prev=0,999999999999999998,0,0 kind=1,5,1,9 stamp=1700000000000,999999999999999,0,1000000000000000 = true,true,false,false

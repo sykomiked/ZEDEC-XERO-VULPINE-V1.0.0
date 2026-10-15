@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Treadle files a task in MYRA: its number, its kind (0 on a schedule,
+; 1 on an event), the minute of the day it starts, its period in minutes,
+; its cost in tokens and whether the owner approved it (1) or it is held
+; (0). The rules say what the values may mean; this says whether they make
+; a record.
+^ZXTREADLE(task:i3) = kind:i1! ^ start:i4! ^ period:i4! ^ cost:i9! ^ approved:i1!

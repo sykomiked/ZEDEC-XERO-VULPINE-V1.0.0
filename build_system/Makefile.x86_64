@@ -142,18 +142,30 @@ SRCS := \
     kernel/src/acpi/aml_core.c \
     kernel/src/acpi/aml_region.c \
     kernel/src/acpi/aml_dev.c \
+    kernel/arch/x86_64/mca_x86.c \
+    kernel/src/mca/mca.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \
     kernel/src/hwdrv/hw_storage.c \
+    kernel/src/hwdrv/hw_models.c \
+    kernel/src/layers/layers.c \
+    kernel/src/layers/layers_boot.c \
     kernel/src/hwdrv/ahci.c \
     kernel/src/hwdrv/xhci.c \
     kernel/src/hwdrv/e1000.c \
     kernel/src/hwdrv/hda.c \
     kernel/src/hwdrv/igb.c \
+    kernel/src/hwdrv/igc.c \
     kernel/src/hwdrv/r8169.c \
     kernel/src/hwdrv/usbkbd.c \
     kernel/src/hwdrv/usbmsc.c \
+    kernel/src/hwdrv/arbmbox.c \
+    kernel/src/arbiter/arb_proto.c \
+    kernel/src/arbiter/arb_host.c \
+    kernel/src/hwdrv/hw_sed.c \
+    kernel/src/opal/opal.c \
+    kernel/src/opal/opal_arb.c \
     kernel/src/abacus/abacus.c \
     kernel/src/ai_layer/ai_layer.c \
     kernel/src/alloc/alloc.c \
@@ -198,6 +210,10 @@ SRCS := \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/zxv_shell_apps.c \
+    kernel/src/zui/zui_vec.c \
+    kernel/src/zui/zui_apps.c \
+    kernel/src/zui/zui_applib.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \
@@ -310,6 +326,14 @@ SRCS := \
     kernel/src/net/m5route.c \
     kernel/src/net/net.c \
     kernel/src/net/tcp.c \
+    kernel/src/swarmnet/sn_link.c \
+    kernel/src/swarmnet/sn_proto.c \
+    kernel/src/swarmnet/sn_http.c \
+    kernel/src/swarmnet/sn_fetch.c \
+    kernel/src/swarmnet/sn_seal.c \
+    kernel/src/ipfs_node/ipfsn_dir.c \
+    kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/ipfs_node/ipfsn_unixfs.c \
     kernel/src/nlb/nlb.c \
     kernel/src/onepolicy/onepolicy.c \
     kernel/src/orbital_compat/orbital_compat.c \
@@ -600,3 +624,17 @@ ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
 CFLAGS += -I$(ZXV_GENDIR)
+
+# The table this kernel bakes into .rodata (build_system/mk_table.py,
+# docs/BUCKET.md): L0's CID, and the CID, size and SHA-256 of every swarm disc
+# in ZXV_SWARM_DISCS (their images, built before the kernel: the release is
+# built leaves first). Empty ZXV_SWARM_DISCS gives a kernel that fetches no
+# swarm disc and asks for them to be attached. Written at parse time like the
+# phase table, and only when its bytes change.
+ZXV_SWARM_DISCS ?=
+ZXV_TABLE_HDR   := build/include/manifest_hashes.h
+ZXV_TABLE_RUN   := $(shell python3 $(CURDIR)/build_system/mk_table.py --out $(CURDIR)/$(ZXV_TABLE_HDR) $(ZXV_SWARM_DISCS) > $(CURDIR)/$(ZXV_GENDIR)/table.txt 2>&1; echo $$?)
+ifneq ($(ZXV_TABLE_RUN),0)
+$(error build_system/mk_table.py failed: $(shell cat $(CURDIR)/$(ZXV_GENDIR)/table.txt))
+endif
+CFLAGS += -I$(dir $(ZXV_TABLE_HDR))

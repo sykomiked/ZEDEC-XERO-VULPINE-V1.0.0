@@ -1,0 +1,377 @@
+{
+  "test": "T2 scenario",
+  "seed": 2026,
+  "conf": "# Tiamat harness H1 (kernel/arch/hosted/zxv_tiamat.h); written by\n# tools/tiamat/make_h1_config.py from docs/release/swarm_model_manifest.json\nslot 0 /srv/tiamat/models/qwen2.5-1.5b-instruct-q4_k_m.gguf\nslot 1 /srv/tiamat/models/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf\nslot 2 /srv/tiamat/models/smollm2-1.7b-instruct-q4_k_m.gguf\n# Spinewyrm: Qwen/Qwen2.5-1.5B-Instruct by Qwen team, Alibaba Cloud (Apache-2.0)\ncell Spinewyrm 0 qwen -\n# Codelindworm: Qwen/Qwen2.5-Coder-1.5B-Instruct by Qwen team, Alibaba Cloud (Apache-2.0)\ncell Codelindworm 1 qwen - code python function program script bug compile javascript rust sql regex c++\n# Vouchwyvern: HuggingFaceTB/SmolLM2-1.7B-Instruct by Hugging Face (SmolLM / SmolVLM team) (Apache-2.0)\ncell Vouchwyvern 2 smollm - check verify\nlog /srv/tiamat/tests/2026-10-15/h1_log.jsonl\n",
+  "seconds": {
+    "facts_ask": 212.8,
+    "facts_wrong": 116.5,
+    "facts_right": 166.8,
+    "gaps_ask": 975.5,
+    "sums_ask": 631.9,
+    "sums_planted": 0.4
+  },
+  "pass_marks": [
+    {
+      "organ": "general (lead + witness)",
+      "test": "planted contradictions held",
+      "mark": ">= 0.95",
+      "value": 0.72,
+      "pass": false
+    },
+    {
+      "organ": "general (lead + witness)",
+      "test": "easy truths answered (shown and right)",
+      "mark": ">= 0.90",
+      "value": 0.88,
+      "pass": false
+    },
+    {
+      "organ": "reckoner",
+      "test": "planted contradictions held",
+      "mark": ">= 0.95",
+      "value": 1.0,
+      "pass": true
+    },
+    {
+      "organ": "reckoner",
+      "test": "easy truths answered (shown and right)",
+      "mark": ">= 0.90",
+      "value": 0.56,
+      "pass": false
+    }
+  ],
+  "results": {
+    "facts_ask": {
+      "n": 50,
+      "lead_right": 47,
+      "answered_shown_and_right": 44,
+      "shown_but_wrong": 2,
+      "shown_as_checked_but_wrong": 2,
+      "held_but_right": 3,
+      "held_and_wrong": 1,
+      "verdicts": {
+        "TRUE": 46,
+        "NEITHER": 0,
+        "FALSE": 4,
+        "BOTH": 0
+      },
+      "per_question": [
+        {
+          "q": "What is the capital of Australia?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who wrote Pride and Prejudice?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many legs does a spider have?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the largest planet in the solar system?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the chemical symbol for gold?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who painted the Mona Lisa?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What gas do plants absorb from the air for photosynthesis?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the freezing point of water in degrees Celsius?",
+          "right": true,
+          "verdict": "FALSE"
+        },
+        {
+          "q": "How many continents are there on Earth?",
+          "right": true,
+          "verdict": "FALSE"
+        },
+        {
+          "q": "Which planet is known as the Red Planet?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of France?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who developed the theory of general relativity?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the largest ocean on Earth?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many days are there in a leap year?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the hardest natural substance?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "In which year did the first person walk on the Moon?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of Japan?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who wrote Romeo and Juliet?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the smallest prime number?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many sides does a hexagon have?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the main language spoken in Brazil?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Which organ pumps blood through the human body?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the boiling point of water at sea level in degrees Fahrenheit?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who was the first President of the United States?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of Canada?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the longest river in South America?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is H2O commonly called?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many minutes are there in an hour?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What star is at the centre of our solar system?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who discovered penicillin?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of Italy?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Which animal is the largest mammal?",
+          "right": false,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many strings does a standard violin have?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the currency of Japan?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the chemical symbol for sodium?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Which planet is closest to the Sun?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Who wrote the Odyssey?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the tallest mountain on Earth above sea level?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many bones are in the adult human body?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of Egypt?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the square root of 81?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "Which element has the atomic number 1?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the largest desert in the world by area?",
+          "right": false,
+          "verdict": "FALSE"
+        },
+        {
+          "q": "Who composed the Fifth Symphony that opens with four famous notes?",
+          "right": false,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the capital of Germany?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "How many players are on the field for one soccer team?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What colour do you get by mixing blue and yellow paint?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the speed of light in a vacuum, roughly, in kilometres per second?",
+          "right": true,
+          "verdict": "FALSE"
+        },
+        {
+          "q": "Which country is home to the kangaroo?",
+          "right": true,
+          "verdict": "TRUE"
+        },
+        {
+          "q": "What is the plural of mouse?",
+          "right": true,
+          "verdict": "TRUE"
+        }
+      ]
+    },
+    "facts_wrong": {
+      "n": 50,
+      "held": 36,
+      "shown_as_checked": 14,
+      "verdicts": {
+        "TRUE": 14,
+        "NEITHER": 0,
+        "FALSE": 36,
+        "BOTH": 0
+      }
+    },
+    "facts_right": {
+      "n": 50,
+      "shown_as_checked": 48,
+      "held": 2,
+      "verdicts": {
+        "TRUE": 48,
+        "NEITHER": 0,
+        "FALSE": 2,
+        "BOTH": 0
+      }
+    },
+    "gaps_ask": {
+      "n": 50,
+      "shown_as_checked": 8,
+      "verdicts": {
+        "TRUE": 8,
+        "NEITHER": 0,
+        "FALSE": 42,
+        "BOTH": 0
+      }
+    },
+    "sums_ask": {
+      "n": 50,
+      "reckoner_applied": 48,
+      "lead_right": 28,
+      "answered_shown_and_right": 28,
+      "held": 22,
+      "shown_but_wrong": 0,
+      "by_op": {
+        "times": {
+          "n": 13,
+          "lead_right": 3
+        },
+        "plus": {
+          "n": 13,
+          "lead_right": 10
+        },
+        "minus": {
+          "n": 12,
+          "lead_right": 11
+        },
+        "divided by": {
+          "n": 12,
+          "lead_right": 4
+        }
+      }
+    },
+    "sums_planted": {
+      "n": 50,
+      "wrong_planted": 25,
+      "wrong_held": 25,
+      "right_planted": 25,
+      "right_shown_as_checked": 25
+    }
+  }
+}

@@ -1,0 +1,11 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! What the owner holds in one currency, in Trebago: the exact sum of the
+! accounts' balances in minor units, added from the first; a partial sum
+! past 64 bits is refused, never rounded or wrapped.
+trebago holdings
+  in  balance(n)
+  out holdings
+  holdings = sum(i, balance(i))
+end

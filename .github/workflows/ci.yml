@@ -144,14 +144,18 @@ jobs:
   host-tests:
     needs: quick-checks
     if: ${{ !cancelled() && needs.quick-checks.outputs.kernel == 'true' }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user gfortran gforth
+          # ubuntu-24.04 for the Lingua references (GHC 9.4, SWI-Prolog 9, gm2)
+          # and clang 18 (sm_90); gcc 11 stays the C compiler, as on 22.04
+          sudo apt-get install -y gcc-11 make clang libxml2-utils gnucobol3 swtpm gcc-aarch64-linux-gnu qemu-user \
+            gfortran gforth fp-compiler sbcl guile-3.0 ucblogo racket clojure xvfb mlton ocaml swi-prolog-core gm2 ghc
+          mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Seven-strata layer check
         run: |
           build_system/verify_layers.sh
@@ -211,7 +215,9 @@ jobs:
         # The kernel never exits, so timeout always stops QEMU; the step
         # passes only if the serial log reached [BOOT_OK] without a fault
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
-        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+        # arm64 and x86_64 also fail on a self-check that printed [FAIL] or [??] and
+        # booted on (ZXV_BOOT_DENY_FAIL; docs/BEHAVIOUR_COVERAGE.md).
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
       # The same kernel, used: two boots on one blank disk, commands typed
       # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
       # userspace, P-TERM, files that survive a reboot, and signed-only run
@@ -232,7 +238,7 @@ jobs:
         if: ${{ !cancelled() }}
         # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
         # user fault ending only its own process (x86_userspace.c).
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
@@ -385,6 +391,21 @@ jobs:
       # when intact, caught when one byte changes (docs/BAREMETAL.md).
       - name: Golden disc model check (${{ matrix.arch }})
         run: docker run --rm -v "$PWD:/src" -w /src zxv-baremetal bash build_system/test_golden_disc.sh ${{ matrix.arch }} 60
+      # The release bucket and tools/zxv-get, offline: a small bucket served
+      # from a local gateway, downloaded, and every kind of lie refused.
+      - name: Release bucket and download check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_bucket.py
+      # The release layers (build_system/mk_layers.py, docs/LAYERS.md): built
+      # as a chain, and every broken chain or other layout refused.
+      - name: Release layers check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_layers.py
+      # The table the kernel bakes (build_system/mk_table.py, docs/BUCKET.md):
+      # L0 and each swarm disc by CID, and the numbering rule.
+      - name: Baked table check
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: python3 build_system/test_mk_table.py
       - name: Upload ${{ matrix.arch }} disc
         uses: actions/upload-artifact@v7
         with:
@@ -671,7 +692,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Host test suite under ASan + UBSan (clang, abort on first report)
         run: |
@@ -697,7 +718,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Economy, pay, rational and RMAG tests under -fsanitize=integer
         # Unsigned wrap that the algorithm needs (hash and cipher cores) is in
@@ -725,7 +746,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Fuzz corpora and ledger properties under MSan
         # MSan needs every byte's producer instrumented. libc is not, so the
@@ -749,7 +770,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Replay the committed corpora (gcc, ASan + UBSan)
         run: make -C fuzz replay prop PROP_ITERS=1000
@@ -772,7 +793,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-11 make clang llvm libxml2-utils
-          # gcc 11 as gcc, like host-tests on ubuntu-22.04; clang 18 for the sanitizers
+          # gcc 11 as gcc, like host-tests; clang 18 for the sanitizers
           mkdir -p "$RUNNER_TEMP/gcc11" && ln -sf /usr/bin/gcc-11 "$RUNNER_TEMP/gcc11/gcc" && echo "$RUNNER_TEMP/gcc11" >> "$GITHUB_PATH"
       - name: Line, branch and MC/DC coverage (clang source-based)
         run: |

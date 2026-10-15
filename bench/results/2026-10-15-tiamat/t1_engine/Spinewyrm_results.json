@@ -1,0 +1,39 @@
+{
+  "test": "T1 engine baseline (untuned cell, prompted)",
+  "cell": "Spinewyrm",
+  "model": "/tmp/claude-0/models/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+  "n": 200,
+  "answered": 200,
+  "accuracy": 0.575,
+  "false_certainty_rate": 0.37,
+  "confusion_truth_by_answer": {
+    "TRUE": {
+      "TRUE": 32,
+      "FALSE": 1,
+      "BOTH": 16,
+      "NEITHER": 1
+    },
+    "FALSE": {
+      "TRUE": 0,
+      "FALSE": 46,
+      "BOTH": 1,
+      "NEITHER": 3
+    },
+    "BOTH": {
+      "TRUE": 4,
+      "FALSE": 28,
+      "BOTH": 16,
+      "NEITHER": 2
+    },
+    "NEITHER": {
+      "TRUE": 0,
+      "FALSE": 5,
+      "BOTH": 24,
+      "NEITHER": 21
+    }
+  },
+  "marks_for_the_heads": {
+    "accuracy": ">= 0.85",
+    "false_certainty_rate": "<= 0.05"
+  }
+}

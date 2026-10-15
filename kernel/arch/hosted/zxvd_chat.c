@@ -22,6 +22,7 @@
 #include "social_store.h"
 #include "social_feed.h"
 #include "social_sign_mldsa.h"
+#include "sha256.h"
 
 #define LOG_MAGIC     "ZXSLOG1\n"
 #define LOG_MAGIC_LEN 8u
@@ -380,6 +381,19 @@ static bool sign_cb(void *ctx, const uint8_t id[SP_ID_LEN], uint8_t sig[SP_SIG_L
     uint8_t rnd[32];
     sp_mldsa_key_t k = {CH.sk, zxv_os_random(rnd, sizeof rnd) == 0 ? rnd : NULL};
     return sp_mldsa_sign(&k, id, sig);
+}
+
+_Static_assert(ZXVD_CHAT_SIG_LEN == SP_SIG_LEN, "zxvd_chat.h: the signature length");
+_Static_assert(ZXVD_CHAT_PK_LEN == SP_PK_LEN, "zxvd_chat.h: the public key length");
+
+int zxvd_chat_sign_digest(const uint8_t digest[32], uint8_t sig[ZXVD_CHAT_SIG_LEN],
+                          uint8_t pk_id[32], uint8_t *pk)
+{
+    if (!CH.open || !digest || !sig || !pk_id) return -1;
+    if (!sign_cb(NULL, digest, sig)) return -1;
+    sha256(CH.pk, sizeof CH.pk, pk_id);
+    if (pk) memcpy(pk, CH.pk, sizeof CH.pk);
+    return 0;
 }
 
 /* Sign, save (C2) and hold a record the owner made in TMP. */

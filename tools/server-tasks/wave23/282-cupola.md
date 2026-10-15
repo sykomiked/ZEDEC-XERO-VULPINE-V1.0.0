@@ -1,6 +1,6 @@
 # Wave 23 task: Cupola (slot 282), Long-term preservation
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (010 keepsake); wave 3 (033 seedbank); wave 12 (145 cartulary); wave 13 (168 bindery); wave 22 (267 holm).
+Depends on: wave 0 (010 keepsake), wave 1 (033 seedbank), wave 12 (145 cartulary), wave 13 (168 bindery), wave 22 (267 holm).
 Manifest: `slot 282`, `layer L3`, `icon icons/l3/282-cupola.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: preserves records for decades: checks integrity, migrates old formats and keeps copies on disk, on peers and as content-addressed blocks (`backup.verify`, `backup.versions`, `aipi.put`, `aipi.get`, `web4.cid`, `files.read`, `files.write`).
 Uses: `use holm 1` (hardened offline mode, for a sealed copy); `use cartulary 1` (retention days, version prune truth); `use bindery 1` (catalogue grid, "may lend" for reading copies); `use keepsake 1` (`keepsake.keep_ok`); `use seedbank 1` (CID check, size limits). Call these composed entries; do not re-implement them.
@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `copies_ok` (at least the declared copies,
 BOTH test: copy A of record 9 has content id 70 and copy B 71: both are kept as BOTH until a witness majority of copies decides; neither is deleted. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: backup, fs.read, fs.write, net, search.
-Planned (no runtime yet): ALGOL 60, Haskell, Go.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/cupola/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, Go.
 Pending: `pending ALGOL_60 copies_ok` (proof); `pending Haskell copies_ok` (proof); Go (messaging): no entry here is an obvious fit; put `pending Go <entry>` on the one closest to messaging and name it in your report.

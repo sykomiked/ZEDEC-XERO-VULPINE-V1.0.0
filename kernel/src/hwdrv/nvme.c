@@ -268,3 +268,21 @@ hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t 
     g_nvme_n++;
     return HW_T;
 }
+
+/* Security Send (0x81) / Receive (0x82) on the admin queue (NVMe 1.4 5.25,
+ * 5.26) through the bounce buffer, so at most 8 KB. NSID 0: the TCG
+ * protocols address the controller. The buffer is wiped afterwards, since a
+ * Send can carry an Opal challenge. */
+int nvme_security(hw_blk_t *b, int send, uint8_t secp, uint16_t spsp, uint8_t *buf, uint32_t len)
+{
+    if (!b || b->read != nvme_read) return -2;
+    nvme_dev_t *n = (nvme_dev_t *) b->drv;
+    if (!buf || len == 0 || len > 2 * PAGE) return -1;
+    if (send) hw_memcpy(n->buf, buf, len);
+    uint64_t prp2 = len > PAGE ? n->buf_phys + PAGE : 0;
+    int s = nvme_cmd(n, 0, send ? 0x81 : 0x82, 0, n->buf_phys, prp2,
+                     ((uint32_t) secp << 24) | ((uint32_t) spsp << 8), len, 0);
+    if (!send && s == 0) hw_memcpy(buf, n->buf, len);
+    hw_memset(n->buf, 0, 2 * PAGE);
+    return s == 0 ? 0 : -1;
+}

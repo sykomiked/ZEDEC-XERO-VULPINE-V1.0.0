@@ -555,6 +555,119 @@ static void test_screen_lit(void)
     CHECK(drain(&l, ev, 16) == 2 && !ev[0].audible && ev[0].gain_q8 == 0, "muted tick");
 }
 
+/* the real load from fabrication: verified blocks fill the tiles, the build
+ * breathes, only "done" ends it, a failure never does */
+static void test_fab_blocks(void)
+{
+    zxl_launch_t l;
+    zxl_event_t ev[16];
+    int n;
+    const zxl_theme_t *t = zxl_theme_for("Banker", 1);
+    zxl_launch_init(&l, t, 5, 0, 0);
+    drain(&l, ev, 16); /* BEGIN */
+    CHECK(zxl_launch_screen_p(&l) == 0, "fab: nothing fetched, the bar at 0");
+
+    /* 30 blocks over 3 levels: the outer pair [0,10), the inner pair
+     * [10,20), the centre [20,30) */
+    CHECK(zxl_launch_blocks(&l, 0, 30) == 0, "fab: the start's answer");
+    CHECK(drain(&l, ev, 16) == 0 && zxl_launch_screen_p(&l) == 0, "fab: 0 of 30: nothing moves");
+    zxl_launch_blocks(&l, 5, 30);
+    CHECK(l.part_p[0] == 128 && l.part_p[4] == 128 && l.part_p[1] == 0 && l.part_p[2] == 0,
+          "fab: half the outer pair's blocks, the outer pair half full, together");
+    CHECK(zxl_launch_screen_p(&l) == 21, "fab: the bar at 5/30 of the gathering (42/2)");
+    CHECK(drain(&l, ev, 16) == 0, "fab: no tile lit yet");
+    zxl_launch_blocks(&l, 10, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 0 && ev[1].part == 4,
+          "fab: the outer pair's blocks in: both outer tiles tick");
+    CHECK(zxl_launch_screen_p(&l) == 42, "fab: the bar at 10/30 (85/2)");
+    zxl_launch_blocks(&l, 3, 30);
+    CHECK(l.part_p[0] == 256 && l.load_p == 85, "fab: counts never move backwards");
+    zxl_launch_blocks(&l, 25, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].part == 1 && ev[1].part == 3 && l.part_p[2] == 128,
+          "fab: the inner pair ticks, the centre half full");
+    CHECK(!(l.lit & 4) && l.phase == ZXL_PH_GATHER && l.rest != ZXL_UNKNOWN,
+          "fab: the centre waits for every block");
+    CHECK(zxl_launch_screen_p(&l) == 106, "fab: the bar at 25/30 (213/2)");
+
+    zxl_launch_blocks(&l, 30, 30);
+    n = drain(&l, ev, 16);
+    CHECK(n == 2 && ev[0].kind == ZXL_EV_TICK && ev[0].part == 2 && ev[0].step == ZXL_TOP_STEP &&
+              ev[1].kind == ZXL_EV_LIGHT,
+          "fab: every block in: the centre's top step, the mark lights");
+    CHECK(l.phase == ZXL_PH_RELEASE && l.rest == ZXL_UNKNOWN,
+          "fab: the build runs for an unknown time");
+    CHECK(zxl_launch_screen_p(&l) == 192, "fab: mark lit, the bar above it breathing");
+    zxl_launch_blocks(&l, 40, 30);
+    CHECK(drain(&l, ev, 16) == 0 && l.phase == ZXL_PH_RELEASE,
+          "fab: blocks alone never end the launch");
+    zxl_launch_finish(&l); /* phase "done" */
+    n = drain(&l, ev, 16);
+    CHECK(n == 1 && ev[0].kind == ZXL_EV_END && zxl_launch_screen_p(&l) == 256,
+          "fab: done: the end, the doors");
+    CHECK(zxl_launch_blocks(&l, 30, 30) == -1, "fab: nothing after the end");
+
+    /* a failed step or a cancel never ends it */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    drain(&l, ev, 16);
+    zxl_launch_blocks(&l, 10, 30);
+    drain(&l, ev, 16);
+    zxl_launch_fail(&l);
+    zxl_launch_finish(&l);
+    CHECK(drain(&l, ev, 16) == 0 && l.phase == ZXL_PH_GATHER, "fab: failed: finish refused");
+    CHECK(zxl_launch_blocks(&l, 30, 30) == -1 && l.part_p[2] == 0,
+          "fab: failed: later answers ignored");
+    CHECK(zxl_launch_screen_p(&l) == 42, "fab: failed: the screen stays where the work stopped");
+    zxl_launch_fail(0); /* no crash */
+
+    /* failing after every block is in, while it builds */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 30, 30);
+    zxl_launch_fail(&l);
+    zxl_launch_finish(&l);
+    drain(&l, ev, 16);
+    CHECK(l.phase == ZXL_PH_RELEASE && zxl_launch_screen_p(&l) == 192,
+          "fab: a failed build never opens");
+
+    /* warm: only the end; no blocks taken */
+    zxl_launch_init(&l, t, 5, 0, 1);
+    CHECK(zxl_launch_blocks(&l, 1, 30) == -1 && zxl_launch_screen_p(&l) == 256,
+          "fab: warm takes no blocks");
+    n = drain(&l, ev, 16);
+    CHECK(n == 1 && ev[0].kind == ZXL_EV_END, "fab: warm plays only the end");
+
+    /* nothing to fetch */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 0, 0);
+    CHECK(l.phase == ZXL_PH_RELEASE && l.rest == ZXL_UNKNOWN && zxl_launch_screen_p(&l) == 192,
+          "fab: 0 blocks: straight to the build");
+
+    /* the screen lit the centre early (its gold came up a little before the
+     * last blocks): the bar still waits for the blocks */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 28, 30);
+    for (uint32_t i = 0; i < 5; i++) zxl_launch_lit(&l, i);
+    CHECK(l.phase == ZXL_PH_RELEASE, "fab: every tile lit on screen");
+    CHECK(zxl_launch_screen_p(&l) == 119, "fab: the bar stays at 28/30 (238/2), not the mark");
+    zxl_launch_blocks(&l, 30, 30);
+    CHECK(zxl_launch_screen_p(&l) == 192, "fab: then the build");
+
+    /* huge counts, odd splits */
+    zxl_launch_init(&l, t, 5, 0, 0);
+    zxl_launch_blocks(&l, 4000000000u, 0xFFFFFFFFu);
+    CHECK(l.part_p[0] == 256 && l.part_p[1] == 256 && l.part_p[2] > 200 && l.part_p[2] < 256,
+          "fab: 4e9 of 2^32-1 blocks without overflow");
+    zxl_launch_init(&l, t, 4, 0, 0);
+    zxl_launch_blocks(&l, 1, 3); /* 2 levels: [0,1), [1,3) */
+    CHECK(l.part_p[0] == 256 && l.part_p[3] == 256 && l.part_p[1] == 0,
+          "fab: an even part count pairs inward too");
+    zxl_launch_init(&l, t, 1, 0, 0);
+    zxl_launch_blocks(&l, 1, 2);
+    CHECK(l.part_p[0] == 128, "fab: one part takes every block");
+    CHECK(zxl_launch_blocks(0, 1, 1) == -1 && zxl_launch_screen_p(0) == 0, "fab: NULL");
+}
+
 int main(void)
 {
     test_themes();
@@ -568,6 +681,7 @@ int main(void)
     test_sound_policy();
     test_pick();
     test_screen_lit();
+    test_fab_blocks();
     printf("test_zxl_launch: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

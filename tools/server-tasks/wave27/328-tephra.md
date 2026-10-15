@@ -1,6 +1,6 @@
 # Wave 27 task: Tephra (slot 328), Natural hazards
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (016 sounding); wave 14 (179 cupel); wave 19 (239 isobar); wave 21 (259 caldera, 253 fell).
+Depends on: wave 0 (016 sounding), wave 14 (179 cupel), wave 19 (239 isobar), wave 21 (253 fell, 259 caldera).
 Manifest: `slot 328`, `layer L3`, `icon icons/l3/328-tephra.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: monitors volcanoes, earthquakes and landslides, turning sensor data into hazard maps and evacuation advice (`journal.query`, `log.tail`, `place.here`, `net.peers`, `pspace.post`). zxvd has no method for hazard sensor feeds: use only existing methods; list what's missing in your report.
 Uses: `use caldera 1` (hazard watch); `use cupel 1` (integer step, precision bounds); `use isobar 1` (station readings); `use fell 1` (team room); `use sounding 1` (`sounding.rate`). Call these composed entries; do not re-implement them.

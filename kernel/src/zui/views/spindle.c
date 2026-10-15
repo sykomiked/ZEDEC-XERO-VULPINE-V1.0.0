@@ -72,6 +72,8 @@ void spindle_view_build(spindle_view_t *v, zui_ui_t *ui, spindle_t *m)
     zui_set_name(ui, v->reply, "Reply");
     zui_w(ui, v->reply)->u.field.readonly = true;
     zui_w(ui, v->reply)->font = ZUI_TEXT_MONO;
+    v->none = zui_empty(ui, row2, ZUI_ICON_CONSOLE, "Nothing called yet", 0);
+    zui_set_size(ui, v->none, ZUI_SIZE_FLEX, 1);
     spindle_view_sync(v);
 }
 
@@ -82,6 +84,10 @@ void spindle_view_sync(spindle_view_t *v)
     zui_list_set_rows(ui, v->methods, (int32_t) m->n_methods);
     zui_list_set_rows(ui, v->history, (int32_t) spindle_history_len(m));
     zui_list_select(ui, v->history, v->shown);
+    bool none = spindle_history_len(m) == 0; /* W12 */
+    zui_set_hidden(ui, v->history, none);
+    zui_set_hidden(ui, v->reply, none);
+    zui_set_hidden(ui, v->none, !none);
     const spindle_entry_t *e = v->shown >= 0 ? spindle_entry(m, (uint32_t) v->shown) : 0;
     zui_widget_t *r = zui_w(ui, v->reply);
     if (r) {

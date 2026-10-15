@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A day's readings inside their safe ranges (wellspring_model.h): a resting
+# heart rate of 40 to 100 beats a minute, 420 to 540 minutes of sleep (7 to
+# 9 hours) and 1500 to 4000 ml of water. Defaults taken, never a diagnosis:
+# a reading outside its range points the owner to a clinician.
+eve wellspring
+pulse_range = 40 .. 100
+sleep_range = 420 .. 540
+water_range = 1500 .. 4000
+
+safe_day {
+  bpm: pulse_range
+  sleep: sleep_range
+  water: water_range
+}

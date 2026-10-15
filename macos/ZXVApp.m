@@ -240,12 +240,16 @@ static uint32_t clip_get(void *ctx, char *out, uint32_t cap)
     NSString *fonts = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"Fonts"];
     NSString *font = [fonts stringByAppendingPathComponent:@"ASCW-Golden-Latin2.ttf"];
     NSString *mono = [fonts stringByAppendingPathComponent:@"ASCW-Golden-Mono.ttf"];
+    NSString *apps = [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"Icons/zxv-apps.zxap"];
     zxv_desktop_cfg_t cfg;
     memset(&cfg, 0, sizeof cfg);
     cfg.backend = "metal";
     cfg.rpc = ""; /* zxvd's socket is set once the engine is started */
     cfg.font = font.fileSystemRepresentation;
     if ([NSFileManager.defaultManager fileExistsAtPath:mono]) cfg.mono = mono.fileSystemRepresentation;
+    if ([NSFileManager.defaultManager fileExistsAtPath:apps]) cfg.apps = apps.fileSystemRepresentation;
+    /* the ZXV look is the dark green; the system's Increase contrast asks for more */
+    if (NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast) cfg.scheme = "high-contrast";
     cfg.title = "ZXV";
     cfg.w_pt = 1180;
     cfg.h_pt = 780;

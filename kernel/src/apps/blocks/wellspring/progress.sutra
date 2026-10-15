@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Progress toward a goal in hundredths of a percent (10000 = the goal met,
+# more when it is passed), never rounded up, in Sutra: done and goal fit
+# 9(9), so a larger or a negative one is refused, and a goal of 0 is a
+# division Sutra refuses.
+record goal-progress
+  done: 9(9)
+  goal: 9(9)
+  progress: 9(13)
+procedure
+  compute progress = done * 10000 / goal
+  answer progress

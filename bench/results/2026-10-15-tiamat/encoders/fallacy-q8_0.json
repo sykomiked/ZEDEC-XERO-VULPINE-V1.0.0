@@ -1,0 +1,343 @@
+{
+ "model": "/tmp/claude-0/enc/gguf/fallacy-q8_0.gguf",
+ "max_tokens": 128,
+ "tokens_special_parsed": {
+  "cases": 3088,
+  "differ": 0
+ },
+ "tokens_special_as_text": {
+  "cases": 3088,
+  "differ": 0
+ },
+ "engine": {
+  "zt.kern": "avx512vnni",
+  "zt.threads": "1",
+  "zt.n_sat": "0",
+  "zt.seconds": "4.152"
+ },
+ "forward": [
+  {
+   "text": "Everyone is buying this phone, so it must be the best one.",
+   "pair": false,
+   "max_diff": 0.004265181473609658,
+   "ref_top": 1,
+   "engine_top": 1,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "You cannot trust his argument about taxes because he was onc",
+   "pair": false,
+   "max_diff": 0.006046264417876257,
+   "ref_top": 0,
+   "engine_top": 0,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "If we allow students to redo one test, soon they will demand",
+   "pair": false,
+   "max_diff": 0.010295450882473883,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Either you support this policy completely or you hate our co",
+   "pair": false,
+   "max_diff": 0.005888453227194279,
+   "ref_top": 10,
+   "engine_top": 10,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "I wore my lucky socks and we won, so the socks caused the wi",
+   "pair": false,
+   "max_diff": 0.0065484360471352865,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "My grandfather smoked every day and lived to ninety, so smok",
+   "pair": false,
+   "max_diff": 0.01158100057336342,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "This medicine works because the doctor who sells it says it ",
+   "pair": false,
+   "max_diff": 0.006041075517434713,
+   "ref_top": 3,
+   "engine_top": 3,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "The Bible is true because it says so in the Bible.",
+   "pair": false,
+   "max_diff": 0.004806972630943096,
+   "ref_top": 3,
+   "engine_top": 3,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Think of the poor children who will suffer if you vote again",
+   "pair": false,
+   "max_diff": 0.015576106513005561,
+   "ref_top": 2,
+   "engine_top": 2,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "A feather is light; what is light cannot be dark; so a feath",
+   "pair": false,
+   "max_diff": 0.029864160394694306,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Water boils at one hundred degrees Celsius at sea level.",
+   "pair": false,
+   "max_diff": 0.03378430495619167,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": true
+  },
+  {
+   "text": "The meeting was moved to Thursday afternoon.",
+   "pair": false,
+   "max_diff": 0.018710537928425364,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "A cat is resting on the windowsill.",
+   "pair": false,
+   "max_diff": 0.02032528167054437,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Stock markets fell sharply after the announcement.",
+   "pair": false,
+   "max_diff": 0.010037265482831792,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "A man is playing a guitar on stage.",
+   "pair": "A person is making music.",
+   "max_diff": 0.007109716678085687,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "A man is playing a guitar on stage.",
+   "pair": "Nobody is playing any instrument.",
+   "max_diff": 0.020086045671128372,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "The cat sleeps on the sofa.",
+   "pair": "The weather in Paris is warm today.",
+   "max_diff": 0.04186186681226012,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "All birds can fly.",
+   "pair": "Penguins are birds that cannot fly.",
+   "max_diff": 0.026805641892224674,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "She finished the report before noon.",
+   "pair": "The report was finished in the morning.",
+   "max_diff": 0.05013338584025662,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "The store is closed on Sundays.",
+   "pair": "You can shop there every day of the week.",
+   "max_diff": 0.021064193028711875,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Two children are building a sandcastle.",
+   "pair": "Kids are at the beach.",
+   "max_diff": 0.019145964260562698,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "The price rose by ten percent.",
+   "pair": "The price fell.",
+   "max_diff": 0.019861915535001273,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "long long long long long long long long long long long long ",
+   "pair": "pair pair pair pair pair pair pair pair pair pair pair pair ",
+   "max_diff": 0.006083600035754255,
+   "ref_top": 3,
+   "engine_top": 3,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Hello, world!",
+   "pair": false,
+   "max_diff": 0.035639741428019844,
+   "ref_top": 8,
+   "engine_top": 8,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "The quick brown fox jumps over the lazy dog.",
+   "pair": false,
+   "max_diff": 0.051528146006084796,
+   "ref_top": 9,
+   "engine_top": 9,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Don't stop-believing; it's 3.14!",
+   "pair": false,
+   "max_diff": 0.03295874083403627,
+   "ref_top": 1,
+   "engine_top": 1,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Café naïve résumé coöperate Ångström",
+   "pair": false,
+   "max_diff": 0.03944857369521326,
+   "ref_top": 0,
+   "engine_top": 0,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "ΟΔΟΣ Σίσυφος",
+   "pair": false,
+   "max_diff": 0.058771930509693426,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "İstanbul ıi",
+   "pair": false,
+   "max_diff": 0.02256479315781279,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "Straße MASSE",
+   "pair": false,
+   "max_diff": 0.03554775540235877,
+   "ref_top": 1,
+   "engine_top": 1,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "한국어 텍스트입니다",
+   "pair": false,
+   "max_diff": 0.1722696190481643,
+   "ref_top": 3,
+   "engine_top": 3,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "日本語のテキストと漢字",
+   "pair": false,
+   "max_diff": 0.21494236596111427,
+   "ref_top": 7,
+   "engine_top": 7,
+   "agree": true,
+   "near_tie": true
+  },
+  {
+   "text": "中文分词测试，标点。",
+   "pair": false,
+   "max_diff": 0.02547012208483572,
+   "ref_top": 1,
+   "engine_top": 1,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "ไทย ภาษา",
+   "pair": false,
+   "max_diff": 0.02498755825299348,
+   "ref_top": 3,
+   "engine_top": 3,
+   "agree": true,
+   "near_tie": false
+  },
+  {
+   "text": "עִבְרִית",
+   "pair": false,
+   "max_diff": 0.08137848727378333,
+   "ref_top": 11,
+   "engine_top": 11,
+   "agree": true,
+   "near_tie": false
+  }
+ ],
+ "summary": {
+  "cases": 35,
+  "max_logit_diff": 0.21494236596111427,
+  "top_agree": 35,
+  "disagree_outside_ties": 0,
+  "disagree_near_ties": 0
+ },
+ "pass": false
+}

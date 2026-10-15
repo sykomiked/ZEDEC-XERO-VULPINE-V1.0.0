@@ -76,6 +76,25 @@ if [ -f "$K/src/tensor/zt_model.c" ] && [ -f "$HERE/zxv_zt_glue.c" ]; then
     set -- "$@" "$HERE/zxv_zt_glue.c"
     DEFS="$DEFS -DZXV_HAVE_ZT_GLUE"
 fi
+# The GPU behind the models (zxv_zt_glue.c G7, zt_accel.h): Metal on macOS;
+# CUDA, HIP and Vulkan elsewhere, which open their drivers at run time.
+# Vulkan's kernels are built when glslangValidator and the Vulkan headers are
+# here; without them zt_vk.c builds as stubs and the others still run.
+case "$($CC -dumpmachine 2>/dev/null)" in
+    *darwin*|*apple*)
+        set -- "$@" "$K/src/tensor/zt_metal.m"
+        DEFS="$DEFS -DZT_HAVE_METAL"
+        OSLIBS="$OSLIBS -framework Metal -framework Foundation" ;;
+    *mingw*|*windows*) ;;
+    *)
+        OSLIBS="$OSLIBS -ldl"
+        if command -v glslangValidator >/dev/null 2>&1 &&
+            echo '#include <vulkan/vulkan.h>' | $CC -E -x c - >/dev/null 2>&1; then
+            sh "$K/src/tensor/gen_zt_vk_spv.sh" "$T/zt_vk_spv.h" ||
+                { echo "[FAIL] Vulkan kernels (gen_zt_vk_spv.sh)"; exit 1; }
+            DEFS="$DEFS -DZT_VK_SPV_H=\"$T/zt_vk_spv.h\""
+        fi ;;
+esac
 [ -n "$EXE" ] && set -- "$@" "$HERE/zxvd_rpc_win.c"
 # 3. AIPI on Z-Wasm (zxvd_aipi.c): the sandbox libraries from the aipi kit;
 # the AIPI core and the blockstore are kernel sources already in the app's

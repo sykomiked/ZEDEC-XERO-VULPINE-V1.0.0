@@ -1,6 +1,6 @@
 # Wave 18 task: Watershed (slot 221), Cooperative projects
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (045 bowline); wave 6 (079 fairground, 073 coffer); wave 7 (096 hamlet, 086 meadow).
+Depends on: wave 1 (073 coffer, 079 fairground), wave 2 (086 meadow), wave 4 (096 hamlet), wave 6 (045 bowline).
 Manifest: `slot 221`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/221-watershed.svg`, `budget 233`, model `apps/watershed_model.{h,c}`, blocks under kernel/src/apps/blocks/watershed/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Runs cooperative projects: the pooled fund and member shares in the books (`ledger.accounts`, `ledger.balance`, `ledger.entries`, `ledger.post`), escrow for disputed amounts (`ledger.hold`, `ledger.holds`, `ledger.release`), member votes (`spaces.propose`, `spaces.vote`, `spaces.get`), posts (`social.post`, `pspace.post`), market sales (`net.offers`, `net.command` sell, `mesh.books`), shared tasks in the Hoard (`files.read`, `files.write`).
 Uses: `use fairground 1` (the 0.08889% fee and "offer allowed"); `use bowline 1` (next due and "overdue"); `use coffer 1` (balance per account and "transfer allowed"); `use hamlet 1` ("show this post to this seat"); `use meadow 1` ("may this seat post here"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).
@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): a member's record says 500 paid whi
 Safety: Financial actions are advisory and human-approved: every post, sale and grant waits for the vote and the owner; tests use a scratch books file only. Mutual-aid words only (a grant, an allotment).
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: ledger.read, ledger.post, peers, net, fs.read, fs.write, notify.
-Planned (no runtime yet): Gleam, LISP, Prolog.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/watershed/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Gleam, Prolog.

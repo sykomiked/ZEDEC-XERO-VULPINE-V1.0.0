@@ -778,6 +778,9 @@ int32_t net_recv(net_state_t *net, int32_t sock, void *data, uint32_t max_len) {
     if (s->type == SOCK_TCP && s->tcp_idx >= 0) {
         tcp_conn_t *c = &net->tcp_conns[s->tcp_idx];
         uint32_t n = tcp_read(c, (uint8_t *)data, max_len);
+        uint8_t out[TCP_HDR_MIN + 4u];
+        uint32_t w = n ? tcp_window_update(c, out, sizeof out) : 0;
+        if (w) tcp_emit(net, s->tcp_idx, out, w);
         tcp_mirror(s, c);
         return n ? (int32_t)n : -1;
     }

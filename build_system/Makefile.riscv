@@ -38,8 +38,18 @@ MAKEFLAGS += -j$(JOBS)
 # ~/zxv/.buildlock exists.
 OBJDIR := build/riscv
 
+# BOARD picks a profile from kernel/arch/riscv/riscv_board.h (default 0, QEMU
+# virt): 1 PolarFire SoC (Icicle Kit). A board build gets its own object tree
+# and ELF name, so it never mixes with the default image.
+# build_system/boards_boot_check.sh boots 1 in QEMU's model of the Icicle Kit.
+BOARD ?=
+ifneq ($(BOARD),)
+OBJDIR := build/riscv-board$(BOARD)
+BOARD_CFLAGS := -DRV_TARGET_BOARD=$(BOARD)
+endif
+
 CFLAGS = -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib -nostdinc \
-         -fno-stack-protector -fno-pie -no-pie \
+         -fno-stack-protector -fno-pie -no-pie $(BOARD_CFLAGS) \
          -ffunction-sections -fdata-sections \
          -MMD -MP \
          -include kernel/include/freestanding.h \
@@ -181,6 +191,10 @@ KERNEL_SRCS = \
     kernel/src/deploy/deploy.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/zxv_shell_apps.c \
+    kernel/src/zui/zui_vec.c \
+    kernel/src/zui/zui_apps.c \
+    kernel/src/zui/zui_applib.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \
@@ -407,8 +421,13 @@ $(shell mkdir -p $(OBJDIRS))
 DEPS = $(RISCV_ARCH_OBJS:.o=.d) $(KERNEL_OBJS:.o=.d)
 -include $(DEPS)
 
+ifneq ($(BOARD),)
+TARGET = kernel_riscv_board$(BOARD).elf
+TARGET_BIN = kernel_riscv_board$(BOARD).bin
+else
 TARGET = kernel_riscv.elf
 TARGET_BIN = kernel_riscv.bin
+endif
 
 .PHONY: all clean run
 

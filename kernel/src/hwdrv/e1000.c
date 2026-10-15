@@ -33,6 +33,7 @@
 #define E_STATUS   0x0008
 #define E_EECD     0x0010
 #define E_EERD     0x0014
+#define E_MDIC     0x0020
 #define E_CTRL_EXT 0x0018
 #define E_ICR      0x00C0
 #define E_IMC      0x00D8
@@ -67,6 +68,16 @@
 #define CTRL_RST     (1u << 26)
 #define CTRL_VME     (1u << 30)
 #define CTRL_PHY_RST (1u << 31)
+
+/* MDIC: PHY register access. The 8254x and 82574 PHY sits at address 1; the
+ * PCH parts' PHY needs the software/firmware semaphore, which this driver
+ * does not take, so their PHY is left alone. */
+#define MDIC_PHY1     (1u << 21)
+#define MDIC_OP_WRITE (1u << 26)
+#define MDIC_READY    (1u << 28)
+#define MDIC_ERROR    (1u << 30)
+#define BMCR_PDOWN    0x0800u /* PHY control register 0: power down */
+#define MDIC_US       10000u
 
 #define STATUS_LU            (1u << 1)
 #define STATUS_FUNC_1        (1u << 2)
@@ -322,6 +333,25 @@ static int eerd_read(e1k_t *e, uint32_t word, uint16_t *out)
     return 1;
 }
 
+static void irq_off(e1k_t *e);
+
+/* hw_nic_t.phy_off: receiver and transmitter off, the MAC's link dropped,
+ * then the PHY powered down through MDIC (not on PCH parts). */
+static int e1k_phy_off(hw_nic_t *n)
+{
+    e1k_t *e = (e1k_t *) n->drv;
+    volatile void *regs = e->r;
+    irq_off(e);
+    hw_wr32(regs, E_RCTL, 0);
+    hw_wr32(regs, E_TCTL, 0);
+    hw_wr32(regs, E_CTRL, hw_rd32(regs, E_CTRL) & ~CTRL_SLU);
+    n->link_up = 0;
+    if (e->kind == K_PCH) return 1;
+    hw_wr32(regs, E_MDIC, MDIC_OP_WRITE | MDIC_PHY1 | BMCR_PDOWN);
+    if (!hw_wait32(e->p, regs, E_MDIC, MDIC_READY, MDIC_READY, MDIC_US)) return -1;
+    return (hw_rd32(regs, E_MDIC) & MDIC_ERROR) ? -1 : 0;
+}
+
 static void irq_off(e1k_t *e)
 {
     hw_wr32(e->r, E_IMC, 0xFFFFFFFFu);
@@ -500,6 +530,9 @@ hw_verdict_t e1000_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t
     n->drv = e;
     n->send = e1k_send;
     n->recv = e1k_recv;
+    n->phy_off = e1k_phy_off;
+    n->on_pci = 1;
+    n->bdf = d->bdf;
     hw_line_s(note, n->link_up ? " link up as " : " link down as ");
     hw_line_s(note, n->name);
     hw_reg_nic(r, n); /* cannot fail: checked above */

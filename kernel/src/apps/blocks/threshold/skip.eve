@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# When the login is skipped: exactly one seat on the device, that seat has
+# no lock (0: none; 1 passphrase, 2 passkey) and the owner left auto-enter
+# on (1; 0 off). The flags are 0 or 1 and nothing else.
+eve threshold
+one_seat = 1 .. 1
+no_lock = 0 .. 0
+auto_on = 1 .. 1
+
+skip_login {
+  seats: one_seat
+  lock: no_lock
+  auto: auto_on
+}

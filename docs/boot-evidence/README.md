@@ -10,6 +10,7 @@ reproduce any of them yourself with [VERIFY_BOOT.md](../VERIFY_BOOT.md).
 |---|---|---|
 | [2026-10-15-qemu](2026-10-15-qemu/) | QEMU 8.2 (software emulation) under UEFI firmware | x86_64, arm64 |
 | [kvm-2026-10-15](kvm-2026-10-15/) | QEMU 6.2 with nested KVM on a Xeon E5-2699 v4 (a KVM guest, not physical hardware) | x86_64 golden disc |
+| [swarm-fetch-2026-10-15](swarm-fetch-2026-10-15/) | QEMU 8.2 (software emulation) under UEFI, e1000 NIC, local test gateway | x86_64 core disc + swarm disc 2 (fetch, seal, resume) |
 
 Only curated sets are kept here, so the repository stays small (each set is
 about 150 KB). The full record of every run, with complete logs and

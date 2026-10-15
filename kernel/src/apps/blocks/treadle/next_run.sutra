@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A task's next run (treadle_rules.h TR1), in Sutra: the first
+# start + k * period at or after now, or tomorrow's first run (start + 1440)
+# when that is past the day's last minute. Minutes fit 9(4), so a negative
+# minute or one past 9999 is refused; a minute past the day that still fits
+# is answered, where C++ traps (held).
+record next-run
+  start: 9(4)
+  period: 9(4)
+  now: 9(4)
+  steps: 9(5)
+  due: 9(5)
+procedure
+  if now <= start
+    answer start
+  end-if
+  compute steps = (now - start + period - 1) / period
+  compute due = start + steps * period
+  if due > 1439
+    answer start + 1440
+  end-if
+  answer due

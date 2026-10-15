@@ -19,6 +19,8 @@
 #   make -C bench zt_tts            text-to-speech driver (OuteTTS + WavTokenizer, T26;
 #                                   bench/results/2026-10-12-outetts/REPORT.md)
 #   make -C bench zt_tts_arm64      the same, cross-built for aarch64 (run under qemu-aarch64)
+#   make -C bench zt_enc            encoder-cell driver (BERT, ELECTRA; zt_bert; compared with
+#                                   tensor/compare/ref_bert.py, bench/results/2026-10-15-tiamat/encoders)
 CC ?= gcc
 OUT ?= /tmp/zxv_bench
 K := ../kernel
@@ -31,19 +33,40 @@ BATCH ?=
 
 TENSOR_SRCS := $(K)/src/tensor/zt_model.c $(K)/src/tensor/zt_tok.c $(K)/src/tensor/zt_rope.c \
 	$(K)/src/tensor/zt_gguf.c $(K)/src/tensor/zt.c $(K)/src/tensor/zt_simd.c \
-	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_neon.c $(K)/src/tensor/dist/zt_dist.c \
+	$(K)/src/tensor/zt_simd_x86.c $(K)/src/tensor/zt_simd_sve.c $(K)/src/tensor/zt_simd_neon.c \
+	$(K)/src/tensor/zt_simd_rvv.c $(K)/src/tensor/dist/zt_dist.c \
 	$(K)/src/tensor/zt_gpu.c
 # macOS: the Metal GPU backend (zt_metal.h), used with zt_bench --gpu
 ifeq ($(shell uname -s),Darwin)
-TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
+TENSOR_SRCS += $(K)/src/tensor/zt_metal.m $(K)/src/tensor/zt_accel.c
 GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
 GPU_LIBS := -framework Metal -framework Foundation
+else
+# Linux: CUDA (zt_cuda.h, NVIDIA), HIP (zt_hip.h, AMD through ROCm), Vulkan
+# (zt_vk.h, any Vulkan GPU) and WebGPU (zt_wgpu.h, a native WebGPU library).
+# All open their driver at run time, so none needs a GPU SDK to build.
+# Vulkan's kernels are built to SPIR-V by glslangValidator when it is
+# installed; without it zt_vk.c builds as stubs and --gpu says so. WebGPU's
+# kernels are WGSL (always generated, sh and sed); zt_wgpu.c needs
+# webgpu.h: WGPU_INC=<dir holding webgpu/webgpu.h> (wgpu-native's or Dawn's
+# include directory), else it builds as stubs. At run time ZT_WGPU_LIB names
+# the library built from that header, and ZT_GPU=webgpu picks it.
+GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c \
+	$(K)/src/tensor/zt_wgpu.c $(K)/src/tensor/zt_accel.c
+GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_HIP -DZT_HAVE_VULKAN
+GPU_LIBS := -ldl
+ifneq ($(shell command -v glslangValidator 2>/dev/null),)
+GPU_SPV := $(OUT)/zt_vk_spv.h
+GPU_FLAGS += -DZT_VK_SPV_H='"$(GPU_SPV)"'
+endif
+GPU_WGSL := $(OUT)/zt_wgpu_wgsl.h
+GPU_FLAGS += -DZT_WGPU_WGSL_H='"$(GPU_WGSL)"' $(if $(WGPU_INC),-I$(WGPU_INC))
 endif
 NN_SRCS := $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_vision.c
 LEGACY_SRCS := $(K)/src/legacy/cobol.c $(K)/src/legacy/fortran.c \
 	$(K)/src/lightningrod/lightningrod.c $(K)/src/rational/rational.c
 
-.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 smoke tensor qwen
+.PHONY: all legacy legacy-bench zt_bench zt_asr zt_dump zt_golden zt_vlm zt_tts zt_tts_arm64 zt_enc smoke tensor qwen
 all: smoke
 
 $(OUT):
@@ -59,8 +82,14 @@ legacy: $(OUT)/legacy_bench
 legacy-bench: $(OUT)/legacy_bench
 	$(OUT)/legacy_bench legacy/golden_legacy.tsv --iters 200000
 
-$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
-	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) \
+$(OUT)/zt_vk_spv.h: $(K)/src/tensor/zt_vk.comp $(K)/src/tensor/gen_zt_vk_spv.sh | $(OUT)
+	sh $(K)/src/tensor/gen_zt_vk_spv.sh $@
+
+$(OUT)/zt_wgpu_wgsl.h: $(K)/src/tensor/zt_wgpu.wgsl $(K)/src/tensor/gen_zt_wgpu_wgsl.sh | $(OUT)
+	sh $(K)/src/tensor/gen_zt_wgpu_wgsl.sh $@
+
+$(OUT)/zt_bench: tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) $(GPU_SPV) $(GPU_WGSL) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_bench.c $(TENSOR_SRCS) $(GPU_SRCS) \
 		-lm -lpthread $(GPU_LIBS) -o $@
 
 zt_bench: $(OUT)/zt_bench
@@ -97,6 +126,12 @@ $(OUT)/zt_tts_arm64: tensor/zt_tts.c $(TTS_SRCS) $(wildcard $(K)/src/tensor/*.h)
 zt_tts: $(OUT)/zt_tts
 zt_tts_arm64: $(OUT)/zt_tts_arm64
 zt_golden: $(OUT)/zt_golden
+
+ENC_SRCS := $(TENSOR_SRCS) $(K)/src/tensor/zt_nn.c $(K)/src/tensor/zt_bert.c
+$(OUT)/zt_enc: tensor/zt_enc.c $(ENC_SRCS) $(wildcard $(K)/src/tensor/*.h) | $(OUT)
+	$(CC) $(CFLAGS) $(GPU_FLAGS) -I$(K)/include -I$(K)/src/tensor -I$(K)/src/tensor/dist tensor/zt_enc.c $(ENC_SRCS) \
+		-lm -lpthread $(GPU_LIBS) -o $@
+zt_enc: $(OUT)/zt_enc
 
 # Offline: the legacy golden check, and zt_bench on the tokenizer-only test GGUF
 # (from kernel/src/tensor's fixture), which must be refused cleanly (exit 4)

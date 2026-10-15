@@ -24,6 +24,10 @@ kernel/arch/hosted/zxv_desktop.c
 kernel/arch/hosted/zui_present_host.c
 macos/zxv_rpc_client.c
 kernel/src/zui/zui_desk.c
+kernel/src/zui/zui_palette.c
+kernel/src/zui/zui_vec.c
+kernel/src/zui/zui_apps.c
+kernel/src/zui/zui_applib.c
 kernel/src/zui/zui_wm.c
 kernel/src/zui/zui_dock.c
 kernel/src/zui/zui_motion.c
@@ -48,6 +52,7 @@ kernel/src/apps/glint_model.c
 kernel/src/apps/spindle_model.c
 kernel/src/apps/murmuration_model.c
 kernel/src/apps/zxapp.c
+kernel/src/chiglet/chg_vocab.c
 kernel/src/swarm/swarm_emotion.c
 kernel/src/swarm/swarm_budget.c
 kernel/src/web4/web4_json.c
@@ -92,12 +97,13 @@ CC="${CC:-cc}"
 SRC="$(srcs | sed "s|^|$R/|")"
 INC="$(incs | sed "s|^|-I$R/|")"
 FONTDIR="-DZXV_FONT_DIR=\"$R/assets/fonts/ascw-golden\""
+APPSDIR="-DZXV_APPS_DIR=\"$R/assets/icons/apps\""
 CFLAGS="-std=c11 -O2 -Wall -Wextra -Werror ${CFLAGS:-}"
 
 case "$(uname -s)" in
     Darwin)
         # shellcheck disable=SC2086
-        $CC $CFLAGS -fobjc-arc $INC "$FONTDIR" "$HERE/zxv_desktop_main.c" $SRC \
+        $CC $CFLAGS -fobjc-arc $INC "$FONTDIR" "$APPSDIR" "$HERE/zxv_desktop_main.c" $SRC \
             "$HERE/zui_present_metal.m" \
             -framework Cocoa -framework Metal -framework QuartzCore -o "$OUT" || exit 1
         ;;
@@ -116,7 +122,7 @@ case "$(uname -s)" in
             DEFS="-DZUI_HAVE_VULKAN=0" # X11 only
         fi
         # shellcheck disable=SC2086
-        $CC $CFLAGS $DEFS $INC "$FONTDIR" "$HERE/zxv_desktop_main.c" $SRC $PRESENT $LIBS \
+        $CC $CFLAGS $DEFS $INC "$FONTDIR" "$APPSDIR" "$HERE/zxv_desktop_main.c" $SRC $PRESENT $LIBS \
             -o "$OUT" || exit 1
         ;;
 esac

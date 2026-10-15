@@ -24,6 +24,23 @@ SECTIONS
 
     .text : {
         *(.text.boot)
+        /* The hydration code (kernel/src/swarmnet): the fetcher, its HTTP
+         * client and disc writer, and the ipfs_node block walker. The
+         * post-hydration seal (sn_seal.c, linked elsewhere in .text)
+         * overwrites this range with INT3 once the swarm discs are committed,
+         * so no code that fetches or writes a disc image survives the seal.
+         * Page-aligned at both ends so nothing else shares its pages. */
+        . = ALIGN(4096);
+        __zxv_hydrate_start = .;
+        *swarmnet/sn_link.o(.text .text.*)
+        *swarmnet/sn_proto.o(.text .text.*)
+        *swarmnet/sn_http.o(.text .text.*)
+        *swarmnet/sn_fetch.o(.text .text.*)
+        *ipfs_node/ipfsn_dir.o(.text .text.*)
+        *ipfs_node/ipfsn_multiformats.o(.text .text.*)
+        *ipfs_node/ipfsn_unixfs.o(.text .text.*)
+        . = ALIGN(4096);
+        __zxv_hydrate_end = .;
         *(.text)
         *(.text.*)
     } :text

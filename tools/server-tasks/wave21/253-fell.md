@@ -1,6 +1,6 @@
 # Wave 21 task: Fell (slot 253), Search and rescue
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (085 waymark, merged); wave 2 (027 commons); wave 3 (035 aerie); wave 11 (143 watchfire).
+Depends on: wave 0 (085 waymark), wave 2 (027 commons), wave 5 (035 aerie), wave 11 (143 watchfire).
 Manifest: `slot 253`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/253-fell.svg`, `budget 233`, model `apps/fell_model.{h,c}`, blocks under kernel/src/apps/blocks/fell/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Coordinates search and rescue teams: maps and places (`place.here`, `place.list`, `place.add`), radio messages (`ehop.bands`, `ehop.seal`, `ehop.open`, `harmonic.encode`, `harmonic.decode`, `freight.pack`), the team room (`chat.post`, `chat.feed`, `pspace.post`), casualty records in the Hoard (`files.read`, `files.write`).
 Uses: `use waymark 1` (`place_ok`); `use aerie 1` (frame tag split and "fits the band"); `use watchfire 1` (share-location truth and medical ID records); `use commons 1` ("may I post here"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

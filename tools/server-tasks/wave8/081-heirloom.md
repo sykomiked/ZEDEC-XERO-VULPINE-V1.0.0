@@ -1,0 +1,8 @@
+# Wave 8 task: Heirloom (slot 81), Estate plans and recovery guardians
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 81, build position 86 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on Coffer (layer 73, wave 1, built before this one: `use coffer 1`); the core (layer 0: reach it through zxvd methods that exist). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. Report the reuse line `concepts.py` prints for this app.
+What it does: the inheritance manifest, guardians and recovery (`estate.setup`, `estate.manifest`, `estate.faraid`, `estate.distribute`, `estate.status`, `recovery.setup`, `recovery.status`, `recovery.claim`).
+Logic (critical): manifest fractions sum to exactly 1 (cross-multiplied) in sutra + trebago witnessed; split preview by largest remainder in sutra + trebago witnessed, and compared with `estate.distribute` (reports only); "release due" (k guardian approvals and the waiting period over, no living veto) in eve + trebago witnessed.
+Nothing happens on time or silence alone; owner and guardians sign. Tests make their own throwaway keys, never anything from build_system/keys/.
+needs: ledger.read, peers, notify.
+Planned (no runtime yet): Elixir, Simula I, Oberon.

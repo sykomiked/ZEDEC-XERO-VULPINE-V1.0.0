@@ -1,0 +1,12 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# A temperature short of critical (brazier_model.h): -20.0 to 60.0 degrees
+# C, in integer tenths of a degree, both ends inside. Outside it the
+# warning is critical: still advice only, nothing is stopped.
+eve brazier
+safe_tenths = -200 .. 600
+
+heat_short_of_critical {
+  temp: safe_tenths
+}

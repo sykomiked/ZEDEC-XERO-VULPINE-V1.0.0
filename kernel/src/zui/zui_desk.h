@@ -11,9 +11,12 @@
  *      left, the Desktop / Spaces switch in the centre, a short status line
  *      at the right. Pressing Spaces (or Tab on the bare-metal shell) is
  *      reported as ZUI_DESK_SPACES; the owner decides what Spaces shows.
- *   D2 THE LAUNCHER RAIL runs down the left edge: one carved tile per app,
- *      its mark (one or two letters, drawn in the system face, so it stays
- *      vector) and its name under it. A tile whose app has a window open has
+ *   D2 THE LAUNCHER RAIL runs down the left edge. Its first tile is Apps,
+ *      which opens the app library of all 407 apps (zui_applib.h); pressing
+ *      it is reported as ZUI_DESK_LIBRARY. Then one carved tile per app: its
+ *      vector icon from the app pack (zui_apps.h) when it has one, else its
+ *      mark (one or two letters, drawn in the system face, so it stays
+ *      vector), and its name under it. A tile whose app has a window open has
  *      a gold dot; the app in front has a gold ring. Pressing a tile is
  *      reported as ZUI_DESK_LAUNCH with the app's index; the owner opens or
  *      focuses its window.
@@ -32,6 +35,8 @@
 
 #include "zui_canvas.h"
 #include "zui_input.h"
+#include "zui_palette.h"
+#include "zui_vec.h"
 #include "zui_wm.h"
 
 #define ZUI_DESK_APPS    16u
@@ -41,11 +46,21 @@
 #define ZUI_DESK_STATUS  96u
 
 typedef struct {
-    const char *name; /* shown under the tile and in the strip  */
-    const char *mark; /* one or two letters drawn in the tile   */
+    const char *name;    /* shown under the tile and in the strip  */
+    const char *mark;    /* one or two letters drawn in the tile   */
+    const uint8_t *icon; /* its ZXVG icon (zui_desk_icon), or null */
+    uint32_t icon_len;
 } zui_desk_app_t;
 
-typedef enum { ZUI_DESK_NONE = 0, ZUI_DESK_LAUNCH, ZUI_DESK_SPACES, ZUI_DESK_HOME } zui_desk_act_t;
+typedef enum {
+    ZUI_DESK_NONE = 0,
+    ZUI_DESK_LAUNCH,
+    ZUI_DESK_SPACES,
+    ZUI_DESK_HOME,
+    ZUI_DESK_LIBRARY /* the Apps tile */
+} zui_desk_act_t;
+
+#define ZUI_DESK_APPS_TILE (-2) /* hover/press value for the Apps tile */
 
 /* The faces the desk draws with (NULL draws no text there). */
 typedef struct {
@@ -63,6 +78,9 @@ typedef struct {
     uint32_t napps;
     uint32_t win_of[ZUI_DESK_APPS]; /* the app's window id in wm, 0 none */
     bool spaces;                    /* the switch shows Spaces chosen  */
+    bool library;                   /* the Apps tile shows the library open */
+    zui_vec_work_t *work;           /* for the icons (zui_desk_use_work) */
+    const zui_colors_t *colors;     /* zui_palette.h C6: the set painted with; NULL dark */
     int32_t hover;                  /* tile under the pointer, -1 none */
     int32_t press;                  /* tile pressed and not yet let go */
     char status[ZUI_DESK_STATUS];
@@ -78,12 +96,19 @@ void zui_desk_resize(zui_desk_t *d, int32_t w, int32_t h, uint32_t scale_q8);
 /* Add an app to the rail; returns its index, or -1 when the rail is full. */
 int32_t zui_desk_add(zui_desk_t *d, const char *name, const char *mark);
 void zui_desk_status(zui_desk_t *d, const char *text);
+/* Give an app its vector icon (ZXVG bytes the caller keeps alive). */
+void zui_desk_icon(zui_desk_t *d, uint32_t app, const uint8_t *zxvg, uint32_t len);
+/* The vector renderer's working memory for the icons (null: marks only). */
+void zui_desk_use_work(zui_desk_t *d, zui_vec_work_t *work);
+/* The colour set the desk, its windows and their dock paint with (NULL dark). */
+void zui_desk_set_colors(zui_desk_t *d, const zui_colors_t *colors);
 
 int32_t zui_desk_pt(const zui_desk_t *d, int32_t pt); /* points to pixels */
 zui_rect_t zui_desk_bar(const zui_desk_t *d);
 zui_rect_t zui_desk_rail(const zui_desk_t *d);
 zui_rect_t zui_desk_area(const zui_desk_t *d); /* where the windows live */
 zui_rect_t zui_desk_tile(const zui_desk_t *d, uint32_t i);
+zui_rect_t zui_desk_apps_tile(const zui_desk_t *d);           /* D2: the first slot */
 zui_rect_t zui_desk_switch(const zui_desk_t *d, bool spaces); /* one half of the D1 switch */
 
 /* D2: open `app`'s window, or bring it to the front when it has one. The

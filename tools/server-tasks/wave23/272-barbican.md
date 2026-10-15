@@ -1,6 +1,6 @@
 # Wave 23 task: Barbican (slot 272), Personal security guard
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 2 (030 hedgerow); wave 12 (153 pavise); wave 14 (173 warding); wave 15 (181 loupe).
+Depends on: wave 2 (030 hedgerow), wave 12 (153 pavise), wave 14 (173 warding), wave 15 (181 loupe).
 Manifest: `slot 272`, `layer L3`, `icon icons/l3/272-barbican.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: guards one person's devices, logins and identity keys (`devmesh.devices`, `passkeys.list`, `seats.list`), showing every intrusion attempt from the journal (`journal.query`, `log.tail`) and blocking it in plain words.
 Uses: `use pavise 1` (Pavise's combined "allow" and exposure score); `use warding 1` ("key active", key register); `use loupe 1` ("evidence admissible", timeline gaps); `use hedgerow 1` ("is this path reachable", address class). Call these composed entries; do not re-implement them.

@@ -65,7 +65,7 @@ with the evidence.
 | 7 | Syscall ABI 1.1: handles, pointer+length I/O, verdict register, correct error codes | partial | M | kernel_core #8 |
 | 8 | Loader trust: `run` uses the weak v1 check, runs unsigned code, ignores the signed caps | **fixed in this PR** (arm64): ZSP2 via `zsp_verify2`, caps from the signed header, ZSP1 at least privilege, unsigned refused outside dev builds; the rollback floor for apps and Immigration visas per tier remain | S | userland_apps #5 |
 | 9 | Root and data filesystems from disk; 64-bit block layer; partition discovery by type | missing | M | boot_storage #5-7, #11 |
-| 10 | Golden disc v2 layout: ESP, boot control, signed system image, raw models partition, data | partial (one FAT32 partition) | M | boot_storage #8, D3 |
+| 10 | Golden disc v2 layout: ESP, boot control, signed system image, raw models partition, data | partial: a core disc per arch plus architecture-neutral swarm discs (ZXV_SWARM_*) the x86_64 kernel mounts and checks itself; a release bucket (build_system/mk_bucket.py) and download tool (tools/zxv-get) verified per block and per disc; the x86_64 kernel fetches missing swarm discs itself over HTTP onto a blank drive, committed on a SHA-256 match, in the background after boot, resumable across reboots and patient with slow or absent gateways, then seals the network (QEMU-proven, kernel/src/swarmnet; HTTPS and Bitswap not yet); the release is a chain of content-addressed layers L0 to L4, and the kernel checks L0 -> L1 -> L2, the boot file and every model against them before BOOT_OK (docs/LAYERS.md, kernel/src/layers); boot control, signed system image and data still missing | M | boot_storage #8, D3 |
 | 11 | Service manager on bare metal | missing | M | boot_storage #9 |
 | 12 | Session spine: zui linked into both images, one event loop, damage-only present | missing (code exists) | M | desktop_devices #1-2 |
 | 13 | Login, lock and per-seat licence on screen, persisted to the data partition | missing (code exists) | M | desktop_devices #6, boot_storage #10 |
@@ -78,7 +78,7 @@ with the evidence.
 | 20 | Language runtimes (Sutra, Eve, KRON, Trebago, MYRA, wasm) in user space; one Sutra | missing | M | userland_apps #9 |
 | 21 | System A/B, boot entries, recovery, safe mode, crash record | missing | M | boot_storage #14-15, #17 |
 | 22 | On-device installer | missing | L | boot_storage #16 |
-| 23 | NIC to IP stack on x86, RTC + SNTP so TLS can verify | missing | S | desktop_devices #9-10 |
+| 23 | NIC to IP stack on x86, RTC + SNTP so TLS can verify | partial: for the swarm-disc fetch an hwdrv NIC feeds the kernel stack (link, DHCP, DNS, ARP, TCP; kernel/src/swarmnet), sealed afterwards; no standing interface for programs, no RTC or SNTP | S | desktop_devices #9-10 |
 | 24 | Device interrupts (MSI/MSI-X), SMP, then IOMMU | missing | L | kernel_core #16-17, desktop_devices #13 |
 | 25 | Audio ring to the mixer and launch sound sequences | partial | M | desktop_devices #11 |
 | 26 | ACPI AML (battery, thermal, lid, sleep, backlight, I2C-HID) | missing | L | desktop_devices #12 |

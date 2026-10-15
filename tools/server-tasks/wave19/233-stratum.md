@@ -1,6 +1,6 @@
 # Wave 19 task: Stratum (slot 233), Source comparison
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (042 broadsheet); wave 5 (069 quarry, 067 lore, 063 sieve).
+Depends on: wave 3 (063 sieve), wave 6 (042 broadsheet), wave 7 (067 lore, 069 quarry).
 Manifest: `slot 233`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/233-stratum.svg`, `budget 233`, model `apps/stratum_model.{h,c}`, blocks under kernel/src/apps/blocks/stratum/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Compares sources side by side, traces citations and flags where they agree or conflict: the Hoard (`search.query`, `files.read`), the owner's Web4 feed (`web4.feed`), summaries from `swarm.ask` (held, read only with Lore's leave), accepted items (`journal.query`).
 Uses: `use quarry 1` ("this claim has a source" and sources per topic); `use broadsheet 1` ("well formed"); `use lore 1` ("may the AI read this file"); `use sieve 1` ("may this be applied"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

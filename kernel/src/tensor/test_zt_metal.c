@@ -5,7 +5,8 @@
  *
  *   clang -std=c11 -O2 -Wall -Wextra -Werror -DTEST_HOST -fno-objc-arc -Isrc/tensor \
  *       src/tensor/test_zt_metal.c src/tensor/zt_metal.m src/tensor/zt_gpu.c src/tensor/zt_simd.c \
- *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c \
+ *       src/tensor/zt_simd_x86.c src/tensor/zt_simd_sve.c src/tensor/zt_simd_neon.c \
+ *       src/tensor/zt_simd_rvv.c src/tensor/zt_model.c \
  *       src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c \
  *       -framework Metal -framework Foundation -lpthread -o /tmp/test_zt_metal
  *

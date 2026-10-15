@@ -4,6 +4,9 @@
 #include "zui_osk.h"
 #include "zui_tokens.h"
 
+/* zui_palette.h C6: every colour by role, in the active set */
+#define C(role) zui_color(o->colors, ZUI_C_##role)
+
 #define OSK_REPEAT_MS 50u
 #define Q_KEY         4u /* a letter key, quarter units          */
 #define Q_WIDE        6u /* Shift, Backspace, page keys          */
@@ -545,36 +548,35 @@ void zui_osk_paint(const zui_osk_t *o, zui_surface_t *s, const zui_text_t *t)
         ground.h += ground.y - o->rect.y;
         ground.y = o->rect.y;
     }
-    zui_fill(s, ground, ZUI_VOID);
+    zui_fill(s, ground, C(VOID));
     int32_t rad = px_of(o, ZUI_R_CONTROL);
     for (uint32_t i = 0; i < o->nkeys; i++) {
         const zui_osk_key_t *k = &o->keys[i];
         bool down = (int32_t) i == o->pressed;
-        uint32_t fill, ink = ZUI_TEXT;
+        uint32_t fill, ink = C(TEXT);
         if (k->kind == ZUI_OSKK_ENTER) {
-            fill = down ? ZUI_GOLD_HI : ZUI_GOLD; /* the one accent */
-            ink = ZUI_VOID;
+            fill = down ? C(GOLD_HI) : C(GOLD); /* the one accent */
+            ink = C(VOID);
         } else if (down) {
-            fill = ZUI_RAISED;
+            fill = C(RAISED);
         } else if (k->kind == ZUI_OSKK_CHAR || k->kind == ZUI_OSKK_SPACE) {
-            fill = ZUI_PANEL;
+            fill = C(PANEL);
         } else if (k->kind == ZUI_OSKK_SHIFT && o->caps_lock) {
-            fill = ZUI_RAISED;
+            fill = C(RAISED);
         } else {
-            fill = ZUI_VOID;
-            ink = ZUI_TEXT_2;
+            fill = C(VOID);
+            ink = C(TEXT_2);
         }
         zui_fill_rrect(s, k->r, rad, fill, 255);
-        if (k->kind != ZUI_OSKK_ENTER)
-            zui_engrave(s, k->r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 48);
+        if (k->kind != ZUI_OSKK_ENTER) zui_engrave(s, k->r, rad, C(ENGRAVE_LO), C(ENGRAVE_HI), 48);
         if (k->kind == ZUI_OSKK_SHIFT && (o->page == ZUI_OSK_SHIFT)) {
             /* shift on: a bar under the arrow; locked: a wider one */
             int32_t bw = o->caps_lock ? k->r.w / 2 : k->r.w / 4;
             zui_hline(s, k->r.x + (k->r.w - bw) / 2, k->r.y + k->r.h - px_of(o, 6), bw,
-                      px_of(o, 2) > 0 ? px_of(o, 2) : 1, ZUI_TEXT);
+                      px_of(o, 2) > 0 ? px_of(o, 2) : 1, C(TEXT));
         }
         if (k->kind == ZUI_OSKK_SPACE && o->km && k->qw >= 16) {
-            label(s, t, k->r, ZUI_MUTED, o->km->name);
+            label(s, t, k->r, C(MUTED), o->km->name);
             continue;
         }
         label(s, t, k->r, ink, k->label);

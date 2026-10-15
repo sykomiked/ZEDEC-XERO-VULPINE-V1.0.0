@@ -24,8 +24,10 @@
  *           MMIO memory, or the stub's own stack). FALSE returns to the
  *           firmware instead of copying over memory it does not own; BOTH
  *           boots with the damaged ACPI held, never silently trusted.
- *   models  TRUE every model on the disc hashed correctly, FALSE one or more
- *           did not, NEITHER the disc carries no models.
+ *   models  the loader's model check: TRUE every model on the disc hashed
+ *           correctly, FALSE one or more did not, NEITHER not all checked
+ *           (no models, or left to the kernel: the x86_64 kernel checks
+ *           them itself after boot, see kernel/src/hwdrv/hw_models.h).
  * The kernel's acceptance of the record is itself a verdict (zxh_accept):
  * TRUE valid, FALSE present but damaged (never trusted), NEITHER absent (a
  * direct -kernel boot, where nothing changes). */
@@ -292,7 +294,9 @@ static inline void zxh_report(const zxh_t *h, void (*puts)(const char *), void (
         puts("unavailable\n");
     }
     puts("  disc models: ");
-    puts(h->models == 1 ? "verified" : h->models == 2 ? "FAILED" : "none on this disc");
+    puts(h->models == 1   ? "verified by the loader"
+         : h->models == 2 ? "FAILED the loader's check"
+                          : "not checked by the loader");
     puts("\n");
 }
 

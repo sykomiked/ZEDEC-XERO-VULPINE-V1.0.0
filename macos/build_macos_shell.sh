@@ -8,8 +8,9 @@
 # (kernel/arch/hosted/zxv_desktop.c with zui, the app views and models and
 # the font rasteriser, listed by build_zxv_desktop.sh --list) on the Metal
 # present layer (zui_present_metal.m). No WebKit: the window is zui's own.
-# The desktop reads its faces from Contents/Resources/Fonts, which
-# build_system/build_desktop.sh fills (put_fonts). Mac only: it needs Xcode
+# The desktop reads its faces from Contents/Resources/Fonts and the app
+# library's pack from Contents/Resources/Icons, which
+# build_system/build_desktop.sh fills (put_fonts, and the pack beside it). Mac only: it needs Xcode
 # or the Command Line Tools (xcrun clang and the macOS SDK).
 # Exit 0 and write OUT, or exit 3 when this is not a Mac (callers then ship
 # the engine-only fallback), or 1 when the compile fails.

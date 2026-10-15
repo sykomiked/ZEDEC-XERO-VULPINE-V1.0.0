@@ -1,6 +1,6 @@
 # Wave 15 task: Trowel (slot 184), Property upkeep
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (019 cellar), wave 3 (045 bowline), wave 6 (078 tallystick), wave 7 (094 homestead).
+Depends on: wave 4 (078 tallystick), wave 5 (019 cellar), wave 6 (045 bowline), wave 8 (094 homestead).
 Manifest: `slot 184`, `layer L2`, `icon icons/l2/184-trowel.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: logs building upkeep: repairs, inspections, contractors and costs, in the Hoard (`files.list`, `files.read`, `files.write`, `sys.disk`) and the books (`ledger.entries`).
 Uses: `use cellar 1` (used share, folder shares for the property's documents); `use bowline 1` (next due, overdue); `use tallystick 1` (invoice total, "paid in full"); `use homestead 1` (devices). Call these composed entries; do not re-implement them.

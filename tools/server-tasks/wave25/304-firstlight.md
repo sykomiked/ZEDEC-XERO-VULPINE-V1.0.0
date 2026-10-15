@@ -1,6 +1,6 @@
 # Wave 25 task: Firstlight (slot 304), A child's first computer
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 8 (103 cubby, 100 primer); wave 14 (169 hornbook); wave 17 (216 rill); wave 18 (219 scree).
+Depends on: wave 9 (100 primer, 103 cubby), wave 14 (169 hornbook), wave 17 (216 rill), wave 18 (219 scree).
 Manifest: `slot 304`, `layer L3`, `icon icons/l3/304-firstlight.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: a child's first computer: safe play, reading, puzzles and first coding lessons with parents in charge (`screen.check`, `screen.status`, `files.read`, `files.write`, `play.catalogue`, `play.run`).
 Uses: `use rill 1` ("age-appropriate", reading level); `use scree 1` (adaptive puzzles); `use hornbook 1` (mastery grid, next lesson step); `use cubby 1` ("may this child open this now"); `use primer 1` ("lesson passed"). Call these composed entries; do not re-implement them.

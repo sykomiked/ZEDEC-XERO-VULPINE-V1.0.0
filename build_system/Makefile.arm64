@@ -40,6 +40,16 @@ MAKEFLAGS += -j$(JOBS)
 # collision that this variable removes.
 OBJDIR := build/arm64
 
+# BOARD picks a profile from kernel/arch/arm64/board_profile.h (default 0, QEMU
+# virt): 5 RK3588, 6 Zynq UltraScale+, 7 Versal. A board build gets its own
+# object tree and ELF name, so it never mixes with the default image.
+# build_system/boards_boot_check.sh boots 6 and 7 in QEMU's models of them.
+BOARD ?=
+ifneq ($(BOARD),)
+OBJDIR := build/arm64-board$(BOARD)
+BOARD_CFLAGS := -DTARGET_BOARD=$(BOARD)
+endif
+
 # NOTE: -fno-tree-vectorize/-fno-tree-slp-vectorize below are REQUIRED for
 # correctness, not speed: the IRQ vector (boot.s SAVE_REGS) saves only x0-x30,
 # NOT the FP/SIMD register file, so any live state the compiler parks in NEON
@@ -54,7 +64,7 @@ OBJDIR := build/arm64
 # -Wtautological-compare) were fixed rather than suppressed. Same rationale as the
 # Linux kernel disabling this one sub-warning.
 CFLAGS = -std=c11 -Wall -Wextra -O2 -ffreestanding -nostdlib \
-         -fno-stack-protector -fno-pie -no-pie -fno-builtin \
+         -fno-stack-protector -fno-pie -no-pie -fno-builtin $(BOARD_CFLAGS) \
          -ffunction-sections -fdata-sections \
          -fno-tree-vectorize -fno-tree-slp-vectorize -mgeneral-regs-only \
          -Werror=double-promotion -Werror=float-conversion \
@@ -326,6 +336,9 @@ KERNEL_SRCS = \
     kernel/src/lightningrod/lightningrod.c \
     kernel/src/bios/zbios.c \
     kernel/src/chiglet/chiglet.c \
+    kernel/src/chiglet/chg_abi.c \
+    kernel/src/chiglet/chg_cells.c \
+    kernel/src/chiglet/chg_cells_table.c \
     kernel/src/cards/cards.c \
     kernel/src/cards/zca.c \
     kernel/src/cards/sigil.c \
@@ -395,6 +408,10 @@ KERNEL_SRCS = \
     kernel/src/vbe/vbe.c \
     kernel/src/desktop/zxv_shell.c \
     kernel/src/desktop/zxv_shell_font.c \
+    kernel/src/desktop/zxv_shell_apps.c \
+    kernel/src/zui/zui_vec.c \
+    kernel/src/zui/zui_apps.c \
+    kernel/src/zui/zui_applib.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
     kernel/src/zui/zui_dock.c \
@@ -642,8 +659,13 @@ KERNEL_OBJS = $(patsubst %.c,$(OBJDIR)/%.o,$(KERNEL_SRCS))
 OBJDIRS := $(sort $(dir $(ARM64_ARCH_OBJS) $(KERNEL_OBJS)))
 $(shell mkdir -p $(OBJDIRS))
 
+ifneq ($(BOARD),)
+TARGET = kernel_arm64_board$(BOARD).elf
+TARGET_BIN = kernel_arm64_board$(BOARD).bin
+else
 TARGET = kernel_arm64.elf
 TARGET_BIN = kernel_arm64.bin
+endif
 
 # Auto-generated header dependencies (from -MMD -MP): rebuild any .o when a
 # header it includes changes. Without this, editing a struct in a .h left stale

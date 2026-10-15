@@ -1,0 +1,696 @@
+// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// zt_vk.comp — the Vulkan compute kernels (zt_vk.c): zt_metal_math.h's
+// integer steps in GLSL, line for line, so every logit is bit for bit the
+// CPU's (test_zt_vk checks it on lavapipe and on real GPUs).
+//
+// Built once per kernel with glslangValidator -DZK=<kernel> (see
+// gen_zt_vk_spv.sh). ZK 0..14 are zt_gpu.h's ZG_K_* (3, the generic
+// product, is not built: products use the tiled kernels); ZK 100 +
+// 3 * tiled + type are the products (type 0 Q4_K, 1 Q6_K, 2 Q8_0).
+//
+// Portable on purpose: buffers are 32-bit words (no 8- or 16-bit storage
+// needed); a byte or 16-bit store is an atomic and/or on its word, so
+// neighbouring threads never clobber each other; a binding may start off a
+// word boundary (pc.d holds each one's byte offset within its first word);
+// products sum through shared memory, so any subgroup width works (8 on
+// lavapipe, 16 to 128 on phones and desktops).
+//
+// Two builds of every kernel, from this one source:
+//   - ZV_I32 0 (default): zl / zw are int64_t / uint64_t, for GPUs with
+//     64-bit integers in shaders (shaderInt64);
+//   - ZV_I32 1: no 64-bit type anywhere (the SPIR-V declares no Int64
+//     capability), for GPUs without shaderInt64 (many Arm Mali and Qualcomm
+//     Adreno parts). zl / zw are pairs of 32-bit words (uvec2: x the low
+//     word, y the high word, two's complement) and every 64-bit step is done
+//     exactly on the pair: add and subtract with carry, signed and unsigned
+//     compares, shifts by 0..63, 64 x 64 -> low 64 bit multiplies (C's
+//     wrapping uint64 / int64 product), and the shift-subtract division.
+// The kernels below are written once against the l_* (signed, zl) and w_*
+// (unsigned, zw) operations, which are the native operators in the first
+// build and the pair arithmetic in the second, so both give the same bits
+// as the C reference (test_zt_vk runs either; ZT_VK_FORCE_I32=1 picks the
+// second on any device). A shift count must be 0..63, as in C.
+#version 450
+
+#ifndef ZV_I32
+#    define ZV_I32 0
+#endif
+
+#define zi int
+#define zu uint
+
+#if ZV_I32 == 0
+#    extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#    define zl int64_t
+#    define zw uint64_t
+
+zl l_i(zi a) { return zl(a); }
+zl l_p2(zu n) { return 1l << n; }
+zl l_add(zl a, zl b) { return a + b; }
+zl l_sub(zl a, zl b) { return a - b; }
+zl l_neg(zl a) { return -a; }
+zl l_mul(zl a, zl b) { return a * b; }
+zl l_mul32(zi a, zi b) { return zl(a) * zl(b); }
+zl l_sar(zl a, zu n) { return a >> n; }
+zl l_shl(zl a, zu n) { return a << n; }
+bool l_lt(zl a, zl b) { return a < b; }
+bool l_gt(zl a, zl b) { return a > b; }
+bool l_le(zl a, zl b) { return a <= b; }
+bool l_ge(zl a, zl b) { return a >= b; }
+bool l_eq(zl a, zl b) { return a == b; }
+zi l_lo(zl a) { return zi(a); }
+
+zw w_u(zu a) { return zw(a); }
+zw w_make(zu lo, zu hi) { return zw(lo) | (zw(hi) << 32); }
+zw w_p2(zu n) { return 1ul << n; }
+zw w_add(zw a, zw b) { return a + b; }
+zw w_sub(zw a, zw b) { return a - b; }
+zw w_mul32(zu a, zu b) { return zw(a) * zw(b); }
+zw w_shr(zw a, zu n) { return a >> n; }
+zw w_shl(zw a, zu n) { return a << n; }
+bool w_lt(zw a, zw b) { return a < b; }
+bool w_gt(zw a, zw b) { return a > b; }
+bool w_ge(zw a, zw b) { return a >= b; }
+bool w_nz(zw a) { return a != 0ul; }
+zu w_lo(zw a) { return zu(a); }
+zu w_hi(zw a) { return zu(a >> 32); }
+
+zw w_l(zl a) { return zw(a); }
+zl l_w(zw a) { return zl(a); }
+
+zu zm_bitlen(zw v)
+{
+    zu n = 0u;
+    while (v != 0ul) {
+        v >>= 1;
+        n++;
+    }
+    return n;
+}
+
+zw zm_udiv(zw n, zw d) { return d == 0ul ? 0ul : n / d; }
+
+#else
+// ---- 64-bit integers as two 32-bit words: x low, y high ----
+uvec2 x_add(uvec2 a, uvec2 b)
+{
+    zu lo = a.x + b.x;
+    return uvec2(lo, a.y + b.y + (lo < a.x ? 1u : 0u));
+}
+uvec2 x_sub(uvec2 a, uvec2 b) { return uvec2(a.x - b.x, a.y - b.y - (a.x < b.x ? 1u : 0u)); }
+uvec2 x_mul(uvec2 a, uvec2 b) // the low 64 bits, as C's wrapping product
+{
+    zu hi, lo;
+    umulExtended(a.x, b.x, hi, lo);
+    return uvec2(lo, hi + a.x * b.y + a.y * b.x);
+}
+uvec2 x_shl(uvec2 a, zu n)
+{
+    if (n == 0u) return a;
+    if (n < 32u) return uvec2(a.x << n, (a.y << n) | (a.x >> (32u - n)));
+    return uvec2(0u, a.x << (n - 32u));
+}
+uvec2 x_shr(uvec2 a, zu n) // logical
+{
+    if (n == 0u) return a;
+    if (n < 32u) return uvec2((a.x >> n) | (a.y << (32u - n)), a.y >> n);
+    return uvec2(a.y >> (n - 32u), 0u);
+}
+uvec2 x_sar(uvec2 a, zu n) // arithmetic
+{
+    if (n == 0u) return a;
+    if (n < 32u) return uvec2((a.x >> n) | (a.y << (32u - n)), zu(zi(a.y) >> n));
+    return uvec2(zu(zi(a.y) >> (n - 32u)), zu(zi(a.y) >> 31));
+}
+bool x_ult(uvec2 a, uvec2 b) { return a.y < b.y || (a.y == b.y && a.x < b.x); }
+bool x_slt(uvec2 a, uvec2 b) { return zi(a.y) < zi(b.y) || (a.y == b.y && a.x < b.x); }
+
+// distinct types, so a signed value is never used as an unsigned one unawares
+struct zl {
+    uvec2 v;
+};
+struct zw {
+    uvec2 v;
+};
+
+zl l_i(zi a) { return zl(uvec2(zu(a), zu(a >> 31))); }
+zl l_p2(zu n) { return zl(x_shl(uvec2(1u, 0u), n)); }
+zl l_add(zl a, zl b) { return zl(x_add(a.v, b.v)); }
+zl l_sub(zl a, zl b) { return zl(x_sub(a.v, b.v)); }
+zl l_neg(zl a) { return zl(x_sub(uvec2(0u), a.v)); }
+zl l_mul(zl a, zl b) { return zl(x_mul(a.v, b.v)); }
+zl l_mul32(zi a, zi b) { return l_mul(l_i(a), l_i(b)); }
+zl l_sar(zl a, zu n) { return zl(x_sar(a.v, n)); }
+zl l_shl(zl a, zu n) { return zl(x_shl(a.v, n)); }
+bool l_lt(zl a, zl b) { return x_slt(a.v, b.v); }
+bool l_gt(zl a, zl b) { return x_slt(b.v, a.v); }
+bool l_le(zl a, zl b) { return !x_slt(b.v, a.v); }
+bool l_ge(zl a, zl b) { return !x_slt(a.v, b.v); }
+bool l_eq(zl a, zl b) { return a.v == b.v; }
+zi l_lo(zl a) { return zi(a.v.x); }
+
+zw w_u(zu a) { return zw(uvec2(a, 0u)); }
+zw w_make(zu lo, zu hi) { return zw(uvec2(lo, hi)); }
+zw w_p2(zu n) { return zw(x_shl(uvec2(1u, 0u), n)); }
+zw w_add(zw a, zw b) { return zw(x_add(a.v, b.v)); }
+zw w_sub(zw a, zw b) { return zw(x_sub(a.v, b.v)); }
+zw w_mul32(zu a, zu b) { return zw(x_mul(uvec2(a, 0u), uvec2(b, 0u))); }
+zw w_shr(zw a, zu n) { return zw(x_shr(a.v, n)); }
+zw w_shl(zw a, zu n) { return zw(x_shl(a.v, n)); }
+bool w_lt(zw a, zw b) { return x_ult(a.v, b.v); }
+bool w_gt(zw a, zw b) { return x_ult(b.v, a.v); }
+bool w_ge(zw a, zw b) { return !x_ult(a.v, b.v); }
+bool w_nz(zw a) { return a.v != uvec2(0u); }
+zu w_lo(zw a) { return a.v.x; }
+zu w_hi(zw a) { return a.v.y; }
+
+zw w_l(zl a) { return zw(a.v); }
+zl l_w(zw a) { return zl(a.v); }
+
+zu zm_bitlen(zw v)
+{
+    return v.v.y != 0u ? 33u + zu(findMSB(v.v.y)) : zu(findMSB(v.v.x) + 1);
+}
+
+// zt_metal_math.h's shift-subtract division, keeping the bit a shift of the
+// remainder carries out, so it is n / d for every d (the int64 build's `/`)
+zw zm_udiv(zw n, zw d)
+{
+    if (!w_nz(d)) return w_u(0u);
+    if (n.v.y == 0u && d.v.y == 0u) return w_u(n.v.x / d.v.x);
+    uvec2 q = uvec2(0u), r = uvec2(0u);
+    for (zi i = 63; i >= 0; i--) {
+        bool carry = (r.y >> 31) != 0u;
+        r = x_shl(r, 1u);
+        r.x |= (i >= 32 ? n.v.y >> zu(i - 32) : n.v.x >> zu(i)) & 1u;
+        if (carry || !x_ult(r, d.v)) {
+            r = x_sub(r, d.v);
+            if (i >= 32)
+                q.y |= 1u << zu(i - 32);
+            else
+                q.x |= 1u << zu(i);
+        }
+    }
+    return zw(q);
+}
+#endif
+
+layout(std430, set = 0, binding = 0) buffer B0 { uint w[]; } m0;
+layout(std430, set = 0, binding = 1) buffer B1 { uint w[]; } m1;
+layout(std430, set = 0, binding = 2) buffer B2 { uint w[]; } m2;
+layout(std430, set = 0, binding = 3) buffer B3 { uint w[]; } m3;
+layout(std430, set = 0, binding = 4) buffer B4 { uint w[]; } m4;
+layout(std430, set = 0, binding = 5) buffer B5 { uint w[]; } m5;
+layout(std430, set = 0, binding = 6) buffer BC { uint c; } ctr;
+
+// u: the op's zg_p; d: each binding's byte offset in its first word;
+// gx: workgroups per row of the grid (grids past 65535 groups go 2-D)
+layout(push_constant) uniform PC
+{
+    uint u[16];
+    uint d[6];
+    uint gx;
+} pc;
+
+#define ZV_MEM(N)                                                                              \
+    uint ld8_##N(uint o)                                                                       \
+    {                                                                                          \
+        o += pc.d[N];                                                                          \
+        return (m##N.w[o >> 2] >> ((o & 3u) << 3)) & 255u;                                     \
+    }                                                                                          \
+    uint ldu32_##N(uint o)                                                                     \
+    {                                                                                          \
+        uint a = o + pc.d[N];                                                                  \
+        if ((a & 3u) == 0u) return m##N.w[a >> 2];                                             \
+        return ld8_##N(o) | (ld8_##N(o + 1u) << 8) | (ld8_##N(o + 2u) << 16) |                 \
+               (ld8_##N(o + 3u) << 24);                                                        \
+    }                                                                                          \
+    int ld16_##N(uint o)                                                                       \
+    {                                                                                          \
+        return int((ld8_##N(o) | (ld8_##N(o + 1u) << 8)) << 16) >> 16;                         \
+    }                                                                                          \
+    int ld32_##N(uint o) { return int(ldu32_##N(o)); }                                         \
+    zw ld64_##N(uint o) { return w_make(ldu32_##N(o), ldu32_##N(o + 4u)); }                    \
+    void st8_##N(uint o, uint v)                                                               \
+    {                                                                                          \
+        o += pc.d[N];                                                                          \
+        uint s = (o & 3u) << 3;                                                                \
+        atomicAnd(m##N.w[o >> 2], ~(255u << s));                                               \
+        atomicOr(m##N.w[o >> 2], (v & 255u) << s);                                             \
+    }                                                                                          \
+    void st16_##N(uint o, uint v)                                                              \
+    {                                                                                          \
+        st8_##N(o, v);                                                                         \
+        st8_##N(o + 1u, v >> 8);                                                               \
+    }                                                                                          \
+    void st32_##N(uint o, uint v)                                                              \
+    {                                                                                          \
+        uint a = o + pc.d[N];                                                                  \
+        if ((a & 3u) == 0u) {                                                                  \
+            m##N.w[a >> 2] = v;                                                                \
+            return;                                                                            \
+        }                                                                                      \
+        st16_##N(o, v);                                                                        \
+        st16_##N(o + 2u, v >> 16);                                                             \
+    }                                                                                          \
+    void st64_##N(uint o, zw v)                                                                \
+    {                                                                                          \
+        st32_##N(o, w_lo(v));                                                                  \
+        st32_##N(o + 4u, w_hi(v));                                                             \
+    }
+
+ZV_MEM(0)
+ZV_MEM(1)
+ZV_MEM(2)
+ZV_MEM(3)
+ZV_MEM(4)
+ZV_MEM(5)
+
+#define ZV_I32_MAX 2147483647
+#define ZV_I32_MIN (-2147483647 - 1)
+
+zi zm_sat32(zl v)
+{
+    return l_gt(v, l_i(ZV_I32_MAX))   ? ZV_I32_MAX
+           : l_lt(v, l_i(ZV_I32_MIN)) ? ZV_I32_MIN
+                                      : l_lo(v);
+}
+
+zl zm_term52(zl v, zi e)
+{
+    zl lim = l_p2(52u), nlim = l_neg(lim), z = l_i(0);
+    if (l_eq(v, z)) return z;
+    if (e <= 0) {
+        if (e < -62) return l_i(l_lt(v, z) ? -1 : 0);
+        v = l_sar(v, zu(-e));
+    } else {
+        if (e > 52) return l_lt(v, z) ? nlim : lim;
+        zl m = l_sar(lim, zu(e));
+        if (l_gt(v, m) || l_lt(v, l_neg(m))) return l_lt(v, z) ? nlim : lim;
+        v = l_shl(v, zu(e)); // v * 2^e: in range, as checked
+    }
+    return l_gt(v, lim) ? lim : l_lt(v, nlim) ? nlim : v;
+}
+
+zi zm_round(zl acc) { return zm_sat32(l_sar(l_add(acc, l_i(32768)), 16u)); }
+
+zi zm_f16_m(zu d)
+{
+    zu ex = (d >> 10) & 31u;
+    zi m = zi(d & 0x3FFu);
+    if (ex == 31u) return 0;
+    if (ex != 0u) m |= 0x400;
+    return (d & 0x8000u) != 0u ? -m : m;
+}
+
+zi zm_f16_e(zu d)
+{
+    zu ex = (d >> 10) & 31u;
+    if (ex == 31u) return 0;
+    return ex != 0u ? zi(ex) - 25 : -24;
+}
+
+// ---- products: weights in binding 0 (byte offsets), activations in 1 ----
+
+zu zm_u16_w(uint o) { return ld8_0(o) | (ld8_0(o + 1u) << 8); }
+
+zi zm_dot32_q4(uint q, zu hi, uint x)
+{
+    zi s = 0;
+    for (zu i = 0u; i < 32u; i++) s += zi((ld8_0(q + i) >> hi) & 15u) * ld16_1(x + 2u * i);
+    return s;
+}
+
+zl zm_q4k_sub(uint blk, zu j, uint x, zi sh, zi asum)
+{
+    zu d = zm_u16_w(blk), dmin = zm_u16_w(blk + 2u);
+    uint p = blk + 4u;
+    zu sc, mn;
+    if (j < 4u) {
+        sc = ld8_0(p + j) & 63u;
+        mn = ld8_0(p + j + 4u) & 63u;
+    } else {
+        sc = (ld8_0(p + j + 4u) & 15u) | ((ld8_0(p + j - 4u) >> 6) << 4);
+        mn = (ld8_0(p + j + 4u) >> 4) | ((ld8_0(p + j) >> 6) << 4);
+    }
+    zi s = zm_dot32_q4(blk + 16u + (j / 2u) * 32u, (j & 1u) * 4u, x);
+    return l_sub(zm_term52(l_mul(l_mul32(s, zi(sc)), l_i(zm_f16_m(d))), zm_f16_e(d) + 16 + sh),
+                 zm_term52(l_mul(l_mul32(asum, zi(mn)), l_i(zm_f16_m(dmin))),
+                           zm_f16_e(dmin) + 16 + sh));
+}
+
+zl zm_q6k_sub(uint blk, zu j, uint x, zi sh)
+{
+    zu h = j / 4u, quarter = j % 4u;
+    uint ql = blk + h * 64u + (quarter & 1u) * 32u;
+    uint qh = blk + 128u + h * 32u;
+    zu s4 = (quarter & 2u) != 0u ? 4u : 0u, s2 = 2u * quarter;
+    zi s0 = 0, s1 = 0;
+    for (zu l = 0u; l < 16u; l++) {
+        s0 += (zi(((ld8_0(ql + l) >> s4) & 15u) | (((ld8_0(qh + l) >> s2) & 3u) << 4)) - 32) *
+              ld16_1(x + 2u * l);
+        s1 += (zi(((ld8_0(ql + l + 16u) >> s4) & 15u) |
+                  (((ld8_0(qh + l + 16u) >> s2) & 3u) << 4)) -
+               32) *
+              ld16_1(x + 2u * (l + 16u));
+    }
+    zu d = zm_u16_w(blk + 208u);
+    zi sc0 = int(ld8_0(blk + 192u + 2u * j) << 24) >> 24;
+    zi sc1 = int(ld8_0(blk + 193u + 2u * j) << 24) >> 24;
+    zl v = l_add(l_mul32(sc0, s0), l_mul32(sc1, s1));
+    return zm_term52(l_mul(v, l_i(zm_f16_m(d))), zm_f16_e(d) + 16 + sh);
+}
+
+zl zm_q80_sub(uint blk, uint x, zi sh)
+{
+    zi s = 0;
+    for (zu i = 0u; i < 32u; i++)
+        s += (int(ld8_0(blk + 2u + i) << 24) >> 24) * ld16_1(x + 2u * i);
+    zu d = zm_u16_w(blk);
+    return zm_term52(l_mul32(s, zm_f16_m(d)), zm_f16_e(d) + 16 + sh);
+}
+
+zl zm_sub(zu qt, uint row, zu b, uint x, zi sh, zi asum)
+{
+    if (qt == 12u) return zm_q4k_sub(row + (b / 8u) * 144u, b % 8u, x, sh, asum);
+    if (qt == 14u) return zm_q6k_sub(row + (b / 8u) * 210u, b % 8u, x, sh);
+    return zm_q80_sub(row + b * 34u, x, sh);
+}
+
+// ---- the layer kernels' helpers ----
+
+zu zm_uabs(zi v) { return v < 0 ? 0u - zu(v) : zu(v); }
+
+zw zm_isqrt(zw v)
+{
+    zw r = w_u(0u), bit = w_p2(62u);
+    while (w_gt(bit, v)) bit = w_shr(bit, 2u);
+    while (w_nz(bit)) {
+        zw rb = w_add(r, bit);
+        if (w_ge(v, rb)) {
+            v = w_sub(v, rb);
+            r = w_add(w_shr(r, 1u), bit);
+        } else {
+            r = w_shr(r, 1u);
+        }
+        bit = w_shr(bit, 2u);
+    }
+    return w_u(w_lo(r));
+}
+
+zw zm_w64(zu k) { return w_make(pc.u[k], pc.u[k + 1u]); }
+
+// the exp2 table is binding 2 in both kernels that use it
+zi zm_exp(zi x)
+{
+    if (x > 0) x = 0;
+    zl t = l_sar(l_mul32(x, 94548), 16u);
+    zl ip = l_sar(t, 16u);
+    zu f = zu(l_lo(l_sub(t, l_shl(ip, 16u)))); // t - ip * 65536
+    zu hi = f >> 8, lo = f & 255u;
+    zu e0 = ldu32_2(4u * hi), e1 = ldu32_2(4u * (hi + 1u));
+    zu m = e0 + (((e1 - e0) * lo + 128u) >> 8);
+    zl sh = l_neg(ip);
+    if (l_ge(sh, l_i(32))) return 0;
+    if (l_le(sh, l_i(0))) return zi(m);
+    zu s = zu(l_lo(sh));
+    return zi((m + (1u << (s - 1u))) >> s);
+}
+
+zl zm_mul_shr(zl a, zu b, zu sh)
+{
+    zw lim = w_p2(58u), r;
+    bool neg = l_lt(a, l_i(0));
+    zw u = w_l(neg ? l_neg(a) : a);
+    zw hi = w_mul32(w_hi(u), b), lo = w_mul32(w_lo(u), b);
+    if (sh >= 32u) {
+        zw t = w_add(hi, w_shr(lo, 32u));
+        r = sh - 32u >= 64u ? w_u(0u) : w_shr(t, sh - 32u);
+    } else if (w_nz(w_shr(hi, 26u + sh)) || w_gt(w_shr(lo, sh), lim)) {
+        r = lim;
+    } else {
+        r = w_add(w_shl(hi, 32u - sh), w_shr(lo, sh));
+    }
+    if (w_gt(r, lim)) r = lim;
+    return neg ? l_neg(l_w(r)) : l_w(r);
+}
+
+zl zm_round_div(zl n, zw d)
+{
+    bool neg = l_lt(n, l_i(0));
+    zw u = w_l(neg ? l_neg(n) : n);
+    zl q = l_w(zm_udiv(w_add(u, w_shr(d, 1u)), d));
+    return neg ? l_neg(q) : q;
+}
+
+void zm_count(zu n)
+{
+    if (n != 0u) atomicAdd(ctr.c, n);
+}
+
+// ---- the layer kernels (zt_metal_math.h zk_*), one output per thread ----
+
+#if ZK == 0
+void zk(zu i) // rms_inv
+{
+    uint x = 4u * (i * pc.u[2]);
+    zu n = pc.u[1];
+    zw eps = zm_w64(3u);
+    zu amax = 0u;
+    for (zu j = 0u; j < n; j++) amax = max(amax, zm_uabs(ld32_0(x + 4u * j)));
+    zu bb = 2u * zm_bitlen(w_u(amax)) + zm_bitlen(w_u(n)), sh = bb > 60u ? bb - 60u : 0u;
+    zw ss = w_u(0u);
+    for (zu j = 0u; j < n; j++) {
+        zi v = ld32_0(x + 4u * j);
+        ss = w_add(ss, w_shr(w_l(l_mul32(v, v)), sh));
+    }
+    zw M = zm_udiv(ss, w_u(n));
+    zi F = 32 - zi(sh);
+    M = w_add(M, w_shr(eps, zu(48 - F)));
+    if (!w_nz(M)) {
+        st64_1(8u * i, w_u(0u));
+        return;
+    }
+    zi k = 62 - zi(zm_bitlen(M));
+    if (((k + F) & 1) != 0) k--;
+    zw r = zm_isqrt(w_shl(M, zu(k)));
+    zi N = 32 + (k + F) / 2;
+    zw q0 = zm_udiv(w_p2(63u), r), inv;
+    if (N >= 63) {
+        zu up = zu(N - 63);
+        inv = (up >= 63u || w_nz(w_shr(q0, 62u - up))) ? w_p2(62u) : w_shl(q0, up);
+    } else {
+        inv = w_shr(q0, zu(63 - N));
+    }
+    st64_1(8u * i, inv);
+}
+#elif ZK == 1
+void zk(zu i) // rms_apply
+{
+    zu n = pc.u[1], row = i / n, col = i % n, frac = pc.u[3];
+    zi xv = ld32_0(4u * (row * pc.u[2] + col));
+    zl inv = l_w(ld64_1(8u * row));
+    zl t = l_sar(l_add(l_mul(l_i(xv), inv), l_p2(31u)), 32u);
+    zl lim = l_p2(32u);
+    if (l_gt(t, lim)) t = lim;
+    if (l_lt(t, l_neg(lim))) t = l_neg(lim);
+    zl hw = frac != 0u ? l_p2(frac - 1u) : l_i(0);
+    zl g = l_i(ld32_2(4u * col));
+    st32_3(4u * (row * pc.u[4] + col), uint(zm_sat32(l_sar(l_add(l_mul(t, g), hw), frac))));
+}
+#elif ZK == 2
+void zk(zu i) // act: 32 values to int16 with a shift
+{
+    zu n = pc.u[1], nb = n / 32u, row = i / nb, blk = i % nb;
+    uint v = 4u * (row * pc.u[2] + blk * 32u);
+    uint q = 2u * (i * 32u);
+    zu amax = 0u;
+    for (zu j = 0u; j < 32u; j++) amax = max(amax, zm_uabs(ld32_0(v + 4u * j)));
+    zu s = 0u;
+    while (s < 17u && w_gt(w_shr(w_add(w_u(amax), w_shr(w_p2(s), 1u)), s), w_u(32767u))) s++;
+    zu hw = (1u << s) >> 1;
+    zi t = 0;
+    for (zu j = 0u; j < 32u; j++) {
+        zi vj = ld32_0(v + 4u * j);
+        zu r = w_lo(w_shr(w_add(w_u(zm_uabs(vj)), w_u(hw)), s));
+        zi qv = ((vj < 0 ? -zi(r) : zi(r)) << 16) >> 16; // (zs) truncation
+        st16_1(q + 2u * j, uint(qv));
+        t += qv;
+    }
+    st8_2(i, s);
+    st32_3(4u * i, uint(t));
+}
+#elif ZK == 4
+void zk(zu i) // bias, and the saturation count
+{
+    zl v = l_add(l_i(ld32_0(4u * i)), pc.u[2] != 0u ? l_i(ld32_1(4u * (i % pc.u[1]))) : l_i(0));
+    zm_count((l_ge(v, l_i(ZV_I32_MAX)) || l_le(v, l_i(ZV_I32_MIN))) ? 1u : 0u);
+    st32_0(4u * i, uint(zm_sat32(v)));
+}
+#elif ZK == 5
+void zk(zu i) // rope
+{
+    zu nh = pc.u[1], hd = pc.u[2], hw = pc.u[3];
+    zu b = i / (nh * hw), h = (i / hw) % nh, k = i % hw;
+    uint x = 4u * ((b * nh + h) * hd);
+    uint sc = 4u * ((b * hw + k) * 2u);
+    zu ia = pc.u[4] != 0u ? k : 2u * k, ib = pc.u[4] != 0u ? k + hw : 2u * k + 1u;
+    zi x0 = ld32_0(x + 4u * ia), x1 = ld32_0(x + 4u * ib);
+    zi s = ld32_1(sc), c = ld32_1(sc + 4u);
+    zl rnd = l_p2(29u);
+    st32_0(x + 4u * ia,
+           uint(zm_sat32(l_sar(l_add(l_sub(l_mul32(x0, c), l_mul32(x1, s)), rnd), 30u))));
+    st32_0(x + 4u * ib,
+           uint(zm_sat32(l_sar(l_add(l_add(l_mul32(x0, s), l_mul32(x1, c)), rnd), 30u))));
+}
+#elif ZK == 6
+void zk(zu i) // kv store
+{
+    zu kvd = pc.u[1], b = i / kvd, j = i % kvd;
+    uint cell = (pc.u[2] + b) * kvd + j;
+    st32_2(4u * cell, ldu32_0(4u * i));
+    st32_3(4u * cell, ldu32_1(4u * i));
+}
+#elif ZK == 7
+void zk(zu i) // att_q: scale the query to under 2^22
+{
+    zu hd = pc.u[2];
+    uint qh = 4u * (i * hd), qs = 4u * (i * hd);
+    zu qmax = 0u, sq = 0u;
+    for (zu j = 0u; j < hd; j++) qmax = max(qmax, zm_uabs(ld32_0(qh + 4u * j)));
+    while ((qmax >> sq) >= (1u << 22)) sq++;
+    for (zu j = 0u; j < hd; j++) {
+        zi v = ld32_0(qh + 4u * j);
+        st32_1(qs + 4u * j,
+               uint(sq != 0u ? l_lo(l_sar(l_add(l_i(v), l_p2(sq - 1u)), sq)) : v));
+    }
+    st32_2(4u * i, sq);
+}
+#elif ZK == 8
+void zk(zu i) // att_score
+{
+    zu nh = pc.u[1], hd = pc.u[2], P = pc.u[5];
+    zu item = i / P, pos = i % P, b = item / nh, h = item % nh;
+    if (pos > pc.u[6] + b) return;
+    uint qs = 4u * (item * hd);
+    uint kr = 4u * ((pc.u[7] + pos) * pc.u[4] + (h / pc.u[3]) * hd);
+    zl S = l_i(0);
+    for (zu j = 0u; j < hd; j++) S = l_add(S, l_mul32(ld32_0(qs + 4u * j), ld32_3(kr + 4u * j)));
+    zu sq = ldu32_1(4u * item);
+    st32_2(4u * i, uint(zm_sat32(zm_mul_shr(S, pc.u[8], 46u - sq))));
+}
+#elif ZK == 9
+void zk(zu i) // att_max
+{
+    zu nh = pc.u[1], P = pc.u[5], n = pc.u[6] + i / nh + 1u;
+    uint sc = 4u * (i * P);
+    zi mx = ZV_I32_MIN;
+    for (zu j = 0u; j < n; j++) mx = max(mx, ld32_0(sc + 4u * j));
+    st32_1(4u * i, uint(mx));
+}
+#elif ZK == 10
+void zk(zu i) // att_exp
+{
+    zu nh = pc.u[1], P = pc.u[5], item = i / P, pos = i % P;
+    if (pos > pc.u[6] + item / nh) return;
+    zl d = l_sub(l_i(ld32_0(4u * i)), l_i(ld32_1(4u * item)));
+    st32_0(4u * i, uint(zm_exp(l_lt(d, l_i(ZV_I32_MIN)) ? ZV_I32_MIN : l_lo(d))));
+}
+#elif ZK == 11
+void zk(zu i) // att_sum
+{
+    zu nh = pc.u[1], P = pc.u[5], n = pc.u[6] + i / nh + 1u;
+    uint w = 4u * (i * P);
+    zw sum = w_u(0u);
+    for (zu j = 0u; j < n; j++) sum = w_add(sum, w_u(ldu32_0(w + 4u * j)));
+    st64_1(8u * i, sum);
+}
+#elif ZK == 12
+void zk(zu i) // att_wv
+{
+    zu nh = pc.u[1], hd = pc.u[2], P = pc.u[5];
+    zu item = i / hd, j = i % hd, b = item / nh, h = item % nh, n = pc.u[6] + b + 1u;
+    uint w = 4u * (item * P);
+    uint v = 4u * (pc.u[7] * pc.u[4] + (h / pc.u[3]) * hd + j);
+    zl acc = l_i(0);
+    for (zu k = 0u; k < n; k++) {
+        zi wk = ld32_0(w + 4u * k);
+        if (wk != 0) acc = l_add(acc, l_mul32(wk, ld32_3(v + 4u * (k * pc.u[4]))));
+    }
+    st32_2(4u * i, uint(zm_sat32(zm_round_div(acc, ld64_1(8u * item)))));
+}
+#elif ZK == 13
+void zk(zu i) // residual, and the saturation count
+{
+    zl v = l_add(l_i(ld32_0(4u * i)), l_i(ld32_1(4u * i)));
+    zm_count((l_gt(v, l_i(ZV_I32_MAX)) || l_lt(v, l_i(ZV_I32_MIN))) ? 1u : 0u);
+    st32_0(4u * i, uint(zm_sat32(v)));
+}
+#elif ZK == 14
+void zk(zu i) // silu(gate) * up
+{
+    zi g = ld32_0(4u * i), u = ld32_1(4u * i);
+    if (g == 0) {
+        st32_0(4u * i, 0u);
+        return;
+    }
+    zu e = zu(zm_exp(g < 0 ? g : -g));
+    zu sig = 0xFFFFFFFFu / (65536u + e); // at most 65536: a non-negative int
+    if (g < 0) sig = 65536u - sig;
+    zl s = l_sar(l_add(l_mul32(g, zi(sig)), l_i(32768)), 16u);
+    st32_0(4u * i, uint(zm_sat32(l_sar(l_add(l_mul(s, l_i(u)), l_i(32768)), 16u))));
+}
+#endif
+
+#if ZK < 100
+layout(local_size_x = 256) in;
+void main()
+{
+    zu i = (gl_WorkGroupID.y * pc.gx + gl_WorkGroupID.x) * 256u + gl_LocalInvocationID.x;
+    if (i < pc.u[0]) zk(i);
+}
+#else
+// the products: 4 rows a workgroup, 32 threads a row, tiles of ZV_T tokens.
+// pc.u: 0 rows (this dispatch), 1 nb, 2 astride, 3 B, 4 rowbytes, 5 ystride
+// (rows of the whole product), 6 row0 (this dispatch's first row in y).
+// Bindings: 0 weights (from row0), 1 a (int16), 2 shifts, 3 sums, 4 y.
+#    define ZV_TILED (((ZK - 100) / 3) == 1)
+#    define ZV_QT    (((ZK - 100) % 3) == 0 ? 12u : ((ZK - 100) % 3) == 1 ? 14u : 8u)
+#    if ZV_TILED
+#        define ZV_T 8u
+#    else
+#        define ZV_T 1u
+#    endif
+layout(local_size_x = 128) in;
+shared zl red[ZV_T * 128u]; // in the ZV_I32 build, pairs of 32-bit words
+void main()
+{
+    zu lid = gl_LocalInvocationID.x, sg = lid >> 5, lane = lid & 31u;
+    zu r = gl_WorkGroupID.x * 4u + sg;
+    zu rows = pc.u[0], nb = pc.u[1], as = pc.u[2], B = pc.u[3], sb = as / 32u;
+    zu t0 = gl_WorkGroupID.y * ZV_T, nt = min(ZV_T, B - t0);
+    bool live = r < rows;
+    zl acc[ZV_T];
+    for (zu t = 0u; t < ZV_T; t++) acc[t] = l_i(0);
+    if (live) {
+        uint row = r * pc.u[4];
+        for (zu b = lane; b < nb; b += 32u)
+            for (zu t = 0u; t < ZV_T; t++)
+                if (t < nt) {
+                    zu tok = t0 + t;
+                    acc[t] = l_add(acc[t], zm_sub(ZV_QT, row, b, 2u * (tok * as + b * 32u),
+                                                  zi(ld8_2(tok * sb + b)),
+                                                  ld32_3(4u * (tok * sb + b))));
+                }
+    }
+    for (zu t = 0u; t < ZV_T; t++) red[t * 128u + lid] = acc[t];
+    barrier();
+    if (live && lane < nt) {
+        zl s = l_i(0);
+        for (zu l = 0u; l < 32u; l++) s = l_add(s, red[lane * 128u + sg * 32u + l]);
+        st32_4(4u * ((t0 + lane) * pc.u[5] + pc.u[6] + r), uint(zm_round(s)));
+    }
+}
+#endif

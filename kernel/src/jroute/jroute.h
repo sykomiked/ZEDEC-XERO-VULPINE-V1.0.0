@@ -104,9 +104,16 @@
  * device signature makes it a signed claim from trusted hardware, and a GPS
  * reading can be spoofed. A real ZK proof of polygon membership needs a
  * vetted proving system (a circuit over the table commitment); none is in
- * the tree, so that hook is a stub slot. Nothing here is legal advice: the
- * masks are whatever the deployment's table says. Freestanding C11: no
- * allocation, no float, no 64-bit division (i386 builds need no libgcc).
+ * the tree, so that hook is a stub slot.
+ *
+ * FLOATING VOUCHERS ARE NOT VINO (vfloat.h). They are credits for software
+ * capacity between two peers, issued only under a bounty letter of marque;
+ * this router never routes, burns or delivers them, and no allotment here
+ * promises anything physical while the physical layer is off.
+ *
+ * Nothing here is legal advice: the masks are whatever the deployment's
+ * table says. Freestanding C11: no allocation, no float, no 64-bit division
+ * (i386 builds need no libgcc).
  */
 #ifndef ZXV_JROUTE_H
 #define ZXV_JROUTE_H

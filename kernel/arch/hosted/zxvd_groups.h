@@ -61,4 +61,8 @@ const zxvd_group_t *zxvd_irc_group(void);
  * "pspace", bound to the net host by zxvd_pspace_bind (zxvd_pspace.h) */
 const zxvd_group_t *zxvd_pspace_group(void);
 
+/* fab.* (zxvd_fab.c, kernel/src/fab): feature "fab", file fabrication from
+ * public blocks; fab.status and fab.keys always on (zxvd_fab.h) */
+const zxvd_group_t *zxvd_fab_group(void);
+
 #endif

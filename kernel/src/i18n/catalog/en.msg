@@ -391,6 +391,9 @@ UI_CONSOLE_BAD_JSON|-|source|parameters are not valid JSON
 UI_CONSOLE_STOP_Q|-|source|Stop the swarm?
 UI_CONSOLE_STOP_TEXT|-|source|zxvd.shutdown stops the engine; this window will disconnect.
 UI_CONSOLE_STOP|-|source|Stop
+UI_SCREEN_LEFT_ONE|-|source|{0} minute left today for this app.
+UI_SCREEN_LEFT|-|source|{0} minutes left today for this app.
+UI_SCREEN_STOPPED|-|source|Shepherd: {0}.
 # the people apps (zxvd_people.h) and simple mode
 UI_SIMPLE_MODE|-|source|Simple mode
 UI_SIMPLE_HINT|-|source|Simple mode shows fewer details. It changes no check, key or limit.

@@ -578,7 +578,7 @@ static uint64_t draw_chg(const zui_chiglet_t *c, uint32_t tick)
 
 static void test_chiglet(void)
 {
-    zui_chiglet_t a = {{1, 2, 3, 4, 5, 6, 7, 8}, 1, ZUI_CHG_DECIDED, 0};
+    zui_chiglet_t a = {{1, 2, 3, 4, 5, 6, 7, 8}, 13, ZUI_CHG_DECIDED, 0};
     zui_chiglet_t b = a;
     CHECK(draw_chg(&a, 3) == draw_chg(&b, 3), "same genes, same companion");
     uint64_t base = draw_chg(&a, 3);
@@ -589,8 +589,16 @@ static void test_chiglet(void)
         if (draw_chg(&m, 3) == base) all_genes_show = 0;
     }
     CHECK(all_genes_show, "every gene changes the drawn form");
-    b.generation = 3;
-    CHECK(draw_chg(&b, 3) != base, "evolving adds halo rings");
+    b.together = 89;
+    CHECK(draw_chg(&b, 3) != base, "time together adds a halo ring");
+    b.together = 88;
+    CHECK(draw_chg(&b, 3) == base, "short of the next ring, the same companion");
+    CHECK(zui_chiglet_rings(0) == 0 && zui_chiglet_rings(12) == 0 && zui_chiglet_rings(13) == 1 &&
+              zui_chiglet_rings(88) == 1 && zui_chiglet_rings(89) == 2 &&
+              zui_chiglet_rings(609) == 2 && zui_chiglet_rings(610) == 3 &&
+              zui_chiglet_rings(4180) == 3 && zui_chiglet_rings(4181) == 4 &&
+              zui_chiglet_rings(0xFFFFFFFFu) == 4,
+          "rings at 13, 89, 610 and 4181 shared interactions, never more than four");
     b = a;
     b.mood = ZUI_CHG_UNCERTAIN;
     CHECK(draw_chg(&b, 3) != base, "uncertain shows on its face");
