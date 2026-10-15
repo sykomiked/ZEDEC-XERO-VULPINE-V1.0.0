@@ -151,6 +151,11 @@ typedef enum {
 
 zxl_icon_ink_t zxl_icon_ink(int system_app);
 
+/* The app's icon file in the catalogue, relative to the icons folder
+ * ("001-burrow.png", "l2/145-dragon-archivist.png", ...), or NULL for an app
+ * not in it. Only the names are built in; the pictures are read from disk. */
+const char *zxl_icon_file(const char *app);
+
 /* ---- preferences -------------------------------------------------------- */
 typedef struct {
     uint8_t sounds;        /* the setting: 1 = app launch sounds on (default) */

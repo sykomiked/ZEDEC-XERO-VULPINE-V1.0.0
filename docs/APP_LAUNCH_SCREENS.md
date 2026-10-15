@@ -108,6 +108,24 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
   (`zui_wm`) with the five logos and the app's icon, plays BEGIN as it opens, a tick as each tile's gold comes up
   (so the sounds move at the speed of the real load), and END when the app reports ready. The shell supplies the
   pictures and the audio output. Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`).
+- `kernel/src/launch/zxl_synth.{h,c}`: the sounds, made live in integers the moment each cue is called for, from
+  the app's theme: the same notes, timbres, pans, echoes and fades as `launch_sounds.py` (the six hand-made apps
+  keep their own recipes). Cues overlap freely and are pulled by the audio device as it has room; an app's end
+  is prepared in the background while it loads, so it sounds the moment the app is ready. 48 kHz stereo S16.
+  Test: `kernel/src/launch/test_zxl_synth.c` (every app's tick in its own note, all 407 begins different,
+  levels, pans, ducking, and cues starting exactly when called).
+- `kernel/src/zui/zui_image.{h,c}`: reads PNG files (every colour type and depth, any zlib stream, tRNS),
+  keys out the ZXV green the icons are drawn on, crops to the drawn part and fits it to a box, streaming row by
+  row (a 3800 px logo needs a few rows of memory). Draws at any strength, in its own colours or held to gold.
+  Test: `kernel/src/zui/test_zui_image.c` (pixel-exact fixtures from `tools/zui/make_png_fixtures.py`, damaged
+  files under ASan and UBSan).
+- `kernel/src/zui/zui_launch_shell.{h,c}`: the desktop's side: give it a file reader, the icons and logos
+  folders and the audio device, attach it with `zui_launch_theme_attach(..., zui_ls_shell(ls), ...)` and call
+  `zui_ls_pump` once a frame. Icons are read from disk the first time an app opens (`zxl_icon_file`:
+  `001-burrow.png`, `l2/145-dragon-archivist.png`, ...; an app a person made: `<name>.png`), so a redrawn icon
+  shows on the next launch and no picture is built into the system. Test: `kernel/src/zui/test_zui_launch_shell.c`
+  (a whole launch: files read, gold icon for a system app, own colours for a person's app, five ticks as five
+  tiles light, the end the moment the app is ready, sound reaching the audio device, mute, missing files).
 - `tools/launch/launch_sounds.py`: synthesises each app's three cues from scratch (no samples), deterministic.
 - `tools/launch/launch_mock.py`: renders the mockup videos with their sounds placed where the events happen.
 - `tools/launch/launch_catalogue.py`: `table` regenerates `zxl_apps.inc` from the app list; `render --new` renders every
@@ -122,7 +140,7 @@ python3 tools/launch/launch_catalogue.py render APP_CATALOG_407.csv out --new   
 
 ## Next
 
-1. The shell (desktop) attaches `zui_launch_theme` to its window manager, draws the icons from
-   `zxv-brand/app-icons` and the logos from `zxv-brand/gold`, and plays the cues through the audio mixer,
-   synthesising each app's three sounds from its theme the way `launch_sounds.py` does.
+1. The native desktop session (the toolkit and window switcher work) creates its `zui_launch_shell` at login,
+   points it at the installed icons and logos folders, and calls `zui_ls_load_logos` while the desktop comes up
+   (the five gold logos are large files: about four seconds to read the first time).
 2. Hand-make more apps' sounds where the generated phrase is not enough.

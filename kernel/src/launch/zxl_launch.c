@@ -90,6 +90,18 @@ const zxl_theme_t *zxl_theme_for(const char *app, uint32_t group)
     return g ? g : &GROUPS[0];
 }
 
+static const char *const ICON_FILE[] = {
+#include "zxl_icons.inc"
+};
+
+const char *zxl_icon_file(const char *app)
+{
+    if (app)
+        for (uint32_t i = 0; i < N_CURATED && i < sizeof ICON_FILE / sizeof ICON_FILE[0]; i++)
+            if (streq(app, CURATED[i].app)) return ICON_FILE[i];
+    return 0;
+}
+
 uint32_t zxl_curated_count(void)
 {
     return (uint32_t) N_CURATED;

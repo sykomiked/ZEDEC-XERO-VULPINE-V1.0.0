@@ -428,6 +428,28 @@ static void test_sound_policy(void)
     CHECK(ev[0].gain_q8 == 48, "ducking scales with volume");
 }
 
+/* every app in the catalogue knows its icon file; nothing else does */
+static void test_icon_files(void)
+{
+    uint32_t named = 0, tier = 0;
+    for (uint32_t i = 0; i < zxl_curated_count(); i++) {
+        const char *f = zxl_icon_file(zxl_curated(i)->app);
+        if (!f) continue;
+        named++;
+        size_t n = strlen(f);
+        if (n > 4 && !strcmp(f + n - 4, ".png") && f[0] != '/' && !strstr(f, "..")) tier++;
+    }
+    CHECK(named == ZXL_APPS, "all 407 apps have an icon file");
+    CHECK(tier == ZXL_APPS, "each a .png inside the icons folder");
+    CHECK(!strcmp(zxl_icon_file("Burrow"), "001-burrow.png"), "Burrow's is 001-burrow.png");
+    CHECK(!strcmp(zxl_icon_file("Cartulary"), "l2/145-dragon-archivist.png"),
+          "a tier-2 app's is in l2/");
+    CHECK(!strcmp(zxl_icon_file("Chorale"), zxl_icon_file("Chorale")) &&
+              strncmp(zxl_icon_file("Chorale"), "l3/407-", 7) == 0,
+          "the last app's is in l3/");
+    CHECK(zxl_icon_file("My Tool") == 0 && zxl_icon_file(0) == 0, "an app a person made: none");
+}
+
 static void test_pick(void)
 {
     CHECK(zxl_theme_pick("Burrow") == zxl_theme_for("Burrow", 1), "pick a curated sequence");
@@ -535,6 +557,7 @@ static void test_screen_lit(void)
 int main(void)
 {
     test_themes();
+    test_icon_files();
     test_notes();
     test_prefs();
     test_sequence();
