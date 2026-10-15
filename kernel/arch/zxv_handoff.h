@@ -161,6 +161,51 @@ static inline int zxh_add_mem(zxh_t *h, uint64_t base, uint64_t pages, uint32_t 
     return 0;
 }
 
+/* Stub side: what does the final EFI memory map say about overwriting
+ * [lo, hi) once boot services end? map/msz/dsz are as GetMemoryMap returned
+ * them. Returns lpres numbering:
+ *   1 TRUE   only conventional / boot-services memory (plus loader memory
+ *            when allow_loader: our own reservation or our own image)
+ *   3 BOTH   otherwise free but covering ACPI memory (NVS or reclaimable
+ *            tables); *flags gets ZXH_F_ACPI_*, and the kernel holds every
+ *            ACPI feature that would read it
+ *   2 FALSE  runtime services, reserved, MMIO or foreign loader memory:
+ *            overwriting it breaks the firmware
+ * *worst_type / *worst_base name the first descriptor that made it worse
+ * than TRUE (for the stub's log); left alone when the answer is TRUE. */
+static inline int zxh_window_of_map(const uint8_t *map, uint64_t msz, uint64_t dsz, uint64_t lo,
+                                    uint64_t hi, int allow_loader, uint8_t *flags,
+                                    uint32_t *worst_type, uint64_t *worst_base)
+{
+    int v = 1;
+    if (dsz < 32u) return 2; /* not an EFI_MEMORY_DESCRIPTOR array */
+    for (uint64_t off = 0; off + dsz <= msz; off += dsz) {
+        uint32_t type = *(const uint32_t *) (map + off);
+        uint64_t b = *(const uint64_t *) (map + off + 8);
+        uint64_t e = b + *(const uint64_t *) (map + off + 24) * 4096u;
+        if (e <= lo || b >= hi) continue;
+        uint32_t k = zxh_kind_of_efi(type);
+        if (k == ZXH_MEM_USABLE) continue;
+        if (k == ZXH_MEM_LOADER && allow_loader) continue;
+        if (v == 1) {
+            *worst_type = type;
+            *worst_base = b;
+        }
+        if (k == ZXH_MEM_ACPI_NVS) {
+            *flags |= ZXH_F_ACPI_NVS_LOST;
+            v = 3;
+        } else if (k == ZXH_MEM_ACPI_RECLAIM) {
+            *flags |= ZXH_F_ACPI_TABLES_LOST;
+            v = 3;
+        } else {
+            *worst_type = type;
+            *worst_base = b;
+            return 2;
+        }
+    }
+    return v;
+}
+
 /* Days since 1970-01-01 for a proleptic Gregorian date (H. Hinnant's
  * days_from_civil), integer only. */
 static inline int64_t zxh_days_from_civil(int64_t y, uint32_t m, uint32_t d)
@@ -208,6 +253,47 @@ static inline uint64_t zxh_pages_of(const zxh_t *p, uint32_t kind)
     for (uint32_t i = 0; i < p->n_mem; i++)
         if (p->mem[i].kind == kind) n += p->mem[i].pages;
     return n;
+}
+
+/* Kernel side: print an accepted record's summary through the arch's
+ * console (puts, decimal, hex). The caller prints the verdict line itself
+ * ([HANDOFF_OK] / [HANDOFF_BAD] / none) so it carries its boot-log prefix. */
+static inline void zxh_report(const zxh_t *h, void (*puts)(const char *), void (*dec)(uint64_t),
+                              void (*hex)(uint64_t))
+{
+    puts("  memory: ");
+    dec(h->n_mem);
+    puts(" regions, usable ");
+    dec(zxh_pages_of(h, ZXH_MEM_USABLE) / 256u);
+    puts(" MiB, loader ");
+    dec(zxh_pages_of(h, ZXH_MEM_LOADER) / 256u);
+    puts(" MiB, firmware runtime ");
+    dec(zxh_pages_of(h, ZXH_MEM_RUNTIME) * 4u);
+    puts(" KiB");
+    if (h->flags & ZXH_F_MEM_TRUNCATED) puts(" (map truncated)");
+    puts("\n  kernel window 0x");
+    hex(h->kernel_lo);
+    puts("-0x");
+    hex(h->kernel_hi);
+    puts(h->window == 1   ? " verified free\n"
+         : h->window == 3 ? " free but covering ACPI memory (held)\n"
+                          : " NOT verified\n");
+    if (h->flags & ZXH_F_ACPI_NVS_LOST)
+        puts("  ACPI NVS overwritten by the kernel window: sleep and AML held\n");
+    puts("  ACPI RSDP 0x");
+    hex(h->flags & ZXH_F_ACPI_TABLES_LOST ? 0 : h->rsdp);
+    if (h->flags & ZXH_F_ACPI_TABLES_LOST) puts(" (tables overwritten: not trusted)");
+    puts(h->smbios3 ? ", SMBIOS 3 present" : ", no SMBIOS 3");
+    puts("\n  firmware clock ");
+    if (h->efi_time) {
+        dec((uint64_t) h->efi_time);
+        puts(" s since 1970 UTC\n");
+    } else {
+        puts("unavailable\n");
+    }
+    puts("  disc models: ");
+    puts(h->models == 1 ? "verified" : h->models == 2 ? "FAILED" : "none on this disc");
+    puts("\n");
 }
 
 #endif /* ZXV_HANDOFF_H */

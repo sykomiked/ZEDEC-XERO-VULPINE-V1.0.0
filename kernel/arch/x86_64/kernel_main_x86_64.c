@@ -171,8 +171,8 @@ static void cell_fabric_boot_init(void) {
 
 /* Handoff v2 (zxv_handoff.h): accept the stub's record or say why not. A
  * damaged record is never half-used; an absent one (direct -kernel boot)
- * changes nothing. Nothing below consumes the map yet: the frame allocator
- * on x86_64 is the next step (docs/BAREMETAL_OS_GAPS.md, gap 3). */
+ * changes nothing. bootmem_x86.c takes the kernel's large buffers from the
+ * map. */
 static void handoff_report(void)
 {
     const zxh_t *h = (const zxh_t *) (ZXV_X86_BOOTINFO_ADDR + ZXH_OFFSET);
@@ -185,39 +185,7 @@ static void handoff_report(void)
         boot_msg("[HANDOFF_BAD] handoff record damaged: ignored");
         return;
     }
-    uart_puts("  memory: ");
-    uart_put_dec(h->n_mem);
-    uart_puts(" regions, usable ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_USABLE) / 256u);
-    uart_puts(" MiB, loader ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_LOADER) / 256u);
-    uart_puts(" MiB, firmware runtime ");
-    uart_put_dec(zxh_pages_of(h, ZXH_MEM_RUNTIME) * 4u);
-    uart_puts(" KiB");
-    if (h->flags & ZXH_F_MEM_TRUNCATED) uart_puts(" (map truncated)");
-    uart_puts("\n  kernel window 0x");
-    uart_put_hex(h->kernel_lo);
-    uart_puts("-0x");
-    uart_put_hex(h->kernel_hi);
-    uart_puts(h->window == 1   ? " verified free\n"
-              : h->window == 3 ? " free but covering ACPI memory (held)\n"
-                               : " NOT verified\n");
-    if (h->flags & ZXH_F_ACPI_NVS_LOST)
-        uart_puts("  ACPI NVS overwritten by the kernel window: sleep and AML held\n");
-    uart_puts("  ACPI RSDP 0x");
-    uart_put_hex(h->flags & ZXH_F_ACPI_TABLES_LOST ? 0 : h->rsdp);
-    if (h->flags & ZXH_F_ACPI_TABLES_LOST) uart_puts(" (tables overwritten: not trusted)");
-    uart_puts(h->smbios3 ? ", SMBIOS 3 present" : ", no SMBIOS 3");
-    uart_puts("\n  firmware clock ");
-    if (h->efi_time) {
-        uart_put_dec((uint64_t) h->efi_time);
-        uart_puts(" s since 1970 UTC\n");
-    } else {
-        uart_puts("unavailable\n");
-    }
-    uart_puts("  disc models: ");
-    uart_puts(h->models == 1 ? "verified" : h->models == 2 ? "FAILED" : "none on this disc");
-    uart_puts("\n");
+    zxh_report(h, uart_puts, uart_put_dec, uart_put_hex);
     boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
 }
 

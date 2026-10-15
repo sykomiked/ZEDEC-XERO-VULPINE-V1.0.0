@@ -119,44 +119,19 @@ static int guid_eq(const EFI_GUID *a, u32 x, u16 y, u16 z, const u8 *d)
     return 1;
 }
 
-/* Walk the final memory map: what does it say about overwriting [lo, hi)
- * once boot services end? Returns lpres numbering:
- *   1 TRUE   only conventional / boot-services memory (plus our own loader
- *            reservation when we hold one)
- *   3 BOTH   the window is otherwise free but covers ACPI memory (NVS or
- *            reclaimable tables). Booting still works, but ACPI there is
- *            destroyed: the stub sets a flag so the kernel holds every ACPI
- *            feature that would read it (sleep, AML, the RSDP when tables
- *            were hit) instead of trusting it.
- *   2 FALSE  runtime services, reserved, MMIO or someone else's loader
- *            memory: overwriting it breaks the firmware, so we refuse. */
+/* The window verdict from the final map (zxv_handoff.h zxh_window_of_map),
+ * with the first offending descriptor in the log. */
 static int window_by_map(const u8 *map, u64 msz, u64 dsz, u64 lo, u64 hi, int reserved, u8 *flags)
 {
-    int v = 1;
-    for (u64 off = 0; off + dsz <= msz; off += dsz) {
-        u32 type = *(const u32 *) (map + off);
-        u64 b = *(const u64 *) (map + off + 8);
-        u64 e = b + *(const u64 *) (map + off + 24) * 4096u;
-        if (e <= lo || b >= hi) continue;
-        u32 k = zxh_kind_of_efi(type);
-        if (k == ZXH_MEM_USABLE) continue;
-        if (k == ZXH_MEM_LOADER && reserved) continue;
+    u32 wt = 0;
+    u64 wb = 0;
+    int v = zxh_window_of_map(map, msz, dsz, lo, hi, reserved, flags, &wt, &wb);
+    if (v != 1) {
         uputs("  window overlaps EFI type ");
-        udec(type);
+        udec(wt);
         uputs(" at ");
-        udec(b);
-        uputs("..");
-        udec(e);
+        udec(wb);
         uputs("\n");
-        if (k == ZXH_MEM_ACPI_NVS) {
-            *flags |= ZXH_F_ACPI_NVS_LOST;
-            v |= 3;
-        } else if (k == ZXH_MEM_ACPI_RECLAIM) {
-            *flags |= ZXH_F_ACPI_TABLES_LOST;
-            v |= 3;
-        } else {
-            return 2;
-        }
     }
     return v;
 }

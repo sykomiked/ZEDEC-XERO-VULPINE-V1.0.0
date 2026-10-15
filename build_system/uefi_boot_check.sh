@@ -20,11 +20,12 @@ IMG=${2:-dist/discs/zxv-${ARCH}-uefi.img}
 SECS=${3:-60}
 shift $(( $# < 3 ? $# : 3 ))
 LOG="uefi_boot_${ARCH}.log"
-# x86_64 discs boot through the stub's handoff v2 (memory map, ACPI, clock,
-# kernel window); the kernel must have accepted it, not merely booted. It must
-# also have run its ring-3 processes under the preemptive scheduler, with the
-# deliberately faulting ones ended alone ([SCHED_OK], x86_userspace.c).
-[ "$ARCH" = x86_64 ] && set -- "$@" "[HANDOFF_OK]" "[SCHED_OK]"
+# Both discs boot through the stub's handoff v2 (memory map, ACPI, clock,
+# kernel window); the kernel must have accepted it, not merely booted. x86_64
+# must also have run its ring-3 processes under the preemptive scheduler, with
+# the deliberately faulting ones ended alone ([SCHED_OK], x86_userspace.c).
+set -- "$@" "[HANDOFF_OK]"
+[ "$ARCH" = x86_64 ] && set -- "$@" "[SCHED_OK]"
 FAULT_RE='\[FAULT\]|\[EL0 FAULT\]|CPU exception vector=|PANIC|[Kk]ernel panic'
 
 firmware(){ for f in "$@"; do [ -f "$f" ] && { echo "$f"; return; }; done; }

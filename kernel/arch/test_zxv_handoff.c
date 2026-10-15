@@ -126,6 +126,32 @@ int main(void)
         CHECK(zxb_from_multiboot1(&b, mm, sizeof mm, 0x600000, 0x40000000) == 1);
     }
 
+    /* window verdict from an EFI map (40-byte descriptors) */
+    {
+        static uint8_t map[4 * 40];
+        memset(map, 0, sizeof map);
+        uint64_t d[4][3] = {
+            {7, 0x100000, 0x700}, {10, 0x800000, 8}, {2, 0x808000, 8}, {5, 0x900000, 4}};
+        for (int i = 0; i < 4; i++) {
+            memcpy(map + i * 40, &d[i][0], 4);
+            memcpy(map + i * 40 + 8, &d[i][1], 8);
+            memcpy(map + i * 40 + 24, &d[i][2], 8);
+        }
+        uint8_t fl = 0;
+        uint32_t wt = 0;
+        uint64_t wb = 0;
+        CHECK(zxh_window_of_map(map, sizeof map, 40, 0x100000, 0x600000, 0, &fl, &wt, &wb) == 1);
+        CHECK(fl == 0 && wt == 0);
+        CHECK(zxh_window_of_map(map, sizeof map, 40, 0x100000, 0x804000, 0, &fl, &wt, &wb) == 3);
+        CHECK(fl == ZXH_F_ACPI_NVS_LOST && wt == 10 && wb == 0x800000);
+        fl = 0;
+        CHECK(zxh_window_of_map(map, sizeof map, 40, 0x808000, 0x810000, 0, &fl, &wt, &wb) == 2);
+        CHECK(zxh_window_of_map(map, sizeof map, 40, 0x808000, 0x810000, 1, &fl, &wt, &wb) == 1);
+        CHECK(zxh_window_of_map(map, sizeof map, 40, 0x100000, 0x901000, 1, &fl, &wt, &wb) == 2);
+        CHECK(wt == 5 && wb == 0x900000); /* runtime beats the earlier ACPI hit */
+        CHECK(zxh_window_of_map(map, sizeof map, 16, 0, 1, 1, &fl, &wt, &wb) == 2); /* bad dsz */
+    }
+
     printf("%s zxv_handoff\n", fails ? "FAILED" : "ok");
     return fails != 0;
 }

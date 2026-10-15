@@ -57,7 +57,7 @@ with the evidence.
 | # | Gap | Status | Size | Report |
 |---|---|---|---|---|
 | 1 | arm64 boot formatted any non-ZXVFS disk, which would wipe a GPT disc | **fixed in this PR** | S | boot_storage #1 |
-| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **x86_64 done in this PR** (handoff v2); arm64 stub and boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
+| 2 | Boot handoff carries only the framebuffer: no memory map, RSDP, boot disk identity, model verdicts, time or flags; x86 stub copies over memory it failed to reserve | **done in this PR** for x86_64 and arm64 (handoff v2); boot disk identity next | S | boot_storage #2-3, kernel_core #1 |
 | 3 | Physical frame allocator fed by the UEFI map; kernel heap with `free`. The x86 kernel's 90 MB BSS overwrites OVMF's ACPI NVS at 8 MB: move the big buffers onto map frames | allocator built (arm64 user pool); x86 big buffers now on map memory (**this PR**); heap missing | M | kernel_core #2, #13 |
 | 4 | Per-process address spaces (full lower half, VMAs, guard pages); x86 has one CR3 for everything | partial arm64; partial x86 (own PML4 per process, one 512 GB user slot, stack guard page; no VMAs) | M | kernel_core #3 |
 | 5 | Process lifecycle: slot reuse, spawn, wait, kill; a user fault must never halt the kernel | slot reuse and fault fix **done in this PR** (arm64); spawn/wait/kill missing | S | kernel_core #5-6 |
@@ -182,7 +182,13 @@ Each wave ends in a serial marker the CI QEMU job checks.
   and nothing overlaps ACPI. The window also counts the boot stack now (it
   sat after `__kernel_end`, outside what the stub reserved), and the
   Multiboot magic reaches the kernel (boot.asm used to clobber it).
-- Next: arm64 stub parity; power-off (#15); `lpres_hex` linked into both images; loader
+- arm64 handoff v2: the same record from BOOTAA64.EFI. The window is checked
+  against the final map (the stub cannot reserve it, AAVMF loads the stub
+  there), plus two checks the map cannot make: the staged kernel and
+  trampoline must lie outside the window, and the handoff page must not
+  hold the stub. CI's UEFI boot requires `[HANDOFF_OK]` on both arches.
+  arm64's own 232 MB BSS window is next to move, as x86's was.
+- Next: power-off (#15); `lpres_hex` linked into both images; loader
   hardening (#8, with the Security thread).
 
 **Wave 2, x86_64 parity and the ABI.** Address spaces on both arches (#4),

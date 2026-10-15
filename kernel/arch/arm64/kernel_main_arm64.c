@@ -106,6 +106,7 @@ extern void el0_set_scheduler(proc_scheduler_t *ps);
 #include "../src/vbe/vbe.h"          /* framebuffer draw primitives            */
 #include "../src/desktop/zxv_shell.h"/* the ZEDEC pqOS desktop shell           */
 #include "zxv_bootinfo.h"            /* UEFI boot handoff (GOP framebuffer)     */
+#include "../zxv_handoff.h"          /* handoff v2: memory map, ACPI, clock     */
 /* virtio-input driver (arch/arm64/virtio_input.c) — mouse/tablet/keyboard */
 extern bool     virtio_input_probe(void);
 extern void     virtio_input_poll(void);
@@ -860,6 +861,33 @@ void kernel_main(void) {
     kernel_main_arm64();
 }
 
+/* Handoff v2 (zxv_handoff.h), as on x86_64: the EFI stub's record sits right
+ * after the GOP record. Accepted, damaged (never trusted) or absent (the
+ * QEMU -kernel path, where nothing changes). */
+static const zxh_t *g_handoff;
+
+const zxh_t *zxv_handoff(void)
+{
+    return g_handoff;
+}
+
+static void handoff_report(void)
+{
+    const zxh_t *h = (const zxh_t *) (uintptr_t) (ZXV_BOOTINFO_ADDR + ZXH_OFFSET);
+    int v = zxh_accept(h);
+    if (v == 0) {
+        boot_msg("[HANDOFF] none (direct kernel boot): no firmware memory map");
+        return;
+    }
+    if (v != 1) {
+        boot_msg("[HANDOFF_BAD] handoff record damaged: ignored");
+        return;
+    }
+    g_handoff = h;
+    zxh_report(h, uart_puts, uart_put_dec, uart_put_hex);
+    boot_msg("[HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window");
+}
+
 void kernel_main_arm64(void) {
     /* Phase 1: UART output */
     uart_init();
@@ -907,6 +935,7 @@ void kernel_main_arm64(void) {
     boot_msg("[BOOT] MMU/paging...");
     arm64_mmu_init();
     boot_msg("  [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)");
+    handoff_report();
 
     /* Phase 3: GIC + Timer */
     boot_msg("[BOOT] GIC interrupt controller (version probed from GICD_PIDR2)...");
