@@ -214,12 +214,8 @@ table.ft td.acts button:hover{color:var(--text)}
 #cparams{width:100%;min-height:90px;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 select{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px;font:inherit;min-width:0;max-width:100%}
 .drop{outline:2px dashed var(--accent);outline-offset:-6px}
-nav.tabs{display:flex;gap:4px;margin-left:12px}
-nav.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}
-nav.tabs button.on{color:var(--text);border-color:var(--line);background:var(--panel)}
 #play{display:grid;grid-template-columns:minmax(0,15rem) minmax(0,3fr) minmax(0,2fr);gap:12px;padding:12px 16px}
 @media (max-width:1100px){#play{grid-template-columns:minmax(0,1fr)}}
-#play[hidden],#swarm[hidden]{display:none}
 .tpl{display:block;width:100%;text-align:left;background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:6px;cursor:pointer;font:inherit}
 .tpl.on{border-color:var(--accent)}
 .tpl b{display:block;font-weight:600}
@@ -275,7 +271,6 @@ body.simple .adv{display:none!important}
      check_ui_i18n.py fails on any word written here directly. -->
 <header>
   <h1 data-i18n="UI_HEADER_TITLE"></h1>
-  <nav class="tabs"><button id="tab-swarm" class="on" data-i18n="UI_TAB_SWARM"></button><button id="tab-play" data-i18n="UI_TAB_PLAY"></button></nav>
   <span class="sub" id="mode" data-i18n="UI_CONNECTING"></span>
   <label class="sub" id="simplebox" hidden data-i18n-title="UI_SIMPLE_HINT"><input type="checkbox" id="simple" style="flex:none;vertical-align:-2px"> <span data-i18n="UI_SIMPLE_MODE"></span></label>
   <button id="quit" data-i18n-title="UI_QUIT_HINT" data-i18n="UI_QUIT"></button>
@@ -295,6 +290,7 @@ body.simple .adv{display:none!important}
   <button data-app="devices" class="ppl" hidden><i>⎚</i><span data-i18n="UI_APP_DEVICES"></span></button>
   <div class="grp adv" data-i18n="UI_DOCK_TOOLBOX"></div>
   <button data-app="console" class="adv"><i>›_</i><span data-i18n="UI_APP_SPINDLE"></span></button>
+  <button data-app="playground" class="adv"><i>▷</i><span data-i18n="UI_TAB_PLAY"></span></button>
 </nav>
 <div class="views">
 <div class="view" id="v-swarm">
@@ -509,11 +505,8 @@ const ZXVI18N=(()=>{
       <div class="small" data-i18n="UI_PP_PAIR_NOTE"></div></section></div>
   <section><h2 data-i18n="UI_APP_DEVICES"></h2><div id="devs"></div></section>
 </main></div>
-</div>
-</div>
-<div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose" data-i18n="UI_CLOSE"></button></div><div class="stage" id="vstage"></div></div>
-<div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno" data-i18n="UI_CANCEL"></button><button class="btn primary" id="myes" data-i18n="UI_OK"></button></div></div></div>
-<div id="play" hidden>
+<div class="view" id="v-playground">
+<div id="play">
   <section>
     <h2 data-i18n="UI_PLAY_TEMPLATES"></h2>
     <div id="tpls" data-i18n="UI_LOADING"></div>
@@ -541,6 +534,11 @@ const ZXVI18N=(()=>{
     <div class="small" style="margin-top:10px;border-top:1px solid var(--line);padding-top:6px"><span data-i18n="UI_PLAY_ANSWERS"></span> <span class="cTRUE" data-i18n="UI_V_TRUE"></span> <span data-i18n="UI_PLAY_TRUE_MEANS"></span> · <span class="cFALSE" data-i18n="UI_V_FALSE"></span> <span data-i18n="UI_PLAY_FALSE_MEANS"></span> · <span class="cBOTH" data-i18n="UI_V_BOTH"></span> <span data-i18n="UI_PLAY_BOTH_MEANS"></span> · <span class="cNEITHER" data-i18n="UI_V_NEITHER"></span> <span data-i18n="UI_PLAY_NEITHER_MEANS"></span></div>
   </section>
 </div>
+</div>
+</div>
+</div>
+<div id="viewer"><div class="vb"><span id="vname"></span><span class="sp"></span><button class="btn" id="vprev">‹</button><button class="btn" id="vnext">›</button><button class="btn" id="vclose" data-i18n="UI_CLOSE"></button></div><div class="stage" id="vstage"></div></div>
+<div id="modal"><div class="box"><h3 id="mtitle"></h3><p id="mtext"></p><input id="minput" autocomplete="off"><div class="row"><button class="btn" id="mno" data-i18n="UI_CANCEL"></button><button class="btn primary" id="myes" data-i18n="UI_OK"></button></div></div></div>
 <script>
 const $=id=>document.getElementById(id);
 const I18N=ZXVI18N.make(JSON.parse($('zxv-i18n').textContent),navigator.language||'');
@@ -588,8 +586,6 @@ $('quit').onclick=async()=>{try{await fetch('/api/quit',{method:'POST'})}catch(e
 
 /* ---------------- Playground ---------------- */
 const PL={cat:[],cur:null,file:null,edits:{},loaded:false,last:null};
-function tab(which){$('swarm').hidden=which!=='swarm';$('play').hidden=which!=='play';$('tab-swarm').classList.toggle('on',which==='swarm');$('tab-play').classList.toggle('on',which==='play');if(which==='play'&&!PL.loaded)plLoad()}
-$('tab-swarm').onclick=()=>tab('swarm');$('tab-play').onclick=()=>tab('play');
 async function plLoad(){
   try{const r=await fetch('/api/play/catalogue');if(!r.ok)throw 0;PL.cat=await r.json();PL.loaded=true}
   catch(e){$('tpls').textContent=T('UI_PLAY_ABSENT');return}
@@ -732,6 +728,7 @@ function show(app){
   try{sessionStorage.setItem('zxv-app',app)}catch(e){}
   if(app==='files')F.load();if(app==='photos')P.load();if(app==='console')C.load();if(app==='text')$('ed').focus();
   if(PEOPLE_APPS.includes(app))hRefresh();
+  if(app==='playground'&&!PL.loaded)plLoad();
 }
 document.querySelectorAll('#dock button').forEach(b=>b.onclick=()=>show(b.dataset.app));
 $('dock').setAttribute('aria-label',T('UI_DOCK_APPS'));

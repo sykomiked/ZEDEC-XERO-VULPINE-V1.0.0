@@ -47,7 +47,7 @@ CODE = {
     '/api/state', '/api/notes', '/api/net', '/api/update', '/api/notes/read', '/api/ask',
     '/api/quit', 'POST',
     # the staple apps and the Playground: element ids, selectors, classes
-    'tab-swarm', 'tab-play', 'swarm', 'play', 'files', 'text', 'photos', 'console', 'dock',
+    'swarm', 'play', 'playground', 'files', 'text', 'photos', 'console', 'dock',
     '#dock button', '.view', 'v-', '.tpl', 'tpl', 'tpls', 'tile', 'row', 'drop', 'split', 'primary',
     'prose', 'edited', 'on ', 'small', 'err', 'go', 'a.go', 'viewer', 'modal', 'span', 'button',
     'option', 'input', 'img', 'a', 'tr', 'ul', 'ol', 'aria-label', 'var(--bad)',
