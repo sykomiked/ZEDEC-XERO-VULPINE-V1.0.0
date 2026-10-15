@@ -444,7 +444,7 @@ Rules worth knowing:
   out. There is no interest, yield or return of any kind.
 - A LIVE request may not sell a paid chance outcome (loot boxes, paid
   draws): `PaymentRequestFlags.PaidChance` is refused with
-  `ZxvStatus.PaidChance`. The raffle is a separate module.
+  `ZxvStatus.PaidChance`. The allotment is a separate module.
 - `SpendMeter` (`platform.CreateSpendMeter(cap, dailyCap)`) counts what one
   device approved per day and refuses what would pass the cap. It is a
   counter, not a legal check.

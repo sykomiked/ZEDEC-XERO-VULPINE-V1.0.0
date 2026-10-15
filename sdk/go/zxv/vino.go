@@ -42,7 +42,7 @@ package zxv
 // bytes of VinoReceiptMessageFor. The request carries its expiry; a receipt
 // for an expired request, or one approved after the expiry, is ErrExpired.
 // A LIVE request marked as a paid chance outcome (VinoFlagChance: loot
-// boxes, paid draws) is refused when it is encoded (ErrChance). The raffle
+// boxes, paid draws) is refused when it is encoded (ErrChance). The allotment
 // is a separate module, not a payment request.
 //
 // DAILY CAP. A deployment may set a per-device daily cap; VinoMeter counts

@@ -532,7 +532,7 @@ Minting live Vino, pegs, any fiat on-ramp or off-ramp, V-Bill auctions,
 V-Bonds and every operator action are not in this ABI, by design. Whether a
 given deployment of Vino is store credit, a prepaid access product or
 something else is a legal question pending counsel, and nothing in this SDK
-decides it. The raffle is a separate module, not a payment request.
+decides it. The allotment is a separate module, not a payment request.
 
 ## API overview
 

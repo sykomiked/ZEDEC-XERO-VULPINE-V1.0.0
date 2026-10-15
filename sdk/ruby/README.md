@@ -471,7 +471,7 @@ Concepts:
   canonical 160 bytes, `id` their SHA-256 (32 bytes), `PaymentRequest.decode`
   reads them back. A LIVE request marked `FLAG_CHANCE` (a paid chance
   outcome such as a loot box) is refused (`ChanceRefusedError`,
-  `ZXV_E_CHANCE`); the raffle is a separate module, not a payment request.
+  `ZXV_E_CHANCE`); the allotment is a separate module, not a payment request.
   A lane other than `:play`/`:live` is a `LaneError` (`ZXV_E_LANE`).
 - **Receipts** are the wallet's ML-DSA-87 signature over 88 bytes
   (`Receipt.message`). `Receipt#verify!(now:)` is pure and offline: it

@@ -3804,7 +3804,7 @@ ZXV_API int32_t zxv_paradox_graph_info(const zxv_paradox_graph *g, uint32_t *out
  * an expired request, or approved after expiry, is ZXV_E_EXPIRED.
  * A LIVE request that marks a paid chance outcome (ZXV_VINO_REQ_CHANCE:
  * loot boxes, paid draws) is refused when it is encoded (ZXV_E_CHANCE).
- * The raffle is a separate module, not a payment request.
+ * The allotment is a separate module, not a payment request.
  *
  * DAILY CAP. A deployment may set a per-device daily cap. zxv_vino_meter
  * counts what one device approved per day index and refuses an amount

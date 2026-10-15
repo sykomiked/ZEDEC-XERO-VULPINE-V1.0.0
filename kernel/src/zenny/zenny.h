@@ -98,8 +98,8 @@
  *      (zenny_topup_unit; it depends on kappa, the weights and the prices,
  *      so it changes when prices do). zenny_topup_quote gives
  *      want - want % unit when the top-up accepts that amount, else 0.
- *      zenny_raffle_credit adapts a raffle's
- *      basket-NAV credit (dest ZENNY_RAFFLE_DEST_NAV) to zenny_topup. No
+ *      zenny_allot_credit adapts an allotment's
+ *      basket-NAV credit (dest ZENNY_ALLOT_DEST_NAV) to zenny_topup. No
  *      fee and no disposal receipt: a top-up is a deposit, and posting it
  *      is the caller's (Z6).
  *
@@ -331,9 +331,9 @@ uint64_t zenny_topup_unit(const zenny_t *z, uint32_t slot, const zenny_price_t *
 uint64_t zenny_topup_quote(const zenny_t *z, uint32_t slot, uint64_t want,
                            const zenny_price_t *prices, uint64_t tick);
 
-/* Raffle adapter: a raffle credits its basket-NAV destination through this.
- * The raffle's headers are not included; the value is mirrored here. */
-#define ZENNY_RAFFLE_DEST_NAV 3u
+/* Allotment adapter: an allotment credits its basket-NAV destination through this.
+ * The allotment's headers are not included; the value is mirrored here. */
+#define ZENNY_ALLOT_DEST_NAV 3u
 typedef struct {
     zenny_t *z;
     uint32_t slot;
@@ -341,11 +341,11 @@ typedef struct {
     uint32_t recipient;
     uint64_t tick;
     zenny_status_t last; /* the last zenny_topup result */
-} zenny_raffle_ctx_t;
-/* dest ZENNY_RAFFLE_DEST_NAV: zenny_topup(amount) to ctx->recipient; true
+} zenny_allot_ctx_t;
+/* dest ZENNY_ALLOT_DEST_NAV: zenny_topup(amount) to ctx->recipient; true
  * only on success. Any other dest (or a NULL ctx) returns false and changes
- * nothing. `who` (the raffle's payer) is not used: the chips go to the
+ * nothing. `who` (the allotment's payer) is not used: the chips go to the
  * recipient in ctx. */
-bool zenny_raffle_credit(void *ctx, uint32_t dest, const void *who, uint64_t amount);
+bool zenny_allot_credit(void *ctx, uint32_t dest, const void *who, uint64_t amount);
 
 #endif /* ZXV_ZENNY_H */

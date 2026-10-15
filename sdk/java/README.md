@@ -506,7 +506,7 @@ The rules, in Java terms:
   canonical 160 bytes, `id()` their SHA-256, `decode(bytes)` the record back.
   The memo is 0 to 64 characters of printable ASCII. A LIVE request with
   `FLAG_CHANCE` (a loot box, a paid draw) is refused (`ChanceException`); the
-  raffle is a separate module, not a payment request.
+  allotment is a separate module, not a payment request.
 - **Receipts** (`Receipt`). `Receipt.sign` is the wallet's call (permission
   `CRYPTO_SIGN`); it reads the wallet's `SecretKey` from off-heap memory for
   the length of the call and never copies, keeps or logs it. Signing is
