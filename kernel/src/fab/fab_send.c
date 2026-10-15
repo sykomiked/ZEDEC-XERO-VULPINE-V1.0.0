@@ -54,19 +54,11 @@ static void put_op(uint8_t *op, uint8_t kind, uint16_t blk, uint32_t src, uint32
     fab__put32(op + 8, len);
 }
 
-/* Append an op, merging with the last one when it continues it. */
+/* Append an op. Ops never need merging: a match is extended forward until
+ * a byte differs (or the target or source ends), so the next op can never
+ * continue it, and a literal run always ends at the next match. */
 static int emit(emit_t *e, uint8_t kind, uint16_t blk, uint32_t src, uint32_t len)
 {
-    if (e->n) {
-        uint8_t *last = e->ops + (e->n - 1u) * FAB_OP_REC;
-        uint16_t lb = (uint16_t) ((last[2] << 8) | last[3]);
-        uint32_t ls = fab__get32(last + 4), ll = fab__get32(last + 8);
-        bool cont = last[0] == kind && lb == blk && (kind == FAB_OP_LIT || ls + ll == src);
-        if (cont && (uint64_t) ll + len <= UINT32_MAX) {
-            fab__put32(last + 8, ll + len);
-            return FAB_OK;
-        }
-    }
     if (e->n >= e->cap || e->n >= FAB_MAX_OPS) return FAB_ERR_SPACE;
     put_op(e->ops + e->n * FAB_OP_REC, kind, blk, src, len);
     e->n++;
@@ -99,7 +91,7 @@ int fab_build(const fab_src_t *src, uint32_t nsrc, const uint8_t *target, uint32
         return FAB_ERR_ARG;
     if (window < FAB_WINDOW_MIN || table_bits < 4 || table_bits > 24) return FAB_ERR_ARG;
     bool last_prev = nsrc && src[nsrc - 1u].prev;
-    if (nsrc - (last_prev ? 1u : 0u) > FAB_MAX_BLOCKS || nsrc > 0xFFFFu) return FAB_ERR_ARG;
+    if (nsrc - (last_prev ? 1u : 0u) > FAB_MAX_BLOCKS) return FAB_ERR_ARG; /* so nsrc fits u16 */
     for (uint32_t i = 0; i < nsrc; i++) {
         if (!src[i].data && src[i].len) return FAB_ERR_ARG;
         if (src[i].prev && i != nsrc - 1u) return FAB_ERR_ARG;

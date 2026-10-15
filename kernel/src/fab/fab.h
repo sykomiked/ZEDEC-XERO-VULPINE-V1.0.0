@@ -99,6 +99,18 @@
  * refuse), and only then decapsulates again for the diff key. So the diff
  * key and the plaintext exist only after the node reports itself sealed.
  *
+ * PROGRESS
+ * --------
+ * io->progress, when set, reports what has been verified, never more, so
+ * a loading bar driven by it cannot run ahead of the work:
+ *   FETCH  after each block matches its CID (fab_hydrate, fab_hydrate_from):
+ *          blocks and bytes done of the plan's blocks.
+ *   BUILD  after each op is applied (fab_assemble, fab_frame_apply): bytes
+ *          of the artifact written from verified blocks and the
+ *          authenticated diff, of target_len. The whole is not yet checked.
+ *   DONE   once, after the rebuilt bytes match the target CID.
+ * A failed call reports nothing further; the caller drops the bar.
+ *
  * Integer only, no libc, no allocation: every buffer is the caller's.
  * A fabricated artifact is data. Nothing here maps it executable; code
  * enters only through verified-slot admission like any other file.
@@ -233,6 +245,16 @@ typedef int (*fab_view_fn)(void *ctx, const ipfsn_cid_t *cid, const uint8_t **da
 /* Air-gap seal: TRUE only when the node has no live network path. */
 typedef lpres_state_t (*fab_seal_fn)(void *ctx);
 
+/* Progress (PROGRESS above). FETCH counts blocks and their bytes; BUILD
+ * and DONE count artifact bytes (blocks_done = blocks_total there). */
+enum { FAB_PHASE_FETCH = 1, FAB_PHASE_BUILD = 2, FAB_PHASE_DONE = 3 };
+typedef struct {
+    uint8_t phase;
+    uint32_t blocks_done, blocks_total;
+    uint64_t bytes_done, bytes_total;
+} fab_progress_t;
+typedef void (*fab_progress_fn)(void *ctx, const fab_progress_t *pr);
+
 typedef struct {
     ipfsn_get_fn get; /* block source: ipfsn_bs_source over a blockstore, or a fetcher */
     void *get_ctx;
@@ -245,6 +267,8 @@ typedef struct {
     uint8_t *out; /* receives the artifact or frame */
     uint32_t out_cap;
     fab_work_t *work;
+    fab_progress_fn progress; /* NULL: no reports */
+    void *progress_ctx;
 } fab_io_t;
 
 /* Stream state, one per end. The receiver fills it from the open recipe
@@ -279,8 +303,16 @@ int fab_open_plan(const fab_recipe_t *r, const uint8_t *dk, uint8_t *plan_buf, u
 int fab_plan_parse(const uint8_t *plan, uint32_t len, uint8_t which, uint32_t diff_len,
                    fab_plan_t *p);
 int fab_plan_block(const fab_plan_t *p, uint32_t i, ipfsn_cid_t *cid, uint32_t *len);
+/* Total length of blocks 0..n-1 (n <= n_blocks): the FETCH bytes_total
+ * when n = n_blocks. */
+int fab_plan_bytes(const fab_plan_t *p, uint32_t n, uint64_t *bytes);
 /* Fetch and verify every listed block, decoys included, through io->get. */
 int fab_hydrate(const fab_plan_t *p, fab_io_t *io, uint32_t *fetched);
+/* The same over blocks from..from+n-1 (clipped to n_blocks), so a host can
+ * hydrate in steps; *fetched = the index after the last block verified.
+ * Views from earlier calls are forgotten, as in fab_hydrate. */
+int fab_hydrate_from(const fab_plan_t *p, fab_io_t *io, uint32_t from, uint32_t n,
+                     uint32_t *fetched);
 /* Seal check, diff key, diff, ops, target check. FILE: s must be NULL.
  * STREAM: s receives the stream state and *out_len is frame 0. On any
  * failure out and diff_buf are wiped. */

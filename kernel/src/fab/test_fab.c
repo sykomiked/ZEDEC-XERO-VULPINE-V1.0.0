@@ -14,10 +14,17 @@
 #include <string.h>
 
 #include "fab.h"
+#include "fab_int.h"
 #include "../robin_debanks/sha256.h"
 #include "../pqsec/pq_matrix_algs.h"
 
 static int fails, checks;
+
+/* pinned SHA-256 of outputs for fixed inputs (test_golden) */
+#define GOLD_RECIPE     "52ad42a93103421deaf9b93acf04ea804872b39615f547188d47ba3575e78768"
+#define GOLD_STREAM_KEY "f0a1ad1b3353158470c329238b4b01716ccca6d3cf9a5fbb2d8772e3521cbe82"
+#define GOLD_FRAME      "79ef2568e6914af360e9db31d975634bb93290bdb17d90cd0c4063d70009f480"
+#define GOLD_CP         "3a9fe1df599434416df16ac01900596d2529c1e494ce7ccdeb58f0a38ccaef0e"
 #define CHECK(c)                                                                                   \
     do {                                                                                           \
         checks++;                                                                                  \
@@ -148,7 +155,7 @@ static fab_ient_t table[1u << 14];
 
 static fab_io_t io(void)
 {
-    fab_io_t x = {get, &st, 0, 0, 0, 0, diffb, OUTCAP, out, OUTCAP, &W};
+    fab_io_t x = {get, &st, 0, 0, 0, 0, diffb, OUTCAP, out, OUTCAP, &W, 0, 0};
     return x;
 }
 
@@ -181,10 +188,11 @@ static uint32_t plan_for(uint32_t tlen, uint32_t nsrc, uint32_t slot_us, uint32_
     return pl;
 }
 
+static uint32_t coin_seed = 77; /* another value gives another stream id */
 static fab_seal_args_t args(uint8_t kind, uint8_t mode)
 {
     static uint8_t coins[32], rnd[32];
-    seed32(coins, 77);
+    seed32(coins, coin_seed);
     seed32(rnd, 99);
     fab_seal_args_t a = {kind, mode, spk, ssk, mode ? rek : 0, mode ? coins : 0, rnd};
     return a;
@@ -955,6 +963,1206 @@ static void test_stream(void)
     EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_ERR_FORM);
 }
 
+/* ---- byte helpers, against hand-written expectations ------------------------- */
+
+static void test_helpers(void)
+{
+    uint8_t b[12];
+    fab__put32(b, 0x01020304u);
+    EQ(b[0], 1);
+    EQ(b[1], 2);
+    EQ(b[2], 3);
+    EQ(b[3], 4);
+    EQ(fab__get32((const uint8_t *) "\x80\x40\x20\x10"), 0x80402010u);
+    fab__put64(b, 0x0102030405060708ull);
+    for (int i = 0; i < 8; i++) EQ(b[i], i + 1);
+    EQ(fab__get64((const uint8_t *) "\xF1\x02\x03\x04\x05\x06\x07\x08"), 0xF102030405060708ull);
+    memset(b, 0xAA, sizeof b);
+    fab__frame_nonce(2, 0x1122334455667788ull, b);
+    static const uint8_t want[12] = {2, 0, 0, 0, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    CHECK(memcmp(b, want, 12) == 0);
+    CHECK(fab__eq("abc", "abc", 3));
+    CHECK(!fab__eq("abc", "abd", 3));
+    CHECK(!fab__eq("xbc", "abc", 3));
+    CHECK(fab__eq("a", "b", 0));
+    CHECK(fab__zero((const uint8_t *) "\0\0\0", 3));
+    CHECK(!fab__zero((const uint8_t *) "\0\0\1", 3));
+    uint8_t c[4] = {9, 9, 9, 9};
+    fab__cpy(c, "xyz", 3);
+    CHECK(memcmp(c, "xyz\x09", 4) == 0);
+    fab__wipe(c, 3);
+    CHECK(memcmp(c, "\0\0\0\x09", 4) == 0);
+}
+
+/* ---- the UnixFS target CID against independent computations ----------------- */
+
+static int count_sink(void *ctx, const ipfsn_cid_t *cid, const uint8_t *block, uint32_t len)
+{
+    (void) ctx;
+    (void) cid;
+    (void) block;
+    (void) len;
+    return 0;
+}
+
+static void test_target_kat(void)
+{
+    ipfsn_cid_t a, b;
+    /* up to one chunk the root is the raw leaf itself */
+    EQ(fab_target_cid(blk[0], BL, &W, &a), FAB_OK);
+    EQ(ipfsn_cid_sha256(IPFSN_MC_RAW, blk[0], BL, &b), IPFSN_OK);
+    CHECK(ipfsn_cid_equal(&a, &b));
+    /* several chunks: the explicit Kubo defaults give the same root */
+    uint32_t n = 3u * IPFSN_UFS_CHUNK + 1000u;
+    for (uint32_t i = 0; i < n; i++) target[i % OUTCAP] = (uint8_t) (i * 7u + (i >> 9));
+    static ipfsn_ufs_t u;
+    static uint8_t chunk[IPFSN_UFS_CHUNK];
+    static uint8_t big[3u * IPFSN_UFS_CHUNK + 1000u];
+    for (uint32_t i = 0; i < n; i++) big[i] = (uint8_t) (i * 7u + (i >> 9));
+    uint64_t size = 0;
+    EQ(ipfsn_ufs_init(&u, chunk, IPFSN_UFS_CHUNK, IPFSN_UFS_LINKS, count_sink, 0), IPFSN_OK);
+    EQ(ipfsn_ufs_update(&u, big, n), IPFSN_OK);
+    EQ(ipfsn_ufs_final(&u, &b, &size), IPFSN_OK);
+    EQ(fab_target_cid(big, n, &W, &a), FAB_OK);
+    CHECK(ipfsn_cid_equal(&a, &b));
+    EQ(a.codec, IPFSN_MC_DAG_PB);
+    /* the empty file needs no data pointer */
+    EQ(fab_target_cid(0, 0, &W, &a), FAB_OK);
+    EQ(fab_target_cid(blk[0], 1, &W, 0), FAB_ERR_ARG);
+}
+
+/* ---- the wire format, byte for byte, and pinned outputs ----------------------- */
+
+static void hash_hex(const uint8_t *p, uint32_t n, char out[65])
+{
+    uint8_t h[32];
+    sha256(p, n, h);
+    for (int i = 0; i < 32; i++) sprintf(out + 2 * i, "%02x", h[i]);
+}
+
+static void test_golden(void)
+{
+    uint32_t n = hand_plan(), len = 0;
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_SEALED);
+    memset(rec, 0xFF, 200);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec, sizeof rec, &len), FAB_OK);
+    CHECK(memcmp(rec, "FABR\x01\x00\x01\x00", 8) == 0);
+    uint8_t id[32];
+    fab_key_id(spk, FAB_SIG_PK, id);
+    CHECK(memcmp(rec + 8, id, 32) == 0);
+    sha256(spk, FAB_SIG_PK, id);
+    CHECK(memcmp(rec + 8, id, 32) == 0);
+    sha256(rek, FAB_KEM_EK, id);
+    CHECK(memcmp(rec + 40, id, 32) == 0);
+    EQ(fab__get32(rec + 72), n);
+    EQ(rec[72], 0);
+    EQ(rec[75], n & 0xFF);
+    EQ(rec[79], 4);
+    CHECK(memcmp(rec + len - FAB_SIG - FAB_SIG_PK, spk, FAB_SIG_PK) == 0);
+    char hx[65];
+    hash_hex(rec, len, hx);
+    /* the whole recipe for fixed keys, coins and signing randomness: any
+     * change to the key schedule, labels, nonces or layout changes it */
+    CHECK(strcmp(hx, GOLD_RECIPE) == 0);
+    if (strcmp(hx, GOLD_RECIPE)) printf("  recipe %s\n", hx);
+
+    /* public: the plan in clear right after the header */
+    a = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    memset(rec2, 0xFF, 200);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len), FAB_OK);
+    CHECK(memcmp(rec2, "FABR\x01\x00\x00\x00", 8) == 0);
+    CHECK(all_zero(rec2 + 40, 32));
+    CHECK(memcmp(rec2 + FAB_HDR, hp, n) == 0);
+    CHECK(memcmp(rec2 + FAB_HDR + n, "abcd", 4) == 0);
+
+    /* a stream, its first frame and a checkpoint */
+    memcpy(target, blk[0], FR);
+    uint32_t dl = 0, pl = plan_for(FR, NB, 16667, &dl);
+    a = args(FAB_KIND_STREAM, FAB_MODE_SEALED);
+    static fab_stream_t tx;
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, &tx, rec, sizeof rec, &len), FAB_OK);
+    hash_hex(tx.key, FAB_KEY, hx);
+    CHECK(strcmp(hx, GOLD_STREAM_KEY) == 0);
+    if (strcmp(hx, GOLD_STREAM_KEY)) printf("  stream key %s\n", hx);
+    uint32_t fpl = hand_plan(), fl = 0;
+    memset(frame, 0xFF, 64);
+    EQ(fab_frame_seal(&tx, 0, 0x0A0B0C0D0E0F1011ull, hp, fpl, (const uint8_t *) "abcd", 4, frame,
+                      sizeof frame, &fl),
+       FAB_OK);
+    CHECK(memcmp(frame, "FABF\x01\x00\x00\x00", 8) == 0);
+    CHECK(memcmp(frame + 8, tx.id, FAB_SID) == 0);
+    EQ(fab__get64(frame + 24), 1);
+    EQ(fab__get64(frame + 32), 0);
+    static const uint8_t slot[8] = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11};
+    CHECK(memcmp(frame + 40, slot, 8) == 0);
+    EQ(fab__get32(frame + 48), fpl);
+    EQ(fab__get32(frame + 52), 4);
+    EQ(fl, FAB_FHDR + fpl + 4 + 2 * FAB_TAG);
+    hash_hex(frame, fl, hx);
+    CHECK(strcmp(hx, GOLD_FRAME) == 0);
+    if (strcmp(hx, GOLD_FRAME)) printf("  frame %s\n", hx);
+    EQ(fab_checkpoint_sign(&tx, 0, 1, ssk, 0, cp), FAB_OK);
+    CHECK(memcmp(cp, "FABC\x01\x00\x00\x00", 8) == 0);
+    CHECK(memcmp(cp + 8, tx.id, FAB_SID) == 0);
+    EQ(fab__get64(cp + 24), 0);
+    EQ(fab__get64(cp + 32), 1);
+    hash_hex(cp, FAB_CP_LEN, hx);
+    CHECK(strcmp(hx, GOLD_CP) == 0);
+    if (strcmp(hx, GOLD_CP)) printf("  checkpoint %s\n", hx);
+}
+
+/* ---- argument rules ------------------------------------------------------------- */
+
+static void test_args(void)
+{
+    uint32_t n = hand_plan(), len = 0, olen = 7;
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec, sizeof rec, &len), FAB_OK);
+    fab_recipe_t r, z;
+    fab_plan_t p;
+    memset(&z, 0, sizeof z);
+    EQ(fab_recipe_parse(rec, len, 0), FAB_ERR_ARG);
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(0, 0, 0), FAB_ERR_ARG);
+    EQ(fab_recipe_check(&z, 0, 0), FAB_ERR_ARG);
+    /* not checked yet */
+    fab_io_t x = io();
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_ERR_SIGN);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    EQ(fab_open_plan(0, 0, planb, sizeof planb, &p), FAB_ERR_ARG);
+    EQ(fab_open_plan(&z, 0, planb, sizeof planb, &p), FAB_ERR_ARG);
+    EQ(fab_open_plan(&r, 0, 0, sizeof planb, &p), FAB_ERR_ARG);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, 0), FAB_ERR_ARG);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    EQ(fab_plan_parse(hp, n, FAB_PLAN_FILE, 4, 0), FAB_ERR_ARG);
+    ipfsn_cid_t c;
+    uint32_t l;
+    EQ(fab_plan_block(0, 0, &c, &l), FAB_ERR_ARG);
+    EQ(fab_plan_block(&p, 0, 0, &l), FAB_ERR_ARG);
+    EQ(fab_plan_block(&p, 0, &c, 0), FAB_ERR_ARG);
+    EQ(fab_hydrate(&p, 0, 0), FAB_ERR_ARG);
+    fab_io_t y = x;
+    y.get = 0;
+    EQ(fab_hydrate(&p, &y, 0), FAB_ERR_ARG);
+    y = x;
+    y.work = 0;
+    EQ(fab_hydrate(&p, &y, 0), FAB_ERR_ARG);
+    store_reset();
+    EQ(fab_hydrate(&p, &x, 0), FAB_OK);
+
+    /* assemble */
+    EQ(fab_assemble(0, &p, 0, &x, 0, &olen), FAB_ERR_ARG);
+    EQ(fab_assemble(&z, &p, 0, &x, 0, &olen), FAB_ERR_ARG);
+    EQ(fab_assemble(&r, 0, 0, &x, 0, &olen), FAB_ERR_ARG);
+    EQ(fab_assemble(&r, &p, 0, &x, 0, 0), FAB_ERR_ARG);
+    EQ(fab_assemble(&r, &p, 0, 0, 0, &olen), FAB_ERR_ARG);
+    y = x;
+    y.get = 0;
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_ERR_ARG);
+    y = x;
+    y.work = 0;
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_ERR_ARG);
+    y = x;
+    y.out = 0;
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_ERR_ARG);
+    y = x;
+    y.diff_buf = 0;
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_ERR_ARG);
+    y.diff_cap = 0; /* no diff buffer is fine for no diff, but this plan has 4 bytes */
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_ERR_SPACE);
+    fab_plan_t q = p;
+    q.which = FAB_PLAN_OPEN;
+    EQ(fab_assemble(&r, &q, 0, &x, 0, &olen), FAB_ERR_ARG);
+    q = p;
+    q.lit_total = 3;
+    EQ(fab_assemble(&r, &q, 0, &x, 0, &olen), FAB_ERR_ARG);
+    fab_recipe_t u = r;
+    u.checked = false;
+    EQ(fab_assemble(&u, &p, 0, &x, 0, &olen), FAB_ERR_SIGN);
+    EQ(olen, 7); /* untouched by refused arguments */
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(olen, 8);
+    /* exactly enough room */
+    y = x;
+    y.out_cap = 8;
+    y.diff_cap = 4;
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_OK);
+
+    /* streams and checkpoints */
+    static fab_stream_t s;
+    memset(&s, 0, sizeof s);
+    s.live = true;
+    EQ(fab_frame_apply(0, frame, 100, 0, 0, planb, sizeof planb, &x, &olen), FAB_ERR_ARG);
+    EQ(fab_frame_apply(&s, 0, 100, 0, 0, planb, sizeof planb, &x, &olen), FAB_ERR_ARG);
+    EQ(fab_frame_apply(&s, frame, 100, 0, 0, 0, sizeof planb, &x, &olen), FAB_ERR_ARG);
+    EQ(fab_frame_apply(&s, frame, 100, 0, 0, planb, sizeof planb, &x, 0), FAB_ERR_ARG);
+    EQ(fab_frame_apply(&s, frame, 100, 0, 0, planb, sizeof planb, 0, &olen), FAB_ERR_ARG);
+    y = x;
+    y.out = 0;
+    EQ(fab_frame_apply(&s, frame, 100, 0, 0, planb, sizeof planb, &y, &olen), FAB_ERR_ARG);
+    EQ(fab_checkpoint_verify(0, cp, FAB_CP_LEN), FAB_ERR_ARG);
+    EQ(fab_checkpoint_verify(&s, 0, FAB_CP_LEN), FAB_ERR_ARG);
+    EQ(fab_checkpoint_sign(0, 0, 0, ssk, 0, cp), FAB_ERR_ARG);
+    EQ(fab_checkpoint_sign(&s, 0, 0, 0, 0, cp), FAB_ERR_ARG);
+    EQ(fab_checkpoint_sign(&s, 0, 0, ssk, 0, 0), FAB_ERR_ARG);
+
+    /* sending side */
+    EQ(fab_recipe_seal(0, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    EQ(fab_recipe_seal(&a, 0, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    EQ(fab_recipe_seal(&a, hp, n, 0, 4, 0, rec2, sizeof rec2, &len), FAB_ERR_ARG);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, 0, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, 0),
+       FAB_ERR_ARG);
+    fab_seal_args_t b = a;
+    b.sender_pk = 0;
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    b = a;
+    b.sender_sk = 0;
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    b = a;
+    b.kind = 2;
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    b = a;
+    b.mode = 2;
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    b = args(FAB_KIND_FILE, FAB_MODE_SEALED);
+    b.kem_coins = 0;
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, sizeof rec2, &len),
+       FAB_ERR_ARG);
+    /* exactly enough room, and one byte less */
+    uint32_t want = FAB_HDR + n + 4 + FAB_SIG_PK + FAB_SIG;
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, want, &len), FAB_OK);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec2, want - 1, &len),
+       FAB_ERR_SPACE);
+    /* an empty diff needs no pointer */
+    uint32_t pl8 = hand_plan();
+    op(hp + 156, FAB_OP_SLICE, 1, 0, 4);
+    memcpy(target + 4, blk[2], 4);
+    {
+        ipfsn_cid_t tc;
+        fab_target_cid(target, 8, &W, &tc);
+        ipfsn_cid_encode(&tc, hp, 36);
+    }
+    EQ(fab_recipe_seal(&a, hp, pl8, 0, 0, 0, rec2, sizeof rec2, &len), FAB_OK);
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    y = x;
+    y.diff_buf = 0;
+    y.diff_cap = 0;
+    store_reset();
+    EQ(fab_assemble(&r, &p, 0, &y, 0, &olen), FAB_OK);
+    CHECK(memcmp(out, target, 8) == 0);
+
+    /* plan writer */
+    ipfsn_cid_t tc;
+    fab_target_cid(target, 8, &W, &tc);
+    EQ(fab_plan_write(0, 8, 0, srcs, NB, opsb, 1, planb, sizeof planb, &l), FAB_ERR_ARG);
+    EQ(fab_plan_write(&tc, 8, 0, 0, NB, opsb, 1, planb, sizeof planb, &l), FAB_ERR_ARG);
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, 0, 1, planb, sizeof planb, &l), FAB_ERR_ARG);
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, opsb, 1, 0, sizeof planb, &l), FAB_ERR_ARG);
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, opsb, 1, planb, sizeof planb, 0), FAB_ERR_ARG);
+    EQ(fab_plan_write(&tc, 8, 0, 0, 0, 0, 0, planb, sizeof planb, &l), FAB_OK);
+    EQ(l, FAB_PLAN_HDR);
+    uint32_t pw = FAB_PLAN_HDR + NB * FAB_BLOCK_REC + 2 * FAB_OP_REC;
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, opsb, 2, planb, pw, &l), FAB_OK);
+    EQ(l, pw);
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, opsb, 2, planb, pw - 1, &l), FAB_ERR_SPACE);
+    EQ(fab_plan_write(&tc, 8, 0, srcs, NB, opsb, FAB_MAX_OPS + 1u, planb, sizeof planb, &l),
+       FAB_ERR_ARG);
+    /* the writer's bytes */
+    memset(planb, 0xEE, pw);
+    EQ(fab_plan_write(&tc, 0x0102030405ull, 0x0A0B0C0Du, srcs, NB, opsb, 2, planb, pw, &l), FAB_OK);
+    uint8_t cb[36];
+    ipfsn_cid_encode(&tc, cb, 36);
+    CHECK(memcmp(planb, cb, 36) == 0);
+    CHECK(memcmp(planb + 36, "\0\0\0\x01\x02\x03\x04\x05", 8) == 0);
+    EQ(fab__get32(planb + 44), NB);
+    EQ(fab__get32(planb + 48), 2);
+    CHECK(memcmp(planb + 52, "\x0A\x0B\x0C\x0D", 4) == 0);
+    CHECK(all_zero(planb + 56, 8));
+    for (int i = 0; i < NB; i++) {
+        ipfsn_cid_encode(&bcid[i], cb, 36);
+        CHECK(memcmp(planb + 64 + 40 * i, cb, 36) == 0);
+        EQ(fab__get32(planb + 64 + 40 * i + 36), blen[i]);
+    }
+    CHECK(memcmp(planb + 64 + 40 * NB, opsb, 24) == 0);
+}
+
+/* ---- plan edges ----------------------------------------------------------------- */
+
+static uint8_t bigplan[FAB_PLAN_HDR + (FAB_MAX_OPS + 1u) * FAB_OP_REC];
+
+static uint32_t many_blocks(uint32_t nb)
+{
+    ipfsn_cid_t c;
+    memset(bigplan, 0, FAB_PLAN_HDR);
+    fab_target_cid(0, 0, &W, &c);
+    ipfsn_cid_encode(&c, bigplan, 36);
+    put32(bigplan + 44, nb);
+    for (uint32_t i = 0; i < nb; i++) {
+        uint8_t v[4];
+        put32(v, i);
+        ipfsn_cid_sha256(IPFSN_MC_RAW, v, 4, &c);
+        ipfsn_cid_encode(&c, bigplan + 64 + i * 40, 36);
+        put32(bigplan + 64 + i * 40 + 36, 4);
+    }
+    return FAB_PLAN_HDR + nb * FAB_BLOCK_REC;
+}
+
+static uint32_t many_ops(uint32_t no)
+{
+    ipfsn_cid_t c;
+    memset(bigplan, 0, FAB_PLAN_HDR);
+    fab_target_cid(0, 0, &W, &c);
+    ipfsn_cid_encode(&c, bigplan, 36);
+    bigplan[36 + 5] = (uint8_t) (no >> 16);
+    bigplan[36 + 6] = (uint8_t) (no >> 8);
+    bigplan[36 + 7] = (uint8_t) no;
+    put32(bigplan + 48, no);
+    for (uint32_t i = 0; i < no; i++) op(bigplan + 64 + i * 12, FAB_OP_LIT, 0, 0, 1);
+    return FAB_PLAN_HDR + no * FAB_OP_REC;
+}
+
+/* blocks b0 (len 300) and b1 (len 300), ops as given: a scratch plan */
+static uint8_t sp[FAB_PLAN_HDR + 3 * FAB_BLOCK_REC + 5 * FAB_OP_REC];
+static uint32_t scratch(uint32_t nb, uint32_t no, uint64_t tlen)
+{
+    memset(sp, 0, sizeof sp);
+    ipfsn_cid_t c;
+    fab_target_cid((const uint8_t *) "x", 1, &W, &c);
+    ipfsn_cid_encode(&c, sp, 36);
+    sp[42] = (uint8_t) (tlen >> 8);
+    sp[43] = (uint8_t) tlen;
+    put32(sp + 44, nb);
+    put32(sp + 48, no);
+    for (uint32_t i = 0; i < nb; i++) {
+        ipfsn_cid_encode(&bcid[i == 0 ? 2 : i == 1 ? 1 : 3], sp + 64 + 40 * i, 36);
+        put32(sp + 64 + 40 * i + 36, 300);
+    }
+    return FAB_PLAN_HDR + nb * FAB_BLOCK_REC + no * FAB_OP_REC;
+}
+#define SOP(i, nb) (sp + 64 + 40 * (nb) + 12 * (i))
+
+static void test_plan_edges(void)
+{
+    fab_plan_t p;
+    uint32_t n = many_blocks(FAB_MAX_BLOCKS);
+    EQ(fab_plan_parse(bigplan, n, FAB_PLAN_FILE, 0, &p), FAB_OK);
+    EQ(p.n_blocks, FAB_MAX_BLOCKS);
+    n = many_blocks(FAB_MAX_BLOCKS + 1u);
+    EQ(fab_plan_parse(bigplan, n, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+    n = many_ops(FAB_MAX_OPS);
+    EQ(fab_plan_parse(bigplan, n, FAB_PLAN_FILE, FAB_MAX_OPS, &p), FAB_OK);
+    EQ(p.target_len, FAB_MAX_OPS);
+    n = many_ops(FAB_MAX_OPS + 1u);
+    EQ(fab_plan_parse(bigplan, n, FAB_PLAN_FILE, FAB_MAX_OPS + 1u, &p), FAB_ERR_PLAN);
+
+    /* a plan of exactly its header: the empty file */
+    n = many_blocks(0);
+    EQ(fab_plan_parse(bigplan, n, FAB_PLAN_FILE, 0, &p), FAB_OK);
+    EQ(p.n_ops, 0);
+    /* shorter than the header, from an exact-size buffer */
+    static uint8_t short63[63];
+    memcpy(short63, bigplan, 63);
+    EQ(fab_plan_parse(short63, 63, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+
+    /* the first block is checked like the others */
+    n = scratch(2, 1, 4);
+    op(SOP(0, 2), FAB_OP_SLICE, 1, 0, 4);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_OK);
+    put32(sp + 64 + 36, 0);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+    n = scratch(2, 1, 4);
+    op(SOP(0, 2), FAB_OP_SLICE, 1, 0, 4);
+    sp[64] = 0; /* block 0's CID */
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+    /* duplicates found at any distance */
+    n = scratch(3, 1, 4);
+    op(SOP(0, 3), FAB_OP_SLICE, 0, 0, 4);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_OK);
+    memcpy(sp + 64 + 80, sp + 64 + 40, 40); /* block 2 = block 1 */
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+    /* ops of length 1 are fine, a zero-length op is not even when sums agree */
+    n = scratch(1, 3, 3);
+    op(SOP(0, 1), FAB_OP_SLICE, 0, 0, 1);
+    op(SOP(1, 1), FAB_OP_LIT, 0, 0, 1);
+    op(SOP(2, 1), FAB_OP_SLICE, 0, 299, 1);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 1, &p), FAB_OK);
+    op(SOP(1, 1), FAB_OP_LIT, 0, 0, 0);
+    sp[43] = 2;
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 0, &p), FAB_ERR_PLAN);
+    /* a SLICE naming one block past the list reads no record from the ops */
+    n = scratch(2, 4, 12);
+    op(SOP(0, 2), FAB_OP_SLICE, 2, 0, 4);
+    op(SOP(1, 2), FAB_OP_LIT, 0, 0, 4);
+    op(SOP(2, 2), FAB_OP_SLICE, 0, 0, 2);
+    op(SOP(3, 2), FAB_OP_LIT, 0, 0, 2);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 6, &p), FAB_ERR_PLAN);
+    op(SOP(0, 2), FAB_OP_SLICE, 1, 0, 4);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FILE, 6, &p), FAB_OK);
+    EQ(p.lit_total, 6);
+    /* prev_need is the furthest byte, not the last op's */
+    n = scratch(0, 3, 12);
+    op(SOP(0, 0), FAB_OP_PREV, 0, 10, 4);
+    op(SOP(1, 0), FAB_OP_PREV, 0, 0, 4);
+    op(SOP(2, 0), FAB_OP_PREV, 0, 3, 4);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FRAME, 0, &p), FAB_OK);
+    EQ(p.prev_need, 14);
+    EQ(p.lit_total, 0);
+    op(SOP(0, 0), FAB_OP_PREV, 0, 0, 4);
+    op(SOP(1, 0), FAB_OP_PREV, 0, 20, 4);
+    EQ(fab_plan_parse(sp, n, FAB_PLAN_FRAME, 0, &p), FAB_OK);
+    EQ(p.prev_need, 24);
+}
+
+/* ---- recipe edges ------------------------------------------------------------------- */
+
+static void test_recipe_edges(void)
+{
+    uint32_t n = hand_plan(), len = 0, olen = 0;
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_SEALED);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec, sizeof rec, &len), FAB_OK);
+    fab_recipe_t r;
+    /* sealed needs a recipient id */
+    memcpy(rec2, rec, len);
+    memset(rec2 + 40, 0, 32);
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_ERR_FORM);
+    rec2[71] = 1;
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_OK);
+    /* shorter than a header, from exact-size buffers */
+    static uint8_t h79[79], h80[80];
+    memcpy(h79, rec, 79);
+    EQ(fab_recipe_parse(h79, 79, &r), FAB_ERR_FORM);
+    memcpy(h80, rec, 80);
+    EQ(fab_recipe_parse(h80, 80, &r), FAB_ERR_FORM);
+    /* a plan of exactly its header parses */
+    uint32_t pl = many_blocks(0);
+    fab_seal_args_t b = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    EQ(fab_recipe_seal(&b, bigplan, pl, 0, 0, 0, rec2, sizeof rec2, &len), FAB_OK);
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_OK);
+    EQ(r.plan_len, FAB_PLAN_HDR);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    fab_plan_t p;
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    fab_io_t x = io();
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(olen, 0);
+
+    /* a valid signature by someone else over the sender's id is not the sender's */
+    EQ(fab_recipe_seal(&b, hp, n, (const uint8_t *) "abcd", 4, 0, rec, sizeof rec, &len), FAB_OK);
+    memcpy(rec2, rec, len);
+    uint32_t o = len - FAB_SIG - FAB_SIG_PK;
+    memcpy(rec2 + o, opk, FAB_SIG_PK);
+    uint8_t h[32];
+    sha256(rec2, o, h);
+    pqm_mldsa87_sign(osk, h, 32, (const uint8_t *) FAB_RECIPE_CTX, sizeof FAB_RECIPE_CTX - 1u, 0,
+                     rec2 + o + FAB_SIG_PK);
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_ERR_SIGN);
+    CHECK(!r.checked);
+    /* the trust list: the only entry, the first of two, the second of two */
+    uint8_t ids[2][FAB_ID];
+    fab_key_id(spk, FAB_SIG_PK, ids[0]);
+    fab_key_id(opk, FAB_SIG_PK, ids[1]);
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, (const uint8_t(*)[FAB_ID]) ids, 1), FAB_OK);
+    EQ(fab_recipe_check(&r, (const uint8_t(*)[FAB_ID]) ids, 2), FAB_OK);
+    EQ(fab_recipe_check(&r, (const uint8_t(*)[FAB_ID]) ids + 1, 1), FAB_ERR_TRUST);
+    EQ(fab_recipe_check(&r, (const uint8_t(*)[FAB_ID]) ids, 0), FAB_ERR_TRUST);
+
+    /* a plan that fails its rules is wiped from the caller's buffer */
+    memcpy(rec2, rec, len);
+    rec2[FAB_HDR + 56] = 1; /* plan reserved byte */
+    resign(rec2, len);
+    EQ(fab_recipe_parse(rec2, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    memset(planb, 0x5A, n);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_ERR_PLAN);
+    CHECK(all_zero(planb, n));
+    /* and a sealed one too, after decryption */
+    a = args(FAB_KIND_FILE, FAB_MODE_SEALED);
+    EQ(fab_recipe_seal(&a, hp, n, (const uint8_t *) "abcd", 4, 0, rec, sizeof rec, &len), FAB_OK);
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    memset(planb, 0x5A, n);
+    EQ(fab_open_plan(&r, rdk, planb, n, &p), FAB_OK); /* exactly enough room */
+    CHECK(memcmp(planb, hp, n) == 0);
+    /* the right key to open, the wrong one to assemble */
+    store_reset();
+    EQ(fab_hydrate(&p, &x, 0), FAB_OK);
+    EQ(fab_assemble(&r, &p, xdk, &x, 0, &olen), FAB_ERR_KEY);
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_ERR_ARG);
+    EQ(fab_assemble(&r, &p, rdk, &x, 0, &olen), FAB_OK);
+}
+
+/* ---- block cache and literals ------------------------------------------------------- */
+
+static void test_cache(void)
+{
+    /* slice, literal, slice of the same block: one fetch during assembly */
+    uint32_t tl = 0, dl = 0, len = 0, olen = 0;
+    memcpy(target, blk[0], 1000);
+    tl = 1000;
+    memcpy(target + tl, "~~LITERAL ONE~~", 15);
+    tl += 15;
+    memcpy(target + tl, blk[0] + 30000, 2000);
+    tl += 2000;
+    memcpy(target + tl, "~~LITERAL TWO, LONGER~~", 23);
+    tl += 23;
+    memcpy(target + tl, blk[0] + 60000, 900);
+    tl += 900;
+    uint32_t pl = plan_for(tl, NB, 0, &dl);
+    EQ(dl, 38);
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, 0, rec, sizeof rec, &len), FAB_OK);
+    fab_recipe_t r;
+    fab_plan_t p;
+    fab_io_t x = io();
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    EQ(p.n_ops, 5);
+    store_reset();
+    EQ(fab_hydrate(&p, &x, 0), FAB_OK);
+    st.fetches = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(st.fetches, 1);
+    EQ(olen, tl);
+    CHECK(memcmp(out, target, tl) == 0); /* two literals, each from its own place */
+
+    /* a new call forgets the cached block: block 2 after block 3 */
+    memcpy(target, blk[3], 5000);
+    pl = plan_for(5000, NB, 0, &dl);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, 0, rec, sizeof rec, &len), FAB_OK);
+    store_reset();
+    EQ(run(rec, len, 0, &x, &olen, 0), FAB_OK);
+    EQ(W.loaded, 3);
+    memcpy(target, blk[2], 300);
+    pl = plan_for(300, NB, 0, &dl);
+    EQ(dl, 0);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, 0, rec, sizeof rec, &len), FAB_OK);
+    store_reset();
+    EQ(run(rec, len, 0, &x, &olen, 0), FAB_OK);
+    CHECK(memcmp(out, blk[2], 300) == 0);
+    W.loaded = 2; /* as if block 2 were cached, but the buffer holds block 3 */
+    fab_recipe_parse(rec, len, &r);
+    fab_recipe_check(&r, 0, 0);
+    fab_open_plan(&r, 0, planb, sizeof planb, &p);
+    memcpy(W.block, blk[3], 300);
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK); /* assembly does not trust it */
+    CHECK(memcmp(out, blk[2], 300) == 0);
+}
+
+/* ---- the builder at its edges ---------------------------------------------------------- */
+
+static uint32_t hash32(const uint8_t *p, uint32_t w)
+{
+    uint32_t h = 0;
+    for (uint32_t i = 0; i < w; i++) h = h * 0x01000193u + p[i];
+    return h;
+}
+
+/* window i of a fixed xorshift sequence */
+static void rwin(uint8_t w[32], uint32_t i)
+{
+    uint32_t x = i * 2654435761u + 0x9e3779b9u;
+    for (uint32_t k = 0; k < 32; k++) {
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        w[k] = (uint8_t) (x >> 24);
+    }
+}
+
+typedef struct {
+    uint32_t h, i;
+} hp_t;
+static int cmp_hp(const void *a, const void *b)
+{
+    const hp_t *x = a, *y = b;
+    return x->h < y->h ? -1 : x->h > y->h ? 1 : (x->i < y->i ? -1 : x->i > y->i);
+}
+
+static uint8_t w32[8][32], tw[32], bigsrc[4096], collide_a[32], collide_b[32];
+static uint8_t ffops[FAB_OP_REC * 64];
+
+static void test_build_edges(void)
+{
+    uint32_t no = 0, dl = 0;
+    /* a block of exactly one window; the target is that block */
+    fill(w32[0], 32);
+    fab_src_t one = {w32[0], 32, bcid[0], false};
+    memcpy(tw, w32[0], 32);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(dl, 0);
+    EQ(opsb[0], FAB_OP_SLICE);
+    EQ(fab__get32(opsb + 8), 32);
+    /* eight one-window blocks, in another order: eight slices and no diff */
+    fab_src_t eight[8];
+    static uint8_t t8[256];
+    for (int i = 0; i < 8; i++) {
+        fill(w32[i], 32);
+        eight[i].data = w32[i];
+        eight[i].len = 32;
+        eight[i].cid = bcid[0];
+        eight[i].prev = false;
+    }
+    static const int order[8] = {5, 2, 7, 0, 3, 6, 1, 4};
+    for (int i = 0; i < 8; i++) memcpy(t8 + 32 * i, w32[order[i]], 32);
+    EQ(fab_build(eight, 8, t8, 256, 32, table, 4, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 8);
+    EQ(dl, 0);
+    for (int i = 0; i < 8; i++) {
+        EQ(opsb[12 * i], FAB_OP_SLICE);
+        EQ(opsb[12 * i + 3], order[i]);
+        EQ(fab__get32(opsb + 12 * i + 4), 0);
+    }
+    /* the first window of a long block survives later windows in a small table */
+    fill(bigsrc, sizeof bigsrc);
+    fab_src_t big = {bigsrc, sizeof bigsrc, bcid[0], false};
+    memcpy(tw, bigsrc, 32);
+    EQ(fab_build(&big, 1, tw, 32, 32, table, 4, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(dl, 0);
+    /* a table full of garbage from a bigger build, then one source */
+    for (uint32_t i = 0; i < (1u << 14); i++) {
+        table[i].hash = (uint32_t) i * 2654435761u;
+        table[i].off = 1u << 30;
+        table[i].src = 0xFFFF;
+        table[i].used = 1;
+    }
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(dl, 32); /* tw is now bigsrc's window: not in `one` */
+    memcpy(tw, w32[0], 32);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(dl, 0);
+    EQ(fab_build(srcs, NB, blk[1], 4096, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(fab_build(&one, 1, blk[3], 4096, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(dl, 4096); /* stale entries for source 3 are not looked at */
+
+    /* a hash collision: equal hashes, different bytes, no match */
+    {
+        static hp_t v[300000];
+        uint32_t found = 0;
+        /* random whole windows: about ten equal pairs are expected in 300000 */
+        for (uint32_t i = 0; i < 300000; i++) {
+            uint8_t w[32];
+            rwin(w, i);
+            v[i].h = hash32(w, 32);
+            v[i].i = i;
+        }
+        qsort(v, 300000, sizeof v[0], cmp_hp);
+        for (uint32_t i = 1; i < 300000 && !found; i++)
+            if (v[i].h == v[i - 1].h) {
+                rwin(collide_a, v[i - 1].i);
+                rwin(collide_b, v[i].i);
+                found = 1;
+            }
+        CHECK(found);
+        EQ(hash32(collide_a, 32), hash32(collide_b, 32));
+        CHECK(memcmp(collide_a, collide_b, 32) != 0);
+        fab_src_t ca = {collide_a, 32, bcid[0], false};
+        EQ(fab_build(&ca, 1, collide_b, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl),
+           FAB_OK);
+        EQ(no, 1);
+        EQ(dl, 32);
+        EQ(opsb[0], FAB_OP_LIT);
+    }
+
+    /* a match stops at the end of the target, even when the next byte agrees */
+    static uint8_t t65[65];
+    memcpy(t65, bigsrc, 65);
+    EQ(fab_build(&big, 1, t65, 64, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(fab__get32(opsb + 8), 64);
+    /* and at the end of the source (exact-size arrays) */
+    static uint8_t s64[64], t96[96];
+    memcpy(s64, bigsrc, 64);
+    memcpy(t96, bigsrc, 96);
+    fab_src_t sb = {s64, 64, bcid[0], false};
+    EQ(fab_build(&sb, 1, t96, 96, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 2);
+    EQ(fab__get32(opsb + 8), 64);
+    EQ(dl, 32);
+    /* backward extension stops at the start of the source */
+    memcpy(t96, bigsrc + 8, 88);
+    memcpy(t96 + 88, "12345678", 8);
+    EQ(fab_build(&sb, 1, t96, 96, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(fab__get32(opsb + 4), 8);
+    EQ(fab__get32(opsb + 8), 56);
+    /* random target in an exact-size array: rolling never reads past it */
+    static uint8_t t100[100];
+    fill(t100, 100);
+    EQ(fab_build(&big, 1, t100, 100, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(dl, 100);
+
+    /* the longest candidate wins; on a tie, the earlier source */
+    static uint8_t sa[96], sb2[96], tt[80];
+    fill(sa, 96);
+    memcpy(sb2, sa, 32);
+    fill(sb2 + 32, 64);
+    memcpy(tt, sa, 80);
+    fab_src_t two[2] = {{sa, 96, bcid[0], false}, {sb2, 96, bcid[1], false}};
+    EQ(fab_build(two, 2, tt, 80, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(opsb[3], 0);
+    EQ(fab__get32(opsb + 8), 80);
+    two[0].data = sb2; /* now the earlier source is the shorter one */
+    two[1].data = sa;
+    EQ(fab_build(two, 2, tt, 80, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(opsb[3], 1);
+    two[0].data = sa;
+    EQ(fab_build(two, 2, tt, 80, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(opsb[3], 0); /* identical sources: the first */
+    /* a longer match through backward extension beats a longer forward one */
+    static uint8_t sc[128], sd[128], tc2[100];
+    fill(sc, 128);
+    memcpy(sd, sc + 32, 32); /* sd: window X then other bytes */
+    fill(sd + 32, 96);
+    memcpy(sd + 32, sc + 64, 8); /* sd extends 8 bytes forward */
+    memcpy(tc2, sc + 8, 100);    /* the target: sc from 8 */
+    fab_src_t cd[2] = {{sd, 128, bcid[0], false}, {sc, 128, bcid[1], false}};
+    EQ(fab_build(cd, 2, tc2, 100, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(opsb[3], 1);
+    EQ(fab__get32(opsb + 4), 8);
+    EQ(fab__get32(opsb + 8), 100);
+
+    /* every op byte is written: a dirty ops buffer still gives a valid plan */
+    memset(ffops, 0xFF, sizeof ffops);
+    uint32_t tl = make_target();
+    EQ(fab_build(srcs, NB, target, tl, 32, table, 14, ffops, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    for (uint32_t i = 0; i < no; i++) EQ(ffops[12 * i + 1], 0);
+    for (uint32_t i = 0; i < no; i++)
+        if (ffops[12 * i] == FAB_OP_LIT)
+            CHECK(ffops[12 * i + 2] == 0 && ffops[12 * i + 3] == 0 &&
+                  fab__get32(ffops + 12 * i + 4) == 0);
+    /* exactly enough ops and diff, and one less of each */
+    uint32_t need = no, dneed = dl;
+    EQ(fab_build(srcs, NB, target, tl, 32, table, 14, opsb, need, &no, tdiff, dneed, &dl), FAB_OK);
+    EQ(fab_build(srcs, NB, target, tl, 32, table, 14, opsb, need - 1, &no, tdiff, OUTCAP, &dl),
+       FAB_ERR_SPACE);
+    EQ(fab_build(srcs, NB, target, tl, 32, table, 14, opsb, need, &no, tdiff, dneed - 1, &dl),
+       FAB_ERR_SPACE);
+    /* two literal runs, the second overflowing by one */
+    memcpy(target, "AAAA", 4);
+    memcpy(target + 4, blk[0], 500);
+    memcpy(target + 504, "BBBBBB", 6);
+    EQ(fab_build(srcs, NB, target, 510, 32, table, 14, opsb, 64, &no, tdiff, 10, &dl), FAB_OK);
+    EQ(dl, 10);
+    CHECK(memcmp(tdiff, "AAAABBBBBB", 10) == 0);
+    EQ(fab_build(srcs, NB, target, 510, 32, table, 14, opsb, 64, &no, tdiff, 9, &dl),
+       FAB_ERR_SPACE);
+    EQ(fab_build(srcs, NB, target, 510, 32, table, 14, opsb, 64, &no, tdiff, 3, &dl),
+       FAB_ERR_SPACE);
+
+    /* block numbers above 255 */
+    static fab_src_t many[300];
+    static uint8_t mb[300][32];
+    for (int i = 0; i < 300; i++) {
+        fill(mb[i], 32);
+        many[i].data = mb[i];
+        many[i].len = 32;
+        many[i].cid = bcid[0];
+        many[i].prev = false;
+    }
+    memcpy(tw, mb[298], 32);
+    EQ(fab_build(many, 300, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(no, 1);
+    EQ(opsb[2], 1);
+    EQ(opsb[3], 298 - 256);
+
+    /* source rules */
+    static fab_src_t lots[FAB_MAX_BLOCKS + 1];
+    for (uint32_t i = 0; i <= FAB_MAX_BLOCKS; i++) {
+        lots[i].data = w32[i % 8];
+        lots[i].len = 32;
+        lots[i].cid = bcid[0];
+        lots[i].prev = false;
+    }
+    memcpy(tw, w32[3], 32);
+    EQ(fab_build(lots, FAB_MAX_BLOCKS, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl),
+       FAB_OK);
+    EQ(fab_build(lots, FAB_MAX_BLOCKS + 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP,
+                 &dl),
+       FAB_ERR_ARG);
+    lots[FAB_MAX_BLOCKS].prev = true; /* 4096 blocks plus the previous frame */
+    EQ(fab_build(lots, FAB_MAX_BLOCKS + 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP,
+                 &dl),
+       FAB_OK);
+    fab_src_t nul = {0, 32, bcid[0], false};
+    EQ(fab_build(&nul, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    static uint8_t maxb[FAB_BLOCK_MAX];
+    fab_src_t mx = {maxb, FAB_BLOCK_MAX, bcid[0], false};
+    EQ(fab_build(&mx, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 4, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_OK);
+    EQ(fab_build(0, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, 0, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, tw, 32, 32, 0, 14, opsb, 64, &no, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, 0, 64, &no, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, 0, tdiff, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, &no, 0, OUTCAP, &dl), FAB_ERR_ARG);
+    EQ(fab_build(&one, 1, tw, 32, 32, table, 14, opsb, 64, &no, tdiff, OUTCAP, 0), FAB_ERR_ARG);
+    EQ(fab_build(0, 0, 0, 0, 32, table, 14, opsb, 64, &no, 0, 0, &dl), FAB_OK);
+    EQ(no, 0);
+}
+
+/* ---- frames at their edges ---------------------------------------------------------------- */
+
+#define FS 2048u
+static uint8_t g0[FS], g1[FS], gbig[3 * FS + 64], gframe[FS * 3], gframe2[FS * 3];
+
+/* Frame plan over the previous frame only (no blocks). */
+static uint32_t prev_plan(const uint8_t *prevb, uint32_t prevl, const uint8_t *next, uint32_t nl,
+                          uint32_t *dl)
+{
+    fab_src_t fs[1] = {{prevb, prevl, bcid[0], true}};
+    uint32_t no = 0, pl = 0;
+    ipfsn_cid_t tc;
+    EQ(fab_build(fs, 1, next, nl, 16, table, 14, opsb, 4096, &no, tdiff, OUTCAP, dl), FAB_OK);
+    EQ(fab_target_cid(next, nl, &W, &tc), FAB_OK);
+    EQ(fab_plan_write(&tc, nl, 0, fs, 1, opsb, no, fplan, sizeof fplan, &pl), FAB_OK);
+    return pl;
+}
+
+static void open_stream(fab_stream_t *tx, fab_stream_t *rx, const uint8_t *f, uint32_t fl)
+{
+    uint32_t dl = 0, len = 0, olen = 0;
+    memcpy(target, f, fl);
+    uint32_t pl = plan_for(fl, NB, 1000, &dl);
+    fab_seal_args_t a = args(FAB_KIND_STREAM, FAB_MODE_SEALED);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, tx, rec, sizeof rec, &len), FAB_OK);
+    fab_io_t x = io();
+    store_reset();
+    EQ(run(rec, len, rdk, &x, &olen, rx), FAB_OK);
+}
+
+static void test_frame_edges(void)
+{
+    static fab_stream_t tx, rx, tmp;
+    fill(g0, FS);
+    open_stream(&tx, &rx, g0, FS);
+    /* frame 1: frame 0 shifted by 100, with a new head: PREV ops from inside */
+    memcpy(g1, "NEW HEAD", 8);
+    memcpy(g1 + 8, g0 + 100, FS - 100);
+    memcpy(g1 + 8 + FS - 100, g0, 92);
+    uint32_t dl = 0, fl = 0, olen = 0;
+    uint32_t pl = prev_plan(g0, FS, g1, FS, &dl);
+    fab_plan_t p;
+    EQ(fab_plan_parse(fplan, pl, FAB_PLAN_FRAME, dl, &p), FAB_OK);
+    EQ(p.prev_need, FS); /* the tail reads to the end of frame 0 */
+    EQ(fab_frame_seal(&tx, 0, 1, fplan, pl, tdiff, dl, gframe, sizeof gframe, &fl), FAB_OK);
+    fab_io_t x = io();
+    /* exactly the room the frame needs */
+    fab_io_t y = x;
+    y.out_cap = FS;
+    y.diff_cap = dl;
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe, fl, g0, (uint32_t) p.prev_need, planb, pl, &y, &olen), FAB_OK);
+    EQ(olen, FS);
+    CHECK(memcmp(out, g1, FS) == 0);
+    /* one byte less of the previous frame than the plan reads */
+    memcpy(&tmp, &rx, sizeof rx);
+    olen = 5;
+    EQ(fab_frame_apply(&tmp, gframe, fl, g0, (uint32_t) p.prev_need - 1u, planb, pl, &y, &olen),
+       FAB_ERR_RESYNC);
+    EQ(olen, 0);
+    EQ(tmp.seq, 0);
+    /* a stream that is not live, with the right id and key */
+    memcpy(&tmp, &rx, sizeof rx);
+    tmp.live = false;
+    EQ(fab_frame_apply(&tmp, gframe, fl, g0, FS, planb, sizeof planb, &x, &olen), FAB_ERR_STREAM);
+    EQ(fab_checkpoint_verify(&tmp, cp, FAB_CP_LEN), FAB_ERR_STREAM);
+    fab_stream_t dtx;
+    memcpy(&dtx, &tx, sizeof tx);
+    dtx.live = false;
+    EQ(fab_checkpoint_sign(&dtx, 0, 1, ssk, 0, cp), FAB_ERR_STREAM);
+    EQ(fab_frame_seal(&dtx, 0, 2, fplan, pl, tdiff, dl, gframe2, sizeof gframe2, &fl),
+       FAB_ERR_STREAM);
+    /* the previous frame may sit right before or right after the output */
+    memcpy(gbig, g0, FS);
+    y = x;
+    y.out = gbig + FS;
+    y.out_cap = FS;
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe, fl, gbig, FS, planb, sizeof planb, &y, &olen), FAB_OK);
+    CHECK(memcmp(gbig + FS, g1, FS) == 0);
+    memcpy(gbig + 2 * FS, g0, FS);
+    y.out = gbig + FS;
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe, fl, gbig + 2 * FS, FS, planb, sizeof planb, &y, &olen),
+       FAB_OK);
+    /* one byte of overlap either way is refused */
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe, fl, gbig + 2 * FS - 1, FS, planb, sizeof planb, &y, &olen),
+       FAB_ERR_ARG);
+    EQ(fab_frame_apply(&tmp, gframe, fl, gbig + 1, FS, planb, sizeof planb, &y, &olen),
+       FAB_ERR_ARG);
+    /* an empty previous frame inside the output is no overlap */
+    EQ(fab_frame_apply(&tmp, gframe, fl, out + 5, 0, planb, sizeof planb, &x, &olen),
+       FAB_ERR_RESYNC);
+
+    /* frame form */
+    static uint8_t f55[55];
+    memcpy(f55, gframe, 55);
+    EQ(fab_frame_apply(&tmp, f55, 55, g0, FS, planb, sizeof planb, &x, &olen), FAB_ERR_FORM);
+#define FFORM(i, v)                                                                                \
+    do {                                                                                           \
+        memcpy(gframe2, gframe, fl);                                                               \
+        gframe2[i] = (uint8_t) (v);                                                                \
+        memcpy(&tmp, &rx, sizeof rx);                                                              \
+        EQ(fab_frame_apply(&tmp, gframe2, fl, g0, FS, planb, sizeof planb, &x, &olen),             \
+           FAB_ERR_FORM);                                                                          \
+    } while (0)
+    FFORM(0, 'X');
+    FFORM(3, 'R');
+    FFORM(4, 2);
+    FFORM(5, 1);
+    FFORM(6, 1);
+    FFORM(7, 1);
+#undef FFORM
+    /* a plan length below the plan header, totals still agreeing */
+    memcpy(gframe2, gframe, fl);
+    uint32_t fpl = fab__get32(gframe + 48), fdl = fab__get32(gframe + 52);
+    fab__put32(gframe2 + 48, 63);
+    fab__put32(gframe2 + 52, fdl + fpl - 63);
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe2, fl, g0, FS, planb, sizeof planb, &x, &olen), FAB_ERR_FORM);
+    fab__put32(gframe2 + 48, 64);
+    fab__put32(gframe2 + 52, fdl + fpl - 64);
+    EQ(fab_frame_apply(&tmp, gframe2, fl, g0, FS, planb, sizeof planb, &x, &olen), FAB_ERR_AUTH);
+    /* the output is wiped when the rebuilt frame is not the target */
+    memcpy(gbig, g0, FS);
+    gbig[700] ^= 1;
+    memset(out, 0x44, FS);
+    memcpy(&tmp, &rx, sizeof rx);
+    EQ(fab_frame_apply(&tmp, gframe, fl, gbig, FS, planb, sizeof planb, &x, &olen), FAB_ERR_TARGET);
+    CHECK(all_zero(out, FS));
+    EQ(tmp.seq, 0);
+    /* accepted for real */
+    EQ(fab_frame_apply(&rx, gframe, fl, g0, FS, planb, sizeof planb, &x, &olen), FAB_OK);
+    EQ(rx.seq, 1);
+    EQ(rx.prev_seq, 1);
+    /* the sender: exactly enough room, and a frame on a later base is refused */
+    pl = prev_plan(g1, FS, g0, FS, &dl);
+    uint32_t want = FAB_FHDR + pl + dl + 2 * FAB_TAG;
+    memcpy(&tmp, &tx, sizeof tx);
+    EQ(fab_frame_seal(&tmp, 1, 2, fplan, pl, tdiff, dl, gframe2, want - 1, &fl), FAB_ERR_SPACE);
+    EQ(fab_frame_seal(&tmp, 2, 2, fplan, pl, tdiff, dl, gframe2, want, &fl), FAB_ERR_ARG);
+    EQ(fab_frame_seal(&tmp, 1, 2, 0, pl, tdiff, dl, gframe2, want, &fl), FAB_ERR_ARG);
+    EQ(fab_frame_seal(&tmp, 1, 2, fplan, pl, 0, dl, gframe2, want, &fl), FAB_ERR_ARG);
+    EQ(fab_frame_seal(&tmp, 1, 2, fplan, pl, tdiff, dl, 0, want, &fl), FAB_ERR_ARG);
+    EQ(fab_frame_seal(&tmp, 1, 2, fplan, pl, tdiff, dl, gframe2, want, 0), FAB_ERR_ARG);
+    EQ(fab_frame_seal(0, 1, 2, fplan, pl, tdiff, dl, gframe2, want, &fl), FAB_ERR_ARG);
+    memset(gframe2, 0xFF, 64);
+    EQ(fab_frame_seal(&tmp, 1, 2, fplan, pl, tdiff, dl, gframe2, want, &fl), FAB_OK);
+    EQ(fl, want);
+    EQ(fab_frame_apply(&rx, gframe2, fl, g1, FS, planb, pl, &x, &olen), FAB_OK);
+    CHECK(memcmp(out, g0, FS) == 0);
+}
+
+/* ---- the checkpoint ring ------------------------------------------------------------------- */
+
+static void test_ring(void)
+{
+    static fab_stream_t tx, rx, tx2, rx2;
+    static uint8_t cur[256], nxt[256], fr[2048];
+    memcpy(cur, blk[1], 256);
+    open_stream(&tx, &rx, cur, 256);
+    fab_io_t x = io();
+    uint32_t dl = 0, fl = 0, olen = 0;
+    for (uint32_t k = 1; k <= 130; k++) {
+        memcpy(nxt, cur, 256);
+        nxt[k % 256] ^= (uint8_t) (k | 1);
+        uint32_t pl = prev_plan(cur, 256, nxt, 256, &dl);
+        EQ(fab_frame_seal(&tx, k - 1, k, fplan, pl, tdiff, dl, fr, sizeof fr, &fl), FAB_OK);
+        EQ(fab_frame_apply(&rx, fr, fl, cur, 256, planb, sizeof planb, &x, &olen), FAB_OK);
+        memcpy(cur, nxt, 256);
+    }
+    EQ(rx.seq, 130);
+    /* the last 128 frames are held: a window of 128 is the most */
+    EQ(fab_checkpoint_sign(&tx, 3, 130, ssk, 0, cp), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_OK);
+    EQ(rx.checked_seq, 130);
+    EQ(fab_checkpoint_sign(&tx, 2, 129, ssk, 0, cp), FAB_ERR_RESYNC); /* 2 has left the ring */
+    EQ(fab_checkpoint_sign(&tx, 2, 130, ssk, 0, cp), FAB_ERR_ARG);
+    EQ(fab_checkpoint_sign(&tx, 60, 70, ssk, 0, cp), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_OK);
+    EQ(rx.checked_seq, 130); /* an older window does not lower it */
+    EQ(fab__get64(cp + 24), 60);
+    EQ(fab__get64(cp + 32), 70);
+    /* a window of 128 sent by hand is refused before its signature */
+    fab__put64(cp + 24, 2);
+    fab__put64(cp + 32, 130);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_ERR_FORM);
+    EQ(fab_checkpoint_sign(&tx, 70, 70, ssk, 0, cp), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_OK);
+    /* form */
+#define CFORM(i, v)                                                                                \
+    do {                                                                                           \
+        EQ(fab_checkpoint_sign(&tx, 70, 71, ssk, 0, cp), FAB_OK);                                  \
+        cp[i] = (uint8_t) (v);                                                                     \
+        EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_ERR_FORM);                              \
+    } while (0)
+    CFORM(0, 'X');
+    CFORM(3, 'F');
+    CFORM(4, 2);
+    CFORM(5, 1);
+    CFORM(6, 1);
+    CFORM(7, 1);
+#undef CFORM
+    EQ(fab_checkpoint_sign(&tx, 70, 71, ssk, 0, cp), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN + 1), FAB_ERR_FORM);
+    /* a checkpoint the sender signed for another of its streams */
+    memcpy(nxt, blk[2], 256);
+    coin_seed = 78;
+    open_stream(&tx2, &rx2, nxt, 256);
+    coin_seed = 77;
+    EQ(fab_checkpoint_sign(&tx2, 0, 0, ssk, 0, cp), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx2, cp, FAB_CP_LEN), FAB_OK);
+    EQ(fab_checkpoint_verify(&rx, cp, FAB_CP_LEN), FAB_ERR_STREAM);
+}
+
+/* ---- progress ---------------------------------------------------------------------------- */
+
+static fab_progress_t prog[8192];
+static uint32_t nprog;
+static void *prog_ctx;
+static void on_progress(void *ctx, const fab_progress_t *pr)
+{
+    prog_ctx = ctx;
+    if (nprog < 8192) prog[nprog] = *pr;
+    nprog++;
+}
+
+static void test_progress(void)
+{
+    uint32_t tl = make_target(), dl = 0, len = 0, olen = 0, got = 0;
+    uint32_t pl = plan_for(tl, NB, 0, &dl);
+    fab_seal_args_t a = args(FAB_KIND_FILE, FAB_MODE_PUBLIC);
+    EQ(fab_recipe_seal(&a, planb, pl, tdiff, dl, 0, rec, sizeof rec, &len), FAB_OK);
+    fab_recipe_t r;
+    fab_plan_t p;
+    EQ(fab_recipe_parse(rec, len, &r), FAB_OK);
+    EQ(fab_recipe_check(&r, 0, 0), FAB_OK);
+    EQ(fab_open_plan(&r, 0, planb, sizeof planb, &p), FAB_OK);
+    uint64_t all = 0, two = 0, b = 1;
+    for (int i = 0; i < NB; i++) all += blen[i];
+    EQ(fab_plan_bytes(&p, NB, &b), FAB_OK);
+    EQ(b, all);
+    EQ(fab_plan_bytes(&p, 2, &two), FAB_OK);
+    EQ(two, (uint64_t) blen[0] + blen[1]);
+    EQ(fab_plan_bytes(&p, 0, &b), FAB_OK);
+    EQ(b, 0);
+    EQ(fab_plan_bytes(&p, NB + 1, &b), FAB_ERR_ARG);
+    EQ(fab_plan_bytes(0, 0, &b), FAB_ERR_ARG);
+    EQ(fab_plan_bytes(&p, 0, 0), FAB_ERR_ARG);
+
+    /* hydrate: one FETCH per verified block, in plan order */
+    fab_io_t x = io();
+    x.progress = on_progress;
+    x.progress_ctx = &st;
+    store_reset();
+    nprog = 0;
+    EQ(fab_hydrate(&p, &x, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(nprog, NB);
+    CHECK(prog_ctx == &st);
+    uint64_t sum = 0;
+    for (uint32_t i = 0; i < NB; i++) {
+        sum += blen[i];
+        EQ(prog[i].phase, FAB_PHASE_FETCH);
+        EQ(prog[i].blocks_done, i + 1u);
+        EQ(prog[i].blocks_total, NB);
+        EQ(prog[i].bytes_done, sum);
+        EQ(prog[i].bytes_total, all);
+    }
+    /* assemble: one BUILD per op, rising to target_len, then one DONE */
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(olen, tl);
+    EQ(nprog, p.n_ops + 1u);
+    uint64_t last = 0;
+    for (uint32_t i = 0; i < p.n_ops; i++) {
+        EQ(prog[i].phase, FAB_PHASE_BUILD);
+        CHECK(prog[i].bytes_done > last);
+        last = prog[i].bytes_done;
+        EQ(prog[i].bytes_total, tl);
+        EQ(prog[i].blocks_done, NB);
+        EQ(prog[i].blocks_total, NB);
+    }
+    EQ(last, tl);
+    EQ(prog[p.n_ops].phase, FAB_PHASE_DONE);
+    EQ(prog[p.n_ops].bytes_done, tl);
+    EQ(prog[p.n_ops].bytes_total, tl);
+    EQ(prog[p.n_ops].blocks_done, NB);
+    EQ(prog[p.n_ops].blocks_total, NB);
+
+    /* in steps: the same reports, n clipped at the end */
+    nprog = 0;
+    EQ(fab_hydrate_from(&p, &x, 0, 1, &got), FAB_OK);
+    EQ(got, 1);
+    EQ(nprog, 1);
+    EQ(prog[0].bytes_done, blen[0]);
+    EQ(fab_hydrate_from(&p, &x, 1, 2, &got), FAB_OK);
+    EQ(got, 3);
+    EQ(nprog, 3);
+    EQ(prog[1].blocks_done, 2);
+    EQ(prog[1].bytes_done, two);
+    EQ(prog[2].bytes_done, two + blen[2]);
+    EQ(fab_hydrate_from(&p, &x, 3, 100, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(nprog, NB);
+    EQ(prog[NB - 1].bytes_done, all);
+    EQ(fab_hydrate_from(&p, &x, 3, 0xFFFFFFFFu, &got), FAB_OK); /* no wrap */
+    EQ(got, NB);
+    EQ(fab_hydrate_from(&p, &x, NB, 5, &got), FAB_OK);
+    EQ(got, NB);
+    EQ(fab_hydrate_from(&p, &x, 2, 0, &got), FAB_OK);
+    EQ(got, 2);
+    EQ(nprog, NB + 1u); /* the 3..NB call above; nothing since */
+    EQ(fab_hydrate_from(&p, &x, NB + 1, 1, &got), FAB_ERR_ARG);
+    EQ(fab_hydrate_from(&p, &x, 0, 1, 0), FAB_OK);
+    EQ(fab_hydrate(0, &x, &got), FAB_ERR_ARG);
+
+    /* a bad block stops the reports at the blocks before it */
+    nprog = 0;
+    st.corrupt = 2;
+    EQ(fab_hydrate(&p, &x, &got), FAB_ERR_BLOCK);
+    EQ(got, 2);
+    EQ(nprog, 2);
+    EQ(prog[1].bytes_done, two);
+    store_reset();
+    nprog = 0;
+    EQ(fab_hydrate_from(&p, &x, 1, NB, &got), FAB_OK);
+    EQ(prog[0].blocks_done, 2);
+    EQ(prog[0].bytes_done, two); /* counts the blocks before `from` */
+
+    /* rebuilt bytes that miss the target: BUILD reports, never DONE */
+    rec[r.diff - rec] ^= 1;
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_ERR_TARGET);
+    EQ(nprog, p.n_ops);
+    for (uint32_t i = 0; i < nprog; i++) CHECK(prog[i].phase != FAB_PHASE_DONE);
+    rec[r.diff - rec] ^= 1;
+    /* no callback: no reports */
+    x.progress = 0;
+    nprog = 0;
+    EQ(fab_assemble(&r, &p, 0, &x, 0, &olen), FAB_OK);
+    EQ(fab_hydrate(&p, &x, &got), FAB_OK);
+    EQ(nprog, 0);
+}
+
 int main(void)
 {
     setvbuf(stdout, 0, _IONBF, 0);
@@ -970,6 +2178,17 @@ int main(void)
     test_view();
     test_seal();
     test_stream();
+    test_helpers();
+    test_target_kat();
+    test_golden();
+    test_args();
+    test_plan_edges();
+    test_recipe_edges();
+    test_cache();
+    test_build_edges();
+    test_frame_edges();
+    test_ring();
+    test_progress();
     printf("%d checks, %d failed\n", checks, fails);
     return fails ? 1 : 0;
 }

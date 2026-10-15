@@ -130,6 +130,24 @@ seal reports through the callback; in `zxv-fab --airgap` it is "every
 network interface except loopback is down" read from Linux
 `/sys/class/net`, and anything unreadable counts as not sealed.
 
+### Progress
+
+A loading bar may only move as fast as the work. `fab_io_t.progress`, when
+set, reports what has been verified and nothing ahead of it:
+
+| Phase | When | Counts |
+|---|---|---|
+| FETCH | after each block matches its CID (`fab_hydrate`, `fab_hydrate_from`) | blocks and their bytes, of the plan's totals (`fab_plan_bytes`) |
+| BUILD | after each op is applied (`fab_assemble`, `fab_frame_apply`) | artifact bytes written from verified blocks and the authenticated diff, of `target_len` |
+| DONE | once, after the rebuilt bytes match the target CID | `target_len` |
+
+BUILD bytes are made only of checked inputs, but the whole file is checked
+only at DONE; a bar that must never show unchecked output uses FETCH, then
+jumps to full at DONE. A failed call reports nothing further.
+`fab_hydrate_from` verifies a range of blocks, so a host can hydrate a few
+blocks per frame it draws. zxvd exposes this as `fab.receive.start`,
+`fab.receive.step` and `fab.receive.cancel` (section 5).
+
 What the seal does not do: the recipient key was in memory for step 2 while
 the network was up, and the engine cannot stop the operating system from
 paging RAM to disk. Keeping the plaintext off persistent storage needs
@@ -151,11 +169,13 @@ Apps reach fabrication through one shared interface, never their own copy:
 | Call | Engine |
 |---|---|
 | send (make a recipe) | `fab_build`, `fab_plan_write`, `fab_recipe_seal` |
-| receive (rebuild a file) | `fab_recipe_parse`, `fab_recipe_check`, `fab_open_plan`, `fab_hydrate`, `fab_assemble` |
+| receive (rebuild a file) | `fab_recipe_parse`, `fab_recipe_check`, `fab_open_plan`, `fab_hydrate` (or `fab_hydrate_from` in steps), `fab_assemble` |
 | stream | `fab_recipe_seal` (open), `fab_frame_seal`, `fab_frame_apply`, `fab_checkpoint_sign`, `fab_checkpoint_verify` |
 
 Over zxvd's socket these are the `fab.*` methods (`docs/ZXVD.md`, rules
-in `kernel/arch/hosted/zxvd_fab.h`): `fab.send`, `fab.receive`, and
+in `kernel/arch/hosted/zxvd_fab.h`): `fab.send`, `fab.receive` (or
+`fab.receive.start`, `.step` and `.cancel` for a loading screen, section
+4, Progress), and
 `fab.stream.start`, `.send`, `.sign`, `.open`, `.frame`, `.checkpoint` and
 `.close`, with `fab.put`, `fab.keys` and `fab.status`. The air-gap seal is
 a callback the host registers (`zxvd_fab_set_seal`); `airgap: true` is
@@ -273,7 +293,8 @@ What the numbers say and do not say:
 
 ## 9. Not built yet
 
-- The installer and the app waves calling `fab.*` (section 5), and the
+- The installer and the app waves calling `fab.*` (section 5), the app
+  launch screen pulling `fab.receive.step` for its bars and jingle, and the
   host's air-gap seal callback (`zxvd_fab_set_seal`).
 - A mesh test of 60 fps frames over real radios (loss and latency on air).
 - Placement in the 144 installation layers: that matrix belongs to the
