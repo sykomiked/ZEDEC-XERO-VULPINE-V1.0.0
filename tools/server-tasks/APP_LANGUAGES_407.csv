@@ -550,12 +550,12 @@ slot,app,language,runtime,owns,feature,role,status
 091,Vintner,COBOL,sutra,money,money and ledgers,primary,runs
 091,Vintner,C++,cpp,money,money and ledgers,witness,runs (compiled to wasm)
 091,Vintner,Forth,forth,stack,small interpreters,primary,runs
-092,Hearth,C,c,view,view and model,primary,runs
-092,Hearth,MUMPS,myra,records,records,primary,runs
-092,Hearth,FORTRAN,trebago,numeric,exact numerics,primary,runs
-092,Hearth,ALGOL 58,-,formula,formulas,primary,planned: needs Lingua front-end
-092,Hearth,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
-092,Hearth,Pascal,pascal,structure,structure,primary,runs
+092,Kettle,C,c,view,view and model,primary,runs
+092,Kettle,MUMPS,myra,records,records,primary,runs
+092,Kettle,FORTRAN,trebago,numeric,exact numerics,primary,runs
+092,Kettle,ALGOL 58,-,formula,formulas,primary,planned: needs Lingua front-end
+092,Kettle,Simula 67,-,simulation,simulation,primary,planned: needs Lingua front-end
+092,Kettle,Pascal,pascal,structure,structure,primary,runs
 093,Understory,C,c,view,view and model,primary,runs
 093,Understory,MUMPS,myra,records,records,primary,runs
 093,Understory,FORTRAN,trebago,numeric,exact numerics,primary,runs
