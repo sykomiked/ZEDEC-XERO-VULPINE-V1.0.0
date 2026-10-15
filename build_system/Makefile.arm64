@@ -549,6 +549,7 @@ KERNEL_SRCS = \
     kernel/src/swarm/swarm_overlap.c \
     kernel/src/swarm/swarm_phase.c \
     kernel/src/swarm/swarm_quality.c \
+    kernel/src/swarm/swarm_yield.c \
     kernel/src/swarm/swarm_reserve.c \
     kernel/src/swarm/swarm_self.c \
     kernel/src/tensor/zt.c \

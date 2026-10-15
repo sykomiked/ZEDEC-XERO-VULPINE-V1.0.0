@@ -273,6 +273,7 @@ verify-all: test
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-yield
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -1498,6 +1499,7 @@ test-swarm:
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_cycles.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_harmonic.c src/swarm/swarm_overlap.c src/swarm/swarm_quality.c -o /tmp/test_swarm_cycles && /tmp/test_swarm_cycles && echo "[PASS] test_swarm_cycles" || { echo "[FAIL] test_swarm_cycles"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_hk.c src/swarm/swarm_hk.c -o /tmp/test_swarm_hk && /tmp/test_swarm_hk && echo "[PASS] test_swarm_hk" || { echo "[FAIL] test_swarm_hk"; exit 1; }
 	@$(MAKE) --no-print-directory test-denom
+	@$(MAKE) --no-print-directory test-yield
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_life.c src/swarm/swarm_governor.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o /tmp/test_swarm_life && /tmp/test_swarm_life && echo "[PASS] test_swarm_life" || { echo "[FAIL] test_swarm_life"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_mind.c src/swarm/swarm_enochian.c src/swarm/swarm_logic.c src/swarm/swarm_self.c src/swarm/swarm_evolve.c src/swarm/swarm_enterprise.c src/swarm/swarm_phase.c src/swarm/swarm_dna.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_hk.c -o /tmp/test_swarm_mind && /tmp/test_swarm_mind && echo "[PASS] test_swarm_mind" || { echo "[FAIL] test_swarm_mind"; exit 1; }
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor -Isrc/swarm src/tensor/test_zt.c src/tensor/zt.c src/tensor/zt_coil.c src/tensor/zt_isf.c src/tensor/zt_holo.c -lm -o /tmp/test_zt && /tmp/test_zt && echo "[PASS] test_zt" || { echo "[FAIL] test_zt"; exit 1; }
@@ -1628,6 +1630,13 @@ test-market:
 
 # V-Bill hub demo (src/vhub): signed exact-rational pegs, fiat A -> V-Bill -> fiat B
 # as one balanced pay_ledger posting, sovereign rule plug-ins that fail closed.
+# Token yield (src/swarm/swarm_yield.h): verified work per token, counting
+# retries and revisions, and verified work per second. Measurement only.
+.PHONY: test-yield
+test-yield:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/swarm src/swarm/test_swarm_yield.c src/swarm/swarm_yield.c src/swarm/swarm_quality.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_swarm_yield || exit 3; \
+	$(ZXV_TMP)/test_swarm_yield > $(ZXV_TMP)/test_swarm_yield.log 2>&1 && echo "[PASS] test_swarm_yield" || { tail -40 $(ZXV_TMP)/test_swarm_yield.log; echo "[FAIL] test_swarm_yield"; exit 1; }
+
 # Token denominations and octane (src/swarm/swarm_denom.h): plain, compressed
 # and super tokens on the Fibonacci ladder, exact wrap/unwrap, budget lockstep.
 .PHONY: test-denom
