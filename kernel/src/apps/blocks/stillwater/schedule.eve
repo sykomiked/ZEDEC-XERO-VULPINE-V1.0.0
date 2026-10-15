@@ -1,0 +1,18 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a quiet schedule may say: its mode (0 off, 1 quiet hours on the days
+# chosen, 2 focus until turned off), the days it runs as a mask (bit 0
+# Monday .. bit 6 Sunday), and the minutes of the day its window opens and
+# closes.
+eve stillwater
+quiet_mode = 0 .. 2
+day_mask = 0 .. 127
+minute_of_day = 0 .. 1439
+
+quiet_schedule {
+  mode: quiet_mode
+  days: day_mask
+  opens: minute_of_day
+  closes: minute_of_day
+}

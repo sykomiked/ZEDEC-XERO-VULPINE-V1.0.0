@@ -73,3 +73,7 @@
 36	num.wellspring_progress_x100	590.14	wellspring.progress_x100	base
 37	logic.wellspring_safe_ok	490.12	wellspring.safe_ok	base
 38	num.wellspring_week	590.15	wellspring.week	base
+39	logic.stillwater_let_through	490.13	stillwater.let_through	base
+40	logic.stillwater_quiet_now	490.14	stillwater.quiet_now	base
+41	logic.stillwater_record_ok	490.15	stillwater.record_ok	base
+42	logic.stillwater_schedule_ok	490.16	stillwater.schedule_ok	base

@@ -1,0 +1,66 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Stillwater, focus and do not disturb: quiet hours and focus modes over the
+# notices zxvd keeps (notes.list, notes.mark_read), beside the app limits
+# Shepherd sets (screen.status, screen.check). The anchor of layer 144: each
+# entry is a general rule a later layer can repeat at its own scale.
+#
+#   quiet_now    a minute inside a daily window that may cross midnight:
+#                from opens up to, not including, closes; opening after it
+#                closes wraps past midnight (opens..1439 and 0..closes-1);
+#                opening and closing at the same minute is the whole day.
+#                The same rule zxvd keeps for an app's hours (zxv_screen.c,
+#                from and to there), so one window means one thing.
+#   let_through  let this notice through: a Watchfire emergency always; else
+#                when not quiet, a sender on the allow list, or the same
+#                caller twice within 3 minutes (gap 0..180 seconds; -1 none).
+#   schedule_ok  what a schedule may hold: mode 0..2, days 0..127 (a mask,
+#                bit 0 Monday), opens and closes 0..1439.
+#   record_ok    a schedule makes a ^ZXQUIET record.
+#
+# The window's ends are named opens and closes, not from and to: TO is a
+# COBOL reserved word, and one name serves every language.
+#
+# The task asked for the two rules in Eve and KRON. Eve only checks that a
+# record's fields fit their declared ranges (zxapp_eve.c EV1-EV3); it cannot
+# work out "in a quiet window now" or "let this notice through". So each rule
+# is witnessed in Sutra and KRON instead (as Platen's copies_ok is), and Eve
+# says what a schedule may hold. A row the two do not both answer the same
+# way is held (BOTH). A Watchfire emergency is never held: the model lets it
+# through before any other input is read (stillwater_model.c).
+#
+# Kept in C, since no runnable language owns it: matching a sender against
+# the allow list (text), and which day's mask a window crossing midnight
+# belongs to (the day it began). zxvd has no notice-filter method (the bus's
+# do-not-disturb, zx_notify.h N6, is not reachable over RPC), so Stillwater
+# decides what is held on its own side and changes nothing in zxvd but the
+# read marks.
+#
+# Planned languages with no entry of their kind here: Racket (symbolic,
+# parse), Mojo (numeric, ai), Perl (text, pattern); no pending line.
+zxapp 1
+id     stillwater
+name   Stillwater
+version 1.0.0
+slot   144
+layer  L1
+icon   icons/l1/144-stillwater.svg
+budget 233
+needs  notify
+needs  screen.time
+model  apps/stillwater_model.c
+
+provides quiet_now truth opens closes now
+logic    sutra quiet_now apps/blocks/stillwater/quiet_now.sutra
+logic    kron  quiet_now apps/blocks/stillwater/quiet_now.kron
+
+provides let_through truth quiet allowed gap emergency
+logic    sutra let_through apps/blocks/stillwater/let_through.sutra
+logic    kron  let_through apps/blocks/stillwater/let_through.kron
+
+provides schedule_ok truth mode days opens closes
+logic    eve schedule_ok apps/blocks/stillwater/schedule.eve
+
+provides record_ok truth schedule mode days opens closes allowed
+logic    myra record_ok apps/blocks/stillwater/schedule.myra

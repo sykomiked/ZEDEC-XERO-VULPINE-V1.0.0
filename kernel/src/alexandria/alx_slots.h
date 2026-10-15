@@ -44,7 +44,11 @@
 #define ALX_SLOT_NUM_WELLSPRING_PROGRESS_X100    36u /* 590.14 wellspring.progress_x100 */
 #define ALX_SLOT_LOGIC_WELLSPRING_SAFE_OK        37u /* 490.12 wellspring.safe_ok */
 #define ALX_SLOT_NUM_WELLSPRING_WEEK             38u /* 590.15 wellspring.week */
-#define ALX_SLOT__COUNT 38u
+#define ALX_SLOT_LOGIC_STILLWATER_LET_THROUGH    39u /* 490.13 stillwater.let_through */
+#define ALX_SLOT_LOGIC_STILLWATER_QUIET_NOW      40u /* 490.14 stillwater.quiet_now */
+#define ALX_SLOT_LOGIC_STILLWATER_RECORD_OK      41u /* 490.15 stillwater.record_ok */
+#define ALX_SLOT_LOGIC_STILLWATER_SCHEDULE_OK    42u /* 490.16 stillwater.schedule_ok */
+#define ALX_SLOT__COUNT 42u
 /* clang-format on */
 
 #endif
