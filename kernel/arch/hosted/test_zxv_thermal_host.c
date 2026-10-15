@@ -73,7 +73,8 @@ static int rm_one(const char *path, const struct stat *st, int flag, struct FTW 
 
 static void wipe(void)
 {
-    if (R[0] && nftw(R, rm_one, 16, FTW_DEPTH | FTW_PHYS) != 0) printf("  (could not remove %s)\n", R);
+    if (R[0] && nftw(R, rm_one, 16, FTW_DEPTH | FTW_PHYS) != 0)
+        printf("  (could not remove %s)\n", R);
 }
 
 static void fresh(void)
@@ -238,7 +239,7 @@ static void build_machine(void)
     put("sys/class/hwmon/hwmon3/temp1_input", "52000\n");
     put("sys/class/hwmon/hwmon3/temp2_label", "Core 0\n");
     put("sys/class/hwmon/hwmon3/temp2_input", "48000\n");
-    put("sys/class/hwmon/hwmon3/temp1_max", "100000\n"); /* not an input */
+    put("sys/class/hwmon/hwmon3/temp1_max", "100000\n");   /* not an input */
     put("sys/class/hwmon/hwmon3/temp7_label", "Core 6\n"); /* a label with no value */
     /* amdgpu: edge, and an absurd junction */
     put("sys/class/hwmon/hwmon2/name", "amdgpu\n");
@@ -485,8 +486,8 @@ static void test_bounds(void)
         "/sys/class/hwmon/hwmon1/temp10_input", "/sys/class/hwmon/hwmon9/temp1_input"};
     CHECK(REP.n == 8, "eight sorted (%u)", (unsigned) REP.n);
     for (uint32_t i = 0; i < REP.n && i < 8; i++)
-        CHECK(!strcmp(REP.r[i].path, WANT[i]), "T6: #%u is %s, not %s", (unsigned) i,
-              REP.r[i].path, WANT[i]);
+        CHECK(!strcmp(REP.r[i].path, WANT[i]), "T6: #%u is %s, not %s", (unsigned) i, REP.r[i].path,
+              WANT[i]);
 
     /* T6: at most ZTH_MAX_DEVS devices looked at */
     fresh();
@@ -542,8 +543,7 @@ static void test_render(void)
     blank.state = LPRES_STATE_NEITHER;
     n = zth_render_json(&blank, JS, sizeof JS);
     static const char *BLANK = "{\"state\":\"neither\",\"host\":\"other\",\"reason\":null,";
-    CHECK(n > 0 && !strncmp(JS, BLANK, strlen(BLANK)),
-          "T7: a blank report: %s", JS);
+    CHECK(n > 0 && !strncmp(JS, BLANK, strlen(BLANK)), "T7: a blank report: %s", JS);
 }
 
 int main(int argc, char **argv)

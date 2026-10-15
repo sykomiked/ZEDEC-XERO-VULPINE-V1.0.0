@@ -3083,8 +3083,7 @@ static void test_power(const char *scratch)
     CHECK(zxm_call(&LINK) == ZXM_OK, "power.status: %s", LINK.err);
     CHECK(zxm_get_str(&LINK, LINK.result, "host", s, sizeof s) == ZXM_OK && !strcmp(s, "linux"),
           "power.status: host %s", s);
-    CHECK(zxm_get_str(&LINK, LINK.result, "device", s, sizeof s) == ZXM_OK &&
-              !strcmp(s, "laptop"),
+    CHECK(zxm_get_str(&LINK, LINK.result, "device", s, sizeof s) == ZXM_OK && !strcmp(s, "laptop"),
           "power.status: a battery makes a laptop (%s)", s);
     CHECK(zxm_get_i64(&LINK, LINK.result, "token_scale_permille", &v) == ZXM_OK && v == 1000,
           "power.status: on mains, x1");

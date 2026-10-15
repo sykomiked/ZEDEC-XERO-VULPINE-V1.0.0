@@ -103,8 +103,8 @@ typedef struct {
 } zth_class_sum_t;
 
 typedef struct {
-    lpres_state_t state; /* T4 */
-    const char *host;    /* "linux", "macos", "windows" or "other" */
+    lpres_state_t state;         /* T4 */
+    const char *host;            /* "linux", "macos", "windows" or "other" */
     char reason[ZTH_REASON_MAX]; /* T5: why there is no reading ("" otherwise) */
     zth_reading_t r[ZTH_MAX_READINGS];
     uint32_t n;

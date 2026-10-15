@@ -254,12 +254,13 @@ static const zxvd_group_method_t METHODS[] = {
     {"thermal.read", m_thermal, true},
 };
 
-static const zxvd_group_t GROUP = {"power",
-                                   false,
-                                   "energy per app and agent, battery posture, energy budgets and temperatures",
-                                   METHODS,
-                                   sizeof METHODS / sizeof METHODS[0],
-                                   zxvd_power_close};
+static const zxvd_group_t GROUP = {
+    "power",
+    false,
+    "energy per app and agent, battery posture, energy budgets and temperatures",
+    METHODS,
+    sizeof METHODS / sizeof METHODS[0],
+    zxvd_power_close};
 
 const zxvd_group_t *zxvd_power_group(void)
 {

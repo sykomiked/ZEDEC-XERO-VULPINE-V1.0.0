@@ -62,25 +62,25 @@ typedef struct {
 } zth_rule_t;
 
 static const zth_rule_t DRIVERS[] = {
-    {"coretemp", false, ZTH_CPU},  {"k10temp", false, ZTH_CPU},   {"k8temp", false, ZTH_CPU},
-    {"zenpower", false, ZTH_CPU},  {"x86_pkg_temp", false, ZTH_CPU}, {"via_cputemp", false, ZTH_CPU},
-    {"cpu", true, ZTH_CPU},        {"soc", true, ZTH_CPU},        {"tcpu", false, ZTH_CPU},
-    {"amdgpu", false, ZTH_GPU},    {"nouveau", false, ZTH_GPU},   {"radeon", false, ZTH_GPU},
-    {"i915", false, ZTH_GPU},      {"xe", false, ZTH_GPU},        {"gpu", true, ZTH_GPU},
-    {"acpitz", false, ZTH_CASE},   {"nct", true, ZTH_CASE},       {"it8", true, ZTH_CASE},
-    {"w83", true, ZTH_CASE},       {"f71", true, ZTH_CASE},       {"pch_", true, ZTH_CASE},
-    {"board", true, ZTH_CASE},     {"dell_smm", false, ZTH_CASE}, {"thinkpad", false, ZTH_CASE},
+    {"coretemp", false, ZTH_CPU}, {"k10temp", false, ZTH_CPU},      {"k8temp", false, ZTH_CPU},
+    {"zenpower", false, ZTH_CPU}, {"x86_pkg_temp", false, ZTH_CPU}, {"via_cputemp", false, ZTH_CPU},
+    {"cpu", true, ZTH_CPU},       {"soc", true, ZTH_CPU},           {"tcpu", false, ZTH_CPU},
+    {"amdgpu", false, ZTH_GPU},   {"nouveau", false, ZTH_GPU},      {"radeon", false, ZTH_GPU},
+    {"i915", false, ZTH_GPU},     {"xe", false, ZTH_GPU},           {"gpu", true, ZTH_GPU},
+    {"acpitz", false, ZTH_CASE},  {"nct", true, ZTH_CASE},          {"it8", true, ZTH_CASE},
+    {"w83", true, ZTH_CASE},      {"f71", true, ZTH_CASE},          {"pch_", true, ZTH_CASE},
+    {"board", true, ZTH_CASE},    {"dell_smm", false, ZTH_CASE},    {"thinkpad", false, ZTH_CASE},
     {"asus", true, ZTH_CASE},
 };
 
 /* in order: a CPU word first, then the GPU, then the board */
 static const zth_rule_t LABELS[] = {
-    {"cpu", true, ZTH_CPU},      {"package", true, ZTH_CPU},  {"core", true, ZTH_CPU},
-    {"tctl", true, ZTH_CPU},     {"tdie", true, ZTH_CPU},     {"tccd", true, ZTH_CPU},
-    {"pacc", true, ZTH_CPU},     {"eacc", true, ZTH_CPU},     {"soc", true, ZTH_CPU},
-    {"gpu", true, ZTH_GPU},      {"systin", true, ZTH_CASE},  {"auxtin", true, ZTH_CASE},
-    {"board", true, ZTH_CASE},   {"ambient", true, ZTH_CASE}, {"case", true, ZTH_CASE},
-    {"pch", true, ZTH_CASE},     {"chipset", true, ZTH_CASE},
+    {"cpu", true, ZTH_CPU},    {"package", true, ZTH_CPU},  {"core", true, ZTH_CPU},
+    {"tctl", true, ZTH_CPU},   {"tdie", true, ZTH_CPU},     {"tccd", true, ZTH_CPU},
+    {"pacc", true, ZTH_CPU},   {"eacc", true, ZTH_CPU},     {"soc", true, ZTH_CPU},
+    {"gpu", true, ZTH_GPU},    {"systin", true, ZTH_CASE},  {"auxtin", true, ZTH_CASE},
+    {"board", true, ZTH_CASE}, {"ambient", true, ZTH_CASE}, {"case", true, ZTH_CASE},
+    {"pch", true, ZTH_CASE},   {"chipset", true, ZTH_CASE},
 };
 
 zth_class_t zth_classify(const char *driver, const char *label)
@@ -244,8 +244,7 @@ static bool numbered(const char *name, const char *prefix, const char *suffix)
 
 /* a, b, c and d one after the other (NULL ends early); false when they do
  * not fit in cap with the NUL */
-static bool join(char *out, size_t cap, const char *a, const char *b, const char *c,
-                 const char *d)
+static bool join(char *out, size_t cap, const char *a, const char *b, const char *c, const char *d)
 {
     const char *part[4] = {a, b, c, d};
     size_t n = 0;
@@ -318,8 +317,7 @@ static uint32_t list_numbered(const char *root, const char *rel, const char *pre
     if (!d) return 0;
     uint32_t got = 0;
     struct dirent *e;
-    for (uint32_t seen = 0; seen < ZTH_MAX_ENTRIES && got < cap && (e = readdir(d)) != NULL;
-         seen++)
+    for (uint32_t seen = 0; seen < ZTH_MAX_ENTRIES && got < cap && (e = readdir(d)) != NULL; seen++)
         if (numbered(e->d_name, prefix, suffix)) copy_text(names[got++], 32, e->d_name);
     closedir(d);
     return got;
@@ -404,11 +402,10 @@ static void mac_read(zth_report_t *rep)
     CFNumberRef page = cf_int(0xff00), usage = cf_int(5);
     const void *keys[2] = {CFSTR("PrimaryUsagePage"), CFSTR("PrimaryUsage")};
     const void *vals[2] = {page, usage};
-    CFDictionaryRef match =
-        page && usage ? CFDictionaryCreate(kCFAllocatorDefault, keys, vals, 2,
-                                           &kCFTypeDictionaryKeyCallBacks,
-                                           &kCFTypeDictionaryValueCallBacks)
-                      : NULL;
+    CFDictionaryRef match = page && usage ? CFDictionaryCreate(kCFAllocatorDefault, keys, vals, 2,
+                                                               &kCFTypeDictionaryKeyCallBacks,
+                                                               &kCFTypeDictionaryValueCallBacks)
+                                          : NULL;
     if (page) CFRelease(page);
     if (usage) CFRelease(usage);
     CFArrayRef svcs = NULL;
@@ -491,9 +488,9 @@ static const struct {
     const char key[5];
     const char *label;
 } SMC_KEYS[] = {
-    {"TC0P", "TC0P CPU proximity"}, {"TC0D", "TC0D CPU die"},   {"TC0E", "TC0E CPU die"},
+    {"TC0P", "TC0P CPU proximity"}, {"TC0D", "TC0D CPU die"},       {"TC0E", "TC0E CPU die"},
     {"TC0F", "TC0F CPU die"},       {"TG0P", "TG0P GPU proximity"}, {"TG0D", "TG0D GPU die"},
-    {"TA0P", "TA0P ambient"},       {"Tm0P", "Tm0P mainboard"}, {"TB0T", "TB0T battery"},
+    {"TA0P", "TA0P ambient"},       {"Tm0P", "Tm0P mainboard"},     {"TB0T", "TB0T battery"},
 };
 
 static void mac_read(zth_report_t *rep)
@@ -555,7 +552,8 @@ lpres_state_t zth_read(const char *root, zth_report_t *out)
 #    elif !defined(__linux__)
     if (!fixture) {
         out->host = "other";
-        copy_text(out->reason, sizeof out->reason, "this build has no temperature reader for this OS");
+        copy_text(out->reason, sizeof out->reason,
+                  "this build has no temperature reader for this OS");
         finish(out);
         return out->state;
     }
