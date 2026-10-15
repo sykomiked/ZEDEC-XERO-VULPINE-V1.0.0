@@ -97,15 +97,25 @@ def probe(a, model=None, tok=None):
     ztr, zte = (htr - mean) / std, (hte - mean) / std
     wm, bm = fit(ztr, [d["mu"] for d in tr])
     wl, bl = fit(ztr, [d["lambda"] for d in tr])
-    mu, la = torch.sigmoid(zte @ wm + bm), torch.sigmoid(zte @ wl + bl)
-    conf = [[0] * 4 for _ in range(4)]
-    for d, m, l in zip(te, mu.tolist(), la.tolist()):
-        conf[BASES.index(d["base"])][para_base(m, l)] += 1
-    acc = sum(conf[i][i] for i in range(4)) / max(1, len(te))
-    # the costly error: claiming TRUE or FALSE when the sources conflict or are silent
-    false_cert = sum(conf[t][p] for t in (1, 2) for p in (0, 3)) / max(1, sum(sum(conf[t]) for t in (1, 2)))
-    rep = {"model": a.model, "n_train": len(tr), "n_test": len(te), "accuracy": acc,
-           "false_certainty_rate": false_cert, "confusion_rows_truth_cols_pred": BASES, "confusion": conf}
+    def score(items, z):
+        mu, la = torch.sigmoid(z @ wm + bm), torch.sigmoid(z @ wl + bl)
+        conf = [[0] * 4 for _ in range(4)]
+        for d, m, l in zip(items, mu.tolist(), la.tolist()):
+            conf[BASES.index(d["base"])][para_base(m, l)] += 1
+        acc = sum(conf[i][i] for i in range(4)) / max(1, len(items))
+        # the costly error: claiming TRUE or FALSE when the sources conflict or are silent
+        fc = sum(conf[t][p] for t in (1, 2) for p in (0, 3)) / max(1, sum(sum(conf[t]) for t in (1, 2)))
+        return {"n": len(items), "accuracy": acc, "false_certainty_rate": fc,
+                "confusion_rows_truth_cols_pred": BASES, "confusion": conf}
+
+    held = score(te, zte)
+    rep = {"model": a.model, "n_train": len(tr), "n_test": len(te), "accuracy": held["accuracy"],
+           "false_certainty_rate": held["false_certainty_rate"],
+           "confusion_rows_truth_cols_pred": BASES, "confusion": held["confusion"]}
+    if a.extra_test:  # T1's hand-written set (tools/tiamat/bench/make_t1_set.py)
+        ex = list(rows(a.extra_test))
+        hx = hidden(model, tok, [d["prompt"] for d in ex], dev)
+        rep["extra_test"] = dict(score(ex, (hx - mean) / std), file=a.extra_test)
     (out / "report.json").write_text(json.dumps(rep, indent=2))
     print(json.dumps(rep, indent=2))
 
@@ -153,6 +163,7 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--max-train", type=int, default=20000)
+    ap.add_argument("--extra-test", help="a second test set scored with the same head (T1's hand-written set)")
     ap.add_argument("--split-layer", type=int, default=0)
     ap.add_argument("--rank", type=int, default=32)
     ap.add_argument("--lr", type=float, default=2e-4)

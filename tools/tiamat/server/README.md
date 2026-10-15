@@ -2,6 +2,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Tiamat on the A6000 server
 
+Start here on the server: run the jobs in `TESTS.md` (J0 to J6) in order;
+they build the app, fetch the models, and run the behaviour tests with
+their raw logs. The integration tasks below (S1 to S9) are what J4 and J5
+call. `../TALK.md` says how to talk to the swarm once it is built.
+
 Tasks for the bare-metal test server: integrate, tune and package the
 Tiamat cells listed in `docs/release/swarm_model_manifest.json`. The cell
 layout, profiles and cross-wiring rules are in `tools/tiamat/tiamat_swarm.json`.

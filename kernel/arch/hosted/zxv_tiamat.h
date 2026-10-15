@@ -38,6 +38,7 @@
 #define ZXV_TIAMAT_H
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdint.h>
 
 #define ZXV_TIAMAT_SLOTS    4u
@@ -114,8 +115,16 @@ typedef struct {
 int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
                       zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown);
 
+/* H3-H4 on a given answer (as if the routed lead had written it): the
+ * test harness plants answers this way (tools/tiamat/TEST_PLAN.md T2). */
+int zxv_tiamat_check(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                     const char *answer, zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown);
+
 /* H5. Append the trace as one JSON line. 0, or -1 when the file can't be written. */
 int zxv_tiamat_log(const char *path, const char *q, const zxv_tiamat_conf_t *c,
                    const zxv_tiamat_trace_t *t);
+/* The same JSON line to f, with what the user saw ("seen", omitted when null). */
+void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
+                      const zxv_tiamat_trace_t *t, const char *seen);
 
 #endif

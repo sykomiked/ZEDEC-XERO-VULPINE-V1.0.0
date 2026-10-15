@@ -1,0 +1,7 @@
+  facts_ask: 50 lines in 40 s
+  facts_wrong: 50 lines in 1 s
+  facts_right: 50 lines in 1 s
+  gaps_ask: 50 lines in 1 s
+  sums_ask: 50 lines in 1 s
+  sums_planted: 50 lines in 0 s
+rc=0

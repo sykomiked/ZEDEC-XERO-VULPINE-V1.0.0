@@ -406,6 +406,9 @@ static size_t put(char *out, size_t cap, size_t at, const char *fmt, const char 
     return n < 0 ? at : at + (size_t) n;
 }
 
+static int check_lead(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                      zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown);
+
 int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
                       zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
 {
@@ -430,7 +433,29 @@ int zxv_tiamat_answer(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *c
         snprintf(out, cap, "[Tiamat] %s could not answer: %s", lead, t->lead_reply);
         return t->tv;
     }
+    return check_lead(c, ask, ctx, q, t, out, cap, shown);
+}
 
+int zxv_tiamat_check(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                     const char *answer, zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
+{
+    memset(t, 0, sizeof *t);
+    *shown = 0;
+    out[0] = 0;
+    t->lead = zxv_tiamat_route(c, q, &t->witness);
+    t->witness_tv = t->reckon_tv = -1;
+    t->lead_rc = 1;
+    snprintf(t->lead_reply, sizeof t->lead_reply, "%s", answer);
+    return check_lead(c, ask, ctx, q, t, out, cap, shown);
+}
+
+/* H3-H4 on the lead's reply in t: the reckoner or the witness, the join and
+ * what the user sees */
+static int check_lead(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *ctx, const char *q,
+                      zxv_tiamat_trace_t *t, char *out, size_t cap, int *shown)
+{
+    const char *lead = c->cell[t->lead].name;
+    uint64_t t0;
     int tv = ZXV_TV_NEITHER;
     t->reckon_tv = zxv_tiamat_reckon(q, t->lead_reply, t->reckon_expr, sizeof t->reckon_expr);
     if (t->reckon_tv >= 0) tv = zxv_tiamat_join(tv, t->reckon_tv);
@@ -549,6 +574,13 @@ int zxv_tiamat_log(const char *path, const char *q, const zxv_tiamat_conf_t *c,
     if (!path || !path[0]) return 0;
     FILE *f = fopen(path, "ab");
     if (!f) return -1;
+    zxv_tiamat_write(f, q, c, t, NULL);
+    return fclose(f) == 0 ? 0 : -1;
+}
+
+void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
+                      const zxv_tiamat_trace_t *t, const char *seen)
+{
     fprintf(f, "{\"time\":%llu,\"q\":", (unsigned long long) now_ms());
     json_str(f, q);
     fputs(",\"lead\":", f);
@@ -581,6 +613,9 @@ int zxv_tiamat_log(const char *path, const char *q, const zxv_tiamat_conf_t *c,
     }
     fputs(",\"verdict\":", f);
     json_str(f, zxv_tiamat_tv_name(t->tv));
+    if (seen) {
+        fputs(",\"seen\":", f);
+        json_str(f, seen);
+    }
     fputs("}\n", f);
-    return fclose(f) == 0 ? 0 : -1;
 }

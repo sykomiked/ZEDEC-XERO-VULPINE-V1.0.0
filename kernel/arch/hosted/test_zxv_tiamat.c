@@ -204,6 +204,18 @@ int main(int argc, char **argv)
               CALLS[1] == 0,
           "one lineage: unwitnessed, never TRUE");
 
+    printf("H3-H4 planted answers\n");
+    script("never asked", 1, "false", 1);
+    tv = zxv_tiamat_check(&c, ask, NULL, "what is the capital of Australia", "Sydney.", &t, out,
+                          sizeof out, &shown);
+    CHECK(tv == ZXV_TV_FALSE && !shown && CALLS[0] == 0 && CALLS[2] == 1 &&
+              !strcmp(t.lead_reply, "Sydney.") && strstr(LAST_PROMPT[2], "is: Sydney."),
+          "a planted answer goes to the witness; the lead is not asked");
+    script("never asked", 1, "true", 1);
+    tv = zxv_tiamat_check(&c, ask, NULL, "What is 6 times 7?", "42", &t, out, sizeof out, &shown);
+    CHECK(tv == ZXV_TV_TRUE && shown && CALLS[0] == 0 && CALLS[2] == 0,
+          "a planted sum is decided by the reckoner alone");
+
     printf("H5 log\n");
     char path[600];
     snprintf(path, sizeof path, "%s/tiamat_test.log", argc > 1 ? argv[1] : ".");

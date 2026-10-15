@@ -1,0 +1,4 @@
+FAIL  general (lead + witness): planted contradictions held = 0.0 (mark >= 0.95)
+FAIL  general (lead + witness): easy truths answered (shown and right) = 0.12 (mark >= 0.90)
+PASS  reckoner: planted contradictions held = 1.0 (mark >= 0.95)
+FAIL  reckoner: easy truths answered (shown and right) = 0.0 (mark >= 0.90)
