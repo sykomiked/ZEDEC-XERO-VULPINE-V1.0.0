@@ -198,6 +198,8 @@ int32_t zt_tts_decode(const zt_tts_dec_t *d, const int32_t *codes, uint32_t n, i
 zt_fx zt_tts_exp(zt_fx x);
 /* cos and sin of a Q16 angle (radians), Q30. */
 void zt_tts_cossin(zt_fx angle, int32_t *c, int32_t *s);
+/* The same for an angle given in turns * 2^64 (wrapping: any phase). */
+void zt_tts_cossin_turns(uint64_t turns, int32_t *c, int32_t *s);
 uint64_t zt_tts_istft_bytes(uint32_t n);
 /* spec: n frames of 1282 Q16 values at stride `stride`; pcm: 320 n samples.
  * kern (may be null) splits the frames across threads. Returns the clip

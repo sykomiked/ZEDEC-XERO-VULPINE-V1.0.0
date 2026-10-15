@@ -27,8 +27,8 @@ static void disc(zui_surface_t *s, int32_t cx, int32_t cy, int32_t r, uint32_t r
 static const int16_t SIN16[16] = {0, 392,  724,  946,  1024,  946,  724,  392,
                                   0, -392, -724, -946, -1024, -946, -724, -392};
 
-void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
-                      uint32_t tick)
+void zui_chiglet_draw_aura(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy,
+                           int32_t r, uint32_t tick)
 {
     if (!s || !c || r < 8) return;
     const uint8_t *g = c->genes;
@@ -51,6 +51,16 @@ void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int3
         int32_t my = cy + (orx * SIN16[(ph + 4u) & 15u]) / 2048;
         disc(s, mx, my, r / 10 + 1, accent);
     }
+}
+
+void zui_chiglet_draw(zui_surface_t *s, const zui_chiglet_t *c, int32_t cx, int32_t cy, int32_t r,
+                      uint32_t tick)
+{
+    if (!s || !c || r < 8) return;
+    const uint8_t *g = c->genes;
+    uint32_t accent = zui_chiglet_accent(c);
+
+    zui_chiglet_draw_aura(s, c, cx, cy, r, tick);
 
     /* antennae: curiosity */
     uint32_t ant = g[G_CURIOUS] % 4u;
