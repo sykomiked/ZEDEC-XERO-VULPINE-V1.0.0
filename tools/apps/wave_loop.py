@@ -20,8 +20,11 @@ gate for the app's verdict (app_gate.py --app <id> --verdict) and acts on it:
      context saying why the last attempt gave nothing.
 
 Every attempt's context file also carries the task's matrix line, the
-manifests of the parts it may use, what to read, and the daemon methods
-that exist (an invented call is the commonest failure).
+manifests of the parts it may use, what to read, the test guide with a
+whole sample app that passes and the compile rules, the capabilities a
+manifest may need, zxm.h (the whole daemon API) and the daemon methods
+that exist: wave 1's first server run failed on invented calls, struct
+members and signatures, and on warnings -Werror refuses.
   B  the witnesses contradict each other: held. The work is saved as a patch
      under build/wave_loop/held/, the tree is put back, and the app is listed
      for a person; the loop goes on to the next task.
@@ -170,6 +173,25 @@ def more_context(root, task):
     return out
 
 
+def api(root):
+    """What the builder compiles against, read from the tree so it is never stale: the
+    test guide with its verified sample app and the compile rules (APP_TESTS.md), the
+    capabilities a manifest may need, and zxm.h, the whole daemon API of a model."""
+    guide = open(os.path.join(root, "tools", "server-tasks", "APP_TESTS.md"), encoding="utf-8").read()
+    guide = guide[guide.index("# One test file per app"):]
+    src = open(os.path.join(apps(root), "zxapp.c"), encoding="utf-8").read()
+    table = src[src.index("static const char *const CAPS[]"):]
+    caps = re.findall(r'"([a-z.]+)"', table[:table.index("};")])
+    zxm = open(os.path.join(apps(root), "zxm.h"), encoding="utf-8").read()
+    zxm = zxm[zxm.index("#define ZXM_REQ_MAX"):zxm.rindex("#endif")].rstrip()
+    return ["## The guide to the two test files, with a whole app that passes", "",
+            "#" + guide.replace("\n## ", "\n### ").rstrip(), "",
+            "## The capabilities a manifest may need (`needs`); no others parse", "",
+            ", ".join(f"`{c}`" for c in caps), "",
+            "## zxm.h: the whole daemon API a model has (nothing else exists)", "", "```c", zxm,
+            "```", ""]
+
+
 def methods(root):
     """The daemon methods that exist, grouped by their first word: a model may call
     these and no others (an invented call fails the gate)."""
@@ -197,7 +219,7 @@ def context(root, task, app_id, attempt, last):
         else:
             lines += ["Nothing usable was kept; the tree is back as it was. Start again:", ""]
         lines += [f"- {x}" for x in reasons(last)] + [""]
-    lines += more_context(root, task) + methods(root)
+    lines += more_context(root, task) + api(root) + methods(root)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     return path
