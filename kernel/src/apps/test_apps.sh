@@ -34,12 +34,22 @@ for f in "$HERE"/tests/*_apps.inc; do
     MODELS="$MODELS $HERE/${id}_model.c"
 done
 echo "#define APPS_TESTS_ROWS$ROWS" >>"$T/apps_tests.inc"
+# opening an app from its recipe (zxm_open.c) runs on zxvd's real fab.* group: the fabrication
+# engine and its crypto, compiled once without -Werror as test_zxvd_fab.sh does
+FINC="-I$H -I$K/src/web4 -I$K/src/fab -I$K/src/lpres -I$K/src/robin_debanks -I$K/src/swarm -I$K/src/mlkem -I$K/include -I$K/src/modbind -I$K/src/e8 -I$K/src/event_space -I$K/src/surplus -I$K/src/edp_risk -I$R/sdk/libzxv/include"
+i=0
+for f in fab/fab.c fab/fab_send.c ipfs_node/ipfsn_multiformats.c ipfs_node/ipfsn_unixfs.c \
+         tls/aead.c tls/hkdf.c pqsec/pq_mlkem1024.c pqsec/pq_mldsa87.c pqsec/mldsa/fips202.c; do
+    i=$((i + 1))
+    # shellcheck disable=SC2086 # FINC is a list
+    "$CC" -std=c11 -O1 -Wall -Wextra $RPCINC $FINC -c "$K/src/$f" -o "$T/fab$i.o" || exit 3
+done
 # shellcheck disable=SC2086 # MODELS is a list of paths without spaces
-"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPPS_TESTS_INDEX="\"$T/apps_tests.inc\"" -I"$HERE" -I"$H" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$K/src/swarm" -I"$R/sdk/libzxv/include" \
-    "$HERE/test_apps.c" "$HERE/zxm.c" "$HERE/burrow_model.c" "$HERE/quillon_model.c" "$HERE/glint_model.c" "$HERE/spindle_model.c" \
+"$CC" -std=c11 -O1 -Wall -Wextra -Werror ${CFLAGS:-} -DAPPS_TESTS_INDEX="\"$T/apps_tests.inc\"" -I"$HERE" -I"$H" -I"$K/src/web4" -I"$K/src/robin_debanks" -I"$K/src/mlkem" -I"$K/include" -I"$K/src/modbind" -I"$K/src/e8" -I"$K/src/event_space" -I"$K/src/surplus" -I"$K/src/swarm" -I"$K/src/lpres" -I"$K/src/fab" -I"$R/sdk/libzxv/include" \
+    "$HERE/test_apps.c" "$HERE/zxm.c" "$HERE/zxm_open.c" "$HERE/burrow_model.c" "$HERE/quillon_model.c" "$HERE/glint_model.c" "$HERE/spindle_model.c" \
     "$HERE/murmuration_model.c" "$HERE/almanac_model.c" "$HERE/wake_model.c" "$HERE/tidewatch_model.c" "$HERE/sounding_model.c" "$HERE/scent_model.c" \
     "$HERE/platen_model.c" "$HERE/keepsake_model.c" "$HERE/shepherd_model.c" "$HERE/waymark_model.c" $MODELS "$K/src/swarm/swarm_emotion.c" "$K/src/swarm/swarm_budget.c" \
-    "$H/zxvd_rpc.c" $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
+    "$H/zxvd_rpc.c" "$H/zxvd_fab.c" "$H/zxv_http_guard.c" "$T"/fab*.o $RPCINC $RPCDEPS "$K/src/web4/web4_json.c" "$K/src/web4/web4_util.c" \
     "$K/src/mlkem/keccak.c" "$K/src/robin_debanks/sha256.c" \
     "$MODA" -L"$R/sdk/libzxv/build" -lzxv "$RP" -lm -o "$T/test_apps" || exit 3
 "$T/test_apps"
