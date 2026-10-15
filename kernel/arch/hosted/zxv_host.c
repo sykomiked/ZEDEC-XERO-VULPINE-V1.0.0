@@ -657,6 +657,7 @@ static zxv_receipt_chain_t RCH;
 static FILE *RECEIPTS;                  /* NULL: no receipts (no state dir) */
 static uint64_t ASK_TOKENS;             /* what the current interaction was charged */
 static const zxv_tiamat_trace_t *TRACE; /* the current interaction's Tiamat trace */
+static const zxv_tiamat_deleg_t *DELEG; /* or its H6 delegation */
 static void idle_queue(bool pins);
 
 static uint64_t rnd(void)
@@ -1185,26 +1186,58 @@ static int receipt_sign(void *ctx, const uint8_t hash[32], char *sig, size_t cap
 /* R24: seal one interaction (zxv_receipt.h). Under zxvd the receipt is signed
  * when the chat key is open; otherwise (zxv-host, or zxvd before the chat
  * opens) the chain alone seals it. */
+static void seal_one(const zxv_receipt_t *r)
+{
+    int rc = -1;
+#if defined(ZXVD)
+    rc = zxv_receipt_seal(&RCH, r, receipt_sign, NULL, RECEIPTS, NULL);
+#endif
+    if (rc != 0 && zxv_receipt_seal(&RCH, r, NULL, NULL, RECEIPTS, NULL) != 0)
+        fprintf(stderr, "zxv-host: the receipt could not be written\n");
+}
+
+/* H6: one "handoff" receipt per hand-off of the delegator position (lead =
+ * the cell it came from, witness = the cell it went to, verdict = the claim
+ * "that cell is the best match here"), sealed with the interaction. */
+static void seal_handoff(const char *q, const swd_handoff_t *h, const char *paused)
+{
+    zxv_receipt_t r = {"handoff",
+                       q,
+                       "",
+                       h->from < TIAMAT->n_cells ? TIAMAT->cell[h->from].name : "",
+                       h->to < TIAMAT->n_cells ? TIAMAT->cell[h->to].name : "",
+                       zxv_tiamat_tv_name(h->tv),
+                       S.b.cycle,
+                       0,
+                       paused};
+    seal_one(&r);
+}
+
 static void seal_receipt(const char *kind, const char *q, const char *shown, const char *paused)
 {
     if (!RECEIPTS) return;
     const zxv_tiamat_trace_t *t = TRACE;
+    const zxv_tiamat_deleg_t *d = TIAMAT ? DELEG : NULL;
+    if (d) {
+        seal_handoff(q, &d->take, paused);
+        for (uint32_t i = 0; i < d->n_parts; i++) seal_handoff(d->part_q[i], &d->hand[i], paused);
+        t = d->n_parts ? NULL : &d->part[0];
+    }
     zxv_receipt_t r = {
         kind,
         q,
         shown,
-        t && TIAMAT ? TIAMAT->cell[t->lead].name : "",
+        d             ? TIAMAT->cell[d->holder].name
+        : t && TIAMAT ? TIAMAT->cell[t->lead].name
+                      : "",
         t && TIAMAT && t->witness >= 0 && !t->witness_skipped ? TIAMAT->cell[t->witness].name : "",
-        t ? zxv_tiamat_tv_name(t->tv) : "",
+        d   ? zxv_tiamat_tv_name(d->tv)
+        : t ? zxv_tiamat_tv_name(t->tv)
+            : "",
         S.b.cycle,
         ASK_TOKENS,
         paused};
-    int rc = -1;
-#if defined(ZXVD)
-    rc = zxv_receipt_seal(&RCH, &r, receipt_sign, NULL, RECEIPTS, NULL);
-#endif
-    if (rc != 0 && zxv_receipt_seal(&RCH, &r, NULL, NULL, RECEIPTS, NULL) != 0)
-        fprintf(stderr, "zxv-host: the receipt could not be written\n");
+    seal_one(&r);
 }
 
 /* Open --tiamat's slots and one agent per cell. 0, or -1 with the reason
@@ -1250,6 +1283,7 @@ static int tiamat_batch(const char *path, bool check)
     }
     static char line[8192], out[16384];
     static zxv_tiamat_trace_t t;
+    static zxv_tiamat_deleg_t d;
     while (fgets(line, sizeof line, f)) {
         size_t n = strlen(line);
         while (n && (line[n - 1] == '\n' || line[n - 1] == '\r')) line[--n] = 0;
@@ -1266,6 +1300,15 @@ static int tiamat_batch(const char *path, bool check)
             }
             *tab = 0;
             zxv_tiamat_check(TIAMAT, tiamat_ask, NULL, line, tab + 1, &t, out, sizeof out, &shown);
+        } else if (TIAMAT->delegate) {
+            zxv_tiamat_delegate(TIAMAT, tiamat_ask, NULL, line, &d, out, sizeof out, &shown);
+            zxv_tiamat_log_deleg(TIAMAT->log_path, line, TIAMAT, &d);
+            DELEG = &d;
+            seal_receipt("ask", line, out, paused);
+            DELEG = NULL;
+            zxv_tiamat_write_deleg(stdout, line, TIAMAT, &d, out);
+            fflush(stdout);
+            continue;
         } else {
             zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, line, &t, out, sizeof out, &shown);
         }
@@ -1284,7 +1327,23 @@ static int tiamat_batch(const char *path, bool check)
 static void tiamat_answer(const char *q, char *out, size_t cap)
 {
     static zxv_tiamat_trace_t t; /* large; answers run one at a time */
+    static zxv_tiamat_deleg_t d;
     int shown = 0;
+    if (TIAMAT->delegate) {
+        int tv = zxv_tiamat_delegate(TIAMAT, tiamat_ask, NULL, q, &d, out, cap, &shown);
+        DELEG = &d;
+        LAST_ANSWER_MODEL = false;
+        for (uint32_t i = 0; i < (d.n_parts ? d.n_parts : 1); i++)
+            if (d.part[i].lead_rc == 1) LAST_ANSWER_MODEL = true;
+        if (zxv_tiamat_log_deleg(TIAMAT->log_path, q, TIAMAT, &d) != 0)
+            fprintf(stderr, "zxv-host: could not write the Tiamat log %s\n", TIAMAT->log_path);
+        char sum[120];
+        snprintf(sum, sizeof sum, "Tiamat: %s delegated %u part%s, %s", TIAMAT->cell[d.holder].name,
+                 (unsigned) (d.n_parts ? d.n_parts : 1), d.n_parts > 1 ? "s" : "",
+                 shown ? zxv_tiamat_tv_name(tv) : "held");
+        note_task(LAST_ANSWER_MODEL, sum);
+        return;
+    }
     int tv = zxv_tiamat_answer(TIAMAT, tiamat_ask, NULL, q, &t, out, cap, &shown);
     TRACE = &t;
     LAST_ANSWER_MODEL = t.lead_rc == 1;
@@ -1306,9 +1365,11 @@ static void answer(const char *q, char *out, size_t cap)
     zxv_idle_describe(&IDLE, paused, sizeof paused);
     ASK_TOKENS = 0;
     TRACE = NULL;
+    DELEG = NULL;
     answer_inner(q, out, cap);
     seal_receipt("ask", q, out, paused);
     TRACE = NULL;
+    DELEG = NULL;
 }
 
 static void answer_inner(const char *q, char *out, size_t cap)

@@ -53,6 +53,152 @@ static void script(const char *r0, int rc0, const char *r2, int rc2)
     memset(CALLS, 0, sizeof CALLS);
 }
 
+/* H6: cells that answer by what they are asked. The split prompt gets
+ * SPLIT_REPLY (from SPLIT_RC); a witness prompt gets "false" when it holds
+ * WITNESS_NO, "both" when it holds WITNESS_BOTH, else "true"; any other
+ * prompt is a part, answered with ANSWER (or "42" for "6 times 7"). */
+static const char *SPLIT_REPLY, *WITNESS_NO, *WITNESS_BOTH;
+static int SPLIT_RC;
+static int CALLS6[3], SPLITS6[3];
+
+static int ask6(void *ctx, uint32_t cell, const char *prompt, char *out, size_t cap)
+{
+    (void) ctx;
+    CALLS6[cell]++;
+    if (!strncmp(prompt, "Split this question", 19)) {
+        SPLITS6[cell]++;
+        snprintf(out, cap, "%s", SPLIT_REPLY);
+        return SPLIT_RC;
+    }
+    if (!strncmp(prompt, "Is the following statement", 26)) {
+        snprintf(out, cap, "%s",
+                 WITNESS_NO && strstr(prompt, WITNESS_NO)       ? "false"
+                 : WITNESS_BOTH && strstr(prompt, WITNESS_BOTH) ? "both"
+                                                                : "true");
+        return 1;
+    }
+    snprintf(out, cap, "%s", strstr(prompt, "6 times 7") ? "42" : "answer to: ");
+    if (!strstr(prompt, "6 times 7")) snprintf(out, cap, "answer to: %s", prompt);
+    return 1;
+}
+
+static void script6(const char *split, int rc, const char *no, const char *both)
+{
+    SPLIT_REPLY = split, SPLIT_RC = rc, WITNESS_NO = no, WITNESS_BOTH = both;
+    memset(CALLS6, 0, sizeof CALLS6);
+    memset(SPLITS6, 0, sizeof SPLITS6);
+}
+
+static void test_h6(const zxv_tiamat_conf_t *c, const char *dir)
+{
+    static zxv_tiamat_deleg_t d;
+    static zxv_tiamat_trace_t t;
+    char out[8192], ref[8192];
+    int shown, rshown;
+    printf("H6 delegate\n");
+
+    /* no split: the same answer as H2-H4 alone */
+    script6("NONE", 1, NULL, NULL);
+    int tv = zxv_tiamat_delegate(c, ask6, NULL, "what is a python function", &d, out, sizeof out,
+                                 &shown);
+    script6("NONE", 1, NULL, NULL);
+    int rtv =
+        zxv_tiamat_answer(c, ask6, NULL, "what is a python function", &t, ref, sizeof ref, &rshown);
+    CHECK(tv == rtv && tv == ZXV_TV_TRUE && shown == rshown && !strcmp(out, ref),
+          "NONE: answered exactly as without H6");
+    CHECK(d.holder == 1 && d.take.moved && d.take.tv == LPRES_STATE_TRUE && d.take.score_to == 2 &&
+              d.n_parts == 0 && d.part[0].lead == 1,
+          "the position goes to the best match (Codelindworm, 2), which leads");
+    CHECK(d.tree.phase == SWD_SEALED && d.tree.n == 1 && d.tree.root_tv == LPRES_STATE_TRUE,
+          "one sealed node carries the verdict");
+
+    script6("x", 0, NULL, NULL);
+    tv = zxv_tiamat_delegate(c, ask6, NULL, "what is a python function", &d, out, sizeof out,
+                             &shown);
+    CHECK(tv == ZXV_TV_TRUE && d.n_parts == 0 && d.split_rc == 0,
+          "a holder that cannot split: one part");
+    script6("just one line", 1, NULL, NULL);
+    tv = zxv_tiamat_delegate(c, ask6, NULL, "what is a python function", &d, out, sizeof out,
+                             &shown);
+    CHECK(d.n_parts == 0 && !strcmp(d.part[0].lead_reply, "answer to: what is a python function"),
+          "one line is not a split: the whole question runs");
+
+    /* three parts: the reckoner, a held part, a witnessed part */
+    const char *q3 = "Tell me what is 6 times 7, some python code, and why the sky is blue";
+    script6("1. what is 6 times 7\n2) write python code\n - why is the sky blue  \n\n", 1, "python",
+            NULL);
+    tv = zxv_tiamat_delegate(c, ask6, NULL, q3, &d, out, sizeof out, &shown);
+    CHECK(d.take.to == 0 && d.take.tv == LPRES_STATE_TRUE && d.holder == 0,
+          "a tie inside one lineage: the first placed holds it, TRUE");
+    CHECK(d.n_parts == 3 && !strcmp(d.part_q[0], "what is 6 times 7") &&
+              !strcmp(d.part_q[1], "write python code") &&
+              !strcmp(d.part_q[2], "why is the sky blue"),
+          "list marks and spaces are trimmed, empty lines skipped");
+    CHECK(!d.hand[0].moved && d.part[0].lead == 0 && d.part[0].reckon_tv == ZXV_TV_TRUE,
+          "part 1 stays with the holder; the reckoner proves 42");
+    CHECK(d.hand[1].moved && d.hand[1].from == 0 && d.hand[1].to == 1 &&
+              d.hand[1].tv == LPRES_STATE_TRUE && d.part[1].tv == ZXV_TV_FALSE,
+          "part 2 passes to Codelindworm; its witness says FALSE");
+    CHECK(d.tree.node[d.node[1]].holder == 1 && d.tree.node[d.node[0]].holder == 0,
+          "each part's node is held by the cell it went to (its record)");
+    CHECK(!d.hand[2].moved && d.part[2].tv == LPRES_STATE_TRUE, "part 3 witnessed TRUE");
+    CHECK(tv == ZXV_TV_FALSE && !shown && d.tree.n == 4 && d.n_conflicts == 0,
+          "the whole is the conjoin: one FALSE part makes it FALSE");
+    CHECK(strstr(out, "1. what is 6 times 7\n42") && strstr(out, "2. write python code\n") &&
+              strstr(out, "Held: Codelindworm's answer") &&
+              !strstr(out, "answer to: write python code") &&
+              strstr(out, "split the question into 3 parts") && strstr(out, ": FALSE."),
+          "every part is shown with its own verdict; the held draft is not");
+    CHECK(SPLITS6[0] == 1 && SPLITS6[1] == 0 && CALLS6[2] == 2,
+          "one split ask, one witness ask per unproved part");
+
+    /* a part whose best matches tie across lineages; a BOTH witness */
+    script6("check this code\nwhy is the sky blue", 1, NULL, "sky");
+    tv = zxv_tiamat_delegate(c, ask6, NULL, "what and why", &d, out, sizeof out, &shown);
+    CHECK(d.hand[0].moved && d.hand[0].to == 1 && d.hand[0].tv == LPRES_STATE_BOTH,
+          "a tie across lineages: the first placed takes it, the claim BOTH");
+    CHECK(d.part[1].tv == LPRES_STATE_BOTH && tv == ZXV_TV_BOTH && !shown && d.n_conflicts == 2,
+          "a BOTH part makes the whole BOTH; both stay in the tree");
+
+    /* five lines: four parts run, the fifth is lost and the whole is NEITHER */
+    script6("why a\nwhy b\nwhy c\nwhy d\nwhy e", 1, NULL, NULL);
+    tv = zxv_tiamat_delegate(c, ask6, NULL, "why", &d, out, sizeof out, &shown);
+    CHECK(d.n_parts == 4 && d.n_lost == 1 && d.part[3].tv == LPRES_STATE_TRUE &&
+              tv == ZXV_TV_NEITHER && shown && strstr(out, "1 further part was not run"),
+          "four TRUE parts and a lost one: NEITHER, never TRUE");
+
+    /* a decimal is not a list mark */
+    script6("why a\nnone\nwhy b", 1, NULL, NULL);
+    zxv_tiamat_delegate(c, ask6, NULL, "why", &d, out, sizeof out, &shown);
+    CHECK(d.n_parts == 2 && !strcmp(d.part_q[1], "why b"), "a NONE line among parts is skipped");
+    script6("3.5 times 2\n2. why", 1, NULL, NULL);
+    zxv_tiamat_delegate(c, ask6, NULL, "why", &d, out, sizeof out, &shown);
+    CHECK(d.n_parts == 2 && !strcmp(d.part_q[0], "3.5 times 2") && !strcmp(d.part_q[1], "why"),
+          "\"3.5\" keeps its digits; \"2.\" is a mark");
+
+    /* H5 for H6 */
+    char path[600];
+    snprintf(path, sizeof path, "%s/tiamat_h6.log", dir);
+    remove(path);
+    script6("1. what is 6 times 7\n2. write python code", 1, "python", NULL);
+    zxv_tiamat_delegate(c, ask6, NULL, q3, &d, out, sizeof out, &shown);
+    CHECK(zxv_tiamat_log_deleg(path, q3, c, &d) == 0, "the H6 log is written");
+    FILE *f = fopen(path, "rb");
+    static char line[65536];
+    line[0] = 0;
+    if (f) {
+        if (!fgets(line, sizeof line, f)) line[0] = 0;
+        fclose(f);
+    }
+    CHECK(strstr(line, "\"holder\":\"Spinewyrm\"") &&
+              strstr(line, "\"hand\":{\"from\":\"Spinewyrm\",\"to\":\"Codelindworm\"") &&
+              strstr(line, "\"parts\":[{\"q\":\"what is 6 times 7\"") &&
+              strstr(line, "\"conflicts\":0,\"verdict\":\"FALSE\"") &&
+              line[strlen(line) - 1] == '\n',
+          "one JSON line with the position, the hand-offs and every part");
+    remove(path);
+}
+
 int main(int argc, char **argv)
 {
     zxv_tiamat_conf_t c;
@@ -259,6 +405,18 @@ int main(int argc, char **argv)
           "one JSON line, strings escaped");
     remove(path);
     CHECK(zxv_tiamat_log("", "q", &c, &t) == 0, "no log path: nothing written");
+
+    CHECK(!c.delegate, "H6 is off unless the config says delegate");
+    {
+        zxv_tiamat_conf_t d6;
+        char e[200];
+        char txt[600];
+        snprintf(txt, sizeof txt, "%sdelegate\n", CONF);
+        CHECK(zxv_tiamat_parse(txt, &d6, e, sizeof e) == 0 && d6.delegate == 1,
+              "the delegate directive turns H6 on");
+        CHECK(parse_err("delegate now\ncell A 0 q -\n", "extra words"), "delegate takes no words");
+    }
+    test_h6(&c, argc > 1 ? argv[1] : ".");
 
     printf(failures ? "\nFAILED: %d\n" : "\nall passed\n", failures);
     return failures ? 1 : 0;

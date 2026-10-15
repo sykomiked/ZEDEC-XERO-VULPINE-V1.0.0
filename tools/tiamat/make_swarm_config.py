@@ -286,6 +286,8 @@ def main():
     ap.add_argument("--profile", default="server", help="tiamat_swarm.json profile (resident budget, cell cap)")
     ap.add_argument("--mem-share", type=float, default=0.5, help="share of MemAvailable the swarm may hold")
     ap.add_argument("--mem-available", type=int, help="bytes free now (default: /proc/meminfo)")
+    ap.add_argument("--no-delegate", action="store_true",
+                    help="answer with H2-H4 only (default: through H6, the delegator position)")
     a = ap.parse_args()
     man = json.loads(pathlib.Path(a.manifest).read_text())
     cfg = json.loads(SWARM.read_text())
@@ -314,6 +316,8 @@ def main():
         lines.append(f"cell {name} {s} {lineage} {quote(adapter) if adapter else '-'}"
                      + "".join(f" {k}" for k in kws))
     lines.append(f"log {quote(log)}")
+    if not a.no_delegate:
+        lines.append("delegate")
     out.write_text("\n".join(lines) + "\n")
     organs = {}
     for name, e in report.items():

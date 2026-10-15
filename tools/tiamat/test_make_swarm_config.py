@@ -39,6 +39,7 @@ int main(int argc, char **argv)
     for (unsigned i = 0; i < c.n_cells; i++)
         printf("cell %s %u %s %s %u\n", c.cell[i].name, c.cell[i].slot, c.cell[i].lineage,
                c.cell[i].adapter[0] ? c.cell[i].adapter : "-", c.cell[i].n_kw);
+    printf("delegate %d\n", c.delegate);
     return 0;
 }
 """
@@ -114,8 +115,12 @@ def main():
         exe = tmp / "parse"
         (tmp / "parse.c").write_text(PARSE_C)
         h = ROOT / "kernel/arch/hosted"
-        cc = subprocess.run(["cc", "-std=c11", "-O1", "-Wall", "-Werror", f"-I{h}", str(tmp / "parse.c"),
-                             str(h / "zxv_tiamat.c"), "-o", str(exe)], capture_output=True, text=True)
+        k = ROOT / "kernel"
+        inc = [f"-I{h}"] + [f"-I{k / d}" for d in ("include", "src/swarm", "src/lpres", "src/event_space",
+                                                    "src/modbind")]
+        cc = subprocess.run(["cc", "-std=c11", "-O1", "-Wall", "-Werror", *inc, str(tmp / "parse.c"),
+                             str(h / "zxv_tiamat.c"), str(k / "src/swarm/swarm_deleg.c"),
+                             str(k / "src/lpres/lpres.c"), "-o", str(exe)], capture_output=True, text=True)
         check(cc.returncode == 0, "the app's parser builds" + (": " + cc.stderr if cc.returncode else ""))
         p = subprocess.run([str(exe), str(conf)], capture_output=True, text=True)
         check(p.returncode == 0, "the app's own parser reads the config: " + p.stdout.strip().splitlines()[0]
@@ -125,6 +130,7 @@ def main():
         pcells = [l for l in parsed if l[0] == "cell"]
         names = [c[1] for c in pcells]
         check(names and names[0] == "Spinewyrm", "the lead comes first")
+        check(["delegate", "1"] in parsed, "the swarm answers through H6, the delegator position")
         check(set(names) == asm, "the parsed cells are the report's assembled cells")
         cell = {c[1]: c for c in pcells}
         check(cell["Reviewdrake"][2] == cell["Spinewyrm"][2] and cell["Reviewdrake"][4].endswith("reviewdrake-lora-f16.gguf"),
