@@ -406,6 +406,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-handoff
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
+	$(MAKE) --no-print-directory test-passport
 	$(MAKE) --no-print-directory test-zt-gram
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-hwemu
@@ -1659,6 +1660,21 @@ test-pce:
 test-pdx-ledger:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/paradox/test_pdx_ledger.c src/paradox/pdx_ledger.c src/paradox/pdx_agent.c src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_pdx_ledger && $(ZXV_TMP)/test_pdx_ledger > $(ZXV_TMP)/test_pdx_ledger.log 2>&1 && echo "[PASS] test_pdx_ledger ($$(tail -1 $(ZXV_TMP)/test_pdx_ledger.log))" || { cat $(ZXV_TMP)/test_pdx_ledger.log; echo "[FAIL] test_pdx_ledger"; exit 1; }
 	@for f in src/paradox/pdx_ledger.c src/paradox/pdx_agent.c; do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/pdx_ledger_free.o || { echo "[FAIL] pdx-ledger freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/pdx_ledger_free.o | grep -vE ' (lpx_|pdx_|sha256)' | grep -q .; then nm -u $(ZXV_TMP)/pdx_ledger_free.o; echo "[FAIL] pdx-ledger freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] pdx-ledger freestanding (aarch64 -mgeneral-regs-only, i386; only lpx_/pdx_/sha256 external)"
+
+# The portable passport (src/passport/passport.h, docs/PASSPORT.md): log in
+# from any device with no server. ASan/UBSan tests, then a freestanding
+# build that may only call the modules it builds on.
+PASSPORT_SRCS := src/passport/pp_core.c src/passport/pp_state.c src/passport/pp_cafe.c
+PASSPORT_DEPS := src/ident/id_argon2.c src/ident/id_core.c src/ident/id_passkey.c \
+	src/robin_debanks/sha256.c src/tls/x25519.c src/tls/aead.c src/ipfs_node/ipfsn_multiformats.c \
+	src/tensor/zt.c $(PQM_SRCS) $(PQSIG_SRCS) src/mlkem/keccak.c src/mlkem/mlkem768.c \
+	src/mlkem/mlkem_encode.c src/mlkem/mlkem_sample.c src/mlkem/mlkem_ntt.c src/mlkem/mlkem_kpe.c
+PASSPORT_INC := -Iinclude -Isrc/passport -Isrc/ident -Isrc/pqsec -Isrc/mlkem -Isrc/lpres -Isrc/surplus \
+	-Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/trispace -Isrc/tls
+.PHONY: test-passport
+test-passport:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(PASSPORT_INC) src/passport/test_passport.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_passport && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_passport > $(ZXV_TMP)/test_passport.log 2>&1 && echo "[PASS] test_passport ($$(tail -1 $(ZXV_TMP)/test_passport.log))" || { cat $(ZXV_TMP)/test_passport.log; echo "[FAIL] test_passport"; exit 1; }
+	@for f in $(PASSPORT_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/passport_free.o || { echo "[FAIL] passport freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/passport_free.o | grep -vE ' (pp_|id_|pq_|pqm_|sha3_256|shake256|aead_|ipfsn_)' | grep -q .; then nm -u $(ZXV_TMP)/passport_free.o; echo "[FAIL] passport freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] passport freestanding (aarch64 -mgeneral-regs-only, i386; only ident, pqsec, keccak, aead, ipfs_node external)"
 
 # Grammar-constrained decoding (src/tensor/zt_gram.h) and the paraconsistent
 # evidence head (src/tensor/zt_evh.h, roadmap 6.6b P2.1, with paradox.h's
