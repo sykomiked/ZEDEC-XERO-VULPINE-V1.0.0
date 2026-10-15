@@ -1,0 +1,10 @@
+[4,2,7,3,6,8,5,1]
+6 queens: 4 solutions
+ack(2, 3) = 9
+left->right left->middle right->middle left->right middle->left middle->right left->right 
+[bob,liz,ann,pat,jim]
+liz_has_none
+tom-bob tom-liz bob-ann bob-pat pat-jim 
+4611686018427387903
+20297
+18

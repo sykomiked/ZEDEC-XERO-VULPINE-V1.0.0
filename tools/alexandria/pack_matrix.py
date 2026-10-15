@@ -94,9 +94,18 @@ def fold_once(args, m, rep):
         a = k if k in FIB else zeck(k)[0]
         gathered[a]["N" if k in m["scaffold"] else "T"] += 1
     n_ok = all(k not in m["layers"] for k in m["scaffold"])
-    stable = st["root"] == m["root"] and closure and n_ok
+    # the fixpoint: the fold changed nothing. STABILIZED, the seal trigger,
+    # needs more: every layer that holds content has the verdict T (its app
+    # passed its gate) and no layer is B
+    fixpoint = st["root"] == m["root"] and closure and n_ok
+    vd = m["verdict"]
+    unproven = [k for k in t if vd[k] != "T"]
+    stable = fixpoint and not unproven
     st = {"folds": st["folds"] + 1, "root": m["root"], "previous_root": st["root"],
           "closure": closure, "T": len(t), "N": len(m["scaffold"]), "scaffold_empty": n_ok,
+          "fixpoint": fixpoint,
+          "verdicts": {v: sum(1 for k in range(LAYERS) if vd[k] == v) for v in "TNB"},
+          "held_not_T": unproven,
           "gathered": {str(a): v for a, v in sorted(gathered.items())},
           "stable": stable}
     with open(args.fold_state, "w") as f:
@@ -114,7 +123,29 @@ def fold_once(args, m, rep):
           "STABILIZED: the root held across a fold" if stable else
           "not stable yet (%s)" % ("first fold" if st["previous_root"] is None else
                                    "the root changed" if st["previous_root"] != m["root"] else
-                                   "a check failed")))
+                                   "a check failed" if not fixpoint else
+                                   "a fixpoint; %d layers hold content their gate has not passed"
+                                   % len(unproven))))
+
+
+# a layer's verdict, encoded as kernel/src/lpres/lpres_hex.h encodes lpres
+VERDICT = {"F": 0, "N": 1, "B": 2, "T": 3}
+
+
+def verdict(k, held, gate):
+    """lpres verdict of layer k from what it holds and its app's gate
+    (tools/apps/app_gate.py --verdict, recorded in MATRIX.tsv). The core is
+    no app: it is T when it holds content. An app layer is T only when it
+    holds content and its gate says T; content the gate has not passed is N,
+    content the gate fails is B (the matrix holds it, the gate refuses it);
+    an empty layer whose gate says T is B too (the gate passes an app the
+    matrix does not hold), any other empty layer N. Never F: a failing app
+    held is a contradiction to resolve, not an absence."""
+    if k == 0:
+        return "T" if held else "N"
+    if held:
+        return {"T": "T", "N": "N", "F": "B", "B": "B"}[gate]
+    return "B" if gate == "T" else "N"
 
 
 def anchor_below(k):
@@ -231,16 +262,19 @@ def layers():
         if line.startswith("#") or not line.strip():
             continue
         f = line.rstrip("\n").split("\t")
-        if len(f) != 6 or not f[0].isdigit():
-            fail("MATRIX.tsv:%d: want six fields" % n)
+        if len(f) != 7 or not f[0].isdigit():
+            fail("MATRIX.tsv:%d: want seven fields" % n)
         k = int(f[0])
         if k in out or k >= LAYERS:
             fail("MATRIX.tsv:%d: layer %d" % (n, k))
         if f[5] != ("F%d" % FIB[k] if k in FIB else "-"):
             fail("MATRIX.tsv:%d: layer %d's anchor column must be %s" %
                  (n, k, "F%d" % FIB[k] if k in FIB else "-"))
+        if f[6] not in (("-",) if k == 0 else ("T", "N", "F", "B")):
+            fail("MATRIX.tsv:%d: layer %d's gate column must be %s" %
+                 (n, k, "-" if k == 0 else "T, N, F or B"))
         out[k] = {"app": f[1], "group": f[2], "icon": None if f[3] == "-" else f[3],
-                  "homes": [] if f[4] == "-" else f[4].split()}
+                  "homes": [] if f[4] == "-" else f[4].split(), "gate": f[6]}
     if sorted(out) != list(range(LAYERS)):
         fail("MATRIX.tsv must list layers 0..144 once each")
     return out
@@ -663,11 +697,15 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         # the state (lpres: N empty scaffold, T holds content), the anchor
         # it hangs from and, for a branch N = F(k) + M, its pattern layer M,
         # by their glue CIDs: an empty layer still has its glue, marked N
+        # and the layer's verdict (byte 60): what it holds joined with its
+        # app's gate (verdict() above)
         state = 1 if root_rows[k][2] else 0
+        vd = verdict(k, state, lay[k]["gate"])
+        m.setdefault("verdict", {})[k] = vd
         a, mm = zeck(k) if k not in FIB else (anchor_below(k) if k else 0, 0)
         up = root_rows[a][1] if k else bytes(36)
         g = struct.pack(">4sBBHIII", b"ALXG", 3, state, k, len(uniq), len(es), nref) + up + \
-            struct.pack(">HH", a, mm) + bytes(4)
+            struct.pack(">HHB", a, mm, VERDICT[vd]) + bytes(3)
         g += fr + eb + rb
         if mm:
             g += root_rows[mm][1]
@@ -727,9 +765,9 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
             step = {k: i for i, k in enumerate(fill_order())}
             for k in range(LAYERS):
                 a, mm = zeck(k) if k not in FIB else (anchor_below(k) if k else 0, 0)
-                f.write("%d\t%s\t%d\t%d\t%s\t%d\t%s\n" % (
+                f.write("%d\t%s\t%d\t%d\t%s\t%d\t%s\t%s\n" % (
                     k, "F%d" % FIB[k] if k in FIB else "-", a, mm, "T" if root_rows[k][2] else "N",
-                    step[k], " ".join("%d:%d" % pq for pq in position(k))))
+                    step[k], " ".join("%d:%d" % pq for pq in position(k)), m["verdict"][k]))
         with open(os.path.join(write, "FILES.tsv"), "w") as f:
             for p in sorted(refs):
                 f.write("%s\t%d\t%d\t%s\n" % (p, where[p], tiers[p], cid_str(fcid[p])))
@@ -979,6 +1017,7 @@ def main():
         "adopted_chunks": m["adopted_chunks"], "adopted_bytes": m["adopted_bytes"],
         "anchors_holding_only_shared_chunks": m.get("holds_only_adopted", []),
         "scaffold_layers": len(m["scaffold"]),
+        "verdicts": {v: sum(1 for k in range(LAYERS) if m["verdict"][k] == v) for v in "TNB"},
         "cids": m["chunks"] + m["booklets"] + m["nodes"] + len(m["layers"]) + m["icons"] + 1,
         "max_depth": max(v["depth"] for v in m["layers"].values()),
         "by_tier": {t: {"chunks": v["chunks"], "bytes": v["bytes"],

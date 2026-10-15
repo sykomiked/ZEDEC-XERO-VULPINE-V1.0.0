@@ -377,6 +377,7 @@ static void test_files(const char *repo)
 /* each refusal on a copy of real nodes */
 /* the spine and the frame (MATRIX.md sections 9 and 10) */
 static int64_t ZPOS[ALX_MX_LAYERS][16];
+static uint32_t VERDICTS[4]; /* layers per verdict, F N B T */
 
 static void zeck_unique(void)
 {
@@ -514,6 +515,10 @@ static void test_spine(const char *dir, const char *repo)
             ok = sscanf(c, "%lld:%lld%n", &p, &q, &used) == 2 && p == ZPOS[k][j] && q == ZPOS[k][j + 1];
             c += used;
         }
+        /* and the verdict the packer joined from content and the app's gate */
+        char vd = 0;
+        ok = ok && sscanf(c, "\t%c", &vd) == 1 && vd == "FNBT"[alx_glue_verdict(GLUE[k]) & 3];
+        VERDICTS[alx_glue_verdict(GLUE[k]) & 3]++;
         alx_mx_layer_t l;
         alx_mx_layer(ROOT, k, &l);
         CHECK(ok && (st[0] == 'T') == (l.booklets != 0), "SPINE.tsv row %u matches the kernel's rule", k);
@@ -595,6 +600,11 @@ static void test_spine(const char *dir, const char *repo)
     memcpy(g, GLUE[k], GLUEN[k]);
     g[5] = 3; /* B is not a glue state */
     CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "a state other than N or T");
+    memcpy(g, GLUE[k], GLUEN[k]);
+    g[60] = ALX_VERDICT_F;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "a verdict of F");
+    g[60] = 4;
+    CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "a verdict past T");
     free(g);
     /* N never carries content: a holding layer marked N, and a ref out of the lineage */
     for (k = 1; k < ALX_MX_LAYERS; k++) {
@@ -603,6 +613,7 @@ static void test_spine(const char *dir, const char *repo)
         g = malloc(GLUEN[k]);
         memcpy(g, GLUE[k], GLUEN[k]);
         g[5] = 0;
+        g[60] = ALX_VERDICT_N;
         CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "layer %u marked N with content", k);
         /* the first ref, pointed at a layer outside its lineage */
         uint32_t ne = (uint32_t) g[12] << 24 | (uint32_t) g[13] << 16 | (uint32_t) g[14] << 8 | g[15];
@@ -619,7 +630,23 @@ static void test_spine(const char *dir, const char *repo)
     memcpy(g, GLUE[0], GLUEN[0]);
     g[20] = 1;
     CHECK(alx_glue_check(g, GLUEN[0], 0, 0, 0, 0) == ALX_E_FORM, "the core hanging from something");
+    memcpy(g, GLUE[0], GLUEN[0]);
+    g[60] = ALX_VERDICT_B; /* the core has no gate to contradict its content */
+    CHECK(alx_glue_check(g, GLUEN[0], 0, 0, 0, 0) == ALX_E_FORM, "the core held but not T");
     free(g);
+    /* T only on content: an empty layer's verdict set to T */
+    for (k = 1; k < ALX_MX_LAYERS; k++) {
+        if (alx_glue_state(GLUE[k])) continue;
+        g = malloc(GLUEN[k]);
+        memcpy(g, GLUE[k], GLUEN[k]);
+        g[60] = ALX_VERDICT_T;
+        CHECK(alx_glue_check(g, GLUEN[k], 0, 0, 0, 0) == ALX_E_FORM, "empty layer %u with the verdict T", k);
+        free(g);
+        break;
+    }
+    printf("matrix: verdicts T %u, N %u, B %u (T only where content and the app's gate agree)\n",
+           VERDICTS[3], VERDICTS[1], VERDICTS[2]);
+    CHECK(VERDICTS[0] == 0, "no layer is F");
 }
 
 static void test_refusals(void)

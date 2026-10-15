@@ -248,7 +248,7 @@ byte layouts):
   CID.
 - **ALXN fan-out node:** up to 256 child CIDs and the booklet count beneath.
 - **ALXG v3 glue:** one per layer, empty layers too: the state (N or T),
-  the layer's files (CID, chunk refs), links and chunk refs, the glue CID
+  the verdict (byte 60, section 9), the layer's files (CID, chunk refs), links and chunk refs, the glue CID
   of the anchor it hangs from and, for a branch, of its pattern layer
   (sections 9 and 10). A ref names a layer, booklet and atom, because a
   chunk is stored once in the whole matrix; the layer is the ref's own or
@@ -421,8 +421,20 @@ anchor).
   content, N when it is an empty scaffold layer. An N layer carries nothing:
   no files, no links, no refs, no booklets. Nothing is faked to fill a
   position; a layer becomes T when its content lands, resolved and
-  checked. (F and B, a failed check and witnesses that disagree, belong to
-  the app gate and the witnessed calls, never to a sealed glue node.)
+  checked.
+- **Verdicts.** Holding content is not working. Each glue node also carries
+  the layer's verdict (byte 60, lpres as `lpres_hex.h` encodes it: F 0, N 1,
+  B 2, T 3), joined from what it holds and its app's gate, the seventh
+  column of `MATRIX.tsv`: T only when
+  `python3 tools/apps/app_gate.py --verdict --runs 2 --app <id> --json <out>`
+  gives the app the verdict T (its checks in `kernel/src/apps/CHECKS.tsv`,
+  frozen after review, so an app cannot write its own exam). Content the
+  gate has not passed is N; content the gate fails is B; a gate that passes
+  an app the layer does not hold is B too (the witnesses disagree); any
+  other empty layer is N. No layer is F: a failing app that is held is a
+  contradiction to resolve, not an absence. The core is no app and is T
+  when it holds content. The verdict is sealed in the glue, so a gate
+  result changes the root.
 - **No upward lean.** An anchor's glue keeps no link into a branch layer's
   files (the branch's glue keeps the link from its side). A branch's links
   into layers outside its lineage are kept, because the code makes them,
@@ -435,7 +447,8 @@ anchor).
 `alx_mx_anchor`, `alx_mx_anchor_below`, `alx_mx_split` and `alx_mx_draws`
 give the rules in the kernel; `alx_glue_check` refuses a glue node whose
 anchor or pattern is not the rule's, whose state is not N or T, whose N
-carries anything, or one of whose refs leaves the lineage.
+carries anything, whose verdict is F, past T, T on an empty layer or (the
+core) not its content, or one of whose refs leaves the lineage.
 
 ## 10. The frame: three star tetrahedra
 
@@ -488,17 +501,20 @@ fabricator (appfab) checks against the same file.
 stops changing: each fold generates the positions, the fabricator packs the
 layers whose content now resolves, and the packer seals a root.
 `pack_matrix.py --fold-state FILE` records each fold (count, root, the root
-before it, T and N counts) and writes `STABILIZED` (the root CID and the fold
-count) in the output folder when the fold has converged: the root is the one
-the last fold recorded, every ref lands on a booklet of this pack, every
-layer with content is T and every scaffold layer N carries nothing. The
-witness tests are the test suite's, so the seal needs both: a STABILIZED
-record and a green run. make packs the tree twice and requires the second
-fold to be STABILIZED with the same root.
+before it, T and N counts, the verdict counts and the layers that hold
+content without the verdict T). The fold is a fixpoint when the root is the
+one the last fold recorded, every ref lands on a booklet of this pack and
+every scaffold layer N carries nothing. It writes `STABILIZED` (the root CID
+and the fold count) in the output folder, the seal trigger, only when the
+fixpoint also has every layer that holds content at the verdict T and no
+layer B: every app held has passed its gate. The witness tests are the test
+suite's, so the seal needs both: a STABILIZED record and a green run. make
+packs the tree twice and requires the second fold to be a fixpoint with the
+same root, and STABILIZED exactly when the record says stable.
 
 `alx_mx_pos` computes a layer's position in the kernel. The packer writes
 the same table as `SPINE.tsv` (layer, F index, anchor, pattern, state, the
-layer's step in the fill, the eight coordinates as p:q), and `test_alx_matrix` checks the two agree for
+layer's step in the fill, the eight coordinates as p:q, the verdict), and `test_alx_matrix` checks the two agree for
 every layer, that every position is distinct, that every anchor sits on an
 even corner, and that every branch satisfies the recursion; it also checks
 Zeckendorf's uniqueness for every number below 377 and that the kernel's
