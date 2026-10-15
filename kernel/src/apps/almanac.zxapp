@@ -24,3 +24,11 @@ logic    kron days apps/blocks/almanac/uptime_days.kron
 provides hours num seconds
 logic    wasm hours apps/blocks/almanac/uptime_hours.wasm
 logic    kron hours apps/blocks/almanac/uptime_hours.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check days seconds=0,86399,86400,200000 = 0,0,1,2
+check days seconds=-86401 = both
+check hours seconds=0,86399,3599,3600 = 0,23,0,1
+check hours seconds=-1 = both
+check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
+check used_share.used_x100 total=100 left=101 = both

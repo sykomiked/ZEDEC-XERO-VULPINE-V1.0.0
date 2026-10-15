@@ -18,3 +18,6 @@ model  apps/glint_model.c
 
 provides item_ok truth folder seq kind size
 logic    myra item_ok apps/blocks/glint/item.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false

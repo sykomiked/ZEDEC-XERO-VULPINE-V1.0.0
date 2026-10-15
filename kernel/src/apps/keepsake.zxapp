@@ -23,3 +23,8 @@ logic    kron  removed apps/blocks/keepsake/removed.kron
 
 provides keep_ok truth keep
 logic    eve keep_ok apps/blocks/keepsake/keep.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
+check removed snapshots=1000000000 keep=1 = both
+check keep_ok keep=0,1,4294967295 = false,true,true

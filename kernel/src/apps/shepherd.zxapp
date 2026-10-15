@@ -25,3 +25,9 @@ logic    eve limit_ok apps/blocks/shepherd/limit.eve
 
 provides week num minutes
 logic    trebago week apps/blocks/shepherd/week.tb
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check left minutes=60,60,0 extra=0,15,0 used=60,60,0 = 0,15,0
+check left minutes=10000 extra=0 used=0 = both
+check limit_ok minutes=-2,-1,1440,1441 from=0 to=0 = false,true,true,false
+check week minutes=30,0,1440,45,12,0,7 = 1534

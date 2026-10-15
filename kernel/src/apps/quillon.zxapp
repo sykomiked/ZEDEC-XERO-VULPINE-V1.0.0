@@ -21,3 +21,6 @@ model  apps/quillon_model.c
 
 provides size_ok truth bytes
 logic    eve size_ok apps/blocks/quillon/size.eve
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check size_ok bytes=0,1048576,1048577 = true,true,false

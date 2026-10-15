@@ -20,3 +20,7 @@ logic    kron    count apps/blocks/wake/count.kron
 logic    trebago count apps/blocks/wake/count.tb
 # best fit is Natural (queries over records); it has no front-end yet
 pending  Natural count
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check count level=0,3,5,2 bar=3 = 2
+check count level=0,3 bar=1,2 = both
