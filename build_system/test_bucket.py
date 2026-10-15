@@ -296,6 +296,22 @@ def main():
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "back to the plain bucket")
         load_blocks(blocks)
 
+        # a local node finds the installer the same way a gateway does: a
+        # stand-in `ipfs` that answers `block get` from the blocks directory
+        fake = os.path.join(t, "ipfs")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\n[ "$1 $2" = "block get" ] && exec cat "%s/$3"\nexit 1\n' % blocks)
+        os.chmod(fake, 0o755)
+        node = ZXV_GET.Node(fake)
+        cb, nname = ZXV_GET.find_installer(node, ZXV_GET.cid_bin(root))
+        check(nname == iname and ZXV_GET.cid_text(cb) + ".install" == iname,
+              "a local node finds the installer: %s" % nname)
+        try:
+            ZXV_GET.find_installer(node, ZXV_GET.cid_bin(named(bucket + ".cid", "x").split(".")[0]))
+            check(False, "a node's file block is not a directory")
+        except ZXV_GET.Fail as e:
+            check("is a file, not a directory" in str(e), "node, file as root: %s" % e)
+
         # the standalone verifier: every name in the bucket is its CID
         vfy = os.path.join(ROOT, "tools", "zxv-verify.sh")
         r = subprocess.run(["sh", vfy, os.path.join(bucket, iname)], stdout=subprocess.PIPE,
