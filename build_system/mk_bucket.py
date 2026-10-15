@@ -6,7 +6,7 @@
     python3 build_system/mk_bucket.py [--discs dist/discs] [--out build/bucket]
                                       [--cartridge FILE ...] [--blocks DIR]
                                       [--architecture docs/ARCHITECTURE.md]
-                                      [--layers build/layers]
+                                      [--layers build/layers] [--tree DIR]
     python3 build_system/mk_bucket.py --self-test
 
 Stages the discs mk_golden_disc.sh built into a directory that `ipfs add -r
@@ -40,7 +40,20 @@ whether or not the ones before it are present: 04_overlays (L4, community
 overlays), 05_alexandria (L3, the Library of Alexandria), 06_tiamat (the
 Tiamat cells, part of L2), 07_matrix (the 144-layer matrix), 08_vectors (its
 vector plane) and 09_source (the source bundle) are laid out by the threads
-that build them and added beside these; this tool does not write them.
+that build them. They come in through --tree DIR, which links them into the
+root as they are, by CID, without re-chunking them (below).
+
+--tree DIR: DIR holds links.json, {"name": ["<cid>", <tsize>], ...}, the
+top-level entries another tool already built (the matrix, the vector plane,
+the source, the browser boot and its files), and blocks.car, a CAR v1 with
+every block under them. Each entry is checked: its name is a plain name that
+no bucket folder or file uses, and its whole DAG is in blocks.car, every
+block matching its CID. The root links each one by name and CID, and the
+installer file lists it as a tree line. The entries are not copied into
+--out and are never re-hashed here: a matrix booklet is one raw block of up
+to 1 MiB named by its raw CID, which 256 KiB chunks would change. So with
+--tree, `ipfs add -r OUT` is not the origin; the origin is the root this tool
+computes, whose blocks --blocks writes in full (the CAR's blocks included).
 
 Every disc is at most 1,800,000,000 bytes. Only the core disc is specific to
 an architecture; the swarm discs are the same for all of them.
@@ -51,8 +64,12 @@ The installer file (ASCII; tools/zxv-get reads it):
     seal <POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER>
     gateway <url>                       (the upstream file's, any number)
     <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
-kind is core, layer, swarm, cartridge or doc, in that order: the core discs,
-the layers they stand on, the swarm discs, the rest. "seal" is the mode the
+    tree all - - <tsize> - <cid> <name>  (with --tree, one per entry)
+kind is core, layer, swarm, cartridge, doc or tree, in that order: the core
+discs, the layers they stand on, the swarm discs, the rest, then the trees.
+A tree line has no sha256 ("-"): it names a directory or a file linked by
+its CID, whose blocks are each checked against their CIDs when fetched, and
+<tsize> is its DAG's total size. "seal" is the mode the
 core discs carry (their UPSTREAM.CID "seal" line, PROMPT_USER when absent).
 The upstream file (build_system/zxv_upstream.cid) is the trusted list the
 core discs carry: where to fetch from. It is not this bucket's root, and a
@@ -205,6 +222,112 @@ def find_layers(d):
     return found
 
 
+def read_car(path):
+    """{cid_bin: block} of a CAR v1 file, every block checked against its
+    CID (sha2-256 only)."""
+    b = open(path, "rb").read()
+
+    def uv(i):
+        x = sh = 0
+        while True:
+            if i >= len(b):
+                die("%s: truncated" % path)
+            c = b[i]
+            i += 1
+            x |= (c & 0x7F) << sh
+            sh += 7
+            if not c & 0x80:
+                return x, i
+    hl, i = uv(0)
+    i += hl
+    out = {}
+    while i < len(b):
+        n, i = uv(i)
+        sec, i = b[i:i + n], i + n
+        if len(sec) != n or n < 36 or sec[0] != 1 or sec[2:4] != b"\x12\x20":
+            die("%s: a section that is not a CIDv1 sha2-256 block" % path)
+        cb, block = sec[:36], sec[36:]
+        if cid_bin(cb[1], hashlib.sha256(block).digest()) != cb:
+            die("%s: block %s does not match its CID" % (path, cid_str(cb)))
+        out[cb] = block
+    return out
+
+
+def pb_links(block):
+    """The link hashes of a dag-pb block (empty for a raw block)."""
+    links, i = [], 0
+
+    def uv(buf, j):
+        x = sh = 0
+        while True:
+            c = buf[j]
+            j += 1
+            x |= (c & 0x7F) << sh
+            sh += 7
+            if not c & 0x80:
+                return x, j
+    while i < len(block):
+        key, i = uv(block, i)
+        if key & 7 == 2:
+            n, i = uv(block, i)
+            body, i = block[i:i + n], i + n
+            if key >> 3 == 2:
+                _, j = uv(body, 0)
+                m, j = uv(body, j)
+                links.append(bytes(body[j:j + m]))
+        elif key & 7 == 0:
+            _, i = uv(block, i)
+        else:
+            die("a dag-pb block with wire type %d" % (key & 7))
+    return links
+
+
+def load_tree(d, taken):
+    """[(name, cid_bin, tsize)] and {cid_bin: block} from --tree DIR."""
+    try:
+        links = json.load(open(os.path.join(d, "links.json"), encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        die("--tree %s: links.json: %s" % (d, e))
+    blocks = read_car(os.path.join(d, "blocks.car"))
+    out = []
+    for name, v in sorted(links.items()):
+        if not (re.fullmatch(r"[A-Za-z0-9._+-]{1,200}", name) and name not in (".", "..")
+                and not name.endswith(".install")):
+            die("--tree: %r is not a plain name" % name)
+        if name in taken:
+            die("--tree: %s is already a bucket folder or file" % name)
+        if not (isinstance(v, list) and len(v) == 2 and isinstance(v[0], str) and CID_RE.fullmatch(v[0])
+                and isinstance(v[1], int) and v[1] >= 0):
+            die("--tree: %s: want [\"<cid>\", <tsize>]" % name)
+        cb = cid_bin_of(v[0])
+        todo, seen = [cb], set()
+        while todo:  # the whole DAG under it must be in the CAR
+            c = todo.pop()
+            if c in seen:
+                continue
+            seen.add(c)
+            if c not in blocks:
+                die("--tree: %s: block %s is not in blocks.car" % (name, cid_str(c)))
+            if c[1] == 0x70:
+                todo.extend(pb_links(blocks[c]))
+        out.append((name, cb, v[1]))
+    return out, blocks
+
+
+def cid_bin_of(text):
+    """'b...' base32 CIDv1 text -> bytes."""
+    alpha = "abcdefghijklmnopqrstuvwxyz234567"
+    acc = bits = 0
+    out = bytearray()
+    for ch in text[1:]:
+        acc = (acc << 5) | alpha.index(ch)
+        bits += 5
+        if bits >= 8:
+            bits -= 8
+            out.append((acc >> bits) & 255)
+    return bytes(out)
+
+
 def place(src, dst):
     """Hard-link src into the bucket (the discs are large), else copy."""
     try:
@@ -229,6 +352,9 @@ def build(a):
     cores, swarm = find_discs(a.discs, a.prefix)
     arch_doc = distribution_section(a.architecture) if a.architecture else None
     layers = find_layers(a.layers) if a.layers else []
+    # checked before the bucket is touched, so a refused tree leaves it as it was
+    trees, tree_blocks = load_tree(a.tree, {"00_base", "01_swarm", "02_cartridges", "03_layers"}) \
+        if a.tree else ([], {})
     out = a.out
     if os.path.lexists(out):
         if not ours(out):
@@ -275,14 +401,18 @@ def build(a):
         add("00_base", doc, kind="doc", arch="all")
         os.remove(doc)
 
+    for name, cb, ts in trees:
+        stages.append({"kind": "tree", "arch": "all", "dir": None, "file": name, "from": name,
+                       "bytes": ts, "sha256": "-", "cid": cid_str(cb)})
+
     # The installer file: everything above, in install order, by CID; named
     # by its own CID. It is the last file made; only the root is after it.
     text = "# %s\nmax_disc_bytes %d\nseal %s\n" % (FORMAT, a.max_bytes, up["seal"])
     text += "".join("gateway %s\n" % g for g in up["gateways"])
     for st in stages:
-        text += "%s %s %s %s %d %s %s %s/%s\n" % (
+        text += "%s %s %s %s %d %s %s %s\n" % (
             st["kind"], st["arch"], st.get("disc", "-"), st.get("group", "-"), st["bytes"],
-            st["sha256"], st["cid"], st["dir"], st["file"])
+            st["sha256"], st["cid"], st["file"] if st["dir"] is None else st["dir"] + "/" + st["file"])
     tmp = os.path.join(out, "installer.tmp")
     with open(tmp, "w", encoding="ascii") as f:
         f.write(text)
@@ -297,12 +427,29 @@ def build(a):
             with open(os.path.join(a.blocks, cid_str(cb)), "wb") as f:
                 f.write(block)
 
-    root, _ = tree_cid(out, sink)
+    # the root: the bucket's own children, hashed here, and the --tree
+    # entries, linked as they are
+    kids = []
+    for name in os.listdir(out):
+        cb, ts = tree_cid(os.path.join(out, name), sink)
+        kids.append((name, cb, ts))
+    rootb = {}
+
+    def keep(cb, block):
+        rootb[cb] = block
+        if sink:
+            sink(cb, block)
+    if sink:
+        for cb, block in tree_blocks.items():
+            sink(cb, block)
+    root, _ = dir_node(kids + trees, keep)
+    with open(out.rstrip("/") + ".root.pb", "wb") as f:  # the root block, for zxv-verify.sh
+        f.write(rootb[root])
     root = cid_str(root)
     with open(out.rstrip("/") + ".cid", "w", encoding="ascii") as f:
         f.write(root + "\n")
     for st in stages:
-        print("  %-14s %-9s %-36s %11d  %s" % (st["dir"], st["kind"], st["from"], st["bytes"],
+        print("  %-14s %-9s %-36s %11d  %s" % (st["dir"] or ".", st["kind"], st["from"], st["bytes"],
                                                st["file"]))
     print("  %-14s %-9s %-36s %11d  %s" % (".", "installer", "", len(text), inst))
     print("bucket %s: origin %s (also in %s.cid)" % (out, root, out.rstrip("/")))
@@ -348,6 +495,7 @@ def main():
     ap.add_argument("--blocks")
     ap.add_argument("--architecture")
     ap.add_argument("--layers")
+    ap.add_argument("--tree", help="DIR with links.json and blocks.car: entries linked into the root by CID")
     ap.add_argument("--max-bytes", type=int, default=MAX_DISC)
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()

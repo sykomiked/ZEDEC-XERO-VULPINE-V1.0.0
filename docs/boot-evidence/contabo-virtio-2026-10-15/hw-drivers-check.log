@@ -1,0 +1,48 @@
+[E0003]   [DRIVER ONLINE] 16550A COM1 at 0x3F8
+[E0004]   [DRIVER ONLINE] UEFI GOP text console (serial mirrored on screen)
+U[E0008]   [DRIVER ONLINE] ring-3 ran on the SHARED ABI: WRITE(2), ABI_VERSION(12), EXIT(1)
+[E0021] [BOOT] Hardware: PCI scan and standard class drivers...
+  [DRIVER ONLINE] vblk 00:02.0 1af4:1001 virtio disk, 102400 x 512 B as vblk0
+  [DRIVER ONLINE] vscsi 00:03.0 1af4:1004 virtio SCSI disk 102400 x 512 B at target 0 as vsd0
+  [DRIVER ONLINE] nvme 00:04.0 1b36:0010 QEMU NVMe Ctrl, ns1 102400 x 512 B as nvme0
+  [DRIVER ONLINE] xhci 00:05.0 1b36:000d QEMU xHCI 8 ports; usb0 (QEMU HARDDISK 102400 x 512 B), usbkbd0
+  [DRIVER ONLINE] e1000 00:06.0 8086:100e 82540EM 52:54:00:5a:58:01 link up as eth0
+  [DRIVER ONLINE] e1000 00:07.0 8086:10d3 82574L 52:54:00:5a:58:02 link up as eth1
+  [DRIVER ONLINE] vnet 00:08.0 1af4:1000 virtio NIC 52:54:00:5a:58:04 link up as eth2
+  [DRIVER ONLINE] igb 00:09.0 8086:10c9 82576 52:54:00:5a:58:03 link up as eth3
+  [DRIVER ONLINE] hda 00:0a.0 8086:2668 ICH6 HDA 1.0, codec 0: 1af4:0022, out pin 0x03 (line out) via DAC 0x02
+  [DRIVER ONLINE] ahci 00:1f.2 8086:2922 ICH9 AHCI 1.0 6 ports; sata0 QEMU HARDDISK 102400 x 512 B
+  [OK] class drivers: 14 PCI functions, 10 bound, 0 failed, 0 held, 4 without a class driver
+  [SELFTEST OK] vblk0 read LBA 1: GPT header 'EFI PART'; 102400 blocks of 512
+  [SELFTEST OK] vsd0 read LBA 1: GPT header 'EFI PART'; 102400 blocks of 512
+  [SELFTEST OK] nvme0 read LBA 1: GPT header 'EFI PART'; 102400 blocks of 512
+  [SELFTEST OK] usb0 read LBA 1: GPT header 'EFI PART'; 102400 blocks of 512
+  [SELFTEST OK] sata0 read LBA 1: GPT header 'EFI PART'; 102400 blocks of 512
+  [SELFTEST OK] eth0 DHCP offer received; mac 52:54:00:5a:58:01; offered 10.0.2.15 by 10.0.2.2
+  [SELFTEST OK] eth1 DHCP offer received; mac 52:54:00:5a:58:02; offered 10.0.2.15 by 10.0.2.2
+  [SELFTEST OK] eth2 DHCP offer received; mac 52:54:00:5a:58:04; offered 10.0.2.15 by 10.0.2.2
+  [SELFTEST OK] eth3 DHCP offer received; mac 52:54:00:5a:58:03; offered 10.0.2.15 by 10.0.2.2
+  [SELFTEST OK] usbkbd0 polling; 24 key press(es): "zxvzxvzxvzxvzxvzxvzxvzxv"
+  [SELFTEST OK] hda0 output stream DMA position 19200 bytes
+  [STORAGE OK] vblk0 ESP (GPT partition 1, LBA 2048..100351) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [STORAGE OK] vsd0 ESP (GPT partition 1, LBA 2048..100351) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [STORAGE OK] nvme0 ESP (GPT partition 1, LBA 2048..100351) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [STORAGE OK] usb0 ESP (GPT partition 1, LBA 2048..100351) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [STORAGE OK] sata0 ESP (GPT partition 1, LBA 2048..100351) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [OK] hardware self-tests passed: 11 (TSC 2807 ticks/us)
+[E0023] [BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready
+[BOOT_OK] heartbeat: ticks=1598
+[BOOT_OK] heartbeat: ticks=2598
+[BOOT_OK] heartbeat: ticks=3598
+[BOOT_OK] heartbeat: ticks=4598
+[BOOT_OK] heartbeat: ticks=5598
+[BOOT_OK] heartbeat: ticks=6598
+[BOOT_OK] heartbeat: ticks=7598
+[BOOT_OK] heartbeat: ticks=8598
+[BOOT_OK] heartbeat: ticks=9598
+[BOOT_OK] heartbeat: ticks=10598
+[BOOT_OK] heartbeat: ticks=11598
+[BOOT_OK] heartbeat: ticks=12598
+[BOOT_OK] heartbeat: ticks=13598
+[hw-drivers] QEMU exited 124 after at most 150s
+[hw-drivers] every class driver bound and passed its self-test

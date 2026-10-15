@@ -1,0 +1,212 @@
+UEFI firmware (version 2024.02-2ubuntu0.10 built at 15:40:28 on Sep 23 2026)
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x2,0x0)
+BdsDxe: starting Boot0001 "UEFI Misc Device" from PciRoot(0x0)/Pci(0x2,0x0)
+
+>>> ZXV-EFI-STUB: efi_main under UEFI <<<
+GOP fb=0x000000013c7a0000 res=800x600 stride=800 fmt=1
+staged kernel @0x000000013c31a000 trampoline @0x000000013cb43000 (128 bytes)
+ExitBootServices ok
+handoff record published @0x40070000
+handoff v2 published: 15 memory regions
+>>> handing off to ZXV kernel via trampoline (MMU off) <<<
+
+[38;5;255m      /\                                            /\
+[0m[38;5;25m     /  \__[38;5;255m/|[38;5;25m\        [38;5;255m___[38;5;25m        [38;5;255m/|[38;5;25m\__/  \
+[0m[38;5;25m    <  [38;5;255m\[38;5;25m 0110 [38;5;255m\[38;5;25m___[38;5;255m/[38;5;25m 1001 [38;5;255m\___/[38;5;25m 0110 [38;5;255m/[38;5;25m  >
+[0m[38;5;25m     \  [38;5;255m\[38;5;25m1001[38;5;255m|[38;5;25m  [38;5;17m><[38;5;25m  [38;5;255m|[38;5;25m0110[38;5;255m|[38;5;25m  [38;5;17m><[38;5;25m  [38;5;255m|[38;5;25m1001[38;5;255m/[38;5;25m  /
+[0m[38;5;25m      \__[38;5;255m\[38;5;25m__[38;5;255m|[38;5;25m__[38;5;255m/[38;5;25m\__[38;5;255m|[38;5;25m__[38;5;255m|[38;5;25m__[38;5;255m/[38;5;25m\__[38;5;255m|[38;5;25m__[38;5;255m/[38;5;25m__/
+[0m[38;5;25m         [38;5;255m\[38;5;25m  [38;5;17m\\[38;5;25m  [38;5;255m/[38;5;25m 36N9 [38;5;255m\[38;5;25m  [38;5;17m//[38;5;25m  [38;5;255m/
+[0m[38;5;25m          \__[38;5;17m\\[38;5;25m_[38;5;255m/[38;5;25m_______[38;5;255m\[38;5;25m_[38;5;17m//[38;5;25m__/
+[0m[38;5;25m             [38;5;255m\[38;5;25m__[38;5;17mV[38;5;25m___[38;5;17mV[38;5;25m__[38;5;255m/
+[0m[38;5;245m            3 6 N 9   G E N E T I C S
+[0m
+[38;5;25m        [38;5;255m/\[38;5;25m              [38;5;255m/\
+[0m[38;5;25m       [38;5;255m/[38;5;25m [38;5;255m\[38;5;25m____[38;5;255mo[38;5;25m__[38;5;255mo[38;5;25m____[38;5;255m/[38;5;25m [38;5;255m\
+[0m[38;5;25m      [38;5;255m/[38;5;25m  [38;5;255m\[38;5;25m  [38;5;17m\\[38;5;25m    [38;5;17m//[38;5;25m  [38;5;255m/[38;5;25m  [38;5;255m\
+[0m[38;5;255m     o[38;5;25m___[38;5;255m\[38;5;25m__[38;5;17m\\[38;5;25m__[38;5;17m//[38;5;25m__[38;5;255m/[38;5;25m___[38;5;255mo
+[0m[38;5;25m      \   [38;5;255m<[38;5;25m0[38;5;255m>[38;5;25m  [38;5;255m<[38;5;25m0[38;5;255m>[38;5;25m   /
+[0m[38;5;25m       \___[38;5;255m\[38;5;25m__[38;5;17m/\[38;5;25m__[38;5;255m/[38;5;25m___/
+[0m[38;5;25m           \_[38;5;17m\/[38;5;25m_/
+[0m[38;5;25m             [38;5;255m\/
+[0m[38;5;245m     ZEDEC  XERO  VULPINE
+[0m
+ZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [ARM64]
+Edition: ZEDEC XERO VULPINE (ZXV)
+36N9 Genetics, LLC  |  ACOTO · SMIC · CIS
+==================================================
+
+License: Apache-2.0
+Author: H.M. Michael-Laurence: Curzi (c)
+36N9 Genetics, LLC — Irrevocable, Interdimensional
+
+[E0001] [BOOT] MMU/paging...
+[E0002]   [DRIVER ONLINE] Identity mapping (1GB, 4KB granule)
+  memory: 15 regions, usable 4086 MiB, loader 1 MiB, firmware runtime 5632 KiB
+  kernel window 0x0000000040080000-0x0000000043BB0000 verified free
+  ACPI RSDP 0x000000013C460018, no SMBIOS 3
+  firmware clock 1792073050 s since 1970 UTC
+  disc models: not checked by the loader
+[E0003] [HANDOFF_OK] handoff v2 accepted: memory map, ACPI, clock, kernel window
+[BOOTMEM] 1 usable ranges past the kernel from the handoff v2 map, 3012 MiB
+[E0004] [BOOT] GIC interrupt controller (version probed from GICD_PIDR2)...
+  [GIC PROBE] GICD_PIDR2@+0xFFE8 = 0x3B -> arch rev 3, ID_AA64PFR0_EL1.GIC=1
+  [GIC PROBE] GICv3: dist 0x8000000 redist 0x80A0000 stride 0x20000 (affinity matched), 288 INTIDs
+[E0005]   [DRIVER ONLINE] GICv3 distributor + redistributor (probed)
+[E0006] [BOOT] Generic timer...
+[E0007]   [DRIVER ONLINE] Timer at 100 Hz
+[E0008] [BOOT] M5 Kernel subsystems...
+[E0009]   [INITIALIZED] Phase Coordinator (EXEC_DC)
+[E0010]   [INITIALIZED] RMAG (256 slots)
+[E0011]   [INITIALIZED] LPRES
+[E0012]   [INITIALIZED] IPHASE
+[E0013]   [INITIALIZED] CHOICE
+[E0014]   [INITIALIZED] OSEQ
+  cycle 1: omega=0
+  cycle 2: omega=0
+  cycle 3: omega=0
+  cycle 4: omega=0
+  cycle 5: omega=0
+[E0015] [BOOT] EDP risk calculus + ISF + predictive model...
+[E0016]   [INITIALIZED] EDP operators + Fibonacci algebra + ISF surplus
+[E0017] [BOOT] Tactical/strategic situation modeler...
+[E0018]   [REGISTERED] 15 domains + cross-domain contagion
+[E0019] [BOOT] Nine-capital triple ledger system...
+[E0020]   [REGISTERED] 9 capital types + floating vouchers + conventional compat
+[E0021] [BOOT] Financial instruments suite...
+[E0022]   [REGISTERED] 20 instrument types + M5 valuation + Greeks
+[E0023] [BOOT] Dragon/Phoenix/Thunderbird payment rails...
+[E0024]   [REGISTERED] 3 rails + conventional network compat
+[E0025] [BOOT] Web2-Web3 cryptocurrency bridge...
+[E0026]   [REGISTERED] 35 chains + 11 smart contract languages + dual-directional
+[E0027] [SKIP] National identity registry (KERNEL_SIM_DEVICES=0)
+[E0028] [BOOT] JDR PirateNet harmonic hum carrier...
+[E0029]   [REGISTERED] 22 frequency bands + harmonic hum + FHSS
+[E0030] [SKIP] Quantum/exotic-matter research sandbox (KERNEL_SIM_DEVICES=0)
+[E0031] [BOOT] Hardware-as-code RTL device framework...
+[E0032]   [REGISTERED] Chisel/SystemVerilog/VHDL + AXI4/APB/AHB + second quantization
+[E0033] [BOOT] DLP pico projector (hardware-as-code)...
+[E0034]   [INITIALIZED] 854x480 native -> 1708x960 apparent (4-way pixel-shift)
+[E0035]   [SIMULATED] Laser AF (0.5-4m) + keystone + complementary-color dither
+[E0036] [BOOT] Vino decentralized bank node...
+[E0037]   [INITIALIZED] Triple ledger + nine capital + ISO 20022
+[E0038] [BOOT] Count House fractal-reserve valuation engine...
+[E0039]   [INITIALIZED] Scale-0 Stash Buckets + anti-Sybil + Fibonacci mint curve (allowance=
+1000)
+[E0040] [BOOT] Porter House port-seal firewall...
+[E0041]   [INITIALIZED] Port-seal firewall: 8800=TRUSTED(500) 9090=ALLOWLIST 23=CLOSED
+[E0042] [BOOT] Mesh-Token external settlement via Porter House...
+[E0043]   [INITIALIZED] Porter House-gated settlement on port 8800 + Count House valuation
+[E0044] [BOOT] Community Chest P2P app store + Vino Floating Vouchers...
+[E0045]   [REGISTERED] P2P marketplace + Vino voucher clearing (dev 70-85% / platform 15-24% / 36N9 20%)
+[E0046] [BOOT] AI integration layer + remote compute...
+[E0047]   [REGISTERED] On-device inference + Porter House-gated remote compute (port 8900)
+[E0048] [BOOT] P2P mesh network layer (user-created networks + trade routes)...
+[E0049]   [REGISTERED] User mesh networks + trade routes + federation (port 8800)
+[E0050] [BOOT] Immigration enforcement + Robin DeBanks vault...
+[E0051]   [ENTROPY] Vault key from FEAT_RNG (RNDR) hardware RNG + health test
+[E0052]   [INITIALIZED] Daemon visa system
+[E0053]   [ABSENT] vault encryption: AES-256-GCM is not linked into this image
+[E0054] [BOOT] Vena application runtime...
+[E0055]   [INITIALIZED] M5 Axiomatic app loader + 31 languages
+[E0056] [BOOT] Event-driven scheduler (per-task event budget + WFI tickless idle)...
+[E0057]   [INITIALIZED] 3 event-budget tasks + PMU cycle cost proxy + tickless WFI
+[E0058] [BOOT] Event-space infrastructure (sequencer + domains + self-audit + self-healing)...
+[E0059]   [INITIALIZED] 4 event domains (storage/network/display/input)
+[E0060]   [AUDIT] Initial system audit: PASS
+[E0061]   [PILOT] Event enqueued to storage domain — pipeline verified
+[E0062] [BOOT] Orbital Elevator (schema registry + compatibility graph + adapters)...
+[E0063]   [INITIALIZED] 3 schemas (10 versions) + 3 orbit manifests
+[E0064] [BOOT] Constellation Coordinator (node registry + routing + health)...
+[E0065]   [INITIALIZED] 1 node (self) + 3 executors + 3 routes
+[E0066] [BOOT] Event Transport (channel abstraction + delivery)...
+[E0067]   [INITIALIZED] 1 loopback channel (local transport)
+[E0068] [BOOT] Hypercube Scene Architecture (scene graph + projection + degradation)...
+[E0069]   [INITIALIZED] 4 scene cells (terminal/files/network/notifications)
+[E0070]   [SCENE] Projected to 2D_NORMAL — terminal focused
+[E0071] [BOOT] Yantra Fabric (device registry + capability states + digital twin)...
+[E0072]   [INITIALIZED] 4 devices (uart/gic/projector/framebuffer)
+[E0073]   [YANTRA] Capability levels: uart=EMULATED gic=EMULATED projector=MODEL_ONLY fb=EMULATED
+[E0074] [BOOT] Tri-Space Programming (triad registry + linter + S0 quarantine)...
+[E0075]   [INITIALIZED] 2 tri-space triads (storage=RESTORING+S0, network=CONSTRAINING+S0)
+[E0076] [BOOT] Holographic data system...
+[E0077]   [REGISTERED] .36n9 + .9n63 + .36m9 + .9m63 + .zedei + .iedez + .zedec + .cedez + .0n0 + .0m0 + .zedez + .cedec file types
+[E0078] [BOOT] Unified emulator (MOS 6502 core, first of the multi-arch fleet)...
+[E0079]   [DRIVER ONLINE] 6502 core self-check OK (sum 1..5 = 15) — Game Master QC ready
+[E0080] [BOOT] M5-RELATE: parallel non-compatible cores (6502 <-> Z80) through the event space...
+[E....]   [w] ordinal distance: 6502=28 instr, Z80=13 instr -> delta 15
+[E....]   [r] rational concord: 6502=15 Z80=15
+[E....]   [phi] phase torsion: 6502=76 cyc, Z80=107 T (complex-plane skew)
+[E....]   [l] four-valued logic: TRUE (concord) — orthogonal architectures agree
+[E0081]   [DRIVER ONLINE] Z80 core online; non-binary relationship measured; axes perpendicular
+[E0082] [BOOT] NES machine (mapper 0) — first faithful per-console emulator...
+[E0083]   [DRIVER ONLINE] NES self-check OK — synthetic game reached its vblank loop
+[E0084] [BOOT] SNES machine (LoROM) — 65816 core, the 16-bit story era...
+[E0085]   [DRIVER ONLINE] SNES self-check OK — game went native, configured PPU, took its vblank NMI
+[E0086] [BOOT] Game Boy machine (LR35902) — the story-rich handheld era...
+[E0087]   [DRIVER ONLINE] Game Boy self-check OK — LCD on, I/O driven, VBlank interrupt taken
+[E0088] [BOOT] Game Boy Advance machine (ARM7TDMI) — the 32-bit handheld era...
+[E0089]   [DRIVER ONLINE] Game Boy Advance self-check OK — display configured, I/O driven, VCOUNT polled
+[E0090] [BOOT] Sega Genesis machine (Motorola 68000) — the 16-bit Sega era...
+[E0091]   [DRIVER ONLINE] Genesis self-check OK — VDP programmed, data uploaded, frame loop reached
+[E0092] [BOOT] PC Engine machine (HuC6280) — bank-paged 65C02 superset...
+[E0093]   [DRIVER ONLINE] PC Engine self-check OK — banks mapped, VDC programmed, frame loop reached
+[E0094] [BOOT] Graphics-engine lineage — open engines, the graphics evolution...
+[E....]   [DRIVER ONLINE] engine lineage: 6 distinct open renderers, continuous evolution (131 permille) — proprietary refused
+[E0095] [BOOT] Cinder — id Tech 1-class renderer, the first engine MegaROM...
+[E0096]   [DRIVER ONLINE] Cinder renders — textured 3D raycast with holo depth (near warm/far cool); registered as a graphics MegaROM
+[E0097] [BOOT] Quill — id Tech 2-class polygonal renderer (z-buffer + lightmaps)...
+[E0098]   [DRIVER ONLINE] Quill renders — z-buffered polygons, perspective texture, lightmaps, holo depth; registered as a graphics MegaROM
+[E0099] [BOOT] Helion — spiral-logic 2D->3D expansion (spin, not extrusion)...
+[E....]   [DRIVER ONLINE] spiral logic holds — object spin PERPENDICULAR to environment (dot 0 permille), 2D lifted into 3D as a helix, not extruded
+[E0100] [BOOT] Dimensional ladder — Fibonacci-prime dims, PHI micro<->macro...
+[E....]   [DRIVER ONLINE] ladder coherent — 7 Fibonacci-prime dimensions (unbounded), 13/8 -> PHI 1625 permille, micro<->macro correspondence holds
+[E0101] [BOOT] Radial map — prime x Fibonacci field, golden-angle packing...
+[E0102]   [DRIVER ONLINE] radial field renders — primes on the spiral arms, Fibonacci on the golden ray, fractal sublattices; registered as a MegaROM
+[E0103] [BOOT] Dimensional Desktop — 13 spaces from the ladder, 13d = the MegaROM...
+[E....]   [DRIVER ONLINE] 13 spaces bound 0d..12d (6 primary/Fibonacci); desktop = 13d universal container, registered as THE MegaROM
+[E0104] [BOOT] ROMs on the ladder — 2d identity unflattened to 3d VOLUME (fill along the imaginary axis, phi-step shells)...
+[E....]   [DRIVER ONLINE] 7 ROM consoles at 2d; engines climb 3d->4d; 2D->3D adds VOLUME (filled solid, phi-step nested shells; identity preserved, Fibonacci/phi recovery)
+[E0105] [BOOT] Dimensional Fold — compression + encryption + identity from the same fold mechanic...
+[E....]   [DRIVER ONLINE] dimensional elevator (all filetypes, lossless + integrity-verified, never bloats; frequency bands + multi-channel manifest); self-similar data -> 70 permille; fold/compress/seal round-trip; prime=SHA256d lock, Fibonacci=recovery, phi=alignment
+[E0106] [BOOT] Structural congruence — geometry/complex-plane/set-theory gate...
+[E0107]   [DRIVER ONLINE] CONGRUENT — Fibonacci sets, complex plane, perpendicular axes, >3-valued logic all sound
+[E0108] [BOOT] Game universes -> Chiglet multiverse (MegaROM mechanic dedup)...
+[E....]   [DRIVER ONLINE] multiverse holds 3 distinct game universes; a duplicate collapsed (3 with the clone) — mechanic dedup online
+[E0109] [BOOT] Holographic render primitive (chromostereopsis + anti-colour)...
+[E0110]   [DRIVER ONLINE] holo shader sound — near=warm, far=cool, grey-stable, anti-colour clamped
+[E0111] [BOOT] Console model — MegaROMs as the bootable UI...
+[E....]   [DRIVER ONLINE] console cartridge registry — desktop is MegaROM #4; boot-selector verified
+[E0112] [BOOT] MegaROM synthesis — corpus mechanics + stories, beyond-PS6 render...
+[E....]   [DRIVER ONLINE] synthesis: 3 distinct mechanics + 1 story contributor(s), presented beyond-PS6
+[E0113] [BOOT] Story unification — diverse story consoles into one universe...
+[E....]   [DRIVER ONLINE] story logic: 6 consoles -> 5 distinct archetypes, coherence 63 permille — diversity held AND unified
+[E0114] [BOOT] Netplay bridge — modern networked play, done P2P...
+[E....]   [DRIVER ONLINE] P2P session: 2 peers joined the mesh, user<->Chiglet + cross-peer link hold (rel 189 permille) — distributed multiverse
+[E0115] [BOOT] Console trajectory — distinct innovation on one lineage...
+[E....]   [DRIVER ONLINE] trajectory: 7 distinct innovations, one continuous lineage (Nintendo-line continuity 120 permille)
+[E0116] [BOOT] Break potency — over-potence detector + sandbox guardrail...
+[E....]   [DRIVER ONLINE] break detector: safe/synergy/feedback separated (synergy build 1899 permille of base -> broken, contain it)
+[E0117] [BOOT] Mechanic-mod admission — admit bounded, contain over-potent...
+[E....]   [DRIVER ONLINE] mod gate: modest mod admitted, god-stack CONTAINED (capped at 2699 permille of raw) — cannot take over
+[E0118] [BOOT] Lattice spaces: wiring the 13 to their real subsystems...
+[E0119]   [DRIVER ONLINE] spaces functional: reputation+concord+logistics+wyrmgate respond to clicks
+[E0120] [BOOT] Prism Break holographic touchscreen shader...
+[E0121]   [INITIALIZED] 6-layer compositor (prism + scanlines + ripples + aberration)
+[E0122] [BOOT] ramfb display scanout (fw_cfg)...
+
+[FAULT] Synchronous exception -- Data Abort (same EL)
+  ESR_EL1=0x0000000096000041  EC=0x0000000000000025  ISS=0x0000000000000041
+  FAR_EL1=0x000000013C7A0000
+  ELR_EL1=0x0000000040083238  SPSR_EL1=0x00000000200003C5
+  SP_EL0=0x000000013FD760D0  TTBR0_EL1=0x0000000040226000  TTBR1_EL1=0x0000000040226000
+  TCR_EL1=0x0000000000000018  MAIR_EL1=0x00000000000000FF  SCTLR_EL1=0x0000000030D00989
+  x0=0x0000000000130E0E x1=0x0000000000000320 x2=0x000000013C7A0000 x3=0x0000000040956000
+  x4=0x0000000000000000 x5=0x000000013C7A0C80 x6=0x0000000000000320 x7=0x0000000000000320
+  x8=0x0000000000000001 x9=0x00000000471F8000 x10=0x0000000000000002 x11=0x0000000000000000
+  x12=0x0000000000000000 x13=0x0000000000000258 x14=0x0000000000000258 x15=0x0000000000000C80
+  x16=0x0000000000000C80 x17=0x00000000FFFFFFF9 x18=0x0000000046225008 x19=0x000000004021E208
+  x20=0x000000004021E098 x21=0x000000004021E378 x22=0x0000000040956770 x23=0x00000000400FCF20
+  x24=0x0000000000000000 x25=0x0000000040956000 x26=0x0000000040A02CB8 x27=0x000000004029B2C0
+  x28=0x0000000040956000 x29=0x000000004021DF70 x30=0x00000000400860F8
+[CRASH LOG] no disk to keep it on: the lines above are the record
+[FAULT] Halting.

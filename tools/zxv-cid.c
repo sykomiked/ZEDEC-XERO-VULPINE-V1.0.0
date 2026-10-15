@@ -13,7 +13,12 @@
  *   CIDv1, multibase base32 lower ("b..."). A file of one chunk is its raw
  *   leaf ("bafkrei..."); a longer one is a dag-pb root ("bafybei...").
  * tools/zxv-verify.sh compiles and calls this to check that each file's name
- * is its CID. Self-contained: its own SHA-256, no libraries, C99. */
+ * is its CID. Self-contained: its own SHA-256, no libraries, C99.
+ *
+ *   ./zxv-cid --links BLOCK    BLOCK is one dag-pb directory block (a bucket's
+ *                              <out>.root.pb): print its own CID, then one
+ *                              "<cid>  <name>" line per link. zxv-verify.sh
+ *                              uses it to check the tree lines. */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -216,9 +221,85 @@ static int cid_file(FILE *f, char out[64])
     return 0;
 }
 
+static void text_cid(const uint8_t *cb, size_t n, char *out)
+{
+    uint32_t acc = 0, bits = 0, o = 0;
+    out[o++] = 'b';
+    for (size_t i = 0; i < n; i++) {
+        acc = (acc << 8) | cb[i];
+        bits += 8;
+        while (bits >= 5) {
+            out[o++] = B32[(acc >> (bits - 5)) & 31u];
+            bits -= 5;
+        }
+    }
+    if (bits) out[o++] = B32[(acc << (5 - bits)) & 31u];
+    out[o] = 0;
+}
+
+static int uv(const uint8_t *b, size_t n, size_t *i, uint64_t *v)
+{
+    *v = 0;
+    for (uint32_t sh = 0; *i < n && sh < 64; sh += 7) {
+        uint8_t c = b[(*i)++];
+        *v |= (uint64_t) (c & 0x7Fu) << sh;
+        if (!(c & 0x80u)) return 0;
+    }
+    return -1;
+}
+
+/* --links BLOCK: the block's CID (dag-pb), then each link's CID and name */
+static int links(const char *path)
+{
+    static uint8_t b[1u << 20];
+    FILE *f = fopen(path, "rb");
+    if (!f) return 1;
+    size_t n = fread(b, 1, sizeof b, f);
+    fclose(f);
+    if (n == sizeof b) return 1;
+    uint8_t cid[36];
+    char t[80];
+    cid_of(0x70, b, n, cid);
+    text_cid(cid, 36, t);
+    printf("%s  .\n", t);
+    size_t i = 0;
+    while (i < n) {
+        uint64_t key, len;
+        if (uv(b, n, &i, &key) || (key & 7u) != 2 || uv(b, n, &i, &len) || len > n - i) return 1;
+        if ((key >> 3) == 2) { /* PBLink: 1 Hash, 2 Name, 3 Tsize */
+            const uint8_t *l = b + i, *h = 0, *nm = 0;
+            size_t j = 0, hn = 0, nn = 0;
+            while (j < len) {
+                uint64_t k2, v;
+                if (uv(l, len, &j, &k2)) return 1;
+                if ((k2 & 7u) == 0) {
+                    if (uv(l, len, &j, &v)) return 1;
+                    continue;
+                }
+                if ((k2 & 7u) != 2 || uv(l, len, &j, &v) || v > len - j) return 1;
+                if ((k2 >> 3) == 1) h = l + j, hn = v;
+                if ((k2 >> 3) == 2) nm = l + j, nn = v;
+                j += v;
+            }
+            if (!h || hn > 40) return 1;
+            text_cid(h, hn, t);
+            printf("%s  %.*s\n", t, (int) nn, nm ? (const char *) nm : "");
+        }
+        i += len;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     int rc = 0;
+    if (argc == 3 && !strcmp(argv[1], "--links")) {
+        if (links(argv[2])) {
+            fprintf(stderr, "zxv-cid: %s: not a dag-pb block\n", argv[2]);
+            return 1;
+        }
+        return 0;
+    }
     if (argc < 2) {
         fprintf(stderr, "usage: zxv-cid FILE...\n");
         return 2;

@@ -1,0 +1,149 @@
+Could not access KVM kernel module: No such file or directory
+qemu-system-x86_64: -accel kvm: failed to initialize kvm: No such file or directory
+qemu-system-x86_64: falling back to tcg
+
+ZEDEC pqOS — M5 Axiomatic Kernel (VOVINA SHAKINA) [x86-64]
+Edition: ZEDEC XERO VULPINE (ZXV)
+==================================================
+
+[E0001] [BOOT] Long mode entered; x86-64 kernel main
+[E0002] [BOOT] Initializing COM1 serial console
+[E0003]   [DRIVER ONLINE] 16550A COM1 at 0x3F8
+[E0004] [HANDOFF] none (direct kernel boot): no firmware memory map
+[BOOTMEM] 1 usable ranges past the kernel from the multiboot map, 1015 MiB
+[E0005] [BOOT] Ring-3 user-mode bring-up (GDT/TSS/IDT + int 0x80 syscall)...
+  [OK] GDT+TSS (ring-3 segments), IDT (int 0x80 syscall gate), PIC masked
+[E0006]   [.] entering ring 3...
+U[E0007]   [DRIVER ONLINE] ring-3 ran on the SHARED ABI: WRITE(2), ABI_VERSION(12), EXIT(1)
+[E0008]   [VERIFIED] syscall args: all 3 registers (rdi/rsi/rdx) reached the kernel
+[E0009]   [ABI] x86_64 provides 06 of 12 ABI calls (rest ENOSYS, not stubbed)
+[E0010] [BOOT] Interrupts: IDT, local APIC, legacy PIC and IOAPIC masked...
+  [IRQ] IDT 256 vectors (IST stacks for IRQs and #DF/NMI/#MC), 8259 PIC remapped+masked
+  [IRQ] LAPIC xAPIC at 0x00000000FEE00000, id 0, base from IA32_APIC_BASE (no MADT)
+  [IRQ] IOAPIC not described: left as firmware set it
+  [TIMER] LAPIC timer 82258 kHz (bus/16, PIT-calibrated), periodic 100 Hz, count 822584, TSC 3664 MHz; 5 ticks taken
+[E0011] [BOOT] Ring-3 processes: preemptive scheduler self-test...
+  [PROC] frame pool 512 frames at 0x00000000008F1000 (firmware-usable memory past the kernel), NX on
+  [PROC] 8 ring-3 processes from one static ELF64 (5144 bytes), own PML4 each; user output follows
+  [PROC] pid 5 'fault-pf' ended: #PF page fault in ring 3 at rip 0x00007F80000100C2 addr 0x0000000000100000 err 0x0000000000000007; only this process ends
+  [PROC] pid 6 'fault-gp' ended: #GP general protection in ring 3 at rip 0x00007F80000100A2 err 0x0000000000000000; only this process ends
+  [PROC] pid 7 'fault-ud' ended: #UD invalid opcode in ring 3 at rip 0x00007F800001008D err 0x0000000000000000; only this process ends
+  [PROC] pid 8 'fault-de' ended: #DE divide error in ring 3 at rip 0x00007F8000010077 err 0x0000000000000000; only this process ends
+yzyzyzyssyyyy
+  [PROC] pid 1 yield: exited 0, 19 syscalls, preempted 0x (as expected)
+  [PROC] pid 2 spin-a: exited 0, 4 syscalls, preempted 4x (as expected)
+  [PROC] pid 3 spin-b: exited 0, 4 syscalls, preempted 4x (as expected)
+  [PROC] pid 4 sleep: exited 0, 9 syscalls, preempted 0x (as expected)
+  [PROC] pid 5 fault-pf: ended by vector 14, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 6 fault-gp: ended by vector 13, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 7 fault-ud: ended by vector 6, 2 syscalls, preempted 0x (as expected)
+  [PROC] pid 8 fault-de: ended by vector 0, 2 syscalls, preempted 0x (as expected)
+  [PROC] 8 timer preemptions, 23 context switches, 44 syscalls, 4 user faults contained, 17 ticks; frames 512/512 free after
+[SCHED_OK] x86_64 preemptive scheduler: ring-3 processes, FXSAVE, per-process page tables, user faults end only their process
+[E0012] [BOOT] Cellular Multikernel (CELL-001): fabric discovery and admission...
+[E0013]   [INITIALIZED] 3 x86-64 cells active (coord, k1k6, io) with phase routes
+[E0014]   [FAULT CONTAINED] x86_64-io fail-stopped; routes revoked; fabric survives
+[E0015]   [RECOVERED] x86_64-io re-admitted with incarnation=2 and new routes
+[E0016] [BOOT] M5 core: phase/rmag/lpres/iphase/choice/oseq...
+[E0017]   [OK] M5 core online
+[E0018] [BOOT] Economy core: ledger/instruments/rails/bridge/identity/quantum...
+[E0019]   [OK] nine-capital ledger + instruments + 3 rails + bridge + identity + vino/vena/holo
+[BOOT] Declaration graph: modules declare provides/requires...
+  declarations collected=39 registered=39 refused=0
+  coupling: 36 declared edge(s) over 39 module(s); carrier up
+         module phases (DERIVED from the DRC layer, none typed): L0=17 L1=4 L2=2 L3=3 L4=3 L5=7 L6=3  -- 7 of 13 phases populated
+         dphase  interf permille   edges
+              0            1000      18
+              1            942      2
+              2            784      4
+              3            560      4
+              4            322      2
+              5            125      3
+              6            14      3
+         weakest: 'pirate_apps' requires 'ipfs_ready' <- 'ipfs'  L0->L6  P=14/1000
+         weakest: 'vino' requires 'rmag_ready' <- 'rmag'  L0->L6  P=14/1000
+         weakest: 'vino_stores' requires 'edp_risk_ready' <- 'edp_risk'  L0->L6  P=14/1000
+         threshold sweep -- NOT APPLIED, this is only what each cut would cost:
+           cut at P>14 would drop 3 of 36 edge(s)
+           cut at P>125 would drop 6 of 36 edge(s)
+           cut at P>322 would drop 8 of 36 edge(s)
+           cut at P>560 would drop 12 of 36 edge(s)
+           cut at P>784 would drop 16 of 36 edge(s)
+           cut at P>942 would drop 18 of 36 edge(s)
+           cut at P>1000 would drop 36 of 36 edge(s)
+  [OK] GATE modbind_verify_graph: acyclic, fully provided, contracts agree
+         S+ ready=39  S0 held=0  of 39 declared
+         bring-up: ran=13 failed=0 held=0 declared-only=26
+  [OK] every bring-up that RAN succeeded or held on absent hardware (declared-only modules ran nothing)
+         S- carrier test: line down -> S+ ready=16 (the 16 modules that require nothing); line up -> S+ ready=39
+  [OK] carrier is load-bearing: no carrier, no circuit, and raising it restores the graph exactly
+         S- withdraw test: capability 'sha256_ready' chosen from the live graph -- 7 module(s) require it
+         coupling: phase provided=0 required=2  power factor=784/1000  real power=784/1000 (carrier up)
+         S- withdrew: S+ ready 39 -> 28, un-readied=11
+         S- held: 'alloc' is now S0 -- WITHDRAWN: its provider is in S-
+         S- restored: S+ ready 28 -> 39, regained=11
+  [OK] S-: withdrawal un-readied every requirer and restore returned all of them
+[FEAT] Platform layer (phase-tick ordered)...
+  [OK] deploy: class=embedded cells=2 concurrency=1
+  [OK] theme: ACCENT=0xFF6600 (customisable)
+  [OK] icon: 'terminal' ops=4 (procedural)
+  [OK] font: registered face #0, Latin resolves
+  [OK] bridge: web2/web3/web4 classify OK
+  [OK] update: decentralised, opt-in (0 pending by default)
+  [OK] mage: hat framework up (self-test on own assets allowed)
+  [OK] reality: sigil circuit ticked (reactions=2)
+[FEAT] platform layer up: 8/8 subsystems self-checked
+[FEAT] TOL VOVINA UPAAH LOT — the geometry engine orients the graphics...
+  [OK] tvl_geom: icosahedral frame exact — 12/20/30 dirs, 120 rotations, Z[phi] projection
+  [OK] tvl_raster: 7/7 — exact int64 coverage, Q16.16 planes, Z-order texels via zo_encode2
+  [OK] tvl_stereo: S+ protrudes / S0 zero-parallax / S- recedes; split+merge lossless
+  [OK] tvl_rom: TVUL container validates; RAM requirement derived from content (no ram_bytes field), malformed images refused
+  [OK] megarom: 'TOL VOVINA UPAAH LOT' registered as MR_KIND_GAME cartridge, slot 1 (container embedded; identical bytes staged on ESP as MEGAROM.TVL)
+[FEAT] TOL VOVINA UPAAH LOT: 4/4 modules self-checked
+[FEAT] Economy foundation (One Policy + pillars)...
+  [OK] onepolicy: Symbiotic Maxim active (fair term admitted, usury voided)
+  [OK] zcapital: nine capital forms; Crown capital inalienable (no price on a language)
+  [OK] crown: the Sicilian Crown issued a sovereign credential (issues no money)
+  [OK] ministry: the Illumaheart treasury measures value (tribute 11%, issues no papers)
+  [OK] ipfs: content-addressed spine up (your hash is your key)
+[FEAT] economy foundation up: 5/5 self-checked
+[E0020] [BOOT] Hardware: PCI scan and standard class drivers...
+  [DRIVER ONLINE] vscsi 00:03.0 1af4:1004 virtio SCSI disk 1067008 x 512 B at target 0 as vsd0
+  [DRIVER ONLINE] vnet 00:04.0 1af4:1000 virtio NIC 52:54:00:12:34:56 link up as eth0
+  [OK] class drivers: 7 PCI functions, 2 bound, 0 failed, 0 held, 5 without a class driver
+  [SELFTEST OK] vsd0 read LBA 1: GPT header 'EFI PART'; 1067008 blocks of 512
+  [SELFTEST OK] eth0 DHCP offer received; mac 52:54:00:12:34:56; offered 10.0.2.15 by 10.0.2.2
+  [STORAGE OK] vsd0 ESP (GPT partition 1, LBA 2048..1064959) FAT32 mounted; read /MEGAROM.TVL 517 bytes, crc32 5a95768d
+  [MODELS_INDEXED] 1 listed (1 on the boot partition, 0 on 0 swarm discs); each is verified when first used
+  [LAYERS] none on the core disc (/ZXV/LAYER0.JSN to LAYER2.JSN)
+  [OK] hardware self-tests passed: 2 (TSC 3660 ticks/us)
+[AI_OK] swarm+tensor selfcheck 0x90553e54
+[E0021] 
+[BOOT] ZEDEC pqOS [x86-64] — All systems online.
+[E0022] [BOOT_OK] Phase E0082 complete; kernel_main reached; Stage-1 kernel loop ready
+
+[E0023] [BOOT] Entering event cycle...
+
+
+[BOOT] Evidence measurement: 0000000000000024000000000000008000000000000000BA000000000000001300000000000000003000000000000007E00000000000000FF000000000000001D00000000000000FE00000000000000A100000000000000EF000000000000005700000000000000D30000000000000046000000000000009E000000000000001800000000000000BA000000000000007B00000000000000AA000000000000007200000000000000E0000000000000002700000000000000BD000000000000008500000000000000D800000000000000F2000000000000008900000000000000DE000000000000001800000000000000B0000000000000006C00000000000000AD
+[BOOT] Evidence count: 23 messages recorded
+[BOOT_OK] heartbeat: ticks=1174
+[BOOT_OK] heartbeat: ticks=2179
+[BOOT_OK] heartbeat: ticks=3184
+[BOOT_OK] heartbeat: ticks=4210
+[BOOT_OK] heartbeat: ticks=5215
+[BOOT_OK] heartbeat: ticks=6217
+[BOOT_OK] heartbeat: ticks=7233
+[BOOT_OK] heartbeat: ticks=8238
+  [MODEL_OK] qwen2.5-0.5b-instruct-q4_k_m.gguf 491400032 bytes, sha256 matches
+  [MODELS_OK] 1 verified
+[BOOT_OK] heartbeat: ticks=9238
+[BOOT_OK] heartbeat: ticks=10238
+[BOOT_OK] heartbeat: ticks=11238
+[BOOT_OK] heartbeat: ticks=12238
+[BOOT_OK] heartbeat: ticks=13238
+[BOOT_OK] heartbeat: ticks=14238
+[BOOT_OK] heartbeat: ticks=15238
+[BOOT_OK] heartbeat: ticks=16238
+[BOOT_OK] heartbeat: ticks=17238
+qemu-system-x86_64: terminating on signal 15 from pid 19986 (timeout)
