@@ -243,6 +243,14 @@ static int read_small(hw_models_vol_t *v, const char *name, char *buf, uint32_t 
 
 /* Copy [f, f+len) into out (cap bytes with NUL) if every byte is in the
  * set: base32 lower case for a CIDv1 ("b..."), base36 for an IPNS name. */
+/* Is f[0..len) exactly the string w? */
+static int same(const char *f, uint32_t len, const char *w)
+{
+    uint32_t i = 0;
+    while (i < len && w[i] && f[i] == w[i]) i++;
+    return i == len && !w[i];
+}
+
 static int token(const char *f, uint32_t len, char *out, uint32_t cap, char lead, int digits)
 {
     if (len < 21 || len >= cap || f[0] != lead) return 0;
@@ -307,8 +315,16 @@ static const char *parse_upstream(hw_models_t *s, const char *t, uint32_t n, uin
             if (!gateway_url(g, glen, s->gateway[s->ngateway]))
                 return "gateway is not an http:// or https:// URL";
             s->ngateway++;
+        } else if (len == 4 && f[0] == 's' && f[1] == 'e' && f[2] == 'a' && f[3] == 'l') {
+            static const char *const modes[] = {"PROMPT_USER", "POWERDOWN_NIC", "LOCAL_MESH_ONLY"};
+            if (s->seal_set) return "seal listed twice";
+            uint32_t m = 0;
+            while (m < 3 && !same(g, glen, modes[m])) m++;
+            if (m == 3) return "seal is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER";
+            s->seal = (uint8_t) m;
+            s->seal_set = 1;
         } else {
-            return "unknown key (cid|ipns|gateway)";
+            return "unknown key (cid|ipns|gateway|seal)";
         }
     }
     *line = 0;

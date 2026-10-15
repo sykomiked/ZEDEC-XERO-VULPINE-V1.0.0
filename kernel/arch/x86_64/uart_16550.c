@@ -68,3 +68,9 @@ void uart_put_dec(uint64_t val) {
     }
     while (i > 0) uart_putc(tmp[--i]);
 }
+
+int uart_try_getc(void)
+{
+    if (!(inb(COM1 + 5) & 0x01)) return -1; /* LSR.DR: no byte received */
+    return inb(COM1);
+}

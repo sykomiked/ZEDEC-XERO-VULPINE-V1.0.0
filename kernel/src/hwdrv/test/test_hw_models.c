@@ -695,6 +695,18 @@ static void test_upstream(void)
           strcmp(s.gateway[1], "https://trustless-gateway.link") == 0);
     CHECK(s.want[0].attached && s.want[1].attached);
     CHECK(fake_log_has(&fp, "[UPSTREAM] ipns " IPNS ", fallback bucket " CID));
+    CHECK(s.seal == HW_SEAL_PROMPT_USER && !s.seal_set);
+    static const struct {
+        const char *line;
+        uint8_t mode;
+    } seals[] = {{"seal POWERDOWN_NIC\n", HW_SEAL_POWERDOWN_NIC},
+                 {"seal LOCAL_MESH_ONLY\n", HW_SEAL_LOCAL_MESH_ONLY},
+                 {"seal PROMPT_USER # ask\n", HW_SEAL_PROMPT_USER}};
+    for (uint32_t i = 0; i < 3; i++) {
+        char t[256];
+        snprintf(t, sizeof t, "cid %s\n%s", CID, seals[i].line);
+        CHECK(index_up(t, LST, 1) == 3 && s.seal_set && s.seal == seals[i].mode);
+    }
     CHECK(fake_log_has(&fp, "[SWARM_COMPLETE] all 2 swarm discs the core expects are attached"));
     CHECK(!fake_log_has(&fp, "[SWARM_MISSING]"));
     CHECK(index_up(0, "2 REASON zxv-swarm-disc2-reason.img\n", 0) == 2);
@@ -722,9 +734,16 @@ static void test_upstream(void)
         {"cid " CID "\nipns " IPNS "\nipns " IPNS "\n", "line 3: ipns listed twice"},
         {"cid " CID "\nipns k51_" IPNS "\n", "line 2: ipns is not a base36 name"},
         {"cid " CID "\nipns " CID "\n", "line 2: ipns is not a base36 name"},
-        {"url https://example\n", "line 1: unknown key (cid|ipns|gateway)"},
-        {"cids " CID "\n", "line 1: unknown key (cid|ipns|gateway)"},
+        {"url https://example\n", "line 1: unknown key (cid|ipns|gateway|seal)"},
+        {"cids " CID "\n", "line 1: unknown key (cid|ipns|gateway|seal)"},
         {"ipns " IPNS "\n", "sata0 /ZXV/UPSTREAM.CID: no cid line"},
+        {"cid " CID "\nseal POWERDOWN\n",
+         "line 2: seal is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER"},
+        {"cid " CID "\nseal powerdown_nic\n",
+         "line 2: seal is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER"},
+        {"cid " CID "\nseal POWERDOWN_NICE\n",
+         "line 2: seal is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER"},
+        {"cid " CID "\nseal PROMPT_USER\nseal POWERDOWN_NIC\n", "line 3: seal listed twice"},
         {"cid " CID "\ngateway ftp://10.0.2.2\n", "line 2: gateway is not an http:// or https://"},
         {"cid " CID "\ngateway http://\n", "line 2: gateway is not an http:// or https://"},
         {"cid " CID "\ngateway https\n", "line 2: gateway is not an http:// or https://"},

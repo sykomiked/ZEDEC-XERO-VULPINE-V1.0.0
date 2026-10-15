@@ -339,17 +339,20 @@ printf '%s\t%s\n' "$WORK/README.TXT" "ZXV/README.TXT" >> "$LIST"
 # Where the rest of the release is: the upstream bucket (UPSTREAM.CID, the
 # design's /etc/zxv_upstream.cid) and the swarm discs this core expects
 # (SWARM.LST: "<disc> <GROUP> <image>"), so the kernel can name the missing
-# ones and zxvd can fetch them.
+# ones and fetch them over the network (kernel/src/swarmnet), then seal the
+# network as the "seal" line says.
 while read -r key val rest; do
   [ -z "${rest:-}" ] || die "$UPSTREAM: '$key $val $rest' has extra fields"
   case "$key" in
     cid)  [[ "$val" =~ ^b[a-z2-7]{20,120}$ ]] || die "$UPSTREAM: '$val' is not a base32 CIDv1" ;;
     ipns) [[ "$val" =~ ^k[0-9a-z]{20,120}$ ]] || die "$UPSTREAM: '$val' is not an IPNS name (k51...)" ;;
     gateway) [[ "$val" =~ ^https?://[!-~]+$ && ${#val} -lt 80 ]] || die "$UPSTREAM: '$val' is not an http:// or https:// URL under 80 characters" ;;
-    *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway)" ;;
+    seal) [[ "$val" =~ ^(POWERDOWN_NIC|LOCAL_MESH_ONLY|PROMPT_USER)$ ]] || die "$UPSTREAM: seal '$val' is not POWERDOWN_NIC, LOCAL_MESH_ONLY or PROMPT_USER" ;;
+    *) die "$UPSTREAM: unknown key '$key' (cid|ipns|gateway|seal)" ;;
   esac
 done < <(lines "$UPSTREAM")
 lines "$UPSTREAM" | grep -q '^cid ' || die "$UPSTREAM has no cid line"
+[ "$(lines "$UPSTREAM" | grep -c '^seal ')" -le 1 ] || die "$UPSTREAM has more than one seal line"
 cp "$UPSTREAM" "$WORK/UPSTREAM.CID"
 printf '%s\t%s\n' "$WORK/UPSTREAM.CID" "ZXV/UPSTREAM.CID" >> "$LIST"
 { echo "# disc GROUP image -- swarm discs this core disc expects (golden.swarm)"

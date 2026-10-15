@@ -26,6 +26,11 @@
 # booted with 4G and 8G). UEFI_EXTRA="<img> ..." attaches more discs the
 # same way after the boot disc, read-only snapshots too: the swarm discs that
 # go with a golden core disc.
+#
+# UEFI_NET sets the network (default none, -net none): "user" is an e1000 on
+# QEMU's user network, with DHCP and the host reachable as 10.0.2.2; "silent"
+# is an e1000 whose link is up but whose wire leads nowhere (a UDP socket
+# nobody answers), so DHCP gets no reply.
 set -u
 
 ARCH=${1:?usage: uefi_boot_check.sh <arm64|x86_64> [image] [seconds] [marker...]}
@@ -86,6 +91,14 @@ for x in ${UEFI_EXTRA:-}; do
   attach "disc$i" "$x" "$i"; i=$((i + 1))
 done
 
+case "${UEFI_NET:-none}" in
+  none)   NET=(-net none) ;;
+  user)   NET=(-netdev user,id=n0 -device e1000,netdev=n0) ;;
+  silent) p=$(( 20000 + RANDOM % 20000 ))
+          NET=(-netdev "socket,id=n0,udp=127.0.0.1:$p,localaddr=127.0.0.1:$((p + 1))" -device e1000,netdev=n0) ;;
+  *) echo "::error::UEFI_NET=${UEFI_NET} (none|user|silent)"; exit 2 ;;
+esac
+
 MON=(-monitor none); SHOT_PID=
 if [ -n "${UEFI_SCREENSHOT:-}" ]; then
   SOCK="$(mktemp -u)"; MON=(-monitor "unix:$SOCK,server,nowait")
@@ -97,12 +110,12 @@ fi
 rc=0
 timeout "$SECS" "${QEMU[@]}" "${FWARGS[@]}" \
   "${DISK[@]}" \
-  -net none -display none -serial stdio "${MON[@]}" \
+  "${NET[@]}" -display none -serial stdio "${MON[@]}" \
   < /dev/null > "$LOG" 2>&1 || rc=$?
 [ -n "$SHOT_PID" ] && { wait "$SHOT_PID" || true; rm -f "$SOCK"; }
 [ -n "${PF:-}" ] && rm -f "$PF"
 cat "$LOG"
-echo "[uefi-boot] $ARCH: QEMU exited $rc after at most ${SECS}s (firmware $FW, disc on ${UEFI_DISK:-virtio}, ${UEFI_MEM:-512M} RAM)"
+echo "[uefi-boot] $ARCH: QEMU exited $rc after at most ${SECS}s (firmware $FW, disc on ${UEFI_DISK:-virtio}, ${UEFI_MEM:-512M} RAM, network ${UEFI_NET:-none})"
 
 fail=0
 if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then

@@ -5,6 +5,7 @@
 
     python3 build_system/mk_bucket.py [--discs dist/discs] [--out build/bucket]
                                       [--cartridge FILE ...] [--blocks DIR]
+                                      [--architecture docs/ARCHITECTURE.md]
     python3 build_system/mk_bucket.py --self-test
 
 Stages the discs mk_golden_disc.sh built into a directory that `ipfs add -r
@@ -15,7 +16,12 @@ to any IPFS node and publishes nothing; uploading is the owner's call.
 
 The bucket:
     manifest.json                 what is in it (below)
+    manifest.txt                  the same, one line per stage, for the kernel
     00_base/zxv-<arch>-disc1-core.img        one per architecture built
+    00_base/ARCHITECTURE.md       with --architecture: the distribution section
+                                  of that file (between the zxv:distribution
+                                  start and end markers), so the bucket says
+                                  what it is
     01_swarm_<group>/zxv-swarm-disc2-<group>.img
     02_swarm_<group>/...          one directory per swarm disc, disc order
     NN_cartridges/<file>          after the swarm discs, when --cartridge given
@@ -26,8 +32,10 @@ an architecture; the swarm discs are the same for all of them.
 manifest.json (keys sorted, one stage per disc or file):
     {"format": "zxv-bucket 1",
      "max_disc_bytes": 1800000000,
+     "post_install_action": "SEAL_AIRGAP",
+     "allowed_modes": ["POWERDOWN_NIC", "LOCAL_MESH_ONLY", "PROMPT_USER"],
      "upstream": {"cid": "<bafy...>", "ipns": "<k51...>" | null,
-                  "gateways": ["http://...", ...]},
+                  "gateways": ["http://...", ...], "seal": "<mode>"},
      "stages": [{"dir": "00_base", "file": "zxv-x86_64-disc1-core.img",
                  "kind": "core", "arch": "x86_64", "disc": 1,
                  "bytes": N, "sha256": "<hex>", "cid": "<bafy...>"},
@@ -35,6 +43,12 @@ manifest.json (keys sorted, one stage per disc or file):
                  "arch": "all", "disc": 2, "group": "REASON", ...},
                 {"dir": "03_cartridges", ..., "kind": "cartridge",
                  "arch": "all", ...}]}
+manifest.txt carries the same stages for the bare-metal fetcher
+(kernel/src/swarmnet), which has no JSON parser:
+    <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<file>
+After the kernel commits swarm discs it fetched, it seals the network
+(post_install_action): "seal" is the mode the core discs carry (their
+UPSTREAM.CID "seal" line, PROMPT_USER when absent), one of allowed_modes.
 "upstream" is build_system/zxv_upstream.cid, the bucket the core discs name.
 It is not this bucket's root: a core disc inside the bucket cannot carry the
 CID of the bucket that holds it. Updates reach users through the IPNS name.
@@ -60,6 +74,7 @@ MAX_DISC = 1800000000
 ARCHS = ("x86_64", "arm64", "riscv64")
 CID_RE = re.compile(r"b[a-z2-7]{20,120}")
 IPNS_RE = re.compile(r"k[0-9a-z]{20,120}")
+SEAL_MODES = ("POWERDOWN_NIC", "LOCAL_MESH_ONLY", "PROMPT_USER")
 GW_RE = re.compile(r"https?://[!-~]+")
 
 
@@ -100,7 +115,7 @@ def tree_cid(path, sink=None):
 
 
 def read_upstream(path):
-    up = {"cid": None, "ipns": None, "gateways": []}
+    up = {"cid": None, "ipns": None, "gateways": [], "seal": None}
     for n, raw in enumerate(open(path, encoding="ascii"), 1):
         f = raw.split("#", 1)[0].split()
         if not f:
@@ -110,6 +125,11 @@ def read_upstream(path):
                 die("%s line %d: '%s' is not an http:// or https:// URL" % (path, n, f[1]))
             up["gateways"].append(f[1])
             continue
+        if len(f) == 2 and f[0] == "seal":
+            if up["seal"] or f[1] not in SEAL_MODES:
+                die("%s line %d: one 'seal' line, one of %s" % (path, n, ", ".join(SEAL_MODES)))
+            up["seal"] = f[1]
+            continue
         if len(f) != 2 or f[0] not in ("cid", "ipns") or up[f[0]]:
             die("%s line %d: want one 'cid <bafy...>', at most one 'ipns <k51...>' and "
                 "'gateway <url>' lines" % (path, n))
@@ -118,6 +138,7 @@ def read_upstream(path):
         up[f[0]] = f[1]
     if not up["cid"]:
         die(path + ": no cid line")
+    up["seal"] = up["seal"] or "PROMPT_USER"
     return up
 
 
@@ -141,6 +162,23 @@ def find_discs(discs, prefix):
     return cores, swarm
 
 
+MARK_START = "<!-- zxv:distribution:start -->"
+MARK_END = "<!-- zxv:distribution:end -->"
+
+
+def distribution_section(path):
+    """The text between the distribution markers of path, which must hold
+    each marker exactly once and in order."""
+    t = open(path, encoding="utf-8").read()
+    if t.count(MARK_START) != 1 or t.count(MARK_END) != 1 or t.index(MARK_START) > t.index(MARK_END):
+        die("%s has no distribution section (one %s ... %s pair)" % (path, MARK_START, MARK_END))
+    body = t[t.index(MARK_START) + len(MARK_START):t.index(MARK_END)].strip("\n")
+    return ("<!-- Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC\n"
+            "     SPDX-License-Identifier: Apache-2.0 -->\n"
+            "<!-- From %s, the distribution section, by build_system/mk_bucket.py. -->\n%s\n"
+            % (os.path.basename(path), body))
+
+
 def place(src, dst):
     """Hard-link src into the bucket (the discs are large), else copy."""
     try:
@@ -152,6 +190,7 @@ def place(src, dst):
 def build(a):
     up = read_upstream(a.upstream)
     cores, swarm = find_discs(a.discs, a.prefix)
+    arch_doc = distribution_section(a.architecture) if a.architecture else None
     out = a.out
     if os.path.lexists(out):
         mf = os.path.join(out, "manifest.json")
@@ -182,6 +221,9 @@ def build(a):
 
     for arch, p in cores:
         add("00_base", p, kind="core", arch=arch, disc=1)
+    if arch_doc:
+        with open(os.path.join(out, "00_base", "ARCHITECTURE.md"), "w", encoding="utf-8") as f:
+            f.write(arch_doc)
     for i, (n, g, p) in enumerate(swarm, 1):
         add("%02d_swarm_%s" % (i, g), p, kind="swarm", arch="all", disc=n, group=g.upper())
     for p in a.cartridge or []:
@@ -189,10 +231,16 @@ def build(a):
             die("cartridge %s not found" % p)
         add("%02d_cartridges" % (len(swarm) + 1), p, kind="cartridge", arch="all")
 
-    man = {"format": FORMAT, "max_disc_bytes": a.max_bytes, "upstream": up, "stages": stages}
+    man = {"format": FORMAT, "max_disc_bytes": a.max_bytes, "upstream": up, "stages": stages,
+           "post_install_action": "SEAL_AIRGAP", "allowed_modes": list(SEAL_MODES)}
     with open(os.path.join(out, "manifest.json"), "w", encoding="ascii") as f:
         json.dump(man, f, indent=1, sort_keys=True)
         f.write("\n")
+    with open(os.path.join(out, "manifest.txt"), "w", encoding="ascii") as f:
+        for st in stages:
+            f.write("%s %s %s %s %d %s %s %s/%s\n" % (
+                st["kind"], st["arch"], st.get("disc", "-"), st.get("group", "-"), st["bytes"],
+                st["sha256"], st["cid"], st["dir"], st["file"]))
 
     sink = None
     if a.blocks:
@@ -249,6 +297,7 @@ def main():
     ap.add_argument("--upstream", default="build_system/zxv_upstream.cid")
     ap.add_argument("--cartridge", action="append")
     ap.add_argument("--blocks")
+    ap.add_argument("--architecture")
     ap.add_argument("--max-bytes", type=int, default=MAX_DISC)
     ap.add_argument("--self-test", action="store_true")
     a = ap.parse_args()

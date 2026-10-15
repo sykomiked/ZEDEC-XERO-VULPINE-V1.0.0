@@ -118,6 +118,7 @@ net                              transport
 plnp                             transport
 porter_house                     transport  # per-port admission; mesh_net and robin_debanks sit on it
 stream                           transport
+swarmnet                         transport  # bare-metal fetch of missing swarm discs: hwdrv NIC + net + ipfs_node
 swarm/swarm_hk                   transport  # the request notation agents put on the wire; depends on nothing
 bearer                           transport  # link table, framing and policy gates for BLE/LoRa/serial/modem/ham
 bearer/br_ham                    trust      # signed emergency messages verify ML-DSA (pqsec)

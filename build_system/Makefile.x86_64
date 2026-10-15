@@ -291,6 +291,14 @@ SRCS := \
     kernel/src/net/m5route.c \
     kernel/src/net/net.c \
     kernel/src/net/tcp.c \
+    kernel/src/swarmnet/sn_link.c \
+    kernel/src/swarmnet/sn_proto.c \
+    kernel/src/swarmnet/sn_http.c \
+    kernel/src/swarmnet/sn_fetch.c \
+    kernel/src/swarmnet/sn_seal.c \
+    kernel/src/ipfs_node/ipfsn_dir.c \
+    kernel/src/ipfs_node/ipfsn_multiformats.c \
+    kernel/src/ipfs_node/ipfsn_unixfs.c \
     kernel/src/nlb/nlb.c \
     kernel/src/onepolicy/onepolicy.c \
     kernel/src/orbital_compat/orbital_compat.c \

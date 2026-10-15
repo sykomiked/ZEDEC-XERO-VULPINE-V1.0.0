@@ -83,6 +83,12 @@ typedef struct hw_swarm_want {
 #define HW_GATEWAY_MAX 4
 #define HW_GATEWAY_LEN 80
 
+/* What the kernel does to the network once swarm discs fetched over it are
+ * committed (the post-hydration seal, kernel/src/swarmnet/swarmnet.h). */
+#define HW_SEAL_PROMPT_USER     0 /* ask on the console; no answer: power down */
+#define HW_SEAL_POWERDOWN_NIC   1 /* PHY off, PCI Bus Master and Memory Space off */
+#define HW_SEAL_LOCAL_MESH_ONLY 2 /* NIC kept; WAN routes, DHCP and the fetcher gone */
+
 typedef struct hw_models {
     hw_model_t m[HW_MODELS_MAX];
     uint32_t n;
@@ -95,6 +101,8 @@ typedef struct hw_models {
     char cid[121], ipns[121];                     /* /ZXV/UPSTREAM.CID, "" when absent */
     char gateway[HW_GATEWAY_MAX][HW_GATEWAY_LEN]; /* its "gateway <url>" lines */
     uint32_t ngateway;
+    uint8_t seal;     /* its "seal <mode>" line: HW_SEAL_*, PROMPT_USER when absent */
+    uint8_t seal_set; /* the line was present */
     hw_swarm_want_t want[HW_SWARM_WANT_MAX];
     uint32_t nwant;
 } hw_models_t;

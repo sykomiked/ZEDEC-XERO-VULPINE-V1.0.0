@@ -1,7 +1,7 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# zxv_upstream.cid — where a core disc looks for the rest of the release.
+# zxv_upstream.cid - where a core disc looks for the rest of the release.
 # mk_golden_disc.sh copies it onto every core disc as /ZXV/UPSTREAM.CID (the
 # /etc/zxv_upstream.cid of the design, until the core disc has a root
 # filesystem). Lines are "<key> <value>"; '#' starts a comment.

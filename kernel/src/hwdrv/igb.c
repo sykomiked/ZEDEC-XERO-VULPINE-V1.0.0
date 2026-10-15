@@ -437,6 +437,8 @@ hw_verdict_t igb_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *
     n->drv = g;
     n->send = igb_send;
     n->recv = igb_recv;
+    n->on_pci = 1;
+    n->bdf = d->bdf;
     hw_line_s(note, n->link_up ? " link up as " : " link down as ");
     hw_line_s(note, n->name);
     if (!phy_ok) hw_line_s(note, " (PHY did not answer)");

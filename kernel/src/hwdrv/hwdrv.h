@@ -157,7 +157,23 @@ typedef struct hw_nic {
     void *drv;
     int (*send)(struct hw_nic *n, const void *frame, uint32_t len); /* 0 = queued */
     int (*recv)(struct hw_nic *n, void *buf, uint32_t max);         /* bytes, 0 = none */
+    /* Optional: stop receive and transmit, drop the MAC's link and power the
+     * PHY down. 0 = PHY powered down, 1 = MAC stopped but the PHY left as it
+     * is (no safe PHY access on this part), -1 = the PHY did not answer. */
+    int (*phy_off)(struct hw_nic *n);
+    uint8_t on_pci; /* bdf is the device's PCI function */
+    uint32_t bdf;
 } hw_nic_t;
+
+/* Take a NIC off the bus for good (the post-hydration seal): phy_off when
+ * the driver has one, then the PCI command register's Bus Master and Memory
+ * Space bits cleared and read back, so the device can neither DMA nor be
+ * reached until the machine is reset. Returns HW_NIC_OFF_PCI, plus
+ * HW_NIC_OFF_PHY when the PHY was powered down; -1 when the NIC is not on PCI
+ * or the bits did not clear. */
+#define HW_NIC_OFF_PCI 1
+#define HW_NIC_OFF_PHY 2
+int hw_nic_power_off(const hw_plat_t *p, hw_nic_t *n);
 
 /* Key event: USB HID usage page 7 code, the ASCII it maps to (0 if none),
  * modifier byte (HID boot report bit layout), pressed 1 / released 0. */

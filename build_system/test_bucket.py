@@ -26,7 +26,7 @@ import threading
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-from mk_bucket import tree_cid  # noqa: E402
+from mk_bucket import read_upstream, tree_cid  # noqa: E402
 from zxv_publish_update import cid_str  # noqa: E402
 
 GET = os.path.join(ROOT, "tools", "zxv-get")
@@ -96,6 +96,20 @@ def load_blocks(d):
 
 
 def main():
+    shipped = read_upstream(os.path.join(ROOT, "build_system", "zxv_upstream.cid"))
+    check(shipped["cid"] and shipped["cid"].startswith("bafy") and shipped["seal"] == "PROMPT_USER",
+          "the shipped upstream file reads; seal defaults to PROMPT_USER")
+    with tempfile.TemporaryDirectory() as t:
+        u = os.path.join(t, "u")
+        open(u, "w").write("cid %s\nseal LOCAL_MESH_ONLY\n" % CID)
+        check(read_upstream(u)["seal"] == "LOCAL_MESH_ONLY", "a seal line is read")
+        for bad in ("seal NOPE", "seal PROMPT_USER\nseal POWERDOWN_NIC"):
+            open(u, "w").write("cid %s\n%s\n" % (CID, bad))
+            try:
+                read_upstream(u)
+                check(False, "refused: " + bad)
+            except SystemExit:
+                check(True, "refused: " + bad)
     rc, out = run(MK, "--self-test")
     check(rc == 0 and "ok" in out, "mk_bucket self-test against Kubo vectors: " + out)
 
@@ -136,14 +150,37 @@ def main():
             ("01_swarm_reason", "zxv-swarm-disc2-reason.img", "swarm", "all", 2, "REASON"),
             ("02_swarm_vision", "zxv-swarm-disc3-vision.img", "swarm", "all", 3, "VISION"),
             ("03_cartridges", "MEGAROM.TVL", "cartridge", "all", None, None)], "layout %r" % layout)
-        check(man["upstream"] == {"cid": CID, "ipns": None, "gateways": ["http://10.0.2.2:8080"]} and man["max_disc_bytes"] == 1800000000,
+        check(man["upstream"] == {"cid": CID, "ipns": None, "gateways": ["http://10.0.2.2:8080"],
+                                  "seal": "PROMPT_USER"} and man["max_disc_bytes"] == 1800000000 and
+              man["post_install_action"] == "SEAL_AIRGAP" and
+              man["allowed_modes"] == ["POWERDOWN_NIC", "LOCAL_MESH_ONLY", "PROMPT_USER"],
               "manifest upstream and cap")
         s0 = man["stages"][1]
         check(s0["bytes"] == len(files[s0["file"]]) and
               s0["sha256"] == hashlib.sha256(files[s0["file"]]).hexdigest(), "manifest size and sha256")
+        txt = open(os.path.join(bucket, "manifest.txt")).read().splitlines()
+        sw = man["stages"][2]
+        check(len(txt) == 5 and txt[2] == "swarm all 2 REASON %d %s %s 01_swarm_reason/"
+              "zxv-swarm-disc2-reason.img" % (sw["bytes"], sw["sha256"], sw["cid"]) and
+              txt[0].startswith("core x86_64 1 - ") and txt[4].startswith("cartridge all - - "),
+              "manifest.txt for the kernel: %r" % txt)
         check(root == cid_str(tree_cid(bucket)[0]) and root in os.listdir(blocks), "root CID and blocks")
         rc, out = run(*mk)
         check(rc == 0 and open(bucket + ".cid").read().strip() == root, "same discs, same root CID")
+        # the architecture section rides along in 00_base, and changes the root
+        arch = os.path.join(t, "ARCH.md")
+        open(arch, "w").write("# doc\nbefore\n<!-- zxv:distribution:start -->\n### 5.4 Distribution\n"
+                              "split discs\n<!-- zxv:distribution:end -->\nafter\n")
+        rc, out = run(*mk, "--architecture", arch)
+        got = open(os.path.join(bucket, "00_base", "ARCHITECTURE.md")).read() if rc == 0 else ""
+        check(rc == 0 and got.endswith("-->\n### 5.4 Distribution\nsplit discs\n") and
+              "before" not in got and "after" not in got and "SPDX-License-Identifier" in got and
+              open(bucket + ".cid").read().strip() != root, "the distribution section: " + out)
+        open(arch, "w").write("# doc\n<!-- zxv:distribution:end -->\n<!-- zxv:distribution:start -->\n")
+        rc, out = run(*mk, "--architecture", arch)
+        check(rc == 1 and "has no distribution section" in out, "markers out of order: " + out)
+        rc, out = run(*mk)
+        check(rc == 0 and open(bucket + ".cid").read().strip() == root, "and without it, the same root")
         load_blocks(blocks)
 
         get = [GET, "--no-ipfs", "--gateway", gw, "--cid", root, "--quiet", "--upstream", up]

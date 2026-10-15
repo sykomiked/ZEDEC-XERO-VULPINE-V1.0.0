@@ -106,8 +106,12 @@ NN_cartridges/...                   after the swarm discs, when there are any
 `python3 build_system/mk_bucket.py` lays out the discs in `dist/discs` as
 `build/bucket` and prints the root CID that `ipfs add -r --cid-version=1`
 would give it, computed the way Kubo does (checked against Kubo 0.32.1 by
-`mk_bucket.py --self-test`). It adds nothing to IPFS and publishes nothing;
-uploading is the owner's call.
+`mk_bucket.py --self-test`), with `manifest.json` and the same list as
+`manifest.txt` for the kernel. It adds nothing to IPFS and publishes nothing;
+uploading is the owner's call. `make ipfs-dist` builds the whole release
+twice from clean (kernels, core discs, swarm discs, bucket) and fails unless
+both passes give the same Disc 1 SHA-256 for every architecture and the same
+root CID; the bucket lands in `build/ipfs-dist/bucket`.
 
 To download, with nothing but Python 3:
 
@@ -136,10 +140,79 @@ resolves it through a local node and otherwise falls back to the CID. At
 boot the x86_64 kernel prints `[UPSTREAM] bucket <cid>`, then
 `[SWARM_MISSING] disc 3 ZXV_SWARM_VISION (zxv-swarm-disc3-vision.img): attach
 it, or fetch it from the upstream bucket (zxv-get)` for each expected disc not
-attached, or `[SWARM_COMPLETE]`. Fetching the missing discs from inside the
-OS needs the bare-metal network stack and user-space zxvd
-([gaps 23 and 18](BAREMETAL_OS_GAPS.md)); until then they come from
-`zxv-get` on any computer.
+attached, or `[SWARM_COMPLETE]`.
+
+### Fetching the swarm discs from the bare-metal kernel
+
+When an expected disc is missing, the core disc names a bucket and a blank
+drive is attached, the x86_64 kernel fetches the disc itself
+(`kernel/src/swarmnet`, entirely ZXV code: the e1000/igb/r8169 drivers, the
+kernel's ARP/IPv4/UDP/DHCP/DNS/TCP stack and the ipfs_node block walker).
+It takes the first NIC with link up (`[NET] eth0 = ..., link up`), asks DHCP
+three times, 5 s each (`[NET] DHCP lease ...`), then asks each `http://`
+gateway in `UPSTREAM.CID` for one raw block at a time, hashing every block
+against its CID. It reads `manifest.txt` from the bucket, checks that the
+bucket's directory gives the disc the manifest's CID, and streams the image
+onto a blank drive (no MBR signature, no GPT header, 512-byte sectors, large
+enough) with a rolling SHA-256. The first 34 sectors, the partition table,
+are held back and written last, only when size and SHA-256 match the
+manifest, so an interrupted or altered download never looks like a disc:
+`[SWARM_FETCHED] disc 2 ZXV_SWARM_REASON on sata1: ... bytes, sha256 matches
+the manifest; committed`, or `[SWARM_FETCH_FAIL] ...; nothing committed`.
+The disc is then indexed and mounted like an attached one. With no NIC, no
+link or no lease it prints
+
+```
+[NET] Link down or no DHCP response.
+[SWARM] Falling back to local storage scan: Attach Disc 2 USB / drive.
+```
+
+It speaks plain HTTP to a trustless gateway: a gateway on your own network
+(Kubo's `http://<host>:8080`) works; `https://` gateways are skipped and
+said so, and native Bitswap is not written (it needs libp2p's
+multistream-select, Noise and yamux). The fetcher runs in the kernel's idle
+loop for now; it moves to a ring-3 process once user programs have network
+and disk system calls ([gaps 7 and 17](BAREMETAL_OS_GAPS.md)). arm64 does
+not fetch yet: its kernel has no PCI storage driver.
+
+**The seal.** Once every expected disc is attached after a fetch, the kernel
+cuts the network that brought them, as the `seal` line of `UPSTREAM.CID`
+says: `POWERDOWN_NIC` (PHY powered down, then PCI Bus Master and Memory
+Space cleared and read back, so the NIC can neither DMA nor be reached until
+reset), `LOCAL_MESH_ONLY` (the NIC stays up for local peers; the address,
+routes, DNS, lease and connections are wiped), or `PROMPT_USER`, the
+default, which asks on the console for `p` or `m` and powers the NIC down
+after 30 s without an answer. In every mode the fetch buffers and network
+state are zeroed and the fetch code itself is overwritten with INT3 and read
+back, so nothing left in the running kernel can fetch or write a disc image.
+Then the receipt:
+
+```
+[SEAL] Swarm Discs 2..N successfully hydrated and verified.
+[SEAL] Master CID: bafy...
+[SEAL] Network hydration channel severed: NIC bus mastering disabled.
+[SEAL] Operating system is now immutable and air-gapped.
+```
+
+A step that fails prints `[SEAL_FAIL]` and no receipt.
+
+`build_system/test_swarm_fetch.sh` proves all of it under QEMU: it builds
+small discs and a bucket, serves the bucket from a gateway on the host
+(`build_system/zxv_test_gateway.py`, which the guest reaches as
+`http://10.0.2.2:<port>`), and boots the core disc with a blank drive five
+times: a fetch that commits, mounts, seals and still verifies both models; a
+gateway that alters blocks (nothing committed, no seal); a link with no DHCP
+answer; no NIC; and a `LOCAL_MESH_ONLY` seal. `UEFI_NET=user|silent|none` on
+`uefi_boot_check.sh` picks the network. To try it by hand:
+
+```bash
+python3 build_system/mk_bucket.py --discs dist/discs --blocks build/blocks
+python3 build_system/zxv_test_gateway.py build/blocks 8080 &
+# a core disc whose UPSTREAM.CID names that bucket and http://10.0.2.2:8080
+truncate -s 2G build/blank.img
+UEFI_DISK=ahci UEFI_NET=user UEFI_EXTRA=build/blank.img \
+  bash build_system/uefi_boot_check.sh x86_64 dist/discs/zxv-x86_64-disc1-core.img 600
+```
 
 `python3 build_system/test_bucket.py` builds a small bucket, serves it from a
 local gateway and downloads it, then checks that a changed block, a manifest
