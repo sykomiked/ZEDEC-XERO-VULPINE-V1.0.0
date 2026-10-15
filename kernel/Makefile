@@ -283,7 +283,8 @@ test-crash:
 
 # el0_sched.c's page-table hooks are weak and undefined in the test: ELF links that;
 # Apple's ld needs each named as allowed-undefined
-EL0_WEAK := $(if $(filter Darwin,$(shell uname -s)),-Wl,-U,_proc_pt_init -Wl,-U,_proc_pt_free,)
+EL0_WEAK_DARWIN := -Wl,-U,_proc_pt_init -Wl,-U,_proc_pt_free
+EL0_WEAK := $(if $(filter Darwin,$(shell uname -s)),$(EL0_WEAK_DARWIN))
 verify-all: test
 	@echo "=== The One Policy: Symbiotic Maxim (void-by-definition) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/onepolicy -Isrc/surplus src/onepolicy/test_onepolicy.c src/onepolicy/onepolicy.c -o /tmp/test_onepolicy -lm && /tmp/test_onepolicy && echo "[PASS] test_onepolicy" || { echo "[FAIL] test_onepolicy"; exit 1; }
