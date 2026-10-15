@@ -914,10 +914,10 @@ static void test_mark(void)
     l.ctx[0] = &mk;
     zui_rect_t area = {0, 0, W, H};
     clear(0);
-    zui_launch_draw(&S, area, 256, &none, (zui_launch_state_t){0, 0, 0}, 0);
+    zui_launch_draw(&S, area, 256, &none, (zui_launch_state_t){0, 0, 0, 0}, 0);
     memcpy(PX2, PX, sizeof PX);
     clear(0);
-    zui_launch_draw(&S, area, 256, &l, (zui_launch_state_t){0, 0, 0}, 0);
+    zui_launch_draw(&S, area, 256, &l, (zui_launch_state_t){0, 0, 0, 0}, 0);
     int diff = 0, outside = 0;
     for (int y = 0; y < H; y++)
         for (int x = 0; x < W; x++)
@@ -932,7 +932,7 @@ static void test_mark(void)
     CHECK(S.clip.x == 0 && S.clip.w == W && S.clip.h == H, "and leaves the clip alone");
     uint32_t dim = at(mark_box.x + mark_box.w / 2, mark_box.y + mark_box.h / 2);
     clear(0);
-    zui_launch_draw(&S, area, 256, &l, (zui_launch_state_t){256, 256, 0}, 0);
+    zui_launch_draw(&S, area, 256, &l, (zui_launch_state_t){256, 256, 0, 0}, 0);
     uint32_t lit = at(mark_box.x + mark_box.w / 2, mark_box.y + mark_box.h / 2);
     CHECK((lit & 0xFF00) > (dim & 0xFF00), "lit is brighter than dim (%06x > %06x)", lit, dim);
     /* the mark at any size: the boot screen at 1x and 2x */

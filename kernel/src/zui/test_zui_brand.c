@@ -91,7 +91,7 @@ int main(void)
     L.ctx[0] = &m;
     fill(&s);
     zui_rect_t area = {0, 0, 512, 512};
-    zui_launch_state_t st = {256, 256, 256};
+    zui_launch_state_t st = {256, 256, 256, 0};
     zui_launch_draw(&s, area, 256, &L, st, 0);
     uint32_t g2, gr2;
     census(&s, area, &g2, &gr2);
