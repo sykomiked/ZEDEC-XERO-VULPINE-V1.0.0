@@ -386,6 +386,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
 	$(MAKE) --no-print-directory test-retail
+	$(MAKE) --no-print-directory test-airc
 	$(MAKE) --no-print-directory test-adapters
 	$(MAKE) --no-print-directory test-engine
 	$(MAKE) --no-print-directory test-treaty
@@ -1945,6 +1946,16 @@ test-econ:
 	$(MAKE) --no-print-directory test-qnote
 	$(MAKE) --no-print-directory test-fxepoch
 # ==== end economy modules ====
+
+# ==== AIRC: agent relay chat over the post-quantum mesh (src/airc, docs/AIRC.md) ====
+# Signed posts, content-addressed boards, quorum-gated jumbo frames and
+# adaptive zero-trust over cred. Freestanding on four targets: no libc but
+# mem*, no 64-bit divide helper.
+AIRC_SRCS = src/airc/airc.c src/cred/cred.c src/sicily/sicily.c src/lpres/lpres_hex.c src/lpres/lpres.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+.PHONY: test-airc
+test-airc:
+	@for t in aarch64-none-elf i386-none-elf armv7a-none-eabi riscv32-none-elf; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ECON_INC) -c src/airc/airc.c -o $(ZXV_TMP)/airc_free.o || { echo "[FAIL] airc.c freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/airc_free.o | grep -vE ' U (memcpy|__aeabi_memcpy[48]?|sha3_256|lpx_action|pqm_mldsa87_(sign|verify)|cred_[a-z_]+|pay_udiv64)$$' | grep -q .; then nm -u $(ZXV_TMP)/airc_free.o; echo "[FAIL] airc.c: libc or 64-bit division helper ($$t)"; exit 1; fi; done; echo "[PASS] airc freestanding (aarch64, i386, armv7a, rv32)"
+	@gcc $(ECON_FLAGS) $(ECON_INC) src/airc/test_airc.c $(AIRC_SRCS) $(ECON_LEDGER) -o $(ZXV_TMP)/test_airc -lm 2>$(ZXV_TMP)/test_airc.build && $(ZXV_TMP)/test_airc > $(ZXV_TMP)/test_airc.log 2>&1 && echo "[PASS] test_airc ($$(tail -2 $(ZXV_TMP)/test_airc.log | head -1))" || { cat $(ZXV_TMP)/test_airc.build; tail -40 $(ZXV_TMP)/test_airc.log; echo "[FAIL] test_airc"; exit 1; }
 
 # ==== retail infrastructure: keys sealed by the security chip, offline outbox ====
 # hwkey (src/hwkey): ML-DSA-87 seeds sealed to a TPM / Secure Enclave P-256 key.
