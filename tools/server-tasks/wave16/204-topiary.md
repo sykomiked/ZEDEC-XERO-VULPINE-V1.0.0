@@ -8,4 +8,5 @@ Logic (critical, new decisions only): streak length (days done in a row, a BOTH 
 BOTH test: day 41 is logged done on one device and missed on another: the day is BOTH and the streak is not broken.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, notify, ai.ask.
-Planned (no runtime yet): IPL, Mojo, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/topiary/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): IPL, Mojo.

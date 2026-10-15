@@ -9,4 +9,5 @@ BOTH test: parcels 3 and 4 both claim grid cell (12, 7): the cell is BOTH, shown
 Survey records are advisory; legal title is a person's and the land registry's decision.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, fs.write.
-Planned (no runtime yet): Haskell, ML, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/chainman/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, ML.

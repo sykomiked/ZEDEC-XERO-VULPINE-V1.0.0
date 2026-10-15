@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `cut_ok` (each facet angle and depth insid
 BOTH test: grader 1 gives grade G and grader 2 grade H: the certificate shows BOTH grades; none is forced. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, journal, camera.
-Planned (no runtime yet): RPG, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/vernier/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): RPG, ML.
 Pending: `pending RPG certificates` (report); `pending ML cut_ok` (proof); `pending ALGOL_60 cut_ok` (proof).

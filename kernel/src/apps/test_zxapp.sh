@@ -53,8 +53,8 @@ python3 "$R/tools/apps/app_gate.py"
 python3 "$R/tools/apps/concepts.py" --check
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
 L="$R/kernel/src/lingua"
-"$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L/zl_ir.c" "$L/zl_basic.c" "$L/zl_fortran.c" \
-    "$L/zl_forth.c" "$L/zl_pack.c" -o "$T/zxlang" || exit 3
+"$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L"/zl_*.c \
+    -o "$T/zxlang" || exit 3
 find "$HERE/blocks" -name '*.f' -o -name '*.bas' -o -name '*.fs' | sort | while read -r f; do
     "$T/zxlang" check --twin "$f" >/dev/null || { echo "[FAIL] $f is not in its twin's canonical form (zxlang twin)"; exit 1; }
 done

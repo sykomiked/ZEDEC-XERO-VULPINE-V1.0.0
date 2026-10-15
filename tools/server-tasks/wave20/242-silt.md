@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): two records with the same reference
 Safety: Disposal is human-approved and goes to the Trash first; nothing is erased by the app.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: fs.read, fs.write, journal, backup, notify.
-Planned (no runtime yet): ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/silt/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell.

@@ -4,4 +4,5 @@ Matrix: layer 98, build position 95 of 130 (`../MATRIX_ORDER.tsv`). Its layer le
 What it does: courses kept in the Banker (`files.read`, `files.write`); coding lessons run through `play.catalogue` and `play.run`.
 Logic (critical): "lesson unlocked" (every prerequisite passed) in kron + basic witnessed; progress x100 and quiz scores in kron; courses and results in myra.
 needs: fs.read, fs.write.
-Planned (no runtime yet): Python, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/sapling/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

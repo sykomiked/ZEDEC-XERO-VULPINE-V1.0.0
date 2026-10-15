@@ -9,4 +9,5 @@ BOTH test: a block whose content id matches and whose signature does not: it is 
 Never copy anything from build_system/keys/.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, net, journal, sys.read.
-Planned (no runtime yet): ML, ALGOL 60, TeX.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/shingle/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ML, TeX.

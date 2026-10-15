@@ -15,4 +15,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): two builds of the same source whose
 Safety: Never touch build_system/keys/; signing is the owner's act with the owner's key. Tests use image files under build/ only.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: fs.read, fs.write, sys.read, backup, net, notify.
-Planned (no runtime yet): ML, ALGOL 60, Bash.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/fulgurite/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ML, Bash.

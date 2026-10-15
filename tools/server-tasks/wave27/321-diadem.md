@@ -9,5 +9,6 @@ BOTH test: ballot 330 is valid by the roll and challenged by an observer: it is 
 Results are certified by the people running the election.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: peers, net, journal, fs.write, notify, sys.read.
-Planned (no runtime yet): Prolog, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/diadem/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog, Haskell.
 Pending: `pending Prolog eligible` (rules); `pending ALGOL_60 eligible` (proof); `pending Haskell eligible` (proof).

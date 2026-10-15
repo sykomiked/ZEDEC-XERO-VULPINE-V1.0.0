@@ -9,5 +9,6 @@ BOTH test: backups of books.zxl from Monday and Tuesday carry content ids 61 and
 Every restore step needs the owner's approval (Lifeboat's rule); tests use scratch backups only.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: backup, fs.read, fs.write, journal, ledger.read, sys.read, notify.
-Planned (no runtime yet): Elixir, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/relume/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Elixir, Haskell.
 Pending: Elixir (faults): no entry here is an obvious fit; put `pending Elixir <entry>` on the one closest to faults and name it in your report; `pending ALGOL_60 restore_next` (proof); `pending Haskell restore_next` (proof).

@@ -9,5 +9,6 @@ BOTH test: the courier marks parcel 410 delivered and the customer says not rece
 Financial: holds and releases are the owner's act.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: peers, net, ledger.read, ledger.post, fs.read, fs.write, notify.
-Planned (no runtime yet): ML, ALGOL 60, Prolog.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/transit/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ML, Prolog.
 Pending: `pending ML hours_ok` (proof); `pending ALGOL_60 hours_ok` (proof); `pending Prolog routes` (search).

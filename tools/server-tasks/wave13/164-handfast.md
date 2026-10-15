@@ -9,4 +9,5 @@ BOTH test: party A marks clause 4 agreed and party B marks it disputed: clause 4
 Legal and financial: advisory; signing is each party's own act; the app never signs, sends or moves money.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, journal, peers, notify.
-Planned (no runtime yet): ALGOL 60, Haskell, Eiffel, Solidity.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/handfast/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, Eiffel, Solidity.

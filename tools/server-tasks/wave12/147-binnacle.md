@@ -9,4 +9,5 @@ BOTH test: a star fix and a clock fix 1000 m apart with a 500 m tolerance: the p
 Advisory navigation aid, not a certified navigation system; a person steers and keeps official charts.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, sys.read, notify.
-Planned (no runtime yet): Logo, Prolog.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/binnacle/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog.

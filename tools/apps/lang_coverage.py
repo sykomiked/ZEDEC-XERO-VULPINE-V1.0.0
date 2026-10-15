@@ -48,9 +48,33 @@ RUNTIME_ALIAS = {
 # a .wasm entry's language is its source's
 WASM_SOURCE = {".cpp": "C++", ".cc": "C++", ".rs": "Rust", ".zig": "Zig", ".c": "C"}
 # a precompiled Lingua entry's language is the one its "lang N" line names (zl.h)
-ZLIR_LANG = {"1": "FORTRAN", "2": "BASIC", "3": "Forth"}
+# (and the name, twin and runtime of every Lingua language: kernel/src/lingua/zl_langs.def)
+ZL_DEF = os.path.join(ROOT, "kernel", "src", "lingua", "zl_langs.def")
+ZL_ROW = re.compile(r'^ZL_LANG_X\(\w+,\s*(\d+),\s*"([^"]+)",\s*"([^"]*)",\s*(\w+),\s*"[^"]*",\s*"([^"]+)"\)')
+
+
+def read_zl():
+    """[(number, catalogue name, twin, zxapp runtime)] from zl_langs.def, for the languages
+    whose front-end (kernel/src/lingua/zl_<fe>.c) is built: a placeholder says "is not
+    built yet"."""
+    rows = []
+    with open(ZL_DEF, encoding="utf-8") as f:
+        for line in f:
+            m = ZL_ROW.match(line)
+            fe = os.path.join(os.path.dirname(ZL_DEF), f"zl_{m.group(4)}.c") if m else ""
+            if m and os.path.exists(fe) and "is not built yet" not in open(fe, encoding="utf-8").read():
+                rows.append((m.group(1), m.group(2), m.group(3), m.group(5)))
+    return rows
+
+
+ZLIR_LANG = {n: name for n, name, _, _ in read_zl()}
 # runtimes the kernel itself carries (the rest need their SDK's process)
-IN_KERNEL = {"c", "sutra", "eve", "kron", "trebago", "myra", "wasm", "basic", "forth"}
+# (and every Lingua language whose front-end is built: a runtime in LANGUAGE_FIT.tsv)
+IN_KERNEL = {"c", "sutra", "eve", "kron", "trebago", "myra", "wasm", "zlir"} | {
+    rt for _, _, _, rt in read_zl()}
+# a Lingua twin names its language's runtime, as zxapp.c accepts it
+RUNTIME_ALIAS.update({twin.lower(): ("trebago" if rt == "fortran77" else rt)
+                      for _, _, twin, rt in read_zl() if twin})
 
 
 def read_fit():

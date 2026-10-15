@@ -15,7 +15,7 @@ budget 233
 needs  sys.read
 needs  ai.ask
 model  apps/almanac_model.c
-use    used_share 1
+use    used_share 1   # @num.used_x100
 
 provides days num seconds
 logic    wasm days apps/blocks/almanac/uptime_days.wasm

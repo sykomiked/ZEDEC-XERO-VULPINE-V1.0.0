@@ -5,4 +5,5 @@ What it does: recipes and weekly plans in the Banker (`files.read`, `files.write
 Logic (critical): "contains an excluded allergen" in eve + myra witnessed (myra looks ingredients up in the allergen index); scaled quantities (qty x num / den, reduced with `use number_classics 1`) and weekly nutrition totals exact in trebago; recipes in myra.
 Allergen flags are advisory; the app cannot vouch for product labels.
 needs: fs.read, fs.write, search.
-Planned (no runtime yet): ALGOL 58, Simula 67, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for structure: `logic pascal <entry> apps/blocks/hearth/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ALGOL 58, Simula 67.

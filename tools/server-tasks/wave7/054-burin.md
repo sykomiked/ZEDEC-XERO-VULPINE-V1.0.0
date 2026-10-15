@@ -4,4 +4,5 @@ Matrix: layer 54, build position 74 of 130 (`../MATRIX_ORDER.tsv`). Its layer le
 What it does: drawings as files (`files.read`, `files.write`), printed (`print.submit`).
 Logic (critical): curve flattening (de Casteljau in fixed point) in C++ wasm + kron witnessed; hatch lines across a shape (count and spacing) in kron + trebago; path limits in eve; path record in myra.
 needs: fs.read, fs.write, print.
-Planned (no runtime yet): APT, Logo, LabVIEW.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/burin/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): APT, LabVIEW.

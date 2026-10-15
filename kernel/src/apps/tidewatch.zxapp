@@ -14,7 +14,7 @@ icon   icons/l1/015-tidewatch.svg
 budget 55
 needs  sys.read
 model  apps/tidewatch_model.c
-use    used_share 1
+use    used_share 1   # @num.used_x100
 
 provides cpu_x100 num cpu ms
 logic    sutra cpu_x100 apps/blocks/tidewatch/cpu.sutra

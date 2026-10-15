@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `capacity_ok` (visitors in a room at most 
 BOTH test: account A dates the gate to 1320 and account B to 1410: both are presented as BOTH, each with its sources. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, fs.write, peers, net.
-Planned (no runtime yet): Mojo, LabVIEW, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/corbel/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Mojo, LabVIEW.
 Pending: Mojo (ai): no entry here is an obvious fit; put `pending Mojo <entry>` on the one closest to ai and name it in your report; `pending LabVIEW wear` (signal); Pascal (stepwise): no entry here is an obvious fit; put `pending Pascal <entry>` on the one closest to stepwise and name it in your report.

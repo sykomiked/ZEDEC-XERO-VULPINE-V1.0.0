@@ -9,5 +9,5 @@ BOTH test: lab A assays sample 51 at 3.2 g/t and lab B at 1.9: it is BOTH and re
 Reserve figures are advisory and reviewed by a qualified person.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, location, peers, net.
-Planned (no runtime yet): Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/spire/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
 Pending: `pending Logo ore_body` (geometry).

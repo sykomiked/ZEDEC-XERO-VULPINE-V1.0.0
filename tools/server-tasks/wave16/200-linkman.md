@@ -8,4 +8,5 @@ Logic (critical, new decisions only): "trusted peer" (signed AND not revoked AND
 BOTH test: peer 3 reports a route to 9 through 4 and peer 5 reports 9 unreachable: the route is BOTH, shown as a split-brain network.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: peers, net, sys.read.
-Planned (no runtime yet): Gleam, Prolog, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/linkman/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Gleam, Prolog.

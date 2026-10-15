@@ -16,7 +16,7 @@ budget 89
 needs  swarm
 view   zui/views/murmuration.c
 model  apps/murmuration_model.c
-use    swarm_shares 1
+use    swarm_shares 1   # @swarm.cycle_share @swarm.busiest @swarm.within_limits
 # what it exports, so apps built from it can use the shares too (C1)
 provides swarm_shares.cycle_share num t
 provides swarm_shares.busiest num t

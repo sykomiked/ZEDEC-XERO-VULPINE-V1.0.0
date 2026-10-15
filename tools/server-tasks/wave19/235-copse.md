@@ -13,4 +13,5 @@ Logic (new decisions only; a critical one has two or three `logic` lines for one
 Paraconsistent (BOTH test, in test_zxapp.c): one board measured at 1203 mm and again at 1198 mm with a 2 mm tolerance gives BOTH; the test asserts state 3 and that the cuts on that board are held with "re-measure before cutting". Join the sources with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: fs.read, fs.write, print.
-Planned (no runtime yet): APT, LISP, Simula 67.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/copse/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): APT, Simula 67.

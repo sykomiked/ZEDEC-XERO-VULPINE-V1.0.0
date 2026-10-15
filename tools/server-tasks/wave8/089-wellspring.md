@@ -5,4 +5,4 @@ What it does: a private log of activity, sleep and water kept in the Banker (`fi
 Logic (critical): "outside a safe range" (heart rate bpm, sleep minutes, water ml) in Rust wasm + eve witnessed; weekly totals and goal progress x100 exact in trebago; log entries in myra.
 Advice only: never a diagnosis; out-of-range readings point to a clinician.
 needs: fs.read, fs.write, notify.
-Planned (no runtime yet): Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/wellspring/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.

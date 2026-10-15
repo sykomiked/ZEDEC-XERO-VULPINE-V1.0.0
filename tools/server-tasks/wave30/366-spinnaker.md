@@ -18,4 +18,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, sys.read, fs.read, fs.write, net, camera, notify.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending IEC_61131-3_Structured_Text alt_ok`; `pending LISP airframe`; `pending Prolog checklist`.
-Planned (no runtime yet): IEC 61131-3 Structured Text, LISP, Prolog.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/spinnaker/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): IEC 61131-3 Structured Text, Prolog.

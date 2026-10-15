@@ -18,4 +18,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, ai.ask, net.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending ML credential_ok`; `pending ALGOL_60 mastery`.
-Planned (no runtime yet): ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/descant/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): ML.

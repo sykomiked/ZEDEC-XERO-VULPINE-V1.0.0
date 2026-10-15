@@ -9,4 +9,5 @@ BOTH test: one source built by two compilers gives output content ids 41 and 42:
 Never install anything in tests. Never copy anything from build_system/keys/.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, sys.read, notify.
-Planned (no runtime yet): BCPL, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/swage/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): BCPL, ML.

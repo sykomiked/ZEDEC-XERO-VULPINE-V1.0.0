@@ -8,4 +8,5 @@ Logic (critical, new decisions only): retention schedule rows (class code, years
 BOTH test: record 7, version 3 arrives from two sources with content ids 11 and 12 and no owner ruling: the version state is BOTH (`lpres_state_t` 3), both versions are kept side by side, the prune truth refuses, and only an owner ruling (1 or 2) makes one TRUE.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, backup, journal.
-Planned (no runtime yet): ALGOL 60, Haskell, Prolog.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/cartulary/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, Prolog.

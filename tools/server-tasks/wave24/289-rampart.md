@@ -9,5 +9,6 @@ BOTH test: tool A marks incident 77 as malware and tool B as benign: the inciden
 Every response step is human-approved; reports are signed by a person.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: journal, sys.read, notify, fs.read, fs.write.
-Planned (no runtime yet): RPG, ML, ALGOL 60.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/rampart/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): RPG, ML.
 Pending: `pending RPG incident_costs` (report); `pending ML playbook_ok` (proof); `pending ALGOL_60 playbook_ok` (proof).

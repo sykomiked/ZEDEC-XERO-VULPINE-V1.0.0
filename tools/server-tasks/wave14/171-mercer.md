@@ -9,4 +9,4 @@ BOTH test: the till records sale 88 as 3 units for 1500 and the buyer's receipt 
 Financial: every posting is the owner's act; the app never moves money by itself.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: ledger.read, ledger.post, fs.read, fs.write, print, net, peers.
-Planned (no runtime yet): LISP.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/mercer/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
