@@ -5,4 +5,5 @@ What it does: local conditions and forecast for where the machine is (`place.her
 Logic (critical): unit conversion (tenths of a degree C to F, mm, km/h) in trebago + kron witnessed; frost, heat and wind warnings (integer thresholds) in eve + trebago witnessed; 7-day min, max, mean floor in trebago; readings in myra.
 Warnings are advisory and never replace official warnings.
 needs: location, net, notify.
-Planned (no runtime yet): Logo, Kotlin.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/weatherglass/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Kotlin.

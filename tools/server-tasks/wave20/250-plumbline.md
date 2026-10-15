@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): rule A permits an action and rule B
 Safety: Every change is the owner's; tests never turn a regulated switch on and call `jurisdiction.set` only on a scratch books file.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: sys.read, journal, ledger.read, notify.
-Planned (no runtime yet): Prolog, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/plumbline/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog, Haskell.

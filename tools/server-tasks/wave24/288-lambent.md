@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `load_ok` (planned hours this week at most
 BOTH test: mentor A advises the evening course and mentor B the weekend one: the advice is BOTH and both are shown so you choose knowingly. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, search, notify.
-Planned (no runtime yet): Pascal, Python, IPL.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/lambent/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python, IPL.
 Pending: Pascal (stepwise): no entry here is an obvious fit; put `pending Pascal <entry>` on the one closest to stepwise and name it in your report; Python (ai): no entry here is an obvious fit; put `pending Python <entry>` on the one closest to ai and name it in your report; `pending IPL milestones` (lists).

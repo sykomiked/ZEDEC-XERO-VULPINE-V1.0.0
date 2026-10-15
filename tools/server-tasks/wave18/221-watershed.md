@@ -14,4 +14,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): a member's record says 500 paid whi
 Safety: Financial actions are advisory and human-approved: every post, sale and grant waits for the vote and the owner; tests use a scratch books file only. Mutual-aid words only (a grant, an allotment).
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: ledger.read, ledger.post, peers, net, fs.read, fs.write, notify.
-Planned (no runtime yet): Gleam, LISP, Prolog.
+Now runs (Lingua front-end built): LISP (twin Coilwyrm) for lists: `logic lisp <entry> apps/blocks/watershed/<entry>.lisp`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Gleam, Prolog.

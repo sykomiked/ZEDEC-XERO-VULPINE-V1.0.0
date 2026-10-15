@@ -5,4 +5,5 @@ What it does: integer and exact rational arithmetic (kernel/src/rational: reduce
 Logic (critical): rational add, subtract, multiply, divide, reduced, overflow refused, in trebago + sutra witnessed; currency amount (minor units x rate num / rate den, remainder shown) in sutra + kron witnessed; unit factors (num/den vectors by unit index, same dimension only) in kron.
 Never a float: 1/3 stays 1/3.
 needs: ledger.read.
-Planned (no runtime yet): ALGOL 60, TRAC.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for formulas: `logic algol60 <entry> apps/blocks/tally/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): TRAC.

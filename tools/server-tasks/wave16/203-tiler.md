@@ -8,4 +8,5 @@ Logic (critical, new decisions only): tile figures (sum, min, max, mean floor ov
 BOTH test: one tile shows 12 GB free from `sys.disk` and another 14 GB from a second source: both are shown side by side as BOTH, not one tidy number.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: sys.read, journal, fs.read, fs.write.
-Planned (no runtime yet): SAS, Logo, Visual Basic.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/tiler/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): SAS, Visual Basic.

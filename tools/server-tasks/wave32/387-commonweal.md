@@ -16,4 +16,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: ledger.read, swarm, peers, sys.read.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Erlang household`; `pending Prolog advisory_ok`; `pending Logo epochs`.
-Planned (no runtime yet): Erlang, Prolog, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/commonweal/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Erlang, Prolog.

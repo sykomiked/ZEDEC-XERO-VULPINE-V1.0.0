@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `exposure_ok` (exposure and session length
 BOTH test: catalogue A places object 33 at RA 10h 12m and catalogue B at 10h 16m: both are kept as BOTH until your own observation decides. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, sys.read, camera, fs.write, peers.
-Planned (no runtime yet): Simula I, Logo, Oberon.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/ephemeris/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Simula I, Oberon.
 Pending: `pending Simula_I orbit` (simulation); `pending Logo orbit` (geometry); `pending Oberon observations` (structure).

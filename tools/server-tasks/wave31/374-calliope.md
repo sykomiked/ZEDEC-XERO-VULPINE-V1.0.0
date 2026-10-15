@@ -19,4 +19,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, ai.ask, screen.time, sys.read.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Python help_ok`; `pending Pascal steps`.
-Planned (no runtime yet): Python, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/calliope/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

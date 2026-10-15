@@ -8,4 +8,5 @@ Logic (critical, new decisions only): public accounts per line in minor units in
 BOTH test: line 12 is 1000000 in the ledger and 1050000 in the approved report: both figures are published as BOTH, showing the gap.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: ledger.read, fs.read, fs.write, net, peers, journal.
-Planned (no runtime yet): ALGOL 60, Haskell, TeX.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/glazier/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, TeX.

@@ -5,4 +5,5 @@ What it does: the owner's home devices and scenes. No home-device method (devmes
 Logic (critical): "command allowed" (setpoint within the device's range, locks, heaters and ovens need the owner) in eve + forth witnessed; energy totals per device exact in trebago; devices and scenes in myra.
 Locks, heat and cooking devices are human-approved; AI suggestions are held, never run.
 needs: net, peers, notify.
-Planned (no runtime yet): IEC 61131-3 Structured Text, Zig, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/homestead/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): IEC 61131-3 Structured Text, Zig.

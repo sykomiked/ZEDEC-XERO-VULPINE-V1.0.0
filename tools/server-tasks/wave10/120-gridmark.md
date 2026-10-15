@@ -5,4 +5,5 @@ What it does: make QR codes and EAN-13 barcodes, save them as images (`files.wri
 Logic (critical): QR version for a length and error level (capacity table) in kron + trebago witnessed; EAN-13 check digit in trebago + kron witnessed; Reed-Solomon error words over GF(256) (log/antilog tables) in kron + trebago witnessed; mask penalty per mask (four rules over the module grid) in kron.
 A read link is shown, never opened without the person's tap.
 needs: fs.read, fs.write, camera.
-Planned (no runtime yet): OCaml, ALGOL 60, AWK.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for formulas: `logic algol60 <entry> apps/blocks/gridmark/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): OCaml, AWK.

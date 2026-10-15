@@ -5,4 +5,5 @@ What it does: articles in a Hoard folder found by `search.query` (`search.refres
 Logic (critical): "show a caution" (any matched species marked toxic or dangerous) in kron + myra witnessed; identification key, one question at a time, in basic; match ranking in kron; article index in myra.
 Never says a plant or fungus is safe to eat.
 needs: fs.read, search.
-Planned (no runtime yet): Python, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/fieldguide/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

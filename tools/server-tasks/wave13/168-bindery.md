@@ -8,4 +8,5 @@ Logic (critical, new decisions only): "may lend" = a copy on the shelf AND the m
 BOTH test: copy 12 is on the shelf by the stock scan and on loan by the ledger: it is BOTH, cannot be lent, and waits for a stock check.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: search, fs.read, fs.write, print.
-Planned (no runtime yet): Python, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/bindery/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

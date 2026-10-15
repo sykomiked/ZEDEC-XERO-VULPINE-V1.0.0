@@ -9,5 +9,6 @@ BOTH test: test 4 and test 7 of the same prototype give opposite results: both s
 Bench safety limits are advisory; the person follows their workshop's rules.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, journal, sys.read.
-Planned (no runtime yet): SNOBOL, ALGOL 60, Haskell.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/armature/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): SNOBOL, Haskell.
 Pending: SNOBOL (text): no entry here is an obvious fit; put `pending SNOBOL <entry>` on the one closest to text and name it in your report; `pending ALGOL_60 proof_ok` (proof); `pending Haskell proof_ok` (proof).

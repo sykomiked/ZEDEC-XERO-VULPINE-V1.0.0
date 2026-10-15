@@ -5,4 +5,5 @@ What it does: solitaire card games; saved games in the Banker (`files.read`, `fi
 Logic (critical): "legal move" (rank one lower, alternating colour, empty column takes a king) in kron + eve witnessed; deal from a seed and score in kron; games in myra.
 No stakes: nothing is wagered or bought.
 needs: fs.read, fs.write.
-Planned (no runtime yet): Python, Pascal, Logo.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/patience/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry; Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/patience/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Python.

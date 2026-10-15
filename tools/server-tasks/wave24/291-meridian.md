@@ -9,5 +9,6 @@ BOTH test: the satellite fix and dead reckoning are 2 km apart, tolerance 300 m:
 Advisory; the master or leader decides; not a certified navigation system.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, fs.write, net, notify.
-Planned (no runtime yet): Prolog, Simula 67, Logo.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/meridian/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Prolog, Simula 67.
 Pending: `pending Prolog routes` (search); `pending Simula_67 tide_current` (simulation); `pending Logo tide_current` (geometry).

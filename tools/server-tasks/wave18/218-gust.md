@@ -15,4 +15,5 @@ Paraconsistent (BOTH test, in test_zxapp.c): forecast A wind 25 km/h (under a 40
 Safety: Advisory: the parent decides. A child's place is never shared outside the family and never without `place.ask`.
 Integers only: no float or double anywhere; a division that is not whole uses kernel/src/rational in C.
 needs: location, screen.time, sys.read, fs.read, fs.write, notify.
-Planned (no runtime yet): Simula I, Pascal.
+Now runs (Lingua front-end built): Pascal (twin Tutordrake) for step-by-step teaching: `logic pascal <entry> apps/blocks/gust/<entry>.pas`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Simula I.

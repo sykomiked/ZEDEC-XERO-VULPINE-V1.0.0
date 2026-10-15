@@ -17,4 +17,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: journal, sys.read, search, fs.read, location, camera, net, notify.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending ALGOL_60 mask_ok`; `pending Haskell escalate`; `pending JOVIAL motion`.
-Planned (no runtime yet): ALGOL 60, Haskell, JOVIAL.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/crowsnest/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, JOVIAL.

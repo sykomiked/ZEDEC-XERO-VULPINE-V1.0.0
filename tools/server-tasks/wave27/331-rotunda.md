@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `operator_ok` (a booking only for someone 
 BOTH test: groups A and B both claim microscope slot 14:00: the slot is BOTH and shown to the manager; first come does not win silently. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: fs.read, fs.write, ledger.read, ledger.post, sys.read, notify.
-Planned (no runtime yet): Gleam, Scheme.
+Now runs (Lingua front-end built): Scheme (twin Spiraldrake) for symbolic reasoning: `logic scheme <entry> apps/blocks/rotunda/<entry>.scm`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Gleam.
 Pending: Gleam (messaging): no entry here is an obvious fit; put `pending Gleam <entry>` on the one closest to messaging and name it in your report; `pending Scheme facilities` (symbolic).

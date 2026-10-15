@@ -8,5 +8,6 @@ Logic (critical, new decisions only): `copies_ok` (at least the declared copies,
 BOTH test: copy A of record 9 has content id 70 and copy B 71: both are kept as BOTH until a witness majority of copies decides; neither is deleted. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: backup, fs.read, fs.write, net, search.
-Planned (no runtime yet): ALGOL 60, Haskell, Go.
+Now runs (Lingua front-end built): ALGOL 60 (twin Rootwyrm) for proofs of correctness: `logic algol60 <entry> apps/blocks/cupola/<entry>.alg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Haskell, Go.
 Pending: `pending ALGOL_60 copies_ok` (proof); `pending Haskell copies_ok` (proof); Go (messaging): no entry here is an obvious fit; put `pending Go <entry>` on the one closest to messaging and name it in your report.

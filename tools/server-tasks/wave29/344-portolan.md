@@ -17,4 +17,5 @@ Integers only: no float or double anywhere; a division that is not whole uses ke
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, fs.write, search, net.
 Pending (P1; the best-fit language has no front-end yet, the block above stands in): `pending Logo project`; `pending MATLAB elevation`; `pending Ladder_logic no_fly`.
-Planned (no runtime yet): Logo, MATLAB, Ladder logic.
+Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/portolan/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): MATLAB, Ladder logic.

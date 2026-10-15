@@ -9,4 +9,5 @@ BOTH test: satellite count 1200 trees in stand 4 and ground count 950: the count
 Carbon figures are advisory, not a certified carbon credit.
 Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
 needs: location, fs.read, fs.write, ledger.read.
-Planned (no runtime yet): Scheme, Simula 67, Modula-2.
+Now runs (Lingua front-end built): Scheme (twin Spiraldrake) for symbolic reasoning: `logic scheme <entry> apps/blocks/coppice/<entry>.scm`, in the twin's canonical form, joined to another language's line for the same entry.
+Planned (no runtime yet): Simula 67, Modula-2.
