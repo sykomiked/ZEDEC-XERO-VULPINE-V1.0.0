@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "zui_tokens.h"
+#include "zui_motion.h"
 #include "zui_workspace.h"
 
 static int fails, checks;
@@ -839,6 +840,53 @@ static void test_persist(void)
           "the same windows");
 }
 
+/* zui_ws_apply: the scheme and the panel put to work on the window manager */
+static void test_apply(void)
+{
+    fresh();
+    zui_motion_reset();
+    static zui_colors_t set;
+    zui_wm_init(&WM, 1280, 800, false);
+    zui_wm_use_dock(&WM, false);
+    zui_ws_set_theme(&WS, ZUI_SCHEME_LIGHT, ZUI_ACCENT_GOLD);
+    const zui_colors_t *c = zui_ws_apply(&WS, &WM, &set);
+    zui_colors_t want;
+    zui_ws_colors(&WS, &want);
+    CHECK(c == &set && !memcmp(&set, &want, sizeof set), "apply: the workspace's set");
+    CHECK(WM.colors == &set && WM.dock.colors == &set,
+          "apply: the windows and the dock paint with it");
+    CHECK(set.c[ZUI_C_VOID] == zui_scheme_color(ZUI_SCHEME_LIGHT, ZUI_C_VOID),
+          "apply: light ground");
+    zui_motion_set_flag(ZUI_PREF_INCREASE_CONTRAST, true);
+    zui_ws_apply(&WS, &WM, &set);
+    CHECK(!memcmp(&set, zui_scheme_colors(ZUI_SCHEME_HIGH_CONTRAST), sizeof set),
+          "apply: increase contrast gives the high-contrast set");
+    zui_motion_reset();
+    /* WM6: the strip follows the panel */
+    zui_ws_set_panel(&WS, ZUI_PANEL_LEFT, 64, false);
+    zui_ws_apply(&WS, &WM, &set);
+    CHECK(req(zui_wm_strip_rect(&WM), (zui_rect_t){0, 0, 64, 800}) &&
+              req(zui_wm_work(&WM), (zui_rect_t){64, 0, 1216, 800}),
+          "apply: strip on the left at 64");
+    zui_ws_set_panel(&WS, ZUI_PANEL_TOP, 56, false);
+    zui_ws_apply(&WS, &WM, &set);
+    CHECK(req(zui_wm_strip_rect(&WM), (zui_rect_t){0, 0, 1280, 56}) &&
+              req(zui_wm_work(&WM), (zui_rect_t){0, 56, 1280, 744}),
+          "apply: strip on top at 56");
+    uint32_t id = zui_wm_open(&WM, "a", "A", 0, 0);
+    CHECK(inside(zui_wm_get(&WM, id)->r, zui_wm_work(&WM)), "apply: a window opens below it");
+    zui_ws_set_panel(&WS, ZUI_PANEL_RIGHT, 72, false);
+    zui_ws_apply(&WS, &WM, &set);
+    zui_rect_t s = zui_wm_strip_rect(&WM), sl = zui_wm_strip_slot(&WM, 0, 1);
+    CHECK(req(s, (zui_rect_t){1208, 0, 72, 800}) && inside(sl, s) && sl.w < s.w,
+          "apply: strip down the right edge, slots inside it");
+    CHECK(inside(zui_wm_get(&WM, id)->r, zui_wm_work(&WM)), "apply: the window refitted");
+    zui_ws_set_panel(&WS, ZUI_PANEL_BOTTOM, 48, false);
+    zui_ws_apply(&WS, &WM, &set);
+    CHECK(req(zui_wm_strip_rect(&WM), (zui_rect_t){0, 752, 1280, 48}), "apply: back to the bottom");
+    CHECK(zui_ws_apply(&WS, 0, &set) == &set, "apply: no window manager");
+}
+
 int main(void)
 {
     test_schema();
@@ -849,6 +897,7 @@ int main(void)
     test_themes();
     test_comfort();
     test_persist();
+    test_apply();
     printf("%s test_zui_workspace: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails,
            checks);
     return fails ? 1 : 0;

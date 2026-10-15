@@ -17,6 +17,7 @@ typedef struct {
     zv_shell_t sh;
     burrow_t *m;
     zui_id_t list_pane, list, path, up, new_dir, new_text, trash_view, empty;
+    zui_id_t none; /* W12: the empty state in place of the list */
     zui_id_t detail, back, d_name, d_kind, d_size, name_field, open, rename, trash, put_back;
     char name_buf[BURROW_NAME_MAX + 1];
     bool naming;      /* the name field is for a new folder (or a rename) */

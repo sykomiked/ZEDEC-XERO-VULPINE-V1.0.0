@@ -5,6 +5,9 @@
 
 #include "zui_tokens.h"
 
+/* zui_palette.h C6: every colour by role, in the active set */
+#define C(role) zui_color(c->colors, ZUI_C_##role)
+
 /* ---- small helpers --------------------------------------------------------- */
 
 static bool same(const char *a, const char *b)
@@ -659,11 +662,29 @@ static uint32_t buttons(const zui_notice_t *n, const char *label[ZUI_NOTICE_ACTI
     return n->nact;
 }
 
-static int32_t card_h(const zui_notice_t *n, const zui_text_t *t)
+uint32_t zui_notice_summary(const zui_notice_center_t *c, const char *app, char *out, uint32_t cap)
+{
+    if (!out || !cap) return 0;
+    uint32_t v = c ? zui_notice_list(c, app, 0, 0, 0) : 0, n = 0, nd = 0;
+    char d[12];
+    do {
+        d[nd++] = (char) ('0' + v % 10u);
+        v /= 10u;
+    } while (v);
+    bool one = nd == 1 && d[0] == '1';
+    while (nd && n + 1u < cap) out[n++] = d[--nd];
+    for (const char *p = one ? " notification" : " notifications"; *p && n + 1u < cap; p++)
+        out[n++] = *p;
+    out[n] = 0;
+    return n;
+}
+
+static int32_t card_h(const zui_notice_center_t *c, const zui_notice_t *n, const zui_text_t *t)
 {
     const char *label[ZUI_NOTICE_ACTIONS];
     int32_t code[ZUI_NOTICE_ACTIONS];
     int32_t lh = line_h(t), h = ZUI_S3 * 2 + lh * 3; /* app line, title, body */
+    if (c->hide_previews) return ZUI_S3 * 2 + lh * 2; /* NC11: app line, count */
     if (buttons(n, label, code)) h += ZUI_S2 + lh + ZUI_S2;
     return h;
 }
@@ -673,16 +694,16 @@ static void draw_card(zui_notice_center_t *c, zui_surface_t *s, zui_rect_t r, zu
                       const zui_notice_t *n, const zui_text_t *t, bool primary, bool banner)
 {
     int32_t lh = line_h(t), pad = ZUI_S3;
-    zui_fill_rrect(s, r, ZUI_R_PANEL, ZUI_PANEL, 255);
-    zui_engrave(s, r, ZUI_R_PANEL, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 40);
+    zui_fill_rrect(s, r, ZUI_R_PANEL, C(PANEL), 255);
+    zui_engrave(s, r, ZUI_R_PANEL, C(ENGRAVE_LO), C(ENGRAVE_HI), 40);
     if (n->ai) { /* NC7: marked; dashed, but not gold (NC10) */
         zui_rect_t in = {r.x + 3, r.y + 3, r.w - 6, r.h - 6};
-        zui_dash_rrect(s, in, ZUI_R_PANEL - 2, 1, 4, ZUI_TEXT_2);
+        zui_dash_rrect(s, in, ZUI_R_PANEL - 2, 1, 4, C(TEXT_2));
     }
     int32_t x = r.x + pad, y = r.y + pad, w = r.w - 2 * pad;
     if (!n->read) { /* the unread dot */
         zui_rect_t d = {r.x + 4, y + lh / 2 - 3, 6, 6};
-        zui_fill_rrect(s, d, 3, ZUI_INFO, 255);
+        zui_fill_rrect(s, d, 3, C(INFO), 255);
     }
     /* app line, and who wrote it when an AI did */
     char tag[ZUI_NOTICE_AGENT_MAX + 8];
@@ -694,12 +715,19 @@ static void draw_card(zui_notice_center_t *c, zui_surface_t *s, zui_rect_t r, zu
         tag[k] = 0;
     }
     int32_t tw = tag[0] ? text_w(t, tag) : 0;
-    put_text(s, t, x, y, w - tw - (tw ? ZUI_S2 : 0), ZUI_MUTED, n->app);
-    if (tag[0]) put_text(s, t, x + w - tw, y, tw, ZUI_MUTED, tag);
+    put_text(s, t, x, y, w - tw - (tw ? ZUI_S2 : 0), C(MUTED), n->app);
+    if (tag[0]) put_text(s, t, x + w - tw, y, tw, C(MUTED), tag);
     y += lh;
-    put_text(s, t, x, y, w, n->read ? ZUI_TEXT_2 : ZUI_TEXT, n->title);
+    if (c->hide_previews) { /* NC11: how many, nothing of what */
+        char sum[32];
+        zui_notice_summary(c, n->app, sum, sizeof sum);
+        put_text(s, t, x, y, w, C(TEXT), sum);
+        add_hit(c, n->id, ZUI_NOTICE_HIT_CARD, banner, r, view);
+        return;
+    }
+    put_text(s, t, x, y, w, n->read ? C(TEXT_2) : C(TEXT), n->title);
     y += lh;
-    put_text(s, t, x, y, w, ZUI_TEXT_2, n->body);
+    put_text(s, t, x, y, w, C(TEXT_2), n->body);
     y += lh;
     add_hit(c, n->id, ZUI_NOTICE_HIT_CARD, banner, r, view);
     const char *label[ZUI_NOTICE_ACTIONS];
@@ -713,12 +741,12 @@ static void draw_card(zui_notice_center_t *c, zui_surface_t *s, zui_rect_t r, zu
         zui_rect_t b = {bx, y, bw, lh + 4};
         bool gold = primary && i == 0;
         if (gold) {
-            zui_fill_rrect(s, b, ZUI_R_CONTROL, ZUI_GOLD, 255);
+            zui_fill_rrect(s, b, ZUI_R_CONTROL, C(GOLD), 255);
         } else {
-            zui_fill_rrect(s, b, ZUI_R_CONTROL, ZUI_RAISED, 255);
-            zui_stroke_rrect(s, b, ZUI_R_CONTROL, 1, ZUI_EDGE, 255);
+            zui_fill_rrect(s, b, ZUI_R_CONTROL, C(RAISED), 255);
+            zui_stroke_rrect(s, b, ZUI_R_CONTROL, 1, C(EDGE), 255);
         }
-        put_text(s, t, b.x + ZUI_S3, b.y, bw - 2 * ZUI_S3, gold ? ZUI_VOID : ZUI_TEXT, label[i]);
+        put_text(s, t, b.x + ZUI_S3, b.y, bw - 2 * ZUI_S3, gold ? C(VOID) : C(TEXT), label[i]);
         add_hit(c, n->id, code[i], banner, b, view);
         bx += bw + ZUI_S2;
     }
@@ -732,10 +760,10 @@ int32_t zui_notice_draw_center(zui_notice_center_t *c, zui_surface_t *s, zui_rec
     zui_rect_t keep = s->clip;
     zui_rect_t view = isect(keep, r);
     s->clip = view;
-    zui_fill(s, r, ZUI_VOID);
+    zui_fill(s, r, C(VOID));
     int32_t lh = line_h(text), pad = ZUI_S4, top = r.y + pad - c->scroll, y = top;
     /* header: the title and the unread count */
-    put_text(s, text, r.x + pad, y, r.w - 2 * pad, ZUI_TEXT, "Notifications");
+    put_text(s, text, r.x + pad, y, r.w - 2 * pad, C(TEXT), "Notifications");
     uint32_t unread = zui_notice_unread(c, 0, 0);
     if (unread) {
         char cnt[24];
@@ -750,23 +778,31 @@ int32_t zui_notice_draw_center(zui_notice_center_t *c, zui_surface_t *s, zui_rec
         for (const char *p = " unread"; *p; p++) cnt[k++] = *p;
         cnt[k] = 0;
         int32_t cw = text_w(text, cnt);
-        put_text(s, text, r.x + r.w - pad - cw, y, cw, ZUI_MUTED, cnt);
+        put_text(s, text, r.x + r.w - pad - cw, y, cw, C(MUTED), cnt);
     }
     y += lh + pad;
     /* the selected notice: the one asked for, else the newest */
     uint32_t sel = c->sel;
     if (!get(c, sel)) zui_notice_list(c, 0, 0, &sel, 1);
     if (!zui_notice_count(c)) {
-        put_text(s, text, r.x + pad, y, r.w - 2 * pad, ZUI_MUTED, "Nothing new");
+        put_text(s, text, r.x + pad, y, r.w - 2 * pad, C(MUTED), "Nothing new");
         y += lh;
     }
     zui_notice_group_t apps[ZUI_NOTICE_MAX], th[ZUI_NOTICE_MAX];
     uint32_t na = zui_notice_apps(c, apps, ZUI_NOTICE_MAX);
     for (uint32_t a = 0; a < na; a++) {
-        put_text(s, text, r.x + pad, y, r.w - 2 * pad, ZUI_MUTED, apps[a].app);
+        put_text(s, text, r.x + pad, y, r.w - 2 * pad, C(MUTED), apps[a].app);
         y += lh;
-        zui_hline(s, r.x + pad, y, r.w - 2 * pad, 1, ZUI_HAIRLINE);
+        zui_hline(s, r.x + pad, y, r.w - 2 * pad, 1, C(HAIRLINE));
         y += ZUI_S2;
+        if (c->hide_previews) { /* NC11: one card for the app */
+            const zui_notice_t *N = zui_notice_get(c, apps[a].newest);
+            zui_rect_t card = {r.x + pad, y, r.w - 2 * pad, card_h(c, N, text)};
+            if (N && card.y < r.y + r.h && card.y + card.h > r.y)
+                draw_card(c, s, card, view, N, text, false, false);
+            y += card.h + 2 * ZUI_S2;
+            continue;
+        }
         uint32_t nt = zui_notice_threads(c, apps[a].app, th, ZUI_NOTICE_MAX);
         for (uint32_t k = 0; k < nt; k++) {
             uint32_t ids[ZUI_NOTICE_MAX];
@@ -774,7 +810,7 @@ int32_t zui_notice_draw_center(zui_notice_center_t *c, zui_surface_t *s, zui_rec
             uint32_t shown = n < ZUI_NOTICE_SHOWN ? n : ZUI_NOTICE_SHOWN;
             for (uint32_t j = 0; j < shown; j++) {
                 const zui_notice_t *N = zui_notice_get(c, ids[j]);
-                zui_rect_t card = {r.x + pad, y, r.w - 2 * pad, card_h(N, text)};
+                zui_rect_t card = {r.x + pad, y, r.w - 2 * pad, card_h(c, N, text)};
                 if (card.y < r.y + r.h && card.y + card.h > r.y)
                     draw_card(c, s, card, view, N, text, N->id == sel, false);
                 y += card.h + ZUI_S2;
@@ -792,7 +828,7 @@ int32_t zui_notice_draw_center(zui_notice_center_t *c, zui_surface_t *s, zui_rec
                 while (nd) more[q++] = d[--nd];
                 for (const char *p = " more"; *p; p++) more[q++] = *p;
                 more[q] = 0;
-                put_text(s, text, r.x + pad + ZUI_S3, y, r.w - 2 * pad, ZUI_MUTED, more);
+                put_text(s, text, r.x + pad + ZUI_S3, y, r.w - 2 * pad, C(MUTED), more);
                 y += lh + ZUI_S2;
             }
         }
@@ -813,10 +849,10 @@ bool zui_notice_draw_banner(zui_notice_center_t *c, zui_surface_t *s, zui_rect_t
     zui_rect_t view = isect(keep, r);
     s->clip = view;
     zui_rect_t card = r;
-    int32_t need = card_h(n, text);
+    int32_t need = card_h(c, n, text);
     if (card.h > need) card.h = need;
     draw_card(c, s, card, view, n, text, true, true);
-    zui_stroke_rrect(s, card, ZUI_R_PANEL, 1, ZUI_EDGE, 255);
+    zui_stroke_rrect(s, card, ZUI_R_PANEL, 1, C(EDGE), 255);
     s->clip = keep;
     return true;
 }
