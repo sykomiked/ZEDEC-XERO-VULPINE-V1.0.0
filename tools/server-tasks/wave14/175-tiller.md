@@ -1,0 +1,12 @@
+# Wave 14 task: Tiller (slot 175), Control panel
+Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
+Depends on: wave 0 (016 sounding, 085 waymark), wave 10 (128 mockingbird), wave 11 (136 pivot, 140 steady).
+Manifest: `slot 175`, `layer L2`, `icon icons/l2/175-tiller.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
+What it does: one control panel for vehicles, drones and machines with hard safety limits, reading link rates (`sys.net`) and places (`place.here`, `place.list`). zxvd has no method for any vehicle, drone or machine telemetry and control method: use only existing methods; list what's missing in your report.
+Uses: `use sounding 1` (`sounding.rate` for the link); `use waymark 1` (`waymark.place_ok` on every target); `use mockingbird 1` (boot self-check, limits, so a routine is tried on the emulator first); `use pivot 1` (dwell select); `use steady 1` (key accepted). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): "command inside the envelope" (speed, altitude, bank and distance from home at most the declared limits) in Ada as Eve + APL as KRON witnessed; "hold safe state" (any input BOTH, or the link rate stale beyond the declared ms) in Ada as Eve + APL as KRON witnessed; stopping distance from speed and deceleration exact in FORTRAN as Trebago; telemetry arrays in APL as KRON; craft tree and trip log in MUMPS as MYRA.
+BOTH test: altitude from sensor A is 120 m and from sensor B 80 m, tolerance 5: the altitude is BOTH and the craft holds its safe state; no reading is picked.
+Life-safety: every command is human-approved and the person stays in control; the app never moves a craft by itself; local rules for drones and vehicles apply; not for weapons or any defense use beyond logistics and mapping.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: location, sys.read, net, camera.
+Planned (no runtime yet): Ladder logic.

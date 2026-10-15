@@ -1,0 +1,13 @@
+# Wave 27 task: Pharos (slot 326), Emergency warnings
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 3 (035 aerie); wave 11 (143 watchfire); wave 17 (215 headland, 214 updraft); wave 19 (238 billow).
+Manifest: `slot 326`, `layer L3`, `icon icons/l3/326-pharos.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: broadcasts emergency warnings across radio, mesh and screens, confirming who has received them (`ehop.bands`, `ehop.seal`, `harmonic.encode`, `pspace.post`, `chat.post`, `net.peers`), each sent after a person approves. zxvd has no method for screen broadcast to other devices: use only existing methods; list what's missing in your report.
+Uses: `use headland 1` ("raise an alarm"); `use billow 1` (live audio show segments and captions); `use updraft 1` (link margin, "transmit allowed"); `use aerie 1` ("fits the band"); `use watchfire 1` (cancel window). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `priority_ok` (a warning's priority decides its channel order; a lower one never pre-empts a higher one) in Ada as Eve + APL as KRON witnessed; `hazard_spread` (area reached over time from the declared spread rate) in FORTRAN as Trebago + APL as KRON witnessed; `warning_log` (warning number, receipts counted, never reused) in COBOL as Sutra; `coverage` grid (region by channel) in APL as KRON; `regions` tree in MUMPS as MYRA.
+BOTH test: agency A confirms the warning and agency B denies it: it goes out as BOTH, clearly marked unconfirmed. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Life-safety: advisory and human-approved; never replaces official warning systems.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: net, peers, notify, sys.read, journal.
+Planned (no runtime yet): Go, LabVIEW, TypeScript.
+Pending: Go (messaging): no entry here is an obvious fit; put `pending Go <entry>` on the one closest to messaging and name it in your report; `pending LabVIEW hazard_spread` (signal); TypeScript (view): no entry here is an obvious fit; put `pending TypeScript <entry>` on the one closest to view and name it in your report.

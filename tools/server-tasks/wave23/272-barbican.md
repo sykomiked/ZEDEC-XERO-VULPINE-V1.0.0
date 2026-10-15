@@ -1,0 +1,13 @@
+# Wave 23 task: Barbican (slot 272), Personal security guard
+Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
+Depends on: wave 2 (030 hedgerow); wave 12 (153 pavise); wave 14 (173 warding); wave 15 (181 loupe).
+Manifest: `slot 272`, `layer L3`, `icon icons/l3/272-barbican.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
+What it does: guards one person's devices, logins and identity keys (`devmesh.devices`, `passkeys.list`, `seats.list`), showing every intrusion attempt from the journal (`journal.query`, `log.tail`) and blocking it in plain words.
+Uses: `use pavise 1` (Pavise's combined "allow" and exposure score); `use warding 1` ("key active", key register); `use loupe 1` ("evidence admissible", timeline gaps); `use hedgerow 1` ("is this path reachable", address class). Call these composed entries; do not re-implement them.
+Logic (critical, new decisions only): `lockout_ok` (lock a login out after the declared failed attempts inside the window, unlock only by the owner) in Ada as Eve + APL as KRON witnessed; `anomaly` (failed attempts per device per hour against the device's 14-day mean, integer score) in FORTRAN as Trebago + APL as KRON witnessed; `breach_cost` (cost of a breach as declared items in minor units, refused on overflow) in COBOL as Sutra; `threat_grid` (device by attempt kind) in APL as KRON; `identity` tree (person, devices, keys) in MUMPS as MYRA; the plain-words message is chosen in C from the decision codes.
+BOTH test: device A's sensor reports login 51 as the owner and device B's as unknown: the login is BOTH and quarantined (the session neither opens nor counts as an attack) until the owner confirms. Join with `lpres_conjoin` / `lpres_disjoin` in C; never re-derive the tables.
+Never log key bytes or passphrases. Never copy anything from build_system/keys/.
+Tests: as the spec, plus a compose test (the app composes against a registry holding its parts, and every part entry it calls resolves) and the BOTH test above.
+needs: sys.read, peers, journal, notify.
+Planned (no runtime yet): Nim.
+Pending: Nim (machine): no entry here is an obvious fit; put `pending Nim <entry>` on the one closest to machine and name it in your report.

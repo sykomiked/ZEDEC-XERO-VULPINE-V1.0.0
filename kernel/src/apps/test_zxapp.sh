@@ -26,6 +26,8 @@ make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a >"$T/wasm.log" 2>&1 ||
 "$T/test_zxapp" "$R/kernel/src"
 # the languages the apps use, as docs/APP_LANGUAGE_COVERAGE.md says (LANGUAGE_FIT.tsv)
 python3 "$R/tools/apps/lang_coverage.py" --check
+# one owner for every shared idea (CONCEPTS.tsv), as docs/APP_BLOCKS.md says
+python3 "$R/tools/apps/concepts.py" --check
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
 L="$R/kernel/src/lingua"
 "$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L/zl_ir.c" "$L/zl_basic.c" "$L/zl_fortran.c" \
