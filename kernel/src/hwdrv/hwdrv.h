@@ -244,6 +244,10 @@ extern const hw_id_t igc_ids[];   /* igc.c: I225 / I226 2.5 GbE (and I220/I221) 
 extern const hw_id_t r8169_ids[]; /* r8169.c: Realtek RTL8169/8168/8111/8101, RTL8125 */
 hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                        hw_line_t *note);
+/* nvme.c: Security Send (send 1, opcode 0x81) or Receive (0x82) of len bytes
+ * (1..8192) with SECP/SPSP. 0 = done; -1 = bad length or the controller
+ * refused or timed out; -2 = b is not an NVMe disk (checked first). */
+int nvme_security(hw_blk_t *b, int send, uint8_t secp, uint16_t spsp, uint8_t *buf, uint32_t len);
 hw_verdict_t ahci_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                        hw_line_t *note);
 hw_verdict_t xhci_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
@@ -263,5 +267,12 @@ hw_verdict_t arbmbox_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry
                           hw_line_t *note);
 struct arb_host *hw_arbiter(void);
 void hw_arbiter_reset(void);
+
+/* hw_sed.c: TCG Opal unlock of every NVMe disk at boot (src/opal). A disk
+ * that is not an SED, or not locked, is logged and left alone; a locked one
+ * is unlocked as Admin1 of the Locking SP with the arbiter's key slot N for
+ * the Nth NVMe disk, only when `arb` is attested. One line per disk. Returns
+ * the number of disks unlocked. */
+uint32_t hw_sed_unlock_all(const hw_plat_t *p, hw_registry_t *r, struct arb_host *arb);
 
 #endif

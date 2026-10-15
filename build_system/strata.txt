@@ -50,6 +50,7 @@ zcapital                         base       # the nine-form capital types; swarm
 qr                               base       # QR Code encoder: pure bytes to modules
 devprof                          base       # the device line as data: profiles, OS support table, gap matrix
 arbiter                          base       # arbiter mailbox protocol: both ends, rings over a shared window, no hardware access
+opal                             base       # TCG Opal host for SED unlock: tokens, framing, methods over a two-callback transport; opal_arb.c takes the key from arbiter (base)
 
 # ---- S1 kernel and hardware abstraction
 acpi                             kernel

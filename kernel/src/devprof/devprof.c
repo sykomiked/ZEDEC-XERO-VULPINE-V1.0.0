@@ -42,7 +42,10 @@ static const dp_component_t g_comp[DPC__COUNT] = {
      DP_ST_BUILT, "kernel/arch/hosted/build_zxvd.sh; docs/DESKTOP_LINUX_WINDOWS.md"},
     {DPC_NVME, "nvme", "NVMe", DP_ST_BUILT, "kernel/src/hwdrv/nvme.c (QEMU boot check)"},
     {DPC_AHCI, "ahci", "AHCI / SATA", DP_ST_BUILT, "kernel/src/hwdrv/ahci.c (QEMU boot check)"},
-    {DPC_OPAL, "opal", "TCG Opal SED unlock", DP_ST_MISSING, "no Security Send/Receive path"},
+    {DPC_OPAL, "opal", "TCG Opal SED unlock", DP_ST_BUILT,
+     "kernel/src/opal + NVMe Security Send/Receive (nvme.c) + hw_sed.c at x86_64 boot; "
+     "tested end to end against a fake TPer and the arbiter (test_opal.c, test_nvme.c); "
+     "never run on a real drive, and boot has no attested arbiter yet"},
     {DPC_SAS_HBA, "sas-hba", "SAS HBA for hard-drive shelves", DP_ST_MISSING,
      "none (Broadcom 9500 class needs vendor firmware co-operation)"},
     {DPC_STRIPE, "stripe", "erasure-coded storage service", DP_ST_BUILT,

@@ -95,7 +95,7 @@ KPID=$!
 rc=0; wait "$QPID" || rc=$?
 kill "$KPID" 2>/dev/null; wait "$KPID" 2>/dev/null
 rm -f "$MON"
-grep -aE '\[DRIVER|\[SELFTEST|\[STORAGE|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
+grep -aE '\[DRIVER|\[SELFTEST|\[STORAGE|\[SED\]|class drivers|hardware self-tests|\[BOOT_OK\]' "$LOG"
 echo "[hw-drivers] QEMU exited $rc after at most ${SECS}s"
 
 fail=0
@@ -108,6 +108,8 @@ need '[DRIVER ONLINE] xhci'
 need '[DRIVER ONLINE] e1000'
 [ "$NICS" -eq 2 ] || need '[DRIVER ONLINE] igb'
 need '[DRIVER ONLINE] hda'
+# QEMU's NVMe has no Opal: the SED unlock must say so and move on (hw_sed.c).
+need 'not an SED (Security Receive refused), nothing to unlock'
 # Three disks (NVMe, SATA, USB) each read the disc's GPT header.
 n=$(grep -ac "read LBA 1: GPT header 'EFI PART'" "$LOG")
 [ "$n" -ge 3 ] || { echo "::error::only $n of 3 disks read the GPT header"; fail=1; }

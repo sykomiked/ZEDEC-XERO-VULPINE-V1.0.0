@@ -413,6 +413,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-stripe
 	$(MAKE) --no-print-directory test-climate
 	$(MAKE) --no-print-directory test-mca
+	$(MAKE) --no-print-directory test-opal
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1818,6 +1819,15 @@ test-vfs:
 test-boot-features:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
 
+.PHONY: test-opal
+# TCG Opal SED unlock (src/opal): the host against a fake TPer (golden bytes,
+# right/wrong keys, hostile and random responses) and the arbiter key release
+# end to end; then freestanding builds that may reference only opal_/arb_.
+OPAL_SRCS = src/opal/opal.c src/opal/opal_arb.c
+test-opal:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/opal src/opal/test_opal.c src/opal/fake_tper.c $(OPAL_SRCS) $(ARBITER_SRCS) -o $(ZXV_TMP)/test_opal && $(ZXV_TMP)/test_opal > $(ZXV_TMP)/test_opal.log 2>&1 && echo "[PASS] test_opal ($$(tail -1 $(ZXV_TMP)/test_opal.log))" || { cat $(ZXV_TMP)/test_opal.log; echo "[FAIL] test_opal"; exit 1; }
+	@for t in aarch64-none-elf x86_64-none-elf riscv64-unknown-elf; do for f in $(OPAL_SRCS); do clang --target=$$t -ffreestanding -fno-builtin -std=c11 -O2 -Wall -Werror -Wextra -Isrc/opal -c $$f -o $(ZXV_TMP)/opal_free.o || { echo "[FAIL] opal freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/opal_free.o | grep -v -e '^ *U opal_' -e '^ *U arb_' | grep -q .; then nm -u $(ZXV_TMP)/opal_free.o; echo "[FAIL] opal freestanding: external symbols ($$t $$f)"; exit 1; fi; done; done; echo "[PASS] opal freestanding (aarch64, x86_64, riscv64: no libc)"
+
 .PHONY: test-blockdev test-hwdrv
 # Standard class drivers (src/hwdrv) against register-level fake devices. Every
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
@@ -1829,7 +1839,7 @@ HWDRV_SRCS = src/hwdrv/hwdrv_core.c src/hwdrv/hwdrv_probe.c $(filter-out src/hwd
 test-hwdrv:
 	@for t in $(sort $(wildcard src/hwdrv/test/test_*.c)); do \
 		b=$$(basename $$t .c); \
-		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) $(ARBITER_SRCS) $(OPAL_SRCS) src/opal/fake_tper.c src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:

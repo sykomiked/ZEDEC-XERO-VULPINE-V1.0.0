@@ -354,6 +354,9 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info) {
         const hw_plat_t *hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
         static hw_registry_t hreg;
         hw_probe_all(hp, &hreg);
+        /* Self-encrypting NVMe disks: unlocked only with a key from an
+         * attested arbiter; any other disk gets one line and is left. */
+        hw_sed_unlock_all(hp, &hreg, hw_arbiter());
         uint32_t ok = hw_selftest_all(hp, &hreg);
         /* Every disk: find the EFI system partition, mount it as FAT32 and
          * read the MegaROM the disc carries, so a driver is proven all the
