@@ -3,6 +3,7 @@
 /* vna_space.c — public spaces and the watch hall on Vinea. See vna_space.h
  * (P1-P7). */
 #include "vna_space.h"
+#include "vna_delta.h"
 
 #define EV_TTL_MS    (30ull * 24u * 3600u * 1000u) /* an event record's lifetime */
 #define RATE_MAX_Q16 (4u * VNA_SPACE_Q16)
@@ -34,7 +35,7 @@ const vna_schema_t vna_space_host_schema = {"space_host", 0x0061, 1, host_fields
 
 #define E vna_space_ev_t
 static const vna_field_t ev_fields[] = {
-    VNA_FU8(E, kind, VNA_SPACE_EV_HALL, VNA_AXIS_NONE),
+    VNA_FU8(E, kind, VNA_SPACE_EV_DELTA, VNA_AXIS_NONE),
     VNA_FU64(E, lamport, 0, VNA_AXIS_PROVENANCE),
     VNA_FVAR(E, data, len, VNA_AXIS_NONE),
 };
@@ -170,6 +171,11 @@ vna_status_t vna_space_rec_check(const vna_rec_t *r)
             g_ev.kind < VNA_SPACE_EV_POST)
             return VNA_ERR_PARSE;
         if (g_ev.kind == VNA_SPACE_EV_POST) return g_ev.len > 0 ? VNA_OK : VNA_ERR_PARSE;
+        if (g_ev.kind == VNA_SPACE_EV_DELTA) {
+            vna_delta_t dt;
+            return vna_delta_parse(g_ev.data, g_ev.len, &dt) == VNA_OK ? VNA_OK
+                                                                     : VNA_ERR_PARSE;
+        }
         vna_hall_t h;
         return vna_schema_unpack(&vna_hall_schema, g_ev.data, g_ev.len, &h, 0) >= 0 ? VNA_OK
                                                                                     : VNA_ERR_PARSE;
@@ -740,6 +746,20 @@ int vna_space_post(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const u
     if (s->phase != VNA_SPACE_IN) return VNA_ERR_DENIED;
     sp->now = now;
     return emit(sp, s, VNA_SPACE_EV_POST, text, len);
+}
+
+/* Post a packed delta (vna_delta.h) to the space's state bus. The bytes are
+ * checked as canonical before they are signed: a malformed delta is refused
+ * here rather than gossiped. */
+int vna_space_delta(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const uint8_t *packed,
+                    uint32_t len, uint64_t now)
+{
+    vna_space_t *s = sp && cid ? space_by_cid(sp, cid) : 0;
+    vna_delta_t dt;
+    if (!s || !packed || vna_delta_parse(packed, len, &dt) != VNA_OK) return VNA_ERR_ARG;
+    if (s->phase != VNA_SPACE_IN) return VNA_ERR_DENIED;
+    sp->now = now;
+    return emit(sp, s, VNA_SPACE_EV_DELTA, packed, len);
 }
 
 int vna_space_hall_set(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint8_t state,

@@ -493,6 +493,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vinea
 	@echo "=== vinea spaces: CID-anchored public spaces, peer hosting, synced watch hall ===";
 	$(MAKE) --no-print-directory test-vinea-space
+	@echo "=== vinea delta: the L2 state bus — canonical deltas, the evidence join, the Merkle clock ===";
+	$(MAKE) --no-print-directory test-vna-delta
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
 	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
@@ -2163,12 +2165,17 @@ endif
 # The libzxv facade (src/engine/zxv_engine.h): compress, route, decompress.
 .PHONY: test-vinea
 test-vinea:
-	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_econ.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea.c src/vinea/vna_agree.c src/vinea/vna_cid.c src/vinea/vna_cmd.c src/vinea/vna_common.c src/vinea/vna_delta.c src/vinea/vna_econ.c src/vinea/vna_file.c src/vinea/vna_frame.c src/vinea/vna_id.c src/vinea/vna_kad.c src/vinea/vna_lan.c src/vinea/vna_link.c src/vinea/vna_node.c src/vinea/vna_schema.c src/vinea/vna_session.c src/vinea/vna_space.c src/vinea/vna_wire.c src/lpres/lpres.c src/pqsec/pq_mldsa87.c src/pqsec/pq_mlkem1024.c src/pqsec/mldsa/fips202.c src/mlkem/keccak.c src/tls/x25519.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c src/swarm/swarm_market.c src/swarm/swarm_hk.c src/ubh/ubh.c src/event_space/event_envelope.c src/zcapital/zcapital.c -o /tmp/test_vinea -lm && /tmp/test_vinea 64 > /tmp/test_vinea.log 2>&1 && echo "[PASS] test_vinea" || { tail -40 /tmp/test_vinea.log; echo "[FAIL] test_vinea"; exit 1; }
 
 # Vinea spaces (src/vinea/vna_space.h): CID-anchored public spaces and the synced watch hall.
 .PHONY: test-vinea-space
 test-vinea-space:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk src/vinea/test_vinea_space.c $(VINEA_SRCS) src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea_space.c $(VINEA_SRCS) src/lpres/lpres.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
+
+# Vinea delta (src/vinea/vna_delta.h): the L2 state bus's payload and page.
+.PHONY: test-vna-delta
+test-vna-delta:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vna_delta.c src/vinea/vna_delta.c src/vinea/vna_common.c src/lpres/lpres.c src/event_space/event_envelope.c src/mlkem/keccak.c src/robin_debanks/sha256.c -o /tmp/test_vna_delta && /tmp/test_vna_delta > /tmp/test_vna_delta.log 2>&1 && echo "[PASS] test_vna_delta" || { tail -40 /tmp/test_vna_delta.log; echo "[FAIL] test_vna_delta"; exit 1; }
 
 # AIPI (src/aipi/aipi.h): content-addressed functions over the IPFS node and Vinea.
 AIPI_DEPS := src/aipi/aipi.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/ipfs_node/ipfsn_fidx.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/lpres/lpres_hex.c src/lpres/lpres.c
@@ -2185,7 +2192,7 @@ APROTO_DEPS := src/aproto/ap_log.c src/aproto/aftp.c src/aproto/aham.c src/net/m
 
 .PHONY: test-aproto
 test-aproto:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk -Isrc/net -Isrc/crit168 src/aproto/test_aftp.c $(APROTO_DEPS) $(VINEA_SRCS) -o $(ZXV_TMP)/test_aftp -lm && $(ZXV_TMP)/test_aftp > $(ZXV_TMP)/test_aftp.log 2>&1 && echo "[PASS] test_aftp ($$(tail -1 $(ZXV_TMP)/test_aftp.log))" || { cat $(ZXV_TMP)/test_aftp.log; echo "[FAIL] test_aftp"; exit 1; }
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(AIPI_INC) -Isrc/zcapital -Isrc/edp_risk -Isrc/net -Isrc/crit168 src/aproto/test_aftp.c $(APROTO_DEPS) src/lpres/lpres.c $(VINEA_SRCS) -o $(ZXV_TMP)/test_aftp -lm && $(ZXV_TMP)/test_aftp > $(ZXV_TMP)/test_aftp.log 2>&1 && echo "[PASS] test_aftp ($$(tail -1 $(ZXV_TMP)/test_aftp.log))" || { cat $(ZXV_TMP)/test_aftp.log; echo "[FAIL] test_aftp"; exit 1; }
 
 .PHONY: test-aipi
 test-aipi:

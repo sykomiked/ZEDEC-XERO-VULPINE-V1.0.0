@@ -87,7 +87,11 @@
 
 typedef enum { VNA_SPACE_ROOM = 1, VNA_SPACE_HALL = 2 } vna_space_kind_t;
 typedef enum { VNA_GOV_OWNER = 1, VNA_GOV_QUORUM = 2 } vna_space_gov_t;
-typedef enum { VNA_SPACE_EV_POST = 1, VNA_SPACE_EV_HALL = 2 } vna_space_ev_kind_t;
+typedef enum {
+    VNA_SPACE_EV_POST = 1,
+    VNA_SPACE_EV_HALL = 2,
+    VNA_SPACE_EV_DELTA = 3 /* a packed vna_delta_t (vna_delta.h): the L2 state bus */
+} vna_space_ev_kind_t;
 typedef enum { VNA_HALL_STOP = 0, VNA_HALL_PAUSE = 1, VNA_HALL_PLAY = 2 } vna_hall_state_t;
 
 /* P1: the genesis block (its canonical bytes are what the CID names). */
@@ -264,6 +268,13 @@ int vna_space_leave(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint64
 /* P5: post text (1..VNA_SPACE_TEXT_MAX bytes) to a space this node is in. */
 int vna_space_post(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const uint8_t *text,
                    uint32_t len, uint64_t now);
+
+/* The L2 state bus: post a canonical packed delta (vna_delta.h) as a
+ * VNA_SPACE_EV_DELTA event. Same signing, Lamport field and gossip as a
+ * post; a receiving node applies it through its on_event hook, then
+ * vna_delta_apply. */
+int vna_space_delta(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], const uint8_t *packed,
+                    uint32_t len, uint64_t now);
 
 /* P6: set the watch hall's playback state (load = STOP with a media CID,
  * play, pause, seek = the same state at another position). Refused

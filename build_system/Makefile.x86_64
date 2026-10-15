@@ -336,6 +336,7 @@ SRCS := \
     kernel/src/vinea/vna_cid.c \
     kernel/src/vinea/vna_cmd.c \
     kernel/src/vinea/vna_common.c \
+    kernel/src/vinea/vna_delta.c \
     kernel/src/vinea/vna_econ.c \
     kernel/src/vinea/vna_file.c \
     kernel/src/vinea/vna_frame.c \

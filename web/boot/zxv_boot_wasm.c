@@ -137,6 +137,25 @@ static zui_glyph_cache_t GC2;
 static zui_text_t T_TITLE, T_BODY, T_CAP, T_MARK;
 static bool desk_up;
 
+/* ---- the L2 state bus ---------------------------------------------------
+ * Deltas arrive over the doorway's transport (boot.js writes them into
+ * L2_IN) as canonical vna_delta bytes — the same bytes a Vinea
+ * VNA_SPACE_EV_DELTA space event carries (vna_space.h). They join the state
+ * page through lpres_kjoin: two peers disagreeing about one cell leave it
+ * BOTH rather than one silently winning, and the desk's status line says
+ * what the page holds. A delta this node writes leaves through zb_l2_emit's
+ * bytes, which the transport carries back to the bus. */
+#include "vna_delta.h"
+
+static vna_delta_page_t L2;
+static uint8_t L2_IN[VNA_DELTA_HDR + VNA_DELTA_PAYLOAD_MAX];
+static uint8_t L2_OUT[VNA_DELTA_HDR + VNA_DELTA_PAYLOAD_MAX];
+
+/* the bus's own cells: cell 1 says the bus link is up, cell 2 is the member
+ * count the last presence delta carried; 3 on are the session's */
+#define ZB_L2_LINK     1u
+#define ZB_L2_PRESENCE 2u
+
 static int rail_of(const char *app)
 {
     for (uint32_t i = 0; i < RAIL_APPS; i++) {
@@ -301,6 +320,34 @@ static void desk_act(void)
     DESK.act_app = -1;
 }
 
+/* The desk's status line says what the L2 page holds: the lattice letter of
+ * the bus cell (N neither, T true, F false, B both) and how many cells the
+ * page has seen. */
+static void l2_status(void)
+{
+    if (!desk_up) return;
+    static const char gly[4] = {'N', 'T', 'F', 'B'};
+    char st[ZUI_DESK_STATUS];
+    const char *pre = "ZXV · the Web4 doorway · Guest · mesh ";
+    uint32_t n = 0;
+    while (pre[n] && n < ZUI_DESK_STATUS - 8) st[n] = pre[n], n++;
+    uint8_t lat = (uint8_t) LPRES_STATE_NEITHER;
+    const vna_delta_cell_t *c = vna_delta_cell(&L2, ZB_L2_LINK);
+    if (c) lat = c->lattice;
+    st[n++] = gly[lat & 3];
+    st[n++] = (char) 0xc2; /* ·, the same UTF-8 the prefix carries */
+    st[n++] = (char) 0xb7;
+    st[n++] = ' ';
+    uint32_t nc = L2.ncell, div = 100;
+    while (div > 1 && nc < div) div /= 10;
+    while (div && n < ZUI_DESK_STATUS - 1) {
+        st[n++] = (char) ('0' + nc / div % 10);
+        div /= 10;
+    }
+    st[n] = 0;
+    zui_desk_status(&DESK, st);
+}
+
 /* type: 0 move, 1 down, 2 up. Button: ZUI_BTN_LEFT mask on moves, the button
  * pressed or let go otherwise. Returns nonzero when the event did anything. */
 EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
@@ -422,12 +469,50 @@ EXPORT(zb_icon_fail) int zb_icon_fail(uint32_t i)
     return 0;
 }
 
+/* ---- the L2 exports: the transport's bytes, the page's answers -------- */
+
+/* Room for one inbound delta: write its canonical bytes here, then call
+ * zb_l2_apply with the length and the event's Lamport field (two halves,
+ * staying integer). Returns the cell's lattice state after the join
+ * (0..3) or a negative vna_status_t. */
+EXPORT(zb_l2_buf) uint8_t *zb_l2_buf(void) { return L2_IN; }
+
+EXPORT(zb_l2_apply) int zb_l2_apply(uint32_t n, uint32_t tick_lo, uint32_t tick_hi)
+{
+    uint64_t t = (uint64_t) tick_lo | ((uint64_t) tick_hi << 32);
+    int st = vna_delta_apply(&L2, L2_IN, n, t);
+    if (st >= 0) l2_status();
+    return st;
+}
+
+/* The lattice state a cell holds, or -1 when it has seen nothing. */
+EXPORT(zb_l2_state) int zb_l2_state(uint32_t cell)
+{
+    const vna_delta_cell_t *c = vna_delta_cell(&L2, (uint16_t) cell);
+    return c ? c->lattice : -1;
+}
+
+/* Write this node's own delta's payload into L2_IN first (n bytes), then
+ * call: the canonical delta lands in L2_OUT, its length is the return (or a
+ * negative vna_status_t). The transport sends those bytes to the bus. */
+EXPORT(zb_l2_emit) int zb_l2_emit(uint32_t cell, int lattice, uint32_t n)
+{
+    uint64_t tick = 0;
+    int r = vna_delta_issue(&L2, (uint16_t) cell, (lpres_state_t) lattice, L2_IN, (uint16_t) n,
+                            L2_OUT, sizeof L2_OUT, &tick);
+    if (r >= 0) l2_status();
+    return r;
+}
+
+EXPORT(zb_l2_out) uint8_t *zb_l2_out(void) { return L2_OUT; }
+
 EXPORT(zb_init) void zb_init(int reduce_motion, int sound)
 {
     zxl_prefs_t p = zxl_prefs_default();
     if (!sound) p.sounds = 0;
     zui_boot_init(&BOOT, &p, reduce_motion != 0);
     logo_used = 0;
+    vna_delta_page_init(&L2);
 }
 
 EXPORT(zb_size) uint8_t *zb_size(int32_t w, int32_t h)

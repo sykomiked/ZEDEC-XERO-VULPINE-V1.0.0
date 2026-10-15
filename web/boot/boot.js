@@ -167,6 +167,36 @@ async function boot()
     addEventListener('resize', size);
 
     const sound = new Sound(zb, memory);
+
+    // ---- the L2 state bus (vna_delta, kernel/src/vinea/vna_delta.h) ----
+    // A delta is the bus's unit: canonical bytes that join the wasm's state
+    // page through the evidence join — two peers disagreeing about one cell
+    // leave it BOTH instead of one winning silently. The same bytes travel
+    // as a VNA_SPACE_EV_DELTA event on Vinea (vna_space.h); a transport
+    // assigns l2.send and hands inbound deltas to l2.apply — until one
+    // does, the page is the node's own, which is still true of it.
+    const l2 = {
+        apply(bytes, tickLo, tickHi) {
+            const p = zb.zb_l2_buf();
+            new Uint8Array(memory.buffer, p, bytes.length).set(bytes);
+            return zb.zb_l2_apply(bytes.length, tickLo >>> 0, tickHi >>> 0);
+        },
+        emit(cell, lattice, payload) {
+            const p = zb.zb_l2_buf();
+            if (payload && payload.length)
+                new Uint8Array(memory.buffer, p, payload.length).set(payload);
+            const n = zb.zb_l2_emit(cell, lattice, payload ? payload.length : 0);
+            if (n < 0) return n;
+            const bytes = new Uint8Array(memory.buffer, zb.zb_l2_out(), n).slice();
+            if (l2.send) l2.send(bytes);
+            return bytes;
+        },
+        state(cell) { return zb.zb_l2_state(cell); },
+        send : null,
+    };
+    const L2_LINK = 1; // the bus-link cell, ZB_L2_LINK in zxv_boot_wasm.c
+    window.ZXV_L2 = l2;
+
     let last = performance.now(), handed = false, manifest = null;
     let packBuf = null, iconInflight = -1, lastMode = -1;
 
@@ -249,7 +279,13 @@ async function boot()
         serveIcons();
         if (zb.zb_desk) {
             const mode = zb.zb_desk();
-            if (mode !== lastMode && MODE_HINT[mode]) say(MODE_HINT[mode]);
+            if (mode !== lastMode) {
+                if (MODE_HINT[mode]) say(MODE_HINT[mode]);
+                // the desk is where the bus begins: the first delta is the
+                // node's own word that its link is up — true for it now, and
+                // the message a transport would carry first
+                if (mode === 2 && zb.zb_l2_emit) l2.emit(L2_LINK, 1, null);
+            }
             lastMode = mode;
         }
         if (zb.zb_phase() === PHASE.DONE && !handed) {
@@ -339,25 +375,71 @@ async function boot()
             const iconBytes = (manifest.apps || []).reduce((n, a) => n + (a.size || 0), 0);
             if (pe.size !== total + iconBytes)
                 throw new Error('boot.json: the pack does not cover the file set');
-            say(`loading the system — one file, ${mib(pe.size)} MiB`);
-            const res = await fetch(pe.path, {cache : 'no-cache'});
-            if (!res.ok) throw new Error(`${pe.path}: ${res.status} ${res.statusText}`);
             packBuf = new Uint8Array(pe.size);
-            let at = 0;
-            const reader = res.body.getReader();
-            for (;;) {
-                const {done : end, value} = await reader.read();
-                if (end) break;
+            const progress = () => {
+                filesDone = Math.min(filesTotal,
+                    Math.floor(filesTotal * loaded / pe.size));
+                status();
+            };
+            let loaded = 0;
+            const copy = (value, at) => {
                 if (at + value.length > pe.size)
                     throw new Error(`${pe.path}: longer than its ${pe.size} bytes`);
                 packBuf.set(value, at);
-                at += value.length;
+                loaded += value.length;
                 onBytes(value.length);
-                filesDone = Math.min(filesTotal,
-                    Math.floor(filesTotal * at / pe.size));
-                if (at % 1048576 < value.length) status();
+            };
+            // A latent gateway answers four short ranges sooner than one long
+            // stream: probe for 206, then run four lanes; each byte lands in
+            // place and the one hash below still proves the whole buffer. A
+            // gateway that does not range falls back to the single stream.
+            let ranged = false;
+            try {
+                const probe = await fetch(pe.path,
+                    {cache : 'no-cache', headers : {Range : 'bytes=0-0'}});
+                ranged = probe.status === 206;
+                if (probe.body) probe.body.cancel();
+            } catch (e) { /* ranged stays false */ }
+            if (ranged) {
+                const LANES = 4;
+                const lane = async (i) => {
+                    const lo = Math.floor(pe.size * i / LANES),
+                          hi = Math.floor(pe.size * (i + 1) / LANES);
+                    const r = await fetch(pe.path, {cache : 'no-cache',
+                        headers : {Range : `bytes=${lo}-${hi - 1}`}});
+                    if (r.status !== 206)
+                        throw new Error(`${pe.path}: lane answered ${r.status}`);
+                    const rd = r.body.getReader();
+                    let at = lo, mark = 0;
+                    for (;;) {
+                        const {done : end, value} = await rd.read();
+                        if (end) break;
+                        copy(value, at);
+                        at += value.length;
+                        mark += value.length;
+                        if (mark >= 1048576) { mark = 0; progress(); }
+                    }
+                    if (at !== hi)
+                        throw new Error(`${pe.path}: lane ${i} ended at ${at}, not ${hi}`);
+                };
+                say(`loading the system — one file in ${LANES} lanes, ${mib(pe.size)} MiB`);
+                await Promise.all([...Array(LANES).keys()].map(lane));
+            } else {
+                say(`loading the system — one file, ${mib(pe.size)} MiB`);
+                const res = await fetch(pe.path, {cache : 'no-cache'});
+                if (!res.ok) throw new Error(`${pe.path}: ${res.status} ${res.statusText}`);
+                const reader = res.body.getReader();
+                let at = 0, mark = 0;
+                for (;;) {
+                    const {done : end, value} = await reader.read();
+                    if (end) break;
+                    copy(value, at);
+                    at += value.length;
+                    mark += value.length;
+                    if (mark >= 1048576) { mark = 0; progress(); }
+                }
             }
-            if (at !== pe.size) throw new Error(`${pe.path}: ${at} of ${pe.size} bytes`);
+            if (loaded !== pe.size) throw new Error(`${pe.path}: ${loaded} of ${pe.size} bytes`);
             if (pe.sha256 && (await sha256hex(packBuf)) !== pe.sha256.toLowerCase())
                 throw new Error(`${pe.path}: does not match its SHA-256`);
             filesDone = filesTotal;
