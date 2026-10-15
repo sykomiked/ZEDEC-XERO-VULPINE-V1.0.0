@@ -1,0 +1,34 @@
+-5 is negative
+0 is zero
+7 is small
+12 is large
+first red
+all [red,green,blue]
+no pink
+not red: green
+either
+a b
+same
+distinct
+1+2*3  1+2*3  1+2*3
+(1+2)*3  (1+2)*3  (1+2)*3
+- 1  - 1  - 1
+- -a  - -a  - -a
+a-(b-c)  a-(b-c)  a-(b-c)
+f(Hello,[],it's,,a
+b)  f('Hello',[],'it\'s','','a\nb')  f('Hello',[],'it\'s','','a\nb')
+[a,B|c]  [a,'B'|c]  [a,'B'|c]
+{x,y}  {x,y}  {x,y}
+a:-b,c;d->e  a:-b,c;d->e  a:-b,c;d->e
+\+a  \+a  \+a
+1- -1  1- -1  1- -1
+2** -1  2** -1  2** -1
+f(;,|,,-)  f(;,'|','',-)  f(;,'|','',-)
+abc and x y
+'x y'
+hi!
+tilde ~ done
+   indented
+end
+second
+-3 9

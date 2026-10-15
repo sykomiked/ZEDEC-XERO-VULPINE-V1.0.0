@@ -83,6 +83,14 @@ static const char *const seeds[] = {
     "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
     "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
     "-2 7 / 7)\n",
+    "% fuzz seed\n:- initialization(main).\nlen([], 0).\nlen([_|T], N) :- len(T, M), N is M + 1.\n"
+    "p(1, a). p(2, 'B c'). p(X, f(X, [X])) :- integer(X), X > 2, !.\n"
+    "q(X) :- ( X =:= 0 -> true ; X < 0 ; \\+ X = 7 ), X \\== y.\n"
+    "main :- len([a, b|[c]], N), write(N), nl, findall(K-V, p(K, V), L), print(L), nl,\n"
+    "    forall(between(-1, 2, I), (q(I) -> write(I) ; write(-I))), nl,\n"
+    "    ( member(X, [3, 9]), Y is X * X mod 7 // 2 - min(X, 4) ^ 2, Y > 0 -> true ; Y = none ),\n"
+    "    format(\"~w ~a ~d~n\", [f(- 1, 'x y', {a}), abc, 42]), writeq(Y), nl, append(A, [B], [1, 2]),\n"
+    "    length(A, LA), writeq(A/B/LA), nl.\n",
 };
 
 static const char *const dict[] = {
@@ -170,6 +178,19 @@ static const char *const dict[] = {
     "(1:2)",
     "EMIT ",
     ".\" x\" ",
+    ":- ",
+    "->",
+    "\\+ ",
+    "[",
+    "]",
+    "|",
+    "_",
+    " is ",
+    "=:=",
+    "findall(",
+    "format(\"~w~n\", [",
+    "'a b'",
+    "0'a",
 };
 
 static uint64_t rng;

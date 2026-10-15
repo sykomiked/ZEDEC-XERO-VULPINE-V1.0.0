@@ -22,12 +22,12 @@ proves it.
 
 | Tier | Meaning | Today |
 |---|---|---|
-| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth |
+| **run** | Source text compiles to the shared Lingua IR and runs on the checked integer runtime. Output is byte-identical to a reference implementation of the language on the subset Lingua accepts. A program outside the subset is refused with a line, column and reason, never run differently. | FORTRAN, BASIC, Forth, Prolog |
 | **pillar** | The language's data and records run in one of the five ZXV pillar runtimes, which apps call directly. | COBOL (Sutra), FORTRAN numerics (Trebago), Ada (Eve), APL and K (KRON), MUMPS (MYRA) |
 | **native** | One of ZXV's own three languages for coding by purpose and intent, built and checked in kernel/src/alexandria (docs/ALEXANDRIA.md). Each has a Lingua number and a twin; none compiles to the shared IR yet. | LEXIS (names), TECTON (composition), AXION (truth checks) |
 | **ir** | The shared intermediate representation every Lingua front-end compiles to, and that the projections turn into C, Forth and x86-64. It is counted as a language because programs ship in it (`.zlir`, `logic zlir` in a manifest), but nobody is expected to write it by hand. | Lingua IR |
 | **host** | Code in the language runs on its own toolchain and calls ZXV through the C ABI or an SDK. | C, C++, C#, F#, Go, Java, JavaScript, Pascal, PHP, Python, Ruby, Rust, Solidity, Swift, TypeScript, WebAssembly |
-| **next1, next2, next3** | Queued for a Lingua front-end, in that order. | 18 more, plus a Lingua front-end for Pascal, listed below |
+| **next1, next2, next3** | Queued for a Lingua front-end, in that order. | 17 more, plus a Lingua front-end for Pascal, listed below |
 | **catalogue** | Recorded with its year and family. No claim of compatibility. | The rest |
 
 A language can sit in more than one place (Pascal has a binding today and a
@@ -132,7 +132,7 @@ provenance.
 | 1940s | | | | | 1 |
 | 1950s | FORTRAN | COBOL | | LISP, JOVIAL, RPG | 6 |
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
-| 1970s | Forth | | C, Pascal | Scheme, Prolog, Modula-2, AWK, REXX, SQL | 9 |
+| 1970s | Forth, Prolog | | C, Pascal | Scheme, Modula-2, AWK, REXX, SQL | 9 |
 | 1980s | | Ada | C++ | | 17 |
 | 1990s | | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 8 |
 | 2000s | | | C#, F#, Go | | 4 |
@@ -146,7 +146,8 @@ maintained toolchain, then languages that teach, then the rest.
 - **next1:** Pascal, ALGOL 60, LISP, Scheme, Logo. Block-structured and
   list languages exercise the parts of the IR the first three did not
   (nested scopes, recursion over lists).
-- **next2:** PL/I, BCPL, B, Modula-2, SNOBOL, Prolog, Lua.
+- **next2:** PL/I, BCPL, B, Modula-2, SNOBOL, Lua (Prolog has moved to
+  run: SWI-Prolog 9 is its reference).
 - **next3:** JOVIAL, RPG, IEC 61131-3 Structured Text, AWK, REXX, plus a
   parse tier for SQL and JCL, which ZXV reads rather than runs.
 
@@ -157,7 +158,7 @@ A language moves to **run** only when all of these pass in CI
 
 - unit tests for every statement, every refusal and every trap;
 - golden programs whose output matches the reference implementation
-  (gfortran for FORTRAN, gforth for Forth; BASIC has no maintained integer
+  (gfortran for FORTRAN, gforth for Forth, swipl for Prolog; BASIC has no maintained integer
   reference, so its goldens were checked by hand and cross-checked against
   the same algorithm in the other two);
 - 100 random programs per language, generated with known answers and run
