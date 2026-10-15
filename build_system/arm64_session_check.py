@@ -150,8 +150,16 @@ def event_checks(b):
     b.expect(b'no event with ordinal 999999' in r and b'(you) failed, gate true, code -6' in r,
              'model_exec on an event that is not in the log fails with its reason')
     r = b.cmd('chiglet model_exec 6918188751797616640 1', b'model_exec (chiglet)')
-    b.expect(b'no model is loaded at @6002580400000000' in r and b'code -5' in r,
-             'model_exec at a coordinate with no loaded model refuses, it never guesses')
+    b.expect(b'at @6002580400000000: no model at that coordinate' in r and b'code -5' in r,
+             'model_exec at a coordinate with no cell refuses, it never guesses')
+    r = b.cmd('chiglet model_exec 6917541126563954688 1', b'model_exec (chiglet)')
+    b.expect(b'Spinewyrm (trunk) at @60000b0100000000: model not installed on this machine' in r
+             and b'code -8' in r,
+             'model_exec resolves Spinewyrm by its cell coordinate and says its weights are not here')
+    r = b.cmd('chiglet model_exec 6917535633300783104 1', b'model_exec (chiglet)')
+    b.expect(b'Greetwyvern (voice_of_tiamat) at @6000060200000000: model needs an engine path '
+             b'this build lacks (needs smollm3 arch)' in r and b'code -7' in r,
+             'model_exec names the engine path a cell needs')
     r = b.cmd('chiglet model_exec 5 1', b'model_exec (chiglet)')
     b.expect(b'(chiglet) refused' in r, 'a coordinate outside the model domain is refused')
     r = b.cmd('events', b"signed with this boot's key")

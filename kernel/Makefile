@@ -409,6 +409,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-companion
 	$(MAKE) --no-print-directory test-chg-organ
 	$(MAKE) --no-print-directory test-zxv-events
+	$(MAKE) --no-print-directory test-chg-cells
 	$(MAKE) --no-print-directory test-zxvc
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
@@ -1707,6 +1708,17 @@ test-chg-organ:
 	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $(CHGO_INC) -Isrc/swarm src/chiglet/test_chg_name.c src/chiglet/chg_name.c src/swarm/swarm_dna.c src/robin_debanks/sha256.c -o $(ZXV_TMP)/test_chg_name 2>$(ZXV_TMP)/test_chg_name.build || { cat $(ZXV_TMP)/test_chg_name.build; echo "[FAIL] test_chg_name build"; exit 1; }
 	@$(ZXV_TMP)/test_chg_name > $(ZXV_TMP)/test_chg_name.log 2>&1 && echo "[PASS] test_chg_name ($$(tail -1 $(ZXV_TMP)/test_chg_name.log))" || { cat $(ZXV_TMP)/test_chg_name.log; echo "[FAIL] test_chg_name"; exit 1; }
 	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_organ chg_vocab chg_abi chg_name; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CHGO_INC) -Isrc/swarm -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' (chgv_[a-z_]+|lpx_[a-z_]+|lpres_[a-z_]+|swarm_dna_[a-z_]+|sha256(_[a-z]+)?)$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_organ, chg_vocab, chg_abi, chg_name freestanding (aarch64 -mgeneral-regs-only, i386)"
+
+# The Tiamat model cells by coordinate (src/chiglet/chg_cells.h C1-C3): the
+# generated table matches tools/tiamat/cell_coords.json, the resolver's
+# tests on the real table and on a fixture holding a retired cell, then a
+# freestanding build whose only external symbols are the table's own.
+.PHONY: test-chg-cells
+test-chg-cells:
+	@python3 ../tools/tiamat/cell_table.py --check
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -Isrc/chiglet src/chiglet/test_chg_cells.c src/chiglet/chg_cells.c src/chiglet/chg_cells_table.c -o $(ZXV_TMP)/test_chg_cells && $(ZXV_TMP)/test_chg_cells > $(ZXV_TMP)/test_chg_cells.log 2>&1 && echo "[PASS] test_chg_cells ($$(tail -1 $(ZXV_TMP)/test_chg_cells.log))" || { cat $(ZXV_TMP)/test_chg_cells.log; echo "[FAIL] test_chg_cells"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DCHG_CELLS_FIXTURE -Isrc/chiglet src/chiglet/test_chg_cells.c src/chiglet/chg_cells.c -o $(ZXV_TMP)/test_chg_cells_fx && $(ZXV_TMP)/test_chg_cells_fx > $(ZXV_TMP)/test_chg_cells_fx.log 2>&1 && echo "[PASS] test_chg_cells fixture ($$(tail -1 $(ZXV_TMP)/test_chg_cells_fx.log))" || { cat $(ZXV_TMP)/test_chg_cells_fx.log; echo "[FAIL] test_chg_cells fixture"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; for f in chg_cells chg_cells_table; do clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Isrc/chiglet -c src/chiglet/$$f.c -o $(ZXV_TMP)/$${f}_free.o || { echo "[FAIL] $$f freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/$${f}_free.o | grep -vE ' chg_cell(s|_organs)(_n)?$$' | grep -q .; then nm -u $(ZXV_TMP)/$${f}_free.o; echo "[FAIL] $$f freestanding: unexpected symbol ($$t)"; exit 1; fi; done; done; echo "[PASS] chg_cells freestanding (aarch64 -mgeneral-regs-only, i386)"
 
 # The chiglet governor's event log viewer (tools/zxv-events, chg_abi.h A8):
 # a two-boot log from a real chg_abi session passes, with its ML-DSA-65 head

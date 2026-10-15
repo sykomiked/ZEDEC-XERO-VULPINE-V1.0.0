@@ -500,6 +500,7 @@ static pmux_t g_pmux;            /* master/sub terminal rotation */
 #include "oseq.h"
 #include "chiglet.h"
 #include "chg_abi.h"
+#include "chg_cells.h"
 #include "pq_security.h" /* ML-DSA-65: the event log's head signature */
 #include "sha256.h"
 #include "hkdf.h"
@@ -3595,10 +3596,11 @@ static int32_t g_gov_node = -1;
 static int32_t g_gov_last = -1;
 static uint64_t g_gov_evts; /* records printed and folded so far */
 
-/* A7: the model at a coordinate on one input event. The coordinate must
- * name a model this kernel has loaded; the bare-metal kernel loads no
- * weights (they are never in the image), so every coordinate is refused
- * with the reason, after the event is checked. */
+/* A7: the model at a coordinate on one input event. The coordinate resolves
+ * through the Tiamat cell table (chg_cells.h C3) and refuses with its
+ * reason: no cell there (-5), an engine path this build lacks (-7), or no
+ * weights on this machine (-8: the bare-metal kernel loads none; they are
+ * never in the image). The event is checked first. */
 static int gov_model_exec(const chga_call_t *c)
 {
     uint64_t ev = c->arg[1];
@@ -3608,12 +3610,28 @@ static int gov_model_exec(const chga_call_t *c)
         uart_puts(" in this boot's log\r\n");
         return -6;
     }
-    uart_puts("  model_exec: no model is loaded at @");
+    const chg_cell_t *cell;
+    chg_cell_why_t why = chg_cell_resolve(c->arg[0], NULL, NULL, &cell);
     uint8_t w[8];
     for (uint32_t k = 0; k < 8; k++) w[k] = (uint8_t) (c->arg[0] >> (56 - 8 * k));
+    uart_puts("  model_exec: ");
+    if (cell) {
+        uart_puts(cell->name);
+        uart_puts(" (");
+        uart_puts(chg_cell_organ(cell->coord));
+        uart_puts(") ");
+    }
+    uart_puts("at @");
     gov_hex(w, 8);
-    uart_puts(": this kernel loads no weights\r\n");
-    return -5;
+    uart_puts(": ");
+    uart_puts(chg_cell_why_text(why));
+    if (why == CHG_CELL_NO_ENGINE) {
+        uart_puts(" (");
+        uart_puts(cell->engine);
+        uart_puts(")");
+    }
+    uart_puts("\r\n");
+    return why == CHG_CELL_NO_MODEL ? -5 : why == CHG_CELL_NO_ENGINE ? -7 : -8;
 }
 
 /* The handlers: the kernel's own code, run only after the gate. */
