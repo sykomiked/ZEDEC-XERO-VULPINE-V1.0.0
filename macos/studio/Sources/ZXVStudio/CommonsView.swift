@@ -153,7 +153,7 @@ struct CommonsView: View {
                 Text("Following \(me.following.count)").font(.caption).foregroundStyle(Theme.muted)
                 ForEach(me.following, id: \.self) { f in
                     HStack {
-                        Text(short(f)).font(.system(.caption, design: .monospaced))
+                        Text(short(f)).font(Theme.mono(ZUIToken.caption))
                         Spacer()
                         Button("Unfollow") { Task { followLine = await store.chatFollow(f, false) } }
                             .buttonStyle(.borderless)

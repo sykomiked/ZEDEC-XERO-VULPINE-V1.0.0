@@ -55,6 +55,10 @@
 
 #if ZUI_HAVE_METAL
 extern const zui_present_ops_t zui_present_metal_ops;
+/* The NSWindow of an open Metal present layer, unretained (bridge it:
+ * (__bridge NSWindow *) ...), for a host app's sheets, minimum size and
+ * saved frame; NULL for any other layer. */
+void *zui_present_metal_window(const zui_present_t *p);
 #endif
 #if ZUI_HAVE_D3D11
 extern const zui_present_ops_t zui_present_d3d11_ops;

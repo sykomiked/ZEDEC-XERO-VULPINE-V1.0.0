@@ -45,7 +45,7 @@ void burrow_view_build(burrow_view_t *v, zui_ui_t *ui, burrow_t *m)
     v->show_detail = false;
     v->name_buf[0] = 0;
     zv_shell_t *s = &v->sh;
-    zv_shell_build(s, ui, "Burrow");
+    zv_shell_build(s, ui, "Banker");
     zv_shell_palette(s, BURROW_AI, BURROW_AI_COUNT);
 
     v->list_pane = zui_box(ui, s->body, ZUI_COL);

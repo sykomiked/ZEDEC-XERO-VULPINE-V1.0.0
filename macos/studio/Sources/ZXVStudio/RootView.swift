@@ -100,7 +100,7 @@ struct DaemonBadge: View {
             }
             if let v = store.version {
                 Text("\(v.protocol) · libzxv \(v.libzxv)")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(Theme.mono(11))
                     .foregroundStyle(Theme.muted)
             }
             if let ok = store.booksOK {
@@ -126,7 +126,7 @@ struct NotConnected: View {
             Text("zxvd is not running").font(Theme.ui(17))
             Text(reason).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             Text("ZXV Studio talks to zxvd at\n\(store.socketPath)")
-                .font(.system(.caption, design: .monospaced))
+                .font(Theme.mono(ZUIToken.caption))
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .textSelection(.enabled)
