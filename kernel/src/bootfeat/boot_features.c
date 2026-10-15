@@ -72,13 +72,21 @@ unsigned boot_economy_init(bf_puts_t puts) {
             puts("  [OK] ministry: the Illumaheart treasury measures value (tribute 11%, issues no papers)\n"); ok++;
         } else puts("  [??] ministry\n");
     }
-    /* ipfs: the content address of "abc" is the FIPS-180-4 SHA-256 (ba78...) */
+    /* ipfs: the content address of "abc" is its FIPS 180-4 SHA-256, all 32
+     * bytes (comparing only the first two let a broken tail through) */
     {
+        static const uint8_t want[32] = {0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+                                         0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+                                         0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+                                         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad};
         uint8_t cid[32];
+        uint32_t diff = 0;
         ipfs_cid_from_bytes((const uint8_t *)"abc", 3, cid);
-        if (cid[0] == 0xba && cid[1] == 0x78) {
+        for (uint32_t i = 0; i < 32u; i++) diff |= (uint32_t) (cid[i] ^ want[i]);
+        if (diff == 0u) {
             puts("  [OK] ipfs: content-addressed spine up (your hash is your key)\n"); ok++;
-        } else puts("  [??] ipfs\n");
+        } else
+            puts("  [??] ipfs\n");
     }
 
     {

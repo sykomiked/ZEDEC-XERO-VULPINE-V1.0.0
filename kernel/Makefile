@@ -1535,6 +1535,8 @@ verify-all: test
 	python3 ../tests/harness/tiers.py -q tier1 && echo "[PASS] tier1 root axioms (tests/01_root_axioms)" || { echo "[FAIL] tier1 root axioms"; exit 1; }; \
 	python3 ../tests/harness/tiers.py -q tier2 && echo "[PASS] tier2 integration (tests/02_integration)" || { echo "[FAIL] tier2 integration"; exit 1; }; \
 	python3 ../tests/harness/tiers.py -q tier3 && echo "[PASS] tier3 metamorphic (tests/03_metamorphic)" || { echo "[FAIL] tier3 metamorphic"; exit 1; }; \
+	echo "=== Property tests of the engineered core vs reference models (docs/BEHAVIOUR_COVERAGE.md) ==="; \
+	python3 ../tests/harness/tiers.py -q props && echo "[PASS] property tests: lpres, oseq, Z[phi], modbind + boot gate, swarm economy, zcapital, HKDF" || { echo "[FAIL] property tests"; exit 1; }; \
 	python3 ../tests/harness/mutator/mutate.py --selftest && echo "[PASS] mutation harness self-test" || { echo "[FAIL] mutation harness self-test"; exit 1; }; \
 	$(MAKE) --no-print-directory test-orphans || exit 1; \
 	echo "=== verify-all: ALL STAGE-1 CHECKS PASSED ==="

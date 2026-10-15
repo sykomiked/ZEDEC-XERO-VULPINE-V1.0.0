@@ -47,6 +47,12 @@ case_ panic 1 "printf '[BOOT_OK] up\nKernel panic: oops\n'; $HANG"
 case_ qemu_exit_error 1 "printf '[BOOT_OK] up\n'; exit 1"
 case_ qemu_exit_clean_ok 0 "printf '[BOOT_OK] up\n'; exit 0"
 case_ binary_bytes 0 "printf '\\001\\377junk\n[BOOT_OK] up\n'; $HANG"
+# a self-check that printed [FAIL] and carried on: tolerated by default (the
+# other architectures still print some), fatal under ZXV_BOOT_DENY_FAIL=1
+case_ fail_line_default 0 "printf '  [FAIL] X25519 KAT mismatch\n[BOOT_OK] up\n'; $HANG"
+ZXV_BOOT_DENY_FAIL=1 case_ fail_line_denied 1 "printf '  [FAIL] X25519 KAT mismatch\n[BOOT_OK] up\n'; $HANG"
+ZXV_BOOT_DENY_FAIL=1 case_ unknown_line_denied 1 "printf '  [??] ipfs\n[BOOT_OK] up\n'; $HANG"
+ZXV_BOOT_DENY_FAIL=1 case_ deny_healthy 0 "printf '  [OK] no FAIL here\n[WARNING] no FEAT_RNG\n[BOOT_OK] up\n'; $HANG"
 
 echo "ci_boot_check: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

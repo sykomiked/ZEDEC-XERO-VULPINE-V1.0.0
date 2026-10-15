@@ -211,7 +211,9 @@ jobs:
         # The kernel never exits, so timeout always stops QEMU; the step
         # passes only if the serial log reached [BOOT_OK] without a fault
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
-        run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+        # arm64 and x86_64 also fail on a self-check that printed [FAIL] or [??] and
+        # booted on (ZXV_BOOT_DENY_FAIL; docs/BEHAVIOUR_COVERAGE.md).
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
       # The same kernel, used: two boots on one blank disk, commands typed
       # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
       # userspace, P-TERM, files that survive a reboot, and signed-only run
@@ -232,7 +234,7 @@ jobs:
         if: ${{ !cancelled() }}
         # [SCHED_OK]: ring-3 processes preempted by the LAPIC timer, and a
         # user fault ending only its own process (x86_userspace.c).
-        run: build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
+        run: ZXV_BOOT_DENY_FAIL=1 build_system/ci_boot_check.sh x86_64 build_system/Makefile.x86_64 30 "[AI_OK]" "[SCHED_OK]"
       - name: Upload x86_64 artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
