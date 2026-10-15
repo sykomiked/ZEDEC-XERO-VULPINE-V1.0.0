@@ -98,7 +98,7 @@ These rules came from you or were agreed with you. Every module is held to them.
 | # | Rule | Where it bites |
 |---|---|---|
 | R1 | **Integer only in the kernel.** No floating point in kernel images; banned at compile time | Bit-identical results on every chip, so answers can be signed and re-checked |
-| R2 | **Lower strata never depend on higher ones** | A CI layering check is planned (gap B1) |
+| R2 | **Lower strata never depend on higher ones** | Checked in CI (gap B1, done): `build_system/strata.txt` gives every module a stratum, and `build_system/verify_layers.sh` with `build_system/verify_strata.py` fails on an upward include (`.github/workflows/ci.yml`) |
 | R3 | **Money is exact.** A = L + E after every posting; claims equal deposits; issuance is backed only; no usury | Hard invariants that fail closed |
 | R4 | **The AI proposes; the exact kernel decides.** Model output is untrusted input | Nothing a model says can write a balance |
 | R5 | **Hard invariants are always FALSE when broken, never Both.** Only genuinely allowed disagreements (e.g. GAAP vs IFRS treatment) become Both | Four-valued logic can't hide a bug |
@@ -287,7 +287,7 @@ Small, pure building blocks that every stratum may use.
 | Paraconsistent adapter (μ/λ evidence head → T/F/B/U) | Sits beside softmax, not instead of it. Step 1: cheap CPU probe on Qwen hidden states; step 2 (only if the probe shows signal): LoRA training on GPU outside the engine, exported to integer form; step 3: wire into libzxv. Benefits measured on a held-out contradiction set |
 | Grammar-constrained decoding for the shorthands, plus attestation tags | Stops malformed commands, not wrong facts |
 | Ternary and quaternary experiments | BitNet b1.58 (MIT) packed 5 trits per byte; 2-bit packing for T/F/B/U states; low-bit weights only work on models trained for them |
-| Several models at once, LoRA per agent | 💭 |
+| Several models at once, LoRA per agent | ✅ built: `zt_lora_load` in `kernel/src/tensor/zt_model.c` (tested by `test_zt_lora.c`), 4 model slots and 16 agents in `kernel/arch/hosted/zxv_zt_glue.c` ([TENSOR_ENGINE.md](TENSOR_ENGINE.md) T23). No real adapter has been run on a real model yet |
 | The model design: derived, fitted and learned weights; compiled specialists; build order | [AI_MODEL.md](AI_MODEL.md), design only |
 | Rosetta Shell: POSIX, PowerShell and cmd.exe lines compiled to one typed CLI-IR on top of zxsh | [ROSETTA_SHELL.md](ROSETTA_SHELL.md), design only |
 | The Registrar: Burrow's second layer; files as hashed, journaled holdings with T/F/B/N states and transactional moves | [REGISTRAR.md](REGISTRAR.md), design only |
@@ -313,21 +313,23 @@ Small, pure building blocks that every stratum may use.
 
 ### Queued (gap list C1–C9 plus later specs)
 
+Update 2026-10-15: rows marked ✅ below now exist with their own tests. zxvd serves the vault, swap, auction, Zenny, grants and estate modules ([ZXVD.md](ZXVD.md), `kernel/arch/hosted/zxvd_econ.c`, `kernel/arch/hosted/zxvd_estate.c`); the desktop app calls none of them. Rows without ✅ are still queued.
+
 | Part | Agreed design and limits |
 |---|---|
 | Dual mode | Fiat netting from day one; V-Bills and Zenny chips switched on per deployment |
-| V-Bills | Perpetual musharakah equity, dividend from the fee, redemption at the backing floor. Likely securities |
-| **Dutch-auction issuance, backed only** | Descending uniform-price epochs; each epoch issues only what keeps the reserve at or above its floor, under a per-epoch cap; clearing price positive; auction fiat goes to the reserve or back to losing bidders, never burned |
-| Custodian receipts | Custodian signs with ML-DSA; per-custodian haircut; signed median price feed with staleness limit; failed audit locks that slice; custody statements as semt.002 |
-| **Zenny chips** (user-built baskets) | WORM manifest of weights + V-Bill anchor; minter picks κ and allowed assets; claim equals deposit exactly at mint and every rebalance; κ sets how much one chip holds, never exposure; spending part of a chip is a recorded sale with its cost basis. Trademark check (Capcom) |
-| Solvency vault | A third of the reserve share (16.67% of the fee) until it holds 1/3 of V-Bills; never counts toward Vino's floor |
-| Mint, Q-Note quarantine, credibility engine, three-level dispute funnel | As decided |
+| V-Bills | ✅ built and host-tested: dividend in `kernel/src/vswap`, redemption floor in `kernel/src/svault`, fixed-term V-Bonds in `kernel/src/vbond`. Perpetual musharakah equity, dividend from the fee, redemption at the backing floor. Likely securities |
+| **Dutch-auction issuance, backed only** | ✅ built and host-tested (`kernel/src/vauction`). Descending uniform-price epochs; each epoch issues only what keeps the reserve at or above its floor, under a per-epoch cap; clearing price positive; auction fiat goes to the reserve or back to losing bidders, never burned |
+| Custodian receipts | ✅ built and host-tested (`kernel/src/vauction`). Custodian signs with ML-DSA; per-custodian haircut; signed median price feed with staleness limit; failed audit locks that slice; custody statements as semt.002 |
+| **Zenny chips** (user-built baskets) | ✅ built and host-tested (`kernel/src/zenny`). WORM manifest of weights + V-Bill anchor; minter picks κ and allowed assets; claim equals deposit exactly at mint and every rebalance; κ sets how much one chip holds, never exposure; spending part of a chip is a recorded sale with its cost basis. Trademark check (Capcom) |
+| Solvency vault | ✅ built and host-tested (`kernel/src/svault`). A third of the reserve share (16.67% of the fee) until it holds 1/3 of V-Bills; never counts toward Vino's floor |
+| Mint, Q-Note quarantine, credibility engine, three-level dispute funnel | ✅ Mint and Q-Note built and host-tested (`kernel/src/mint`, `kernel/src/qnote`). As decided |
 | FX and markets | Uniform-price batch epochs; multilateral non-USD netting; cooling epochs instead of cliff liquidation; leverage off by default |
 | Sovereign and co-minted baskets | Each bank signs with its own steward threshold |
-| Sicily Account | Assets / Liabilities / Equity, equity computed as A − L |
+| Sicily Account | ✅ built and host-tested, with the Player Card tiers (`kernel/src/sicily`). Assets / Liabilities / Equity, equity computed as A − L |
 | Player Cards and organisation programs | Tiers earned, never buy auction priority; founder powers need a steward threshold (3 of 5 + 7-day lock); org rewards pre-funded in escrow |
-| IP royalties, contribution grants, giving and investing split | Value only from realised royalties; grants capped by reserve surplus; split opt-in and shown before confirming |
-| Estate escrow | Contested shares stay under the deceased's account; exact-fraction calculators per regime |
+| IP royalties, contribution grants, giving and investing split | ✅ built and host-tested (`kernel/src/royalty`, `kernel/src/grants`). Value only from realised royalties; grants capped by reserve surplus; split opt-in and shown before confirming |
+| Estate escrow | ✅ built and host-tested (`kernel/src/estate`). Contested shares stay under the deceased's account; exact-fraction calculators per regime |
 | Balances | Don't earn by default; only held or opted-in V-Bills earn |
 
 ## 12. Stratum 7: adapters and the five language pillars
@@ -354,10 +356,10 @@ as fixed-denominator integers or rationals. No pillar can mint, set κ or touch 
 | Pillar | Legacy side | Shorthand | Role | Status | Limits |
 |---|---|---|---|---|---|
 | Treaty | COBOL copybooks, `CALL 'ZXV_ENGINE'` | **Sutra** | Agreements and settlement records | Copybook parser ✅ (10M fuzz runs); treaties and Sutra 📋 | Sutra rejects weights not summing to exactly 1 and claims above deposit. Tested on big-endian s390x emulation; z/OS itself can't run here |
-| Physics | Fortran via `iso_c_binding` | **Trebago** | Commodity flows, large netting proposals | 📋 | Floats stay outside the kernel; replays use the signed value; may only tighten admission; proposed netting cycles re-checked exactly |
-| Spatial | Ada/SPARK geodesy | **Eve** | Geofences, corridors, collateral location | 📋 | WGS-84 in integer micro-degrees and millimetres; a geofence hit can only add a hold |
-| Time series | APL/K | **KRON** | SCADA and market series | 📋 | Advisory for grid control |
-| Clinical | MUMPS/M | **MYRA** | Clinical and genomic trees | 📋 | Advisory; a licensed human acts |
+| Physics | Fortran via `iso_c_binding` | **Trebago** | Commodity flows, large netting proposals | ✅ `sdk/pillars/fortran-trebago` (with tests) | Floats stay outside the kernel; replays use the signed value; may only tighten admission; proposed netting cycles re-checked exactly |
+| Spatial | Ada/SPARK geodesy | **Eve** | Geofences, corridors, collateral location | ✅ `sdk/pillars/ada-eve` (with tests) | WGS-84 in integer micro-degrees and millimetres; a geofence hit can only add a hold |
+| Time series | APL/K | **KRON** | SCADA and market series | ✅ `sdk/pillars/apl-kron` (with tests) | Advisory for grid control |
+| Clinical | MUMPS/M | **MYRA** | Clinical and genomic trees | ✅ `sdk/pillars/mumps-myra` (with tests) | Advisory; a licensed human acts |
 
 The Hackronomicon book is all rights reserved: used as reference, its text stays out of the
 Apache repo unless you relicense it.

@@ -1,3 +1,5 @@
+> **Superseded.** This document is superseded by `docs/ARCHITECTURE.md` §21 (and `docs/SYSTEM_REFERENCE.md`). Its post-quantum gaps are out of date: `kernel/src/pqsec` now holds vendored ML-KEM-1024, ML-DSA-65, ML-DSA-87 and SLH-DSA, checked against NIST ACVP known answers (`test_pq_kat.c`, `test_pq_matrix.c`).
+
 # ZEDEC pqOS — 5-Layer Cellular Abstraction Matrix Verification
 
 **Standard:** CURZI-8889-A v1.0 · 2026-09-12

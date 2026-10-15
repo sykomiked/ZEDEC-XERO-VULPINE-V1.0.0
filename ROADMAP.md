@@ -3,6 +3,12 @@
 Working engineering plan. Honest maturity labels, real dependencies, one canonical sequence.
 Authoritative alongside `CANONICAL.md`. Last updated 2026-08-05.
 
+> **Note, 2026-10-15.** This plan is behind the code. Items it lists as planned or in progress that now exist:
+> virtio-net (B1, `kernel/arch/arm64/virtio_net.c`); the network stack and TLS 1.3 client (B2, `kernel/src/net`, `kernel/src/tls`);
+> ZSP v2 signed packages (A2, `kernel/src/loader/zsp.h`, `kernel/src/loader/test_zsp2.c`); A/B updates with rollback for packages (A3, `kernel/src/loader/abupdate.h`);
+> NVMe, AHCI, xHCI USB and HDA audio drivers (B5, `kernel/src/hwdrv`); and identity with passkeys and recovery (C8, `kernel/src/ident`).
+> Their markers below are updated. Section 4 (virtio-net as the next step) is kept as written. For current status, read `docs/ARCHITECTURE.md`.
+
 Legend: **[done]** built + tested + in the gate · **[partial]** exists, incomplete · **[planned]** designed, not built · **[research]** speculative, evidence-gated.
 
 ---
@@ -22,19 +28,19 @@ Legend: **[done]** built + tested + in the gate · **[partial]** exists, incompl
 ### Track A — Security & trust P0s  *(the gate to any partner)*
 The red-team pass is done; these are the audit's structural P0s that remain.
 - **[partial]** A1 · EL0 user-copy boundary — SYS_RECV writable check **[done]**; still owe `copy_to_user`, SYS_SEND bounce-buffer, SYS_OPEN/CLOSE handlers or ENOSYS, fault-safe recovery, syscall fuzzing. *(task 18)*
-- **[planned]** A2 · ZSP v2 signed packages — bind identity/version/arch/ABI/key-id/caps/expiry + monotonic anti-rollback; reject raw `.elf` in release profile. *(task 17)*
-- **[planned]** A3 · Signed, path-safe installer + **system-level** A/B (bootloader/kernel/recovery), power-loss durable at every transition. *(task 19)*
+- **[done]** A2 · ZSP v2 signed packages (`kernel/src/loader/zsp.h`, `test_zsp2.c`) — bind identity/version/arch/ABI/key-id/caps/expiry + monotonic anti-rollback; reject raw `.elf` in release profile. *(task 17)*
+- **[partial]** A3 · Package-level A/B with probation and rollback is built (`kernel/src/loader/abupdate.h`). Still owed: signed, path-safe installer + **system-level** A/B (bootloader/kernel/recovery), power-loss durable at every transition. *(task 19)*
 - **[planned]** A4 · Real protected **cell** backend (process/VM boundary), signed attestation not digest-equality, real crit168 digest (retire the XOR placeholder). *(task 20)*
 - **[planned]** A5 · Entropy/key lifecycle — continuous RNG health, DRBG, fail-closed without entropy, nonce-uniqueness across reboot, offline root ceremony + revocation.
 - **[planned]** A6 · Flip build to `-Werror`; keep zero-warning as a hard gate.
 
 ### Track B — Networking & drivers  *(the keystone — unblocks everything social)*
 Current ARM64 drivers: GICv3, generic timer, PL011 UART, virtio-blk, FEAT_RNG.
-- **[in progress]** B1 · **virtio-net** — the next build. RX/TX virtqueues, MAC, poll-driven, host-tested framing.
-- **[planned]** B2 · Network stack — ARP/IP/ICMP/UDP/TCP, DHCP, DNS, then TLS 1.3 client (reuse audited crypto). Loss/reorder/MTU tests; interoperate with reference servers. *(audit NET_001)*
+- **[done]** B1 · **virtio-net** (`kernel/arch/arm64/virtio_net.c`). RX/TX virtqueues, MAC, poll-driven, host-tested framing.
+- **[partial]** B2 · Built and host-tested: `kernel/src/net` (Ethernet, ARP, IP, ICMP, UDP, TCP, DHCP, DNS) and a TLS 1.3 client in `kernel/src/tls`; interop with reference servers not recorded here. Network stack — ARP/IP/ICMP/UDP/TCP, DHCP, DNS, then TLS 1.3 client (reuse audited crypto). Loss/reorder/MTU tests; interoperate with reference servers. *(audit NET_001)*
 - **[planned]** B3 · Framebuffer + CPU compositor (later GPU) — for the desktop, UI, and the Holodeck.
 - **[planned]** B4 · Input stack — keyboard, mouse, touch, focus, clipboard, accessibility.
-- **[planned]** B5 · Real-silicon drivers (hardware phase) — NVMe/eMMC, USB, Wi-Fi/BT, audio, with IOMMU/DMA containment.
+- **[partial]** B5 · NVMe, AHCI, xHCI USB, HDA audio and NIC drivers exist in `kernel/src/hwdrv`. Real-silicon drivers (hardware phase) — NVMe/eMMC, USB, Wi-Fi/BT, audio, with IOMMU/DMA containment.
 
 ### Track C — Application layer  *(user-facing value; bundle modules via the modular compiler)*
 Composition pattern proven (Wyrmgate/WyvernEye/Chronicle). Each app = module `.c` files compiled together.
@@ -45,7 +51,7 @@ Composition pattern proven (Wyrmgate/WyvernEye/Chronicle). Each app = module `.c
 - **[planned]** C5 · **The Holodeck** — native VLC-inspired media pipeline + Streamlabs-Pro-style live production/editing + synchronized watch parties; content-addressed distributed delivery. Codecs/GPU are the gated parts; the **watch-party sync clock is buildable now** on the event model. *(task 28)*
 - **[planned]** C6 · **Recovery / Disrepair utility** — Disk-Utility-class: fsck for ZXVFS, boot attestation, A/B health, **trash bin + storage manager**, subsystem health dashboard. *(task 21)*
 - **[planned]** C7 · **Doctor Quacksworth** — lightweight native security suite: verify signatures/caps instead of CPU-hogging scanning; web-threat protection; sandbox. *(task 24)*
-- **[planned]** C8 · **Portable identity** — one keypair binding a person's Chiglet, cards, Concord profile, and den accounts across devices. *(fundamental, currently missing)*
+- **[partial]** C8 · `kernel/src/ident` holds identities with passkeys, recovery and optional KYC; binding Chiglet, cards, Concord and den accounts to it is not checked here. **Portable identity** — one keypair binding a person's Chiglet, cards, Concord profile, and den accounts across devices. *(fundamental)*
 - **[planned]** C9 · Consumer shell — desktop session, service manager, Files/Notes/Settings/Update UI, notifications; P-TERM stays first-class. Hypercube = an effects layer over accessible 2D, never a replacement.
 
 ### Track D — Distributed fabric  *(the "indestructible" networking layer)*

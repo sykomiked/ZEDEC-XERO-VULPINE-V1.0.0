@@ -17,6 +17,14 @@ Surveyed 2026-10-09 on branch `claude/project-thread-j44rs9`. Line numbers are a
 > - Gap 22: `build_desktop.sh` and `test_hosted.sh` now take every `swarm_*.c` and `zt*.c`.
 > - Still open as written: gaps 3 (no host socket glue; `arch/hosted` links no Vinea, ipfs_node, call, social or `zx_notify_host.c`), 10 (four capital orderings: `zcapital`, `vino.h`, `finance/capital_forms.h`, plus `vino.c`'s names), 17 (`a.out` and the two `.dll` files are still tracked).
 
+> **Status on 2026-10-15.** Checked against the code:
+>
+> - Gap 1: the P0 evidence "No `zt_model*` file in `kernel/src/tensor`" and the `docs/TENSOR_ENGINE.md` quote no longer hold: `kernel/src/tensor/zt_model.c` is the forward pass, and `bench/results/` holds timing reports.
+> - Gap 2 (licences): closed apart from one header. `NOTICE` now names Apache-2.0 for the code, the ZXV Hardware License 1.1 for `hardware/` and OFL-1.1 for the ASCW Golden fonts. `LICENSES/` exists with Apache-2.0, OFL-1.1 and the ZXV Hardware licences 1.0 and 1.1, and `REUSE.toml` is at the root. One file header still names the old instruments: `kernel/src/speech/test_speech_fixture.h`.
+> - Gap 3: partly closed. The app links the Vinea node, the IPFS node sources and `zx_notify_host.c` (`kernel/arch/hosted/app_sources.sh`, `kernel/arch/hosted/zxv_net_host.c`).
+> - Gap 15 and every mention of `carracho` below: the code is now `kernel/src/vinea`, described in [VINEA.md](VINEA.md). `carr_common.h` and `carr_econ.h` no longer exist.
+> - Gap 20: `docs/CARRACHO.md`, `docs/PAY_RAILS.md`, `docs/NETWORK_STACK.md`, `docs/HOST_API.md` and `docs/MODELS.md` were never written; read the names as suggestions, not links.
+
 ## Summary
 
 The repository holds two products that share some code:

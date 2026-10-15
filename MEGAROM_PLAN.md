@@ -179,6 +179,8 @@ render+input hooks driven through `holo_shade`.
 
 ## Resume checklist (start here after the break)
 
+> Note, 2026-10-15: steps 1 and 5 name directories (`05_KERNEL`, `ZEDEC_pqOS_CLEAN`) from an older workspace that are not in this repository; the kernel is `kernel/` here. Step 4c is built: `kernel/src/emu/cpu65816.c` and `kernel/src/emu/snes.c` exist (neither has its own test in `kernel/Makefile` yet).
+
 1. `cd 05_KERNEL && git log --oneline -15` — see the latest emu commits
    (`bcc225f` trajectory+break-potency, `95d413d` netplay).
 2. Check the campaign: newest `gamemaster_logs_33k_v*/runs.jsonl` + `summary.txt`.
@@ -200,7 +202,7 @@ render+input hooks driven through `holo_shade`.
       game's `game_universe_vector` into a corpus file, feed batches to
       `chg_effective_experts` for the distinct-mechanic set, and run each vector
       through `break_potency` to catalog its break-vectors.
-   c. **65816 core → SNES machine** (task #43, 3,466 story games) — next faithful
+   c. **65816 core → SNES machine** (built: `kernel/src/emu/cpu65816.c`, `snes.c`; task #43, 3,466 story games) — next faithful
       per-console machine; unlocks SNES story extraction for Chiglet.
    d. **Two-node netplay:** `mn_send_data` transport between two QEMU instances so
       the distributed multiverse runs over a real wire, not just in one process.

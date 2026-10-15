@@ -156,11 +156,13 @@ Lives in: `kernel/src/harmonic/zt_trunk_bank.h`; `docs/HARMONIC_WIRE.md`.
 harmonic wire all use 21-octet frames. Hashes stay 256-bit.
 Lives in: `kernel/src/ubh/ubh.h`; frame rules in `docs/TENSOR_ENGINE.md` (T16).
 
-**V-Bill.** A planned instrument in the ZXV economy: perpetual equity
+**V-Bill.** An instrument in the ZXV economy: perpetual equity
 (musharakah) paid a dividend from the assurance fee and redeemable at a backing
-floor. Today it exists as the dividend pool account and as the pivot currency
-in the `vhub` clearing demo; issuance is not built.
-Lives in: `kernel/src/vhub/vhub.h`, `kernel/src/pay/pay_assure.h`; plan in `docs/ARCHITECTURE.md` and `docs/GAP_AUDIT.md` (C2, C5).
+floor. Issuance by backed-only Dutch auction is built and host-tested in
+`kernel/src/vauction`, the dividend in `kernel/src/vswap` and redemption in
+`kernel/src/svault`; zxvd serves them (`docs/ZXVD.md`). It is also the pivot
+currency in the `vhub` clearing demo.
+Lives in: `kernel/src/vauction/vauction.h`, `kernel/src/vswap/vswap.h`, `kernel/src/svault/svault.h`, `kernel/src/vhub/vhub.h`, `kernel/src/pay/pay_assure.h`; plan in `docs/ARCHITECTURE.md` and `docs/GAP_AUDIT.md` (C2, C5).
 
 **VFV (Vino Floating Voucher).** The unit of account of the Vino ledger and of
 the peer economy, for example in the two-node demo and in compute farming.
