@@ -1,6 +1,6 @@
 # Wave 18 task: Tributary (slot 225), Many-model answers
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (061 murmuration, merged); wave 5 (070 retort); wave 6 (072 assay); wave 10 (132 twelvefold).
+Depends on: wave 0 (061 murmuration), wave 2 (072 assay), wave 3 (132 twelvefold), wave 4 (070 retort).
 Manifest: `slot 225`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/225-tributary.svg`, `budget 233`, model `apps/tributary_model.{h,c}`, blocks under kernel/src/apps/blocks/tributary/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Asks several models the same question and joins their answers by witnessed agreement: local models (`model.info`, `swarm.ask`, `swarm.state`), another node's model (`peer.ask`, priced, owner-approved), energy per answer (`power.status`), scored templates (`play.run`).
 Uses: `use retort 1` (score totals, latency min and max, run limits); `use murmuration 1` (budget shares (`swarm_shares`)); `use assay 1` (pass share, "meets the bar", the `pce_prob` verdict); `use twelvefold 1` ("conclusion follows"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

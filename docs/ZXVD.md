@@ -314,6 +314,8 @@ below), -32095 power tracking is not running or a budget's target is
 unknown (see "Power" below),
 -32032 a public space or watch hall request refused (the message says why,
 see "Public spaces and the watch hall" below),
+-32085 a file fabrication step refused (the message is `<status>: why`,
+see "File fabrication" below),
 -32014 a files.* refusal, -32013 a spaces.* refusal,
 -32015 a method a phone may not call (see below), -32016 a play.* call
 refused or failed (the message says why), -32022 a printer or scanner
@@ -994,6 +996,52 @@ Limits: the stand-in agents (levels 1 and up) run no model, so only the
 companion is noted. GPU time is not measured yet (`gpu_ns` is 0). Budgets
 and the ledger are in memory and start again at each start.
 
+## File fabrication: send, receive and stream
+
+`fab.*` (`kernel/arch/hosted/zxvd_fab.c`, rules B1-B13 in `zxvd_fab.h`)
+is the one block method apps use to send, receive and stream files: a
+signed recipe names public blocks by CID plus a private diff, and the
+receiver rebuilds the file and checks it against the target CID
+(`docs/spec/FABRICATION.md`). The group sits behind the feature `fab`,
+which is not regulated. zxvd keeps its keys and block store in `fab`
+beside the socket: `blocks/` (files named by CID, the layout `zxv-fab put`
+writes) and the owner-only seeds of its ML-DSA-87 and ML-KEM-1024 keys,
+which no method returns. Paths in parameters are absolute; outputs are
+written owner-only and only after the CID check passes.
+
+- `fab.status`, `fab.keys` (always on): whether fabrication is open, the
+  key ids, whether an air-gap seal check is registered, the open streams
+  and receive jobs;
+  the public keys (give `kem_ek` to a sender, `sign_id` to a trust list).
+- `fab.put` `path`: copy a file into the store as a block.
+- `fab.send` `target`, `out`, `blocks` (`[{cid}]`), `to` (a recipient's
+  `kem_ek`), `window`: write the recipe; public without `to` (app
+  installs), sealed with it. Unused blocks stay as decoys.
+- `fab.receive` `recipe`, `out`, `trust` (`[{id}]`), `airgap`: check, open,
+  fetch every block from the store, rebuild and write.
+- `fab.receive.start` (the same parameters), `fab.receive.step` `job`,
+  `blocks` (default 16), `fab.receive.cancel` `job`: the same receive in
+  steps, for loading screens whose bars may only move as fast as the work.
+  Each step answers the blocks and bytes verified against their CIDs so
+  far (phase `fetch`); the step after the last block seals, rebuilds,
+  checks the target CID and writes (phase `done`). zxvd sends nothing
+  unasked, so the screen pulls a step per frame it draws. At most 4 jobs.
+- Streams: `fab.stream.start` / `.send` / `.sign` on the sending end,
+  `fab.stream.open` / `.frame` / `.checkpoint` on the receiving end,
+  `fab.stream.close` on either; at most 4 at once. A repeated frame is
+  REPLAY; one built on a frame this end lacks is RESYNC, and the next frame
+  that does not need it continues the stream.
+
+`airgap: true` fetches and checks every block first, then rebuilds only
+when the seal check registered with `zxvd_fab_set_seal` answers TRUE; with
+none registered it is refused. Error -32085 carries the engine's status
+and why (`KEY: it is not sealed to this zxvd's key`).
+
+Limits: files are read whole into memory, at most 256 MiB; the block store
+is a folder, not yet the IPFS node's blockstore; `blocks` and `trust`
+travel inside one request line (16 KiB), so a recipe names about 200
+blocks through this method.
+
 ## Public spaces and the watch hall
 
 `pspace.*` and `hall.*` (`kernel/arch/hosted/zxvd_pspace.c`, rules W1-W6 in
@@ -1126,6 +1174,13 @@ the harness's test for `zxvd_seats.c`.
 ledger, read from a Linux-style `/sys` and `/proc` fixture with a test clock
 (exact replies, the agent under zxvd's app, budgets that make it wait, the
 battery posture's token scale); it is the harness's test for `zxvd_power.c`.
+`test_zxvd_fab.sh` runs `fab.*` behind the RPC layer on the real
+fabrication engine in a temporary folder (keys kept across opens, public
+and sealed files, the trust list, the air-gap seal in all four states,
+damaged blocks, recipes and frames, both ends of a stream with REPLAY,
+RESYNC, checkpoints and frames that grow, receive jobs step by step with
+their exact counts); it is the harness's test for
+`zxvd_fab.c`.
 `test_zxvd_pspace.sh` runs `pspace.*` and `hall.*` behind the RPC layer
 on two real net hosts on 127.0.0.1 (the switch, every parameter rule, a
 hall made on one host and joined by CID from the other, the owner's

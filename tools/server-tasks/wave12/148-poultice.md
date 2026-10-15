@@ -1,6 +1,6 @@
 # Wave 12 task: Poultice (slot 148), Care plan
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (043 solstice, 045 bowline), wave 7 (089 wellspring), wave 11 (143 watchfire).
+Depends on: wave 6 (043 solstice, 045 bowline), wave 8 (089 wellspring), wave 11 (143 watchfire).
 Manifest: `slot 148`, `layer L2`, `icon icons/l2/148-poultice.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: a care plan of symptoms, medicines and vitals kept in the Hoard (`files.read`, `files.write`), reminding carers through notices (`notes.list`, `notes.mark_read`) and keeping doses within the limits the plan declares. zxvd has no method for a notice-post method (as Sundial reports), vitals device readings: use only existing methods; list what's missing in your report.
 Uses: `use solstice 1` (next date of a repeating dose, two events overlap); `use bowline 1` (next due, overdue); `use wellspring 1` (outside a safe range, weekly totals, log entries); `use watchfire 1` (medical ID and contact records, never computed). Call these composed entries; do not re-implement them.

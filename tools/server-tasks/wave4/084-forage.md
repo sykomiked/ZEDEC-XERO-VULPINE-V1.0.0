@@ -1,0 +1,8 @@
+# Wave 4 task: Forage (slot 84), Node bounties
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 84, build position 42 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on Coffer (layer 73, wave 1, built before this one: `use coffer 1`); the core (layer 0: reach it through zxvd methods that exist); Ramble (layer 25, wave 2, built before this one: `use ramble 1`); Fairground (layer 79, wave 1, built before this one: `use fairground 1`); Murmuration (layer 61, built in wave 0: `use murmuration 1`); Hamlet (layer 96, wave 4, built after this one: `use hamlet 1`). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. 1 other layer lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: find and claim work for this node (`net.offers`, `net.command` want/sell, `peer.serve`, `peer.status`, `swarm.state` quest). No bounty board method: use only existing methods; list what's missing in your report.
+Logic (critical): bounty value net of the 0.08889% fee in sutra + trebago witnessed; "claim fits" (within the node's swarm and power budget) in eve + sutra witnessed; value per minute ranking exact in trebago; bounty index in myra.
+Every claim waits for the owner's approval; `peer.serve` stays off unless the owner turns it on.
+needs: peers, net, swarm, notify.
+Planned (no runtime yet): Prolog, Eiffel, Solidity.

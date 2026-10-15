@@ -1,6 +1,6 @@
 # Wave 13 task: Astrolabe (slot 160), Observing planner
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 4 (058 pinhole), wave 7 (088 weatherglass), wave 8 (101 orrery), wave 9 (110 sundial).
+Depends on: wave 7 (058 pinhole), wave 8 (088 weatherglass), wave 9 (101 orrery, 110 sundial).
 Manifest: `slot 160`, `layer L2`, `icon icons/l2/160-astrolabe.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: plans observing sessions, logs sightings and predicts sky events from local time (`sys.info`) and place (`place.here`), with photos saved to the Hoard (`files.write`). zxvd has no method for a weather source (as Weatherglass reports): use only existing methods; list what's missing in your report.
 Uses: `use pinhole 1` (device ready, "photo fits", exposure limits, photo record); `use weatherglass 1` (readings); `use orrery 1` (day number, mean longitude, above the horizon); `use sundial 1` (local time for a zone). Call these composed entries; do not re-implement them.

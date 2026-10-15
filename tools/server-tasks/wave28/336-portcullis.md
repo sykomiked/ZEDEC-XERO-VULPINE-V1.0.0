@@ -1,6 +1,6 @@
 # Wave 28 task: Portcullis (slot 336), Entry control
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 2 (030 hedgerow); wave 7 (095 bonfire); wave 14 (173 warding); wave 20 (242 silt); wave 22 (269 col).
+Depends on: wave 2 (030 hedgerow), wave 8 (095 bonfire), wave 14 (173 warding), wave 20 (242 silt), wave 22 (269 col).
 Manifest: `slot 336`, `layer L3`, `icon icons/l3/336-portcullis.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: controls entry to venues and communities: invitations, tickets, guest lists and who may come in (`web4.verify`, `net.peers`, `files.read`, `files.write`).
 Uses: `use col 1` (outside gate); `use warding 1` ("key active"); `use silt 1` (records office); `use hedgerow 1` ("is this path reachable"); `use bonfire 1` ("may this guest join", seats left). Call these composed entries; do not re-implement them.

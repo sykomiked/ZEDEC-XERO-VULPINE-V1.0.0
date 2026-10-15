@@ -419,6 +419,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-recover
 	$(MAKE) --no-print-directory test-pce
 	$(MAKE) --no-print-directory test-print
+	$(MAKE) --no-print-directory test-fab
 	$(MAKE) --no-print-directory test-research
 	$(MAKE) --no-print-directory test-fwadapt
 	$(MAKE) --no-print-directory test-pmm
@@ -1643,6 +1644,16 @@ test-swarm:
 clean:
 	rm -f $(KERNEL_OBJS) $(KERNEL_BIN) $(ISO_NAME)
 	rm -rf iso
+
+# File fabrication (src/fab/fab.h, docs/spec/FABRICATION.md): recipes of public
+# blocks plus a private diff, stream frames and checkpoints, and tools/zxv-fab.
+.PHONY: test-fab
+FAB_INC := -Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8
+FAB_SRC := src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+test-fab:
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(FAB_INC) src/fab/test_fab.c $(FAB_SRC) -o $(ZXV_TMP)/test_fab && $(ZXV_TMP)/test_fab > $(ZXV_TMP)/test_fab.log 2>&1 && echo "[PASS] test_fab ($$(tail -1 $(ZXV_TMP)/test_fab.log))" || { cat $(ZXV_TMP)/test_fab.log; echo "[FAIL] test_fab"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do for f in src/fab/fab.c src/fab/fab_send.c; do clang --target=$$t -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) -c $$f -o $(ZXV_TMP)/fab_free.o || { echo "[FAIL] fab freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/fab_free.o | grep -vE ' (fab_[a-z0-9_]+|fab__[a-z0-9_]+|ipfsn_[a-z0-9_]+|sha256(_init|_update|_final)?|aead_(seal|open)|hkdf_(extract|expand)|pqm_ml(dsa87|kem1024)_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/fab_free.o; echo "[FAIL] fab freestanding: libc or helper in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] fab freestanding (aarch64 and i386: no libc)"
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra $(FAB_INC) ../tools/zxv-fab/zxv_fab.c $(FAB_SRC) -o $(ZXV_TMP)/zxv-fab && sh ../tools/zxv-fab/test_zxv_fab.sh $(ZXV_TMP)/zxv-fab $(ZXV_TMP)/zxv-fab-test > $(ZXV_TMP)/test_zxv_fab.log 2>&1 && echo "[PASS] zxv-fab tool ($$(tail -1 $(ZXV_TMP)/test_zxv_fab.log))" || { cat $(ZXV_TMP)/test_zxv_fab.log; echo "[FAIL] zxv-fab tool"; exit 1; }
 
 # The settlement spine (src/settle/settle.h): swarm money reconciled with pay_ledger.
 .PHONY: test-settle

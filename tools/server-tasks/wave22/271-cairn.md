@@ -1,6 +1,6 @@
 # Wave 22 task: Cairn (slot 271), Community governance
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (018 witness); wave 4 (047 sealwax); wave 7 (096 hamlet); wave 10 (132 twelvefold).
+Depends on: wave 1 (018 witness), wave 3 (132 twelvefold), wave 4 (096 hamlet), wave 6 (047 sealwax).
 Manifest: `slot 271`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/271-cairn.svg`, `budget 233`, model `apps/cairn_model.{h,c}`, blocks under kernel/src/apps/blocks/cairn/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Runs community governance: proposals and votes (`spaces.propose`, `spaces.vote`, `spaces.get`, `spaces.set_members`), the circle (`social.post`, `social.feed`), signed decisions checked (`web4.verify`), the trail (`journal.query`), rulings saved (`files.write`).
 Uses: `use witness 1` ("chain intact" and counts); `use twelvefold 1` ("conclusion follows"); `use hamlet 1` ("show this post to this seat"); `use sealwax 1` ("ready to sign"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

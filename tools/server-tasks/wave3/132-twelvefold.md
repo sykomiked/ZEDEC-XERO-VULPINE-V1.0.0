@@ -1,0 +1,7 @@
+# Wave 3 task: Twelvefold (slot 132), Paraconsistent logic workbench
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 132, build position 28 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. 2 other layers lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: write formulas over TRUE, FALSE, BOTH, NEITHER, see their tables and the 64-state hexagram tag; try the engines' Playground templates with `play.run`; save formulas in the Hoard (`files.read`, `files.write`).
+Logic (critical): evaluation stays C through `lpres_conjoin` / `lpres_disjoin` (kernel order, never re-derived; say so in the manifest); assignments per resulting value counted in kron; "conclusion follows" (every assignment where the premises are TRUE or BOTH gives the conclusion TRUE or BOTH, over the value codes C produced) in eve + kron witnessed; limits (at most 6 variables, depth at most 16) in eve.
+needs: fs.read, fs.write.
+Planned (no runtime yet): Lua, Clojure, Raku.

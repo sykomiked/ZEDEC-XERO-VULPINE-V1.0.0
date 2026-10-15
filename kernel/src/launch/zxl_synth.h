@@ -15,7 +15,7 @@
  *           major pentatonic, panned to where its tile sits (0.45 s)
  *   END     the motif's answer: an arpeggio up the chord, a held root and
  *           fifth, one bright note on top (1.9 s)
- * The six hand-made apps (Burrow, Flint, Commons, Cutwater, Murmuration,
+ * The six hand-made apps (the Banker, Flint, Commons, Cutwater, Murmuration,
  * Coffer) keep their own recipes: a knock on wood, a struck spark, a call and
  * answer, a projector's reel, a flock of wings, a key in a lock.
  *

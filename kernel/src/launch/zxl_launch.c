@@ -254,13 +254,58 @@ int zxl_launch_lit(zxl_launch_t *l, uint32_t part)
 
 void zxl_launch_finish(zxl_launch_t *l)
 {
-    if (!l || l->phase == ZXL_PH_OPEN) return;
+    if (!l || l->phase == ZXL_PH_OPEN || l->failed) return;
     for (uint32_t i = 0; i < l->n && l->phase == ZXL_PH_GATHER; i++) {
         l->part_p[i] = ZXL_FULL;
         if (!(l->lit & (1u << i))) light(l, i, 0);
     }
     l->rest = ZXL_FULL;
     advance(l);
+}
+
+/* ---- real load from fabrication ------------------------------------------- */
+int zxl_launch_blocks(zxl_launch_t *l, uint32_t done, uint32_t total)
+{
+    if (!l || l->warm || l->failed || l->phase == ZXL_PH_OPEN) return -1;
+    if (done > total) done = total;
+    /* level r (rank r from the edges, the centre last) holds the blocks
+     * [r * total / levels, (r + 1) * total / levels) */
+    uint32_t levels = (l->n - 1) / 2 + 1;
+    for (uint32_t i = 0; i < l->n; i++) {
+        uint32_t r = rank(i, l->n);
+        uint64_t lo = (uint64_t) r * total / levels, hi = (uint64_t) (r + 1) * total / levels;
+        uint32_t p = done >= hi   ? ZXL_FULL
+                     : done <= lo ? 0u
+                                  : (uint32_t) ((done - lo) * ZXL_FULL / (hi - lo));
+        if (p > l->part_p[i]) l->part_p[i] = p;
+    }
+    uint32_t lp = total ? (uint32_t) ((uint64_t) done * ZXL_FULL / total) : ZXL_FULL;
+    if (lp > l->load_p) l->load_p = lp;
+    l->fed = 1;
+    if (done == total) l->rest = ZXL_UNKNOWN; /* every block in: the build runs */
+    advance(l);
+    return 0;
+}
+
+void zxl_launch_fail(zxl_launch_t *l)
+{
+    if (l && l->phase != ZXL_PH_OPEN) l->failed = 1;
+}
+
+uint32_t zxl_launch_screen_p(const zxl_launch_t *l)
+{
+    if (!l) return 0;
+    if (l->phase == ZXL_PH_OPEN) return ZXL_FULL;
+    /* fed from the blocks, the screen never runs ahead of them: a tile the
+     * screen lit early does not move the bar on */
+    if (l->fed && l->load_p < ZXL_FULL) return l->load_p / 2u > 127u ? 127u : l->load_p / 2u;
+    if (l->phase == ZXL_PH_GATHER) {
+        uint32_t g = zxl_gather_p(l) / 2u; /* the WM gathers over 0..128 */
+        return g > 127u && l->lit != (1u << l->n) - 1u ? 127u : g;
+    }
+    if (l->rest == ZXL_UNKNOWN) return 192u;
+    uint32_t p = 192u + l->rest / 4u;
+    return p > 255u ? 255u : p;
 }
 
 int zxl_launch_next(zxl_launch_t *l, zxl_event_t *ev)

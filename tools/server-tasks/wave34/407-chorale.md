@@ -1,6 +1,6 @@
 # Wave 34 task: Chorale (slot 407), Town governance
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 14 (178 assize); wave 19 (240 isthmus, 234 neap); wave 22 (271 cairn); wave 1 (018 witness).
+Depends on: wave 1 (018 witness), wave 14 (178 assize), wave 19 (234 neap, 240 isthmus), wave 22 (271 cairn).
 Manifest: `slot 407`, `layer L3`, `version 1.0.0`, `icon icons/l3/407-chorale.svg`, `budget 233`, model `apps/chorale_model.{h,c}`, blocks under kernel/src/apps/blocks/chorale/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Runs a cooperative's or town's governance: proposals and votes (`spaces.propose`, `spaces.vote`, `spaces.get`), debates (`social.post`, `social.feed`, `pspace.post`), budgets in the books (`ledger.accounts`, `ledger.entries`), published decisions (`aipi.put`, `web4.cid`), the record (`journal.query`, `journal.verify`).
 Uses: `use cairn 1` (vote tallies and "decision carried"); `use assize 1` ("filing accepted" and the evidence matrix); `use isthmus 1` ("next step allowed"); `use neap 1` ("entry may post"); `use witness 1` ("chain intact"). Call these composed entries; do not re-implement them.

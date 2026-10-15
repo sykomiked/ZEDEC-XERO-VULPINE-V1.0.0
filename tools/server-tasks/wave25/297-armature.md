@@ -1,6 +1,6 @@
 # Wave 25 task: Armature (slot 297), Invention notebook
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 10 (124 graft); wave 12 (152 ratchet, 145 cartulary); wave 14 (179 cupel); wave 15 (191 lapidary).
+Depends on: wave 10 (124 graft), wave 12 (145 cartulary, 152 ratchet), wave 14 (179 cupel), wave 15 (191 lapidary).
 Manifest: `slot 297`, `layer L3`, `icon icons/l3/297-armature.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: an invention lab notebook: experiments, prototypes, parts, results and dated proof of who invented what (`files.read`, `files.write`, `journal.query`, `web4.cid`, `aipi.put`).
 Uses: `use ratchet 1` ("fault", wear); `use cupel 1` (integer step, precision bounds); `use cartulary 1` (retention days); `use graft 1` (history intact, commit record); `use lapidary 1` ("may publish", divider and current). Call these composed entries; do not re-implement them.

@@ -104,6 +104,21 @@ static void on_cue(zui_wm_t *wm, uint32_t id, int cue, void *ctx)
     if (t->prev_cue) t->prev_cue(wm, id, cue, t->prev_cue_ctx);
 }
 
+/* LT8: while the app is built after its blocks are in, the bar above the
+ * mark breathes: the time left is not known, so no number is shown */
+static void launch_draw(zui_surface_t *s, zui_rect_t area, const zui_wm_window_t *w,
+                        zui_launch_state_t st, uint32_t tick, void *ctx)
+{
+    zui_launch_theme_t *t = ctx;
+    zui_lt_slot_t *sl = slot_for(t, w->id);
+    if (sl && sl->launch.fed && sl->launch.rest == ZXL_UNKNOWN && st.light >= 256u)
+        st.release = ZUI_BAR_UNKNOWN;
+    if (t->prev_launch_draw)
+        t->prev_launch_draw(s, area, w, st, tick, t->prev_launch_ctx);
+    else
+        zui_launch_draw(s, area, 256, &w->launch, st, tick);
+}
+
 /* ---- public ---------------------------------------------------------------- */
 void zui_launch_theme_attach(zui_launch_theme_t *t, zui_wm_t *wm, const zui_lt_shell_t *shell,
                              const zxl_prefs_t *prefs)
@@ -123,6 +138,10 @@ void zui_launch_theme_attach(zui_launch_theme_t *t, zui_wm_t *wm, const zui_lt_s
     wm->on_window_ctx = t;
     wm->cue = on_cue;
     wm->cue_ctx = t;
+    t->prev_launch_draw = wm->launch_draw;
+    t->prev_launch_ctx = wm->launch_ctx;
+    wm->launch_draw = launch_draw;
+    wm->launch_ctx = t;
 }
 
 void zui_launch_theme_prefs(zui_launch_theme_t *t, const zxl_prefs_t *prefs)
@@ -164,6 +183,27 @@ uint32_t zui_launch_theme_open(zui_launch_theme_t *t, const char *app, const cha
     }
     if (warm) zui_wm_progress(t->wm, id, 256u); /* already loaded: straight to the doors */
     return id;
+}
+
+int zui_launch_theme_load(zui_launch_theme_t *t, uint32_t id, uint32_t phase, uint32_t blocks_done,
+                          uint32_t blocks_total)
+{
+    zui_lt_slot_t *sl = t ? slot_for(t, id) : 0;
+    if (!sl) return -1;
+    zxl_launch_t *l = &sl->launch;
+    if (phase == ZUI_LT_FAILED) { /* never the end */
+        if (l->warm || l->failed || l->phase == ZXL_PH_OPEN) return -1;
+        zxl_launch_fail(l);
+        return 0;
+    }
+    if (zxl_launch_blocks(l, phase == ZUI_LT_DONE ? blocks_total : blocks_done, blocks_total))
+        return -1;
+    drain(t, sl);
+    /* the bar moves only with verified blocks; only "done" reaches 256,
+     * where the window manager's END cue finishes the launch (LT4) */
+    uint32_t p = zxl_launch_screen_p(l);
+    zui_wm_progress(t->wm, id, phase == ZUI_LT_DONE ? 256u : p > 255u ? 255u : p);
+    return 0;
 }
 
 const zxl_theme_t *zui_launch_theme_of(const zui_launch_theme_t *t, uint32_t id)

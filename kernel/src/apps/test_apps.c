@@ -3004,6 +3004,34 @@ static void test_murmuration(void)
     zxvd_rpc_books_close();
 }
 
+/* ---- one model test file per app: kernel/src/apps/tests/<id>_apps.inc ------------
+ * An app's model test sits in its own file:
+ *
+ *     #include "<id>_model.h"
+ *     APPS_TEST(<id>)
+ *     {
+ *         ... CHECK(...) against the real dispatcher, through LINK ...
+ *     }
+ *
+ * test_apps.sh compiles apps/<id>_model.c for each such file and writes the
+ * index (APPS_TESTS_INDEX) that includes them all; each must check something. */
+typedef struct {
+    const char *id;
+    void (*run)(void);
+} apps_test_t;
+#define APPS_TEST(id_)                                                                             \
+    static void apps_test_##id_(void);                                                             \
+    static const apps_test_t APPS_TEST_##id_ = {#id_, apps_test_##id_};                            \
+    static void apps_test_##id_(void)
+#define APPS_TEST_ROW(id_) &APPS_TEST_##id_,
+#ifdef APPS_TESTS_INDEX
+#    include APPS_TESTS_INDEX
+#endif
+#ifndef APPS_TESTS_ROWS
+#    define APPS_TESTS_ROWS
+#endif
+static const apps_test_t *const APPS_TESTS[] = {APPS_TESTS_ROWS 0};
+
 int main(void)
 {
     char root[256];
@@ -3027,6 +3055,11 @@ int main(void)
     test_shepherd();
     test_waymark();
     test_murmuration();
+    for (uint32_t i = 0; APPS_TESTS[i]; i++) {
+        int before = checks;
+        APPS_TESTS[i]->run();
+        CHECK(checks > before + 1, "%s: its model test checks something", APPS_TESTS[i]->id);
+    }
     free(OUT.p);
     if (rm_tree(root) != 0) printf("  (could not remove %s)\n", root);
     if (fails) {

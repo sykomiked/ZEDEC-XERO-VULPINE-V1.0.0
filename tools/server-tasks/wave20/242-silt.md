@@ -1,6 +1,6 @@
 # Wave 20 task: Silt (slot 242), Official records office
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (001 banker, merged); wave 1 (018 witness); wave 3 (042 broadsheet); wave 4 (047 sealwax).
+Depends on: wave 0 (001 banker), wave 1 (018 witness), wave 6 (042 broadsheet, 047 sealwax).
 Manifest: `slot 242`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/242-silt.svg`, `budget 233`, model `apps/silt_model.{h,c}`, blocks under kernel/src/apps/blocks/silt/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Receives, stamps, files and retains official records with a signed trail: records in the Hoard (`files.list`, `files.stat`, `files.read`, `files.write`, `files.mkdir`; disposal only to the Trash with `files.trash` after approval), versions (`backup.versions`), the trail (`journal.query`, `journal.verify`), signed copies checked (`web4.verify`).
 Uses: `use sealwax 1` ("ready to sign"); `use broadsheet 1` ("well formed"); `use witness 1` ("chain intact" and counts by kind); `use banker 1` (`share`, `total`, `entry_ok`). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

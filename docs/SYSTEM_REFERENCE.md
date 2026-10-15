@@ -173,6 +173,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [event_space](#event_space--event-envelopes-sequencer-self-audit-self-healing) | event envelopes, sequencer, self-audit, self-healing | WORKING (tested in verify-all) |
 | [event_transport](#event_transport--channels-that-carry-event-envelopes-between-nodes) | channels that carry event envelopes between nodes | STUB |
 | [evolve](#evolve--content-addressed-evolution-protocol-capabilities-lineage-trust-updates) | content-addressed evolution protocol (capabilities, lineage, trust, updates) | WORKING (tested in verify-all) |
+| [fab](#fab--file-fabrication-from-public-blocks-plus-a-private-diff) | file fabrication from public blocks plus a private diff | WORKING (tested in verify-all) |
 | [fat32](#fat32--read-only-fat32-driver) | read-only FAT32 driver | WORKING (test not in verify-all) |
 | [finance](#finance--triple-ledger-payment-rails-bridge-records-derivatives-assurance-treaty-assets) | triple ledger, payment rails, bridge records, derivatives, assurance, treaty assets | PARTIAL |
 | [finance_markets](#finance_markets--instrument-tracker-and-position-valuation) | instrument tracker and position valuation | WORKING (tested in verify-all) |
@@ -1434,6 +1435,23 @@ Tests: src/evolve/test_evolve.c (verify-all), pass. A local 200k-iteration decod
 nothing.
 Used by: no includers; not in images.
 Gaps: none found.
+
+### fab — file fabrication from public blocks plus a private diff
+Status: WORKING (tested in verify-all)
+What it does: A recipe names public blocks by CID, the byte ranges to copy from them and a diff of
+the bytes found nowhere public; the receiver verifies every block against its CID, rebuilds the file
+in RAM and releases it only if its UnixFS CID equals the target. PUBLIC recipes (app installs) are
+signed with ML-DSA-87; SEALED ones are also encrypted to one recipient (ML-KEM-1024, HKDF,
+ChaCha20-Poly1305). The diff key is derived only after an air-gap seal callback answers TRUE. Streams
+use the same plans as AEAD frames that may copy from the previous frame, with signed checkpoints that
+expose frames forged by another key holder. Spec: docs/spec/FABRICATION.md.
+Main entry points: fab_recipe_parse/check, fab_open_plan, fab_hydrate, fab_assemble, fab_build,
+fab_plan_write, fab_recipe_seal, fab_frame_seal/apply, fab_checkpoint_sign/verify.
+Tests: src/fab/test_fab.c (make test-fab, run by verify-all, ASan/UBSan), freestanding builds for
+aarch64 and i386 with no libc, and tools/zxv-fab/test_zxv_fab.sh for the zxv-fab tool.
+Used by: tools/zxv-fab (pack, inspect, unpack), tools/zxv-fab/fab_bench.c. Not in images yet.
+Gaps: no zxvd methods yet; the kernel's seal callback is not wired to the network stack; placement in
+the 144 installation layers pending with the Lingua thread.
 
 ### fat32 — read-only FAT32 driver
 Status: WORKING (has a test, not in verify-all)

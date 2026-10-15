@@ -8,7 +8,7 @@
 # concept here owns, or when two manifests provide the same name and it is
 # neither a concept nor a local word (last section).
 #
-# concept	owner (manifest.entry)	names that mean it (comma-separated)	meaning
+# concept	owner (manifest.entry, or zxvd:<method> for a daemon method)	names that mean it (comma-separated)	meaning
 used_of_capacity	used_share.used_x100	used_x100,used_bp,used_share,used_pct,fill_x100	share of a capacity in use, in hundredths of a percent: floor(10000 * (total - left) / total); refused when total is 0 or left is more than total
 share_of_whole	banker.share	share,share_bp,part_x100,part_bp,shares_x100	each size's share of the sum of the total vector, in hundredths of a percent: floor(10000 * size / sum of total), a zero sum counted as 1
 days_from_seconds	almanac.days	days,uptime_days,days_from_seconds	whole days in a count of seconds: floor(seconds / 86400)
@@ -29,4 +29,7 @@ bargaining_zone	pce_strat.zopa	zopa,bargaining_zone	whether a seller's minimum a
 # something different in each (an app's own total, count or rule). A
 # local word never stands for a shared concept; when two apps need the
 # same meaning, register it above and give it one owner.
+send_content	zxvd:fab.send	send,send_file,share_file,upload,transmit	send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h
+receive_content	zxvd:fab.receive	receive,receive_file,fetch_file,download,install,install_app,app_install	receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption)
+stream_content	zxvd:fab.stream.open	stream,stream_open,stream_frame,stream_checkpoint	a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint)
 -	-	fee,total,count,score,left,peak,rate,week,sheets,removed,record_ok,entry_ok,item_ok,keep_ok,size_ok,place_ok,limit_ok,call_ok,copies_ok,fee_ok,cpu_x100,join,verdict,decide,leader,npv_sign	per-app words

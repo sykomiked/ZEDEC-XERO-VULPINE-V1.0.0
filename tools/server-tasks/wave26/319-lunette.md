@@ -1,6 +1,6 @@
 # Wave 26 task: Lunette (slot 319), Life ceremonies
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 3 (044 kindred); wave 7 (095 bonfire); wave 13 (164 handfast); wave 15 (182 mummer); wave 20 (242 silt).
+Depends on: wave 6 (044 kindred), wave 8 (095 bonfire), wave 13 (164 handfast), wave 15 (182 mummer), wave 20 (242 silt).
 Manifest: `slot 319`, `layer L3`, `icon icons/l3/319-lunette.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: records life ceremonies such as weddings, namings and funerals: bookings, officiants, certificates and guests (`files.read`, `files.write`, `social.groups`).
 Uses: `use handfast 1` ("ready to sign"); `use silt 1` (records office); `use mummer 1` (cue start times for the service); `use bonfire 1` ("may this guest join", seats left); `use kindred 1` (contact index). Call these composed entries; do not re-implement them.

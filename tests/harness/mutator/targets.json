@@ -151,6 +151,9 @@
     {"name": "zxvd_power", "target": "kernel/arch/hosted/zxvd_power.c",
      "before": null, "before_note": "new module: energy per app and agent, battery posture and energy budgets inside zxvd (power.* methods)",
      "after": "sh kernel/arch/hosted/test_zxvd_power.sh"},
+    {"name": "zxvd_fab", "target": "kernel/arch/hosted/zxvd_fab.c",
+     "before": null, "before_note": "new module: file fabrication over zxvd's socket (fab.* methods: send, receive, stream)",
+     "after": "sh kernel/arch/hosted/test_zxvd_fab.sh"},
     {"name": "zxvd_pspace", "target": "kernel/arch/hosted/zxvd_pspace.c",
      "before": null, "before_note": "new module: public spaces and the synced watch hall inside zxvd (pspace.*, hall.* methods)",
      "after": "sh kernel/arch/hosted/test_zxvd_pspace.sh"},
@@ -356,7 +359,9 @@
     {"name": "hkdf", "target": "kernel/src/tls/hkdf.c", "before": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf", "after": "TIER_STRICT=1 python3 tests/harness/tiers.py --mode fast --fail-fast -q legacy_hkdf p_hkdf"},
     {"name": "dnx", "target": "kernel/src/dnx/dnx.c",
      "before": null, "before_note": "new module: duplex digital DNA, two-way reads joined in lpres",
-     "after": "make -C kernel --no-print-directory test-dnx"}
+     "after": "make -C kernel --no-print-directory test-dnx"},
+    {"name": "fab", "target": "kernel/src/fab/fab.c", "before": null, "before_note": "new module: file fabrication, receiving side (docs/spec/FABRICATION.md)", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/fab/test_fab.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all $I $S -o $T/tfab_m 2>/dev/null || exit 3; } && $T/tfab_m > /dev/null 2>&1"},
+    {"name": "fab_send", "target": "kernel/src/fab/fab_send.c", "before": null, "before_note": "new module: file fabrication, sending side", "after": "cd kernel && T=${ZXV_TMP:-/tmp} && I='-Iinclude -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/e8' && S='src/fab/test_fab.c src/fab/fab.c src/fab/fab_send.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/mlkem/keccak.c src/pqsec/pq_mlkem1024.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c' && { gcc -std=c11 -O1 -w -fsanitize=address,undefined -fno-sanitize-recover=all $I $S -o $T/tfab_m 2>/dev/null || exit 3; } && $T/tfab_m > /dev/null 2>&1"}
   ],
   "ci": {
     "targets": ["rmag_core", "fs_malloc", "settle", "zxv_engine", "lpres_hex", "mk_pay", "vhub", "swarm_denom", "swarm_yield", "zxvd_rpc", "zxvd_aipi", "zxvd_cards", "zxvd_ident", "zxvd_econ", "zxvd_instruments", "zxvd_estate", "zxvd_sandbox", "zxvd_companion", "zxvd_web4", "zxvd_seats", "zxvd_power", "zxvd_pspace", "lpres", "oseq", "zphi", "swarm_budget", "swarm_market", "swarm_ledger", "swarm_reserve", "zcapital", "hkdf"],
