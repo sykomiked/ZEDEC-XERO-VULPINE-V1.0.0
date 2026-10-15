@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! An account's balance after a movement, in Trebago: before + moved, one
+! account per row, in integer minor units, exact. A result that does not
+! fit 64 bits is refused, never wrapped. balance.sutra says the same in
+! Sutra, which holds 18 digits: past them the two disagree and the answer
+! is held.
+trebago balance
+  in  before(n), moved(n)
+  out balance(n)
+  balance(i) = before(i) + moved(i)
+end

@@ -1,0 +1,68 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Coffer, the wallet and the books: the owner's accounts, their balances
+# and entries, transfers between them and the books check, through zxvd's
+# ledger methods (ledger.accounts, ledger.balance, ledger.entries,
+# ledger.post, ledger.open_account, ledger.check) and currency.enable.
+# Money is integer minor units (cents for USD), never a float; anything
+# that does not fit is refused, never rounded or cut short.
+#
+# Every transfer waits for the owner: coffer_propose only checks it and
+# holds it, and nothing is posted until coffer_confirm (coffer_model.h CF2).
+#
+# A foundation of the matrix: 26 later layers lean on this one, so each
+# entry is a general money rule registered in CONCEPTS.tsv with Coffer as
+# its owner (a balance after a movement, whether a transfer is allowed,
+# what one holds in a currency). Nothing earlier fits: the inner blocks
+# are capacities, shares, days and gcds, and banker.total sums file sizes
+# in one language, where money shown to the owner is witnessed here.
+#
+# The notify capability is declared for the confirmation notice, but zxvd
+# has no notification method, so the model only composes the notice's
+# text (coffer_t.notice) for the view to show.
+zxapp 1
+id     coffer
+name   Coffer
+version 1.0.0
+slot   73
+layer  L1
+matrix 73
+icon   icons/l1/073-coffer.svg
+budget 233
+needs  ledger.read
+needs  ledger.post
+needs  notify
+model  apps/coffer_model.c
+
+# An account's balance after a movement, before + moved in minor units,
+# one account per row: Sutra holds 18 digits and refuses past them, and
+# Trebago is exact to 64 bits; past 18 digits they disagree and it is held.
+provides balance num before moved
+logic    sutra   balance apps/blocks/coffer/balance.sutra
+logic    trebago balance apps/blocks/coffer/balance.tb
+
+# A transfer allowed: amount 1 .. 2^53 - 1, the paying account not below
+# zero after it, the owner's per-day cap not passed, and balanced (what
+# leaves one account enters the other). Eve declares the ranges, Sutra
+# computes the conditions; the model posts only when both say TRUE.
+provides transfer_ok truth amount after room gap
+logic    eve   transfer_ok apps/blocks/coffer/transfer.eve
+logic    sutra transfer_ok apps/blocks/coffer/transfer.sutra
+# Eiffel (contracts) and Solidity (contract rules) own this rule; neither
+# runs yet, so Eve and Sutra stand in.
+pending  Eiffel transfer_ok
+pending  Solidity transfer_ok
+
+# What the owner holds in one currency: the exact sum of the balances,
+# refused past 64 bits (Trebago).
+provides holdings num balance
+logic    trebago holdings apps/blocks/coffer/holdings.tb
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
+check balance before=1,1000000000000000000 moved=0,0 = both
+check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false
+check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
+check holdings balance=100,250,-50,0 = 300
+check holdings balance=9223372036854775807,0 = 9223372036854775807

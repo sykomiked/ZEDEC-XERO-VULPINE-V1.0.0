@@ -83,3 +83,6 @@
 46	logic.brazier_heat_ok	490.19	brazier.heat_ok	base
 47	logic.brazier_heat_safe	490.20	brazier.heat_safe	base
 48	num.brazier_minutes_left	590.17	brazier.minutes_left	base
+49	num.coffer_balance	590.18	coffer.balance	base
+50	num.coffer_holdings	590.19	coffer.holdings	base
+51	logic.coffer_transfer_ok	490.21	coffer.transfer_ok	base

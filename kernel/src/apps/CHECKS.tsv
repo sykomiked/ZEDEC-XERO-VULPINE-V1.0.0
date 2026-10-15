@@ -31,6 +31,12 @@ brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
 brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
 brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
 brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
+coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
+coffer	check balance before=1,1000000000000000000 moved=0,0 = both
+coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false
+coffer	check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
+coffer	check holdings balance=100,250,-50,0 = 300
+coffer	check holdings balance=9223372036854775807,0 = 9223372036854775807
 glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
 keepsake	check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
 keepsake	check removed snapshots=1000000000 keep=1 = both
