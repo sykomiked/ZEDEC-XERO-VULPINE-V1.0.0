@@ -29,17 +29,6 @@ static void dst_strcpy(char *dst, const char *src, uint32_t max) {
     dst[i] = '\0';
 }
 
-#ifndef TEST_HOST
-static int dst_strcmp(const char *a, const char *b) {
-    uint32_t i = 0;
-    while (a[i] && b[i]) {
-        if (a[i] != b[i]) return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
-        i++;
-    }
-    return (int)(unsigned char)a[i] - (int)(unsigned char)b[i];
-}
-#endif
-
 static void dst_memset(void *dst, int v, uint32_t n) {
     uint8_t *d = (uint8_t *)dst;
     for (uint32_t i = 0; i < n; i++) d[i] = (uint8_t)v;

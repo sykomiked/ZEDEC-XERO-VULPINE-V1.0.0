@@ -374,7 +374,7 @@ static void ax25_encode_call(uint8_t *out, const char *call) {
 int32_t ax25_encode(const char *dest_call, const char *src_call,
                      const void *info, uint16_t info_len,
                      uint8_t *out, uint32_t max_out) {
-    if (max_out < 14 + info_len + 2) return -1;
+    if (max_out < 14u + (uint32_t) info_len + 2u) return -1;
     uint32_t offset = 0;
 
     /* Flag */

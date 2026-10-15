@@ -19,33 +19,6 @@
 #include "vino.h"
 #include "rational/rational.h"
 
-/* Map PAPSS capital_form_t to vino capital_type_t */
-static capital_type_t capital_form_to_vino(capital_form_t form)
-{
-    switch (form) {
-    case CAPITAL_FINANCIAL:
-        return CAP_FINANCIAL;
-    case CAPITAL_MATERIAL:
-        return CAP_MATERIAL;
-    case CAPITAL_LIVING:
-        return CAP_HUMAN;
-    case CAPITAL_KNOWLEDGE:
-        return CAP_KNOWLEDGE;
-    case CAPITAL_BUILT:
-        return CAP_BUILT;
-    case CAPITAL_SOCIAL:
-        return CAP_SOCIAL;
-    case CAPITAL_NATURAL:
-        return CAP_LIVING;
-    case CAPITAL_HERITAGE_INTELLECTUAL:
-        return CAP_CULTURAL;
-    case CAPITAL_GOVERNANCE_INSTITUTIONAL:
-        return CAP_SPIRITUAL;
-    default:
-        return CAP_FINANCIAL;
-    }
-}
-
 /* Convert rat_t to surplus_real_t (Q32.32 on target, double on host) */
 static surplus_real_t rat_to_surplus(const rat_t *r)
 {
@@ -115,7 +88,6 @@ treaty_err_t treaty_asset_create(treaty_asset_t *ta, const triple_ledger_t *tl,
     if (err != TREATY_OK) return err;
 
     /* 5. Post to Externality rail (888) as treaty-backed asset */
-    capital_type_t cap = capital_form_to_vino(form);
     surplus_real_t qv = rat_to_surplus(quantified_value);
     int32_t r = triple_ledger_post((triple_ledger_t *) tl, 0, LEDGER_EXTERNALITY, qv, SR_ONE,
                                    SR_ZERO, qv, SR_ZERO, 0, "treaty_asset");

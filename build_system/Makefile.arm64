@@ -479,7 +479,6 @@ KERNEL_SRCS = \
     kernel/src/logistics/logistics.c \
     kernel/src/pirate_apps/pirate_apps.c \
     \
-    kernel/src/acpi/acpi.c \
     kernel/src/apps/demo_cross_lang.c \
     kernel/src/apps/apps.c \
     kernel/src/audio/audio.c \

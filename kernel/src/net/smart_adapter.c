@@ -21,9 +21,6 @@
 #include "../sdk/selfaudit.h"
 #include "jdr_piratenet.h"
 
-/* ===== Global Registry ===== */
-static smart_adapter_registry_t g_smart_registry;
-
 /* ===== Helper: Memory Operations ===== */
 static void smart_mem_set(void *dst, int val, uint32_t len) {
     uint8_t *d = dst;
@@ -38,10 +35,6 @@ static void smart_mem_copy(void *dst, const void *src, uint32_t len) {
 static int smart_str_cmp(const char *a, const char *b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(unsigned char)*a - (int)(unsigned char)*b;
-}
-
-static uint32_t smart_str_len(const char *s) {
-    uint32_t n = 0; while (s[n]) n++; return n;
 }
 
 static void smart_str_copy(char *dst, const char *src, uint32_t max) {
@@ -133,6 +126,8 @@ bool smart_enforce_coverage(smart_device_t *device, surplus_real_t required_rati
 
 /* ===== LPRES Attestation ===== */
 lpres_state_t smart_attest_operation(smart_device_t *device, uint32_t op_id, void *args, int32_t result) {
+    (void) op_id;
+    (void) args;
     if (!device) return LPRES_NEITHER;
     
     /* Attest based on result and device state */

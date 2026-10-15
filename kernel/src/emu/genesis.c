@@ -29,8 +29,10 @@ static void gen_wr16(cpu_m68k_t *c, uint32_t a, uint16_t v){
     if (a >= 0xC00000 && a <= 0xC00002){ g->vdp_data_writes++; return; }          /* VDP data port */
     if (a >= 0xC00004 && a <= 0xC00006){                                          /* VDP control port */
         if (v & 0x8000){ int reg=(v>>8)&0x1F; g->vdp_reg[reg]=v&0xFF; g->vdp_reg_writes++;
-            if (reg==1) g->display_on = (v>>6)&1; g->vdp_latch=0; }
-        else g->vdp_latch ^= 1;
+            if (reg == 1) g->display_on = (v >> 6) & 1;
+            g->vdp_latch = 0;
+        } else
+            g->vdp_latch ^= 1;
         return;
     }
     /* ROM, TMSS $A14000, Z80 control, IO: ignored for the verdict */
