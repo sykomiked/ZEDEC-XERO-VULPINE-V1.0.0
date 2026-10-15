@@ -43,6 +43,9 @@ BASE = ["-std=c11", "-Wall", "-Werror", "-Wextra", "-Iinclude", "-Isrc/modbind"]
 # macOS's SDK fortifies stdio by default and defines snprintf as a macro, which
 # freestanding.h's own snprintf redefines; off there, Linux is unchanged
 DARWIN = ["-D_FORTIFY_SOURCE=0"] if sys.platform == "darwin" else []
+# modbind's section bounds are weak: ld64 wants weak undefined symbols named
+DARWIN_LINK = ["-Wl,-U,___zxv_decl_start", "-Wl,-U,___zxv_decl_end"] \
+    if sys.platform == "darwin" else []
 MODES = {
     "plain": ["-O0", "-g", "-DTEST_HOST"],
     "san": ["-O1", "-g", "-DTEST_HOST", "-fno-omit-frame-pointer",
@@ -280,7 +283,7 @@ def build_and_run(p, mode, out_root, verbose, timeout):
         objs.append(obj)
     exe = os.path.join(out, p["name"])
     link_flags = [f for f in MODES[mode] if f.startswith("-fsanitize") or f == "-g"]
-    rc, o = sh([cc()] + link_flags + objs + ["-lm", "-o", exe], KERNEL)
+    rc, o = sh([cc()] + link_flags + DARWIN_LINK + objs + ["-lm", "-o", exe], KERNEL)
     if rc != 0:
         return "build", "".join(log) + o
     for pre in p["pre"] or []:
