@@ -51,6 +51,8 @@ echo "[PASS] app models and blocks are integer-only"
 python3 "$R/tools/apps/app_gate.py"
 # one owner for every shared idea (CONCEPTS.tsv), as docs/APP_BLOCKS.md says
 python3 "$R/tools/apps/concepts.py" --check
+# the apps as one graph: what each unlocks, the build order, the weighted completion
+python3 "$R/tools/apps/app_graph.py" --check
 # every Lingua block is committed in its AI twin's canonical spelling (zl_twin)
 L="$R/kernel/src/lingua"
 "$CC" -std=c11 -O1 -I"$L" -I"$R/kernel/include" "$L/zxlang.c" "$L"/zl_*.c \

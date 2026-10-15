@@ -45,6 +45,20 @@ the same concept, say) is built again, one at a time, on the merged tree.
 So the result does not depend on which app finished first. A wave is done
 before the next starts.
 
+--waves graph builds by the app graph (tools/apps/app_graph.py) instead of
+by wave: each round takes the apps that unlock the most among those whose
+parts are all built (tools/server-tasks/BUILD_ORDER.tsv's order), --jobs of
+them at once (one when --jobs is 1), and works out the graph again after
+the round, so every app accepted changes what comes next. It stops when a
+round accepts nothing new, or after --limit apps have been tried. Every T
+also regenerates docs/APP_GRAPH.md and BUILD_ORDER.tsv, so the weighted
+completion moves in the commit that moves it.
+
+--on-accept CMD runs after each T commit ({id} and {commit} filled in), for
+work that should follow an accepted app (pack it, say); each run is listed
+in build/wave_loop/accepted.tsv with its exit code. A hook that fails is
+reported and does not undo the accept.
+
 The tree must be clean when the loop starts: everything it saves, commits or
 puts back is then the builder's work. It never pushes.
 """
@@ -60,7 +74,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 TASKS = os.path.join(ROOT, "tools", "server-tasks")
 OUT = os.path.join(ROOT, "build", "wave_loop")
 DOCS = ("docs/APP_BLOCKS.md", "docs/APP_LANGUAGE_COVERAGE.md",
-        "kernel/src/alexandria/SLOTS.tsv", "kernel/src/alexandria/alx_slots.h")
+        "kernel/src/alexandria/SLOTS.tsv", "kernel/src/alexandria/alx_slots.h",
+        "docs/APP_GRAPH.md", "tools/server-tasks/BUILD_ORDER.tsv")
+HOOK = {"cmd": None}  # --on-accept
 
 
 def apps(root):
@@ -120,8 +136,8 @@ def verdict(root, app_id, runs):
 def regenerate(root, app_id):
     """What every new app changes besides its own files: its entries' slots on the
     Alexandria app shelf (build_index.py --assign APP auto auto, so the slot numbers
-    follow the order apps are committed in) and the two generated docs. Their
-    failures, if any."""
+    follow the order apps are committed in), the two generated docs and the app graph
+    (docs/APP_GRAPH.md, BUILD_ORDER.tsv). Their failures, if any."""
     bad = []
     # slots from an earlier attempt may name entries since renamed: assign afresh
     git(root, "checkout", "-q", "HEAD", "--", *DOCS[2:])
@@ -130,7 +146,7 @@ def regenerate(root, app_id):
                        capture_output=True, text=True)
     if p.returncode and "has no entry without a slot" not in p.stdout + p.stderr:
         bad += [f"build_index.py: {x}" for x in (p.stdout + p.stderr).strip().splitlines()[-8:]]
-    for tool in ("lang_coverage.py", "concepts.py"):
+    for tool in ("lang_coverage.py", "concepts.py", "app_graph.py"):
         p = subprocess.run([sys.executable, os.path.join(root, "tools", "apps", tool)], cwd=root,
                            capture_output=True, text=True)
         if p.returncode:
@@ -225,6 +241,19 @@ def context(root, task, app_id, attempt, last):
     return path
 
 
+def accepted(app_id, commit):
+    """--on-accept: the hook after a T commit, listed in accepted.tsv; it never undoes it."""
+    rc = "-"
+    if HOOK["cmd"]:
+        p = subprocess.run(HOOK["cmd"].format(id=app_id, commit=commit), shell=True, cwd=ROOT)
+        rc = str(p.returncode)
+        if p.returncode:
+            print(f"wave_loop: --on-accept for {app_id} at {commit} exited {rc} "
+                  "(the app stays accepted)", file=sys.stderr, flush=True)
+    with open(os.path.join(OUT, "accepted.tsv"), "a", encoding="utf-8") as f:
+        f.write(f"{app_id}\t{commit}\t{rc}\n")
+
+
 def build(root, task, app_id, a, last=None):
     """One app in the tree at root: (verdict, attempts, note); T is committed there."""
     for attempt in range(1, a.tries + 1):
@@ -240,7 +269,10 @@ def build(root, task, app_id, a, last=None):
             git(root, "add", "-A", "--", ".")
             git(root, "commit", "-q", "-m", f"App {app_id}: verdict T, fits and functions "
                 f"(wave loop, attempt {attempt})")
-            return "T", attempt, git(root, "rev-parse", "--short", "HEAD").strip()
+            sha = git(root, "rev-parse", "--short", "HEAD").strip()
+            if root == ROOT:  # a worktree's T is accepted when it merges
+                accepted(app_id, sha)
+            return "T", attempt, sha
         if v == "B":
             return "B", attempt, save(root, app_id, "\n".join(reasons(last)) + "\n")
         if v == "N":
@@ -294,6 +326,7 @@ def merge(app_id, base, sha, a):
         git(ROOT, "add", "-A", "--", ".")
         git(ROOT, "commit", "-q", "-m", f"App {app_id}: verdict T, fits and functions "
             "(wave loop, built in parallel)")
+        accepted(app_id, git(ROOT, "rev-parse", "--short", "HEAD").strip())
     else:
         r["functions"].append("it was T alone and is not T beside the apps built with it")
         put_back(ROOT)
@@ -335,9 +368,33 @@ def wave_parallel(todo, a):
     return res
 
 
+def graph_rounds(a):
+    """--waves graph: rounds of the apps that unlock the most among those ready."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import app_graph
+    tried, out = set(), []
+    while not a.limit or len(tried) < a.limit:
+        nodes, deps, _, _, _, _, rank, _ = app_graph.analyse()
+        ready = [k for k in rank if k[4:] not in tried and
+                 all(nodes[d]["done"] for d in deps[k] if d.startswith("app:"))]
+        take = ready[:max(1, a.jobs)]
+        if a.limit:
+            take = take[:a.limit - len(tried)]
+        if not take:
+            break
+        todo = [(os.path.join(TASKS, nodes[k]["task"]), k[4:]) for k in take]
+        tried |= {i for _, i in todo}
+        res = wave_parallel(todo, a) if a.jobs > 1 else {i: build(ROOT, t, i, a) for t, i in todo}
+        out.append((f"g{len(out) + 1}", todo, res))
+        if not any(v == "T" for v, _, _ in res.values()):
+            break
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--waves", required=True, help="the waves to build, e.g. 1-11 or 3,4")
+    ap.add_argument("--waves", required=True,
+                    help="the waves to build, e.g. 1-11 or 3,4; or graph (by unlocks, BUILD_ORDER.tsv)")
     ap.add_argument("--runner", required=True,
                     help="the builder, a shell command; {task} {context} {id} {attempt} are filled in")
     ap.add_argument("--tries", type=int, default=4, help="attempts per app before it is set aside")
@@ -345,11 +402,10 @@ def main():
     ap.add_argument("--timeout", type=int, default=3600, help="seconds one builder run may take")
     ap.add_argument("--jobs", type=int, default=1,
                     help="apps of one wave built at once, each in its own worktree")
+    ap.add_argument("--limit", type=int, default=0, help="--waves graph: at most this many apps")
+    ap.add_argument("--on-accept", help="a shell command after each T commit; {id} {commit}")
     a = ap.parse_args()
-    waves = []
-    for part in a.waves.split(","):
-        lo, _, hi = part.partition("-")
-        waves += range(int(lo), int(hi or lo) + 1)
+    HOOK["cmd"] = a.on_accept
     if dirty(ROOT):
         print("wave_loop: the tree is not clean; commit or set aside the changes first",
               file=sys.stderr)
@@ -358,33 +414,40 @@ def main():
     report = ["# Wave loop report", "", "| wave | app | verdict | attempts | result |",
               "|---|---|---|---|---|"]
     held, unfinished = [], []
-    for w in waves:
-        d = os.path.join(TASKS, f"wave{w}")
-        if not os.path.isdir(d):
-            print(f"wave_loop: no tasks for wave {w}", file=sys.stderr)
-            return 2
-        res, todo = {}, []
-        for f in sorted(os.listdir(d)):
-            m = re.fullmatch(r"\d{3}-([a-z0-9_]+)\.md", f)
-            if not m:
-                continue
-            app_id = m.group(1)
-            if os.path.exists(os.path.join(apps(ROOT), f"{app_id}.zxapp")) and \
-                    verdict(ROOT, app_id, a.runs)["verdict"] == "T":
-                res[app_id] = ("T", 0, "already built")
+    if a.waves == "graph":
+        batches = graph_rounds(a)
+    else:
+        waves = []
+        for part in a.waves.split(","):
+            lo, _, hi = part.partition("-")
+            waves += range(int(lo), int(hi or lo) + 1)
+        batches = []
+        for w in waves:
+            d = os.path.join(TASKS, f"wave{w}")
+            if not os.path.isdir(d):
+                print(f"wave_loop: no tasks for wave {w}", file=sys.stderr)
+                return 2
+            res, todo, every = {}, [], []
+            for f in sorted(os.listdir(d)):
+                m = re.fullmatch(r"\d{3}-([a-z0-9_]+)\.md", f)
+                if not m:
+                    continue
+                app_id = m.group(1)
+                every.append((os.path.join(d, f), app_id))
+                if os.path.exists(os.path.join(apps(ROOT), f"{app_id}.zxapp")) and \
+                        verdict(ROOT, app_id, a.runs)["verdict"] == "T":
+                    res[app_id] = ("T", 0, "already built")
+                else:
+                    todo.append((os.path.join(d, f), app_id))
+            if a.jobs > 1:
+                res.update(wave_parallel(todo, a))
             else:
-                todo.append((os.path.join(d, f), app_id))
-        if a.jobs > 1:
-            res.update(wave_parallel(todo, a))
-        else:
-            for t, i in todo:
-                res[i] = build(ROOT, t, i, a)
+                for t, i in todo:
+                    res[i] = build(ROOT, t, i, a)
+            batches.append((w, every, res))
+    for w, every, res in batches:
         rows = ["app\tverdict\tattempts\tresult"]
-        for f in sorted(os.listdir(d)):
-            m = re.fullmatch(r"\d{3}-([a-z0-9_]+)\.md", f)
-            if not m:
-                continue
-            app_id = m.group(1)
+        for _, app_id in every:
             v, n, note = res[app_id]
             print(f"wave {w}: {app_id} {v} after {n} attempt(s): {note}", flush=True)
             rows.append(f"{app_id}\t{v}\t{n}\t{note}")
