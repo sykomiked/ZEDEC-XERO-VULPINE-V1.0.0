@@ -224,6 +224,7 @@ vino_stores                      settlement
 allotment                        settlement # Crown Allotment: ballots and the endowment on pay_util
 jroute                           settlement # VINO redemption routing by zone capability; lpres + sha256 only
 jringress                        settlement # optional producer ingress for jroute physical lots; detachable
+vfloat                           settlement # Vino floating vouchers: bilateral capacity credits on Vinea identities, issued under bounty letters of marque
 estate                           settlement # estate succession, recovery and faraid shares on pay_util
 grants                           settlement
 sicily                           settlement
