@@ -94,9 +94,9 @@ The engine's lattice quantisers (`zt_lattice.c`) and the icosian E8 in `kernel/s
 ## Limits, stated plainly
 
 - **The coil is an analogy.** ABHA coils, scalar fields and alternating current here are a design language for memory layout, data flow and logic. Nothing in the code is electromagnetic, and no claim is made about physical scalar fields.
-- **Speed is not yet measured.** The tests prove correctness. Whether the golden tiling, the coil layout and the surplus gate are faster than ordinary layouts on real hardware is still to be benchmarked.
+- **Speed is measured for whole models, not for the layouts.** `bench/results/2026-10-10-qwen2.5-1.5b/REPORT.md` measures about 11 tok/s generating against llama.cpp's 15 to 18 on the same container, and the other reports under `bench/results/` cover prefill, tensor parallelism and other models. Whether the golden tiling, the coil layout and the surplus gate are faster than ordinary layouts on real hardware is still to be benchmarked.
 - **Holographic coding helps only some data.** It saves space only when data that shares a parent is alike, and placing real model data that way is still to be designed.
-- **The model runtime is in pieces.** Files, tokens, positions and quantisers are built and tested. They are not yet joined into one forward pass over a whole model.
+- **The model runtime is joined.** `kernel/src/tensor/zt_model.c` runs one forward pass over a whole model from files, tokens, positions and quantisers, and the desktop app compiles it in through `kernel/arch/hosted/zxv_zt_glue.c` ([MAC_APP.md](MAC_APP.md)).
 - **Tokenizer coverage.** Only byte-level BPE. SentencePiece models (the GGUF tokenizer model "llama") are reported as unsupported.
 - **RoPE coverage.** The YaRN and LongRoPE context extensions are not implemented.
 - **Leech decoder speed.** The Leech decoder is brute force over 8192 cosets, about 20 µs per 24 weights. It is for research and small tensors, not bulk weights.

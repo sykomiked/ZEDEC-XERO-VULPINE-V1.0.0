@@ -21,8 +21,8 @@ data. This document explains how it does that.
 
 Status: built 2026-10-09 in `kernel/src/ipfs_node/` and tested by
 `kernel/src/ipfs_node/test_ipfs_node.c` against vectors made with Kubo 0.32.1.
-The module is not yet wired into `kernel/Makefile`. The build line is at the
-top of the test file.
+`kernel/Makefile` builds and runs `test_ipfs_node` and `test_ipfsn_dir` (the
+directory reader, `kernel/src/ipfs_node/ipfsn_dir.c`).
 
 `kernel/src/ipfs/` has not changed. Its "CID" is a bare SHA-256 digest, not an
 IPFS CID. This module makes real CIDs. Code that needs to work with the IPFS
@@ -37,7 +37,7 @@ network should use this module.
 | CIDv1 and CIDv0, byte for byte as other implementations write them | libp2p (no peer ID, no transports, no Noise or TLS handshake) |
 | `ipfs add --cid-version=1` root CIDs (Kubo defaults) | Bitswap |
 | Trustless gateway `?format=raw` and `?format=car` | The public IPFS DHT (no provider records are published there) |
-| CAR v1 read and write (matches `ipfs dag export` byte for byte) | CARv2, directories and HAMT shards, non-file UnixFS |
+| CAR v1 read and write (matches `ipfs dag export` byte for byte) | CARv2, writing directories and HAMT shards (reading them is built, `ipfsn_dir.c`), other non-file UnixFS |
 
 ZXV talks to IPFS through **gateways and CIDs**. It is not a full libp2p peer.
 A CID made here is the same one any IPFS implementation computes for the same
@@ -283,8 +283,9 @@ The negative tests cover:
 - No libp2p, Bitswap or DHT (§1). Announcing goes to a host-supplied provider
   hook (for example a pinning service or the Carracho provider table), not to
   the IPFS DHT.
-- Only UnixFS **files** are built and walked. There are no directories, HAMT
-  shards, symlinks, mode or mtime (mode and mtime are parsed and skipped), and
+- Only UnixFS **files** are built. Plain and HAMT-sharded directories are read
+  by `kernel/src/ipfs_node/ipfsn_dir.c` (tested by `test_ipfsn_dir.c` with
+  Kubo-made vectors) but not built. There are no symlinks, mode or mtime (mode and mtime are parsed and skipped), and
   no trickle layout or other chunkers.
 - `ipfsn_add` matches Kubo only with the defaults: 256 KiB, raw leaves,
   balanced, 174 links. Other `chunk_size` values match Kubo's

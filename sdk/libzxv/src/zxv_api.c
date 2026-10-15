@@ -1227,7 +1227,8 @@ static int32_t msg_new(zxv_ctx *ctx, const zxv_cap *cap, int32_t kind, zxv_msg *
     case ZXV_MX_CAMT056:
     case ZXV_MX_CAMT029:
         /* TODO(kernel-cbank): bind cb_mx_pacs002/pacs004/pacs009/camt056/
-         * camt029 from kernel/src/cbank/cb_mx.h once that header lands. */
+         * camt029 from kernel/src/cbank/cb_mx.h (built and tested by
+         * kernel/src/cbank/test_cb_mx.c; only this binding is missing). */
         return zxvi_fail(ZXV_E_NOTIMPL, "message kind %d not built in yet (kernel/src/cbank cb_mx.h)", kind);
     default:
         return zxvi_fail(ZXV_E_ARG, "unknown message kind %d", kind);
