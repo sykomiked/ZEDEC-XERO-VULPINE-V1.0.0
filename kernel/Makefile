@@ -407,6 +407,7 @@ verify-all: test
 	$(MAKE) --no-print-directory test-zxsh
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-passport
+	$(MAKE) --no-print-directory test-passport-wasm
 	$(MAKE) --no-print-directory test-zt-gram
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-hwemu
@@ -1706,6 +1707,16 @@ PASSPORT_INC := -Iinclude -Isrc/passport -Isrc/ident -Isrc/pqsec -Isrc/mlkem -Is
 test-passport:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(PASSPORT_INC) src/passport/test_passport.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_passport && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_passport > $(ZXV_TMP)/test_passport.log 2>&1 && echo "[PASS] test_passport ($$(tail -1 $(ZXV_TMP)/test_passport.log))" || { cat $(ZXV_TMP)/test_passport.log; echo "[FAIL] test_passport"; exit 1; }
 	@for f in $(PASSPORT_SRCS); do for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -c $$f -o $(ZXV_TMP)/passport_free.o || { echo "[FAIL] passport freestanding $$t $$f"; exit 1; }; if nm -u $(ZXV_TMP)/passport_free.o | grep -vE ' (pp_|id_|pq_|pqm_|sha3_256|shake256|aead_|ipfsn_)' | grep -q .; then nm -u $(ZXV_TMP)/passport_free.o; echo "[FAIL] passport freestanding: libc symbol in $$f ($$t)"; exit 1; fi; done; done; echo "[PASS] passport freestanding (aarch64 -mgeneral-regs-only, i386; only ident, pqsec, keccak, aead, ipfs_node external)"
+
+# The browser's passport (web/session/zxv_passport_wasm.c): the glue built
+# natively against the same sources, checked export by export against the
+# passport itself; then the browser root with the glue built to wasm32
+# (tools/web/build_web_root.sh; wasm-ld refuses any symbol left undefined, so
+# the module imports nothing). Needs clang with the wasm32 target and wasm-ld.
+.PHONY: test-passport-wasm
+test-passport-wasm:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -DPW_HOST $(PASSPORT_INC) ../web/session/test_passport_wasm.c ../web/session/zxv_passport_wasm.c $(PASSPORT_SRCS) $(PASSPORT_DEPS) -o $(ZXV_TMP)/test_passport_wasm && ASAN_OPTIONS=detect_leaks=0 $(ZXV_TMP)/test_passport_wasm > $(ZXV_TMP)/test_passport_wasm.log 2>&1 && echo "[PASS] test_passport_wasm ($$(tail -1 $(ZXV_TMP)/test_passport_wasm.log))" || { cat $(ZXV_TMP)/test_passport_wasm.log; echo "[FAIL] test_passport_wasm"; exit 1; }
+	@rm -rf $(ZXV_TMP)/web_root && sh ../tools/web/build_web_root.sh $(ZXV_TMP)/web_root > $(ZXV_TMP)/web_root.log 2>&1 && echo "[PASS] browser root with zxv_passport.wasm ($$(wc -c < $(ZXV_TMP)/web_root/session/zxv_passport.wasm) bytes, no imports)" || { cat $(ZXV_TMP)/web_root.log; echo "[FAIL] browser root"; exit 1; }
 
 # Grammar-constrained decoding (src/tensor/zt_gram.h) and the paraconsistent
 # evidence head (src/tensor/zt_evh.h, roadmap 6.6b P2.1, with paradox.h's

@@ -52,8 +52,8 @@ the same pace, so any cue the person hears is the right one for that moment.
 
 ## Not there yet
 
-- What the page hands over to. No browser build of the desktop, the login screen or the kernel exists yet. The doors
-  open onto the ground, and `next` is where that build goes once it exists.
+- The desktop in the browser. `next` hands over to the passport login, the spaces and the companion (`web/session`,
+  served by zxvd with `--web-root`); no browser build of the desktop's window manager or of the kernel exists yet.
 - CID fetches. Files are fetched by path and checked by SHA-256. No browser CID resolver exists, so content is not yet
   fetched by CID from peers or gateways.
 - The intro videos and app launch screens in the browser. The intro is this boot screen, rendered live. App launch
