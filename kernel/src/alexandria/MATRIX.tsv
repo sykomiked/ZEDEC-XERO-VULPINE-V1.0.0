@@ -29,7 +29,7 @@
 2	Hollow	System core	zxv-brand/app-icons/svg/l1/002-hollow.svg	desktop theme dual_space launch icon /macos /gui /subsystems/gui /ZXV-Desktop.command	F3
 3	Threshold	System core	zxv-brand/app-icons/svg/l1/003-threshold.svg	ident identity cred kycwrap	F4
 4	Keystone	System core	zxv-brand/app-icons/svg/l1/004-keystone.svg	license terms bootfeat /LICENSES /LICENSE /LICENSE-HARDWARE.md /NOTICE /COMMERCIAL_USE.md /CLA.md /REUSE.toml	-
-5	Scent	System core	zxv-brand/app-icons/svg/l1/005-scent.svg	-	F5
+5	Scent	System core	zxv-brand/app-icons/svg/l1/005-scent.svg	apps/scent.zxapp apps/scent_model.c apps/scent_model.h apps/blocks/scent	F5
 6	Tideturn	System core	zxv-brand/app-icons/svg/l1/006-tideturn.svg	update evolve	-
 7	Satchel	System core	zxv-brand/app-icons/svg/l1/007-satchel.svg	zxpkg deploy /packages /install /build_system /scripts /Makefile /build.sh	-
 8	Gatehouse	System core	zxv-brand/app-icons/svg/l1/008-gatehouse.svg	privacy policy onepolicy ascent panopticon treaty legal_engine /governance /subsystems/governance	F6

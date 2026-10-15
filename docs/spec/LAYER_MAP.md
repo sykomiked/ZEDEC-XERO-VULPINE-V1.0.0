@@ -26,7 +26,7 @@ Files: how many files the current tree puts there. Pulled in: modules placed by 
 | 2 | F3 | Hollow | System core | `desktop` `theme` `dual_space` `launch` `icon` `/macos` `/gui` `/subsystems/gui` `/ZXV-Desktop.command` | 72 | `init` `prism_break` |
 | 3 | F4 | Threshold | System core | `ident` `identity` `cred` `kycwrap` | 18 | `seats` |
 | 4 | hangs from 3 | Keystone | System core | `license` `terms` `bootfeat` `/LICENSES` `/LICENSE` `/LICENSE-HARDWARE.md` `/NOTICE` `/COMMERCIAL_USE.md` `/CLA.md` `/REUSE.toml` | 30 | `bridge` `mage` `reality` |
-| 5 | F5 | Scent | System core | none yet | 0 |  |
+| 5 | F5 | Scent | System core | `apps/scent.zxapp` `apps/scent_model.c` `apps/scent_model.h` `apps/blocks/scent` | 0 |  |
 | 6 | hangs from 5 | Tideturn | System core | `update` `evolve` | 22 |  |
 | 7 | hangs from 5 | Satchel | System core | `zxpkg` `deploy` `/packages` `/install` `/build_system` `/scripts` `/Makefile` `/build.sh` | 133 | `lightningrod` |
 | 8 | F6 | Gatehouse | System core | `privacy` `policy` `onepolicy` `ascent` `panopticon` `treaty` `legal_engine` `/governance` `/subsystems/governance` | 77 | `choice` `neon` `os_lattice` `vena` `zab` |
