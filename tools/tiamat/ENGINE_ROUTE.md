@@ -41,6 +41,18 @@ What lands first: step 1, tested on Fallacydrakeling (ELECTRA on
 google/electra-base-discriminator, Apache-2.0 all the way down), then the
 two BERT cells.
 
+## Status
+
+- Step 1, the engine: done (2026-10-15). `kernel/src/tensor/zt_bert.{h,c}`
+  (WordPiece tokenizer, encoder, classifier and embedding heads),
+  `bench/tensor/convert_bert.py`, `bench/tensor/zt_enc.c`; unit test
+  `test_zt_bert.c` in `make -C kernel verify-all`. All three cells match the
+  Hugging Face stack in F16: the same token ids on 3,088 texts, logits
+  within 0.009, embedding cosine 1.000000
+  (`bench/results/2026-10-15-tiamat/encoders/`).
+- Step 1, the swarm: the cells are not yet called by the host (zxv_tiamat);
+  that, with the four-state mapping of each classifier's labels, is next.
+
 ## Open: two encoder cells sit on MIT bases
 
 The owner chose Apache only for the large roster. Two step-1 cells are

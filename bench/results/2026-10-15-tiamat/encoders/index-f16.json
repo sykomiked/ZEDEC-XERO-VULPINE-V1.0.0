@@ -1,0 +1,130 @@
+{
+ "model": "/tmp/claude-0/enc/gguf/index-f16.gguf",
+ "max_tokens": 256,
+ "tokens_special_parsed": {
+  "cases": 3088,
+  "differ": 0
+ },
+ "tokens_special_as_text": {
+  "cases": 3088,
+  "differ": 0
+ },
+ "engine": {
+  "zt.kern": "avx512vnni",
+  "zt.threads": "1",
+  "zt.n_sat": "0",
+  "zt.seconds": "0.959"
+ },
+ "forward": [
+  {
+   "text": "Everyone is buying this phone, so it must be the best one.",
+   "cosine": 0.9999998633626692
+  },
+  {
+   "text": "You cannot trust his argument about taxes because he was onc",
+   "cosine": 0.9999998608421432
+  },
+  {
+   "text": "If we allow students to redo one test, soon they will demand",
+   "cosine": 0.999999896333134
+  },
+  {
+   "text": "Either you support this policy completely or you hate our co",
+   "cosine": 0.9999998613547337
+  },
+  {
+   "text": "I wore my lucky socks and we won, so the socks caused the wi",
+   "cosine": 0.9999998947057315
+  },
+  {
+   "text": "My grandfather smoked every day and lived to ninety, so smok",
+   "cosine": 0.9999998773897536
+  },
+  {
+   "text": "This medicine works because the doctor who sells it says it ",
+   "cosine": 0.999999849605077
+  },
+  {
+   "text": "The Bible is true because it says so in the Bible.",
+   "cosine": 0.9999998570976372
+  },
+  {
+   "text": "Think of the poor children who will suffer if you vote again",
+   "cosine": 0.999999865125211
+  },
+  {
+   "text": "A feather is light; what is light cannot be dark; so a feath",
+   "cosine": 0.9999998939628197
+  },
+  {
+   "text": "Water boils at one hundred degrees Celsius at sea level.",
+   "cosine": 0.9999998830870872
+  },
+  {
+   "text": "The meeting was moved to Thursday afternoon.",
+   "cosine": 0.9999998907488037
+  },
+  {
+   "text": "A cat is resting on the windowsill.",
+   "cosine": 0.9999998923137468
+  },
+  {
+   "text": "Stock markets fell sharply after the announcement.",
+   "cosine": 0.9999998701022498
+  },
+  {
+   "text": "Hello, world!",
+   "cosine": 0.9999998155086476
+  },
+  {
+   "text": "The quick brown fox jumps over the lazy dog.",
+   "cosine": 0.9999998695406099
+  },
+  {
+   "text": "Don't stop-believing; it's 3.14!",
+   "cosine": 0.9999998036938466
+  },
+  {
+   "text": "Café naïve résumé coöperate Ångström",
+   "cosine": 0.9999998562673794
+  },
+  {
+   "text": "ΟΔΟΣ Σίσυφος",
+   "cosine": 0.9999998374809878
+  },
+  {
+   "text": "İstanbul ıi",
+   "cosine": 0.999999884195912
+  },
+  {
+   "text": "Straße MASSE",
+   "cosine": 0.9999999093063828
+  },
+  {
+   "text": "한국어 텍스트입니다",
+   "cosine": 0.9999997537212733
+  },
+  {
+   "text": "日本語のテキストと漢字",
+   "cosine": 0.9999997790204657
+  },
+  {
+   "text": "中文分词测试，标点。",
+   "cosine": 0.9999998466246535
+  },
+  {
+   "text": "ไทย ภาษา",
+   "cosine": 0.9999997290121577
+  },
+  {
+   "text": "עִבְרִית",
+   "cosine": 0.9999998225369383
+  }
+ ],
+ "summary": {
+  "cases": 26,
+  "min_cosine": 0.9999997290121577,
+  "mean_cosine": 0.9999998524207713
+ },
+ "pass": true
+}
