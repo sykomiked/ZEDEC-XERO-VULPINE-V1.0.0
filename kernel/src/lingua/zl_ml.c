@@ -73,25 +73,7 @@
  * parentheses. A top-level expression is written "val _ = e" (SML) or
  * "let () = e" / "let _ = e" (OCaml), begin/end as parentheses, and SML
  * semicolons between declarations and OCaml ";;" are dropped. */
-#include "zl_int.h"
-
-#define M_NODES  2400
-#define M_TYPES  6000
-#define M_BINDS  1024
-#define M_FNS    256
-#define M_PTYS   1024
-#define M_SCOPE  768
-#define M_FIX    1536
-#define M_COMS   256
-#define M_TOPS   512
-#define M_DEPTH  96 /* nesting of expressions and patterns */
-#define M_GROUPS 16
-#define M_PIECES 64
-#define M_IMAP   128
-#define M_PATH   48
-#define M_STR    256
-
-enum { D_SML = 0, D_OCAML = 1 };
+#include "zl_ml_int.h"
 
 /* ------------------------------------------------------------ tokens */
 
@@ -244,148 +226,6 @@ static const mkw_t kws[] = {
 };
 
 typedef struct {
-    int k;
-    size_t at;
-    uint32_t len, line, col;
-    int64_t v; /* T_INT: SML the value, OCaml the magnitude */
-    int big;   /* T_INT: magnitude past 2^62 */
-} mtok_t;
-
-/* ------------------------------------------------------------ the tree */
-
-enum {
-    E_INT = 1,
-    E_BOOL,
-    E_UNIT,
-    E_NIL,
-    E_VAR,
-    E_STR,
-    E_LIST,
-    E_TUPLE,
-    E_BIN,
-    E_NEG,
-    E_APP,
-    E_IF,
-    E_CASE,
-    E_LET,
-    E_SEQ,
-    P_WILD,
-    P_VAR,
-    P_INT,
-    P_BOOL,
-    P_UNIT,
-    P_NIL,
-    P_CONS,
-    P_LIST,
-    P_TUPLE,
-    D_VAL,
-    D_FUN,
-    D_EXP,
-    N_FB,
-    N_CLAUSE,
-    N_RULE,
-    N_COMMENT
-};
-
-enum {
-    O_ADD = 1,
-    O_SUB,
-    O_MUL,
-    O_DIV,
-    O_MOD,
-    O_EQ,
-    O_NE,
-    O_LT,
-    O_LE,
-    O_GT,
-    O_GE,
-    O_ANDALSO,
-    O_ORELSE,
-    O_CONS,
-    O_APPEND,
-    O_CAT
-};
-
-/* node flags */
-enum {
-    F_FUNCTION = 1, /* N_FB: OCaml "let f = function ..." */
-    F_REC = 2,      /* D_FUN: recursive (SML fun, OCaml let rec) */
-    F_TOP = 4,      /* D_EXP / D_VAL from a top-level expression */
-    F_PRINTED = 8,  /* E_STR: inside a print argument */
-    F_SEQPAREN = 16
-};
-
-typedef struct {
-    int64_t v;       /* literal value; names: source offset */
-    int32_t a, b, c; /* children */
-    int32_t next;    /* next sibling */
-    int32_t ty;      /* type term */
-    int32_t sym;     /* binding, function or builtin (-id) */
-    uint32_t line;
-    uint16_t col, len;
-    uint8_t kind, op, flags, pad;
-} mnode_t;
-
-/* ------------------------------------------------------------ types */
-
-enum { TY_VAR = 0, TY_INT, TY_BOOL, TY_UNIT, TY_LIST };
-enum { TINT = 0, TBOOL = 1, TUNIT = 2 };
-
-typedef struct {
-    uint8_t k, gen;
-    uint16_t lvl;
-    int32_t a; /* TY_VAR: link or -1; TY_LIST: element */
-} mty_t;
-
-enum { BK_VAR = 1, BK_FN };
-
-typedef struct {
-    uint32_t pos;
-    uint16_t len;
-    uint8_t kind, gen;
-    int32_t ty, fn, addr;
-    uint8_t level, pad[3];
-} mbind_t;
-
-typedef struct {
-    int32_t fb, bind;
-    int32_t p0, rty; /* parameter types: ptys[p0 .. p0+np) */
-    uint16_t np, ng;
-    uint8_t gar[M_GROUPS];
-    uint8_t level, gen, defined, pad;
-    int32_t entry, enter_at, start;
-    uint32_t nloc;
-} mfn_t;
-
-/* builtins */
-enum {
-    B_PRINT = 1,
-    B_ITOS,
-    B_BTOS,
-    B_ABS,
-    B_NOT,
-    B_MIN,
-    B_MAX,
-    B_QUOT,
-    B_REM,
-    B_HD,
-    B_TL,
-    B_NULL,
-    B_LENGTH,
-    B_REV,
-    B_PRINT_INT,
-    B_PRINT_STRING,
-    B_PRINT_NEWLINE,
-    B_PRINT_ENDLINE,
-    B_PRINTF,
-    B_SUCC,
-    B_PRED,
-    B_MAXINT,
-    B_MININT,
-    B__COUNT
-};
-
-typedef struct {
     const char *s;
     uint8_t dial, id, ng, ar; /* ng curried groups (0: a value), ar: arity of each */
     const char *msg;          /* refused */
@@ -447,64 +287,139 @@ static const mbi_t bis[] = {
     {"read_int", 2, 0, 0, 0, "input is not in this subset"},
     {"read_line", 2, 0, 0, 0, "input is not in this subset"},
     {"exit", 2, 0, 0, 0, "exit is not in this subset"},
+    /* Haskell (the Prelude) */
+    {"print", 4, B_HPRINT, 1, 1, 0},
+    {"putStrLn", 4, B_PRINT_ENDLINE, 1, 1, 0},
+    {"putStr", 4, B_PRINT_STRING, 1, 1, 0},
+    {"show", 4, B_SHOW, 1, 1, 0},
+    {"return", 4, B_RETURN, 1, 1, 0},
+    {"pure", 4, B_RETURN, 1, 1, 0},
+    {"abs", 4, B_ABS, 1, 1, 0},
+    {"signum", 4, B_SIGNUM, 1, 1, 0},
+    {"negate", 4, B_NEGATE, 1, 1, 0},
+    {"not", 4, B_NOT, 1, 1, 0},
+    {"even", 4, B_EVEN, 1, 1, 0},
+    {"odd", 4, B_ODD, 1, 1, 0},
+    {"succ", 4, B_SUCC, 1, 1, 0},
+    {"pred", 4, B_PRED, 1, 1, 0},
+    {"min", 4, B_MIN, 2, 1, 0},
+    {"max", 4, B_MAX, 2, 1, 0},
+    {"gcd", 4, B_GCD, 2, 1, 0},
+    {"lcm", 4, B_LCM, 2, 1, 0},
+    {"div", 4, B_DIVOP, 2, 1, 0},
+    {"mod", 4, B_DIVOP, 2, 1, 0},
+    {"quot", 4, B_DIVOP, 2, 1, 0},
+    {"rem", 4, B_DIVOP, 2, 1, 0},
+    {"head", 4, B_HD, 1, 1, 0},
+    {"tail", 4, B_TL, 1, 1, 0},
+    {"null", 4, B_NULL, 1, 1, 0},
+    {"length", 4, B_LENGTH, 1, 1, 0},
+    {"reverse", 4, B_REV, 1, 1, 0},
+    {"sum", 4, B_SUM, 1, 1, 0},
+    {"product", 4, B_PRODUCT, 1, 1, 0},
+    {"maximum", 4, B_MAXIMUM, 1, 1, 0},
+    {"minimum", 4, B_MINIMUM, 1, 1, 0},
+    {"take", 4, B_TAKE, 2, 1, 0},
+    {"drop", 4, B_DROP, 2, 1, 0},
+    {"elem", 4, B_ELEM, 2, 1, 0},
+    {"notElem", 4, B_NOTELEM, 2, 1, 0},
+    {"replicate", 4, B_REPLICATE, 2, 1, 0},
+    {"last", 4, B_LAST, 1, 1, 0},
+    {"init", 4, B_INIT, 1, 1, 0},
+    {"concat", 4, B_CONCAT, 1, 1, 0},
+    {"and", 4, B_AND, 1, 1, 0},
+    {"or", 4, B_OR, 1, 1, 0},
+    {"otherwise", 4, B_OTHERWISE, 0, 0, 0},
+    {"main", 4, 0, 0, 0, "using main inside the program is not in this subset"},
+    {"map", 4, 0, 0, 0, "higher-order functions (map) are not in this subset"},
+    {"filter", 4, 0, 0, 0, "higher-order functions (filter) are not in this subset"},
+    {"foldr", 4, 0, 0, 0, "higher-order functions (foldr) are not in this subset"},
+    {"foldl", 4, 0, 0, 0, "higher-order functions (foldl) are not in this subset"},
+    {"foldr1", 4, 0, 0, 0, "higher-order functions (foldr1) are not in this subset"},
+    {"foldl1", 4, 0, 0, 0, "higher-order functions (foldl1) are not in this subset"},
+    {"scanl", 4, 0, 0, 0, "higher-order functions (scanl) are not in this subset"},
+    {"scanr", 4, 0, 0, 0, "higher-order functions (scanr) are not in this subset"},
+    {"zipWith", 4, 0, 0, 0, "higher-order functions (zipWith) are not in this subset"},
+    {"zipWith3", 4, 0, 0, 0, "higher-order functions (zipWith3) are not in this subset"},
+    {"any", 4, 0, 0, 0, "higher-order functions (any) are not in this subset"},
+    {"all", 4, 0, 0, 0, "higher-order functions (all) are not in this subset"},
+    {"concatMap", 4, 0, 0, 0, "higher-order functions (concatMap) are not in this subset"},
+    {"takeWhile", 4, 0, 0, 0, "higher-order functions (takeWhile) are not in this subset"},
+    {"dropWhile", 4, 0, 0, 0, "higher-order functions (dropWhile) are not in this subset"},
+    {"span", 4, 0, 0, 0, "higher-order functions (span) are not in this subset"},
+    {"break", 4, 0, 0, 0, "higher-order functions (break) are not in this subset"},
+    {"until", 4, 0, 0, 0, "higher-order functions (until) are not in this subset"},
+    {"iterate", 4, 0, 0, 0, "infinite lists (iterate) are not in this subset"},
+    {"repeat", 4, 0, 0, 0, "infinite lists (repeat) are not in this subset"},
+    {"cycle", 4, 0, 0, 0, "infinite lists (cycle) are not in this subset"},
+    {"id", 4, 0, 0, 0, "functions as values (id) are not in this subset"},
+    {"const", 4, 0, 0, 0, "functions as values (const) are not in this subset"},
+    {"flip", 4, 0, 0, 0, "functions as values (flip) are not in this subset"},
+    {"curry", 4, 0, 0, 0, "functions as values (curry) are not in this subset"},
+    {"uncurry", 4, 0, 0, 0, "functions as values (uncurry) are not in this subset"},
+    {"subtract", 4, 0, 0, 0, "subtract is not in this subset (use -)"},
+    {"seq", 4, 0, 0, 0, "seq is not in this subset"},
+    {"zip", 4, 0, 0, 0, "tuples as values (zip) are not in this subset"},
+    {"zip3", 4, 0, 0, 0, "tuples as values (zip3) are not in this subset"},
+    {"unzip", 4, 0, 0, 0, "tuples as values (unzip) are not in this subset"},
+    {"fst", 4, 0, 0, 0, "tuples as values (fst) are not in this subset"},
+    {"snd", 4, 0, 0, 0, "tuples as values (snd) are not in this subset"},
+    {"lookup", 4, 0, 0, 0, "tuples as values (lookup) are not in this subset"},
+    {"splitAt", 4, 0, 0, 0, "tuples as values (splitAt) are not in this subset"},
+    {"divMod", 4, 0, 0, 0, "tuples as values (divMod) are not in this subset"},
+    {"quotRem", 4, 0, 0, 0, "tuples as values (quotRem) are not in this subset"},
+    {"error", 4, 0, 0, 0, "error is not in this subset"},
+    {"errorWithoutStackTrace", 4, 0, 0, 0, "error is not in this subset"},
+    {"undefined", 4, 0, 0, 0, "undefined is not in this subset"},
+    {"fromIntegral", 4, 0, 0, 0, "numeric conversions (fromIntegral) are not in this subset"},
+    {"fromInteger", 4, 0, 0, 0, "numeric conversions (fromInteger) are not in this subset"},
+    {"toInteger", 4, 0, 0, 0, "Integer is not in this subset"},
+    {"toEnum", 4, 0, 0, 0, "Enum conversions are not in this subset"},
+    {"fromEnum", 4, 0, 0, 0, "Enum conversions are not in this subset"},
+    {"maxBound", 4, 0, 0, 0, "maxBound (a class method) is not in this subset"},
+    {"minBound", 4, 0, 0, 0, "minBound (a class method) is not in this subset"},
+    {"compare", 4, 0, 0, 0, "compare (Ordering) is not in this subset"},
+    {"words", 4, 0, 0, 0, "strings as values (words) are not in this subset"},
+    {"unwords", 4, 0, 0, 0, "strings as values (unwords) are not in this subset"},
+    {"lines", 4, 0, 0, 0, "strings as values (lines) are not in this subset"},
+    {"unlines", 4, 0, 0, 0, "strings as values (unlines) are not in this subset"},
+    {"shows", 4, 0, 0, 0, "strings as values (shows) are not in this subset"},
+    {"read", 4, 0, 0, 0, "read is not in this subset"},
+    {"getLine", 4, 0, 0, 0, "input is not in this subset"},
+    {"getContents", 4, 0, 0, 0, "input is not in this subset"},
+    {"interact", 4, 0, 0, 0, "input is not in this subset"},
+    {"readLn", 4, 0, 0, 0, "input is not in this subset"},
+    {"putChar", 4, 0, 0, 0, "characters are not in this subset"},
+    {"mapM_", 4, 0, 0, 0, "higher-order functions (mapM_) are not in this subset"},
+    {"mapM", 4, 0, 0, 0, "higher-order functions (mapM) are not in this subset"},
+    {"forM_", 4, 0, 0, 0, "higher-order functions (forM_) are not in this subset"},
+    {"forM", 4, 0, 0, 0, "higher-order functions (forM) are not in this subset"},
+    {"sequence", 4, 0, 0, 0, "sequence is not in this subset"},
+    {"sequence_", 4, 0, 0, 0, "sequence_ is not in this subset"},
+    {"when", 4, 0, 0, 0, "when (Control.Monad) is not in this subset"},
+    {"unless", 4, 0, 0, 0, "unless (Control.Monad) is not in this subset"},
+    {"sqrt", 4, 0, 0, 0, "floating point (sqrt) is not in this subset"},
+    {"pi", 4, 0, 0, 0, "floating point (pi) is not in this subset"},
+    {"truncate", 4, 0, 0, 0, "floating point (truncate) is not in this subset"},
+    {"round", 4, 0, 0, 0, "floating point (round) is not in this subset"},
+    {"floor", 4, 0, 0, 0, "floating point (floor) is not in this subset"},
+    {"ceiling", 4, 0, 0, 0, "floating point (ceiling) is not in this subset"},
+    {"realToFrac", 4, 0, 0, 0, "floating point (realToFrac) is not in this subset"},
+    {"exp", 4, 0, 0, 0, "floating point (exp) is not in this subset"},
+    {"log", 4, 0, 0, 0, "floating point (log) is not in this subset"},
+    {"fromRational", 4, 0, 0, 0, "fractions are not in this subset"},
+    {"toRational", 4, 0, 0, 0, "fractions are not in this subset"},
+    {"recip", 4, 0, 0, 0, "fractions are not in this subset"},
+    {"mempty", 4, 0, 0, 0, "monoids are not in this subset"},
+    {"mconcat", 4, 0, 0, 0, "monoids are not in this subset"},
+    {"fmap", 4, 0, 0, 0, "functors are not in this subset"},
+    {"maybe", 4, 0, 0, 0, "Maybe is not in this subset"},
+    {"either", 4, 0, 0, 0, "Either is not in this subset"},
+    {"ioError", 4, 0, 0, 0, "exceptions are not in this subset"},
+    {"userError", 4, 0, 0, 0, "exceptions are not in this subset"},
+    {"asTypeOf", 4, 0, 0, 0, "asTypeOf is not in this subset"},
 };
 
-enum { H_SMLINT = 0, H_MUL63, H_EQ, H_CMP, H_LEN, H_REV, H_REVAPP, H_APPEND, H__COUNT };
-
-typedef struct {
-    int32_t at, fn; /* fn < 0: helper -fn-1 */
-} mfix_t;
-
-typedef struct {
-    size_t at; /* inner text, trimmed */
-    uint32_t len, line;
-} mcom_t;
-
-typedef struct {
-    size_t pos, lstart;
-    uint32_t line;
-} mlex_t;
-
-typedef struct {
-    zl_cc_t *c;
-    zl_out_t *tw;
-    const char *src;
-    size_t len;
-    int dial;
-    mlex_t lx;
-    mtok_t tok;
-    size_t last_end; /* end of the last token taken */
-    uint32_t depth;
-    int lists; /* the program uses lists: 62-bit words */
-    uint32_t nn, nty, nb, nf, npty, nsc, nfix, ncom, ntops, ncomuse;
-    int32_t tl; /* type level */
-    /* code generation */
-    int32_t curfn;
-    uint32_t lvl;
-    int32_t helper[H__COUNT];
-    uint8_t hused[H__COUNT];
-    int32_t scratch; /* four slots for H_MUL63 */
-    mnode_t nodes[M_NODES];
-    mty_t tys[M_TYPES];
-    mbind_t binds[M_BINDS];
-    mfn_t fns[M_FNS];
-    int32_t ptys[M_PTYS];
-    int32_t scope[M_SCOPE];
-    mfix_t fix[M_FIX];
-    mcom_t coms[M_COMS];
-    int32_t tops[M_TOPS];
-    int32_t imap[M_IMAP][2];
-    char sbuf[M_STR];
-} mw_t;
-
-ZL_STATIC_ASSERT(sizeof(mw_t) <= sizeof(((zl_work_t *) 0)->fe), mw_fits);
-
-#define TRY(x)                                                                                     \
-    do {                                                                                           \
-        int s_ = (x);                                                                              \
-        if (s_ < 0) return s_;                                                                     \
-    } while (0)
-#define N(w, i) (&(w)->nodes[i])
 
 static int mfail(mw_t *w, int st, uint32_t line, uint32_t col, const char *msg)
 {
@@ -531,50 +446,17 @@ static int is_sym(int dial, int ch)
 {
     if (dial == D_SML) {
         switch (ch) {
-        case '!':
-        case '%':
-        case '&':
-        case '$':
-        case '#':
-        case '+':
-        case '-':
-        case '/':
-        case ':':
-        case '<':
-        case '=':
-        case '>':
-        case '?':
-        case '@':
-        case '\\':
-        case '~':
-        case '`':
-        case '^':
-        case '|':
-        case '*':
+        case '!': case '%': case '&': case '$': case '#': case '+': case '-': case '/':
+        case ':': case '<': case '=': case '>': case '?': case '@': case '\\': case '~':
+        case '`': case '^': case '|': case '*':
             return 1;
         default:
             return 0;
         }
     }
     switch (ch) {
-    case '!':
-    case '$':
-    case '%':
-    case '&':
-    case '*':
-    case '+':
-    case '-':
-    case '.':
-    case '/':
-    case ':':
-    case '<':
-    case '=':
-    case '>':
-    case '?':
-    case '@':
-    case '^':
-    case '|':
-    case '~':
+    case '!': case '$': case '%': case '&': case '*': case '+': case '-': case '.': case '/':
+    case ':': case '<': case '=': case '>': case '?': case '@': case '^': case '|': case '~':
     case '#':
         return 1;
     default:
@@ -614,8 +496,7 @@ static int skip(mw_t *w)
             int depth = 1;
             l->pos += 2;
             while (depth) {
-                if (l->pos >= w->len)
-                    return mfail(w, ZL_E_SYNTAX, line, col, "unterminated comment");
+                if (l->pos >= w->len) return mfail(w, ZL_E_SYNTAX, line, col, "unterminated comment");
                 char d = w->src[l->pos];
                 if (d == '\n') {
                     l->pos++;
@@ -639,8 +520,7 @@ static int skip(mw_t *w)
             }
             size_t b = l->pos - 2;
             while (a < b && (zl_isspace((unsigned char) w->src[a]) || w->src[a] == '\n')) a++;
-            while (b > a && (zl_isspace((unsigned char) w->src[b - 1]) || w->src[b - 1] == '\n'))
-                b--;
+            while (b > a && (zl_isspace((unsigned char) w->src[b - 1]) || w->src[b - 1] == '\n')) b--;
             if (b - a > ZL_MAX_STRBYTES) return mfail(w, ZL_E_LIMIT, line, col, "comment too long");
             if (w->ncom >= M_COMS) return mfail(w, ZL_E_LIMIT, line, col, "too many comments");
             w->coms[w->ncom].at = a;
@@ -683,11 +563,9 @@ static int lex(mw_t *w)
         int big = 0;
         if (ch == '0' && p + 1 < n && (s[p + 1] == 'x' || s[p + 1] == 'X'))
             return tfail(w, ZL_E_UNSUPPORTED, "hexadecimal literals are not in this subset");
-        if (ch == '0' && p + 1 < n &&
-            (s[p + 1] == 'w' || s[p + 1] == 'o' || s[p + 1] == 'O' || s[p + 1] == 'b' ||
-             s[p + 1] == 'B'))
-            return tfail(w, ZL_E_UNSUPPORTED,
-                         "word, octal and binary literals are not in this subset");
+        if (ch == '0' && p + 1 < n && (s[p + 1] == 'w' || s[p + 1] == 'o' || s[p + 1] == 'O' ||
+                                       s[p + 1] == 'b' || s[p + 1] == 'B'))
+            return tfail(w, ZL_E_UNSUPPORTED, "word, octal and binary literals are not in this subset");
         while (p < n && zl_isdigit((unsigned char) s[p])) {
             v = v * 10 + (uint64_t) (s[p] - '0');
             if (v > ((uint64_t) 1 << 62)) {
@@ -739,8 +617,7 @@ static int lex(mw_t *w)
                 break;
             }
             if (t->k == T_ID && w->dial == D_OCAML && s[a] >= 'A' && s[a] <= 'Z')
-                return tfail(w, ZL_E_UNSUPPORTED,
-                             "constructors and modules are not in this subset");
+                return tfail(w, ZL_E_UNSUPPORTED, "constructors and modules are not in this subset");
             if (t->k == T_ID && s[a] == '\'')
                 return tfail(w, ZL_E_UNSUPPORTED, "type variables are not in this subset");
         }
@@ -811,8 +688,7 @@ static int lex(mw_t *w)
     case '#':
         if (w->dial == D_SML && p + 1 < n && s[p + 1] == '"')
             return tfail(w, ZL_E_UNSUPPORTED, "characters are not in this subset");
-        if (w->dial == D_SML)
-            return tfail(w, ZL_E_UNSUPPORTED, "record selectors are not in this subset");
+        if (w->dial == D_SML) return tfail(w, ZL_E_UNSUPPORTED, "record selectors are not in this subset");
         break;
     default:
         break;
@@ -889,7 +765,8 @@ static int lex(mw_t *w)
 
 static int32_t newnode(mw_t *w, int kind, const mtok_t *at)
 {
-    if (w->nn >= M_NODES) return tfail(w, ZL_E_LIMIT, "program too large for the ML front-end");
+    if (w->nn >= M_NODES)
+        return mfail(w, ZL_E_LIMIT, at->line, at->col, "program too large for the ML front-end");
     int32_t i = (int32_t) w->nn++;
     mnode_t *n = N(w, i);
     zl_bzero(n, sizeof *n);
@@ -1174,8 +1051,7 @@ static int32_t p_rules(mw_t *w)
             TRY(g);
             N(w, r)->b = g;
         }
-        TRY(expect(w, T_ARROW,
-                   w->dial == D_SML ? "expected => in a rule" : "expected -> in a rule"));
+        TRY(expect(w, T_ARROW, w->dial == D_SML ? "expected => in a rule" : "expected -> in a rule"));
         int32_t e = w->dial == D_SML ? p_exp(w) : p_seq(w);
         TRY(e);
         N(w, r)->c = e;
@@ -1378,12 +1254,10 @@ static int32_t p_app(mw_t *w)
     if (w->dial == D_OCAML && is_open_start(w)) return p_exp(w);
     if (t.k == T_TILDE) {
         TRY(lex(w));
-        if (!starts_atom(w))
-            return tfail(w, ZL_E_UNSUPPORTED, "~ as a value is not in this subset");
+        if (!starts_atom(w)) return tfail(w, ZL_E_UNSUPPORTED, "~ as a value is not in this subset");
         int32_t a = p_atom(w);
         TRY(a);
-        if (starts_atom(w))
-            return tfail(w, ZL_E_SYNTAX, "type error: the result of ~ is not a function");
+        if (starts_atom(w)) return tfail(w, ZL_E_SYNTAX, "type error: the result of ~ is not a function");
         /* a negative literal written ~(5) or ~ 5 is the literal ~5 */
         return fold_neg(w, a, &t);
     }
@@ -1400,8 +1274,7 @@ static int32_t p_app(mw_t *w)
     mlist_t l = {-1, -1};
     uint32_t k = 0;
     while (starts_atom(w) || (w->dial == D_SML && w->tok.k == T_TILDE)) {
-        if (w->tok.k == T_TILDE)
-            return tfail(w, ZL_E_UNSUPPORTED, "~ as a value is not in this subset");
+        if (w->tok.k == T_TILDE) return tfail(w, ZL_E_UNSUPPORTED, "~ as a value is not in this subset");
         int32_t a = p_atom(w);
         TRY(a);
         ladd(w, &l, a);
@@ -1448,16 +1321,18 @@ typedef struct {
 } mbop_t;
 
 static const mbop_t sml_ops[] = {
-    {T_EQ, O_EQ, 4, 0},    {T_NE, O_NE, 4, 0},     {T_LT, O_LT, 4, 0},     {T_LE, O_LE, 4, 0},
-    {T_GT, O_GT, 4, 0},    {T_GE, O_GE, 4, 0},     {T_CONS, O_CONS, 5, 1}, {T_AT, O_APPEND, 5, 1},
-    {T_PLUS, O_ADD, 6, 0}, {T_MINUS, O_SUB, 6, 0}, {T_CARET, O_CAT, 6, 0}, {T_STAR, O_MUL, 7, 0},
-    {K_DIV, O_DIV, 7, 0},  {K_MOD, O_MOD, 7, 0},
+    {T_EQ, O_EQ, 4, 0},     {T_NE, O_NE, 4, 0},     {T_LT, O_LT, 4, 0},
+    {T_LE, O_LE, 4, 0},     {T_GT, O_GT, 4, 0},     {T_GE, O_GE, 4, 0},
+    {T_CONS, O_CONS, 5, 1}, {T_AT, O_APPEND, 5, 1}, {T_PLUS, O_ADD, 6, 0},
+    {T_MINUS, O_SUB, 6, 0}, {T_CARET, O_CAT, 6, 0}, {T_STAR, O_MUL, 7, 0},
+    {K_DIV, O_DIV, 7, 0},   {K_MOD, O_MOD, 7, 0},
 };
 static const mbop_t ocaml_ops[] = {
-    {T_EQ, O_EQ, 4, 0},     {T_NE, O_NE, 4, 0},    {T_LT, O_LT, 4, 0},     {T_LE, O_LE, 4, 0},
-    {T_GT, O_GT, 4, 0},     {T_GE, O_GE, 4, 0},    {T_AT, O_APPEND, 5, 1}, {T_CARET, O_CAT, 5, 1},
-    {T_CONS, O_CONS, 6, 1}, {T_PLUS, O_ADD, 7, 0}, {T_MINUS, O_SUB, 7, 0}, {T_STAR, O_MUL, 8, 0},
-    {T_SLASH, O_DIV, 8, 0}, {K_MOD, O_MOD, 8, 0},
+    {T_EQ, O_EQ, 4, 0},      {T_NE, O_NE, 4, 0},     {T_LT, O_LT, 4, 0},
+    {T_LE, O_LE, 4, 0},      {T_GT, O_GT, 4, 0},     {T_GE, O_GE, 4, 0},
+    {T_AT, O_APPEND, 5, 1},  {T_CARET, O_CAT, 5, 1}, {T_CONS, O_CONS, 6, 1},
+    {T_PLUS, O_ADD, 7, 0},   {T_MINUS, O_SUB, 7, 0}, {T_STAR, O_MUL, 8, 0},
+    {T_SLASH, O_DIV, 8, 0},  {K_MOD, O_MOD, 8, 0},
 };
 
 static const mbop_t *binop_of(mw_t *w, int tok)
@@ -1549,8 +1424,7 @@ static int32_t p_exp(mw_t *w)
         TRY(n);
         int32_t a = w->dial == D_SML ? p_exp(w) : p_seq(w);
         TRY(a);
-        TRY(expect(w, w->dial == D_SML ? K_OF : K_WITH,
-                   w->dial == D_SML ? "expected of" : "expected with"));
+        TRY(expect(w, w->dial == D_SML ? K_OF : K_WITH, w->dial == D_SML ? "expected of" : "expected with"));
         int32_t r = p_rules(w);
         TRY(r);
         N(w, n)->a = a;
@@ -1641,8 +1515,7 @@ static int32_t p_fun_sml(mw_t *w, const mtok_t *t)
         mlist_t cl = {-1, -1};
         uint32_t np0 = 0;
         for (;;) {
-            if (w->tok.k != T_ID || w->tok.len != nt.len)
-                return tfail(w, ZL_E_SYNTAX, "the clauses of a function must all name it");
+            if (w->tok.k != T_ID || w->tok.len != nt.len) return tfail(w, ZL_E_SYNTAX, "the clauses of a function must all name it");
             for (uint32_t i = 0; i < nt.len; i++)
                 if (w->src[w->tok.at + i] != w->src[nt.at + i])
                     return tfail(w, ZL_E_SYNTAX, "the clauses of a function must all name it");
@@ -1654,8 +1527,7 @@ static int32_t p_fun_sml(mw_t *w, const mtok_t *t)
             int32_t ps = p_params(w, &np);
             TRY(ps);
             if (cl.head >= 0 && np != np0)
-                return tfail(w, ZL_E_SYNTAX,
-                             "the clauses of a function must have the same number of parameters");
+                return tfail(w, ZL_E_SYNTAX, "the clauses of a function must have the same number of parameters");
             np0 = np;
             TRY(lex(w)); /* = */
             int32_t e = p_exp(w);
@@ -1712,8 +1584,7 @@ static int32_t p_bindings_ocaml(mw_t *w, const mtok_t *t)
         }
         if (!isfun) {
             if (rec) return tfail(w, ZL_E_UNSUPPORTED, "let rec of a value is not in this subset");
-            if (fbs.head >= 0)
-                return tfail(w, ZL_E_UNSUPPORTED, "let ... and of values is not in this subset");
+            if (fbs.head >= 0) return tfail(w, ZL_E_UNSUPPORTED, "let ... and of values is not in this subset");
             d = newnode(w, D_VAL, t);
             TRY(d);
             int32_t p = p_tpat(w);
@@ -1723,8 +1594,7 @@ static int32_t p_bindings_ocaml(mw_t *w, const mtok_t *t)
             TRY(e);
             N(w, d)->a = p;
             N(w, d)->b = e;
-            if (w->tok.k == K_AND)
-                return tfail(w, ZL_E_UNSUPPORTED, "let ... and of values is not in this subset");
+            if (w->tok.k == K_AND) return tfail(w, ZL_E_UNSUPPORTED, "let ... and of values is not in this subset");
             return d;
         }
         int32_t fb = newnode(w, N_FB, &bt);
@@ -1768,8 +1638,7 @@ static int32_t p_bindings_ocaml(mw_t *w, const mtok_t *t)
         }
         ladd(w, &fbs, fb);
         if (w->tok.k != K_AND) break;
-        if (!rec)
-            return tfail(w, ZL_E_UNSUPPORTED, "let ... and without rec is not in this subset");
+        if (!rec) return tfail(w, ZL_E_UNSUPPORTED, "let ... and without rec is not in this subset");
         TRY(lex(w));
     }
     d = newnode(w, D_FUN, t);
@@ -1808,8 +1677,7 @@ static int32_t p_decl(mw_t *w, int top)
         TRY(e);
         N(w, d)->a = p;
         N(w, d)->b = e;
-        if (w->tok.k == K_AND)
-            return tfail(w, ZL_E_UNSUPPORTED, "val ... and is not in this subset");
+        if (w->tok.k == K_AND) return tfail(w, ZL_E_UNSUPPORTED, "val ... and is not in this subset");
         return d;
     }
     if (t.k == K_FUN) {
@@ -1890,9 +1758,8 @@ static int p_program(mw_t *w)
             sep = 0;
         } else {
             if (!sep)
-                return tfail(w, ZL_E_SYNTAX,
-                             w->dial == D_SML ? "a top-level expression needs ; before it"
-                                              : "a top-level expression needs ;; before it");
+                return tfail(w, ZL_E_SYNTAX, w->dial == D_SML ? "a top-level expression needs ; before it"
+                                                              : "a top-level expression needs ;; before it");
             int32_t e = w->dial == D_SML ? p_exp(w) : p_seq(w);
             TRY(e);
             d = newnode(w, D_EXP, &t);
@@ -1907,8 +1774,8 @@ static int p_program(mw_t *w)
         prev_end = w->last_end;
         if (w->dial == D_OCAML && !(w->tok.k == T_EOF || w->tok.k == T_SEMI2 || w->tok.k == K_LET))
             return tfail(w, ZL_E_SYNTAX, "unexpected text after a declaration");
-        if (w->dial == D_SML &&
-            !(w->tok.k == T_EOF || w->tok.k == T_SEMI || w->tok.k == K_VAL || w->tok.k == K_FUN))
+        if (w->dial == D_SML && !(w->tok.k == T_EOF || w->tok.k == T_SEMI || w->tok.k == K_VAL ||
+                                  w->tok.k == K_FUN))
             return tfail(w, ZL_E_SYNTAX, "unexpected text after a declaration");
     }
     return ZL_OK;
@@ -2065,6 +1932,13 @@ static const mbi_t *builtin(mw_t *w, int32_t n)
     return 0;
 }
 
+int zl_ml_prelude(mw_t *w, size_t at, uint32_t len)
+{
+    for (size_t i = 0; i < sizeof bis / sizeof bis[0]; i++)
+        if ((bis[i].dial & 4) && spell(w->src + at, len, bis[i].s)) return 1;
+    return 0;
+}
+
 /* ------------------------------------------------------------ type checking */
 
 static int32_t tc_exp(mw_t *w, int32_t e);
@@ -2140,8 +2014,7 @@ static int tc_rowpat(mw_t *w, int32_t p, int32_t k, const int32_t *tys)
         N(w, p)->ty = -1;
         return ZL_OK;
     }
-    if (N(w, p)->kind != P_TUPLE)
-        return nfail(w, p, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+    if (N(w, p)->kind != P_TUPLE) return nfail(w, p, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
     if (N(w, p)->v != k) return nfail(w, p, ZL_E_SYNTAX, "type error: tuples of different lengths");
     int32_t i = 0;
     for (int32_t q = N(w, p)->a; q >= 0; q = N(w, q)->next) TRY(tc_pat(w, q, tys[i++]));
@@ -2154,6 +2027,20 @@ static uint32_t pat_arity(mw_t *w, int32_t p)
     return N(w, p)->kind == P_TUPLE ? (uint32_t) N(w, p)->v : 1;
 }
 
+/* Haskell: a value to show (print or show): a tuple only here, written out */
+static int tc_shown(mw_t *w, int32_t e)
+{
+    if (N(w, e)->kind != E_TUPLE) {
+        int32_t t = tc_exp(w, e);
+        TRY(t);
+        return ZL_OK;
+    }
+    if (++w->depth > M_DEPTH) return nfail(w, e, ZL_E_LIMIT, "expression nested too deeply");
+    for (int32_t q = N(w, e)->a; q >= 0; q = N(w, q)->next) TRY(tc_shown(w, q));
+    w->depth--;
+    return ZL_OK;
+}
+
 /* string expressions: literals, toString, ^ */
 static int tc_str(mw_t *w, int32_t e)
 {
@@ -2161,9 +2048,15 @@ static int tc_str(mw_t *w, int32_t e)
     if (++w->depth > M_DEPTH) return nfail(w, e, ZL_E_LIMIT, "expression nested too deeply");
     if (n->kind == E_STR) {
         n->flags |= F_PRINTED;
-    } else if (n->kind == E_BIN && n->op == O_CAT) {
+    } else if (n->kind == E_BIN && (n->op == O_CAT || (n->op == O_APPEND && w->dial == D_HS))) {
         TRY(tc_str(w, n->a));
         TRY(tc_str(w, N(w, e)->b));
+    } else if (w->dial == D_HS && n->kind == E_APP && lookup(w, e) < 0 && builtin(w, e) &&
+               builtin(w, e)->id == B_SHOW) {
+        if (n->a < 0 || N(w, n->a)->next >= 0)
+            return nfail(w, e, ZL_E_SYNTAX, "type error: show takes one argument");
+        n->sym = -(int32_t) B_SHOW;
+        TRY(tc_shown(w, n->a));
     } else if (n->kind == E_APP && lookup(w, e) < 0 && builtin(w, e) &&
                (builtin(w, e)->id == B_ITOS || builtin(w, e)->id == B_BTOS)) {
         const mbi_t *bi = builtin(w, e);
@@ -2177,10 +2070,12 @@ static int tc_str(mw_t *w, int32_t e)
     } else if (n->kind == E_INT || n->kind == E_BOOL || n->kind == E_UNIT || n->kind == E_NIL ||
                n->kind == E_LIST) {
         return nfail(w, e, ZL_E_SYNTAX, "type error: a string was expected");
+    } else if (w->dial == D_HS) {
+        return nfail(w, e, ZL_E_UNSUPPORTED,
+                     "only literals, show and ++ make strings in this subset (strings are printed, not kept)");
     } else {
         return nfail(w, e, ZL_E_UNSUPPORTED,
-                     "only literals, toString and ^ make strings in this subset (strings are "
-                     "printed, not kept)");
+                     "only literals, toString and ^ make strings in this subset (strings are printed, not kept)");
     }
     w->depth--;
     return ZL_OK;
@@ -2189,15 +2084,13 @@ static int tc_str(mw_t *w, int32_t e)
 static int32_t tc_tuple_args(mw_t *w, int32_t a, uint32_t k, int32_t *tys)
 {
     if (k == 1) {
-        if (N(w, a)->kind == E_TUPLE)
-            return nfail(w, a, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+        if (N(w, a)->kind == E_TUPLE) return nfail(w, a, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
         tys[0] = tc_exp(w, a);
         TRY(tys[0]);
         return ZL_OK;
     }
     if (N(w, a)->kind != E_TUPLE)
-        return nfail(w, a, ZL_E_UNSUPPORTED,
-                     "a tuple argument must be written out as (a, b) in this subset");
+        return nfail(w, a, ZL_E_UNSUPPORTED, "a tuple argument must be written out as (a, b) in this subset");
     if (N(w, a)->v != k) return nfail(w, a, ZL_E_SYNTAX, "type error: a tuple of the wrong length");
     uint32_t i = 0;
     for (int32_t q = N(w, a)->a; q >= 0; q = N(w, q)->next) {
@@ -2206,6 +2099,99 @@ static int32_t tc_tuple_args(mw_t *w, int32_t a, uint32_t k, int32_t *tys)
         i++;
     }
     return ZL_OK;
+}
+
+/* a fresh list type; *el gets its element type */
+static int32_t tlist(mw_t *w, int32_t *el)
+{
+    *el = tvar(w);
+    TRY(*el);
+    return newty(w, TY_LIST, *el);
+}
+
+/* the Haskell Prelude functions (argument counts already checked) */
+static int32_t tc_hs_builtin(mw_t *w, int32_t e, int id)
+{
+    int32_t a0 = N(w, e)->a, b0 = N(w, a0)->next, tys[2], el, l;
+    if (id == B_HPRINT) {
+        TRY(tc_shown(w, a0));
+        return TIO;
+    }
+    TRY(tc_tuple_args(w, a0, 1, tys));
+    if (b0 >= 0) TRY(tc_tuple_args(w, b0, 1, tys + 1));
+    switch (id) {
+    case B_HPRINT:
+        return TIO;
+    case B_SHOW:
+        return nfail(w, e, ZL_E_UNSUPPORTED, "strings as values are not in this subset (only printed)");
+    case B_RETURN:
+        if (N(w, a0)->kind != E_UNIT)
+            return nfail(w, a0, ZL_E_UNSUPPORTED, "return of a value other than () is not in this subset");
+        return TIO;
+    case B_SIGNUM:
+    case B_NEGATE:
+    case B_EVEN:
+    case B_ODD:
+        TRY(unify_at(w, a0, tys[0], TINT, "type error: an integer was expected"));
+        return id == B_EVEN || id == B_ODD ? TBOOL : TINT;
+    case B_GCD:
+    case B_LCM:
+        TRY(unify_at(w, a0, tys[0], TINT, "type error: an integer was expected"));
+        TRY(unify_at(w, b0, tys[1], TINT, "type error: an integer was expected"));
+        return TINT;
+    default:
+        break;
+    }
+    w->lists = 1;
+    switch (id) {
+    case B_SUM:
+    case B_PRODUCT:
+    case B_MAXIMUM:
+    case B_MINIMUM:
+        l = newty(w, TY_LIST, TINT);
+        TRY(l);
+        TRY(unify_at(w, a0, tys[0], l, "type error: a list of integers was expected"));
+        return TINT;
+    case B_AND:
+    case B_OR:
+        l = newty(w, TY_LIST, TBOOL);
+        TRY(l);
+        TRY(unify_at(w, a0, tys[0], l, "type error: a list of booleans was expected"));
+        return TBOOL;
+    case B_TAKE:
+    case B_DROP:
+        TRY(unify_at(w, a0, tys[0], TINT, "type error: an integer was expected"));
+        l = tlist(w, &el);
+        TRY(l);
+        TRY(unify_at(w, b0, tys[1], l, "type error: a list was expected"));
+        return l;
+    case B_ELEM:
+    case B_NOTELEM:
+        l = newty(w, TY_LIST, tys[0]);
+        TRY(l);
+        TRY(unify_at(w, b0, tys[1], l, "type error: elem takes a value and a list of its type"));
+        return TBOOL;
+    case B_REPLICATE:
+        TRY(unify_at(w, a0, tys[0], TINT, "type error: an integer was expected"));
+        return newty(w, TY_LIST, tys[1]);
+    case B_LAST:
+    case B_INIT:
+        l = tlist(w, &el);
+        TRY(l);
+        TRY(unify_at(w, a0, tys[0], l, "type error: a list was expected"));
+        return id == B_LAST ? el : l;
+    case B_CONCAT: {
+        l = tlist(w, &el);
+        TRY(l);
+        int32_t ll = newty(w, TY_LIST, l);
+        TRY(ll);
+        TRY(unify_at(w, a0, tys[0], ll, "type error: a list of lists was expected"));
+        return l;
+    }
+    default:
+        break;
+    }
+    return nfail(w, e, ZL_E_UNSUPPORTED, "this library function is not in this subset");
 }
 
 static int32_t tc_builtin_app(mw_t *w, int32_t e, const mbi_t *bi)
@@ -2233,41 +2219,34 @@ static int32_t tc_builtin_app(mw_t *w, int32_t e, const mbi_t *bi)
             char f = s[i];
             if (f == '%') continue;
             if (f != 'd' && f != 'i' && f != 'b' && f != 's')
-                return nfail(w, a0, ZL_E_UNSUPPORTED,
-                             "only %d %i %b %s and %% are in this subset's formats");
-            if (arg < 0)
-                return nfail(w, e, ZL_E_UNSUPPORTED,
-                             "partial application of Printf.printf is not in this subset");
-            if (N(w, arg)->kind == E_TUPLE)
-                return nfail(w, arg, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+                return nfail(w, a0, ZL_E_UNSUPPORTED, "only %d %i %b %s and %% are in this subset's formats");
+            if (arg < 0) return nfail(w, e, ZL_E_UNSUPPORTED, "partial application of Printf.printf is not in this subset");
+            if (N(w, arg)->kind == E_TUPLE) return nfail(w, arg, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
             if (f == 's') {
                 TRY(tc_str(w, arg));
             } else {
                 int32_t t = tc_exp(w, arg);
                 TRY(t);
-                TRY(unify_at(w, arg, t, f == 'b' ? TBOOL : TINT,
-                             "type error: a printf argument has another type"));
+                TRY(unify_at(w, arg, t, f == 'b' ? TBOOL : TINT, "type error: a printf argument has another type"));
             }
             arg = N(w, arg)->next;
         }
-        if (arg >= 0)
-            return nfail(w, arg, ZL_E_SYNTAX, "type error: too many arguments for the format");
+        if (arg >= 0) return nfail(w, arg, ZL_E_SYNTAX, "type error: too many arguments for the format");
         return TUNIT;
     }
     if (bi->ng == 0) return nfail(w, e, ZL_E_SYNTAX, "type error: this value is not a function");
-    if (nargs < bi->ng)
-        return nfail(w, e, ZL_E_UNSUPPORTED, "partial application is not in this subset");
+    if (nargs < bi->ng) return nfail(w, e, ZL_E_UNSUPPORTED, "partial application is not in this subset");
     if (nargs > bi->ng) return nfail(w, e, ZL_E_SYNTAX, "type error: too many arguments");
+    if (w->dial == D_HS && bi->id >= B_HPRINT) return tc_hs_builtin(w, e, bi->id);
     switch (bi->id) {
     case B_PRINT:
     case B_PRINT_STRING:
     case B_PRINT_ENDLINE:
         TRY(tc_str(w, a0));
-        return TUNIT;
+        return w->dial == D_HS ? TIO : TUNIT;
     case B_ITOS:
     case B_BTOS:
-        return nfail(w, e, ZL_E_UNSUPPORTED,
-                     "strings as values are not in this subset (only printed)");
+        return nfail(w, e, ZL_E_UNSUPPORTED, "strings as values are not in this subset (only printed)");
     case B_PRINT_INT:
     case B_ABS:
     case B_SUCC:
@@ -2297,8 +2276,7 @@ static int32_t tc_builtin_app(mw_t *w, int32_t e, const mbi_t *bi)
             int32_t b0 = N(w, a0)->next;
             TRY(tc_tuple_args(w, a0, 1, tys));
             TRY(tc_tuple_args(w, b0, 1, tys + 1));
-            TRY(unify_at(w, b0, tys[0], tys[1],
-                         "type error: min and max take two values of one type"));
+            TRY(unify_at(w, b0, tys[0], tys[1], "type error: min and max take two values of one type"));
             return tys[0];
         }
     case B_HD:
@@ -2335,18 +2313,14 @@ static int32_t tc_app(mw_t *w, int32_t e)
     }
     if (w->binds[b].kind != BK_FN) {
         int32_t t = tfind(w, w->binds[b].ty);
-        if (w->tys[t].k != TY_VAR)
-            return nfail(w, e, ZL_E_SYNTAX,
-                         "type error: a value that is not a function is applied");
-        return nfail(w, e, ZL_E_UNSUPPORTED,
-                     "calling a parameter (functions as values) is not in this subset");
+        if (w->tys[t].k != TY_VAR) return nfail(w, e, ZL_E_SYNTAX, "type error: a value that is not a function is applied");
+        return nfail(w, e, ZL_E_UNSUPPORTED, "calling a parameter (functions as values) is not in this subset");
     }
     n->sym = b;
     mfn_t *f = &w->fns[w->binds[b].fn];
     uint32_t nargs = 0;
     for (int32_t q = n->a; q >= 0; q = N(w, q)->next) nargs++;
-    if (nargs < f->ng)
-        return nfail(w, e, ZL_E_UNSUPPORTED, "partial application is not in this subset");
+    if (nargs < f->ng) return nfail(w, e, ZL_E_UNSUPPORTED, "partial application is not in this subset");
     if (nargs > f->ng) return nfail(w, e, ZL_E_SYNTAX, "type error: too many arguments");
     /* the signature, instantiated when the function is generic */
     int32_t sig[M_GROUPS * M_GROUPS + 1];
@@ -2373,19 +2347,28 @@ static int32_t tc_bin(mw_t *w, int32_t e)
 {
     mnode_t *n = N(w, e);
     int op = n->op;
-    if (op == O_CAT)
-        return nfail(w, e, ZL_E_UNSUPPORTED,
-                     "strings as values are not in this subset (only printed)");
+    if (op == O_CAT) return nfail(w, e, ZL_E_UNSUPPORTED, "strings as values are not in this subset (only printed)");
+    if (op == O_CONS || op == O_APPEND || op == O_INDEX) w->lists = 1;
     int32_t a = tc_exp(w, n->a);
     TRY(a);
     int32_t b = tc_exp(w, N(w, e)->b);
     TRY(b);
     switch (op) {
+    case O_INDEX: {
+        int32_t el, l = tlist(w, &el);
+        TRY(l);
+        TRY(unify_at(w, e, a, l, "type error: !! needs a list"));
+        TRY(unify_at(w, e, b, TINT, "type error: !! needs an integer index"));
+        return el;
+    }
     case O_ADD:
     case O_SUB:
     case O_MUL:
     case O_DIV:
     case O_MOD:
+    case O_QUOT:
+    case O_REM:
+    case O_POW:
         TRY(unify_at(w, e, a, TINT, "type error: arithmetic on a value that is not an integer"));
         TRY(unify_at(w, e, b, TINT, "type error: arithmetic on a value that is not an integer"));
         return TINT;
@@ -2398,15 +2381,12 @@ static int32_t tc_bin(mw_t *w, int32_t e)
     case O_GT:
     case O_GE:
         TRY(unify_at(w, e, a, b, "type error: comparing values of different types"));
-        if (w->dial == D_SML)
-            TRY(unify_at(w, e, a, TINT, "type error: ordering a value that is not an integer"));
+        if (w->dial == D_SML) TRY(unify_at(w, e, a, TINT, "type error: ordering a value that is not an integer"));
         return TBOOL;
     case O_ANDALSO:
     case O_ORELSE:
-        TRY(unify_at(w, e, a, TBOOL,
-                     "type error: a logical operator on a value that is not boolean"));
-        TRY(unify_at(w, e, b, TBOOL,
-                     "type error: a logical operator on a value that is not boolean"));
+        TRY(unify_at(w, e, a, TBOOL, "type error: a logical operator on a value that is not boolean"));
+        TRY(unify_at(w, e, b, TBOOL, "type error: a logical operator on a value that is not boolean"));
         return TBOOL;
     case O_CONS: {
         int32_t l = newty(w, TY_LIST, a);
@@ -2442,8 +2422,7 @@ static int tc_rules(mw_t *w, int32_t r, uint32_t k, const int32_t *tys, int32_t 
         }
         int32_t t = tc_exp(w, N(w, r)->c);
         TRY(t);
-        TRY(unify_at(w, N(w, r)->c, t, res,
-                     "type error: the rules give values of different types"));
+        TRY(unify_at(w, N(w, r)->c, t, res, "type error: the rules give values of different types"));
         w->nsc = sc;
     }
     return ZL_OK;
@@ -2472,8 +2451,7 @@ static int32_t tc_exp(mw_t *w, int32_t e)
         break;
     }
     case E_STR:
-        return nfail(w, e, ZL_E_UNSUPPORTED,
-                     "strings as values are not in this subset (only printed)");
+        return nfail(w, e, ZL_E_UNSUPPORTED, "strings as values are not in this subset (only printed)");
     case E_VAR: {
         int32_t b = lookup(w, e);
         if (b < 0) {
@@ -2482,16 +2460,13 @@ static int32_t tc_exp(mw_t *w, int32_t e)
                 return nfail(w, e, ZL_E_UNSUPPORTED, "this library function is not in this subset");
             if (!bi) return nfail(w, e, ZL_E_UNDEFINED, "unbound name");
             if (!bi->id) return nfail(w, e, ZL_E_UNSUPPORTED, bi->msg);
-            if (bi->ng)
-                return nfail(w, e, ZL_E_UNSUPPORTED,
-                             "a function used as a value is not in this subset");
+            if (bi->ng) return nfail(w, e, ZL_E_UNSUPPORTED, "a function used as a value is not in this subset");
             n->sym = -(int32_t) bi->id;
-            t = TINT;
+            t = bi->id == B_OTHERWISE ? TBOOL : TINT;
             break;
         }
         if (w->binds[b].kind == BK_FN)
-            return nfail(w, e, ZL_E_UNSUPPORTED,
-                         "a function used as a value is not in this subset");
+            return nfail(w, e, ZL_E_UNSUPPORTED, "a function used as a value is not in this subset");
         n->sym = b;
         if (w->binds[b].gen) {
             uint32_t nm = 0;
@@ -2506,8 +2481,7 @@ static int32_t tc_exp(mw_t *w, int32_t e)
         int32_t el = tvar(w);
         TRY(el);
         for (int32_t q = n->a; q >= 0; q = N(w, q)->next) {
-            if (N(w, q)->kind == E_TUPLE)
-                return nfail(w, q, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+            if (N(w, q)->kind == E_TUPLE) return nfail(w, q, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
             int32_t x = tc_exp(w, q);
             TRY(x);
             TRY(unify_at(w, q, x, el, "type error: list elements of different types"));
@@ -2519,10 +2493,8 @@ static int32_t tc_exp(mw_t *w, int32_t e)
     case E_TUPLE:
         return nfail(w, e, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
     case E_BIN:
-        if (N(w, n->a)->kind == E_TUPLE)
-            return nfail(w, n->a, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
-        if (N(w, n->b)->kind == E_TUPLE)
-            return nfail(w, n->b, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+        if (N(w, n->a)->kind == E_TUPLE) return nfail(w, n->a, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+        if (N(w, n->b)->kind == E_TUPLE) return nfail(w, n->b, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
         t = tc_bin(w, e);
         TRY(t);
         break;
@@ -2549,8 +2521,7 @@ static int32_t tc_exp(mw_t *w, int32_t e)
         } else {
             int32_t c = tc_exp(w, N(w, e)->c);
             TRY(c);
-            TRY(unify_at(w, N(w, e)->c, b, c,
-                         "type error: the branches of if have different types"));
+            TRY(unify_at(w, N(w, e)->c, b, c, "type error: the branches of if have different types"));
             t = b;
         }
         break;
@@ -2585,11 +2556,34 @@ static int32_t tc_exp(mw_t *w, int32_t e)
     }
     case E_SEQ:
         for (int32_t q = n->a; q >= 0; q = N(w, q)->next) {
-            if (N(w, q)->kind == E_TUPLE)
-                return nfail(w, q, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+            if (N(w, q)->kind == E_TUPLE) return nfail(w, q, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
             t = tc_exp(w, q);
             TRY(t);
+            if (w->dial == D_HS)
+                TRY(unify_at(w, q, t, TIO, "type error: a statement of a do block must be an IO action"));
         }
+        break;
+    case E_GUARDS:
+        t = tvar(w);
+        TRY(t);
+        for (int32_t g = n->a; g >= 0; g = N(w, g)->next) {
+            int32_t c = tc_exp(w, N(w, g)->a);
+            TRY(c);
+            TRY(unify_at(w, N(w, g)->a, c, TBOOL, "type error: a guard must be boolean"));
+            int32_t b = tc_exp(w, N(w, g)->b);
+            TRY(b);
+            TRY(unify_at(w, N(w, g)->b, b, t, "type error: the guarded bodies give values of different types"));
+        }
+        break;
+    case E_RANGE:
+        w->lists = 1;
+        for (int32_t q = n->a; q >= 0; q = N(w, q)->next) {
+            int32_t x = tc_exp(w, q);
+            TRY(x);
+            TRY(unify_at(w, q, x, TINT, "type error: a range of values that are not integers"));
+        }
+        t = newty(w, TY_LIST, TINT);
+        TRY(t);
         break;
     default:
         return nfail(w, e, ZL_E_SYNTAX, "expected an expression");
@@ -2642,10 +2636,95 @@ static void gen_pat_vars(mw_t *w, int32_t p)
     }
 }
 
+/* ---- Haskell type signatures ---- */
+
+/* a signature's type as a type term; its type variables by name go to
+ * w->rig[r0 ..) (rigid: they must stay distinct and general) */
+static int32_t sig_ty(mw_t *w, int32_t t, uint32_t r0)
+{
+    mnode_t *n = N(w, t);
+    switch (n->op) {
+    case TK_INT:
+        return TINT;
+    case TK_BOOL:
+        return TBOOL;
+    case TK_UNIT:
+        return TUNIT;
+    case TK_IO:
+        return TIO;
+    case TK_LIST: {
+        int32_t e = sig_ty(w, n->a, r0);
+        TRY(e);
+        return newty(w, TY_LIST, e);
+    }
+    case TK_VAR:
+        for (uint32_t i = r0; i < w->nrig; i++)
+            if (same_name(w, (uint32_t) N(w, w->rign[i])->v, N(w, w->rign[i])->len, (uint32_t) n->v, n->len))
+                return w->rig[i];
+        if (w->nrig >= M_IMAP) return nfail(w, t, ZL_E_LIMIT, "too many type variables");
+        w->rign[w->nrig] = t;
+        w->rig[w->nrig] = tvar(w);
+        TRY(w->rig[w->nrig]);
+        return w->rig[w->nrig++];
+    case TK_FUN:
+        return nfail(w, t, ZL_E_UNSUPPORTED, "functions as values (a function type here) are not in this subset");
+    default:
+        return nfail(w, t, ZL_E_UNSUPPORTED, "tuples as values are not in this subset");
+    }
+}
+
+/* the signature t of function fi: one parameter group per arrow */
+static int sig_fun(mw_t *w, int32_t fi, int32_t t, uint32_t r0)
+{
+    mfn_t *f = &w->fns[fi];
+    uint32_t k = 0;
+    for (uint32_t g = 0; g < f->ng; g++) {
+        if (N(w, t)->op != TK_FUN)
+            return nfail(w, t, ZL_E_SYNTAX, "type error: the equations have more arguments than the signature");
+        int32_t a = N(w, t)->a;
+        uint32_t ar = w->fns[fi].gar[g];
+        if (ar == 1) {
+            int32_t x = sig_ty(w, a, r0);
+            TRY(x);
+            TRY(unify_at(w, a, w->ptys[w->fns[fi].p0 + k], x, "type error: an argument does not match the signature"));
+            k++;
+        } else {
+            if (N(w, a)->op != TK_TUPLE || N(w, a)->v != ar)
+                return nfail(w, a, ZL_E_SYNTAX, "type error: a tuple argument does not match the signature");
+            for (int32_t q = N(w, a)->a; q >= 0; q = N(w, q)->next, k++) {
+                int32_t x = sig_ty(w, q, r0);
+                TRY(x);
+                TRY(unify_at(w, q, w->ptys[w->fns[fi].p0 + k], x, "type error: an argument does not match the signature"));
+            }
+        }
+        t = N(w, t)->b;
+    }
+    if (N(w, t)->op == TK_FUN)
+        return nfail(w, t, ZL_E_UNSUPPORTED, "a function whose result is a function (partial application) is not in this subset");
+    int32_t r = sig_ty(w, t, r0);
+    TRY(r);
+    return unify_at(w, t, w->fns[fi].rty, r, "type error: the result does not match the signature");
+}
+
+/* after generalization: each signature variable is still a distinct general variable */
+static int sig_rigid(mw_t *w, uint32_t r0)
+{
+    for (uint32_t i = r0; i < w->nrig; i++) {
+        int32_t t = tfind(w, w->rig[i]);
+        if (w->tys[t].k != TY_VAR || !w->tys[t].gen)
+            return nfail(w, w->rign[i], ZL_E_SYNTAX, "type error: a type variable of the signature is not general");
+        for (uint32_t j = r0; j < i; j++)
+            if (tfind(w, w->rig[j]) == t)
+                return nfail(w, w->rign[i], ZL_E_SYNTAX, "type error: two type variables of the signature are the same");
+    }
+    w->nrig = r0;
+    return ZL_OK;
+}
+
 static int tc_fun(mw_t *w, int32_t d)
 {
     int rec = (N(w, d)->flags & F_REC) != 0;
-    uint32_t f0 = w->nf;
+    uint32_t f0 = w->nf, r0 = w->nrig;
     w->tl++;
     /* the functions of the group, their arities and fresh signatures */
     for (int32_t fb = N(w, d)->a; fb >= 0; fb = N(w, fb)->next) {
@@ -2667,8 +2746,7 @@ static int tc_fun(mw_t *w, int32_t d)
                 for (uint32_t i = 0; i < g; i++) p = N(w, p)->next;
                 uint32_t a = pat_arity(w, p);
                 if (a > 1) {
-                    if (ar > 1 && a != ar)
-                        return nfail(w, p, ZL_E_SYNTAX, "type error: tuples of different lengths");
+                    if (ar > 1 && a != ar) return nfail(w, p, ZL_E_SYNTAX, "type error: tuples of different lengths");
                     ar = a;
                 }
             }
@@ -2692,6 +2770,7 @@ static int tc_fun(mw_t *w, int32_t d)
         }
         f->rty = tvar(w);
         TRY(f->rty);
+        if (N(w, fb)->c >= 0) TRY(sig_fun(w, fi, N(w, fb)->c, w->nrig));
     }
     /* recursive: the names are visible in the bodies */
     uint32_t fi = f0;
@@ -2720,8 +2799,7 @@ static int tc_fun(mw_t *w, int32_t d)
             }
             int32_t t = tc_exp(w, N(w, c)->b);
             TRY(t);
-            TRY(unify_at(w, N(w, c)->b, t, w->fns[fi].rty,
-                         "type error: the clauses give values of different types"));
+            TRY(unify_at(w, N(w, c)->b, t, w->fns[fi].rty, "type error: the clauses give values of different types"));
             w->nsc = sc;
         }
         (void) f;
@@ -2734,6 +2812,7 @@ static int tc_fun(mw_t *w, int32_t d)
         generalize(w, f->rty);
         f->gen = 1;
     }
+    TRY(sig_rigid(w, r0));
     if (!rec) {
         fi = f0;
         for (int32_t fb = N(w, d)->a; fb >= 0; fb = N(w, fb)->next, fi++) {
@@ -2747,10 +2826,52 @@ static int tc_fun(mw_t *w, int32_t d)
     return ZL_OK;
 }
 
+/* a Haskell value binding x = e: a thunk, run when x is first used */
+static int tc_lazy(mw_t *w, int32_t d)
+{
+    int32_t p = N(w, d)->a, e = N(w, d)->b, sig = N(w, d)->c;
+    uint32_t r0 = w->nrig;
+    if (w->nf >= M_FNS) return nfail(w, d, ZL_E_LIMIT, "too many functions");
+    int32_t fi = (int32_t) w->nf++;
+    mfn_t *f = &w->fns[fi];
+    zl_bzero(f, sizeof *f);
+    f->fb = d;
+    f->entry = f->enter_at = f->start = -1;
+    f->level = (uint8_t) (w->lvl + 1);
+    f->p0 = (int32_t) w->npty;
+    N(w, d)->sym = fi;
+    w->tl++;
+    w->lvl++;
+    int32_t t = tc_exp(w, e);
+    TRY(t);
+    if (sig >= 0) {
+        int32_t st = sig_ty(w, sig, r0);
+        TRY(st);
+        TRY(unify_at(w, sig, t, st, "type error: the value does not match the signature"));
+    }
+    w->lvl--;
+    w->tl--;
+    w->fns[fi].rty = t;
+    generalize(w, t);
+    w->fns[fi].gen = 1;
+    TRY(sig_rigid(w, r0));
+    int32_t b = newbind(w, p, BK_LAZY);
+    TRY(b);
+    w->binds[b].fn = fi;
+    w->binds[b].ty = t;
+    w->binds[b].gen = 1;
+    w->fns[fi].bind = b;
+    N(w, p)->sym = b;
+    N(w, p)->ty = t;
+    push_scope(w, b);
+    return ZL_OK;
+}
+
 static int tc_decl(mw_t *w, int32_t d)
 {
     mnode_t *n = N(w, d);
     if (n->kind == D_FUN) return tc_fun(w, d);
+    if (n->kind == D_VAL && (n->flags & F_LAZY)) return tc_lazy(w, d);
     if (n->kind == D_EXP) {
         int32_t t = tc_exp(w, n->a);
         TRY(t);
@@ -2790,6 +2911,8 @@ static int tc_program(mw_t *w)
         if (N(w, d)->kind == N_COMMENT) continue;
         w->depth = 0;
         TRY(tc_decl(w, d));
+        if (w->dial == D_HS)
+            TRY(unify_at(w, d, N(w, d)->ty, TIO, "type error: main must be an IO action"));
     }
     return ZL_OK;
 }
@@ -2842,8 +2965,7 @@ static int32_t newloc(mw_t *w)
         return s < 0 ? ZL_E_LIMIT : s;
     }
     mfn_t *f = &w->fns[w->curfn];
-    if (f->np + f->nloc + 1 > ZL_MAX_FRAMES / 4)
-        return zl_fail(w->c, ZL_E_LIMIT, "too many local values");
+    if (f->np + f->nloc + 1 > ZL_MAX_FRAMES / 4) return zl_fail(w->c, ZL_E_LIMIT, "too many local values");
     return (int32_t) (f->np + f->nloc++);
 }
 
@@ -2862,6 +2984,7 @@ static int st(mw_t *w, int32_t addr, uint32_t level)
 /* after an integer operation: SML checks 32 bits, OCaml wraps 63 */
 static int fixint(mw_t *w)
 {
+    if (w->dial == D_HS) return ZL_OK; /* the runtime traps outside the word */
     if (w->dial == D_SML) {
         if (w->c->p->word_bits == 62) return E(w, ZL_RANGE, 2147483647, 1);
         return ZL_OK;
@@ -2871,6 +2994,12 @@ static int fixint(mw_t *w)
 }
 
 static int gen_exp(mw_t *w, int32_t e, int tail);
+typedef struct {
+    int32_t at[256];
+    uint32_t n;
+} mfails_t;
+static int gen_rhs(mw_t *w, int32_t e, int tail, mfails_t *f);
+static int gen_decl(mw_t *w, int32_t d);
 
 /* evaluate the expressions of a list in the dialect's order; returns with
  * them on the stack, the first one deepest (SML) or on top (OCaml) */
@@ -2879,11 +3008,10 @@ static int gen_list_order(mw_t *w, int32_t first)
     int32_t items[M_GROUPS * M_GROUPS];
     uint32_t k = 0;
     for (int32_t q = first; q >= 0; q = N(w, q)->next) {
-        if (k >= sizeof items / sizeof items[0])
-            return zl_fail(w->c, ZL_E_LIMIT, "too many arguments");
+        if (k >= sizeof items / sizeof items[0]) return zl_fail(w->c, ZL_E_LIMIT, "too many arguments");
         items[k++] = q;
     }
-    if (w->dial == D_SML)
+    if (w->dial != D_OCAML)
         for (uint32_t i = 0; i < k; i++) TRY(gen_exp(w, items[i], 0));
     else
         for (uint32_t i = k; i-- > 0;) TRY(gen_exp(w, items[i], 0));
@@ -2903,7 +3031,7 @@ static int gen_args(mw_t *w, int32_t a0, uint32_t *n)
         }
     }
     *n = k;
-    if (w->dial == D_SML)
+    if (w->dial != D_OCAML)
         for (uint32_t i = 0; i < k; i++) TRY(gen_exp(w, items[i], 0));
     else
         for (uint32_t i = k; i-- > 0;) TRY(gen_exp(w, items[i], 0));
@@ -2919,8 +3047,8 @@ static int is_simple(mw_t *w, int32_t e)
 /* ---- printing ---- */
 
 typedef struct {
-    int32_t node;     /* E_STR literal, or the expression of an int/bool piece */
-    uint8_t kind;     /* 0 literal, 1 int, 2 bool, 3 format text */
+    int32_t node; /* E_STR literal, or the expression of an int/bool piece */
+    uint8_t kind; /* 0 literal, 1 int, 2 bool, 3 format text */
     uint32_t at, len; /* format text: source span */
     int32_t tmp;
 } mpiece_t;
@@ -2972,13 +3100,14 @@ static int out_bool(mw_t *w)
 {
     int32_t j = jmp(w, ZL_JZ);
     TRY(j);
-    int32_t t = zl_addstr(w->c, "true", 4);
+    int hs = w->dial == D_HS;
+    int32_t t = zl_addstr(w->c, hs ? "True" : "true", 4);
     if (t < 0) return ZL_E_LIMIT;
     TRY(E(w, ZL_OUTS, t, 0));
     int32_t k = jmp(w, ZL_JMP);
     TRY(k);
     patch(w, j);
-    int32_t f = zl_addstr(w->c, "false", 5);
+    int32_t f = zl_addstr(w->c, hs ? "False" : "false", 5);
     if (f < 0) return ZL_E_LIMIT;
     TRY(E(w, ZL_OUTS, f, 0));
     patch(w, k);
@@ -3090,11 +3219,6 @@ static int load_loc(mw_t *w, const mloc_t *l)
     return ZL_OK;
 }
 
-typedef struct {
-    int32_t at[256];
-    uint32_t n;
-} mfails_t;
-
 static int add_fail(mw_t *w, mfails_t *f)
 {
     if (f->n >= 256) return zl_fail(w->c, ZL_E_LIMIT, "pattern too large");
@@ -3130,8 +3254,7 @@ static int gen_pat(mw_t *w, int32_t p, mloc_t *l, mfails_t *f)
     case P_INT:
     case P_BOOL:
         if (!zl_fits(w->c, n->v))
-            return nfail(w, p, ZL_E_UNSUPPORTED,
-                         "an integer outside the 62-bit words of a program with lists");
+            return nfail(w, p, ZL_E_UNSUPPORTED, "an integer outside the 62-bit words of a program with lists");
         TRY(load_loc(w, l));
         TRY(E(w, ZL_PUSH, n->v, 0));
         TRY(E(w, ZL_EQ, 0, 0));
@@ -3214,7 +3337,7 @@ static int gen_rules(mw_t *w, int32_t r, uint32_t k, const int32_t *addr, int ta
             TRY(gen_exp(w, N(w, r)->b, 0));
             TRY(add_fail(w, &f));
         }
-        TRY(gen_exp(w, N(w, r)->c, tail));
+        TRY(gen_rhs(w, N(w, r)->c, tail, &f));
         if (N(w, r)->next >= 0 || f.n) {
             if (ne >= 256) return zl_fail(w->c, ZL_E_LIMIT, "too many rules");
             ends[ne] = jmp(w, ZL_JMP);
@@ -3231,12 +3354,10 @@ static int gen_rules(mw_t *w, int32_t r, uint32_t k, const int32_t *addr, int ta
 
 /* ---- functions ---- */
 
-static int gen_decl(mw_t *w, int32_t d);
-
 /* the frame offset of flat parameter i */
 static int32_t param_off(mw_t *w, const mfn_t *f, uint32_t i)
 {
-    return w->dial == D_SML ? (int32_t) i : (int32_t) (f->np - 1 - i);
+    return w->dial != D_OCAML ? (int32_t) i : (int32_t) (f->np - 1 - i);
 }
 
 static int gen_fun(mw_t *w, int32_t d)
@@ -3273,7 +3394,7 @@ static int gen_fun(mw_t *w, int32_t d)
                 TRY(gen_exp(w, N(w, c)->c, 0));
                 TRY(add_fail(w, &f));
             }
-            TRY(gen_exp(w, N(w, c)->b, 1));
+            TRY(gen_rhs(w, N(w, c)->b, 1, &f));
             if (N(w, c)->next >= 0 || f.n) {
                 if (ne >= 256) return zl_fail(w->c, ZL_E_LIMIT, "too many clauses");
                 ends[ne] = jmp(w, ZL_JMP);
@@ -3288,8 +3409,7 @@ static int gen_fun(mw_t *w, int32_t d)
         TRY(E(w, ZL_LEAVE, 0, 0));
         TRY(E(w, ZL_RET, 0, 0));
         mfn_t *f = &w->fns[fi];
-        if (f->np + f->nloc > ZL_MAX_FRAMES)
-            return zl_fail(w->c, ZL_E_LIMIT, "function frame too large");
+        if (f->np + f->nloc > ZL_MAX_FRAMES) return zl_fail(w->c, ZL_E_LIMIT, "function frame too large");
         zl_patch(w->c, f->enter_at, (int64_t) (f->np + f->nloc));
         f->defined = 1;
         w->curfn = savefn;
@@ -3323,11 +3443,171 @@ static int tykind(mw_t *w, int32_t t)
     return w->tys[tfind(w, t)].k;
 }
 
+/* show a value of the node's type (on top of the stack, popped) */
+static int gen_show(mw_t *w, int32_t node)
+{
+    int32_t t = tfind(w, N(w, node)->ty);
+    uint32_t depth = 0;
+    while (w->tys[t].k == TY_LIST) {
+        t = tfind(w, w->tys[t].a);
+        depth++;
+    }
+    int k = w->tys[t].k;
+    if (k == TY_VAR) {
+        if (w->tys[t].gen)
+            return nfail(w, node, ZL_E_UNSUPPORTED,
+                         "show of a value whose type is a type variable (type classes) is not in this subset");
+        return nfail(w, node, ZL_E_SYNTAX, "type error: the type of the value to show is ambiguous");
+    }
+    if (k == TY_IO) return nfail(w, node, ZL_E_SYNTAX, "type error: an IO action cannot be shown");
+    if (depth == 0) {
+        if (k == TY_INT) return E(w, ZL_OUTI, 0, 0);
+        if (k == TY_BOOL) return out_bool(w);
+        TRY(E(w, ZL_DROP, 0, 0));
+        int32_t s = zl_addstr(w->c, "()", 2);
+        if (s < 0) return ZL_E_LIMIT;
+        return E(w, ZL_OUTS, s, 0);
+    }
+    if (k == TY_UNIT) return nfail(w, node, ZL_E_UNSUPPORTED, "show of a list of () is not in this subset");
+    return helper(w, k == TY_BOOL ? H_SHOWLB : H_SHOWLI);
+}
+
+/* show the value of e, a tuple written out */
+static int gen_shown(mw_t *w, int32_t e)
+{
+    if (N(w, e)->kind != E_TUPLE) {
+        if (tykind(w, N(w, e)->ty) == TY_IO) return nfail(w, e, ZL_E_SYNTAX, "type error: an IO action cannot be shown");
+        TRY(gen_exp(w, e, 0));
+        return gen_show(w, e);
+    }
+    const char *sep = "(";
+    for (int32_t q = N(w, e)->a; q >= 0; q = N(w, q)->next) {
+        int32_t s = zl_addstr(w->c, sep, 1);
+        if (s < 0) return ZL_E_LIMIT;
+        TRY(E(w, ZL_OUTS, s, 0));
+        TRY(gen_shown(w, q));
+        sep = ",";
+    }
+    int32_t s = zl_addstr(w->c, ")", 1);
+    if (s < 0) return ZL_E_LIMIT;
+    return E(w, ZL_OUTS, s, 0);
+}
+
+/* print the pieces of a string expression: literals, show e, ++ */
+static int gen_pieces(mw_t *w, int32_t e)
+{
+    mnode_t *n = N(w, e);
+    if (n->kind == E_STR) return out_text(w, (uint32_t) n->v + 1, n->len - 2u);
+    if (n->kind == E_BIN) {
+        TRY(gen_pieces(w, n->a));
+        return gen_pieces(w, N(w, e)->b);
+    }
+    return gen_shown(w, n->a);
+}
+
+static int gen_hs_builtin(mw_t *w, int32_t e, int id)
+{
+    int32_t a0 = N(w, e)->a, b0 = a0 >= 0 ? N(w, a0)->next : -1;
+    switch (id) {
+    case B_HPRINT:
+        TRY(gen_shown(w, a0));
+        TRY(E(w, ZL_NL, 0, 0));
+        return E(w, ZL_PUSH, 0, 0);
+    case B_PRINT_STRING:
+    case B_PRINT_ENDLINE:
+        TRY(gen_pieces(w, a0));
+        w->c->line = N(w, e)->line;
+        if (id == B_PRINT_ENDLINE) TRY(E(w, ZL_NL, 0, 0));
+        return E(w, ZL_PUSH, 0, 0);
+    case B_RETURN:
+        return gen_exp(w, a0, 0);
+    default:
+        break;
+    }
+    TRY(gen_exp(w, a0, 0));
+    if (b0 >= 0) TRY(gen_exp(w, b0, 0));
+    w->c->line = N(w, e)->line;
+    switch (id) {
+    case B_SIGNUM:
+        return E(w, ZL_SGN, 0, 0);
+    case B_NEGATE:
+        return E(w, ZL_NEG, 0, 0);
+    case B_EVEN:
+    case B_ODD:
+        TRY(E(w, ZL_PUSH, 2, 0));
+        TRY(E(w, ZL_MODF, 0, 0));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        return E(w, id == B_EVEN ? ZL_EQ : ZL_NE, 0, 0);
+    case B_MIN:
+    case B_MAX: {
+        int tk = tykind(w, N(w, a0)->ty);
+        if (!((tk == TY_LIST || tk == TY_VAR) && w->c->p->word_bits == 62))
+            return E(w, id == B_MIN ? ZL_MIN : ZL_MAX, 0, 0);
+        /* [x y]: min x y = if x <= y then x else y; max x y = if x <= y then y else x */
+        TRY(E(w, ZL_OVER, 0, 0));
+        TRY(E(w, ZL_OVER, 0, 0));
+        TRY(helper(w, H_CMP));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        TRY(E(w, ZL_GT, 0, 0));
+        int32_t j = jmp(w, ZL_JZ);
+        TRY(j);
+        if (id == B_MIN) TRY(E(w, ZL_SWAP, 0, 0));
+        TRY(E(w, ZL_DROP, 0, 0));
+        int32_t k = jmp(w, ZL_JMP);
+        TRY(k);
+        patch(w, j);
+        if (id == B_MAX) TRY(E(w, ZL_SWAP, 0, 0));
+        TRY(E(w, ZL_DROP, 0, 0));
+        patch(w, k);
+        return ZL_OK;
+    }
+    case B_GCD:
+        return helper(w, H_GCD);
+    case B_LCM:
+        return helper(w, H_LCM);
+    case B_SUM:
+        return helper(w, H_SUM);
+    case B_PRODUCT:
+        return helper(w, H_PRODUCT);
+    case B_MAXIMUM:
+        return helper(w, H_MAXIMUM);
+    case B_MINIMUM:
+        return helper(w, H_MINIMUM);
+    case B_TAKE:
+        return helper(w, H_TAKE);
+    case B_DROP:
+        return helper(w, H_DROP);
+    case B_ELEM:
+        return helper(w, H_ELEM);
+    case B_NOTELEM:
+        TRY(helper(w, H_ELEM));
+        return E(w, ZL_NOT, 0, 0);
+    case B_REPLICATE:
+        return helper(w, H_REPLICATE);
+    case B_LAST:
+        return helper(w, H_LAST);
+    case B_INIT:
+        return helper(w, H_INIT);
+    case B_CONCAT:
+        return helper(w, H_CONCAT);
+    case B_AND:
+        return helper(w, H_AND);
+    case B_OR:
+        return helper(w, H_OR);
+    default:
+        break;
+    }
+    return nfail(w, e, ZL_E_UNSUPPORTED, "this library function is not in this subset");
+}
+
 static int gen_builtin(mw_t *w, int32_t e)
 {
     mnode_t *n = N(w, e);
     int id = -n->sym;
     int32_t a0 = n->a;
+    if (w->dial == D_HS && (id >= B_HPRINT || id == B_PRINT_STRING || id == B_PRINT_ENDLINE ||
+                            id == B_MIN || id == B_MAX))
+        return gen_hs_builtin(w, e, id);
     switch (id) {
     case B_PRINT:
     case B_PRINT_STRING:
@@ -3411,7 +3691,7 @@ static int gen_builtin(mw_t *w, int32_t e)
 /* both operands in the dialect's order; left on top only when swapped back */
 static int gen_operands(mw_t *w, int32_t a, int32_t b, int commutes)
 {
-    if (w->dial == D_SML) {
+    if (w->dial != D_OCAML) {
         TRY(gen_exp(w, a, 0));
         return gen_exp(w, b, 0);
     }
@@ -3441,10 +3721,30 @@ static int gen_bin(mw_t *w, int32_t e)
     case O_MUL:
         TRY(gen_operands(w, a, b, 1));
         w->c->line = N(w, e)->line;
-        if (op == O_MUL && w->dial == D_OCAML && w->c->p->word_bits == 64)
-            return helper(w, H_MUL63);
+        if (op == O_MUL && w->dial == D_OCAML && w->c->p->word_bits == 64) return helper(w, H_MUL63);
         TRY(E(w, op == O_ADD ? ZL_ADD : ZL_MUL, 0, 0));
         return fixint(w);
+    case O_QUOT:
+    case O_REM:
+        TRY(gen_operands(w, a, b, 0));
+        w->c->line = N(w, e)->line;
+        return E(w, op == O_QUOT ? ZL_DIVT : ZL_MODT, 0, 0);
+    case O_POW: { /* x ^ n: a negative exponent is an error in Haskell */
+        TRY(gen_operands(w, a, b, 0));
+        w->c->line = N(w, e)->line;
+        TRY(E(w, ZL_DUP, 0, 0));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        TRY(E(w, ZL_LT, 0, 0));
+        int32_t j = jmp(w, ZL_JZ);
+        TRY(j);
+        TRY(E(w, ZL_TRAP, ZL_E_DOMAIN, 0));
+        patch(w, j);
+        return E(w, ZL_POW, 0, 0);
+    }
+    case O_INDEX:
+        TRY(gen_operands(w, a, b, 0));
+        w->c->line = N(w, e)->line;
+        return helper(w, H_INDEX);
     case O_SUB:
     case O_DIV:
     case O_MOD:
@@ -3452,7 +3752,7 @@ static int gen_bin(mw_t *w, int32_t e)
         w->c->line = N(w, e)->line;
         if (op == O_SUB)
             TRY(E(w, ZL_SUB, 0, 0));
-        else if (w->dial == D_SML)
+        else if (w->dial != D_OCAML)
             TRY(E(w, op == O_DIV ? ZL_DIVF : ZL_MODF, 0, 0));
         else
             TRY(E(w, op == O_DIV ? ZL_DIVT : ZL_MODT, 0, 0));
@@ -3504,11 +3804,30 @@ static int gen_exp(mw_t *w, int32_t e, int tail)
 {
     mnode_t *n = N(w, e);
     w->c->line = n->line;
+    if (w->dial == D_HS && n->ty >= 0 && tykind(w, n->ty) == TY_IO && !(n->flags & F_STMT))
+        return nfail(w, e, ZL_E_UNSUPPORTED,
+                     "an IO action used as a value is not in this subset (actions only run as statements)");
     switch (n->kind) {
+    case E_RANGE: {
+        uint32_t k = 0;
+        for (int32_t q = n->a; q >= 0; q = N(w, q)->next, k++) TRY(gen_exp(w, q, 0));
+        w->c->line = N(w, e)->line;
+        return helper(w, k == 2 ? H_RANGE : H_RANGE3);
+    }
+    case E_GUARDS: {
+        mfails_t f;
+        f.n = 0;
+        TRY(gen_rhs(w, e, tail, &f));
+        int32_t ok = jmp(w, ZL_JMP);
+        TRY(ok);
+        for (uint32_t i = 0; i < f.n; i++) patch(w, f.at[i]);
+        TRY(trap_match(w));
+        patch(w, ok);
+        return ZL_OK;
+    }
     case E_INT:
         if (!zl_fits(w->c, n->v))
-            return nfail(w, e, ZL_E_UNSUPPORTED,
-                         "an integer outside the 62-bit words of a program with lists");
+            return nfail(w, e, ZL_E_UNSUPPORTED, "an integer outside the 62-bit words of a program with lists");
         return E(w, ZL_PUSH, n->v, 0);
     case E_BOOL:
         return E(w, ZL_PUSH, n->v, 0);
@@ -3518,14 +3837,24 @@ static int gen_exp(mw_t *w, int32_t e, int tail)
         return E(w, ZL_PUSH, ZL_V_NIL, 0);
     case E_VAR: {
         if (n->sym < 0) {
+            if (-n->sym == B_OTHERWISE) return E(w, ZL_PUSH, 1, 0);
             if (-n->sym == B_MAXINT) return E(w, ZL_PUSH, ((int64_t) 1 << 62) - 1, 0);
             if (w->c->p->word_bits == 62)
-                return nfail(
-                    w, e, ZL_E_UNSUPPORTED,
-                    "min_int in a program with lists (62-bit words) is not in this subset");
+                return nfail(w, e, ZL_E_UNSUPPORTED, "min_int in a program with lists (62-bit words) is not in this subset");
             return E(w, ZL_PUSH, -((int64_t) 1 << 62), 0);
         }
         mbind_t *b = &w->binds[n->sym];
+        if (b->kind == BK_LAZY) { /* force the thunk once, then read its value */
+            uint32_t lb = b->level;
+            int32_t addr = b->addr, fn = b->fn;
+            TRY(ld(w, addr + 1, lb));
+            int32_t j = jmp(w, ZL_JNZ);
+            TRY(j);
+            TRY(E(w, ZL_LINK, (int64_t) (w->lvl - lb), 0));
+            TRY(fixup(w, fn));
+            patch(w, j);
+            return ld(w, addr, lb);
+        }
         return ld(w, b->addr, b->level);
     }
     case E_LIST: {
@@ -3612,11 +3941,104 @@ static int gen_exp(mw_t *w, int32_t e, int tail)
     return nfail(w, e, ZL_E_SYNTAX, "expected an expression");
 }
 
+/* a Haskell value binding: its value and "computed" flag in two cells
+ * here, and a thunk (a function of no parameters at the next level) that
+ * computes the value into them; each use runs it once (gen_exp E_VAR) */
+static int gen_lazy(mw_t *w, int32_t d)
+{
+    int32_t p = N(w, d)->a, e = N(w, d)->b, fi = N(w, d)->sym;
+    uint32_t lb = w->lvl;
+    int32_t a = newloc(w);
+    TRY(a);
+    int32_t fl = newloc(w);
+    TRY(fl);
+    if (fl != a + 1) return zl_fail(w->c, ZL_E_LIMIT, "no room for a value binding");
+    mbind_t *b = &w->binds[N(w, p)->sym];
+    b->addr = a;
+    b->level = (uint8_t) lb;
+    w->c->line = N(w, d)->line;
+    TRY(E(w, ZL_PUSH, 0, 0));
+    TRY(st(w, fl, lb));
+    int32_t over = jmp(w, ZL_JMP);
+    TRY(over);
+    int32_t savefn = w->curfn;
+    w->curfn = fi;
+    w->lvl = w->fns[fi].level;
+    w->fns[fi].entry = w->fns[fi].enter_at = here(w);
+    TRY(E(w, ZL_ENTER, 0, 0));
+    w->fns[fi].start = here(w);
+    mfails_t f;
+    f.n = 0;
+    TRY(gen_rhs(w, e, 0, &f));
+    if (f.n) {
+        int32_t ok = jmp(w, ZL_JMP);
+        TRY(ok);
+        for (uint32_t i = 0; i < f.n; i++) patch(w, f.at[i]);
+        TRY(trap_match(w));
+        patch(w, ok);
+    }
+    w->c->line = N(w, d)->line;
+    TRY(st(w, a, lb));
+    TRY(E(w, ZL_PUSH, 1, 0));
+    TRY(st(w, fl, lb));
+    TRY(E(w, ZL_LEAVE, 0, 0));
+    TRY(E(w, ZL_RET, 0, 0));
+    mfn_t *fn = &w->fns[fi];
+    if (fn->nloc > ZL_MAX_FRAMES) return zl_fail(w->c, ZL_E_LIMIT, "function frame too large");
+    zl_patch(w->c, fn->enter_at, (int64_t) fn->nloc);
+    fn->defined = 1;
+    w->curfn = savefn;
+    w->lvl = lb;
+    patch(w, over);
+    return ZL_OK;
+}
+
+/* a right side: where-declarations, then guards (falling through to f
+ * when none holds) or an expression */
+static int gen_rhs(mw_t *w, int32_t e, int tail, mfails_t *f)
+{
+    mnode_t *n = N(w, e);
+    if (w->dial == D_HS && n->kind == E_LET && n->op == 1) {
+        for (int32_t d = n->a; d >= 0; d = N(w, d)->next) TRY(gen_decl(w, d));
+        return gen_rhs(w, N(w, e)->b, tail, f);
+    }
+    if (n->kind != E_GUARDS) return gen_exp(w, e, tail);
+    w->c->line = n->line;
+    if (n->ty >= 0 && tykind(w, n->ty) == TY_IO && !(n->flags & F_STMT))
+        return nfail(w, e, ZL_E_UNSUPPORTED,
+                     "an IO action used as a value is not in this subset (actions only run as statements)");
+    int32_t ends[64];
+    uint32_t ne = 0;
+    for (int32_t g = n->a; g >= 0; g = N(w, g)->next) {
+        int32_t c = N(w, g)->a, j = -1;
+        int always = N(w, c)->kind == E_BOOL ? N(w, c)->v != 0
+                                              : N(w, c)->kind == E_VAR && N(w, c)->sym == -B_OTHERWISE;
+        if (!always) {
+            TRY(gen_exp(w, c, 0));
+            j = jmp(w, ZL_JZ);
+            TRY(j);
+        }
+        TRY(gen_exp(w, N(w, g)->b, tail));
+        if (ne >= 64) return nfail(w, g, ZL_E_LIMIT, "too many guards");
+        ends[ne] = jmp(w, ZL_JMP);
+        TRY(ends[ne]);
+        ne++;
+        if (j >= 0) patch(w, j);
+    }
+    if (f->n >= 256) return zl_fail(w->c, ZL_E_LIMIT, "pattern too large");
+    f->at[f->n] = jmp(w, ZL_JMP);
+    TRY(f->at[f->n]);
+    f->n++;
+    for (uint32_t i = 0; i < ne; i++) patch(w, ends[i]);
+    return ZL_OK;
+}
+
 static int gen_decl(mw_t *w, int32_t d)
 {
     mnode_t *n = N(w, d);
     w->c->line = n->line;
     if (n->kind == D_FUN) return gen_fun(w, d);
+    if (n->kind == D_VAL && (n->flags & F_LAZY)) return gen_lazy(w, d);
     if (n->kind == D_EXP) {
         TRY(gen_exp(w, n->a, 0));
         return E(w, ZL_DROP, 0, 0);
@@ -3627,7 +4049,7 @@ static int gen_decl(mw_t *w, int32_t d)
         int32_t items[M_GROUPS], addr[M_GROUPS];
         uint32_t k = 0;
         for (int32_t q = N(w, e)->a; q >= 0; q = N(w, q)->next) items[k++] = q;
-        if (w->dial == D_SML) {
+        if (w->dial != D_OCAML) {
             for (uint32_t i = 0; i < k; i++) {
                 TRY(gen_exp(w, items[i], 0));
                 addr[i] = newloc(w);
@@ -3678,10 +4100,415 @@ static int gen_decl(mw_t *w, int32_t d)
 
 /* ---- helpers, emitted once after the program ---- */
 
+/* emitters for the helper routines */
+static int E0(mw_t *w, int op)
+{
+    return E(w, op, 0, 0);
+}
+
+/* [list?] traps DOMAIN unless the top is a pair (it stays) */
+static int need_pair(mw_t *w)
+{
+    TRY(E0(w, ZL_DUP));
+    TRY(E(w, ZL_ISA, ZL_ISA_PAIR, 0));
+    int32_t j = jmp(w, ZL_JNZ);
+    TRY(j);
+    TRY(E(w, ZL_TRAP, ZL_E_DOMAIN, 0));
+    patch(w, j);
+    return ZL_OK;
+}
+
+/* [l] l a pair? leaves l; returns the JZ to patch at the loop's end */
+static int32_t while_pair(mw_t *w)
+{
+    TRY(E0(w, ZL_DUP));
+    TRY(E(w, ZL_ISA, ZL_ISA_PAIR, 0));
+    return jmp(w, ZL_JZ);
+}
+
+/* scratch counter s: is it > 0? returns the JZ to patch */
+static int32_t while_pos(mw_t *w, int32_t s)
+{
+    TRY(E(w, ZL_LOAD, s, 0));
+    TRY(E(w, ZL_PUSH, 0, 0));
+    TRY(E0(w, ZL_GT));
+    return jmp(w, ZL_JZ);
+}
+
+static int dec_slot(mw_t *w, int32_t s)
+{
+    TRY(E(w, ZL_LOAD, s, 0));
+    TRY(E(w, ZL_PUSH, 1, 0));
+    TRY(E0(w, ZL_SUB));
+    return E(w, ZL_STORE, s, 0);
+}
+
+/* the Haskell Prelude helpers; s0..s2 are scratch slots (no helper that
+ * uses them runs another that does) */
+static int gen_hs_helper(mw_t *w, int h)
+{
+    int32_t s0 = w->scratch, s1 = s0 + 1, s2 = s0 + 2, top = here(w), j, k, l;
+    switch (h) {
+    case H_SUM:
+    case H_PRODUCT: /* [l] */
+        TRY(E(w, ZL_PUSH, h == H_SUM ? 0 : 1, 0));
+        TRY(E0(w, ZL_SWAP));
+        l = here(w);
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_ROT));
+        TRY(E0(w, h == H_SUM ? ZL_ADD : ZL_MUL));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CDR));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        return E0(w, ZL_RET);
+    case H_MAXIMUM:
+    case H_MINIMUM: /* [l], not empty */
+        TRY(need_pair(w));
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CDR));
+        l = here(w);
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_ROT));
+        TRY(E0(w, h == H_MAXIMUM ? ZL_MAX : ZL_MIN));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CDR));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        return E0(w, ZL_RET);
+    case H_TAKE: /* [n l] */
+        TRY(E0(w, ZL_SWAP));
+        TRY(E(w, ZL_STORE, s0, 0));
+        TRY(E(w, ZL_PUSH, ZL_V_NIL, 0));
+        TRY(E(w, ZL_STORE, s1, 0));
+        l = here(w);
+        j = while_pos(w, s0);
+        TRY(j);
+        k = while_pair(w);
+        TRY(k);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E(w, ZL_LOAD, s1, 0));
+        TRY(E0(w, ZL_CONS));
+        TRY(E(w, ZL_STORE, s1, 0));
+        TRY(E0(w, ZL_CDR));
+        TRY(dec_slot(w, s0));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        patch(w, k);
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_LOAD, s1, 0));
+        TRY(helper(w, H_REV));
+        return E0(w, ZL_RET);
+    case H_DROP: /* [n l] */
+        TRY(E0(w, ZL_SWAP));
+        TRY(E(w, ZL_STORE, s0, 0));
+        l = here(w);
+        j = while_pos(w, s0);
+        TRY(j);
+        k = while_pair(w);
+        TRY(k);
+        TRY(E0(w, ZL_CDR));
+        TRY(dec_slot(w, s0));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        patch(w, k);
+        return E0(w, ZL_RET);
+    case H_ELEM: { /* [x l] */
+        l = here(w);
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_CAR));
+        TRY(helper(w, H_EQ));
+        k = jmp(w, ZL_JNZ);
+        TRY(k);
+        TRY(E0(w, ZL_CDR));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        TRY(E0(w, ZL_RET));
+        patch(w, k);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, 1, 0));
+        return E0(w, ZL_RET);
+    }
+    case H_REPLICATE: /* [n x] */
+        TRY(E0(w, ZL_SWAP));
+        TRY(E(w, ZL_STORE, s0, 0));
+        TRY(E(w, ZL_PUSH, ZL_V_NIL, 0));
+        l = here(w);
+        j = while_pos(w, s0);
+        TRY(j);
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CONS));
+        TRY(dec_slot(w, s0));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_DROP));
+        return E0(w, ZL_RET);
+    case H_LAST: /* [l], not empty */
+        TRY(need_pair(w));
+        l = here(w);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CDR));
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_CAR));
+        return E0(w, ZL_RET);
+    case H_INIT: /* [l], not empty */
+        TRY(need_pair(w));
+        TRY(helper(w, H_REV));
+        TRY(E0(w, ZL_CDR));
+        TRY(helper(w, H_REV));
+        return E0(w, ZL_RET);
+    case H_CONCAT: /* [ls] */
+        TRY(helper(w, H_REV));
+        TRY(E(w, ZL_PUSH, ZL_V_NIL, 0));
+        TRY(E0(w, ZL_SWAP));
+        l = here(w);
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_ROT));
+        TRY(helper(w, H_APPEND));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CDR));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        return E0(w, ZL_RET);
+    case H_AND:
+    case H_OR: /* [l]: the first False (and) or True (or) decides */
+        l = here(w);
+        j = while_pair(w);
+        TRY(j);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        k = jmp(w, h == H_AND ? ZL_JZ : ZL_JNZ);
+        TRY(k);
+        TRY(E0(w, ZL_CDR));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, h == H_AND, 0));
+        TRY(E0(w, ZL_RET));
+        patch(w, k);
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, h != H_AND, 0));
+        return E0(w, ZL_RET);
+    case H_RANGE: /* [a b]: [a .. b], built from b down */
+        TRY(E(w, ZL_PUSH, ZL_V_NIL, 0));
+        TRY(E(w, ZL_STORE, s1, 0));
+        l = here(w);
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_GT));
+        j = jmp(w, ZL_JNZ);
+        TRY(j);
+        TRY(E0(w, ZL_DUP));
+        TRY(E(w, ZL_LOAD, s1, 0));
+        TRY(E0(w, ZL_CONS));
+        TRY(E(w, ZL_STORE, s1, 0));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_EQ));
+        k = jmp(w, ZL_JNZ);
+        TRY(k);
+        TRY(E(w, ZL_PUSH, 1, 0));
+        TRY(E0(w, ZL_SUB));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        patch(w, k);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_LOAD, s1, 0));
+        return E0(w, ZL_RET);
+    case H_RANGE3: { /* [x1 x2 y]: [x1, x2 .. y]; a zero step that would never end traps */
+        TRY(E(w, ZL_STORE, s2, 0));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_SUB));
+        TRY(E(w, ZL_STORE, s0, 0));
+        TRY(E(w, ZL_PUSH, ZL_V_NIL, 0));
+        TRY(E(w, ZL_STORE, s1, 0));
+        int32_t fin[3], down;
+        TRY(E(w, ZL_LOAD, s0, 0));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        TRY(E0(w, ZL_LT));
+        down = jmp(w, ZL_JNZ);
+        TRY(down);
+        TRY(E(w, ZL_LOAD, s0, 0));
+        int32_t up = jmp(w, ZL_JNZ);
+        TRY(up);
+        TRY(E0(w, ZL_DUP)); /* step 0: [x1, x1 ..] has no end unless x1 > y */
+        TRY(E(w, ZL_LOAD, s2, 0));
+        TRY(E0(w, ZL_LE));
+        fin[0] = jmp(w, ZL_JZ);
+        TRY(fin[0]);
+        TRY(E(w, ZL_TRAP, ZL_E_DOMAIN, 0));
+        for (int dn = 0; dn < 2; dn++) {
+            patch(w, dn ? down : up);
+            l = here(w);
+            TRY(E0(w, ZL_DUP));
+            TRY(E(w, ZL_LOAD, s2, 0));
+            TRY(E0(w, dn ? ZL_GE : ZL_LE));
+            fin[1 + dn] = jmp(w, ZL_JZ);
+            TRY(fin[1 + dn]);
+            TRY(E0(w, ZL_DUP));
+            TRY(E(w, ZL_LOAD, s1, 0));
+            TRY(E0(w, ZL_CONS));
+            TRY(E(w, ZL_STORE, s1, 0));
+            TRY(E(w, ZL_LOAD, s0, 0));
+            TRY(E0(w, ZL_ADD));
+            TRY(E(w, ZL_JMP, l, 0));
+        }
+        for (int i = 0; i < 3; i++) patch(w, fin[i]);
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_LOAD, s1, 0));
+        TRY(helper(w, H_REV));
+        return E0(w, ZL_RET);
+    }
+    case H_INDEX: /* [l n]: l !! n */
+        TRY(E0(w, ZL_DUP));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        TRY(E0(w, ZL_LT));
+        k = jmp(w, ZL_JNZ);
+        TRY(k);
+        l = here(w);
+        TRY(E0(w, ZL_OVER));
+        TRY(E(w, ZL_ISA, ZL_ISA_PAIR, 0));
+        int32_t oob = jmp(w, ZL_JZ);
+        TRY(oob);
+        TRY(E0(w, ZL_DUP));
+        j = jmp(w, ZL_JZ);
+        TRY(j);
+        TRY(E(w, ZL_PUSH, 1, 0));
+        TRY(E0(w, ZL_SUB));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_CDR));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_RET));
+        patch(w, k);
+        patch(w, oob);
+        return E(w, ZL_TRAP, ZL_E_BOUNDS, 0);
+    case H_SHOWLI:
+    case H_SHOWLB: { /* [l]: show l, nested lists by their own brackets */
+        TRY(E(w, ZL_PUSH, '[', 0));
+        TRY(E0(w, ZL_OUTC));
+        j = while_pair(w);
+        TRY(j);
+        l = here(w);
+        TRY(E0(w, ZL_DUP));
+        TRY(E0(w, ZL_CAR));
+        TRY(E0(w, ZL_DUP));
+        TRY(E(w, ZL_ISA, ZL_ISA_NUMBER, 0));
+        k = jmp(w, ZL_JZ);
+        TRY(k);
+        if (h == H_SHOWLI)
+            TRY(E0(w, ZL_OUTI));
+        else
+            TRY(out_bool(w));
+        int32_t nx = jmp(w, ZL_JMP);
+        TRY(nx);
+        patch(w, k);
+        TRY(E(w, ZL_CALL, top, 0));
+        patch(w, nx);
+        TRY(E0(w, ZL_CDR));
+        int32_t done = while_pair(w);
+        TRY(done);
+        TRY(E(w, ZL_PUSH, ',', 0));
+        TRY(E0(w, ZL_OUTC));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        patch(w, done);
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, ']', 0));
+        TRY(E0(w, ZL_OUTC));
+        return E0(w, ZL_RET);
+    }
+    case H_GCD: /* [a b] */
+        TRY(E0(w, ZL_ABS));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_ABS));
+        TRY(E0(w, ZL_SWAP));
+        l = here(w);
+        TRY(E0(w, ZL_DUP));
+        j = jmp(w, ZL_JZ);
+        TRY(j);
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_MODT));
+        TRY(E(w, ZL_JMP, l, 0));
+        patch(w, j);
+        TRY(E0(w, ZL_DROP));
+        return E0(w, ZL_RET);
+    case H_LCM: /* [x y]: 0 if either is 0, else abs ((x `quot` gcd x y) * y) */
+        TRY(E0(w, ZL_DUP));
+        j = jmp(w, ZL_JZ);
+        TRY(j);
+        TRY(E0(w, ZL_OVER));
+        k = jmp(w, ZL_JZ);
+        TRY(k);
+        TRY(E0(w, ZL_OVER));
+        TRY(E0(w, ZL_OVER));
+        TRY(helper(w, H_GCD));
+        TRY(E0(w, ZL_ROT));
+        TRY(E0(w, ZL_SWAP));
+        TRY(E0(w, ZL_DIVT));
+        TRY(E0(w, ZL_MUL));
+        TRY(E0(w, ZL_ABS));
+        TRY(E0(w, ZL_RET));
+        patch(w, j);
+        patch(w, k);
+        TRY(E0(w, ZL_DROP));
+        TRY(E0(w, ZL_DROP));
+        TRY(E(w, ZL_PUSH, 0, 0));
+        return E0(w, ZL_RET);
+    default:
+        break;
+    }
+    return ZL_OK;
+}
+
 static int gen_helpers(mw_t *w)
 {
     w->c->line = 0;
+    if (w->hused[H_TAKE] || w->hused[H_INIT] || w->hused[H_RANGE3]) w->hused[H_REV] = 1;
+    if (w->hused[H_CONCAT]) w->hused[H_REV] = w->hused[H_APPEND] = 1;
+    if (w->hused[H_ELEM]) w->hused[H_EQ] = 1;
+    if (w->hused[H_LCM]) w->hused[H_GCD] = 1;
     if (w->hused[H_APPEND]) w->hused[H_REV] = w->hused[H_REVAPP] = 1;
+    if (w->dial == D_HS && (w->hused[H_TAKE] || w->hused[H_DROP] || w->hused[H_REPLICATE] ||
+                            w->hused[H_RANGE] || w->hused[H_RANGE3])) {
+        w->scratch = zl_slots(w->c, 3);
+        if (w->scratch < 0) return ZL_E_LIMIT;
+    }
     if (w->hused[H_REV]) w->hused[H_REVAPP] = 1;
     for (int h = 0; h < H__COUNT; h++) {
         if (!w->hused[h]) continue;
@@ -3899,6 +4726,7 @@ static int gen_helpers(mw_t *w)
             TRY(E(w, ZL_RET, 0, 0));
             break;
         default:
+            TRY(gen_hs_helper(w, h));
             break;
         }
     }
@@ -4179,8 +5007,7 @@ static void pr_exp(mw_t *w, int32_t e, int lev, int pos)
         return;
     case E_LIST:
         tw(w, "[");
-        pr_list(w, n->a, ocaml ? "; " : ", ", ocaml ? L_TUPLE + 1 : L_TOP,
-                ocaml ? PS_NONE : PS_FULL);
+        pr_list(w, n->a, ocaml ? "; " : ", ", ocaml ? L_TUPLE + 1 : L_TOP, ocaml ? PS_NONE : PS_FULL);
         tw(w, "]");
         return;
     case E_TUPLE:
@@ -4381,27 +5208,51 @@ static void pr_program(mw_t *w)
 
 /* ------------------------------------------------------------ entry */
 
-int zl_ml_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw_out, void *work)
+void zl_ml_begin(mw_t *w, zl_cc_t *c, zl_out_t *tw_out, const char *src, size_t len, int dial)
 {
-    mw_t *w = (mw_t *) work;
     zl_bzero(w, offsetof(mw_t, nodes));
     w->c = c;
     w->tw = tw_out;
     w->src = src;
     w->len = len;
-    w->dial = c->p->lang == ZL_LANG_OCAML ? D_OCAML : D_SML;
+    w->dial = dial;
     w->lx.line = 1;
     w->tok.k = T_EOF;
-    /* the shared type constants */
-    for (int k = TY_INT; k <= TY_UNIT; k++) {
+    /* the shared type constants: TINT, TBOOL, TUNIT, TIO */
+    for (int k = TY_INT; k <= TY_IO; k++) {
+        if (k == TY_LIST) continue;
         w->tys[w->nty].k = (uint8_t) k;
         w->tys[w->nty].a = -1;
         w->nty++;
     }
     for (int h = 0; h < H__COUNT; h++) w->helper[h] = -1;
-    TRY(p_program(w));
+}
+
+int32_t zl_ml_node(mw_t *w, int kind, uint32_t line, uint32_t col)
+{
+    mtok_t t;
+    t.line = line;
+    t.col = col;
+    return newnode(w, kind, &t);
+}
+
+int zl_ml_fail(mw_t *w, int st, uint32_t line, uint32_t col, const char *msg)
+{
+    return mfail(w, st, line, col, msg);
+}
+
+int zl_ml_finish(mw_t *w)
+{
     TRY(tc_program(w));
-    TRY(gen_program(w));
+    return gen_program(w);
+}
+
+int zl_ml_compile(const char *src, size_t len, zl_cc_t *c, zl_out_t *tw_out, void *work)
+{
+    mw_t *w = (mw_t *) work;
+    zl_ml_begin(w, c, tw_out, src, len, c->p->lang == ZL_LANG_OCAML ? D_OCAML : D_SML);
+    TRY(p_program(w));
+    TRY(zl_ml_finish(w));
     if (c->failed) return c->d->status;
     if (tw_out) pr_program(w);
     return ZL_OK;

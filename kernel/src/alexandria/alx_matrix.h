@@ -145,6 +145,12 @@ const uint8_t *alx_glue_anchor(const uint8_t *b, uint32_t *layer);
 const uint8_t *alx_glue_pattern(const uint8_t *b, uint32_t len, uint32_t *layer);
 /* its state: 0 N (empty scaffold), 1 T (holds content) */
 int alx_glue_state(const uint8_t *b);
+/* its verdict (byte 60), lpres as lpres_hex encodes it: T when it holds
+ * content and its app passed its gate, N content not yet gated or an empty
+ * scaffold, B a contradiction (content its gate fails, or a gate that passes
+ * an app the layer does not hold); never F */
+enum { ALX_VERDICT_F = 0, ALX_VERDICT_N = 1, ALX_VERDICT_B = 2, ALX_VERDICT_T = 3 };
+int alx_glue_verdict(const uint8_t *b);
 /* the file with this CID, or -1 */
 int32_t alx_glue_find(const uint8_t *b, const uint8_t cid[36]);
 /* file f's chunks: how many, and ref i of them */

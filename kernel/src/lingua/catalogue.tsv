@@ -35,7 +35,7 @@
 1970	Forth	stack	run	Cairndrake	kernel/src/lingua/zl_forth.c
 1970	Pascal	algol	run	Tutordrake	bindings/pascal; kernel/src/lingua/zl_pascal.c
 1972	C	systems	host	-	kernel and libzxv are C11
-1972	Prolog	logic	next2	-	-
+1972	Prolog	logic	run	Riddlewyrm	kernel/src/lingua/zl_prolog.c
 1972	Smalltalk	object	catalogue	-	-
 1973	ML	functional	run	Proofdrake	kernel/src/lingua/zl_ml.c
 1974	SQL	database	next3	-	parse tier planned
@@ -45,7 +45,7 @@
 1977	Icon	string	catalogue	-	-
 1977	AWK	text	next3	-	-
 1977	Bourne shell	shell	catalogue	-	-
-1978	Modula-2	algol	next2	-	-
+1978	Modula-2	algol	run	Moduledrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1978	TeX	typesetting	catalogue	-	-
 1979	REXX	scripting	next3	-	-
 1979	dBase	database	catalogue	-	-
@@ -56,7 +56,7 @@
 1983	Objective-C	object	catalogue	-	-
 1983	Occam	concurrent	catalogue	-	-
 1983	ABAP	business	catalogue	-	-
-1984	Common Lisp	list	catalogue	-	-
+1984	Common Lisp	list	run	Braidwyrm	kernel/src/lingua/zl_commonlisp.c, kernel/src/lingua/zl_lisp.c
 1984	MATLAB	numeric	catalogue	-	-
 1984	Verilog	hardware	catalogue	-	-
 1985	Eiffel	object	catalogue	-	-
@@ -66,10 +66,10 @@
 1987	VHDL	hardware	catalogue	-	-
 1987	HyperTalk	scripting	catalogue	-	-
 1988	Tcl	scripting	catalogue	-	-
-1988	Oberon	algol	catalogue	-	-
+1988	Oberon	algol	run	Faydrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1988	Mathematica	symbolic	catalogue	-	-
 1989	Bash	shell	catalogue	-	-
-1990	Haskell	functional	catalogue	-	-
+1990	Haskell	functional	run	Purewyrm	kernel/src/lingua/zl_haskell.c
 1990	J	array	catalogue	-	array family runs through KRON
 1991	Python	scripting	host	-	sdk/python
 1991	Visual Basic	interactive	catalogue	-	-
@@ -82,14 +82,14 @@
 1995	JavaScript	scripting	host	-	sdk/typescript
 1995	Ruby	scripting	host	-	sdk/ruby
 1995	PHP	scripting	host	-	sdk/php
-1995	Delphi	algol	catalogue	-	Pascal dialect
-1995	Racket	list	catalogue	-	-
+1995	Delphi	algol	run	Formwyrm	kernel/src/lingua/zl_pascal.c (a Pascal dialect)
+1995	Racket	list	run	Dialectwyrm	kernel/src/lingua/zl_racket.c, kernel/src/lingua/zl_lisp.c
 1996	OCaml	functional	run	Variantwyrm	kernel/src/lingua/zl_ml.c
 2000	C#	object	host	-	sdk/dotnet
 2003	Scala	functional	catalogue	-	-
 2004	Groovy	scripting	catalogue	-	-
 2005	F#	functional	host	-	sdk/dotnet
-2007	Clojure	list	catalogue	-	-
+2007	Clojure	list	run	Stonewyrm	kernel/src/lingua/zl_clojure.c, kernel/src/lingua/zl_lisp.c
 2008	Nim	systems	catalogue	-	-
 2009	Go	systems	host	-	sdk/go
 2010	Rust	systems	host	-	sdk/rust

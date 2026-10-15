@@ -98,6 +98,57 @@ static const char *const seeds[] = {
     "let h x y = match x, y with 0, _ -> min y 2 | a, b when a < b -> max a 7 * b | _ -> -x\n"
     "let () = print_int (h 1 2); print_newline (); if h 0 5 > 1 then print_string \"big\"\n;;\n"
     "print_endline (string_of_int (let q, r = 17 / 5, 17 mod -5 in q * r))\n",
+    ";;; fuzz seed\n(defvar *l* '(3 1 (2 . x) s))\n(defun k (n) (case n (0 'z) ((1 2) 'low) "
+    "(otherwise 'hi)))\n(print (list (k 0) (k 2) (k 9))) (print (first (rest *l*)))\n"
+    "(setf *l* (cddr *l*)) (format t \"~a ~d~%\" *l* (length *l*))\n",
+    "#lang racket\n;;; fuzz seed\n(define l '(3 1 (2 . x) s))\n(define (f n acc) (if (= n 0) "
+    "acc (f (sub1 n) (cons n acc))))\n(f 4 empty) (length l) (assv 2 (cddr l))\n"
+    "(let loop ([x 1]) (if (> x 9) x (loop (* x 2))))\n(printf \"~a ~s ~v~n\" (first l) 'q "
+    "(rest l))\n(define (w n) (when (> n 0) (displayln n) (w (- n 1))))\n(w 2) (cons? null)\n",
+    ";; fuzz seed\n(def l '(3 1 (2 nil) s))\n(defn f [n acc] (if (zero? n) acc (recur (dec n) "
+    "(conj acc n))))\n(println (f 4 nil) (count l) (first (next l)))\n(let [a 1, b (inc a)] "
+    "(prn \"x\" a b))\n(println (loop [x 1] (if (> x 9) x (recur (* x 2)))))\n(println (cond "
+    "(= 1 2) 'a :else (and 1 nil)) (or false 3))\n(dotimes [i 2] (print i \"\")) (newline)\n",
+    "% fuzz seed\n:- initialization(main).\nlen([], 0).\nlen([_|T], N) :- len(T, M), N is M + 1.\n"
+    "p(1, a). p(2, 'B c'). p(X, f(X, [X])) :- integer(X), X > 2, !.\n"
+    "q(X) :- ( X =:= 0 -> true ; X < 0 ; \\+ X = 7 ), X \\== y.\n"
+    "main :- len([a, b|[c]], N), write(N), nl, findall(K-V, p(K, V), L), print(L), nl,\n"
+    "    forall(between(-1, 2, I), (q(I) -> write(I) ; write(-I))), nl,\n"
+    "    ( member(X, [3, 9]), Y is X * X mod 7 // 2 - min(X, 4) ^ 2, Y > 0 -> true ; Y = none ),\n"
+    "    format(\"~w ~a ~d~n\", [f(- 1, 'x y', {a}), abc, 42]), writeq(Y), nl, append(A, [B], [1, 2]),\n"
+    "    length(A, LA), writeq(A/B/LA), nl.\n",
+    "// fuzz seed\nprogram Fz;\n{$APPTYPE CONSOLE}\nconst K = $1F;\nvar A: array[1..4] of Integer; "
+    "I, N: Integer; B: Boolean;\nfunction F(M: Integer): Integer;\n  procedure Bump; begin "
+    "Inc(Result, M) end;\nbegin Result := 0; if M <= 0 then Exit(1); Bump; Result := Result * "
+    "F(M - 1) end;\nvar T: Integer;\nbegin\n  read(N); for I := 1 to 4 do A[I] := I xor K and 6;\n"
+    "  T := 0; while T < 9 do begin Inc(T, 2); if Odd(T div 3) then Continue; if T > 6 then Break "
+    "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  "
+    "WriteLn(F(4), "
+    "' ', T:3, B, -A[2] or 5, not 0);\nend.\n",
+    "(* fuzz (* seed *) *)\nMODULE Fz;\nFROM InOut IMPORT WriteInt, WriteString, WriteLn;\nCONST K "
+    "= "
+    "-3;\nVAR a: ARRAY [-2..2] OF INTEGER; i, n: INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): "
+    "INTEGER;\nVAR s: INTEGER;\n  PROCEDURE Add(k: INTEGER); BEGIN INC(s, k * m) END Add;\nBEGIN "
+    "s := 0; IF m <= 0 THEN RETURN 1 END; Add(2); RETURN s + F(m - 1) END F;\nBEGIN\n  FOR i := "
+    "-2 TO 2 BY 2 DO a[i] := i * K DIV 2 END;\n  n := 0; LOOP INC(n, 3); IF n > 9 THEN EXIT "
+    "ELSIF ODD(n) THEN DEC(n) END END;\n  CASE n MOD 5 OF 0..1: b := ~(n # 3) | 2, 4: b := TRUE "
+    "& (a[-2] < 0) ELSE b := FALSE END;\n  REPEAT n := n DIV 2 UNTIL n < 2;\n  WHILE n < 4 DO "
+    "INC(n) END;\n  IF b OR NOT (n = 4) THEN WriteString(\"y\") END; WriteInt(F(3), 4); "
+    "WriteInt(MAX(INTEGER), 0); WriteLn\nEND Fz.\n",
+    "(* fuzz seed *)\nMODULE Fo;\nIMPORT Out;\nCONST K = 5;\nVAR a: ARRAY K OF INTEGER; i, n: "
+    "INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): INTEGER;\nVAR r: INTEGER;\nBEGIN IF m <= 0 "
+    "THEN r := 1 ELSE r := m * F(m - 1) END\nRETURN r\nEND F;\nPROCEDURE G(VAR x, y: INTEGER);\n"
+    "BEGIN WHILE x > y DO DEC(x, y) ELSIF y > x DO DEC(y, x) END END G;\nBEGIN\n  n := K;\n"
+    "  FOR i := 0 TO n - 1 BY 2 DO a[i] := -i DIV 2; n := 4 END;\n  i := 84; n := 36; G(i, n);\n"
+    "  CASE i MOD 4 OF 0..1: b := ~(i # 12) | 2, 3: b := FALSE END;\n  REPEAT INC(n) UNTIL n > "
+    "13;\n"
+    "  IF b OR (a[2] < 0) THEN Out.String(\"y\") END; Out.Int(F(5), 5); Out.Char(\"!\"); Out.Ln\n"
+    "END Fo.\n",
+    "-- fuzz seed\nf :: Int -> Int -> Int\nf 0 a = a\nf n a\n  | even n = f (n - 1) (a + n `mod` 3)\n"
+    "  | otherwise = f (n - 1) (a - 1)\ng :: [Int] -> Int\ng [] = 0\ng (x:r) = x * 2 + g r\n"
+    "main :: IO ()\nmain = do\n  let l = [3, -4] ++ reverse [1 .. 2]\n  print (f 9 0, g l `div` (-3), l !! 1)\n"
+    "  putStrLn (\"x\" ++ show (case l of { [] -> 0; (y:_) -> quot (-7) y }) ++ show (take 2 l))\n"
+    "  if null l then return () else print (sum l ^ 2, maximum l, elem 3 l)\n  where h = 1\n",
 };
 
 static const char *const dict[] = {
@@ -185,6 +236,19 @@ static const char *const dict[] = {
     "(1:2)",
     "EMIT ",
     ".\" x\" ",
+    ":- ",
+    "->",
+    "\\+ ",
+    "[",
+    "]",
+    "|",
+    "_",
+    " is ",
+    "=:=",
+    "findall(",
+    "format(\"~w~n\", [",
+    "'a b'",
+    "0'a",
 };
 
 static uint64_t rng;
