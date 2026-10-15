@@ -5,6 +5,8 @@
  * feed, checked against the hardware specs' figures. */
 #include "climate.h"
 #include "climate_ct.h"
+#include "climate_arb.h"
+#include "../arbiter/arb_dev.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -1519,6 +1521,104 @@ static void test_ct(void)
     CHECK(cl_ct_refs(&c, &cfg) && cfg.watts_ref_mw == 5000);
 }
 
+/* Arbiter telemetry into climate inputs, through the real mailbox: the
+ * arbiter's end pushes readings, the host's end polls them, the adapter
+ * copies only what was reported and refuses impossible power. Then the
+ * sample drives a step and ct_budget sees the result. */
+static uint8_t g_win[0x4000] __attribute__((aligned(64)));
+
+static void zero_entropy(void *ctx, uint8_t *out, uint32_t n)
+{
+    (void) ctx;
+    memset(out, 0, n);
+}
+
+static void test_arb_inputs(void)
+{
+    arb_dev_t d;
+    arb_host_t h;
+    uint8_t meas[ARB_MEAS_LEN] = {0};
+    memset(g_win, 0, sizeof g_win);
+    memset(&d, 0, sizeof d);
+    memset(&h, 0, sizeof h);
+    CHECK(arb_dev_init(&d, g_win, sizeof g_win, 8, 0, 0, 0, meas, zero_entropy, 0) == 0);
+    CHECK(arb_host_init(&h, g_win, sizeof g_win) == 0);
+
+    cl_input_t in;
+    memset(&in, 0, sizeof in);
+    in.die_mc = 1234;
+    uint32_t bad = 99;
+    /* nothing reported yet: nothing written, nothing invented */
+    CHECK(cl_arb_inputs(&h, &in, &bad) == 0 && bad == 0 && in.die_mc == 1234);
+
+    uint16_t s1[] = {ARB_S_T_CPU,      ARB_S_T_NEURAL, ARB_S_PWR_CPU,
+                     ARB_S_PWR_NEURAL, ARB_S_T_INTAKE, ARB_S_T_EXHAUST};
+    int32_t v1[] = {CL_C(71), CL_C(84), 38000, 61000, CL_C(30), CL_C(52)};
+    CHECK(arb_dev_telemetry(&d, s1, v1, 6) == 0);
+    arb_host_poll(&h);
+    uint32_t got = cl_arb_inputs(&h, &in, &bad);
+    CHECK(got == (CL_ARB_DIE | CL_ARB_INTAKE | CL_ARB_EXHAUST | CL_ARB_POWER) && bad == 0);
+    CHECK(in.die_mc == CL_C(84)); /* the hotter die */
+    CHECK(in.intake_mc == CL_C(30) && in.exhaust_mc == CL_C(52));
+    CHECK(in.power_mw == 99000); /* CPU + neural only */
+    CHECK(in.cell_mc == 0);      /* never reported: untouched */
+
+    /* the CPU die runs hotter later */
+    uint16_t s2[] = {ARB_S_T_CPU, ARB_S_T_CELL};
+    int32_t v2[] = {CL_C(90), CL_C(-5)};
+    CHECK(arb_dev_telemetry(&d, s2, v2, 2) == 0);
+    arb_host_poll(&h);
+    got = cl_arb_inputs(&h, &in, NULL);
+    CHECK((got & CL_ARB_CELL) && in.cell_mc == CL_C(-5));
+    CHECK(in.die_mc == CL_C(90));
+
+    /* negative power is impossible: refused, the last good value kept */
+    uint16_t s3[] = {ARB_S_PWR_NEURAL};
+    int32_t v3[] = {-1};
+    CHECK(arb_dev_telemetry(&d, s3, v3, 1) == 0);
+    arb_host_poll(&h);
+    got = cl_arb_inputs(&h, &in, &bad);
+    CHECK(!(got & CL_ARB_POWER) && bad == CL_ARB_POWER && in.power_mw == 99000);
+    CHECK(got & CL_ARB_DIE);
+
+    /* the largest readings still sum inside 32 bits */
+    int32_t v4[] = {0x7FFFFFFF, 0x7FFFFFFF};
+    uint16_t s4[] = {ARB_S_PWR_CPU, ARB_S_PWR_NEURAL};
+    CHECK(arb_dev_telemetry(&d, s4, v4, 2) == 0);
+    arb_host_poll(&h);
+    CHECK(cl_arb_inputs(&h, &in, &bad) && bad == 0 && in.power_mw == 0xFFFFFFFEu);
+
+    /* only one die sensor reported: that one is the die */
+    arb_host_t h2;
+    memset(&h2, 0, sizeof h2);
+    h2.sensor[ARB_S_T_NEURAL] = CL_C(66);
+    h2.sensor_seen = 1u << ARB_S_T_NEURAL;
+    memset(&in, 0, sizeof in);
+    CHECK(cl_arb_inputs(&h2, &in, &bad) == CL_ARB_DIE && in.die_mc == CL_C(66));
+    h2.sensor[ARB_S_PWR_CPU] = 5000;
+    h2.sensor_seen |= 1u << ARB_S_PWR_CPU;
+    CHECK(cl_arb_inputs(&h2, &in, &bad) == (CL_ARB_DIE | CL_ARB_POWER) && in.power_mw == 5000);
+    h2.sensor[ARB_S_PWR_CPU] = -1; /* the CPU rail alone, impossible */
+    CHECK(cl_arb_inputs(&h2, &in, &bad) == CL_ARB_DIE && bad == CL_ARB_POWER);
+    CHECK(in.power_mw == 5000);
+    h2.sensor[ARB_S_PWR_CPU] = 5000;
+
+    /* the chain: arbiter readings -> cl_step -> ct_budget metrics */
+    cl_ctl_t c;
+    cl_output_t o;
+    ct_metrics_t m;
+    memset(&in, 0, sizeof in);
+    CHECK(cl_init(&c, P("pioneer")));
+    CHECK(cl_arb_inputs(&h2, &in, NULL) & CL_ARB_POWER);
+    in.ambient_mc = CL_C(25);
+    in.intake_mc = CL_C(25);
+    in.exhaust_mc = CL_C(35);
+    CHECK(cl_step(&c, &in, &o));
+    memset(&m, 0, sizeof m);
+    CHECK(cl_ct_metrics(&c, &m));
+    CHECK((m.present & CT_M_WATTS) && m.watts_mw == 5000);
+}
+
 int main(void)
 {
     test_ln();
@@ -1538,6 +1638,7 @@ int main(void)
     test_server_service();
     test_handheld();
     test_ct();
+    test_arb_inputs();
     printf("%d checks, %d failures\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
 }
