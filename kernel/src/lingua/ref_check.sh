@@ -66,6 +66,7 @@ if command -v gforth >/dev/null 2>&1; then
 fi
 # Per-language reference checks: each ref_<lang>.sh adds to ran, diffs, fail.
 for x in src/lingua/ref_*.sh; do
+    case "$x" in */ref_check.sh) continue ;; esac
     [ -f "$x" ] && . "$x"
 done
 for f in $G/*; do
@@ -73,5 +74,5 @@ for f in $G/*; do
     "$d/zxlang" check "$f" > /dev/null || { echo "[FAIL] twin round trip $f"; fail=1; }
 done
 rm -rf "$d"
-[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to gfortran/gforth; twins round-trip)"
+[ $fail = 0 ] && echo "[PASS] lingua reference check ($ran golden and $diffs generated programs byte-identical to gfortran/gforth/fpc; twins round-trip)"
 exit $fail

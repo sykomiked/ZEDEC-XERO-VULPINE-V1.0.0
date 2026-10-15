@@ -38,6 +38,15 @@ static const char *const seeds[] = {
     "; 10 F .\n"
     ": W BEGIN DUP WHILE DUP . 1- REPEAT DROP ; 4 W .\" done\" 42 EMIT\n: U 0 BEGIN 1+ DUP 5 = "
     "UNTIL ; U . 5 ?DUP . .\n",
+    "{$mode iso}\nprogram fz(input, output);\nconst k = -3; t = true;\nvar i, n: integer; b: "
+    "boolean; a: array[-2..4] of integer;\nprocedure p(x: integer; var y: integer);\nvar w: "
+    "array[0..2] of integer;\n  procedure q; begin y := y + x; w[1] := y end;\nbegin q; q; "
+    "writeln(y:4, w[1] mod 5) end;\nfunction f(m: integer): integer;\nbegin if m <= 0 then f "
+    ":= 1 else f := m * f(m - 1) end;\nbegin\n  read(n); for i := -2 to 4 do a[i] := sqr(i) "
+    "div 2;\n  i := 0; repeat i := succ(i) until (i > 3) or odd(i * k);\n  while n > 0 do begin "
+    "p(n, a[n]); n := n - 2 end;\n  case abs(k) of 1, 2: b := t; 3: b := not t and (n < 0) "
+    "end;\n  if b then writeln('yes', f(5):6, -maxint div 7) else write(ord(b), pred(i));\n  "
+    "(* done *) writeln(a[4], true:3, 'end':2)\nend.\n",
 };
 
 static const char *const dict[] = {
