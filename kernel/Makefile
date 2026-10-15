@@ -1468,7 +1468,7 @@ verify-all: test
 		src/oseq/oseq_core.c src/phase_coord/phase_coordinator.c -o /tmp/flt_test_sched_ptr && \
 		/tmp/flt_test_sched_ptr > /tmp/flt_test_sched_ptr.log 2>&1 && echo "[PASS] test_sched_ptr" || { tail -20 /tmp/flt_test_sched_ptr.log; echo "[FAIL] test_sched_ptr"; exit 1; }; \
 	echo "=== Allocators: kmalloc/kcalloc/krealloc and fs_malloc/fs_calloc refuse wrapping sizes ==="; \
-	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/mm -Isrc/rmag \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -D_FORTIFY_SOURCE=0 -Iinclude -Isrc/modbind -Isrc/mm -Isrc/rmag -Isrc/surplus \
 		src/mm/test_mm_alloc.c src/mm/mm.c src/rmag/rmag_core.c -o /tmp/flt_test_mm_alloc && \
 		/tmp/flt_test_mm_alloc > /tmp/flt_test_mm_alloc.log 2>&1 && echo "[PASS] test_mm_alloc" || { tail -20 /tmp/flt_test_mm_alloc.log; echo "[FAIL] test_mm_alloc"; exit 1; }; \
 	echo "=== Audio mixer: exact sample values, clipping, wild ring cursors ==="; \
