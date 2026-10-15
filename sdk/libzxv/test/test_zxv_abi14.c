@@ -612,7 +612,7 @@ int main(void)
     OK(zxv_ctx_create(&ctx));
     OK(zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL_1_4, &cap));
     OK(zxv_cap_attenuate(cap, ZXV_CAP_ALL, &nohw));
-    IS(zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL_1_5 + 1, &cap2), ZXV_E_ARG);
+    IS(zxv_cap_create(ctx, 1, NULL, ZXV_CAP_ALL_1_6 + 1, &cap2), ZXV_E_ARG);
     test_matrix(cap, nohw);
     test_engines(cap);
     zxv_cap_destroy(nohw);

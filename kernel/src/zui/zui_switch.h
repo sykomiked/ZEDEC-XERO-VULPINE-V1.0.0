@@ -10,10 +10,14 @@
  *   SW1 TARGETS. The focusable widgets of a zui_ui_t (shown, enabled, laid
  *       out), or the items of its open menu when one is open, plus, when a
  *       zui_wm_t is attached, every window that is not minimised and every
- *       slot of the strip. They are collected again each time a scan starts,
+ *       slot of the strip, or with the dock (zui_wm.h WM9) its seal and,
+ *       while it is open, the slots of its rings. They are collected again each time a scan starts,
  *       so a screen that changed is scanned as it is now.
  *   SW2 GROUPS THEN ITEMS. Targets are grouped into rows (or columns, or one
  *       list), in reading order; the windows and the strip are a group each.
+ *       The dock's seal is a group of one: choosing it opens the dock (or
+ *       closes it), and the scan that follows starts on its rings, each
+ *       ring a group, the seal still offered to close it.
  *       The highlight steps through the groups; selecting a group steps
  *       through its items; after the last item the group itself is offered
  *       once more, and selecting it goes back to the groups. A group of one
@@ -41,7 +45,10 @@
  *       focuses the widget and presses Enter (a field just takes focus);
  *       long press sends the Menu key (a context menu); scroll sends a
  *       scroll event; back sends the Back key; windows are raised, strip
- *       slots pressed, points clicked. Nothing else is done on its own.
+ *       slots pressed, points clicked; a dock slot is chosen as a press on
+ *       it would be (zui_wm_dock_pick), and scrolling one turns its ring.
+ *       Acting on a window or a point outside the dock closes the dock
+ *       first. Nothing else is done on its own.
  *   SW9 THE HIGHLIGHT is engraved into the ground with a gold edge: it is
  *       the screen's one active element. The fixed line of a point scan is
  *       light green, the sweeping one gold.
@@ -85,7 +92,8 @@ typedef enum {
     ZUI_SW_T_MENU_ITEM,  /* id: an item of the ui's open menu      */
     ZUI_SW_T_WINDOW,     /* id: a zui_wm window id                 */
     ZUI_SW_T_STRIP,      /* id: the window id of a strip slot      */
-    ZUI_SW_T_POINT       /* a point chosen by the point scan       */
+    ZUI_SW_T_POINT,      /* a point chosen by the point scan       */
+    ZUI_SW_T_DOCK        /* id: a dock item (zui_dock_t.item), -1 the seal */
 } zui_sw_tkind_t;
 
 typedef struct {

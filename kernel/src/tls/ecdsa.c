@@ -1,12 +1,12 @@
-/* ecdsa.c — ECDSA verification over P-256 and P-384. See ecdsa.h.
+/* ecdsa.c — ECDSA verification over P-256 and P-384. See ecdsa.h. The
+ * curve arithmetic is shared with the P-256 signer (ecdsa_sign.c) through
+ * ecdsa_int.h.
  *
  * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "ecdsa.h"
-#include "bn.h"
-
-#define EC_LIMBS 12u /* P-384 */
+#include "ecdsa_int.h"
 
 static const uint8_t P256_P[32] = {
     0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -54,11 +54,6 @@ static const uint8_t P384_GY[48] = {
     0x0a, 0x60, 0xb1, 0xce, 0x1d, 0x7e, 0x81, 0x9d, 0x7a, 0x43, 0x1d, 0x7c, 0x90, 0xea, 0x0e, 0x5f,
 };
 
-typedef struct {
-    uint32_t len; /* field bytes */
-    const uint8_t *p, *b, *n, *gx, *gy;
-} curve_t;
-
 static bool curve_get(ecdsa_curve_t c, curve_t *out)
 {
     if (c == ECDSA_P256) {
@@ -78,13 +73,9 @@ uint32_t ecdsa_field_len(ecdsa_curve_t curve)
     return curve_get(curve, &cv) ? cv.len : 0;
 }
 
-typedef struct {
-    uint32_t x[EC_LIMBS], y[EC_LIMBS], z[EC_LIMBS];
-} pt_t;
-
 /* Renes-Costello-Batina 2016, Algorithm 4: complete addition for a = -3.
  * Everything in Montgomery form; bm is the curve constant b. */
-static void pt_add(const bn_mont_t *f, const uint32_t *bm, pt_t *r, const pt_t *p, const pt_t *q)
+void ec_pt_add(const bn_mont_t *f, const uint32_t *bm, pt_t *r, const pt_t *p, const pt_t *q)
 {
     uint32_t t0[EC_LIMBS], t1[EC_LIMBS], t2[EC_LIMBS], t3[EC_LIMBS], t4[EC_LIMBS];
     uint32_t X3[EC_LIMBS], Y3[EC_LIMBS], Z3[EC_LIMBS];
@@ -144,8 +135,8 @@ static void pt_add(const bn_mont_t *f, const uint32_t *bm, pt_t *r, const pt_t *
 
 /* Load an affine big-endian coordinate pair into Montgomery projective
  * form, rejecting coordinates >= p and points off the curve. */
-static bool pt_load(const bn_mont_t *f, const uint32_t *bm, const curve_t *cv, pt_t *r,
-                    const uint8_t *x_be, const uint8_t *y_be)
+bool ec_pt_load(const bn_mont_t *f, const uint32_t *bm, const curve_t *cv, pt_t *r,
+                const uint8_t *x_be, const uint8_t *y_be)
 {
     uint32_t x[EC_LIMBS], y[EC_LIMBS], lhs[EC_LIMBS], rhs[EC_LIMBS], t[EC_LIMBS];
     if (!bn_from_be(x, f->n, x_be, cv->len) || !bn_from_be(y, f->n, y_be, cv->len)) return false;
@@ -169,10 +160,10 @@ static bool load_pub(const bn_mont_t *f, const uint32_t *bm, const curve_t *cv, 
                      const uint8_t *pub, uint32_t pub_len)
 {
     if (pub_len != 1 + 2 * cv->len || pub[0] != 0x04) return false;
-    return pt_load(f, bm, cv, q, pub + 1, pub + 1 + cv->len);
+    return ec_pt_load(f, bm, cv, q, pub + 1, pub + 1 + cv->len);
 }
 
-static bool setup(ecdsa_curve_t curve, curve_t *cv, bn_mont_t *f, uint32_t *bm)
+bool ec_setup(ecdsa_curve_t curve, curve_t *cv, bn_mont_t *f, uint32_t *bm)
 {
     uint32_t b[EC_LIMBS];
     if (!curve_get(curve, cv)) return false;
@@ -188,7 +179,7 @@ bool ecdsa_pubkey_valid(ecdsa_curve_t curve, const uint8_t *pub, uint32_t pub_le
     bn_mont_t f;
     uint32_t bm[EC_LIMBS];
     pt_t q;
-    if (!pub || !setup(curve, &cv, &f, bm)) return false;
+    if (!pub || !ec_setup(curve, &cv, &f, bm)) return false;
     return load_pub(&f, bm, &cv, &q, pub, pub_len);
 }
 
@@ -241,10 +232,10 @@ bool ecdsa_verify_digest(ecdsa_curve_t curve, const uint8_t *pub, uint32_t pub_l
     uint32_t bm[EC_LIMBS];
     pt_t q, gp, gq, acc;
     if (!pub || !digest || !sig_der) return false;
-    if (!setup(curve, &cv, &f, bm)) return false;
+    if (!ec_setup(curve, &cv, &f, bm)) return false;
     if (!bn_mont_init(&g, cv.n, cv.len)) return false;
     if (!load_pub(&f, bm, &cv, &q, pub, pub_len)) return false;
-    if (!pt_load(&f, bm, &cv, &gp, cv.gx, cv.gy)) return false;
+    if (!ec_pt_load(&f, bm, &cv, &gp, cv.gx, cv.gy)) return false;
     const uint32_t n = f.n;
 
     /* signature: SEQUENCE { INTEGER r, INTEGER s } and nothing after it */
@@ -281,22 +272,22 @@ bool ecdsa_verify_digest(ecdsa_curve_t curve, const uint8_t *pub, uint32_t pub_l
     bn_from_mont(&g, u2, t);
 
     /* acc = u1*G + u2*Q */
-    pt_add(&f, bm, &gq, &gp, &q);
+    ec_pt_add(&f, bm, &gq, &gp, &q);
     for (uint32_t i = 0; i < n; i++) {
         acc.x[i] = 0;
         acc.y[i] = f.one[i];
         acc.z[i] = 0;
     }
     for (uint32_t bit = 32 * n; bit-- > 0;) {
-        pt_add(&f, bm, &acc, &acc, &acc);
+        ec_pt_add(&f, bm, &acc, &acc, &acc);
         uint32_t b1 = (u1[bit / 32] >> (bit % 32)) & 1;
         uint32_t b2 = (u2[bit / 32] >> (bit % 32)) & 1;
         if (b1 && b2)
-            pt_add(&f, bm, &acc, &acc, &gq);
+            ec_pt_add(&f, bm, &acc, &acc, &gq);
         else if (b1)
-            pt_add(&f, bm, &acc, &acc, &gp);
+            ec_pt_add(&f, bm, &acc, &acc, &gp);
         else if (b2)
-            pt_add(&f, bm, &acc, &acc, &q);
+            ec_pt_add(&f, bm, &acc, &acc, &q);
     }
     if (bn_is_zero(acc.z, n)) return false;
 

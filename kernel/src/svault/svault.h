@@ -31,6 +31,13 @@
  *      `part` is recorded as overflow kept in the reserve. A part of 0 posts
  *      nothing (SVAULT_ZERO) but still advances the carry. A refused transfer
  *      changes nothing: not the carry, not a counter.
+ *      SOLVENCY FLOOR. A sweep that moves money refuses (SVAULT_ERR_FLOOR,
+ *      nothing changed) unless the reserve left after it still passes S4
+ *      with the vault's floor (floor_num / floor_den, backing), set by
+ *      svault_set_floor. svault_init sets floor 0 (only h > N fails), so
+ *      callers that never set a floor keep their behaviour; a deployment
+ *      sets its real floor right after init. Overflow and zero parts move
+ *      nothing and are not checked.
  *      svault_sweep_split takes the four-bucket output of pay_assure_split and
  *      sweeps its reserve share; svault_sweep_fee does the split itself.
  *   S2 CAP. Holdings h may not exceed floor(N / 3):
@@ -43,7 +50,11 @@
  *      posting of four lines: cash -qty*price, seller fiat +qty*price,
  *      seller V-Bill -qty, vault V-Bill +qty. qty == 0 posts nothing and
  *      returns SVAULT_ZERO. The cash it spends came only from S1 sweeps:
- *          cash balance == swept_total - spent_total          (checked, S6)
+ *      it buys with at most own = swept_total - spent_total, never with cash
+ *      someone else posted into the vault's cash account (S6).
+ *      The seller's fiat and V-Bill accounts must have the same ledger owner
+ *      (SVAULT_ERR_AUTH); authenticating the caller as that owner belongs to
+ *      the layer above (zxvd).
  *      The quantity and cost of the last buy are left in last_qty/last_cost.
  *   S4 REDEMPTION FLOOR. zxv_verify_vault_solvency(reserve, N, h, fn, fd,
  *      backing) is true exactly when
@@ -59,14 +70,23 @@
  *   S5 FIRST LOSS. svault_first_loss(loss) redeems b = min(loss, h) vault
  *      V-Bills back to the issuer (pay_ledger_redeem, at par: N and h both
  *      fall by b) and reports loss - b as the part it could not cover. It
- *      never touches the reserve or the vault's cash. b == 0 posts nothing
+ *      never touches the reserve or the vault's cash (see S6 for V-Bills the
+ *      vault did not buy). b == 0 posts nothing
  *      and returns SVAULT_ZERO.
  *   S6 AUDIT. Lifetime counters share_total, swept_total, overflow_total,
  *      spent_total, vbills_bought, vbills_burned. svault_check verifies
  *          3 * (swept_total + overflow_total) + r == share_total, r < 3,
  *          spent_total <= swept_total,
- *          cash DEBIT == swept_total - spent_total, cash CREDIT == 0,
- *          vault V-Bill DEBIT == vbills_bought - vbills_burned, CREDIT == 0.
+ *          cash DEBIT >= swept_total - spent_total, cash CREDIT == 0,
+ *          vbills_burned <= vbills_bought,
+ *          vault V-Bill DEBIT >= vbills_bought - vbills_burned, CREDIT == 0.
+ *      Only svault's own postings are counted: anyone may post INTO the
+ *      vault's accounts (the ledger cannot stop it), so a deposit from
+ *      outside is surplus that S6 ignores and S3 never spends; it cannot
+ *      break the audit. Value leaving the accounts other than by svault
+ *      still does. svault_first_loss burns outside V-Bills too (they are
+ *      vault-held and absorb first loss like the rest), the vault's own
+ *      first: what it burns beyond bought - burned counts in foreign_burned.
  *
  * Every arithmetic step is overflow-checked before anything is posted; every
  * division is a documented floor whose remainder is either carried (S1) or
@@ -101,7 +121,9 @@ typedef enum {
     SVAULT_ERR_ARG = -1,
     SVAULT_ERR_STATE = -2,    /* init: an account not usable as described */
     SVAULT_ERR_OVERFLOW = -3, /* a counter would overflow                 */
-    SVAULT_ERR_LEDGER = -4    /* the ledger refused (see last_ledger)     */
+    SVAULT_ERR_LEDGER = -4,   /* the ledger refused (see last_ledger)     */
+    SVAULT_ERR_FLOOR = -5,    /* S1: the sweep would break the floor      */
+    SVAULT_ERR_AUTH = -6      /* S3: seller accounts of different owners  */
 } svault_status_t;
 
 typedef struct {
@@ -109,7 +131,9 @@ typedef struct {
     uint64_t carry;                               /* S1 r, < 3       */
     uint64_t share_total, swept_total, overflow_total, spent_total;
     uint64_t vbills_bought, vbills_burned;
+    uint64_t foreign_burned;      /* S5: outside V-Bills burned (S6) */
     uint64_t last_qty, last_cost; /* S3: the last buy */
+    uint64_t floor_num, floor_den, backing; /* S1 solvency floor (S4) */
     pay_status_t last_ledger;
     bool ready;
 } svault_t;
@@ -121,12 +145,18 @@ typedef struct {
 svault_status_t svault_init(svault_t *v, const pay_ledger_t *L, uint32_t reserve, uint32_t cash,
                             uint32_t vbill_issuer, uint32_t vbills);
 
+/* S1: the solvency floor a sweep must keep (S4 terms). floor_den == 0 is
+ * refused (SVAULT_ERR_ARG). */
+svault_status_t svault_set_floor(svault_t *v, uint64_t floor_num, uint64_t floor_den,
+                                 uint64_t backing);
+
 /* S1 (pure): part = floor((share + rem_in) / 3), rem_out = the rest. False
  * (outputs untouched) when rem_in >= 3 or share + rem_in overflows. */
 bool svault_carry(uint64_t rem_in, uint64_t share, uint64_t *part, uint64_t *rem_out);
 
 /* S1. SVAULT_OK (moved), SVAULT_OVERFLOW (kept in the reserve), SVAULT_ZERO
- * (part 0), or an error with nothing changed. */
+ * (part 0), or an error with nothing changed (SVAULT_ERR_FLOOR: the reserve
+ * left would be below the floor). */
 svault_status_t svault_sweep(svault_t *v, pay_ledger_t *L, pay_posting_req_t *req,
                              uint64_t reserve_share);
 /* S1 from pay_assure_split's output: sweeps parts[PAY_ASSURE_RESERVE_FLOOR]. */
@@ -145,7 +175,8 @@ uint64_t svault_room(const svault_t *v, const pay_ledger_t *L);
 bool svault_balances(const svault_t *v, const pay_ledger_t *L, uint64_t *n, uint64_t *h,
                      uint64_t *cash, uint64_t *reserve);
 
-/* S3. SVAULT_OK, SVAULT_ZERO (qty 0, nothing posted), or an error. */
+/* S3. SVAULT_OK, SVAULT_ZERO (qty 0, nothing posted), or an error
+ * (SVAULT_ERR_AUTH: the seller's two accounts have different owners). */
 svault_status_t svault_buy(svault_t *v, pay_ledger_t *L, pay_posting_req_t *req,
                            uint32_t seller_fiat_acct, uint32_t seller_vbill_acct, uint64_t price,
                            uint64_t max_qty);

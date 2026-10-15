@@ -1,8 +1,8 @@
 /* Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC */
 /* SPDX-License-Identifier: Apache-2.0 */
 /* zui_shape.h — complex scripts at the character level: Arabic letters that
- * join, Devanagari syllables that reorder, and the grapheme clusters a caret
- * must never split.
+ * join, Brahmic (Indic, Myanmar, Khmer) syllables that reorder, and the
+ * grapheme clusters a caret must never split.
  *
  * zui draws text with a plain font (src/font/truetype.c: one glyph per code
  * point, no glyph layout tables). These rules turn logical text into code points
@@ -42,17 +42,26 @@
  *      flags in pairs (GB12, GB13). zui_grapheme_next / _prev give the next or
  *      previous boundary from a byte offset, so a caret never lands inside a
  *      cluster, and a delete or selection takes whole clusters.
- *   S7 DEVANAGARI SYLLABLES. zui_indic_syllable finds the syllable at an
- *      index: a consonant cluster (C [N] (H [ZWJ|ZWNJ] C [N])*) with its
- *      matras, halant and modifiers, an independent vowel with its signs, or
- *      one other character. It reports the base consonant (the last
- *      consonant of the cluster), a reph (RA HALANT at the start of a cluster
- *      with a consonant after it: drawn as a mark above the end of the
- *      syllable), a pre-base matra (I, U+093F, or prishthamatra E, U+094E)
- *      and whether the cluster ends in a halant (a dead consonant).
- *   S8 zui_indic_visual reorders each syllable for a plain font: the
- *      pre-base matra is moved in front of the consonant cluster it belongs
- *      to (in front of the reph too, which is drawn above). map[] as in S5.
+ *   S7 BRAHMIC SYLLABLES. zui_indic_syllable finds the syllable at an
+ *      index in Devanagari, Bengali, Gurmukhi, Gujarati, Odia, Tamil, Telugu,
+ *      Kannada, Malayalam, Sinhala, Myanmar or Khmer (categories from the
+ *      Unicode 15.1 IndicSyllabicCategory and IndicPositionalCategory): a
+ *      consonant cluster (C [N] (H [ZWJ|ZWNJ] C [N])*, H being a virama or an
+ *      invisible stacker such as Khmer COENG) with its matras, halant and
+ *      modifiers, an independent vowel with its signs, or one other
+ *      character. It reports the base consonant (the last consonant of the
+ *      cluster), a reph (RA HALANT at the start of a cluster with a consonant
+ *      after it, in the scripts of India that form one: drawn as a mark above
+ *      the end of the syllable), the first pre-base matra (one drawn on the
+ *      left, such as Devanagari I U+093F or Myanmar E U+1031) and whether the
+ *      cluster ends in a halant (a dead consonant).
+ *   S8 zui_indic_visual reorders each consonant syllable for a plain font:
+ *      every pre-base matra is moved in front of the cluster it belongs to (in
+ *      front of the reph too, which is drawn above), the Myanmar medial RA
+ *      after them; a two-part vowel (Bengali O, Tamil O, Sinhala O, Khmer OE)
+ *      is split, its left part in front of the cluster and the rest in its
+ *      place, so the output can be longer than the input. map[] as in S5:
+ *      both parts of a split vowel map to its index.
  *   S9 Integer only, no allocation, deterministic. Code point arrays are the
  *      caller's; UTF-8 helpers are zui_bidi.h's.
  */
@@ -129,18 +138,18 @@ uint32_t zui_grapheme_prev(const char *s, uint32_t len, uint32_t at);
 bool zui_grapheme_is_boundary(const char *s, uint32_t len, uint32_t at);
 uint32_t zui_grapheme_count(const char *s, uint32_t len);
 
-/* ---- S7, S8: Devanagari --------------------------------------------------- */
+/* ---- S7, S8: Brahmic scripts ---------------------------------------------- */
 
 typedef enum {
     ZUI_INDIC_X = 0, /* other                               */
     ZUI_INDIC_C,     /* consonant                           */
     ZUI_INDIC_V,     /* independent vowel                   */
     ZUI_INDIC_N,     /* nukta                               */
-    ZUI_INDIC_H,     /* halant (virama)                     */
+    ZUI_INDIC_H,     /* halant (virama) or stacker          */
     ZUI_INDIC_M,     /* dependent vowel (matra)             */
-    ZUI_INDIC_MPRE,  /* pre-base matra: I, prishthamatra E  */
-    ZUI_INDIC_VM,    /* candrabindu, anusvara, visarga      */
-    ZUI_INDIC_A,     /* stress and accent marks             */
+    ZUI_INDIC_MPRE,  /* pre-base matra, drawn on the left   */
+    ZUI_INDIC_VM,    /* bindu, visarga, tone, final         */
+    ZUI_INDIC_A,     /* cantillation (stress) marks         */
     ZUI_INDIC_ZWJ,
     ZUI_INDIC_ZWNJ
 } zui_indic_cat_t;

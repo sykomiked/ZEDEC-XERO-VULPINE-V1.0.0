@@ -16,7 +16,7 @@ import org.zedec.zxv.mobile.internal.Status
  * the paths with [load], the `zxv.library` / `zxv.jni.library` system
  * properties, or `ZXV_LIBRARY_PATH` / `ZXV_JNI_LIBRARY_PATH`.
  *
- * Loading refuses a libzxv whose ABI is not 1.5 or a later 1.x.
+ * Loading refuses a libzxv whose ABI is not 1.6 or a later 1.x.
  */
 object Zxv {
     /** An ABI version. */
@@ -124,13 +124,30 @@ enum class Permission {
     MINT,
 
     /** Create and act on paradox handles ([ParadoxBook]; `ZXV_CAP_PARADOX`, ABI 1.5). */
-    PARADOX;
+    PARADOX,
+
+    /**
+     * Play-lane vouchers and the spend meter ([PlaySandbox], [SpendMeter];
+     * `ZXV_CAP_VINO`, 1 << 15, ABI 1.6). Building payment requests and
+     * verifying receipts need no permission; signing a receipt needs
+     * [CRYPTO_SIGN] (the wallet's call, not the app's).
+     */
+    VINO;
 
     /** The bit, `1 << ordinal`. */
     val bit: Long get() = 1L shl ordinal
 
     companion object {
-        /** Every permission. */
+        /**
+         * `ZXV_CAP_ALL_1_5`: every bit defined as of ABI 1.5 (bits 0..14).
+         * Kept as it was: the ABI only adds bits.
+         */
+        const val ALL_1_5: Long = (1L shl 15) - 1
+
+        /** `ZXV_CAP_ALL_1_6`: every bit defined as of ABI 1.6 (bits 0..15, adds [VINO]). */
+        const val ALL_1_6: Long = (1L shl 16) - 1
+
+        /** Every permission this SDK knows (as of ABI 1.6, the mask [ALL_1_6]). */
         @JvmStatic
         fun all(): Set<Permission> = EnumSet.allOf(Permission::class.java)
 
@@ -156,7 +173,7 @@ enum class Feature(val bit: Long) {
     HEX(0x08000000),
 }
 
-/** An ABI 1.5 feature group (`ZXV_FEAT2_*`, reported by `zxv_features2`). */
+/** An ABI 1.5+ feature group (`ZXV_FEAT2_*`, reported by `zxv_features2`; [VINO] is ABI 1.6). */
 enum class Feature2(val bit: Long) {
     /** Treaties: COBOL copybook records and Sutra text ([Treaty]). */
     TREATY(0x01),
@@ -181,4 +198,7 @@ enum class Feature2(val bit: Long) {
 
     /** The paradox engine ([ParadoxBook]). */
     PARADOX(0x80),
+
+    /** Vino Embed: the play lane, payment requests, receipts and the meter ([PlaySandbox]; ABI 1.6). */
+    VINO(0x100),
 }

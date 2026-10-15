@@ -18,7 +18,11 @@ module Zxv
       Status::E_VERIFY => VerificationFailedError,
       Status::E_NOTIMPL => NotImplementedError,
       Status::E_CONSENT => ConsentRequiredError,
-      Status::E_PARADOX_OWNER => OwnerApprovalRequiredError
+      Status::E_PARADOX_OWNER => OwnerApprovalRequiredError,
+      Status::E_RAIL => WrongRailError,
+      Status::E_COVERAGE => CoverageError,
+      Status::E_EXPIRED => ExpiredError,
+      Status::E_CHANCE => ChanceRefusedError
     }.freeze
 
     module_function
@@ -39,6 +43,7 @@ module Zxv
         case status
         when Status::E_FLOAT then FloatRejectedError.new(detail)
         when Status::E_TREATY then TreatyError.new(status, detail)
+        when Status::E_LANE then LaneError.new(status, detail)
         else ZxvUsageError.new(status, detail)
         end
       when Status::CLASS_REFUSED then (REFUSED_TYPES[status] || ZxvRefusedError).new(status, detail)

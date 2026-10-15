@@ -27,6 +27,7 @@
  */
 #include "arm64_arch.h"
 #include "board_profile.h"
+#include "../../src/crash/crash.h"
 
 /* ===== PL011 (ARM PrimeCell) register offsets ===== */
 #define PL011_DR    0x00
@@ -157,6 +158,7 @@ void uart_init(void) {
 }
 
 void uart_puts(const char *s) {
+    crash_log_puts(s); /* the console tail goes into any crash record */
     while (*s) {
         if (*s == '\n') uart_putc('\r');
         uart_putc(*s++);

@@ -408,6 +408,116 @@ let ok = try k.proof?.verify() ?? false                     // state is "AAAA...
 _ = (o, ok)
 ```
 
+## Vino Embed (ABI 1.6)
+
+ABI 1.6 adds one group, `Vino`: what an app or game needs to take part in
+Vino without ever holding anyone's value or keys.
+`ZxvLibrary.features2.contains(.vino)` reports it. `CapabilitySet.all1_6`
+is every bit, adding `.vino`; `.all`, `.all1_4` and `.all1_5` keep their
+values.
+
+There are two lanes, and they never meet:
+
+- **Play** (`Vino.Play`): a sandbox inside the app, with its own play
+  units, issuers, holders and vouchers, in process memory only. Play units
+  come from a faucet (`back`), are not money, are lost when the sandbox is
+  closed, and can never be converted into, redeemed for or moved into live
+  value: no call takes a play sandbox and anything live.
+- **Live**: real Vino stays in the user's own ZXV wallet, never in the app.
+  The app builds a payment request (`Vino.Request`); the user approves it
+  in their wallet, which signs a receipt (`Vino.signReceipt`, the wallet's
+  call); the app checks the receipt offline (`Vino.verifyReceipt`). The
+  app never sees a balance, a key or a custody account.
+
+A **voucher** is one play coin with a Fibonacci ladder face (1, 2, 3, 5,
+8, ...). It is held by one holder on exactly one rail at a time:
+`.bearer` (a note in the hand) or `.ghost` (its twin on the play ledger).
+A transfer must name the active rail, so a voucher can never be spent
+twice. **Coverage**: an issuer may issue only while
+`10 * backing >= 18 * outstanding` (1.8x, exact integers). **Redeeming**
+hands a voucher back to its issuer and retires it; nothing is paid out to
+anyone, and there is no interest, yield or return of any kind.
+
+The new statuses map to the existing error classes: `ZXV_E_RAIL`,
+`E_COVERAGE`, `E_EXPIRED` and `E_CHANCE` are `.refused`, with reasons
+`.railMismatch`, `.coverageRefused`, `.requestExpired` and
+`.paidChanceRefused`; `ZXV_E_LANE` is `.usage` (`isLane`). `Rail`, `Lane`
+and `AccountKind` are structs with named values (`.bearer`, `.live`,
+`.issuer`, ...) rather than enums, so a raw value from elsewhere reaches
+the library and is refused there rather than guessed at.
+
+A play-lane shop: the issuer backs, issues a voucher to a player, the
+player spends it at a friend and the friend redeems it.
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.vino)
+let play = try Vino.Play(cap)
+let shop = try play.openIssuer(owner: 1)           // account ids count up from 0
+let player = try play.openHolder(owner: 100)
+let friend = try play.openHolder(owner: 101)
+try play.back(issuer: shop, amount: 18)            // play units from the faucet; worth nothing
+let v = try play.issue(issuer: shop, holder: player, face: 8)   // 10*18 >= 18*8: allowed; id 1
+do { try play.issue(issuer: shop, holder: player, face: 13) }   // 10*18 < 18*(8+13): refused
+catch where error.refusal == .coverageRefused {}
+try play.transfer(v, from: player, to: friend, rail: .bearer)   // spend it on its active rail
+do { try play.transfer(v, from: friend, to: player, rail: .ghost) }
+catch where error.refusal == .railMismatch {}      // not its rail: one coin, one rail
+try play.redeem(v, holder: friend)                 // retired; nothing is paid out
+let retired = try play.voucher(v).state == .redeemed   // true
+let empty = try play.vouchers(friend).isEmpty          // true
+try play.check()                                   // re-checks every invariant
+```
+
+A live payment request, a wallet receipt and an offline check. The wallet
+part normally runs in the user's wallet (zxvd), not in the app; it is here
+only so the example runs on its own.
+
+```swift
+// App side: a plain value, encoded to 160 canonical bytes. Its id is SHA-256 of them.
+let req = Vino.Request(lane: .live,
+                       merchant: [UInt8](repeating: 0x01, count: 32),   // the payee's id
+                       nonce: try randomBytes(16),                      // unique per request
+                       amount: 1_234_567,                               // VFV minor units
+                       createdAt: 1_700_000_000,
+                       expiresAt: 1_700_000_600,                        // ten minutes to approve
+                       memo: "Sword of Dawn")                           // 0...64 printable ASCII
+let encoded = try req.encode()                     // encoded.bytes (160), encoded.id (32)
+
+// Wallet side (for this example only): approve with the wallet's ML-DSA-87 key.
+let walletCtx = try ZxvContext()
+let walletCap = try walletCtx.rootCapability(.cryptoSign)
+let wallet = try MlDsa87(walletCap).keygen()
+let sig = try Vino.signReceipt(walletCap, request: encoded.bytes, walletSecretKey: wallet.secretKey,
+                               walletPublicKey: wallet.publicKey, approvedAt: 1_700_000_100)
+
+// App side again, offline: no capability, no network.
+let paid = try Vino.isReceiptValid(request: encoded.bytes, walletPublicKey: wallet.publicKey,
+                                   approvedAt: 1_700_000_100, signature: sig, now: 1_700_000_200)   // true
+let late = try Vino.isReceiptValid(request: encoded.bytes, walletPublicKey: wallet.publicKey,
+                                   approvedAt: 1_700_000_100, signature: sig, now: 1_700_000_601)   // false
+let same = try Vino.Request.decode(encoded.bytes)  // == req
+```
+
+A live request marking a paid chance outcome (`.chance`: a loot box or a
+paid draw) is refused when it is encoded (`.paidChanceRefused`); the
+raffle is a separate module, not a payment request. A deployment that sets
+a per-device daily cap counts approvals with `Vino.SpendMeter`:
+
+```swift
+let ctx = try ZxvContext()
+let cap = try ctx.rootCapability(.vino)
+let meter = try Vino.SpendMeter(cap, dailyCap: 100)   // at most 100 per day index
+let left = try meter.admit(day: 19_700, amount: 60)   // 40 left today
+let d = try meter.tryAdmit(day: 19_700, amount: 41)   // admitted false, left 40: nothing counted
+```
+
+The meter is a counter, not a legal check, and makes no exemption claim.
+`Play` and `SpendMeter` are internally serialized (any thread may call
+them), keep their capability and context alive, and follow the same
+`close()` rules as the ABI 1.5 handles. `VinoTests` runs these three
+examples verbatim.
+
 ## API overview
 
 | Type | Main members | Needs |
@@ -434,6 +544,10 @@ _ = (o, ok)
 | `HwRegion` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`, `logEntry` | `.hwReconf` |
 | `Hw` | `keygen`, `buildImage`, `vectorList` | `.cryptoSign` |
 | `StateChannel` | `encodeState`, `ledgerState` | `.evm` (+ `.ledgerRead`) |
+| `Vino.Play` | `open`, `openIssuer`, `openHolder`, `back`, `unback`, `issue`, `transfer`, `setRail`, `redeem`, `voucher`, `account`, `vouchers`, `check`, `close` | `.vino` |
+| `Vino.Request` | `lane`, `flags`, `merchant`, `nonce`, `amount`, `createdAt`, `expiresAt`, `memo`; `encode`, `decode`, `decodeWithId` | - |
+| `Vino` receipts | `receiptMessage`, `verifyReceipt`, `isReceiptValid` (pure); `signReceipt` (wallet side) | `.cryptoSign` to sign only |
+| `Vino.SpendMeter` | `admit`, `tryAdmit`, `close` | `.vino` |
 
 ## Examples
 
@@ -535,7 +649,7 @@ cd sdk/swift && swift test          # macOS CI and Linux alike
 ASAN_OPTIONS=detect_leaks=0 swift test --sanitize=address
 ```
 
-`--sanitize=address` passes all 62 tests. LeakSanitizer reports only
+`--sanitize=address` passes all 74 tests. LeakSanitizer reports only
 allocations made by the XCTest runner and the Swift runtime. None of them
 come from `Sources/Zxv` or libzxv, which is why `detect_leaks=0` is set above.
 `--sanitize=thread` is not supported here: ThreadSanitizer and the fork in the
@@ -572,6 +686,15 @@ The XCTest suite (`Tests/ZxvTests`) runs against the real library and reads
   path, the error type for each new status, capability refusals per
   group, and a poisoned context.
 - the README's ABI 1.5 examples (`ReadmeSnippetTests`)
+- the vino group (ABI 1.6, `VinoTests`): every vector in the `status_abi16`
+  and `vino` sections exactly (request bytes, ids and refusals, one-byte
+  decode refusals, the receipt message, the deterministic signature and
+  every verify check, the ordered play scenario with its final accounts,
+  voucher lists and vouchers, and the meter scenario through `admit` and
+  `tryAdmit`), plus closed handles, handles that outlive their context
+  object, the voucher list's two-call path (600 vouchers), the reason for
+  each new status, capability refusals (no `.vino`, revoked, unattested),
+  a poisoned context and the README's Vino examples
 
 If you keep the conformance files elsewhere, set `ZXV_CONFORMANCE_DIR` to their directory.
 
@@ -609,5 +732,10 @@ If you keep the conformance files elsewhere, set `ZXV_CONFORMANCE_DIR` to their 
   - **Out-of-range codes.** Swift enums cannot hold out-of-range C codes,
     so those inputs are refused at compile time instead of returning
     `ZXV_E_ARG`.
+- **Vino Embed limits.** Play units are not money, are lost when the sandbox is closed, and can never
+  become live value. The live flow here is the app's half only: approval happens in the user's wallet, which
+  posts the payment on its own ledger. Receipts use the reference ML-DSA-87, not FIPS 140-3 validated.
+  `SpendMeter` is a counter, not a legal check. Whether a given deployment of Vino is store credit, a
+  prepaid access product or something else is a legal question pending counsel; this SDK does not decide it.
 - **Naming.** The entry point is `ZxvLibrary`, not `Zxv`, because a type with the module's name would
   break module-qualified names such as `Zxv.Model`.

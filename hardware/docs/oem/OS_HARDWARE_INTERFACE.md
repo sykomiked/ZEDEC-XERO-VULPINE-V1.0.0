@@ -42,8 +42,13 @@ HQC uses `pclmulqdq` (x86) or `pmull` (AArch64) when built with those flags
 
 ZXV's drivers today are the ones QEMU needs: virtio block, net, GPU, input
 and sound, an ATA driver, 16550 and PL011 UARTs, GICv3, the RISC-V PLIC,
-the UEFI framebuffer and PCI enumeration. **No physical storage, USB,
-network, GPU, audio or Wi-Fi silicon is supported yet.** The Wi-Fi
+the UEFI framebuffer and PCI enumeration, plus standard-class drivers for
+real silicon in `kernel/src/hwdrv`: NVMe, AHCI, xHCI with USB keyboard and
+mass storage, Intel e1000 and igb, and HD Audio, each bound and
+self-tested at boot in QEMU (`build_system/hw_drivers_check.sh`), and a
+Realtek r8169 driver tested on the host (`make -C kernel test-hwdrv`).
+**None has run on a physical board yet, and no 10 GbE-class network, GPU
+or Wi-Fi silicon is supported.** The Wi-Fi
 subsystem (`kernel/src/wifi`) implements the 802.11 protocol layers and says
 in its header that there is no Wi-Fi silicon driver.
 

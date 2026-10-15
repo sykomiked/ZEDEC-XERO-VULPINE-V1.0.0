@@ -35,9 +35,10 @@
 #include "web4_web2.h" /* the bounded RFC 8259 tokenizer */
 #include "web4_util.h" /* hex */
 #include "zxv_api.h"   /* libzxv: the frozen C ABI (never zxv_model_*: see below) */
-#include "zxv_files.h" /* files.*: the ZXV folder */
-#include "zxv_spaces.h" /* spaces.*: who may see and change each place */
-#include "juris.h"      /* J5: the jurisdiction host (kernel/src/juris) */
+#include "zxvd_rpc_modules.h" /* freight, harmonic, stream, ehop, web4 */
+#include "zxv_files.h"        /* files.*: the ZXV folder */
+#include "zxv_spaces.h"       /* spaces.*: who may see and change each place */
+#include "juris.h"            /* J5: the jurisdiction host (kernel/src/juris) */
 
 /* zxv_host.c has its own zxv_model_open/zxv_model_info (zxv_model_host.h)
  * with other signatures; the executable's definitions win over libzxv's
@@ -2052,6 +2053,37 @@ static void m_play_draft(call_t *c)
     free_files(f, n);
 }
 
+/* ----- social.* call.* xlate.* devmesh.* ui.* (zxvd_people.c) ----- */
+
+static const zxvd_people_ops_t *PEOPLE;
+
+void zxvd_rpc_set_people_ops(const zxvd_people_ops_t *ops)
+{
+    PEOPLE = ops;
+}
+
+/* one handler for every people method: the name is read back from the request */
+static void m_people(call_t *c)
+{
+    char method[64];
+    if (!PEOPLE || !PEOPLE->call) return fail(c, E_METHOD, "not available");
+    int32_t m = w4_json_get(c->js, c->t, c->n, 0, "method");
+    if (m < 0 || w4_json_str(c->js, &c->t[m], method, sizeof method) < 0)
+        return fail(c, E_REQUEST, "invalid request");
+    const char *ps = "{}";
+    size_t pl = 2;
+    if (c->params >= 0) {
+        ps = c->js + c->t[c->params].start;
+        pl = (size_t) (c->t[c->params].end - c->t[c->params].start);
+    }
+    char msg[240] = "";
+    int code = PEOPLE->call(method, ps, pl, c->res, msg, sizeof msg);
+    if (code) {
+        c->res->len = 0;
+        fail(c, code, "%s", msg[0] ? msg : "failed");
+    }
+}
+
 static void m_update(call_t *c)
 {
     if (!OPS || !OPS->update_check) return fail(c, E_METHOD, "not available");
@@ -2386,6 +2418,32 @@ static const method_t METHODS[] = {
     {"play.catalogue", m_play_catalogue, PH_READ},
     {"play.run", m_play_run, PH_NO},
     {"play.draft", m_play_draft, PH_NO},
+    /* people (zxvd_people.c): the control socket only */
+    {"social.post", m_people, PH_NO},
+    {"social.feed", m_people, PH_NO},
+    {"social.groups", m_people, PH_NO},
+    {"social.group_create", m_people, PH_NO},
+    {"social.join", m_people, PH_NO},
+    {"social.leave", m_people, PH_NO},
+    {"social.react", m_people, PH_NO},
+    {"social.export", m_people, PH_NO},
+    {"social.import", m_people, PH_NO},
+    {"call.start", m_people, PH_NO},
+    {"call.accept", m_people, PH_NO},
+    {"call.hangup", m_people, PH_NO},
+    {"call.status", m_people, PH_NO},
+    {"call.signal", m_people, PH_NO},
+    {"xlate.detect", m_people, PH_NO},
+    {"xlate.translate", m_people, PH_NO},
+    {"xlate.languages", m_people, PH_NO},
+    {"devmesh.status", m_people, PH_NO},
+    {"devmesh.invite", m_people, PH_NO},
+    {"devmesh.join", m_people, PH_NO},
+    {"devmesh.confirm_sas", m_people, PH_NO},
+    {"devmesh.revoke", m_people, PH_NO},
+    {"devmesh.devices", m_people, PH_NO},
+    {"ui.get", m_people, PH_NO},
+    {"ui.set", m_people, PH_NO},
 };
 #define N_METHODS (sizeof METHODS / sizeof METHODS[0])
 
@@ -2397,6 +2455,7 @@ static void m_discover(call_t *c)
         if (i) zxvd_buf_raw(c->res, ",", 1);
         zxvd_buf_json_str(c->res, METHODS[i].name);
     }
+    zxvd_mod_names(c->res); /* the module methods (zxvd_rpc_modules.h), after zxvd's own */
     for (uint32_t i = 0; i < N_EXT; i++)
         for (uint32_t j = 0; j < EXT[i].n; j++) {
             zxvd_buf_raw(c->res, ",", 1);
@@ -2449,7 +2508,7 @@ int zxvd_rpc_add_group(const zxvd_group_t *g)
         return -1;
     for (uint32_t i = 0; i < g->n_methods; i++) {
         const char *m = g->methods[i].name;
-        if (!m || !*m || !g->methods[i].fn || group_method(m, NULL)) return -1;
+        if (!m || !*m || !g->methods[i].fn || group_method(m, NULL) || zxvd_mod_has(m)) return -1;
         for (size_t k = 0; k < N_METHODS; k++)
             if (!strcmp(METHODS[k].name, m)) return -1;
         for (uint32_t k = 0; k < N_EXT; k++)
@@ -2781,7 +2840,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
                 grp = GROUPS[g];
                 break;
             }
-    if (!fn && !ext && !gm) {
+    int mod = fn || ext || gm ? -1 : zxvd_mod_find(line, &t[m]); /* zxvd_rpc_modules.h */
+    if (!fn && !ext && !gm && mod < 0) {
         put_error(out, line, t, id, E_METHOD, "method not found", 0);
         return !notify;
     }
@@ -2800,6 +2860,8 @@ bool zxvd_rpc_handle_line(const char *line, size_t len, zxvd_buf_t *out)
         fn->fn(&c);
     else if (ext)
         ext(&c);
+    else if (mod >= 0)
+        zxvd_mod_call(mod, line, t, n, p, &res, &c.err, c.msg, sizeof c.msg);
     else if (!gm->always && !zxvd_rpc_enabled(grp->feature)) /* X4 */
         fail(&c, ZXVD_E_OFF, "%s is off: start zxvd with --enable %s, or call features.set%s",
              grp->feature, grp->feature,

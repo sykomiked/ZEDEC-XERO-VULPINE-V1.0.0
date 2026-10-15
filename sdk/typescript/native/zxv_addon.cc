@@ -692,6 +692,14 @@ Napi::Value Load(const Napi::CallbackInfo &info)
     FN(zxv_paradox_graph_destroy); FN(zxv_paradox_graph_add_node); FN(zxv_paradox_graph_add_dep);
     FN(zxv_paradox_graph_update); FN(zxv_paradox_graph_pass); FN(zxv_paradox_graph_state);
     FN(zxv_paradox_graph_node_at); FN(zxv_paradox_graph_info);
+    // ABI 1.6: vino (Vino Embed)
+    FN(zxv_vino_play_create); FN(zxv_vino_play_destroy); FN(zxv_vino_play_open); FN(zxv_vino_play_back);
+    FN(zxv_vino_play_unback); FN(zxv_vino_issue); FN(zxv_vino_transfer); FN(zxv_vino_set_rail);
+    FN(zxv_vino_redeem); FN(zxv_vino_voucher_info); FN(zxv_vino_account_info); FN(zxv_vino_vouchers);
+    FN(zxv_vino_play_check); FN(zxv_vino_request_encode); FN(zxv_vino_request_decode);
+    FN(zxv_vino_receipt_msg); FN(zxv_vino_receipt_sign);
+    FN(zxv_vino_receipt_verify); FN(zxv_vino_meter_create); FN(zxv_vino_meter_destroy);
+    FN(zxv_vino_meter_admit);
 
     g_generate = reinterpret_cast<decltype(g_generate)>(find_symbol(g_lib, "zxv_generate"));
     g_last_error = reinterpret_cast<decltype(g_last_error)>(find_symbol(g_lib, "zxv_last_error"));

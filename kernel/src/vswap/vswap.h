@@ -100,7 +100,15 @@
  * against the ledger before the first posting; should a later posting still
  * be refused (VSWAP_ERR_PARTIAL), the earlier ones stand and paid[] and each
  * position's last_vino / last_vbills say exactly who was paid what.
- * Identifiers are SHA-256(seed || tag || seq) as in vhub; e2e is VSWAP-<seq>.
+ * Identifiers are SHA-256(seed || tag || seq) as in vhub; e2e is "VSWAP-" and
+ * the first 12 bytes of SHA-256(seed || 'E' || seq) in hex, so a ledger
+ * poster without the seed cannot take a future e2e first and force a partial
+ * dividend.
+ *
+ * OWNER BINDING. swap in, swap out and lock refuse (VSWAP_ERR_AUTH) when the
+ * party's Vino and V-Bill accounts have different ledger owners, so proceeds
+ * cannot be sent to someone else's account. That is all this module checks:
+ * authenticating the caller as that owner belongs to the layer above (zxvd).
  *
  * HONEST LIMITS. A redeemable instrument paying a share of protocol revenue
  * is likely a security, a collective investment scheme or a deposit-like
@@ -137,13 +145,14 @@ typedef enum {
     VSWAP_ERR_DUST = -6,     /* W3/W4: nothing whole to give */
     VSWAP_ERR_FUNDS = -7,    /* the payer does not hold enough */
     VSWAP_ERR_OVERFLOW = -8,
-    VSWAP_ERR_STATE = -9,   /* h > N, a broken tier sum, a bad ledger */
-    VSWAP_ERR_LEDGER = -10, /* the ledger refused (see last_ledger) */
-    VSWAP_ERR_EMPTY = -11,  /* W5: the dividend pool is empty */
-    VSWAP_ERR_NOHOLD = -12, /* W5: no weight to pay to */
-    VSWAP_ERR_FULL = -13,   /* T1: position table full */
-    VSWAP_ERR_LOCKED = -14, /* T3: no notice, or the notice period runs */
-    VSWAP_ERR_PARTIAL = -15 /* W5: a later batch was refused */
+    VSWAP_ERR_STATE = -9,    /* h > N, a broken tier sum, a bad ledger */
+    VSWAP_ERR_LEDGER = -10,  /* the ledger refused (see last_ledger) */
+    VSWAP_ERR_EMPTY = -11,   /* W5: the dividend pool is empty */
+    VSWAP_ERR_NOHOLD = -12,  /* W5: no weight to pay to */
+    VSWAP_ERR_FULL = -13,    /* T1: position table full */
+    VSWAP_ERR_LOCKED = -14,  /* T3: no notice, or the notice period runs */
+    VSWAP_ERR_PARTIAL = -15, /* W5: a later batch was refused */
+    VSWAP_ERR_AUTH = -16     /* a party's two accounts have different owners */
 } vswap_status_t;
 
 typedef enum {

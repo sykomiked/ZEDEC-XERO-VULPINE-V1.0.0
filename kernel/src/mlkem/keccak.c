@@ -127,7 +127,7 @@ static void keccak_sponge(const uint8_t *data, size_t len, size_t rate,
 
     /* Final (possibly partial) block with padding */
     size_t rem = len - off;
-    for (size_t i = 0; i < rate; i++) block[i] = 0;
+    for (size_t i = 0; i < sizeof(block); i++) block[i] = 0;
     for (size_t i = 0; i < rem; i++) block[i] = data[off + i];
     block[rem] ^= suffix;
     block[rate - 1] ^= 0x80;

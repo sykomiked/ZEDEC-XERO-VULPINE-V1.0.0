@@ -28,10 +28,10 @@ final class Zxv
         "hw" => 0x10000000,
     ];
 
-    /** ABI 1.5 feature bits of zxv_features2, by name. */
+    /** ABI 1.5+ feature bits of zxv_features2, by name ("vino" since 1.6). */
     public const FEATURES2 = [
         "treaty" => 0x01, "aipi" => 0x02, "coin" => 0x04, "fee" => 0x08, "vhub" => 0x10, "freight" => 0x20,
-        "web4" => 0x40, "paradox" => 0x80,
+        "web4" => 0x40, "paradox" => 0x80, "vino" => 0x100,
     ];
 
     private static FatalPolicy $fatalPolicy = FatalPolicy::Throw;

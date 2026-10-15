@@ -48,7 +48,8 @@ export {
   Status, StatusClass, ZxvError, ZxvUsageError, FloatRejectedError, ZxvRefusedError, CapabilityDeniedError,
   BudgetExhaustedError, InsufficientFundsError, VerificationFailedError, NotImplementedError, ZxvSystemError,
   ZxvFatalError, DenominationError, TreatyError, CidMismatchError, ConsentDeniedError, ErasureError, PegError,
-  LimitExceededError, ParadoxStepLimitError, OwnerApprovalRequiredError,
+  LimitExceededError, ParadoxStepLimitError, OwnerApprovalRequiredError, WrongRailError, CoverageError, WrongLaneError,
+  RequestExpiredError, PaidChanceRefusedError,
 } from './errors.js';
 export type { FatalPolicy, ZxvStatusInfo } from './errors.js';
 // ---- ABI 1.5 ----
@@ -103,3 +104,10 @@ export {
 export type {
   ParadoxClass, ParadoxClassification, ParadoxClassifyOptions, ParadoxRegistryEntry, ParadoxDestructiveInput, ParadoxDestructiveResult, ParadoxPolicyValues, ParadoxPolicyBounds, ParadoxHoldInfo, ParadoxBranch, ParadoxNode, ParadoxGraphInfo,
 } from './paradox.js';
+// ---- ABI 1.6 ----
+export {
+  VINO_REQUEST_BYTES, VINO_REQUEST_ID_BYTES, VINO_MEMO_MAX, VINO_MERCHANT_BYTES, VINO_NONCE_BYTES, VINO_RECEIPT_MSG_BYTES, VINO_WALLET_PK_BYTES, VINO_WALLET_SK_BYTES, VINO_SIG_BYTES, VINO_MAX_ACCOUNTS, VINO_MAX_VOUCHERS, VINO_AMOUNT_MAX, VinoRail, VinoLane, VinoAccountKind, VinoVoucherState, VinoRequestFlag, VinoPlay, SpendMeter, PaymentRequest, Receipt, Vino,
+} from './vino.js';
+export type {
+  VinoAccountInfo, VinoVoucherInfo, SpendMeterResult, PaymentRequestFields, EncodedPaymentRequest, DecodedPaymentRequest, ReceiptFields,
+} from './vino.js';

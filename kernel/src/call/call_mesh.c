@@ -3,6 +3,7 @@
 #include "call_mesh.h"
 #include "call_common.h"
 #include "call_rtp.h"
+#include "../robin_debanks/sha256.h"
 
 #define NOT_IN_TREE 0xffu
 #define MAX_TABLE   4096u
@@ -150,6 +151,38 @@ int call_mesh_parse(const uint8_t *msg, uint32_t len, uint32_t *group_id, uint8_
 
 /* ---- membership ---- */
 
+uint32_t call_mesh_id_of(const uint8_t pubkey[CALL_MESH_KEY_LEN])
+{
+    static const uint8_t tag[15] = {'Z', 'X', '-', 'C', 'A', 'L', 'L', '-',
+                                    'M', 'E', 'S', 'H', '-', 'I', 'D'};
+    sha256_ctx_t c;
+    uint8_t d[SHA256_DIGEST_LEN];
+    sha256_init(&c);
+    sha256_update(&c, tag, sizeof(tag));
+    sha256_update(&c, pubkey, CALL_MESH_KEY_LEN);
+    sha256_final(&c, d);
+    uint32_t id = call_get32(d);
+    return id ? id : 1u;
+}
+
+/* Same signed MEMBER content (the parsed form is canonical). */
+static bool member_same(const call_mesh_member_t *a, const call_mesh_member_t *b)
+{
+    if (a->uplink_kbps != b->uplink_kbps || a->fanout != b->fanout || a->nstreams != b->nstreams ||
+        a->nsubs != b->nsubs)
+        return false;
+    for (uint32_t i = 0; i < a->nstreams; i++) {
+        const call_mesh_stream_t *x = &a->streams[i], *y = &b->streams[i];
+        if (x->id != y->id || x->kind != y->kind || x->nlayers != y->nlayers) return false;
+        for (uint32_t l = 0; l < x->nlayers; l++)
+            if (x->kbps[l] != y->kbps[l]) return false;
+    }
+    for (uint32_t i = 0; i < a->nsubs; i++)
+        if (a->subs[i].stream_id != b->subs[i].stream_id || a->subs[i].layer != b->subs[i].layer)
+            return false;
+    return true;
+}
+
 static int32_t find_idx(const call_mesh_t *m, uint32_t id)
 {
     uint32_t lo = 0, hi = m->n;
@@ -175,13 +208,27 @@ int call_mesh_on_message(call_mesh_t *m, const uint8_t *msg, uint32_t len)
     if (!m->verify ||
         !m->verify(m->vctx, in.pubkey, msg, len - CALL_MESH_SIG_LEN, msg + len - CALL_MESH_SIG_LEN))
         return CALL_ERR_AUTH;
+    if (in.id != call_mesh_id_of(in.pubkey)) return CALL_ERR_AUTH; /* id is not this key's */
     int32_t at = find_idx(m, in.id);
     if (at >= 0) {
         call_mesh_member_t *cur = &m->members[at];
         if (call_cmp(cur->pubkey, in.pubkey, CALL_MESH_KEY_LEN)) return CALL_ERR_AUTH;
-        if (in.version <= cur->version) return 0;
+        if (cur->equivocated) return CALL_ERR_CONFLICT;
+        if (in.version < cur->version) return 0;
+        if (in.version == cur->version) {
+            bool leave = type == CALL_MESH_MSG_LEAVE;
+            if (leave == (cur->left != 0) && (leave || member_same(cur, &in))) return 0;
+            /* one version, two signed contents: evict for good */
+            cur->equivocated = 1;
+            if (cur->alive) {
+                cur->alive = 0;
+                m->changes++;
+            }
+            return CALL_ERR_CONFLICT;
+        }
+        cur->version = in.version;
         if (type == CALL_MESH_MSG_LEAVE) {
-            cur->version = in.version;
+            cur->left = 1;
             if (!cur->alive) return 0;
             cur->alive = 0;
         } else {
@@ -196,6 +243,7 @@ int call_mesh_on_message(call_mesh_t *m, const uint8_t *msg, uint32_t len)
     for (uint32_t i = m->n; i > pos; i--) CALL_SET(m->members[i], m->members[i - 1]);
     CALL_SET(m->members[pos], in);
     m->members[pos].alive = (type == CALL_MESH_MSG_MEMBER) ? 1 : 0; /* leave = tombstone */
+    m->members[pos].left = (uint8_t) !m->members[pos].alive;
     m->n++;
     if (!m->members[pos].alive) return 0;
     m->changes++;

@@ -164,6 +164,7 @@ Nothing is committed before the signature verifies. Message types:
 - SPOOL, SPOOL_ACK
 - PUNCH: a hole-punch request or introduction (section 9)
 - AIPI: an AIPI call, claim, BUSY or PAID notice (section 9)
+- SPACE: JOIN, WELCOME, PRESENCE, LEAVE or EVENT for a public space (section 9)
 
 A PONG body carries the address the PING came from, as the responder saw it.
 
@@ -516,6 +517,17 @@ the caller, and it uses one unit of the compute quota. The adapter's rules
 (V1 to V5: whom to ask, which claims count, escrow, serving, PAID) are in
 `docs/AIPI.md` section 12.
 
+### Public spaces and the watch hall (`VNA_MSG_SPACE`, `vna_space.h`)
+
+A space is anchored by the CID of its signed genesis block. Its members host
+it: each publishes a SPACE record (rtype 3) under host keys derived from the
+CID, and visitors with only the CID look them up and join. Posts and playback
+changes are records signed by their author (rtype 4) and gossiped between
+members; they are never stored in the DHT. A node at degree ROUTE stores
+SPACE records only when its owner allows it (`vna_node_space_store`; while it
+is in a space, and in the hosted app up to 32 by default). Rules P1 to P7 and
+the zxvd methods are in [SPACES.md](SPACES.md).
+
 ### Offline outbox (spool)
 
 - **Sender.**
@@ -623,6 +635,8 @@ the caller, and it uses one unit of the compute quota. The adapter's rules
 - **LAN packets are about 5.5 KB**, because of the ML-DSA key and signature.
   They IP-fragment on 1500-byte links, which works on ordinary LANs.
 - **The ehop payload limit** (2048 bytes) is below the largest Vinea frame.
+- **Spaces carry control, not video.** The watch hall syncs the playhead;
+  delivering the media between viewers is not built yet (SPACES.md).
 
 ## 13. What the host layer must add
 

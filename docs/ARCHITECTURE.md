@@ -112,6 +112,7 @@ These rules came from you or were agreed with you. Every module is held to them.
 | R13 | **Holographic coding stays on the device; the wire carries original codes** | Measured: holographic form is lossless but larger |
 | R14 | **No defensive reflection.** Tarpit and isolate; never send traffic anywhere unasked | Network defence |
 | R15 | **Guardians approve with their own signatures and hold no key shares** | Recovery |
+| R16 | **GPU-first, integer-exact.** Model work runs on the GPU wherever one exists, with no per-step round trips to the CPU; every GPU kernel gives the C reference's exact integers | [GPU_STRATEGY.md](GPU_STRATEGY.md); kernel images stay CPU-only (R1) |
 
 ---
 
@@ -251,7 +252,7 @@ Small, pure building blocks that every stratum may use.
 | Double spends | ✅ | First valid spend wins; slashing only on signed equivocation proof, only of posted bonds |
 | TLA+/Lean proofs of ledger, headroom and rational code | ✅ | Models of the C, not proof of the binary |
 | Forecasting (shadow state, headroom, cycle detection) | 📋 | `bombsquad` and `predictive` exist; `bombsquad` connects to nothing yet |
-| Designed recovery framework | 📋 gap B5 | Refuse / roll back / isolate, each with a signed RepairProof |
+| Designed recovery framework (`recover`) | 🧩 gap B5 | Refuse / roll back to a caller's A/B checkpoint / isolate, each with a RecoveryProof around paradox's RepairProof, ML-DSA-87 signed; hard invariants fail closed and state is never patched. `tripartite_fs` uses it (itself not yet in a product); `sdk_bridge` and `event_space` still recover ad hoc. It decides and proves recoveries; it detects only what the caller's tag and invariants report |
 | Defensive sinks | 📋 | Stateless cookies or small proof-of-work; inbound-only tarpit |
 | Four-valued deliberation with deterministic settlement | 📋 | Disputes stay in escrow |
 | Exact float-free circuit simulator; quantum-inspired netting optimiser | 📋 | Labelled classical simulator; benchmarked against cycle cancellation |
@@ -264,6 +265,8 @@ Small, pure building blocks that every stratum may use.
 |---|---|---|
 | Integer tensor engine, GGUF reader, tokenizer, RoPE, E8/Leech quantisers | ✅ | |
 | SIMD (NEON, AVX2, AVX-512) + row-parallel thread pool | ✅ | Bit-identical to the plain C path |
+| GPU: matrix products on Apple GPUs (Metal), bit-exact | ✅ | Prompt reading 1.8× on an M3 Max; one round trip per product, so generation stays on the CPU |
+| GPU: the whole forward pass in one command buffer (every layer, then the logits) | 🧩 | Bit-exact on an M3 Max; prompt reading 2.3× the CPU (289 vs 126 tok/s), generation 38 vs 60 tok/s, so decode still needs fused kernels. [GPU_STRATEGY.md](GPU_STRATEGY.md) |
 | Swarm economy: Fibonacci tokens-per-cycle, emotional economy, cooperative market, governor, DNA | ✅ | |
 | Budget gate on prompt and generated tokens | ✅ in the app | One budget token per prompt token and per written token |
 
