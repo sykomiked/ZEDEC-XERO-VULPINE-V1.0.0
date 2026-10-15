@@ -94,6 +94,7 @@ layers.
 2. NVMe and AHCI: done in QEMU.
 3. GOP framebuffer: done (`efifb_con.c`).
 4. HDA: done in QEMU.
-5. e1000e and r8169: e1000/e1000e and igb done in QEMU; r8169 and igc
-   (I225/I226 2.5 GbE) pass host tests only (QEMU models neither).
+5. e1000e and r8169: e1000/e1000e and igb done in QEMU; r8169 (with the
+   RTL8125 2.5 GbE family) and igc (I225/I226 2.5 GbE) pass host tests
+   only (QEMU models neither).
 6. The driver VM: not started.

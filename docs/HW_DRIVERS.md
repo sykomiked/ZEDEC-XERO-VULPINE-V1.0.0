@@ -45,7 +45,7 @@ checks the stream's DMA position moved.
 | `e1000.c` | Intel 8254x / 82574L / PCH (I217-I219) | Intel gigabit NICs | `-device e1000`, `-device e1000e` | `test_e1000.c` |
 | `igb.c` | Intel 82576 / I350 / I210 / I211 | Intel server and desktop gigabit NICs | `-device igb` (QEMU 8+) | `test_igb.c` |
 | `igc.c` | Intel I225 / I226 (and I220 / I221) | Intel 2.5 GbE NICs | none (QEMU has no model) | `test_igc.c` |
-| `r8169.c` | Realtek RTL8111/8168/8169 | Realtek gigabit NICs | none (QEMU has no model) | `test_r8169.c` |
+| `r8169.c` | Realtek RTL8111/8168/8169, RTL8125 | Realtek gigabit and 2.5 GbE NICs (incl. Killer E3000) | none (QEMU has no model) | `test_r8169.c`, `test_r8125.c` |
 | `hda.c` | Intel High Definition Audio | HDA controllers (class 04/03), codec graph walk to the first output pin | `-device intel-hda` + `hda-duplex` | `test_hda.c` |
 | `hw_storage.c` | UEFI GPT + FAT32 | any disk the drivers above expose | all three disks | `test_hw_storage.c` |
 | `hwdrv_core.c`, `hwdrv_probe.c` | PCI 3.0 config space | BAR sizing incl. 64-bit, capabilities | every boot | `test_hwdrv_core.c` |
