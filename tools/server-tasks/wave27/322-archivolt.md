@@ -1,6 +1,6 @@
 # Wave 27 task: Archivolt (slot 322), Legacy migration
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 10 (127 colonnade); wave 13 (165 compositor); wave 20 (241 shallows); wave 22 (269 col, 268 chrysalis).
+Depends on: wave 3 (127 colonnade), wave 13 (165 compositor), wave 20 (241 shallows), wave 22 (268 chrysalis, 269 col).
 Manifest: `slot 322`, `layer L3`, `icon icons/l3/322-archivolt.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: migrates old systems to ZXV: reads mainframe data and code, translates it, and runs old and new side by side (`files.read`, `files.write`, `play.run`, `xlate.detect`, `net.command`).
 Uses: `use shallows 1` (live translation glossary); `use compositor 1` ("outputs agree", job records); `use col 1` (outside gate); `use chrysalis 1` (guest machines); `use colonnade 1` (verdict across witnessed runs). Call these composed entries; do not re-implement them.

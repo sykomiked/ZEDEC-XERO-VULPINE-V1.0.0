@@ -1,6 +1,6 @@
 # Wave 17 task: Fellowcraft (slot 207), Twin runs
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (018 witness), wave 2 (029 trellis), wave 5 (070 retort), wave 10 (132 twelvefold).
+Depends on: wave 1 (018 witness, 029 trellis), wave 3 (132 twelvefold), wave 4 (070 retort).
 Manifest: `slot 207`, `layer L2`, `icon icons/l2/207-fellowcraft.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: runs any job twice, in two languages (`play.run`) or on two machines (`peer.ask`, `aipi.execute`), and compares the results, each on the journal (`journal.query`).
 Uses: `use witness 1` (entry record, chain intact); `use trellis 1` (peers per state); `use retort 1` (score totals, run limits, run record); `use twelvefold 1` (assignments per value). Call these composed entries; do not re-implement them.

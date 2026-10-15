@@ -34,7 +34,18 @@
  *   LT6 Icon colours: system apps' icons are held to the palette (gold on
  *       #002911); an app a person made keeps its own (zxl_icon_ink).
  *   LT7 Other callers keep working: this chains the window manager's
- *       on_window and cue hooks that were set before attaching.
+ *       on_window, cue and launch_draw hooks that were set before attaching.
+ *   LT8 REAL LOAD. An app opened from a recipe loads by fetching its
+ *       blocks (zxvd fab.receive.start, then fab.receive.step until phase
+ *       "done"; zxvd_fab.h B13). Its opener hands each answer to
+ *       zui_launch_theme_load: the verified blocks fill the tiles (outer
+ *       pair first, the centre last) and the bar never runs ahead of them;
+ *       once every block is in, the mark lights and the bar above it
+ *       breathes while the app is built; only "done" (the target CID
+ *       matched) opens the doors and plays the end. A failed step or a
+ *       cancel never does: the screen stays where the work stopped, and the
+ *       opener says why and closes the window. A warm window takes none of
+ *       this: it plays only its end.
  *
  * Integer only, no allocation. */
 #ifndef ZXV_ZUI_LAUNCH_THEME_H
@@ -88,6 +99,8 @@ struct zui_launch_theme {
     void *prev_on_window_ctx;
     void (*prev_cue)(zui_wm_t *wm, uint32_t id, int cue, void *ctx);
     void *prev_cue_ctx;
+    zui_wm_launch_fn prev_launch_draw;
+    void *prev_launch_ctx;
 };
 
 /* Attach to a window manager. prefs NULL = the defaults (sounds on). */
@@ -104,6 +117,15 @@ void zui_launch_theme_prefs(zui_launch_theme_t *t, const zxl_prefs_t *prefs);
 uint32_t zui_launch_theme_open(zui_launch_theme_t *t, const char *app, const char *title,
                                const char *launch_name, bool system_app, bool warm,
                                const zui_wm_client_t *client);
+
+/* LT8: one fab.receive.start or fab.receive.step answer for window id. */
+enum { ZUI_LT_FETCH = 0, ZUI_LT_DONE, ZUI_LT_FAILED };
+/* phase: ZUI_LT_FETCH ("fetch", and the start's answer), ZUI_LT_DONE
+ * ("done"), ZUI_LT_FAILED (an error answer, or the job cancelled). Returns
+ * 0, or -1 for an unknown window, a warm one, or one that already ended or
+ * failed (nothing changes). */
+int zui_launch_theme_load(zui_launch_theme_t *t, uint32_t id, uint32_t phase, uint32_t blocks_done,
+                          uint32_t blocks_total);
 
 /* The theme a window is using, or NULL. */
 const zxl_theme_t *zui_launch_theme_of(const zui_launch_theme_t *t, uint32_t id);

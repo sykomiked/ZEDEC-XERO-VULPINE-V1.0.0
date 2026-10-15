@@ -1,6 +1,6 @@
 # Wave 24 task: Penumbra (slot 284), Threat hunting
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (016 sounding); wave 10 (122 pawprint); wave 12 (153 pavise); wave 13 (165 compositor); wave 15 (181 loupe).
+Depends on: wave 0 (016 sounding), wave 10 (122 pawprint), wave 12 (153 pavise), wave 13 (165 compositor), wave 15 (181 loupe).
 Manifest: `slot 284`, `layer L3`, `icon icons/l3/284-penumbra.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: hunts quietly for hidden threats across a network the owner declares in scope, replaying traces (`log.tail`, `journal.query`, `sys.net`, `net.peers`) and testing defences before attackers do (`play.run` on scratch state). zxvd has no method for packet capture and trace replay: use only existing methods; list what's missing in your report.
 Uses: `use loupe 1` ("evidence admissible", timeline gaps); `use pavise 1` (combined "allow", exposure score); `use compositor 1` ("outputs agree", job records); `use sounding 1` (`sounding.rate`); `use pawprint 1` ("may attach"). Call these composed entries; do not re-implement them.

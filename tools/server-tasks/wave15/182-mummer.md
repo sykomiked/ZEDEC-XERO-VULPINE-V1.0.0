@@ -1,6 +1,6 @@
 # Wave 15 task: Mummer (slot 182), Show production
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 3 (039 folio, 041 footlight), wave 4 (050 warble, 051 kinetoscope), wave 7 (095 bonfire).
+Depends on: wave 4 (051 kinetoscope), wave 6 (039 folio, 041 footlight, 050 warble), wave 8 (095 bonfire).
 Manifest: `slot 182`, `layer L2`, `icon icons/l2/182-mummer.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: produces shows: scripts, cues, music and slides in the Hoard (`files.read`, `files.write`) and the audience event as a watch hall (`pspace.create`, `hall.load`, `hall.play`, `hall.pause`, `hall.status`).
 Uses: `use folio 1` (page fit for the script); `use footlight 1` (slide scale, rehearsal timing, run order); `use warble 1` (playlist length, volume limits); `use bonfire 1` ("may this guest join", seats left); `use kinetoscope 1` (fit to the window, position to frame). Call these composed entries; do not re-implement them.

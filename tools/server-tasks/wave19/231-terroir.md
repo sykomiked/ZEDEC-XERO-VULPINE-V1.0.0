@@ -1,6 +1,6 @@
 # Wave 19 task: Terroir (slot 231), Vineyard management
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 6 (079 fairground); wave 7 (091 vintner, 088 weatherglass, 093 understory).
+Depends on: wave 1 (079 fairground, 091 vintner), wave 8 (088 weatherglass, 093 understory).
 Manifest: `slot 231`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/231-terroir.svg`, `budget 233`, model `apps/terroir_model.{h,c}`, blocks under kernel/src/apps/blocks/terroir/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Manages a vineyard: blocks and lots, harvest timing, sales in the books (`ledger.open_account`, `ledger.post`, `ledger.entries`, `ledger.balance`), the place (`place.here`), market offers (`net.offers`, `net.command` sell). There is no weather source (as Weatherglass): use only existing methods; list what's missing in your report.
 Uses: `use vintner 1` (sale value, volume conservation, probe readings); `use weatherglass 1` (unit conversion and warnings); `use understory 1` (energy cost and "over budget"); `use fairground 1` (the 0.08889% fee and "offer allowed"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

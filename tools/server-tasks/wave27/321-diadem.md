@@ -1,6 +1,6 @@
 # Wave 27 task: Diadem (slot 321), Elections
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 1 (018 witness); wave 2 (003 threshold); wave 14 (178 assize); wave 20 (242 silt); wave 22 (271 cairn).
+Depends on: wave 1 (018 witness), wave 3 (003 threshold), wave 14 (178 assize), wave 20 (242 silt), wave 22 (271 cairn).
 Manifest: `slot 321`, `layer L3`, `icon icons/l3/321-diadem.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: runs elections and votes for clubs, co-ops and towns: ballots, eligibility, counting and verifiable results (`spaces.propose`, `spaces.vote`, `spaces.get`, `seats.list`, `journal.query`, `journal.verify`).
 Uses: `use cairn 1` (proposals and votes); `use silt 1` (records office); `use assize 1` ("filing accepted" for challenges); `use witness 1` (chain intact); `use threshold 1` (role rights). Call these composed entries; do not re-implement them.

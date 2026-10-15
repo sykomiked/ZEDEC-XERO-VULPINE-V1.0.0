@@ -1,6 +1,6 @@
 # Wave 15 task: Lapidary (slot 191), Hardware design
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 1 (018 witness), wave 4 (054 burin), wave 10 (128 mockingbird, 131 trestle).
+Depends on: wave 1 (018 witness), wave 3 (128 mockingbird), wave 7 (054 burin), wave 11 (131 trestle).
 Manifest: `slot 191`, `layer L2`, `icon icons/l2/191-lapidary.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: designs schematics, boards and chip logic in the Hoard (`files.read`, `files.write`), simulates them, and publishes defensive-publication packets under the ZXV Hardware License (`aipi.put`, `web4.cid`), every revision on the journal (`journal.query`).
 Uses: `use mockingbird 1` (boot self-check, memory map non-overlap, cycle count, device record); `use burin 1` (curve flattening, path record); `use trestle 1` (row and column sizes for sheet layout); `use witness 1` (entry record, chain intact). Call these composed entries; do not re-implement them.

@@ -1,6 +1,6 @@
 # Wave 21 task: Atoll (slot 258), Marine log
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (085 waymark, merged); wave 6 (078 tallystick); wave 7 (088 weatherglass); wave 8 (102 fieldguide).
+Depends on: wave 0 (085 waymark), wave 4 (078 tallystick), wave 8 (088 weatherglass), wave 9 (102 fieldguide).
 Manifest: `slot 258`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/258-atoll.svg`, `budget 233`, model `apps/atoll_model.{h,c}`, blocks under kernel/src/apps/blocks/atoll/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Keeps a marine log: tides, catches, reef health and sightings in the Hoard (`files.read`, `files.write`, `search.query`), the place (`place.here`, `place.list`), catch sales (`ledger.post`, `ledger.entries`).
 Uses: `use waymark 1` (`place_ok`); `use weatherglass 1` (conversions and warnings); `use fieldguide 1` ("show a caution" and match ranking); `use tallystick 1` (invoice total and "paid in full"). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

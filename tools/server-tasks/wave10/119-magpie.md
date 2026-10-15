@@ -1,0 +1,8 @@
+# Wave 10 task: Magpie (slot 119), Clipboard history
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 119, build position 113 of 130 (`../MATRIX_ORDER.tsv`). Its layer leans on no other layer's code yet. Report the reuse line `concepts.py` prints for this app.
+What it does: the last copies, to paste again, pin or clear. Kept in memory only. zxvd has no clipboard method: use only existing methods; list what's missing in your report.
+Logic (critical): "keep this copy" = not concealed (password field or marked private) AND within size AND app not excluded, in eve + kron witnessed; history ring (64 slots, head - tail >= capacity drops the oldest unpinned) in kron; bytes held exact, at most 64 x 49152, in trebago.
+Never log or store clipboard content in tests; inputs are lengths and flags only.
+needs: notify.
+Planned (no runtime yet): dBase, TRAC, ALGOL 58.

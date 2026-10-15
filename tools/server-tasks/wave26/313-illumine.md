@@ -1,6 +1,6 @@
 # Wave 26 task: Illumine (slot 313), Book publishing
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 3 (039 folio); wave 9 (113 typecase); wave 13 (168 bindery); wave 18 (223 spindrift); wave 21 (264 meander).
+Depends on: wave 2 (113 typecase), wave 6 (039 folio), wave 13 (168 bindery), wave 18 (223 spindrift), wave 21 (264 meander).
 Manifest: `slot 313`, `layer L3`, `icon icons/l3/313-illumine.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: publishes books from manuscript to finished edition: editing, layout, illustration, rights and sales (`files.read`, `files.write`, `print.submit`, `aipi.put`, `web4.cid`).
 Uses: `use spindrift 1` (story publishing); `use bindery 1` (catalogue grid); `use meander 1` (handwriting to text); `use folio 1` (page fit, amount tables); `use typecase 1` (font accepted, script coverage). Call these composed entries; do not re-implement them.

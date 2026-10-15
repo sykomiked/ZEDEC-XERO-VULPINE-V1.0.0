@@ -1,6 +1,6 @@
 # Wave 19 task: Isobar (slot 239), Weather station network
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 2 (029 trellis); wave 3 (040 furrow); wave 7 (088 weatherglass, 094 homestead).
+Depends on: wave 1 (029 trellis), wave 6 (040 furrow), wave 8 (088 weatherglass, 094 homestead).
 Manifest: `slot 239`, `layer L2`, `version 1.0.0` and its `provides` lines (so L3 apps can use it, C1), `icon icons/l2/239-isobar.svg`, `budget 233`, model `apps/isobar_model.{h,c}`, blocks under kernel/src/apps/blocks/isobar/, one `use <id> 1` per part below. The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit the part.
 What it does: Runs a local weather station network: stations and sites (`place.here`, `place.list`), station nodes (`devmesh.devices`, `net.peers`), records in the Hoard (`files.read`, `files.write`). Sensor input has no method: use only existing methods; list what's missing in your report.
 Uses: `use weatherglass 1` (conversions, warnings, 7-day statistics); `use homestead 1` (device records); `use furrow 1` (column sums); `use trellis 1` (peers per state). Call these composed entries; do not re-implement them; each part's manifest is itself the block (C1).

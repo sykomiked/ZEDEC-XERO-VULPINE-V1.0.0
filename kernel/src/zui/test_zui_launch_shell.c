@@ -208,7 +208,7 @@ static void test_cold_launch(void)
 {
     setup(0, 0);
     uint32_t id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
-    CHECK(id != 0, "The Banker opens");
+    CHECK(id != 0, "the Banker opens");
     CHECK(LS.player.age == 1, "LS4: its begin is sounding from the moment it opens");
     double e0 = frame(id, 0, 0);
     CHECK(e0 > 0, "and is heard in the first frame");
@@ -306,7 +306,7 @@ static void test_icon_cache(void)
         frame(id, 0, (uint32_t) i);
         zui_wm_close(&WM, id);
     }
-    CHECK(reads_of("icons/001-burrow.png") == 1, "The Banker read once so far");
+    CHECK(reads_of("icons/001-burrow.png") == 1, "Burrow read once so far");
     uint32_t id = zui_launch_theme_open(&LT, "Banker", "Banker", "", true, false, 0);
     frame(id, 0, 9);
     CHECK(reads_of("icons/001-burrow.png") == 2, "the oldest of %d kept icons gave way",

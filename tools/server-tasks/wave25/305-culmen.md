@@ -1,6 +1,6 @@
 # Wave 25 task: Culmen (slot 305), Executive view
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 0 (061 murmuration); wave 12 (145 cartulary); wave 14 (172 escapement); wave 19 (234 neap); wave 22 (271 cairn).
+Depends on: wave 0 (061 murmuration), wave 12 (145 cartulary), wave 14 (172 escapement), wave 19 (234 neap), wave 22 (271 cairn).
 Manifest: `slot 305`, `layer L3`, `icon icons/l3/305-culmen.svg`, `budget 233`, one `use <id> 1` per part below. A part exports only what it `provides`: call an L2 part's own entries, and an entry it composed only if it re-exports it (as Murmuration re-exports swarm_shares). If an entry you need is not exported, or the composed logic lines pass ZXAPP_LOGIC_MAX (128) or the uses ZXAPP_USES (8), stop and report it; do not edit the part or raise a limit.
 What it does: one dashboard across an organisation: money, people, risks, projects and AI agents (`ledger.accounts`, `ledger.balance`, `swarm.state`, `spaces.get`, `journal.query`).
 Uses: `use cairn 1` (proposals and votes); `use neap 1` (A = L + E, "entry may post"); `use escapement 1` (timesheets, schedule matrix); `use cartulary 1` (retention days); `use murmuration 1` (`murmuration.swarm_shares.cycle_share`, `murmuration.swarm_shares.within_limits`). Call these composed entries; do not re-implement them.

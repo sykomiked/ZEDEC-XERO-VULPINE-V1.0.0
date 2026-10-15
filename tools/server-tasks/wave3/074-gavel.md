@@ -1,0 +1,8 @@
+# Wave 3 task: Gavel (slot 74), V-Bill auctions
+Read ../APP_WAVE_SPEC.md first.
+Matrix: layer 74, build position 33 of 130 (`../MATRIX_ORDER.tsv`). Its layer's code already leans on the core (layer 0: reach it through zxvd methods that exist); Coffer (layer 73, wave 1, built before this one: `use coffer 1`); Toolchest (layer 126, wave 1, built before this one: `use toolchest 1`). Use the ones built before this one: `use <id> 1` and call `<id>.<entry>`. An idea you need from one built after it: when more than one app needs it, write it here and register it in CONCEPTS.tsv with this app as owner (that layer will use it from you); otherwise list it in your report as that layer's. 1 other layer lean on this one, so anything here that a later app also needs is a shared entry: provide it, register it in CONCEPTS.tsv with this app as owner, and keep its name general. Report the reuse line `concepts.py` prints for this app.
+What it does: epoch state, quotes, bids and cancels (`auction.status`, `auction.quote`, `auction.bid`, `auction.cancel`, `auction.check`). Feature `auctions` is regulated and off by default (-32012); the app says so and never turns it on.
+Logic (critical): the amount a bid locks (qty x limit, minor units) in sutra + trebago witnessed; "bid allowed" (limit at or above the floor, lock within the owner's cap and balance) in eve + sutra witnessed; demand at each quoted price (sum over bids) exact in trebago. Clearing stays the daemon's; the app shows `auction.run`'s result, never recomputes it.
+A bid is a financial action: the owner approves each one. Tests call `auction.quote`, `auction.status`, `auction.check` only, with the feature off.
+needs: ledger.read, ledger.post, notify.
+Planned (no runtime yet): Eiffel, Solidity, PHP.

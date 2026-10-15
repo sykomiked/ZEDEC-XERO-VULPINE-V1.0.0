@@ -1,6 +1,6 @@
 # Wave 15 task: Flue (slot 189), Sync
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (010 keepsake), wave 2 (032 cove), wave 3 (033 seedbank), wave 7 (087 belvedere).
+Depends on: wave 0 (010 keepsake), wave 1 (033 seedbank), wave 5 (032 cove), wave 8 (087 belvedere).
 Manifest: `slot 189`, `layer L2`, `icon icons/l2/189-flue.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: syncs spaces, files and backups across your own devices and your cloud top (`spaces.list`, `files.list`, `files.stat`, `files.cross`, `backup.run`, `backup.list`, `devmesh.devices`, `aipi.put`, `aipi.get`).
 Uses: `use keepsake 1` (`keepsake.removed`, `keepsake.keep_ok`); `use cove 1` ("may this tunnel open", nonce discipline); `use seedbank 1` (CID check, size limits); `use belvedere 1` ("may this file go on the cloud top", page totals). Call these composed entries; do not re-implement them.

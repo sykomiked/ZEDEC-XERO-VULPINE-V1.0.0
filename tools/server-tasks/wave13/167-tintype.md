@@ -1,6 +1,6 @@
 # Wave 13 task: Tintype (slot 167), Photo workflow
 Read ../APP_WAVE_SPEC.md first. This is an L2 app: manifest says `layer L2` and composes its built_from apps' blocks with `use`; it may only start after those L1 waves are merged.
-Depends on: wave 0 (049 glint), wave 4 (053 gesso, 058 pinhole), wave 9 (111 glimpse).
+Depends on: wave 0 (049 glint), wave 4 (053 gesso), wave 7 (058 pinhole), wave 9 (111 glimpse).
 Manifest: `slot 167`, `layer L2`, `icon icons/l2/167-tintype.svg`, `budget 233`, one `use <id> 1` per part below. A part can be used only if its manifest carries `version 1.0.0` and its `provides` lines; the composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8). If any of these fails, stop and report it; do not raise a limit or edit the part.
 What it does: captures, develops and catalogues photos and screen grabs in one workflow in the Hoard (`files.list`, `files.stat`, `files.write`), within the free space `sys.disk` reports. zxvd has no method for image decode (as Gridmark reports), display capture (as Glimpse reports): use only existing methods; list what's missing in your report.
 Uses: `use glint 1` (`glint.item_ok`); `use gesso 1` (pixel operations, histogram); `use pinhole 1` (device ready, "photo fits", exposure limits, photo record); `use glimpse 1` (capture region, recording size, first free N). Call these composed entries; do not re-implement them.

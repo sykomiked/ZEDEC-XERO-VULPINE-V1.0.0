@@ -1,6 +1,6 @@
 # Wave 31 task: Rondo (slot 370), Private cycles
 Read ../APP_WAVE_SPEC.md first. This is an L3 app: manifest says `layer L3` and composes its built_from apps with `use`; it may only start after those waves are merged.
-Depends on: wave 12 (148 poultice); wave 14 (172 escapement, 180 apothecary); wave 16 (198 taper); wave 7 (089 wellspring).
+Depends on: wave 8 (089 wellspring), wave 12 (148 poultice), wave 14 (172 escapement, 180 apothecary), wave 16 (198 taper).
 Manifest: `slot 370`, `layer L3`, `version 1.0.0`, `icon icons/l3/370-rondo.svg`, `budget 233`, model `apps/rondo_model.{h,c}`, blocks under kernel/src/apps/blocks/rondo/, one `use <id> 1` per part below. Each part's manifest is itself the block (C1): an L2 part exports its own entries and the L1 entries it composed (`<part>.<block>.<entry>`). The composed logic lines must fit ZXAPP_LOGIC_MAX (128) and the uses ZXAPP_USES (8); if either fails, stop and report it; do not raise a limit or edit a part.
 What it does: Tracks personal cycles and rhythms privately, with predictions, symptoms and shared care notes, all in the Hoard (`files.read`, `files.write`); quiet hours (`screen.status`, `notes.list`); sharing only with people the person names.
 Uses: `use poultice 1` (vital trends and care costs); `use escapement 1` ("job may run" for reminders); `use taper 1` ("may wake now" and sleep midpoint); `use apothecary 1` ("may sign this prescription" and billing codes); `use wellspring 1` ("outside a safe range"). Call these composed entries; do not re-implement them.
