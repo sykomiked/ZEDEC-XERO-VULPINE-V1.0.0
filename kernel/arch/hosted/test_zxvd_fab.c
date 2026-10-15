@@ -682,9 +682,8 @@ static const char *rstep(long job, const char *extra)
     return call("fab.receive.step", "{\"job\":%ld%s}", job, extra);
 }
 
-#define PROG(d, b)                                                                                 \
-    "\"blocks_done\":" #d ",\"blocks_total\":3,\"bytes_done\":\"" b "\",\"bytes_total\":"          \
-                                                                    "\"450000\""
+#define BYTES(b)   "\"bytes_done\":\"" b "\",\"bytes_total\":\"450000\""
+#define PROG(d, b) "\"blocks_done\":" #d ",\"blocks_total\":3," BYTES(b)
 
 static void test_jobs(void)
 {
