@@ -81,12 +81,12 @@ Statuses are as found by the audit. The tests the audit added or repaired (for v
 
 | Status | Modules |
 |---|---|
-| WORKING (tested in verify-all) | 200 |
+| WORKING (tested in verify-all) | 203 |
 | PARTIAL | 37 |
 | WORKING (test not in verify-all) | 17 |
 | UNUSED/DEAD | 11 |
 | STUB | 3 |
-| **Total** | **268** |
+| **Total** | **271** |
 
 Nine more modules are on draft pull requests and listed in Part C, not counted here.
 
