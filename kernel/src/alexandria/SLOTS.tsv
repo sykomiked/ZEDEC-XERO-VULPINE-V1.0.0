@@ -102,3 +102,8 @@
 65	num.hollow_tile_cols	590.25	hollow.tile_cols	base
 66	num.hollow_tile_rows	590.26	hollow.tile_rows	base
 67	logic.hollow_window_ok	490.30	hollow.window_ok	base
+68	num.signpost_addr_class	590.27	signpost.addr_class	base
+69	logic.signpost_cache_ok	490.31	signpost.cache_ok	base
+70	num.signpost_name_fault	590.28	signpost.name_fault	base
+71	logic.signpost_name_ok	490.32	signpost.name_ok	base
+72	num.signpost_ttl_left	590.29	signpost.ttl_left	base

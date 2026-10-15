@@ -73,7 +73,12 @@
 #define ALX_SLOT_NUM_HOLLOW_TILE_COLS            65u /* 590.25 hollow.tile_cols */
 #define ALX_SLOT_NUM_HOLLOW_TILE_ROWS            66u /* 590.26 hollow.tile_rows */
 #define ALX_SLOT_LOGIC_HOLLOW_WINDOW_OK          67u /* 490.30 hollow.window_ok */
-#define ALX_SLOT__COUNT 67u
+#define ALX_SLOT_NUM_SIGNPOST_ADDR_CLASS         68u /* 590.27 signpost.addr_class */
+#define ALX_SLOT_LOGIC_SIGNPOST_CACHE_OK         69u /* 490.31 signpost.cache_ok */
+#define ALX_SLOT_NUM_SIGNPOST_NAME_FAULT         70u /* 590.28 signpost.name_fault */
+#define ALX_SLOT_LOGIC_SIGNPOST_NAME_OK          71u /* 490.32 signpost.name_ok */
+#define ALX_SLOT_NUM_SIGNPOST_TTL_LEFT           72u /* 590.29 signpost.ttl_left */
+#define ALX_SLOT__COUNT 72u
 /* clang-format on */
 
 #endif

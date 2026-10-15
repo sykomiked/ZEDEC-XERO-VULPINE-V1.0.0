@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Signpost files a cached answer in MYRA (signpost_rules.h SP5): its
+; place in the cache, the class of its address (SP4), the IPv4 address as
+; one number (a * 16777216 + b * 65536 + c * 256 + d), the second it was
+; stored (unix time) and its time to live in seconds.
+^ZXSIGNPOST(seq:i9) = class:i1! ^ addr:i10! ^ stored:i11! ^ ttl:i10!
