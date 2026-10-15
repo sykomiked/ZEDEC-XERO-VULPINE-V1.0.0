@@ -1,0 +1,12 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many apps hold one capability (gatehouse_rules.h GR4), in Trebago:
+! the exact sum of one flag per app, 1 when that app may use it, 0 when
+! not. A flag that is no flag is added as it is, where KRON holds it
+! inside 0..1, so the two disagree and the count is held.
+trebago holders
+  in  held(n)
+  out holders
+  holders = sum(i, held(i))
+end

@@ -10,6 +10,7 @@ zxblock 1
 id       swarm_shares
 name     Swarm shares
 version  1.0.0
+matrix 0
 # Each agent's share of this cycle's tokens, per mille. t is each agent's
 # allotment (murmuration_model.h A1: re + mk + im).
 provides cycle_share num t

@@ -1,0 +1,1 @@
+(label>0)&(label<64)&(total>0)&(total<254)&(bad=0)&(total-label)>-1

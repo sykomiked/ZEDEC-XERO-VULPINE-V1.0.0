@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Stillwater files a quiet schedule, in MYRA: its number, its mode, the
+; days it runs (a mask), the minutes its window opens and closes, and how
+; many people are on its allow list. Eve says what the values may mean;
+; this says whether they make a record.
+^ZXQUIET(schedule:i3) = mode:i1! ^ days:i3! ^ opens:i4! ^ closes:i4! ^ allowed:i3!

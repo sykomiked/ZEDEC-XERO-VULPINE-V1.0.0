@@ -1,0 +1,1 @@
+((lab<0)|label=lab)&((src<0)|source=src)&(date>from-1)&date<to+1

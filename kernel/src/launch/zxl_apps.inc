@@ -94,7 +94,7 @@
     { "Wellspring",    8, ZXL_A,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   2 }, /*  89 */
     { "Caravan",       8, ZXL_BB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   7 }, /*  90 */
     { "Vintner",       8, ZXL_B,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   0 }, /*  91 */
-    { "Hearth",        8, ZXL_C,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /*  92 */
+    { "Kettle",        8, ZXL_C,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   5 }, /*  92 */
     { "Understory",    8, ZXL_DB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,  10 }, /*  93 */
     { "Homestead",     8, ZXL_D,  5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   3 }, /*  94 */
     { "Bonfire",       8, ZXL_EB, 5, ZXL_TIMBRE_PLUCK,   ZXL_REVEAL_VAULT, ZXL_AMB_RINGS,   8 }, /*  95 */

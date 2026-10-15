@@ -1,0 +1,8 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Warren files one engine's service record in MYRA (warren_rules.h
+; WR5): its place in zxvd's feature list, whether it is on, whether it is
+; regulated, how many times the owner restarted it, and when it last
+; changed (ms since 1970, zxvd's clock).
+^ZXWARREN(engine:i2) = enabled:i1! ^ regulated:i1! ^ restarts:i3! ^ changed:i15!

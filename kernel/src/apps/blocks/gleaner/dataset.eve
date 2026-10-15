@@ -1,0 +1,17 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# How big a dataset Gleaner takes (gleaner_rules.h GR3): 1 to 1000 rows,
+# 3 to 32 columns (label, source and date at least) and 1 to 8000 bytes,
+# zxvd's limit for one block put by aipi.put (ZXVD_AIPI_HEX_MAX). Eve holds
+# each range on its own.
+eve gleaner
+row_count = 1 .. 1000
+col_count = 3 .. 32
+byte_count = 1 .. 8000
+
+dataset {
+  rows: row_count
+  cols: col_count
+  bytes: byte_count
+}

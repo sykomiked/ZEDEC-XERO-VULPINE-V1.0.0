@@ -1,0 +1,9 @@
+; Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+; SPDX-License-Identifier: Apache-2.0
+;
+; How Threshold files a seat it lists, in MYRA: its place in the roster,
+; its role (1 owner, 2 person, 3 guest), its lock (0 none, 1 passphrase,
+; 2 passkey), its accent colour and the milliseconds before a login try is
+; heard again. Never a hash, a salt or a passphrase: there is no field for
+; one.
+^ZXSEAT(seat:i4) = role:i1! ^ lock:i1! ^ color:i10! ^ wait:i7!

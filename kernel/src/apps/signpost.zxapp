@@ -1,0 +1,83 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Signpost, names and addresses: layer 34 of the matrix, the anchor of its
+# Fibonacci layer. It shows the forms of a content address (web4.cid),
+# checks a Web4 agent card (web4.card_verify), lists the peers the routing
+# table verified by NodeID (net.peers), and keeps a bounded cache of name
+# to address answers with their time to live (signpost_model.c).
+#
+# zxvd has no DNS method and no DID method, and none is invented: a name
+# is answered only from the cache the owner (or a later layer) fills, and
+# a card's trust stays the owner's call. A card that verifies proves only
+# that its key and binding agree, never who holds the key: advisory, owner
+# confirmed.
+#
+# An anchor of the matrix: every entry is a general pattern a later
+# networking layer takes with "use signpost 1", so each is a concept with
+# Signpost as its owner (CONCEPTS.tsv). Its layer leans only on the core;
+# nothing earlier fits: the shared blocks are capacities, shares, day
+# counts and gcds, and no app before it reads names or addresses.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2) and WebAssembly numbers only
+# (zxapp_wasm.c W2), so the task's "Rust wasm + Eve" for name syntax is
+# split: Rust and KRON witness why a label does not fit (name_fault), Eve
+# and KRON whether it fits (name_ok), as Wellspring splits its ranges.
+#
+# Planned languages: SQL owns queries, and stands for the cache lookup
+# (cache_ok). Erlang owns messaging and fault-tolerant flows, Swift views
+# and objects: no entry here is either.
+zxapp 1
+id     signpost
+name   Signpost
+version 1.0.0
+slot   34
+layer  L1
+matrix 34
+icon   icons/l1/034-signpost.svg
+budget 233
+needs  net
+needs  peers
+model  apps/signpost_model.c
+
+# Why one label of a name does not fit (SP2): 1 its length, 2 the name's
+# length, 3 a byte not allowed, 0 none. Rust (as WebAssembly) and KRON;
+# a negative count is refused by Rust (a trap) and answered by KRON: held.
+provides name_fault num label total bad
+logic    wasm name_fault apps/blocks/signpost/name_fault.wasm
+logic    kron name_fault apps/blocks/signpost/name_fault.kron
+
+# One label of a name fits (SP3). Eve declares the three ranges, KRON
+# also asks that a label is no longer than its name: a label longer than
+# its name passes Eve and fails KRON, so it is held.
+provides name_ok truth label total bad
+logic    eve  name_ok apps/blocks/signpost/name.eve
+logic    kron name_ok apps/blocks/signpost/name_ok.kron
+
+# The class of an IPv4 address from its octets (SP4), Rust (as
+# WebAssembly) and KRON; an octet outside 0..255 is refused by Rust and
+# answered by KRON: held.
+provides addr_class num a b c d
+logic    wasm addr_class apps/blocks/signpost/addr_class.wasm
+logic    kron addr_class apps/blocks/signpost/addr_class.kron
+
+# A cached answer makes a ^ZXSIGNPOST record (SP5), in MYRA.
+provides cache_ok truth seq class addr stored ttl
+logic    myra cache_ok apps/blocks/signpost/cache.myra
+pending  SQL cache_ok
+
+# Seconds left before a cached answer lapses (SP6), in KRON.
+provides ttl_left num stored ttl now
+logic    kron ttl_left apps/blocks/signpost/ttl_left.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check name_fault label=1,63,64,0,10,10,63 total=1,253,64,5,254,9,63 bad=0,0,0,0,0,0,1 = 0,0,1,1,2,2,3
+check name_fault label=5,-1 total=10,10 bad=0,0 = both
+check name_ok label=1,63,64,0,10,10 total=1,253,64,5,254,253 bad=0,0,0,0,0,1 = true,true,false,false,false,false
+check name_ok label=10,10 total=5,20 bad=0,0 = both
+check addr_class a=8,0,127,10,172,172,192,169,100,100,224,239,240,255,255 b=8,0,0,1,16,32,168,254,64,128,0,255,0,255,255 c=8,0,0,2,0,0,1,1,0,0,0,255,0,255,255 d=8,0,1,3,1,1,1,1,1,1,251,255,1,254,255 = 0,1,2,3,3,0,3,4,5,0,6,6,7,7,8
+check addr_class a=8,256 b=8,0 c=8,0 d=8,0 = both
+check cache_ok seq=1,999999999,1000000000,1 class=3,9,3,10 addr=3232235777,9999999999,1,1 stored=1700000000,99999999999,1,1 ttl=300,9999999999,1,1 = true,true,false,false
+check ttl_left stored=1000,1000,1000,1000 ttl=300,300,300,0 now=1000,1299,1300,2000 = 300,1,0,0

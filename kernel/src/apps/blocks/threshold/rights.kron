@@ -1,0 +1,1 @@
+(target>0)&(target<3)&(own>-1)&(own<2)&(role=1)|(role=2)&own=1

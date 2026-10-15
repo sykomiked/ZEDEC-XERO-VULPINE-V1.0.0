@@ -7,3 +7,4 @@ Warnings are advisory and never replace official warnings.
 needs: location, net, notify.
 Now runs (Lingua front-end built): Logo (twin Kiteling) for geometry: `logic logo <entry> apps/blocks/weatherglass/<entry>.lg`, in the twin's canonical form, joined to another language's line for the same entry.
 Planned (no runtime yet): Kotlin.
+Data (outside data, docs/DATAPACKS.md): the core pack `weatherglass-core.tar` carries MET Norway Locationforecast (CC BY 4.0) and US NWS alerts (public domain) as live endpoints the app reads over TLS only after the owner approves (`net`), with their attribution; show `ATTRIBUTION.txt` in the app and cache the last reading so it works offline. Recipe: `tools/apps/datapacks/SOURCES.tsv`.

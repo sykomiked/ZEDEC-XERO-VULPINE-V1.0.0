@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# May this switch change now (warren_rules.h WR2), in Sutra. Only in the
+# owner's session (owner 1); and a change that turns a regulated engine
+# on (regulated 1, enable 1) only with the owner's approval (approved 1).
+# Turning an engine off, or a plain one on, needs only the owner. Each is
+# a one-digit flag: 2..9 is no flag, never a yes; a negative one does not
+# fit its picture: refused.
+record switch-change
+  owner: 9
+  regulated: 9
+  approved: 9
+  enable: 9
+procedure
+  if owner = 1
+    answer regulated = 0 or enable = 0 or approved = 1
+  end-if
+  answer 0 = 1

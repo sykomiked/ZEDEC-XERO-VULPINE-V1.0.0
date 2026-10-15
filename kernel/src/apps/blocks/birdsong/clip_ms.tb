@@ -1,0 +1,13 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How long a clip lasts, in milliseconds, in Trebago: each count of
+! samples of one channel (frames) at a sample rate in hertz is
+! samples * 1000 / rate, an exact reduced rational (441 samples at 44100 Hz
+! is 10 ms; 1 sample at 44100 Hz is 10/441 ms), never rounded. A rate of 0
+! is a division by zero, refused.
+trebago clipms
+  in  samples(n), rate
+  out ms(n)
+  ms(i) = samples(i) * 1000 / rate
+end

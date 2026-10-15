@@ -76,13 +76,15 @@ MODEL_LINES = 20
 
 def manifest(path):
     m = {"id": "", "slot": 0, "model": "", "logic": [], "provides": [], "entries": {}, "uses": [],
-         "name": "", "use_refs": {}}
+         "name": "", "use_refs": {}, "checks": [], "agree": set(), "matrix": None}
     inline = False
     with open(path, encoding="utf-8") as f:
         for line in f:
             if inline:
                 inline = line.strip() != "."
                 continue
+            if line.startswith("# agree: ") and len(line.split()) >= 3:
+                m["agree"].add(line.split()[2])
             w = line.split("#", 1)[0].split()
             if not w:
                 continue
@@ -90,6 +92,8 @@ def manifest(path):
                 m["id"] = w[1]
             elif w[0] == "slot" and len(w) == 2:
                 m["slot"] = int(w[1], 10)
+            elif w[0] == "matrix" and len(w) == 2 and w[1].isdigit():
+                m["matrix"] = int(w[1], 10)
             elif w[0] == "model" and len(w) == 2:
                 m["model"] = w[1]
             elif w[0] == "provides" and len(w) >= 3:
@@ -99,6 +103,8 @@ def manifest(path):
                 m["use_refs"][w[1]] = REF_RE.findall(line.split("#", 1)[1]) if "#" in line else []
             elif w[0] == "name" and len(w) >= 2:
                 m["name"] = " ".join(w[1:])
+            elif w[0] == "check" and len(w) >= 3:
+                m["checks"].append((w[1], w[-1] == "both" and w[-2] == "="))
             elif w[0] == "logic" and len(w) >= 4:
                 m["entries"][w[2]] = m["entries"].get(w[2], 0) + 1
                 inline = w[3] == "<<"
@@ -221,7 +227,7 @@ def check_slots(mans):
     layer = {}
     for line in open(MATRIX, encoding="utf-8"):
         f = line.rstrip("\n").split("\t")
-        if not line.startswith("#") and len(f) == 5 and f[0].isdigit():
+        if not line.startswith("#") and len(f) >= 5 and f[0].isdigit():
             layer[int(f[0], 10)] = f[1]
     for p, m in mans:
         rel = os.path.relpath(p, ROOT)
@@ -283,6 +289,66 @@ def code_lines(path):
     return n
 
 
+# Integers only (CLAUDE.md "Exact arithmetic"): a floating type, a float function or a
+# decimal literal in an app's code, blocks or tests fails the gate outright, in every
+# language it may be written in. Comments and strings are skipped, nothing else.
+C_LIKE = (".c", ".h", ".cpp", ".cc", ".rs", ".zig", ".inc")
+LINE_COMMENT = {".eve": "#", ".sutra": "#", ".kron": "#", ".myra": ";", ".tb": "!",
+                 ".f90": "!", ".fs": "\\"}
+FLOAT_WORDS = ("float", "double", "f32", "f64", "fabs", "fabsf", "sqrt", "sqrtf", "powf")
+FLOAT_MORE = {".eve": ("long_float", "digits"), ".sutra": ("comp-1", "comp-2"),
+              ".f": ("real", "complex", "dble"), ".f90": ("real", "complex", "dble"),
+              ".tb": ("real", "complex"), ".bas": ("sqr", "exp", "log")}
+
+
+def float_words(ext):
+    words = FLOAT_WORDS + FLOAT_MORE.get(ext, ())
+    return re.compile(r"(?<![\w.-])(%s)(?![\w-])" % "|".join(map(re.escape, words)), re.I)
+FLOAT_LIT = re.compile(r"(?<![\w.])(\d+\.\d*|\.\d+|\d+[eE][+-]?\d+)(?![\w.])")
+
+
+def code_of(path):
+    """The code of a source file, comments and strings blanked, as (line, text) pairs."""
+    ext = os.path.splitext(path)[1].lower()
+    text = open(path, encoding="utf-8", errors="replace").read()
+    if ext in C_LIKE:
+        text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group().count("\n"), text, flags=re.S)
+        text = re.sub(r'"(\\.|[^"\\\n])*"|\'(\\.|[^\'\\\n])*\'', '""', text)
+        text = re.sub(r"//.*", "", text)
+    out = []
+    for n, line in enumerate(text.split("\n"), 1):
+        if ext == ".f" and line[:1] in ("C", "c", "*", "!"):
+            continue
+        if ext in (".f", ".f90"):
+            line = line.split("!", 1)[0]
+        if ext == ".bas" and re.match(r"\s*\d*\s*REM\b", line, re.I):
+            continue
+        if ext == ".fs":
+            line = re.sub(r"\(\s[^)]*\)", "", line)
+        mark = LINE_COMMENT.get(ext)
+        if mark:
+            line = line.split(mark, 1)[0]
+        if ext not in C_LIKE:
+            line = re.sub(r'"[^"]*"', '""', line)
+        out.append((n, line))
+    return out
+
+
+def floats_in(paths):
+    """Each place a path uses floating point, as gate errors."""
+    errors = []
+    for path in paths:
+        if path.endswith(".wasm") or not os.path.isfile(path):
+            continue
+        words = float_words(os.path.splitext(path)[1].lower())
+        for n, line in code_of(path):
+            m = words.search(line) or FLOAT_LIT.search(line)
+            if m:
+                errors.append(f"{os.path.relpath(path, ROOT)}:{n}: floating point ({m.group().strip()}): "
+                              "integers only, kernel/src/rational for fractions")
+    return errors
+
+
 def delivered(app_id):
     """--app: the app is really there, with code and its own tests."""
     errors = []
@@ -291,6 +357,20 @@ def delivered(app_id):
     if not os.path.exists(path):
         return [f"{rel}: not there; the app was not delivered"]
     m = manifest(path)
+    zxc = open(os.path.join(APPS, "test_zxapp.c"), encoding="utf-8").read()
+    if f'"apps/{app_id}.zxapp"' in zxc and not os.path.exists(os.path.join(TESTS, f"{app_id}_zxapp.inc")):
+        # built before the per-app test files (wave 0): test_zxapp.c loads and tests it
+        # inline, and test_apps.c its model; the --verdict run witnesses both
+        if not m["provides"]:
+            errors.append(f"{rel}: provides nothing")
+        for e in m["provides"]:
+            if "." not in e and not m["entries"].get(e):
+                errors.append(f"{rel}: provides {e} with no logic line")
+        if m["model"]:
+            hdr = os.path.basename(m["model"])[:-2] + ".h"
+            if f'#include "{hdr}"' not in open(os.path.join(APPS, "test_apps.c"), encoding="utf-8").read():
+                errors.append(f"{rel}: its model {m['model']} is never tested in test_apps.c")
+        return errors
     if not m["slot"]:
         errors.append(f"{rel}: no slot")
     if not re.search(r"^version\s+1\.0\.0\s*$", open(path, encoding="utf-8").read(), re.M):
@@ -335,6 +415,78 @@ def added_apps(ref):
     return [os.path.basename(x)[:-6] for x in out.stdout.split()]
 
 
+def cid_of(path):
+    """A file's CIDv1 (raw, sha2-256), as a "cid:" logic path names it."""
+    import base64
+    import hashlib
+    d = bytes([1, 0x55, 0x12, 0x20]) + hashlib.sha256(open(path, "rb").read()).digest()
+    return "b" + base64.b32encode(d).decode().lower().rstrip("=")
+
+
+def tree_cids():
+    out = {}
+    for d, _, fs in os.walk(os.path.join(APPS, "blocks")):
+        for f in fs:
+            out.setdefault(cid_of(os.path.join(d, f)), os.path.join(d, f))
+    return out
+
+
+def check_matrix(mans):
+    """Every manifest names its matrix layer (zxapp.h M1): a shared block is the core
+    (0), an L1 app sits on its slot, and a part MATRIX.tsv homes sits on that layer."""
+    home = {}
+    for line in open(MATRIX, encoding="utf-8"):
+        f = line.rstrip("\n").split("\t")
+        if not line.startswith("#") and len(f) >= 5 and f[0].isdigit():
+            for word in f[4].split():
+                if word.startswith("apps/") and word.endswith((".zxapp", ".zxblock")):
+                    home[word] = int(f[0], 10)
+    errors = []
+    for p, m in mans:
+        rel = os.path.relpath(p, ROOT)
+        part = os.path.relpath(p, SRC)
+        want, why = None, ""
+        if p.endswith(".zxblock"):
+            want, why = 0, "a shared block is the core"
+        elif 1 <= m["slot"] <= 144:
+            want, why = m["slot"], "an L1 app sits on its slot"
+        elif part in home:
+            want, why = home[part], "MATRIX.tsv homes it there"
+        if m["matrix"] is None:
+            errors.append(f"{rel}: no matrix line (matrix <0..144>, zxapp.h M1)"
+                          + (f"; {why}: matrix {want}" if want is not None else ""))
+        elif m["matrix"] > 144:
+            errors.append(f"{rel}: matrix {m['matrix']} is past 144")
+        elif want is not None and m["matrix"] != want:
+            errors.append(f"{rel}: matrix {m['matrix']}, but {why}: matrix {want}")
+    return errors
+
+
+def check_proofs(mans):
+    """K1: an app proves each entry it provides with a check line, and an entry it runs in
+    two languages or more with a "= both" line too (where they disagree), unless a
+    "# agree: <entry> <why>" line says why no input can make them differ."""
+    errors = []
+    langs = {}
+    for _, m in mans:
+        for e, n in m["entries"].items():
+            langs[f"{m['id']}.{e}"] = n
+    for p, m in mans:
+        if not m["slot"]:
+            continue  # blocks are proved by the apps that use them
+        rel = os.path.relpath(p, ROOT)
+        checked = {e for e, _ in m["checks"]}
+        both = {e for e, b in m["checks"] if b}
+        for e in m["provides"]:
+            n = m["entries"].get(e, langs.get(e, 1))
+            if e not in checked:
+                errors.append(f"{rel}: {e} has no check line (check {e} <input>=<v>,... = <answer>)")
+            elif n > 1 and e not in both and e not in m["agree"]:
+                errors.append(f"{rel}: {e} runs in {n} languages and no check shows them disagree "
+                              f"(check {e} ... = both), nor says why they cannot (# agree: {e} <why>)")
+    return errors
+
+
 def gate_errors(want):
     """Every error the gate finds, the apps in want held to delivered() too."""
     errors = []
@@ -350,12 +502,21 @@ def gate_errors(want):
     files += [os.path.join(blocks, f) for f in sorted(os.listdir(blocks)) if f.endswith(".zxblock")]
     errors += check_layers([(p, manifest(p)) for p in files])
     errors += check_slots([(p, manifest(p)) for p in files])
+    errors += check_proofs([(p, manifest(p)) for p in files])
+    errors += check_matrix([(p, manifest(p)) for p in files])
+    cids = None
     claimed = set()
     for p in files:
         rel = os.path.relpath(p, ROOT)
         m = manifest(p)
         used = set()
         for path in m["logic"]:
+            if path.startswith("cid:"):  # C3: named by content: the tree file with that hash
+                cids = tree_cids() if cids is None else cids
+                if path[4:] not in cids:
+                    errors.append(f"{rel}: logic file {path} names no file under blocks/")
+                    continue
+                path = os.path.relpath(cids[path[4:]], SRC)
             full = os.path.join(SRC, path)
             if not os.path.exists(full):
                 errors.append(f"{rel}: logic file {path} does not exist")
@@ -364,6 +525,15 @@ def gate_errors(want):
                 stem = full[:-5]
                 used.update(os.path.normpath(stem + e) for e in WASM_SRC)
         folder = os.path.join(blocks, m["id"])
+        mine = sorted(used)
+        if m["id"] and os.path.isdir(folder):
+            mine += [os.path.join(folder, f) for f in sorted(os.listdir(folder))]
+        if m["id"]:
+            mine += [os.path.join(TESTS, f"{m['id']}_{k}.inc") for k in ("zxapp", "apps")]
+        if m["model"]:
+            model_c = os.path.join(SRC, m["model"])
+            mine += [model_c, model_c[:-2] + ".h"]
+        errors += [e for e in floats_in(sorted(set(mine))) if e not in errors]
         if m["id"] and os.path.isdir(folder):
             for f in sorted(os.listdir(folder)):
                 full = os.path.normpath(os.path.join(folder, f))
@@ -461,10 +631,14 @@ def run_suite(script):
     return p.returncode, p.stdout + p.stderr
 
 
-def functions(app_id, outs):
-    """One run's witness for one app: (state, why)."""
+def functions(app_id, outs, has_model=True):
+    """One run's witness for one app: (state, why). A manifest with no model line
+    (a component such as fee_check) has no model test: test_zxapp.sh alone witnesses it."""
     states, why = [], []
     for (script, mark), (rc, out) in zip(SUITES, outs):
+        if not has_model and script == "test_apps.sh":
+            states.append("T")
+            continue
         bad = [x.strip() for x in out.splitlines()
                if ("FAIL" in x or "error:" in x) and not x.startswith("app_gate:") and names(x, app_id)]
         if bad:
@@ -496,7 +670,7 @@ def verdicts(want, errors, runs):
             v = "N"
             r["functions"].append("nothing usable: " + ("no manifest" if m is None else "it provides nothing"))
         else:
-            seen = [functions(app_id, o) for o in outs]
+            seen = [functions(app_id, o, bool(m["model"])) for o in outs]
             for i, (st, why) in enumerate(seen):
                 r["functions"] += [f"run {i + 1}: {x}" for x in why]
             fn = {st for st, _ in seen}

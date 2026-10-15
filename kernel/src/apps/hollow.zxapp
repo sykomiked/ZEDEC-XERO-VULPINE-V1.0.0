@@ -1,0 +1,93 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Hollow, the desktop: layer 2 of the matrix, a Fibonacci anchor. The
+# wallpaper is an image from the Hoard (files.read); the dock, the windows
+# and the space you are in come from spaces.list and spaces.get; the app in
+# front is reported once a minute (screen.tick); notices are notes.list and
+# notes.mark_read; simple mode is ui.get. Dock pins and window places are
+# kept as one text file in the Hoard, Hollow.desk (files.write), written
+# whole and kept only once zxvd has it (hollow_model.h HD1-HD6).
+#
+# Every entry is a general rule a later layer can take with "use hollow 1"
+# (three layers lean on this one: Hedgerow, Kinetoscope and Gesso, all
+# built after it, and Mockingbird):
+#   tile_cols   the columns of a grid for n windows (0..64): the least c
+#               with c * c >= n.
+#   tile_rows   its rows: n over its columns, rounded up.
+#   tile_cell   one cell along a side: floor(span / parts) pixels, a side
+#               of 0..16384 pixels in 1..64 parts.
+#   shown       pixels of a segment pos..pos+size-1 on a side 0..span-1.
+#   window_ok   a window's limits: at least 160 by 100 pixels, at most
+#               16384, and 32 pixels or more of it shown across and down.
+#   dock_ok     a dock place's ^ZXDOCK record fits.
+# The tiling and the window's place change what the person sees and what
+# is allowed, so each is witnessed in two languages: KRON and C++ (as
+# WebAssembly) for the grid, KRON and Sutra for what is shown, Eve and
+# KRON for the limits. Eve answers truths only and checks only that each
+# value fits its range (zxapp_eve.c EV1-EV3), so "32 pixels on screen" is
+# worked out by shown first and Eve holds the result to its range. Input
+# names have no underscore: KRON reads _ as floor.
+#
+# Nothing earlier fits: Gleaner (layer 71) is in this wave's order before
+# Hollow but not built on this base, so it is not used; the shared blocks
+# are capacities, shares, days, gcds and swarm shares, none a grid.
+#
+# Planned languages: B (word-level systems code) is pending on shown, the
+# pixel clipping a machine word does. Elixir (message flows, faults) has
+# no entry of its kind here: notices are read and marked through zxvd, and
+# Hollow decides nothing about them; no pending line.
+zxapp 1
+id     hollow
+name   Hollow
+version 1.0.0
+slot   2
+layer  L1
+matrix 2
+icon   icons/l1/002-hollow.svg
+budget 233
+needs  sys.read
+needs  fs.read
+needs  fs.write
+needs  screen.time
+needs  notify
+model  apps/hollow_model.c
+
+provides tile_cols num windows
+logic    kron tile_cols apps/blocks/hollow/tile_cols.kron
+logic    wasm tile_cols apps/blocks/hollow/tile_cols.wasm
+
+provides tile_rows num windows
+logic    kron tile_rows apps/blocks/hollow/tile_rows.kron
+logic    wasm tile_rows apps/blocks/hollow/tile_rows.wasm
+
+provides tile_cell num span parts
+logic    kron tile_cell apps/blocks/hollow/tile_cell.kron
+logic    wasm tile_cell apps/blocks/hollow/tile_cell.wasm
+
+provides shown num pos size span
+logic    kron  shown apps/blocks/hollow/shown.kron
+logic    sutra shown apps/blocks/hollow/shown.sutra
+pending  B shown
+
+provides window_ok truth width height across down
+logic    eve  window_ok apps/blocks/hollow/window.eve
+logic    kron window_ok apps/blocks/hollow/window.kron
+
+provides dock_ok truth place app pinned added
+logic    myra dock_ok apps/blocks/hollow/dock.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
+check tile_cols windows=4,65 = both
+check tile_cols windows=4,-1 = both
+check tile_rows windows=0,1,2,3,5,7,10,64 = 0,1,1,2,2,3,3,8
+check tile_rows windows=4,65 = both
+check tile_cell span=1920,1080,0,16384 parts=3,2,1,64 = 640,540,0,256
+check tile_cell span=1920,16385 parts=2,2 = both
+check shown pos=0,-100,1900,2000,-500,100 size=800,300,800,100,300,0 span=1920,1920,1920,1920,1920,1920 = 800,200,20,0,0,0
+check shown pos=0,0 size=800,-1 span=1920,1920 = both
+check shown pos=0,100000 size=10,10 span=1920,1920 = both
+check window_ok width=160,159,16384,16385,800,800 height=100,100,16384,600,99,600 across=32,800,32,800,800,31 down=32,600,32,600,600,600 = true,false,true,false,false,false
+check window_ok width=800 height=600,600 across=800,800 down=600,600 = both
+check dock_ok place=99,1,-99,100 app=999,5,1,1 pinned=9,1,1,1 added=999999999999,1000,1000000000000,0 = true,true,false,false

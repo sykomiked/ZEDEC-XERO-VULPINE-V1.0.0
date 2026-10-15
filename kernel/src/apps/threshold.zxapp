@@ -1,0 +1,77 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Threshold, login and accounts: the people who use this device (seats.list,
+# seats.add, seats.remove), their locks (seats.unlock, seats.lock,
+# seats.set_lock), the skipped login (seats.auto, seats.set_auto) and
+# passkeys (passkeys.register_begin, .register_finish, .auth_begin,
+# .auth_finish, .list, .revoke). A Fibonacci anchor of the matrix (layer 3):
+# its rules are general, and the layers that lean on this one reach them with
+# "use threshold 1".
+#
+#   rights_ok  may the acting seat (role) add, remove or change the lock of
+#              a seat (target role; own 1 when it is the actor's own seat):
+#              an owner any lock, a person only their own, a guest never
+#              has a lock (1 owner, 2 person, 3 guest).
+#   skip_ok    the login is skipped: one seat, no lock, auto-enter on, as
+#              0/1 flags.
+#   phrase_ok  a passphrase of 12 to 256 bytes.
+#   seat_ok    a listed seat makes a ^ZXSEAT record, which has no field for
+#              a hash, a salt or a passphrase.
+#
+# The task asked for the role rights in Eve and KRON. Eve only checks that
+# each value fits its declared range, one field at a time (zxapp_eve.c
+# EV1-EV3), and the rights are an "or" across fields (an owner, or a person
+# on their own seat), which no set of ranges can say. So the rights are
+# witnessed in Sutra and KRON, as Stillwater's rules are; a row the two do
+# not answer the same way is held (BOTH). The skipped login is one range per
+# field, so it is Eve and KRON as asked: Eve holds each flag to exactly 0 or
+# 1, KRON reads any positive flag as on, and a flag that is neither 0 nor 1
+# is held.
+#
+# Kept in C, since no runnable language owns it: finding a seat by its id,
+# and the passkey ceremony (challenges and signatures pass through to zxvd
+# as they came, never kept). Back-off after a wrong entry is zxvd's
+# (wait_ms): the model shows it and never tries again on its own. The model
+# has no seat limit of its own; zxvd refuses a seat past its own (4096,
+# SEAT_ERR_FULL) and the model shows that refusal. zxvd has no notification
+# method, so the notify capability covers the notice text the model
+# composes for the view.
+#
+# Planned languages with no entry of their kind here: BCPL (machine), C#
+# (objects, view; LANGUAGE_FIT.tsv already gives it a runtime, dotnet,
+# though no host registers one); no pending line.
+zxapp 1
+id     threshold
+name   Threshold
+version 1.0.0
+slot   3
+layer  L1
+matrix 3
+icon   icons/l1/003-threshold.svg
+budget 233
+needs  sys.read
+needs  notify
+model  apps/threshold_model.c
+
+provides rights_ok truth role own target
+logic    sutra rights_ok apps/blocks/threshold/rights.sutra
+logic    kron  rights_ok apps/blocks/threshold/rights.kron
+
+provides skip_ok truth seats lock auto
+logic    eve  skip_ok apps/blocks/threshold/skip.eve
+logic    kron skip_ok apps/blocks/threshold/skip.kron
+
+provides phrase_ok truth length
+logic    eve phrase_ok apps/blocks/threshold/phrase.eve
+
+provides seat_ok truth seat role lock color wait
+logic    myra seat_ok apps/blocks/threshold/seat.myra
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check rights_ok role=1,1,1,2,2,2,3,3,1 own=0,1,0,1,0,1,1,0,0 target=2,1,3,2,2,3,3,2,0 = true,true,false,true,false,false,false,false,false
+check rights_ok role=1,10 own=0,0 target=2,2 = both
+check skip_ok seats=1,0,2,1,1,4096 lock=0,0,0,1,0,0 auto=1,1,1,1,0,1 = true,false,false,false,false,false
+check skip_ok seats=1,1 lock=0,0 auto=1,2 = both
+check phrase_ok length=11,12,256,257,0,-1 = false,true,true,false,false,false
+check seat_ok seat=0,4095,9999,10000 role=1,3,9,1 lock=0,2,9,0 color=0,4294967295,9999999999,0 wait=0,3600000,9999999,0 = true,true,true,false

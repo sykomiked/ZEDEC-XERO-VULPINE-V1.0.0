@@ -1,0 +1,165 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The reviewed check lines of each app (tools/apps/app_checks.py): the trusted
+# copy of its proof. Written only by app_checks.py --freeze, after review.
+# app	check line, verbatim
+almanac	check days seconds=0,86399,86400,200000 = 0,0,1,2
+almanac	check days seconds=-86401 = both
+almanac	check hours seconds=0,86399,3599,3600 = 0,23,0,1
+almanac	check hours seconds=-1 = both
+almanac	check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
+almanac	check used_share.used_x100 total=100 left=101 = both
+banker	check share size=0,5,10 total=10 = 0,5000,10000
+banker	check share size=11 total=10 = both
+banker	check total size=1,2,3 = 6
+banker	check entry_ok folder=3 seq=1,2 size=999999999999999999,12 mtime=1760000000,0 = true,true
+banker	check entry_ok folder=3 seq=1 size=12 mtime=1000000000000 = false
+birdsong	check gain sample=0,32767,-32768,-1 level=10000 = 0,32767,-32768,-1
+birdsong	check gain sample=1,-1 level=1 = 0,-1
+birdsong	check gain sample=32767,-32768 level=1000000 = 32767,-32768
+birdsong	check gain sample=100,32768 level=10000 = both
+birdsong	check gain sample=100,-200 level=-10000 = both
+birdsong	check clip_ms samples=0,8,441 rate=8000 = 0,1,441/8
+birdsong	check clip_ms samples=-441 rate=44100 = -10
+birdsong	check rec_ok rate=7999,8000,48000,48001,16000,16000 channels=1,1,2,2,0,3 frames=0,0,480000,0,10,10 = false,true,true,false,false,false
+birdsong	check rec_ok rate=16000,16000 channels=1,1 frames=-1,480001 = false,false
+birdsong	check memo_ok memo=999999999,1 rate=99999,8000 channels=9,1 frames=999999999,0 mtime=999999999999,1000000000000 = true,false
+brazier	check minutes_left charge=0,1000,999999999,90000 draw=1000,1000,1,14090 = 0,60,59999999940,383
+brazier	check minutes_left charge=1,1000000000 draw=1,1 = both
+brazier	check heat_ok temp=-1,0,450,451,-2732 = false,true,true,false,false
+brazier	check heat_safe temp=-201,-200,600,601,250 = false,true,true,false,true
+brazier	check used_share.used_x100 total=50000,50000,50000,1 left=0,35700,50000,1 = 10000,2860,0,0
+brazier	check used_share.used_x100 total=50000,50000 left=0,50001 = both
+coffer	check balance before=0,100,-50,999999999999999998 moved=0,-100,25,1 = 0,0,-25,999999999999999999
+coffer	check balance before=1,1000000000000000000 moved=0,0 = both
+coffer	check transfer_ok amount=1,9007199254740991,0,5,5,5 after=0,0,0,-1,0,0 room=0,0,0,0,-1,0 gap=0,0,0,0,0,1 = true,true,false,false,false,false
+coffer	check transfer_ok amount=5,5 after=0,1000000000000000000 room=0,0 gap=0,0 = both
+coffer	check holdings balance=100,250,-50,0 = 300
+coffer	check holdings balance=9223372036854775807,0 = 9223372036854775807
+flint	check cells pixels=0,7,8,1919,65535,65535 cell=8,8,8,8,1,256 = 0,0,1,239,65535,255
+flint	check cells pixels=800,65536 cell=8,8 = both
+flint	check cells pixels=800,800 cell=8,257 = both
+flint	check scroll_ok lines=23,24,10000,10001,500,500 bytes=65536,4096,1048576,65536,4095,1048577 = false,true,true,false,false,false
+flint	check history_ok seq=999999999,1000000000,1,1,1 stamp=999999999999,1,1000000000000,1,1 status=999,0,0,1000,127 bytes=9999,1,1,1,10000 = true,false,false,false,false
+flint	check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
+flint	check used_share.used_x100 total=100 left=101 = both
+gatehouse	check use_ok asked=1,1,0,1,0,1 granted=1,0,1,1,0,1 revoked=0,0,0,1,0,1 = true,false,false,false,false,false
+gatehouse	check use_ok asked=1,2 granted=1,1 revoked=0,0 = both
+gatehouse	check use_ok asked=1,1 granted=1,1 revoked=0,-1 = both
+gatehouse	check use_allowed asked=1,1,0,1,0,0 granted=1,0,1,1,0,0 revoked=0,0,0,1,0,1 = 1,0,0,0,0,0
+gatehouse	check use_allowed asked=1,2 granted=1,1 revoked=0,0 = both
+gatehouse	check use_allowed asked=1,1 granted=1,-1 revoked=0,0 = both
+gatehouse	check holders held=1,0,1,1 = 3
+gatehouse	check holders held=0,0 = 0
+gatehouse	check holders held=1,2 = both
+gleaner	check holdout row=0,4,5,9,7,0,999999999 share=2000,2000,2000,2000,0,10000,10000 = 0,1,0,1,0,1,1
+gleaner	check holdout row=4,-1 share=2000,2000 = both
+gleaner	check row_match label=1,2,2,1,1,1,1,1 source=0,0,0,3,0,0,0,3 date=20260101,20260505,20260505,20260505,20251231,20261231,20270101,20260505 lab=1,-1,1,1,1,1,1,1 src=-1,-1,-1,0,-1,-1,-1,3 from=20260101,20260101,20260101,20260101,20260101,20260101,20260101,20260101 to=20261231,20261231,20261231,20261231,20261231,20261231,20261231,20261231 = true,true,false,false,false,true,false,true
+gleaner	check dataset_ok rows=1,1000,0,1001,10,10,10,10 cols=3,32,3,3,2,33,3,3 bytes=1,8000,10,10,10,10,0,8001 = true,true,false,false,false,false,false,false
+gleaner	check row_ok row=0,999,1000,5,5 label=0,63,1,1,1 source=0,99,1,1,1 date=20260101,99999999,1,100000000,1 pii=0,1,0,0,10 = true,true,false,false,false
+gleaner	check leave_ok personal=0,0,3,3,1000,3 consent=0,1,0,1,1,2 = true,true,false,true,true,false
+gleaner	check leave_ok personal=1,-1 consent=1,1 = both
+gleaner	check witness.kind_count kind=1,2,2,5,3 want=2 = 2
+gleaner	check witness.kind_count kind=1,2 want=1,1 = both
+glint	check item_ok folder=1 seq=1,2 kind=3,1000 size=5 = true,false
+hollow	check tile_cols windows=0,1,2,4,5,9,10,64 = 0,1,2,2,3,3,4,8
+hollow	check tile_cols windows=4,65 = both
+hollow	check tile_cols windows=4,-1 = both
+hollow	check tile_rows windows=0,1,2,3,5,7,10,64 = 0,1,1,2,2,3,3,8
+hollow	check tile_rows windows=4,65 = both
+hollow	check tile_cell span=1920,1080,0,16384 parts=3,2,1,64 = 640,540,0,256
+hollow	check tile_cell span=1920,16385 parts=2,2 = both
+hollow	check shown pos=0,-100,1900,2000,-500,100 size=800,300,800,100,300,0 span=1920,1920,1920,1920,1920,1920 = 800,200,20,0,0,0
+hollow	check shown pos=0,0 size=800,-1 span=1920,1920 = both
+hollow	check shown pos=0,100000 size=10,10 span=1920,1920 = both
+hollow	check window_ok width=160,159,16384,16385,800,800 height=100,100,16384,600,99,600 across=32,800,32,800,800,31 down=32,600,32,600,600,600 = true,false,true,false,false,false
+hollow	check window_ok width=800 height=600,600 across=800,800 down=600,600 = both
+hollow	check dock_ok place=99,1,-99,100 app=999,5,1,1 pinned=9,1,1,1 added=999999999999,1000,1000000000000,0 = true,true,false,false
+keepsake	check removed snapshots=5,6,0 keep=5,5,3 = 0,1,0
+keepsake	check removed snapshots=1000000000 keep=1 = both
+keepsake	check keep_ok keep=0,1,4294967295 = false,true,true
+murmuration	check swarm_shares.cycle_share t=1,1,2 = 250,250,500
+murmuration	check swarm_shares.busiest t=5,9,1,7 = 1,3,0
+murmuration	check swarm_shares.within_limits share=0,500,501,10 intensity=5,0,0,6 = true,true,false,false
+platen	check sheets pages=3,4,1 sides=2,2,1 copies=1,3,1 = 2,6,1
+platen	check sheets pages=1 sides=1 copies=10000 = both
+platen	check copies_ok copies=0,1,99,100 most=99,99,99,99 = false,true,true,false
+platen	check copies_ok copies=1000000000 most=1000000000 = both
+quillon	check size_ok bytes=0,1048576,1048577 = true,true,false
+scent	check score name=1,0,0 folder=0,1,0 count=5,200,7 = 1211
+shepherd	check left minutes=60,60,0 extra=0,15,0 used=60,60,0 = 0,15,0
+shepherd	check left minutes=10000 extra=0 used=0 = both
+shepherd	check limit_ok minutes=-2,-1,1440,1441 from=0 to=0 = false,true,true,false
+shepherd	check week minutes=30,0,1440,45,12,0,7 = 1534
+signpost	check name_fault label=1,63,64,0,10,10,63 total=1,253,64,5,254,9,63 bad=0,0,0,0,0,0,1 = 0,0,1,1,2,2,3
+signpost	check name_fault label=5,-1 total=10,10 bad=0,0 = both
+signpost	check name_ok label=1,63,64,0,10,10 total=1,253,64,5,254,253 bad=0,0,0,0,0,1 = true,true,false,false,false,false
+signpost	check name_ok label=10,10 total=5,20 bad=0,0 = both
+signpost	check addr_class a=8,0,127,10,172,172,192,169,100,100,224,239,240,255,255 b=8,0,0,1,16,32,168,254,64,128,0,255,0,255,255 c=8,0,0,2,0,0,1,1,0,0,0,255,0,255,255 d=8,0,1,3,1,1,1,1,1,1,251,255,1,254,255 = 0,1,2,3,3,0,3,4,5,0,6,6,7,7,8
+signpost	check addr_class a=8,256 b=8,0 c=8,0 d=8,0 = both
+signpost	check cache_ok seq=1,999999999,1000000000,1 class=3,9,3,10 addr=3232235777,9999999999,1,1 stored=1700000000,99999999999,1,1 ttl=300,9999999999,1,1 = true,true,false,false
+signpost	check ttl_left stored=1000,1000,1000,1000 ttl=300,300,300,0 now=1000,1299,1300,2000 = 300,1,0,0
+sounding	check rate now=5000,1,4,5 was=0,0,5,5 dt=1000,1001,10,0 = 5000,0,-1,-1
+sounding	check rate now=1000000000000000000 was=0 dt=1 = both
+spindle	check call_ok params=0,4096,4097,10 reply=0,8192,0,8193 = true,true,false,false
+stillwater	check quiet_now opens=1320,1320,1320,420,600,600 closes=420,420,420,1320,600,600 now=1320,419,420,900,0,1439 = true,true,false,true,true,true
+stillwater	check quiet_now opens=1320,1320 closes=420,420 now=0,-1 = both
+stillwater	check let_through quiet=1,1,1,0,1,1 allowed=0,1,0,0,0,0 gap=-1,-1,180,-1,181,-1 emergency=0,0,0,0,0,1 = false,true,true,true,false,true
+stillwater	check let_through quiet=1,1 allowed=0,0 gap=-1,1000000000 emergency=0,0 = both
+stillwater	check schedule_ok mode=0,2,3,0 days=0,127,1,128 opens=0,1439,0,0 closes=1439,0,0,0 = true,true,false,false
+stillwater	check record_ok schedule=999,1 mode=9,0 days=999,1 opens=9999,0 closes=9999,10000 allowed=999,1 = true,false
+talisman	check reach_x100 have=0,50,100,150,1,2,999999999,0,10001 need=100,100,100,100,3,3,999999999,1,10000 = 0,5000,10000,10000,3333,6666,10000,0,10000
+talisman	check reach_x100 have=1,1 need=1,0 = both
+talisman	check reach_x100 have=1,1000000000 need=1,1 = both
+talisman	check earned cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = true,true,true,true,false,false,false,true
+talisman	check earned cred=0,0 bond=0,0 uptime=0,10001 = both
+talisman	check earned_n cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = 1,1,1,1,0,0,0,1
+talisman	check earned_n cred=0,0 bond=0,0 uptime=0,10001 = both
+threshold	check rights_ok role=1,1,1,2,2,2,3,3,1 own=0,1,0,1,0,1,1,0,0 target=2,1,3,2,2,3,3,2,0 = true,true,false,true,false,false,false,false,false
+threshold	check rights_ok role=1,10 own=0,0 target=2,2 = both
+threshold	check skip_ok seats=1,0,2,1,1,4096 lock=0,0,0,1,0,0 auto=1,1,1,1,0,1 = true,false,false,false,false,false
+threshold	check skip_ok seats=1,1 lock=0,0 auto=1,2 = both
+threshold	check phrase_ok length=11,12,256,257,0,-1 = false,true,true,false,false,false
+threshold	check seat_ok seat=0,4095,9999,10000 role=1,3,9,1 lock=0,2,9,0 color=0,4294967295,9999999999,0 wait=0,3600000,9999999,0 = true,true,true,false
+tidewatch	check cpu_x100 cpu=999,0,12345 ms=1000,5,100 = 9,0,1234
+tidewatch	check cpu_x100 cpu=1000000000000 ms=1 = both
+tidewatch	check peak share=-5,3,7 = 7
+tidewatch	check peak share=-5 = 0
+tidewatch	check used_share.used_x100 total=1,1,3 left=0,1,2 = 10000,0,3333
+tidewatch	check used_share.used_x100 total=100 left=101 = both
+treadle	check next_run start=0,0,480,480,480,1439,1439,600,0 period=1,1440,60,60,60,1,1440,1000,7 now=0,1439,0,481,1439,1439,0,601,1434 = 0,1440,480,540,1920,1439,1439,2040,1435
+treadle	check next_run start=480,480 period=60,60 now=481,1440 = both
+treadle	check budget_ok cost=0,999999999,10,10,-1 left=0,999999999,-1,0,0 = true,true,false,true,false
+treadle	check budget_ok cost=10,1000000000 left=0,0 = both
+treadle	check task_ok task=1,999,1000,1 kind=0,9,0,10 start=480,9999,0,0 period=60,9999,1,1 cost=500,999999999,1,1 approved=0,1,0,0 = true,true,false,false
+wake	check count level=0,3,5,2 bar=3 = 2
+wake	check count level=0,3 bar=1,2 = both
+warren	check change_ok owner=1,1,1,1,1,0,0,1 regulated=0,0,1,1,1,0,1,1 approved=0,0,0,1,0,1,1,0 enable=1,0,1,1,0,1,1,0 = true,true,false,true,true,false,false,true
+warren	check change_ok owner=1,2 regulated=0,0 approved=0,0 enable=1,1 = both
+warren	check change_ok owner=1,1 regulated=1,1 approved=1,-1 enable=1,1 = both
+warren	check approval_ok owner=1,1,0,0 approved=1,0,1,0 = true,false,false,false
+warren	check approval_ok owner=1,1 approved=1,2 = both
+warren	check backoff tries=8 base=2 most=60 = 2,4,8,16,32,60,60,60
+warren	check backoff tries=1 base=3600 most=86400 = 3600
+warren	check backoff tries=8 base=0 most=60 = both
+warren	check backoff tries=4 base=2 most=86401 = both
+warren	check record_ok engine=0,99,100,1 enabled=1,9,1,10 regulated=0,9,0,1 restarts=0,999,0,1 changed=1700000000000,999999999999999,1,1 = true,true,false,false
+warren	check banker.share size=0,14090000,7045000 total=14090000 = 0,10000,5000
+waymark	check place_ok lat=90000000,-90000000,90000001,0 lon=180000000,-180000000,0,-180000001 = true,true,false,false
+waymark	check place_ok lat=0,0 lon=0 = both
+wellspring	check band reading=39,40,100,101 lo=40,40,40,40 hi=100,100,100,100 = -1,0,0,1
+wellspring	check band reading=50,50 lo=40,101 hi=100,100 = both
+wellspring	check safe_ok bpm=39,40,100,101 sleep=420,540,480,480 water=1500,4000,2000,2000 = false,true,true,false
+wellspring	check safe_ok bpm=60 sleep=480,480 water=2000,2000 = both
+wellspring	check week amount=30,0,1440,45 = 1515
+wellspring	check week amount=9223372036854775807,1,-1 = both
+wellspring	check progress_x100 done=0,75,150,300 goal=150,150,150,150 = 0,5000,10000,20000
+wellspring	check progress_x100 done=1,1000000000 goal=150,150 = both
+wellspring	check log_ok day=0,999999,1000000 kind=1,4,1 amount=0,999999999,1 = true,true,false
+wellspring	check log_ok day=20000,20000 kind=1,5 amount=30,30 = both
+witness	check chain_ok seq=1,5,5,9,9,5,999999999999999999 prev=0,1,4,5,5,5,1 last=0,1,5,5,9,5,1 = true,true,false,true,false,false,true
+witness	check chain_ok seq=2,-1 prev=1,1 last=1,1 = both
+witness	check kind_count kind=1,2,2,5,3 want=2 = 2
+witness	check kind_count kind=1,2 want=1,1 = both
+witness	check audit_ok seq=1,999999999999999999,1000000000000000000,-5 prev=0,999999999999999998,0,0 kind=1,5,1,9 stamp=1700000000000,999999999999999,0,1000000000000000 = true,true,false,false

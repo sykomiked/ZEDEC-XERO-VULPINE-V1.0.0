@@ -1,0 +1,1 @@
+(opens>-1)&(closes>-1)&(now>-1)&(opens<1440)&(closes<1440)&(now<1440)&(opens=closes)|((opens<closes)&(opens<now+1)&now<closes)|(opens>closes)&(opens<now+1)|now<closes

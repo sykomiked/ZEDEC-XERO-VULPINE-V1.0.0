@@ -1,0 +1,11 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many entries of an audit record are of one kind, in Trebago
+! (witness_rules.h WR2): each entry counts 1 when its kind is want (both
+! 1 + kind - want and 1 + want - kind are at least 1), else 0. Exact.
+trebago kind_count
+  in  kind(n), want
+  out count
+  count = sum(i, max(0, min(1, 1 + kind(i) - want)) * max(0, min(1, 1 + want - kind(i))))
+end
