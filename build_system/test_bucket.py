@@ -29,7 +29,7 @@ import threading
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-from mk_bucket import read_upstream, tree_cid  # noqa: E402
+from mk_bucket import dir_node, read_upstream, tree_cid  # noqa: E402
 from zxv_publish_update import cid_str, file_dag  # noqa: E402
 
 GET = os.path.join(ROOT, "tools", "zxv-get")
@@ -136,6 +136,35 @@ def installer(bucket):
     check(len(n) == 1, "one installer file in %s: %r" % (bucket, n))
     text = open(os.path.join(bucket, n[0]), encoding="ascii").read()
     return n[0], text, ZXV_GET.parse_installer(text)
+
+
+def write_tree(d, entries, blocks, drop=None):
+    """--tree DIR: links.json and a CAR v1 of blocks (minus drop)."""
+    import json
+    os.makedirs(d, exist_ok=True)
+    json.dump({n: [cid_str(c), ts] for n, (c, ts) in entries.items()},
+              open(os.path.join(d, "links.json"), "w"))
+
+    def uv(x):
+        o = bytearray()
+        while True:
+            b = x & 0x7F
+            x >>= 7
+            o.append(b | (0x80 if x else 0))
+            if not x:
+                return bytes(o)
+    any_root = next(iter(entries.values()))[0]
+    head = b"\xa2\x65roots\x81\xd8\x2a\x58\x25\x00" + any_root + b"\x67version\x01"
+    with open(os.path.join(d, "blocks.car"), "wb") as f:
+        f.write(uv(len(head)) + head)
+        for c, b in blocks.items():
+            if c != drop:
+                f.write(uv(len(c) + len(b)) + c + b)
+
+
+def raw_cid(b):
+    from zxv_publish_update import cid_bin
+    return cid_bin(0x55, hashlib.sha256(b).digest())
 
 
 def load_blocks(d):
@@ -410,6 +439,93 @@ def main():
         rc, out = run(GET, "--no-ipfs", "--cid", root, "--upstream", up, "--list", "--patience", "0")
         check(out.count("http://10.0.2.2:8080, then https://trustless-gateway.link") == 1,
               "the upstream file's gateways come first: " + out)
+
+        # --tree: a matrix-like tree linked into the root by CID, never re-chunked
+        big = data(600000, 9)  # one raw block over 256 KiB, as a matrix booklet can be
+        small = b"index page\n"
+        tb = {raw_cid(big): big, raw_cid(small): small}
+        layer = dir_node([("000.0000.r0:000", raw_cid(big), len(big))],
+                         lambda c, b: tb.__setitem__(c, b))
+        matrix = dir_node([("000", layer[0], layer[1])], lambda c, b: tb.__setitem__(c, b))
+        ents = {"07_matrix": matrix, "index.html": (raw_cid(small), len(small))}
+        tdir = os.path.join(t, "tree")
+        write_tree(tdir, ents, tb)
+        tblocks = os.path.join(t, "tblocks")
+        rc, out = run(*mk, "--tree", tdir, "--blocks", tblocks)
+        tiname, ttext, tman = installer(bucket) if rc == 0 else (None, "", [])
+        trees = [x for x in tman if x["kind"] == "tree"]
+        check(rc == 0 and [(x["file"], x["cid"]) for x in trees] ==
+              [("07_matrix", cid_str(matrix[0])), ("index.html", cid_str(raw_cid(small)))] and
+              "tree all - - %d - %s 07_matrix" % (matrix[1], cid_str(matrix[0])) in ttext,
+              "tree lines: " + out + ttext)
+        troot = open(bucket + ".cid").read().strip()
+        kids = [(n, *tree_cid(os.path.join(bucket, n))) for n in os.listdir(bucket)]
+        check(troot == cid_str(dir_node(kids + [(n, c, ts) for n, (c, ts) in ents.items()])[0]),
+              "the origin links the trees as they are")
+        check(cid_str(raw_cid(big)) in os.listdir(tblocks) and troot in os.listdir(tblocks),
+              "--blocks holds the tree's raw 600000-byte block whole, and the root")
+        check(sorted(os.listdir(bucket)) == sorted(["00_base", "01_swarm", "02_cartridges", tiname]),
+              "the trees are linked, not copied into the bucket")
+        r = subprocess.run(["sh", os.path.join(ROOT, "tools", "zxv-verify.sh"),
+                            os.path.join(bucket, tiname)], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        check(r.returncode == 0 and "ok    tree 07_matrix (%s)" % cid_str(matrix[0]) in r.stdout and
+              "ok    tree index.html" in r.stdout, "zxv-verify.sh checks the tree lines: " + r.stdout)
+        load_blocks(tblocks)
+        tget = os.path.join(t, "tget")
+        rc, out = run(GET, "--no-ipfs", "--gateway", gw, troot, "--quiet", "--upstream", up,
+                      "--arch", "x86_64", "--out", tget)
+        check(rc == 0 and "ok     07_matrix: 1 files, 600000 bytes" in out and
+              open(os.path.join(tget, "07_matrix", "000", "000.0000.r0:000"), "rb").read() == big and
+              open(os.path.join(tget, "index.html"), "rb").read() == small,
+              "zxv-get fetches the trees, every block checked: " + out)
+        # lies about trees
+        write_tree(tdir, ents, tb, drop=raw_cid(big))
+        rc, out = run(*mk, "--tree", tdir)
+        check(rc == 1 and "is not in blocks.car" in out, "a tree whose block is missing: " + out)
+        write_tree(tdir, {"00_base": matrix}, tb)
+        rc, out = run(*mk, "--tree", tdir)
+        check(rc == 1 and "already a bucket folder" in out, "a tree over a bucket folder: " + out)
+        write_tree(tdir, {"../x": matrix}, tb)
+        rc, out = run(*mk, "--tree", tdir)
+        check(rc == 1 and "is not a plain name" in out, "a tree name with a path: " + out)
+        tlines = ttext.splitlines(True)
+        ti = [i for i, ln in enumerate(tlines) if ln.startswith("tree ") and ln.endswith(" 07_matrix\n")][0]
+        f = tlines[ti].split()
+        for k, v, why in ((5, "0" * 64, "a tree line with a sha256"),
+                          (6, cid_str(raw_cid(small)), "a tree line naming another CID")):
+            g = list(f)
+            g[k] = v
+            bent = "".join(tlines[:ti] + [" ".join(g) + "\n"] + tlines[ti + 1:])
+            try:
+                ZXV_GET.parse_installer(bent)
+                parsed = True
+            except ZXV_GET.Fail:
+                parsed = False
+            if k == 5:
+                check(not parsed, why + " is refused")
+            else:  # well formed, but the root links another CID under that name
+                for n in os.listdir(bucket):
+                    if n.endswith(".install"):
+                        os.remove(os.path.join(bucket, n))
+                pth = os.path.join(bucket, "x.tmp")
+                open(pth, "w").write(bent)
+                os.rename(pth, os.path.join(bucket, named(pth, "install")))
+                sink = {}
+                kids = []
+                for n in os.listdir(bucket):
+                    c, ts = tree_cid(os.path.join(bucket, n), lambda cb, b: sink.__setitem__(cid_str(cb), b))
+                    kids.append((n, c, ts))
+                r2 = dir_node(kids + [(n, c, ts) for n, (c, ts) in ents.items()],
+                              lambda cb, b: sink.__setitem__(cid_str(cb), b))
+                Store.blocks.update(sink)
+                rc, out = run(GET, "--no-ipfs", "--gateway", gw, cid_str(r2[0]), "--quiet",
+                              "--upstream", up, "--arch", "x86_64", "--out", os.path.join(t, "tlie"))
+                check(rc == 1 and "07_matrix: the bucket's root gives CID %s" % cid_str(matrix[0]) in out,
+                      why + ": " + out)
+        rc, out = run(*mk, "--blocks", blocks)
+        check(rc == 0 and open(bucket + ".cid").read().strip() == root, "without --tree, the old root")
+        load_blocks(blocks)
 
         # installer files that lie, in buckets whose blocks are all genuine
         def lie(new_text, rename=None, extra=None):

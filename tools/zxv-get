@@ -403,6 +403,9 @@ class Node:
         if p.wait() != 0:
             raise Fail("ipfs cat %s failed" % cid_text(cb))
 
+    def block(self, cb):
+        return self.run("block", "get", cid_text(cb), stdout=subprocess.PIPE).stdout
+
     def read(self, cb, cap):
         out = self.run("cat", "/ipfs/" + cid_text(cb), stdout=subprocess.PIPE).stdout
         if len(out) > cap:
@@ -436,7 +439,7 @@ def read_upstream(path):
     return up
 
 
-KINDS = ("core", "layer", "swarm", "cartridge", "doc")
+KINDS = ("core", "layer", "swarm", "cartridge", "doc", "tree")
 
 
 def parse_installer(text):
@@ -444,7 +447,10 @@ def parse_installer(text):
     "# zxv-install 1", lines "max_disc_bytes N", "seal MODE", "gateway URL",
     then one stage per line,
         <kind> <arch> <disc|-> <GROUP|-> <bytes> <sha256> <cid> <dir>/<cid>.<ext>
-    each file named by its own CID."""
+    each file named by its own CID, and then any number of
+        tree all - - <tsize> - <cid> <name>
+    a directory or file at the root, linked by its CID (no sha256: each of
+    its blocks is checked against its CID as it is fetched)."""
     lines = text.split("\n")
     if lines[0] != "# " + FORMAT:
         raise Fail("the installer file does not start with '# %s'" % FORMAT)
@@ -459,6 +465,16 @@ def parse_installer(text):
         if f[0] in ("seal", "gateway") and len(f) == 2:
             continue
         ok = len(f) == 8 and f[0] in KINDS and cap is not None
+        if ok and f[0] == "tree":
+            kind, arch, disc, group, size, sha, cid, path = f
+            ok = (arch == "all" and disc == "-" and group == "-" and sha == "-" and size.isdigit()
+                  and CID_RE.fullmatch(cid) and NAME_RE.fullmatch(path)
+                  and path not in (".", "..") and not path.endswith(".install"))
+            if not ok:
+                raise Fail("installer file line %d is not a tree linked by its CID: %r" % (n, raw))
+            stages.append({"kind": kind, "arch": arch, "disc": None, "group": None,
+                           "bytes": int(size), "sha256": None, "cid": cid, "dir": None, "file": path})
+            continue
         if ok:
             kind, arch, disc, group, size, sha, cid, path = f
             d, _, name = path.partition("/")
@@ -597,6 +613,49 @@ def fetch(src, root, s, outdir, quiet, again=False):
     print("  ok     %s %d bytes, sha256 matches" % (label, s["bytes"]))
 
 
+def fetch_tree(src, root, s, outdir):
+    """A tree stage: the root's link of that name must be the listed CID; then
+    every directory and file under it is written to outdir/<name>, each block
+    checked against its CID. Links named @NNN (a matrix layer's inclusion
+    links to the layers it is built from) are not followed: those layers are
+    fetched at their own place in the tree."""
+    name = s["file"]
+    cb = src.lookup(root, [name])
+    if cid_text(cb) != s["cid"]:
+        raise Fail("%s: the bucket's root gives CID %s, the installer file says %s"
+                   % (name, cid_text(cb), s["cid"]))
+    count = [0, 0]
+
+    def walk(c, dst):
+        codec, _ = parse_cid(c)
+        if codec == DAG_PB:
+            block = src.block(c)
+            links, typ, _ = pb_node(block)
+            if typ == 1:
+                os.makedirs(dst, exist_ok=True)
+                for n, h in links:
+                    if n.startswith("@"):
+                        continue
+                    if not NAME_RE.fullmatch(n.replace(":", "_")) or n in (".", "..") or "/" in n:
+                        raise Fail("%s: a link named %r" % (name, n))
+                    walk(h, os.path.join(dst, n))
+                return
+            if typ == 5:
+                raise Fail("%s: HAMT-sharded directories are not supported" % name)
+        part = dst + ".part"
+        with open(part, "wb") as f:
+            src.write(c, f, lambda k: None)
+        os.replace(part, dst)
+        count[0] += 1
+        count[1] += os.path.getsize(dst)
+
+    target = os.path.join(outdir, name)
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    walk(cb, target)
+    print("  ok     %s: %d files, %d bytes, every block checked" % (name, count[0], count[1]))
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0],
@@ -663,7 +722,7 @@ def main():
         print("install: %s (named by its own CID)" % iname)
         if a.list:
             for s in stages:
-                print("  %-18s %-36s %-8s %11d" % (s["dir"], s["file"], s["arch"], s["bytes"]))
+                print("  %-18s %-36s %-8s %11d" % (s["dir"] or ".", s["file"], s["arch"], s["bytes"]))
             return 0
         arch = a.arch or machine_arch()
         if not arch:
@@ -672,7 +731,10 @@ def main():
         os.makedirs(a.out, exist_ok=True)
         print("arch:   %s, %d disc(s) into %s" % (arch, len(todo), a.out))
         for s in todo:
-            fetch(src, rb, s, a.out, a.quiet)
+            if s["kind"] == "tree":
+                fetch_tree(src, rb, s, a.out)
+            else:
+                fetch(src, rb, s, a.out, a.quiet)
     except Fail as e:
         print("zxv-get: %s" % e, file=sys.stderr)
         return 1

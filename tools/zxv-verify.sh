@@ -14,7 +14,11 @@
 # --cid-version=1` with Kubo's defaults (256 KiB chunks, raw leaves, balanced,
 # 174 links, sha2-256). For a <cid>.install, every file it lists is checked
 # too, beside it in the bucket: present, the listed size and SHA-256, and a
-# name that is its CID. Exit 0 only if everything holds.
+# name that is its CID. A tree line (a directory or file linked into the root
+# by its CID, mk_bucket.py --tree) is checked against the root itself: the
+# root block mk_bucket writes beside the bucket (<bucket>.root.pb) must hash to
+# the origin in <bucket>.cid, and must link that name to that CID. Exit 0 only
+# if everything holds.
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ $# -gt 0 ] || { echo "usage: zxv-verify.sh FILE..." >&2; exit 2; }
@@ -34,7 +38,21 @@ for f in "$@"; do
   case "$f" in *.install) ;; *) continue ;; esac
   head -n 1 "$f" | grep -qx '# zxv-install 1' || { echo "FALSE $f: not a zxv-install 1 file"; bad=1; continue; }
   dir=$(dirname -- "$f")
+  links=
+  if grep -q '^tree ' "$f"; then
+    rootpb="$dir.root.pb"; origin=$(cat "$dir.cid" 2>/dev/null || true)
+    if [ -f "$rootpb" ] && links=$("$tmp/zxv-cid" --links "$rootpb") &&
+       [ "$(printf '%s\n' "$links" | sed -n '1s/  .*//p')" = "$origin" ]; then :; else
+      echo "FALSE $f: its tree lines need $rootpb hashing to the origin in $dir.cid"; bad=1; links=
+    fi
+  fi
   while read -r kind arch disc group bytes sum cid path; do
+    if [ "$kind" = tree ]; then
+      [ -n "$links" ] || continue
+      if printf '%s\n' "$links" | grep -qx "$cid  $path"; then echo "ok    tree $path ($cid)"
+      else echo "FALSE tree $path: the root does not link it as $cid"; bad=1; fi
+      continue
+    fi
     case "$kind" in core|layer|swarm|cartridge|doc) ;; *) continue ;; esac
     p="$dir/$path"
     case "$path" in */"$cid".*) ;; *) echo "FALSE $p: listed as $cid"; bad=1; continue ;; esac
