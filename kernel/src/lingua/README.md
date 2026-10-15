@@ -18,6 +18,7 @@ caller passes every buffer (`zl_work_t`, `zl_prog_t`, `zl_run_t`).
 | FORTRAN 77 | `zl_fortran.c` | fixed form, `INTEGER`, arrays, `PARAMETER`, `DO`/`DO WHILE`, block and logical and arithmetic `IF`, computed `GO TO`, `PRINT *`/`WRITE (*,*)`/`READ *`, intrinsics `MOD ABS IABS MAX MIN ISIGN`; 32-bit | gfortran | Reckonwyrm |
 | Minimal BASIC (ECMA-55) | `zl_basic.c` | integer values, exact `/`, `INT`, `DIM`, `OPTION BASE`, `FOR`/`NEXT`, `GOSUB`, `ON GOTO`, `READ`/`DATA`/`RESTORE`, `INPUT`, `DEF FN`, print zones; 32-bit | none maintained; goldens reviewed by hand | Hatchling |
 | Forth-2012 core | `zl_forth.c` | definitions, `IF`/`ELSE`, `DO`/`LOOP`/`+LOOP`/`LEAVE`, `BEGIN` loops, `RECURSE`, `VARIABLE`/`CONSTANT`/`CREATE`/`ALLOT`, `."`, floored division, 64-bit cells | gforth | Cairndrake |
+| ALGOL 60 (Revised Report) | `zl_algol.c` | MARST hardware representation; blocks, `integer`/`Boolean` variables and one-dimensional arrays with dynamic bounds, procedures (typed, recursive, nested) with value, name (Jensen's device) and array parameters, `if`/`for` (step-until, while, lists)/`goto`, `outinteger`/`outstring`/`ininteger`, `abs iabs sign entier`; exact `/`, `%` truncates; 64-bit | none packaged; goldens cross-checked with fpc against equivalent Pascal in `xref/` | Rootwyrm |
 
 Anything else in a language is refused with `ZL_E_UNSUPPORTED` and the line
 and column; nothing is guessed.

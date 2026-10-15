@@ -1395,13 +1395,15 @@ static void test_golden(const char *dir)
     static const struct {
         const char *name;
         int lang;
-    } g[] = {{"primes.f", ZL_LANG_FORTRAN},   {"collatz.f", ZL_LANG_FORTRAN},
-             {"features.bas", ZL_LANG_BASIC}, {"collatz.bas", ZL_LANG_BASIC},
-             {"features.fs", ZL_LANG_FORTH},  {"collatz.fs", ZL_LANG_FORTH}};
+    } g[] = {{"primes.f", ZL_LANG_FORTRAN},    {"collatz.f", ZL_LANG_FORTRAN},
+             {"features.bas", ZL_LANG_BASIC},  {"collatz.bas", ZL_LANG_BASIC},
+             {"features.fs", ZL_LANG_FORTH},   {"collatz.fs", ZL_LANG_FORTH},
+             {"collatz.alg", ZL_LANG_ALGOL60}, {"sieve.alg", ZL_LANG_ALGOL60},
+             {"nested.alg", ZL_LANG_ALGOL60},  {"features.alg", ZL_LANG_ALGOL60}};
     static char src[1 << 16], want[1 << 16];
     char path[512];
-    int64_t traces[3][64];
-    size_t tn[3] = {0, 0, 0};
+    int64_t traces[4][64];
+    size_t tn[4] = {0, 0, 0, 0};
     int ti = 0;
     for (size_t i = 0; i < sizeof g / sizeof g[0]; i++) {
         snprintf(path, sizeof path, "%s/%s", dir, g[i].name);
@@ -1429,14 +1431,15 @@ static void test_golden(const char *dir)
         twin_props(g[i].lang, src, n, g[i].name);
         if (is_collatz) tn[ti++] = t.n;
     }
-    /* one algorithm, three languages, one sequence of numbers */
-    CHECK(ti == 3 && tn[0] == 40 && tn[0] == tn[1] && tn[1] == tn[2],
-          "collatz traces have one length (%zu %zu %zu)", tn[0], tn[1], tn[2]);
-    if (ti == 3)
+    /* one algorithm, four languages, one sequence of numbers */
+    CHECK(ti == 4 && tn[0] == 40 && tn[0] == tn[1] && tn[1] == tn[2] && tn[2] == tn[3],
+          "collatz traces have one length (%zu %zu %zu %zu)", tn[0], tn[1], tn[2], tn[3]);
+    if (ti == 4)
         for (size_t k = 0; k < tn[0]; k++)
-            CHECK(traces[0][k] == traces[1][k] && traces[1][k] == traces[2][k],
-                  "collatz trace %zu: %lld %lld %lld", k, (long long) traces[0][k],
-                  (long long) traces[1][k], (long long) traces[2][k]);
+            CHECK(traces[0][k] == traces[1][k] && traces[1][k] == traces[2][k] &&
+                      traces[2][k] == traces[3][k],
+                  "collatz trace %zu: %lld %lld %lld %lld", k, (long long) traces[0][k],
+                  (long long) traces[1][k], (long long) traces[2][k], (long long) traces[3][k]);
 }
 
 /* ------------------------------------------------------------ precompiled */

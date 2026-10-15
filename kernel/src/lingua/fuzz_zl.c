@@ -38,6 +38,16 @@ static const char *const seeds[] = {
     "; 10 F .\n"
     ": W BEGIN DUP WHILE DUP . 1- REPEAT DROP ; 4 W .\" done\" 42 EMIT\n: U 0 BEGIN 1+ DUP 5 = "
     "UNTIL ; U . 5 ?DUP . .\n",
+    "begin comment fuzz seed; integer i, s; Boolean b; integer array a[0:4];\n"
+    "  integer procedure f(x, y); value x; integer x, y;\n"
+    "    f := if x > 0 then x * y + f(x - 1, y) else 0;\n"
+    "  procedure p(n); value n; integer n;\n"
+    "  begin integer array c[1:n]; c[n] := n; s := s + c[n] end;\n"
+    "  for i := 0 step 1 until 4, 7 while i > 9 do a[i] := i ^ 2 % 3 - 1;\n"
+    "  b := !(s = 0) | a[1] <= 2 -> s != 3 == true; ininteger(0, s);\n"
+    "  L: if b & s < 10 then begin s := s + f(2, i); goto L end else p(3);\n"
+    "  outinteger(1, s); outstring(1, \"ok\\n\")\n"
+    "end\n",
 };
 
 static const char *const dict[] = {
