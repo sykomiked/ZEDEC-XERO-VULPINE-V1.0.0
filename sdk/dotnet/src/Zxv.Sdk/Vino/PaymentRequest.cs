@@ -30,7 +30,7 @@ namespace Zxv.Vino;
 /// <para>
 /// A paid chance outcome (a loot box, a paid draw) may never be sold on the
 /// LIVE lane: encoding such a request raises
-/// <see cref="ZxvStatus.PaidChance"/>. The raffle is a separate module and is
+/// <see cref="ZxvStatus.PaidChance"/>. The allotment is a separate module and is
 /// not a payment request.
 /// </para>
 /// </remarks>

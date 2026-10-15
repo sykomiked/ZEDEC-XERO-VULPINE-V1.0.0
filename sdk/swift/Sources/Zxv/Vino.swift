@@ -57,7 +57,7 @@ import CZxv
 /// its own ledger. ML-DSA-87 is the reference implementation, not FIPS
 /// 140-3 validated. Whether a given deployment of Vino is store credit, a
 /// prepaid access product or something else is a legal question pending
-/// counsel; nothing in this SDK decides it. The raffle is a separate
+/// counsel; nothing in this SDK decides it. The allotment is a separate
 /// module, not a payment request.
 public enum Vino {
     /// The most issuers plus holders one play sandbox can hold (256).

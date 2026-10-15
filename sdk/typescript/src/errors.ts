@@ -223,7 +223,7 @@ export class RequestExpiredError extends ZxvRefusedError {}
 /**
  * `ZXV_E_CHANCE` (ABI 1.6, class REFUSED): a LIVE payment request may not
  * buy a paid chance outcome (loot boxes, paid draws). Such purchases can
- * only use the PLAY lane. The raffle is a separate module, not a payment
+ * only use the PLAY lane. The allotment is a separate module, not a payment
  * request.
  */
 export class PaidChanceRefusedError extends ZxvRefusedError {}

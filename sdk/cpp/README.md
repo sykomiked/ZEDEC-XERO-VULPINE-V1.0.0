@@ -467,7 +467,7 @@ auto same = vino::Request::decode(encoded.bytes);   // == req
 
 A live request marking a paid chance outcome (`flag::chance`: a loot box or
 a paid draw) is refused when it is encoded (`PaidChanceRefused`); the
-raffle is a separate module, not a payment request. A deployment that sets
+allotment is a separate module, not a payment request. A deployment that sets
 a per-device daily cap counts approvals with `vino::SpendMeter`:
 
 ```cpp

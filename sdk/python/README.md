@@ -557,7 +557,7 @@ Some rules:
   voucher into backing, play units or anything else. There is no interest,
   yield or return of any kind.
 - **Chance outcomes.** A LIVE request marked `RequestFlag.CHANCE` (a loot
-  box, a paid draw) is refused with `ChanceOutcomeError`. The raffle is a
+  box, a paid draw) is refused with `ChanceOutcomeError`. The allotment is a
   separate module, not a payment request.
 - **Daily cap.** `SpendMeter(cap, daily_cap).admit(day, amount)` counts
   what one device approved per day. An amount that would pass the cap is

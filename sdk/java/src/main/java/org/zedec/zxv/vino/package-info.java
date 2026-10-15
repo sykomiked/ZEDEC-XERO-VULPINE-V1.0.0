@@ -30,7 +30,7 @@
  * the wallet's ML-DSA-87 signature over the request id, the wallet key's hash and the approval
  * time. A receipt for an expired request, or approved outside the request's window, is refused
  * ({@link org.zedec.zxv.vino.ExpiredException}). A LIVE request that marks a paid chance outcome
- * (a loot box, a paid draw) is refused ({@link org.zedec.zxv.vino.ChanceException}). The raffle is a
+ * (a loot box, a paid draw) is refused ({@link org.zedec.zxv.vino.ChanceException}). The allotment is a
  * separate module, not a payment request.
  *
  * <h2>Daily cap</h2>

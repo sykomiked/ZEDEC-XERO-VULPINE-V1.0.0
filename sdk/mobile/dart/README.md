@@ -161,7 +161,7 @@ Rules the types carry (the full text is in `zxv_api.h`):
   out**: no call turns a voucher into backing, play units or anything else,
   and there is no interest, yield or return of any kind.
 - A live request that marks a paid chance outcome (`Vino.flagChance`: loot
-  boxes, paid draws) is refused when encoded (`ChanceException`). The raffle
+  boxes, paid draws) is refused when encoded (`ChanceException`). The allotment
   is a separate module, not a payment request.
 - A receipt for an expired request, or approved outside
   `[createdAt, expiresAt]`, is an `ExpiredException`.
