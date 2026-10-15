@@ -24,3 +24,8 @@ SPDX-License-Identifier = "OFL-1.1"
 path = "docs/circuit-board/**"
 SPDX-FileCopyrightText = "2024-2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["docs/release/swarm_model_manifest.json", "tools/tiamat/tiamat_swarm.json"]
+SPDX-FileCopyrightText = "2026 Michael Laurence Curzi & 36N9 GENETICS LLC"
+SPDX-License-Identifier = "Apache-2.0"
