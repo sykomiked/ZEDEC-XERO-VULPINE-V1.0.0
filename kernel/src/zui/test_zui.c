@@ -17,6 +17,7 @@
 #include "zui_progress.h"
 #include "zui_login.h"
 #include "zui_pxl.h"
+#include "zui_para.h"
 #include "../font/ttf_fixture.inc" /* MINI_TTF[] */
 #include "zui_ttf_fixture.inc"     /* ZUI_TTF[]: metrics + a composite */
 
@@ -171,6 +172,165 @@ static void test_text_plumbing(void)
     (void) zui_text(&s, &t, 2, 40, ZUI_TEXT, "\xFF\xC3 bad utf8 \xE2\x82");
     CHECK(1, "malformed UTF-8 does not crash");
     CHECK(zui_text(&s, 0, 5, 5, 0, "x") == 5, "null text is a no-op");
+}
+
+static int32_t paint_calls;
+static int32_t test_painter(zui_surface_t *s, uint32_t cp, int32_t x, int32_t base, uint32_t size,
+                            uint32_t rgb, uint32_t a, void *ctx)
+{
+    (void) a;
+    (void) ctx;
+    if (cp != 0x1F604u) return -1;
+    if (s) {
+        paint_calls++;
+        zui_fill(s, (zui_rect_t){x, base - (int32_t) size, (int32_t) size, (int32_t) size}, rgb);
+    }
+    return (int32_t) size + 2;
+}
+
+static int ink_count(const uint32_t *p, int n, uint32_t ground)
+{
+    int k = 0;
+    for (int i = 0; i < n; i++) k += p[i] != ground;
+    return k;
+}
+
+static void test_fallback(void)
+{
+    printf("--- text: fallback chain, drawn symbols, painter ---\n");
+    static zui_glyph_cache_t cache;
+    static uint8_t bfont[sizeof ZUI_TTF];
+    memcpy(bfont, ZUI_TTF, sizeof ZUI_TTF);
+    bfont[0x97] = 0x42; /* the cmap's one segment moves from 'A' to 'B' */
+    bfont[0x9d] = 0x42;
+    bfont[0xa1] = 0xbf;
+    ttf_font_t a, b;
+    CHECK(ttf_parse(&a, ZUI_TTF, sizeof ZUI_TTF) && ttf_parse(&b, bfont, sizeof bfont),
+          "two fixture faces parse");
+    CHECK(ttf_glyph_index(&a, 'B') == 0 && ttf_glyph_index(&b, 'B') == 1, "only the second has B");
+    zui_glyph_cache_init(&cache);
+    zui_text_t t = {&a, &cache, 20, false};
+    int32_t box = zui_text_width_q8(&t, "B");
+    const ttf_font_t *chain[2] = {&b, 0};
+    zui_text_fallback(&cache, chain, 2);
+    CHECK(cache.n_fallback == 1, "NULL entries are dropped from the chain");
+    CHECK(zui_text_width(&t, "B") == 12, "B comes from the fallback face (600/1000 x 20)");
+    CHECK(zui_text_width_q8(&t, "A") == 12 * 256, "A still comes from the text's own face");
+    (void) box;
+
+    static uint32_t p1[96 * 48], p2[96 * 48];
+    zui_surface_t s1, s2;
+    zui_surface_init(&s1, p1, 96, 48, 96);
+    zui_surface_init(&s2, p2, 96, 48, 96);
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_fill(&s2, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_text(&s1, &t, 4, 30, ZUI_TEXT, "B");
+    CHECK(ink_count(p1, 96 * 48, ZUI_VOID) > 20, "the fallback glyph has ink");
+
+    /* drawn keyboard symbols */
+    const uint32_t keys[] = {0x2318u, 0x2325u, 0x21E7u, 0x2303u, 0x23CEu, 0x21B5u,
+                             0x232Bu, 0x238Bu, 0x21E5u, 0x2713u, 0x2715u};
+    int all = 1, inked = 1;
+    for (unsigned i = 0; i < sizeof keys / sizeof keys[0]; i++) {
+        all &= zui_symbol_has(keys[i]) && zui_symbol(0, keys[i], 0, 0, 20, 0, 0) == 18;
+        zui_fill(&s2, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+        zui_symbol(&s2, keys[i], 10, 34, 24, ZUI_GOLD, 255);
+        inked &= ink_count(p2, 96 * 48, ZUI_VOID) > 30;
+    }
+    CHECK(all, "every keyboard symbol is known, 0.9 em wide");
+    CHECK(inked, "and every one draws");
+    CHECK(!zui_symbol_has('A') && zui_symbol(0, 'A', 0, 0, 20, 0, 0) < 0,
+          "letters are not symbols");
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_fill(&s2, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    int32_t end = zui_text(&s1, &t, 4, 30, ZUI_TEXT,
+                           "\xE2\x8C\x98"
+                           "B");
+    zui_symbol(&s2, 0x2318u, 4, 30, 20, ZUI_TEXT, 255);
+    zui_text(&s2, &t, 4 + 18, 30, ZUI_TEXT, "B");
+    CHECK(memcmp(p1, p2, sizeof p1) == 0 && end == 4 + 18 + 12,
+          "text draws the command key, then carries on after it");
+    CHECK(zui_text_width(&t, "\xE2\x8C\x98\xE2\x87\xA7"
+                             "B") == 18 + 18 + 12,
+          "widths agree");
+
+    /* a painter for what nothing else has */
+    int32_t before = zui_text_width_q8(&t, "\xF0\x9F\x98\x84");
+    zui_text_painter(&cache, test_painter, 0);
+    CHECK(zui_text_width(&t, "\xF0\x9F\x98\x84") == 22, "the painter sets the emoji's width");
+    paint_calls = 0;
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_text(&s1, &t, 4, 30, ZUI_GOLD, "\xF0\x9F\x98\x84");
+    CHECK(paint_calls == 1 && p1[20 * 96 + 10] == ZUI_GOLD, "and draws it");
+    zui_text_painter(&cache, 0, 0);
+    CHECK(zui_text_width_q8(&t, "\xF0\x9F\x98\x84") == before,
+          "without one, the face's own box stays");
+
+    /* the swarm's own faces as emoji */
+    zui_text_painter(&cache, zui_emote_glyph, 0);
+    CHECK(zui_text_width(&t, "\xF0\x9F\x98\x84\xF0\x9F\xA4\x94") == 40,
+          "joy and curious emoji are one em each");
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_text(&s1, &t, 4, 30, ZUI_TEXT, "\xF0\x9F\x98\x84");
+    CHECK(ink_count(p1, 96 * 48, ZUI_VOID) > 60, "and draw as faces");
+    CHECK(zui_emote_glyph(0, 0x1F680u, 0, 0, 20, 0, 0, 0) < 0, "a rocket is not a feeling");
+    zui_text_painter(&cache, 0, 0);
+
+    /* a full cache starts over but keeps its chain */
+    cache.used = ZUI_GLYPH_POOL;
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_text(&s1, &t, 4, 30, ZUI_TEXT, "B");
+    CHECK(cache.n_fallback == 1 && ink_count(p1, 96 * 48, ZUI_VOID) > 20,
+          "a cache reset keeps the fallback chain");
+    zui_glyph_cache_init(&cache);
+    CHECK(cache.n_fallback == 0 && !cache.sym, "init clears it");
+
+    /* the line primitive */
+    zui_fill(&s1, (zui_rect_t){0, 0, 96, 48}, ZUI_VOID);
+    zui_line_q8(&s1, 10 * 256, 10 * 256, 80 * 256, 10 * 256, 2 * 256, ZUI_GOLD, 255);
+    CHECK(p1[10 * 96 + 40] == ZUI_GOLD && p1[20 * 96 + 40] == ZUI_VOID,
+          "a line covers its path only");
+    zui_line_q8(&s1, -5000, -5000, 50000, 50000, 512, ZUI_GOLD, 255);
+    zui_line_q8(0, 0, 0, 10, 10, 256, ZUI_GOLD, 255);
+    CHECK(1, "off-surface and NULL lines are safe");
+}
+
+static void test_para(void)
+{
+    printf("--- text: shaping and bidi before drawing ---\n");
+    static zui_para_t P;
+    /* Hebrew alef bet gimel, logical -> visual reversed */
+    CHECK(!strcmp(zui_para_layout(&P, "\xD7\x90\xD7\x91\xD7\x92", 0, ZUI_BIDI_AUTO),
+                  "\xD7\x92\xD7\x91\xD7\x90") &&
+              P.rtl,
+          "Hebrew runs right to left");
+    CHECK(!strcmp(zui_para_layout(&P, "ZXV 1.0", 0, ZUI_BIDI_AUTO), "ZXV 1.0") && !P.rtl,
+          "Latin is untouched");
+    /* beh beh: initial + final forms, then reversed for display */
+    CHECK(!strcmp(zui_para_layout(&P, "\xD8\xA8\xD8\xA8", 0, ZUI_BIDI_AUTO),
+                  "\xEF\xBA\x90\xEF\xBA\x91"),
+          "Arabic letters join, then reverse");
+    /* ka + vowel sign i: the sign is drawn before its consonant */
+    CHECK(!strcmp(zui_para_layout(&P, "\xE0\xA4\x95\xE0\xA4\xBF", 0, ZUI_BIDI_AUTO),
+                  "\xE0\xA4\xBF\xE0\xA4\x95"),
+          "Devanagari pre-base vowel moves before the consonant");
+    /* an English sentence holding Hebrew in brackets keeps its order */
+    CHECK(!strcmp(zui_para_layout(&P, "a (\xD7\x90\xD7\x91) b", 0, ZUI_BIDI_LTR),
+                  "a (\xD7\x91\xD7\x90) b"),
+          "an embedded right-to-left word reverses in place");
+    CHECK(!strcmp(zui_para_layout(&P, 0, 0, ZUI_BIDI_AUTO), "") &&
+              !strcmp(zui_para_layout(0, "x", 0, ZUI_BIDI_AUTO), ""),
+          "NULL text or workspace gives an empty string");
+    static zui_glyph_cache_t cache;
+    zui_glyph_cache_init(&cache);
+    ttf_font_t m;
+    ttf_parse(&m, ZUI_TTF, sizeof ZUI_TTF);
+    zui_text_t t = {&m, &cache, 20, false};
+    CHECK(zui_text_para_width(&t, &P, "AA", ZUI_BIDI_AUTO) == 24, "width after layout");
+    static uint32_t px[64 * 32];
+    zui_surface_t s;
+    zui_surface_init(&s, px, 64, 32, 64);
+    CHECK(zui_text_para(&s, &t, &P, 2, 24, ZUI_TEXT, "AA", ZUI_BIDI_AUTO) == 26, "and drawing");
 }
 
 static void test_depth(void)
@@ -891,6 +1051,28 @@ static int sat_of(uint32_t c)
     return mx - mn;
 }
 
+static void test_contrast(void)
+{
+    printf("--- tokens: WCAG contrast ---\n");
+    const uint32_t grounds[3] = {ZUI_VOID, ZUI_PANEL, ZUI_RAISED};
+    int text_ok = 1, muted_ok = 1, edge_ok = 1;
+    for (int i = 0; i < 3; i++) {
+        text_ok &= zui_contrast_x100(ZUI_TEXT, grounds[i]) >= 700;
+        muted_ok &= zui_contrast_x100(ZUI_MUTED, grounds[i]) >= 450;
+        edge_ok &= zui_contrast_x100(ZUI_EDGE, grounds[i]) >= 300;
+    }
+    CHECK(text_ok, "body text reaches 7:1 (AAA) on every ground");
+    CHECK(muted_ok, "muted text reaches 4.5:1 on every ground");
+    CHECK(zui_contrast_x100(ZUI_FAINT, ZUI_VOID) >= 450 &&
+              zui_contrast_x100(ZUI_FAINT, ZUI_PANEL) >= 450,
+          "faint text reaches 4.5:1 on VOID and PANEL");
+    CHECK(zui_contrast_x100(ZUI_FAINT, ZUI_RAISED) >= 300, "and 3:1 on RAISED (large/disabled)");
+    CHECK(edge_ok, "control outlines reach 3:1 on every ground");
+    CHECK(zui_contrast_x100(ZUI_GOLD, ZUI_VOID) >= 700 &&
+              zui_contrast_x100(ZUI_VOID, ZUI_GOLD) >= 700,
+          "gold on the ground, and the ground on gold buttons, reach 7:1");
+}
+
 static void test_pxl(void)
 {
     printf("--- pxl: colour/anti-colour x tint/shade per pixel ---\n");
@@ -1060,6 +1242,8 @@ int main(void)
     test_layout();
     test_shapes();
     test_text_plumbing();
+    test_fallback();
+    test_para();
     test_depth();
     test_logic();
     test_spaces();
@@ -1069,6 +1253,7 @@ int main(void)
     test_login();
     test_foil();
     test_pxl();
+    test_contrast();
     printf("%d/%d checks passed\n", checks - fails, checks);
     return fails ? 1 : 0;
 }
