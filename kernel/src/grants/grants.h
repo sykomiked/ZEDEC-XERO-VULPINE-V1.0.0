@@ -315,8 +315,8 @@ grant_status_t grant_redeem(grant_t *g, uint32_t holder, uint32_t holder_vino, u
                             uint64_t n, uint64_t price, uint64_t now);
 /* The mutual-aid name for grant_redeem; the exported symbol stays grant_redeem. */
 static inline grant_status_t grant_accept_allotment(grant_t *g, uint32_t holder,
-                                                    uint32_t holder_vino, uint32_t lot,
-                                                    uint64_t n, uint64_t price, uint64_t now)
+                                                    uint32_t holder_vino, uint32_t lot, uint64_t n,
+                                                    uint64_t price, uint64_t now)
 {
     return grant_redeem(g, holder, holder_vino, lot, n, price, now);
 }

@@ -33,11 +33,13 @@ static const jr_pt_t SQ_A[4] = {{0, 0}, {0, 10 * M6}, {10 * M6, 10 * M6}, {10 * 
 static const jr_pt_t SQ_B[4] = {{0, 10 * M6}, {0, 20 * M6}, {10 * M6, 20 * M6}, {10 * M6, 10 * M6}};
 static const jr_pt_t SQ_C[4] = {{0, 20 * M6}, {0, 30 * M6}, {10 * M6, 30 * M6}, {10 * M6, 20 * M6}};
 static const jr_pt_t SQ_D[4] = {{0, 30 * M6}, {0, 40 * M6}, {10 * M6, 40 * M6}, {10 * M6, 30 * M6}};
-static const jr_pt_t SQ_S[4] = {{8 * M6, 8 * M6}, {8 * M6, 9 * M6}, {9 * M6, 9 * M6}, {9 * M6, 8 * M6}};
+static const jr_pt_t SQ_S[4] = {
+    {8 * M6, 8 * M6}, {8 * M6, 9 * M6}, {9 * M6, 9 * M6}, {9 * M6, 8 * M6}};
 static const jr_pt_t SQ_E[4] = {{5 * M6, 0}, {5 * M6, 10 * M6}, {10 * M6, 10 * M6}, {10 * M6, 0}};
 static const jr_pt_t TRI[3] = {{0, 50 * M6}, {10 * M6, 50 * M6}, {0, 60 * M6}};
 static const jr_pt_t SQ_G[4] = {{0, 60 * M6}, {0, 70 * M6}, {10 * M6, 70 * M6}, {10 * M6, 60 * M6}};
-static const jr_pt_t SQ_H[4] = {{5 * M6, 60 * M6}, {5 * M6, 70 * M6}, {15 * M6, 70 * M6}, {15 * M6, 60 * M6}};
+static const jr_pt_t SQ_H[4] = {
+    {5 * M6, 60 * M6}, {5 * M6, 70 * M6}, {15 * M6, 70 * M6}, {15 * M6, 60 * M6}};
 
 static jr_zone_t Z[] = {
     {10, JR_ZONE, 0x0F, 1, 4, SQ_A},  {20, JR_ZONE, 0x06, 2, 4, SQ_B},
@@ -63,8 +65,7 @@ static int burn(void *ctx, const uint8_t user[32], uint64_t v)
 {
     (void) ctx;
     (void) user;
-    if (burn_fail)
-        return -1;
+    if (burn_fail) return -1;
     nburn++;
     burned += v;
     return 0;
@@ -73,8 +74,7 @@ static int refund(void *ctx, const uint8_t user[32], uint64_t v)
 {
     (void) ctx;
     (void) user;
-    if (refund_fail)
-        return -1;
+    if (refund_fail) return -1;
     nrefund++;
     refunded += v;
     return 0;
@@ -126,15 +126,15 @@ static lpres_state_t reg(void *ctx, uint32_t cap, uint32_t zone, uint8_t ev[32])
 
 static jr_router_t R;
 static jr_hooks_t H;
-static const uint8_t U1[32] = {1, [31] = 0x71}, U2[32] = {2, [31] = 0x72}, U3[32] = {3, [31] = 0x73};
+static const uint8_t U1[32] = {1, [31] = 0x71}, U2[32] = {2, [31] = 0x72},
+                     U3[32] = {3, [31] = 0x73};
 
 static void reset_counts(void)
 {
     nburn = nrefund = ndeliver = nescrow = burn_fail = refund_fail = 0;
     burned = refunded = 0;
     nreg_calls = 0;
-    for (int i = 0; i < 16; i++)
-        reg_ans[i] = LPRES_STATE_NEITHER;
+    for (int i = 0; i < 16; i++) reg_ans[i] = LPRES_STATE_NEITHER;
 }
 
 static void hooks(void)
@@ -259,8 +259,7 @@ static void ref_receipt(const uint8_t prev[32], const jr_receipt_t *o, uint8_t o
     p8(&c, o->transferable);
     p64(&c, o->lots);
     p32(&c, o->nlot_idx);
-    for (uint32_t i = 0; i < o->nlot_idx; i++)
-        p32(&c, o->lot_idx[i]);
+    for (uint32_t i = 0; i < o->nlot_idx; i++) p32(&c, o->lot_idx[i]);
     p64(&c, o->voucher_num);
     p64(&c, o->voucher_den);
     p8(&c, o->route);
@@ -284,8 +283,7 @@ static void ref_escrow(const jr_escrow_t *e, uint8_t out[32])
     p64(&c, e->lots);
     p64(&c, e->voucher_after);
     p32(&c, e->nlot_idx);
-    for (uint32_t i = 0; i < e->nlot_idx; i++)
-        p32(&c, e->lot_idx[i]);
+    for (uint32_t i = 0; i < e->nlot_idx; i++) p32(&c, e->lot_idx[i]);
     p32(&c, e->nclaims);
     for (uint32_t i = 0; i < e->nclaims; i++) {
         p32(&c, e->claims[i].source);
@@ -313,8 +311,7 @@ static jr_status_t settle(uint64_t id, uint8_t kind, uint32_t caps, uint32_t reg
 {
     const jr_escrow_t *e = jr_escrow_get(&R, id);
     uint8_t msg[JR_RULING_MSG_LEN], s[32];
-    if (!e)
-        return jr_escrow_settle(&R, id, kind, caps, region, s, 32, o);
+    if (!e) return jr_escrow_settle(&R, id, kind, caps, region, s, 32, o);
     jr_ruling_msg(e, kind, caps, region, msg);
     sign(ARB_KEY, msg, JR_RULING_MSG_LEN, s);
     return jr_escrow_settle(&R, id, kind, caps, region, s, 32, o);
@@ -331,17 +328,14 @@ static void t_math(void)
         s ^= s >> 7;
         s ^= s << 17;
         uint64_t a = s, b = (s * 0x2545F4914F6CDD1Dull) >> (i % 64);
-        if (i % 7 == 0)
-            a = UINT64_MAX - (uint64_t) i;
+        if (i % 7 == 0) a = UINT64_MAX - (uint64_t) i;
         jr_u128_t m = jr_mul64(a, b);
         u128 w = (u128) a * b;
-        if (m.lo != (uint64_t) w || m.hi != (uint64_t) (w >> 64))
-            bad++;
+        if (m.lo != (uint64_t) w || m.hi != (uint64_t) (w >> 64)) bad++;
         uint64_t d = (s >> (i % 61)) | 1u, q, r;
         jr_u128_t n = {(uint64_t) (w >> 64) % d, (uint64_t) w};
         u128 nn = ((u128) n.hi << 64) | n.lo;
-        if (!jr_divmod(n, d, &q, &r) || q != (uint64_t) (nn / d) || r != (uint64_t) (nn % d))
-            bad++;
+        if (!jr_divmod(n, d, &q, &r) || q != (uint64_t) (nn / d) || r != (uint64_t) (nn % d)) bad++;
     }
     CHECK(bad == 0, "mul64/divmod match __int128 on 4000 random cases");
     jr_u128_t n = {0, 0};
@@ -379,11 +373,10 @@ static void t_lot_header(void)
     CHECK(b[40] == 0xAA && b[103] == 0xBB, "vault key and receipt hash offsets");
     CHECK(jr_lot_hdr_decode(b, &g) == JR_OK, "decode");
     CHECK(memcmp(&g.vault_pubkey, &h.vault_pubkey, 32) == 0 &&
-              memcmp(g.custodian_receipt, h.custodian_receipt, 32) == 0 &&
-              g.warehouse_id == 42 && g.drum_serial == (77 | (0x5Aull << 56)) &&
-              g.lot_number == (770 | (0x3Bull << 56)) &&
-              g.volume == 200000 && g.grade == 800 && g.haircut_bps == 250 &&
-              g.grade_kind == 1 && g.depot_lat == 37500000 && g.depot_lon == 15000000,
+              memcmp(g.custodian_receipt, h.custodian_receipt, 32) == 0 && g.warehouse_id == 42 &&
+              g.drum_serial == (77 | (0x5Aull << 56)) && g.lot_number == (770 | (0x3Bull << 56)) &&
+              g.volume == 200000 && g.grade == 800 && g.haircut_bps == 250 && g.grade_kind == 1 &&
+              g.depot_lat == 37500000 && g.depot_lon == 15000000,
           "round trip");
     CHECK(jr_lot_hdr_decode(NULL, &g) == JR_E_ARG && jr_lot_hdr_decode(b, NULL) == JR_E_ARG,
           "null args");
@@ -398,23 +391,19 @@ static void t_lot_header(void)
         int64_t v;
         jr_status_t want;
     } cases[] = {
-        {0, 0, JR_E_FORMAT},          {0, 1, JR_OK},
-        {1, 10000, JR_OK},            {1, 10001, JR_E_FORMAT},
-        {2, 90000000, JR_OK},         {2, 90000001, JR_E_FORMAT},
-        {2, -90000000, JR_OK},        {2, -90000001, JR_E_FORMAT},
-        {3, 180000000, JR_OK},        {3, 180000001, JR_E_FORMAT},
-        {3, -180000000, JR_OK},       {3, -180000001, JR_E_FORMAT},
+        {0, 0, JR_E_FORMAT},    {0, 1, JR_OK},
+        {1, 10000, JR_OK},      {1, 10001, JR_E_FORMAT},
+        {2, 90000000, JR_OK},   {2, 90000001, JR_E_FORMAT},
+        {2, -90000000, JR_OK},  {2, -90000001, JR_E_FORMAT},
+        {3, 180000000, JR_OK},  {3, 180000001, JR_E_FORMAT},
+        {3, -180000000, JR_OK}, {3, -180000001, JR_E_FORMAT},
     };
     for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
         jr_lot_hdr_t t = lot(1, 1);
-        if (cases[i].field == 0)
-            t.volume = (uint32_t) cases[i].v;
-        if (cases[i].field == 1)
-            t.haircut_bps = (uint16_t) cases[i].v;
-        if (cases[i].field == 2)
-            t.depot_lat = (int32_t) cases[i].v;
-        if (cases[i].field == 3)
-            t.depot_lon = (int32_t) cases[i].v;
+        if (cases[i].field == 0) t.volume = (uint32_t) cases[i].v;
+        if (cases[i].field == 1) t.haircut_bps = (uint16_t) cases[i].v;
+        if (cases[i].field == 2) t.depot_lat = (int32_t) cases[i].v;
+        if (cases[i].field == 3) t.depot_lon = (int32_t) cases[i].v;
         jr_lot_hdr_encode(&t, c);
         CHECK(jr_lot_hdr_decode(c, &g) == cases[i].want, "field range");
     }
@@ -429,8 +418,7 @@ static void t_locate(void)
     CHECK(jr_zone_locate(Z, NZ, P(7 * M6, 2 * M6), &id, &caps, &reg) == LPRES_STATE_TRUE &&
               id == 5 && caps == 0x0F,
           "in A and E, which agree: lowest id");
-    CHECK(jr_zone_locate(Z, NZ, P(8 * M6 + 5, 8 * M6 + 5), &id, &caps, &reg) ==
-                  LPRES_STATE_FALSE &&
+    CHECK(jr_zone_locate(Z, NZ, P(8 * M6 + 5, 8 * M6 + 5), &id, &caps, &reg) == LPRES_STATE_FALSE &&
               id == 0 && caps == 0 && reg == 0,
           "sanction hole wins and hides the zone");
     CHECK(jr_zone_locate(Z, NZ, P(8 * M6, 8 * M6 + 3), &id, &caps, &reg) == LPRES_STATE_FALSE,
@@ -462,8 +450,7 @@ static void t_locate(void)
           "triangle inside");
     CHECK(jr_zone_locate(Z, NZ, P(5 * M6, 55 * M6), &id, &caps, &reg) == LPRES_STATE_TRUE,
           "triangle hypotenuse");
-    CHECK(jr_zone_locate(Z, NZ, P(5 * M6 + 1, 55 * M6), &id, &caps, &reg) ==
-              LPRES_STATE_NEITHER,
+    CHECK(jr_zone_locate(Z, NZ, P(5 * M6 + 1, 55 * M6), &id, &caps, &reg) == LPRES_STATE_NEITHER,
           "just past the hypotenuse");
     CHECK(jr_zone_locate(Z, NZ, P(10 * M6, 49 * M6), &id, &caps, &reg) == LPRES_STATE_NEITHER,
           "beyond the apex, ray passes the vertex");
@@ -490,10 +477,8 @@ static void t_locate(void)
     bad[1].npts = 3;
     CHECK(jr_zone_locate(bad, 2, P(2 * M6, 2 * M6), &id, &caps, &reg) == LPRES_STATE_BOTH,
           "three points is a valid polygon");
-    CHECK(jr_zone_locate(NULL, 1, P(0, 0), &id, &caps, &reg) == LPRES_STATE_NEITHER,
-          "null table");
-    CHECK(jr_zone_locate(NULL, 0, P(0, 0), &id, &caps, &reg) == LPRES_STATE_NEITHER,
-          "empty table");
+    CHECK(jr_zone_locate(NULL, 1, P(0, 0), &id, &caps, &reg) == LPRES_STATE_NEITHER, "null table");
+    CHECK(jr_zone_locate(NULL, 0, P(0, 0), &id, &caps, &reg) == LPRES_STATE_NEITHER, "empty table");
 
     uint8_t h1[32], h2[32];
     CHECK(jr_table_hash(Z, NZ, h1) == JR_OK, "table hash");
@@ -504,14 +489,10 @@ static void t_locate(void)
         memcpy(cp, Z, sizeof cp);
         jr_pt_t moved[4];
         memcpy(moved, SQ_A, sizeof moved);
-        if (f == 0)
-            cp[0].id++;
-        if (f == 1)
-            cp[0].caps ^= 1;
-        if (f == 2)
-            cp[0].region++;
-        if (f == 3)
-            cp[0].kind = JR_SANCTION;
+        if (f == 0) cp[0].id++;
+        if (f == 1) cp[0].caps ^= 1;
+        if (f == 2) cp[0].region++;
+        if (f == 3) cp[0].kind = JR_SANCTION;
         if (f == 4) {
             moved[3].lat++;
             cp[0].pts = moved;
@@ -806,8 +787,9 @@ static void t_hierarchy(void)
     CHECK(jr_voucher(&R, U1, 1, &p, &qq) == JR_OK && p == 500 && qq == 3, "voucher 500/3");
     CHECK(jr_voucher(&R, U2, 1, &p, &qq) == JR_OK && p == 0 && qq == 1, "no voucher 0/1");
     CHECK(jr_voucher(&R, U1, 77, &p, &qq) == JR_E_NOTFOUND, "voucher unknown asset");
-    CHECK(jr_voucher(NULL, U1, 1, &p, &qq) == JR_E_ARG && jr_voucher(&R, NULL, 1, &p, &qq) ==
-              JR_E_ARG && jr_voucher(&R, U1, 1, NULL, &qq) == JR_E_ARG &&
+    CHECK(jr_voucher(NULL, U1, 1, &p, &qq) == JR_E_ARG &&
+              jr_voucher(&R, NULL, 1, &p, &qq) == JR_E_ARG &&
+              jr_voucher(&R, U1, 1, NULL, &qq) == JR_E_ARG &&
               jr_voucher(&R, U1, 1, &p, NULL) == JR_E_ARG,
           "voucher null args");
 
@@ -861,7 +843,8 @@ static void t_hierarchy(void)
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 4,
           "asked-for mutual wins over level order");
     q = req(U3, 2000, 77, false, true);
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 2, "unknown preference ignored");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 2,
+          "unknown preference ignored");
     q = req(U3, 1000, 0, false, true);
     jr_zone_ok_t zc = zok(LPRES_STATE_TRUE, 30, 0x04, 1);
     CHECK(jr_accept_allotment(&R, &q, &zc, &o) == JR_OK && o.asset_id == 4, "zone C: mutual only");
@@ -888,7 +871,8 @@ static void t_hierarchy(void)
     jr_zone_ok_t zm = zok(LPRES_STATE_TRUE, 10, JR_CAP_METALS, 1);
     q = req(U3, 10, 0, false, false);
     before = nburn;
-    CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_DUST && nburn == before, "dust: nothing burned");
+    CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_DUST && nburn == before,
+          "dust: nothing burned");
     /* accumulate only applies to the asked-for asset */
     static const uint8_t U9[32] = {9};
     q = req(U9, 10, 2, true, false);
@@ -896,7 +880,8 @@ static void t_hierarchy(void)
               o.voucher_num == 10 && o.voucher_den == 1 && o.nlot_idx == 0,
           "accumulate metals");
     q = req(U3, 10, 0, true, false);
-    CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_DUST, "accumulate without a preference is dust");
+    CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_DUST,
+          "accumulate without a preference is dust");
     /* retired asset is skipped */
     CHECK(jr_retire_asset(&R, 4) == JR_OK, "retire mutual");
     q = req(U3, 1000, 4, false, false);
@@ -906,14 +891,17 @@ static void t_hierarchy(void)
     q = req(U3, 0, 0, false, false);
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_E_ARG, "zero VINO");
     q = req(U3, 1, 0, false, false);
-    CHECK(jr_accept_allotment(NULL, &q, &z, &o) == JR_E_ARG && jr_accept_allotment(&R, NULL, &z, &o) == JR_E_ARG &&
-              jr_accept_allotment(&R, &q, NULL, &o) == JR_E_ARG && jr_accept_allotment(&R, &q, &z, NULL) == JR_E_ARG,
+    CHECK(jr_accept_allotment(NULL, &q, &z, &o) == JR_E_ARG &&
+              jr_accept_allotment(&R, NULL, &z, &o) == JR_E_ARG &&
+              jr_accept_allotment(&R, &q, NULL, &o) == JR_E_ARG &&
+              jr_accept_allotment(&R, &q, &z, NULL) == JR_E_ARG,
           "null args");
     /* more than 32 lots at once is no candidate */
     setup();
     add_lots(1, 300, 30, 1);
     q = req(U1, 11000, 1, false, false);
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 4, "33 barrels: falls through");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 4,
+          "33 barrels: falls through");
     q = req(U1, 10667, 1, false, false);
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 1 && o.lots == 32 &&
               o.nlot_idx == 32,
@@ -939,8 +927,8 @@ static void t_four_valued(void)
     z = zok(LPRES_STATE_BOTH, 20, 0x06, 2);
     snap();
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW &&
-              o.route == LPRES_STATE_BOTH && nburn == 1 && last_escrow.reason ==
-              JR_ESC_ZONE_CONFLICT && last_escrow.asset_id == 0 &&
+              o.route == LPRES_STATE_BOTH && nburn == 1 &&
+              last_escrow.reason == JR_ESC_ZONE_CONFLICT && last_escrow.asset_id == 0 &&
               last_escrow.claims[0].verdict == LPRES_STATE_BOTH &&
               last_escrow.claims[0].evidence[0] == 20,
           "zone BOTH: escrow");
@@ -954,7 +942,8 @@ static void t_four_valued(void)
               o.route == LPRES_STATE_BOTH && last_escrow.reason == JR_ESC_ZONE_CONFLICT,
           "reserved bit under TRUE: escrow");
     z = zok(LPRES_STATE_TRUE, 40, 0x80000001u, 1);
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW, "top bit too");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW,
+          "top bit too");
     /* NEITHER: local non-transferable credit */
     z = zok(LPRES_STATE_NEITHER, 0, 0, 0);
     q = req(U1, 10, 1, false, false);
@@ -978,7 +967,8 @@ static void t_four_valued(void)
               last_escrow.claims[0].verdict == LPRES_STATE_NEITHER,
           "retired N asset: escrow");
     CHECK(jr_set_n_asset(&R, 0) == JR_OK, "clear N");
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW, "no N asset: escrow");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW,
+          "no N asset: escrow");
     setup();
     z = zok(LPRES_STATE_NEITHER, 0, 0, 0);
     q = req(U1, (uint64_t) 1 << 62, 0, false, false);
@@ -1002,18 +992,18 @@ static void t_four_valued(void)
     q = req(U1, 1100, 1, false, false);
     snap();
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW &&
-              o.route == LPRES_STATE_BOTH && o.asset_id == 1 && o.lots == 3 &&
-              o.nlot_idx == 3 && o.voucher_num == 0,
+              o.route == LPRES_STATE_BOTH && o.asset_id == 1 && o.lots == 3 && o.nlot_idx == 3 &&
+              o.voucher_num == 0,
           "transit flag: BOTH, plan frozen");
     check_seal(&o, "class escrow digest");
     uint64_t eid = o.escrow_id;
     const jr_escrow_t *e = jr_escrow_get(&R, eid);
-    CHECK(e && e->reason == JR_ESC_CLASS_CONFLICT && e->nclaims == 3 &&
-              e->claims[0].source == 0 && e->claims[0].verdict == LPRES_STATE_TRUE &&
-              e->claims[1].source == 500 && e->claims[1].verdict == LPRES_STATE_FALSE &&
-              e->claims[2].source == 501 && e->claims[1].evidence[0] == JR_CAP_COMMODITY &&
-              e->claims[1].evidence[1] == 10 && e->lots == 3 && e->voucher_after == 300 &&
-              e->vino == 1100 && R.lots[e->lot_idx[0]].state == 1,
+    CHECK(e && e->reason == JR_ESC_CLASS_CONFLICT && e->nclaims == 3 && e->claims[0].source == 0 &&
+              e->claims[0].verdict == LPRES_STATE_TRUE && e->claims[1].source == 500 &&
+              e->claims[1].verdict == LPRES_STATE_FALSE && e->claims[2].source == 501 &&
+              e->claims[1].evidence[0] == JR_CAP_COMMODITY && e->claims[1].evidence[1] == 10 &&
+              e->lots == 3 && e->voucher_after == 300 && e->vino == 1100 &&
+              R.lots[e->lot_idx[0]].state == 1,
           "claims pinned side by side, lots escrowed");
     ref_escrow(e, (uint8_t *) head_before);
     CHECK(memcmp(head_before, e->digest, 32) == 0, "class escrow digest");
@@ -1023,7 +1013,8 @@ static void t_four_valued(void)
     q = req(U1, 2000, 1, false, false);
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 2, "frozen asset skipped");
     q = req(U2, 334, 1, false, false);
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 1, "other holders unaffected");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.asset_id == 1,
+          "other holders unaffected");
     reg_ans[JR_CAP_METALS] = 9;
     q = req(U2, 2000, 2, false, false);
     CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW &&
@@ -1041,7 +1032,8 @@ static void t_rulings(void)
     CHECK(jr_add_registry(&R, 500, reg, NULL) == JR_OK, "registry");
     reg_ans[JR_CAP_COMMODITY] = LPRES_STATE_FALSE;
     q = req(U1, 2500, 1, false, false);
-    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW, "class escrow");
+    CHECK(jr_accept_allotment(&R, &q, &z, &o) == JR_OK && o.outcome == JR_OUT_ESCROW,
+          "class escrow");
     uint64_t eid = o.escrow_id;
     uint8_t s[32] = {0};
     CHECK(jr_escrow_settle(&R, eid, JR_RULE_DELIVER, 0, 0, s, 32, &o2) == JR_E_SIG, "bad sig");
@@ -1072,7 +1064,8 @@ static void t_rulings(void)
               o2.route == LPRES_STATE_TRUE && nburn == burns && R.lots[o.lot_idx[0]].state == 2,
           "DELIVER commits the frozen plan without a second burn");
     check_seal(&o2, "deliver digest");
-    CHECK(o2.event == JR_EVENT_CUSTODIAL_IN_KIND_DISBURSEMENT, "release is an in-kind disbursement");
+    CHECK(o2.event == JR_EVENT_CUSTODIAL_IN_KIND_DISBURSEMENT,
+          "release is an in-kind disbursement");
     CHECK(R.burned_total == 2500, "burned once");
     CHECK(settle(eid, JR_RULE_DELIVER, 0, 0, &o2) == JR_E_SETTLED, "settled once");
     CHECK(jr_escrow_get(&R, eid)->settled && jr_escrow_get(&R, eid)->ruling == JR_RULE_DELIVER,
@@ -1110,8 +1103,8 @@ static void t_rulings(void)
     int calls = nreg_calls;
     snap();
     CHECK(settle(eid, JR_RULE_REROUTE, JR_CAP_COMMODITY, 1, &o2) == JR_OK &&
-              o2.outcome == JR_OUT_ALLOTTED && o2.asset_id == 1 && o2.lots == 6 &&
-              nburn == burns && nreg_calls == calls,
+              o2.outcome == JR_OUT_ALLOTTED && o2.asset_id == 1 && o2.lots == 6 && nburn == burns &&
+              nreg_calls == calls,
           "REROUTE with the arbiter's mask skips registries");
     check_seal(&o2, "reroute digest");
     CHECK(o2.event == JR_EVENT_CUSTODIAL_IN_KIND_DISBURSEMENT, "reroute release event");
@@ -1201,7 +1194,6 @@ static void t_software_first(void)
     CHECK(jr_withdraw_source(&R, 7) == 0 && !R.physical_online, "empty: layer off");
     CHECK(jr_set_physical(&R, false) == JR_OK, "off is always allowed");
 }
-
 
 /* Re-seal a header after editing it so only the semantic checks can refuse it. */
 static void reseal(uint8_t b[JR_LOT_HDR_LEN])
@@ -1487,8 +1479,8 @@ static void t_extras2(void)
     uint8_t pf[32], msg[JR_CLAIM_MSG_LEN];
     jr_zone_ok_t zo = {LPRES_STATE_TRUE, 5, 5, 5};
     make_claim(P(2 * M6, 2 * M6), 1, 100, &c, pf);
-    CHECK(jr_zone_verify(&R, &c, pf, 32, 200, &zo) == JR_OK && zo.verdict ==
-              LPRES_STATE_NEITHER && zo.zone_id == 0 && zo.caps == 0 && zo.region == 0,
+    CHECK(jr_zone_verify(&R, &c, pf, 32, 200, &zo) == JR_OK && zo.verdict == LPRES_STATE_NEITHER &&
+              zo.zone_id == 0 && zo.caps == 0 && zo.region == 0,
           "stale resets every output");
     make_claim(P(2 * M6, 2 * M6), 2, 100, &c, pf);
     CHECK(jr_zone_verify(&R, &c, pf, 32, 100, &zo) == JR_OK, "first");
@@ -1556,7 +1548,8 @@ static void t_atomic_and_full(void)
         jr_zone_ok_t zm = zok(LPRES_STATE_TRUE, 10, JR_CAP_METALS, 1);
         q = req(u, 3, 2, true, false);
         int b = nburn;
-        CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_FULL && nburn == b, "voucher table full");
+        CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_E_FULL && nburn == b,
+              "voucher table full");
         q = req(u, 1550, 2, false, false);
         CHECK(jr_accept_allotment(&R, &q, &zm, &o) == JR_OK && o.voucher_num == 0,
               "an exact lot needs no voucher slot");
@@ -1575,8 +1568,7 @@ static void t_atomic_and_full(void)
     for (uint32_t i = 0; i < JR_MAX_ESCROWS; i++) {
         q = req(U1, 5, 0, false, false);
         CHECK(jr_accept_allotment(&R, &q, &zb2, &o) == JR_OK, "escrow");
-        if (i == 0)
-            first = o.escrow_id;
+        if (i == 0) first = o.escrow_id;
     }
     int b = nburn;
     CHECK(jr_accept_allotment(&R, &q, &zb2, &o) == JR_E_FULL && nburn == b, "escrow table full");
@@ -1626,28 +1618,24 @@ static void t_random(void)
         (void) w;
         if (st != JR_OK) {
             refusals++;
-            if (memcmp(h0, R.head, 32) != 0)
-                bad++;
+            if (memcmp(h0, R.head, 32) != 0) bad++;
             continue;
         }
         sum += v;
         uint8_t d[32];
         ref_receipt(h0, &o, d);
-        if (memcmp(d, o.digest, 32) != 0)
-            bad++;
+        if (memcmp(d, o.digest, 32) != 0) bad++;
         if (o.outcome == JR_OUT_ESCROW) {
             escrows++;
             jr_receipt_t o2;
             uint8_t kind = (s >> 30) & 1 ? JR_RULE_REFUND : JR_RULE_REROUTE;
-            if (settle(o.escrow_id, kind, JR_CAP_MUTUAL, 1, &o2) != JR_OK)
-                bad++;
+            if (settle(o.escrow_id, kind, JR_CAP_MUTUAL, 1, &o2) != JR_OK) bad++;
             continue;
         }
         deliveries++;
         const jr_asset_t *a = NULL;
         for (uint32_t k = 0; k < R.nassets; k++)
-            if (R.assets[k].id == o.asset_id)
-                a = &R.assets[k];
+            if (R.assets[k].id == o.asset_id) a = &R.assets[k];
         rprev = prev[o.asset_id];
         uint64_t rnew = 0;
         for (uint32_t k = 0; k < R.nvouchers; k++)
@@ -1655,10 +1643,8 @@ static void t_random(void)
                 rnew = R.vouchers[k].r;
         u128 lhs = (u128) v * a->num + rprev;
         u128 rhs = (u128) o.lots * a->den * a->lot + rnew;
-        if (lhs != rhs || rnew >= a->den * a->lot)
-            bad++;
-        if (o.voucher_num * a->num != rnew * o.voucher_den)
-            bad++;
+        if (lhs != rhs || rnew >= a->den * a->lot) bad++;
+        if (o.voucher_num * a->num != rnew * o.voucher_den) bad++;
         {
             uint64_t x = o.voucher_num, y = o.voucher_den;
             while (y) {
@@ -1666,19 +1652,16 @@ static void t_random(void)
                 x = y;
                 y = t2;
             }
-            if (x != 1 && !(o.voucher_num == 0 && o.voucher_den == 1))
-                bad++;
+            if (x != 1 && !(o.voucher_num == 0 && o.voucher_den == 1)) bad++;
         }
-        if ((z.caps & a->cap) == 0 && o.outcome != JR_OUT_LOCAL_CREDIT)
-            bad++;
+        if ((z.caps & a->cap) == 0 && o.outcome != JR_OUT_LOCAL_CREDIT) bad++;
     }
     CHECK(bad == 0, "conservation, digests and masks hold over 3000 random allotments");
     printf("random: %d deliveries, %d escrows, %d refusals\n", deliveries, escrows, refusals);
     CHECK(deliveries > 500 && escrows > 100 && refusals > 10, "every path exercised");
     CHECK(R.burned_total == sum && burned == sum, "burn total");
     uint32_t delivered = 0;
-    for (uint32_t i = 0; i < R.nlots; i++)
-        delivered += R.lots[i].state != 0;
+    for (uint32_t i = 0; i < R.nlots; i++) delivered += R.lots[i].state != 0;
     CHECK(delivered + jr_free_lots(&R, 1) + jr_free_lots(&R, 2) == R.nlots, "lot states");
 }
 

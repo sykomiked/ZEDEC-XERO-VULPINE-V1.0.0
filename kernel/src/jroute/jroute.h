@@ -143,7 +143,7 @@
 typedef enum {
     JR_OK = 0,
     JR_E_ARG = -1,
-    JR_E_PROFILE = -2,    /* R1 */
+    JR_E_PROFILE = -2, /* R1 */
     JR_E_FULL = -3,
     JR_E_DUST = -4,       /* R3: nothing burned */
     JR_E_SANCTIONED = -5, /* R6: nothing burned */
@@ -152,18 +152,18 @@ typedef enum {
     JR_E_REPLAY = -8,     /* R8 */
     JR_E_CLAIM = -9,      /* R8: claim disagrees with the table */
     JR_E_NOTFOUND = -10,
-    JR_E_SETTLED = -11,   /* R7 */
-    JR_E_SIG = -12,       /* R7 */
-    JR_E_RULING = -13,    /* R7: ruling kind not valid for this escrow */
-    JR_E_REFUND = -14,    /* R7: the refund hook refused */
-    JR_E_RANGE = -15,     /* R4: den*lot past 64 bits */
-    JR_E_FORMAT = -16     /* lot header */
+    JR_E_SETTLED = -11, /* R7 */
+    JR_E_SIG = -12,     /* R7 */
+    JR_E_RULING = -13,  /* R7: ruling kind not valid for this escrow */
+    JR_E_REFUND = -14,  /* R7: the refund hook refused */
+    JR_E_RANGE = -15,   /* R4: den*lot past 64 bits */
+    JR_E_FORMAT = -16   /* lot header */
 } jr_status_t;
 
 typedef enum { JR_PROFILE_COMMUNITY = 0, JR_PROFILE_INSTITUTION = 1 } jr_profile_t;
 
 typedef enum {
-    JR_OUT_ALLOTTED = 1,    /* lots delivered (voucher may also move) */
+    JR_OUT_ALLOTTED = 1,     /* lots delivered (voucher may also move) */
     JR_OUT_VOUCHER_ONLY = 2, /* R3 accumulate: zero lots, voucher grew */
     JR_OUT_LOCAL_CREDIT = 3, /* R6 zone NEITHER: non-transferable compute */
     JR_OUT_ESCROW = 4        /* R6/R3 level 4 */
@@ -181,31 +181,31 @@ typedef enum { JR_RULE_DELIVER = 1, JR_RULE_REROUTE = 2, JR_RULE_REFUND = 3 } jr
  * project's mutual-aid wording; a name does not change what the transfer
  * is in law (docs/JURISDICTION_ROUTER.md, "Wording"). */
 typedef enum {
-    JR_EVENT_DISCRETIONARY_ALLOTMENT = 1,        /* accepted directly */
-    JR_EVENT_CUSTODIAL_HOLD = 2,                 /* placed in Seachest escrow */
-    JR_EVENT_CUSTODIAL_IN_KIND_DISBURSEMENT = 3  /* released from escrow by a ruling */
+    JR_EVENT_DISCRETIONARY_ALLOTMENT = 1,       /* accepted directly */
+    JR_EVENT_CUSTODIAL_HOLD = 2,                /* placed in Seachest escrow */
+    JR_EVENT_CUSTODIAL_IN_KIND_DISBURSEMENT = 3 /* released from escrow by a ruling */
 } jr_event_t;
 
 /* The action label and notice a front end shows before jr_accept_allotment. */
 #define JR_UI_ACTION "Accept Discretionary System Allotment"
 #define JR_UI_NOTICE                                                                               \
-    "In accordance with the mutual aid and public-benefit covenants of the distribution, the "    \
-    "system allocates available surplus reserves to the participant. Allotments are provided "    \
-    "gratuitously in good faith, determined by jurisdictional feasibility, without contractual "  \
+    "In accordance with the mutual aid and public-benefit covenants of the distribution, the "     \
+    "system allocates available surplus reserves to the participant. Allotments are provided "     \
+    "gratuitously in good faith, determined by jurisdictional feasibility, without contractual "   \
     "consideration or guarantee of monetary yield."
 
 /* ---- lot header (Caravan #090 warehouse receipt), fixed width ---- */
 typedef struct {
-    uint16_t grade_kind;  /* 1 olive oil (acidity), 2 metal (fineness), other: deployment */
+    uint16_t grade_kind; /* 1 olive oil (acidity), 2 metal (fineness), other: deployment */
     uint32_t warehouse_id;
-    uint32_t volume;      /* millilitres or milligrams; > 0 */
+    uint32_t volume; /* millilitres or milligrams; > 0 */
     uint64_t drum_serial;
     uint64_t lot_number;
     uint32_t grade;       /* acidity in 0.001 %, or fineness in parts per 10000 */
     uint16_t haircut_bps; /* custodian haircut on the backing receipt, <= 10000 */
     uint8_t vault_pubkey[32];
     uint8_t custodian_receipt[32]; /* hash of the custodian-signed receipt */
-    int32_t depot_lat;    /* bonded depot pickup, microdegrees */
+    int32_t depot_lat;             /* bonded depot pickup, microdegrees */
     int32_t depot_lon;
 } jr_lot_hdr_t;
 
@@ -253,15 +253,14 @@ typedef struct {
 } jr_zone_claim_t;
 
 jr_status_t jr_zone_attest(const jr_zone_t *zones, uint32_t n, jr_pt_t p,
-                           const uint8_t device_secret[32], uint64_t epoch,
-                           jr_zone_claim_t *out);
+                           const uint8_t device_secret[32], uint64_t epoch, jr_zone_claim_t *out);
 /* The bytes a proof (or a device signature) covers. */
 void jr_zone_claim_msg(const jr_zone_claim_t *c, uint8_t out[JR_CLAIM_MSG_LEN]);
 
 /* ---- registries and hooks ---- */
 typedef struct {
-    uint32_t source;  /* 0 = the zone claim; else a registry id */
-    uint8_t verdict;  /* lpres_state_t */
+    uint32_t source; /* 0 = the zone claim; else a registry id */
+    uint8_t verdict; /* lpres_state_t */
     uint8_t evidence[32];
 } jr_claim_t;
 
@@ -275,28 +274,28 @@ typedef struct {
     uint64_t receipt_id;
     uint8_t user[32];
     uint64_t vino_burned;
-    uint8_t outcome;     /* jr_outcome_t */
-    uint8_t event;       /* jr_event_t */
-    uint32_t asset_id;   /* 0 for an escrow with no plan */
-    uint32_t cap;        /* the asset's class bit */
-    bool transferable;   /* false for R6 NEITHER credit */
-    uint64_t lots;       /* lots (physical) or lot units (compute, mutual) */
-    uint32_t nlot_idx;   /* physical: lots listed below */
+    uint8_t outcome;   /* jr_outcome_t */
+    uint8_t event;     /* jr_event_t */
+    uint32_t asset_id; /* 0 for an escrow with no plan */
+    uint32_t cap;      /* the asset's class bit */
+    bool transferable; /* false for R6 NEITHER credit */
+    uint64_t lots;     /* lots (physical) or lot units (compute, mutual) */
+    uint32_t nlot_idx; /* physical: lots listed below */
     uint16_t lot_idx[JR_MAX_RECEIPT_LOTS];
     uint64_t voucher_num; /* holder's voucher on the asset after this: num/den VINO, reduced */
     uint64_t voucher_den;
-    uint8_t route;       /* lpres_state_t */
-    uint64_t escrow_id;  /* 0 unless outcome == JR_OUT_ESCROW */
-    uint8_t digest[32];  /* R10 */
+    uint8_t route;      /* lpres_state_t */
+    uint64_t escrow_id; /* 0 unless outcome == JR_OUT_ESCROW */
+    uint8_t digest[32]; /* R10 */
 } jr_receipt_t;
 
 typedef struct {
     uint64_t id;
     uint8_t user[32];
     uint64_t vino;
-    uint8_t reason;      /* jr_escrow_reason_t */
+    uint8_t reason; /* jr_escrow_reason_t */
     bool settled;
-    uint8_t ruling;      /* jr_rule_kind_t once settled */
+    uint8_t ruling; /* jr_rule_kind_t once settled */
     uint32_t zone_id;
     uint32_t caps;
     uint32_t region;
@@ -405,10 +404,10 @@ typedef struct {
 jr_status_t jr_init(jr_router_t *r, const jr_hooks_t *hooks, const jr_zone_t *zones,
                     uint32_t nzones, uint64_t max_age);
 jr_status_t jr_set_profile(jr_router_t *r, jr_profile_t p); /* COMMUNITY also disables */
-jr_status_t jr_enable(jr_router_t *r, bool on);              /* R1: INSTITUTION only */
+jr_status_t jr_enable(jr_router_t *r, bool on);             /* R1: INSTITUTION only */
 jr_status_t jr_add_asset(jr_router_t *r, const jr_asset_t *a);
 jr_status_t jr_retire_asset(jr_router_t *r, uint32_t id);
-jr_status_t jr_set_n_asset(jr_router_t *r, uint32_t id);     /* must be a COMPUTE asset */
+jr_status_t jr_set_n_asset(jr_router_t *r, uint32_t id); /* must be a COMPUTE asset */
 jr_status_t jr_add_registry(jr_router_t *r, uint32_t id, jr_registry_fn fn, void *ctx);
 jr_status_t jr_add_lot(jr_router_t *r, uint32_t asset_id, const uint8_t hdr[JR_LOT_HDR_LEN]);
 uint32_t jr_free_lots(const jr_router_t *r, uint32_t asset_id);
@@ -427,7 +426,7 @@ jr_status_t jr_zone_verify(jr_router_t *r, const jr_zone_claim_t *c, const uint8
 /* R3-R6, R9-R10. On JR_OK the receipt is filled (outcome ESCROW carries
  * the escrow id). On any error nothing was burned and nothing changed. */
 jr_status_t jr_accept_allotment(jr_router_t *r, const jr_request_t *q, const jr_zone_ok_t *z,
-                      jr_receipt_t *out);
+                                jr_receipt_t *out);
 
 void jr_ruling_msg(const jr_escrow_t *e, uint8_t kind, uint32_t caps, uint32_t region,
                    uint8_t out[JR_RULING_MSG_LEN]);
@@ -440,8 +439,8 @@ jr_status_t jr_escrow_settle(jr_router_t *r, uint64_t escrow_id, uint8_t kind, u
 const jr_escrow_t *jr_escrow_get(const jr_router_t *r, uint64_t id);
 
 /* R5: the holder's voucher on an asset as reduced p/q VINO (0/1 when none). */
-jr_status_t jr_voucher(const jr_router_t *r, const uint8_t user[32], uint32_t asset_id,
-                       uint64_t *p, uint64_t *q);
+jr_status_t jr_voucher(const jr_router_t *r, const uint8_t user[32], uint32_t asset_id, uint64_t *p,
+                       uint64_t *q);
 
 /* Exact 128-bit helpers (exposed for tests). */
 typedef struct {

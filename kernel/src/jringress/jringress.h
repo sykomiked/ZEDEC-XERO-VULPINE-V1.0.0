@@ -61,13 +61,12 @@ typedef struct {
 jr_status_t jri_init(jri_t *g, jr_router_t *r, jr_verify_fn verify, void *vctx);
 
 /* The bytes a pledge signature covers (I1). */
-void jri_pledge_msg(const uint8_t key[32], uint32_t asset_id, uint64_t version,
-                    const uint8_t *hdrs, uint32_t n, uint8_t out[JRI_PLEDGE_MSG_LEN]);
+void jri_pledge_msg(const uint8_t key[32], uint32_t asset_id, uint64_t version, const uint8_t *hdrs,
+                    uint32_t n, uint8_t out[JRI_PLEDGE_MSG_LEN]);
 jr_status_t jri_pledge(jri_t *g, const uint8_t key[32], uint32_t asset_id, uint64_t version,
                        const uint8_t *hdrs, uint32_t n, const uint8_t *sig, uint32_t siglen);
 
-void jri_withdraw_msg(const uint8_t key[32], uint64_t version,
-                      uint8_t out[JRI_WITHDRAW_MSG_LEN]);
+void jri_withdraw_msg(const uint8_t key[32], uint64_t version, uint8_t out[JRI_WITHDRAW_MSG_LEN]);
 /* Returns JR_OK and the number of lots withdrawn in *n. */
 jr_status_t jri_withdraw(jri_t *g, const uint8_t key[32], uint64_t version, const uint8_t *sig,
                          uint32_t siglen, uint32_t *n);

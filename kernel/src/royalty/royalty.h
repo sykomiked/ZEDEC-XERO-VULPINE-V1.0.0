@@ -160,7 +160,7 @@
 #define ROY_MAX_LEVELS   (ROY_MAX_DEPTH + 1u)
 #define ROY_MAX_PAYOUTS  (ROY_MAX_LEVELS * ROY_MAX_OWNERS)
 #define ROY_MAX_DISBURSEMENTS ROY_MAX_PAYOUTS /* mutual-aid name; ABI name stays */
-#define ROY_MAX_RECEIPTS 1024u /* R5: consumed ids (sales and disbursements) */
+#define ROY_MAX_RECEIPTS      1024u           /* R5: consumed ids (sales and disbursements) */
 #define ROY_BPS          10000u
 #define ROY_ID_LEN       32u
 #define ROY_DIGEST_LEN   32u

@@ -22,20 +22,15 @@
  *   P3  ONE POSTING PER MEMBER through pay_ledger_post: pool DEBIT -gross,
  *       member DEBIT +net, each fee bucket DEBIT +its part, kind TRANSFER,
  *       all VFV.
- *       Each posting's idempotency key is SHA3-256("ZXV-QUEST-PAYOUT-v1" ||   (domain kept: changing it
- *       would change every key already posted)
- *       goal || member || pool account), and its UETR comes from that key,
- *       so a settlement interrupted halfway can simply be run again: posted
- *       shares come back PAY_DUPLICATE and are not paid twice. A rerun
- *       reuses the first attempt's tick and initiator, which are part of
- *       the request digest.
- *   P4  MINORS. A member whose age policy disallows money is paid into the
- *       policy's custodian account, or, with none, the share is HELD in the
- *       pool and listed in the plan. A member with no account is held too.
- *   P5  OPT-OUT LOSES NOTHING. Opted-out members are paid exactly as if
- *       they had stayed in.
- *   P6  VFV ONLY. The pool and the four fee-bucket accounts must hold the
- *       ledger's VFV asset; every fee-bucket account must carry
+ *       Each posting's idempotency key is SHA3-256("ZXV-QUEST-PAYOUT-v1" ||   (domain kept:
+ * changing it would change every key already posted) goal || member || pool account), and its UETR
+ * comes from that key, so a settlement interrupted halfway can simply be run again: posted shares
+ * come back PAY_DUPLICATE and are not paid twice. A rerun reuses the first attempt's tick and
+ * initiator, which are part of the request digest. P4  MINORS. A member whose age policy disallows
+ * money is paid into the policy's custodian account, or, with none, the share is HELD in the pool
+ * and listed in the plan. A member with no account is held too. P5  OPT-OUT LOSES NOTHING.
+ * Opted-out members are paid exactly as if they had stayed in. P6  VFV ONLY. The pool and the four
+ * fee-bucket accounts must hold the ledger's VFV asset; every fee-bucket account must carry
  *       PAY_ACCT_COMMONS.
  *
  * HONEST LIMITS. Settlement is one posting per member, not one atomic

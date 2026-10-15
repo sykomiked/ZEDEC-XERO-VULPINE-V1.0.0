@@ -69,8 +69,7 @@ static void hdrs_at(uint32_t wh, uint32_t n, uint64_t first)
     s.warehouse_id = 0xFEED;
     s.volume = 1;
     s.drum_serial = 0xFEED0000u + wh;
-    if (n < 40)
-        jr_lot_hdr_encode(&s, H[n]);
+    if (n < 40) jr_lot_hdr_encode(&s, H[n]);
 }
 static void hdrs(uint32_t wh, uint32_t n)
 {
@@ -100,8 +99,8 @@ int main(void)
     jr_asset_t oil = {1, JR_CAP_COMMODITY, 1, 1, 1, 0, false, false};
     jr_asset_t tpc = {2, JR_CAP_COMPUTE, JR_TPC_TICKS_PER_VINO, 1, 1, 0, false, false};
     CHECK(jr_add_asset(&R, &oil) == JR_OK && jr_add_asset(&R, &tpc) == JR_OK, "assets");
-    CHECK(jri_init(NULL, &R, sig_ok, &KEYB) == JR_E_ARG && jri_init(&G, NULL, sig_ok, &KEYB) ==
-              JR_E_ARG,
+    CHECK(jri_init(NULL, &R, sig_ok, &KEYB) == JR_E_ARG &&
+              jri_init(&G, NULL, sig_ok, &KEYB) == JR_E_ARG,
           "init null");
     CHECK(jri_init(&G, &R, NULL, NULL) == JR_OK, "init without a verifier");
     hdrs(10, 3);
@@ -153,8 +152,7 @@ int main(void)
     CHECK(pledge(P1, 1, 2, 3) == JR_E_FORMAT && R.nlots == 3 && G.prod[0].version == 1,
           "bad header: none added, version unchanged");
     hdrs(12, 3);
-    CHECK(pledge(P2, 1, 1, 3) == JR_OK && R.nlots == 6 && R.lots[3].source == 2,
-          "second producer");
+    CHECK(pledge(P2, 1, 1, 3) == JR_OK && R.nlots == 6 && R.lots[3].source == 2, "second producer");
     hdrs_at(10, 1, 50);
     CHECK(pledge(P1, 1, 2, 1) == JR_OK && R.nlots == 7 && R.lots[6].source == 1 &&
               G.prod[0].pledged == 4 && G.prod[0].version == 2,
