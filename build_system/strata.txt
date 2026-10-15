@@ -48,6 +48,8 @@ tls/rsa                          base       # RSA PKCS #1 v1.5 and PSS verificat
 ubh                              base
 zcapital                         base       # the nine-form capital types; swarm and pay both build on them
 qr                               base       # QR Code encoder: pure bytes to modules
+devprof                          base       # the device line as data: profiles, OS support table, gap matrix
+arbiter                          base       # arbiter mailbox protocol: both ends, rings over a shared window, no hardware access
 
 # ---- S1 kernel and hardware abstraction
 acpi                             kernel
@@ -72,8 +74,6 @@ gdt                              kernel
 hardware                         kernel
 holographic                      kernel
 hwdrv                            kernel     # standard class drivers: NVMe, AHCI, xHCI + USB, e1000, HDA
-devprof                          base       # the device line as data: profiles, OS support table, gap matrix
-arbiter                          base       # arbiter mailbox protocol: both ends, rings over a shared window, no hardware access
 idt                              kernel
 keyboard                         kernel
 license                          kernel
