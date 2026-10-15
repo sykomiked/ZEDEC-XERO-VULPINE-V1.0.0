@@ -23,6 +23,9 @@ void pw_wipe(void);
 uint8_t *pw_in(void);
 char *pw_out(void);
 uint32_t pw_in_max(void);
+void pw_out_wipe(void);
+
+#define OUT_MAX 128u /* zxv_passport_wasm.c PW_OUT_MAX */
 
 /* seed bytes 0, 1, ..., 31: 000G4-0R40M-30E20-9185G-R38E1-W8124-GK2GA-HC5RR-34D1P-70X3R-FHHQ0 */
 static const char DID_SEED[] = "did:zxv:2xin6nai2r2rmwk5wqv25nwmatah75fp2uukhsftpniqksm5zxcq";
@@ -54,6 +57,73 @@ static uint32_t put(const char *s)
     uint32_t n = (uint32_t) strlen(s);
     memcpy(pw_in(), s, n);
     return n;
+}
+
+/* OUT holds its NUL-terminated text and nothing after it. */
+static int out_clean_after(void)
+{
+    const char *o = pw_out();
+    uint32_t i = 0;
+    while (i < OUT_MAX && o[i]) i++;
+    for (; i < OUT_MAX; i++)
+        if (o[i]) return 0;
+    return 1;
+}
+
+static const char B32[] = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/* Every one-character mistake in a seed's text: each of its 55 characters
+ * replaced by each other base32 character, each pair of neighbours swapped,
+ * each character dropped, and each control or non-ASCII byte put in. None
+ * may log in; returns how many did (0 when all were refused). */
+static int typos_accepted(const char *text)
+{
+    char t[PP_SEED_TEXT + 2];
+    uint32_t len = (uint32_t) strlen(text);
+    int bad = 0;
+    for (uint32_t i = 0; i < len; i++) {
+        if (text[i] == '-') continue;
+        for (uint32_t c = 0; c < 32; c++) {
+            if (B32[c] == text[i]) continue;
+            memcpy(t, text, len + 1);
+            t[i] = B32[c];
+            int32_t r = pw_seed_text(put(t));
+            if (r == PP_OK) {
+                printf("  accepted: %s (position %u)\n", t, i);
+                bad++;
+                pw_hydrate();
+            } else if (r != PP_ERR_CHECKSUM && r != PP_ERR_FORMAT) {
+                bad++;
+            }
+        }
+        uint32_t j = i + 1 < len && text[i + 1] == '-' ? i + 2 : i + 1;
+        if (j < len && text[j] != text[i]) {
+            memcpy(t, text, len + 1);
+            t[i] = text[j];
+            t[j] = text[i];
+            if (pw_seed_text(put(t)) == PP_OK) {
+                printf("  accepted: %s (swap at %u)\n", t, i);
+                bad++;
+                pw_hydrate();
+            }
+        }
+        memcpy(t, text, i);
+        memcpy(t + i, text + i + 1, len - i);
+        if (pw_seed_text(put(t)) != PP_ERR_FORMAT) bad++;
+    }
+    for (uint32_t b = 1; b < 256; b++) {
+        if (b == ' ' || b == '-' || (b >= '0' && b <= '9') || (b >= 'A' && b <= 'Z') ||
+            (b >= 'a' && b <= 'z'))
+            continue;
+        memcpy(t, text, 30);
+        t[30] = (char) b;
+        memcpy(t + 31, text + 30, len - 30 + 1);
+        if (pw_seed_text(put(t)) != PP_ERR_FORMAT) {
+            printf("  byte 0x%02x inside the seed was not refused\n", b);
+            bad++;
+        }
+    }
+    return bad;
 }
 
 static uint32_t put2(const char *a, const char *b)
@@ -125,6 +195,25 @@ int main(void)
     CHECK(pw_seed_text(pw_in_max() + 1) == PP_ERR_ARG && in_clear(), "longer than the input");
     CHECK(pw_hydrate() == PP_ERR_STATE, "no refused call left a seed");
 
+    /* a NUL is not the end of what was typed: the seed, then a NUL and
+     * anything, is refused, not read as the seed */
+    memcpy(pw_in(), text, strlen(text));
+    memcpy(pw_in() + strlen(text), "\0XYZ", 4);
+    CHECK(pw_seed_text((uint32_t) strlen(text) + 4) == PP_ERR_FORMAT && in_clear(),
+          "a seed with a NUL and more after it is refused");
+    memcpy(pw_in(), text, strlen(text) + 1);
+    CHECK(pw_seed_text((uint32_t) strlen(text) + 1) == PP_ERR_FORMAT,
+          "a seed followed by one NUL is refused");
+    memcpy(pw_in(), "\0", 1);
+    memcpy(pw_in() + 1, text, strlen(text));
+    CHECK(pw_seed_text((uint32_t) strlen(text) + 1) == PP_ERR_FORMAT,
+          "a NUL before the seed is refused");
+    CHECK(pw_hydrate() == PP_ERR_STATE, "no NUL let a seed in");
+
+    /* every one-character mistake, at every position, is refused */
+    CHECK(typos_accepted(text) == 0, "every mistyped position of %s is refused", text);
+    CHECK(pw_hydrate() == PP_ERR_STATE, "no mistake left a seed");
+
     /* passphrase and handle */
     CHECK(pw_seed_pass(put2("correct horse battery staple", "ana"), 3) == PP_ERR_KDF && in_clear(),
           "no stretch before its memory is set aside");
@@ -177,15 +266,27 @@ int main(void)
     out[3] = out[3] == 'A' ? 'B' : 'A';
     CHECK(pw_seed_confirm(put(out)) == PP_ERR_CHECKSUM, "a typo in the confirmation is caught");
     CHECK(pw_seed_confirm(0) == PP_ERR_ARG, "an empty confirmation is refused");
+    memcpy(pw_in(), text2, strlen(text2));
+    memcpy(pw_in() + strlen(text2), "\0Q", 2);
+    CHECK(pw_seed_confirm((uint32_t) strlen(text2) + 2) == PP_ERR_FORMAT && in_clear(),
+          "the pending seed with a NUL and more after it is refused");
+    CHECK(typos_accepted(text2) == 0, "every mistyped position of %s is refused", text2);
     direct_did(seed2, did);
     CHECK(pw_seed_confirm(put(text2)) == PP_OK && in_clear(), "the right seed typed back is taken");
     CHECK(pw_hydrate() > 0 && !strcmp(pw_out(), did), "created identity %s = passport %s", pw_out(),
           did);
+    CHECK(out_clean_after(), "no byte of the shown seed's text is left in OUT after the DID");
     CHECK(pw_seed_text(put(text2)) == PP_OK && pw_hydrate() > 0 && !strcmp(pw_out(), did),
           "logging in with that seed later gives the same DID");
     CHECK(pw_seed_confirm(put(text2)) == PP_ERR_STATE, "a confirmed seed is no longer pending");
     memcpy(pw_in(), seed2, PP_SEED);
     pw_seed_new();
+    pw_out_wipe();
+    {
+        int z = 1;
+        for (uint32_t i = 0; i < OUT_MAX; i++) z &= pw_out()[i] == 0;
+        CHECK(z, "pw_out_wipe leaves no byte of a new seed's text");
+    }
     pw_wipe();
     CHECK(pw_seed_confirm(put(text2)) == PP_ERR_STATE, "a wipe drops the pending seed");
 
