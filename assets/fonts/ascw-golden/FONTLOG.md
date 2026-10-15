@@ -23,6 +23,12 @@ Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at
 weight 400), renamed into the family and given its golden-section metrics,
 because the ASCW source folder has no face for either script.
 
+ASCW Golden Mono, the fixed-width member, was made for ZXV from Noto Sans Mono
+(OFL, weight 400, width 100) with the key symbols it lacks (command, option,
+shift, return, delete, control, escape, caps lock) taken from Noto Sans
+Symbols and Noto Sans Symbols 2 (OFL) and fitted to its advance width
+(tools/fonts/build_golden_mono.py).
+
 | File | Family | Upstream (name ID 3) | Version | Copyright (name ID 0) |
 |---|---|---|---|---|
 | ASCW-Golden-Latin2.ttf | ASCW Golden Latin II | 2.007;GOOG;NotoSerif-Regular | Version 2.007 | Copyright 2015-2021 Google LLC. All Rights Reserved. |
@@ -110,3 +116,4 @@ because the ASCW source folder has no face for either script.
 | ASCW-Vai-Regular.ttf | ASCW Vai | ASCW;ASCWVai;2026 | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. | ASCW derivative under the original license; renamed per OFL RFN requirements. |
 | ASCW-Tifinagh-Regular.otf | ASCW Tifinagh | ASCW;ASCWTifinagh;2026 | Version 2.006 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tifinagh) | ASCW derivative under the original license; renamed per OFL RFN requirements. |
 | ASCW-Osmanya-Regular.ttf | ASCW Osmanya | ASCW;ASCWOsmanya;2026 | Version 2.000 | Copyright 2017 Google Inc. All Rights Reserved. | ASCW derivative under the original license; renamed per OFL RFN requirements. |
+| ASCW-Golden-Mono.ttf | ASCW Golden Mono | ASCW;ASCWGoldenMono;2026; derived from Noto Sans Mono | Version 2.014 | Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic) |

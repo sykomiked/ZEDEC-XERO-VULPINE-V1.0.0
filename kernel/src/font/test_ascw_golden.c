@@ -78,6 +78,26 @@ static void test_faces(void)
     }
     printf("  %u faces on disk, %u TrueType, %u parsed by truetype.c\n", ascw_face_count(), glyf,
            parsed);
+
+    /* the fixed-width member: every character it has, key symbols included,
+     * takes the same advance */
+    int32_t mi = ascw_face_find("ASCW-Golden-Mono.ttf");
+    CHECK(mi >= 0 && ascw_face_at(mi)->role == ASCW_ROLE_MONO &&
+          strcmp(ascw_face_at(mi)->family, "ASCW Golden Mono") == 0);
+    uint32_t mn = 0;
+    uint8_t *mb = mi >= 0 ? slurp(ascw_face_at(mi)->file, &mn) : NULL;
+    ttf_font_t mf;
+    CHECK(mb && ttf_parse(&mf, mb, mn));
+    if (mb) {
+        static const uint32_t KEYS[] = {'i',    'W',    '0',    0x2500, 0x2588, 0x2190, 0x2318,
+                                        0x2325, 0x21E7, 0x23CE, 0x232B, 0x2303, 0x238B};
+        uint32_t adv0 = ttf_advance(&mf, ttf_glyph_index(&mf, 'm'));
+        for (uint32_t k = 0; k < sizeof KEYS / sizeof KEYS[0]; k++) {
+            uint32_t g = ttf_glyph_index(&mf, KEYS[k]);
+            CHECK(g != 0 && ttf_advance(&mf, g) == adv0);
+        }
+        free(mb);
+    }
 }
 
 static void test_scripts(void)

@@ -130,6 +130,8 @@ FACES = [
     ("ASCW-Vai-Regular.ttf", ["Vaii"], "fallback"),
     ("ASCW-Tifinagh-Regular.otf", ["Tfng"], "fallback"),
     ("ASCW-Osmanya-Regular.ttf", ["Osma"], "fallback"),
+    # the fixed-width member: code, paths, terminals (never in the script cascade)
+    ("ASCW-Golden-Mono.ttf", [], "mono"),
 ]
 PRIMARY = 0
 # the members a locale of one script may use instead of the script's own face
@@ -142,7 +144,7 @@ SCRIPT_ALIAS = {"Hani": "Hans"}
 SCRIPT_NAMES = {"Hans": "Han (Simplified)", "Hant": "Han (Traditional)", "Jpan": "Japanese",
                 "Kore": "Korean"}
 
-ROLE_CODE = {"primary": 0, "script": 1, "alternate": 2, "fallback": 3}
+ROLE_CODE = {"primary": 0, "script": 1, "alternate": 2, "fallback": 3, "mono": 4}
 
 
 def load_faces():
@@ -186,7 +188,7 @@ def assign(faces):
         for x in sorted(ucd.script_extension(cp)):
             if x in owner:
                 cands.append(owner[x])
-        cands += [f["i"] for f in faces if f["role"] != "alternate"]
+        cands += [f["i"] for f in faces if f["role"] not in ("alternate", "mono")]
         cands += [f["i"] for f in faces]
         table[cp] = next(c for c in cands if cp in faces[c]["cps"])
     return owner, table
@@ -541,6 +543,11 @@ def write_fontlog(faces):
          "Tibetan and Noto Sans Thaana (OFL, the google/fonts variable fonts fixed at",
          "weight 400), renamed into the family and given its golden-section metrics,",
          "because the ASCW source folder has no face for either script.", "",
+         "ASCW Golden Mono, the fixed-width member, was made for ZXV from Noto Sans Mono",
+         "(OFL, weight 400, width 100) with the key symbols it lacks (command, option,",
+         "shift, return, delete, control, escape, caps lock) taken from Noto Sans",
+         "Symbols and Noto Sans Symbols 2 (OFL) and fitted to its advance width",
+         "(tools/fonts/build_golden_mono.py).", "",
          "| File | Family | Upstream (name ID 3) | Version | Copyright (name ID 0) |",
          "|---|---|---|---|---|"]
     for f in faces:

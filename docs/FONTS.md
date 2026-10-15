@@ -8,10 +8,16 @@ SPDX-License-Identifier: Apache-2.0
 Every ZXV surface draws text in **ASCW Golden**. **ASCW Golden Latin II** is
 the primary face, used for English and every other Latin-script language.
 Each other script gets the Golden member made for it.
+**ASCW Golden Mono** (role `mono` in `fontmap.json`, `ASCW_ROLE_MONO`) is
+the fixed-width member for code, paths, JSON, terminals and the bare-metal
+shell: Latin, Greek and Cyrillic, box drawing, block elements, arrows and the
+key symbols ⌘ ⌥ ⇧ ⌃ ⏎ ⌫ ⌦ ⎋ ⇪. It is chosen by role, not by script, and only
+draws ordinary text for symbols no other face has. It is built from Noto Sans
+Mono and Noto Sans Symbols (OFL) by `tools/fonts/build_golden_mono.py`.
 
 | Where | How |
 |---|---|
-| Font files | `assets/fonts/ascw-golden/`: 85 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
+| Font files | `assets/fonts/ascw-golden/`: 86 faces, `OFL.txt`, `FONTLOG.md`, `fontmap.json` |
 | Kernel and native UI (`zui`) | `kernel/src/font/ascw_golden.h`: face per locale, per script and per code point; `ascw_install()` fills a `font_registry_t` |
 | Browser and desktop window (zxvd) | `@font-face` block in `kernel/arch/hosted/zxv_ui.html`; zxvd serves `/fonts/<file>` |
 | Mac app (ZXV Studio) | `ASCWFont.swift`: registers the faces from `Contents/Resources/Fonts`; every text style is a CoreText font with the family as its cascade list |

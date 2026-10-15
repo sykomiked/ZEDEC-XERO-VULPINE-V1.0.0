@@ -13,7 +13,7 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 
 - Locales: **778**
 - Covered by their own face plus Latin II: **730**
-- Covered by the ASCW set as a whole (some characters from another member): **740**
+- Covered by the ASCW set as a whole (some characters from another member): **741**
 - With no ASCW face for their script (platform fonts draw them): **14**
 
 ## By script
@@ -159,6 +159,7 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | ASCW-Vai-Regular.ttf | ASCW Vai | fallback | Vaii | 304 |
 | ASCW-Tifinagh-Regular.otf | ASCW Tifinagh | fallback | Tfng | 76 |
 | ASCW-Osmanya-Regular.ttf | ASCW Osmanya | fallback | Osma | 44 |
+| ASCW-Golden-Mono.ttf | ASCW Golden Mono | mono | - | 3499 |
 
 ## Locales with gaps
 
@@ -173,12 +174,12 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | en-Shaw English (Shavian) | Shaw | none | 48 U+10450 U+10451 U+10452 U+10453 … | 48 |
 | hnj Hmong Njua | Hmnp | none | 66 U+1E100 U+1E101 U+1E102 U+1E103 … | 66 |
 | hnj-Hmnp Hmong Njua (Nyiakeng Puachue Hmong) | Hmnp | none | 66 U+1E100 U+1E101 U+1E102 U+1E103 … | 66 |
-| hu Hungarian | Latn | ASCW Golden Latin II | 2 U+27E8 U+27E9 | 2 |
-| ii Sichuan Yi | Yiii | ASCW Golden Yi | 73 U+3003 U+301D U+301E U+FE30 … | 59 |
-| ja Japanese | Jpan | ASCW Golden Japanese | 17 U+FF03 U+FF05 U+FF06 U+FF0A … | 12 |
-| ko Korean | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 12 |
-| ko-CN Korean (China) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 12 |
-| ko-KP Korean (North Korea) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 12 |
+| hu Hungarian | Latn | ASCW Golden Latin II | 2 U+27E8 U+27E9 | 0 |
+| ii Sichuan Yi | Yiii | ASCW Golden Yi | 73 U+3003 U+301D U+301E U+FE30 … | 57 |
+| ja Japanese | Jpan | ASCW Golden Japanese | 17 U+FF03 U+FF05 U+FF06 U+FF0A … | 10 |
+| ko Korean | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
+| ko-CN Korean (China) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
+| ko-KP Korean (North Korea) | Kore | ASCW Golden Korean | 13 U+30FB U+FF03 U+FF05 U+FF06 … | 10 |
 | ku-Arab Kurdish (Arabic) | Arab | ASCW Golden Arabic | 1 U+2212 | 0 |
 | ku-Arab-IR Kurdish (Arabic, Iran) | Arab | ASCW Golden Arabic | 1 U+2212 | 0 |
 | kxv-Telu Kuvi (Telugu) | Telu | ASCW Golden Telugu | 1 U+0C3C | 1 |
@@ -197,18 +198,18 @@ is in the locale's face or in ASCW Golden Latin II behind it.
 | syr Syriac | Syrc | ASCW Golden Syriac | 3 U+060C U+061B U+061F | 0 |
 | syr-SY Syriac (Syria) | Syrc | ASCW Golden Syriac | 3 U+060C U+061B U+061F | 0 |
 | vec Venetian | Latn | ASCW Golden Latin II | 2 U+3008 U+3009 | 0 |
-| yue Cantonese | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 61 |
-| yue-Hans Cantonese (Simplified) | Hans | ASCW Golden Chinese Simplified | 59 U+FE30 U+FE31 U+FE33 U+FE34 … | 59 |
-| yue-Hant Cantonese (Traditional) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 61 |
-| yue-Hant-CN Cantonese (Traditional, China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 61 |
-| yue-Hant-MO Cantonese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 61 |
+| yue Cantonese | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
+| yue-Hans Cantonese (Simplified) | Hans | ASCW Golden Chinese Simplified | 59 U+FE30 U+FE31 U+FE33 U+FE34 … | 57 |
+| yue-Hant Cantonese (Traditional) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
+| yue-Hant-CN Cantonese (Traditional, China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
+| yue-Hant-MO Cantonese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 76 U+6B8B U+7CE5 U+9421 U+9759 … | 59 |
 | zh Chinese | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans Simplified Chinese | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-HK Chinese (Simplified, Hong Kong SAR China) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-MO Chinese (Simplified, Macao SAR China) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-MY Chinese (Simplified, Malaysia) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
 | zh-Hans-SG Chinese (Simplified, Singapore) | Hans | ASCW Golden Chinese Simplified | 2 U+FF5C U+FF5E | 2 |
-| zh-Hant Traditional Chinese | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 61 |
-| zh-Hant-HK Chinese (Traditional, Hong Kong SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 61 |
-| zh-Hant-MO Chinese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 61 |
-| zh-Hant-MY Chinese (Traditional, Malaysia) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 61 |
+| zh-Hant Traditional Chinese | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
+| zh-Hant-HK Chinese (Traditional, Hong Kong SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
+| zh-Hant-MO Chinese (Traditional, Macao SAR China) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |
+| zh-Hant-MY Chinese (Traditional, Malaysia) | Hant | ASCW Golden Chinese Traditional | 72 U+FE30 U+FE31 U+FE32 U+FE33 … | 59 |

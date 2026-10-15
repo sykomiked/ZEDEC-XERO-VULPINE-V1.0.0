@@ -93,6 +93,7 @@ enum ASCWGoldenMap {
         "ASCW-Vai-Regular.ttf",
         "ASCW-Tifinagh-Regular.otf",
         "ASCW-Osmanya-Regular.ttf",
+        "ASCW-Golden-Mono.ttf",
     ]
     /// Fallback order behind the chosen face (family names).
     static let cascade: [String] = [
