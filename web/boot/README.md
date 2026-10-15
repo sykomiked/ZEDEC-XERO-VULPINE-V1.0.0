@@ -14,6 +14,15 @@ sound as the system loads, and it keeps pace with that load.
 | `zxv_boot.wasm` | `zui_boot` plus the vector renderer, the launch screen and the boot sounds (`tools/web/build_boot_wasm.sh`; `--check` proves it matches its source) |
 | `zxv_boot_wasm.c` | the wasm's exports |
 
+## Building the wasm
+
+`zxv_boot.wasm` is sealed with its own CID, so it has to rebuild byte for byte. Each clang release emits different
+code from the same source, so the committed file is built with one pinned release, clang 23.1.0 (the `PIN` line in
+`tools/web/build_boot_wasm.sh`). Writing or checking the committed file refuses any other release; set `CLANG` to the
+pinned compiler if it is not first on PATH. `--out FILE` builds a copy with any clang for trying the page out, and that
+copy will not match the sealed file. Moving to a newer clang means changing the pin and the committed `.wasm` in one
+commit, which gives the boot screen a new CID.
+
 ## What a sealed root needs
 
 ```
