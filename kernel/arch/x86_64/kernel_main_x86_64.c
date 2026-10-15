@@ -371,6 +371,17 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     static quantum_system_t qs; quantum_system_init(&qs);
     vino_init(vino, 1);
     vino_create_account(vino, "ZEDEC:node:x86_64:0001", "Genesis Account");
+    /* $YHVH: the floating voucher this node's Vinea book earns. total_supply
+     * is the counter's own bound (u32); issuance happens only as earned
+     * float arrives from the book's held_in, never ahead of it. */
+    vino_register_asset(vino, "$YHVH", "YHVH floating voucher", ASSET_TOKEN, 0, 0xFFFFFFFFu);
+    /* Generation-0 beneficiary policy: this seed fleet's earned vouchers
+     * settle 50/50 into the two Black Swan player cards issued through the
+     * Crown tool (BLACK_SWAN_CARDS.json). The accounts start empty here;
+     * their authoritative balances live on the issuance ledger, and what a
+     * node posts is its own verifiably earned contribution. */
+    vino_create_account(vino, "BSC-0-1870892d", "Black Swan #0: Michael Laurence Curzi");
+    vino_create_account(vino, "BSC-1-8b58e9d4", "Black Swan #1: Angela");
     static vena_runtime_t vena;
     vena_init(&vena, vino);
     vena_set_language(&vena, LANG_M5_AXIOMATIC);
@@ -626,10 +637,31 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
             }
         }
         if (vna.up) {
+            static uint64_t owed0, owed1; /* $YHVH earned, not yet posted   */
             vna_host_pump(&vna, x86_ms(0));
+            {
+                /* The voucher bridge: whatever the node's book earned since
+                 * the last pass splits 50/50 into the two card accounts.
+                 * The odd unit goes to card 0. A refused issue (a card at
+                 * the u32 counter bound) stays owed and is retried, so the
+                 * book's earned total and the ledger never diverge. */
+                uint64_t d = vna_host_take_earned(&vna);
+                if (d) {
+                    owed0 += d / 2 + (d & 1u);
+                    owed1 += d / 2;
+                }
+                if (owed0 && vino_issue(vino, "BSC-0-1870892d", ASSET_TOKEN, owed0,
+                                        "$YHVH seed float gen0") >= 0)
+                    owed0 = 0;
+                if (owed1 && vino_issue(vino, "BSC-1-8b58e9d4", ASSET_TOKEN, owed1,
+                                        "$YHVH seed float gen0") >= 0)
+                    owed1 = 0;
+            }
             if (x86_ms(0) >= vna_report_next) {
                 vna_report_next = x86_ms(0) + 60000u;
                 vna_host_report(&vna);
+                if (vino_chain_verify(vino, 0) != VINO_CHAIN_OK)
+                    uart_puts("  [VINO] chain verify FAILED\n");
             }
         }
         if (models_left)
