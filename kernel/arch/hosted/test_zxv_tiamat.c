@@ -160,11 +160,13 @@ int main(int argc, char **argv)
     CHECK(tv == ZXV_TV_FALSE && !shown && strstr(out, "Held") && !strstr(out, "371.") &&
               strstr(out, "17 x 23 = 391") && CALLS[2] == 0 && t.witness_skipped,
           "reckoner FALSE: held, the draft not shown, no model asked against the proof");
+    CHECK(strncmp(out, "17 x 23 = 391 (exact arithmetic)\n", 33) == 0 && t.exact_shown == 1,
+          "reckoner FALSE: the exact result is the answer shown first");
 
     script("17 times 23 is 391.", 1, "false", 1);
     tv = zxv_tiamat_answer(&c, ask, NULL, "What is 17 times 23?", &t, out, sizeof out, &shown);
     CHECK(tv == ZXV_TV_TRUE && shown && strstr(out, "exact arithmetic") &&
-              !strstr(out, "Vouchwyvern") && CALLS[2] == 0,
+              !strstr(out, "Vouchwyvern") && CALLS[2] == 0 && t.exact_shown == 0,
           "reckoner TRUE: shown with the exact check");
 
     script("Canberra and Sydney.", 1, "Both, in part", 1);

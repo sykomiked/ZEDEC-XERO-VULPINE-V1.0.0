@@ -130,7 +130,12 @@ def main():
         "n": len(recs),
         "reckoner_applied": sum(r["reckon"] is not None for r in recs),
         "lead_right": sum(1 for (_, v), r in zip(sm, recs) if r["reckon"] and r["reckon"]["verdict"] == "TRUE"),
-        "answered_shown_and_right": sum(1 for r in recs if r["verdict"] == "TRUE" and r["reckon"]),
+        # the swarm's answer is right when the lead's sum was checked right, or when the
+        # reckoner found it wrong and showed the exact result instead (zxv_tiamat.h H4)
+        "exact_shown": sum(1 for (_, v), r in zip(sm, recs) if r.get("exact_shown") and last_int(r["reckon"]["expr"]) == v),
+        "answered_shown_and_right": sum(1 for (_, v), r in zip(sm, recs)
+                                        if r["reckon"] and ((r["verdict"] == "TRUE") or
+                                                            (r.get("exact_shown") and last_int(r["reckon"]["expr"]) == v))),
         "held": sum(r["verdict"] in HELD for r in recs),
         "shown_but_wrong": sum(1 for ok, r in zip(exact, recs) if not ok and shown(r) and not (r["reckon"] and r["reckon"]["verdict"] == "TRUE")),
         "by_op": {op: {"n": sum(1 for q, _ in sm if f" {op} " in q),
@@ -167,6 +172,8 @@ def main():
     (out / "t2_results.json").write_text(json.dumps(doc, indent=2) + "\n")
     for m in marks:
         print(f"{'PASS' if m['pass'] else 'FAIL'}  {m['organ']}: {m['test']} = {m['value']} (mark {m['mark']})")
+    print(f"      sums: the lead alone was right on {sa['lead_right']} of {sa['n']}; "
+          f"the exact result was shown for {sa['exact_shown']}")
 
 
 if __name__ == "__main__":

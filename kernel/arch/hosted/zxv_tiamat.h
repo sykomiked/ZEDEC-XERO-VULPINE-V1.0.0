@@ -31,6 +31,9 @@
  *      checked. NEITHER: it is shown, marked "not checked". FALSE or BOTH:
  *      it is held; the user sees the reasons, and the draft goes only to the
  *      log. A failed integrity check on the lead holds the answer too.
+ *      When the reckoner found the lead's sum wrong, the exact result is
+ *      the answer the user sees, first, marked as exact arithmetic; the
+ *      lead's draft is still held (exact_shown 1 in the trace).
  *   H5 LOG. One JSON line per question: the question, the cells, their
  *      replies, each verdict, the joined verdict and the time in ms.
  */
@@ -102,6 +105,7 @@ typedef struct {
     uint32_t lead;
     int witness;                   /* -1: none */
     int witness_skipped;           /* 1: the reckoner decided, the witness was not asked */
+    int exact_shown;               /* 1: the lead's sum was wrong; the exact result was shown */
     int lead_rc, witness_rc;       /* the ask_fn results; witness_rc 0 when none */
     int witness_tv, reckon_tv, tv; /* reckon_tv -1: not applicable */
     char lead_reply[ZXV_TIAMAT_REPLY];

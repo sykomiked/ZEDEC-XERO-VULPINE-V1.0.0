@@ -537,6 +537,11 @@ static int check_lead(const zxv_tiamat_conf_t *c, zxv_tiamat_ask_fn ask, void *c
         }
         return tv;
     }
+    if (t->reckon_tv == ZXV_TV_FALSE) {
+        /* H4: the exact result is the answer; the lead's wrong draft stays held */
+        t->exact_shown = 1;
+        at = put(out, cap, at, "%s (exact arithmetic)\n\n", t->reckon_expr, "", "");
+    }
     at = put(out, cap, at, "[Tiamat] Held: %s's answer is not shown because the check %s.", lead,
              tv == ZXV_TV_FALSE ? "found it wrong (FALSE)"
                                 : "found evidence both for and against it (BOTH)",
@@ -613,6 +618,7 @@ void zxv_tiamat_write(FILE *f, const char *q, const zxv_tiamat_conf_t *c,
     }
     fputs(",\"verdict\":", f);
     json_str(f, zxv_tiamat_tv_name(t->tv));
+    fprintf(f, ",\"exact_shown\":%s", t->exact_shown ? "true" : "false");
     if (seen) {
         fputs(",\"seen\":", f);
         json_str(f, seen);
