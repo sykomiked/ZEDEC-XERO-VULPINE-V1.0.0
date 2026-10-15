@@ -406,6 +406,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-pdx-ledger
 	$(MAKE) --no-print-directory test-zt-gram
 	$(MAKE) --no-print-directory test-zt-evh
+	$(MAKE) --no-print-directory test-companion
+	$(MAKE) --no-print-directory test-zxvc
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
 	$(MAKE) --no-print-directory test-sdk-bridge
@@ -1670,6 +1672,30 @@ test-zt-gram:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor -Isrc/treaty src/tensor/test_zt_gram.c $(ZT_AI_SRCS) src/treaty/zxt.c -o $(ZXV_TMP)/test_zt_gram && $(ZXV_TMP)/test_zt_gram > $(ZXV_TMP)/test_zt_gram.log 2>&1 && echo "[PASS] test_zt_gram ($$(tail -1 $(ZXV_TMP)/test_zt_gram.log))" || { cat $(ZXV_TMP)/test_zt_gram.log; echo "[FAIL] test_zt_gram"; exit 1; }
 test-zt-evh:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/tensor -Isrc/paradox -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus src/tensor/test_zt_evh.c $(ZT_AI_SRCS) src/paradox/paradox.c src/lpres/lpres_hex.c src/lpres/lpres.c src/robin_debanks/sha256.c -lm -o $(ZXV_TMP)/test_zt_evh && $(ZXV_TMP)/test_zt_evh > $(ZXV_TMP)/test_zt_evh.log 2>&1 && echo "[PASS] test_zt_evh ($$(tail -1 $(ZXV_TMP)/test_zt_evh.log))" || { cat $(ZXV_TMP)/test_zt_evh.log; echo "[FAIL] test_zt_evh"; exit 1; }
+
+# The Chiglet companion (src/companion, roadmap 6.6c C.1-C.4, C.7): ASan/UBSan
+# tests with real ML-DSA-87 keys, once with the gate in doubles (TEST_HOST) and
+# once in Q32.32 (the kernel's type), then a freestanding build whose only
+# external symbols are the gate, the tag table, ML-DSA-87 verify, SHA-256,
+# the emotion table and memcpy (the kernel's own, freestanding.c).
+CMP_SRCS := src/companion/companion.c src/chiglet/chiglet.c src/surplus/surplus.c src/lpres/lpres_hex.c src/lpres/lpres.c src/swarm/swarm_emotion.c src/swarm/swarm_budget.c src/robin_debanks/sha256.c src/pqsec/pq_mldsa87.c src/pqsec/mldsa/fips202.c
+CMP_INC := -Iinclude -Isrc/modbind -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/chiglet -Isrc/swarm -Isrc/pqsec
+.PHONY: test-companion
+test-companion:
+	@for mode in -DTEST_HOST -DCMP_Q32; do gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all $$mode $(CMP_INC) src/companion/test_companion.c $(CMP_SRCS) -lm -o $(ZXV_TMP)/test_companion 2>$(ZXV_TMP)/test_companion.build || { cat $(ZXV_TMP)/test_companion.build; echo "[FAIL] test_companion build ($$mode)"; exit 1; }; $(ZXV_TMP)/test_companion > $(ZXV_TMP)/test_companion.log 2>&1 && echo "[PASS] test_companion $$mode ($$(tail -1 $(ZXV_TMP)/test_companion.log))" || { cat $(ZXV_TMP)/test_companion.log; echo "[FAIL] test_companion ($$mode)"; exit 1; }; done
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion $(CMP_INC) -c src/companion/companion.c -o $(ZXV_TMP)/companion_free.o || { echo "[FAIL] companion freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/companion_free.o | grep -vE ' (chg_[a-z_]+|lpx_[a-z_]+|pqm_mldsa87_verify|sha256(_init|_update|_final)?|swarm_emotion_(charge|profile)|memcpy)$$' | grep -q .; then nm -u $(ZXV_TMP)/companion_free.o; echo "[FAIL] companion freestanding: unexpected symbol ($$t)"; exit 1; fi; done; echo "[PASS] companion freestanding (aarch64 -mgeneral-regs-only, i386)"
+
+# The .zxvc model package and converter (src/tensor/zt_zxvc.h, tools/zxvc.c,
+# roadmap 6.6c M.1/M.4): every F16/BF16 pattern and 4M F32 patterns decode to
+# their source bits, Q16 matches zt_gguf; the freestanding reader needs only
+# SHA-256; then the converter end to end (GGUF and safetensors, bit-exact
+# check, GGUF rebuilt byte for byte, licence gate, ML-DSA-87 signing, tampering).
+.PHONY: test-zxvc
+test-zxvc:
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/modbind -Isrc/tensor src/tensor/test_zt_zxvc.c src/tensor/zt_zxvc.c src/tensor/zt_gguf.c src/tensor/zt.c src/robin_debanks/sha256.c -lm -o $(ZXV_TMP)/test_zt_zxvc 2>$(ZXV_TMP)/test_zt_zxvc.build || { cat $(ZXV_TMP)/test_zt_zxvc.build; echo "[FAIL] test_zt_zxvc build"; exit 1; }
+	@$(ZXV_TMP)/test_zt_zxvc > $(ZXV_TMP)/test_zt_zxvc.log 2>&1 && echo "[PASS] test_zt_zxvc ($$(tail -1 $(ZXV_TMP)/test_zt_zxvc.log))" || { cat $(ZXV_TMP)/test_zt_zxvc.log; echo "[FAIL] test_zt_zxvc"; exit 1; }
+	@for t in aarch64-none-elf i386-none-elf; do fl=; [ $$t = aarch64-none-elf ] && fl=-mgeneral-regs-only; clang --target=$$t -ffreestanding $$fl -std=c11 -O2 -Wall -Werror -Wextra -Wdouble-promotion -Wfloat-conversion -Iinclude -Isrc/modbind -Isrc/tensor -c src/tensor/zt_zxvc.c -o $(ZXV_TMP)/zxvc_free.o || { echo "[FAIL] zt_zxvc freestanding $$t"; exit 1; }; if nm -u $(ZXV_TMP)/zxvc_free.o | grep -vE ' sha256(_init|_update|_final)?$$' | grep -q .; then nm -u $(ZXV_TMP)/zxvc_free.o; echo "[FAIL] zt_zxvc freestanding: unexpected symbol ($$t)"; exit 1; fi; done; echo "[PASS] zt_zxvc freestanding (aarch64 -mgeneral-regs-only, i386; only sha256 external)"
+	@sh tools/test_zxvc.sh $(ZXV_TMP) > $(ZXV_TMP)/test_zxvc.log 2>&1 && echo "[PASS] test_zxvc converter ($$(tail -1 $(ZXV_TMP)/test_zxvc.log))" || { cat $(ZXV_TMP)/test_zxvc.log; echo "[FAIL] test_zxvc converter"; exit 1; }
 
 HWEMU_CC := gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/pqsec
 
