@@ -2020,7 +2020,9 @@ test-b2-small:
 
 .PHONY: test-mixmat
 test-mixmat:
-	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/rational src/mixmat/test_mixmat.c src/mixmat/mixmat.c src/rational/rational.c -Wl,--wrap=rat_add,--wrap=rat_sub,--wrap=rat_mul,--wrap=rat_div,--wrap=rat_make,--wrap=rat_eq,--wrap=rat_cmp,--wrap=rat_is_zero -o $(ZXV_TMP)/test_mixmat && $(ZXV_TMP)/test_mixmat > $(ZXV_TMP)/test_mixmat.log 2>&1 && echo "[PASS] test_mixmat" || { tail -40 $(ZXV_TMP)/test_mixmat.log; echo "[FAIL] test_mixmat"; exit 1; }
+	@# the test intercepts rational.c with GNU ld --wrap, which Apple ld lacks
+	@if [ "$$(uname -s)" = Darwin ]; then echo "[SKIP] test_mixmat: needs GNU ld --wrap (CI and the server run it)"; else \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/rational src/mixmat/test_mixmat.c src/mixmat/mixmat.c src/rational/rational.c -Wl,--wrap=rat_add,--wrap=rat_sub,--wrap=rat_mul,--wrap=rat_div,--wrap=rat_make,--wrap=rat_eq,--wrap=rat_cmp,--wrap=rat_is_zero -o $(ZXV_TMP)/test_mixmat && $(ZXV_TMP)/test_mixmat > $(ZXV_TMP)/test_mixmat.log 2>&1 && echo "[PASS] test_mixmat" || { tail -40 $(ZXV_TMP)/test_mixmat.log; echo "[FAIL] test_mixmat"; exit 1; }; fi
 
 .PHONY: test-curzi8889a
 test-curzi8889a:
