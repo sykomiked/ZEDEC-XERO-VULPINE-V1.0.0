@@ -1,0 +1,16 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The same rate in Sutra: a reset counter or no time between readings
+# answers -1; otherwise COMPUTE truncates toward zero, as the C does.
+record counter-rate
+  now: 9(18)
+  was: 9(18)
+  dt: 9(18)
+  rate: 9(18)
+procedure
+  if dt = 0 or now < was
+    answer -1
+  end-if
+  compute rate = (now - was) * 1000 / dt
+  answer rate

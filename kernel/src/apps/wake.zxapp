@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wake, the event console. How many events pass the view's level is
+# counted in KRON and in Trebago; the two must agree before the count is
+# shown.
+zxapp 1
+id     wake
+name   Wake
+slot   14
+layer  L1
+icon   icons/l1/014-wake.svg
+budget 55
+needs  journal
+model  apps/wake_model.c
+
+provides count num level bar
+logic    kron    count apps/blocks/wake/count.kron
+logic    trebago count apps/blocks/wake/count.tb

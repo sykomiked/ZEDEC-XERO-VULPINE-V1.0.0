@@ -1,0 +1,23 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tidewatch, the activity monitor. zxvd's CPU share is worked out in Sutra
+# and KRON; memory in use comes from the used_share block, which Almanac
+# uses too; the graph's scale (the peak) is KRON.
+zxapp 1
+id     tidewatch
+name   Tidewatch
+slot   15
+layer  L1
+icon   icons/l1/015-tidewatch.svg
+budget 55
+needs  sys.read
+model  apps/tidewatch_model.c
+use    used_share 1
+
+provides cpu_x100 num cpu ms
+logic    sutra cpu_x100 apps/blocks/tidewatch/cpu.sutra
+logic    kron  cpu_x100 apps/blocks/tidewatch/cpu.kron
+
+provides peak num share
+logic    kron peak apps/blocks/tidewatch/peak.kron

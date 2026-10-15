@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Shepherd, family and screen time. Minutes left today are worked out in
+# Sutra and KRON, the same rule zxvd applies (zxv_screen.c); what a limit
+# may say is Eve; a week's minutes are an exact Trebago sum.
+zxapp 1
+id     shepherd
+name   Shepherd
+slot   142
+layer  L1
+icon   icons/l1/142-shepherd.svg
+budget 233
+needs  screen.time
+needs  ai.ask
+model  apps/shepherd_model.c
+
+provides left num minutes extra used
+logic    sutra left apps/blocks/shepherd/left.sutra
+logic    kron  left apps/blocks/shepherd/left.kron
+
+provides limit_ok truth minutes from to
+logic    eve limit_ok apps/blocks/shepherd/limit.eve
+
+provides week num minutes
+logic    trebago week apps/blocks/shepherd/week.tb

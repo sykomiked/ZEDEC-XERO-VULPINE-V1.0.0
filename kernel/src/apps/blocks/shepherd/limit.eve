@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# What a screen-time limit may say: a daily cap of up to a whole day's
+# minutes (-1 for no cap), and hours given as minutes of the day
+# (zxv_screen.c refuses anything else).
+eve shepherd
+minute_of_day = 0 .. 1439
+daily_cap = -1 .. 1440
+
+limit_rule {
+  minutes: daily_cap
+  from: minute_of_day
+  to: minute_of_day
+}

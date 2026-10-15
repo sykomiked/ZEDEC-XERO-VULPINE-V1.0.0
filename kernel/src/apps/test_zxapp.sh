@@ -24,3 +24,5 @@ make -s -C "$R/sdk/kits/z-wasm" CC="$CC" build/libzwasm.a >"$T/wasm.log" 2>&1 ||
     "$R/sdk/pillars/cobol-sutra/build/libzsutra.a" "$R/sdk/pillars/fortran-trebago/build/libztrebago.a" "$R/sdk/pillars/mumps-myra/build/libzmyra.a" -L"$R/sdk/libzxv/build" -lzxv -Wl,-rpath,"$R/sdk/libzxv/build" -lpthread \
     -o "$T/test_zxapp" || exit 3
 "$T/test_zxapp" "$R/kernel/src"
+# the languages the apps use, as docs/APP_LANGUAGE_COVERAGE.md says (LANGUAGE_FIT.tsv)
+python3 "$R/tools/apps/lang_coverage.py" --check

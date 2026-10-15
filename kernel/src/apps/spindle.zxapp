@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Spindle, the console. The screen and the calls are C; what a call may
+# carry (params and the reply kept) is Eve.
+zxapp 1
+id     spindle
+name   Spindle
+slot   22
+layer  L1
+icon   icons/l1/022-spindle.svg
+budget 233
+needs  sys.read
+needs  ai.ask
+view   zui/views/spindle.c
+model  apps/spindle_model.c
+
+provides call_ok truth params reply
+logic    eve call_ok apps/blocks/spindle/params.eve

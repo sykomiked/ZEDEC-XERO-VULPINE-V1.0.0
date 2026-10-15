@@ -8,6 +8,11 @@
 zxapp 1
 id     murmuration
 name   Murmuration
+slot   61
+layer  L1
+icon   icons/l1/061-murmuration.svg
+budget 89
+needs  swarm
 view   zui/views/murmuration.c
 model  apps/murmuration_model.c
 use    swarm_shares 1

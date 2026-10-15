@@ -1,0 +1,10 @@
+! Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+! SPDX-License-Identifier: Apache-2.0
+!
+! How many events are at or above the view's level, in Trebago: each event
+! counts 1 when level - bar >= 0, else 0 (wake_filter's rule).
+trebago count
+  in  level(n), bar
+  out count
+  count = sum(i, max(0, min(1, 1 + level(i) - bar)))
+end

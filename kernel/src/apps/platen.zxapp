@@ -1,0 +1,26 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Platen, printers and scanners. The sheets a job needs and whether the
+# printer takes the copies asked for are each worked out in Sutra and in
+# KRON, and a job is sent only when they agree.
+zxapp 1
+id     platen
+name   Platen
+slot   115
+layer  L1
+icon   icons/l1/115-platen.svg
+budget 55
+needs  print
+needs  scan
+needs  fs.read
+needs  fs.write
+model  apps/platen_model.c
+
+provides sheets num pages sides copies
+logic    sutra sheets apps/blocks/platen/sheets.sutra
+logic    kron  sheets apps/blocks/platen/sheets.kron
+
+provides copies_ok truth copies most
+logic    sutra copies_ok apps/blocks/platen/copies_ok.sutra
+logic    kron  copies_ok apps/blocks/platen/copies_ok.kron

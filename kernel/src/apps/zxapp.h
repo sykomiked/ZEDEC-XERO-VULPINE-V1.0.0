@@ -140,6 +140,26 @@
  *   I3 NOTHING RUNS here. The query only names entries; the share sheet
  *      (zui_share.h) shows them to the person, and the one they pick is
  *      run through zxapp_call, under its contract (B3).
+ *
+ * Every app has a place in the 407-slot registry (docs/REGISTRY.md) and
+ * says what it may touch, so the loader can admit it (gap 8/19 of the
+ * bare-metal OS work reads these fields):
+ *
+ *   R1 "slot <n>": the app's catalogue number, 1 to 407 (leading zeros
+ *      allowed). "layer L1|L2|L3": its layer. Each is optional, but when
+ *      both are given the slot must lie in the layer's range (L1 1-144,
+ *      L2 145-271, L3 272-407).
+ *   R2 "icon <path>": the app's vector icon. "budget <n>": its tokens per
+ *      cycle, a whole number from 1.
+ *   R3 "needs <cap> [<scope>]", one per line: a capability the app asks
+ *      for, from the one table zxapp_caps lists (net, peers, location,
+ *      fs.read, fs.write, ...). An unknown name refuses the manifest; it
+ *      is never ignored. The scope is one word ("space:home"); the same
+ *      cap and scope twice is refused. What is declared is only one
+ *      witness: the loader joins it with what the code uses.
+ *   R4 These belong to apps: a block may not carry slot, layer, icon,
+ *      budget or needs (the app that uses it declares them). Each of slot,
+ *      layer, icon and budget appears at most once.
  */
 #ifndef ZXAPP_H
 #define ZXAPP_H
@@ -161,6 +181,10 @@
 #define ZXAPP_INTENTS     16u
 #define ZXAPP_VERB_MAX    16u
 #define ZXAPP_MIME_MAX    64u
+#define ZXAPP_NEEDS       16u
+#define ZXAPP_CAP_MAX     24u
+#define ZXAPP_SCOPE_MAX   48u
+#define ZXAPP_SLOTS       407u
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {
@@ -243,6 +267,16 @@ typedef struct {
     uint32_t line;
 } zxapp_intent_t;
 
+/* R3: "needs <cap> [<scope>]". */
+typedef struct {
+    char cap[ZXAPP_CAP_MAX];
+    char scope[ZXAPP_SCOPE_MAX]; /* "" = no scope */
+    uint32_t line;
+} zxapp_need_t;
+
+/* R1: an app's layer; ZXAPP_LAYER_NONE when the manifest names none. */
+enum { ZXAPP_LAYER_NONE = 0, ZXAPP_LAYER_L1 = 1, ZXAPP_LAYER_L2 = 2, ZXAPP_LAYER_L3 = 3 };
+
 typedef struct {
     zxapp_lang_t lang;
     char entry[ZXAPP_ENTRY_MAX];
@@ -274,6 +308,12 @@ typedef struct zxapp {
     uint32_t nuse;
     zxapp_intent_t intent[ZXAPP_INTENTS]; /* I1 */
     uint32_t nintent;
+    uint16_t slot;                   /* R1: 1..ZXAPP_SLOTS; 0 = none given */
+    uint8_t layer;                   /* R1: ZXAPP_LAYER_* */
+    char icon[ZXAPP_PATH_MAX];       /* R2: "" = none given */
+    uint64_t budget;                 /* R2: tokens per cycle; 0 = none given */
+    zxapp_need_t needs[ZXAPP_NEEDS]; /* R3 */
+    uint32_t nneeds;
     uint32_t composed;       /* logic[composed..n) came from blocks (B4) */
     bool resolved;           /* zxapp_compose succeeded (C1) */
     char err[ZXAPP_ERR_MAX]; /* the last refusal, for the view to show */
@@ -385,6 +425,17 @@ int zxapp_call_witnessed(zxapp_t *a, zxapp_host_t *h, const char *entry, const z
  * values (numbers in lowest terms, as every runtime returns them), else
  * ZXAPP_BOTH. */
 int32_t zxapp_witness(const zxapp_num_t *x, uint32_t nx, const zxapp_num_t *y, uint32_t ny);
+
+/* ---- R: registry fields ------------------------------------------------------ */
+
+/* R3: the capability names a "needs" line may use, *n of them. */
+const char *const *zxapp_caps(uint32_t *n);
+/* R3: whether `cap` is one of them. */
+bool zxapp_cap_known(const char *cap);
+/* R1: the layer a slot belongs to (ZXAPP_LAYER_NONE outside 1..407). */
+int zxapp_slot_layer(uint32_t slot);
+/* R3: whether the app declared `cap` (any scope when scope is NULL). */
+bool zxapp_needs(const zxapp_t *a, const char *cap, const char *scope);
 
 /* ---- I: intents ------------------------------------------------------------- */
 

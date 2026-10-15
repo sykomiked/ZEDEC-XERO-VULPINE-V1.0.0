@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Glint, photos and media. The viewer is C; whether an item's numbers fit
+# its record is MYRA.
+zxapp 1
+id     glint
+name   Glint
+slot   49
+layer  L1
+icon   icons/l1/049-glint.svg
+budget 233
+needs  fs.read
+needs  ai.ask
+view   zui/views/glint.c
+model  apps/glint_model.c
+
+provides item_ok truth folder seq kind size
+logic    myra item_ok apps/blocks/glint/item.myra

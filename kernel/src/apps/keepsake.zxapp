@@ -1,0 +1,24 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Keepsake, backups with versions. How many backups a prune removes is
+# worked out in Sutra and in KRON, and the owner is asked to confirm only
+# when they agree; what a prune may keep (never none) is Eve.
+zxapp 1
+id     keepsake
+name   Keepsake
+slot   10
+layer  L1
+icon   icons/l1/010-keepsake.svg
+budget 233
+needs  backup
+needs  fs.read
+needs  ai.ask
+model  apps/keepsake_model.c
+
+provides removed num snapshots keep
+logic    sutra removed apps/blocks/keepsake/removed.sutra
+logic    kron  removed apps/blocks/keepsake/removed.kron
+
+provides keep_ok truth keep
+logic    eve keep_ok apps/blocks/keepsake/keep.eve

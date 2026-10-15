@@ -1,0 +1,15 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# used_share, a block: how much of something is in use, in hundredths of a
+# percent (1234 = 12.34%), never rounded up. Almanac uses it for memory and
+# the disk, Tidewatch for memory. Sutra and KRON both work it out and the
+# app shows it only when they agree; a total of 0 or more left than the
+# total is Sutra's refusal, so the share is held, never shown wrong.
+zxblock 1
+id       used_share
+name     Used share
+version  1.0.0
+provides used_x100 num total left
+logic    sutra used_x100 apps/blocks/used_share/used.sutra
+logic    kron  used_x100 apps/blocks/used_share/used.kron

@@ -1,0 +1,21 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Scent, search. zxvd scores every file (zxv_search.c); Scent checks a
+# hit's score in KRON and in Trebago, from the same per-word facts, so a
+# ranking the two do not agree on is held, never shown as best.
+zxapp 1
+id     scent
+name   Scent
+slot   5
+layer  L1
+icon   icons/l1/005-scent.svg
+budget 233
+needs  search
+needs  fs.read
+needs  ai.ask
+model  apps/scent_model.c
+
+provides score num name folder count
+logic    kron    score apps/blocks/scent/score.kron
+logic    trebago score apps/blocks/scent/score.tb
