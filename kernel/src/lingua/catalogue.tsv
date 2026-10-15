@@ -45,7 +45,7 @@
 1977	Icon	string	catalogue	-	-
 1977	AWK	text	next3	-	-
 1977	Bourne shell	shell	catalogue	-	-
-1978	Modula-2	algol	next2	-	-
+1978	Modula-2	algol	run	Moduledrake	kernel/src/lingua/zl_pascal.c (a Wirth-family dialect)
 1978	TeX	typesetting	catalogue	-	-
 1979	REXX	scripting	next3	-	-
 1979	dBase	database	catalogue	-	-

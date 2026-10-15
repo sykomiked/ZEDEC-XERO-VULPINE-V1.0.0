@@ -132,7 +132,7 @@ provenance.
 | 1940s | | | | | 1 |
 | 1950s | FORTRAN | COBOL | | LISP, JOVIAL, RPG | 6 |
 | 1960s | BASIC | APL, MUMPS | | ALGOL 60, Logo, SNOBOL, PL/I, BCPL, B, JCL | 7 |
-| 1970s | Forth | | C, Pascal | Scheme, Prolog, Modula-2, AWK, REXX, SQL | 9 |
+| 1970s | Forth, Modula-2 | | C, Pascal | Scheme, Prolog, AWK, REXX, SQL | 9 |
 | 1980s | | Ada | C++ | | 17 |
 | 1990s | Delphi | K | Python, Java, JavaScript, Ruby, PHP | Lua, Structured Text | 7 |
 | 2000s | | | C#, F#, Go | | 4 |
@@ -146,7 +146,7 @@ maintained toolchain, then languages that teach, then the rest.
 - **next1:** Pascal, ALGOL 60, LISP, Scheme, Logo. Block-structured and
   list languages exercise the parts of the IR the first three did not
   (nested scopes, recursion over lists).
-- **next2:** PL/I, BCPL, B, Modula-2, SNOBOL, Prolog, Lua.
+- **next2:** PL/I, BCPL, B, SNOBOL, Prolog, Lua (Modula-2 now runs).
 - **next3:** JOVIAL, RPG, IEC 61131-3 Structured Text, AWK, REXX, plus a
   parse tier for SQL and JCL, which ZXV reads rather than runs.
 

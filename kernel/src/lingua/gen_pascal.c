@@ -37,9 +37,13 @@
  * e - 1, sqr becomes abs, and Oberon's v starts at 0 (its arrays do) and
  * its nested procedure takes pr's t and x as parameters (an Oberon
  * procedure cannot see the variables of the procedures around it). The
- * Pascal stream (no dialect argument) is unchanged by all of this.
+ * Pascal stream (no dialect argument) is unchanged by all of this. oberon-m2
+ * prints the Oberon program (the same tree) as Modula-2, so gm2 can check
+ * what zxlang prints for the Oberon text where no Oberon compiler is
+ * installed; gm2 13 aborts a BY -1 loop that crosses from 0 to -1 (a
+ * defect), so neither mode makes one.
  *
- * Usage: gen_pascal [delphi|m2|oberon] <seed>   (writes the program to stdout) */
+ * Usage: gen_pascal [delphi|m2|oberon|oberon-m2] <seed>   (writes the program to stdout) */
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -57,6 +61,8 @@ static unsigned rnd(unsigned n)
 
 enum { D_ISO, D_DELPHI, D_M2, D_OBERON };
 static int dia; /* every new random choice is made only when dia != D_ISO */
+static int as_m2; /* oberon-m2: an Oberon program printed as Modula-2 */
+static int obp(void) { return dia == D_OBERON && !as_m2; }
 
 /* ------------------------------------------------------------ names */
 
@@ -328,6 +334,9 @@ static int gen_stmt(int depth)
             int t = sn[st].e1;
             sn[st].e1 = sn[st].e2;
             sn[st].e2 = t;
+            /* gm2 13 -fsoft-check-all aborts a BY -1 loop whose variable would go
+             * from 0 to -1 (a defect: PIM defines the loop), so none is made */
+            if (dia >= D_M2 && en[sn[st].e1].v >= 0 && en[sn[st].e2].v < 0) en[sn[st].e2].v = 0;
         }
         sn[st].body = gen_stmts(depth + 1, 1 + (int) rnd(3));
         loopvars_used--;
@@ -842,6 +851,13 @@ static int static_repair(void)
             }
         }
         if (k == E_ELEM) fold(id, &v);
+        /* OBNC 0.17 crashes folding a constant product whose right operand is -1 */
+        int64_t va, vb;
+        if (dia == D_OBERON && k == E_BIN && en[id].op == O_MUL && fold(en[id].a, &va) == 1 &&
+            fold(en[id].b, &vb) == 1 && vb == -1) {
+            en[id] = en[en[id].a];
+            changed = 1;
+        }
     }
     for (int st = 0; st < nsn; st++) { /* element targets: v[c] := ... and var arguments */
         int64_t v;
@@ -1444,7 +1460,7 @@ static void print_program(void)
 static void pm(int id, int need)
 {
     enode_t *e = &en[id];
-    int ob = dia == D_OBERON, p, paren;
+    int ob = obp(), p, paren;
     switch (e->kind) {
     case E_NUM:
         printf(e->v < 0 && need > 0 ? "(%d)" : "%d", e->v);
@@ -1550,14 +1566,14 @@ static void pseq(int st, int level)
 
 static void wint(int e, int width)
 {
-    fputs(dia == D_OBERON ? "Out.Int(" : "WriteInt(", stdout);
+    fputs(obp() ? "Out.Int(" : "WriteInt(", stdout);
     pm(e, 0);
     printf(", %d)", width);
 }
 
 static void wstr(const char *s)
 {
-    fputs(dia == D_OBERON ? "Out.String(\"" : "WriteString(\"", stdout);
+    fputs(obp() ? "Out.String(\"" : "WriteString(\"", stdout);
     for (; *s; s++) {
         putchar(*s);
         if (s[0] == '\'' && s[1] == '\'') s++; /* Pascal's '' is one quote */
@@ -1567,7 +1583,7 @@ static void wstr(const char *s)
 
 static void wln(void)
 {
-    fputs(dia == D_OBERON ? "Out.Ln" : "WriteLn", stdout);
+    fputs(obp() ? "Out.Ln" : "WriteLn", stdout);
 }
 
 /* a Boolean as TRUE or FALSE: IF b THEN WriteString("TRUE") ELSE ... END */
@@ -1749,7 +1765,7 @@ static void psm(int st, int level)
 
 static void print_module(void)
 {
-    int ob = dia == D_OBERON;
+    int ob = obp();
     fputs("MODULE gen;\n", stdout);
     fputs(ob ? "IMPORT Out;\n" : "FROM InOut IMPORT WriteInt, WriteString, WriteLn;\n", stdout);
     printf("CONST\n  k0 = %lld;\n  k1 = %lld;\n", (long long) k0, (long long) k1);
@@ -1848,15 +1864,16 @@ static void print_module(void)
 int main(int argc, char **argv)
 {
     if (argc == 3) {
+        as_m2 = !strcmp(argv[1], "oberon-m2");
         dia = !strcmp(argv[1], "delphi") ? D_DELPHI
               : !strcmp(argv[1], "m2")   ? D_M2
-              : !strcmp(argv[1], "oberon") ? D_OBERON
+              : !strcmp(argv[1], "oberon") || !strcmp(argv[1], "oberon-m2") ? D_OBERON
                                            : -1;
         argv++;
         argc--;
     }
     if (argc != 2 || dia < 0) {
-        fprintf(stderr, "usage: gen_pascal [delphi|m2|oberon] seed\n");
+        fprintf(stderr, "usage: gen_pascal [delphi|m2|oberon|oberon-m2] seed\n");
         return 2;
     }
     uint64_t seed = strtoull(argv[1], 0, 10);

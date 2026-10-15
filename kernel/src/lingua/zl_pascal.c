@@ -83,7 +83,8 @@
  * case's else follows a ';'.
  *
  * ---- Modula-2 (PIM4, Wirth 1988), integer subset, as gm2 -fpim4
- * -fsoft-check-all runs it
+ * -fsoft-check-all -fno-wholevalue runs it (gm2 wraps on overflow; here it
+ * traps).
  * MODULE Name; FROM InOut IMPORT WriteInt, WriteString, WriteLn (only
  * these); CONST, VAR (INTEGER, BOOLEAN, ARRAY [lo..hi] OF either) and
  * PROCEDURE declarations in any order and repeated; procedures nested to
@@ -97,8 +98,9 @@
  * MIN(INTEGER) TRUE FALSE; WriteInt(e, width) with a constant width,
  * WriteString of a string literal, WriteLn; nested (* *) comments. Names
  * and keywords are case-sensitive. DIV rounds down and MOD is never
- * negative; a divisor of zero traps DIVZERO and a negative one DOMAIN (as
- * gm2's checks); indexes are checked (BOUNDS). Refused by name: other
+ * negative; a divisor of zero traps DIVZERO and a negative one DOMAIN (PIM
+ * defines DIV and MOD for positive divisors); indexes are checked
+ * (BOUNDS). Refused by name: other
  * modules and imports, CARDINAL, LONGINT, CHAR, REAL and other types,
  * TYPE, RECORD, SET, POINTER, WITH, IN, procedure values, open array
  * parameters, constant expressions, hexadecimal, octal and character
@@ -3280,6 +3282,7 @@ static int p_array(pw_t *w, const ptok_t *names, uint32_t n)
         if (is_sym(w, ',')) return pfail(w, ZL_E_UNSUPPORTED, "multi-dimensional arrays");
         tw_s(w, pas(w) ? "] of " : "] OF ");
         TRY(expect_sym(w, ']', "']' expected"));
+        if (is_sym(w, ',')) return pfail(w, ZL_E_UNSUPPORTED, "multi-dimensional arrays");
         TRY(expect_kw(w, K_OF, pas(w) ? "of expected" : "OF expected"));
     }
     if (is_kw(w, K_ARRAY)) return pfail(w, ZL_E_UNSUPPORTED, "multi-dimensional arrays");

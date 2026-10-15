@@ -90,6 +90,15 @@ static const char *const seeds[] = {
     "  T := 0; while T < 9 do begin Inc(T, 2); if Odd(T div 3) then Continue; if T > 6 then Break "
     "end;\n  case -7 mod 3 of -1..0: B := not (T > 3); 1: B := True else Dec(T) end;\n  WriteLn(F(4), "
     "' ', T:3, B, -A[2] or 5, not 0);\nend.\n",
+    "(* fuzz (* seed *) *)\nMODULE Fz;\nFROM InOut IMPORT WriteInt, WriteString, WriteLn;\nCONST K = "
+    "-3;\nVAR a: ARRAY [-2..2] OF INTEGER; i, n: INTEGER; b: BOOLEAN;\nPROCEDURE F(m: INTEGER): "
+    "INTEGER;\nVAR s: INTEGER;\n  PROCEDURE Add(k: INTEGER); BEGIN INC(s, k * m) END Add;\nBEGIN "
+    "s := 0; IF m <= 0 THEN RETURN 1 END; Add(2); RETURN s + F(m - 1) END F;\nBEGIN\n  FOR i := "
+    "-2 TO 2 BY 2 DO a[i] := i * K DIV 2 END;\n  n := 0; LOOP INC(n, 3); IF n > 9 THEN EXIT "
+    "ELSIF ODD(n) THEN DEC(n) END END;\n  CASE n MOD 5 OF 0..1: b := ~(n # 3) | 2, 4: b := TRUE "
+    "& (a[-2] < 0) ELSE b := FALSE END;\n  REPEAT n := n DIV 2 UNTIL n < 2;\n  WHILE n < 4 DO "
+    "INC(n) END;\n  IF b OR NOT (n = 4) THEN WriteString(\"y\") END; WriteInt(F(3), 4); "
+    "WriteInt(MAX(INTEGER), 0); WriteLn\nEND Fz.\n",
 };
 
 static const char *const dict[] = {
