@@ -112,5 +112,9 @@ yes "What is the capital of Australia?" | head -500 > $OUT/stress.txt
 python3 -c "import json,sys; L=[json.loads(l) for l in open('$OUT/stress.jsonl')]; print(len(L), 'asked,', sum(x['lead_rc']==1 for x in L), 'answered')"
 ```
 
-500 questions in one process: every one must be answered (the budget bug
-found on 2026-10-15 starved the cells after about ten).
+500 questions in one process: every one must be answered. Run nothing else
+on the machine meanwhile: the first cloud T2 run stopped answering after
+about ten questions, and a later run with a stray host running alongside got
+0 of 10 (`bench/results/2026-10-15-tiamat/BUDGET_FINDINGS.md`). Also run J6
+once more with J2 running at the same time and report how many were
+answered: that measures how the swarm shares a busy machine.
