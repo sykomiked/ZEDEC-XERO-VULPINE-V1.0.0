@@ -5,6 +5,11 @@
 # Author: H.M. Michael-Laurence: Curzi (c)
 # License: Apache-2.0
 
+# A rule for one object file comes before `all` below, so without this a bare
+# `make -f build_system/Makefile.arm64` built only uart_pl011.o and left an
+# old kernel_arm64.elf in place (build_system/arm64_accept.sh calls it bare).
+.DEFAULT_GOAL := all
+
 CROSS_COMPILE ?= aarch64-linux-gnu-
 CC = $(CROSS_COMPILE)gcc
 LD = $(CROSS_COMPILE)ld

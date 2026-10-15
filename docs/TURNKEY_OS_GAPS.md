@@ -38,7 +38,7 @@ certificate checks, disk encryption, search, printing and others).
 | 19 | Settings app | System Settings / Control Panel | stub | settings panel mentioned in `desktop/desktop.h`; panels in the hosted window | owned by the Built-in apps thread |
 | 20 | App store | store with install flow | partial (model only) | `community_chest/`, `market/` storefront model; no install path through zxpkg | store -> zxpkg install |
 | 21 | Browser | full web browser | partial | `browser/browser.c` (HTML tokenizer, layout, HTTP/1.1, tested); no JS/CSS | CSS, then a small JS engine; window view in the Built-in apps thread |
-| 22 | Audio | mixer, devices, Bluetooth audio | partial | `audio/audio.c` (tested), `virtio_snd.c` | real codecs (HDA, USB audio) |
+| 22 | Audio | mixer, devices, Bluetooth audio | partial | `audio/audio.c` (tested), `virtio_snd.c`, HD Audio (`kernel/src/hwdrv/hda.c`, bound at boot in QEMU) | USB audio; HDA on a physical codec |
 | 23 | Virtualization and containers | Hypervisor/WSL/Docker | **missing** as an OS feature | `emu/` is retro-CPU emulation for ROM analysis | run Linux containers in a small VM next to ZXV (decided direction) |
 | 24 | Crash reporting and recovery mode | crash reports, safe mode, recovery partition | **missing** | only fail-closed logs and update rollback | panic dump to disk, recovery boot entry |
 | 25 | File manager | Finder / Explorer | stub | `LS` in the desktop shell | owned by the Built-in apps thread (Files) |

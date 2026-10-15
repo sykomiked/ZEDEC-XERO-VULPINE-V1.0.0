@@ -73,7 +73,7 @@ merged, and every night on `main`.
    | quick-checks: change detection, Apache-2.0 check, clang-format | mutation-subset, three shards |
    | host-tests: `make -C kernel verify-all` | fuzz-smoke |
    | zxvd: `kernel/arch/hosted/zxvd_checks.sh` (every zxvd unit test, the app and zui tests, zxvd end to end) | |
-   | boot: arm64 and x86_64 QEMU boots | coverage |
+   | boot: arm64 and x86_64 QEMU boots, then an arm64 user session (`build_system/arm64_session_check.py`: EL0 shell over serial, a file that survives a reboot, signed-only `run`) | coverage |
    | sanitize-asan-ubsan | kat-cross |
    | macos-app, dotnet-sdk, proofs (when their inputs changed) | sanitize-integer, sanitize-msan |
    | CodeQL (unless docs only) | boot-extra: riscv64, riscv32 and arm32 boots |

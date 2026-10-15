@@ -192,6 +192,12 @@ jobs:
         # passes only if the serial log reached [BOOT_OK] without a fault
         # marker. Same check on all five targets: build_system/ci_boot_check.sh.
         run: build_system/ci_boot_check.sh arm64 build_system/Makefile.arm64 30 "[AI_OK]"
+      # The same kernel, used: two boots on one blank disk, commands typed
+      # into the EL0 shell over serial. Proves the ROADMAP G7 items protected
+      # userspace, P-TERM, files that survive a reboot, and signed-only run
+      # (a tampered package and an unsigned file are both refused).
+      - name: ARM64 user session (EL0 shell, persistence, signed-only run)
+        run: python3 build_system/arm64_session_check.py kernel_arm64.elf "$RUNNER_TEMP"
       - name: Upload ARM64 artifacts
         uses: actions/upload-artifact@v7
         with:
