@@ -254,6 +254,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [p2p_caracho](#p2p_caracho----superseded-p2p-transport) | superseded P2P transport | UNUSED/DEAD |
 | [panopticon](#panopticon----connection-watcher-and-vpn-mesh-model) | connection watcher and "VPN mesh" model | PARTIAL |
 | [paradox](#paradox--paradox-engine-paraconsistent-ledger-and-belnap-agents) | paradox engine, paraconsistent ledger and Belnap agents | WORKING (tested in verify-all) |
+| [passport](#passport----log-in-from-any-device-with-no-server) | log in from any device with no server | WORKING (tested in verify-all) |
 | [pay](#pay----payment-ledger-assurance-fee-iso-20022-equity-treasury-farm) | payment ledger, assurance fee, ISO 20022, equity, treasury, farm | WORKING (tested in verify-all) |
 | [pce](#pce--paraconsistent-decision-engines-probability-tactics-strategy-finance) | paraconsistent decision engines: probability, tactics, strategy, finance | WORKING (tested in verify-all) |
 | [pci](#pci----pci-enumeration-x86) | PCI enumeration (x86) | PARTIAL |
@@ -2161,6 +2162,14 @@ Main entry points: pdx_classify, pdx_classify_answer, pdx_constructive, pdx_dest
 Tests: test_paradox.c (256 checks) in test-paradox and test_pdx_ledger.c (284 checks, covers pdx_ledger and pdx_agent) in test-pdx-ledger, both ASan/UBSan with freestanding checks, both in verify-all. fuzz/parsers/fuzz_paradox.c is a fuzz harness.
 Used by: pce (its log), recover (kernel/src/recover), libzxv's paradox group (sdk/libzxv/src/zxv_paradox.c builds paradox.c and paradox_graph.c), and tensor's test_zt_evh. pdx_ledger and pdx_agent have no caller outside test_pdx_ledger. Not in any kernel image or zxvd.
 Gaps: it detects only what its checks look at; signing logs and RepairProofs is the caller's job; a full log halts. Ledger finality depends on the caller's horizon protocol and identical configuration on every node. zxv_api.h still marks the paradox ABI group "reserved until it reaches main". See [PARADOX_ENGINE.md](PARADOX_ENGINE.md) and [PARACONSISTENT_LEDGER.md](PARACONSISTENT_LEDGER.md).
+
+### passport  —  log in from any device with no server
+Status: WORKING (tested in verify-all)
+What it does: A 32-byte seed (typed as checksummed base32, or stretched from a passphrase with ident's Argon2id) rebuilds ident's root identity and the vault and rendezvous keys on any device. Personal state is five sets (earn receipts, spends, café grants, revocations, devices) merged by set union and replayed into a balance with the paraconsistent ledger's rules (equivocations held, unfundable spends quarantined as BOTH). The state travels as a ChaCha20-Poly1305 capsule named by a raw CID and announced under a secret per-epoch topic. Café mode gives an untrusted machine a short-lived ML-DSA-65 session key approved from the phone, with rights, a cap and an expiry. Design: docs/PASSPORT.md.
+Main entry points: pp_hydrate, pp_seed_from_text, pp_seed_from_passphrase, pp_state_replay, pp_capsule_seal/open/publish/fetch, pp_verify_device_spend, pp_cafe_begin, pp_grant_issue, pp_verify_cafe_spend (passport.h).
+Tests: passport/test_passport.c — passes (make -C kernel test-passport, also builds freestanding for aarch64 and i386).
+Used by: nothing yet; zxvd and the login screen are the next consumers. Hosted only: not in any kernel image.
+Gaps: no mnemonic word list; the host must wipe its own copies at the end of a café session.
 
 ### pay  —  payment ledger, assurance fee, ISO 20022, equity, treasury, farm
 Status: WORKING (tested in verify-all, under ASan+UBSan)
