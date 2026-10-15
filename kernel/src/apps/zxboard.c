@@ -64,7 +64,7 @@ int zxboard_init(zxboard_t *b, const zxapp_registry_t *reg, const char *id, cons
     scopy(b->name, sizeof b->name, name ? name : id);
     scopy(b->entry, sizeof b->entry, "main");
     b->c.kind = ZXAPP_KIND_NUM;
-    b->c.out_x = 720, b->c.out_y = 200, b->c.out_placed = true;
+    b->c.out_x = 600, b->c.out_y = 200, b->c.out_placed = true;
     return ZXAPP_OK;
 }
 
@@ -601,7 +601,7 @@ int zxboard_open(zxboard_t *b, const zxapp_registry_t *reg, const zxapp_t *a, co
     scopy(b->entry, sizeof b->entry, entry);
     if (zxwire_parse(&b->c, zxapp_contract(a, entry), L->src, L->src_len) != ZXAPP_OK)
         return fail(b, ZXAPP_E_SYNTAX, "the circuit does not parse: ", b->c.err);
-    if (!b->c.out_placed) b->c.out_x = 720, b->c.out_y = 200, b->c.out_placed = true;
+    if (!b->c.out_placed) b->c.out_x = 600, b->c.out_y = 200, b->c.out_placed = true;
     for (uint32_t i = 0; i < b->c.ninputs; i++)
         if (!b->c.in_placed[i]) b->c.in_x[i] = 40, b->c.in_y[i] = 80 + 96 * (int32_t) i;
     for (uint32_t i = 0; i < b->c.nparts; i++) { /* ports in their contract's order */

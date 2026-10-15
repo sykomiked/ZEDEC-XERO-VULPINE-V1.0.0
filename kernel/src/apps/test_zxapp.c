@@ -2009,7 +2009,7 @@ static void test_board(void)
                                "part fee_ok fees.fee_ok amount=amount fee=fee\n"
                                "out fee_ok\n"
                                "at amount 40 80\nat rate 40 176\n"
-                               "at fee 240 80\nat fee_ok 480 80\nat out 720 200\n.\n";
+                               "at fee 240 80\nat fee_ok 480 80\nat out 600 200\n.\n";
     CHECK(len > 0 && strcmp(text, WANT) == 0, "CB4: the manifest:\n%s", len > 0 ? text : b->err);
     CHECK(zxboard_save(b, text, 40) == ZXAPP_E_BUFFER, "too small");
 
