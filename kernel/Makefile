@@ -372,7 +372,7 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/vblock -Isrc/ipfs_node -Isrc/robin_debanks src/vblock/test_vblock.c src/vblock/vblock.c src/vblock/vblock_cpu.c src/vblock/vblock_sim.c src/ipfs_node/ipfsn_multiformats.c src/ipfs_node/ipfsn_unixfs.c src/ipfs_node/ipfsn_store.c src/ipfs_node/ipfsn_net.c src/ipfs_node/ipfsn_ubh.c src/robin_debanks/sha256.c src/tls/aead.c src/tls/hkdf.c src/ubh/ubh.c src/event_space/event_envelope.c src/tensor/zt.c -o /tmp/test_vblock && /tmp/test_vblock > /tmp/test_vblock.log 2>&1 && echo "[PASS] test_vblock" || { tail -40 /tmp/test_vblock.log; echo "[FAIL] test_vblock"; exit 1; }
 	@echo "=== hosted app: API guard, budget gate, Vinea UDP host, end-to-end API, model slot, peers, updates, notifications ==="; \
 	$(MAKE) --no-print-directory test-settle
-	$(MAKE) --no-print-directory test-raffle
+	$(MAKE) --no-print-directory test-allotment
 	$(MAKE) --no-print-directory test-lpres-hex
 	$(MAKE) --no-print-directory test-paradox
 	$(MAKE) --no-print-directory test-research
@@ -1527,30 +1527,30 @@ clean:
 test-settle:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/settle -Isrc/pay -Isrc/swarm -Isrc/tensor -Isrc/mlkem -Isrc/zcapital -Isrc/modbind src/settle/test_settle.c src/settle/settle.c src/peer_audit/pa_runtime.c src/robin_debanks/sha256.c src/pay/pay_ledger.c src/pay/pay_util.c src/pay/pay_assure.c src/tensor/zt.c src/mlkem/keccak.c src/swarm/swarm_market.c src/swarm/swarm_budget.c src/swarm/swarm_emotion.c -o $(ZXV_TMP)/test_settle && $(ZXV_TMP)/test_settle > $(ZXV_TMP)/test_settle.log 2>&1 && echo "[PASS] test_settle ($$(tail -1 $(ZXV_TMP)/test_settle.log))" || { cat $(ZXV_TMP)/test_settle.log; echo "[FAIL] test_settle"; exit 1; }
 
-# The Sicilian Crown Raffle (src/raffle/raffle.h): opt-in tickets, Fibonacci
+# The Sicilian Crown Allotment (src/allotment/allot.h): opt-in ballots, Fibonacci
 # epoch trigger, exact split, commit-reveal draw replayed against a Python model.
-RAFFLE_SRCS = src/raffle/raffle.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c
-RAFFLE_INC = -Iinclude -Isrc/modbind -Isrc/raffle -Isrc/pay -Isrc/mlkem -Isrc/tensor
-.PHONY: test-raffle
-test-raffle:
-	@python3 -I src/raffle/gen_raffle_ref.py $(ZXV_TMP)/raffle_ref.txt || { echo "[FAIL] gen_raffle_ref"; exit 1; }
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle && $(ZXV_TMP)/test_raffle $(ZXV_TMP)/raffle_ref.txt > $(ZXV_TMP)/test_raffle.log 2>&1 && echo "[PASS] test_raffle ($$(tail -1 $(ZXV_TMP)/test_raffle.log))" || { cat $(ZXV_TMP)/test_raffle.log; echo "[FAIL] test_raffle"; exit 1; }
-	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle.c -o $(ZXV_TMP)/raffle_a64.o && \
-	if nm -u $(ZXV_TMP)/raffle_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_a64.o; echo "[FAIL] raffle libc symbol"; exit 1; fi && \
-	echo "[PASS] raffle freestanding (aarch64-none-elf, no libc)"
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_ladder.c src/raffle/raffle_ladder.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_ladder && $(ZXV_TMP)/test_raffle_ladder > $(ZXV_TMP)/test_raffle_ladder.log 2>&1 && echo "[PASS] test_raffle_ladder ($$(tail -1 $(ZXV_TMP)/test_raffle_ladder.log); $$(grep '^cost:' $(ZXV_TMP)/test_raffle_ladder.log))" || { cat $(ZXV_TMP)/test_raffle_ladder.log; echo "[FAIL] test_raffle_ladder"; exit 1; }
-	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_ladder.c -o $(ZXV_TMP)/raffle_ladder_a64.o && \
-	if nm -u $(ZXV_TMP)/raffle_ladder_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_ladder_a64.o; echo "[FAIL] raffle_ladder libc symbol"; exit 1; fi && \
-	echo "[PASS] raffle_ladder freestanding (aarch64-none-elf, no libc)"
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_guard.c src/raffle/raffle_guard.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_guard && $(ZXV_TMP)/test_raffle_guard > $(ZXV_TMP)/test_raffle_guard.log 2>&1 && echo "[PASS] test_raffle_guard ($$(tail -1 $(ZXV_TMP)/test_raffle_guard.log))" || { cat $(ZXV_TMP)/test_raffle_guard.log; echo "[FAIL] test_raffle_guard"; exit 1; }
-	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_guard.c -o $(ZXV_TMP)/raffle_guard_a64.o && \
-	if nm -u $(ZXV_TMP)/raffle_guard_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_guard_a64.o; echo "[FAIL] raffle_guard libc symbol"; exit 1; fi && \
-	echo "[PASS] raffle_guard freestanding (aarch64-none-elf, no libc)"
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_token.c src/raffle/raffle_token.c src/raffle/raffle_guard.c src/raffle/raffle_ladder.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_token && $(ZXV_TMP)/test_raffle_token > $(ZXV_TMP)/test_raffle_token.log 2>&1 && echo "[PASS] test_raffle_token ($$(tail -1 $(ZXV_TMP)/test_raffle_token.log))" || { cat $(ZXV_TMP)/test_raffle_token.log; echo "[FAIL] test_raffle_token"; exit 1; }
-	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(RAFFLE_INC) -c src/raffle/raffle_token.c -o $(ZXV_TMP)/raffle_token_a64.o && \
-	if nm -u $(ZXV_TMP)/raffle_token_a64.o | grep -vE ' (pay_[a-z0-9_]+|raffle_[a-z_]+|sha3_256)$$' | grep -q .; then nm -u $(ZXV_TMP)/raffle_token_a64.o; echo "[FAIL] raffle_token libc symbol"; exit 1; fi && \
-	echo "[PASS] raffle_token freestanding (aarch64-none-elf, no libc)"
-	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(RAFFLE_INC) src/raffle/test_raffle_savings.c src/raffle/raffle_guard.c src/raffle/raffle_ladder.c $(RAFFLE_SRCS) -o $(ZXV_TMP)/test_raffle_savings && $(ZXV_TMP)/test_raffle_savings > $(ZXV_TMP)/test_raffle_savings.log 2>&1 && echo "[PASS] test_raffle_savings ($$(tail -1 $(ZXV_TMP)/test_raffle_savings.log))" || { cat $(ZXV_TMP)/test_raffle_savings.log; echo "[FAIL] test_raffle_savings"; exit 1; }
+ALLOT_SRCS = src/allotment/allot.c src/pay/pay_util.c src/mlkem/keccak.c src/tensor/zt.c
+ALLOT_INC = -Iinclude -Isrc/modbind -Isrc/allotment -Isrc/pay -Isrc/mlkem -Isrc/tensor
+.PHONY: test-allotment
+test-allotment:
+	@python3 -I src/allotment/gen_allot_ref.py $(ZXV_TMP)/allot_ref.txt || { echo "[FAIL] gen_allot_ref"; exit 1; }
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot && $(ZXV_TMP)/test_allot $(ZXV_TMP)/allot_ref.txt > $(ZXV_TMP)/test_allot.log 2>&1 && echo "[PASS] test_allot ($$(tail -1 $(ZXV_TMP)/test_allot.log))" || { cat $(ZXV_TMP)/test_allot.log; echo "[FAIL] test_allot"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot.c -o $(ZXV_TMP)/allot_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_a64.o | grep -vE ' (pay_[a-z0-9_]+|sha3_256|shake256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_a64.o; echo "[FAIL] allotment libc symbol"; exit 1; fi && \
+	echo "[PASS] allotment freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_ladder.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_ladder && $(ZXV_TMP)/test_allot_ladder > $(ZXV_TMP)/test_allot_ladder.log 2>&1 && echo "[PASS] test_allot_ladder ($$(tail -1 $(ZXV_TMP)/test_allot_ladder.log); $$(grep '^cost:' $(ZXV_TMP)/test_allot_ladder.log))" || { cat $(ZXV_TMP)/test_allot_ladder.log; echo "[FAIL] test_allot_ladder"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_ladder.c -o $(ZXV_TMP)/allot_ladder_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_ladder_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_ladder_a64.o; echo "[FAIL] allot_ladder libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_ladder freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_guard.c src/allotment/allot_guard.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_guard && $(ZXV_TMP)/test_allot_guard > $(ZXV_TMP)/test_allot_guard.log 2>&1 && echo "[PASS] test_allot_guard ($$(tail -1 $(ZXV_TMP)/test_allot_guard.log))" || { cat $(ZXV_TMP)/test_allot_guard.log; echo "[FAIL] test_allot_guard"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_guard.c -o $(ZXV_TMP)/allot_guard_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_guard_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_guard_a64.o; echo "[FAIL] allot_guard libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_guard freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_token.c src/allotment/allot_token.c src/allotment/allot_guard.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_token && $(ZXV_TMP)/test_allot_token > $(ZXV_TMP)/test_allot_token.log 2>&1 && echo "[PASS] test_allot_token ($$(tail -1 $(ZXV_TMP)/test_allot_token.log))" || { cat $(ZXV_TMP)/test_allot_token.log; echo "[FAIL] test_allot_token"; exit 1; }
+	@clang --target=aarch64-none-elf -ffreestanding -std=c11 -O2 -Wall -Werror -Wextra $(ALLOT_INC) -c src/allotment/allot_token.c -o $(ZXV_TMP)/allot_token_a64.o && \
+	if nm -u $(ZXV_TMP)/allot_token_a64.o | grep -vE ' (pay_[a-z0-9_]+|allot_[a-z_]+|sha3_256)$$' | grep -q .; then nm -u $(ZXV_TMP)/allot_token_a64.o; echo "[FAIL] allot_token libc symbol"; exit 1; fi && \
+	echo "[PASS] allot_token freestanding (aarch64-none-elf, no libc)"
+	@gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST $(ALLOT_INC) src/allotment/test_allot_savings.c src/allotment/allot_guard.c src/allotment/allot_ladder.c $(ALLOT_SRCS) -o $(ZXV_TMP)/test_allot_savings && $(ZXV_TMP)/test_allot_savings > $(ZXV_TMP)/test_allot_savings.log 2>&1 && echo "[PASS] test_allot_savings ($$(tail -1 $(ZXV_TMP)/test_allot_savings.log))" || { cat $(ZXV_TMP)/test_allot_savings.log; echo "[FAIL] test_allot_savings"; exit 1; }
 
 # The 64-state hexagram tag on lpres (src/lpres/lpres_hex.h).
 .PHONY: test-lpres-hex

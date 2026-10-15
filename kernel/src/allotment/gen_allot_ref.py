@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
-"""gen_raffle_ref.py — an independent reference model of raffle.h.
+"""gen_allot_ref.py — an independent reference model of allot.h.
 
 Re-implements the fee, minting, the Fibonacci trigger, the hash chain, the
 epoch header, commit-reveal, the unbiased draw and the split with Python big
-integers and hashlib, runs the scripted scenario that test_raffle.c also
+integers and hashlib, runs the scripted scenario that test_allot.c also
 runs, and writes "key value" lines that the C test must reproduce exactly.
 
-Usage: gen_raffle_ref.py OUT
+Usage: gen_allot_ref.py OUT
 """
 import hashlib
 import sys
@@ -47,7 +47,7 @@ def ident(tag, i):
 
 
 def commitment(epoch, party, secret):
-    return sha3(b"ZXV-RAFFLE-COMMIT" + u64(epoch) + party + secret)
+    return sha3(b"ZXV-ALLOT-COMMIT" + u64(epoch) + party + secret)
 
 
 def amount_of(j):
@@ -55,70 +55,70 @@ def amount_of(j):
 
 
 def run_epoch(epoch, prev_link, out):
-    chain = sha3(b"ZXV-RAFFLE-GENESIS" + u64(epoch) + prev_link)
+    chain = sha3(b"ZXV-ALLOT-GENESIS" + u64(epoch) + prev_link)
     threshold = fib(FIB_INDEX)
     parties = [ident(b"party", i) for i in range(PARTIES)]
     secrets = [sha3(b"secret" + u64(epoch) + bytes([i])) for i in range(PARTIES)]
     commits = [commitment(epoch, p, s) for p, s in zip(parties, secrets)]
-    tickets = pool = 0
+    ballots = pool = 0
     ranges = []
     k = 0
     refused = 0
-    while tickets < threshold:
+    while ballots < threshold:
         owner = ident(b"owner", k % 7)
         j = k + 1000 * epoch
         amount = amount_of(j)
         rate = (987 * (1 + j % 3), 61000)
         k += 1
         fee = amount * rate[0] // rate[1]
-        n = fee  # one ticket per fee unit
+        n = fee  # one ballot per fee unit
         held = sum(c for f, c, o in ranges if o == owner)
         cap = max(threshold * SHARE[0] // SHARE[1], 1)
         if n == 0 or held + n > cap:
             refused += 1
             continue
-        first = tickets
+        first = ballots
         ranges.append((first, n, owner))
-        chain = sha3(b"ZXV-RAFFLE-ENTRY" + chain + owner + u64(amount) + u64(rate[0]) + u64(rate[1]) + u64(fee)
+        chain = sha3(b"ZXV-ALLOT-ENTRY" + chain + owner + u64(amount) + u64(rate[0]) + u64(rate[1]) + u64(fee)
                      + u64(first) + u64(n) + b"\x00")
         pool += fee
-        tickets += n
-    hdr = (b"ZXV-RAFFLE-HDR7" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
-           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(NAV[0]) + u64(NAV[1]) + u64(MODE) + u64(REBATE[0]) + u64(REBATE[1]) + u64(LUCK_CAP) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(tickets) + u64(pool) + chain
+        ballots += n
+    hdr = (b"ZXV-ALLOT-HDR7" + u64(epoch) + u64(MIN_RATE[0]) + u64(MIN_RATE[1]) + u64(MAX_RATE[0]) + u64(MAX_RATE[1]) + u64(SKIM[0])
+           + u64(SKIM[1]) + u64(GRANT[0]) + u64(GRANT[1]) + u64(NAV[0]) + u64(NAV[1]) + u64(MODE) + u64(REBATE[0]) + u64(REBATE[1]) + u64(LUCK_CAP) + u64(threshold) + u64(SHARE[0]) + u64(SHARE[1]) + u64(ballots) + u64(pool) + chain
            + u64(PARTIES))
     for p, c in zip(parties, commits):
         hdr += p + c
     hh = sha3(hdr)
-    seed_in = b"ZXV-RAFFLE-SEED" + hh
+    seed_in = b"ZXV-ALLOT-SEED" + hh
     for s in secrets:
         seed_in += b"\x01" + s
     seed = sha3(seed_in)
-    r = (1 << 64) % tickets
+    r = (1 << 64) % ballots
     win = None
     for ctr in range(128):
-        x = int.from_bytes(hashlib.shake_256(b"ZXV-RAFFLE-DRAW" + seed + u64(ctr)).digest(8),
+        x = int.from_bytes(hashlib.shake_256(b"ZXV-ALLOT-SELECT" + seed + u64(ctr)).digest(8),
                            "little")
         if x < (1 << 64) - r:
-            win = x % tickets
+            win = x % ballots
             break
     assert win is not None
-    winner = next(o for f, n, o in ranges if f <= win < f + n)
+    steward = next(o for f, n, o in ranges if f <= win < f + n)
     skim = pool * SKIM[0] // SKIM[1]
     grant = pool * GRANT[0] // GRANT[1]
     nav = pool * NAV[0] // NAV[1]
     rebate = pool * REBATE[0] // REBATE[1]
-    wfee = sum(n for f, n, o in ranges if o == winner)  # paid mode: fee == tickets
+    wfee = sum(n for f, n, o in ranges if o == steward)  # paid mode: fee == ballots
     base = pool - wfee
-    paid = sum(rebate * n // base for f, n, o in ranges if o != winner) if base else 0
+    paid = sum(rebate * n // base for f, n, o in ranges if o != steward) if base else 0
     pot = pool - skim - grant - nav - paid
     assert skim + grant + nav + paid + pot == pool and pot >= 0
-    link = sha3(b"ZXV-RAFFLE-SETTLE3" + u64(epoch) + hh + seed + u64(win) + winner + u64(pool)
+    link = sha3(b"ZXV-ALLOT-SETTLE3" + u64(epoch) + hh + seed + u64(win) + steward + u64(pool)
                 + u64(skim) + u64(grant) + u64(nav) + u64(rebate) + u64(paid) + u64(pot))
-    for key, val in (("tickets", tickets), ("pool", pool), ("entries", len(ranges)),
-                     ("refused", refused), ("winning", win), ("skim", skim), ("grant", grant), ("nav", nav), ("pot", pot),
+    for key, val in (("ballots", ballots), ("pool", pool), ("entries", len(ranges)),
+                     ("refused", refused), ("selected", win), ("skim", skim), ("grant", grant), ("nav", nav), ("pot", pot),
                      ("rebate", rebate), ("rebate_paid", paid)):
         out.append(f"e{epoch}.{key} {val}")
-    for key, val in (("header", hh), ("seed", seed), ("winner", winner), ("link", link)):
+    for key, val in (("header", hh), ("seed", seed), ("steward", steward), ("link", link)):
         out.append(f"e{epoch}.{key} {val.hex()}")
     return link
 
