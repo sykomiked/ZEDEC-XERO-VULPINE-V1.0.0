@@ -13,6 +13,7 @@
 #include "x86_irq.h"
 #include "hwplat_x86.h"
 #include "uart_16550.h"
+#include "msr_safe.h" /* x86_extable_fixup: #GP recovery for safe MSR access */
 #include "zxv_syscall_abi.h"
 
 extern char x86_trap_stubs[];
@@ -455,6 +456,13 @@ void x86_trap(x86_frame_t *f)
         kernel_fault(f);
     }
 
+    if (v == 13u) { /* #GP at a registered instruction (msr_safe.h): resume at its fixup */
+        uint64_t fix = x86_extable_fixup(f->rip);
+        if (fix) {
+            f->rip = fix;
+            return;
+        }
+    }
     if (v < 32u) kernel_fault(f);
     if (v == X86_VEC_TIMER) { /* a tick in ring 0: idle loop or kernel code */
         if (x86_sched_kernel_tick) x86_sched_kernel_tick();

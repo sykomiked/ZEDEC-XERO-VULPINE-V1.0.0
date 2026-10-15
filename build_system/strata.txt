@@ -49,7 +49,7 @@ zcapital                         base       # the nine-form capital types; swarm
 qr                               base       # QR Code encoder: pure bytes to modules
 
 # ---- S1 kernel and hardware abstraction
-acpi                             kernel
+acpi                             kernel     # tables, AML interpreter, sleep states, power button, battery, thermal
 alloc                            kernel
 ata                              kernel
 audio                            kernel

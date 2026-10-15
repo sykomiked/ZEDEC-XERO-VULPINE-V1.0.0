@@ -37,9 +37,11 @@
 #include "efifb_con.h"        /* UEFI GOP text console (real PCs have no COM1) */
 #include "swarm/swarm_boot.h" /* swarm + tensor boot self-check ([AI_OK]) */
 #include "hwplat_x86.h"       /* standard class drivers (kernel/src/hwdrv) */
+#include "acpi_x86.h"         /* ACPI tables, AML interpreter, power management */
 #include "hwdrv/hw_storage.h" /* GPT + FAT32 on those disks */
 #include "x86_irq.h"          /* IDT, LAPIC, timer (gap 6) */
 #include "x86_userspace.h"    /* ring-3 processes and the scheduler (gap 6) */
+#include "msr_safe.h"         /* fault-safe RDMSR/WRMSR + RAPL helpers */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -343,6 +345,74 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
     boot_features_init(uart_puts, 0, 0);
     boot_economy_init(uart_puts);
 
+    /* Fault-safe MSR access (msr_safe.h). A valid MSR must read; an MSR access
+     * the CPU rejects must #GP, be recovered through the exception-fixup
+     * table, come back as X86_MSR_EFAULT -- and the kernel must keep going.
+     *
+     * MEASURED ON QEMU 8.2 TCG (the CI machine): no RDMSR at CPL0 ever raises
+     * #GP. Unknown MSRs read as 0 (probed: 0xDEADBEEF, 0x1FF, 0x2FF, 0x802 in
+     * xAPIC mode, 0x606, 0xC0010299, ...). The one MSR fault TCG does raise
+     * here is WRMSR of reserved bits into IA32_PKRS (0x6E1) -- which also #GPs
+     * on every real CPU (bits 63:32 are reserved where PKS exists; the MSR
+     * does not exist where it does not), so writing it changes no state
+     * anywhere. So: the read probe reports what the CPU did, the write probe
+     * MUST fault and recover, and both table entries must be registered. */
+    {
+        extern const char x86_rdmsr_insn[], x86_wrmsr_insn[];
+        uint64_t apic = 0, tsc = 0, junk = 0x5A5Au;
+        int ra = x86_rdmsr_safe(MSR_IA32_APIC_BASE, &apic);
+        int rt = x86_rdmsr_safe(MSR_IA32_TSC, &tsc);
+        /* x2APIC registers #GP by definition while x2APIC mode is off. */
+        uint32_t bad = (ra == X86_MSR_OK && !(apic & (1u << 10))) ? MSR_X2APIC_APICID : 0xDEADBEEFu;
+        int rb = x86_rdmsr_safe(bad, &junk);
+        int rw = x86_wrmsr_safe(MSR_IA32_PKRS, 0xFFFFFFFF00000000ull);
+        int reg = x86_extable_fixup((uint64_t) (uintptr_t) x86_rdmsr_insn) != 0 &&
+                  x86_extable_fixup((uint64_t) (uintptr_t) x86_wrmsr_insn) != 0;
+        /* APIC_BASE is never 0 on a CPU with an APIC (0xFEE00900 under QEMU).
+         * The TSC MSR's VALUE is not checked: QEMU TCG reads it back as 0. */
+        int valid_ok = ra == X86_MSR_OK && rt == X86_MSR_OK && apic != 0;
+        if (valid_ok && rb == X86_MSR_EFAULT && junk == 0x5A5Au)
+            boot_msg("  [MSR OK] safe rdmsr: valid read ok, invalid MSR faulted and recovered");
+        else if (valid_ok && rb == X86_MSR_OK)
+            boot_msg(
+                "  [MSR OK] safe rdmsr: valid read ok; invalid MSR read did not #GP on this CPU "
+                "(emulator reads unknown MSRs as 0)");
+        else {
+            uart_puts("  [MSR FAIL] safe rdmsr: apic_base rc=-");
+            uart_put_dec((uint64_t) (-ra));
+            uart_puts(" tsc rc=-");
+            uart_put_dec((uint64_t) (-rt));
+            uart_puts(" invalid rc=-");
+            uart_put_dec((uint64_t) (-rb));
+            uart_puts("\n");
+        }
+        if (rw == X86_MSR_EFAULT)
+            boot_msg("  [MSR OK] safe wrmsr: invalid MSR write faulted and recovered");
+        else
+            boot_msg("  [MSR FAIL] safe wrmsr: reserved-bit write to IA32_PKRS did not fault");
+        if (reg)
+            boot_msg("  [MSR OK] fixup table: rdmsr and wrmsr registered with the #GP handler");
+        else
+            boot_msg("  [MSR FAIL] fixup table: rdmsr/wrmsr entry missing");
+        uint32_t pu = 0, eu = 0, tu = 0;
+        int rr = x86_rapl_units(&pu, &eu, &tu);
+        if (rr == X86_MSR_OK) {
+            uart_puts("  [MSR] RAPL present (");
+            uart_puts(x86_rapl_kind() == X86_RAPL_AMD ? "AMD" : "Intel");
+            uart_puts("): power 1/2^");
+            uart_put_dec(pu);
+            uart_puts(" W, energy 1/2^");
+            uart_put_dec(eu);
+            uart_puts(" J, time 1/2^");
+            uart_put_dec(tu);
+            uart_puts(" s\n");
+        } else {
+            uart_puts(rr == X86_MSR_ENODEV
+                          ? "  [MSR] RAPL absent (CPUID: no RAPL interface)\n"
+                          : "  [MSR] RAPL absent (CPUID claims it; unit MSR faulted)\n");
+        }
+    }
+
     /* Standard class drivers: scan PCI, bind NVMe/AHCI/xHCI/e1000/HDA, then a
      * short self-test of each device that bound. Absent or failing hardware
      * is logged and skipped; it never stops the boot. */
@@ -362,6 +432,12 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
         uart_puts(" (TSC ");
         uart_put_dec(tsc_per_us);
         uart_puts(" ticks/us)\n");
+
+        /* ACPI: tables, the AML namespace (DSDT + SSDTs), sleep states, power
+         * button, batteries, lid, thermal zones, processors, backlight. Only
+         * reports; a failure is logged and the boot goes on. */
+        boot_msg("[BOOT] ACPI: tables and AML namespace...");
+        acpi_x86_boot(hp, tsc_per_us, hw_log_line);
     }
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a

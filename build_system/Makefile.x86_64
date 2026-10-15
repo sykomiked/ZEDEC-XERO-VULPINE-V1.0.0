@@ -134,6 +134,14 @@ SRCS := \
     kernel/arch/x86_64/kernel_main_x86_64.c \
     kernel/arch/x86_64/hwplat_x86.c \
     kernel/arch/x86_64/bootmem_x86.c \
+    kernel/arch/x86_64/msr_safe.c \
+    kernel/arch/x86_64/x86_extable.c \
+    kernel/arch/x86_64/acpi_x86.c \
+    kernel/src/acpi/acpi.c \
+    kernel/src/acpi/acpi_pm.c \
+    kernel/src/acpi/aml_core.c \
+    kernel/src/acpi/aml_region.c \
+    kernel/src/acpi/aml_dev.c \
     kernel/src/hwdrv/hwdrv_core.c \
     kernel/src/hwdrv/hwdrv_probe.c \
     kernel/src/hwdrv/nvme.c \
@@ -431,6 +439,7 @@ OBJS   := $(OBJDIR)/kernel/arch/x86_64/boot.o \
           $(OBJDIR)/kernel/arch/x86_64/ring3_asm.o \
           $(OBJDIR)/kernel/arch/x86_64/x86_trap_asm.o \
           $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o \
+          $(OBJDIR)/kernel/arch/x86_64/msr_safe_asm.o \
           $(patsubst %.c,$(OBJDIR)/%.o,$(SRCS))
 
 # Directories created ONCE at parse time, before any recipe runs, so no two -j
@@ -480,6 +489,7 @@ $(OBJDIR)/kernel/arch/x86_64/x86_userbin.o: kernel/arch/x86_64/x86_userbin.S $(X
 	@mkdir -p $(dir $@)
 	$(CC) -ffreestanding -fno-pie -DX86_USER_ELF='"$(X86_USER_ELF)"' -c $< -o $@
 
+$(OBJDIR)/kernel/arch/x86_64/msr_safe_asm.o: kernel/arch/x86_64/msr_safe_asm.S
 $(OBJDIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@

@@ -414,6 +414,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-zt-evh
 	$(MAKE) --no-print-directory test-hwemu
 	$(MAKE) --no-print-directory test-hwdrv
+	$(MAKE) --no-print-directory test-x86-extable
+	$(MAKE) --no-print-directory test-aml
 	$(MAKE) --no-print-directory test-sdk-bridge
 	$(MAKE) --no-print-directory test-vhub
 	$(MAKE) --no-print-directory test-econ
@@ -1850,7 +1852,10 @@ test-vfs:
 test-boot-features:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/bootfeat -Isrc/deploy -Isrc/theme -Isrc/icon -Isrc/font -Isrc/bridge -Isrc/update -Isrc/mage -Isrc/reality -Isrc/cards -Isrc/onepolicy -Isrc/zcapital -Isrc/crown -Isrc/ministry -Isrc/ipfs -Isrc/tolvovina -Isrc/surplus -Isrc/edp_risk -Isrc/identity -Isrc/robin_debanks -Isrc/finance -Isrc/vino -Isrc/modbind src/bootfeat/test_boot_features.c src/bootfeat/boot_features.c src/deploy/deploy.c src/theme/theme.c src/icon/icon.c src/font/font.c src/font/script.c src/font/truetype.c src/bridge/bridge.c src/update/update.c src/mage/mage.c src/reality/reality.c src/cards/sigil.c src/onepolicy/onepolicy.c src/zcapital/zcapital.c src/crown/crown.c src/ministry/ministry.c src/finance/triple_ledger.c src/ipfs/ipfs.c src/robin_debanks/sha256.c src/robin_debanks/ed25519_verify.c -Wl,--wrap=deploy_resolve,--wrap=theme_get,--wrap=icon_for,--wrap=icon_is_builtin,--wrap=font_register,--wrap=font_resolve,--wrap=bridge_classify,--wrap=sig_init,--wrap=sig_add_node,--wrap=sig_add_edge,--wrap=reality_tick,--wrap=op_symbiotic_ok,--wrap=zcap_exchange,--wrap=crown_register,--wrap=ministry_tribute,--wrap=ipfs_cid_from_bytes -o $(ZXV_TMP)/test_boot_features -lm && $(ZXV_TMP)/test_boot_features > $(ZXV_TMP)/test_boot_features.log 2>&1 && echo "[PASS] test_boot_features ($$(tail -1 $(ZXV_TMP)/test_boot_features.log))" || { tail -40 $(ZXV_TMP)/test_boot_features.log; echo "[FAIL] test_boot_features"; exit 1; }
 
-.PHONY: test-blockdev test-hwdrv
+.PHONY: test-blockdev test-hwdrv test-x86-extable
+# The x86_64 #GP handler's exception-fixup lookup (fault-safe RDMSR/WRMSR).
+test-x86-extable:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iarch/x86_64 arch/x86_64/test_x86_extable.c arch/x86_64/x86_extable.c -o $(ZXV_TMP)/test_x86_extable && $(ZXV_TMP)/test_x86_extable > $(ZXV_TMP)/test_x86_extable.log 2>&1 && echo "[PASS] test_x86_extable ($$(tail -1 $(ZXV_TMP)/test_x86_extable.log))" || { cat $(ZXV_TMP)/test_x86_extable.log; echo "[FAIL] test_x86_extable"; exit 1; }
 # Standard class drivers (src/hwdrv) against register-level fake devices. Every
 # test_*.c in src/hwdrv/test links the shared core, the fake platform and all
 # drivers, built with ASan/UBSan. QEMU boot coverage of the same drivers is
@@ -1861,6 +1866,19 @@ test-hwdrv:
 		b=$$(basename $$t .c); \
 		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/hwdrv $$t src/hwdrv/test/hwfake.c $(HWDRV_SRCS) src/fat32/fat32.c -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
 		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { cat $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
+	done
+# ACPI: the AML interpreter (src/acpi/aml_*.c) and power management
+# (acpi_pm.c, acpi.c) against fake firmware tables and fake chipset registers.
+# The ASL fixtures are compiled once into src/acpi/test/aml_fixtures.h
+# (gen_fixtures.sh needs iasl; CI does not). QEMU coverage of the same code is
+# build_system/acpi_check.sh.
+.PHONY: test-aml
+AML_SRCS = src/acpi/aml_core.c src/acpi/aml_region.c src/acpi/aml_dev.c src/acpi/acpi_pm.c src/acpi/acpi.c
+test-aml:
+	@for t in $(sort $(wildcard src/acpi/test/test_*.c)); do \
+		b=$$(basename $$t .c); \
+		gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc -Isrc/acpi -Isrc/modbind $$t src/acpi/test/amlfake.c $(AML_SRCS) -o $(ZXV_TMP)/$$b || { echo "[FAIL] $$b: build"; exit 1; }; \
+		$(ZXV_TMP)/$$b > $(ZXV_TMP)/$$b.log 2>&1 && echo "[PASS] $$b ($$(tail -1 $(ZXV_TMP)/$$b.log))" || { tail -60 $(ZXV_TMP)/$$b.log; echo "[FAIL] $$b"; exit 1; }; \
 	done
 test-blockdev:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude src/blockdev/test_blockdev.c src/blockdev/blockdev.c -o $(ZXV_TMP)/test_blockdev && $(ZXV_TMP)/test_blockdev > $(ZXV_TMP)/test_blockdev.log 2>&1 && echo "[PASS] test_blockdev" || { tail -40 $(ZXV_TMP)/test_blockdev.log; echo "[FAIL] test_blockdev"; exit 1; }
