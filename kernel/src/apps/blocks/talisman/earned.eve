@@ -1,0 +1,19 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# The next tier earned (talisman_rules.h TL2), in Eve: every input at or
+# above its threshold. Eve checks each field against its own range, so
+# each input comes as its margin, what it has minus what the tier needs:
+# credibility and bond at least 0 (at most 18 digits), uptime at least 0
+# and at most 10000 basis points, since an uptime past 10000 bps is no
+# measurement (sicily.h S2). earned.kron reads any margin at or above 0
+# as met: an uptime margin past 10000 is held.
+eve talisman
+margin = 0 .. 999999999999999999
+uptime_margin = 0 .. 10000
+
+tier_earned {
+  cred: margin
+  bond: margin
+  uptime: uptime_margin
+}

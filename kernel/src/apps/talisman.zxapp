@@ -1,0 +1,85 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Talisman, the owner's Player Card: layer 76 of the matrix. It reads
+# zxvd's player.card (sicily.h S2/S3) and shows the tier the measured
+# inputs earn, each input with its source, how far each has come toward
+# the next tier's threshold, whether that tier is earned, and the perks.
+# An input zxvd reports as 0 (bond, uptime and giving have no source on a
+# node yet, and zxvd says why) is shown as missing with that reason, never
+# as met. The history of tiers is kept in the C model (talisman_model.h
+# TM4). Read only.
+#
+# Tiers give no priority, discount or credit, as player.card says; the
+# card never implies otherwise, and every notice says so (TM3).
+#
+# 5 later layers lean on this one, so its entries are general rules owned
+# here (CONCEPTS.tsv): how far a value has come toward a threshold, held
+# at the threshold, and whether every value meets its threshold, as a
+# truth and as a number. Nothing nearer the core fits: the shared blocks
+# are capacities, shares, days and gcds; used_share.used_x100 refuses a
+# value past its total, which a met threshold often is; Coffer's entries
+# are money, and a tier is no money; Wellspring's goal progress is not
+# held at the goal, and Wellspring (layer 89) is built after this layer,
+# so it may not be used here. Kitling, Ninefold and Vintner, which the
+# task names, are not built yet.
+#
+# Witness pairs are of one kind, since a witnessed call compares answers
+# exactly and a truth entry refuses a number (zxapp.c run_one B3). Eve
+# answers truths only (zxapp_eve.c EV2), and Trebago answers numbers, so
+# the task's "Eve + Trebago" for the tier earned is split as Gatehouse
+# splits its rule: Eve and KRON witness the truth (earned), Trebago and
+# KRON the number (earned_n), and the model's C is the third witness of
+# both (talisman_rules.h). Eve checks each field against its own range
+# alone, so every input comes as its margin, what it has minus what the
+# tier needs.
+#
+# Planned languages: Eiffel (design by contract) and Solidity (contract
+# rules) own the tier rule, earned; RPG (reports from fixed records) owns
+# the card's progress figures, reach_x100. None runs yet; Eve, KRON,
+# Trebago and Sutra stand in.
+zxapp 1
+id     talisman
+name   Talisman
+version 1.0.0
+slot   76
+layer  L1
+matrix 76
+icon   icons/l1/076-talisman.svg
+budget 233
+needs  ledger.read
+needs  sys.read
+model  apps/talisman_model.c
+
+# How far an input has come toward its threshold, x100, held at 10000
+# (met), floored (TL1): Sutra divides and holds 9(9), Trebago counts the
+# floor exactly; a need of 0, a negative or a value past 9(9) is refused
+# by Sutra and answered by Trebago: held.
+provides reach_x100 num have need
+logic    sutra   reach_x100 apps/blocks/talisman/reach.sutra
+logic    trebago reach_x100 apps/blocks/talisman/reach.tb
+pending  RPG reach_x100
+
+# The next tier earned (TL2): every margin at or above 0, uptime's at most
+# 10000 bps. Eve declares the ranges, KRON reads any margin at or above 0
+# as met: an uptime margin past 10000 is held.
+provides earned truth cred bond uptime
+logic    eve  earned apps/blocks/talisman/earned.eve
+logic    kron earned apps/blocks/talisman/earned.kron
+pending  Eiffel earned
+pending  Solidity earned
+
+# The same rule as a number to count with, 1 or 0 (TL3): Trebago holds
+# the ranges, KRON reads any margin at or above 0 as met: held past them.
+provides earned_n num cred bond uptime
+logic    trebago earned_n apps/blocks/talisman/earned_n.tb
+logic    kron    earned_n apps/blocks/talisman/earned_n.kron
+
+# Its own proof (zxapp.h K1): each entry at its edges, and where its languages disagree
+check reach_x100 have=0,50,100,150,1,2,999999999,0,10001 need=100,100,100,100,3,3,999999999,1,10000 = 0,5000,10000,10000,3333,6666,10000,0,10000
+check reach_x100 have=1,1 need=1,0 = both
+check reach_x100 have=1,1000000000 need=1,1 = both
+check earned cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = true,true,true,true,false,false,false,true
+check earned cred=0,0 bond=0,0 uptime=0,10001 = both
+check earned_n cred=0,5,0,0,-1,0,0,999999999999999999 bond=0,0,7,0,0,-1,0,0 uptime=0,0,0,10000,0,0,-1,0 = 1,1,1,1,0,0,0,1
+check earned_n cred=0,0 bond=0,0 uptime=0,10001 = both

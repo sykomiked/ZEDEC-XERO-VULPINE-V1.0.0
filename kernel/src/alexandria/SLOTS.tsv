@@ -107,3 +107,6 @@
 70	num.signpost_name_fault	590.28	signpost.name_fault	base
 71	logic.signpost_name_ok	490.32	signpost.name_ok	base
 72	num.signpost_ttl_left	590.29	signpost.ttl_left	base
+73	logic.talisman_earned	490.33	talisman.earned	base
+74	num.talisman_earned_n	590.30	talisman.earned_n	base
+75	num.talisman_reach_x100	590.31	talisman.reach_x100	base

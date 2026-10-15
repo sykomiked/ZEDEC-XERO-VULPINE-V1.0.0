@@ -78,7 +78,10 @@
 #define ALX_SLOT_NUM_SIGNPOST_NAME_FAULT         70u /* 590.28 signpost.name_fault */
 #define ALX_SLOT_LOGIC_SIGNPOST_NAME_OK          71u /* 490.32 signpost.name_ok */
 #define ALX_SLOT_NUM_SIGNPOST_TTL_LEFT           72u /* 590.29 signpost.ttl_left */
-#define ALX_SLOT__COUNT 72u
+#define ALX_SLOT_LOGIC_TALISMAN_EARNED           73u /* 490.33 talisman.earned */
+#define ALX_SLOT_NUM_TALISMAN_EARNED_N           74u /* 590.30 talisman.earned_n */
+#define ALX_SLOT_NUM_TALISMAN_REACH_X100         75u /* 590.31 talisman.reach_x100 */
+#define ALX_SLOT__COUNT 75u
 /* clang-format on */
 
 #endif
