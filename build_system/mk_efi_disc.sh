@@ -80,9 +80,21 @@ PART_START=2048                           # 1 MiB alignment
 PART_END=$((PART_START + ESP_SECTORS - 1))
 DISK_SECTORS=$((PART_END + 1 + 2048))     # + room for the secondary GPT
 
+# Reproducible: the same commit gives the same disc bytes, so anyone can
+# rebuild it and compare its SHA-256 with CI's (docs/VERIFY_BOOT.md). The
+# kernel and stub are already deterministic; what varied was the wrapping:
+# FAT timestamps (mtools honours SOURCE_DATE_EPOCH), the FAT volume serial
+# and the GPT GUIDs, which are fixed here per arch.
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1767225600}"
+case "$ARCH" in
+  x86_64) SERIAL=0x5A580086 DISK_GUID=5A58560A-0000-4000-8000-000000086064 ;;
+  arm64)  SERIAL=0x5A580064 DISK_GUID=5A58560A-0000-4000-8000-0000000A6400 ;;
+esac
+PART_GUID="${DISK_GUID%????????????}00000000E5F1"
+
 log "formatting a ${ESP_MB} MiB FAT32 ESP"
 dd if=/dev/zero of="$ESP" bs=1M count="$ESP_MB" status=none
-mformat -i "$ESP" -F :: 2>/dev/null || die "mformat (FAT32) failed"
+mformat -i "$ESP" -F -N "${SERIAL#0x}" :: 2>/dev/null || die "mformat (FAT32) failed"
 mmd -i "$ESP" ::/EFI ::/EFI/BOOT 2>/dev/null || die "mmd failed"
 mcopy -i "$ESP" "$EFI_SRC" "::/EFI/BOOT/$EFI_DST" || die "mcopy EFI failed"
 mcopy -i "$ESP" "$ROM"    "::/MEGAROM.TVL"        || die "mcopy ROM failed"
@@ -94,7 +106,7 @@ log "building GPT disk ($((DISK_SECTORS/2048)) MiB) with one EF00 ESP"
 dd if=/dev/zero of="$OUT" bs=512 count="$DISK_SECTORS" status=none
 sgdisk -o \
   -n "1:${PART_START}:${PART_END}" -t 1:EF00 \
-  -c 1:"EFI System Partition" "$OUT" >/dev/null 2>&1 \
+  -c 1:"EFI System Partition" -U "$DISK_GUID" -u "1:$PART_GUID" "$OUT" >/dev/null 2>&1 \
   || die "sgdisk partitioning failed"
 dd if="$ESP" of="$OUT" bs=512 seek="$PART_START" conv=notrunc status=none
 rm -f "$ESP"

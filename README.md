@@ -110,6 +110,13 @@ The reasoning is in [DESIGN_PHILOSOPHY.md](DESIGN_PHILOSOPHY.md).
 
 ## Build and run
 
+**Verify the boot yourself:** one command builds the bare-metal disc from
+source, boots it in QEMU and checks every boot marker:
+`bash build_system/verify_boot.sh` (only Docker needed). Steps, what each
+marker proves and how to compare the disc's hash with CI's are in
+[docs/VERIFY_BOOT.md](docs/VERIFY_BOOT.md). You can also run the **Verify boot**
+workflow from the Actions tab.
+
 The reference kernel target is arm64. From the repository root:
 
 ```bash
