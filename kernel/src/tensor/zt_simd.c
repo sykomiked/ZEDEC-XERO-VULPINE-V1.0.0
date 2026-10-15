@@ -14,10 +14,15 @@ static const zt_kern_t K_C = {"c", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 uint32_t zt_simd_list(const zt_kern_t **out, uint32_t cap)
 {
-    const zt_kern_t *all[5] = {zt_simd_x86_avx512vnni(), zt_simd_x86_avx512(), zt_simd_x86_avx2(),
-                               zt_simd_neon(), &K_C};
+    const zt_kern_t *all[ZT_SIMD_SETS] = {zt_simd_x86_avx512vnni(),
+                                          zt_simd_x86_avx512(),
+                                          zt_simd_x86_avx2(),
+                                          zt_simd_sve(),
+                                          zt_simd_neon(),
+                                          zt_simd_rvv(),
+                                          &K_C};
     uint32_t n = 0;
-    for (uint32_t i = 0; i < 5; i++)
+    for (uint32_t i = 0; i < ZT_SIMD_SETS; i++)
         if (all[i] && n < cap) out[n++] = all[i];
     return n;
 }
@@ -31,8 +36,8 @@ const zt_kern_t *zt_simd_best(void)
 
 const zt_kern_t *zt_simd_find(const char *name)
 {
-    const zt_kern_t *l[5];
-    uint32_t n = zt_simd_list(l, 5);
+    const zt_kern_t *l[ZT_SIMD_SETS];
+    uint32_t n = zt_simd_list(l, ZT_SIMD_SETS);
     for (uint32_t i = 0; name && i < n; i++)
         if (!strcmp(l[i]->name, name)) return l[i];
     return 0;
