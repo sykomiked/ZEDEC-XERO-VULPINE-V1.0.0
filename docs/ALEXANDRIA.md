@@ -25,7 +25,7 @@ has:
 | a composite with its own CID | an app that uses blocks and exports entries (C1), with provenance for every part (C2) |
 | run anywhere, check the result | AIPI function and call CIDs (docs/AIPI.md) |
 | shipping values and programs between runtimes | the Babel wire format (docs/BABEL_WIRE.md) |
-| Belnap gates | lpres (kernel/src/lpres), whose tables AXION uses exactly |
+| four-valued gates (N, T, F, B) | lpres (kernel/src/lpres), whose tables AXION uses exactly. They are min and max on the chain F < N < B < T, not Belnap's lattice: a contradiction plus a gap never gives T |
 
 What is new is `kernel/src/alexandria`: the index, the booklets and three
 small languages over them.
@@ -45,9 +45,12 @@ given, a name is never renumbered or reused.
 Each of a block's languages has a three-digit **language number**. 001 to
 099 are Lingua's own numbers from zl_langs.def: FORTRAN is 001, BASIC 002
 and Forth 003. 101 to 120 are the other runtimes, in zxapp's order: c 101,
-sutra 102, eve 103, kron 104 and so on, up to zlir 120. So `512.01-001` is
-the greatest common divisor in FORTRAN, and `512.01-120` is the same block
-compiled to Lingua IR.
+sutra 102, eve 103, kron 104 and so on, up to zlir 120. 121 is x86-64
+assembly, a projection target. Runtimes added later take the next number
+from 122 in the order they arrive, whatever their place in zxapp's list:
+wire, a circuit of other entries (zxwire.h), is 122. A number is never
+reused or changed. So `512.01-001` is the greatest common divisor in
+FORTRAN, and `512.01-120` is the same block compiled to Lingua IR.
 
 The classes, and the namespace that belongs to each:
 
@@ -255,8 +258,19 @@ the code or the docs.
    checked file by file (docs/spec/MATRIX.md); and the vector plane beside
    it, every vector naming its file and model (docs/spec/VECTORS.md).
 2. **Slots for every block.** These are added as blocks land, with
-   `--assign BLOCK NAMESPACE SECTION`. The apps thread's CONCEPTS.tsv stays
-   the source of meanings; the shorthand is the handle.
+   `--assign BLOCK NAMESPACE SECTION`, in the same change that adds the
+   block (a slot never names an entry that is not in the tree). The apps
+   thread's CONCEPTS.tsv stays the source of meanings; the shorthand is the
+   handle.
+   - A shared block (`blocks/*.zxblock`) is placed by hand, and its
+     shorthand is the entry's own name: `@num.gcd`.
+   - An app's entries use local words (total, count, score), so an app's
+     shorthand carries the app: `@num.banker_total`.
+   - The build server runs `--assign APP auto auto` for every new app. That
+     puts each entry on the **app shelf** by what it answers: truths in
+     logic 490-499, numbers in num 590-599. The build never fails for want
+     of a librarian. A slot is never moved, so an entry placed there stays
+     there; a concept worth a better place becomes a shared block first.
 3. **The bucket tree.** ipfs-dist packs `05_alexandria` next to Disc 1 and
    the swarm packs.
 4. **Running a plan.** A zxapp entry point that calls a block by slot, and

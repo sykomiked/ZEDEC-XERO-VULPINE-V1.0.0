@@ -7,8 +7,9 @@ After the core boots, the matrix holds everything the system needs at its
 root: every block of code, table and document, packed into content-addressed
 pieces that the system can fetch, check and reuse. It has 145 layers. Layer
 0 is the core, and its first booklet is booklet 000, the unified alphabet
-(`kernel/src/lingua/alphabet.tsv` and the projection runtime), so the
-alphabet is the first thing the matrix gives after boot. Layers 1 to 144
+(`kernel/src/lingua/alphabet.tsv`, the projection runtime, and the
+alphabet's Dhātu, number and sound views; see ALPHABET.md), so the alphabet is the first thing
+the matrix gives after boot. Layers 1 to 144
 are the 144 L1 system apps in the order of the app catalogue, twelve groups
 of twelve, each with its icon. The L2 and L3 app layers go on top of these.
 
@@ -281,9 +282,10 @@ table, and that inserting one byte keeps all but the first few cut points.
 
 ## 7. Not built yet
 
-- **The bucket layout:** where the matrix sits beside Disc 1 and the swarm
-  packs. This belongs to the Bare-metal thread's ipfs-dist, and is in
-  coordination.
+- **The bucket layout:** the matrix goes in the library bucket,
+  `05_alexandria`, beside Disc 1 and the swarm packs (the name replaces the
+  earlier proposal, `06_matrix`). The bucket's layout belongs to the
+  Bare-metal thread's ipfs-dist.
 - **L2 and L3 layers.** These go on top when those apps exist.
 - **Placement of the class 000 to 900 booklets.** The blocks' Alexandria
   classification stays an index axis (the grid word and the core index,
@@ -294,7 +296,7 @@ table, and that inserting one byte keeps all but the first few cut points.
   notation.** The script is the user's own, mathematically derived, and the
   licence is theirs to grant. The proposal is a glyph notation over the
   existing core: each glyph maps one-to-one to a primitive (the lpres
-  Belnap gates, the AXION checks, the booklet 000 alphabet), and the kernel
+  four-valued gates, the AXION checks, the booklet 000 alphabet), and the kernel
   keeps its integer opcodes. The original script tops out at a fixed number
   of dimensions; ours has no cap in the format (the dimension count is a
   variable-length field) and renders as many as a structure needs, projected

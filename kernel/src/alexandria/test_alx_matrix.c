@@ -328,9 +328,9 @@ static void test_files(const char *repo)
             ok = l < ALX_MX_LAYERS && bk < NB[l];
             CHECK(ok, "%s ref %u names booklet %u.%u", p, i, l, bk);
             if (!ok) break;
-            /* booklet 000, the alphabet, is the core's first */
+            /* booklet 000, the alphabet and its Dhātu view, is the core's first */
             if (!strcmp(p, "kernel/src/lingua/alphabet.tsv") ||
-                !strcmp(p, "kernel/src/lingua/zl_proj.c")) {
+                !strcmp(p, "kernel/src/lingua/zl_proj.c") || !strcmp(p, "kernel/src/lingua/zl_sutra.c")) {
                 CHECK(l == 0 && bk == 0, "%s is in booklet 000, not %u.%u", p, l, bk);
                 boot++;
             }

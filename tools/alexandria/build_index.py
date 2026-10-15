@@ -18,7 +18,10 @@ every division's blocks into one booklet, and writes:
 
 --check fails when a block entry has no slot, a slot names nothing, or the
 checked-in header is stale. --assign BLOCK NAMESPACE SECTION appends slots
-for every entry of BLOCK that has none, numbered within SECTION ("512").
+for every entry of BLOCK (or one BLOCK.ENTRY) that has none, numbered within
+SECTION ("512"); "auto auto" puts each on the app shelf by what it answers
+(truths in logic 49x, numbers in num 59x). An app's shorthand carries the
+app's name (num.banker_total); a shared block's does not (num.gcd).
 Same input, same bytes out: nothing depends on the time, the machine or the
 order files are listed in.
 """
@@ -40,9 +43,12 @@ CLASS_OF = {"mem": 1, "crypto": 2, "drv": 3, "logic": 4, "num": 5, "fin": 6, "pr
             "strat": 6, "wire": 7, "text": 8, "time": 9, "swarm": 9,
             "cell": 9}
 # Language numbers: 1..99 are Lingua's own numbers (zl_langs.def); 101..120
-# the other runtimes, in zxapp's order. Never renumbered.
+# the other runtimes, in zxapp's order when they were numbered; 121 x86-64
+# assembly (a projection target, zl.h); later runtimes from 122 on, in the
+# order they arrive (LATER). Never renumbered.
 OTHER = ["c", "sutra", "eve", "kron", "trebago", "myra", "cpp", "rust", "go", "swift", "kotlin",
          "java", "dotnet", "python", "typescript", "dart", "ruby", "php", "wasm", "zlir"]
+LATER = {"wire": 122}  # wire: a circuit of other entries (zxwire.h)
 BASE_END = 0x10000
 ALIGN = 64
 BOOKLET_MAX = 1 << 20  # one raw IPFS block: the booklet's CID is that block's
@@ -75,6 +81,7 @@ def lang_numbers():
         fail("could not read the Lingua language numbers")
     for k, rt in enumerate(OTHER):
         nums[rt] = 101 + k
+    nums.update(LATER)
     return nums
 
 
@@ -334,24 +341,59 @@ def header(rows):
     return "\n".join(lines)
 
 
+# The app shelf: where the build server places app entries no librarian has
+# placed, by what they answer (KIND): truths in logic 490-499, numbers in
+# num 590-599, the first section with room.
+SHELF = {"truth": "logic", "num": "num"}
+
+
+def shorthand(ns, ent, target):
+    """A shared block's entry keeps its own name (num.gcd); an app's entry
+    carries the app, because apps use local words (num.banker_total)."""
+    if ent["m"]["path"].endswith(".zxapp"):
+        return "%s.%s_%s" % (ns, target.split(".")[0], ent["entry"])
+    return "%s.%s" % (ns, ent["entry"])
+
+
 def assign(rows, ents, block, ns, section):
-    if ns not in CLASS_OF:
-        fail("namespace %r is not one of %s" % (ns, " ".join(sorted(CLASS_OF))))
-    if not re.fullmatch(r"[1-9][0-9]{2}", section) or int(section) // 100 != CLASS_OF[ns]:
-        fail("section %r is not in class %d00" % (section, CLASS_OF[ns]))
+    """Slots for every unplaced entry of BLOCK (or for one BLOCK.ENTRY). With
+    NAMESPACE and SECTION "auto", each goes on the app shelf by its kind."""
     named = {r[3] for r in rows}
-    new = sorted(t for t in ents if t.split(".")[0] == block and t not in named)
+    if "." in block:
+        new = [block] if block in ents and block not in named else []
+    else:
+        new = sorted(t for t in ents if t.split(".")[0] == block and t not in named)
     if not new:
-        fail("every entry of %s already has a slot" % block)
-    used = {int(r[2][4:]) for r in rows if r[2][:3] == section}
-    free = [i for i in range(1, 100) if i not in used]
-    if len(free) < len(new):
-        fail("section %s is full" % section)
+        fail("%s has no entry without a slot" % block)
+    if (ns == "auto") != (section == "auto"):
+        fail("auto is for both NAMESPACE and SECTION, or neither")
+    used = {r[2] for r in rows}
+    shorts = {r[1] for r in rows}
+    out = []
+    for t in new:
+        n = SHELF[ents[t]["kind"]] if ns == "auto" else ns
+        if n not in CLASS_OF:
+            fail("namespace %r is not one of %s" % (n, " ".join(sorted(CLASS_OF))))
+        if section == "auto":
+            secs = ["%d" % (CLASS_OF[n] * 100 + 90 + k) for k in range(10)]
+        else:
+            if not re.fullmatch(r"[1-9][0-9]{2}", section) or int(section) // 100 != CLASS_OF[n]:
+                fail("section %r is not in class %d00" % (section, CLASS_OF[n]))
+            secs = [section]
+        place = next(("%s.%02d" % (c, i) for c in secs for i in range(1, 100)
+                      if "%s.%02d" % (c, i) not in used), None)
+        if not place:
+            fail("section %s is full" % "/".join(secs))
+        short = shorthand(n, ents[t], t)
+        if len(short) > 31 or short in shorts:
+            fail("shorthand %s is %s; assign %s by hand" % (
+                short, "taken" if short in shorts else "longer than 31 bytes", t))
+        used.add(place)
+        shorts.add(short)
+        out.append("%d\t%s\t%s\t%s\tbase\n" % (len(rows) + len(out) + 1, short, place, t))
     with open(SLOTS, "a", encoding="utf-8") as f:
-        for k, t in enumerate(new):
-            f.write("%d\t%s.%s\t%s.%02d\t%s\tbase\n" % (len(rows) + k + 1, ns, ents[t]["entry"],
-                                                       section, free[k], t))
-    print("assigned %d slot(s) to %s" % (len(new), block))
+        f.writelines(out)
+    print("assigned %d slot(s) to %s" % (len(out), block))
 
 
 def main():
