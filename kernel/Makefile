@@ -326,6 +326,8 @@ verify-all: test
 	@$(MAKE) --no-print-directory test-vk
 	@echo "=== tensor: the WebGPU backend (zt_wgpu.c): builds, WGSL integer-only and valid, and bit for bit on any WebGPU adapter present ==="
 	@$(MAKE) --no-print-directory test-wgpu
+	@echo "=== the model in a browser tab (web/ai): the engine in wasm, on the CPU and WebGPU == native, token for token ==="
+	@$(MAKE) --no-print-directory test-ai-web
 	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu && /tmp/test_zt_gpu > /tmp/test_zt_gpu.log 2>&1 && echo "[PASS] test_zt_gpu ($$(tail -1 /tmp/test_zt_gpu.log))" || { cat /tmp/test_zt_gpu.log; echo "[FAIL] test_zt_gpu"; exit 1; }
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/tensor src/tensor/test_zt_gpu.c src/tensor/zt_gpu.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_gpu_asan && /tmp/test_zt_gpu_asan > /tmp/test_zt_gpu_asan.log 2>&1 && echo "[PASS] test_zt_gpu ASan/UBSan" || { cat /tmp/test_zt_gpu_asan.log; echo "[FAIL] test_zt_gpu ASan/UBSan"; exit 1; }
@@ -1875,6 +1877,50 @@ test-wgpu:
 	  unset ZT_WGPU_TILE ZT_WGPU_MAX_BINDING ZT_WGPU_MAX_BUFFER; \
 	  gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor $$incf -DZT_WGPU_WGSL_H='"$(ZXV_TMP)/zt_wgpu_wgsl.h"' arch/hosted/test_zxv_zt_gpu.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_zt_wgpu || { echo "[FAIL] test_zxv_zt_gpu build (WebGPU)"; exit 1; }; \
 	  ZT_GPU=webgpu ZXV_GPU_REQUIRE=1 $(ZXV_TMP)/test_zxv_zt_wgpu > $(ZXV_TMP)/test_zxv_zt_wgpu.log 2>&1 && echo "[PASS] the app's models on WebGPU == the CPU ($$(tail -1 $(ZXV_TMP)/test_zxv_zt_wgpu.log))" || { cat $(ZXV_TMP)/test_zxv_zt_wgpu.log; echo "[FAIL] test_zxv_zt_gpu on WebGPU"; exit 1; }; \
+	fi
+
+# The model in a browser tab (web/ai: zxv_ai.js, its Worker and
+# zxv_ai_engine.c built to wasm). The engine built natively answers each
+# prompt exactly as the app does (test_zxv_ai_engine: ids, streamed pieces,
+# logits digest, on the determiner's engines and on the C reference), on the
+# tiny test model and on ZXV_AI_MODEL=<a .gguf> when given; the tiny model's
+# ids and digests are pinned in web/ai/test_tiny.zw. With emcc
+# (emsdk) web/ai/build.sh builds it for the browser; node runs it on the CPU
+# in wasm and deno on WebGPU (every pass on the GPU), and both must print the
+# native lines exactly; deno then runs what a page does (test_zxv_ai_page:
+# refusals of a wrong size, SHA-256 or CID, streaming, abort, the kept
+# choice, devices cpu and webgpu). SKIP for what is missing, unless
+# ZXV_AI_WEB_REQUIRE=1.
+NODE ?= node
+ZXV_AI_MODEL ?=
+.PHONY: test-ai-web
+test-ai-web:
+	@mkdir -p $(ZXV_TMP)/zxv_ai_web
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor arch/hosted/write_test_model.c src/tensor/zt_gguf.c src/tensor/zt.c -o $(ZXV_TMP)/write_test_model && $(ZXV_TMP)/write_test_model $(ZXV_TMP)/zxv_ai_web/tiny.gguf > /dev/null || { echo "[FAIL] write_test_model"; exit 1; }
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -Iarch/hosted -Isrc/tensor ../web/ai/test_zxv_ai_engine.c ../web/ai/zxv_ai_engine.c arch/hosted/zxv_zt_glue.c src/tensor/zt*.c -ldl -lpthread -lm -o $(ZXV_TMP)/test_zxv_ai_engine || { echo "[FAIL] test_zxv_ai_engine build"; exit 1; }
+	@for m in $(ZXV_TMP)/zxv_ai_web/tiny.gguf $(ZXV_AI_MODEL); do n=$$(basename $$m .gguf); \
+	  $(ZXV_TMP)/test_zxv_ai_engine $$m 24 > $(ZXV_TMP)/zxv_ai_web/$$n.native.log 2>&1 && grep '^ZW' $(ZXV_TMP)/zxv_ai_web/$$n.native.log > $(ZXV_TMP)/zxv_ai_web/$$n.native.zw && echo "[PASS] test_zxv_ai_engine $$n: the browser's engine answers as the app does ($$(tail -1 $(ZXV_TMP)/zxv_ai_web/$$n.native.log))" || { cat $(ZXV_TMP)/zxv_ai_web/$$n.native.log; echo "[FAIL] test_zxv_ai_engine $$n"; exit 1; }; \
+	done
+	@diff ../web/ai/test_tiny.zw $(ZXV_TMP)/zxv_ai_web/tiny.native.zw && echo "[PASS] the tiny model's ids and logits digests are web/ai/test_tiny.zw's" || { echo "[FAIL] the tiny model's ids or logits digests changed (web/ai/test_tiny.zw)"; exit 1; }
+	@req=$${ZXV_AI_WEB_REQUIRE:-0}; d=$(ZXV_TMP)/zxv_ai_web; \
+	if ! command -v $(EMCC) >/dev/null; then echo "[SKIP] the browser build (needs emcc: emsdk)"; [ $$req = 1 ] && exit 1; exit 0; fi; \
+	EMCC=$(EMCC) sh ../web/ai/build.sh $$d/page > $$d/build.log 2>&1 || { cat $$d/build.log; echo "[FAIL] web/ai/build.sh"; exit 1; }; \
+	echo "[PASS] web/ai/build.sh: zxv_ai_engine.wasm $$(wc -c < $$d/page/zxv_ai_engine.wasm) bytes, -Werror"; \
+	cp $$d/tiny.gguf $$d/page/; \
+	for m in $$d/tiny.gguf $(ZXV_AI_MODEL); do n=$$(basename $$m .gguf); \
+	  if command -v $(NODE) >/dev/null; then \
+	    $(NODE) ../web/ai/test_zxv_ai.mjs $$d/page/zxv_ai_engine.js $$m 24 > $$d/$$n.node.log 2>&1; \
+	    grep '^ZW' $$d/$$n.node.log | diff $$d/$$n.native.zw - > $$d/$$n.node.diff && echo "[PASS] $$n in wasm on the CPU ($$($(NODE) --version)) == native, token and logits digest" || { cat $$d/$$n.node.log $$d/$$n.node.diff; echo "[FAIL] $$n in wasm on the CPU != native"; exit 1; }; \
+	  else echo "[SKIP] the wasm CPU run (needs node)"; [ $$req = 1 ] && exit 1; fi; \
+	  if command -v $(DENO) >/dev/null; then \
+	    $(DENO) run --unstable-webgpu -A ../web/ai/test_zxv_ai.mjs $$d/page/zxv_ai_engine.js $$m 24 "cpu=c/1 gpu=webgpu:0-max" > $$d/$$n.deno.log 2>&1; \
+	    if grep -q 'gpu=webgpu:0-max' $$d/$$n.deno.log; then \
+	      grep '^ZW' $$d/$$n.deno.log | diff $$d/$$n.native.zw - > $$d/$$n.deno.diff && echo "[PASS] $$n in wasm on WebGPU ($$(grep -m1 'device:' $$d/$$n.deno.log | sed 's/.*device: //')) == native, token and logits digest" || { cat $$d/$$n.deno.log $$d/$$n.deno.diff; echo "[FAIL] $$n in wasm on WebGPU != native"; exit 1; }; \
+	    else grep -m1 'device:' $$d/$$n.deno.log; echo "[SKIP] the WebGPU run (no WebGPU adapter in deno)"; [ $$req = 1 ] && exit 1; fi; \
+	  else echo "[SKIP] the WebGPU run (needs deno, a JavaScript runtime with WebGPU)"; [ $$req = 1 ] && exit 1; fi; \
+	done; \
+	if command -v $(DENO) >/dev/null; then \
+	  $(DENO) run --unstable-webgpu --location http://zxv.test/ -A ../web/ai/test_zxv_ai_page.mjs $$d/page tiny.gguf $$d/tiny.native.zw 24 > $$d/page.log 2>&1 && echo "[PASS] test_zxv_ai_page: what a page gets from zxv_ai.js ($$(tail -1 $$d/page.log))" || { cat $$d/page.log; echo "[FAIL] test_zxv_ai_page"; exit 1; }; \
 	fi
 
 .PHONY: hwe-vectors
