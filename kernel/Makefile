@@ -916,6 +916,11 @@ verify-all: test
 		src/launch/test_zxl_launch.c src/launch/zxl_launch.c \
 		-o /tmp/test_zxl_launch && \
 		/tmp/test_zxl_launch && echo "[PASS] test_zxl_launch" || { echo "[FAIL] test_zxl_launch"; exit 1; }; \
+	echo "=== App launch sounds, made live (every app's begin, ticks and end in integers) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Isrc/launch \
+		src/launch/test_zxl_synth.c src/launch/zxl_synth.c src/launch/zxl_launch.c \
+		-o /tmp/test_zxl_synth -lm && \
+		/tmp/test_zxl_synth && echo "[PASS] test_zxl_synth" || { echo "[FAIL] test_zxl_synth"; exit 1; }; \
 	echo "=== Desktop shimmer field (event-driven, deterministic) ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -Isrc/shimmer \
 		src/shimmer/test_shimmer.c src/shimmer/shimmer.c \
@@ -1207,6 +1212,26 @@ verify-all: test
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_wm && \
 		/tmp/test_zui_wm && echo "[PASS] test_zui_wm" || { echo "[FAIL] test_zui_wm"; exit 1; }; \
+	echo "=== zui: every app's launch screen, live in its window (icon, five logos, its sounds) ==="; \
+	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		src/zui/test_zui_launch_theme.c src/zui/zui_launch_theme.c src/launch/zxl_launch.c \
+		src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c \
+		src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_launch_theme && \
+		/tmp/test_zui_launch_theme && echo "[PASS] test_zui_launch_theme" || { echo "[FAIL] test_zui_launch_theme"; exit 1; }; \
+	echo "=== zui: PNG pictures (every format, fitted, drawn; damaged files under ASan+UBSan) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
+		src/zui/test_zui_image.c src/zui/zui_image.c src/zui/zui_canvas.c src/zui/zui_layout.c src/font/truetype.c \
+		-o /tmp/test_zui_image && \
+		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_zui_image && echo "[PASS] test_zui_image" || { echo "[FAIL] test_zui_image"; exit 1; }; \
+	echo "=== zui: a whole launch for real (icon and logos from disk, sounds to the audio device) ==="; \
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		-Isrc/audio -Isrc/edp_risk -Isrc/surplus -Isrc/crit168 \
+		src/zui/test_zui_launch_shell.c src/zui/zui_launch_shell.c src/zui/zui_launch_theme.c src/zui/zui_image.c \
+		src/launch/zxl_launch.c src/launch/zxl_synth.c src/audio/audio.c src/edp_risk/edp_risk.c src/surplus/surplus.c \
+		src/zui/zui_wm.c src/zui/zui_motion.c src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c \
+		src/font/truetype.c -o /tmp/test_zui_launch_shell -lm && \
+		/tmp/test_zui_launch_shell && echo "[PASS] test_zui_launch_shell" || { echo "[FAIL] test_zui_launch_shell"; exit 1; }; \
 	echo "=== zui: accessibility, input, notices, privacy, clipboard, share, capture, lock, display ==="; \
 	CC=gcc sh src/zui/test_zui_toolkit.sh || { echo "[FAIL] test_zui_toolkit"; exit 1; }; \
 	echo "=== font registry: script->face resolution + glyph boundary ==="; \

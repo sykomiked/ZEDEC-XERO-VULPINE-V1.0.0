@@ -112,9 +112,10 @@ typedef struct {
 } zxl_theme_t;
 
 #define ZXL_MOTIFS 12  /* begin/end phrase shapes (tools/launch/launch_sounds.py) */
-#define ZXL_APPS   144 /* every app on the list has its own entry       */
+#define ZXL_APPS   407 /* every app in the catalogue has its own entry   */
+#define ZXL_TIER1  144 /* the first tier: twelve groups of twelve        */
 
-/* The theme for an app: its own entry (every app on the 144-app list has one,
+/* The theme for an app: its own entry (every app in the 407-app catalogue has one,
  * each with its own sound sequence; case-sensitive name), otherwise its
  * group's default (an app a person made that picked none). A group outside 1..12 gets group 1's.
  * Never returns NULL. */
@@ -149,6 +150,11 @@ typedef enum {
 #define ZXL_GOLD_RGB   0xF2C230u /* the boot's gold    */
 
 zxl_icon_ink_t zxl_icon_ink(int system_app);
+
+/* The app's icon file in the catalogue, relative to the icons folder
+ * ("001-burrow.png", "l2/145-dragon-archivist.png", ...), or NULL for an app
+ * not in it. Only the names are built in; the pictures are read from disk. */
+const char *zxl_icon_file(const char *app);
 
 /* ---- preferences -------------------------------------------------------- */
 typedef struct {
@@ -219,6 +225,18 @@ void zxl_launch_rest(zxl_launch_t *l, uint32_t p);
 
 /* The gathering bar's progress 0..256: the mean of the parts' progress. */
 uint32_t zxl_gather_p(const zxl_launch_t *l);
+
+/* The screen lit tile `part` itself (when the drawing decides a tile lights,
+ * as zui's launch screen does from the gathering bar's heads): its tick plays
+ * now, the k-th tile lit the k-th step, the centre the top step. Only while
+ * gathering. Returns 0, or -1 for a bad index, a tile already lit, or a launch
+ * past gathering. */
+int zxl_launch_lit(zxl_launch_t *l, uint32_t part);
+
+/* The app is ready. Any tile not lit yet lights without a tick (a window that
+ * was not on screen while it gathered), the mark lights if it has not, and
+ * END follows. Nothing happens once END has been queued. */
+void zxl_launch_finish(zxl_launch_t *l);
 
 /* Take the next event; returns 1 and fills *ev, or 0 when none is waiting. */
 int zxl_launch_next(zxl_launch_t *l, zxl_event_t *ev);
