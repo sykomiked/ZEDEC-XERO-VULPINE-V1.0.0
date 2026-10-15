@@ -77,6 +77,12 @@ args "$T/tag"
 run_cc "$T/test_tag"
 "$T/test_tag"
 
+# talking to several Tiamat cells at once (zxv_tiamat.h, harness H1)
+printf '%s\n' arch/hosted/test_zxv_tiamat.c arch/hosted/zxv_tiamat.c > "$T/tiamat"
+args "$T/tiamat"
+run_cc "$T/test_tiamat"
+"$T/test_tiamat" "$T"
+
 # the swarm budget governs generation (zxv_budget_gate.h)
 printf '%s\n' arch/hosted/test_zxv_budget_gate.c arch/hosted/zxv_budget_gate.c \
     src/swarm/swarm_budget.c > "$T/gate"

@@ -26,12 +26,10 @@ The disc can now hold up to 10 GB. It carries only what runs on the integer engi
 | Spinewyrm | `Qwen/Qwen2.5-1.5B-Instruct` | Qwen team, Alibaba Cloud | trunk | 1.12 GB |
 | Kindlewyrm | `Qwen/Qwen2.5-0.5B-Instruct` | Qwen team, Alibaba Cloud | trunk | 0.49 GB |
 | Awllindworm | `Qwen/Qwen2.5-Coder-0.5B-Instruct` | Qwen team, Alibaba Cloud | trunk | 0.49 GB |
-| Parleywyvern | `utter-project/EuroLLM-1.7B-Instruct` | UTTER consortium | ui_dialogue | 1.05 GB |
 | Mendlindworm | `sandeeprdy1729/TIMPS-Coder-0.5B` | Sandeep Reddy (TIMPS) | code_repair | ~35 MB (built) |
 | Codelindworm | `Qwen/Qwen2.5-Coder-1.5B-Instruct` | Qwen team, Alibaba Cloud | code_generation | 1.12 GB |
 | Wardendrake | `JackKozmo29/codeguard-jev-style-1.5b` | JackKozmo29 | code_review | ~74 MB (built) |
 | Reviewdrake | `DharaneswarReddy/codereview-agent` | Dharaneswar Reddy | code_review | ~74 MB (built) |
-| Tagwyrmling | `llmware/slim-ner-tool` | llmware (AI Bloks) | structured_extraction | 0.67 GB |
 | Numberwyrm | `Qwen/Qwen2.5-Math-1.5B` | Qwen team, Alibaba Cloud | math_reasoning | 0.99 GB |
 | Theoremwyrm | `zbeeb/Qwen2.5-Math-1.5B-GRPO-Staleness-4` | zbeeb | math_reasoning | ~74 MB (built) |
 | Puzzlewyrm | `OpceanAI/Yuuki-RxG-nano` | OpceanAI | math_reasoning | ~74 MB (built) |
@@ -39,10 +37,12 @@ The disc can now hold up to 10 GB. It carries only what runs on the integer engi
 | Watchwyvern | `HuggingFaceTB/SmolVLM2-500M-Video-Instruct` | Hugging Face (SmolLM / SmolVLM team) | vision_language | 0.64 GB |
 | Listenlindworm | `allenai/OLMoASR` | Allen Institute for AI (Ai2) | speech_recognition | ~76 MB (built) |
 | Recordlindworm | `MidlightDDK/pocketsql-0.5b` | MidlightDDK | sql | ~35 MB (built) |
-| Alembicwyrm | `Haamipromax/HamAI-Science-1b` | Haamipromax | science_qa | 0.67 GB |
 | Statutewyrmling | `sallani/EUAIAct-Qwen2.5-0.5B-Edge` | sallani | regulatory_qa | ~35 MB (built) |
+| Vouchwyvern | `HuggingFaceTB/SmolLM2-1.7B-Instruct` | Hugging Face (SmolLM / SmolVLM team) | witness | 1.06 GB |
 
-**Total today: 7.77 GB** (7.22 GB pinned upstream files with known SHA-256, plus about 551 MB of adapters and conversions built on the server, whose hashes are written when they are built).
+**Total today: 6.45 GB** (5.90 GB pinned upstream files with known SHA-256, plus about 551 MB of adapters and conversions built on the server, whose hashes are written when they are built).
+
+**Correction (2026-10-15).** The first version of this list put EuroLLM (Parleywyvern), slim-ner (Tagwyrmling) and HamAI-Science (Alembicwyrm) on the disc as "runs now". That was wrong: the engine runs their llama layers, but its tokenizer (`zt_tok`) reads byte-level BPE only, and these three use SentencePiece-style vocabularies. They move to the list below until engine task E5 (a SentencePiece tokenizer in `zt_tok`) passes its test. Vouchwyvern (SmolLM2-1.7B-Instruct, Apache-2.0, byte-level BPE) joins the disc as the witness of another lineage that harness H1 needs; it was run and checked on the engine (SHA-256 of the shipped file matches the Hub's).
 
 Qwen2.5-1.5B and 0.5B stay on the disc, now as trunks: seven fine-tunes from independent developers ride on them and on Qwen2.5-Coder-0.5B and Math-1.5B as adapters of about 35 to 74 MB each instead of 0.5 to 1.1 GB of full weights. An adapter that fails its quality gate ships as full weights in a pack instead, so the disc never exceeds 10 GB.
 
@@ -60,8 +60,11 @@ Qwen2.5-1.5B and 0.5B stay on the disc, now as trunks: seven fine-tunes from ind
 | Chimedrake | `onnx-community/Kokoro-82M-v1.0-ONNX` | hexgrad | text_to_speech | 0.09 GB | StyleTTS2/iSTFTNet path |
 | Tidedrakeling | `amazon/chronos-bolt-tiny` | Amazon Science (Chronos team) | time_series | ~17 MB (built) | T5 encoder path |
 | Rustlewyrmling | `mispeech/ced-tiny` | Xiaomi speech team | audio_events | ~11 MB (built) | ViT audio path |
+| Parleywyvern | `utter-project/EuroLLM-1.7B-Instruct` | UTTER consortium | ui_dialogue | 1.05 GB | SentencePiece tokenizer (E5) |
+| Tagwyrmling | `llmware/slim-ner-tool` | llmware (AI Bloks) | structured_extraction | 0.67 GB | SentencePiece tokenizer (E5) |
+| Alembicwyrm | `Haamipromax/HamAI-Science-1b` | Haamipromax | science_qa | 0.67 GB | SentencePiece tokenizer (E5) |
 
-With all of these: **8.87 GB**.
+With all of these: **9.92 GB**, inside the 10 GB limit.
 
 ## First-run packs and servers
 

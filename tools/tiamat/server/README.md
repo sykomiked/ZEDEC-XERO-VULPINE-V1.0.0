@@ -74,6 +74,11 @@ S3's tissues: `Qwen/Qwen2.5-1.5B-Instruct`, `Qwen/Qwen2.5-Math-1.5B`,
   `ZXV_ENGINE_PATHS`).
 - **E4** `mk_golden_disc.sh` accepts only `.gguf` names; ONNX cells need
   either a GGUF conversion or that rule widened.
+- **E5** A SentencePiece tokenizer in `zt_tok` (GGUF `tokenizer.ggml.model`
+  "llama": score-ordered merges, U+2581 for spaces, byte fallback), with a
+  test against the reference tokenizer on each of EuroLLM (Parleywyvern),
+  slim-ner (Tagwyrmling) and HamAI-Science (Alembicwyrm). Today `zt_tok`
+  reads byte-level BPE only, so those three wait in disc_gated.
 
 ## Notes
 

@@ -62,7 +62,7 @@ update() {
 case "${1:-srcs}" in
     srcs)
         for f in zxv_host zxv_http_guard zxv_model_host zxv_budget_gate zxv_net_host zxv_peer_host \
-                 zxv_update_host zx_notify_host zxv_answer_tag; do
+                 zxv_update_host zx_notify_host zxv_answer_tag zxv_tiamat; do
             echo "arch/hosted/$f.c"
         done
         echo src/social/zx_notify.c

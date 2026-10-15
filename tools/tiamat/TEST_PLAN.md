@@ -107,23 +107,47 @@ hosted app (`zxv-host`, or the desktop app) with the Qwen2.5-1.5B trunk
 (Spinewyrm) answers through the real engine, inside the swarm's budget, as
 the baseline above shows for the 0.5B.
 
-The earliest point the user can talk to **the swarm** (several cells, a
-witness, a held answer when they disagree) is the harness below. The
-pieces exist in the hosted app (slots, agents with adapters, the answer tag,
-the quarantine log), but `/api/ask` only uses one model today.
+The user can talk to **the swarm** (several cells, a witness of another
+lineage, a held answer when the check fails) through harness H1, built
+2026-10-15 in the hosted app (`kernel/arch/hosted/zxv_tiamat.h`):
 
-**Smallest harness, H1** (hosted app only; no kernel change):
+1. `tools/tiamat/make_h1_config.py --models-dir DIR --verify` writes the
+   config from the manifest: Spinewyrm (Qwen2.5-1.5B, the general lead),
+   Codelindworm (Qwen2.5-Coder-1.5B, leads code questions) and Vouchwyvern
+   (SmolLM2-1.7B, the witness of another lineage), each SHA-256 checked.
+2. `zxv-host --tiamat tiamat.conf` (or `zxvd`) opens one slot per model and
+   one agent per cell. A keyword router (stand-in for the fitted router
+   head) picks the lead.
+3. Arithmetic of the form "A times/plus/minus/divided by B" is checked
+   exactly by the reckoner, and no model is asked against that proof.
+   Anything else goes to the witness as one statement ("The answer to the
+   question '...' is: ...") to call true or false.
+4. The verdicts join in the knowledge order (lpres): TRUE is shown as
+   checked, NEITHER is shown as not checked, FALSE or BOTH is held and only
+   the reasons are shown. Every question is logged as one JSON line for T2
+   and T4 replay.
 
-1. `--tiamat FILE`: read a profile from `tiamat_swarm.json`, open up to four
-   slots (Spinewyrm, Parleywyvern, Alembicwyrm, Codelindworm: three lineages)
-   and one agent per cell, with adapters where they exist.
-2. Route each question to a lead cell by a keyword router (stand-in for the
-   fitted router head), and ask a cell from another lineage to check the
-   lead's answer.
-3. Join the two verdicts with lpres; show the answer with the cells' dragon
-   names and the verdict, or "held" with both reasons.
-4. Log each ask as JSON (question, cells, answers, verdicts, time) so T2
-   and T4 can replay it.
+### H1 trial (2026-10-15, measured, 4-core cloud CPU)
+
+16 questions, greedy decoding, each answer 3 to 25 s cold (models loaded per
+question with `--ask`):
+
+| Outcome | Count | Which |
+|---|---|---|
+| Right and shown as checked | 14 | 4 sums by the reckoner; 8 facts, a definition and a code answer by the witness |
+| Wrong and held | 1 | 1234 x 5678: the lead said 7,234,112; the reckoner knows 7,006,652 |
+| Right but held | 1 | "100" for water's boiling point: the witness called a bare number false |
+| Wrong and shown | 0 | |
+
+Before the reckoner outranked the witness, the witness called two right
+sums false (BOTH, held); the rule above fixed that. The witness prompt was
+chosen on 19 hand-written claims, 17 judged right; both misses called a true
+claim false (the safe direction): it never called a false claim true. These
+are small samples: T2's 50-per-organ scenario set is the real gate.
+
+Known limits: replies stop at 256 new tokens (`ZXV_MODEL_MAX_NEW`), so long
+code is cut; and EuroLLM, slim-ner and HamAI-Science cannot be cells until
+`zt_tok` reads SentencePiece (engine task E5).
 
 H1 runs on the user's Mac or the A6000 server. The golden disc in QEMU comes
 after it: the same engine, but emulated and slower.

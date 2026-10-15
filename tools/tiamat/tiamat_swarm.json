@@ -22,13 +22,13 @@
   },
 
   "organs": {
-    "voice_of_tiamat": {"job": "dialogue with the owner, routing in", "cells": ["Parleywyvern", "Spinewyrm", "Greetwyvern", "Hostwyvern", "Heraldwyvern"], "lead": "Parleywyvern"},
+    "voice_of_tiamat": {"job": "dialogue with the owner, routing in", "cells": ["Parleywyvern", "Spinewyrm", "Greetwyvern", "Hostwyvern", "Heraldwyvern"], "lead": "Spinewyrm"},
     "herald": {"job": "tool calls and routing", "cells": ["Toolhatchling", "Toolwyvern"], "lead": "Toolhatchling", "router_head": "fitted on Indexserpent embeddings (docs/AI_MODEL.md section 5) until Toolhatchling's engine path lands"},
     "smith": {"job": "write and repair code", "cells": ["Codelindworm", "Mendlindworm"], "witness_from": "warden"},
     "warden": {"job": "review code and security", "cells": ["Wardendrake", "Reviewdrake", "Bastiondrake"]},
     "scribe": {"job": "extract, summarise, SQL", "cells": ["Tagwyrmling", "Gistwyrm", "Briefwyrm", "Recordlindworm"]},
     "reckoner": {"job": "mathematics", "cells": ["Numberwyrm", "Theoremwyrm", "Puzzlewyrm"], "witness_from": "arbiter"},
-    "arbiter": {"job": "contradiction, argument and fallacy checks; the swarm's verifier", "cells": ["Verdictwyrmling", "Weighwyrmling", "Debatelindworm", "Fallacydrakeling", "Sophismdrake", "Choicewyrmling", "Choicewyrm", "Balancewyrm"], "lead": "Verdictwyrmling"},
+    "arbiter": {"job": "contradiction, argument and fallacy checks; the swarm's verifier", "cells": ["Verdictwyrmling", "Weighwyrmling", "Debatelindworm", "Fallacydrakeling", "Sophismdrake", "Choicewyrmling", "Choicewyrm", "Balancewyrm", "Vouchwyvern"], "lead": "Verdictwyrmling"},
     "librarian": {"job": "embeddings, retrieval, reranking", "cells": ["Indexserpent", "Shelfserpent", "Bridgeserpent", "Twinserpent", "Sortserpent", "Swiftserpent", "Rankserpent"], "lead": "Indexserpent"},
     "reader": {"job": "documents, OCR, images, video", "cells": ["Spotwyvern", "Letterwyvern", "Scrollwyvern", "Watchwyvern", "Sightwyvern", "Glimpsewyvern"]},
     "ear": {"job": "speech and sound in", "cells": ["Listenlindworm", "Dictatelindworm", "Hearinglindworm", "Minutelindworm", "Rustlewyrmling", "Murmurwyrmling", "Thunderwyrmling"]},
@@ -106,7 +106,7 @@
     "_rule": "Tiamat ships as layered IPFS objects, never as one monolith. Each object is named by its path under its parent's CID, so every layer is addressable on its own and an update changes only the CIDs on the path from the changed leaf up to the root; unchanged branches keep theirs. Shared pieces (a trunk) are stored once and linked from every cell that uses it, so the graph branches and rejoins rather than forming a plain tree.",
     "bucket": "06_tiamat, beside 05_alexandria (the bucket number is confirmed with ipfs-dist's owner, the Bare-metal thread)",
     "tree": ["06_tiamat/ (root: this config, the manifest, NOTICE)", "06_tiamat/trunks/<cell>/ (card, weights, evidence_head)", "06_tiamat/organs/<organ>/<cell>/ (card, weights or trunk_link + adapter, evidence_head)", "06_tiamat/species/<profile>/ (links to the organs and cells that profile loads)"],
-    "names": "each cell's Alexandria handle is @swarm.<cell>; the manifest records its handle, parent path and, once packed, its CID",
+    "names": "each cell's Alexandria handle is @cell.<cell> (class 900, divisions 940-949; slots assigned by build_index --assign); the manifest records its handle, parent path and, once packed, its CID",
     "card": "LICENSE, upstream NOTICE, UPSTREAM.txt (model id, revision, creator, source URL)",
     "updates": "a new adapter or head is a new leaf CID; the cell, organ, species and root CIDs above it change with it, and the reconfiguration journal records old and new root CIDs"
   },
