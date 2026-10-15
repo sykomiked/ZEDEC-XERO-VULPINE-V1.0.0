@@ -20,6 +20,7 @@ const int eCap = -17;
 const int ePoisoned = -18;
 const int eTreaty = -33;
 const int eCid = -34;
+const int eLimit = -38;
 
 /// `ZXV_CID_MAX`: the longest binary CID.
 const int cidMax = 80;
@@ -66,6 +67,7 @@ Object raise(int status, String detail, ContextState? ctx) {
         -24 => FloatRejectedException(detail),
         -32 => NotADenominationException(status, name, detail),
         -33 => TreatyException(status, name, detail),
+        -48 => LaneException(status, name, detail),
         _ => ZxvUsageException(status, name, detail),
       };
     case StatusClass.refused:
@@ -83,6 +85,11 @@ Object raise(int status, String detail, ContextState? ctx) {
         -38 => LimitException(status, name, detail),
         -39 => StepLimitException(status, name, detail),
         -40 => OwnerApprovalRequiredException(status, name, detail),
+        // ABI 1.6
+        -46 => RailException(status, name, detail),
+        -47 => CoverageException(status, name, detail),
+        -49 => ExpiredException(status, name, detail),
+        -50 => ChanceException(status, name, detail),
         _ => ZxvRefusedException(status, name, detail),
       };
     default:

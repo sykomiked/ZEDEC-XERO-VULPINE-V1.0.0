@@ -46,11 +46,12 @@ typedef enum {
     CN8583_OK = 0,
     CN8583_ERR_ARG = -1,
     CN8583_ERR_MTI = -2,
-    CN8583_ERR_FIELD = -3,  /* unsupported field number */
-    CN8583_ERR_FORMAT = -4, /* wrong characters or length for the field */
-    CN8583_ERR_SPACE = -5,  /* pool or output buffer too small */
-    CN8583_ERR_TRUNC = -6,  /* input ended inside a field */
-    CN8583_ERR_MISSING = -7 /* a mandatory field for this MTI is absent */
+    CN8583_ERR_FIELD = -3,   /* unsupported field number */
+    CN8583_ERR_FORMAT = -4,  /* wrong characters or length for the field */
+    CN8583_ERR_SPACE = -5,   /* pool or output buffer too small */
+    CN8583_ERR_TRUNC = -6,   /* input ended inside a field */
+    CN8583_ERR_MISSING = -7, /* a mandatory field for this MTI is absent */
+    CN8583_ERR_PROC = -8     /* field 3 processing code this mapping cannot express */
 } cn8583_rc_t;
 
 typedef struct {
@@ -102,7 +103,20 @@ cn8583_rc_t cn8583_from_auth_req(cn8583_msg_t *m, uint32_t mti, const cn_auth_re
 /* Response (0110/0210) for an authorization record: echoes 3 4 11 41,
  * adds 37 (derived from STAN), 38 when approved, 39. */
 cn8583_rc_t cn8583_response_for(cn8583_msg_t *m, uint32_t mti, const cn_auth_t *au);
-/* Recover the parts of an auth request a 0100/0200 carries. The year is not
+/* Field 3 (n 6) is TTFFTT: transaction type, from-account type, to-account
+ * type. cn_auth_req_t has no transaction kind: it is always a purchase charge
+ * (refunds are cn_refund against an existing authorization, not a new
+ * request). So the only type mapped is 00 (goods and services), from account
+ * 00 (default) or 30 (credit), to account 00. Every other type -- 01 cash /
+ * withdrawal, 09 purchase with cashback, 20 refund / return, 31 balance
+ * inquiry, anything else -- and every other account digit is refused with
+ * CN8583_ERR_PROC instead of being read as a purchase. */
+#define CN8583_PROC_PURCHASE     0u  /* TT 00 */
+#define CN8583_PROC_ACCT_DEFAULT 0u  /* FF/TT 00 */
+#define CN8583_PROC_ACCT_CREDIT  30u /* FF 30 */
+/* Recover the parts of an auth request a 0100/0200 carries. Field 3 must be
+ * present (CN8583_ERR_MISSING) and a purchase as above (CN8583_ERR_PROC).
+ * The year is not
  * in ISO 8583 fields 7/12/13, so the caller supplies it; the terminal's
  * unpredictable number and the ATC must come from the EMV data (cn_emv.h),
  * except that ATC is also read back from field 61 when present. */

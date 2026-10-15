@@ -1,4 +1,5 @@
-/* ecdsa.h — ECDSA signature verification over NIST P-256 and P-384
+/* ecdsa.h — ECDSA signature verification over NIST P-256 and P-384, and
+ * P-256 signing for the local TLS server (server.h)
  *
  * These two curves carry almost every elliptic-curve certificate on the
  * public web (Let's Encrypt E5-E9, Google WE1/WE2, Sectigo E36, the ISRG X2,
@@ -46,5 +47,24 @@ bool ecdsa_pubkey_valid(ecdsa_curve_t curve, const uint8_t *pub, uint32_t pub_le
 bool ecdsa_verify_digest(ecdsa_curve_t curve, const uint8_t *pub, uint32_t pub_len,
                          const uint8_t *digest, uint32_t digest_len, const uint8_t *sig_der,
                          uint32_t sig_len);
+
+/* SIGNING (P-256 only; the local TLS server's CertificateVerify)
+ *   S1  ecdsa_p256_sign_digest signs the leftmost 256 bits of a digest with
+ *       the private scalar d (32 bytes big-endian, 1 <= d < n). The nonce k
+ *       is deterministic (RFC 6979 3.2, HMAC-SHA256), so signing needs no
+ *       random source and a weak one cannot leak d. The signature is DER and
+ *       passes ecdsa_verify_digest.
+ *   S2  k*G and d*G run as double-and-add-always over the complete formula,
+ *       with branch-free selection and bn.h's branch-free arithmetic: the
+ *       same operations for every scalar. Secrets are wiped on return.
+ *   S3  Failures (a d out of range, a short buffer) return 0 / false.
+ */
+#define ECDSA_P256_SIG_MAX 72u
+
+/* d*G as 0x04 || X || Y. false when d is 0 or >= n (draw another). */
+bool ecdsa_p256_public(const uint8_t priv[32], uint8_t pub[65]);
+/* S1: the DER signature's length (at most ECDSA_P256_SIG_MAX), or 0. */
+uint32_t ecdsa_p256_sign_digest(const uint8_t priv[32], const uint8_t *digest, uint32_t digest_len,
+                                uint8_t *sig_der, uint32_t cap);
 
 #endif /* ZXV_TLS_ECDSA_H */

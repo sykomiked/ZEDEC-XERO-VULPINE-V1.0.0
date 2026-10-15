@@ -13,10 +13,11 @@ the native library. Search order (SDK_DESIGN.md section 1):
 4. the system loader path (``LD_LIBRARY_PATH``, ``DYLD_LIBRARY_PATH``,
    ``PATH``, the ld cache).
 
-The loaded library must report ABI major 1 and minor >= 5 (the ``_cap``
+The loaded library must report ABI major 1 and minor >= 6 (the ``_cap``
 forms added in 1.2, the hexagram tag added in 1.3, the hardware
-emulation matrix added in 1.4, and the treaty, CID/AIPI, coin, fee, V-Bill
-hub, freight, Web 4 and paradox groups added in 1.5).
+emulation matrix added in 1.4, the treaty, CID/AIPI, coin, fee, V-Bill
+hub, freight, Web 4 and paradox groups added in 1.5, and Vino Embed added
+in 1.6).
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ ffi = cffi.FFI()
 ffi.cdef(CDEF)
 
 ABI_MAJOR = 1
-ABI_MIN_MINOR = 5
+ABI_MIN_MINOR = 6
 
 _lib: Any = None
 _lib_path: Optional[str] = None
@@ -91,7 +92,7 @@ def load_library(path: Optional[str] = None) -> Any:
 
     Raises:
         ZxvLibraryError: no library was found, or its ABI version is not 1.x
-            with x >= 5, or a different library is already loaded.
+            with x >= 6, or a different library is already loaded.
     """
     global _lib, _lib_path
     with _load_lock:

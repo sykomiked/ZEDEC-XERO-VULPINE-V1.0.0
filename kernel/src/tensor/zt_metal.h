@@ -8,7 +8,8 @@
  * the C reference's integer steps, so every product, and so every logit, is
  * bit for bit what the CPU computes (test_zt_metal checks this on random
  * matrices and whole forward passes). Everything else in the forward pass
- * (norms, RoPE, attention, sampling) stays on the CPU kernels it is given.
+ * (norms, RoPE, attention, sampling) stays on the CPU kernels it is given,
+ * unless zt_kern_metal_resident moves the whole pass to the GPU (below).
  *
  *     zt_metal_t *mt = zt_metal_new(err, sizeof err);   (null: no GPU here)
  *     zt_metal_map(mt, file, file_bytes);  (the GGUF bytes the model uses)
@@ -44,6 +45,18 @@ int zt_metal_mm(void *fctx, const zt_mmf_t *jobs, uint32_t n);
  * pass) with the matrix products on the GPU. */
 void zt_kern_metal(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt);
 
+/* The whole forward pass on the GPU (zt_gpu.h): out = zt_kern_metal's, plus
+ * zt_kern_t.fwd_full, so every layer (norms, RoPE, attention, SiLU, the
+ * residual) and the logits run in one command buffer per pass. It needs the
+ * model state's memory mapped in place: zt_metal_map(mt, state_mem, bytes)
+ * on page-aligned memory (the KV cache is written by the GPU and read by
+ * both). A pass it cannot take (unmapped state, Q8 cache, LoRA, zt_q8_t
+ * rows) falls back to the per-product path, then to the CPU. */
+void zt_kern_metal_resident(zt_kern_t *out, const zt_kern_t *base, zt_metal_t *mt);
+/* zt_kern_t.fwd_full (fctx is the zt_metal_t). */
+int zt_metal_fwd(void *fctx, const void *m, void *s, uint32_t B, zt_fx *logits, uint32_t first,
+                 uint32_t *n_sat);
+
 /* Decline products of fewer than n tokens (default 0: run every one). On an
  * M3 Max a one-token product costs ~110 us of encode/commit/wait, more than
  * the CPU's NEON kernels take, so callers decode on the CPU (n = 2) and use
@@ -54,9 +67,13 @@ typedef struct {
     uint64_t calls;    /* zt_metal_mm calls */
     uint64_t products; /* products run on the GPU */
     uint64_t declined; /* calls left to the CPU */
-    uint64_t gpu_ns;   /* GPU time of the products */
-    uint64_t wall_ns;  /* wall time inside zt_metal_mm (copies, encoding, waiting) */
+    uint64_t gpu_ns;   /* GPU time of the products and the passes */
+    uint64_t
+        wall_ns; /* wall time inside zt_metal_mm and zt_metal_fwd (copies, encoding, waiting) */
     uint32_t nocopy;   /* mapped regions shared without a copy */
+    uint64_t passes;   /* whole forward passes run on the GPU */
+    uint64_t passes_declined; /* passes left to the per-product path or the CPU */
+    uint64_t pass_ops;        /* kernel launches in those passes */
 } zt_metal_stats_t;
 void zt_metal_stats(const zt_metal_t *mt, zt_metal_stats_t *out);
 

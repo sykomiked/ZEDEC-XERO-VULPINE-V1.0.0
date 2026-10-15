@@ -10,6 +10,8 @@
 #include "zui_bidi.h"
 #include "zui_locale.h"
 
+#include "zui_locale_samples.inc"
+
 static int fails, checks;
 #define CHECK(c, ...)                                                                              \
     do {                                                                                           \
@@ -99,17 +101,46 @@ static void test_find(void)
               zui_locale_tag(LOC(T[k].in)), T[k].want);
     CHECK(!strcmp(zui_locale_tag(LOC(NULL)), "en"), "NULL -> en");
     CHECK(!strcmp(zui_locale_tag(NULL), "en"), "NULL locale is en");
-    static const char *const ALL[] = {"en",      "es",      "fr", "de", "pt", "it", "ru", "uk",
-                                      "pl",      "ar",      "he", "fa", "ur", "hi", "bn", "ta",
-                                      "zh-Hans", "zh-Hant", "ja", "ko", "th", "vi", "tr", "id",
-                                      "sw",      "am",      "yo", "ha", "el", "nl"};
-    CHECK(zui_locale_count_all() == N(ALL), "30 locales");
+    static const char *const ALL[] = {
+        "en", "es",  "fr",  "de", "pt",      "it",      "ru",  "uk", "pl", "ar",  "he",  "fa",
+        "ur", "hi",  "bn",  "ta", "zh-Hans", "zh-Hant", "ja",  "ko", "th", "vi",  "tr",  "id",
+        "sw", "am",  "yo",  "ha", "el",      "nl",      "mr",  "te", "gu", "kn",  "ml",  "pa",
+        "or", "as",  "ne",  "si", "sd",      "ps",      "sat", "dv", "ms", "fil", "jv",  "su",
+        "my", "km",  "lo",  "mn", "bo",      "yue",     "kk",  "uz", "ky", "tg",  "tk",  "az",
+        "ka", "hy",  "ckb", "ug", "ro",      "cs",      "hu",  "sv", "bg", "sr",  "hr",  "sk",
+        "da", "fi",  "nb",  "lt", "be",      "ca",      "cy",  "ga", "zu", "xh",  "ig",  "so",
+        "om", "ti",  "rw",  "mg", "sn",      "wo",      "ln",  "af", "ff", "nqo", "zgh", "qu",
+        "gn", "chr", "nv",  "mi", "haw",     "iu",      "se",  "ht"};
+    CHECK(zui_locale_count_all() == N(ALL) && N(ALL) == 104, "104 locales");
     for (uint32_t k = 0; k < N(ALL); k++) {
         const zui_locale_t *l = LOC(ALL[k]);
         CHECK(!strcmp(zui_locale_tag(l), ALL[k]) && l == zui_locale_at(k), "own tag %s", ALL[k]);
         CHECK(zui_locale_name(l)[0] != 0, "name %s", ALL[k]);
     }
-    CHECK(zui_locale_at(30) == NULL, "past the end");
+    CHECK(zui_locale_at(104) == NULL, "past the end");
+    static const struct {
+        const char *in, *want;
+    } A[] = {{"tl", "fil"},     {"tl-PH", "fil"},    {"no", "nb"},      {"no-NO", "nb"},
+             {"mo", "ro"},      {"sh", "sr"},        {"ji", "en"},      {"yue-Hant-HK", "yue"},
+             {"ckb-IQ", "ckb"}, {"sat-Olck", "sat"}, {"haw-US", "haw"}, {"iu-Cans-CA", "iu"},
+             {"chr", "chr"},    {"nqo-GN", "nqo"}};
+    for (uint32_t k = 0; k < N(A); k++)
+        CHECK(!strcmp(zui_locale_tag(LOC(A[k].in)), A[k].want), "%s -> %s, want %s", A[k].in,
+              zui_locale_tag(LOC(A[k].in)), A[k].want);
+    /* scripts, which pick the ASCW Golden face */
+    static const struct {
+        const char *tag, *script;
+    } SC[] = {{"en", "Latn"},  {"ru", "Cyrl"}, {"zh-Hant", "Hant"}, {"yue", "Hant"},
+              {"sat", "Olck"}, {"dv", "Thaa"}, {"nqo", "Nkoo"},     {"zgh", "Tfng"},
+              {"chr", "Cher"}, {"iu", "Cans"}, {"bo", "Tibt"},      {"ti", "Ethi"}};
+    for (uint32_t k = 0; k < N(SC); k++)
+        CHECK(!strcmp(zui_locale_script(LOC(SC[k].tag)), SC[k].script), "script %s", SC[k].tag);
+    /* only English is the source; every other locale's words are machine-made until a
+     * native speaker reviews them, and none claims a review it has not had */
+    CHECK(zui_locale_review(LOC("en")) == ZUI_REVIEW_SOURCE, "en is the source");
+    for (uint32_t i = 1; i < zui_locale_count_all(); i++)
+        CHECK(zui_locale_review(zui_locale_at(i)) == ZUI_REVIEW_MACHINE, "%s unreviewed",
+              zui_locale_tag(zui_locale_at(i)));
     CHECK(!strcmp(zui_locale_name(LOC("de")), "Deutsch") &&
               !strcmp(zui_locale_name(LOC("ja")), "日本語") &&
               !strcmp(zui_locale_name(LOC("ar")), "العربية"),
@@ -123,7 +154,11 @@ static void test_direction_week(void)
     for (uint32_t i = 0; i < zui_locale_count_all(); i++) {
         const zui_locale_t *l = zui_locale_at(i);
         const char *t = zui_locale_tag(l);
-        bool rtl = !strcmp(t, "ar") || !strcmp(t, "he") || !strcmp(t, "fa") || !strcmp(t, "ur");
+        static const char *const RTL[] = {"ar", "he", "fa",  "ur", "sd",
+                                          "ps", "dv", "ckb", "ug", "nqo"};
+        bool rtl = false;
+        for (uint32_t k = 0; k < N(RTL); k++)
+            if (!strcmp(t, RTL[k])) rtl = true;
         CHECK(zui_locale_rtl(l) == rtl, "direction %s", t);
     }
     static const struct {
@@ -184,6 +219,18 @@ static void test_plurals(void)
         CHECK((int) p == P[k].want, "%s %lld -> %s, want %s", P[k].tag, (long long) P[k].n,
               zui_plural_name(p), zui_plural_name((zui_plural_t) P[k].want));
     }
+    /* every @integer sample CLDR gives for every locale's rules */
+    uint32_t bad = 0;
+    for (uint32_t k = 0; k < N(PLURAL_SAMPLES); k++) {
+        zui_plural_t p =
+            zui_locale_plural(LOC(PLURAL_SAMPLES[k].tag), (int64_t) PLURAL_SAMPLES[k].n);
+        if (p != PLURAL_SAMPLES[k].want && bad++ < 10)
+            printf("  %s %llu -> %s, CLDR says %s\n", PLURAL_SAMPLES[k].tag,
+                   (unsigned long long) PLURAL_SAMPLES[k].n, zui_plural_name(p),
+                   zui_plural_name(PLURAL_SAMPLES[k].want));
+    }
+    CHECK(bad == 0 && N(PLURAL_SAMPLES) > 1000, "CLDR samples: %u of %u wrong", bad,
+          (unsigned) N(PLURAL_SAMPLES));
     CHECK(zui_locale_plural(LOC("ru"), INT64_MIN) == ZUI_PLURAL_MANY, "INT64_MIN");
     CHECK(!strcmp(zui_plural_name(ZUI_PLURAL_FEW), "few") &&
               !strcmp(zui_plural_name(ZUI_PLURAL_ZERO), "zero") &&
@@ -285,6 +332,22 @@ static void test_numbers(void)
     CHECK(w == 4 && !strcmp(small, "۱٬"), "cut fa: %u", w);
     CHECK(zui_locale_number(LOC("en"), 1, 0, ZUI_DIGITS_DEFAULT, small, 0) == 0, "cap 0");
     CHECK(zui_locale_number(LOC("en"), 1, 0, ZUI_DIGITS_DEFAULT, NULL, 9) == 0, "NULL out");
+    /* the added locales: CLDR default digits in their own scripts */
+    static const struct {
+        const char *tag, *want;
+    } NEWN[] = {{"mr", "-१२,३४,५६७.८९"},           {"my", "-၁,၂၃၄,၅၆၇.၈၉"},
+                {"sat", "-᱑,᱒᱓᱔,᱕᱖᱗.᱘᱙"},          {"nqo", "-߁،߂߃߄،߅߆߇.߈߉"},
+                {"as", "-১২,৩৪,৫৬৭.৮৯"},           {"hu", "-1\u00A0234\u00A0567,89"},
+                {"ka", "-1\u00A0234\u00A0567,89"}, {"cy", "-1,234,567.89"}};
+    for (uint32_t k = 0; k < N(NEWN); k++)
+        CHECK(!strcmp(num(NEWN[k].tag, -123456789, 2, ZUI_DIGITS_DEFAULT), NEWN[k].want),
+              "%s: %s want %s", NEWN[k].tag, OUT, NEWN[k].want);
+    CHECK(zui_locale_zero(LOC("te"), ZUI_DIGITS_NATIVE) == 0x0C66 &&
+              zui_locale_zero(LOC("km"), ZUI_DIGITS_NATIVE) == 0x17E0 &&
+              zui_locale_zero(LOC("bo"), ZUI_DIGITS_NATIVE) == 0x0F20 &&
+              zui_locale_zero(LOC("yue"), ZUI_DIGITS_NATIVE) == 0x3007 &&
+              zui_locale_zero(LOC("jv"), ZUI_DIGITS_NATIVE) == 0xA9D0,
+          "native zeros of the added scripts");
     end("test_numbers");
 }
 
@@ -422,6 +485,20 @@ static void test_dates(void)
     char small[4];
     CHECK(zui_locale_date(LOC("fa"), NOON, 0, small, sizeof small) == 2 && !strcmp(small, "۱"),
           "date cut: %s", small);
+    /* the added locales: 2025-10-15 00:00 UTC */
+    static const struct {
+        const char *tag, *want;
+    } NEWD[] = {{"hu", "2025. 10. 15."}, {"bg", "15.10.25\u202Fг."}, {"sv", "2025-10-15"},
+                {"fil", "10/15/25"},     {"yue", "2025/10/15"},      {"cy", "15/10/25"}};
+    for (uint32_t k = 0; k < N(NEWD); k++) {
+        zui_locale_date(LOC(NEWD[k].tag), 1760486400LL, 0, OUT, sizeof OUT);
+        CHECK(!strcmp(OUT, NEWD[k].want), "%s date %s want %s", NEWD[k].tag, OUT, NEWD[k].want);
+    }
+    /* Pashto's region is Afghanistan, which keeps the Solar Hijri calendar: 23 Mehr 1404 */
+    zui_locale_date(LOC("ps"), 1760486400LL, 0, OUT, sizeof OUT);
+    CHECK(strstr(OUT, "۱۴۰۴/۷/۲۳") != NULL, "ps date %s", OUT);
+    zui_locale_time(LOC("yue"), 1760486400LL + 15 * 3600, 0, OUT, sizeof OUT);
+    CHECK(!strcmp(OUT, "下晝3:00"), "yue time %s", OUT);
     end("test_dates");
 }
 
@@ -846,9 +923,10 @@ static void test_shim(void)
                         bool name = false;
                         for (uint32_t j = 0; j < N(NAMES); j++)
                             if (strlen(NAMES[j]) == n && !strncmp(p, NAMES[j], n)) name = true;
-                        /* Dutch says "items" too */
-                        if (!strcmp(zui_locale_tag(l), "nl") && n > 5 &&
-                            !strncmp(p + n - 5, "items", 5))
+                        /* Dutch and Afrikaans say "items" too */
+                        if ((!strcmp(zui_locale_tag(l), "nl") ||
+                             !strcmp(zui_locale_tag(l), "af")) &&
+                            n > 5 && !strncmp(p + n - 5, "items", 5))
                             name = true;
                         for (const char *q = OUT; !name && *q;) {
                             const char *qe = strstr(q, sep);

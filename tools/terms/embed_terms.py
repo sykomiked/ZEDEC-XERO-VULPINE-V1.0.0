@@ -9,7 +9,9 @@ The first LANG is the reference (English) text; every other language points
 at it. A LANG written with a trailing '!' (e.g. 'id!=id.txt') is marked
 controlling, for markets whose law makes the local-language version govern.
 Prints each text's SHA-256, which is the fingerprint the accept screen
-records. test_terms checks the embedded bytes still match the files.
+records, and writes it into the image beside the text: the reader refuses a
+text that no longer matches it (TERMS_ERR_TEXT). test_terms checks the
+embedded bytes and fingerprint still match the files.
 """
 import hashlib
 import sys
@@ -62,10 +64,15 @@ def main(argv):
     ]
     for i, (lang, ctl, data) in enumerate(docs):
         ref = "0" if i == 0 else "&" + ident(docs[0][0])
+        digest = hashlib.sha256(data).digest()
+        rows = [", ".join("0x%02x" % b for b in digest[k:k + 8]) for k in range(0, 32, 8)]
         out.append(f"static const char text_{ident(lang)}[] =\n{c_string(data)};\n")
+        out.append(f"/* SHA-256 {digest.hex()} */\n"
+                   f"static const uint8_t sha_{ident(lang)}[TERMS_HASH_LEN] = {{\n"
+                   + ",\n".join("    " + r for r in rows) + "\n};\n")
         out.append(f"static const terms_doc_t {ident(lang)} = {{\n"
                    f'    "{version}", "{lang}", text_{ident(lang)}, sizeof text_{ident(lang)} - 1,\n'
-                   f"    {1 if (ctl or i == 0) else 0}, {ref}\n}};\n")
+                   f"    {1 if (ctl or i == 0) else 0}, {ref}, sha_{ident(lang)}\n}};\n")
     table = ", ".join("&" + ident(lang) for lang, _, _ in docs)
     out.append(f"static const terms_doc_t *const all[] = {{ {table} }};\n")
     out.append("const terms_doc_t *terms_builtin_lang(const char *lang)\n{\n"

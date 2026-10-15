@@ -1,0 +1,70 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# zxv-edge.service — headless zxvd on an edge inference node, profile
+# @PROFILE@. Rendered by packages/edge/build_edge.sh from the profile's
+# limits; change them with a drop-in (systemctl edit zxv-edge), not here.
+[Unit]
+Description=ZXV edge inference node (headless zxvd, profile @PROFILE@)
+Documentation=file:/opt/zxv-edge/EDGE_NODES.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/zxv-edge/bin/zxv-edge-run /etc/zxv-edge/edge.conf
+Restart=on-failure
+RestartSec=5
+
+# A throwaway user, made at start and gone at stop; it owns only the
+# runtime directory (the 0600 RPC socket) and the state directory (books).
+DynamicUser=yes
+RuntimeDirectory=zxv-edge
+RuntimeDirectoryMode=0700
+StateDirectory=zxv-edge
+StateDirectoryMode=0700
+ConfigurationDirectory=zxv-edge
+UMask=0077
+
+# Hardening. The whole file system is read-only for the service except its
+# own state and runtime directories; it can gain no privilege.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+DevicePolicy=closed
+KeyringMode=private
+LimitCORE=0
+
+# Resource limits from the profile (zxvd itself still sizes its swarm from
+# what it sees in /proc; these are the hard walls).
+MemoryHigh=@MEMORY_HIGH_MB@M
+MemoryMax=@MEMORY_MAX_MB@M
+MemorySwapMax=0
+CPUQuota=@CPU_QUOTA@%
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

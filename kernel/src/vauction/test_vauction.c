@@ -67,19 +67,40 @@ static pay_status_t fund(uint32_t from, uint32_t to, uint64_t amt)
     return st;
 }
 
-/* a posting whose e2e collides with the module's next one */
-static void block_e2e(uint64_t seq)
+/* the module's e2e at sequence sq: "VAUC-" || hex(SHA-256(seed || E || sq)[0..12)) */
+static void e2e_at(uint64_t sq, char out[32])
+{
+    uint8_t in[41], h[32];
+    memcpy(in, SEED, 32);
+    in[32] = 'E';
+    for (int i = 0; i < 8; i++) in[33 + i] = (uint8_t) (sq >> (8 * i));
+    sha256(in, sizeof in, h);
+    memcpy(out, "VAUC-", 5);
+    for (int i = 0; i < 12; i++) snprintf(out + 5 + 2 * i, 3, "%02x", h[i]);
+}
+
+/* a posting with a chosen e2e (one that knows the seed collides with the
+ * module's next posting) */
+static void post_e2e(const char *e2e)
 {
     pay_posting_req_t r;
     pay_receipt_t rc;
     memset(&r, 0, sizeof r);
     nfund++;
     snprintf(r.uetr, sizeof r.uetr, "00000000-0000-4000-8000-%012llx", (unsigned long long) nfund);
-    snprintf(r.e2e, sizeof r.e2e, "VAUC-%llu", (unsigned long long) seq);
+    snprintf(r.e2e, sizeof r.e2e, "%s", e2e);
     memcpy(r.idem_key, &nfund, sizeof nfund);
     r.idem_key[31] = 0xEF;
     pay_ledger_issue(&L, &r, fi, bf[NB - 1], 1, &rc);
     minted += 1;
+}
+
+/* a posting whose e2e collides with the module's posting at seq */
+static void block_e2e(uint64_t seq)
+{
+    char e2e[32];
+    e2e_at(seq, e2e);
+    post_e2e(e2e);
 }
 
 static uint32_t open_acct(uint16_t as, uint32_t owner, uint8_t flags)
@@ -359,8 +380,9 @@ static void test_oversubscribed(void)
         in[32] = 'I';
         sha256(in, sizeof in, d);
         char e2e[32];
-        snprintf(e2e, sizeof e2e, "VAUC-%llu", (unsigned long long) (aseq + 3));
-        CHECK(!strcmp(jj->uetr, uetr) && !memcmp(jj->idem_key, d, 32) && !strcmp(jj->e2e, e2e),
+        e2e_at(aseq + 3, e2e);
+        CHECK(!strcmp(jj->uetr, uetr) && !memcmp(jj->idem_key, d, 32) && !strcmp(jj->e2e, e2e) &&
+                  strlen(e2e) == 29,
               "UETR, idempotency key and e2e derive from the seed and the sequence");
     }
     CHECK(deb(rs) - r0 == 150 * 100 && deb(es) == 0, "the reserve gains price * qty; escrow empty");
@@ -1028,6 +1050,40 @@ static void test_resume(void)
           "null");
 }
 
+/* audit 2026-10-12 4.2: a ledger poster pre-posts the old VAUC-<seq> ids of
+ * every coming posting; bids and settlement are not disturbed. */
+static void test_e2e_squat(void)
+{
+    vauc_config_t c = cfg0();
+    setup(&c, 0, 0);
+    for (uint64_t k = 0; k < 8; k++) {
+        char e2e[32];
+        snprintf(e2e, sizeof e2e, "VAUC-%llu", (unsigned long long) (A.seq + k));
+        post_e2e(e2e);
+    }
+    vauc_open(&A);
+    CHECK(bid(0, 60, 180) == VAUC_OK && bid(1, 50, 150) == VAUC_OK && bid(2, 40, 150) == VAUC_OK,
+          "bids lock despite the squatted ids");
+    CHECK(vauc_clear(&A, 1) == VAUC_OK && vauc_settle(&A, 2) == VAUC_OK &&
+              A.state == VAUC_SETTLED && deb(rs) == 150 * 100 && vauc_outstanding(&A) == 100 &&
+              inv(),
+          "settlement runs through in one call: the squat no longer stalls it");
+}
+
+/* audit 2026-10-12 4.1: the fiat and V-Bill accounts of a bid share an owner */
+static void test_owner_binding(void)
+{
+    vauc_config_t c = cfg0();
+    setup(&c, 0, 0);
+    vauc_open(&A);
+    uint64_t seq = L.seq;
+    CHECK(vauc_bid(&A, bf[0], bv[1], 1, 150, 1, NULL) == VAUC_ERR_AUTH &&
+              vauc_bid(&A, bf[1], holder, 1, 150, 1, NULL) == VAUC_ERR_AUTH && L.seq == seq &&
+              A.n_bids == 0 && deb(bf[0]) == 1000000,
+          "one owner's fiat bidding for V-Bills sent to another owner: refused, nothing locked");
+    CHECK(bid(0, 1, 150) == VAUC_OK && inv(), "the same owner on both sides is accepted");
+}
+
 static void test_history(void)
 {
     vauc_config_t c = cfg0();
@@ -1067,6 +1123,8 @@ int main(void)
     test_settle_floor();
     test_resume();
     test_history();
+    test_e2e_squat();
+    test_owner_binding();
     printf("PASS %d FAIL %d\n", pass, fail);
     return fail != 0;
 }

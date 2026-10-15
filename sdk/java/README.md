@@ -4,7 +4,7 @@
 # ZXV SDK for the JVM
 
 Java bindings for `libzxv`, the one C surface of the ZXV platform
-(`sdk/libzxv/include/zxv_api.h`, ABI 1.5). It is built on the Java
+(`sdk/libzxv/include/zxv_api.h`, ABI 1.6). It is built on the Java
 **Foreign Function & Memory API** (`java.lang.foreign`, final since Java 22),
 not JNI: there is no glue library to compile, and downcalls, upcalls and
 off-heap memory are plain Java. Kotlin and Scala use it directly.
@@ -12,7 +12,8 @@ off-heap memory are plain Java. Kotlin and Scala use it directly.
 - Module `org.zedec.zxv`, packages `org.zedec.zxv` (core), `.ledger`,
   `.trust`, `.budget`, `.phase`, `.wire`, `.swarm`, `.crypto`, `.engine`, `.evm`,
   `.hw` (ABI 1.4) and the ABI 1.5 groups `.treaty`, `.cid`, `.aipi`, `.coin`,
-  `.fee`, `.vhub`, `.freight`, `.web4`, `.paradox`.
+  `.fee`, `.vhub`, `.freight`, `.web4`, `.paradox`, and the ABI 1.6 group `.vino`
+  (Vino Embed).
 - Requires Java 22 or later (built with `--release 22`, tested on JDK 25)
   and a 64-bit JVM.
 - No runtime dependencies.
@@ -24,15 +25,15 @@ Build the jar (the C library must already be built in `sdk/libzxv/build`):
 ```sh
 export JAVA_HOME=/path/to/jdk-22-or-later
 cd sdk/java
-mvn package                 # compiles, runs the tests, writes target/zxv-1.5.0.jar
-mvn install                 # optional: puts org.zedec:zxv:1.5.0 in ~/.m2
+mvn package                 # compiles, runs the tests, writes target/zxv-1.6.0.jar
+mvn install                 # optional: puts org.zedec:zxv:1.6.0 in ~/.m2
 ```
 
 ```xml
 <dependency>
   <groupId>org.zedec</groupId>
   <artifactId>zxv</artifactId>
-  <version>1.5.0</version>
+  <version>1.6.0</version>
 </dependency>
 ```
 
@@ -43,8 +44,8 @@ under `/native/linux-x86_64/`. Set `-Dzxv.native.platform=` (and point
 FFM calls into native code are "restricted": grant access when you run.
 
 ```sh
-java --enable-native-access=org.zedec.zxv  -p zxv-1.5.0.jar ...   # module path
-java --enable-native-access=ALL-UNNAMED    -cp zxv-1.5.0.jar ...  # class path
+java --enable-native-access=org.zedec.zxv  -p zxv-1.6.0.jar ...   # module path
+java --enable-native-access=ALL-UNNAMED    -cp zxv-1.6.0.jar ...  # class path
 ```
 
 ### Where the library comes from
@@ -57,8 +58,8 @@ On first use the SDK loads `libzxv` from the first of:
 4. the copy bundled in the jar under `/native/<os>-<arch>/`, extracted to a temp file;
 5. `System.mapLibraryName("zxv")` (`libzxv.so`, `libzxv.dylib`, `zxv.dll`) on the system loader path.
 
-It refuses a library whose ABI major is not 1 or whose minor is below 5
-(it calls the ABI 1.5 groups, the `zxv_hw_*` functions added in ABI 1.4, the
+It refuses a library whose ABI major is not 1 or whose minor is below 6
+(it calls the ABI 1.6 vino group and asks for its `VINO` permission bit, the ABI 1.5 groups, the `zxv_hw_*` functions added in ABI 1.4, the
 `zxv_hex_*` functions added in 1.3 and the `_cap` functions added in 1.2).
 `Zxv.libraryLocation()` tells you which one won.
 
@@ -81,7 +82,7 @@ A longer runnable tour is `examples/Quickstart.java`:
 
 ```sh
 mvn -q package -DskipTests
-java --enable-native-access=org.zedec.zxv -p target/zxv-1.5.0.jar --add-modules org.zedec.zxv \
+java --enable-native-access=org.zedec.zxv -p target/zxv-1.6.0.jar --add-modules org.zedec.zxv \
      examples/Quickstart.java ../conformance/fixtures
 ```
 
@@ -471,6 +472,114 @@ try (ZxvContext ctx = ZxvContext.create();
 }
 ```
 
+## Vino Embed (ABI 1.6)
+
+`org.zedec.zxv.vino` is what an app or game needs to take part in Vino
+**without ever holding anyone's value or keys**. It has two lanes that never
+meet:
+
+- **PLAY** (`PlaySandbox`): a sandbox inside your app with its own play
+  units, issuers, holders and Fibonacci-face vouchers, in process memory only.
+  **Play units are not money.** They come from a faucet, are worth nothing,
+  are lost when the sandbox closes, and no call takes a play sandbox together
+  with anything live, so they can never become live value. Games use it freely.
+- **LIVE**: real Vino stays in the user's own ZXV wallet, never in your app.
+  Your app builds a `PaymentRequest`, the user approves it in their wallet,
+  the wallet signs a `Receipt`, and your app checks the receipt offline. Your
+  app never sees a balance, a key or a custody account.
+
+The rules, in Java terms:
+
+- **Vouchers** (`Voucher`, `VoucherState`, `Rail`). A voucher is one coin
+  with a Fibonacci ladder face (1, 2, 3, 5, 8, 13, 21, ...), held by one holder
+  on exactly one rail: `BEARER` (the note in hand) or `GHOST` (its twin on the
+  play ledger). A transfer must name the active rail (`RailException`), so a
+  voucher can never be spent twice. `setRail` switches rails and moves nothing.
+- **Coverage.** An issuer may only issue while
+  `10 * backing >= 18 * outstanding` (1.8x, exact integers);
+  breaking it is `CoverageException`, for `issue` and for `unback`.
+- **Redeeming pays nothing out.** `redeem` returns a voucher to its issuer
+  and retires it; the issuer's outstanding total falls and that is all. No
+  call turns a voucher into backing, play units or anything else, and there is
+  no interest, yield or return of any kind.
+- **Requests** (`PaymentRequest`) are plain records: `encode()` gives the
+  canonical 160 bytes, `id()` their SHA-256, `decode(bytes)` the record back.
+  The memo is 0 to 64 characters of printable ASCII. A LIVE request with
+  `FLAG_CHANCE` (a loot box, a paid draw) is refused (`ChanceException`); the
+  raffle is a separate module, not a payment request.
+- **Receipts** (`Receipt`). `Receipt.sign` is the wallet's call (permission
+  `CRYPTO_SIGN`); it reads the wallet's `SecretKey` from off-heap memory for
+  the length of the call and never copies, keeps or logs it. Signing is
+  hedged, so two receipts for the same approval differ; both verify.
+  `receipt.verify(now)` is pure and offline: `true`, `false` for a signature
+  that is not that wallet's over that request and time, or `ExpiredException`
+  when the request has expired or was approved outside its window.
+- **The daily meter** (`SpendMeter`) counts what one device approved per day
+  and refuses an amount that would pass the deployment's daily cap with
+  `DailyCapException` (a `LimitException`), whose `remainingToday()` says what
+  is left. It is a counter, not a legal check, and makes no exemption claim.
+- **Capabilities.** `PlaySandbox` and `SpendMeter` need the new permission
+  `VINO` (`Permission.VINO`, bit 1<<15); `Permission.all()` is now
+  `ZXV_CAP_ALL_1_6`, and `Permission.all1_5()` / `Permission.ALL_1_5` keep the
+  1.5 set. Requests and `verify` need no capability. `Feature2.VINO` reports
+  the group.
+- **Statuses.** -46 `RailException`, -47 `CoverageException`,
+  -49 `ExpiredException`, -50 `ChanceException` (all REFUSED) and
+  -48 `LaneException` (USAGE); -51 to -59 are reserved.
+- **Numbers** are unsigned 64-bit in a `long` (amounts, faces, voucher ids,
+  times; print them with `Long.toUnsignedString`), never floats.
+
+A play-lane shop: the shop backs itself, issues a voucher to a player, the
+player spends it at a stall, and the stall redeems it.
+
+```java
+try (ZxvContext ctx = ZxvContext.create();
+     Capability cap = ctx.rootCapability(Permission.VINO);
+     PlaySandbox game = PlaySandbox.create(cap)) {
+    int shop = game.openIssuer(1);            // issues vouchers
+    int player = game.openHolder(1001);
+    int stall = game.openHolder(2001);        // where the player spends
+    game.back(shop, 100);                     // play units from the faucet: not money
+    long v = game.issue(shop, player, 21, Rail.GHOST);   // 10*100 >= 18*21
+    game.transfer(v, player, stall, Rail.GHOST);         // spent on its active rail
+    game.redeem(v, stall);                    // retired; nothing is paid out
+    PlayAccount s = game.account(shop);       // faces() == 0, backing() == 100
+    game.check();
+}
+```
+
+A live payment request, the wallet's receipt, and the app's offline check.
+In a real deployment the middle part runs in the user's wallet, never in the
+app.
+
+```java
+long now = Instant.now().getEpochSecond();
+byte[] merchant = Hashes.sha3_256("my-shop-public-key".getBytes(StandardCharsets.UTF_8));
+PaymentRequest req = PaymentRequest.live(merchant, Hashes.random(16), 1_250, now, now + 600, "Sword of Dawn");
+byte[] wire = req.encode();                   // 160 bytes for the wallet
+
+// --- wallet side (the user's ZXV wallet) ---
+Receipt receipt;
+try (ZxvContext wctx = ZxvContext.create();
+     Capability sign = wctx.rootCapability(Permission.CRYPTO_SIGN);
+     MlDsa87.KeyPair wallet = MlDsa87.with(sign).generateKeyPair()) {
+    receipt = Receipt.sign(sign, wire, wallet.secretKey(), wallet.publicKey(), now + 5);
+}
+
+// --- app side, offline: no capability, no network ---
+boolean approved = receipt.verify(now + 6);   // true
+PaymentRequest what = receipt.paymentRequest();  // the request it approves
+```
+
+Honest limits: play units are not money and are lost when the sandbox
+closes. The LIVE flow here is the app's half only: the wallet posts the
+payment on its own ledger. ML-DSA-87 is the reference implementation, not
+FIPS 140-3 validated. Whether a given deployment of Vino is store credit, a
+prepaid access product or something else is a legal question pending
+counsel; nothing in this SDK decides it. Minting live Vino, pegs, fiat
+on-ramps or off-ramps, V-Bill auctions, V-Bonds and every operator action are
+not in this API, by design.
+
 ## API overview
 
 | Type | Package | What it does |
@@ -495,7 +604,7 @@ try (ZxvContext ctx = ZxvContext.create();
 | `HwMatrix`, `HwFunction`, `HwKind`, `HwVector` | `hw` | standard engines, `call`, `shadow`, `memo`, `addProvider`, `attest`, `providers`, `setPolicy`, `setTraits`, `applyContract`, `log` |
 | `HwRegion`, `HwEvent`, `HwAuditRecord` | `hw` | `stage`, `trial`, `commit`, `rollback`, `tick`, `info`, `onEvent`, `log`, `logEntry` |
 | `HwPackageSigner` | `crypto` | release keys, `buildImage`, `buildContract` (ML-DSA-87 + SLH-DSA) |
-| `Feature2`, `ZxvStatus` | core | ABI 1.5 feature groups (`Zxv.features2()`), status names and classes |
+| `Feature2`, `ZxvStatus` | core | ABI 1.5 and 1.6 feature groups (`Zxv.features2()`), status names and classes |
 | `Treaty`, `TreatyResult`, `Pic18`, `TreatyFault` | `treaty` | Sutra and copybook `parse`/`toSutra`/`toRecord`, `validate`, `run`; 18-digit arithmetic |
 | `Cid`, `CidBase`, `Multicodec` | `cid` | `compute`, `raw`, `unixfs`, `parse`, `toText`, `toV1`, `verify`, `providerKey` |
 | `AipiNode`, `FunctionRecord`, `CallRecord`, `ClaimRecord`, `Route` | `aipi` | `put`, `putPrivate`, `get`, `publish`, `loadFunction`, `plan`, `info` |
@@ -505,6 +614,8 @@ try (ZxvContext ctx = ZxvContext.create();
 | `Freight`, `FreightHeader`, `FreightJoin`, `OpStream`, `OpStreamWriter` | `freight` | erasure `encode`/`decode`, set `split`/join, op streams |
 | `AgentKey`, `AgentCard`, `Envelope`, `ToolManifest`, `AgentDirectory`, `ConsentToken`, `ConsentLog` | `web4` | agent identity, signed envelopes and manifests, consent |
 | `ParadoxBook`, `ParadoxPolicy`, `ParadoxHold`, `ParadoxGraph`, `RepairProof` | `paradox` | classify, the four operators, registry, logs |
+| `PlaySandbox`, `PlayAccount`, `Voucher`, `Rail`, `VoucherState` | `vino` | play lane: `openIssuer`/`openHolder`, `back`/`unback`, `issue`, `transfer`, `setRail`, `redeem`, `voucher`, `account`, `vouchers`, `check` |
+| `PaymentRequest`, `Lane`, `Receipt`, `SpendMeter`, `Vino` | `vino` | requests `encode`/`id`/`decode`, receipts `message`/`sign`/`verify`, the daily meter `admit` |
 
 ## Examples
 
@@ -624,7 +735,7 @@ import org.zedec.zxv.ledger.*
 
 ```sh
 export JAVA_HOME=/opt/tools/jdk-25.0.4.1+1    # any JDK 22+
-mvn test        # 91 tests against the real libzxv and sdk/conformance/vectors.json
+mvn test        # 109 tests against the real libzxv and sdk/conformance/vectors.json
 ```
 
 Surefire runs the tests on the class path with
@@ -653,6 +764,15 @@ including the refusals, the -32 to -40 exception mapping, buffer growth past
 the first guess, use after close for every 1.5 handle, handles closed with
 their context, a poisoned context, and capability refusals for `AIPI`,
 `MINT` and `PARADOX`.
+
+ABI 1.6 adds 18 (`VinoVectorsTest`, `VinoTest`, `VinoReadmeTest`): every `status_abi16` and
+`vino` vector (requests with their exact bytes and ids and every refusal,
+decode refusals byte by byte, the fixed-seed receipt and its checks, the
+ordered play scenario with its final accounts and vouchers, the meter
+scenario), the -46 to -50 exception mapping, `VINO` and `CRYPTO_SIGN`
+refusals, the vouchers two-call buffer past any first guess, use after close
+and close-with-context for the sandbox and the meter, a poisoned context
+(`zxv_ctx_halt`), and the README examples.
 
 ## Honest limits
 
@@ -699,5 +819,9 @@ their context, a poisoned context, and capability refusals for `AIPI`,
   process: pegs are signed inputs, not a price feed, and nothing is settled
   with any real scheme. Paradox outcomes are advisory records for a human
   owner, not automated decisions.
+- **ABI 1.6 limits.** Receipt signatures are hedged: compare by verifying,
+  never by bytes. `PlaySandbox.open` takes a `boolean`, so the C refusal of an
+  `is_issuer` other than 0 or 1 cannot happen from Java. The meter and the
+  play sandbox live in process memory only.
 - **No network transport.** Like libzxv, this SDK serializes and keeps an
   in-process ledger; it does not connect to any payment scheme.

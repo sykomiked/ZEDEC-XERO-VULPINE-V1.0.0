@@ -25,7 +25,8 @@ static int pass, fail;
 static pay_ledger_t L;
 static svault_t V;
 static uint16_t usd, vbl;
-static uint32_t fiss, viss, payer, payee, bucket[PAY_ASSURE_BUCKETS], cash, vvb, sfiat, svb, other;
+static uint32_t fiss, viss, payer, payee, bucket[PAY_ASSURE_BUCKETS], cash, vvb, sfiat, svb, other,
+    ofiat;
 static uint64_t nreq;
 
 /* a fresh request with unique identifiers (derived like vhub's P4 ids) */
@@ -83,6 +84,7 @@ static void setup(uint64_t n)
     sfiat = open_acct(usd, 40, 0);
     svb = open_acct(vbl, 40, 0);
     other = open_acct(vbl, 41, 0);
+    ofiat = open_acct(usd, 41, 0); /* `other`'s owner: a seller without V-Bills */
     issue(fiss, payer, (uint64_t) 1 << 50);
     if (n) issue(viss, svb, n);
     CHECK(svault_init(&V, &L, bucket[PAY_ASSURE_RESERVE_FLOOR], cash, viss, vvb) == SVAULT_OK,
@@ -365,7 +367,7 @@ static void test_buy(void)
     CHECK(svault_buy(&V, &L, NULL, sfiat, svb, 1, 1) == SVAULT_ERR_ARG &&
               svault_buy(NULL, &L, mk(), sfiat, svb, 1, 1) == SVAULT_ERR_ARG,
           "NULL refused");
-    CHECK(svault_buy(&V, &L, mk(), sfiat, other, 1, 5) == SVAULT_ERR_LEDGER &&
+    CHECK(svault_buy(&V, &L, mk(), ofiat, other, 1, 5) == SVAULT_ERR_LEDGER &&
               V.last_ledger == PAY_ERR_FUNDS && V.spent_total == 0 && V.vbills_bought == 0 &&
               V.last_qty == 0 && deb(cash) == 100,
           "a seller without V-Bills: the ledger refuses, nothing counted");
@@ -544,15 +546,16 @@ static void test_check(void)
     V.vbills_bought = 5;
     CHECK(!svault_check(&V, &L), "holdings != bought - burned");
     V = k;
-    /* money that did not come from a sweep */
+    /* value leaving the vault's accounts other than by svault */
     pay_receipt_t rc;
-    pay_ledger_transfer(&L, mk(), payer, cash, 1, &rc);
-    CHECK(!svault_check(&V, &L), "cash not from a sweep breaks conservation");
     pay_ledger_transfer(&L, mk(), cash, payer, 1, &rc);
+    CHECK(!svault_check(&V, &L), "cash taken out other than by a buy breaks conservation");
+    pay_ledger_transfer(&L, mk(), payer, cash, 1, &rc);
     CHECK(svault_check(&V, &L), "restored");
-    pay_ledger_transfer(&L, mk(), svb, vvb, 1, &rc);
-    CHECK(!svault_check(&V, &L), "V-Bills not bought break conservation");
     pay_ledger_transfer(&L, mk(), vvb, svb, 1, &rc);
+    CHECK(!svault_check(&V, &L), "V-Bills taken out other than by a burn break conservation");
+    pay_ledger_transfer(&L, mk(), svb, vvb, 1, &rc);
+    CHECK(svault_check(&V, &L), "restored");
     /* a CREDIT on the vault's accounts */
     pay_ledger_set_flags(&L, cash, PAY_ACCT_ISSUER);
     issue(cash, payee, 5);
@@ -563,6 +566,99 @@ static void test_check(void)
     pay_ledger_set_flags(&L, vvb, PAY_ACCT_ISSUER);
     issue(vvb, other, 5);
     CHECK(deb(vvb) == 4 && !svault_check(&V, &L), "V-Bill CREDIT breaks the audit");
+}
+
+/* audit 2026-10-12 4.6: anyone who can post to the ledger may deposit into
+ * the vault's accounts; that must not break S6, and the vault must not spend
+ * it (S3: fees only). */
+static void test_foreign_deposits(void)
+{
+    setup(30);
+    fund_reserve(2000);
+    svault_sweep(&V, &L, mk(), 300); /* own cash 100 */
+    pay_receipt_t rc;
+    CHECK(pay_ledger_transfer(&L, mk(), payer, cash, 1000, &rc) == PAY_OK && deb(cash) == 1100,
+          "an outsider posts 1000 into the vault's cash");
+    CHECK(svault_check(&V, &L), "S6 still holds: outside cash is surplus, not a break");
+    CHECK(svault_buy(&V, &L, mk(), sfiat, svb, 10, 1000) == SVAULT_OK && V.last_qty == 10 &&
+              V.last_cost == 100 && deb(cash) == 1000 && svault_check(&V, &L),
+          "the vault buys with its own 100 only, never the outside 1000");
+    CHECK(svault_buy(&V, &L, mk(), sfiat, svb, 1, 5) == SVAULT_ZERO, "own cash spent: ZERO");
+    CHECK(pay_ledger_transfer(&L, mk(), svb, vvb, 5, &rc) == PAY_OK && deb(vvb) == 15 &&
+              svault_check(&V, &L),
+          "outside V-Bills posted into the vault: S6 still holds");
+    uint64_t u = 99;
+    CHECK(svault_first_loss(&V, &L, mk(), 12, &u) == SVAULT_OK && u == 0 && deb(vvb) == 3 &&
+              V.vbills_burned == 10 && V.foreign_burned == 2 && svault_check(&V, &L),
+          "first loss burns the vault's own 10 first, then 2 outside ones; S6 holds");
+    CHECK(svault_first_loss(&V, &L, mk(), 5, &u) == SVAULT_OK && u == 2 && deb(vvb) == 0 &&
+              V.vbills_burned == 10 && V.foreign_burned == 5 && svault_check(&V, &L),
+          "and the rest of the outside ones");
+    pay_ledger_transfer(&L, mk(), cash, payer, 1, &rc);
+    CHECK(svault_check(&V, &L), "taking from the outside surplus leaves own cash whole");
+}
+
+/* audit 2026-10-12 4.6: a sweep must not take the reserve below the floor */
+static void test_sweep_floor(void)
+{
+    setup(30); /* N 30, h 0 */
+    fund_reserve(3000);
+    CHECK(svault_set_floor(&V, 1, 1, 100) == SVAULT_OK && V.floor_num == 1 && V.floor_den == 1 &&
+              V.backing == 100,
+          "floor 1/1 at 100 per V-Bill: the reserve must keep 3000");
+    svault_t keep = V;
+    uint64_t seq = L.seq;
+    CHECK(svault_sweep(&V, &L, mk(), 3) == SVAULT_ERR_FLOOR && L.seq == seq && deb(cash) == 0 &&
+              deb(bucket[0]) == 3000 && V.share_total == keep.share_total &&
+              V.carry == keep.carry && V.swept_total == 0 && svault_check(&V, &L),
+          "3000 - 1 < 3000: refused, nothing moved or counted");
+    CHECK(svault_sweep(&V, &L, mk(), 2) == SVAULT_ZERO && V.carry == 2,
+          "a zero part moves nothing and is not checked");
+    fund_reserve(1);
+    CHECK(svault_sweep(&V, &L, mk(), 1) == SVAULT_OK && deb(bucket[0]) == 3000 && deb(cash) == 1,
+          "3001 - 1 == 3000: exactly at the floor is fine");
+    fund_reserve(10);
+    CHECK(svault_sweep(&V, &L, mk(), 33) == SVAULT_ERR_FLOOR && deb(bucket[0]) == 3010,
+          "3010 - 11 < 3000: refused");
+    CHECK(svault_sweep(&V, &L, mk(), 30) == SVAULT_OK && deb(bucket[0]) == 3000 && deb(cash) == 11,
+          "3010 - 10: allowed");
+    CHECK(svault_sweep(&V, &L, mk(), 1000000) == SVAULT_ERR_LEDGER &&
+              V.last_ledger == PAY_ERR_FUNDS,
+          "a part above the whole reserve is still the ledger's funds refusal");
+    /* vault holdings are outside the base: buying V-Bills lowers the floor */
+    svault_set_floor(&V, 0, 1, 0);
+    fund_reserve(30);
+    svault_sweep(&V, &L, mk(), 90); /* cash 41 */
+    CHECK(svault_buy(&V, &L, mk(), sfiat, svb, 4, 5) == SVAULT_OK && deb(vvb) == 5,
+          "the vault holds 5 of 30");
+    svault_set_floor(&V, 1, 1, 100);
+    CHECK(deb(bucket[0]) == 3000 && svault_sweep(&V, &L, mk(), 1500) == SVAULT_OK &&
+              deb(bucket[0]) == 2500 && svault_verify_solvency(&V, &L, 1, 1, 100),
+          "with h 5 the floor is 2500: a sweep down to it is allowed");
+    CHECK(svault_sweep(&V, &L, mk(), 3) == SVAULT_ERR_FLOOR, "and no further");
+    CHECK(svault_set_floor(&V, 1, 0, 1) == SVAULT_ERR_ARG &&
+              svault_set_floor(NULL, 1, 1, 1) == SVAULT_ERR_ARG,
+          "floor_den 0 or NULL refused");
+    svault_t blank;
+    memset(&blank, 0, sizeof blank);
+    CHECK(svault_set_floor(&blank, 1, 1, 1) == SVAULT_ERR_ARG, "a vault not set up refused");
+    CHECK(svault_check(&V, &L), "conserved");
+}
+
+/* audit 2026-10-12 4.1: the seller's two accounts share an owner */
+static void test_owner_binding(void)
+{
+    setup(30);
+    fund_reserve(2000);
+    svault_sweep(&V, &L, mk(), 300);
+    uint64_t seq = L.seq;
+    CHECK(svault_buy(&V, &L, mk(), payee, svb, 1, 5) == SVAULT_ERR_AUTH && L.seq == seq &&
+              deb(svb) == 30 && deb(cash) == 100 && V.last_qty == 0,
+          "the seller's V-Bills with the fiat sent to another owner: refused, nothing posted");
+    CHECK(svault_buy(&V, &L, mk(), sfiat, other, 1, 5) == SVAULT_ERR_AUTH && L.seq == seq,
+          "and the other way round");
+    CHECK(svault_buy(&V, &L, mk(), sfiat, svb, 1, 5) == SVAULT_OK && svault_check(&V, &L),
+          "one owner on both sides is accepted");
 }
 
 int main(void)
@@ -576,6 +672,9 @@ int main(void)
     test_floor();
     test_first_loss();
     test_check();
+    test_foreign_deposits();
+    test_sweep_floor();
+    test_owner_binding();
     printf("PASS %d FAIL %d\n", pass, fail);
     return fail ? 1 : 0;
 }

@@ -93,7 +93,7 @@ DIR_fuzz_vinea := parsers
 INC_fuzz_vinea := -I$(S)/vinea -I$(S)/zcapital -I$(S)/lpres -I$(S)/edp_risk
 SRC_fuzz_vinea := $(addprefix $(S)/vinea/,vna_agree.c vna_cid.c vna_cmd.c vna_common.c \
                   vna_econ.c vna_file.c vna_frame.c vna_id.c vna_kad.c vna_lan.c vna_node.c \
-                  vna_schema.c vna_session.c vna_wire.c) \
+                  vna_schema.c vna_session.c vna_space.c vna_wire.c) \
                   $(PQ5) $(S)/tls/x25519.c $(S)/tls/aead.c $(S)/tls/hkdf.c \
                   $(S)/robin_debanks/sha256.c $(S)/swarm/swarm_budget.c \
                   $(S)/swarm/swarm_emotion.c $(S)/swarm/swarm_market.c $(S)/swarm/swarm_hk.c \
@@ -187,7 +187,8 @@ DEF_fuzz_tok := -DTEST_HOST
 DIR_fuzz_call := parsers
 INC_fuzz_call := -I$(S)/call
 SRC_fuzz_call := $(S)/call/call_rtp.c $(S)/call/call_cc.c $(S)/call/call_fec.c $(S)/call/call_mesh.c \
-                 $(S)/call/call_ice.c $(S)/call/call_session.c $(S)/call/call_jitter.c
+                 $(S)/call/call_ice.c $(S)/call/call_session.c $(S)/call/call_jitter.c \
+                 $(S)/robin_debanks/sha256.c
 DEF_fuzz_call := -DTEST_HOST
 
 DIR_fuzz_cardnet := parsers
@@ -218,10 +219,16 @@ DIR_fuzz_zxvd_rpc := parsers
 LIBZXV_SAN := $(abspath $(OUT))/libzxv-san/libzxv.a
 INC_fuzz_zxvd_rpc := -I$(K)/arch/hosted -I$(S)/web4 -I$(S)/robin_debanks -I$(S)/mlkem -I$(K)/include \
                      -I$(S)/modbind -I$(S)/e8 -I$(S)/event_space -I$(S)/surplus -I$(S)/lpres -I$(S)/juris \
-                     -I$(K)/../sdk/libzxv/include
-SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(K)/arch/hosted/zxv_files.c $(K)/arch/hosted/zxv_spaces.c \
-                     $(S)/web4/web4_json.c $(S)/web4/web4_util.c $(S)/mlkem/keccak.c $(S)/robin_debanks/sha256.c \
-                     $(S)/juris/juris.c $(S)/acct/acct.c $(S)/lpres/lpres_hex.c $(S)/lpres/lpres.c $(LIBZXV_SAN)
+                     -I$(S)/freight -I$(S)/harmonic -I$(S)/stream -I$(S)/ehop -I$(S)/ipfs_node -I$(S)/pqsec \
+                     -I$(S)/edp_risk -I$(K)/../sdk/libzxv/include
+# zxvd_rpc.c's own dependencies and the module methods it falls back to, from
+# the one list the tests and the daemon build read (app_sources.sh rpcdeps,
+# modules)
+ZXVD_RPC_DEPS := $(addprefix $(K)/,$(shell sh $(K)/arch/hosted/app_sources.sh rpcdeps))
+ZXVD_MOD_SRC := $(addprefix $(K)/,$(shell sh $(K)/arch/hosted/app_sources.sh modules))
+SRC_fuzz_zxvd_rpc := $(K)/arch/hosted/zxvd_rpc.c $(S)/web4/web4_json.c $(S)/web4/web4_util.c \
+                     $(S)/mlkem/keccak.c $(S)/robin_debanks/sha256.c $(ZXVD_RPC_DEPS) $(ZXVD_MOD_SRC) \
+                     $(LIBZXV_SAN)
 DEF_fuzz_zxvd_rpc := -U_DEFAULT_SOURCE -DTEST_HOST
 # The libFuzzer build links its own copy compiled by $(CC_FUZZ): gcc and clang
 # ASan objects do not mix.

@@ -286,6 +286,19 @@ static int commit_meta(zxvfs_t *fs, uint32_t idx, const zxvfs_inode_t *in) {
 
 /* ---- public API ---- */
 
+int zxvfs_probe_blank(block_device_t *dev)
+{
+    if (!dev || !dev->present) return -1;
+    if (dev->total_sectors < ZXVFS_DATA_SECTOR) return 0;
+    uint8_t sec[BLOCKDEV_SECTOR_SIZE];
+    for (uint32_t lba = 0; lba < ZXVFS_DATA_SECTOR; lba++) {
+        if (blockdev_read(dev, lba, sec) != 0) return -1;
+        for (uint32_t i = 0; i < BLOCKDEV_SECTOR_SIZE; i++)
+            if (sec[i]) return 0;
+    }
+    return 1;
+}
+
 int zxvfs_format(block_device_t *dev) {
     if (!dev || !dev->present) return -1;
     uint8_t sec[BLOCKDEV_SECTOR_SIZE];

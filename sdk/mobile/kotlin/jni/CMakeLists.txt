@@ -1,7 +1,7 @@
 # Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
 # SPDX-License-Identifier: Apache-2.0
 #
-# libzxvjni: the JNI shim for the Kotlin SDK (zxv_jni.c + zxv_jni15.c), linked against a
+# libzxvjni: the JNI shim for the Kotlin SDK (zxv_jni.c + zxv_jni15.c + zxv_jni16.c), linked against a
 # prebuilt libzxv (built by sdk/libzxv's Makefile, never recompiled here).
 #
 #   Host (JVM tests):
@@ -35,7 +35,7 @@ if(APPLE)
   set_target_properties(zxv PROPERTIES IMPORTED_SONAME "@rpath/libzxv.dylib")
 endif()
 
-add_library(zxvjni SHARED zxv_jni.c zxv_jni15.c)
+add_library(zxvjni SHARED zxv_jni.c zxv_jni15.c zxv_jni16.c)
 target_link_libraries(zxvjni PRIVATE zxv)
 set_target_properties(zxvjni PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON C_VISIBILITY_PRESET default)
 target_compile_options(zxvjni PRIVATE -Wall -Wextra -Werror -O2 -fstack-protector-strong)

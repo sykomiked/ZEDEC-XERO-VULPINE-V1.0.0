@@ -90,7 +90,7 @@ static void base(kit_t *k, uint32_t rules, uint64_t nonce)
 /* sign for a mint (slot < 0) or a rebalance of `slot` */
 static void seal(kit_t *k, int slot)
 {
-    uint8_t d[32], id[32], m[ZENNY_SIG_MSG];
+    uint8_t d[32], id[32], head[32] = {0}, m[ZENNY_SIG_MSG];
     zenny_purpose_t p;
     if (slot < 0) {
         zenny_mint_digest(&k->r, d);
@@ -99,6 +99,7 @@ static void seal(kit_t *k, int slot)
     } else {
         zenny_rebalance_digest(&Z, (uint32_t) slot, &k->r, d);
         memcpy(id, Z.chip[slot].id, 32);
+        memcpy(head, zenny_current(&Z, (uint32_t) slot)->hash, 32);
         p = ZENNY_SIG_REBALANCE;
     }
     zenny_sign_msg(p, d, m);
@@ -110,7 +111,7 @@ static void seal(kit_t *k, int slot)
     k->r.sig_co_len = 32;
     for (uint32_t i = 0; i < k->r.n_legs && i < ZENNY_MAX_LEGS; i++) {
         uint8_t a[32];
-        zenny_att_digest(id, &k->r.leg[i], a);
+        zenny_att_digest(id, head, &k->r.leg[i], a);
         zenny_sign_msg(ZENNY_SIG_ATTEST, a, m);
         sign(k->r.leg[i].custodian, m, sizeof m, k->at[i]);
         k->r.att[i] = k->at[i];
@@ -254,15 +255,21 @@ static void test_mint(void)
     /* the attestation digest */
     zenny_leg_t g = leg(ZENNY_COMMODITY, 0x0102030405060708ull, 0xA0B0C0D0u, 0x1122334455ull, 3);
     buf_t b = {{0}, 0};
-    putb(&b, "zxv/zenny/att/1.", 16);
+    uint8_t hd[32];
+    for (int i = 0; i < 32; i++) hd[i] = (uint8_t) (0xC0 + i);
+    putb(&b, "zxv/zenny/att/2.", 16);
     putb(&b, d, 32);
+    putb(&b, hd, 32);
     put(&b, g.kind);
     put(&b, g.custodian);
     put(&b, g.asset);
     put(&b, g.qty);
     sha256(b.b, b.n, ref);
-    zenny_att_digest(d, &g, id);
+    zenny_att_digest(d, hd, &g, id);
     CHECK(!memcmp(id, ref, 32), "the attestation digest is exactly the documented bytes");
+    hd[31] ^= 1;
+    zenny_att_digest(d, hd, &g, ref);
+    CHECK(memcmp(id, ref, 32), "the attestation digest binds the version head");
     /* the digest of an oversized request reads only the leg table */
     base(&k, 0, 6);
     k.r.n_legs = ZENNY_MAX_LEGS + 1;
@@ -484,6 +491,33 @@ static void test_rebalance(void)
           "chain and claim == value after the rebalance");
     CHECK(zenny_rebalance(&Z, s, &k.r) == ZENNY_ERR_SIG && Z.chip[s].n_ver == 2,
           "the same signed rebalance cannot be replayed");
+    {
+        /* X -> Y -> X: the custodian's attestation of X (25 units, signed for
+         * the mint) must not back the return to X, nor Y's for a second Y */
+        uint8_t attY[32], attX[32], z32[32] = {0}, a[32], msg[ZENNY_SIG_MSG];
+        memcpy(attY, k.at[2], 32);
+        kit_t x;
+        base(&x, ZENNY_RULE_ALLOW_REBALANCE, 0);
+        zenny_att_digest(Z.chip[s].id, z32, &x.r.leg[2], a);
+        zenny_sign_msg(ZENNY_SIG_ATTEST, a, msg);
+        sign(CUST, msg, sizeof msg, attX);
+        seal(&x, (int) s);
+        CHECK(memcmp(x.at[2], attX, 32) != 0, "a fresh attestation differs from the mint's");
+        memcpy(x.at[2], attX, 32);
+        CHECK(zenny_rebalance(&Z, s, &x.r) == ZENNY_ERR_ATTEST && Z.chip[s].n_ver == 2,
+              "X->Y->X: the mint's attestation for the same quantity is refused");
+        CHECK(rebal(&x, s) == ZENNY_OK && Z.chip[s].n_ver == 3 &&
+                  zenny_current(&Z, s)->leg[2].qty == 25 && zenny_verify_chain(&Z, s) == ZENNY_OK,
+              "X->Y->X with an attestation bound to the current version");
+        kit_t y;
+        rebased(&y, ZENNY_RULE_ALLOW_REBALANCE);
+        seal(&y, (int) s);
+        memcpy(y.at[2], attY, 32);
+        CHECK(zenny_rebalance(&Z, s, &y.r) == ZENNY_ERR_ATTEST && Z.chip[s].n_ver == 3,
+              "X->Y->X->Y: Y's earlier attestation is refused too");
+        CHECK(rebal(&y, s) == ZENNY_OK && Z.chip[s].n_ver == 4 && zenny_check(&Z, s) == ZENNY_OK,
+              "and a fresh one passes");
+    }
 
     uint32_t nv0 = Z.chip[s].n_ver;
 #define REFUSE(edit, want, msg)                                                                    \
@@ -543,7 +577,7 @@ static void test_rebalance(void)
             rebased(&k, ZENNY_RULE_ALLOW_REBALANCE);
         n += rebal(&k, s) == ZENNY_OK;
     }
-    CHECK(n == ZENNY_MAX_VERSIONS - 2, "rebalances up to the version cap");
+    CHECK(n == ZENNY_MAX_VERSIONS - 4, "rebalances up to the version cap");
     base(&k, ZENNY_RULE_ALLOW_REBALANCE, 0);
     CHECK(rebal(&k, s) == ZENNY_ERR_FULL && zenny_verify_chain(&Z, s) == ZENNY_OK,
           "a full version log refuses and the chain still verifies");

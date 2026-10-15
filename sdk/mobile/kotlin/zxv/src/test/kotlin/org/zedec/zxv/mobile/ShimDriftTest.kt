@@ -8,6 +8,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.zedec.zxv.mobile.internal.Jni
 import org.zedec.zxv.mobile.internal.Jni15
+import org.zedec.zxv.mobile.internal.Jni16
 
 /**
  * The Kotlin `external` declarations and the C shim's exported functions
@@ -37,5 +38,18 @@ class ShimDriftTest {
         val kotlin = Jni15::class.java.declaredMethods.filter { Modifier.isNative(it.modifiers) }.map { it.name }.toSet()
         assertEquals(kotlin.sorted(), c.sorted())
         assertEquals(202, c.size)
+    }
+
+    @Test
+    fun everyAbi16NativeMethodHasAShimFunctionAndBack() {
+        val src = File(System.getProperty("zxv.jni16Source")).readText()
+        val c = Regex("""FN16\((\w+)\)\(""").findAll(src).map { it.groupValues[1] }.toSet() - "name"
+        val kotlin = Jni16::class.java.declaredMethods.filter { Modifier.isNative(it.modifiers) }.map { it.name }.toSet()
+        assertEquals(kotlin.sorted(), c.sorted())
+        // Every zxv_vino_* function in the header has a shim function.
+        val header = File(System.getProperty("zxv.vectors")).resolve("../../libzxv/include/zxv_api.h").canonicalFile.readText()
+        val vino = Regex("""ZXV_API\s+\S+\s+\*?\s*(zxv_vino_\w+)\(""").findAll(header).map { it.groupValues[1] }.toSet()
+        val called = Regex("""(zxv_vino_\w+)\(""").findAll(src).map { it.groupValues[1] }.toSet()
+        assertEquals(emptySet(), vino - called, "vino functions without a shim")
     }
 }

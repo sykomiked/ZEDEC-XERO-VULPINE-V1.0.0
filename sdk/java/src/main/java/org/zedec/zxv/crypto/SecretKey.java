@@ -31,6 +31,20 @@ import org.zedec.zxv.internal.Native;
 public final class SecretKey implements AutoCloseable {
     private static final Cleaner CLEANER = Cleaner.create();
 
+    static {
+        org.zedec.zxv.internal.KeyAccess.install(new org.zedec.zxv.internal.KeyAccess.Keys() {
+            @Override
+            public MemorySegment acquire(SecretKey key, Kind expected) {
+                return key.acquire(expected);
+            }
+
+            @Override
+            public void release(SecretKey key) {
+                key.release();
+            }
+        });
+    }
+
     /** What the key is, and its fixed length. */
     public enum Kind {
         /** RFC 8032 Ed25519 private key (seed), 32 bytes. */
@@ -50,7 +64,11 @@ public final class SecretKey implements AutoCloseable {
             this.length = length;
         }
 
-        /** The length in bytes. */
+        /**
+         * The length in bytes.
+         *
+         * @return the fixed size of a key of this kind
+         */
         public int length() {
             return length;
         }
@@ -101,6 +119,10 @@ public final class SecretKey implements AutoCloseable {
      * Copies key bytes into off-heap storage. The caller's array is a heap
      * copy the SDK cannot wipe: overwrite it (for example with
      * {@code Arrays.fill(bytes, (byte) 0)}) once this returns.
+     *
+     * @param kind  what the key is
+     * @param bytes exactly {@code kind.length()} bytes
+     * @return a new off-heap key; close it to wipe it
      */
     public static SecretKey copyOf(Kind kind, byte[] bytes) {
         Ffi.requireLength(kind + " key", bytes, kind.length);
@@ -109,7 +131,13 @@ public final class SecretKey implements AutoCloseable {
         return k;
     }
 
-    /** Copies key bytes from a segment (for example one you also wipe) into a new key. */
+    /**
+     * Copies key bytes from a segment (for example one you also wipe) into a new key.
+     *
+     * @param kind  what the key is
+     * @param bytes a segment of exactly {@code kind.length()} bytes
+     * @return a new off-heap key; close it to wipe it
+     */
     public static SecretKey copyOf(Kind kind, MemorySegment bytes) {
         Ffi.requireLength(kind + " key", bytes, kind.length);
         SecretKey k = new SecretKey(kind);
@@ -117,17 +145,29 @@ public final class SecretKey implements AutoCloseable {
         return k;
     }
 
-    /** What the key is. */
+    /**
+     * What the key is.
+     *
+     * @return the kind
+     */
     public Kind kind() {
         return kind;
     }
 
-    /** The length in bytes. */
+    /**
+     * The length in bytes.
+     *
+     * @return the key's size
+     */
     public int length() {
         return kind.length;
     }
 
-    /** True once closed (wiped). */
+    /**
+     * True once closed (wiped).
+     *
+     * @return whether {@link #close()} has run
+     */
     public boolean isClosed() {
         return closed;
     }
@@ -154,6 +194,8 @@ public final class SecretKey implements AutoCloseable {
      * collected heap, which may move or keep it, and it is not wiped when
      * this key closes. Use it only to hand a key to code that needs a
      * {@code byte[]}, and overwrite the copy as soon as you can.
+     *
+     * @return a heap copy of the key bytes
      */
     public byte[] exportBytesUnsafe() {
         MemorySegment s = acquire(null);
@@ -164,7 +206,12 @@ public final class SecretKey implements AutoCloseable {
         }
     }
 
-    /** Compares two keys in constant time (for their length). */
+    /**
+     * Compares two keys in constant time (for their length).
+     *
+     * @param other the other key
+     * @return true when both hold the same bytes
+     */
     public boolean contentEquals(SecretKey other) {
         if (other.kind.length != kind.length) return false;
         MemorySegment a = acquire(null);

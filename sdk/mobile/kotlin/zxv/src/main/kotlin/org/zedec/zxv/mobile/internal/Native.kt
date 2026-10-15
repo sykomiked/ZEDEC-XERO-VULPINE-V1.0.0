@@ -8,6 +8,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import org.zedec.zxv.mobile.BudgetExhaustedException
 import org.zedec.zxv.mobile.CapabilityDeniedException
+import org.zedec.zxv.mobile.ChanceException
+import org.zedec.zxv.mobile.CoverageException
+import org.zedec.zxv.mobile.ExpiredException
+import org.zedec.zxv.mobile.LaneException
+import org.zedec.zxv.mobile.RailException
 import org.zedec.zxv.mobile.CidException
 import org.zedec.zxv.mobile.ConsentException
 import org.zedec.zxv.mobile.ErasureException
@@ -74,6 +79,7 @@ internal object Status {
                 -24 -> FloatRejectedException(detail)
                 -32 -> NotADenominationException(status, name, detail)
                 -33 -> TreatyException(status, name, detail)
+                -48 -> LaneException(status, name, detail)
                 else -> ZxvUsageException(status, name, detail)
             }
             StatusClass.REFUSED -> when (status) {
@@ -90,6 +96,11 @@ internal object Status {
                 -38 -> LimitException(status, name, detail)
                 -39 -> StepLimitException(status, name, detail)
                 -40 -> OwnerApprovalRequiredException(status, name, detail)
+                // ABI 1.6
+                -46 -> RailException(status, name, detail)
+                -47 -> CoverageException(status, name, detail)
+                -49 -> ExpiredException(status, name, detail)
+                -50 -> ChanceException(status, name, detail)
                 else -> ZxvRefusedException(status, name, detail)
             }
             else -> ZxvSystemException(status, name, detail)

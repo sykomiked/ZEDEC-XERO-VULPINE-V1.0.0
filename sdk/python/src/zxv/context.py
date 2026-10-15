@@ -62,6 +62,11 @@ class Cap(enum.IntFlag):
     paradox handles (ABI 1.5)."""
     ALL_1_5 = (1 << 15) - 1
     """Every capability as of ABI 1.5 (``ZXV_CAP_ALL_1_5``)."""
+    VINO = 1 << 15
+    """Vino Embed: create and use play-lane sandboxes and the daily spend
+    meter (ABI 1.6). Payment requests and receipt checks need no cap."""
+    ALL_1_6 = (1 << 16) - 1
+    """Every capability as of ABI 1.6 (``ZXV_CAP_ALL_1_6``)."""
 
 
 @dataclass(frozen=True)

@@ -108,7 +108,7 @@ public enum ZxvFeatures : uint
 
 /// <summary>
 /// The second feature mask, <c>zxv_features2</c> (ABI 1.5): the 32 bits of
-/// <see cref="ZxvFeatures"/> are nearly used up, so the 1.5 groups report
+/// <see cref="ZxvFeatures"/> are nearly used up, so the 1.5 and later groups report
 /// here (<c>ZXV_FEAT2_*</c>). A group whose bit is clear returns
 /// <see cref="ZxvStatus.NotImplemented"/> from every call.
 /// </summary>
@@ -143,4 +143,7 @@ public enum ZxvFeatures2 : uint
 
     /// <summary>The paradox engine.</summary>
     Paradox = 0x0000_0080,
+
+    /// <summary>Vino Embed (ABI 1.6, <c>ZXV_FEAT2_VINO</c>): the play-lane voucher sandbox, payment requests, wallet receipts and the daily spend meter.</summary>
+    Vino = 0x0000_0100,
 }

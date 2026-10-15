@@ -358,6 +358,13 @@ All three pass under `-Wall -Werror -Wextra`, and also under
 `aarch64-none-elf` and `armv7-none-eabi` with `-ffreestanding`.
 `gen_web4_vectors.py` writes `test_web4_vectors.h` from the published lists.
 
+## Protocol twins
+
+Every classic networking protocol gets a peer-to-peer AI twin built on this
+layer and on Vinea. The catalogue, the shared rules and the build order are in
+[P2P_PROTOCOL_TWINS.md](P2P_PROTOCOL_TWINS.md). The first twins are the
+`ap_log` audit chain and AFTP, the file transfer twin, in `kernel/src/aproto/`.
+
 ## Honest limits
 
 - **Interoperability is shown only where a test shows it.** The tests show

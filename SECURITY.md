@@ -17,6 +17,11 @@ current `main` before reporting.
 
 ## Reporting a vulnerability
 
+Security reports about the ZXV operating system and its services are handled
+by SCENIC BYPASS CONSULTING, LLC, which licenses and supports the
+ready-to-run system (see [SUPPORT.md](SUPPORT.md)). The channel below reaches
+them.
+
 **Do not open a public issue, pull request, or discussion for a security
 problem.**
 

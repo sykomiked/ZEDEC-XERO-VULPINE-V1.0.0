@@ -37,8 +37,9 @@ public final class ZxvContext: @unchecked Sendable {
     }
 
     /// A root capability. `bits` defaults to `.all` (the ABI 1.1 bits; pass
-    /// `.all1_4` for the hardware group, `.all1_5` for every bit); `identity` is the
-    /// 21-octet (168-bit) identity, zeros if nil. Attestation starts TRUE.
+    /// `.all1_4` for the hardware group, `.all1_5` for the 1.5 groups,
+    /// `.all1_6` for every bit); `identity` is the 21-octet (168-bit)
+    /// identity, zeros if nil. Attestation starts TRUE.
     public func rootCapability(_ bits: CapabilitySet = .all, processId: UInt32 = 0,
                                identity: [UInt8]? = nil) throws(ZxvError) -> Capability {
         if let identity, identity.count != Int(ZXV_IDENTITY_BYTES) {
@@ -164,6 +165,10 @@ public struct CapabilitySet: OptionSet, Sendable, Hashable {
     public static let paradox = CapabilitySet(rawValue: 1 << 14)
     /// `ZXV_CAP_ALL_1_5`: every bit as of ABI 1.5.
     public static let all1_5 = CapabilitySet(rawValue: (1 << 15) - 1)
+    /// Play-lane vouchers and the spend meter (ABI 1.6, `ZXV_CAP_VINO`).
+    public static let vino = CapabilitySet(rawValue: 1 << 15)
+    /// `ZXV_CAP_ALL_1_6`: every bit as of ABI 1.6 (adds `.vino`).
+    public static let all1_6 = CapabilitySet(rawValue: (1 << 16) - 1)
 }
 
 /// A snapshot of a capability (`zxv_cap_info`).

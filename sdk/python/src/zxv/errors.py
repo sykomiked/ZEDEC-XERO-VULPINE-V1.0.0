@@ -17,8 +17,10 @@ ABI 1.5 adds named subclasses for its statuses: :class:`DenominationError`
 and :class:`TreatyError` (USAGE); :class:`CidMismatchError`,
 :class:`ConsentRequiredError`, :class:`ErasureError`, :class:`PegError`,
 :class:`LimitRefusedError`, :class:`ParadoxStepLimitError` and
-:class:`OwnerApprovalRequiredError` (REFUSED). A status this SDK does not
-know still maps by its class (R8).
+:class:`OwnerApprovalRequiredError` (REFUSED). ABI 1.6 (Vino Embed) adds
+:class:`LaneError` (USAGE) and :class:`RailError`, :class:`CoverageError`,
+:class:`RequestExpiredError` and :class:`ChanceOutcomeError` (REFUSED). A
+status this SDK does not know still maps by its class (R8).
 
 :class:`ZxvFatal` derives from :class:`BaseException`, not :class:`Exception`,
 so an ``except Exception:`` block cannot swallow it by accident. Set
@@ -55,6 +57,12 @@ __all__ = [
     "LimitRefusedError",
     "ParadoxStepLimitError",
     "OwnerApprovalRequiredError",
+    # ABI 1.6
+    "RailError",
+    "CoverageError",
+    "LaneError",
+    "RequestExpiredError",
+    "ChanceOutcomeError",
 ]
 
 
@@ -202,8 +210,18 @@ class PegError(ZxvRefusedError):
 
 
 class LimitRefusedError(ZxvRefusedError):
-    """``ZXV_E_LIMIT`` (ABI 1.5): a V-Bill hub limit rule refused the swap.
-    Not a fault; it may pass in the next rule epoch."""
+    """``ZXV_E_LIMIT`` (ABI 1.5): a limit refused the call. Not a fault.
+
+    From a V-Bill hub swap: a limit rule refused it; it may pass in the next
+    rule epoch. From :meth:`zxv.vino.SpendMeter.admit` (ABI 1.6): the amount
+    would take the day's total past the daily cap; nothing was counted.
+
+    Attributes:
+        left: for a spend meter, what is still left today (an exact ``int``);
+            ``None`` for every other source.
+    """
+
+    left: Optional[int] = None
 
 
 class ParadoxStepLimitError(ZxvRefusedError):
@@ -214,6 +232,38 @@ class ParadoxStepLimitError(ZxvRefusedError):
 class OwnerApprovalRequiredError(ZxvRefusedError):
     """``ZXV_E_PARADOX_OWNER`` (ABI 1.5): the change touches money or devices
     and needs the owner's approval (``owner_ok``)."""
+
+
+class RailError(ZxvRefusedError):
+    """``ZXV_E_RAIL`` (ABI 1.6): the call named a rail that is not the play
+    voucher's active rail (BEARER or GHOST), or switched a voucher to the rail
+    it is already on. A voucher lives on exactly one rail at a time, so it
+    can never be spent twice. Read its rail with
+    :meth:`zxv.vino.VinoPlay.voucher` and retry on that rail."""
+
+
+class CoverageError(ZxvRefusedError):
+    """``ZXV_E_COVERAGE`` (ABI 1.6): the issue or the backing withdrawal would
+    take a play-lane issuer below 1.8x coverage (``10 * backing >= 18 *
+    outstanding``). Nothing changed. Post more play backing, or wait for
+    vouchers to be redeemed."""
+
+
+class LaneError(ZxvUsageError):
+    """``ZXV_E_LANE`` (ABI 1.6, class USAGE): a lane that is not PLAY (1) or
+    LIVE (2), or the wrong lane for this call. A caller bug."""
+
+
+class RequestExpiredError(ZxvRefusedError):
+    """``ZXV_E_EXPIRED`` (ABI 1.6): a payment request has expired, or a receipt
+    says it was approved outside the request's ``[created_at, expires_at]``
+    window. Build a new request."""
+
+
+class ChanceOutcomeError(ZxvRefusedError):
+    """``ZXV_E_CHANCE`` (ABI 1.6): a LIVE payment request marked as a paid
+    chance outcome (loot boxes, paid draws). Such requests are never encoded
+    or accepted. The raffle is a separate module, not a payment request."""
 
 
 class ZxvSystemError(ZxvError):
@@ -251,12 +301,17 @@ _REFUSED_BY_STATUS = {
     -38: LimitRefusedError,
     -39: ParadoxStepLimitError,
     -40: OwnerApprovalRequiredError,
+    -46: RailError,
+    -47: CoverageError,
+    -49: RequestExpiredError,
+    -50: ChanceOutcomeError,
 }
 
 _USAGE_BY_STATUS = {
     -24: FloatRejectedError,
     -32: DenominationError,
     -33: TreatyError,
+    -48: LaneError,
 }
 
 

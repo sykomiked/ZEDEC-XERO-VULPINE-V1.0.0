@@ -26,8 +26,8 @@ public static class ZxvLibrary
     /// <summary>The major ABI version this SDK binds.</summary>
     public const int SupportedAbiMajor = 1;
 
-    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag; 1.4 hardware emulation; 1.5 treaties, CIDs and AIPI, coins and tokens, the assurance fee, the V-Bill hub, freight, Web 4 and the paradox engine).</summary>
-    public const int MinimumAbiMinor = 5;
+    /// <summary>The lowest minor ABI version this SDK accepts (1.1 adds capabilities, rationals, crypto and the engine; 1.2 the <c>_cap</c> forms this SDK calls; 1.3 the hexagram tag; 1.4 hardware emulation; 1.5 treaties, CIDs and AIPI, coins and tokens, the assurance fee, the V-Bill hub, freight, Web 4 and the paradox engine; 1.6 Vino Embed).</summary>
+    public const int MinimumAbiMinor = 6;
 
     private static readonly Lazy<(Version Version, ZxvFeatures Features, ZxvFeatures2 Features2)> Loaded = new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
     private static int _fatalPolicy;

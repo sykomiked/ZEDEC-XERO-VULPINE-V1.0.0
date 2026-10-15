@@ -173,6 +173,7 @@ void zt_matmul_fib(const zt_q8_t *a, uint32_t m, const zt_q8_t *b, uint32_t n, u
 uint32_t zt_isqrt64(uint64_t v);
 void zt_rmsnorm(const zt_fx *x, const zt_fx *gain, uint32_t n, zt_fx *y);
 zt_fx zt_exp(zt_fx x);                 /* x <= 0; e^x in Q16 */
+const uint32_t *zt_exp2_table(void); /* zt_exp's 257 entries of 2^(i/256), Q16 (for accelerators) */
 void zt_softmax(zt_fx *x, uint32_t n); /* in place; outputs sum to 1.0 within n/65536 */
 zt_fx zt_silu(zt_fx x);
 

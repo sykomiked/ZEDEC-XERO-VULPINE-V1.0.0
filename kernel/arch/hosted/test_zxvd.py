@@ -185,6 +185,67 @@ def wait_line(proc, prefix, secs=20):
     return None
 
 
+def check_modules(c, acct):
+    """The module methods (zxvd_rpc_modules.h) through the real daemon: one
+    round trip each, one refusal each, and the books untouched."""
+    accounts = c.ok('ledger.accounts')
+    journal = c.ok('ledger.entries', {'account': acct})
+    # ---- freight: lose most rows, rebuild from any k ----
+    data = bytes((i * 37 + 11) & 0xff for i in range(1000))
+    f = c.ok('freight.pack', {'data_hex': data.hex()})
+    pk = bytes.fromhex(f['packets_hex'])
+    rows = [pk[i * 21:(i + 1) * 21] for i in range(168)]
+    keep = rows[168 - f['k']:][::-1]  # parity rows only, in reverse
+    u = c.ok('freight.unpack', {'header_hex': f['header_hex'],
+                                'packets_hex': b''.join(keep).hex()})
+    check(f['k'] == 50 and len(pk) == 168 * 21 and bytes.fromhex(u['data_hex']) == data,
+          'freight: 1000 bytes rebuilt from 50 of 168 packets (118 lost)')
+    r = c.call('freight.unpack', {'header_hex': f['header_hex'],
+                                  'packets_hex': b''.join(keep[1:]).hex()})
+    check(r.get('error', {}).get('code') == -32017, 'freight: k - 1 packets are refused (-32017)')
+    # ---- harmonic: the wire frame ----
+    h = c.ok('harmonic.encode', {'trunk': 4, 'shell': 1, 's_plus': [65536, 65536, 7],
+                                 's_minus': [65536, 65536]})
+    d = c.ok('harmonic.decode', {'frame_hex': h['frame_hex']})
+    check(len(h['frame_hex']) == 42 and d['tag'] == 14 and d['trunk_hz'] == 555 and
+          d['s_plus'] == [65536, 65536, 7] and d['truth'] == 'TRUE',
+          'harmonic: a 21-octet frame round-trips and resolves TRUE')
+    r = c.call('harmonic.encode', {'trunk': 10, 's_plus': [0, 0, 0], 's_minus': [0, 0]})
+    check(r.get('error', {}).get('code') == -32602, 'harmonic: trunk 10 is -32602')
+    # ---- stream: the cut rule and a segment's CID ----
+    plan = c.ok('stream.plan', {'units': [[400, 0, True], [300, 40000, False],
+                                          [500, 1000000, True]],
+                                'target_us': 1000000, 'max_us': 4000000, 'tail_us': 40000})
+    check([(g['first_unit'], g['len'], g['dur_us']) for g in plan['segments']] ==
+          [(0, 700, 1000000), (2, 500, 40000)], 'stream.plan: cut at the next keyframe')
+    seg = c.ok('stream.segment', {'data_hex': data.hex(), 'k': 20})
+    cid = c.ok('web4.cid', {'data_hex': data.hex()})
+    check(seg['nfreights'] == 3 and len(seg['freight_sha256']) == 3 and
+          seg['cid'] == cid['cid'] and cid['uri'] == 'ipfs://' + cid['cid'],
+          'stream.segment: three freights, and the CID web4.cid gives the same bytes')
+    # ---- ehop: one AEAD frame on a keyed channel ----
+    ch = {'key_hex': '42' * 32, 'band': 'settle', 'chan_id': 3, 'epoch': 9}
+    bands = [b['name'] for b in c.ok('ehop.bands')['bands']]
+    fr = c.ok('ehop.seal', dict(ch, sender=1, seq=0, plaintext_hex=data[:100].hex()))
+    op = c.ok('ehop.open', dict(ch, frame_hex=fr['frame_hex']))
+    bad = c.call('ehop.open', dict(ch, epoch=10, frame_hex=fr['frame_hex']))
+    check(bands == ['control', 'settle', 'media', 'chat', 'bulk'] and
+          bytes.fromhex(op['plaintext_hex']) == data[:100] and op['seq'] == '0' and
+          bad.get('error', {}).get('code') == -32017,
+          'ehop: seal and open on a settle channel; another epoch is refused')
+    # ---- web4: an agent card that verifies, and one that does not ----
+    card = c.ok('web4.agent_card', {'seed_hex': '5a' * 32, 'name': 'e2e-agent'})
+    keys = ('bound_ms', 'pk_hex', 'bind_sig_hex')
+    v = c.ok('web4.card_verify', dict({k: card[k] for k in keys}, name=card['name']))
+    w = c.ok('web4.card_verify', dict({k: card[k] for k in keys}, name='e2e-other'))
+    check(v['valid'] is True and v['agent_id'] == card['agent_id'] and w['valid'] is False,
+          'web4: a self-bound ML-DSA-65 card verifies; renamed, it does not')
+    # zxvd_rpc.h M2: none of these reached the books
+    check(c.ok('ledger.accounts') == accounts and
+          c.ok('ledger.entries', {'account': acct}) == journal,
+          'the module methods opened no account and posted nothing')
+
+
 # sdk/kits/aipi/test/aipi_mods.h, assembled: half(n) = n / 2, its inverse
 # half_ok(n, r), and spin(n), a loop that only fuel stops; and "floaty",
 # half(n) through an f64 that the Z-Wasm validator refuses.
@@ -623,6 +684,91 @@ def seats_checks(c):
     check(c.ok('seats.lock', {'session': u['session']}) == {'ended': True}, 'seats.lock')
 
 
+def space_checks(c):
+    """pspace.* and hall.* (zxvd_pspace.h W1-W6) on one node."""
+    def err(method, params):
+        r = c.call(method, params)
+        return r.get('error', {})
+
+    fs = {f['name']: f for f in c.ok('features.get')['features']}
+    check(fs['pspace']['enabled'] is False and fs['pspace']['regulated'] is False,
+          'pspace: a feature that is not regulated, off (%s)' % fs.get('pspace'))
+    e = err('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night'})
+    check(e.get('code') == -32012, 'pspace.create: off until switched on (%s)' % e)
+    check(c.ok('pspace.list') == {'online': False, 'spaces': []}, 'pspace.list answers while off')
+    c.ok('features.set', {'feature': 'pspace'})
+
+    check(c.ok('pspace.list') == {'online': False, 'spaces': []}, 'pspace.list: none while off')
+    e = err('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night'})
+    check(e.get('code') == -32032 and 'off' in e.get('message', ''),
+          'pspace.create while off: the network is off (%s)' % e)
+    e = err('pspace.create', {'kind': 'tent', 'gov': 'owner', 'name': 'x'})
+    check(e.get('code') == -32602, 'pspace.create: an unknown kind is refused')
+    check(c.ok('net.command', {'command': 'lan'})['result'] == 'networking is on', 'network on')
+    try:
+        made = c.ok('pspace.create', {'kind': 'hall', 'gov': 'owner', 'name': 'Movie night',
+                                     'topic': 'film'})
+        cid = made['cid']
+        check(cid.startswith('b') and len(cid) == 59, 'pspace.create: a CIDv1 (%s)' % cid)
+        sl = c.ok('pspace.list')['spaces']
+        check(len(sl) == 1 and sl[0]['cid'] == cid and sl[0]['phase'] == 'in' and
+              sl[0]['kind'] == 'hall' and sl[0]['name'] == 'Movie night' and
+              sl[0]['hall']['may_control'] is True and sl[0]['members'] == 1,
+              'pspace.list: in the hall, its owner (%s)' % sl)
+        e = err('hall.play', {'cid': cid})
+        check(e.get('code') == -32032 and 'hall.load' in e.get('message', ''),
+              'hall.play with nothing loaded is refused')
+        h = c.ok('hall.load', {'cid': cid, 'media': 'bafkreigh2akiscaildc'})
+        check(h['state'] == 'stop' and h['media'] == 'bafkreigh2akiscaildc' and h['pos_ms'] == 0 and
+              h['viewers'] == 1,
+              'hall.load: stopped at 0 with the media')
+        h = c.ok('hall.play', {'cid': cid, 'pos_ms': 60000, 'rate_q16': 131072})
+        check(h['state'] == 'play' and h['rate_q16'] == 131072 and h['pos_ms'] >= 60000,
+              'hall.play at 1:00, double speed')
+        time.sleep(0.3)
+        h2 = c.ok('hall.status', {'cid': cid})
+        moved = h2['pos_ms'] - h['pos_ms']
+        check(h2['state'] == 'play' and moved >= 2 * (h2['now_ms'] - h['now_ms']) - 4 and moved > 0,
+              'hall.status: the playhead runs at 2x (%d ms)' % moved)
+        h = c.ok('hall.pause', {'cid': cid})
+        p = c.ok('hall.status', {'cid': cid})['pos_ms']
+        time.sleep(0.1)
+        check(h['state'] == 'pause' and c.ok('hall.status', {'cid': cid})['pos_ms'] == p,
+              'hall.pause holds the playhead')
+        h = c.ok('hall.seek', {'cid': cid, 'pos_ms': 5000})
+        check(h['state'] == 'pause' and h['pos_ms'] == 5000, 'hall.seek keeps the state')
+        e = err('hall.seek', {'cid': cid})
+        check(e.get('code') == -32602, 'hall.seek needs pos_ms')
+        e = err('hall.play', {'cid': cid, 'rate_q16': 0})
+        check(e.get('code') == -32602, 'a zero rate is refused')
+        posted = c.ok('pspace.post', {'cid': cid, 'text': 'hello "hall" \u00e9'})
+        check(posted == {'cid': cid, 'posted': True}, 'pspace.post')
+        ev = c.ok('pspace.events', {'cid': cid})
+        kinds = [x['kind'] for x in ev['events']]
+        texts = [x['text'] for x in ev['events'] if x['kind'] == 'post']
+        check(kinds.count('hall') == 4 and texts == ['hello "hall" \u00e9'] and
+              ev['next'] == ev['events'][-1]['index'],
+              'pspace.events: four playback changes and the post, in order (%s)' % kinds)
+        check(c.ok('pspace.events', {'cid': cid, 'since': ev['next']})['events'] == [],
+              'pspace.events since the last index: nothing new')
+        m = c.ok('pspace.members', {'cid': cid})
+        check(m == {'members': [], 'count': 1}, 'pspace.members: only this node (%s)' % m)
+        f = c.ok('pspace.find', {'topic': 'film'})
+        check(f['topic'] == 'film' and isinstance(f['found'], list), 'pspace.find starts a search')
+        e = err('pspace.find', {'topic': 'Film!'})
+        check(e.get('code') == -32032, 'pspace.find: a bad topic is refused')
+        e = err('pspace.join', {'cid': 'not-a-cid'})
+        check(e.get('code') == -32032 and 'CID' in e.get('message', ''), 'pspace.join: a bad CID')
+        e = err('pspace.post', {'cid': cid, 'text': ''})
+        check(e.get('code') == -32602, 'pspace.post: empty text is refused')
+        check(c.ok('pspace.leave', {'cid': cid}) == {'cid': cid, 'left': True}, 'pspace.leave')
+        e = err('hall.status', {'cid': cid})
+        check(e.get('code') == -32032 and 'not in' in e.get('message', ''), 'gone after leaving')
+    finally:
+        c.ok('net.command', {'command': 'off'})
+        c.ok('features.set', {'feature': 'pspace', 'enabled': False})
+
+
 def power_checks(c, generates):
     """power.* (zxvd_power.h W1-W8): the ledger, the companion as an agent
     under zxvd's own app, and an energy budget that makes it wait."""
@@ -642,7 +788,7 @@ def power_checks(c, generates):
     check(c.ok('power.budget', {'target': 'device', 'window_ms': 0, 'max_uj': 0}) == {'ok': True},
           'power.budget: the device budget cleared')
     r = c.call('power.budget', {'target': 'agent', 'agent': 99999, 'window_ms': 1, 'max_uj': 1})
-    check(r.get('error', {}).get('code') == -32100, 'power.budget: an unknown agent is refused')
+    check(r.get('error', {}).get('code') == -32095, 'power.budget: an unknown agent is refused')
     if not generates or not me:
         return
     # the companion's model call was noted; it shows after the next settle
@@ -668,6 +814,182 @@ def power_checks(c, generates):
         check(c.ok('power.budget', {'target': 'agent', 'agent': comp, 'window_ms': 0,
                                     'max_uj': 0}) == {'ok': True},
               'power.budget: cleared (the unit test shows it admits again)')
+
+
+def people_checks(c, binary, models, env, gguf):
+    """social.*, call.*, xlate.*, devmesh.*, ui.* (zxvd_people.h H1-H9),
+    including a call between two zxvd processes relayed through call.signal
+    and the window's /api/rpc bridge."""
+    def err(method, params=None):
+        return c.call(method, params).get('error', {})
+
+    names = set(c.ok('rpc.discover')['methods'])
+    people = {'social.post', 'social.feed', 'social.groups', 'social.group_create', 'social.join',
+              'social.leave', 'social.react', 'social.export', 'social.import', 'call.start',
+              'call.accept', 'call.hangup', 'call.status', 'call.signal', 'xlate.detect',
+              'xlate.translate', 'xlate.languages', 'devmesh.status', 'devmesh.invite',
+              'devmesh.join', 'devmesh.confirm_sas', 'devmesh.revoke', 'devmesh.devices', 'ui.get',
+              'ui.set'}
+    check(people <= names, 'rpc.discover lists the %d people methods' % len(people))
+    # R3.1 simple mode: off by default, shown only
+    check(c.ok('ui.get') == {'simple_mode': False}, 'ui.get: simple mode is off by default')
+    check(c.ok('ui.set', {'simple_mode': True}) == {'simple_mode': True}, 'ui.set: on')
+    check(err('ui.set', {'simple_mode': 'yes'}).get('code') == -32602, 'ui.set: a string -32602')
+    check(err('ui.set').get('code') == -32602, 'ui.set: nothing to set -32602')
+    check(c.ok('ledger.check')['ok'] is True, 'simple mode changes no check: ledger.check still runs')
+    check(c.ok('ui.set', {'simple_mode': False}) == {'simple_mode': False}, 'ui.set: off again')
+    # the feed
+    check(err('social.post', {'text': ''}).get('code') == -32602, 'social.post: empty -32602')
+    check(err('social.post', {'text': 'x' * 1025}).get('code') == -32602, 'social.post: 1025 bytes')
+    pid = c.ok('social.post', {'text': 'First light over the #harbour'})['id']
+    check(len(pid) == 64, 'social.post: a signed post (%s)' % pid[:16])
+    check('id' in c.ok('social.react', {'post': pid, 'reaction': '+1'}), 'social.react')
+    check(err('social.react', {'post': '0' * 64, 'reaction': '+1'}).get('code') == -32030,
+          'social.react: an unknown post -32030')
+    f = c.ok('social.feed', {'limit': 5})
+    it = f['items'][0] if f['items'] else {}
+    check(it.get('id') == pid and it.get('mine') is True and
+          it.get('reactions') == [{'reaction': '+1', 'count': 1, 'mine': True}] and
+          it.get('surplus', 0) > 0, 'social.feed: the post with its reaction (%s)' % it)
+    check(err('social.feed', {'limit': 0}).get('code') == -32602, 'social.feed: limit 0 -32602')
+    g = c.ok('social.group_create', {'name': 'Harbour walkers'})
+    gs = c.ok('social.groups')['groups']
+    check(len(gs) == 1 and gs[0]['id'] == g['group'] and gs[0]['my_role'] == 'owner' and
+          gs[0]['members'] == 1, 'social.groups: the new group, owned (%s)' % gs)
+    check(err('social.join', {'group': g['group']}).get('code') == -32030,
+          'social.join: already a member -32030')
+    check(err('social.leave', {'group': g['group']}).get('code') == -32030,
+          'social.leave: the owner cannot leave')
+    ex = c.ok('social.export', {'id': pid})
+    check(ex['bytes'] > 5000 and len(ex['hex']) == 2 * ex['bytes'],
+          'social.export: the record with its key (%d bytes)' % ex['bytes'])
+    check(c.ok('social.import', {'hex': ex['hex']})['added'] is False,
+          'social.import of a held record: not added twice')
+    bad = ex['hex'][:200] + ('0' if ex['hex'][200] != '0' else '1') + ex['hex'][201:]
+    check(err('social.import', {'hex': bad}).get('code') == -32030,
+          'social.import: a changed byte does not verify')
+    # calls: loopback inside this zxvd
+    st = c.ok('call.status')
+    check('signalling only' in st['media'] and len(st['lines']) == 5,
+          'call.status: signalling only, media is the host\'s job (%s)' % st['media'])
+    r = c.ok('call.start', {'peer': 'loopback'})
+    check(r['state'] == 'ringing_out', 'call.start loopback rings (%s)' % r['state'])
+    check(c.ok('call.accept', {'line': 4})['state'] == 'connected', 'call.accept on the loopback line')
+    check(c.ok('call.status')['lines'][0]['state'] == 'connected', 'the caller is connected')
+    check(c.ok('call.hangup', {'line': 0})['end_reason'] == 'local_hangup', 'call.hangup')
+    check(err('call.accept', {'line': 9}).get('code') == -32602, 'call.accept: line 9 -32602')
+    check(err('call.hangup', {'line': 1}).get('code') == -32030, 'call.hangup: no call -32030')
+    check(err('call.start', {'peer': 0}).get('code') == -32602, 'call.start: peer 0 -32602')
+    check(err('call.signal', {'in': ['zz']}).get('code') == -32602, 'call.signal: bad hex -32602')
+    # translation and language id
+    d = c.ok('xlate.detect', {'text': 'Dies ist ein kurzer deutscher Satz über das Wetter.'})
+    check(d['language'] == 'de' and d['reliable'] is True, 'xlate.detect: German (%s)' % d)
+    check(c.ok('xlate.languages')['count'] > 20, 'xlate.languages')
+    t = c.call('xlate.translate', {'text': 'Good morning, my friends.', 'to': 'fr'})
+    if gguf:
+        check('result' in t or t.get('error', {}).get('code') in (-32030, -32031),
+              'xlate.translate with a model: a translation or a clear refusal (%s)' % t)
+    else:
+        check(t.get('error', {}).get('code') == -32031 and 'no model' in t['error']['message'],
+              'xlate.translate with no model: -32031, nothing invented (%s)' % t.get('error'))
+    same = c.ok('xlate.translate', {'text': 'Hello', 'from': 'en', 'to': 'en'})
+    check(same['translated'] is False and same['text'] == 'Hello', 'same language: the original')
+    check(err('xlate.translate', {'text': 'Hi', 'to': '!'}).get('code') == -32602,
+          'xlate.translate: a bad tag -32602')
+    # the device mesh
+    ds = c.ok('devmesh.status')
+    check(ds['joined'] is False and ds['role'] == 'home' and len(ds['self']) == 32,
+          'devmesh.status: not in a mesh yet')
+    inv = c.ok('devmesh.invite', {'role': 'thin'})
+    check(inv['created_mesh'] is True and len(inv['code']) == 11 and inv['code'][5] == '-' and
+          len(inv['qr']) > 40, 'devmesh.invite: QR payload and short code %s' % inv['code'])
+    dv = c.ok('devmesh.devices')['devices']
+    check(len(dv) == 1 and dv[0]['self'] is True and dv[0]['admin'] is True,
+          'devmesh.devices: this computer, admin')
+    check(err('devmesh.join', {'code': inv['code']}).get('code') == -32030,
+          'devmesh.join: a node already in a mesh cannot join another')
+    check(err('devmesh.join', {}).get('code') == -32602, 'devmesh.join: no code -32602')
+    check(err('devmesh.confirm_sas', {'device': '00' * 16, 'match': True}).get('code') == -32030,
+          'devmesh.confirm_sas: no pairing waiting')
+    check(err('devmesh.revoke', {'device': ds['self']}).get('code') == -32030,
+          'devmesh.revoke: not this device itself')
+    check(err('devmesh.revoke', {'device': 'xyz'}).get('code') == -32602, 'devmesh.revoke: bad id')
+
+    # a second zxvd: a call between two processes, relayed through call.signal
+    home2 = tempfile.mkdtemp(prefix='zxvd-test2-')
+    sock2 = os.path.join(home2, 'run', 'zxvd.sock')
+    env2 = dict(env, HOME=home2, XDG_DATA_HOME=os.path.join(home2, 'xdg'))
+    p2 = subprocess.Popen([binary, '--rpc', sock2, '--models-dir', models], stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL, text=True, env=env2)
+    try:
+        url = wait_line(p2, 'ZXV-URL: ')
+        check(wait_line(p2, 'ZXVD-RPC: ') == sock2, 'a second zxvd starts')
+        c2 = Client(sock2)
+        b_id = c2.ok('call.status')['self_id']
+        a_line = c.ok('call.start', {'peer': b_id})['line']
+
+        def relay(src, dst):
+            moved = 0
+            for _ in range(10):
+                out = src.ok('call.signal')['out']
+                back = dst.ok('call.signal', {'in': out})['out'] if out else []
+                if back:
+                    src.ok('call.signal', {'in': back})
+                moved += len(out) + len(back)
+                if not out and not back:
+                    break
+            return moved
+
+        relay(c, c2)
+        b_line = [x for x in c2.ok('call.status')['lines'] if x['state'] == 'incoming']
+        check(len(b_line) == 1 and b_line[0]['peer'] == c.ok('call.status')['self_id'],
+              'the second zxvd rings with a call from the first')
+        if b_line:
+            c2.ok('call.accept', {'line': b_line[0]['line']})
+            relay(c2, c)
+            relay(c, c2)
+            check(c.ok('call.status')['lines'][a_line]['state'] == 'connected' and
+                  c2.ok('call.status')['lines'][b_line[0]['line']]['state'] == 'connected',
+                  'two zxvd processes connected through relayed signalling')
+            c.ok('call.hangup', {'line': a_line})
+            relay(c, c2)
+            check(c2.ok('call.status')['lines'][b_line[0]['line']]['end_reason'] == 'remote_hangup',
+                  'the hangup reaches the other zxvd')
+        # the window's bridge: the token, a people method, a refused one
+        if url and '#token=' in url:
+            import http.client
+            import urllib.parse
+            u = urllib.parse.urlsplit(url)
+            tok = u.fragment.split('token=', 1)[1]
+
+            def post(body, token=tok):
+                h = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+                hdr = {'Content-Type': 'application/json'}
+                if token:
+                    hdr['X-ZXV-Token'] = token
+                h.request('POST', '/api/rpc', body=json.dumps(body), headers=hdr)
+                r = h.getresponse()
+                out = (r.status, r.read())
+                h.close()
+                return out
+
+            st, body = post({'jsonrpc': '2.0', 'id': 3, 'method': 'ui.get'})
+            check(st == 200 and json.loads(body)['result'] == {'simple_mode': False},
+                  '/api/rpc answers ui.get with the window token')
+            st, body = post({'jsonrpc': '2.0', 'id': 4, 'method': 'zxvd.shutdown'})
+            check(st == 403, '/api/rpc refuses methods outside its allow-list (%d)' % st)
+            st, body = post({'jsonrpc': '2.0', 'id': 5, 'method': 'ui.get'}, token=None)
+            check(st == 403, '/api/rpc refuses a request without the token (%d)' % st)
+        else:
+            check(False, 'zxvd prints its window URL with the token (%s)' % url)
+        c2.ok('zxvd.shutdown')
+        c2.close()
+        p2.wait(timeout=10)
+    finally:
+        if p2.poll() is None:
+            p2.kill()
+            p2.wait()
+        shutil.rmtree(home2, ignore_errors=True)
 
 
 def main(binary, gguf=None):
@@ -741,7 +1063,9 @@ def main(binary, gguf=None):
                 'ledger.holds', 'companion.dna', 'companion.generation', 'companion.mood',
                 'seats.list', 'seats.add', 'seats.remove', 'seats.set_lock',
                 'seats.unlock', 'seats.lock', 'seats.auto', 'seats.set_auto', 'power.status',
-                'power.top', 'power.budget'}
+                'power.top', 'power.budget', 'pspace.create', 'pspace.find', 'pspace.join',
+                'pspace.leave', 'pspace.post', 'pspace.events', 'pspace.members', 'pspace.list',
+                'hall.load', 'hall.play', 'hall.pause', 'hall.seek', 'hall.status'}
         if not WINDOWS:
             want |= {'aipi.put', 'aipi.get', 'aipi.publish', 'aipi.execute', 'aipi.status'}
         check(d['protocol'] == 'zxvd-rpc/1' and want <= set(d['methods']),
@@ -793,9 +1117,16 @@ def main(binary, gguf=None):
         else:
             aipi_checks(c, home)
             play_checks(c)
+        # ---- the people features (zxvd_people.h); not in the Windows build yet ----
+        if WINDOWS:
+            r = c.call('ui.get')
+            check(r.get('error', {}).get('code') == -32601, 'people methods: not on Windows yet')
+        else:
+            people_checks(c, binary, models, env, gguf)
         econ_checks(c)
         companion_checks(c)
         web4_checks(c)
+        space_checks(c)
         mi = c.ok('model.info')
         if gguf:
             check(mi['loaded'] and mi['arch'] == 'qwen2' and mi['n_vocab'] > 1000,
@@ -915,6 +1246,7 @@ def main(binary, gguf=None):
               [('swarm market', 'issuer'), ('owner: swarm earnings', 'holder')],
               'ledger.accounts')
         check(c.ok('ledger.check')['ok'] is True, 'ledger.check: the books balance')
+        check_modules(c, A)
 
         payment_checks(c, A)
 
@@ -1021,6 +1353,14 @@ def main(binary, gguf=None):
             if not WINDOWS:
                 check(stat.S_IMODE(os.stat(seats_file).st_mode) == 0o600,
                       'the seats file is 0600, beside the books')
+            if not WINDOWS:
+                c4.ok('ui.set', {'simple_mode': True})
+                kept_post = c4.ok('social.post', {'text': 'saved beside the books'})['id']
+                mesh = c4.ok('devmesh.invite')['mesh_id']
+                ppl = os.path.join(os.path.dirname(books), 'people.zxvp')
+                check(stat.S_IMODE(os.stat(ppl).st_mode) == 0o600 and
+                      stat.S_IMODE(os.stat(ppl + '.mesh').st_mode) == 0o600,
+                      'people.zxvp and its mesh snapshot sit beside the books, 0600')
             me4 = c4.ok('chat.me')
             kept = c4.ok('chat.post', {'text': 'kept across a restart'})
             check(me4['saved'] is True, 'chat.me: saved beside the books')
@@ -1029,6 +1369,13 @@ def main(binary, gguf=None):
                 check(stat.S_IMODE(os.stat(seed).st_mode) == 0o600, 'the chat key file is 0600')
             stop(p4, c4)
             p4, c4 = run_with_books()
+            if not WINDOWS:
+                check(c4.ok('ui.get') == {'simple_mode': True}, 'simple mode survives a restart')
+                check([x['id'] for x in c4.ok('social.feed')['items']] == [kept_post],
+                      'the post survives a restart')
+                ds = c4.ok('devmesh.status')
+                check(ds['joined'] is True and ds['mesh_id'] == mesh,
+                      'the device mesh survives a restart')
             got = c4.ok('ledger.entries', {'account': fb})['entries']
             check([(e['entry_id'], e['signed_minor'], e['reference']) for e in got] ==
                   [(fe, '4200', 'E2E-SAVED-1')], 'a restart brings the posting back (%s)' % got)

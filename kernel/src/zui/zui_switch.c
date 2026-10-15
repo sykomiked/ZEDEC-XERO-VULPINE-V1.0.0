@@ -240,11 +240,32 @@ static void layout_ui(zui_ui_t *ui)
     (void) zui_ui_event(ui, &e); /* lays out if needed; does nothing else */
 }
 
+/* SW1, SW2: the dock's seal, then (open) each ring a group of its slots. */
+static void collect_dock(zui_switch_t *sw)
+{
+    const zui_dock_t *d = &sw->wm->dock;
+    uint32_t a = sw->nt;
+    add(sw, ZUI_SW_T_DOCK, -1, zui_dock_keepout(d));
+    add_group(sw, a, sw->nt - a, false);
+    if (!zui_dock_is_open(d)) return;
+    zui_dock_slot_t s[ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS];
+    uint32_t n = zui_dock_slots(d, s, ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS);
+    int32_t h = d->icon / 2 + ZUI_DOCK_PAD;
+    for (uint32_t k = 0; k < ZUI_DOCK_RINGS; k++) {
+        a = sw->nt;
+        for (uint32_t i = 0; i < n; i++)
+            if (s[i].ring == k)
+                add(sw, ZUI_SW_T_DOCK, s[i].item,
+                    (zui_rect_t){s[i].cx - h, s[i].cy - h, 2 * h, 2 * h});
+        add_group(sw, a, sw->nt - a, false);
+    }
+}
+
 static void collect(zui_switch_t *sw)
 {
     sw->nt = 0;
     sw->ng = 0;
-    uint32_t keep = (sw->wm ? 2u : 0u) + (sw->cfg.point ? 1u : 0u);
+    uint32_t keep = (sw->wm ? 2u + ZUI_DOCK_RINGS : 0u) + (sw->cfg.point ? 1u : 0u);
     zui_ui_t *ui = sw->ui;
     if (ui && ui->root != ZUI_NONE) {
         layout_ui(ui);
@@ -279,9 +300,13 @@ static void collect(zui_switch_t *sw)
         }
         add_group(sw, a, sw->nt - a, false);
         a = sw->nt;
-        for (uint32_t i = 0; i < n; i++)
-            add(sw, ZUI_SW_T_STRIP, (int32_t) ids[i], zui_wm_strip_slot(sw->wm, i, n));
-        add_group(sw, a, sw->nt - a, false);
+        if (sw->wm->use_dock) {
+            collect_dock(sw);
+        } else {
+            for (uint32_t i = 0; i < n; i++)
+                add(sw, ZUI_SW_T_STRIP, (int32_t) ids[i], zui_wm_strip_slot(sw->wm, i, n));
+            add_group(sw, a, sw->nt - a, false);
+        }
     }
     if (sw->cfg.point && sw->area.w > 0 && sw->area.h > 0) add_group(sw, 0, 0, true);
 }
@@ -337,6 +362,13 @@ void zui_switch_start(zui_switch_t *sw)
             enter_items(sw);
         return;
     }
+    if (sw->wm && sw->wm->use_dock && zui_dock_is_open(&sw->wm->dock))
+        for (uint32_t i = 0; i < sw->ng; i++) /* SW2: the dock was opened: its rings */
+            if (sw->g[i].n && sw->t[sw->g[i].first].kind == ZUI_SW_T_DOCK &&
+                sw->t[sw->g[i].first].id >= 0) {
+                sw->group = i;
+                break;
+            }
     enter(sw, ZUI_SW_GROUP);
 }
 
@@ -702,6 +734,26 @@ static int32_t page(zui_rect_t r)
     return imax(40, r.h * 3 / 4);
 }
 
+/* SW8: a dock left open would eat a press meant for what is under it. */
+static void dock_shut(zui_switch_t *sw, const zui_sw_action_t *a)
+{
+    if (!sw->wm || !sw->wm->use_dock || !zui_dock_is_open(&sw->wm->dock)) return;
+    if (a->target.kind == ZUI_SW_T_POINT &&
+        zui_dock_hit(&sw->wm->dock, a->x, a->y, 0) != ZUI_DOCK_HIT_NONE)
+        return;
+    zui_dock_bloom(&sw->wm->dock, false, false);
+}
+
+/* SW8: turn the ring a dock item is on. */
+static bool dock_turn(zui_switch_t *sw, int32_t item, int32_t by)
+{
+    zui_dock_slot_t s[ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS];
+    uint32_t n = zui_dock_slots(&sw->wm->dock, s, ZUI_DOCK_RINGS * ZUI_DOCK_SLOTS);
+    for (uint32_t i = 0; i < n; i++)
+        if (s[i].item == item) return zui_dock_turn(&sw->wm->dock, s[i].ring, by);
+    return false;
+}
+
 bool zui_switch_apply(zui_switch_t *sw, const zui_sw_action_t *a)
 {
     if (!a || a->verb >= ZUI_SW_ACT_CANCEL) return false;
@@ -742,6 +794,7 @@ bool zui_switch_apply(zui_switch_t *sw, const zui_sw_action_t *a)
         if (!sw->wm || !zui_wm_get(sw->wm, (uint32_t) t->id)) return false;
         if (v == ZUI_SW_ACT_SCROLL_UP || v == ZUI_SW_ACT_SCROLL_DOWN)
             return scroll(sw, a->x, a->y, v == ZUI_SW_ACT_SCROLL_DOWN ? page(t->r) : -page(t->r));
+        dock_shut(sw, a);
         if (!zui_wm_focus(sw->wm, (uint32_t) t->id)) return false;
         if (v == ZUI_SW_ACT_BACK) return wm_key(sw, ZUI_KEY_BACK);
         return true;
@@ -750,7 +803,22 @@ bool zui_switch_apply(zui_switch_t *sw, const zui_sw_action_t *a)
         if (v == ZUI_SW_ACT_ACTIVATE) return click(sw, a->x, a->y, ZUI_BTN_LEFT);
         if (v == ZUI_SW_ACT_BACK) return wm_key(sw, ZUI_KEY_BACK);
         return false;
+    case ZUI_SW_T_DOCK: {
+        zui_wm_t *wm = sw->wm;
+        if (!wm || !wm->use_dock) return false;
+        if (v == ZUI_SW_ACT_BACK) return wm_key(sw, ZUI_KEY_BACK);
+        if (t->id < 0) {
+            if (v != ZUI_SW_ACT_ACTIVATE) return false;
+            zui_dock_bloom(&wm->dock, !zui_dock_is_open(&wm->dock), true);
+            return true;
+        }
+        if (v == ZUI_SW_ACT_SCROLL_UP || v == ZUI_SW_ACT_SCROLL_DOWN)
+            return dock_turn(sw, t->id, v == ZUI_SW_ACT_SCROLL_DOWN ? 1 : -1);
+        if (v != ZUI_SW_ACT_ACTIVATE) return false;
+        return zui_wm_dock_pick(wm, (uint32_t) t->id);
+    }
     case ZUI_SW_T_POINT:
+        dock_shut(sw, a);
         switch (v) {
         case ZUI_SW_ACT_ACTIVATE:
             return click(sw, a->x, a->y, ZUI_BTN_LEFT);
