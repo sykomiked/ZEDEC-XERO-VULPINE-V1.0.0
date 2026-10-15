@@ -2066,12 +2066,43 @@ test-mfg:
 	gcc $(RESEARCH_FLAGS) src/mfg/test_mfg.c src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c -o $(ZXV_TMP)/test_mfg -lm && $(ZXV_TMP)/test_mfg > $(ZXV_TMP)/test_mfg.log 2>&1 && echo "[PASS] test_mfg ($$(tail -1 $(ZXV_TMP)/test_mfg.log))" || { tail -40 $(ZXV_TMP)/test_mfg.log; echo "[FAIL] test_mfg"; exit 1; }
 	@$(call research_free,src/mfg/mfg_gcode.c src/mfg/mfg_qc.c src/mfg/mfg_budget.c,mfg_,mfg)
 
+# Quantum-gap products (classical, exact; no quantum speedup claims). Design notes:
+# docs/QUBO_WORKBENCH.md, docs/CIRCUIT_EQUIVALENCE.md, docs/EXACT_RISK.md, docs/GRIDLOCK_RESOLUTION.md.
+.PHONY: test-qubo
+test-qubo:
+	gcc $(RESEARCH_FLAGS) src/qubo/test_qubo.c src/qubo/qubo.c -o $(ZXV_TMP)/test_qubo -lm && $(ZXV_TMP)/test_qubo > $(ZXV_TMP)/test_qubo.log 2>&1 && echo "[PASS] test_qubo ($$(tail -1 $(ZXV_TMP)/test_qubo.log))" || { tail -40 $(ZXV_TMP)/test_qubo.log; echo "[FAIL] test_qubo"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/qubo/bench_qubo.c src/qubo/qubo.c -o $(ZXV_TMP)/bench_qubo && echo "[PASS] bench_qubo builds"
+	@$(call research_free,src/qubo/qubo.c,qubo_,qubo)
+
+.PHONY: test-qeq
+test-qeq:
+	gcc $(RESEARCH_FLAGS) src/qeq/test_qeq.c src/qeq/qeq.c src/qsim/qsim.c -o $(ZXV_TMP)/test_qeq -lm && $(ZXV_TMP)/test_qeq > $(ZXV_TMP)/test_qeq.log 2>&1 && echo "[PASS] test_qeq ($$(tail -1 $(ZXV_TMP)/test_qeq.log))" || { tail -40 $(ZXV_TMP)/test_qeq.log; echo "[FAIL] test_qeq"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/qeq/bench_qeq.c src/qeq/qeq.c src/qsim/qsim.c -o $(ZXV_TMP)/bench_qeq -lm && echo "[PASS] bench_qeq builds"
+	@$(call research_free,src/qeq/qeq.c,(qeq_|qs_),qeq)
+
+.PHONY: test-xrisk
+test-xrisk:
+	gcc $(RESEARCH_FLAGS) src/xrisk/test_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/test_xrisk -lm && $(ZXV_TMP)/test_xrisk > $(ZXV_TMP)/test_xrisk.log 2>&1 && echo "[PASS] test_xrisk ($$(tail -1 $(ZXV_TMP)/test_xrisk.log))" || { tail -40 $(ZXV_TMP)/test_xrisk.log; echo "[FAIL] test_xrisk"; exit 1; }
+	gcc $(RESEARCH_FLAGS) -DXRISK_SOFT_DIV src/xrisk/test_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/test_xrisk_sd -lm && $(ZXV_TMP)/test_xrisk_sd > $(ZXV_TMP)/test_xrisk_sd.log 2>&1 && echo "[PASS] test_xrisk soft-div ($$(tail -1 $(ZXV_TMP)/test_xrisk_sd.log))" || { tail -40 $(ZXV_TMP)/test_xrisk_sd.log; echo "[FAIL] test_xrisk soft-div"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/xrisk/bench_xrisk.c src/xrisk/xrisk.c -o $(ZXV_TMP)/bench_xrisk -lm && echo "[PASS] bench_xrisk builds"
+	@$(call research_free,src/xrisk/xrisk.c,xrisk_,xrisk)
+
+.PHONY: test-gridlock
+test-gridlock:
+	gcc $(RESEARCH_FLAGS) src/gridlock/test_gridlock.c src/gridlock/gridlock.c -o $(ZXV_TMP)/test_gridlock -lm && $(ZXV_TMP)/test_gridlock > $(ZXV_TMP)/test_gridlock.log 2>&1 && echo "[PASS] test_gridlock ($$(tail -1 $(ZXV_TMP)/test_gridlock.log))" || { tail -40 $(ZXV_TMP)/test_gridlock.log; echo "[FAIL] test_gridlock"; exit 1; }
+	gcc -std=c11 -O2 -Wall -Werror -Wextra -Iinclude src/gridlock/bench_gridlock.c src/gridlock/gridlock.c -o $(ZXV_TMP)/bench_gridlock && echo "[PASS] bench_gridlock builds"
+	@$(call research_free,src/gridlock/gridlock.c,gl_,gridlock)
+
 .PHONY: test-research
 test-research:
 	$(MAKE) --no-print-directory test-qsim
 	$(MAKE) --no-print-directory test-qnet
 	$(MAKE) --no-print-directory test-spatial
 	$(MAKE) --no-print-directory test-mfg
+	$(MAKE) --no-print-directory test-qubo
+	$(MAKE) --no-print-directory test-qeq
+	$(MAKE) --no-print-directory test-xrisk
+	$(MAKE) --no-print-directory test-gridlock
 # ==== end research tracks ====
 
 # Host tests that no target used to build (docs/AUDIT_REPORT.md): the holographic
