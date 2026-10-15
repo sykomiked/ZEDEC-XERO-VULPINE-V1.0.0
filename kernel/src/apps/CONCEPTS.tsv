@@ -29,7 +29,7 @@ bargaining_zone	pce_strat.zopa	zopa,bargaining_zone	whether a seller's minimum a
 # something different in each (an app's own total, count or rule). A
 # local word never stands for a shared concept; when two apps need the
 # same meaning, register it above and give it one owner.
-send_content	zxvd:fab.send	send,send_file,share_file,upload,transmit	Planned: send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h
-receive_content	zxvd:fab.receive	receive,receive_file,fetch_file,download,install,install_app,app_install	Planned: receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption)
-stream_content	zxvd:fab.stream.open	stream,stream_open,stream_frame,stream_checkpoint	Planned: a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint)
+send_content	zxvd:fab.send	send,send_file,share_file,upload,transmit	send content as a public fabrication recipe (signed list of block CIDs with SLICE and LIT operations, target its UnixFS CID); docs/spec/FABRICATION.md, kernel/src/fab/fab.h
+receive_content	zxvd:fab.receive	receive,receive_file,fetch_file,download,install,install_app,app_install	receive content by fabricating it from its public recipe, each block checked against its CID; installing an app is receiving its recipe (ML-DSA-87 signed; blocks are zxblocks and Alexandria booklets of 2 MiB or less; target the app's UnixFS CID; no encryption)
+stream_content	zxvd:fab.stream.open	stream,stream_open,stream_frame,stream_checkpoint	a stream as fabrication frames (fab.stream.open, fab.stream.frame, fab.stream.checkpoint)
 -	-	fee,total,count,score,left,peak,rate,week,sheets,removed,record_ok,entry_ok,item_ok,keep_ok,size_ok,place_ok,limit_ok,call_ok,copies_ok,fee_ok,cpu_x100,join,verdict,decide,leader,npv_sign	per-app words
