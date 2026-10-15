@@ -265,8 +265,42 @@ static const char *role_word(const zui_widget_t *w)
         return "image";
     case ZUI_W_SEPARATOR:
         return "separator";
+    case ZUI_W_TOGGLE:
+        return "switch";
+    case ZUI_W_CHECK:
+        return "check box";
+    case ZUI_W_RADIO:
+        return "radio button";
+    case ZUI_W_SLIDER:
+        return "slider";
+    case ZUI_W_TABS:
+        return "tab list";
+    case ZUI_W_TAB:
+        return "tab";
+    case ZUI_W_DIALOG:
+        return "dialog";
+    case ZUI_W_EMPTY:
+        return "";
     }
     return "";
+}
+
+/* zui_widget.h W8: a choice's value, for watching it change under focus. */
+static bool value_of(const zui_ui_t *ui, zui_id_t id, int32_t *v)
+{
+    const zui_widget_t *w = &ui->w[id];
+    switch (w->kind) {
+    case ZUI_W_TOGGLE:
+    case ZUI_W_CHECK:
+    case ZUI_W_RADIO:
+        *v = w->u.check.state;
+        return true;
+    case ZUI_W_SLIDER:
+        *v = w->u.range.value;
+        return true;
+    default:
+        return false;
+    }
 }
 
 /* Key symbols spoken as words: "⌘S" is "Command S". */
@@ -409,6 +443,27 @@ static void describe(const zui_reader_t *r, zui_id_t id, int32_t row, sb_t *b)
             }
             if (l->sel >= 0 && l->sel < l->rows) describe_row(r, id, l->sel, b);
         }
+    } else if (w->kind == ZUI_W_SLIDER) {
+        if (b->n) sb_s(b, ", ");
+        if (w->u.range.value < 0) sb_s(b, "minus ");
+        sb_u(b, (uint64_t) (w->u.range.value < 0 ? -(int64_t) w->u.range.value : w->u.range.value));
+        if (v >= ZUI_VERB_HIGH) {
+            sb_s(b, ", from ");
+            if (w->u.range.min < 0) sb_s(b, "minus ");
+            sb_u(b, (uint64_t) (w->u.range.min < 0 ? -(int64_t) w->u.range.min : w->u.range.min));
+            sb_s(b, " to ");
+            sb_u(b, (uint64_t) (w->u.range.max < 0 ? 0 : w->u.range.max));
+        }
+    } else if (w->kind == ZUI_W_TAB && w->parent != ZUI_NONE) {
+        int32_t i = zui_choice_index(r->ui, id), n = 0;
+        for (zui_id_t c = W(r, w->parent)->first; c != ZUI_NONE; c = W(r, c)->next) n++;
+        if (W(r, w->parent)->u.tabs.sel == i) part(b, "selected");
+        if (v >= ZUI_VERB_MEDIUM) part_pos(b, (uint64_t) i + 1u, (uint64_t) n);
+    } else if (w->kind == ZUI_W_RADIO && w->parent != ZUI_NONE && v >= ZUI_VERB_MEDIUM) {
+        int32_t i = zui_choice_index(r->ui, id), n = 0;
+        for (zui_id_t c = W(r, w->parent)->first; c != ZUI_NONE; c = W(r, c)->next)
+            n += W(r, c)->kind == ZUI_W_RADIO;
+        part_pos(b, (uint64_t) i + 1u, (uint64_t) n);
     } else if (w->kind == ZUI_W_PROGRESS) {
         if (w->u.bar.p == ZUI_BAR_UNKNOWN) {
             part(b, "busy");
@@ -423,6 +478,13 @@ static void describe(const zui_reader_t *r, zui_id_t id, int32_t row, sb_t *b)
     if (ck == ZUI_CHECK_ON) part(b, "checked");
     if (ck == ZUI_CHECK_OFF) part(b, "not checked");
     if (ck == ZUI_CHECK_MIXED) part(b, "partly checked");
+    if (w->kind == ZUI_W_TOGGLE) part(b, w->u.check.state ? "on" : "off");
+    if (w->kind == ZUI_W_CHECK && !ck)
+        part(b, w->u.check.state == 2 ? "partly checked"
+                : w->u.check.state    ? "checked"
+                                      : "not checked");
+    if (w->kind == ZUI_W_RADIO) part(b, w->u.check.state ? "selected" : "not selected");
+    if (w->tip[0] && v >= ZUI_VERB_MEDIUM) part(b, w->tip); /* W10: the description */
     if (v >= ZUI_VERB_HIGH) {
         if (w->shortcut[0]) {
             part(b, "shortcut ");
@@ -766,12 +828,15 @@ static void watch_focus(zui_reader_t *r)
     zui_ui_t *ui = r->ui;
     zui_id_t f = valid(r, ui->focus) ? ui->focus : ZUI_NONE;
     int32_t sel = f != ZUI_NONE && ui->w[f].kind == ZUI_W_LIST ? ui->w[f].u.list.sel : -1;
+    bool valued = f != ZUI_NONE && value_of(ui, f, &sel);
     if (f != r->focus) {
         if (f != ZUI_NONE) {
             say_focus(r, true, ZUI_SAY_INTERRUPT);
             r->cursor = f;
             r->cursor_row = -1;
         }
+    } else if (valued && sel != r->focus_sel) {
+        say_focus(r, false, ZUI_SAY_INTERRUPT); /* a value changed under focus */
     } else if (f != ZUI_NONE && sel != r->focus_sel && sel >= 0) {
         say_item(r, f, sel, ZUI_SAY_INTERRUPT);
         r->cursor = f;

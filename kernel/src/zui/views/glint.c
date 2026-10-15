@@ -23,8 +23,9 @@ static void stage(zui_ui_t *ui, zui_id_t w, zui_surface_t *s, zui_rect_t r, void
     glint_view_t *v = ctx;
     const glint_t *g = v->m;
     int32_t rad = zui_px(&ui->screen, ZUI_R_PANEL);
-    zui_fill_rrect(s, r, rad, ZUI_PANEL, 255);
-    zui_engrave(s, r, rad, ZUI_ENGRAVE_LO, ZUI_ENGRAVE_HI, 40);
+    zui_fill_rrect(s, r, rad, zui_ui_color(ui, ZUI_C_PANEL), 255);
+    zui_engrave(s, r, rad, zui_ui_color(ui, ZUI_C_ENGRAVE_LO), zui_ui_color(ui, ZUI_C_ENGRAVE_HI),
+                40);
     if (g->cur < 0) return;
     if (v->loaded && v->decode) {
         int32_t m = zui_px(&ui->screen, ZUI_S3);
@@ -36,18 +37,18 @@ static void stage(zui_ui_t *ui, zui_id_t w, zui_surface_t *s, zui_rect_t r, void
     uint8_t k = g->item[g->cur].kind;
     if (k == BURROW_K_IMAGE) {
         zui_rect_t c = {cx - d / 2, cy - d / 2, d, d};
-        zui_stroke_rrect(s, c, d / 2, zui_px(&ui->screen, 2), ZUI_GOLD, 255);
+        zui_stroke_rrect(s, c, d / 2, zui_px(&ui->screen, 2), zui_ui_color(ui, ZUI_C_GOLD), 255);
     } else {
         for (int i = 0; i < 3; i++) {
             int32_t h = d * (2 + (i == 1)) / 4;
             zui_rect_t b = {cx - d / 2 + i * d / 3, cy - h / 2, d / 5, h};
-            zui_fill_rrect(s, b, d / 10, ZUI_GOLD, 255);
+            zui_fill_rrect(s, b, d / 10, zui_ui_color(ui, ZUI_C_GOLD), 255);
         }
     }
     const zui_text_t *t = &ui->theme.label;
     const char *mime = glint_mime(g->item[g->cur].name);
     int32_t tw = zui_text_width(t, mime);
-    zui_text(s, t, cx - tw / 2, cy + d, ZUI_MUTED, mime);
+    zui_text(s, t, cx - tw / 2, cy + d, zui_ui_color(ui, ZUI_C_MUTED), mime);
 }
 
 void glint_view_build(glint_view_t *v, zui_ui_t *ui, glint_t *m, uint8_t *buf, uint32_t cap)
@@ -66,7 +67,7 @@ void glint_view_build(glint_view_t *v, zui_ui_t *ui, glint_t *m, uint8_t *buf, u
     zui_set_name(ui, v->items, "Media");
     zui_set_text(ui, v->items, "No pictures, sounds or videos here");
     zui_set_size(ui, v->items, ZUI_SIZE_FIXED, 280);
-    zui_id_t col = zui_box(ui, s->body, ZUI_COL);
+    zui_id_t col = v->pane = zui_box(ui, s->body, ZUI_COL);
     zui_set_size(ui, col, ZUI_SIZE_FLEX, 1);
     zui_set_pad(ui, col, 0, ZUI_S2);
     v->stage = zui_canvas(ui, col, stage, v);
@@ -78,6 +79,8 @@ void glint_view_build(glint_view_t *v, zui_ui_t *ui, glint_t *m, uint8_t *buf, u
     v->prev = zui_button(ui, bar, "Previous", ZUI_BTN_SECONDARY);
     v->load = zui_button(ui, bar, "Show", ZUI_BTN_PRIMARY);
     v->next = zui_button(ui, bar, "Next", ZUI_BTN_SECONDARY);
+    v->none = zui_empty(ui, s->body, ZUI_ICON_PICTURE, "No pictures, sounds or videos here", 0);
+    zui_set_size(ui, v->none, ZUI_SIZE_FLEX, 1);
     glint_view_sync(v);
 }
 
@@ -87,6 +90,9 @@ void glint_view_sync(glint_view_t *v)
     glint_t *g = v->m;
     zui_list_set_rows(ui, v->items, (int32_t) g->n);
     zui_list_select(ui, v->items, g->cur);
+    zui_set_hidden(ui, v->items, g->n == 0); /* W12 */
+    zui_set_hidden(ui, v->pane, g->n == 0);
+    zui_set_hidden(ui, v->none, g->n != 0);
     bool have = g->cur >= 0 && (uint32_t) g->cur < g->n;
     char cap[ZUI_LABEL_MAX] = "";
     if (have) {

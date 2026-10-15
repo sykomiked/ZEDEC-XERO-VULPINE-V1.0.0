@@ -635,6 +635,63 @@ static void picture(void)
     fclose(f);
 }
 
+/* WM10: the chrome at 2x is the chrome at 1x, doubled */
+static void test_scale(void)
+{
+    zui_wm_init(&WM, W, H, false);
+    CHECK(WM.scale_q8 == 256u && zui_wm_px(&WM, 32) == 32, "WM10: 1x by default");
+    zui_wm_use_dock(&WM, false);
+    uint32_t id = zui_wm_open(&WM, "a", "A", 0, &CL1);
+    open_fully(id);
+    zui_wm_window_t *w = zui_wm_get(&WM, id);
+    zui_rect_t r = {100, 100, 800, 500};
+    zui_wm_move(&WM, id, r);
+    zui_rect_t c1 = zui_wm_content(&WM, w), s1 = zui_wm_strip_rect(&WM);
+    int32_t seal1 = WM.dock.seal, icon1 = WM.dock.icon;
+    CHECK(c1.y - w->r.y == ZUI_WM_TITLE && c1.x - w->r.x == 1 && s1.h == ZUI_WM_STRIP,
+          "1x: title %d, border %d, strip %d", c1.y - w->r.y, c1.x - w->r.x, s1.h);
+    uint32_t hid;
+    CHECK(zui_wm_hit(&WM, r.x + 200, r.y + 40, &hid, 0) == 0, "1x: 40 px down is content");
+    CHECK(zui_wm_hit(&WM, r.x + r.w - 40, r.y + 10, &hid, 0) == 3, "1x: maximise 40 px in");
+    zui_wm_draw(&WM, &S, 0);
+    CHECK(at(r.x + 200, r.y + ZUI_WM_TITLE - 1) == ZUI_HAIRLINE &&
+              at(r.x + 200, r.y + ZUI_WM_TITLE - 2) == ZUI_PANEL,
+          "1x: a 1 px hairline under the title");
+
+    zui_wm_set_scale(&WM, 512);
+    CHECK(WM.scale_q8 == 512u && zui_wm_px(&WM, 32) == 64, "WM10: 2x");
+    zui_wm_move(&WM, id, r);
+    zui_rect_t c2 = zui_wm_content(&WM, w), s2 = zui_wm_strip_rect(&WM);
+    CHECK(c2.y - w->r.y == 2 * ZUI_WM_TITLE, "2x: title bar doubles (%d)", c2.y - w->r.y);
+    CHECK(c2.x - w->r.x == 2 && w->r.x + w->r.w - (c2.x + c2.w) == 2 &&
+              w->r.y + w->r.h - (c2.y + c2.h) == 2,
+          "2x: the border doubles");
+    CHECK(s2.h == 2 * ZUI_WM_STRIP && s2.y == H - 2 * ZUI_WM_STRIP, "2x: the strip doubles (%d)",
+          s2.h);
+    CHECK(zui_wm_strip_slot(&WM, 0, 1).y - s2.y == 2 * ZUI_S1, "2x: strip slot inset doubles");
+    CHECK(WM.dock.seal == 2 * seal1 && WM.dock.icon == 2 * icon1, "2x: the dock's seal and icons");
+    CHECK(zui_wm_hit(&WM, r.x + 200, r.y + 40, &hid, 0) == 1, "2x: 40 px down is title now");
+    CHECK(zui_wm_hit(&WM, r.x + r.w - 40, r.y + 10, &hid, 0) == 4 &&
+              zui_wm_hit(&WM, r.x + r.w - 80, r.y + 10, &hid, 0) == 3 &&
+              zui_wm_hit(&WM, r.x + r.w - 150, r.y + 10, &hid, 0) == 2,
+          "2x: the controls double (close, maximise, minimise)");
+    CHECK(zui_wm_hit(&WM, r.x - 10, r.y + 200, &hid, 0) == 5, "2x: the grip doubles");
+    zui_wm_draw(&WM, &S, 0);
+    CHECK(at(r.x + 200, r.y + 2 * ZUI_WM_TITLE - 1) == ZUI_HAIRLINE &&
+              at(r.x + 200, r.y + 2 * ZUI_WM_TITLE - 2) == ZUI_HAIRLINE &&
+              at(r.x + 200, r.y + 2 * ZUI_WM_TITLE - 3) == ZUI_PANEL,
+          "2x: the hairline doubles");
+    CHECK(at(c2.x + c2.w / 2, c2.y + c2.h / 2) == C1, "2x: the app in its content");
+    zui_wm_move(&WM, id, (zui_rect_t){100, 100, 10, 10});
+    CHECK(w->r.w == 2 * ZUI_WM_MIN_W && w->r.h == 2 * ZUI_WM_MIN_H, "2x: the minimum doubles");
+    zui_wm_set_scale(&WM, 256);
+    CHECK(zui_wm_strip_rect(&WM).h == ZUI_WM_STRIP && WM.dock.seal == seal1 &&
+              WM.dock.icon == icon1,
+          "back to 1x");
+    zui_wm_set_scale(&WM, 5);
+    CHECK(WM.scale_q8 == 128u, "the scale is clamped");
+}
+
 int main(void)
 {
     zui_surface_init(&S, PX, W, H, W);
@@ -643,6 +700,7 @@ int main(void)
     test_limits();
     test_phone();
     test_dock();
+    test_scale();
     picture();
     printf("%s test_zui_wm: %d/%d checks\n", fails ? "[FAIL]" : "[PASS]", checks - fails, checks);
     return fails ? 1 : 0;

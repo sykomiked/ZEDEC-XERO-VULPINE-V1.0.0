@@ -23,9 +23,14 @@
  *      every ground meets AA (4.5:1) in every set; in high contrast every text
  *      colour meets AAA (7:1). Faint (disabled and placeholder text, which the
  *      guidelines exempt) meets 3:1. The tests check each pair.
- *   C6 NOTHING CHANGES YET. zui_widget.c still paints with zui_tokens.h;
- *      this file only provides the sets and the lookup so the renderer can
- *      switch later.
+ *   C6 THE RENDERER READS THE SET. zui_widget, zui_wm, zui_dock, zui_lock,
+ *      zui_notice, zui_osk and the app views each hold a `colors` pointer to
+ *      a zui_colors_t (zui_scheme_colors(scheme), or zui_ws_colors with the
+ *      person's accent) and paint every colour by role through zui_color.
+ *      NULL is the dark set, straight from zui_tokens.h, so a module that
+ *      paints does not have to link this file, and a NULL pointer draws the
+ *      same pixels as ZUI_SCHEME_DARK (C2). The pointer is borrowed: the
+ *      set must outlive the module (the zui_scheme_colors sets are static).
  *
  * Values are XRGB8888. Integer only, no allocation, no libc.
  */
@@ -34,6 +39,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "zui_tokens.h"
 
 /* C1: the roles, in zui_tokens.h order. */
 typedef enum {
@@ -67,6 +73,30 @@ typedef enum {
 typedef struct {
     uint32_t c[ZUI_C_COUNT]; /* indexed by zui_color_role_t */
 } zui_colors_t;
+
+/* C6: one colour of a set by role; set NULL is the dark set (zui_tokens.h),
+ * and an unknown role gives the set's text colour. Header only, so painting
+ * modules need no link to zui_palette.c. */
+static inline uint32_t zui_color(const zui_colors_t *set, zui_color_role_t role)
+{
+    static const uint32_t dark[ZUI_C_COUNT] = {
+        ZUI_VOID,       ZUI_PANEL,     ZUI_RAISED, ZUI_HAIRLINE, ZUI_EDGE,  ZUI_ENGRAVE_HI,
+        ZUI_ENGRAVE_LO, ZUI_TEXT,      ZUI_TEXT_2, ZUI_MUTED,    ZUI_FAINT, ZUI_GOLD,
+        ZUI_GOLD_HI,    ZUI_GOLD_GLOW, ZUI_OK,     ZUI_INFO,     ZUI_ALERT};
+    if ((uint32_t) role >= (uint32_t) ZUI_C_COUNT) role = ZUI_C_TEXT;
+    return set ? set->c[role] : dark[role];
+}
+
+/* C6: a colour stored as a zui_tokens.h value (a label's colour, a list
+ * row's lead mark) names that role: in `set` it is that role's colour.
+ * Any other colour, and every colour with set NULL, is returned as is. */
+static inline uint32_t zui_color_remap(const zui_colors_t *set, uint32_t rgb)
+{
+    if (!set) return rgb;
+    for (uint32_t r = 0; r < (uint32_t) ZUI_C_COUNT; r++)
+        if (zui_color(0, (zui_color_role_t) r) == rgb) return set->c[r];
+    return rgb;
+}
 
 /* The set for a scheme; an unknown scheme gives the dark set. */
 const zui_colors_t *zui_scheme_colors(zui_scheme_t scheme);

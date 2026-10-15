@@ -1,0 +1,54 @@
+// Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+// SPDX-License-Identifier: Apache-2.0
+//
+// zxva_vk.comp — the analyser's heavy stage as a Vulkan compute kernel
+// (zxva_vk.c): one workgroup of 256 invocations per analysis frame.
+//
+// The arithmetic is not ported by hand: gen_zxva_vk_spv.sh strips the
+// ZXVA_K_SRC( ... ) wrapper lines off zxva_stft_math.h (the integer steps)
+// and zxva_stft_kern.h (the kernel body), writes them as .glsl files and
+// compiles this file with them included, so the GPU runs the same source the
+// C reference (zxva_analyse.c) and the CUDA backend (zxva_cuda.c) run.
+// Needs shaderInt64 (64-bit integers in shaders).
+#version 450
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_GOOGLE_include_directive : require
+
+#define zl int64_t
+#define zw uint64_t
+#define zi int
+#define zu uint
+#define ZKC(t, v) t(v)
+#define ZK_FN
+
+layout(local_size_x = 256) in;
+
+layout(std430, set = 0, binding = 0) readonly buffer BX { int x[]; };
+layout(std430, set = 0, binding = 1) readonly buffer BW { int win[]; };
+layout(std430, set = 0, binding = 2) readonly buffer BT { int tw[]; };
+layout(std430, set = 0, binding = 3) buffer BS { int scr[]; };
+layout(std430, set = 0, binding = 4) writeonly buffer BR { int re[]; };
+layout(std430, set = 0, binding = 5) writeonly buffer BI { int im[]; };
+layout(std430, set = 0, binding = 6) buffer BM { uint mag[]; };
+layout(std430, set = 0, binding = 7) writeonly buffer BK { uint mask[]; };
+layout(std430, set = 0, binding = 8) writeonly buffer BP { uint top[]; };
+
+layout(push_constant) uniform PC
+{
+    uint n, N, L, num, den, c0lo, c0hi, lenlo, lenhi, k0lo, k0hi, floor_mag, rel, nf;
+} p;
+
+shared uint s_top;
+
+#define ZK_TID gl_LocalInvocationID.x
+#define ZK_GID gl_WorkGroupID.x
+#define ZK_NT gl_WorkGroupSize.x
+#define ZK_BARRIER() memoryBarrierBuffer(); memoryBarrierShared(); barrier()
+#define ZK_ATOMIC_MAX(v) atomicMax(s_top, (v))
+
+#include "zxva_stft_math.glsl"
+
+void main()
+{
+#include "zxva_stft_kern.glsl"
+}

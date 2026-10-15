@@ -45,6 +45,7 @@
 
 #include <stdint.h>
 #include "zui_canvas.h"
+#include "zui_palette.h"
 
 /* How a lit thing rises (the foil sheen, a depth plane stamp, ...). The
  * renderer supplies it, so this module links with nothing but the canvas:
@@ -63,6 +64,9 @@ typedef enum { ZUI_BAR_GATHER = 0, ZUI_BAR_RELEASE } zui_bar_mode_t;
  * written to *head_l / *head_r when not NULL (equal to the centre when full). */
 void zui_bar_draw(zui_surface_t *s, zui_rect_t track, zui_bar_mode_t mode, uint32_t p,
                   uint32_t tick, int32_t *head_l, int32_t *head_r);
+/* The same in a colour set (zui_palette.h C6; NULL: the tokens, as above). */
+void zui_bar_draw_in(zui_surface_t *s, zui_rect_t track, zui_bar_mode_t mode, uint32_t p,
+                     uint32_t tick, int32_t *head_l, int32_t *head_r, const zui_colors_t *set);
 
 /* How lit (0..256) an item centred at item_cx is on a gathering bar whose heads
  * are at head_l / head_r, with the bar centre at mid. Items left of centre light

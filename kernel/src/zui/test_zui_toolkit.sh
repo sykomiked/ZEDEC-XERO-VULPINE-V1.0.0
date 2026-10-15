@@ -58,6 +58,24 @@ run test_zui_kinetic "" $Z/test_zui_kinetic.c $Z/zui_kinetic.c $Z/zui_motion.c
 run test_zui_vec "-DZUI_VEC_MAX_W=100" $Z/test_zui_vec.c $Z/zui_vec.c $Z/zui_progress.c $DRAW
 run test_zui_brand "" $Z/test_zui_brand.c $Z/zui_brand.c $Z/zui_vec.c $Z/zui_progress.c $Z/zui_layout.c $DRAW
 run test_zui_rosetta "" $Z/test_zui_rosetta.c $Z/zui_rosetta.c $Z/zui_locale.c $Z/zui_bidi.c $Z/zui_reader.c $UI
+# the whole kit under each colour scheme, and the widgets of W8..W14
+run test_zui_kit "" $Z/test_zui_kit.c $Z/zui_caret.c $Z/zui_bidi.c $Z/zui_palette.c $Z/zui_wm.c $Z/zui_dock.c $Z/zui_motion.c $Z/zui_lock.c $Z/zui_notice.c $Z/zui_osk.c $Z/zui_keymap.c $UI
+# media: raster pictures (PNG JPEG GIF BMP PNM QOI TGA), inflate, video frames (Y4M AVI MP4 GIF)
+MED="src/media/zx_image.c src/media/zui_png.c src/media/zui_jpeg.c src/media/zx_inflate.c $Z/zui_capture.c $Z/zui_wm.c $Z/zui_dock.c $Z/zui_motion.c $Z/zui_layout.c $Z/zui_canvas.c $Z/zui_progress.c src/font/truetype.c"
+run test_zx_image "-Isrc/media" src/media/test_zx_image.c $MED
+run test_zui_video "-Isrc/media" src/media/test_zui_video.c src/media/zui_video.c $MED
+# vtrace: any picture or film to vector (ZXVG / ZXVM)
+run test_zui_vtrace "-Isrc/media -Isrc/vtrace -Isrc/robin_debanks -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus" src/vtrace/test_zui_vtrace.c src/vtrace/zui_vtrace.c src/vtrace/zui_vtrace_video.c src/robin_debanks/sha256.c $Z/zui_vec.c $Z/zui_depth.c $Z/zui_logic.c src/emu/holo.c src/lpres/lpres_hex.c src/lpres/lpres.c src/media/zui_video.c $MED
+# vaudio: ZXVA vector audio
+run test_zxva "-Isrc/vaudio" src/vaudio/test_zxva.c src/vaudio/zxva.c
+# media: WAV / AIFF / FLAC to PCM (MP3, AAC, Opus, Vorbis refused with a reason)
+run test_zui_audio "-Isrc/media" src/media/test_zui_audio.c src/media/zui_audio.c
+# vaudio: the analyser (PCM to ZXVA, CPU reference) and its GPU backends (no GPU here: SKIP / CPU fallback)
+run test_zxva_analyse "-Isrc/vaudio -Isrc/media -Isrc/modbind" src/vaudio/test_zxva_analyse.c src/vaudio/zxva_analyse.c src/vaudio/zxva.c src/media/zui_audio.c src/robin_debanks/sha256.c
+run test_zxva_cuda "-Isrc/vaudio -Isrc/modbind" src/vaudio/test_zxva_cuda.c src/vaudio/zxva_cuda.c src/vaudio/zxva_analyse.c src/vaudio/zxva.c src/robin_debanks/sha256.c -ldl
+run test_zxva_vk "-Isrc/vaudio -Isrc/modbind" src/vaudio/test_zxva_vk.c src/vaudio/zxva_vk.c src/vaudio/zxva_analyse.c src/vaudio/zxva.c src/robin_debanks/sha256.c -ldl
+# vshape: ZXVS data shape descriptors (series, structure, bytes, media by CID)
+run test_zxvs "-Isrc/vshape -Isrc/modbind" src/vshape/test_zxvs.c src/vshape/zxvs.c src/vshape/zxvs_draw.c $Z/zui_vec.c $Z/zui_canvas.c src/font/truetype.c src/robin_debanks/sha256.c
 sh $Z/views/test_display_view.sh >"$O/display.out" 2>&1 || { cat "$O/display.out"; echo "[FAIL] test_display_view"; exit 1; }
 tail -1 "$O/display.out"
 # Studio's Swift theme is generated from zui_tokens.h; it must not drift.
