@@ -557,7 +557,7 @@ static void t_swarm(cli_t *alice, cli_t *bob)
     }
     NODE_ON = false;
     js = rpc("irc.record", "{\"msgid\":\"00000000000000000000000000000000\"}");
-    CHECK(has(js, "\"code\":-32095"), "an unknown record: %.200s", js);
+    CHECK(has(js, "\"code\":-32096"), "an unknown record: %.200s", js);
     js = rpc("irc.record", "{}");
     CHECK(has(js, "\"code\":-32602"), "irc.record needs msgid: %.200s", js);
 }
@@ -569,7 +569,7 @@ static void t_bridge(cli_t *alice, cli_t *bob, uint16_t port, const char *pass)
              "{\"on\":true,\"host\":\"localhost\",\"port\":%u,\"remote\":\"#far\","
              "\"local\":\"#swarm\",\"nick\":\"brg\"}",
              (unsigned) port);
-    CHECK(has(js, "\"code\":-32095") && has(js, "#swarm cannot be bridged"), "#swarm: %.200s", js);
+    CHECK(has(js, "\"code\":-32096") && has(js, "#swarm cannot be bridged"), "#swarm: %.200s", js);
     js = rpc("irc.bridge", "{\"on\":true,\"host\":\"localhost\",\"remote\":\"far\","
                            "\"local\":\"#near\",\"nick\":\"brg\"}");
     CHECK(has(js, "remote must be a channel name"), "remote: %.200s", js);

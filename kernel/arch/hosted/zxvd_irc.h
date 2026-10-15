@@ -68,7 +68,7 @@
  *   irc.record  {msgid} always -> {msgid, target, nick, truth, ms, text,
  *               signer_id, public_key, signature, record} (hex where binary)
  *   irc.bridge  G8, behind the switch -> the bridge object of irc.status
- *   Errors: ZXVD_E_IRC (-32095) with the reason; bad parameters -32602.
+ *   Errors: ZXVD_E_IRC (-32096) with the reason; bad parameters -32602.
  *
  * Not on Windows yet: the group is listed and irc.status answers, the switch
  * opens nothing.
@@ -82,7 +82,7 @@
 
 #include "zxvd_ext.h"
 
-#define ZXVD_E_IRC         (-32095) /* zxvd_rpc.h X4: inside -32099..-32001 */
+#define ZXVD_E_IRC         (-32096) /* zxvd_rpc.h X4: inside -32099..-32001 */
 #define ZXVD_IRC_PORT      6697
 #define ZXVD_IRC_HS_MS     10000u
 #define ZXVD_IRC_RECORDS   256u

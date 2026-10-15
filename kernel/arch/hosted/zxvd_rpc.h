@@ -298,7 +298,8 @@ void zxvd_rpc_set_aipi_ops(const zxvd_aipi_ops_t *ops);
  *        -32050 vault, swap, auctions, Zenny, stats (zxvd_econ.c)
  *        -32060 bonds, derivatives, grants, estates (zxvd_sandbox.h)
  *        -32070 companion   -32080 seats   -32090 Web4 feed
- *        -32095 power (zxvd_power.h)
+ *        -32095 power (zxvd_power.h)   -32096 IRC gateway (zxvd_irc.h)
+ *        -32032 public spaces and the watch hall (zxvd_pspace.h)
  *   X5 zxvd_libzxv_ok turns a libzxv status into error -32000 exactly as
  *      the book methods report it (M2: data status, name, class).
  *   X6 zxvd_books_cap / zxvd_books_ctx are the books' root capability and

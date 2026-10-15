@@ -53,8 +53,14 @@ void zxvd_seats_set_kdf(uint32_t m_kib, uint32_t t);
 /* power.* (zxvd_power.c, kernel/src/power): feature "power", power.status
  * and power.top always on, power.budget behind the switch (zxvd_power.h) */
 const zxvd_group_t *zxvd_power_group(void);
+<<<<<<< HEAD
 /* irc.* (zxvd_irc.c, zxvd_irc.h): feature "irc", the IRC gateway on
  * 127.0.0.1 over TLS; irc.status and irc.record always on */
 const zxvd_group_t *zxvd_irc_group(void);
+=======
+/* pspace.* and hall.* (zxvd_pspace.c, kernel/src/vinea/vna_space): feature
+ * "pspace", bound to the net host by zxvd_pspace_bind (zxvd_pspace.h) */
+const zxvd_group_t *zxvd_pspace_group(void);
+>>>>>>> origin/claude/project-thread-88pyx8
 
 #endif
