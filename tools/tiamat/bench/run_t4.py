@@ -21,6 +21,7 @@ import hashlib
 import json
 import pathlib
 import platform
+import re
 import resource
 import subprocess
 import sys
@@ -85,6 +86,9 @@ def main():
         (out / f"ask_{k}.stderr.txt").write_text(err)
         if rc != 0:
             raise SystemExit(f"--ask failed: {err[-400:]}")
+        # zxv_tiamat.c: the lead's own failure, not a witness that could not check
+        if re.match(r"\[Tiamat\] \S+ could not answer:", (out / f"ask_{k}.txt").read_text()):
+            raise SystemExit(f"--ask ({k}) gave no answer: {(out / f'ask_{k}.txt').read_text()[:300]}")
         first.append(round(secs, 1))
     b1, b2 = batch(a, out, "batch_1"), batch(a, out, "batch_2")
     same = b1["hashes"] == b2["hashes"]
