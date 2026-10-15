@@ -9,7 +9,7 @@ sound as the system loads, and it keeps pace with that load.
 
 | file | what it is |
 |---|---|
-| `index.html` | the page: a canvas on #002911 and a line for saying why, if the boot stops |
+| `boot.html` | the page: a canvas on #002911 and a line for saying why, if the boot stops; the root's `index.html` is the doorway in `web/intro/`, which links here |
 | `boot.js` | streams the sealed files, feeds the real byte count to the boot screen, puts frames on the canvas and sound on the speakers |
 | `zxv_boot.wasm` | `zui_boot` plus the vector renderer, the launch screen, the boot sounds and `zui_login`, which the vault doors open onto (`tools/web/build_boot_wasm.sh`; `--check` proves it matches its source) |
 | `zxv_boot_wasm.c` | the wasm's exports |
@@ -27,7 +27,8 @@ commit, which gives the boot screen a new CID.
 ## What a sealed root needs
 
 ```
-index.html  boot.js  zxv_boot.wasm          (from web/boot/)
+index.html                                 (the doorway, from web/intro/)
+boot.html  boot.js  zxv_boot.wasm          (from web/boot/)
 brand/36n9-gold.zxvg  brand/acoto-gold.zxvg  brand/ascw-gold.zxvg  brand/smic-gold.zxvg  brand/cis-gold.zxvg
 boot.json                                    (tools/web/make_boot_manifest.py ROOT [--next PAGE] FILE...)
 ...the system's own files, listed in boot.json

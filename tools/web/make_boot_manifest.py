@@ -6,7 +6,7 @@ boot (web/boot/) streams and checks exactly the files that make up the system.
 
     make_boot_manifest.py ROOT [--next PAGE] [SYSTEM_FILE ...]
 
-ROOT holds index.html, boot.js and zxv_boot.wasm (from web/boot/) and the five
+ROOT holds boot.html, boot.js and zxv_boot.wasm (from web/boot/) and the five
 gold logos as ZXVG at brand/{36n9,acoto,ascw,smic,cis}-gold.zxvg (made from the
 brand vectors with tools/zxvg/svg2zxvg.py). SYSTEM_FILE paths are relative to
 ROOT: everything the system loads before it is ready, in the order it loads.

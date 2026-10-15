@@ -198,8 +198,8 @@ whether or not the ones before it are present:
 
 Folders 04 to 09 follow the same rule: every file named by its CID, each
 root listed in the installer file. They come in as trees (`--tree`), and so
-do the browser boot (`index.html`, `boot.js`, `zxv_boot.wasm`, `brand/`,
-`boot.json`), `GREETING.txt`, `MANIFEST.tsv`, the scripted installers
+do the browser boot (the doorway `index.html`, `boot.html`, `boot.js`,
+`zxv_boot.wasm`, `brand/`, `boot.json`), `GREETING.txt`, `MANIFEST.tsv`, the scripted installers
 (`install.sh`, `install.ps1`) and `10_vm` (the Disc 1 launchers for a VM),
 each linked at the root by its name and listed as a tree line.
 
