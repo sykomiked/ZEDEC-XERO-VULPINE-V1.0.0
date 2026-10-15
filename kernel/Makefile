@@ -1236,6 +1236,11 @@ verify-all: test
 		src/robin_debanks/sha256.c \
 		-o /tmp/test_zui && \
 		/tmp/test_zui && echo "[PASS] test_zui" || { echo "[FAIL] test_zui"; exit 1; }; \
+	echo "=== zui: the chiglet swimming over the screen (click-through layer, SW1-SW9) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/emu -Isrc/lpres -Isrc/event_space -Isrc/modbind -Isrc/surplus -Isrc/swarm \
+		src/zui/test_zui_swim.c src/zui/zui_swim.c src/zui/zui_chiglet.c src/zui/zui_motion.c src/zui/zui_depth.c src/zui/zui_canvas.c src/zui/zui_layout.c src/zui/zui_progress.c src/font/truetype.c src/emu/holo.c \
+		-o /tmp/test_zui_swim && \
+		/tmp/test_zui_swim && echo "[PASS] test_zui_swim" || { echo "[FAIL] test_zui_swim"; exit 1; }; \
 	echo "=== zui: widgets, input, menus, Ask palette, framebuffer present ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
 		src/zui/test_zui_widget.c src/zui/zui_widget.c src/zui/zui_input.c src/zui/zui_present_fb.c \
