@@ -8,7 +8,7 @@ static const char text_doc_en[] =
     "ZXV End-User Agreement\n"
     "\n"
     "Version 1.0, 15 October 2026\n"
-    "Licensor: Scenic Bypass Consulting LLC, Arizona, United States\n"
+    "Licensor: SCENIC BYPASS CONSULTING, LLC, Arizona, United States\n"
     "Creator: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States\n"
     "deal@zedec.ai\n"
     "\n"
@@ -28,7 +28,7 @@ static const char text_doc_en[] =
     "\n"
     "1. WHO WE ARE AND WHAT THIS COVERS\n"
     "\n"
-    "1.1 \"We\", \"us\" and \"our\" mean Scenic Bypass Consulting LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. \"You\" means the person agreeing on this screen.\n"
+    "1.1 \"We\", \"us\" and \"our\" mean SCENIC BYPASS CONSULTING, LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. \"You\" means the person agreeing on this screen.\n"
     "\n"
     "1.2 This agreement covers the \"Distribution\": the ZXV operating system image, installers and disc images we publish, the apps bundled with them, and the update and network services we operate for them (\"Services\").\n"
     "\n"
@@ -204,16 +204,16 @@ static const char text_doc_en[] =
     "\n"
     "20.3 We may transfer this agreement to a business that takes over the Distribution, provided your rights under it are not reduced. You may transfer it to anyone you give the Distribution to, if they agree to it.\n"
     "\n"
-    "20.4 Contact: Scenic Bypass Consulting LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.\n"
+    "20.4 Contact: SCENIC BYPASS CONSULTING, LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.\n"
     "\n"
     "End of agreement.\n";
 
-/* SHA-256 00fe84416527b471c7d57ee7170ab6c9a861bb676d4b71de53985406044bbf9d */
+/* SHA-256 bf5f59510b3ab086bd43cd65c2ad2d32e8439d704297e022410c1ae368137996 */
 static const uint8_t sha_doc_en[TERMS_HASH_LEN] = {
-    0x00, 0xfe, 0x84, 0x41, 0x65, 0x27, 0xb4, 0x71,
-    0xc7, 0xd5, 0x7e, 0xe7, 0x17, 0x0a, 0xb6, 0xc9,
-    0xa8, 0x61, 0xbb, 0x67, 0x6d, 0x4b, 0x71, 0xde,
-    0x53, 0x98, 0x54, 0x06, 0x04, 0x4b, 0xbf, 0x9d
+    0xbf, 0x5f, 0x59, 0x51, 0x0b, 0x3a, 0xb0, 0x86,
+    0xbd, 0x43, 0xcd, 0x65, 0xc2, 0xad, 0x2d, 0x32,
+    0xe8, 0x43, 0x9d, 0x70, 0x42, 0x97, 0xe0, 0x22,
+    0x41, 0x0c, 0x1a, 0xe3, 0x68, 0x13, 0x79, 0x96
 };
 
 static const terms_doc_t doc_en = {

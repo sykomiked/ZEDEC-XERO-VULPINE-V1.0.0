@@ -1,7 +1,7 @@
 ZXV End-User Agreement
 
 Version 1.0, 15 October 2026
-Licensor: Scenic Bypass Consulting LLC, Arizona, United States
+Licensor: SCENIC BYPASS CONSULTING, LLC, Arizona, United States
 Creator: 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States
 deal@zedec.ai
 
@@ -21,7 +21,7 @@ This summary helps you read the agreement. It is not a substitute for it.
 
 1. WHO WE ARE AND WHAT THIS COVERS
 
-1.1 "We", "us" and "our" mean Scenic Bypass Consulting LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. "You" means the person agreeing on this screen.
+1.1 "We", "us" and "our" mean SCENIC BYPASS CONSULTING, LLC, an Arizona limited liability company, United States, which licenses the Distribution to you and operates the Services. "You" means the person agreeing on this screen.
 
 1.2 This agreement covers the "Distribution": the ZXV operating system image, installers and disc images we publish, the apps bundled with them, and the update and network services we operate for them ("Services").
 
@@ -197,6 +197,6 @@ This summary helps you read the agreement. It is not a substitute for it.
 
 20.3 We may transfer this agreement to a business that takes over the Distribution, provided your rights under it are not reduced. You may transfer it to anyone you give the Distribution to, if they agree to it.
 
-20.4 Contact: Scenic Bypass Consulting LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.
+20.4 Contact: SCENIC BYPASS CONSULTING, LLC, Arizona, United States, deal@zedec.ai. The Creator is 36N9 GENETICS LLC, PO Box 6, Calpine, CA 96124-0006, United States.
 
 End of agreement.
