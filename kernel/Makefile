@@ -1253,6 +1253,15 @@ verify-all: test
 		src/zui/zui_progress.c src/font/truetype.c \
 		-o /tmp/test_zui_launch_theme && \
 		/tmp/test_zui_launch_theme && echo "[PASS] test_zui_launch_theme" || { echo "[FAIL] test_zui_launch_theme"; exit 1; }; \
+	echo "=== zui: the desktop's app opener, the launch screen following the real load (ASan+UBSan) ==="; \
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font -Isrc/launch \
+		-Isrc/apps -Isrc/web4 -Isrc/mlkem -Isrc/robin_debanks -Isrc/modbind -Isrc/e8 -Isrc/event_space -Isrc/surplus -Isrc/swarm -Isrc/lpres \
+		src/zui/test_zui_apphost.c src/zui/zui_apphost.c src/apps/zxm_open.c src/apps/zxm.c \
+		src/web4/web4_json.c src/web4/web4_util.c src/mlkem/keccak.c src/robin_debanks/sha256.c \
+		src/zui/zui_launch_theme.c src/launch/zxl_launch.c src/zui/zui_wm.c src/zui/zui_dock.c src/zui/zui_motion.c \
+		src/zui/zui_layout.c src/zui/zui_canvas.c src/zui/zui_progress.c src/font/truetype.c \
+		-o /tmp/test_zui_apphost && \
+		ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/test_zui_apphost && echo "[PASS] test_zui_apphost" || { echo "[FAIL] test_zui_apphost"; exit 1; }; \
 	echo "=== zui: PNG pictures (every format, fitted, drawn; damaged files under ASan+UBSan) ==="; \
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -DTEST_HOST -Iinclude -Isrc/zui -Isrc/font \
 		src/zui/test_zui_image.c src/zui/zui_image.c src/zui/zui_canvas.c src/zui/zui_layout.c src/font/truetype.c \
