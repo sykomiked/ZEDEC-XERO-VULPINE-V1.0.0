@@ -131,6 +131,7 @@ bootlegger                       trust
 crypto_wallet                    trust
 curzi                            trust
 decent                           trust
+fab                              trust      # fabrication recipes: ML-DSA/ML-KEM (pqsec) over ipfs_node CIDs (docs/spec/FABRICATION.md)
 ehop                             trust      # ehop.h includes mlkem768.h: the hop session is keyed
 hwkey                            trust      # account keys sealed by the TPM / Secure Enclave; signs with pqsec
 ident                            trust
