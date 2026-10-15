@@ -309,4 +309,34 @@ bool oc_field_eq(const oc_field_t *a, const oc_field_t *b);
 /* Power of 10 for exact rational arithmetic */
 rat_t rat_pow10(rat_t base, rat_t exp);
 
+/* The four-valued logic tag carried in IR field i, in lpres numbering
+ * (NEITHER 0, TRUE 1, FALSE 2, BOTH 3). A missing field, a non-integer, or
+ * an integer outside 0..3 gives `absent`: a raw cast would let any number
+ * become a truth value. */
+static inline lpres_state_t oc_field_lpres(const oc_ir_t *ir, uint32_t i,
+                                           lpres_state_t absent)
+{
+    if (!ir || i >= ir->num_fields || i >= OC_MAX_FIELDS) return absent;
+    const oc_field_t *f = &ir->fields[i];
+    if (f->type != OC_TYPE_RATIONAL || !f->num.valid || f->num.den != 1) return absent;
+    if (f->num.num < LPRES_STATE_NEITHER || f->num.num > LPRES_STATE_BOTH) return absent;
+    return (lpres_state_t) f->num.num;
+}
+
+/* Sutra adapter: lowering/lifting plus its four-valued logic ops. The
+ * logic tag is IR field 1 in lpres numbering; NEITHER is never embedded. */
+int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out);
+int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap);
+int32_t oc_register_sutra(void);
+
+typedef struct {
+    const oc_lang_ops_t base;
+    int32_t (*lpres_conjoin)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
+    int32_t (*lpres_disjoin)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
+    int32_t (*lpres_negate)(const oc_ir_t *, oc_ir_t *);
+    int32_t (*self_audit)(const oc_ir_t *);
+} oc_sutra_extended_ops_t;
+
+const oc_sutra_extended_ops_t *oc_get_sutra_extended_ops(void);
+
 #endif /* ZXV_ORBITAL_COMPAT_H */

@@ -11,6 +11,12 @@ Authoritative alongside `CANONICAL.md`. Last updated 2026-08-05; section 4 (G7 s
 > NVMe, AHCI, xHCI USB and HDA audio drivers (B5, `kernel/src/hwdrv`); and identity with passkeys and recovery (C8, `kernel/src/ident`).
 > Their markers below are updated. Section 4 (virtio-net as the next step) is kept as written. For current status, read `docs/ARCHITECTURE.md`.
 
+> **Note, 2026-10-15.** This plan is behind the code. Items it lists as planned or in progress that now exist:
+> virtio-net (B1, `kernel/arch/arm64/virtio_net.c`); the network stack and TLS 1.3 client (B2, `kernel/src/net`, `kernel/src/tls`);
+> ZSP v2 signed packages (A2, `kernel/src/loader/zsp.h`, `kernel/src/loader/test_zsp2.c`); A/B updates with rollback for packages (A3, `kernel/src/loader/abupdate.h`);
+> NVMe, AHCI, xHCI USB and HDA audio drivers (B5, `kernel/src/hwdrv`); and identity with passkeys and recovery (C8, `kernel/src/ident`).
+> Their markers below are updated. Section 4 (virtio-net as the next step) is kept as written. For current status, read `docs/ARCHITECTURE.md`.
+
 Legend: **[done]** built + tested + in the gate · **[partial]** exists, incomplete · **[planned]** designed, not built · **[research]** speculative, evidence-gated.
 
 ---
