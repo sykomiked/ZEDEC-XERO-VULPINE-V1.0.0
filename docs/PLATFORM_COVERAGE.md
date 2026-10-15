@@ -18,8 +18,8 @@ Three levels, and nothing in between:
 | Platform | Backend | Level | Evidence |
 |---|---|---|---|
 | Apple M-series (macOS) | Metal (`zt_metal.m`) | Tested | M3 Max: products and whole pass bit-exact (`test_zt_metal`, `zt_bench --gpu-resident`), see [GPU_STRATEGY.md](GPU_STRATEGY.md) |
-| NVIDIA (Linux, Windows) | CUDA via NVRTC (`zt_cuda.c`) | Emulated | `make -C kernel test-cuda-offline`: 21 kernels compile to PTX for sm_75, sm_86, sm_90; the warp emulator matches the CPU on 48/48 products. First real run: the A6000 server (`tools/gpu/run_cuda_tests.sh`) |
-| Any Vulkan GPU: AMD Radeon, Intel Arc and integrated, NVIDIA | Vulkan compute (`zt_vk.c`, `zt_vk.comp`) | Emulated | `make -C kernel test-vk` on lavapipe: 29/29 with the state imported and mirrored; Qwen2.5-1.5B `--gpu` and `--gpu-resident` logits identical to the CPU (fnv 27aad77f5095ad86, d489964cb01c7b5a) |
+| NVIDIA (Linux, Windows) | CUDA via NVRTC (`zt_cuda.c`) | Tested on the RTX A6000 (Linux, driver 580, sm_86) | 2026-10-15, commit 4a951060 (`tools/gpu/run_cuda_tests.sh`): Qwen2.5-1.5B through `zt_bench` `--gpu`, `--gpu-decode` and `--gpu-resident` gave the CPU's logits (fnv 4cc3218a8c0eea45); resident 151.8 tokens/s reading the prompt and 74.0 generating, against 32.8 and 13.7 on that server's CPU. `test_zt_cuda` itself did not run there: the server's clang 14 cannot target sm_90, which stopped `test-cuda-offline` first. Offline: 21 kernels compile to PTX for sm_75, sm_86, sm_90; the warp emulator matches the CPU on 48/48 products. Windows not run |
+| Any Vulkan GPU: AMD Radeon, Intel Arc and integrated, NVIDIA | Vulkan compute (`zt_vk.c`, `zt_vk.comp`) | Tested on the RTX A6000; emulated for the rest | A6000: `test_zt_vk` 29/29 with the state imported and mirrored; Qwen2.5-1.5B `--gpu` and `--gpu-resident` gave the CPU's logits (fnv 4cc3218a8c0eea45), resident 32.2 tokens/s reading and 27.4 generating (CUDA is faster there, so the determiner takes CUDA). `make -C kernel test-vk` on lavapipe: 29/29 with the state imported and mirrored; Qwen2.5-1.5B `--gpu` and `--gpu-resident` logits identical to the CPU (fnv 27aad77f5095ad86, d489964cb01c7b5a) |
 | Arm Mali, Qualcomm Adreno, other phone GPUs | Vulkan compute, 32-bit-word kernels (loaded when the GPU lacks `shaderInt64`) | Emulated | lavapipe with `ZT_VK_FORCE_I32=1`: `test_zt_vk` 29/29 (state imported and mirrored); no 32-bit module declares Int64 (`spirv-dis`); Qwen2.5-1.5B `--gpu-resident` ids and logits identical to the CPU (fnv d489964cb01c7b5a). No phone GPU has run it |
 | AMD Instinct and Radeon under ROCm | HIP via hiprtc (`zt_hip.c`) | Emulated | `make -C kernel test-hip-offline`: 21 kernels compile for gfx906, gfx90a, gfx1030 (wave32) and gfx1100 (wave32 and wave64); the wavefront emulator matches the CPU on 96/96 products at 32 and 64 lanes. Radeon cards also run the Vulkan backend. No AMD GPU has run it; `make -C kernel test-hip` on one is the deciding check |
 | Any GPU through a native WebGPU library (wgpu-native, Dawn): Linux, Windows, macOS | WebGPU (`zt_wgpu.c`, `zt_wgpu.wgsl`) | Emulated | `make -C kernel test-wgpu` with wgpu-native (pip `wgpu` 0.32.0) on lavapipe: 29/29 at three size sets (2x32x4 from the limits, 4x32x8, 1x8x2 with 4 MiB bindings and 64 KiB weight buffers); naga 30.0.1 validates the WGSL; the app's models 19/19; Qwen2.5-1.5B `--gpu` and `--gpu-resident` ids 576,1172,1616 and logits fnv d489964cb01c7b5a, identical to the CPU. No GPU has run it |
@@ -85,7 +85,7 @@ on the CPU.
 ## What would move a row
 
 - Emulated to tested: the platform's own hardware runs the same check. The
-  A6000 server covers NVIDIA CUDA and NVIDIA Vulkan; an AMD card, an Intel
+  A6000 server moved NVIDIA CUDA and NVIDIA Vulkan; an AMD card, an Intel
   Arc card and an Android phone would cover the rest. WebGPU moves when the
   browser build runs in a real browser (and on a phone's), and the native
   build on a real GPU.
