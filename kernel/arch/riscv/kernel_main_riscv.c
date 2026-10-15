@@ -13,6 +13,7 @@
  */
 #include "m5_types.h"
 #include "riscv_arch.h"
+#include "riscv_board.h"
 
 /* Supervisor paging bring-up (riscv_mmu.c) — enables Sv39 (rv64) / Sv32 (rv32)
  * and PROVIDES(mm_ready). Called early so the identity map is live before any
@@ -377,9 +378,13 @@ void kernel_main_riscv(void) {
      * capability limits (scanout budget + compositor capacity), never hardcoded.
      * Absent a `-device ramfb`, ramfb_init returns <0 and we stay on serial --
      * an honest headless boot, not a failure. Covers rv64 and rv32 (one file). */
-    {
+    if (rv_board()->has_fw_cfg) {
         extern int zxv_render_boot(void (*log)(const char *));
         (void)zxv_render_boot(boot_msg);
+    } else {
+        /* No fw_cfg on this board (riscv_board.h): RAMFB_FWCFG_BASE is not a
+         * device here and probing it faults. Serial console only. */
+        boot_msg("[BOOT] no fw_cfg on this board: display scanout skipped, serial console only");
     }
 
     /* Phase 17: Enable interrupts and enter event loop */
