@@ -170,6 +170,7 @@ spatial                          logic      # exact geometry, four-valued sensor
 # ---- S5 AI runtime and swarm
 ai_layer                         ai
 chiglet                          ai
+companion                        ai         # the person's Chiglet companion: signed manifest, grants, cmp_decide over the chiglet gate
 cotier                           ai
 epu                              ai
 harmonic                         ai         # the harmonic carrier reads tensor residuals and swarm budgets
