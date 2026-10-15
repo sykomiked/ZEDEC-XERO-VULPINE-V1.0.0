@@ -39,12 +39,12 @@ TENSOR_SRCS += $(K)/src/tensor/zt_metal.m
 GPU_FLAGS := -DZT_HAVE_METAL -fno-objc-arc
 GPU_LIBS := -framework Metal -framework Foundation
 else
-# Linux: CUDA (zt_cuda.h, NVIDIA) and Vulkan (zt_vk.h, any Vulkan GPU). Both
-# open their driver at run time, so neither needs a GPU SDK to build. Vulkan's
-# kernels are built to SPIR-V by glslangValidator when it is installed; without
-# it zt_vk.c builds as stubs and --gpu says so.
-GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_vk.c
-GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_VULKAN
+# Linux: CUDA (zt_cuda.h, NVIDIA), HIP (zt_hip.h, AMD through ROCm) and Vulkan
+# (zt_vk.h, any Vulkan GPU). All open their driver at run time, so none needs a
+# GPU SDK to build. Vulkan's kernels are built to SPIR-V by glslangValidator
+# when it is installed; without it zt_vk.c builds as stubs and --gpu says so.
+GPU_SRCS := $(K)/src/tensor/zt_cuda.c $(K)/src/tensor/zt_hip.c $(K)/src/tensor/zt_vk.c
+GPU_FLAGS := -DZT_HAVE_CUDA -DZT_HAVE_HIP -DZT_HAVE_VULKAN
 GPU_LIBS := -ldl
 ifneq ($(shell command -v glslangValidator 2>/dev/null),)
 GPU_SPV := $(OUT)/zt_vk_spv.h

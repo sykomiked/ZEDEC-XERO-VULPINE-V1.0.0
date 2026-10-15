@@ -48,15 +48,17 @@
  * (with --tcp each rank prints only its own).
  * --gpu runs the prompt's matrix products on the GPU (zt_metal.h in macOS builds
  * with ZT_HAVE_METAL; in Linux and Windows builds zt_cuda.h, NVIDIA, with
- * ZT_HAVE_CUDA, and zt_vk.h, any Vulkan GPU, with ZT_HAVE_VULKAN: CUDA first,
- * then Vulkan, or ZT_GPU=cuda|vulkan; ZT_CUDA_DEVICE / ZT_VK_DEVICE pick the
+ * ZT_HAVE_CUDA, zt_hip.h, AMD (ROCm), with ZT_HAVE_HIP, and zt_vk.h, any Vulkan
+ * GPU, with ZT_HAVE_VULKAN: CUDA first, then HIP, then Vulkan, or
+ * ZT_GPU=cuda|hip|vulkan; ZT_CUDA_DEVICE / ZT_HIP_DEVICE / ZT_VK_DEVICE pick the
  * GPU), and decoding on --kern/--threads, which is faster
  * for one token at a time; --gpu-decode puts every product on the GPU. The ids and
  * zt.logits_fnv do not change. It prints zt.gpu=<name>, zt.gpu_api and the GPU's share
  * (zt.gpu_products, zt.gpu_declined, zt.gpu_s, zt.gpu_wall_s).
  * --gpu-resident runs the whole forward pass on the GPU (zt_gpu.h): every
  * layer's norms, RoPE, attention, SiLU and residual as well as the products,
- * one command buffer (Metal) or stream (CUDA) per pass, the state's memory (KV cache) shared in place.
+ * one command buffer (Metal) or stream (CUDA, HIP) per pass, the state's
+ * memory (KV cache) shared in place.
  * It adds zt.gpu_passes, zt.gpu_passes_declined and zt.gpu_pass_ops; the ids
  * and zt.logits_fnv still do not change.
  * --gpu-sim runs the same whole-pass op list through zt_gpu.h's C backend
@@ -88,19 +90,24 @@
 #include "zt_model.h"
 #include "zt_simd.h"
 #include "zt_tok.h"
-/* the GPU backend, behind one small table: Metal on macOS; CUDA (NVIDIA)
- * and Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and Windows.
- * ZT_GPU=cuda or ZT_GPU=vulkan picks one; by default CUDA, then Vulkan. */
+/* the GPU backend, behind one small table: Metal on macOS; CUDA (NVIDIA),
+ * HIP (AMD, ROCm) and Vulkan (AMD, Arm, Qualcomm, Intel, NVIDIA) on Linux and
+ * Windows. ZT_GPU=cuda, ZT_GPU=hip or ZT_GPU=vulkan picks one; by default
+ * CUDA, then HIP, then Vulkan. */
 #if defined(ZT_HAVE_METAL)
 #    include "zt_metal.h"
 #endif
 #if defined(ZT_HAVE_CUDA)
 #    include "zt_cuda.h"
 #endif
+#if defined(ZT_HAVE_HIP)
+#    include "zt_hip.h"
+#endif
 #if defined(ZT_HAVE_VULKAN)
 #    include "zt_vk.h"
 #endif
-#if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_VULKAN)
+#if defined(ZT_HAVE_METAL) || defined(ZT_HAVE_CUDA) || defined(ZT_HAVE_HIP) ||                     \
+    defined(ZT_HAVE_VULKAN)
 #    define ZB_GPU 1
 typedef struct {
     uint64_t calls, products, declined, gpu_ns, wall_ns, passes, passes_declined, pass_ops;
@@ -120,7 +127,7 @@ typedef struct {
     const char *(*name)(const void *g);
     void (*stats)(const void *g, zb_gpu_stats_t *out);
 } zb_gpu_t;
-/* one backend's entries: P is its prefix (zt_metal, zt_cuda, zt_vk), K its
+/* one backend's entries: P is its prefix (zt_metal, zt_cuda, zt_hip, zt_vk), K its
  * zt_kern_ prefix, M its map_state function */
 #    define ZB_BACKEND(tag, P, K, M)                                                               \
         static int tag##_map(void *g, const void *b, uint64_t n) { return P##_map(g, b, n); }       \
@@ -151,6 +158,9 @@ ZB_BACKEND(mt, zt_metal, zt_kern_metal, zt_metal_map) /* unified memory: shared 
 #    if defined(ZT_HAVE_CUDA)
 ZB_BACKEND(cu, zt_cuda, zt_kern_cuda, zt_cuda_map_shared)
 #    endif
+#    if defined(ZT_HAVE_HIP)
+ZB_BACKEND(hp, zt_hip, zt_kern_hip, zt_hip_map_shared)
+#    endif
 #    if defined(ZT_HAVE_VULKAN)
 ZB_BACKEND(vk, zt_vk, zt_kern_vk, zt_vk_map_shared)
 #    endif
@@ -179,6 +189,18 @@ static int zb_gpu_open(zb_gpu_t *out, char *err, uint32_t cap)
             return 0;
         }
         snprintf(err, cap, "cuda: %s", why);
+    }
+#    endif
+#    if defined(ZT_HAVE_HIP)
+    if (!want || !strcmp(want, "hip")) {
+        const char *d = getenv("ZT_HIP_DEVICE"); /* default 0, the first */
+        void *g = zt_hip_new(d ? atoi(d) : 0, why, sizeof why);
+        if (g) {
+            *out = ZB_TABLE("hip", hp, g);
+            return 0;
+        }
+        size_t l = strlen(err);
+        snprintf(err + l, cap - l, "%ship: %s", l ? "; " : "", why);
     }
 #    endif
 #    if defined(ZT_HAVE_VULKAN)
@@ -455,7 +477,7 @@ int main(int argc, char **argv)
 #else
     if (gpu) {
         fprintf(stderr, "zt_bench: --gpu: this build has no GPU backend (macOS: ZT_HAVE_METAL; "
-                        "Linux, Windows: ZT_HAVE_CUDA, ZT_HAVE_VULKAN)\n");
+                        "Linux, Windows: ZT_HAVE_CUDA, ZT_HAVE_HIP, ZT_HAVE_VULKAN)\n");
         return 2;
     }
 #endif

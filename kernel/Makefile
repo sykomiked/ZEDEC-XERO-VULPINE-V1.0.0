@@ -318,6 +318,8 @@ verify-all: test
 	gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_metal_math.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c -o /tmp/test_zt_metal_math && /tmp/test_zt_metal_math > /tmp/test_zt_metal_math.log 2>&1 && echo "[PASS] test_zt_metal_math ($$(tail -1 /tmp/test_zt_metal_math.log))" || { cat /tmp/test_zt_metal_math.log; echo "[FAIL] test_zt_metal_math"; exit 1; }
 	@echo "=== tensor: the CUDA backend (zt_cuda.c) offline: kernels compile to PTX, warp products == the C reference ==="
 	@$(MAKE) --no-print-directory test-cuda-offline
+	@echo "=== tensor: the HIP backend (zt_hip.c) offline: kernels compile for AMD GPUs, wavefront products == the C reference ==="
+	@$(MAKE) --no-print-directory test-hip-offline
 	@echo "=== tensor: the Vulkan backend (zt_vk.c): builds, SPIR-V valid, and bit for bit on any Vulkan device present ==="
 	@$(MAKE) --no-print-directory test-vk
 	@echo "=== tensor: the whole forward pass as GPU kernels (zt_gpu.h), run by its C backend == zt_model.c ==="
@@ -1725,6 +1727,39 @@ test-cuda-offline:
 
 test-cuda: test-cuda-offline
 	@$(ZXV_TMP)/test_zt_cuda > $(ZXV_TMP)/test_zt_cuda.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_cuda.log || true; echo "[PASS] test_zt_cuda ($$(tail -1 $(ZXV_TMP)/test_zt_cuda.log))"; } || { cat $(ZXV_TMP)/test_zt_cuda.log; echo "[FAIL] test_zt_cuda"; exit 1; }
+
+# The AMD backend (zt_hip.c, ROCm / HIP). test-hip-offline needs no GPU and
+# runs in verify-all: the host code builds with -Werror (gcc and clang), the
+# kernel source compiles for GCN, CDNA and RDNA (gfx906, gfx90a, gfx1030,
+# gfx1100: clang's HIP device mode, ROCm's built-ins in
+# test_zt_hip_amdgpu.h, no ROCm installed), and the product kernels run on the
+# CPU, 64-lane and 32-lane wavefronts both, bit for bit against the C
+# reference. test-hip runs everything on a real GPU (the HIP runtime and
+# hiprtc needed, nothing at build time); SKIP with none, unless
+# ZT_HIP_REQUIRE=1.
+ZT_HIP_SRCS = src/tensor/zt_hip.c src/tensor/zt_gpu.c src/tensor/zt_simd.c src/tensor/zt_simd_x86.c src/tensor/zt_simd_neon.c src/tensor/zt_model.c src/tensor/zt_tok.c src/tensor/zt_rope.c src/tensor/zt_gguf.c src/tensor/zt.c
+ZT_HIP_ARCHS = gfx906 gfx90a gfx1030 gfx1100
+.PHONY: test-hip test-hip-offline
+test-hip-offline:
+	@mkdir -p $(ZXV_TMP)
+	@gcc -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip && \
+	$(ZXV_TMP)/test_zt_hip --source > $(ZXV_TMP)/zt_hip_gen.hip && echo "[PASS] zt_hip builds with no ROCm (gcc)" || { echo "[FAIL] zt_hip build (gcc)"; exit 1; }
+	@if command -v clang >/dev/null; then clang -std=c11 -O2 -Wall -Werror -Wextra -DTEST_HOST -Isrc/tensor src/tensor/test_zt_hip.c $(ZT_HIP_SRCS) -ldl -lpthread -o $(ZXV_TMP)/test_zt_hip_clang && echo "[PASS] zt_hip builds with no ROCm (clang)" || { echo "[FAIL] zt_hip build (clang)"; exit 1; }; else echo "[SKIP] zt_hip clang build (no clang)"; fi
+	@if echo 'int main(){}' | clang++ -x hip --cuda-device-only --offload-arch=gfx90a -nogpuinc -nogpulib -S - -o /dev/null 2>/dev/null; then \
+	  cat src/tensor/test_zt_hip_amdgpu.h $(ZXV_TMP)/zt_hip_gen.hip > $(ZXV_TMP)/zt_hip_amdgpu.hip && \
+	  for a in $(ZT_HIP_ARCHS); do clang++ -x hip --cuda-device-only --offload-arch=$$a -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_$$a.s || { echo "[FAIL] zt_hip kernels for $$a"; exit 1; }; \
+	    test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_$$a.s)" = 21 || { echo "[FAIL] zt_hip: 21 kernels expected for $$a"; exit 1; }; done && \
+	  clang++ -x hip --cuda-device-only --offload-arch=gfx1100 -mwavefrontsize64 -nogpuinc -nogpulib -std=c++14 -O2 -Wall -Werror -Wno-unused-function -S $(ZXV_TMP)/zt_hip_amdgpu.hip -o $(ZXV_TMP)/zt_hip_gfx1100_w64.s && \
+	  test "$$(grep -c '^[[:space:]]*\.amdhsa_kernel ' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 && \
+	  test "$$(grep -c 'amdhsa_wavefront_size32 1' $(ZXV_TMP)/zt_hip_gfx1030.s)" = 21 && \
+	  test "$$(grep -c 'amdhsa_wavefront_size32 0' $(ZXV_TMP)/zt_hip_gfx1100_w64.s)" = 21 || { echo "[FAIL] zt_hip: RDNA kernels in wave32 and wave64"; exit 1; }; \
+	  echo "[PASS] zt_hip kernels compile for AMD GPUs ($(ZT_HIP_ARCHS), gfx1100 wave64: 21 kernels each)"; \
+	else echo "[SKIP] zt_hip AMD GPU code (clang without the AMDGPU target)"; fi
+	@g++ -std=c++20 -O1 -Wall -Werror -Wextra -Wno-unused-function -Wno-misleading-indentation -Wno-unknown-pragmas -I$(ZXV_TMP) src/tensor/test_zt_hip_emu.cpp -lpthread -o $(ZXV_TMP)/test_zt_hip_emu && \
+	$(ZXV_TMP)/test_zt_hip_emu > $(ZXV_TMP)/test_zt_hip_emu.log 2>&1 && echo "[PASS] test_zt_hip_emu ($$(tail -1 $(ZXV_TMP)/test_zt_hip_emu.log))" || { cat $(ZXV_TMP)/test_zt_hip_emu.log; echo "[FAIL] test_zt_hip_emu"; exit 1; }
+
+test-hip: test-hip-offline
+	@$(ZXV_TMP)/test_zt_hip > $(ZXV_TMP)/test_zt_hip.log 2>&1 && { grep -E "^\[(SKIP|INFO)\]" $(ZXV_TMP)/test_zt_hip.log || true; echo "[PASS] test_zt_hip ($$(tail -1 $(ZXV_TMP)/test_zt_hip.log))"; } || { cat $(ZXV_TMP)/test_zt_hip.log; echo "[FAIL] test_zt_hip"; exit 1; }
 
 # The Vulkan backend (zt_vk.c: AMD Radeon, Arm Mali, Qualcomm Adreno, Intel,
 # NVIDIA). test-vk builds zt_vk.c both ways (stubs without the SPIR-V, the real
