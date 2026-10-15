@@ -13,7 +13,18 @@ void app_put_char(char*s,uint32_t r,uint32_t c,uint32_t mr,uint32_t mc,char ch){
 void app_put_str(char*s,uint32_t r,uint32_t c,uint32_t mr,uint32_t mc,const char*str){while(*str&&c<mc)app_put_char(s,r,c,mr,mc,*str),str++,c++;}
 void app_scroll_up(char*s,uint32_t mr,uint32_t mc){for(uint32_t r=0;r<mr-1;r++)for(uint32_t c=0;c<=mc;c++)s[r*(mc+1)+c]=s[(r+1)*(mc+1)+c];for(uint32_t c=0;c<mc;c++)s[(mr-1)*(mc+1)+c]=' ';s[(mr-1)*(mc+1)+mc]=0;}
 
-static void num_str(uint32_t v,char*buf){char tmp[12];int n=0;if(v==0)buf[n++]='0';while(v>0){tmp[n++]='0'+(v%10);v/=10;}for(int j=n-1;j>=0;j--)buf[n-1-j]=tmp[j];buf[n]=0;}
+static void num_str(uint32_t v, char *buf)
+{
+    char tmp[12];
+    int n = 0;
+    if (v == 0) tmp[n++] = '0';
+    while (v > 0) {
+        tmp[n++] = '0' + (v % 10);
+        v /= 10;
+    }
+    for (int j = n - 1; j >= 0; j--) buf[n - 1 - j] = tmp[j];
+    buf[n] = 0;
+}
 
 /* ---- Shell ---- */
 static void shell_print(shell_app_t*a,const char*s){

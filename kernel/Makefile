@@ -650,6 +650,9 @@ verify-all: test
 		gcc -std=c11 -Wall -Wextra $$OC_INC -c $$a -o /tmp/oc_adapters/$$(basename $$a .c).o || { echo "[FAIL] test_orbital_compat"; exit 1; }; \
 	done && \
 	gcc -std=c11 -Wall -Werror -Wextra $$OC_INC src/orbital_compat/test_orbital_compat.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c src/lpres/lpres.c /tmp/oc_adapters/*.o -o /tmp/test_orbital_compat -lm && /tmp/test_orbital_compat && echo "[PASS] test_orbital_compat" || { echo "[FAIL] test_orbital_compat"; exit 1; }
+	@echo "=== test_oc_sutra ==="; \
+	OC_INC="-DTEST_HOST -Isrc/orbital_compat -Isrc/lightningrod -Isrc/rational -Isrc/surplus -Isrc/wyverneye -Isrc/lpres -Isrc/net"; \
+	gcc -std=c11 -Wall -Werror -Wextra $$OC_INC src/orbital_compat/test_oc_sutra.c src/orbital_compat/orbital_compat.c src/lightningrod/lightningrod.c src/rational/rational.c src/lpres/lpres.c /tmp/oc_adapters/*.o -o /tmp/test_oc_sutra -lm && /tmp/test_oc_sutra && echo "[PASS] test_oc_sutra" || { echo "[FAIL] test_oc_sutra"; exit 1; }
 	@echo "=== test_fusion ==="; \
 	gcc -std=c11 -Wall -Werror -Wextra -DTEST_HOST -Isrc/fusion -Isrc/trispace -Isrc/robin_debanks src/fusion/test_fusion.c src/fusion/fusion.c src/trispace/trispace.c src/robin_debanks/sha256.c -o /tmp/test_fusion -lm && /tmp/test_fusion && echo "[PASS] test_fusion" || { echo "[FAIL] test_fusion"; exit 1; }
 	@echo "=== test_sovereign_node ==="; \

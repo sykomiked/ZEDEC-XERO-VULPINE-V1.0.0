@@ -115,8 +115,10 @@ CFLAGS  := -std=c11 -Wall -Wextra -O2 -ffreestanding -fno-math-errno -nostdlib \
 # any call chain reaches it, which is the one thing verify_banners.sh exists to
 # detect. Staged modules are expected to disappear from this ELF until something
 # calls them. That is the correct reading, not a regression.
+# -z noexecstack: no object here needs an executable stack, and the NASM and
+# .S objects carry no .note.GNU-stack to say so.
 LDFLAGS := -T kernel/arch/x86_64/linker64.ld -nostdlib -static \
-           -Wl,--gc-sections -Wl,--build-id=none
+           -Wl,--gc-sections -Wl,--build-id=none -Wl,-z,noexecstack
 LIBGCC  := $(shell $(CC) -print-libgcc-file-name)
 
 SRCS := \
@@ -512,7 +514,7 @@ $(EFI_APP_X64): kernel_x86_64.bin kernel/arch/x86_64/efi_stub.c kernel/arch/efi_
 	     | grep -qE "R_X86_64_(32|32S|64|GOT|GOTPCREL)"; then \
 	   echo "  [EFI][x64] ERROR: non-PC-relative addressing in stub code — not position-independent"; \
 	   objdump -r kernel/arch/x86_64/efi_stub.o kernel/arch/x86_64/efi_trampoline.o | grep -E "R_X86_64_(32|32S|64|GOT|GOTPCREL)"; exit 1; fi
-	$(LD) -T build_system/efi_stub.ld -o kernel/arch/x86_64/efi_stub.elf $(EFI_X64_OBJS)
+	$(LD) -z noexecstack -T build_system/efi_stub.ld -o kernel/arch/x86_64/efi_stub.elf $(EFI_X64_OBJS)
 	@END=$$(nm kernel/arch/x86_64/efi_stub.elf | awk '/ __image_end$$/{print "0x"$$1}'); \
 	 $(OBJCOPY) -O binary --pad-to=$$END kernel/arch/x86_64/efi_stub.elf $(EFI_APP_X64); \
 	 echo "  [EFI][x64] $(EFI_APP_X64) padded to SizeOfImage $$END"

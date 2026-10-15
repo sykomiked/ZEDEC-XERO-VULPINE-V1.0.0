@@ -29,12 +29,14 @@ _start:
     dd 0                            ; bss_end_addr
     dd _entry32                     ; entry_addr
 
-; Temporary identity page tables (4-level). 2MB identity map.
+; Temporary identity page tables (4-level). 2MB identity map. Zero-filled in
+; the image (times/db, not resb): this section is loaded as file bytes, and
+; the 32-bit entry uses the tables before anything could clear a .bss.
 align 0x1000
-pt_l4:  resb 4096
-pt_l3:  resb 4096
-pt_l2:  resb 4096
-pt_l1:  resb 4096
+pt_l4:  times 4096 db 0
+pt_l3:  times 4096 db 0
+pt_l2:  times 4096 db 0
+pt_l1:  times 4096 db 0
 
 align 16
 gdt64:

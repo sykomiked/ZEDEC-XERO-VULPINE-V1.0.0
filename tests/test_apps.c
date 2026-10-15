@@ -64,7 +64,22 @@ static void test_shell(void) {
     shell_handle_key(&shell, 'z');
     shell_handle_key(&shell, 'z');
     shell_handle_key(&shell, '\n');
-    printf("  [PASS] Shell unknown command handled\n\n");
+    printf("  [PASS] Shell unknown command handled\n");
+
+    /* A zero count prints "0": num_str(0) once wrote the '0' to its output and
+     * then copied an uninitialised byte over it. */
+    static shell_app_t sh0;
+    static net_state_t net0; /* every count zero */
+    shell_init(&sh0, 0, NULL, &net0, NULL, NULL, NULL, NULL);
+    shell_handle_key(&sh0, 'n');
+    shell_handle_key(&sh0, 'e');
+    shell_handle_key(&sh0, 't');
+    shell_handle_key(&sh0, '\n');
+    bool zero_shown = false;
+    for (uint32_t r = 0; r < APP_SHELL_LINES; r++)
+        if (strncmp(sh0.screen[r], "RX pkts: 0 ", 11) == 0) zero_shown = true;
+    assert(zero_shown);
+    printf("  [PASS] Shell prints a zero count as 0\n\n");
 }
 
 static void test_editor(void) {

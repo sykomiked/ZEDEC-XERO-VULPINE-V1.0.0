@@ -163,8 +163,6 @@ int32_t dtmf_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     rat_t digit_rat = ir->fields[0].num;
     /* Reverse mapping: combined = low*10000 + high */
     int64_t combined = digit_rat.num / digit_rat.den;
-    int64_t low = combined / 10000;
-    int64_t high = combined % 10000;
     
     /* Find matching digit */
     d->digit = 0xFF;  /* invalid */
@@ -527,21 +525,6 @@ static int32_t telecom_self_audit(const oc_ir_t *ir) {
     return 0;
 }
 
-/* ===== Telecom M5 Coverage ===== */
-
-static int32_t telecom_check_coverage(const oc_ir_t *ir, surplus_real_t min_ratio) {
-    m5_coords_t m5 = {0};
-    m5.omega = 1;
-    m5.r = SR_FROM_FLOAT(1.0);  /* Telecom rail */
-    m5.ell = SR_ONE;
-    m5.phi = SR_ZERO;
-    m5.chi = 0;
-    
-    surplus_real_t coverage = SR_DIV(SR_MUL(SR_MUL(SR_FROM_INT(m5.omega), m5.r), m5.ell), SR_MUL(m5.phi, SR_FROM_INT(m5.chi)));
-    if (SR_CMP(coverage, min_ratio) < 0) return -1;
-    return 0;
-}
-
 /* ===== Language Ops ===== */
 
 static const oc_lang_ops_t OC_DTMF_OPS = {
@@ -585,14 +568,12 @@ typedef struct {
     const oc_lang_ops_t base;
     int32_t (*glare_detect)(const oc_ir_t *, const oc_ir_t *, oc_ir_t *);
     int32_t (*self_audit)(const oc_ir_t *);
-    int32_t (*check_coverage)(const oc_ir_t *, surplus_real_t);
 } oc_telecom_extended_ops_t;
 
 static const oc_telecom_extended_ops_t OC_TELECOM_EXTENDED = {
     .base = OC_TELECOM_OPS,
     .glare_detect = telecom_glare_detect,
     .self_audit = telecom_self_audit,
-    .check_coverage = telecom_check_coverage
 };
 
 /* Register all telecom languages */

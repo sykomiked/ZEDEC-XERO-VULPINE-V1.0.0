@@ -45,15 +45,18 @@ if [ ! -f "$ROM" ]; then
   log "building MEGAROM.TVL (host tool linking the kernel TVUL container source)"
   STUB="$(mktemp -d)"
   # sha256.c file-scope module declaration needs zxv_decl.h; the host tool does
-  # not run the module graph, so a no-op stub is exactly right here.
+  # not run the module graph, so the stub declares nothing. It still takes the
+  # bring-up's address, so the function stays referenced (no unused warning).
   cat > "$STUB/zxv_decl.h" <<'EOF'
 #ifndef ZXV_DECL_STUB_H
 #define ZXV_DECL_STUB_H
-#define ZXV_DECLARE(...)
+#define ZXV_DECLARE(mname, PROV, REQ, BRING) \
+    static int (*const zxv_host_bringup_##mname)(void) __attribute__((unused)) = BRING
 #define ZXV_PROVIDES(...)
 #define ZXV_REQUIRES(...)
 #define ZXV_REQUIRES_NONE
-#define ZXV_BRINGUP(...)
+#define ZXV_BRINGUP(fn) (fn)
+#define ZXV_NO_BRINGUP ((int (*)(void))0)
 #endif
 EOF
   INCS=(-I kernel/src/tolvovina -I kernel/src/emu -I kernel/src/fractal \

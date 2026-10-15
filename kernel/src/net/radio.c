@@ -11,11 +11,6 @@ static void mem_copy(void *d, const void *s, uint32_t n) {
 static void mem_set(void *d, int c, uint32_t n) {
     uint8_t *dst = d; for (uint32_t i = 0; i < n; i++) dst[i] = (uint8_t)c;
 }
-static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
-static int str_cmp(const char *a, const char *b) {
-    while (*a && *a == *b) { a++; b++; }
-    return (int)(unsigned char)*a - (int)(unsigned char)*b;
-}
 
 /* ===== CELLULAR ===== */
 void cell_init(cell_modem_t *modem, cell_generation_t gen) {
@@ -243,10 +238,9 @@ int32_t fm_demodulate(const int16_t *iq, uint32_t n, int16_t *audio, uint32_t ma
     for (uint32_t i = 0; i + 1 < n && out < max_out; i += 2) {
         int32_t i_val = iq[i];
         int32_t q_val = iq[i + 1];
-        /* Phase difference = atan2(q*prev_i - i*prev_q, i*prev_i + q*prev_q) */
+        /* Phase difference is atan2(cross, dot); for small steps it is close
+         * to cross alone, which is what this demodulator outputs. */
         int32_t cross = q_val * prev_i - i_val * prev_q;
-        int32_t dot = i_val * prev_i + q_val * prev_q;
-        /* Simplified: just use cross product as approximation */
         audio[out++] = (int16_t)(cross / 256);
         prev_i = i_val;
         prev_q = q_val;
