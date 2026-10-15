@@ -91,7 +91,7 @@ dm_status_t dm_caps_decode(dm_caps_t *c, const uint8_t *in, uint32_t len)
     c->net = dm_r_u8(&r);
     c->nmodels = dm_r_u8(&r);
     c->features = dm_r_u32(&r);
-    if (r.err || c->nmodels > DM_MAX_MODELS || c->net > DM_NET_METERED) return DM_ERR_FORMAT;
+    if (r.err || c->nmodels > DM_MAX_MODELS || c->net > DM_NET_MAX) return DM_ERR_FORMAT;
     if (c->battery_pct > 100u && c->battery_pct != 255u) return DM_ERR_FORMAT;
     for (uint32_t i = 0; i < c->nmodels; i++) {
         dm_model_t *md = &c->models[i];
@@ -135,12 +135,15 @@ static bool live(const dm_mesh_t *m, const dm_peer_t *p, uint64_t now)
     return d && d->status == DM_DEV_ACTIVE;
 }
 
-static const dm_peer_t *best_peer(const dm_mesh_t *m, uint32_t need_any, uint64_t now)
+/* home_only: consider only peers paired as DM_ROLE_HOME (DM_POL_HOME). */
+static const dm_peer_t *best_peer(const dm_mesh_t *m, uint32_t need_any, uint64_t now,
+                                  bool home_only)
 {
     const dm_peer_t *best = 0;
     for (uint32_t i = 0; i < DM_MAX_DEVICES; i++) {
         const dm_peer_t *p = &m->peers[i];
         if (!live(m, p, now) || !(p->caps.features & need_any)) continue;
+        if (home_only && p->paired_role != DM_ROLE_HOME) continue;
         if (!best) {
             best = p;
             continue;
@@ -161,6 +164,115 @@ static bool allow_metered(const dm_mesh_t *m)
     return f && f->len == 1 && f->value[0] == '1';
 }
 
+/* MOBILE_COMMON 3.3: may this device's link carry a request of this kind
+ * and its answer? Every link up to DM_NET_METERED carries everything. */
+static bool link_ok(uint8_t net, uint8_t req_kind)
+{
+    if (net == DM_NET_SATELLITE) return req_kind != DM_REQ_MEDIA;
+    if (net == DM_NET_LORA) return req_kind == DM_REQ_WALLET;
+    return true;
+}
+
+/* ===== route policy ===== */
+static bool pol_kind_ok(uint8_t req_kind)
+{
+    return req_kind == DM_REQ_PROMPT || req_kind == DM_REQ_FILE || req_kind == DM_REQ_MEDIA;
+}
+
+static bool id_zero(const uint8_t id[DM_ID_BYTES])
+{
+    uint8_t acc = 0;
+    for (uint32_t i = 0; i < DM_ID_BYTES; i++) acc |= id[i];
+    return acc == 0;
+}
+
+static const dm_pol_t *pol_find(const dm_mesh_t *m, const uint8_t dev[DM_ID_BYTES], uint8_t kind)
+{
+    for (uint32_t i = 0; i < DM_POL_MAX; i++) {
+        const dm_pol_t *e = &m->pol[i];
+        if (e->used && e->kind == kind && dm_meq(e->dev, dev, DM_ID_BYTES)) return e;
+    }
+    return 0;
+}
+
+dm_status_t dm_policy_set(dm_mesh_t *m, const uint8_t dev[DM_ID_BYTES], uint8_t req_kind,
+                          uint8_t policy, const uint8_t pin[DM_ID_BYTES])
+{
+    if (!m || !dev || id_zero(dev) || policy > DM_POL_PINNED) return DM_ERR_ARG;
+    if (req_kind == DM_REQ_WALLET) return DM_ERR_PERM;
+    if (!pol_kind_ok(req_kind)) return DM_ERR_ARG;
+    if (policy == DM_POL_PINNED && (!pin || id_zero(pin))) return DM_ERR_ARG;
+    dm_pol_t *e = (dm_pol_t *) pol_find(m, dev, req_kind);
+    if (policy == DM_POL_AUTO) {
+        if (e) dm_mset(e, 0, sizeof *e);
+        return DM_OK;
+    }
+    for (uint32_t i = 0; i < DM_POL_MAX && !e; i++)
+        if (!m->pol[i].used) e = &m->pol[i];
+    if (!e) return DM_ERR_FULL;
+    dm_mset(e, 0, sizeof *e);
+    e->used = 1;
+    e->kind = req_kind;
+    e->policy = policy;
+    dm_mcpy(e->dev, dev, DM_ID_BYTES);
+    if (policy == DM_POL_PINNED) dm_mcpy(e->pin, pin, DM_ID_BYTES);
+    return DM_OK;
+}
+
+uint8_t dm_policy_get(const dm_mesh_t *m, const uint8_t dev[DM_ID_BYTES], uint8_t req_kind,
+                      uint8_t pin[DM_ID_BYTES])
+{
+    const dm_pol_t *e = (m && dev) ? pol_find(m, dev, req_kind) : 0;
+    if (pin) {
+        if (e && e->policy == DM_POL_PINNED)
+            dm_mcpy(pin, e->pin, DM_ID_BYTES);
+        else
+            dm_mset(pin, 0, DM_ID_BYTES);
+    }
+    return e ? e->policy : (uint8_t) DM_POL_AUTO;
+}
+
+/* Routing under DM_POL_HERE, DM_POL_HOME and DM_POL_PINNED (never AUTO). */
+static dm_route_t route_policy(const dm_mesh_t *m, uint8_t pol, const uint8_t pin[DM_ID_BYTES],
+                               uint8_t req_kind, uint8_t model_cls, uint64_t now,
+                               uint8_t target[DM_ID_BYTES])
+{
+    const dm_caps_t *lc = &m->caps;
+    bool prompt = req_kind == DM_REQ_PROMPT;
+    uint8_t cls = model_cls == DM_MODEL_LARGE ? DM_MODEL_LARGE : DM_MODEL_SMALL;
+    uint32_t need;
+    if (prompt)
+        need = cls == DM_MODEL_LARGE ? DM_FEAT_ASSIST_LARGE
+                                     : (DM_FEAT_ASSIST_SMALL | DM_FEAT_ASSIST_LARGE);
+    else
+        need = req_kind == DM_REQ_FILE ? DM_FEAT_FILES : DM_FEAT_STREAM;
+    bool local_can = prompt ? dm_caps_can_run(lc, cls) : (lc->features & need) != 0;
+    const dm_peer_t *p = 0;
+    if (pol == DM_POL_HOME) {
+        /* this device is itself one of the owner's servers */
+        if (m->self_role == DM_ROLE_HOME && local_can) return DM_ROUTE_LOCAL;
+        if (lc->net != DM_NET_OFFLINE) p = best_peer(m, need, now, true);
+        if (!p) return DM_ROUTE_UNAVAILABLE;
+    } else if (pol == DM_POL_PINNED && !dm_meq(pin, m->self_id, DM_ID_BYTES)) {
+        for (uint32_t i = 0; i < DM_MAX_DEVICES && !p; i++) {
+            const dm_peer_t *q = &m->peers[i];
+            if (q->used && dm_meq(q->id, pin, DM_ID_BYTES)) p = q;
+        }
+        if (!p || lc->net == DM_NET_OFFLINE || !live(m, p, now) || !(p->caps.features & need))
+            return DM_ROUTE_UNAVAILABLE;
+    }
+    if (p) {
+        if (!link_ok(lc->net, req_kind)) return DM_ROUTE_WAIT_LINK;
+        dm_mcpy(target, p->id, DM_ID_BYTES);
+        return DM_ROUTE_REMOTE;
+    }
+    /* DM_POL_HERE, or pinned to this device: no peer, no bought capacity */
+    if (local_can) return DM_ROUTE_LOCAL;
+    if (prompt && cls == DM_MODEL_LARGE && dm_caps_can_run(lc, DM_MODEL_SMALL))
+        return DM_ROUTE_LOCAL_DEGRADED;
+    return DM_ROUTE_UNAVAILABLE;
+}
+
 dm_route_t dm_route(const dm_mesh_t *m, uint8_t req_kind, uint8_t model_cls, uint64_t now_ms,
                     uint8_t target[DM_ID_BYTES])
 {
@@ -169,20 +281,25 @@ dm_route_t dm_route(const dm_mesh_t *m, uint8_t req_kind, uint8_t model_cls, uin
     const dm_caps_t *lc = &m->caps;
     if (req_kind == DM_REQ_WALLET) {
         const dm_peer_t *w =
-            (lc->features & DM_FEAT_WALLET) ? 0 : best_peer(m, DM_FEAT_WALLET, now_ms);
+            (lc->features & DM_FEAT_WALLET) ? 0 : best_peer(m, DM_FEAT_WALLET, now_ms, false);
         if (w) dm_mcpy(target, w->id, DM_ID_BYTES);
         return DM_ROUTE_CONFIRM;
     }
+    uint8_t pin[DM_ID_BYTES];
+    uint8_t pol = dm_policy_get(m, m->self_id, req_kind, pin);
+    if (pol != DM_POL_AUTO && pol_kind_ok(req_kind))
+        return route_policy(m, pol, pin, req_kind, model_cls, now_ms, target);
+    bool link = link_ok(lc->net, req_kind);
     if (req_kind == DM_REQ_FILE || req_kind == DM_REQ_MEDIA) {
         uint32_t f = req_kind == DM_REQ_FILE ? DM_FEAT_FILES : DM_FEAT_STREAM;
         if (m->self_role == DM_ROLE_HOME && (lc->features & f)) return DM_ROUTE_LOCAL;
-        const dm_peer_t *p = best_peer(m, f, now_ms);
-        if (p) {
+        const dm_peer_t *p = best_peer(m, f, now_ms, false);
+        if (p && link) {
             dm_mcpy(target, p->id, DM_ID_BYTES);
             return DM_ROUTE_REMOTE;
         }
         if (lc->features & f) return DM_ROUTE_LOCAL;
-        return DM_ROUTE_UNAVAILABLE;
+        return p ? DM_ROUTE_WAIT_LINK : DM_ROUTE_UNAVAILABLE;
     }
     /* assistant prompt */
     uint8_t cls = model_cls == DM_MODEL_LARGE ? DM_MODEL_LARGE : DM_MODEL_SMALL;
@@ -190,10 +307,11 @@ dm_route_t dm_route(const dm_mesh_t *m, uint8_t req_kind, uint8_t model_cls, uin
     if (local_can && (m->self_role == DM_ROLE_HOME || cls == DM_MODEL_LARGE)) return DM_ROUTE_LOCAL;
     uint32_t need = cls == DM_MODEL_LARGE ? DM_FEAT_ASSIST_LARGE
                                           : (DM_FEAT_ASSIST_SMALL | DM_FEAT_ASSIST_LARGE);
-    const dm_peer_t *p = lc->net == DM_NET_OFFLINE ? 0 : best_peer(m, need, now_ms);
-    if (p) {
+    const dm_peer_t *p = lc->net == DM_NET_OFFLINE ? 0 : best_peer(m, need, now_ms, false);
+    if (p && link) {
         bool low_batt = lc->battery_pct != 255u && lc->battery_pct < 20u && !lc->charging;
-        bool metered = lc->net == DM_NET_METERED && !allow_metered(m);
+        bool metered =
+            (lc->net == DM_NET_METERED || lc->net == DM_NET_SATELLITE) && !allow_metered(m);
         if (cls == DM_MODEL_SMALL && local_can && metered && !low_batt) return DM_ROUTE_LOCAL;
         dm_mcpy(target, p->id, DM_ID_BYTES);
         return DM_ROUTE_REMOTE;
@@ -201,7 +319,8 @@ dm_route_t dm_route(const dm_mesh_t *m, uint8_t req_kind, uint8_t model_cls, uin
     if (local_can) return DM_ROUTE_LOCAL;
     if (cls == DM_MODEL_LARGE && dm_caps_can_run(lc, DM_MODEL_SMALL))
         return DM_ROUTE_LOCAL_DEGRADED;
-    return lc->net == DM_NET_OFFLINE ? DM_ROUTE_UNAVAILABLE : DM_ROUTE_NEED_CAPACITY;
+    if (lc->net == DM_NET_OFFLINE) return DM_ROUTE_UNAVAILABLE;
+    return link ? DM_ROUTE_NEED_CAPACITY : DM_ROUTE_WAIT_LINK;
 }
 
 /* ===== requests ===== */
@@ -220,6 +339,16 @@ static dm_status_t req_send(dm_mesh_t *m, const uint8_t peer[DM_ID_BYTES], uint8
 {
     if (len > DM_REC_MAX - 6u) return DM_ERR_SIZE;
     if (!dm_peer_up(m, peer, now)) return DM_ERR_NOPEER;
+    /* route policy and link class (dm_policy_set, MOBILE_COMMON 3.2 / 3.3) */
+    uint8_t pin[DM_ID_BYTES];
+    uint8_t pol = dm_policy_get(m, m->self_id, kind, pin);
+    if (pol == DM_POL_HERE) return DM_ERR_PERM;
+    if (pol == DM_POL_PINNED && !dm_meq(pin, peer, DM_ID_BYTES)) return DM_ERR_PERM;
+    if (pol == DM_POL_HOME) {
+        const dm_peer_t *pp = dm_peer_find(m, peer);
+        if (!pp || pp->paired_role != DM_ROLE_HOME) return DM_ERR_PERM;
+    }
+    if (!link_ok(m->caps.net, kind)) return DM_ERR_TRANSPORT;
     dm_req_t *q = 0;
     for (uint32_t i = 0; i < DM_MAX_REQS && !q; i++)
         if (!m->reqs[i].used) q = &m->reqs[i];
@@ -233,6 +362,7 @@ static dm_status_t req_send(dm_mesh_t *m, const uint8_t peer[DM_ID_BYTES], uint8
     dm_mset(q, 0, sizeof *q);
     q->used = 1;
     q->kind = kind;
+    q->policy = pol;
     q->req_id = id;
     dm_mcpy(q->target, peer, DM_ID_BYTES);
     q->sent_ms = now;
@@ -269,10 +399,11 @@ void dm_remote_tick(dm_mesh_t *m, uint64_t now_ms)
         if (!q->used) continue;
         if (!dm_peer_up(m, q->target, now_ms) || now_ms - q->last_ms > DM_REQ_TIMEOUT_MS) {
             uint32_t id = q->req_id;
+            uint8_t ev = q->policy == DM_POL_AUTO ? DM_EV_REQ_FALLBACK : DM_EV_REQ_UNAVAILABLE;
             uint8_t tgt[DM_ID_BYTES];
             dm_mcpy(tgt, q->target, DM_ID_BYTES);
             dm_mset(q, 0, sizeof *q);
-            dm_emit(m, DM_EV_REQ_FALLBACK, tgt, 0, id, DM_ERR_NOPEER);
+            dm_emit(m, ev, tgt, 0, id, DM_ERR_NOPEER);
         }
     }
 }

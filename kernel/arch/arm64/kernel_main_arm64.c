@@ -1090,7 +1090,7 @@ void kernel_main_arm64(void) {
      * external-clock-bridge convention: dlp_projector_tick() is called
      * from the event loop below, never from a raw timer poll. */
     boot_msg("[BOOT] DLP pico projector (hardware-as-code)...");
-    dlp_projector_init(&projector, 1, "Tank-DLP");
+    dlp_projector_init_profile(&projector, 1, "Tank-DLP", DLP_PROFILE_DLP2010);
     dlp_projector_set_wobulation(&projector, 2, 2); /* TI 4-way actuator: 854x480 -> 1708x960 apparent */
     dlp_projector_set_photometrics(&projector, SR_FROM_INT(220), SR_FROM_FLOAT(1.2));
     dlp_projector_compute_screen_lux(&projector, SR_FROM_FLOAT(2.0));

@@ -14,11 +14,13 @@
 const hw_driver_t hw_drivers[] = {
     {"e1000", 0x02, 0x00, 0xFF, e1000_ids, e1000_bind},
     {"igb", 0x02, 0x00, 0xFF, igb_ids, igb_bind},
+    {"igc", 0x02, 0x00, 0xFF, igc_ids, igc_bind},
     {"r8169", 0x02, 0x00, 0xFF, r8169_ids, r8169_bind},
     {"nvme", 0x01, 0x08, 0x02, 0, nvme_bind},
     {"ahci", 0x01, 0x06, 0x01, 0, ahci_bind},
     {"xhci", 0x0C, 0x03, 0x30, 0, xhci_bind},
     {"hda", 0x04, 0x03, 0xFF, 0, hda_bind},
+    {"arbiter", 0x08, 0x80, 0x5A, 0, arbmbox_bind},
 };
 const uint32_t hw_n_drivers = sizeof hw_drivers / sizeof hw_drivers[0];
 

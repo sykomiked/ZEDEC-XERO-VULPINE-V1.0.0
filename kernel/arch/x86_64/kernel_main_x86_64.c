@@ -44,6 +44,7 @@
 #include "x86_irq.h"           /* IDT, LAPIC, timer (gap 6) */
 #include "x86_userspace.h"     /* ring-3 processes and the scheduler (gap 6) */
 #include "msr_safe.h"          /* fault-safe RDMSR/WRMSR + RAPL helpers */
+#include "mca_x86.h"           /* machine check: banks, #MC, poll */
 
 /* THE DECLARATION-GRAPH BOOT GATE, shared with the other four architectures.
  * kernel/src/modbind/zxv_decl_gate.c holds the whole sequence; this main calls
@@ -484,6 +485,9 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
         uint64_t tsc_per_us = 0;
         hp = hwplat_x86_init(hw_log_line, &tsc_per_us);
         hw_probe_all(hp, &hreg);
+        /* Self-encrypting NVMe disks: unlocked only with a key from an
+         * attested arbiter; any other disk gets one line and is left. */
+        hw_sed_unlock_all(hp, &hreg, hw_arbiter());
         uint32_t ok = hw_selftest_all(hp, &hreg);
         /* Every disk: find the EFI system partition, mount it as FAT32 and
          * read the MegaROM the disc carries, so a driver is proven all the
@@ -505,6 +509,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
         boot_msg("[BOOT] ACPI: tables and AML namespace...");
         acpi_x86_boot(hp, tsc_per_us, hw_log_line);
     }
+    x86_mca_init(hw_log_line); /* after the IDT; one [OK] machine check line */
 
     /* AI self-check, same entry point and constants as arm64 (swarm_boot.h): a
      * mismatch prints [FAULT] and halts here, before [BOOT_OK]. */
@@ -568,6 +573,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
      * interrupting the reads, so the heartbeat goes on. */
     if (!g_heartbeat_next) g_heartbeat_next = x86_ticks() + 10u * X86_HZ;
     while (1) {
+        x86_mca_poll(); /* corrected errors raise no interrupt */
         if (models_left)
             models_left = hw_models_step(&models, hp, 256);
         else

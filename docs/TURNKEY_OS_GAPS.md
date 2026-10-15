@@ -24,7 +24,7 @@ certificate checks, disk encryption, search, printing and others).
 | 2 | Installer | partition, format, install, first-run setup | partial | `install/install_zxv.py`, `install/transactional_disk.py` (host Python, copy + rollback journal) | on-device installer with partitioning, then first-run setup |
 | 3 | Users, accounts, login | multi-user, login screen, per-user homes | partial | `kernel/src/ident/` (argon2, passkeys, Shamir recovery, `id_rp_login`); no uid model or login UI | uid/session model on top of ident, login screen |
 | 4 | Filesystem | journaled FS, permissions, ACLs | partial | `zxvfs/zxvfs.c` (journaled, tests + fuzz), `fat32/`, `vfs/`; no permissions | owner/mode/ACL in zxvfs, fsck |
-| 5 | Drivers | USB, GPU, storage, Wi-Fi, BT, audio for real chips | partial (QEMU) | virtio blk/net/input/snd/gpu; standard class drivers in `kernel/src/hwdrv` (NVMe, AHCI, xHCI + USB keyboard and mass storage, e1000/e1000e, igb, r8169, HD Audio), all passing in QEMU, none yet on real hardware; Wi-Fi/BT are protocol logic only | USB CDC/audio/UVC, BT HCI, igc, interrupts, IOMMU, then the Linux driver VM |
+| 5 | Drivers | USB, GPU, storage, Wi-Fi, BT, audio for real chips | partial (QEMU) | virtio blk/net/input/snd/gpu; standard class drivers in `kernel/src/hwdrv` (NVMe, AHCI, xHCI + USB keyboard and mass storage, e1000/e1000e, igb, r8169, igc, HD Audio), all but r8169 and igc passing in QEMU (those two: host tests only), none yet on real hardware; Wi-Fi/BT are protocol logic only | USB CDC/audio/UVC, BT HCI, interrupts, IOMMU, then the Linux driver VM |
 | 6 | Networking | TCP/IP, DHCP, DNS, TLS, Wi-Fi | partial (strongest area) | `net/tcp.c`, `dhcp.c`, `dns.c`, `src/tls/` all tested; virtio-net | IPv6, NTP, real NIC drivers |
 | 7 | Packages and updates | package manager, signed OTA, A/B rollback | partial | `update/` (signed content-addressed updates, ML-DSA), `zxpkg/`; app-level A/B with probation and auto-rollback in `loader/abupdate.c` (tested); hwemu `hwr` has A/B slots for hardware images | system-image A/B slots + apply-on-device |
 | 8 | Security and sandboxing | app sandbox, MAC, secure boot chain, disk encryption | partial | `ZSC_CAP_*` syscall caps, EL0 per-process page tables + W^X (`el0_userspace.c`), x86 `ring3.c`; no secure boot, no disk encryption | measured boot, encrypted zxvfs volumes |
@@ -97,6 +97,7 @@ layers.
 2. NVMe and AHCI: done in QEMU.
 3. GOP framebuffer: done (`efifb_con.c`).
 4. HDA: done in QEMU.
-5. e1000e and r8169: e1000/e1000e and igb done in QEMU; r8169 passes host
-   tests only (QEMU has no r8169 model).
+5. e1000e and r8169: e1000/e1000e and igb done in QEMU; r8169 (with the
+   RTL8125 2.5 GbE family) and igc (I225/I226 2.5 GbE) pass host tests
+   only (QEMU models neither).
 6. The driver VM: not started.
