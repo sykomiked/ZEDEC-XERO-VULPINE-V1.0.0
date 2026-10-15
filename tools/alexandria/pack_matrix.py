@@ -332,11 +332,32 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
     m = {"layers": {}, "chunks": 0, "chunk_bytes": 0, "refs": 0, "ref_bytes": 0,
          "booklets": 0, "nodes": 0, "plain_booklet_bytes": 0, "stored_booklet_bytes": 0, "by_tier": {t: {"chunks": 0, "bytes": 0, "z": 0}
                                                  for t in TIER_NAME.values()}}
-    root_rows, blocks = [], {}
-    for k in range(LAYERS):
+    root_rows, blocks = [None] * LAYERS, {}
+    order = list(range(LAYERS))
+    pre000 = None
+    if getattr(args, "seal_order", "up") == "down":
+        # sealing downward: booklet 000 is the first block sealed, before layer
+        # 144, so every layer may name its chunks and none names an unsealed one
+        if any(where.get(p, 0) != 0 for p in BOOKLET_000):
+            fail("booklet 000's files must all be in the core")
+        pre000 = []
+        for p in [q for q in BOOKLET_000 if q in where]:
+            for c in chunks_of(root_dir, p, lens[p])[1]:
+                cid = cid_raw(c)
+                if cid not in stored:
+                    pre000.append(c)
+                    stored[cid] = (0, 0, len(pre000) - 1)
+                    m["chunks"] += 1
+                    m["chunk_bytes"] += len(c)
+                    bt = m["by_tier"][TIER_NAME[tiers[p]]]
+                    bt["chunks"] += 1
+                    bt["bytes"] += len(c)
+                    bt["z"] += len(zlib.compress(c, 6))
+        order = list(range(LAYERS - 1, 0, -1)) + [0]
+    for k in order:
         ps = [p for p in files if where[p] == k]
         if not ps:
-            root_rows.append((bytes(36), bytes(36), 0))
+            root_rows[k] = (bytes(36), bytes(36), 0)
             continue
         laid = glue_order(ps, adj) if order_kind == "glue" else sorted(ps)
         books = []  # (tier, [atoms])
@@ -348,13 +369,13 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
             first = [p for p in BOOKLET_000 if p in where]  # an older tree has fewer
             laid = first + [p for p in laid if p not in first]
             if first:
-                books.append((0, []))
+                books.append((0, pre000 if pre000 is not None else []))
         for p in laid:
             t = tiers[p]
             if p in first:  # all into booklet 000
                 for c in chunks_of(root_dir, p, lens[p])[1]:
                     cid = cid_raw(c)
-                    if cid not in stored:
+                    if cid not in stored and pre000 is None:
                         books[0][1].append(c)
                         stored[cid] = (0, 0, len(books[0][1]) - 1)
                         m["chunks"] += 1
@@ -413,7 +434,7 @@ def pack(args, lay, root_dir, files, edges, where, order_kind, write):
         rc, nodes, depth = tree(k, bcids)
         for b in nodes:
             blocks[cid_raw(b)] = b
-        root_rows.append((rc, None, len(bcids)))
+        root_rows[k] = (rc, None, len(bcids))
         m["booklets"] += len(bcids)
         m["nodes"] += len(nodes)
         m["layers"][k] = {"files": len(ps), "bytes": sum(len(data[p]) for p in ps),
@@ -682,6 +703,9 @@ def main():
     ap.add_argument("--report")
     ap.add_argument("--baseline")
     ap.add_argument("--order", choices=("glue", "path"), default="glue")
+    ap.add_argument("--seal-order", choices=("up", "down"), default="up",
+                    help="down: booklet 000 first, then layers 144 to 1, then the core, so "
+                         "every chunk ref names a layer sealed earlier")
     ap.add_argument("--vectorize", type=int, metavar="DIM",
                     help="also write the vector plane (docs/spec/VECTORS.md)")
     ap.add_argument("--shape", help="the vec_shape helper (the shape embedding)")
