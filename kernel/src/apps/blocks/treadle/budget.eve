@@ -1,0 +1,14 @@
+# Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+# SPDX-License-Identifier: Apache-2.0
+#
+# Within the owner's budget (treadle_rules.h TR2), in Eve: a run's cost and
+# what is left of the day's cap after it are each 0 to 999999999 tokens.
+# Eve holds each range alone; KRON reads the floors only, so a value past
+# nine digits, no budget the owner set, is held.
+eve treadle
+tokens = 0 .. 999999999
+
+run_budget {
+  cost: tokens
+  left: tokens
+}

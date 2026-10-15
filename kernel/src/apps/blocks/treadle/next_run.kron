@@ -1,0 +1,4 @@
+k:0|_((now-start)+period-1)%period
+t:start+period*k
+w:0|1&t-1439
+t+w*(start+1440)-t

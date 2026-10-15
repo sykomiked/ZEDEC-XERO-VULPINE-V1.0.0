@@ -81,7 +81,10 @@
 #define ALX_SLOT_LOGIC_TALISMAN_EARNED           73u /* 490.33 talisman.earned */
 #define ALX_SLOT_NUM_TALISMAN_EARNED_N           74u /* 590.30 talisman.earned_n */
 #define ALX_SLOT_NUM_TALISMAN_REACH_X100         75u /* 590.31 talisman.reach_x100 */
-#define ALX_SLOT__COUNT 75u
+#define ALX_SLOT_LOGIC_TREADLE_BUDGET_OK         76u /* 490.34 treadle.budget_ok */
+#define ALX_SLOT_NUM_TREADLE_NEXT_RUN            77u /* 590.32 treadle.next_run */
+#define ALX_SLOT_LOGIC_TREADLE_TASK_OK           78u /* 490.35 treadle.task_ok */
+#define ALX_SLOT__COUNT 78u
 /* clang-format on */
 
 #endif

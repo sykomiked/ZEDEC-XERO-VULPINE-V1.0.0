@@ -110,3 +110,6 @@
 73	logic.talisman_earned	490.33	talisman.earned	base
 74	num.talisman_earned_n	590.30	talisman.earned_n	base
 75	num.talisman_reach_x100	590.31	talisman.reach_x100	base
+76	logic.treadle_budget_ok	490.34	treadle.budget_ok	base
+77	num.treadle_next_run	590.32	treadle.next_run	base
+78	logic.treadle_task_ok	490.35	treadle.task_ok	base
