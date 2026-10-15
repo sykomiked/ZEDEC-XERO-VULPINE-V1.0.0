@@ -6,18 +6,48 @@
 #include <string.h>
 #include "../../kernel/src/robin_debanks/sha256.h"
 
-enum { K_WORD, K_NL, K_SEMI, K_AND, K_OR, K_PIPE, K_XCHK, K_LT, K_GT, K_GTGT, K_EOF };
+enum {
+    K_WORD,
+    K_NL,
+    K_SEMI,
+    K_AND,
+    K_OR,
+    K_PIPE,
+    K_XCHK,
+    K_AMP,    /* &   background */
+    K_LT,     /* <   (redirects from here to K_ALLAPP) */
+    K_GT,     /* >   1> */
+    K_GTGT,   /* >>  1>> */
+    K_ERR,    /* 2>  */
+    K_ERRAPP, /* 2>> */
+    K_E2O,    /* 2>&1 */
+    K_O2E,    /* >&2 1>&2 */
+    K_ALL,    /* &>  */
+    K_ALLAPP, /* &>> */
+    K_EOF
+};
+#define IS_REDIR(k) ((k) >= K_LT && (k) <= K_ALLAPP)
+#define SPLIT       '\x1f' /* marks where an unquoted $(...) or $@ splits into words */
 
-#define R(run) ((run) && !sh->aborted && !sh->exiting && !sh->syntax && !sh->need_more)
+#define R(run)                                                                                     \
+    ((run) && !sh->aborted && !sh->exiting && !sh->syntax && !sh->need_more && !sh->interrupt &&   \
+     !sh->brk && !sh->cont)
 
-static const char *const HOST_BUILTINS[] = {"cd", "pwd", "history", "qlog", "zxv", NULL};
+static const char *const HOST_BUILTINS[] = {"cd",     "pwd", "history",  "qlog", "zxv",
+                                            "source", ".",   "type",     "jobs", "wait",
+                                            "split",  "tab", "together", NULL};
+static const char *const CORE_BUILTINS[] = {
+    "true",    "false", "both",     "neither", "verdict", "exit", "set",  "unset",
+    "export",  "held",  "resolve",  "drop",    "why",     "cap",  "help", "alias",
+    "unalias", "break", "continue", ":",       "sandbox", NULL};
 
 /* ---------------------------------------------------------------- output */
 
 static void emit(zxsh_t *sh, int fd, const char *s, size_t n)
 {
     if (fd == 1 && sh->cap_buf) {
-        for (size_t i = 0; i < n && *sh->cap_len < ZXSH_CAPTURE; i++) sh->cap_buf[(*sh->cap_len)++] = s[i];
+        for (size_t i = 0; i < n && *sh->cap_len < ZXSH_CAPTURE; i++)
+            sh->cap_buf[(*sh->cap_len)++] = s[i];
         return;
     }
     if (sh->ops && sh->ops->out) sh->ops->out(sh->u, fd, s, n);
@@ -175,6 +205,38 @@ static bool push_tok(zxsh_t *sh, uint8_t kind, uint32_t off, uint32_t len)
     return true;
 }
 
+/* s[i] starts $( or `: the index just past its end, 0 when unterminated.
+ * Quotes and nested $( ) inside are skipped whole. */
+static uint32_t skip_sub(const char *s, uint32_t i)
+{
+    if (s[i] == '`') {
+        for (i++; s[i] && s[i] != '`'; i++)
+            if (s[i] == '\\' && s[i + 1]) i++;
+        return s[i] ? i + 1 : 0;
+    }
+    unsigned depth = 0;
+    for (i += 2;; i++) {
+        char c = s[i];
+        if (!c) return 0;
+        if (c == '\\' && s[i + 1])
+            i++;
+        else if (c == '\'') {
+            for (i++; s[i] && s[i] != '\''; i++) {
+            }
+            if (!s[i]) return 0;
+        } else if (c == '"') {
+            for (i++; s[i] && s[i] != '"'; i++)
+                if (s[i] == '\\' && s[i + 1]) i++;
+            if (!s[i]) return 0;
+        } else if (c == '(')
+            depth++;
+        else if (c == ')') {
+            if (!depth) return i + 1;
+            depth--;
+        }
+    }
+}
+
 static void lex(zxsh_t *sh)
 {
     const char *s = sh->src;
@@ -200,19 +262,44 @@ static void lex(zxsh_t *sh)
         }
         uint8_t k = K_EOF;
         uint32_t n = 1;
-        if (c == '\n') k = K_NL;
-        else if (c == ';') k = K_SEMI;
-        else if (c == '&' && s[i + 1] == '&') k = K_AND, n = 2;
-        else if (c == '&') {
-            sh->syntax = true;
-            set_why(sh, "background jobs (&) are not supported; use && or ;", NULL);
-            return;
-        } else if (c == '|' && s[i + 1] == '|') k = K_OR, n = 2;
-        else if (c == '|') k = K_PIPE;
-        else if (c == '<' && s[i + 1] == '?' && s[i + 2] == '>') k = K_XCHK, n = 3;
-        else if (c == '<') k = K_LT;
-        else if (c == '>' && s[i + 1] == '>') k = K_GTGT, n = 2;
-        else if (c == '>') k = K_GT;
+        if (c == '\n')
+            k = K_NL;
+        else if (c == ';')
+            k = K_SEMI;
+        else if (c == '&' && s[i + 1] == '&')
+            k = K_AND, n = 2;
+        else if (c == '&' && s[i + 1] == '>' && s[i + 2] == '>')
+            k = K_ALLAPP, n = 3;
+        else if (c == '&' && s[i + 1] == '>')
+            k = K_ALL, n = 2;
+        else if (c == '&')
+            k = K_AMP;
+        else if (c == '|' && s[i + 1] == '|')
+            k = K_OR, n = 2;
+        else if (c == '|')
+            k = K_PIPE;
+        else if (c == '<' && s[i + 1] == '?' && s[i + 2] == '>')
+            k = K_XCHK, n = 3;
+        else if (c == '<')
+            k = K_LT;
+        else if (c == '2' && s[i + 1] == '>' && s[i + 2] == '&' && s[i + 3] == '1')
+            k = K_E2O, n = 4;
+        else if (c == '2' && s[i + 1] == '>' && s[i + 2] == '>')
+            k = K_ERRAPP, n = 3;
+        else if (c == '2' && s[i + 1] == '>')
+            k = K_ERR, n = 2;
+        else if (c == '1' && s[i + 1] == '>' && s[i + 2] == '&' && s[i + 3] == '2')
+            k = K_O2E, n = 4;
+        else if (c == '1' && s[i + 1] == '>' && s[i + 2] == '>')
+            k = K_GTGT, n = 3;
+        else if (c == '1' && s[i + 1] == '>')
+            k = K_GT, n = 2;
+        else if (c == '>' && s[i + 1] == '&' && s[i + 2] == '2')
+            k = K_O2E, n = 3;
+        else if (c == '>' && s[i + 1] == '>')
+            k = K_GTGT, n = 2;
+        else if (c == '>')
+            k = K_GT;
         if (k != K_EOF) {
             if (!push_tok(sh, k, i, n)) return;
             i += n;
@@ -227,10 +314,24 @@ static void lex(zxsh_t *sh)
                     return;
                 }
                 i += 2;
+            } else if ((s[i] == '$' && s[i + 1] == '(') || s[i] == '`') {
+                uint32_t e = skip_sub(s, i);
+                if (!e) {
+                    sh->need_more = true;
+                    return;
+                }
+                i = e;
             } else if (s[i] == '\'' || s[i] == '"') {
                 char q = s[i++];
                 while (s[i] && s[i] != q) {
-                    if (q == '"' && s[i] == '\\' && s[i + 1]) i++;
+                    if (q == '"' && s[i] == '\\' && s[i + 1])
+                        i++;
+                    else if (q == '"' && ((s[i] == '$' && s[i + 1] == '(') || s[i] == '`')) {
+                        uint32_t e = skip_sub(s, i);
+                        if (!e) break;
+                        i = e;
+                        continue;
+                    }
                     i++;
                 }
                 if (!s[i]) {
@@ -238,6 +339,10 @@ static void lex(zxsh_t *sh)
                     return;
                 }
                 i++;
+            } else if (s[i] == '(' || s[i] == ')') {
+                sh->syntax = true; /* S10: ( ) groups and NAME() functions are bash's */
+                set_why(sh, "zxsh does not read ( ) groups or functions", NULL);
+                return;
             } else {
                 i++;
             }
@@ -260,7 +365,8 @@ static bool at_terminator(const zxsh_t *sh)
     if (sh->tok[sh->pos].kind == K_EOF) return true;
     for (unsigned i = 0; T[i]; i++)
         if (tok_is(sh, sh->pos, T[i])) return true;
-    if (sh->in_clause && (tok_is(sh, sh->pos, "both") || tok_is(sh, sh->pos, "neither"))) return true;
+    if (sh->in_clause && (tok_is(sh, sh->pos, "both") || tok_is(sh, sh->pos, "neither")))
+        return true;
     return false;
 }
 
@@ -282,15 +388,181 @@ static void skip_nl(zxsh_t *sh)
 
 /* ------------------------------------------------------------- expansion */
 
+/* $((...)): integer arithmetic. + - * / % ( ) unary -, comparisons
+ * < <= > >= == != (1 or 0), && ||, decimal numbers and variable names (an
+ * unset or non-numeric variable is 0). Division by zero is an error. */
+typedef struct {
+    const zxsh_t *sh;
+    const char *p, *e;
+    bool bad;
+} arith_t;
+
+static int64_t ar_or(arith_t *a);
+
+static void ar_ws(arith_t *a)
+{
+    while (a->p < a->e && (*a->p == ' ' || *a->p == '\t' || *a->p == '\n')) a->p++;
+}
+
+static int64_t ar_num(const char *v)
+{
+    int64_t r = 0;
+    bool neg = *v == '-';
+    if (neg) v++;
+    for (; *v >= '0' && *v <= '9'; v++) r = r * 10 + (*v - '0');
+    return neg ? -r : r;
+}
+
+static int64_t ar_atom(arith_t *a)
+{
+    ar_ws(a);
+    if (a->p >= a->e) {
+        a->bad = true;
+        return 0;
+    }
+    char c = *a->p;
+    if (c == '(') {
+        a->p++;
+        int64_t v = ar_or(a);
+        ar_ws(a);
+        if (a->p < a->e && *a->p == ')')
+            a->p++;
+        else
+            a->bad = true;
+        return v;
+    }
+    if (c == '-' || c == '+' || c == '!') {
+        a->p++;
+        int64_t v = ar_atom(a);
+        return c == '-' ? -v : c == '!' ? !v : v;
+    }
+    if (c >= '0' && c <= '9') {
+        int64_t v = 0;
+        while (a->p < a->e && *a->p >= '0' && *a->p <= '9') v = v * 10 + (*a->p++ - '0');
+        return v;
+    }
+    const char *n0 = a->p;
+    if (*a->p == '$') n0 = ++a->p;
+    while (a->p < a->e && name_ok(n0, (size_t) (a->p - n0 + 1))) a->p++;
+    if (a->p == n0) {
+        a->bad = true;
+        return 0;
+    }
+    const zxsh_var_t *v = var_find(a->sh, n0, (size_t) (a->p - n0));
+    return v ? ar_num(v->value) : 0;
+}
+
+static int64_t ar_mul(arith_t *a)
+{
+    int64_t v = ar_atom(a);
+    for (;;) {
+        ar_ws(a);
+        if (a->p >= a->e || (*a->p != '*' && *a->p != '/' && *a->p != '%')) return v;
+        char op = *a->p++;
+        int64_t r = ar_atom(a);
+        if (op == '*')
+            v = (int64_t) ((uint64_t) v * (uint64_t) r);
+        else if (r == 0 || (v == INT64_MIN && r == -1))
+            a->bad = true;
+        else
+            v = op == '/' ? v / r : v % r;
+    }
+}
+
+static int64_t ar_add(arith_t *a)
+{
+    int64_t v = ar_mul(a);
+    for (;;) {
+        ar_ws(a);
+        if (a->p >= a->e || (*a->p != '+' && *a->p != '-')) return v;
+        char op = *a->p++;
+        int64_t r = ar_mul(a);
+        v = (int64_t) (op == '+' ? (uint64_t) v + (uint64_t) r : (uint64_t) v - (uint64_t) r);
+    }
+}
+
+static int64_t ar_cmp(arith_t *a)
+{
+    int64_t v = ar_add(a);
+    for (;;) {
+        ar_ws(a);
+        const char *p = a->p;
+        if (p + 1 < a->e && (p[0] == '<' || p[0] == '>' || p[0] == '=' || p[0] == '!') &&
+            p[1] == '=') {
+            a->p += 2;
+            int64_t r = ar_add(a);
+            v = p[0] == '<' ? v <= r : p[0] == '>' ? v >= r : p[0] == '=' ? v == r : v != r;
+        } else if (p < a->e && (p[0] == '<' || p[0] == '>')) {
+            a->p++;
+            int64_t r = ar_add(a);
+            v = p[0] == '<' ? v < r : v > r;
+        } else {
+            return v;
+        }
+    }
+}
+
+static int64_t ar_or(arith_t *a)
+{
+    int64_t v = ar_cmp(a);
+    for (;;) {
+        ar_ws(a);
+        if (a->p + 1 < a->e && a->p[0] == '&' && a->p[1] == '&') {
+            a->p += 2;
+            int64_t r = ar_cmp(a);
+            v = v && r;
+        } else if (a->p + 1 < a->e && a->p[0] == '|' && a->p[1] == '|') {
+            a->p += 2;
+            int64_t r = ar_cmp(a);
+            v = v || r;
+        } else {
+            return v;
+        }
+    }
+}
+
+/* Decimal text of v into b (at least 21 bytes); returns b. */
+static char *i64_text(int64_t v, char *b)
+{
+    char t[24];
+    int n = 0;
+    uint64_t u = v < 0 ? 0u - (uint64_t) v : (uint64_t) v;
+    do {
+        t[n++] = (char) ('0' + u % 10u);
+        u /= 10u;
+    } while (u);
+    int k = 0;
+    if (v < 0) b[k++] = '-';
+    while (n) b[k++] = t[--n];
+    b[k] = 0;
+    return b;
+}
+
+/* The value of $NAME: the shell's variable, then the host environment. */
+static const char *lookup(zxsh_t *sh, const char *name, size_t n)
+{
+    zxsh_var_t *v = var_find(sh, name, n);
+    if (v) return v->value;
+    if (n == 7 && !memcmp(name, "VERDICT", 7)) return zxsh_base_word(sh->last);
+    char nm[ZXSH_NAME_MAX];
+    if (!sh->ops->getenv || n >= sizeof nm) return "";
+    memcpy(nm, name, n);
+    nm[n] = 0;
+    const char *e = sh->ops->getenv(sh->u, nm);
+    return e ? e : "";
+}
+
 /* Expand token i into the arena. *glob is set when an unquoted * ? [ was
- * seen. NULL when the arena is full. */
-static char *expand(zxsh_t *sh, uint32_t i, bool *glob)
+ * seen. Unquoted $(...) results and $@ are split at SPLIT marks unless
+ * assign (the word is NAME=value). NULL when the arena is full. */
+static char *expand(zxsh_t *sh, uint32_t i, bool *glob, bool assign)
 {
     const char *s = sh->src + sh->tok[i].off;
     uint32_t n = sh->tok[i].len;
     char *d = sh->arena + sh->arena_used;
     uint32_t cap = ZXSH_ARENA - sh->arena_used, o = 0;
     bool dq = false;
+    char num[24];
     *glob = false;
 #define PUT(ch)                                                                                    \
     do {                                                                                           \
@@ -305,20 +577,60 @@ static char *expand(zxsh_t *sh, uint32_t i, bool *glob)
             dq = !dq;
         } else if (c == '\\' && k + 1 < n) {
             char x = s[++k];
-            if (dq && x != '"' && x != '\\' && x != '$') PUT('\\');
+            if (dq && x != '"' && x != '\\' && x != '$' && x != '`') PUT('\\');
             PUT(x);
+        } else if ((c == '$' && k + 1 < n && s[k + 1] == '(') || c == '`') {
+            /* the token was lexed whole, so the end is inside it */
+            uint32_t e = (uint32_t) (skip_sub(s, k) - 0);
+            if (!e || e > n) return NULL;
+            bool arith = c == '$' && k + 2 < n && s[k + 2] == '(' && e >= k + 5 && s[e - 2] == ')';
+            uint32_t b0 = c == '`' ? k + 1 : k + (arith ? 3u : 2u),
+                     b1 = c == '`' ? e - 1 : e - (arith ? 2u : 1u);
+            if (arith) {
+                arith_t a = {sh, s + b0, s + b1, false};
+                int64_t v = ar_or(&a);
+                ar_ws(&a);
+                if (a.bad || a.p != a.e) {
+                    set_why(sh, "bad arithmetic", NULL);
+                    return NULL;
+                }
+                for (const char *p = i64_text(v, num); *p; p++) PUT(*p);
+            } else {
+                char text[2048];
+                uint32_t len = 0;
+                if (b1 - b0 >= sizeof text) return NULL;
+                memcpy(text, s + b0, b1 - b0);
+                text[b1 - b0] = 0;
+                if (sh->ops->capture)
+                    sh->ops->capture(sh->u, sh, text, sh->subst, ZXSH_CAPTURE, &len);
+                while (len && (sh->subst[len - 1] == '\n' || sh->subst[len - 1] == '\r')) len--;
+                for (uint32_t q = 0; q < len; q++) {
+                    char x = sh->subst[q];
+                    bool ws = x == ' ' || x == '\t' || x == '\n';
+                    PUT(ws && !dq && !assign ? SPLIT : x);
+                }
+            }
+            k = e - 1;
         } else if (c == '$' && k + 1 < n) {
             const char *val = NULL;
-            uint32_t a = k + 1, b;
-            if (s[a] == '?') {
-                val = zxsh_base_word(sh->last);
-                b = a + 1;
-            } else if (s[a] == '{') {
-                b = a + 1;
+            uint32_t a = k + 1, b = a + 1;
+            char x = s[a];
+            bool split_val = false;
+            if (x == '?') {
+                val = i64_text(sh->status < 0 ? zxsh_code(sh->last) : sh->status, num);
+            } else if (x >= '0' && x <= '9') {
+                char nm[8] = {'a', 'r', 'g', x, 0};
+                val = lookup(sh, nm, 4);
+            } else if (x == '#') {
+                val = lookup(sh, "argc", 4);
+                if (!*val) val = "0";
+            } else if (x == '@' || x == '*') {
+                val = lookup(sh, "args", 4);
+                split_val = x == '@' && !assign;
+            } else if (x == '{') {
                 while (b < n && s[b] != '}') b++;
                 if (b >= n) return NULL;
-                zxsh_var_t *v = var_find(sh, s + a + 1, b - a - 1);
-                val = v ? v->value : "";
+                val = lookup(sh, s + a + 1, b - a - 1);
                 b++;
             } else {
                 b = a;
@@ -327,14 +639,13 @@ static char *expand(zxsh_t *sh, uint32_t i, bool *glob)
                     PUT('$');
                     continue;
                 }
-                zxsh_var_t *v = var_find(sh, s + a, b - a);
-                val = v ? v->value : "";
+                val = lookup(sh, s + a, b - a);
             }
-            for (; *val; val++) PUT(*val);
+            for (; *val; val++) PUT(*val == SPLIT && !split_val ? ' ' : *val);
             k = b - 1;
         } else if (!dq && c == '~' && k == 0 && (n == 1 || s[1] == '/')) {
-            const char *h = zxsh_get(sh, "HOME");
-            if (!h) h = "~";
+            const char *h = lookup(sh, "HOME", 4);
+            if (!*h) h = "~";
             for (; *h; h++) PUT(*h);
         } else {
             if (!dq && (c == '*' || c == '?' || c == '[')) *glob = true;
@@ -345,6 +656,15 @@ static char *expand(zxsh_t *sh, uint32_t i, bool *glob)
     d[o] = 0;
     sh->arena_used += o + 1;
     return d;
+}
+
+/* NAME=... at the start of token i (unquoted)? */
+static bool tok_assign(const zxsh_t *sh, uint32_t i)
+{
+    const char *s = sh->src + sh->tok[i].off;
+    uint32_t n = sh->tok[i].len, k = 0;
+    while (k < n && s[k] != '=') k++;
+    return k < n && name_ok(s, k);
 }
 
 /* ------------------------------------------------------------ quarantine */
@@ -469,6 +789,130 @@ static void print_held(zxsh_t *sh)
         say(sh, 1, h->text);
         say(sh, 1, "\n");
     }
+}
+
+/* help: the command list. Every line is "name|synopsis|what it does". */
+static const char *const HELP[] = {
+    "#Everyday commands work as in sh and bash. Every program on your PATH runs unchanged (git, "
+    "make, cc, python, npm, cargo, ...).",
+    "cd|cd [DIR | - | ~]|change directory (- goes back)",
+    "pwd|pwd|print the current directory",
+    "export|export NAME=value ...|set a variable and pass it to programs",
+    "unset|unset NAME ...|remove variables",
+    "set|set|list the shell's variables",
+    "alias|alias [NAME=value ...]|define or list aliases (typed lines only)",
+    "unalias|unalias NAME ...|remove aliases",
+    "source|source FILE (or . FILE)|run a file's commands in this shell",
+    "type|type NAME ...|say whether a name is a builtin, an alias or a program",
+    "history|history [verify]|past lines with their verdicts; verify checks the hash chain",
+    "jobs|jobs|background jobs (cmd &) and their verdicts",
+    "wait|wait [%N]|wait for background jobs; the verdict combines them",
+    "exit|exit [N]|leave the shell",
+    "true|true / false / :|plain verdicts",
+    "#Syntax: ; && || | < > >> 2> 2>&1 >&2 &> & $(...) `...` $((1+2)) $VAR ${VAR} $1 $# $@ $? "
+    "NAME=value cmd",
+    "#  if ... then ... else ... fi, for x in ...; do ...; done, while/until ...; do ...; done, "
+    "break, continue",
+    "#  A line zxsh cannot read (case, functions, [[ ]], ...) is handed to bash, which says so.",
+    "#What zxsh adds: every command ends true, false, both (a contradiction) or neither (no "
+    "answer).",
+    "verdict|true|false|both|neither [polarity]|state a verdict (verdict both works anywhere)",
+    "why|why|explain the last verdict and what it caused",
+    "held|held|lines waiting on a both or neither result",
+    "resolve|resolve ID true|false|both|neither|decide a held line yourself; the rest of it then "
+    "runs",
+    "drop|drop ID|discard a held line",
+    "<?>|a <?> b|run both and compare: agreement is true, disagreement is both",
+    "if|if c; then A; else B; both C; neither D; fi|one branch for each of the four answers",
+    "cap|cap [drop NAME]|session capabilities (exec read write net resolve); they only narrow",
+    "sandbox|sandbox CAPS -- cmd|one command with fewer capabilities",
+    "qlog|qlog [verify]|the quarantine log of forbidden results (crashes)",
+    "zxv|zxv METHOD [JSON]|call the ZXV daemon",
+    "#Sub-terminals: several terminals on one screen, all running at once.",
+    "split|split [-v] [CMD]|open a sub-terminal beside this one (-v: below), running a shell or "
+    "CMD",
+    "tab|tab [CMD]|open a sub-terminal in a new tab",
+    "together|together 'CMD' 'CMD' ...|run commands side by side; the verdict is true or false "
+    "when they agree, both when they do not",
+    "#Keys inside sub-terminals: Ctrl-B then % split right, \" split below, arrows or o move, c "
+    "new tab, n/p next/previous tab, 1-9 jump, x close, q leave, ? help.",
+    "#Line editing: arrows, Home/End, Ctrl-A/E/K/U/W, Up/Down for history, Tab completes commands "
+    "and files, Ctrl-R searches history.",
+    NULL};
+
+static lpx_t help(zxsh_t *sh, const char *name)
+{
+    for (unsigned i = 0; HELP[i]; i++) {
+        const char *l = HELP[i];
+        if (l[0] == '#') {
+            if (!name) {
+                say(sh, 1, l + 1);
+                say(sh, 1, "\n");
+            }
+            continue;
+        }
+        const char *b1 = strchr(l, '|'), *b2 = b1 ? strchr(b1 + 1, '|') : NULL;
+        /* synopses contain | themselves: the description is after the last | */
+        const char *last = strrchr(l, '|');
+        if (!b1 || !b2) continue;
+        size_t nl = (size_t) (b1 - l);
+        if (name && (strlen(name) != nl || memcmp(name, l, nl))) continue;
+        say(sh, 1, "  ");
+        size_t syn = (size_t) (last - b1 - 1);
+        emit(sh, 1, b1 + 1, syn);
+        for (size_t k = syn; k < 34; k++) emit(sh, 1, " ", 1);
+        say(sh, 1, " ");
+        say(sh, 1, last + 1);
+        say(sh, 1, "\n");
+        if (name) return T_OK;
+    }
+    if (name) return refuse(sh, "no help for ", name);
+    say(sh, 1, "help NAME shows one command.\n");
+    return T_OK;
+}
+
+int zxsh_code(lpx_t t)
+{
+    if (lpx_forbidden(t)) return 3;
+    switch (lpx_base(t)) {
+    case LPX_B_TRUE:
+        return 0;
+    case LPX_B_FALSE:
+        return 1;
+    case LPX_B_BOTH:
+        return 4;
+    default:
+        return 5;
+    }
+}
+
+const char *zxsh_alias_get(const zxsh_t *sh, const char *name)
+{
+    for (unsigned i = 0; i < ZXSH_MAX_ALIAS; i++)
+        if (sh->alias[i].name[0] && !strcmp(sh->alias[i].name, name)) return sh->alias[i].value;
+    return NULL;
+}
+
+bool zxsh_alias_set(zxsh_t *sh, const char *name, const char *value)
+{
+    size_t n = strlen(name), m = strlen(value);
+    if (!name_ok(name, n) || m >= ZXSH_VALUE_MAX) return false;
+    zxsh_alias_t *al = NULL;
+    for (unsigned i = 0; i < ZXSH_MAX_ALIAS && !al; i++)
+        if (!strcmp(sh->alias[i].name, name)) al = &sh->alias[i];
+    for (unsigned i = 0; i < ZXSH_MAX_ALIAS && !al; i++)
+        if (!sh->alias[i].name[0]) al = &sh->alias[i];
+    if (!al) return false;
+    memcpy(al->name, name, n + 1);
+    memcpy(al->value, value, m + 1);
+    return true;
+}
+
+bool zxsh_is_builtin(const char *name)
+{
+    for (unsigned i = 0; CORE_BUILTINS[i]; i++)
+        if (!strcmp(name, CORE_BUILTINS[i])) return true;
+    return false;
 }
 
 /* Returns true when argv[0] is a core builtin (and *v is its verdict). */
@@ -620,16 +1064,73 @@ static bool builtin(zxsh_t *sh, const zxsh_stage_t *st, lpx_t *v)
         return true;
     }
     if (!strcmp(a[0], "help")) {
-        say(sh, 1,
-            "zxsh: every command returns true, false, both or neither.\n"
-            "  a && b      run b only if a proceeds      a || b   only if a is refused\n"
-            "  a | b       verdict of every stage         a <?> b  run both, compare\n"
-            "  ! a         negate (both/neither stay)     $?       last verdict word\n"
-            "  if c then A else B both C neither D fi     for x in ...; do ...; done\n"
-            "  held / resolve ID VERDICT / drop ID        contradictions wait for you\n"
-            "  why         explain the last verdict       cap [drop X]  capabilities\n"
-            "  sandbox CAPS -- cmd   one command with fewer capabilities\n"
-            "  history [verify] / qlog / zxv METHOD [JSON] / cd / export / exit\n");
+        *v = help(sh, argc > 1 ? a[1] : NULL);
+        return true;
+    }
+    if (!strcmp(a[0], ":")) {
+        *v = T_OK;
+        return true;
+    }
+    if (!strcmp(a[0], "alias")) {
+        *v = T_OK;
+        if (argc == 1)
+            for (unsigned i = 0; i < ZXSH_MAX_ALIAS; i++)
+                if (sh->alias[i].name[0]) {
+                    say(sh, 1, "alias ");
+                    say(sh, 1, sh->alias[i].name);
+                    say(sh, 1, "='");
+                    say(sh, 1, sh->alias[i].value);
+                    say(sh, 1, "'\n");
+                }
+        for (int i = 1; i < argc; i++) {
+            char *eq = strchr(a[i], '=');
+            if (eq) {
+                *eq = 0;
+                if (!zxsh_alias_set(sh, a[i], eq + 1)) *v = refuse(sh, "bad alias: ", a[i]);
+            } else {
+                const char *val = zxsh_alias_get(sh, a[i]);
+                if (!val) {
+                    *v = refuse(sh, "no such alias: ", a[i]);
+                    continue;
+                }
+                say(sh, 1, "alias ");
+                say(sh, 1, a[i]);
+                say(sh, 1, "='");
+                say(sh, 1, val);
+                say(sh, 1, "'\n");
+            }
+        }
+        return true;
+    }
+    if (!strcmp(a[0], "unalias")) {
+        *v = T_OK;
+        for (int i = 1; i < argc; i++) {
+            zxsh_alias_t *al = NULL;
+            for (unsigned k = 0; k < ZXSH_MAX_ALIAS && !al; k++)
+                if (!strcmp(sh->alias[k].name, a[i])) al = &sh->alias[k];
+            if (al)
+                memset(al, 0, sizeof *al);
+            else
+                *v = refuse(sh, "no such alias: ", a[i]);
+        }
+        return true;
+    }
+    if (!strcmp(a[0], "break") || !strcmp(a[0], "continue")) {
+        unsigned levels = 1;
+        if (argc > 1) {
+            levels = 0;
+            for (const char *p = a[1]; *p >= '0' && *p <= '9' && levels < 1000; p++)
+                levels = levels * 10 + (unsigned) (*p - '0');
+        }
+        if (!sh->loops || !levels) {
+            *v = refuse(sh, a[0], ": only meaningful inside a for, while or until loop");
+            return true;
+        }
+        if (levels > sh->loops) levels = sh->loops;
+        if (a[0][0] == 'b')
+            sh->brk = levels;
+        else
+            sh->brk = levels - 1, sh->cont = 1;
         *v = T_OK;
         return true;
     }
@@ -669,12 +1170,15 @@ static lpx_t dispatch(zxsh_t *sh, zxsh_stage_t *st, unsigned n, char *cap, uint3
         sandboxed = true;
         sh->caps &= m;
         int k = 0;
-        for (int i = dd + 1; i < st[0].argc; i++, k++) st[0].argv[k] = st[0].argv[i];
+        for (int i = dd + 1; i < st[0].argc; i++, k++) {
+            st[0].argv[k] = st[0].argv[i];
+            st[0].glob[k] = st[0].glob[i];
+        }
         st[0].argv[k] = NULL;
-        st[0].glob >>= (dd + 1);
         st[0].argc = k;
     }
-    if (n == 1 && !is_host_builtin(st[0].argv[0])) {
+    bool redir = st[0].in || st[0].out || st[0].err || st[0].err_to_out || st[0].out_to_err;
+    if (n == 1 && !redir && !is_host_builtin(st[0].argv[0])) {
         if (cap) {
             *caplen = 0;
             sh->cap_buf = cap;
@@ -683,8 +1187,6 @@ static lpx_t dispatch(zxsh_t *sh, zxsh_stage_t *st, unsigned n, char *cap, uint3
         bool was = builtin(sh, &st[0], &v);
         sh->cap_buf = NULL;
         if (was) {
-            if (st[0].in || st[0].out)
-                v = refuse(sh, "redirects are not supported on builtin ", st[0].argv[0]);
             if (sandboxed) sh->caps = saved_caps;
             return v;
         }
@@ -694,11 +1196,12 @@ static lpx_t dispatch(zxsh_t *sh, zxsh_stage_t *st, unsigned n, char *cap, uint3
             v = refuse(sh, "denied: < needs the read capability", NULL);
             goto out;
         }
-        if (st[i].out && !(sh->caps & ZXSH_CAP_WRITE)) {
+        if ((st[i].out || st[i].err) && !(sh->caps & ZXSH_CAP_WRITE)) {
             v = refuse(sh, "denied: > needs the write capability", NULL);
             goto out;
         }
-        if (!is_host_builtin(st[i].argv[0]) && !(sh->caps & ZXSH_CAP_EXEC)) {
+        if (!is_host_builtin(st[i].argv[0]) && !zxsh_is_builtin(st[i].argv[0]) &&
+            !(sh->caps & ZXSH_CAP_EXEC)) {
             v = refuse(sh, "denied: running a program needs the exec capability: ", st[i].argv[0]);
             goto out;
         }
@@ -707,6 +1210,7 @@ static lpx_t dispatch(zxsh_t *sh, zxsh_stage_t *st, unsigned n, char *cap, uint3
             goto out;
         }
     }
+    sh->status = -1;
     v = sh->ops->exec(sh->u, sh, st, n, cap, ZXSH_CAPTURE, caplen, sh->why, ZXSH_WHY_MAX);
 out:
     sh->caps = saved_caps;
@@ -716,9 +1220,17 @@ out:
 static lpx_t eval_if(zxsh_t *sh, bool run);
 static lpx_t eval_if_clauses(zxsh_t *sh, bool run, lpx_t cond);
 static lpx_t eval_for(zxsh_t *sh, bool run);
+static lpx_t eval_while(zxsh_t *sh, bool run);
+
+static bool compound(const zxsh_t *sh)
+{
+    return tok_is(sh, sh->pos, "if") || tok_is(sh, sh->pos, "for") ||
+           tok_is(sh, sh->pos, "while") || tok_is(sh, sh->pos, "until");
+}
 
 static void finish(zxsh_t *sh, lpx_t v, uint32_t off, uint32_t end)
 {
+    if (sh->status < 0) sh->status = zxsh_code(v);
     sh->last = v;
     memcpy(sh->last_why, sh->why, sizeof sh->why);
     if (lpx_forbidden(v)) quarantine(sh, v, off, end);
@@ -732,20 +1244,27 @@ static lpx_t eval_pipeline(zxsh_t *sh, bool run, bool capture, char *cap, uint32
         neg = true;
         sh->pos++;
     }
-    if (tok_is(sh, sh->pos, "if") || tok_is(sh, sh->pos, "for")) {
+    if (compound(sh)) {
         if (capture) {
-            syntax(sh, "an if/for cannot be cross-checked; wrap it in a script");
+            syntax(sh, "an if/for/while cannot be cross-checked; wrap it in a script");
             return v;
         }
-        v = tok_is(sh, sh->pos, "if") ? eval_if(sh, run) : eval_for(sh, run);
-        if (sh->tok[sh->pos].kind == K_PIPE) syntax(sh, "an if/for cannot be piped");
-        if (neg && R(run)) sh->last = v = lpx_not(v);
+        v = tok_is(sh, sh->pos, "if")    ? eval_if(sh, run)
+            : tok_is(sh, sh->pos, "for") ? eval_for(sh, run)
+                                         : eval_while(sh, run);
+        if (sh->tok[sh->pos].kind == K_PIPE || IS_REDIR(sh->tok[sh->pos].kind))
+            syntax(sh, "an if/for/while cannot be piped or redirected");
+        if (neg && R(run)) {
+            sh->last = v = lpx_not(v);
+            sh->status = zxsh_code(v);
+        }
         return v;
     }
     uint32_t mark = sh->arena_used, off = sh->tok[sh->pos].off, end = off;
     zxsh_stage_t st[ZXSH_MAX_STAGES];
     unsigned n = 0;
     bool overflow = false;
+    if (R(run)) sh->why[0] = 0;
     for (;;) {
         if (n >= ZXSH_MAX_STAGES) {
             syntax(sh, "too many pipeline stages");
@@ -756,22 +1275,56 @@ static lpx_t eval_pipeline(zxsh_t *sh, bool run, bool capture, char *cap, uint32
         for (;;) {
             uint8_t k = sh->tok[sh->pos].kind;
             if (k == K_WORD) {
-                if (R(run)) {
-                    bool g;
-                    char *w = expand(sh, sh->pos, &g);
-                    if (!w || s->argc >= (int) ZXSH_MAX_ARGS) {
-                        overflow = true;
-                        if (s->argc < (int) ZXSH_MAX_ARGS) s->argv[s->argc++] = (char *) "";
-                    } else {
-                        if (g) s->glob |= 1u << s->argc;
-                        s->argv[s->argc++] = w;
+                static const char *const BASH[] = {"case", "esac",     "[[",     "{",
+                                                   "}",    "function", "select", NULL};
+                for (unsigned b = 0; s->argc == 0 && BASH[b]; b++)
+                    if (tok_is(sh, sh->pos, BASH[b])) {
+                        sh->syntax = true;
+                        set_why(sh, "zxsh does not read ", BASH[b]);
+                        return v;
                     }
-                } else {
+                if (R(run)) {
+                    bool g, as = tok_assign(sh, sh->pos);
+                    char *w = expand(sh, sh->pos, &g, as);
+                    if (as && s->argc == 0 && w && s->nenv < (int) ZXSH_MAX_ENV) {
+                        s->env[s->nenv++] = w; /* NAME=value before the command */
+                    } else if (!w) {
+                        overflow = true;
+                    } else if (!strchr(w, SPLIT)) {
+                        if (s->argc >= (int) ZXSH_MAX_ARGS)
+                            overflow = true;
+                        else
+                            s->glob[s->argc] = g, s->argv[s->argc++] = w;
+                    } else {
+                        for (char *p = w; *p;) { /* split an unquoted $(...) or $@ */
+                            char *e = p;
+                            while (*e && *e != SPLIT) e++;
+                            bool more = *e != 0;
+                            *e = 0;
+                            if (*p) {
+                                if (s->argc >= (int) ZXSH_MAX_ARGS)
+                                    overflow = true;
+                                else
+                                    s->glob[s->argc] = g, s->argv[s->argc++] = p;
+                            }
+                            p = more ? e + 1 : e;
+                        }
+                    }
+                } else if (!(s->argc == 0 && tok_assign(sh, sh->pos))) {
                     s->argc++;
+                } else {
+                    s->nenv++;
                 }
                 end = sh->tok[sh->pos].off + sh->tok[sh->pos].len;
                 sh->pos++;
-            } else if (k == K_LT || k == K_GT || k == K_GTGT) {
+            } else if (k == K_E2O || k == K_O2E) {
+                if (k == K_E2O)
+                    s->err_to_out = true;
+                else
+                    s->out_to_err = true;
+                end = sh->tok[sh->pos].off + sh->tok[sh->pos].len;
+                sh->pos++;
+            } else if (IS_REDIR(k)) {
                 sh->pos++;
                 if (sh->tok[sh->pos].kind != K_WORD) {
                     syntax(sh, "a redirect needs a file name");
@@ -779,10 +1332,17 @@ static lpx_t eval_pipeline(zxsh_t *sh, bool run, bool capture, char *cap, uint32
                 }
                 if (R(run)) {
                     bool g;
-                    char *w = expand(sh, sh->pos, &g);
-                    if (!w) overflow = true;
-                    else if (k == K_LT) s->in = w;
-                    else s->out = w, s->append = (k == K_GTGT);
+                    char *w = expand(sh, sh->pos, &g, true);
+                    if (!w)
+                        overflow = true;
+                    else if (k == K_LT)
+                        s->in = w;
+                    else if (k == K_GT || k == K_GTGT)
+                        s->out = w, s->append = (k == K_GTGT);
+                    else if (k == K_ERR || k == K_ERRAPP)
+                        s->err = w, s->err_append = (k == K_ERRAPP);
+                    else
+                        s->out = w, s->append = (k == K_ALLAPP), s->err_to_out = true;
                 }
                 end = sh->tok[sh->pos].off + sh->tok[sh->pos].len;
                 sh->pos++;
@@ -790,33 +1350,47 @@ static lpx_t eval_pipeline(zxsh_t *sh, bool run, bool capture, char *cap, uint32
                 break;
             }
         }
-        if (s->argc == 0) {
-            syntax(sh, "expected a command");
-            return v;
+        bool assign_only = n == 0 && s->nenv && sh->tok[sh->pos].kind != K_PIPE;
+        if (s->argc == 0 && !assign_only) {
+            if (!R(run)) {
+                syntax(sh, "expected a command");
+                return v;
+            }
+            s->argv[s->argc++] = (char *) "true"; /* every word expanded to nothing */
         }
         n++;
         if (sh->tok[sh->pos].kind != K_PIPE) break;
         sh->pos++;
         skip_nl(sh);
-        if (tok_is(sh, sh->pos, "if") || tok_is(sh, sh->pos, "for") || at_terminator(sh)) {
+        if (compound(sh) || at_terminator(sh)) {
             syntax(sh, "expected a command after |");
             return v;
         }
     }
     if (!R(run)) return v;
+    sh->status = -1;
     if (overflow) {
-        v = refuse(sh, "too many arguments or words too long", NULL);
-    } else if (n == 1 && st[0].argc == 1 && !st[0].in && !st[0].out && strchr(st[0].argv[0], '=') &&
-               st[0].argv[0][0] != '=' &&
-               name_ok(st[0].argv[0], (size_t) (strchr(st[0].argv[0], '=') - st[0].argv[0]))) {
-        char *eq = strchr(st[0].argv[0], '=');
-        *eq = 0;
+        if (!sh->why[0]) set_why(sh, "too many arguments or words too long", NULL);
+        v = refuse(sh, sh->why, NULL);
+    } else if (n == 1 && st[0].argc == 0) { /* NAME=value ... alone sets variables */
         sh->why[0] = 0;
-        v = zxsh_set(sh, st[0].argv[0], eq + 1) ? T_OK : refuse(sh, "no room for variable ", st[0].argv[0]);
+        v = T_OK;
+        for (int i = 0; i < st[0].nenv; i++) {
+            char *eq = strchr(st[0].env[i], '=');
+            *eq = 0;
+            if (!zxsh_set(sh, st[0].env[i], eq + 1))
+                v = refuse(sh, "no room for variable ", st[0].env[i]);
+            else if (sh->ops->getenv && sh->ops->setenv && sh->ops->getenv(sh->u, st[0].env[i]))
+                sh->ops->setenv(sh->u, st[0].env[i],
+                                eq + 1); /* already exported: keep it in step */
+        }
     } else {
         v = dispatch(sh, st, n, capture ? cap : NULL, caplen);
     }
-    if (neg) v = lpx_not(v);
+    if (neg) {
+        v = lpx_not(v);
+        sh->status = zxsh_code(v);
+    }
     sh->arena_used = mark;
     finish(sh, v, off, end);
     return v;
@@ -847,15 +1421,20 @@ static lpx_t eval_check(zxsh_t *sh, bool run)
         say(sh, 1, "--- <?> the second command said:\n");
         emit(sh, 1, sh->capb, lb);
     }
-    uint8_t ja = (uint8_t) lpx_base_to_lpres(lpx_base(a)), jb = (uint8_t) lpx_base_to_lpres(lpx_base(b));
+    uint8_t ja = (uint8_t) lpx_base_to_lpres(lpx_base(a)),
+            jb = (uint8_t) lpx_base_to_lpres(lpx_base(b));
     uint8_t base = lpx_base_from_lpres((lpres_state_t) (ja | jb));
     if (lpx_base(a) == LPX_B_TRUE && lpx_base(b) == LPX_B_TRUE && !same) base = LPX_B_BOTH;
     uint8_t pol = (same && lpx_base(a) == lpx_base(b)) ? LPX_P_NEGENTROPIC : LPX_P_ENTROPIC;
     lpx_t v = lpx_make(base, pol, LPX_PH_MANIFEST);
-    if (la >= ZXSH_CAPTURE || lb >= ZXSH_CAPTURE) set_why(sh, "compared the first 8192 bytes only", NULL);
-    else if (!same) set_why(sh, "the two commands' outputs differ", NULL);
-    else if (lpx_base(a) != lpx_base(b)) set_why(sh, "the two commands' verdicts differ", NULL);
-    else set_why(sh, "two commands agree", NULL);
+    if (la >= ZXSH_CAPTURE || lb >= ZXSH_CAPTURE)
+        set_why(sh, "compared the first 8192 bytes only", NULL);
+    else if (!same)
+        set_why(sh, "the two commands' outputs differ", NULL);
+    else if (lpx_base(a) != lpx_base(b))
+        set_why(sh, "the two commands' verdicts differ", NULL);
+    else
+        set_why(sh, "two commands agree", NULL);
     sh->last = v;
     memcpy(sh->last_why, sh->why, sizeof sh->why);
     return v;
@@ -880,8 +1459,10 @@ static lpx_t eval_andor(zxsh_t *sh, bool run)
         bool go = false;
         if (R(run) && !held) {
             lpx_action_t act = lpx_action(v);
-            if (act == LPX_ACT_PROCEED) go = is_and;
-            else if (act == LPX_ACT_REFUSE) go = !is_and;
+            if (act == LPX_ACT_PROCEED)
+                go = is_and;
+            else if (act == LPX_ACT_REFUSE)
+                go = !is_and;
             else if (act == LPX_ACT_WAIT || act == LPX_ACT_ESCALATE) {
                 held = true;
                 hold_off = op_off;
@@ -902,17 +1483,112 @@ static lpx_t eval_list(zxsh_t *sh, bool run)
         while (sh->tok[sh->pos].kind == K_NL || sh->tok[sh->pos].kind == K_SEMI) sh->pos++;
         if (at_terminator(sh) || sh->syntax || sh->need_more) return v;
         uint8_t k = sh->tok[sh->pos].kind;
-        if (k != K_WORD && k != K_LT && k != K_GT && k != K_GTGT) {
+        if (k != K_WORD && !IS_REDIR(k)) {
             syntax(sh, "expected a command");
             return v;
         }
-        v = eval_andor(sh, run);
+        /* S10: `list &` runs in the background; find its end with a dry pass */
+        uint32_t start = sh->pos;
+        bool bg = false;
+        if (R(run) && sh->ops->background) {
+            eval_andor(sh, false);
+            bg = sh->tok[sh->pos].kind == K_AMP;
+            if (!bg) sh->pos = start;
+        }
+        if (bg) {
+            uint32_t off = sh->tok[start].off, end = sh->tok[sh->pos].off;
+            while (end > off && (sh->src[end - 1] == ' ' || sh->src[end - 1] == '\t')) end--;
+            uint32_t mark = sh->arena_used;
+            if (end - off + 1 > ZXSH_ARENA - sh->arena_used) {
+                v = refuse(sh, "background command too long", NULL);
+            } else {
+                char *text = sh->arena + sh->arena_used;
+                memcpy(text, sh->src + off, end - off);
+                text[end - off] = 0;
+                sh->arena_used += end - off + 1;
+                sh->why[0] = 0;
+                v = sh->ops->background(sh->u, sh, text);
+            }
+            sh->arena_used = mark;
+            sh->last = v;
+            sh->status = zxsh_code(v);
+            memcpy(sh->last_why, sh->why, sizeof sh->why);
+        } else {
+            v = eval_andor(sh, run);
+        }
         k = sh->tok[sh->pos].kind;
+        if (k == K_AMP) {
+            sh->pos++;
+            k = sh->tok[sh->pos].kind;
+            if (k != K_NL && k != K_SEMI && k != K_EOF && !at_terminator(sh) && k != K_WORD &&
+                !IS_REDIR(k)) {
+                syntax(sh, "expected a command after &");
+                return v;
+            }
+            continue;
+        }
         if (k != K_NL && k != K_SEMI && !at_terminator(sh)) {
             syntax(sh, "expected ; or a new line");
             return v;
         }
     }
+}
+
+/* S10: while / until. A condition that is neither a plain yes nor a plain
+ * no (both, neither, a weakening truth) stops the loop and is its verdict. */
+static lpx_t eval_while(zxsh_t *sh, bool run)
+{
+    bool until = tok_is(sh, sh->pos, "until");
+    sh->pos++;
+    uint32_t cond = sh->pos;
+    bool outer = sh->in_clause;
+    sh->in_clause = false;
+    eval_list(sh, false);
+    if (!tok_is(sh, sh->pos, "do")) {
+        sh->in_clause = outer;
+        syntax(sh, "expected do");
+        return T_OK;
+    }
+    uint32_t body = ++sh->pos;
+    eval_list(sh, false);
+    if (!tok_is(sh, sh->pos, "done")) {
+        sh->in_clause = outer;
+        syntax(sh, "expected done");
+        return T_OK;
+    }
+    uint32_t after = sh->pos + 1;
+    lpx_t acc = T_OK;
+    if (R(run)) {
+        sh->loops++;
+        for (;;) {
+            sh->pos = cond;
+            lpx_t c = eval_list(sh, true);
+            if (!R(true)) break;
+            lpx_action_t act = lpx_action(c);
+            bool go = act == (until ? LPX_ACT_REFUSE : LPX_ACT_PROCEED);
+            bool stop = act == (until ? LPX_ACT_PROCEED : LPX_ACT_REFUSE);
+            if (!go && !stop) { /* both / neither / weakening */
+                acc = c;
+                set_why(sh, "the loop stopped: its condition was ", zxsh_base_word(c));
+                memcpy(sh->last_why, sh->why, sizeof sh->why);
+                break;
+            }
+            if (stop) break;
+            sh->pos = body;
+            acc = lpx_and(acc, eval_list(sh, true));
+            if (sh->cont) sh->cont = 0;
+            if (sh->brk) {
+                sh->brk--;
+                break;
+            }
+        }
+        sh->loops--;
+        sh->last = acc;
+        if (sh->status < 0) sh->status = zxsh_code(acc);
+    }
+    sh->in_clause = outer;
+    sh->pos = after;
+    return acc;
 }
 
 /* S7 */
@@ -944,12 +1620,17 @@ static lpx_t eval_if_clauses(zxsh_t *sh, bool run, lpx_t cond)
         bool run_any = pass == 1 && R(run);
         if (run_any) {
             lpx_action_t act = lpx_action(cond);
-            if (act == LPX_ACT_PROCEED) choose = 0;
-            else if (act == LPX_ACT_REFUSE) choose = 1;
+            if (act == LPX_ACT_PROCEED)
+                choose = 0;
+            else if (act == LPX_ACT_REFUSE)
+                choose = 1;
             else if (act != LPX_ACT_ROLLBACK) {
-                if (lpx_base(cond) == LPX_B_BOTH && has[2]) choose = 2;
-                else if (lpx_base(cond) == LPX_B_NEITHER && has[3]) choose = 3;
-                else choose = 4; /* hold */
+                if (lpx_base(cond) == LPX_B_BOTH && has[2])
+                    choose = 2;
+                else if (lpx_base(cond) == LPX_B_NEITHER && has[3])
+                    choose = 3;
+                else
+                    choose = 4; /* hold */
             }
         }
         sh->pos = then_tok;
@@ -1024,24 +1705,50 @@ static lpx_t eval_for(zxsh_t *sh, bool run)
     sh->in_clause = false;
     bool ran = false;
     if (R(run)) {
-        for (uint32_t i = w0; i < w1 && R(run); i++) {
+        sh->loops++;
+        bool done = false;
+        for (uint32_t i = w0; i < w1 && !done && R(run); i++) {
             uint32_t mark = sh->arena_used;
             bool g;
-            char *w = expand(sh, i, &g);
-            char val[ZXSH_VALUE_MAX];
-            size_t n = w ? strlen(w) : 0;
-            if (!w || n >= sizeof val) {
+            char *w = expand(sh, i, &g, false);
+            if (!w) {
                 sh->arena_used = mark;
                 acc = lpx_and(acc, refuse(sh, "for: word too long", NULL));
                 continue;
             }
-            memcpy(val, w, n + 1);
+            /* each SPLIT-separated part of an unquoted $(...) is one item */
+            bool split = strchr(w, SPLIT) != NULL;
+            for (char *p = w; !done && R(run);) {
+                char *e = p;
+                while (*e && *e != SPLIT) e++;
+                bool more = *e != 0;
+                *e = 0;
+                if (*p || !split) {
+                    char val[ZXSH_VALUE_MAX];
+                    size_t n = strlen(p);
+                    if (n >= sizeof val) {
+                        acc = lpx_and(acc, refuse(sh, "for: word too long", NULL));
+                    } else {
+                        memcpy(val, p, n + 1);
+                        zxsh_set(sh, name, val);
+                        uint32_t keep = sh->arena_used;
+                        sh->pos = body;
+                        acc = lpx_and(acc, eval_list(sh, true));
+                        sh->arena_used = keep;
+                        ran = true;
+                        if (sh->cont) sh->cont = 0;
+                        if (sh->brk) {
+                            sh->brk--;
+                            done = true;
+                        }
+                    }
+                }
+                if (!more) break;
+                p = e + 1;
+            }
             sh->arena_used = mark;
-            zxsh_set(sh, name, val);
-            sh->pos = body;
-            acc = lpx_and(acc, eval_list(sh, true));
-            ran = true;
         }
+        sh->loops--;
     }
     if (!ran) {
         sh->pos = body;
@@ -1060,6 +1767,103 @@ static lpx_t eval_for(zxsh_t *sh, bool run)
     return acc;
 }
 
+int zxsh_word_kind(const char *name)
+{
+    static const char *const KW[] = {"if",   "then",    "else", "fi",    "for",
+                                     "in",   "do",      "done", "while", "until",
+                                     "both", "neither", "!",    "<?>",   NULL};
+    if (zxsh_is_builtin(name)) return 1;
+    if (is_host_builtin(name)) return 2;
+    for (unsigned i = 0; KW[i]; i++)
+        if (!strcmp(name, KW[i])) return 3;
+    return 0;
+}
+
+/* The parse state a nested evaluation would overwrite. */
+typedef struct {
+    const char *src;
+    uint32_t ntok, pos, arena_used;
+    bool aborted, need_more, syntax, in_clause;
+    char *cap_buf;
+    uint32_t *cap_len;
+} frame_t;
+
+size_t zxsh_frame_size(const zxsh_t *sh)
+{
+    return sizeof(frame_t) + sh->ntok * sizeof(zxsh_tok_t) + sh->arena_used;
+}
+
+zxsh_status_t zxsh_eval_nested(zxsh_t *sh, const char *src, void *frame)
+{
+    frame_t f = {sh->src,       sh->ntok,   sh->pos,       sh->arena_used, sh->aborted,
+                 sh->need_more, sh->syntax, sh->in_clause, sh->cap_buf,    sh->cap_len};
+    char *p = (char *) frame;
+    memcpy(p, &f, sizeof f);
+    memcpy(p + sizeof f, sh->tok, f.ntok * sizeof(zxsh_tok_t));
+    memcpy(p + sizeof f + f.ntok * sizeof(zxsh_tok_t), sh->arena, f.arena_used);
+    zxsh_status_t st = zxsh_eval(sh, src);
+    memcpy(sh->tok, p + sizeof f, f.ntok * sizeof(zxsh_tok_t));
+    memcpy(sh->arena, p + sizeof f + f.ntok * sizeof(zxsh_tok_t), f.arena_used);
+    sh->src = f.src;
+    sh->ntok = f.ntok;
+    sh->pos = f.pos;
+    sh->arena_used = f.arena_used;
+    sh->need_more = f.need_more;
+    sh->syntax = f.syntax;
+    sh->in_clause = f.in_clause;
+    sh->cap_buf = f.cap_buf;
+    sh->cap_len = f.cap_len;
+    sh->aborted = f.aborted || st == ZXSH_ABORTED;
+    return st;
+}
+
+bool zxsh_builtin(zxsh_t *sh, const zxsh_stage_t *st, lpx_t *v)
+{
+    return st->argc > 0 && zxsh_is_builtin(st->argv[0]) && builtin(sh, st, v);
+}
+
+/* Aliases: replace a command word that names an alias (typed lines only). */
+static void expand_aliases(zxsh_t *sh)
+{
+    static const char *const CMDPOS[] = {"then", "else", "do", "if", "while", "until", "!", NULL};
+    uint32_t o = 0, from = 0;
+    bool cmd = true, any = false;
+    for (uint32_t t = 0; t < sh->ntok; t++) {
+        const zxsh_tok_t *k = &sh->tok[t];
+        bool next = false;
+        if (k->kind == K_WORD) {
+            for (unsigned i = 0; CMDPOS[i]; i++)
+                if (tok_is(sh, t, CMDPOS[i])) next = true;
+            char nm[ZXSH_NAME_MAX];
+            const char *val = NULL;
+            if (cmd && !next && k->len < sizeof nm && name_ok(sh->src + k->off, k->len)) {
+                memcpy(nm, sh->src + k->off, k->len);
+                nm[k->len] = 0;
+                val = zxsh_alias_get(sh, nm);
+            }
+            if (val) {
+                size_t m = strlen(val), pre = k->off - from;
+                if (o + pre + m + 1 >= ZXSH_ALIAS_SRC) return; /* too long: leave it as typed */
+                memcpy(sh->asrc + o, sh->src + from, pre);
+                o += (uint32_t) pre;
+                memcpy(sh->asrc + o, val, m);
+                o += (uint32_t) m;
+                from = k->off + k->len;
+                any = true;
+            }
+        } else {
+            next = k->kind != K_EOF && !IS_REDIR(k->kind);
+        }
+        cmd = next;
+    }
+    if (!any) return;
+    size_t rest = strlen(sh->src + from);
+    if (o + rest + 1 >= ZXSH_ALIAS_SRC) return;
+    memcpy(sh->asrc + o, sh->src + from, rest + 1);
+    sh->src = sh->asrc;
+    lex(sh);
+}
+
 /* ---------------------------------------------------------------- driver */
 
 void zxsh_init(zxsh_t *sh, const zxsh_ops_t *ops, void *u, bool interactive)
@@ -1070,6 +1874,7 @@ void zxsh_init(zxsh_t *sh, const zxsh_ops_t *ops, void *u, bool interactive)
     sh->interactive = interactive;
     sh->caps = ZXSH_CAP_ALL & ~(interactive ? 0u : ZXSH_CAP_RESOLVE); /* S5 */
     sh->last = T_OK;
+    sh->status = 0;
     lpx_qlog_init(&sh->qlog, sh->qrec, ZXSH_QLOG_CAP);
 }
 
@@ -1077,9 +1882,16 @@ static zxsh_status_t eval_once(zxsh_t *sh, const char *src)
 {
     sh->src = src;
     sh->syntax = sh->need_more = sh->aborted = sh->in_clause = false;
+    if (sh->depth == 1) { /* a nested `source` keeps the outer loops and Ctrl-C */
+        sh->interrupt = 0;
+        sh->brk = sh->cont = sh->loops = 0;
+    }
     sh->cap_buf = NULL;
     sh->why[0] = 0;
     lex(sh);
+    if (sh->syntax) goto bad;
+    if (sh->need_more) return ZXSH_NEED_MORE;
+    if (sh->interactive && sh->depth == 1) expand_aliases(sh);
     if (sh->syntax) goto bad;
     if (sh->need_more) return ZXSH_NEED_MORE;
     /* pass 1: parse only, so a syntax error means nothing ran */
@@ -1093,12 +1905,20 @@ static zxsh_status_t eval_once(zxsh_t *sh, const char *src)
     sh->pos = 0;
     sh->arena_used = 0;
     eval_list(sh, true);
+    if (sh->interrupt && sh->depth == 1) { /* S11: an interrupted line has no answer */
+        sh->last = lpx_make(LPX_B_NEITHER, LPX_P_ENTROPIC, LPX_PH_MANIFEST);
+        sh->status = 130;
+        set_why(sh, "interrupted (Ctrl-C)", NULL);
+        memcpy(sh->last_why, sh->why, sizeof sh->why);
+    }
     if (sh->exiting) return ZXSH_EXIT;
     return sh->aborted ? ZXSH_ABORTED : ZXSH_OK;
 bad:
-    say(sh, 2, "zxsh: ");
-    say(sh, 2, sh->why);
-    say(sh, 2, "\n");
+    if (!sh->quiet_syntax) {
+        say(sh, 2, "zxsh: ");
+        say(sh, 2, sh->why);
+        say(sh, 2, "\n");
+    }
     return ZXSH_SYNTAX;
 }
 
