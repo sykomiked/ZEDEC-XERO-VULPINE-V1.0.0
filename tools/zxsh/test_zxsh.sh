@@ -146,7 +146,9 @@ check "type missing" 1 "" -- -c "type no-such-cmd-zxsh"
 check "builtin in a pipeline" 0 "1" -- -c "help resolve | grep -c resolve"
 check "builtin redirected" 0 "1" -- -c "help resolve > h.txt; grep -c resolve h.txt"
 check "builtin verdict through a pipe" 4 "" -- -c "both | cat"
-check "cd -" 0 "/tmp" -- -c "cd /tmp; cd /; cd -"
+# /tmp as zxsh will print it (physical: on macOS it is /private/tmp)
+TMPP=$(cd /tmp && pwd -P)
+check "cd -" 0 "$TMPP" -- -c "cd /tmp; cd /; cd -"
 printf 'echo $1 $# "$@"\n' > args.zxs
 check "positional arguments" 0 "P 2 P Q" -- args.zxs P Q
 check "compat: bash runs what zxsh does not read" 0 "yes" -- -c 'case a in a) echo yes;; esac'
