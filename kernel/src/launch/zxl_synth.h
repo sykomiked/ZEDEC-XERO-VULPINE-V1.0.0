@@ -19,6 +19,11 @@
  * Coffer) keep their own recipes: a knock on wood, a struck spark, a call and
  * answer, a projector's reel, a flock of wings, a key in a lock.
  *
+ * Every other app's phrase carries a quiet layer in its tier's material:
+ * dry wood and relay clicks for the 144 base apps, latches, an escapement and
+ * a furnace hum for the composites, glass and bells for the crystal apps
+ * (zxl_synth_tier).
+ *
  * Cues overlap freely (a tick ringing over the begin): the player mixes up to
  * ZXL_SYN_CUES at once and pulls frames as the audio device has room, so the
  * shell never blocks and no cue is ever stretched or squeezed: what changes
@@ -127,6 +132,11 @@ uint32_t zxl_player_render(zxl_player_t *p, int16_t *lr, uint32_t frames);
 
 /* Cues sounding now. */
 uint32_t zxl_player_active(const zxl_player_t *p);
+
+/* The app's tier in the catalogue: 1 (the 144 base apps, and any app not
+ * in the catalogue), 2 (the composites, 145..271), 3 (the crystal apps). */
+#define ZXL_TIER2_END 271
+uint32_t zxl_synth_tier(const zxl_theme_t *t);
 
 /* One cue's length in frames, for a theme and event kind (0 for others). */
 uint32_t zxl_cue_frames(const zxl_theme_t *t, uint32_t kind);

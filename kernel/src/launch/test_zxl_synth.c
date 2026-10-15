@@ -315,6 +315,47 @@ static void test_prepare(void)
     CHECK(prepared == direct && !P.prep.on, "an early end finishes the job first");
 }
 
+/* each tier sounds like its material, under every app's own phrase */
+static void test_tiers(void)
+{
+    CHECK(zxl_synth_tier(zxl_theme_pick("Hollow")) == 1, "Hollow (2) is a base app");
+    CHECK(zxl_synth_tier(zxl_theme_pick("Cartulary")) == 2, "Cartulary (145) is a composite");
+    CHECK(zxl_synth_tier(zxl_curated(270)) == 2, "app 271 is the last composite");
+    CHECK(zxl_synth_tier(zxl_curated(271)) == 3, "app 272 is the first crystal app");
+    CHECK(zxl_synth_tier(zxl_theme_pick("Chorale")) == 3, "Chorale (407) is a crystal app");
+    CHECK(zxl_synth_tier(zxl_group_theme(4)) == 1 && zxl_synth_tier(0) == 1,
+          "a person's app sounds like a base app");
+    uint32_t n[4] = {0}, k;
+    for (uint32_t i = 0; i < ZXL_APPS; i++) n[zxl_synth_tier(zxl_curated(i))]++;
+    CHECK(n[1] == 144 && n[2] == 127 && n[3] == 136, "144 / 127 / 136 (%u %u %u)", n[1], n[2],
+          n[3]);
+    /* a crystal app's tick rings a bell an octave over its note; a base
+     * app's does not (both glass, which has no octave of its own) */
+    double ratio[4] = {0};
+    for (k = 1; k <= 3; k += 2) {
+        const zxl_theme_t *t = 0;
+        for (uint32_t i = 0; i < ZXL_APPS && !t; i++) {
+            const zxl_theme_t *c = zxl_curated(i);
+            if (c->timbre == ZXL_TIMBRE_GLASS && zxl_synth_tier(c) == k) t = c;
+        }
+        uint32_t len = render_cue(t, ZXL_EV_TICK, 0, 2, 256);
+        double f = 440.0 * pow(2.0, ((double) zxl_tick_note(t, 0) - 69) / 12);
+        ratio[k] = power_at(2 * f, len) / power_at(f, len);
+    }
+    CHECK(ratio[3] > 10 * ratio[1] && ratio[3] > 0.02,
+          "a crystal app's tick has a bell an octave over it (%.4f vs %.4f)", ratio[3], ratio[1]);
+    /* a composite's tick is a tick and a tock: a second click 60 ms on */
+    const zxl_theme_t *c = zxl_theme_pick("Cartulary");
+    render_cue(c, ZXL_EV_TICK, 0, 2, 256);
+    int32_t d = 0;
+    for (uint32_t i = 2 * 2870; i < 2 * 2900; i += 2) {
+        int32_t v = buf[i] - buf[i - 2];
+        if (v < 0) v = -v;
+        if (v > d) d = v;
+    }
+    CHECK(d > 300, "the escapement's tock at 60 ms (%d)", d);
+}
+
 int main(void)
 {
     test_levels();
@@ -325,6 +366,7 @@ int main(void)
     test_live();
     test_overflow();
     test_prepare();
+    test_tiers();
     printf("test_zxl_synth: %d passed, %d failed\n", pass, fail);
     return fail ? 1 : 0;
 }

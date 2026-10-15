@@ -487,6 +487,72 @@ static void commons(zxl_cue_t *c) /* a call and an answer */
     }
 }
 
+/* ---- each tier's texture --------------------------------------------------- */
+/* The owner (2026-10-15): the tiers sound like what they are. Over every app's
+ * own phrase (which stays its own), a quiet layer in its tier's material:
+ *   tier 1 (the 144 base apps)    dry wood and relays: a woodblock knock, a
+ *                                 click under each tick, a relay's snap
+ *   tier 2 (the composites)       heavy mechanism: a latch, an escapement's
+ *                                 tick-tock under each tick, a furnace hum
+ *   tier 3 (the crystal apps)     glass and bells: a glass ring, a small bell
+ *                                 an octave over each tick, a bell's shimmer */
+uint32_t zxl_synth_tier(const zxl_theme_t *t)
+{
+    const zxl_theme_t *first = zxl_curated(0);
+    if (!t || !first || t < first || t >= first + ZXL_APPS) return 1; /* group defaults: base */
+    uint32_t i = (uint32_t) (t - first);
+    return i < ZXL_TIER1 ? 1u : i < ZXL_TIER2_END ? 2u : 3u;
+}
+
+static void hum(zxl_cue_t *c, int32_t m, uint32_t st, uint32_t dur, int32_t a)
+{
+    zxl_note_t *n = note_new(c, K_TONE, st, a, 0);
+    if (!n) return;
+    sustain(n, 200, 300, dur);
+    partial(c, n, mhz_of(m), 1000, 1000, 0, 0);
+    partial(c, n, mhz_of(m), 2000, 300, 0, 0);
+}
+
+static void texture(zxl_cue_t *c)
+{
+    const zxl_theme_t *t = c->theme;
+    int32_t base = 12 * ((int32_t) t->octave + 1) + t->key;
+    int32_t pan = c->kind == ZXL_EV_TICK ? spread(c->part, 600) : 0;
+    uint32_t tier = zxl_synth_tier(t);
+    if (tier == 1) {
+        if (c->kind == ZXL_EV_BEGIN) { /* a woodblock knock */
+            noise(c, 0, 8, 501, 1, 1, 300, 0);
+            timbre(c, T_MARIMBA, mhz_of(base + 24), 0, 40, 0, 250, 0);
+        } else if (c->kind == ZXL_EV_TICK) { /* a dry click */
+            noise(c, 0, 3, 510u + c->step, 1, 1, 220, pan);
+        } else { /* a relay's snap: pull-in and contact */
+            noise(c, 0, 4, 520, 1, 1, 300, 0);
+            noise(c, 25, 3, 521, 1, 1, 220, 0);
+        }
+    } else if (tier == 2) {
+        if (c->kind == ZXL_EV_BEGIN) { /* a heavy latch */
+            noise(c, 0, 40, 601, 30, 0, 450, 0);
+            sweep(c, 80, 50, 0, 120, 350, 0);
+        } else if (c->kind == ZXL_EV_TICK) { /* the escapement: tick, tock */
+            noise(c, 0, 4, 610u + c->step, 1, 1, 200, pan);
+            noise(c, 60, 4, 620u + c->step, 1, 1, 150, pan);
+        } else { /* the latch throws, the furnace hums under the answer */
+            noise(c, 0, 50, 630, 30, 0, 400, 0);
+            hum(c, base - 24, 20, 1200, 160);
+        }
+    } else {
+        if (c->kind == ZXL_EV_BEGIN) { /* a glass ring */
+            glass(c, base + 24, 0, 900, 260, 0);
+        } else if (c->kind == ZXL_EV_TICK) { /* a small bell an octave over */
+            int32_t m = base + PENTA[c->step < PENTA_N ? c->step : PENTA_N - 1] + 12;
+            bell(c, m, 0, 200, 300, pan);
+        } else { /* a bell's shimmer over the chord */
+            bell(c, base + 24, 80, 900, 220, 0);
+            bell(c, base + 31, 140, 800, 160, 0);
+        }
+    }
+}
+
 /* ---- which recipe, how long, how loud ----------------------------------- */
 typedef struct {
     const char *app;
@@ -562,6 +628,7 @@ static void build(zxl_cue_t *c)
         c->b_gain_q16 = (int32_t) g;
         c->b_mirror = (uint8_t) (e & 1u);
         r->fn(c);
+        if (h < 0) texture(c); /* the six hand-made apps are their own textures */
         if (k != 1) g = g * r->echo[k / 2][1] / 1000;
     }
 }

@@ -110,7 +110,9 @@ that for app launches. Launch sounds are **on by default**, with a setting to tu
   pictures and the audio output. Test: `kernel/src/zui/test_zui_launch_theme.c` (in `make verify-all`).
 - `kernel/src/launch/zxl_synth.{h,c}`: the sounds, made live in integers the moment each cue is called for, from
   the app's theme: the same notes, timbres, pans, echoes and fades as `launch_sounds.py` (the six hand-made apps
-  keep their own recipes). Cues overlap freely and are pulled by the audio device as it has room; an app's end
+  keep their own recipes). Every other app's phrase carries a quiet layer in its tier's material: dry wood
+  and relay clicks for the 144 base apps, a latch, an escapement's tick-tock and a furnace hum for the
+  composites, glass and bells for the crystal apps. Cues overlap freely and are pulled by the audio device as it has room; an app's end
   is prepared in the background while it loads, so it sounds the moment the app is ready. 48 kHz stereo S16.
   Test: `kernel/src/launch/test_zxl_synth.c` (every app's tick in its own note, all 407 begins different,
   levels, pans, ducking, and cues starting exactly when called).
