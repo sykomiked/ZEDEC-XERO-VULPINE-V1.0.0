@@ -9,7 +9,10 @@
  * the same IR, and a randomly damaged pack is refused or still verifies.
  * Run under ASan + UBSan.
  *
- * Usage: fuzz_zl [iterations] [seed] */
+ * Usage: fuzz_zl [iterations] [seed] [golden-dir]
+ * Every program in golden-dir (except .out files) joins the built-in seeds,
+ * so a new front-end's goldens are fuzzed without editing this file. */
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -216,13 +219,44 @@ static size_t mutate(size_t n)
     return n;
 }
 
+enum { NPOOL = 512 };
+static const char *pool[NPOOL];
+static size_t npool;
+
+static void add_golden(const char *dir)
+{
+    DIR *dp = opendir(dir);
+    if (!dp) {
+        fprintf(stderr, "fuzz_zl: cannot open %s\n", dir);
+        exit(2);
+    }
+    for (struct dirent *e; npool < NPOOL && (e = readdir(dp)) != 0;) {
+        size_t l = strlen(e->d_name);
+        if (e->d_name[0] == '.' || (l > 4 && !strcmp(e->d_name + l - 4, ".out"))) continue;
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%s", dir, e->d_name);
+        FILE *f = fopen(path, "rb");
+        if (!f) continue;
+        char *t = calloc(1, sizeof buf / 2 + 1);
+        size_t n = t ? fread(t, 1, sizeof buf / 2, f) : 0;
+        fclose(f);
+        if (n && n < sizeof buf / 2)
+            pool[npool++] = t;
+        else
+            free(t);
+    }
+    closedir(dp);
+}
+
 int main(int argc, char **argv)
 {
     long iters = argc > 1 ? atol(argv[1]) : 20000;
     rng = argc > 2 ? strtoull(argv[2], 0, 10) * 0x9E3779B97F4A7C15ull + 1 : 1;
     long accepted = 0, twin_ok = 0, ran_ok = 0, trapped = 0;
+    for (size_t i = 0; i < sizeof seeds / sizeof seeds[0]; i++) pool[npool++] = seeds[i];
+    if (argc > 3) add_golden(argv[3]);
     for (long it = 0; it < iters; it++) {
-        const char *seed = seeds[rnd(sizeof seeds / sizeof seeds[0])];
+        const char *seed = pool[rnd((uint32_t) npool)];
         size_t n = strlen(seed);
         memcpy(buf, seed, n);
         if (rnd(8) == 0) { /* sometimes pure noise */

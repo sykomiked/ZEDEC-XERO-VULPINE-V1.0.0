@@ -13,5 +13,5 @@ W="-std=c11 -Wall -Werror -Wextra -Isrc/lingua"
 gcc $W $SAN src/lingua/test_zl.c $SRC -o "$T/test_zl_mut" 2>/dev/null || exit 3
 gcc $W -O1 src/lingua/fuzz_zl.c $SRC -o "$T/fuzz_zl_mut" 2>/dev/null || exit 3
 timeout 120 "$T/test_zl_mut" src/lingua/golden > "$T/test_zl_mut.log" 2>&1 || { tail -5 "$T/test_zl_mut.log"; exit 1; }
-timeout 120 "$T/fuzz_zl_mut" 3000 1 > "$T/fuzz_zl_mut.log" 2>&1 || { tail -5 "$T/fuzz_zl_mut.log"; exit 1; }
+timeout 120 "$T/fuzz_zl_mut" 3000 1 src/lingua/golden > "$T/fuzz_zl_mut.log" 2>&1 || { tail -5 "$T/fuzz_zl_mut.log"; exit 1; }
 echo "[PASS] lingua mutation check"
