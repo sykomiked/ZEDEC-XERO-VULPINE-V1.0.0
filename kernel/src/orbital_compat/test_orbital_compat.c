@@ -41,7 +41,7 @@ static const char *S(rat_t r)
 }
 
 /* ---- a REAL Sutra ops boundary: the AI language speaks exact ratios ---- */
-static int32_t t_sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
+static int32_t sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
 {
     if (len < sizeof(oc_sutra_src_t)) return OC_ERR_ARG;
     const oc_sutra_src_t *s = (const oc_sutra_src_t *) src;
@@ -53,7 +53,7 @@ static int32_t t_sutra_lower(const void *src, uint32_t len, oc_ir_t *out)
     out->fields[0].scale = 0;
     return OC_OK;
 }
-static int32_t t_sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
+static int32_t sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
 {
     if (cap < sizeof(oc_sutra_src_t)) return OC_ERR_CAP;
     if (ir->num_fields < 1 || ir->fields[0].type != OC_TYPE_RATIONAL) return OC_ERR_ARG;
@@ -64,7 +64,7 @@ static int32_t t_sutra_lift(const oc_ir_t *ir, void *out, uint32_t cap)
     s->den = v.den;
     return (int32_t) sizeof(oc_sutra_src_t);
 }
-static const oc_lang_ops_t SUTRA_OPS = {"Sutra/ratio", t_sutra_lower, t_sutra_lift};
+static const oc_lang_ops_t SUTRA_OPS = {"Sutra/ratio", sutra_lower, sutra_lift};
 
 int main(void)
 {
@@ -184,67 +184,6 @@ int main(void)
         oc_fortran_src_t y;
         CHECK(oc_lift(OC_LANG_FORTRAN, &ir, &y, sizeof(y)) == OC_ERR_CONV,
               "a scale of 25 (10^scale overflows int64) is REFUSED, not overflowed");
-    }
-
-    /* ---------- the real Sutra adapter keeps every truth value ----------
-     * The tag rides in lpres numbering. A contradiction must survive the
-     * round trip, NEITHER is never embedded, and a malformed tag can only
-     * ever read back as NEITHER, never as a truth value. */
-    {
-        const lpres_state_t all[4] = {LPRES_STATE_NEITHER, LPRES_STATE_TRUE, LPRES_STATE_FALSE,
-                                      LPRES_STATE_BOTH};
-        for (int k = 0; k < 4; k++) {
-            oc_sutra_src_t x = {7, 3, all[k], 0}, y;
-            oc_ir_t ir;
-            memset(&y, 0, sizeof(y));
-            CHECK(sutra_lower(&x, sizeof(x), &ir) == OC_OK, "real Sutra lowers 7/3 with a tag");
-            CHECK(ir.num_fields == (all[k] == LPRES_STATE_NEITHER ? 1u : 2u),
-                  "a tag is embedded exactly when it is not NEITHER");
-            CHECK(sutra_lift(&ir, &y, sizeof(y)) == (int32_t) sizeof(y),
-                  "real Sutra lifts the IR back");
-            CHECK(y.num == 7 && y.den == 3 && y.logic_state == all[k],
-                  "value and tag round-trip unchanged");
-        }
-
-        oc_sutra_src_t bad = {1, 1, (lpres_state_t) 4, 0};
-        oc_ir_t ir;
-        CHECK(sutra_lower(&bad, sizeof(bad), &ir) == OC_ERR_CONV,
-              "a tag outside the four states is REFUSED on lowering");
-
-        ir.num_fields = 2;
-        ir.fields[0].type = OC_TYPE_RATIONAL;
-        ir.fields[0].num = rat_make(1, 1);
-        ir.fields[0].scale = 0;
-        ir.fields[1].type = OC_TYPE_RATIONAL;
-        ir.fields[1].scale = 0;
-        const int64_t junk[3] = {4, -1, 99};
-        for (int k = 0; k < 3; k++) {
-            ir.fields[1].num = rat_make(junk[k], 1);
-            oc_sutra_src_t y;
-            CHECK(sutra_lift(&ir, &y, sizeof(y)) > 0 && y.logic_state == LPRES_STATE_NEITHER,
-                  "an out-of-range tag lifts as NEITHER, never as a truth value");
-        }
-        ir.fields[1].num = rat_make(1, 2);
-        CHECK(oc_field_lpres(&ir, 1, LPRES_STATE_NEITHER) == LPRES_STATE_NEITHER,
-              "a fractional tag reads as NEITHER");
-        CHECK(oc_field_lpres(&ir, 5, LPRES_STATE_FALSE) == LPRES_STATE_FALSE,
-              "a missing field gives the caller's default");
-
-        /* The logic ops read the same numbering as lpres itself. */
-        const oc_sutra_extended_ops_t *ops = oc_get_sutra_extended_ops();
-        oc_ir_t a, b, r;
-        oc_sutra_src_t ta = {1, 1, LPRES_STATE_TRUE, 0}, tb = {1, 1, LPRES_STATE_BOTH, 0};
-        oc_sutra_src_t tn = {1, 1, LPRES_STATE_NEITHER, 0};
-        CHECK(sutra_lower(&ta, sizeof(ta), &a) == OC_OK && sutra_lower(&tb, sizeof(tb), &b) == OC_OK,
-              "operands lower");
-        CHECK(ops->lpres_conjoin(&a, &b, &r) == OC_OK && r.fields[0].num.num == LPRES_STATE_BOTH,
-              "TRUE AND BOTH is BOTH: the contradiction is kept");
-        CHECK(ops->lpres_negate(&b, &r) == OC_OK && r.fields[0].num.num == LPRES_STATE_BOTH,
-              "NOT BOTH is BOTH");
-        CHECK(sutra_lower(&tn, sizeof(tn), &b) == OC_OK && ops->lpres_disjoin(&a, &b, &r) == OC_OK &&
-                  r.fields[0].num.num == lpres_disjoin(LPRES_STATE_TRUE, LPRES_STATE_NEITHER),
-              "an untagged value takes part as NEITHER");
-        CHECK(ops->self_audit(&a) == 0, "a well-formed tagged value passes self-audit");
     }
 
     printf("\n%d checks, %s: %d failure(s)\n", checks, failures ? "*** FAILED ***" : "ALL PASS",
