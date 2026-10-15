@@ -17,6 +17,7 @@ it does not provide support for the distributed system.
 | A bug you can reproduce | A GitHub issue in this repository, with the version and steps; SCENIC BYPASS CONSULTING, LLC triages them |
 | A security problem | Never a public issue: follow [SECURITY.md](SECURITY.md) |
 | The licence, the CLA or contributing code | [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md) |
+| Manufacturing, partnership or a commercial hardware licence | One of the two pre-approved partners, ILLUMAHEART FOUNDATION or SCENIC BYPASS CONSULTING, LLC, never 36N9 GENETICS LLC directly. 36N9 GENETICS LLC, the root organisation, partners with manufacturers under its master partnership licence |
 
 Please include the ZXV version (Settings, About), the platform (macOS, Linux,
 Windows or bare metal) and what you expected to happen.

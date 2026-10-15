@@ -89,6 +89,11 @@ fingerprint, and everyone sees it again at their next sign-in.
   the contact shown under Settings, About, Support (see `SUPPORT.md`). The
   address lives on that screen, not in the agreement, so it can change
   without a new agreement version.
+- §1.7 and §20.6, the root organisation and partner routing: 36N9 GENETICS
+  LLC originated the concept and designs; manufacturers partner with it under
+  its master partnership licence, approaching only through ILLUMAHEART
+  FOUNDATION or SCENIC BYPASS CONSULTING, LLC (README, SUPPORT.md,
+  hardware/README.md say the same).
 
 Translations are added as `agreement/<lang>.txt`, each pointing at the English
 reference; a language whose local law makes it govern is marked controlling
