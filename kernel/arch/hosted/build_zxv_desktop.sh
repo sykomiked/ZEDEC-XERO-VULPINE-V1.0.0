@@ -25,6 +25,7 @@ kernel/arch/hosted/zui_present_host.c
 macos/zxv_rpc_client.c
 kernel/src/zui/zui_desk.c
 kernel/src/zui/zui_wm.c
+kernel/src/zui/zui_dock.c
 kernel/src/zui/zui_motion.c
 kernel/src/zui/zui_widget.c
 kernel/src/zui/zui_input.c

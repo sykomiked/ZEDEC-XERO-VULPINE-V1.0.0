@@ -64,6 +64,9 @@ static void wm_setup(zui_desk_t *d, bool touch)
 {
     zui_rect_t a = zui_desk_area(d);
     zui_wm_init(&d->wm, a.w, a.h, touch);
+    /* The rail is the desk's launcher, so the window manager keeps its strip
+     * for now; moving the rail onto the astrolabe dock (WM9) is a follow-up. */
+    zui_wm_use_dock(&d->wm, false);
     d->wm.text = d->f.body;
     d->wm.on_window = on_window;
     d->wm.on_window_ctx = d;

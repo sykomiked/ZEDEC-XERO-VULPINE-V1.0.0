@@ -162,6 +162,7 @@ KERNEL_SRCS = \
     kernel/src/desktop/zxv_shell_font.c \
     kernel/src/zui/zui_desk.c \
     kernel/src/zui/zui_wm.c \
+    kernel/src/zui/zui_dock.c \
     kernel/src/zui/zui_canvas.c \
     kernel/src/zui/zui_progress.c \
     kernel/src/zui/zui_motion.c \
