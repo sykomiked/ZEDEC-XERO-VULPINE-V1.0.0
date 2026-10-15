@@ -228,6 +228,7 @@ cred                             settlement # Player Card tiers through sicily
 airc                             settlement # agent relay chat; trust tiers from cred
 dispute                          settlement
 fxepoch                          settlement
+navport                          settlement # pegs through a shared V-Bill account (pay)
 mint                             settlement
 qnote                            settlement # first loss through svault
 royalty                          settlement

@@ -2086,6 +2086,13 @@ test-qnote:
 test-fxepoch:
 	gcc $(ECON_FLAGS) $(ECON_INC) src/fxepoch/test_fxepoch.c src/fxepoch/fxepoch.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_fxepoch -lm && $(ZXV_TMP)/test_fxepoch > $(ZXV_TMP)/test_fxepoch.log 2>&1 && echo "[PASS] test_fxepoch" || { tail -40 $(ZXV_TMP)/test_fxepoch.log; echo "[FAIL] test_fxepoch"; exit 1; }
 
+# Naval ports (src/navport): pegs between two or more units through a shared V-Bill Sicilian account,
+# nostro/vostro books reconciled four-valued, quorum-signed closes, pipe yield off by default; plus the stress simulation.
+.PHONY: test-navport
+test-navport:
+	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/test_navport.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/test_navport -lm && $(ZXV_TMP)/test_navport > $(ZXV_TMP)/test_navport.log 2>&1 && echo "[PASS] test_navport ($$(tail -1 $(ZXV_TMP)/test_navport.log))" || { tail -40 $(ZXV_TMP)/test_navport.log; echo "[FAIL] test_navport"; exit 1; }
+	gcc $(ECON_FLAGS) $(ECON_INC) src/navport/navport_sim.c src/navport/navport.c $(ECON_LEDGER) -o $(ZXV_TMP)/navport_sim -lm && $(ZXV_TMP)/navport_sim > $(ZXV_TMP)/navport_sim.md 2>&1 && echo "[PASS] navport_sim ($$(tail -1 $(ZXV_TMP)/navport_sim.md))" || { tail -40 $(ZXV_TMP)/navport_sim.md; echo "[FAIL] navport_sim"; exit 1; }
+
 .PHONY: test-econ
 test-econ:
 	$(MAKE) --no-print-directory test-svault
@@ -2105,6 +2112,7 @@ test-econ:
 	$(MAKE) --no-print-directory test-mint
 	$(MAKE) --no-print-directory test-qnote
 	$(MAKE) --no-print-directory test-fxepoch
+	$(MAKE) --no-print-directory test-navport
 # ==== end economy modules ====
 
 # ==== AIRC: agent relay chat over the post-quantum mesh (src/airc, docs/AIRC.md) ====
