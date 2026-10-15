@@ -158,6 +158,7 @@ Nine more modules are on draft pull requests and listed in Part C, not counted h
 | [dharma](#dharma--dharma-scheduler-family-dharma-karma-chakra-tantra-naga_raja-upaah-) | Dharma scheduler family (dharma, karma, chakra, tantra, naga_raja, upaah, ...) | WORKING (test not in verify-all) |
 | [display](#display--display-mode-negotiation-and-ui-scaling) | display mode negotiation and UI scaling | WORKING (tested in verify-all) |
 | [dispute](#dispute--three-level-dispute-funnel-proofs-staked-blind-jury-with-appeals-jurisdiction-gateway) | three-level dispute funnel: proofs, staked blind jury with appeals, jurisdiction gateway | WORKING (tested in verify-all) |
+| [dnx](#dnx----duplex-digital-dna-strands-that-read-both-ways) | duplex digital DNA: strands that read both ways | WORKING (tested in verify-all) |
 | [dual_space](#dual_space--paired-positivenegative-artifact-registry) | paired positive/negative artifact registry | WORKING (tested in verify-all) |
 | [dualtrack](#dualtrack--dual-track-design-vs-evidence-gate-pipeline) | dual-track (design vs. evidence) gate pipeline | PARTIAL |
 | [e8](#e8--e8-lattice--icosian-ring-over-zphi) | E8 lattice / icosian ring over Z[phi] | WORKING (tested in verify-all) |
@@ -1251,6 +1252,26 @@ Main entry points: dsp_init, dsp_juror_add, dsp_open, dsp_proof, dsp_escalate, d
 Tests: test_dispute.c (309 checks, ASan/UBSan), target test-dispute, in verify-all.
 Used by: no caller outside its tests. (The dsp_ prefix in zui/views/display.c is an unrelated display module.)
 Gaps: there is no real VRF in the tree; the test uses a SHA-256 stand-in that is not a VRF, and production needs one such as ECVRF (RFC 9381). Votes are binary below level 3. Juror bribery is made costly, not prevented. Not connected to the market escrow or to cred_fail by any caller. Needs legal review per jurisdiction. No doc of its own (rules are in dispute.h).
+
+### dnx  —  duplex digital DNA: strands that read both ways
+Status: WORKING (tested in verify-all)
+What it does: Keeps audiogenomics_pro's binary-to-base mapping (00 A, 01 C, 10 G, 11 T or U) and
+makes every strand readable start to finish and finish to start. Under that mapping the
+complement is a bit flip (b ^ 3), so the reverse read is the forward reader fed the strand
+backwards and complemented. A duplex frame (magic, length, body, CRC-32, GGAATTCC pivot, then the
+reverse complement of all of it) is its own reverse complement; each direction verifies on its
+own and the two verdicts are joined with lpres_kjoin, so a one-sided failure or two verified but
+different payloads is BOTH, never resolved by picking one. A strand of whole codons is also a
+reversible program over four 32-bit registers: each codon and its reverse complement are an op
+and its exact inverse, so running the strand backwards undoes it. Integer only. Also gives base
+metrics (counts, GC permille, longest run, start and stop codons, palindrome test) and the
+standard genetic code letters.
+Main entry points: dnx_bytes_to_bases, dnx_duplex_encode, dnx_duplex_decode, dnx_metrics,
+dnx_prog_run, dnx_prog_run_reverse, dnx_prog_bidi, dnx_codon_amino.
+Tests: src/dnx/test_dnx.c (make -C kernel test-dnx, in verify-all).
+Used by: nothing yet. A chiglet's encoded DNA record (chg_kin, draft #155) is a byte string and
+carries whole in a duplex frame (the test round-trips a record of that size).
+Gaps: not in the arch images or zxvd. Strands are one base per byte in memory; dnx_bases_to_bytes packs a duplex strand to 22 + 2L bytes for storage.
 
 ### dual_space — paired positive/negative artifact registry
 Status: WORKING (tested in verify-all)

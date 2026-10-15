@@ -170,6 +170,7 @@ predictive                       logic
 qubo                             logic # QUBO/Ising workbench with proven gap certificates
 situation                        logic
 paradox                          logic      # the paradox engine: classifier and operators over lpres hex tags
+dnx                              logic      # duplex digital DNA: two-way strand reads and reversible codon programs, joined in lpres
 recover                          logic      # refuse / roll back / isolate with signed RepairProofs over paradox (gap B5)
 tripartite_fs                    logic      # its CID-checked self-heal runs through recover (S4); no module includes it
 pce                              logic      # paraconsistent decision engines: probability, tactics, strategy, finance analytics
