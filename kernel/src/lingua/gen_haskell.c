@@ -371,12 +371,18 @@ static int evb(int e)
         a = ev(n->a);
         b = ev(n->b);
         switch (n->k) {
-        case B_LT: return a < b;
-        case B_LE: return a <= b;
-        case B_GT: return a > b;
-        case B_GE: return a >= b;
-        case B_EQ: return a == b;
-        default: return a != b;
+        case B_LT:
+            return a < b;
+        case B_LE:
+            return a <= b;
+        case B_GT:
+            return a > b;
+        case B_GE:
+            return a >= b;
+        case B_EQ:
+            return a == b;
+        default:
+            return a != b;
         }
     case B_AND:
         return evb(n->a) && evb(n->b);
@@ -521,7 +527,8 @@ static list_t evl(int e)
         return r;
     case L_PAIRS:
         x = evl(n->a);
-        for (int i = 0; i < x.n && !bad; i += 2) r.e[r.n++] = i + 1 < x.n ? chk(x.e[i] + x.e[i + 1]) : x.e[i];
+        for (int i = 0; i < x.n && !bad; i += 2)
+            r.e[r.n++] = i + 1 < x.n ? chk(x.e[i] + x.e[i + 1]) : x.e[i];
         return r;
     }
     bad = 1;
@@ -568,9 +575,12 @@ static int gint(int d)
     }
     switch (r) {
     case 3:
-    case 4: return two(X_ADD, gint(d - 1), gint(d - 1));
-    case 5: return two(X_SUB, gint(d - 1), gint(d - 1));
-    case 6: return two(X_MUL, gint(d - 1), gint(d - 1));
+    case 4:
+        return two(X_ADD, gint(d - 1), gint(d - 1));
+    case 5:
+        return two(X_SUB, gint(d - 1), gint(d - 1));
+    case 6:
+        return two(X_MUL, gint(d - 1), gint(d - 1));
     case 7:
         e = two(X_DIV, gint(d - 1), gint(d - 1));
         nd[e].v = (int) rnd(2); /* prefix or infix */
@@ -587,15 +597,20 @@ static int gint(int d)
         e = two(X_REM, gint(d - 1), gint(d - 1));
         nd[e].v = (int) rnd(2);
         return e;
-    case 11: return two(X_POW, gint(d - 1), lit((long long) rnd(4)));
-    case 12: return two(X_MIN, gint(d - 1), gint(d - 1));
-    case 13: return two(X_MAX, gint(d - 1), gint(d - 1));
+    case 11:
+        return two(X_POW, gint(d - 1), lit((long long) rnd(4)));
+    case 12:
+        return two(X_MIN, gint(d - 1), gint(d - 1));
+    case 13:
+        return two(X_MAX, gint(d - 1), gint(d - 1));
     case 14:
         e = one(X_NEG, gint(d - 1));
         nd[e].v = (int) rnd(2); /* negate or - */
         return e;
-    case 15: return one(X_ABS, gint(d - 1));
-    case 16: return one(X_SIGNUM, gint(d - 1));
+    case 15:
+        return one(X_ABS, gint(d - 1));
+    case 16:
+        return one(X_SIGNUM, gint(d - 1));
     case 17:
         e = newnode(X_IF);
         nd[e].a = gbool(d - 1);
@@ -628,19 +643,32 @@ static int gint(int d)
         e = two(X_CALL, gint(d - 1), gint(d - 1));
         nd[e].v = (int) rnd((unsigned) nfun);
         return e;
-    case 22: return one(X_SUMTO, gint(d - 1));
-    case 23: return one(X_LOOP, gint(d - 1));
-    case 24: return two(X_GCD, gint(d - 1), gint(d - 1));
-    case 25: return one(X_SUM, glist(d - 1));
-    case 26: return one(X_PRODUCT, glist(d - 1));
-    case 27: return one(X_MAXIMUM, glist(d - 1));
-    case 28: return one(X_MINIMUM, glist(d - 1));
-    case 29: return one(X_LEN, glist(d - 1));
-    case 30: return one(X_MYLEN, glist(d - 1));
-    case 31: return one(X_HEAD, glist(d - 1));
-    case 32: return one(X_LAST, glist(d - 1));
-    case 33: return two(X_INDEX, glist(d - 1), gint(d - 1));
-    default: return two(X_ADD, gint(d - 1), gint(d - 1));
+    case 22:
+        return one(X_SUMTO, gint(d - 1));
+    case 23:
+        return one(X_LOOP, gint(d - 1));
+    case 24:
+        return two(X_GCD, gint(d - 1), gint(d - 1));
+    case 25:
+        return one(X_SUM, glist(d - 1));
+    case 26:
+        return one(X_PRODUCT, glist(d - 1));
+    case 27:
+        return one(X_MAXIMUM, glist(d - 1));
+    case 28:
+        return one(X_MINIMUM, glist(d - 1));
+    case 29:
+        return one(X_LEN, glist(d - 1));
+    case 30:
+        return one(X_MYLEN, glist(d - 1));
+    case 31:
+        return one(X_HEAD, glist(d - 1));
+    case 32:
+        return one(X_LAST, glist(d - 1));
+    case 33:
+        return two(X_INDEX, glist(d - 1), gint(d - 1));
+    default:
+        return two(X_ADD, gint(d - 1), gint(d - 1));
     }
 }
 
@@ -649,16 +677,25 @@ static int gbool(int d)
     unsigned r = rnd(d <= 0 ? 7 : 17);
     if (r < 6) return two(B_LT + (int) r, gint(d - 1), gint(d - 1));
     switch (r) {
-    case 6: return newnode(rnd(2) ? B_TRUE : B_FALSE);
+    case 6:
+        return newnode(rnd(2) ? B_TRUE : B_FALSE);
     case 7:
-    case 8: return two(r == 7 ? B_AND : B_OR, gbool(d - 1), gbool(d - 1));
-    case 9: return one(B_NOT, gbool(d - 1));
-    case 10: return one(B_EVEN, gint(d - 1));
-    case 11: return one(B_ODD, gint(d - 1));
-    case 12: return two(B_LEQ, glist(d - 1), glist(d - 1));
-    case 13: return two(B_LLT, glist(d - 1), glist(d - 1));
-    case 14: return one(B_NULL, glist(d - 1));
-    default: return two(B_ELEM, gint(d - 1), glist(d - 1));
+    case 8:
+        return two(r == 7 ? B_AND : B_OR, gbool(d - 1), gbool(d - 1));
+    case 9:
+        return one(B_NOT, gbool(d - 1));
+    case 10:
+        return one(B_EVEN, gint(d - 1));
+    case 11:
+        return one(B_ODD, gint(d - 1));
+    case 12:
+        return two(B_LEQ, glist(d - 1), glist(d - 1));
+    case 13:
+        return two(B_LLT, glist(d - 1), glist(d - 1));
+    case 14:
+        return one(B_NULL, glist(d - 1));
+    default:
+        return two(B_ELEM, gint(d - 1), glist(d - 1));
     }
 }
 
@@ -678,26 +715,36 @@ static int glist(int d)
         return e;
     }
     switch (r) {
-    case 2: return two(L_CONS, gint(d - 1), glist(d - 1));
-    case 3: return two(L_APP, glist(d - 1), glist(d - 1));
-    case 4: return one(L_REV, glist(d - 1));
+    case 2:
+        return two(L_CONS, gint(d - 1), glist(d - 1));
+    case 3:
+        return two(L_APP, glist(d - 1), glist(d - 1));
+    case 4:
+        return one(L_REV, glist(d - 1));
     case 5:
-    case 6: return two(L_RANGE, gint(d - 1), gint(d - 1));
+    case 6:
+        return two(L_RANGE, gint(d - 1), gint(d - 1));
     case 7:
         e = two(L_RANGE3, gint(d - 1), gint(d - 1));
         nd[e].c = gint(d - 1);
         return e;
-    case 8: return one(L_TAIL, glist(d - 1));
-    case 9: return one(L_INIT, glist(d - 1));
-    case 10: return two(L_TAKE, gint(d - 1), glist(d - 1));
-    case 11: return two(L_DROP, gint(d - 1), glist(d - 1));
-    case 12: return two(L_REPL, lit((long long) rnd(5)), gint(d - 1));
+    case 8:
+        return one(L_TAIL, glist(d - 1));
+    case 9:
+        return one(L_INIT, glist(d - 1));
+    case 10:
+        return two(L_TAKE, gint(d - 1), glist(d - 1));
+    case 11:
+        return two(L_DROP, gint(d - 1), glist(d - 1));
+    case 12:
+        return two(L_REPL, lit((long long) rnd(5)), gint(d - 1));
     case 13:
         e = newnode(L_CONCAT);
         nd[e].nk = 1 + (int) rnd(3);
         for (int i = 0; i < nd[e].nk; i++) nd[e].kid[i] = glist(d - 1);
         return e;
-    case 14: return one(L_PAIRS, glist(d - 1));
+    case 14:
+        return one(L_PAIRS, glist(d - 1));
     default:
         if (nlscope > 0) {
             e = newnode(L_VAR);
@@ -760,18 +807,42 @@ static void pint(int e)
         else
             printf("%lld", n->lit);
         return;
-    case X_VAR: printf("%s", vname[n->v]); return;
-    case X_ADD: pbin(e, "+"); return;
-    case X_SUB: pbin(e, "-"); return;
-    case X_MUL: pbin(e, "*"); return;
-    case X_POW: pbin(e, "^"); return;
-    case X_DIV: pdiv(e, "div"); return;
-    case X_MOD: pdiv(e, "mod"); return;
-    case X_QUOT: pdiv(e, "quot"); return;
-    case X_REM: pdiv(e, "rem"); return;
-    case X_MIN: pcall2("min", n->a, n->b); return;
-    case X_MAX: pcall2("max", n->a, n->b); return;
-    case X_GCD: pcall2("gcd", n->a, n->b); return;
+    case X_VAR:
+        printf("%s", vname[n->v]);
+        return;
+    case X_ADD:
+        pbin(e, "+");
+        return;
+    case X_SUB:
+        pbin(e, "-");
+        return;
+    case X_MUL:
+        pbin(e, "*");
+        return;
+    case X_POW:
+        pbin(e, "^");
+        return;
+    case X_DIV:
+        pdiv(e, "div");
+        return;
+    case X_MOD:
+        pdiv(e, "mod");
+        return;
+    case X_QUOT:
+        pdiv(e, "quot");
+        return;
+    case X_REM:
+        pdiv(e, "rem");
+        return;
+    case X_MIN:
+        pcall2("min", n->a, n->b);
+        return;
+    case X_MAX:
+        pcall2("max", n->a, n->b);
+        return;
+    case X_GCD:
+        pcall2("gcd", n->a, n->b);
+        return;
     case X_NEG:
         if (n->v) {
             printf("(- ");
@@ -781,8 +852,12 @@ static void pint(int e)
             pcall1("negate", n->a, pint);
         }
         return;
-    case X_ABS: pcall1("abs", n->a, pint); return;
-    case X_SIGNUM: pcall1("signum", n->a, pint); return;
+    case X_ABS:
+        pcall1("abs", n->a, pint);
+        return;
+    case X_SIGNUM:
+        pcall1("signum", n->a, pint);
+        return;
     case X_IF:
         printf("(if ");
         pbool(n->a);
@@ -814,20 +889,38 @@ static void pint(int e)
         pcall2(f, n->a, n->b);
         return;
     }
-    case X_SUMTO: pcall1("sumto", n->a, pint); return;
+    case X_SUMTO:
+        pcall1("sumto", n->a, pint);
+        return;
     case X_LOOP:
         printf("(loop ");
         pint(n->a);
         printf(" 0)");
         return;
-    case X_SUM: pcall1("sum", n->a, plist); return;
-    case X_PRODUCT: pcall1("product", n->a, plist); return;
-    case X_MAXIMUM: pcall1("maximum", n->a, plist); return;
-    case X_MINIMUM: pcall1("minimum", n->a, plist); return;
-    case X_LEN: pcall1("length", n->a, plist); return;
-    case X_MYLEN: pcall1("len", n->a, plist); return;
-    case X_HEAD: pcall1("head", n->a, plist); return;
-    case X_LAST: pcall1("last", n->a, plist); return;
+    case X_SUM:
+        pcall1("sum", n->a, plist);
+        return;
+    case X_PRODUCT:
+        pcall1("product", n->a, plist);
+        return;
+    case X_MAXIMUM:
+        pcall1("maximum", n->a, plist);
+        return;
+    case X_MINIMUM:
+        pcall1("minimum", n->a, plist);
+        return;
+    case X_LEN:
+        pcall1("length", n->a, plist);
+        return;
+    case X_MYLEN:
+        pcall1("len", n->a, plist);
+        return;
+    case X_HEAD:
+        pcall1("head", n->a, plist);
+        return;
+    case X_LAST:
+        pcall1("last", n->a, plist);
+        return;
     case X_INDEX:
         printf("(");
         plist(n->a);
@@ -843,8 +936,12 @@ static void pbool(int e)
     static const char *const cmp[] = {"<", "<=", ">", ">=", "==", "/="};
     node_t *n = &nd[e];
     switch (n->k) {
-    case B_TRUE: printf("True"); return;
-    case B_FALSE: printf("False"); return;
+    case B_TRUE:
+        printf("True");
+        return;
+    case B_FALSE:
+        printf("False");
+        return;
     case B_AND:
     case B_OR:
         printf("(");
@@ -853,9 +950,15 @@ static void pbool(int e)
         pbool(n->b);
         printf(")");
         return;
-    case B_NOT: pcall1("not", n->a, pbool); return;
-    case B_EVEN: pcall1("even", n->a, pint); return;
-    case B_ODD: pcall1("odd", n->a, pint); return;
+    case B_NOT:
+        pcall1("not", n->a, pbool);
+        return;
+    case B_EVEN:
+        pcall1("even", n->a, pint);
+        return;
+    case B_ODD:
+        pcall1("odd", n->a, pint);
+        return;
     case B_LEQ:
     case B_LLT:
         printf("(");
@@ -864,7 +967,9 @@ static void pbool(int e)
         plist(n->b);
         printf(")");
         return;
-    case B_NULL: pcall1("null", n->a, plist); return;
+    case B_NULL:
+        pcall1("null", n->a, plist);
+        return;
     case B_ELEM:
         printf("(elem ");
         pint(n->a);
@@ -886,7 +991,9 @@ static void plist(int e)
 {
     node_t *n = &nd[e];
     switch (n->k) {
-    case L_VAR: printf("%s", vname[n->v]); return;
+    case L_VAR:
+        printf("%s", vname[n->v]);
+        return;
     case L_LIT:
     case L_CONCAT:
         printf(n->k == L_CONCAT ? "(concat [" : "[");
@@ -913,10 +1020,18 @@ static void plist(int e)
         plist(n->b);
         printf(")");
         return;
-    case L_REV: pcall1("reverse", n->a, plist); return;
-    case L_TAIL: pcall1("tail", n->a, plist); return;
-    case L_INIT: pcall1("init", n->a, plist); return;
-    case L_PAIRS: pcall1("pairs", n->a, plist); return;
+    case L_REV:
+        pcall1("reverse", n->a, plist);
+        return;
+    case L_TAIL:
+        pcall1("tail", n->a, plist);
+        return;
+    case L_INIT:
+        pcall1("init", n->a, plist);
+        return;
+    case L_PAIRS:
+        pcall1("pairs", n->a, plist);
+        return;
     case L_RANGE:
         printf("[");
         pint(n->a);
@@ -984,9 +1099,11 @@ static int good(int d, int kind)
 static void prelude(void)
 {
     printf("sumto :: Int -> Int\nsumto n = if n <= 0 then 0 else n + sumto (n - 1)\n\n");
-    printf("loop :: Int -> Int -> Int\nloop 0 acc = acc\nloop i acc = loop (i - 1) (acc + i `mod` 7)\n\n");
+    printf("loop :: Int -> Int -> Int\nloop 0 acc = acc\nloop i acc = loop (i - 1) (acc + i `mod` "
+           "7)\n\n");
     printf("len :: [Int] -> Int\nlen [] = 0\nlen (_ : xs) = 1 + len xs\n\n");
-    printf("pairs :: [Int] -> [Int]\npairs (x : y : rest) = (x + y) : pairs rest\npairs [x] = [x]\npairs [] = []\n\n");
+    printf("pairs :: [Int] -> [Int]\npairs (x : y : rest) = (x + y) : pairs rest\npairs [x] = "
+           "[x]\npairs [] = []\n\n");
 }
 
 /* a function of two parameters; its bodies see only the parameters */

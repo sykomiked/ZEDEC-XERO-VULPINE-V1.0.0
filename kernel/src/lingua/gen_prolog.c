@@ -169,16 +169,17 @@ static void gen_cmp(char *out, int d)
 
 /* ---- ground terms for the writer and for unification ---- */
 
-static const char *atoms[] = {"a",      "b",     "foo",   "'Bar'", "'x y'", "[]",    "'+'",
-                              "'-'",    "'*'",   "'hello world'",  "'it''s'", "''",
-                              "'\\\\'", "abc_1", "'1a'", "zz",    "'\\n'", "{}",    "'{}'",
-                              "';'",    "'!'",   "'|'",   "'.'",  "'a.b'"};
+static const char *atoms[] = {"a",    "b",   "foo",           "'Bar'",   "'x y'", "[]",     "'+'",
+                              "'-'",  "'*'", "'hello world'", "'it''s'", "''",    "'\\\\'", "abc_1",
+                              "'1a'", "zz",  "'\\n'",         "{}",      "'{}'",  "';'",    "'!'",
+                              "'|'",  "'.'", "'a.b'"};
 #define NATOMS ((int) (sizeof atoms / sizeof atoms[0]))
-static const char *fun2[] = {"f",    "g",    "'+'",  "'-'", "'*'",  "'/'", "mod",  "','",
-                             "';'",  "'->'", "':-'", "'='", "'<'",  "'^'", "'**'", "'is'",
-                             "'\\\\='", "rem", "xor", "'@'", "'|'"};
+static const char *fun2[] = {"f",    "g",    "'+'",     "'-'",  "'*'", "'/'", "mod",
+                             "','",  "';'",  "'->'",    "':-'", "'='", "'<'", "'^'",
+                             "'**'", "'is'", "'\\\\='", "rem",  "xor", "'@'", "'|'"};
 #define NFUN2 ((int) (sizeof fun2 / sizeof fun2[0]))
-static const char *fun1[] = {"f", "'-'", "'+'", "'\\\\+'", "'\\\\'", "'?'", "'{}'", "':-'", "dynamic"};
+static const char *fun1[] = {"f",   "'-'",  "'+'",  "'\\\\+'", "'\\\\'",
+                             "'?'", "'{}'", "':-'", "dynamic"};
 #define NFUN1 ((int) (sizeof fun1 / sizeof fun1[0]))
 
 static int nvar_used;
@@ -292,7 +293,8 @@ static void loop_task(void)
     xbound[1] = 1000003;
     gen_ex(&e, 3);
     printf("loop%d(0, A, A) :- !.\n", k);
-    printf("loop%d(N, A, R) :-\n    N1 is N - 1,\n    A1 is (%s) mod 1000003,\n    loop%d(N1, A1, R).\n\n",
+    printf("loop%d(N, A, R) :-\n    N1 is N - 1,\n    A1 is (%s) mod 1000003,\n    loop%d(N1, A1, "
+           "R).\n\n",
            k, e.s, k);
     task_begin();
     printf("    loop%d(%lld, %d, R), write(R), nl.\n\n", k, n, (int) rnd(100));
@@ -313,7 +315,8 @@ static void list_task(void)
     xvar[0] = "X";
     xbound[0] = e.b;
     gen_cmp(c, 2);
-    printf("filt%d([], [], []).\nfilt%d([X|Xs], I, O) :-\n    ( %s -> I = [X|I1], O = O1 ; I = I1, O = [X|O1] ),\n"
+    printf("filt%d([], [], []).\nfilt%d([X|Xs], I, O) :-\n    ( %s -> I = [X|I1], O = O1 ; I = I1, "
+           "O = [X|O1] ),\n"
            "    filt%d(Xs, I1, O1).\n\n",
            k, k, c, k);
     printf("sum%d([], 0).\nsum%d([X|Xs], S) :- sum%d(Xs, S0), S is S0 + X.\n\n", k, k, k);
@@ -340,9 +343,10 @@ static void facts_task(void)
             printf("fact%d(%s, %d).\n", k, col[rnd(6)], (int) rnd(50) - 10);
     }
     int g = (int) rnd(20);
-    printf("\ncls%d(X, small) :- X < %d, !.\ncls%d(X, mid) :- X =:= %d, !.\ncls%d(X, big) :- X > %d.\n"
-           "cls%d(_, other).\n\n",
-           k, g, k, g, k, g + (int) rnd(5), k);
+    printf(
+        "\ncls%d(X, small) :- X < %d, !.\ncls%d(X, mid) :- X =:= %d, !.\ncls%d(X, big) :- X > %d.\n"
+        "cls%d(_, other).\n\n",
+        k, g, k, g, k, g + (int) rnd(5), k);
     task_begin();
     printf("    findall(K-V, fact%d(K, V), All), print(All), nl,\n", k);
     printf("    findall(V, fact%d(%d, V), Vs), writeq(Vs), nl,\n", k, (int) rnd(6));
@@ -351,7 +355,8 @@ static void facts_task(void)
     printf("    forall(between(%d, %d, I), (cls%d(I, C), write(C), write(' '))), nl,\n", g - 2,
            g + 3, k);
     printf("    findall(C2, cls%d(%d, C2), Cs), write(Cs), nl,\n", k, g);
-    printf("    findall(A-B, (between(1, 4, A), between(A, 4, B), (A + B) mod %d =:= 0), AB), write(AB), nl,\n",
+    printf("    findall(A-B, (between(1, 4, A), between(A, 4, B), (A + B) mod %d =:= 0), AB), "
+           "write(AB), nl,\n",
            2 + (int) rnd(3));
     printf("    ( fact%d(_, X), integer(X) ; X = 0 ), !, write(X), nl.\n\n", k);
 }
@@ -367,11 +372,14 @@ static void term_task(void)
     printf("    ( (%s) = T -> write(T) ; write(no) ), nl,\n", pat);
     gen_term(g2, p2, 3, 0);
     printf("    U = %s,\n", g2);
-    printf("    writeq(U), nl, writeq(f(T, U)), nl, writeq([T|U]), nl, writeq(- U), nl, writeq(U - T), nl,\n");
+    printf("    writeq(U), nl, writeq(f(T, U)), nl, writeq([T|U]), nl, writeq(- U), nl, writeq(U - "
+           "T), nl,\n");
     printf("    ( T == U -> write(eq) ; write(ne) ), ( T \\= U -> write(nu) ; write(un) ),\n");
     printf("    ( T \\== T -> write(ne) ; write(eq) ),\n");
-    printf("    ( atom(U) -> write(a) ; true ), ( atomic(U) -> write(c) ; true ), ( compound(U) -> write(t) ; true ),\n");
-    printf("    ( is_list(U) -> write(l) ; true ), ( callable(U) -> write(k) ; true ), ( integer(U) -> write(i) ; true ),\n");
+    printf("    ( atom(U) -> write(a) ; true ), ( atomic(U) -> write(c) ; true ), ( compound(U) -> "
+           "write(t) ; true ),\n");
+    printf("    ( is_list(U) -> write(l) ; true ), ( callable(U) -> write(k) ; true ), ( "
+           "integer(U) -> write(i) ; true ),\n");
     printf("    nl, format(\"~w|~q|~p~n\", [U, U, U]).\n\n");
 }
 
@@ -394,8 +402,9 @@ static void control_task(void)
     printf("    findall(R3, first%d(%d, R3), R3s), write(R3s), nl,\n", k, (int) rnd(11));
     printf("    ( between(1, 10, Y), Y * Y > %d -> format(\"~d~n\", [Y]) ; format(\"none~n\") ),\n",
            (int) rnd(120));
-    printf("    length(L, %d), ( L = [x|_] ; true ), length(L, N), format(\"~a ~d~n\", [len, N]).\n\n",
-           (int) rnd(4));
+    printf(
+        "    length(L, %d), ( L = [x|_] ; true ), length(L, N), format(\"~a ~d~n\", [len, N]).\n\n",
+        (int) rnd(4));
 }
 
 int main(int argc, char **argv)
@@ -407,15 +416,28 @@ int main(int argc, char **argv)
     int n = 4 + (int) rnd(5);
     for (int i = 0; i < n; i++) {
         switch (rnd(6)) {
-        case 0: arith_task(); break;
-        case 1: loop_task(); break;
-        case 2: list_task(); break;
-        case 3: facts_task(); break;
-        case 4: term_task(); break;
-        default: control_task(); break;
+        case 0:
+            arith_task();
+            break;
+        case 1:
+            loop_task();
+            break;
+        case 2:
+            list_task();
+            break;
+        case 3:
+            facts_task();
+            break;
+        case 4:
+            term_task();
+            break;
+        default:
+            control_task();
+            break;
         }
     }
     printf("main :-\n");
-    for (int i = 0; i < ntask; i++) printf("    ( t%d -> true ; write(failed(%d)), nl )%s\n", i, i, i + 1 < ntask ? "," : ".");
+    for (int i = 0; i < ntask; i++)
+        printf("    ( t%d -> true ; write(failed(%d)), nl )%s\n", i, i, i + 1 < ntask ? "," : ".");
     return 0;
 }

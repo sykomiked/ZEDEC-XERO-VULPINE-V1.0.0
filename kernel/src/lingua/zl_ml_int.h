@@ -75,10 +75,10 @@ enum {
     /* Haskell */
     E_GUARDS, /* a: N_GALT list (a guard, b body); falls through when all fail */
     N_GALT,
-    E_RANGE,  /* [a .. b] or, with c, [a, c .. b] */
-    N_SIG,    /* a: P_VAR names; b: the type */
-    N_TYPE,   /* op: TK_*; a, b: parts; names: v, len */
-    N_ITEM    /* a: the item in source order */
+    E_RANGE, /* [a .. b] or, with c, [a, c .. b] */
+    N_SIG,   /* a: P_VAR names; b: the type */
+    N_TYPE,  /* op: TK_*; a, b: parts; names: v, len */
+    N_ITEM   /* a: the item in source order */
 };
 
 /* N_TYPE kinds */
@@ -115,9 +115,9 @@ enum {
     F_TOP = 4,      /* D_EXP / D_VAL from a top-level expression */
     F_PRINTED = 8,  /* E_STR: inside a print argument */
     F_SEQPAREN = 16,
-    F_STMT = 32,  /* Haskell: where an IO action runs (statement position) */
-    F_LAZY = 64,  /* Haskell D_VAL: evaluated when first used (call by need) */
-    F_DO = 128    /* Haskell E_SEQ: a do block */
+    F_STMT = 32, /* Haskell: where an IO action runs (statement position) */
+    F_LAZY = 64, /* Haskell D_VAL: evaluated when first used (call by need) */
+    F_DO = 128   /* Haskell E_SEQ: a do block */
 };
 
 typedef struct {
@@ -292,7 +292,8 @@ typedef struct {
     mcom_t coms[M_COMS];
     int32_t tops[M_TOPS];
     int32_t imap[M_IMAP][2];
-    int32_t rig[M_IMAP], rign[M_IMAP]; /* Haskell signatures: rigid type variables and their names */
+    int32_t rig[M_IMAP],
+        rign[M_IMAP]; /* Haskell signatures: rigid type variables and their names */
     uint32_t nrig;
     char sbuf[M_STR];
 } mw_t;

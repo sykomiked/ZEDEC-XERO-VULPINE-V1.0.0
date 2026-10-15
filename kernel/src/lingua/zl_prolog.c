@@ -89,8 +89,8 @@ enum { K_INT = 1, K_ATOM, K_VAR, K_STR, K_COMP, K_CONS, K_COMMENT };
 enum { I_CLAUSE = 1, I_INIT, I_COMMENT };
 
 typedef struct {
-    int64_t v;  /* INT: value; ATOM, COMP: atom; VAR: (index+1) | length << 32 (index -1: _);
-                   STR, COMMENT: length */
+    int64_t v;         /* INT: value; ATOM, COMP: atom; VAR: (index+1) | length << 32 (index -1: _);
+                          STR, COMMENT: length */
     int32_t kid, next; /* COMP, CONS: first child; VAR, STR, COMMENT: source offset */
     uint32_t line;
     uint16_t col;
@@ -101,9 +101,9 @@ typedef struct {
 enum { AT_LOWER = 1, AT_SYMBOL, AT_SOLO, AT_SPECIAL, AT_QUOTE };
 
 typedef struct {
-    uint32_t off, len; /* the name in names[] */
-    int32_t str;       /* string index once code uses it, else -1 */
-    uint16_t pre, in;  /* prefix / infix operator priority, 0 if none */
+    uint32_t off, len;  /* the name in names[] */
+    int32_t str;        /* string index once code uses it, else -1 */
+    uint16_t pre, in;   /* prefix / infix operator priority, 0 if none */
     uint8_t pret, int_; /* prefix: 0 fx 1 fy; infix: 0 xfx 1 xfy 2 yfx */
     uint8_t type;
     uint8_t pad;
@@ -201,8 +201,8 @@ typedef struct {
     const char *src; /* the text being read (the program or a prelude snippet) */
     size_t len, pos, lstart;
     uint32_t line;
-    int prelude;  /* reading a prelude snippet: '$' names allowed, lines are 0 */
-    int at_top;   /* between clauses: comments are kept */
+    int prelude;      /* reading a prelude snippet: '$' names allowed, lines are 0 */
+    int at_top;       /* between clauses: comments are kept */
     const char *usrc; /* the program */
     size_t ulen;
     ptok_t tok, peek;
@@ -222,7 +222,7 @@ typedef struct {
     struct {
         uint32_t off, len;
     } vars[P_VARS];
-    int32_t dir[P_VARS];  /* the head argument a variable arrives in, or -1 */
+    int32_t dir[P_VARS];   /* the head argument a variable arrives in, or -1 */
     int16_t vslot[P_VARS]; /* its environment cell */
     pnode_t nodes[P_NODES];
     patom_t atoms[P_ATOMS];
@@ -251,24 +251,72 @@ static const struct {
     uint8_t kind; /* 0 prefix, 1 infix */
     uint8_t type; /* prefix: 0 fx 1 fy; infix: 0 xfx 1 xfy 2 yfx */
 } ops[] = {
-    {"$", 1, 0, 0},         {",", 1000, 1, 1},       {".", 100, 1, 2},     {"|", 1105, 1, 1},
-    {"*", 400, 1, 2},       {"**", 200, 1, 0},       {"*->", 1050, 1, 1},  {"+", 200, 0, 1},
-    {"+", 500, 1, 2},       {"-", 200, 0, 1},        {"-", 500, 1, 2},     {"-->", 1200, 1, 0},
-    {"->", 1050, 1, 1},     {"/", 400, 1, 2},        {"//", 400, 1, 2},    {"/\\", 500, 1, 2},
-    {":", 600, 1, 1},       {":-", 1200, 0, 0},      {":-", 1200, 1, 0},   {":<", 700, 1, 0},
-    {":=", 800, 1, 0},      {";", 1100, 1, 1},       {"<", 700, 1, 0},     {"<<", 400, 1, 2},
-    {"=", 700, 1, 0},       {"=..", 700, 1, 0},      {"=:=", 700, 1, 0},   {"=<", 700, 1, 0},
-    {"==", 700, 1, 0},      {"=>", 1200, 1, 0},      {"=@=", 700, 1, 0},   {"=\\=", 700, 1, 0},
-    {">", 700, 1, 0},       {">:<", 700, 1, 0},      {">=", 700, 1, 0},    {">>", 400, 1, 2},
-    {"?-", 1200, 0, 0},     {"@<", 700, 1, 0},       {"@=<", 700, 1, 0},   {"@>", 700, 1, 0},
-    {"@>=", 700, 1, 0},     {"\\", 200, 0, 1},       {"\\+", 900, 0, 1},   {"\\/", 500, 1, 2},
-    {"\\=", 700, 1, 0},     {"\\==", 700, 1, 0},     {"\\=@=", 700, 1, 0}, {"^", 200, 1, 1},
-    {"as", 700, 1, 0},      {"discontiguous", 1150, 0, 0}, {"div", 400, 1, 2},
-    {"dynamic", 1150, 0, 0}, {"initialization", 1150, 0, 0}, {"is", 700, 1, 0},
-    {"meta_predicate", 1150, 0, 0}, {"mod", 400, 1, 2}, {"module_transparent", 1150, 0, 0},
-    {"multifile", 1150, 0, 0}, {"public", 1150, 0, 0}, {"rdiv", 400, 1, 2}, {"rem", 400, 1, 2},
-    {"table", 1150, 0, 0},  {"thread_initialization", 1150, 0, 0}, {"thread_local", 1150, 0, 0},
-    {"volatile", 1150, 0, 0}, {"xor", 400, 1, 2},
+    {"$", 1, 0, 0},
+    {",", 1000, 1, 1},
+    {".", 100, 1, 2},
+    {"|", 1105, 1, 1},
+    {"*", 400, 1, 2},
+    {"**", 200, 1, 0},
+    {"*->", 1050, 1, 1},
+    {"+", 200, 0, 1},
+    {"+", 500, 1, 2},
+    {"-", 200, 0, 1},
+    {"-", 500, 1, 2},
+    {"-->", 1200, 1, 0},
+    {"->", 1050, 1, 1},
+    {"/", 400, 1, 2},
+    {"//", 400, 1, 2},
+    {"/\\", 500, 1, 2},
+    {":", 600, 1, 1},
+    {":-", 1200, 0, 0},
+    {":-", 1200, 1, 0},
+    {":<", 700, 1, 0},
+    {":=", 800, 1, 0},
+    {";", 1100, 1, 1},
+    {"<", 700, 1, 0},
+    {"<<", 400, 1, 2},
+    {"=", 700, 1, 0},
+    {"=..", 700, 1, 0},
+    {"=:=", 700, 1, 0},
+    {"=<", 700, 1, 0},
+    {"==", 700, 1, 0},
+    {"=>", 1200, 1, 0},
+    {"=@=", 700, 1, 0},
+    {"=\\=", 700, 1, 0},
+    {">", 700, 1, 0},
+    {">:<", 700, 1, 0},
+    {">=", 700, 1, 0},
+    {">>", 400, 1, 2},
+    {"?-", 1200, 0, 0},
+    {"@<", 700, 1, 0},
+    {"@=<", 700, 1, 0},
+    {"@>", 700, 1, 0},
+    {"@>=", 700, 1, 0},
+    {"\\", 200, 0, 1},
+    {"\\+", 900, 0, 1},
+    {"\\/", 500, 1, 2},
+    {"\\=", 700, 1, 0},
+    {"\\==", 700, 1, 0},
+    {"\\=@=", 700, 1, 0},
+    {"^", 200, 1, 1},
+    {"as", 700, 1, 0},
+    {"discontiguous", 1150, 0, 0},
+    {"div", 400, 1, 2},
+    {"dynamic", 1150, 0, 0},
+    {"initialization", 1150, 0, 0},
+    {"is", 700, 1, 0},
+    {"meta_predicate", 1150, 0, 0},
+    {"mod", 400, 1, 2},
+    {"module_transparent", 1150, 0, 0},
+    {"multifile", 1150, 0, 0},
+    {"public", 1150, 0, 0},
+    {"rdiv", 400, 1, 2},
+    {"rem", 400, 1, 2},
+    {"table", 1150, 0, 0},
+    {"thread_initialization", 1150, 0, 0},
+    {"thread_local", 1150, 0, 0},
+    {"volatile", 1150, 0, 0},
+    {"xor", 400, 1, 2},
 };
 
 /* Goals compiled in line. */
@@ -325,21 +373,51 @@ static const struct {
     const char *name;
     uint8_t arity, id, internal;
 } bis[] = {
-    {",", 2, B_CONJ, 0},       {";", 2, B_DISJ, 0},        {"->", 2, B_ITE, 0},
-    {"\\+", 1, B_NOT, 0},      {"not", 1, B_NOTW, 0},      {"!", 0, B_CUT, 0},
-    {"true", 0, B_TRUE, 0},    {"fail", 0, B_FAIL, 0},     {"false", 0, B_FALSE, 0},
-    {"once", 1, B_ONCE, 0},    {"ignore", 1, B_IGNORE, 0}, {"forall", 2, B_FORALL, 0},
-    {"findall", 3, B_FINDALL, 0}, {"=", 2, B_UNIFY, 0},   {"\\=", 2, B_NUNIFY, 0},
-    {"==", 2, B_IDENT, 0},     {"\\==", 2, B_NIDENT, 0},   {"is", 2, B_IS, 0},
-    {"=:=", 2, B_AEQ, 0},      {"=\\=", 2, B_ANE, 0},      {"<", 2, B_ALT, 0},
-    {">", 2, B_AGT, 0},        {"=<", 2, B_ALE, 0},        {">=", 2, B_AGE, 0},
-    {"var", 1, B_VAR, 0},      {"nonvar", 1, B_NONVAR, 0}, {"atom", 1, B_ATOM, 0},
-    {"number", 1, B_NUMBER, 0}, {"integer", 1, B_INTEGER, 0}, {"atomic", 1, B_ATOMIC, 0},
-    {"compound", 1, B_COMPOUND, 0}, {"callable", 1, B_CALLABLE, 0}, {"is_list", 1, B_ISLIST, 0},
-    {"write", 1, B_WRITE, 0},  {"print", 1, B_PRINT, 0},   {"writeq", 1, B_WRITEQ, 0},
-    {"writeln", 1, B_WRITELN, 0}, {"nl", 0, B_NL, 0},      {"tab", 1, B_TAB, 0},
-    {"format", 1, B_FORMAT1, 0}, {"format", 2, B_FORMAT2, 0}, {"halt", 0, B_HALT, 0},
-    {"between", 3, B_BETWEEN, 0}, {"length", 2, B_LENGTH, 0}, {"$error", 0, B_ERROR, 1},
+    {",", 2, B_CONJ, 0},
+    {";", 2, B_DISJ, 0},
+    {"->", 2, B_ITE, 0},
+    {"\\+", 1, B_NOT, 0},
+    {"not", 1, B_NOTW, 0},
+    {"!", 0, B_CUT, 0},
+    {"true", 0, B_TRUE, 0},
+    {"fail", 0, B_FAIL, 0},
+    {"false", 0, B_FALSE, 0},
+    {"once", 1, B_ONCE, 0},
+    {"ignore", 1, B_IGNORE, 0},
+    {"forall", 2, B_FORALL, 0},
+    {"findall", 3, B_FINDALL, 0},
+    {"=", 2, B_UNIFY, 0},
+    {"\\=", 2, B_NUNIFY, 0},
+    {"==", 2, B_IDENT, 0},
+    {"\\==", 2, B_NIDENT, 0},
+    {"is", 2, B_IS, 0},
+    {"=:=", 2, B_AEQ, 0},
+    {"=\\=", 2, B_ANE, 0},
+    {"<", 2, B_ALT, 0},
+    {">", 2, B_AGT, 0},
+    {"=<", 2, B_ALE, 0},
+    {">=", 2, B_AGE, 0},
+    {"var", 1, B_VAR, 0},
+    {"nonvar", 1, B_NONVAR, 0},
+    {"atom", 1, B_ATOM, 0},
+    {"number", 1, B_NUMBER, 0},
+    {"integer", 1, B_INTEGER, 0},
+    {"atomic", 1, B_ATOMIC, 0},
+    {"compound", 1, B_COMPOUND, 0},
+    {"callable", 1, B_CALLABLE, 0},
+    {"is_list", 1, B_ISLIST, 0},
+    {"write", 1, B_WRITE, 0},
+    {"print", 1, B_PRINT, 0},
+    {"writeq", 1, B_WRITEQ, 0},
+    {"writeln", 1, B_WRITELN, 0},
+    {"nl", 0, B_NL, 0},
+    {"tab", 1, B_TAB, 0},
+    {"format", 1, B_FORMAT1, 0},
+    {"format", 2, B_FORMAT2, 0},
+    {"halt", 0, B_HALT, 0},
+    {"between", 3, B_BETWEEN, 0},
+    {"length", 2, B_LENGTH, 0},
+    {"$error", 0, B_ERROR, 1},
 };
 
 /* Library predicates written in Prolog, after SWI's library(lists),
@@ -352,8 +430,7 @@ static const struct {
 } prelude[] = {
     {"append", 3, "append([], L, L).\nappend([H|T], L, [H|R]) :- append(T, L, R).\n"},
     {"member", 2, "member(X, [H|T]) :- '$member_'(T, X, H).\n"},
-    {"$member_", 3,
-     "'$member_'(_, X, X).\n'$member_'([H|T], X, _) :- '$member_'(T, X, H).\n"},
+    {"$member_", 3, "'$member_'(_, X, X).\n'$member_'([H|T], X, _) :- '$member_'(T, X, H).\n"},
     {"memberchk", 2, "memberchk(X, [H|T]) :- '$member_'(T, X, H), !.\n"},
     {"reverse", 2,
      "reverse(Xs, Ys) :- '$reverse'(Xs, Ys, [], Ys).\n'$reverse'([], [], Ys, Ys).\n"
@@ -406,10 +483,17 @@ static const struct {
     const char *name;
     uint8_t arity;
 } hooks[] = {
-    {"portray", 1},           {"term_expansion", 2},    {"term_expansion", 4},
-    {"goal_expansion", 2},    {"goal_expansion", 4},    {"message_hook", 3},
-    {"exception", 3},         {"prolog_load_file", 2},  {"message_property", 2},
-    {"prolog_exception_hook", 4}, {"prolog_trace_interception", 4},
+    {"portray", 1},
+    {"term_expansion", 2},
+    {"term_expansion", 4},
+    {"goal_expansion", 2},
+    {"goal_expansion", 4},
+    {"message_hook", 3},
+    {"exception", 3},
+    {"prolog_load_file", 2},
+    {"message_property", 2},
+    {"prolog_exception_hook", 4},
+    {"prolog_trace_interception", 4},
 };
 
 /* SWI-Prolog 9.0.4's system predicates (module system, '$' names left
@@ -789,7 +873,8 @@ static int quoted(pw_t *w, int q, size_t *n)
     size_t k = 0;
     for (;;) {
         int c = at(w, 0);
-        if (c < 0) return pfail(w, ZL_E_SYNTAX, "a quoted name or string without its closing quote");
+        if (c < 0)
+            return pfail(w, ZL_E_SYNTAX, "a quoted name or string without its closing quote");
         if (c == q) {
             if (at(w, 1) != q) {
                 adv(w);
@@ -842,7 +927,8 @@ static int lex(pw_t *w, ptok_t *t)
         if (c == '0' && at(w, 1) == '\'') {
             int ch = at(w, 2);
             if (ch < 32 || ch > 126 || ch == '\\' || ch == '\'')
-                return pfail(w, ZL_E_UNSUPPORTED, "0' with a quote, backslash or control character");
+                return pfail(w, ZL_E_UNSUPPORTED,
+                             "0' with a quote, backslash or control character");
             adv(w);
             adv(w);
             adv(w);
@@ -852,10 +938,12 @@ static int lex(pw_t *w, ptok_t *t)
                 return pfail(w, ZL_E_UNSUPPORTED, "hexadecimal, octal and binary numbers");
             while (cls(at(w, 0)) == C_DI) {
                 if (v > (ZL_V_REF - 1 - (at(w, 0) - '0')) / 10)
-                    return pfail(w, ZL_E_UNSUPPORTED, "an integer beyond 62 bits (SWI has bignums)");
+                    return pfail(w, ZL_E_UNSUPPORTED,
+                                 "an integer beyond 62 bits (SWI has bignums)");
                 v = v * 10 + (at(w, 0) - '0');
                 if (v >= ZL_V_REF)
-                    return pfail(w, ZL_E_UNSUPPORTED, "an integer beyond 62 bits (SWI has bignums)");
+                    return pfail(w, ZL_E_UNSUPPORTED,
+                                 "an integer beyond 62 bits (SWI has bignums)");
                 adv(w);
             }
             if (at(w, 0) == '.' && cls(at(w, 1)) == C_DI)
@@ -1175,8 +1263,7 @@ static int32_t primary(pw_t *w, int maxp, int *outp)
         if (A->pre) {
             if (peek_tok(w, &pk)) return -1;
             if (terminator(pk)) return mkatom(w, t.atom, &t);
-            if (pk->kind == T_NAME && w->atoms[pk->atom].in && !w->atoms[pk->atom].pre &&
-                !pk->fn) {
+            if (pk->kind == T_NAME && w->atoms[pk->atom].in && !w->atoms[pk->atom].pre && !pk->fn) {
                 tfail(w, &t, ZL_E_UNSUPPORTED,
                       "a prefix operator before an infix operator: put the atom in parentheses");
                 return -1;
@@ -1305,7 +1392,8 @@ static int32_t functor(pw_t *w, int32_t n, uint32_t *ar)
 
 static int add_clause(pw_t *w, int32_t head, int32_t body, int32_t pred)
 {
-    if (w->nclauses >= P_CLAUSES) return nfail(w, head >= 0 ? head : body, ZL_E_LIMIT, "too many clauses");
+    if (w->nclauses >= P_CLAUSES)
+        return nfail(w, head >= 0 ? head : body, ZL_E_LIMIT, "too many clauses");
     pclause_t *cl = &w->clauses[w->nclauses];
     zl_bzero(cl, sizeof *cl);
     cl->head = head;
@@ -1367,7 +1455,8 @@ static int read_clause(pw_t *w, int *done)
     }
     f = functor(w, head, &ar);
     if (f < 0 || f == w->a_nil)
-        return nfail(w, head, ZL_E_UNSUPPORTED, "a clause head that is not an atom or compound term");
+        return nfail(w, head, ZL_E_UNSUPPORTED,
+                     "a clause head that is not an atom or compound term");
     if (!w->prelude && (find_bi(w, f, ar, 1) || is_sys(w, f, ar)))
         return nfail(w, head, ZL_E_UNSUPPORTED,
                      "defining a built-in predicate (SWI: no permission to modify it)");
@@ -1594,11 +1683,11 @@ static int64_t aval(pw_t *w, int32_t a)
 
 /* What the writer needs to know about an atom (ATOMINFO). */
 enum { AI_QUOTE = 1, AI_MINUS = 2, AI_COMMA = 4, AI_BAR = 8, AI_CURLY = 16 };
-#define AI_PRE  8  /* prefix priority at bit 8, fy at bit 20 */
-#define AI_FY   ((int64_t) 1 << 20)
-#define AI_IN   24 /* infix priority at bit 24, type at bit 36 */
-#define AI_INT  36
-#define AI_OPS  (((int64_t) 4095 << AI_PRE) | ((int64_t) 4095 << AI_IN))
+#define AI_PRE 8 /* prefix priority at bit 8, fy at bit 20 */
+#define AI_FY  ((int64_t) 1 << 20)
+#define AI_IN  24 /* infix priority at bit 24, type at bit 36 */
+#define AI_INT 36
+#define AI_OPS (((int64_t) 4095 << AI_PRE) | ((int64_t) 4095 << AI_IN))
 enum { C_PREFIX_SIGN = 0x200000, C_PREFIX_OP = 0x400000, C_INFIX_OP = 0x800000 };
 
 static int64_t ainfo(pw_t *w, int32_t a)
@@ -2057,11 +2146,11 @@ static const struct {
     const char *name;
     uint8_t arity, op, a;
 } evs[] = {
-    {"+", 2, ZL_ADD, 0},   {"-", 2, ZL_SUB, 0},   {"*", 2, ZL_MUL, 0},    {"//", 2, ZL_DIVT, 0},
-    {"mod", 2, ZL_MODF, 0}, {"rem", 2, ZL_MODT, 0}, {"div", 2, ZL_DIVF, 0}, {"/", 2, ZL_DIVX, 0},
-    {"min", 2, ZL_MIN, 0}, {"max", 2, ZL_MAX, 0}, {"^", 2, ZL_POW, 1},    {"**", 2, ZL_POW, 1},
-    {"/\\", 2, ZL_AND, 0}, {"\\/", 2, ZL_OR, 0},  {"xor", 2, ZL_XOR, 0},  {">>", 2, ZL_SHR, 0},
-    {"<<", 2, ZL_SHL, 0},  {"-", 1, ZL_NEG, 0},   {"+", 1, ZL_HALT, 0},   {"abs", 1, ZL_ABS, 0},
+    {"+", 2, ZL_ADD, 0},    {"-", 2, ZL_SUB, 0},     {"*", 2, ZL_MUL, 0},    {"//", 2, ZL_DIVT, 0},
+    {"mod", 2, ZL_MODF, 0}, {"rem", 2, ZL_MODT, 0},  {"div", 2, ZL_DIVF, 0}, {"/", 2, ZL_DIVX, 0},
+    {"min", 2, ZL_MIN, 0},  {"max", 2, ZL_MAX, 0},   {"^", 2, ZL_POW, 1},    {"**", 2, ZL_POW, 1},
+    {"/\\", 2, ZL_AND, 0},  {"\\/", 2, ZL_OR, 0},    {"xor", 2, ZL_XOR, 0},  {">>", 2, ZL_SHR, 0},
+    {"<<", 2, ZL_SHL, 0},   {"-", 1, ZL_NEG, 0},     {"+", 1, ZL_HALT, 0},   {"abs", 1, ZL_ABS, 0},
     {"sign", 1, ZL_SGN, 0}, {"\\", 1, ZL_INVERT, 0},
 };
 
@@ -3329,8 +3418,7 @@ static void h_between(pw_t *w)
 static void h_length(pw_t *w)
 {
     int32_t a0 = w->sA, a1 = w->sA + 1, a2 = w->sA + 2, a3 = w->sA + 3, nvar = newlab(w),
-            i2 = newlab(w), v2 = newlab(w), retry = newlab(w), emit = newlab(w),
-            err = newlab(w);
+            i2 = newlab(w), v2 = newlab(w), retry = newlab(w), emit = newlab(w), err = newlab(w);
     ld(w, a1);
     callh(w, H_DEREF);
     o(w, ZL_DUP);
@@ -3480,51 +3568,140 @@ static void emit_helpers(pw_t *w)
             again = 1;
             setlab(w, w->hlab[h] - 1);
             switch (h) {
-            case H_DEREF: h_deref(w); break;
-            case H_TCLASS: h_tclass(w); break;
-            case H_NEWVAR: h_newvar(w); break;
-            case H_BIND: h_bind(w); break;
-            case H_UNIFY: h_ustub(w, 0); break;
-            case H_IDENT: h_ustub(w, 1); break;
-            case H_UC: h_uc(w); break;
-            case H_ALLOC: h_alloc(w); break;
-            case H_PUSHCP: h_pushcp(w); break;
-            case H_FAIL: h_fail(w); break;
-            case H_KEYOF: h_keyof(w); break;
-            case H_EVAL: h_eval(w); break;
-            case H_EV: h_ev(w); break;
-            case H_WRITE: h_write(w); break;
-            case H_WT: h_wt(w); break;
-            case H_WATOM: h_watom(w); break;
-            case H_WNUM: h_wnum(w); break;
-            case H_PUTC: h_putc(w); break;
-            case H_OPENTOK: h_opentok(w); break;
-            case H_CLS: h_cls(w); break;
-            case H_COPY: h_copy(w); break;
-            case H_CP: h_cp(w); break;
-            case H_REVERSE: h_reverse(w); break;
-            case H_ISLIST: h_islist(w); break;
-            case H_SKIP: h_skip(w); break;
-            case H_TAB: h_tab(w); break;
-            case H_FMTA: h_fmta(w); break;
-            case H_FMTD: h_fmtd(w); break;
-            case H_FMTC: h_fmtc(w); break;
-            case H_PROCEED: h_proceed(w); break;
-            case H_PROCF: h_procf(w); break;
-            case H_CUTE: h_cute(w); break;
-            case H_SETKEY: h_setkey(w); break;
-            case H_TRYNEXT: h_trynext(w); break;
-            case H_POPCP: h_popcp(w); break;
-            case H_KEYIS: h_keyis(w); break;
-            case H_SETC: h_setc(w); break;
-            case H_SETT: h_sett(w); break;
-            case H_BETWEEN: h_between(w); break;
-            case H_LENGTH: h_length(w); break;
-            case H_MKLIST: h_mklist(w); break;
-            case H_NEWVARS: h_newvars(w); break;
-            case H_SAVEB: h_saveb(w); break;
-            case H_CUTTO: h_cutto(w); break;
-            default: break;
+            case H_DEREF:
+                h_deref(w);
+                break;
+            case H_TCLASS:
+                h_tclass(w);
+                break;
+            case H_NEWVAR:
+                h_newvar(w);
+                break;
+            case H_BIND:
+                h_bind(w);
+                break;
+            case H_UNIFY:
+                h_ustub(w, 0);
+                break;
+            case H_IDENT:
+                h_ustub(w, 1);
+                break;
+            case H_UC:
+                h_uc(w);
+                break;
+            case H_ALLOC:
+                h_alloc(w);
+                break;
+            case H_PUSHCP:
+                h_pushcp(w);
+                break;
+            case H_FAIL:
+                h_fail(w);
+                break;
+            case H_KEYOF:
+                h_keyof(w);
+                break;
+            case H_EVAL:
+                h_eval(w);
+                break;
+            case H_EV:
+                h_ev(w);
+                break;
+            case H_WRITE:
+                h_write(w);
+                break;
+            case H_WT:
+                h_wt(w);
+                break;
+            case H_WATOM:
+                h_watom(w);
+                break;
+            case H_WNUM:
+                h_wnum(w);
+                break;
+            case H_PUTC:
+                h_putc(w);
+                break;
+            case H_OPENTOK:
+                h_opentok(w);
+                break;
+            case H_CLS:
+                h_cls(w);
+                break;
+            case H_COPY:
+                h_copy(w);
+                break;
+            case H_CP:
+                h_cp(w);
+                break;
+            case H_REVERSE:
+                h_reverse(w);
+                break;
+            case H_ISLIST:
+                h_islist(w);
+                break;
+            case H_SKIP:
+                h_skip(w);
+                break;
+            case H_TAB:
+                h_tab(w);
+                break;
+            case H_FMTA:
+                h_fmta(w);
+                break;
+            case H_FMTD:
+                h_fmtd(w);
+                break;
+            case H_FMTC:
+                h_fmtc(w);
+                break;
+            case H_PROCEED:
+                h_proceed(w);
+                break;
+            case H_PROCF:
+                h_procf(w);
+                break;
+            case H_CUTE:
+                h_cute(w);
+                break;
+            case H_SETKEY:
+                h_setkey(w);
+                break;
+            case H_TRYNEXT:
+                h_trynext(w);
+                break;
+            case H_POPCP:
+                h_popcp(w);
+                break;
+            case H_KEYIS:
+                h_keyis(w);
+                break;
+            case H_SETC:
+                h_setc(w);
+                break;
+            case H_SETT:
+                h_sett(w);
+                break;
+            case H_BETWEEN:
+                h_between(w);
+                break;
+            case H_LENGTH:
+                h_length(w);
+                break;
+            case H_MKLIST:
+                h_mklist(w);
+                break;
+            case H_NEWVARS:
+                h_newvars(w);
+                break;
+            case H_SAVEB:
+                h_saveb(w);
+                break;
+            case H_CUTTO:
+                h_cutto(w);
+                break;
+            default:
+                break;
             }
         }
     }
@@ -3628,8 +3805,8 @@ static int cexpr(pw_t *w, int32_t n, uint32_t d)
     case K_COMP: {
         uint32_t ar = arity(w, n);
         for (size_t i = 0; i < sizeof evs / sizeof evs[0]; i++) {
-            if (evs[i].arity != ar || !same(aname(w, (int32_t) x->v), alen(w, (int32_t) x->v),
-                                            evs[i].name))
+            if (evs[i].arity != ar ||
+                !same(aname(w, (int32_t) x->v), alen(w, (int32_t) x->v), evs[i].name))
                 continue;
             for (int32_t a = x->kid; a >= 0; a = N(w, a)->next) TRY(cexpr(w, a, d + 1));
             ev_op(w, i);
@@ -3856,7 +4033,8 @@ static int c_format(pw_t *w, int32_t g, int32_t f, int32_t args)
         s = aname(w, (int32_t) N(w, f)->v);
         n = alen(w, (int32_t) N(w, f)->v);
     } else {
-        return nfail(w, f, ZL_E_UNSUPPORTED, "a format control that is not a \"string\" or an atom");
+        return nfail(w, f, ZL_E_UNSUPPORTED,
+                     "a format control that is not a \"string\" or an atom");
     }
     if (args >= 0) {
         int32_t t = args;
@@ -3923,7 +4101,8 @@ static int c_format(pw_t *w, int32_t g, int32_t f, int32_t args)
 static int c_call(pw_t *w, int32_t g, int32_t f, uint32_t ar, int tail)
 {
     int32_t p = find_pred(w, f, ar), ret = -1, j = 0;
-    if (p < 0) return nfail(w, g, ZL_E_UNDEFINED, "a call to a predicate the program does not define");
+    if (p < 0)
+        return nfail(w, g, ZL_E_UNDEFINED, "a call to a predicate the program does not define");
     for (int32_t a = N(w, g)->kind == K_COMP ? N(w, g)->kid : -1; a >= 0; a = N(w, a)->next, j++) {
         TRY(build(w, a, 0));
         st(w, w->sA + j);
@@ -4374,7 +4553,8 @@ static int gen(pw_t *w)
         int64_t l = -1;
         if (in->op == ZL_JMP || in->op == ZL_JZ || in->op == ZL_JNZ || in->op == ZL_CALL)
             l = in->a;
-        else if (in->op == ZL_PUSH && in->a >= ZL_V_CODE && in->a < ZL_V_CODE + (int64_t) w->nlabels)
+        else if (in->op == ZL_PUSH && in->a >= ZL_V_CODE &&
+                 in->a < ZL_V_CODE + (int64_t) w->nlabels)
             l = in->a - ZL_V_CODE;
         else
             continue;
