@@ -1013,10 +1013,19 @@ static void step(void)
 /* ===================== the companion (stand-in) ===================== */
 
 /* The budget gate around one generation (zxv_model_host.h M5). */
+/* Set by tiamat_ask: a cell runs only when the open cycle can pay for a
+ * whole reply (prompt + ZXV_MODEL_MAX_NEW), never a reply cut short by the
+ * allotment (B2), so the checks judge complete answers and the same question
+ * gets the same reply whatever the budget held. */
+static bool WHOLE_REPLY;
+
 static int32_t run_under_budget(void *rctx, zxv_gen_fn gen, void *gctx)
 {
     (void) rctx;
     uint32_t companion = S.num_agents ? S.agent[0].id : 0;
+    if (WHOLE_REPLY &&
+        swarm_budget_remaining(&S.b, companion) <= zxv_model_prompt_tokens() + ZXV_MODEL_MAX_NEW)
+        return ZXV_GATE_EXHAUSTED; /* gen not called: the caller waits for the next cycle */
 #if defined(ZXVD)
     /* zxvd_power.h W4: a spent energy budget makes the companion wait; the
      * model does not run (gen is never called) */
@@ -1062,11 +1071,13 @@ static void wait_next_cycle(void)
 static int tiamat_ask(void *ctx, uint32_t cell, const char *prompt, char *out, size_t cap)
 {
     (void) ctx;
+    WHOLE_REPLY = true;
     int m = zxv_agent_answer_ex(cell, prompt, run_under_budget, NULL, out, cap);
     for (int tries = 0; m == ZXV_MODEL_BUDGET_EXHAUSTED && tries < 3; tries++) {
         wait_next_cycle();
         m = zxv_agent_answer_ex(cell, prompt, run_under_budget, NULL, out, cap);
     }
+    WHOLE_REPLY = false;
     if (m == ZXV_MODEL_BUDGET_EXHAUSTED) {
         snprintf(out, cap, "its budget for this cycle is too small for the message");
         return 0;
