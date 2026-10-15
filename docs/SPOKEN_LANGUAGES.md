@@ -57,8 +57,8 @@ the table.
 | fa | Persian | Arab | RTL | Golden Arabic | `ir` | done |
 | ur | Urdu | Arab | RTL | Golden Arabic | `pk` | done |
 | hi | Hindi | Deva | LTR | Golden Devanagari | `in-hi` | done |
-| bn | Bangla | Beng | LTR | Golden Bengali | `bd` | needs reordering |
-| ta | Tamil | Taml | LTR | Golden Tamil | `in-tamilnet` | needs reordering |
+| bn | Bangla | Beng | LTR | Golden Bengali | `bd` | done |
+| ta | Tamil | Taml | LTR | Golden Tamil | `in-tamilnet` | done |
 | zh-Hans | Chinese (Simplified) | Hans | LTR | Golden ChineseSimplified | `us` + input method needed | none needed |
 | zh-Hant | Chinese (Traditional) | Hant | LTR | Golden ChineseTraditional | `us` + input method needed | none needed |
 | ja | Japanese | Jpan | LTR | Golden Japanese | `us` + input method needed | none needed |
@@ -74,15 +74,15 @@ the table.
 | el | Greek | Grek | LTR | Golden Greek | `gr` | none needed |
 | nl | Dutch | Latn | LTR | Golden Latin II | `us-intl` | none needed |
 | mr | Marathi | Deva | LTR | Golden Devanagari | `in-marathi` | done |
-| te | Telugu | Telu | LTR | Golden Telugu | `in-tel` | needs reordering |
-| gu | Gujarati | Gujr | LTR | Golden Gujarati | `in-guj` | needs reordering |
-| kn | Kannada | Knda | LTR | Golden Kannada | `in-kan` | needs reordering |
-| ml | Malayalam | Mlym | LTR | Golden Malayalam | `in-mal` | needs reordering |
-| pa | Punjabi | Guru | LTR | Golden Gurmukhi | `in-guru` | needs reordering |
-| or | Odia | Orya | LTR | Golden Oriya | `in-ori` | needs reordering |
-| as | Assamese | Beng | LTR | Golden Bengali | `in-asm-kagapa` | needs reordering |
+| te | Telugu | Telu | LTR | Golden Telugu | `in-tel` | done |
+| gu | Gujarati | Gujr | LTR | Golden Gujarati | `in-guj` | done |
+| kn | Kannada | Knda | LTR | Golden Kannada | `in-kan` | done |
+| ml | Malayalam | Mlym | LTR | Golden Malayalam | `in-mal` | done |
+| pa | Punjabi | Guru | LTR | Golden Gurmukhi | `in-guru` | done |
+| or | Odia | Orya | LTR | Golden Oriya | `in-ori` | done |
+| as | Assamese | Beng | LTR | Golden Bengali | `in-asm-kagapa` | done |
 | ne | Nepali | Deva | LTR | Golden Devanagari | `np` | done |
-| si | Sinhala | Sinh | LTR | Golden Sinhala | `lk` | needs reordering |
+| si | Sinhala | Sinh | LTR | Golden Sinhala | `lk` | done |
 | sd | Sindhi | Arab | RTL | Golden Arabic | `pk-snd` | done |
 | ps | Pashto | Arab | RTL | Golden Arabic | `af-ps` | done |
 | sat | Santali | Olck | LTR | Golden OlChiki | `in-sat` | none needed |
@@ -91,11 +91,11 @@ the table.
 | fil | Filipino | Latn | LTR | Golden Latin II | `ph` | none needed |
 | jv | Javanese | Latn | LTR | Golden Latin II | `us` | none needed |
 | su | Sundanese | Latn | LTR | Golden Latin II | `us` | none needed |
-| my | Burmese | Mymr | LTR | Golden Myanmar | `mm` | needs reordering |
-| km | Khmer | Khmr | LTR | Golden Khmer | `kh` | needs reordering |
+| my | Burmese | Mymr | LTR | Golden Myanmar | `mm` | done |
+| km | Khmer | Khmr | LTR | Golden Khmer | `kh` | done |
 | lo | Lao | Laoo | LTR | Golden Lao | `la` | needs word breaking |
 | mn | Mongolian | Cyrl | LTR | Golden Cyrillic | `mn` | none needed |
-| bo | Tibetan | Tibt | LTR | Golden Tibetan | `cn-tib` | needs reordering |
+| bo | Tibetan | Tibt | LTR | Golden Tibetan | `cn-tib` | no reordering; stacks drawn as marks |
 | yue | Cantonese | Hant | LTR | Golden ChineseTraditional (4 chars from other Golden faces) | `us` + input method needed | none needed |
 | kk | Kazakh | Cyrl | LTR | Golden Cyrillic | `kz` | none needed |
 | uz | Uzbek | Latn | LTR | Golden Latin II | `uz` | none needed |
@@ -169,10 +169,12 @@ Czech, Slovak, Hungarian and similar layouts type nothing yet.
    come: real input methods for Chinese, Cantonese, Japanese and Korean (today
    there is only a sample Pinyin table), a syllable input method for Amharic
    and Tigrinya, and a Navajo layout.
-3. **Shaping.** Indic reordering beyond Devanagari (Bengali, Tamil, Telugu,
-   Kannada, Malayalam, Gujarati, Gurmukhi, Odia, Sinhala), Myanmar, Khmer and
-   Tibetan reordering, Thai and Lao word breaking. Text drawing also has to
-   use bidi and shaping; today it does not.
+3. **Shaping.** Syllables and reordering now cover all the Brahmic scripts
+   that need it: the nine Indic scripts of India, Sinhala, Myanmar and Khmer
+   (`zui_shape.h` S7, S8, tables generated from the Unicode 15.1 character
+   database by `tools/zui/gen_indic.py`). Still to come: Thai, Lao, Khmer and
+   Burmese word breaking, and text drawing through bidi and shaping (today it
+   does not use them).
 4. **Voice.** Speech commands and voices beyond English.
 5. **Native speaker review** of every translation, Cherokee, Navajo,
    Inuktitut, N'Ko, Tibetan and Santali first, because they are the least

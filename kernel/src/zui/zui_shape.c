@@ -643,28 +643,44 @@ uint32_t zui_grapheme_count(const char *s, uint32_t len)
     return n;
 }
 
-/* ---- S7, S8: Devanagari --------------------------------------------------- */
+/* ---- S7, S8: Brahmic scripts --------------------------------------------- */
+
+#include "zui_shape_indic.inc"
 
 zui_indic_cat_t zui_indic_category(uint32_t cp)
 {
     if (cp == 0x200Du) return ZUI_INDIC_ZWJ;
     if (cp == 0x200Cu) return ZUI_INDIC_ZWNJ;
-    if (cp < 0x0900u || cp > 0x097Fu) return ZUI_INDIC_X;
-    if ((cp >= 0x0915u && cp <= 0x0939u) || (cp >= 0x0958u && cp <= 0x095Fu) ||
-        (cp >= 0x0978u && cp <= 0x097Fu))
-        return ZUI_INDIC_C;
-    if ((cp >= 0x0904u && cp <= 0x0914u) || cp == 0x0960u || cp == 0x0961u ||
-        (cp >= 0x0972u && cp <= 0x0977u))
-        return ZUI_INDIC_V;
-    if (cp == 0x093Cu) return ZUI_INDIC_N;
-    if (cp == 0x094Du) return ZUI_INDIC_H;
-    if (cp == 0x093Fu || cp == 0x094Eu) return ZUI_INDIC_MPRE;
-    if (cp == 0x093Au || cp == 0x093Bu || cp == 0x093Eu || (cp >= 0x0940u && cp <= 0x094Cu) ||
-        cp == 0x094Fu || (cp >= 0x0955u && cp <= 0x0957u) || cp == 0x0962u || cp == 0x0963u)
-        return ZUI_INDIC_M;
-    if (cp <= 0x0903u) return ZUI_INDIC_VM;
-    if (cp >= 0x0951u && cp <= 0x0954u) return ZUI_INDIC_A;
+    uint32_t lo = 0, hi = (uint32_t) (sizeof INDIC_RANGES / sizeof INDIC_RANGES[0]);
+    while (lo < hi) {
+        uint32_t mid = lo + (hi - lo) / 2u;
+        if (cp < INDIC_RANGES[mid].lo)
+            hi = mid;
+        else if (cp > INDIC_RANGES[mid].hi)
+            lo = mid + 1u;
+        else
+            return (zui_indic_cat_t) INDIC_RANGES[mid].cat;
+    }
     return ZUI_INDIC_X;
+}
+
+/* RA of the scripts whose RA HALANT at the start of a cluster becomes a reph;
+ * each block's halant is at its start + 0x4D. */
+static bool is_reph_ra(uint32_t cp)
+{
+    static const uint32_t RA[] = {0x0930u, 0x09B0u, 0x09F0u, 0x0AB0u,
+                                  0x0B30u, 0x0C30u, 0x0CB0u, 0x0D30u};
+    for (uint32_t k = 0; k < sizeof RA / sizeof RA[0]; k++)
+        if (cp == RA[k]) return true;
+    return false;
+}
+
+/* the INDIC_SPLIT index of the two-part vowel cp, or -1 */
+static int32_t split_vowel(uint32_t cp)
+{
+    for (uint32_t k = 0; k < sizeof INDIC_SPLIT / sizeof INDIC_SPLIT[0]; k++)
+        if (INDIC_SPLIT[k].cp == cp) return (int32_t) k;
+    return -1;
 }
 
 static bool is_sign(zui_indic_cat_t c)
@@ -702,7 +718,7 @@ uint32_t zui_indic_syllable(const uint32_t *cp, uint32_t n, uint32_t at, zui_ind
                 break;
             }
         }
-        r.reph = cp[at] == 0x0930u && at + 2u < n && cp[at + 1u] == 0x094Du &&
+        r.reph = is_reph_ra(cp[at]) && at + 2u < n && cp[at + 1u] == (cp[at] & ~0x7Fu) + 0x4Du &&
                  zui_indic_category(cp[at + 2u]) == ZUI_INDIC_C;
         if (!r.dead) {
             for (;;) {
@@ -742,21 +758,41 @@ uint32_t zui_indic_visual(const uint32_t *in, uint32_t n, uint32_t *out, uint16_
                           uint32_t cap)
 {
     uint32_t w = 0;
+#define PUT(c, k)                                                                                  \
+    do {                                                                                           \
+        if (w < cap) {                                                                             \
+            out[w] = (c);                                                                          \
+            if (map) map[w] = (uint16_t) (k);                                                      \
+            w++;                                                                                   \
+        }                                                                                          \
+    } while (0)
     for (uint32_t at = 0; at < n && w < cap;) {
         zui_indic_syllable_t s;
         uint32_t end = zui_indic_syllable(in, n, at, &s);
-        if (s.pre_matra >= 0 && w < cap) {
-            out[w] = in[s.pre_matra];
-            if (map) map[w] = (uint16_t) s.pre_matra;
-            w++;
+        bool cons = s.kind == ZUI_SYL_CONSONANT;
+        /* pre-base matras and the left part of two-part vowels go first; the
+         * Myanmar medial RA, which wraps the consonant, after the vowel E */
+        for (uint32_t k = at; cons && k < end; k++) {
+            int32_t sp = split_vowel(in[k]);
+            if (zui_indic_category(in[k]) == ZUI_INDIC_MPRE && in[k] != 0x103Cu)
+                PUT(in[k], k);
+            else if (sp >= 0)
+                PUT(INDIC_SPLIT[sp].pre, k);
         }
-        for (uint32_t k = at; k < end && w < cap; k++) {
-            if ((int32_t) k == s.pre_matra) continue;
-            out[w] = in[k];
-            if (map) map[w] = (uint16_t) k;
-            w++;
+        for (uint32_t k = at; cons && k < end; k++)
+            if (in[k] == 0x103Cu) PUT(in[k], k);
+        for (uint32_t k = at; k < end; k++) {
+            int32_t sp = cons ? split_vowel(in[k]) : -1;
+            if (cons && zui_indic_category(in[k]) == ZUI_INDIC_MPRE) continue;
+            if (sp >= 0) {
+                PUT(INDIC_SPLIT[sp].post[0], k);
+                if (INDIC_SPLIT[sp].post[1]) PUT(INDIC_SPLIT[sp].post[1], k);
+            } else {
+                PUT(in[k], k);
+            }
         }
         at = end;
     }
+#undef PUT
     return w;
 }
