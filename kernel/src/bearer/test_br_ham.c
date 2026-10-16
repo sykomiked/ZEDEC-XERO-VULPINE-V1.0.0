@@ -27,13 +27,11 @@ typedef struct {
 
 static keyent_t g_keys[2];
 static pqm_sig_sk_t g_sk[2];
-static int g_verifies;
 
 static int verify(void *ctx, const char *call, const uint8_t *msg, uint32_t len, const uint8_t *sig,
                   uint32_t sl)
 {
     (void) ctx;
-    g_verifies++;
     for (int i = 0; i < 2; i++) {
         char c[10];
         br_ax25_addr_format(&g_keys[i].who, c);

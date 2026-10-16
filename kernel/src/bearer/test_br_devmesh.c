@@ -160,7 +160,6 @@ typedef struct qe {
 } qe_t;
 
 static qe_t *g_qh, *g_qt;
-static int g_qn;
 
 static dm_mesh_t g_mesh[2];
 static br_dm_t g_ad[2];
@@ -192,7 +191,6 @@ static void enqueue(int to, int link, const uint8_t *p, uint32_t n)
     else
         g_qh = e;
     g_qt = e;
-    g_qn++;
 }
 
 static int link_send(void *ctx, const uint8_t to[BR_ID_BYTES], const uint8_t *d, uint32_t n)
@@ -257,7 +255,6 @@ static void pump(void)
         qe_t *e = g_qh;
         g_qh = e->next;
         if (!g_qh) g_qt = NULL;
-        g_qn--;
         int to = e->to;
         uint32_t len = 0;
         if (e->link == L_BLE) {

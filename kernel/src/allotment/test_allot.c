@@ -903,7 +903,7 @@ static int ref_get(const char *path, const char *key, char *val, size_t cap)
 
 static void hex(const uint8_t *p, size_t n, char *out)
 {
-    for (size_t i = 0; i < n; i++) sprintf(out + 2 * i, "%02x", p[i]);
+    for (size_t i = 0; i < n; i++) snprintf(out + 2 * i, 3, "%02x", p[i]);
 }
 
 /* The scenario of gen_allot_ref.py: F(22) = 17,711 fee units, 3 parties,

@@ -13,7 +13,17 @@ static const dtmf_freq_pair_t dtmf_table[16] = {
     /* * 0 # D */ {941,1209},{941,1336},{941,1477},{941,1633},
 };
 
-static const char dtmf_chars[16] = "123A456B789C*0#D";
+/* a keypad lookup table indexed by position — a byte array, not a C string:
+ * mark it where the compiler knows how */
+#if defined(__has_attribute)
+#if __has_attribute(nonstring)
+#define DTMF_TBL __attribute__((nonstring))
+#endif
+#endif
+#ifndef DTMF_TBL
+#define DTMF_TBL
+#endif
+static const char dtmf_chars[16] DTMF_TBL = "123A456B789C*0#D";
 
 static int str_len(const char *s) { int n = 0; while (s[n]) n++; return n; }
 

@@ -8,9 +8,19 @@
 
 #define MAXM NAVP_MAX_MEMBERS
 
-static const char CLOSE_DOM[17] = "zxv/navp-close/v1";
-static const char PROP_DOM[16] = "zxv/navp-prop/v1";
-static const char EXIT_DOM[16] = "zxv/navp-exit/v1";
+/* domain tags are exact-length byte labels hashed by size — never read as
+ * C strings, so no terminator: mark them where the compiler knows how */
+#if defined(__has_attribute)
+#if __has_attribute(nonstring)
+#define DOM_TAG __attribute__((nonstring))
+#endif
+#endif
+#ifndef DOM_TAG
+#define DOM_TAG
+#endif
+static const char CLOSE_DOM[17] DOM_TAG = "zxv/navp-close/v1";
+static const char PROP_DOM[16] DOM_TAG = "zxv/navp-prop/v1";
+static const char EXIT_DOM[16] DOM_TAG = "zxv/navp-exit/v1";
 
 static void le32(uint8_t *o, uint32_t v)
 {
