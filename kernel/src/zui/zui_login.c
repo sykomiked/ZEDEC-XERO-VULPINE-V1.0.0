@@ -307,6 +307,15 @@ zui_login_hit_t zui_login_hit(zui_rect_t a, int32_t sc, const zui_login_t *l, in
     if (!l->n || l->chosen >= l->n) return ZUI_LOGIN_NOTHING;
     uint8_t lock = l->people[l->chosen].lock;
     if (lock == ZUI_LOCK_PASSKEY) return ZUI_LOGIN_NOTHING;
+    /* the chosen person's ring and name act on them directly: an open seat
+     * enters, a passphrase seat focuses its field. The row wins where the
+     * block and a row circle meet, because row hits return above. */
+    {
+        int32_t pad = L.ring_r + S(sc, 6);
+        zui_rect_t pb = {L.mid - pad, L.ring_cy - pad, 2 * pad,
+                         L.name_base - (L.ring_cy - L.ring_r) + S(sc, 16)};
+        if (inside(pb, x, y)) return lock == ZUI_LOCK_PASS ? ZUI_LOGIN_FIELD : ZUI_LOGIN_ENTER;
+    }
     if (inside(L.enter, x, y)) return ZUI_LOGIN_ENTER;
     if (lock == ZUI_LOCK_PASS && inside(L.field, x, y)) return ZUI_LOGIN_FIELD;
     return ZUI_LOGIN_NOTHING;

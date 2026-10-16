@@ -119,6 +119,12 @@ int memcmp(const void *x, const void *y, unsigned long n)
 
 static int MODE; /* 0 = the boot runs; 1 = the login answers; 2 = the desk */
 
+/* Events carry the platform's monotonic ms (zui_input.h): the window
+ * manager times double-presses and the dock matches a touch to its pointer
+ * twin on it. A browser gives this file no clock of its own, so frames feed
+ * one — the same elapsed ms the animation already runs on. */
+static uint32_t NOW_MS;
+
 /* the rail's sixteen: base layers 1..16, named as the matrix names them */
 static zui_desk_app_t RAIL[RAIL_APPS];
 static char RAIL_NAME[RAIL_APPS][24], RAIL_APP[RAIL_APPS][24], RAIL_MARK[RAIL_APPS][3];
@@ -363,7 +369,16 @@ EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
         if (sc > 1024) sc = 1024;
         zui_login_hit_t h = zui_login_hit((zui_rect_t){0, 0, S.w, S.h}, sc, &LOGIN, x, y, &index);
         if (h == ZUI_LOGIN_PERSON && index < LOGIN.n) {
+            /* pressing the person already chosen enters them, the same as
+             * Enter — choosing one more time is how the door reads "come in" */
+            if (index == LOGIN.chosen &&
+                LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
+                MODE = 2;
+                if (!desk_up) desk_init();
+                return 1;
+            }
             LOGIN.chosen = index;
+            draw_login(&B, S.w, S.h); /* the chosen person moved */
             return 1;
         }
         if (h == ZUI_LOGIN_ENTER && LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
@@ -378,6 +393,7 @@ EXPORT(zb_pointer) int zb_pointer(int type, int32_t x, int32_t y, int button)
     e.x = x;
     e.y = y;
     e.button = (uint8_t) button;
+    e.ms = NOW_MS;
     int used = zui_desk_event(&DESK, &e) ? 1 : 0;
     desk_act();
     return used;
@@ -392,26 +408,40 @@ EXPORT(zb_scroll) int zb_scroll(int32_t x, int32_t y, int32_t dx, int32_t dy)
     e.y = y;
     e.dx = dx;
     e.dy = dy;
+    e.ms = NOW_MS;
     int used = zui_desk_event(&DESK, &e) ? 1 : 0;
     desk_act();
     return used;
 }
 
-EXPORT(zb_key) int zb_key(int key, int down)
+/* key: ZUI_KEY_* or ASCII; down: 1 press, 0 release; mods: ZUI_MOD_* mask.
+ * Callers that predate the third argument pass nothing and get mods = 0. */
+EXPORT(zb_key) int zb_key(int key, int down, int mods)
 {
-    if (!down) return 0;
     if (MODE == 1) {
+        if (!down) return 0;
         if (key == ZUI_KEY_ENTER && LOGIN.people[LOGIN.chosen].lock == ZUI_LOCK_NONE) {
             MODE = 2;
             if (!desk_up) desk_init();
+            return 1;
+        }
+        if (LOGIN.n > 1 &&
+            (key == ZUI_KEY_LEFT || key == ZUI_KEY_RIGHT || key == ZUI_KEY_TAB)) {
+            if (key == ZUI_KEY_LEFT || (key == ZUI_KEY_TAB && (mods & ZUI_MOD_SHIFT)))
+                LOGIN.chosen = LOGIN.chosen ? LOGIN.chosen - 1 : LOGIN.n - 1;
+            else
+                LOGIN.chosen = LOGIN.chosen + 1 < LOGIN.n ? LOGIN.chosen + 1 : 0;
+            draw_login(&B, S.w, S.h);
             return 1;
         }
         return 0;
     }
     if (MODE != 2) return 0;
     zui_event_t e = {0};
-    e.type = ZUI_EV_KEY_DOWN;
+    e.type = down ? ZUI_EV_KEY_DOWN : ZUI_EV_KEY_UP;
     e.key = (uint16_t) key;
+    e.mods = (uint8_t) mods;
+    e.ms = NOW_MS;
     int used = zui_desk_event(&DESK, &e) ? 1 : 0;
     desk_act();
     return used;
@@ -614,6 +644,7 @@ EXPORT(zb_fail) void zb_fail(void)
 EXPORT(zb_frame) void zb_frame(uint32_t ms)
 {
     if (!S.px) return;
+    NOW_MS += ms;
     const uint32_t *src;
     if (MODE == 2) {
         zui_desk_tick(&DESK, ms);

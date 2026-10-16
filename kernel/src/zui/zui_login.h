@@ -67,10 +67,10 @@ typedef struct {
 /* What a point on the screen is. */
 typedef enum {
     ZUI_LOGIN_NOTHING = 0,
-    ZUI_LOGIN_PERSON, /* *index = which person in the row */
-    ZUI_LOGIN_FIELD,  /* the passphrase field             */
-    ZUI_LOGIN_ENTER,  /* the Enter button                 */
-    ZUI_LOGIN_ADD     /* Add person                       */
+    ZUI_LOGIN_PERSON, /* *index = which person in the row              */
+    ZUI_LOGIN_FIELD,  /* the passphrase field, or a locked seat's ring */
+    ZUI_LOGIN_ENTER,  /* the Enter button, or an open seat's ring      */
+    ZUI_LOGIN_ADD     /* Add person                                    */
 } zui_login_hit_t;
 
 void zui_login_draw(zui_surface_t *s, zui_rect_t area, int32_t scale_q8, const zui_login_t *l,

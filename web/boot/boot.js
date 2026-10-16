@@ -377,36 +377,61 @@ async function boot()
             return [ Math.round((e.clientX - r.left) * canvas.width / r.width),
                      Math.round((e.clientY - r.top) * canvas.height / r.height) ];
         };
-        let held = 0;
+        // zui_input.h's masks: 1 left, 2 right, 4 middle — e.buttons is already
+        // that mask on a move; e.button's index maps back to it on a change
+        const BTN = [ 1, 4, 2, 8, 16 ];
+        const mods = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) |
+            (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0) |
+            ((e.ctrlKey || e.metaKey) ? 16 : 0); // ZUI_MOD_CMD: the platform's key
+        let held = 0, lastX = 0, lastY = 0;
         canvas.addEventListener('pointerdown', (e) => {
-            held = 1;
+            held = e.buttons;
             const [x, y] = pt(e);
-            zb.zb_pointer(1, x, y, 1);
+            lastX = x;
+            lastY = y;
+            zb.zb_pointer(1, x, y, BTN[e.button] || 1);
             e.preventDefault();
         });
         canvas.addEventListener('pointerup', (e) => {
-            held = 0;
+            held = e.buttons;
             const [x, y] = pt(e);
-            zb.zb_pointer(2, x, y, 1);
+            lastX = x;
+            lastY = y;
+            zb.zb_pointer(2, x, y, BTN[e.button] || 1);
         });
         canvas.addEventListener('pointermove', (e) => {
             const [x, y] = pt(e);
-            zb.zb_pointer(0, x, y, held);
+            lastX = x;
+            lastY = y;
+            zb.zb_pointer(0, x, y, e.buttons);
         });
+        // a cancelled or interrupted press still ends the drag inside
+        const drop = () => {
+            if (!held) return;
+            held = 0;
+            zb.zb_pointer(2, lastX, lastY, 1);
+        };
+        canvas.addEventListener('pointercancel', drop);
+        addEventListener('blur', drop);
         canvas.addEventListener('wheel', (e) => {
             if (!zb.zb_scroll) return;
             const [x, y] = pt(e);
             zb.zb_scroll(x, y, Math.round(e.deltaX), Math.round(e.deltaY));
             e.preventDefault();
         }, {passive : false});
+        const KEYS = {Enter : 13, Escape : 27, Backspace : 8, Tab : 9, ' ' : 32,
+                      ArrowLeft : 0x100, ArrowRight : 0x101, ArrowUp : 0x102,
+                      ArrowDown : 0x103, Home : 0x104, End : 0x105,
+                      PageUp : 0x106, PageDown : 0x107, Delete : 127};
         addEventListener('keydown', (e) => {
             if (!zb.zb_key) return;
-            const keys = {Enter : 13, Escape : 27, Backspace : 8, Tab : 9, ' ' : 32,
-                          ArrowLeft : 0x100, ArrowRight : 0x101, ArrowUp : 0x102,
-                          ArrowDown : 0x103, Home : 0x104, End : 0x105,
-                          PageUp : 0x106, PageDown : 0x107, Delete : 127};
-            const k = keys[e.key] || (e.key.length === 1 ? e.key.charCodeAt(0) : 0);
-            if (k) zb.zb_key(k, 1);
+            const k = KEYS[e.key] || (e.key.length === 1 ? e.key.charCodeAt(0) : 0);
+            if (k && zb.zb_key(k, 1, mods(e))) e.preventDefault();
+        });
+        addEventListener('keyup', (e) => {
+            if (!zb.zb_key) return;
+            const k = KEYS[e.key] || (e.key.length === 1 ? e.key.charCodeAt(0) : 0);
+            if (k) zb.zb_key(k, 0, mods(e));
         });
     }
 

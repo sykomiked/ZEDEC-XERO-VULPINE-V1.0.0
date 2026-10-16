@@ -1034,6 +1034,26 @@ static void test_login(void)
         }
     CHECK(!found_field && !found_enter, "a passkey seat waits for the device's unlock");
 
+    /* the chosen person's ring and name act on them: an open seat enters
+     * (the same as its Enter button), a passphrase seat focuses the field,
+     * and a passkey seat stays with the host's own unlock. The row keeps its
+     * hits where the two overlap. At 480x320 the block lands at
+     * x 214..266, y 130..238; the chosen row circle is centred (240, 234). */
+    l.chosen = 0; /* ppl[0]: ZUI_LOCK_NONE */
+    CHECK(zui_login_hit(a, 256, &l, 240, 156, 0) == ZUI_LOGIN_ENTER,
+          "an open seat's ring enters, not just its Enter button");
+    CHECK(zui_login_hit(a, 256, &l, 240, 186, 0) == ZUI_LOGIN_ENTER,
+          "an open seat's block below the ring enters too");
+    l.chosen = 1; /* ppl[1]: ZUI_LOCK_PASS */
+    CHECK(zui_login_hit(a, 256, &l, 240, 156, 0) == ZUI_LOGIN_FIELD,
+          "a passphrase seat's ring focuses the field");
+    l.chosen = 2; /* ppl[2]: ZUI_LOCK_PASSKEY */
+    CHECK(zui_login_hit(a, 256, &l, 240, 156, 0) == ZUI_LOGIN_NOTHING,
+          "a passkey seat's ring stays inert");
+    l.chosen = 0;
+    CHECK(zui_login_hit(a, 256, &l, 264, 234, &idx) == ZUI_LOGIN_PERSON && idx == 2,
+          "the row still wins where the block reaches it");
+
     l.chosen = 1;
     l.wrong = true;
     l.shake_q8 = 40;
