@@ -17,6 +17,7 @@ const hw_driver_t hw_drivers[] = {
     {"igc", 0x02, 0x00, 0xFF, igc_ids, igc_bind},
     {"r8169", 0x02, 0x00, 0xFF, r8169_ids, r8169_bind},
     {"vnet", 0x02, 0x00, 0xFF, vnet_ids, vnet_bind},
+    {"vmx3", 0x02, 0x00, 0xFF, vmx3_ids, vmx3_bind},
     {"vblk", 0x01, 0xFF, 0xFF, vblk_ids, vblk_bind},
     {"vscsi", 0x01, 0xFF, 0xFF, vscsi_ids, vscsi_bind},
     {"nvme", 0x01, 0x08, 0x02, 0, nvme_bind},

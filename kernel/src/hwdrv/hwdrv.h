@@ -262,6 +262,7 @@ extern const hw_id_t r8169_ids[]; /* r8169.c: Realtek RTL8169/8168/8111/8101, RT
 extern const hw_id_t vnet_ids[];  /* vnet.c: virtio-net, transitional and modern */
 extern const hw_id_t vblk_ids[];  /* vblk.c: virtio-blk, transitional and modern */
 extern const hw_id_t vscsi_ids[]; /* vscsi.c: virtio-scsi, transitional and modern */
+extern const hw_id_t vmx3_ids[];  /* vmx3.c: VMware vmxnet3, the UPT1 paravirtual NIC */
 hw_verdict_t nvme_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                        hw_line_t *note);
 /* nvme.c: Security Send (send 1, opcode 0x81) or Receive (0x82) of len bytes
@@ -300,5 +301,7 @@ hw_verdict_t vblk_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t 
                        hw_line_t *note);
 hw_verdict_t vscsi_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
                         hw_line_t *note);
+hw_verdict_t vmx3_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t *r,
+                       hw_line_t *note);
 
 #endif
