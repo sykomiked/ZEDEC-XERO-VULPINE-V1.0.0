@@ -94,8 +94,9 @@ DEF_fuzz_fat32_mount := -DTEST_HOST
 DIR_fuzz_vinea := parsers
 INC_fuzz_vinea := -I$(S)/vinea -I$(S)/zcapital -I$(S)/lpres -I$(S)/edp_risk
 SRC_fuzz_vinea := $(addprefix $(S)/vinea/,vna_agree.c vna_cid.c vna_cmd.c vna_common.c \
-                  vna_econ.c vna_file.c vna_frame.c vna_id.c vna_kad.c vna_lan.c vna_node.c \
-                  vna_schema.c vna_session.c vna_space.c vna_wire.c) \
+                  vna_delta.c vna_econ.c vna_file.c vna_frame.c vna_id.c vna_kad.c vna_lan.c \
+                  vna_node.c vna_schema.c vna_session.c vna_space.c vna_wire.c) \
+                  $(S)/lpres/lpres.c \
                   $(PQ5) $(S)/tls/x25519.c $(S)/tls/aead.c $(S)/tls/hkdf.c \
                   $(S)/robin_debanks/sha256.c $(S)/swarm/swarm_budget.c \
                   $(S)/swarm/swarm_emotion.c $(S)/swarm/swarm_market.c $(S)/swarm/swarm_hk.c \

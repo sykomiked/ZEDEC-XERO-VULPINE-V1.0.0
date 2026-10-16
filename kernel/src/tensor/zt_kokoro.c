@@ -779,13 +779,18 @@ static uint32_t conv_t(zt_nn_t *nn, const zt_kk_lin_t *ph, const zt_fx *bias, ui
     uint32_t taps = K / stride, To = (T - 1) * stride - 2 * pad + K, cols = Cin * taps;
     /* outputs of one phase are every stride-th row: gather them in chunks */
     for (uint32_t p = 0; p < stride; p++) {
-        uint32_t k0 = (p + pad) % stride;
-        uint32_t nout = To > p ? (To - p + stride - 1) / stride : 0;
+        /* (t + pad - k0)/stride = i0 + b + base: k0 is p + pad's remainder,
+         * so p + pad - k0 is base * stride exactly. Both phase divisions go
+         * through zt_udiv64: on i386 LLVM 23 widens a u32 divide inside this
+         * loop into a 64-bit one and drags in __udivdi3, which a freestanding
+         * build has no lib to give it. */
+        uint32_t base = (uint32_t) zt_udiv64(p + pad, stride, 0);
+        uint32_t nout =
+            To > p ? (uint32_t) zt_udiv64(To - p + stride - 1, stride, 0) : 0;
         for (uint32_t i0 = 0; i0 < nout; i0 += CHUNK) {
             uint32_t B = nout - i0 < CHUNK ? nout - i0 : CHUNK;
             for (uint32_t b = 0; b < B; b++) {
-                uint32_t t = p + (i0 + b) * stride;
-                int64_t ib = (t + pad - k0) / stride; /* k0 <= p + pad <= t + pad */
+                int64_t ib = (int64_t) i0 + (int64_t) b + (int64_t) base;
                 zt_fx *o = col + (uint64_t) b * cols;
                 for (uint32_t m = 0; m < taps; m++) { /* column m * Cin + c */
                     int64_t i = ib - m;
