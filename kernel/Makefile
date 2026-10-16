@@ -495,6 +495,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vinea-space
 	@echo "=== vinea delta: the L2 state bus — canonical deltas, the evidence join, the Merkle clock ===";
 	$(MAKE) --no-print-directory test-vna-delta
+	@echo "=== vinea door: the seed's plain-http door — files, CID blocks, the l2 stream ===";
+	$(MAKE) --no-print-directory test-vna-door
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
 	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
@@ -2171,6 +2173,12 @@ test-vinea:
 .PHONY: test-vinea-space
 test-vinea-space:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/zcapital -Isrc/lpres -Isrc/edp_risk -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vinea_space.c $(VINEA_SRCS) src/lpres/lpres.c src/tls/aead.c src/tls/hkdf.c src/robin_debanks/sha256.c src/ubh/ubh.c src/event_space/event_envelope.c -o /tmp/test_vinea_space -lm && /tmp/test_vinea_space > /tmp/test_vinea_space.log 2>&1 && echo "[PASS] test_vinea_space" || { tail -40 /tmp/test_vinea_space.log; echo "[FAIL] test_vinea_space"; exit 1; }
+
+# Vinea door (src/vinea/vna_door.h): the seed's plain-http door — the
+# doorway, files and CID blocks, and the L2 bus on one pipe.
+.PHONY: test-vna-door
+test-vna-door:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vna_door.c src/vinea/vna_door.c src/vinea/vna_delta.c src/vinea/vna_common.c src/lpres/lpres.c src/mlkem/keccak.c -o /tmp/test_vna_door && /tmp/test_vna_door > /tmp/test_vna_door.log 2>&1 && echo "[PASS] test_vna_door" || { tail -40 /tmp/test_vna_door.log; echo "[FAIL] test_vna_door"; exit 1; }
 
 # Vinea delta (src/vinea/vna_delta.h): the L2 state bus's payload and page.
 .PHONY: test-vna-delta

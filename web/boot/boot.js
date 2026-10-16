@@ -188,14 +188,62 @@ async function boot()
             const n = zb.zb_l2_emit(cell, lattice, payload ? payload.length : 0);
             if (n < 0) return n;
             const bytes = new Uint8Array(memory.buffer, zb.zb_l2_out(), n).slice();
+            l2.lastEmit = bytes;
             if (l2.send) l2.send(bytes);
             return bytes;
         },
         state(cell) { return zb.zb_l2_state(cell); },
         send : null,
+        tick : 0,      // the highest Lamport tick applied; the resume cursor
+        lastEmit : null, // our own delta echoes back over the stream: skip it
+        // The bus rides the same origin the page came from — only a seed's
+        // plain-http door can carry it, and only a page a seed served may
+        // speak it (https pages may not fetch http, so the Filebase mirror
+        // quietly stays off the bus).
+        connect() {
+            if (location.protocol !== 'http:' || !zb.zb_l2_apply) return;
+            l2.send = (bytes) => fetch('/l2', {method : 'POST', body : bytes})
+                .catch(() => { l2.send = null; });
+            const frames = (async () => {
+                for (;;) {
+                    try {
+                        const res = await fetch(`/l2?after=${l2.tick}`, {cache : 'no-cache'});
+                        if (!res.ok || !res.body) break;
+                        const rd = res.body.getReader();
+                        let hold = new Uint8Array(0);
+                        for (;;) {
+                            const {done, value} = await rd.read();
+                            if (done) break;
+                            const both = new Uint8Array(hold.length + value.length);
+                            both.set(hold); both.set(value, hold.length);
+                            hold = both;
+                            while (hold.length >= 10) {
+                                const fl = hold[0] | (hold[1] << 8);
+                                if (hold.length < 10 + fl) break;
+                                let tick = 0;
+                                for (let i = 0; i < 8; i++)
+                                    tick += hold[2 + i] * (256 ** i); // exact below 2^53
+                                if (fl) {
+                                    const fr = hold.subarray(10, 10 + fl);
+                                    const own = l2.lastEmit && fr.length === l2.lastEmit.length &&
+                                        fr.every((b, i) => b === l2.lastEmit[i]);
+                                    if (!own)
+                                        l2.apply(fr, tick & 0xffffffff,
+                                                 Math.floor(tick / 0x100000000));
+                                    l2.tick = Math.max(l2.tick, tick);
+                                }
+                                hold = hold.subarray(10 + fl);
+                            }
+                        }
+                    } catch (e) { /* the door is away; wait and resume */ }
+                    await new Promise((r) => setTimeout(r, 3000));
+                }
+            })();
+        },
     };
     const L2_LINK = 1; // the bus-link cell, ZB_L2_LINK in zxv_boot_wasm.c
     window.ZXV_L2 = l2;
+    l2.connect();
 
     let last = performance.now(), handed = false, manifest = null;
     let packBuf = null, iconInflight = -1, lastMode = -1;
