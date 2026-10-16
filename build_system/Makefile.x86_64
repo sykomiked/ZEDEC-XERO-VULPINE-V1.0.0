@@ -656,6 +656,12 @@ CFLAGS += -I$(ZXV_GENDIR)
 ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
 $(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
 
+# The seed static-lease map (tools/vps/gen_seedmap.py over
+# build_system/vps_seeds.conf): providers that assign fixed addresses
+# answer no DHCP, so a seed recognises its own NIC MAC in this baked table.
+ZXV_SEEDMAP_HDR := $(ZXV_GENDIR)/zxv_seedmap.h
+$(shell python3 $(CURDIR)/tools/vps/gen_seedmap.py $(CURDIR)/build_system/vps_seeds.conf $(CURDIR)/$(ZXV_SEEDMAP_HDR))
+
 # The table this kernel bakes into .rodata (build_system/mk_table.py,
 # docs/BUCKET.md): L0's CID, and the CID, size and SHA-256 of every swarm disc
 # in ZXV_SWARM_DISCS (their images, built before the kernel: the release is

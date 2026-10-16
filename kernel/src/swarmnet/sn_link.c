@@ -4,6 +4,17 @@
  * (swarmnet.h). */
 #include "swarmnet.h"
 
+/* Seeds on providers that hand out fixed addresses (the build system's
+ * vps_seeds.conf, baked by tools/vps/gen_seedmap.py) get no DHCP answer at
+ * all; the map lets a seed recognise its own NIC and configure statically. */
+#if defined(__has_include)
+#if __has_include("zxv_seedmap.h")
+#include "zxv_seedmap.h"
+#endif
+#endif
+
+static int sn_static(sn_link_t *l);
+
 /* net_interface_t's transmit callback carries no context, so the link in use
  * is kept here: there is one fetch link at a time. */
 static sn_link_t *g_link;
@@ -85,7 +96,12 @@ int sn_link_up(sn_link_t *l, const hw_plat_t *p, hw_registry_t *r, const sn_cloc
         uint64_t end = clk->ms(clk->ctx) + SN_DHCP_MS;
         while (clk->ms(clk->ctx) < end && !dhcp_is_bound(&l->net.dhcp)) sn_pump(l);
     }
-    if (!dhcp_is_bound(&l->net.dhcp)) return 0;
+    if (!dhcp_is_bound(&l->net.dhcp) && !sn_static(l)) {
+        hw_line_init(&s);
+        hw_line_s(&s, "  [NET] no lease, NIC MAC not in the seed map");
+        p->log(s.b);
+        return 0;
+    }
     hw_line_init(&s);
     hw_line_s(&s, "  [NET] DHCP lease ");
     ip_s(&s, l->eth->ip);
@@ -98,6 +114,35 @@ int sn_link_up(sn_link_t *l, const hw_plat_t *p, hw_registry_t *r, const sn_cloc
     p->log(s.b);
     return 1;
 }
+
+#if defined(ZXV_SEEDMAP_N) && ZXV_SEEDMAP_N
+/* The seed's own MAC is in the baked map: take that line's address, mask and
+ * gateway (DNS falls back to the gateway). 1 = a map line matched. */
+static int sn_static(sn_link_t *l)
+{
+    hw_line_t s;
+    for (uint32_t i = 0; i < ZXV_SEEDMAP_N; i++) {
+        const zxv_seedmap_t *e = &zxv_seedmap[i];
+        if (!hw_memeq(l->nic->mac, e->mac, 6)) continue;
+        hw_memcpy(l->eth->ip, e->ip, NET_IP_LEN);
+        hw_memcpy(l->eth->netmask, e->mask, NET_IP_LEN);
+        hw_memcpy(l->eth->gateway, e->gw, NET_IP_LEN);
+        hw_memcpy(l->net.dns_server, e->gw, NET_IP_LEN);
+        hw_line_init(&s);
+        hw_line_s(&s, "  [NET] no DHCP; seed map gives static lease ");
+        ip_s(&s, l->eth->ip);
+        l->p->log(s.b);
+        return 1;
+    }
+    return 0;
+}
+#else
+static int sn_static(sn_link_t *l)
+{
+    (void) l;
+    return 0;
+}
+#endif
 
 void sn_log_offline(const hw_plat_t *p, const hw_models_t *m)
 {
