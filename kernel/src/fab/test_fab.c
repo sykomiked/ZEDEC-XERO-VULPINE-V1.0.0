@@ -1037,7 +1037,7 @@ static void hash_hex(const uint8_t *p, uint32_t n, char out[65])
 {
     uint8_t h[32];
     sha256(p, n, h);
-    for (int i = 0; i < 32; i++) sprintf(out + 2 * i, "%02x", h[i]);
+    for (int i = 0; i < 32; i++) snprintf(out + 2 * i, 3, "%02x", h[i]);
 }
 
 static void test_golden(void)
