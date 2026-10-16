@@ -201,11 +201,11 @@ static uint32_t get32(const volatile uint8_t *b, uint32_t off)
            ((uint32_t) b[off + 3] << 24);
 }
 
-/* A command write goes into B1_CMD and the answer replaces it there. Real
- * hardware answers synchronously, so the first read returns the result; the
- * bounded poll covers a device that takes a moment (and host fakes, which
- * only tick while the driver waits). res gets the result; 0 = the device
- * never answered (the register still holds the command). */
+/* A query command (ENABLE, GET_*) writes B1_CMD and reads the answer from the
+ * same register. Real hardware answers synchronously; the bounded poll covers
+ * a device that takes a moment (and host fakes, which only tick in delay_us).
+ * A fire-and-forget command (DISABLE, SET_*) only writes B1_CMD: reading it
+ * back would ask the hypervisor for a command status that does not exist. */
 static int vmx_cmd(vmx3_t *e, uint32_t c, uint32_t *res)
 {
     hw_wr32(e->r1, B1_CMD, c);
@@ -220,6 +220,12 @@ static int vmx_cmd(vmx3_t *e, uint32_t c, uint32_t *res)
     }
     *res = c;
     return 0;
+}
+
+static void vmx_put_cmd(vmx3_t *e, uint32_t c)
+{
+    hw_wr32(e->r1, B1_CMD, c);
+    e->p->delay_us(e->p->ctx, 1);
 }
 
 static int link_up(vmx3_t *e)
@@ -359,8 +365,7 @@ static int vmx3_send(hw_nic_t *n, const void *frame, uint32_t len)
 static int vmx3_phy_off(hw_nic_t *n)
 {
     vmx3_t *e = (vmx3_t *) n->drv;
-    uint32_t v;
-    vmx_cmd(e, CMD_DISABLE, &v);
+    vmx_put_cmd(e, CMD_DISABLE);
     n->link_up = 0;
     return 1;
 }
@@ -535,10 +540,9 @@ hw_verdict_t vmx3_bind(const hw_plat_t *p, const hw_pci_dev_t *d, hw_registry_t 
         hw_line_s(note, "the device refused to enable");
         return HW_F;
     }
-    uint32_t ignored;
-    vmx_cmd(e, CMD_SET_FEATURE, &ignored);
-    vmx_cmd(e, CMD_SET_FILTER, &ignored);
-    vmx_cmd(e, CMD_SET_RXMODE, &ignored);
+    vmx_put_cmd(e, CMD_SET_FEATURE);
+    vmx_put_cmd(e, CMD_SET_FILTER);
+    vmx_put_cmd(e, CMD_SET_RXMODE);
     for (uint32_t t = 0; t < LINK_US / 10; t++) {
         if (link_up(e)) break;
         p->delay_us(p->ctx, 10);

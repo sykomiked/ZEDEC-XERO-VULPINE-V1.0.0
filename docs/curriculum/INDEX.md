@@ -61,10 +61,10 @@ across eight regional bootstrap nodes and the Filebase S3/IPFS edge:
 | **JPN (Tokyo)** | `84.247.159.91` | `:80` HTTP Doorway / `:8724` UDP Vinea | Asia-Pacific East seed |
 | **AUS (Sydney)** | `46.250.247.153` | `:80` HTTP Doorway / `:8724` UDP Vinea | Oceania seed |
 | **IND (Mumbai)** | `13.140.75.51` | `:80` HTTP Doorway / `:8724` UDP Vinea | South Asia seed |
-| **UK (London)** | `161.97.114.212` | `:80` HTTP Doorway / `:8724` UDP Vinea | North-Atlantic gateway seed |
-| **US-East** | `209.126.13.153` | `:80` HTTP Doorway / `:8724` UDP Vinea | North America East seed |
+| **UK (London)** | `81.0.221.238` | `:80` HTTP Doorway / `:8724` UDP Vinea | North-Atlantic gateway seed |
+| **US-East** | `13.140.47.157` | `:80` HTTP Doorway / `:8724` UDP Vinea | North America East seed |
 | **US-Central** | `195.26.240.140` | `:80` HTTP Doorway / `:8724` UDP Vinea | North America Central seed |
-| **US-West** | `144.126.137.197` | `:80` HTTP Doorway / `:8724` UDP Vinea | North America West seed |
+| **US-West** | `62.146.173.107` | `:80` HTTP Doorway / `:8724` UDP Vinea | North America West seed |
 | **Global Gateway** | `zedec.myfilebase.com` | HTTPS Trustless & Range Gateway | S3/IPFS content-addressed mirror |
 
 ---

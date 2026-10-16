@@ -1,15 +1,27 @@
 {
   "schema": "zxv.curriculum.v1",
-  "root_cid": "bafybeih2cpctfvuu5wc7fw3oiej7tu3e4fqjuakzi65qhm4zspz2t4qqaq",
+  "root_cid": "bafybeihgn75im5323qabyicaba64w7trb6irsrd32z3v4quj6qhoifvvt4",
   "os_release_cid": "bafybeicih44n3ebecncm32ckn3sfdgbycdxnggbd4vmpwbfhxk4y4yrh3u",
-  "car_bytes": 69767,
-  "car_sha256": "7b2187c7904102bdf17258a91302f329b2f5710e8f24d451062958e50cdd7670",
+  "car_bytes": 69763,
+  "car_sha256": "9ce7079fe7dadaf4c22b53adecabf4ced057bc4efbfa2dd88189597359ff4cd7",
   "files": [
     {
+      "name": "BUCKET.md",
+      "cid": "bafkreibj6bzb3iuybslauf45tjpoft2gys66nmb3p5aym2t6aggats55oy",
+      "bytes": 10428,
+      "sha256": "29f0721da2980c960a179d9a5ee2cf46c4bde6b03b7f41866a7e018c09cbbd76"
+    },
+    {
       "name": "INDEX.md",
-      "cid": "bafkreifke7h5t2xeqz4yy662g4myclar4ejnve37a5a2aroci6nyjsu7zq",
-      "bytes": 6153,
-      "sha256": "aa27cfd9eae486798c7bda3719812c11e112da937f0741a045c2479b84ca9fcc"
+      "cid": "bafkreibrgka6hbjrw4trq74xxdmtthr6bpieawz4vsi6e47ylkvddlh3ie",
+      "bytes": 6149,
+      "sha256": "313281e38531b727187f97b8d9399e3e0bd0405b3cac91e273f85aaa31acfb41"
+    },
+    {
+      "name": "MANUAL.md",
+      "cid": "bafkreiciszezsxymqymuwkw2l2hmghy4mvged4y7oav2n6q6gcyw4vx6p4",
+      "bytes": 8589,
+      "sha256": "489649995f0c86194b2ada5e8ec31f1c654c41f31f702ba6fa1e30b16e56fe7f"
     },
     {
       "name": "PAPER_1_PARACONSISTENT_RING0.md",
@@ -34,18 +46,6 @@
       "cid": "bafkreifhhv4dcozubi52pjzpmzwqlwvh5onyd6cjlcneprprieogix6pji",
       "bytes": 11391,
       "sha256": "a73d78313b340a3ba7a72f666d05daa7eb9b81f849589a47c5f1411c645fcf4a"
-    },
-    {
-      "name": "MANUAL.md",
-      "cid": "bafkreiciszezsxymqymuwkw2l2hmghy4mvged4y7oav2n6q6gcyw4vx6p4",
-      "bytes": 8589,
-      "sha256": "489649995f0c86194b2ada5e8ec31f1c654c41f31f702ba6fa1e30b16e56fe7f"
-    },
-    {
-      "name": "BUCKET.md",
-      "cid": "bafkreibj6bzb3iuybslauf45tjpoft2gys66nmb3p5aym2t6aggats55oy",
-      "bytes": 10428,
-      "sha256": "29f0721da2980c960a179d9a5ee2cf46c4bde6b03b7f41866a7e018c09cbbd76"
     }
   ],
   "armada_nodes": [
@@ -75,13 +75,13 @@
     },
     {
       "region": "UK",
-      "ip": "161.97.114.212",
+      "ip": "81.0.221.238",
       "http": 80,
       "vna_udp": 8724
     },
     {
       "region": "US-East",
-      "ip": "209.126.13.153",
+      "ip": "13.140.47.157",
       "http": 80,
       "vna_udp": 8724
     },
@@ -93,7 +93,7 @@
     },
     {
       "region": "US-West",
-      "ip": "144.126.137.197",
+      "ip": "62.146.173.107",
       "http": 80,
       "vna_udp": 8724
     }
