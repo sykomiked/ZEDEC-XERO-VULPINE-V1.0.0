@@ -402,6 +402,9 @@ PY
   log "layers L0, L1 and L2 on the disc: L2 $(cat "$GOLDEN_LAYERS/L2.cid")"
 fi
 printf '%s\t%s\n' "$EFI" "EFI/BOOT/$EFI" >> "$LIST"
+# the same kernel again as a plain file: the legacy-BIOS stage multiboots it
+# off this ESP (mk_bios_stage.sh) — a memdisk would cap the kernel's size
+[ "$ARCH" = x86_64 ] && printf '%s\t%s\n' "kernel_x86_64.elf" "ZXV64.ELF" >> "$LIST"
 printf '%s\t%s\n' "$ROM" "MEGAROM.TVL" >> "$LIST"
 log "hashing $(wc -l < "$LIST") files for ZXV/MANIFEST.SHA256"
 manifest "$LIST" "$WORK/MANIFEST.SHA256"

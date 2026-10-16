@@ -8,9 +8,12 @@
 #
 #   1. names that gap a BIOS boot partition (GPT type EF02, partition 2);
 #      partition 1, the ESP, is not moved or touched;
-#   2. builds a GRUB i386-pc core image whose memdisk holds the multiboot1
-#      kernel (kernel/arch/x86_64/boot.asm) and whose embedded config is just
-#      "multiboot (memdisk)/zxv64.elf; boot", and writes it at LBA 34;
+#   2. builds a GRUB i386-pc core image whose embedded config is just
+#      "multiboot (hd0,gpt1)/ZXV64.ELF; boot" — the same multiboot1 kernel
+#      (kernel/arch/x86_64/boot.asm) the golden disc puts on the ESP — and
+#      writes it at LBA 34. The kernel rides the FAT, not a memdisk: the
+#      memdisk made the core image outgrow the gap the day the doorway was
+#      embedded;
 #   3. writes GRUB's boot.img into the MBR's 440 code bytes, pointed at LBA 34,
 #      and keeps the protective MBR's partition table and signature.
 #
@@ -50,19 +53,21 @@ ESP_START=$(sgdisk -i 1 "$IMG" | awk '/^First sector:/ {print $3}')
 LAST=$((ESP_START - 1))
 GAP=$((ESP_START - FIRST))
 
+# the kernel the config names must be on the ESP — mk_golden_disc.sh writes
+# it as ZXV64.ELF; the 8.3 name sits verbatim in the FAT32 directory, so a
+# byte scan of the partition is the check (mtools is not in this image)
+dd if="$IMG" bs=512 skip="$ESP_START" count=131072 status=none 2>/dev/null \
+  | grep -a "ZXV64   ELF" >/dev/null || die "$IMG does not carry ZXV64.ELF on its ESP"
+
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
-mkdir -p "$W/md"
-cp "$ELF" "$W/md/zxv64.elf"
-touch -d @0 "$W/md/zxv64.elf"
-tar --format=ustar --owner=0 --group=0 --numeric-owner --mtime=@0 -C "$W/md" -cf "$W/memdisk.tar" zxv64.elf
 cat > "$W/early.cfg" <<'CFG'
 echo "ZXV: legacy BIOS boot, loading the multiboot kernel"
-multiboot (memdisk)/zxv64.elf
+multiboot (hd0,gpt1)/ZXV64.ELF
 boot
 CFG
-grub-mkimage -d "$GRUB_DIR" -O i386-pc -o "$W/core.img" -p '(memdisk)/' \
-  -m "$W/memdisk.tar" -c "$W/early.cfg" \
-  biosdisk part_gpt memdisk tar multiboot echo boot
+grub-mkimage -d "$GRUB_DIR" -O i386-pc -o "$W/core.img" -p '(hd0,gpt1)/' \
+  -c "$W/early.cfg" \
+  biosdisk part_gpt fat multiboot echo boot
 CORE=$(stat -c %s "$W/core.img")
 NSEC=$(( (CORE + 511) / 512 ))
 [ "$NSEC" -le "$GAP" ] || die "core image is $NSEC sectors, the gap holds $GAP"
