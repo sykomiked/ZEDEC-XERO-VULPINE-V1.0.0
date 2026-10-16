@@ -174,9 +174,26 @@ static int same(const char *a, size_t n, const char *s)
 static int is_sym(int ch)
 {
     switch (ch) {
-    case '!': case '#': case '$': case '%': case '&': case '*': case '+': case '.': case '/':
-    case '<': case '=': case '>': case '?': case '@': case '\\': case '^': case '|': case '-':
-    case '~': case ':':
+    case '!':
+    case '#':
+    case '$':
+    case '%':
+    case '&':
+    case '*':
+    case '+':
+    case '.':
+    case '/':
+    case '<':
+    case '=':
+    case '>':
+    case '?':
+    case '@':
+    case '\\':
+    case '^':
+    case '|':
+    case '-':
+    case '~':
+    case ':':
         return 1;
     default:
         return 0;
@@ -198,7 +215,8 @@ static int add_comment(hp_t *h, size_t a, size_t b, uint32_t line, uint32_t col)
 {
     mw_t *w = W(h);
     while (a < b && (h->m.src[a] == ' ' || h->m.src[a] == '\n' || h->m.src[a] == '\r')) a++;
-    while (b > a && (h->m.src[b - 1] == ' ' || h->m.src[b - 1] == '\n' || h->m.src[b - 1] == '\r')) b--;
+    while (b > a && (h->m.src[b - 1] == ' ' || h->m.src[b - 1] == '\n' || h->m.src[b - 1] == '\r'))
+        b--;
     if (b - a > ZL_MAX_STRBYTES) return hfail_at(h, ZL_E_LIMIT, line, col, "comment too long");
     if (w->ncom >= M_COMS) return hfail_at(h, ZL_E_LIMIT, line, col, "too many comments");
     w->coms[w->ncom].at = a;
@@ -224,7 +242,9 @@ static int skip(hp_t *h)
         } else if (ch == ' ' || ch == '\r') {
             l->pos++;
         } else if (ch == '\t') {
-            return lfail(h, ZL_E_UNSUPPORTED, l->pos, "tabs are not in this subset (the layout rule counts columns: use spaces)");
+            return lfail(
+                h, ZL_E_UNSUPPORTED, l->pos,
+                "tabs are not in this subset (the layout rule counts columns: use spaces)");
         } else if (ch == '{' && l->pos + 1 < n && s[l->pos + 1] == '-') {
             uint32_t line = l->line, col = (uint32_t) (l->pos - l->lstart + 1);
             if (l->pos + 2 < n && s[l->pos + 2] == '#')
@@ -246,7 +266,8 @@ static int skip(hp_t *h)
                     depth--;
                     l->pos += 2;
                 } else if ((d < 32 && d != '\r') || d > 126) {
-                    return lfail(h, ZL_E_UNSUPPORTED, l->pos, "only printable ASCII is in this subset's comments");
+                    return lfail(h, ZL_E_UNSUPPORTED, l->pos,
+                                 "only printable ASCII is in this subset's comments");
                 } else {
                     l->pos++;
                 }
@@ -262,8 +283,12 @@ static int skip(hp_t *h)
             while (p < n && s[p] != '\n') {
                 unsigned char d = (unsigned char) s[p];
                 if ((d < 32 && d != '\r' && d != '\t') || d > 126)
-                    return lfail(h, ZL_E_UNSUPPORTED, p, "only printable ASCII is in this subset's comments");
-                if (d == '\t') return lfail(h, ZL_E_UNSUPPORTED, p, "tabs are not in this subset (the layout rule counts columns: use spaces)");
+                    return lfail(h, ZL_E_UNSUPPORTED, p,
+                                 "only printable ASCII is in this subset's comments");
+                if (d == '\t')
+                    return lfail(
+                        h, ZL_E_UNSUPPORTED, p,
+                        "tabs are not in this subset (the layout rule counts columns: use spaces)");
                 p++;
             }
             TRY(add_comment(h, a, p, line, col));
@@ -378,9 +403,10 @@ static int raw(hp_t *h)
         uint64_t v = 0;
         int big = 0;
         if (ch == '0' && p + 1 < n &&
-            (s[p + 1] == 'x' || s[p + 1] == 'X' || s[p + 1] == 'o' || s[p + 1] == 'O' || s[p + 1] == 'b' ||
-             s[p + 1] == 'B'))
-            return lfail(h, ZL_E_UNSUPPORTED, p, "hexadecimal, octal and binary literals are not in this subset");
+            (s[p + 1] == 'x' || s[p + 1] == 'X' || s[p + 1] == 'o' || s[p + 1] == 'O' ||
+             s[p + 1] == 'b' || s[p + 1] == 'B'))
+            return lfail(h, ZL_E_UNSUPPORTED, p,
+                         "hexadecimal, octal and binary literals are not in this subset");
         while (p < n && zl_isdigit((unsigned char) s[p])) {
             v = v * 10 + (uint64_t) (s[p] - '0');
             if (v > (uint64_t) INT64_MAX) {
@@ -390,17 +416,21 @@ static int raw(hp_t *h)
             p++;
         }
         if (p + 1 < n && s[p] == '.' && zl_isdigit((unsigned char) s[p + 1]))
-            return lfail(h, ZL_E_UNSUPPORTED, t->at, "floating-point numbers are not in this subset");
+            return lfail(h, ZL_E_UNSUPPORTED, t->at,
+                         "floating-point numbers are not in this subset");
         if (p < n && (s[p] == 'e' || s[p] == 'E') &&
             ((p + 1 < n && zl_isdigit((unsigned char) s[p + 1])) ||
-             (p + 2 < n && (s[p + 1] == '-' || s[p + 1] == '+') && zl_isdigit((unsigned char) s[p + 2]))))
-            return lfail(h, ZL_E_UNSUPPORTED, t->at, "floating-point numbers are not in this subset");
+             (p + 2 < n && (s[p + 1] == '-' || s[p + 1] == '+') &&
+              zl_isdigit((unsigned char) s[p + 2]))))
+            return lfail(h, ZL_E_UNSUPPORTED, t->at,
+                         "floating-point numbers are not in this subset");
         if (p < n && s[p] == '_')
             return lfail(h, ZL_E_UNSUPPORTED, t->at, "numeric underscores are not in this subset");
         if (p < n && is_idch((unsigned char) s[p]))
             return lfail(h, ZL_E_SYNTAX, p, "a letter right after a number");
         if (big)
-            return lfail(h, ZL_E_UNSUPPORTED, t->at, "an integer literal outside Int (Integer is not in this subset)");
+            return lfail(h, ZL_E_UNSUPPORTED, t->at,
+                         "an integer literal outside Int (Integer is not in this subset)");
         t->k = HT_INT;
         t->v = (int64_t) v;
         t->len = (uint32_t) (p - t->at);
@@ -414,8 +444,10 @@ static int raw(hp_t *h)
         t->len = (uint32_t) (p - a);
         l->pos = p;
         if (ch >= 'A' && ch <= 'Z') {
-            if (p + 1 < n && s[p] == '.' && (zl_isalpha((unsigned char) s[p + 1]) || is_sym((unsigned char) s[p + 1])))
-                return lfail(h, ZL_E_UNSUPPORTED, a, "qualified names (modules) are not in this subset");
+            if (p + 1 < n && s[p] == '.' &&
+                (zl_isalpha((unsigned char) s[p + 1]) || is_sym((unsigned char) s[p + 1])))
+                return lfail(h, ZL_E_UNSUPPORTED, a,
+                             "qualified names (modules) are not in this subset");
             t->k = HT_CON;
             return ZL_OK;
         }
@@ -439,13 +471,15 @@ static int raw(hp_t *h)
             if (d == '\\') {
                 char e = p + 1 < n ? s[p + 1] : 0;
                 if (e != 'n' && e != 't' && e != '\\' && e != '"')
-                    return lfail(h, ZL_E_UNSUPPORTED, p, "only the escapes \\n \\t \\\\ \\\" are in this subset");
+                    return lfail(h, ZL_E_UNSUPPORTED, p,
+                                 "only the escapes \\n \\t \\\\ \\\" are in this subset");
                 p += 2;
                 continue;
             }
             if (d < 32 || d > 126) {
                 if (d == '\n') return lfail(h, ZL_E_SYNTAX, t->at, "unterminated string");
-                return lfail(h, ZL_E_UNSUPPORTED, p, "only printable ASCII is in this subset's strings");
+                return lfail(h, ZL_E_UNSUPPORTED, p,
+                             "only printable ASCII is in this subset's strings");
             }
             p++;
         }
@@ -521,7 +555,8 @@ static int raw(hp_t *h)
         }
         return lfail(h, ZL_E_UNSUPPORTED, a, "this operator is not in this subset");
     }
-    if (ch < 32 || ch > 126) return lfail(h, ZL_E_UNSUPPORTED, p, "only printable ASCII is in this subset");
+    if (ch < 32 || ch > 126)
+        return lfail(h, ZL_E_UNSUPPORTED, p, "only printable ASCII is in this subset");
     return lfail(h, ZL_E_SYNTAX, p, "unexpected character");
 }
 
@@ -585,7 +620,8 @@ static int lex(hp_t *h)
     }
     if (r->k == HT_EOF) {
         if (l->nctx) {
-            if (l->ctx[l->nctx - 1] == 0) return hfail_at(h, ZL_E_SYNTAX, r->line, r->col, "expected } before the end");
+            if (l->ctx[l->nctx - 1] == 0)
+                return hfail_at(h, ZL_E_SYNTAX, r->line, r->col, "expected } before the end");
             l->nctx--;
             deliver_virtual(h, HT_RBRACE);
             return ZL_OK;
@@ -735,9 +771,12 @@ static int32_t p_atype(hp_t *h)
             break;
         }
         if (tok_is(h, "Integer"))
-            return hfail(h, ZL_E_UNSUPPORTED, "Integer (arbitrary precision) is not in this subset (use Int)");
-        if (tok_is(h, "IO")) return hfail(h, ZL_E_UNSUPPORTED, "IO is only main's type, IO (), in this subset");
-        return hfail(h, ZL_E_UNSUPPORTED, "this type is not in this subset (Int, Bool, (), lists, IO ())");
+            return hfail(h, ZL_E_UNSUPPORTED,
+                         "Integer (arbitrary precision) is not in this subset (use Int)");
+        if (tok_is(h, "IO"))
+            return hfail(h, ZL_E_UNSUPPORTED, "IO is only main's type, IO (), in this subset");
+        return hfail(h, ZL_E_UNSUPPORTED,
+                     "this type is not in this subset (Int, Bool, (), lists, IO ())");
     case HT_VAR:
         n = node(h, N_TYPE, &t);
         TRY(n);
@@ -800,7 +839,9 @@ static int32_t p_btype(hp_t *h)
         TRY(lex(h));
         int32_t a = p_atype(h);
         TRY(a);
-        if (HN(h, a)->op != TK_UNIT) return nfail_h(h, a, ZL_E_UNSUPPORTED, "IO of a value other than () is not in this subset");
+        if (HN(h, a)->op != TK_UNIT)
+            return nfail_h(h, a, ZL_E_UNSUPPORTED,
+                           "IO of a value other than () is not in this subset");
         HN(h, a)->op = TK_IO;
         HN(h, a)->line = t.line;
         HN(h, a)->col = (uint16_t) t.col;
@@ -809,7 +850,8 @@ static int32_t p_btype(hp_t *h)
     int32_t a = p_atype(h);
     TRY(a);
     if (h->tok.k == HT_CON || h->tok.k == HT_VAR || h->tok.k == HT_LP || h->tok.k == HT_LB)
-        return hfail(h, ZL_E_UNSUPPORTED, "type constructors applied to types are not in this subset");
+        return hfail(h, ZL_E_UNSUPPORTED,
+                     "type constructors applied to types are not in this subset");
     return a;
 }
 
@@ -847,7 +889,8 @@ static int32_t lit_pat(hp_t *h, const htok_t *t, int neg)
 
 static int starts_apat(int k)
 {
-    return k == HT_VAR || k == HT_WILD || k == HT_INT || k == HT_CON || k == HT_LP || k == HT_LB || k == HT_STR;
+    return k == HT_VAR || k == HT_WILD || k == HT_INT || k == HT_CON || k == HT_LP || k == HT_LB ||
+           k == HT_STR;
 }
 
 static int32_t p_apat(hp_t *h)
@@ -1040,11 +1083,16 @@ static int fixity(hp_t *h, hfix_t *f)
 
 static int div_family(hp_t *h, int32_t n, int *op)
 {
-    if (is_name(h, n, "div")) *op = O_DIV;
-    else if (is_name(h, n, "mod")) *op = O_MOD;
-    else if (is_name(h, n, "quot")) *op = O_QUOT;
-    else if (is_name(h, n, "rem")) *op = O_REM;
-    else return 0;
+    if (is_name(h, n, "div"))
+        *op = O_DIV;
+    else if (is_name(h, n, "mod"))
+        *op = O_MOD;
+    else if (is_name(h, n, "quot"))
+        *op = O_QUOT;
+    else if (is_name(h, n, "rem"))
+        *op = O_REM;
+    else
+        return 0;
     return 1;
 }
 
@@ -1053,8 +1101,8 @@ static int32_t finish_app(hp_t *h, int32_t e)
 {
     int op;
     mnode_t *n = HN(h, e);
-    if (n->kind != E_APP || n->a < 0 || HN(h, n->a)->next < 0 || HN(h, HN(h, n->a)->next)->next >= 0 ||
-        !div_family(h, e, &op))
+    if (n->kind != E_APP || n->a < 0 || HN(h, n->a)->next < 0 ||
+        HN(h, HN(h, n->a)->next)->next >= 0 || !div_family(h, e, &op))
         return e;
     int32_t a = n->a, b = HN(h, a)->next;
     HN(h, a)->next = -1;
@@ -1081,7 +1129,8 @@ static int32_t fold_neg(hp_t *h, int32_t e, const htok_t *t)
 
 static int starts_aexp(int k)
 {
-    return k == HT_VAR || k == HT_CON || k == HT_INT || k == HT_STR || k == HT_LP || k == HT_LB || k == HT_WILD;
+    return k == HT_VAR || k == HT_CON || k == HT_INT || k == HT_STR || k == HT_LP || k == HT_LB ||
+           k == HT_WILD;
 }
 
 static int32_t p_aexp(hp_t *h)
@@ -1127,7 +1176,8 @@ static int32_t p_aexp(hp_t *h)
             return n;
         }
         if (h->tok.k == HT_OP || h->tok.k == HT_BTICK)
-            return hfail(h, ZL_E_UNSUPPORTED, "operator sections and operators as values are not in this subset");
+            return hfail(h, ZL_E_UNSUPPORTED,
+                         "operator sections and operators as values are not in this subset");
         TRY(deeper(h));
         int32_t e = p_exp(h);
         TRY(e);
@@ -1177,14 +1227,16 @@ static int32_t p_aexp(hp_t *h)
         }
         if (range) {
             TRY(lex(h));
-            if (h->tok.k == HT_RB) return hfail(h, ZL_E_UNSUPPORTED, "infinite lists ([a ..]) are not in this subset");
+            if (h->tok.k == HT_RB)
+                return hfail(h, ZL_E_UNSUPPORTED, "infinite lists ([a ..]) are not in this subset");
             int32_t q = p_exp(h);
             TRY(q);
             ladd(h, &l, q);
             n = node(h, E_RANGE, &t);
             TRY(n);
         } else {
-            if (h->tok.k == HT_BAR) return hfail(h, ZL_E_UNSUPPORTED, "list comprehensions are not in this subset");
+            if (h->tok.k == HT_BAR)
+                return hfail(h, ZL_E_UNSUPPORTED, "list comprehensions are not in this subset");
             while (h->tok.k == HT_COMMA) {
                 TRY(lex(h));
                 int32_t q = p_exp(h);
@@ -1214,8 +1266,8 @@ static int32_t p_fexp(hp_t *h)
     if (!starts_aexp(h->tok.k)) return f;
     int k = HN(h, f)->kind;
     if (k != E_VAR) {
-        if (k == E_INT || k == E_BOOL || k == E_UNIT || k == E_NIL || k == E_LIST || k == E_STR || k == E_TUPLE ||
-            k == E_RANGE)
+        if (k == E_INT || k == E_BOOL || k == E_UNIT || k == E_NIL || k == E_LIST || k == E_STR ||
+            k == E_TUPLE || k == E_RANGE)
             return hfail(h, ZL_E_SYNTAX, "type error: a value that is not a function is applied");
         return hfail(h, ZL_E_UNSUPPORTED, "only a named function can be applied");
     }
@@ -1280,7 +1332,8 @@ static int32_t p_lexp(hp_t *h)
         hlist_t l = {-1, -1, 0};
         for (;;) {
             while (h->tok.k == HT_SEMI) TRY(lex(h));
-            if (h->tok.k == HT_RBRACE || h->tok.k == HT_EOF || !(starts_apat(h->tok.k) || h->tok.k == HT_MINUS))
+            if (h->tok.k == HT_RBRACE || h->tok.k == HT_EOF ||
+                !(starts_apat(h->tok.k) || h->tok.k == HT_MINUS))
                 break;
             htok_t rt = h->tok;
             int32_t r = node(h, N_RULE, &rt);
@@ -1297,8 +1350,11 @@ static int32_t p_lexp(hp_t *h)
                     TRY(lex(h));
                     int32_t c = p_exp(h);
                     TRY(c);
-                    if (h->tok.k == HT_COMMA) return hfail(h, ZL_E_UNSUPPORTED, "several guards separated by commas are not in this subset");
-                    if (h->tok.k == HT_LARROW) return hfail(h, ZL_E_UNSUPPORTED, "pattern guards are not in this subset");
+                    if (h->tok.k == HT_COMMA)
+                        return hfail(h, ZL_E_UNSUPPORTED,
+                                     "several guards separated by commas are not in this subset");
+                    if (h->tok.k == HT_LARROW)
+                        return hfail(h, ZL_E_UNSUPPORTED, "pattern guards are not in this subset");
                     TRY(expect(h, HT_ARROW, "expected -> after the guard"));
                     int32_t b = p_exp(h);
                     TRY(b);
@@ -1315,7 +1371,9 @@ static int32_t p_lexp(hp_t *h)
                 e = p_exp(h);
                 TRY(e);
             }
-            if (h->tok.k == HK_WHERE) return hfail(h, ZL_E_UNSUPPORTED, "where on a case alternative is not in this subset");
+            if (h->tok.k == HK_WHERE)
+                return hfail(h, ZL_E_UNSUPPORTED,
+                             "where on a case alternative is not in this subset");
             HN(h, r)->a = p;
             HN(h, r)->c = e;
             ladd(h, &l, r);
@@ -1357,11 +1415,13 @@ static int32_t mk_op(hp_t *h, const htok_t *t, int32_t a, int32_t b)
             uint32_t c = 1;
             int32_t q = HN(h, a)->a;
             while (HN(h, q)->next >= 0) q = HN(h, q)->next, c++;
-            if (c >= M_GROUPS) return hfail_at(h, ZL_E_LIMIT, t->line, t->col, "too many arguments");
+            if (c >= M_GROUPS)
+                return hfail_at(h, ZL_E_LIMIT, t->line, t->col, "too many arguments");
             HN(h, q)->next = b;
             return finish_app(h, a);
         }
-        return hfail_at(h, ZL_E_UNSUPPORTED, t->line, t->col, "$ needs a named function on its left in this subset");
+        return hfail_at(h, ZL_E_UNSUPPORTED, t->line, t->col,
+                        "$ needs a named function on its left in this subset");
     }
     if (t->k == HT_BTICK) {
         htok_t nt = *t;
@@ -1404,10 +1464,12 @@ static int32_t p_infix(hp_t *h, int minp)
         hfix_t f;
         if (!fixity(h, &f) || f.prec < minp) break;
         if (f.prec == lastp && (f.assoc != lasta || f.assoc == 2))
-            return hfail(h, ZL_E_SYNTAX, "operators of the same precedence that do not associate need parentheses");
+            return hfail(h, ZL_E_SYNTAX,
+                         "operators of the same precedence that do not associate need parentheses");
         htok_t t = h->tok;
         TRY(lex(h));
-        if (h->tok.k == HT_RP) return hfail(h, ZL_E_UNSUPPORTED, "operator sections are not in this subset");
+        if (h->tok.k == HT_RP)
+            return hfail(h, ZL_E_UNSUPPORTED, "operator sections are not in this subset");
         int32_t b = p_infix(h, f.assoc == 1 ? f.prec : f.prec + 1);
         TRY(b);
         a = mk_op(h, &t, a, b);
@@ -1423,7 +1485,8 @@ static int32_t p_exp(hp_t *h)
 {
     int32_t e = p_infix(h, 0);
     TRY(e);
-    if (h->tok.k == HT_DCOLON) return hfail(h, ZL_E_UNSUPPORTED, "type annotations in expressions are not in this subset");
+    if (h->tok.k == HT_DCOLON)
+        return hfail(h, ZL_E_UNSUPPORTED, "type annotations in expressions are not in this subset");
     return e;
 }
 
@@ -1440,8 +1503,8 @@ static int32_t p_stmts(hp_t *h, const htok_t *t)
         while (h->tok.k == HT_SEMI) TRY(lex(h));
         if (h->tok.k == HT_RBRACE || h->tok.k == HT_EOF) break;
         /* the parse-error rule: a token no statement starts with ends the block */
-        if (!starts_aexp(h->tok.k) && h->tok.k != HK_LET && h->tok.k != HK_IF && h->tok.k != HK_CASE &&
-            h->tok.k != HK_DO && h->tok.k != HT_MINUS && h->tok.k != HT_OP)
+        if (!starts_aexp(h->tok.k) && h->tok.k != HK_LET && h->tok.k != HK_IF &&
+            h->tok.k != HK_CASE && h->tok.k != HK_DO && h->tok.k != HT_MINUS && h->tok.k != HT_OP)
             break;
         htok_t st = h->tok;
         int32_t e;
@@ -1474,7 +1537,8 @@ static int32_t p_stmts(hp_t *h, const htok_t *t)
             e = p_exp(h);
             TRY(e);
             if (h->tok.k == HT_LARROW)
-                return hfail(h, ZL_E_UNSUPPORTED, "binding the result of an action (<-) is not in this subset");
+                return hfail(h, ZL_E_UNSUPPORTED,
+                             "binding the result of an action (<-) is not in this subset");
         }
         ladd(h, &l, e);
         if (l.n > 4096) return hfail(h, ZL_E_LIMIT, "too many statements");
@@ -1504,8 +1568,11 @@ static int32_t p_rhs(hp_t *h)
             TRY(lex(h));
             int32_t c = p_exp(h);
             TRY(c);
-            if (h->tok.k == HT_COMMA) return hfail(h, ZL_E_UNSUPPORTED, "several guards separated by commas are not in this subset");
-            if (h->tok.k == HT_LARROW) return hfail(h, ZL_E_UNSUPPORTED, "pattern guards are not in this subset");
+            if (h->tok.k == HT_COMMA)
+                return hfail(h, ZL_E_UNSUPPORTED,
+                             "several guards separated by commas are not in this subset");
+            if (h->tok.k == HT_LARROW)
+                return hfail(h, ZL_E_UNSUPPORTED, "pattern guards are not in this subset");
             TRY(expect(h, HT_EQ, "expected = after the guard"));
             int32_t b = p_exp(h);
             TRY(b);
@@ -1549,7 +1616,8 @@ static int dup_vars(hp_t *h, int32_t p, int32_t *seen, uint32_t *n)
                     const char *a = h->m.src + HN(h, seen[i])->v, *b = h->m.src + x->v;
                     uint32_t k = 0;
                     while (k < x->len && a[k] == b[k]) k++;
-                    if (k == x->len) return nfail_h(h, p, ZL_E_SYNTAX, "a variable bound twice in one pattern");
+                    if (k == x->len)
+                        return nfail_h(h, p, ZL_E_SYNTAX, "a variable bound twice in one pattern");
                 }
             if (*n >= 64) return nfail_h(h, p, ZL_E_LIMIT, "too many variables in one pattern");
             seen[(*n)++] = p;
@@ -1611,12 +1679,18 @@ static int32_t p_decls(hp_t *h, int top)
     TRY(deeper(h));
     for (;;) {
         while (h->tok.k == HT_SEMI) TRY(lex(h));
-        if (top) TRY(take_comments(h, &items, prev_end, h->tok.k == HT_EOF || h->tok.k == HT_RBRACE ? h->m.len + 1 : h->tok.at));
+        if (top)
+            TRY(take_comments(h, &items, prev_end,
+                              h->tok.k == HT_EOF || h->tok.k == HT_RBRACE ? h->m.len + 1
+                                                                          : h->tok.at));
         if (h->tok.k != HT_VAR) {
             int k = h->tok.k;
-            if (k == HT_LP || k == HT_LB || k == HT_WILD || k == HT_INT || k == HT_MINUS || k == HT_STR)
+            if (k == HT_LP || k == HT_LB || k == HT_WILD || k == HT_INT || k == HT_MINUS ||
+                k == HT_STR)
                 return hfail(h, ZL_E_UNSUPPORTED, "pattern bindings are not in this subset");
-            if (k == HT_CON) return hfail(h, ZL_E_UNSUPPORTED, "pattern bindings of constructors are not in this subset");
+            if (k == HT_CON)
+                return hfail(h, ZL_E_UNSUPPORTED,
+                             "pattern bindings of constructors are not in this subset");
             break;
         }
         htok_t nt = h->tok;
@@ -1630,7 +1704,8 @@ static int32_t p_decls(hp_t *h, int top)
             hlist_t names = {v, v, 1};
             while (h->tok.k == HT_COMMA) {
                 TRY(lex(h));
-                if (h->tok.k != HT_VAR) return hfail(h, ZL_E_SYNTAX, "expected a name in the signature");
+                if (h->tok.k != HT_VAR)
+                    return hfail(h, ZL_E_SYNTAX, "expected a name in the signature");
                 int32_t q = node(h, P_VAR, &h->tok);
                 TRY(q);
                 name_of(h, q, &h->tok);
@@ -1645,7 +1720,8 @@ static int32_t p_decls(hp_t *h, int top)
             TRY(item(h, &items, sg));
             lastfb = -1;
         } else if (h->tok.k == HT_OP || h->tok.k == HT_BTICK || h->tok.k == HT_MINUS) {
-            return hfail(h, ZL_E_UNSUPPORTED, "operator definitions and infix pattern bindings are not in this subset");
+            return hfail(h, ZL_E_UNSUPPORTED,
+                         "operator definitions and infix pattern bindings are not in this subset");
         } else {
             /* an equation: name apat* rhs */
             hlist_t ps = {-1, -1, 0};
@@ -1655,7 +1731,8 @@ static int32_t p_decls(hp_t *h, int top)
                 ladd(h, &ps, p);
                 if (ps.n > M_GROUPS) return hfail(h, ZL_E_LIMIT, "too many parameters");
             }
-            if (h->tok.k != HT_EQ && h->tok.k != HT_BAR) return hfail(h, ZL_E_SYNTAX, "expected = or a guard");
+            if (h->tok.k != HT_EQ && h->tok.k != HT_BAR)
+                return hfail(h, ZL_E_SYNTAX, "expected = or a guard");
             int32_t seen[64];
             uint32_t ns = 0;
             if (ps.n) {
@@ -1683,7 +1760,8 @@ static int32_t p_decls(hp_t *h, int top)
                     HN(h, d)->flags = F_TOP;
                     if (HN(h, rhs)->kind == E_GUARDS ||
                         (HN(h, rhs)->kind == E_LET && HN(h, HN(h, rhs)->b)->kind == E_GUARDS))
-                        return nfail_h(h, rhs, ZL_E_UNSUPPORTED, "guards on main are not in this subset");
+                        return nfail_h(h, rhs, ZL_E_UNSUPPORTED,
+                                       "guards on main are not in this subset");
                 }
                 TRY(item(h, &items, d));
                 lastfb = -1;
@@ -1698,8 +1776,9 @@ static int32_t p_decls(hp_t *h, int top)
                     int32_t q = HN(h, lastfb)->a;
                     while (HN(h, q)->next >= 0) q = HN(h, q)->next;
                     if (HN(h, q)->v != ps.n)
-                        return hfail_at(h, ZL_E_SYNTAX, nt.line, nt.col,
-                                        "the equations of a function have different numbers of arguments");
+                        return hfail_at(
+                            h, ZL_E_SYNTAX, nt.line, nt.col,
+                            "the equations of a function have different numbers of arguments");
                     HN(h, q)->next = c;
                 } else {
                     int32_t fb = node(h, N_FB, &nt);
@@ -1714,7 +1793,9 @@ static int32_t p_decls(hp_t *h, int top)
         prev_end = h->last_end;
         if (h->tok.k != HT_SEMI) break;
     }
-    if (top) TRY(take_comments(h, &items, prev_end, h->tok.k == HT_EOF || h->tok.k == HT_RBRACE ? h->m.len + 1 : h->tok.at));
+    if (top)
+        TRY(take_comments(h, &items, prev_end,
+                          h->tok.k == HT_EOF || h->tok.k == HT_RBRACE ? h->m.len + 1 : h->tok.at));
     TRY(close_block(h));
     int32_t let = node(h, E_LET, &t0);
     TRY(let);
@@ -1739,7 +1820,8 @@ static void scan(hp_t *h, int32_t n, uint32_t i, uint32_t depth)
 {
     for (; n >= 0; n = HN(h, n)->next) {
         mnode_t *x = HN(h, n);
-        if (x->kind == N_TYPE || x->kind == N_ITEM || x->kind == N_SIG || x->kind == N_COMMENT) continue;
+        if (x->kind == N_TYPE || x->kind == N_ITEM || x->kind == N_SIG || x->kind == N_COMMENT)
+            continue;
         if (x->kind == E_VAR || x->kind == E_APP) {
             for (uint32_t j = 0; j < h->ng; j++) {
                 int32_t nm;
@@ -1785,13 +1867,19 @@ static int32_t p_group(hp_t *h, int32_t items, int top)
         for (uint32_t j = 0; j < h->ng; j++) {
             int32_t m;
             bind_name(h, h->gb[j], &m);
-            if (same_node_name(h, m, nm)) return nfail_h(h, x, ZL_E_SYNTAX, "conflicting definitions of one name");
+            if (same_node_name(h, m, nm))
+                return nfail_h(h, x, ZL_E_SYNTAX, "conflicting definitions of one name");
         }
         if (top && zl_ml_prelude(w, (size_t) HN(h, nm)->v, HN(h, nm)->len))
-            return nfail_h(h, x, ZL_E_UNSUPPORTED, "a top-level name the Prelude also defines (ambiguous in GHC) is not in this subset");
-        if (is_name(h, nm, "div") || is_name(h, nm, "mod") || is_name(h, nm, "quot") || is_name(h, nm, "rem"))
-            return nfail_h(h, x, ZL_E_UNSUPPORTED, "redefining div, mod, quot or rem is not in this subset");
-        if (h->ng >= HS_GROUP) return nfail_h(h, x, ZL_E_LIMIT, "too many declarations in one group");
+            return nfail_h(h, x, ZL_E_UNSUPPORTED,
+                           "a top-level name the Prelude also defines (ambiguous in GHC) is not in "
+                           "this subset");
+        if (is_name(h, nm, "div") || is_name(h, nm, "mod") || is_name(h, nm, "quot") ||
+            is_name(h, nm, "rem"))
+            return nfail_h(h, x, ZL_E_UNSUPPORTED,
+                           "redefining div, mod, quot or rem is not in this subset");
+        if (h->ng >= HS_GROUP)
+            return nfail_h(h, x, ZL_E_LIMIT, "too many declarations in one group");
         h->gb[h->ng++] = x;
     }
     if (top && main_d < 0) return hfail(h, ZL_E_UNDEFINED, "main is not defined");
@@ -1802,8 +1890,10 @@ static int32_t p_group(hp_t *h, int32_t items, int top)
         for (int32_t v = HN(h, x)->a; v >= 0; v = HN(h, v)->next) {
             if (top && is_name(h, v, "main")) {
                 if (HN(h, HN(h, x)->b)->op != TK_IO)
-                    return nfail_h(h, HN(h, x)->b, ZL_E_UNSUPPORTED, "main's type is IO () in this subset");
-                if (HN(h, main_d)->c >= 0) return nfail_h(h, v, ZL_E_SYNTAX, "duplicate type signature");
+                    return nfail_h(h, HN(h, x)->b, ZL_E_UNSUPPORTED,
+                                   "main's type is IO () in this subset");
+                if (HN(h, main_d)->c >= 0)
+                    return nfail_h(h, v, ZL_E_SYNTAX, "duplicate type signature");
                 HN(h, main_d)->c = HN(h, x)->b;
                 continue;
             }
@@ -1853,9 +1943,11 @@ static int32_t p_group(hp_t *h, int32_t items, int top)
             }
         if (has_val && (size > 1 || cyc)) {
             for (uint32_t j = 0; j < h->ng; j++)
-                if ((j == best || (reaches(h, best, j) && reaches(h, j, best))) && HN(h, h->gb[j])->kind == D_VAL)
+                if ((j == best || (reaches(h, best, j) && reaches(h, j, best))) &&
+                    HN(h, h->gb[j])->kind == D_VAL)
                     return nfail_h(h, h->gb[j], ZL_E_UNSUPPORTED,
-                                   "recursive value bindings (infinite or cyclic data) are not in this subset");
+                                   "recursive value bindings (infinite or cyclic data) are not in "
+                                   "this subset");
         }
         if (has_val) {
             int32_t d = h->gb[best];
@@ -1894,16 +1986,19 @@ static int32_t p_program(hp_t *h)
         TRY(lex(h)); /* the token module */
         TRY(lex(h));
         if (h->tok.k != HT_CON) return hfail(h, ZL_E_SYNTAX, "expected the module's name");
-        if (!tok_is(h, "Main")) return hfail(h, ZL_E_UNSUPPORTED, "a module other than Main is not in this subset");
+        if (!tok_is(h, "Main"))
+            return hfail(h, ZL_E_UNSUPPORTED, "a module other than Main is not in this subset");
         TRY(lex(h));
         if (h->tok.k == HT_LP) {
             TRY(lex(h));
             if (h->tok.k != HT_VAR || !tok_is(h, "main"))
-                return hfail(h, ZL_E_UNSUPPORTED, "an export list other than (main) is not in this subset");
+                return hfail(h, ZL_E_UNSUPPORTED,
+                             "an export list other than (main) is not in this subset");
             TRY(lex(h));
             TRY(expect(h, HT_RP, "expected ) after the export list"));
         }
-        if (h->tok.k != HK_WHERE) return hfail(h, ZL_E_SYNTAX, "expected where after the module header");
+        if (h->tok.k != HK_WHERE)
+            return hfail(h, ZL_E_SYNTAX, "expected where after the module header");
         TRY(lex(h));
     } else {
         l->want_open = 1;
@@ -1917,7 +2012,8 @@ static int32_t p_program(hp_t *h)
     /* the program: let <top-level declarations> in <main's right side> */
     HN(h, top)->b = HN(h, main_d)->b;
     if (HN(h, main_d)->c >= 0 && HN(h, HN(h, main_d)->c)->op != TK_IO)
-        return nfail_h(h, HN(h, main_d)->c, ZL_E_UNSUPPORTED, "main's type is IO () in this subset");
+        return nfail_h(h, HN(h, main_d)->c, ZL_E_UNSUPPORTED,
+                       "main's type is IO () in this subset");
     mark_stmt(h, top);
     int32_t d = zl_ml_node(W(h), D_EXP, HN(h, main_d)->line, HN(h, main_d)->col);
     TRY(d);
@@ -2103,7 +2199,12 @@ static void bin_fix(int op, int *prec, int *assoc, const char **text)
     default:
         *prec = 4;
         *assoc = 2;
-        *text = op == O_EQ ? "==" : op == O_NE ? "/=" : op == O_LT ? "<" : op == O_LE ? "<=" : op == O_GT ? ">" : ">=";
+        *text = op == O_EQ   ? "=="
+                : op == O_NE ? "/="
+                : op == O_LT ? "<"
+                : op == O_LE ? "<="
+                : op == O_GT ? ">"
+                             : ">=";
         return;
     }
 }

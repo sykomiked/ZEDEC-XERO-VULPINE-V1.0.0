@@ -83,12 +83,15 @@ static const char *const seeds[] = {
     "for [i 5 1 -2] [ifelse :i > 2 [show lput :i :x] [print se :x item 2 :x]]\n"
     "print (g [4 5 6]) = 15\nprint or memberp 2 [1 2] \"false\nshow (list modulo -7 3 remainder 7 "
     "-2 7 / 7)\n",
-    "(* fuzz seed *)\nfun f (0, a) = a\n  | f (n, a) = f (n - 1, a + n mod 3)\nfun g [] = 0 | g (x :: r) "
+    "(* fuzz seed *)\nfun f (0, a) = a\n  | f (n, a) = f (n - 1, a + n mod 3)\nfun g [] = 0 | g (x "
+    ":: r) "
     "= x * 2 + g r\nval l = [3, ~4] @ rev [1, 2]\n"
     "val _ = print (Int.toString (f (9, 0)) ^ \" \" ^ Int.toString (g l div ~3) ^ \"\\n\")\n"
-    "val _ = print (Bool.toString (1 :: tl l = l andalso not (null l)) ^ Int.toString (case hd l of "
+    "val _ = print (Bool.toString (1 :: tl l = l andalso not (null l)) ^ Int.toString (case hd l "
+    "of "
     "3 => Int.quot (~7, 2) | n => Int.min (n, 2)))\n"
-    "fun h x y = let val z = x * y in if z > 10 orelse z < ~10 then z else h (x + 1) y end;\nh 2 3;\n",
+    "fun h x y = let val z = x * y in if z > 10 orelse z < ~10 then z else h (x + 1) y end;\nh 2 "
+    "3;\n",
     "(* fuzz seed *)\nlet rec f n a = if n = 0 then a else f (n - 1) (a + n mod 3)\n"
     "let rec g = function [] -> 0 | x :: r -> x * 2 + g r\nlet l = [3; -4] @ List.rev [1; 2]\n"
     "let () = Printf.printf \"%d %d %b\\n\" (f 9 0) (g l / -3) (1 :: List.tl l = l && l <> [])\n"
@@ -112,7 +115,8 @@ static const char *const seeds[] = {
     "main :- len([a, b|[c]], N), write(N), nl, findall(K-V, p(K, V), L), print(L), nl,\n"
     "    forall(between(-1, 2, I), (q(I) -> write(I) ; write(-I))), nl,\n"
     "    ( member(X, [3, 9]), Y is X * X mod 7 // 2 - min(X, 4) ^ 2, Y > 0 -> true ; Y = none ),\n"
-    "    format(\"~w ~a ~d~n\", [f(- 1, 'x y', {a}), abc, 42]), writeq(Y), nl, append(A, [B], [1, 2]),\n"
+    "    format(\"~w ~a ~d~n\", [f(- 1, 'x y', {a}), abc, 42]), writeq(Y), nl, append(A, [B], [1, "
+    "2]),\n"
     "    length(A, LA), writeq(A/B/LA), nl.\n",
     "// fuzz seed\nprogram Fz;\n{$APPTYPE CONSOLE}\nconst K = $1F;\nvar A: array[1..4] of Integer; "
     "I, N: Integer; B: Boolean;\nfunction F(M: Integer): Integer;\n  procedure Bump; begin "
@@ -141,9 +145,11 @@ static const char *const seeds[] = {
     "13;\n"
     "  IF b OR (a[2] < 0) THEN Out.String(\"y\") END; Out.Int(F(5), 5); Out.Char(\"!\"); Out.Ln\n"
     "END Fo.\n",
-    "-- fuzz seed\nf :: Int -> Int -> Int\nf 0 a = a\nf n a\n  | even n = f (n - 1) (a + n `mod` 3)\n"
+    "-- fuzz seed\nf :: Int -> Int -> Int\nf 0 a = a\nf n a\n  | even n = f (n - 1) (a + n `mod` "
+    "3)\n"
     "  | otherwise = f (n - 1) (a - 1)\ng :: [Int] -> Int\ng [] = 0\ng (x:r) = x * 2 + g r\n"
-    "main :: IO ()\nmain = do\n  let l = [3, -4] ++ reverse [1 .. 2]\n  print (f 9 0, g l `div` (-3), l !! 1)\n"
+    "main :: IO ()\nmain = do\n  let l = [3, -4] ++ reverse [1 .. 2]\n  print (f 9 0, g l `div` "
+    "(-3), l !! 1)\n"
     "  putStrLn (\"x\" ++ show (case l of { [] -> 0; (y:_) -> quot (-7) y }) ++ show (take 2 l))\n"
     "  if null l then return () else print (sum l ^ 2, maximum l, elem 3 l)\n  where h = 1\n",
 };

@@ -94,8 +94,7 @@ int vna_delta_apply(vna_delta_page_t *p, const uint8_t *buf, uint32_t len, uint6
 }
 
 int vna_delta_issue(vna_delta_page_t *p, uint16_t cell, lpres_state_t lattice,
-                    const uint8_t *payload, uint16_t n, uint8_t *out, uint32_t cap,
-                    uint64_t *tick)
+                    const uint8_t *payload, uint16_t n, uint8_t *out, uint32_t cap, uint64_t *tick)
 {
     if (!p || !out) return VNA_ERR_ARG;
     const vna_delta_cell_t *prev = vna_delta_cell(p, cell);

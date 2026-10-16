@@ -1089,7 +1089,8 @@ static void test_parse_fuzz(void)
         CHECK(pay_iso_parse_pacs008(hostile[i], (uint32_t) strlen(hostile[i]), &in8) < 0);
     /* deep nesting */
     static char deep[8192];
-    int p = snprintf(deep, sizeof deep, "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\">");
+    int p = snprintf(deep, sizeof deep,
+                     "<Document xmlns=\"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08\">");
     for (int i = 0; i < 100; i++) p += snprintf(deep + p, sizeof deep - (size_t) p, "<A>");
     for (int i = 0; i < 100; i++) p += snprintf(deep + p, sizeof deep - (size_t) p, "</A>");
     p += snprintf(deep + p, sizeof deep - (size_t) p, "</Document>");

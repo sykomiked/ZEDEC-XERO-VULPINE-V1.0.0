@@ -785,8 +785,7 @@ static uint32_t conv_t(zt_nn_t *nn, const zt_kk_lin_t *ph, const zt_fx *bias, ui
          * loop into a 64-bit one and drags in __udivdi3, which a freestanding
          * build has no lib to give it. */
         uint32_t base = (uint32_t) zt_udiv64(p + pad, stride, 0);
-        uint32_t nout =
-            To > p ? (uint32_t) zt_udiv64(To - p + stride - 1, stride, 0) : 0;
+        uint32_t nout = To > p ? (uint32_t) zt_udiv64(To - p + stride - 1, stride, 0) : 0;
         for (uint32_t i0 = 0; i0 < nout; i0 += CHUNK) {
             uint32_t B = nout - i0 < CHUNK ? nout - i0 : CHUNK;
             for (uint32_t b = 0; b < B; b++) {

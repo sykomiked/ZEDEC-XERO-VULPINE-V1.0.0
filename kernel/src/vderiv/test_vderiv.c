@@ -675,7 +675,8 @@ static void test_perp(void)
     CHECK(S.perp[0].bal[0] == 130 && S.perp[0].bal[1] == 70, "short lost 30");
     CHECK(perp_close(0, VDERIV_LONG, 45, got) == VDERIV_ERR_SIG && S.perp[0].state == VDERIV_OPEN,
           "the short's key cannot close as the long");
-    CHECK(perp_close(0, VDERIV_SHORT, 44, got) == VDERIV_ERR_SIG, "nor the long's key as the short");
+    CHECK(perp_close(0, VDERIV_SHORT, 44, got) == VDERIV_ERR_SIG,
+          "nor the long's key as the short");
     CHECK(vderiv_perp_close(&S, 0, VDERIV_LONG, NULL, 32, 1, got) == VDERIV_ERR_SIG,
           "an open perp needs a signature");
     uint8_t cm[VDERIV_CLOSE_MSG], cs[32];
@@ -687,7 +688,8 @@ static void test_perp(void)
     CHECK(vderiv_perp_close(&S, 0, VDERIV_LONG, cs, 31, 1, got) == VDERIV_ERR_SIG,
           "the length is passed");
     pay_ledger_set_flags(&L, escS, PAY_ACCT_FROZEN);
-    CHECK(perp_close(0, VDERIV_SHORT, 45, got) == VDERIV_ERR_LEDGER && S.perp[0].state == VDERIV_OPEN,
+    CHECK(perp_close(0, VDERIV_SHORT, 45, got) == VDERIV_ERR_LEDGER &&
+              S.perp[0].state == VDERIV_OPEN,
           "a refused payout changes nothing");
     uint64_t le = S.last_epoch;
     vderiv_push_t po;
@@ -860,7 +862,8 @@ static void test_edges(void)
     fund(u[0], big);
     fund(u[2], big);
     vderiv_perp_terms_t p = pterms(0, 1, 1, 1, big, 1);
-    CHECK(perp_open(&p, NULL) == VDERIV_OK && bal(escL) == big && bal(escS) == 1, "a 2^58 long lock");
+    CHECK(perp_open(&p, NULL) == VDERIV_OK && bal(escL) == big && bal(escS) == 1,
+          "a 2^58 long lock");
     p = pterms(2, 3, 1, 1, big - 1, 1);
     CHECK(perp_open(&p, NULL) == VDERIV_ERR_OVERFLOW, "2^58 + 1 + 2^58 is past 2^59");
     p = pterms(2, 3, 1, 1, big - 2, 1);

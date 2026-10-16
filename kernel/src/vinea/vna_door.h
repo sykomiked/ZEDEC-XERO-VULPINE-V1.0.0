@@ -35,13 +35,13 @@
 
 #include "vna_delta.h"
 
-#define VNA_DOOR_CONNS       4u    /* connections held at once (one per listener) */
-#define VNA_DOOR_REQ_MAX     1536u /* the request head, bounded */
-#define VNA_DOOR_BODY_MAX    1024u /* one POSTed delta fits far inside */
-#define VNA_DOOR_PATH_MAX    96u
-#define VNA_DOOR_DELTAS      48u   /* the stream backlog ring */
-#define VNA_DOOR_STREAM_MS   30000u /* a stream ends here; the client resumes */
-#define VNA_DOOR_KEEPALIVE_MS 8000u /* a zero frame goes out at least this often */
+#define VNA_DOOR_CONNS        4u    /* connections held at once (one per listener) */
+#define VNA_DOOR_REQ_MAX      1536u /* the request head, bounded */
+#define VNA_DOOR_BODY_MAX     1024u /* one POSTed delta fits far inside */
+#define VNA_DOOR_PATH_MAX     96u
+#define VNA_DOOR_DELTAS       48u    /* the stream backlog ring */
+#define VNA_DOOR_STREAM_MS    30000u /* a stream ends here; the client resumes */
+#define VNA_DOOR_KEEPALIVE_MS 8000u  /* a zero frame goes out at least this often */
 
 /* The host's file access. size: the whole length or <0 unknown/missing.
  * type: the Content-Type or NULL (application/octet-stream) — scripts need
@@ -76,10 +76,10 @@ typedef struct {
      * the stream */
     uint8_t head[VNA_DOOR_REQ_MAX];
     uint32_t head_len, head_sent;
-    uint64_t body_off;   /* next span offset for a file body */
-    int64_t body_left;   /* bytes of the file still to pull; -1 chunked-free stream */
-    uint64_t after;      /* the stream's resume cursor (a Lamport tick) */
-    uint64_t tick;       /* highest tick already framed to this stream */
+    uint64_t body_off;         /* next span offset for a file body */
+    int64_t body_left;         /* bytes of the file still to pull; -1 chunked-free stream */
+    uint64_t after;            /* the stream's resume cursor (a Lamport tick) */
+    uint64_t tick;             /* highest tick already framed to this stream */
     uint64_t opened, last_out; /* stream lifetime and keepalive */
     uint8_t tx[VNA_DELTA_HDR + VNA_DELTA_PAYLOAD_MAX + 16]; /* one staged frame */
     uint32_t tx_len, tx_sent;

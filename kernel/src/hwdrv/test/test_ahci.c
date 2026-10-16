@@ -15,9 +15,9 @@
 /* Apple arm64 reserves the whole low 4 GB of a process (__PAGEZERO), so the
  * checks that need a buffer below 4 GB cannot run there; Linux runs them. */
 #if defined(__APPLE__) && defined(__aarch64__)
-#define NO_LOW_MEMORY 1
+#    define NO_LOW_MEMORY 1
 #else
-#define NO_LOW_MEMORY 0
+#    define NO_LOW_MEMORY 0
 #endif
 #include <stdio.h>
 #include <stdlib.h>

@@ -15,8 +15,7 @@ static int door_path(const char *path, uint32_t plen, const zxv_door_file_t **ou
     uint32_t i, j;
     for (i = 0; i < ZXV_DOOR_FILE_N; i++) {
         const zxv_door_file_t *f = &zxv_door_files[i];
-        for (j = 0; j < plen && f->path[j] && path[j] == f->path[j]; j++)
-            ;
+        for (j = 0; j < plen && f->path[j] && path[j] == f->path[j]; j++);
         if (j == plen && f->path[j] == 0) {
             *out = f;
             return 1;
@@ -60,8 +59,8 @@ static const char *door_type(void *ctx, const char *path, uint32_t plen)
     return door_path(path, plen, &f) ? f->type : 0;
 }
 
-static int32_t door_body(void *ctx, const char *path, uint32_t plen, uint64_t off,
-                         uint8_t *out, uint32_t cap)
+static int32_t door_body(void *ctx, const char *path, uint32_t plen, uint64_t off, uint8_t *out,
+                         uint32_t cap)
 {
     const zxv_door_file_t *f;
     vna_host_t *h = (vna_host_t *) ctx;
@@ -442,18 +441,16 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         vna_htag("zxv/l2/bus/v1", (const uint8_t *) "", 0, busid.b);
         vna_htag("zxv/l2/bus/nonce/v1", (const uint8_t *) "", 0, bn32);
         vna_copy(bnonce, bn32, sizeof bnonce);
-        if (vna_space_create_at(&h->spaces, VNA_SPACE_ROOM, VNA_GOV_QUORUM, 51, &busid,
-                                "zxv-l2", "zxv-l2", 0, bnonce, now,
-                                h->bus_cid) != VNA_OK)
+        if (vna_space_create_at(&h->spaces, VNA_SPACE_ROOM, VNA_GOV_QUORUM, 51, &busid, "zxv-l2",
+                                "zxv-l2", 0, bnonce, now, h->bus_cid) != VNA_OK)
             uart_puts("  [VNA] bus space failed\n");
         vna_door_init(&h->door, h, door_size, door_type, door_body, door_gossip);
         for (i = 0; i < VNA_DOOR_CONNS; i++) {
             h->door_slot[i] = -1;
             h->door_tx_len[i] = h->door_tx_off[i] = 0;
             h->door_sock[i] = net_socket(&l->net, SOCK_TCP);
-            if (h->door_sock[i] >= 0 &&
-                (net_bind(&l->net, h->door_sock[i], VNAH_DOOR_PORT) != 0 ||
-                 net_listen(&l->net, h->door_sock[i], 1) != 0)) {
+            if (h->door_sock[i] >= 0 && (net_bind(&l->net, h->door_sock[i], VNAH_DOOR_PORT) != 0 ||
+                                         net_listen(&l->net, h->door_sock[i], 1) != 0)) {
                 net_close(&l->net, h->door_sock[i]);
                 h->door_sock[i] = -1;
             }

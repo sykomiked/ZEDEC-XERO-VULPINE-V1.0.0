@@ -7,8 +7,9 @@
 
 /* The native, SDK, wasm and wire runtimes; the Lingua languages follow ZLIR. */
 static const char *const LANG[ZXAPP_LANG_ZL_FORTRAN] = {
-    "c",      "sutra", "eve",    "kron",   "trebago",    "myra", "cpp",  "rust", "go",   "swift",
-    "kotlin", "java",  "dotnet", "python", "typescript", "dart", "ruby", "php",  "wasm", "wire", "zlir"};
+    "c",          "sutra", "eve",   "kron",   "trebago", "myra",   "cpp",
+    "rust",       "go",    "swift", "kotlin", "java",    "dotnet", "python",
+    "typescript", "dart",  "ruby",  "php",    "wasm",    "wire",   "zlir"};
 
 /* Each Lingua language: the name an app writes (zl_langs.def's runtime
  * field), and its catalogue name and its twin's name, accepted too. */

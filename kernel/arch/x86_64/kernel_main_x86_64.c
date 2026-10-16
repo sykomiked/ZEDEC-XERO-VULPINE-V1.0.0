@@ -592,9 +592,9 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
             if (sn_sealed()) {
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
-                if (models.npeer && vna_host_start(&vna, &link, models.peer, models.npeer,
-                                                   door_src_of(&models),
-                                                   x86_has_rdrand() ? x86_rdrand32 : 0)) {
+                if (models.npeer &&
+                    vna_host_start(&vna, &link, models.peer, models.npeer, door_src_of(&models),
+                                   x86_has_rdrand() ? x86_rdrand32 : 0)) {
                     vna_report_next = x86_ms(0) + 60000u;
                 }
                 if (missing && models.cid[0]) {

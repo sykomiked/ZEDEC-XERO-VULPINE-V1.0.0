@@ -37,10 +37,10 @@
 #include "vna_common.h"
 #include "lpres.h"
 
-#define VNA_DELTA_MAGIC0 'Z'
-#define VNA_DELTA_MAGIC1 'D'
-#define VNA_DELTA_MAGIC2 '2'
-#define VNA_DELTA_HDR    (3u + 32u + 2u + 1u + 2u)
+#define VNA_DELTA_MAGIC0      'Z'
+#define VNA_DELTA_MAGIC1      'D'
+#define VNA_DELTA_MAGIC2      '2'
+#define VNA_DELTA_HDR         (3u + 32u + 2u + 1u + 2u)
 #define VNA_DELTA_PAYLOAD_MAX 512u /* leaves headroom inside a 1 KiB event */
 #define VNA_DELTA_CELLS       64u  /* state cells a page holds, bounded */
 
@@ -95,7 +95,6 @@ int vna_delta_apply(vna_delta_page_t *p, const uint8_t *buf, uint32_t len, uint6
  * node always sees its own write. `out` gets the canonical bytes to carry
  * in the event; returns the length or a negative vna_status_t. */
 int vna_delta_issue(vna_delta_page_t *p, uint16_t cell, lpres_state_t lattice,
-                    const uint8_t *payload, uint16_t n, uint8_t *out, uint32_t cap,
-                    uint64_t *tick);
+                    const uint8_t *payload, uint16_t n, uint8_t *out, uint32_t cap, uint64_t *tick);
 
 #endif /* VNA_DELTA_H */

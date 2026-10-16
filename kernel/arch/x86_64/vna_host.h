@@ -106,7 +106,7 @@ typedef struct {
     swarm_budget_t sb;
     const uint8_t (*seed_addr)[6]; /* peers table: the fleet, commons members */
     uint32_t nseed_addr;
-    const char *door_src; /* the https base the door names at /boot.src, or 0 */
+    const char *door_src;                 /* the https base the door names at /boot.src, or 0 */
     uint64_t served_rec[VNAH_USAGE_CAP];  /* record units already sold, per slot */
     uint64_t served_file[VNAH_USAGE_CAP]; /* chunk units already sold, per slot  */
     uint64_t earned_posted;               /* held_in already handed to the bridge */

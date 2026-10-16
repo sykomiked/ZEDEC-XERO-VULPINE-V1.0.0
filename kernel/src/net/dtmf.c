@@ -16,12 +16,12 @@ static const dtmf_freq_pair_t dtmf_table[16] = {
 /* a keypad lookup table indexed by position — a byte array, not a C string:
  * mark it where the compiler knows how */
 #if defined(__has_attribute)
-#if __has_attribute(nonstring)
-#define DTMF_TBL __attribute__((nonstring))
-#endif
+#    if __has_attribute(nonstring)
+#        define DTMF_TBL __attribute__((nonstring))
+#    endif
 #endif
 #ifndef DTMF_TBL
-#define DTMF_TBL
+#    define DTMF_TBL
 #endif
 static const char dtmf_chars[16] DTMF_TBL = "123A456B789C*0#D";
 

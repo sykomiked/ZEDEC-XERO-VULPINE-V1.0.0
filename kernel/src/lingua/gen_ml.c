@@ -280,12 +280,18 @@ static int evb(int e)
         a = ev(n->a);
         b = ev(n->b);
         switch (n->k) {
-        case B_LT: return a < b;
-        case B_LE: return a <= b;
-        case B_GT: return a > b;
-        case B_GE: return a >= b;
-        case B_EQ: return a == b;
-        default: return a != b;
+        case B_LT:
+            return a < b;
+        case B_LE:
+            return a <= b;
+        case B_GT:
+            return a > b;
+        case B_GE:
+            return a >= b;
+        case B_EQ:
+            return a == b;
+        default:
+            return a != b;
         }
     case B_AND:
         return evb(n->a) && evb(n->b);
@@ -616,15 +622,33 @@ static void pint(int e)
     case X_VAR:
         printf("%s", vname[n->v]);
         return;
-    case X_ADD: pbin(e, "+"); return;
-    case X_SUB: pbin(e, "-"); return;
-    case X_MUL: pbin(e, "*"); return;
-    case X_DIV: pbin(e, sml ? "div" : "/"); return;
-    case X_MOD: pbin(e, "mod"); return;
-    case X_QUOT: pcall2("Int.quot", n->a, n->b, 1); return;
-    case X_REM: pcall2("Int.rem", n->a, n->b, 1); return;
-    case X_MIN: pcall2(sml ? "Int.min" : "min", n->a, n->b, sml); return;
-    case X_MAX: pcall2(sml ? "Int.max" : "max", n->a, n->b, sml); return;
+    case X_ADD:
+        pbin(e, "+");
+        return;
+    case X_SUB:
+        pbin(e, "-");
+        return;
+    case X_MUL:
+        pbin(e, "*");
+        return;
+    case X_DIV:
+        pbin(e, sml ? "div" : "/");
+        return;
+    case X_MOD:
+        pbin(e, "mod");
+        return;
+    case X_QUOT:
+        pcall2("Int.quot", n->a, n->b, 1);
+        return;
+    case X_REM:
+        pcall2("Int.rem", n->a, n->b, 1);
+        return;
+    case X_MIN:
+        pcall2(sml ? "Int.min" : "min", n->a, n->b, sml);
+        return;
+    case X_MAX:
+        pcall2(sml ? "Int.max" : "max", n->a, n->b, sml);
+        return;
     case X_NEG:
         printf(sml ? "(~ " : "(- ");
         pint(n->a);
@@ -685,7 +709,9 @@ static void pint(int e)
             printf(" 0)");
         }
         return;
-    case X_GCD: pcall2("gcd", n->a, n->b, sml); return;
+    case X_GCD:
+        pcall2("gcd", n->a, n->b, sml);
+        return;
     case X_SUM:
         printf("(sum ");
         plist(n->a);
@@ -709,8 +735,12 @@ static void pbool(int e)
     static const char *const cmp[] = {"<", "<=", ">", ">=", "=", "<>"};
     node_t *n = &nd[e];
     switch (n->k) {
-    case B_TRUE: printf("true"); return;
-    case B_FALSE: printf("false"); return;
+    case B_TRUE:
+        printf("true");
+        return;
+    case B_FALSE:
+        printf("false");
+        return;
     case B_AND:
     case B_OR:
         printf("(");
@@ -750,7 +780,9 @@ static void plist(int e)
 {
     node_t *n = &nd[e];
     switch (n->k) {
-    case L_VAR: printf("%s", vname[n->v]); return;
+    case L_VAR:
+        printf("%s", vname[n->v]);
+        return;
     case L_LIT:
         printf("[");
         for (int i = 0; i < n->nk; i++) {
@@ -778,7 +810,9 @@ static void plist(int e)
         plist(n->a);
         printf(")");
         return;
-    case L_RANGE: pcall2("range", n->a, n->b, sml); return;
+    case L_RANGE:
+        pcall2("range", n->a, n->b, sml);
+        return;
     case L_TL:
         printf(sml ? "(tl " : "(List.tl ");
         plist(n->a);
@@ -907,10 +941,12 @@ static void print_list_stmt(int l)
 {
     /* the elements, one at a time, through a local recursive function */
     if (sml)
-        printf("val _ = let fun pr [] = print \"\\n\" | pr (x :: r) = (print (Int.toString x ^ \" \"); pr r) in pr %s end\n",
+        printf("val _ = let fun pr [] = print \"\\n\" | pr (x :: r) = (print (Int.toString x ^ \" "
+               "\"); pr r) in pr %s end\n",
                vname[l]);
     else
-        printf("let () = let rec pr = function [] -> print_newline () | x :: r -> print_int x; print_string \" \"; pr r in pr %s\n",
+        printf("let () = let rec pr = function [] -> print_newline () | x :: r -> print_int x; "
+               "print_string \" \"; pr r in pr %s\n",
                vname[l]);
 }
 
@@ -959,7 +995,8 @@ int main(int argc, char **argv)
             if (sml && ftup[f])
                 printf("fun f%d (%s, %s) = ", f, vname[fpa[f]], vname[fpb[f]]);
             else
-                printf(sml ? "fun f%d %s %s = " : "let f%d %s %s = ", f, vname[fpa[f]], vname[fpb[f]]);
+                printf(sml ? "fun f%d %s %s = " : "let f%d %s %s = ", f, vname[fpa[f]],
+                       vname[fpb[f]]);
             pint(fbody[f]);
             printf("\n");
             nfun++;

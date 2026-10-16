@@ -554,22 +554,19 @@ int main(void)
     printf("[14] P1 deterministic: create_at lands on the same CID everywhere\n");
     {
         static const uint8_t bnonce[16] = {0xB0, 0x02, 0x1d, 0xe5, 0, 0, 0, 0,
-                                           0,    0,    0,    0, 0, 0, 0, 0};
+                                           0,    0,    0,    0,    0, 0, 0, 0};
         uint8_t bus0[VNA_CID_RAW_LEN], bus1[VNA_CID_RAW_LEN];
         CHECK(vna_space_create_at(&P[0].sp, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, &P[0].idn.id,
-                                  "l2 bus", "l2", 1770000000000ull, bnonce, g_now,
-                                  bus0) == VNA_OK);
+                                  "l2 bus", "l2", 1770000000000ull, bnonce, g_now, bus0) == VNA_OK);
         CHECK(vna_space_create_at(&P[5].sp, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, &P[0].idn.id,
-                                  "l2 bus", "l2", 1770000000000ull, bnonce, g_now,
-                                  bus1) == VNA_OK);
+                                  "l2 bus", "l2", 1770000000000ull, bnonce, g_now, bus1) == VNA_OK);
         CHECK(!memcmp(bus0, bus1, sizeof bus0));
         CHECK(vna_space_get(&P[0].sp, bus0) && vna_space_get(&P[5].sp, bus1));
         /* a different nonce is a different bus */
         uint8_t bus2[VNA_CID_RAW_LEN], other[16];
         memset(other, 0, sizeof other);
         CHECK(vna_space_create_at(&P[0].sp, VNA_SPACE_HALL, VNA_GOV_OWNER, 0, &P[0].idn.id,
-                                  "l2 bus", "l2", 1770000000000ull, other, g_now,
-                                  bus2) == VNA_OK);
+                                  "l2 bus", "l2", 1770000000000ull, other, g_now, bus2) == VNA_OK);
         CHECK(memcmp(bus0, bus2, sizeof bus0) != 0);
     }
 

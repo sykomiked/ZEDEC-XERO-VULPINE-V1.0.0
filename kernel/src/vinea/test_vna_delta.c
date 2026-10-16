@@ -53,7 +53,7 @@ int main(void)
     CHECK(vna_delta_parse(bad, (uint32_t) n, &d) == VNA_ERR_PARSE); /* magic */
     memcpy(bad, buf, (size_t) n);
     bad[3 + 32 + 2] = 4;
-    CHECK(vna_delta_parse(bad, (uint32_t) n, &d) == VNA_ERR_PARSE); /* lattice > BOTH */
+    CHECK(vna_delta_parse(bad, (uint32_t) n, &d) == VNA_ERR_PARSE);      /* lattice > BOTH */
     CHECK(vna_delta_parse(buf, VNA_DELTA_HDR - 1, &d) == VNA_ERR_PARSE); /* short */
     memcpy(bad, buf, (size_t) n);
     bad[VNA_DELTA_HDR - 1] = 9; /* len field says 9, only the header follows */

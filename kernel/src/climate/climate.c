@@ -43,32 +43,53 @@
 #define HH_COLD_PM 500u
 
 #define BRIEFCASE(slug_, name_, sus, pk, cpu, neu, oth, prefs_, q, b, p, silent, die, jet)         \
-    {                                                                                              \
-        .slug = slug_, .name = name_, .cls = CL_CLASS_BRIEFCASE, .sustained_mw = CL_W(sus),        \
-        .peak_mw = CL_W(pk), .rail_peak_mw = {CL_W(cpu), CL_W(neu), CL_W(90), 0},                  \
-        .other_mw = CL_W(oth), .prefs = prefs_, .pref_cap_mw = {CL_W(q), CL_W(b), CL_W(p)},        \
-        .silent_ceiling_mw = silent, .scram_die_mc = CL_C(die), .scram_dt_mc = BC_DT_MC,           \
-        .scram_ambient_mc = BC_AMBIENT_MC, .jet_fault_scrams = jet,                                \
-        .hot_permille = BC_HOT_PERMILLE                                                            \
-    }
+    {.slug = slug_,                                                                                \
+     .name = name_,                                                                                \
+     .cls = CL_CLASS_BRIEFCASE,                                                                    \
+     .sustained_mw = CL_W(sus),                                                                    \
+     .peak_mw = CL_W(pk),                                                                          \
+     .rail_peak_mw = {CL_W(cpu), CL_W(neu), CL_W(90), 0},                                          \
+     .other_mw = CL_W(oth),                                                                        \
+     .prefs = prefs_,                                                                              \
+     .pref_cap_mw = {CL_W(q), CL_W(b), CL_W(p)},                                                   \
+     .silent_ceiling_mw = silent,                                                                  \
+     .scram_die_mc = CL_C(die),                                                                    \
+     .scram_dt_mc = BC_DT_MC,                                                                      \
+     .scram_ambient_mc = BC_AMBIENT_MC,                                                            \
+     .jet_fault_scrams = jet,                                                                      \
+     .hot_permille = BC_HOT_PERMILLE}
 
 #define SERVER(slug_, name_, sus, pk, shells_, heater, comp, hdd)                                  \
-    {                                                                                              \
-        .slug = slug_, .name = name_, .cls = CL_CLASS_SERVER, .sustained_mw = CL_W(sus),           \
-        .peak_mw = CL_W(pk), .rail_peak_mw = {0, 0, 0, CL_W(pk)}, .shells = shells_,               \
-        .heater_mw = CL_W(heater), .compressors = comp, .hdd_fitted = hdd,                         \
-        .free_cool_max_mc = SV_FREE_MAX_MC, .supply_max_mc = SV_SUPPLY_MAX,                        \
-        .dp_max_mc = SV_DP_MAX, .rh_max_x100 = SV_RH_MAX, .outside_max_mc = SV_OUT_MAX,            \
-        .outside_min_mc = SV_OUT_MIN                                                               \
-    }
+    {.slug = slug_,                                                                                \
+     .name = name_,                                                                                \
+     .cls = CL_CLASS_SERVER,                                                                       \
+     .sustained_mw = CL_W(sus),                                                                    \
+     .peak_mw = CL_W(pk),                                                                          \
+     .rail_peak_mw = {0, 0, 0, CL_W(pk)},                                                          \
+     .shells = shells_,                                                                            \
+     .heater_mw = CL_W(heater),                                                                    \
+     .compressors = comp,                                                                          \
+     .hdd_fitted = hdd,                                                                            \
+     .free_cool_max_mc = SV_FREE_MAX_MC,                                                           \
+     .supply_max_mc = SV_SUPPLY_MAX,                                                               \
+     .dp_max_mc = SV_DP_MAX,                                                                       \
+     .rh_max_x100 = SV_RH_MAX,                                                                     \
+     .outside_max_mc = SV_OUT_MAX,                                                                 \
+     .outside_min_mc = SV_OUT_MIN}
 
 #define HANDHELD(slug_, name_, dev, proc, opmax)                                                   \
-    {                                                                                              \
-        .slug = slug_, .name = name_, .cls = CL_CLASS_HANDHELD, .sustained_mw = dev,               \
-        .peak_mw = dev, .rail_peak_mw = {proc, 0, 0, 0}, .op_min_mc = CL_C(-30),                   \
-        .op_max_mc = CL_C(opmax), .charge_min_mc = HH_CHG_MIN, .charge_max_mc = HH_CHG_MAX,        \
-        .cold_throttle_mc = HH_COLD, .cold_permille = HH_COLD_PM                                   \
-    }
+    {.slug = slug_,                                                                                \
+     .name = name_,                                                                                \
+     .cls = CL_CLASS_HANDHELD,                                                                     \
+     .sustained_mw = dev,                                                                          \
+     .peak_mw = dev,                                                                               \
+     .rail_peak_mw = {proc, 0, 0, 0},                                                              \
+     .op_min_mc = CL_C(-30),                                                                       \
+     .op_max_mc = CL_C(opmax),                                                                     \
+     .charge_min_mc = HH_CHG_MIN,                                                                  \
+     .charge_max_mc = HH_CHG_MAX,                                                                  \
+     .cold_throttle_mc = HH_COLD,                                                                  \
+     .cold_permille = HH_COLD_PM}
 
 static const cl_profile_t g_profiles[] = {
     /* Pioneer (OEM_CONSUMER s2, s4; PLATFORM_COMMON s6.2, s8.2): Quiet

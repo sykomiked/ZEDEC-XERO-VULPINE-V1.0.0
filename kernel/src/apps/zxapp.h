@@ -237,8 +237,8 @@
 #define ZXAPP_SLOTS       407u
 #define ZXAPP_MATRIX_TOP  144u /* M1: the outermost matrix layer */
 #define ZXAPP_MATRIX_NONE 255u /* M1: no matrix line */
-#define ZXAPP_CHECKS      32u /* K1: check lines in one manifest */
-#define ZXAPP_CHECK_VALS  16u /* K1: values in one input or answer */
+#define ZXAPP_CHECKS      32u  /* K1: check lines in one manifest */
+#define ZXAPP_CHECK_VALS  16u  /* K1: values in one input or answer */
 #define ZXAPP_RUNTIMES    ((uint32_t) ZXAPP_LANG_COUNT)
 
 typedef enum {

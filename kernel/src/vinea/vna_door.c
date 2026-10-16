@@ -68,8 +68,8 @@ static int is_l2_path(const vna_door_conn_t *c)
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
 {
     /* the request line's method and target; anything else is refused */
-    uint8_t m_get = c->rx_len >= 4 && c->rx[0] == 'G' && c->rx[1] == 'E' && c->rx[2] == 'T' &&
-                    c->rx[3] == ' ';
+    uint8_t m_get =
+        c->rx_len >= 4 && c->rx[0] == 'G' && c->rx[1] == 'E' && c->rx[2] == 'T' && c->rx[3] == ' ';
     uint8_t m_post = c->rx_len >= 5 && c->rx[0] == 'P' && c->rx[1] == 'O' && c->rx[2] == 'S' &&
                      c->rx[3] == 'T' && c->rx[4] == ' ';
     uint32_t mlen = m_get ? 4 : m_post ? 5 : 0;
@@ -240,8 +240,7 @@ static uint32_t stage_head(vna_door_conn_t *k, uint8_t *out, uint32_t cap)
     if (left > cap) left = cap;
     vna_copy(out, k->head + k->head_sent, left);
     k->head_sent += left;
-    if (k->head_sent == k->head_len && (k->state == VNA_DOOR_SEND))
-        k->state = VNA_DOOR_DONE;
+    if (k->head_sent == k->head_len && (k->state == VNA_DOOR_SEND)) k->state = VNA_DOOR_DONE;
     return left;
 }
 
@@ -330,14 +329,12 @@ void vna_door_tick(vna_door_t *d, uint64_t now)
     d->now = now;
     for (uint32_t i = 0; i < VNA_DOOR_CONNS; i++) {
         vna_door_conn_t *k = &d->conn[i];
-        if (k->used && k->state == VNA_DOOR_STREAM &&
-            now - k->opened >= VNA_DOOR_STREAM_MS)
+        if (k->used && k->state == VNA_DOOR_STREAM && now - k->opened >= VNA_DOOR_STREAM_MS)
             k->state = VNA_DOOR_DONE;
     }
 }
 
-static int delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick,
-                    int gossip)
+static int delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick, int gossip)
 {
     if (!d || !bytes) return VNA_ERR_ARG;
     int st = vna_delta_apply(&d->page, bytes, n, tick);

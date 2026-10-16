@@ -698,9 +698,8 @@ static void test_upstream(void)
     CHECK(index_up("ipns " IPNS "\ncid " CID "\npeer 203.0.113.10 8724\n"
                    "peer 198.51.100.23 65535\n",
                    LST, 1) == 3);
-    CHECK(s.npeer == 2 && s.peer[0][0] == 203 && s.peer[0][1] == 0 &&
-          s.peer[0][2] == 113 && s.peer[0][3] == 10 && s.peer[0][4] == 0x22 &&
-          s.peer[0][5] == 0x14);
+    CHECK(s.npeer == 2 && s.peer[0][0] == 203 && s.peer[0][1] == 0 && s.peer[0][2] == 113 &&
+          s.peer[0][3] == 10 && s.peer[0][4] == 0x22 && s.peer[0][5] == 0x14);
     CHECK(s.peer[1][0] == 198 && s.peer[1][1] == 51 && s.peer[1][4] == 0xFF &&
           s.peer[1][5] == 0xFF);
     CHECK(s.want[0].attached && s.want[1].attached);
@@ -763,13 +762,10 @@ static void test_upstream(void)
          "http://d\ngateway http://e\n",
          "line 6: more gateways than the kernel tracks"},
         {"cid " CID "\npeer 203.0.113.10\n", "line 2: peer needs an address and a port"},
-        {"cid " CID "\npeer 203.0.113.10 vulpine\n",
-         "line 2: peer is not <ipv4> <port>"},
+        {"cid " CID "\npeer 203.0.113.10 vulpine\n", "line 2: peer is not <ipv4> <port>"},
         {"cid " CID "\npeer 203.0.113.10 0\n", "line 2: peer is not <ipv4> <port>"},
-        {"cid " CID "\npeer 203.0.113.10 65536\n",
-         "line 2: peer is not <ipv4> <port>"},
-        {"cid " CID "\npeer 203.0.113.10.99 8724\n",
-         "line 2: peer is not <ipv4> <port>"},
+        {"cid " CID "\npeer 203.0.113.10 65536\n", "line 2: peer is not <ipv4> <port>"},
+        {"cid " CID "\npeer 203.0.113.10.99 8724\n", "line 2: peer is not <ipv4> <port>"},
         {"cid " CID "\npeer 203.0.113 8724\n", "line 2: peer is not <ipv4> <port>"},
         {"cid " CID "\npeer 203.0.113.10 8724 extra\n", "line 2: extra fields"},
         {"cid " CID "\npeer 1.1.1.1 1\npeer 1.1.1.2 1\npeer 1.1.1.3 1\npeer 1.1.1.4 1\n"

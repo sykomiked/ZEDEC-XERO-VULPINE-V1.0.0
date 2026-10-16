@@ -21,35 +21,70 @@ static int32_t cp(const unsigned char *s, uint32_t *n)
 static int32_t digit(int32_t c, int aspirated)
 {
     switch (c) {
-    case 'k': return aspirated ? 2 : 1;
-    case 'g': return aspirated ? 4 : 3;
-    case 0x1E45: return 5;              /* ṅ */
-    case 'c': return aspirated ? 7 : 6;
-    case 'j': return aspirated ? 9 : 8;
-    case 0x00F1: return 0;              /* ñ */
-    case 0x1E6D: return aspirated ? 2 : 1; /* ṭ */
-    case 0x1E0D: return aspirated ? 4 : 3; /* ḍ */
-    case 0x1E47: return 5;              /* ṇ */
-    case 't': return aspirated ? 7 : 6;
-    case 'd': return aspirated ? 9 : 8;
-    case 'n': return 0;
-    case 'p': return aspirated ? 2 : 1;
-    case 'b': return aspirated ? 4 : 3;
-    case 'm': return 5;
-    case 'y': return 1;
-    case 'r': return 2;
-    case 'l': return 3;
-    case 'v': return 4;
-    case 0x015B: return 5;              /* ś */
-    case 0x1E63: return 6;              /* ṣ */
-    case 's': return 7;
-    case 'h': return 8;
-    case 'a': case 'i': case 'u': case 'e': case 'o':
-    case 0x0101: case 0x012B: case 0x016B: /* ā ī ū */
-    case 0x1E5B: case 0x1E5D: case 0x1E37: case 0x1E39: /* ṛ ṝ ḷ ḹ */
+    case 'k':
+        return aspirated ? 2 : 1;
+    case 'g':
+        return aspirated ? 4 : 3;
+    case 0x1E45:
+        return 5; /* ṅ */
+    case 'c':
+        return aspirated ? 7 : 6;
+    case 'j':
+        return aspirated ? 9 : 8;
+    case 0x00F1:
+        return 0; /* ñ */
+    case 0x1E6D:
+        return aspirated ? 2 : 1; /* ṭ */
+    case 0x1E0D:
+        return aspirated ? 4 : 3; /* ḍ */
+    case 0x1E47:
+        return 5; /* ṇ */
+    case 't':
+        return aspirated ? 7 : 6;
+    case 'd':
+        return aspirated ? 9 : 8;
+    case 'n':
+        return 0;
+    case 'p':
+        return aspirated ? 2 : 1;
+    case 'b':
+        return aspirated ? 4 : 3;
+    case 'm':
+        return 5;
+    case 'y':
+        return 1;
+    case 'r':
+        return 2;
+    case 'l':
+        return 3;
+    case 'v':
+        return 4;
+    case 0x015B:
+        return 5; /* ś */
+    case 0x1E63:
+        return 6; /* ṣ */
+    case 's':
+        return 7;
+    case 'h':
+        return 8;
+    case 'a':
+    case 'i':
+    case 'u':
+    case 'e':
+    case 'o':
+    case 0x0101:
+    case 0x012B:
+    case 0x016B: /* ā ī ū */
+    case 0x1E5B:
+    case 0x1E5D:
+    case 0x1E37:
+    case 0x1E39: /* ṛ ṝ ḷ ḹ */
         return K_VOWEL;
-    case 0x1E43: case 0x1E25: return K_SKIP; /* ṃ ḥ */
-    default: return K_BAD;
+    case 0x1E43:
+    case 0x1E25:
+        return K_SKIP; /* ṃ ḥ */
+    default:
+        return K_BAD;
     }
 }
 
@@ -103,7 +138,8 @@ int32_t zl_kpy_value(const char *iast, uint64_t *v)
 
 int32_t zl_kpy_spell(uint64_t v, uint32_t n, char *out, uint32_t cap)
 {
-    static const char *const SYL[10] = {"na", "ka", "kha", "ga", "gha", "ma", "ca", "cha", "ja", "jha"};
+    static const char *const SYL[10] = {"na", "ka", "kha", "ga", "gha",
+                                        "ma", "ca", "cha", "ja", "jha"};
     if (!out || n < 1u || n > ZL_KPY_MAXDIG) return -1;
     uint32_t at = 0;
     for (uint32_t i = 0; i < n; i++, v /= 10u) {

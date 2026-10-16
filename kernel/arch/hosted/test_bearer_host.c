@@ -5,7 +5,7 @@
  * CR/LF translation, no ^C signal), COBS frames both ways, and the Hayes
  * driver talking to a scripted modem on the master side. */
 #define _DEFAULT_SOURCE
-#define _XOPEN_SOURCE 700
+#define _XOPEN_SOURCE    700
 #define _DARWIN_C_SOURCE /* macOS hides B57600 and up under _XOPEN_SOURCE */
 #include <errno.h>
 #include <fcntl.h>

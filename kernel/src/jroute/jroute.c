@@ -7,12 +7,12 @@
 /* domain tags are exact-length byte labels hashed by size — never read as
  * C strings, so no terminator: mark them where the compiler knows how */
 #if defined(__has_attribute)
-#if __has_attribute(nonstring)
-#define DOM_TAG __attribute__((nonstring))
-#endif
+#    if __has_attribute(nonstring)
+#        define DOM_TAG __attribute__((nonstring))
+#    endif
 #endif
 #ifndef DOM_TAG
-#define DOM_TAG
+#    define DOM_TAG
 #endif
 static const char NULL_DOM[14] DOM_TAG = "zxv/jr-null/v1";
 static const char TABLE_DOM[15] DOM_TAG = "zxv/jr-table/v1";

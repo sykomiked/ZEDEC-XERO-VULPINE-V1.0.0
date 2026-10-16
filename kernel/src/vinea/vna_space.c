@@ -173,8 +173,7 @@ vna_status_t vna_space_rec_check(const vna_rec_t *r)
         if (g_ev.kind == VNA_SPACE_EV_POST) return g_ev.len > 0 ? VNA_OK : VNA_ERR_PARSE;
         if (g_ev.kind == VNA_SPACE_EV_DELTA) {
             vna_delta_t dt;
-            return vna_delta_parse(g_ev.data, g_ev.len, &dt) == VNA_OK ? VNA_OK
-                                                                     : VNA_ERR_PARSE;
+            return vna_delta_parse(g_ev.data, g_ev.len, &dt) == VNA_OK ? VNA_OK : VNA_ERR_PARSE;
         }
         vna_hall_t h;
         return vna_schema_unpack(&vna_hall_schema, g_ev.data, g_ev.len, &h, 0) >= 0 ? VNA_OK
@@ -695,8 +694,8 @@ int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum
     uint8_t nonce[16];
     if (!sp) return VNA_ERR_ARG;
     vna_drbg_gen(&sp->rng, nonce, sizeof nonce);
-    return create_gen(sp, kind, gov, quorum_pct, &sp->node->idn->id, name, topic, now, nonce,
-                      now, cid);
+    return create_gen(sp, kind, gov, quorum_pct, &sp->node->idn->id, name, topic, now, nonce, now,
+                      cid);
 }
 
 /* The deterministic create: a space whose genesis is fully given, so every
@@ -709,8 +708,7 @@ int vna_space_create_at(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quo
                         uint8_t cid[VNA_CID_RAW_LEN])
 {
     if (!creator || !nonce) return VNA_ERR_ARG;
-    return create_gen(sp, kind, gov, quorum_pct, creator, name, topic, created, nonce, now,
-                      cid);
+    return create_gen(sp, kind, gov, quorum_pct, creator, name, topic, created, nonce, now, cid);
 }
 
 /* Look up the next host slot (none left: not found). */

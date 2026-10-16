@@ -56,17 +56,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define CHGK_GENES        8u
-#define CHGK_HOBBY_CAT    144u
-#define CHGK_HOBBY_MIN    3u
-#define CHGK_HOBBY_MAX    5u
-#define CHGK_HOBBY_STEP   3u   /* per-cycle bound, swarm_dna's F(4) */
-#define CHGK_DRIFT_CAP    150u /* permille of ISF u from the DNA profile */
-#define CHGK_REG_MAX      64u
-#define CHGK_DNA_ENC      (4u + 32u * 4u + 8u + CHGK_GENES + 1u + 4u)
-#define CHGK_TOPICS       32u
-#define CHGK_PARTNERS     16u
-#define CHGK_SEEN_MAX     32u
+#define CHGK_GENES      8u
+#define CHGK_HOBBY_CAT  144u
+#define CHGK_HOBBY_MIN  3u
+#define CHGK_HOBBY_MAX  5u
+#define CHGK_HOBBY_STEP 3u   /* per-cycle bound, swarm_dna's F(4) */
+#define CHGK_DRIFT_CAP  150u /* permille of ISF u from the DNA profile */
+#define CHGK_REG_MAX    64u
+#define CHGK_DNA_ENC    (4u + 32u * 4u + 8u + CHGK_GENES + 1u + 4u)
+#define CHGK_TOPICS     32u
+#define CHGK_PARTNERS   16u
+#define CHGK_SEEN_MAX   32u
 
 typedef enum {
     CHGK_OK = 0,
@@ -77,10 +77,10 @@ typedef enum {
     CHGK_ERR_REPLAY = -5,
     CHGK_ERR_REVOKED = -6,
     CHGK_ERR_EXPIRED = -7,
-    CHGK_ERR_SCOPE = -8,   /* topic or depth not granted */
-    CHGK_ERR_CLOSED = -9,  /* no open visit */
-    CHGK_ERR_PARTY = -10,  /* the grant does not name these two chiglets */
-    CHGK_ERR_DUP = -11     /* a named birth whose id is already registered */
+    CHGK_ERR_SCOPE = -8,  /* topic or depth not granted */
+    CHGK_ERR_CLOSED = -9, /* no open visit */
+    CHGK_ERR_PARTY = -10, /* the grant does not name these two chiglets */
+    CHGK_ERR_DUP = -11    /* a named birth whose id is already registered */
 } chgk_status_t;
 
 /* ===== K1 ===== */
@@ -91,9 +91,9 @@ typedef struct {
     uint8_t parent[32]; /* zero: born to a person */
     uint64_t seed;
     uint8_t genes[CHGK_GENES];
-    uint8_t named;      /* 1: born from the person's name (chg_name) */
+    uint8_t named; /* 1: born from the person's name (chg_name) */
     uint32_t generation;
-    uint8_t id[32];     /* SHA3-256 of the encoded record */
+    uint8_t id[32]; /* SHA3-256 of the encoded record */
 } chgk_dna_t;
 
 typedef struct {
@@ -106,9 +106,9 @@ typedef struct {
 void chgk_registry_init(chgk_registry_t *r);
 /* Birth: build the record, re-seed (seed+1, ...) until its id is not in r,
  * then register it. parent may be NULL. */
-chgk_status_t chgk_dna_birth(chgk_registry_t *r, const uint8_t owner[32],
-                             const uint8_t species[32], const uint8_t lineage[32],
-                             const chgk_dna_t *parent, uint64_t seed, chgk_dna_t *out);
+chgk_status_t chgk_dna_birth(chgk_registry_t *r, const uint8_t owner[32], const uint8_t species[32],
+                             const uint8_t lineage[32], const chgk_dna_t *parent, uint64_t seed,
+                             chgk_dna_t *out);
 uint32_t chgk_dna_encode(const chgk_dna_t *d, uint8_t *out, uint32_t cap);
 /* A person names their chiglet once (kernel/src/chiglet/chg_name.h): the
  * seed comes from the name and the name's sound leans temperament, warmth
@@ -130,9 +130,9 @@ uint32_t chgk_dna_distance(const chgk_dna_t *a, const chgk_dna_t *b);
 /* ===== K2 / K3 ===== */
 typedef struct {
     uint8_t n;
-    uint8_t pick[CHGK_HOBBY_MAX];  /* catalogue indices, sorted */
-    uint16_t dna_w[CHGK_HOBBY_MAX];/* weights the DNA gave, 1..1000 */
-    uint16_t w[CHGK_HOBBY_MAX];    /* current weights */
+    uint8_t pick[CHGK_HOBBY_MAX];   /* catalogue indices, sorted */
+    uint16_t dna_w[CHGK_HOBBY_MAX]; /* weights the DNA gave, 1..1000 */
+    uint16_t w[CHGK_HOBBY_MAX];     /* current weights */
     uint32_t cycles, resets;
 } chgk_hobbies_t;
 
@@ -162,11 +162,11 @@ int32_t chgk_hobby_tiebreak(const chgk_hobbies_t *h, const uint32_t *score, cons
 #define CHGK_GRANT_ENC      (4u + 16u + 32u + 32u + 4u + 1u + 8u + 8u)
 
 typedef struct {
-    uint8_t gid[16];      /* fresh random per grant */
-    uint8_t visitor[32];  /* DNA id of the visiting chiglet */
-    uint8_t host[32];     /* DNA id of the host chiglet */
-    uint32_t topics;      /* bitmap over CHGK_TOPICS */
-    uint8_t depth;        /* CHGK_DEPTH_* */
+    uint8_t gid[16];     /* fresh random per grant */
+    uint8_t visitor[32]; /* DNA id of the visiting chiglet */
+    uint8_t host[32];    /* DNA id of the host chiglet */
+    uint32_t topics;     /* bitmap over CHGK_TOPICS */
+    uint8_t depth;       /* CHGK_DEPTH_* */
     uint64_t not_before, expires;
 } chgk_grant_t;
 
@@ -178,9 +178,9 @@ typedef bool (*chgk_verify_fn)(const uint8_t *pk, uint32_t pk_len, const uint8_t
 
 /* Both owners must have signed the grant bytes. */
 chgk_status_t chgk_grant_verify(const uint8_t *body, uint32_t len, const uint8_t *pk_visitor_owner,
-                                const uint8_t *pk_host_owner, uint32_t pk_len,
-                                const uint8_t *sig_v, const uint8_t *sig_h, uint32_t sig_len,
-                                chgk_verify_fn vf, void *vctx, chgk_grant_t *out);
+                                const uint8_t *pk_host_owner, uint32_t pk_len, const uint8_t *sig_v,
+                                const uint8_t *sig_h, uint32_t sig_len, chgk_verify_fn vf,
+                                void *vctx, chgk_grant_t *out);
 
 typedef struct {
     uint32_t n_seen, n_revoked;
@@ -194,23 +194,23 @@ chgk_status_t chgk_revoke(chgk_grantbook_t *b, const uint8_t gid[16]);
 typedef enum { CHGK_K_CLAIM = 1, CHGK_K_VERDICT = 2 } chgk_kind_t;
 
 typedef struct {
-    uint8_t kind;          /* chgk_kind_t: there is no kind for raw data */
-    uint8_t topic;         /* < CHGK_TOPICS */
-    uint8_t verdict;       /* Belnap 0 N, 1 T, 2 F, 3 B (VERDICT only) */
-    uint8_t claim[32];     /* hash of the claim text */
-    uint8_t evidence[32];  /* hash of its evidence bundle */
+    uint8_t kind;         /* chgk_kind_t: there is no kind for raw data */
+    uint8_t topic;        /* < CHGK_TOPICS */
+    uint8_t verdict;      /* Belnap 0 N, 1 T, 2 F, 3 B (VERDICT only) */
+    uint8_t claim[32];    /* hash of the claim text */
+    uint8_t evidence[32]; /* hash of its evidence bundle */
 } chgk_claim_t;
 
 /* ===== K5 ===== */
 typedef struct {
-    uint8_t self[32];                 /* this chiglet's DNA id */
-    uint32_t xp[CHGK_TOPICS];         /* experience per topic, permille units */
-    uint64_t social;                  /* cooperation points */
+    uint8_t self[32];         /* this chiglet's DNA id */
+    uint32_t xp[CHGK_TOPICS]; /* experience per topic, permille units */
+    uint64_t social;          /* cooperation points */
     uint32_t n_partners;
     uint8_t partner[CHGK_PARTNERS][32];
     uint32_t meetings[CHGK_PARTNERS];
     uint32_t taken, refused;
-    uint8_t log_head[32];             /* hash chain over every exchange */
+    uint8_t log_head[32]; /* hash chain over every exchange */
     uint32_t log_len;
 } chgk_xp_t;
 
@@ -218,8 +218,8 @@ typedef struct {
     bool open;
     chgk_grant_t g;
     uint8_t partner[32];
-    uint32_t partner_gap;  /* genome independence, permille */
-    uint32_t meeting;      /* how many times these two have met, 1-based */
+    uint32_t partner_gap; /* genome independence, permille */
+    uint32_t meeting;     /* how many times these two have met, 1-based */
     uint32_t exchanged;
 } chgk_visit_t;
 
@@ -238,7 +238,6 @@ chgk_status_t chgk_visit_receive(chgk_visit_t *v, chgk_xp_t *x, const chgk_claim
 /* Either side, any time. */
 void chgk_visit_close(chgk_visit_t *v);
 /* Recompute the log chain from entries (for the owner's audit). */
-void chgk_log_step(uint8_t head[32], const uint8_t partner[32], const chgk_claim_t *c,
-                   bool taken);
+void chgk_log_step(uint8_t head[32], const uint8_t partner[32], const chgk_claim_t *c, bool taken);
 
 #endif /* ZXV_CHG_KIN_H */

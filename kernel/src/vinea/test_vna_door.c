@@ -119,8 +119,7 @@ int main(void)
     /* ---- POST /l2: the delta joins the page and gossips ---- */
     int dn = delta(1, LPRES_STATE_TRUE, pk);
     c = vna_door_open(&d);
-    n = snprintf((char *) req, sizeof req,
-                 "POST /l2 HTTP/1.1\r\nContent-Length: %d\r\n\r\n", dn);
+    n = snprintf((char *) req, sizeof req, "POST /l2 HTTP/1.1\r\nContent-Length: %d\r\n\r\n", dn);
     CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
     CHECK(vna_door_input(&d, (uint32_t) c, pk, (uint32_t) dn) == VNA_OK);
     got = drain(&d, (uint32_t) c, acc, sizeof acc);
@@ -143,7 +142,7 @@ int main(void)
     dn = delta(1, LPRES_STATE_FALSE, pk);
     CHECK(vna_door_delta_in(&d, pk, (uint32_t) dn, 7) == LPRES_STATE_BOTH);
     got = drain(&d, (uint32_t) c, acc, sizeof acc);
-    CHECK(got == 50);           /* exactly one frame */
+    CHECK(got == 50); /* exactly one frame */
     CHECK((acc[0] | acc[1] << 8) == 40);
     uint64_t ft = 0;
     for (int i = 0; i < 8; i++) ft |= (uint64_t) acc[2 + i] << (8 * i);
@@ -195,8 +194,7 @@ int main(void)
     c = vna_door_open(&d);
     uint8_t garbage[40];
     memset(garbage, 0x5a, sizeof garbage);
-    n = snprintf((char *) req, sizeof req,
-                 "POST /l2 HTTP/1.1\r\nContent-Length: 40\r\n\r\n");
+    n = snprintf((char *) req, sizeof req, "POST /l2 HTTP/1.1\r\nContent-Length: 40\r\n\r\n");
     CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
     CHECK(vna_door_input(&d, (uint32_t) c, garbage, 40) == VNA_OK);
     got = drain(&d, (uint32_t) c, acc, sizeof acc);
