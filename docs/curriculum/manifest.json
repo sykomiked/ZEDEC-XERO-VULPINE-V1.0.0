@@ -1,0 +1,101 @@
+{
+  "schema": "zxv.curriculum.v1",
+  "root_cid": "bafybeih2cpctfvuu5wc7fw3oiej7tu3e4fqjuakzi65qhm4zspz2t4qqaq",
+  "os_release_cid": "bafybeicih44n3ebecncm32ckn3sfdgbycdxnggbd4vmpwbfhxk4y4yrh3u",
+  "car_bytes": 69767,
+  "car_sha256": "7b2187c7904102bdf17258a91302f329b2f5710e8f24d451062958e50cdd7670",
+  "files": [
+    {
+      "name": "INDEX.md",
+      "cid": "bafkreifke7h5t2xeqz4yy662g4myclar4ejnve37a5a2aroci6nyjsu7zq",
+      "bytes": 6153,
+      "sha256": "aa27cfd9eae486798c7bda3719812c11e112da937f0741a045c2479b84ca9fcc"
+    },
+    {
+      "name": "PAPER_1_PARACONSISTENT_RING0.md",
+      "cid": "bafkreica43tf67446ifjtbtn6wycxxu2kogmj2fr3e3uomsspgs2r75pca",
+      "bytes": 13318,
+      "sha256": "40e6e65f7f9cf20a99866df5b02bde9a538cc4e8b1d93747325279a5a8ffaf10"
+    },
+    {
+      "name": "PAPER_2_TRAFFIC_RESOURCE_ECONOMY.md",
+      "cid": "bafkreigx7e5pnd3gd4lfsxhwhvdi3g4vvrn6zacjww67kwmmi3h6i4jgoy",
+      "bytes": 9541,
+      "sha256": "d7f93af68f661f16595cf63d468d9b95ac5bec8049b5bdf5598c46cfe4712676"
+    },
+    {
+      "name": "PAPER_3_IMMUTABLE_EPISTEMIC_GRAPH.md",
+      "cid": "bafkreidl6vwcl65ljnfujij5ynlihyrnulb6pviugiaw5s6blmanc3ucwq",
+      "bytes": 9526,
+      "sha256": "6bf56c25fbab4b4b44a13dc35683e22da2c3e7d51432016ecbc15b00d16e82b4"
+    },
+    {
+      "name": "SYNOPSIS.md",
+      "cid": "bafkreifhhv4dcozubi52pjzpmzwqlwvh5onyd6cjlcneprprieogix6pji",
+      "bytes": 11391,
+      "sha256": "a73d78313b340a3ba7a72f666d05daa7eb9b81f849589a47c5f1411c645fcf4a"
+    },
+    {
+      "name": "MANUAL.md",
+      "cid": "bafkreiciszezsxymqymuwkw2l2hmghy4mvged4y7oav2n6q6gcyw4vx6p4",
+      "bytes": 8589,
+      "sha256": "489649995f0c86194b2ada5e8ec31f1c654c41f31f702ba6fa1e30b16e56fe7f"
+    },
+    {
+      "name": "BUCKET.md",
+      "cid": "bafkreibj6bzb3iuybslauf45tjpoft2gys66nmb3p5aym2t6aggats55oy",
+      "bytes": 10428,
+      "sha256": "29f0721da2980c960a179d9a5ee2cf46c4bde6b03b7f41866a7e018c09cbbd76"
+    }
+  ],
+  "armada_nodes": [
+    {
+      "region": "EU",
+      "ip": "173.249.40.169",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "JPN",
+      "ip": "84.247.159.91",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "AUS",
+      "ip": "46.250.247.153",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "IND",
+      "ip": "13.140.75.51",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "UK",
+      "ip": "161.97.114.212",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "US-East",
+      "ip": "209.126.13.153",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "US-Central",
+      "ip": "195.26.240.140",
+      "http": 80,
+      "vna_udp": 8724
+    },
+    {
+      "region": "US-West",
+      "ip": "144.126.137.197",
+      "http": 80,
+      "vna_udp": 8724
+    }
+  ]
+}
