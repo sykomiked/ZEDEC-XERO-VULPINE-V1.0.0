@@ -44,9 +44,11 @@
 #define VNA_DOOR_KEEPALIVE_MS 8000u /* a zero frame goes out at least this often */
 
 /* The host's file access. size: the whole length or <0 unknown/missing.
- * body: the span starting at `off`, 0 ends it, <0 fails it. `ctx` is the
- * host's. */
+ * type: the Content-Type or NULL (application/octet-stream) — scripts need
+ * a real type or the browser refuses them. body: the span starting at
+ * `off`, 0 ends it, <0 fails it. `ctx` is the host's. */
 typedef int32_t (*vna_door_size_fn)(void *ctx, const char *path, uint32_t plen);
+typedef const char *(*vna_door_type_fn)(void *ctx, const char *path, uint32_t plen);
 typedef int32_t (*vna_door_body_fn)(void *ctx, const char *path, uint32_t plen, uint64_t off,
                                     uint8_t *out, uint32_t cap);
 /* The bus hook: a delta the door accepted, for the host to gossip on. */
@@ -97,13 +99,14 @@ typedef struct {
     vna_delta_page_t page;
     void *ctx;
     vna_door_size_fn size;
+    vna_door_type_fn type;
     vna_door_body_fn body;
     vna_door_gossip_fn gossip;
     uint64_t now;
 } vna_door_t;
 
-void vna_door_init(vna_door_t *d, void *ctx, vna_door_size_fn size, vna_door_body_fn body,
-                   vna_door_gossip_fn gossip);
+void vna_door_init(vna_door_t *d, void *ctx, vna_door_size_fn size, vna_door_type_fn type,
+                   vna_door_body_fn body, vna_door_gossip_fn gossip);
 
 /* A connection the host accepted: 0..VNA_DOOR_CONNS-1 or -1 full. The host
  * closes it (or it ended) → vna_door_close frees the slot. */
@@ -121,12 +124,16 @@ uint32_t vna_door_pull(vna_door_t *d, uint32_t c, uint8_t *out, uint32_t cap);
 /* Stream lifetimes and keepalives; pass the time in ms. */
 void vna_door_tick(vna_door_t *d, uint64_t now);
 
-/* Bus traffic inbound: a VNA_SPACE_EV_DELTA's payload from a peer, or a
- * POSTed delta after the door accepts it. Parses, joins the page, logs the
- * frame for every stream, hands the bytes to the gossip hook (POSTs gossip
- * too — the seeds relay for browser-only peers). `tick` is the event's
- * Lamport field. Returns the cell's lattice state or a negative status. */
+/* A delta the door itself accepted: a POST body. Parses, joins the page,
+ * logs the frame for every stream and hands the bytes to the gossip hook
+ * (POSTs gossip — the seeds relay for browser-only peers). `tick` names its
+ * order. Returns the cell's lattice state or a negative status. */
 int vna_door_delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick);
+
+/* A delta the door heard: a VNA_SPACE_EV_DELTA already on the bus. Applies
+ * and logs like _in but does NOT gossip — re-posting a bus event as a fresh
+ * one would flood the space it came from. */
+int vna_door_delta_hear(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick);
 
 /* The door's page, for the host to read or seed. */
 const vna_delta_page_t *vna_door_page(const vna_door_t *d);

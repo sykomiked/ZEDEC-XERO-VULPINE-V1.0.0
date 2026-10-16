@@ -258,6 +258,14 @@ int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum
                      const char *name, const char *topic, uint64_t now,
                      uint8_t cid[VNA_CID_RAW_LEN]);
 
+/* P1 deterministic: the same genesis on every caller, so a well-known bus
+ * has the same CID everywhere with no join or published CID. `creator`,
+ * `created` and `nonce` are the bus's constants. */
+int vna_space_create_at(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                        const vna_id_t *creator, const char *name, const char *topic,
+                        uint64_t created, const uint8_t nonce[16], uint64_t now,
+                        uint8_t cid[VNA_CID_RAW_LEN]);
+
 /* P2: join the space with this CID (look for a host, then JOIN). 0 when
  * started (or already in), else a negative vna_status_t. */
 int vna_space_join(vna_spaces_t *sp, const uint8_t cid[VNA_CID_RAW_LEN], uint64_t now);

@@ -27,6 +27,8 @@
 #include "swarmnet/swarmnet.h"
 #include "vinea/vna_node.h"
 #include "vinea/vna_link.h"
+#include "vinea/vna_space.h"
+#include "vinea/vna_door.h"
 #include "swarm/swarm_budget.h"
 
 #define VNAH_PORT      8724u /* the fleet's Vinea UDP port */
@@ -64,6 +66,8 @@
 #define VNAH_Q_CHUNKS   4096u          /* file chunks one peer draws       */
 #define VNAH_RETRY_MS   1000u          /* link resend interval             */
 #define VNAH_TRIES      8u             /* link gives up after this many    */
+#define VNAH_DOOR_PORT  80u            /* the seed's plain-http door       */
+#define VNAH_DOOR_TX    1400u          /* door tx staging, one segment     */
 
 /* One datagram that could not be sent yet (the next hop's MAC was not in the
  * ARP cache; the request is in flight). Bounded: when the ring is full the
@@ -102,6 +106,7 @@ typedef struct {
     swarm_budget_t sb;
     const uint8_t (*seed_addr)[6]; /* peers table: the fleet, commons members */
     uint32_t nseed_addr;
+    const char *door_src; /* the https base the door names at /boot.src, or 0 */
     uint64_t served_rec[VNAH_USAGE_CAP];  /* record units already sold, per slot */
     uint64_t served_file[VNAH_USAGE_CAP]; /* chunk units already sold, per slot  */
     uint64_t earned_posted;               /* held_in already handed to the bridge */
@@ -110,15 +115,32 @@ typedef struct {
     uint32_t sold, earn_cycles, refused_econ;
     uint32_t (*entropy)(void); /* a hardware u32 source; 0 when the CPU has none */
     uint32_t seeds, sent, recv, refused, dropped_tx, dropped_ob;
+    /* the bus and the door: the shared L2 state space every seed opens on
+     * the same canonical CID, and the plain-http front that serves the
+     * doorway and carries browser deltas onto it (vna_door.h). Each door
+     * socket is a listener: the stack accepts one peer per listener, so the
+     * door holds VNA_DOOR_CONNS of them on the same port. door_slot maps a
+     * socket to its door connection, -1 while still listening. */
+    vna_spaces_t spaces;
+    vna_door_t door;
+    int32_t door_sock[VNA_DOOR_CONNS];
+    int32_t door_slot[VNA_DOOR_CONNS];
+    uint8_t door_tx[VNA_DOOR_CONNS][VNAH_DOOR_TX];
+    uint16_t door_tx_len[VNA_DOOR_CONNS];
+    uint16_t door_tx_off[VNA_DOOR_CONNS];
+    uint8_t bus_cid[VNA_CID_RAW_LEN];
     uint8_t up;
 } vna_host_t;
 
 /* Bind the Vinea node to the link: identity derived from the NIC's MAC (each
  * machine keeps one NodeID across reboots and no two machines share one),
  * the node's tables in this host's arrays, the UDP hook on VNAH_PORT, then
- * one bootstrap ping per seed. 1 = running; 0 = refused (logged). */
+ * one bootstrap ping per seed. `door_src` (may be NULL) is the https base a
+ * browser learns at GET /boot.src — the gateways' root for boot.json and
+ * boot.pack, which the door does not carry. 1 = running; 0 = refused
+ * (logged). */
 int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32_t npeer,
-                   uint32_t (*entropy)(void));
+                   const char *door_src, uint32_t (*entropy)(void));
 
 /* The idle-loop hook: drain the NIC (hooked datagrams reach the node inside
  * sn_pump), tick the node and the trade loop at VNAH_TICK_MS, run one settle

@@ -20,6 +20,11 @@
 
 cid bafybeiczsscdsbs7ffqz55asqdf3smv6klcw3gofszvwlyarci47bgf354
 
+# The release tree's https gateway: the swarm-disc fetch skips it (plain
+# http only), but the seed's door names it at /boot.src — the page a seed
+# serves learns from it where boot.json and boot.pack live.
+gateway https://zedec.myfilebase.com
+
 peer 46.250.247.153 8724
 peer 195.26.240.140 8724
 peer 84.247.159.91 8724

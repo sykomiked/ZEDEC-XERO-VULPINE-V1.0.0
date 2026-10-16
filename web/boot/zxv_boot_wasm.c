@@ -146,6 +146,7 @@ static bool desk_up;
  * what the page holds. A delta this node writes leaves through zb_l2_emit's
  * bytes, which the transport carries back to the bus. */
 #include "vna_delta.h"
+#include "robin_debanks/sha256.h"
 
 static vna_delta_page_t L2;
 static uint8_t L2_IN[VNA_DELTA_HDR + VNA_DELTA_PAYLOAD_MAX];
@@ -505,6 +506,24 @@ EXPORT(zb_l2_emit) int zb_l2_emit(uint32_t cell, int lattice, uint32_t n)
 }
 
 EXPORT(zb_l2_out) uint8_t *zb_l2_out(void) { return L2_OUT; }
+
+/* ---- the streaming hash: the kernel's SHA-256 for origins WebCrypto ---
+ * does not reach (plain-http seeds are not a secure context). The loader
+ * feeds the pack through SHA_IN in spans and reads the digest at SHA_OUT. */
+static uint8_t SHA_IN[65536], SHA_OUT[32];
+static sha256_ctx_t SHA;
+EXPORT(zb_sha_buf) uint8_t *zb_sha_buf(void) { return SHA_IN; }
+EXPORT(zb_sha_begin) void zb_sha_begin(void) { sha256_init(&SHA); }
+EXPORT(zb_sha_feed) void zb_sha_feed(uint32_t n)
+{
+    if (n > sizeof SHA_IN) n = sizeof SHA_IN;
+    sha256_update(&SHA, SHA_IN, n);
+}
+EXPORT(zb_sha_out) uint8_t *zb_sha_out(void)
+{
+    sha256_final(&SHA, SHA_OUT);
+    return SHA_OUT;
+}
 
 EXPORT(zb_init) void zb_init(int reduce_motion, int sound)
 {

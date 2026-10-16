@@ -650,9 +650,10 @@ static uint32_t cstr_len(const char *s, uint32_t max)
     return n;
 }
 
-int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
-                     const char *name, const char *topic, uint64_t now,
-                     uint8_t cid[VNA_CID_RAW_LEN])
+static int create_gen(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                      const vna_id_t *creator, const char *name, const char *topic,
+                      uint64_t created, const uint8_t nonce[16], uint64_t now,
+                      uint8_t cid[VNA_CID_RAW_LEN])
 {
     vna_space_genesis_t *g = &g_gen;
     uint8_t buf[VNA_SPACE_GEN_MAX], c[VNA_CID_RAW_LEN];
@@ -665,9 +666,9 @@ int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum
     g->kind = kind;
     g->gov = gov;
     g->quorum_pct = gov == VNA_GOV_QUORUM ? (quorum_pct ? quorum_pct : 51) : 0;
-    g->creator = sp->node->idn->id;
-    g->created = now;
-    vna_drbg_gen(&sp->rng, g->nonce, sizeof g->nonce);
+    g->creator = *creator;
+    g->created = created;
+    vna_copy(g->nonce, nonce, sizeof g->nonce);
     g->name_len = (uint16_t) nl;
     vna_copy(g->name, name, nl);
     g->topic_len = (uint16_t) tl;
@@ -685,6 +686,31 @@ int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum
     become_member(sp, s);
     vna_copy(cid, c, VNA_CID_RAW_LEN);
     return VNA_OK;
+}
+
+int vna_space_create(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                     const char *name, const char *topic, uint64_t now,
+                     uint8_t cid[VNA_CID_RAW_LEN])
+{
+    uint8_t nonce[16];
+    if (!sp) return VNA_ERR_ARG;
+    vna_drbg_gen(&sp->rng, nonce, sizeof nonce);
+    return create_gen(sp, kind, gov, quorum_pct, &sp->node->idn->id, name, topic, now, nonce,
+                      now, cid);
+}
+
+/* The deterministic create: a space whose genesis is fully given, so every
+ * node that runs it lands on the SAME CID — a well-known bus needs no join
+ * dance and no published CID. `creator` is a canonical id (the bus's own,
+ * derived from its tag), `created` and `nonce` are constants of the bus. */
+int vna_space_create_at(vna_spaces_t *sp, uint8_t kind, uint8_t gov, uint8_t quorum_pct,
+                        const vna_id_t *creator, const char *name, const char *topic,
+                        uint64_t created, const uint8_t nonce[16], uint64_t now,
+                        uint8_t cid[VNA_CID_RAW_LEN])
+{
+    if (!creator || !nonce) return VNA_ERR_ARG;
+    return create_gen(sp, kind, gov, quorum_pct, creator, name, topic, created, nonce, now,
+                      cid);
 }
 
 /* Look up the next host slot (none left: not found). */

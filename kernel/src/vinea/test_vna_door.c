@@ -84,7 +84,7 @@ int main(void)
 {
     vna_door_t d;
     uint8_t req[2048], acc[4096], pk[64];
-    vna_door_init(&d, 0, fsize, fbody, gsp);
+    vna_door_init(&d, 0, fsize, 0, fbody, gsp);
 
     /* ---- the doorway: GET / answers the index ---- */
     int c = vna_door_open(&d);

@@ -5,6 +5,99 @@
 #include "vna_host.h"
 #include "uart_16550.h"
 #include "robin_debanks/sha256.h"
+#include "zxv_doorway_blobs.h" /* the doorway files, generated into the build */
+
+/* The door's file table: the committed doorway files as compiled-in blobs
+ * (boot.json and boot.pack are seal-time artifacts — the browser fetches
+ * them from the gateways cross-origin, so the seed needs only these). */
+static int door_path(const char *path, uint32_t plen, const zxv_door_file_t **out)
+{
+    uint32_t i, j;
+    for (i = 0; i < ZXV_DOOR_FILE_N; i++) {
+        const zxv_door_file_t *f = &zxv_door_files[i];
+        for (j = 0; j < plen && f->path[j] && path[j] == f->path[j]; j++)
+            ;
+        if (j == plen && f->path[j] == 0) {
+            *out = f;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int is_boot_src(const char *path, uint32_t plen)
+{
+    static const char bs[] = "/boot.src";
+    uint32_t i;
+    if (plen != sizeof bs - 1) return 0;
+    for (i = 0; i < plen; i++)
+        if (path[i] != bs[i]) return 0;
+    return 1;
+}
+
+static uint32_t door_src_len(const vna_host_t *h)
+{
+    uint32_t n = 0;
+    while (h->door_src && h->door_src[n] && n < 255) n++;
+    return n;
+}
+
+static int32_t door_size(void *ctx, const char *path, uint32_t plen)
+{
+    const zxv_door_file_t *f;
+    if (is_boot_src(path, plen)) {
+        uint32_t n = door_src_len((const vna_host_t *) ctx);
+        return n ? (int32_t) n : -1; /* no upstream base: the door has no src */
+    }
+    return door_path(path, plen, &f) ? (int32_t) f->len : -1;
+}
+
+static const char *door_type(void *ctx, const char *path, uint32_t plen)
+{
+    const zxv_door_file_t *f;
+    (void) ctx;
+    if (is_boot_src(path, plen)) return "text/plain; charset=utf-8";
+    return door_path(path, plen, &f) ? f->type : 0;
+}
+
+static int32_t door_body(void *ctx, const char *path, uint32_t plen, uint64_t off,
+                         uint8_t *out, uint32_t cap)
+{
+    const zxv_door_file_t *f;
+    vna_host_t *h = (vna_host_t *) ctx;
+    uint32_t n;
+    if (is_boot_src(path, plen)) {
+        uint32_t len = door_src_len(h);
+        if (off >= len) return 0;
+        n = len - (uint32_t) off;
+        if (n > cap) n = cap;
+        vna_copy(out, (const uint8_t *) h->door_src + off, n);
+        return (int32_t) n;
+    }
+    if (!door_path(path, plen, &f) || off >= f->len) return off >= f->len ? 0 : -1;
+    n = f->len - (uint32_t) off;
+    if (n > cap) n = cap;
+    vna_copy(out, f->bytes + off, n);
+    return (int32_t) n;
+}
+
+/* A delta the door accepted (a browser's POST): post it to the bus. */
+static void door_gossip(void *ctx, const uint8_t *bytes, uint32_t n)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    (void) vna_space_delta(&h->spaces, h->bus_cid, bytes, n, h->door.now);
+}
+
+/* A bus event applied: a peer's delta reaches the door's page and its
+ * streams. Our own echo is skipped — the door logged it when it posted. */
+static void door_ev(void *ctx, const vna_space_t *s, const vna_space_logent_t *e)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    if (!s || !e || e->kind != VNA_SPACE_EV_DELTA) return;
+    if (!vna_ct_eq(s->cid, h->bus_cid, VNA_CID_RAW_LEN)) return;
+    if (vna_id_eq(&e->author, &h->idn.id)) return;
+    (void) vna_door_delta_hear(&h->door, e->data, e->len, e->lamport);
+}
 
 static void put_hex_bytes(const uint8_t *b, uint32_t n)
 {
@@ -219,7 +312,7 @@ static void vna_flush(vna_host_t *h)
 }
 
 int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32_t npeer,
-                   uint32_t (*entropy)(void))
+                   const char *door_src, uint32_t (*entropy)(void))
 {
     uint8_t iseed[32], dseed[32], a[6];
     sha256_ctx_t c;
@@ -237,6 +330,7 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     h->seeds = h->sent = h->recv = h->refused = h->dropped_tx = h->dropped_ob = 0;
     h->seed_addr = peers;
     h->nseed_addr = npeer;
+    h->door_src = door_src;
     for (i = 0; i < VNAH_USAGE_CAP; i++) h->served_rec[i] = h->served_file[i] = 0;
     h->earned_posted = h->imported_total = 0;
     h->last_cycle = 0;
@@ -331,6 +425,41 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
     vna_outbox_init(&h->ob, h->obuf, VNAH_OBUF_CAP);
     net_udp_hook(&l->net, VNAH_PORT, vna_rx, h);
 
+    /* The bus and the door. Every seed opens the same canonical space —
+     * create_at with the bus's own constants lands all five on one CID —
+     * and listens on plain http for the doorway, tree files and the L2
+     * stream (vna_door.h: the browser bypass — no UDP, no WebSocket, no
+     * TLS). Four listeners because the stack accepts one peer each. */
+    {
+        uint8_t sseed[32], bnonce[16], bn32[32];
+        vna_id_t busid;
+        sha256_init(&c);
+        sha256_update(&c, (const uint8_t *) "zxv/vinea/spaces/v1", 19);
+        sha256_update(&c, iseed, sizeof iseed);
+        sha256_final(&c, sseed);
+        vna_spaces_init(&h->spaces, &h->node, &h->ob, sseed);
+        vna_spaces_on_event(&h->spaces, door_ev, h);
+        vna_htag("zxv/l2/bus/v1", (const uint8_t *) "", 0, busid.b);
+        vna_htag("zxv/l2/bus/nonce/v1", (const uint8_t *) "", 0, bn32);
+        vna_copy(bnonce, bn32, sizeof bnonce);
+        if (vna_space_create_at(&h->spaces, VNA_SPACE_ROOM, VNA_GOV_QUORUM, 51, &busid,
+                                "zxv-l2", "zxv-l2", 0, bnonce, now,
+                                h->bus_cid) != VNA_OK)
+            uart_puts("  [VNA] bus space failed\n");
+        vna_door_init(&h->door, h, door_size, door_type, door_body, door_gossip);
+        for (i = 0; i < VNA_DOOR_CONNS; i++) {
+            h->door_slot[i] = -1;
+            h->door_tx_len[i] = h->door_tx_off[i] = 0;
+            h->door_sock[i] = net_socket(&l->net, SOCK_TCP);
+            if (h->door_sock[i] >= 0 &&
+                (net_bind(&l->net, h->door_sock[i], VNAH_DOOR_PORT) != 0 ||
+                 net_listen(&l->net, h->door_sock[i], 1) != 0)) {
+                net_close(&l->net, h->door_sock[i]);
+                h->door_sock[i] = -1;
+            }
+        }
+    }
+
     h->up = 1;
     uart_puts("  [VNA] node ");
     put_hex_bytes(h->idn.id.b, 8);
@@ -375,6 +504,63 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
         vna_settle(h, now);
     }
     vna_drain_link(h, now);
+
+    /* The bus and the door. The space ticks (host lookups, presence,
+     * member expiry) and the door ages its streams; then each listener's
+     * accepted conn feeds what arrived, sends what the door produced —
+     * one segment at a time, the stack's stop-and-wait — and re-listens
+     * when it ends. */
+    vna_spaces_tick(&h->spaces, now);
+    vna_door_tick(&h->door, now);
+    for (i = 0; i < VNA_DOOR_CONNS; i++) {
+        int32_t ds = h->door_sock[i], dc = h->door_slot[i];
+        uint8_t buf[VNAH_DOOR_TX];
+        int32_t n;
+        if (ds < 0) { /* the socket closed through: take a fresh listener */
+            int32_t ns = net_socket(&h->l->net, SOCK_TCP);
+            if (ns >= 0 && net_bind(&h->l->net, ns, VNAH_DOOR_PORT) == 0 &&
+                net_listen(&h->l->net, ns, 1) == 0)
+                h->door_sock[i] = ns;
+            else if (ns >= 0)
+                net_close(&h->l->net, ns);
+            continue;
+        }
+        if (dc < 0) {
+            socket_t *s = &h->l->net.sockets[ds];
+            if (s->tcp_idx >= 0 && h->l->net.tcp_conns[s->tcp_idx].state == TCPS_CLOSED) {
+                net_close(&h->l->net, ds); /* the FIN exchange drained: free it */
+                h->door_sock[i] = -1;
+                continue;
+            }
+            if (net_accept(&h->l->net, ds) < 0) continue; /* still listening */
+            dc = vna_door_open(&h->door);
+            if (dc < 0) { /* all door conns busy: hang up on the extra peer */
+                net_close(&h->l->net, ds);
+                h->door_sock[i] = -1;
+                continue;
+            }
+            h->door_slot[i] = dc;
+        }
+        while ((n = net_recv(&h->l->net, ds, buf, sizeof buf)) > 0)
+            vna_door_input(&h->door, (uint32_t) dc, buf, (uint32_t) n);
+        while (h->door_tx_off[i] >= h->door_tx_len[i]) {
+            uint32_t m = vna_door_pull(&h->door, (uint32_t) dc, h->door_tx[i], VNAH_DOOR_TX);
+            if (!m) break;
+            h->door_tx_len[i] = (uint16_t) m;
+            h->door_tx_off[i] = 0;
+        }
+        if (h->door_tx_off[i] < h->door_tx_len[i]) {
+            int32_t w = net_send(&h->l->net, ds, h->door_tx[i] + h->door_tx_off[i],
+                                 (uint32_t) (h->door_tx_len[i] - h->door_tx_off[i]));
+            if (w > 0) h->door_tx_off[i] += (uint16_t) w;
+        }
+        if (h->door.conn[dc].state == VNA_DOOR_DONE || net_accept(&h->l->net, ds) < 0) {
+            net_close(&h->l->net, ds); /* FIN while established, frees when drained */
+            vna_door_close(&h->door, (uint32_t) dc);
+            h->door_slot[i] = -1;
+            h->door_tx_len[i] = h->door_tx_off[i] = 0;
+        }
+    }
 
     /* the re-send ring first (older datagrams), then whatever the node just
      * queued */

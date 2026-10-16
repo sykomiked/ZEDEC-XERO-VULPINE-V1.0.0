@@ -56,6 +56,21 @@
  * declaration graph was sound. */
 #include "zxv_decl.h"
 
+/* The https base the seed's door names at /boot.src: the first https://
+ * gateway line in UPSTREAM.CID (hydration skips https; the browser needs
+ * it — it is where boot.json and boot.pack live). NULL when none is set. */
+static const char *door_src_of(const hw_models_t *m)
+{
+    static const char https[] = "https://";
+    for (uint32_t i = 0; i < m->ngateway; i++) {
+        uint32_t j;
+        for (j = 0; j < sizeof https - 1; j++)
+            if (m->gateway[i][j] != https[j]) break;
+        if (j == sizeof https - 1) return m->gateway[i];
+    }
+    return 0;
+}
+
 static void boot_msg(const char *msg) {
     uint32_t eid = boot_evidence_record(msg);
     uart_puts("[E");
@@ -578,6 +593,7 @@ void kernel_main_x86_64(uint32_t mb2_magic, uint64_t mb2_info)
                 uart_puts("  [SEAL] the network was sealed; attach the missing discs\n");
             } else if (sn_link_up(&link, hp, &hreg, &clk, 0)) {
                 if (models.npeer && vna_host_start(&vna, &link, models.peer, models.npeer,
+                                                   door_src_of(&models),
                                                    x86_has_rdrand() ? x86_rdrand32 : 0)) {
                     vna_report_next = x86_ms(0) + 60000u;
                 }

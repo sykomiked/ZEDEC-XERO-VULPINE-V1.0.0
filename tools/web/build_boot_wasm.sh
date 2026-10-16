@@ -56,6 +56,7 @@ trap 'rm -f "$tmp"' EXIT
     -Wall -Wextra -Werror \
     -I"$K/include" -I"$K/src/zui" -I"$K/src/font" -I"$K/src/launch" -I"$K/src/emu" \
     -I"$K/src/vinea" -I"$K/src/lpres" -I"$K/src/event_space" -I"$K/src/mlkem" -I"$K/src/modbind" \
+    -I"$K/src" \
     -Wl,--no-entry -Wl,--strip-all -Wl,-z,stack-size=1048576 \
     "$R/web/boot/zxv_boot_wasm.c" "$K/src/zui/zui_boot.c" "$K/src/zui/zui_vec.c" \
     "$K/src/zui/zui_progress.c" "$K/src/zui/zui_canvas.c" "$K/src/zui/zui_layout.c" \
@@ -66,6 +67,7 @@ trap 'rm -f "$tmp"' EXIT
     "$K/src/font/truetype.c" "$K/src/launch/zxl_launch.c" "$K/src/launch/zxl_synth.c" \
     "$K/src/vinea/vna_delta.c" "$K/src/vinea/vna_common.c" \
     "$K/src/lpres/lpres.c" "$K/src/mlkem/keccak.c" \
+    "$K/src/robin_debanks/sha256.c" \
     -o "$tmp"
 if [ "$mode" = check ]; then
     if ! cmp -s "$tmp" "$OUT"; then

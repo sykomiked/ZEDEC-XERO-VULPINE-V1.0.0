@@ -44,17 +44,40 @@ function pref(key, fallback)
     }
 }
 
+// The wasm carries the kernel's SHA-256 because WebCrypto only exists on a
+// secure origin — a seed serves this page over plain http on purpose.
+let zbRef = null, memRef = null;
+
+// Where the seal's own artifacts live when the page's origin doesn't carry
+// them: '' = same-origin relative; a seed answers boot.src with the https
+// base instead (its boot.json / boot.pack stay on the gateways).
+let base = '';
+const resolve = (p) => (base ? new URL(p, base).href : p);
+
 async function sha256hex(bytes)
 {
-    const d = await crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('');
+    let d;
+    if (crypto.subtle) {
+        d = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+    } else {
+        const zb = zbRef, memory = memRef;
+        zb.zb_sha_begin();
+        const scratch = zb.zb_sha_buf();
+        for (let off = 0; off < bytes.length; off += 65536) {
+            const span = bytes.subarray(off, off + 65536);
+            new Uint8Array(memory.buffer, scratch, span.length).set(span);
+            zb.zb_sha_feed(span.length);
+        }
+        d = new Uint8Array(memory.buffer, zb.zb_sha_out(), 32).slice();
+    }
+    return Array.from(d, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 // Stream one file, reporting every chunk; resolves to its bytes once its
 // hash matches.
 async function fetchChecked(entry, onBytes)
 {
-    const res = await fetch(entry.path, {cache : 'no-cache'});
+    const res = await fetch(resolve(entry.path), {cache : 'no-cache'});
     if (!res.ok) throw new Error(`${entry.path}: ${res.status} ${res.statusText}`);
     const out = new Uint8Array(entry.size);
     let at = 0;
@@ -145,6 +168,8 @@ async function boot()
     const wasm = await WebAssembly.instantiateStreaming(fetch('zxv_boot.wasm'));
     const zb = wasm.instance.exports;
     const memory = zb.memory;
+    zbRef = zb;
+    memRef = memory;
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     zb.zb_init(reduce ? 1 : 0, pref('zxv.sound.boot', true) ? 1 : 0);
 
@@ -280,7 +305,7 @@ async function boot()
         }
         (async () => {
             try {
-                const res = await fetch(app.icon, {cache : 'no-cache'});
+                const res = await fetch(resolve(app.icon), {cache : 'no-cache'});
                 if (!res.ok) throw new Error(`${app.icon}: ${res.status}`);
                 const len = +res.headers.get('content-length') || 0;
                 let buf = new Uint8Array(len || 65536);
@@ -387,12 +412,22 @@ async function boot()
 
     // the system, from the sealed root
     try {
-        const res = await fetch('boot.json', {cache : 'no-cache'});
-        if (!res.ok) throw new Error(`boot.json: ${res.status} ${res.statusText}`);
+        let res = await fetch('boot.json', {cache : 'no-cache'});
+        if (!res.ok) {
+            // A seed's door carries only the doorway files — it names the
+            // https base for the seal's own artifacts at /boot.src, and the
+            // gateways' CORS lets an http origin fetch them.
+            const src = await fetch('boot.src', {cache : 'no-cache'});
+            if (!src.ok)
+                throw new Error(`boot.json: ${res.status} ${res.statusText}`);
+            base = (await src.text()).trim().replace(/\/*$/, '/');
+            res = await fetch(`${base}boot.json`, {cache : 'no-cache'});
+            if (!res.ok)
+                throw new Error(`boot.json: ${res.status} ${res.statusText}`);
+        }
         manifest = await res.json();
-        if (!crypto.subtle)
-            throw new Error(
-                'this page needs a secure origin (https or localhost) to check the files');
+        if (!crypto.subtle && !zb.zb_sha_begin)
+            throw new Error('no way to check the files on this origin');
         const logos = LOGOS.map((k) => manifest.logos && manifest.logos[k]).filter(Boolean);
         const files = [...logos, ...(manifest.font ? [manifest.font] : []),
                        ...(manifest.system || []) ];
@@ -443,7 +478,7 @@ async function boot()
             // gateway that does not range falls back to the single stream.
             let ranged = false;
             try {
-                const probe = await fetch(pe.path,
+                const probe = await fetch(resolve(pe.path),
                     {cache : 'no-cache', headers : {Range : 'bytes=0-0'}});
                 ranged = probe.status === 206;
                 if (probe.body) probe.body.cancel();
@@ -453,7 +488,7 @@ async function boot()
                 const lane = async (i) => {
                     const lo = Math.floor(pe.size * i / LANES),
                           hi = Math.floor(pe.size * (i + 1) / LANES);
-                    const r = await fetch(pe.path, {cache : 'no-cache',
+                    const r = await fetch(resolve(pe.path), {cache : 'no-cache',
                         headers : {Range : `bytes=${lo}-${hi - 1}`}});
                     if (r.status !== 206)
                         throw new Error(`${pe.path}: lane answered ${r.status}`);
@@ -474,7 +509,7 @@ async function boot()
                 await Promise.all([...Array(LANES).keys()].map(lane));
             } else {
                 say(`loading the system — one file, ${mib(pe.size)} MiB`);
-                const res = await fetch(pe.path, {cache : 'no-cache'});
+                const res = await fetch(resolve(pe.path), {cache : 'no-cache'});
                 if (!res.ok) throw new Error(`${pe.path}: ${res.status} ${res.statusText}`);
                 const reader = res.body.getReader();
                 let at = 0, mark = 0;

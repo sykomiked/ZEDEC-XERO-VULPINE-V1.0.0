@@ -137,8 +137,10 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
         return;
     }
     c->head_len = c->head_sent = 0;
-    put_head(c, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n"
-                "Access-Control-Allow-Origin: *\r\nConnection: close\r\nContent-Length: ");
+    const char *ct = d->type ? d->type(d->ctx, c->path, c->path_len) : 0;
+    put_head(c, "HTTP/1.1 200 OK\r\nContent-Type: ");
+    put_head(c, ct && ct[0] ? ct : "application/octet-stream");
+    put_head(c, "\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\nContent-Length: ");
     put_head_u64(c, (uint64_t) sz);
     put_head(c, "\r\n\r\n");
     c->body_off = 0;
@@ -160,13 +162,14 @@ static void on_body(vna_door_t *d, vna_door_conn_t *c)
     c->state = VNA_DOOR_SEND;
 }
 
-void vna_door_init(vna_door_t *d, void *ctx, vna_door_size_fn size, vna_door_body_fn body,
-                   vna_door_gossip_fn gossip)
+void vna_door_init(vna_door_t *d, void *ctx, vna_door_size_fn size, vna_door_type_fn type,
+                   vna_door_body_fn body, vna_door_gossip_fn gossip)
 {
     if (!d) return;
     vna_zero(d, sizeof *d);
     d->ctx = ctx;
     d->size = size;
+    d->type = type;
     d->body = body;
     d->gossip = gossip;
     vna_delta_page_init(&d->page);
@@ -333,7 +336,8 @@ void vna_door_tick(vna_door_t *d, uint64_t now)
     }
 }
 
-int vna_door_delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick)
+static int delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick,
+                    int gossip)
 {
     if (!d || !bytes) return VNA_ERR_ARG;
     int st = vna_delta_apply(&d->page, bytes, n, tick);
@@ -349,8 +353,18 @@ int vna_door_delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t 
     e->tick = tick;
     e->len = (uint16_t) n;
     vna_copy(e->bytes, bytes, n);
-    if (d->gossip) d->gossip(d->ctx, bytes, n);
+    if (gossip && d->gossip) d->gossip(d->ctx, bytes, n);
     return st;
+}
+
+int vna_door_delta_in(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick)
+{
+    return delta_in(d, bytes, n, tick, 1);
+}
+
+int vna_door_delta_hear(vna_door_t *d, const uint8_t *bytes, uint32_t n, uint64_t tick)
+{
+    return delta_in(d, bytes, n, tick, 0);
 }
 
 const vna_delta_page_t *vna_door_page(const vna_door_t *d)

@@ -497,6 +497,8 @@ verify-all: test
 	$(MAKE) --no-print-directory test-vna-delta
 	@echo "=== vinea door: the seed's plain-http door — files, CID blocks, the l2 stream ===";
 	$(MAKE) --no-print-directory test-vna-door
+	@echo "=== door stack: wire-level tcp→http→l2 through the real net stack ===";
+	$(MAKE) --no-print-directory test-door-stack
 	@echo "=== aipi: content-addressed functions (GET by hash, EXECUTE with checker/cert/quorum, escrow, privacy) ===";
 	$(MAKE) --no-print-directory test-aipi
 	@echo "=== aipi over vinea: signed calls and claims, executors asked, providers found in the DHT, bounty notices ===";
@@ -2179,6 +2181,12 @@ test-vinea-space:
 .PHONY: test-vna-door
 test-vna-door:
 	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Iinclude src/vinea/test_vna_door.c src/vinea/vna_door.c src/vinea/vna_delta.c src/vinea/vna_common.c src/lpres/lpres.c src/mlkem/keccak.c -o /tmp/test_vna_door && /tmp/test_vna_door > /tmp/test_vna_door.log 2>&1 && echo "[PASS] test_vna_door" || { tail -40 /tmp/test_vna_door.log; echo "[FAIL] test_vna_door"; exit 1; }
+
+# Door stack (tests/host/test_door_stack.c): the door driven by real TCP
+# frames through net_rx_packet — handshake, file GET, POST /l2, the stream.
+.PHONY: test-door-stack
+test-door-stack:
+	gcc -std=c11 -O1 -g -Wall -Werror -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all -DTEST_HOST -Isrc/lpres -Isrc/event_space -Isrc/surplus -Isrc/modbind -Isrc/net -Isrc/iphase -Iinclude ../tests/host/test_door_stack.c src/net/net.c src/net/tcp.c src/net/dhcp.c src/net/dns.c src/iphase/iphase_core.c src/vinea/vna_door.c src/vinea/vna_delta.c src/vinea/vna_common.c src/lpres/lpres.c src/mlkem/keccak.c -o /tmp/test_door_stack && /tmp/test_door_stack > /tmp/test_door_stack.log 2>&1 && echo "[PASS] test_door_stack" || { tail -40 /tmp/test_door_stack.log; echo "[FAIL] test_door_stack"; exit 1; }
 
 # Vinea delta (src/vinea/vna_delta.h): the L2 state bus's payload and page.
 .PHONY: test-vna-delta

@@ -337,6 +337,7 @@ SRCS := \
     kernel/src/vinea/vna_cmd.c \
     kernel/src/vinea/vna_common.c \
     kernel/src/vinea/vna_delta.c \
+    kernel/src/vinea/vna_door.c \
     kernel/src/vinea/vna_econ.c \
     kernel/src/vinea/vna_file.c \
     kernel/src/vinea/vna_frame.c \
@@ -646,6 +647,14 @@ ZXV_GENDIR    := $(OBJDIR)/gen
 ZXV_PHASE_HDR := $(ZXV_GENDIR)/zxv_phase_table.h
 $(shell mkdir -p $(ZXV_GENDIR) && sh $(CURDIR)/build_system/gen_phase_table.sh $(CURDIR)/$(ZXV_PHASE_HDR) 2> $(CURDIR)/$(ZXV_GENDIR)/phase_census.txt)
 CFLAGS += -I$(ZXV_GENDIR)
+
+# The doorway blobs the seed's plain-http door serves (tools/web/
+# gen_doorway_blobs.py): the committed doorway files as C arrays, rebuilt
+# every parse like the phase table so a stale embed cannot drift from the
+# sources. boot.json and boot.pack are seal-time artifacts and stay on the
+# gateways — the browser fetches them cross-origin over https.
+ZXV_DOORWAY_HDR := $(ZXV_GENDIR)/zxv_doorway_blobs.h
+$(shell python3 $(CURDIR)/tools/web/gen_doorway_blobs.py $(CURDIR) $(CURDIR)/$(ZXV_DOORWAY_HDR))
 
 # The table this kernel bakes into .rodata (build_system/mk_table.py,
 # docs/BUCKET.md): L0's CID, and the CID, size and SHA-256 of every swarm disc
