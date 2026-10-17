@@ -1,4 +1,13 @@
-# The lattice hardening layer — beyond post-quantum, cheaply
+# SCP-144 — Sicilian Crown Protection
+
+**The standard:** *Sicilian Crown Protection, 144-dimensional.* The name
+carries the architecture: the **Crown** is the sovereign heritage reserve
+(the first of the three tribute rails), and **144** is the self-dual
+lattice anchor (F12, where `Λ = Λ*` snaps back). SCP-144 is the hardening
+layer that stands behind the post-quantum handshake — the system's own
+geometry as a second, independent security assumption.
+
+
 
 Post-quantum cryptography (ML-KEM, ML-DSA) rests on the hardness of
 lattice problems in *fixed, published* lattices (the NIST modules). The
@@ -57,13 +66,14 @@ party does a hash and a compare; the adversary does a lattice search.
   public norm) and (w mod m_i == the public residues)`. No floating
   point, no probabilistic check that can be gamed.
 
-## The layered handshake
+## The SCP-144 handshake
 
 ```
+SCP-144 handshake:
 1. the identity seed  ->  the lattice point v            (the peer's own)
 2. the public invariant  = project(v)                   (norm + residues)
 3. the PQ handshake       = ML-KEM-1024 + ML-DSA-87     (the standard)
-4. the lattice proof      = w, a close vector           (the factor)
+4. the lattice proof      = w, a close vector           (the Crown factor)
 5. the session key        = KDF(PQ secret || v)         (both, in series)
 ```
 

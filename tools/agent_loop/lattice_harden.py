@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# lattice_harden.py — the lattice hardening factor: a proof-of-lattice-
-# work that stands behind the post-quantum handshake. The peer's secret is
+# lattice_harden.py — SCP-144 (Sicilian Crown Protection, 144-D): the
+# lattice hardening factor that stands behind the post-quantum handshake.
 # a Zeckendorf point on the Fibonacci ladder; the public is its projection
 # (norm + residues); the proof is a close vector, cheap for the peer who
 # holds the secret and a closest-vector search for anyone who does not.
@@ -21,7 +21,7 @@ MODULI = [7, 13, 31, 89]
 def point_from_seed(seed: bytes):
     """The secret lattice point: a Zeckendorf vector over the ladder,
     derived deterministically from the identity seed. Exact integers."""
-    h = hashlib.sha3_256(b"zxv/lattice/point/v1" + seed).digest()
+    h = hashlib.sha3_256(b"SCP-144/point/v1" + seed).digest()
     n = int.from_bytes(h[:8], "big") % (FIB[-1] * 8) or 1
     vec = [0] * DIM
     i = DIM - 1
@@ -71,7 +71,7 @@ def verify(w, public):
 
 
 def self_test():
-    print("== the lattice hardening factor: the three spaces ==")
+    print("== SCP-144 (Sicilian Crown Protection, 144-D): the three spaces ==")
     seed = b"zxv/node/identity/seed/example"
     v = point_from_seed(seed)
     pub = project(v)
