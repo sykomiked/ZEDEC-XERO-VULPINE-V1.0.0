@@ -173,7 +173,11 @@ def checks_of(app_id):
         for pat in match_patterns(c)[:2]:
             if pat not in rows:
                 rows.append(pat)
-    return "\n".join(p["checks"] for p in rows) or "(no library checks for this app)"
+    out = []
+    for p in rows:
+        ck = p["checks"]
+        out.extend(ck if isinstance(ck, list) else [ck])
+    return "\n".join(out) or "(no library checks for this app)"
 
 
 def skeleton(app_id, node):

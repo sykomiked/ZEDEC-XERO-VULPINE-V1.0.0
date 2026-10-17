@@ -1,0 +1,45 @@
+# app warble: FAILED
+# verdict: check failed (line 40): check within_range: refused (every language)
+
+zxapp 1
+id warble
+matrix 50
+name Warble
+needs fs.read
+needs search
+needs peers
+
+provides modular_draw num seed members step
+provides limit_excess num value limit
+provides within_range truth value min max
+provides composite_key num high low
+logic trebago modular_draw <<
+trebago modular_draw
+  in  seed members step
+  out r
+  r = 0
+end
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic eve within_range <<
+eve zxv
+d = 0 .. 1000000
+
+within_range {
+  value: d 0 .. 1000000
+}
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check modular_draw seed=1,1,1,2 members=10,10,10,7 step=0,1,2,0 = 5,2,9,6
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check within_range value=0,50,100,101 min=0,0,0,0 max=100,100,100,100 = true,true,true,false
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

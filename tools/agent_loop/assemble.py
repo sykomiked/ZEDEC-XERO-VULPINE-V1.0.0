@@ -86,7 +86,7 @@ def assemble_manifest(app_id, node, text):
     m = re.search(r"^needs:\s*(.+)$", spec, re.M)
     if m:
         needs = [x.strip().rstrip(".") for x in m.group(1).split(",")]
-    lines = ["zxapp 1", "id %s" % app_id, "matrix %s" % node.get("slot"),
+    lines = ["zxapp 1", "id %s" % app_id, "matrix %s" % (int(node.get("slot") or 0) % 144 or 1),
              "name %s" % app_id.replace("_", " ").title()]
     for n in needs:
         lines.append("needs %s" % n)
@@ -141,7 +141,7 @@ def main():
     m = re.search(r"^needs:\s*(.+)$", spec, re.M)
     if m:
         needs = [x.strip().rstrip(".") for x in m.group(1).split(",")]
-    lines = ["zxapp 1", "id %s" % args.app_id, "matrix %s" % node.get("slot"),
+    lines = ["zxapp 1", "id %s" % args.app_id, "matrix %s" % (int(node.get("slot") or 0) % 144 or 1),
              "name %s" % args.app_id.replace("_", " ").title()]
     for n in needs:
         lines.append("needs %s" % n)
