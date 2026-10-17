@@ -1,0 +1,47 @@
+# ZXV agent_loop result
+# task: draft ramble
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 6ae48e1337b6f8fe
+# tokens: 1800, 53.8s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'ramble' (layer 1, slot 25) from its wave spec. Read the spec first: it is the authority on what the app does and its exact ... (truncated)
+```zxapp
+zxapp 1
+id     ramble
+name   The Ramble
+version 1.0.0
+slot   25
+layer  L1
+matrix 1
+icon   icons/l1/025-ramble.svg
+budget 233
+needs  net
+needs  ledger.read
+needs  notify
+
+provides share num size total
+logic    kron share apps/blocks/ramble/share.kron
+logic    wasm share apps/blocks/ramble/share.wasm
+
+provides total num size
+logic    trebago total apps/blocks/ramble/total.tb
+
+provides entry_ok truth folder seq size mtime
+logic    myra entry_ok apps/blocks/ramble/entry.myra
+
+concepts.py
+use ramble 1
+concepts.py
+```
+
+[ Prompt: 43.3 t/s | Generation: 8.8 t/s ]
+
+
+Exiting...

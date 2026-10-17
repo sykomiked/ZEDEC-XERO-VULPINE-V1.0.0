@@ -1,0 +1,325 @@
+# ZXV agent_loop result
+# task: draft keystone
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: f9c1de62ed4078f1
+# tokens: 1800, 205.8s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'keystone' (layer 1, slot 4) from its wave spec. Read the spec first: it is the authority on what the app does and its exac ... (truncated)
+### 1. Manifest SKELETON
+
+```plaintext
+id: keystone
+slot: 4
+layer: 113
+needs:
+  - sys.read
+  - notify
+```
+
+### 2. Logic Entries
+
+```plaintext
+logic:
+  - name: display
+    code:
+      - type: C
+        language: C
+        source: 
+          - "void display() {"
+          - "    // Display logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void display() {"
+          - "    // Display logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure display() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Display logic here"
+          - "    end;"
+          - "end;"
+  - name: sound
+    code:
+      - type: C
+        language: C
+        source:
+          - "void sound() {"
+          - "    // Sound logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void sound() {"
+          - "    // Sound logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure sound() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Sound logic here"
+          - "    end;"
+          - "end;"
+  - name: keyboard
+    code:
+      - type: C
+        language: C
+        source:
+          - "void keyboard() {"
+          - "    // Keyboard logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void keyboard() {"
+          - "    // Keyboard logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure keyboard() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Keyboard logic here"
+          - "    end;"
+          - "end;"
+  - name: language
+    code:
+      - type: C
+        language: C
+        source:
+          - "void language() {"
+          - "    // Language logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void language() {"
+          - "    // Language logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure language() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Language logic here"
+          - "    end;"
+          - "end;"
+  - name: accessibility
+    code:
+      - type: C
+        language: C
+        source:
+          - "void accessibility() {"
+          - "    // Accessibility logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void accessibility() {"
+          - "    // Accessibility logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure accessibility() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Accessibility logic here"
+          - "    end;"
+          - "end;"
+  - name: network
+    code:
+      - type: C
+        language: C
+        source:
+          - "void network() {"
+          - "    // Network logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void network() {"
+          - "    // Network logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure network() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Network logic here"
+          - "    end;"
+          - "end;"
+  - name: sharing
+    code:
+      - type: C
+        language: C
+        source:
+          - "void sharing() {"
+          - "    // Sharing logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void sharing() {"
+          - "    // Sharing logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure sharing() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Sharing logic here"
+          - "    end;"
+          - "end;"
+  - name: hoard
+    code:
+      - type: C
+        language: C
+        source:
+          - "void hoard() {"
+          - "    // Hoard logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void hoard() {"
+          - "    // Hoard logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure hoard() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Hoard logic here"
+          - "    end;"
+          - "end;"
+  - name: model
+    code:
+      - type: C
+        language: C
+        source:
+          - "void model() {"
+          - "    // Model logic here"
+          - "}"
+      - type: Kron
+        language: Kron
+        source:
+          - "void model() {"
+          - "    // Model logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure model() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Model logic here"
+          - "    end;"
+          - "end;"
+  - name: budgets
+    code:
+      - type: Kron
+        language: Kron
+        source:
+          - "void budgets() {"
+          - "    // Budget logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure budgets() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Budget logic here"
+          - "    end;"
+          - "end;"
+  - name: limits
+    code:
+      - type: Kron
+        language: Kron
+        source:
+          - "void limits() {"
+          - "    // Limit logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure limits() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Limit logic here"
+          - "    end;"
+          - "end;"
+  - name: budget_sharing
+    code:
+      - type: Kron
+        language: Kron
+        source:
+          - "void budget_sharing() {"
+          - "    // Budget sharing logic here"
+          - "}"
+      - type: Ada
+        language: Ada
+        source:
+          - "procedure budget_sharing() is"
+          - "    declare"
+          - "        v: integer := 0;"
+          - "    begin"
+          - "        // Budget sharing logic here"
+          - "    end;"
+          - "end;"
+```
+
+### 3. Test Plan
+
+```plaintext
+test_plan:
+  - name: display
+    check:
+      - expect: "Display logic executed successfully"
+  - name: sound
+    check:
+      - expect: "Sound logic executed successfully"
+  - name: keyboard
+    check:
+      - expect: "Keyboard logic executed successfully"
+  - name: language
+    check:
+      - expect: "Language logic executed successfully"
+  - name: accessibility
+    check:
+      - expect: "Accessibility
+
+[ Prompt: 39.4 t/s | Generation: 10.0 t/s ]
+
+
+Exiting...

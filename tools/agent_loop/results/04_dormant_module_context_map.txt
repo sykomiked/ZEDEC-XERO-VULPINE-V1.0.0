@@ -1,0 +1,221 @@
+# ZXV agent_loop result
+# task: dormant module context map
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 8d0897955bf69194
+# tokens: 1200, 345.7s
+
+
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\ 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-f74e2fa
+model      : /home/ionet/zxv-cuda/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+ftype      : Q4_K - Medium
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Produce a table of every module family still unreached in the x86_64 kernel image, with its applicable context and a one-line reason it is not wired at  ... (truncated)
+```c
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <stdbool.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/shm.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/mount.h>
+#include <sys/wait.h>
+#include <sys/utsname.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h>
+#include <sys/ioctl.h
+
+[ Prompt: 34.0 t/s | Generation: 6.1 t/s ]
+
+
+Exiting...

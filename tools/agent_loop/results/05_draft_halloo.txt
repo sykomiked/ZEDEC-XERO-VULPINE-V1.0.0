@@ -1,0 +1,103 @@
+# ZXV agent_loop result
+# task: draft halloo
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: b2828cf555321d6b
+# tokens: 1800, 91.0s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'halloo' (layer 1, slot 28) from its wave spec. Read the spec first: it is the authority on what the app does and its exact ... (truncated)
+### Manifest Skeleton
+
+```mermaid
+graph TD
+    A[Manifest] --> B[id]
+    B --> C[slot]
+    C --> D[layer]
+    D --> E[needs]
+    E --> F[provides]
+    F --> G[budget]
+```
+
+### Logic Entries
+
+#### Eve (limits)
+```mermaid
+graph TD
+    A[Call Status] --> B[call.status]
+    B --> C[call.signal]
+    C --> D[call.accept]
+    D --> E[call.hangup]
+```
+
+#### Kron (RTP)
+```mermaid
+graph TD
+    A[Call Duration] --> B[call.duration]
+    B --> C[call.start]
+    C --> D[call.accept]
+    D --> E[call.hangup]
+```
+
+#### Myra (call history)
+```mermaid
+graph TD
+    A[Call History] --> B[call.history]
+    B --> C[call.start]
+    C --> D[call.accept]
+    D --> E[call.hangup]
+```
+
+### Test Plan
+
+1. **Call Ring Test**
+   - **Description**: Ensure that calls can ring when a contact is known, not blocked, and during quiet hours.
+   - **Steps**:
+     1. Make a call to a known contact.
+     2. Wait for the call to ring and accept the call.
+     3. Verify that the call was successfully accepted.
+     4. End the call.
+
+2. **Call Duration Test**
+   - **Description**: Verify that the call duration is recorded correctly in the call history.
+   - **Steps**:
+     1. Start a call and record the call duration.
+     2. End the call and verify the recorded duration.
+
+3. **Call Acceptance Test**
+   - **Description**: Ensure that calls can be accepted when a contact is known and not blocked.
+   - **Steps**:
+     1. Make a call to a known contact.
+     2. Wait for the call to ring and accept the call.
+     3. Verify that the call was successfully accepted.
+     4. End the call.
+
+4. **Call Hangup Test**
+   - **Description**: Ensure that calls can be ended and verified.
+   - **Steps**:
+     1. Start a call and end it.
+     2. Verify that the call was successfully ended.
+
+### Reuse Lines
+
+- **concepts.py** prints:
+  - "layer 28"
+  - "slot 28"
+  - "layer 28 does not lean on other layers' code"
+  - "layer 28 is build position 36 of 130"
+  - "layer 28 is the only layer that needs to provide 'peers', 'mic', 'camera', and 'notify'"
+
+### Notes
+
+- The test plan assumes the presence of the `call` module in the system. If it is not provided, additional steps may be required to simulate the call process.
+- The logic entries assume the availability of existing methods and APIs for media and signalling. Any missing functionality should be addressed by providing the appropriate methods or APIs.
+
+[ Prompt: 44.4 t/s | Generation: 9.1 t/s ]
+
+
+Exiting...

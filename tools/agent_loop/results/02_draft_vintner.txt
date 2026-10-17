@@ -1,0 +1,258 @@
+# ZXV agent_loop result
+# task: draft vintner
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: bc06a37451883956
+# tokens: 1800, 187.5s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'vintner' (layer 1, slot 91) from its wave spec. Read the spec first: it is the authority on what the app does and its exac ... (truncated)
+### 1. Manifest SKELETON
+
+```c
+#include "zxapp.h"
+
+ZX_APP_ID = "vintner"
+ZX_APP_SLOT = 91
+ZX_APP_LAYER = 1
+ZX_APP_NEEDS = {"ledger.read", "ledger.post"}
+ZX_APP_PROVIDES = {"ledger.open_account", "ledger.post", "ledger.entries", "ledger.balance"}
+ZX_APP_BUDGET = 5000
+```
+
+### 2. Logic Entries
+
+#### C/C++
+```cpp
+#include <sutra/sutra.h>
+
+void vintner_ledger_read() {
+    // Read ledger entries
+}
+
+void vintner_ledger_post() {
+    // Post ledger entries
+}
+
+void vintner_ledger_entries() {
+    // Return ledger entries
+}
+
+void vintner_ledger_balance() {
+    // Return ledger balance
+}
+```
+
+#### MUMPS
+```mumps
+DEFINE FUNCTION vintner_ledger_read()
+END
+
+DEFINE FUNCTION vintner_ledger_post()
+END
+
+DEFINE FUNCTION vintner_ledger_entries()
+END
+
+DEFINE FUNCTION vintner_ledger_balance()
+END
+```
+
+#### FORTRAN
+```fortran
+FUNCTION vintner_ledger_read()
+END
+
+FUNCTION vintner_ledger_post()
+END
+
+FUNCTION vintner_ledger_entries()
+END
+
+FUNCTION vintner_ledger_balance()
+END
+```
+
+#### COBOL
+```cobol
+FUNCTION vintner_ledger_read()
+END
+
+FUNCTION vintner_ledger_post()
+END
+
+FUNCTION vintner_ledger_entries()
+END
+
+FUNCTION vintner_ledger_balance()
+END
+```
+
+#### C++
+```cpp
+#include "sutra/sutra.h"
+
+void vintner_ledger_read() {
+    // Read ledger entries
+}
+
+void vintner_ledger_post() {
+    // Post ledger entries
+}
+
+void vintner_ledger_entries() {
+    // Return ledger entries
+}
+
+void vintner_ledger_balance() {
+    // Return ledger balance
+}
+```
+
+#### Forth
+```forth
+: vintner_ledger_read 1 ;
+: vintner_ledger_post 1 ;
+: vintner_ledger_entries 1 ;
+: vintner_ledger_balance 1 ;
+```
+
+### 3. Test Plan
+
+#### Check 1: Ledger Entries
+
+1. **Preconditions:**
+   - Ensure `vintner_ledger_read()` is called.
+   - Ensure `vintner_ledger_post()` is called.
+
+2. **Execution:**
+   - Call `vintner_ledger_read()` to read ledger entries.
+   - Call `vintner_ledger_post()` to post ledger entries.
+
+3. **Expected Results:**
+   - The ledger entries should be correctly read and posted.
+
+#### Check 2: Ledger Balance
+
+1. **Preconditions:**
+   - Ensure `vintner_ledger_read()` is called.
+   - Ensure `vintner_ledger_balance()` is called.
+
+2. **Execution:**
+   - Call `vintner_ledger_read()` to read ledger entries.
+   - Call `vintner_ledger_balance()` to check the balance.
+
+3. **Expected Results:**
+   - The ledger balance should be correct and accurate.
+
+#### Check 3: Sale Value
+
+1. **Preconditions:**
+   - Ensure `vintner_ledger_read()` is called.
+   - Ensure `vintner_ledger_post()` is called.
+
+2. **Execution:**
+   - Call `vintner_ledger_read()` to read ledger entries.
+   - Call `vintner_ledger_post()` to post ledger entries.
+   - Ensure the sale value is correctly calculated.
+
+3. **Expected Results:**
+   - The sale value should be accurate and correct.
+
+#### Check 4: Barrel Lot Labels
+
+1. **Preconditions:**
+   - Ensure `vintner_ledger_read()` is called.
+   - Ensure `vintner_ledger_post()` is called.
+
+2. **Execution:**
+   - Call `vintner_ledger_read()` to read ledger entries.
+   - Call `vintner_ledger_post()` to post ledger entries.
+   - Ensure the barrel lot labels are correctly retrieved.
+
+3. **Expected Results:**
+   - The barrel lot labels should be correct and accurate.
+
+### 4. Reuse Lines
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+- **CONCEPTS.tsv:**
+  - **Layer 1:** "ledger"
+  - **Layer 91:** "vintner"
+  - **Layer 0:** "vineyard"
+  - **Layer 73:** "coffer"
+  - **Layer 71:** "gleaner"
+  - **Layer 80:** "ninefold"
+  - **Layer 8:** "gatehouse"
+
+[ Prompt: 42.9 t/s | Generation: 9.9 t/s ]
+
+
+Exiting...

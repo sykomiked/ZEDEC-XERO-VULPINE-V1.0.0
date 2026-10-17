@@ -1,0 +1,89 @@
+# ZXV agent_loop result
+# task: card login pin flow review
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 9de3a19df7951f18
+# tokens: 1200, 361.5s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Review the player-card login flow in zxv_boot_wasm.c and boot.js: card person added via zb_card, pin typed into PIN_BUF, Enter raises card_pending, boot ... (truncated)
+### Review of Player-Card Login Flow
+
+#### Edge Cases
+
+1. **Switching Persons with Half-Typed Pin:**
+   - When switching persons, the pin is partially typed. This should not trigger the card pending state as the pin is not complete.
+   - **Fix:** Ensure the pin is fully typed before proceeding to the card pending state.
+
+2. **Pin Cleared on Wrong Answer:**
+   - If the pin is cleared on a wrong answer, the card pending state should be reset.
+   - **Fix:** Reset the card_pending state whenever the pin is cleared on a wrong answer.
+
+3. **The Wrong-Shake State:**
+   - If the door is set to a static origin (no /card), the card pending state should be reset.
+   - **Fix:** Ensure the card_pending state is reset when the door is set to a static origin.
+
+4. **What Happens When the Door is a Static Origin (No /card):**
+   - When the door is a static origin with no /card, the card pending state should be reset.
+   - **Fix:** Reset the card_pending state when the door is a static origin.
+
+5. **4-Card Bound:**
+   - If there are 4 cards bound, the card pending state should be reset.
+   - **Fix:** Reset the card_pending state when there are 4 cards bound.
+
+### Proposed Fixes
+
+1. **Switching Persons with Half-Typed Pin:**
+   ```c
+   if (pin_len < ZXV_CARDS * 16) {
+       card_pending = 0; // Reset the card_pending state
+   }
+   ```
+
+2. **Pin Cleared on Wrong Answer:**
+   ```c
+   if (card_pending && pin_len < ZXV_CARDS * 16) {
+       card_pending = 0; // Reset the card_pending state
+   }
+   ```
+
+3. **The Wrong-Shake State:**
+   ```c
+   if (door_static_origin) {
+       card_pending = 0; // Reset the card_pending state
+   }
+   ```
+
+4. **What Happens When the Door is a Static Origin (No /card):**
+   ```c
+   if (door_static_origin) {
+       card_pending = 0; // Reset the card_pending state
+   }
+   ```
+
+5. **4-Card Bound:**
+   ```c
+   if (n_cards == 4) {
+       card_pending = 0; // Reset the card_pending state
+   }
+   ```
+
+### Summary
+
+The proposed fixes ensure that the card_pending state is reset in the following scenarios:
+- When the pin is half-typed.
+- When the pin is cleared on a wrong answer.
+- When the door is set to a static origin (no /card).
+- When there are 4 cards bound.
+
+These fixes should handle the edge cases and ensure the correct state transitions in the player-card login flow.
+
+[ Prompt: 29.0 t/s | Generation: 5.8 t/s ]
+
+
+Exiting...

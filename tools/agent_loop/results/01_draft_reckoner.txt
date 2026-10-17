@@ -1,0 +1,369 @@
+# ZXV agent_loop result
+# task: draft reckoner
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: df6e7b303dbbbbca
+# tokens: 1800, 249.5s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'reckoner' (layer 1, slot 83) from its wave spec. Read the spec first: it is the authority on what the app does and its exa ... (truncated)
+zxapp 1
+id     banker
+name   The Banker
+version 1.0.0
+slot   83
+layer  83
+matrix  1
+icon   icons/l83/001-banker.svg
+budget 233
+needs  ledger.read
+needs  fs.write
+needs  print
+
+provides total num size
+logic    trebago total ledger.entries/ledger.check
+logic    sutra total ledger.entries/ledger.check
+
+provides period tax est
+logic    trebago period tax estimate ledger.entries/ledger.check
+logic    sutra period tax estimate ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides period totals
+logic    trebago period totals ledger.entries/ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides period tax estimate
+logic    sutra period tax estimate ledger.check
+
+provides period totals
+logic    trebago period totals ledger.entries/ledger.check
+
+provides period tax estimate
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax estimate
+logic    sutra period tax estimate ledger.check
+
+provides period tax estimate
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period totals
+logic    trebago period totals ledger.entries/ledger.check
+
+provides period totals
+logic    trebago period totals ledger.entries/ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax estimate
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides period tax est
+logic    sutra period tax estimate ledger.check
+
+provides books verification
+logic    trebago books verification ledger.check
+
+provides ledger check
+logic    eve ledger check ledger.entries/ledger.check
+
+provides report allowed
+logic    eve report allowed ledger.check
+
+provides tax figures
+logic    sutra tax figures ledger.check
+
+provides period tax est
+logic    sutra period
+
+[ Prompt: 42.7 t/s | Generation: 8.4 t/s ]
+
+
+Exiting...

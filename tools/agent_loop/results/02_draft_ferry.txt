@@ -1,0 +1,259 @@
+# ZXV agent_loop result
+# task: draft ferry
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 6a33319269c1fa10
+# tokens: 1800, 181.5s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'ferry' (layer 1, slot 12) from its wave spec. Read the spec first: it is the authority on what the app does and its exact  ... (truncated)
+### Manifest Skeleton
+
+```markdown
+manifest:
+  id: ferry
+  slot: 12
+  layer: 11
+  needs:
+    - fs.read
+    - fs.write
+    - peers
+    - backup
+  provides: {}
+  budget: {}
+```
+
+### Logic Entries
+
+#### C/C++ (view and model)
+
+```cpp
+// ferry.cpp
+#include <zxapp.h>
+#include <zxvd.h>
+
+void ferry() {
+    // Define shared variables
+    uint64_t space_size = 1024 * 1024; // Example space size
+    uint64_t current_file_size = 0;
+
+    // Main loop
+    while (true) {
+        // Check if there are files to move
+        if (fs.read()) {
+            // Read file size
+            uint64_t file_size = fs.read();
+            // Check if enough space
+            if (space_size >= file_size) {
+                // Write file to target
+                fs.write(file_size);
+                // Update space size
+                space_size -= file_size;
+                // Increment progress
+                current_file_size += file_size;
+            } else {
+                // Notify that space is full
+                fs.write(1);
+            }
+        }
+        // Wait for next update
+        zxvd_wait();
+    }
+}
+
+// ferry.zxvd
+void zxvd_ferry() {
+    // Initialize space size
+    uint64_t space_size = 1024 * 1024;
+    // Initialize current file size
+    uint64_t current_file_size = 0;
+
+    // Main loop
+    while (true) {
+        // Check if there are files to move
+        if (fs.read()) {
+            // Read file size
+            uint64_t file_size = fs.read();
+            // Check if enough space
+            if (space_size >= file_size) {
+                // Write file to target
+                fs.write(file_size);
+                // Update space size
+                space_size -= file_size;
+                // Increment progress
+                current_file_size += file_size;
+            } else {
+                // Notify that space is full
+                fs.write(1);
+            }
+        }
+        // Wait for next update
+        zxvd_wait();
+    }
+}
+```
+
+#### Ada/Eve (limits)
+
+```ada
+-- ferry.ad
+with Eve;
+procedure Ferry is
+    use Eve;
+    space_size : Eve.Int := 1024 * 1024; -- Example space size
+    current_file_size : Eve.Int := 0; -- Current file size
+
+begin
+    while True loop
+        -- Check if there are files to move
+        if fs.read then
+            -- Read file size
+            file_size := fs.read;
+            -- Check if enough space
+            if space_size >= file_size then
+                -- Write file to target
+                fs.write(file_size);
+                -- Update space size
+                space_size := space_size - file_size;
+                -- Increment progress
+                current_file_size := current_file_size + file_size;
+            else
+                -- Notify that space is full
+                fs.write(1);
+            end if;
+        end if;
+        -- Wait for next update
+        wait;
+    end loop;
+end Ferry;
+```
+
+#### MUMPS/Myra (records)
+
+```mumps
+-- ferry.m
+with myra;
+myra.define ferry, type array, length 1024 * 1024, initial value 0;
+myra.define current_file_size, type long, initial value 0;
+
+while true do [
+    if fs.read then [
+        file_size := fs.read;
+        if space_size >= file_size then [
+            fs.write file_size;
+            space_size := space_size - file_size;
+            current_file_size := current_file_size + file_size;
+        ] else [
+            fs.write 1;
+        ];
+    ];
+    wait;
+];
+```
+
+#### APL/Kron (arrays)
+
+```apl
+-- ferry.k
+with kron;
+ferry: (0, 1, 2, ..., 1024 * 1024) : 0;  // Example space size
+current_file_size: (0, 1, 2, ..., 1024 * 1024) : 0;  // Current file size
+
+while true do [
+    if fs.read then [
+        file_size := fs.read;
+        if ferry <= file_size then [
+            fs.write file_size;
+            ferry := ferry - file_size;
+            current_file_size := current_file_size + file_size;
+        ] else [
+            fs.write 1;
+        ];
+    ];
+    wait;
+];
+```
+
+#### COBOL/Sutra (money and ledgers)
+
+```cobol
+-- ferry.cob
+with sutra;
+ferry: (0, 1, 2, ..., 1024 * 1024) : 0;  // Example space size
+current_file_size: (0, 1, 2, ..., 1024 * 1024) : 0;  // Current file size
+
+while true do [
+    if fs.read then [
+        file_size := fs.read;
+        if ferry <= file_size then [
+            fs.write file_size;
+            ferry := ferry - file_size;
+            current_file_size := current_file_size + file_size;
+        ] else [
+            fs.write 1;
+        ];
+    ];
+    wait;
+];
+```
+
+### Test Plan
+
+```markdown
+test_plan:
+  description: Ferry test plan
+  steps:
+    - step: Start node
+    - step: Configure node
+    - step: Run ferry logic
+    - step: Monitor progress and space usage
+    - step: Stop node
+```
+
+### Reuse Lines
+
+```markdown
+reuse_lines:
+  - concepts.py: "ferry"
+  - CONCEPTS.tsv: "ferry: layer 12, slot 12, layer 11, needs: fs.read, fs.write, peers, backup"
+```
+
+### Complete Code
+
+```c
+// ferry.c
+#include <zxapp.h>
+#include <zxvd.h>
+#include <unistd.h>
+
+void ferry() {
+    uint64_t space_size = 1024 * 1024; // Example space size
+    uint64_t current_file_size = 0;
+
+    while (true) {
+        if (fs.read()) {
+            uint64_t file_size = fs.read();
+            if (space_size >= file_size) {
+                fs.write(file_size);
+                space_size -= file_size;
+                current_file_size += file_size;
+            } else {
+                fs.write(1);
+            }
+        }
+        zxvd_wait();
+    }
+}
+```
+
+This proposal covers the manifest skeleton, logic entries in each language, a test plan, and the reuse lines.
+
+[ Prompt: 45.9 t/s | Generation: 8.8 t/s ]
+
+
+Exiting...

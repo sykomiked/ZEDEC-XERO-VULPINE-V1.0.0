@@ -1,0 +1,81 @@
+# ZXV agent_loop result
+# task: draft kitling
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 3f93d13448979cb7
+# tokens: 1800, 112.1s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'kitling' (layer 1, slot 62) from its wave spec. Read the spec first: it is the authority on what the app does and its exac ... (truncated)
+zxapp 1
+id     kitling
+name   Chiglet Companion
+version 1.0.0
+slot   62
+layer  L1
+matrix 1
+icon   icons/l1/062-kitling.svg
+budget 233
+needs  swarm.ask
+needs  ai.ask
+needs  notify
+
+provides companion.dna
+logic    kron companion.dna apps/blocks/bank/kitling/dna.kron
+
+provides companion.mood
+logic    kron companion.mood apps/blocks/bank/kitling/mood.kron
+
+provides companion.generation
+logic    kron companion.generation apps/blocks/bank/kitling/generation.kron
+
+provides swarm.state
+logic    kron swarm.state apps/blocks/bank/kitling/state.kron
+
+provides swarm.ask
+logic    kron swarm.ask apps/blocks/bank/kitling/ask.kron
+
+provides ai.ask
+logic    kron ai.ask apps/blocks/bank/kitling/ask.kron
+
+provides notify
+logic    kron notify apps/blocks/bank/kitling/notify.kron
+
+provides total companion.dna companion.mood companion.generation swarm.state
+logic    trebago total apps/blocks/bank/kitling/total.kron
+
+provides companion.dna companion.mood companion.generation swarm.ask ai.ask notify
+logic    myra companion.dna apps/blocks/bank/kitling/dna.myra
+logic    myra companion.mood apps/blocks/bank/kitling/mood.myra
+logic    myra companion.generation apps/blocks/bank/kitling/generation.myra
+logic    myra swarm.state apps/blocks/bank/kitling/state.myra
+logic    myra swarm.ask apps/blocks/bank/kitling/ask.myra
+logic    myra ai.ask apps/blocks/bank/kitling/ask.myra
+logic    myra notify apps/blocks/bank/kitling/notify.myra
+
+--- check lines ---
+logic    kron companion.dna apps/blocks/bank/kitling/dna.kron
+logic    kron companion.mood apps/blocks/bank/kitling/mood.kron
+logic    kron companion.generation apps/blocks/bank/kitling/generation.kron
+logic    kron swarm.state apps/blocks/bank/kitling/state.kron
+logic    kron swarm.ask apps/blocks/bank/kitling/ask.kron
+logic    kron ai.ask apps/blocks/bank/kitling/ask.kron
+logic    kron notify apps/blocks/bank/kitling/notify.kron
+
+logic    myra companion.dna apps/blocks/bank/kitling/dna.myra
+logic    myra companion.mood apps/blocks/bank/kitling/mood.myra
+logic    myra companion.generation apps/blocks/bank/kitling/generation.myra
+logic    myra swarm.state apps/blocks/bank/kitling/state.myra
+logic    myra swarm.ask apps/blocks/bank/kitling/ask.myra
+logic    myra ai.ask apps/blocks/bank/kitling/ask.myra
+logic    myra notify apps/blocks/bank/kitling/notify.myra
+
+[ Prompt: 41.1 t/s | Generation: 8.6 t/s ]
+
+
+Exiting...

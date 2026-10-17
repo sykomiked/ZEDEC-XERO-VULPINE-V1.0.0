@@ -71,6 +71,42 @@ def model_sections(text):
     return {k: "\n".join(v).strip() for k, v in out.items() if "\n".join(v).strip()}
 
 
+def assemble_manifest(app_id, node, text):
+    """The library form: build the complete manifest from the model's
+    logic sections and the criteria's pattern rows."""
+    from mk_criteria_v2 import logic_clauses, spec_of
+    spec = spec_of(node.get("task", ""))
+    rows = []
+    for c in logic_clauses(spec):
+        for pat in match_patterns(c)[:2]:
+            if pat not in rows:
+                rows.append(pat)
+    sections = model_sections(text)
+    needs = []
+    m = re.search(r"^needs:\s*(.+)$", spec, re.M)
+    if m:
+        needs = [x.strip().rstrip(".") for x in m.group(1).split(",")]
+    lines = ["zxapp 1", "id %s" % app_id, "matrix %s" % node.get("slot"),
+             "name %s" % app_id.replace("_", " ").title()]
+    for n in needs:
+        lines.append("needs %s" % n)
+    lines.append("")
+    for p in rows:
+        lines.append("provides %s %s %s" % (p["name"], p["kind"], p["args"]))
+    for p in rows:
+        lang = p["langs"].split(",")[0].strip()
+        body = sections.get(p["name"], "")
+        if not body:
+            body = DEFAULT_BODY.get(lang, "{entry}({args})").format(entry=p["name"],
+                                                                    args=p["args"])
+        lines.append("logic %s %s <<" % (lang, p["name"]))
+        lines.extend(body.split("\n"))
+        lines.append(".")
+    for p in rows:
+        lines.append(p["checks"])
+    return "\n".join(lines) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("app_id")

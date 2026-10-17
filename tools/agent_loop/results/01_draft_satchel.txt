@@ -1,0 +1,213 @@
+# ZXV agent_loop result
+# task: draft satchel
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: bdec3f4873dd76f8
+# tokens: 1800, 196.4s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'satchel' (layer 1, slot 7) from its wave spec. Read the spec first: it is the authority on what the app does and its exact ... (truncated)
+### 1. Manifest Skeleton
+
+```c
+#include "zxapp.h"
+
+// Manifest entries
+struct {
+    char id[16];  // Unique ID for this app
+    uint8_t slot; // Slot position in the kernel
+    uint8_t layer; // Layer position in the kernel
+    uint8_t needs[3]; // Needs array
+    uint8_t provides[3]; // Provides array
+    uint32_t budget; // Budget in units of a package
+} satchel;
+```
+
+### 2. Logic Entries
+
+```c
+// Logic entries
+struct {
+    char entry[10]; // Entry name
+    char value[128]; // Value for the entry
+    uint8_t type; // Type of entry (e.g., INT, STRING, etc.)
+    uint8_t layer; // Layer where this entry is used
+    uint8_t slot; // Slot where this entry is used
+} satchel_logic[] = {
+    {
+        "fs.read", "fs.read", 2, 0, 0
+    },
+    {
+        "fs.write", "fs.write", 2, 0, 0
+    },
+    {
+        "pkg.size", "pkg.size", 3, 1, 0
+    },
+    {
+        "pkg.files", "pkg.files", 3, 1, 0
+    },
+    {
+        "pkg.share", "pkg.share", 3, 1, 0
+    },
+    {
+        "pkg.record", "pkg.record", 3, 1, 0
+    },
+    {
+        "pkg.total_size", "pkg.total_size", 3, 1, 0
+    },
+    {
+        "pkg.total_files", "pkg.total_files", 3, 1, 0
+    },
+    {
+        "pkg.total_share", "pkg.total_share", 3, 1, 0
+    },
+    {
+        "pkg.total_record", "pkg.total_record", 3, 1, 0
+    },
+    {
+        "pkg.total_size_limit", "pkg.total_size_limit", 3, 1, 0
+    },
+    {
+        "pkg.files_limit", "pkg.files_limit", 3, 1, 0
+    },
+    {
+        "pkg.share_limit", "pkg.share_limit", 3, 1, 0
+    },
+    {
+        "pkg.record_limit", "pkg.record_limit", 3, 1, 0
+    },
+};
+```
+
+### 3. Test Plan
+
+```c
+// Test plan
+struct {
+    char test_name[128]; // Test name
+    uint8_t layer; // Layer where this test is used
+    uint8_t slot; // Slot where this test is used
+    uint8_t type; // Type of test (e.g., WRITE, READ, etc.)
+    uint32_t expected; // Expected result
+    uint32_t actual; // Actual result
+    char comment[128]; // Comment for the test
+} satchel_tests[] = {
+    {
+        "fs.read_test", 0, 0, 0, 0, 0, "fs.read_test", "fs.read_test"
+    },
+    {
+        "fs.write_test", 0, 0, 0, 0, 0, "fs.write_test", "fs.write_test"
+    },
+    {
+        "pkg.size_test", 0, 0, 0, 0, 0, "pkg.size_test", "pkg.size_test"
+    },
+    {
+        "pkg.files_test", 0, 0, 0, 0, 0, "pkg.files_test", "pkg.files_test"
+    },
+    {
+        "pkg.share_test", 0, 0, 0, 0, 0, "pkg.share_test", "pkg.share_test"
+    },
+    {
+        "pkg.record_test", 0, 0, 0, 0, 0, "pkg.record_test", "pkg.record_test"
+    },
+    {
+        "pkg.total_size_test", 0, 0, 0, 0, 0, "pkg.total_size_test", "pkg.total_size_test"
+    },
+    {
+        "pkg.total_files_test", 0, 0, 0, 0, 0, "pkg.total_files_test", "pkg.total_files_test"
+    },
+    {
+        "pkg.total_share_test", 0, 0, 0, 0, 0, "pkg.total_share_test", "pkg.total_share_test"
+    },
+    {
+        "pkg.total_record_test", 0, 0, 0, 0, 0, "pkg.total_record_test", "pkg.total_record_test"
+    },
+    {
+        "pkg.total_size_limit_test", 0, 0, 0, 0, 0, "pkg.total_size_limit_test", "pkg.total_size_limit_test"
+    },
+    {
+        "pkg.files_limit_test", 0, 0, 0, 0, 0, "pkg.files_limit_test", "pkg.files_limit_test"
+    },
+    {
+        "pkg.share_limit_test", 0, 0, 0, 0, 0, "pkg.share_limit_test", "pkg.share_limit_test"
+    },
+    {
+        "pkg.record_limit_test", 0, 0, 0, 0, 0, "pkg.record_limit_test", "pkg.record_limit_test"
+    },
+};
+```
+
+### 4. Reuse Lines
+
+```c
+// Reuse lines
+struct {
+    char concept_name[128]; // Name of the concept
+    char app_owner[128]; // Owner of the concept
+    uint8_t layer; // Layer where this concept is used
+    uint8_t slot; // Slot where this concept is used
+} satchel_concepts[] = {
+    {
+        "fs.read", "satchel", 0, 0
+    },
+    {
+        "fs.write", "satchel", 0, 0
+    },
+    {
+        "pkg.size", "satchel", 0, 0
+    },
+    {
+        "pkg.files", "satchel", 0, 0
+    },
+    {
+        "pkg.share", "satchel", 0, 0
+    },
+    {
+        "pkg.record", "satchel", 0, 0
+    },
+    {
+        "pkg.total_size", "satchel", 0, 0
+    },
+    {
+        "pkg.total_files", "satchel", 0, 0
+    },
+    {
+        "pkg.total_share", "satchel", 0, 0
+    },
+    {
+        "pkg.total_record", "satchel", 0, 0
+    },
+    {
+        "pkg.total_size_limit", "satchel", 0, 0
+    },
+    {
+        "pkg.files_limit", "satchel", 0, 0
+    },
+    {
+        "pkg.share_limit", "satchel", 0, 0
+    },
+    {
+        "pkg.record_limit", "satchel", 0, 0
+    },
+};
+```
+
+### Notes
+- The logic entries are written in C/C++.
+- The test plan is written in C/C++.
+- The reuse lines are written in C/C++.
+- The manifest skeleton is written in C/C++.
+- The logic entries are written in C/C++.
+- The test plan is written in C/C++.
+- The reuse lines are written in C/C++.
+- The manifest skeleton is written in C/C++.
+
+[ Prompt: 44.9 t/s | Generation: 9.2 t/s ]
+
+
+Exiting...

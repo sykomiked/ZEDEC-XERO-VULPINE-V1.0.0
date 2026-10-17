@@ -1,0 +1,98 @@
+# ZXV agent_loop result
+# task: cisex search ui review checklist
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: c0bad96c64a338f4
+# tokens: 1200, 383.0s
+
+
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\ 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-f74e2fa
+model      : /home/ionet/zxv-cuda/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+ftype      : Q4_K - Medium
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Produce a review checklist for the CISEX search panel in web/intro/index.html: bounds, wire-format conformance (KQ datagram, 0xB0 reply, 168-byte UBH en ... (truncated)
+### Review Checklist for CISEX Search Panel
+
+1. **Bounds and Wire Format Conformance:**
+   - Ensure the datagram size and payload offsets are correct (e.g., 21 bytes for UBH header, 126 bytes for payload).
+   - Verify that the envelope structure matches the expected 21-byte UBH header, 126-byte payload, and 21-byte integrity trailer.
+
+2. **Client-Side UBH Digest Verification:**
+   - Implement a function to verify the integrity of the UBH header by checking the first 3 bytes against the SHA-256 of the first 147 bytes.
+   - Ensure this function is consistent with the expected UBH header structure.
+
+3. **Failure Modes:**
+   - Verify that the system can handle scenarios where:
+     - The gateway lacks a node (e.g., missing or incorrect region information).
+     - The origin is stale (e.g., outdated or corrupted metadata).
+     - The envelope is malformed (e.g., incorrect payload length or format).
+
+4. **Verification Functions:**
+   - Implement functions to verify the integrity of the UBH header, payload, and integrity trailer.
+   - Ensure these functions are robust and handle all possible scenarios.
+
+5. **Test Cases:**
+   - Add test cases to verify the correctness of the verification functions under various failure modes.
+   - Ensure the test cases are comprehensive and cover all possible scenarios.
+
+6. **Code Coverage:**
+   - Ensure the verification functions are covered by test cases and that the system behaves correctly under all failure modes.
+   - Verify that the system gracefully handles and logs these failures without crashing.
+
+7. **Logging and Diagnostics:**
+   - Implement logging to capture and diagnose any failure modes.
+   - Ensure the system provides meaningful error messages or logs for each failure mode.
+
+8. **Documentation:**
+   - Document the failure modes and their handling in the system's user guide.
+   - Ensure the documentation is clear and easy to understand.
+
+9. **Security Considerations:**
+   - Ensure that the system is secure against potential attacks, such as denial of service (DoS) and replay attacks.
+   - Implement additional security measures as needed to protect against these attacks.
+
+10. **Performance Metrics:**
+    - Measure and document the performance impact of failure modes on system performance.
+    - Ensure the system remains responsive and performant under all failure modes.
+
+11. **User Experience:**
+    - Ensure that the system provides a good user experience in the face of failure modes.
+    - Implement fallback mechanisms or provide alternative options to mitigate any negative user impact.
+
+12. **Code Review:**
+    - Conduct a thorough code review of the verification functions to ensure they are correct and efficient.
+    - Ensure the code is well-documented and follows best practices for coding standards.
+
+By following these checklist items, you can ensure that the CISEX search panel is thoroughly tested and robust against various failure modes.
+
+[ Prompt: 29.0 t/s | Generation: 5.2 t/s ]
+
+
+Exiting...

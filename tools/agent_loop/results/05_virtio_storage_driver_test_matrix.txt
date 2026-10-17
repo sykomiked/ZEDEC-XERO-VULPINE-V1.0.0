@@ -1,0 +1,106 @@
+# ZXV agent_loop result
+# task: virtio storage driver test matrix
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 2d9990dbe316d85b
+# tokens: 1200, 396.9s
+
+
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\ 
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b1-f74e2fa
+model      : /home/ionet/zxv-cuda/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+ftype      : Q4_K - Medium
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Propose a test matrix for the vblk and vscsi drivers against the Contabo VPS hardware path (virtio-scsi + virtio-net, SeaBIOS, qcow2). Cover: boot accep ... (truncated)
+To test the vblk and vscsi drivers against the Contabo VPS hardware path, I propose the following test matrix:
+
+### Test Matrix
+
+#### 1. Boot Acceptance Markers
+- **[BOOT_OK]:** The kernel can successfully boot from the Contabo VPS hardware path.
+- **[MODELS_OK]:** The kernel can detect and boot from the correct hardware models.
+- **[SWARM_MOUNTED]:** The kernel can mount the swarm partition correctly.
+
+#### 2. Multi-Disk Layouts
+- **1x64MB disk:** The kernel can mount and use a single 64MB disk partition.
+- **1x256MB disk:** The kernel can mount and use a single 256MB disk partition.
+- **1x512MB disk:** The kernel can mount and use a single 512MB disk partition.
+- **2x256MB disks:** The kernel can mount and use two 256MB disk partitions.
+- **2x512MB disks:** The kernel can mount and use two 512MB disk partitions.
+- **4x256MB disks:** The kernel can mount and use four 256MB disk partitions.
+- **4x512MB disks:** The kernel can mount and use four 512MB disk partitions.
+
+#### 3. DMA Failure Injection
+- **Failures:** Inject DMA failures at various points during the driver operations.
+- **Recovery:** Check if the driver can recover from DMA failures without losing data.
+
+#### 4. Ring Exhaustion
+- **Exhaust:** Inject ring exhaustion at various stages of the driver operations.
+- **Resumption:** Check if the driver can resume operations without data loss.
+
+#### 5. Cross-Driver Parity
+- **Parity:** Check if the vblk and vscsi drivers can maintain parity with each other during operations.
+- **Data Integrity:** Ensure that data integrity is maintained across multiple operations.
+
+### Test Files
+
+#### 1. `test_vblk.c`
+- **Purpose:** Test the vblk driver against the Contabo VPS hardware path.
+- **Proposed Cases:**
+  - **[BOOT_OK]:** Ensure the kernel can boot from the Contabo VPS hardware path.
+  - **[MODELS_OK]:** Verify that the kernel can detect and boot from the correct hardware models.
+  - **[SWARM_MOUNTED]:** Confirm that the kernel can mount the swarm partition correctly.
+  - **[MULTI_DISK]:** Test the kernel on multiple disk layouts.
+
+#### 2. `test_vscsi.c`
+- **Purpose:** Test the vscsi driver against the Contabo VPS hardware path.
+- **Proposed Cases:**
+  - **[BOOT_OK]:** Ensure the kernel can boot from the Contabo VPS hardware path.
+  - **[MODELS_OK]:** Verify that the kernel can detect and boot from the correct hardware models.
+  - **[SWARM_MOUNTED]:** Confirm that the kernel can mount the swarm partition correctly.
+  - **[MULTI_DISK]:** Test the kernel on multiple disk layouts.
+
+#### 3. `test_vblk.c` and `test_vscsi.c` (common test cases)
+- **Purpose:** Common test cases for the vblk and vscsi drivers.
+- **Proposed Cases:**
+  - **DMA Failure Injection:** Inject DMA failures at various points and check recovery.
+  - **Ring Exhaustion:** Inject ring exhaustion at various stages and check resume.
+  - **Cross-Driver Parity:** Check data integrity and parity between vblk and vscsi drivers.
+
+### Additional Notes
+- **Existing Test Files:** `kernel/src/hwdrv/virtio_pci.c` and `kernel/src/hwdrv/test/test_virtio.c` cover parts of the test cases.
+- **Code:** Provide complete code for each test file without TODOs or stubs.
+- **Precision and Conciseness:** Ensure that each proposed test case is precise and concise, grounded in the provided files.
+
+This test matrix aims to thoroughly test the vblk and vscsi drivers against the Contabo VPS hardware path, covering boot acceptance, multi-disk layouts, DMA failures, ring exhaustion, and cross-driver parity with the AHCI path.
+
+[ Prompt: 29.9 t/s | Generation: 5.5 t/s ]
+
+
+Exiting...

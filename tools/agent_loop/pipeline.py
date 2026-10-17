@@ -119,6 +119,27 @@ def criteria_of(app_id):
     return "\n\n".join(parts)
 
 
+def checks_of(app_id):
+    """The exact check lines the assembled manifest will carry — the model
+    must write bodies that satisfy them."""
+    node = {"task": ""}
+    g = "/tmp/appgraph_chk.json"
+    import subprocess as sp
+    sp.run([sys.executable, os.path.join(ROOT, "tools/apps/app_graph.py"), "--json", g],
+           check=True, capture_output=True)
+    import json as _j
+    graph = _j.load(open(g))
+    node = graph["nodes"].get("app:" + app_id) or graph["nodes"].get(app_id) or {}
+    from mk_criteria_v2 import logic_clauses, spec_of
+    from patterns import match_patterns
+    rows = []
+    for c in logic_clauses(spec_of(node.get("task", ""))):
+        for pat in match_patterns(c)[:2]:
+            if pat not in rows:
+                rows.append(pat)
+    return "\n".join(p["checks"] for p in rows) or "(no library checks for this app)"
+
+
 def skeleton(app_id, node):
     """The deterministic parts of the manifest, pre-filled and correct:
     the header, the matrix, the needs. The model fills provides, logic
@@ -148,45 +169,25 @@ def prompt_for(app_id, node, verdict, last_text=""):
     spec = spec_text(app_id, node)
     lang = lang_rows(app_id)
     p = (
-        "You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding C11 "
-        "operating system. COMPLETE the manifest skeleton below (its header, matrix and "
-        "needs are already correct — keep them exactly) for the application '%s' "
-        "(layer %s, slot %s). Replace the # guidance lines with real provides, logic "
-        "and check lines; output the whole manifest starting with 'zxapp 1'.\n"
-        "--- skeleton ---\n%s\n--- end skeleton ---\n"
-        "NO C code, NO explanations, NO markdown fences — the raw manifest only. "
-        "It is parsed and TESTED by a running node; one syntax error fails it.\n"
-        "Reference manifests (follow exactly; the second is a real composed "
-        "app that passes the node's checks):\n---\n%s\n---\n%s\n---\n"
-        "Rules:\n"
-        "1. Header: zxapp 1 / id / name / version / slot / layer.\n"
-        "2. needs lines for every capability the spec names.\n"
-        "3. provides + logic lines in the assigned languages. CRITICAL: this app's "
-        "blocks DO NOT EXIST yet — every logic entry MUST use an INLINE source "
-        "(logic <lang> <entry> << then the source, then a line with only '.'). "
-        "NEVER write a path like apps/blocks/... — the loader will fail.\n"
-        "4. check lines for EVERY provided entry. THE CRITERIA'S INSTANTIATED "
-        "TABLE BELOW CARRIES THE EXACT CHECK FOR EACH PATTERN — copy it verbatim, "
-        "changing only the entry name to yours and the input names to your "
-        "provides' arg names in order. Do NOT invent the inputs or the answers. "
-        "Shape (verbatim from the criteria): "
-        "EXACTLY this grammar: check <entry> <input>=<v>[,<v>...] <input>=<v>... "
-        "= <answer>[,<answer>...]. The inputs' values are INTEGERS only; the "
-        "answer is the rows comma-separated: whole numbers, exact fractions "
-        "'n/d', or the truths true/false/neither, or the one word 'both' (the "
-        "languages disagree). Example: check heat_ok temp=0,450,451 = "
-        "true,true,false\n"
-        "5. needs lines may use ONLY these capabilities (no invented names): %s.\n"
-        "6. TRUTH entries are paraconsistent: their answers and check values are "
-        "true, false, both or neither (lpres) — NEVER 0/1 booleans. A claim that "
-        "holds and is contradicted is BOTH; one with no evidence is NEITHER. "
-        "Numeric entries answer exact rationals.\n"
-        "Assigned languages: %s.\n"
+        "You are the code engine for ZEDEC XERO VULPINE (ZXV), a freestanding C11 "
+        "operating system. The manifest's structure is ALREADY ASSEMBLED for the "
+        "application '%s' (matrix %s) — your ONLY job is the LOGIC CODE for each "
+        "entry in the criteria's table. Output one section per entry, exactly:\n"
+        "=== <entry> (<lang>)\n<the source>\n===\n"
+        "Write REAL code in the named language, matching the entry's args and the "
+        "check's exact expectations. The languages' real spellings (from the built "
+        "apps):\n"
+        "  trebago: 'trebago <entry>' then 'in  a, b' / 'out r' / 'r = <expr>' / 'end'\n"
+        "  eve: 'eve <app>' then '<domain> = <lo> .. <hi>' then '<block> { <arg>: <domain> <lo> .. <hi> }'\n"
+        "  kron: one line: '<answer-for-the-first-row>|<expression with _arg names>'\n"
+        "  myra: one line: '^<GLOBAL>(<arg>:<pic>, <arg>:<pic>) = <name>:<pic>!'\n"
+        "  sutra: the record (pictures) then the procedure (COMPUTE / IF)\n"
+        "The checks that will judge you (exact inputs and answers):\n%s\n"
+        "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
-        "The authored criteria — the exact entry tables and checks (follow "
-        "these precisely; they were written for this app):\n---\n%s\n---\n"
-        % (app_id, node.get("layer"), node.get("slot"), skeleton(app_id, node), REF, FEW,
-           ", ".join(CAPS), ", ".join(lang), spec[:3000], criteria_of(app_id)[:4000])
+        "The criteria (the exact entry table):\n---\n%s\n---\n"
+        % (app_id, node.get("slot"), checks_of(app_id), skeleton(app_id, node),
+           spec[:2500], criteria_of(app_id)[:2500])
     )
     if verdict:
         p += ("\nYour previous attempt failed the node's test with:\n%s\n" % verdict)
@@ -271,7 +272,10 @@ def main():
                 time.sleep(10)
                 continue
             try:
-                st, verdict = judge(text)
+                from assemble import assemble_manifest
+                man = assemble_manifest(o, node, text)
+                st, verdict = judge(man)
+                text = man
             except Exception as e:
                 log("%s attempt %d: testbed error %s" % (o, attempt, e))
                 continue

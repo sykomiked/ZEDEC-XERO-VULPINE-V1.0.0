@@ -1,0 +1,48 @@
+# ZXV agent_loop result
+# task: draft lockbox
+# model: qwen2.5-1.5b-instruct-q4_k_m.gguf
+# seed: 5921622
+# prompt sha256: 1a12d5709511c5ca
+# tokens: 1800, 56.3s
+
+> You are the drafting engine for ZEDEC XERO VULPINE (ZXV), a freestanding
+C11 operating system. You produce proposals for review: precise,
+concise, grounded in the files you are given. Never claim a change
+was made or tested. When asked for code, give complete code with no
+TODO, no stubs. Exact arithmetic only; no floating point for money.
+
+TASK: Draft the .zxapp application 'lockbox' (layer 1, slot 9) from its wave spec. Read the spec first: it is the authority on what the app does and its exact ... (truncated)
+```zxapp
+zxapp 1
+id     lockbox
+name   The Lockbox
+version 1.0.0
+slot   9
+layer  L1
+matrix 1
+icon   icons/l1/009-lockbox.svg
+budget 233
+needs  fs.read
+needs  fs.write
+needs  ai.ask
+view   zui/views/burrow.c
+model  apps/burrow_model.c
+
+provides share num size total
+logic    kron share apps/blocks/lockbox/share.kron
+logic    wasm share apps/blocks/lockbox/share.wasm
+
+provides total num size
+logic    trebago total apps/blocks/lockbox/total.tb
+
+provides entry_ok truth folder seq size mtime
+logic    myra entry_ok apps/blocks/lockbox/entry.myra
+
+check    kron share apps/blocks/lockbox/share.kron
+check    trebago total apps/blocks/lockbox/total.tb
+```
+
+[ Prompt: 41.3 t/s | Generation: 8.5 t/s ]
+
+
+Exiting...

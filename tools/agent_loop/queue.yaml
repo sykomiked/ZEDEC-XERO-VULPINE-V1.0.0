@@ -1,6 +1,6 @@
 - id: 1
-  title: draft reckoner
-  task: "Draft the .zxapp application 'reckoner' (layer 1, slot 83) from its wave\
+  title: draft toolchest
+  task: "Draft the .zxapp application 'toolchest' (layer 1, slot 126) from its wave\
     \ spec. Read the spec first: it is the authority on what the app does and its\
     \ exact logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp\
     \ manifest text, starting with the line 'zxapp 1' and ending at the last check\
@@ -31,15 +31,16 @@
     \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
     \ view and model (primary, runs), COBOL/sutra: money and ledgers (primary, runs),\
     \ FORTRAN/trebago: exact numerics (primary, runs), Ada/eve: limits (primary, runs),\
-    \ RPG/-: reports (primary, planned: needs Lingua front-end), Eiffel/-: contracts\
-    \ (primary, planned: needs Lingua front-end), Solidity/-: contracts (witness,\
-    \ planned: needs Lingua front-end)."
+    \ APL/kron: arrays (primary, runs), MUMPS/myra: records (primary, runs), Raku/-:\
+    \ parsing (primary, planned: needs Lingua front-end), Haskell/-: typed data (primary,\
+    \ planned: needs Lingua front-end), Bash/-: jobs (primary, planned: needs Lingua\
+    \ front-end)."
   files:
-  - tools/server-tasks/wave2/083-reckoner.md
+  - tools/server-tasks/wave1/126-toolchest.md
   tokens: 1800
 - id: 2
-  title: draft ramble
-  task: "Draft the .zxapp application 'ramble' (layer 1, slot 25) from its wave spec.\
+  title: draft trellis
+  task: "Draft the .zxapp application 'trellis' (layer 1, slot 29) from its wave spec.\
     \ Read the spec first: it is the authority on what the app does and its exact\
     \ logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp manifest\
     \ text, starting with the line 'zxapp 1' and ending at the last check line. NO\
@@ -69,15 +70,54 @@
     \ and expected outputs from the spec's logic.\n5. The reuse lines: what the spec\
     \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
     \ view and model (primary, runs), Ada/eve: limits (primary, runs), MUMPS/myra:\
-    \ records (primary, runs), Dart/dart: view and model (primary, planned: SDK host\
-    \ only, no in-app runtime yet), Gleam/-: messaging (primary, planned: needs Lingua\
-    \ front-end), Occam/-: concurrency (primary, planned: needs Lingua front-end)."
+    \ records (primary, runs), Go/go: messaging (primary, planned: SDK host only,\
+    \ no in-app runtime yet), Elm/-: view and model (primary, planned: needs Lingua\
+    \ front-end), Elixir/-: fault handling (primary, planned: needs Lingua front-end)."
   files:
-  - tools/server-tasks/wave2/025-ramble.md
+  - tools/server-tasks/wave1/029-trellis.md
   tokens: 1800
 - id: 3
-  title: draft ninefold
-  task: "Draft the .zxapp application 'ninefold' (layer 1, slot 80) from its wave\
+  title: draft furrow
+  task: "Draft the .zxapp application 'furrow' (layer 1, slot 40) from its wave spec.\
+    \ Read the spec first: it is the authority on what the app does and its exact\
+    \ logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp manifest\
+    \ text, starting with the line 'zxapp 1' and ending at the last check line. NO\
+    \ C code, NO explanations, NO markdown fences. The manifest is parsed and TESTED\
+    \ by a running node \u2014 a single syntax error fails it. Follow the reference\
+    \ manifest exactly:\n--- reference (banker.zxapp) ---\n# Copyright (c) 2024-2026\
+    \ Michael Laurence Curzi and 36N9 Genetics, LLC\n# SPDX-License-Identifier: Apache-2.0\n\
+    #\n# The Banker, the file manager: the Hoard's folders, their files and the\n\
+    # Trash. The screen and the zxvd link are C (burrow_model.c; the file names\n\
+    # keep the old name). How much of a folder each entry takes is worked out\n# in\
+    \ KRON and in C++ (as WebAssembly) and shown only when they agree; the\n# folder's\
+    \ total is an exact Trebago sum; whether an entry's numbers fit\n# its record\
+    \ is MYRA.\nzxapp 1\nid     banker\nname   The Banker\nversion 1.0.0\nslot   1\n\
+    layer  L1\nmatrix 1\nicon   icons/l1/001-banker.svg\nbudget 233\nneeds  fs.read\n\
+    needs  fs.write\nneeds  ai.ask\nview   zui/views/burrow.c\nmodel  apps/burrow_model.c\n\
+    \nprovides share num size total\nlogic    kron share apps/blocks/banker/share.kron\n\
+    logic    wasm share apps/blocks/banker/share.wasm\n\nprovides total num size\n\
+    logic    trebago total apps/blocks/banker/total.tb\n\nprovides entry_ok truth\
+    \ folder seq size mtime\nlogic    myra entry_ok apps/blocks/banker/entry.myra\n\
+    \n--- end reference ---\nRequirements:\n1. The header: zxapp 1 / id / name / version\
+    \ / slot / layer.\n2. needs lines for every capability the spec names.\n3. provides\
+    \ + logic lines in the languages assigned below \u2014 use each where it excels\
+    \ (eve for safety/limits, kron for exact arrays, myra for records/indexes, sutra/cobol\
+    \ for records and procedures, wasm/C for the rest). Self-contained entries use\
+    \ INLINE sources (logic <lang> <entry> << then the source, then a line with only\
+    \ '.').\n4. check lines (K2 proofs) for EVERY provided entry, with exact inputs\
+    \ and expected outputs from the spec's logic.\n5. The reuse lines: what the spec\
+    \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
+    \ view and model (primary, runs), APL/kron: arrays (primary, runs), FORTRAN/trebago:\
+    \ exact numerics (primary, runs), MUMPS/myra: records (primary, runs), AWK/-:\
+    \ text (primary, planned: needs Lingua front-end), TeX/-: typesetting (primary,\
+    \ planned: needs Lingua front-end), PostScript/-: page layout (primary, planned:\
+    \ needs Lingua front-end)."
+  files:
+  - tools/server-tasks/wave6/040-furrow.md
+  tokens: 1800
+- id: 4
+  title: draft hedgerow
+  task: "Draft the .zxapp application 'hedgerow' (layer 1, slot 30) from its wave\
     \ spec. Read the spec first: it is the authority on what the app does and its\
     \ exact logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp\
     \ manifest text, starting with the line 'zxapp 1' and ending at the last check\
@@ -106,71 +146,32 @@
     \ '.').\n4. check lines (K2 proofs) for EVERY provided entry, with exact inputs\
     \ and expected outputs from the spec's logic.\n5. The reuse lines: what the spec\
     \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
-    \ view and model (primary, runs), COBOL/sutra: money and ledgers (primary, runs),\
-    \ FORTRAN/trebago: exact numerics (primary, runs), Ada/eve: limits (primary, runs),\
-    \ PostScript/-: page layout (primary, planned: needs Lingua front-end), Eiffel/-:\
-    \ contracts (primary, planned: needs Lingua front-end), Solidity/-: contracts\
-    \ (witness, planned: needs Lingua front-end)."
-  files:
-  - tools/server-tasks/wave1/080-ninefold.md
-  tokens: 1800
-- id: 4
-  title: draft lockbox
-  task: "Draft the .zxapp application 'lockbox' (layer 1, slot 9) from its wave spec.\
-    \ Read the spec first: it is the authority on what the app does and its exact\
-    \ logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp manifest\
-    \ text, starting with the line 'zxapp 1' and ending at the last check line. NO\
-    \ C code, NO explanations, NO markdown fences. The manifest is parsed and TESTED\
-    \ by a running node \u2014 a single syntax error fails it. Follow the reference\
-    \ manifest exactly:\n--- reference (banker.zxapp) ---\n# Copyright (c) 2024-2026\
-    \ Michael Laurence Curzi and 36N9 Genetics, LLC\n# SPDX-License-Identifier: Apache-2.0\n\
-    #\n# The Banker, the file manager: the Hoard's folders, their files and the\n\
-    # Trash. The screen and the zxvd link are C (burrow_model.c; the file names\n\
-    # keep the old name). How much of a folder each entry takes is worked out\n# in\
-    \ KRON and in C++ (as WebAssembly) and shown only when they agree; the\n# folder's\
-    \ total is an exact Trebago sum; whether an entry's numbers fit\n# its record\
-    \ is MYRA.\nzxapp 1\nid     banker\nname   The Banker\nversion 1.0.0\nslot   1\n\
-    layer  L1\nmatrix 1\nicon   icons/l1/001-banker.svg\nbudget 233\nneeds  fs.read\n\
-    needs  fs.write\nneeds  ai.ask\nview   zui/views/burrow.c\nmodel  apps/burrow_model.c\n\
-    \nprovides share num size total\nlogic    kron share apps/blocks/banker/share.kron\n\
-    logic    wasm share apps/blocks/banker/share.wasm\n\nprovides total num size\n\
-    logic    trebago total apps/blocks/banker/total.tb\n\nprovides entry_ok truth\
-    \ folder seq size mtime\nlogic    myra entry_ok apps/blocks/banker/entry.myra\n\
-    \n--- end reference ---\nRequirements:\n1. The header: zxapp 1 / id / name / version\
-    \ / slot / layer.\n2. needs lines for every capability the spec names.\n3. provides\
-    \ + logic lines in the languages assigned below \u2014 use each where it excels\
-    \ (eve for safety/limits, kron for exact arrays, myra for records/indexes, sutra/cobol\
-    \ for records and procedures, wasm/C for the rest). Self-contained entries use\
-    \ INLINE sources (logic <lang> <entry> << then the source, then a line with only\
-    \ '.').\n4. check lines (K2 proofs) for EVERY provided entry, with exact inputs\
-    \ and expected outputs from the spec's logic.\n5. The reuse lines: what the spec\
-    \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
     \ view and model (primary, runs), Ada/eve: limits (primary, runs), MUMPS/myra:\
-    \ records (primary, runs), APL/kron: arrays (primary, runs), C++/cpp: exact numerics\
-    \ (primary, runs (compiled to wasm)), COBOL/sutra: money and ledgers (primary,\
-    \ runs)."
+    \ records (primary, runs), Erlang/-: messaging (primary, planned: needs Lingua\
+    \ front-end), HyperTalk/-: view and model (primary, planned: needs Lingua front-end),\
+    \ Occam/-: concurrency (primary, planned: needs Lingua front-end)."
   files:
-  - tools/server-tasks/wave2/009-lockbox.md
+  - tools/server-tasks/wave2/030-hedgerow.md
   tokens: 1800
 - id: 5
-  title: draft kitling
-  task: "Draft the .zxapp application 'kitling' (layer 1, slot 62) from its wave spec.\
-    \ Read the spec first: it is the authority on what the app does and its exact\
-    \ logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp manifest\
-    \ text, starting with the line 'zxapp 1' and ending at the last check line. NO\
-    \ C code, NO explanations, NO markdown fences. The manifest is parsed and TESTED\
-    \ by a running node \u2014 a single syntax error fails it. Follow the reference\
-    \ manifest exactly:\n--- reference (banker.zxapp) ---\n# Copyright (c) 2024-2026\
-    \ Michael Laurence Curzi and 36N9 Genetics, LLC\n# SPDX-License-Identifier: Apache-2.0\n\
-    #\n# The Banker, the file manager: the Hoard's folders, their files and the\n\
-    # Trash. The screen and the zxvd link are C (burrow_model.c; the file names\n\
-    # keep the old name). How much of a folder each entry takes is worked out\n# in\
-    \ KRON and in C++ (as WebAssembly) and shown only when they agree; the\n# folder's\
-    \ total is an exact Trebago sum; whether an entry's numbers fit\n# its record\
-    \ is MYRA.\nzxapp 1\nid     banker\nname   The Banker\nversion 1.0.0\nslot   1\n\
-    layer  L1\nmatrix 1\nicon   icons/l1/001-banker.svg\nbudget 233\nneeds  fs.read\n\
-    needs  fs.write\nneeds  ai.ask\nview   zui/views/burrow.c\nmodel  apps/burrow_model.c\n\
-    \nprovides share num size total\nlogic    kron share apps/blocks/banker/share.kron\n\
+  title: draft solstice
+  task: "Draft the .zxapp application 'solstice' (layer 1, slot 43) from its wave\
+    \ spec. Read the spec first: it is the authority on what the app does and its\
+    \ exact logic.\nOUTPUT FORMAT (non-negotiable): the COMPLETE, LOADABLE .zxapp\
+    \ manifest text, starting with the line 'zxapp 1' and ending at the last check\
+    \ line. NO C code, NO explanations, NO markdown fences. The manifest is parsed\
+    \ and TESTED by a running node \u2014 a single syntax error fails it. Follow the\
+    \ reference manifest exactly:\n--- reference (banker.zxapp) ---\n# Copyright (c)\
+    \ 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC\n# SPDX-License-Identifier:\
+    \ Apache-2.0\n#\n# The Banker, the file manager: the Hoard's folders, their files\
+    \ and the\n# Trash. The screen and the zxvd link are C (burrow_model.c; the file\
+    \ names\n# keep the old name). How much of a folder each entry takes is worked\
+    \ out\n# in KRON and in C++ (as WebAssembly) and shown only when they agree; the\n\
+    # folder's total is an exact Trebago sum; whether an entry's numbers fit\n# its\
+    \ record is MYRA.\nzxapp 1\nid     banker\nname   The Banker\nversion 1.0.0\n\
+    slot   1\nlayer  L1\nmatrix 1\nicon   icons/l1/001-banker.svg\nbudget 233\nneeds\
+    \  fs.read\nneeds  fs.write\nneeds  ai.ask\nview   zui/views/burrow.c\nmodel \
+    \ apps/burrow_model.c\n\nprovides share num size total\nlogic    kron share apps/blocks/banker/share.kron\n\
     logic    wasm share apps/blocks/banker/share.wasm\n\nprovides total num size\n\
     logic    trebago total apps/blocks/banker/total.tb\n\nprovides entry_ok truth\
     \ folder seq size mtime\nlogic    myra entry_ok apps/blocks/banker/entry.myra\n\
@@ -183,10 +184,10 @@
     \ '.').\n4. check lines (K2 proofs) for EVERY provided entry, with exact inputs\
     \ and expected outputs from the spec's logic.\n5. The reuse lines: what the spec\
     \ says to 'use' and what to register in CONCEPTS.tsv.\nAssigned languages: C/c:\
-    \ view and model (primary, runs), APL/kron: arrays (primary, runs), Ada/eve: limits\
-    \ (primary, runs), Mojo/-: AI (primary, planned: needs Lingua front-end), Occam/-:\
-    \ concurrency (primary, planned: needs Lingua front-end), Clojure/-: symbolic\
-    \ reasoning (primary, planned: needs Lingua front-end)."
+    \ view and model (primary, runs), MUMPS/myra: records (primary, runs), APL/kron:\
+    \ arrays (primary, runs), Raku/-: text (primary, planned: needs Lingua front-end),\
+    \ TeX/-: typesetting (primary, planned: needs Lingua front-end), PostScript/-:\
+    \ page layout (primary, planned: needs Lingua front-end)."
   files:
-  - tools/server-tasks/wave1/062-kitling.md
+  - tools/server-tasks/wave6/043-solstice.md
   tokens: 1800
