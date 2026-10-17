@@ -198,3 +198,61 @@ The UI tests are injected headless: synthetic keystrokes and clicks
 against the framebuffer, the resulting state compared to the expected.
 A button that exists in the manifest but is not clickable is a **dead
 button**, and the test names it.
+
+## The diagnostic loop — never code blind
+
+When a test fails, **do not immediately change the code under it.** Run
+this loop, in order:
+
+1. **Read the failure as a map.** The error names the next task (the table
+   at the top of this file). Say what it names before touching anything.
+2. **Question the test first.** Is the test itself wrong? A malformed
+   check line, a wrong expected value, a bad input — the test code is
+   under test too. Debug the test before blaming the code.
+3. **If the test cannot yet see the cause, INVENT a test that can.** A
+   failure you cannot localise means your test suite is missing the probe.
+   Write the new test (it becomes part of the suite), run it, and let it
+   narrow the failure. Inventing the diagnostic test IS the work.
+4. **Only then fix the code**, guided by what the new test showed.
+5. **Retry with the new knowledge** — not a blind re-run of the same
+   attempt, but an attempt informed by the investigation.
+6. **Prove the test can fail**: break the fix, watch the test fail,
+   restore. A test that never failed proves nothing.
+7. **Keep the diagnostic test.** The probe that found the bug is
+   permanent test code.
+
+This is why the ratio exceeds 100:1: every failure adds probes, and every
+probe is itself verified.
+
+## The three spaces — negative, positive, neutral
+
+Every environment is tested in all three spaces, in both directions:
+
+| Space | What it proves | Example |
+|---|---|---|
+| **Positive** | the intended path works | a valid manifest loads and its checks pass; a button clicks and its action runs |
+| **Negative** | the forbidden cannot happen | no `malloc` survives the link (the heap vacuum); a malformed manifest is refused with a reason; an out-of-bounds click cannot crash |
+| **Neutral** | the boundary and the no-op behave | an empty input, a zero-length segment, a no-op action, an idempotent retry, a value exactly at its range edge |
+
+The neutral space is the one most often skipped and the one that finds
+the most subtle bugs: the empty case, the boundary case, the repeated
+case. Every entry, every interface, every layer gets all three.
+
+## Omnidirectional coverage — both directions, every boundary
+
+Coverage is not "the app was called once". It is **both directions
+across every boundary**:
+
+- **User interface → system**: a click, a key, a menu item reaches the
+  kernel and changes the state (the human plane drives).
+- **System → user interface**: a kernel event, a peer message, a task
+  completion appears on the framebuffer (the machine plane drives).
+- **AI plane → system → human plane** and the reverse: the parity law
+  (`VERIFICATION_TOPOLOGY.md`, Tier 2), proven in both orders.
+- **Layer → layer, both ways**: every include, every IPC ring, every
+  syscall — the downward call and the upward notification.
+
+Every boundary is crossed in both directions by a test, in all three
+spaces. That is the omnidirectional mandate, and it is what drives the
+ratio past 100:1 — not more of the same tests, but every edge of the
+graph exercised from both ends and both polarities.
