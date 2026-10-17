@@ -70,7 +70,7 @@ PATTERNS = [
         "langs": "kron, trebago",
         "logic": "the first recipient's share of the pool by weight (floor), plus one while the largest remainders last",
         "body": '0|(_pool*_w1)%(_w1+_w2+_w3+_w4)',
-        "checks": "check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,10/3,7/3,50",
+        "checks": "check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,5/2,7/4,100/3",
         "matches": ["largest remainder", "split by weight", "by weight", "distribute", "distribution"],
     },
         {
@@ -169,7 +169,7 @@ PATTERNS = [
         "args": "value lo hi",
         "langs": "kron, trebago",
         "logic": "value clamped into [min,max]",
-        "body": '0|max(_lo, min(_hi, _value))',
+        "body": '0|(_value|_lo)&_hi',
         "checks": "check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100",
         "matches": ["clamp", "bound", "saturate", "cap at"],
     },
