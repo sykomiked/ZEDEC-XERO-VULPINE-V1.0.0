@@ -1,0 +1,9 @@
+# LeakSanitizer suppressions for the hosted (zxvd) test suite.
+#
+# The CUDA driver (libcuda) allocates internal process-lifetime state on
+# cuInit that it intentionally keeps until exit; every zt backend frees its
+# own handles (zt_cuda_free: contexts, memory, streams, events, modules,
+# both libraries). Machines with the driver installed therefore report the
+# driver's caches as leaks; CI without the driver never sees them.
+leak:libcuda.so
+leak:libnvrtc.so

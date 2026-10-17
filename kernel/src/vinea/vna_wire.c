@@ -186,7 +186,14 @@ vna_status_t vna_msg_open(vna_verifier_t *v, const uint8_t *buf, uint32_t len, u
     }
     /* 4 */
     if (v->rp) {
-        vna_status_t st = vna_replay_check(v->rp, &m->src, m->seq, m->ts, now);
+        /* A PING is a pure liveness probe: it carries no record semantics,
+         * its freshness is its rpc + the dedupe, and it must cross nodes
+         * whose clocks have not yet committed to wall time (timesvc). Gate
+         * everything else on the timestamp window — that is the replay
+         * defence for records and state messages. */
+        vna_status_t st = m->type == VNA_MSG_PING
+                              ? vna_replay_seq(v->rp, &m->src, m->seq)
+                              : vna_replay_check(v->rp, &m->src, m->seq, m->ts, now);
         if (st != VNA_OK) {
             if (st == VNA_ERR_STALE)
                 v->rej_stale++;
@@ -210,7 +217,11 @@ vna_status_t vna_msg_open(vna_verifier_t *v, const uint8_t *buf, uint32_t len, u
         return VNA_ERR_SIG;
     }
     /* 7 */
-    if (v->rp) vna_replay_commit(v->rp, &m->src, m->seq, m->ts);
+    if (v->rp) {
+        /* a PING's ts is the sender's possibly-unsynced clock: commit with
+         * the receiver's own time so the eviction floor stays sane */
+        vna_replay_commit(v->rp, &m->src, m->seq, m->type == VNA_MSG_PING ? now : m->ts);
+    }
     vna_dedupe_add(v->dd, h);
     return VNA_OK;
 }

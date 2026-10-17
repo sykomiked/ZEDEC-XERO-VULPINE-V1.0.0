@@ -819,6 +819,7 @@ static void vna_shard_setup(void);
 #define VNAH_SNTP_LPORT   49724u
 #define VNAH_SNTP_PIVOT_S 1740000000ll /* era anchor: within 68y of the truth */
 #define VNAH_SNTP_NSERV   3u
+#define VNAH_SNTP_TRIES   20u /* one round at boot, then a retry each settle */
 static const uint8_t g_sntp_serv[VNAH_SNTP_NSERV][NET_IP_LEN] = {
     {162, 159, 200, 1}, /* Cloudflare time.cloudflare.com */
     {216, 239, 35, 0},  /* Google time.google.com */
@@ -829,6 +830,7 @@ static uint64_t g_sntp_nonce[VNAH_SNTP_NSERV];
 static int64_t g_sntp_t1_us[VNAH_SNTP_NSERV];
 static int64_t g_wall_off_ms; /* unix_ms - mono_ms once synced */
 static bool g_sntp_done;
+static uint32_t g_sntp_tries;
 static timesvc_t g_ts;
 
 /* ===== event space: the node's self-supervision registry ===================
@@ -2320,10 +2322,14 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
             vna_chg_dna_publish(h, now); /* our chiglet's genome, so visits can name it */
         }
         /* SNTP requests to the three time servers, each with its own nonce:
-         * two agreeing replies commit the node to Unix ms via timesvc. */
-        if (g_sntp_sock >= 0) {
+         * two agreeing replies commit the node to Unix ms via timesvc. The
+         * exchange retries until it commits or the bound is spent — a
+         * single dropped round must not leave the node on its boot clock,
+         * whose timestamps no peer's freshness window would accept. */
+        if (g_sntp_sock >= 0 && !g_sntp_done && g_sntp_tries < VNAH_SNTP_TRIES) {
             uint32_t si;
-            timesvc_init(&g_ts, 0);
+            if (g_sntp_tries == 0) timesvc_init(&g_ts, 0);
+            g_sntp_tries++;
             for (si = 0; si < VNAH_SNTP_NSERV; si++) {
                 uint8_t pkt[SNTP_PKT_LEN];
                 vna_drbg_gen(&h->node.rng, (uint8_t *) &g_sntp_nonce[si], 8);

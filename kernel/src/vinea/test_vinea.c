@@ -702,9 +702,15 @@ static void test_wire_attacks(void)
     CHECK(deliver_to(A, B, g_wire, (uint32_t) n) == VNA_OK,
           "untampered original still accepted once");
 
-    /* stale timestamp */
+    /* stale timestamp: a PING is a pure liveness probe, gated by sequence and
+     * rpc only — it must cross nodes whose clocks have not yet committed to
+     * wall time — so it is accepted even 60s stale; a state message is not */
     n = craft(&T[B].id, &T[A].id.id, VNA_MSG_PING, 1000002, g_now - 60000, 79, 0, 0, false);
-    CHECK(deliver_to(A, B, g_wire, (uint32_t) n) == VNA_ERR_STALE, "stale timestamp refused");
+    CHECK(deliver_to(A, B, g_wire, (uint32_t) n) == VNA_OK,
+          "stale PING accepted (liveness is rpc + sequence, not the clock)");
+    n = craft(&T[B].id, &T[A].id.id, VNA_MSG_PONG, 1000003, g_now - 60000, 81, 0, 0, false);
+    CHECK(deliver_to(A, B, g_wire, (uint32_t) n) == VNA_ERR_STALE,
+          "stale state message still refused");
 
     /* forged: attacker claims B's id with its own key */
     static vna_identity_t evil;

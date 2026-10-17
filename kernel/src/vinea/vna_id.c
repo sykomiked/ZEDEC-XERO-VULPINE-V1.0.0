@@ -152,6 +152,18 @@ vna_status_t vna_replay_check(const vna_replay_t *r, const vna_id_t *peer, uint6
     return (e->bitmap >> (back - 1)) & 1u ? VNA_ERR_REPLAY : VNA_OK;
 }
 
+vna_status_t vna_replay_seq(const vna_replay_t *r, const vna_id_t *peer, uint64_t seq)
+{
+    if (seq == 0) return VNA_ERR_REPLAY; /* sequences start at 1 */
+    const vna_replay_ent_t *e = rp_find(r, peer);
+    if (!e) return VNA_OK;
+    if (seq > e->hi) return VNA_OK;
+    if (seq == e->hi) return VNA_ERR_REPLAY;
+    uint64_t back = e->hi - seq; /* >= 1 */
+    if (back > 64) return VNA_ERR_REPLAY;
+    return (e->bitmap >> (back - 1)) & 1u ? VNA_ERR_REPLAY : VNA_OK;
+}
+
 void vna_replay_commit(vna_replay_t *r, const vna_id_t *peer, uint64_t seq, uint64_t ts)
 {
     vna_replay_ent_t *e = (vna_replay_ent_t *) rp_find(r, peer);

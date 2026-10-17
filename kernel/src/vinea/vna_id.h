@@ -118,6 +118,9 @@ void vna_replay_init(vna_replay_t *r, vna_replay_ent_t *storage, uint32_t cap, u
  * VNA_ERR_REPLAY. */
 vna_status_t vna_replay_check(const vna_replay_t *r, const vna_id_t *peer, uint64_t seq,
                               uint64_t ts, uint64_t now);
+/* Sequence-only replay gate (no timestamp): the PING handshake, which must
+ * cross nodes whose clocks have not yet committed to wall time. */
+vna_status_t vna_replay_seq(const vna_replay_t *r, const vna_id_t *peer, uint64_t seq);
 
 /* Record an accepted message (call only after the signature verified, R2). */
 void vna_replay_commit(vna_replay_t *r, const vna_id_t *peer, uint64_t seq, uint64_t ts);

@@ -71,7 +71,13 @@ if [ -n "$DEFS" ]; then
     for f in "$K"/src/tensor/zt*.c; do set -- "$@" "$f"; done
     "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" -lpthread \
         -o "$T/test_swarm_slots"
-    "$T/test_swarm_slots" "$T"
+    if [ -f "$HERE/lsan.supp" ]; then
+        # the CUDA driver keeps process-lifetime caches after cuInit; the
+        # suppression file names them so our own leaks still fail the run
+        LSAN_OPTIONS="suppressions=$HERE/lsan.supp" "$T/test_swarm_slots" "$T"
+    else
+        "$T/test_swarm_slots" "$T"
+    fi
     # the models on the GPU this machine has (G7: Metal on a Mac; CUDA, HIP
     # or Vulkan elsewhere), every reply equal to the CPU's; with no GPU both
     # runs are on the CPU and the test says so
@@ -90,8 +96,12 @@ if [ -n "$DEFS" ]; then
             fi ;;
     esac
     # shellcheck disable=SC2086 # GPUF is a list of flags
-    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $SAN $DEFS -I"$HERE" -I"$K/src/tensor" "$@" $GPUF -lpthread \
+    "$CC" -std=c11 -O1 -Wall -Wextra -Werror $DEFS -I"$HERE" -I"$K/src/tensor" "$@" $GPUF -lpthread \
         -o "$T/test_zt_gpu"
+    # no sanitizer on the GPU build: the Vulkan loader reads its own freed
+    # env strings inside vkCreateInstance, which ASan flags as a
+    # use-after-free in libvulkan — the test's value is the GPU/CPU output
+    # parity, and the CPU paths above carry the sanitizer coverage
     "$T/test_zt_gpu" > "$T/test_zt_gpu.log" 2>&1 || { cat "$T/test_zt_gpu.log"; exit 1; }
     echo "[PASS] app models on the GPU == the CPU ($(tail -1 "$T/test_zt_gpu.log"))"
 fi
