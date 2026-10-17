@@ -1679,6 +1679,7 @@ static int32_t door_spaces(void *ctx, const uint8_t *in, uint32_t in_len, uint8_
 {
     vna_host_t *h = (vna_host_t *) ctx;
     uint32_t n = 2, i, count = 0;
+    (void) in;
     if (in_len != 0 || cap < 3) return -1;
     out[0] = 0;
     /* flags: bit0 wall clock landed; bit1 anything received on the VNA;

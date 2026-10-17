@@ -65,6 +65,10 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     root = os.path.abspath(args.bucket_dir)
+    if not os.path.isdir(root):
+        print(f"no sealed bucket at {root} — the release build has not "
+              f"finished (or the bucket was not rsynced from the A6000)")
+        return 1
     objects = {}
     n = 0
     for dirpath, _dirs, files in os.walk(root):
