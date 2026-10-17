@@ -1,0 +1,410 @@
+element	family	icon	number
+albedo	app		0
+alembic	app		0
+annulus	app		0
+apothecary	app		0
+apse	app		0
+archivolt	app		0
+arcology	app		0
+argonaut	app		0
+armature	app		0
+armillary	app		0
+assize	app		0
+astrolabe	app		0
+atelier	app		0
+athanor	app		0
+athenaeum	app		0
+atoll	app		0
+atrium	app		0
+aubade	app		0
+aureole	app		0
+azimuth	app		0
+banker	app		0
+barbican	app		0
+bearing	app		0
+bevel	app		0
+billow	app		0
+bindery	app		0
+binnacle	app		0
+bitting	app		0
+bodkin	app		0
+bourn	app		0
+brocade	app		0
+buckram	app		0
+bulwark	app		0
+cabochon	app		0
+cairn	app		0
+caldera	app		0
+caliper	app		0
+calliope	app		0
+capstan	app		0
+carapace	app		0
+caravel	app		0
+carrick	app		0
+cartulary	app		0
+caustic	app		0
+celesta	app		0
+chainman	app		0
+chandler	app		0
+chintz	app		0
+chorale	app		0
+chronometer	app		0
+chrysalis	app		0
+cirque	app		0
+cistern	app		0
+cleave	app		0
+clerestory	app		0
+col	app		0
+collet	app		0
+collier	app		0
+commonweal	app		0
+compositor	app		0
+conclave	app		0
+consonance	app		0
+consort	app		0
+cooper	app		0
+coppice	app		0
+copse	app		0
+corbel	app		0
+counterpoint	app		0
+courser	app		0
+creel	app		0
+crier	app		0
+crowsnest	app		0
+culmen	app		0
+cupel	app		0
+cupola	app		0
+cusp	app		0
+damask	app		0
+damper	app		0
+decanter	app		0
+descant	app		0
+diadem	app		0
+dibber	app		0
+distaff	app		0
+dragoman	app		0
+druse	app		0
+dulcimer	app		0
+eddy	app		0
+elevation	app		0
+ephemeris	app		0
+equant	app		0
+equinox	app		0
+escapement	app		0
+escutcheon	app		0
+fanfare	app		0
+fee_check	app		0
+fell	app		0
+fellowcraft	app		0
+fen	app		0
+firstlight	app		0
+flue	app		0
+foghorn	app		0
+freshet	app		0
+fulgurite	app		0
+furnace	app		0
+fusee	app		0
+galliard	app		0
+gauze	app		0
+gearwright	app		0
+gibbous	app		0
+glazier	app		0
+glebe	app		0
+glen	app		0
+grotto	app		0
+gust	app		0
+handfast	app		0
+headland	app		0
+heartstring	app		0
+heddle	app		0
+heliostat	app		0
+holm	app		0
+hornbook	app		0
+hornpipe	app		0
+hydrophone	app		0
+icehouse	app		0
+illumine	app		0
+insolation	app		0
+isobar	app		0
+isthmus	app		0
+joist	app		0
+kerf	app		0
+kettle	app		0
+kiln	app		0
+lagoon	app		0
+lambent	app		0
+lampwright	app		0
+landfall	app		0
+lapidary	app		0
+lectern	app		0
+levin	app		0
+limner	app		0
+linen	app		0
+linkman	app		0
+lode	app		0
+loom	app		0
+loupe	app		0
+lozenge	app		0
+lumen	app		0
+luminaire	app		0
+lunette	app		0
+luthier	app		0
+macrame	app		0
+manometer	app		0
+massif	app		0
+meander	app		0
+mercer	app		0
+meridian	app		0
+millrace	app		0
+moire	app		0
+monochord	app		0
+moraine	app		0
+mummer	app		0
+muster	app		0
+neap	app		0
+nymphaeum	app		0
+orlop	app		0
+ostinato	app		0
+overture	app		0
+paisley	app		0
+pannier	app		0
+parallax	app		0
+parsec	app		0
+patchwork	app		0
+pavise	app		0
+penumbra	app		0
+perigee	app		0
+pharos	app		0
+pianola	app		0
+piccolo	app		0
+pinion	app		0
+planisphere	app		0
+plinth	app		0
+plumbline	app		0
+portcullis	app		0
+portolan	app		0
+poultice	app		0
+privateer	app		0
+pyrometer	app		0
+quadrant	app		0
+quay	app		0
+rainshadow	app		0
+rampart	app		0
+rapids	app		0
+ratchet	app		0
+ravelin	app		0
+reedbed	app		0
+relume	app		0
+rigging	app		0
+rill	app		0
+rondo	app		0
+rotunda	app		0
+sampler	app		0
+sanctum	app		0
+scp144	app		0
+scree	app		0
+seachest	app		0
+sedge	app		0
+seine	app		0
+serac	app		0
+sexton	app		0
+shallows	app		0
+shanty	app		0
+sheaf	app		0
+shingle	app		0
+shipwright	app		0
+sightline	app		0
+silt	app		0
+skep	app		0
+skillet	app		0
+solarium	app		0
+spindrift	app		0
+spinnaker	app		0
+spire	app		0
+stationer	app		0
+stereoscope	app		0
+stoker	app		0
+stratum	app		0
+sunfleck	app		0
+swage	app		0
+swale	app		0
+swell	app		0
+syzygy	app		0
+taper	app		0
+tarn	app		0
+tatting	app		0
+tephra	app		0
+terroir	app		0
+thaw	app		0
+theorbo	app		0
+thicket	app		0
+tiler	app		0
+tiller	app		0
+tintype	app		0
+topiary	app		0
+topsail	app		0
+tracery	app		0
+tradewind	app		0
+transit	app		0
+tributary	app		0
+trowel	app		0
+umbra	app		0
+updraft	app		0
+varve	app		0
+veil	app		0
+verderer	app		0
+verger	app		0
+vernier	app		0
+vesper	app		0
+viaduct	app		0
+vigil	app		0
+volute	app		0
+wardian	app		0
+warding	app		0
+watershed	app		0
+weir	app		0
+windbreak	app		0
+windlass	app		0
+wisp	app		0
+hollow	app	002-hollow.zxvg	2
+threshold	app	003-threshold.zxvg	3
+keystone	app	004-keystone.zxvg	4
+scent	app	005-scent.zxvg	5
+tideturn	app	006-tideturn.zxvg	6
+satchel	app	007-satchel.zxvg	7
+gatehouse	app	008-gatehouse.zxvg	8
+lockbox	app	009-lockbox.zxvg	9
+keepsake	app	010-keepsake.zxvg	10
+lifeboat	app	011-lifeboat.zxvg	11
+ferry	app	012-ferry.zxvg	12
+flint	app	013-flint.zxvg	13
+wake	app	014-wake.zxvg	14
+tidewatch	app	015-tidewatch.zxvg	15
+sounding	app	016-sounding.zxvg	16
+almanac	app	017-almanac.zxvg	17
+witness	app	018-witness.zxvg	18
+cellar	app	019-cellar.zxvg	19
+warren	app	020-warren.zxvg	20
+brazier	app	021-brazier.zxvg	21
+spindle	app	022-spindle.zxvg	22
+lodestone	app	023-lodestone.zxvg	23
+treadle	app	024-treadle.zxvg	24
+ramble	app	025-ramble.zxvg	25
+rookery	app	026-rookery.zxvg	26
+commons	app	027-commons.zxvg	27
+halloo	app	028-halloo.zxvg	28
+trellis	app	029-trellis.zxvg	29
+hedgerow	app	030-hedgerow.zxvg	30
+pollen	app	031-pollen.zxvg	31
+cove	app	032-cove.zxvg	32
+seedbank	app	033-seedbank.zxvg	33
+signpost	app	034-signpost.zxvg	34
+aerie	app	035-aerie.zxvg	35
+gazette	app	036-gazette.zxvg	36
+quillon	app	037-quillon.zxvg	37
+margins	app	038-margins.zxvg	38
+folio	app	039-folio.zxvg	39
+furrow	app	040-furrow.zxvg	40
+footlight	app	041-footlight.zxvg	41
+broadsheet	app	042-broadsheet.zxvg	42
+solstice	app	043-solstice.zxvg	43
+kindred	app	044-kindred.zxvg	44
+bowline	app	045-bowline.zxvg	45
+wordhoard	app	046-wordhoard.zxvg	46
+sealwax	app	047-sealwax.zxvg	47
+bramble	app	048-bramble.zxvg	48
+glint	app	049-glint.zxvg	49
+warble	app	050-warble.zxvg	50
+kinetoscope	app	051-kinetoscope.zxvg	51
+fireglow	app	052-fireglow.zxvg	52
+gesso	app	053-gesso.zxvg	53
+burin	app	054-burin.zxvg	54
+birdsong	app	055-birdsong.zxvg	55
+cutwater	app	056-cutwater.zxvg	56
+fiddlehead	app	057-fiddlehead.zxvg	57
+pinhole	app	058-pinhole.zxvg	58
+bellows	app	059-bellows.zxvg	59
+relief	app	060-relief.zxvg	60
+murmuration	app	061-murmuration.zxvg	61
+kitling	app	062-kitling.zxvg	62
+sieve	app	063-sieve.zxvg	63
+granary	app	064-granary.zxvg	64
+hatchery	app	065-hatchery.zxvg	65
+temper	app	066-temper.zxvg	66
+lore	app	067-lore.zxvg	67
+parley	app	068-parley.zxvg	68
+quarry	app	069-quarry.zxvg	69
+retort	app	070-retort.zxvg	70
+gleaner	app	071-gleaner.zxvg	71
+assay	app	072-assay.zxvg	72
+coffer	app	073-coffer.zxvg	73
+gavel	app	074-gavel.zxvg	74
+crown	app	075-crown.zxvg	75
+talisman	app	076-talisman.zxvg	76
+trickle	app	077-trickle.zxvg	77
+tallystick	app	078-tallystick.zxvg	78
+fairground	app	079-fairground.zxvg	79
+ninefold	app	080-ninefold.zxvg	80
+heirloom	app	081-heirloom.zxvg	81
+larder	app	082-larder.zxvg	82
+reckoner	app	083-reckoner.zxvg	83
+forage	app	084-forage.zxvg	84
+waymark	app	085-waymark.zxvg	85
+meadow	app	086-meadow.zxvg	86
+belvedere	app	087-belvedere.zxvg	87
+weatherglass	app	088-weatherglass.zxvg	88
+wellspring	app	089-wellspring.zxvg	89
+caravan	app	090-caravan.zxvg	90
+vintner	app	091-vintner.zxvg	91
+understory	app	093-understory.zxvg	93
+homestead	app	094-homestead.zxvg	94
+bonfire	app	095-bonfire.zxvg	95
+hamlet	app	096-hamlet.zxvg	96
+den	app	097-den.zxvg	97
+sapling	app	098-sapling.zxvg	98
+typewright	app	099-typewright.zxvg	99
+primer	app	100-primer.zxvg	100
+orrery	app	101-orrery.zxvg	101
+fieldguide	app	102-fieldguide.zxvg	102
+cubby	app	103-cubby.zxvg	103
+riddle	app	104-riddle.zxvg	104
+patience	app	105-patience.zxvg	105
+nutshell	app	106-nutshell.zxvg	106
+gnomon	app	107-gnomon.zxvg	107
+talewind	app	108-talewind.zxvg	108
+tally	app	109-tally.zxvg	109
+sundial	app	110-sundial.zxvg	110
+glimpse	app	111-glimpse.zxvg	111
+hamper	app	112-hamper.zxvg	112
+typecase	app	113-typecase.zxvg	113
+runebook	app	114-runebook.zxvg	114
+platen	app	115-platen.zxvg	115
+dyer	app	116-dyer.zxvg	116
+spyglass	app	117-spyglass.zxvg	117
+burr	app	118-burr.zxvg	118
+magpie	app	119-magpie.zxvg	119
+gridmark	app	120-gridmark.zxvg	120
+joinery	app	121-joinery.zxvg	121
+pawprint	app	122-pawprint.zxvg	122
+gait	app	123-gait.zxvg	123
+graft	app	124-graft.zxvg	124
+whetstone	app	125-whetstone.zxvg	125
+toolchest	app	126-toolchest.zxvg	126
+colonnade	app	127-colonnade.zxvg	127
+mockingbird	app	128-mockingbird.zxvg	128
+gauntlet	app	129-gauntlet.zxvg	129
+scriptorium	app	130-scriptorium.zxvg	130
+trestle	app	131-trestle.zxvg	131
+twelvefold	app	132-twelvefold.zxvg	132
+nightjar	app	133-nightjar.zxvg	133
+hark	app	134-hark.zxvg	134
+ticker	app	135-ticker.zxvg	135
+pivot	app	136-pivot.zxvg	136
+glyphwright	app	137-glyphwright.zxvg	137
+tint	app	138-tint.zxvg	138
+lamplight	app	139-lamplight.zxvg	139
+steady	app	140-steady.zxvg	140
+conch	app	141-conch.zxvg	141
+shepherd	app	142-shepherd.zxvg	142
+watchfire	app	143-watchfire.zxvg	143
+stillwater	app	144-stillwater.zxvg	144
