@@ -168,16 +168,60 @@ static void bearer(const char *dir, const char *name, const char *pass, const ch
     memset(seal_key, 0, sizeof seal_key);
 }
 
+/* the third rail: the R&D fountain. The protocol spends it only through
+ * the scheduled grant program; this keypair is the keeper's record (the
+ * fountain's identity), not a spending card. */
+static void fountain(const char *dir, const char *pass)
+{
+    uint8_t seed[32], pk[PK_BYTES], sk[SK_BYTES], salt[32], seal_key[32], iv[GCM_IV_LEN],
+        tag[GCM_TAG_LEN], sealed[SK_BYTES + 64];
+    char hx[PK_BYTES * 2 + 1];
+    printf("bearer third-fountain (the R&D fountain, keeper key):\n");
+    entropy(seed, sizeof seed);
+    entropy(salt, sizeof salt);
+    pqm_mldsa87_keygen(seed, pk, sk);
+    {
+        uint8_t ah[32];
+        sha256(pk, sizeof pk, ah);
+        hex(ah, 32, hx);
+        printf("  address: %s\n", hx);
+        write_file(dir, "third-fountain-keeper.address", hx, strlen(hx));
+        write_file(dir, "third-fountain-keeper.pub", pk, sizeof pk);
+    }
+    {
+        sha256_ctx_t k;
+        sha256_init(&k);
+        sha256_update(&k, (const uint8_t *) pass, strlen(pass));
+        sha256_update(&k, salt, sizeof salt);
+        sha256_final(&k, seal_key);
+    }
+    entropy(iv, sizeof iv);
+    aes256_gcm_encrypt(seal_key, iv, (const uint8_t *) "third-fountain", 14, sk, sizeof sk,
+                       sealed, tag);
+    memcpy(sealed + sizeof sk, tag, GCM_TAG_LEN);
+    {
+        uint8_t blob[32 + GCM_IV_LEN + SK_BYTES + GCM_TAG_LEN];
+        memcpy(blob, salt, 32);
+        memcpy(blob + 32, iv, GCM_IV_LEN);
+        memcpy(blob + 32 + GCM_IV_LEN, sealed, SK_BYTES + GCM_TAG_LEN);
+        write_file(dir, "third-fountain-keeper.sealed", blob, sizeof blob);
+    }
+    memset(seed, 0, sizeof seed);
+    memset(sk, 0, sizeof sk);
+    memset(seal_key, 0, sizeof seal_key);
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 4) {
-        fprintf(stderr, "usage: %s <out-dir> <crown-passphrase> <ministry-passphrase>\n",
+    if (argc != 5) {
+        fprintf(stderr, "usage: %s <out-dir> <crown-pass> <ministry-pass> <fountain-pass>\n",
                 argv[0]);
         return 2;
     }
     printf("sovereign bearer accounts — the kernel's lattice identities, the 11%% tributes:\n\n");
     bearer(argv[1], "crown", argv[2], "zxv/tribute/crown/v1");
     bearer(argv[1], "ministry", argv[3], "zxv/tribute/ministry/v1");
+    fountain(argv[1], argv[4]);
 
     /* the third rail: the R&D fountain. No key exists — the address is a
      * protocol constant (sha256 of the domain tag), so its balance can
