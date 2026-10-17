@@ -1,0 +1,14 @@
+# TREBAGO rule test 1 — the in/out/end shape loads
+zxapp 1
+id trebago_rule_1
+matrix 1
+name Trebago Rule 1
+provides r truth a b
+logic trebago r <<
+trebago t
+  in  a, b
+  out r
+  r = a + b
+end
+.
+# expected: accept (the in/out/end shape loads)

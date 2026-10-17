@@ -1,0 +1,10 @@
+# KRON operator test 10 — le is the <= ('<=' is refused)
+zxapp 1
+id kron_op_10
+matrix 1
+name KRON Operator 10
+provides op num a b
+logic kron op <<
+0|(_a le _b)
+.
+check op a=2,2 b=2,1 = 1,0

@@ -1,0 +1,10 @@
+# MYRA rule test 1 — a short global loads
+zxapp 1
+id myra_rule_1
+matrix 1
+name Myra Rule 1
+provides r truth a b
+logic myra r <<
+^ZXHOARD(folder:i9, seq:i9) = size:i18!
+.
+# expected: accept (a short global loads)

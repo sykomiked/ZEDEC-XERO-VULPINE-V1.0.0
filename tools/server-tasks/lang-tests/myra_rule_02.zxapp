@@ -1,0 +1,10 @@
+# MYRA rule test 2 — a global name longer than 8 characters is refused
+zxapp 1
+id myra_rule_2
+matrix 1
+name Myra Rule 2
+provides r truth a b
+logic myra r <<
+^ZXCOMPOSITE_KEY(high:i9, low:i9) = v:i18!
+.
+# expected: refuse (a global name longer than 8 characters is refused)

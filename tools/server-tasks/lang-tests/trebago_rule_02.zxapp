@@ -1,0 +1,14 @@
+# TREBAGO rule test 2 — sum() is available
+zxapp 1
+id trebago_rule_2
+matrix 1
+name Trebago Rule 2
+provides r truth a b
+logic trebago r <<
+trebago t
+  in  a, b
+  out r
+  r = sum(i = 1:2, a + b)
+end
+.
+# expected: accept (sum() is available)

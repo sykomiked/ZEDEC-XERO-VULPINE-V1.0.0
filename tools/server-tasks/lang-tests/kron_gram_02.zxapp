@@ -1,0 +1,10 @@
+# KRON grammar test 2 — min()/max() have no monadic form
+zxapp 1
+id kron_gram_2
+matrix 1
+name KRON Grammar 2
+provides g num a b
+logic kron g <<
+0|max(_a,_b)
+.
+# expected: refuse (min()/max() have no monadic form)

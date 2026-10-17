@@ -1,0 +1,10 @@
+# KRON operator test 5 — the residue a|b is b mod a (argument order!)
+zxapp 1
+id kron_op_5
+matrix 1
+name KRON Operator 5
+provides op num a b
+logic kron op <<
+0|(_b|_a)
+.
+check op a=2,3 b=7,8 = 1,2

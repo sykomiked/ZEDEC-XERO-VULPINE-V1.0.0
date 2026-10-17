@@ -1,0 +1,10 @@
+# KRON operator test 8 — explicit parens: the K is RIGHT TO LEFT
+zxapp 1
+id kron_op_8
+matrix 1
+name KRON Operator 8
+provides op num a b
+logic kron op <<
+0|((_a*10)+_b)
+.
+check op a=2,3 b=1,1 = 21,31

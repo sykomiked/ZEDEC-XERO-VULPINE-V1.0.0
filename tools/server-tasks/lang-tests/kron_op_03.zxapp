@@ -1,0 +1,10 @@
+# KRON operator test 3 — multiplication is exact
+zxapp 1
+id kron_op_3
+matrix 1
+name KRON Operator 3
+provides op num a b
+logic kron op <<
+0|(_a*_b)
+.
+check op a=2,3 b=4,5 = 8,15

@@ -1,0 +1,15 @@
+# EVE rule test 1 — a block binding every arg loads
+zxapp 1
+id eve_rule_1
+matrix 1
+name Eve Rule 1
+provides r truth a b
+logic eve r <<
+eve t
+counts = 1 .. 100
+
+blk {
+  count: counts 1 .. 100
+}
+.
+# expected: accept (a block binding every arg loads)

@@ -1,0 +1,10 @@
+# KRON operator test 6 — the & is the MINIMUM, not bitwise AND
+zxapp 1
+id kron_op_6
+matrix 1
+name KRON Operator 6
+provides op num a b
+logic kron op <<
+0|(_a&_b)
+.
+check op a=3,2 b=5,7 = 3,2

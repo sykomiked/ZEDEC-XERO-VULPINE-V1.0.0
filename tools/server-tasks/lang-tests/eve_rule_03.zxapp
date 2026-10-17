@@ -1,0 +1,15 @@
+# EVE rule test 3 — an argument the check passes but the block omits refuses the entry
+zxapp 1
+id eve_rule_3
+matrix 1
+name Eve Rule 3
+provides r truth a b
+logic eve r <<
+eve t
+counts = 1 .. 100
+
+blk {
+  count: counts 1 .. 100
+}
+.
+# expected: refuse-when-check-adds-arg (an argument the check passes but the block omits refuses the entry)

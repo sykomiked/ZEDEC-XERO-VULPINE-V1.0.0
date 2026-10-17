@@ -1,0 +1,13 @@
+# SUTRA rule test 1 — a record, then a procedure, loads
+zxapp 1
+id sutra_rule_1
+matrix 1
+name Sutra Rule 1
+provides r truth a b
+logic sutra r <<
+record.
+01 a PIC 9(9).
+procedure division.
+  move 0 to a.
+.
+# expected: accept (a record, then a procedure, loads)

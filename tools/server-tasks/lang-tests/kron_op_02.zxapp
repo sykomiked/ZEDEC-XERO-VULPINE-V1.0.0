@@ -1,0 +1,10 @@
+# KRON operator test 2 — subtraction may go negative
+zxapp 1
+id kron_op_2
+matrix 1
+name KRON Operator 2
+provides op num a b
+logic kron op <<
+0|(_a-_b)
+.
+check op a=10,3 b=4,5 = 6,-2

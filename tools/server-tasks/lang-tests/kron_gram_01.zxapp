@@ -1,0 +1,10 @@
+# KRON grammar test 1 — the bare expression is a valid body
+zxapp 1
+id kron_gram_1
+matrix 1
+name KRON Grammar 1
+provides g num a b
+logic kron g <<
+0|_a+_b
+.
+# expected: accept (the bare expression is a valid body)

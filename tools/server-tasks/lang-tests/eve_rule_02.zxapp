@@ -1,0 +1,16 @@
+# EVE rule test 2 — the check's constants are held in fixed ranges
+zxapp 1
+id eve_rule_2
+matrix 1
+name Eve Rule 2
+provides r truth a b
+logic eve r <<
+eve t
+counts = 1 .. 100
+
+blk {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+# expected: accept (the check's constants are held in fixed ranges)

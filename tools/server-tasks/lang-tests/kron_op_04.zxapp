@@ -1,0 +1,10 @@
+# KRON operator test 4 — the K's % is EXACT DIVISION, not modulo
+zxapp 1
+id kron_op_4
+matrix 1
+name KRON Operator 4
+provides op num a b
+logic kron op <<
+0|(_a%_b)
+.
+check op a=1,1 b=2,4 = 1/2,1/4

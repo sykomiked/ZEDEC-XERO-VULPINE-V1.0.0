@@ -1,0 +1,10 @@
+# KRON operator test 7 — the | is max for... see the residue note
+zxapp 1
+id kron_op_7
+matrix 1
+name KRON Operator 7
+provides op num a b
+logic kron op <<
+0|(_a|_b)
+.
+check op a=3,2 b=5,7 = 5,7

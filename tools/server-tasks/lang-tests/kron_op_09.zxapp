@@ -1,0 +1,10 @@
+# KRON operator test 9 — the < is the less-than (1 true, 0 false)
+zxapp 1
+id kron_op_9
+matrix 1
+name KRON Operator 9
+provides op num a b
+logic kron op <<
+0|(_a<_b)
+.
+check op a=1,5 b=2,2 = 1,0

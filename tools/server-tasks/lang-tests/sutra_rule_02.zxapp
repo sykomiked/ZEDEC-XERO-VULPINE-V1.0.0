@@ -1,0 +1,10 @@
+# SUTRA rule test 2 — a body without the record line is refused
+zxapp 1
+id sutra_rule_2
+matrix 1
+name Sutra Rule 2
+provides r truth a b
+logic sutra r <<
+compute a = 0.
+.
+# expected: refuse (a body without the record line is refused)
