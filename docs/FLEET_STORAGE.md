@@ -59,6 +59,14 @@ the bucket's installer file) verifies the root, fetches the core disc by
 CID, and the kernel's signed A/B update (abupdate) commits it — one
 command from a CID, the same on bare metal, a VPS, or the desktop.
 
+## The 36n9:// fallback gateway
+
+The 36n9:// scheme's HTTP fallback resolves through the exact IPFS CID
+on a Filebase gateway — `https://ipfs.filebase.io/ipfs/<CID>/...` — never
+a custom domain. A link in any legacy browser maps to the content's own
+CID address on Filebase's gateway; the Wasm OS and the Tauri shell
+intercept the scheme locally and speak :8724 directly.
+
 ## User state
 
 A user continues where they left off because their state is theirs:
