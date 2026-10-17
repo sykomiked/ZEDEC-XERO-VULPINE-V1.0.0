@@ -1,0 +1,23 @@
+# app escapement: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id escapement
+matrix 172
+name Escapement
+needs sys.read
+needs peers
+needs notify
+needs fs.read
+needs fs.write
+
+provides exact_total num n a b c d
+logic trebago exact_total <<
+trebago exact_total
+  in  n a b c d
+  out r
+  r = 0
+end
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+

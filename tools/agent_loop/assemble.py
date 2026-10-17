@@ -151,9 +151,9 @@ def main():
         lines.append("provides %s %s %s" % (p["name"], p["kind"], argsn))
     for p in rows:
         lang = p["langs"].split(",")[0].strip()
-        body = sections.get(p["name"], "")
+        body = p.get("body", "").replace("{app}", args.app_id)
         if not body:
-            body = p.get("body", "").replace("{app}", args.app_id)
+            body = sections.get(p["name"], "")
         if not body:
             first = p["args"].split()[0] if p["args"].split() else "a"
             argpics = ", ".join("%s:i9" % a for a in p["args"].split())
