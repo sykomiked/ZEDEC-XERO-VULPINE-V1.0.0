@@ -109,3 +109,58 @@ slogan. The layer's value is architectural: **it removes the single
 point of failure** the standard handshake has, at a cost the honest peer
 does not pay. That is the safe, cheap hardening — full security behind
 post-quantum, in the system's own geometry.
+
+## The SCP-144 handshake tiers over the networking protocols
+
+SCP-144 is not one handshake: it is a **tier ladder**, one tier per
+networking protocol the node speaks. Each tier is an app's contract, so
+developing a tier *is* developing an app — the missing piece and the app
+are the same artifact. This is why finding what is missing generates the
+apps: the gap names the app.
+
+| Tier | Protocol | The handshake | The app it completes |
+|---|---|---|---|
+| **T0** | the transport (any) | ML-KEM-1024 + ML-DSA-87 (the PQ base) | the `keys` / `pqsec` app |
+| **T1** | UDP `:8724` | the Crown factor over the datagram: the point proves, the peer verifies | the `vinea` app (the peer mesh) |
+| **T2** | TCP/HTTP `:80` | the scenic bypass: the Crown factor carried in the door reply (`/pk`, `/sig`) | the `door` app (the doorway) |
+| **T3** | the mesh (S2S) | the relay: each hop re-proves, so a compromised hop cannot forge the next | the `swarmnet` app (the state fabric) |
+| **T4** | the tunnels | the reverse tunnel: the Crown factor at both ends, so neither end trusts the path | the `tunnel` app |
+| **T5** | the browser | the wasm handshake: the same factor in `zxv_app.wasm`, verified client-side | the `web` app (the world computer) |
+| **T6** | the storage | the content proof: a CID's bytes verified against the Crown factor | the `ipfs_node` app |
+
+Each tier is the previous plus the protocol's own proof, so the ladder is
+**cumulative**: a peer at T4 has proven T0–T4. A break at any tier does
+not weaken the tiers below it — the series holds at every rung.
+
+### Why this generates the apps
+
+Every tier above is a real app in the 407 (the `vinea`, `door`,
+`swarmnet`, `tunnel`, `web`, `ipfs_node` apps). So when the H100 finds a
+missing tier, it has found a missing **app** — and the app's contract is
+the tier's specification:
+
+- the tier's **protocol** is the app's `needs` (the transport capability);
+- the tier's **handshake** is the app's `provides` (the entries that
+  prove and verify);
+- the tier's **tests** are the three spaces at that protocol (the honest
+  peer verifies, the unproven is refused, the boundary is deterministic).
+
+That is the mechanism: **a gap in the security ladder is a gap in the app
+catalogue**, and closing one closes the other. The lattice that makes the
+checks deterministic makes the tier tests deterministic too — the same
+point, the same projection, the same verify, at every protocol.
+
+### What the H100 must build and test, per tier
+
+1. **The tier's proof entry**: `provides <tier>_prove truth <the tier's inputs>`
+   — the close-vector producer at that protocol's framing.
+2. **The tier's verify entry**: `provides <tier>_verify truth <the proof>`
+   — the exact projection check, no floats.
+3. **The cumulative test**: a peer that passes tier N passes tiers 0..N
+   (the ladder's monotonicity).
+4. **The break test**: a peer that fails tier N still passes tiers 0..N-1
+   (a lower tier is not weakened by a higher failure) — the negative space
+   at each rung.
+5. **The protocol test**: the tier's framing survives the protocol's
+   realities (a fragmented datagram, a lost packet, a reordered relay) —
+   the neutral space at each rung.
