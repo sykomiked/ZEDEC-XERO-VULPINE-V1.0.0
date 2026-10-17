@@ -119,6 +119,23 @@ def criteria_of(app_id):
     return "\n\n".join(parts)
 
 
+def lang_examples():
+    """The real blocks from the built apps: the exact spellings the
+    pillars compile. One per language, straight from the tree."""
+    out = []
+    for name, path in (("trebago", "blocks/fee_check/total.tb"),
+                       ("eve", "blocks/fee_check/fee_ok.eve"),
+                       ("kron", "blocks/fee_check/fee.kron"),
+                       ("sutra", "blocks/fee_check/fee.sutra"),
+                       ("myra", "blocks/banker/entry.myra")):
+        p = os.path.join(ROOT, "kernel/src/apps", path)
+        if os.path.exists(p):
+            body = "\n".join(l for l in open(p, errors="replace").read().split("\n")
+                             if not l.strip().startswith(("#", "!", ";", "//")))
+            out.append("--- %s ---\n%s" % (name, body.strip()[:400]))
+    return "\n".join(out)
+
+
 def checks_of(app_id):
     """The exact check lines the assembled manifest will carry — the model
     must write bodies that satisfy them."""
@@ -182,12 +199,13 @@ def prompt_for(app_id, node, verdict, last_text=""):
         "  kron: one line: '<answer-for-the-first-row>|<expression with _arg names>'\n"
         "  myra: one line: '^<GLOBAL>(<arg>:<pic>, <arg>:<pic>) = <name>:<pic>!'\n"
         "  sutra: the record (pictures) then the procedure (COMPUTE / IF)\n"
+        "THE REAL BLOCKS from the built apps — copy these spellings exactly:\n%s\n"
         "The checks that will judge you (exact inputs and answers):\n%s\n"
         "--- skeleton (the assembled structure, for context) ---\n%s\n---\n"
         "The wave spec (the authority):\n---\n%s\n---\n"
         "The criteria (the exact entry table):\n---\n%s\n---\n"
-        % (app_id, node.get("slot"), checks_of(app_id), skeleton(app_id, node),
-           spec[:2500], criteria_of(app_id)[:2500])
+        % (app_id, node.get("slot"), lang_examples(), checks_of(app_id),
+           skeleton(app_id, node), spec[:2500], criteria_of(app_id)[:2500])
     )
     if verdict:
         p += ("\nYour previous attempt failed the node's test with:\n%s\n" % verdict)

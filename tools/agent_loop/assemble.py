@@ -31,14 +31,14 @@ ROOT = os.path.abspath(os.path.join(HERE, "../.."))
 # the per-language default bodies (used when the model omits an entry):
 # small, exact, and true to each pillar's spelling.
 DEFAULT_BODY = {
-    "trebago": "fn {entry}({args}) {{ exact integer arithmetic; no floating point }}",
-    "eve": "check {entry}({args}) {{ the limits and the safety law }}",
-    "kron": "def {entry}({args}) {{ exact arrays, integer only }}",
-    "sutra": "procedure {entry}({args}) {{ the books and the procedures }}",
-    "myra": "record {entry}({args}) {{ the index and the lookup }}",
-    "forth": "{entry} ( {args} -- ok ) the range law",
-    "rust": "fn {entry}({args}) -> i64 {{ /* exact, checked */ }}",
-    "wasm": ";; {entry}: the witnessed circuit",
+    "trebago": "trebago {entry}\n  in  {args}\n  out r\n  r = 0\nend",
+    "eve": "eve zxv\nd = 0 .. 1000000\n\n{entry} {{\n  {first}: d 0 .. 1000000\n}}",
+    "kron": "0|_{first}",
+    "myra": "^ZX{SHORT}({argpics}) = v:i18!",
+    "sutra": "{entry}-record.\n01 {first} PIC 9(9).\nprocedure division.\n  move 0 to {first}.",
+    "forth": ": {entry} ( {args} -- r ) drop 0 ;",
+    "rust": "fn {entry}({args}) -> i64 {{ 0 }}",
+    "wasm": ";; {entry}: a witnessed circuit",
 }
 
 
@@ -97,8 +97,11 @@ def assemble_manifest(app_id, node, text):
         lang = p["langs"].split(",")[0].strip()
         body = sections.get(p["name"], "")
         if not body:
-            body = DEFAULT_BODY.get(lang, "{entry}({args})").format(entry=p["name"],
-                                                                    args=p["args"])
+            first = p["args"].split()[0] if p["args"].split() else "a"
+            argpics = ", ".join("%s:i9" % a for a in p["args"].split())
+            body = DEFAULT_BODY.get(lang, "{entry}({args})").format(
+                entry=p["name"], args=p["args"], first=first, argpics=argpics,
+                ENTRY=p["name"].upper(), SHORT=p["name"].upper()[:8])
         lines.append("logic %s %s <<" % (lang, p["name"]))
         lines.extend(body.split("\n"))
         lines.append(".")
@@ -142,8 +145,11 @@ def main():
         lang = p["langs"].split(",")[0].strip()
         body = sections.get(p["name"], "")
         if not body:
-            body = DEFAULT_BODY.get(lang, "{entry}({args})").format(entry=p["name"],
-                                                                    args=p["args"])
+            first = p["args"].split()[0] if p["args"].split() else "a"
+            argpics = ", ".join("%s:i9" % a for a in p["args"].split())
+            body = DEFAULT_BODY.get(lang, "{entry}({args})").format(
+                entry=p["name"], args=p["args"], first=first, argpics=argpics,
+                ENTRY=p["name"].upper(), SHORT=p["name"].upper()[:8])
         lines.append("logic %s %s <<" % (lang, p["name"]))
         lines.extend(body.split("\n"))
         lines.append(".")
