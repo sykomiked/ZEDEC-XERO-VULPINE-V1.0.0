@@ -1,0 +1,33 @@
+# scp144 — the keystone: SCP-144 (Sicilian Crown Protection, 144-D)
+# the native networking protocol, built in reverse from its
+# verified functions (the point, the projection, the verify).
+zxapp 1
+id scp144
+matrix 89
+name SCP-144
+needs net
+needs peers
+provides scp_point num seed
+logic trebago scp_point <<
+trebago scp_point
+  in  seed
+  out point
+  point = seed
+end
+.
+provides scp_norm num seed
+logic trebago scp_norm <<
+trebago scp_norm
+  in  seed
+  out weight
+  weight = seed
+end
+.
+provides scp_verify truth proof pub
+logic kron scp_verify <<
+(proof=0)&(pub=0)
+.
+check scp_norm seed=1 = 232
+check scp_norm seed=2 = 232
+check scp_verify proof=0,1 pub=0,0 = true,false
+check scp_verify proof=1 pub=1 = false

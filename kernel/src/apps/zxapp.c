@@ -591,6 +591,7 @@ static const char *const CAPS[] = {
     "swarm",                       /* the local swarm (swarm.*) */
     "ai.ask",                      /* the swarm's answers (swarm.ask) */
     "notify",                      /* notices to the person */
+    "crypto",
 };
 
 const char *const *zxapp_caps(uint32_t *n)
