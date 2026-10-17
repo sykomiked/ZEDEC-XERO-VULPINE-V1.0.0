@@ -31,8 +31,9 @@ LLAMA_MODEL = os.environ.get(
     "LLAMA_MODEL", os.path.expanduser("~/zxv-cuda/models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
 )
 LLAMA_NGPU = os.environ.get("LLAMA_NGPU", "0")
-LLAMA_CTX = os.environ.get("LLAMA_CTX", "8192")
+LLAMA_CTX = os.environ.get("LLAMA_CTX", "16384")
 LLAMA_SEED = os.environ.get("LLAMA_SEED", "5921622")  # 0x5A5856
+LLAMA_THREADS = os.environ.get("LLAMA_THREADS", "2")  # this host: 2 > 6 (oversubscribed vCPUs)
 MAX_TOKENS = int(os.environ.get("LLAMA_MAX_TOKENS", "2048"))
 
 
@@ -60,8 +61,8 @@ def prompt_for(task):
             try:
                 with open(p, "r", errors="replace") as fh:
                     body = fh.read()
-                lines.append(body[:12000])
-                if len(body) > 12000:
+                lines.append(body[:8000])
+                if len(body) > 8000:
                     lines.append("... (truncated)")
             except OSError:
                 lines.append("(unreadable)")
@@ -97,6 +98,7 @@ def run_task(task):
     ]
     if LLAMA_NGPU != "0":
         cmd += ["-ngl", LLAMA_NGPU]
+    cmd += ["-t", LLAMA_THREADS, "-tb", LLAMA_THREADS]
     log("task %s: %s (tokens=%d, prompt sha256 %s)" % (task["id"], task["title"], n, ph))
     t0 = time.time()
     try:
