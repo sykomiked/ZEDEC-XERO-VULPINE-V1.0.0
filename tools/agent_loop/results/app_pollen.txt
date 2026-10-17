@@ -1,0 +1,32 @@
+# app pollen: FAILED
+# verdict: check failed (line 27): check share_x100: refused (every language)
+
+zxapp 1
+id pollen
+matrix 31
+name Pollen
+needs peers
+needs fs.read
+needs fs.write
+needs notify
+
+provides limit_excess num value limit
+provides share_x100 num part whole
+provides composite_key num high low
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron share_x100 <<
+0|_part
+.
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

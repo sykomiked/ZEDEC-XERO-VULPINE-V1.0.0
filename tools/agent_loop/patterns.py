@@ -20,7 +20,7 @@ PATTERNS = [
         "langs": "trebago, eve",
         "logic": "0 when value <= limit, else value - limit (the ceiling's excess)",
         "body": 'trebago limit_excess\n  in  value, limit\n  out excess\n  excess = max(0, value - limit)\nend',
-        "checks": "check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000",
+        "checks": ['check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000', 'check limit_excess value=1000,999 limit=1000,1000 = 0,0', 'check limit_excess value=1,1000000 limit=0,999999 = 1,1'],
         "matches": ["limit", "limits", "ceiling", "cap", "maximum", "budget"],
     },
         {
@@ -30,9 +30,7 @@ PATTERNS = [
         "langs": "eve, kron",
         "logic": "true when lo <= value <= hi",
         "body": 'eve {app}\nvalues = 0 .. 100\n\nwithin_range {\n  value: values 0 .. 100\n  lo: values 0 .. 0\n  hi: values 100 .. 100\n}',
-        "witness_lang": "kron",
-        "witness_body": '(_value>=_lo)&(_value le _hi)',
-        "checks": "check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false",
+        "checks": ['check within_range value=0,50,100,101 lo=0,0,0,0 hi=100,100,100,100 = true,true,true,false', 'check within_range value=0,100 lo=0,0 hi=100,100 = true,true', 'check within_range value=50,101 lo=0,0 hi=100,100 = true,false', 'check within_range value=1,99 lo=0,0 hi=100,100 = true,true', 'check within_range value=100 lo=0 hi=100 = true', 'check within_range value=0 lo=0 hi=100 = true', 'check within_range value=101 lo=0 hi=100 = false'],
         "matches": ["range check", "within range", "in range", "probe readings", "brightness", "volume"],
     },
         {
@@ -62,7 +60,7 @@ PATTERNS = [
         "langs": "kron, trebago",
         "logic": "the part's share of the whole in hundredths of a percent, floor: part * 10000 / whole",
         "body": '0|(_part*10000)%_whole',
-        "checks": "check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000",
+        "checks": ['check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000', 'check share_x100 part=0 whole=1 = 0', 'check share_x100 part=1 whole=1 = 10000', 'check share_x100 part=1 whole=10000 = 1', 'check share_x100 part=3 whole=4 = 7500', 'check share_x100 part=2 whole=3 = 20000/3', 'check share_x100 part=1 whole=2 = 5000'],
         "matches": ["share", "shares", "proportion", "coverage x100", "split", "fraction"],
     },
         {
@@ -112,9 +110,7 @@ PATTERNS = [
         "langs": "eve, kron",
         "logic": "true when 0 < count <= cap (the registry's law)",
         "body": 'eve {app}\ncounts = 1 .. 100\n\ncount_ok {\n  count: counts 1 .. 100\n  cap: counts 100 .. 100\n}',
-        "witness_lang": "kron",
-        "witness_body": '(_count>0)&(_count le _cap)',
-        "checks": "check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false",
+        "checks": ['check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false', 'check count_ok count=2 cap=100 = true', 'check count_ok count=99 cap=100 = true', 'check count_ok count=101 cap=100 = false', 'check count_ok count=100 cap=100 = true', 'check count_ok count=0 cap=100 = false', 'check count_ok count=1 cap=100 = true'],
         "matches": ["count", "number of", "file-count", "at most", "registry"],
     },
         {

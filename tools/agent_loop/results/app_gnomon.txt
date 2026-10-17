@@ -1,0 +1,16 @@
+# app gnomon: FAILED
+# verdict: check failed (line 12): check share_x100: refused (every language)
+
+zxapp 1
+id gnomon
+matrix 107
+name Gnomon
+needs fs.read
+needs fs.write
+
+provides share_x100 num part whole
+logic kron share_x100 <<
+0|_part
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 3333,2500,100,5000
+

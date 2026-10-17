@@ -110,7 +110,11 @@ def assemble_manifest(app_id, node, text):
         lines.extend(body.split("\n"))
         lines.append(".")
     for p in rows:
-        lines.append(p["checks"])
+        ck = p["checks"]
+        if isinstance(ck, list):
+            lines.extend(ck)
+        else:
+            lines.append(ck)
     return "\n".join(lines) + "\n"
 
 
@@ -164,7 +168,11 @@ def main():
             lines.extend(p["witness_body"].replace("{app}", args.app_id).split("\n"))
             lines.append(".")
     for p in rows:
-        lines.append(p["checks"])
+        ck = p["checks"]
+        if isinstance(ck, list):
+            lines.extend(ck)
+        else:
+            lines.append(ck)
     man = "\n".join(lines) + "\n"
     if args.out:
         with open(args.out, "w") as f:
