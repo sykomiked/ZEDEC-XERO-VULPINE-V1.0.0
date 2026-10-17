@@ -122,14 +122,26 @@ def criteria_of(app_id):
 _ASSIST = None
 
 
+_ASSIST = """THE K OPERATOR FACTS (verified against the pillar source):
+  a % b   is exact DIVISION (a/b), never the modulo
+  a | b   is the RESIDUE b mod a (order reversed); 0|b is b
+  a & b   is the MINIMUM
+  a ^ b   refused;  a <= b  refused -> write a le b or a<=b as a<=b is wrong, use le
+  le, ge  the comparisons (or the unicode <= >=)
+  ⌈ ⌊     max, min  (min(x,y)/max(x,y) are REFUSED)
+  ^       refused (use * for powers)
+  Every binary op is RIGHT TO LEFT: parenthesise every step.
+  (high*1000)+low  must be written  ((high*1000)+low)
+  Truth entries: the plain boolean expression, no answer| prefix.
+  The & between comparisons is the AND of the 0/1 truths.
+EVE: the block binds EVERY argument the check passes, each to a range;
+  hold the check's constants (cap: counts 100 .. 100 when the check says cap=100).
+SUTRA: '<entry>-record.' then '01 <arg> PIC 9(9).' then 'procedure division.'
+MYRA: the global name is SHORT (8 chars): ^ZXHOARD(...), not ^ZXCOMPOSITE_KEY(...).
+TREBAGO: 'trebago <entry>' / 'in  a, b' / 'out r' / 'r = ...' / 'end'."""
+
+
 def assistance():
-    """The assistance criteria: the K and pillar facts verified against the
-    pillar sources, so a retry fixes the operator errors rather than
-    repeating them."""
-    global _ASSIST
-    if _ASSIST is None:
-        p = os.path.join(ROOT, "tools/agent_loop/ASSISTANCE.md")
-        _ASSIST = open(p, errors="replace").read() if os.path.exists(p) else ""
     return _ASSIST
 
 
