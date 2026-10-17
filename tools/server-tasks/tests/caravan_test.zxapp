@@ -1,0 +1,32 @@
+# caravan — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id caravan_test
+matrix 90
+name Caravan Test
+provides limit_excess num value limit
+provides composite_key num high low
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999

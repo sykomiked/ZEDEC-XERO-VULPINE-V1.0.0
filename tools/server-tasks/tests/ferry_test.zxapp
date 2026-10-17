@@ -1,0 +1,26 @@
+# ferry — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id ferry_test
+matrix 12
+name Ferry Test
+provides exact_total num n a b c d
+provides share_x100 num part whole
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0,0 whole=0,0
+check share_x100 part=1,1 whole=1,1
+check share_x100 part=1,0 whole=1,0
+check share_x100 part=1000000,1 whole=1,1000000
+check share_x100 part=0,1000000 whole=1000000,0
+check share_x100 part=999999999,999999999 whole=999999999,999999999

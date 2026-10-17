@@ -1,0 +1,11 @@
+# shipwright — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id shipwright_test
+matrix 190
+name Shipwright Test
+provides grade_band num value b1 b2 b3 b4
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4

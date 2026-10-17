@@ -1,0 +1,37 @@
+# distaff — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id distaff_test
+matrix 389
+name Distaff Test
+provides limit_excess num value limit
+provides grade_band num value b1 b2 b3 b4
+provides running_state truth state event
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check running_state state=0,0 event=0,0
+check running_state state=1,1 event=1,1
+check running_state state=1,0 event=1,0
+check running_state state=1000000,1 event=1,1000000
+check running_state state=0,1000000 event=1000000,0
+check running_state state=999999999,999999999 event=999999999,999999999

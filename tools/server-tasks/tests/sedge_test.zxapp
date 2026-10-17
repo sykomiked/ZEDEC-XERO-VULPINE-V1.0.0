@@ -1,0 +1,65 @@
+# sedge — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id sedge_test
+matrix 248
+name Sedge Test
+provides limit_excess num value limit
+provides composite_key num high low
+provides flags_none truth bits forbidden
+provides difference num a b
+provides running_state truth state event
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron difference <<
+0|_a-_b
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check flags_none bits=0,0 forbidden=0,0
+check flags_none bits=1,1 forbidden=1,1
+check flags_none bits=1,0 forbidden=1,0
+check flags_none bits=1000000,1 forbidden=1,1000000
+check flags_none bits=0,1000000 forbidden=1000000,0
+check flags_none bits=999999999,999999999 forbidden=999999999,999999999
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check difference a=0,0 b=0,0
+check difference a=1,1 b=1,1
+check difference a=1,0 b=1,0
+check difference a=1000000,1 b=1,1000000
+check difference a=0,1000000 b=1000000,0
+check difference a=999999999,999999999 b=999999999,999999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check running_state state=0,0 event=0,0
+check running_state state=1,1 event=1,1
+check running_state state=1,0 event=1,0
+check running_state state=1000000,1 event=1,1000000
+check running_state state=0,1000000 event=1000000,0
+check running_state state=999999999,999999999 event=999999999,999999999

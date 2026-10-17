@@ -1,0 +1,48 @@
+# kettle — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id kettle_test
+matrix 92
+name Kettle Test
+provides composite_key num high low
+provides exact_total num n a b c d
+provides flags_none truth bits forbidden
+provides product num a b
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+logic kron product <<
+0|_a*_b
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check flags_none bits=0,0 forbidden=0,0
+check flags_none bits=1,1 forbidden=1,1
+check flags_none bits=1,0 forbidden=1,0
+check flags_none bits=1000000,1 forbidden=1,1000000
+check flags_none bits=0,1000000 forbidden=1000000,0
+check flags_none bits=999999999,999999999 forbidden=999999999,999999999
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check product a=0,0 b=0,0
+check product a=1,1 b=1,1
+check product a=1,0 b=1,0
+check product a=1000000,1 b=1,1000000
+check product a=0,1000000 b=1000000,0
+check product a=999999999,999999999 b=999999999,999999999

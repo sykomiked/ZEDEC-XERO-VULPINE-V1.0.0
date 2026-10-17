@@ -1,0 +1,17 @@
+# talewind — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id talewind_test
+matrix 108
+name Talewind Test
+provides flags_none truth bits forbidden
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check flags_none bits=0,0 forbidden=0,0
+check flags_none bits=1,1 forbidden=1,1
+check flags_none bits=1,0 forbidden=1,0
+check flags_none bits=1000000,1 forbidden=1,1000000
+check flags_none bits=0,1000000 forbidden=1000000,0
+check flags_none bits=999999999,999999999 forbidden=999999999,999999999

@@ -1,0 +1,54 @@
+# tint — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id tint_test
+matrix 138
+name Tint Test
+provides count_ok truth count cap
+provides limit_excess num value limit
+provides clamp num value lo hi
+provides composite_key num high low
+logic eve count_ok <<
+eve tint
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron clamp <<
+0|max(_lo, min(_hi, _value))
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=0,0 cap=0,0
+check count_ok count=1,1 cap=1,1
+check count_ok count=1,0 cap=1,0
+check count_ok count=1000000,1 cap=1,1000000
+check count_ok count=0,1000000 cap=1000000,0
+check count_ok count=999999999,999999999 cap=999999999,999999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check clamp value=-5,0,50,150 lo=0,0,0,0 hi=100,100,100,100 = 0,0,50,100
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999

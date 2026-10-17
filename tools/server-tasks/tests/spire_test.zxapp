@@ -1,0 +1,28 @@
+# spire — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id spire_test
+matrix 323
+name Spire Test
+provides count_ok truth count cap
+provides grade_band num value b1 b2 b3 b4
+logic eve count_ok <<
+eve spire
+counts = 1 .. 100
+
+count_ok {
+  count: counts 1 .. 100
+  cap: counts 100 .. 100
+}
+.
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+check count_ok count=1,100,101,0 cap=100,100,100,100 = true,true,false,false
+check count_ok count=0,0 cap=0,0
+check count_ok count=1,1 cap=1,1
+check count_ok count=1,0 cap=1,0
+check count_ok count=1000000,1 cap=1,1000000
+check count_ok count=0,1000000 cap=1000000,0
+check count_ok count=999999999,999999999 cap=999999999,999999999
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4

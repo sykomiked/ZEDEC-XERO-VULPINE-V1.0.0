@@ -1,0 +1,32 @@
+# binnacle — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id binnacle_test
+matrix 147
+name Binnacle Test
+provides ratio_x1000 num num den
+provides limit_excess num value limit
+logic kron ratio_x1000 <<
+0|(_num*1000)%_den
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
+check ratio_x1000 num=0,0 den=0,0
+check ratio_x1000 num=1,1 den=1,1
+check ratio_x1000 num=1,0 den=1,0
+check ratio_x1000 num=1000000,1 den=1,1000000
+check ratio_x1000 num=0,1000000 den=1000000,0
+check ratio_x1000 num=999999999,999999999 den=999999999,999999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999

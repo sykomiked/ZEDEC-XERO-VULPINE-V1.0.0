@@ -1,0 +1,28 @@
+# sexton — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id sexton_test
+matrix 195
+name Sexton Test
+provides composite_key num high low
+provides running_state truth state event
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check running_state state=0,0 event=0,0
+check running_state state=1,1 event=1,1
+check running_state state=1,0 event=1,0
+check running_state state=1000000,1 event=1,1000000
+check running_state state=0,1000000 event=1000000,0
+check running_state state=999999999,999999999 event=999999999,999999999

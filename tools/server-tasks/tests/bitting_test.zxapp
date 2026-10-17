@@ -1,0 +1,28 @@
+# bitting — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id bitting_test
+matrix 307
+name Bitting Test
+provides composite_key num high low
+provides flags_none truth bits forbidden
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check flags_none bits=0,0 forbidden=0,0
+check flags_none bits=1,1 forbidden=1,1
+check flags_none bits=1,0 forbidden=1,0
+check flags_none bits=1000000,1 forbidden=1,1000000
+check flags_none bits=0,1000000 forbidden=1000000,0
+check flags_none bits=999999999,999999999 forbidden=999999999,999999999

@@ -1,0 +1,15 @@
+# belvedere — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id belvedere_test
+matrix 87
+name Belvedere Test
+provides exact_total num n a b c d
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0

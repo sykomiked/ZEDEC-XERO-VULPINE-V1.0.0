@@ -1,0 +1,57 @@
+# theorbo — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id theorbo_test
+matrix 348
+name Theorbo Test
+provides exact_total num n a b c d
+provides share_x100 num part whole
+provides limit_excess num value limit
+provides grade_band num value b1 b2 b3 b4
+provides running_state truth state event
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0,0 whole=0,0
+check share_x100 part=1,1 whole=1,1
+check share_x100 part=1,0 whole=1,0
+check share_x100 part=1000000,1 whole=1,1000000
+check share_x100 part=0,1000000 whole=1000000,0
+check share_x100 part=999999999,999999999 whole=999999999,999999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check running_state state=0,0 event=0,0
+check running_state state=1,1 event=1,1
+check running_state state=1,0 event=1,0
+check running_state state=1000000,1 event=1,1000000
+check running_state state=0,1000000 event=1000000,0
+check running_state state=999999999,999999999 event=999999999,999999999

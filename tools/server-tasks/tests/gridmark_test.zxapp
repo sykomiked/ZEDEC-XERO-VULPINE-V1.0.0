@@ -1,0 +1,37 @@
+# gridmark — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id gridmark_test
+matrix 120
+name Gridmark Test
+provides limit_excess num value limit
+provides grade_band num value b1 b2 b3 b4
+provides flags_none truth bits forbidden
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+logic kron flags_none <<
+(_bits&_forbidden)=0
+.
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check flags_none bits=0,0 forbidden=0,0
+check flags_none bits=1,1 forbidden=1,1
+check flags_none bits=1,0 forbidden=1,0
+check flags_none bits=1000000,1 forbidden=1,1000000
+check flags_none bits=0,1000000 forbidden=1000000,0
+check flags_none bits=999999999,999999999 forbidden=999999999,999999999

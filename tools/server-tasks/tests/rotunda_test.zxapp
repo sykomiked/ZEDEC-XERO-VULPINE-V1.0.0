@@ -1,0 +1,22 @@
+# rotunda — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id rotunda_test
+matrix 331
+name Rotunda Test
+provides share_x100 num part whole
+provides largest_remainder num pool w1 w2 w3 w4
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic kron largest_remainder <<
+0|(_pool*_w1)%(_w1+_w2+_w3+_w4)
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0,0 whole=0,0
+check share_x100 part=1,1 whole=1,1
+check share_x100 part=1,0 whole=1,0
+check share_x100 part=1000000,1 whole=1,1000000
+check share_x100 part=0,1000000 whole=1000000,0
+check share_x100 part=999999999,999999999 whole=999999999,999999999
+check largest_remainder pool=100,10,7,100 w1=1,1,1,1 w2=1,1,1,1 w3=1,1,1,1 w4=1,0,0,0 = 25,10/3,7/3,50

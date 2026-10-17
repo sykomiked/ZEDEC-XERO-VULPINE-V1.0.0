@@ -1,0 +1,22 @@
+# cove — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id cove_test
+matrix 32
+name Cove Test
+provides grade_band num value b1 b2 b3 b4
+provides composite_key num high low
+logic kron grade_band <<
+(_value>_b1)+(_value>_b2)+(_value>_b3)+(_value>_b4)
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check grade_band value=0,5,15,25,100 b1=10,b2=20,b3=30,b4=40 = 0,0,1,2,4
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999

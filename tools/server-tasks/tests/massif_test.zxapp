@@ -1,0 +1,63 @@
+# massif — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id massif_test
+matrix 256
+name Massif Test
+provides share_x100 num part whole
+provides limit_excess num value limit
+provides product num a b
+provides exact_total num n a b c d
+provides running_state truth state event
+logic kron share_x100 <<
+0|(_part*10000)%_whole
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic kron product <<
+0|_a*_b
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron running_state <<
+((_state=0)&(_event=1))|((_state=1)&(_event=1))
+.
+check share_x100 part=1,1,1,50 whole=3,4,100,100 = 10000/3,2500,100,5000
+check share_x100 part=0,0 whole=0,0
+check share_x100 part=1,1 whole=1,1
+check share_x100 part=1,0 whole=1,0
+check share_x100 part=1000000,1 whole=1,1000000
+check share_x100 part=0,1000000 whole=1000000,0
+check share_x100 part=999999999,999999999 whole=999999999,999999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check product a=0,0 b=0,0
+check product a=1,1 b=1,1
+check product a=1,0 b=1,0
+check product a=1000000,1 b=1,1000000
+check product a=0,1000000 b=1000000,0
+check product a=999999999,999999999 b=999999999,999999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check running_state state=0,0,1,1 event=1,2,1,2 = true,false,true,false
+check running_state state=0,0 event=0,0
+check running_state state=1,1 event=1,1
+check running_state state=1,0 event=1,0
+check running_state state=1000000,1 event=1,1000000
+check running_state state=0,1000000 event=1000000,0
+check running_state state=999999999,999999999 event=999999999,999999999

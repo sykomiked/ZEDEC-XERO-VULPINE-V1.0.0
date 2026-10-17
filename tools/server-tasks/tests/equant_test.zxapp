@@ -1,0 +1,33 @@
+# equant — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id equant_test
+matrix 320
+name Equant Test
+provides conserved_sum truth whole a b c d
+provides ratio_x1000 num num den
+provides product num a b
+logic kron conserved_sum <<
+(_a+_b+_c+_d=_whole)
+.
+logic kron ratio_x1000 <<
+0|(_num*1000)%_den
+.
+logic kron product <<
+0|_a*_b
+.
+check conserved_sum whole=100,100,100,101 a=25,0,0,25 b=25,0,0,25 c=25,0,0,25 d=25,100,99,25 = true,true,false,false
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
+check ratio_x1000 num=0,0 den=0,0
+check ratio_x1000 num=1,1 den=1,1
+check ratio_x1000 num=1,0 den=1,0
+check ratio_x1000 num=1000000,1 den=1,1000000
+check ratio_x1000 num=0,1000000 den=1000000,0
+check ratio_x1000 num=999999999,999999999 den=999999999,999999999
+check product a=1,12,0,999 b=1250,999,7,1000 = 1250,11988,0,999000
+check product a=0,0 b=0,0
+check product a=1,1 b=1,1
+check product a=1,0 b=1,0
+check product a=1000000,1 b=1,1000000
+check product a=0,1000000 b=1000000,0
+check product a=999999999,999999999 b=999999999,999999999

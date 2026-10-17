@@ -1,0 +1,17 @@
+# trowel — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id trowel_test
+matrix 184
+name Trowel Test
+provides difference num a b
+logic kron difference <<
+0|_a-_b
+.
+check difference a=10,5,0,100 b=3,5,0,99 = 7,0,0,1
+check difference a=0,0 b=0,0
+check difference a=1,1 b=1,1
+check difference a=1,0 b=1,0
+check difference a=1000000,1 b=1,1000000
+check difference a=0,1000000 b=1000000,0
+check difference a=999999999,999999999 b=999999999,999999999

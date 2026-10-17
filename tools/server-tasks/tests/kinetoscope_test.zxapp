@@ -1,0 +1,52 @@
+# kinetoscope — the test manifest (checks at 7:1)
+# every check below exercises a boundary of its entry.
+zxapp 1
+id kinetoscope_test
+matrix 51
+name Kinetoscope Test
+provides ratio_x1000 num num den
+provides limit_excess num value limit
+provides exact_total num n a b c d
+provides composite_key num high low
+logic kron ratio_x1000 <<
+0|(_num*1000)%_den
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value, limit
+  out excess
+  excess = max(0, value - limit)
+end
+.
+logic trebago exact_total <<
+trebago exact_total
+  in  n, a, b, c, d
+  out total
+  total = sum(i = 1:n, (i=1)*a + (i=2)*b + (i=3)*c + (i=4)*d)
+end
+.
+logic kron composite_key <<
+0|((_high*1000)+_low)
+.
+check ratio_x1000 num=1,1,1,3 den=3,8,1000,4 = 1000/3,125,1,750
+check ratio_x1000 num=0,0 den=0,0
+check ratio_x1000 num=1,1 den=1,1
+check ratio_x1000 num=1,0 den=1,0
+check ratio_x1000 num=1000000,1 den=1,1000000
+check ratio_x1000 num=0,1000000 den=1000000,0
+check ratio_x1000 num=999999999,999999999 den=999999999,999999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check limit_excess value=0,0 limit=0,0
+check limit_excess value=1,1 limit=1,1
+check limit_excess value=1,0 limit=1,0
+check limit_excess value=1000000,1 limit=1,1000000
+check limit_excess value=0,1000000 limit=1000000,0
+check limit_excess value=999999999,999999999 limit=999999999,999999999
+check exact_total n=2,4,1,0 a=10,1,7,5 b=20,2,7,5 c=0,3,7,5 d=0,4,7,5 = 30,10,7,0
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check composite_key high=0,0 low=0,0
+check composite_key high=1,1 low=1,1
+check composite_key high=1,0 low=1,0
+check composite_key high=1000000,1 low=1,1000000
+check composite_key high=0,1000000 low=1000000,0
+check composite_key high=999999999,999999999 low=999999999,999999999
