@@ -1,0 +1,218 @@
+/* zxv.css — the ZXV design system. The dragon palette from the kernel's
+ * theme (the deep reds, the fiery oranges, the gold) rendered as a
+ * complete, cohesive interface: the desk, the cards, the panels, the
+ * dialogs. Exact, restrained, and fast — no frameworks, no dependencies,
+ * a few kilobytes, so it renders instantly on any device including the
+ * wasm engine in a browser.
+ *
+ * Copyright (c) 2024-2026 Michael Laurence Curzi and 36N9 Genetics, LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+:root {
+    /* the dragon palette (kernel/src/theme/theme.c) */
+    --dragon-void:   #000000;   /* the substrate: the true black */
+    --dragon-abyss:  #0d0000;   /* the deepest ground */
+    --dragon-night:  #1a0000;   /* the panel ground */
+    --dragon-ember:  #330000;   /* the raised surface */
+    --dragon-blood:  #660000;   /* the border, the seam */
+    --dragon-coal:   #2e0a0a;   /* the muted surface */
+    --dragon-flame:  #cc3300;   /* the active accent */
+    --dragon-fire:   #ff6600;   /* the hot accent */
+    --dragon-gold:   #ffd700;   /* the crown: the primary highlight */
+    --dragon-bone:   #f2e6d9;   /* the text: warm off-white */
+    --dragon-ash:    #a89080;   /* the secondary text */
+    --dragon-iron:   #4a3a30;   /* the disabled, the quiet */
+    /* the four values (the lpres colours) */
+    --lp-true:   #2ecc71;
+    --lp-false:  #e74c3c;
+    --lp-both:   #ffd700;
+    --lp-neither:#7f8c8d;
+    /* the rhythm: an 8px grid, the spacing scale */
+    --s1: 4px; --s2: 8px; --s3: 16px; --s4: 24px; --s5: 32px; --s6: 48px;
+    --r1: 4px; --r2: 8px; --r3: 12px; --r4: 16px; --r5: 24px;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.6);
+    --shadow-2: 0 4px 12px rgba(0,0,0,.7);
+    --shadow-glow: 0 0 24px rgba(255,102,0,.18);
+    --ease: cubic-bezier(.22,.61,.36,1);
+    --dur: 180ms;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(255,102,0,.06), transparent 70%),
+        linear-gradient(180deg, var(--dragon-abyss), var(--dragon-void));
+    color: var(--dragon-bone);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* the typography: a clear, warm hierarchy */
+h1, h2, h3, h4 { margin: 0 0 var(--s3); font-weight: 650; letter-spacing: -.01em; }
+h1 { font-size: 2.25rem; line-height: 1.15; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.2rem; }
+p  { margin: 0 0 var(--s3); color: var(--dragon-bone); }
+a  { color: var(--dragon-gold); text-decoration: none; transition: color var(--dur) var(--ease); }
+a:hover { color: var(--dragon-fire); }
+code, pre { font-family: var(--mono); font-size: .9em; }
+code {
+    background: var(--dragon-ember);
+    border: 1px solid var(--dragon-blood);
+    border-radius: var(--r1);
+    padding: 2px 6px;
+    color: var(--dragon-gold);
+}
+pre {
+    background: var(--dragon-night);
+    border: 1px solid var(--dragon-blood);
+    border-radius: var(--r2);
+    padding: var(--s3);
+    overflow: auto;
+    color: var(--dragon-bone);
+}
+
+/* the desk: the shell every surface shares */
+.zxv-desk {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: var(--s6) var(--s4);
+}
+.zxv-masthead {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s3) var(--s4);
+    border-bottom: 1px solid var(--dragon-blood);
+    background: linear-gradient(180deg, rgba(51,0,0,.5), transparent);
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(8px);
+}
+.zxv-mark {
+    width: 34px; height: 34px; border-radius: var(--r2);
+    background: linear-gradient(135deg, var(--dragon-fire), var(--dragon-gold));
+    box-shadow: var(--shadow-glow);
+    display: grid; place-items: center;
+    font-weight: 800; color: var(--dragon-void);
+}
+
+/* the cards: the primary surface */
+.zxv-card {
+    background: linear-gradient(180deg, var(--dragon-night), var(--dragon-abyss));
+    border: 1px solid var(--dragon-blood);
+    border-radius: var(--r3);
+    padding: var(--s4);
+    box-shadow: var(--shadow-1);
+    transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+                border-color var(--dur) var(--ease);
+}
+.zxv-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--dragon-flame);
+    box-shadow: var(--shadow-2), var(--shadow-glow);
+}
+.zxv-grid {
+    display: grid;
+    gap: var(--s4);
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+/* the buttons: clear, tactile, accessible */
+.zxv-btn {
+    appearance: none;
+    border: 1px solid var(--dragon-blood);
+    background: var(--dragon-ember);
+    color: var(--dragon-bone);
+    font: inherit;
+    font-weight: 600;
+    padding: var(--s2) var(--s4);
+    border-radius: var(--r2);
+    cursor: pointer;
+    transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+                transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.zxv-btn:hover { border-color: var(--dragon-fire); background: var(--dragon-coal); }
+.zxv-btn:active { transform: translateY(1px); }
+.zxv-btn:focus-visible { outline: 2px solid var(--dragon-gold); outline-offset: 2px; }
+.zxv-btn--primary {
+    background: linear-gradient(135deg, var(--dragon-flame), var(--dragon-fire));
+    border-color: var(--dragon-fire);
+    color: var(--dragon-void);
+}
+.zxv-btn--primary:hover { box-shadow: var(--shadow-glow); }
+.zxv-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* the four values: the lpres colours, everywhere they appear */
+.lp-true    { color: var(--lp-true); }
+.lp-false   { color: var(--lp-false); }
+.lp-both    { color: var(--lp-both); }
+.lp-neither { color: var(--lp-neither); }
+.zxv-pill {
+    display: inline-flex; align-items: center; gap: var(--s1);
+    padding: 2px var(--s2); border-radius: 999px;
+    font-size: .8rem; font-weight: 650;
+    border: 1px solid currentColor; opacity: .95;
+}
+
+/* the language picker: each language in its own script */
+.zxv-lang-picker { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.zxv-lang-picker button {
+    background: var(--dragon-ember); border: 1px solid var(--dragon-blood);
+    border-radius: var(--r2); padding: var(--s2) var(--s3); cursor: pointer;
+    color: var(--dragon-bone); font: inherit;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.zxv-lang-picker button:hover { border-color: var(--dragon-gold); }
+.zxv-lang-picker .native  { font-size: 1rem; }
+.zxv-lang-picker .english { font-size: .75rem; color: var(--dragon-ash); }
+
+/* the table: the data surface */
+.zxv-table { width: 100%; border-collapse: collapse; }
+.zxv-table th, .zxv-table td {
+    text-align: left; padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--dragon-blood);
+}
+.zxv-table th { color: var(--dragon-ash); font-weight: 600; font-size: .85rem;
+                text-transform: uppercase; letter-spacing: .04em; }
+.zxv-table tr:hover td { background: rgba(102,0,0,.18); }
+
+/* the states: honest, visible feedback */
+.zxv-loading { color: var(--dragon-ash); }
+.zxv-loading::after {
+    content: ""; display: inline-block; width: 10px; height: 10px; margin-left: 6px;
+    border-radius: 50%; border: 2px solid var(--dragon-ash);
+    border-top-color: var(--dragon-gold); animation: zxv-spin .8s linear infinite;
+}
+@keyframes zxv-spin { to { transform: rotate(360deg); } }
+.zxv-error { color: var(--lp-false); border-left: 3px solid var(--lp-false);
+             padding-left: var(--s3); }
+.zxv-ok { color: var(--lp-true); }
+
+/* the motion: gentle, never gratuitous; respects the user's preference */
+@media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+}
+
+/* the responsive: flawless on a phone, a laptop, a wall */
+@media (max-width: 640px) {
+    .zxv-desk { padding: var(--s4) var(--s3); }
+    h1 { font-size: 1.7rem; }
+    .zxv-grid { grid-template-columns: 1fr; }
+}
+
+/* the print: legible on paper (the docs, the papers) */
+@media print {
+    body { background: #fff; color: #000; }
+    .zxv-masthead { position: static; }
+}
