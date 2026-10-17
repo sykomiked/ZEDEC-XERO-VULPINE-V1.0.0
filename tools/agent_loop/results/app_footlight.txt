@@ -1,0 +1,18 @@
+# app footlight: FAILED
+# verdict: check failed (line 14): check composite_key: refused (every language)
+
+zxapp 1
+id footlight
+matrix 41
+name Footlight
+needs fs.read
+needs fs.write
+needs print
+needs peers
+
+provides composite_key num high low
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+

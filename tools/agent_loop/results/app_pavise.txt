@@ -1,0 +1,38 @@
+# app pavise: FAILED
+# verdict: parse failed (line 3): a matrix layer is a number from 0 (the core) to 144
+
+zxapp 1
+id pavise
+matrix 153
+name Pavise
+needs sys.read
+needs net
+needs peers
+needs journal
+needs notify
+
+provides composite_key num high low
+provides limit_excess num value limit
+provides flags_none truth bits forbidden
+provides clamp num value min max
+logic myra composite_key <<
+^ZXCOMPOSIT(high:i9, low:i9) = v:i18!
+.
+logic trebago limit_excess <<
+trebago limit_excess
+  in  value limit
+  out r
+  r = 0
+end
+.
+logic kron flags_none <<
+0|_bits
+.
+logic kron clamp <<
+0|_value
+.
+check composite_key high=2024,0,1,999 low=7,0,999,999 = 2024007,0,1999,999999
+check limit_excess value=0,1000,1001,2000 limit=1000,1000,1000,1000 = 0,0,1,1000
+check flags_none bits=0,1,2,3 forbidden=1,1,1,1 = true,false,true,false
+check clamp value=-5,0,50,150 min=0,0,0,0 max=100,100,100,100 = 0,0,50,100
+

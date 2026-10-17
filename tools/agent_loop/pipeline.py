@@ -371,8 +371,17 @@ def vllm(prompt, tokens):
     req = urllib.request.Request(VLLM_URL.rstrip("/") + "/v1/chat/completions", data=body,
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=3600) as r:
-        d = _json_lenient(r.read())
-    return d["choices"][0]["message"]["content"] or ""
+        raw = r.read()
+    try:
+        d = _json_lenient(raw)
+    except Exception:
+        # a truncated response (finish_reason length) is not recoverable by
+        # parsing: signal it so the caller retries with the verdict
+        raise ValueError("the response was truncated or malformed; retry")
+    ch = d["choices"][0]
+    if ch.get("finish_reason") == "length":
+        raise ValueError("the response hit the token cap; retry")
+    return ch["message"]["content"] or ""
 
 
 def judge(text):
@@ -430,7 +439,7 @@ def main():
         for attempt in range(1, args.attempts + 1):
             t0 = time.time()
             try:
-                text = vllm(prompt_for(o, node, verdict, last_text), 2400)
+                text = vllm(prompt_for(o, node, verdict, last_text), 4096)
             except Exception as e:
                 log("%s attempt %d: vllm error %s" % (o, attempt, e))
                 time.sleep(10)

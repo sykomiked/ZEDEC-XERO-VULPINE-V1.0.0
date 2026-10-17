@@ -40,7 +40,7 @@ def one_app(o, node, attempts):
     last_text = ""
     for attempt in range(1, attempts + 1):
         try:
-            text = P.vllm(P.prompt_for(o, node, verdict, last_text), 2400)
+            text = P.vllm(P.prompt_for(o, node, verdict, last_text), 4096)
         except Exception as e:
             log("%s attempt %d: model error %s" % (o, attempt, str(e)[:80]))
             time.sleep(2)
