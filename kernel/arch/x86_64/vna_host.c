@@ -144,6 +144,31 @@ static vna_shared_file_t g_ext_sf[VNAH_EXT_N];
 static uint8_t g_ext_data[VNAH_EXT_N][VNA_CHUNK_SIZE * 8];
 static uint8_t g_ext_leaves[VNAH_EXT_N][8][32];
 static uint8_t g_ext_used[VNAH_EXT_N];
+
+/* Demand-pinning (active information trading): query velocity is a fast
+ * local signal (per-entry decayed counter bumped by every KQ/DQ hit),
+ * the envelope `wants` is the slow global one. A root whose velocity
+ * crosses the fetch threshold and whose provider parameters are retained
+ * gets fetched into the staging bucket (g_ext); when the bucket is full
+ * the lowest-velocity entry is evicted — velocity, not LRU, so a rising
+ * micro-trend displaces a fading one. The decay (255/256 per tick) is
+ * what stops a scraper burst from thrashing the bucket: an instant spike
+ * decays below the threshold within minutes, while sustained demand
+ * stays pinned. */
+#define VNAH_PROV_N    8u   /* retained provider-params table */
+#define VNAH_VEL_FETCH 24u  /* velocity at which a fetch fires */
+#define VNAH_VEL_DECAY 255u /* vel = vel * 255 / 256 per tick */
+#define VNAH_VEL_MAX   0xFFFFu
+static uint16_t g_vel[VNAH_CISEX_N]; /* per-entry demand velocity */
+static struct {
+    vna_id_t root;
+    vna_id_t publisher;
+    vna_provider_t pv;
+    uint64_t seen_ms;
+    uint8_t used;
+} g_prov[VNAH_PROV_N];
+static uint32_t g_pins, g_pin_evicts;
+static void cisex_vel_bump(const uint8_t *reply, uint32_t len);
 static vna_sess_t g_sess[VNAH_SESS_N];
 static vna_hs_t g_hs[VNAH_SESS_N];
 static uint8_t g_hs_used[VNAH_SESS_N];
@@ -343,6 +368,7 @@ static void bond_obs(uint16_t app, uint16_t act, uint64_t now)
 #define BOND_ACT_REFUSE 5u
 #define BOND_ACT_VISIT  6u
 #define BOND_ACT_CLAIM  7u
+#define BOND_ACT_PIN    8u /* staging bucket: pin or evict */
 
 /* ML-DSA-87 over the grant body, both owners' signature the grant demands. */
 static bool chg_pk_verify(const uint8_t *pk, uint32_t pk_len, const uint8_t *msg, uint32_t msg_len,
@@ -651,12 +677,29 @@ static void vna_env_ingest_rec(vna_host_t *h, const uint8_t *bytes, uint32_t len
     }
     if (r.rtype == VNA_REC_PROVIDER) {
         /* a file we do not share, offered by someone: fetch it over a
-         * session — self-propagating content beyond the curriculum */
+         * session — self-propagating content beyond the curriculum. The
+         * parameters are also retained, so demand later (velocity) can
+         * fetch what an earlier announcement could not. */
         vna_provider_t pv;
         for (i = 0; i < VNAH_SF_N; i++)
             if (vna_id_eq(&r.key, &g_sf_root[i])) return;
         if (vna_schema_unpack(&vna_provider_schema, r.payload, r.payload_len, &pv, 0) < 0) return;
         if (pv.visibility != VNA_VIS_PUBLIC) return;
+        {
+            uint32_t p = VNAH_PROV_N;
+            for (i = 0; i < VNAH_PROV_N; i++)
+                if (g_prov[i].used && vna_id_eq(&g_prov[i].root, &r.key)) p = i;
+            if (p == VNAH_PROV_N)
+                for (i = 0; i < VNAH_PROV_N; i++)
+                    if (!g_prov[i].used) p = i;
+            if (p < VNAH_PROV_N) {
+                g_prov[p].root = r.key;
+                g_prov[p].publisher = r.publisher;
+                g_prov[p].pv = pv;
+                g_prov[p].seen_ms = now;
+                g_prov[p].used = 1;
+            }
+        }
         sess_fetch_begin(h, &r.key, &r.publisher, &pv, now);
     }
 }
@@ -1214,9 +1257,31 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                                       g_cisex_region, &fkind, &fent);
                     (void) cisex_observe(&g_cisex, g_fetch_root.b, g_cisex_region,
                                          LPRES_STATE_TRUE);
-                    /* become a seeder for what we just verified */
+                    /* become a seeder for what we just verified — the
+                     * staging bucket evicts by demand velocity, so a
+                     * rising micro-trend displaces a fading one */
                     for (e = 0; e < VNAH_EXT_N; e++)
                         if (!g_ext_used[e]) break;
+                    if (e == VNAH_EXT_N) {
+                        uint32_t lo = 0;
+                        uint16_t lv = VNAH_VEL_MAX;
+                        for (j = 0; j < VNAH_EXT_N; j++) {
+                            uint16_t v = 0;
+                            for (i = 0; i < g_cisex.count; i++)
+                                if (g_cisex_ents[i].used &&
+                                    vna_id_eq(&g_ext_sf[j].root,
+                                              (const vna_id_t *) g_cisex_ents[i].digest))
+                                    v = g_vel[i];
+                            if (v < lv) {
+                                lv = v;
+                                lo = j;
+                            }
+                        }
+                        e = lo;
+                        g_ext_used[e] = 0;
+                        g_pin_evicts++;
+                        bond_obs(BOND_APP_IDX, BOND_ACT_PIN, now);
+                    }
                     if (e < VNAH_EXT_N) {
                         vna_copy(g_ext_data[e], g_fetch_data, g_fetch_size);
                         if (vna_file_build(g_ext_data[e], g_fetch_size, VNA_CHUNK_SIZE,
@@ -1228,6 +1293,7 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
                             g_ext_sf[e].leaves = (const uint8_t(*)[32]) g_ext_leaves[e];
                             g_ext_sf[e].data = g_ext_data[e];
                             g_ext_used[e] = 1;
+                            g_pins++;
                         }
                     }
                 } else
@@ -1243,9 +1309,10 @@ static void vna_sess_rx(vna_host_t *h, const uint8_t a[6], const uint8_t *data, 
             vna_copy(query, g_sess_pt, pl);
             qr = cisex_rt_handle(&g_cisex, query, pl, g_cisex_region, g_sess_pt, sizeof g_sess_pt,
                                  &reply_len);
-            if (reply_len > 0)
+            if (reply_len > 0) {
+                cisex_vel_bump(g_sess_pt, reply_len); /* demand over sessions */
                 sess_send(h, i, VNAH_REC_CISEX_R, g_sess_pt, reply_len);
-            else if (qr < 0)
+            } else if (qr < 0)
                 h->refused++;
             return;
         }
@@ -1370,6 +1437,26 @@ static void chg_visit_try(vna_host_t *h, int si, uint64_t now)
     g_visit_wait[si] = 1;
 }
 
+/* Demand velocity: every KQ/DQ reply envelope's digest bumps its entry.
+ * Reply layout: [tag][n][env 168B...], digest at env+21. */
+static void cisex_vel_bump(const uint8_t *reply, uint32_t len)
+{
+    uint32_t i, j;
+    if (!reply || len < 2) return;
+    if (reply[0] != CISEX_RSP_KQ && reply[0] != CISEX_RSP_DQ) return;
+    for (i = 0; i < reply[1] && 2 + (i + 1) * CISEX_ENV_BYTES <= len; i++) {
+        const uint8_t *dg = reply + 2 + i * CISEX_ENV_BYTES + 21;
+        for (j = 0; j < g_cisex.count; j++) {
+            const cisex_ent_t *e = &g_cisex_ents[j];
+            uint32_t k;
+            if (!e->used) continue;
+            for (k = 0; k < 32 && e->digest[k] == dg[k]; k++) {
+            }
+            if (k == 32 && g_vel[j] < VNAH_VEL_MAX) g_vel[j]++;
+        }
+    }
+}
+
 /* One verdict claim over an open visit: our judge's current verdict on a
  * book member, the member id as the referent, our evidence bundle hashed.
  * Rotates members; verdicts travel only while the visit's grant allows. */
@@ -1451,6 +1538,7 @@ static int32_t door_cisex(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t
     uint32_t n = 0;
     (void) ctx;
     if (cisex_rt_handle(&g_cisex, in, in_len, g_cisex_region, out, cap, &n) != IPFSN_OK) return -1;
+    cisex_vel_bump(out, n); /* demand evidence from the door queries */
     return (int32_t) n;
 }
 
@@ -2208,6 +2296,40 @@ void vna_host_pump(vna_host_t *h, uint64_t now)
 
     if (now >= h->last_tick + VNAH_TICK_MS) {
         h->last_tick = now;
+        /* demand velocity: decay every entry, then let a hot root with
+         * retained provider parameters fetch itself into staging */
+        {
+            uint32_t vi, hi = VNAH_CISEX_N;
+            uint16_t hv = VNAH_VEL_FETCH;
+            for (vi = 0; vi < g_cisex.count; vi++) {
+                uint32_t p;
+                if (g_vel[vi]) g_vel[vi] = (uint16_t) ((g_vel[vi] * VNAH_VEL_DECAY) >> 8);
+                if (g_vel[vi] < hv || !g_cisex_ents[vi].used) continue;
+                for (p = 0; p < VNAH_PROV_N; p++)
+                    if (g_prov[p].used &&
+                        vna_id_eq(&g_prov[p].root, (const vna_id_t *) g_cisex_ents[vi].digest))
+                        break;
+                if (p == VNAH_PROV_N) continue;
+                if (vna_id_eq(&g_prov[p].root, &g_fetch_root) && g_fetch_active) continue;
+                hi = vi;
+                hv = g_vel[vi];
+            }
+            if (hi < VNAH_CISEX_N && !g_fetch_active) {
+                uint32_t p;
+                uint32_t j;
+                int served = 0;
+                for (p = 0; p < VNAH_PROV_N; p++)
+                    if (g_prov[p].used &&
+                        vna_id_eq(&g_prov[p].root, (const vna_id_t *) g_cisex_ents[hi].digest))
+                        break;
+                for (j = 0; j < VNAH_SF_N; j++)
+                    if (vna_id_eq(&g_prov[p].root, &g_sf_root[j])) served = 1;
+                for (j = 0; j < VNAH_EXT_N && !served; j++)
+                    if (g_ext_used[j] && vna_id_eq(&g_prov[p].root, &g_ext_sf[j].root)) served = 1;
+                if (!served && p < VNAH_PROV_N)
+                    sess_fetch_begin(h, &g_prov[p].root, &g_prov[p].publisher, &g_prov[p].pv, now);
+            }
+        }
         vna_node_tick(&h->node, now, &h->ob);
         vna_link_tick(&h->link, now); /* L2: resend what is still waiting */
     }
@@ -2376,6 +2498,10 @@ void vna_host_report(const vna_host_t *h)
     uart_put_dec(h->idx_in);
     uart_putc('/');
     uart_put_dec(h->idx_out);
+    uart_puts(" pins/evicts ");
+    uart_put_dec(g_pins);
+    uart_putc('/');
+    uart_put_dec(g_pin_evicts);
     /* the chiglet: judged members, its social layer, the bond's read */
     uart_puts(" chg d/u ");
     uart_put_dec(g_chg_decided);
