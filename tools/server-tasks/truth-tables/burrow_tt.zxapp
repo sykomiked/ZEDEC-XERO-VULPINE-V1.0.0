@@ -1,0 +1,9 @@
+# the four-value sweep for Burrow's truth entries
+# every truth entry is probed at all four values so a
+# contradiction is contained (BOTH) rather than exploding.
+zxapp 1
+id burrow_tt
+matrix 1
+name Burrow truth table
+# provides <entry> truth <args>   (one per truth entry)
+# check <entry> <args> = neither|true|false|both

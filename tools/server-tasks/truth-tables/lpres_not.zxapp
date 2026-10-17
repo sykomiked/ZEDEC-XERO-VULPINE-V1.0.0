@@ -1,0 +1,19 @@
+# the lpres negation table — TRUE<->FALSE, BOTH and NEITHER fixed
+zxapp 1
+id lpres_not
+matrix 1
+name lpres not
+provides lnot truth a
+logic eve lnot <<
+eve lpres_not
+vals = 0 .. 3
+
+lnot {
+  a: vals 0 .. 3
+}
+.
+
+check lnot a=0 = neither
+check lnot a=1 = false
+check lnot a=2 = true
+check lnot a=3 = both

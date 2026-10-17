@@ -1,0 +1,34 @@
+# the lpres disjoin table — every ordered pair of the four values
+# the kernel's chain ordering (lpres_conjoin/lpres_disjoin),
+# never Belnap's lattice: BOTH or NEITHER is not TRUE.
+zxapp 1
+id lpres_disjoin
+matrix 1
+name lpres disjoin
+provides disjoin truth a b
+logic eve disjoin <<
+eve lpres_disjoin
+vals = 0 .. 3
+
+disjoin {
+  a: vals 0 .. 3
+  b: vals 0 .. 3
+}
+.
+# the full 4x4 table, one row per ordered pair
+check disjoin a=0 b=0 = neither
+check disjoin a=0 b=1 = true
+check disjoin a=0 b=2 = neither
+check disjoin a=0 b=3 = both
+check disjoin a=1 b=0 = true
+check disjoin a=1 b=1 = true
+check disjoin a=1 b=2 = true
+check disjoin a=1 b=3 = true
+check disjoin a=2 b=0 = neither
+check disjoin a=2 b=1 = true
+check disjoin a=2 b=2 = false
+check disjoin a=2 b=3 = both
+check disjoin a=3 b=0 = both
+check disjoin a=3 b=1 = true
+check disjoin a=3 b=2 = both
+check disjoin a=3 b=3 = both

@@ -1,0 +1,9 @@
+# the four-value sweep for Pollen's truth entries
+# every truth entry is probed at all four values so a
+# contradiction is contained (BOTH) rather than exploding.
+zxapp 1
+id pollen_tt
+matrix 1
+name Pollen truth table
+# provides <entry> truth <args>   (one per truth entry)
+# check <entry> <args> = neither|true|false|both
