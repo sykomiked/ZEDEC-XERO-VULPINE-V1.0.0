@@ -77,7 +77,7 @@ ROM_BYTES=$(wc -c < "$ROM")
 log "MEGAROM.TVL = $ROM_BYTES bytes"
 
 # ---- 2. stage the ESP (FAT32) -----------------------------------------------
-ESP_MB="${ESP_MB:-48}"                    # >= 33 MB so FAT32 has its min clusters
+ESP_MB="${ESP_MB:-128}"                   # >= 33 MB so FAT32 has its min clusters; 128 fits the bank blob EFI
 ESP_SECTORS=$((ESP_MB * 2048))            # 512-byte sectors
 PART_START=2048                           # 1 MiB alignment
 PART_END=$((PART_START + ESP_SECTORS - 1))
