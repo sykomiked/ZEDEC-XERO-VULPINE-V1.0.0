@@ -105,6 +105,17 @@ static int is_bank_path(const vna_door_conn_t *c)
            c->path[3] == 'n' && c->path[4] == 'k';
 }
 
+static int is_pk_path(const vna_door_conn_t *c)
+{
+    return c->path_len == 3 && c->path[0] == '/' && c->path[1] == 'p' && c->path[2] == 'k';
+}
+
+static int is_sig_path(const vna_door_conn_t *c)
+{
+    return c->path_len == 4 && c->path[0] == '/' && c->path[1] == 's' && c->path[2] == 'i' &&
+           c->path[3] == 'g';
+}
+
 static int is_telemetry_path(const vna_door_conn_t *c)
 {
     return c->path_len == 10 && c->path[0] == '/' && c->path[1] == 't' && c->path[2] == 'e' &&
@@ -138,7 +149,8 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
     if (m_post) {
         if (!is_l2_path(c) && !is_cisex_path(c) && !is_smic_path(c) && !is_card_path(c) &&
-            !is_spaces_path(c) && !is_bank_path(c)) {
+            !is_spaces_path(c) && !is_bank_path(c) && !is_telemetry_path(c) &&
+            !is_pk_path(c) && !is_sig_path(c)) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
@@ -206,21 +218,25 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 static void on_body(vna_door_t *d, vna_door_conn_t *c)
 {
     if (is_cisex_path(c) || is_smic_path(c) || is_card_path(c) || is_spaces_path(c) ||
-        is_bank_path(c) || is_telemetry_path(c)) {
+        is_bank_path(c) || is_telemetry_path(c) || is_pk_path(c) || is_sig_path(c)) {
         /* delegated routing: the request is consumed, so c->rx is scratch
          * for the reply datagram */
-        vna_door_query_fn q = is_cisex_path(c)    ? d->query
-                              : is_smic_path(c)   ? d->query2
-                              : is_card_path(c)   ? d->query3
-                              : is_spaces_path(c) ? d->query4
-                              : is_bank_path(c)   ? d->query5
-                                                  : d->query6;
-        void *qc = is_cisex_path(c)    ? d->qctx
-                   : is_smic_path(c)   ? d->qctx2
-                   : is_card_path(c)   ? d->qctx3
+        vna_door_query_fn q = is_cisex_path(c)       ? d->query
+                              : is_smic_path(c)      ? d->query2
+                              : is_card_path(c)      ? d->query3
+                              : is_spaces_path(c)    ? d->query4
+                              : is_bank_path(c)      ? d->query5
+                              : is_telemetry_path(c) ? d->query6
+                              : is_pk_path(c)        ? d->query7
+                                                     : d->query8;
+        void *qc = is_cisex_path(c)  ? d->qctx
+                   : is_smic_path(c) ? d->qctx2
+                   : is_card_path(c) ? d->qctx3
                    : is_spaces_path(c) ? d->qctx4
-                   : is_bank_path(c)   ? d->qctx5
-                                       : d->qctx6;
+                   : is_bank_path(c) ? d->qctx5
+                   : is_telemetry_path(c) ? d->qctx6
+                   : is_pk_path(c) ? d->qctx7
+                                   : d->qctx8;
         int32_t n;
         if (!q) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);

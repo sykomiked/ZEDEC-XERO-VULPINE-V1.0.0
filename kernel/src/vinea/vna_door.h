@@ -45,7 +45,7 @@
 #include "vna_delta.h"
 
 #define VNA_DOOR_CONNS        4u    /* connections held at once (one per listener) */
-#define VNA_DOOR_REQ_MAX      1536u /* the request head, bounded */
+#define VNA_DOOR_REQ_MAX      6144u /* the request head + the ML-DSA-87 reply sig (4627) */
 #define VNA_DOOR_BODY_MAX     8192u /* fits one SMIC_ATTEST_BYTES datagram */
 #define VNA_DOOR_PATH_MAX     96u
 #define VNA_DOOR_DELTAS       48u    /* the stream backlog ring */
@@ -128,6 +128,10 @@ typedef struct {
     void *qctx5;
     vna_door_query_fn query6; /* POST /telemetry: the node's counters */
     void *qctx6;
+    vna_door_query_fn query7; /* POST /pk: the node's identity public key */
+    void *qctx7;
+    vna_door_query_fn query8; /* POST /sig: ML-DSA signature over a reply digest */
+    void *qctx8;
     uint64_t now;
 } vna_door_t;
 

@@ -253,6 +253,25 @@ int main(void)
     vna_door_close(&d, (uint32_t) c);
     d.query5 = 0;
 
+    /* ---- POST /pk and /sig: the PQ reply-signing routes ---- */
+    d.query7 = fquery;
+    d.query8 = fquery;
+    c = vna_door_open(&d);
+    n = snprintf((char *) req, sizeof req, "POST /pk HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "HTTP/1.1 200") != 0);
+    vna_door_close(&d, (uint32_t) c);
+    c = vna_door_open(&d);
+    n = snprintf((char *) req, sizeof req,
+                 "POST /sig HTTP/1.1\r\nContent-Length: 32\r\n\r\n01234567890123456789012345678901");
+    CHECK(vna_door_input(&d, (uint32_t) c, req, (uint32_t) n) == VNA_OK);
+    got = drain(&d, (uint32_t) c, acc, sizeof acc);
+    CHECK(strstr((char *) acc, "HTTP/1.1 200") != 0);
+    vna_door_close(&d, (uint32_t) c);
+    d.query7 = 0;
+    d.query8 = 0;
+
     /* zero-length POST is a valid summary query, not a 413 */
     c = vna_door_open(&d);
     n = snprintf((char *) req, sizeof req, "POST /cisex HTTP/1.1\r\nContent-Length: 0\r\n\r\n");

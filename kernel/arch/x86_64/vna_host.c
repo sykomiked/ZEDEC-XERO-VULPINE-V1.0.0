@@ -1626,6 +1626,32 @@ static int32_t door_telemetry(void *ctx, const uint8_t *in, uint32_t in_len, uin
     return (int32_t) n;
 }
 
+/* POST /pk: the node's ML-DSA-87 identity public key — the client
+ * fetches it once and verifies every /sig against it. */
+static int32_t door_pk(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                       uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    if (in_len != 0 || cap < VNA_PK_LEN) return -1;
+    for (uint32_t i = 0; i < VNA_PK_LEN; i++) out[i] = h->idn.pk[i];
+    return (int32_t) VNA_PK_LEN;
+}
+
+/* POST /sig: [digest 32] -> the node's ML-DSA-87 signature over it (the
+ * context "ZXV_DOOR" + the digest). The client hashes any door reply,
+ * asks here, and verifies — spoofed telemetry, bank metadata or spaces
+ * replies become impossible. */
+static int32_t door_sig(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                        uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    uint8_t rnd[32];
+    if (in_len != 32 || cap < VNA_SIG_LEN) return -1;
+    vna_drbg_gen(&h->node.rng, rnd, sizeof rnd);
+    vna_sign(h->idn.sk, "ZXV_DOOR", in, in_len, rnd, out);
+    return (int32_t) VNA_SIG_LEN;
+}
+
 static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out, uint32_t cap)
 {
     vna_host_t *h = (vna_host_t *) ctx;
@@ -2340,6 +2366,10 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         h->door.qctx5 = h;
         h->door.query6 = door_telemetry;
         h->door.qctx6 = h;
+        h->door.query7 = door_pk;
+        h->door.qctx7 = h;
+        h->door.query8 = door_sig;
+        h->door.qctx8 = h;
         G_sbank_n = 0;
         sb_catalog_init(&G_catalog, G_sbanks, G_sbank_n);
 #if defined(ZXV_HAVE_SEEDBANK_BLOB)
