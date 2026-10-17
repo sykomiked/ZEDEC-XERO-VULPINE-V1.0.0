@@ -167,3 +167,49 @@ are the instruction to make it extensible; the three guards
 proven not to break what already passes. No extension should be proposed
 until the mechanism is in place — a fifth value added to a hard-coded
 four would break the tables, which is exactly what the guards prevent.
+
+## The fifth is the gateway port (the resolution of the arity question)
+
+The four values are the foundation — `NEITHER`, `TRUE`, `FALSE`, `BOTH`.
+The **fifth** is not a fifth truth value: it is the **gateway port**, the
+expansion aperture of the logic. Through it enter as many further phases
+as the system can process — the sixth, seventh, eighth, and onward, up to
+the cap the hardware and the schedule allow. The logic is
+**forward-compatible**: a new phase is added at the port, never by
+renumbering the four.
+
+Concretely:
+
+```c
+typedef enum {
+    LPRES_STATE_NEITHER = 0,   /* the foundation: four values, frozen   */
+    LPRES_STATE_TRUE    = 1,
+    LPRES_STATE_FALSE   = 2,
+    LPRES_STATE_BOTH    = 3,
+    LPRES_STATE_GATEWAY = 4,   /* the fifth: the expansion port         */
+    /* phases enter through the port, above it, without renumbering    */
+    LPRES_STATE_PHASE_6 = 5,
+    LPRES_STATE_PHASE_7 = 6,
+    /* ... as many as the system can process, capped by the schedule   */
+    LPRES_STATE_COUNT          /* the arity: every table iterates to it  */
+} lpres_state_t;
+```
+
+The gateway's properties:
+
+1. **It is a port, not a truth.** It carries no authorisation: like every
+   non-TRUE value it can never alone authorise an action (the
+   never-authorise guard).
+2. **Phases enter through it.** Each phase declares a chain rank above
+   the gateway; the operators (min/max on the chain) extend with no code
+   change, exactly as before.
+3. **The cap is the system's capacity**, not the logic's: how many phases
+   the schedule can process is an operational limit, and the port makes
+   the logic ready for however many that becomes.
+4. **Forward compatibility is structural.** Adding phase 6 through 13
+   never touches the four, never breaks a passed app, and never requires
+   a pipeline restart — the tables regenerate from `LPRES_STATE_COUNT`.
+
+So the arity is: **four truths, one gateway, unbounded phases.** The
+earlier note that flagged "four vs five" as a conflict is resolved: both
+are right — four values, and the fifth is the door.
