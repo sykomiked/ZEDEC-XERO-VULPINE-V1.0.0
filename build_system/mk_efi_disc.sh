@@ -77,7 +77,7 @@ ROM_BYTES=$(wc -c < "$ROM")
 log "MEGAROM.TVL = $ROM_BYTES bytes"
 
 # ---- 2. stage the ESP (FAT32) -----------------------------------------------
-ESP_MB="${ESP_MB:-128}"                   # >= 33 MB so FAT32 has its min clusters; 128 fits the bank blob EFI
+ESP_MB="${ESP_MB:-300}"                   # >= 300 with 4KiB clusters: the bank blob EFI (59 MB) overflows the 512B-cluster FAT32 cap (~32 MB)
 ESP_SECTORS=$((ESP_MB * 2048))            # 512-byte sectors
 PART_START=2048                           # 1 MiB alignment
 PART_END=$((PART_START + ESP_SECTORS - 1))
@@ -97,7 +97,7 @@ PART_GUID="${DISK_GUID%????????????}00000000E5F1"
 
 log "formatting a ${ESP_MB} MiB FAT32 ESP"
 dd if=/dev/zero of="$ESP" bs=1M count="$ESP_MB" status=none
-mformat -i "$ESP" -F -N "${SERIAL#0x}" :: 2>/dev/null || die "mformat (FAT32) failed"
+mformat -i "$ESP" -F -c 8 -N "${SERIAL#0x}" :: 2>/dev/null || die "mformat (FAT32) failed"
 mmd -i "$ESP" ::/EFI ::/EFI/BOOT 2>/dev/null || die "mmd failed"
 mcopy -i "$ESP" "$EFI_SRC" "::/EFI/BOOT/$EFI_DST" || die "mcopy EFI failed"
 mcopy -i "$ESP" "$ROM"    "::/MEGAROM.TVL"        || die "mcopy ROM failed"

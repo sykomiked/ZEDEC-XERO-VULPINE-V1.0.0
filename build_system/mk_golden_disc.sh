@@ -198,7 +198,10 @@ fat_image(){
   [ "$mb" -ge "$min" ] || mb=$min
   truncate -s "${mb}M" "$img"
   # FAT32 needs at least 65525 clusters: 4 KiB clusters from 300 MiB up, 512 B below.
+  # 512B clusters cap FAT32 at ~32 MB (65525 clusters): anything larger
+  # must use 4KiB clusters, which need a 256+ MB volume
   csec=8; [ "$mb" -ge 300 ] || csec=1
+  if [ "$csec" = 1 ] && [ "$mb" -gt 33 ]; then mb=300; csec=8; fi
   mformat -i "$img" -F -c "$csec" -N "$serial" -v "$label" :: >/dev/null 2>&1 \
     || die "mformat (FAT32) $label failed"
   cut -f2 "$list" | while read -r d; do
