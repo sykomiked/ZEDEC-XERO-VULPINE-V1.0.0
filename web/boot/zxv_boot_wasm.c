@@ -151,6 +151,14 @@ static char CAT_NAME[CAT_MAX][24];
 static char CAT_MARK[CAT_MAX][3];
 static uint32_t cat_n, cat_page, cat_pages;
 
+/* The shared spaces (the node's vna_space directory, fed by the page):
+ * the Spaces face of the desk lists them with their kind and members. */
+#define SPACES_MAX 16u
+static char SP_NAME[SPACES_MAX][24];
+static uint8_t SP_KIND[SPACES_MAX], SP_PHASE[SPACES_MAX];
+static uint16_t SP_MEM[SPACES_MAX];
+static uint32_t sp_n;
+
 static zui_desk_t DESK;
 static zui_launch_theme_t THEME;
 static zxl_player_t PLAY; /* the launch cues, after the boot's own player */
@@ -710,6 +718,28 @@ EXPORT(zb_apps_page_set) int zb_apps_page_set(uint32_t p)
     return 0;
 }
 
+/* The shared spaces (from the door's /spaces): the Spaces face lists them.
+ * kind: 1 room, 2 hall; phase: 3 = a member here; members: the count. */
+EXPORT(zb_spaces) uint32_t zb_spaces(uint32_t n)
+{
+    if (n > SPACES_MAX) n = SPACES_MAX;
+    sp_n = n;
+    return sp_n;
+}
+
+EXPORT(zb_spaces_name)
+int zb_spaces_name(uint32_t i, const char *name, int kind, int phase, int members)
+{
+    unsigned p = 0;
+    if (i >= SPACES_MAX || !name) return -1;
+    for (p = 0; name[p] && p < 23; p++) SP_NAME[i][p] = name[p];
+    SP_NAME[i][p] = 0;
+    SP_KIND[i] = (uint8_t) kind;
+    SP_PHASE[i] = (uint8_t) phase;
+    SP_MEM[i] = members > 0 ? (uint16_t) members : 0;
+    return 0;
+}
+
 /* ---- the L2 exports: the transport's bytes, the page's answers -------- */
 
 /* Room for one inbound delta: write its canonical bytes here, then call
@@ -859,6 +889,42 @@ EXPORT(zb_frame) void zb_frame(uint32_t ms)
     if (MODE == 2) {
         zui_desk_tick(&DESK, ms);
         zui_desk_draw(&DESK, &S, BOOT.tick);
+        if (DESK.spaces && sp_n) {
+            /* the Spaces face: the shared spaces this node is in or found,
+             * drawn over the desk with the same text faces */
+            int32_t sx = (int32_t) ((int64_t) S.w * 256 / 1280),
+                    sy = (int32_t) ((int64_t) S.h * 256 / 800), sc = sx < sy ? sx : sy;
+            if (sc < 128) sc = 128;
+            if (sc > 1024) sc = 1024;
+            int32_t y = (int32_t) ((int64_t) sc * 24), step = (int32_t) ((int64_t) sc * 22);
+            static const char hdr[] = "shared spaces";
+            zui_text(&S, &T_CAP, (int32_t) ((int64_t) sc * 18), y, ZUI_GOLD, hdr);
+            y += step;
+            for (uint32_t i = 0; i < sp_n; i++) {
+                char line[40];
+                unsigned p = 0, j;
+                for (j = 0; SP_NAME[i][j] && p < 24; j++) line[p++] = SP_NAME[i][j];
+                line[p++] = ' ';
+                line[p++] = ' ';
+                line[p++] = SP_KIND[i] == 2 ? 'H' : 'R';
+                line[p++] = ' ';
+                line[p++] = ' ';
+                line[p++] = 'm';
+                line[p++] = ':';
+                line[p++] = (char) ('0' + (SP_MEM[i] % 10));
+                if (SP_PHASE[i] == 3) {
+                    line[p++] = ' ';
+                    line[p++] = ' ';
+                    line[p++] = 'h';
+                    line[p++] = 'e';
+                    line[p++] = 'r';
+                    line[p++] = 'e';
+                }
+                line[p] = 0;
+                zui_text(&S, &T_CAP, (int32_t) ((int64_t) sc * 18), y, ZUI_TEXT, line);
+                y += step;
+            }
+        }
         src = PX;
     } else {
         zui_boot_tick(&BOOT, ms);

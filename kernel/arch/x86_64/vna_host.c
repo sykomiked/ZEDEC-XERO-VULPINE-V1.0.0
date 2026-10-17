@@ -1565,6 +1565,31 @@ static int32_t door_card(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t 
     return 1;
 }
 
+static int32_t door_spaces(void *ctx, const uint8_t *in, uint32_t in_len, uint8_t *out,
+                           uint32_t cap)
+{
+    vna_host_t *h = (vna_host_t *) ctx;
+    uint32_t n = 1, i, count = 0;
+    if (in_len != 0 || cap < 2) return -1;
+    out[0] = 0;
+    for (i = 0; i < VNA_SPACE_MAX; i++) {
+        const vna_space_t *s = &h->spaces.s[i];
+        uint32_t nl;
+        if (!s->used || !s->have_gen) continue;
+        nl = s->gen.name_len < VNA_SPACE_NAME_MAX ? s->gen.name_len : VNA_SPACE_NAME_MAX - 1;
+        if (n + 1 + nl + 4 > cap) break;
+        out[n++] = (uint8_t) nl;
+        for (uint32_t j = 0; j < nl; j++) out[n++] = s->gen.name[j];
+        out[n++] = s->gen.kind;
+        out[n++] = s->phase;
+        out[n++] = (uint8_t) (s->nm >> 8);
+        out[n++] = (uint8_t) s->nm;
+        count++;
+    }
+    out[0] = (uint8_t) count;
+    return (int32_t) n;
+}
+
 /* The door's POST /smic: an empty body asks for the ring summary; a
  * 168-byte manifest envelope is admitted and re-published to the fleet
  * under its own key, so a manifest POSTed to one node propagates. The
@@ -2188,6 +2213,8 @@ int vna_host_start(vna_host_t *h, sn_link_t *l, const uint8_t peers[][6], uint32
         h->door.qctx2 = h;
         h->door.query3 = door_card;
         h->door.qctx3 = h;
+        h->door.query4 = door_spaces;
+        h->door.qctx4 = h;
         /* self-supervision: one domain per running ring program */
         {
             char nid[9];

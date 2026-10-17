@@ -93,6 +93,12 @@ static int is_card_path(const vna_door_conn_t *c)
            c->path[3] == 'r' && c->path[4] == 'd';
 }
 
+static int is_spaces_path(const vna_door_conn_t *c)
+{
+    return c->path_len == 7 && c->path[0] == '/' && c->path[1] == 's' && c->path[2] == 'p' &&
+           c->path[3] == 'a' && c->path[4] == 'c' && c->path[5] == 'e' && c->path[6] == 's';
+}
+
 static void on_body(vna_door_t *d, vna_door_conn_t *c);
 
 static void on_request(vna_door_t *d, vna_door_conn_t *c)
@@ -118,7 +124,8 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
     c->path[c->path_len] = 0;
 
     if (m_post) {
-        if (!is_l2_path(c) && !is_cisex_path(c) && !is_smic_path(c) && !is_card_path(c)) {
+        if (!is_l2_path(c) && !is_cisex_path(c) && !is_smic_path(c) && !is_card_path(c) &&
+            !is_spaces_path(c)) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);
             return;
         }
@@ -185,11 +192,17 @@ static void on_request(vna_door_t *d, vna_door_conn_t *c)
 
 static void on_body(vna_door_t *d, vna_door_conn_t *c)
 {
-    if (is_cisex_path(c) || is_smic_path(c) || is_card_path(c)) {
+    if (is_cisex_path(c) || is_smic_path(c) || is_card_path(c) || is_spaces_path(c)) {
         /* delegated routing: the request is consumed, so c->rx is scratch
          * for the reply datagram */
-        vna_door_query_fn q = is_cisex_path(c) ? d->query : is_smic_path(c) ? d->query2 : d->query3;
-        void *qc = is_cisex_path(c) ? d->qctx : is_smic_path(c) ? d->qctx2 : d->qctx3;
+        vna_door_query_fn q = is_cisex_path(c)  ? d->query
+                              : is_smic_path(c) ? d->query2
+                              : is_card_path(c) ? d->query3
+                                                : d->query4;
+        void *qc = is_cisex_path(c)  ? d->qctx
+                   : is_smic_path(c) ? d->qctx2
+                   : is_card_path(c) ? d->qctx3
+                                     : d->qctx4;
         int32_t n;
         if (!q) {
             resp(c, "404 Not Found\r\n", "Content-Length: 0\r\n", 0);

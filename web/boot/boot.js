@@ -314,6 +314,34 @@ async function boot()
             .finally(() => { cardBusy = false; });
     }
 
+    // ---- the shared spaces ----------------------------------------------
+    // The node's vna_space directory, fetched from the door: the Spaces
+    // face lists every space the node is in or hosts, with kind, phase and
+    // members. [count][name_len][name][kind][phase][members u16]...
+    if (zb.zb_spaces) {
+        const spacesLoop = (async () => {
+            for (;;) {
+                try {
+                    const res = await fetch('/spaces', {method : 'POST', body : ''});
+                    if (!res.ok) throw new Error('spaces ' + res.status);
+                    const d = new Uint8Array(await res.arrayBuffer());
+                    const n = d[0] || 0;
+                    zb.zb_spaces(n);
+                    let at = 1;
+                    for (let i = 0; i < n; i++) {
+                        const nl = d[at++];
+                        const name = new TextDecoder().decode(d.subarray(at, at + nl));
+                        at += nl;
+                        zb.zb_spaces_name(i, name, d[at++], d[at++], (d[at] << 8) | d[at + 1]);
+                        at += 2;
+                    }
+                } catch (e) { /* the door is away; keep the last list */
+                }
+                await new Promise((r) => setTimeout(r, 10000));
+            }
+        })();
+    }
+
     let last = performance.now(), handed = false, manifest = null;
     let packBuf = null, iconInflight = -1, lastMode = -1;
 
