@@ -16,8 +16,10 @@
 
 ARCH ?= x86_64
 
-# the ONE include set — shared by every target, drift impossible
+# the ONE include set and the ONE source list — shared by every
+# target, so neither can drift
 include build_system/zxv_includes.mk
+include build_system/zxv_sources.mk
 
 # ---- the per-arch toolchain and flags (the ONLY arch-specific data) ----
 ifeq ($(ARCH),x86_64)
@@ -91,4 +93,4 @@ $(OUT): $(OBJS)
 
 # OBJS is supplied by the caller (the source list); the universal file
 # carries the STRUCTURE, the source list stays where it is (one list).
-OBJS ?=
+OBJS := $(SRCS:%.c=$(OBJDIR)/%.o)
